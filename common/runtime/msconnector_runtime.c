@@ -1172,18 +1172,14 @@ static int rules_add_remote(
  * component between validation and opening. Its caller already confines the
  * path to a private root; walk the absolute path through no-follow directory
  * descriptors and enforce the final file identity at the open boundary. */
-static FILE *open_rule_match_event_file(const char *path) {
+static int open_rule_match_event_descriptor(const char *path) {
 #if defined(_WIN32) || !defined(O_NOFOLLOW) || !defined(O_DIRECTORY)
     (void)path;
     errno = EINVAL;
-    return NULL;
+    return -1;
 #else
-    int descriptor = -1;
-    int directory = -1;
+    int directory;
     int next_directory;
-    int saved_errno;
-    struct stat status;
-    FILE *file;
     const char *component;
     const char *separator;
     size_t component_length;
@@ -1191,16 +1187,17 @@ static FILE *open_rule_match_event_file(const char *path) {
 
     if (string_is_empty(path) || path[0] != '/') {
         errno = EINVAL;
-        return NULL;
+        return -1;
     }
     directory = open("/", O_RDONLY | O_DIRECTORY | O_NOFOLLOW);
     if (directory < 0) {
-        return NULL;
+        return -1;
     }
     component = path + 1;
     if (*component == '\0') {
-        saved_errno = EINVAL;
-        goto fail;
+        (void)close(directory);
+        errno = EINVAL;
+        return -1;
     }
     for (;;) {
         separator = strchr(component, '/');
@@ -1210,31 +1207,51 @@ static FILE *open_rule_match_event_file(const char *path) {
         if (component_length == 0U || component_length >= sizeof(component_name) ||
             (component_length == 1U && component[0] == '.') ||
             (component_length == 2U && component[0] == '.' && component[1] == '.')) {
-            saved_errno = EINVAL;
-            goto fail;
+            (void)close(directory);
+            errno = EINVAL;
+            return -1;
         }
         memcpy(component_name, component, component_length);
         component_name[component_length] = '\0';
         if (separator == NULL) {
-            descriptor = openat(directory, component_name,
+            int descriptor = openat(directory, component_name,
                 O_WRONLY | O_CREAT | O_APPEND | O_NOFOLLOW, 0600);
-            if (descriptor < 0) {
-                saved_errno = errno;
-                goto fail;
-            }
+            int saved_errno = errno;
             (void)close(directory);
-            directory = -1;
-            break;
+            if (descriptor < 0) {
+                errno = saved_errno;
+                return -1;
+            }
+            return descriptor;
         }
         next_directory = openat(directory, component_name,
             O_RDONLY | O_DIRECTORY | O_NOFOLLOW);
         if (next_directory < 0) {
-            saved_errno = errno;
-            goto fail;
+            int saved_errno = errno;
+            (void)close(directory);
+            errno = saved_errno;
+            return -1;
         }
         (void)close(directory);
         directory = next_directory;
         component = separator + 1;
+    }
+#endif
+}
+
+static FILE *open_rule_match_event_file(const char *path) {
+#if defined(_WIN32) || !defined(O_NOFOLLOW) || !defined(O_DIRECTORY)
+    (void)path;
+    errno = EINVAL;
+    return NULL;
+#else
+    int descriptor = open_rule_match_event_descriptor(path);
+    int saved_errno;
+    struct stat status;
+    FILE *file;
+
+    if (descriptor < 0) {
+        return NULL;
     }
     if (fstat(descriptor, &status) != 0 || !S_ISREG(status.st_mode) ||
         status.st_uid != geteuid() || (status.st_mode & 0777) != 0600 ||
@@ -1252,16 +1269,6 @@ static FILE *open_rule_match_event_file(const char *path) {
         return NULL;
     }
     return file;
-
-fail:
-    if (descriptor >= 0) {
-        (void)close(descriptor);
-    }
-    if (directory >= 0) {
-        (void)close(directory);
-    }
-    errno = saved_errno == 0 ? EINVAL : saved_errno;
-    return NULL;
 #endif
 }
 
@@ -1951,9 +1958,11 @@ static msconnector_runtime_transaction *create_runtime_transaction(
     /* In sealed MRTS evidence mode, the x-mrts header is the sole accepted
      * correlation source.  In particular, adapters' local host IDs must not
      * take precedence over the executor-issued transaction ID. */
-    id_context.host_request_id =
-        runtime->config.emit_rule_match_evidence == MSCONNECTOR_BOOL_ON ? NULL :
-        (string_is_empty(host_request_id) ? NULL : host_request_id);
+    id_context.host_request_id = NULL;
+    if (runtime->config.emit_rule_match_evidence != MSCONNECTOR_BOOL_ON &&
+        !string_is_empty(host_request_id)) {
+        id_context.host_request_id = host_request_id;
+    }
     id_context.fallback_id = fallback_id;
     id_context.header_name = runtime->owned.transaction_id_header;
     if (!msconnector_transaction_id_resolve(&id_context, &id_result, error) ||

@@ -115,8 +115,9 @@ class NoCrsWithMrtsWorkflowSummaryTest(unittest.TestCase):
         self.assertIn("`CANCELLED — runtime target did not complete`", summary)
 
     def test_summary_rejects_unclosed_connector_and_missing_outcome(self) -> None:
+        outcomes = self.outcomes()
         with self.assertRaisesRegex(ValueError, "fixed no-CRS/with-MRTS"):
-            SUMMARY.render_summary("nginx", self.outcomes())
+            SUMMARY.render_summary("nginx", outcomes)
         environment = {
             environment_name: "success" for _stage, _label, environment_name in SUMMARY.STAGES
         }

@@ -316,14 +316,9 @@ def rule_match_event_hash(item: dict[str, Any]) -> int:
     return value
 
 
-def validate_rule_match_event(
-    item: dict[str, Any],
-    connector: str,
-    integration_mode: str,
-    expected_phase: str | None = None,
-) -> tuple[str, int]:
-    """Validate one exact native rule-match record and return its identity."""
-
+def validate_rule_match_fields(
+    item: dict[str, Any], connector: str, integration_mode: str,
+) -> None:
     if set(item) != RULE_MATCH_EVENT_KEYS:
         fail("rule-match event has an unexpected schema")
     required = {
@@ -341,6 +336,11 @@ def validate_rule_match_event(
     for key, expected in required.items():
         if item.get(key) != expected:
             fail(f"rule-match event has invalid {key}")
+
+
+def validate_rule_match_values(
+    item: dict[str, Any], expected_phase: str | None,
+) -> None:
     if item.get("phase") not in RULE_MATCH_PHASE_VALUES:
         fail("rule-match event has invalid phase")
     if expected_phase is not None and item.get("phase") != expected_phase:
@@ -356,6 +356,9 @@ def validate_rule_match_event(
     for key in RULE_MATCH_ZERO_FIELDS:
         if item.get(key) != 0 or type(item.get(key)) is not int:
             fail(f"rule-match event has invalid {key}")
+
+
+def validate_rule_match_integrity(item: dict[str, Any]) -> tuple[str, int]:
     if (
         type(item.get("sequence")) is not int
         or item["sequence"] <= 0
@@ -377,6 +380,63 @@ def validate_rule_match_event(
     if item["event_hash"] != computed_hash:
         fail("rule-match event hash does not match native integrity data")
     return rule_id, item["event_hash"]
+
+
+def validate_rule_match_event(
+    item: dict[str, Any],
+    connector: str,
+    integration_mode: str,
+    expected_phase: str | None = None,
+) -> tuple[str, int]:
+    """Validate one exact native rule-match record and return its identity."""
+    validate_rule_match_fields(item, connector, integration_mode)
+    validate_rule_match_values(item, expected_phase)
+    return validate_rule_match_integrity(item)
+
+
+def parse_event_record(line: str) -> dict[str, Any]:
+    if not line:
+        fail("event log contains an empty record")
+    try:
+        item = json.loads(line, object_pairs_hook=reject_duplicates)
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        fail(f"event log is not duplicate-safe JSONL: {exc}")
+    if not isinstance(item, dict):
+        fail("event log entries must be JSON objects")
+    return item
+
+
+def validate_event_chain(item: dict[str, Any], previous_event_hash: int | None) -> None:
+    if previous_event_hash is None:
+        if item["previous_event_hash"] != 0:
+            fail("first rule-match event does not start a native integrity chain")
+    elif item["previous_event_hash"] != previous_event_hash:
+        fail("rule-match event does not continue the native integrity chain")
+
+
+def correlate_event(
+    item: dict[str, Any], rule_id: str, correlation_id: str, connector: str,
+    uri: str, expected_phase: str, expected_ids: set[str],
+    allowed_rule_ids: set[str], found: set[str],
+) -> None:
+    if (
+        item.get("transaction_id") != correlation_id
+        or item.get("connector") != connector
+        or item.get("uri") != uri
+    ):
+        return
+    if item["phase"] == expected_phase:
+        if rule_id not in allowed_rule_ids:
+            fail("relevant rule-match event has rule ID outside the pinned corpus")
+        if rule_id in found:
+            fail("relevant rule-match event duplicates a rule ID")
+        found.add(rule_id)
+    elif not expected_ids:
+        if rule_id in found:
+            fail("relevant rule-match event duplicates a rule ID")
+        found.add(rule_id)
+    elif rule_id in expected_ids:
+        fail("relevant rule-match event has invalid phase")
 
 
 def event_ids(
@@ -411,14 +471,7 @@ def event_ids(
     if event_log.stat().st_size > MAX_BYTES:
         fail("event log exceeds bounded size")
     for line in event_log.read_text(encoding="utf-8").splitlines():
-        if not line:
-            fail("event log contains an empty record")
-        try:
-            item = json.loads(line, object_pairs_hook=reject_duplicates)
-        except (UnicodeError, json.JSONDecodeError) as exc:
-            fail(f"event log is not duplicate-safe JSONL: {exc}")
-        if not isinstance(item, dict):
-            fail("event log entries must be JSON objects")
+        item = parse_event_record(line)
         # Validate the complete native record and chain before correlating it.
         # Phase is intentionally checked against the closed enum here, while
         # the profile-specific expected phase is enforced only for a relevant
@@ -427,35 +480,12 @@ def event_ids(
         rule_id, event_hash = validate_rule_match_event(
             item, connector, integration_mode
         )
-        if previous_event_hash is None:
-            if item["previous_event_hash"] != 0:
-                fail("first rule-match event does not start a native integrity chain")
-        elif item["previous_event_hash"] != previous_event_hash:
-            fail("rule-match event does not continue the native integrity chain")
+        validate_event_chain(item, previous_event_hash)
         previous_event_hash = event_hash
-        if (
-            item.get("transaction_id") != correlation_id
-            or item.get("connector") != connector
-            or item.get("uri") != uri
-        ):
-            continue
-        if item["phase"] == expected_phase:
-            if rule_id not in allowed_rule_ids:
-                fail("relevant rule-match event has rule ID outside the pinned corpus")
-            if rule_id in found:
-                fail("relevant rule-match event duplicates a rule ID")
-            found.add(rule_id)
-        elif not expected_ids:
-            # Control and bypass cases must expose every correlated match to
-            # the existing empty-set oracle, regardless of native phase.
-            if rule_id in found:
-                fail("relevant rule-match event duplicates a rule ID")
-            found.add(rule_id)
-        elif rule_id in expected_ids:
-            # An expected rule observed in another phase is a fail-closed
-            # correlation error.  Other fully validated rule IDs in that
-            # phase are unrelated to this case and may be ignored.
-            fail("relevant rule-match event has invalid phase")
+        correlate_event(
+            item, rule_id, correlation_id, connector, uri, expected_phase,
+            expected_ids, allowed_rule_ids, found,
+        )
     return found
 
 
@@ -534,7 +564,7 @@ def verified_tls_context(root: Path, certificate_value: str) -> ssl.SSLContext:
     return context
 
 
-def main() -> int:
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--connector", required=True, choices=("envoy", "traefik", "lighttpd"))
     parser.add_argument("--runtime-root", required=True)
@@ -547,14 +577,18 @@ def main() -> int:
     parser.add_argument("--host", required=True)
     parser.add_argument("--port", required=True, type=int)
     parser.add_argument("--tls-certificate")
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def validate_endpoint(args: argparse.Namespace) -> None:
     if not 1 <= args.port <= 65535 or any(ch not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-" for ch in args.host):
         fail("invalid host or port")
     if args.host != LOOPBACK_HOST:
         fail("MRTS runtime endpoint must be 127.0.0.1")
-    root = safe_root(args.runtime_root, "runtime root")
-    plan_path = confined(args.plan, root, "plan")
-    result_path = Path(args.result)
+
+
+def validate_result_path(value: str, root: Path) -> Path:
+    result_path = Path(value)
     if not result_path.is_absolute() or ".." in result_path.parts:
         fail("result is not traversal-free")
     result_path = result_path.resolve(strict=False)
@@ -562,33 +596,10 @@ def main() -> int:
         fail("result escapes runtime root")
     if result_path.exists():
         fail("result already exists; recycled runtime evidence is forbidden")
-    event_path = confined(args.event_log, root, "event log", regular=False)
-    plan_sha256 = required_sha256(args.plan_sha256, "MRTS plan digest")
-    plan = load_json(plan_path, plan_sha256)
-    if not isinstance(plan, dict) or plan.get("profile") != "no-crs/with-mrts" or plan.get("connector") != args.connector:
-        fail("plan profile or connector is not closed")
-    cases = plan.get("cases")
-    if not isinstance(cases, list) or not cases:
-        fail("plan has no cases")
-    executor_record = plan.get("executor")
-    executor_path = Path(__file__).resolve()
-    if not isinstance(executor_record, dict) or executor_record.get("path") != str(executor_path):
-        fail("plan executor path does not match the trusted executor")
-    executor_sha = executor_record.get("sha256")
-    if not isinstance(executor_sha, str) or len(executor_sha) != 64 or any(char not in SHA256_RE for char in executor_sha):
-        fail("plan executor digest is invalid")
-    if hashlib.sha256(executor_path.read_bytes()).hexdigest() != executor_sha:
-        fail("executor digest mismatch")
-    build_root = root / "build"
-    load_path = Path(str(plan.get("load_file", "")))
-    load_path = confined(str(load_path), build_root, "MRTS load file")
-    supplied_load_path = confined(args.load_file, build_root, "supplied MRTS load file")
-    if supplied_load_path != load_path:
-        fail("supplied MRTS load file does not match the plan")
-    load_sha = plan.get("load_file_sha256")
-    if not isinstance(load_sha, str) or hashlib.sha256(load_path.read_bytes()).hexdigest() != load_sha:
-        fail("MRTS load file digest mismatch")
-    validate_sealed_no_crs_plan(plan_path, root, load_path, executor_path, plan_sha256)
+    return result_path
+
+
+def validate_inventory(plan: dict[str, Any], build_root: Path) -> set[str]:
     validation = plan.get("no_crs_validation")
     if not isinstance(validation, dict):
         fail("plan has no sealed no-CRS validation")
@@ -610,69 +621,174 @@ def main() -> int:
     ):
         fail("plan rule ID inventory is not canonical")
     allowed_rule_ids = set(raw_inventory)
-    inventory_root = confined(str(plan.get("inventory_root", "")), build_root, "MRTS inventory root", regular=False)
+    inventory_root = confined(
+        str(plan.get("inventory_root", "")), build_root,
+        "MRTS inventory root", regular=False,
+    )
     if inventory_root.is_symlink() or not inventory_root.is_dir():
         fail("MRTS inventory root is not a regular contained directory")
     case_hashes = plan.get("case_hashes")
     if not isinstance(case_hashes, dict):
         fail("MRTS case hash map is missing")
     for relative, expected_hash in case_hashes.items():
-        case_path = confined(str(inventory_root / str(relative)), inventory_root, "MRTS case")
-        if not isinstance(expected_hash, str) or len(expected_hash) != 64 or any(char not in SHA256_RE for char in expected_hash) or hashlib.sha256(case_path.read_bytes()).hexdigest() != expected_hash:
+        case_path = confined(
+            str(inventory_root / str(relative)), inventory_root, "MRTS case",
+        )
+        if (
+            not isinstance(expected_hash, str)
+            or len(expected_hash) != 64
+            or any(char not in SHA256_RE for char in expected_hash)
+            or hashlib.sha256(case_path.read_bytes()).hexdigest() != expected_hash
+        ):
             fail(f"MRTS case digest mismatch: {relative}")
-    for case in cases:
-        if isinstance(case, dict) and case.get("source") not in (None, "") and str(case["source"]) not in case_hashes:
+    for case in plan["cases"]:
+        if (
+            isinstance(case, dict)
+            and case.get("source") not in (None, "")
+            and str(case["source"]) not in case_hashes
+        ):
             fail("plan case references an unverified MRTS source")
-    run_id = secrets.token_hex(12)
+    return allowed_rule_ids
+
+
+def load_runtime_plan(
+    args: argparse.Namespace, root: Path, plan_path: Path,
+) -> tuple[dict[str, Any], str, set[str]]:
+    plan_sha256 = required_sha256(args.plan_sha256, "MRTS plan digest")
+    plan = load_json(plan_path, plan_sha256)
+    if not isinstance(plan, dict) or plan.get("profile") != "no-crs/with-mrts" or plan.get("connector") != args.connector:
+        fail("plan profile or connector is not closed")
+    cases = plan.get("cases")
+    if not isinstance(cases, list) or not cases:
+        fail("plan has no cases")
+    executor_record = plan.get("executor")
+    executor_path = Path(__file__).resolve()
+    if not isinstance(executor_record, dict) or executor_record.get("path") != str(executor_path):
+        fail("plan executor path does not match the trusted executor")
+    executor_sha = executor_record.get("sha256")
+    if not isinstance(executor_sha, str) or len(executor_sha) != 64 or any(char not in SHA256_RE for char in executor_sha):
+        fail("plan executor digest is invalid")
+    if hashlib.sha256(executor_path.read_bytes()).hexdigest() != executor_sha:
+        fail("executor digest mismatch")
+    build_root = root / "build"
+    load_path = confined(str(plan.get("load_file", "")), build_root, "MRTS load file")
+    supplied_load_path = confined(args.load_file, build_root, "supplied MRTS load file")
+    if supplied_load_path != load_path:
+        fail("supplied MRTS load file does not match the plan")
+    load_sha = plan.get("load_file_sha256")
+    if not isinstance(load_sha, str) or hashlib.sha256(load_path.read_bytes()).hexdigest() != load_sha:
+        fail("MRTS load file digest mismatch")
+    validate_sealed_no_crs_plan(plan_path, root, load_path, executor_path, plan_sha256)
+    return plan, plan_sha256, validate_inventory(plan, build_root)
+
+
+def prepare_tls(
+    args: argparse.Namespace, root: Path,
+) -> ssl.SSLContext | None:
     if args.scheme == "https":
         if args.tls_certificate is None:
             fail("HTTPS MRTS runtime requires a sealed TLS certificate")
-        tls_context = verified_tls_context(root, args.tls_certificate)
-    else:
-        if args.tls_certificate is not None:
-            fail("HTTP MRTS runtime must not receive a TLS certificate")
-        tls_context = None
+        return verified_tls_context(root, args.tls_certificate)
+    if args.tls_certificate is not None:
+        fail("HTTP MRTS runtime must not receive a TLS certificate")
+    return None
+
+
+def prepare_runtime(
+    args: argparse.Namespace,
+) -> tuple[Path, dict[str, Any], Path, Path, str, set[str], ssl.SSLContext | None]:
+    validate_endpoint(args)
+    root = safe_root(args.runtime_root, "runtime root")
+    plan_path = confined(args.plan, root, "plan")
+    result_path = validate_result_path(args.result, root)
+    event_path = confined(args.event_log, root, "event log", regular=False)
+    plan, plan_sha256, allowed_rule_ids = load_runtime_plan(args, root, plan_path)
+    tls_context = prepare_tls(args, root)
+    return root, plan, event_path, result_path, plan_sha256, allowed_rule_ids, tls_context
+
+
+def validate_case(case: Any) -> tuple[str, str, list[Any]]:
+    if not isinstance(case, dict) or case.get("kind") not in {"control", "detection", "bypass"}:
+        fail("invalid case kind")
+    uri = case.get("uri")
+    if not isinstance(uri, str) or len(uri) > 2048 or not uri.startswith("/") or any(
+        ord(char) < 0x20 or ord(char) == 0x7F for char in uri
+    ):
+        fail("invalid case URI")
+    raw_expected_ids = case.get("expect_ids", [])
+    if not isinstance(raw_expected_ids, list) or any(
+        not str(value).isdigit() or len(str(value)) > 12 for value in raw_expected_ids
+    ):
+        fail("invalid expected rule ID")
+    expected_phase = case.get("expect_event_phase")
+    if expected_phase != "request_body":
+        fail("invalid expected MRTS rule-match phase")
+    return str(case["kind"]), uri, raw_expected_ids
+
+
+def execute_case(
+    args: argparse.Namespace, case: Any, index: int, run_id: str,
+    event_path: Path, allowed_rule_ids: set[str],
+    tls_context: ssl.SSLContext | None,
+) -> dict[str, Any]:
+    case_kind, uri, raw_expected_ids = validate_case(case)
+    correlation_id = f"{run_id}-{index:04d}"
+    request_id = correlation_id
+    transaction_id = correlation_id
+    host_request_id = f"host-{correlation_id}"
+    status = request(uri, args.port, "GET", {
+        "Host": args.host,
+        "X-MRTS-Request-ID": request_id,
+        "X-MRTS-Transaction-ID": transaction_id,
+        "X-Request-ID": host_request_id,
+        "User-Agent": "MRTS-runtime/1",
+    }, 15.0, args.scheme, tls_context)
+    expected_ids = {str(value) for value in raw_expected_ids}
+    matched = event_ids(
+        event_path, correlation_id, args.connector, uri, "request_body",
+        expected_ids, allowed_rule_ids,
+    )
+    if status != 200:
+        fail(f"{case.get('id', index)} returned HTTP {status}, expected DetectionOnly 200")
+    case_id = str(case.get("id", index))
+    require_case_rule_matches(case_kind, case_id, expected_ids, matched)
+    return {
+        "case_id": case.get("id", str(index)), "kind": case_kind, "uri": uri,
+        "connector": args.connector, "correlation_id": correlation_id,
+        "request_id": request_id, "transaction_id": transaction_id,
+        "host_request_id": host_request_id, "expected_event_phase": "request_body",
+        "status": status, "expected_rule_ids": sorted(expected_ids),
+        "observed_rule_ids": sorted(matched),
+    }
+
+
+def run_cases(
+    args: argparse.Namespace,
+    root: Path,
+    plan: dict[str, Any],
+    event_path: Path,
+    result_path: Path,
+    plan_sha256: str,
+    allowed_rule_ids: set[str],
+    tls_context: ssl.SSLContext | None,
+) -> None:
+    cases = plan["cases"]
+    run_id = secrets.token_hex(12)
     observed: list[dict[str, Any]] = []
     for index, case in enumerate(cases):
-        if not isinstance(case, dict) or case.get("kind") not in {"control", "detection", "bypass"}:
-            fail("invalid case kind")
-        correlation_id = f"{run_id}-{index:04d}"
-        # The executor supplies X-MRTS-Transaction-ID.  Each target-only
-        # adapter binds its native runtime to that explicit header, while
-        # X-Request-ID remains an independent host/proxy identifier.
-        request_id = correlation_id
-        transaction_id = correlation_id
-        host_request_id = f"host-{correlation_id}"
-        uri = case.get("uri")
-        if not isinstance(uri, str) or len(uri) > 2048 or not uri.startswith("/") or any(ord(char) < 0x20 or ord(char) == 0x7F for char in uri):
-            fail("invalid case URI")
-        status = request(uri, args.port, "GET", {
-            "Host": args.host,
-            "X-MRTS-Request-ID": request_id,
-            "X-MRTS-Transaction-ID": transaction_id,
-            "X-Request-ID": host_request_id,
-            "User-Agent": "MRTS-runtime/1",
-        }, 15.0, args.scheme, tls_context)
-        raw_expected_ids = case.get("expect_ids", [])
-        if not isinstance(raw_expected_ids, list) or any(not str(value).isdigit() or len(str(value)) > 12 for value in raw_expected_ids):
-            fail("invalid expected rule ID")
-        expected_ids = {str(value) for value in raw_expected_ids}
-        expected_phase = case.get("expect_event_phase")
-        if expected_phase != "request_body":
-            fail("invalid expected MRTS rule-match phase")
-        matched = event_ids(
-            event_path, correlation_id, args.connector, uri, expected_phase,
-            expected_ids, allowed_rule_ids)
-        if status != 200:
-            fail(f"{case.get('id', index)} returned HTTP {status}, expected DetectionOnly 200")
-        require_case_rule_matches(
-            case["kind"], str(case.get("id", index)), expected_ids, matched
-        )
-        observed.append({"case_id": case.get("id", str(index)), "kind": case["kind"], "uri": uri, "connector": args.connector, "correlation_id": correlation_id, "request_id": request_id, "transaction_id": transaction_id, "host_request_id": host_request_id, "expected_event_phase": expected_phase, "status": status, "expected_rule_ids": sorted(expected_ids), "observed_rule_ids": sorted(matched)})
+        observed.append(execute_case(
+            args, case, index, run_id, event_path, allowed_rule_ids, tls_context,
+        ))
     if not {item["kind"] for item in observed} >= {"control", "detection", "bypass"}:
         fail("plan must contain control, detection, and bypass cases")
     receipt = {"connector": args.connector, "profile": "no-crs/with-mrts", "run_id": run_id, "plan_sha256": plan_sha256, "cases": observed, "status": "passed"}
     atomic_json(result_path, receipt, root)
+
+
+def main() -> int:
+    args = parse_args()
+    root, plan, event_path, result_path, plan_sha256, allowed_rule_ids, tls_context = prepare_runtime(args)
+    run_cases(args, root, plan, event_path, result_path, plan_sha256, allowed_rule_ids, tls_context)
     return 0
 
 

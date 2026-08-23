@@ -259,7 +259,41 @@ func TestCommonRuntimeEngineEmitsDetectionOnlyRuleMatchEvidence(t *testing.T) {
 	if len(events) != 1 {
 		t.Fatalf("DetectionOnly match emitted %d events, want exactly one: %#v", len(events), events)
 	}
-	event := events[0]
+	assertDetectionOnlyRuleMatchEvent(t, events[0])
+
+	// A control/bypass transaction must not inherit the selected match from a
+	// previous stream. This also exercises transaction-local callback state.
+	controlMetadata := commonTestStreamMetadata("control-host-id-must-not-be-used")
+	controlMetadata.Request.Method = "GET"
+	controlMetadata.Request.URI = "/?foo=benign"
+	control, err := engine.Open(ctx, controlMetadata)
+	if err != nil {
+		t.Fatalf("Open(control) error = %v", err)
+	}
+	decision, err = control.ProcessHeaders(ctx, DirectionRequest, []Header{
+		{Name: "x-mrts-transaction-id", Value: []byte("detection-only-control")},
+		{Name: "x-request-id", Value: []byte("must-not-be-used")},
+	}, true)
+	assertCommonDecision(t, "DetectionOnly control", decision, err, ActionAllow, 0)
+	control.Close(ctx, Summary{CloseReason: CloseResponseEOS})
+	if events := readCommonEvents(t, eventPath); len(events) != 1 {
+		t.Fatalf("control/bypass emitted or inherited rule-match evidence: %#v", events)
+	}
+
+	missingHeader, err := engine.Open(ctx, commonTestStreamMetadata("host-id-must-not-fallback"))
+	if err != nil {
+		t.Fatalf("Open(missing-header) error = %v", err)
+	}
+	defer missingHeader.Close(ctx, Summary{CloseReason: ClosePeerEOF})
+	if _, err := missingHeader.ProcessHeaders(ctx, DirectionRequest, []Header{
+		{Name: "x-request-id", Value: []byte("must-not-fallback")},
+	}, true); err == nil {
+		t.Fatal("MRTS evidence mode accepted a missing x-mrts-transaction-id")
+	}
+}
+
+func assertDetectionOnlyRuleMatchEvent(t *testing.T, event map[string]any) {
+	t.Helper()
 	for field, want := range map[string]string{
 		"event":            "request_rule_match",
 		"message_id":       "MSCONN_EVENT_RULE_MATCHED",
@@ -301,36 +335,6 @@ func TestCommonRuntimeEngineEmitsDetectionOnlyRuleMatchEvidence(t *testing.T) {
 		if _, present := event[forbidden]; present {
 			t.Errorf("DetectionOnly event contains payload-bearing field %q", forbidden)
 		}
-	}
-
-	// A control/bypass transaction must not inherit the selected match from a
-	// previous stream. This also exercises transaction-local callback state.
-	controlMetadata := commonTestStreamMetadata("control-host-id-must-not-be-used")
-	controlMetadata.Request.Method = "GET"
-	controlMetadata.Request.URI = "/?foo=benign"
-	control, err := engine.Open(ctx, controlMetadata)
-	if err != nil {
-		t.Fatalf("Open(control) error = %v", err)
-	}
-	decision, err = control.ProcessHeaders(ctx, DirectionRequest, []Header{
-		{Name: "x-mrts-transaction-id", Value: []byte("detection-only-control")},
-		{Name: "x-request-id", Value: []byte("must-not-be-used")},
-	}, true)
-	assertCommonDecision(t, "DetectionOnly control", decision, err, ActionAllow, 0)
-	control.Close(ctx, Summary{CloseReason: CloseResponseEOS})
-	if events := readCommonEvents(t, eventPath); len(events) != 1 {
-		t.Fatalf("control/bypass emitted or inherited rule-match evidence: %#v", events)
-	}
-
-	missingHeader, err := engine.Open(ctx, commonTestStreamMetadata("host-id-must-not-fallback"))
-	if err != nil {
-		t.Fatalf("Open(missing-header) error = %v", err)
-	}
-	defer missingHeader.Close(ctx, Summary{CloseReason: ClosePeerEOF})
-	if _, err := missingHeader.ProcessHeaders(ctx, DirectionRequest, []Header{
-		{Name: "x-request-id", Value: []byte("must-not-fallback")},
-	}, true); err == nil {
-		t.Fatal("MRTS evidence mode accepted a missing x-mrts-transaction-id")
 	}
 }
 

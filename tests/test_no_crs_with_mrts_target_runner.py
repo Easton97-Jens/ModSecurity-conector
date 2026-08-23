@@ -16,7 +16,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def load(name: str, relative: str):
     spec = importlib.util.spec_from_file_location(name, ROOT / relative)
-    assert spec and spec.loader
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load test module: {relative}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -89,6 +90,12 @@ def dedicated_rule_match_event(
 
 
 class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
+    @staticmethod
+    def validate_plan(plan_path, runtime, framework, rules, load_file, digest):
+        return TARGET.validate_sealed_plan(
+            plan_path, runtime, framework, rules, load_file, digest
+        )
+
     def create_test_traefik_engine_socket_parent(self, base: Path) -> Path:
         """Inject an already-created private child without using system temp."""
 
@@ -127,17 +134,47 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
         with mock.patch.object(TARGET.shutil, "which", return_value="/tmp/go"), self.assertRaises(SystemExit):
             TARGET.active_go_executable(ROOT)
 
+    def test_go_version_output_parser_accepts_canonical_output(self):
+        self.assertEqual(
+            TARGET._go_major_minor("go version go1.26.7 linux/amd64"),
+            "1.26",
+        )
+
+    def test_go_version_output_parser_rejects_malformed_output(self):
+        for output in (
+            "go version 1.26.7 linux/amd64",
+            "go version go1.26.x linux/amd64",
+            "go version go1.26.7.8 linux/amd64",
+            "go version go1.26.٧ linux/amd64",
+        ):
+            with self.subTest(output=output), self.assertRaises(SystemExit):
+                TARGET._go_major_minor(output)
+
     def test_hosted_toolcache_allows_runner_primary_group_write_without_world_write(self):
-        metadata = os.stat_result((0o100775, 0, 0, 1, os.geteuid(), os.getgid(), 0, 0, 0, 0))
+        metadata = os.stat_result((0o100775, 0, 0, 1, os.geteuid(), os.getegid(), 0, 0, 0, 0))
         self.assertTrue(TARGET._go_directory_is_trusted(metadata, hosted_toolcache=True))
+
+    def test_hosted_toolcache_allows_root_owner_with_runner_primary_group_write(self):
+        metadata = os.stat_result((0o100775, 0, 0, 1, 0, os.getegid(), 0, 0, 0, 0))
+        self.assertTrue(TARGET._go_directory_is_trusted(metadata, hosted_toolcache=True))
+
+    def test_hosted_toolcache_uses_effective_primary_group(self):
+        metadata = os.stat_result((0o100775, 0, 0, 1, 0, 761, 0, 0, 0, 0))
+        with (
+            mock.patch.object(TARGET.os, "getegid", return_value=761),
+            mock.patch.object(TARGET.os, "getgid", return_value=762),
+        ):
+            self.assertTrue(TARGET._go_directory_is_trusted(metadata, hosted_toolcache=True))
 
     def test_hosted_toolcache_rejects_unsafe_group_world_write_and_wrong_owner(self):
         current_uid = os.geteuid()
-        current_gid = os.getgid()
+        current_gid = os.getegid()
         cases = (
             (0o100775, current_uid, current_gid + 1),
             (0o100777, current_uid, current_gid),
             (0o100775, current_uid + 1, current_gid),
+            (0o100775, 0, current_gid + 1),
+            (0o100777, 0, current_gid),
         )
         for mode, uid, gid in cases:
             with self.subTest(mode=oct(mode), uid=uid, gid=gid):
@@ -176,6 +213,11 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
             root = Path(temporary)
             version = root / ".go-version"
             version.write_text("1.26.07\n", encoding="ascii")
+            version.chmod(0o600)
+            with self.assertRaises(SystemExit):
+                TARGET.read_go_version_contract(root)
+            version.unlink()
+            version.write_text("1.26.٧\n", encoding="utf-8")
             version.chmod(0o600)
             with self.assertRaises(SystemExit):
                 TARGET.read_go_version_contract(root)
@@ -863,31 +905,31 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
             runtime.chmod(0o700)
             with mock.patch.object(TARGET, "select_cases", return_value=(expected_cases, [source])):
                 initial_digest = plan_digest(plan_path)
-                TARGET.validate_sealed_plan(
+                self.validate_plan(
                     plan_path, runtime, framework, rules, load, initial_digest
                 )
                 plan["no_crs_validation"]["rule_id_inventory"] = ["100001"]
                 plan_path.write_text(json.dumps(plan), encoding="utf-8")
                 with self.assertRaisesRegex(SystemExit, "no-CRS validation does not match"):
-                    TARGET.validate_sealed_plan(
+                    self.validate_plan(
                         plan_path, runtime, framework, rules, load, plan_digest(plan_path)
                     )
                 plan["no_crs_validation"]["rule_id_inventory"] = ["100000"]
                 plan["cases"][1]["uri"] = "/?foo=benign"
                 plan_path.write_text(json.dumps(plan), encoding="utf-8")
                 with self.assertRaisesRegex(SystemExit, "digest does not match"):
-                    TARGET.validate_sealed_plan(
+                    self.validate_plan(
                         plan_path, runtime, framework, rules, load, initial_digest
                     )
                 with self.assertRaisesRegex(SystemExit, "cases do not match"):
-                    TARGET.validate_sealed_plan(
+                    self.validate_plan(
                         plan_path, runtime, framework, rules, load, plan_digest(plan_path)
                     )
                 plan["cases"] = json.loads(json.dumps(expected_cases))
                 plan["load_file_sha256"] = "0" * 64
                 plan_path.write_text(json.dumps(plan), encoding="utf-8")
                 with self.assertRaises(SystemExit):
-                    TARGET.validate_sealed_plan(
+                    self.validate_plan(
                         plan_path, runtime, framework, rules, load, plan_digest(plan_path)
                     )
 
@@ -960,18 +1002,18 @@ expect:
             plan_path.write_text(json.dumps(plan), encoding="utf-8")
             runtime.chmod(0o700)
             initial_digest = plan_digest(plan_path)
-            TARGET.validate_sealed_plan(
+            self.validate_plan(
                 plan_path, runtime, framework, rules, load, initial_digest
             )
             detection = next(case for case in plan["cases"] if case["kind"] == "detection")
             detection["expect_ids"] = ["100001"]
             plan_path.write_text(json.dumps(plan), encoding="utf-8")
             with self.assertRaisesRegex(SystemExit, "digest does not match"):
-                TARGET.validate_sealed_plan(
+                self.validate_plan(
                     plan_path, runtime, framework, rules, load, initial_digest
                 )
             with self.assertRaisesRegex(SystemExit, "cases do not match"):
-                TARGET.validate_sealed_plan(
+                self.validate_plan(
                     plan_path, runtime, framework, rules, load, plan_digest(plan_path)
                 )
 

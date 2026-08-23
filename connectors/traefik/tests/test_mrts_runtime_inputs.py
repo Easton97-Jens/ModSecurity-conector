@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 RUNNER_PATH = Path(__file__).resolve().parents[1] / "scripts" / "runtime_native_smoke.py"
@@ -204,6 +205,54 @@ class TraefikMRTSRuntimeInputsTest(unittest.TestCase):
             inputs = self.mrts_inputs(root, plan_file)
             with self.assertRaisesRegex(self.runner.MissingDependency, "only its sealed plan"):
                 self.runner.stage_native_runtime(inputs)
+
+    def test_mrts_mode_starts_the_host_before_running_the_executor(self) -> None:
+        inputs = object()
+        artifacts = object()
+        setup = object()
+        processes = object()
+        observation = object()
+        calls: list[str] = []
+
+        with (
+            mock.patch.object(
+                self.runner,
+                "run_native_requests",
+                side_effect=lambda *_args: calls.append("start") or None,
+            ),
+            mock.patch.object(
+                self.runner,
+                "run_mrts_runtime_executor",
+                side_effect=lambda *_args: calls.append("executor"),
+            ),
+            mock.patch.object(
+                self.runner,
+                "observe_live_mrts_host",
+                side_effect=lambda *_args: calls.append("observe") or observation,
+            ),
+            mock.patch.object(
+                self.runner,
+                "stop_native_processes",
+                side_effect=lambda *_args: calls.append("stop") or (True, True),
+            ),
+            mock.patch.object(
+                self.runner,
+                "write_mrts_host_summary",
+                side_effect=lambda *_args: calls.append("summary"),
+            ),
+        ):
+            self.runner.execute_mrts_mode(inputs, artifacts, setup, processes)
+
+        self.assertEqual(calls, ["start", "executor", "observe", "stop", "summary"])
+
+    def test_mrts_mode_rejects_unexpected_native_request_results(self) -> None:
+        with (
+            mock.patch.object(self.runner, "run_native_requests", return_value=object()),
+            mock.patch.object(self.runner, "run_mrts_runtime_executor") as executor,
+            self.assertRaisesRegex(RuntimeError, "unexpectedly produced native request results"),
+        ):
+            self.runner.execute_mrts_mode(object(), object(), object(), object())
+        executor.assert_not_called()
 
 
 if __name__ == "__main__":

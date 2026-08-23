@@ -477,6 +477,7 @@ validate_mrts_runtime_inputs() {
             echo "envoy_ext_proc_runtime: FAIL - MRTS_RUNTIME_PLAN_SHA256 must be exactly 64 lowercase hexadecimal characters" >&2
             exit 1
             ;;
+        *) : ;;
     esac
     [ -n "${MRTS_LOAD_FILE:-}" ] || missing_dependency "MRTS_LOAD_FILE is required for MRTS runtime mode"
     case "$MRTS_RUNTIME_EXECUTOR" in /*) ;; *) echo "envoy_ext_proc_runtime: FAIL - MRTS_RUNTIME_EXECUTOR must be absolute" >&2; exit 1 ;; esac
@@ -708,6 +709,7 @@ free_ports=$("$PYTHON_BIN" "$HELPER" free-ports --count 4)
 case "$free_ports" in
     *'
 '*) echo "envoy_ext_proc_runtime: FAIL - free-ports returned multiple lines" >&2; exit 1 ;;
+    *) : ;;
 esac
 IFS=' ' read -r default_listen_port default_upstream_port default_ext_proc_port default_admin_port extra_port <<EOF
 $free_ports

@@ -43,6 +43,7 @@ P2_BODY = b"no-crs-request-body-marker"
 P1_ALLOW_TRANSACTION_ID = "traefik-native-p1-allow"
 NATIVE_REQUEST_PATH = "/native"
 PLAIN_TEXT_CONTENT_TYPE = "text/plain"
+PLUGIN_LOADED_MESSAGE = "Plugins loaded."
 CRS_ALLOW_PATH = "/?id=42"
 CRS_BLOCK_PATH = "/?id=1%20UNION%20SELECT%20password%20FROM%20users"
 CRS_BYPASS_PATH = "/?id=1%20union%20select%20password%20from%20users"
@@ -829,106 +830,118 @@ class UpstreamState:
     lock: threading.Lock = field(default_factory=threading.Lock)
 
 
-def upstream_handler(state: UpstreamState) -> type[http.server.BaseHTTPRequestHandler]:
-    class Handler(http.server.BaseHTTPRequestHandler):
-        protocol_version = "HTTP/1.1"
+class _UpstreamRequestHandler(http.server.BaseHTTPRequestHandler):
+    """Small loopback upstream used by the native Traefik host probe."""
 
-        def handle(self) -> None:
-            try:
-                super().handle()
-            except (BrokenPipeError, ConnectionResetError):
-                return
+    protocol_version = "HTTP/1.1"
+    runtime_state: UpstreamState
 
-        def _respond(self, seen: int) -> None:
-            p3_requested = self.headers.get("X-Native-Response-Rule") == "block"
-            p4_requested = self.headers.get("X-Native-P4-Rule") == "block"
-            barrier_requested = self.headers.get("X-Native-P4-Barrier") == "true"
-            p1_allow_requested = self.headers.get("X-Request-Id") == P1_ALLOW_TRANSACTION_ID
-            if barrier_requested and not p4_requested:
-                self.send_error(http.HTTPStatus.BAD_REQUEST)
-                return
-            chunks = (
-                b"native-traefik-first-chunk\n",
-                b"no-crs-response-body-marker\n" if p4_requested else b"native-traefik-final-chunk\n",
-            )
-            with state.lock:
-                state.request_count += 1
-                state.request_body_bytes += seen
-                state.response_chunks += len(chunks)
-                state.p1_allow_upstream_requests += int(p1_allow_requested)
-                state.p3_requests += int(p3_requested)
-                state.p4_requests += int(p4_requested)
-            self.send_response(200)
-            self.send_header("Content-Type", PLAIN_TEXT_CONTENT_TYPE)
-            if p3_requested:
-                self.send_header("X-Modsec-Upstream", "block")
-            self.send_header("Content-Length", str(sum(len(chunk) for chunk in chunks)))
-            self.end_headers()
-            try:
-                self.wfile.write(chunks[0])
-                self.wfile.flush()
-                if barrier_requested:
-                    with state.lock:
-                        state.barrier_first_chunk_size = len(chunks[0])
-                        state.barrier_response_bytes = sum(len(chunk) for chunk in chunks)
-                        state.barrier_eos_sent = False
-                    state.barrier_reached.set()
-                    if not state.barrier_release.wait(timeout=20):
-                        return
-                self.wfile.write(chunks[1])
-                self.wfile.flush()
-                if barrier_requested:
-                    with state.lock:
-                        state.barrier_eos_sent = True
-            except (BrokenPipeError, ConnectionResetError):
-                return
-
-        def do_GET(self) -> None:  # noqa: N802 - HTTP server callback name
-            if state.crs_runtime:
-                with state.lock:
-                    state.request_count += 1
-                    state.response_chunks += 1
-                payload = b"traefik-crs-upstream-ok\n"
-                self.send_response(200)
-                self.send_header("Content-Type", PLAIN_TEXT_CONTENT_TYPE)
-                self.send_header("Content-Length", str(len(payload)))
-                self.end_headers()
-                try:
-                    self.wfile.write(payload)
-                    self.wfile.flush()
-                except (BrokenPipeError, ConnectionResetError):
-                    return
-                return
-
-            # The sealed MRTS executor intentionally exercises GET-only cases.
-            # They still pass through the real Traefik middleware and native
-            # engine; this local upstream only supplies the final HTTP response.
-            # Reject body framing rather than leaving unread bytes on an
-            # HTTP/1.1 connection for a subsequent request.
-            if (
-                self.headers.get("Content-Length") is not None
-                or self.headers.get("Transfer-Encoding") is not None
-            ):
-                self.close_connection = True
-                self.send_error(http.HTTPStatus.BAD_REQUEST)
-                return
-            self._respond(0)
-
-        def do_POST(self) -> None:  # noqa: N802 - HTTP server callback name
-            expected = int(self.headers.get("Content-Length", "0"))
-            seen = 0
-            while seen < expected:
-                chunk = self.rfile.read(min(4096, expected - seen))
-                if not chunk:
-                    break
-                seen += len(chunk)
-            self._respond(seen)
-
-        def log_message(self, _format: str, *_args: object) -> None:
-            # Request paths and body values are not useful evidence.
+    def handle(self) -> None:
+        try:
+            super().handle()
+        except (BrokenPipeError, ConnectionResetError):
             return
 
-    return Handler
+    def _respond(self, seen: int) -> None:
+        state = self.runtime_state
+        p3_requested = self.headers.get("X-Native-Response-Rule") == "block"
+        p4_requested = self.headers.get("X-Native-P4-Rule") == "block"
+        barrier_requested = self.headers.get("X-Native-P4-Barrier") == "true"
+        p1_allow_requested = self.headers.get("X-Request-Id") == P1_ALLOW_TRANSACTION_ID
+        if barrier_requested and not p4_requested:
+            self.send_error(http.HTTPStatus.BAD_REQUEST)
+            return
+        chunks = (
+            b"native-traefik-first-chunk\n",
+            b"no-crs-response-body-marker\n" if p4_requested else b"native-traefik-final-chunk\n",
+        )
+        with state.lock:
+            state.request_count += 1
+            state.request_body_bytes += seen
+            state.response_chunks += len(chunks)
+            state.p1_allow_upstream_requests += int(p1_allow_requested)
+            state.p3_requests += int(p3_requested)
+            state.p4_requests += int(p4_requested)
+        self.send_response(200)
+        self.send_header("Content-Type", PLAIN_TEXT_CONTENT_TYPE)
+        if p3_requested:
+            self.send_header("X-Modsec-Upstream", "block")
+        self.send_header("Content-Length", str(sum(len(chunk) for chunk in chunks)))
+        self.end_headers()
+        try:
+            self.wfile.write(chunks[0])
+            self.wfile.flush()
+            if barrier_requested:
+                with state.lock:
+                    state.barrier_first_chunk_size = len(chunks[0])
+                    state.barrier_response_bytes = sum(len(chunk) for chunk in chunks)
+                    state.barrier_eos_sent = False
+                state.barrier_reached.set()
+                if not state.barrier_release.wait(timeout=20):
+                    return
+            self.wfile.write(chunks[1])
+            self.wfile.flush()
+            if barrier_requested:
+                with state.lock:
+                    state.barrier_eos_sent = True
+        except (BrokenPipeError, ConnectionResetError):
+            return
+
+    def do_GET(self) -> None:  # noqa: N802 - HTTP server callback name
+        state = self.runtime_state
+        if state.crs_runtime:
+            with state.lock:
+                state.request_count += 1
+                state.response_chunks += 1
+            payload = b"traefik-crs-upstream-ok\n"
+            self.send_response(200)
+            self.send_header("Content-Type", PLAIN_TEXT_CONTENT_TYPE)
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            try:
+                self.wfile.write(payload)
+                self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError):
+                return
+            return
+
+        # The sealed MRTS executor intentionally exercises GET-only cases.
+        # They still pass through the real Traefik middleware and native
+        # engine; this local upstream only supplies the final HTTP response.
+        # Reject body framing rather than leaving unread bytes on an
+        # HTTP/1.1 connection for a subsequent request.
+        if (
+            self.headers.get("Content-Length") is not None
+            or self.headers.get("Transfer-Encoding") is not None
+        ):
+            self.close_connection = True
+            self.send_error(http.HTTPStatus.BAD_REQUEST)
+            return
+        self._respond(0)
+
+    def do_POST(self) -> None:  # noqa: N802 - HTTP server callback name
+        expected = int(self.headers.get("Content-Length", "0"))
+        seen = 0
+        while seen < expected:
+            chunk = self.rfile.read(min(4096, expected - seen))
+            if not chunk:
+                break
+            seen += len(chunk)
+        self._respond(seen)
+
+    def log_message(self, _format: str, *_args: object) -> None:
+        # Request paths and body values are not useful evidence.
+        return
+
+
+def upstream_handler(state: UpstreamState) -> type[http.server.BaseHTTPRequestHandler]:
+    """Bind one state object to the loopback upstream handler class."""
+
+    return type(
+        "TraefikUpstreamRequestHandler",
+        (_UpstreamRequestHandler,),
+        {"runtime_state": state},
+    )
 
 
 def write_static_config(path: Path, dynamic_path: Path, port: int, module_name: str) -> None:
@@ -1736,64 +1749,19 @@ def collect_native_runtime_inputs() -> NativeRuntimeInputs:
     verified_run_root = assert_private_verified_run_root(
         Path(os.environ.get("VERIFIED_RUN_ROOT", ""))
     )
-    first_byte_output_text = os.environ.get("FULL_LIFECYCLE_EVIDENCE_OUTPUT", "").strip()
-    first_byte_output = Path(first_byte_output_text) if first_byte_output_text else None
-    if first_byte_output is not None:
-        first_byte_output = resolve_first_byte_evidence_output(first_byte_output)
-    if os.environ.get("NO_CRS_ARTIFACT_PROFILE") == "full_lifecycle" and first_byte_output is None:
-        raise MissingDependency("FULL_LIFECYCLE_EVIDENCE_OUTPUT is required for the native first-byte proof")
+    first_byte_output = resolve_first_byte_output()
     engine_socket_parent = resolve_engine_socket_parent()
     binary = require_local_executable(Path(os.environ.get("TRAEFIK_BIN", "")), "Traefik binary")
-    crs_runtime = os.environ.get("MSCONNECTOR_CRS_RUNTIME", "0")
-    mrts_runtime_value = os.environ.get("MSCONNECTOR_MRTS_RUNTIME", "0")
-    if crs_runtime not in {"0", "1"}:
-        raise MissingDependency("MSCONNECTOR_CRS_RUNTIME must be 0 or 1")
-    if mrts_runtime_value not in {"0", "1"}:
-        raise MissingDependency("MSCONNECTOR_MRTS_RUNTIME must be 0 or 1")
-    if crs_runtime == "1" and mrts_runtime_value == "1":
-        raise MissingDependency("CRS and MRTS runtime modes are mutually exclusive")
-    mrts_runtime = mrts_runtime_value == "1"
-    if mrts_runtime:
-        assert_stage_runtime_root(runtime_root, verified_run_root)
-    elif crs_runtime == "1":
-        assert_private_host_runtime_root(runtime_root, verified_run_root)
+    crs_runtime, mrts_runtime = resolve_runtime_modes(runtime_root, verified_run_root)
     rules_file, rule_ids, rules_profile = select_engine_rules(mrts_runtime)
     require_engine_inputs(rules_file)
     include_dir, library_dir = require_modsecurity_environment()
     run_id = optional_canonical_run_id()
-    if os.environ.get("MSCONNECTOR_CRS_RUNTIME") == "1" and run_id is None:
-        raise MissingDependency("CRS_RUNTIME_RUN_ID is required for Traefik CRS request correlation")
-    if os.environ.get("MSCONNECTOR_CRS_RUNTIME") == "1":
-        assert run_id is not None
-        crs_request_ids(run_id)
-    mrts_executor: Path | None = None
-    mrts_load_file: Path | None = None
-    mrts_plan: Path | None = None
-    mrts_plan_sha256: str | None = None
-    mrts_result: Path | None = None
+    validate_crs_run_id(crs_runtime, run_id)
+    mrts_inputs = resolve_mrts_inputs(runtime_root, rules_file, mrts_runtime)
+    mrts_executor, mrts_load_file, mrts_plan, mrts_plan_sha256, mrts_result = mrts_inputs
     if mrts_runtime:
-        mrts_executor = require_existing_file_without_symlinks(
-            Path(os.environ.get("MRTS_RUNTIME_EXECUTOR", "")), "MRTS_RUNTIME_EXECUTOR"
-        )
-        mrts_load_file = require_no_crs_mrts_load_file(
-            Path(os.environ.get("MRTS_LOAD_FILE", ""))
-        )
-        if rules_file != mrts_load_file:
-            raise MissingDependency(
-                "MSCONNECTOR_RULES_FILE must resolve exactly to MRTS_LOAD_FILE in MRTS runtime"
-            )
         rules_profile = "mrts-load"
-        mrts_plan = require_existing_file_without_symlinks(
-            Path(os.environ.get("MRTS_RUNTIME_PLAN", "")), "MRTS_RUNTIME_PLAN"
-        )
-        mrts_plan_sha256 = require_plan_sha256(
-            os.environ.get("MRTS_RUNTIME_PLAN_SHA256", "")
-        )
-        mrts_result = require_path_below_runtime_root(
-            Path(os.environ.get("MRTS_RUNTIME_RESULT", "")),
-            runtime_root,
-            "MRTS_RUNTIME_RESULT",
-        )
     return NativeRuntimeInputs(
         runtime_root=runtime_root,
         verified_run_root=verified_run_root,
@@ -1816,23 +1784,76 @@ def collect_native_runtime_inputs() -> NativeRuntimeInputs:
     )
 
 
+def resolve_first_byte_output() -> Path | None:
+    """Resolve optional first-byte evidence and enforce its lifecycle contract."""
+
+    output_text = os.environ.get("FULL_LIFECYCLE_EVIDENCE_OUTPUT", "").strip()
+    output = Path(output_text) if output_text else None
+    if output is not None:
+        output = resolve_first_byte_evidence_output(output)
+    if os.environ.get("NO_CRS_ARTIFACT_PROFILE") == "full_lifecycle" and output is None:
+        raise MissingDependency("FULL_LIFECYCLE_EVIDENCE_OUTPUT is required for the native first-byte proof")
+    return output
+
+
+def resolve_runtime_modes(runtime_root: Path, verified_run_root: Path) -> tuple[bool, bool]:
+    """Validate mutually exclusive CRS/MRTS modes and their root contracts."""
+
+    crs_value = os.environ.get("MSCONNECTOR_CRS_RUNTIME", "0")
+    mrts_value = os.environ.get("MSCONNECTOR_MRTS_RUNTIME", "0")
+    if crs_value not in {"0", "1"}:
+        raise MissingDependency("MSCONNECTOR_CRS_RUNTIME must be 0 or 1")
+    if mrts_value not in {"0", "1"}:
+        raise MissingDependency("MSCONNECTOR_MRTS_RUNTIME must be 0 or 1")
+    if crs_value == "1" and mrts_value == "1":
+        raise MissingDependency("CRS and MRTS runtime modes are mutually exclusive")
+    mrts_runtime = mrts_value == "1"
+    if mrts_runtime:
+        assert_stage_runtime_root(runtime_root, verified_run_root)
+    elif crs_value == "1":
+        assert_private_host_runtime_root(runtime_root, verified_run_root)
+    return crs_value == "1", mrts_runtime
+
+
+def validate_crs_run_id(crs_runtime: bool, run_id: str | None) -> None:
+    """Require a validated run identifier whenever the CRS host path is active."""
+
+    if not crs_runtime:
+        return
+    if run_id is None:
+        raise MissingDependency("CRS_RUNTIME_RUN_ID is required for Traefik CRS request correlation")
+    crs_request_ids(run_id)
+
+
+def resolve_mrts_inputs(
+    runtime_root: Path, rules_file: Path, mrts_runtime: bool
+) -> tuple[Path | None, Path | None, Path | None, str | None, Path | None]:
+    """Resolve and bind the sealed MRTS executor inputs when requested."""
+
+    if not mrts_runtime:
+        return None, None, None, None, None
+    executor = require_existing_file_without_symlinks(
+        Path(os.environ.get("MRTS_RUNTIME_EXECUTOR", "")), "MRTS_RUNTIME_EXECUTOR"
+    )
+    load_file = require_no_crs_mrts_load_file(Path(os.environ.get("MRTS_LOAD_FILE", "")))
+    if rules_file != load_file:
+        raise MissingDependency(
+            "MSCONNECTOR_RULES_FILE must resolve exactly to MRTS_LOAD_FILE in MRTS runtime"
+        )
+    plan = require_existing_file_without_symlinks(
+        Path(os.environ.get("MRTS_RUNTIME_PLAN", "")), "MRTS_RUNTIME_PLAN"
+    )
+    plan_sha256 = require_plan_sha256(os.environ.get("MRTS_RUNTIME_PLAN_SHA256", ""))
+    result = require_path_below_runtime_root(
+        Path(os.environ.get("MRTS_RUNTIME_RESULT", "")), runtime_root, "MRTS_RUNTIME_RESULT"
+    )
+    return executor, load_file, plan, plan_sha256, result
+
+
 def stage_native_runtime(inputs: NativeRuntimeInputs) -> NativeRuntimeArtifacts:
     """Stage one isolated local-plugin workspace below the trusted root."""
 
-    if inputs.runtime_root.exists():
-        existing_entries = list(inputs.runtime_root.iterdir())
-        if inputs.mrts_runtime:
-            if inputs.mrts_plan is None:
-                raise MissingDependency("MRTS runtime root requires a validated plan file")
-            plan_file = require_existing_file_without_symlinks(inputs.mrts_plan, "MRTS_RUNTIME_PLAN")
-            if plan_file.parent != inputs.runtime_root:
-                raise MissingDependency("MRTS_RUNTIME_PLAN must be directly below the native runtime root")
-            if existing_entries != [plan_file]:
-                raise MissingDependency(
-                    "MRTS native runtime root may contain only its sealed plan file before staging"
-                )
-        elif existing_entries:
-            raise MissingDependency(f"native runtime root must be empty: {inputs.runtime_root}")
+    validate_stage_root_contents(inputs)
     staging_started = False
     try:
         inputs.runtime_root.mkdir(parents=True, mode=0o700, exist_ok=True)
@@ -1860,6 +1881,27 @@ def stage_native_runtime(inputs: NativeRuntimeInputs) -> NativeRuntimeArtifacts:
         if staging_started and not cleanup_staged_runtime_workspaces(inputs):
             raise RuntimeError("Traefik staged runtime cleanup was refused") from exc
         raise
+
+
+def validate_stage_root_contents(inputs: NativeRuntimeInputs) -> None:
+    """Require only the sealed MRTS plan, or nothing, before staging."""
+
+    if not inputs.runtime_root.exists():
+        return
+    existing_entries = list(inputs.runtime_root.iterdir())
+    if not inputs.mrts_runtime:
+        if existing_entries:
+            raise MissingDependency(f"native runtime root must be empty: {inputs.runtime_root}")
+        return
+    if inputs.mrts_plan is None:
+        raise MissingDependency("MRTS runtime root requires a validated plan file")
+    plan_file = require_existing_file_without_symlinks(inputs.mrts_plan, "MRTS_RUNTIME_PLAN")
+    if plan_file.parent != inputs.runtime_root:
+        raise MissingDependency("MRTS_RUNTIME_PLAN must be directly below the native runtime root")
+    if existing_entries != [plan_file]:
+        raise MissingDependency(
+            "MRTS native runtime root may contain only its sealed plan file before staging"
+        )
 
 
 def cleanup_staged_runtime_workspaces(
@@ -2232,7 +2274,7 @@ def write_crs_success(
             "connector": "traefik",
             "engine_mode": "uds",
             "integration_mode": "native-traefik-middleware",
-            "plugin_loaded": "Plugins loaded." in (artifacts.logs_dir / TRAEFIK_STDOUT_LOG_FILENAME).read_text(
+            "plugin_loaded": PLUGIN_LOADED_MESSAGE in (artifacts.logs_dir / TRAEFIK_STDOUT_LOG_FILENAME).read_text(
                 encoding="utf-8", errors="replace"
             ),
             "processes_stopped": processes_stopped,
@@ -2277,7 +2319,7 @@ def observe_live_native_host(
     host_log = (artifacts.logs_dir / TRAEFIK_STDOUT_LOG_FILENAME).read_text(
         encoding="utf-8", errors="replace"
     )
-    plugin_loaded = "Plugins loaded." in host_log and PLUGIN_ID in host_log
+    plugin_loaded = PLUGIN_LOADED_MESSAGE in host_log and PLUGIN_ID in host_log
     if not plugin_loaded:
         raise RuntimeError("Traefik did not confirm local-plugin loading")
     with setup.state.lock:
@@ -2314,7 +2356,7 @@ def observe_live_mrts_host(
     host_log = (artifacts.logs_dir / "traefik.stdout.log").read_text(
         encoding="utf-8", errors="replace"
     )
-    plugin_loaded = "Plugins loaded." in host_log and PLUGIN_ID in host_log
+    plugin_loaded = PLUGIN_LOADED_MESSAGE in host_log and PLUGIN_ID in host_log
     if not (traefik_alive and engine_alive and engine_socket_ready and plugin_loaded):
         raise RuntimeError("Traefik MRTS host did not remain live and ready after executor run")
     return NativeMRTSHostObservation(
@@ -2531,6 +2573,95 @@ def write_native_failure(result_path: Path, error_class: str, rule_evaluation: s
     write_json(result_path, payload)
 
 
+def execute_crs_mode(
+    inputs: NativeRuntimeInputs,
+    artifacts: NativeRuntimeArtifacts,
+    setup: NativeRuntimeSetup,
+    processes: NativeProcesses,
+) -> None:
+    """Execute and persist the isolated CRS host mode."""
+
+    crs_results = run_crs_requests(inputs, artifacts, setup, processes)
+    traefik_stopped, engine_stopped = stop_native_processes(processes)
+    crs_events = finalize_crs_host_observations(artifacts, crs_results)
+    write_crs_success(
+        inputs,
+        artifacts,
+        crs_results,
+        crs_events,
+        traefik_stopped and engine_stopped,
+    )
+
+
+def execute_mrts_mode(
+    inputs: NativeRuntimeInputs,
+    artifacts: NativeRuntimeArtifacts,
+    setup: NativeRuntimeSetup,
+    processes: NativeProcesses,
+) -> None:
+    """Execute the real MRTS plan while the native host is live."""
+
+    # This starts and readies the persistent Traefik/engine pair.  In MRTS
+    # mode it deliberately issues no synthetic connector request and returns
+    # ``None`` after asserting both processes remain live; the sealed MRTS
+    # executor below supplies every real test request.
+    if run_native_requests(inputs, artifacts, setup, processes) is not None:
+        raise RuntimeError("MRTS host startup unexpectedly produced native request results")
+    run_mrts_runtime_executor(inputs, artifacts, setup, processes)
+    mrts_host_observation = observe_live_mrts_host(artifacts, setup, processes)
+    traefik_stopped, engine_stopped = stop_native_processes(processes)
+    if not (traefik_stopped and engine_stopped):
+        raise RuntimeError("Traefik MRTS host cleanup did not stop all processes")
+    write_mrts_host_summary(
+        inputs,
+        artifacts,
+        mrts_host_observation,
+        traefik_stopped and engine_stopped,
+    )
+
+
+def execute_native_mode(
+    inputs: NativeRuntimeInputs,
+    artifacts: NativeRuntimeArtifacts,
+    setup: NativeRuntimeSetup,
+    processes: NativeProcesses,
+) -> None:
+    """Execute and persist the regular no-CRS native host mode."""
+
+    results = run_native_requests(inputs, artifacts, setup, processes)
+    if results is None:
+        raise RuntimeError("Traefik native request results were not produced")
+    live_observation = observe_live_native_host(artifacts, setup, processes)
+    traefik_stopped, engine_stopped = stop_native_processes(processes)
+    outcome_count = finalize_native_host_observations(
+        inputs, artifacts, results, live_observation
+    )
+    write_native_success(
+        inputs,
+        artifacts,
+        results,
+        live_observation,
+        outcome_count,
+        traefik_stopped and engine_stopped,
+    )
+
+
+def execute_runtime_mode(
+    inputs: NativeRuntimeInputs,
+    artifacts: NativeRuntimeArtifacts,
+    setup: NativeRuntimeSetup,
+    processes: NativeProcesses,
+) -> None:
+    """Dispatch one mutually exclusive host mode."""
+
+    if os.environ.get("MSCONNECTOR_CRS_RUNTIME") == "1":
+        execute_crs_mode(inputs, artifacts, setup, processes)
+    elif inputs.mrts_runtime:
+        execute_mrts_mode(inputs, artifacts, setup, processes)
+    else:
+        execute_native_mode(inputs, artifacts, setup, processes)
+
+
 def run() -> int:
     """Run the isolated native host lifecycle with safe cleanup on every path."""
 
@@ -2545,47 +2676,7 @@ def run() -> int:
         raise
     outcome = 1
     try:
-        if os.environ.get("MSCONNECTOR_CRS_RUNTIME") == "1":
-            crs_results = run_crs_requests(inputs, artifacts, setup, processes)
-            traefik_stopped, engine_stopped = stop_native_processes(processes)
-            crs_events = finalize_crs_host_observations(artifacts, crs_results)
-            write_crs_success(
-                inputs,
-                artifacts,
-                crs_results,
-                crs_events,
-                traefik_stopped and engine_stopped,
-            )
-        else:
-            results = run_native_requests(inputs, artifacts, setup, processes)
-            if inputs.mrts_runtime:
-                run_mrts_runtime_executor(inputs, artifacts, setup, processes)
-                mrts_host_observation = observe_live_mrts_host(artifacts, setup, processes)
-                traefik_stopped, engine_stopped = stop_native_processes(processes)
-                if not (traefik_stopped and engine_stopped):
-                    raise RuntimeError("Traefik MRTS host cleanup did not stop all processes")
-                write_mrts_host_summary(
-                    inputs,
-                    artifacts,
-                    mrts_host_observation,
-                    traefik_stopped and engine_stopped,
-                )
-            else:
-                if results is None:
-                    raise RuntimeError("Traefik native request results were not produced")
-                live_observation = observe_live_native_host(artifacts, setup, processes)
-                traefik_stopped, engine_stopped = stop_native_processes(processes)
-                outcome_count = finalize_native_host_observations(
-                    inputs, artifacts, results, live_observation
-                )
-                write_native_success(
-                    inputs,
-                    artifacts,
-                    results,
-                    live_observation,
-                    outcome_count,
-                    traefik_stopped and engine_stopped,
-                )
+        execute_runtime_mode(inputs, artifacts, setup, processes)
         outcome = 0
     except Exception as exc:
         traefik_stopped, engine_stopped = stop_native_processes(processes)

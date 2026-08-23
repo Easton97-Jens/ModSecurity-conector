@@ -40,6 +40,31 @@ TRAEFIK_ENGINE_SOCKET_CHILD_RANDOM_HEX_LENGTH = 16
 TRAEFIK_ENGINE_SOCKET_FILENAME = "engine.sock"
 
 
+def _go_major_minor(version_output: str) -> str:
+    fields = version_output.split()
+    if len(fields) < 3 or fields[0:2] != ["go", "version"]:
+        stop("trusted Go binary returned a non-canonical version")
+    if not fields[2].startswith("go"):
+        stop("trusted Go binary returned a non-canonical version")
+    version = fields[2][2:]
+    components = version.split(".")
+    if len(components) not in {2, 3} or not all(
+        component.isascii() and component.isdecimal() for component in components
+    ):
+        stop("trusted Go binary returned a non-canonical version")
+    return ".".join(components[:2])
+
+
+def _canonical_rule_id(value: str) -> bool:
+    return (
+        bool(value)
+        and len(value) <= 12
+        and value[0] != "0"
+        and value.isascii()
+        and value.isdecimal()
+    )
+
+
 def stop(message: str) -> NoReturn:
     raise SystemExit(f"BLOCKED: {message}")
 
@@ -305,11 +330,55 @@ def _go_directory_is_trusted(metadata: os.stat_result, *, hosted_toolcache: bool
     mode = metadata.st_mode
     if not hosted_toolcache:
         return metadata.st_uid in {0, os.getuid()} and not mode & 0o022
-    if metadata.st_uid == os.geteuid() and metadata.st_gid == os.getgid():
+    if metadata.st_uid == os.geteuid() and metadata.st_gid == os.getegid():
         return not mode & 0o002
     if metadata.st_uid == 0:
-        return not mode & 0o022
+        return not mode & 0o002 and (
+            not mode & 0o020 or metadata.st_gid == os.getegid()
+        )
     return False
+
+
+def _validate_go_binary(executable: Path) -> Path:
+    try:
+        resolved = executable.resolve(strict=True)
+    except OSError as exc:
+        stop(f"trusted Go binary is unavailable: {exc}")
+    if (
+        not executable.is_file()
+        or not os.access(executable, os.R_OK | os.X_OK)
+        or not resolved.is_file()
+        or not os.access(resolved, os.R_OK | os.X_OK)
+    ):
+        stop("trusted Go binary is unavailable")
+    return resolved
+
+
+def _validate_go_ancestry(executable: Path, hosted_toolcache: bool) -> None:
+    hosted_toolcache_parent = Path("/opt/hostedtoolcache")
+    for directory in (executable.parent, *executable.parents):
+        try:
+            metadata = directory.stat()
+        except OSError as exc:
+            stop(f"trusted Go binary parent is unavailable: {exc}")
+        hosted_component = hosted_toolcache and (
+            directory == hosted_toolcache_parent or hosted_toolcache_parent in directory.parents
+        )
+        if not _go_directory_is_trusted(metadata, hosted_toolcache=hosted_component):
+            stop("trusted Go binary is not owner-controlled and non-writable")
+
+
+def _read_go_binary_version(executable: Path) -> str:
+    try:
+        output = subprocess.check_output(
+            [str(executable), "version"],
+            text=True,
+            stderr=subprocess.STDOUT,
+            timeout=10,
+        ).strip()
+    except (OSError, subprocess.SubprocessError) as exc:
+        stop(f"trusted Go binary cannot report its version: {exc}")
+    return _go_major_minor(output)
 
 
 def active_go_provenance(parent: Path) -> tuple[Path, str, str]:
@@ -327,44 +396,13 @@ def active_go_provenance(parent: Path) -> tuple[Path, str, str]:
     hosted_toolcache = hosted_toolcache_root == executable or hosted_toolcache_root in executable.parents
     if not any(root == executable or root in executable.parents for root in (Path("/usr/local/go"), hosted_toolcache_root)):
         stop("trusted Go invocation is outside the approved setup-go roots")
-    try:
-        resolved = executable.resolve(strict=True)
-    except OSError as exc:
-        stop(f"trusted Go binary is unavailable: {exc}")
-    if (
-        not executable.is_file()
-        or not os.access(executable, os.R_OK | os.X_OK)
-        or not resolved.is_file()
-        or not os.access(resolved, os.R_OK | os.X_OK)
-    ):
-        stop("trusted Go binary is unavailable")
-    hosted_toolcache_parent = Path("/opt/hostedtoolcache")
-    for directory in (executable.parent, *executable.parents):
-        try:
-            metadata = directory.stat()
-        except OSError as exc:
-            stop(f"trusted Go binary parent is unavailable: {exc}")
-        hosted_component = hosted_toolcache and (
-            directory == hosted_toolcache_parent or hosted_toolcache_parent in directory.parents
-        )
-        if not _go_directory_is_trusted(metadata, hosted_toolcache=hosted_component):
-            stop("trusted Go binary is not owner-controlled and non-writable")
-    try:
-        version = subprocess.check_output(
-            [str(executable), "version"],
-            text=True,
-            stderr=subprocess.STDOUT,
-            timeout=10,
-        ).strip()
-    except (OSError, subprocess.SubprocessError) as exc:
-        stop(f"trusted Go binary cannot report its version: {exc}")
-    version_match = re.fullmatch(r"go version go([0-9]+\.[0-9]+)(?:\.[0-9]+)? [^\n]+", version)
-    if version_match is None:
-        stop("trusted Go binary returned a non-canonical version")
+    _validate_go_binary(executable)
+    _validate_go_ancestry(executable, hosted_toolcache)
+    actual_major_minor = _read_go_binary_version(executable)
     expected_major_minor = read_go_version_contract(parent).rsplit(".", 1)[0]
-    if expected_major_minor != version_match.group(1):
+    if expected_major_minor != actual_major_minor:
         stop("trusted Go binary does not satisfy the repository Go version contract")
-    return executable, hashlib.sha256(executable.read_bytes()).hexdigest(), version_match.group(1)
+    return executable, hashlib.sha256(executable.read_bytes()).hexdigest(), actual_major_minor
 
 
 def active_go_executable(parent: Path | None = None) -> Path:
@@ -646,7 +684,7 @@ def rule_id_inventory(
                 continue
             for match in id_marker.finditer(line):
                 raw_id = match.group(1).strip("'\"")
-                if not re.fullmatch(r"[1-9][0-9]{0,11}", raw_id):
+                if not _canonical_rule_id(raw_id):
                     stop(f"pinned MRTS rule has a non-canonical rule ID: {name}")
                 if raw_id in inventory:
                     stop(f"pinned MRTS rule corpus contains duplicate rule ID: {raw_id}")
@@ -696,7 +734,7 @@ def load_sealed_plan(plan_path: Path, expected_plan_sha256: str) -> dict[str, An
         stop("sealed MRTS plan digest does not match the parent-held value")
     try:
         plan = json.loads(data.decode("utf-8"), object_pairs_hook=reject_duplicate_json_keys)
-    except (UnicodeError, ValueError) as exc:
+    except (UnicodeError, json.JSONDecodeError) as exc:
         stop(f"sealed MRTS plan is not valid JSON: {exc}")
     if not isinstance(plan, dict):
         stop("sealed MRTS plan root is not an object")

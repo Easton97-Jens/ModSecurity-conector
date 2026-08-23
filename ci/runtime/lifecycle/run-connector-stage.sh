@@ -51,7 +51,7 @@ case "$stage" in
     *) echo "usage: $0 apache|nginx|haproxy|envoy|traefik|lighttpd build|config_load|start_smoke|minimal_runtime_smoke|no_crs_baseline|no_crs_with_mrts" >&2; exit 2 ;;
 esac
 
-validate_mrts_stage_inputs() {
+require_mrts_stage_connector() {
     [ "$connector" = envoy ] || [ "$connector" = traefik ] || [ "$connector" = lighttpd ] || {
         echo "FAIL: no_crs_with_mrts is closed to envoy, traefik, and lighttpd" >&2
         exit 2
@@ -64,6 +64,9 @@ validate_mrts_stage_inputs() {
         echo "FAIL: no_crs_with_mrts requires explicit ALLOW_RUNTIME_DOWNLOADS=1 and ALLOW_RUNTIME_BUILDS=1" >&2
         exit 77
     }
+}
+
+require_mrts_stage_configuration() {
     [ -n "${MRTS_RUNTIME_PLAN:-}" ] || { echo "FAIL: MRTS_RUNTIME_PLAN is required" >&2; exit 2; }
     [ -n "${MRTS_RUNTIME_PLAN_SHA256:-}" ] || { echo "FAIL: MRTS_RUNTIME_PLAN_SHA256 is required" >&2; exit 2; }
     [ -n "${MRTS_RUNTIME_RESULT:-}" ] || { echo "FAIL: MRTS_RUNTIME_RESULT is required" >&2; exit 2; }
@@ -79,6 +82,9 @@ validate_mrts_stage_inputs() {
         exit 77
     fi
     require_mrts_python_invocation "$MRTS_PYTHON_BIN" || exit 77
+}
+
+validate_mrts_runtime_paths() {
     case "$MRTS_RUNTIME_PLAN:$MRTS_RUNTIME_RESULT:$MRTS_RUNTIME_EXECUTOR:$MRTS_RUNTIME_RULES_ROOT:$MRTS_LOAD_FILE:$MRTS_CASE_ROOT" in
         *[!A-Za-z0-9_./:-]*) echo "FAIL: MRTS runtime paths contain unsafe characters" >&2; exit 2 ;;
     esac
@@ -118,6 +124,9 @@ validate_mrts_stage_inputs() {
         "$VERIFIED_RUN_ROOT"/*:*|*:"$VERIFIED_RUN_ROOT"/*) ;;
         *) echo "FAIL: MRTS plan/result must remain under the private runtime root" >&2; exit 77 ;;
     esac
+}
+
+validate_mrts_runtime_files() {
     [ -f "$MRTS_RUNTIME_PLAN" ] || { echo "FAIL: MRTS runtime plan is missing: $MRTS_RUNTIME_PLAN" >&2; exit 77; }
     [ ! -L "$MRTS_RUNTIME_PLAN" ] || { echo "FAIL: MRTS runtime plan must not be a symlink" >&2; exit 77; }
     result_parent=$(dirname "$MRTS_RUNTIME_RESULT")
@@ -128,6 +137,9 @@ validate_mrts_stage_inputs() {
     [ -f "$MRTS_RUNTIME_EXECUTOR" ] || { echo "FAIL: MRTS runtime executor is not a regular file: $MRTS_RUNTIME_EXECUTOR" >&2; exit 77; }
     [ -r "$MRTS_RUNTIME_EXECUTOR" ] || { echo "FAIL: MRTS runtime executor is not readable: $MRTS_RUNTIME_EXECUTOR" >&2; exit 77; }
     [ ! -L "$MRTS_RUNTIME_EXECUTOR" ] || { echo "FAIL: MRTS runtime executor must not be a symlink" >&2; exit 77; }
+}
+
+validate_mrts_runtime_plan() {
     actual_mrts_executor_sha256=$("$MRTS_PYTHON_BIN" -c 'import hashlib, pathlib, sys; print(hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest())' "$MRTS_RUNTIME_EXECUTOR") || {
         echo "FAIL: MRTS runtime executor digest calculation failed" >&2
         exit 77
@@ -154,6 +166,14 @@ if not isinstance(executor, dict) or executor.get("path") != sys.argv[2] or exec
         echo "FAIL: sealed MRTS plan executor identity does not match the approved executor" >&2
         exit 77
     fi
+}
+
+validate_mrts_stage_inputs() {
+    require_mrts_stage_connector
+    require_mrts_stage_configuration
+    validate_mrts_runtime_paths
+    validate_mrts_runtime_files
+    validate_mrts_runtime_plan
     [ -d "$MRTS_RUNTIME_RULES_ROOT" ] || { echo "FAIL: MRTS runtime rules root is not a directory: $MRTS_RUNTIME_RULES_ROOT" >&2; exit 77; }
     [ ! -L "$MRTS_RUNTIME_RULES_ROOT" ] || { echo "FAIL: MRTS runtime rules root must not be a symlink" >&2; exit 77; }
     [ -f "$MRTS_LOAD_FILE" ] || { echo "FAIL: MRTS_LOAD_FILE is not a regular file: $MRTS_LOAD_FILE" >&2; exit 77; }

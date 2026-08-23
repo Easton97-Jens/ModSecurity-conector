@@ -5,6 +5,7 @@
 
 #include "msconnector/transaction_id.h"
 
+#include <array>
 #include <cstring>
 
 namespace {
@@ -41,14 +42,14 @@ bool map_rule_message_phase(
 bool format_rule_id(
     int64_t value,
     char output[MSCONNECTOR_RULE_MATCH_OBSERVER_RULE_ID_SIZE]) noexcept {
-    char reversed[MSCONNECTOR_RULE_MATCH_OBSERVER_RULE_ID_SIZE - 1U];
+    std::array<char, MSCONNECTOR_RULE_MATCH_OBSERVER_RULE_ID_SIZE - 1U> reversed{};
     size_t count = 0U;
 
     if (value <= 0 || value > kMaximumRuleId) {
         return false;
     }
     do {
-        if (count >= sizeof(reversed)) {
+        if (count >= reversed.size()) {
             return false;
         }
         reversed[count++] = static_cast<char>('0' + (value % 10));
@@ -61,22 +62,32 @@ bool format_rule_id(
     return true;
 }
 
-void rule_message_callback(void *data, const void *value) noexcept {
-    auto *observer = static_cast<msconnector_rule_match_observer *>(data);
+size_t bounded_string_length(
+    const char *value,
+    size_t maximum_length) noexcept {
+    for (size_t index = 0U; index < maximum_length; ++index) {
+        if (value[index] == '\0') {
+            return index;
+        }
+    }
+    return maximum_length;
+}
 
+void capture_rule_message(
+    msconnector_rule_match_observer *observer,
+    const modsecurity::RuleMessage *message) noexcept {
     try {
-        if (observer == nullptr || value == nullptr) {
+        if (observer == nullptr || message == nullptr) {
             msconnector_rule_match_observer_fail(observer);
             return;
         }
-        const auto &message = *static_cast<const modsecurity::RuleMessage *>(value);
-        const auto &transaction_id = message.m_transaction.m_id;
+        const auto &transaction_id = message->m_transaction.m_id;
         msconnector_rule_match_observer_capture(
             observer,
             transaction_id.data(),
             transaction_id.size(),
-            message.m_rule.m_ruleId,
-            message.getPhase());
+            message->m_rule.m_ruleId,
+            message->getPhase());
     } catch (...) {
         msconnector_rule_match_observer_fail(observer);
     }
@@ -102,7 +113,8 @@ extern "C" void msconnector_rule_match_observer_init(
         observer->failed = 1;
         return;
     }
-    transaction_id_length = std::strlen(expected_transaction_id);
+    transaction_id_length = bounded_string_length(
+        expected_transaction_id, sizeof(observer->expected_transaction_id));
     if (transaction_id_length == 0U ||
         transaction_id_length >= sizeof(observer->expected_transaction_id)) {
         observer->failed = 1;
@@ -117,11 +129,16 @@ extern "C" void msconnector_rule_match_observer_init(
 
 extern "C" int msconnector_rule_match_observer_install(void *modsecurity) {
     try {
+        const auto callback = [](auto *data, const auto *value) noexcept {
+            capture_rule_message(
+                static_cast<msconnector_rule_match_observer *>(data),
+                static_cast<const modsecurity::RuleMessage *>(value));
+        };
         if (modsecurity == nullptr) {
             return 0;
         }
         static_cast<modsecurity::ModSecurity *>(modsecurity)->setServerLogCb(
-            rule_message_callback,
+            static_cast<ModSecLogCb>(callback),
             modsecurity::RuleMessageLogProperty);
         return 1;
     } catch (...) {

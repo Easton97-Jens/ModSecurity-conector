@@ -65,6 +65,13 @@ require_mrts_go_invocation() {
 }
 
 validate_mrts_direct_invocation() {
+    validate_mrts_route
+    validate_mrts_inputs
+    validate_mrts_paths
+    validate_mrts_sealed_plan
+}
+
+validate_mrts_route() {
     case "$connector:$target" in
         envoy:runtime-smoke-envoy-ext-proc|traefik:runtime-smoke-traefik-native|lighttpd:runtime-smoke-lighttpd-patched) ;;
         *) echo "FAIL: no_crs_with_mrts target is not an approved real-host route: $connector:$target" >&2; exit 2 ;;
@@ -85,6 +92,9 @@ validate_mrts_direct_invocation() {
     case "${NO_CRS_RUN_ID#mrts-}" in
         *[!0-9a-f]*|'') echo "FAIL: NO_CRS_RUN_ID contains untrusted characters" >&2; exit 77 ;;
     esac
+}
+
+validate_mrts_inputs() {
     [ -n "${MRTS_RUNTIME_PLAN:-}" ] || { echo "FAIL: MRTS_RUNTIME_PLAN is required" >&2; exit 2; }
     [ -n "${MRTS_RUNTIME_PLAN_SHA256:-}" ] || { echo "FAIL: MRTS_RUNTIME_PLAN_SHA256 is required" >&2; exit 2; }
     [ -n "${MRTS_RUNTIME_RESULT:-}" ] || { echo "FAIL: MRTS_RUNTIME_RESULT is required" >&2; exit 2; }
@@ -100,6 +110,9 @@ validate_mrts_direct_invocation() {
         exit 77
     fi
     require_mrts_python_invocation "$MRTS_PYTHON_BIN" || exit 77
+}
+
+validate_mrts_paths() {
     case "$MRTS_RUNTIME_PLAN:$MRTS_RUNTIME_RESULT:$MRTS_RUNTIME_EXECUTOR:$MRTS_RUNTIME_RULES_ROOT:$MRTS_LOAD_FILE:$MRTS_CASE_ROOT" in
         *[!A-Za-z0-9_./:-]*) echo "FAIL: MRTS runtime paths contain unsafe characters" >&2; exit 2 ;;
         /*:/*:/*:/*:/*:/*) ;;
@@ -139,6 +152,9 @@ validate_mrts_direct_invocation() {
     result_parent=$(dirname "$MRTS_RUNTIME_RESULT")
     [ -d "$result_parent" ] || { echo "FAIL: MRTS runtime result parent is missing: $result_parent" >&2; exit 77; }
     [ ! -L "$MRTS_RUNTIME_RESULT" ] || { echo "FAIL: MRTS runtime result must not be a symlink" >&2; exit 77; }
+}
+
+validate_mrts_sealed_plan() {
     expected_mrts_executor=$CONNECTOR_ROOT/ci/runtime/lifecycle/execute-no-crs-mrts-cases.py
     [ "$MRTS_RUNTIME_EXECUTOR" = "$expected_mrts_executor" ] || { echo "FAIL: MRTS runtime executor path is not approved" >&2; exit 77; }
     [ -f "$MRTS_RUNTIME_EXECUTOR" ] || { echo "FAIL: MRTS runtime executor is not a regular file: $MRTS_RUNTIME_EXECUTOR" >&2; exit 77; }
