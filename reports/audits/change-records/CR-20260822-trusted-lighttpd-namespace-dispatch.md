@@ -45,7 +45,8 @@ on fresh exact-head checks, SonarQube Cloud, and the protected ruleset.
   AppArmor user-namespace profile, make `ns-test`, and verify binary, group,
   Docker-socket, and capability preconditions.
 - API resolution accepts an open canonical PR number or that PR's exact
-  40-character lowercase head SHA; source checkout uses only the resolved SHA.
+  40-character lowercase head SHA; the constrained process materializes only
+  that resolved SHA from the fixed public HTTPS origin.
 - Git credentials and `.git` are removed before source execution. Source runs
   only as `ns-test`, with `NoNewPrivs`, empty groups/capabilities, `env -i`, a
   private `0700` temporary root, and fail-closed namespace probes.
@@ -59,7 +60,7 @@ control-plane workflow, not a pull-request trigger. It requires both
 owner can manually invoke or re-run this first version. Adding another maintainer requires a
 separately reviewed protected-master allowlist change.
 
-Before checkout, fixed absolute root-owned binaries install only
+Before source materialization, fixed absolute root-owned binaries install only
 `apparmor-utils`, `bubblewrap`, and `jq`, confirm Bubblewrap's required flags,
 keep `kernel.apparmor_restrict_unprivileged_userns` at `1`, and load this fixed
 root-owned profile:
@@ -81,7 +82,7 @@ on Ubuntu 24.04, `--profiled` reports a count of loaded profiles rather than
 their names. Immediately after `apparmor_parser --replace`, fixed root-owned
 `aa-exec` enters `trusted-lighttpd-ci-userns` and checks
 `/proc/self/attr/current`. A different or absent profile exits `77` before
-checkout. The static contract forbids the old count-based form and mutates the
+source materialization. The static contract forbids the old count-based form and mutates the
 active-profile proof, the reporter isolation, and the privilege inventory.
 
 ## 2026-08-23 constrained preflight diagnostic repair
@@ -112,12 +113,15 @@ The trusted source path is:
 
 ~~~text
 manual target -> strict format validation -> fixed public GitHub API request
--> one open canonical PR/head SHA -> exact SHA checkout -> remove .git
--> aa-exec -> setpriv -> env -i -> ns-test namespace test
+-> one open canonical PR/head SHA -> aa-exec -> setpriv -> env -i
+-> fixed HTTPS exact-SHA materialization -> verify -> remove .git
+-> ns-test namespace test
 ~~~
 
-No PR-derived text enters a privileged shell command, and the raw input is
-never a checkout ref. The PR source is copied only after the identity drop.
+No raw or unvalidated PR-derived text, path, ref, URL, or shell syntax enters a
+privileged command; the already API-bound exact SHA is passed only as validated
+data. The raw input is never a checkout ref. The PR source is materialized
+directly only after the identity drop.
 The disposable GitHub-hosted VM owns the final account/profile/temp teardown;
 there is deliberately no root-side recursive deletion of an `ns-test`-writable
 tree after PR code has run.
@@ -138,18 +142,85 @@ lowercase 40-character SHA, maps only the trusted test result to a fixed
 `trusted-lighttpd-namespace`. The status token exists only in that reporter;
 the test job never receives it.
 
+## 2026-08-23 direct constrained source-materialization and mount-lifecycle repair
+
+Run `32614114266` proved the complete privileged bootstrap, API binding, exact
+target validation, `aa-exec -> setpriv -> env -i` identity boundary, and both
+namespace probes. It then failed closed with `BLOCKED: runtime.source_root`
+before a Lighttpd unittest began: the constrained `ns-test` process could not
+traverse the prior runner-workspace checkout. The run does not prove which
+workspace ancestor caused the visibility failure, and it is not a Lighttpd
+test failure.
+
+The repair removes the runner-workspace handoff entirely. The protected
+bootstrap creates a root-owned `0755` parent, an empty root-owned Git template,
+and two root-owned fixed helpers under
+`/var/lib/trusted-lighttpd-namespace`; it gives only the fixed `source` and
+`tmp` children, both `0700`, to `ns-test`. The source-namespace helper receives
+only the already API-bound SHA and the fixed `ns-test` numeric identity through
+a cleaned environment; its source path, Git template, and public HTTPS origin
+are literals in trusted master-controlled text.
+
+A follow-up security review rejected the earlier plan to mount the tmpfs after
+`--map-current-user`: after that non-root `exec`, Linux recalculates capability
+sets and the mount cannot safely proceed. The trusted helper now validates the
+empty fixed source and temporary underlays before any source exists, records
+the host namespace IDs, then creates a private mount/PID namespace as root and
+explicitly makes mount propagation private. It mounts a bounded `256m` source
+tmpfs and a separate bounded `128m` temporary tmpfs, both
+`nosuid,nodev,noexec`. It has not fetched, read, copied, parsed, or executed PR
+source at this point.
+
+Only after that blank private mount exists, `setpriv --reuid/--regid` clears
+supplementary groups, sets `NoNewPrivs`, and removes inheritable, ambient, and
+bounding capabilities. A clean `env -i` then enters a same-identity nested
+user/mount/PID namespace without `--keep-caps` and executes the root-owned
+source-runner script as `ns-test`. That runner proves its real non-root UID/GID, empty capability
+sets, `NoNewPrivs`, AppArmor label, Docker-socket isolation, distinct
+user/mount/PID namespaces, PID 1, and both private tmpfs mounts before it
+materializes Git. It then uses only absolute root-verified binaries and a bounded Git
+launcher to initialize the private mount with the empty template, fetch only
+the exact SHA (`--no-tags --depth=1 --no-recurse-submodules`), verify the
+commit/object and `HEAD`, delete `.git`, reject checkout symlinks, and run the
+namespace unittest.
+
+The materialization environment is created by `env -i`: HTTPS is the only
+allowed Git protocol; prompts, LFS smudging, global/system configuration,
+hooks, credential helpers, file protocol, and filesystem monitoring are
+disabled. No token, workspace path, branch/ref, URL, or Git configuration is
+accepted from the PR. The private source and test-temporary mounts are released
+with their `--kill-child`-bound namespace on normal completion or controlled
+parent termination. After Python returns, the constrained runner also verifies
+that the private temporary root is empty. The host performs only a
+non-destructive absence check for both mounts; it never resolves a
+same-UID-writable path for cleanup. This replaces the reviewed unsafe
+`find ... -delete` pattern; root never reads, copies, parses, or recursively
+deletes PR source or test-temporary data.
+
+This change does not weaken a namespace, AppArmor, capability, token, or
+failure gate. It changes neither Framework nor MRTS source, a Gitlink,
+dependency, toolchain, action pin, repository setting, ordinary PR workflow,
+or PR #309's Draft state. Hosted exact-head runtime and Sonar evidence remain
+pending until this separately reviewed master repair is merged and dispatched.
+
+### Local validation
+
+- `rtk test python3 -m unittest -v tests.test_trusted_lighttpd_namespace_dispatch_workflow` — passed (`2` tests, including the weakening mutations).
+- `rtk test /var/tmp/codex/ModSecurity-conector/ci-security-venv/bin/python -m unittest -v tests.test_ci_security_workflows` — passed (`28` tests).
+- `rtk test /var/tmp/codex/ModSecurity-conector/ci-security-venv/bin/python -m unittest -v connectors.lighttpd.tests.test_no_crs_fixture_namespace` in the clean PR #309 worktree — passed (`18` tests; `10` expected skips without the trusted integration gate).
+- `actionlint` with ShellCheck, offline `zizmor`, Python `compileall`, the bilingual-documentation suite, and `git diff --check` — passed.
+
 ## Changed files
 
 - `.github/workflows/run-trusted-lighttpd-namespace-dispatch.yml` — protected
-  manual Ubuntu-24.04 dispatcher, API-bound exact checkout, and restricted
-  `ns-test` execution.
+  manual Ubuntu-24.04 dispatcher, API-bound direct constrained source
+  materialization in a private mount lifecycle, and restricted `ns-test`
+  execution.
 - `tests/test_trusted_lighttpd_namespace_dispatch_workflow.py` — positive and
-  mutation contracts for the trust boundary, active-profile proof, and
-  isolated status reporter.
-- `tests/test_ci_security_workflows.py` — exact allowlist entry for the
-  reporter's only write permission, `statuses: write`.
-- This English/German Change Record pair and archive entries — authorization,
-  invocation, validation, and explicit pending-runtime status.
+  mutation contracts for the trust boundary, active-profile proof, direct Git
+  materialization, private mount teardown, and isolated status reporter.
+- This English/German Change Record pair — authorization, invocation,
+  validation, and explicit pending-runtime status.
 
 The existing pull-request workflow receives no `sudo` or AppArmor setup.
 Framework, MRTS, Gitlinks, dependencies, action pins, and settings are not
@@ -181,7 +252,7 @@ gh workflow run run-trusted-lighttpd-namespace-dispatch.yml --repo Easton97-Jens
 
 For SHA mode, replace `309` with PR #309's current full lowercase
 40-character head SHA. The dispatcher prints the API-validated PR and SHA
-before checkout. Its successful manual run is the required runtime evidence.
+before source materialization. Its successful manual run is the required runtime evidence.
 The reporter publishes its fixed exact-SHA status only after the target is
 bound; bootstrap or target-resolution failure has no trustworthy SHA and thus
 fails the dispatcher without writing an unbound status.
@@ -192,7 +263,7 @@ The exact actor/triggering-actor gate is deliberately narrower than a general ma
 A protected environment with required reviewers would add governance, but
 repository-settings changes are outside this pull request. The dispatcher
 rejects fork PRs and non-head SHA values by design; it is authorized only for
-an open same-repository PR whose head is API-bound before checkout.
+an open same-repository PR whose head is API-bound before source materialization.
 
 PR #309 remains Draft until this workflow is merged and an exact-head manual
 run succeeds.
@@ -207,10 +278,10 @@ state is the documented mandatory manual merge barrier.
 
 The repair removes the model in which a PR could edit privileged steps in the
 same pull-request workflow that executes its source. Privileged work now comes
-from reviewed protected-master YAML and ends before checkout. The only
-post-checkout root operations are fixed Git-state removal and the static
-`aa-exec` to `setpriv` launcher; neither reads, copies, parses, or executes PR
-source. All source handling happens after the non-root drop.
+from reviewed protected-master YAML and ends before source materialization.
+There is no runner-workspace checkout; the root helper creates only blank
+private mounts and never reads, copies, parses, executes, or cleans up a
+PR-derived path. All source handling happens after the non-root drop.
 
 The dispatcher adds no root path cleanup, privileged-container fallback,
 global AppArmor relaxation, or successful skip.
