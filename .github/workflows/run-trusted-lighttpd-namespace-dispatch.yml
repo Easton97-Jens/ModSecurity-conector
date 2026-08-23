@@ -54,6 +54,63 @@ jobs:
             fi
           }
 
+          require_trusted_setuid_root_file() {
+            local candidate="$1"
+            local mode
+            require_trusted_system_file "$candidate"
+            mode="$(/usr/bin/stat -Lc '%a' -- "$candidate")"
+            [[ "$mode" =~ ^[0-7]{4}$ ]]
+            if (( (8#$mode & 04000) == 0 )); then
+              printf '%s\n' "BLOCKED: trusted system helper is not setuid-root: $candidate" >&2
+              exit 77
+            fi
+          }
+
+          require_trusted_subid_file() {
+            local candidate="$1"
+            local owner
+            local mode
+            test -f "$candidate"
+            test ! -L "$candidate"
+            owner="$(/usr/bin/stat -Lc '%u' -- "$candidate")"
+            mode="$(/usr/bin/stat -Lc '%a' -- "$candidate")"
+            test "$owner" = 0
+            [[ "$mode" =~ ^[0-7]{3,4}$ ]]
+            if (( (8#$mode) & 0022 )); then
+              printf '%s\n' "BLOCKED: trusted subordinate-ID file is group/other writable: $candidate" >&2
+              exit 77
+            fi
+          }
+
+          reject_existing_subordinate_identity() {
+            local candidate="$1"
+            local principal="$2"
+            local numeric_principal="$3"
+            local label="$4"
+            require_trusted_subid_file "$candidate"
+            if /usr/bin/grep -Eq "^(${principal}|${numeric_principal}):" "$candidate"; then
+              printf '%s\n' "BLOCKED: unexpected existing ${label} delegation." >&2
+              exit 77
+            fi
+          }
+
+          require_exact_subordinate_identity() {
+            local candidate="$1"
+            local principal="$2"
+            local numeric_principal="$3"
+            local delegated_identity="$4"
+            local label="$5"
+            require_trusted_subid_file "$candidate"
+            test "$(/usr/bin/grep -Ec "^(${principal}|${numeric_principal}):" "$candidate")" = 1 || {
+              printf '%s\n' "BLOCKED: ${label} delegation count is not exact." >&2
+              exit 77
+            }
+            /usr/bin/grep -F -x -- "${principal}:${delegated_identity}:1" "$candidate" >/dev/null || {
+              printf '%s\n' "BLOCKED: ${label} delegation does not match the fixed one-ID range." >&2
+              exit 77
+            }
+          }
+
           require_root_owned_directory() {
             local candidate="$1"
             local owner
@@ -78,16 +135,21 @@ jobs:
           done
 
           /usr/bin/sudo -n /usr/bin/env DEBIAN_FRONTEND=noninteractive /usr/bin/apt-get update
-          /usr/bin/sudo -n /usr/bin/env DEBIAN_FRONTEND=noninteractive /usr/bin/apt-get install --no-install-recommends --yes apparmor-utils bubblewrap jq
+          /usr/bin/sudo -n /usr/bin/env DEBIAN_FRONTEND=noninteractive /usr/bin/apt-get install --no-install-recommends --yes apparmor-utils bubblewrap jq uidmap
 
           require_root_owned_directory /etc/apparmor.d
-          for binary in /usr/bin/aa-exec /usr/bin/bwrap /usr/bin/cat /usr/bin/curl /usr/bin/dash /usr/bin/env /usr/bin/false /usr/bin/find /usr/bin/getent /usr/bin/git /usr/bin/grep /usr/bin/id /usr/bin/install /usr/bin/jq /usr/bin/mkdir /usr/bin/mount /usr/bin/python3 /usr/bin/readlink /usr/bin/rm /usr/bin/setpriv /usr/bin/stat /usr/bin/sudo /usr/bin/tee /usr/bin/timeout /usr/bin/touch /usr/bin/true /usr/bin/unshare /usr/sbin/aa-status /usr/sbin/apparmor_parser /usr/sbin/useradd; do
+          for binary in /usr/bin/aa-exec /usr/bin/bwrap /usr/bin/cat /usr/bin/curl /usr/bin/dash /usr/bin/env /usr/bin/false /usr/bin/find /usr/bin/getent /usr/bin/git /usr/bin/grep /usr/bin/id /usr/bin/install /usr/bin/jq /usr/bin/mkdir /usr/bin/mount /usr/bin/newgidmap /usr/bin/newuidmap /usr/bin/python3 /usr/bin/readlink /usr/bin/rm /usr/bin/setpriv /usr/bin/stat /usr/bin/sudo /usr/bin/tee /usr/bin/timeout /usr/bin/touch /usr/bin/true /usr/bin/unshare /usr/sbin/aa-status /usr/sbin/apparmor_parser /usr/sbin/useradd /usr/sbin/usermod; do
             require_trusted_system_file "$binary"
           done
+          require_trusted_setuid_root_file /usr/bin/newuidmap
+          require_trusted_setuid_root_file /usr/bin/newgidmap
           /usr/bin/bwrap --help | /usr/bin/grep -F -- '--disable-userns' >/dev/null
           /usr/bin/bwrap --help | /usr/bin/grep -F -- '--assert-userns-disabled' >/dev/null
           for unshare_option in --map-users --map-groups --setgroups --keep-caps; do
             /usr/bin/unshare --help | /usr/bin/grep -F -- "$unshare_option" >/dev/null
+          done
+          for usermod_option in --add-subuids --add-subgids; do
+            /usr/sbin/usermod --help | /usr/bin/grep -F -- "$usermod_option" >/dev/null
           done
           test -r /proc/sys/kernel/apparmor_restrict_unprivileged_userns
           read -r userns_restriction < /proc/sys/kernel/apparmor_restrict_unprivileged_userns
@@ -97,12 +159,30 @@ jobs:
             printf '%s\n' 'BLOCKED: fresh runner unexpectedly already contains ns-test.' >&2
             exit 77
           fi
-          /usr/bin/sudo -n /usr/sbin/useradd --create-home --user-group --home-dir /home/ns-test --shell /usr/sbin/nologin --no-log-init ns-test
+          /usr/bin/sudo -n /usr/sbin/useradd --system --create-home --user-group --home-dir /home/ns-test --shell /usr/sbin/nologin --no-log-init ns-test
           ns_test_uid="$(/usr/bin/id -u ns-test)"
           ns_test_gid="$(/usr/bin/id -g ns-test)"
           [[ "$ns_test_uid" =~ ^[1-9][0-9]*$ ]]
           [[ "$ns_test_gid" =~ ^[1-9][0-9]*$ ]]
           test "$(/usr/bin/id -G ns-test)" = "$ns_test_gid"
+
+          # A second identity map requires newuidmap/newgidmap.  On this fresh
+          # trusted runner, root receives exactly the one ns-test UID/GID that
+          # the fixed helper maps; ns-test itself receives no subordinate range.
+          # This setup is complete before checkout and no PR-controlled value
+          # reaches usermod or either delegation file.
+          reject_existing_subordinate_identity /etc/subuid root 0 root_subordinate_uid
+          reject_existing_subordinate_identity /etc/subgid root 0 root_subordinate_gid
+          reject_existing_subordinate_identity /etc/subuid ns-test "$ns_test_uid" ns_test_subordinate_uid
+          reject_existing_subordinate_identity /etc/subgid ns-test "$ns_test_gid" ns_test_subordinate_gid
+          /usr/bin/sudo -n /usr/sbin/usermod \
+            --add-subuids "$ns_test_uid-$ns_test_uid" \
+            --add-subgids "$ns_test_gid-$ns_test_gid" \
+            root
+          require_exact_subordinate_identity /etc/subuid root 0 "$ns_test_uid" root_subordinate_uid
+          require_exact_subordinate_identity /etc/subgid root 0 "$ns_test_gid" root_subordinate_gid
+          reject_existing_subordinate_identity /etc/subuid ns-test "$ns_test_uid" ns_test_subordinate_uid
+          reject_existing_subordinate_identity /etc/subgid ns-test "$ns_test_gid" ns_test_subordinate_gid
 
           /usr/bin/sudo -n /usr/bin/install -d -o 0 -g 0 -m 0755 /var/lib/trusted-lighttpd-namespace /var/lib/trusted-lighttpd-namespace/empty-git-template
           /usr/bin/sudo -n /usr/bin/install -d -o "$ns_test_uid" -g "$ns_test_gid" -m 0700 /var/lib/trusted-lighttpd-namespace/source

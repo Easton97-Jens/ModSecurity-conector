@@ -470,3 +470,43 @@ It leaves PR #309's pull-request workflow unprivileged. After the bootstrap PR
 is reviewed and merged, the owner must dispatch from `master`, verify the
 resulting PR #309 SHA, and leave #309 Draft unless the full namespace evidence
 succeeds.
+
+## 2026-08-23 exact subordinate-ID delegation repair
+
+The separately reviewed dual-map repair was merged through PR #329. Its exact
+head passed all required checks and SonarQube Cloud reported zero new issues,
+security hotspots, and new-code duplication. Protected-master run
+`32628717039` then targeted the fresh Draft PR #309 head
+`bdc054c74fd8dfd01a6b7bf3ccfe89af9a60fe76` and failed closed before Git
+materialization or PR test execution with:
+
+~~~text
+newuidmap: uid range [1002-1003) -> [1002-1003) not allowed
+~~~
+
+This is a missing trusted-bootstrap delegation, not a missing runner
+capability and not permission to accept overflow ownership. The multi-ID map
+uses `newuidmap`/`newgidmap`; their documented policy requires an authorized
+subordinate range for every additional outer ID, including for a root caller.
+
+The follow-up bootstrap installs the fixed `uidmap` package, verifies the two
+setuid-root map helpers are root-owned and not group/other writable, and makes
+`ns-test` a system account. This avoids automatic broad `ns-test` subordinate
+ranges. Before source exists, it rejects any pre-existing `root`/`0` or
+`ns-test`/numeric-`ns-test` entries in `/etc/subuid` and `/etc/subgid`. The
+root-controlled `usermod` command then grants **root only** exactly the fresh
+`ns-test` UID and GID, each with count `1`, and verifies both records:
+
+~~~text
+root:<ns-test-uid>:1
+root:<ns-test-gid>:1
+~~~
+
+Missing, writable, symlinked, pre-populated, malformed, duplicate, or broad
+delegation exits `77` before checkout. No PR-controlled value reaches this
+setup, and the subsequent `setpriv` drop, `NoNewPrivs`, empty-group,
+zero-capability, private-mount, AppArmor, and exact-map controls are unchanged.
+The static contract mutates loss of `uidmap`, setuid-helper attestation, system
+account creation, exact range/principal, the `ns-test` absence guard, and the
+exact-count guard. A fresh hosted exact-head run remains mandatory after this
+separate repair; PR #309 remains open and Draft.
