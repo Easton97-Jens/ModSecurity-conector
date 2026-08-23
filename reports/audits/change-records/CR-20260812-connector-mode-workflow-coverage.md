@@ -552,6 +552,29 @@ no master integration, Ready transition, merge, or auto-merge is authorized.
 
 ### Final review status
 
-The local master refresh, workflow change, summary contract, and focused
-security review are complete. Normal branch publication, PR-head verification,
-GitHub Actions, and exact-head SonarQube Cloud evidence remain pending.
+The local master refresh, workflow change, summary contract, focused security
+review, normal branch publication, and PR-head verification are complete.
+Exact-head GitHub Actions exposed a narrow native-target caller omission,
+described below. The PR remains Draft while that correction and its exact-head
+hosted evidence are completed.
+
+### Hosted remediation follow-up
+
+The published PR #279 head
+`4a10ec0b71b97fa75ce179f904158f26ab1b1b9f` exposed three genuine runtime
+failures before their selected non-NGINX runtime controls: no-CRS/with-MRTS
+Apache in run `32642702812` (job `97202139589`), and with-CRS/with-MRTS Apache
+and HAProxy in run `32642702949` (jobs `97202140143` and `97202139952`).
+Each stopped at `nginx_pinned_provenance_ref_mismatch`.
+
+The direct workflow callers did not set `RUNTIME_COMPONENT_TARGET`. The
+provisioner therefore correctly selected its fail-closed default `all` and
+validated the protected NGINX provenance tuple before a non-NGINX native
+control. This is a workflow-caller scope defect, not a reason to alter the
+NGINX tuple, its guard, the Framework, MRTS, or a Gitlink.
+
+The correction explicitly selects `apache` for Apache and `haproxy` for
+HAProxy in both MRTS profile workflows, with a contract regression requiring
+those exact values and prohibiting `all`. It is a diagnostic follow-up, not
+closure: the focused local contracts and a new exact-head hosted run are still
+required before this remediation is considered verified.

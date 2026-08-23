@@ -587,7 +587,31 @@ Ready-Umstellung, kein Merge und kein Auto-Merge sind autorisiert.
 
 ### Finaler Review-Status
 
-Der lokale Master-Refresh, die Workflow-Änderung, der Summary-Contract und das
-fokussierte Security-Review sind abgeschlossen. Normale Branch-
-Veröffentlichung, PR-Head-Verifikation, GitHub Actions und Exact-Head-
-SonarQube-Cloud-Evidence stehen noch aus.
+Der lokale Master-Refresh, die Workflow-Änderung, der Summary-Contract, das
+fokussierte Security-Review, die normale Branch-Veröffentlichung und die
+PR-Head-Verifikation sind abgeschlossen. Exact-Head-GitHub-Actions zeigten
+eine enge Native-Target-Caller-Auslassung, die unten beschrieben ist. Die PR
+bleibt Draft, bis diese Korrektur und ihre Exact-Head-Hosted-Evidence
+abgeschlossen sind.
+
+### Hosted-Remediation-Follow-up
+
+Der veröffentlichte PR-#279-Head
+`4a10ec0b71b97fa75ce179f904158f26ab1b1b9f` zeigte drei echte
+Runtime-Fehler vor ihren ausgewählten Nicht-NGINX-Runtime-Controls:
+no-CRS/with-MRTS-Apache in Run `32642702812` (Job `97202139589`) sowie
+with-CRS/with-MRTS-Apache und -HAProxy in Run `32642702949` (Jobs
+`97202140143` und `97202139952`). Alle endeten bei
+`nginx_pinned_provenance_ref_mismatch`.
+
+Die direkten Workflow-Caller setzten `RUNTIME_COMPONENT_TARGET` nicht. Der
+Provisioner wählte daher korrekt seinen fail-closed Default `all` und
+validierte das geschützte NGINX-Provenance-Tupel vor einem Nicht-NGINX-Native-
+Control. Dies ist ein Workflow-Caller-Scope-Defekt, kein Grund, das
+NGINX-Tupel, seinen Guard, das Framework, MRTS oder einen Gitlink zu ändern.
+
+Die Korrektur wählt in beiden MRTS-Profil-Workflows explizit `apache` für
+Apache und `haproxy` für HAProxy. Eine Vertragsregression verlangt diese
+exakten Werte und verbietet `all`. Dies ist ein Diagnose-Follow-up, keine
+Abschlussbehauptung: fokussierte lokale Verträge und ein neuer Exact-Head-
+Hosted-Run sind erforderlich, bevor die Remediation als verifiziert gilt.

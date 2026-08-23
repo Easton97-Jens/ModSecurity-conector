@@ -176,7 +176,7 @@ jobs:
           set -euo pipefail
           case "$CONNECTOR" in
             apache)
-              make verified-apache-case CASE=action_allow_phase1_pass CRS="$CRS" MRTS="$MRTS"
+              RUNTIME_COMPONENT_TARGET=apache make verified-apache-case CASE=action_allow_phase1_pass CRS="$CRS" MRTS="$MRTS"
               ;;
             haproxy)
               haproxy_source_root="$CACHE_ROOT/shared/sources"

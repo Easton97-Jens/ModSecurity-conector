@@ -3714,9 +3714,12 @@ class ConnectorModeWorkflowContractTest(unittest.TestCase):
                 self.assertIn(
                     "DetectionOnly expected; no enforcement claim", text
                 )
-                self.assertIn(
+                apache_case = (
                     'make verified-apache-case CASE=action_allow_phase1_pass '
-                    'CRS="$CRS" MRTS="$MRTS"',
+                    'CRS="$CRS" MRTS="$MRTS"'
+                )
+                self.assertIn(
+                    f"RUNTIME_COMPONENT_TARGET=apache {apache_case}",
                     text,
                 )
                 self.assertIn(
@@ -3730,18 +3733,13 @@ class ConnectorModeWorkflowContractTest(unittest.TestCase):
                     'make verified-haproxy-case CASE=action_allow_phase1_pass '
                     'CRS="$CRS" MRTS="$MRTS"'
                 )
-                if filename == "test-connectors-no-crs-with-mrts.yml":
-                    self.assertIn(
-                        'SOURCE_ROOT="$haproxy_source_root" '
-                        f"RUNTIME_COMPONENT_TARGET=haproxy {haproxy_case}",
-                        text,
-                    )
-                else:
-                    self.assertIn(
-                        f'SOURCE_ROOT="$haproxy_source_root" {haproxy_case}', text
-                    )
-                    self.assertNotIn("RUNTIME_COMPONENT_TARGET=haproxy", text)
-                    self.assertNotIn("make fetch-crs", text)
+                self.assertIn(
+                    'SOURCE_ROOT="$haproxy_source_root" '
+                    f"RUNTIME_COMPONENT_TARGET=haproxy {haproxy_case}",
+                    text,
+                )
+                self.assertNotIn("RUNTIME_COMPONENT_TARGET=all", text)
+                self.assertNotIn("make fetch-crs", text)
 
         for filename in (
             "test-connectors-no-crs-with-mrts.yml",
