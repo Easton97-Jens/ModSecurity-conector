@@ -17,6 +17,14 @@ TEMP_ROOT = f"{RUNTIME_ROOT}/tmp"
 GIT_TEMPLATE_ROOT = f"{RUNTIME_ROOT}/empty-git-template"
 SOURCE_NAMESPACE_RUNNER = f"{RUNTIME_ROOT}/run-source-namespace.sh"
 SOURCE_TEST_RUNNER = f"{RUNTIME_ROOT}/run-source-test.sh"
+EXACT_ROOT_SUBID_COMMAND = "\n".join(
+    (
+        "/usr/bin/sudo -n /usr/sbin/usermod " + "\\",
+        '            --add-subuids "$ns_test_uid-$ns_test_uid" ' + "\\",
+        '            --add-subgids "$ns_test_gid-$ns_test_gid" ' + "\\",
+        "            root",
+    )
+)
 
 
 def require_markers(errors: list[str], text: str, label: str, markers: tuple[str, ...]) -> None:
@@ -123,7 +131,7 @@ def trusted_dispatch_errors(text: str) -> list[str]:
         (
             "for directory in / /usr /usr/bin /usr/sbin /etc /var /var/lib; do",
             "/usr/bin/apt-get update",
-            "apparmor-utils bubblewrap jq",
+            "apparmor-utils bubblewrap jq uidmap",
             "kernel/apparmor_restrict_unprivileged_userns",
             'test "$userns_restriction" = 1',
             "profile trusted-lighttpd-ci-userns flags=(unconfined) {",
@@ -134,15 +142,61 @@ def trusted_dispatch_errors(text: str) -> list[str]:
             'case "$(/usr/bin/cat /proc/self/attr/current)" in',
             "trusted-lighttpd-ci-userns\\ *)",
             "BLOCKED: trusted AppArmor profile was not entered.",
-            "/usr/sbin/useradd --create-home --user-group --home-dir /home/ns-test",
+            "/usr/sbin/useradd --system --create-home --user-group --home-dir /home/ns-test",
             'test "$(/usr/bin/id -G ns-test)" = "$ns_test_gid"',
             f"{RUNTIME_ROOT}/tmp",
             "-m 0700",
             "--disable-userns",
             "--assert-userns-disabled",
-            "/usr/bin/unshare --help | /usr/bin/grep -F -- '--keep-caps' >/dev/null",
+            "for unshare_option in --map-user --map-users --map-group --map-groups --setgroups --keep-caps; do",
+            "/usr/bin/unshare --help | /usr/bin/grep -F -- \"$unshare_option\" >/dev/null",
+            "for usermod_option in --add-subuids --add-subgids; do",
+            "/usr/sbin/usermod --help | /usr/bin/grep -F -- \"$usermod_option\" >/dev/null",
         ),
     )
+    require_markers(
+        errors,
+        text,
+        "exact trusted subordinate-ID delegation",
+        (
+            "require_trusted_setuid_root_file() {",
+            "require_trusted_subid_file() {",
+            "reject_existing_subordinate_identity() {",
+            "require_exact_subordinate_identity() {",
+            "trusted system helper is not setuid-root",
+            "trusted subordinate-ID file is group/other writable",
+            "/usr/bin/newuidmap",
+            "/usr/bin/newgidmap",
+            "require_trusted_setuid_root_file /usr/bin/newuidmap",
+            "require_trusted_setuid_root_file /usr/bin/newgidmap",
+            "reject_existing_subordinate_identity /etc/subuid root 0 root_subordinate_uid",
+            "reject_existing_subordinate_identity /etc/subgid root 0 root_subordinate_gid",
+            'reject_existing_subordinate_identity /etc/subuid ns-test "$ns_test_uid" ns_test_subordinate_uid',
+            'reject_existing_subordinate_identity /etc/subgid ns-test "$ns_test_gid" ns_test_subordinate_gid',
+            "/usr/bin/sudo -n /usr/sbin/usermod \\",
+            '--add-subuids "$ns_test_uid-$ns_test_uid"',
+            '--add-subgids "$ns_test_gid-$ns_test_gid"',
+            "            root",
+            'require_exact_subordinate_identity /etc/subuid root 0 "$ns_test_uid" root_subordinate_uid',
+            'require_exact_subordinate_identity /etc/subgid root 0 "$ns_test_gid" root_subordinate_gid',
+            "delegation count is not exact",
+            "delegation does not match the fixed one-ID range",
+        ),
+    )
+    if "--add-subids-for-system" in text:
+        errors.append("ns-test must not receive an automatic broad subordinate-ID range")
+    if text.count(EXACT_ROOT_SUBID_COMMAND) != 1:
+        errors.append("trusted root subordinate-ID command must be exact and unique")
+    if text.count('reject_existing_subordinate_identity /etc/subuid ns-test "$ns_test_uid" ns_test_subordinate_uid') != 2:
+        errors.append("ns-test subordinate UID delegation must be absent before and after root setup")
+    if text.count('reject_existing_subordinate_identity /etc/subgid ns-test "$ns_test_gid" ns_test_subordinate_gid') != 2:
+        errors.append("ns-test subordinate GID delegation must be absent before and after root setup")
+    if text.count('require_exact_subordinate_identity /etc/subuid root 0 "$ns_test_uid" root_subordinate_uid') != 1:
+        errors.append("root subordinate UID delegation must be verified exactly once")
+    if text.count('require_exact_subordinate_identity /etc/subgid root 0 "$ns_test_gid" root_subordinate_gid') != 1:
+        errors.append("root subordinate GID delegation must be verified exactly once")
+    if '"$(/usr/bin/grep -Ec "^(${principal}|${numeric_principal}):" "$candidate")" = 1 || {' not in text:
+        errors.append("subordinate-ID owner count must remain exactly one")
     if "/usr/sbin/aa-status --profiled" in text:
         errors.append("aa-status --profiled cannot prove that the named profile is loaded")
     if "/var/tmp/trusted-lighttpd-namespace" in text:
@@ -212,6 +266,21 @@ def trusted_dispatch_errors(text: str) -> list[str]:
             errors.append("pre-materialization setpriv must enter the named AppArmor profile")
         if any(forbidden in bootstrap_step for forbidden in ("GITHUB_WORKSPACE", "SOURCE_COPY")):
             errors.append("bootstrap must not consume a PR source path")
+        require_order(
+            errors,
+            bootstrap_step,
+            "exact subordinate-ID setup before source access",
+            (
+                "/usr/sbin/useradd --system --create-home --user-group --home-dir /home/ns-test",
+                "reject_existing_subordinate_identity /etc/subuid root 0 root_subordinate_uid",
+                "/usr/bin/sudo -n /usr/sbin/usermod \\",
+                '--add-subuids "$ns_test_uid-$ns_test_uid"',
+                '--add-subgids "$ns_test_gid-$ns_test_gid"',
+                'require_exact_subordinate_identity /etc/subuid root 0 "$ns_test_uid" root_subordinate_uid',
+                'require_exact_subordinate_identity /etc/subgid root 0 "$ns_test_gid" root_subordinate_gid',
+                f"/usr/bin/sudo -n /usr/bin/tee {SOURCE_TEST_RUNNER}",
+            ),
+        )
 
     require_markers(
         errors,
@@ -388,6 +457,16 @@ def trusted_dispatch_errors(text: str) -> list[str]:
             'test "$(/usr/bin/readlink /proc/self/ns/mnt)" != "$HOST_MOUNT_NAMESPACE"',
             'test "$(/usr/bin/readlink /proc/self/ns/pid)" != "$HOST_PID_NAMESPACE"',
             'test "$$" = 1',
+            '/usr/bin/grep -Eq "^[[:space:]]*0[[:space:]]+0[[:space:]]+1[[:space:]]*$" /proc/self/uid_map || fail_runtime user_namespace_root_uid_map',
+            "fail_runtime user_namespace_root_uid_map",
+            '/usr/bin/grep -Eq "^[[:space:]]*${NS_TEST_UID}[[:space:]]+${NS_TEST_UID}[[:space:]]+1[[:space:]]*$" /proc/self/uid_map || fail_runtime user_namespace_ns_test_uid_map',
+            "fail_runtime user_namespace_ns_test_uid_map",
+            'test "$(/usr/bin/grep -Ec "^[[:space:]]*[0-9]+[[:space:]]+[0-9]+[[:space:]]+[0-9]+[[:space:]]*$" /proc/self/uid_map)" = 2 || fail_runtime user_namespace_uid_map_count',
+            '/usr/bin/grep -Eq "^[[:space:]]*0[[:space:]]+0[[:space:]]+1[[:space:]]*$" /proc/self/gid_map || fail_runtime user_namespace_root_gid_map',
+            "fail_runtime user_namespace_root_gid_map",
+            '/usr/bin/grep -Eq "^[[:space:]]*${NS_TEST_GID}[[:space:]]+${NS_TEST_GID}[[:space:]]+1[[:space:]]*$" /proc/self/gid_map || fail_runtime user_namespace_ns_test_gid_map',
+            "fail_runtime user_namespace_ns_test_gid_map",
+            'test "$(/usr/bin/grep -Ec "^[[:space:]]*[0-9]+[[:space:]]+[0-9]+[[:space:]]+[0-9]+[[:space:]]*$" /proc/self/gid_map)" = 2 || fail_runtime user_namespace_gid_map_count',
             f"TEMP_ROOT={TEMP_ROOT}",
             'test "$TMPDIR" = "$TEMP_ROOT"',
             'test "$TMP" = "$TEMP_ROOT"',
@@ -434,7 +513,28 @@ def trusted_dispatch_errors(text: str) -> list[str]:
             "/usr/bin/find -P \"$SOURCE_ROOT\" -mindepth 1 -maxdepth 1 -print -quit",
             "temporary_root_not_empty",
             "/usr/bin/find -P \"$TEMP_ROOT\" -mindepth 1 -maxdepth 1 -print -quit",
-            "/usr/bin/unshare --mount --pid --fork --kill-child=SIGKILL",
+            "exec /usr/bin/unshare",
+            "--user",
+            "--map-user 0",
+            '--map-users "$NS_TEST_UID:$NS_TEST_UID:1"',
+            "--map-group 0",
+            '--map-groups "$NS_TEST_GID:$NS_TEST_GID:1"',
+            "--setgroups allow",
+            "--keep-caps",
+            "--mount",
+            "--pid",
+            "--fork",
+            "--kill-child=SIGKILL",
+            '/usr/bin/grep -Eq "^[[:space:]]*0[[:space:]]+0[[:space:]]+1[[:space:]]*$" /proc/self/uid_map || fail_namespace source_namespace_root_uid_map',
+            "fail_namespace source_namespace_root_uid_map",
+            '/usr/bin/grep -Eq "^[[:space:]]*${NS_TEST_UID}[[:space:]]+${NS_TEST_UID}[[:space:]]+1[[:space:]]*$" /proc/self/uid_map || fail_namespace source_namespace_ns_test_uid_map',
+            "fail_namespace source_namespace_ns_test_uid_map",
+            'test "$(/usr/bin/grep -Ec "^[[:space:]]*[0-9]+[[:space:]]+[0-9]+[[:space:]]+[0-9]+[[:space:]]*$" /proc/self/uid_map)" = 2 || fail_namespace source_namespace_uid_map_count',
+            '/usr/bin/grep -Eq "^[[:space:]]*0[[:space:]]+0[[:space:]]+1[[:space:]]*$" /proc/self/gid_map || fail_namespace source_namespace_root_gid_map',
+            "fail_namespace source_namespace_root_gid_map",
+            '/usr/bin/grep -Eq "^[[:space:]]*${NS_TEST_GID}[[:space:]]+${NS_TEST_GID}[[:space:]]+1[[:space:]]*$" /proc/self/gid_map || fail_namespace source_namespace_ns_test_gid_map',
+            "fail_namespace source_namespace_ns_test_gid_map",
+            'test "$(/usr/bin/grep -Ec "^[[:space:]]*[0-9]+[[:space:]]+[0-9]+[[:space:]]+[0-9]+[[:space:]]*$" /proc/self/gid_map)" = 2 || fail_namespace source_namespace_gid_map_count',
             "/usr/bin/mount --make-rprivate /",
             "uid=$NS_TEST_UID,gid=$NS_TEST_GID,mode=0700,nosuid,nodev,noexec,size=256m",
             "uid=$NS_TEST_UID,gid=$NS_TEST_GID,mode=0700,nosuid,nodev,noexec,size=128m",
@@ -465,7 +565,6 @@ def trusted_dispatch_errors(text: str) -> list[str]:
             "LIGHTTPD_REQUIRE_NAMESPACE_INTEGRATION=1",
             "LIGHTTPD_REQUIRE_UNPRIVILEGED_TEST_RUNNER=1",
             f"LIGHTTPD_NAMESPACE_TEST_TEMP_PARENT=\"$TEMP_ROOT\"",
-            "/usr/bin/unshare --user --map-current-user --map-group=\"$NS_TEST_GID\" --keep-caps --mount --pid --fork --kill-child=SIGKILL",
             f"/usr/bin/dash -eu {SOURCE_TEST_RUNNER}",
         ),
     )
@@ -516,15 +615,30 @@ def trusted_dispatch_errors(text: str) -> list[str]:
         source_namespace_runner,
         "private mount before non-root source execution",
         (
-            "/usr/bin/unshare --mount --pid --fork --kill-child=SIGKILL",
+            "exec /usr/bin/unshare",
+            "--user",
+            "--map-user 0",
+            '--map-users "$NS_TEST_UID:$NS_TEST_UID:1"',
+            "--map-group 0",
+            '--map-groups "$NS_TEST_GID:$NS_TEST_GID:1"',
+            "--setgroups allow",
+            "--keep-caps",
+            "--mount",
+            "--pid",
+            "--fork",
+            "--kill-child=SIGKILL",
             "/usr/bin/mount --make-rprivate /",
             "uid=$NS_TEST_UID,gid=$NS_TEST_GID,mode=0700,nosuid,nodev,noexec,size=256m",
             "uid=$NS_TEST_UID,gid=$NS_TEST_GID,mode=0700,nosuid,nodev,noexec,size=128m",
             "exec /usr/bin/setpriv",
+            '--reuid="$NS_TEST_UID"',
+            '--regid="$NS_TEST_GID"',
             "--clear-groups",
+            "--no-new-privs",
+            "--inh-caps=-all",
+            "--ambient-caps=-all",
+            "--bounding-set=-all",
             "-- /usr/bin/env -i",
-            "/usr/bin/unshare --user --map-current-user --map-group=\"$NS_TEST_GID\" --keep-caps --mount --pid --fork",
-            "--keep-groups",
             f"/usr/bin/dash -eu {SOURCE_TEST_RUNNER}",
         ),
     )
@@ -562,25 +676,33 @@ def trusted_dispatch_errors(text: str) -> list[str]:
         errors.append("root source namespace helper must not consume PR source")
     if "--keep-caps" in source_runner:
         errors.append("source runner must not retain setup capabilities across exec")
-    source_capability_finalizer_pattern = (
-        r'/usr/bin/unshare --user --map-current-user --map-group="\$NS_TEST_GID" '
-        r'--keep-caps --mount --pid --fork --kill-child=SIGKILL --mount-proc=/proc '
-        r'--propagation private[ \t]*\\[ \t]*\n[ \t]*'
-        r'/usr/bin/setpriv[ \t]*\\[ \t]*\n[ \t]*'
-        r'--reuid="\$NS_TEST_UID"[ \t]*\\[ \t]*\n[ \t]*'
-        r'--regid="\$NS_TEST_GID"[ \t]*\\[ \t]*\n[ \t]*'
-        r'--keep-groups[ \t]*\\[ \t]*\n[ \t]*'
-        r'--no-new-privs[ \t]*\\[ \t]*\n[ \t]*'
-        r'--inh-caps=-all[ \t]*\\[ \t]*\n[ \t]*'
-        r'--ambient-caps=-all[ \t]*\\[ \t]*\n[ \t]*'
-        r'--bounding-set=-all[ \t]*\\[ \t]*\n[ \t]*'
-        rf'-- /usr/bin/dash -eu {re.escape(SOURCE_TEST_RUNNER)}'
-    )
     if source_namespace_runner.count("--keep-caps") != 1:
-        errors.append("source namespace must retain capabilities only for one trusted finalizer transition")
-    if re.search(source_capability_finalizer_pattern, source_namespace_runner) is None:
-        errors.append("source namespace must drop recreated capabilities before the source runner")
-    if text.count("/usr/bin/sudo -n") != 13:
+        errors.append("source namespace must retain setup capabilities only for the fixed pre-drop transition")
+    if len(re.findall(r"(?m)^\s*--map-users(?:=|[ \t])", source_namespace_runner)) != 1:
+        errors.append("source namespace must use exactly one util-linux subordinate UID range")
+    if len(re.findall(r"(?m)^\s*--map-groups(?:=|[ \t])", source_namespace_runner)) != 1:
+        errors.append("source namespace must use exactly one util-linux subordinate GID range")
+    if len(re.findall(r"(?m)^\s*--map-user(?:=|[ \t])", source_namespace_runner)) != 1:
+        errors.append("source namespace must use exactly one fixed root UID map selector")
+    if len(re.findall(r"(?m)^\s*--map-group(?:=|[ \t])", source_namespace_runner)) != 1:
+        errors.append("source namespace must use exactly one fixed root GID map selector")
+    if source_namespace_runner.count("--setgroups allow") != 1 or "--setgroups deny" in source_namespace_runner:
+        errors.append("source namespace must permit only the fixed group-clear transition")
+    for legacy_map_pattern in (
+        r"(?<![A-Za-z0-9-])--map-current-user(?![A-Za-z0-9-])",
+        r"(?<![A-Za-z0-9-])--map-auto(?![A-Za-z0-9-])",
+        r"(?<![A-Za-z0-9-])--map-root-user(?![A-Za-z0-9-])",
+    ):
+        if re.search(legacy_map_pattern, source_namespace_runner):
+            errors.append(f"source namespace must not use legacy identity mapping: {legacy_map_pattern}")
+    source_privilege_drop_start = source_namespace_runner.find("exec /usr/bin/setpriv")
+    if source_privilege_drop_start < 0:
+        errors.append("source namespace must contain the fixed non-root privilege drop")
+    else:
+        source_privilege_drop = source_namespace_runner[source_privilege_drop_start:]
+        if any(marker in source_privilege_drop for marker in ("--keep-caps", "--setgroups", "--map-")):
+            errors.append("source privilege drop must not retain namespace setup controls")
+    if text.count("/usr/bin/sudo -n") != 14:
         errors.append("unexpected privileged command inventory")
     if text.count("/usr/bin/sudo -n /usr/bin/aa-exec -p trusted-lighttpd-ci-userns -- ") != 2:
         errors.append("unexpected named-AppArmor launcher inventory")
@@ -596,28 +718,19 @@ def trusted_dispatch_errors(text: str) -> list[str]:
         errors.append("temporary tmpfs must be proven inside the private mount and source runner")
     if text.count('/usr/bin/grep -Eq "(shared:|master:)"') != 5:
         errors.append("every namespace probe and private mount must reject shared propagation")
-    if len(re.findall(r"(?<![A-Za-z0-9-])--no-new-privs(?![A-Za-z0-9-])", text)) != 3:
-        errors.append("every non-root privilege drop, including the user-namespace finalizer, must set no_new_privs")
+    if len(re.findall(r"(?<![A-Za-z0-9-])--no-new-privs(?![A-Za-z0-9-])", text)) != 2:
+        errors.append("every non-root privilege drop must set no_new_privs")
     if text.count("--clear-groups") != 2:
-        errors.append("both pre-user-namespace privilege drops must clear supplemental groups")
-    if source_namespace_runner.count("--keep-groups") != 1 or text.count("--keep-groups") != 1:
-        errors.append("the user-namespace finalizer must preserve only the already-cleared group state")
-    inner_finalizer_start = source_namespace_runner.find(
-        '/usr/bin/unshare --user --map-current-user --map-group="$NS_TEST_GID" --keep-caps'
-    )
-    if inner_finalizer_start < 0 or "--clear-groups" in source_namespace_runner[inner_finalizer_start:]:
-        errors.append("the mapped user-namespace finalizer must not call denied setgroups")
+        errors.append("both non-root privilege drops must clear supplemental groups")
+    if "--keep-groups" in source_namespace_runner:
+        errors.append("the source namespace must not preserve supplementary groups")
     if "--groups=" in source_namespace_runner or "--init-groups" in source_namespace_runner:
         errors.append("the source namespace must not initialize or add supplementary groups")
     for capability_drop in ("--inh-caps=-all", "--ambient-caps=-all", "--bounding-set=-all"):
-        if text.count(capability_drop) != 3:
-            errors.append(f"every non-root privilege drop, including the user-namespace finalizer, must retain {capability_drop}")
+        if text.count(capability_drop) != 2:
+            errors.append(f"every non-root privilege drop must retain {capability_drop}")
     if text.count("/usr/bin/unshare --user --map-root-user --mount --pid --fork") != 1:
         errors.append("the pre-materialization user/mount/PID probe is required")
-    if text.count(
-        "/usr/bin/unshare --user --map-current-user --map-group=\"$NS_TEST_GID\" --keep-caps --mount --pid --fork"
-    ) != 1:
-        errors.append("source execution must enter one same-identity user/mount/PID namespace with a trusted capability finalizer")
     if text.count(
         "/usr/bin/bwrap --unshare-user --unshare-pid --disable-userns --assert-userns-disabled"
     ) != 1:
@@ -697,14 +810,28 @@ class TrustedLighttpdNamespaceDispatchWorkflowTest(unittest.TestCase):
             ),
             "Git state retained": ('test ! -e "$SOURCE_ROOT/.git"', 'test -e "$SOURCE_ROOT/.git"'),
             "source symlink guard removed": ('test -z "$source_symlink"', "true # source symlink guard removed"),
-            "identity-preserving source namespace removed": (
-                "--map-current-user",
-                "--map-root-user",
+            "source namespace root UID map selector changed": ("--map-user 0", "--map-user 1"),
+            "source namespace ns-test UID mapping changed": (
+                '--map-users "$NS_TEST_UID:$NS_TEST_UID:1"',
+                '--map-users "$NS_TEST_UID:1:1"',
             ),
-            "source namespace capability finalizer moved outside the inner namespace": (
-                "exec /usr/bin/unshare --mount --pid --fork --kill-child=SIGKILL",
-                "exec /usr/bin/unshare --keep-caps --mount --pid --fork --kill-child=SIGKILL",
+            "source namespace root GID map selector changed": ("--map-group 0", "--map-group 1"),
+            "source namespace ns-test GID mapping changed": (
+                '--map-groups "$NS_TEST_GID:$NS_TEST_GID:1"',
+                '--map-groups "$NS_TEST_GID:1:1"',
             ),
+            "source namespace repeated UID range reintroduced": ("--map-user 0", "--map-users 0:0:1"),
+            "source namespace repeated GID range reintroduced": ("--map-group 0", "--map-groups 0:0:1"),
+            "source namespace legacy identity map reintroduced": ("--map-user 0", "--map-current-user"),
+            "source runner UID map count weakened": (
+                'test "$(/usr/bin/grep -Ec "^[[:space:]]*[0-9]+[[:space:]]+[0-9]+[[:space:]]+[0-9]+[[:space:]]*$" /proc/self/uid_map)" = 2 || fail_runtime user_namespace_uid_map_count',
+                'test "$(/usr/bin/grep -Ec "^[[:space:]]*[0-9]+[[:space:]]+[0-9]+[[:space:]]+[0-9]+[[:space:]]*$" /proc/self/uid_map)" = 3 || fail_runtime user_namespace_uid_map_count',
+            ),
+            "source helper GID map count weakened": (
+                'test "$(/usr/bin/grep -Ec "^[[:space:]]*[0-9]+[[:space:]]+[0-9]+[[:space:]]+[0-9]+[[:space:]]*$" /proc/self/gid_map)" = 2 || fail_namespace source_namespace_gid_map_count',
+                'test "$(/usr/bin/grep -Ec "^[[:space:]]*[0-9]+[[:space:]]+[0-9]+[[:space:]]+[0-9]+[[:space:]]*$" /proc/self/gid_map)" = 3 || fail_namespace source_namespace_gid_map_count',
+            ),
+            "source namespace denies group clearing": ("--setgroups allow", "--setgroups deny"),
             "private source tmpfs removed": (
                 "uid=$NS_TEST_UID,gid=$NS_TEST_GID,mode=0700,nosuid,nodev,noexec,size=256m",
                 "mode=0700,nosuid,nodev,noexec,size=4m",
@@ -740,6 +867,46 @@ class TrustedLighttpdNamespaceDispatchWorkflowTest(unittest.TestCase):
             "path-based source cleanup introduced": (
                 "test -z \"$source_entry\" || fail_namespace source_root_not_empty",
                 "test -z \"$source_entry\" || fail_namespace source_root_not_empty\n          /usr/bin/find -P \"$SOURCE_ROOT\" -xdev -mindepth 1 -depth -delete",
+            ),
+            "uidmap package omitted": (
+                "apparmor-utils bubblewrap jq uidmap",
+                "apparmor-utils bubblewrap jq",
+            ),
+            "ns-test becomes a regular user": (
+                "/usr/sbin/useradd --system --create-home --user-group --home-dir /home/ns-test",
+                "/usr/sbin/useradd --create-home --user-group --home-dir /home/ns-test",
+            ),
+            "ns-test gets automatic subordinate IDs": (
+                "/usr/sbin/useradd --system --create-home --user-group --home-dir /home/ns-test",
+                "/usr/sbin/useradd --system --add-subids-for-system --create-home --user-group --home-dir /home/ns-test",
+            ),
+            "trusted newuidmap setuid proof removed": (
+                "require_trusted_setuid_root_file /usr/bin/newuidmap",
+                "require_trusted_system_file /usr/bin/newuidmap",
+            ),
+            "trusted newgidmap setuid proof removed": (
+                "require_trusted_setuid_root_file /usr/bin/newgidmap",
+                "require_trusted_system_file /usr/bin/newgidmap",
+            ),
+            "root subordinate UID range broadened": (
+                '--add-subuids "$ns_test_uid-$ns_test_uid"',
+                '--add-subuids "$ns_test_uid-$((ns_test_uid + 1))"',
+            ),
+            "root subordinate GID range broadened": (
+                '--add-subgids "$ns_test_gid-$ns_test_gid"',
+                '--add-subgids "$ns_test_gid-$((ns_test_gid + 1))"',
+            ),
+            "root subordinate-ID owner changed": (
+                EXACT_ROOT_SUBID_COMMAND,
+                EXACT_ROOT_SUBID_COMMAND.replace("            root", "            ns-test"),
+            ),
+            "ns-test subordinate UID absence check removed": (
+                'reject_existing_subordinate_identity /etc/subuid ns-test "$ns_test_uid" ns_test_subordinate_uid',
+                "true # ns-test subordinate UID absence check removed",
+            ),
+            "subordinate-ID exact count weakened": (
+                '"$(/usr/bin/grep -Ec "^(${principal}|${numeric_principal}):" "$candidate")" = 1 || {',
+                '"$(/usr/bin/grep -Ec "^(${principal}|${numeric_principal}):" "$candidate")" -ge 1 || {',
             ),
             "workspace reintroduced": (
                 f"SOURCE_ROOT={SOURCE_ROOT}",
@@ -833,23 +1000,13 @@ class TrustedLighttpdNamespaceDispatchWorkflowTest(unittest.TestCase):
                 mutated = text.replace(original, replacement, 1)
                 self.assertNotEqual(trusted_dispatch_errors(mutated), [])
 
-        inner_finalizer_marker = (
-            '--map-group="$NS_TEST_GID" --keep-caps --mount --pid --fork '
-            '--kill-child=SIGKILL --mount-proc=/proc --propagation private'
-        )
-        inner_finalizer_index = text.index(inner_finalizer_marker)
-        inner_finalizer = text[inner_finalizer_index:]
+        source_namespace_index = text.index("exec /usr/bin/unshare")
+        source_namespace = text[source_namespace_index:]
         finalizer_mutations = {
-            "source namespace capability retention removed": ("--keep-caps --mount", "--mount"),
-            "source namespace capability finalizer bypassed": ("/usr/bin/setpriv", "/usr/bin/dash"),
-            "source namespace finalizer forces denied setgroups": (
-                "--keep-groups",
-                "--clear-groups",
-            ),
-            "source namespace finalizer changes the already-cleared group state": (
-                "--keep-groups",
-                "--groups=0",
-            ),
+            "source namespace capability retention removed": ("--keep-caps", "--drop-caps-before-private-mount"),
+            "source namespace privilege drop bypassed": ("exec /usr/bin/setpriv", "exec /usr/bin/dash"),
+            "source namespace finalizer retains supplementary groups": ("--clear-groups", "--keep-groups"),
+            "source namespace finalizer changes the cleared group state": ("--clear-groups", "--groups=0"),
             "source namespace finalizer loses no_new_privs": ("--no-new-privs", "--no-new-privileges"),
             "source namespace finalizer retains inheritable capabilities": ("--inh-caps=-all", "--inh-caps=+all"),
             "source namespace finalizer retains ambient capabilities": ("--ambient-caps=-all", "--ambient-caps=+all"),
@@ -857,6 +1014,6 @@ class TrustedLighttpdNamespaceDispatchWorkflowTest(unittest.TestCase):
         }
         for name, (original, replacement) in finalizer_mutations.items():
             with self.subTest(name=name):
-                self.assertIn(original, inner_finalizer)
-                mutated = text[:inner_finalizer_index] + inner_finalizer.replace(original, replacement, 1)
+                self.assertIn(original, source_namespace)
+                mutated = text[:source_namespace_index] + source_namespace.replace(original, replacement, 1)
                 self.assertNotEqual(trusted_dispatch_errors(mutated), [])
