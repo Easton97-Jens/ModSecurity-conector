@@ -150,6 +150,57 @@ def _records_from_evidence(
     return records
 
 
+def _unvalidated_terminal_signal(
+    evidence_dir: Path, plan: Mapping[str, Any], connector: str,
+) -> dict[str, str] | None:
+    """Return a bounded, non-promoting failure signal when validation did not run.
+
+    This deliberately omits raw runner reasons and logs.  A pull-request
+    workflow is untrusted input, so the summary may identify only a
+    structurally bound case ID, phase, area, and canonical status.  The signal
+    is never passed into ``case_rows`` and cannot promote any case or terminal
+    result.
+    """
+
+    try:
+        if not evidence_dir.is_dir() or evidence_dir.is_symlink():
+            return None
+        result = _json_file(evidence_dir / "result.json", "result.json")
+        _validate_evidence_header(result, connector)
+        terminal_status = str(result.get("status") or "").upper()
+        if terminal_status not in CASE_STATUSES:
+            return None
+    except ValueError:
+        return None
+
+    signal = {"status": terminal_status}
+    try:
+        selections = _selection_by_case_id(plan)
+        jsonl_path = evidence_dir / "results.jsonl"
+        if not jsonl_path.is_file() or jsonl_path.is_symlink():
+            return signal
+        records: dict[str, Mapping[str, Any]] = {}
+        for index, line in enumerate(jsonl_path.read_text(encoding="utf-8").splitlines(), start=1):
+            if not line.strip():
+                continue
+            record = _parse_evidence_line(line, index)
+            case_id = _validate_evidence_record(record, index, selections, connector, records)
+            records[case_id] = record
+            case_status = str(record.get("status") or "").upper()
+            if case_status in ("FAIL", "BLOCKED"):
+                selection = selections[case_id]
+                signal.update({
+                    "case_id": case_id,
+                    "case_status": case_status,
+                    "phase": str(selection.get("phase")),
+                    "area": str(selection.get("group")),
+                })
+                return signal
+    except (OSError, UnicodeError, ValueError):
+        return signal
+    return signal
+
+
 def _case_status_and_details(
     selection: Mapping[str, Any], evidence: Mapping[str, Any] | None,
 ) -> tuple[str, str, str]:
@@ -211,7 +262,7 @@ def route_state(connector: str, profile: str) -> str:
 def render_summary(
     plan: Mapping[str, Any], evidence: Mapping[str, Mapping[str, Any]] | None = None,
     *, coverage_kind: str = "runtime", crs: str = "", mrts: str = "",
-    evidence_validation_outcome: str = "not_run",
+    evidence_validation_outcome: str = "not_run", terminal_signal: Mapping[str, str] | None = None,
 ) -> str:
     rows = case_rows(plan, evidence)
     counts = Counter(row["status"] for row in rows)
@@ -220,6 +271,20 @@ def render_summary(
         grouped[(row["phase"], row["area"])].append(row)
     output = ["## Connector mode coverage (interim)", "", f"Connector: `{_escape(plan.get('connector', 'unknown'))}`; coverage: `{_escape(coverage_kind)}`; CRS: `{_escape(crs)}`; MRTS: `{_escape(mrts)}`", f"Canonical evidence validation: `{_escape(evidence_validation_outcome)}`.", "", "| Status | Count |", "| --- | ---: |"]
     output.extend(f"| {_escape(status)} | `{counts.get(status, 0)}` |" for status in sorted(CASE_STATUSES))
+    if terminal_signal is not None:
+        output.extend((
+            "", "### Unvalidated terminal signal", "",
+            "A syntactically bound result exists, but canonical evidence validation did not succeed. This diagnostic never changes a terminal or case status, and raw runner reasons are intentionally not published.",
+            "", f"Observed terminal status (not promoted): `{_escape(terminal_signal['status'])}`.",
+        ))
+        if "case_id" in terminal_signal:
+            output.append(
+                "First structurally bound failing or blocked case (not validated): "
+                f"`{_escape(terminal_signal['case_id'])}` — "
+                f"`{_escape(terminal_signal['case_status'])}`; phase "
+                f"`{_escape(terminal_signal['phase'])}`; area "
+                f"`{_escape(terminal_signal['area'])}`."
+            )
     output.extend(("", "### Connector/profile routes", "", "This inventory lists the current workflow route, not a per-case execution result.", "", "| Connector | Profile | Route state |", "| --- | --- | --- |"))
     output.extend(f"| {_escape(row['connector'])} | {_escape(row['profile'])} | {_escape(row['state'])} |" for row in route_inventory())
     output.extend(("", "### Framework cases by phase and area", "", "| Phase | Area | Case | Status | Evidence | Reason |", "| --- | --- | --- | --- | --- | --- |"))
@@ -261,10 +326,15 @@ def main(arguments: Sequence[str] | None = None) -> int:
             raise ValueError("connector capability manifest is outside connector root")
         plan = select_framework_cases(args.framework_root, args.connector, capabilities)
         evidence = None
+        terminal_signal = None
         if args.evidence_dir and args.evidence_validation_outcome == "success":
             if (args.crs, args.mrts, args.coverage_kind) != ("no-crs", "no-mrts", "runtime"):
                 raise ValueError("canonical No-CRS evidence is only valid for the no-crs/no-mrts runtime cell")
             evidence = _records_from_evidence(args.evidence_dir, plan, args.connector)
+        elif args.evidence_dir:
+            terminal_signal = _unvalidated_terminal_signal(
+                args.evidence_dir, plan, args.connector,
+            )
         append_github_step_summary(
             os.environ,
             render_summary(
@@ -274,6 +344,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
                 crs=args.crs,
                 mrts=args.mrts,
                 evidence_validation_outcome=args.evidence_validation_outcome,
+                terminal_signal=terminal_signal,
             ),
         )
     except (OSError, ValueError) as error:

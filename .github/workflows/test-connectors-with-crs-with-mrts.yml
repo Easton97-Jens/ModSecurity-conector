@@ -175,6 +175,7 @@ jobs:
         if: matrix.coverage_kind == 'runtime'
         env:
           CONNECTOR: ${{ matrix.connector }}
+          CONNECTOR_REPOSITORY_ROOT: ${{ github.workspace }}
         run: |
           set -euo pipefail
           case "$FRAMEWORK_ROOT" in "$GITHUB_WORKSPACE"/modules/ModSecurity-test-Framework) ;; *) echo "FAIL: unsafe Framework root" >&2; exit 2 ;; esac
@@ -185,6 +186,7 @@ jobs:
                 . "$FRAMEWORK_ROOT/ci/lib/common.sh"
                 . ci/runtime/lifecycle/prepare-fresh-crs-source.sh
                 sh "$FRAMEWORK_ROOT/ci/provisioning/fetch-crs.sh"
+                . ci/runtime/lifecycle/promote-fresh-crs-source-to-component-cache.sh
                 printf '%s\n' "SOURCE_ROOT=$SOURCE_ROOT" "CRS_SOURCE_DIR=$CRS_SOURCE_DIR" >> "$GITHUB_ENV"
               )
               ;;

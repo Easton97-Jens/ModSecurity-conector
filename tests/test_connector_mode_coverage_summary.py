@@ -35,7 +35,7 @@ def selected(case_id: str, phase: int, area: str = "headers", state: str = "SELE
     }
 
 
-def canonical_result(connector: str) -> dict[str, str]:
+def canonical_result(connector: str) -> dict[str, object]:
     return {
         "connector": connector,
         "evidence_stage": "no_crs_baseline",
@@ -117,6 +117,75 @@ class ConnectorModeCoverageSummaryTest(unittest.TestCase):
         plan = {"connector": "apache", "cases": [selected("one", 1)]}
         rendered = SUMMARY.render_summary(plan, evidence_validation_outcome="failure")
         self.assertIn("Canonical evidence validation: `failure`.", rendered)
+
+    def test_unvalidated_terminal_signal_is_bounded_and_non_promoting(self) -> None:
+        plan = {"connector": "apache", "cases": [selected("fixture", 1, "area")]}
+        with tempfile.TemporaryDirectory(prefix="connector-summary-unvalidated-") as temporary:
+            evidence = Path(temporary)
+            (evidence / "result.json").write_text(
+                json.dumps({**canonical_result("apache"), "status": "FAIL"}),
+                encoding="utf-8",
+            )
+            (evidence / "results.jsonl").write_text(
+                json.dumps({
+                    "connector": "apache",
+                    "case_id": "fixture",
+                    "phase": 1,
+                    "group": "area",
+                    "status": "FAIL",
+                    "live_executed": True,
+                    "reason": "untrusted raw reason must not enter the summary",
+                }) + "\n",
+                encoding="utf-8",
+            )
+            signal = SUMMARY._unvalidated_terminal_signal(evidence, plan, "apache")
+
+        self.assertEqual(signal, {
+            "status": "FAIL",
+            "case_id": "fixture",
+            "case_status": "FAIL",
+            "phase": "1",
+            "area": "area",
+        })
+        rendered = SUMMARY.render_summary(
+            plan,
+            evidence_validation_outcome="skipped",
+            terminal_signal=signal,
+        )
+        self.assertIn("Unvalidated terminal signal", rendered)
+        self.assertIn("Observed terminal status (not promoted): `FAIL`.", rendered)
+        self.assertIn("`fixture` — `FAIL`; phase `1`; area `area`.", rendered)
+        self.assertIn("| 1 | area | fixture | NOT_EXECUTED |", rendered)
+        self.assertNotIn("untrusted raw reason", rendered)
+
+    def test_unvalidated_terminal_signal_tolerates_non_utf8_jsonl(self) -> None:
+        plan = {"connector": "apache", "cases": [selected("fixture", 1, "area")]}
+        with tempfile.TemporaryDirectory(prefix="connector-summary-non-utf8-") as temporary:
+            evidence = Path(temporary)
+            (evidence / "result.json").write_text(
+                json.dumps({**canonical_result("apache"), "status": "BLOCKED"}),
+                encoding="utf-8",
+            )
+            (evidence / "results.jsonl").write_bytes(b"\xff\xfe\n")
+            signal = SUMMARY._unvalidated_terminal_signal(evidence, plan, "apache")
+
+        self.assertEqual(signal, {"status": "BLOCKED"})
+
+    def test_unvalidated_terminal_signal_rejects_a_symlinked_evidence_directory(self) -> None:
+        plan = {"connector": "apache", "cases": [selected("fixture", 1, "area")]}
+        with tempfile.TemporaryDirectory(prefix="connector-summary-symlink-") as temporary:
+            root = Path(temporary)
+            evidence = root / "evidence"
+            evidence.mkdir()
+            (evidence / "result.json").write_text(
+                json.dumps({**canonical_result("apache"), "status": "FAIL"}),
+                encoding="utf-8",
+            )
+            evidence_link = root / "evidence-link"
+            evidence_link.symlink_to(evidence, target_is_directory=True)
+            signal = SUMMARY._unvalidated_terminal_signal(evidence_link, plan, "apache")
+
+        self.assertIsNone(signal)
 
     def test_fake_selector_and_capability_fixture_are_consumed(self) -> None:
         with tempfile.TemporaryDirectory(prefix="connector-summary-framework-") as temporary:

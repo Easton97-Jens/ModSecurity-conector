@@ -805,6 +805,223 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
                 result.stdout + result.stderr,
             )
 
+    def test_with_crs_promotes_only_a_fresh_verified_source_to_component_cache(self) -> None:
+        promoter = (
+            ROOT
+            / "ci"
+            / "runtime"
+            / "lifecycle"
+            / "promote-fresh-crs-source-to-component-cache.py"
+        )
+        promotion_wrapper = (
+            ROOT
+            / "ci"
+            / "runtime"
+            / "lifecycle"
+            / "promote-fresh-crs-source-to-component-cache.sh"
+        )
+
+        def environment_for(root: Path) -> tuple[dict[str, str], Path, Path, Path]:
+            cell_root = root / "cell"
+            cell_root.mkdir(mode=0o700)
+            verified_root = cell_root / "verified"
+            cache_root = cell_root / "cache"
+            component_cache = cache_root / "shared"
+            fresh_root = verified_root / "crs-fresh-source"
+            fresh_source = fresh_root / "coreruleset"
+            fresh_source.mkdir(parents=True, mode=0o700)
+            (fresh_source / "marker.txt").write_text("verified CRS\n", encoding="utf-8")
+            return (
+                {
+                    **os.environ,
+                    "CONNECTOR_ROOT": str(ROOT),
+                    "CONNECTOR_REPOSITORY_ROOT": str(ROOT),
+                    "FRAMEWORK_ROOT": str(FRAMEWORK_ROOT),
+                    "REPO_ROOT": str(ROOT),
+                    "CELL_ROOT": str(cell_root),
+                    "VERIFIED_RUN_ROOT": str(verified_root),
+                    "VERIFIED_SOURCE_ROOT": str(verified_root / "src"),
+                    "BUILD_ROOT": str(verified_root / "build"),
+                    "TMP_ROOT": str(verified_root / "tmp"),
+                    "LOG_ROOT": str(verified_root / "logs"),
+                    "CACHE_ROOT": str(cache_root),
+                    "VERIFIED_COMPONENT_CACHE": str(component_cache),
+                    "CONNECTOR_COMPONENT_CACHE": str(component_cache),
+                    "SOURCE_ROOT": str(fresh_root),
+                    "CRS_SOURCE_DIR": str(fresh_source),
+                    "XDG_STATE_HOME": str(verified_root / "state"),
+                },
+                fresh_root,
+                component_cache,
+                fresh_source,
+            )
+
+        def promotion_command(environment: dict[str, str]) -> list[str]:
+            return [
+                sys.executable,
+                str(promoter),
+                "--cell-root",
+                environment["CELL_ROOT"],
+                "--verified-run-root",
+                environment["VERIFIED_RUN_ROOT"],
+                "--cache-root",
+                environment["CACHE_ROOT"],
+                "--component-cache",
+                environment["CONNECTOR_COMPONENT_CACHE"],
+                "--source-root",
+                environment["SOURCE_ROOT"],
+                "--crs-source-dir",
+                environment["CRS_SOURCE_DIR"],
+            ]
+
+        with tempfile.TemporaryDirectory(prefix="fresh-crs-promote-") as temporary:
+            environment, fresh_root, component_cache, fresh_source = environment_for(
+                Path(temporary)
+            )
+            result = subprocess.run(
+                promotion_command(environment),
+                cwd=ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            component_sources = component_cache / "sources"
+            component_crs_source = component_sources / "coreruleset"
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertFalse(fresh_root.exists())
+            self.assertFalse(fresh_source.exists())
+            self.assertTrue((component_crs_source / "marker.txt").is_file())
+            self.assertFalse(component_sources.is_symlink())
+            self.assertFalse(component_crs_source.is_symlink())
+
+        with tempfile.TemporaryDirectory(prefix="fresh-crs-promote-") as temporary:
+            environment, fresh_root, component_cache, _fresh_source = environment_for(
+                Path(temporary)
+            )
+            preexisting_sources = component_cache / "sources"
+            preexisting_sources.mkdir(parents=True, mode=0o700)
+            Path(environment["CACHE_ROOT"]).chmod(0o700)
+            component_cache.chmod(0o700)
+            result = subprocess.run(
+                promotion_command(environment),
+                cwd=ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+            self.assertIn(
+                "component CRS sources root must not exist before promotion",
+                result.stdout + result.stderr,
+            )
+            self.assertTrue(fresh_root.is_dir())
+            self.assertTrue(preexisting_sources.is_dir())
+
+        with tempfile.TemporaryDirectory(prefix="fresh-crs-promote-") as temporary:
+            environment, fresh_root, _component_cache, _fresh_source = environment_for(
+                Path(temporary)
+            )
+            cache_root = Path(environment["CACHE_ROOT"])
+            cache_root.mkdir(mode=0o700)
+            cache_root.chmod(0o755)
+            result = subprocess.run(
+                promotion_command(environment),
+                cwd=ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+            self.assertIn(
+                "private cache path must be private to the current runner user",
+                result.stdout + result.stderr,
+            )
+            self.assertTrue(fresh_root.is_dir())
+
+        with tempfile.TemporaryDirectory(prefix="fresh-crs-promote-") as temporary:
+            root = Path(temporary)
+            environment, fresh_root, _component_cache, _fresh_source = environment_for(root)
+            outside = root / "outside"
+            outside.mkdir(mode=0o700)
+            os.symlink(outside, environment["CACHE_ROOT"])
+            result = subprocess.run(
+                promotion_command(environment),
+                cwd=ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+            self.assertIn(
+                "private cache path must be a non-symlink directory",
+                result.stdout + result.stderr,
+            )
+            self.assertTrue(fresh_root.is_dir())
+
+        with tempfile.TemporaryDirectory(prefix="fresh-crs-promote-") as temporary:
+            root = Path(temporary)
+            environment, fresh_root, component_cache, _fresh_source = environment_for(root)
+            fake_framework_root = root / "framework"
+            fake_provenance = (
+                fake_framework_root / "ci" / "provisioning" / "crs-provenance.sh"
+            )
+            fake_provenance.parent.mkdir(parents=True, mode=0o700)
+            fake_provenance.write_text(
+                "ci_info() { :; }\n"
+                "crs_verify_checked_out_provenance() { return 1; }\n",
+                encoding="utf-8",
+            )
+            environment["FRAMEWORK_ROOT"] = str(fake_framework_root)
+            result = subprocess.run(
+                [
+                    "sh",
+                    "-eu",
+                    "-c",
+                    '. "$1"',
+                    "sourced-promotion-wrapper",
+                    str(promotion_wrapper),
+                ],
+                cwd=ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+            self.assertFalse(fresh_root.exists())
+            self.assertTrue(
+                (component_cache / "sources" / "coreruleset" / "marker.txt").is_file()
+            )
+
+        with tempfile.TemporaryDirectory(prefix="fresh-crs-promote-") as temporary:
+            environment, fresh_root, component_cache, _fresh_source = environment_for(
+                Path(temporary)
+            )
+            component_cache.mkdir(parents=True, mode=0o700)
+            Path(environment["CACHE_ROOT"]).chmod(0o700)
+            component_cache.chmod(0o700)
+            outside = Path(temporary) / "outside"
+            outside.mkdir(mode=0o700)
+            os.symlink(outside, component_cache / "sources")
+            result = subprocess.run(
+                promotion_command(environment),
+                cwd=ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+            self.assertIn(
+                "component CRS sources root must not exist before promotion",
+                result.stdout + result.stderr,
+            )
+            self.assertTrue(fresh_root.is_dir())
+
     def test_make_does_not_materialize_an_empty_nginx_github_repo_alias(self) -> None:
         environment = self.trusted_framework_environment()
         environment.pop("NGINX_GITHUB_REPO", None)

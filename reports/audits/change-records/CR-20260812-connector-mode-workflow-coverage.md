@@ -95,11 +95,15 @@ no-CRS/with-MRTS HAProxy branch sets the existing literal
 `RUNTIME_COMPONENT_TARGET=haproxy` selector before its native case target.
 That branch does not need CRS and can therefore avoid the unrelated Apache
 archive without changing its real HAProxy runtime path. The two with-CRS
-HAProxy branches deliberately retain the existing all-components preparation:
-the current runtime snapshot binds their CRS source to that preparation cache,
-and a separate fresh CRS fetch would not become part of the target-scoped
-snapshot. Apache intentionally remains on its ordinary native path, which
-still requires its reviewed APR-util tuple.
+HAProxy branches deliberately retain the existing all-components preparation.
+For the with-CRS/with-MRTS Apache and HAProxy cells, the fresh CRS checkout is
+first acquired below the private verified run root. After the Framework fetch
+and provenance checks succeed, an atomic no-replace rename transfers it into
+`$CONNECTOR_COMPONENT_CACHE/sources`; the final path is then verified again
+with the Framework provenance guard. This makes the fresh checkout available
+to the HAProxy snapshot without reusing or overwriting an existing cache entry.
+Apache intentionally remains on its ordinary native path, which still requires
+its reviewed APR-util tuple.
 
 The Parent component preparer now records whether a Git source was acquired
 recursively. Only `coreruleset` selects `--no-recurse-submodules`; all generic
@@ -117,6 +121,9 @@ provenance guard.
 - `ci/provisioning/components/prepare-runtime-components.py` and focused
   workflow/Python/cache-contract tests, including
   `tests/test_runtime_component_cache_contract.py`.
+- `ci/runtime/lifecycle/promote-fresh-crs-source-to-component-cache.sh` and
+  `.py`, plus `tests/test_runtime_env_snapshot_contract.py`, for the bounded
+  fresh-CRS transfer and post-transfer provenance check.
 - This English/German Change Record pair and its existing archive indexes.
 
 No connector source, capability manifest, lifecycle runner, Framework/MRTS
@@ -629,13 +636,28 @@ current read-only Framework catalogue and requires every current case ID to
 have a terminal row for every connector, with a concrete phase and area.
 
 The with-CRS/with-MRTS Apache and HAProxy cells had initialized a private source
-root but had not provisioned CRS or exported `CRS_SOURCE_DIR`. The new
-runtime-only preparation step uses the existing bounded fresh-CRS helper and
-pinned Framework fetch control only for those two cells. It creates a private
-component cache and exports the helper-validated `SOURCE_ROOT` and
-`CRS_SOURCE_DIR`; expected-unsupported Envoy, Lighttpd, and Traefik rows do not
-enter this branch. No Framework/MRTS source, Gitlink, NGINX guard, pin,
-provenance, or cache-containment control changes.
+root but had not provisioned CRS or exported `CRS_SOURCE_DIR`. The first
+successor head `c098b52cad2faf8d4238315842b52c3c22df746e` corrected that
+omission: its bounded fresh-CRS step completed and Apache reached its runtime
+control. The HAProxy control then correctly rejected that initial fresh source
+because it still lived below `verified/crs-fresh-source` instead of the
+snapshot-required `$CONNECTOR_COMPONENT_CACHE/sources` root. The pending
+Parent-only remediation retains the existing pinned fetch and its provenance
+checks, then performs an atomic no-replace transfer into that private cache
+root and reruns the Framework provenance verifier before exporting the final
+paths. Expected-unsupported Envoy, Lighttpd, and Traefik rows do not enter this
+branch. No Framework/MRTS source, Gitlink, NGINX guard, pin, provenance, or
+cache-containment control is weakened. Hosted successor proof for that transfer
+remains pending.
+
+For an existing No-CRS result whose canonical validator did not succeed, the
+summary now exposes only a bounded, non-promoting terminal signal: the
+allowlisted final status and, when structurally bound, the first failing or
+blocked case ID with its phase, area, and status. It never publishes raw runner
+reasons or logs, never changes a terminal or case status, and tolerates
+malformed non-UTF-8 JSONL as an absent optional detail. `FND-PARENT-0217`
+tracks the missing hosted diagnostic evidence that led to this limited Parent
+summary correction.
 
 The same exact head showed a Lighttpd stock-build failure: the generic
 response-start path called a host-transaction emitter whose definition was
@@ -653,7 +675,10 @@ native Lighttpd build at its intentionally uninitialized Framework harness
 simulate a build. A fresh combined security review found no reportable finding.
 
 `FND-PARENT-0213`, `FND-PARENT-0214`, and `FND-PARENT-0215` remain
-`in_progress`. Exact-successor hosted Lighttpd, No-CRS, and with-CRS/with-MRTS
-Apache/HAProxy evidence, plus successor-head SonarQube Cloud evidence, are
-still required. This is an intermediate Draft update only: no Ready transition,
-merge, auto-merge, Framework write, MRTS write, or Gitlink update is authorized.
+`in_progress`; `FND-PARENT-0216` separately records the hosted no-CRS/with-MRTS
+HAProxy dependency-download rate limit, while `FND-PARENT-0217` records the
+No-CRS terminal-diagnostic evidence gap. Exact-successor hosted Lighttpd,
+No-CRS, and with-CRS/with-MRTS Apache/HAProxy evidence, plus successor-head
+SonarQube Cloud evidence, are still required. This is an intermediate Draft
+update only: no Ready transition, merge, auto-merge, Framework write, MRTS
+write, or Gitlink update is authorized.

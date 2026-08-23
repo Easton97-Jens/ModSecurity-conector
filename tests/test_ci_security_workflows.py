@@ -3757,6 +3757,10 @@ class ConnectorModeWorkflowContractTest(unittest.TestCase):
         )
         self.assertEqual(prepare_crs.get("if"), "matrix.coverage_kind == 'runtime'")
         self.assertEqual(prepare_crs.get("id"), "prepare-crs-source")
+        self.assertEqual(
+            prepare_crs["env"]["CONNECTOR_REPOSITORY_ROOT"],
+            "${{ github.workspace }}",
+        )
         for fragment in (
             'case "$FRAMEWORK_ROOT" in "$GITHUB_WORKSPACE"/modules/ModSecurity-test-Framework',
             'case "$CONNECTOR_COMPONENT_CACHE" in "$CACHE_ROOT"/shared',
@@ -3764,6 +3768,7 @@ class ConnectorModeWorkflowContractTest(unittest.TestCase):
             '. "$FRAMEWORK_ROOT/ci/lib/common.sh"',
             '. ci/runtime/lifecycle/prepare-fresh-crs-source.sh',
             'sh "$FRAMEWORK_ROOT/ci/provisioning/fetch-crs.sh"',
+            '. ci/runtime/lifecycle/promote-fresh-crs-source-to-component-cache.sh',
             '"SOURCE_ROOT=$SOURCE_ROOT" "CRS_SOURCE_DIR=$CRS_SOURCE_DIR" >> "$GITHUB_ENV"',
         ):
             with self.subTest(fragment=fragment):
@@ -3773,6 +3778,51 @@ class ConnectorModeWorkflowContractTest(unittest.TestCase):
             if step["name"] == "Run existing focused runtime control"
         )
         self.assertLess(with_mrts_steps.index(prepare_crs), with_mrts_steps.index(runtime))
+        self.assertLess(
+            prepare_crs["run"].index("prepare-fresh-crs-source.sh"),
+            prepare_crs["run"].index("fetch-crs.sh"),
+        )
+        self.assertLess(
+            prepare_crs["run"].index("fetch-crs.sh"),
+            prepare_crs["run"].index("promote-fresh-crs-source-to-component-cache.sh"),
+        )
+        self.assertLess(
+            prepare_crs["run"].index("promote-fresh-crs-source-to-component-cache.sh"),
+            prepare_crs["run"].index('"SOURCE_ROOT=$SOURCE_ROOT" "CRS_SOURCE_DIR=$CRS_SOURCE_DIR" >> "$GITHUB_ENV"'),
+        )
+        promotion_helper = (
+            ROOT
+            / "ci"
+            / "runtime"
+            / "lifecycle"
+            / "promote-fresh-crs-source-to-component-cache.sh"
+        ).read_text(encoding="utf-8")
+        self.assertIn("promote-fresh-crs-source-to-component-cache.py", promotion_helper)
+        self.assertIn("crs_verify_checked_out_provenance", promotion_helper)
+        self.assertIn("CONNECTOR_REPOSITORY_ROOT", promotion_helper)
+        self.assertNotIn('dirname "$0"', promotion_helper)
+        self.assertLess(
+            promotion_helper.index("promote-fresh-crs-source-to-component-cache.py"),
+            promotion_helper.index("crs_verify_checked_out_provenance"),
+        )
+        promotion_tool = (
+            ROOT
+            / "ci"
+            / "runtime"
+            / "lifecycle"
+            / "promote-fresh-crs-source-to-component-cache.py"
+        ).read_text(encoding="utf-8")
+        for fragment in (
+            "RENAME_NOREPLACE = 1",
+            "os.O_NOFOLLOW",
+            "errno.EXDEV",
+            "copy fallback is prohibited",
+            "must not exist before promotion",
+            "must be private to the current runner user",
+        ):
+            with self.subTest(fragment=fragment):
+                self.assertIn(fragment, promotion_tool)
+        self.assertNotIn("shutil", promotion_tool)
         self.assertIn('echo "CONNECTOR_COMPONENT_CACHE=$cell_root/cache/shared"', with_mrts_text)
         self.assertIn('echo "FRAMEWORK_ROOT=$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework"', with_mrts_text)
 
