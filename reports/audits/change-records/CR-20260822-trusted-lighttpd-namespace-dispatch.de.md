@@ -510,3 +510,46 @@ bestimmt. Sie belässt den Pull-Request-Workflow von PR #309 unprivilegiert.
 Nach Review und Merge des Bootstrap-PR muss der Owner von `master` dispatchen,
 den resultierenden PR-#309-SHA verifizieren und #309 Draft belassen, sofern
 nicht die vollständige Namespace-Evidence erfolgreich ist.
+
+## 2026-08-23 Reparatur der exakten Subordinate-ID-Delegation
+
+Die separat geprüfte Dual-Map-Reparatur wurde über PR #329 integriert. Ihr
+exakter Head bestand alle Required Checks; SonarQube Cloud meldete null neue
+Issues, Security Hotspots und New-Code-Duplikation. Der Protected-master-Run
+`32628717039` zielte danach auf den frischen Draft-PR-#309-Head
+`bdc054c74fd8dfd01a6b7bf3ccfe89af9a60fe76` und brach vor Git-
+Materialisierung oder PR-Testausführung fail-closed ab:
+
+~~~text
+newuidmap: uid range [1002-1003) -> [1002-1003) not allowed
+~~~
+
+Dies ist eine fehlende Delegation im vertrauenswürdigen Bootstrap, keine
+fehlende Runner-Capability und keine Freigabe, Overflow-Ownership zu
+akzeptieren. Die Multi-ID-Abbildung verwendet `newuidmap`/`newgidmap`; deren
+dokumentierte Policy verlangt für jede zusätzliche äußere ID einen
+autorisierten Subordinate-Bereich – auch für einen root-Aufrufer.
+
+Der Folge-Bootstrap installiert das feste Paket `uidmap`, prüft die beiden
+setuid-root-Map-Helper auf root-Ownership und fehlende Group-/Other-
+Schreibbarkeit und erzeugt `ns-test` als Systemkonto. Dadurch entstehen keine
+breiten automatischen `ns-test`-Subordinate-Bereiche. Vor jeder Source weist
+er vorhandene `root`/`0`- oder `ns-test`/numerische-`ns-test`-Einträge in
+`/etc/subuid` und `/etc/subgid` ab. Der root-kontrollierte `usermod`-Befehl
+vergibt anschließend **ausschließlich root** genau die frische `ns-test`-UID
+und -GID, jeweils mit Count `1`, und validiert beide Records:
+
+~~~text
+root:<ns-test-uid>:1
+root:<ns-test-gid>:1
+~~~
+
+Fehlende, beschreibbare, verlinkte, vorbefüllte, fehlerhafte, doppelte oder
+breite Delegationen enden mit Exit `77` vor dem Checkout. Kein
+PR-kontrollierter Wert erreicht dieses Setup; der nachfolgende `setpriv`-Drop
+und die bestehenden Kontrollen für `NoNewPrivs`, leere Gruppen,
+Null-Capabilities, private Mounts, AppArmor und exakte Maps bleiben unverändert.
+Der statische Vertrag mutiert fehlendes `uidmap`, setuid-Helper-Attestierung,
+Systemkonto-Erzeugung, exakten Bereich/Principal, den `ns-test`-Absence-Guard
+und den Exact-Count-Guard. Ein frischer Hosted-Exact-Head-Run bleibt nach
+dieser separaten Reparatur zwingend; PR #309 bleibt offen und Draft.

@@ -17,6 +17,14 @@ TEMP_ROOT = f"{RUNTIME_ROOT}/tmp"
 GIT_TEMPLATE_ROOT = f"{RUNTIME_ROOT}/empty-git-template"
 SOURCE_NAMESPACE_RUNNER = f"{RUNTIME_ROOT}/run-source-namespace.sh"
 SOURCE_TEST_RUNNER = f"{RUNTIME_ROOT}/run-source-test.sh"
+EXACT_ROOT_SUBID_COMMAND = "\n".join(
+    (
+        "/usr/bin/sudo -n /usr/sbin/usermod " + "\\",
+        '            --add-subuids "$ns_test_uid-$ns_test_uid" ' + "\\",
+        '            --add-subgids "$ns_test_gid-$ns_test_gid" ' + "\\",
+        "            root",
+    )
+)
 
 
 def require_markers(errors: list[str], text: str, label: str, markers: tuple[str, ...]) -> None:
@@ -123,7 +131,7 @@ def trusted_dispatch_errors(text: str) -> list[str]:
         (
             "for directory in / /usr /usr/bin /usr/sbin /etc /var /var/lib; do",
             "/usr/bin/apt-get update",
-            "apparmor-utils bubblewrap jq",
+            "apparmor-utils bubblewrap jq uidmap",
             "kernel/apparmor_restrict_unprivileged_userns",
             'test "$userns_restriction" = 1',
             "profile trusted-lighttpd-ci-userns flags=(unconfined) {",
@@ -134,7 +142,7 @@ def trusted_dispatch_errors(text: str) -> list[str]:
             'case "$(/usr/bin/cat /proc/self/attr/current)" in',
             "trusted-lighttpd-ci-userns\\ *)",
             "BLOCKED: trusted AppArmor profile was not entered.",
-            "/usr/sbin/useradd --create-home --user-group --home-dir /home/ns-test",
+            "/usr/sbin/useradd --system --create-home --user-group --home-dir /home/ns-test",
             'test "$(/usr/bin/id -G ns-test)" = "$ns_test_gid"',
             f"{RUNTIME_ROOT}/tmp",
             "-m 0700",
@@ -142,8 +150,53 @@ def trusted_dispatch_errors(text: str) -> list[str]:
             "--assert-userns-disabled",
             "for unshare_option in --map-users --map-groups --setgroups --keep-caps; do",
             "/usr/bin/unshare --help | /usr/bin/grep -F -- \"$unshare_option\" >/dev/null",
+            "for usermod_option in --add-subuids --add-subgids; do",
+            "/usr/sbin/usermod --help | /usr/bin/grep -F -- \"$usermod_option\" >/dev/null",
         ),
     )
+    require_markers(
+        errors,
+        text,
+        "exact trusted subordinate-ID delegation",
+        (
+            "require_trusted_setuid_root_file() {",
+            "require_trusted_subid_file() {",
+            "reject_existing_subordinate_identity() {",
+            "require_exact_subordinate_identity() {",
+            "trusted system helper is not setuid-root",
+            "trusted subordinate-ID file is group/other writable",
+            "/usr/bin/newuidmap",
+            "/usr/bin/newgidmap",
+            "require_trusted_setuid_root_file /usr/bin/newuidmap",
+            "require_trusted_setuid_root_file /usr/bin/newgidmap",
+            "reject_existing_subordinate_identity /etc/subuid root 0 root_subordinate_uid",
+            "reject_existing_subordinate_identity /etc/subgid root 0 root_subordinate_gid",
+            'reject_existing_subordinate_identity /etc/subuid ns-test "$ns_test_uid" ns_test_subordinate_uid',
+            'reject_existing_subordinate_identity /etc/subgid ns-test "$ns_test_gid" ns_test_subordinate_gid',
+            "/usr/bin/sudo -n /usr/sbin/usermod \\",
+            '--add-subuids "$ns_test_uid-$ns_test_uid"',
+            '--add-subgids "$ns_test_gid-$ns_test_gid"',
+            "            root",
+            'require_exact_subordinate_identity /etc/subuid root 0 "$ns_test_uid" root_subordinate_uid',
+            'require_exact_subordinate_identity /etc/subgid root 0 "$ns_test_gid" root_subordinate_gid',
+            "delegation count is not exact",
+            "delegation does not match the fixed one-ID range",
+        ),
+    )
+    if "--add-subids-for-system" in text:
+        errors.append("ns-test must not receive an automatic broad subordinate-ID range")
+    if text.count(EXACT_ROOT_SUBID_COMMAND) != 1:
+        errors.append("trusted root subordinate-ID command must be exact and unique")
+    if text.count('reject_existing_subordinate_identity /etc/subuid ns-test "$ns_test_uid" ns_test_subordinate_uid') != 2:
+        errors.append("ns-test subordinate UID delegation must be absent before and after root setup")
+    if text.count('reject_existing_subordinate_identity /etc/subgid ns-test "$ns_test_gid" ns_test_subordinate_gid') != 2:
+        errors.append("ns-test subordinate GID delegation must be absent before and after root setup")
+    if text.count('require_exact_subordinate_identity /etc/subuid root 0 "$ns_test_uid" root_subordinate_uid') != 1:
+        errors.append("root subordinate UID delegation must be verified exactly once")
+    if text.count('require_exact_subordinate_identity /etc/subgid root 0 "$ns_test_gid" root_subordinate_gid') != 1:
+        errors.append("root subordinate GID delegation must be verified exactly once")
+    if '"$(/usr/bin/grep -Ec "^(${principal}|${numeric_principal}):" "$candidate")" = 1 || {' not in text:
+        errors.append("subordinate-ID owner count must remain exactly one")
     if "/usr/sbin/aa-status --profiled" in text:
         errors.append("aa-status --profiled cannot prove that the named profile is loaded")
     if "/var/tmp/trusted-lighttpd-namespace" in text:
@@ -213,6 +266,21 @@ def trusted_dispatch_errors(text: str) -> list[str]:
             errors.append("pre-materialization setpriv must enter the named AppArmor profile")
         if any(forbidden in bootstrap_step for forbidden in ("GITHUB_WORKSPACE", "SOURCE_COPY")):
             errors.append("bootstrap must not consume a PR source path")
+        require_order(
+            errors,
+            bootstrap_step,
+            "exact subordinate-ID setup before source access",
+            (
+                "/usr/sbin/useradd --system --create-home --user-group --home-dir /home/ns-test",
+                "reject_existing_subordinate_identity /etc/subuid root 0 root_subordinate_uid",
+                "/usr/bin/sudo -n /usr/sbin/usermod \\",
+                '--add-subuids "$ns_test_uid-$ns_test_uid"',
+                '--add-subgids "$ns_test_gid-$ns_test_gid"',
+                'require_exact_subordinate_identity /etc/subuid root 0 "$ns_test_uid" root_subordinate_uid',
+                'require_exact_subordinate_identity /etc/subgid root 0 "$ns_test_gid" root_subordinate_gid',
+                f"/usr/bin/sudo -n /usr/bin/tee {SOURCE_TEST_RUNNER}",
+            ),
+        )
 
     require_markers(
         errors,
@@ -632,7 +700,7 @@ def trusted_dispatch_errors(text: str) -> list[str]:
         source_privilege_drop = source_namespace_runner[source_privilege_drop_start:]
         if any(marker in source_privilege_drop for marker in ("--keep-caps", "--setgroups", "--map-")):
             errors.append("source privilege drop must not retain namespace setup controls")
-    if text.count("/usr/bin/sudo -n") != 13:
+    if text.count("/usr/bin/sudo -n") != 14:
         errors.append("unexpected privileged command inventory")
     if text.count("/usr/bin/sudo -n /usr/bin/aa-exec -p trusted-lighttpd-ci-userns -- ") != 2:
         errors.append("unexpected named-AppArmor launcher inventory")
@@ -795,6 +863,46 @@ class TrustedLighttpdNamespaceDispatchWorkflowTest(unittest.TestCase):
             "path-based source cleanup introduced": (
                 "test -z \"$source_entry\" || fail_namespace source_root_not_empty",
                 "test -z \"$source_entry\" || fail_namespace source_root_not_empty\n          /usr/bin/find -P \"$SOURCE_ROOT\" -xdev -mindepth 1 -depth -delete",
+            ),
+            "uidmap package omitted": (
+                "apparmor-utils bubblewrap jq uidmap",
+                "apparmor-utils bubblewrap jq",
+            ),
+            "ns-test becomes a regular user": (
+                "/usr/sbin/useradd --system --create-home --user-group --home-dir /home/ns-test",
+                "/usr/sbin/useradd --create-home --user-group --home-dir /home/ns-test",
+            ),
+            "ns-test gets automatic subordinate IDs": (
+                "/usr/sbin/useradd --system --create-home --user-group --home-dir /home/ns-test",
+                "/usr/sbin/useradd --system --add-subids-for-system --create-home --user-group --home-dir /home/ns-test",
+            ),
+            "trusted newuidmap setuid proof removed": (
+                "require_trusted_setuid_root_file /usr/bin/newuidmap",
+                "require_trusted_system_file /usr/bin/newuidmap",
+            ),
+            "trusted newgidmap setuid proof removed": (
+                "require_trusted_setuid_root_file /usr/bin/newgidmap",
+                "require_trusted_system_file /usr/bin/newgidmap",
+            ),
+            "root subordinate UID range broadened": (
+                '--add-subuids "$ns_test_uid-$ns_test_uid"',
+                '--add-subuids "$ns_test_uid-$((ns_test_uid + 1))"',
+            ),
+            "root subordinate GID range broadened": (
+                '--add-subgids "$ns_test_gid-$ns_test_gid"',
+                '--add-subgids "$ns_test_gid-$((ns_test_gid + 1))"',
+            ),
+            "root subordinate-ID owner changed": (
+                EXACT_ROOT_SUBID_COMMAND,
+                EXACT_ROOT_SUBID_COMMAND.replace("            root", "            ns-test"),
+            ),
+            "ns-test subordinate UID absence check removed": (
+                'reject_existing_subordinate_identity /etc/subuid ns-test "$ns_test_uid" ns_test_subordinate_uid',
+                "true # ns-test subordinate UID absence check removed",
+            ),
+            "subordinate-ID exact count weakened": (
+                '"$(/usr/bin/grep -Ec "^(${principal}|${numeric_principal}):" "$candidate")" = 1 || {',
+                '"$(/usr/bin/grep -Ec "^(${principal}|${numeric_principal}):" "$candidate")" -ge 1 || {',
             ),
             "workspace reintroduced": (
                 f"SOURCE_ROOT={SOURCE_ROOT}",
