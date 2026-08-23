@@ -706,14 +706,20 @@ PY
 }
 
 configure_mrts_request_id_header() {
-    "$PYTHON_BIN" - "$LIGHTTPD_CONFIG" <<'PY'
+    # Use the mode that was validated by this lifecycle invocation.  Reading
+    # the ambient environment here is unsafe: the config is generated in a
+    # child process with an explicit mode, while this post-generation check
+    # runs in the parent shell.  The two modes must remain identical for both
+    # CRS/no-MRTS and no-CRS/with-MRTS runs.
+    "$PYTHON_BIN" - "$LIGHTTPD_CONFIG" "$MRTS_RUNTIME_MODE" <<'PY'
 from pathlib import Path
-import os
 import sys
 
 config = Path(sys.argv[1])
+runtime = sys.argv[2]
+if runtime not in {"0", "1"}:
+    raise SystemExit("Lighttpd runtime mode is not a closed 0/1 value")
 text = config.read_text(encoding="utf-8")
-runtime = os.environ.get("MSCONNECTOR_MRTS_RUNTIME", "0")
 expected_header = (
     "transaction_id_header=x-mrts-transaction-id\n"
     if runtime == "1"

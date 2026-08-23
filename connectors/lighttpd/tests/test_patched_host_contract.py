@@ -1334,6 +1334,17 @@ class NativeConfigModeTest(unittest.TestCase):
 
         self.assertIn('MSCONNECTOR_MRTS_RUNTIME="$MRTS_RUNTIME_MODE"', config_setup)
 
+    def test_full_lifecycle_validates_the_derived_mode_not_ambient_environment(self) -> None:
+        runner = (CONNECTOR / "harness" / "run_patched_full_lifecycle.sh").read_text(
+            encoding="utf-8"
+        )
+        check = runner.split("configure_mrts_request_id_header() {", 1)[1].split(
+            "write_mrts_runtime_summary()", 1
+        )[0]
+
+        self.assertIn('"$LIGHTTPD_CONFIG" "$MRTS_RUNTIME_MODE"', check)
+        self.assertNotIn('os.environ.get("MSCONNECTOR_MRTS_RUNTIME", "0")', check)
+
     def test_prepare_native_config_has_sealed_mrts_mode_and_safe_normal_mode(self) -> None:
         preparer = CONNECTOR / "harness" / "prepare_native_smoke.sh"
         with tempfile.TemporaryDirectory() as temporary:
