@@ -38,6 +38,12 @@ DEFAULT_SOURCE_COMPATIBILITY_EXAMPLE = "compatibility example"
 NOT_APPLICABLE = "not applicable"
 LIGHTTPD_SIDECAR_CONFIGURATION = "examples/lighttpd/compatibility-sidecar/lighttpd-sidecar-proxy.conf"
 LIGHTTPD_SIDECAR_VALIDATION = "Validate as ordinary lighttpd proxy configuration."
+LIGHTTPD_SERVER_SCOPE = "T_CONFIG_SCOPE_SERVER"
+VALUE_TYPE_LIGHTTPD_BOOLEAN = "lighttpd boolean"
+ALLOWED_VALUES_LIGHTTPD_BOOLEAN = "lighttpd boolean values; examples use enable/disable"
+DEFAULT_SOURCE_LIGHTTPD_PLUGIN_DATA = "ck_calloc plugin_data allocation and default config"
+LIGHTTPD_DEFAULTS_ONLY_INHERITANCE = "Only defaults are loaded; the module has no request-time conditional patch path."
+LIGHTTPD_DEFAULTS_MERGE = "config_plugin_values_init populates defaults; no documented per-request merge."
 ALLOWED_VALUES_COMMON_BOOLEAN = "on | off | true | false | 1 | 0 | yes | no"
 DEFAULT_SOURCE_COMMON_APPLY_DEFAULTS = "common/src/config.c:msconnector_config_apply_defaults"
 DEFAULT_SOURCE_RUNTIME_PARSER = "runtime parser has no default"
@@ -664,12 +670,12 @@ def extract_lighttpd(root: Path) -> list[dict[str, Any]]:
         text,
     )
     if keys != [
-        ("msconnector.enabled", "T_CONFIG_BOOL", "T_CONFIG_SCOPE_SERVER"),
-        ("msconnector.config-file", "T_CONFIG_STRING", "T_CONFIG_SCOPE_SERVER"),
+        ("msconnector.enabled", "T_CONFIG_BOOL", LIGHTTPD_SERVER_SCOPE),
+        ("msconnector.config-file", "T_CONFIG_STRING", LIGHTTPD_SERVER_SCOPE),
         (
             "msconnector.expose-host-transaction-id",
             "T_CONFIG_BOOL",
-            "T_CONFIG_SCOPE_SERVER",
+            LIGHTTPD_SERVER_SCOPE,
         ),
     ]:
         raise ValueError(f"lighttpd plugin key extractor found unexpected keys: {keys!r}")
@@ -677,10 +683,10 @@ def extract_lighttpd(root: Path) -> list[dict[str, Any]]:
     values.append(_option(
         "lighttpd", "msconnector.enabled", "host_connector_directive", source,
         "mod_msconnector_set_defaults / config_plugin_values_init",
-        syntax='msconnector.enabled = "enable" | "disable"', value_type="lighttpd boolean", allowed_values="lighttpd boolean values; examples use enable/disable",
-        default="off", default_source="ck_calloc plugin_data allocation and default config", required=False,
-        contexts="T_CONFIG_SCOPE_SERVER", inheritance="Only defaults are loaded; the module has no request-time conditional patch path.",
-        merge_behavior="config_plugin_values_init populates defaults; no documented per-request merge.",
+        syntax='msconnector.enabled = "enable" | "disable"', value_type=VALUE_TYPE_LIGHTTPD_BOOLEAN, allowed_values=ALLOWED_VALUES_LIGHTTPD_BOOLEAN,
+        default="off", default_source=DEFAULT_SOURCE_LIGHTTPD_PLUGIN_DATA, required=False,
+        contexts=LIGHTTPD_SERVER_SCOPE, inheritance=LIGHTTPD_DEFAULTS_ONLY_INHERITANCE,
+        merge_behavior=LIGHTTPD_DEFAULTS_MERGE,
         validation="When enabled, lighttpd validates the runtime file during set-defaults; validate host syntax with lighttpd -tt -f <config>.",
         phase_relevance="off disables the module P1/P3 callbacks and any patched P2/P4 callbacks.",
         security_relevance="Disabling the module bypasses connector processing even if a rule file exists.",
@@ -691,7 +697,7 @@ def extract_lighttpd(root: Path) -> list[dict[str, Any]]:
         "mod_msconnector_set_defaults / msconnector_runtime_config_check",
         syntax='msconnector.config-file = "<runtime-key-value-file>"', value_type="path", allowed_values="non-empty readable Common Runtime key=value file",
         default="none", default_source="plugin config_file defaults to NULL", required=True,
-        contexts="T_CONFIG_SCOPE_SERVER", inheritance="Only defaults are loaded; no documented conditional request-time override.",
+        contexts=LIGHTTPD_SERVER_SCOPE, inheritance="Only defaults are loaded; no documented conditional request-time override.",
         merge_behavior="Plugin defaults retain the configured string.",
         validation="Required only when msconnector.enabled is true; missing, unreadable, or invalid runtime configuration returns HANDLER_ERROR during startup.",
         phase_relevance="The referenced Common Runtime file chooses body modes and P1–P4 policy.",
@@ -701,10 +707,10 @@ def extract_lighttpd(root: Path) -> list[dict[str, Any]]:
     values.append(_option(
         "lighttpd", "msconnector.expose-host-transaction-id", "host_connector_directive", source,
         "mod_msconnector_set_defaults / mod_msconnector_emit_host_transaction_id",
-        syntax='msconnector.expose-host-transaction-id = "enable" | "disable"', value_type="lighttpd boolean", allowed_values="lighttpd boolean values; examples use enable/disable",
-        default="off", default_source="ck_calloc plugin_data allocation and default config", required=False,
-        contexts="T_CONFIG_SCOPE_SERVER", inheritance="Only defaults are loaded; the module has no request-time conditional patch path.",
-        merge_behavior="config_plugin_values_init populates defaults; no documented per-request merge.",
+        syntax='msconnector.expose-host-transaction-id = "enable" | "disable"', value_type=VALUE_TYPE_LIGHTTPD_BOOLEAN, allowed_values=ALLOWED_VALUES_LIGHTTPD_BOOLEAN,
+        default="off", default_source=DEFAULT_SOURCE_LIGHTTPD_PLUGIN_DATA, required=False,
+        contexts=LIGHTTPD_SERVER_SCOPE, inheritance=LIGHTTPD_DEFAULTS_ONLY_INHERITANCE,
+        merge_behavior=LIGHTTPD_DEFAULTS_MERGE,
         validation="lighttpd parses this server-scoped setting as a boolean during set-defaults; validate host syntax with lighttpd -tt -f <config>.",
         phase_relevance="P3 response headers only; it does not select or alter Common Runtime transaction-ID input.",
         security_relevance="When enabled, a server-generated correlation identifier is exposed in a response header. It never reflects a request header; enable it only for trusted runtime evidence.",
@@ -2833,7 +2839,7 @@ GERMAN_TEXT: dict[str, str] = {
     "compatibility host setup": "Kompatibilitäts-Hosteinrichtung",
     "compatibility policy string": "Kompatibilitäts-Policy-Zeichenkette",
     "historical configuration": "historische Konfiguration",
-    "lighttpd boolean": "lighttpd-Boolean",
+    VALUE_TYPE_LIGHTTPD_BOOLEAN: "lighttpd-Boolean",
     "lighttpd compatibility host field": "lighttpd-Kompatibilitäts-Hostfeld",
     "host-owned configuration field": "hosteigenes Konfigurationsfeld",
     "YAML field": "YAML-Feld",
@@ -2867,7 +2873,7 @@ GERMAN_TEXT: dict[str, str] = {
     "ext_authz v3 configuration": "ext_authz-v3-Konfiguration",
     "forwardAuth fields in the compatibility example": "forwardAuth-Felder im Kompatibilitätsbeispiel",
     "key and URL": "Schlüssel und URL",
-    "lighttpd boolean values; examples use enable/disable": "lighttpd-Boolean-Werte; die Beispiele verwenden enable/disable",
+    ALLOWED_VALUES_LIGHTTPD_BOOLEAN: "lighttpd-Boolean-Werte; die Beispiele verwenden enable/disable",
     "materializer placeholder resolved to decimal 1..65535": "vom Materializer auf dezimal 1..65535 aufgelöster Platzhalter",
     "materializer-provided, validated value": "vom Materializer bereitgestellter und validierter Wert",
     ALLOWED_VALUES_HEADER_NAME: "nichtleerer HTTP-Headername",
@@ -2962,7 +2968,7 @@ GERMAN_TEXT: dict[str, str] = {
     "No inheritance; one JSON object is decoded with unknown fields rejected.": "Keine Vererbung; ein JSON-Objekt wird dekodiert, unbekannte Felder werden abgewiesen.",
     "No native HTX inheritance; one compatibility-agent config file.": "Keine native HTX-Vererbung; eine Konfigurationsdatei des Kompatibilitätsagenten.",
     "Only defaults are loaded; no documented conditional request-time override.": "Es werden nur Standardwerte geladen; keine dokumentierte bedingte Überschreibung zur Request-Zeit.",
-    "Only defaults are loaded; the module has no request-time conditional patch path.": "Es werden nur Standardwerte geladen; das Modul besitzt keinen bedingten Patch-Pfad zur Request-Zeit.",
+    LIGHTTPD_DEFAULTS_ONLY_INHERITANCE: "Es werden nur Standardwerte geladen; das Modul besitzt keinen bedingten Patch-Pfad zur Request-Zeit.",
     "Parent value is available to the child unless a child value is set; see the Apache directory-config merge function.": "Der Elternwert steht dem Kind zur Verfügung, sofern kein Kindwert gesetzt ist; siehe die Apache-Merge-Funktion für Verzeichniskonfigurationen.",
     "Traefik dynamic configuration object; no Common Runtime merge.": "Dynamisches Traefik-Konfigurationsobjekt; kein Common-Runtime-Merge.",
     "http → server → location; a child inherits if it does not set a value.": "http → server → location; ein Kind erbt, wenn es keinen Wert setzt.",
@@ -2985,7 +2991,7 @@ GERMAN_TEXT: dict[str, str] = {
     "Plugin defaults retain the configured string.": "Plugin-Standardwerte behalten die konfigurierte Zeichenkette.",
     "Traefik/plugin configuration is normalized once by the plugin.": "Die Traefik-/Plugin-Konfiguration wird einmalig durch das Plugin normalisiert.",
     "When a host uses msconnector_config, scalar child values override parent values; runtime files are parsed as one concrete configuration.": "Wenn ein Host msconnector_config verwendet, überschreiben Skalarkindwerte Elternwerte; Runtime-Dateien werden als eine konkrete Konfiguration geparst.",
-    "config_plugin_values_init populates defaults; no documented per-request merge.": "config_plugin_values_init belegt Standardwerte; kein dokumentierter Merge pro Request.",
+    LIGHTTPD_DEFAULTS_MERGE: "config_plugin_values_init belegt Standardwerte; kein dokumentierter Merge pro Request.",
     "ngx_conf_merge_* combines scalar/pointer configuration, while msc_rules_merge combines parent and child rules.": "ngx_conf_merge_* führt Skalar-/Zeigerkonfiguration zusammen, während msc_rules_merge Eltern- und Kindregeln zusammenführt.",
     "not part of mod_msconnector": "nicht Teil von mod_msconnector",
     "not part of native HTX merge": "nicht Teil des nativen HTX-Merge",
@@ -3050,7 +3056,7 @@ GERMAN_TEXT: dict[str, str] = {
     # language qualifiers around them are translated.
     "Apache parser registration has no default": "Die Apache-Parserregistrierung hat keinen Standardwert",
     "active example configuration": "aktive Beispielkonfiguration",
-    "ck_calloc plugin_data allocation and default config": "ck_calloc-Allocation von plugin_data und Standardkonfiguration",
+    DEFAULT_SOURCE_LIGHTTPD_PLUGIN_DATA: "ck_calloc-Allocation von plugin_data und Standardkonfiguration",
     DEFAULT_SOURCE_COMPATIBILITY_EXAMPLE: "Kompatibilitätsbeispiel",
     DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE: "Kompatibilitäts-Template",
     "config_init() where stated; otherwise zero/empty initialization": "config_init(), sofern angegeben; andernfalls Initialisierung mit null/leeren Werten",
@@ -3288,7 +3294,7 @@ GERMAN_TEXT: dict[str, str] = {
     # connector metadata so updates to the actual rule examples cannot leave
     # their German companion with an English explanation.
     NGINX_CONFIGURATION_CONTEXTS: NGINX_CONFIGURATION_CONTEXTS,
-    "T_CONFIG_SCOPE_SERVER": "T_CONFIG_SCOPE_SERVER",
+    LIGHTTPD_SERVER_SCOPE: LIGHTTPD_SERVER_SCOPE,
     TRAEFIK_PLUGIN_CONFIGURATION_PATH: TRAEFIK_PLUGIN_CONFIGURATION_PATH,
     VALIDATE_NGINX: VALIDATE_NGINX,
     "ngx_conf_set_phase4_mode accepts only minimal|safe|strict during nginx -t. Runtime late behavior is source-defined: non-strict post-commit paths emit log_only; strict marks the connection errored and returns NGX_ERROR, without manufacturing a later 403.": "ngx_conf_set_phase4_mode akzeptiert während nginx -t nur minimal|safe|strict. Das späte Runtime-Verhalten ist quellendefiniert: Nicht-strict-Pfade nach dem Commit geben log_only aus; strict markiert die Verbindung als fehlerhaft und gibt NGX_ERROR zurück, ohne eine spätere 403 zu erfinden.",
