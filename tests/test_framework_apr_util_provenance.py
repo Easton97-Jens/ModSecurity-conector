@@ -206,11 +206,26 @@ class FrameworkAprUtilProvenanceTest(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 77, result.stderr)
 
-    def test_framework_guard_environment_removes_tuple_and_startup_hooks(self) -> None:
+    def test_framework_guard_environment_removes_tuple_startup_hooks_and_internal_snapshots(self) -> None:
         base = self.fixture_tuple("7.8.9", "a" * 64)
-        base.update({"ENV": "hook", "BASH_ENV": "hook", "SHELLOPTS": "nounset", "PATH": "/unsafe"})
+        base.update(
+            {
+                "ENV": "hook",
+                "BASH_ENV": "hook",
+                "SHELLOPTS": "nounset",
+                "PATH": "/unsafe",
+                "CI_INHERITED_UPSTREAM_ENV": "ENVOY_VERSION=1.39.0",
+                "CI_INHERITED_UPSTREAM_ENV_STATUS": "0",
+            }
+        )
         guarded = components._framework_guard_environment(base, ROOT, FRAMEWORK_ROOT)
-        for key in (*components.FRAMEWORK_APR_UTIL_ENV_KEYS, "ENV", "BASH_ENV", "SHELLOPTS"):
+        for key in (
+            *components.FRAMEWORK_APR_UTIL_ENV_KEYS,
+            *components.FRAMEWORK_TRANSIENT_ENV_KEYS,
+            "ENV",
+            "BASH_ENV",
+            "SHELLOPTS",
+        ):
             self.assertNotIn(key, guarded)
         self.assertEqual(guarded["PATH"], components._TRUSTED_FRAMEWORK_GUARD_PATH)
 
@@ -220,6 +235,7 @@ class FrameworkAprUtilProvenanceTest(unittest.TestCase):
         loaded, status = components.load_framework_environment(ROOT, self.framework_root, absent)
         self.assertEqual(status, "loaded")
         self.assertEqual({key: loaded[key] for key in canonical}, canonical)
+        self.assertFalse(set(components.FRAMEWORK_TRANSIENT_ENV_KEYS) & set(loaded))
 
         inherited = self.clean_environment()
         inherited.update(canonical)
@@ -228,6 +244,21 @@ class FrameworkAprUtilProvenanceTest(unittest.TestCase):
         self.assertEqual({key: loaded[key] for key in canonical}, canonical)
         inherited[APR_KEYS["VERSION"]] = "9.9.8"
         self.assertEqual(loaded[APR_KEYS["VERSION"]], canonical[APR_KEYS["VERSION"]])
+
+    def test_python_loader_removes_nested_framework_snapshot_before_a_resourced_common_sh(self) -> None:
+        nested = self.clean_environment()
+        nested.update(
+            {
+                "ENVOY_VERSION": "1.39.0",
+                "CI_INHERITED_UPSTREAM_ENV": "ENVOY_VERSION=1.39.0",
+                "CI_INHERITED_UPSTREAM_ENV_STATUS": "0",
+            }
+        )
+        loaded, status = components.load_framework_environment(ROOT, self.framework_root, nested)
+        self.assertEqual(status, "loaded")
+        self.assertEqual(loaded["ENVOY_VERSION"], "1.39.0")
+        for key in components.FRAMEWORK_TRANSIENT_ENV_KEYS:
+            self.assertNotIn(key, loaded)
 
     def test_python_loader_rejects_partial_empty_mismatch_and_alternative_tuples(self) -> None:
         canonical = self.canonical_tuple()

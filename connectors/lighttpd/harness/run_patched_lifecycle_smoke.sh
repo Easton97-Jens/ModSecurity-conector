@@ -8,13 +8,31 @@ CORE_BIN=$PATCHED_ROOT/stage/bin/lighttpd
 MODULE_PATH=$PATCHED_ROOT/stage/modules/mod_msconnector.so
 HOST_MANIFEST=$PATCHED_ROOT/patched-host-build-info.txt
 SMOKE_DIR=${LIGHTTPD_PATCHED_SMOKE_DIR:-$PATCHED_ROOT/smoke}
+NO_CRS_NAMESPACE_RUNNER=$SCRIPT_DIR/run_no_crs_fixture_trusted_namespace.py
 
 # The canonical full-lifecycle route is intentionally separate from the
 # compatibility Phase-1 smoke below.  It runs P1/P2/P3 through the real
 # patched host and emits selected-case metadata; P4 remains unavailable
 # because the current output callback exposes HTTP/1 wire bytes.
 if [ "${NO_CRS_ARTIFACT_PROFILE:-}" = full_lifecycle ]; then
-    exec sh "$SCRIPT_DIR/run_patched_full_lifecycle.sh"
+    case "${MSCONNECTOR_CRS_RUNTIME:-0}" in
+        0)
+            [ -f "$NO_CRS_NAMESPACE_RUNNER" ] || {
+                printf 'lighttpd_patched_lifecycle_smoke: BLOCKED: No-CRS namespace launcher is missing\n' >&2
+                exit 77
+            }
+            exec /usr/bin/python3 "$NO_CRS_NAMESPACE_RUNNER" \
+                --timeout-seconds "${LIGHTTPD_NO_CRS_NAMESPACE_TIMEOUT_SECONDS:-300}" \
+                -- /bin/sh "$SCRIPT_DIR/run_patched_full_lifecycle.sh"
+            ;;
+        1)
+            exec sh "$SCRIPT_DIR/run_patched_full_lifecycle.sh"
+            ;;
+        *)
+            printf 'lighttpd_patched_lifecycle_smoke: BLOCKED: MSCONNECTOR_CRS_RUNTIME must be 0 or 1\n' >&2
+            exit 77
+            ;;
+    esac
 fi
 
 blocked() {

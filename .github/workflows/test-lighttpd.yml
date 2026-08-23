@@ -13,6 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
           persist-credentials: false
       - name: Set up toolchain
@@ -33,3 +34,12 @@ jobs:
           make check-remaining-connectors-build-wiring
           make check-remaining-connectors-start-wiring
           make check-remaining-connectors-claim-policy
+      - name: Run private fixture namespace contract tests
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          set -euo pipefail
+          namespace_temp_root="$(/usr/bin/mktemp -d "${RUNNER_TEMP}/lighttpd-namespace-contract.XXXXXX")"
+          /usr/bin/chmod 700 -- "$namespace_temp_root"
+          export LIGHTTPD_NAMESPACE_TEST_TEMP_PARENT="$namespace_temp_root"
+          python3 -m unittest -v connectors.lighttpd.tests.test_no_crs_fixture_namespace

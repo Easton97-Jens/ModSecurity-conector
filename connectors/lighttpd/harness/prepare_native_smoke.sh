@@ -11,6 +11,7 @@ RULES_FILE=${MSCONNECTOR_RULES_FILE:-$REPO_ROOT/common/rules/modsecurity_targete
 REQUEST_BODY_MODE=${LIGHTTPD_REQUEST_BODY_MODE:-none}
 RESPONSE_BODY_MODE=${LIGHTTPD_RESPONSE_BODY_MODE:-none}
 RESPONSE_HEADER_MARKER=${LIGHTTPD_RESPONSE_HEADER_MARKER:-}
+EXPOSE_HOST_TRANSACTION_ID=${LIGHTTPD_EXPOSE_HOST_TRANSACTION_ID:-0}
 PROXY_BARRIER_PORT=${LIGHTTPD_PROXY_BARRIER_PORT:-}
 PROXY_FIXTURE_PORT=${LIGHTTPD_PROXY_FIXTURE_PORT:-}
 RUNTIME_CONFIG=$SMOKE_DIR/msconnector-runtime.conf
@@ -54,6 +55,10 @@ esac
 case "$RESPONSE_HEADER_MARKER" in
     ''|block|redirect) ;;
     *) blocked "LIGHTTPD_RESPONSE_HEADER_MARKER must be empty, block, or redirect" ;;
+esac
+case "$EXPOSE_HOST_TRANSACTION_ID" in
+    0|1) ;;
+    *) blocked "LIGHTTPD_EXPOSE_HOST_TRANSACTION_ID must be 0 or 1" ;;
 esac
 for proxy_port in "$PROXY_BARRIER_PORT" "$PROXY_FIXTURE_PORT"; do
     case "$proxy_port" in
@@ -138,6 +143,12 @@ RUNTIME_CONFIG_ESCAPED=$(escape_lighttpd_string "$RUNTIME_CONFIG")
     printf 'server.upload-dirs = ( "%s" )\n' "$UPLOAD_DIR_ESCAPED"
     printf 'msconnector.enabled = "enable"\n'
     printf 'msconnector.config-file = "%s"\n' "$RUNTIME_CONFIG_ESCAPED"
+    if [ "$EXPOSE_HOST_TRANSACTION_ID" = 1 ]; then
+        # This is harness-only evidence plumbing.  The module emits the
+        # server-generated host transaction ID; it never reflects a request
+        # header or changes Common Runtime transaction-ID selection.
+        printf 'msconnector.expose-host-transaction-id = "enable"\n'
+    fi
     if [ -n "$PROXY_BARRIER_PORT" ]; then
         printf 'proxy.server = (\n'
         printf '  "/p4/barrier/" => ( ( "host" => "127.0.0.1", "port" => %s ) ),\n' "$PROXY_BARRIER_PORT"
@@ -145,8 +156,15 @@ RUNTIME_CONFIG_ESCAPED=$(escape_lighttpd_string "$RUNTIME_CONFIG")
         printf ')\n'
     fi
     if [ -n "$RESPONSE_HEADER_MARKER" ]; then
-        printf '$HTTP["url"] == "/phase3-%s" {\n' "$RESPONSE_HEADER_MARKER"
-        printf '  setenv.add-response-header = ( "X-Modsec-Upstream" => "%s" )\n' "$RESPONSE_HEADER_MARKER"
+        printf '%s\n' "\$HTTP[\"url\"] == \"/phase3-${RESPONSE_HEADER_MARKER}\" {"
+        if [ "$EXPOSE_HOST_TRANSACTION_ID" = 1 ]; then
+            # The response module must replace this controlled upstream value
+            # with its own host-generated identifier.  This regression probe
+            # is only present in the private opt-in evidence harness.
+            printf '  setenv.add-response-header = ( "X-Modsec-Upstream" => "%s", "X-Msconnector-Host-Transaction-Id" => "untrusted-upstream-value" )\n' "$RESPONSE_HEADER_MARKER"
+        else
+            printf '  setenv.add-response-header = ( "X-Modsec-Upstream" => "%s" )\n' "$RESPONSE_HEADER_MARKER"
+        fi
         printf '}\n'
     fi
 } > "$LIGHTTPD_CONFIG"

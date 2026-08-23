@@ -9,6 +9,7 @@
 #include "base.h"
 #include "buffer.h"
 #include "fdevent.h"
+#include "http_header.h"
 #include "http_status.h"
 #include "log.h"
 #include "plugin.h"
@@ -20,6 +21,7 @@
 
 typedef struct {
     int enabled;
+    int expose_host_transaction_id;
     const buffer *config_file;
 } plugin_config;
 
@@ -123,6 +125,9 @@ static void mod_msconnector_merge_config_cpv(
       case 1: /* msconnector.config-file */
         config->config_file = cpv->v.b;
         break;
+      case 2: /* msconnector.expose-host-transaction-id */
+        config->expose_host_transaction_id = cpv->v.u != 0U;
+        break;
       default:
         break;
     }
@@ -143,6 +148,9 @@ SETDEFAULTS_FUNC(mod_msconnector_set_defaults) {
         T_CONFIG_SCOPE_SERVER }
      ,{ CONST_STR_LEN("msconnector.config-file"),
         T_CONFIG_STRING,
+        T_CONFIG_SCOPE_SERVER }
+     ,{ CONST_STR_LEN("msconnector.expose-host-transaction-id"),
+        T_CONFIG_BOOL,
         T_CONFIG_SCOPE_SERVER }
      ,{ NULL, 0,
         T_CONFIG_UNSET,
@@ -512,6 +520,59 @@ static int mod_msconnector_response_body_committed(
         r->write_queue.bytes_out > (off_t)r->resp_header_len;
 }
 
+/*
+ * The host transaction ID is created by handler_ctx_create(), never derived
+ * from request metadata, and takes precedence over the legacy fallback
+ * transaction_id_header.  A private runtime harness can opt in to returning
+ * that host-generated value on the actual response so it can correlate one
+ * wire exchange with Common Runtime evidence.  This is deliberately disabled
+ * by default: the serial includes process-local information and is not a
+ * general-purpose public response header.
+ *
+ * Use response_set rather than response_insert.  In particular, an upstream
+ * response or a client-controlled request header bearing this name must not
+ * yield a second or forged response value.  This function is called only
+ * after the real response has been mapped into Common Runtime, so the
+ * evidence header cannot influence ModSecurity response evaluation.
+ */
+static int mod_msconnector_emit_host_transaction_id(
+        request_st * const r,
+        const plugin_data * const p,
+        const handler_ctx * const ctx) {
+    size_t transaction_id_size;
+
+    if (p == NULL || !p->defaults.expose_host_transaction_id) {
+        return 1;
+    }
+    if (r == NULL || ctx == NULL || ctx->host_request_id[0] == '\0') {
+        return 0;
+    }
+    if (mod_msconnector_response_headers_committed(r)) {
+        log_error(
+            r->conf.errh,
+            __FILE__,
+            __LINE__,
+            "msconnector evidence host transaction header would be emitted after response commit");
+        return 0;
+    }
+    transaction_id_size = strlen(ctx->host_request_id);
+    if (transaction_id_size >= sizeof(ctx->host_request_id)) {
+        log_error(
+            r->conf.errh,
+            __FILE__,
+            __LINE__,
+            "msconnector host transaction identifier is not bounded");
+        return 0;
+    }
+    http_header_response_set(
+        r,
+        HTTP_HEADER_OTHER,
+        CONST_STR_LEN("X-Msconnector-Host-Transaction-Id"),
+        ctx->host_request_id,
+        (uint32_t)transaction_id_size);
+    return 1;
+}
+
 static plugin_body_hook_result mod_msconnector_finish_response_body(
         request_st *r,
         plugin_data *p,
@@ -816,9 +877,18 @@ REQUEST_FUNC(mod_msconnector_handle_response_start) {
         return HANDLER_GO_ON;
     }
     ctx = r->plugin_ctx[p->id];
-    if (ctx == NULL || ctx->transaction == NULL || ctx->response_processed ||
-        ctx->request_intervened) {
+    if (ctx == NULL || ctx->transaction == NULL || ctx->response_processed) {
         return HANDLER_GO_ON;
+    }
+
+    /*
+     * P1/P2 interventions reach this hook after Lighttpd has created its
+     * error document.  That construction clears earlier response headers, so
+     * emit the opt-in evidence header here rather than during request setup.
+     */
+    if (ctx->request_intervened) {
+        return mod_msconnector_emit_host_transaction_id(r, p, ctx)
+            ? HANDLER_GO_ON : HANDLER_ERROR;
     }
 
     msconnector_runtime_response_contract(p->runtime, &contract);
@@ -868,6 +938,9 @@ REQUEST_FUNC(mod_msconnector_handle_response_start) {
             r, p->runtime, runtime_error.code);
     }
     ctx->response_processed = 1;
+    if (!mod_msconnector_emit_host_transaction_id(r, p, ctx)) {
+        return HANDLER_ERROR;
+    }
     return mod_msconnector_apply_decision(r, p, ctx, &decision);
 }
 

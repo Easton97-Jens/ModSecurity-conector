@@ -595,10 +595,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         )
 
     def test_phase3_precommit_case_keeps_header_status_metadata(self) -> None:
-        catalog = (
-            ROOT
-            / "modules/ModSecurity-test-Framework/tests/cases/no-crs-baseline/catalog.json"
-        )
+        catalog = FRAMEWORK_ROOT / "tests/cases/no-crs-baseline/catalog.json"
         expectations, runner_case_index = collector.catalog_contract(catalog)
         with tempfile.TemporaryDirectory(prefix="no-crs-phase3-") as temporary:
             root = Path(temporary)
@@ -824,10 +821,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             self.assertFalse(cases[0]["event_metadata_verified"])
 
     def test_catalog_runner_case_mapping_does_not_guess_from_fixture_name(self) -> None:
-        catalog = (
-            ROOT
-            / "modules/ModSecurity-test-Framework/tests/cases/no-crs-baseline/catalog.json"
-        )
+        catalog = FRAMEWORK_ROOT / "tests/cases/no-crs-baseline/catalog.json"
         expectations, runner_case_index = collector.catalog_contract(catalog)
         with tempfile.TemporaryDirectory(prefix="no-crs-runner-name-") as temporary:
             root = Path(temporary)
@@ -1236,6 +1230,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             'ENVOY_EXT_PROC_RUNTIME_ROOT="$HOST_RUNTIME_ROOT"',
             "TRAEFIK_RUNTIME_ROOT=$STAGE_BUILD_ROOT/traefik-runtime",
             'TRAEFIK_NATIVE_RUNTIME_ROOT="$TRAEFIK_RUNTIME_ROOT"',
+            'TRAEFIK_FIRST_BYTE_EVIDENCE_ROOT="$CONNECTOR_RUN_ROOT"',
             "TRAEFIK_ARTIFACT_STAGER=$CONNECTOR_ROOT/ci/runtime/lifecycle/stage-traefik-runtime-artifacts.py",
             '--build-root "$STAGE_BUILD_ROOT"',
             '--raw-root "$RAW_DIR"',

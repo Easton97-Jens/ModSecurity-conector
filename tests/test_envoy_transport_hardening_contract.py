@@ -63,6 +63,27 @@ def configure_loopback_tls(server: http.server.ThreadingHTTPServer, root: Path) 
 
 
 class EnvoyTransportHardeningContractTest(unittest.TestCase):
+    def test_runtime_harness_cleanup_is_bounded_and_pid_identity_bound(self) -> None:
+        source = RUNTIME_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("owned_process_start_token()", source)
+        self.assertIn("owned_process_stat_value()", source)
+        self.assertIn('close = line.rfind(")")', source)
+        self.assertIn('post_comm[19]', source)
+        self.assertNotIn("awk '{ print $22 }'", source)
+        self.assertNotIn("awk '{ print $3 }'", source)
+        self.assertIn("owned_process_is_current()", source)
+        self.assertIn("CHILD_STOP_ATTEMPTS=${ENVOY_CHILD_STOP_ATTEMPTS:-20}", source)
+        self.assertIn("CHILD_STOP_DELAY=${ENVOY_CHILD_STOP_DELAY_SECONDS:-0.1}", source)
+        self.assertIn('kill -TERM "$owned_pid"', source)
+        self.assertIn('kill -KILL "$owned_pid"', source)
+        self.assertIn('wait_for_owned_process_stop "$owned_pid" "$expected_token"', source)
+        self.assertIn('refusing to signal changed $process_label PID $owned_pid', source)
+        self.assertIn('refusing to signal unverified $process_label PID $owned_pid', source)
+        self.assertIn('upstream_start_token=$(owned_process_start_token "$upstream_pid")', source)
+        self.assertIn('service_start_token=$(owned_process_start_token "$service_pid")', source)
+        self.assertIn('envoy_start_token=$(owned_process_start_token "$envoy_pid")', source)
+
     def test_envoy_v138_template_avoids_deprecated_protocol_and_admin_fields(self) -> None:
         template = (
             ROOT / "connectors" / "envoy" / "config" / "envoy-ext-proc-streaming.yaml.in"

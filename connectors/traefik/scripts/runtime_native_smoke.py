@@ -27,7 +27,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 
 class MissingDependency(RuntimeError):
@@ -42,6 +42,13 @@ P2_BODY = b"no-crs-request-body-marker"
 P1_ALLOW_TRANSACTION_ID = "traefik-native-p1-allow"
 NATIVE_REQUEST_PATH = "/native"
 PLAIN_TEXT_CONTENT_TYPE = "text/plain"
+CRS_ALLOW_PATH = "/?id=42"
+CRS_BLOCK_PATH = "/?id=1%20UNION%20SELECT%20password%20FROM%20users"
+CRS_BYPASS_PATH = "/?id=1%20union%20select%20password%20from%20users"
+CRS_RUNTIME_HOST = "crs-runtime.test"
+CRS_RUNTIME_RUN_ID_MAX_LENGTH = 48
+CRS_RULE_ID = "942270"
+CRS_INTERVENTION_RULE_ID = "949110"
 ENGINE_BUILD_SCRIPT = REPO_ROOT / "connectors/traefik/build/build-engine-service.sh"
 STANDALONE_ENGINE_RULES = REPO_ROOT / "connectors/traefik/config/traefik-native-engine-rules.conf"
 
@@ -61,9 +68,13 @@ STANDALONE_RULE_IDS = {
 }
 ENGINE_SOCKET_DIRECTORY_PREFIX = "msconnector-traefik-uds-"
 ENGINE_SOCKET_PARENT_ENV = "TRAEFIK_ENGINE_SOCKET_PARENT"
+FIRST_BYTE_EVIDENCE_ROOT_ENV = "TRAEFIK_FIRST_BYTE_EVIDENCE_ROOT"
+FIRST_BYTE_EVIDENCE_FILENAME = "first-byte-evidence.json"
 ENGINE_SOCKET_FILENAME = "engine.sock"
 ENGINE_SOCKET_PARENT_LABEL = "Traefik engine socket parent"
 ENGINE_SOCKET_DIRECTORY_RANDOM_HEX_LENGTH = 16
+ENGINE_STDERR_LOG_FILENAME = "engine.stderr.log"
+TRAEFIK_STDOUT_LOG_FILENAME = "traefik.stdout.log"
 # Linux sockaddr_un traditionally permits 107 pathname bytes plus NUL. Keep a
 # margin so a pinned host with a shorter implementation cannot silently turn
 # a long canonical run root into an engine-start failure.
@@ -245,6 +256,31 @@ def resolve_engine_socket_parent() -> EngineSocketParent:
     )
 
 
+def resolve_first_byte_evidence_output(path: Path) -> Path:
+    """Bind optional first-byte evidence to one explicit private parent."""
+
+    if not path.is_absolute():
+        raise MissingDependency("FULL_LIFECYCLE_EVIDENCE_OUTPUT must be an absolute path")
+    root_text = os.environ.get(FIRST_BYTE_EVIDENCE_ROOT_ENV, "")
+    if not root_text:
+        raise MissingDependency(
+            f"{FIRST_BYTE_EVIDENCE_ROOT_ENV} is required for first-byte evidence output"
+        )
+    assert_engine_socket_parent_text_is_safe(root_text, FIRST_BYTE_EVIDENCE_ROOT_ENV)
+    root = assert_private_engine_socket_parent(Path(root_text), FIRST_BYTE_EVIDENCE_ROOT_ENV)
+    output = Path(os.path.abspath(path))
+    if output.parent != root or output.name != FIRST_BYTE_EVIDENCE_FILENAME:
+        raise MissingDependency(
+            "FULL_LIFECYCLE_EVIDENCE_OUTPUT must be the fixed first-byte artifact "
+            f"below {FIRST_BYTE_EVIDENCE_ROOT_ENV}"
+        )
+    try:
+        output.lstat()
+    except FileNotFoundError:
+        return output
+    raise MissingDependency("FULL_LIFECYCLE_EVIDENCE_OUTPUT must not already exist")
+
+
 def assert_engine_socket_path_length(parent: Path) -> None:
     candidate = (
         parent
@@ -375,6 +411,8 @@ def select_engine_rules() -> tuple[Path, dict[str, str], str]:
         rules = Path(configured)
         if not rules.is_absolute() or not rules.is_file():
             raise MissingDependency("MSCONNECTOR_RULES_FILE must name an existing absolute rules file")
+        if os.environ.get("MSCONNECTOR_CRS_RUNTIME") == "1":
+            return rules.resolve(), {"block": CRS_RULE_ID}, "framework-crs-v4.29.0"
         return rules.resolve(), CANONICAL_RULE_IDS, "framework-no-crs"
     if not STANDALONE_ENGINE_RULES.is_file():
         raise MissingDependency(f"standalone Traefik rule fixture is unavailable: {STANDALONE_ENGINE_RULES}")
@@ -423,7 +461,71 @@ def read_plugin_module(source: Path) -> str:
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    """Atomically replace one JSON artifact without following path symlinks."""
+
+    if not path.is_absolute() or path.name in {"", ".", ".."}:
+        raise MissingDependency("runtime JSON output must be an absolute file path")
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    if nofollow is None:
+        raise MissingDependency("runtime JSON output requires O_NOFOLLOW support")
+    assert_no_symlink_components(path.parent)
+    contents = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | nofollow
+    try:
+        directory_descriptor = os.open(path.parent, directory_flags)
+    except OSError as exc:
+        raise MissingDependency(f"runtime JSON output directory is unsafe: {path.parent}") from exc
+    temporary_name = f".{path.name}.{os.urandom(16).hex()}.tmp"
+    temporary_descriptor: int | None = None
+    try:
+        try:
+            existing_stat = os.stat(path.name, dir_fd=directory_descriptor, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        else:
+            if stat.S_ISLNK(existing_stat.st_mode) or not stat.S_ISREG(existing_stat.st_mode):
+                raise MissingDependency(f"runtime JSON artifact path is unsafe: {path}")
+        temporary_descriptor = os.open(
+            temporary_name,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | nofollow,
+            0o600,
+            dir_fd=directory_descriptor,
+        )
+        try:
+            if not stat.S_ISREG(os.fstat(temporary_descriptor).st_mode):
+                raise MissingDependency(f"runtime JSON temporary path is not regular: {path}")
+            with os.fdopen(temporary_descriptor, "wb", closefd=False) as stream:
+                stream.write(contents)
+                stream.flush()
+                os.fsync(stream.fileno())
+        finally:
+            os.close(temporary_descriptor)
+            temporary_descriptor = None
+        os.replace(
+            temporary_name,
+            path.name,
+            src_dir_fd=directory_descriptor,
+            dst_dir_fd=directory_descriptor,
+        )
+        artifact_descriptor = os.open(path.name, os.O_RDONLY | nofollow, dir_fd=directory_descriptor)
+        try:
+            artifact_stat = os.fstat(artifact_descriptor)
+            if not stat.S_ISREG(artifact_stat.st_mode) or stat.S_IMODE(artifact_stat.st_mode) != 0o600:
+                raise MissingDependency(f"runtime JSON artifact is unsafe: {path}")
+        finally:
+            os.close(artifact_descriptor)
+        os.fsync(directory_descriptor)
+    except OSError as exc:
+        raise MissingDependency(f"could not atomically write runtime JSON artifact: {path}") from exc
+    finally:
+        if temporary_descriptor is not None:
+            os.close(temporary_descriptor)
+        try:
+            os.unlink(temporary_name, dir_fd=directory_descriptor)
+        except FileNotFoundError:
+            pass
+        finally:
+            os.close(directory_descriptor)
 
 
 def wait_for_port(port: int, process: subprocess.Popen[bytes], label: str) -> None:
@@ -603,6 +705,21 @@ def upstream_handler(state: UpstreamState) -> type[http.server.BaseHTTPRequestHa
             except (BrokenPipeError, ConnectionResetError):
                 return
 
+        def do_GET(self) -> None:  # noqa: N802 - HTTP server callback name
+            with state.lock:
+                state.request_count += 1
+                state.response_chunks += 1
+            payload = b"traefik-crs-upstream-ok\n"
+            self.send_response(200)
+            self.send_header("Content-Type", PLAIN_TEXT_CONTENT_TYPE)
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            try:
+                self.wfile.write(payload)
+                self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError):
+                return
+
         def log_message(self, _format: str, *_args: object) -> None:
             # Request paths and body values are not useful evidence.
             return
@@ -679,6 +796,8 @@ def request_through_traefik(
     request_id: str,
     expected_status: int,
     extra_headers: dict[str, str] | None = None,
+    method: str = "POST",
+    path: str = NATIVE_REQUEST_PATH,
 ) -> tuple[int, int]:
     deadline = time.monotonic() + 15
     last_error: Exception | None = None
@@ -692,8 +811,8 @@ def request_through_traefik(
             if extra_headers:
                 headers.update(extra_headers)
             connection.request(
-                "POST",
-                NATIVE_REQUEST_PATH,
+                method,
+                path,
                 body=body,
                 headers=headers,
             )
@@ -1020,11 +1139,16 @@ def optional_canonical_run_id() -> str | None:
     metadata and must therefore obey the same bounded token policy as the
     full-lifecycle dispatcher.
     """
-    run_id = os.environ.get("NO_CRS_RUN_ID", "").strip()
+    environment_name = (
+        "CRS_RUNTIME_RUN_ID"
+        if os.environ.get("MSCONNECTOR_CRS_RUNTIME") == "1"
+        else "NO_CRS_RUN_ID"
+    )
+    run_id = os.environ.get(environment_name, "").strip()
     if not run_id:
         return None
     if not SAFE_RUN_ID_PATTERN.fullmatch(run_id):
-        raise RuntimeError("NO_CRS_RUN_ID is not a bounded safe canonical run ID")
+        raise RuntimeError(f"{environment_name} is not a bounded safe canonical run ID")
     return run_id
 
 
@@ -1229,6 +1353,44 @@ class NativeRequestResults:
 
 
 @dataclass(frozen=True)
+class CrsRequestIDs:
+    """Run-scoped request identifiers that remain within Common's 128-byte limit."""
+
+    allow: str
+    block: str
+    bypass: str
+
+
+def crs_request_ids(run_id: str) -> CrsRequestIDs:
+    """Derive injective CRS transaction IDs from the validated canonical run ID."""
+
+    if not SAFE_RUN_ID_PATTERN.fullmatch(run_id):
+        raise MissingDependency("CRS_RUNTIME_RUN_ID is not a bounded safe canonical run ID")
+    if len(run_id) > CRS_RUNTIME_RUN_ID_MAX_LENGTH:
+        raise MissingDependency(
+            "CRS_RUNTIME_RUN_ID exceeds the Traefik CRS transaction-ID safety limit"
+        )
+    prefix = f"traefik-native-crs-{run_id}"
+    return CrsRequestIDs(
+        allow=f"{prefix}-allow",
+        block=f"{prefix}-block",
+        bypass=f"{prefix}-bypass",
+    )
+
+
+@dataclass(frozen=True)
+class CrsRequestResults:
+    """Responses observed through the live Traefik CRS host path."""
+
+    request_ids: CrsRequestIDs
+    allow_status: int
+    allow_bytes: int
+    block_status: int
+    bypass_status: int
+    bypass_bytes: int
+
+
+@dataclass(frozen=True)
 class NativeLiveObservation:
     """State confirmed while the native host is still running."""
 
@@ -1245,6 +1407,8 @@ def collect_native_runtime_inputs() -> NativeRuntimeInputs:
     runtime_root = assert_runtime_root(Path(os.environ.get("TRAEFIK_NATIVE_RUNTIME_ROOT", "")))
     first_byte_output_text = os.environ.get("FULL_LIFECYCLE_EVIDENCE_OUTPUT", "").strip()
     first_byte_output = Path(first_byte_output_text) if first_byte_output_text else None
+    if first_byte_output is not None:
+        first_byte_output = resolve_first_byte_evidence_output(first_byte_output)
     if os.environ.get("NO_CRS_ARTIFACT_PROFILE") == "full_lifecycle" and first_byte_output is None:
         raise MissingDependency("FULL_LIFECYCLE_EVIDENCE_OUTPUT is required for the native first-byte proof")
     engine_socket_parent = resolve_engine_socket_parent()
@@ -1252,10 +1416,16 @@ def collect_native_runtime_inputs() -> NativeRuntimeInputs:
     rules_file, rule_ids, rules_profile = select_engine_rules()
     require_engine_inputs(rules_file)
     include_dir, library_dir = require_modsecurity_environment()
+    run_id = optional_canonical_run_id()
+    if os.environ.get("MSCONNECTOR_CRS_RUNTIME") == "1" and run_id is None:
+        raise MissingDependency("CRS_RUNTIME_RUN_ID is required for Traefik CRS request correlation")
+    if os.environ.get("MSCONNECTOR_CRS_RUNTIME") == "1":
+        assert run_id is not None
+        crs_request_ids(run_id)
     return NativeRuntimeInputs(
         runtime_root=runtime_root,
         engine_socket_parent=engine_socket_parent,
-        run_id=optional_canonical_run_id(),
+        run_id=run_id,
         first_byte_output=first_byte_output,
         binary=binary,
         include_dir=include_dir,
@@ -1272,23 +1442,75 @@ def stage_native_runtime(inputs: NativeRuntimeInputs) -> NativeRuntimeArtifacts:
 
     if inputs.runtime_root.exists() and any(inputs.runtime_root.iterdir()):
         raise MissingDependency(f"native runtime root must be empty: {inputs.runtime_root}")
-    inputs.runtime_root.mkdir(parents=True, exist_ok=True)
-    plugin_destination = inputs.runtime_root / "plugins-local/src" / Path(inputs.module_name)
-    plugin_destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(PLUGIN_SOURCE, plugin_destination)
-    config_dir = inputs.runtime_root / "effective-config"
-    logs_dir = inputs.runtime_root / "logs"
-    config_dir.mkdir()
-    logs_dir.mkdir()
-    return NativeRuntimeArtifacts(
-        logs_dir=logs_dir,
-        result_path=inputs.runtime_root / "result.json",
-        transport_observations_path=inputs.runtime_root / "transport-observations.diagnostic.json",
-        static_config=config_dir / "traefik-native-static.yaml",
-        dynamic_config=config_dir / "traefik-native-dynamic.yaml",
-        engine_config=config_dir / "traefik-native-engine.conf",
-        event_path=logs_dir / "events.jsonl",
-    )
+    staging_started = False
+    try:
+        inputs.runtime_root.mkdir(parents=True, mode=0o700, exist_ok=True)
+        os.chmod(inputs.runtime_root, 0o700)
+        staging_started = True
+        plugin_destination = inputs.runtime_root / "plugins-local/src" / Path(inputs.module_name)
+        plugin_destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(PLUGIN_SOURCE, plugin_destination)
+        config_dir = inputs.runtime_root / "effective-config"
+        logs_dir = inputs.runtime_root / "logs"
+        config_dir.mkdir()
+        logs_dir.mkdir()
+        return NativeRuntimeArtifacts(
+            logs_dir=logs_dir,
+            result_path=inputs.runtime_root / "result.json",
+            transport_observations_path=inputs.runtime_root / "transport-observations.diagnostic.json",
+            static_config=config_dir / "traefik-native-static.yaml",
+            dynamic_config=config_dir / "traefik-native-dynamic.yaml",
+            engine_config=config_dir / "traefik-native-engine.conf",
+            event_path=logs_dir / "events.jsonl",
+        )
+    except Exception as exc:
+        if staging_started and not cleanup_staged_runtime_workspaces(inputs):
+            raise RuntimeError("Traefik staged runtime cleanup was refused") from exc
+        raise
+
+
+def cleanup_staged_runtime_workspaces(
+    inputs: NativeRuntimeInputs, artifacts: NativeRuntimeArtifacts | None = None
+) -> bool:
+    """Remove only the exact temporary workspaces after preserving raw evidence.
+
+    The result and log files are evidence inputs for the Parent normalizer, so
+    they deliberately remain below ``runtime_root``. The local plugin copy,
+    generated configuration, and native engine build are instead ephemeral
+    execution material. Refuse cleanup when a selected path no longer has its
+    expected direct-child, non-symlink directory identity.
+    """
+
+    del artifacts  # Documents that evidence paths are intentionally retained.
+    root = inputs.runtime_root
+    try:
+        root_stat = root.lstat()
+        if (
+            root.is_symlink()
+            or not stat.S_ISDIR(root_stat.st_mode)
+            or root_stat.st_uid != os.geteuid()
+            or stat.S_IMODE(root_stat.st_mode) != 0o700
+        ):
+            return False
+        assert_private_engine_socket_parent_ancestors_are_safe(root, "native runtime root")
+        if not shutil.rmtree.avoids_symlink_attacks:
+            return False
+        for name in ("plugins-local", "effective-config", "engine-build"):
+            workspace = root / name
+            if workspace.parent != root:
+                return False
+            try:
+                workspace_stat = workspace.lstat()
+            except FileNotFoundError:
+                continue
+            if workspace.is_symlink() or not stat.S_ISDIR(workspace_stat.st_mode):
+                return False
+            shutil.rmtree(workspace)
+            if workspace.exists() or workspace.is_symlink():
+                return False
+    except (OSError, RuntimeError):
+        return False
+    return True
 
 
 def start_native_runtime_setup(
@@ -1330,19 +1552,23 @@ def start_native_runtime_setup(
         raise
 
 
-def run_native_requests(
+@contextlib.contextmanager
+def running_traefik_host(
     inputs: NativeRuntimeInputs,
     artifacts: NativeRuntimeArtifacts,
     setup: NativeRuntimeSetup,
     processes: NativeProcesses,
-) -> NativeRequestResults:
-    """Start both host processes and make the bounded lifecycle requests."""
+    *,
+    engine_description: str,
+    host_description: str,
+) -> Iterator[None]:
+    """Start the common engine/host pair while keeping its log descriptors open."""
 
     engine_binary = build_engine_service(
         inputs.runtime_root, artifacts.logs_dir, inputs.include_dir, inputs.library_dir
     )
     with (artifacts.logs_dir / "engine.stdout.log").open("wb") as engine_stdout, (
-        artifacts.logs_dir / "engine.stderr.log"
+        artifacts.logs_dir / ENGINE_STDERR_LOG_FILENAME
     ).open("wb") as engine_stderr:
         processes.engine = subprocess.Popen(
             [
@@ -1357,8 +1583,8 @@ def run_native_requests(
             stdout=engine_stdout,
             stderr=engine_stderr,
         )
-        wait_for_socket(setup.engine_socket, processes.engine, "persistent Traefik engine service")
-        with (artifacts.logs_dir / "traefik.stdout.log").open("wb") as stdout, (
+        wait_for_socket(setup.engine_socket, processes.engine, engine_description)
+        with (artifacts.logs_dir / TRAEFIK_STDOUT_LOG_FILENAME).open("wb") as stdout, (
             artifacts.logs_dir / "traefik.stderr.log"
         ).open("wb") as stderr:
             processes.traefik = subprocess.Popen(
@@ -1367,41 +1593,63 @@ def run_native_requests(
                 stdout=stdout,
                 stderr=stderr,
             )
-            wait_for_port(setup.traefik_port, processes.traefik, "Traefik native local-plugin host")
-            p1_allow_status, p1_allow_bytes = request_through_traefik(
-                setup.traefik_port, REQUEST_BODY, P1_ALLOW_TRANSACTION_ID, http.HTTPStatus.OK
-            )
-            p1_deny_status, _ = request_through_traefik(
-                setup.traefik_port,
-                REQUEST_BODY,
-                "traefik-native-p1-deny",
-                http.HTTPStatus.FORBIDDEN,
-                {"X-Modsec-Smoke": "block"},
-            )
-            p1_alternative_status, _ = request_through_traefik(
-                setup.traefik_port,
-                REQUEST_BODY,
-                "traefik-native-p1-alternative",
-                http.HTTPStatus.TOO_MANY_REQUESTS,
-                {"X-Modsec-Smoke": "alternative-status"},
-            )
-            p2_deny_status, _ = request_through_traefik(
-                setup.traefik_port, P2_BODY, "traefik-native-p2-deny", http.HTTPStatus.FORBIDDEN
-            )
-            p3_deny_status, _ = request_through_traefik(
-                setup.traefik_port,
-                REQUEST_BODY,
-                "traefik-native-p3-deny",
-                http.HTTPStatus.FORBIDDEN,
-                {"X-Native-Response-Rule": "block"},
-            )
-            keepalive_observation = synchronized_safe_followup(
-                setup.traefik_port,
-                setup.state,
-                REQUEST_BODY,
-                "traefik-native-p4-safe",
-                "traefik-native-keepalive-followup",
-            )
+            wait_for_port(setup.traefik_port, processes.traefik, host_description)
+            yield
+
+
+def run_native_requests(
+    inputs: NativeRuntimeInputs,
+    artifacts: NativeRuntimeArtifacts,
+    setup: NativeRuntimeSetup,
+    processes: NativeProcesses,
+) -> NativeRequestResults:
+    """Start both host processes and make the bounded lifecycle requests."""
+
+    if os.environ.get("MSCONNECTOR_CRS_RUNTIME") == "1":
+        raise RuntimeError("CRS mode must use run_crs_requests")
+
+    with running_traefik_host(
+        inputs,
+        artifacts,
+        setup,
+        processes,
+        engine_description="persistent Traefik engine service",
+        host_description="Traefik native local-plugin host",
+    ):
+        p1_allow_status, p1_allow_bytes = request_through_traefik(
+            setup.traefik_port, REQUEST_BODY, P1_ALLOW_TRANSACTION_ID, http.HTTPStatus.OK
+        )
+        p1_deny_status, _ = request_through_traefik(
+            setup.traefik_port,
+            REQUEST_BODY,
+            "traefik-native-p1-deny",
+            http.HTTPStatus.FORBIDDEN,
+            {"X-Modsec-Smoke": "block"},
+        )
+        p1_alternative_status, _ = request_through_traefik(
+            setup.traefik_port,
+            REQUEST_BODY,
+            "traefik-native-p1-alternative",
+            http.HTTPStatus.TOO_MANY_REQUESTS,
+            {"X-Modsec-Smoke": "alternative-status"},
+        )
+        p2_deny_status, _ = request_through_traefik(
+            setup.traefik_port, P2_BODY, "traefik-native-p2-deny", http.HTTPStatus.FORBIDDEN
+        )
+        p3_deny_status, _ = request_through_traefik(
+            setup.traefik_port,
+            REQUEST_BODY,
+            "traefik-native-p3-deny",
+            http.HTTPStatus.FORBIDDEN,
+            {"X-Native-Response-Rule": "block"},
+        )
+        keepalive_observation = synchronized_safe_followup(
+            setup.traefik_port,
+            setup.state,
+            REQUEST_BODY,
+            "traefik-native-p4-safe",
+            "traefik-native-keepalive-followup",
+        )
     if processes.traefik.poll() is not None:
         raise RuntimeError(
             f"Traefik exited after native requests with code {processes.traefik.returncode}"
@@ -1421,12 +1669,204 @@ def run_native_requests(
     )
 
 
+def run_crs_requests(
+    inputs: NativeRuntimeInputs,
+    artifacts: NativeRuntimeArtifacts,
+    setup: NativeRuntimeSetup,
+    processes: NativeProcesses,
+) -> CrsRequestResults:
+    """Run canonical CRS requests through Traefik and its private UDS engine."""
+
+    if inputs.rules_profile != "framework-crs-v4.29.0":
+        raise MissingDependency("CRS mode requires the pinned Framework CRS rules profile")
+    if inputs.run_id is None:
+        raise MissingDependency("CRS_RUNTIME_RUN_ID is required for Traefik CRS request correlation")
+    request_ids = crs_request_ids(inputs.run_id)
+    crs_headers = {
+        "Host": CRS_RUNTIME_HOST,
+        "Content-Type": "application/x-www-form-urlencoded",
+        "X-Framework-Run-ID": inputs.run_id,
+    }
+    with running_traefik_host(
+        inputs,
+        artifacts,
+        setup,
+        processes,
+        engine_description="persistent Traefik CRS engine service",
+        host_description="Traefik CRS native host",
+    ):
+        allow_status, allow_bytes = request_through_traefik(
+            setup.traefik_port,
+            b"",
+            request_ids.allow,
+            http.HTTPStatus.OK,
+            crs_headers,
+            method="GET",
+            path=CRS_ALLOW_PATH,
+        )
+        block_status, _ = request_through_traefik(
+            setup.traefik_port,
+            b"",
+            request_ids.block,
+            http.HTTPStatus.FORBIDDEN,
+            crs_headers,
+            method="GET",
+            path=CRS_BLOCK_PATH,
+        )
+        bypass_status, bypass_bytes = request_through_traefik(
+            setup.traefik_port,
+            b"",
+            request_ids.bypass,
+            http.HTTPStatus.FORBIDDEN,
+            crs_headers,
+            method="GET",
+            path=CRS_BYPASS_PATH,
+        )
+    if processes.traefik.poll() is not None:
+        raise RuntimeError(f"Traefik exited after CRS requests with code {processes.traefik.returncode}")
+    if processes.engine.poll() is not None:
+        raise RuntimeError("persistent Traefik CRS engine exited before lifecycle completion")
+    return CrsRequestResults(
+        request_ids=request_ids,
+        allow_status=allow_status,
+        allow_bytes=allow_bytes,
+        block_status=block_status,
+        bypass_status=bypass_status,
+        bypass_bytes=bypass_bytes,
+    )
+
+
+def finalize_crs_host_observations(
+    artifacts: NativeRuntimeArtifacts,
+    results: CrsRequestResults,
+) -> tuple[dict[str, Any] | None, dict[str, Any], dict[str, Any]]:
+    """Bind host decisions and CRS triggers to actual per-request evidence.
+
+    libmodsecurity reports a disruptive anomaly-score decision as rule 949110,
+    while the request's canonical SQLi trigger is 942270 in the raw audit/log
+    stream.  Keep those observations separate; treating the intervention rule
+    as the trigger would lose the contract's requested CRS provenance.
+    """
+
+    outcomes = read_host_outcomes(artifacts.event_path)
+    matching_events = [
+        event
+        for event in outcomes
+        if event.get("phase") in {"request_headers", "request_body"}
+        and event.get("actual_action") == "deny"
+        and event.get("visible_http_status") == http.HTTPStatus.FORBIDDEN
+        and str(event.get("rule_id")) == CRS_INTERVENTION_RULE_ID
+    ]
+    block_event = next(
+        (event for event in matching_events if event.get("transaction_id") == results.request_ids.block),
+        None,
+    )
+    bypass_event = next(
+        (event for event in matching_events if event.get("transaction_id") == results.request_ids.bypass),
+        None,
+    )
+    if block_event is None:
+        raise RuntimeError("Traefik CRS block event is not bound to its attack transaction")
+    if bypass_event is None:
+        raise RuntimeError("Traefik CRS bypass event is not bound to its transformed transaction")
+
+    engine_log = artifacts.logs_dir / ENGINE_STDERR_LOG_FILENAME
+    if not engine_log.is_file():
+        raise RuntimeError("Traefik CRS engine stderr evidence is missing")
+    raw_lines = engine_log.read_text(encoding="utf-8", errors="replace").splitlines()
+
+    def require_trigger(transaction_id: str) -> None:
+        marker = f'[unique_id "{transaction_id}"]'
+        rule_marker = f'[id "{CRS_RULE_ID}"]'
+        if not any(marker in line and rule_marker in line for line in raw_lines):
+            raise RuntimeError(
+                f"Traefik CRS trigger {CRS_RULE_ID} is not correlated to {transaction_id}"
+            )
+
+    require_trigger(results.request_ids.block)
+    require_trigger(results.request_ids.bypass)
+    allow_event = next(
+        (
+            event
+            for event in outcomes
+            if event.get("transaction_id") == results.request_ids.allow
+            and event.get("visible_http_status") == http.HTTPStatus.OK
+        ),
+        None,
+    )
+    if results.allow_status != http.HTTPStatus.OK or results.allow_bytes < 1:
+        raise RuntimeError("Traefik CRS allow request did not produce a real 200 host outcome")
+    return allow_event, block_event, bypass_event
+
+
+def write_crs_success(
+    inputs: NativeRuntimeInputs,
+    artifacts: NativeRuntimeArtifacts,
+    results: CrsRequestResults,
+    events: tuple[dict[str, Any] | None, dict[str, Any], dict[str, Any]],
+    processes_stopped: bool,
+) -> None:
+    """Persist only observed CRS host outcomes for the parent normalizer."""
+
+    allow_event, block_event, bypass_event = events
+    allow_payload: dict[str, Any] = {
+        "request_path": CRS_ALLOW_PATH,
+        "request_id": results.request_ids.allow,
+        "status": results.allow_status,
+        "response_bytes": results.allow_bytes,
+    }
+    if allow_event is not None:
+        allow_payload["observed_event"] = allow_event
+    write_json(
+        artifacts.result_path,
+        {
+            "capability_promotion": "canonical-finalization-required",
+            "connector": "traefik",
+            "engine_mode": "uds",
+            "integration_mode": "native-traefik-middleware",
+            "plugin_loaded": "Plugins loaded." in (artifacts.logs_dir / TRAEFIK_STDOUT_LOG_FILENAME).read_text(
+                encoding="utf-8", errors="replace"
+            ),
+            "processes_stopped": processes_stopped,
+            "production_ready": False,
+            "run_id": inputs.run_id,
+            "rules_profile": inputs.rules_profile,
+            "crs_rule_id": CRS_RULE_ID,
+            "allow": allow_payload,
+            "block": {
+                "request_path": CRS_BLOCK_PATH,
+                "request_id": block_event.get("transaction_id"),
+                "status": results.block_status,
+                "observed_rule_id": str(block_event.get("rule_id")),
+                "trigger_rule_id": CRS_RULE_ID,
+                "raw_trigger_log": f"logs/{ENGINE_STDERR_LOG_FILENAME}",
+                "intervention_rule_id": str(block_event.get("rule_id")),
+                "observed_event": block_event,
+            },
+            "bypass": {
+                "class": "sql-keyword-case-variation",
+                "request_path": CRS_BYPASS_PATH,
+                "request_id": bypass_event.get("transaction_id"),
+                "status": results.bypass_status,
+                "response_bytes": results.bypass_bytes,
+                "observed_rule_id": str(bypass_event.get("rule_id")),
+                "trigger_rule_id": CRS_RULE_ID,
+                "raw_trigger_log": f"logs/{ENGINE_STDERR_LOG_FILENAME}",
+                "intervention_rule_id": str(bypass_event.get("rule_id")),
+                "observed_event": bypass_event,
+            },
+            "status": "PASS",
+            "traefik_version": traefik_version(inputs.binary),
+        },
+    )
+
+
 def observe_live_native_host(
     artifacts: NativeRuntimeArtifacts, setup: NativeRuntimeSetup, processes: NativeProcesses
 ) -> NativeLiveObservation:
     """Require the expected plugin, streaming fixture, and keep-alive state."""
 
-    host_log = (artifacts.logs_dir / "traefik.stdout.log").read_text(
+    host_log = (artifacts.logs_dir / TRAEFIK_STDOUT_LOG_FILENAME).read_text(
         encoding="utf-8", errors="replace"
     )
     plugin_loaded = "Plugins loaded." in host_log and PLUGIN_ID in host_log
@@ -1628,23 +2068,40 @@ def run() -> int:
     inputs = collect_native_runtime_inputs()
     artifacts = stage_native_runtime(inputs)
     processes = NativeProcesses()
-    setup = start_native_runtime_setup(inputs, artifacts)
+    try:
+        setup = start_native_runtime_setup(inputs, artifacts)
+    except Exception as exc:
+        if not cleanup_staged_runtime_workspaces(inputs):
+            raise RuntimeError("Traefik staged runtime cleanup was refused") from exc
+        raise
     outcome = 1
     try:
-        results = run_native_requests(inputs, artifacts, setup, processes)
-        live_observation = observe_live_native_host(artifacts, setup, processes)
-        traefik_stopped, engine_stopped = stop_native_processes(processes)
-        outcome_count = finalize_native_host_observations(
-            inputs, artifacts, results, live_observation
-        )
-        write_native_success(
-            inputs,
-            artifacts,
-            results,
-            live_observation,
-            outcome_count,
-            traefik_stopped and engine_stopped,
-        )
+        if os.environ.get("MSCONNECTOR_CRS_RUNTIME") == "1":
+            crs_results = run_crs_requests(inputs, artifacts, setup, processes)
+            traefik_stopped, engine_stopped = stop_native_processes(processes)
+            crs_events = finalize_crs_host_observations(artifacts, crs_results)
+            write_crs_success(
+                inputs,
+                artifacts,
+                crs_results,
+                crs_events,
+                traefik_stopped and engine_stopped,
+            )
+        else:
+            results = run_native_requests(inputs, artifacts, setup, processes)
+            live_observation = observe_live_native_host(artifacts, setup, processes)
+            traefik_stopped, engine_stopped = stop_native_processes(processes)
+            outcome_count = finalize_native_host_observations(
+                inputs, artifacts, results, live_observation
+            )
+            write_native_success(
+                inputs,
+                artifacts,
+                results,
+                live_observation,
+                outcome_count,
+                traefik_stopped and engine_stopped,
+            )
         outcome = 0
     except Exception as exc:
         traefik_stopped, engine_stopped = stop_native_processes(processes)
@@ -1659,7 +2116,11 @@ def run() -> int:
         stop_native_processes(processes)
         setup.upstream.shutdown()
         setup.upstream.server_close()
-        if not remove_private_engine_socket_dir(setup.engine_socket_dir, inputs.engine_socket_parent):
+        socket_cleanup_ok = remove_private_engine_socket_dir(
+            setup.engine_socket_dir, inputs.engine_socket_parent
+        )
+        workspace_cleanup_ok = cleanup_staged_runtime_workspaces(inputs, artifacts)
+        if not socket_cleanup_ok or not workspace_cleanup_ok:
             write_native_failure(
                 artifacts.result_path,
                 "",
