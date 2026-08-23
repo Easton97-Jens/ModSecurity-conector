@@ -46,17 +46,29 @@ def canonical_result(connector: str) -> dict[str, object]:
 class ConnectorModeCoverageSummaryTest(unittest.TestCase):
     def test_166_like_plan_is_grouped_by_phase_and_area(self) -> None:
         plan = {"connector": "apache", "cases": [selected(f"case-{i:03d}", i % 6, f"area-{i % 4}") for i in range(166)]}
+        aggregates = SUMMARY.aggregate_cases_by_phase_and_area(SUMMARY.case_rows(plan))
         rendered = SUMMARY.render_summary(plan)
-        self.assertIn("Framework cases by phase and area", rendered)
-        self.assertIn("complete No-CRS catalogue is an inventory", rendered)
-        self.assertIn("| 5 | area-1 | case-005 | NOT_EXECUTED | no validated result |", rendered)
-        self.assertEqual(rendered.count("| NOT_EXECUTED |"), 167)
+        self.assertEqual(sum(row["cases"] for row in aggregates), 166)
+        self.assertEqual(
+            aggregates,
+            sorted(aggregates, key=lambda row: (int(str(row["phase"])), str(row["area"]))),
+        )
+        self.assertIn("Framework case counts by phase and area", rendered)
+        self.assertIn("| **Total** | **All areas** | **166** |", rendered)
+        self.assertNotIn("Framework cases by phase and area", rendered)
+        self.assertNotIn("case-005", rendered)
+        self.assertNotIn("no validated result", rendered)
+        self.assertIn("Selection is not execution for `apache`", rendered)
 
     def test_phase_zero_is_rendered_as_phase_zero(self) -> None:
         plan = {"connector": "apache", "cases": [selected("phase-zero", 0)]}
         rows = SUMMARY.case_rows(plan)
         self.assertEqual(rows[0]["phase"], "0")
-        self.assertIn("| 0 | headers | phase-zero | NOT_EXECUTED |", SUMMARY.render_summary(plan))
+        self.assertEqual(
+            SUMMARY.aggregate_cases_by_phase_and_area(rows),
+            [{"phase": "0", "area": "headers", "cases": 1}],
+        )
+        self.assertIn("| 0 | headers | `1` |", SUMMARY.render_summary(plan))
 
     def test_current_framework_catalog_has_a_terminal_row_for_every_case_and_connector(self) -> None:
         framework_root = Path(os.environ.get(
@@ -98,10 +110,29 @@ class ConnectorModeCoverageSummaryTest(unittest.TestCase):
         plan = {"connector": "traefik", "cases": [selected("one", 3, state="UNSUPPORTED")]}
         self.assertEqual(SUMMARY.case_rows(plan)[0]["status"], "UNSUPPORTED")
 
-    def test_route_inventory_keeps_runtime_and_protected_paths_distinct(self) -> None:
-        states = {(row["connector"], row["profile"]): row["state"] for row in SUMMARY.route_inventory()}
-        self.assertEqual(states[("envoy", "with-crs-no-mrts")], "RUNTIME_ROUTE")
-        self.assertEqual(states[("nginx", "no-crs-no-mrts")], "PROTECTED_SEPARATE")
+    def test_route_inventory_is_limited_to_the_current_connector(self) -> None:
+        envoy_routes = SUMMARY.route_inventory("envoy")
+        self.assertEqual([row["profile"] for row in envoy_routes], list(SUMMARY.PROFILES))
+        self.assertEqual(len(envoy_routes), 4)
+        self.assertTrue(all(set(row) == {"profile", "state"} for row in envoy_routes))
+        self.assertEqual(envoy_routes[2]["state"], "RUNTIME_ROUTE")
+        self.assertEqual(SUMMARY.route_inventory("nginx")[0]["state"], "PROTECTED_SEPARATE")
+        with self.assertRaisesRegex(ValueError, "outside"):
+            SUMMARY.route_inventory("unknown")
+        for connector in ("apache", "nginx"):
+            with self.subTest(connector=connector), self.assertRaisesRegex(ValueError, "outside"):
+                SUMMARY.route_state(connector, "unknown")
+
+        rendered = SUMMARY.render_summary({"connector": "envoy", "cases": [selected("one", 1)]})
+        routes = rendered.split("### Connector/profile routes for `envoy`", 1)[1].split(
+            "### Framework case counts", 1
+        )[0]
+        self.assertNotIn("| Connector |", routes)
+        self.assertNotIn("apache", routes)
+        self.assertNotIn("haproxy", routes)
+        self.assertNotIn("lighttpd", routes)
+        self.assertNotIn("nginx", routes)
+        self.assertNotIn("traefik", routes)
 
     def test_evidence_requires_unique_bound_case_records(self) -> None:
         plan = {"connector": "apache", "cases": [selected("fixture", 1, "area")]}
@@ -154,8 +185,9 @@ class ConnectorModeCoverageSummaryTest(unittest.TestCase):
         )
         self.assertIn("Unvalidated terminal signal", rendered)
         self.assertIn("Observed terminal status (not promoted): `FAIL`.", rendered)
-        self.assertIn("`fixture` — `FAIL`; phase `1`; area `area`.", rendered)
-        self.assertIn("| 1 | area | fixture | NOT_EXECUTED |", rendered)
+        self.assertIn("`FAIL`; phase `1`; area `area`.", rendered)
+        self.assertIn("Case identifiers are intentionally not rendered.", rendered)
+        self.assertNotIn("fixture", rendered)
         self.assertNotIn("untrusted raw reason", rendered)
 
     def test_unvalidated_terminal_signal_tolerates_non_utf8_jsonl(self) -> None:
@@ -231,7 +263,10 @@ class ConnectorModeCoverageSummaryTest(unittest.TestCase):
             with mock.patch.object(SUMMARY, "FRAMEWORK_SELECTOR", Path("ci/checks/catalog/selector.py")), mock.patch.dict(SUMMARY.os.environ, environment, clear=True):
                 result = SUMMARY.main(["--connector", "apache", "--crs", "no-crs", "--mrts", "no-mrts", "--coverage-kind", "runtime", "--connector-root", str(connector_root), "--framework-root", str(framework), "--evidence-dir", str(evidence), "--evidence-validation-outcome", "success"])
             self.assertEqual(result, 0)
-            self.assertIn("| area | fixture | PASS | validated results.jsonl |", summary.read_text(encoding="utf-8"))
+            rendered = summary.read_text(encoding="utf-8")
+            self.assertIn("| PASS | `1` |", rendered)
+            self.assertIn("| 1 | area | `1` |", rendered)
+            self.assertNotIn("fixture", rendered)
 
     def test_mismatched_and_unsafe_inputs_are_rejected(self) -> None:
         unsafe_framework_root = Path(tempfile.gettempdir())

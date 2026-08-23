@@ -682,3 +682,99 @@ No-CRS, and with-CRS/with-MRTS Apache/HAProxy evidence, plus successor-head
 SonarQube Cloud evidence, are still required. This is an intermediate Draft
 update only: no Ready transition, merge, auto-merge, Framework write, MRTS
 write, or Gitlink update is authorized.
+
+## 2026-08-23 follow-up: Sonar zero-state correction for the cache-and-summary update
+
+The exact Draft PR #279 head
+`d636753043d4e3fca7df421fce65bbc5b16a8c62` passed the public SonarQube Cloud
+Quality Gate, but its New-Code endpoints still reported two OPEN code smells:
+`python:S1192` at
+`ci/runtime/lifecycle/summarize-connector-mode-coverage.py:138` for four
+`result.json` literals, and `python:S5713` at `:199` for a redundant
+`UnicodeError` next to `ValueError`. New bugs, vulnerabilities, security
+hotspots, and duplicated-line density were zero; `new_coverage` was absent and
+is not inferred. This is the separate `FND-SONAR-0054`, not a reopening of the
+earlier cognitive-complexity/test-assertion finding.
+
+The narrow Parent-only correction adds one `RESULT_FILE_NAME` constant and uses
+it for the four runtime result-file references. It also removes `UnicodeError`
+from the optional JSONL catch tuple because `UnicodeError` and
+`UnicodeDecodeError` derive from the already caught `ValueError`. This preserves
+the non-UTF-8 fail-soft behavior, evidence-validation order, status allowlist,
+symlink rejection, bounded terminal diagnostic, and non-promoting PASS policy.
+No Sonar suppression, false-positive marking, source exclusion, rule/threshold
+change, Quality-Gate change, Framework/MRTS write, or Gitlink update is used.
+
+The focused 24 summary/cache-promotion/workflow contracts, Python compilation,
+and the full 133-test CI-security contract (five expected capability skips)
+passed locally. The bilingual documentation checker remains blocked only by 20
+pre-existing links into the intentionally uninitialized Framework submodule;
+the English/German additions have matching technical literals and structure.
+The normal successor commit and exact-successor SonarQube Cloud/hosted evidence
+remain required before `FND-SONAR-0054` can be fixed. PR #279 remains Draft:
+no Ready transition, merge, auto-merge, or master integration is authorized.
+
+## 2026-08-23 follow-up: connector-specific CRS/no-MRTS job summary
+
+### Goal and scope
+
+This Parent-only interim update makes the
+`.github/workflows/test-connectors-with-crs-no-mrts.yml` job summary describe
+the current matrix connector rather than the whole connector set. It changes
+only the Parent workflow, its two Summary helpers, focused contracts, and this
+English/German Change Record pair. Framework and MRTS sources, Gitlinks, pins,
+Actions, permissions, concurrency, runtime targets, and the HAProxy artifact
+boundary remain unchanged.
+
+### Summary and evidence behavior
+
+`summarize-connector-mode-coverage.py` now renders exactly the four ordered
+`PROFILES` for the validated current connector, without a redundant Connector
+column. `route_state()` is unchanged, including the `nginx` contract. The
+complete Framework selection and its evidence validation remain internal, but
+the Markdown output is now the deterministic `Framework case counts by phase
+and area` aggregation, numerically sorted by phase, with a Phase `0` row and
+an exact total. It contains no case IDs, evidence paths, or long reasons.
+
+`summarize-with-crs-no-mrts-workflow.py` renders separate configuration/start,
+request/CRS, and no-MRTS/cleanup assertion rows. A `PASS` comes only from a
+fixed, strictly validated structured record: Envoy, Lighttpd, and Traefik use
+`evidence/normalized/<connector>/<run-id>/event.json` together with
+`evidence/runtime/<connector>/<run-id>/runtime.json`; Apache and HAProxy use
+only their fixed local `apache-summary.json` or `haproxy-summary.json` one-case
+contract. The latter requires an explicit `live_executed` attestation before
+the CRS block row can be `PASS`; all unsupported configuration, allow, rule,
+bypass, no-MRTS, and cleanup claims remain `NOT_AVAILABLE`.
+
+The reader derives its root from `RUNNER_TEMP`, the expected Parent and
+Framework SHAs, and the fixed run ID. It uses descriptor-anchored no-follow
+directory traversal, requires private owner-controlled directories and one
+regular non-hardlinked bounded file, verifies identity across the read, and
+validates JSON types, connector/profile/run identity, and relevant status
+fields. It never consumes raw logs, an evidence-supplied path, or an unbounded
+glob, and the existing safe `GITHUB_STEP_SUMMARY` writer is unchanged. Missing
+or malformed evidence yields `PARTIAL`, `NOT_AVAILABLE`, `NOT_RUN`, or
+`CANCELLED`, never an invented capability `PASS`.
+
+The workflow passes only the controlled `--runner-temp`, `--parent-sha`,
+`--framework-sha`, and `--run-id` arguments while retaining `if: always()`.
+The HAProxy upload remains excluded and appears as
+`skipped_by_security_policy`; the local structured summary remains a separate,
+fail-closed assessment.
+
+### Validation and limitations
+
+The focused command below passed with 107 tests:
+
+```text
+python -B -m unittest -v tests.test_connector_mode_coverage_summary tests.test_with_crs_no_mrts_runtime tests.test_ci_security_workflows
+```
+
+It covers connector-only routes, deterministic aggregation, all three complete
+normalized fixtures, conservative Apache/HAProxy behavior, live-attestation
+gating, skipped/failed/cancelled runtime states, malformed/wrong-identity JSON,
+unsafe path, symlink, hardlink, writable-file, and size rejection, the HAProxy
+upload boundary, and the unchanged secure Summary writer. Local evidence does
+not replace an exact successor hosted runtime or SonarQube Cloud analysis; both
+remain pending until a normal successor push. PR #279 remains Draft with no
+Ready-for-review transition, merge, auto-merge, or master integration.

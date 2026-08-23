@@ -6,7 +6,7 @@ import argparse
 import importlib.util
 import json
 import os
-from collections import Counter, defaultdict
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -19,6 +19,7 @@ SAFE_WRITER = Path(__file__).resolve().with_name("summarize-with-crs-no-mrts-wor
 MAX_SUMMARY_VALUE_LENGTH = 280
 FULL_RUNTIME_CONNECTORS = frozenset(("apache", "haproxy"))
 LIMITED_ROUTE_CONNECTORS = frozenset(("envoy", "lighttpd", "traefik"))
+RESULT_FILE_NAME = "result.json"
 
 
 def _escape(value: object) -> str:
@@ -78,7 +79,7 @@ def _validate_evidence_header(result: Mapping[str, Any], connector: str) -> None
     }
     for field, value in expected.items():
         if result.get(field) != value:
-            raise ValueError(f"result.json {field} does not match the canonical No-CRS profile")
+            raise ValueError(f"{RESULT_FILE_NAME} {field} does not match the canonical No-CRS profile")
 
 
 def _selection_by_case_id(plan: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
@@ -135,8 +136,8 @@ def _records_from_evidence(
         raise ValueError("evidence directory must be a real directory")
     selections = _selection_by_case_id(plan)
     records: dict[str, Mapping[str, Any]] = {}
-    result_path = evidence_dir / "result.json"
-    result = _json_file(result_path, "result.json")
+    result_path = evidence_dir / RESULT_FILE_NAME
+    result = _json_file(result_path, RESULT_FILE_NAME)
     _validate_evidence_header(result, connector)
     jsonl_path = evidence_dir / "results.jsonl"
     if not jsonl_path.is_file() or jsonl_path.is_symlink():
@@ -165,7 +166,7 @@ def _unvalidated_terminal_signal(
     try:
         if not evidence_dir.is_dir() or evidence_dir.is_symlink():
             return None
-        result = _json_file(evidence_dir / "result.json", "result.json")
+        result = _json_file(evidence_dir / RESULT_FILE_NAME, RESULT_FILE_NAME)
         _validate_evidence_header(result, connector)
         terminal_status = str(result.get("status") or "").upper()
         if terminal_status not in CASE_STATUSES:
@@ -196,7 +197,7 @@ def _unvalidated_terminal_signal(
                     "area": str(selection.get("group")),
                 })
                 return signal
-    except (OSError, UnicodeError, ValueError):
+    except (OSError, ValueError):
         return signal
     return signal
 
@@ -239,24 +240,52 @@ def case_rows(plan: Mapping[str, Any], evidence: Mapping[str, Mapping[str, Any]]
     return rows
 
 
-def route_inventory() -> list[dict[str, str]]:
-    rows = []
-    for connector in CONNECTORS:
-        for profile in PROFILES:
-            rows.append({"connector": connector, "profile": profile, "state": route_state(connector, profile)})
-    return rows
+def route_inventory(connector: str) -> list[dict[str, str]]:
+    """Return the fixed profile inventory for one already-selected connector."""
+    if connector not in CONNECTORS:
+        raise ValueError("connector is outside the fixed route inventory")
+    return [
+        {"profile": profile, "state": route_state(connector, profile)}
+        for profile in PROFILES
+    ]
 
 
 def route_state(connector: str, profile: str) -> str:
+    if connector not in CONNECTORS or profile not in PROFILES:
+        raise ValueError("connector/profile is outside the fixed route inventory")
     if connector == "nginx":
         return "PROTECTED_SEPARATE"
     if connector in FULL_RUNTIME_CONNECTORS:
         return "RUNTIME_ROUTE"
-    if connector not in LIMITED_ROUTE_CONNECTORS or profile not in PROFILES:
+    if connector not in LIMITED_ROUTE_CONNECTORS:
         raise ValueError("connector/profile is outside the fixed route inventory")
     if profile in ("no-crs-no-mrts", "with-crs-no-mrts"):
         return "RUNTIME_ROUTE"
     return "EXPECTED_UNSUPPORTED"
+
+
+def _phase_sort_key(value: str) -> tuple[int, int, str]:
+    try:
+        return (0, int(value), "")
+    except ValueError:
+        return (1, 0, value)
+
+
+def aggregate_cases_by_phase_and_area(rows: Sequence[Mapping[str, str]]) -> list[dict[str, str | int]]:
+    """Count the internally validated case rows without rendering case details."""
+    counts: Counter[tuple[str, str]] = Counter()
+    for row in rows:
+        phase = row.get("phase")
+        area = row.get("area")
+        if not isinstance(phase, str) or not isinstance(area, str):
+            raise ValueError("case row phase and area must be strings")
+        counts[(phase, area)] += 1
+    return [
+        {"phase": phase, "area": area, "cases": count}
+        for (phase, area), count in sorted(
+            counts.items(), key=lambda item: (_phase_sort_key(item[0][0]), item[0][1])
+        )
+    ]
 
 
 def render_summary(
@@ -265,11 +294,12 @@ def render_summary(
     evidence_validation_outcome: str = "not_run", terminal_signal: Mapping[str, str] | None = None,
 ) -> str:
     rows = case_rows(plan, evidence)
+    connector = str(plan.get("connector") or "")
+    if connector not in CONNECTORS:
+        raise ValueError("plan connector is outside the fixed connector set")
     counts = Counter(row["status"] for row in rows)
-    grouped: dict[tuple[str, str], list[dict[str, str]]] = defaultdict(list)
-    for row in rows:
-        grouped[(row["phase"], row["area"])].append(row)
-    output = ["## Connector mode coverage (interim)", "", f"Connector: `{_escape(plan.get('connector', 'unknown'))}`; coverage: `{_escape(coverage_kind)}`; CRS: `{_escape(crs)}`; MRTS: `{_escape(mrts)}`", f"Canonical evidence validation: `{_escape(evidence_validation_outcome)}`.", "", "| Status | Count |", "| --- | ---: |"]
+    aggregates = aggregate_cases_by_phase_and_area(rows)
+    output = ["## Connector mode coverage (interim)", "", f"Connector: `{_escape(connector)}`; coverage: `{_escape(coverage_kind)}`; CRS: `{_escape(crs)}`; MRTS: `{_escape(mrts)}`", f"Canonical evidence validation: `{_escape(evidence_validation_outcome)}`.", "", "| Status | Count |", "| --- | ---: |"]
     output.extend(f"| {_escape(status)} | `{counts.get(status, 0)}` |" for status in sorted(CASE_STATUSES))
     if terminal_signal is not None:
         output.extend((
@@ -277,21 +307,25 @@ def render_summary(
             "A syntactically bound result exists, but canonical evidence validation did not succeed. This diagnostic never changes a terminal or case status, and raw runner reasons are intentionally not published.",
             "", f"Observed terminal status (not promoted): `{_escape(terminal_signal['status'])}`.",
         ))
-        if "case_id" in terminal_signal:
+        if "phase" in terminal_signal and "area" in terminal_signal:
             output.append(
-                "First structurally bound failing or blocked case (not validated): "
-                f"`{_escape(terminal_signal['case_id'])}` — "
-                f"`{_escape(terminal_signal['case_status'])}`; phase "
+                "A structurally bound failing or blocked case was observed (not validated): "
+                f"`{_escape(terminal_signal.get('case_status', 'unknown'))}`; phase "
                 f"`{_escape(terminal_signal['phase'])}`; area "
-                f"`{_escape(terminal_signal['area'])}`."
+                f"`{_escape(terminal_signal['area'])}`. Case identifiers are intentionally not rendered."
             )
-    output.extend(("", "### Connector/profile routes", "", "This inventory lists the current workflow route, not a per-case execution result.", "", "| Connector | Profile | Route state |", "| --- | --- | --- |"))
-    output.extend(f"| {_escape(row['connector'])} | {_escape(row['profile'])} | {_escape(row['state'])} |" for row in route_inventory())
-    output.extend(("", "### Framework cases by phase and area", "", "| Phase | Area | Case | Status | Evidence | Reason |", "| --- | --- | --- | --- | --- | --- |"))
-    for key in sorted(grouped, key=lambda item: (int(item[0]) if item[0].isdigit() else 999, item[1])):
-        for row in sorted(grouped[key], key=lambda item: item["case_id"]):
-            output.append(f"| {_escape(row['phase'])} | {_escape(row['area'])} | {_escape(row['case_id'])} | {_escape(row['status'])} | {_escape(row['evidence'])} | {_escape(row['reason'])} |")
-    output.append("\nSelection is not execution. PASS requires live_executed=true; missing or unvalidated evidence remains NOT_EXECUTED. The complete No-CRS catalogue is an inventory for CRS/MRTS profiles until their dedicated runtime evidence exists.")
+    output.extend(("", f"### Connector/profile routes for `{_escape(connector)}`", "", "This inventory lists the current workflow route, not a per-case execution result.", "", "| Profile | Route state |", "| --- | --- |"))
+    output.extend(f"| {_escape(row['profile'])} | {_escape(row['state'])} |" for row in route_inventory(connector))
+    output.extend(("", "### Framework case counts by phase and area", "", "| Phase | Area | Cases |", "| ---: | --- | ---: |"))
+    output.extend(
+        f"| {_escape(str(row['phase']))} | {_escape(str(row['area']))} | `{row['cases']}` |"
+        for row in aggregates
+    )
+    output.append(f"| **Total** | **All areas** | **{len(rows)}** |")
+    output.append(
+        f"\nSelection is not execution for `{_escape(connector)}` / `{_escape(crs)}` / `{_escape(mrts)}`. "
+        "PASS requires live_executed=true; missing or unvalidated evidence remains NOT_EXECUTED."
+    )
     return "\n".join(output) + "\n"
 
 

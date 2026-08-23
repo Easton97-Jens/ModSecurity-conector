@@ -1865,10 +1865,21 @@ jobs:
         summary = job.split("      - name: Write connector runtime overview\n", 1)[1]
         self.assertIn("if: always()", summary)
         self.assertIn(
-            'python3 ci/runtime/lifecycle/summarize-with-crs-no-mrts-workflow.py --connector "$CONNECTOR"',
+            "python3 ci/runtime/lifecycle/summarize-with-crs-no-mrts-workflow.py",
             summary,
         )
+        self.assertIn('--connector "$CONNECTOR"', summary)
+        for argument, value in (
+            ("--runner-temp", "$RUNNER_TEMP"),
+            ("--parent-sha", "$EXPECTED_PARENT_SHA"),
+            ("--framework-sha", "$EXPECTED_FRAMEWORK_SHA"),
+            ("--run-id", "$CRS_RUNTIME_RUN_ID"),
+        ):
+            self.assertIn(f'{argument} "{value}"', summary)
+        self.assertNotIn("--evidence-root", summary)
+        self.assertNotIn("--evidence-path", summary)
         self.assertNotIn("--summary-file", summary)
+        self.assertNotIn("VERIFIED_RUN_ROOT", summary)
         coverage_summary = job.split(
             "      - name: Write complete connector coverage summary\n", 1
         )[1]

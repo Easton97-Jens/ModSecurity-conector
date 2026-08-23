@@ -727,3 +727,108 @@ Hosted-Lighttpd-, No-CRS- und with-CRS/with-MRTS-Apache-/HAProxy-Evidenz sowie
 Successor-Head-SonarQube-Cloud-Evidenz sind weiterhin erforderlich. Dies ist
 nur ein Draft-Zwischen-Update: Keine Ready-Umstellung, kein Merge, Auto-Merge,
 Framework-Write, MRTS-Write oder Gitlink-Update ist autorisiert.
+
+## Follow-up vom 2026-08-23: Sonar-Nullstellungs-Korrektur für das Cache-/Summary-Update
+
+Der exakte Draft-PR-#279-Head
+`d636753043d4e3fca7df421fce65bbc5b16a8c62` bestand das öffentliche
+SonarQube-Cloud-Quality-Gate, aber seine New-Code-Schnittstellen meldeten noch
+zwei OPEN-Code-Smells: `python:S1192` bei
+`ci/runtime/lifecycle/summarize-connector-mode-coverage.py:138` für vier
+`result.json`-Literale und `python:S5713` bei `:199` für ein redundantes
+`UnicodeError` neben `ValueError`. Neue Bugs, Vulnerabilities,
+Security-Hotspots und die Duplikatzeilen-Dichte waren null; `new_coverage`
+fehlte und wird nicht abgeleitet. Dies ist das getrennte `FND-SONAR-0054`,
+nicht die Wiedereröffnung des früheren Cognitive-Complexity-/Test-Assertion-
+Findings.
+
+Die enge Parent-only-Korrektur ergänzt eine `RESULT_FILE_NAME`-Konstante und
+verwendet sie für die vier Runtime-Result-Dateireferenzen. Außerdem entfernt
+sie `UnicodeError` aus dem optionalen JSONL-Catch-Tuple, weil `UnicodeError`
+und `UnicodeDecodeError` von dem bereits gefangenen `ValueError` ableiten.
+Damit bleiben das Fail-soft-Verhalten für nicht-UTF-8, die Evidence-
+Validierungsreihenfolge, Status-Allowlist, Symlink-Ablehnung, begrenzte
+Terminaldiagnostik und die nicht-promotende PASS-Policy erhalten. Es werden
+weder Sonar-Suppression, False-Positive-Markierung, Source-Exclusion,
+Rule-/Threshold- oder Quality-Gate-Änderung noch Framework-/MRTS-Write oder
+Gitlink-Update verwendet.
+
+Die fokussierten 24 Summary-/Cache-Promotion-/Workflow-Verträge,
+Python-Kompilierung und der volle 133-Test-CI-Security-Contract (fünf
+erwartete Capability-Skips) bestanden lokal. Der bilinguale
+Dokumentationschecker bleibt nur wegen 20 vorbestehender Links in das absichtlich
+nicht initialisierte Framework-Submodule blockiert; die englischen/deutschen
+Ergänzungen haben gleiche technische Literale und Struktur. Der normale
+Successor-Commit und die SonarQube-Cloud-/Hosted-Evidenz des exakten
+Successors bleiben erforderlich, bevor `FND-SONAR-0054` fixed sein kann. PR
+#279 bleibt Draft: Keine Ready-Umstellung, kein Merge, Auto-Merge oder
+Master-Integration ist autorisiert.
+
+## Follow-up vom 2026-08-23: connector-spezifische CRS/no-MRTS-Job-Summary
+
+### Ziel und Umfang
+
+Dieses Parent-only-Zwischen-Update lässt die Job-Summary von
+`.github/workflows/test-connectors-with-crs-no-mrts.yml` den aktuellen
+Matrix-Connector statt der gesamten Connector-Menge beschreiben. Es ändert nur
+den Parent-Workflow, seine zwei Summary-Helper, fokussierte Verträge und dieses
+englische/deutsche Change-Record-Paar. Framework- und MRTS-Quellen, Gitlinks,
+Pins, Actions, Permissions, Concurrency, Runtime-Targets und die HAProxy-
+Artifact-Grenze bleiben unverändert.
+
+### Summary- und Evidence-Verhalten
+
+`summarize-connector-mode-coverage.py` rendert nun exakt die vier geordneten
+`PROFILES` des validierten aktuellen Connectors ohne redundante Connector-
+Spalte. `route_state()` bleibt unverändert, einschließlich des `nginx`-
+Vertrags. Die vollständige Framework-Auswahl und ihre Evidence-Validierung
+bleiben intern, die Markdown-Ausgabe ist nun aber die deterministische
+Aggregation `Framework case counts by phase and area`, numerisch nach Phase
+sortiert, mit einer Phase-`0`-Zeile und exakter Summe. Sie enthält keine
+Case-IDs, Evidence-Pfade oder langen Gründe.
+
+`summarize-with-crs-no-mrts-workflow.py` rendert getrennte Assertions-Zeilen
+für Konfiguration/Start, Request/CRS und no-MRTS/Cleanup. Ein `PASS` stammt nur
+aus einem festen, streng validierten strukturierten Record: Envoy, Lighttpd und
+Traefik verwenden `evidence/normalized/<connector>/<run-id>/event.json`
+zusammen mit `evidence/runtime/<connector>/<run-id>/runtime.json`; Apache und
+HAProxy verwenden nur ihren festen lokalen `apache-summary.json`- beziehungsweise
+`haproxy-summary.json`-One-Case-Vertrag. Letzterer verlangt eine explizite
+`live_executed`-Attestierung, bevor die CRS-Block-Zeile `PASS` sein kann; alle
+nicht belegten Konfigurations-, Allow-, Rule-, Bypass-, no-MRTS- und Cleanup-
+Aussagen bleiben `NOT_AVAILABLE`.
+
+Der Reader leitet seinen Root aus `RUNNER_TEMP`, den erwarteten Parent- und
+Framework-SHAs sowie der festen Run-ID ab. Er verwendet descriptor-verankerte
+no-follow-Verzeichnis-Traversierung, verlangt private owner-kontrollierte
+Verzeichnisse und eine reguläre nicht-hardlinked begrenzte Datei, prüft die
+Identität über den Lesevorgang und validiert JSON-Typen,
+Connector-/Profile-/Run-Identität sowie relevante Statusfelder. Er konsumiert
+weder Raw-Logs noch einen Evidence-gelieferten Pfad oder einen unbeschränkten
+Glob; der vorhandene sichere `GITHUB_STEP_SUMMARY`-Writer bleibt unverändert.
+Fehlende oder fehlerhafte Evidence ergibt `PARTIAL`, `NOT_AVAILABLE`,
+`NOT_RUN` oder `CANCELLED`, nie einen erfundenen Capability-`PASS`.
+
+Der Workflow übergibt nur die kontrollierten Argumente `--runner-temp`,
+`--parent-sha`, `--framework-sha` und `--run-id` und behält `if: always()` bei.
+Der HAProxy-Upload bleibt ausgeschlossen und erscheint als
+`skipped_by_security_policy`; die lokale strukturierte Summary bleibt eine
+getrennte fail-closed-Bewertung.
+
+### Validierung und Begrenzungen
+
+Der folgende fokussierte Befehl bestand mit 107 Tests:
+
+```text
+python -B -m unittest -v tests.test_connector_mode_coverage_summary tests.test_with_crs_no_mrts_runtime tests.test_ci_security_workflows
+```
+
+Er deckt connector-only-Routen, deterministische Aggregation, alle drei
+vollständigen normalisierten Fixtures, konservatives Apache/HAProxy-Verhalten,
+Live-Attestierungs-Gating, übersprungene/fehlgeschlagene/abgebrochene Runtime-
+Zustände, fehlerhaftes JSON mit falscher Identität, unsichere Pfade, Symlinks,
+Hardlinks, schreibbare Dateien und Größen-Ablehnung, die HAProxy-Upload-Grenze
+und den unveränderten sicheren Summary-Writer ab. Lokale Evidence ersetzt
+keinen Exact-Successor-Hosted-Runtime- oder SonarQube-Cloud-Check; beide bleiben
+bis zu einem normalen Successor-Push offen. PR #279 bleibt Draft ohne
+Ready-Umstellung, Merge, Auto-Merge oder Master-Integration.

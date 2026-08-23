@@ -248,7 +248,12 @@ jobs:
           UPLOAD_EVIDENCE_OUTCOME: ${{ steps.upload-runtime-evidence.outcome }}
         run: |
           set -euo pipefail
-          python3 ci/runtime/lifecycle/summarize-with-crs-no-mrts-workflow.py --connector "$CONNECTOR"
+          python3 ci/runtime/lifecycle/summarize-with-crs-no-mrts-workflow.py \
+            --connector "$CONNECTOR" \
+            --runner-temp "$RUNNER_TEMP" \
+            --parent-sha "$EXPECTED_PARENT_SHA" \
+            --framework-sha "$EXPECTED_FRAMEWORK_SHA" \
+            --run-id "$CRS_RUNTIME_RUN_ID"
 
       - name: Write complete connector coverage summary
         if: always() && steps.verify-revisions.outcome == 'success'
