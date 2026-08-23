@@ -151,9 +151,35 @@ def trusted_dispatch_errors(text: str) -> list[str]:
             'case "$(/usr/bin/cat /proc/self/attr/current)" in',
             "trusted-lighttpd-ci-userns\\ *)",
             "BLOCKED: trusted AppArmor profile was not entered.",
+            "# Prove the complete constrained ns-test boundary before checkout.",
+            "fail_preflight() {",
+            "BLOCKED: preflight.$1",
+            "/usr/bin/setpriv",
+            "-- /usr/bin/env -i",
+            'test "$current_uid" != 0',
+            'test "$current_euid" != 0',
+            'test "$current_gid" != 0',
+            'test "$current_egid" != 0',
+            "NoNewPrivs",
+            "CapInh CapPrm CapEff CapBnd CapAmb",
+            "fail_preflight apparmor_profile",
+            "fail_preflight docker_socket",
+            "fail_preflight user_mount_pid_namespace",
+            "fail_preflight host_mount_leak",
+            "fail_preflight bubblewrap_user_pid_namespace",
+            "/usr/bin/unshare --user --map-root-user --mount --pid --fork",
+            "/usr/bin/mount --make-rprivate /",
+            "/usr/bin/bwrap --unshare-user --unshare-pid --disable-userns --assert-userns-disabled",
         ):
             if required not in bootstrap_step:
-                errors.append(f"missing pre-checkout named AppArmor profile proof: {required}")
+                errors.append(f"missing complete pre-checkout constrained probe: {required}")
+        if "/usr/bin/sudo -n /usr/bin/setpriv" in bootstrap_step:
+            errors.append("pre-checkout setpriv must enter the named AppArmor profile")
+        if any(
+            forbidden in bootstrap_step
+            for forbidden in ("GITHUB_WORKSPACE", "SOURCE_ROOT", "SOURCE_COPY")
+        ):
+            errors.append("pre-checkout constrained probe must not consume a PR source path")
 
     for required in (
         "https://api.github.com/repos/$expected_repository",
@@ -275,10 +301,18 @@ def trusted_dispatch_errors(text: str) -> list[str]:
 
     if text.count("/usr/bin/sudo -n") != 11:
         errors.append("unexpected privileged command inventory")
+    if text.count("/usr/bin/sudo -n /usr/bin/aa-exec -p trusted-lighttpd-ci-userns -- ") != 3:
+        errors.append("unexpected named-AppArmor launcher inventory")
     if len(re.findall(r"(?<![A-Za-z0-9-])--no-new-privs(?![A-Za-z0-9-])", text)) != 2:
         errors.append("both ns-test privilege drops must set no_new_privs")
     if text.count("--clear-groups") != 2:
         errors.append("both ns-test privilege drops must clear supplemental groups")
+    if text.count("/usr/bin/unshare --user --map-root-user --mount --pid --fork") != 2:
+        errors.append("both pre-checkout and runtime user/mount/PID probes are required")
+    if text.count(
+        "/usr/bin/bwrap --unshare-user --unshare-pid --disable-userns --assert-userns-disabled"
+    ) != 2:
+        errors.append("both pre-checkout and runtime Bubblewrap probes are required")
     for forbidden_sudo in ("sudo -E", "sudo bash", "sudo sh", "sudo python", "sudo rm"):
         if forbidden_sudo in text:
             errors.append(f"unsafe privileged form: {forbidden_sudo}")
@@ -286,6 +320,19 @@ def trusted_dispatch_errors(text: str) -> list[str]:
         errors.append("PR source execution boundary")
     else:
         test_step = text.split(test_marker, 1)[1]
+        for required in (
+            "fail_runtime() {",
+            "BLOCKED: runtime.$1",
+            "fail_runtime apparmor_profile",
+            "fail_runtime docker_socket",
+            "fail_runtime user_mount_pid_namespace",
+            "fail_runtime host_mount_leak",
+            "fail_runtime bubblewrap_user_pid_namespace",
+            "fail_runtime source_root",
+            "fail_runtime source_copy",
+        ):
+            if required not in test_step:
+                errors.append(f"missing bounded runtime diagnostic: {required}")
         ordered_markers = (
             "/usr/bin/aa-exec -p trusted-lighttpd-ci-userns -- ",
             "-- /usr/bin/env -i",
@@ -351,8 +398,24 @@ class TrustedLighttpdNamespaceDispatchWorkflowTest(unittest.TestCase):
                 "/usr/sbin/aa-status --profiled | /usr/bin/grep -F -- 'trusted-lighttpd-ci-userns' >/dev/null",
             ),
             "wrong AppArmor profile proof": (
-                "trusted-lighttpd-ci-userns\\ *)",
-                "untrusted-profile\\ *)",
+                "BLOCKED: trusted AppArmor profile was not entered.",
+                "BLOCKED: wrong AppArmor profile was entered.",
+            ),
+            "pre-checkout AppArmor transition removed": (
+                "# Prove the complete constrained ns-test boundary before checkout.\n          /usr/bin/sudo -n /usr/bin/aa-exec -p trusted-lighttpd-ci-userns -- \\",
+                "# Prove the complete constrained ns-test boundary before checkout.\n          /usr/bin/sudo -n /usr/bin/setpriv \\",
+            ),
+            "pre-checkout capability guard removed": (
+                "CapInh CapPrm CapEff CapBnd CapAmb",
+                "CapInh CapPrm CapEff CapAmb",
+            ),
+            "pre-checkout Bubblewrap probe removed": (
+                "fail_preflight bubblewrap_user_pid_namespace",
+                "fail_preflight bwrap_disabled",
+            ),
+            "runtime diagnostic removed": (
+                "fail_runtime user_mount_pid_namespace",
+                "fail_runtime namespace_probe_disabled",
             ),
             "public runtime parent": (
                 "/var/lib/trusted-lighttpd-namespace",

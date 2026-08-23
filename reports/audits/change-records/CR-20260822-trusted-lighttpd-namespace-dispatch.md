@@ -84,6 +84,30 @@ their names. Immediately after `apparmor_parser --replace`, fixed root-owned
 checkout. The static contract forbids the old count-based form and mutates the
 active-profile proof, the reporter isolation, and the privilege inventory.
 
+## 2026-08-23 constrained preflight diagnostic repair
+
+The first protected-master dispatch after the initial correction bound the
+exact PR #309 SHA and completed bootstrap, checkout, and Git-state removal,
+but exited after 42 ms in an unlabeled predicate inside the post-drop
+`aa-exec -> setpriv -> env -i` process. That observation does not establish a
+Lighttpd runtime failure and does not justify a fallback.
+
+The repaired protected workflow runs the same fully constrained launcher before
+checkout, without consuming a checkout or PR-derived path. It verifies real
+and effective UID/GID, empty supplemental groups, `NoNewPrivs`, all five
+capability sets, the active AppArmor profile, Docker-socket inaccessibility,
+and the user/mount/PID plus Bubblewrap namespace probes. Every prerequisite
+failure is converted to a fixed `BLOCKED: preflight.<reason>` label with no
+helper stderr or PR data. The post-checkout launcher preserves the same
+controls and emits matching `BLOCKED: runtime.<reason>` labels for its setup
+and namespace predicates; the actual Python unittest remains unmasked so a
+real fixture failure stays observable. Both namespace probes are still
+fail-closed, and neither has a root, container, or out-of-namespace fallback.
+
+This record update documents a diagnostic/control-equivalence repair only. It
+does not claim a successful trusted runtime run; that evidence must come from
+a fresh `master` dispatch against the then-current exact PR #309 head.
+
 The trusted source path is:
 
 ~~~text
