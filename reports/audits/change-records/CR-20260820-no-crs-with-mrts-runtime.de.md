@@ -8,11 +8,11 @@
 | --- | --- |
 | Change-ID | CR-20260820-no-crs-with-mrts-runtime |
 | Datum (UTC) | 2026-08-20 |
-| Basis-Revision | `ab9cb2c276f159397ec2558b2d58cc260fd66ce2` |
+| Basis-Revision | `7c403fada21de4547259fef1dc4a1b079cb0cb25` |
 | Parent-Grenze | Nur Parent; aktuelle Framework- und MRTS-Gitlinks read-only verwendet |
-| Framework-Gitlink | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
+| Framework-Gitlink | `c40e924ec5c341032908e0082feba1d37ed1dfda` |
 | MRTS-Gitlink | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Lieferstatus | Frühere Implementierung im Task-Branch bis `27b7e5a51db6e52f237e230046b9f709089aa525` committed; dieser Record dokumentiert enge Traefik-Load-Guard- und GET-Upstream-Korrekturen; kein Push, PR, Merge oder gehostetes Ergebnis behauptet |
+| Lieferstatus | Der Task-Branch ist auf den beobachteten aktuellen Master rebased; Draft-Delivery darf ohne Behauptung von Host-Runtime-, Hosted-Check- oder Sonar-Erfolg erfolgen; kein Merge, Auto-Merge oder Default-Branch-Write ist autorisiert |
 
 ## Motivation und Problemstellung
 
@@ -37,6 +37,35 @@ Connector-Verhalten darf nicht erweitert werden.
   wird nur bei tatsächlicher Beobachtung aufgezeichnet.
 - `with-crs/with-mrts` für die drei Ziele und NGINX bleiben unverändert.
 - Keine Framework- oder MRTS-Quelländerung ist erforderlich.
+
+## 2026-08-23 Branch-Abgleich und Job-Isolation
+
+Der Task-Branch wurde normal auf das frisch abgerufene
+`origin/master` `7c403fada21de4547259fef1dc4a1b079cb0cb25` rebased; er basiert
+weder auf PR #279 noch wird er über diesen PR ausgeliefert. Der Parent zeichnet
+Framework `c40e924ec5c341032908e0082feba1d37ed1dfda` auf, dessen veröffentlichter
+MRTS-Gitlink `615b13bacbd008562c17408246c41ab27dca3104` ist. Der lokale
+verschachtelte Framework-Checkout wird nicht verwendet, um diesen Gitlink
+umzuschreiben.
+
+Der no-CRS/with-MRTS-Workflow leitet Vorbereitung und Ausführung jetzt aus
+einem geschlossenen Connector-Zweig pro Job ab. Apache erhält nur die
+Apache-Komponente und seinen Runtimepfad; HAProxy erhält nur die
+HAProxy-Komponente und seinen Runtimepfad; Envoy, Traefik und lighttpd
+verwenden jeweils ihren eigenen literalen versiegelten Target-Aufruf. NGINX
+ist nicht enthalten. Kein von der Matrix bereitgestelltes Komponenten-Target
+oder Kommando erreicht `make`, eine Shell, einen Pfad oder einen Runner.
+
+Jeder Job schreibt nach dem Evidence-Upload eine sichere GitHub Step Summary
+mit festen Stage-Outcomes, Zählungen, der ersten nicht bestandenen Stufe und
+einem `PASS`/`FAIL`/`MISSING`/`CANCELLED`-Runtime-Bundle-Status. Sie liest keine
+rohe Evidence und befördert eine fehlende, übersprungene oder fehlgeschlagene
+Runtime nicht zum Erfolg.
+
+Repository und gehosteter Workflow behalten `.go-version` `1.26.7`. Die lokale
+Binary ist `go1.26.6`; auf Grundlage der aktuellen Benutzeranweisung ist diese
+Differenz eine dokumentierte lokale Validierungseinschränkung, kein Download,
+Upgrade, Vertragswechsel oder Exact-Hosted-Nachweis.
 
 ## Implementierungsentscheidung und Begründung
 
@@ -161,7 +190,9 @@ Diff-Reviews:
 - `connectors/lighttpd/harness/run_patched_lifecycle_smoke.sh`
 - Lighttpd-Build-/Konfigurationspfade und Host-Contract-Tests
 - `.github/workflows/test-connectors-no-crs-with-mrts.yml`
-- fokussierte `tests/test_no_crs_with_mrts_*.py`, Envoy-Transport- und
+- `ci/runtime/lifecycle/summarize-no-crs-with-mrts-workflow.py`
+- fokussierte `tests/test_no_crs_with_mrts_*.py`, einschließlich
+  Workflow-Isolations- und sicherer Summary-Contracts, Envoy-Transport- und
   Selected-Runner-Contracts
 - `tests/test_go_version_contract.py`
 - `docs/testing-and-evidence.md` und `docs/testing-and-evidence.de.md`
@@ -225,6 +256,17 @@ Traefik-Input-Contracts sowie `git diff --check`; sie wurde noch nicht in einem
 Hostlauf verwendet. Ihr fokussiertes unabhängiges Security-Review fand keinen
 konkreten Bypass; sie schwächt die zentrale versiegelte No-CRS-
 Korpusvalidierung nicht ab.
+
+Das Connector-Isolations-Update vom 2026-08-23 bestand 188 ausgewählte
+Parent-Tests (vier erwartete Skips, weil das lokal ausgecheckte verschachtelte
+Framework nicht dem vom Parent aufgezeichneten Gitlink entspricht), 125
+fokussierte CI-Security-Tests (fünf erwartete Skips),
+`check-common-security-contract`, `check-common-memory-safety`,
+`check-common-flow-integrity`, `check-adapter-contracts`, checksum-verifiziertes
+actionlint und offline ausgeführtes zizmor. Dies sind ausschließlich Source-,
+Workflow- und Security-Contract-Ergebnisse. Es wurde keine lokale Go-Version
+beschafft oder geändert: Das verfügbare `go1.26.6` ist als nicht äquivalent zum
+vom Repository verlangten gehosteten Vertrag `1.26.7` dokumentiert.
 
 ## Runtime-Evidence
 
@@ -317,10 +359,11 @@ diagnostisch und kann die Zelle nicht befördern.
   `NOT EXECUTED`; Envoy `r15` ist ein erfolgreicher Receipt vor dem
   Dokumentationsabgleich und ersetzt die geforderten frischen Wiederholungen
   nicht.
-- Gehostete GitHub Actions und Exact-Head-Prüfungen: `NOT EXECUTED`; es gibt
-  noch keinen PR.
+- Gehostete GitHub Actions und Exact-Head-Prüfungen: bei diesem Record-Update
+  `NOT EXECUTED`; ein Draft-PR darf erstellt werden, aber ohne beobachtete
+  Exact-Head-Evidence wird kein Erfolg abgeleitet.
 - SonarQube-Cloud-Analyse und Quality Gate für diesen Task-Head:
-  `NOT EXECUTED`; es gibt noch keinen Task-PR-Head.
+  `NOT EXECUTED`; es wurde keine Exact-Head-Analyse eines Task-PR beobachtet.
 - Framework-/MRTS-Quelltests: `NOT APPLICABLE`; dieses Parent-Task ändert keine
   Quelldatei dieser Repositories.
 
@@ -352,8 +395,8 @@ für die Lieferung `PENDING`.
 
 ## Finaler Diff- und Review-Status
 
-`PARTIAL — frühere Implementierung ist bis 27b7e5a5 committed; dieser Record
-ergänzt enge Traefik-Guard- und GET-Upstream-Fixture-Korrekturen, während frische
-Candidate-Head-Runtime- und Delivery-Evidence offen bleibt.` Kein Push,
-keine PR-Erstellung, kein Merge, kein Auto-Merge und kein Default-Branch-Write
-sind aufgezeichnet.
+`PARTIAL — der Task-Branch ist auf den aktuellen Master rebased und ergänzt
+enge Connector-Isolations- und GitHub-Summary-Verträge, während frische
+Candidate-Head-Runtime-, Exact-Head-CI-, Required-Check- und Sonar-Evidence
+offen bleibt.` Ein normaler Draft-PR darf erstellt werden; kein Merge,
+Auto-Merge oder Default-Branch-Write ist autorisiert oder behauptet.

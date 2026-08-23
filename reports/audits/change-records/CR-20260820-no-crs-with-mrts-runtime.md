@@ -8,11 +8,11 @@
 | --- | --- |
 | Change ID | CR-20260820-no-crs-with-mrts-runtime |
 | Date (UTC) | 2026-08-20 |
-| Base revision | `ab9cb2c276f159397ec2558b2d58cc260fd66ce2` |
+| Base revision | `7c403fada21de4547259fef1dc4a1b079cb0cb25` |
 | Parent boundary | Parent only; current Framework and MRTS gitlinks consumed read-only |
-| Framework gitlink | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
+| Framework gitlink | `c40e924ec5c341032908e0082feba1d37ed1dfda` |
 | MRTS gitlink | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Delivery status | Earlier task-branch implementation is committed through `27b7e5a51db6e52f237e230046b9f709089aa525`; this record documents narrow Traefik load-guard and GET-upstream repairs; no push, PR, merge, or hosted result asserted |
+| Delivery status | Task branch is rebased on the observed current master; Draft delivery may proceed without claiming host-runtime, hosted-check, or Sonar success; no merge, auto-merge, or default-branch write is authorized |
 
 ## Motivation and problem statement
 
@@ -36,6 +36,32 @@ connector behavior.
   recorded only when actually observed.
 - `with-crs/with-mrts` for the three targets and NGINX remain unchanged.
 - No Framework or MRTS source change is required.
+
+## 2026-08-23 branch reconciliation and job isolation
+
+The task branch was normally rebased onto the fresh
+`origin/master` `7c403fada21de4547259fef1dc4a1b079cb0cb25`; it is neither based
+on nor delivered through PR #279. The Parent records Framework
+`c40e924ec5c341032908e0082feba1d37ed1dfda`, whose published MRTS gitlink is
+`615b13bacbd008562c17408246c41ab27dca3104`. The local nested Framework
+checkout is not used to rewrite that gitlink.
+
+The no-CRS/with-MRTS workflow now derives preparation and execution from a
+closed per-connector branch. Apache receives only the Apache component and
+runtime path; HAProxy receives only the HAProxy component and runtime path;
+Envoy, Traefik, and lighttpd use their own literal sealed-target invocation.
+NGINX is absent. No matrix-provided component target or command reaches
+`make`, a shell, a path, or a runner.
+
+Every job writes a safe GitHub Step Summary after evidence upload, including
+fixed stage outcomes, counts, the first non-passing stage, and a
+`PASS`/`FAIL`/`MISSING`/`CANCELLED` runtime-bundle state. It does not read raw
+evidence or promote a missing, skipped, or failed runtime to success.
+
+The repository and hosted workflow retain `.go-version` `1.26.7`. The local
+binary is `go1.26.6`; under the current user direction that difference is a
+recorded local-validation limitation, not a download, upgrade, contract
+change, or exact-hosted proof.
 
 ## Implementation decision and rationale
 
@@ -150,7 +176,9 @@ final diff review:
 - `connectors/lighttpd/harness/run_patched_lifecycle_smoke.sh`
 - Lighttpd build/configuration and host-contract tests
 - `.github/workflows/test-connectors-no-crs-with-mrts.yml`
-- focused `tests/test_no_crs_with_mrts_*.py`, Envoy transport, and selected-runner contracts
+- `ci/runtime/lifecycle/summarize-no-crs-with-mrts-workflow.py`
+- focused `tests/test_no_crs_with_mrts_*.py`, including workflow-isolation and
+  safe-summary contracts, Envoy transport, and selected-runner contracts
 - `tests/test_go_version_contract.py`
 - `docs/testing-and-evidence.md` and `docs/testing-and-evidence.de.md`
 - this paired Change Record and its archive index entry
@@ -208,6 +236,16 @@ The narrow Traefik load-guard correction passed 56 focused target and Traefik
 input contracts plus `git diff --check`; it has not yet been used in a host
 run. Its focused independent security review found no concrete bypass, and it
 does not weaken the central sealed no-CRS corpus validation.
+
+The 2026-08-23 connector-isolation update passed 188 selected Parent tests
+(four expected skips due to the locally checked-out nested Framework not being
+the Parent-recorded gitlink), 125 focused CI-security tests (five expected
+skips), `check-common-security-contract`, `check-common-memory-safety`,
+`check-common-flow-integrity`, `check-adapter-contracts`, checksum-verified
+actionlint, and offline zizmor. These are source, workflow, and security
+contract results only. No local Go version was acquired or changed: the
+available `go1.26.6` is documented as non-equivalent to the repository's
+required `1.26.7` hosted contract.
 
 ## Runtime evidence
 
@@ -290,10 +328,11 @@ is diagnostic-only and cannot promote the cell.
 - Final-candidate Envoy, Traefik, and lighttpd real host execution:
   `NOT EXECUTED`; Envoy `r15` is a successful pre-documentation diagnostic
   receipt and does not replace the required fresh repetitions.
-- Hosted GitHub Actions and exact final PR-head checks: `NOT EXECUTED`; no PR
-  exists yet.
+- Hosted GitHub Actions and exact final PR-head checks: `NOT EXECUTED` at this
+  record update; a Draft PR may be opened, but no success is inferred before
+  exact-head evidence is observed.
 - SonarQube Cloud analysis and Quality Gate for this task head: `NOT EXECUTED`;
-  no task PR head exists yet.
+  no exact task PR-head analysis is observed.
 - Framework/MRTS source tests: `NOT APPLICABLE`; neither source repository is
   changed by this Parent task.
 
@@ -323,7 +362,8 @@ those exact results are observed, the three target cells remain
 
 ## Final diff and review status
 
-`PARTIAL — earlier implementation is committed through 27b7e5a5; this record
-adds narrow Traefik guard and GET-upstream fixture corrections, while fresh
-candidate-head runtime and delivery evidence remain pending.` No push, PR creation, merge,
-auto-merge, or default-branch write is recorded.
+`PARTIAL — the task branch is rebased on current master and adds narrow
+connector-isolation and GitHub Summary contracts, while fresh candidate-head
+runtime, exact-head CI, Required Check, and Sonar evidence remain pending.` A
+normal Draft PR may be created; no merge, auto-merge, or default-branch write
+is authorized or claimed.

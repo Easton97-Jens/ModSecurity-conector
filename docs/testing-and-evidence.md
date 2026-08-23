@@ -21,7 +21,7 @@ does not provide CRS, MRTS, HTTP/2, HTTP/3, full-matrix, or production claims.
 
 ## Closed no-CRS/with-MRTS runtime route
 
-The current-master task route adds a separate, closed
+The task route based on current <code>master</code> adds a separate, closed
 <code>no-crs/with-mrts</code> runtime path for exactly Envoy, Traefik, and
 lighttpd. The entry point is
 <code>ci/runtime/lifecycle/run-no-crs-with-mrts-target.py</code>; it requires
@@ -35,8 +35,8 @@ the exact checked-out Framework. The current pinned chain is:
 
 | Repository | Revision used by the route |
 | --- | --- |
-| Parent | current task base `b42907ca410da69843c80d0c4376193b6ab3801b` |
-| Framework gitlink | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
+| Parent | current task base from `origin/master` `7c403fada21de4547259fef1dc4a1b079cb0cb25` |
+| Framework gitlink | `c40e924ec5c341032908e0082feba1d37ed1dfda` |
 | MRTS gitlink | `615b13bacbd008562c17408246c41ab27dca3104` |
 
 The generated plan records the three revisions, the imported case inventory
@@ -55,6 +55,26 @@ plan digest, and reconstructs the selected cases from the exact Framework
 inventory. The selected case hashes and inventory hash must match the plan;
 changing a URI, expected event ID, or case source therefore fails closed. The
 executor receives the same digest explicitly and records it in the receipt.
+
+### Connector-isolated hosted workflow
+
+The <code>test-connectors-no-crs-with-mrts.yml</code> workflow has exactly five
+closed matrix jobs: Apache, Envoy, HAProxy, lighttpd, and Traefik. Preparation
+and execution are derived from a closed connector branch in each job, never
+from a matrix-provided command or runtime target. Apache selects only its
+<code>apache</code> runtime component and host path; HAProxy selects only its
+<code>haproxy</code> component and host path. Envoy, Traefik, and lighttpd each
+use their own literal invocation of the closed sealed-MRTS target runner. A
+job therefore does not prepare or execute another connector's runtime path;
+NGINX is absent from this workflow.
+
+After evidence upload, every matrix job invokes
+<code>summarize-no-crs-with-mrts-workflow.py</code> under <code>if: always()</code>.
+It writes only the fixed step outcomes, their counts, the first non-passing
+stage, and the runtime-bundle state (<code>PASS</code>, <code>FAIL</code>,
+<code>MISSING</code>, or <code>CANCELLED</code>) to the runner-owned GitHub
+Step Summary. The summary neither parses raw runtime evidence nor changes a
+missing, skipped, or failed runtime into a capability success.
 
 Rule-match evidence uses a typed native `RuleMessage` observer. It is disabled
 by default and is enabled only for the sealed MRTS runtime profile. The
@@ -161,6 +181,17 @@ The subsequent focused Envoy/Lighttpd contract pair passed 50 tests, and
 checks only. The focused target-runner suite for the r11 phase correction
 passed 28 tests; its security review found no concrete blocker. Neither result
 substitutes for fresh real-host evidence.
+
+The 2026-08-23 branch reconciliation added the connector-isolation and summary
+contracts. Its selected Parent suite passed 188 tests (four expected skips
+from the local nested Framework checkout not matching the Parent-recorded
+gitlink), and the focused CI-security suite passed 125 tests (five expected
+skips). Pinned actionlint and offline zizmor reported no workflow finding. The
+repository and hosted workflow still require <code>.go-version</code>
+<code>1.26.7</code>; this local environment exposes
+<code>/usr/local/go/bin/go1.26.6</code>. Under explicit user direction the
+local difference is documented rather than acquired, upgraded, or hidden; it
+is not an exact hosted Go-contract result.
 
 The real three-connector host runs, hosted Actions, Required Checks,
 SonarQube Cloud analysis, and PR-head equality have not been observed by this

@@ -68,6 +68,32 @@ class _KeepAliveHandler(http.server.BaseHTTPRequestHandler):
 
 
 class TraefikTransportHardeningContractTest(unittest.TestCase):
+    def test_crs_get_keeps_its_separate_upstream_response_shape(self) -> None:
+        runtime = load_runtime_module()
+        state = runtime.UpstreamState(crs_runtime=True)
+        server = http.server.ThreadingHTTPServer(
+            ("127.0.0.1", 0), runtime.upstream_handler(state)
+        )
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            connection = http.client.HTTPConnection(
+                "127.0.0.1", server.server_port, timeout=5
+            )
+            connection.request("GET", "/crs-allow")
+            response = connection.getresponse()
+            body = response.read()
+            connection.close()
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        self.assertEqual(response.status, 200)
+        self.assertEqual(body, b"traefik-crs-upstream-ok\n")
+        self.assertEqual(state.request_count, 1)
+        self.assertEqual(state.request_body_bytes, 0)
+
     def test_mrts_get_case_reaches_the_native_upstream(self) -> None:
         runtime = load_runtime_module()
         state = runtime.UpstreamState()

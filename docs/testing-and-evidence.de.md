@@ -24,7 +24,8 @@ HTTP/2-, HTTP/3-, Full-Matrix- oder Produktions-Claims.
 
 ## Geschlossener no-CRS/with-MRTS-Runtimepfad
 
-Der aktuelle Master-Task ergänzt einen separaten, geschlossenen
+Der auf dem aktuellen <code>master</code> basierende Task ergänzt einen
+separaten, geschlossenen
 <code>no-crs/with-mrts</code>-Runtimepfad genau für Envoy, Traefik und lighttpd.
 Der Einstieg ist
 <code>ci/runtime/lifecycle/run-no-crs-with-mrts-target.py</code>; er verlangt
@@ -39,8 +40,8 @@ das exakt ausgecheckte Framework. Die aktuell gepinnte Kette lautet:
 
 | Repository | Vom Pfad verwendete Revision |
 | --- | --- |
-| Parent | aktuelle Task-Basis `b42907ca410da69843c80d0c4376193b6ab3801b` |
-| Framework-Gitlink | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
+| Parent | aktuelle Task-Basis von `origin/master` `7c403fada21de4547259fef1dc4a1b079cb0cb25` |
+| Framework-Gitlink | `c40e924ec5c341032908e0082feba1d37ed1dfda` |
 | MRTS-Gitlink | `615b13bacbd008562c17408246c41ab27dca3104` |
 
 Der erzeugte Plan zeichnet die drei Revisionen, das importierte Case-Inventar
@@ -61,6 +62,29 @@ Framework-Inventar. Die ausgewählten Case-Hashes und der Inventar-Hash müssen
 mit dem Plan übereinstimmen; eine Änderung an URI, erwarteter Event-ID oder
 Case-Quelle führt daher zu einem fail-closed-Abbruch. Der Executor erhält
 denselben Digest explizit und zeichnet ihn im Receipt auf.
+
+### Connector-isolierter gehosteter Workflow
+
+Der Workflow <code>test-connectors-no-crs-with-mrts.yml</code> besitzt genau
+fünf geschlossene Matrix-Jobs: Apache, Envoy, HAProxy, lighttpd und Traefik.
+Vorbereitung und Ausführung werden pro Job aus einem geschlossenen
+Connector-Zweig abgeleitet, nie aus einem Matrix-bereitgestellten Befehl oder
+Runtime-Target. Apache wählt ausschließlich seine
+<code>apache</code>-Runtime-Komponente und seinen Hostpfad; HAProxy wählt nur
+seine <code>haproxy</code>-Komponente und seinen Hostpfad. Envoy, Traefik und
+lighttpd verwenden jeweils ihren eigenen literalen Aufruf des geschlossenen
+versiegelten MRTS-Target-Runners. Ein Job bereitet oder führt damit keinen
+Runtimepfad eines anderen Connectors aus; NGINX ist nicht Teil dieses
+Workflows.
+
+Nach dem Evidence-Upload ruft jeder Matrix-Job unter <code>if: always()</code>
+<code>summarize-no-crs-with-mrts-workflow.py</code> auf. Das Programm schreibt
+nur die festen Step-Outcomes, ihre Zählung, die erste nicht bestandene Stufe
+und den Runtime-Bundle-Status (<code>PASS</code>, <code>FAIL</code>,
+<code>MISSING</code> oder <code>CANCELLED</code>) in die runner-eigene GitHub
+Step Summary. Die Zusammenfassung parst weder rohe Runtime-Evidence noch
+macht sie aus einer fehlenden, übersprungenen oder fehlgeschlagenen Runtime
+einen Capability-Erfolg.
 
 Die Rule-Match-Evidence verwendet einen typisierten nativen
 `RuleMessage`-Observer. Standardmäßig ist er deaktiviert und wird nur für das
@@ -177,6 +201,18 @@ und `sh -n` bestand für die beiden geänderten Dispatch-Skripte. Dies sind nur
 lokale Contract-Prüfungen. Die fokussierte Target-Runner-Suite für die r11-
 Phasenkorrektur bestand 28 Tests; ihr Security-Review fand keinen konkreten
 Blocker. Keines der Ergebnisse ersetzt frische Realhost-Evidence.
+
+Der Branch-Abgleich vom 2026-08-23 ergänzte die Connector-Isolations- und
+Summary-Verträge. Seine ausgewählte Parent-Suite bestand 188 Tests (vier
+erwartete Skips, weil der lokale verschachtelte Framework-Checkout nicht dem
+vom Parent aufgezeichneten Gitlink entspricht), und die fokussierte
+CI-Security-Suite bestand 125 Tests (fünf erwartete Skips). Gepinntes
+actionlint und offline ausgeführtes zizmor meldeten keinen Workflow-Befund.
+Repository und gehosteter Workflow verlangen weiterhin
+<code>.go-version</code> <code>1.26.7</code>; diese lokale Umgebung stellt
+<code>/usr/local/go/bin/go1.26.6</code> bereit. Auf ausdrückliche
+Benutzeranweisung wird die lokale Abweichung dokumentiert statt beschafft,
+aktualisiert oder versteckt; sie ist kein Exact-Head-Go-Vertragsnachweis.
 
 Die echten Hostläufe für alle drei Connectoren, gehostete Actions, Required
 Checks, SonarQube-Cloud-Analyse und PR-Head-Gleichheit wurden durch diese

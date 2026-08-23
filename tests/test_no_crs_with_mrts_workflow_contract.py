@@ -17,7 +17,7 @@ class NoCrsWithMrtsWorkflowContractTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.source = WORKFLOW.read_text(encoding="utf-8")
 
-    def test_closed_five_connector_matrix(self) -> None:
+    def test_closed_five_connector_matrix_excludes_nginx(self) -> None:
         matrix = re.search(r"matrix:\n\s+connector:\n(?P<body>(?:\s+- \w+\n)+)", self.source)
         self.assertIsNotNone(matrix)
         self.assertEqual(
@@ -28,18 +28,75 @@ class NoCrsWithMrtsWorkflowContractTest(unittest.TestCase):
         self.assertIn("MRTS_VARIANT: with-mrts", self.source)
         self.assertIn('ALLOW_RUNTIME_DOWNLOADS: "1"', self.source)
         self.assertIn('ALLOW_RUNTIME_BUILDS: "1"', self.source)
+        self.assertNotIn("nginx", self.source)
         self.assertNotIn("with-crs/with-mrts", self.source)
         self.assertNotIn("MODSECURITY_RULESET: crs", self.source)
         self.assertNotIn("NO_CRS_RUN_ID:", self.source)
 
-    def test_target_connectors_use_dedicated_runtime_runner(self) -> None:
-        self.assertIn("ci/runtime/lifecycle/run-no-crs-with-mrts-target.py", self.source)
-        self.assertIn('--connector "$CONNECTOR"', self.source)
-        self.assertIn("--execute-stage", self.source)
-        self.assertIn('--parent-root "$GITHUB_WORKSPACE"', self.source)
-        self.assertIn('--framework-root "$FRAMEWORK_ROOT"', self.source)
-        self.assertIn('--runtime-root "$RUNTIME_ROOT"', self.source)
-        self.assertIn("make full-matrix-single-job-runtime CONNECTOR=\"$CONNECTOR\" CRS=no-crs MRTS=with-mrts", self.source)
+    def test_preparation_is_connector_scoped_without_matrix_target_input(self) -> None:
+        preparation = self.source.split("      - name: Prepare MRTS runtime dependencies\n", 1)[1].split(
+            "      - name: Run connector-isolated MRTS host runtime\n", 1
+        )[0]
+        self.assertIn('case "$CONNECTOR" in', preparation)
+        self.assertIn("apache) RUNTIME_COMPONENT_TARGET=apache make prepare-runtime-components ;;", preparation)
+        self.assertIn("haproxy) RUNTIME_COMPONENT_TARGET=haproxy make prepare-runtime-components ;;", preparation)
+        self.assertIn("envoy) make prepare-envoy-runtime ;;", preparation)
+        self.assertIn("traefik) make prepare-traefik-runtime ;;", preparation)
+        self.assertIn("lighttpd) ALLOW_RUNTIME_BUILDS=1 make prepare-lighttpd-runtime ;;", preparation)
+        self.assertNotIn("apache|haproxy", preparation)
+        self.assertNotIn("RUNTIME_COMPONENT_TARGET=all", preparation)
+        self.assertNotIn("RUNTIME_COMPONENT_TARGET: ${{", self.source)
+
+    def test_runtime_is_connector_scoped_and_uses_closed_literal_routes(self) -> None:
+        runtime = self.source.split("      - name: Run connector-isolated MRTS host runtime\n", 1)[1].split(
+            "      - name: Upload isolated runtime evidence\n", 1
+        )[0]
+        self.assertIn("id: runtime", runtime)
+        self.assertIn('case "$CONNECTOR" in', runtime)
+        self.assertIn(
+            "RUNTIME_COMPONENT_TARGET=apache make full-matrix-single-job-runtime CONNECTOR=apache CRS=no-crs MRTS=with-mrts",
+            runtime,
+        )
+        self.assertIn(
+            "RUNTIME_COMPONENT_TARGET=haproxy make full-matrix-single-job-runtime CONNECTOR=haproxy CRS=no-crs MRTS=with-mrts",
+            runtime,
+        )
+        for connector in ("envoy", "traefik", "lighttpd"):
+            self.assertIn(f"--connector {connector}", runtime)
+        self.assertIn("ci/runtime/lifecycle/run-no-crs-with-mrts-target.py", runtime)
+        self.assertIn("--execute-stage", runtime)
+        self.assertIn('--parent-root "$GITHUB_WORKSPACE"', runtime)
+        self.assertIn('--framework-root "$FRAMEWORK_ROOT"', runtime)
+        self.assertIn('--runtime-root "$RUNTIME_ROOT"', runtime)
+        self.assertNotIn('--connector "$CONNECTOR"', runtime)
+        self.assertNotIn('CONNECTOR="$CONNECTOR"', runtime)
+
+    def test_summary_reports_each_connector_job_without_reading_raw_evidence(self) -> None:
+        summary = self.source.split(
+            "      - name: Write connector-isolated MRTS runtime overview\n", 1
+        )[1]
+        self.assertIn("if: always()", summary)
+        self.assertIn(
+            'python3 ci/runtime/lifecycle/summarize-no-crs-with-mrts-workflow.py --connector "$CONNECTOR"',
+            summary,
+        )
+        self.assertNotIn("--summary-file", summary)
+        for environment_name, step_id in (
+            ("CHECKOUT_OUTCOME", "checkout"),
+            ("SETUP_PYTHON_OUTCOME", "setup-python"),
+            ("SETUP_GO_OUTCOME", "setup-go"),
+            ("VERIFY_PYTHON_OUTCOME", "verify-python"),
+            ("VERIFY_GO_OUTCOME", "verify-go"),
+            ("VERIFY_CELL_OUTCOME", "verify-runtime-cell"),
+            ("PREPARE_RUNTIME_OUTCOME", "prepare-runtime"),
+            ("RUNTIME_OUTCOME", "runtime"),
+            ("UPLOAD_EVIDENCE_OUTCOME", "upload-runtime-evidence"),
+        ):
+            self.assertIn(f"{environment_name}: ${{{{ steps.{step_id}.outcome }}}}", summary)
+        self.assertLess(
+            self.source.index("      - name: Upload isolated runtime evidence\n"),
+            self.source.index("      - name: Write connector-isolated MRTS runtime overview\n"),
+        )
 
     def test_workflow_security_contract(self) -> None:
         self.assertIn("pull_request:", self.source)
@@ -50,6 +107,7 @@ class NoCrsWithMrtsWorkflowContractTest(unittest.TestCase):
         self.assertNotIn("secrets:", self.source)
         self.assertNotIn("continue-on-error", self.source)
         self.assertNotIn("|| true", self.source)
+        self.assertNotIn("exit 0", self.source)
         self.assertIn("persist-credentials: false", self.source)
         self.assertGreaterEqual(len(SHA_PIN.findall(self.source)), 3)
         self.assertIn("concurrency:", self.source)
