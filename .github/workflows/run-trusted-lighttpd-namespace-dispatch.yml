@@ -81,7 +81,7 @@ jobs:
           /usr/bin/sudo -n /usr/bin/env DEBIAN_FRONTEND=noninteractive /usr/bin/apt-get install --no-install-recommends --yes apparmor-utils bubblewrap jq
 
           require_root_owned_directory /etc/apparmor.d
-          for binary in /usr/bin/aa-exec /usr/bin/bwrap /usr/bin/cat /usr/bin/cp /usr/bin/curl /usr/bin/dash /usr/bin/env /usr/bin/find /usr/bin/getent /usr/bin/git /usr/bin/grep /usr/bin/id /usr/bin/install /usr/bin/jq /usr/bin/mount /usr/bin/python3 /usr/bin/readlink /usr/bin/rm /usr/bin/setpriv /usr/bin/stat /usr/bin/sudo /usr/bin/tee /usr/bin/unshare /usr/sbin/aa-status /usr/sbin/apparmor_parser /usr/sbin/useradd; do
+          for binary in /usr/bin/aa-exec /usr/bin/bwrap /usr/bin/cat /usr/bin/cp /usr/bin/curl /usr/bin/dash /usr/bin/env /usr/bin/find /usr/bin/getent /usr/bin/git /usr/bin/grep /usr/bin/id /usr/bin/install /usr/bin/jq /usr/bin/mkdir /usr/bin/mount /usr/bin/python3 /usr/bin/readlink /usr/bin/rm /usr/bin/setpriv /usr/bin/stat /usr/bin/sudo /usr/bin/tee /usr/bin/touch /usr/bin/true /usr/bin/unshare /usr/sbin/aa-status /usr/sbin/apparmor_parser /usr/sbin/useradd; do
             require_trusted_system_file "$binary"
           done
           /usr/bin/bwrap --help | /usr/bin/grep -F -- '--disable-userns' >/dev/null
@@ -142,7 +142,9 @@ jobs:
               esac
             '
 
-          /usr/bin/sudo -n /usr/bin/setpriv \
+          # Prove the complete constrained ns-test boundary before checkout.
+          /usr/bin/sudo -n /usr/bin/aa-exec -p trusted-lighttpd-ci-userns -- \
+            /usr/bin/setpriv \
             --reuid="$ns_test_uid" \
             --regid="$ns_test_gid" \
             --clear-groups \
@@ -156,13 +158,69 @@ jobs:
               NS_TEST_UID="$ns_test_uid" \
               NS_TEST_GID="$ns_test_gid" \
               /usr/bin/dash -eu -c '
-                test "$(/usr/bin/id -u)" = "$NS_TEST_UID"
-                test "$(/usr/bin/id -g)" = "$NS_TEST_GID"
-                test "$(/usr/bin/id -G)" = "$NS_TEST_GID"
-                /usr/bin/grep -Eq "^NoNewPrivs:[[:space:]]+1$" /proc/self/status
+                fail_preflight() {
+                  printf "%s\\n" "BLOCKED: preflight.$1" >&2
+                  exit 77
+                }
+
+                current_uid="$(/usr/bin/id -u)" || fail_preflight identity_uid
+                current_euid="$(/usr/bin/id -ru)" || fail_preflight identity_euid
+                current_gid="$(/usr/bin/id -g)" || fail_preflight identity_gid
+                current_egid="$(/usr/bin/id -rg)" || fail_preflight identity_egid
+                current_groups="$(/usr/bin/id -G)" || fail_preflight supplemental_groups
+                test "$current_uid" != 0 || fail_preflight identity_uid
+                test "$current_euid" != 0 || fail_preflight identity_euid
+                test "$current_gid" != 0 || fail_preflight identity_gid
+                test "$current_egid" != 0 || fail_preflight identity_egid
+                test "$current_uid" = "$NS_TEST_UID" || fail_preflight identity_uid
+                test "$current_euid" = "$NS_TEST_UID" || fail_preflight identity_euid
+                test "$current_gid" = "$NS_TEST_GID" || fail_preflight identity_gid
+                test "$current_egid" = "$NS_TEST_GID" || fail_preflight identity_egid
+                test "$current_groups" = "$NS_TEST_GID" || fail_preflight supplemental_groups
+                /usr/bin/grep -Eq "^NoNewPrivs:[[:space:]]+1$" /proc/self/status || fail_preflight no_new_privs
+                for capability in CapInh CapPrm CapEff CapBnd CapAmb; do
+                  /usr/bin/grep -Eq "^${capability}:[[:space:]]+0000000000000000$" /proc/self/status || fail_preflight "capability_${capability}"
+                done
+                apparmor_label="$(/usr/bin/cat /proc/self/attr/current)" || fail_preflight apparmor_label_read
+                case "$apparmor_label" in
+                  trusted-lighttpd-ci-userns\ *)
+                    ;;
+                  *)
+                    fail_preflight apparmor_profile
+                    ;;
+                esac
                 if test -e /var/run/docker.sock; then
-                  test ! -r /var/run/docker.sock
-                  test ! -w /var/run/docker.sock
+                  if test -r /var/run/docker.sock || test -w /var/run/docker.sock; then
+                    fail_preflight docker_socket
+                  fi
+                fi
+
+                host_user_namespace="$(/usr/bin/readlink /proc/self/ns/user)" || fail_preflight host_user_namespace
+                host_mount_namespace="$(/usr/bin/readlink /proc/self/ns/mnt)" || fail_preflight host_mount_namespace
+                host_pid_namespace="$(/usr/bin/readlink /proc/self/ns/pid)" || fail_preflight host_pid_namespace
+                test ! -e /tmp/trusted-lighttpd-mount-probe || fail_preflight host_mount_leak
+                if ! HOST_USER_NAMESPACE="$host_user_namespace" \
+                    HOST_MOUNT_NAMESPACE="$host_mount_namespace" \
+                    HOST_PID_NAMESPACE="$host_pid_namespace" \
+                    /usr/bin/unshare --user --map-root-user --mount --pid --fork --kill-child=SIGKILL --mount-proc=/proc --propagation private /usr/bin/dash -eu -c '\''
+                      test "$(/usr/bin/readlink /proc/self/ns/user)" != "$HOST_USER_NAMESPACE"
+                      test "$(/usr/bin/readlink /proc/self/ns/mnt)" != "$HOST_MOUNT_NAMESPACE"
+                      test "$(/usr/bin/readlink /proc/self/ns/pid)" != "$HOST_PID_NAMESPACE"
+                      test "$$" = 1
+                      /usr/bin/mount --make-rprivate /
+                      /usr/bin/mount -t tmpfs -o mode=0700,nosuid,nodev,noexec,size=4m tmpfs /tmp
+                      /usr/bin/grep -F " /tmp " /proc/self/mountinfo | /usr/bin/grep -F " - tmpfs " >/dev/null
+                      if /usr/bin/grep -F " /tmp " /proc/self/mountinfo | /usr/bin/grep -Eq "(shared:|master:)"; then
+                        exit 77
+                      fi
+                      /usr/bin/mkdir /tmp/trusted-lighttpd-mount-probe
+                      /usr/bin/touch /tmp/trusted-lighttpd-mount-probe/inside
+                    '\'' >/dev/null 2>&1; then
+                  fail_preflight user_mount_pid_namespace
+                fi
+                test ! -e /tmp/trusted-lighttpd-mount-probe || fail_preflight host_mount_leak
+                if ! /usr/bin/bwrap --unshare-user --unshare-pid --disable-userns --assert-userns-disabled --die-with-parent --new-session --ro-bind / / --proc /proc --dev /dev --clearenv --setenv PATH /usr/bin:/bin -- /usr/bin/true >/dev/null 2>&1; then
+                  fail_preflight bubblewrap_user_pid_namespace
                 fi
               '
 
@@ -308,54 +366,80 @@ jobs:
                 SOURCE_COPY=/var/lib/trusted-lighttpd-namespace/source \
                 SOURCE_ROOT="$source_root" \
                 /usr/bin/dash -eu -c '
-                  test "$(/usr/bin/id -u)" = "$NS_TEST_UID"
-                  test "$(/usr/bin/id -g)" = "$NS_TEST_GID"
-                  test "$(/usr/bin/id -G)" = "$NS_TEST_GID"
-                  /usr/bin/grep -Eq "^NoNewPrivs:[[:space:]]+1$" /proc/self/status
+                  fail_runtime() {
+                    printf "%s\\n" "BLOCKED: runtime.$1" >&2
+                    exit 77
+                  }
+
+                  current_uid="$(/usr/bin/id -u)" || fail_runtime identity_uid
+                  current_euid="$(/usr/bin/id -ru)" || fail_runtime identity_euid
+                  current_gid="$(/usr/bin/id -g)" || fail_runtime identity_gid
+                  current_egid="$(/usr/bin/id -rg)" || fail_runtime identity_egid
+                  current_groups="$(/usr/bin/id -G)" || fail_runtime supplemental_groups
+                  test "$current_uid" != 0 || fail_runtime identity_uid
+                  test "$current_euid" != 0 || fail_runtime identity_euid
+                  test "$current_gid" != 0 || fail_runtime identity_gid
+                  test "$current_egid" != 0 || fail_runtime identity_egid
+                  test "$current_uid" = "$NS_TEST_UID" || fail_runtime identity_uid
+                  test "$current_euid" = "$NS_TEST_UID" || fail_runtime identity_euid
+                  test "$current_gid" = "$NS_TEST_GID" || fail_runtime identity_gid
+                  test "$current_egid" = "$NS_TEST_GID" || fail_runtime identity_egid
+                  test "$current_groups" = "$NS_TEST_GID" || fail_runtime supplemental_groups
+                  /usr/bin/grep -Eq "^NoNewPrivs:[[:space:]]+1$" /proc/self/status || fail_runtime no_new_privs
                   for capability in CapInh CapPrm CapEff CapBnd CapAmb; do
-                    /usr/bin/grep -Eq "^${capability}:[[:space:]]+0000000000000000$" /proc/self/status
+                    /usr/bin/grep -Eq "^${capability}:[[:space:]]+0000000000000000$" /proc/self/status || fail_runtime "capability_${capability}"
                   done
-                  case "$(/usr/bin/cat /proc/self/attr/current)" in
-                    trusted-lighttpd-ci-userns\ *) ;;
+                  apparmor_label="$(/usr/bin/cat /proc/self/attr/current)" || fail_runtime apparmor_label_read
+                  case "$apparmor_label" in
+                    trusted-lighttpd-ci-userns\ *)
+                      ;;
                     *)
-                      printf "%s\\n" "BLOCKED: ns-test did not enter the trusted AppArmor profile." >&2
-                      exit 77
+                      fail_runtime apparmor_profile
                       ;;
                   esac
                   if test -e /var/run/docker.sock; then
-                    test ! -r /var/run/docker.sock
-                    test ! -w /var/run/docker.sock
+                    if test -r /var/run/docker.sock || test -w /var/run/docker.sock; then
+                      fail_runtime docker_socket
+                    fi
                   fi
 
-                  host_user_namespace="$(/usr/bin/readlink /proc/self/ns/user)"
-                  host_mount_namespace="$(/usr/bin/readlink /proc/self/ns/mnt)"
-                  host_pid_namespace="$(/usr/bin/readlink /proc/self/ns/pid)"
-                  test ! -e /tmp/trusted-lighttpd-mount-probe
-                  /usr/bin/unshare --user --map-root-user --mount --pid --fork --kill-child=SIGKILL --mount-proc=/proc --propagation private /usr/bin/dash -eu -c "
-                    test \"\$(/usr/bin/readlink /proc/self/ns/user)\" != \"$host_user_namespace\"
-                    test \"\$(/usr/bin/readlink /proc/self/ns/mnt)\" != \"$host_mount_namespace\"
-                    test \"\$(/usr/bin/readlink /proc/self/ns/pid)\" != \"$host_pid_namespace\"
-                    test \"\$\$\" = 1
-                    /usr/bin/mount --make-rprivate /
-                    /usr/bin/mount -t tmpfs -o mode=0700,nosuid,nodev,noexec,size=4m tmpfs /tmp
-                    /usr/bin/grep -F \" /tmp \" /proc/self/mountinfo | /usr/bin/grep -F \" - tmpfs \" >/dev/null
-                    if /usr/bin/grep -F \" /tmp \" /proc/self/mountinfo | /usr/bin/grep -Eq \"(shared:|master:)\"; then
-                      exit 77
-                    fi
-                    /usr/bin/mkdir /tmp/trusted-lighttpd-mount-probe
-                    /usr/bin/touch /tmp/trusted-lighttpd-mount-probe/inside
-                  "
-                  test ! -e /tmp/trusted-lighttpd-mount-probe
+                  host_user_namespace="$(/usr/bin/readlink /proc/self/ns/user)" || fail_runtime host_user_namespace
+                  host_mount_namespace="$(/usr/bin/readlink /proc/self/ns/mnt)" || fail_runtime host_mount_namespace
+                  host_pid_namespace="$(/usr/bin/readlink /proc/self/ns/pid)" || fail_runtime host_pid_namespace
+                  test ! -e /tmp/trusted-lighttpd-mount-probe || fail_runtime host_mount_leak
+                  if ! HOST_USER_NAMESPACE="$host_user_namespace" \
+                      HOST_MOUNT_NAMESPACE="$host_mount_namespace" \
+                      HOST_PID_NAMESPACE="$host_pid_namespace" \
+                      /usr/bin/unshare --user --map-root-user --mount --pid --fork --kill-child=SIGKILL --mount-proc=/proc --propagation private /usr/bin/dash -eu -c '\''
+                        test "$(/usr/bin/readlink /proc/self/ns/user)" != "$HOST_USER_NAMESPACE"
+                        test "$(/usr/bin/readlink /proc/self/ns/mnt)" != "$HOST_MOUNT_NAMESPACE"
+                        test "$(/usr/bin/readlink /proc/self/ns/pid)" != "$HOST_PID_NAMESPACE"
+                        test "$$" = 1
+                        /usr/bin/mount --make-rprivate /
+                        /usr/bin/mount -t tmpfs -o mode=0700,nosuid,nodev,noexec,size=4m tmpfs /tmp
+                        /usr/bin/grep -F " /tmp " /proc/self/mountinfo | /usr/bin/grep -F " - tmpfs " >/dev/null
+                        if /usr/bin/grep -F " /tmp " /proc/self/mountinfo | /usr/bin/grep -Eq "(shared:|master:)"; then
+                          exit 77
+                        fi
+                        /usr/bin/mkdir /tmp/trusted-lighttpd-mount-probe
+                        /usr/bin/touch /tmp/trusted-lighttpd-mount-probe/inside
+                      '\'' >/dev/null 2>&1; then
+                    fail_runtime user_mount_pid_namespace
+                  fi
+                  test ! -e /tmp/trusted-lighttpd-mount-probe || fail_runtime host_mount_leak
+                  if ! /usr/bin/bwrap --unshare-user --unshare-pid --disable-userns --assert-userns-disabled --die-with-parent --new-session --ro-bind / / --proc /proc --dev /dev --clearenv --setenv PATH /usr/bin:/bin -- /usr/bin/true >/dev/null 2>&1; then
+                    fail_runtime bubblewrap_user_pid_namespace
+                  fi
 
-                  /usr/bin/bwrap --unshare-user --unshare-pid --disable-userns --assert-userns-disabled --die-with-parent --new-session --ro-bind / / --proc /proc --dev /dev --clearenv --setenv PATH /usr/bin:/bin -- /usr/bin/true
-
-                  test -d "$SOURCE_ROOT"
-                  test ! -L "$SOURCE_ROOT"
-                  test -z "$(/usr/bin/find -P "$SOURCE_ROOT" -type l -print -quit)"
-                  test -z "$(/usr/bin/find -P "$SOURCE_COPY" -mindepth 1 -maxdepth 1 -print -quit)"
+                  test -d "$SOURCE_ROOT" || fail_runtime source_root
+                  test ! -L "$SOURCE_ROOT" || fail_runtime source_root_symlink
+                  source_symlink="$(/usr/bin/find -P "$SOURCE_ROOT" -type l -print -quit)" || fail_runtime source_walk
+                  test -z "$source_symlink" || fail_runtime source_symlink
+                  source_copy_entry="$(/usr/bin/find -P "$SOURCE_COPY" -mindepth 1 -maxdepth 1 -print -quit)" || fail_runtime source_copy_walk
+                  test -z "$source_copy_entry" || fail_runtime source_copy_not_empty
                   umask 022
-                  /usr/bin/cp -R --no-preserve=mode,ownership,timestamps -- "$SOURCE_ROOT"/. "$SOURCE_COPY"/
-                  cd "$SOURCE_COPY"
+                  /usr/bin/cp -R --no-preserve=mode,ownership,timestamps -- "$SOURCE_ROOT"/. "$SOURCE_COPY"/ || fail_runtime source_copy
+                  cd "$SOURCE_COPY" || fail_runtime source_workdir
                   /usr/bin/python3 -m unittest -v connectors.lighttpd.tests.test_no_crs_fixture_namespace
                 '
 
