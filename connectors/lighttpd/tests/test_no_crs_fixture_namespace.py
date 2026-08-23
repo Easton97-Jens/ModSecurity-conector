@@ -145,13 +145,20 @@ def _runner_source(
         # checkout path from the test runner.  The helper derives its active
         # repository root from its own fixed source path and supplies a safe
         # child environment itself.
-        raise SystemExit(helper.run_isolated(
-            command,
-            timeout_seconds={timeout!r},
-            environment={{}},
-            writable_roots=writable_roots,
-            emit_probe_phase_markers=True,
-        ))
+        helper._emit_probe_phase(True, "runner-start")
+        try:
+            probe_status = helper.run_isolated(
+                command,
+                timeout_seconds={timeout!r},
+                environment={{}},
+                writable_roots=writable_roots,
+                emit_probe_phase_markers=True,
+            )
+        except Exception:
+            helper._emit_probe_phase(True, "helper-raised-before-return")
+            raise
+        helper._emit_probe_phase(True, "helper-returned")
+        raise SystemExit(probe_status)
         """
     )
 
@@ -186,6 +193,20 @@ def _bounded_namespace_probe_failure_reason(
     """Classify only fixed namespace-probe failures, never relay child output."""
 
     normalized = f"{stderr}\n{stdout}".lower()
+    if "probe phase setup-attestation-failed" in normalized:
+        if "probe phase bwrap-exec" in normalized:
+            return "bubblewrap namespace setup failed before attestation"
+        if "probe phase outer-unshare-entered" in normalized:
+            return "outer private namespace setup failed before bubblewrap"
+        if "probe phase setup-wait-started" in normalized:
+            return "unshare namespace setup failed before entry"
+        return "namespace setup attestation failed"
+    if "probe phase final-state-verified" in normalized:
+        return "namespace payload failed after final-state verification"
+    if "probe phase setup-attested" in normalized:
+        return "namespace child failed after setup attestation"
+    if "probe phase helper-raised-before-return" in normalized:
+        return "namespace helper failed before namespace child launch"
     for marker, reason in (
         ("operation not permitted", "unshare operation not permitted"),
         ("permission denied", "namespace operation permission denied"),
@@ -194,14 +215,6 @@ def _bounded_namespace_probe_failure_reason(
         ("trusted namespace setup attestation", "namespace setup attestation failed"),
         ("trusted namespace setup did not attest", "namespace setup attestation failed"),
         ("namespace final verifier", "namespace final-state verification failed"),
-        (
-            "probe phase final-state-verified",
-            "namespace payload failed after final-state verification",
-        ),
-        (
-            "probe phase setup-attested",
-            "namespace child failed after setup attestation",
-        ),
         ("bwrap", "bubblewrap namespace setup failed"),
         ("unshare", "unshare namespace setup failed"),
         ("no-crs namespace blocked", "trusted namespace setup blocked"),
@@ -349,6 +362,40 @@ class NamespaceContractTest(unittest.TestCase):
             ("No-CRS namespace blocked: unexpected setup detail", "", 1, "trusted namespace setup blocked"),
             ("lighttpd_no_crs_fixture_namespace: probe phase setup-attested", "", 1, "namespace child failed after setup attestation"),
             ("lighttpd_no_crs_fixture_namespace: probe phase final-state-verified", "", 1, "namespace payload failed after final-state verification"),
+            ("lighttpd_no_crs_fixture_namespace: probe phase helper-raised-before-return", "", 1, "namespace helper failed before namespace child launch"),
+            (
+                "\n".join(
+                    (
+                        "lighttpd_no_crs_fixture_namespace: probe phase setup-wait-started",
+                        "lighttpd_no_crs_fixture_namespace: probe phase setup-attestation-failed",
+                    )
+                ),
+                "",
+                1,
+                "unshare namespace setup failed before entry",
+            ),
+            (
+                "\n".join(
+                    (
+                        "lighttpd_no_crs_fixture_namespace: probe phase outer-unshare-entered",
+                        "lighttpd_no_crs_fixture_namespace: probe phase setup-attestation-failed",
+                    )
+                ),
+                "",
+                1,
+                "outer private namespace setup failed before bubblewrap",
+            ),
+            (
+                "\n".join(
+                    (
+                        "lighttpd_no_crs_fixture_namespace: probe phase bwrap-exec",
+                        "lighttpd_no_crs_fixture_namespace: probe phase setup-attestation-failed",
+                    )
+                ),
+                "",
+                1,
+                "bubblewrap namespace setup failed before attestation",
+            ),
             ("", "AppArmor: Permission denied; sensitive fixture path", 1, "namespace operation permission denied"),
             ("", "bwrap: setup failed; sensitive fixture path", 1, "bubblewrap namespace setup failed"),
             ("", "", HELPER.EXIT_BLOCKED, "trusted namespace helper blocked"),
@@ -374,6 +421,30 @@ class NamespaceContractTest(unittest.TestCase):
         self.assertNotIn("LIGHTTPD_NAMESPACE_PROBE_PHASES", ordinary_environment)
         self.assertEqual(diagnostic_environment["LIGHTTPD_NAMESPACE_PROBE_PHASES"], "1")
         self.assertIn("probe phase final-state-verified", HELPER.FINAL_NAMESPACE_STATE_VERIFIER)
+        self.assertIn("LIGHTTPD_NAMESPACE_PROBE_PHASES", HELPER.PRIVATE_TMPFS_SETUP)
+        self.assertIn("probe phase outer-unshare-entered", HELPER.PRIVATE_TMPFS_SETUP)
+        self.assertIn("probe phase outer-tmpfs-mounted", HELPER.PRIVATE_TMPFS_SETUP)
+        self.assertIn("probe phase bwrap-exec", HELPER.PRIVATE_TMPFS_SETUP)
+        self.assertEqual(
+            HELPER._PROBE_PHASES,
+            frozenset(
+                {
+                    "runner-start",
+                    "helper-raised-before-return",
+                    "helper-returned",
+                    "setup-wait-started",
+                    "setup-attestation-failed",
+                    "setup-attested",
+                    "child-exited-after-setup",
+                }
+            ),
+        )
+        source = _runner_source("pass")
+        self.assertIn('helper._emit_probe_phase(True, "runner-start")', source)
+        self.assertIn('helper._emit_probe_phase(True, "helper-raised-before-return")', source)
+        self.assertIn('helper._emit_probe_phase(True, "helper-returned")', source)
+        with self.assertRaises(HELPER.NamespaceUnavailable):
+            HELPER._emit_probe_phase(True, "untrusted diagnostic content")
 
     def test_trusted_namespace_boundary_and_no_unsafe_rmdir_path_exist(self) -> None:
         source = HELPER_PATH.read_text(encoding="utf-8")

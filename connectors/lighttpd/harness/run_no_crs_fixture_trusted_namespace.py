@@ -67,13 +67,20 @@ FIXTURE_ROOT = PRIVATE_TMPFS_MOUNT / "msconnector-lighttpd-no-crs-fixture"
 
 # This string is passed as a single, immutable argv element to the root-owned
 # shell. The unprivileged launcher never executes worktree code while the
-# outer user namespace has CAP_SYS_ADMIN. This fixed command has no expansion
-# of caller-controlled values: its only operation is the tmpfs mount, followed
-# by an argv-preserving exec of bwrap.
+# outer user namespace has CAP_SYS_ADMIN. Its only caller-independent operation
+# is the tmpfs mount followed by an argv-preserving exec of bwrap. A fixed,
+# test-only phase flag is supplied directly by the launcher rather than copied
+# from the caller environment.
 PRIVATE_TMPFS_SETUP = (
     "set -eu; "
+    'if [ "${LIGHTTPD_NAMESPACE_PROBE_PHASES-}" = "1" ]; then '
+    'printf "%s\\n" "lighttpd_no_crs_fixture_namespace: probe phase outer-unshare-entered" >&2; fi; '
     f"{TRUSTED_MOUNT} -t tmpfs -o mode=0755,nosuid,nodev,noexec,size=64m "
     f"tmpfs {PRIVATE_TMPFS_MOUNT}; "
+    'if [ "${LIGHTTPD_NAMESPACE_PROBE_PHASES-}" = "1" ]; then '
+    'printf "%s\\n" "lighttpd_no_crs_fixture_namespace: probe phase outer-tmpfs-mounted" >&2; fi; '
+    'if [ "${LIGHTTPD_NAMESPACE_PROBE_PHASES-}" = "1" ]; then '
+    'printf "%s\\n" "lighttpd_no_crs_fixture_namespace: probe phase bwrap-exec" >&2; fi; '
     "exec \"$@\""
 )
 
@@ -195,6 +202,30 @@ LIBC.prctl.restype = ctypes.c_int
 
 class NamespaceUnavailable(RuntimeError):
     """The trusted private namespace boundary cannot be proved available."""
+
+
+_PROBE_PHASE_PREFIX = "lighttpd_no_crs_fixture_namespace: probe phase "
+_PROBE_PHASES = frozenset(
+    {
+        "runner-start",
+        "helper-raised-before-return",
+        "helper-returned",
+        "setup-wait-started",
+        "setup-attestation-failed",
+        "setup-attested",
+        "child-exited-after-setup",
+    }
+)
+
+
+def _emit_probe_phase(enabled: bool, phase: str) -> None:
+    """Emit only an allowlisted diagnostic phase for the test-only probe."""
+
+    if not enabled:
+        return
+    if phase not in _PROBE_PHASES:
+        raise NamespaceUnavailable("namespace probe phase is invalid")
+    print(f"{_PROBE_PHASE_PREFIX}{phase}", file=sys.stderr)
 
 
 @dataclass(frozen=True)
@@ -840,7 +871,13 @@ def _wait_for_child(child: int, timeout_seconds: float) -> int:
             signal.signal(signum, handler)
 
 
-def _exec_namespace_child(setup_read: int, setup_write: int, arguments: Sequence[str]) -> None:
+def _exec_namespace_child(
+    setup_read: int,
+    setup_write: int,
+    arguments: Sequence[str],
+    *,
+    emit_probe_phase_markers: bool,
+) -> None:
     """Enter the supervisor chain, preserving fail-closed child exits."""
 
     try:
@@ -848,7 +885,10 @@ def _exec_namespace_child(setup_read: int, setup_write: int, arguments: Sequence
         os.setsid()
         _arm_parent_death_signal()
         _seal_inherited_descriptors({0, 1, 2, setup_write})
-        os.execve(str(TRUSTED_UNSHARE), arguments, {"PATH": SAFE_PATH})
+        child_environment = {"PATH": SAFE_PATH}
+        if emit_probe_phase_markers:
+            child_environment["LIGHTTPD_NAMESPACE_PROBE_PHASES"] = "1"
+        os.execve(str(TRUSTED_UNSHARE), arguments, child_environment)
     except NamespaceUnavailable as error:
         print(f"No-CRS namespace blocked: {error}", file=sys.stderr)
         os._exit(EXIT_BLOCKED)
@@ -884,22 +924,25 @@ def run_isolated(
         )
         child = os.fork()
         if child == 0:
-            _exec_namespace_child(setup_read, setup_write, arguments)
+            _exec_namespace_child(
+                setup_read,
+                setup_write,
+                arguments,
+                emit_probe_phase_markers=emit_probe_phase_markers,
+            )
         os.close(setup_write)
         setup_write = -1
-        _read_setup_attestation(setup_read, child)
+        _emit_probe_phase(emit_probe_phase_markers, "setup-wait-started")
+        try:
+            _read_setup_attestation(setup_read, child)
+        except (Exception, KeyboardInterrupt, SystemExit):
+            _emit_probe_phase(emit_probe_phase_markers, "setup-attestation-failed")
+            raise
         setup_read = -1
-        if emit_probe_phase_markers:
-            print(
-                "lighttpd_no_crs_fixture_namespace: probe phase setup-attested",
-                file=sys.stderr,
-            )
+        _emit_probe_phase(emit_probe_phase_markers, "setup-attested")
         status = _wait_for_child(child, timeout_seconds)
-        if emit_probe_phase_markers and status != 0:
-            print(
-                "lighttpd_no_crs_fixture_namespace: probe phase child-exited-after-setup",
-                file=sys.stderr,
-            )
+        if status != 0:
+            _emit_probe_phase(emit_probe_phase_markers, "child-exited-after-setup")
         return status
     except (Exception, KeyboardInterrupt, SystemExit):
         if child > 0:
