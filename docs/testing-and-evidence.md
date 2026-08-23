@@ -21,7 +21,7 @@ does not provide CRS, MRTS, HTTP/2, HTTP/3, full-matrix, or production claims.
 
 ## Closed no-CRS/with-MRTS runtime route
 
-The task route based on current <code>master</code> adds a separate, closed
+The task route based on the documented task baseline adds a separate, closed
 <code>no-crs/with-mrts</code> runtime path for exactly Envoy, Traefik, and
 lighttpd. The entry point is
 <code>ci/runtime/lifecycle/run-no-crs-with-mrts-target.py</code>; it requires
@@ -35,7 +35,7 @@ the exact checked-out Framework. The current pinned chain is:
 
 | Repository | Revision used by the route |
 | --- | --- |
-| Parent | current task base from `origin/master` `7c403fada21de4547259fef1dc4a1b079cb0cb25` |
+| Parent | documented task baseline `7c403fada21de4547259fef1dc4a1b079cb0cb25` |
 | Framework gitlink | `c40e924ec5c341032908e0082feba1d37ed1dfda` |
 | MRTS gitlink | `615b13bacbd008562c17408246c41ab27dca3104` |
 
@@ -211,12 +211,16 @@ repository and hosted workflow still require <code>.go-version</code>
 local difference is documented rather than acquired, upgraded, or hidden; it
 is not an exact hosted Go-contract result.
 
-The real three-connector host runs, hosted Actions, Required Checks,
-SonarQube Cloud analysis, and PR-head equality have not been observed by this
-documentation change. They remain <code>NOT EXECUTED</code> or
-<code>PENDING</code> until the corresponding exact-head evidence exists. A
-static plan, inventory, parser test, or workflow contract must not be promoted
-to a runtime <code>PASS</code>. See the paired [Change Record](../reports/audits/change-records/CR-20260820-no-crs-with-mrts-runtime.md)
+The prior exact PR head <code>da25068e</code> had observed SonarQube Cloud
+success: 0.0% duplication on new code, Reliability A, Security A, and zero
+new bugs, vulnerabilities, or hotspots. At the time of this observation before
+this documentation update, PR #335 was Draft/BEHIND at head
+<code>541356440c926dfa935d52dc303315e316668cbf</code>. Runtime jobs, Required
+Checks, and SonarQube Cloud analysis for each subsequent PR head remain
+<code>PENDING</code> until their exact-head evidence exists. A static plan,
+inventory, parser test, or workflow
+contract must not be promoted to a runtime <code>PASS</code>. See the paired
+[Change Record](../reports/audits/change-records/CR-20260820-no-crs-with-mrts-runtime.md)
 for the bounded delivery state and limitations.
 
 ## Test layers

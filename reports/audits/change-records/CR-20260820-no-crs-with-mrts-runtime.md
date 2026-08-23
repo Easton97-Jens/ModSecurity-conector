@@ -12,7 +12,7 @@
 | Parent boundary | Parent only; current Framework and MRTS gitlinks consumed read-only |
 | Framework gitlink | `c40e924ec5c341032908e0082feba1d37ed1dfda` |
 | MRTS gitlink | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Delivery status | Task branch is rebased on the observed current master; Draft delivery may proceed without claiming host-runtime, hosted-check, or Sonar success; no merge, auto-merge, or default-branch write is authorized |
+| Delivery status | Task branch is based on documented baseline `7c403fada21de4547259fef1dc4a1b079cb0cb25` with normal subsequent commits; no merge or rebase was performed. At the time of observation before this documentation update, PR #335 was Draft/BEHIND at head `541356440c926dfa935d52dc303315e316668cbf`; runtime, hosted checks, and Sonar for each subsequent PR head remain pending until exact-head evidence. No merge, auto-merge, or default-branch write is authorized |
 
 ## Motivation and problem statement
 
@@ -39,9 +39,10 @@ connector behavior.
 
 ## 2026-08-23 branch reconciliation and job isolation
 
-The task branch was normally rebased onto the fresh
-`origin/master` `7c403fada21de4547259fef1dc4a1b079cb0cb25`; it is neither based
-on nor delivered through PR #279. The Parent records Framework
+The task branch is based on the documented task baseline
+`7c403fada21de4547259fef1dc4a1b079cb0cb25` and has only normal subsequent
+commits; no merge or rebase was performed. It is neither based on nor delivered
+through PR #279. The Parent records Framework
 `c40e924ec5c341032908e0082feba1d37ed1dfda`, whose published MRTS gitlink is
 `615b13bacbd008562c17408246c41ab27dca3104`. The local nested Framework
 checkout is not used to rewrite that gitlink.
@@ -354,7 +355,9 @@ is diagnostic-only and cannot promote the cell.
 
 ## Known limitations
 
-The task branch is based on current `master`, not PR #279. The implementation
+The task branch is based on the documented `7c403fada21de4547259fef1dc4a1b079cb0cb25`
+baseline, not PR #279; normal subsequent commits were added without merge or
+rebase. The implementation
 and its local contracts may still change after host execution exposes
 connector-specific issues. The local evidence includes one real Envoy receipt
 but does not establish the three-connector final-candidate host matrix. The
@@ -378,8 +381,15 @@ those exact results are observed, the three target cells remain
 
 ## Final diff and review status
 
-`PARTIAL — the task branch is rebased on current master and adds narrow
-connector-isolation and GitHub Summary contracts, while fresh candidate-head
-runtime, exact-head CI, Required Check, and Sonar evidence remain pending.` A
-normal Draft PR may be created; no merge, auto-merge, or default-branch write
-is authorized or claimed.
+`PARTIAL — the task branch is based on the documented
+7c403fada21de4547259fef1dc4a1b079cb0cb25 baseline and adds narrow
+connector-isolation and GitHub Summary contracts through normal subsequent
+commits; no merge or rebase was performed. At the time of observation before
+this documentation update, PR #335 was Draft/BEHIND at head
+541356440c926dfa935d52dc303315e316668cbf. The prior exact head da25068e had
+observed Sonar success (0.0% duplication, Reliability A, Security A, zero new
+bugs/vulnerabilities/hotspots), while runtime, Required Check, and Sonar
+evidence for each subsequent PR head remain pending until exact-head evidence.`
+A normal Draft PR
+may be maintained; no merge, auto-merge, or default-branch write is authorized
+or claimed.

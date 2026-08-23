@@ -12,7 +12,7 @@
 | Parent-Grenze | Nur Parent; aktuelle Framework- und MRTS-Gitlinks read-only verwendet |
 | Framework-Gitlink | `c40e924ec5c341032908e0082feba1d37ed1dfda` |
 | MRTS-Gitlink | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Lieferstatus | Der Task-Branch ist auf den beobachteten aktuellen Master rebased; Draft-Delivery darf ohne Behauptung von Host-Runtime-, Hosted-Check- oder Sonar-Erfolg erfolgen; kein Merge, Auto-Merge oder Default-Branch-Write ist autorisiert |
+| Lieferstatus | Der Task-Branch basiert auf der dokumentierten Basis `7c403fada21de4547259fef1dc4a1b079cb0cb25` mit normalen Folge-Commits; kein Merge und kein Rebase wurden ausgeführt. Zum Beobachtungszeitpunkt vor dieser Dokumentationsaktualisierung war PR #335 Draft/BEHIND mit Head `541356440c926dfa935d52dc303315e316668cbf`; Runtime-, Hosted-Check- und Sonar-Nachweise für jeden nachfolgenden PR-Head bleiben bis zur Exact-Head-Evidence offen. Kein Merge, Auto-Merge oder Default-Branch-Write ist autorisiert |
 
 ## Motivation und Problemstellung
 
@@ -40,9 +40,10 @@ Connector-Verhalten darf nicht erweitert werden.
 
 ## 2026-08-23 Branch-Abgleich und Job-Isolation
 
-Der Task-Branch wurde normal auf das frisch abgerufene
-`origin/master` `7c403fada21de4547259fef1dc4a1b079cb0cb25` rebased; er basiert
-weder auf PR #279 noch wird er über diesen PR ausgeliefert. Der Parent zeichnet
+Der Task-Branch basiert auf der dokumentierten Task-Basis
+`7c403fada21de4547259fef1dc4a1b079cb0cb25` und enthält nur normale
+Folge-Commits; kein Merge und kein Rebase wurden ausgeführt. Er basiert weder
+auf PR #279 noch wird er über diesen PR ausgeliefert. Der Parent zeichnet
 Framework `c40e924ec5c341032908e0082feba1d37ed1dfda` auf, dessen veröffentlichter
 MRTS-Gitlink `615b13bacbd008562c17408246c41ab27dca3104` ist. Der lokale
 verschachtelte Framework-Checkout wird nicht verwendet, um diesen Gitlink
@@ -413,8 +414,14 @@ für die Lieferung `PENDING`.
 
 ## Finaler Diff- und Review-Status
 
-`PARTIAL — der Task-Branch ist auf den aktuellen Master rebased und ergänzt
-enge Connector-Isolations- und GitHub-Summary-Verträge, während frische
-Candidate-Head-Runtime-, Exact-Head-CI-, Required-Check- und Sonar-Evidence
-offen bleibt.` Ein normaler Draft-PR darf erstellt werden; kein Merge,
-Auto-Merge oder Default-Branch-Write ist autorisiert oder behauptet.
+`PARTIAL — der Task-Branch basiert auf der dokumentierten Basis
+7c403fada21de4547259fef1dc4a1b079cb0cb25 und ergänzt durch normale Folge-Commits
+enge Connector-Isolations- und GitHub-Summary-Verträge; kein Merge und kein
+Rebase wurden ausgeführt. Zum Beobachtungszeitpunkt vor dieser
+Dokumentationsaktualisierung war PR #335 Draft/BEHIND mit Head
+541356440c926dfa935d52dc303315e316668cbf beobachtet. Der vorherige exakte
+Head da25068e hatte beobachteten Sonar-Erfolg (0,0 % Duplikation, Reliability A,
+Security A, null neue Bugs/Vulnerabilities/Hotspots), während Runtime-,
+Required-Check- und Sonar-Nachweise für jeden nachfolgenden PR-Head bis zur
+Exact-Head-Evidence offen bleiben.` Ein normaler Draft-PR darf beibehalten werden; kein Merge, Auto-Merge oder
+Default-Branch-Write ist autorisiert oder behauptet.

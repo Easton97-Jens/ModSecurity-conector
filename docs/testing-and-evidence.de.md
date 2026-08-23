@@ -24,7 +24,7 @@ HTTP/2-, HTTP/3-, Full-Matrix- oder Produktions-Claims.
 
 ## Geschlossener no-CRS/with-MRTS-Runtimepfad
 
-Der auf dem aktuellen <code>master</code> basierende Task ergänzt einen
+Der auf der dokumentierten Task-Basis basierende Task ergänzt einen
 separaten, geschlossenen
 <code>no-crs/with-mrts</code>-Runtimepfad genau für Envoy, Traefik und lighttpd.
 Der Einstieg ist
@@ -40,7 +40,7 @@ das exakt ausgecheckte Framework. Die aktuell gepinnte Kette lautet:
 
 | Repository | Vom Pfad verwendete Revision |
 | --- | --- |
-| Parent | aktuelle Task-Basis von `origin/master` `7c403fada21de4547259fef1dc4a1b079cb0cb25` |
+| Parent | dokumentierte Task-Basis `7c403fada21de4547259fef1dc4a1b079cb0cb25` |
 | Framework-Gitlink | `c40e924ec5c341032908e0082feba1d37ed1dfda` |
 | MRTS-Gitlink | `615b13bacbd008562c17408246c41ab27dca3104` |
 
@@ -234,13 +234,16 @@ Repository und gehosteter Workflow verlangen weiterhin
 Benutzeranweisung wird die lokale Abweichung dokumentiert statt beschafft,
 aktualisiert oder versteckt; sie ist kein Exact-Head-Go-Vertragsnachweis.
 
-Die echten Hostläufe für alle drei Connectoren, gehostete Actions, Required
-Checks, SonarQube-Cloud-Analyse und PR-Head-Gleichheit wurden durch diese
-Dokumentationsänderung noch nicht beobachtet. Sie bleiben
-<code>NOT EXECUTED</code> beziehungsweise <code>PENDING</code>, bis die
-entsprechende Exact-Head-Evidence vorliegt. Ein statischer Plan, ein Inventar,
-ein Parser-Test oder ein Workflow-Vertrag darf nicht zu einem
-Runtime-<code>PASS</code> befördert werden. Der gepaarte
+Für den vorherigen exakten PR-Head <code>da25068e</code> wurde eine erfolgreiche
+SonarQube-Cloud-Prüfung beobachtet: 0,0 % Duplikation im neuen Code,
+Reliability A, Security A sowie null neue Bugs, Vulnerabilities oder Hotspots.
+Zum Beobachtungszeitpunkt vor dieser Dokumentationsaktualisierung war PR #335
+Draft/BEHIND mit Head
+<code>541356440c926dfa935d52dc303315e316668cbf</code>. Runtime-Jobs, Required
+Checks und SonarQube-Cloud-Analyse für jeden nachfolgenden PR-Head bleiben
+<code>PENDING</code>, bis die zugehörige Exact-Head-Evidence vorliegt. Ein
+statischer Plan, ein Inventar, ein Parser-Test oder ein Workflow-Vertrag darf
+nicht zu einem Runtime-<code>PASS</code> befördert werden. Der gepaarte
 [Change Record](../reports/audits/change-records/CR-20260820-no-crs-with-mrts-runtime.de.md)
 beschreibt den begrenzten Lieferstatus und die Einschränkungen.
 
