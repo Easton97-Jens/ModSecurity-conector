@@ -174,12 +174,16 @@ source at this point.
 Only after that blank private mount exists, `setpriv --reuid/--regid` clears
 supplementary groups, sets `NoNewPrivs`, and removes inheritable, ambient, and
 bounding capabilities. A clean `env -i` then enters a same-identity nested
-user/mount/PID namespace without `--keep-caps` and executes the root-owned
-source-runner script as `ns-test`. That runner proves its real non-root UID/GID, empty capability
-sets, `NoNewPrivs`, AppArmor label, Docker-socket isolation, distinct
-user/mount/PID namespaces, PID 1, and both private tmpfs mounts before it
-materializes Git. It then uses only absolute root-verified binaries and a bounded Git
-launcher to initialize the private mount with the empty template, fetch only
+user/mount/PID namespace. The inner `unshare --keep-caps` is permitted only as
+the short, fixed transition to the root-owned system `/usr/bin/setpriv` binary:
+that finalizer repeats the non-root identity, group, `NoNewPrivs`, inheritable,
+ambient, and bounding-set drops before it executes the root-owned source-runner
+script as `ns-test`. It never executes PR code while those namespace-local
+capabilities exist. The source runner proves its real non-root UID/GID, all
+five empty capability sets, `NoNewPrivs`, AppArmor label, Docker-socket
+isolation, distinct user/mount/PID namespaces, PID 1, and both private tmpfs
+mounts before it materializes Git. It then uses only absolute root-verified
+binaries and a bounded Git launcher to initialize the private mount with the empty template, fetch only
 the exact SHA (`--no-tags --depth=1 --no-recurse-submodules`), verify the
 commit/object and `HEAD`, delete `.git`, reject checkout symlinks, and run the
 namespace unittest.
@@ -218,6 +222,42 @@ use `--retry-all-errors`. The resolver still has no token, accepts only the
 strictly formatted target, validates the API response, and fails before any PR
 source exists if its retries are exhausted. The separate status-writing POST
 retains `--retry 0` so a side-effecting status request is not replayed.
+
+## 2026-08-23 user-namespace CapBnd finalizer repair
+
+Protected-master dispatch `32620696697` passed the trusted bootstrap and exact
+anonymous PR binding for PR #309 head
+`316a5de1ac5e663fce3cce58428f1e1dd306e573`, then failed closed before any PR
+source materialization with `BLOCKED: runtime.capability_CapBnd`. The earlier
+outer `--bounding-set=-all` correctly cleared host-namespace capability
+bounding state, but entry into the nested same-identity user namespace creates
+a new namespace-local bounding set. The direct `unshare -> dash` transition
+therefore could not make the source runner's all-five-mask precondition true.
+
+The repair confirms `unshare` supports `--keep-caps` during trusted bootstrap
+and uses that option exactly once on the inner same-identity `unshare`. It
+immediately invokes the fixed, root-owned `/usr/bin/setpriv` system binary,
+which repeats `--reuid`, `--regid`, `--clear-groups`, `--no-new-privs`,
+`--inh-caps=-all`, `--ambient-caps=-all`, and `--bounding-set=-all` before the
+final non-root `dash` exec. The source runner retains its independent
+`CapInh`, `CapPrm`, `CapEff`, `CapBnd`, and `CapAmb` zero checks before it may
+perform any Git, filesystem, or Python operation. Thus `--keep-caps` is not a
+capability grant to PR code; it is only the minimal trusted transition required
+to discard the user-namespace-local bounding set. Missing support or any
+failed finalizer or source-runner check remains fail-closed.
+
+The static contract allows no second or relocated `--keep-caps`, requires the
+complete immediate finalizer sequence, and mutates removal of every finalizer
+drop, the finalizer itself, and the inner capability retention. Hosted
+Ubuntu-24.04 execution against the then-current exact PR #309 head remains the
+authoritative confirmation of this repair.
+
+### CapBnd repair local validation
+
+- `rtk test /var/tmp/codex/ModSecurity-conector/ci-security-venv/bin/python -m unittest -v tests.test_trusted_lighttpd_namespace_dispatch_workflow` — passed (`2` tests, including the new finalizer weakening mutations).
+- `rtk test /var/tmp/codex/ModSecurity-conector/ci-security-venv/bin/python -m unittest -v tests.test_ci_security_workflows` — passed (`28` tests).
+- `rtk test /var/tmp/codex/ModSecurity-conector/ci-security-venv/bin/python -m unittest -v connectors.lighttpd.tests.test_no_crs_fixture_namespace` in the exact local PR #309 head worktree `316a5de1ac5e663fce3cce58428f1e1dd306e573` — passed (`18` tests; `10` expected skips outside the trusted integration gate).
+- Python `compileall`, `actionlint` with ShellCheck, offline `zizmor`, and `git diff --check` — passed.
 
 ### Local validation
 
