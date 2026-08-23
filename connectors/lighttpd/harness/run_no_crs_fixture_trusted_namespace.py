@@ -210,6 +210,14 @@ _PROBE_PHASES = frozenset(
         "runner-start",
         "helper-raised-before-return",
         "helper-returned",
+        "caller-identity-validated",
+        "trusted-binaries-validated",
+        "setup-pipe-created",
+        "setup-pipe-inheritable",
+        "namespace-command-build-started",
+        "namespace-command-built",
+        "namespace-fork-started",
+        "namespace-child-forked",
         "setup-wait-started",
         "setup-attestation-failed",
         "setup-attested",
@@ -908,13 +916,18 @@ def run_isolated(
     """Run after the trusted setup boundary as the invoking non-root identity."""
 
     _caller_identity()
+    _emit_probe_phase(emit_probe_phase_markers, "caller-identity-validated")
     if not 0 < timeout_seconds <= MAX_TIMEOUT_SECONDS:
         raise NamespaceUnavailable("namespace timeout is invalid")
     _require_trusted_system_binaries()
+    _emit_probe_phase(emit_probe_phase_markers, "trusted-binaries-validated")
     setup_read, setup_write = os.pipe()
+    _emit_probe_phase(emit_probe_phase_markers, "setup-pipe-created")
     os.set_inheritable(setup_write, True)
+    _emit_probe_phase(emit_probe_phase_markers, "setup-pipe-inheritable")
     child = -1
     try:
+        _emit_probe_phase(emit_probe_phase_markers, "namespace-command-build-started")
         arguments = build_trusted_namespace_command(
             command,
             environment=os.environ if environment is None else environment,
@@ -922,6 +935,8 @@ def run_isolated(
             info_descriptor=setup_write,
             emit_probe_phase_markers=emit_probe_phase_markers,
         )
+        _emit_probe_phase(emit_probe_phase_markers, "namespace-command-built")
+        _emit_probe_phase(emit_probe_phase_markers, "namespace-fork-started")
         child = os.fork()
         if child == 0:
             _exec_namespace_child(
@@ -930,6 +945,7 @@ def run_isolated(
                 arguments,
                 emit_probe_phase_markers=emit_probe_phase_markers,
             )
+        _emit_probe_phase(emit_probe_phase_markers, "namespace-child-forked")
         os.close(setup_write)
         setup_write = -1
         _emit_probe_phase(emit_probe_phase_markers, "setup-wait-started")

@@ -206,7 +206,21 @@ def _bounded_namespace_probe_failure_reason(
     if "probe phase setup-attested" in normalized:
         return "namespace child failed after setup attestation"
     if "probe phase helper-raised-before-return" in normalized:
-        return "namespace helper failed before namespace child launch"
+        if "probe phase namespace-child-forked" in normalized:
+            return "namespace helper failed after namespace child fork before setup wait"
+        if "probe phase namespace-fork-started" in normalized:
+            return "namespace child fork failed"
+        if "probe phase namespace-command-build-started" in normalized:
+            return "namespace command construction failed"
+        if "probe phase setup-pipe-inheritable" in normalized:
+            return "namespace pre-fork setup failed"
+        if "probe phase setup-pipe-created" in normalized:
+            return "namespace setup pipe inheritance failed"
+        if "probe phase trusted-binaries-validated" in normalized:
+            return "namespace setup pipe creation failed"
+        if "probe phase caller-identity-validated" in normalized:
+            return "trusted namespace binary validation failed"
+        return "namespace caller identity validation failed"
     for marker, reason in (
         ("operation not permitted", "unshare operation not permitted"),
         ("permission denied", "namespace operation permission denied"),
@@ -362,7 +376,78 @@ class NamespaceContractTest(unittest.TestCase):
             ("No-CRS namespace blocked: unexpected setup detail", "", 1, "trusted namespace setup blocked"),
             ("lighttpd_no_crs_fixture_namespace: probe phase setup-attested", "", 1, "namespace child failed after setup attestation"),
             ("lighttpd_no_crs_fixture_namespace: probe phase final-state-verified", "", 1, "namespace payload failed after final-state verification"),
-            ("lighttpd_no_crs_fixture_namespace: probe phase helper-raised-before-return", "", 1, "namespace helper failed before namespace child launch"),
+            (
+                "lighttpd_no_crs_fixture_namespace: probe phase helper-raised-before-return",
+                "",
+                1,
+                "namespace caller identity validation failed",
+            ),
+            (
+                "\n".join(
+                    (
+                        "lighttpd_no_crs_fixture_namespace: probe phase caller-identity-validated",
+                        "lighttpd_no_crs_fixture_namespace: probe phase helper-raised-before-return",
+                    )
+                ),
+                "",
+                1,
+                "trusted namespace binary validation failed",
+            ),
+            (
+                "\n".join(
+                    (
+                        "lighttpd_no_crs_fixture_namespace: probe phase trusted-binaries-validated",
+                        "lighttpd_no_crs_fixture_namespace: probe phase helper-raised-before-return",
+                    )
+                ),
+                "",
+                1,
+                "namespace setup pipe creation failed",
+            ),
+            (
+                "\n".join(
+                    (
+                        "lighttpd_no_crs_fixture_namespace: probe phase setup-pipe-created",
+                        "lighttpd_no_crs_fixture_namespace: probe phase helper-raised-before-return",
+                    )
+                ),
+                "",
+                1,
+                "namespace setup pipe inheritance failed",
+            ),
+            (
+                "\n".join(
+                    (
+                        "lighttpd_no_crs_fixture_namespace: probe phase namespace-command-build-started",
+                        "lighttpd_no_crs_fixture_namespace: probe phase helper-raised-before-return",
+                    )
+                ),
+                "",
+                1,
+                "namespace command construction failed",
+            ),
+            (
+                "\n".join(
+                    (
+                        "lighttpd_no_crs_fixture_namespace: probe phase namespace-fork-started",
+                        "lighttpd_no_crs_fixture_namespace: probe phase helper-raised-before-return",
+                    )
+                ),
+                "",
+                1,
+                "namespace child fork failed",
+            ),
+            (
+                "\n".join(
+                    (
+                        "lighttpd_no_crs_fixture_namespace: probe phase namespace-child-forked",
+                        "lighttpd_no_crs_fixture_namespace: probe phase helper-raised-before-return",
+                    )
+                ),
+                "",
+                1,
+                "namespace helper failed after namespace child fork before setup wait",
+            ),
             (
                 "\n".join(
                     (
@@ -432,6 +517,14 @@ class NamespaceContractTest(unittest.TestCase):
                     "runner-start",
                     "helper-raised-before-return",
                     "helper-returned",
+                    "caller-identity-validated",
+                    "trusted-binaries-validated",
+                    "setup-pipe-created",
+                    "setup-pipe-inheritable",
+                    "namespace-command-build-started",
+                    "namespace-command-built",
+                    "namespace-fork-started",
+                    "namespace-child-forked",
                     "setup-wait-started",
                     "setup-attestation-failed",
                     "setup-attested",
@@ -443,6 +536,8 @@ class NamespaceContractTest(unittest.TestCase):
         self.assertIn('helper._emit_probe_phase(True, "runner-start")', source)
         self.assertIn('helper._emit_probe_phase(True, "helper-raised-before-return")', source)
         self.assertIn('helper._emit_probe_phase(True, "helper-returned")', source)
+        self.assertIn('"namespace-command-build-started"', HELPER_PATH.read_text(encoding="utf-8"))
+        self.assertIn('"namespace-child-forked"', HELPER_PATH.read_text(encoding="utf-8"))
         with self.assertRaises(HELPER.NamespaceUnavailable):
             HELPER._emit_probe_phase(True, "untrusted diagnostic content")
 
