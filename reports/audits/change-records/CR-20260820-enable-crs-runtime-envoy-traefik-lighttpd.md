@@ -9,14 +9,14 @@
 | Change ID | `CR-20260820-enable-crs-runtime-envoy-traefik-lighttpd` |
 | Date (UTC) | 2026-08-20 |
 | Base revision | `b42907ca410da69843c80d0c4376193b6ab3801b` |
-| Observed current `origin/master` | `4e8560fdc8a2b737fca598522f8748a4d73857be` |
+| Observed current `origin/master` | `86f5b30c931c2b5efe0ff4ded27f2443c2b271ba` |
 | Parent → Framework pin | `c40e924ec5c341032908e0082feba1d37ed1dfda` |
 | Framework → MRTS pin | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Delivery status | Draft [PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) exists for `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820`. The branch was normally synchronized with current `origin/master` through merge commit `0ae1ce0590f18b20a39903f2ce877d0280a6e5bd`. At pre-remediation head `fe74cb02876e9de16eaafc7b590f36b46348044a`, SonarQube Cloud still identified one new code smell and 18 duplicated New-Code lines; the exact successor analysis remains pending. The master-derived Framework pin remains read-only and resolves to the recorded MRTS pin. No merge or auto-merge is authorized. |
+| Delivery status | Draft [PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) exists for `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820`. The branch contains normal merge commit `4ba2f472ccfe236ab33b6af80ec06c341fc3ca4f` of current `origin/master`; it is now being updated with the unprivileged normal-CI contract and must still obtain trusted exact-head namespace evidence. The master-derived Framework pin remains read-only and resolves to the recorded MRTS pin. No merge or auto-merge is authorized. |
 
 The task worktree was created from the recorded task base and later normally
 merged with separately recorded current `origin/master` revisions, most
-recently `4e8560fdc8a2b737fca598522f8748a4d73857be`. Earlier hosted results
+recently `86f5b30c931c2b5efe0ff4ded27f2443c2b271ba`. Earlier hosted results
 remain historical only; all required revalidation remains delivery-gated.
 
 ## Motivation and problem statement
@@ -181,6 +181,42 @@ toolchain and a private task cache; Python compilation and `git diff --check`
 passed. The exact successor PR-head SonarQube Cloud issue and duplication
 readback remains the final acceptance evidence; no zero result is claimed here
 before that analysis completes.
+
+## Follow-up from 2026-08-23: trusted GitHub-hosted namespace evidence
+
+The prior hosted-runner limitation was specific to the ordinary
+PR-controlled workflow: it deliberately has no privileged AppArmor,
+Bubblewrap, or dedicated-user bootstrap and therefore cannot itself prove the
+real kernel namespace lifecycle. It is superseded for this task by protected
+`master` commit `86f5b30c931c2b5efe0ff4ded27f2443c2b271ba`, which carries the
+separately reviewed manual trusted dispatcher.
+
+The ordinary `test-lighttpd.yml` job now creates a runner-owned private
+temporary parent, runs the namespace module as unprivileged contract coverage,
+and deliberately leaves `LIGHTTPD_REQUIRE_NAMESPACE_INTEGRATION` unset. Its
+capability-dependent integration tests may report `skipped`; neither a skip
+nor a green ordinary job is namespace-runtime evidence. It contains no
+`sudo`, `unshare`, privileged container, privileged token, or fallback cleanup
+path.
+
+The only runtime proof path is the protected-master,
+maintainer-invoked `workflow_dispatch` dispatcher. Before any checkout it uses
+fixed root-owned system binaries to establish the narrowly scoped AppArmor
+user-namespace prerequisite and proves the named profile through `aa-exec` and
+`/proc/self/attr/current`. It then API-binds an open canonical PR and exact
+SHA, checks out without credentials or hooks, removes `.git`, and starts
+PR code only as `ns-test` with empty supplemental groups and capability sets,
+`NoNewPrivs`, a cleared environment, no Docker-socket access, and private
+user/mount/PID namespaces. A separate no-checkout reporter can publish only
+the fixed `trusted-lighttpd-namespace` status for that API-bound SHA.
+
+At this record update PR #309 remains Draft. The active repository ruleset
+does not yet require that status context, so the retained Draft state is the
+documented manual merge barrier rather than an automatic branch-rule claim.
+Before PR #309 can become Ready for Review or merge, a maintainer must run the
+trusted dispatcher from `master` against its final exact head and retain a
+successful `trusted-lighttpd-namespace` result. This PR does not change
+repository settings.
 
 ## Security impact
 

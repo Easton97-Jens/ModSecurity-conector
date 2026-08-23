@@ -1581,8 +1581,8 @@ jobs:
             for checkout_step in checkout_steps:
                 self.assertIn("persist-credentials: false", checkout_step, path.name)
 
-    def test_lighttpd_namespace_integration_is_required_on_pull_requests(self) -> None:
-        """A skipped user-namespace probe is not security evidence in CI."""
+    def test_lighttpd_namespace_contract_is_unprivileged_on_pull_requests(self) -> None:
+        """Ordinary CI covers contracts; trusted dispatch covers kernel integration."""
 
         workflow = self.workflow("test-lighttpd.yml")
         jobs = self.jobs("test-lighttpd.yml")
@@ -1595,11 +1595,20 @@ jobs:
         )
         self.assertIn("persist-credentials: false", job)
         self.assertIn(
-            "Run fail-closed private fixture namespace lifecycle tests", job
+            "Run private fixture namespace contract tests", job
         )
-        self.assertIn('LIGHTTPD_REQUIRE_NAMESPACE_INTEGRATION: "1"', job)
+        self.assertNotIn("LIGHTTPD_REQUIRE_NAMESPACE_INTEGRATION", job)
         self.assertIn('PYTHONDONTWRITEBYTECODE: "1"', job)
         self.assertIn("set -euo pipefail", job)
+        self.assertIn(
+            'namespace_temp_root="$(/usr/bin/mktemp -d "${RUNNER_TEMP}/lighttpd-namespace-contract.XXXXXX")"',
+            job,
+        )
+        self.assertIn('/usr/bin/chmod 700 -- "$namespace_temp_root"', job)
+        self.assertIn(
+            'export LIGHTTPD_NAMESPACE_TEST_TEMP_PARENT="$namespace_temp_root"',
+            job,
+        )
         self.assertIn(
             "python3 -m unittest -v connectors.lighttpd.tests.test_no_crs_fixture_namespace",
             job,

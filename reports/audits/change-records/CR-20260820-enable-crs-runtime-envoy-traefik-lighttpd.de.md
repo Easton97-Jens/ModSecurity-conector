@@ -9,15 +9,15 @@
 | Change-ID | `CR-20260820-enable-crs-runtime-envoy-traefik-lighttpd` |
 | Datum (UTC) | 2026-08-20 |
 | Basis-Revision | `b42907ca410da69843c80d0c4376193b6ab3801b` |
-| Beobachteter aktueller `origin/master` | `4e8560fdc8a2b737fca598522f8748a4d73857be` |
+| Beobachteter aktueller `origin/master` | `86f5b30c931c2b5efe0ff4ded27f2443c2b271ba` |
 | Parent → Framework Pin | `c40e924ec5c341032908e0082feba1d37ed1dfda` |
 | Framework → MRTS Pin | `615b13bacbd008562c17408246c41ab27dca3104` |
-| Delivery-Status | Draft-[PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) für `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820` vorhanden. Der Branch wurde per normalem Merge-Commit `0ae1ce0590f18b20a39903f2ce877d0280a6e5bd` mit aktuellem `origin/master` synchronisiert. Am Pre-Remediation-Head `fe74cb02876e9de16eaafc7b590f36b46348044a` identifizierte SonarQube Cloud noch einen neuen Code-Smell und 18 duplizierte New-Code-Zeilen; die Exact-Successor-Analyse steht aus. Der master-abgeleitete Framework-Pin bleibt read-only und löst auf den aufgezeichneten MRTS-Pin auf. Kein Merge und kein Auto-Merge sind autorisiert. |
+| Delivery-Status | Draft-[PR #309](https://github.com/Easton97-Jens/ModSecurity-conector/pull/309) für `agent/crs-runtime-envoy-traefik-lighttpd-master-20260820` vorhanden. Der Branch enthält den normalen Merge-Commit `4ba2f472ccfe236ab33b6af80ec06c341fc3ca4f` des aktuellen `origin/master`; er wird jetzt mit dem unprivilegierten Normal-CI-Vertrag aktualisiert und benötigt weiterhin vertrauenswürdige Exact-Head-Namespace-Evidence. Der master-abgeleitete Framework-Pin bleibt read-only und löst auf den aufgezeichneten MRTS-Pin auf. Kein Merge und kein Auto-Merge sind autorisiert. |
 
 Der Task-Worktree wurde von der aufgezeichneten Task-Basis erstellt und später
 per normalem Merge mit separat aufgezeichneten aktuellen `origin/master`-
 Revisionen synchronisiert, zuletzt mit
-`4e8560fdc8a2b737fca598522f8748a4d73857be`. Frühere Hosted-Ergebnisse bleiben
+`86f5b30c931c2b5efe0ff4ded27f2443c2b271ba`. Frühere Hosted-Ergebnisse bleiben
 ausschließlich historisch; alle erforderlichen Revalidierungen bleiben
 Delivery-gesteuert.
 
@@ -198,6 +198,47 @@ Kompilierung und `git diff --check` bestanden. Der exakte Successor-PR-Head-
 Readback der SonarQube-Cloud-Issues und Duplikation bleibt die finale
 Akzeptanz-Evidence; bevor diese Analyse beendet ist, wird hier kein
 Null-Ergebnis behauptet.
+
+## Follow-up vom 2026-08-23: vertrauenswürdige GitHub-hosted Namespace-Evidence
+
+Die frühere Hosted-Runner-Grenze galt spezifisch für den gewöhnlichen,
+PR-kontrollierten Workflow: Er enthält bewusst keinen privilegierten
+AppArmor-, Bubblewrap- oder dedizierten Benutzer-Bootstrap und kann den realen
+Kernel-Namespace-Lifecycle daher nicht selbst belegen. Für diesen Task wird
+sie durch den separat geprüften manuellen Trusted-Dispatcher auf dem
+geschützten `master`-Commit `86f5b30c931c2b5efe0ff4ded27f2443c2b271ba`
+abgelöst.
+
+Der gewöhnliche Job `test-lighttpd.yml` erzeugt nun einen runner-eigenen
+privaten temporären Parent, führt das Namespace-Modul als unprivilegierte
+Contract-Abdeckung aus und lässt
+`LIGHTTPD_REQUIRE_NAMESPACE_INTEGRATION` bewusst unset. Seine
+capability-abhängigen Integrationstests dürfen `skipped` melden; weder ein
+Skip noch ein grüner gewöhnlicher Job ist Namespace-Runtime-Evidence. Er
+enthält kein `sudo`, kein `unshare`, keinen privilegierten Container, kein
+privilegiertes Token und keinen Fallback-Cleanup-Pfad.
+
+Der einzige Runtime-Evidence-Pfad ist der geschützte, von einem Maintainer
+ausgelöste `workflow_dispatch`-Dispatcher auf `master`. Vor jedem Checkout
+richtet er mit festen root-eigenen System-Binaries die eng begrenzte
+AppArmor-User-Namespace-Voraussetzung ein und belegt das benannte Profil über
+`aa-exec` und `/proc/self/attr/current`. Danach bindet er einen offenen
+kanonischen PR und dessen exakten SHA per API, checkt ohne Credentials oder
+Hooks aus, entfernt `.git` und startet PR-Code ausschließlich als `ns-test`
+mit leeren Zusatzgruppen und Capability-Sets, `NoNewPrivs`, bereinigter
+Umgebung, ohne Docker-Socket-Zugriff und in privaten User-/Mount-/PID-
+Namespaces. Ein separater Reporter ohne Checkout darf ausschließlich den
+festen Status `trusted-lighttpd-namespace` für diesen API-gebundenen SHA
+publizieren.
+
+Bei diesem Record-Update bleibt PR #309 Draft. Das aktive Repository-Ruleset
+verlangt diesen Statuskontext noch nicht; daher ist der beibehaltene
+Draft-Status die dokumentierte manuelle Merge-Sperre und keine Behauptung
+automatischer Branch-Regel-Erzwingung. Bevor PR #309 Ready for Review werden
+oder gemergt werden kann, muss ein Maintainer den Trusted-Dispatcher von
+`master` gegen seinen finalen exakten Head ausführen und ein erfolgreiches
+`trusted-lighttpd-namespace`-Ergebnis aufbewahren. Dieser PR ändert keine
+Repository-Einstellungen.
 
 ## Security-Auswirkung
 

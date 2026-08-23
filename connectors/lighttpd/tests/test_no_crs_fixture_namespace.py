@@ -179,9 +179,11 @@ def _run_runner(
     )
 
 
-def _user_namespace_available() -> bool:
+def _namespace_probe_result() -> tuple[bool, str]:
+    """Probe the real launch path without exposing arbitrary helper output."""
+
     if os.name != "posix" or sys.platform != "linux":
-        return False
+        return False, "Linux user/mount/PID namespaces are required"
     # This uses the actual launch sequence as the capability/kernel probe.
     # It intentionally runs from an unprivileged host identity; the new
     # launcher must reject host root rather than borrowing its capabilities.
@@ -193,8 +195,26 @@ def _user_namespace_available() -> bool:
         # Some nested containers map only host UID 0 and consequently cannot
         # create a non-root subprocess at all.  That is not a reason to run
         # this security boundary as root; leave the real test gated there.
-        return False
-    return probe.returncode == 0
+        return False, "namespace probe could not start"
+    if probe.returncode == 0:
+        return True, "namespace probe succeeded"
+
+    # The helper's stderr may contain path, environment, or other runtime
+    # details. Keep failure evidence useful without relaying unbounded output.
+    probe_stderr = str(probe.stderr or "").lower()
+    if "operation not permitted" in probe_stderr:
+        return False, "unshare operation not permitted"
+    if "no such file or directory" in probe_stderr:
+        return False, "required namespace binary unavailable"
+    if probe.returncode < 0:
+        return False, "namespace probe terminated by signal"
+    return False, "namespace probe exited with nonzero status"
+
+
+def _user_namespace_available() -> bool:
+    """Return only the availability bit for unittest's capability gate."""
+
+    return _namespace_probe_result()[0]
 
 
 def _namespace_integration_is_required() -> bool:
@@ -244,10 +264,27 @@ class NamespaceContractTest(unittest.TestCase):
         """A CI caller selecting this gate cannot treat skipped integration as proof."""
 
         if _namespace_integration_is_required():
+            available, reason = _namespace_probe_result()
             self.assertTrue(
-                _user_namespace_available(),
-                "required unprivileged user/mount/PID namespace integration is unavailable",
+                available,
+                "required unprivileged user/mount/PID namespace integration is unavailable: "
+                f"{reason}",
             )
+
+    def test_namespace_probe_diagnostic_is_bounded(self) -> None:
+        """A forced gate explains capability failure without echoing helper output."""
+
+        completed = subprocess.CompletedProcess(
+            args=[PYTHON, "-c", "pass"],
+            returncode=1,
+            stdout="",
+            stderr="unshare: Operation not permitted; sensitive fixture path",
+        )
+        with mock.patch(__name__ + "._run_runner", return_value=completed):
+            available, reason = _namespace_probe_result()
+        self.assertFalse(available)
+        self.assertEqual(reason, "unshare operation not permitted")
+        self.assertNotIn("sensitive", reason)
 
     def test_trusted_namespace_boundary_and_no_unsafe_rmdir_path_exist(self) -> None:
         source = HELPER_PATH.read_text(encoding="utf-8")
