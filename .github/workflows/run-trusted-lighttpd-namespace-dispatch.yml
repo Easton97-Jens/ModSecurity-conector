@@ -361,7 +361,7 @@ jobs:
                   /usr/bin/setpriv \
                     --reuid="$NS_TEST_UID" \
                     --regid="$NS_TEST_GID" \
-                    --clear-groups \
+                    --keep-groups \
                     --no-new-privs \
                     --inh-caps=-all \
                     --ambient-caps=-all \

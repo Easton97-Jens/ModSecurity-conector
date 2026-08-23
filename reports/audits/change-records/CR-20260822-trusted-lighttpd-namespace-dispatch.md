@@ -237,9 +237,11 @@ therefore could not make the source runner's all-five-mask precondition true.
 The repair confirms `unshare` supports `--keep-caps` during trusted bootstrap
 and uses that option exactly once on the inner same-identity `unshare`. It
 immediately invokes the fixed, root-owned `/usr/bin/setpriv` system binary,
-which repeats `--reuid`, `--regid`, `--clear-groups`, `--no-new-privs`,
-`--inh-caps=-all`, `--ambient-caps=-all`, and `--bounding-set=-all` before the
-final non-root `dash` exec. The source runner retains its independent
+which repeats `--reuid`, `--regid`, `--no-new-privs`, `--inh-caps=-all`,
+`--ambient-caps=-all`, and `--bounding-set=-all` before the final non-root
+`dash` exec. The outer trusted drop clears supplementary groups before this
+mapping; the inner finalizer deliberately preserves only that already-checked
+single primary group without issuing a later `setgroups(2)`. The source runner retains its independent
 `CapInh`, `CapPrm`, `CapEff`, `CapBnd`, and `CapAmb` zero checks before it may
 perform any Git, filesystem, or Python operation. Thus `--keep-caps` is not a
 capability grant to PR code; it is only the minimal trusted transition required
@@ -258,6 +260,31 @@ authoritative confirmation of this repair.
 - `rtk test /var/tmp/codex/ModSecurity-conector/ci-security-venv/bin/python -m unittest -v tests.test_ci_security_workflows` — passed (`28` tests).
 - `rtk test /var/tmp/codex/ModSecurity-conector/ci-security-venv/bin/python -m unittest -v connectors.lighttpd.tests.test_no_crs_fixture_namespace` in the exact local PR #309 head worktree `316a5de1ac5e663fce3cce58428f1e1dd306e573` — passed (`18` tests; `10` expected skips outside the trusted integration gate).
 - Python `compileall`, `actionlint` with ShellCheck, offline `zizmor`, and `git diff --check` — passed.
+
+## 2026-08-23 user-namespace setgroups finalizer repair
+
+Protected-master dispatch `32622549590` reached the trusted bootstrap and the
+exact anonymous binding of PR #309 head
+`a599ccb2fe3256500e59aef3d0f7d578a079cd7a`, then failed closed before source
+materialization with `setpriv: setgroups failed: Operation not permitted`.
+`unshare --map-current-user` necessarily implies `--setgroups=deny`, so the
+inner CapBnd finalizer cannot safely use `--clear-groups` after that mapping.
+
+The outer trusted finalizer already performs `--clear-groups` while it may do
+so, and the freshly created `ns-test` account is independently required to have
+only its primary group. The inner finalizer now uses `--keep-groups` solely to
+retain that already-cleared state while it repeats identity, `NoNewPrivs`, and
+the inheritable, ambient, and bounding capability drops. The final source
+runner independently requires its real/effective UID and GID and its complete
+group list to equal the `ns-test` IDs before any Git, filesystem, or Python
+operation. This avoids a denied `setgroups(2)` call without adding a group,
+capability, source path, or fallback.
+
+The static contract permits exactly two outer `--clear-groups` drops and exactly
+one inner `--keep-groups` occurrence inside the fixed finalizer sequence. Its
+mutations reject a restored inner clear operation or any attempt to set another
+group. The next protected Ubuntu-24.04 exact-head dispatch remains the
+authoritative runtime proof.
 
 ### Local validation
 

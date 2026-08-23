@@ -383,6 +383,7 @@ def trusted_dispatch_errors(text: str) -> list[str]:
             "BLOCKED: runtime.$1",
             "NoNewPrivs",
             "CapInh CapPrm CapEff CapBnd CapAmb",
+            'test "$current_groups" = "$NS_TEST_GID" || fail_runtime supplemental_groups',
             'test "$(/usr/bin/readlink /proc/self/ns/user)" != "$HOST_USER_NAMESPACE"',
             'test "$(/usr/bin/readlink /proc/self/ns/mnt)" != "$HOST_MOUNT_NAMESPACE"',
             'test "$(/usr/bin/readlink /proc/self/ns/pid)" != "$HOST_PID_NAMESPACE"',
@@ -520,8 +521,10 @@ def trusted_dispatch_errors(text: str) -> list[str]:
             "uid=$NS_TEST_UID,gid=$NS_TEST_GID,mode=0700,nosuid,nodev,noexec,size=256m",
             "uid=$NS_TEST_UID,gid=$NS_TEST_GID,mode=0700,nosuid,nodev,noexec,size=128m",
             "exec /usr/bin/setpriv",
+            "--clear-groups",
             "-- /usr/bin/env -i",
             "/usr/bin/unshare --user --map-current-user --map-group=\"$NS_TEST_GID\" --keep-caps --mount --pid --fork",
+            "--keep-groups",
             f"/usr/bin/dash -eu {SOURCE_TEST_RUNNER}",
         ),
     )
@@ -566,7 +569,7 @@ def trusted_dispatch_errors(text: str) -> list[str]:
         r'/usr/bin/setpriv[ \t]*\\[ \t]*\n[ \t]*'
         r'--reuid="\$NS_TEST_UID"[ \t]*\\[ \t]*\n[ \t]*'
         r'--regid="\$NS_TEST_GID"[ \t]*\\[ \t]*\n[ \t]*'
-        r'--clear-groups[ \t]*\\[ \t]*\n[ \t]*'
+        r'--keep-groups[ \t]*\\[ \t]*\n[ \t]*'
         r'--no-new-privs[ \t]*\\[ \t]*\n[ \t]*'
         r'--inh-caps=-all[ \t]*\\[ \t]*\n[ \t]*'
         r'--ambient-caps=-all[ \t]*\\[ \t]*\n[ \t]*'
@@ -595,8 +598,17 @@ def trusted_dispatch_errors(text: str) -> list[str]:
         errors.append("every namespace probe and private mount must reject shared propagation")
     if len(re.findall(r"(?<![A-Za-z0-9-])--no-new-privs(?![A-Za-z0-9-])", text)) != 3:
         errors.append("every non-root privilege drop, including the user-namespace finalizer, must set no_new_privs")
-    if text.count("--clear-groups") != 3:
-        errors.append("every non-root privilege drop, including the user-namespace finalizer, must clear supplemental groups")
+    if text.count("--clear-groups") != 2:
+        errors.append("both pre-user-namespace privilege drops must clear supplemental groups")
+    if source_namespace_runner.count("--keep-groups") != 1 or text.count("--keep-groups") != 1:
+        errors.append("the user-namespace finalizer must preserve only the already-cleared group state")
+    inner_finalizer_start = source_namespace_runner.find(
+        '/usr/bin/unshare --user --map-current-user --map-group="$NS_TEST_GID" --keep-caps'
+    )
+    if inner_finalizer_start < 0 or "--clear-groups" in source_namespace_runner[inner_finalizer_start:]:
+        errors.append("the mapped user-namespace finalizer must not call denied setgroups")
+    if "--groups=" in source_namespace_runner or "--init-groups" in source_namespace_runner:
+        errors.append("the source namespace must not initialize or add supplementary groups")
     for capability_drop in ("--inh-caps=-all", "--ambient-caps=-all", "--bounding-set=-all"):
         if text.count(capability_drop) != 3:
             errors.append(f"every non-root privilege drop, including the user-namespace finalizer, must retain {capability_drop}")
@@ -773,6 +785,14 @@ class TrustedLighttpdNamespaceDispatchWorkflowTest(unittest.TestCase):
             ),
             "public runtime parent": (RUNTIME_ROOT, "/var/tmp/trusted-lighttpd-namespace"),
             "lost privilege drop": ("--no-new-privs", "--drop-no-new-privileges"),
+            "outer source namespace group clear removed": (
+                "exec /usr/bin/setpriv \\\n              --reuid=\"$NS_TEST_UID\" \\\n              --regid=\"$NS_TEST_GID\" \\\n              --clear-groups",
+                "exec /usr/bin/setpriv \\\n              --reuid=\"$NS_TEST_UID\" \\\n              --regid=\"$NS_TEST_GID\" \\\n              --keep-groups",
+            ),
+            "source-runner group attestation removed": (
+                'test "$current_groups" = "$NS_TEST_GID" || fail_runtime supplemental_groups',
+                "true # source-runner group attestation removed",
+            ),
             "root PR-source command": (
                 f"SOURCE_ROOT={SOURCE_ROOT}",
                 "SOURCE_ROOT=/tmp/unsafe\n          /usr/bin/sudo -n /usr/bin/rm -rf -- \"$SOURCE_ROOT\"",
@@ -822,9 +842,13 @@ class TrustedLighttpdNamespaceDispatchWorkflowTest(unittest.TestCase):
         finalizer_mutations = {
             "source namespace capability retention removed": ("--keep-caps --mount", "--mount"),
             "source namespace capability finalizer bypassed": ("/usr/bin/setpriv", "/usr/bin/dash"),
-            "source namespace finalizer retains supplemental groups": (
+            "source namespace finalizer forces denied setgroups": (
+                "--keep-groups",
                 "--clear-groups",
-                "--supplementary-groups=ns-test",
+            ),
+            "source namespace finalizer changes the already-cleared group state": (
+                "--keep-groups",
+                "--groups=0",
             ),
             "source namespace finalizer loses no_new_privs": ("--no-new-privs", "--no-new-privileges"),
             "source namespace finalizer retains inheritable capabilities": ("--inh-caps=-all", "--inh-caps=+all"),
