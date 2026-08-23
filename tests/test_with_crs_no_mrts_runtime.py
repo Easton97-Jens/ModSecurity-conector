@@ -106,6 +106,33 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
         self.assertIn("`FAIL — runtime assertions did not complete`", summary)
         self.assertNotIn("skipped_by_security_policy", summary)
 
+    def test_workflow_summary_excludes_intentionally_skipped_crs_preparation(self) -> None:
+        for connector in ("envoy", "traefik", "lighttpd"):
+            with self.subTest(connector=connector):
+                summary = SUMMARY.render_summary(
+                    connector, self.workflow_outcomes(prepare_crs="skipped")
+                )
+                self.assertIn("| Stages passed | `9` |", summary)
+                self.assertIn("| Stages skipped | `0` |", summary)
+                self.assertIn("| First non-passing stage | `none` |", summary)
+                self.assertIn(
+                    "| Workflow CRS source preparation | `not_applicable` |", summary
+                )
+                self.assertIn("it is excluded from pass/fail metrics", summary)
+
+    def test_workflow_summary_keeps_real_target_failure_visible(self) -> None:
+        for connector in ("envoy", "traefik", "lighttpd"):
+            with self.subTest(connector=connector):
+                summary = SUMMARY.render_summary(
+                    connector,
+                    self.workflow_outcomes(prepare_crs="skipped", runtime="failure"),
+                )
+                self.assertIn("| Stages passed | `8` |", summary)
+                self.assertIn("| Stages failed | `1` |", summary)
+                self.assertIn("| First non-passing stage | `Real connector runtime target` |", summary)
+                self.assertIn("| Real connector runtime target | `failure` |", summary)
+                self.assertIn("`FAIL — runtime assertions did not complete`", summary)
+
     def test_workflow_summary_rejects_missing_outcome(self) -> None:
         environment = {
             environment_name: "success" for _stage, _label, environment_name in SUMMARY.STAGES
