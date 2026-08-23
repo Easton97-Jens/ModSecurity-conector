@@ -56,6 +56,12 @@ verwenden jeweils ihren eigenen literalen versiegelten Target-Aufruf. NGINX
 ist nicht enthalten. Kein von der Matrix bereitgestelltes Komponenten-Target
 oder Kommando erreicht `make`, eine Shell, einen Pfad oder einen Runner.
 
+Alle joblokalen Pfade werden aus denselben expliziten Runner-, Run-, Attempt-
+und Connector-Koordinaten statt aus einer gleichrangigen Workflow-
+Umgebungsvariable expandiert. Der Traefik-MRTS-Host bindet seine native
+Middleware an `X-MRTS-Transaction-ID`; der normale Hostpfad behält
+`X-Request-Id`.
+
 Jeder Job schreibt nach dem Evidence-Upload eine sichere GitHub Step Summary
 mit festen Stage-Outcomes, Zählungen, der ersten nicht bestandenen Stufe und
 einem `PASS`/`FAIL`/`MISSING`/`CANCELLED`-Runtime-Bundle-Status. Sie liest keine

@@ -551,6 +551,21 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
                 f"engineSocketPath: {json.dumps(str(unusual_socket))}",
                 dynamic_config.read_text(encoding="utf-8"),
             )
+            self.assertIn(
+                "transactionIDHeader: X-Request-Id",
+                dynamic_config.read_text(encoding="utf-8"),
+            )
+
+            runner.write_dynamic_config(
+                dynamic_config,
+                18080,
+                unusual_socket,
+                mrts_runtime=True,
+            )
+            self.assertIn(
+                "transactionIDHeader: X-MRTS-Transaction-ID",
+                dynamic_config.read_text(encoding="utf-8"),
+            )
 
     @mock.patch.object(runner, "ENGINE_SOCKET_PATH_MAX_BYTES", 1000)
     def test_engine_socket_child_is_private_short_and_cleanup_keeps_parent(self) -> None:

@@ -904,7 +904,14 @@ def write_static_config(path: Path, dynamic_path: Path, port: int, module_name: 
     )
 
 
-def write_dynamic_config(path: Path, upstream_port: int, engine_socket: Path) -> None:
+def write_dynamic_config(
+    path: Path, upstream_port: int, engine_socket: Path, *, mrts_runtime: bool = False
+) -> None:
+    """Write the closed native middleware configuration for one runtime mode."""
+
+    transaction_id_header = (
+        "X-MRTS-Transaction-ID" if mrts_runtime else "X-Request-Id"
+    )
     path.write_text(
         "\n".join(
             (
@@ -923,7 +930,7 @@ def write_dynamic_config(path: Path, upstream_port: int, engine_socket: Path) ->
                 "          maxHeaderBytes: 65536",
                 "          maxRequestChunkBytes: 32768",
                 "          maxResponseChunkBytes: 32768",
-                "          transactionIDHeader: X-Request-Id",
+                f"          transactionIDHeader: {transaction_id_header}",
                 "          engineMode: uds",
                 f"          engineSocketPath: {json.dumps(str(engine_socket))}",
                 "  services:",
@@ -1853,7 +1860,12 @@ def start_native_runtime_setup(
         upstream_port = free_port()
         traefik_port = free_port()
         write_static_config(artifacts.static_config, artifacts.dynamic_config, traefik_port, inputs.module_name)
-        write_dynamic_config(artifacts.dynamic_config, upstream_port, engine_socket)
+        write_dynamic_config(
+            artifacts.dynamic_config,
+            upstream_port,
+            engine_socket,
+            mrts_runtime=inputs.mrts_runtime,
+        )
         write_engine_config(
             artifacts.engine_config,
             inputs.rules_file,

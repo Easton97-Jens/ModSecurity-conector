@@ -93,11 +93,11 @@ jobs:
           RUNTIME_ROOT: ${{ runner.temp }}/ModSecurity-conector-no-crs-with-mrts/${{ github.run_id }}-${{ github.run_attempt }}/${{ matrix.connector }}
           FRAMEWORK_ROOT: ${{ github.workspace }}/modules/ModSecurity-test-Framework
           CONNECTOR_ROOT: ${{ github.workspace }}
-          BUILD_ROOT: ${{ env.RUNTIME_ROOT }}/build
-          SOURCE_ROOT: ${{ env.RUNTIME_ROOT }}/src
-          TMP_ROOT: ${{ env.RUNTIME_ROOT }}/tmp
-          LOG_ROOT: ${{ env.RUNTIME_ROOT }}/logs
-          VERIFIED_RUN_ROOT: ${{ env.RUNTIME_ROOT }}
+          BUILD_ROOT: ${{ runner.temp }}/ModSecurity-conector-no-crs-with-mrts/${{ github.run_id }}-${{ github.run_attempt }}/${{ matrix.connector }}/build
+          SOURCE_ROOT: ${{ runner.temp }}/ModSecurity-conector-no-crs-with-mrts/${{ github.run_id }}-${{ github.run_attempt }}/${{ matrix.connector }}/src
+          TMP_ROOT: ${{ runner.temp }}/ModSecurity-conector-no-crs-with-mrts/${{ github.run_id }}-${{ github.run_attempt }}/${{ matrix.connector }}/tmp
+          LOG_ROOT: ${{ runner.temp }}/ModSecurity-conector-no-crs-with-mrts/${{ github.run_id }}-${{ github.run_attempt }}/${{ matrix.connector }}/logs
+          VERIFIED_RUN_ROOT: ${{ runner.temp }}/ModSecurity-conector-no-crs-with-mrts/${{ github.run_id }}-${{ github.run_attempt }}/${{ matrix.connector }}
         run: |
           set -euo pipefail
           umask 077
@@ -118,11 +118,11 @@ jobs:
           RUNTIME_ROOT: ${{ runner.temp }}/ModSecurity-conector-no-crs-with-mrts/${{ github.run_id }}-${{ github.run_attempt }}/${{ matrix.connector }}
           FRAMEWORK_ROOT: ${{ github.workspace }}/modules/ModSecurity-test-Framework
           CONNECTOR_ROOT: ${{ github.workspace }}
-          BUILD_ROOT: ${{ env.RUNTIME_ROOT }}/build
-          SOURCE_ROOT: ${{ env.RUNTIME_ROOT }}/src
-          TMP_ROOT: ${{ env.RUNTIME_ROOT }}/tmp
-          LOG_ROOT: ${{ env.RUNTIME_ROOT }}/logs
-          VERIFIED_RUN_ROOT: ${{ env.RUNTIME_ROOT }}
+          BUILD_ROOT: ${{ runner.temp }}/ModSecurity-conector-no-crs-with-mrts/${{ github.run_id }}-${{ github.run_attempt }}/${{ matrix.connector }}/build
+          SOURCE_ROOT: ${{ runner.temp }}/ModSecurity-conector-no-crs-with-mrts/${{ github.run_id }}-${{ github.run_attempt }}/${{ matrix.connector }}/src
+          TMP_ROOT: ${{ runner.temp }}/ModSecurity-conector-no-crs-with-mrts/${{ github.run_id }}-${{ github.run_attempt }}/${{ matrix.connector }}/tmp
+          LOG_ROOT: ${{ runner.temp }}/ModSecurity-conector-no-crs-with-mrts/${{ github.run_id }}-${{ github.run_attempt }}/${{ matrix.connector }}/logs
+          VERIFIED_RUN_ROOT: ${{ runner.temp }}/ModSecurity-conector-no-crs-with-mrts/${{ github.run_id }}-${{ github.run_attempt }}/${{ matrix.connector }}
         run: |
           set -euo pipefail
           case "$CONNECTOR" in

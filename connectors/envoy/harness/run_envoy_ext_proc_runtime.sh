@@ -16,6 +16,7 @@ REPO_ROOT=$(
     export CDPATH
     cd "$CONNECTOR_DIR/../.." && pwd
 )
+CONNECTOR_ROOT=${CONNECTOR_ROOT:-$REPO_ROOT}
 BUILD_ROOT=${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecurity-conector-build}
 EXT_PROC_BIN=${EXT_PROC_BIN:-$BUILD_ROOT/envoy-ext-proc/msconnector_envoy_ext_proc}
 EXT_PROC_CONFIG=${EXT_PROC_CONFIG:-$CONNECTOR_DIR/config/envoy-ext-proc-service.json}

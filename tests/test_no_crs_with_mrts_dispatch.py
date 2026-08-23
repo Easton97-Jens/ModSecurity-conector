@@ -61,6 +61,14 @@ class NoCrsWithMrtsDispatchContractTests(unittest.TestCase):
             self.assertIn("--plan-sha256", source)
             self.assertNotIn("grep -Eiq 'crs", source)
 
+    def test_envoy_standalone_mrts_runner_defaults_connector_root_to_its_repository(self) -> None:
+        source = ENVOY.read_text(encoding="utf-8")
+        self.assertIn("CONNECTOR_ROOT=${CONNECTOR_ROOT:-$REPO_ROOT}", source)
+        self.assertLess(
+            source.index("CONNECTOR_ROOT=${CONNECTOR_ROOT:-$REPO_ROOT}"),
+            source.index("sealed_plan_validator=$CONNECTOR_ROOT/"),
+        )
+
     def test_parent_held_plan_digest_is_required_and_survives_each_shell_boundary(self) -> None:
         stage_source = STAGE.read_text(encoding="utf-8")
         runner_source = RUNNER.read_text(encoding="utf-8")

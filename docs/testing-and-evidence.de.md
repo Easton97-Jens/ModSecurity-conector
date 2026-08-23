@@ -77,6 +77,14 @@ versiegelten MRTS-Target-Runners. Ein Job bereitet oder führt damit keinen
 Runtimepfad eines anderen Connectors aus; NGINX ist nicht Teil dieses
 Workflows.
 
+Jeder Job leitet jeden Build-, Source-, temporären, Log- und Verified-Run-Pfad
+aus denselben expliziten Runner-, Run-, Attempt- und Connector-Koordinaten ab;
+er verlässt sich nicht auf die Auflösung einer gleichrangigen Workflow-
+Umgebungsvariable. Im Traefik-MRTS-Modus bindet die erzeugte native
+Middleware-Konfiguration die Korrelation an
+<code>X-MRTS-Transaction-ID</code>, während der Normalmodus
+<code>X-Request-Id</code> behält.
+
 Nach dem Evidence-Upload ruft jeder Matrix-Job unter <code>if: always()</code>
 <code>summarize-no-crs-with-mrts-workflow.py</code> auf. Das Programm schreibt
 nur die festen Step-Outcomes, ihre Zählung, die erste nicht bestandene Stufe

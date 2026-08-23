@@ -129,6 +129,19 @@ class NoCrsWithMrtsWorkflowContractTest(unittest.TestCase):
         self.assertIn("${{ github.run_id }}-${{ github.run_attempt }}/${{ matrix.connector }}", self.source)
         self.assertIn("RUNTIME_ROOT:", self.source)
         self.assertIn("name: no-crs-with-mrts-${{ matrix.connector }}-${{ github.run_id }}-${{ github.run_attempt }}", self.source)
+        self.assertNotIn("${{ env.RUNTIME_ROOT }}", self.source)
+        for runtime_path in (
+            "BUILD_ROOT:",
+            "SOURCE_ROOT:",
+            "TMP_ROOT:",
+            "LOG_ROOT:",
+            "VERIFIED_RUN_ROOT:",
+        ):
+            self.assertIn(
+                f"{runtime_path} ${{{{ runner.temp }}}}/ModSecurity-conector-no-crs-with-mrts/"
+                "${{ github.run_id }}-${{ github.run_attempt }}/${{ matrix.connector }}",
+                self.source,
+            )
 
 
 if __name__ == "__main__":

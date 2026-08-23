@@ -68,6 +68,13 @@ use their own literal invocation of the closed sealed-MRTS target runner. A
 job therefore does not prepare or execute another connector's runtime path;
 NGINX is absent from this workflow.
 
+Each job derives every build, source, temporary, log, and verified-run path
+from the same explicit runner, run, attempt, and connector coordinates; it
+does not rely on a sibling workflow-environment expansion. In the Traefik MRTS
+mode, the generated native middleware configuration binds correlation to
+<code>X-MRTS-Transaction-ID</code>, while its normal mode retains
+<code>X-Request-Id</code>.
+
 After evidence upload, every matrix job invokes
 <code>summarize-no-crs-with-mrts-workflow.py</code> under <code>if: always()</code>.
 It writes only the fixed step outcomes, their counts, the first non-passing

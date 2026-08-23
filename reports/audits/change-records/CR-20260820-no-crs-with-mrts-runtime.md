@@ -53,6 +53,11 @@ Envoy, Traefik, and lighttpd use their own literal sealed-target invocation.
 NGINX is absent. No matrix-provided component target or command reaches
 `make`, a shell, a path, or a runner.
 
+All job-local paths expand from the same explicit runner, run, attempt, and
+connector coordinates rather than a sibling workflow-environment value. The
+Traefik MRTS host binds its native middleware to `X-MRTS-Transaction-ID`; the
+normal host path retains `X-Request-Id`.
+
 Every job writes a safe GitHub Step Summary after evidence upload, including
 fixed stage outcomes, counts, the first non-passing stage, and a
 `PASS`/`FAIL`/`MISSING`/`CANCELLED` runtime-bundle state. It does not read raw
