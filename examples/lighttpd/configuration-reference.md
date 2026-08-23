@@ -13,6 +13,7 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | --- | --- | --- | --- | --- | --- | --- |
 | [`msconnector.config-file`](#msconnector-config-file) | Host / Connector | path | yes | none | T_CONFIG_SCOPE_SERVER | Path to the Common Runtime configuration used by the native plugin. |
 | [`msconnector.enabled`](#msconnector-enabled) | Host / Connector | lighttpd boolean | no | off | T_CONFIG_SCOPE_SERVER | Enables the native lighttpd plugin. |
+| [`msconnector.expose-host-transaction-id`](#msconnector-expose-host-transaction-id) | Host / Connector | lighttpd boolean | no | off | T_CONFIG_SCOPE_SERVER | Opt-in response-header evidence for the server-generated host transaction ID. |
 | [`proxy.server`](#proxy-server) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`server.bind`](#server-bind) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`server.compat-module-load`](#server-compat-module-load) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
@@ -217,6 +218,61 @@ Source-backed example: [examples/lighttpd/minimal/lighttpd.conf](../../examples/
 ### Safety and operations
 
 Disabling the module bypasses connector processing even if a rule file exists.
+
+<a id="msconnector-expose-host-transaction-id"></a>
+## `msconnector.expose-host-transaction-id`
+
+### Short description
+
+Opt-in response-header evidence for the server-generated host transaction ID.
+
+### Syntax
+
+```text
+msconnector.expose-host-transaction-id = "enable" | "disable"
+```
+
+### Valid contexts
+
+- T_CONFIG_SCOPE_SERVER
+
+### Values
+
+| Type | Allowed values | Required |
+| --- | --- | --- |
+| lighttpd boolean | lighttpd boolean values; examples use enable/disable | no |
+
+### Default
+
+off
+
+Source: `ck_calloc plugin_data allocation and default config`.
+
+### Inheritance and merge
+
+Only defaults are loaded; the module has no request-time conditional patch path.
+
+Merge: config_plugin_values_init populates defaults; no documented per-request merge.
+
+### Phases and runtime effect
+
+P3 response headers only; it does not select or alter Common Runtime transaction-ID input.
+
+Opt-in harness evidence plumbing emits the server-generated host transaction ID as X-Msconnector-Host-Transaction-Id after response-header processing.
+
+### Validation and errors
+
+lighttpd parses this server-scoped setting as a boolean during set-defaults; validate host syntax with lighttpd -tt -f <config>.
+
+### Example
+
+Selected example value: `msconnector.expose-host-transaction-id = "enable"`.
+
+Source-backed example: `connectors/lighttpd/harness/prepare_native_smoke.sh`.
+
+### Safety and operations
+
+When enabled, a server-generated correlation identifier is exposed in a response header. It never reflects a request header; enable it only for trusted runtime evidence.
 
 <a id="proxy-server"></a>
 ## `proxy.server`
