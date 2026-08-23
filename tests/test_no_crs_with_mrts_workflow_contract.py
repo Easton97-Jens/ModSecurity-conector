@@ -70,6 +70,14 @@ class NoCrsWithMrtsWorkflowContractTest(unittest.TestCase):
         self.assertIn('--runtime-root "$RUNTIME_ROOT"', runtime)
         self.assertNotIn('--connector "$CONNECTOR"', runtime)
         self.assertNotIn('CONNECTOR="$CONNECTOR"', runtime)
+        traefik_runtime = runtime.split("            traefik)\n", 1)[1].split(
+            "            lighttpd)\n", 1
+        )[0]
+        self.assertIn(
+            "TMPDIR=/tmp python3 ci/runtime/lifecycle/run-no-crs-with-mrts-target.py",
+            traefik_runtime,
+        )
+        self.assertEqual(runtime.count("TMPDIR=/tmp python3"), 1)
 
     def test_summary_reports_each_connector_job_without_reading_raw_evidence(self) -> None:
         summary = self.source.split(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import http.client
 import importlib.util
 import json
 import os
@@ -11,12 +12,11 @@ import secrets
 import ssl
 import struct
 import sys
-import urllib.error
-import urllib.request
 from pathlib import Path
 from typing import Any, NoReturn
 
 MAX_BYTES = 1_048_576
+LOOPBACK_HOST = "127.0.0.1"
 SHA256_RE = set("0123456789abcdef")
 FNV64_OFFSET = 14_695_981_039_346_656_037
 FNV64_PRIME = 1_099_511_628_211
@@ -483,24 +483,53 @@ def require_case_rule_matches(
         fail(f"{case_id} unexpectedly matched rules: {sorted(matched_ids)}")
 
 
-class NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, request: urllib.request.Request, fp: Any, code: int, msg: str, headers: Any, newurl: str) -> None:
-        raise urllib.error.HTTPError(request.full_url, code, "redirect refused", headers, fp)
+def request(
+    path: str,
+    port: int,
+    method: str,
+    headers: dict[str, str],
+    timeout: float,
+    scheme: str,
+    context: ssl.SSLContext | None,
+) -> int:
+    """Send one request to the sealed loopback endpoint.
 
-
-def request(url: str, method: str, headers: dict[str, str], timeout: float, context: ssl.SSLContext | None) -> int:
-    req = urllib.request.Request(url, method=method, headers=headers)
-    handlers: list[Any] = [NoRedirect]
-    if context is not None:
-        handlers.append(urllib.request.HTTPSHandler(context=context))
-    opener = urllib.request.build_opener(*handlers)
+    The endpoint is deliberately built with ``http.client`` from the fixed
+    loopback constant rather than opening a caller-provided URL.  This keeps
+    the SSRF boundary explicit, and ``http.client`` never follows redirects.
+    HTTPS uses a caller-supplied verified context, so hostname and certificate
+    verification remain enabled for Envoy's private loopback certificate.
+    """
+    connection: http.client.HTTPConnection
+    if scheme == "https":
+        if context is None:
+            fail("HTTPS request requires a verified TLS context")
+        connection = http.client.HTTPSConnection(
+            LOOPBACK_HOST, port, timeout=timeout, context=context
+        )
+    elif scheme == "http":
+        connection = http.client.HTTPConnection(LOOPBACK_HOST, port, timeout=timeout)
+    else:
+        fail("unsupported request scheme")
     try:
-        with opener.open(req, timeout=timeout) as response:
+        connection.request(method, path, headers=headers)
+        with connection.getresponse() as response:
             response.read(MAX_BYTES)
             return int(response.status)
-    except urllib.error.HTTPError as exc:
-        exc.read(MAX_BYTES)
-        return int(exc.code)
+    finally:
+        connection.close()
+
+
+def verified_tls_context(root: Path, certificate_value: str) -> ssl.SSLContext:
+    """Trust only the sealed, run-local Envoy loopback certificate."""
+
+    certificate = confined(certificate_value, root, "TLS certificate")
+    if certificate.is_symlink():
+        fail("TLS certificate must not be a symlink")
+    context = ssl.create_default_context(cafile=str(certificate))
+    context.check_hostname = True
+    context.verify_mode = ssl.CERT_REQUIRED
+    return context
 
 
 def main() -> int:
@@ -515,11 +544,11 @@ def main() -> int:
     parser.add_argument("--scheme", choices=("http", "https"), default="http")
     parser.add_argument("--host", required=True)
     parser.add_argument("--port", required=True, type=int)
-    parser.add_argument("--tls-insecure", action="store_true")
+    parser.add_argument("--tls-certificate")
     args = parser.parse_args()
     if not 1 <= args.port <= 65535 or any(ch not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-" for ch in args.host):
         fail("invalid host or port")
-    if args.host != "127.0.0.1":
+    if args.host != LOOPBACK_HOST:
         fail("MRTS runtime endpoint must be 127.0.0.1")
     root = safe_root(args.runtime_root, "runtime root")
     plan_path = confined(args.plan, root, "plan")
@@ -593,7 +622,14 @@ def main() -> int:
         if isinstance(case, dict) and case.get("source") not in (None, "") and str(case["source"]) not in case_hashes:
             fail("plan case references an unverified MRTS source")
     run_id = secrets.token_hex(12)
-    tls_context = ssl._create_unverified_context() if args.tls_insecure else None
+    if args.scheme == "https":
+        if args.tls_certificate is None:
+            fail("HTTPS MRTS runtime requires a sealed TLS certificate")
+        tls_context = verified_tls_context(root, args.tls_certificate)
+    else:
+        if args.tls_certificate is not None:
+            fail("HTTP MRTS runtime must not receive a TLS certificate")
+        tls_context = None
     observed: list[dict[str, Any]] = []
     for index, case in enumerate(cases):
         if not isinstance(case, dict) or case.get("kind") not in {"control", "detection", "bypass"}:
@@ -608,13 +644,13 @@ def main() -> int:
         uri = case.get("uri")
         if not isinstance(uri, str) or len(uri) > 2048 or not uri.startswith("/") or any(ord(char) < 0x20 or ord(char) == 0x7F for char in uri):
             fail("invalid case URI")
-        status = request(f"{args.scheme}://{args.host}:{args.port}{uri}", "GET", {
+        status = request(uri, args.port, "GET", {
             "Host": args.host,
             "X-MRTS-Request-ID": request_id,
             "X-MRTS-Transaction-ID": transaction_id,
             "X-Request-ID": host_request_id,
             "User-Agent": "MRTS-runtime/1",
-        }, 15.0, tls_context)
+        }, 15.0, args.scheme, tls_context)
         raw_expected_ids = case.get("expect_ids", [])
         if not isinstance(raw_expected_ids, list) or any(not str(value).isdigit() or len(str(value)) > 12 for value in raw_expected_ids):
             fail("invalid expected rule ID")

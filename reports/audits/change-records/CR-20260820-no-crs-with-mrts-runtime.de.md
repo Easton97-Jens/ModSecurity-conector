@@ -68,6 +68,18 @@ einem `PASS`/`FAIL`/`MISSING`/`CANCELLED`-Runtime-Bundle-Status. Sie liest keine
 rohe Evidence und befördert eine fehlende, übersprungene oder fehlgeschlagene
 Runtime nicht zum Erfolg.
 
+Die Korrektur verwendet nun für beide Connector-Workflowprofile einen
+gemeinsamen sicheren Step-Summary-Helper. Dadurch gibt es keine doppelten
+Summary-Implementierungen und die Pfadvalidierung bleibt identisch. Der
+Target-Runner verwendet den vor dem Dispatch angelegten privaten Build-Root
+sicher wieder, statt ihn aus einem Umgebungs-Fallback neu zu bestimmen. Traefik
+legt sein kurzes AF_UNIX-Socket-Verzeichnis mit `tempfile.mkdtemp` sicher an;
+nur der Traefik-Aufruf erhält `TMPDIR=/tmp`, während der private Run-Root für
+Pläne, Logs, Ergebnisse und aufbewahrte Evidence maßgeblich bleibt. Envoys
+MRTS-HTTPS prüft das versiegelte, run-lokale Zertifikat an der Peer-Grenze;
+eine unsichere TLS-Option oder Umgehung der Zertifikatsprüfung ist nicht
+vorhanden.
+
 Repository und gehosteter Workflow behalten `.go-version` `1.26.7`. Die lokale
 Binary ist `go1.26.6`; auf Grundlage der aktuellen Benutzeranweisung ist diese
 Differenz eine dokumentierte lokale Validierungseinschränkung, kein Download,

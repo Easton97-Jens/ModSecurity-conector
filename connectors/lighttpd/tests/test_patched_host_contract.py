@@ -1326,6 +1326,14 @@ class PatchedHostContractTest(unittest.TestCase):
 
 
 class NativeConfigModeTest(unittest.TestCase):
+    def test_full_lifecycle_passes_derived_mrts_mode_to_native_config(self) -> None:
+        runner = (CONNECTOR / "harness" / "run_patched_full_lifecycle.sh").read_text(
+            encoding="utf-8"
+        )
+        config_setup = runner.split("LIGHTTPD_CONFIG=$( \\\n", 1)[1].split(")\nconfigure_mrts", 1)[0]
+
+        self.assertIn('MSCONNECTOR_MRTS_RUNTIME="$MRTS_RUNTIME_MODE"', config_setup)
+
     def test_prepare_native_config_has_sealed_mrts_mode_and_safe_normal_mode(self) -> None:
         preparer = CONNECTOR / "harness" / "prepare_native_smoke.sh"
         with tempfile.TemporaryDirectory() as temporary:

@@ -766,6 +766,15 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
         self.assertIn('--plan-sha256 \"$MRTS_RUNTIME_PLAN_SHA256\"', executor_source)
         self.assertNotIn('--runtime-root \"$RUNTIME_ROOT\"', executor_source)
 
+    def test_crs_runtime_exits_before_the_no_crs_probe_path(self) -> None:
+        source = RUNTIME_PATH.read_text(encoding="utf-8")
+        crs_branch_start = source.index('if [ "$CRS_RUNTIME" = 1 ]; then\n    run_crs_runtime')
+        mrts_branch_start = source.index(
+            'elif [ "$MSCONNECTOR_MRTS_RUNTIME" = 1 ]; then', crs_branch_start
+        )
+
+        self.assertTrue(source[crs_branch_start:mrts_branch_start].rstrip().endswith("exit 0"))
+
     def test_readiness_header_is_closed_per_runtime_mode(self) -> None:
         source = RUNTIME_PATH.read_text(encoding="utf-8")
         normal_header = source.index("READINESS_TRANSACTION_ID_HEADER=x-request-id")

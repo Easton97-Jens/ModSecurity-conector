@@ -94,6 +94,18 @@ Step Summary. Die Zusammenfassung parst weder rohe Runtime-Evidence noch
 macht sie aus einer fehlenden, übersprungenen oder fehlgeschlagenen Runtime
 einen Capability-Erfolg.
 
+Die Korrektur verwendet für beide Connector-Workflowprofile einen gemeinsamen
+sicheren Step-Summary-Helper. Dadurch bleiben Summary-Format und
+Pfadvalidierung in einer Implementierung und es gibt keine doppelte
+Summary-Logik. Der Target-Runner verwendet den privaten Build-Root sicher
+wieder, den der Workflow vor dem Dispatch anlegt; er bestimmt ihn nicht aus
+einem Umgebungs-Fallback neu. Für Traefik wird das kurze AF_UNIX-Socket-
+Verzeichnis sicher mit `tempfile.mkdtemp` angelegt; nur der Traefik-Aufruf
+erhält `TMPDIR=/tmp`, während Pläne, Logs, Ergebnisse und aufbewahrte Evidence
+im privaten Run-Root bleiben. Der Envoy-MRTS-HTTPS-Pfad prüft das versiegelte,
+run-lokale Zertifikat an der Peer-Grenze; eine unsichere TLS-Option oder
+Umgehung der Zertifikatsprüfung ist nicht vorhanden.
+
 Die Rule-Match-Evidence verwendet einen typisierten nativen
 `RuleMessage`-Observer. Standardmäßig ist er deaktiviert und wird nur für das
 versiegelte MRTS-Runtimeprofil aktiviert. Der Observer erzeugt begrenzte,

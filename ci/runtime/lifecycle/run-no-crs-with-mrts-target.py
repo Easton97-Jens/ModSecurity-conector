@@ -8,6 +8,7 @@ import importlib.util
 import json
 import os
 import secrets
+import stat
 import subprocess
 import sys
 import re
@@ -26,7 +27,6 @@ SHA256_RE = set("0123456789abcdef")
 RULE_MATCH_EVENT_PHASE = "request_body"
 NO_CRS_RUN_ID_PREFIX = "mrts-"
 NO_CRS_RUN_ID_HEX_LENGTH = 32
-TRAEFIK_ENGINE_SOCKET_PARENT_BASE = Path("/var/tmp")
 TRAEFIK_ENGINE_SOCKET_PARENT_PREFIX = "msct-"
 TRAEFIK_ENGINE_SOCKET_PATH_MAX_BYTES = 100
 TRAEFIK_ENGINE_SOCKET_CHILD_PREFIX = "msconnector-traefik-uds-"
@@ -89,33 +89,13 @@ def create_private_traefik_engine_socket_parent() -> Path:
     The Traefik harness requires an existing parent because the actual socket
     child is allocated by its native runtime.  The canonical run root is too
     long for sockaddr_un on some hosts, so this intentionally uses a unique
-    task-owned child of the approved external temporary area.  It is never
-    shared with another connector or run and is removed by the caller.
+    task-owned child allocated atomically by Python's secure temporary-
+    directory API.  It is never shared with another connector or run and is
+    removed by the caller.
     """
 
-    base = TRAEFIK_ENGINE_SOCKET_PARENT_BASE
-    _symlink_free_path(base, "Traefik engine socket parent base")
     try:
-        base_stat = base.stat()
-    except OSError as exc:
-        stop(f"Traefik engine socket parent base is unavailable: {exc}")
-    if not base.is_dir() or base.is_symlink():
-        stop("Traefik engine socket parent base is not a directory")
-    base_mode = base_stat.st_mode & 0o7777
-    # A sticky world-writable directory is safe for a uniquely allocated child
-    # regardless of the base owner's UID; otherwise require a private
-    # owner-controlled base with no group/world write permission.
-    if base_mode & 0o1000 and base_mode & 0o002:
-        pass
-    elif base_stat.st_uid != os.geteuid() or base_mode & (0o070 | 0o007):
-        stop("Traefik engine socket parent base is not private or sticky")
-    try:
-        path = Path(
-            tempfile.mkdtemp(
-                prefix=TRAEFIK_ENGINE_SOCKET_PARENT_PREFIX,
-                dir=str(base),
-            )
-        )
+        path = Path(tempfile.mkdtemp(prefix=TRAEFIK_ENGINE_SOCKET_PARENT_PREFIX))
     except OSError as exc:
         stop(f"cannot allocate private Traefik engine socket parent: {exc}")
     try:
@@ -142,6 +122,44 @@ def create_private_traefik_engine_socket_parent() -> Path:
             pass
         raise
     return path
+
+
+def private_runtime_build(root: Path) -> Path:
+    """Open the fixed runtime build child safely and idempotently.
+
+    Framework preparation creates this directory before the target runner in
+    hosted jobs.  Reopen only the literal direct child of the already-private
+    root, then re-establish the exact owner/mode contract before it receives
+    any further runtime artifact.
+    """
+
+    build = root / "build"
+    try:
+        build.mkdir(mode=0o700, exist_ok=True)
+    except OSError as exc:
+        stop(f"cannot create runtime build root: {exc}")
+    if has_symlink_component(build):
+        stop("runtime build root contains a symlink component")
+    try:
+        selected = build.lstat()
+        resolved = build.resolve(strict=True)
+    except OSError as exc:
+        stop(f"runtime build root is unavailable: {exc}")
+    if (
+        not stat.S_ISDIR(selected.st_mode)
+        or build.is_symlink()
+        or resolved.parent != root
+        or selected.st_uid != os.getuid()
+    ):
+        stop("runtime build root is not the private direct child")
+    try:
+        os.chmod(build, 0o700)
+        selected = build.stat()
+    except OSError as exc:
+        stop(f"cannot secure runtime build root: {exc}")
+    if selected.st_uid != os.getuid() or (selected.st_mode & 0o777) != 0o700:
+        stop("runtime build root is not owner-private")
+    return build
 
 
 def remove_private_traefik_engine_socket_parent(path: Path) -> None:
@@ -439,6 +457,12 @@ def validate_mrts_load_file(
         canonical[source.name] = hashlib.sha256(source.read_bytes()).hexdigest()
     if not canonical:
         stop("pinned MRTS checkout has no canonical generated rules")
+    # Build candidates exclusively from the already validated pinned corpus.
+    # The generated load file may name only one of these exact paths; never
+    # construct a filesystem path from its untrusted include text.
+    allowed_include_paths = {
+        str(rules_root / name): rules_root / name for name in canonical
+    }
     includes: dict[str, str] = {}
     for line in lines:
         if not line.strip():
@@ -446,9 +470,9 @@ def validate_mrts_load_file(
         match = re.fullmatch(r'\s*Include\s+"([^"\r\n]+)"\s*', line)
         if match is None:
             stop("MRTS load file has a non-canonical include line")
-        candidate = Path(match.group(1))
-        if not candidate.is_absolute() or ".." in candidate.parts:
-            stop("MRTS load file include is not an absolute traversal-free path")
+        candidate = allowed_include_paths.get(match.group(1))
+        if candidate is None:
+            stop("MRTS load file include is outside the generated pinned rule set")
         if candidate.parent != rules_root or has_symlink_component(candidate):
             stop("MRTS load file include is outside the private generated rules root")
         try:
@@ -470,6 +494,27 @@ def validate_mrts_load_file(
     if includes != canonical:
         stop("MRTS load file must include the complete canonical generated rule set")
     return includes
+
+
+def closed_connector_stage_command(connector: str) -> list[str]:
+    """Build a fixed shell argv only for the three closed profile members."""
+
+    stage_script_raw = Path(__file__).with_name("run-connector-stage.sh")
+    if has_symlink_component(stage_script_raw):
+        stop("connector stage runner contains a symlink component")
+    try:
+        stage_script = stage_script_raw.resolve(strict=True)
+    except OSError as exc:
+        stop(f"connector stage runner is unavailable: {exc}")
+    if stage_script_raw.is_symlink() or not stage_script.is_file():
+        stop("connector stage runner is not a regular file")
+    if connector == "envoy":
+        return ["sh", str(stage_script), "envoy", "no_crs_with_mrts"]
+    if connector == "traefik":
+        return ["sh", str(stage_script), "traefik", "no_crs_with_mrts"]
+    if connector == "lighttpd":
+        return ["sh", str(stage_script), "lighttpd", "no_crs_with_mrts"]
+    stop("connector stage is outside the closed no-crs/with-mrts profile")
 
 
 def rule_id_inventory(
@@ -763,8 +808,7 @@ def main() -> int:
     provenance = repository_provenance(parent, framework, mrts)
     python_path = active_python_executable()
     no_crs_rules = (framework / "tests" / "rules" / "no-crs-baseline.conf").resolve(strict=True)
-    build = root / "build"
-    build.mkdir(mode=0o700)
+    build = private_runtime_build(root)
     stage_runtime = build / "stages" / args.connector / "no_crs_with_mrts" / "runtime"
     stage_runtime.mkdir(mode=0o700, parents=True, exist_ok=True)
     if stage_runtime.is_symlink() or stage_runtime.stat().st_uid != os.getuid():
@@ -809,7 +853,12 @@ def main() -> int:
         if args.connector == "traefik":
             traefik_socket_parent = create_private_traefik_engine_socket_parent()
             env["TRAEFIK_ENGINE_SOCKET_PARENT"] = str(traefik_socket_parent)
-        subprocess.run(["sh", str(Path(__file__).with_name("run-connector-stage.sh")), args.connector, "no_crs_with_mrts"], cwd=parent, env=env, check=True)
+        subprocess.run(
+            closed_connector_stage_command(args.connector),
+            cwd=parent,
+            env=env,
+            check=True,
+        )
     finally:
         if traefik_socket_parent is not None:
             remove_private_traefik_engine_socket_parent(traefik_socket_parent)

@@ -141,7 +141,7 @@ jobs:
                 --runtime-root "$RUNTIME_ROOT"
               ;;
             traefik)
-              python3 ci/runtime/lifecycle/run-no-crs-with-mrts-target.py \
+              TMPDIR=/tmp python3 ci/runtime/lifecycle/run-no-crs-with-mrts-target.py \
                 --connector traefik \
                 --execute-stage \
                 --parent-root "$GITHUB_WORKSPACE" \

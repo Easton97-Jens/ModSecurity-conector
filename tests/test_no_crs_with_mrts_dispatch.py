@@ -80,6 +80,17 @@ class NoCrsWithMrtsDispatchContractTests(unittest.TestCase):
         self.assertIn("MRTS_CLOSED_PLAN_SHA256=$MRTS_RUNTIME_PLAN_SHA256", runner_source)
         self.assertIn("MRTS_RUNTIME_PLAN_SHA256=$MRTS_CLOSED_PLAN_SHA256", runner_source)
 
+    def test_no_crs_mrts_keeps_canonical_preamble_separate_from_mrts_load_file(self) -> None:
+        source = RUNNER.read_text(encoding="utf-8")
+        self.assertIn(
+            "NO_CRS_RULES_FILE=$FRAMEWORK_ROOT/tests/rules/no-crs-baseline.conf",
+            source,
+        )
+        self.assertIn("MODSECURITY_RULE_PREAMBLE_FILE=$NO_CRS_RULES_FILE", source)
+        self.assertIn("MSCONNECTOR_RULES_FILE=$MRTS_LOAD_FILE", source)
+        self.assertIn("RULES_FILE=$MRTS_LOAD_FILE", source)
+        self.assertNotIn("MODSECURITY_RULE_PREAMBLE_FILE=$MRTS_LOAD_FILE", source)
+
     def test_python_invocation_contract_allows_only_a_final_venv_symlink(self) -> None:
         for source in (STAGE.read_text(encoding="utf-8"), RUNNER.read_text(encoding="utf-8")):
             self.assertIn("require_mrts_python_invocation()", source)

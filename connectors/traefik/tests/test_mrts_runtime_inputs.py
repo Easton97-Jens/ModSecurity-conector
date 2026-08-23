@@ -136,6 +136,33 @@ class TraefikMRTSRuntimeInputsTest(unittest.TestCase):
             with self.assertRaisesRegex(self.runner.MissingDependency, "canonical Traefik MRTS stage root"):
                 self.runner.assert_stage_runtime_root(stage / "nested", verified)
 
+    def test_crs_host_root_must_be_private_and_below_verified_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            verified = root / "verified"
+            host = verified / "runs" / "traefik" / "crs-runtime" / "host"
+            verified.mkdir(mode=0o700)
+            host.parent.mkdir(mode=0o700, parents=True)
+            host.mkdir(mode=0o700)
+            self.assertEqual(
+                self.runner.assert_private_host_runtime_root(host, verified), host
+            )
+            outside = root / "outside-host"
+            outside.mkdir(mode=0o700)
+            with self.assertRaisesRegex(self.runner.MissingDependency, "below VERIFIED_RUN_ROOT"):
+                self.runner.assert_private_host_runtime_root(outside, verified)
+
+    def test_crs_host_root_rejects_non_private_existing_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            verified = root / "verified"
+            host = verified / "host"
+            verified.mkdir(mode=0o700)
+            host.mkdir(mode=0o755, parents=True)
+            host.chmod(0o755)
+            with self.assertRaisesRegex(self.runner.MissingDependency, "exact-0700"):
+                self.runner.assert_private_host_runtime_root(host, verified)
+
     def test_missing_or_symlinked_verified_run_root_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -174,8 +201,9 @@ class TraefikMRTSRuntimeInputsTest(unittest.TestCase):
             plan_file = root / "mrts-runtime-plan.json"
             plan_file.write_text("{}\n", encoding="utf-8")
             (root / "foreign.txt").write_text("unexpected\n", encoding="utf-8")
+            inputs = self.mrts_inputs(root, plan_file)
             with self.assertRaisesRegex(self.runner.MissingDependency, "only its sealed plan"):
-                self.runner.stage_native_runtime(self.mrts_inputs(root, plan_file))
+                self.runner.stage_native_runtime(inputs)
 
 
 if __name__ == "__main__":

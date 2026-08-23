@@ -1407,6 +1407,15 @@ jobs:
         self.assertIn("Fuzz Traefik UDS frame parser", text)
         self.assertIn("-fuzz='^FuzzUDSFrameAndResult$'", text)
         self.assertIn("-fuzztime=15s -parallel=1", text)
+        traefik_job = self.jobs("ci-security-codeql.yml")["traefik-go"]
+        self.assertLess(
+            traefik_job.index("Fuzz Traefik UDS frame parser"),
+            traefik_job.index("github/codeql-action/init"),
+        )
+        self.assertLess(
+            traefik_job.index("github/codeql-action/init"),
+            traefik_job.index("Build Traefik Go module"),
+        )
         self.assertIn("make check-common-helpers-c17", text)
         self.assertIn("Fuzz Common HTTP header parser", text)
         self.assertIn("make check-common-http-header-fuzz", text)

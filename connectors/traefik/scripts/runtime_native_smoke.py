@@ -257,6 +257,62 @@ def assert_stage_runtime_root(runtime_root: Path, verified_run_root: Path) -> Pa
     return runtime_root
 
 
+def assert_private_host_runtime_root(runtime_root: Path, verified_run_root: Path) -> Path:
+    """Bind a CRS host runtime to the verified private run boundary.
+
+    CRS/no-MRTS uses a host-specific runtime directory rather than the MRTS
+    stage directory.  It must still remain a strict descendant of the
+    top-level verified root, with no symlink components and the same owner and
+    exact private mode once allocated.
+    """
+
+    resolved = assert_runtime_root(runtime_root)
+    verified = assert_private_verified_run_root(verified_run_root)
+    if resolved == verified:
+        raise MissingDependency("CRS host runtime root must be below VERIFIED_RUN_ROOT")
+    try:
+        relative = resolved.relative_to(verified)
+    except ValueError as exc:
+        raise MissingDependency(
+            "CRS host runtime root must be below VERIFIED_RUN_ROOT: "
+            f"{resolved}"
+        ) from exc
+    if not relative.parts:
+        raise MissingDependency("CRS host runtime root must be below VERIFIED_RUN_ROOT")
+    assert_no_symlink_components(resolved)
+    if resolved.exists():
+        root_stat = resolved.lstat()
+        if (
+            stat.S_ISLNK(root_stat.st_mode)
+            or not stat.S_ISDIR(root_stat.st_mode)
+            or root_stat.st_uid != os.geteuid()
+            or stat.S_IMODE(root_stat.st_mode) != 0o700
+        ):
+            raise MissingDependency(
+                "CRS host runtime root must be an exact-0700 directory owned by the current user: "
+                f"{resolved}"
+            )
+    else:
+        parent = resolved.parent
+        if not parent.exists():
+            raise MissingDependency(
+                "CRS host runtime root parent must already exist below VERIFIED_RUN_ROOT: "
+                f"{parent}"
+            )
+        parent_stat = parent.lstat()
+        if (
+            stat.S_ISLNK(parent_stat.st_mode)
+            or not stat.S_ISDIR(parent_stat.st_mode)
+            or parent_stat.st_uid != os.geteuid()
+            or stat.S_IMODE(parent_stat.st_mode) != 0o700
+        ):
+            raise MissingDependency(
+                "CRS host runtime root parent must be an exact-0700 directory owned by the current user: "
+                f"{parent}"
+            )
+    return resolved
+
+
 def assert_private_engine_socket_parent(path: Path, label: str) -> Path:
     """Validate an explicitly selected private parent for a UDS child."""
 
@@ -1680,7 +1736,6 @@ def collect_native_runtime_inputs() -> NativeRuntimeInputs:
     verified_run_root = assert_private_verified_run_root(
         Path(os.environ.get("VERIFIED_RUN_ROOT", ""))
     )
-    assert_stage_runtime_root(runtime_root, verified_run_root)
     first_byte_output_text = os.environ.get("FULL_LIFECYCLE_EVIDENCE_OUTPUT", "").strip()
     first_byte_output = Path(first_byte_output_text) if first_byte_output_text else None
     if first_byte_output is not None:
@@ -1698,6 +1753,10 @@ def collect_native_runtime_inputs() -> NativeRuntimeInputs:
     if crs_runtime == "1" and mrts_runtime_value == "1":
         raise MissingDependency("CRS and MRTS runtime modes are mutually exclusive")
     mrts_runtime = mrts_runtime_value == "1"
+    if mrts_runtime:
+        assert_stage_runtime_root(runtime_root, verified_run_root)
+    elif crs_runtime == "1":
+        assert_private_host_runtime_root(runtime_root, verified_run_root)
     rules_file, rule_ids, rules_profile = select_engine_rules(mrts_runtime)
     require_engine_inputs(rules_file)
     include_dir, library_dir = require_modsecurity_environment()
@@ -2512,7 +2571,8 @@ def run() -> int:
                     traefik_stopped and engine_stopped,
                 )
             else:
-                assert results is not None
+                if results is None:
+                    raise RuntimeError("Traefik native request results were not produced")
                 live_observation = observe_live_native_host(artifacts, setup, processes)
                 traefik_stopped, engine_stopped = stop_native_processes(processes)
                 outcome_count = finalize_native_host_observations(

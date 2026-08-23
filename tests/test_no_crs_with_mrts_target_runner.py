@@ -89,6 +89,17 @@ def dedicated_rule_match_event(
 
 
 class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
+    def create_test_traefik_engine_socket_parent(self, base: Path) -> Path:
+        """Inject an already-created private child without using system temp."""
+
+        candidate = base / "msct-test"
+        candidate.mkdir(mode=0o700)
+        with (
+            mock.patch.object(TARGET.tempfile, "mkdtemp", return_value=str(candidate)),
+            mock.patch.object(TARGET, "TRAEFIK_ENGINE_SOCKET_PATH_MAX_BYTES", 512),
+        ):
+            return TARGET.create_private_traefik_engine_socket_parent()
+
     def test_profile_is_closed_to_three_connectors(self):
         self.assertEqual(TARGET.CONNECTORS, {"envoy", "traefik", "lighttpd"})
         self.assertEqual(TARGET.PROFILE, "no-crs/with-mrts")
@@ -141,93 +152,85 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
 
     def test_traefik_engine_socket_parent_is_unique_private_short_and_cleaned(self):
         with tempfile.TemporaryDirectory() as directory:
-            base = Path(directory)
-            base.chmod(0o700)
-            with mock.patch.object(TARGET, "TRAEFIK_ENGINE_SOCKET_PARENT_BASE", base), mock.patch.object(TARGET, "TRAEFIK_ENGINE_SOCKET_PATH_MAX_BYTES", 512):
-                selected = TARGET.create_private_traefik_engine_socket_parent()
-                self.assertTrue(selected.is_dir())
-                self.assertEqual(selected.stat().st_uid, os.geteuid())
-                self.assertEqual(selected.stat().st_mode & 0o777, 0o700)
-                socket_candidate = (
-                    selected
-                    / f"{TARGET.TRAEFIK_ENGINE_SOCKET_CHILD_PREFIX}{'f' * TARGET.TRAEFIK_ENGINE_SOCKET_CHILD_RANDOM_HEX_LENGTH}"
-                    / TARGET.TRAEFIK_ENGINE_SOCKET_FILENAME
-                )
-                self.assertLessEqual(
-                    len(os.fsencode(str(socket_candidate))),
-                    TARGET.TRAEFIK_ENGINE_SOCKET_PATH_MAX_BYTES,
-                )
-                TARGET.remove_private_traefik_engine_socket_parent(selected)
-                self.assertFalse(selected.exists())
+            selected = self.create_test_traefik_engine_socket_parent(Path(directory))
+            self.assertTrue(selected.is_dir())
+            self.assertEqual(selected.stat().st_uid, os.geteuid())
+            self.assertEqual(selected.stat().st_mode & 0o777, 0o700)
+            candidate = (
+                selected
+                / f"{TARGET.TRAEFIK_ENGINE_SOCKET_CHILD_PREFIX}{'f' * TARGET.TRAEFIK_ENGINE_SOCKET_CHILD_RANDOM_HEX_LENGTH}"
+                / TARGET.TRAEFIK_ENGINE_SOCKET_FILENAME
+            )
+            self.assertLessEqual(
+                len(os.fsencode(str(candidate))),
+                512,
+            )
+            TARGET.remove_private_traefik_engine_socket_parent(selected)
+            self.assertFalse(selected.exists())
 
-    def test_configured_traefik_socket_parent_base_fits_real_uds_limit(self):
-        base = TARGET.TRAEFIK_ENGINE_SOCKET_PARENT_BASE
-        self.assertEqual(base, Path("/var/tmp"))
-        self.assertTrue(base.is_dir())
-        self.assertEqual(base.stat().st_mode & 0o1002, 0o1002)
-        candidate = (
-            base
-            / f"{TARGET.TRAEFIK_ENGINE_SOCKET_PARENT_PREFIX}{'f' * 8}"
-            / f"{TARGET.TRAEFIK_ENGINE_SOCKET_CHILD_PREFIX}{'f' * TARGET.TRAEFIK_ENGINE_SOCKET_CHILD_RANDOM_HEX_LENGTH}"
-            / TARGET.TRAEFIK_ENGINE_SOCKET_FILENAME
-        )
-        self.assertLessEqual(
-            len(os.fsencode(str(candidate))),
-            TARGET.TRAEFIK_ENGINE_SOCKET_PATH_MAX_BYTES,
-        )
-
-    def test_traefik_engine_socket_parent_accepts_owner_owned_sticky_shared_base(self):
-        with tempfile.TemporaryDirectory() as directory:
-            base = Path(directory)
-            base.chmod(0o1777)
-            with mock.patch.object(TARGET, "TRAEFIK_ENGINE_SOCKET_PARENT_BASE", base), mock.patch.object(TARGET, "TRAEFIK_ENGINE_SOCKET_PATH_MAX_BYTES", 512):
-                selected = TARGET.create_private_traefik_engine_socket_parent()
-                self.assertEqual(selected.stat().st_mode & 0o777, 0o700)
-                TARGET.remove_private_traefik_engine_socket_parent(selected)
-
-    def test_traefik_engine_socket_parent_rejects_symlink_and_nonprivate_base(self):
+    def test_traefik_engine_socket_parent_rejects_a_symlinked_mkdtemp_result(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            real_base = root / "real"
-            real_base.mkdir(mode=0o700)
-            linked_base = root / "linked"
-            linked_base.symlink_to(real_base, target_is_directory=True)
-            with mock.patch.object(TARGET, "TRAEFIK_ENGINE_SOCKET_PARENT_BASE", linked_base):
+            target = root / "private"
+            target.mkdir(mode=0o700)
+            linked = root / "linked"
+            linked.symlink_to(target, target_is_directory=True)
+            with mock.patch.object(TARGET.tempfile, "mkdtemp", return_value=str(linked)):
                 with self.assertRaisesRegex(SystemExit, "symlink component"):
-                    TARGET.create_private_traefik_engine_socket_parent()
-            real_base.chmod(0o777)
-            with mock.patch.object(TARGET, "TRAEFIK_ENGINE_SOCKET_PARENT_BASE", real_base):
-                with self.assertRaisesRegex(SystemExit, "base is not private"):
                     TARGET.create_private_traefik_engine_socket_parent()
 
     def test_traefik_engine_socket_parent_cleanup_rejects_tampering(self):
         with tempfile.TemporaryDirectory() as directory:
-            base = Path(directory)
-            base.chmod(0o700)
-            with mock.patch.object(TARGET, "TRAEFIK_ENGINE_SOCKET_PARENT_BASE", base), mock.patch.object(TARGET, "TRAEFIK_ENGINE_SOCKET_PATH_MAX_BYTES", 512):
-                selected = TARGET.create_private_traefik_engine_socket_parent()
-                selected.chmod(0o755)
-                with self.assertRaisesRegex(SystemExit, "changed before cleanup"):
-                    TARGET.remove_private_traefik_engine_socket_parent(selected)
-                selected.chmod(0o700)
+            selected = self.create_test_traefik_engine_socket_parent(Path(directory))
+            selected.chmod(0o755)
+            with self.assertRaisesRegex(SystemExit, "changed before cleanup"):
                 TARGET.remove_private_traefik_engine_socket_parent(selected)
+            selected.chmod(0o700)
+            TARGET.remove_private_traefik_engine_socket_parent(selected)
 
     def test_traefik_engine_socket_parent_cleanup_removes_only_known_socket_child(self):
         with tempfile.TemporaryDirectory() as directory:
-            base = Path(directory)
-            base.chmod(0o700)
-            with mock.patch.object(TARGET, "TRAEFIK_ENGINE_SOCKET_PARENT_BASE", base), mock.patch.object(TARGET, "TRAEFIK_ENGINE_SOCKET_PATH_MAX_BYTES", 512):
-                selected = TARGET.create_private_traefik_engine_socket_parent()
-                child = selected / f"{TARGET.TRAEFIK_ENGINE_SOCKET_CHILD_PREFIX}{'a' * TARGET.TRAEFIK_ENGINE_SOCKET_CHILD_RANDOM_HEX_LENGTH}"
-                child.mkdir(mode=0o700)
-                socket_path = child / TARGET.TRAEFIK_ENGINE_SOCKET_FILENAME
-                socket_path.touch()
-                with self.assertRaisesRegex(SystemExit, "contains artifacts"):
-                    TARGET.remove_private_traefik_engine_socket_parent(selected)
-                socket_path.unlink()
-                child.rmdir()
+            selected = self.create_test_traefik_engine_socket_parent(Path(directory))
+            child = selected / f"{TARGET.TRAEFIK_ENGINE_SOCKET_CHILD_PREFIX}{'a' * TARGET.TRAEFIK_ENGINE_SOCKET_CHILD_RANDOM_HEX_LENGTH}"
+            child.mkdir(mode=0o700)
+            socket_path = child / TARGET.TRAEFIK_ENGINE_SOCKET_FILENAME
+            socket_path.touch()
+            with self.assertRaisesRegex(SystemExit, "contains artifacts"):
                 TARGET.remove_private_traefik_engine_socket_parent(selected)
-                self.assertFalse(selected.exists())
+            socket_path.unlink()
+            child.rmdir()
+            TARGET.remove_private_traefik_engine_socket_parent(selected)
+            self.assertFalse(selected.exists())
+
+    def test_private_runtime_build_reuses_a_prepared_private_child(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            root.chmod(0o700)
+            build = root / "build"
+            build.mkdir(mode=0o755)
+            selected = TARGET.private_runtime_build(root)
+            self.assertEqual(selected, build)
+            self.assertEqual(selected.stat().st_uid, os.getuid())
+            self.assertEqual(selected.stat().st_mode & 0o777, 0o700)
+
+    def test_private_runtime_build_rejects_a_symlink_child(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "root"
+            root.mkdir(mode=0o700)
+            external = Path(directory) / "external"
+            external.mkdir(mode=0o700)
+            (root / "build").symlink_to(external, target_is_directory=True)
+            with self.assertRaisesRegex(SystemExit, "symlink component"):
+                TARGET.private_runtime_build(root)
+
+    def test_closed_connector_stage_command_uses_only_literal_profile_members(self):
+        for connector in ("envoy", "traefik", "lighttpd"):
+            command = TARGET.closed_connector_stage_command(connector)
+            self.assertEqual(command[0], "sh")
+            self.assertEqual(command[2], connector)
+            self.assertEqual(command[3], "no_crs_with_mrts")
+        with self.assertRaisesRegex(SystemExit, "outside the closed"):
+            TARGET.closed_connector_stage_command("nginx")
 
     def test_runtime_route_requires_explicit_checkout_roots_and_stage(self):
         source = (ROOT / "ci" / "runtime" / "lifecycle" / "run-no-crs-with-mrts-target.py").read_text(encoding="utf-8")
@@ -263,7 +266,7 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
 
     def test_executor_binds_localhost_and_provenance(self):
         source = (ROOT / "ci" / "runtime" / "lifecycle" / "execute-no-crs-mrts-cases.py").read_text(encoding="utf-8")
-        self.assertIn('if args.host != "127.0.0.1":', source)
+        self.assertIn('if args.host != LOOPBACK_HOST:', source)
         self.assertIn('item.get("transaction_id") != correlation_id', source)
         self.assertIn('item.get("connector") != connector', source)
         self.assertIn('item.get("uri") != uri', source)
@@ -275,7 +278,66 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
         self.assertIn("validate_sealed_no_crs_plan(plan_path, root, load_path, executor_path, plan_sha256)", source)
         self.assertIn('host_request_id = f"host-{correlation_id}"', source)
         self.assertIn('"X-Request-ID": host_request_id', source)
+        self.assertIn('http.client.HTTPConnection(LOOPBACK_HOST, port', source)
+        self.assertIn('http.client.HTTPSConnection(', source)
+        self.assertIn('LOOPBACK_HOST, port, timeout=timeout', source)
+        self.assertIn('context.check_hostname = True', source)
+        self.assertNotIn('_create_unverified_context', source)
+        self.assertNotIn('urllib.request', source)
         self.assertNotIn('if "crs" in load_path.read_text', source)
+
+    def test_executor_uses_fixed_loopback_connection_without_redirect_following(self):
+        class FakeResponse:
+            status = 302
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self, _limit):
+                return b""
+
+        class FakeConnection:
+            def __init__(self, host, port, **kwargs):
+                self.host = host
+                self.port = port
+                self.kwargs = kwargs
+                self.requests = []
+                self.closed = False
+
+            def request(self, method, path, headers):
+                self.requests.append((method, path, headers))
+
+            def getresponse(self):
+                return FakeResponse()
+
+            def close(self):
+                self.closed = True
+
+        connection = FakeConnection("127.0.0.1", 18080)
+        with mock.patch.object(EXECUTOR.http.client, "HTTPConnection", return_value=connection):
+            status = EXECUTOR.request(
+                "/redirect", 18080, "GET", {"Host": "127.0.0.1"}, 1.0, "http", None
+            )
+        self.assertEqual(status, 302)
+        self.assertEqual(connection.host, EXECUTOR.LOOPBACK_HOST)
+        self.assertEqual(connection.requests[0][1], "/redirect")
+        self.assertTrue(connection.closed)
+
+    def test_https_context_is_pinned_to_run_local_certificate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            certificate = root / "envoy-loopback.crt"
+            certificate.write_text("certificate", encoding="utf-8")
+            context = mock.Mock()
+            with mock.patch.object(EXECUTOR.ssl, "create_default_context", return_value=context) as factory:
+                result = EXECUTOR.verified_tls_context(root, str(certificate))
+            factory.assert_called_once_with(cafile=str(certificate))
+            self.assertIs(result, context)
+            self.assertTrue(context.check_hostname)
+            self.assertEqual(context.verify_mode, EXECUTOR.ssl.CERT_REQUIRED)
 
     def test_duplicate_json_keys_are_rejected(self):
         with self.assertRaises(SystemExit):

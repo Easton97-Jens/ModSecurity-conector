@@ -63,6 +63,17 @@ fixed stage outcomes, counts, the first non-passing stage, and a
 `PASS`/`FAIL`/`MISSING`/`CANCELLED` runtime-bundle state. It does not read raw
 evidence or promote a missing, skipped, or failed runtime to success.
 
+The remediation now uses one shared safe step-summary helper for both
+connector workflow profiles, preventing duplicate summary implementations and
+keeping path validation identical. The target runner safely reuses the
+pre-created private build root instead of reconstructing it from an ambient
+path. Traefik creates its short AF_UNIX socket directory with
+`tempfile.mkdtemp`; only the Traefik invocation receives `TMPDIR=/tmp`, while
+the private run root remains authoritative for plans, logs, results, and
+retained evidence. Envoy MRTS HTTPS verifies the sealed run-local certificate
+at the peer boundary; no insecure TLS option or certificate-verification
+bypass is available.
+
 The repository and hosted workflow retain `.go-version` `1.26.7`. The local
 binary is `go1.26.6`; under the current user direction that difference is a
 recorded local-validation limitation, not a download, upgrade, contract

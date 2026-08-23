@@ -262,10 +262,10 @@ if [ "${MSCONNECTOR_MRTS_STAGE:-}" = no_crs_with_mrts ]; then
     NO_CRS_BASELINE=1
     MODSECURITY_TEST_VARIANT=no-crs
     MODSECURITY_MRTS_VARIANT=with-mrts
+    NO_CRS_RULES_FILE=$FRAMEWORK_ROOT/tests/rules/no-crs-baseline.conf
     MSCONNECTOR_RULES_FILE=$MRTS_LOAD_FILE
-    NO_CRS_RULES_FILE=$MRTS_LOAD_FILE
     RULES_FILE=$MRTS_LOAD_FILE
-    MODSECURITY_RULE_PREAMBLE_FILE=$MRTS_LOAD_FILE
+    MODSECURITY_RULE_PREAMBLE_FILE=$NO_CRS_RULES_FILE
     GO=/usr/local/go/bin/go
     GOTOOLCHAIN=local
     PYTHON=$MRTS_PYTHON_BIN
@@ -467,9 +467,9 @@ reassert_mrts_closed_environment() {
     MODSECURITY_TEST_VARIANT=no-crs
     MODSECURITY_MRTS_VARIANT=with-mrts
     MSCONNECTOR_RULES_FILE=$MRTS_LOAD_FILE
-    NO_CRS_RULES_FILE=$MRTS_LOAD_FILE
+    NO_CRS_RULES_FILE=$FRAMEWORK_ROOT/tests/rules/no-crs-baseline.conf
     RULES_FILE=$MRTS_LOAD_FILE
-    MODSECURITY_RULE_PREAMBLE_FILE=$MRTS_LOAD_FILE
+    MODSECURITY_RULE_PREAMBLE_FILE=$NO_CRS_RULES_FILE
     prepare_mrts_toolchain_roots
     [ "$GO" = /usr/local/go/bin/go ] && [ "$GOTOOLCHAIN" = local ] && [ "$GOENV" = off ] || {
         echo "FAIL: MRTS Go toolchain controls were not preserved after runtime snapshot load" >&2

@@ -891,6 +891,7 @@ if [ "$CRS_RUNTIME" = 1 ]; then
     trap - EXIT HUP INT TERM
     printf 'processes_stopped=yes\n' >> "$SUMMARY"
     printf 'envoy_ext_proc_runtime: pass (CRS runtime) summary=%s\n' "$SUMMARY"
+    exit 0
 elif [ "$MSCONNECTOR_MRTS_RUNTIME" = 1 ]; then
     # The executor owns MRTS case selection and result construction.  Run it
     # against the live host immediately after readiness; the fixed baseline
@@ -907,7 +908,7 @@ elif [ "$MSCONNECTOR_MRTS_RUNTIME" = 1 ]; then
         --scheme https \
         --host 127.0.0.1 \
         --port "$listen_port" \
-        --tls-insecure
+        --tls-certificate "$TLS_CERTIFICATE"
     mrts_executor_rc=$?
     set -e
     if [ "$mrts_executor_rc" -ne 0 ]; then

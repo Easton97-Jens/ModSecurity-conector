@@ -83,6 +83,17 @@ stage, and the runtime-bundle state (<code>PASS</code>, <code>FAIL</code>,
 Step Summary. The summary neither parses raw runtime evidence nor changes a
 missing, skipped, or failed runtime into a capability success.
 
+The remediation uses one shared safe step-summary helper for both connector
+workflow profiles. This keeps summary formatting and path validation in one
+implementation and prevents duplicate summary logic. The target runner safely
+reuses the private build root created by the workflow before dispatch; it does
+not reconstruct that root from an ambient path. For Traefik, the short AF_UNIX
+socket directory is securely created with `tempfile.mkdtemp`; only the Traefik
+invocation receives `TMPDIR=/tmp`, while plans, logs, results, and retained
+evidence remain in the private run root. Envoy's MRTS HTTPS path verifies the
+sealed run-local certificate at the peer boundary; no insecure TLS switch or
+certificate-verification bypass is available.
+
 Rule-match evidence uses a typed native `RuleMessage` observer. It is disabled
 by default and is enabled only for the sealed MRTS runtime profile. The
 observer emits bounded metadata-only JSONL records with request and

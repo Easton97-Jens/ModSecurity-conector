@@ -18,6 +18,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
+from tests.test_no_crs_with_mrts_workflow_summary import assert_summary_path_safety
+
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNNER_PATH = ROOT / "ci/runtime/lifecycle/run-with-crs-no-mrts.sh"
@@ -113,55 +115,11 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
             SUMMARY.outcomes_from_environment(environment)
 
     def test_workflow_summary_requires_a_runner_owned_step_summary_file(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="crs-workflow-summary-runner-") as temporary:
-            root = Path(temporary)
-            runner_temp = root / "runner-temp"
-            summary_directory = runner_temp / "_runner_file_commands"
-            summary_directory.mkdir(parents=True)
-            target = summary_directory / "step_summary_abc123"
-            target.touch()
-            target.chmod(0o600)
-            environment = {
-                **{
-                    environment_name: "success"
-                    for _stage, _label, environment_name in SUMMARY.STAGES
-                },
-                "RUNNER_TEMP": str(runner_temp),
-                "GITHUB_STEP_SUMMARY": str(target),
-            }
-            SUMMARY.append_github_step_summary(environment, "first\n")
-            self.assertEqual(target.read_text(encoding="utf-8"), "first\n")
-            with mock.patch.dict(SUMMARY.os.environ, environment, clear=True):
-                self.assertEqual(SUMMARY.main(["--connector", "apache"]), 0)
-            self.assertIn("### apache", target.read_text(encoding="utf-8"))
-
-            outside = root / "outside.md"
-            outside.touch()
-            outside.chmod(0o600)
-            with self.assertRaisesRegex(ValueError, "path is unsafe"):
-                SUMMARY.append_github_step_summary(
-                    {**environment, "GITHUB_STEP_SUMMARY": str(outside)}, "must-not-write\n"
-                )
-            with self.assertRaisesRegex(ValueError, "path is unsafe"):
-                SUMMARY.append_github_step_summary(
-                    {
-                        **environment,
-                        "GITHUB_STEP_SUMMARY": str(
-                            summary_directory / ".." / "step_summary_abc123"
-                        ),
-                    },
-                    "must-not-write\n",
-                )
-            target.unlink()
-            target.symlink_to(outside)
-            with self.assertRaisesRegex(ValueError, "path is unsafe"):
-                SUMMARY.append_github_step_summary(environment, "must-not-follow\n")
-            with mock.patch.object(SUMMARY.os, "O_NOFOLLOW", None):
-                with self.assertRaisesRegex(ValueError, "safe-open capability"):
-                    SUMMARY.append_github_step_summary(environment, "must-not-write\n")
-            with mock.patch.object(SUMMARY.os, "O_NONBLOCK", None):
-                with self.assertRaisesRegex(ValueError, "safe-open capability"):
-                    SUMMARY.append_github_step_summary(environment, "must-not-write\n")
+        environment = {
+            environment_name: "success"
+            for _stage, _label, environment_name in SUMMARY.STAGES
+        }
+        assert_summary_path_safety(self, SUMMARY, environment, check_nonblock=True)
 
     def run_runner(
         self, connector: str, run_id: str = "valid-run", *, environment: dict[str, str] | None = None
