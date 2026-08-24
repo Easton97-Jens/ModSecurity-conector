@@ -165,7 +165,7 @@ def _json_object(data: bytes, label: str) -> dict[str, Any]:
         parsed = json.loads(
             data.decode("utf-8", "strict"), object_pairs_hook=_reject_duplicate_json_keys
         )
-    except (json.JSONDecodeError, ValueError) as error:
+    except ValueError as error:
         raise ValueError(f"{label} is not valid JSON") from error
     if not isinstance(parsed, dict):
         raise ValueError(f"{label} root must be an object")

@@ -580,6 +580,80 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
             },
         )
 
+    def make_strict_host_observation(self, runtime: Path, connector: str) -> None:
+        """Build unit-only input for the strict Apache/HAProxy normalizer path."""
+        run_id = f"{connector}-run"
+        passed = "passed"
+        request = {
+            "connector": connector,
+            "run_id": run_id,
+            "method": "GET",
+            "payload_length": 0,
+        }
+        private_json(
+            runtime / NORMALIZER.RUNTIME_OBSERVATION_FILE,
+            {
+                "status": "PASS",
+                "connector": connector,
+                "run_id": run_id,
+                "integration_mode": NORMALIZER.CONNECTORS[connector][1],
+                "configuration": {
+                    "config_test_status": passed,
+                    "host_start_status": passed,
+                    "reachability_status": passed,
+                },
+                "requests": {
+                    "allow": {
+                        **request,
+                        "request_id": f"allow-{connector}",
+                        "transaction_id": f"allow-transaction-{connector}",
+                        "path": "/?id=42",
+                        "status": 200,
+                        "observed_rule_id": None,
+                    },
+                    "block": {
+                        **request,
+                        "request_id": f"block-{connector}",
+                        "transaction_id": f"block-transaction-{connector}",
+                        "path": "/?id=1%20UNION%20SELECT%20password%20FROM%20users",
+                        "status": 403,
+                        "observed_rule_id": NORMALIZER.RULE_ID,
+                        "intervention": "deny",
+                        "actual_intervention_rule_id": 949110,
+                    },
+                    "bypass": {
+                        **request,
+                        "request_id": f"bypass-{connector}",
+                        "transaction_id": f"bypass-transaction-{connector}",
+                        "path": "/?id=1%20uNiOn%20SeLeCt",
+                        "status": 403,
+                        "observed_rule_id": NORMALIZER.RULE_ID,
+                        "intervention": "deny",
+                    },
+                },
+                "no_mrts": NO_MRTS,
+                "cleanup": {
+                    "processes_remaining": 0,
+                    "host_processes_remaining": 0,
+                    "helper_processes_remaining": 0,
+                    "listeners_remaining": 0,
+                    "sockets_remaining": 0,
+                    "pid_files_remaining": 0,
+                    "runtime_fixtures_remaining": 0,
+                    "temporary_paths_remaining": 0,
+                    "paths": [],
+                    "listener_records": [],
+                },
+                "dispatch": {
+                    "source": "parent-runner",
+                    "connector": connector,
+                    "integration_mode": NORMALIZER.CONNECTORS[connector][1],
+                    "test_variant": "with-crs",
+                    "mrts_variant": "no-mrts",
+                },
+            },
+        )
+
     def make_envoy_host_evidence(self, runtime: Path, *, final_visible: bool = True) -> None:
         private_file(
             runtime / "runtime-summary.txt",
@@ -1074,6 +1148,22 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                 runtime.mkdir(mode=0o700)
                 with self.assertRaises(RuntimeError):
                     self.normalize(connector, root, runtime)
+
+    def test_apache_and_haproxy_normalize_complete_strict_runtime_observations(self) -> None:
+        """Unit input may exercise the normalizer without inventing a harness."""
+        for connector in ("apache", "haproxy"):
+            with self.subTest(connector=connector), tempfile.TemporaryDirectory(
+                prefix=f"{connector}-strict-contract-"
+            ) as temporary:
+                root = Path(temporary)
+                runtime = root / "runtime"
+                self.make_strict_host_observation(runtime, connector)
+                event_path, _evidence = self.normalize(connector, root, runtime)
+
+                event = read_json(event_path)
+                self.assertEqual(event["observed_status"], 403)
+                self.assertEqual(event["observed_rule_id"], NORMALIZER.RULE_ID)
+                self.assertEqual(event["host_configuration"]["reachability_status"], "passed")
 
     def test_normalizer_derives_real_host_fields_for_every_connector(self) -> None:
         for connector in ("envoy", "traefik", "lighttpd"):

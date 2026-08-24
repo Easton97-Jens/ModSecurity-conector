@@ -873,3 +873,28 @@ tests. A new normal push and an exact-successor SonarQube Cloud analysis remain
 required before any zero-issue claim. PR #279 remains OPEN and Draft: no Ready
 transition, merge, auto-merge, rebase, force-push, or master integration is
 authorized.
+
+## 2026-08-24 second follow-up: observed two-issue Sonar successor
+
+The exact successor head
+`69d01d1b1dff6494f05b50789e2190dd1eded6e1` passed its SonarQube Cloud
+Quality Gate in check run `97358433854`, but still reported `2 New issues`.
+The same exact result reported zero accepted issues, zero security hotspots,
+and `0.0%` New-Code coverage and duplication. The requested all-zero state
+therefore remains unverified.
+
+The two remaining maintainability annotations are handled without a
+suppression: the summary reader now catches the single encompassing
+`ValueError` class, and the strict Apache/HAProxy manifest validator is
+split into bounded observation, request, correlation, and semantic checks.
+The split retains the exact run/connector/mode identity, three distinct
+request/transaction identifiers, canonical request paths, CRS trigger rule,
+deny intervention, and observed `949110` requirement. A unit-only positive
+contract now exercises complete strict Apache and HAProxy inputs; it does not
+claim that either real host harness publishes the missing structured producer.
+
+The current local successor passed `py_compile`, `git diff --check`, and
+the focused Summary, runtime, and workflow contracts with `103` tests. A
+normal follow-up push and the exact new SonarQube Cloud analysis remain
+required before any zero-issue claim. PR #279 remains OPEN and Draft, with no
+Ready transition, merge, auto-merge, rebase, force-push, or master integration.

@@ -44,6 +44,10 @@ COMPLETION_FILES = {
     "lighttpd": SUMMARY_FILE,
 }
 HOST_OBSERVATION_CONNECTORS = frozenset(("apache", "haproxy"))
+HOST_REQUEST_EXPECTATIONS = (("allow", 200), ("block", 403), ("bypass", 403))
+HOST_ALLOW_REQUEST_PATH = "/?id=42"
+HOST_BLOCK_REQUEST_PATH = "/?id=1%20UNION%20SELECT%20password%20FROM%20users"
+HOST_BYPASS_REQUEST_PATH = "/?id=1%20uNiOn%20SeLeCt"
 NO_MRTS_FIELDS = (
     "runner_invoked",
     "case_inventory_loaded",
@@ -846,16 +850,10 @@ def observed_lighttpd(runtime_root: Path, run_id: str) -> dict[str, Any]:
     return {"allow": allow, "block": block, "bypass": bypass, "actual_intervention": actual_intervention, "canonical_trigger": block_trigger, "request_id": request_ids["block"], "transaction_id": block_id, "bypass_request_id": request_ids["bypass"], "wire_artifacts": wire_artifacts}
 
 
-def observed_apache_or_haproxy(runtime_root: Path, connector: str, run_id: str) -> dict[str, Any]:
-    """Read the strict host manifest for the Apache/HAProxy adapters.
-
-    The existing smoke summaries contain a case status and an HTTP status, but
-    do not prove the complete common runtime contract.  They are deliberately
-    not accepted here.  A future adapter must publish one bounded manifest
-    containing the real configuration/start/reachability observations and
-    three independently correlated requests.  In particular, defaults or a
-    copied ``403`` cannot manufacture a PASS.
-    """
+def strict_host_observation(
+    runtime_root: Path, connector: str, run_id: str
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Load only a run-bound Apache/HAProxy host observation."""
     observation = json.loads(
         read_bounded(runtime_root / RUNTIME_OBSERVATION_FILE, runtime_root).decode("utf-8")
     )
@@ -872,44 +870,92 @@ def observed_apache_or_haproxy(runtime_root: Path, connector: str, run_id: str) 
     for field in ("config_test_status", "host_start_status", "reachability_status"):
         if configuration.get(field) != "passed":
             fail(f"{connector} runtime observation lacks passed {field}")
+    return observation, configuration
+
+
+def strict_host_request(
+    record: object,
+    connector: str,
+    case: str,
+    run_id: str,
+    expected_status: int,
+) -> dict[str, Any]:
+    """Validate one real, correlated Apache/HAProxy request observation."""
+    if not isinstance(record, dict):
+        fail(f"{connector} {case} request observation is not an object")
+    if record.get("run_id") != run_id or record.get("connector") != connector:
+        fail(f"{connector} {case} request identity is not bound to this run")
+    request_id = record.get("request_id")
+    transaction_id = record.get("transaction_id")
+    if not isinstance(request_id, str) or not isinstance(transaction_id, str):
+        fail(f"{connector} {case} request lacks correlation identities")
+    safe_token(request_id, f"{connector} {case} request id")
+    safe_token(transaction_id, f"{connector} {case} transaction id")
+    parsed = dict(record)
+    observed_http_status(parsed, f"{connector} {case}", expected_status)
+    if parsed.get("status") != expected_status:
+        fail(f"{connector} {case} lacks the expected observed status field")
+    return parsed
+
+
+def strict_host_requests(
+    observation: dict[str, Any], connector: str, run_id: str
+) -> dict[str, dict[str, Any]]:
     requests = observation.get("requests")
     if not isinstance(requests, dict) or set(requests) != {"allow", "block", "bypass"}:
         fail(f"{connector} runtime observation lacks the exact allow/block/bypass request set")
-    parsed: dict[str, dict[str, Any]] = {}
-    for case, expected_status in (("allow", 200), ("block", 403), ("bypass", 403)):
-        record = requests.get(case)
-        if not isinstance(record, dict):
-            fail(f"{connector} {case} request observation is not an object")
-        if record.get("run_id") != run_id or record.get("connector") != connector:
-            fail(f"{connector} {case} request identity is not bound to this run")
-        request_id = record.get("request_id")
-        transaction_id = record.get("transaction_id")
-        if not isinstance(request_id, str) or not isinstance(transaction_id, str):
-            fail(f"{connector} {case} request lacks correlation identities")
-        safe_token(request_id, f"{connector} {case} request id")
-        safe_token(transaction_id, f"{connector} {case} transaction id")
-        parsed[case] = dict(record)
-        observed_http_status(parsed[case], f"{connector} {case}", expected_status)
-        if parsed[case].get("status") != expected_status:
-            fail(f"{connector} {case} lacks the expected observed status field")
+    parsed = {
+        case: strict_host_request(requests[case], connector, case, run_id, expected_status)
+        for case, expected_status in HOST_REQUEST_EXPECTATIONS
+    }
     if len({parsed[name]["request_id"] for name in parsed}) != 3 or len({parsed[name]["transaction_id"] for name in parsed}) != 3:
         fail(f"{connector} request correlations are not distinct")
+    return parsed
+
+
+def strict_host_request_content(
+    parsed: dict[str, dict[str, Any]], connector: str
+) -> int:
+    """Require the canonical request paths, CRS triggers, and intervention."""
     block = parsed["block"]
     bypass = parsed["bypass"]
-    if block.get("path") != "/?id=1%20UNION%20SELECT%20password%20FROM%20users":
+    if block.get("path") != HOST_BLOCK_REQUEST_PATH:
         fail(f"{connector} block request path is not the canonical Framework request")
-    if bypass.get("path") != "/?id=1%20uNiOn%20SeLeCt":
+    if bypass.get("path") != HOST_BYPASS_REQUEST_PATH:
         fail(f"{connector} bypass request path is not the canonical variant")
     for case in ("block", "bypass"):
         if parsed[case].get("observed_rule_id") != RULE_ID:
             fail(f"{connector} {case} lacks the correlated CRS trigger rule")
         if parsed[case].get("intervention") != "deny":
             fail(f"{connector} {case} lacks the observed deny intervention")
-    if parsed["allow"].get("path") != "/?id=42" or parsed["allow"].get("observed_rule_id") is not None:
+    if (
+        parsed["allow"].get("path") != HOST_ALLOW_REQUEST_PATH
+        or parsed["allow"].get("observed_rule_id") is not None
+    ):
         fail(f"{connector} allow request is not a clean canonical allow")
     actual_intervention = block.get("actual_intervention_rule_id")
-    if not isinstance(actual_intervention, int) or isinstance(actual_intervention, bool) or actual_intervention != 949110:
+    if not isinstance(actual_intervention, int) or isinstance(actual_intervention, bool):
         fail(f"{connector} block lacks the observed 949110 intervention rule")
+    if actual_intervention != 949110:
+        fail(f"{connector} block lacks the observed 949110 intervention rule")
+    return actual_intervention
+
+
+def observed_apache_or_haproxy(runtime_root: Path, connector: str, run_id: str) -> dict[str, Any]:
+    """Read the strict host manifest for the Apache/HAProxy adapters.
+
+    The existing smoke summaries contain a case status and an HTTP status, but
+    do not prove the complete common runtime contract. They are deliberately
+    not accepted here. A future adapter must publish one bounded manifest
+    containing the real configuration/start/reachability observations and
+    three independently correlated requests. In particular, defaults or a
+    copied ``403`` cannot manufacture a PASS.
+    """
+    observation, configuration = strict_host_observation(runtime_root, connector, run_id)
+    parsed = strict_host_requests(observation, connector, run_id)
+    actual_intervention = strict_host_request_content(parsed, connector)
+    block = parsed["block"]
+    bypass = parsed["bypass"]
     return {
         "allow": parsed["allow"],
         "block": parsed["block"],

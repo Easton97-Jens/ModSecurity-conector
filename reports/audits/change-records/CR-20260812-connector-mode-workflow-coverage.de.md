@@ -933,3 +933,30 @@ Helper sowie die fokussierten Summary-, Runtime- und Workflow-Verträge mit
 exakten Successors bleiben erforderlich, bevor ein Null-Issue-Claim erfolgt.
 PR #279 bleibt OPEN und Draft: Keine Ready-Umstellung, kein Merge, Auto-Merge,
 Rebase, Force-Push oder Master-Integration ist autorisiert.
+
+## Zweites Follow-up vom 2026-08-24: beobachteter Sonar-Successor mit zwei Issues
+
+Der exakte Successor-Head
+`69d01d1b1dff6494f05b50789e2190dd1eded6e1` bestand sein SonarQube-Cloud-
+Quality-Gate im Check-Run `97358433854`, meldete aber weiterhin
+`2 New issues`. Dasselbe exakte Ergebnis meldete null akzeptierte Issues,
+null Security-Hotspots sowie `0.0%` New-Code-Coverage und -Duplikation. Der
+verlangte vollständige Nullzustand bleibt damit unbestätigt.
+
+Die zwei verbleibenden Wartbarkeitsannotationen werden ohne Suppression
+bearbeitet: Der Summary-Reader fängt nun die eine umfassende
+`ValueError`-Klasse, und der strikte Apache-/HAProxy-Manifest-Validator ist
+in begrenzte Observation-, Request-, Korrelations- und Semantikprüfungen
+geteilt. Die Aufteilung behält die exakte Run-/Connector-/Mode-Identität, drei
+verschiedene Request-/Transaction-IDs, kanonische Request-Pfade, CRS-
+Trigger-Regel, Deny-Intervention und die beobachtete `949110`-Anforderung
+bei. Ein Unit-only-Positivvertrag prüft nun vollständige strikte Apache- und
+HAProxy-Eingaben; er behauptet nicht, dass einer der echten Host-Harnesses den
+fehlenden strukturierten Producer bereitstellt.
+
+Der aktuelle lokale Successor bestand `py_compile`, `git diff --check` und
+die fokussierten Summary-, Runtime- und Workflow-Verträge mit `103` Tests.
+Ein normaler Follow-up-Push und die SonarQube-Cloud-Analyse des exakten neuen
+Successors bleiben erforderlich, bevor ein Null-Issue-Claim erfolgt. PR #279
+bleibt OPEN und Draft, ohne Ready-Umstellung, Merge, Auto-Merge, Rebase,
+Force-Push oder Master-Integration.
