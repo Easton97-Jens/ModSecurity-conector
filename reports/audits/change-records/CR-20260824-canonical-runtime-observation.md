@@ -107,6 +107,35 @@ their observed outcomes are retained rather than inferred from a CI step.
 | `git diff --check` for the working change | Passed. |
 | `make check-bilingual-docs` and `make check-doc-links` | Task-owned Change Record validation passed; each target remains blocked only by existing links into the intentionally uninitialized Framework submodule. |
 
+## SonarQube Cloud remediation amendment
+
+The completed SonarQube Cloud analysis for Draft PR #338 at
+`0a3fac966d5266aa67f34724e595189ec2ad04ae` reported 18 task-owned new
+maintainability/reliability issues and 1.6513% new-code duplication. This
+follow-up removes the concrete underlying causes without `NOSONAR`, issue
+acceptance, exclusions, rule/gate changes, or weakened controls:
+
+- the strict validator now uses small behavior-equivalent validation helpers,
+  a typed bounded-integer check, `dict.fromkeys` for uniform isolation values,
+  and centralized runtime-observation labels;
+- the structured adapter takes one frozen typed input object rather than a
+  fifteen-parameter function signature;
+- repeated test CLI arguments are shared, normalizer labels are centralized,
+  and the exception assertion has a single potentially raising call.
+
+The selected contract/normalizer suite passed after this change, as did
+`tests.test_runtime_path_security` plus `tests.test_evidence_output_security`
+(`30 tests in 3.386s`), changed-Python compilation, and `git diff --check`.
+A new exact-head SonarQube Cloud analysis remains required before this record
+claims zero new issues or zero duplication.
+
+The earlier 0.0% new-code coverage is not a zero-target metric: SonarQube
+Cloud currently receives no Python coverage XML report. The repository has no
+Sonar scanner coverage-report configuration or CI coverage-report generation.
+Creating truthful coverage evidence requires a separately authorized
+Sonar/CI-workflow change, so this remediation does not silently alter the
+workflow, a quality gate, a threshold, or an exclusion.
+
 ## Runtime evidence
 
 The recorded tests validate schema, API, adapters, provenance, and safe file

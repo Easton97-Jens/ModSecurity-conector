@@ -143,6 +143,37 @@ def canonical_fixture(connector: str) -> dict[str, object]:
 
 
 class RuntimeObservationContractTest(unittest.TestCase):
+    def _run_private_observation_cli(
+        self, path: Path, root: Path, connector: str
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [
+                sys.executable,
+                str(CLI_PATH),
+                "--observation",
+                str(path),
+                "--evidence-root",
+                str(root),
+                "--connector",
+                connector,
+                "--profile",
+                "with-crs-no-mrts",
+                "--run-id",
+                "contract-run",
+                "--parent-sha",
+                PARENT_COMMIT,
+                "--framework-sha",
+                FRAMEWORK_COMMIT,
+                "--mrts-sha",
+                MRTS_COMMIT,
+                "--policy",
+                "strict",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
     def assert_valid(self, value: dict[str, object]) -> None:
         provenance = value["provenance"]
         assert isinstance(provenance, dict)
@@ -638,7 +669,7 @@ class RuntimeObservationContractTest(unittest.TestCase):
                 path.write_bytes(contents)
                 os.chmod(path, 0o600)
                 records.append({"name": name, "path": path.name})
-            value = adapters.build_structured_observation(
+            request = adapters.StructuredObservationInput(
                 connector="envoy",
                 integration_mode="ext_proc",
                 run_id="adapter-run",
@@ -666,6 +697,7 @@ class RuntimeObservationContractTest(unittest.TestCase):
                 evidence_root=root,
                 manifest_digest="a" * 64,
             )
+            value = adapters.build_structured_observation(request)
             result = contract.validate_runtime_observation(
                 value,
                 expected_identity(value),
@@ -674,34 +706,7 @@ class RuntimeObservationContractTest(unittest.TestCase):
             self.assertTrue(result.valid, result.errors)
             records[0]["sha256"] = "0" * 64
             with self.assertRaises(adapters.ProducerEvidenceUnavailable):
-                adapters.build_structured_observation(
-                    connector="envoy",
-                    integration_mode="ext_proc",
-                    run_id="adapter-run",
-                    parent_commit=PARENT_COMMIT,
-                    framework_commit=FRAMEWORK_COMMIT,
-                    mrts_commit=MRTS_COMMIT,
-                    rule_id=942270,
-                    observed_statuses={"allow": 200, "block": 403, "bypass": 403},
-                    cleanup={
-                        "host_processes_remaining": 0,
-                        "helper_processes_remaining": 0,
-                        "listeners_remaining": 0,
-                        "sockets_remaining": 0,
-                        "pid_files_remaining": 0,
-                        "temporary_paths_remaining": 0,
-                    },
-                    isolation={
-                        "runner_invoked": False,
-                        "case_inventory_loaded": False,
-                        "process_started": False,
-                        "socket_or_listener_created": False,
-                        "artifact_used": False,
-                    },
-                    evidence=records,
-                    evidence_root=root,
-                    manifest_digest="a" * 64,
-                )
+                adapters.build_structured_observation(request)
 
     def test_cli_validates_private_observation(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-contract-") as temporary:
@@ -711,33 +716,7 @@ class RuntimeObservationContractTest(unittest.TestCase):
             fixture_evidence = root / "fixture-evidence.json"
             fixture_evidence.write_bytes(b"fixture")
             os.chmod(fixture_evidence, 0o600)
-            completed = subprocess.run(
-                [
-                    sys.executable,
-                    str(CLI_PATH),
-                    "--observation",
-                    str(path),
-                    "--evidence-root",
-                    str(root),
-                    "--connector",
-                    "envoy",
-                    "--profile",
-                    "with-crs-no-mrts",
-                    "--run-id",
-                    "contract-run",
-                    "--parent-sha",
-                    PARENT_COMMIT,
-                    "--framework-sha",
-                    FRAMEWORK_COMMIT,
-                    "--mrts-sha",
-                    MRTS_COMMIT,
-                    "--policy",
-                    "strict",
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
+            completed = self._run_private_observation_cli(path, root, "envoy")
             self.assertEqual(completed.returncode, 0, completed.stderr)
             result = json.loads(completed.stdout)
             self.assertEqual(result["status"], "PASS")
@@ -751,33 +730,7 @@ class RuntimeObservationContractTest(unittest.TestCase):
             fixture_evidence = root / "fixture-evidence.json"
             fixture_evidence.write_bytes(b"fixture")
             os.chmod(fixture_evidence, 0o600)
-            completed = subprocess.run(
-                [
-                    sys.executable,
-                    str(CLI_PATH),
-                    "--observation",
-                    str(path),
-                    "--evidence-root",
-                    str(root),
-                    "--connector",
-                    "traefik",
-                    "--profile",
-                    "with-crs-no-mrts",
-                    "--run-id",
-                    "contract-run",
-                    "--parent-sha",
-                    PARENT_COMMIT,
-                    "--framework-sha",
-                    FRAMEWORK_COMMIT,
-                    "--mrts-sha",
-                    MRTS_COMMIT,
-                    "--policy",
-                    "strict",
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
+            completed = self._run_private_observation_cli(path, root, "traefik")
             self.assertEqual(completed.returncode, 2, completed.stderr)
             self.assertEqual(json.loads(completed.stdout)["status"], "VALIDATION_FAILED")
 

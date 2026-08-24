@@ -32,7 +32,7 @@ from runtime_observation import (
     validate_runtime_observation,
     write_canonical_evidence_file,
 )
-from runtime_observation_adapters import build_structured_observation
+from runtime_observation_adapters import StructuredObservationInput, build_structured_observation
 
 CONNECTORS = {
     "envoy": ("envoy-ext-proc-service", "ext_proc", "event"),
@@ -64,6 +64,11 @@ CLEANUP_COUNTERS = (
     "temporary_paths_remaining",
 )
 MAX_FILE_BYTES = 2 * 1024 * 1024
+EVIDENCE_ROOT_LABEL = "evidence root"
+EVIDENCE_DIRECTORY_LABEL = "evidence directory"
+RUNTIME_EVIDENCE_LABEL = "runtime evidence"
+RUNTIME_EVIDENCE_ROOT_LABEL = "runtime evidence root"
+RUNTIME_EVIDENCE_DIRECTORY_LABEL = "runtime evidence directory"
 TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
 LIGHTTPD_RESPONSE_TRANSACTION_HEADER = "X-Msconnector-Host-Transaction-Id"
@@ -196,13 +201,13 @@ def require_safe_read_file(details: os.stat_result, label: str) -> None:
 
 def ensure_private_evidence_root(root: Path) -> None:
     """Require the runner-created private evidence root."""
-    require_private_directory(root, "evidence root")
+    require_private_directory(root, EVIDENCE_ROOT_LABEL)
 
 
 def ensure_private_evidence_parent(path: Path, root: Path) -> None:
     """Create the parent chain below an already private evidence root."""
-    contained(path, root, "evidence directory")
-    require_private_directory(root, "evidence root")
+    contained(path, root, EVIDENCE_DIRECTORY_LABEL)
+    require_private_directory(root, EVIDENCE_ROOT_LABEL)
     current = root
     for component in path.relative_to(root).parts:
         current = current / component
@@ -210,7 +215,7 @@ def ensure_private_evidence_parent(path: Path, root: Path) -> None:
             os.mkdir(current, 0o700)
         except FileExistsError:
             pass
-        require_private_directory(current, "evidence directory")
+        require_private_directory(current, EVIDENCE_DIRECTORY_LABEL)
 
 
 def open_trusted_directory(root: Path, label: str) -> int:
@@ -243,24 +248,24 @@ def open_trusted_directory(root: Path, label: str) -> int:
 
 def open_contained_regular(path: Path, root: Path) -> tuple[int, Path]:
     """Open a regular evidence file by no-follow directory descriptors."""
-    candidate = contained(path, root, "runtime evidence")
+    candidate = contained(path, root, RUNTIME_EVIDENCE_LABEL)
     base = Path(os.path.abspath(root))
     relative = candidate.relative_to(base)
     if not relative.parts:
         fail("runtime evidence must name a file below its root")
     pre_open = candidate.lstat()
-    require_safe_read_file(pre_open, "runtime evidence")
+    require_safe_read_file(pre_open, RUNTIME_EVIDENCE_LABEL)
     no_follow = getattr(os, "O_NOFOLLOW", None)
     directory_flag = getattr(os, "O_DIRECTORY", None)
     nonblock = getattr(os, "O_NONBLOCK", None)
     if no_follow is None or directory_flag is None or nonblock is None:
         fail("safe runtime evidence reads require no-follow non-blocking support")
     directory_flags = os.O_RDONLY | directory_flag | no_follow
-    directory_fd = open_trusted_directory(base, "runtime evidence root")
+    directory_fd = open_trusted_directory(base, RUNTIME_EVIDENCE_ROOT_LABEL)
     try:
         for component in relative.parts[:-1]:
             before = os.stat(component, dir_fd=directory_fd, follow_symlinks=False)
-            require_safe_read_directory(before, "runtime evidence directory")
+            require_safe_read_directory(before, RUNTIME_EVIDENCE_DIRECTORY_LABEL)
             next_fd = os.open(component, directory_flags, dir_fd=directory_fd)
             opened_directory = os.fstat(next_fd)
             if (
@@ -271,7 +276,7 @@ def open_contained_regular(path: Path, root: Path) -> tuple[int, Path]:
                 os.close(next_fd)
                 fail("runtime evidence directory changed between validation and open")
             try:
-                require_safe_read_directory(opened_directory, "runtime evidence directory")
+                require_safe_read_directory(opened_directory, RUNTIME_EVIDENCE_DIRECTORY_LABEL)
             except BaseException:
                 os.close(next_fd)
                 raise
@@ -288,7 +293,7 @@ def open_contained_regular(path: Path, root: Path) -> tuple[int, Path]:
         os.close(file_fd)
         raise
     try:
-        require_safe_read_file(opened, "runtime evidence")
+        require_safe_read_file(opened, RUNTIME_EVIDENCE_LABEL)
     except BaseException:
         os.close(file_fd)
         raise
@@ -305,7 +310,7 @@ def read_bounded(path: Path, root: Path) -> bytes:
         return b""
     try:
         opened = os.fstat(fd)
-        require_safe_read_file(opened, "runtime evidence")
+        require_safe_read_file(opened, RUNTIME_EVIDENCE_LABEL)
         pieces: list[bytes] = []
         remaining = MAX_FILE_BYTES + 1
         while remaining:
@@ -316,7 +321,7 @@ def read_bounded(path: Path, root: Path) -> bytes:
             remaining -= len(chunk)
         data = b"".join(pieces)
         final = os.fstat(fd)
-        require_safe_read_file(final, "runtime evidence")
+        require_safe_read_file(final, RUNTIME_EVIDENCE_LABEL)
         if file_identity(final) != file_identity(opened):
             fail(f"evidence changed while reading: {candidate}")
     finally:
@@ -1174,7 +1179,7 @@ def normalize(args: argparse.Namespace) -> Path:
     adapter, mode, evidence_type = CONNECTORS[connector]
     run_id = safe_token(args.run_id, "run id")
     runtime_root = root_path(args.runtime_root, "runtime root")
-    evidence_root = root_path(args.evidence_root, "evidence root")
+    evidence_root = root_path(args.evidence_root, EVIDENCE_ROOT_LABEL)
     ensure_private_evidence_root(evidence_root)
     source_root = root_path(args.source_root, "CRS source root")
     source_checkout = contained(source_root / "coreruleset", source_root, "CRS source")
@@ -1235,24 +1240,26 @@ def normalize(args: argparse.Namespace) -> Path:
     atomic_write(block_file, framework_raw_record(block_record), evidence_root)
     atomic_write(cleanup_file, framework_raw_record(cleanup_record), evidence_root)
     canonical_observation = build_structured_observation(
-        connector=connector,
-        integration_mode=mode,
-        run_id=run_id,
-        parent_commit=parent_commit,
-        framework_commit=framework_commit,
-        mrts_commit=mrts_commit,
-        rule_id=canonical_trigger,
-        observed_statuses=observed_statuses,
-        cleanup=cleanup_scan,
-        isolation=no_mrts,
-        evidence=[
-            {"name": "host_configuration", "path": str(host_file.relative_to(evidence_root))},
-            {"name": "allow_request", "path": str(allow_file.relative_to(evidence_root))},
-            {"name": "block_audit", "path": str(block_file.relative_to(evidence_root))},
-            {"name": "cleanup", "path": str(cleanup_file.relative_to(evidence_root))},
-        ],
-        evidence_root=evidence_root,
-        manifest_digest=rule_sha256,
+        StructuredObservationInput(
+            connector=connector,
+            integration_mode=mode,
+            run_id=run_id,
+            parent_commit=parent_commit,
+            framework_commit=framework_commit,
+            mrts_commit=mrts_commit,
+            rule_id=canonical_trigger,
+            observed_statuses=observed_statuses,
+            cleanup=cleanup_scan,
+            isolation=no_mrts,
+            evidence=[
+                {"name": "host_configuration", "path": str(host_file.relative_to(evidence_root))},
+                {"name": "allow_request", "path": str(allow_file.relative_to(evidence_root))},
+                {"name": "block_audit", "path": str(block_file.relative_to(evidence_root))},
+                {"name": "cleanup", "path": str(cleanup_file.relative_to(evidence_root))},
+            ],
+            evidence_root=evidence_root,
+            manifest_digest=rule_sha256,
+        )
     )
     expected_contract_identity = {
         "connector": connector,

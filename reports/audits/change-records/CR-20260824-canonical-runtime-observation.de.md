@@ -112,6 +112,38 @@ CI-Step abgeleitet.
 | `git diff --check` für die Working Change | Bestanden. |
 | `make check-bilingual-docs` und `make check-doc-links` | Task-eigene Change-Record-Validierung bestanden; beide Targets bleiben nur durch vorhandene Links in das absichtlich nicht initialisierte Framework-Submodul blockiert. |
 
+## SonarQube-Cloud-Remediation-Ergänzung
+
+Die abgeschlossene SonarQube-Cloud-Analyse für Draft PR #338 bei
+`0a3fac966d5266aa67f34724e595189ec2ad04ae` meldete 18 task-eigene neue
+Maintainability-/Reliability-Issues und 1,6513% New-Code-Duplikation. Dieses
+Follow-up beseitigt die konkreten Ursachen ohne `NOSONAR`, Issue-Acceptance,
+Exclusions, Rule-/Gate-Änderungen oder geschwächte Controls:
+
+- der strikte Validator verwendet nun kleine verhaltensgleiche
+  Validierungs-Helper, einen typisierten Bounded-Integer-Check,
+  `dict.fromkeys` für gleichförmige Isolation-Werte und zentralisierte
+  Runtime-Observation-Labels;
+- der Structured Adapter akzeptiert ein eingefrorenes typisiertes
+  Eingabeobjekt statt einer Funktion mit fünfzehn Parametern;
+- wiederholte Test-CLI-Argumente werden geteilt, Normalizer-Labels sind
+  zentralisiert, und die Exception-Assertion enthält nur noch einen
+  potenziell fehlerwerfenden Aufruf.
+
+Die gewählte Contract-/Normalizer-Suite bestand nach der Änderung, ebenso
+`tests.test_runtime_path_security` zusammen mit
+`tests.test_evidence_output_security` (`30 Tests in 3.386s`), die Compilation
+der geänderten Python-Dateien und `git diff --check`. Bevor dieser Record null
+New Issues oder null Duplikation behauptet, ist eine neue exakte-Head-
+SonarQube-Cloud-Analyse erforderlich.
+
+Die frühere 0,0%-New-Code-Coverage ist keine Null-Zielmetrik: SonarQube Cloud
+erhält derzeit keinen Python-Coverage-XML-Report. Das Repository enthält weder
+Sonar-Scanner-Coverage-Report-Konfiguration noch CI-Erzeugung eines solchen
+Reports. Wahrheitsgemäße Coverage-Evidence erfordert eine separat autorisierte
+Sonar-/CI-Workflow-Änderung; diese Remediation ändert deshalb weder stillschweigend
+den Workflow noch ein Quality Gate, einen Threshold oder eine Exclusion.
+
 ## Runtime-Evidence
 
 Die aufgezeichneten Tests validieren Schema, API, Adapter, Provenance und

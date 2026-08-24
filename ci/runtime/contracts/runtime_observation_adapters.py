@@ -32,6 +32,27 @@ class ProducerEvidenceUnavailable(RuntimeError):
 
 
 @dataclass(frozen=True)
+class StructuredObservationInput:
+    """Typed, immutable input bundle for a structured connector observation."""
+
+    connector: str
+    integration_mode: str
+    run_id: str
+    parent_commit: str
+    framework_commit: str
+    mrts_commit: str
+    rule_id: int
+    observed_statuses: Mapping[str, int]
+    cleanup: Mapping[str, int]
+    isolation: Mapping[str, bool]
+    evidence: list[Mapping[str, str]]
+    evidence_root: Path | str
+    manifest_digest: str
+    fixture_id: str = "crs_sqli_anomaly_block"
+    source_contract: str = "five-connectors-with-crs-no-mrts"
+
+
+@dataclass(frozen=True)
 class RuntimeObservationAdapter:
     """Public adapter descriptor with an explicit production-evidence boundary."""
 
@@ -110,22 +131,7 @@ def _safe_evidence_records(
 
 
 def build_structured_observation(
-    *,
-    connector: str,
-    integration_mode: str,
-    run_id: str,
-    parent_commit: str,
-    framework_commit: str,
-    mrts_commit: str,
-    rule_id: int,
-    observed_statuses: Mapping[str, int],
-    cleanup: Mapping[str, int],
-    isolation: Mapping[str, bool],
-    evidence: list[Mapping[str, str]],
-    evidence_root: Path | str,
-    manifest_digest: str,
-    fixture_id: str = "crs_sqli_anomaly_block",
-    source_contract: str = "five-connectors-with-crs-no-mrts",
+    request: StructuredObservationInput,
 ) -> dict[str, Any]:
     """Build an observation from real pre-validated host evidence.
 
@@ -134,49 +140,50 @@ def build_structured_observation(
     supplies real evidence.  NGINX stays represented by its protected adapter
     but is not routed through this generic host path.
     """
+    connector = request.connector
     adapter = adapter_for(connector)
     adapter.require_producer_evidence()
     if connector not in STRUCTURED_CONNECTORS:
         raise AssertionError("finite adapter registry admitted an unsupported structured connector")
     required_statuses = {"allow", "block", "bypass"}
-    if set(observed_statuses) != required_statuses:
+    if set(request.observed_statuses) != required_statuses:
         raise ValueError("structured adapter requires allow, block, and bypass statuses")
-    evidence_records = _safe_evidence_records(evidence_root, evidence)
+    evidence_records = _safe_evidence_records(request.evidence_root, request.evidence)
     evidence_digest = evidence_manifest_digest(evidence_records)
     mapped_isolation = {
-        "mrts_runner_invoked": isolation["runner_invoked"],
-        "mrts_inventory_loaded": isolation["case_inventory_loaded"],
-        "mrts_process_started": isolation["process_started"],
-        "mrts_listener_created": isolation["socket_or_listener_created"],
-        "mrts_artifact_used": isolation["artifact_used"],
+        "mrts_runner_invoked": request.isolation["runner_invoked"],
+        "mrts_inventory_loaded": request.isolation["case_inventory_loaded"],
+        "mrts_process_started": request.isolation["process_started"],
+        "mrts_listener_created": request.isolation["socket_or_listener_created"],
+        "mrts_artifact_used": request.isolation["artifact_used"],
     }
     mapped_cleanup = {
-        "host_processes_remaining": cleanup["host_processes_remaining"],
-        "helper_processes_remaining": cleanup["helper_processes_remaining"],
-        "listeners_remaining": cleanup["listeners_remaining"],
-        "sockets_remaining": cleanup["sockets_remaining"],
-        "pid_files_remaining": cleanup["pid_files_remaining"],
-        "temporary_paths_remaining": cleanup["temporary_paths_remaining"],
+        "host_processes_remaining": request.cleanup["host_processes_remaining"],
+        "helper_processes_remaining": request.cleanup["helper_processes_remaining"],
+        "listeners_remaining": request.cleanup["listeners_remaining"],
+        "sockets_remaining": request.cleanup["sockets_remaining"],
+        "pid_files_remaining": request.cleanup["pid_files_remaining"],
+        "temporary_paths_remaining": request.cleanup["temporary_paths_remaining"],
         "cleanup_status": "PASS",
     }
-    block_expected = {"http_status": 403, "action": "deny", "rule_ids": [rule_id]}
+    block_expected = {"http_status": 403, "action": "deny", "rule_ids": [request.rule_id]}
     block_observed = {
-        "http_status": int(observed_statuses["block"]),
+        "http_status": int(request.observed_statuses["block"]),
         "action": "deny",
-        "rule_ids": [rule_id],
+        "rule_ids": [request.rule_id],
     }
     return {
         "schema_version": SCHEMA_VERSION,
         "identity": {
             "connector": connector,
-            "integration_mode": integration_mode,
+            "integration_mode": request.integration_mode,
             "profile": "with-crs-no-mrts",
             "crs": True,
             "mrts": False,
-            "run_id": run_id,
-            "parent_commit": parent_commit,
-            "framework_commit": framework_commit,
-            "mrts_commit": mrts_commit,
+            "run_id": request.run_id,
+            "parent_commit": request.parent_commit,
+            "framework_commit": request.framework_commit,
+            "mrts_commit": request.mrts_commit,
             "producer": f"parent-runtime-observation-adapter-{connector}",
             "producer_version": PRODUCER_VERSION,
         },
@@ -192,7 +199,7 @@ def build_structured_observation(
             ),
             "allow_case": _assertion(
                 {"http_status": 200},
-                {"http_status": int(observed_statuses["allow"])},
+                {"http_status": int(request.observed_statuses["allow"])},
                 "allow control was observed through the host",
             ),
             "block_case": _assertion(
@@ -200,13 +207,13 @@ def build_structured_observation(
             ),
             "bypass_case": _assertion(
                 {"http_status": 403, "action": "deny"},
-                {"http_status": int(observed_statuses["bypass"]), "action": "deny"},
+                {"http_status": int(request.observed_statuses["bypass"]), "action": "deny"},
                 "bypass control was observed through the host",
             ),
             "runtime_status": "PASS",
         },
         "framework": {
-            "framework_test_id": fixture_id,
+            "framework_test_id": request.fixture_id,
             "scenario_category": "crs-sqli-anomaly",
             "selected": True,
             "executed": True,
@@ -222,9 +229,9 @@ def build_structured_observation(
         "cleanup": mapped_cleanup,
         "provenance": {
             "evidence_kind": "structured_connector_evidence",
-            "fixture_id": fixture_id,
-            "source_contract": source_contract,
-            "manifest_digest": manifest_digest,
+            "fixture_id": request.fixture_id,
+            "source_contract": request.source_contract,
+            "manifest_digest": request.manifest_digest,
             "evidence_digest": evidence_digest,
             "validation_basis": "evidence-digest-v1",
             "contract_schema_version": SCHEMA_VERSION,

@@ -705,9 +705,10 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="crs-normalizer-file-owner-") as temporary:
             target = Path(temporary) / "record.json"
             private_file(target, b"original\n")
+            details = target.lstat()
             with mock.patch.object(NORMALIZER.os, "geteuid", return_value=os.geteuid() + 1):
                 with self.assertRaisesRegex(RuntimeError, "owned by the current user"):
-                    NORMALIZER.require_safe_read_file(target.lstat(), "runtime evidence")
+                    NORMALIZER.require_safe_read_file(details, "runtime evidence")
 
     def test_raw_evidence_reader_rejects_writable_component_directory(self) -> None:
         with tempfile.TemporaryDirectory(prefix="crs-normalizer-directory-properties-") as temporary:

@@ -65,10 +65,14 @@ LIVE_EVIDENCE_KINDS = frozenset(
 )
 CANONICAL_EVIDENCE_KINDS = LIVE_EVIDENCE_KINDS | frozenset(("canonical_fixture",))
 RAW_EVIDENCE_KINDS = frozenset(("raw_log", "raw_payload", "synthetic", "step_exit"))
+CANONICAL_EVIDENCE_RECORD_KINDS = LIVE_EVIDENCE_KINDS | frozenset(
+    ("canonical_fixture", "manifest")
+)
 CONTRACT_VALIDATED = "CONTRACT_VALIDATED"
 VALIDATION_FAILED = "VALIDATION_FAILED"
 PARTIAL = "PARTIAL"
 NOT_APPLICABLE = "NOT_APPLICABLE"
+RUNTIME_OBSERVATION_LABEL = "runtime observation"
 
 CONNECTOR_INTEGRATION_MODES = {
     "apache": "native-httpd-module",
@@ -149,7 +153,7 @@ def _profile_requirement(crs: bool, mrts: bool) -> dict[str, Any]:
         "required_runtime_assertions": RUNTIME_REQUIRED_ASSERTIONS,
         "optional_runtime_assertions": RUNTIME_OPTIONAL_ASSERTIONS,
         "require_framework_live_execution": True,
-        "isolation": {field: mrts for field in ISOLATION_FIELDS},
+        "isolation": dict.fromkeys(ISOLATION_FIELDS, mrts),
         "require_clean_cleanup": True,
     }
 
@@ -270,7 +274,10 @@ def _is_boolean(value: object) -> bool:
 
 
 def _is_bounded_integer(value: object, *, lower: int = 0, upper: int = MAX_COUNTER) -> bool:
-    return type(value) is int and lower <= value <= upper
+    if type(value) is not int:
+        return False
+    integer_value = int(value)
+    return lower <= integer_value <= upper
 
 
 def _safe_token(value: object) -> bool:
@@ -591,7 +598,7 @@ def load_runtime_observation_file(
     evidence_root: Path | str,
 ) -> dict[str, Any]:
     """Safely load a canonical observation without following arbitrary paths."""
-    data = read_bounded_evidence_file(path, evidence_root, label="runtime observation")
+    data = read_bounded_evidence_file(path, evidence_root, label=RUNTIME_OBSERVATION_LABEL)
     try:
         value = json.loads(
             data.decode("utf-8", "strict"),
@@ -696,6 +703,57 @@ def write_canonical_evidence_file(
 load_runtime_observation = load_runtime_observation_file
 
 
+def _validate_scalar_value_fields(
+    label: str, mapping: Mapping[str, Any], issues: _Issues
+) -> None:
+    for name, item in mapping.items():
+        if name not in SEMANTIC_VALUE_FIELDS:
+            issues.error(f"{label}.{name} is not a supported typed semantic field")
+        elif name not in {"rule_ids", "predicates"} and not (
+            (item is None and name == "value")
+            or _is_boolean(item)
+            or _is_bounded_integer(item, lower=-MAX_COUNTER, upper=MAX_COUNTER)
+            or (isinstance(item, str) and _safe_token(item))
+        ):
+            issues.error(f"{label}.{name} must be a bounded scalar semantic value")
+
+
+def _validate_value_map_rules(label: str, mapping: Mapping[str, Any], issues: _Issues) -> None:
+    http_status = mapping.get("http_status")
+    if http_status is not None and not _is_bounded_integer(http_status, lower=100, upper=599):
+        issues.error(f"{label}.http_status must be a bounded integer")
+    for name in ("action", "intervention", "event", "transport"):
+        if name in mapping and not _safe_token(mapping[name]):
+            issues.error(f"{label}.{name} must be a bounded token")
+    rules = mapping.get("rule_ids")
+    if "rule_ids" in mapping and (
+        not isinstance(rules, list)
+        or not rules
+        or len(rules) > 64
+        or any(not _is_bounded_integer(rule, lower=1, upper=2_147_483_647) for rule in rules)
+        or len(set(rules)) != len(rules)
+    ):
+        issues.error(f"{label}.rule_ids must be a unique bounded integer list")
+
+
+def _validate_predicates(label: str, predicates: object, issues: _Issues) -> None:
+    if not isinstance(predicates, Mapping) or not predicates:
+        issues.error(f"{label}.predicates must be a non-empty object")
+        return
+    for name, predicate in predicates.items():
+        safe = (
+            _safe_token(name)
+            and (
+                _is_boolean(predicate)
+                or _is_bounded_integer(predicate, lower=-MAX_COUNTER, upper=MAX_COUNTER)
+                or (isinstance(predicate, str) and _safe_token(predicate))
+            )
+        )
+        if not safe:
+            issues.error(f"{label}.predicates contains an unsafe value")
+            break
+
+
 def _validate_value_map(label: str, value: object, issues: _Issues) -> dict[str, Any] | None:
     mapping = _as_mapping(value, label, issues)
     if mapping is None:
@@ -706,51 +764,10 @@ def _validate_value_map(label: str, value: object, issues: _Issues) -> dict[str,
     if _has_forbidden_metadata(mapping):
         issues.error(f"{label} contains raw-log, payload, or absolute-path metadata")
         return mapping
-    for name, item in mapping.items():
-        if name not in SEMANTIC_VALUE_FIELDS:
-            issues.error(f"{label}.{name} is not a supported typed semantic field")
-            continue
-        if name in {"rule_ids", "predicates"}:
-            continue
-        if item is None and name == "value":
-            continue
-        if _is_boolean(item) or _is_bounded_integer(item, lower=-MAX_COUNTER, upper=MAX_COUNTER):
-            continue
-        if isinstance(item, str) and _safe_token(item):
-            continue
-        issues.error(f"{label}.{name} must be a bounded scalar semantic value")
-    http_status = mapping.get("http_status")
-    if http_status is not None and not _is_bounded_integer(http_status, lower=100, upper=599):
-        issues.error(f"{label}.http_status must be a bounded integer")
-    for name in ("action", "intervention", "event", "transport"):
-        if name in mapping and not _safe_token(mapping[name]):
-            issues.error(f"{label}.{name} must be a bounded token")
-    if "rule_ids" in mapping:
-        rules = mapping["rule_ids"]
-        if (
-            not isinstance(rules, list)
-            or not rules
-            or len(rules) > 64
-            or any(not _is_bounded_integer(rule, lower=1, upper=2_147_483_647) for rule in rules)
-            or len(set(rules)) != len(rules)
-        ):
-            issues.error(f"{label}.rule_ids must be a unique bounded integer list")
+    _validate_scalar_value_fields(label, mapping, issues)
+    _validate_value_map_rules(label, mapping, issues)
     if "predicates" in mapping:
-        predicates = mapping["predicates"]
-        if not isinstance(predicates, Mapping) or not predicates:
-            issues.error(f"{label}.predicates must be a non-empty object")
-        else:
-            for name, predicate in predicates.items():
-                if (
-                    not _safe_token(name)
-                    or not (
-                        _is_boolean(predicate)
-                        or _is_bounded_integer(predicate, lower=-MAX_COUNTER, upper=MAX_COUNTER)
-                        or (isinstance(predicate, str) and _safe_token(predicate))
-                    )
-                ):
-                    issues.error(f"{label}.predicates contains an unsafe value")
-                    break
+        _validate_predicates(label, mapping["predicates"], issues)
     return mapping
 
 
@@ -794,11 +811,7 @@ def _validate_identity(
     if connector in CONNECTOR_INTEGRATION_MODES and identity.get("integration_mode") != CONNECTOR_INTEGRATION_MODES[connector]:
         issues.error("identity.integration_mode does not match the connector contract")
     profile = identity.get("profile")
-    if profile not in PROFILES:
-        issues.error("identity.profile is not a supported profile")
-        requirements = None
-    else:
-        requirements = PROFILE_REQUIREMENTS[str(profile)]
+    requirements = _profile_requirements_for_identity(profile, issues)
     for field in ("crs", "mrts"):
         if not _is_boolean(identity.get(field)):
             issues.error(f"identity.{field} must be a boolean")
@@ -823,6 +836,15 @@ def _validate_identity(
             elif supplied_value is not None and identity.get(name) != supplied_value:
                 issues.error(f"identity.{name} does not match expected identity")
     return identity
+
+
+def _profile_requirements_for_identity(
+    profile: object, issues: _Issues
+) -> Mapping[str, Any] | None:
+    if profile not in PROFILES:
+        issues.error("identity.profile is not a supported profile")
+        return None
+    return PROFILE_REQUIREMENTS[str(profile)]
 
 
 def _validate_assertion(
@@ -869,35 +891,66 @@ def _validate_assertion(
         issues.error(f"{label}.evidence_kind does not match provenance.evidence_kind")
     expected = _validate_value_map(f"{label}.expected", assertion.get("expected"), issues)
     observed = _validate_value_map(f"{label}.observed", assertion.get("observed"), issues)
-    applicable = assertion.get("applicable")
-    required_flag = assertion.get("required")
-    if applicable is False:
-        if not matrix_optional:
-            issues.error(f"{label} is not centrally optional")
-        if required_flag is not False:
-            issues.error(f"{label} marked not applicable must not be required")
-        if result != "NOT_APPLICABLE":
-            issues.error(f"{label} marked not applicable must report NOT_APPLICABLE")
-        if assertion.get("executed") is not False or assertion.get("live_executed") is not False:
-            issues.error(f"{label} marked not applicable cannot claim execution")
+    if _validate_not_applicable_assertion(assertion, label, result, issues, matrix_optional):
         return
-    if matrix_required and required_flag is not True:
-        issues.error(f"{label} is mandatory in the central profile matrix")
-    if applicable is True and (assertion.get("executed") is not True or assertion.get("live_executed") is not True):
-        issues.partial(f"{label} lacks required live execution")
-    if applicable is True and result != "PASS":
-        issues.partial(f"{label} is not a PASS assertion")
-    if applicable is True and evidence_kind not in LIVE_EVIDENCE_KINDS and not (
-        allow_fixture_evidence and evidence_kind == "canonical_fixture"
-    ):
-        issues.error(f"{label} must bind live execution to live evidence")
+    _validate_applicable_assertion(
+        assertion,
+        label,
+        result,
+        evidence_kind,
+        issues,
+        matrix_required=matrix_required,
+        allow_fixture_evidence=allow_fixture_evidence,
+    )
     if expected is not None and observed is not None:
         _expected_matches_observed(expected, observed, label, issues)
 
 
+def _validate_not_applicable_assertion(
+    assertion: Mapping[str, Any],
+    label: str,
+    result: object,
+    issues: _Issues,
+    matrix_optional: bool,
+) -> bool:
+    if assertion.get("applicable") is not False:
+        return False
+    if not matrix_optional:
+        issues.error(f"{label} is not centrally optional")
+    if assertion.get("required") is not False:
+        issues.error(f"{label} marked not applicable must not be required")
+    if result != "NOT_APPLICABLE":
+        issues.error(f"{label} marked not applicable must report NOT_APPLICABLE")
+    if assertion.get("executed") is not False or assertion.get("live_executed") is not False:
+        issues.error(f"{label} marked not applicable cannot claim execution")
+    return True
+
+
+def _validate_applicable_assertion(
+    assertion: Mapping[str, Any],
+    label: str,
+    result: object,
+    evidence_kind: object,
+    issues: _Issues,
+    *,
+    matrix_required: bool,
+    allow_fixture_evidence: bool,
+) -> None:
+    if matrix_required and assertion.get("required") is not True:
+        issues.error(f"{label} is mandatory in the central profile matrix")
+    if assertion.get("applicable") is not True:
+        return
+    if assertion.get("executed") is not True or assertion.get("live_executed") is not True:
+        issues.partial(f"{label} lacks required live execution")
+    if result != "PASS":
+        issues.partial(f"{label} is not a PASS assertion")
+    fixture_allowed = allow_fixture_evidence and evidence_kind == "canonical_fixture"
+    if evidence_kind not in LIVE_EVIDENCE_KINDS and not fixture_allowed:
+        issues.error(f"{label} must bind live execution to live evidence")
+
+
 def _validate_runtime(
     value: object,
-    requirements: Mapping[str, Any] | None,
     issues: _Issues,
     *,
     allow_partial: bool,
@@ -920,25 +973,36 @@ def _validate_runtime(
     runtime_status = runtime.get("runtime_status")
     if runtime_status not in RUNTIME_STATUSES:
         issues.error("runtime.runtime_status uses an unsupported status")
+    _validate_runtime_assertions(
+        runtime,
+        issues,
+        provenance_evidence_kind,
+        allow_fixture_evidence,
+    )
+    if runtime_status != "PASS":
+        _validate_runtime_aggregate(runtime_status, issues)
+    return runtime
+
+
+def _validate_runtime_assertions(
+    runtime: Mapping[str, Any],
+    issues: _Issues,
+    provenance_evidence_kind: object,
+    allow_fixture_evidence: bool,
+) -> None:
     case_ids: set[str] = set()
     for name in RUNTIME_REQUIRED_ASSERTIONS:
-        if name not in runtime:
-            continue
-        _validate_assertion(
-            runtime.get(name),
-            f"runtime.{name}",
-            issues,
-            matrix_required=True,
-            matrix_optional=False,
-            provenance_evidence_kind=provenance_evidence_kind,
-            allow_fixture_evidence=allow_fixture_evidence,
-        )
-        candidate = runtime.get(name)
-        if isinstance(candidate, Mapping) and isinstance(candidate.get("case_id"), str):
-            case_id = candidate["case_id"]
-            if case_id in case_ids:
-                issues.error("runtime assertion case IDs are contradictory")
-            case_ids.add(case_id)
+        if name in runtime:
+            _validate_assertion(
+                runtime.get(name),
+                f"runtime.{name}",
+                issues,
+                matrix_required=True,
+                matrix_optional=False,
+                provenance_evidence_kind=provenance_evidence_kind,
+                allow_fixture_evidence=allow_fixture_evidence,
+            )
+            _record_case_id(runtime.get(name), case_ids, issues)
     if "bypass_case" in runtime:
         _validate_assertion(
             runtime["bypass_case"],
@@ -949,18 +1013,23 @@ def _validate_runtime(
             provenance_evidence_kind=provenance_evidence_kind,
             allow_fixture_evidence=allow_fixture_evidence,
         )
-        candidate = runtime.get("bypass_case")
-        if isinstance(candidate, Mapping) and isinstance(candidate.get("case_id"), str):
-            case_id = candidate["case_id"]
-            if case_id in case_ids:
-                issues.error("runtime assertion case IDs are contradictory")
-    if runtime_status == "PASS":
-        return runtime
+        _record_case_id(runtime["bypass_case"], case_ids, issues)
+
+
+def _record_case_id(candidate: object, case_ids: set[str], issues: _Issues) -> None:
+    if not isinstance(candidate, Mapping) or not isinstance(candidate.get("case_id"), str):
+        return
+    case_id = candidate["case_id"]
+    if case_id in case_ids:
+        issues.error("runtime assertion case IDs are contradictory")
+    case_ids.add(case_id)
+
+
+def _validate_runtime_aggregate(runtime_status: object, issues: _Issues) -> None:
     if runtime_status in {"PARTIAL", "VALIDATION_FAILED"}:
         issues.partial("runtime aggregate is not PASS")
     elif runtime_status == "FAIL":
         issues.error("runtime aggregate reports FAIL")
-    return runtime
 
 
 def _validate_framework_expectation(
@@ -978,34 +1047,43 @@ def _validate_framework_expectation(
         return
     expected = dict(expectation)
     expected.pop("kind", None)
-    if kind in {"http_status", "intervention"}:
-        if not _is_bounded_integer(expected.get("http_status"), lower=100, upper=599):
-            issues.error("framework HTTP expectation requires a bounded http_status")
+    _validate_framework_expectation_kind(kind, expected, issues)
+    _validate_value_map("framework.expectation", expected or {"kind": kind}, issues)
+    if observation is not None and kind != "not_applicable":
+        _expected_matches_observed(expected, observation, "framework", issues)
+
+
+def _validate_framework_expectation_kind(
+    kind: object, expected: Mapping[str, Any], issues: _Issues
+) -> None:
+    if kind in {"http_status", "intervention"} and not _is_bounded_integer(
+        expected.get("http_status"), lower=100, upper=599
+    ):
+        issues.error("framework HTTP expectation requires a bounded http_status")
     if kind == "intervention":
         if not _safe_token(expected.get("action")):
             issues.error("framework intervention expectation requires action")
-        rules = expected.get("rule_ids")
-        if not isinstance(rules, list) or not rules:
-            issues.error("framework intervention expectation requires rule_ids")
+        _require_nonempty_rule_ids("framework intervention expectation requires rule_ids", expected, issues)
     if kind == "action" and not _safe_token(expected.get("action")):
         issues.error("framework action expectation requires action")
     if kind == "rule_match":
-        rules = expected.get("rule_ids")
-        if not isinstance(rules, list) or not rules:
-            issues.error("framework rule_match expectation requires rule_ids")
+        _require_nonempty_rule_ids("framework rule_match expectation requires rule_ids", expected, issues)
     if kind == "rule_id" and not _is_bounded_integer(
         expected.get("value"), lower=1, upper=2_147_483_647
     ):
         issues.error("framework rule_id expectation requires a bounded value")
     if kind in {"event", "lifecycle", "cleanup", "compound"} and not expected:
         issues.error(f"framework {kind} expectation must declare a typed predicate")
-    if kind == "not_applicable" and expected:
-        issues.error("not_applicable expectation must not carry an expected value")
     if kind == "not_applicable":
+        if expected:
+            issues.error("not_applicable expectation must not carry an expected value")
         issues.error("framework expectation cannot be not_applicable in the central profile matrix")
-    _validate_value_map("framework.expectation", expected or {"kind": kind}, issues)
-    if observation is not None and kind != "not_applicable":
-        _expected_matches_observed(expected, observation, "framework", issues)
+
+
+def _require_nonempty_rule_ids(message: str, expected: Mapping[str, Any], issues: _Issues) -> None:
+    rules = expected.get("rule_ids")
+    if not isinstance(rules, list) or not rules:
+        issues.error(message)
 
 
 def _validate_framework(
@@ -1030,26 +1108,36 @@ def _validate_framework(
         "mismatch_count",
     }
     _require_exact_keys(framework, required, {"framework_test_ids"}, "framework", issues)
+    _validate_framework_identity(framework, requirements, issues)
+    validation_status = _validate_framework_status(framework, issues)
+    _validate_framework_expectation(framework.get("expectation"), framework.get("observation"), issues)
+    _validate_framework_disposition(framework, validation_status, issues)
+    return framework
+
+
+def _validate_framework_identity(
+    framework: Mapping[str, Any],
+    requirements: Mapping[str, Any] | None,
+    issues: _Issues,
+) -> None:
     for field in ("framework_test_id", "scenario_category"):
         _check_string_field(framework, field, "framework", issues)
-    allowed_categories = (
-        requirements.get("framework_scenario_categories", frozenset())
-        if requirements is not None
-        else frozenset()
-    )
+    allowed_categories = _framework_allowed_categories(requirements)
     if allowed_categories and framework.get("scenario_category") not in allowed_categories:
         issues.error("framework.scenario_category contradicts the central profile matrix")
     declared_ids = framework.get("framework_test_ids")
-    if declared_ids is not None:
-        if (
-            not isinstance(declared_ids, list)
-            or len(declared_ids) != 1
-            or declared_ids[0] != framework.get("framework_test_id")
-        ):
-            issues.error("framework test IDs are contradictory")
-    for field in ("selected", "executed", "live_executed"):
-        if not _is_boolean(framework.get(field)):
-            issues.error(f"framework.{field} must be a boolean")
+    if declared_ids is not None and (
+        not isinstance(declared_ids, list)
+        or len(declared_ids) != 1
+        or declared_ids[0] != framework.get("framework_test_id")
+    ):
+        issues.error("framework test IDs are contradictory")
+    _validate_framework_boolean_fields(framework, issues)
+
+
+def _validate_framework_status(
+    framework: Mapping[str, Any], issues: _Issues
+) -> object:
     if framework.get("result") not in ASSERTION_RESULTS:
         issues.error("framework.result uses an unsupported status")
     validation_status = framework.get("validation_status")
@@ -1058,7 +1146,12 @@ def _validate_framework(
     for field in ("failure_count", "mismatch_count"):
         if not _is_bounded_integer(framework.get(field)):
             issues.error(f"framework.{field} must be a bounded integer")
-    _validate_framework_expectation(framework.get("expectation"), framework.get("observation"), issues)
+    return validation_status
+
+
+def _validate_framework_disposition(
+    framework: Mapping[str, Any], validation_status: object, issues: _Issues
+) -> None:
     for field in ("selected", "executed", "live_executed"):
         if framework.get(field) is not True:
             issues.partial(f"framework.{field} is required for a runtime PASS")
@@ -1068,7 +1161,20 @@ def _validate_framework(
         issues.partial("framework validation_status is not CONTRACT_VALIDATED")
     if framework.get("failure_count") != 0 or framework.get("mismatch_count") != 0:
         issues.partial("framework failure_count or mismatch_count is non-zero")
-    return framework
+
+
+def _framework_allowed_categories(requirements: Mapping[str, Any] | None) -> frozenset[str]:
+    if requirements is None:
+        return frozenset()
+    return requirements.get("framework_scenario_categories", frozenset())
+
+
+def _validate_framework_boolean_fields(
+    framework: Mapping[str, Any], issues: _Issues
+) -> None:
+    for field in ("selected", "executed", "live_executed"):
+        if not _is_boolean(framework.get(field)):
+            issues.error(f"framework.{field} must be a boolean")
 
 
 def _validate_isolation(value: object, requirements: Mapping[str, Any] | None, issues: _Issues) -> None:
@@ -1078,11 +1184,20 @@ def _validate_isolation(value: object, requirements: Mapping[str, Any] | None, i
     _require_exact_keys(isolation, set(ISOLATION_FIELDS), set(), "isolation", issues)
     expected_values = requirements.get("isolation", {}) if requirements is not None else {}
     for field in ISOLATION_FIELDS:
-        actual = isolation.get(field)
-        if not _is_boolean(actual):
-            issues.error(f"isolation.{field} must be a boolean")
-        elif field in expected_values and actual is not expected_values[field]:
-            issues.error(f"isolation.{field} contradicts the central profile matrix")
+        _validate_isolation_field(field, isolation.get(field), expected_values, issues)
+
+
+def _validate_isolation_field(
+    field: str,
+    actual: object,
+    expected_values: Mapping[str, Any],
+    issues: _Issues,
+) -> None:
+    if not _is_boolean(actual):
+        issues.error(f"isolation.{field} must be a boolean")
+        return
+    if field in expected_values and actual is not expected_values[field]:
+        issues.error(f"isolation.{field} contradicts the central profile matrix")
 
 
 def _validate_cleanup(value: object, issues: _Issues) -> dict[str, Any] | None:
@@ -1129,27 +1244,133 @@ def _validate_producer_binding(
     if producer_version != PRODUCER_VERSION:
         issues.error("identity.producer_version is not an approved contract producer version")
     if connector == "nginx":
-        if producer != LIVE_PRODUCERS["nginx"]:
-            issues.error("identity.producer is not approved for the protected NGINX boundary")
-        if evidence_kind != "protected_runtime_evidence":
-            issues.error("provenance.evidence_kind is not approved for the protected NGINX boundary")
+        _validate_nginx_producer(producer, evidence_kind, issues)
         return
     if evidence_kind == "canonical_fixture":
-        expected = f"canonical-runtime-fixture-{connector}"
-        if producer != expected:
-            issues.error("fixture evidence is not bound to its connector fixture producer")
-        if not policy["allow_fixture_evidence"]:
-            issues.error("fixture evidence is forbidden by the strict runtime policy")
+        _validate_fixture_producer(connector, producer, policy, issues)
         return
     if connector in {"apache", "haproxy"}:
-        issues.error(f"{connector} has no approved live runtime producer")
+        _validate_unsupported_live_producer(connector, issues)
         return
+    _validate_live_producer(connector, producer, evidence_kind, issues)
+
+
+def _validate_nginx_producer(
+    producer: object, evidence_kind: object, issues: _Issues
+) -> None:
+    if producer != LIVE_PRODUCERS["nginx"]:
+        issues.error("identity.producer is not approved for the protected NGINX boundary")
+    if evidence_kind != "protected_runtime_evidence":
+        issues.error("provenance.evidence_kind is not approved for the protected NGINX boundary")
+
+
+def _validate_fixture_producer(
+    connector: object,
+    producer: object,
+    policy: Mapping[str, Any],
+    issues: _Issues,
+) -> None:
+    expected = f"canonical-runtime-fixture-{connector}"
+    if producer != expected:
+        issues.error("fixture evidence is not bound to its connector fixture producer")
+    if not policy["allow_fixture_evidence"]:
+        issues.error("fixture evidence is forbidden by the strict runtime policy")
+
+
+def _validate_unsupported_live_producer(connector: object, issues: _Issues) -> None:
+    issues.error(f"{connector} has no approved live runtime producer")
+
+
+def _validate_live_producer(
+    connector: object,
+    producer: object,
+    evidence_kind: object,
+    issues: _Issues,
+) -> None:
     expected_producer = LIVE_PRODUCERS.get(str(connector))
     if producer != expected_producer:
         issues.error("identity.producer is not approved for the connector")
-    expected_kind = "protected_runtime_evidence" if connector == "nginx" else "structured_connector_evidence"
+    expected_kind = "structured_connector_evidence"
     if evidence_kind != expected_kind:
         issues.error("provenance.evidence_kind is not approved for the connector producer")
+
+
+def _validate_evidence_records(
+    evidence: object,
+    evidence_kind: object,
+    issues: _Issues,
+) -> list[dict[str, Any]]:
+    valid_records: list[dict[str, Any]] = []
+    if not isinstance(evidence, list) or not evidence or len(evidence) > MAX_EVIDENCE_FILES:
+        issues.error("provenance.evidence must be a bounded non-empty list")
+        return valid_records
+    names: set[str] = set()
+    paths: set[str] = set()
+    has_bound_evidence = False
+    for index, item in enumerate(evidence):
+        record = _as_mapping(item, f"provenance.evidence[{index}]", issues)
+        if record is None:
+            continue
+        label = f"provenance.evidence[{index}]"
+        _require_exact_keys(record, {"name", "path", "sha256", "kind"}, set(), label, issues)
+        if not _safe_token(record.get("name")):
+            issues.error(f"{label}.name must be a bounded token")
+        if not _safe_relative_evidence_path(record.get("path")):
+            issues.error(f"{label}.path must be a safe relative path")
+        digest = record.get("sha256")
+        if not isinstance(digest, str) or SHA256.fullmatch(digest) is None:
+            issues.error(f"{label}.sha256 must be a SHA-256 digest")
+        _validate_evidence_record_kind(record.get("kind"), evidence_kind, label, issues)
+        if record.get("kind") == evidence_kind:
+            has_bound_evidence = True
+        name = record.get("name")
+        path = record.get("path")
+        if isinstance(name, str) and name in names:
+            issues.error("provenance.evidence contains duplicate names")
+        if isinstance(path, str) and path in paths:
+            issues.error("provenance.evidence contains duplicate paths")
+        if isinstance(name, str):
+            names.add(name)
+        if isinstance(path, str):
+            paths.add(path)
+        valid_records.append(record)
+    if not has_bound_evidence:
+        issues.error("provenance.evidence needs connector-bound evidence, not only a manifest")
+    return valid_records
+
+
+def _validate_evidence_record_kind(
+    record_kind: object, evidence_kind: object, label: str, issues: _Issues
+) -> None:
+    if record_kind not in CANONICAL_EVIDENCE_RECORD_KINDS:
+        issues.error(f"{label}.kind is not a canonical evidence kind")
+    if record_kind == "canonical_fixture" and evidence_kind != "canonical_fixture":
+        issues.error("fixture evidence record cannot support a live runtime claim")
+    if record_kind in LIVE_EVIDENCE_KINDS and evidence_kind == "canonical_fixture":
+        issues.error("live evidence record cannot be relabelled as a fixture")
+    if record_kind != "manifest" and record_kind != evidence_kind:
+        issues.error("provenance evidence record kind does not match the producer evidence kind")
+
+
+def _validate_referenced_evidence(
+    evidence_root: object,
+    records: list[dict[str, Any]],
+    issues: _Issues,
+) -> None:
+    if evidence_root is None or not records:
+        return
+    try:
+        root = _path_from_value(evidence_root)
+        for record in records:
+            path = root / str(record["path"])
+            data = read_bounded_evidence_file(path, root, label="referenced evidence")
+            if hashlib.sha256(data).hexdigest() != record["sha256"]:
+                issues.error("referenced evidence digest does not match")
+    except (ObservationInputError, OSError):
+        # Do not leak a host path from an OS exception into the canonical
+        # validation result. Missing or unreadable bound evidence is a
+        # validation failure, never an in-process exception or a PASS.
+        issues.error("referenced evidence is unavailable or unsafe")
 
 
 def _validate_provenance(
@@ -1203,49 +1424,7 @@ def _validate_provenance(
     if identity is not None and provenance.get("producer_version") != identity.get("producer_version"):
         issues.error("provenance.producer_version does not match identity.producer_version")
     _validate_producer_binding(identity, provenance, policy, issues)
-    evidence = provenance.get("evidence")
-    valid_records: list[dict[str, Any]] = []
-    if not isinstance(evidence, list) or not evidence or len(evidence) > MAX_EVIDENCE_FILES:
-        issues.error("provenance.evidence must be a bounded non-empty list")
-    else:
-        names: set[str] = set()
-        paths: set[str] = set()
-        has_bound_evidence = False
-        for index, item in enumerate(evidence):
-            record = _as_mapping(item, f"provenance.evidence[{index}]", issues)
-            if record is None:
-                continue
-            _require_exact_keys(record, {"name", "path", "sha256", "kind"}, set(), f"provenance.evidence[{index}]", issues)
-            if not _safe_token(record.get("name")):
-                issues.error(f"provenance.evidence[{index}].name must be a bounded token")
-            if not _safe_relative_evidence_path(record.get("path")):
-                issues.error(f"provenance.evidence[{index}].path must be a safe relative path")
-            digest = record.get("sha256")
-            if not isinstance(digest, str) or SHA256.fullmatch(digest) is None:
-                issues.error(f"provenance.evidence[{index}].sha256 must be a SHA-256 digest")
-            if record.get("kind") not in LIVE_EVIDENCE_KINDS | frozenset(("canonical_fixture", "manifest")):
-                issues.error(f"provenance.evidence[{index}].kind is not a canonical evidence kind")
-            if record.get("kind") == "canonical_fixture" and evidence_kind != "canonical_fixture":
-                issues.error("fixture evidence record cannot support a live runtime claim")
-            if record.get("kind") in LIVE_EVIDENCE_KINDS and evidence_kind == "canonical_fixture":
-                issues.error("live evidence record cannot be relabelled as a fixture")
-            if record.get("kind") != "manifest" and record.get("kind") != evidence_kind:
-                issues.error("provenance evidence record kind does not match the producer evidence kind")
-            if record.get("kind") == evidence_kind:
-                has_bound_evidence = True
-            name = record.get("name")
-            path = record.get("path")
-            if isinstance(name, str) and name in names:
-                issues.error("provenance.evidence contains duplicate names")
-            if isinstance(path, str) and path in paths:
-                issues.error("provenance.evidence contains duplicate paths")
-            if isinstance(name, str):
-                names.add(name)
-            if isinstance(path, str):
-                paths.add(path)
-            valid_records.append(record)
-        if not has_bound_evidence:
-            issues.error("provenance.evidence needs connector-bound evidence, not only a manifest")
+    valid_records = _validate_evidence_records(provenance.get("evidence"), evidence_kind, issues)
     if valid_records and provenance.get("evidence_digest") != evidence_manifest_digest(valid_records):
         issues.error("provenance.evidence_digest does not bind the evidence inventory")
     if _has_forbidden_metadata(provenance):
@@ -1257,18 +1436,7 @@ def _validate_provenance(
         else:
             issues.error("live runtime evidence requires a private evidence root")
     elif evidence_root is not None and valid_records:
-        try:
-            root = _path_from_value(evidence_root)
-            for record in valid_records:
-                path = root / str(record["path"])
-                data = read_bounded_evidence_file(path, root, label="referenced evidence")
-                if hashlib.sha256(data).hexdigest() != record["sha256"]:
-                    issues.error("referenced evidence digest does not match")
-        except (ObservationInputError, OSError):
-            # Do not leak a host path from an OS exception into the canonical
-            # validation result. Missing or unreadable bound evidence is a
-            # validation failure, never an in-process exception or a PASS.
-            issues.error("referenced evidence is unavailable or unsafe")
+        _validate_referenced_evidence(evidence_root, valid_records, issues)
     return provenance
 
 
@@ -1290,52 +1458,12 @@ def validate_runtime_observation(
     retain a bounded, non-payload diagnostic record.  Callers must use
     ``status == 'PASS'`` as the only success condition.
     """
-    normalized_policy = _normalise_policy(policy)
     issues = _Issues()
-    document = _as_mapping(observation, "runtime observation", issues)
-    identity: dict[str, Any] | None = None
-    runtime: dict[str, Any] | None = None
-    provenance: dict[str, Any] | None = None
-    if document is not None:
-        _require_exact_keys(
-            document,
-            {"schema_version", "identity", "runtime", "framework", "isolation", "cleanup", "provenance"},
-            set(),
-            "runtime observation",
-            issues,
-        )
-        if document.get("schema_version") != SCHEMA_VERSION:
-            issues.error("schema_version is unsupported")
-        identity = _validate_identity(document.get("identity"), expected_identity, issues)
-        profile = identity.get("profile") if identity is not None else None
-        requirements = PROFILE_REQUIREMENTS.get(profile) if isinstance(profile, str) else None
-        provenance_hint = document.get("provenance")
-        provenance_evidence_kind = (
-            provenance_hint.get("evidence_kind")
-            if isinstance(provenance_hint, Mapping)
-            else None
-        )
-        runtime = _validate_runtime(
-            document.get("runtime"),
-            requirements,
-            issues,
-            allow_partial=bool(normalized_policy["allow_partial"]),
-            provenance_evidence_kind=provenance_evidence_kind,
-            allow_fixture_evidence=bool(normalized_policy["allow_fixture_evidence"]),
-        )
-        _validate_framework(document.get("framework"), requirements, issues)
-        _validate_isolation(document.get("isolation"), requirements, issues)
-        _validate_cleanup(document.get("cleanup"), issues)
-        provenance = _validate_provenance(document.get("provenance"), identity, normalized_policy, issues)
-    if issues.hard:
-        status = "VALIDATION_FAILED"
-        validation_status = "VALIDATION_FAILED"
-    elif issues.incomplete:
-        status = "PARTIAL" if normalized_policy["allow_partial"] else "VALIDATION_FAILED"
-        validation_status = "PARTIAL" if status == "PARTIAL" else "VALIDATION_FAILED"
-    else:
-        status = "PASS"
-        validation_status = "CONTRACT_VALIDATED"
+    normalized_policy = _normalise_policy(policy)
+    identity, runtime, provenance = _validate_document(
+        observation, expected_identity, normalized_policy, issues
+    )
+    status, validation_status = _validation_status(issues, normalized_policy)
     result: ValidationResult = ValidationResult({
         "schema_version": SCHEMA_VERSION,
         "result_type": "runtime_observation_validation",
@@ -1353,10 +1481,67 @@ def validate_runtime_observation(
         if identity is not None
         else {},
     })
+    _add_result_disposition(result, provenance, runtime, status)
+    return result
+
+
+def _validate_document(
+    observation: object,
+    expected_identity: Mapping[str, Any] | None,
+    policy: Mapping[str, Any],
+    issues: _Issues,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
+    document = _as_mapping(observation, RUNTIME_OBSERVATION_LABEL, issues)
+    if document is None:
+        return None, None, None
+    _require_exact_keys(
+        document,
+        {"schema_version", "identity", "runtime", "framework", "isolation", "cleanup", "provenance"},
+        set(),
+        RUNTIME_OBSERVATION_LABEL,
+        issues,
+    )
+    if document.get("schema_version") != SCHEMA_VERSION:
+        issues.error("schema_version is unsupported")
+    identity = _validate_identity(document.get("identity"), expected_identity, issues)
+    profile = identity.get("profile") if identity is not None else None
+    requirements = PROFILE_REQUIREMENTS.get(profile) if isinstance(profile, str) else None
+    provenance_hint = document.get("provenance")
+    provenance_evidence_kind = (
+        provenance_hint.get("evidence_kind") if isinstance(provenance_hint, Mapping) else None
+    )
+    runtime = _validate_runtime(
+        document.get("runtime"),
+        issues,
+        allow_partial=bool(policy["allow_partial"]),
+        provenance_evidence_kind=provenance_evidence_kind,
+        allow_fixture_evidence=bool(policy["allow_fixture_evidence"]),
+    )
+    _validate_framework(document.get("framework"), requirements, issues)
+    _validate_isolation(document.get("isolation"), requirements, issues)
+    _validate_cleanup(document.get("cleanup"), issues)
+    provenance = _validate_provenance(document.get("provenance"), identity, policy, issues)
+    return identity, runtime, provenance
+
+
+def _validation_status(issues: _Issues, policy: Mapping[str, Any]) -> tuple[str, str]:
+    if issues.hard:
+        return "VALIDATION_FAILED", "VALIDATION_FAILED"
+    if issues.incomplete:
+        status = "PARTIAL" if policy["allow_partial"] else "VALIDATION_FAILED"
+        return status, "PARTIAL" if status == "PARTIAL" else "VALIDATION_FAILED"
+    return "PASS", "CONTRACT_VALIDATED"
+
+
+def _add_result_disposition(
+    result: ValidationResult,
+    provenance: Mapping[str, Any] | None,
+    runtime: Mapping[str, Any] | None,
+    status: str,
+) -> None:
     if provenance is not None and provenance.get("evidence_kind") == "canonical_fixture":
         result["evidence_disposition"] = "fixture_only"
     else:
         result["evidence_disposition"] = "runtime_evidence" if status == "PASS" else "not_validated"
     if runtime is not None:
         result["declared_runtime_status"] = runtime.get("runtime_status")
-    return result
