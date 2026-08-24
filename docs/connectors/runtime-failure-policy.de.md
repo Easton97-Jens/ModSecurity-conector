@@ -31,6 +31,16 @@ für ein unbestätigtes Admission-Close ist `NOT_EXECUTED`; er wird niemals als
 Allow dokumentiert. Ein Peer-lokaler Admission- oder Handshake-Fehler schließt
 nur diesen Peer und blockiert niemals die globale Accept-/HELLO-Schleife.
 
+Die SPOP-Response-Verarbeitung ist zustandsbehaftet. Fehlt ihre passende
+Request-Transaktion nach begrenzter Cache-Eviction, Teardown oder einem
+nicht zuordenbaren Response-NOTIFY, liefert sie immer `error`/`502`,
+`disruptive=1`, `fail-closed` und
+`stateful_response_transaction_missing_closed`. Dieses eng begrenzte
+closed-Verhalten gilt auch, wenn gewöhnliche Engine-Fehler ausdrücklich mit
+`fail-mode=open` konfiguriert wurden: Bei Korrelationsverlust ist
+Response-Enforcement nicht entscheidbar und darf nie still zu `pass`/`200`
+werden.
+
 Jede fehlgeschlagene Transaktion bzw. jeder Stream muss Transaktionszustand,
 Buffer, Dateideskriptoren, Goroutines/Threads sowie eigene Socket-/Port-
 Ressourcen freigeben. Cleanup ist idempotent. Eine legitime Anfrage auf einer
@@ -176,7 +186,7 @@ In den Tabellen sind die Statusbegriffe technische Evidence-Literale und keine
 | V14 | L | SELF_TEST_PASS: parallele Peers; gesättigter Peer wird lokal geschlossen und der Parent-Accept-Loop bleibt frei |
 | V15 | L | SELF_TEST_PASS: Worker `1..64`, begrenzte Handshake-/Socket-Deadlines und sofortiger Peer-lokaler Close bei Sättigung |
 | V16 | A | SELF_TEST_PASS: gültiges HELLO, Block-ACK `403` und Folge-HELLO nach Sättigung bleiben erhalten |
-| V17 | U | SELF_TEST_PASS: kein Listener nach Test; Peer-FDs geschlossen |
+| V17 | U | SELF_TEST_PASS: kein Listener nach Selbsttest; Peer-FDs sind geschlossen |
 
 SPOP-Schreibvorgänge verwenden pro Send `MSG_NOSIGNAL` (und, wenn verfügbar,
 `SO_NOSIGPIPE`); `SIGPIPE` wird nicht global ignoriert. Jeder Peer ist in einem
@@ -273,19 +283,25 @@ Aktivität nicht wegen des Engine-Timeouts beendet. Admission ist durch
 | V6 | P | SELF_TEST_PASS: Reset-Peer bleibt lokal; Folgeanfrage gelingt |
 | V7 | P | NOT_EXECUTED: Live-Upstream-Close |
 | V8 | P | SELF_TEST_PASS: unvollständiges Framing wird abgewiesen |
-| V9 | P | SELF_TEST_PASS: UDS-Reset beendet Service nicht |
+| V9 | P | SELF_TEST_PASS: UDS-Reset und Writes von 64 nicht lesenden Peers beenden den Service nicht |
 | V10 | P | SOURCE_VALIDATED: unvollständiger Request-Frame wird abgewiesen |
 | V11 | P | SELF_TEST_PASS: unvollständige/überlange Response wird abgewiesen |
 | V12 | C | SOURCE_VALIDATED: aktive Sockets werden beim Service-Stop beendet |
 | V13 | C | SOURCE_VALIDATED: festhängende Engine nutzt kontrollierten Neustart |
-| V14 | L | SELF_TEST_PASS: Worker-Aufnahme bleibt begrenzt; Listener überlebt Peerfehler |
+| V14 | L | SELF_TEST_PASS: 64 nicht lesende Peers füllen die Worker-Grenze; ein zusätzlicher Peer wird abgewiesen |
 | V15 | L | SELF_TEST_PASS: Response- und Frame-Limits werden erzwungen |
-| V16 | A | SELF_TEST_PASS: gültige Anfrage nach Reset |
-| V17 | U | SELF_TEST_PASS: eigener UDS entfernt; Ersatz-Sentinel bleibt erhalten |
+| V16 | A | SELF_TEST_PASS: gültige Anfrage gelingt nach Reset und nach 31,0-Sekunden-Deadline eines nicht lesenden Peers mit 0,0 Sekunden Follow-up-Latenz |
+| V17 | U | SELF_TEST_PASS: Reset-, Deadline- und Ownership-Negativpfade hinterlassen keinen eigenen UDS oder Prozess |
 
 Der UDS-Shutdown begrenzt das Worker-Warten. Bei einem nicht unterbrechbaren
 Engine-Aufruf entfernt der Service seinen eigenen Socket und beendet sich über
 den kontrollierten Neustartpfad, ohne Worker-erreichbaren Zustand freizugeben.
+
+`make -C connectors/traefik test-engine-service` bestand Ownership-Selbsttest,
+den 64-Peer-Nichtlese-Deadline-Check (`elapsed_seconds=31.0`,
+`followup_latency_seconds=0.0`) und seinen Negativtest. Dies ist ein lokales
+Native-UDS-Runtime-Ergebnis des Connectors, keine Evidence für nativen
+Traefik-Host, Sanitizer oder vollständige Matrix.
 
 ### lighttpd Stock
 

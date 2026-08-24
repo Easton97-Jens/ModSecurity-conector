@@ -690,10 +690,10 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
         self.assertIn('protected from cross-user ancestor replacement', source)
         self.assertIn('os.path.realpath(candidate)', source)
         self.assertIn('stat.S_ISVTX', source)
-        self.assertIn('mktemp -d "$SOCKET_PARENT"/msconnector-traefik-engine-test.XXXXXX', source)
-        self.assertIn('SOCKET_PATH="$SOCKET_DIR/engine.sock"', source)
-        self.assertIn('[ "${#SOCKET_PATH}" -le 100 ]', source)
-        self.assertIn('rmdir "$SOCKET_DIR"', source)
+        self.assertIn('mktemp "$SOCKET_PARENT"/XXXXXX', source)
+        self.assertIn('case "$SOCKET_PATH" in', source)
+        self.assertIn('[ "${#SOCKET_PATH}" -le 107 ]', source)
+        self.assertIn('rm -- "$SOCKET_PATH"', source)
         self.assertIn("replacement-sentinel", source)
         self.assertNotIn('rm -f "$SOCKET_PATH"', source)
 
@@ -713,7 +713,7 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
         self.assertNotIn("umask(", source)
         listener_source = source[
             source.index("static int traefik_engine_create_listener") : source.index(
-                "static void traefik_engine_wait_for_workers"
+                "static int traefik_engine_wait_for_workers"
             )
         ]
         serve_source = source[

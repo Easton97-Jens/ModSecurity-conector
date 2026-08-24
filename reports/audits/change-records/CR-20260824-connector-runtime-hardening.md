@@ -20,7 +20,7 @@ The task required one explicit failure, availability, and cleanup model for Apac
 ## Acceptance criteria
 
 - Direct libmodsecurity C API calls treat exactly `1` as success and fail closed on `0` or negative returns in the covered Apache, NGINX, HAProxy, and shared runtime paths.
-- HAProxy SPOE/SPOP writes are signal-safe and evaluated; peer reset/EPIPE, incomplete or slow HELLO, parallel peers, follow-up HELLO, and Allow/Block controls have bounded, isolated outcomes.
+- HAProxy SPOE/SPOP writes are signal-safe and evaluated; peer reset/EPIPE, incomplete or slow HELLO, parallel peers, follow-up HELLO, and Allow/Block controls have bounded, isolated outcomes. A lost stateful response transaction is an explicit closed `error`/`502` with reason `stateful_response_transaction_missing_closed`, never a silent `pass`/`200`.
 - Common HTTP authorization for Envoy `ext_authz` and Traefik `forwardAuth` bounds worker admission, survives malformed-peer close, and permits subsequent Allow and Block requests.
 - Envoy `ext_proc` separates engine timeout from stream idle timeout, defines activity per complete request, bounds concurrent streams, propagates cancellation, and releases state.
 - Traefik Native UDS bounds worker/socket tracking, handles reset and shutdown, drains within a deadline, and uses a defined controlled restart path if an uninterruptible engine worker cannot drain.
@@ -33,8 +33,10 @@ The task required one explicit failure, availability, and cleanup model for Apac
 - Signal safety is local to each socket write (`MSG_NOSIGNAL`, with platform fallback where available); no global SIGPIPE ignore is used.
 - Admission and shutdown are bounded. Cleanup is idempotent or ownership-isolated; state is not freed while an uninterruptible worker still owns it.
 - The project-supplied HAProxy closed-default SPOE configuration omits `option continue-on-error`: that HAProxy opt-in is incompatible with `fail-mode=closed` because an agent failure can otherwise become an Allow. An admission close without an ACK is a closed SPOP transport failure; a failure ACK maps to `503`. The exact native-HAProxy client status for an unacknowledged admission close remains `NOT_EXECUTED`, while peer-local admission/HELLO isolation is retained.
+- A response-side SPOP cache correlation miss is separately fail-closed even when an operator selected ordinary engine-error `fail-mode=open`: bounded eviction can remain an availability limit, but a later response NOTIFY emits `error`/`502` with `stateful_response_transaction_missing_closed` rather than silently skipping response enforcement.
 - `ext_proc` activity resets only after a complete processing request and its response/engine work. The general engine timeout is not a stream-idle timeout.
 - The ext_proc follow-up fixture asserts `pendingReceives == 0` after the idle handler returns; mutex and forced-stop waits are deadline-bounded. An already-running uninterruptible native C destructor uses a controlled nonzero restart path, not an in-process cancellation claim.
+- Native UDS RESULT writes use a `CLOCK_MONOTONIC` peer deadline with `poll(POLLOUT)` and nonblocking `MSG_NOSIGNAL | MSG_DONTWAIT`. Expiry closes only that peer and releases its worker; it is not an engine-operation or receive timeout.
 - Stock lighttpd response-start helpers are compiled outside the patched-host ABI guard so both host variants use the same cleanup-safe path.
 
 ## Security impact
@@ -47,11 +49,11 @@ The changes harden trust-boundary transitions between hosts, clients, peers, eng
 - `common/runtime/http_authorization_service.c` — signal-safe writes, bounded worker admission, and bounded shutdown ownership.
 - Apache: `connectors/apache/src/mod_security3.c`, `connectors/apache/src/msc_filters.c` — fail-closed transaction and response/body checks.
 - NGINX: `connectors/nginx/src/ngx_http_modsecurity_access.c`, `ngx_http_modsecurity_body_filter.c`, `ngx_http_modsecurity_header_filter.c`, `ngx_http_modsecurity_module.c` — exact C API result handling.
-- HAProxy: `connectors/haproxy/src/haproxy_modsecurity_binding.c`, `connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c`, `examples/haproxy/compatibility-spoe/modsecurity-agent.conf` — HTX checks and isolated, bounded, signal-safe SPOE/SPOP handling.
+- HAProxy: `connectors/haproxy/src/haproxy_modsecurity_binding.c`, `connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c`, `connectors/haproxy/harness/run_haproxy_spop_cache_miss.sh`, `examples/haproxy/compatibility-spoe/modsecurity-agent.conf` — HTX checks, isolated bounded signal-safe SPOE/SPOP handling, and the malformed-NOTIFY regression harness.
 - Envoy: `connectors/envoy/ext_proc/cmd/msconnector-envoy-ext-proc/main.go`, `connectors/envoy/ext_proc/internal/processor/config.go`, `processor.go`, `processor_test.go`, `connectors/envoy/config/envoy-ext-proc-service.json`, `examples/envoy/minimal/envoy-ext-proc-service.json`, `examples/envoy/safe/envoy-ext-proc-service.json` — idle/admission/cancellation/shutdown controls and config.
 - Traefik: `connectors/traefik/src/traefik_engine_service.c` — bounded Native UDS drain and controlled restart.
 - lighttpd: `connectors/lighttpd/module/mod_msconnector.c`, `connectors/lighttpd/tests/test_patched_host_contract.py` — Stock/Patched helper scope and regression.
-- Regression tests: `tests/test_apache_fail_closed.py`, `connectors/nginx/tests/test_fail_closed_contract.py`, `tests/test_native_api_fail_closed_contract.py`, `tests/test_haproxy_spop_peer_isolation_contract.py`, `tests/test_http_authorization_service_worker_contract.py`, `tests/test_http_authorization_service_runtime.py`, `tests/test_traefik_engine_service_shutdown_contract.py`.
+- Regression tests: `tests/test_apache_fail_closed.py`, `connectors/nginx/tests/test_fail_closed_contract.py`, `tests/test_native_api_fail_closed_contract.py`, `tests/test_haproxy_spop_peer_isolation_contract.py`, `tests/test_haproxy_spop_transaction_cache_contract.py`, `tests/test_http_authorization_service_worker_contract.py`, `tests/test_http_authorization_service_runtime.py`, `tests/test_traefik_engine_service_shutdown_contract.py`.
 - No CI, Framework/MRTS, Gitlink, dependency, branch-rule, ruleset, or required-check file is part of this record.
 
 ## Tests and actual results
@@ -66,7 +68,7 @@ The exact retained commands and observed results are in the evidence file named 
 - Envoy builds/configs passed. `ext_authz` runtime passed malformed-peer recovery, `200` Allow, `403` Block, bounded exit, and listener cleanup.
 - Envoy `ext_proc` Go unit and `-race` suites plus the tagged native CGo test passed, including timeout, cancellation, shutdown, admission release, follow-up controls, and `TestCommonRuntimeEngineCloseHonorsShutdownContext`; all three config checks passed.
 - Traefik `forwardAuth` config/runtime passed malformed-peer recovery, `200` Allow, `403` Block, exit, and port cleanup.
-- Traefik Native UDS GCC, Clang, and ASan/UBSan passed protocol, reset, follow-up, ownership, cleanup, with no sanitizer diagnostic.
+- Traefik Native UDS: `make -C connectors/traefik test-engine-service` passed the ownership self-test, `nonreading_peer_deadline_test=pass peers=64 elapsed_seconds=31.0 followup_latency_seconds=0.0`, and its negative test. This is connector-local runtime evidence only.
 - lighttpd contracts passed (36 tests, 2 expected skips). Fresh Stock and Patched builds/checks and runtime smokes passed baseline `200`, Block `403`, event, shutdown, and listener cleanup.
 - Evidence was retained and hashed as stated in Identity.
 
@@ -77,10 +79,9 @@ local checks were the connector contract suites, HAProxy SPOE/SPOP runtime
 self-tests, Envoy `go test ./...` and `go test -race ./...`, the tagged Envoy
 native test, Traefik Native UDS GCC/Clang/ASan/UBSan runs, fresh lighttpd
 Stock/Patched smokes, `make check-doc-links`, and `make check-bilingual-docs`.
-
 ## Runtime evidence
 
-The retained evidence covers engine-start availability, in-transaction failure, timeout, invalid/incomplete peer input, client/peer reset, incomplete HELLO and body/stream boundaries where the local harness provides them, parallel requests/streams, size/admission bounds, cancellation, shutdown, follow-up controls, and cleanup. SPOP logs record reset `errno=104` and EPIPE `errno=32` followed by successful control traffic. HTTP and UDS tests assert a legitimate subsequent request and absence of the assigned TCP/UDS listener.
+The retained evidence covers engine-start availability, in-transaction failure, timeout, invalid/incomplete peer input, client/peer reset, incomplete HELLO and body/stream boundaries where the local harness provides them, parallel requests/streams, size/admission bounds, cancellation, shutdown, follow-up controls, and cleanup. SPOP logs record reset `errno=104` and EPIPE `errno=32` followed by successful control traffic. The Traefik Native UDS test additionally records the ownership self-test, the 64-peer non-reading deadline result, its negative test, a zero-latency follow-up, and absence of the assigned UDS listener.
 
 ## Checks not run and rationale
 

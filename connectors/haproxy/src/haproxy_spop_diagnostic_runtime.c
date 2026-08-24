@@ -1519,7 +1519,13 @@ static int parse_notify_argument(
 static int parse_notify_payload(const unsigned char *data, size_t len, notify_request *request) {
     size_t pos = 0;
 
+    if (request == 0) {
+        return -1;
+    }
     memset(request, 0, sizeof(*request));
+    if (data == 0 || len == 0U) {
+        return -1;
+    }
     while (pos < len) {
         const unsigned char *message_name;
         size_t message_name_len;
@@ -1550,7 +1556,7 @@ static int parse_notify_payload(const unsigned char *data, size_t len, notify_re
             }
         }
     }
-    return 0;
+    return request->has_notify ? 0 : -1;
 }
 
 static int build_notify_request_payload(
@@ -2286,6 +2292,18 @@ static const char *safe_decision_reason_code(
         const char *decision_text) {
     const char *safe_decision = safe_decision_name(decision_text, decision);
 
+    if (decision != 0 && strcmp(decision->log_message,
+            "peer_worker_admission_failed") == 0) {
+        return strcmp(safe_decision, "fail-closed") == 0
+            ? "peer_worker_admission_failed_closed"
+            : "peer_worker_admission_failed_open";
+    }
+    if (decision != 0 && (strcmp(decision->log_message,
+            "canonical response transaction correlation is missing or expired") == 0 ||
+            strcmp(decision->log_message,
+                "stateful response transaction missing") == 0)) {
+        return "stateful_response_transaction_missing_closed";
+    }
     if (strcmp(safe_decision, "fail-closed") == 0) {
         return "modsecurity_processing_failed_closed";
     }
@@ -2603,6 +2621,39 @@ static const char *set_response_correlation_failure(
         "canonical response transaction correlation is missing or expired");
     decision->disruptive = 1;
     return "correlation-failure";
+}
+
+static int send_malformed_notify_outcome(
+        int fd,
+        const spop_frame *frame,
+        const agent_state *state,
+        FILE *log) {
+    haproxy_modsecurity_decision decision;
+    spop_buffer ack_payload;
+    const char *decision_text = "malformed-notify";
+
+    if (state == 0 || state->engine == 0) {
+        log_line(log,
+            "malformed NOTIFY rejected without ACK because no production fail policy is active");
+        return -1;
+    }
+    /* Malformed protocol input is a protocol failure, not an engine failure;
+     * never let the configured fail-open policy turn it into an empty ACK. */
+    runtime_init_decision(&decision, 2, "deny", 400,
+        "invalid SPOP NOTIFY payload");
+    decision.disruptive = 1;
+    if (build_decision_ack_payload(&ack_payload, &decision,
+            safe_decision_reason_code(&decision, 0, decision_text),
+            mode_enforces(&state->config), 0) != 0) {
+        log_line(log, "malformed NOTIFY outcome encoding failed");
+        return -1;
+    }
+    log_line(log,
+        "malformed NOTIFY outcome=%s disruptive=%d status=%d enforce=%d",
+        decision_text, decision.disruptive, decision.status,
+        mode_enforces(&state->config));
+    return send_frame(fd, SPOP_FRM_ACK, frame->stream_id, frame->frame_id,
+        &ack_payload);
 }
 
 static unsigned int bounded_body_length(
@@ -4008,9 +4059,24 @@ static int run_spop_request_id_validation_self_test(void)
     return 0;
 }
 
+static int run_spop_notify_failure_self_test(void)
+{
+    static const unsigned char truncated[] = {5U, 'c', 'h', 'e', 'c'};
+    notify_request request;
+
+    memset(&request, 0, sizeof(request));
+    if (parse_notify_payload(0, 0U, &request) == 0 ||
+            parse_notify_payload(truncated, sizeof(truncated), &request) == 0) {
+        free_notify_request(&request);
+        return -1;
+    }
+    free_notify_request(&request);
+    return 0;
+}
+
 static int run_spop_write_deadline_self_test(void)
 {
-    int sockets[2];
+    int sockets[2] = {-1, -1};
     int flags;
     unsigned char filler[4096];
     ssize_t written;
@@ -4126,11 +4192,15 @@ static int handle_notify_frame(
         (unsigned long long)frame->stream_id, (unsigned long long)frame->frame_id);
     if (parse_notify_payload(frame->payload, frame->payload_len, &request) != 0) {
         log_line(log, "NOTIFY request argument extraction failed");
-        rc = send_empty_ack(fd, frame,
-            state != 0 && state->engine != 0 ? state->config.spoe_timeout_ms :
-            2000U);
+        if (state != 0 && state->engine != 0) {
+            (void)send_malformed_notify_outcome(fd, frame, state, log);
+        } else {
+            log_line(log, "malformed NOTIFY rejected without ACK in legacy mode");
+        }
         free_notify_request(&request);
-        return rc;
+        /* A malformed NOTIFY terminates the connection even when production
+         * mode emitted a non-empty 400 outcome; it must never continue. */
+        return -1;
     }
     log_line(log,
         "NOTIFY request metadata method_present=%d path_present=%d uri_present=%d host_present=%d test_header_present=%d headers=%u body_len=%lu",
@@ -4480,6 +4550,106 @@ static int client_expect_ack_set_var(int fd, uint64_t stream_id, uint64_t frame_
     return payload_has_set_var_blocked_true(&payload) ? 0 : -1;
 }
 
+static int client_expect_malformed_ack(int fd, uint64_t stream_id, uint64_t frame_id)
+{
+    haproxy_modsecurity_decision decision;
+    spop_buffer expected;
+    spop_frame frame;
+
+    runtime_init_decision(&decision, 2, "deny", 400,
+        "invalid SPOP NOTIFY payload");
+    decision.disruptive = 1;
+    if (build_decision_ack_payload(&expected, &decision,
+            safe_decision_reason_code(&decision, 0, "malformed-notify"), 1, 0) != 0 ||
+            recv_frame(fd, &frame, 3000U) != 0 || frame.type != SPOP_FRM_ACK ||
+            frame.stream_id != stream_id || frame.frame_id != frame_id ||
+            frame.payload_len != expected.len ||
+            memcmp(frame.payload, expected.data, expected.len) != 0) {
+        return -1;
+    }
+    return 0;
+}
+
+static int run_spop_malformed_notify_socket_self_test(void)
+{
+    int sockets[2] = {-1, -1};
+    int rc;
+    unsigned char byte;
+    spop_buffer empty;
+    spop_buffer notify_payload;
+    agent_state production_state;
+
+    empty.len = 0U;
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) != 0 ||
+            send_haproxy_hello(sockets[1], 0) != 0 ||
+            send_frame(sockets[1], SPOP_FRM_NOTIFY, 1U, 1U, &empty) != 0) {
+        close(sockets[0]);
+        close(sockets[1]);
+        return -1;
+    }
+    rc = handle_connection(sockets[0], 0, stderr, 0, 0, 2000U);
+    if (rc == 0 || client_expect_frame(sockets[1], SPOP_FRM_AGENT_HELLO, 0, 0) != 0) {
+        close(sockets[0]);
+        close(sockets[1]);
+        return -1;
+    }
+    close(sockets[0]);
+    if (recv(sockets[1], &byte, sizeof(byte), 0) != 0) {
+        close(sockets[1]);
+        return -1;
+    }
+    close(sockets[1]);
+    sockets[0] = -1;
+    sockets[1] = -1;
+
+    memset(&production_state, 0, sizeof(production_state));
+    production_state.engine = (haproxy_modsecurity_engine *)(uintptr_t)1U;
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) != 0 ||
+            send_haproxy_hello(sockets[1], 0) != 0 ||
+            send_frame(sockets[1], SPOP_FRM_NOTIFY, 1U, 1U, &empty) != 0) {
+        close(sockets[0]);
+        close(sockets[1]);
+        return -1;
+    }
+    rc = handle_connection(sockets[0], &production_state, stderr, 0, 0, 2000U);
+    if (rc == 0 || client_expect_frame(sockets[1], SPOP_FRM_AGENT_HELLO, 0, 0) != 0 ||
+            client_expect_malformed_ack(sockets[1], 1U, 1U) != 0) {
+        close(sockets[0]);
+        close(sockets[1]);
+        return -1;
+    }
+    close(sockets[0]);
+    if (recv(sockets[1], &byte, sizeof(byte), 0) != 0) {
+        close(sockets[1]);
+        return -1;
+    }
+    close(sockets[1]);
+    sockets[0] = -1;
+    sockets[1] = -1;
+
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) != 0 ||
+            build_notify_request_payload(&notify_payload, "GET", "/", "/",
+                "localhost", "block") != 0 ||
+            send_haproxy_hello(sockets[1], 0) != 0 ||
+            send_frame(sockets[1], SPOP_FRM_NOTIFY, 1U, 1U, &notify_payload) != 0 ||
+            send_frame(sockets[1], SPOP_FRM_HAPROXY_DISCONNECT, 0U, 0U, &empty) != 0) {
+        close(sockets[0]);
+        close(sockets[1]);
+        return -1;
+    }
+    rc = handle_connection(sockets[0], 0, stderr, 0, 0, 2000U);
+    if (rc != 0 || client_expect_frame(sockets[1], SPOP_FRM_AGENT_HELLO, 0, 0) != 0 ||
+            client_expect_ack_set_var(sockets[1], 1U, 1U) != 0 ||
+            client_expect_frame(sockets[1], SPOP_FRM_AGENT_DISCONNECT, 0, 0) != 0) {
+        close(sockets[0]);
+        close(sockets[1]);
+        return -1;
+    }
+    close(sockets[0]);
+    close(sockets[1]);
+    return 0;
+}
+
 typedef struct client_handshake_test {
     unsigned int port;
     int healthcheck;
@@ -4703,6 +4873,14 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
     }
     if (run_spop_request_id_validation_self_test() != 0) {
         fprintf(stderr, "SPOP request-id validation self-test failed\n");
+        return 1;
+    }
+    if (run_spop_notify_failure_self_test() != 0) {
+        fprintf(stderr, "SPOP NOTIFY failure self-test failed\n");
+        return 1;
+    }
+    if (run_spop_malformed_notify_socket_self_test() != 0) {
+        fprintf(stderr, "SPOP malformed NOTIFY socket self-test failed\n");
         return 1;
     }
     if (run_spop_write_deadline_self_test() != 0) {

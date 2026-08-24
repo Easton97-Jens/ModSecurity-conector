@@ -30,6 +30,14 @@ The exact native-HAProxy client status for an unacknowledged admission close is
 handshake failure still closes only that peer and never blocks the global
 accept/HELLO loop.
 
+SPOP response processing is stateful. If its matching request transaction is
+missing after bounded-cache eviction, teardown, or an unmatched response
+NOTIFY, it always returns `error`/`502`, `disruptive=1`, `fail-closed`, and
+`stateful_response_transaction_missing_closed`. This narrowly scoped closed
+outcome also applies when ordinary engine errors were explicitly configured
+with `fail-mode=open`: correlation loss makes response enforcement undecidable
+and must never become an implicit `pass`/`200`.
+
 Every failed transaction/stream must release its transaction state, buffers,
 file descriptors, goroutines/threads, and owned socket/port resources. Cleanup
 is idempotent. A legitimate request on a new or reusable connection must be
@@ -268,20 +276,26 @@ bounded by gRPC `MaxConcurrentStreams` and the service limit.
 | V6 | P | SELF_TEST_PASS: reset peer is isolated and follow-up request succeeds |
 | V7 | P | NOT_EXECUTED: live Traefik upstream-close run |
 | V8 | P | SELF_TEST_PASS: framed protocol validation rejects incomplete input |
-| V9 | P | SELF_TEST_PASS: UDS reset path does not kill service |
+| V9 | P | SELF_TEST_PASS: UDS reset and 64 non-reading peer writes do not kill the service |
 | V10 | P | SOURCE_VALIDATED: incomplete request frame is rejected |
 | V11 | P | SELF_TEST_PASS: incomplete/oversized response is rejected |
 | V12 | C | SOURCE_VALIDATED: active sockets are shut down during service stop |
 | V13 | C | SOURCE_VALIDATED: bounded worker wait uses controlled restart on stuck engine |
-| V14 | L | SELF_TEST_PASS: worker admission remains bounded and listener survives peer failure |
+| V14 | L | SELF_TEST_PASS: 64 non-reading peers fill the worker bound; one additional peer is rejected |
 | V15 | L | SELF_TEST_PASS: response and frame limits are enforced |
-| V16 | A | SELF_TEST_PASS: valid request after reset succeeds |
-| V17 | U | SELF_TEST_PASS: UDS is removed only when owned; replacement sentinel survives |
+| V16 | A | SELF_TEST_PASS: valid request succeeds after reset and the 31.0-second non-reading-peer deadline, with `0.0`-second follow-up latency |
+| V17 | U | SELF_TEST_PASS: reset, deadline, and ownership-negative paths leave no owned UDS or process |
 
 The Native UDS shutdown path bounds the worker wait. If an uninterruptible
 engine call remains after active sockets are shut down, the service removes its
 owned socket and exits through the documented controlled-restart path; it does
 not free state still reachable by a worker.
+
+`make -C connectors/traefik test-engine-service` passed the ownership
+self-test, the 64-peer non-reading deadline check
+(`elapsed_seconds=31.0`, `followup_latency_seconds=0.0`), and its negative
+test. This is connector-local Native UDS runtime evidence, not native Traefik
+host, sanitizer, or full-matrix evidence.
 
 ### lighttpd Stock
 
