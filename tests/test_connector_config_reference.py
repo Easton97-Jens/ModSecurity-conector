@@ -14,6 +14,30 @@ import connector_config_reference as REFERENCE
 
 
 class ConnectorConfigReferenceTests(unittest.TestCase):
+    def test_lighttpd_native_directive_inventory_is_closed_and_documents_opt_in_evidence(self) -> None:
+        directives = {
+            option["name"]: option
+            for option in REFERENCE.extract_lighttpd(ROOT)
+            if option["configuration_layer"] == "host_connector_directive"
+        }
+
+        self.assertSetEqual(
+            set(directives),
+            {
+                "msconnector.enabled",
+                "msconnector.config-file",
+                "msconnector.expose-host-transaction-id",
+            },
+        )
+        evidence = directives["msconnector.expose-host-transaction-id"]
+        self.assertEqual(evidence["default"], "off")
+        self.assertEqual(
+            evidence["syntax"],
+            'msconnector.expose-host-transaction-id = "enable" | "disable"',
+        )
+        self.assertIn("server-generated", evidence["security_relevance"])
+        self.assertIn("never reflects a request header", evidence["security_relevance"])
+
     def test_apache_example_file_mapping_is_complete_and_stable(self) -> None:
         example_by_directive = {
             item["name"]: item["example_file"]

@@ -19,6 +19,13 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260823-pr309-lighttpd-config-reference-repair](CR-20260823-pr309-lighttpd-config-reference-repair.md)
+  | [Deutsch](CR-20260823-pr309-lighttpd-config-reference-repair.de.md) — the
+  Parent-only successor repair restores the closed Lighttpd configuration-
+  reference contract after the PR #309 post-merge validation failure. It
+  records no Framework/MRTS, Gitlink, runtime-source, workflow, or quality-
+  control change and requires fresh successor-head and resulting-master proof.
+
 - [CR-20260822-trusted-lighttpd-namespace-dispatch](CR-20260822-trusted-lighttpd-namespace-dispatch.md)
   | [Deutsch](CR-20260822-trusted-lighttpd-namespace-dispatch.de.md) — the
   current user authorized a separate protected-master `workflow_dispatch`

@@ -20,6 +20,13 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260823-pr309-lighttpd-config-reference-repair](CR-20260823-pr309-lighttpd-config-reference-repair.de.md) —
+  die Parent-only-Nachfolgereparatur stellt den geschlossenen Lighttpd-
+  Config-Reference-Vertrag nach dem Post-Merge-Validierungsfehler von PR #309
+  wieder her. Sie weist keine Framework-/MRTS-, Gitlink-, Runtime-Source-,
+  Workflow- oder Quality-Control-Änderung aus und verlangt frische
+  Successor-Head- und Resulting-Master-Evidence.
+
 - [CR-20260822-trusted-lighttpd-namespace-dispatch](CR-20260822-trusted-lighttpd-namespace-dispatch.de.md) —
   der aktuelle Benutzer autorisierte eine separate Protected-master-
   `workflow_dispatch`-Grenze für den Lighttpd-Namespace-Test. Der Record weist
