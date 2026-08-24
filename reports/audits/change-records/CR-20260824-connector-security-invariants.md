@@ -190,11 +190,13 @@ smoke also frees caller-owned profile text and the original-header list after
 the service entry point returns, before releasing the blocked worker.
 
 The follow-up Host control passed the five-test Python authorization contract,
-a strict C17 syntax check, and a real local loopback smoke: a missing `Host`
-received HTTP 400 before the fake Runtime entered, after which a valid `Host`
-request still reached the intentionally held worker. That same smoke passed
-with ASan/UBSan plus leak detection and with TSan without a diagnostic. The
-existing timeout/admission/cancel/parallel smoke passed again after the change.
+a strict C17 syntax check, and a real local loopback smoke. Both a missing
+`Host` and a 1024-byte Host value (the fixed hostname-buffer boundary) received
+HTTP 400 before the smoke's mapper flag or fake Runtime transaction flag was
+set; a subsequent valid `Host` still reached the intentionally held worker.
+That same smoke passed with ASan/UBSan plus leak detection and with TSan
+without a diagnostic. The existing timeout/admission/cancel/parallel smoke
+passed again after the implementation change.
 
 ### Expected source absence
 
@@ -293,11 +295,15 @@ The initial scoped Parent commit is
 `4fa010412bfc7510da4ca787d9d923b9e8cad018` and the delivery-status
 documentation commit is `7367187de072a86cfb5314740f8e47870c530e39`. The
 Common re-audit follow-up is committed locally as
-`16a4a06fbf1e1ed20171bc29d31ce3e8476aa3db`. Its independent sealed security
-diff review reports no reportable finding in
-`7367187de072a86cfb5314740f8e47870c530e39..16a4a06fbf1e1ed20171bc29d31ce3e8476aa3db`;
-the pre-existing `CAND-AUTH-HOST-001` fallback remains deferred pending
-host-distinct runtime-policy evidence. Remote publication and Draft-PR
-creation await a new explicit current-user authorization. The active checkout
-also contains unrelated and mixed concurrent edits; they are excluded from
-staging. No merge is authorized or asserted.
+`16a4a06fbf1e1ed20171bc29d31ce3e8476aa3db`, followed by the narrow Host-
+fallback fix `1de8071aa92cc72cadcc90a0e49f39e27e9ceba6`. Its independent,
+sealed security diff review reports zero reportable findings in
+`6c75b136..1de8071aa92cc72cadcc90a0e49f39e27e9ceba6`, with partial coverage
+explicitly limited to the unavailable native host matrix. `CAND-AUTH-HOST-001`
+is resolved as local record `FND-PARENT-0900`: missing, empty, or oversized
+Host values no longer select the listener address, and the strengthened local
+smoke observes missing and boundary-sized Host rejection before mapper or fake
+Runtime entry. Remote publication and Draft-PR creation await a new explicit
+current-user authorization. The active checkout also contains unrelated and
+mixed concurrent edits; they are excluded from staging. No merge is authorized
+or asserted.

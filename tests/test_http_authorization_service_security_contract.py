@@ -42,6 +42,9 @@ class HttpAuthorizationServiceSecurityContractTests(unittest.TestCase):
             "static int handle_authorization_request(", 1
         )[1].split("static int create_listener", 1)[0]
         self.assertIn("msconnector_headers_find_first(", hostname_check)
+        self.assertIn("host->value_size > 0U", hostname_check)
+        self.assertIn("copy_slice(host->value, host->value_size,", hostname_check)
+        self.assertIn("request->hostname, sizeof(request->hostname)", hostname_check)
         self.assertIn('"missing or invalid Host header"', hostname_check)
         self.assertNotIn("return request->server_address", hostname_check)
         self.assertIn("request_hostname(&parsed, error, sizeof(error))", request_path)

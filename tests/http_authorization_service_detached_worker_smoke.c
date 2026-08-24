@@ -42,6 +42,7 @@ struct msconnector_runtime_transaction {
 static msconnector_runtime fake_runtime = {0};
 static pthread_mutex_t test_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t test_changed = PTHREAD_COND_INITIALIZER;
+static int mapper_entered = 0;
 static int runtime_entered = 0;
 static int runtime_release = 0;
 static int runtime_destroyed = 0;
@@ -74,6 +75,15 @@ static int runtime_has_not_entered(void) {
     int result = 0;
     if (pthread_mutex_lock(&test_lock) == 0) {
         result = runtime_entered == 0;
+        (void)pthread_mutex_unlock(&test_lock);
+    }
+    return result;
+}
+
+static int mapper_has_not_entered(void) {
+    int result = 0;
+    if (pthread_mutex_lock(&test_lock) == 0) {
+        result = mapper_entered == 0;
         (void)pthread_mutex_unlock(&test_lock);
     }
     return result;
@@ -230,6 +240,15 @@ static int map_request(
         }
         return 0;
     }
+    if (pthread_mutex_lock(&test_lock) != 0) {
+        if (error != NULL && error_len > 0U) {
+            (void)snprintf(error, error_len, "%s", "could not record mapper entry");
+        }
+        return 0;
+    }
+    ++mapper_entered;
+    (void)pthread_cond_broadcast(&test_changed);
+    (void)pthread_mutex_unlock(&test_lock);
     memset(request, 0, sizeof(*request));
     request->method = source->method;
     request->uri = source->uri;
@@ -259,7 +278,7 @@ static void *run_service(void *argument) {
         "--listen",
         args->listen_spec,
         "--max-requests",
-        "2",
+        "3",
         "--connection-timeout-ms",
         "25",
         NULL,
@@ -337,6 +356,11 @@ int main(void) {
         "Connection: close\r\n\r\n";
     static const char missing_host_request[] = "GET /ok HTTP/1.1\r\n"
         "Connection: close\r\n\r\n";
+    static const char oversized_host_prefix[] = "GET /ok HTTP/1.1\r\nHost: ";
+    static const char oversized_host_suffix[] = "\r\nConnection: close\r\n\r\n";
+    char oversized_host_request[sizeof(oversized_host_prefix) - 1U + 1024U +
+        sizeof(oversized_host_suffix) - 1U];
+    const size_t oversized_host_request_size = sizeof(oversized_host_request);
     char *connector_name = strdup("detached-worker-smoke");
     char *integration_mode = strdup("detached-worker-smoke");
     char *original_uri_header = strdup("X-Original-Uri");
@@ -361,6 +385,12 @@ int main(void) {
     profile.map_request = map_request;
     profile.map_response = NULL;
     args.profile = &profile;
+    memcpy(oversized_host_request, oversized_host_prefix,
+        sizeof(oversized_host_prefix) - 1U);
+    memset(oversized_host_request + sizeof(oversized_host_prefix) - 1U,
+        'a', 1024U);
+    memcpy(oversized_host_request + sizeof(oversized_host_prefix) - 1U + 1024U,
+        oversized_host_suffix, sizeof(oversized_host_suffix) - 1U);
     if (!reserve_loopback_port(&port) ||
         snprintf(args.listen_spec, sizeof(args.listen_spec), "127.0.0.1:%u",
             (unsigned int)port) < 0 ||
@@ -373,8 +403,18 @@ int main(void) {
         send(client_fd, missing_host_request, sizeof(missing_host_request) - 1U, 0) !=
             (ssize_t)(sizeof(missing_host_request) - 1U) ||
         !response_starts_with(client_fd, "HTTP/1.1 400") ||
-        !runtime_has_not_entered()) {
+        !mapper_has_not_entered() || !runtime_has_not_entered()) {
         (void)fprintf(stderr, "missing Host was not rejected before mapping\n");
+        goto done;
+    }
+    (void)close(client_fd);
+    client_fd = connect_loopback(port);
+    if (client_fd < 0 ||
+        send(client_fd, oversized_host_request, oversized_host_request_size, 0) !=
+            (ssize_t)oversized_host_request_size ||
+        !response_starts_with(client_fd, "HTTP/1.1 400") ||
+        !mapper_has_not_entered() || !runtime_has_not_entered()) {
+        (void)fprintf(stderr, "oversized Host was not rejected before mapping\n");
         goto done;
     }
     (void)close(client_fd);

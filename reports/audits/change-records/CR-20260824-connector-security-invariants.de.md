@@ -207,11 +207,13 @@ Service-Entrypoints frei, bevor er den blockierten Worker freigibt.
 
 Der nachgezogene Host-Control bestand den Python-Autorisierungsvertrag mit
 fünf Tests, einen strengen C17-Syntaxcheck und einen echten lokalen Loopback-
-Smoke: Ein fehlender `Host` erhielt HTTP 400, bevor die Fake-Runtime eintrat;
-anschließend erreichte ein Request mit gültigem `Host` weiterhin den absichtlich
-blockierten Worker. Derselbe Smoke bestand mit ASan/UBSan samt Leak-Detection
-und mit TSan ohne Diagnose. Der bestehende Timeout-/Admission-/Cancel-/Parallel-
-Smoke bestand nach der Änderung erneut.
+Smoke. Sowohl ein fehlender `Host` als auch ein 1024 Byte langer Host-Wert (die
+feste Hostname-Puffergrenze) erhielten HTTP 400, bevor das Mapper-Flag des
+Smokes oder das Fake-Runtime-Transaktionsflag gesetzt wurde; anschließend
+erreichte ein Request mit gültigem `Host` weiterhin den absichtlich blockierten
+Worker. Derselbe Smoke bestand mit ASan/UBSan samt Leak-Detection und mit TSan
+ohne Diagnose. Der bestehende Timeout-/Admission-/Cancel-/Parallel-Smoke
+bestand nach der Implementierungsänderung erneut.
 
 ### Erwartete Source-Abwesenheit
 
@@ -320,13 +322,16 @@ Der anfängliche scoped Parent-Commit ist
 `4fa010412bfc7510da4ca787d9d923b9e8cad018`; der Delivery-Status-
 Dokumentationscommit ist `7367187de072a86cfb5314740f8e47870c530e39`. Das hier
 beschriebene Common-Re-Audit-Follow-up ist lokal als
-`16a4a06fbf1e1ed20171bc29d31ce3e8476aa3db` committed. Sein unabhängiger
-versiegelter Security-Diff-Review meldet keinen berichtsfähigen Befund im
-Bereich
-`7367187de072a86cfb5314740f8e47870c530e39..16a4a06fbf1e1ed20171bc29d31ce3e8476aa3db`;
-der vorbestehende Fallback `CAND-AUTH-HOST-001` bleibt bis zur Runtime-Evidence
-für eine host-spezifisch unterscheidende Policy deferred. Remote-
-Veröffentlichung und Draft-PR-Erstellung warten auf eine neue explizite
-Autorisierung des aktuellen Benutzers. Der aktive Checkout enthält zudem
-unabhängige und gemischte gleichzeitige Edits; sie sind vom Staging
+`16a4a06fbf1e1ed20171bc29d31ce3e8476aa3db` committed, gefolgt vom engen Host-
+Fallback-Fix `1de8071aa92cc72cadcc90a0e49f39e27e9ceba6`. Sein unabhängiger,
+versiegelter Security-Diff-Review meldet im Bereich
+`6c75b136..1de8071aa92cc72cadcc90a0e49f39e27e9ceba6` null berichtsfähige
+Befunde; die partielle Coverage ist ausdrücklich auf die nicht verfügbare
+native Hostmatrix begrenzt. `CAND-AUTH-HOST-001` ist als lokaler Record
+`FND-PARENT-0900` erledigt: fehlende, leere oder übergroße Host-Werte wählen
+nicht mehr die Listener-Adresse, und der verstärkte lokale Smoke beobachtet die
+Ablehnung fehlender und grenzgroßer Host-Werte vor Mapper- oder Fake-Runtime-
+Eintritt. Remote-Veröffentlichung und Draft-PR-Erstellung warten auf eine neue
+explizite Autorisierung des aktuellen Benutzers. Der aktive Checkout enthält
+zudem unabhängige und gemischte gleichzeitige Edits; sie sind vom Staging
 ausgeschlossen. Kein Merge ist autorisiert oder behauptet.
