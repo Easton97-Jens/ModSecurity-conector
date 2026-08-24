@@ -5,12 +5,14 @@ package processor
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestCommonRuntimeEngineEvaluatesIncrementalLifecycle(t *testing.T) {
@@ -213,6 +215,48 @@ func TestCommonRuntimeEngineSerializesParallelStreams(t *testing.T) {
 	}
 }
 
+func TestCommonRuntimeEngineCloseHonorsShutdownContext(t *testing.T) {
+	engine := &CommonRuntimeEngine{transactions: make(map[*commonRuntimeTransaction]struct{})}
+	engine.mu.Lock()
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+
+	started := time.Now()
+	err := engine.Close(ctx)
+	elapsed := time.Since(started)
+	engine.mu.Unlock()
+
+	if !errors.Is(err, ErrCommonRuntimeShutdownTimeout) {
+		t.Fatalf("Close() error = %v, want ErrCommonRuntimeShutdownTimeout", err)
+	}
+	if elapsed > 500*time.Millisecond {
+		t.Fatalf("Close() blocked for %s", elapsed)
+	}
+}
+
+func TestCommonRuntimeTransactionCleanupHonorsContext(t *testing.T) {
+	engine := &CommonRuntimeEngine{transactions: make(map[*commonRuntimeTransaction]struct{})}
+	transaction := &commonRuntimeTransaction{engine: engine}
+	engine.transactions[transaction] = struct{}{}
+	engine.mu.Lock()
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	started := time.Now()
+	transaction.Close(ctx, Summary{CloseReason: CloseContextCanceled})
+	elapsed := time.Since(started)
+	engine.mu.Unlock()
+
+	if elapsed > 500*time.Millisecond {
+		t.Fatalf("transaction Close() blocked for %s", elapsed)
+	}
+	if err := transaction.CleanupFailure(); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("CleanupFailure() = %v, want context deadline", err)
+	}
+	if transaction.closed {
+		t.Fatal("transaction marked closed after bounded mutex cleanup failure")
+	}
+}
+
 func TestCommonRuntimeEngineUsesCanonicalEnvoyEventIdentity(t *testing.T) {
 	engine, eventPath := newCommonRuntimeEngineForTest(t)
 	contextValue := context.Background()
@@ -404,7 +448,7 @@ event_path=%s
 		t.Fatalf("NewCommonRuntimeEngine() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := engine.Close(); err != nil {
+		if err := engine.Close(context.Background()); err != nil {
 			t.Errorf("Common runtime close: %v", err)
 		}
 	})

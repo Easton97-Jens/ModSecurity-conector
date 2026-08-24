@@ -190,7 +190,13 @@ every response MIME type. `SecResponseBodyMimeType` still selects engine
 inspection, while the deprecated
 `modsecurity_phase4_content_types_file` cannot create an uninspected
 pass-through route. The default `modsecurity_phase4_body_limit` is 1048576
-bytes (1 MiB). The bound is enforced before a later data bucket is appended;
+bytes (1 MiB), and the Common configuration validator rejects values above
+10485760 bytes (10 MiB). A response that exceeds its selected limit fails
+closed before any original response byte is released; it is not processed
+partially and then streamed. Apache also enforces a fixed, non-configurable
+ceiling of 4,096 normalized buckets retained across filter calls, failing
+closed before retaining the next bucket. The bound is enforced before a later
+data bucket is appended;
 after a prefix has reached the next filter, a later failure cannot rewrite it
 and uses the shared post-commit action instead. There is no active
 cross-callback normalized-brigade or bucket-count buffer.

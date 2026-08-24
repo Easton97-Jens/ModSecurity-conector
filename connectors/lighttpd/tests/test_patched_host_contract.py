@@ -711,27 +711,34 @@ class PatchedHostContractTest(unittest.TestCase):
             self.assertEqual(rejected.returncode, 77)
             self.assertIn("must be 0 or 1", rejected.stderr)
 
-    def test_stock_response_helpers_are_outside_the_patched_stream_abi_guard(self) -> None:
+    def test_stock_and_patched_paths_share_only_generic_response_helpers(self) -> None:
         module = (CONNECTOR / "module" / "mod_msconnector.c").read_text(
             encoding="utf-8"
         )
-        stream_guard = module.index(
-            "#ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION",
-            module.index("static handler_t mod_msconnector_apply_decision"),
+        apply_decision = module.index("static handler_t mod_msconnector_apply_decision")
+        guard = module.index(
+            "#ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION", apply_decision
         )
-        response_headers = module.index(
+        headers_committed = module.index(
             "static int mod_msconnector_response_headers_committed"
         )
-        host_transaction = module.index(
-            "static int mod_msconnector_emit_host_transaction_id"
-        )
-        response_body = module.index(
+        emitter = module.index("static int mod_msconnector_emit_host_transaction_id")
+        response_body_committed = module.index(
             "static int mod_msconnector_response_body_committed"
         )
+        response_start = module.rindex("REQUEST_FUNC(mod_msconnector_handle_response_start)")
+        request_reset = module.rindex("REQUEST_FUNC(mod_msconnector_handle_request_reset)")
 
-        self.assertLess(response_headers, stream_guard)
-        self.assertLess(host_transaction, stream_guard)
-        self.assertGreater(response_body, stream_guard)
+        self.assertLess(headers_committed, guard)
+        self.assertLess(emitter, guard)
+        self.assertGreater(response_body_committed, guard)
+        self.assertGreater(response_start, guard)
+        self.assertIn("http_header_response_set", module[:guard])
+        self.assertNotIn("mod_msconnector_response_body_committed", module[:guard])
+
+        response_hook = module[response_start:request_reset]
+        self.assertNotIn("#ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION", response_hook)
+        self.assertEqual(response_hook.count("mod_msconnector_emit_host_transaction_id"), 2)
 
     def test_crs_harness_records_private_wire_correlation_without_a_client_transaction_id(self) -> None:
         runner = (CONNECTOR / "harness" / "run_patched_full_lifecycle.sh").read_text(

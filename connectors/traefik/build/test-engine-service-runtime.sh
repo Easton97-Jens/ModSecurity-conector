@@ -123,7 +123,7 @@ esac
 (
     cd "$REPO_ROOT"
     "$ENGINE_BIN" --serve --config "$CONFIG_PATH" --socket "$SOCKET_PATH" \
-        --max-connections 2
+        --max-connections 3
 ) &
 SERVICE_PID=$!
 
@@ -131,6 +131,7 @@ SOCKET_PATH="$SOCKET_PATH" "$PYTHON_BIN" -c '
 import os
 import socket
 import stat
+import struct
 import time
 
 path = os.environ["SOCKET_PATH"]
@@ -198,7 +199,21 @@ with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
     invoke(connection, 8, b"", 0)
     invoke(connection, 9, b"", 0)
 
-# The second persistent-service connection proves that the Common runtime
+# A peer reset while the service is writing must be isolated to that peer.
+# The listener remains alive for the following legitimate connection; this
+# also exercises the per-send MSG_NOSIGNAL path without globally ignoring
+# SIGPIPE.
+with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+    connection.connect(path)
+    payload = begin_payload("/engine-reset", "engine-runtime-reset", [
+        ("host", "example.test")
+    ])
+    frame = b"MSE1" + bytes((1, 1, 0, 0))
+    connection.sendall(frame + len(payload).to_bytes(4, "big") + payload)
+    connection.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER,
+                          struct.pack("ii", 1, 0))
+
+# The third persistent-service connection proves that the Common runtime
 # evaluates the configured targeted request-header rule. It is still not a
 # Traefik host action: OUTCOME is only the service in-memory coordination
 # hook and writes no evidence.

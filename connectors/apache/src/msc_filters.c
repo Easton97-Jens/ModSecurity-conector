@@ -53,7 +53,7 @@ int msc_finalize_request_body(msc_t *msr, request_rec *r)
     }
     msr->native_event_phase = MSCONNECTOR_PHASE_REQUEST_BODY;
     msr->native_event_phase_active = 1;
-    if (msc_process_request_body(msr->t) < 0)
+    if (msc_process_request_body(msr->t) != 1)
     {
         msr->native_event_phase_active = 0;
         (void)msc_apache_contract_fail(msr,
@@ -298,7 +298,7 @@ apr_status_t input_filter(ap_filter_t *f, apr_bucket_brigade *pbbOut,
                 status);
         }
         if (msc_append_request_body(msr->t,
-                (const unsigned char *)data, len) < 0)
+                (const unsigned char *)data, len) != 1)
         {
             (void)msc_apache_contract_fail(msr,
                 MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
@@ -1600,7 +1600,7 @@ static apr_status_t apache_output_filter_terminal_result(msc_t *msr,
     return APR_SUCCESS;
 }
 
-static void apache_add_response_headers(msc_t *msr, apr_table_t *headers)
+static int apache_add_response_headers(msc_t *msr, apr_table_t *headers)
 {
     const apr_array_header_t *entries = apr_table_elts(headers);
     const apr_table_entry_t *header = (apr_table_entry_t *)entries->elts;
@@ -1608,10 +1608,14 @@ static void apache_add_response_headers(msc_t *msr, apr_table_t *headers)
 
     for (index = 0; index < entries->nelts; index++)
     {
-        msc_add_response_header(msr->t,
-            (const unsigned char *)header[index].key,
-            (const unsigned char *)header[index].val);
+        if (msc_add_response_header(msr->t,
+                (const unsigned char *)header[index].key,
+                (const unsigned char *)header[index].val) != 1)
+        {
+            return 0;
+        }
     }
+    return 1;
 }
 
 static int apache_response_header_metrics(const apr_table_t *headers,
@@ -1709,6 +1713,13 @@ static apr_status_t apache_output_filter_process_headers(msc_t *msr,
         return apache_send_precommit_terminal_error(msr, filter, brigade,
             HTTP_INTERNAL_SERVER_ERROR);
     }
+    if (!apache_add_response_headers(msr, r->err_headers_out) ||
+        !apache_add_response_headers(msr, r->headers_out))
+    {
+        ap_remove_output_filter(filter);
+        return apache_send_precommit_terminal_error(msr, filter, brigade,
+            HTTP_INTERNAL_SERVER_ERROR);
+    }
     if (!msc_apache_contract_begin(msr, MSCONNECTOR_PHASE_RESPONSE_HEADERS))
     {
         (void)msc_apache_contract_fail(msr,
@@ -1722,13 +1733,16 @@ static apr_status_t apache_output_filter_process_headers(msc_t *msr,
         return apache_send_precommit_terminal_error(msr, filter, brigade,
             HTTP_INTERNAL_SERVER_ERROR);
     }
-    apache_add_response_headers(msr, r->err_headers_out);
-    apache_add_response_headers(msr, r->headers_out);
     if (content_type != NULL && content_type[0] != '\0')
     {
-        msc_add_response_header(msr->t,
-            (const unsigned char *)"Content-Type",
-            (const unsigned char *)content_type);
+        if (msc_add_response_header(msr->t,
+                (const unsigned char *)"Content-Type",
+                (const unsigned char *)content_type) != 1)
+        {
+            ap_remove_output_filter(filter);
+            return apache_send_precommit_terminal_error(msr, filter, brigade,
+                HTTP_INTERNAL_SERVER_ERROR);
+        }
     }
     original_status = r->status;
     if (!apache_phase3_snapshot_response_state(msr, r))

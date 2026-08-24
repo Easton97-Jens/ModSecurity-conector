@@ -1,5 +1,6 @@
 #include "msconnector/config.h"
 #include "msconnector/block_statuses.h"
+#include "msconnector/limits.h"
 #include <stdio.h>
 
 static void set_error(char *error, size_t error_len, const char *message) {
@@ -306,6 +307,14 @@ int msconnector_config_validate(const msconnector_config *config, char *error, s
     if (config->body_limit_action != MSCONNECTOR_BODY_LIMIT_ACTION_UNSET &&
         !msconnector_body_limit_action_is_supported(config->body_limit_action)) {
         set_error(error, error_len, "invalid body limit action");
+        return 0;
+    }
+
+    if (config->phase4_body_limit > MSCONNECTOR_MAX_CONFIG_BODY_BYTES ||
+        config->request_body_limit > MSCONNECTOR_MAX_CONFIG_BODY_BYTES ||
+        config->response_body_limit > MSCONNECTOR_MAX_CONFIG_BODY_BYTES) {
+        set_error(error, error_len,
+            "configured body limit exceeds the hard security cap");
         return 0;
     }
 

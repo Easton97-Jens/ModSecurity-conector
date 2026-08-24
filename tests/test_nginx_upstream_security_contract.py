@@ -132,7 +132,7 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         )
         self.assertIn("NGX_HTTP_INTERNAL_SERVER_ERROR", response_failure)
 
-    def test_partial_body_append_and_file_paths_remain_nonfatal(self) -> None:
+    def test_body_append_and_file_paths_accept_only_success_one(self) -> None:
         request_append = function_definition(
             self.access, "ngx_http_modsecurity_append_request_body"
         )
@@ -162,12 +162,23 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         )
         self.assertRegex(
             response_append,
-            re.compile(r"msc_append_response_body\s*\(.*?\)\s*<\s*0", re.DOTALL),
+            re.compile(r"msc_append_response_body\s*\(.*?\)\s*(?:<\s*0|!=\s*1)", re.DOTALL),
         )
-        self.assertNotRegex(
-            response_append,
-            re.compile(r"msc_append_response_body\s*\(.*?\)\s*!=\s*1", re.DOTALL),
-        )
+        self.assertIn("return NGX_ERROR;", response_append)
+
+        append_call = request_append.index("ret = msc_append_request_body")
+        append_tail = request_append[append_call:]
+        self.assertIn("if (ret != 1)", append_tail)
+        append_failure = conditional_block(request_append, "if (ret != 1)", append_call)
+        self.assertIn("ctx->intervention_triggered = 1;", append_failure)
+        self.assertIn("return NGX_HTTP_INTERNAL_SERVER_ERROR;", append_failure)
+        file_call = request_file.index("ret = msc_request_body_from_file")
+        file_end = request_file.index("ret = msc_process_request_body", file_call)
+        file_tail = request_file[file_call:file_end]
+        self.assertIn("if (ret != 1)", file_tail)
+        file_failure = conditional_block(request_file, "if (ret != 1)", file_call)
+        self.assertIn("ctx->intervention_triggered = 1;", file_failure)
+        self.assertIn("return NGX_HTTP_INTERNAL_SERVER_ERROR;", file_failure)
 
     def test_negative_interventions_fail_closed_before_response_commit(self) -> None:
         for name in (
@@ -279,6 +290,10 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
             "if (disposition == MSCONNECTOR_NGINX_INTERVENTION_ALLOW)",
         )
         self.assertIn("return ngx_http_next_header_filter(r);", normal_intervention)
+        self.assertNotIn(
+            "if (r->error_page) {\n        return ngx_http_next_header_filter(r);",
+            header_intervention,
+        )
         positive_intervention = header_intervention[
             header_intervention.index("mcf = ngx_http_get_module_loc_conf") :
         ]
@@ -376,22 +391,24 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         self.assertIn("NGX_CONF_TAKE1", directive)
         self.assertNotIn("NGX_CONF_1MORE", directive)
 
-    def test_header_registration_warnings_are_static_and_value_free(self) -> None:
-        warning_calls = []
+    def test_header_registration_failures_are_static_and_value_free(self) -> None:
+        failure_calls = []
         for source in (self.access, self.header):
-            warning_calls.extend(
+            failure_calls.extend(
                 match.group(0)
                 for match in re.finditer(
-                    r"ngx_log_error\(\s*NGX_LOG_WARN\b.*?\);", source, re.DOTALL
+                    r"ngx_log_error\(\s*NGX_LOG_(?:WARN|ERR)\b.*?\);",
+                    source,
+                    re.DOTALL,
                 )
                 if "failed to add" in match.group(0)
             )
 
-        self.assertGreaterEqual(len(warning_calls), 3)
-        for warning in warning_calls:
-            with self.subTest(warning=warning):
+        self.assertGreaterEqual(len(failure_calls), 3)
+        for failure in failure_calls:
+            with self.subTest(failure=failure):
                 self.assertRegex(
-                    warning,
+                    failure,
                     re.compile(
                         r'"ModSecurity: failed to add (?:request|synthetic response|response) '
                         r'header for inspection"\s*\);'

@@ -11,6 +11,9 @@ response-body phases. A route’s actual case status is run-specific and comes
 from its evidence; source presence, a capability manifest, or a build does not
 itself make a PASS claim.
 
+For the cross-connector failure, availability, and cleanup contract, see
+[Runtime failure policy](runtime-failure-policy.md).
+
 The selected HTTP/1.1 core documentation does not claim production readiness,
 CRS verification, complete HTTP/2 or HTTP/3 verification, a complete matrix,
 or strict behavior for all connectors.

@@ -175,6 +175,8 @@ static ngx_int_t
 ngx_http_modsecurity_append_response_body_chunk(
     ngx_http_modsecurity_ctx_t *ctx, u_char *data, size_t bytes)
 {
+    size_t allowed = bytes;
+
     if (bytes == 0U) {
         return NGX_OK;
     }
@@ -192,7 +194,7 @@ ngx_http_modsecurity_append_response_body_chunk(
             bytes) != MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
         return NGX_ERROR;
     }
-    if (msc_append_response_body(ctx->modsec_transaction, data, bytes) < 0) {
+    if (msc_append_response_body(ctx->modsec_transaction, data, allowed) != 1) {
         return NGX_ERROR;
     }
     ctx->response_body_bytes_inspected += bytes;

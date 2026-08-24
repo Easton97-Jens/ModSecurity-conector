@@ -27,7 +27,10 @@ Capability-Deklaration.
   einen vollständigen Request- oder Response-Body;
 - behandelt ein disruptives Ergebnis nach dem Response-Commit als `log_only`.
   Es wird kein geänderter Status, kein Reset und kein Client-Abbruch-Claim
-  synthetisiert.
+  synthetisiert. Das aggregierte Request-Body-Limit `maxRequestBodyBytes`
+  bleibt endlich (Standard und harte Obergrenze: 1 MiB); ein überschrittener
+  Chunk wird vor der Engine deterministisch als HTTP 413 abgelehnt und der
+  verbleibende Source-Body nicht leerdrainiert.
 
 Die Form des optionalen Engines ist beabsichtigt. `New` verwendet für eine
 reine Source-Konfiguration standardmäßig `PassthroughEngine`, während

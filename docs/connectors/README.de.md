@@ -11,6 +11,9 @@ Request Body, Response Header und Response Body. Der tatsächliche Case-Status
 einer Route ist laufabhängig und stammt aus ihrer Evidence; Source-Präsenz,
 Capability-Manifest oder Build erheben nicht selbst einen PASS-Claim.
 
+Der gemeinsame Vertrag für Fehler-, Verfügbarkeits- und Cleanup-Pfade steht in
+der [Runtime-Fehlerpolicy](runtime-failure-policy.de.md).
+
 Die ausgewählte HTTP/1.1-Kern-Dokumentation behauptet weder Production
 Readiness noch CRS-Verifikation, vollständige HTTP/2- oder HTTP/3-Verifikation,
 vollständige Matrix oder Strict-Verhalten für alle Connectoren.

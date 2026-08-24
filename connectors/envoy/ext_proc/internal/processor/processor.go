@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	extprocv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
@@ -125,6 +127,7 @@ const (
 	CloseImmediateResponse CloseReason = "request_immediate_response"
 	ClosePeerEOF           CloseReason = "grpc_peer_eof"
 	CloseContextCanceled   CloseReason = "grpc_context_canceled_unattributed"
+	CloseStreamIdleTimeout CloseReason = "grpc_stream_idle_timeout"
 	CloseProcessorError    CloseReason = "processor_error"
 )
 
@@ -141,6 +144,15 @@ type Transaction interface {
 	ProcessHeaders(context.Context, Direction, []Header, bool) (Decision, error)
 	ProcessBody(context.Context, Direction, []byte, bool) (Decision, error)
 	Close(context.Context, Summary)
+}
+
+// CleanupFailureReporter is an optional transaction capability. Native
+// cleanup cannot safely free a transaction while another native call owns the
+// engine mutex; implementations report that bounded cleanup failure so the
+// stream handler can return a controlled error and the supervisor can restart
+// the process.
+type CleanupFailureReporter interface {
+	CleanupFailure() error
 }
 
 // ResponseCommitter is an optional transaction capability implemented by the
@@ -227,6 +239,14 @@ type Service struct {
 	engine   TransactionOpener
 	observer Observer
 	active   sync.WaitGroup
+	// admission is process-wide rather than connection-local. gRPC's stream
+	// limit protects each HTTP/2 connection; this second gate also bounds
+	// transaction state when a peer opens streams over many connections.
+	admission chan struct{}
+	// pendingReceives counts the one Recv goroutine owned by each active stream.
+	// It is evidence for deterministic cleanup tests, not a second admission
+	// control: the gRPC stream context remains the cancellation mechanism.
+	pendingReceives atomic.Int64
 }
 
 func NewService(config Config, engine TransactionOpener) (*Service, error) {
@@ -250,12 +270,26 @@ func NewServiceWithObserver(config Config, engine TransactionOpener, observer Ob
 	if observer == nil {
 		observer = discardObserver{}
 	}
-	return &Service{config: config, engine: engine, observer: observer}, nil
+	return &Service{
+		config:    config,
+		engine:    engine,
+		observer:  observer,
+		admission: make(chan struct{}, config.MaxConcurrentStreams),
+	}, nil
 }
 
 // Process owns one Envoy ext_proc gRPC stream and therefore one independent
 // transaction state. No state is shared across parallel streams.
 func (service *Service) Process(stream extprocv3.ExternalProcessor_ProcessServer) (processErr error) {
+	select {
+	case service.admission <- struct{}{}:
+		defer func() { <-service.admission }()
+	default:
+		// Reject before allocating stream state or opening a Common
+		// transaction. This makes overload a clean gRPC admission failure and
+		// leaves no transaction/WaitGroup state to clean up.
+		return status.Error(codes.ResourceExhausted, "ext_proc concurrent stream limit reached")
+	}
 	service.active.Add(1)
 	defer service.active.Done()
 
@@ -271,7 +305,8 @@ func (service *Service) Process(stream extprocv3.ExternalProcessor_ProcessServer
 
 func (service *Service) processStream(stream extprocv3.ExternalProcessor_ProcessServer, state *streamState, closeReason *CloseReason) error {
 	for {
-		request, receivedCloseReason, done, err := receiveProcessingRequest(stream)
+		request, receivedCloseReason, done, err := receiveProcessingRequest(
+			stream, service.config.streamIdleTimeout(), &service.pendingReceives)
 		if err != nil {
 			*closeReason = receivedCloseReason
 			return err
@@ -292,8 +327,53 @@ func (service *Service) processStream(stream extprocv3.ExternalProcessor_Process
 	}
 }
 
-func receiveProcessingRequest(stream extprocv3.ExternalProcessor_ProcessServer) (*extprocv3.ProcessingRequest, CloseReason, bool, error) {
-	request, err := stream.Recv()
+type processingReceiveResult struct {
+	request *extprocv3.ProcessingRequest
+	err     error
+}
+
+// receiveProcessingRequest bounds inactivity, not evaluation. Activity means
+// one complete ProcessingRequest arrived from Envoy; after every arrival the
+// next interval begins only after the response/engine work for that message
+// has completed. The gRPC server cancels stream.Context when Process returns,
+// so the single buffered receive result cannot strand a sender after an idle
+// deadline or a server shutdown.
+func receiveProcessingRequest(
+	stream extprocv3.ExternalProcessor_ProcessServer,
+	idleTimeout time.Duration,
+	pendingReceives *atomic.Int64,
+) (*extprocv3.ProcessingRequest, CloseReason, bool, error) {
+	resultChannel := make(chan processingReceiveResult, 1)
+	if pendingReceives != nil {
+		pendingReceives.Add(1)
+	}
+	go func() {
+		if pendingReceives != nil {
+			defer pendingReceives.Add(-1)
+		}
+		request, err := stream.Recv()
+		resultChannel <- processingReceiveResult{request: request, err: err}
+	}()
+
+	timer := time.NewTimer(idleTimeout)
+	defer timer.Stop()
+	select {
+	case result := <-resultChannel:
+		return classifyProcessingReceiveResult(stream, result.request, result.err)
+	case <-stream.Context().Done():
+		return nil, CloseContextCanceled, true, nil
+	case <-timer.C:
+		return nil, CloseStreamIdleTimeout, false,
+			status.Errorf(codes.DeadlineExceeded,
+				"ext_proc stream idle timeout after %s", idleTimeout)
+	}
+}
+
+func classifyProcessingReceiveResult(
+	stream extprocv3.ExternalProcessor_ProcessServer,
+	request *extprocv3.ProcessingRequest,
+	err error,
+) (*extprocv3.ProcessingRequest, CloseReason, bool, error) {
 	if err == nil {
 		return request, ClosePeerEOF, false, nil
 	}
@@ -1111,12 +1191,25 @@ func (state *streamState) close(reason CloseReason) error {
 		return nil
 	}
 	state.closed = true
+	var cleanupErr error
 	state.summary.TransactionID = state.transactionID
 	state.summary.CloseReason = reason
 	if state.transaction != nil {
 		cleanupContext, cancel := context.WithTimeout(context.Background(), state.config.cleanupTimeout())
 		defer cancel()
 		state.transaction.Close(cleanupContext, state.summary)
+		if reporter, ok := state.transaction.(CleanupFailureReporter); ok {
+			if err := reporter.CleanupFailure(); err != nil {
+				cleanupErr = err
+			}
+		}
 	}
-	return state.observer.Record(state.summary)
+	observerErr := state.observer.Record(state.summary)
+	if cleanupErr != nil {
+		if observerErr != nil {
+			return fmt.Errorf("transaction cleanup: %w; metadata evidence: %v", cleanupErr, observerErr)
+		}
+		return cleanupErr
+	}
+	return observerErr
 }

@@ -470,7 +470,7 @@ static int append_body_chunk(
         return 1;
     }
     *phase->body_bytes_seen += body_len;
-    if (body_len > 0U && phase->append_body(transaction->transaction, body, (size_t)body_len) < 0) {
+    if (body_len > 0U && phase->append_body(transaction->transaction, body, (size_t)body_len) != 1) {
         copy_message(decision->log_message, sizeof(decision->log_message), phase->append_failed_message);
         (void)msconnector_transaction_contract_fail(&transaction->contract,
             MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
@@ -507,7 +507,7 @@ static int finish_body(
             MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE, 0U);
         return 1;
     }
-    if (phase->finish_body(transaction->transaction) < 0) {
+    if (phase->finish_body(transaction->transaction) != 1) {
         copy_message(decision->log_message, sizeof(decision->log_message), phase->finish_failed_message);
         (void)msconnector_transaction_contract_fail(&transaction->contract,
             MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
@@ -759,7 +759,7 @@ static int process_request_connection(
     int client_port = request->client_port > 0 ? request->client_port : 49152;
     int server_port = request->server_port > 0 ? request->server_port : 80;
 
-    if (msc_process_connection(transaction, client_ip, client_port, server_ip, server_port) < 0) {
+    if (msc_process_connection(transaction, client_ip, client_port, server_ip, server_port) != 1) {
         copy_message(decision->log_message, sizeof(decision->log_message),
             "msc_process_connection failed");
         return -1;
@@ -784,13 +784,13 @@ static int process_request_headers(
             value = "";
         }
         if (msc_add_request_header(transaction, (const unsigned char *)name,
-                (const unsigned char *)value) < 0) {
+                (const unsigned char *)value) != 1) {
             copy_message(decision->log_message, sizeof(decision->log_message),
                 "msc_add_request_header failed");
             return -1;
         }
     }
-    if (msc_process_request_headers(transaction) < 0) {
+    if (msc_process_request_headers(transaction) != 1) {
         copy_message(decision->log_message, sizeof(decision->log_message),
             "msc_process_request_headers failed");
         return -1;
@@ -816,12 +816,12 @@ static int process_request_body(
     }
     if (request->body != 0 && request->body_len > 0 &&
             msc_append_request_body(transaction, request->body,
-                (size_t)request->body_len) < 0) {
+                (size_t)request->body_len) != 1) {
         copy_message(decision->log_message, sizeof(decision->log_message),
             "msc_append_request_body failed");
         return -1;
     }
-    if (msc_process_request_body(transaction) < 0) {
+    if (msc_process_request_body(transaction) != 1) {
         copy_message(decision->log_message, sizeof(decision->log_message),
             "msc_process_request_body failed");
         return -1;
@@ -874,7 +874,7 @@ static int eval_request_internal(
     if (process_request_connection(transaction, request, decision) != 0) {
         goto cleanup;
     }
-    if (msc_process_uri(transaction, safe_uri, safe_method, "1.1") < 0) {
+    if (msc_process_uri(transaction, safe_uri, safe_method, "1.1") != 1) {
         copy_message(decision->log_message, sizeof(decision->log_message),
             "msc_process_uri failed");
         goto cleanup;
@@ -1049,7 +1049,7 @@ static int begin_transaction_protocol(
     if (process_request_connection(transaction->transaction, request, decision) != 0) {
         return -1;
     }
-    if (msc_process_uri(transaction->transaction, safe_uri, safe_method, "1.1") < 0) {
+    if (msc_process_uri(transaction->transaction, safe_uri, safe_method, "1.1") != 1) {
         copy_message(decision->log_message, sizeof(decision->log_message),
             "msc_process_uri failed");
         return -1;
@@ -1409,7 +1409,7 @@ static int add_response_headers(
         }
         if (msc_add_response_header(transaction->transaction,
                 (const unsigned char *)name,
-                (const unsigned char *)value) < 0) {
+                (const unsigned char *)value) != 1) {
             copy_message(decision->log_message, sizeof(decision->log_message),
                 "msc_add_response_header failed");
             return 0;
@@ -1446,7 +1446,7 @@ int haproxy_modsecurity_transaction_process_response_headers(
     status = response->status > 0 ? response->status : 200;
     protocol = response->protocol != 0 && response->protocol[0] != '\0' ?
         response->protocol : "HTTP/1.1";
-    if (msc_process_response_headers(transaction->transaction, status, protocol) < 0) {
+    if (msc_process_response_headers(transaction->transaction, status, protocol) != 1) {
         copy_message(decision->log_message, sizeof(decision->log_message),
             "msc_process_response_headers failed");
         return 1;

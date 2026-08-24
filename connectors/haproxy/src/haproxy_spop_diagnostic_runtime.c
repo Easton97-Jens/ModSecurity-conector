@@ -32,6 +32,9 @@
 #define SPOP_FRAME_MAX 65536U
 #define SPOP_MIN_FRAME_SIZE 256U
 #define SPOP_FIN_FLAG 0x00000001U
+#define SPOP_DEFAULT_TIMEOUT_MS 2000U
+#define SPOP_DEFAULT_WORKER_COUNT 8U
+#define SPOP_MAX_WORKER_COUNT 64U
 
 #define SPOP_FRM_HAPROXY_HELLO 1U
 #define SPOP_FRM_HAPROXY_DISCONNECT 2U
@@ -174,6 +177,27 @@ typedef struct transaction_slot {
     haproxy_modsecurity_transaction *transaction;
     time_t updated;
 } transaction_slot;
+
+/* Each accepted peer gets a bounded detached connection worker.  Native
+ * ModSecurity calls remain serialized by owner_queue; the peer workers only
+ * isolate socket/protocol progress so one slow peer cannot block admission of
+ * healthy peers. */
+typedef struct peer_worker_set {
+    pthread_mutex_t lock;
+    pthread_cond_t drained;
+    size_t active;
+    unsigned int limit;
+    int initialized;
+} peer_worker_set;
+
+typedef struct peer_worker_task {
+    int fd;
+    struct agent_state *state;
+    FILE *log;
+    const char *rules_file;
+    const char *crs_preamble_file;
+    peer_worker_set *workers;
+} peer_worker_task;
 
 /* The SPOP socket reader is not the owner of a native ModSecurity
  * transaction.  Production operations are handed to this bounded,
@@ -512,7 +536,11 @@ static int write_full_until(int fd, const void *buf, size_t len, uint64_t deadli
         }
 
         do {
+#ifdef MSG_NOSIGNAL
+            rc = send(fd, p, len, MSG_NOSIGNAL);
+#else
             rc = write(fd, p, len);
+#endif
         } while (rc < 0 && errno == EINTR);
         if (rc <= 0) {
             return -1;
@@ -1899,8 +1927,8 @@ static void config_init(agent_config *config) {
     config->request_body_limit = 65532U;
     config->response_body_limit = 0U;
     config->response_body_timeout_ms = 0U;
-    config->spoe_timeout_ms = 2000U;
-    config->worker_count = 1U;
+    config->spoe_timeout_ms = SPOP_DEFAULT_TIMEOUT_MS;
+    config->worker_count = SPOP_DEFAULT_WORKER_COUNT;
     config->max_transactions = 4096U;
 }
 
@@ -4213,12 +4241,110 @@ static int connect_localhost(unsigned int port) {
     return fd;
 }
 
+static unsigned int peer_timeout_ms(const agent_state *state) {
+    if (state != NULL && state->config.spoe_timeout_ms > 0U) {
+        return state->config.spoe_timeout_ms;
+    }
+    return SPOP_DEFAULT_TIMEOUT_MS;
+}
+
+static int set_peer_socket_timeouts(int fd, unsigned int timeout_ms) {
+    struct timeval timeout;
+    if (timeout_ms == 0U) { errno = EINVAL; return -1; }
+    timeout.tv_sec = (time_t)(timeout_ms / 1000U);
+    timeout.tv_usec = (suseconds_t)(timeout_ms % 1000U) * 1000;
+    if (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) != 0 ||
+            setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)) != 0) {
+        return -1;
+    }
+#if !defined(MSG_NOSIGNAL)
+#if defined(SO_NOSIGPIPE)
+    { const int enabled = 1;
+      if (setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &enabled, sizeof(enabled)) != 0) return -1; }
+#else
+    errno = ENOTSUP;
+    return -1;
+#endif
+#endif
+    return 0;
+}
+
+static void *peer_worker_main(void *opaque) {
+    peer_worker_task *task = opaque;
+    if (task != NULL) {
+        (void)handle_connection(task->fd, task->state, task->log,
+            task->rules_file, task->crs_preamble_file,
+            peer_timeout_ms(task->state));
+        close(task->fd);
+        pthread_mutex_lock(&task->workers->lock);
+        if (task->workers->active > 0U) --task->workers->active;
+        pthread_cond_broadcast(&task->workers->drained);
+        pthread_mutex_unlock(&task->workers->lock);
+        free(task);
+    }
+    return NULL;
+}
+
+static int peer_workers_init(peer_worker_set *workers, unsigned int limit) {
+    if (workers == NULL || limit == 0U || limit > SPOP_MAX_WORKER_COUNT) {
+        errno = EINVAL; return -1;
+    }
+    memset(workers, 0, sizeof(*workers));
+    if (pthread_mutex_init(&workers->lock, NULL) != 0) return -1;
+    if (pthread_cond_init(&workers->drained, NULL) != 0) {
+        pthread_mutex_destroy(&workers->lock); return -1;
+    }
+    workers->limit = limit; workers->initialized = 1; return 0;
+}
+
+static int peer_workers_start(peer_worker_set *workers, int listen_fd,
+        int peer_fd, agent_state *state, FILE *log, const char *rules_file,
+        const char *crs_preamble_file) {
+    peer_worker_task *task; pthread_t thread;
+    (void)listen_fd;
+    if (workers == NULL || !workers->initialized) { errno = EINVAL; return -1; }
+    task = calloc(1U, sizeof(*task));
+    if (task == NULL) return -1;
+    task->fd = peer_fd; task->state = state; task->log = log;
+    task->rules_file = rules_file; task->crs_preamble_file = crs_preamble_file;
+    task->workers = workers;
+    pthread_mutex_lock(&workers->lock);
+    if (workers->active >= workers->limit) {
+        pthread_mutex_unlock(&workers->lock); free(task); errno = EAGAIN; return -1;
+    }
+    ++workers->active; pthread_mutex_unlock(&workers->lock);
+    if (pthread_create(&thread, NULL, peer_worker_main, task) != 0) {
+        pthread_mutex_lock(&workers->lock); --workers->active;
+        pthread_cond_broadcast(&workers->drained); pthread_mutex_unlock(&workers->lock);
+        free(task); return -1;
+    }
+    (void)pthread_detach(thread); return 0;
+}
+
+static int peer_workers_wait(peer_worker_set *workers, FILE *log,
+        unsigned int timeout_ms, int terminate) {
+    (void)log; (void)timeout_ms; (void)terminate;
+    if (workers == NULL || !workers->initialized) return 0;
+    pthread_mutex_lock(&workers->lock);
+    while (workers->active != 0U) pthread_cond_wait(&workers->drained, &workers->lock);
+    pthread_mutex_unlock(&workers->lock);
+    pthread_cond_destroy(&workers->drained); pthread_mutex_destroy(&workers->lock);
+    workers->initialized = 0; return 0;
+}
+
 static int accept_loop(int listen_fd, agent_state *state, FILE *log, int max_connections, const char *rules_file, const char *crs_preamble_file, unsigned int timeout_ms) {
     int handled = 0;
+    int result = 0;
+    peer_worker_set workers;
 
     stop_requested = 0;
     if (install_signal_handlers() != 0) {
         log_line(log, "failed to install signal handlers errno=%d", errno);
+        return 1;
+    }
+    if (peer_workers_init(&workers, state != NULL && state->config.worker_count > 0U ?
+            state->config.worker_count : SPOP_DEFAULT_WORKER_COUNT) != 0) {
+        log_line(log, "failed to initialize peer worker set errno=%d", errno);
         return 1;
     }
     while (!stop_requested && (max_connections <= 0 || handled < max_connections)) {
@@ -4233,11 +4359,28 @@ static int accept_loop(int listen_fd, agent_state *state, FILE *log, int max_con
             }
             continue;
         }
-        handle_connection(fd, state, log, rules_file, crs_preamble_file, timeout_ms);
-        close(fd);
+        if (set_peer_socket_timeouts(fd, peer_timeout_ms(state)) != 0) {
+            log_line(log, "peer socket timeout/signal setup failed errno=%d", errno);
+            close(fd);
+            handled++;
+            continue;
+        }
+        if (peer_workers_start(&workers, listen_fd, fd, state, log,
+                rules_file, crs_preamble_file) != 0) {
+            log_line(log,
+                "peer worker admission failed; closing peer without protocol processing mode=%s errno=%d",
+                state != NULL && fail_mode_closed(&state->config) ?
+                    "fail-closed" : "fail-open", errno);
+            (void)shutdown(fd, SHUT_RDWR);
+            close(fd);
+        }
         handled++;
     }
-    return 0;
+    if (peer_workers_wait(&workers, log, peer_timeout_ms(state),
+            result != 0 || stop_requested) != 0) {
+        result = 1;
+    }
+    return result;
 }
 
 static int client_expect_frame(int fd, unsigned int type, uint64_t stream_id, uint64_t frame_id) {
