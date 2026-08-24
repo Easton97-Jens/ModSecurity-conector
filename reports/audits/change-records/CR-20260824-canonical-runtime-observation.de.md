@@ -95,6 +95,18 @@ Remediations werden lokal als `FND-PARENT-0307`, `FND-PARENT-0308` und
 `FND-PARENT-0309` verfolgt, lokal fixed und mit ausstehender Exact-Head-
 Verifikation.
 
+SonarQube Cloud meldete danach auf dem exakten Head
+`245503cdf75ae58f1077ed4c5679f9640c12ce4a` acht task-eigene
+Maintainability-Issues: sechs Cognitive-Complexity-Findings und einen
+verschachtelten Ausdruck im Contract-Validator sowie ein
+Cognitive-Complexity-Finding im Normalizer. Die Successor-Source-Änderung
+extrahiert ausschließlich die vorhandene Metadata-Traversierung,
+Expectation-Normalisierung, Case-/Aggregate-Validierung und das
+Framework-Execution-Predicate in private Helper; sie ändert weder den
+geschlossenen Katalog noch Evidence-Reads, PASS-Regeln oder Trust-Boundaries.
+`FND-SONAR-0060` verfolgt die Remediation, bis der exakte Successor-Head ohne
+Suppression oder Scanner-Control-Änderung null New Issues nachweist.
+
 ## Geänderte Dateien
 
 - `ci/runtime/contracts/README.md` und `ci/runtime/contracts/README.de.md`
@@ -119,10 +131,11 @@ Verifikation.
 
 | Check | Tatsächliches Ergebnis |
 | --- | --- |
-| `python3 -m unittest -q tests.test_runtime_observation_contract tests.test_with_crs_no_mrts_runtime` | Bestanden: `125 tests in 45.402s`. Dies deckt die verlangten Identity-, Union-, Compound-, Explicit-Fact-, Aggregate-, HAProxy-, NGINX-, Path-/Evidence- und No-Fabricated-PASS-Regressionen ab. |
-| Benutzergeforderter kombinierter Verbose-Befehl mit `tests.test_ci_security_workflows` | Die Contract-/Normalizer-Cases bestanden; der Befehl führte `126` Einträge in `45.123s` aus, wobei das letzte Modul wegen des fehlenden lokalen `PyYAML`-Imports als ein Fehler gemeldet wurde. Keine Dependency wurde installiert oder geändert. |
-| `tests.test_runtime_path_security`, `tests.test_evidence_output_security`, `tests.test_bilingual_docs` und `tests.test_envoy_transport_hardening_contract` | Bestanden: `70 tests in 8.877s`. |
-| Shell-Syntax für Envoy-, Lighttpd- und CRS/no-MRTS-Runner-Skripte | Bestanden. |
+| `python3 -m unittest -q tests.test_runtime_observation_contract tests.test_with_crs_no_mrts_runtime` | Nach dem Sonar-Refactor bestanden: `125 tests in 274.202s`. Dies deckt die verlangten Identity-, Union-, Compound-, Explicit-Fact-, Aggregate-, HAProxy-, NGINX-, Path-/Evidence- und No-Fabricated-PASS-Regressionen ab. |
+| Benutzergeforderter kombinierter Verbose-Befehl mit `tests.test_ci_security_workflows` | Die Contract-/Normalizer-Cases bestanden; der Befehl führte `126` Einträge in `67.036s` aus, wobei das letzte Modul wegen des fehlenden lokalen `PyYAML`-Imports als ein Fehler gemeldet wurde. Keine Dependency wurde installiert oder geändert. |
+| `tests.test_runtime_path_security`, `tests.test_evidence_output_security`, `tests.test_bilingual_docs` und `tests.test_envoy_transport_hardening_contract` | Nach dem Sonar-Refactor bestanden: `70 tests in 9.723s`. |
+| Direkte `tests.test_bilingual_docs`-Bestätigung | Bestanden: `22 tests in 0.312s`. |
+| Shell-Syntax des CRS/no-MRTS-Runner-Skripts | Bestanden. |
 | Erforderliche `py_compile`-Dateien | Bestanden: Exit `0`. |
 | `python3 -m json.tool ci/runtime/contracts/runtime-observation.schema.json /dev/null` | Bestanden. |
 | `git diff --check` | Bestanden. |
@@ -143,10 +156,13 @@ geprüft werden.
 
 ## SonarQube Cloud und Coverage
 
-Vor dem normalen Push existiert kein neues Exact-Head-SonarQube-Cloud-
-Ergebnis. Frühere PR-Kommentare, alte Check-Runs und frühere Issue-Zähler sind
-kein Nachweis für den neuen Source-Head. Es wurde keine Suppression, kein
-`NOSONAR`, keine Exclusion, Acceptance, Quality-Gate-Änderung oder
+Der exakte Head `245503cdf75ae58f1077ed4c5679f9640c12ce4a` bestand sein
+Quality Gate, meldete aber im SonarQube-Cloud-Check `97609857745` acht New
+Issues. Das sind die task-eigenen Maintainability-Findings, welche die
+Successor-Source-Änderung behebt. Frühere Kommentare und Check-Runs sind kein
+Nachweis für diesen Successor: Sein Exact-Head-Sonar-Ergebnis muss null New
+Issues zeigen, bevor die Delivery verifiziert ist. Es wurde keine Suppression,
+kein `NOSONAR`, keine Exclusion, Acceptance, Quality-Gate-Änderung oder
 Coverage-Workflow-Änderung vorgenommen.
 
 ```text
@@ -186,9 +202,13 @@ Attestation/Signatures wären ein separater Scope.
 
 Der erste Task-Commit `f2fcb71f47e69f33d888dd89e1b871656e02fc38` wurde normal
 zum bestehenden PR-#338-Branch gepusht. Sein Exact-Head-`lint`-Run meldete die
-fehlenden erforderlichen Template-Abschnitte dieses Change Records; diese
-fokussierte Dokumentationskorrektur ist die daraus folgende Remediation und
-kein blinder Rerun. Nach normalem Follow-up-Commit/-Push müssen alle
-Exact-Head-Checks, SonarQube Cloud und `Connector runtime with CRS and no MRTS`
-erneut beobachtet werden. PR #338 bleibt Draft; Merge, Auto-Merge,
-Ready-Übergang, Rebase und Force-Push sind weder behauptet noch autorisiert.
+fehlenden erforderlichen Template-Abschnitte dieses Change Records; die
+fokussierte Dokumentationskorrektur
+`245503cdf75ae58f1077ed4c5679f9640c12ce4a` war die daraus folgende
+Remediation und kein blinder Rerun. Dieser Head bestand lint, aber SonarQube
+Cloud fand acht Maintainability-Issues; daher gehen der fokussierte
+Source-Refactor und dieses Evidence-Update einem normalen Follow-up-Commit/-
+Push voraus. Danach müssen alle Exact-Head-Checks, SonarQube Cloud und
+`Connector runtime with CRS and no MRTS` erneut beobachtet werden. PR #338
+bleibt Draft; Merge, Auto-Merge, Ready-Übergang, Rebase und Force-Push sind
+weder behauptet noch autorisiert.

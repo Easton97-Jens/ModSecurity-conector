@@ -438,51 +438,35 @@ def _has_forbidden_metadata(value: object) -> bool:
         visited += 1
         if depth > MAX_METADATA_DEPTH or visited > MAX_METADATA_NODES:
             return True
-        if isinstance(current, Mapping):
+        if isinstance(current, (Mapping, list)):
             container_id = id(current)
             if container_id in seen_containers:
                 return True
             seen_containers.add(container_id)
-            for key, child in current.items():
-                if not isinstance(key, str):
+            if isinstance(current, Mapping):
+                if _queue_metadata_mapping(current, pending, depth):
                     return True
-                lowered = key.lower()
-                if lowered in {
-                    "payload",
-                    "payloads",
-                    "raw_log",
-                    "raw_logs",
-                    "log_content",
-                    "log_contents",
-                    "request",
-                    "response",
-                    "request_body",
-                    "response_body",
-                    "headers",
-                    "authorization",
-                    "cookie",
-                    "secret",
-                    "secrets",
-                    "credential",
-                    "credentials",
-                    "password",
-                    "private_key",
-                    "api_key",
-                    "runner_path",
-                    "absolute_path",
-                }:
-                    return True
-                pending.append((child, depth + 1))
-            continue
-        if isinstance(current, list):
-            container_id = id(current)
-            if container_id in seen_containers:
-                return True
-            seen_containers.add(container_id)
-            pending.extend((child, depth + 1) for child in current)
+            else:
+                pending.extend((child, depth + 1) for child in current)
             continue
         if isinstance(current, str) and _is_absolute_path_text(current):
             return True
+    return False
+
+
+def _queue_metadata_mapping(
+    current: Mapping[object, object], pending: list[tuple[object, int]], depth: int
+) -> bool:
+    forbidden_keys = {
+        "payload", "payloads", "raw_log", "raw_logs", "log_content", "log_contents",
+        "request", "response", "request_body", "response_body", "headers", "authorization",
+        "cookie", "secret", "secrets", "credential", "credentials", "password",
+        "private_key", "api_key", "runner_path", "absolute_path",
+    }
+    for key, child in current.items():
+        if not isinstance(key, str) or key.lower() in forbidden_keys:
+            return True
+        pending.append((child, depth + 1))
     return False
 
 
@@ -1272,100 +1256,125 @@ def _normalise_framework_expectation(
     if not _is_approved_literal(kind, EXPECTATION_KINDS):
         issues.error(f"{label}.kind is unsupported")
         return None
+    return _normalise_framework_expectation_kind(
+        expectation, kind, label, issues, depth, allow_legacy
+    )
+
+
+def _normalise_framework_expectation_kind(
+    expectation: Mapping[str, Any],
+    kind: str,
+    label: str,
+    issues: _Issues,
+    depth: int,
+    allow_legacy: bool,
+) -> dict[str, Any] | None:
     if kind == "http_status":
         _require_exact_keys(expectation, {"kind", "http_status"}, set(), label, issues)
         status = _framework_http_status(expectation.get("http_status"), label, issues)
         return {"kind": kind, "http_status": status} if status is not None else None
     if kind in {"intervention", "action"}:
-        allowed = {"kind", "action", "rule_ids"}
-        if kind == "intervention":
-            allowed.add("http_status")
-        _require_exact_keys(expectation, {"kind", "action"}, allowed - {"kind", "action"}, label, issues)
-        action = expectation.get("action")
-        if not _is_approved_literal(action, FRAMEWORK_ACTIONS):
-            issues.error(f"{label}.action is not a public Framework action")
-        normalized: dict[str, Any] = {"kind": kind, "action": action}
-        if "http_status" in expectation:
-            status = _framework_http_status(expectation.get("http_status"), label, issues)
-            if status is not None:
-                normalized["http_status"] = status
-        if "rule_ids" in expectation:
-            rules = _framework_rule_ids(expectation.get("rule_ids"), label, issues)
-            if rules is not None:
-                normalized["rule_ids"] = rules
-        return normalized
+        return _normalise_framework_action(expectation, kind, label, issues)
     if kind == "rule_match":
         _require_exact_keys(expectation, {"kind", "rule_ids"}, set(), label, issues)
         rules = _framework_rule_ids(expectation.get("rule_ids"), label, issues)
         return {"kind": kind, "rule_ids": rules} if rules is not None else None
     if kind == "event":
-        _require_exact_keys(expectation, {"kind"}, {"fields", "event_type"}, label, issues)
-        if "fields" not in expectation and "event_type" not in expectation:
-            issues.error(f"{label} needs fields or event_type")
-        normalized = {"kind": kind}
-        if "fields" in expectation:
-            fields = _framework_identifier_list(expectation.get("fields"), label, issues)
-            if fields is not None:
-                normalized["fields"] = fields
-        if "event_type" in expectation:
-            event_type = expectation.get("event_type")
-            if not _safe_framework_identifier(event_type):
-                issues.error(f"{label}.event_type is not a Framework identifier")
-            else:
-                normalized["event_type"] = event_type
-        return normalized
+        return _normalise_framework_event(expectation, label, issues)
     if kind in {"request_headers", "response_headers"}:
         _require_exact_keys(expectation, {"kind", "names"}, set(), label, issues)
         names = _framework_identifier_list(expectation.get("names"), label, issues)
         return {"kind": kind, "names": names} if names is not None else None
     if kind in {"request_body", "response_body", "transport", "cleanup"}:
-        _require_exact_keys(expectation, {"kind", "state"}, set(), label, issues)
-        state = expectation.get("state")
-        allowed_states = (
-            FRAMEWORK_BODY_STATES
-            if kind in {"request_body", "response_body"}
-            else FRAMEWORK_TRANSPORT_STATES
-            if kind == "transport"
-            else FRAMEWORK_CLEANUP_STATES
-        )
-        if not _is_approved_literal(state, allowed_states):
-            issues.error(f"{label}.state is not valid for {kind}")
-        return {"kind": kind, "state": state}
+        return _normalise_framework_state(expectation, kind, label, issues)
     if kind == "lifecycle":
         _require_exact_keys(expectation, {"kind", "predicates"}, set(), label, issues)
         predicates = _framework_lifecycle_predicates(expectation.get("predicates"), label, issues)
         return {"kind": kind, "predicates": predicates} if predicates is not None else None
     if kind == "compound":
-        _require_exact_keys(expectation, {"kind", "conditions"}, set(), label, issues)
-        conditions_value = expectation.get("conditions")
-        if (
-            not isinstance(conditions_value, list)
-            or not 2 <= len(conditions_value) <= MAX_COMPOUND_CONDITIONS
-        ):
-            issues.error(f"{label}.conditions must contain 2 to {MAX_COMPOUND_CONDITIONS} conditions")
-            return None
-        conditions = [
-            _normalise_framework_expectation(
-                condition,
-                f"{label}.conditions[{index}]",
-                issues,
-                depth + 1,
-                allow_legacy=allow_legacy,
-            )
-            for index, condition in enumerate(conditions_value)
-        ]
-        normalized_conditions = [condition for condition in conditions if condition is not None]
-        if len(normalized_conditions) != len(conditions):
-            return None
-        fingerprints = {canonical_json(condition) for condition in normalized_conditions}
-        if len(fingerprints) != len(normalized_conditions):
-            issues.error(f"{label}.conditions contains duplicate conditions")
-        return {"kind": kind, "conditions": normalized_conditions}
+        return _normalise_framework_compound(expectation, label, issues, depth, allow_legacy)
+    return _normalise_framework_not_applicable(expectation, label, issues)
+
+
+def _normalise_framework_action(expectation, kind, label, issues):
+    allowed = {"kind", "action", "rule_ids"}
+    if kind == "intervention":
+        allowed.add("http_status")
+    _require_exact_keys(expectation, {"kind", "action"}, allowed - {"kind", "action"}, label, issues)
+    action = expectation.get("action")
+    if not _is_approved_literal(action, FRAMEWORK_ACTIONS):
+        issues.error(f"{label}.action is not a public Framework action")
+    normalized = {"kind": kind, "action": action}
+    if "http_status" in expectation:
+        status = _framework_http_status(expectation.get("http_status"), label, issues)
+        if status is not None:
+            normalized["http_status"] = status
+    if "rule_ids" in expectation:
+        rules = _framework_rule_ids(expectation.get("rule_ids"), label, issues)
+        if rules is not None:
+            normalized["rule_ids"] = rules
+    return normalized
+
+
+def _normalise_framework_event(expectation, label, issues):
+    _require_exact_keys(expectation, {"kind"}, {"fields", "event_type"}, label, issues)
+    if "fields" not in expectation and "event_type" not in expectation:
+        issues.error(f"{label} needs fields or event_type")
+    normalized = {"kind": "event"}
+    if "fields" in expectation:
+        fields = _framework_identifier_list(expectation.get("fields"), label, issues)
+        if fields is not None:
+            normalized["fields"] = fields
+    if "event_type" in expectation:
+        event_type = expectation.get("event_type")
+        if not _safe_framework_identifier(event_type):
+            issues.error(f"{label}.event_type is not a Framework identifier")
+        else:
+            normalized["event_type"] = event_type
+    return normalized
+
+
+def _framework_expectation_states(kind):
+    if kind in {"request_body", "response_body"}:
+        return FRAMEWORK_BODY_STATES
+    if kind == "transport":
+        return FRAMEWORK_TRANSPORT_STATES
+    return FRAMEWORK_CLEANUP_STATES
+
+
+def _normalise_framework_state(expectation, kind, label, issues):
+    _require_exact_keys(expectation, {"kind", "state"}, set(), label, issues)
+    state = expectation.get("state")
+    if not _is_approved_literal(state, _framework_expectation_states(kind)):
+        issues.error(f"{label}.state is not valid for {kind}")
+    return {"kind": kind, "state": state}
+
+
+def _normalise_framework_compound(expectation, label, issues, depth, allow_legacy):
+    _require_exact_keys(expectation, {"kind", "conditions"}, set(), label, issues)
+    conditions_value = expectation.get("conditions")
+    if not isinstance(conditions_value, list) or not 2 <= len(conditions_value) <= MAX_COMPOUND_CONDITIONS:
+        issues.error(f"{label}.conditions must contain 2 to {MAX_COMPOUND_CONDITIONS} conditions")
+        return None
+    conditions = [
+        _normalise_framework_expectation(condition, f"{label}.conditions[{index}]", issues, depth + 1, allow_legacy=allow_legacy)
+        for index, condition in enumerate(conditions_value)
+    ]
+    normalized_conditions = [condition for condition in conditions if condition is not None]
+    if len(normalized_conditions) != len(conditions):
+        return None
+    fingerprints = {canonical_json(condition) for condition in normalized_conditions}
+    if len(fingerprints) != len(normalized_conditions):
+        issues.error(f"{label}.conditions contains duplicate conditions")
+    return {"kind": "compound", "conditions": normalized_conditions}
+
+
+def _normalise_framework_not_applicable(expectation, label, issues):
     _require_exact_keys(expectation, {"kind", "reason"}, set(), label, issues)
     reason = expectation.get("reason")
     if not _is_approved_literal(reason, FRAMEWORK_NOT_APPLICABLE_REASONS):
         issues.error(f"{label}.reason is not a public not_applicable reason")
-    return {"kind": kind, "reason": reason}
+    return {"kind": "not_applicable", "reason": reason}
 
 
 def _framework_http_status(value: object, label: str, issues: _Issues) -> int | None:
@@ -1442,6 +1451,13 @@ def _normalise_framework_observation(
     }
     _require_exact_keys(observation, set(), allowed, label, issues)
     normalized: dict[str, Any] = {}
+    _normalise_framework_observation_scalars(observation, label, issues, normalized)
+    _normalise_framework_observation_lists(observation, label, issues, normalized)
+    _normalise_framework_observation_states(observation, label, issues, normalized)
+    return normalized
+
+
+def _normalise_framework_observation_scalars(observation, label, issues, normalized):
     if "http_status" in observation:
         status = _framework_http_status(observation.get("http_status"), label, issues)
         if status is not None:
@@ -1456,31 +1472,34 @@ def _normalise_framework_observation(
         rules = _framework_rule_ids(observation.get("rule_ids"), label, issues)
         if rules is not None:
             normalized["rule_ids"] = rules
-    for source, target in (
-        ("event_fields", "event_fields"),
-        ("request_header_names", "request_header_names"),
-        ("response_header_names", "response_header_names"),
-    ):
-        if source in observation:
-            names = _framework_identifier_list(observation.get(source), label, issues)
-            if names is not None:
-                normalized[target] = names
     if "event_type" in observation:
         event_type = observation.get("event_type")
         if not _safe_framework_identifier(event_type):
             issues.error(f"{label}.event_type is not a Framework identifier")
         else:
             normalized["event_type"] = event_type
-    for field, allowed_states in (
-        ("request_body_state", FRAMEWORK_BODY_STATES),
-        ("response_body_state", FRAMEWORK_BODY_STATES),
-        ("transport", FRAMEWORK_TRANSPORT_STATES),
-        ("cleanup", FRAMEWORK_CLEANUP_STATES),
-        ("applicability", FRAMEWORK_NOT_APPLICABLE_REASONS),
-    ):
+
+
+def _normalise_framework_observation_lists(observation, label, issues, normalized):
+    for field in ("event_fields", "request_header_names", "response_header_names"):
+        if field in observation:
+            names = _framework_identifier_list(observation.get(field), label, issues)
+            if names is not None:
+                normalized[field] = names
+
+
+def _normalise_framework_observation_states(observation, label, issues, normalized):
+    allowed_states = {
+        "request_body_state": FRAMEWORK_BODY_STATES,
+        "response_body_state": FRAMEWORK_BODY_STATES,
+        "transport": FRAMEWORK_TRANSPORT_STATES,
+        "cleanup": FRAMEWORK_CLEANUP_STATES,
+        "applicability": FRAMEWORK_NOT_APPLICABLE_REASONS,
+    }
+    for field, allowed in allowed_states.items():
         if field in observation:
             state = observation.get(field)
-            if not _is_approved_literal(state, allowed_states):
+            if not _is_approved_literal(state, allowed):
                 issues.error(f"{label}.{field} is not a public Framework value")
             else:
                 normalized[field] = state
@@ -1488,7 +1507,6 @@ def _normalise_framework_observation(
         lifecycle = _framework_lifecycle_predicates(observation.get("lifecycle"), label, issues)
         if lifecycle is not None:
             normalized["lifecycle"] = lifecycle
-    return normalized
 
 
 def _framework_expectation_mismatches(
@@ -1496,103 +1514,85 @@ def _framework_expectation_mismatches(
 ) -> list[str]:
     kind = expectation["kind"]
     if kind == "compound":
-        return [
-            mismatch
-            for condition in expectation["conditions"]
-            for mismatch in _framework_expectation_mismatches(condition, observation)
-        ]
+        return _framework_compound_mismatches(expectation, observation)
     if kind == "http_status":
-        return [] if observation.get("http_status") == expectation["http_status"] else ["http_status"]
+        return _framework_value_mismatch(observation, "http_status", expectation["http_status"], "http_status")
     if kind in {"intervention", "action"}:
-        mismatches = [] if observation.get("action") == expectation["action"] else ["action"]
-        if "http_status" in expectation and observation.get("http_status") != expectation["http_status"]:
-            mismatches.append("http_status")
-        if "rule_ids" in expectation and not set(expectation["rule_ids"]).issubset(observation.get("rule_ids", [])):
-            mismatches.append("rule_ids")
-        return mismatches
+        return _framework_action_mismatches(expectation, observation)
     if kind == "rule_match":
-        return [] if set(expectation["rule_ids"]).issubset(observation.get("rule_ids", [])) else ["rule_ids"]
+        return _framework_subset_mismatch(expectation, observation, "rule_ids")
     if kind == "event":
-        mismatches: list[str] = []
-        if "fields" in expectation and not set(expectation["fields"]).issubset(observation.get("event_fields", [])):
-            mismatches.append("event_fields")
-        if "event_type" in expectation and observation.get("event_type") != expectation["event_type"]:
-            mismatches.append("event_type")
-        return mismatches
-    if kind == "request_headers":
-        return [] if set(expectation["names"]).issubset(observation.get("request_header_names", [])) else ["request_headers"]
-    if kind == "response_headers":
-        return [] if set(expectation["names"]).issubset(observation.get("response_header_names", [])) else ["response_headers"]
-    if kind == "request_body":
-        return [] if observation.get("request_body_state") == expectation["state"] else ["request_body"]
-    if kind == "response_body":
-        return [] if observation.get("response_body_state") == expectation["state"] else ["response_body"]
-    if kind == "transport":
-        return [] if observation.get("transport") == expectation["state"] else ["transport"]
+        return _framework_event_mismatches(expectation, observation)
+    if kind in {"request_headers", "response_headers"}:
+        field = "request_header_names" if kind == "request_headers" else "response_header_names"
+        return _framework_subset_mismatch(expectation, observation, field, kind)
     if kind == "lifecycle":
         actual = observation.get("lifecycle", {})
         return [] if all(actual.get(name) == state for name, state in expectation["predicates"].items()) else ["lifecycle"]
-    if kind == "cleanup":
-        return [] if observation.get("cleanup") == expectation["state"] else ["cleanup"]
-    return [] if observation.get("applicability") == expectation["reason"] else ["not_applicable"]
+    return _framework_scalar_mismatch(expectation, observation, kind)
+
+
+def _framework_compound_mismatches(expectation, observation):
+    return [
+        mismatch
+        for condition in expectation["conditions"]
+        for mismatch in _framework_expectation_mismatches(condition, observation)
+    ]
+
+
+def _framework_value_mismatch(observation, field, expected, mismatch):
+    return [] if observation.get(field) == expected else [mismatch]
+
+
+def _framework_subset_mismatch(expectation, observation, field, mismatch=None):
+    mismatch = mismatch or field
+    return [] if set(expectation.get("names", expectation.get("rule_ids", []))).issubset(observation.get(field, [])) else [mismatch]
+
+
+def _framework_action_mismatches(expectation, observation):
+    mismatches = _framework_value_mismatch(observation, "action", expectation["action"], "action")
+    if "http_status" in expectation:
+        mismatches += _framework_value_mismatch(observation, "http_status", expectation["http_status"], "http_status")
+    if "rule_ids" in expectation:
+        mismatches += _framework_subset_mismatch(expectation, observation, "rule_ids")
+    return mismatches
+
+
+def _framework_event_mismatches(expectation, observation):
+    mismatches = []
+    if "fields" in expectation and not set(expectation["fields"]).issubset(observation.get("event_fields", [])):
+        mismatches.append("event_fields")
+    if "event_type" in expectation:
+        mismatches += _framework_value_mismatch(observation, "event_type", expectation["event_type"], "event_type")
+    return mismatches
+
+
+def _framework_scalar_mismatch(expectation, observation, kind):
+    fields = {
+        "request_body": ("request_body_state", "request_body"),
+        "response_body": ("response_body_state", "response_body"),
+        "transport": ("transport", "transport"),
+        "cleanup": ("cleanup", "cleanup"),
+        "not_applicable": ("applicability", "not_applicable"),
+    }
+    field, mismatch = fields[kind]
+    expected = expectation.get("state", expectation.get("reason"))
+    return _framework_value_mismatch(observation, field, expected, mismatch)
 
 
 def _validate_framework_case(case_value: object, label: str, issues: _Issues) -> dict[str, int]:
     case = _as_mapping(case_value, label, issues)
     if case is None:
         return {}
-    required = {
-        "framework_test_id",
-        "scenario_category",
-        "selected",
-        "executed",
-        "live_executed",
-        "expectation",
-        "observation",
-        "result",
-        "failure_count",
-        "mismatch_count",
-    }
+    required = {"framework_test_id", "scenario_category", "selected", "executed", "live_executed", "expectation", "observation", "result", "failure_count", "mismatch_count"}
     _require_exact_keys(case, required, set(), label, issues)
-    if not _safe_framework_identifier(case.get("framework_test_id")):
-        issues.error(f"{label}.framework_test_id is not a Framework identifier")
-    category = case.get("scenario_category")
-    if category is not None and not _safe_framework_identifier(category):
-        issues.error(f"{label}.scenario_category must be Framework metadata or null")
-    for field in ("selected", "executed", "live_executed"):
-        if not _is_boolean(case.get(field)):
-            issues.error(f"{label}.{field} must be a boolean")
-    if case.get("selected") is not True:
-        issues.error(f"{label}.selected must be true in the selected case list")
-    result = case.get("result")
-    if not _is_approved_literal(result, FRAMEWORK_CASE_RESULTS):
-        issues.error(f"{label}.result uses an unsupported status")
-    for field in ("failure_count", "mismatch_count"):
-        if not _is_bounded_integer(case.get(field)):
-            issues.error(f"{label}.{field} must be a bounded integer")
+    _validate_framework_case_identity(case, label, issues)
+    result = _validate_framework_case_status(case, label, issues)
+    _validate_framework_case_counts(case, label, issues)
     expectation = _normalise_framework_expectation(case.get("expectation"), f"{label}.expectation", issues)
     observation = _normalise_framework_observation(case.get("observation"), f"{label}.observation", issues)
-    if expectation is not None and observation is not None:
-        mismatches = _framework_expectation_mismatches(expectation, observation)
-        if mismatches:
-            issues.error(f"{label}.expectation and observation disagree: {', '.join(sorted(set(mismatches)))}")
-        if expectation["kind"] == "not_applicable" and result != "NOT_APPLICABLE":
-            issues.error(f"{label}.not_applicable expectation must report NOT_APPLICABLE")
-        if expectation["kind"] != "not_applicable" and result == "NOT_APPLICABLE":
-            issues.error(f"{label}.NOT_APPLICABLE result needs a not_applicable expectation")
-    executed_results = {"PASS", "FAIL", "CANCELLED"}
-    if result in executed_results:
-        if case.get("executed") is not True:
-            issues.error(f"{label}.result requires executed=true")
-    elif _is_approved_literal(result, FRAMEWORK_CASE_RESULTS):
-        if case.get("executed") is not False or case.get("live_executed") is not False:
-            issues.error(f"{label}.non-executed result cannot claim live execution")
-    if result == "PASS" and (case.get("failure_count") != 0 or case.get("mismatch_count") != 0):
-        issues.error(f"{label}.PASS result cannot retain failures or mismatches")
-    if result == "PASS" and case.get("live_executed") is not True:
-        issues.error(f"{label}.PASS result requires live_executed=true")
-    if result == "FAIL" and case.get("failure_count") == 0 and case.get("mismatch_count") == 0:
-        issues.error(f"{label}.FAIL result needs a failure or mismatch count")
+    _validate_framework_case_consistency(case, result, expectation, observation, label, issues)
+    _validate_framework_case_execution(case, result, label, issues)
     return {
         "selected_count": 1 if case.get("selected") is True else 0,
         "executed_count": 1 if case.get("executed") is True else 0,
@@ -1607,6 +1607,59 @@ def _validate_framework_case(case_value: object, label: str, issues: _Issues) ->
     }
 
 
+def _validate_framework_case_identity(case, label, issues):
+    if not _safe_framework_identifier(case.get("framework_test_id")):
+        issues.error(f"{label}.framework_test_id is not a Framework identifier")
+    category = case.get("scenario_category")
+    if category is not None and not _safe_framework_identifier(category):
+        issues.error(f"{label}.scenario_category must be Framework metadata or null")
+    for field in ("selected", "executed", "live_executed"):
+        if not _is_boolean(case.get(field)):
+            issues.error(f"{label}.{field} must be a boolean")
+    if case.get("selected") is not True:
+        issues.error(f"{label}.selected must be true in the selected case list")
+
+
+def _validate_framework_case_status(case, label, issues):
+    result = case.get("result")
+    if not _is_approved_literal(result, FRAMEWORK_CASE_RESULTS):
+        issues.error(f"{label}.result uses an unsupported status")
+    return result
+
+
+def _validate_framework_case_counts(case, label, issues):
+    for field in ("failure_count", "mismatch_count"):
+        if not _is_bounded_integer(case.get(field)):
+            issues.error(f"{label}.{field} must be a bounded integer")
+
+
+def _validate_framework_case_consistency(case, result, expectation, observation, label, issues):
+    if expectation is None or observation is None:
+        return
+    mismatches = _framework_expectation_mismatches(expectation, observation)
+    if mismatches:
+        issues.error(f"{label}.expectation and observation disagree: {', '.join(sorted(set(mismatches)))}")
+    if expectation["kind"] == "not_applicable" and result != "NOT_APPLICABLE":
+        issues.error(f"{label}.not_applicable expectation must report NOT_APPLICABLE")
+    if expectation["kind"] != "not_applicable" and result == "NOT_APPLICABLE":
+        issues.error(f"{label}.NOT_APPLICABLE result needs a not_applicable expectation")
+
+
+def _validate_framework_case_execution(case, result, label, issues):
+    if result in {"PASS", "FAIL", "CANCELLED"}:
+        if case.get("executed") is not True:
+            issues.error(f"{label}.result requires executed=true")
+    elif _is_approved_literal(result, FRAMEWORK_CASE_RESULTS):
+        if case.get("executed") is not False or case.get("live_executed") is not False:
+            issues.error(f"{label}.non-executed result cannot claim live execution")
+    if result == "PASS" and (case.get("failure_count") != 0 or case.get("mismatch_count") != 0):
+        issues.error(f"{label}.PASS result cannot retain failures or mismatches")
+    if result == "PASS" and case.get("live_executed") is not True:
+        issues.error(f"{label}.PASS result requires live_executed=true")
+    if result == "FAIL" and case.get("failure_count") == 0 and case.get("mismatch_count") == 0:
+        issues.error(f"{label}.FAIL result needs a failure or mismatch count")
+
+
 def _validate_framework(
     value: object,
     issues: _Issues,
@@ -1614,18 +1667,26 @@ def _validate_framework(
     framework = _as_mapping(value, "framework", issues)
     if framework is None:
         return None
-    count_fields = {
-        "selected_count",
-        "executed_count",
-        "passed_count",
-        "failed_count",
-        "cancelled_count",
-        "unsupported_count",
-        "not_applicable_count",
-        "not_executed_count",
-        "failure_count",
-        "mismatch_count",
+    count_fields = _framework_count_fields()
+    _validate_framework_header(framework, count_fields, issues)
+    cases = framework.get("cases")
+    if not isinstance(cases, list) or not 1 <= len(cases) <= MAX_EXPECTATION_ITEMS:
+        issues.error("framework.cases must be a bounded non-empty list")
+        return framework
+    actual = _validate_framework_cases(cases, count_fields, issues)
+    _validate_framework_aggregate(framework, actual, issues)
+    _validate_framework_disposition(framework, actual, issues)
+    return framework
+
+
+def _framework_count_fields():
+    return {
+        "selected_count", "executed_count", "passed_count", "failed_count", "cancelled_count",
+        "unsupported_count", "not_applicable_count", "not_executed_count", "failure_count", "mismatch_count",
     }
+
+
+def _validate_framework_header(framework, count_fields, issues):
     required = {"selection_status", "execution_status", "validation_status", "cases", *count_fields}
     _require_exact_keys(framework, required, set(), "framework", issues)
     if not _is_approved_literal(framework.get("selection_status"), FRAMEWORK_SELECTION_STATUSES):
@@ -1637,10 +1698,9 @@ def _validate_framework(
     for field in count_fields:
         if not _is_bounded_integer(framework.get(field)):
             issues.error(f"framework.{field} must be a bounded integer")
-    cases = framework.get("cases")
-    if not isinstance(cases, list) or not 1 <= len(cases) <= MAX_EXPECTATION_ITEMS:
-        issues.error("framework.cases must be a bounded non-empty list")
-        return framework
+
+
+def _validate_framework_cases(cases, count_fields, issues):
     framework_ids: set[str] = set()
     actual = dict.fromkeys(count_fields, 0)
     for index, case in enumerate(cases):
@@ -1652,19 +1712,16 @@ def _validate_framework(
         counts = _validate_framework_case(case, f"framework.cases[{index}]", issues)
         for field, count in counts.items():
             actual[field] = int(actual[field]) + count
-    for field in count_fields:
-        if framework.get(field) != actual[field]:
+    return actual
+
+
+def _validate_framework_aggregate(framework, actual, issues):
+    for field, count in actual.items():
+        if framework.get(field) != count:
             issues.error(f"framework.{field} does not match framework.cases")
-    if actual["selected_count"] != (
-        actual["executed_count"]
-        + actual["unsupported_count"]
-        + actual["not_applicable_count"]
-        + actual["not_executed_count"]
-    ):
+    if actual["selected_count"] != actual["executed_count"] + actual["unsupported_count"] + actual["not_applicable_count"] + actual["not_executed_count"]:
         issues.error("framework selected-count equation is violated")
-    if actual["executed_count"] != (
-        actual["passed_count"] + actual["failed_count"] + actual["cancelled_count"]
-    ):
+    if actual["executed_count"] != actual["passed_count"] + actual["failed_count"] + actual["cancelled_count"]:
         issues.error("framework executed-count equation is violated")
     expected_selection_status = "SELECTED" if actual["selected_count"] else "NONE_SELECTED"
     expected_execution_status = "RUN" if actual["executed_count"] else "NOT_RUN"
@@ -1672,8 +1729,6 @@ def _validate_framework(
         issues.error("framework.selection_status contradicts framework.cases")
     if framework.get("execution_status") != expected_execution_status:
         issues.error("framework.execution_status contradicts framework.cases")
-    _validate_framework_disposition(framework, actual, issues)
-    return framework
 
 
 def _validate_framework_disposition(

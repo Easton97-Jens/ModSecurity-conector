@@ -1175,6 +1175,22 @@ def host_raw_inputs(runtime_root: Path, connector: str, observed: dict[str, Any]
     return raw_inputs
 
 
+def framework_case_was_executed(
+    observed_statuses: dict[str, int], observed: dict[str, Any], canonical_trigger: int
+) -> bool:
+    """Determine execution from the separately validated host facts."""
+    return (
+        observed_statuses["block"] == 403
+        and observed["block_action"] == "deny"
+        and canonical_trigger == RULE_ID
+        and int(observed["actual_intervention"]) == 949110
+        and observed["config_test_status"] == "PASS"
+        and observed["host_start_status"] == "PASS"
+        and observed["reachability_status"] == "PASS"
+        and observed["cleanup_status"] == "PASS"
+    )
+
+
 def normalize(args: argparse.Namespace) -> Path:
     connector = args.connector
     adapter, mode, evidence_type = CONNECTORS[connector]
@@ -1325,15 +1341,8 @@ def normalize(args: argparse.Namespace) -> Path:
     # not a status copied from a host summary or a post-run compatibility
     # validator. Every predicate below came from a separately validated
     # structured host record in this invocation.
-    framework_case_executed = (
-        observed_statuses["block"] == 403
-        and observed["block_action"] == "deny"
-        and canonical_trigger == RULE_ID
-        and int(observed["actual_intervention"]) == 949110
-        and observed["config_test_status"] == "PASS"
-        and observed["host_start_status"] == "PASS"
-        and observed["reachability_status"] == "PASS"
-        and observed["cleanup_status"] == "PASS"
+    framework_case_executed = framework_case_was_executed(
+        observed_statuses, observed, canonical_trigger
     )
     framework_case_result = "PASS" if framework_case_executed else "NOT_EXECUTED"
     framework_execution_status = "RUN" if framework_case_executed else "NOT_RUN"
