@@ -63,12 +63,23 @@ RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,47}$", re.ASCII)
 COMMIT = re.compile(r"^[0-9a-f]{40}$", re.ASCII)
 FRAMEWORK_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$", re.ASCII)
 ABSOLUTE_PATH_FRAGMENT = re.compile(
-    r"(?<![A-Za-z0-9_.-])/(?:[A-Za-z0-9_.-]+)(?:/[A-Za-z0-9_.-]+)+"
+    r"(?<![A-Za-z0-9_.-])/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+"
 )
 SENSITIVE_SUMMARY_FRAGMENT = re.compile(
     r"\b(?:authorization|bearer|cookie|password|payload|secret|token)\b",
     re.IGNORECASE,
 )
+LABEL_FRAMEWORK_CRS_RESULT = "Framework CRS result"
+LABEL_FRAMEWORK_CRS_MANIFEST = "Framework CRS manifest"
+LABEL_FRAMEWORK_CRS_RECEIPT = "Framework CRS receipt"
+LABEL_NORMALIZED_RUNTIME_EVENT = "normalized runtime event"
+LABEL_RUNTIME_ATTESTATION = "runtime attestation"
+LABEL_NORMALIZED_HOST_CONFIGURATION = "normalized host configuration"
+LABEL_NORMALIZED_CLEANUP = "normalized cleanup"
+LABEL_VALIDATED_FRAMEWORK_RESULT = "validated Framework result"
+NOT_REPORTED = "not reported"
+NOT_RUN = "NOT RUN"
+NOT_APPLICABLE = "NOT APPLICABLE"
 
 
 def _escape(value: object) -> str:
@@ -154,7 +165,7 @@ def _json_object(data: bytes, label: str) -> dict[str, Any]:
         parsed = json.loads(
             data.decode("utf-8", "strict"), object_pairs_hook=_reject_duplicate_json_keys
         )
-    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+    except (json.JSONDecodeError, ValueError) as error:
         raise ValueError(f"{label} is not valid JSON") from error
     if not isinstance(parsed, dict):
         raise ValueError(f"{label} root must be an object")
@@ -573,61 +584,61 @@ def _with_crs_records_from_evidence(
         raise ValueError("Framework CRS profile does not contain exactly one declared fixture")
     fixture_id, selection = next(iter(selections.items()))
     result, _result_digest = _read_private_json(
-        evidence_root, ("results", connector, run_id, "result.json"), "Framework CRS result"
+        evidence_root, ("results", connector, run_id, "result.json"), LABEL_FRAMEWORK_CRS_RESULT
     )
     manifest, manifest_digest = _read_private_json(
-        evidence_root, ("results", connector, run_id, "manifest.json"), "Framework CRS manifest"
+        evidence_root, ("results", connector, run_id, "manifest.json"), LABEL_FRAMEWORK_CRS_MANIFEST
     )
     receipt, receipt_digest = _read_private_json(
-        evidence_root, ("results", connector, run_id, "receipt.json"), "Framework CRS receipt"
+        evidence_root, ("results", connector, run_id, "receipt.json"), LABEL_FRAMEWORK_CRS_RECEIPT
     )
     event, _event_digest = _read_private_json(
-        evidence_root, ("normalized", connector, run_id, "event.json"), "normalized runtime event"
+        evidence_root, ("normalized", connector, run_id, "event.json"), LABEL_NORMALIZED_RUNTIME_EVENT
     )
     runtime, _runtime_digest = _read_private_json(
-        evidence_root, ("runtime", connector, run_id, "runtime.json"), "runtime attestation"
+        evidence_root, ("runtime", connector, run_id, "runtime.json"), LABEL_RUNTIME_ATTESTATION
     )
 
     for record, label in (
-        (result, "Framework CRS result"),
-        (manifest, "Framework CRS manifest"),
-        (receipt, "Framework CRS receipt"),
+        (result, LABEL_FRAMEWORK_CRS_RESULT),
+        (manifest, LABEL_FRAMEWORK_CRS_MANIFEST),
+        (receipt, LABEL_FRAMEWORK_CRS_RECEIPT),
     ):
         _exact(record, "connector", connector, label)
         _exact(record, "run_id", run_id, label)
         _exact(record, "profile", CRS_FRAMEWORK_PROFILE, label)
         _exact(record, "validation_status", CONTRACT_VALIDATED, label)
-    _exact(result, "status", CONTRACT_VALIDATED, "Framework CRS result")
-    _exact(manifest, "connector_commit", parent_sha, "Framework CRS manifest")
-    _exact(manifest, "framework_commit", framework_sha, "Framework CRS manifest")
-    _exact(receipt, "connector_commit", parent_sha, "Framework CRS receipt")
-    _exact(receipt, "framework_commit", framework_sha, "Framework CRS receipt")
-    _exact(manifest, "fixture_id", fixture_id, "Framework CRS manifest")
-    _exact(receipt, "fixture_id", fixture_id, "Framework CRS receipt")
-    _exact(result, "manifest_sha256", manifest_digest, "Framework CRS result")
-    _exact(result, "receipt_sha256", receipt_digest, "Framework CRS result")
-    _exact(receipt, "manifest_sha256", manifest_digest, "Framework CRS receipt")
+    _exact(result, "status", CONTRACT_VALIDATED, LABEL_FRAMEWORK_CRS_RESULT)
+    _exact(manifest, "connector_commit", parent_sha, LABEL_FRAMEWORK_CRS_MANIFEST)
+    _exact(manifest, "framework_commit", framework_sha, LABEL_FRAMEWORK_CRS_MANIFEST)
+    _exact(receipt, "connector_commit", parent_sha, LABEL_FRAMEWORK_CRS_RECEIPT)
+    _exact(receipt, "framework_commit", framework_sha, LABEL_FRAMEWORK_CRS_RECEIPT)
+    _exact(manifest, "fixture_id", fixture_id, LABEL_FRAMEWORK_CRS_MANIFEST)
+    _exact(receipt, "fixture_id", fixture_id, LABEL_FRAMEWORK_CRS_RECEIPT)
+    _exact(result, "manifest_sha256", manifest_digest, LABEL_FRAMEWORK_CRS_RESULT)
+    _exact(result, "receipt_sha256", receipt_digest, LABEL_FRAMEWORK_CRS_RESULT)
+    _exact(receipt, "manifest_sha256", manifest_digest, LABEL_FRAMEWORK_CRS_RECEIPT)
     for field in ("failure_count", "mismatch_count"):
-        _zero(result, field, "Framework CRS result")
+        _zero(result, field, LABEL_FRAMEWORK_CRS_RESULT)
 
-    for record, label in ((event, "normalized runtime event"), (runtime, "runtime attestation")):
+    for record, label in ((event, LABEL_NORMALIZED_RUNTIME_EVENT), (runtime, LABEL_RUNTIME_ATTESTATION)):
         _exact(record, "connector", connector, label)
         _exact(record, "run_id", run_id, label)
-    _exact(event, "profile", CRS_FRAMEWORK_PROFILE, "normalized runtime event")
-    _exact(event, "connector_commit", parent_sha, "normalized runtime event")
-    _exact(event, "framework_commit", framework_sha, "normalized runtime event")
-    _exact(event, "fixture_id", fixture_id, "normalized runtime event")
-    _exact(event, "status", "PASS", "normalized runtime event")
-    _exact(runtime, "record_type", "parent_runtime_attestation", "runtime attestation")
-    _exact(runtime, "runtime_status", "PASS", "runtime attestation")
-    configuration = _require_mapping(event.get("host_configuration"), "normalized host configuration")
+    _exact(event, "profile", CRS_FRAMEWORK_PROFILE, LABEL_NORMALIZED_RUNTIME_EVENT)
+    _exact(event, "connector_commit", parent_sha, LABEL_NORMALIZED_RUNTIME_EVENT)
+    _exact(event, "framework_commit", framework_sha, LABEL_NORMALIZED_RUNTIME_EVENT)
+    _exact(event, "fixture_id", fixture_id, LABEL_NORMALIZED_RUNTIME_EVENT)
+    _exact(event, "status", "PASS", LABEL_NORMALIZED_RUNTIME_EVENT)
+    _exact(runtime, "record_type", "parent_runtime_attestation", LABEL_RUNTIME_ATTESTATION)
+    _exact(runtime, "runtime_status", "PASS", LABEL_RUNTIME_ATTESTATION)
+    configuration = _require_mapping(event.get("host_configuration"), LABEL_NORMALIZED_HOST_CONFIGURATION)
     allow = _require_mapping(event.get("allow_case"), "normalized allow case")
     no_mrts = _require_mapping(event.get("no_mrts"), "normalized no-MRTS attestation")
     runtime_no_mrts = _require_mapping(runtime.get("no_mrts"), "runtime no-MRTS attestation")
-    cleanup = _require_mapping(event.get("cleanup"), "normalized cleanup")
+    cleanup = _require_mapping(event.get("cleanup"), LABEL_NORMALIZED_CLEANUP)
     cleanup_scan = _require_mapping(runtime.get("cleanup_scan"), "runtime cleanup scan")
-    _exact(configuration, "config_test_status", "passed", "normalized host configuration")
-    _exact(configuration, "host_start_status", "passed", "normalized host configuration")
+    _exact(configuration, "config_test_status", "passed", LABEL_NORMALIZED_HOST_CONFIGURATION)
+    _exact(configuration, "host_start_status", "passed", LABEL_NORMALIZED_HOST_CONFIGURATION)
     if (
         _http_status(allow.get("expected_status"), "normalized allow expected status") != 200
         or _http_status(allow.get("observed_status"), "normalized allow observed status") != 200
@@ -640,7 +651,7 @@ def _with_crs_records_from_evidence(
         ("observed_rule_id", selection.get("expected_rule_id")),
     ):
         if event.get(field) != expected:
-            raise ValueError(f"normalized runtime event {field} does not match the Framework fixture")
+            raise ValueError(f"{LABEL_NORMALIZED_RUNTIME_EVENT} {field} does not match the Framework fixture")
     for field in (
         "runner_invoked",
         "case_inventory_loaded",
@@ -650,7 +661,7 @@ def _with_crs_records_from_evidence(
     ):
         _false(no_mrts, field, "normalized no-MRTS attestation")
         _false(runtime_no_mrts, field, "runtime no-MRTS attestation")
-    _exact(cleanup, "status", "passed", "normalized cleanup")
+    _exact(cleanup, "status", "passed", LABEL_NORMALIZED_CLEANUP)
     for field in (
         "host_processes_remaining",
         "helper_processes_remaining",
@@ -660,14 +671,14 @@ def _with_crs_records_from_evidence(
         "runtime_fixtures_remaining",
         "temporary_paths_remaining",
     ):
-        _zero(cleanup, field, "normalized cleanup")
+        _zero(cleanup, field, LABEL_NORMALIZED_CLEANUP)
         _zero(cleanup_scan, field, "runtime cleanup scan")
     request_id = _framework_identifier(event.get("request_id"), "normalized runtime request ID")
     transaction_id = _framework_identifier(
         event.get("transaction_id"), "normalized runtime transaction ID"
     )
     if not request_id or not transaction_id:
-        raise ValueError("normalized runtime event lacks request/transaction correlation")
+        raise ValueError(f"{LABEL_NORMALIZED_RUNTIME_EVENT} lacks request/transaction correlation")
     return {
         fixture_id: {
             "connector": connector,
@@ -681,7 +692,7 @@ def _with_crs_records_from_evidence(
             "failure_count": 0,
             "mismatch_count": 0,
             "validation_status": CONTRACT_VALIDATED,
-            "evidence_kind": "validated Framework result and normalized runtime attestation",
+            "evidence_kind": f"{LABEL_VALIDATED_FRAMEWORK_RESULT} and {LABEL_NORMALIZED_RUNTIME_EVENT}",
             "fixture_id": fixture_id,
         }
     }
@@ -741,23 +752,23 @@ def _case_status_and_details(
 ) -> tuple[str, str, str]:
     selection_status = str(selection.get("selection_status") or "")
     if selection_status in ("UNSUPPORTED", "NOT_APPLICABLE", "NOT_EXECUTED"):
-        return selection_status, "canonical Framework selection", "not reported"
+        return selection_status, "canonical Framework selection", NOT_REPORTED
     if selection_status != "SELECTED":
         raise ValueError("Framework selector returned an invalid selection status")
     if not evidence_validated or not isinstance(evidence, Mapping):
-        return "NOT_EXECUTED", "no validated Framework result", "not reported"
+        return "NOT_EXECUTED", "no validated Framework result", NOT_REPORTED
     status = str(evidence.get("status") or "").upper()
     if status not in RAW_CASE_STATUSES:
         raise ValueError("result contains an invalid case status")
     if status == "PASS":
         if evidence.get("live_executed") is not True:
-            return "NOT_EXECUTED", "validated Framework result", "not reported"
-        return "PASS", "validated Framework result", "not reported"
+            return "NOT_EXECUTED", LABEL_VALIDATED_FRAMEWORK_RESULT, NOT_REPORTED
+        return "PASS", LABEL_VALIDATED_FRAMEWORK_RESULT, NOT_REPORTED
     if status == "FAIL" and evidence.get("live_executed") is True:
-        return "FAIL", "validated Framework result", "not reported"
+        return "FAIL", LABEL_VALIDATED_FRAMEWORK_RESULT, NOT_REPORTED
     if status in ("UNSUPPORTED", "NOT_APPLICABLE"):
-        return status, "validated Framework result", "not reported"
-    return "NOT_EXECUTED", "validated Framework result", "not reported"
+        return status, LABEL_VALIDATED_FRAMEWORK_RESULT, NOT_REPORTED
+    return "NOT_EXECUTED", LABEL_VALIDATED_FRAMEWORK_RESULT, NOT_REPORTED
 
 
 def _optional_http(record: Mapping[str, Any], field: str) -> int | None:
@@ -906,21 +917,21 @@ def _aggregate_result(
     not_applicable = _integer(aggregate.get("not_applicable"), "not applicable")
     not_executed = _integer(aggregate.get("not_executed"), "not executed")
     if selected == 0:
-        return "NOT APPLICABLE"
+        return NOT_APPLICABLE
     if execution_outcome == "cancelled" or cancelled:
         return "CANCELLED"
     if execution_outcome == "failure":
         return "FAIL"
     if execution_outcome in {"skipped", "not_run"}:
-        return "NOT RUN"
+        return NOT_RUN
     if execution_outcome == "not_applicable":
-        return "NOT APPLICABLE"
+        return NOT_APPLICABLE
     if failed:
         return "FAIL"
     if unsupported == selected:
         return "UNSUPPORTED"
     if not_applicable == selected:
-        return "NOT APPLICABLE"
+        return NOT_APPLICABLE
     if (
         evidence_validated
         and selected > 0
@@ -939,10 +950,10 @@ def _aggregate_result_detail(aggregate: Mapping[str, Any], result: str) -> str:
     passed = _integer(aggregate.get("passed"), "passed")
     failed = _integer(aggregate.get("failed"), "failed")
     not_executed = _integer(aggregate.get("not_executed"), "not executed")
-    if result == "NOT RUN":
-        return "`NOT RUN`<br>no validated live test result"
-    if result == "NOT APPLICABLE":
-        return "`NOT APPLICABLE`<br>no Framework scenario is declared for this cell"
+    if result == NOT_RUN:
+        return f"`{NOT_RUN}`<br>no validated live test result"
+    if result == NOT_APPLICABLE:
+        return f"`{NOT_APPLICABLE}`<br>no Framework scenario is declared for this cell"
     if result == "FAIL" and failed == 0:
         return "`FAIL`<br>workflow execution failed before a validated case result"
     return (
@@ -975,7 +986,7 @@ def _expectation(record: Mapping[str, Any], *, observed: bool) -> str:
         parts.append(f"rule `{rule}`")
     if observed and record.get("live_executed") is True:
         parts.append("live request completed")
-    return "; ".join(parts) if parts else "not reported"
+    return "; ".join(parts) if parts else NOT_REPORTED
 
 
 def _row_execution(record: Mapping[str, Any]) -> str:
@@ -987,8 +998,8 @@ def _row_execution(record: Mapping[str, Any]) -> str:
     if status == "UNSUPPORTED":
         return "UNSUPPORTED"
     if status == "NOT_APPLICABLE":
-        return "NOT APPLICABLE"
-    return "NOT RUN"
+        return NOT_APPLICABLE
+    return NOT_RUN
 
 
 def _row_result(record: Mapping[str, Any]) -> str:
@@ -1002,7 +1013,7 @@ def _row_result(record: Mapping[str, Any]) -> str:
 
 def _row_evidence(record: Mapping[str, Any]) -> str:
     return (
-        f"{_escape(record.get('evidence_kind', 'not reported'))}<br>"
+        f"{_escape(record.get('evidence_kind', NOT_REPORTED))}<br>"
         f"validation: `{_escape(record.get('validation_status', 'not validated'))}`<br>"
         f"fixture: `{_escape(record.get('fixture_id', record.get('case_id', 'unknown')))}`"
     )
@@ -1016,18 +1027,18 @@ def _selection_state(
     if selection_outcome == "cancelled":
         return "CANCELLED"
     if selection_outcome in {"skipped", "not_run"}:
-        return "NOT RUN"
+        return NOT_RUN
     if selection_outcome == "not_applicable":
-        return "NOT APPLICABLE"
+        return NOT_APPLICABLE
     if not rows:
-        return "NOT APPLICABLE"
+        return NOT_APPLICABLE
     selections = {str(row.get("selection_status")) for row in rows}
     if "SELECTED" in selections:
         return "SELECTED"
     if selections == {"UNSUPPORTED"}:
         return "UNSUPPORTED"
     if selections == {"NOT_APPLICABLE"}:
-        return "NOT APPLICABLE"
+        return NOT_APPLICABLE
     return "PARTIAL"
 
 
@@ -1057,35 +1068,114 @@ def _execution_state(
     rows: Sequence[Mapping[str, Any]], *, evidence_validated: bool, execution_outcome: str
 ) -> str:
     if not rows:
-        return "NOT APPLICABLE"
+        return NOT_APPLICABLE
     if execution_outcome == "cancelled":
         return "CANCELLED"
     if execution_outcome == "failure":
         return "FAILED"
     if execution_outcome in {"skipped", "not_run"}:
-        return "NOT RUN"
+        return NOT_RUN
     if execution_outcome == "not_applicable":
-        return "NOT APPLICABLE"
+        return NOT_APPLICABLE
     if evidence_validated and any(_row_execution(row) == "RUN" for row in rows):
         return "RUN"
     if all(_row_execution(row) == "UNSUPPORTED" for row in rows):
         return "UNSUPPORTED"
-    if all(_row_execution(row) == "NOT APPLICABLE" for row in rows):
-        return "NOT APPLICABLE"
-    return "NOT RUN"
+    if all(_row_execution(row) == NOT_APPLICABLE for row in rows):
+        return NOT_APPLICABLE
+    return NOT_RUN
 
 
 def _validation_state(
     rows: Sequence[Mapping[str, Any]], *, evidence_validated: bool, outcome: str
 ) -> str:
     if not rows:
-        return "NOT APPLICABLE"
+        return NOT_APPLICABLE
     if not evidence_validated:
         return outcome.upper().replace("_", " ")
     states = {str(row.get("validation_status")) for row in rows}
     if len(states) != 1:
         return "INCONSISTENT"
     return next(iter(states))
+
+
+def _append_aggregate_rows(
+    output: list[str],
+    aggregates: Sequence[Mapping[str, Any]],
+    *,
+    evidence_validated: bool,
+    execution_outcome: str,
+) -> None:
+    for aggregate in aggregates:
+        result = _aggregate_result(
+            aggregate,
+            evidence_validated=evidence_validated,
+            execution_outcome=execution_outcome,
+        )
+        output.append(
+            "| {category} | {selected} | {executed} | {passed} | {failed} | {unsupported} | {not_applicable} | {not_executed} | {result} | {evidence} |".format(
+                category=_escape(aggregate["category"]),
+                selected=aggregate["selected"],
+                executed=aggregate["executed"],
+                passed=aggregate["passed"],
+                failed=aggregate["failed"],
+                unsupported=aggregate["unsupported"],
+                not_applicable=aggregate["not_applicable"],
+                not_executed=aggregate["not_executed"],
+                result=_aggregate_result_detail(aggregate, result),
+                evidence=_aggregate_evidence(aggregate, evidence_validated=evidence_validated),
+            )
+        )
+    total = {
+        key: sum(int(aggregate[key]) for aggregate in aggregates)
+        for key in (
+            "selected", "executed", "passed", "failed", "unsupported",
+            "not_applicable", "not_executed", "cancelled",
+        )
+    }
+    if total["selected"] != total["executed"] + total["unsupported"] + total["not_applicable"] + total["not_executed"]:
+        raise ValueError("Framework total count equation is violated")
+    if total["executed"] != total["passed"] + total["failed"] + total["cancelled"]:
+        raise ValueError("Framework total execution equation is violated")
+    total_result = _aggregate_result(
+        {**total, "records": [record for aggregate in aggregates for record in aggregate["records"]]},
+        evidence_validated=evidence_validated,
+        execution_outcome=execution_outcome,
+    )
+    output.append(
+        "| **Total** | **{selected}** | **{executed}** | **{passed}** | **{failed}** | **{unsupported}** | **{not_applicable}** | **{not_executed}** | {result} | {evidence} |".format(
+            **total,
+            result=_aggregate_result_detail(total, total_result),
+            evidence=("framework results validated" if evidence_validated else "validated evidence not available"),
+        )
+    )
+
+
+def _append_framework_details(
+    output: list[str], aggregates: Sequence[Mapping[str, Any]]
+) -> None:
+    for aggregate in aggregates:
+        records = aggregate["records"]
+        output.extend((
+            "",
+            "<details>",
+            f"<summary>{_escape(aggregate['category'])} — {len(records)} framework tests</summary>",
+            "",
+            "| Framework test | Execution | Expected | Observed | Result | Evidence |",
+            "| --- | --- | --- | --- | --- | --- |",
+        ))
+        for record in records:
+            output.append(
+                "| `{case_id}` | `{execution}` | {expected} | {observed} | {result} | {evidence} |".format(
+                    case_id=_escape(record["case_id"]),
+                    execution=_escape(_row_execution(record)),
+                    expected=_expectation(record, observed=False),
+                    observed=_expectation(record, observed=True),
+                    result=_row_result(record),
+                    evidence=_row_evidence(record),
+                )
+            )
+        output.extend(("", "</details>"))
 
 
 def render_summary(
@@ -1174,73 +1264,15 @@ def render_summary(
         "| Framework scenario | Selected | Executed | Passed | Failed | Unsupported | Not applicable | Not executed | Result | Evidence |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- |",
     ))
-    for aggregate in aggregates:
-        result = _aggregate_result(
-            aggregate,
-            evidence_validated=evidence_validated,
-            execution_outcome=execution_outcome,
-        )
-        output.append(
-            "| {category} | {selected} | {executed} | {passed} | {failed} | {unsupported} | {not_applicable} | {not_executed} | {result} | {evidence} |".format(
-                category=_escape(aggregate["category"]),
-                selected=aggregate["selected"],
-                executed=aggregate["executed"],
-                passed=aggregate["passed"],
-                failed=aggregate["failed"],
-                unsupported=aggregate["unsupported"],
-                not_applicable=aggregate["not_applicable"],
-                not_executed=aggregate["not_executed"],
-                result=_aggregate_result_detail(aggregate, result),
-                evidence=_aggregate_evidence(aggregate, evidence_validated=evidence_validated),
-            )
-        )
-    total = {
-        key: sum(int(aggregate[key]) for aggregate in aggregates)
-        for key in (
-            "selected", "executed", "passed", "failed", "unsupported",
-            "not_applicable", "not_executed", "cancelled",
-        )
-    }
-    if total["selected"] != total["executed"] + total["unsupported"] + total["not_applicable"] + total["not_executed"]:
-        raise ValueError("Framework total count equation is violated")
-    if total["executed"] != total["passed"] + total["failed"] + total["cancelled"]:
-        raise ValueError("Framework total execution equation is violated")
-    total_result = _aggregate_result(
-        {**total, "records": [record for aggregate in aggregates for record in aggregate["records"]]},
+    _append_aggregate_rows(
+        output,
+        aggregates,
         evidence_validated=evidence_validated,
         execution_outcome=execution_outcome,
     )
+    _append_framework_details(output, aggregates)
     output.append(
-        "| **Total** | **{selected}** | **{executed}** | **{passed}** | **{failed}** | **{unsupported}** | **{not_applicable}** | **{not_executed}** | {result} | {evidence} |".format(
-            **total,
-            result=_aggregate_result_detail(total, total_result),
-            evidence=("framework results validated" if evidence_validated else "validated evidence not available"),
-        )
-    )
-    for aggregate in aggregates:
-        records = aggregate["records"]
-        output.extend((
-            "",
-            "<details>",
-            f"<summary>{_escape(aggregate['category'])} — {len(records)} framework tests</summary>",
-            "",
-            "| Framework test | Execution | Expected | Observed | Result | Evidence |",
-            "| --- | --- | --- | --- | --- | --- |",
-        ))
-        for record in records:
-            output.append(
-                "| `{case_id}` | `{execution}` | {expected} | {observed} | {result} | {evidence} |".format(
-                    case_id=_escape(record["case_id"]),
-                    execution=_escape(_row_execution(record)),
-                    expected=_expectation(record, observed=False),
-                    observed=_expectation(record, observed=True),
-                    result=_row_result(record),
-                    evidence=_row_evidence(record),
-                )
-            )
-        output.extend(("", "</details>"))
-    output.append(
-        "\nA `RUN` requires a bound, live Framework result; a successful workflow step without that evidence remains `NOT RUN` or `PARTIAL`."
+        f"\nA `RUN` requires a bound, live Framework result; a successful workflow step without that evidence remains `{NOT_RUN}` or `PARTIAL`."
     )
     return "\n".join(output) + "\n"
 

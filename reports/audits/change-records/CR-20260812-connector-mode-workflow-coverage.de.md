@@ -904,3 +904,32 @@ Framework-Submodule im Task-Worktree stellt keine lokalen Ziele für diese
 Links bereit; keines der Ergebnisse ist ein Change-Record-Sprach- oder
 Inhaltsmismatch. Diese Dokumentationschecks sind als `blocked_environment`,
 nicht als PASS-Nachweis erfasst.
+
+## Follow-up vom 2026-08-24: Exact-Head-Sonar-New-Code-Remediation
+
+Der exakte Draft-PR-#279-Head
+`58f970b624bf3bc2be8db232911d62e6858eed27` bestand sein SonarQube-Cloud-
+Quality-Gate, aber Check-Run `97347899010` meldete weiterhin `21 New issues`.
+Dasselbe veröffentlichte Ergebnis meldete explizit null akzeptierte Issues,
+null Security-Hotspots sowie `0.0%` New-Code-Coverage und -Duplikation. Die
+nicht-null Issue-Anzahl erfüllt den verlangten Nullzustand nicht und wird lokal
+über `FND-SONAR-0054`, `FND-SONAR-0056` und `FND-SONAR-0057` verfolgt.
+
+Dieser enge Parent-only-Successor refaktoriert nur die gemeldeten
+Wartbarkeitsoberflächen: Der gemeinsame Summary-Renderer zentralisiert
+wiederholte sichere Labels und trennt das Detail-Rendering; der CRS/no-MRTS-
+Normalizer trennt Source-Pin-, Runner-Evidence-, Host-Fact-, Record- und
+Writer-Verantwortlichkeiten und behält die strikte Apache-/HAProxy-
+`runtime-observation.json`-Validierung bei; die fokussierten Renderer-Tests
+verwenden direkte Assertions und vorab berechnete Exception-Eingaben. Er
+unterdrückt keine Sonar-Regel, markiert keinen False Positive, ändert kein
+Quality Gate, keinen Threshold, keine Exclusion, keinen Action-Pin, keine
+Workflow-Permission, keine Concurrency-Regel, keinen Framework-/MRTS-Gitlink,
+keine NGINX-Grenze und keinen HAProxy-Raw-Artifact-Ausschluss.
+
+Der aktuelle lokale Successor bestand `py_compile` für alle drei Lifecycle-
+Helper sowie die fokussierten Summary-, Runtime- und Workflow-Verträge mit
+`102` Tests. Ein neuer normaler Push und eine SonarQube-Cloud-Analyse des
+exakten Successors bleiben erforderlich, bevor ein Null-Issue-Claim erfolgt.
+PR #279 bleibt OPEN und Draft: Keine Ready-Umstellung, kein Merge, Auto-Merge,
+Rebase, Force-Push oder Master-Integration ist autorisiert.

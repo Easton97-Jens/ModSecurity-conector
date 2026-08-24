@@ -845,3 +845,31 @@ exited `2`. The deliberately uninitialized task-worktree Framework submodule
 provides no local targets for those links, and neither result is a Change-
 Record language or content mismatch. These documentation checks are recorded
 as `blocked_environment`, not as a passing proof.
+
+## 2026-08-24 follow-up: exact-head Sonar New-Code remediation
+
+The exact Draft PR #279 head
+`58f970b624bf3bc2be8db232911d62e6858eed27` passed its SonarQube Cloud Quality
+Gate, but check run `97347899010` still reported `21 New issues`. The same
+published result explicitly reported zero accepted issues, zero security
+hotspots, and `0.0%` New-Code coverage and duplication. The nonzero issue
+count does not meet the requested zero-state and is tracked locally by
+`FND-SONAR-0054`, `FND-SONAR-0056`, and `FND-SONAR-0057`.
+
+This narrow Parent-only successor refactors only the reported maintainability
+surfaces: the common summary renderer centralizes repeated safe labels and
+splits detail rendering; the CRS/no-MRTS normalizer separates source-pin,
+runner-evidence, host-fact, record, and writer responsibilities while keeping
+the strict Apache/HAProxy `runtime-observation.json` validation; and the
+focused renderer tests use direct assertions and precomputed exceptional
+inputs. It does not suppress a Sonar rule, mark a false positive, change a
+Quality Gate, threshold, exclusion, action pin, workflow permission,
+concurrency rule, Framework/MRTS Gitlink, NGINX boundary, or HAProxy raw-
+artifact exclusion.
+
+The current local successor passed `py_compile` for all three lifecycle
+helpers and the focused Summary, runtime, and workflow contracts with `102`
+tests. A new normal push and an exact-successor SonarQube Cloud analysis remain
+required before any zero-issue claim. PR #279 remains OPEN and Draft: no Ready
+transition, merge, auto-merge, rebase, force-push, or master integration is
+authorized.

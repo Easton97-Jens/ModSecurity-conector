@@ -13,7 +13,8 @@ SUMMARY_PATH = ROOT / "ci/runtime/lifecycle/summarize-connector-mode-coverage.py
 
 def load_summary():
     spec = importlib.util.spec_from_file_location("connector_mode_coverage_summary", SUMMARY_PATH)
-    assert spec and spec.loader
+    assert spec is not None
+    assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -142,8 +143,9 @@ class ConnectorModeCoverageSummaryTest(unittest.TestCase):
                 SUMMARY._json_object(b'{"schema_version":1,"schema_version":1}', "index")
 
     def test_case_plan_rejects_duplicate_and_evidence_rejects_unknown_or_missing_ids(self):
+        duplicate_plan = plan(selection("same"), selection("same"))
         with self.assertRaisesRegex(ValueError, "unique"):
-            SUMMARY.case_rows(plan(selection("same"), selection("same")))
+            SUMMARY.case_rows(duplicate_plan)
         p = plan(selection("expected"))
         with tempfile.TemporaryDirectory() as directory:
             evidence = Path(directory)
@@ -161,8 +163,9 @@ class ConnectorModeCoverageSummaryTest(unittest.TestCase):
                 SUMMARY._records_from_evidence(evidence, p, "envoy", run_id="run-1", parent_sha=PARENT_SHA, framework_sha=FRAMEWORK_SHA)
             record["case_id"] = "expected"
             (evidence / "results.jsonl").write_text(json.dumps(record) + "\n", encoding="utf-8")
+            expanded_plan = plan(selection("expected"), selection("second"))
             with self.assertRaisesRegex(ValueError, "missing"):
-                SUMMARY._records_from_evidence(evidence, plan(selection("expected"), selection("second")), "envoy", run_id="run-1", parent_sha=PARENT_SHA, framework_sha=FRAMEWORK_SHA)
+                SUMMARY._records_from_evidence(evidence, expanded_plan, "envoy", run_id="run-1", parent_sha=PARENT_SHA, framework_sha=FRAMEWORK_SHA)
 
     def test_no_crs_evidence_is_bound_to_exact_run_parent_and_framework(self):
         p = plan(selection("expected"))
