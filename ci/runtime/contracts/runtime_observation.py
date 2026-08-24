@@ -438,20 +438,33 @@ def _has_forbidden_metadata(value: object) -> bool:
         visited += 1
         if depth > MAX_METADATA_DEPTH or visited > MAX_METADATA_NODES:
             return True
-        if isinstance(current, (Mapping, list)):
-            container_id = id(current)
-            if container_id in seen_containers:
-                return True
-            seen_containers.add(container_id)
-            if isinstance(current, Mapping):
-                if _queue_metadata_mapping(current, pending, depth):
-                    return True
-            else:
-                pending.extend((child, depth + 1) for child in current)
-            continue
-        if isinstance(current, str) and _is_absolute_path_text(current):
+        if _metadata_container_is_forbidden(current, seen_containers, pending, depth):
+            return True
+        if _metadata_text_is_forbidden(current):
             return True
     return False
+
+
+def _metadata_container_is_forbidden(
+    current: object,
+    seen_containers: set[int],
+    pending: list[tuple[object, int]],
+    depth: int,
+) -> bool:
+    if not isinstance(current, (Mapping, list)):
+        return False
+    container_id = id(current)
+    if container_id in seen_containers:
+        return True
+    seen_containers.add(container_id)
+    if isinstance(current, Mapping):
+        return _queue_metadata_mapping(current, pending, depth)
+    pending.extend((child, depth + 1) for child in current)
+    return False
+
+
+def _metadata_text_is_forbidden(current: object) -> bool:
+    return isinstance(current, str) and _is_absolute_path_text(current)
 
 
 def _queue_metadata_mapping(
@@ -1269,31 +1282,58 @@ def _normalise_framework_expectation_kind(
     depth: int,
     allow_legacy: bool,
 ) -> dict[str, Any] | None:
+    if kind in {
+        "http_status",
+        "rule_match",
+        "request_headers",
+        "response_headers",
+        "lifecycle",
+    }:
+        return _normalise_framework_direct_expectation(expectation, kind, label, issues)
+    if kind in {
+        "intervention",
+        "action",
+        "event",
+        "request_body",
+        "response_body",
+        "transport",
+        "cleanup",
+        "compound",
+    }:
+        return _normalise_framework_special_expectation(
+            expectation, kind, label, issues, depth, allow_legacy
+        )
+    return _normalise_framework_not_applicable(expectation, label, issues)
+
+
+def _normalise_framework_direct_expectation(expectation, kind, label, issues):
     if kind == "http_status":
         _require_exact_keys(expectation, {"kind", "http_status"}, set(), label, issues)
         status = _framework_http_status(expectation.get("http_status"), label, issues)
         return {"kind": kind, "http_status": status} if status is not None else None
-    if kind in {"intervention", "action"}:
-        return _normalise_framework_action(expectation, kind, label, issues)
     if kind == "rule_match":
         _require_exact_keys(expectation, {"kind", "rule_ids"}, set(), label, issues)
         rules = _framework_rule_ids(expectation.get("rule_ids"), label, issues)
         return {"kind": kind, "rule_ids": rules} if rules is not None else None
-    if kind == "event":
-        return _normalise_framework_event(expectation, label, issues)
     if kind in {"request_headers", "response_headers"}:
         _require_exact_keys(expectation, {"kind", "names"}, set(), label, issues)
         names = _framework_identifier_list(expectation.get("names"), label, issues)
         return {"kind": kind, "names": names} if names is not None else None
+    _require_exact_keys(expectation, {"kind", "predicates"}, set(), label, issues)
+    predicates = _framework_lifecycle_predicates(expectation.get("predicates"), label, issues)
+    return {"kind": kind, "predicates": predicates} if predicates is not None else None
+
+
+def _normalise_framework_special_expectation(
+    expectation, kind, label, issues, depth, allow_legacy
+):
+    if kind in {"intervention", "action"}:
+        return _normalise_framework_action(expectation, kind, label, issues)
+    if kind == "event":
+        return _normalise_framework_event(expectation, label, issues)
     if kind in {"request_body", "response_body", "transport", "cleanup"}:
         return _normalise_framework_state(expectation, kind, label, issues)
-    if kind == "lifecycle":
-        _require_exact_keys(expectation, {"kind", "predicates"}, set(), label, issues)
-        predicates = _framework_lifecycle_predicates(expectation.get("predicates"), label, issues)
-        return {"kind": kind, "predicates": predicates} if predicates is not None else None
-    if kind == "compound":
-        return _normalise_framework_compound(expectation, label, issues, depth, allow_legacy)
-    return _normalise_framework_not_applicable(expectation, label, issues)
+    return _normalise_framework_compound(expectation, label, issues, depth, allow_legacy)
 
 
 def _normalise_framework_action(expectation, kind, label, issues):
@@ -1591,7 +1631,7 @@ def _validate_framework_case(case_value: object, label: str, issues: _Issues) ->
     _validate_framework_case_counts(case, label, issues)
     expectation = _normalise_framework_expectation(case.get("expectation"), f"{label}.expectation", issues)
     observation = _normalise_framework_observation(case.get("observation"), f"{label}.observation", issues)
-    _validate_framework_case_consistency(case, result, expectation, observation, label, issues)
+    _validate_framework_case_consistency(result, expectation, observation, label, issues)
     _validate_framework_case_execution(case, result, label, issues)
     return {
         "selected_count": 1 if case.get("selected") is True else 0,
@@ -1633,7 +1673,7 @@ def _validate_framework_case_counts(case, label, issues):
             issues.error(f"{label}.{field} must be a bounded integer")
 
 
-def _validate_framework_case_consistency(case, result, expectation, observation, label, issues):
+def _validate_framework_case_consistency(result, expectation, observation, label, issues):
     if expectation is None or observation is None:
         return
     mismatches = _framework_expectation_mismatches(expectation, observation)

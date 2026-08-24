@@ -99,13 +99,18 @@ SonarQube Cloud meldete danach auf dem exakten Head
 `245503cdf75ae58f1077ed4c5679f9640c12ce4a` acht task-eigene
 Maintainability-Issues: sechs Cognitive-Complexity-Findings und einen
 verschachtelten Ausdruck im Contract-Validator sowie ein
-Cognitive-Complexity-Finding im Normalizer. Die Successor-Source-Änderung
-extrahiert ausschließlich die vorhandene Metadata-Traversierung,
-Expectation-Normalisierung, Case-/Aggregate-Validierung und das
-Framework-Execution-Predicate in private Helper; sie ändert weder den
-geschlossenen Katalog noch Evidence-Reads, PASS-Regeln oder Trust-Boundaries.
-`FND-SONAR-0060` verfolgt die Remediation, bis der exakte Successor-Head ohne
-Suppression oder Scanner-Control-Änderung null New Issues nachweist.
+Cognitive-Complexity-Finding im Normalizer. Der normale Successor
+`a7b8cc199e01f6403616792c598068d24ff645ee` extrahierte ausschließlich die
+vorhandene Metadata-Traversierung, Expectation-Normalisierung,
+Case-/Aggregate-Validierung und das Framework-Execution-Predicate in private
+Helper. Sein exakter Check `97619927966` bestand das Quality Gate, meldete aber
+noch drei task-eigene Issues: Metadata- und Expectation-Dispatch-Komplexität
+sowie einen unbenutzten privaten Case-Parameter. Der aktuelle zweite enge
+Successor teilt diese verbleibenden privaten Pfade auf und entfernt den
+unbenutzten Parameter, ohne den geschlossenen Katalog, Evidence-Reads,
+PASS-Regeln oder Trust-Boundaries zu ändern. `FND-SONAR-0060` verfolgt die
+Remediation weiter, bis der exakte gepushte Successor-Head ohne Suppression
+oder Scanner-Control-Änderung null New Issues nachweist.
 
 ## Geänderte Dateien
 
@@ -131,15 +136,15 @@ Suppression oder Scanner-Control-Änderung null New Issues nachweist.
 
 | Check | Tatsächliches Ergebnis |
 | --- | --- |
-| `python3 -m unittest -q tests.test_runtime_observation_contract tests.test_with_crs_no_mrts_runtime` | Nach dem Sonar-Refactor bestanden: `125 tests in 274.202s`. Dies deckt die verlangten Identity-, Union-, Compound-, Explicit-Fact-, Aggregate-, HAProxy-, NGINX-, Path-/Evidence- und No-Fabricated-PASS-Regressionen ab. |
-| Benutzergeforderter kombinierter Verbose-Befehl mit `tests.test_ci_security_workflows` | Die Contract-/Normalizer-Cases bestanden; der Befehl führte `126` Einträge in `67.036s` aus, wobei das letzte Modul wegen des fehlenden lokalen `PyYAML`-Imports als ein Fehler gemeldet wurde. Keine Dependency wurde installiert oder geändert. |
-| `tests.test_runtime_path_security`, `tests.test_evidence_output_security`, `tests.test_bilingual_docs` und `tests.test_envoy_transport_hardening_contract` | Nach dem Sonar-Refactor bestanden: `70 tests in 9.723s`. |
-| Direkte `tests.test_bilingual_docs`-Bestätigung | Bestanden: `22 tests in 0.312s`. |
+| `python3 -m unittest -q tests.test_runtime_observation_contract tests.test_with_crs_no_mrts_runtime` | Nach dem zweiten Sonar-Refactor bestanden: `125 tests in 303.028s`. Dies deckt die verlangten Identity-, Union-, Compound-, Explicit-Fact-, Aggregate-, HAProxy-, NGINX-, Path-/Evidence- und No-Fabricated-PASS-Regressionen ab. |
+| Benutzergeforderter kombinierter Verbose-Befehl mit `tests.test_ci_security_workflows` | Die Contract-/Normalizer-Cases bestanden; der Befehl führte `126` Einträge in `41.930s` aus, wobei das letzte Modul wegen des fehlenden lokalen `PyYAML`-Imports als ein Fehler gemeldet wurde. Keine Dependency wurde installiert oder geändert. |
+| `tests.test_runtime_path_security`, `tests.test_evidence_output_security`, `tests.test_bilingual_docs` und `tests.test_envoy_transport_hardening_contract` | Nach dem zweiten Sonar-Refactor bestanden: `70 tests`. |
+| Direkte `tests.test_bilingual_docs`-Bestätigung | Bestanden: `22 tests`. |
 | Shell-Syntax des CRS/no-MRTS-Runner-Skripts | Bestanden. |
 | Erforderliche `py_compile`-Dateien | Bestanden: Exit `0`. |
 | `python3 -m json.tool ci/runtime/contracts/runtime-observation.schema.json /dev/null` | Bestanden. |
 | `git diff --check` | Bestanden. |
-| Terminaler Security-Diff-Scan | Mit vollständiger Coverage und null reportable aktuellen Findings abgeschlossen. Der Same-UID-Private-Runner-Writer ist eine explizite Trusted-Runner-Boundary-Einschränkung, kein stillschweigend unterdrücktes Finding. |
+| Security-Diff-Review | Der versiegelte Scan für `a7b8cc19` endete mit null reportable Findings. Ein nachfolgender fokussierter Delta-Review des verbleibenden semantischen Refactors fand ebenfalls kein reportable Finding. Der Same-UID-Private-Runner-Writer ist eine explizite Trusted-Runner-Boundary-Einschränkung, kein stillschweigend unterdrücktes Finding. |
 
 Die genaue lokale `PyYAML`-Import-Einschränkung ist eine Umgebungs-Evidence-
 Lücke, kein Produkt-Erfolg und kein Grund, den CI-Security-Test zu schwächen.
@@ -158,12 +163,14 @@ geprüft werden.
 
 Der exakte Head `245503cdf75ae58f1077ed4c5679f9640c12ce4a` bestand sein
 Quality Gate, meldete aber im SonarQube-Cloud-Check `97609857745` acht New
-Issues. Das sind die task-eigenen Maintainability-Findings, welche die
-Successor-Source-Änderung behebt. Frühere Kommentare und Check-Runs sind kein
-Nachweis für diesen Successor: Sein Exact-Head-Sonar-Ergebnis muss null New
-Issues zeigen, bevor die Delivery verifiziert ist. Es wurde keine Suppression,
-kein `NOSONAR`, keine Exclusion, Acceptance, Quality-Gate-Änderung oder
-Coverage-Workflow-Änderung vorgenommen.
+Issues. Der erste normale Successor
+`a7b8cc199e01f6403616792c598068d24ff645ee` reduzierte sie im exakten Check
+`97619927966` bei weiter bestandenem Quality Gate auf drei. Der zweite enge
+Successor behebt diese letzten drei task-eigenen Findings. Frühere Kommentare
+und Check-Runs sind kein Nachweis für diesen Successor: Sein Exact-Head-Sonar-
+Ergebnis muss null New Issues zeigen, bevor die Delivery verifiziert ist. Es
+wurde keine Suppression, kein `NOSONAR`, keine Exclusion, Acceptance,
+Quality-Gate-Änderung oder Coverage-Workflow-Änderung vorgenommen.
 
 ```text
 No Python coverage report is supplied to SonarCloud.
@@ -187,10 +194,12 @@ erfordert Log-basierte Diagnose vor einem weiteren Commit.
 
 ## Security-Auswirkung
 
-Der terminale Current-Local-Patch-Scan verwendete Threat Model, Candidate
+Der versiegelte lokale Scan für `a7b8cc19` verwendete Threat Model, Candidate
 Discovery, Validation, Attack-Path-Analyse, fokussierte Regressionen und einen
-unabhängigen Read-only-Review. Er fand null reportable aktuelle
-Schwachstellen.
+unabhängigen Read-only-Review; er fand null reportable Findings. Der spätere
+fokussierte Delta-Review des verbleibenden semantischen Refactors fand ebenfalls
+kein reportable Finding. Keine Security-Control oder Trust-Boundary wurde für
+diese Änderung gelockert.
 
 ## Verbleibende Risiken
 
@@ -206,9 +215,10 @@ fehlenden erforderlichen Template-Abschnitte dieses Change Records; die
 fokussierte Dokumentationskorrektur
 `245503cdf75ae58f1077ed4c5679f9640c12ce4a` war die daraus folgende
 Remediation und kein blinder Rerun. Dieser Head bestand lint, aber SonarQube
-Cloud fand acht Maintainability-Issues; daher gehen der fokussierte
-Source-Refactor und dieses Evidence-Update einem normalen Follow-up-Commit/-
-Push voraus. Danach müssen alle Exact-Head-Checks, SonarQube Cloud und
-`Connector runtime with CRS and no MRTS` erneut beobachtet werden. PR #338
-bleibt Draft; Merge, Auto-Merge, Ready-Übergang, Rebase und Force-Push sind
-weder behauptet noch autorisiert.
+Cloud fand acht Maintainability-Issues. Der normale Successor `a7b8cc19`
+reduzierte sie auf drei, und dieser zweite semantikerhaltende Source-Refactor
+mit Evidence-Update geht dem nächsten normalen Follow-up-Commit/-Push voraus.
+Danach müssen alle Exact-Head-Checks, SonarQube Cloud und `Connector runtime
+with CRS and no MRTS` erneut beobachtet werden. PR #338 bleibt Draft; Merge,
+Auto-Merge, Ready-Übergang, Rebase und Force-Push sind weder behauptet noch
+autorisiert.
