@@ -1,4 +1,4 @@
-# Change Record CR-20260824: Canonical Runtime-Observation-Vertrag
+# Change Record CR-20260824: Abschluss des kanonischen Runtime-Observation-Vertrags
 
 **Sprache:** [English](CR-20260824-canonical-runtime-observation.md) | Deutsch
 
@@ -8,194 +8,157 @@
 | --- | --- |
 | Change-ID | `CR-20260824-canonical-runtime-observation` |
 | Datum (UTC) | `2026-08-24` |
-| Basis-Revision | `232b020cac23d5edc0e18adaf502468bb3012237` |
-| Source-Implementation-Revision | `ebb1aa565c0fd1e88efef454a5807640daf6adcd` |
-| Scope | Parent-only versionierter Runtime-Observation-Vertrag, strikter Validator/CLI, Contract-Fixtures/-Tests, Envoy-/Lighttpd-/Traefik-Normalizer-Integration, Hardening des sicheren Raw-Evidence-Lesers und gekoppelte Traceability. Keine Framework-/MRTS-Source oder Gitlink, Workflow-, Berechtigungs-, NGINX-Broker-, HAProxy-Artifact-Upload-, Root-Runtime- oder Dependency-Änderung. |
+| Repository / Scope | Parent-only Runtime-Observation-Contract-Abschluss für Draft PR #338; keine Framework- oder MRTS-Source, kein Gitlink, Workflow-, Pin-, Berechtigungs-, Coverage-Transfer-, NGINX-Broker-, HAProxy-Artifact-Upload-, Dependency- oder Root-Runtime-Change. |
+| Vorheriger verifizierter PR-Head | `e776ab75a4e2689955b9c42df6e962e06598c70b` |
+| Finale Source-Revision | Ausstehend bis zum autorisierten normalen, nicht umschreibenden Commit und Push zu `codex/canonical-runtime-observation`. Der finale SHA wird bewusst im PR statt in einer selbstreferenziellen Commit-Schleife festgehalten. |
+| Delivery-Disposition | PR #338 bleibt Draft. Kein neuer Branch/PR, Merge, Auto-Merge, Ready-for-review-Übergang, Rebase, Force-Push oder Default-Branch-Aktion ist autorisiert. |
 
-## Motivation und Problemstellung
+## Ziel und Akzeptanzkriterien
 
-Connector-spezifische Runtime-Evidence hatte zuvor keinen gemeinsamen,
-versionierten Vertrag, der eine strikte Entscheidung ohne Behandlung eines
-erfolgreichen CI-Steps oder synthetischen Inputs als Live-Runtime-Proof treffen
-kann. Diese Änderung führt ein Canonical-Observation-Schema und einen Validator
-mit einem expliziten Evidence- und Provenance-Modell ein. Fehlende Apache- und
-HAProxy-Live-Producer bleiben fail-closed, während die separate geschützte
-NGINX-Grenze erhalten bleibt.
+Die gemeinsamen Runtime-Observation-Lücken ohne Framework-Source-Import
+schließen:
 
-## Akzeptanzkriterien
+- `identity.adapter_id` verpflichtend machen und ein geschlossenes
+  Connector-/Adapter-/Integration-Tupel validieren;
+- die öffentliche 14-Arten-Framework-Erwartungsunion mit begrenzter,
+  geschlossener rekursiver `compound`-Semantik und ohne öffentlichen
+  `rule_id`-Output spiegeln;
+- explizite typisierte Host-Fakten für jede PASS-relevante Assertion verlangen;
+- Producer, Raw-Logs, Digests, Fixtures, Step-Success und nachgelagerte
+  Kompatibilitätschecks daran hindern, Runtime- oder Framework-PASS zu
+  erzeugen;
+- ein Run-Aggregat mit eindeutigen Framework-Cases und geprüften
+  Kardinalitätsgleichungen verwenden; und
+- korrekte zweisprachige Traceability, lokale Security-Evidence und Exact-
+  Head-Delivery-Evidence aufbewahren.
 
-- Versioniertes Schema, öffentliche `validate_runtime_observation()`-API und
-  strikte CLI akzeptieren nur vollständige, identity-bound Observations.
-- Eine Profil-Requirement-Matrix steuert alle vier CRS-/MRTS-Profile und
-  promoted kein fehlendes `live_executed` zu PASS.
-- Envoy-, Lighttpd- und Traefik-Structured-Evidence wird durch den gemeinsamen
-  Validator adaptiert; Apache und HAProxy bleiben fixture/interface-only.
-- Alle 32 angeforderten Contract-Cases sind abgedeckt, einschließlich Identity,
-  Expected-versus-Observed-Verhalten, Cleanup, Profil, Provenance, JSON und
-  Safe-File-Negative-Controls.
-- Evidence-Processing lehnt Symlinks, unsichere Hardlinks und Berechtigungen,
-  unsichere Owner, non-regular Objects, unsichere Component-Directories,
-  übergroße Dateien, Duplicate-JSON-Keys und Replacement-Races ab.
-- Kein Live-Six-Connector-by-Four-Profile-PASS wird ohne Host-Evidence behauptet.
+## Implementierungsentscheidung
 
-## Implementierungsentscheidung und Begründung
+Der geschlossene Katalog ist:
 
-- `ci/runtime/contracts/runtime-observation.schema.json` ist der versionierte
-  Vertrag; `runtime_observation.py` stellt die gemeinsame API und das strikte
-  Policy-Result-Vokabular bereit; `validate-runtime-observation.py` ist die CLI.
-- Jedes Profil führt vollständige `parent_commit`-, `framework_commit`- und
-  `mrts_commit`-Identity. No-MRTS-Isolation-Fakten bleiben false, während die
-  gewählte MRTS-Revision Provenance bleibt.
-- Die strikte Policy berechnet digest-bound relative Evidence unter einer
-  privaten Evidence-Root neu. `fixture`-Evidence ist explizit getrennt und
-  kann nicht in einen strikten Live-Claim eingeschleust werden.
-- `runtime_observation_adapters.py` enthält nur Envoy-, Lighttpd- und Traefik-
-  Live-Adapter. Apache und HAProxy haben Canonical-Fixtures, aber keinen Lite-
-  Live-Adapter; NGINX wird als `protected-separate` ohne Broker-Änderung
-  abgebildet.
-- Der vorhandene No-MRTS-Normalizer behält connector-spezifische Korrelation,
-  erzeugt und validiert dann die Canonical Observation. Sein Raw-Reader nutzt
-  nun descriptor-relative no-follow traversal, Owner-/Mode-/Link-Count-Checks,
-  `O_NONBLOCK`, begrenzte Reads und Before-/After-State-Checks.
+| Connector | `adapter_id` | `integration_mode` |
+| --- | --- | --- |
+| Apache | `apache-native-httpd-module` | `native-httpd-module` |
+| Envoy | `envoy-ext-proc-service` | `ext_proc` |
+| Lighttpd | `lighttpd-patched-native-module` | `patched-native-lighttpd` |
+| Traefik | `traefik-native-middleware` | `native-traefik-middleware` |
+| NGINX | `native-nginx-http-module` | `native-nginx-http-module` |
+| HAProxy SPOE/SPOP | `haproxy-spoe-spop-agent` | `spoe-spop-agent` |
+| HAProxy native HTX | `haproxy-native-htx-filter` | `native-htx-filter` |
 
-## Security-Auswirkung
+Der generische Live-Adapter bleibt auf Envoy, Lighttpd und Traefik begrenzt.
+Apache und beide HAProxy-Pfade haben nur kanonische Fixtures und schlagen für
+Live-Claims geschlossen fehl; die geschützte NGINX-Broker-Grenze bleibt
+unverändert. Getrennte HAProxy-Fixtures verhindern Evidence-Crossing zwischen
+SPOE/SPOP und native HTX.
 
-Die Änderung verarbeitet Connector-produziertes JSON und Filesystem-Evidence,
-deshalb ergänzt sie No-Follow-, Regular-File-, Owner-, Writable-Mode-, Link-
-Count-, Size-, Duplicate-Key-, Non-Finite-JSON- und Exchange-Race-Abwehr.
-`FND-PARENT-0228` hält eine validierte Pre-Fix-Raw-Reader-Lücke und ihre
-fokussierte lokale Remediation fest. Der strikte Validator behandelt weder ein
-Test-Fixture noch Command-Success oder Raw-Log als Live-Runtime-PASS-Evidence;
-die Same-UID-Trusted-Runner-Einschränkung für ansonsten selbstkonsistente Daten
-ist unten dokumentiert.
+Die öffentliche Erwartungsunion ist exakt `http_status`, `intervention`,
+`action`, `rule_match`, `event`, `request_headers`, `response_headers`,
+`request_body`, `response_body`, `transport`, `lifecycle`, `cleanup`,
+`compound` und `not_applicable`. Legacy-`rule_id` wird nur an der
+Kompatibilitätsgrenze zu `rule_match` normalisiert. Schema-`oneOf` und
+`additionalProperties: false` formen die Union; Python bleibt der maßgebliche
+semantische Validator. `compound` begrenzt die Tiefe auf vier und Bedingungen
+auf 2–16, weist leere/doppelte/unbekannte/unsichere Members, Raw-Payloads/-Logs
+und absolute Pfade zurück.
 
-Der fokussierte Workflow-Security-Gleichheitscontrol schlägt für zwei vorhandene
-vertrauenswürdige Workflows außerhalb des Workflow-Scopes dieses Tasks
-fail-closed fehl; dies bleibt als `FND-PARENT-0111` erhalten und wird hier
-weder remediated noch suppressed.
+`StructuredObservationInput` erhält jetzt benannte Konfigurations-, Start-,
+Reachability-, Expected-/Observed-Status-, Action-, Trigger-, Intervention-,
+Framework- und Cleanup-Fakten. Fehlende Fakten bleiben `PARTIAL` oder
+`VALIDATION_FAILED`; Abweichungen bleiben failed. Digests binden Dateien, aber
+ersetzen nie eine Observation.
+
+Für den ausgewählten CRS-Smoke leitet der Parent-Normalizer einen
+`crs_sqli_anomaly_block`-Case erst ab, nachdem er die typisierten Live-
+Host-Fakten separat validiert hat. Er kopiert keinen Framework-Status aus einem
+Producer, und das spätere öffentliche Framework-Kommando `validate` ist nur
+kompatibilitäts-only: Es kann kein Parent-Ergebnis hochstufen und keine
+Framework-Source-/Runner-Execution behaupten. Das Run-Aggregat prüft
+`selected = executed + unsupported + not_applicable + not_executed` und
+`executed = passed + failed + cancelled`; die Framework-Szenariokategorie
+bleibt Framework-Metadata statt einer profilabgeleiteten Parent-Kategorie.
+
+Der Validator schlägt zusätzlich für nicht hashbare geschlossene Literale sowie
+übermäßiges/zyklisches Metadata geschlossen fehl. Envoy und Lighttpd leiten
+CRS-Intervention-IDs aus validierten strukturierten Final-Events statt aus
+Summary-Literalen ab; der Normalizer prüft sie erneut. Diese fokussierten
+Remediations werden lokal als `FND-PARENT-0307`, `FND-PARENT-0308` und
+`FND-PARENT-0309` verfolgt, lokal fixed und mit ausstehender Exact-Head-
+Verifikation.
 
 ## Geänderte Dateien
 
-- `ci/runtime/contracts/__init__.py`
+- `ci/runtime/contracts/README.md` und `ci/runtime/contracts/README.de.md`
 - `ci/runtime/contracts/runtime-observation.schema.json`
 - `ci/runtime/contracts/runtime_observation.py`
 - `ci/runtime/contracts/runtime_observation_adapters.py`
 - `ci/runtime/contracts/validate-runtime-observation.py`
-- `ci/runtime/contracts/README.md` und `ci/runtime/contracts/README.de.md`
 - `ci/runtime/lifecycle/normalize-with-crs-no-mrts.py`
-- `ci/README.md` und `ci/README.de.md`
+- `ci/runtime/lifecycle/run-with-crs-no-mrts.sh`
+- `connectors/envoy/harness/run_envoy_ext_proc_runtime.sh`
+- `connectors/lighttpd/harness/run_patched_full_lifecycle.sh`
+- `connectors/traefik/scripts/runtime_native_smoke.py`
+- `tests/fixtures/runtime-observation/apache-no-crs-no-mrts.json`
+- gelöscht `tests/fixtures/runtime-observation/haproxy-no-crs-no-mrts.json`
+- hinzugefügt `tests/fixtures/runtime-observation/haproxy-spoe-spop-no-crs-no-mrts.json`
+- hinzugefügt `tests/fixtures/runtime-observation/haproxy-native-htx-no-crs-no-mrts.json`
 - `tests/test_runtime_observation_contract.py`
 - `tests/test_with_crs_no_mrts_runtime.py`
-- `tests/fixtures/runtime-observation/apache-no-crs-no-mrts.json`
-- `tests/fixtures/runtime-observation/haproxy-no-crs-no-mrts.json`
-- Dieser Change Record, sein deutscher Companion und beide Change-Record-Indizes.
+- dieser Change Record und sein deutscher Companion.
 
-## Ausgeführte Befehle
-
-Die folgenden Befehle verwenden den konfigurierten Projekt-Python-Interpreter
-über RTK; ihre beobachteten Ergebnisse werden aufbewahrt statt aus einem
-CI-Step abgeleitet.
-
-## Tests und tatsächliche Ergebnisse
+## Validierung und tatsächliche Ergebnisse
 
 | Check | Tatsächliches Ergebnis |
 | --- | --- |
-| `tests.test_runtime_observation_contract` + `tests.test_with_crs_no_mrts_runtime` | Bestanden: `107 tests in 35.534s`. |
-| Fokussierte Raw-Reader-Hardlink-/Owner-/Mode-/FIFO-/Nonblocking- und Replacement-Controls | Bestanden: `7 tests`. |
-| `tests.test_with_crs_no_mrts_runtime` Legitimate-Control-Suite | Bestanden: `54 tests in 27.829s`. |
-| `py_compile` für alle sieben geänderten Python-Dateien | Bestanden: Exit `0`. |
-| `tests.test_runtime_path_security` | Bestanden: `21 tests in 2.230s`. |
-| `tests.test_evidence_output_security` | Bestanden: `9 tests in 0.237s`. |
-| `tests.test_bilingual_docs` | Bestanden: `22 tests in 0.288s`. |
-| Bestehende CI-Security-Baseline | Bestanden: `1 test in 70.580s`. |
-| Workflow-Security Exact Equality Control | Fail-closed für zwei pre-existing ausgelassene Workflow-Pfade; als `FND-PARENT-0111` getrackt, keine Workflow-Source geändert. |
-| `git diff --check` für die Working Change | Bestanden. |
-| `make check-bilingual-docs` und `make check-doc-links` | Task-eigene Change-Record-Validierung bestanden; beide Targets bleiben nur durch vorhandene Links in das absichtlich nicht initialisierte Framework-Submodul blockiert. |
+| `python3 -m unittest -q tests.test_runtime_observation_contract tests.test_with_crs_no_mrts_runtime` | Bestanden: `125 tests in 45.402s`. Dies deckt die verlangten Identity-, Union-, Compound-, Explicit-Fact-, Aggregate-, HAProxy-, NGINX-, Path-/Evidence- und No-Fabricated-PASS-Regressionen ab. |
+| Benutzergeforderter kombinierter Verbose-Befehl mit `tests.test_ci_security_workflows` | Die Contract-/Normalizer-Cases bestanden; der Befehl führte `126` Einträge in `45.123s` aus, wobei das letzte Modul wegen des fehlenden lokalen `PyYAML`-Imports als ein Fehler gemeldet wurde. Keine Dependency wurde installiert oder geändert. |
+| `tests.test_runtime_path_security`, `tests.test_evidence_output_security`, `tests.test_bilingual_docs` und `tests.test_envoy_transport_hardening_contract` | Bestanden: `70 tests in 8.877s`. |
+| Shell-Syntax für Envoy-, Lighttpd- und CRS/no-MRTS-Runner-Skripte | Bestanden. |
+| Erforderliche `py_compile`-Dateien | Bestanden: Exit `0`. |
+| `python3 -m json.tool ci/runtime/contracts/runtime-observation.schema.json /dev/null` | Bestanden. |
+| `git diff --check` | Bestanden. |
+| Terminaler Security-Diff-Scan | Mit vollständiger Coverage und null reportable aktuellen Findings abgeschlossen. Der Same-UID-Private-Runner-Writer ist eine explizite Trusted-Runner-Boundary-Einschränkung, kein stillschweigend unterdrücktes Finding. |
 
-## SonarQube-Cloud-Remediation-Ergänzung
+Die genaue lokale `PyYAML`-Import-Einschränkung ist eine Umgebungs-Evidence-
+Lücke, kein Produkt-Erfolg und kein Grund, den CI-Security-Test zu schwächen.
+Hosted Exact-Head-Checks bleiben erforderlich.
 
-Die abgeschlossene SonarQube-Cloud-Analyse für Draft PR #338 bei
-`0a3fac966d5266aa67f34724e595189ec2ad04ae` meldete 18 task-eigene neue
-Maintainability-/Reliability-Issues und 1,6513% New-Code-Duplikation. Dieses
-Follow-up beseitigt die konkreten Ursachen ohne `NOSONAR`, Issue-Acceptance,
-Exclusions, Rule-/Gate-Änderungen oder geschwächte Controls:
+## SonarQube Cloud und Coverage
 
-- der strikte Validator verwendet nun kleine verhaltensgleiche
-  Validierungs-Helper, einen typisierten Bounded-Integer-Check,
-  `dict.fromkeys` für gleichförmige Isolation-Werte und zentralisierte
-  Runtime-Observation-Labels;
-- der Structured Adapter akzeptiert ein eingefrorenes typisiertes
-  Eingabeobjekt statt einer Funktion mit fünfzehn Parametern;
-- wiederholte Test-CLI-Argumente werden geteilt, Normalizer-Labels sind
-  zentralisiert, und die Exception-Assertion enthält nur noch einen
-  potenziell fehlerwerfenden Aufruf.
+Vor dem normalen Push existiert kein neues Exact-Head-SonarQube-Cloud-
+Ergebnis. Frühere PR-Kommentare, alte Check-Runs und frühere Issue-Zähler sind
+kein Nachweis für den neuen Source-Head. Es wurde keine Suppression, kein
+`NOSONAR`, keine Exclusion, Acceptance, Quality-Gate-Änderung oder
+Coverage-Workflow-Änderung vorgenommen.
 
-Die gewählte Contract-/Normalizer-Suite bestand nach der Änderung, ebenso
-`tests.test_runtime_path_security` zusammen mit
-`tests.test_evidence_output_security` (`30 Tests in 3.386s`), die Compilation
-der geänderten Python-Dateien und `git diff --check`. Bevor dieser Record null
-New Issues oder null Duplikation behauptet, ist eine neue exakte-Head-
-SonarQube-Cloud-Analyse erforderlich.
+```text
+No Python coverage report is supplied to SonarCloud.
+0.0% is not treated as measured test coverage.
+```
 
-Die frühere 0,0%-New-Code-Coverage ist keine Null-Zielmetrik: SonarQube Cloud
-erhält derzeit keinen Python-Coverage-XML-Report. Das Repository enthält weder
-Sonar-Scanner-Coverage-Report-Konfiguration noch CI-Erzeugung eines solchen
-Reports. Wahrheitsgemäße Coverage-Evidence erfordert eine separat autorisierte
-Sonar-/CI-Workflow-Änderung; diese Remediation ändert deshalb weder stillschweigend
-den Workflow noch ein Quality Gate, einen Threshold oder eine Exclusion.
+## Runtime-Evidence und verbleibende Grenzen
 
-## Runtime-Evidence
+Die lokalen Tests validieren Contracts, strukturiertes Normalizer-Verhalten,
+Fixture-Identity und File-Safety-Controls. Sie sind kein Live-Host-Runtime-
+Ergebnis. Es wurde kein Apache- oder HAProxy-Live-Producer implementiert, keine
+Live-Six-Connector-by-Four-Profile-Matrix behauptet und Framework/MRTS wurden
+nicht initialisiert oder verändert. Der terminale Exact-Head-GitHub-Workflow
+`Connector runtime with CRS and no MRTS`, die SonarQube-Cloud-Analyse und alle
+relevanten PR-Checks müssen nach dem Push beobachtet werden; jeder Fehler
+erfordert Log-basierte Diagnose vor einem weiteren Commit.
 
-Die aufgezeichneten Tests validieren Schema, API, Adapter, Provenance und
-sichere Dateiverarbeitung. Sie sind keine Live-Host-Runtime-Evidence. Keine
-vollständige Six-Connector-by-Four-Profile-Matrix wurde ausgeführt, und dieser
-Record behauptet keinen solchen PASS. Envoy-, Lighttpd- und Traefik-Normalizer-
-Tests verwenden structured host-shaped Evidence; Apache und HAProxy behalten
-nur Canonical-Fixtures, bis reale Producer existieren.
+## Security- und Review-Status
 
-## Nicht ausgeführte Prüfungen mit Begründung
-
-- Eine Live-Six-Connector-by-Four-Profile-Host-Matrix wurde nicht ausgeführt;
-  erforderliche Connector-Hosts, Provenance und legitime Runtime-Evidence sind
-  in diesem lokalen Contract-Task nicht vorhanden.
-- `make check-bilingual-docs` und `make check-doc-links` liefen, können in
-  diesem Task-Worktree aber nicht bestehen, weil vorhandene Repository-
-  Dokumente in das absichtlich nicht initialisierte Framework-Submodul linken.
-  Framework-Initialisierung oder -Änderung liegt außerhalb der Task-Autorität;
-  kein Link- oder Source-Control wurde geschwächt.
-- Der terminale Security-Diff-Report steht bei Record-Erstellung noch aus.
-
-## Bekannte Einschränkungen
-
-Der gemeinsame Validator kann einen privaten, digest-bound Evidence-Vertrag
-prüfen, aber keinen Prozess kryptographisch attestieren, der bereits dieselbe
-lokale UID- und Private-Evidence-Root-Autorität hat. Er erhält daher die
-vorhandene Trusted-Runner-Grenze, statt einen nicht erreichbaren Proof der
-Producer-Identity zu behaupten. Apache- und HAProxy-Live-Producer bleiben
-explizit abwesend und fail-closed.
-
-## Verbleibende Risiken
-
-`FND-PARENT-0111` bleibt ein P1-Workflow-Governance-Blocker außerhalb des
-autorisierten Scopes. Seine zwei exakten Workflow-Pfade erfordern eine
-separate, eng autorisierte Reparatur, die die endliche Allowlist und den
-Fail-Closed-Negative-Control erhält. Die aktuelle Implementierung ergänzt
-keinen Workaround, Path-Exclusion, Permission-Change oder geschwächten
-Security-Control.
-
-## Finaler Diff- und Review-Status
-
-Für Source-Implementation und Raw-Reader-Remediation liegen fokussierte
-Regression-, vollständige Changed-Python-Compilation-, task-eigene Bilingual-
-Record-, CI-Security- und Working-Diff-Evidence vor. Der finale Delivery-Review
-muss noch den terminalen Security-Diff-Workflow versiegeln und exakten Draft-
-PR-Delivery-Preflight durchführen. Kein Hosted-Result oder Merge wird vorab
-behauptet.
+Der terminale Current-Local-Patch-Scan verwendete Threat Model, Candidate
+Discovery, Validation, Attack-Path-Analyse, fokussierte Regressionen und einen
+unabhängigen Read-only-Review. Er fand null reportable aktuelle
+Schwachstellen. Die dokumentierte Same-UID-Private-Root-Einschränkung bleibt,
+weil ein bereits innerhalb dieses Roots autorisierter Akteur im
+Trusted-Runner-Modell liegt; Attestation/Signatures wären ein separater Scope.
 
 ## Delivery-Status
 
-Der Benutzer autorisiert einen unabhängigen Draft PR von
-`codex/canonical-runtime-observation` gegen `master` nach finaler Validierung.
-Kein Ready-for-Review-Übergang, Merge, Auto-Merge, Rebase, Force-Push,
-Default-Branch-Push, Framework-/MRTS-Änderung oder Gitlink-Update ist durch
-diesen Record autorisiert.
+Bei dieser Record-Revision ist die Implementation bereit für den finalen
+Source-Recheck und anschließend den benutzerautorisierten normalen Commit und
+Push zum bestehenden PR-#338-Branch. Kein Hosted-Pass, finaler SHA, Merge oder
+Review-State-Übergang wird vorab behauptet.

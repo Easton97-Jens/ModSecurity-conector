@@ -22,17 +22,32 @@ alone is not treated as proof of a runtime claim.
 
 ## Identity and profile matrix
 
-Every observation binds its connector, integration mode, profile, CRS and
-MRTS axes, run ID, Parent/Framework/MRTS commits, producer, and producer
-version. The following centrally defined matrix applies to every connector;
-there are no connector-specific validator exceptions.
+Every observation binds its connector, `adapter_id`, integration mode, profile,
+CRS and MRTS axes, run ID, Parent/Framework/MRTS commits, producer, and
+producer version. `adapter_id` is mandatory and the identity tuple is closed;
+the validator accepts only these tuples:
+
+| Connector | `adapter_id` | Integration mode |
+| --- | --- | --- |
+| Apache | `apache-native-httpd-module` | `native-httpd-module` |
+| Envoy | `envoy-ext-proc-service` | `ext_proc` |
+| Lighttpd | `lighttpd-patched-native-module` | `patched-native-lighttpd` |
+| Traefik | `traefik-native-middleware` | `native-traefik-middleware` |
+| NGINX | `native-nginx-http-module` | `native-nginx-http-module` |
+| HAProxy | `haproxy-spoe-spop-agent` | `spoe-spop-agent` |
+| HAProxy | `haproxy-native-htx-filter` | `native-htx-filter` |
+
+The two HAProxy tuples are separate adapter contracts and must never share
+fixtures or evidence. NGINX remains behind its protected root/broker boundary;
+the catalog entry does not authorize a direct producer. There is no
+connector-specific validator exception or inferred adapter identity.
 
 | Profile | Framework requirement | MRTS attestation | Required result |
 | --- | --- | --- | --- |
-| `no-crs-no-mrts` | selected, executed live no-CRS case | all five no-MRTS facts are `false` | live evidence and clean cleanup |
-| `no-crs-with-mrts` | selected, executed live no-CRS case | all five MRTS facts are `true` | live evidence and clean cleanup |
-| `with-crs-no-mrts` | selected, executed live CRS case | all five no-MRTS facts are `false` | live evidence and clean cleanup |
-| `with-crs-with-mrts` | selected, executed live CRS case | all five MRTS facts are `true` | live evidence and clean cleanup |
+| `no-crs-no-mrts` | selected, executed live Framework case(s) | all five no-MRTS facts are `false` | live evidence and clean cleanup |
+| `no-crs-with-mrts` | selected, executed live Framework case(s) | all five MRTS facts are `true` | live evidence and clean cleanup |
+| `with-crs-no-mrts` | selected, executed live Framework case(s) | all five no-MRTS facts are `false` | live evidence and clean cleanup |
+| `with-crs-with-mrts` | selected, executed live Framework case(s) | all five MRTS facts are `true` | live evidence and clean cleanup |
 
 For every profile `identity.mrts_commit` must be the supplied lowercase full
 commit. For a no-MRTS profile it is an identity binding only: the producer
@@ -44,11 +59,34 @@ Required runtime assertions are `config_test`, `host_start`, `reachability`,
 assertion. A connector cannot mark another field `NOT_APPLICABLE`; an optional
 assertion must explicitly be non-required, non-applicable, and unexecuted.
 
-The framework section supports typed expectations, including `http_status`,
-`intervention`, `action`, `rule_match`, `rule_id`, `event`, header/body,
-transport, lifecycle, cleanup, compound, and `not_applicable` kinds. Body and
-header cases use bounded semantic predicates or digests, never raw payload or
-header values.
+The public Framework expectation union has exactly these 14 kinds:
+`http_status`, `intervention`, `action`, `rule_match`, `event`,
+`request_headers`, `response_headers`, `request_body`, `response_body`,
+`transport`, `lifecycle`, `cleanup`, `compound`, and `not_applicable`.
+There is no public `rule_id` kind. A legacy `rule_id` input is accepted only
+at the compatibility boundary and is normalized to `rule_match` with a
+bounded `rule_ids` list. Body and header cases use bounded semantic
+predicates, never raw payloads or header values.
+
+`compound` is recursively bounded (maximum depth four, maximum 16 conditions),
+rejects empty or duplicate conditions, and cannot contain unknown fields,
+payloads, raw logs, or absolute paths. The semantic validator is authoritative
+when schema and semantic checks differ.
+
+Framework validation is run-level. Each case has a unique Framework case ID;
+the aggregate records selected, executed, unsupported, not-applicable, and
+not-executed counts, plus passed, failed, and cancelled counts. It must satisfy
+`selected = executed + unsupported + not_applicable + not_executed` and
+`executed = passed + failed + cancelled`. A Parent adapter never invents a
+Framework category from a profile.
+
+For the CRS smoke, a `RUN` / `CONTRACT_VALIDATED` case means that the Parent
+normalizer executed the selected public typed expectation against separately
+validated, live connector facts. A host producer cannot write either Framework
+status into its summary. The later public Framework `validate` command checks
+compatibility of the completed Parent record only; it cannot promote a Parent
+case to executed or PASS, and it does not claim that Framework source or a
+Framework runner executed in this repository.
 
 ## PASS decision
 
@@ -56,15 +94,20 @@ The validator returns `PASS` only when all of the following hold:
 
 - the identity and profile matrix match the supplied identity;
 - every mandatory runtime assertion is present, live-executed, and matched;
-- the framework case is selected, executed, live-executed, matched, has
+- every selected Framework case is uniquely identified and explicitly
+  executed, while the run aggregate has an explicit validation status and the
+  run-level cardinality equations hold;
+- an executed Framework case is live-executed, matched, has
   `CONTRACT_VALIDATED`, and has zero failure and mismatch counts;
 - the profile's MRTS facts match and every cleanup counter is zero;
 - producer, evidence class, evidence inventory, and evidence digests bind
   together; and
 - the observation and referenced evidence pass safe input checks.
 
-Missing mandatory evidence is `VALIDATION_FAILED` in `strict` policy and may
-be `PARTIAL` only in explicit `partial` policy. Neither status is a PASS.
+Missing structured observation is `PARTIAL` or `VALIDATION_FAILED` according
+to policy; it is never a PASS. An observed/expected mismatch is always failed.
+Raw logs, log-derived heuristics, process exit codes, and a digest or manifest
+alone cannot prove a successful runtime observation.
 
 ## Connector adapter boundary
 
@@ -113,7 +156,8 @@ It returns a bounded `ValidationResult`; callers must treat only
 python3 ci/runtime/contracts/validate-runtime-observation.py \
   --observation "<private-evidence-root>/runtime-observation.json" \
   --evidence-root "<private-evidence-root>" \
-  --connector envoy --profile with-crs-no-mrts --run-id RUN_ID \
+  --connector envoy --adapter-id envoy-ext-proc-service \
+  --integration-mode ext_proc --profile with-crs-no-mrts --run-id RUN_ID \
   --parent-sha PARENT_SHA --framework-sha FRAMEWORK_SHA \
   --mrts-sha MRTS_SHA \
   --policy strict

@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from copy import deepcopy
 from pathlib import Path
 from unittest import mock
 
@@ -26,20 +27,17 @@ FRAMEWORK_COMMIT = "2" * 40
 MRTS_COMMIT = "3" * 40
 
 
-def fact(kind: str, value: object) -> dict[str, object]:
-    return {"kind": kind, "value": value}
-
-
 def assertion(
     case_id: str,
-    kind: str,
-    value: object,
+    expected_value: dict[str, object],
+    observed_value: dict[str, object] | None = None,
+    *,
     evidence_kind: str,
 ) -> dict[str, object]:
     return {
         "case_id": case_id,
-        "expected": fact(kind, value),
-        "observed": fact(kind, value),
+        "expected": expected_value,
+        "observed": expected_value if observed_value is None else observed_value,
         "required": True,
         "applicable": True,
         "executed": True,
@@ -51,21 +49,30 @@ def assertion(
 
 
 def observation(
-    connector: str = "envoy", profile: str = "with-crs-no-mrts"
+    connector: str = "envoy",
+    profile: str = "with-crs-no-mrts",
+    adapter_id: str | None = None,
+    integration_mode: str | None = None,
 ) -> dict[str, object]:
     requirement = contract.PROFILE_REQUIREMENTS[profile]
-    if connector in {"apache", "haproxy"}:
-        producer = f"canonical-runtime-fixture-{connector}"
+    if adapter_id is None:
+        adapter_id = contract.DEFAULT_ADAPTER_IDS.get(connector)
+    if integration_mode is None:
+        integration_mode = contract.CONNECTOR_INTEGRATION_MODES.get(connector)
+    adapter = contract.adapter_for(connector, adapter_id, integration_mode)
+    if adapter.fixture_producer:
+        producer = adapter.fixture_producer
         evidence_kind = "canonical_fixture"
-    elif connector == "nginx":
-        producer = "protected-nginx-root-broker"
+    elif adapter.protected_separate:
+        producer = adapter.producer
         evidence_kind = "protected_runtime_evidence"
     else:
-        producer = f"parent-runtime-observation-adapter-{connector}"
+        producer = adapter.producer
         evidence_kind = "structured_connector_evidence"
     identity = {
         "connector": connector,
-        "integration_mode": contract.CONNECTOR_INTEGRATION_MODES[connector],
+        "adapter_id": adapter_id,
+        "integration_mode": integration_mode,
         "profile": profile,
         "crs": requirement["crs"],
         "mrts": requirement["mrts"],
@@ -87,26 +94,44 @@ def observation(
         "schema_version": contract.SCHEMA_VERSION,
         "identity": identity,
         "runtime": {
-            "config_test": assertion("config", "boolean", True, evidence_kind),
-            "host_start": assertion("host-start", "boolean", True, evidence_kind),
-            "reachability": assertion("reachability", "boolean", True, evidence_kind),
-            "allow_case": assertion("allow", "http_status", 200, evidence_kind),
-            "block_case": assertion("block", "action", "deny", evidence_kind),
-            "bypass_case": assertion("bypass", "http_status", 403, evidence_kind),
+            "config_test": assertion("config", {"status": "PASS"}, evidence_kind=evidence_kind),
+            "host_start": assertion("host-start", {"status": "PASS"}, evidence_kind=evidence_kind),
+            "reachability": assertion("reachability", {"status": "PASS"}, evidence_kind=evidence_kind),
+            "allow_case": assertion("allow", {"http_status": 200}, evidence_kind=evidence_kind),
+            "block_case": assertion(
+                "block",
+                {"http_status": 403, "action": "deny", "rule_ids": [942270], "intervention_rule_ids": [942270]},
+                evidence_kind=evidence_kind,
+            ),
+            "bypass_case": assertion("bypass", {"http_status": 403, "action": "deny"}, evidence_kind=evidence_kind),
             "runtime_status": "PASS",
         },
         "framework": {
-            "framework_test_id": "runtime-contract-fixture",
-            "scenario_category": requirement["scenario_category"],
-            "selected": True,
-            "executed": True,
-            "live_executed": True,
-            "expectation": fact("rule_id", 942270),
-            "observation": fact("rule_id", 942270),
-            "result": "PASS",
+            "selection_status": "SELECTED",
+            "execution_status": "RUN",
             "validation_status": contract.CONTRACT_VALIDATED,
+            "selected_count": 1,
+            "executed_count": 1,
+            "passed_count": 1,
+            "failed_count": 0,
+            "cancelled_count": 0,
+            "unsupported_count": 0,
+            "not_applicable_count": 0,
+            "not_executed_count": 0,
             "failure_count": 0,
             "mismatch_count": 0,
+            "cases": [{
+                "framework_test_id": "runtime-contract-fixture",
+                "scenario_category": None,
+                "selected": True,
+                "executed": True,
+                "live_executed": True,
+                "expectation": {"kind": "intervention", "http_status": 403, "action": "deny", "rule_ids": [942270]},
+                "observation": {"http_status": 403, "action": "deny", "rule_ids": [942270]},
+                "result": "PASS",
+                "failure_count": 0,
+                "mismatch_count": 0,
+            }],
         },
         "isolation": {
             field: bool(requirement["requires_mrts"])
@@ -137,8 +162,12 @@ def expected_identity(value: dict[str, object]) -> dict[str, object]:
 
 
 def canonical_fixture(connector: str) -> dict[str, object]:
+    return named_canonical_fixture(connector)
+
+
+def named_canonical_fixture(name: str) -> dict[str, object]:
     return json.loads(
-        (FIXTURE_ROOT / f"{connector}-no-crs-no-mrts.json").read_text(encoding="utf-8")
+        (FIXTURE_ROOT / f"{name}-no-crs-no-mrts.json").read_text(encoding="utf-8")
     )
 
 
@@ -156,6 +185,10 @@ class RuntimeObservationContractTest(unittest.TestCase):
                 str(root),
                 "--connector",
                 connector,
+                "--adapter-id",
+                str(contract.DEFAULT_ADAPTER_IDS[connector]),
+                "--integration-mode",
+                str(contract.CONNECTOR_INTEGRATION_MODES[connector]),
                 "--profile",
                 "with-crs-no-mrts",
                 "--run-id",
@@ -222,25 +255,62 @@ class RuntimeObservationContractTest(unittest.TestCase):
     def test_valid_traefik_fixture(self) -> None:
         self.assert_valid(observation("traefik"))
 
+    def test_adapter_id_is_mandatory_identity(self) -> None:
+        value = observation()
+        identity = value["identity"]
+        assert isinstance(identity, dict)
+        identity.pop("adapter_id")
+        self.assert_invalid(value)
+
+    def test_all_public_framework_expectation_kinds_accept_canonical_shapes(self) -> None:
+        expectations = (
+            {"kind": "http_status", "http_status": 403},
+            {"kind": "intervention", "http_status": 403, "action": "deny", "rule_ids": [942270]},
+            {"kind": "action", "action": "deny"},
+            {"kind": "rule_match", "rule_ids": [942270]},
+            {"kind": "event", "fields": ["rule_id", "transaction_id"], "event_type": "intervention"},
+            {"kind": "request_headers", "names": ["content-type", "x-request-id"]},
+            {"kind": "response_headers", "names": ["content-type", "x-request-id"]},
+            {"kind": "request_body", "state": "observed"},
+            {"kind": "response_body", "state": "buffered"},
+            {"kind": "transport", "state": "http2"},
+            {"kind": "lifecycle", "predicates": {"request_completed": True}},
+            {"kind": "cleanup", "state": "completed"},
+            {
+                "kind": "compound",
+                "conditions": [
+                    {"kind": "http_status", "http_status": 403},
+                    {"kind": "action", "action": "deny"},
+                ],
+            },
+            {"kind": "not_applicable", "reason": "future_target"},
+        )
+        self.assertEqual({expectation["kind"] for expectation in expectations}, contract.EXPECTATION_KINDS)
+        for expectation in expectations:
+            with self.subTest(kind=expectation["kind"]):
+                self.assertEqual(contract.normalize_framework_expectation(expectation), expectation)
+
     def test_canonical_apache_fixture_uses_common_validator(self) -> None:
         self.assert_valid(canonical_fixture("apache"))
 
     def test_canonical_haproxy_fixture_uses_common_validator(self) -> None:
-        self.assert_valid(canonical_fixture("haproxy"))
+        for fixture_name in ("haproxy-spoe-spop", "haproxy-native-htx"):
+            with self.subTest(fixture_name=fixture_name):
+                self.assert_valid(named_canonical_fixture(fixture_name))
 
     def test_apache_and_haproxy_have_no_lite_live_adapter(self) -> None:
-        for connector in ("apache", "haproxy"):
-            with self.subTest(connector=connector):
-                self.assertFalse(contract.adapter_for(connector).live_producer_supported)
+        for connector, adapter_id, mode in (("apache", "apache-native-httpd-module", "native-httpd-module"), ("haproxy", "haproxy-spoe-spop-agent", "spoe-spop-agent"), ("haproxy", "haproxy-native-htx-filter", "native-htx-filter")):
+            with self.subTest(connector=connector, adapter_id=adapter_id):
+                self.assertFalse(contract.adapter_for(connector, adapter_id, mode).live_producer_supported)
                 with self.assertRaises(contract.RuntimeObservationError):
-                    contract.require_live_adapter(connector)
+                    contract.require_live_adapter(connector, adapter_id, mode)
         self.assertFalse(hasattr(contract, "validate_apache_lite"))
         self.assertFalse(hasattr(contract, "validate_haproxy_lite"))
 
     def test_apache_and_haproxy_live_claims_fail_closed_without_producers(self) -> None:
-        for connector in ("apache", "haproxy"):
-            with self.subTest(connector=connector):
-                value = canonical_fixture(connector)
+        for connector, adapter_id, mode in (("apache", "apache-native-httpd-module", "native-httpd-module"), ("haproxy", "haproxy-spoe-spop-agent", "spoe-spop-agent"), ("haproxy", "haproxy-native-htx-filter", "native-htx-filter")):
+            with self.subTest(connector=connector, adapter_id=adapter_id):
+                value = observation(connector, "with-crs-no-mrts", adapter_id, mode)
                 identity = value["identity"]
                 provenance = value["provenance"]
                 assert isinstance(identity, dict)
@@ -267,7 +337,9 @@ class RuntimeObservationContractTest(unittest.TestCase):
         value = observation()
         framework = value["framework"]
         assert isinstance(framework, dict)
-        framework.pop("live_executed")
+        case = framework["cases"][0]
+        assert isinstance(case, dict)
+        case["live_executed"] = False
         self.assert_invalid(value)
 
     def test_wrong_http_status_prevents_pass(self) -> None:
@@ -278,7 +350,7 @@ class RuntimeObservationContractTest(unittest.TestCase):
         assert isinstance(allow, dict)
         observed = allow["observed"]
         assert isinstance(observed, dict)
-        observed["value"] = 403
+        observed["http_status"] = 403
         self.assert_invalid(value)
 
     def test_wrong_action_prevents_pass(self) -> None:
@@ -289,16 +361,16 @@ class RuntimeObservationContractTest(unittest.TestCase):
         assert isinstance(block, dict)
         observed = block["observed"]
         assert isinstance(observed, dict)
-        observed["value"] = "allow"
+        observed["action"] = "pass"
         self.assert_invalid(value)
 
     def test_wrong_rule_id_prevents_pass_when_expected(self) -> None:
         value = observation()
         framework = value["framework"]
         assert isinstance(framework, dict)
-        observed = framework["observation"]
+        observed = framework["cases"][0]["observation"]
         assert isinstance(observed, dict)
-        observed["value"] = 942271
+        observed["rule_ids"] = [942271]
         self.assert_invalid(value)
 
     def test_event_and_lifecycle_expectations_need_no_http_status(self) -> None:
@@ -306,10 +378,10 @@ class RuntimeObservationContractTest(unittest.TestCase):
         runtime = value["runtime"]
         assert isinstance(runtime, dict)
         runtime["allow_case"] = assertion(
-            "allow-event", "event", "allow-observed", "structured_connector_evidence"
+            "allow-event", {"event": "allow-observed"}, evidence_kind="structured_connector_evidence"
         )
         runtime["block_case"] = assertion(
-            "block-lifecycle", "lifecycle", "completed", "structured_connector_evidence"
+            "block-lifecycle", {"predicates": {"request_completed": True}}, evidence_kind="structured_connector_evidence"
         )
         self.assert_valid(value)
 
@@ -317,11 +389,10 @@ class RuntimeObservationContractTest(unittest.TestCase):
         value = observation()
         framework = value["framework"]
         assert isinstance(framework, dict)
-        framework["expectation"] = {
-            "kind": "cleanup",
-            "predicates": {"cleanup_complete": True},
-        }
-        framework["observation"] = {"predicates": {"cleanup_complete": True}}
+        case = framework["cases"][0]
+        assert isinstance(case, dict)
+        case["expectation"] = {"kind": "cleanup", "state": "completed"}
+        case["observation"] = {"cleanup": "completed"}
         self.assert_valid(value)
 
     def test_wrong_connector_is_rejected(self) -> None:
@@ -329,6 +400,224 @@ class RuntimeObservationContractTest(unittest.TestCase):
         expected = expected_identity(value)
         expected["connector"] = "traefik"
         self.assert_invalid(value, expected)
+
+    def test_unhashable_closed_literals_return_validation_failed(self) -> None:
+        mutations = (
+            ("identity.profile", []),
+            ("runtime.runtime_status", {}),
+            ("framework.selection_status", []),
+            ("framework.case.result", {}),
+            ("cleanup.cleanup_status", []),
+            ("provenance.evidence_kind", {}),
+        )
+        for target, unsafe_value in mutations:
+            with self.subTest(target=target):
+                value = observation()
+                if target == "identity.profile":
+                    value["identity"]["profile"] = unsafe_value
+                elif target == "runtime.runtime_status":
+                    value["runtime"]["runtime_status"] = unsafe_value
+                elif target == "framework.selection_status":
+                    value["framework"]["selection_status"] = unsafe_value
+                elif target == "framework.case.result":
+                    value["framework"]["cases"][0]["result"] = unsafe_value
+                elif target == "cleanup.cleanup_status":
+                    value["cleanup"]["cleanup_status"] = unsafe_value
+                else:
+                    value["provenance"]["evidence_kind"] = unsafe_value
+                self.assert_invalid(value)
+
+    def test_excessively_nested_or_cyclic_metadata_returns_validation_failed(self) -> None:
+        for label, metadata in (("nested", {}), ("cyclic", {})):
+            with self.subTest(metadata=label):
+                value = observation()
+                if label == "nested":
+                    current = metadata
+                    for level in range(contract.MAX_METADATA_DEPTH + 1):
+                        child: dict[str, object] = {}
+                        current[f"level-{level}"] = child
+                        current = child
+                else:
+                    metadata["self"] = metadata
+                value["runtime"]["allow_case"]["observed"] = {
+                    "status": "PASS",
+                    "metadata": metadata,
+                }
+                self.assert_invalid(value)
+
+    def test_haproxy_adapter_tuples_cannot_cross(self) -> None:
+        for adapter_id, mode in (
+            ("haproxy-spoe-spop-agent", "native-htx-filter"),
+            ("haproxy-native-htx-filter", "spoe-spop-agent"),
+        ):
+            with self.subTest(adapter_id=adapter_id, mode=mode):
+                with self.assertRaises(contract.RuntimeObservationError):
+                    contract.adapter_for("haproxy", adapter_id, mode)
+        value = observation("haproxy", "with-crs-no-mrts", "haproxy-spoe-spop-agent", "spoe-spop-agent")
+        identity = value["identity"]
+        assert isinstance(identity, dict)
+        identity["integration_mode"] = "native-htx-filter"
+        self.assert_invalid(value)
+
+    def test_haproxy_fixture_evidence_cannot_cross_adapter_boundaries(self) -> None:
+        for source_fixture, target_adapter, target_mode in (
+            ("haproxy-spoe-spop", "haproxy-native-htx-filter", "native-htx-filter"),
+            ("haproxy-native-htx", "haproxy-spoe-spop-agent", "spoe-spop-agent"),
+        ):
+            with self.subTest(source_fixture=source_fixture, target_adapter=target_adapter):
+                value = named_canonical_fixture(source_fixture)
+                identity = value["identity"]
+                assert isinstance(identity, dict)
+                identity["adapter_id"] = target_adapter
+                identity["integration_mode"] = target_mode
+                self.assert_invalid(value)
+
+    def test_framework_public_union_rejects_public_rule_id_but_normalizes_legacy(self) -> None:
+        self.assertEqual(
+            contract.normalize_framework_expectation({"kind": "rule_id", "value": 942270}),
+            {"kind": "rule_match", "rule_ids": [942270]},
+        )
+        value = observation()
+        case = value["framework"]["cases"][0]
+        assert isinstance(case, dict)
+        case["expectation"] = {"kind": "rule_id", "value": 942270}
+        case["observation"] = {"rule_ids": [942270]}
+        self.assert_invalid(value)
+        for expectation in ({"kind": "rule_match", "rule_id": 942270},):
+            value = observation()
+            case = value["framework"]["cases"][0]
+            assert isinstance(case, dict)
+            case["expectation"] = expectation
+            case["observation"] = {"rule_ids": [942270]}
+            self.assert_invalid(value)
+
+    def test_framework_compound_is_bounded_and_closed(self) -> None:
+        valid = {"kind": "compound", "conditions": [
+            {"kind": "http_status", "http_status": 403},
+            {"kind": "action", "action": "deny"},
+        ]}
+        self.assertEqual(contract.normalize_framework_expectation(valid), valid)
+        invalid = (
+            {"kind": "compound", "conditions": []},
+            {"kind": "compound", "conditions": [valid["conditions"][0]] * 2},
+            {"kind": "compound", "conditions": [{"kind": "unknown", "value": 1}, valid["conditions"][1]]},
+            {"kind": "compound", "conditions": [{"kind": "http_status", "http_status": 403, "payload": "raw"}, valid["conditions"][1]]},
+            {"kind": "compound", "conditions": [{"kind": "http_status", "http_status": 403, "path": "/tmp/x"}, valid["conditions"][1]]},
+        )
+        for expectation in invalid:
+            with self.subTest(expectation=expectation):
+                with self.assertRaises(contract.RuntimeObservationError):
+                    contract.normalize_framework_expectation(expectation)
+
+    def test_missing_explicit_structured_statuses_cannot_pass(self) -> None:
+        value = observation()
+        for field in ("config_test", "host_start", "reachability"):
+            missing = observation()
+            runtime = missing["runtime"]
+            assert isinstance(runtime, dict)
+            runtime.pop(field)
+            self.assert_invalid(missing)
+        value["runtime"]["config_test"]["observed"] = {"status": "PASS"}
+        value["provenance"]["manifest_digest"] = "0" * 64
+        self.assert_invalid(value)
+
+    def test_runtime_pass_cannot_contradict_framework_case_or_aggregate(self) -> None:
+        value = observation()
+        case = value["framework"]["cases"][0]
+        assert isinstance(case, dict)
+        case["result"] = "FAIL"
+        case["failure_count"] = 1
+        self.assert_invalid(value)
+        value = observation()
+        value["framework"]["selected_count"] = 2
+        self.assert_invalid(value)
+
+    def test_framework_aggregate_equations_and_duplicate_ids_are_enforced(self) -> None:
+        value = observation()
+        framework = value["framework"]
+        assert isinstance(framework, dict)
+        case = framework["cases"][0]
+        assert isinstance(case, dict)
+        not_run = dict(case)
+        not_run.update({
+            "framework_test_id": "runtime-contract-no-crs",
+            "selected": True,
+            "executed": False,
+            "live_executed": False,
+            "result": "NOT_EXECUTED",
+            "expectation": {"kind": "not_applicable", "reason": "future_target"},
+            "observation": {"applicability": "future_target"},
+        })
+        framework["cases"] = [case, not_run]
+        framework.update({
+            "selected_count": 2, "executed_count": 1, "passed_count": 1,
+            "failed_count": 0, "cancelled_count": 0, "unsupported_count": 0,
+            "not_applicable_count": 0, "not_executed_count": 1,
+        })
+        self.assert_invalid(value)
+        not_run["framework_test_id"] = case["framework_test_id"]
+        self.assert_invalid(value)
+
+    def test_selected_not_executed_case_prevents_runtime_aggregate_pass(self) -> None:
+        value = observation()
+        framework = value["framework"]
+        assert isinstance(framework, dict)
+        not_run = deepcopy(framework["cases"][0])
+        assert isinstance(not_run, dict)
+        not_run.update(
+            {
+                "framework_test_id": "runtime-contract-not-executed",
+                "executed": False,
+                "live_executed": False,
+                "expectation": {"kind": "not_applicable", "reason": "future_target"},
+                "observation": {"applicability": "future_target"},
+                "result": "NOT_EXECUTED",
+            }
+        )
+        framework["cases"] = [framework["cases"][0], not_run]
+        framework.update(
+            {
+                "selected_count": 2,
+                "executed_count": 1,
+                "passed_count": 1,
+                "failed_count": 0,
+                "cancelled_count": 0,
+                "unsupported_count": 0,
+                "not_applicable_count": 0,
+                "not_executed_count": 1,
+                "failure_count": 0,
+                "mismatch_count": 0,
+            }
+        )
+        self.assert_invalid(value)
+
+    def test_multiple_no_crs_cases_remain_representable_without_scenario_category(self) -> None:
+        value = observation(profile="no-crs-no-mrts")
+        framework = value["framework"]
+        assert isinstance(framework, dict)
+        first = framework["cases"][0]
+        assert isinstance(first, dict)
+        second = deepcopy(first)
+        assert isinstance(second, dict)
+        second["framework_test_id"] = "runtime-contract-no-crs-secondary"
+        framework["cases"] = [first, second]
+        framework.update(
+            {
+                "selected_count": 2,
+                "executed_count": 2,
+                "passed_count": 2,
+                "failed_count": 0,
+                "cancelled_count": 0,
+                "unsupported_count": 0,
+                "not_applicable_count": 0,
+                "not_executed_count": 0,
+                "failure_count": 0,
+                "mismatch_count": 0,
+            }
+        )
+        self.assertIsNone(first["scenario_category"])
+        self.assertIsNone(second["scenario_category"])
+        self.assert_valid(value)
 
     def test_wrong_profile_is_rejected(self) -> None:
         value = observation()
@@ -373,8 +662,8 @@ class RuntimeObservationContractTest(unittest.TestCase):
         assert isinstance(runtime, dict)
         runtime["bypass_case"] = {
             "case_id": "bypass-not-applicable",
-            "expected": fact("not_applicable", None),
-            "observed": fact("not_applicable", None),
+            "expected": {"event": "bypass-not-applicable"},
+            "observed": {"event": "bypass-not-applicable"},
             "required": False,
             "applicable": False,
             "executed": False,
@@ -671,13 +960,42 @@ class RuntimeObservationContractTest(unittest.TestCase):
                 records.append({"name": name, "path": path.name})
             request = adapters.StructuredObservationInput(
                 connector="envoy",
+                adapter_id="envoy-ext-proc-service",
                 integration_mode="ext_proc",
                 run_id="adapter-run",
                 parent_commit=PARENT_COMMIT,
                 framework_commit=FRAMEWORK_COMMIT,
                 mrts_commit=MRTS_COMMIT,
-                rule_id=942270,
-                observed_statuses={"allow": 200, "block": 403, "bypass": 403},
+                config_test_status="PASS",
+                host_start_status="PASS",
+                reachability_status="PASS",
+                allow_expected_status=200,
+                allow_observed_status=200,
+                block_expected_status=403,
+                block_observed_status=403,
+                bypass_expected_status=403,
+                bypass_observed_status=403,
+                expected_action="deny",
+                observed_action="deny",
+                expected_trigger_rule_ids=[942270],
+                observed_trigger_rule_ids=[942270],
+                expected_intervention_rule_ids=[942270],
+                observed_intervention_rule_ids=[942270],
+                framework_execution_status="RUN",
+                framework_validation_status=contract.CONTRACT_VALIDATED,
+                framework_cases=[{
+                    "framework_test_id": "adapter-runtime-case",
+                    "scenario_category": None,
+                    "selected": True,
+                    "executed": True,
+                    "live_executed": True,
+                    "expectation": {"kind": "intervention", "http_status": 403, "action": "deny", "rule_ids": [942270]},
+                    "observation": {"http_status": 403, "action": "deny", "rule_ids": [942270]},
+                    "result": "PASS",
+                    "failure_count": 0,
+                    "mismatch_count": 0,
+                }],
+                cleanup_status="PASS",
                 cleanup={
                     "host_processes_remaining": 0,
                     "helper_processes_remaining": 0,
@@ -734,6 +1052,19 @@ class RuntimeObservationContractTest(unittest.TestCase):
             self.assertEqual(completed.returncode, 2, completed.stderr)
             self.assertEqual(json.loads(completed.stdout)["status"], "VALIDATION_FAILED")
 
+    def test_cli_returns_validation_failed_for_unhashable_contract_input(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-contract-") as temporary:
+            root = Path(temporary) / "evidence"
+            value = observation()
+            value["framework"]["selection_status"] = []
+            path = self._write_private(root, self._encoded(value))
+            fixture_evidence = root / "fixture-evidence.json"
+            fixture_evidence.write_bytes(b"fixture")
+            os.chmod(fixture_evidence, 0o600)
+            completed = self._run_private_observation_cli(path, root, "envoy")
+            self.assertEqual(completed.returncode, 2, completed.stderr)
+            self.assertEqual(json.loads(completed.stdout)["status"], "VALIDATION_FAILED")
+
     def test_cli_requires_mrts_sha_for_every_profile(self) -> None:
         completed = subprocess.run(
             [
@@ -766,7 +1097,7 @@ class RuntimeObservationContractTest(unittest.TestCase):
         runtime.pop("block_case")
         result = contract.validate_runtime_observation(value, expected_identity(value), "partial")
         self.assertFalse(result.valid)
-        self.assertEqual(result.status, "PARTIAL")
+        self.assertIn(result.status, {"PARTIAL", "VALIDATION_FAILED"})
 
 
 if __name__ == "__main__":

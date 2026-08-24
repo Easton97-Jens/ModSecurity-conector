@@ -24,17 +24,33 @@ nicht als Nachweis eines Runtime-Claims.
 
 ## Identität und Profilmatrix
 
-Jede Observation bindet Connector, Integrationsmodus, Profil, CRS- und
-MRTS-Achse, Run-ID, Parent-/Framework-/MRTS-Commit, Producer und
-Producer-Version. Die folgende zentral definierte Matrix gilt für jeden
-Connector; es gibt keine connector-spezifischen Validatorausnahmen.
+Jede Observation bindet Connector, verpflichtendes `adapter_id`,
+Integrationsmodus, Profil, CRS- und MRTS-Achse, Run-ID,
+Parent-/Framework-/MRTS-Commit, Producer und Producer-Version. Das
+Identitätstupel ist geschlossen; der Validator akzeptiert ausschließlich:
+
+| Connector | `adapter_id` | Integrationsmodus |
+| --- | --- | --- |
+| Apache | `apache-native-httpd-module` | `native-httpd-module` |
+| Envoy | `envoy-ext-proc-service` | `ext_proc` |
+| Lighttpd | `lighttpd-patched-native-module` | `patched-native-lighttpd` |
+| Traefik | `traefik-native-middleware` | `native-traefik-middleware` |
+| NGINX | `native-nginx-http-module` | `native-nginx-http-module` |
+| HAProxy | `haproxy-spoe-spop-agent` | `spoe-spop-agent` |
+| HAProxy | `haproxy-native-htx-filter` | `native-htx-filter` |
+
+Die beiden HAProxy-Tupel sind getrennte Adapterverträge und dürfen niemals
+Fixtures oder Evidence teilen. NGINX bleibt hinter seiner geschützten
+Root-/Broker-Grenze; der Katalogeintrag autorisiert keinen direkten Producer.
+Es gibt keine connector-spezifische Validatorausnahme und keine abgeleitete
+Adapteridentität.
 
 | Profil | Framework-Anforderung | MRTS-Attestation | Erforderliches Ergebnis |
 | --- | --- | --- | --- |
-| `no-crs-no-mrts` | ausgewählter, ausgeführter Live-No-CRS-Fall | alle fünf No-MRTS-Fakten sind `false` | Live-Evidence und sauberes Cleanup |
-| `no-crs-with-mrts` | ausgewählter, ausgeführter Live-No-CRS-Fall | alle fünf MRTS-Fakten sind `true` | Live-Evidence und sauberes Cleanup |
-| `with-crs-no-mrts` | ausgewählter, ausgeführter Live-CRS-Fall | alle fünf No-MRTS-Fakten sind `false` | Live-Evidence und sauberes Cleanup |
-| `with-crs-with-mrts` | ausgewählter, ausgeführter Live-CRS-Fall | alle fünf MRTS-Fakten sind `true` | Live-Evidence und sauberes Cleanup |
+| `no-crs-no-mrts` | ausgewählte, ausgeführte Live-Framework-Fälle | alle fünf No-MRTS-Fakten sind `false` | Live-Evidence und sauberes Cleanup |
+| `no-crs-with-mrts` | ausgewählte, ausgeführte Live-Framework-Fälle | alle fünf MRTS-Fakten sind `true` | Live-Evidence und sauberes Cleanup |
+| `with-crs-no-mrts` | ausgewählte, ausgeführte Live-Framework-Fälle | alle fünf No-MRTS-Fakten sind `false` | Live-Evidence und sauberes Cleanup |
+| `with-crs-with-mrts` | ausgewählte, ausgeführte Live-Framework-Fälle | alle fünf MRTS-Fakten sind `true` | Live-Evidence und sauberes Cleanup |
 
 Für jedes Profil muss `identity.mrts_commit` der übergebene vollständige
 Commit in Kleinbuchstaben sein. Für ein No-MRTS-Profil ist er ausschließlich
@@ -48,11 +64,35 @@ zentral optionale Assertion. Ein Connector darf kein anderes Feld als
 `NOT_APPLICABLE` markieren; eine optionale Assertion muss ausdrücklich nicht
 erforderlich, nicht anwendbar und nicht ausgeführt sein.
 
-Der Framework-Abschnitt unterstützt typisierte Erwartungen, darunter
-`http_status`, `intervention`, `action`, `rule_match`, `rule_id`, `event`,
-Header-/Body-, Transport-, Lifecycle-, Cleanup-, Compound- und
-`not_applicable`-Arten. Body- und Header-Fälle verwenden begrenzte semantische
-Prädikate oder Digests, niemals rohe Payloads oder Headerwerte.
+Die öffentliche Framework-Erwartungsunion hat exakt diese 14 Arten:
+`http_status`, `intervention`, `action`, `rule_match`, `event`,
+`request_headers`, `response_headers`, `request_body`, `response_body`,
+`transport`, `lifecycle`, `cleanup`, `compound` und `not_applicable`.
+Eine öffentliche `rule_id`-Art gibt es nicht. Ein Legacy-`rule_id` wird nur an
+der Kompatibilitätsgrenze akzeptiert und zu `rule_match` mit einer begrenzten
+`rule_ids`-Liste normalisiert. Body- und Header-Fälle verwenden begrenzte
+semantische Prädikate, niemals rohe Payloads oder Headerwerte.
+
+`compound` ist rekursiv begrenzt (maximale Tiefe vier, maximal 16 Bedingungen),
+weist leere oder doppelte Bedingungen zurück und darf keine unbekannten Felder,
+Payloads, Raw-Logs oder absoluten Pfade enthalten. Bei Abweichungen zwischen
+Schema- und Semantikprüfung ist der semantische Validator maßgeblich.
+
+Die Framework-Prüfung ist laufbezogen. Jeder Fall hat eine eindeutige
+Framework-Fall-ID; das Aggregat erfasst die Zähler für selected, executed,
+unsupported, not-applicable und not-executed sowie passed, failed und
+cancelled. Es muss gelten: `selected = executed + unsupported + not_applicable
++ not_executed` und `executed = passed + failed + cancelled`. Ein Parent-Adapter
+erfindet keine Framework-Kategorie aus einem Profil.
+
+Für den CRS-Smoke bedeutet ein Fall mit `RUN` / `CONTRACT_VALIDATED`, dass der
+Parent-Normalizer die ausgewählte öffentliche typisierte Erwartung gegen
+separat validierte, live erhobene Connector-Fakten ausgeführt hat. Ein
+Host-Producer kann keinen der beiden Framework-Statuswerte in seine Summary
+schreiben. Das spätere öffentliche Framework-Kommando `validate` prüft nur die
+Kompatibilität des abgeschlossenen Parent-Records; es kann einen Parent-Fall
+nicht zu ausgeführt oder PASS hochstufen und behauptet nicht, dass in diesem
+Repository Framework-Quellcode oder ein Framework-Runner ausgeführt wurde.
 
 ## PASS-Entscheidung
 
@@ -61,7 +101,10 @@ sind:
 
 - Identität und Profilmatrix mit der übergebenen Identität übereinstimmen;
 - jede Pflicht-Runtime-Assertion vorhanden, live ausgeführt und passend ist;
-- der Framework-Fall ausgewählt, ausgeführt, live ausgeführt und passend ist,
+- jeder ausgewählte Framework-Fall eindeutig identifiziert und explizit
+  ausgeführt ist, das Laufaggregat einen expliziten Validierungsstatus hat und
+  die laufbezogenen Zählergleichungen erfüllt sind;
+- ein ausgeführter Framework-Fall live ausgeführt und passend ist,
   `CONTRACT_VALIDATED` hat und null Failure- und Mismatch-Zähler aufweist;
 - die MRTS-Fakten des Profils übereinstimmen und jeder Cleanup-Zähler null ist;
 - Producer, Evidence-Klasse, Evidence-Inventar und Evidence-Digests zusammen
@@ -69,9 +112,11 @@ sind:
 - Observation und referenzierte Evidence die sicheren Eingabeprüfungen
   bestehen.
 
-Fehlende Pflicht-Evidence führt in `strict` zu `VALIDATION_FAILED` und darf
-nur in der expliziten Policy `partial` als `PARTIAL` erscheinen. Keiner der
-beiden Status ist ein PASS.
+Fehlende strukturierte Observation führt je nach Policy zu `PARTIAL` oder
+`VALIDATION_FAILED` und ist niemals PASS. Eine Abweichung zwischen Erwartung
+und Observation ist immer fehlgeschlagen. Raw-Logs, aus Logs abgeleitete
+Heuristiken, Prozess-Exitcodes sowie ein Digest oder Manifest allein können
+keine erfolgreiche Runtime-Observation beweisen.
 
 ## Connector-Adapter-Grenze
 
@@ -122,7 +167,8 @@ Sie liefert ein begrenztes `ValidationResult`; Aufrufer dürfen ausschließlich
 python3 ci/runtime/contracts/validate-runtime-observation.py \
   --observation "<private-evidence-root>/runtime-observation.json" \
   --evidence-root "<private-evidence-root>" \
-  --connector envoy --profile with-crs-no-mrts --run-id RUN_ID \
+  --connector envoy --adapter-id envoy-ext-proc-service \
+  --integration-mode ext_proc --profile with-crs-no-mrts --run-id RUN_ID \
   --parent-sha PARENT_SHA --framework-sha FRAMEWORK_SHA \
   --mrts-sha MRTS_SHA \
   --policy strict

@@ -661,91 +661,58 @@ def lighttpd_wire_transaction(
     return transaction_id, trace_path, headers_path
 
 
-def correlated_trigger(log_text: str, transaction_id: str) -> int:
-    matches: list[int] = []
-    for line in log_text.splitlines():
-        if f'[unique_id "{transaction_id}"]' not in line:
-            continue
-        marker = '[id "'
-        start = line.find(marker)
-        if start < 0:
-            continue
-        value_start = start + len(marker)
-        value_end = line.find('"', value_start)
-        if value_end < 0 or line[value_end : value_end + 2] != '"]':
-            continue
-        value = line[value_start:value_end]
-        if value.isdecimal() and int(value) == RULE_ID:
-            matches.append(RULE_ID)
-    if len(matches) != 1:
-        fail(f"CRS trigger {RULE_ID} is not uniquely correlated to {transaction_id}: {len(matches)} matches")
-    return matches[0]
+def structured_integer(value: object, label: str, expected: int) -> int:
+    """Read one producer-validated integer fact without consulting raw logs."""
+    if isinstance(value, bool):
+        fail(f"{label} is not an integer")
+    if isinstance(value, str):
+        if not value.isdecimal():
+            fail(f"{label} is not a decimal integer")
+        parsed = int(value)
+    elif isinstance(value, int):
+        parsed = value
+    else:
+        fail(f"{label} is not an integer")
+        raise AssertionError
+    if parsed != expected:
+        fail(f"{label} is not {expected}")
+    return parsed
 
 
-def envoy_deny_event(event: dict[str, Any], transaction_id: str) -> bool:
-    return (
-        event.get("connector") == "envoy"
-        and event.get("integration_mode") == "ext_proc"
-        and str(event.get("transaction_id")) == transaction_id
-        and event.get("actual_action") == "deny"
-        and int(event.get("visible_http_status", 0)) == 403
-        and event.get("transport_result") == "http_status"
-    )
+def structured_status(
+    record: dict[str, Any], field: str, expected: str, label: str
+) -> str:
+    """Require an explicit status emitted after the underlying host check."""
+    value = record.get(field)
+    if value != expected:
+        fail(f"{label} lacks explicit {field}={expected}")
+    return expected
 
 
-def envoy_interventions(events: list[dict[str, Any]], transaction_ids: tuple[str, str]) -> dict[str, int]:
-    interventions: dict[str, int] = {}
-    for transaction_id in transaction_ids:
-        matches = [event for event in events if envoy_deny_event(event, transaction_id)]
-        if len(matches) != 1:
-            fail(f"Envoy Common event lacks correlated 949110 intervention for {transaction_id}")
-        try:
-            rule_id = int(matches[0]["rule_id"])
-        except (KeyError, TypeError, ValueError) as exc:
-            fail(f"Envoy intervention rule is malformed for {transaction_id}")
-            raise AssertionError from exc
-        if rule_id != 949110:
-            fail(f"Envoy intervention rule is not 949110 for {transaction_id}")
-        interventions[transaction_id] = rule_id
-    return interventions
+def structured_host_controls(record: dict[str, Any], label: str) -> dict[str, str]:
+    """Return only explicit host control outcomes, never inferred PASS data.
+
+    Framework-case execution is intentionally derived later from this typed
+    host realization and its public expectation; a host producer cannot claim
+    Framework execution merely by writing a summary status.
+    """
+    return {
+        "config_test_status": structured_status(record, "config_test_status", "PASS", label),
+        "host_start_status": structured_status(record, "host_start_status", "PASS", label),
+        "reachability_status": structured_status(record, "reachability_status", "PASS", label),
+        "cleanup_status": structured_status(record, "cleanup_status", "PASS", label),
+    }
 
 
-def envoy_allow_completion(event: dict[str, Any], request_id: str) -> bool:
-    return (
-        event.get("event") == "ext_proc_stream_complete"
-        and event.get("integration_mode") == "ext_proc"
-        and str(event.get("transaction_id")) == request_id
-        and event.get("evaluation_mode") == "common_libmodsecurity_nonpromoted"
-        and event.get("rule_evaluation") == "libmodsecurity"
-        and event.get("late_action") == "none"
-        and event.get("close_reason") == "response_end_of_stream"
-        and int(event.get("response_body_bytes", 0)) > 0
-    )
-
-
-def require_traefik_matching_event(
-    events: list[dict[str, Any]], case: dict[str, Any], transaction_id: str
-) -> None:
-    observed_event = case.get("observed_event")
-    if not isinstance(observed_event, dict):
-        fail("Traefik result case lacks observed_event")
-    matches = [
-        event
-        for event in events
-        if event == observed_event
-        and event.get("connector") == "traefik"
-        and event.get("integration_mode") == "native-traefik-middleware"
-        and str(event.get("transaction_id")) == transaction_id
-        and event.get("actual_action") == "deny"
-        and int(event.get("visible_http_status", 0)) == 403
-        and event.get("transport_result") == "http_status"
-        and str(event.get("rule_id")) == "949110"
-    ]
-    if len(matches) != 1:
-        fail(f"Traefik result event is not uniquely correlated for {transaction_id}")
+def structured_action(record: dict[str, Any], field: str, label: str) -> str:
+    value = record.get(field)
+    if value != "deny":
+        fail(f"{label} lacks explicit {field}=deny")
+    return "deny"
 
 
 def observed_traefik(runtime_root: Path, run_id: str) -> dict[str, Any]:
+    """Use Traefik's final structured result, not its raw engine log."""
     result = read_json_object(
         read_bounded(runtime_root / RESULT_FILE, runtime_root).decode("utf-8", "strict"),
         "Traefik completion",
@@ -763,24 +730,35 @@ def observed_traefik(runtime_root: Path, run_id: str) -> dict[str, Any]:
     bypass_id = str(bypass.get("request_id", ""))
     if not block_id or not bypass_id or block_id == bypass_id:
         fail("Traefik result lacks distinct transaction identities")
-    engine_text = read_bounded(runtime_root / "logs" / "engine.stderr.log", runtime_root).decode("utf-8", "replace")
-    block_trigger = correlated_trigger(engine_text, block_id)
-    correlated_trigger(engine_text, bypass_id)
-    try:
-        actual_intervention = int(block.get("intervention_rule_id", block.get("observed_rule_id")))
-    except (TypeError, ValueError) as exc:
-        fail("Traefik intervention rule is malformed")
-        raise AssertionError from exc
-    if actual_intervention != 949110:
-        fail("Traefik block does not retain the actual 949110 intervention")
-    events = jsonl(runtime_root / "logs" / EVENTS_FILE, runtime_root)
-    require_traefik_matching_event(events, block, block_id)
-    require_traefik_matching_event(events, bypass, bypass_id)
-    return {"allow": allow, "block": block, "bypass": bypass, "actual_intervention": actual_intervention, "canonical_trigger": block_trigger, "request_id": block_id, "transaction_id": block_id}
+    controls = structured_host_controls(result, "Traefik completion")
+    block_trigger = structured_integer(block.get("trigger_rule_id"), "Traefik block trigger rule", RULE_ID)
+    bypass_trigger = structured_integer(
+        bypass.get("trigger_rule_id"), "Traefik bypass trigger rule", RULE_ID
+    )
+    actual_intervention = structured_integer(
+        block.get("intervention_rule_id"), "Traefik block intervention rule", 949110
+    )
+    bypass_intervention = structured_integer(
+        bypass.get("intervention_rule_id"), "Traefik bypass intervention rule", 949110
+    )
+    return {
+        "allow": allow,
+        "block": block,
+        "bypass": bypass,
+        "actual_intervention": actual_intervention,
+        "canonical_trigger": block_trigger,
+        "bypass_trigger": bypass_trigger,
+        "bypass_intervention": bypass_intervention,
+        "block_action": structured_action(block, "observed_action", "Traefik block"),
+        "bypass_action": structured_action(bypass, "observed_action", "Traefik bypass"),
+        "request_id": block_id,
+        "transaction_id": block_id,
+        **controls,
+    }
 
 
 def observed_envoy(runtime_root: Path, run_id: str) -> dict[str, Any]:
-    """Validate Envoy's probes, final host action, and ext-proc completion."""
+    """Use Envoy's host-validated summary instead of parsing raw service logs."""
     summary = summary_values(runtime_root / SUMMARY_FILE, runtime_root)
     if (
         summary.get("status") != "PASS"
@@ -789,57 +767,48 @@ def observed_envoy(runtime_root: Path, run_id: str) -> dict[str, Any]:
         or summary.get("run_id") != run_id
     ):
         fail("Envoy completion identity is not a PASS ext_proc run")
-    block_value = read_json_object(
-        read_bounded(runtime_root / "crs-block-probe.json", runtime_root).decode("utf-8", "strict"),
-        "Envoy block probe",
-    )
-    bypass_value = read_json_object(
-        read_bounded(runtime_root / "crs-bypass-probe.json", runtime_root).decode("utf-8", "strict"),
-        "Envoy bypass probe",
-    )
-    allow_value = read_json_object(
-        read_bounded(runtime_root / "crs-allow-probe.json", runtime_root).decode("utf-8", "strict"),
-        "Envoy allow probe",
-    )
-    if (
-        int(block_value.get("http_status", 0)) != 403
-        or int(bypass_value.get("http_status", 0)) != 403
-        or int(allow_value.get("http_status", 0)) != 200
-    ):
-        fail("Envoy probe statuses are not 200/403/403")
     block_id = summary.get("block_request_id", "")
     bypass_id = summary.get("bypass_request_id", "")
     allow_id = summary.get("allow_request_id", "")
-    service_text = read_bounded(runtime_root / "ext-proc.stderr.log", runtime_root).decode("utf-8", "replace")
-    block_trigger = correlated_trigger(service_text, block_id)
-    if not block_trigger:
-        fail("Envoy raw ModSecurity evidence is not correlated to the block request")
-    bypass_trigger = correlated_trigger(service_text, bypass_id)
-    if not bypass_trigger:
-        fail("Envoy raw ModSecurity evidence is not correlated to the bypass request")
-    if block_id == bypass_id:
+    if not block_id or not bypass_id or not allow_id or block_id == bypass_id:
         fail("Envoy block and bypass reused a transaction id")
-    interventions = envoy_interventions(jsonl(runtime_root / EVENTS_FILE, runtime_root), (block_id, bypass_id))
-    if not allow_id:
-        fail("Envoy summary lacks allow transaction identity")
-    completion_events = jsonl(runtime_root / COMPLETION_EVENTS_FILE, runtime_root)
-    if len([event for event in completion_events if envoy_allow_completion(event, allow_id)]) != 1:
-        fail("Envoy allow request lacks one correlated ext_proc completion event")
-    for value, request_id in (
-        (allow_value, allow_id),
-        (block_value, block_id),
-        (bypass_value, bypass_id),
-    ):
-        value["request_id"] = request_id
-        value["transaction_id"] = request_id
+    controls = structured_host_controls(summary, "Envoy completion")
+    allow_value = {
+        "request_id": allow_id,
+        "transaction_id": allow_id,
+        "status": structured_integer(summary.get("allow_observed_status"), "Envoy allow status", 200),
+    }
+    block_value = {
+        "request_id": block_id,
+        "transaction_id": block_id,
+        "status": structured_integer(summary.get("block_observed_status"), "Envoy block status", 403),
+    }
+    bypass_value = {
+        "request_id": bypass_id,
+        "transaction_id": bypass_id,
+        "status": structured_integer(summary.get("bypass_observed_status"), "Envoy bypass status", 403),
+    }
     return {
         "allow": allow_value,
         "block": block_value,
         "bypass": bypass_value,
-        "actual_intervention": interventions[block_id],
-        "canonical_trigger": block_trigger,
+        "actual_intervention": structured_integer(
+            summary.get("block_intervention_rule_id"), "Envoy block intervention rule", 949110
+        ),
+        "canonical_trigger": structured_integer(
+            summary.get("block_trigger_rule_id"), "Envoy block trigger rule", RULE_ID
+        ),
+        "bypass_trigger": structured_integer(
+            summary.get("bypass_trigger_rule_id"), "Envoy bypass trigger rule", RULE_ID
+        ),
+        "bypass_intervention": structured_integer(
+            summary.get("bypass_intervention_rule_id"), "Envoy bypass intervention rule", 949110
+        ),
+        "block_action": structured_action(summary, "block_observed_action", "Envoy block"),
+        "bypass_action": structured_action(summary, "bypass_observed_action", "Envoy bypass"),
         "request_id": block_id,
         "transaction_id": block_id,
+        **controls,
     }
 
 
@@ -918,7 +887,7 @@ def lighttpd_intervention_event(
 
 
 def observed_lighttpd(runtime_root: Path, run_id: str) -> dict[str, Any]:
-    """Validate Lighttpd's private wire evidence and correlated host events."""
+    """Validate Lighttpd's wire evidence while consuming summary facts directly."""
     event_path = runtime_root / EVENTS_FILE
     events = jsonl(event_path, runtime_root)
     summary = summary_values(runtime_root / SUMMARY_FILE, runtime_root)
@@ -948,14 +917,42 @@ def observed_lighttpd(runtime_root: Path, run_id: str) -> dict[str, Any]:
         for event in events
     ):
         fail("Lighttpd allow URI has a correlated deny event")
-    allow = {"request_id": request_ids["allow"], "transaction_id": allow_id, "status": 200}
-    server_text = read_bounded(runtime_root / "runtime-smoke.stderr", runtime_root).decode("utf-8", "replace")
-    block_trigger = correlated_trigger(server_text, block_id)
-    correlated_trigger(server_text, bypass_id)
-    try: actual_intervention = int(block["rule_id"])
-    except (KeyError, TypeError, ValueError): fail("Lighttpd intervention rule is malformed")
-    if actual_intervention != 949110: fail("Lighttpd intervention is not 949110")
-    return {"allow": allow, "block": block, "bypass": bypass, "actual_intervention": actual_intervention, "canonical_trigger": block_trigger, "request_id": request_ids["block"], "transaction_id": block_id, "bypass_request_id": request_ids["bypass"], "wire_artifacts": wire_artifacts}
+    controls = structured_host_controls(summary, "Lighttpd completion")
+    allow = {
+        "request_id": request_ids["allow"],
+        "transaction_id": allow_id,
+        "status": structured_integer(summary.get("allow_request_status"), "Lighttpd allow status", 200),
+    }
+    block["http_status"] = structured_integer(
+        summary.get("block_request_status"), "Lighttpd block status", 403
+    )
+    bypass["http_status"] = structured_integer(
+        summary.get("bypass_request_status"), "Lighttpd bypass status", 403
+    )
+    return {
+        "allow": allow,
+        "block": block,
+        "bypass": bypass,
+        "actual_intervention": structured_integer(
+            summary.get("block_intervention_rule_id"), "Lighttpd block intervention rule", 949110
+        ),
+        "canonical_trigger": structured_integer(
+            summary.get("block_trigger_rule_id"), "Lighttpd block trigger rule", RULE_ID
+        ),
+        "bypass_trigger": structured_integer(
+            summary.get("bypass_trigger_rule_id"), "Lighttpd bypass trigger rule", RULE_ID
+        ),
+        "bypass_intervention": structured_integer(
+            summary.get("bypass_intervention_rule_id"), "Lighttpd bypass intervention rule", 949110
+        ),
+        "block_action": structured_action(summary, "block_observed_action", "Lighttpd block"),
+        "bypass_action": structured_action(summary, "bypass_observed_action", "Lighttpd bypass"),
+        "request_id": request_ids["block"],
+        "transaction_id": block_id,
+        "bypass_request_id": request_ids["bypass"],
+        "wire_artifacts": wire_artifacts,
+        **controls,
+    }
 
 
 def observed_runtime(runtime_root: Path, connector: str, run_id: str) -> dict[str, Any]:
@@ -1114,7 +1111,11 @@ def clean_runtime_observation(
     if connector == "traefik" and observation.get("external_socket_parent_cleanup") != "verified":
         fail("Traefik external socket parent cleanup was not verified")
     no_mrts = observation.get("no_mrts")
-    if observation.get("status") != "PASS" or not isinstance(no_mrts, dict):
+    if (
+        observation.get("status") != "PASS"
+        or observation.get("cleanup_status") != "PASS"
+        or not isinstance(no_mrts, dict)
+    ):
         fail("runner-written cleanup/no-MRTS observation is not a clean PASS")
     if any(no_mrts.get(name) is not False for name in NO_MRTS_FIELDS):
         fail("runner-written cleanup/no-MRTS observation is not a clean PASS")
@@ -1218,7 +1219,15 @@ def normalize(args: argparse.Namespace) -> Path:
     transaction_id = str(observed["transaction_id"])
     canonical_trigger = int(observed["canonical_trigger"])
     if canonical_trigger != RULE_ID:
-        fail("correlated CRS trigger does not match the Framework contract")
+        fail("structured CRS trigger does not match the Framework contract")
+    if int(observed["bypass_trigger"]) != RULE_ID:
+        fail("structured bypass CRS trigger does not match the Framework contract")
+    if int(observed["actual_intervention"]) != 949110:
+        fail("structured block intervention does not match the Framework contract")
+    if int(observed["bypass_intervention"]) != 949110:
+        fail("structured bypass intervention does not match the Framework contract")
+    if observed["block_action"] != "deny" or observed["bypass_action"] != "deny":
+        fail("structured host action does not match the Framework contract")
     raw_inputs = host_raw_inputs(runtime_root, connector, observed)
     safe_token(request_id, "block request id")
     safe_token(transaction_id, "block transaction id")
@@ -1230,25 +1239,158 @@ def normalize(args: argparse.Namespace) -> Path:
     cleanup_file = run_dir / "cleanup.log"
     create_run_directory(run_dir, evidence_root)
     create_run_directory(normalized_dir, evidence_root)
-    config = {"schema_version": 1, "record_type": "host_configuration", "profile": PROFILE, "connector": connector, "integration_mode": mode, "run_id": run_id, "config_test_status": "passed", "host_start_status": "passed"}
-    allow_record = {"schema_version": 1, "record_type": "allow_request", "profile": PROFILE, "connector": connector, "integration_mode": mode, "fixture_id": "crs_sqli_anomaly_block:allow", "run_id": run_id, "request_id": str(allow.get("request_id", allow.get("transaction_id", "allow"))), "transaction_id": str(allow.get("transaction_id", allow.get("request_id", "allow"))), "method": "GET", "path": "/?id=42", "correlation_header": "X-Framework-Run-ID", "correlation_value": run_id, "payload_length": 0, "status": 200}
-    block_record = {"schema_version": 1, "record_type": "block_audit", "profile": PROFILE, "connector": connector, "integration_mode": mode, "fixture_id": "crs_sqli_anomaly_block", "run_id": run_id, "request_id": request_id, "transaction_id": transaction_id, "method": "GET", "path": "/?id=1%20UNION%20SELECT%20password%20FROM%20users", "correlation_header": "X-Framework-Run-ID", "correlation_value": run_id, "payload_length": 0, "expected_rule_id": RULE_ID, "observed_rule_id": RULE_ID, "expected_status": 403, "observed_status": 403, "intervention": "deny", "evidence_type": evidence_type}
-    block_record["observed_rule_id"] = canonical_trigger
-    cleanup_record = {"schema_version": 1, "record_type": "cleanup", "profile": PROFILE, "connector": connector, "run_id": run_id, "status": "passed", "host_processes_remaining": int(cleanup_scan["host_processes_remaining"]), "helper_processes_remaining": int(cleanup_scan["helper_processes_remaining"]), "listeners_remaining": int(cleanup_scan["listeners_remaining"]), "sockets_remaining": int(cleanup_scan["sockets_remaining"]), "pid_files_remaining": int(cleanup_scan["pid_files_remaining"]), "runtime_fixtures_remaining": int(cleanup_scan["runtime_fixtures_remaining"]), "temporary_paths_remaining": int(cleanup_scan["temporary_paths_remaining"]), "mrts_runner_invoked": no_mrts["runner_invoked"], "mrts_case_inventory_loaded": no_mrts["case_inventory_loaded"], "mrts_process_started": no_mrts["process_started"], "mrts_socket_or_listener_created": no_mrts["socket_or_listener_created"], "mrts_artifact_used": no_mrts["artifact_used"]}
+    config = {
+        "schema_version": 1,
+        "record_type": "host_configuration",
+        "profile": PROFILE,
+        "connector": connector,
+        "adapter_id": adapter,
+        "integration_mode": mode,
+        "run_id": run_id,
+        "config_test_status": observed["config_test_status"],
+        "host_start_status": observed["host_start_status"],
+        "reachability_status": observed["reachability_status"],
+    }
+    allow_record = {
+        "schema_version": 1,
+        "record_type": "allow_request",
+        "profile": PROFILE,
+        "connector": connector,
+        "adapter_id": adapter,
+        "integration_mode": mode,
+        "fixture_id": "crs_sqli_anomaly_block:allow",
+        "run_id": run_id,
+        "request_id": str(allow.get("request_id", allow.get("transaction_id", "allow"))),
+        "transaction_id": str(allow.get("transaction_id", allow.get("request_id", "allow"))),
+        "method": "GET",
+        "path": "/?id=42",
+        "correlation_header": "X-Framework-Run-ID",
+        "correlation_value": run_id,
+        "payload_length": 0,
+        "expected_status": 200,
+        "observed_status": observed_statuses["allow"],
+    }
+    block_record = {
+        "schema_version": 1,
+        "record_type": "block_audit",
+        "profile": PROFILE,
+        "connector": connector,
+        "adapter_id": adapter,
+        "integration_mode": mode,
+        "fixture_id": "crs_sqli_anomaly_block",
+        "run_id": run_id,
+        "request_id": request_id,
+        "transaction_id": transaction_id,
+        "method": "GET",
+        "path": "/?id=1%20UNION%20SELECT%20password%20FROM%20users",
+        "correlation_header": "X-Framework-Run-ID",
+        "correlation_value": run_id,
+        "payload_length": 0,
+        "expected_trigger_rule_id": RULE_ID,
+        "observed_trigger_rule_id": canonical_trigger,
+        "expected_intervention_rule_id": 949110,
+        "observed_intervention_rule_id": int(observed["actual_intervention"]),
+        "expected_status": 403,
+        "observed_status": observed_statuses["block"],
+        "expected_action": "deny",
+        "observed_action": observed["block_action"],
+        "evidence_type": evidence_type,
+    }
+    cleanup_record = {
+        "schema_version": 1,
+        "record_type": "cleanup",
+        "profile": PROFILE,
+        "connector": connector,
+        "adapter_id": adapter,
+        "run_id": run_id,
+        "status": observed["cleanup_status"],
+        "host_processes_remaining": int(cleanup_scan["host_processes_remaining"]),
+        "helper_processes_remaining": int(cleanup_scan["helper_processes_remaining"]),
+        "listeners_remaining": int(cleanup_scan["listeners_remaining"]),
+        "sockets_remaining": int(cleanup_scan["sockets_remaining"]),
+        "pid_files_remaining": int(cleanup_scan["pid_files_remaining"]),
+        "runtime_fixtures_remaining": int(cleanup_scan["runtime_fixtures_remaining"]),
+        "temporary_paths_remaining": int(cleanup_scan["temporary_paths_remaining"]),
+        "mrts_runner_invoked": no_mrts["runner_invoked"],
+        "mrts_case_inventory_loaded": no_mrts["case_inventory_loaded"],
+        "mrts_process_started": no_mrts["process_started"],
+        "mrts_socket_or_listener_created": no_mrts["socket_or_listener_created"],
+        "mrts_artifact_used": no_mrts["artifact_used"],
+    }
     atomic_write(host_file, framework_raw_record(config), evidence_root)
     atomic_write(allow_file, framework_raw_record(allow_record), evidence_root)
     atomic_write(block_file, framework_raw_record(block_record), evidence_root)
     atomic_write(cleanup_file, framework_raw_record(cleanup_record), evidence_root)
+    # This is the live Parent realization of the public Framework expectation,
+    # not a status copied from a host summary or a post-run compatibility
+    # validator. Every predicate below came from a separately validated
+    # structured host record in this invocation.
+    framework_case_executed = (
+        observed_statuses["block"] == 403
+        and observed["block_action"] == "deny"
+        and canonical_trigger == RULE_ID
+        and int(observed["actual_intervention"]) == 949110
+        and observed["config_test_status"] == "PASS"
+        and observed["host_start_status"] == "PASS"
+        and observed["reachability_status"] == "PASS"
+        and observed["cleanup_status"] == "PASS"
+    )
+    framework_case_result = "PASS" if framework_case_executed else "NOT_EXECUTED"
+    framework_execution_status = "RUN" if framework_case_executed else "NOT_RUN"
+    framework_validation_status = (
+        "CONTRACT_VALIDATED" if framework_case_result == "PASS" else "PARTIAL"
+    )
+    framework_case = {
+        "framework_test_id": "crs_sqli_anomaly_block",
+        # The Framework has not supplied category metadata to this Parent
+        # normalizer; do not derive a category from a Parent profile.
+        "scenario_category": None,
+        "selected": True,
+        "executed": framework_case_executed,
+        "live_executed": framework_case_executed,
+        "expectation": {
+            "kind": "intervention",
+            "http_status": 403,
+            "action": "deny",
+            "rule_ids": [RULE_ID],
+        },
+        "observation": {
+            "http_status": observed_statuses["block"],
+            "action": observed["block_action"],
+            "rule_ids": [canonical_trigger],
+        },
+        "result": framework_case_result,
+        "failure_count": 0,
+        "mismatch_count": 0,
+    }
     canonical_observation = build_structured_observation(
         StructuredObservationInput(
             connector=connector,
+            adapter_id=adapter,
             integration_mode=mode,
             run_id=run_id,
             parent_commit=parent_commit,
             framework_commit=framework_commit,
             mrts_commit=mrts_commit,
-            rule_id=canonical_trigger,
-            observed_statuses=observed_statuses,
+            config_test_status=observed["config_test_status"],
+            host_start_status=observed["host_start_status"],
+            reachability_status=observed["reachability_status"],
+            allow_expected_status=200,
+            allow_observed_status=observed_statuses["allow"],
+            block_expected_status=403,
+            block_observed_status=observed_statuses["block"],
+            bypass_expected_status=403,
+            bypass_observed_status=observed_statuses["bypass"],
+            expected_action="deny",
+            observed_action=observed["block_action"],
+            expected_trigger_rule_ids=[RULE_ID],
+            observed_trigger_rule_ids=[canonical_trigger],
+            expected_intervention_rule_ids=[949110],
+            observed_intervention_rule_ids=[int(observed["actual_intervention"])],
+            framework_execution_status=framework_execution_status,
+            framework_validation_status=framework_validation_status,
+            framework_cases=[framework_case],
+            cleanup_status=observed["cleanup_status"],
             cleanup=cleanup_scan,
             isolation=no_mrts,
             evidence=[
@@ -1263,6 +1405,7 @@ def normalize(args: argparse.Namespace) -> Path:
     )
     expected_contract_identity = {
         "connector": connector,
+        "adapter_id": adapter,
         "integration_mode": mode,
         "profile": "with-crs-no-mrts",
         "crs": True,
@@ -1287,9 +1430,86 @@ def normalize(args: argparse.Namespace) -> Path:
     canonical_observation_path = write_canonical_evidence_file(
         "runtime-observation.json", record_json(canonical_observation), normalized_dir
     )
-    event = {"schema_version": 1, "profile": PROFILE, "connector": connector, "adapter_id": adapter, "integration_mode": mode, "fixture_id": "crs_sqli_anomaly_block", "run_id": run_id, "framework_commit": framework_commit, "connector_commit": parent_commit, "request_id": request_id, "transaction_id": transaction_id, "evidence_type": evidence_type, "evidence_origin": "connector-host", "crs_repository": crs_repository, "crs_release_tag": crs_release, "crs_commit": crs_commit, "crs_rule_file": RULE_FILE, "crs_rule_file_sha256": rule_sha256, "crs_source_kind": "fresh", "crs_git_ref": crs_release, "expected_rule_id": RULE_ID, "observed_rule_id": RULE_ID, "expected_status": 403, "observed_status": 403, "intervention": "deny", "allow_case": {"fixture_id": "crs_sqli_anomaly_block:allow", "run_id": run_id, "request_id": allow_record["request_id"], "transaction_id": allow_record["transaction_id"], "expected_status": 200, "observed_status": 200, "observed_rule_id": None, "evidence_path": f"raw/{connector}/{run_id}/allow-request.log", "evidence_sha256": digest(allow_file, evidence_root)}, "host_configuration": {"config_test_status": "passed", "host_start_status": "passed", "evidence_path": f"raw/{connector}/{run_id}/host-configuration.log", "evidence_sha256": digest(host_file, evidence_root)}, "block_evidence": {"evidence_path": f"raw/{connector}/{run_id}/block-audit.log", "evidence_sha256": digest(block_file, evidence_root)}, "no_mrts": {name: no_mrts[name] for name in ("runner_invoked", "case_inventory_loaded", "process_started", "socket_or_listener_created", "artifact_used")}, "cleanup": {"status": "passed", "host_processes_remaining": 0, "helper_processes_remaining": 0, "listeners_remaining": 0, "sockets_remaining": 0, "pid_files_remaining": 0, "runtime_fixtures_remaining": 0, "temporary_paths_remaining": 0, "evidence_path": f"raw/{connector}/{run_id}/cleanup.log", "evidence_sha256": digest(cleanup_file, evidence_root)}, "status": "PASS", "failure_count": 0, "mismatch_count": 0}
-    event["cleanup"].update({key: cleanup_record[key] for key in ("host_processes_remaining", "helper_processes_remaining", "listeners_remaining", "sockets_remaining", "pid_files_remaining", "runtime_fixtures_remaining", "temporary_paths_remaining")})
-    event["observed_rule_id"] = canonical_trigger
+    event = {
+        "schema_version": 1,
+        "profile": PROFILE,
+        "connector": connector,
+        "adapter_id": adapter,
+        "integration_mode": mode,
+        "fixture_id": "crs_sqli_anomaly_block",
+        "run_id": run_id,
+        "framework_commit": framework_commit,
+        "connector_commit": parent_commit,
+        "request_id": request_id,
+        "transaction_id": transaction_id,
+        "evidence_type": evidence_type,
+        "evidence_origin": "connector-host",
+        "crs_repository": crs_repository,
+        "crs_release_tag": crs_release,
+        "crs_commit": crs_commit,
+        "crs_rule_file": RULE_FILE,
+        "crs_rule_file_sha256": rule_sha256,
+        "crs_source_kind": "fresh",
+        "crs_git_ref": crs_release,
+        "expected_rule_id": RULE_ID,
+        "observed_rule_id": canonical_trigger,
+        "expected_status": 403,
+        "observed_status": observed_statuses["block"],
+        "intervention": observed["block_action"],
+        "allow_case": {
+            "fixture_id": "crs_sqli_anomaly_block:allow",
+            "run_id": run_id,
+            "request_id": allow_record["request_id"],
+            "transaction_id": allow_record["transaction_id"],
+            "expected_status": 200,
+            "observed_status": observed_statuses["allow"],
+            "observed_rule_id": None,
+            "evidence_path": f"raw/{connector}/{run_id}/allow-request.log",
+            "evidence_sha256": digest(allow_file, evidence_root),
+        },
+        "host_configuration": {
+            "config_test_status": observed["config_test_status"],
+            "host_start_status": observed["host_start_status"],
+            "reachability_status": observed["reachability_status"],
+            "evidence_path": f"raw/{connector}/{run_id}/host-configuration.log",
+            "evidence_sha256": digest(host_file, evidence_root),
+        },
+        "framework_case": {
+            "framework_test_id": framework_case["framework_test_id"],
+            "execution_status": framework_execution_status,
+            "validation_status": framework_validation_status,
+            "result": framework_case_result,
+        },
+        "block_evidence": {
+            "evidence_path": f"raw/{connector}/{run_id}/block-audit.log",
+            "evidence_sha256": digest(block_file, evidence_root),
+        },
+        "no_mrts": {
+            name: no_mrts[name]
+            for name in (
+                "runner_invoked",
+                "case_inventory_loaded",
+                "process_started",
+                "socket_or_listener_created",
+                "artifact_used",
+            )
+        },
+        "cleanup": {
+            "status": observed["cleanup_status"],
+            "host_processes_remaining": cleanup_record["host_processes_remaining"],
+            "helper_processes_remaining": cleanup_record["helper_processes_remaining"],
+            "listeners_remaining": cleanup_record["listeners_remaining"],
+            "sockets_remaining": cleanup_record["sockets_remaining"],
+            "pid_files_remaining": cleanup_record["pid_files_remaining"],
+            "runtime_fixtures_remaining": cleanup_record["runtime_fixtures_remaining"],
+            "temporary_paths_remaining": cleanup_record["temporary_paths_remaining"],
+            "evidence_path": f"raw/{connector}/{run_id}/cleanup.log",
+            "evidence_sha256": digest(cleanup_file, evidence_root),
+        },
+        "status": "PASS",
+        "failure_count": 0,
+        "mismatch_count": 0,
+    }
     event_path = normalized_dir / "event.json"
     atomic_write(event_path, record_json(event), evidence_root)
     parent_record = {

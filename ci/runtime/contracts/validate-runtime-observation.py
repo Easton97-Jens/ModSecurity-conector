@@ -20,6 +20,8 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
         help="private root containing --observation and its relative evidence files",
     )
     parser.add_argument("--connector", required=True)
+    parser.add_argument("--adapter-id", required=True)
+    parser.add_argument("--integration-mode", required=True)
     parser.add_argument("--profile", required=True)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--parent-sha", required=True)
@@ -39,6 +41,8 @@ def main(argv: list[str] | None = None) -> int:
             observation,
             {
                 "connector": arguments.connector,
+                "adapter_id": arguments.adapter_id,
+                "integration_mode": arguments.integration_mode,
                 "profile": arguments.profile,
                 "run_id": arguments.run_id,
                 "parent_sha": arguments.parent_sha,
@@ -47,7 +51,7 @@ def main(argv: list[str] | None = None) -> int:
             },
             {"name": arguments.policy, "evidence_root": evidence_root},
         )
-    except (ObservationInputError, OSError, ValueError) as exc:
+    except (ObservationInputError, OSError, RecursionError, TypeError, ValueError) as exc:
         result = {
             "schema_version": 1,
             "result_type": "runtime_observation_validation",

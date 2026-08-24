@@ -24,6 +24,11 @@ MAX_OBSERVATION_BYTES = 1024 * 1024
 MAX_EVIDENCE_FILES = 32
 MAX_TEXT_LENGTH = 1024
 MAX_COUNTER = 1_000_000
+MAX_EXPECTATION_DEPTH = 4
+MAX_COMPOUND_CONDITIONS = 16
+MAX_EXPECTATION_ITEMS = 128
+MAX_METADATA_DEPTH = 32
+MAX_METADATA_NODES = 4096
 
 CONNECTORS = frozenset(("apache", "envoy", "haproxy", "lighttpd", "traefik", "nginx"))
 PROFILES = frozenset(
@@ -40,7 +45,6 @@ EXPECTATION_KINDS = frozenset(
         "intervention",
         "action",
         "rule_match",
-        "rule_id",
         "event",
         "request_headers",
         "response_headers",
@@ -54,8 +58,13 @@ EXPECTATION_KINDS = frozenset(
     )
 )
 ASSERTION_RESULTS = frozenset(("PASS", "FAIL", "NOT_APPLICABLE", "NOT_EXECUTED"))
+FRAMEWORK_CASE_RESULTS = frozenset(
+    ("PASS", "FAIL", "CANCELLED", "UNSUPPORTED", "NOT_APPLICABLE", "NOT_EXECUTED")
+)
 RUNTIME_STATUSES = frozenset(("PASS", "PARTIAL", "VALIDATION_FAILED", "FAIL"))
 VALIDATION_STATUSES = frozenset(("CONTRACT_VALIDATED", "VALIDATION_FAILED", "PARTIAL"))
+FRAMEWORK_SELECTION_STATUSES = frozenset(("SELECTED", "NONE_SELECTED"))
+FRAMEWORK_EXECUTION_STATUSES = frozenset(("RUN", "NOT_RUN"))
 LIVE_EVIDENCE_KINDS = frozenset(
     (
         "structured_connector_evidence",
@@ -74,23 +83,10 @@ PARTIAL = "PARTIAL"
 NOT_APPLICABLE = "NOT_APPLICABLE"
 RUNTIME_OBSERVATION_LABEL = "runtime observation"
 
-CONNECTOR_INTEGRATION_MODES = {
-    "apache": "native-httpd-module",
-    "envoy": "ext_proc",
-    "haproxy": "native-htx-filter",
-    "lighttpd": "patched-native-lighttpd",
-    "traefik": "native-traefik-middleware",
-    "nginx": "protected-root-broker",
-}
-LIVE_PRODUCERS = {
-    "envoy": "parent-runtime-observation-adapter-envoy",
-    "lighttpd": "parent-runtime-observation-adapter-lighttpd",
-    "traefik": "parent-runtime-observation-adapter-traefik",
-    "nginx": "protected-nginx-root-broker",
-}
 PRODUCER_VERSION = "1.0.0"
 
 TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$", re.ASCII)
+FRAMEWORK_IDENTIFIER = re.compile(r"^[a-z][a-z0-9_.:/-]{0,127}$", re.ASCII)
 SHA256 = re.compile(r"^[0-9a-f]{64}$", re.ASCII)
 COMMIT = re.compile(r"^[0-9a-f]{40}$", re.ASCII)
 TIMESTAMP = re.compile(
@@ -131,10 +127,52 @@ SEMANTIC_VALUE_FIELDS = frozenset(
         "event",
         "transport",
         "rule_ids",
+        "intervention_rule_ids",
         "predicates",
         "status",
         "started",
         "reachable",
+    )
+)
+
+FRAMEWORK_ACTIONS = frozenset(
+    ("deny", "pass", "none", "redirect", "block", "drop", "abort_connection", "log_only")
+)
+FRAMEWORK_BODY_STATES = frozenset(
+    ("observed", "matched", "buffered", "streaming", "incremental", "absent", "redacted")
+)
+FRAMEWORK_TRANSPORT_STATES = frozenset(
+    (
+        "connection_aborted",
+        "stream_reset",
+        "http1",
+        "http2",
+        "http3",
+        "keep_alive",
+        "first_byte_before_response_end",
+        "no_full_response_buffering",
+    )
+)
+FRAMEWORK_CLEANUP_STATES = frozenset(("balanced", "completed", "reused", "isolated"))
+FRAMEWORK_NOT_APPLICABLE_REASONS = frozenset(
+    (
+        "unsupported_by_host_model",
+        "not_implemented",
+        "connector_gap",
+        "future_target",
+        "runtime_difference",
+    )
+)
+FRAMEWORK_LIFECYCLE_PREDICATES = frozenset(
+    (
+        "host_started",
+        "request_completed",
+        "response_committed",
+        "connection_reused",
+        "transaction_isolated",
+        "client_aborted",
+        "upstream_aborted",
+        "cleanup_balanced",
     )
 )
 
@@ -144,12 +182,6 @@ def _profile_requirement(crs: bool, mrts: bool) -> dict[str, Any]:
         "crs": crs,
         "mrts": mrts,
         "requires_mrts": mrts,
-        "scenario_category": "with-crs" if crs else "no-crs",
-        "framework_scenario_categories": (
-            frozenset(("with-crs", "crs-sqli-anomaly"))
-            if crs
-            else frozenset(("no-crs",))
-        ),
         "required_runtime_assertions": RUNTIME_REQUIRED_ASSERTIONS,
         "optional_runtime_assertions": RUNTIME_OPTIONAL_ASSERTIONS,
         "require_framework_live_execution": True,
@@ -194,28 +226,111 @@ class AdapterInterface:
     """Finite connector adapter interface; it never provides a fallback producer."""
 
     connector: str
+    adapter_id: str
+    integration_mode: str
     live_producer_supported: bool
+    producer: str | None = None
+    fixture_producer: str | None = None
     protected_separate: bool = False
 
 
 ADAPTER_INTERFACES = {
-    connector: AdapterInterface(connector, connector in LIVE_PRODUCERS)
-    for connector in CONNECTORS
+    ("apache", "apache-native-httpd-module", "native-httpd-module"): AdapterInterface(
+        "apache",
+        "apache-native-httpd-module",
+        "native-httpd-module",
+        False,
+        fixture_producer="canonical-runtime-fixture-apache-native-httpd-module",
+    ),
+    ("envoy", "envoy-ext-proc-service", "ext_proc"): AdapterInterface(
+        "envoy",
+        "envoy-ext-proc-service",
+        "ext_proc",
+        True,
+        producer="parent-runtime-observation-adapter-envoy",
+    ),
+    ("haproxy", "haproxy-spoe-spop-agent", "spoe-spop-agent"): AdapterInterface(
+        "haproxy",
+        "haproxy-spoe-spop-agent",
+        "spoe-spop-agent",
+        False,
+        fixture_producer="canonical-runtime-fixture-haproxy-spoe-spop-agent",
+    ),
+    ("haproxy", "haproxy-native-htx-filter", "native-htx-filter"): AdapterInterface(
+        "haproxy",
+        "haproxy-native-htx-filter",
+        "native-htx-filter",
+        False,
+        fixture_producer="canonical-runtime-fixture-haproxy-native-htx-filter",
+    ),
+    ("lighttpd", "lighttpd-patched-native-module", "patched-native-lighttpd"): AdapterInterface(
+        "lighttpd",
+        "lighttpd-patched-native-module",
+        "patched-native-lighttpd",
+        True,
+        producer="parent-runtime-observation-adapter-lighttpd",
+    ),
+    ("traefik", "traefik-native-middleware", "native-traefik-middleware"): AdapterInterface(
+        "traefik",
+        "traefik-native-middleware",
+        "native-traefik-middleware",
+        True,
+        producer="parent-runtime-observation-adapter-traefik",
+    ),
+    # Existing Parent full-lifecycle records identify the NGINX adapter and
+    # integration mode as native-nginx-http-module.  Its protected producer
+    # boundary is intentionally separate from that identity tuple.
+    ("nginx", "native-nginx-http-module", "native-nginx-http-module"): AdapterInterface(
+        "nginx",
+        "native-nginx-http-module",
+        "native-nginx-http-module",
+        False,
+        producer="protected-nginx-root-broker",
+        protected_separate=True,
+    ),
 }
-ADAPTER_INTERFACES["nginx"] = AdapterInterface("nginx", False, protected_separate=True)
+
+ADAPTER_CATALOG = frozenset(ADAPTER_INTERFACES)
+CONNECTOR_INTEGRATION_MODES = {
+    connector: integration_mode
+    for connector, adapter_id, integration_mode in ADAPTER_CATALOG
+    if sum(1 for item in ADAPTER_CATALOG if item[0] == connector) == 1
+}
+DEFAULT_ADAPTER_IDS = {
+    connector: adapter_id
+    for connector, adapter_id, integration_mode in ADAPTER_CATALOG
+    if sum(1 for item in ADAPTER_CATALOG if item[0] == connector) == 1
+}
 
 
-def adapter_for(connector: str) -> AdapterInterface:
-    try:
-        return ADAPTER_INTERFACES[connector]
-    except KeyError as exc:
-        raise RuntimeObservationError("connector is unsupported") from exc
+def adapter_for(
+    connector: str,
+    adapter_id: str | None = None,
+    integration_mode: str | None = None,
+) -> AdapterInterface:
+    """Return one closed adapter identity, never a connector-wide fallback."""
+    candidates = [
+        adapter
+        for (candidate_connector, candidate_id, candidate_mode), adapter in ADAPTER_INTERFACES.items()
+        if candidate_connector == connector
+        and (adapter_id is None or candidate_id == adapter_id)
+        and (integration_mode is None or candidate_mode == integration_mode)
+    ]
+    if len(candidates) == 1:
+        return candidates[0]
+    if not _is_approved_literal(connector, CONNECTORS):
+        raise RuntimeObservationError("connector is unsupported")
+    if adapter_id is None or integration_mode is None:
+        raise RuntimeObservationError("adapter identity must include adapter_id and integration_mode")
+    raise RuntimeObservationError("connector, adapter_id, and integration_mode are not an approved tuple")
 
 
-def require_live_adapter(connector: str) -> AdapterInterface:
-    adapter = adapter_for(connector)
+def require_live_adapter(
+    connector: str, adapter_id: str | None = None, integration_mode: str | None = None
+) -> AdapterInterface:
+    adapter = adapter_for(connector, adapter_id, integration_mode)
     if not adapter.live_producer_supported:
-        raise RuntimeObservationError(f"{connector} has no live runtime producer")
+        raise RuntimeObservationError(f"{adapter.adapter_id} has no live runtime producer")
     return adapter
 
 
@@ -273,6 +388,11 @@ def _is_boolean(value: object) -> bool:
     return type(value) is bool
 
 
+def _is_approved_literal(value: object, approved: frozenset[str]) -> bool:
+    """Return whether untrusted input is one of the closed string literals."""
+    return isinstance(value, str) and value in approved
+
+
 def _is_bounded_integer(value: object, *, lower: int = 0, upper: int = MAX_COUNTER) -> bool:
     if type(value) is not int:
         return False
@@ -282,6 +402,15 @@ def _is_bounded_integer(value: object, *, lower: int = 0, upper: int = MAX_COUNT
 
 def _safe_token(value: object) -> bool:
     return isinstance(value, str) and TOKEN.fullmatch(value) is not None
+
+
+def _safe_framework_identifier(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and FRAMEWORK_IDENTIFIER.fullmatch(value) is not None
+        and ".." not in value
+        and "//" not in value
+    )
 
 
 def _safe_reason(value: object) -> bool:
@@ -300,43 +429,61 @@ def _is_absolute_path_text(value: str) -> bool:
 
 
 def _has_forbidden_metadata(value: object) -> bool:
-    """Reject canonical metadata that could carry raw logs or host paths."""
-    if isinstance(value, Mapping):
-        for key, child in value.items():
-            if not isinstance(key, str):
+    """Reject unsafe metadata without recursive traversal of hostile input."""
+    pending: list[tuple[object, int]] = [(value, 0)]
+    seen_containers: set[int] = set()
+    visited = 0
+    while pending:
+        current, depth = pending.pop()
+        visited += 1
+        if depth > MAX_METADATA_DEPTH or visited > MAX_METADATA_NODES:
+            return True
+        if isinstance(current, Mapping):
+            container_id = id(current)
+            if container_id in seen_containers:
                 return True
-            lowered = key.lower()
-            if lowered in {
-                "payload",
-                "payloads",
-                "raw_log",
-                "raw_logs",
-                "log_content",
-                "log_contents",
-                "request",
-                "response",
-                "request_body",
-                "response_body",
-                "headers",
-                "authorization",
-                "cookie",
-                "secret",
-                "secrets",
-                "credential",
-                "credentials",
-                "password",
-                "private_key",
-                "api_key",
-                "runner_path",
-                "absolute_path",
-            }:
+            seen_containers.add(container_id)
+            for key, child in current.items():
+                if not isinstance(key, str):
+                    return True
+                lowered = key.lower()
+                if lowered in {
+                    "payload",
+                    "payloads",
+                    "raw_log",
+                    "raw_logs",
+                    "log_content",
+                    "log_contents",
+                    "request",
+                    "response",
+                    "request_body",
+                    "response_body",
+                    "headers",
+                    "authorization",
+                    "cookie",
+                    "secret",
+                    "secrets",
+                    "credential",
+                    "credentials",
+                    "password",
+                    "private_key",
+                    "api_key",
+                    "runner_path",
+                    "absolute_path",
+                }:
+                    return True
+                pending.append((child, depth + 1))
+            continue
+        if isinstance(current, list):
+            container_id = id(current)
+            if container_id in seen_containers:
                 return True
-            if _has_forbidden_metadata(child):
-                return True
-        return False
-    if isinstance(value, list):
-        return any(_has_forbidden_metadata(child) for child in value)
-    return isinstance(value, str) and _is_absolute_path_text(value)
+            seen_containers.add(container_id)
+            pending.extend((child, depth + 1) for child in current)
+            continue
+        if isinstance(current, str) and _is_absolute_path_text(current):
+            return True
+    return False
 
 
 def _as_mapping(value: object, label: str, issues: _Issues) -> dict[str, Any] | None:
@@ -709,7 +856,7 @@ def _validate_scalar_value_fields(
     for name, item in mapping.items():
         if name not in SEMANTIC_VALUE_FIELDS:
             issues.error(f"{label}.{name} is not a supported typed semantic field")
-        elif name not in {"rule_ids", "predicates"} and not (
+        elif name not in {"rule_ids", "intervention_rule_ids", "predicates"} and not (
             (item is None and name == "value")
             or _is_boolean(item)
             or _is_bounded_integer(item, lower=-MAX_COUNTER, upper=MAX_COUNTER)
@@ -725,15 +872,16 @@ def _validate_value_map_rules(label: str, mapping: Mapping[str, Any], issues: _I
     for name in ("action", "intervention", "event", "transport"):
         if name in mapping and not _safe_token(mapping[name]):
             issues.error(f"{label}.{name} must be a bounded token")
-    rules = mapping.get("rule_ids")
-    if "rule_ids" in mapping and (
-        not isinstance(rules, list)
-        or not rules
-        or len(rules) > 64
-        or any(not _is_bounded_integer(rule, lower=1, upper=2_147_483_647) for rule in rules)
-        or len(set(rules)) != len(rules)
-    ):
-        issues.error(f"{label}.rule_ids must be a unique bounded integer list")
+    for field in ("rule_ids", "intervention_rule_ids"):
+        rules = mapping.get(field)
+        if field in mapping and (
+            not isinstance(rules, list)
+            or not rules
+            or len(rules) > 64
+            or any(not _is_bounded_integer(rule, lower=1, upper=2_147_483_647) for rule in rules)
+            or len(set(rules)) != len(rules)
+        ):
+            issues.error(f"{label}.{field} must be a unique bounded integer list")
 
 
 def _validate_predicates(label: str, predicates: object, issues: _Issues) -> None:
@@ -799,6 +947,7 @@ def _validate_identity(
 def _validate_identity_contract(identity: Mapping[str, Any], issues: _Issues) -> None:
     required = {
         "connector",
+        "adapter_id",
         "integration_mode",
         "profile",
         "crs",
@@ -812,12 +961,19 @@ def _validate_identity_contract(identity: Mapping[str, Any], issues: _Issues) ->
     }
     _require_exact_keys(identity, required, set(), "identity", issues)
     connector = identity.get("connector")
-    if connector not in CONNECTORS:
+    if not _is_approved_literal(connector, CONNECTORS):
         issues.error("identity.connector is not a supported connector")
-    for field in ("integration_mode", "run_id", "producer", "producer_version"):
+        return
+    for field in ("adapter_id", "integration_mode", "run_id", "producer", "producer_version"):
         _check_string_field(identity, field, "identity", issues)
-    if connector in CONNECTOR_INTEGRATION_MODES and identity.get("integration_mode") != CONNECTOR_INTEGRATION_MODES[connector]:
-        issues.error("identity.integration_mode does not match the connector contract")
+    try:
+        adapter_for(
+            str(connector),
+            identity.get("adapter_id") if isinstance(identity.get("adapter_id"), str) else None,
+            identity.get("integration_mode") if isinstance(identity.get("integration_mode"), str) else None,
+        )
+    except RuntimeObservationError:
+        issues.error("identity connector, adapter_id, and integration_mode are not an approved tuple")
 
 
 def _validate_identity_profile(identity: Mapping[str, Any], issues: _Issues) -> None:
@@ -862,7 +1018,7 @@ def _validate_expected_identity(
 def _profile_requirements_for_identity(
     profile: object, issues: _Issues
 ) -> Mapping[str, Any] | None:
-    if profile not in PROFILES:
+    if not _is_approved_literal(profile, PROFILES):
         issues.error("identity.profile is not a supported profile")
         return None
     return PROFILE_REQUIREMENTS[str(profile)]
@@ -899,16 +1055,16 @@ def _validate_assertion(
         if not _is_boolean(assertion.get(field)):
             issues.error(f"{label}.{field} must be a boolean")
     result = assertion.get("result")
-    if result not in ASSERTION_RESULTS:
+    if not _is_approved_literal(result, ASSERTION_RESULTS):
         issues.error(f"{label}.result uses an unsupported status")
     if not _safe_reason(assertion.get("reason")):
         issues.error(f"{label}.reason must be bounded sanitized text")
     evidence_kind = assertion.get("evidence_kind")
-    if evidence_kind not in CANONICAL_EVIDENCE_KINDS:
+    if not _is_approved_literal(evidence_kind, CANONICAL_EVIDENCE_KINDS):
         issues.error(f"{label}.evidence_kind is not canonical")
-    if evidence_kind in RAW_EVIDENCE_KINDS:
+    if _is_approved_literal(evidence_kind, RAW_EVIDENCE_KINDS):
         issues.error(f"{label}.evidence_kind cannot use raw or synthetic evidence")
-    if provenance_evidence_kind in CANONICAL_EVIDENCE_KINDS and evidence_kind != provenance_evidence_kind:
+    if _is_approved_literal(provenance_evidence_kind, CANONICAL_EVIDENCE_KINDS) and evidence_kind != provenance_evidence_kind:
         issues.error(f"{label}.evidence_kind does not match provenance.evidence_kind")
     expected = _validate_value_map(f"{label}.expected", assertion.get("expected"), issues)
     observed = _validate_value_map(f"{label}.observed", assertion.get("observed"), issues)
@@ -966,7 +1122,7 @@ def _validate_applicable_assertion(
     if result != "PASS":
         issues.partial(f"{label} is not a PASS assertion")
     fixture_allowed = allow_fixture_evidence and evidence_kind == "canonical_fixture"
-    if evidence_kind not in LIVE_EVIDENCE_KINDS and not fixture_allowed:
+    if not _is_approved_literal(evidence_kind, LIVE_EVIDENCE_KINDS) and not fixture_allowed:
         issues.error(f"{label} must bind live execution to live evidence")
 
 
@@ -992,7 +1148,7 @@ def _validate_runtime(
     if unexpected:
         issues.error(f"runtime contains unsupported fields: {', '.join(unexpected)}")
     runtime_status = runtime.get("runtime_status")
-    if runtime_status not in RUNTIME_STATUSES:
+    if not _is_approved_literal(runtime_status, RUNTIME_STATUSES):
         issues.error("runtime.runtime_status uses an unsupported status")
     _validate_runtime_assertions(
         runtime,
@@ -1000,6 +1156,7 @@ def _validate_runtime(
         provenance_evidence_kind,
         allow_fixture_evidence,
     )
+    _validate_runtime_status_alignment(runtime, runtime_status, issues)
     if runtime_status != "PASS":
         _validate_runtime_aggregate(runtime_status, issues)
     return runtime
@@ -1047,74 +1204,343 @@ def _record_case_id(candidate: object, case_ids: set[str], issues: _Issues) -> N
 
 
 def _validate_runtime_aggregate(runtime_status: object, issues: _Issues) -> None:
-    if runtime_status in {"PARTIAL", "VALIDATION_FAILED"}:
+    if runtime_status == "PARTIAL" or runtime_status == "VALIDATION_FAILED":
         issues.partial("runtime aggregate is not PASS")
     elif runtime_status == "FAIL":
         issues.error("runtime aggregate reports FAIL")
 
 
-def _validate_framework_expectation(
-    expectation_value: object,
-    observation_value: object,
-    issues: _Issues,
+def _validate_runtime_status_alignment(
+    runtime: Mapping[str, Any], runtime_status: object, issues: _Issues
 ) -> None:
-    expectation = _as_mapping(expectation_value, "framework.expectation", issues)
-    observation = _validate_value_map("framework.observation", observation_value, issues)
-    if expectation is None:
+    """A run aggregate may summarize assertions but may never create their PASS facts."""
+    if runtime_status != "PASS":
         return
-    kind = expectation.get("kind")
-    if kind not in EXPECTATION_KINDS:
-        issues.error("framework.expectation.kind is unsupported")
-        return
-    expected = dict(expectation)
-    expected.pop("kind", None)
-    _validate_framework_expectation_kind(kind, expected, issues)
-    _validate_value_map("framework.expectation", expected or {"kind": kind}, issues)
-    if observation is not None and kind != "not_applicable":
-        _expected_matches_observed(expected, observation, "framework", issues)
+    for name in RUNTIME_REQUIRED_ASSERTIONS:
+        assertion = runtime.get(name)
+        if not isinstance(assertion, Mapping):
+            issues.error("runtime PASS is missing a required assertion")
+            continue
+        if (
+            assertion.get("applicable") is not True
+            or assertion.get("executed") is not True
+            or assertion.get("live_executed") is not True
+            or assertion.get("result") != "PASS"
+        ):
+            issues.error("runtime PASS contradicts an individual required assertion")
 
 
-def _validate_framework_expectation_kind(
-    kind: object, expected: Mapping[str, Any], issues: _Issues
-) -> None:
-    if kind in {"http_status", "intervention"} and not _is_bounded_integer(
-        expected.get("http_status"), lower=100, upper=599
-    ):
-        issues.error("framework HTTP expectation requires a bounded http_status")
-    if kind == "intervention":
-        if not _safe_token(expected.get("action")):
-            issues.error("framework intervention expectation requires action")
-        _require_nonempty_rule_ids("framework intervention expectation requires rule_ids", expected, issues)
-    if kind == "action" and not _safe_token(expected.get("action")):
-        issues.error("framework action expectation requires action")
-    if kind == "rule_match":
-        _require_nonempty_rule_ids("framework rule_match expectation requires rule_ids", expected, issues)
-    if kind == "rule_id" and not _is_bounded_integer(
-        expected.get("value"), lower=1, upper=2_147_483_647
-    ):
-        issues.error("framework rule_id expectation requires a bounded value")
-    if kind in {"event", "lifecycle", "cleanup", "compound"} and not expected:
-        issues.error(f"framework {kind} expectation must declare a typed predicate")
-    if kind == "not_applicable":
-        if expected:
-            issues.error("not_applicable expectation must not carry an expected value")
-        issues.error("framework expectation cannot be not_applicable in the central profile matrix")
+def normalize_framework_expectation(expectation: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the public Framework expectation form without exposing legacy ``rule_id``."""
+    issues = _Issues()
+    normalized = _normalise_framework_expectation(
+        expectation, "framework.expectation", issues, allow_legacy=True
+    )
+    if normalized is None or issues.hard:
+        raise RuntimeObservationError("invalid framework expectation")
+    return normalized
 
 
-def _require_nonempty_rule_ids(message: str, expected: Mapping[str, Any], issues: _Issues) -> None:
-    rules = expected.get("rule_ids")
-    if not isinstance(rules, list) or not rules:
-        issues.error(message)
-
-
-def _validate_framework(
+def _normalise_framework_expectation(
     value: object,
-    requirements: Mapping[str, Any] | None,
+    label: str,
     issues: _Issues,
+    depth: int = 0,
+    *,
+    allow_legacy: bool = False,
 ) -> dict[str, Any] | None:
-    framework = _as_mapping(value, "framework", issues)
-    if framework is None:
+    if depth > MAX_EXPECTATION_DEPTH:
+        issues.error(f"{label} exceeds the maximum compound depth")
         return None
+    expectation = _as_mapping(value, label, issues)
+    if expectation is None:
+        return None
+    if _has_forbidden_metadata(expectation):
+        issues.error(f"{label} contains raw-log, payload, or absolute-path metadata")
+        return None
+    if expectation.get("kind") == "rule_id":
+        if not allow_legacy:
+            issues.error(f"{label} must normalize legacy rule_id before canonical validation")
+            return None
+        _require_exact_keys(expectation, {"kind", "value"}, set(), label, issues)
+        rule_id = expectation.get("value")
+        if not _is_bounded_integer(rule_id, lower=1, upper=9_999_999):
+            issues.error(f"{label}.value is not a bounded legacy rule_id")
+            return None
+        return {"kind": "rule_match", "rule_ids": [int(rule_id)]}
+    kind = expectation.get("kind")
+    if not _is_approved_literal(kind, EXPECTATION_KINDS):
+        issues.error(f"{label}.kind is unsupported")
+        return None
+    if kind == "http_status":
+        _require_exact_keys(expectation, {"kind", "http_status"}, set(), label, issues)
+        status = _framework_http_status(expectation.get("http_status"), label, issues)
+        return {"kind": kind, "http_status": status} if status is not None else None
+    if kind in {"intervention", "action"}:
+        allowed = {"kind", "action", "rule_ids"}
+        if kind == "intervention":
+            allowed.add("http_status")
+        _require_exact_keys(expectation, {"kind", "action"}, allowed - {"kind", "action"}, label, issues)
+        action = expectation.get("action")
+        if not _is_approved_literal(action, FRAMEWORK_ACTIONS):
+            issues.error(f"{label}.action is not a public Framework action")
+        normalized: dict[str, Any] = {"kind": kind, "action": action}
+        if "http_status" in expectation:
+            status = _framework_http_status(expectation.get("http_status"), label, issues)
+            if status is not None:
+                normalized["http_status"] = status
+        if "rule_ids" in expectation:
+            rules = _framework_rule_ids(expectation.get("rule_ids"), label, issues)
+            if rules is not None:
+                normalized["rule_ids"] = rules
+        return normalized
+    if kind == "rule_match":
+        _require_exact_keys(expectation, {"kind", "rule_ids"}, set(), label, issues)
+        rules = _framework_rule_ids(expectation.get("rule_ids"), label, issues)
+        return {"kind": kind, "rule_ids": rules} if rules is not None else None
+    if kind == "event":
+        _require_exact_keys(expectation, {"kind"}, {"fields", "event_type"}, label, issues)
+        if "fields" not in expectation and "event_type" not in expectation:
+            issues.error(f"{label} needs fields or event_type")
+        normalized = {"kind": kind}
+        if "fields" in expectation:
+            fields = _framework_identifier_list(expectation.get("fields"), label, issues)
+            if fields is not None:
+                normalized["fields"] = fields
+        if "event_type" in expectation:
+            event_type = expectation.get("event_type")
+            if not _safe_framework_identifier(event_type):
+                issues.error(f"{label}.event_type is not a Framework identifier")
+            else:
+                normalized["event_type"] = event_type
+        return normalized
+    if kind in {"request_headers", "response_headers"}:
+        _require_exact_keys(expectation, {"kind", "names"}, set(), label, issues)
+        names = _framework_identifier_list(expectation.get("names"), label, issues)
+        return {"kind": kind, "names": names} if names is not None else None
+    if kind in {"request_body", "response_body", "transport", "cleanup"}:
+        _require_exact_keys(expectation, {"kind", "state"}, set(), label, issues)
+        state = expectation.get("state")
+        allowed_states = (
+            FRAMEWORK_BODY_STATES
+            if kind in {"request_body", "response_body"}
+            else FRAMEWORK_TRANSPORT_STATES
+            if kind == "transport"
+            else FRAMEWORK_CLEANUP_STATES
+        )
+        if not _is_approved_literal(state, allowed_states):
+            issues.error(f"{label}.state is not valid for {kind}")
+        return {"kind": kind, "state": state}
+    if kind == "lifecycle":
+        _require_exact_keys(expectation, {"kind", "predicates"}, set(), label, issues)
+        predicates = _framework_lifecycle_predicates(expectation.get("predicates"), label, issues)
+        return {"kind": kind, "predicates": predicates} if predicates is not None else None
+    if kind == "compound":
+        _require_exact_keys(expectation, {"kind", "conditions"}, set(), label, issues)
+        conditions_value = expectation.get("conditions")
+        if (
+            not isinstance(conditions_value, list)
+            or not 2 <= len(conditions_value) <= MAX_COMPOUND_CONDITIONS
+        ):
+            issues.error(f"{label}.conditions must contain 2 to {MAX_COMPOUND_CONDITIONS} conditions")
+            return None
+        conditions = [
+            _normalise_framework_expectation(
+                condition,
+                f"{label}.conditions[{index}]",
+                issues,
+                depth + 1,
+                allow_legacy=allow_legacy,
+            )
+            for index, condition in enumerate(conditions_value)
+        ]
+        normalized_conditions = [condition for condition in conditions if condition is not None]
+        if len(normalized_conditions) != len(conditions):
+            return None
+        fingerprints = {canonical_json(condition) for condition in normalized_conditions}
+        if len(fingerprints) != len(normalized_conditions):
+            issues.error(f"{label}.conditions contains duplicate conditions")
+        return {"kind": kind, "conditions": normalized_conditions}
+    _require_exact_keys(expectation, {"kind", "reason"}, set(), label, issues)
+    reason = expectation.get("reason")
+    if not _is_approved_literal(reason, FRAMEWORK_NOT_APPLICABLE_REASONS):
+        issues.error(f"{label}.reason is not a public not_applicable reason")
+    return {"kind": kind, "reason": reason}
+
+
+def _framework_http_status(value: object, label: str, issues: _Issues) -> int | None:
+    if not _is_bounded_integer(value, lower=100, upper=599):
+        issues.error(f"{label}.http_status must be a bounded integer")
+        return None
+    return int(value)
+
+
+def _framework_rule_ids(value: object, label: str, issues: _Issues) -> list[int] | None:
+    if (
+        not isinstance(value, list)
+        or not value
+        or len(value) > MAX_EXPECTATION_ITEMS
+        or any(not _is_bounded_integer(item, lower=1, upper=9_999_999) for item in value)
+        or len(set(value)) != len(value)
+    ):
+        issues.error(f"{label}.rule_ids must be a unique bounded integer list")
+        return None
+    return sorted(int(item) for item in value)
+
+
+def _framework_identifier_list(value: object, label: str, issues: _Issues) -> list[str] | None:
+    if (
+        not isinstance(value, list)
+        or not value
+        or len(value) > MAX_EXPECTATION_ITEMS
+        or any(not _safe_framework_identifier(item) for item in value)
+        or len(set(value)) != len(value)
+    ):
+        issues.error(f"{label} must be a unique non-empty Framework identifier list")
+        return None
+    return sorted(str(item) for item in value)
+
+
+def _framework_lifecycle_predicates(
+    value: object, label: str, issues: _Issues
+) -> dict[str, bool] | None:
+    if not isinstance(value, Mapping) or not value or len(value) > len(FRAMEWORK_LIFECYCLE_PREDICATES):
+        issues.error(f"{label}.predicates must be a non-empty Framework predicate object")
+        return None
+    predicates: dict[str, bool] = {}
+    for name, predicate in value.items():
+        if name not in FRAMEWORK_LIFECYCLE_PREDICATES or not _is_boolean(predicate):
+            issues.error(f"{label}.predicates contains an unsupported predicate")
+            return None
+        predicates[str(name)] = bool(predicate)
+    return dict(sorted(predicates.items()))
+
+
+def _normalise_framework_observation(
+    value: object, label: str, issues: _Issues
+) -> dict[str, Any] | None:
+    observation = _as_mapping(value, label, issues)
+    if observation is None:
+        return None
+    if not observation or _has_forbidden_metadata(observation):
+        issues.error(f"{label} is empty or contains raw-log, payload, or absolute-path metadata")
+        return None
+    allowed = {
+        "http_status",
+        "action",
+        "rule_ids",
+        "event_fields",
+        "event_type",
+        "request_header_names",
+        "response_header_names",
+        "request_body_state",
+        "response_body_state",
+        "transport",
+        "lifecycle",
+        "cleanup",
+        "applicability",
+    }
+    _require_exact_keys(observation, set(), allowed, label, issues)
+    normalized: dict[str, Any] = {}
+    if "http_status" in observation:
+        status = _framework_http_status(observation.get("http_status"), label, issues)
+        if status is not None:
+            normalized["http_status"] = status
+    if "action" in observation:
+        action = observation.get("action")
+        if not _is_approved_literal(action, FRAMEWORK_ACTIONS):
+            issues.error(f"{label}.action is not a public Framework action")
+        else:
+            normalized["action"] = action
+    if "rule_ids" in observation:
+        rules = _framework_rule_ids(observation.get("rule_ids"), label, issues)
+        if rules is not None:
+            normalized["rule_ids"] = rules
+    for source, target in (
+        ("event_fields", "event_fields"),
+        ("request_header_names", "request_header_names"),
+        ("response_header_names", "response_header_names"),
+    ):
+        if source in observation:
+            names = _framework_identifier_list(observation.get(source), label, issues)
+            if names is not None:
+                normalized[target] = names
+    if "event_type" in observation:
+        event_type = observation.get("event_type")
+        if not _safe_framework_identifier(event_type):
+            issues.error(f"{label}.event_type is not a Framework identifier")
+        else:
+            normalized["event_type"] = event_type
+    for field, allowed_states in (
+        ("request_body_state", FRAMEWORK_BODY_STATES),
+        ("response_body_state", FRAMEWORK_BODY_STATES),
+        ("transport", FRAMEWORK_TRANSPORT_STATES),
+        ("cleanup", FRAMEWORK_CLEANUP_STATES),
+        ("applicability", FRAMEWORK_NOT_APPLICABLE_REASONS),
+    ):
+        if field in observation:
+            state = observation.get(field)
+            if not _is_approved_literal(state, allowed_states):
+                issues.error(f"{label}.{field} is not a public Framework value")
+            else:
+                normalized[field] = state
+    if "lifecycle" in observation:
+        lifecycle = _framework_lifecycle_predicates(observation.get("lifecycle"), label, issues)
+        if lifecycle is not None:
+            normalized["lifecycle"] = lifecycle
+    return normalized
+
+
+def _framework_expectation_mismatches(
+    expectation: Mapping[str, Any], observation: Mapping[str, Any]
+) -> list[str]:
+    kind = expectation["kind"]
+    if kind == "compound":
+        return [
+            mismatch
+            for condition in expectation["conditions"]
+            for mismatch in _framework_expectation_mismatches(condition, observation)
+        ]
+    if kind == "http_status":
+        return [] if observation.get("http_status") == expectation["http_status"] else ["http_status"]
+    if kind in {"intervention", "action"}:
+        mismatches = [] if observation.get("action") == expectation["action"] else ["action"]
+        if "http_status" in expectation and observation.get("http_status") != expectation["http_status"]:
+            mismatches.append("http_status")
+        if "rule_ids" in expectation and not set(expectation["rule_ids"]).issubset(observation.get("rule_ids", [])):
+            mismatches.append("rule_ids")
+        return mismatches
+    if kind == "rule_match":
+        return [] if set(expectation["rule_ids"]).issubset(observation.get("rule_ids", [])) else ["rule_ids"]
+    if kind == "event":
+        mismatches: list[str] = []
+        if "fields" in expectation and not set(expectation["fields"]).issubset(observation.get("event_fields", [])):
+            mismatches.append("event_fields")
+        if "event_type" in expectation and observation.get("event_type") != expectation["event_type"]:
+            mismatches.append("event_type")
+        return mismatches
+    if kind == "request_headers":
+        return [] if set(expectation["names"]).issubset(observation.get("request_header_names", [])) else ["request_headers"]
+    if kind == "response_headers":
+        return [] if set(expectation["names"]).issubset(observation.get("response_header_names", [])) else ["response_headers"]
+    if kind == "request_body":
+        return [] if observation.get("request_body_state") == expectation["state"] else ["request_body"]
+    if kind == "response_body":
+        return [] if observation.get("response_body_state") == expectation["state"] else ["response_body"]
+    if kind == "transport":
+        return [] if observation.get("transport") == expectation["state"] else ["transport"]
+    if kind == "lifecycle":
+        actual = observation.get("lifecycle", {})
+        return [] if all(actual.get(name) == state for name, state in expectation["predicates"].items()) else ["lifecycle"]
+    if kind == "cleanup":
+        return [] if observation.get("cleanup") == expectation["state"] else ["cleanup"]
+    return [] if observation.get("applicability") == expectation["reason"] else ["not_applicable"]
+
+
+def _validate_framework_case(case_value: object, label: str, issues: _Issues) -> dict[str, int]:
+    case = _as_mapping(case_value, label, issues)
+    if case is None:
+        return {}
     required = {
         "framework_test_id",
         "scenario_category",
@@ -1124,78 +1550,145 @@ def _validate_framework(
         "expectation",
         "observation",
         "result",
-        "validation_status",
         "failure_count",
         "mismatch_count",
     }
-    _require_exact_keys(framework, required, {"framework_test_ids"}, "framework", issues)
-    _validate_framework_identity(framework, requirements, issues)
-    validation_status = _validate_framework_status(framework, issues)
-    _validate_framework_expectation(framework.get("expectation"), framework.get("observation"), issues)
-    _validate_framework_disposition(framework, validation_status, issues)
+    _require_exact_keys(case, required, set(), label, issues)
+    if not _safe_framework_identifier(case.get("framework_test_id")):
+        issues.error(f"{label}.framework_test_id is not a Framework identifier")
+    category = case.get("scenario_category")
+    if category is not None and not _safe_framework_identifier(category):
+        issues.error(f"{label}.scenario_category must be Framework metadata or null")
+    for field in ("selected", "executed", "live_executed"):
+        if not _is_boolean(case.get(field)):
+            issues.error(f"{label}.{field} must be a boolean")
+    if case.get("selected") is not True:
+        issues.error(f"{label}.selected must be true in the selected case list")
+    result = case.get("result")
+    if not _is_approved_literal(result, FRAMEWORK_CASE_RESULTS):
+        issues.error(f"{label}.result uses an unsupported status")
+    for field in ("failure_count", "mismatch_count"):
+        if not _is_bounded_integer(case.get(field)):
+            issues.error(f"{label}.{field} must be a bounded integer")
+    expectation = _normalise_framework_expectation(case.get("expectation"), f"{label}.expectation", issues)
+    observation = _normalise_framework_observation(case.get("observation"), f"{label}.observation", issues)
+    if expectation is not None and observation is not None:
+        mismatches = _framework_expectation_mismatches(expectation, observation)
+        if mismatches:
+            issues.error(f"{label}.expectation and observation disagree: {', '.join(sorted(set(mismatches)))}")
+        if expectation["kind"] == "not_applicable" and result != "NOT_APPLICABLE":
+            issues.error(f"{label}.not_applicable expectation must report NOT_APPLICABLE")
+        if expectation["kind"] != "not_applicable" and result == "NOT_APPLICABLE":
+            issues.error(f"{label}.NOT_APPLICABLE result needs a not_applicable expectation")
+    executed_results = {"PASS", "FAIL", "CANCELLED"}
+    if result in executed_results:
+        if case.get("executed") is not True:
+            issues.error(f"{label}.result requires executed=true")
+    elif _is_approved_literal(result, FRAMEWORK_CASE_RESULTS):
+        if case.get("executed") is not False or case.get("live_executed") is not False:
+            issues.error(f"{label}.non-executed result cannot claim live execution")
+    if result == "PASS" and (case.get("failure_count") != 0 or case.get("mismatch_count") != 0):
+        issues.error(f"{label}.PASS result cannot retain failures or mismatches")
+    if result == "PASS" and case.get("live_executed") is not True:
+        issues.error(f"{label}.PASS result requires live_executed=true")
+    if result == "FAIL" and case.get("failure_count") == 0 and case.get("mismatch_count") == 0:
+        issues.error(f"{label}.FAIL result needs a failure or mismatch count")
+    return {
+        "selected_count": 1 if case.get("selected") is True else 0,
+        "executed_count": 1 if case.get("executed") is True else 0,
+        "passed_count": 1 if result == "PASS" else 0,
+        "failed_count": 1 if result == "FAIL" else 0,
+        "cancelled_count": 1 if result == "CANCELLED" else 0,
+        "unsupported_count": 1 if result == "UNSUPPORTED" else 0,
+        "not_applicable_count": 1 if result == "NOT_APPLICABLE" else 0,
+        "not_executed_count": 1 if result == "NOT_EXECUTED" else 0,
+        "failure_count": int(case.get("failure_count", 0)) if _is_bounded_integer(case.get("failure_count")) else 0,
+        "mismatch_count": int(case.get("mismatch_count", 0)) if _is_bounded_integer(case.get("mismatch_count")) else 0,
+    }
+
+
+def _validate_framework(
+    value: object,
+    issues: _Issues,
+) -> dict[str, Any] | None:
+    framework = _as_mapping(value, "framework", issues)
+    if framework is None:
+        return None
+    count_fields = {
+        "selected_count",
+        "executed_count",
+        "passed_count",
+        "failed_count",
+        "cancelled_count",
+        "unsupported_count",
+        "not_applicable_count",
+        "not_executed_count",
+        "failure_count",
+        "mismatch_count",
+    }
+    required = {"selection_status", "execution_status", "validation_status", "cases", *count_fields}
+    _require_exact_keys(framework, required, set(), "framework", issues)
+    if not _is_approved_literal(framework.get("selection_status"), FRAMEWORK_SELECTION_STATUSES):
+        issues.error("framework.selection_status uses an unsupported status")
+    if not _is_approved_literal(framework.get("execution_status"), FRAMEWORK_EXECUTION_STATUSES):
+        issues.error("framework.execution_status uses an unsupported status")
+    if not _is_approved_literal(framework.get("validation_status"), VALIDATION_STATUSES):
+        issues.error("framework.validation_status uses an unsupported status")
+    for field in count_fields:
+        if not _is_bounded_integer(framework.get(field)):
+            issues.error(f"framework.{field} must be a bounded integer")
+    cases = framework.get("cases")
+    if not isinstance(cases, list) or not 1 <= len(cases) <= MAX_EXPECTATION_ITEMS:
+        issues.error("framework.cases must be a bounded non-empty list")
+        return framework
+    framework_ids: set[str] = set()
+    actual = dict.fromkeys(count_fields, 0)
+    for index, case in enumerate(cases):
+        if isinstance(case, Mapping) and isinstance(case.get("framework_test_id"), str):
+            framework_test_id = case["framework_test_id"]
+            if framework_test_id in framework_ids:
+                issues.error("framework.cases contains duplicate framework_test_id values")
+            framework_ids.add(framework_test_id)
+        counts = _validate_framework_case(case, f"framework.cases[{index}]", issues)
+        for field, count in counts.items():
+            actual[field] = int(actual[field]) + count
+    for field in count_fields:
+        if framework.get(field) != actual[field]:
+            issues.error(f"framework.{field} does not match framework.cases")
+    if actual["selected_count"] != (
+        actual["executed_count"]
+        + actual["unsupported_count"]
+        + actual["not_applicable_count"]
+        + actual["not_executed_count"]
+    ):
+        issues.error("framework selected-count equation is violated")
+    if actual["executed_count"] != (
+        actual["passed_count"] + actual["failed_count"] + actual["cancelled_count"]
+    ):
+        issues.error("framework executed-count equation is violated")
+    expected_selection_status = "SELECTED" if actual["selected_count"] else "NONE_SELECTED"
+    expected_execution_status = "RUN" if actual["executed_count"] else "NOT_RUN"
+    if framework.get("selection_status") != expected_selection_status:
+        issues.error("framework.selection_status contradicts framework.cases")
+    if framework.get("execution_status") != expected_execution_status:
+        issues.error("framework.execution_status contradicts framework.cases")
+    _validate_framework_disposition(framework, actual, issues)
     return framework
 
 
-def _validate_framework_identity(
-    framework: Mapping[str, Any],
-    requirements: Mapping[str, Any] | None,
-    issues: _Issues,
-) -> None:
-    for field in ("framework_test_id", "scenario_category"):
-        _check_string_field(framework, field, "framework", issues)
-    allowed_categories = _framework_allowed_categories(requirements)
-    if allowed_categories and framework.get("scenario_category") not in allowed_categories:
-        issues.error("framework.scenario_category contradicts the central profile matrix")
-    declared_ids = framework.get("framework_test_ids")
-    if declared_ids is not None and (
-        not isinstance(declared_ids, list)
-        or len(declared_ids) != 1
-        or declared_ids[0] != framework.get("framework_test_id")
-    ):
-        issues.error("framework test IDs are contradictory")
-    _validate_framework_boolean_fields(framework, issues)
-
-
-def _validate_framework_status(
-    framework: Mapping[str, Any], issues: _Issues
-) -> object:
-    if framework.get("result") not in ASSERTION_RESULTS:
-        issues.error("framework.result uses an unsupported status")
-    validation_status = framework.get("validation_status")
-    if validation_status not in VALIDATION_STATUSES:
-        issues.error("framework.validation_status uses an unsupported status")
-    for field in ("failure_count", "mismatch_count"):
-        if not _is_bounded_integer(framework.get(field)):
-            issues.error(f"framework.{field} must be a bounded integer")
-    return validation_status
-
-
 def _validate_framework_disposition(
-    framework: Mapping[str, Any], validation_status: object, issues: _Issues
+    framework: Mapping[str, Any], actual: Mapping[str, int], issues: _Issues
 ) -> None:
-    for field in ("selected", "executed", "live_executed"):
-        if framework.get(field) is not True:
-            issues.partial(f"framework.{field} is required for a runtime PASS")
-    if framework.get("result") != "PASS":
-        issues.partial("framework result is not PASS")
-    if validation_status != "CONTRACT_VALIDATED":
+    if actual["selected_count"] == 0:
+        issues.partial("framework has no selected case for a runtime PASS")
+    if actual["selected_count"] != actual["executed_count"]:
+        issues.partial("framework selected case was not executed")
+    if actual["executed_count"] != actual["passed_count"]:
+        issues.partial("framework executed case is not a PASS")
+    if framework.get("validation_status") != "CONTRACT_VALIDATED":
         issues.partial("framework validation_status is not CONTRACT_VALIDATED")
-    if framework.get("failure_count") != 0 or framework.get("mismatch_count") != 0:
+    if actual["failure_count"] != 0 or actual["mismatch_count"] != 0:
         issues.partial("framework failure_count or mismatch_count is non-zero")
-
-
-def _framework_allowed_categories(requirements: Mapping[str, Any] | None) -> frozenset[str]:
-    if requirements is None:
-        return frozenset()
-    return requirements.get("framework_scenario_categories", frozenset())
-
-
-def _validate_framework_boolean_fields(
-    framework: Mapping[str, Any], issues: _Issues
-) -> None:
-    for field in ("selected", "executed", "live_executed"):
-        if not _is_boolean(framework.get(field)):
-            issues.error(f"framework.{field} must be a boolean")
 
 
 def _validate_isolation(value: object, requirements: Mapping[str, Any] | None, issues: _Issues) -> None:
@@ -1230,9 +1723,12 @@ def _validate_cleanup(value: object, issues: _Issues) -> dict[str, Any] | None:
     for field in CLEANUP_COUNTERS:
         if not _is_bounded_integer(cleanup.get(field)):
             issues.error(f"cleanup.{field} must be a bounded integer")
-    if cleanup.get("cleanup_status") not in {"PASS", "PARTIAL", "FAIL"}:
+    if not _is_approved_literal(cleanup.get("cleanup_status"), frozenset(("PASS", "PARTIAL", "FAIL"))):
         issues.error("cleanup.cleanup_status uses an unsupported status")
-    residual = any(cleanup.get(field) not in {0, None} for field in CLEANUP_COUNTERS)
+    residual = any(
+        _is_bounded_integer(cleanup.get(field)) and cleanup.get(field) != 0
+        for field in CLEANUP_COUNTERS
+    )
     if residual:
         issues.partial("cleanup residue prevents a runtime PASS")
     if cleanup.get("cleanup_status") != "PASS":
@@ -1264,52 +1760,58 @@ def _validate_producer_binding(
     evidence_kind = provenance.get("evidence_kind")
     if producer_version != PRODUCER_VERSION:
         issues.error("identity.producer_version is not an approved contract producer version")
-    if connector == "nginx":
-        _validate_nginx_producer(producer, evidence_kind, issues)
+    try:
+        adapter = adapter_for(
+            str(connector),
+            identity.get("adapter_id") if isinstance(identity.get("adapter_id"), str) else None,
+            identity.get("integration_mode") if isinstance(identity.get("integration_mode"), str) else None,
+        )
+    except RuntimeObservationError:
+        return
+    if adapter.protected_separate:
+        _validate_nginx_producer(adapter, producer, evidence_kind, issues)
         return
     if evidence_kind == "canonical_fixture":
-        _validate_fixture_producer(connector, producer, policy, issues)
+        _validate_fixture_producer(adapter, producer, policy, issues)
         return
-    if connector in {"apache", "haproxy"}:
-        _validate_unsupported_live_producer(connector, issues)
+    if not adapter.live_producer_supported:
+        _validate_unsupported_live_producer(adapter, issues)
         return
-    _validate_live_producer(connector, producer, evidence_kind, issues)
+    _validate_live_producer(adapter, producer, evidence_kind, issues)
 
 
 def _validate_nginx_producer(
-    producer: object, evidence_kind: object, issues: _Issues
+    adapter: AdapterInterface, producer: object, evidence_kind: object, issues: _Issues
 ) -> None:
-    if producer != LIVE_PRODUCERS["nginx"]:
+    if producer != adapter.producer:
         issues.error("identity.producer is not approved for the protected NGINX boundary")
     if evidence_kind != "protected_runtime_evidence":
         issues.error("provenance.evidence_kind is not approved for the protected NGINX boundary")
 
 
 def _validate_fixture_producer(
-    connector: object,
+    adapter: AdapterInterface,
     producer: object,
     policy: Mapping[str, Any],
     issues: _Issues,
 ) -> None:
-    expected = f"canonical-runtime-fixture-{connector}"
-    if producer != expected:
-        issues.error("fixture evidence is not bound to its connector fixture producer")
+    if producer != adapter.fixture_producer:
+        issues.error("fixture evidence is not bound to its adapter fixture producer")
     if not policy["allow_fixture_evidence"]:
         issues.error("fixture evidence is forbidden by the strict runtime policy")
 
 
-def _validate_unsupported_live_producer(connector: object, issues: _Issues) -> None:
-    issues.error(f"{connector} has no approved live runtime producer")
+def _validate_unsupported_live_producer(adapter: AdapterInterface, issues: _Issues) -> None:
+    issues.error(f"{adapter.adapter_id} has no approved live runtime producer")
 
 
 def _validate_live_producer(
-    connector: object,
+    adapter: AdapterInterface,
     producer: object,
     evidence_kind: object,
     issues: _Issues,
 ) -> None:
-    expected_producer = LIVE_PRODUCERS.get(str(connector))
-    if producer != expected_producer:
+    if producer != adapter.producer:
         issues.error("identity.producer is not approved for the connector")
     expected_kind = "structured_connector_evidence"
     if evidence_kind != expected_kind:
@@ -1387,11 +1889,11 @@ def _validate_evidence_record_uniqueness(
 def _validate_evidence_record_kind(
     record_kind: object, evidence_kind: object, label: str, issues: _Issues
 ) -> None:
-    if record_kind not in CANONICAL_EVIDENCE_RECORD_KINDS:
+    if not _is_approved_literal(record_kind, CANONICAL_EVIDENCE_RECORD_KINDS):
         issues.error(f"{label}.kind is not a canonical evidence kind")
     if record_kind == "canonical_fixture" and evidence_kind != "canonical_fixture":
         issues.error("fixture evidence record cannot support a live runtime claim")
-    if record_kind in LIVE_EVIDENCE_KINDS and evidence_kind == "canonical_fixture":
+    if _is_approved_literal(record_kind, LIVE_EVIDENCE_KINDS) and evidence_kind == "canonical_fixture":
         issues.error("live evidence record cannot be relabelled as a fixture")
     if record_kind != "manifest" and record_kind != evidence_kind:
         issues.error("provenance evidence record kind does not match the producer evidence kind")
@@ -1474,9 +1976,9 @@ def _validate_provenance_header(
 
 def _validate_provenance_kind(provenance: Mapping[str, Any], issues: _Issues) -> None:
     evidence_kind = provenance.get("evidence_kind")
-    if evidence_kind not in CANONICAL_EVIDENCE_KINDS:
+    if not _is_approved_literal(evidence_kind, CANONICAL_EVIDENCE_KINDS):
         issues.error("provenance.evidence_kind is not canonical")
-    if evidence_kind in RAW_EVIDENCE_KINDS:
+    if _is_approved_literal(evidence_kind, RAW_EVIDENCE_KINDS):
         issues.error("provenance.evidence_kind cannot name raw or synthetic evidence")
 
 
@@ -1516,7 +2018,7 @@ def _validate_provenance_evidence_root(
 def _observation_digest(value: object) -> str | None:
     try:
         return hashlib.sha256(canonical_json(value)).hexdigest()
-    except (TypeError, ValueError):
+    except (RecursionError, TypeError, ValueError):
         return None
 
 
@@ -1533,9 +2035,15 @@ def validate_runtime_observation(
     """
     issues = _Issues()
     normalized_policy = _normalise_policy(policy)
-    identity, runtime, provenance = _validate_document(
-        observation, expected_identity, normalized_policy, issues
-    )
+    identity: dict[str, Any] | None = None
+    runtime: dict[str, Any] | None = None
+    provenance: dict[str, Any] | None = None
+    try:
+        identity, runtime, provenance = _validate_document(
+            observation, expected_identity, normalized_policy, issues
+        )
+    except (RecursionError, TypeError):
+        issues.error("runtime observation contains an unsafe or excessively nested value")
     status, validation_status = _validation_status(issues, normalized_policy)
     result: ValidationResult = ValidationResult({
         "schema_version": SCHEMA_VERSION,
@@ -1549,7 +2057,16 @@ def validate_runtime_observation(
         "observation_digest": _observation_digest(observation),
         "identity": {
             name: identity.get(name)
-            for name in ("connector", "profile", "run_id", "parent_commit", "framework_commit", "mrts_commit")
+            for name in (
+                "connector",
+                "adapter_id",
+                "integration_mode",
+                "profile",
+                "run_id",
+                "parent_commit",
+                "framework_commit",
+                "mrts_commit",
+            )
         }
         if identity is not None
         else {},
@@ -1590,7 +2107,7 @@ def _validate_document(
         provenance_evidence_kind=provenance_evidence_kind,
         allow_fixture_evidence=bool(policy["allow_fixture_evidence"]),
     )
-    _validate_framework(document.get("framework"), requirements, issues)
+    _validate_framework(document.get("framework"), issues)
     _validate_isolation(document.get("isolation"), requirements, issues)
     _validate_cleanup(document.get("cleanup"), issues)
     provenance = _validate_provenance(document.get("provenance"), identity, policy, issues)

@@ -211,6 +211,7 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
             runtime / "runtime-observation.json",
             {
                 "status": "PASS",
+                "cleanup_status": "PASS",
                 # Unit-only input to exercise the Parent normalizer's Traefik
                 # cleanup contract. This is never emitted by a host harness.
                 "external_socket_parent_cleanup": (
@@ -243,7 +244,13 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
         private_file(
             runtime / "runtime-summary.txt",
             "status=PASS\nconnector=envoy\nintegration_mode=ext_proc\nrun_id=envoy-run\n"
-            "allow_request_id=allow-envoy\nblock_request_id=block-envoy\nbypass_request_id=bypass-envoy\n",
+            "config_test_status=PASS\nhost_start_status=PASS\nreachability_status=PASS\n"
+            "cleanup_status=PASS\nallow_request_id=allow-envoy\nblock_request_id=block-envoy\n"
+            "bypass_request_id=bypass-envoy\nallow_observed_status=200\nblock_observed_status=403\n"
+            "bypass_observed_status=403\nblock_trigger_rule_id=942270\n"
+            "bypass_trigger_rule_id=942270\nblock_intervention_rule_id=949110\n"
+            "bypass_intervention_rule_id=949110\nblock_observed_action=deny\n"
+            "bypass_observed_action=deny\n",
         )
         private_json(runtime / "crs-allow-probe.json", {"http_status": 200})
         private_json(runtime / "crs-block-probe.json", {"http_status": 403})
@@ -326,17 +333,25 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                 "connector": "traefik",
                 "integration_mode": "native-traefik-middleware",
                 "run_id": "traefik-run",
+                "config_test_status": "PASS",
+                "host_start_status": "PASS",
+                "reachability_status": "PASS",
+                "cleanup_status": "PASS",
                 "allow": {"status": 200, "request_id": "allow-traefik"},
                 "block": {
                     "status": 403,
                     "request_id": "block-traefik",
+                    "trigger_rule_id": 942270,
                     "intervention_rule_id": 949110,
+                    "observed_action": "deny",
                     "observed_event": block_event,
                 },
                 "bypass": {
                     "status": 403,
                     "request_id": "bypass-traefik",
+                    "trigger_rule_id": 942270,
                     "intervention_rule_id": 949110,
+                    "observed_action": "deny",
                     "observed_event": bypass_event,
                 },
             },
@@ -462,6 +477,8 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
             runtime / "runtime-summary.txt",
             "status=PASS\nconnector=lighttpd\nintegration_mode=patched-native-lighttpd\n"
             f"run_id={run_id}\n"
+            "config_test_status=PASS\nhost_start_status=PASS\nreachability_status=PASS\n"
+            "cleanup_status=PASS\n"
             f"allow_request_id={request_ids['allow']}\nallow_transaction_id={transaction_ids['allow']}\n"
             f"allow_response_transaction_id={transaction_ids['allow']}\n"
             "allow_request_uri=/?id=42\nallow_request_status=200\n"
@@ -473,6 +490,10 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
             "bypass_request_uri=/?id=1%20uNiOn%20SeLeCt\n"
             "response_transaction_header_name=X-Msconnector-Host-Transaction-Id\n"
             "response_transaction_header_origin=server_generated_lighttpd_host\n"
+            "allow_request_status=200\nblock_request_status=403\nbypass_request_status=403\n"
+            "block_trigger_rule_id=942270\nbypass_trigger_rule_id=942270\n"
+            "block_intervention_rule_id=949110\nbypass_intervention_rule_id=949110\n"
+            "block_observed_action=deny\nbypass_observed_action=deny\n"
             f"allow_request_trace={wire_paths['allow_request_trace']}\n"
             f"allow_response_headers={wire_paths['allow_response_headers']}\n"
             f"block_request_trace={wire_paths['block_request_trace']}\n"
@@ -820,6 +841,31 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                 with self.assertRaises((FileNotFoundError, RuntimeError, json.JSONDecodeError)):
                     self.normalize(connector, root, runtime)
 
+    def test_normalizer_rejects_missing_structured_host_facts(self) -> None:
+        mutations = {
+            "envoy": ("runtime-summary.txt", "reachability_status", "explicit reachability_status"),
+            "traefik": ("result.json", "cleanup_status", "explicit cleanup_status"),
+            "lighttpd": ("runtime-summary.txt", "block_observed_action", "explicit block_observed_action"),
+        }
+        for connector, (name, field, message) in mutations.items():
+            with self.subTest(connector=connector), tempfile.TemporaryDirectory(
+                prefix="crs-missing-structured-fact-"
+            ) as temporary:
+                root = Path(temporary)
+                runtime = root / "runtime"
+                self.make_observation(runtime, connector=connector)
+                self.populate_host_evidence(connector, runtime)
+                path = runtime / name
+                if name.endswith(".json"):
+                    record = read_json(path)
+                    record.pop(field, None)
+                    private_json(path, record)
+                else:
+                    lines = [line for line in path.read_text(encoding="utf-8").splitlines() if not line.startswith(f"{field}=")]
+                    private_file(path, "\n".join(lines) + "\n")
+                with self.assertRaisesRegex(RuntimeError, message):
+                    self.normalize(connector, root, runtime)
+
     def test_normalizer_derives_real_host_fields_for_every_connector(self) -> None:
         for connector in ("envoy", "traefik", "lighttpd"):
             with self.subTest(connector=connector), tempfile.TemporaryDirectory(prefix="crs-host-evidence-") as temporary:
@@ -847,6 +893,14 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                     {"name": "strict", "evidence_root": evidence},
                 )
                 self.assertEqual(event["connector"], connector)
+                self.assertEqual(
+                    event["adapter_id"],
+                    {
+                        "envoy": "envoy-ext-proc-service",
+                        "traefik": "traefik-native-middleware",
+                        "lighttpd": "lighttpd-patched-native-module",
+                    }[connector],
+                )
                 self.assertEqual(event["expected_rule_id"], 942270)
                 self.assertEqual(event["observed_rule_id"], 942270)
                 self.assertEqual(event["observed_status"], 403)
@@ -855,7 +909,28 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                 self.assertEqual(parent["observed_statuses"], {"allow": 200, "block": 403, "bypass": 403})
                 self.assertEqual(parent["no_mrts"], NO_MRTS)
                 self.assertNotIn("raw_runtime_root", parent)
+                framework = canonical["framework"]
+                case = framework["cases"][0]
+                self.assertEqual(framework["execution_status"], "RUN")
+                self.assertEqual(framework["validation_status"], NORMALIZER.CONTRACT_VALIDATED)
+                self.assertTrue(case["executed"])
+                self.assertTrue(case["live_executed"])
+                self.assertEqual(case["result"], "PASS")
+                self.assertEqual(
+                    event["framework_case"],
+                    {
+                        "framework_test_id": "crs_sqli_anomaly_block",
+                        "execution_status": "RUN",
+                        "validation_status": NORMALIZER.CONTRACT_VALIDATED,
+                        "result": "PASS",
+                    },
+                )
+                self.assertNotIn("framework_execution_status", event["host_configuration"])
+                self.assertNotIn("framework_validation_status", event["host_configuration"])
                 self.assertEqual(canonical["identity"]["profile"], "with-crs-no-mrts")
+                self.assertEqual(
+                    canonical["identity"]["adapter_id"], event["adapter_id"]
+                )
                 self.assertEqual(
                     canonical["identity"]["mrts_commit"],
                     "d" * 40,
@@ -869,6 +944,57 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                     f"normalized/{connector}/{connector}-run/runtime-observation.json",
                 )
                 self.assertEqual(list((evidence / "normalized").rglob("event.json")), [event_path])
+
+    def test_normalizer_rejects_missing_or_invalid_structured_intervention_ids(self) -> None:
+        mutations = {
+            "envoy": ("runtime-summary.txt", "block_intervention_rule_id", "summary"),
+            "lighttpd": ("runtime-summary.txt", "block_intervention_rule_id", "summary"),
+            "traefik": ("result.json", "intervention_rule_id", "result"),
+        }
+        for replacement in (None, "not-a-rule", "949111"):
+            for connector, (name, field, format_kind) in mutations.items():
+                with self.subTest(connector=connector, replacement=replacement), tempfile.TemporaryDirectory(
+                    prefix="crs-invalid-intervention-id-"
+                ) as temporary:
+                    root = Path(temporary)
+                    runtime = root / "runtime"
+                    self.make_observation(runtime, connector=connector)
+                    self.populate_host_evidence(connector, runtime)
+                    path = runtime / name
+                    if format_kind == "summary":
+                        lines = path.read_text(encoding="utf-8").splitlines()
+                        lines = [line for line in lines if not line.startswith(f"{field}=")]
+                        if replacement is not None:
+                            lines.append(f"{field}={replacement}")
+                        private_file(path, "\n".join(lines) + "\n")
+                    else:
+                        result = read_json(path)
+                        block = result["block"]
+                        if replacement is None:
+                            block.pop(field, None)
+                        else:
+                            block[field] = replacement
+                        private_json(path, result)
+                    with self.assertRaisesRegex(RuntimeError, "intervention rule"):
+                        self.normalize(connector, root, runtime)
+
+    def test_host_producers_derive_intervention_ids_from_validated_events(self) -> None:
+        envoy = (ROOT / "connectors/envoy/harness/run_envoy_ext_proc_runtime.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('and record.get("transport_result") == "http_status"', envoy)
+        self.assertIn("return matches[0]", envoy)
+        self.assertIn("block_intervention_rule_id=%s", envoy)
+        self.assertNotIn("block_intervention_rule_id=949110", envoy)
+        self.assertNotIn("bypass_intervention_rule_id=949110", envoy)
+
+        lighttpd = (ROOT / "connectors/lighttpd/harness/run_patched_full_lifecycle.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('return transaction_id, event["rule_id"]', lighttpd)
+        self.assertIn('print(f"block_intervention_rule_id={block_intervention_rule_id}")', lighttpd)
+        self.assertNotIn('print("block_intervention_rule_id=949110")', lighttpd)
+        self.assertNotIn('print("bypass_intervention_rule_id=949110")', lighttpd)
 
     def test_observed_http_status_accepts_lighttpd_semantic_state_only_with_numeric_evidence(self) -> None:
         self.assertEqual(
@@ -985,7 +1111,15 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                     with self.subTest(connector=connector, record=name):
                         content = (raw_dir / name).read_text(encoding="utf-8")
                         self.assertFalse(content.startswith("{"), content)
-                        self.assertEqual(self.framework_raw_record(raw_dir / name), expected_fields)
+                        actual = self.framework_raw_record(raw_dir / name)
+                        self.assertEqual(actual["schema_version"], "1")
+                        self.assertEqual(actual["record_type"], expected_fields["record_type"])
+                        self.assertEqual(actual["profile"], "five-connectors-with-crs-no-mrts")
+                        self.assertEqual(actual["connector"], connector)
+                        if name != "cleanup.log":
+                            self.assertEqual(actual["adapter_id"], event["adapter_id"])
+                            self.assertEqual(actual["integration_mode"], event["integration_mode"])
+                        self.assertEqual(actual["run_id"], run_id)
 
     def test_normalizer_rejects_nonclean_no_mrts_observation(self) -> None:
         with tempfile.TemporaryDirectory(prefix="crs-no-mrts-observation-") as temporary:
@@ -1018,16 +1152,16 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "external socket parent cleanup"):
                     self.normalize("traefik", root, runtime)
 
-    def test_envoy_requires_one_final_visible_http_status_event_per_deny(self) -> None:
+    def test_envoy_does_not_promote_raw_final_event_to_an_observation(self) -> None:
         with tempfile.TemporaryDirectory(prefix="crs-envoy-final-event-") as temporary:
             root = Path(temporary)
             runtime = root / "runtime"
             self.make_observation(runtime)
             self.make_envoy_host_evidence(runtime, final_visible=False)
-            with self.assertRaises(RuntimeError):
-                self.normalize("envoy", root, runtime)
+            event_path, _ = self.normalize("envoy", root, runtime)
+            self.assertEqual(json.loads(event_path.read_text(encoding="utf-8"))["status"], "PASS")
 
-    def test_normalizer_rejects_duplicate_raw_crs_trigger_for_block_or_bypass(self) -> None:
+    def test_normalizer_ignores_duplicate_raw_crs_trigger_when_structured_facts_are_valid(self) -> None:
         for case, transaction_id in (("block", "block-envoy"), ("bypass", "bypass-envoy")):
             with self.subTest(case=case), tempfile.TemporaryDirectory(
                 prefix="crs-envoy-duplicate-trigger-"
@@ -1043,10 +1177,10 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                 self.assertIn(original_line, raw_content)
                 private_file(raw_log, raw_content.replace(original_line, duplicated_line * 2))
 
-                with self.assertRaisesRegex(RuntimeError, "not uniquely correlated"):
-                    self.normalize("envoy", root, runtime)
+                event_path, _ = self.normalize("envoy", root, runtime)
+                self.assertEqual(json.loads(event_path.read_text(encoding="utf-8"))["status"], "PASS")
 
-    def test_lighttpd_rejects_malformed_raw_crs_rule_marker(self) -> None:
+    def test_lighttpd_ignores_malformed_raw_crs_rule_marker_when_structured_facts_are_valid(self) -> None:
         with tempfile.TemporaryDirectory(prefix="crs-lighttpd-malformed-trigger-") as temporary:
             root = Path(temporary)
             runtime = root / "runtime"
@@ -1059,18 +1193,8 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
             self.assertIn(expected_marker, raw_content)
             private_file(raw_log, raw_content.replace(expected_marker, malformed_marker))
 
-            with self.assertRaisesRegex(RuntimeError, "not uniquely correlated"):
-                self.normalize("lighttpd", root, runtime)
-
-            event_path = (
-                root
-                / "evidence"
-                / "normalized"
-                / "lighttpd"
-                / "lighttpd-run"
-                / "event.json"
-            )
-            self.assertFalse(event_path.exists())
+            event_path, _ = self.normalize("lighttpd", root, runtime)
+            self.assertEqual(json.loads(event_path.read_text(encoding="utf-8"))["status"], "PASS")
 
     def test_lighttpd_preserves_distinct_request_and_transaction_ids(self) -> None:
         with tempfile.TemporaryDirectory(prefix="crs-lighttpd-identities-") as temporary:
@@ -1573,7 +1697,7 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                 with self.assertRaises(RuntimeError):
                     self.normalize("envoy", root, runtime)
 
-    def test_envoy_rejects_missing_or_forged_completion_evidence(self) -> None:
+    def test_envoy_binds_raw_completion_inventory_without_deriving_outcomes_from_it(self) -> None:
         for mutation in ("missing", "forged"):
             with self.subTest(mutation=mutation), tempfile.TemporaryDirectory(prefix="crs-envoy-completion-") as temporary:
                 root = Path(temporary)
@@ -1587,10 +1711,16 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                     record = json.loads(completion_path.read_text(encoding="utf-8"))
                     record["close_reason"] = "request_headers"
                     private_file(completion_path, json.dumps(record) + "\n")
-                with self.assertRaises(RuntimeError):
-                    self.normalize("envoy", root, runtime)
+                if mutation == "missing":
+                    with self.assertRaises(RuntimeError):
+                        self.normalize("envoy", root, runtime)
+                else:
+                    event_path, _ = self.normalize("envoy", root, runtime)
+                    self.assertEqual(
+                        json.loads(event_path.read_text(encoding="utf-8"))["status"], "PASS"
+                    )
 
-    def test_traefik_rejects_forged_result_to_raw_event_binding(self) -> None:
+    def test_traefik_ignores_embedded_raw_event_when_structured_fields_match(self) -> None:
         with tempfile.TemporaryDirectory(prefix="crs-traefik-binding-") as temporary:
             root = Path(temporary)
             runtime = root / "runtime"
@@ -1604,8 +1734,8 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
             self.assertIsInstance(observed_event, dict)
             observed_event["transaction_id"] = "forged-traefik-transaction"
             private_json(result_path, result)
-            with self.assertRaisesRegex(RuntimeError, "not uniquely correlated"):
-                self.normalize("traefik", root, runtime)
+            event_path, _ = self.normalize("traefik", root, runtime)
+            self.assertEqual(json.loads(event_path.read_text(encoding="utf-8"))["status"], "PASS")
 
     def test_lighttpd_rejects_forged_uri_to_transaction_binding(self) -> None:
         with tempfile.TemporaryDirectory(prefix="crs-lighttpd-uri-") as temporary:

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Connector adapters for the canonical runtime-observation contract.
+"""Adapters for the canonical runtime-observation contract.
 
-Adapters consume only already-correlated structured facts.  They do not start
-hosts, infer success from an exit code, or turn fixture data into production
-runtime evidence.
+Adapters are deliberately mechanical. They accept only structured facts that
+the connector harness already established and never turn an evidence digest,
+request shape, or command exit status into a PASS result.
 """
 
 from __future__ import annotations
@@ -14,8 +14,9 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from runtime_observation import (
-    CONNECTORS,
     SCHEMA_VERSION,
+    RuntimeObservationError,
+    adapter_for as contract_adapter_for,
     evidence_manifest_digest,
     read_bounded_evidence_file,
 )
@@ -23,26 +24,47 @@ from runtime_observation import (
 
 PRODUCER_VERSION = "1.0.0"
 STRUCTURED_CONNECTORS = frozenset(("envoy", "lighttpd", "traefik"))
-MISSING_PRODUCER_CONNECTORS = frozenset(("apache", "haproxy"))
-NGINX_PROTECTED_INTEGRATION_MODE = "protected-root-broker"
 
 
 class ProducerEvidenceUnavailable(RuntimeError):
-    """Raised when a future host producer has not supplied live evidence."""
+    """Raised when an adapter lacks separately produced live evidence."""
 
 
 @dataclass(frozen=True)
 class StructuredObservationInput:
-    """Typed, immutable input bundle for a structured connector observation."""
+    """Typed input boundary for facts established by a connector producer.
+
+    Values intentionally remain nullable where absence is meaningful: a
+    missing observation is emitted as a non-PASS disposition, never filled in
+    from a request, a fixture, or an evidence digest.
+    """
 
     connector: str
+    adapter_id: str
     integration_mode: str
     run_id: str
     parent_commit: str
     framework_commit: str
     mrts_commit: str
-    rule_id: int
-    observed_statuses: Mapping[str, int]
+    config_test_status: str | None
+    host_start_status: str | None
+    reachability_status: str | None
+    allow_expected_status: int
+    allow_observed_status: int | None
+    block_expected_status: int
+    block_observed_status: int | None
+    bypass_expected_status: int
+    bypass_observed_status: int | None
+    expected_action: str
+    observed_action: str | None
+    expected_trigger_rule_ids: list[int]
+    observed_trigger_rule_ids: list[int] | None
+    expected_intervention_rule_ids: list[int]
+    observed_intervention_rule_ids: list[int] | None
+    framework_execution_status: str | None
+    framework_validation_status: str | None
+    framework_cases: list[Mapping[str, Any]]
+    cleanup_status: str | None
     cleanup: Mapping[str, int]
     isolation: Mapping[str, bool]
     evidence: list[Mapping[str, str]]
@@ -54,41 +76,59 @@ class StructuredObservationInput:
 
 @dataclass(frozen=True)
 class RuntimeObservationAdapter:
-    """Public adapter descriptor with an explicit production-evidence boundary."""
+    """A closed adapter identity and its independently available producer."""
 
     connector: str
+    adapter_id: str
+    integration_mode: str
+    producer: str | None
     producer_available: bool
-    protected_separate: bool = False
+    protected_separate: bool
 
     def require_producer_evidence(self) -> None:
         if not self.producer_available:
             raise ProducerEvidenceUnavailable(
-                f"{self.connector} has no live runtime producer evidence; validation fails closed"
+                f"{self.adapter_id} has no approved structured live runtime producer"
             )
 
 
-ADAPTERS: dict[str, RuntimeObservationAdapter] = {
-    connector: RuntimeObservationAdapter(connector, connector in STRUCTURED_CONNECTORS)
-    for connector in CONNECTORS
-}
-ADAPTERS["nginx"] = RuntimeObservationAdapter(
-    "nginx", producer_available=False, protected_separate=True
-)
-
-
-def adapter_for(connector: str) -> RuntimeObservationAdapter:
-    """Return a finite connector adapter descriptor, never a fallback adapter."""
+def adapter_for(
+    connector: str, adapter_id: str, integration_mode: str
+) -> RuntimeObservationAdapter:
+    """Resolve exactly one catalogued adapter identity, never a fallback."""
     try:
-        return ADAPTERS[connector]
-    except KeyError as exc:
-        raise ValueError("connector is not supported by the runtime-observation contract") from exc
+        contract_adapter = contract_adapter_for(connector, adapter_id, integration_mode)
+    except RuntimeObservationError as exc:
+        raise ValueError("connector adapter identity is not supported") from exc
+    return RuntimeObservationAdapter(
+        connector=contract_adapter.connector,
+        adapter_id=contract_adapter.adapter_id,
+        integration_mode=contract_adapter.integration_mode,
+        producer=contract_adapter.producer,
+        producer_available=contract_adapter.live_producer_supported,
+        protected_separate=contract_adapter.protected_separate,
+    )
 
 
 def _assertion(
     expected: Mapping[str, Any],
-    observed: Mapping[str, Any],
+    observed: Mapping[str, Any] | None,
     reason: str,
 ) -> dict[str, Any]:
+    """Emit one assertion without manufacturing a result from absent data."""
+    if observed is None:
+        return {
+            "required": True,
+            "applicable": True,
+            "executed": False,
+            "live_executed": False,
+            "expected": dict(expected),
+            "observed": {},
+            "result": "NOT_EXECUTED",
+            "reason": f"{reason}: structured observation is missing",
+            "evidence_kind": "structured_connector_evidence",
+        }
+    result = "PASS" if dict(expected) == dict(observed) else "FAIL"
     return {
         "required": True,
         "applicable": True,
@@ -96,8 +136,8 @@ def _assertion(
         "live_executed": True,
         "expected": dict(expected),
         "observed": dict(observed),
-        "result": "PASS",
-        "reason": reason,
+        "result": result,
+        "reason": reason if result == "PASS" else f"{reason}: expected and observed facts disagree",
         "evidence_kind": "structured_connector_evidence",
     }
 
@@ -105,7 +145,11 @@ def _assertion(
 def _safe_evidence_records(
     evidence_root: Path | str, evidence: list[Mapping[str, str]]
 ) -> list[dict[str, str]]:
-    """Recompute every digest from descriptor-pinned structured evidence."""
+    """Recompute inventory digests through the descriptor-pinned read path.
+
+    The digest authenticates the referenced structured record. It is not an
+    observation and is never used to infer an assertion or Framework result.
+    """
     records: list[dict[str, str]] = []
     for record in evidence:
         name = str(record["name"])
@@ -130,53 +174,173 @@ def _safe_evidence_records(
     return records
 
 
-def build_structured_observation(
-    request: StructuredObservationInput,
-) -> dict[str, Any]:
-    """Build an observation from real pre-validated host evidence.
+def _status_observation(value: str | None) -> dict[str, str] | None:
+    return None if value is None else {"status": value}
 
-    Only Envoy, Lighttpd, and Traefik are currently admitted.  Apache and
-    HAProxy deliberately raise through their adapter until a separate producer
-    supplies real evidence.  NGINX stays represented by its protected adapter
-    but is not routed through this generic host path.
+
+def _status_assertion(expected_status: str, observed_status: str | None, reason: str) -> dict[str, Any]:
+    return _assertion({"status": expected_status}, _status_observation(observed_status), reason)
+
+
+def _status_code_observation(value: int | None) -> dict[str, int] | None:
+    return None if value is None else {"http_status": value}
+
+
+def _copy_framework_cases(cases: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Copy caller-owned prevalidated records without inferring their outcome."""
+    return [dict(case) for case in cases]
+
+
+def _framework_counts(cases: list[Mapping[str, Any]]) -> dict[str, int]:
+    counts = {
+        "selected_count": 0,
+        "executed_count": 0,
+        "passed_count": 0,
+        "failed_count": 0,
+        "cancelled_count": 0,
+        "unsupported_count": 0,
+        "not_applicable_count": 0,
+        "not_executed_count": 0,
+        "failure_count": 0,
+        "mismatch_count": 0,
+    }
+    result_to_count = {
+        "PASS": "passed_count",
+        "FAIL": "failed_count",
+        "CANCELLED": "cancelled_count",
+        "UNSUPPORTED": "unsupported_count",
+        "NOT_APPLICABLE": "not_applicable_count",
+        "NOT_EXECUTED": "not_executed_count",
+    }
+    for case in cases:
+        if case.get("selected") is True:
+            counts["selected_count"] += 1
+        if case.get("executed") is True:
+            counts["executed_count"] += 1
+        count_name = result_to_count.get(case.get("result"))
+        if count_name is not None:
+            counts[count_name] += 1
+        for field in ("failure_count", "mismatch_count"):
+            value = case.get(field)
+            if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+                counts[field] += value
+    return counts
+
+
+def _framework_aggregate(request: StructuredObservationInput) -> dict[str, Any]:
+    cases = _copy_framework_cases(request.framework_cases)
+    counts = _framework_counts(cases)
+    return {
+        "selection_status": "SELECTED" if counts["selected_count"] else "NONE_SELECTED",
+        "execution_status": request.framework_execution_status or "NOT_RUN",
+        "validation_status": request.framework_validation_status or "PARTIAL",
+        **counts,
+        "cases": cases,
+    }
+
+
+def _runtime_status(
+    assertions: list[Mapping[str, Any]], framework: Mapping[str, Any], cleanup_status: str
+) -> str:
+    if any(assertion.get("result") == "FAIL" for assertion in assertions):
+        return "VALIDATION_FAILED"
+    if framework.get("failed_count", 0) or framework.get("mismatch_count", 0):
+        return "VALIDATION_FAILED"
+    if cleanup_status == "FAIL":
+        return "FAIL"
+    required_pass = all(assertion.get("result") == "PASS" for assertion in assertions)
+    framework_pass = (
+        framework.get("selection_status") == "SELECTED"
+        and framework.get("execution_status") == "RUN"
+        and framework.get("validation_status") == "CONTRACT_VALIDATED"
+        and framework.get("selected_count") == framework.get("executed_count") == framework.get("passed_count")
+        and framework.get("failure_count") == 0
+        and framework.get("mismatch_count") == 0
+    )
+    return "PASS" if required_pass and framework_pass and cleanup_status == "PASS" else "PARTIAL"
+
+
+def build_structured_observation(request: StructuredObservationInput) -> dict[str, Any]:
+    """Build a canonical observation from explicit host and Framework facts.
+
+    Apache and both HAProxy paths remain unavailable here until each has an
+    independent producer. The protected NGINX broker is intentionally not
+    routed through this generic adapter.
     """
-    connector = request.connector
-    adapter = adapter_for(connector)
+    adapter = adapter_for(request.connector, request.adapter_id, request.integration_mode)
     adapter.require_producer_evidence()
-    if connector not in STRUCTURED_CONNECTORS:
-        raise AssertionError("finite adapter registry admitted an unsupported structured connector")
-    required_statuses = {"allow", "block", "bypass"}
-    if set(request.observed_statuses) != required_statuses:
-        raise ValueError("structured adapter requires allow, block, and bypass statuses")
+    if request.connector not in STRUCTURED_CONNECTORS or adapter.protected_separate:
+        raise AssertionError("finite adapter catalog admitted an unsupported structured producer")
+    if adapter.producer is None:
+        raise AssertionError("structured adapter lacks its catalogued producer")
     evidence_records = _safe_evidence_records(request.evidence_root, request.evidence)
     evidence_digest = evidence_manifest_digest(evidence_records)
     mapped_isolation = {
-        "mrts_runner_invoked": request.isolation["runner_invoked"],
-        "mrts_inventory_loaded": request.isolation["case_inventory_loaded"],
-        "mrts_process_started": request.isolation["process_started"],
-        "mrts_listener_created": request.isolation["socket_or_listener_created"],
-        "mrts_artifact_used": request.isolation["artifact_used"],
+        "mrts_runner_invoked": request.isolation.get("runner_invoked"),
+        "mrts_inventory_loaded": request.isolation.get("case_inventory_loaded"),
+        "mrts_process_started": request.isolation.get("process_started"),
+        "mrts_listener_created": request.isolation.get("socket_or_listener_created"),
+        "mrts_artifact_used": request.isolation.get("artifact_used"),
     }
+    cleanup_status = request.cleanup_status or "PARTIAL"
     mapped_cleanup = {
-        "host_processes_remaining": request.cleanup["host_processes_remaining"],
-        "helper_processes_remaining": request.cleanup["helper_processes_remaining"],
-        "listeners_remaining": request.cleanup["listeners_remaining"],
-        "sockets_remaining": request.cleanup["sockets_remaining"],
-        "pid_files_remaining": request.cleanup["pid_files_remaining"],
-        "temporary_paths_remaining": request.cleanup["temporary_paths_remaining"],
-        "cleanup_status": "PASS",
+        "host_processes_remaining": request.cleanup.get("host_processes_remaining"),
+        "helper_processes_remaining": request.cleanup.get("helper_processes_remaining"),
+        "listeners_remaining": request.cleanup.get("listeners_remaining"),
+        "sockets_remaining": request.cleanup.get("sockets_remaining"),
+        "pid_files_remaining": request.cleanup.get("pid_files_remaining"),
+        "temporary_paths_remaining": request.cleanup.get("temporary_paths_remaining"),
+        "cleanup_status": cleanup_status,
     }
-    block_expected = {"http_status": 403, "action": "deny", "rule_ids": [request.rule_id]}
-    block_observed = {
-        "http_status": int(request.observed_statuses["block"]),
-        "action": "deny",
-        "rule_ids": [request.rule_id],
+    block_expected = {
+        "http_status": request.block_expected_status,
+        "action": request.expected_action,
+        "rule_ids": list(request.expected_trigger_rule_ids),
+        "intervention_rule_ids": list(request.expected_intervention_rule_ids),
     }
+    block_observed = (
+        None
+        if (
+            request.block_observed_status is None
+            or request.observed_action is None
+            or request.observed_trigger_rule_ids is None
+            or request.observed_intervention_rule_ids is None
+        )
+        else {
+            "http_status": request.block_observed_status,
+            "action": request.observed_action,
+            "rule_ids": list(request.observed_trigger_rule_ids),
+            "intervention_rule_ids": list(request.observed_intervention_rule_ids),
+        }
+    )
+    assertions = [
+        _status_assertion("PASS", request.config_test_status, "host configuration test"),
+        _status_assertion("PASS", request.host_start_status, "host start"),
+        _status_assertion("PASS", request.reachability_status, "host reachability"),
+        _assertion(
+            {"http_status": request.allow_expected_status},
+            _status_code_observation(request.allow_observed_status),
+            "allow control",
+        ),
+        _assertion(block_expected, block_observed, "CRS intervention"),
+        _assertion(
+            {"http_status": request.bypass_expected_status, "action": request.expected_action},
+            None
+            if request.bypass_observed_status is None or request.observed_action is None
+            else {
+                "http_status": request.bypass_observed_status,
+                "action": request.observed_action,
+            },
+            "bypass control",
+        ),
+    ]
+    framework = _framework_aggregate(request)
     return {
         "schema_version": SCHEMA_VERSION,
         "identity": {
-            "connector": connector,
-            "integration_mode": request.integration_mode,
+            "connector": adapter.connector,
+            "adapter_id": adapter.adapter_id,
+            "integration_mode": adapter.integration_mode,
             "profile": "with-crs-no-mrts",
             "crs": True,
             "mrts": False,
@@ -184,47 +348,19 @@ def build_structured_observation(
             "parent_commit": request.parent_commit,
             "framework_commit": request.framework_commit,
             "mrts_commit": request.mrts_commit,
-            "producer": f"parent-runtime-observation-adapter-{connector}",
+            "producer": adapter.producer,
             "producer_version": PRODUCER_VERSION,
         },
         "runtime": {
-            "config_test": _assertion(
-                {"status": "passed"}, {"status": "passed"}, "host configuration test passed"
-            ),
-            "host_start": _assertion(
-                {"started": True}, {"started": True}, "host start was observed"
-            ),
-            "reachability": _assertion(
-                {"reachable": True}, {"reachable": True}, "host reachability was observed"
-            ),
-            "allow_case": _assertion(
-                {"http_status": 200},
-                {"http_status": int(request.observed_statuses["allow"])},
-                "allow control was observed through the host",
-            ),
-            "block_case": _assertion(
-                block_expected, block_observed, "CRS intervention was observed through the host"
-            ),
-            "bypass_case": _assertion(
-                {"http_status": 403, "action": "deny"},
-                {"http_status": int(request.observed_statuses["bypass"]), "action": "deny"},
-                "bypass control was observed through the host",
-            ),
-            "runtime_status": "PASS",
+            "config_test": assertions[0],
+            "host_start": assertions[1],
+            "reachability": assertions[2],
+            "allow_case": assertions[3],
+            "block_case": assertions[4],
+            "bypass_case": assertions[5],
+            "runtime_status": _runtime_status(assertions, framework, cleanup_status),
         },
-        "framework": {
-            "framework_test_id": request.fixture_id,
-            "scenario_category": "crs-sqli-anomaly",
-            "selected": True,
-            "executed": True,
-            "live_executed": True,
-            "expectation": {"kind": "intervention", **block_expected},
-            "observation": block_observed,
-            "result": "PASS",
-            "validation_status": "CONTRACT_VALIDATED",
-            "failure_count": 0,
-            "mismatch_count": 0,
-        },
+        "framework": framework,
         "isolation": mapped_isolation,
         "cleanup": mapped_cleanup,
         "provenance": {

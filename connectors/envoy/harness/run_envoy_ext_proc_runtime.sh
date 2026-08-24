@@ -269,14 +269,16 @@ run_crs_runtime() {
         return 1
     fi
 
-    # The client probes and the Common event log are independently produced.
-    # Do not materialize any verdict from expected data: wait until the raw
-    # block records themselves establish the two disruptive decisions.
+    # The client probes and Common event records are independently produced.
+    # The trigger remains raw-log-correlated, but intervention IDs must come
+    # from uniquely correlated structured final host-action events.
     crs_evidence_ready=0
+    crs_block_intervention_rule_id=
+    crs_bypass_intervention_rule_id=
     attempt=0
     while [ "$attempt" -lt 20 ]; do
         attempt=$((attempt + 1))
-        if "$PYTHON_BIN" - "$COMMON_EVENT_LOG_PATH" "$COMPLETION_LOG_PATH" \
+        if crs_intervention_ids=$("$PYTHON_BIN" - "$COMMON_EVENT_LOG_PATH" "$COMPLETION_LOG_PATH" \
             "$CRS_ALLOW_PROBE_EVIDENCE" "$CRS_BLOCK_PROBE_EVIDENCE" \
             "$CRS_BYPASS_PROBE_EVIDENCE" "$CRS_ALLOW_TRANSACTION_ID" \
             "$CRS_BLOCK_TRANSACTION_ID" "$CRS_BYPASS_TRANSACTION_ID" \
@@ -321,9 +323,17 @@ def disruptive(records, transaction_id):
         and record.get("requested_action") == "deny"
         and record.get("actual_action") == "deny"
         and record.get("visible_http_status") == 403
+        and record.get("transport_result") == "http_status"
     ]
     if len(matches) != 1:
         raise ValueError("missing uniquely correlated CRS deny event")
+    return matches[0]
+
+def intervention_rule_id(record):
+    value = record.get("rule_id")
+    if type(value) is not int or not 1 <= value <= 9_999_999:
+        raise ValueError("structured CRS deny event lacks a bounded intervention rule id")
+    return value
 
 def canonical_trigger(path, transaction_id):
     if not path.is_file() or path.is_symlink():
@@ -345,8 +355,10 @@ for path, status in probes:
     probe(path, status)
 events = jsonl(event_path)
 completions = jsonl(completion_path)
-disruptive(events, block_id)
-disruptive(events, bypass_id)
+block_intervention_rule_id = intervention_rule_id(disruptive(events, block_id))
+bypass_intervention_rule_id = intervention_rule_id(disruptive(events, bypass_id))
+if block_intervention_rule_id != 949110 or bypass_intervention_rule_id != 949110:
+    raise ValueError("structured CRS deny event has an unexpected intervention rule id")
 canonical_trigger(raw_service_log, block_id)
 canonical_trigger(raw_service_log, bypass_id)
 allow_completions = [
@@ -358,8 +370,14 @@ allow_completions = [
 ]
 if len(allow_completions) != 1:
     raise ValueError("missing uniquely correlated CRS allow completion")
+print(f"{block_intervention_rule_id}:{bypass_intervention_rule_id}")
 PY
-        then
+        ); then
+            if [ "$crs_intervention_ids" != "949110:949110" ]; then
+                continue
+            fi
+            crs_block_intervention_rule_id=${crs_intervention_ids%%:*}
+            crs_bypass_intervention_rule_id=${crs_intervention_ids#*:}
             crs_evidence_ready=1
             break
         fi
@@ -391,9 +409,20 @@ PY
         printf 'allow_observed_status=%s\n' "$crs_allow_status"
         printf 'block_request_id=%s\n' "$CRS_BLOCK_TRANSACTION_ID"
         printf 'block_observed_status=%s\n' "$crs_block_status"
+        printf 'block_observed_action=deny\n'
+        printf 'block_trigger_rule_id=942270\n'
+        printf 'block_intervention_rule_id=%s\n' "$crs_block_intervention_rule_id"
         printf 'bypass_request_id=%s\n' "$CRS_BYPASS_TRANSACTION_ID"
         printf 'bypass_observed_status=%s\n' "$crs_bypass_status"
+        printf 'bypass_observed_action=deny\n'
+        printf 'bypass_trigger_rule_id=942270\n'
+        printf 'bypass_intervention_rule_id=%s\n' "$crs_bypass_intervention_rule_id"
         printf 'canonical_trigger_rule_id=942270\n'
+        # These fields are emitted only after config validation, process
+        # readiness, and all three host probes above have succeeded.
+        printf 'config_test_status=PASS\n'
+        printf 'host_start_status=PASS\n'
+        printf 'reachability_status=PASS\n'
         printf 'event_log=%s\n' "$COMMON_EVENT_LOG_PATH"
         printf 'completion_log=%s\n' "$COMPLETION_LOG_PATH"
         printf 'modsecurity_log=%s\n' "$SERVICE_STDERR"
@@ -680,6 +709,7 @@ if [ "$CRS_RUNTIME" = 1 ]; then
     service_pid=
     upstream_pid=
     trap - EXIT HUP INT TERM
+    printf 'cleanup_status=PASS\n' >> "$SUMMARY"
     printf 'processes_stopped=yes\n' >> "$SUMMARY"
     printf 'envoy_ext_proc_runtime: pass (CRS runtime) summary=%s\n' "$SUMMARY"
     exit 0
@@ -1080,6 +1110,9 @@ PY
     printf 'common_runtime_config=%s\n' "$EXT_PROC_RUNTIME_CONFIG"
     printf 'rules_file=%s\n' "$resolved_rules_file"
     printf 'rules_source=%s\n' "$RULES_SOURCE"
+    printf 'config_test_status=PASS\n'
+    printf 'host_start_status=PASS\n'
+    printf 'reachability_status=PASS\n'
     printf 'response_body_rule_evaluation=raw_common_event_and_host_safe_log_only\n'
     printf 'production_ready=false\n'
 } > "$SUMMARY"
@@ -1089,5 +1122,6 @@ envoy_pid=
 service_pid=
 upstream_pid=
 trap - EXIT HUP INT TERM
+printf 'cleanup_status=PASS\n' >> "$SUMMARY"
 printf 'processes_stopped=yes\n' >> "$SUMMARY"
 printf 'envoy_ext_proc_runtime: pass (non-promoted) summary=%s\n' "$SUMMARY"
