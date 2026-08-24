@@ -11,6 +11,13 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260824-connector-runtime-gap-analysis](CR-20260824-connector-runtime-gap-analysis.de.md) —
+  der aktuelle Benutzer autorisierte diese Parent-only, dokumentationsbezogene,
+  evidenzbasierte Gap-Analyse für die zehn Connectorpfade und einen Draft-PR.
+  Sie unterscheidet retained von reiner Source-Evidence, behauptet kein
+  `fully_runtime_verified` und ändert keinen Produkt-, Test-, CI-/Governance-,
+  Framework-, MRTS-, Gitlink- oder Merge-Status.
+
 - [CR-20260823-pr309-lighttpd-config-reference-repair](CR-20260823-pr309-lighttpd-config-reference-repair.de.md) —
   die Parent-only-Nachfolgereparatur stellt den geschlossenen Lighttpd-
   Config-Reference-Vertrag nach dem Post-Merge-Validierungsfehler von PR #309

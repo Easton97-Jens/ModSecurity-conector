@@ -10,6 +10,14 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260824-connector-runtime-gap-analysis](CR-20260824-connector-runtime-gap-analysis.md)
+  | [Deutsch](CR-20260824-connector-runtime-gap-analysis.de.md) — the current
+  user authorized this Parent-only, documentation-only evidence-based gap
+  analysis for the ten connector paths and one Draft PR. It distinguishes
+  retained from source-only evidence, does not claim `fully_runtime_verified`,
+  and changes no product, test, CI/governance, Framework, MRTS, Gitlink, or
+  merge state.
+
 - [CR-20260823-pr309-lighttpd-config-reference-repair](CR-20260823-pr309-lighttpd-config-reference-repair.md)
   | [Deutsch](CR-20260823-pr309-lighttpd-config-reference-repair.de.md) — the
   Parent-only successor repair restores the closed Lighttpd configuration-
