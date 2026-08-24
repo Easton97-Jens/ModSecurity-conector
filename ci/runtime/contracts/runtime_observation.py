@@ -789,6 +789,14 @@ def _validate_identity(
     identity = _as_mapping(identity_value, "identity", issues)
     if identity is None:
         return None
+    _validate_identity_contract(identity, issues)
+    _validate_identity_profile(identity, issues)
+    _validate_identity_commits(identity, issues)
+    _validate_expected_identity(identity, expected_identity, issues)
+    return identity
+
+
+def _validate_identity_contract(identity: Mapping[str, Any], issues: _Issues) -> None:
     required = {
         "connector",
         "integration_mode",
@@ -810,6 +818,9 @@ def _validate_identity(
         _check_string_field(identity, field, "identity", issues)
     if connector in CONNECTOR_INTEGRATION_MODES and identity.get("integration_mode") != CONNECTOR_INTEGRATION_MODES[connector]:
         issues.error("identity.integration_mode does not match the connector contract")
+
+
+def _validate_identity_profile(identity: Mapping[str, Any], issues: _Issues) -> None:
     profile = identity.get("profile")
     requirements = _profile_requirements_for_identity(profile, issues)
     for field in ("crs", "mrts"):
@@ -819,23 +830,33 @@ def _validate_identity(
         for field in ("crs", "mrts"):
             if identity.get(field) is not requirements[field]:
                 issues.error(f"identity.{field} contradicts identity.profile")
+
+
+def _validate_identity_commits(identity: Mapping[str, Any], issues: _Issues) -> None:
     for field in ("parent_commit", "framework_commit", "mrts_commit"):
         value = identity.get(field)
         if not isinstance(value, str) or COMMIT.fullmatch(value) is None:
             issues.error(f"identity.{field} must be a lowercase full commit")
-    if expected_identity is not None:
-        aliases = {
-            "parent_sha": "parent_commit",
-            "framework_sha": "framework_commit",
-            "mrts_sha": "mrts_commit",
-        }
-        for supplied_name, supplied_value in expected_identity.items():
-            name = aliases.get(supplied_name, supplied_name)
-            if name not in identity:
-                issues.error(f"expected identity contains unsupported field {supplied_name}")
-            elif supplied_value is not None and identity.get(name) != supplied_value:
-                issues.error(f"identity.{name} does not match expected identity")
-    return identity
+
+
+def _validate_expected_identity(
+    identity: Mapping[str, Any],
+    expected_identity: Mapping[str, Any] | None,
+    issues: _Issues,
+) -> None:
+    if expected_identity is None:
+        return
+    aliases = {
+        "parent_sha": "parent_commit",
+        "framework_sha": "framework_commit",
+        "mrts_sha": "mrts_commit",
+    }
+    for supplied_name, supplied_value in expected_identity.items():
+        name = aliases.get(supplied_name, supplied_name)
+        if name not in identity:
+            issues.error(f"expected identity contains unsupported field {supplied_name}")
+        elif supplied_value is not None and identity.get(name) != supplied_value:
+            issues.error(f"identity.{name} does not match expected identity")
 
 
 def _profile_requirements_for_identity(
@@ -1308,35 +1329,59 @@ def _validate_evidence_records(
     paths: set[str] = set()
     has_bound_evidence = False
     for index, item in enumerate(evidence):
-        record = _as_mapping(item, f"provenance.evidence[{index}]", issues)
+        record, is_bound = _validate_evidence_record(
+            index, item, evidence_kind, names, paths, issues
+        )
         if record is None:
             continue
-        label = f"provenance.evidence[{index}]"
-        _require_exact_keys(record, {"name", "path", "sha256", "kind"}, set(), label, issues)
-        if not _safe_token(record.get("name")):
-            issues.error(f"{label}.name must be a bounded token")
-        if not _safe_relative_evidence_path(record.get("path")):
-            issues.error(f"{label}.path must be a safe relative path")
-        digest = record.get("sha256")
-        if not isinstance(digest, str) or SHA256.fullmatch(digest) is None:
-            issues.error(f"{label}.sha256 must be a SHA-256 digest")
-        _validate_evidence_record_kind(record.get("kind"), evidence_kind, label, issues)
-        if record.get("kind") == evidence_kind:
-            has_bound_evidence = True
-        name = record.get("name")
-        path = record.get("path")
-        if isinstance(name, str) and name in names:
-            issues.error("provenance.evidence contains duplicate names")
-        if isinstance(path, str) and path in paths:
-            issues.error("provenance.evidence contains duplicate paths")
-        if isinstance(name, str):
-            names.add(name)
-        if isinstance(path, str):
-            paths.add(path)
+        has_bound_evidence = has_bound_evidence or is_bound
         valid_records.append(record)
     if not has_bound_evidence:
         issues.error("provenance.evidence needs connector-bound evidence, not only a manifest")
     return valid_records
+
+
+def _validate_evidence_record(
+    index: int,
+    item: object,
+    evidence_kind: object,
+    names: set[str],
+    paths: set[str],
+    issues: _Issues,
+) -> tuple[dict[str, Any] | None, bool]:
+    label = f"provenance.evidence[{index}]"
+    record = _as_mapping(item, label, issues)
+    if record is None:
+        return None, False
+    _require_exact_keys(record, {"name", "path", "sha256", "kind"}, set(), label, issues)
+    if not _safe_token(record.get("name")):
+        issues.error(f"{label}.name must be a bounded token")
+    if not _safe_relative_evidence_path(record.get("path")):
+        issues.error(f"{label}.path must be a safe relative path")
+    digest = record.get("sha256")
+    if not isinstance(digest, str) or SHA256.fullmatch(digest) is None:
+        issues.error(f"{label}.sha256 must be a SHA-256 digest")
+    _validate_evidence_record_kind(record.get("kind"), evidence_kind, label, issues)
+    _validate_evidence_record_uniqueness(record, names, paths, issues)
+    return record, record.get("kind") == evidence_kind
+
+
+def _validate_evidence_record_uniqueness(
+    record: Mapping[str, Any],
+    names: set[str],
+    paths: set[str],
+    issues: _Issues,
+) -> None:
+    name = record.get("name")
+    path = record.get("path")
+    if isinstance(name, str) and name in names:
+        issues.error("provenance.evidence contains duplicate names")
+    if isinstance(path, str) and path in paths:
+        issues.error("provenance.evidence contains duplicate paths")
+    if isinstance(name, str):
+        names.add(name)
+    if isinstance(path, str):
+        paths.add(path)
 
 
 def _validate_evidence_record_kind(
@@ -1382,6 +1427,23 @@ def _validate_provenance(
     provenance = _as_mapping(value, "provenance", issues)
     if provenance is None:
         return None
+    _validate_provenance_header(provenance, issues)
+    _validate_provenance_kind(provenance, issues)
+    _validate_provenance_fields(provenance, identity, issues)
+    evidence_kind = provenance.get("evidence_kind")
+    _validate_producer_binding(identity, provenance, policy, issues)
+    valid_records = _validate_evidence_records(provenance.get("evidence"), evidence_kind, issues)
+    if valid_records and provenance.get("evidence_digest") != evidence_manifest_digest(valid_records):
+        issues.error("provenance.evidence_digest does not bind the evidence inventory")
+    if _has_forbidden_metadata(provenance):
+        issues.error("provenance contains raw-log, payload, or absolute-path metadata")
+    _validate_provenance_evidence_root(provenance, evidence_kind, valid_records, policy, issues)
+    return provenance
+
+
+def _validate_provenance_header(
+    provenance: Mapping[str, Any], issues: _Issues
+) -> None:
     required = {
         "evidence_kind",
         "fixture_id",
@@ -1408,11 +1470,21 @@ def _validate_provenance(
         issues.error("provenance.validation_timestamp is not an ISO-8601 UTC timestamp")
     if "validation_basis" in provenance and provenance["validation_basis"] != "evidence-digest-v1":
         issues.error("provenance.validation_basis is unsupported")
+
+
+def _validate_provenance_kind(provenance: Mapping[str, Any], issues: _Issues) -> None:
     evidence_kind = provenance.get("evidence_kind")
     if evidence_kind not in CANONICAL_EVIDENCE_KINDS:
         issues.error("provenance.evidence_kind is not canonical")
     if evidence_kind in RAW_EVIDENCE_KINDS:
         issues.error("provenance.evidence_kind cannot name raw or synthetic evidence")
+
+
+def _validate_provenance_fields(
+    provenance: Mapping[str, Any],
+    identity: Mapping[str, Any] | None,
+    issues: _Issues,
+) -> None:
     for field in ("fixture_id", "source_contract", "producer_version"):
         _check_string_field(provenance, field, "provenance", issues)
     for field in ("manifest_digest", "evidence_digest"):
@@ -1423,12 +1495,15 @@ def _validate_provenance(
         issues.error("provenance.contract_schema_version does not match schema_version")
     if identity is not None and provenance.get("producer_version") != identity.get("producer_version"):
         issues.error("provenance.producer_version does not match identity.producer_version")
-    _validate_producer_binding(identity, provenance, policy, issues)
-    valid_records = _validate_evidence_records(provenance.get("evidence"), evidence_kind, issues)
-    if valid_records and provenance.get("evidence_digest") != evidence_manifest_digest(valid_records):
-        issues.error("provenance.evidence_digest does not bind the evidence inventory")
-    if _has_forbidden_metadata(provenance):
-        issues.error("provenance contains raw-log, payload, or absolute-path metadata")
+
+
+def _validate_provenance_evidence_root(
+    provenance: Mapping[str, Any],
+    evidence_kind: object,
+    valid_records: list[dict[str, Any]],
+    policy: Mapping[str, Any],
+    issues: _Issues,
+) -> None:
     evidence_root = policy.get("evidence_root")
     if evidence_root is None and evidence_kind != "canonical_fixture":
         if policy["allow_partial"]:
@@ -1437,7 +1512,6 @@ def _validate_provenance(
             issues.error("live runtime evidence requires a private evidence root")
     elif evidence_root is not None and valid_records:
         _validate_referenced_evidence(evidence_root, valid_records, issues)
-    return provenance
 
 
 def _observation_digest(value: object) -> str | None:
