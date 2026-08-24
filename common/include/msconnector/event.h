@@ -124,6 +124,8 @@ typedef struct msconnector_event_request {
  */
 typedef struct msconnector_event_integrity {
     unsigned long sequence;
+    /* FNV-derived, process-local correlation values. These are not
+     * cryptographic signatures and must not be treated as tamper evidence. */
     uint64_t previous_hash;
     uint64_t event_hash;
 } msconnector_event_integrity;

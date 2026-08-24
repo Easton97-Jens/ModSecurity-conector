@@ -37,7 +37,7 @@ The adapter-owned Apache connector currently registers:
 - `modsecurity on|off`
 - `modsecurity_rules`
 - `modsecurity_rules_file`
-- `modsecurity_rules_remote`
+- `modsecurity_rules_remote` (rejected: remote rule loading is disabled by the common security policy)
 - `modsecurity_use_error_log on|off`
 - `modsecurity_transaction_id <string>`
 - `modsecurity_transaction_id_expr <apache-expression>`

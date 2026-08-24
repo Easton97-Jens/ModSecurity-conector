@@ -38,7 +38,7 @@ Der adaptereigene Apache-Connector registriert derzeit Folgendes:
 - `modsecurity on|off`
 - `modsecurity_rules`
 - `modsecurity_rules_file`
-- `modsecurity_rules_remote`
+- `modsecurity_rules_remote` (abgelehnt: Remote-Regelladen ist durch die gemeinsame Sicherheitsrichtlinie deaktiviert)
 - `modsecurity_use_error_log on|off`
 - `modsecurity_transaction_id <string>`
 - `modsecurity_transaction_id_expr <apache-expression>`

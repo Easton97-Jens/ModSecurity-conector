@@ -10,6 +10,13 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260824-connector-security-invariants](CR-20260824-connector-security-invariants.md)
+  | [Deutsch](CR-20260824-connector-security-invariants.de.md) — the
+  user-authorized Parent-only connector security hardening records local
+  remote-rule, HTTP-boundary, and event-runtime evidence. It excludes
+  Framework/MRTS, Gitlink, CI/governance, and mixed concurrent edits; hosted
+  checks and a merge are not asserted.
+
 - [CR-20260823-pr309-lighttpd-config-reference-repair](CR-20260823-pr309-lighttpd-config-reference-repair.md)
   | [Deutsch](CR-20260823-pr309-lighttpd-config-reference-repair.de.md) — the
   Parent-only successor repair restores the closed Lighttpd configuration-

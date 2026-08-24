@@ -256,7 +256,7 @@ The adapter-owned NGINX connector currently registers:
 - `modsecurity on|off`
 - `modsecurity_rules`
 - `modsecurity_rules_file`
-- `modsecurity_rules_remote`
+- `modsecurity_rules_remote` (rejected: remote rule loading is disabled by the common security policy)
 - `modsecurity_transaction_id`
 - `modsecurity_use_error_log on|off`
 - `modsecurity_phase4_mode minimal|safe|strict`

@@ -46,10 +46,6 @@ static int remote_pair_requested(const msconnector_config *config) {
     return !string_empty(config->rules_remote_key) || !string_empty(config->rules_remote_url);
 }
 
-static int remote_pair_complete(const msconnector_config *config) {
-    return !string_empty(config->rules_remote_key) && !string_empty(config->rules_remote_url);
-}
-
 static const char *merge_string(const char *parent, const char *child) {
     if (child != 0) {
         return child;
@@ -309,8 +305,9 @@ int msconnector_config_validate(const msconnector_config *config, char *error, s
         return 0;
     }
 
-    if (remote_pair_requested(config) && !remote_pair_complete(config)) {
-        set_error(error, error_len, "incomplete remote rules pair");
+    if (remote_pair_requested(config)) {
+        set_error(error, error_len,
+            "remote rule loading is disabled by security policy");
         return 0;
     }
 

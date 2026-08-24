@@ -258,7 +258,9 @@ static int parse_listen_spec(
     if (strcmp(host, "localhost") == 0) {
         (void)snprintf(host, host_size, "%s", "127.0.0.1");
     }
-    if (strcmp(host, "127.0.0.1") != 0 && strcmp(host, "0.0.0.0") != 0) {
+    /* This endpoint has no authenticated transport.  Keep it loopback-only;
+     * a wildcard bind would expose authorization decisions to the network. */
+    if (strcmp(host, "127.0.0.1") != 0) {
         return 0;
     }
     *port = (int)parsed_port;
@@ -726,6 +728,31 @@ static const char *request_uri(
     return request->uri;
 }
 
+static int security_header_duplicates_are_rejected(
+    const parsed_http_request *request,
+    const msconnector_http_authorization_profile *profile,
+    char *error,
+    size_t error_len) {
+    if (request == NULL || profile == NULL || error == NULL || error_len == 0U) {
+        return 0;
+    }
+    if (msconnector_headers_count_name(
+            request->headers, request->header_count, "host") > 1U) {
+        (void)snprintf(error, error_len, "%s", "duplicate Host header");
+        return 0;
+    }
+    for (size_t index = 0U; index < profile->original_uri_header_count; ++index) {
+        const char *name = profile->original_uri_headers[index];
+        if (msconnector_headers_count_name(
+                request->headers, request->header_count, name) > 1U) {
+            (void)snprintf(error, error_len,
+                "duplicate security-sensitive header: %s", name);
+            return 0;
+        }
+    }
+    return 1;
+}
+
 static const char *request_hostname(parsed_http_request *request) {
     const msconnector_header *host = msconnector_headers_find_first(
         request->headers, request->header_count, "host");
@@ -750,7 +777,11 @@ static int send_all(
             return 0;
         }
         do {
+#ifdef MSG_NOSIGNAL
+            result = send(socket_fd, data + sent, size - sent, MSG_NOSIGNAL);
+#else
             result = send(socket_fd, data + sent, size - sent, 0);
+#endif
         } while (result < 0 && errno == EINTR && !authorization_stop);
         if (result < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
             continue;
@@ -918,6 +949,14 @@ static int handle_authorization_request(
         parsed_request_destroy(&parsed);
         return 0;
     }
+    if (!security_header_duplicates_are_rejected(
+            &parsed, service->profile, error, sizeof(error))) {
+        (void)send_response(
+            connection->socket_fd, 400, NULL, "invalid_request",
+            service->connection_timeout_ms);
+        parsed_request_destroy(&parsed);
+        return 0;
+    }
     source.method = parsed.method;
     source.uri = request_uri(&parsed, service->profile);
     source.http_version = parsed.http_version;
@@ -1073,6 +1112,7 @@ static void authorization_worker_release(authorization_worker *worker) {
 static void *authorization_worker_main(void *argument) {
     authorization_worker *worker = argument;
     authorization_connection connection;
+    int request_result;
     if (worker == NULL) {
         return NULL;
     }
@@ -1080,7 +1120,11 @@ static void *authorization_worker_main(void *argument) {
     connection.peer = &worker->peer;
     connection.local = &worker->local;
     connection.read_deadline = &worker->read_deadline;
-    (void)handle_authorization_request(&connection, worker->service);
+    request_result = handle_authorization_request(&connection, worker->service);
+    if (!request_result && !authorization_stop) {
+        (void)fprintf(stderr, "%s authorization request terminated without "
+            "a response\n", worker->service->profile->connector_name);
+    }
     authorization_worker_release(worker);
     return NULL;
 }
@@ -1154,19 +1198,33 @@ static void authorization_shutdown_workers(authorization_service *service) {
     (void)pthread_mutex_unlock(&service->worker_lock);
 }
 
-static int authorization_wait_for_workers(authorization_service *service) {
+static int authorization_wait_for_workers(
+    authorization_service *service,
+    unsigned long timeout_ms) {
+    struct timespec deadline;
     int result;
-    if (service == NULL || pthread_mutex_lock(&service->worker_lock) != 0) {
+    int workers_finished;
+    if (service == NULL || timeout_ms == 0UL ||
+        clock_gettime(CLOCK_REALTIME, &deadline) != 0 ||
+        pthread_mutex_lock(&service->worker_lock) != 0) {
         return 0;
+    }
+    deadline.tv_sec += (time_t)(timeout_ms / 1000UL);
+    deadline.tv_nsec += (long)((timeout_ms % 1000UL) * 1000000UL);
+    if (deadline.tv_nsec >= 1000000000L) {
+        ++deadline.tv_sec;
+        deadline.tv_nsec -= 1000000000L;
     }
     result = 0;
     while (service->active_workers > 0UL && result == 0) {
-        result = pthread_cond_wait(&service->workers_idle, &service->worker_lock);
+        result = pthread_cond_timedwait(
+            &service->workers_idle, &service->worker_lock, &deadline);
     }
+    workers_finished = result == 0 && service->active_workers == 0UL;
     if (pthread_mutex_unlock(&service->worker_lock) != 0) {
         return 0;
     }
-    return result == 0;
+    return workers_finished;
 }
 
 static authorization_listener_iteration authorization_wait_for_listener(
@@ -1228,10 +1286,17 @@ static authorization_listener_iteration authorization_serve_next_connection(
         (void)close(client_fd);
         return AUTHORIZATION_LISTENER_HANDLED;
     }
-    if (authorization_start_worker(
-            service, client_fd, &peer, local, &read_deadline) < 0) {
-        (void)fprintf(stderr, "%s worker start failed\n",
-            service->profile->connector_name);
+    {
+        const int worker_result = authorization_start_worker(
+            service, client_fd, &peer, local, &read_deadline);
+        if (worker_result < 0) {
+            (void)fprintf(stderr, "%s worker start failed\n",
+                service->profile->connector_name);
+        } else if (worker_result == 0) {
+            (void)fprintf(stderr, "%s worker admission limit reached; "
+                "connection closed fail-closed\n",
+                service->profile->connector_name);
+        }
     }
     return AUTHORIZATION_LISTENER_HANDLED;
 }
@@ -1294,7 +1359,6 @@ static int serve_authorization(
     (void)sigemptyset(&action.sa_mask);
     (void)sigaction(SIGTERM, &action, NULL);
     (void)sigaction(SIGINT, &action, NULL);
-    (void)signal(SIGPIPE, SIG_IGN);
     (void)printf("connector=%s integration_mode=%s listen=%s status=ready\n",
         profile->connector_name, profile->integration_mode, cli->listen_spec);
     (void)fflush(stdout);
@@ -1306,11 +1370,23 @@ static int serve_authorization(
     if (authorization_stop || service_status != 0) {
         authorization_shutdown_workers(&service);
     }
-    if (!authorization_wait_for_workers(&service)) {
-        (void)fprintf(stderr, "%s worker shutdown failed\n",
-            profile->connector_name);
+    if (!authorization_wait_for_workers(&service, cli->connection_timeout_ms)) {
+        /* A socket shutdown cannot interrupt an uninterruptible call into
+         * libmodsecurity.  Give workers one bounded grace period, then close
+         * their sockets and wait once more.  If a worker still owns the
+         * runtime, leave the service/runtime allocated and return: the main
+         * process exits with a defined failure status instead of creating a
+         * use-after-free by destroying objects still referenced by a worker.
+         */
+        (void)fprintf(stderr, "%s worker shutdown grace period expired; "
+            "forcing socket cancellation\n", profile->connector_name);
         authorization_shutdown_workers(&service);
-        abort();
+        if (!authorization_wait_for_workers(
+                &service, cli->connection_timeout_ms)) {
+            (void)fprintf(stderr, "%s worker shutdown did not complete; "
+                "runtime call may be uninterruptible\n", profile->connector_name);
+            return 1;
+        }
     }
     authorization_service_destroy(&service);
     msconnector_runtime_destroy(&runtime);

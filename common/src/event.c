@@ -219,6 +219,8 @@ static int append_protocol_string(
     size_t *offset,
     const char *name,
     const char *value) {
+    char escaped_value[EVENT_TEXT_SIZE * 2U];
+    size_t escaped_size;
     int written;
     if (dst == NULL || offset == NULL || name == NULL || value == NULL || value[0] == '\0') {
         return 1;
@@ -226,7 +228,13 @@ static int append_protocol_string(
     if (*offset >= dst_size) {
         return 0;
     }
-    written = snprintf(dst + *offset, dst_size - *offset, ",\"%s\":\"%s\"", name, value);
+    escaped_size = msconnector_json_escape(
+        value, escaped_value, sizeof(escaped_value));
+    if (escaped_size >= sizeof(escaped_value)) {
+        return 0;
+    }
+    written = snprintf(dst + *offset, dst_size - *offset,
+        ",\"%s\":\"%s\"", name, escaped_value);
     if (written < 0 || (size_t)written >= dst_size - *offset) {
         return 0;
     }
@@ -258,7 +266,7 @@ static int protocol_metadata_present(
     size_t index;
 
     for (index = 0U; index < EVENT_PROTOCOL_TEXT_COUNT; ++index) {
-        if (values[index][0] != '\0') {
+        if (values[index] != NULL && values[index][0] != '\0') {
             return 1;
         }
     }
@@ -661,22 +669,52 @@ int msconnector_event_write_json_ex(
     }
 
     {
+        const char *safe_connection_id = event->protocol.connection_id;
+        const char *safe_reset_by = event->protocol.reset_by;
+        const char *safe_reset_code = event->protocol.reset_code;
+        const char *safe_timeout_stage = event->flags.timeout_stage;
+        const char *safe_write_result = event->flags.write_result;
+        const char *safe_cleanup_reason = event->flags.cleanup_reason;
+        if (((event->protocol.negotiated_protocol != NULL &&
+                strcmp(event->protocol.negotiated_protocol, "h3") == 0) ||
+            (event->protocol.downstream_protocol != NULL &&
+                strcmp(event->protocol.downstream_protocol, "h3") == 0) ||
+            (event->protocol.transport != NULL &&
+                strcmp(event->protocol.transport, "quic_udp") == 0)) &&
+            !is_nonreversible_quic_connection_id(safe_connection_id)) {
+            safe_connection_id = NULL;
+        }
+        if (!is_bounded_transport_value(safe_reset_by)) {
+            safe_reset_by = NULL;
+        }
+        if (!is_bounded_transport_value(safe_reset_code)) {
+            safe_reset_code = NULL;
+        }
+        if (!is_bounded_transport_value(safe_timeout_stage)) {
+            safe_timeout_stage = NULL;
+        }
+        if (!is_bounded_transport_value(safe_write_result)) {
+            safe_write_result = NULL;
+        }
+        if (!is_bounded_transport_value(safe_cleanup_reason)) {
+            safe_cleanup_reason = NULL;
+        }
         const char *const protocol_values[EVENT_PROTOCOL_TEXT_COUNT] = {
-            requested_protocol,
-            downstream_protocol,
-            upstream_protocol,
-            negotiated_protocol,
-            transport,
-            alpn,
-            stream_id,
-            connection_id,
-            quic_version,
-            stream_reset_code,
-            reset_by,
-            reset_code,
-            timeout_stage,
-            write_result,
-            cleanup_reason
+            event->protocol.requested_protocol,
+            event->protocol.downstream_protocol,
+            event->protocol.upstream_protocol,
+            event->protocol.negotiated_protocol,
+            event->protocol.transport,
+            event->protocol.alpn,
+            event->protocol.stream_id,
+            safe_connection_id,
+            event->protocol.quic_version,
+            event->protocol.stream_reset_code,
+            safe_reset_by,
+            safe_reset_code,
+            safe_timeout_stage,
+            safe_write_result,
+            safe_cleanup_reason
         };
         const int protocol_flags[EVENT_PROTOCOL_FLAG_COUNT] = {
             event->protocol.connection_reused,

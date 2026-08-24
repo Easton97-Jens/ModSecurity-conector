@@ -271,7 +271,7 @@ Der adaptereigene NGINX-Connector registriert derzeit Folgendes:
 - `modsecurity on|off`
 - `modsecurity_rules`
 - `modsecurity_rules_file`
-- `modsecurity_rules_remote`
+- `modsecurity_rules_remote` (abgelehnt: Remote-Regelladen ist durch die gemeinsame Sicherheitsrichtlinie deaktiviert)
 - `modsecurity_transaction_id`
 - `modsecurity_use_error_log on|off`
 - `modsecurity_phase4_mode minimal|safe|strict`

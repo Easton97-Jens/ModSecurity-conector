@@ -11,6 +11,13 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260824-connector-security-invariants](CR-20260824-connector-security-invariants.de.md)
+  | [English](CR-20260824-connector-security-invariants.md) — das
+  benutzerautorisierte Parent-only-Connector-Security-Hardening hält lokale
+  Remote-Rule-, HTTP-Grenz- und Event-Runtime-Evidence fest. Es schließt
+  Framework/MRTS, Gitlink, CI/Governance und gemischte gleichzeitige Edits aus;
+  Hosted-Checks und ein Merge werden nicht behauptet.
+
 - [CR-20260823-pr309-lighttpd-config-reference-repair](CR-20260823-pr309-lighttpd-config-reference-repair.de.md) —
   die Parent-only-Nachfolgereparatur stellt den geschlossenen Lighttpd-
   Config-Reference-Vertrag nach dem Post-Merge-Validierungsfehler von PR #309
