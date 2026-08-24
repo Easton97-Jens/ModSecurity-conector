@@ -1437,7 +1437,7 @@ def _validate_provenance(
         issues.error("provenance.evidence_digest does not bind the evidence inventory")
     if _has_forbidden_metadata(provenance):
         issues.error("provenance contains raw-log, payload, or absolute-path metadata")
-    _validate_provenance_evidence_root(provenance, evidence_kind, valid_records, policy, issues)
+    _validate_provenance_evidence_root(evidence_kind, valid_records, policy, issues)
     return provenance
 
 
@@ -1498,7 +1498,6 @@ def _validate_provenance_fields(
 
 
 def _validate_provenance_evidence_root(
-    provenance: Mapping[str, Any],
     evidence_kind: object,
     valid_records: list[dict[str, Any]],
     policy: Mapping[str, Any],
