@@ -47,8 +47,12 @@ require_mrts_go_invocation() {
         *) : ;;
     esac
     case "$candidate" in
+        *:*) echo "FAIL: MRTS Go binary path contains a PATH separator" >&2; return 77 ;;
+        *) : ;;
+    esac
+    case "$candidate" in
         "$CONNECTOR_ROOT"/*) echo "FAIL: MRTS Go binary must not come from the checkout" >&2; return 77 ;;
-        /usr/local/go/*|/opt/hostedtoolcache/go/*) ;;
+        /usr/local/go/bin/go|/opt/hostedtoolcache/go/*/bin/go) ;;
         *) echo "FAIL: MRTS Go binary is outside the approved setup-go roots" >&2; return 77 ;;
     esac
     [ ! -L "$candidate" ] || { echo "FAIL: MRTS Go binary must not be a symlink" >&2; return 77; }
@@ -67,6 +71,21 @@ require_mrts_go_invocation() {
         [ ! -L "$parent" ] || { echo "FAIL: MRTS Go binary has a symlinked parent: $candidate" >&2; return 77; }
         parent=${parent%/*}
     done
+}
+
+set_mrts_go_path() {
+    candidate=$1
+    require_mrts_go_invocation "$candidate" || return $?
+    MRTS_GO_BIN_DIR=${candidate%/go}
+    case "$MRTS_GO_BIN_DIR" in
+        /usr/local/go/bin|/opt/hostedtoolcache/go/*/bin) ;;
+        *) echo "FAIL: MRTS Go binary directory is outside the approved setup-go roots" >&2; return 77 ;;
+    esac
+    # The connector's build scripts call literal `go`.  Put the same sealed,
+    # digest-verified executable directory first so those calls cannot fall
+    # back to an older system Go selected by the runner image.
+    PATH=$MRTS_GO_BIN_DIR:/usr/local/go/bin:/usr/bin:/bin
+    export PATH
 }
 
 validate_mrts_direct_invocation() {
@@ -335,7 +354,7 @@ if [ "${MSCONNECTOR_MRTS_STAGE:-}" = no_crs_with_mrts ]; then
     GOTOOLCHAIN=local
     PYTHON=$MRTS_PYTHON_BIN
     PYTHON_BIN=$MRTS_PYTHON_BIN
-    PATH=/usr/local/go/bin:/usr/bin:/bin
+    set_mrts_go_path "$MRTS_GO_BINARY" || exit $?
     HOME=$MRTS_HOME
     XDG_CACHE_HOME=$MRTS_XDG_CACHE_HOME
     GOPATH=$MRTS_GOPATH
@@ -504,12 +523,12 @@ reassert_mrts_closed_environment() {
     RUNTIME_ROOT=$MRTS_CLOSED_RUNTIME_ROOT
     RUNTIME_BASE=$MRTS_CLOSED_RUNTIME_BASE
     RUNTIME_REPORT_OUTPUT_ROOT=$MRTS_CLOSED_RUNTIME_REPORT_OUTPUT_ROOT
-    PATH=$MRTS_CLOSED_PATH
     MRTS_GO_BINARY=$MRTS_CLOSED_GO_BINARY
     MRTS_GO_BINARY_SHA256=$MRTS_CLOSED_GO_SHA256
     MRTS_GO_VERSION=$MRTS_CLOSED_GO_VERSION
     require_mrts_go_invocation "$MRTS_GO_BINARY" || return $?
     GO=$MRTS_GO_BINARY
+    set_mrts_go_path "$MRTS_GO_BINARY" || return $?
     GOTOOLCHAIN=$MRTS_CLOSED_GOTOOLCHAIN
     PYTHON=$MRTS_CLOSED_PYTHON
     PYTHON_BIN=$MRTS_CLOSED_PYTHON
@@ -542,7 +561,7 @@ reassert_mrts_closed_environment() {
     RULES_FILE=$MRTS_LOAD_FILE
     MODSECURITY_RULE_PREAMBLE_FILE=$NO_CRS_RULES_FILE
     prepare_mrts_toolchain_roots
-    [ "$GO" = "$MRTS_CLOSED_GO_BINARY" ] && [ "$(sha256sum "$GO" | awk '{print $1}')" = "$MRTS_CLOSED_GO_SHA256" ] && [ "$("$GO" version | sed -n 's/^go version go\([0-9]*\.[0-9]*\)\..*$/\1/p')" = "$MRTS_CLOSED_GO_VERSION" ] && [ "$GOTOOLCHAIN" = local ] && [ "$GOENV" = off ] || {
+    [ "$PATH" = "$MRTS_CLOSED_PATH" ] && [ "$GO" = "$MRTS_CLOSED_GO_BINARY" ] && [ "$(sha256sum "$GO" | awk '{print $1}')" = "$MRTS_CLOSED_GO_SHA256" ] && [ "$("$GO" version | sed -n 's/^go version go\([0-9]*\.[0-9]*\)\..*$/\1/p')" = "$MRTS_CLOSED_GO_VERSION" ] && [ "$GOTOOLCHAIN" = local ] && [ "$GOENV" = off ] || {
         echo "FAIL: MRTS Go toolchain controls were not preserved after runtime snapshot load" >&2
         return 77
     }

@@ -35,6 +35,19 @@ class NoCrsWithMrtsDispatchContractTests(unittest.TestCase):
         ):
             self.assertIn(variable, source)
 
+    def test_direct_target_builds_resolve_literal_go_to_the_sealed_binary(self) -> None:
+        source = RUNNER.read_text(encoding="utf-8")
+        self.assertIn("set_mrts_go_path()", source)
+        self.assertIn("MRTS_GO_BIN_DIR=${candidate%/go}", source)
+        self.assertIn("MRTS Go binary path contains a PATH separator", source)
+        self.assertIn(
+            "PATH=$MRTS_GO_BIN_DIR:/usr/local/go/bin:/usr/bin:/bin",
+            source,
+        )
+        self.assertIn('set_mrts_go_path "$MRTS_GO_BINARY" || exit $?', source)
+        self.assertIn('set_mrts_go_path "$MRTS_GO_BINARY" || return $?', source)
+        self.assertIn('[ "$PATH" = "$MRTS_CLOSED_PATH" ]', source)
+
     def test_closed_values_are_readonly_before_snapshot_source(self) -> None:
         source = RUNNER.read_text(encoding="utf-8")
         self.assertIn("readonly MRTS_CLOSED_CONNECTOR_ROOT", source)
