@@ -686,6 +686,78 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "symlink|overwrite"):
                 NORMALIZER.atomic_write(link, b"nope\n", evidence)
 
+    def test_raw_evidence_reader_rejects_hardlinked_or_writable_files(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crs-normalizer-file-properties-") as temporary:
+            root = Path(temporary)
+            evidence = root / "evidence"
+            evidence.mkdir(mode=0o700)
+            target = evidence / "record.json"
+            private_file(target, b"original\n")
+            os.link(target, evidence / "record-alias.json")
+            with self.assertRaisesRegex(RuntimeError, "must not be hard-linked"):
+                NORMALIZER.open_contained_regular(target, evidence)
+            (evidence / "record-alias.json").unlink()
+            target.chmod(0o620)
+            with self.assertRaisesRegex(RuntimeError, "group- or world-writable"):
+                NORMALIZER.open_contained_regular(target, evidence)
+
+    def test_raw_evidence_reader_rejects_foreign_owner_metadata(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crs-normalizer-file-owner-") as temporary:
+            target = Path(temporary) / "record.json"
+            private_file(target, b"original\n")
+            with mock.patch.object(NORMALIZER.os, "geteuid", return_value=os.geteuid() + 1):
+                with self.assertRaisesRegex(RuntimeError, "owned by the current user"):
+                    NORMALIZER.require_safe_read_file(target.lstat(), "runtime evidence")
+
+    def test_raw_evidence_reader_rejects_writable_component_directory(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crs-normalizer-directory-properties-") as temporary:
+            root = Path(temporary)
+            evidence = root / "evidence"
+            evidence.mkdir(mode=0o700)
+            nested = evidence / "nested"
+            nested.mkdir(mode=0o700)
+            target = nested / "record.json"
+            private_file(target, b"original\n")
+            nested.chmod(0o720)
+            with self.assertRaisesRegex(RuntimeError, "group- or world-writable"):
+                NORMALIZER.open_contained_regular(target, evidence)
+
+    def test_raw_evidence_fifo_replacement_uses_nonblocking_open_and_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crs-normalizer-fifo-race-") as temporary:
+            root = Path(temporary)
+            evidence = root / "evidence"
+            evidence.mkdir(mode=0o700)
+            target = evidence / "record.json"
+            private_file(target, b"original\n")
+            displaced = evidence / "record.original"
+            real_open = NORMALIZER.os.open
+            replaced = False
+
+            def replace_before_open(path, flags, mode=0o777, *, dir_fd=None):
+                nonlocal replaced
+                if path == target.name and dir_fd is not None and not replaced:
+                    self.assertTrue(flags & os.O_NONBLOCK)
+                    replaced = True
+                    target.rename(displaced)
+                    os.mkfifo(target, mode=0o600)
+                return real_open(path, flags, mode, dir_fd=dir_fd)
+
+            with mock.patch.object(NORMALIZER.os, "open", side_effect=replace_before_open):
+                with self.assertRaisesRegex(RuntimeError, "not a regular file"):
+                    NORMALIZER.open_contained_regular(target, evidence)
+            self.assertTrue(replaced)
+
+    def test_raw_evidence_reader_requires_nonblocking_open_support(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crs-normalizer-nonblocking-") as temporary:
+            root = Path(temporary)
+            evidence = root / "evidence"
+            evidence.mkdir(mode=0o700)
+            target = evidence / "record.json"
+            private_file(target, b"original\n")
+            with mock.patch.object(NORMALIZER.os, "O_NONBLOCK", None):
+                with self.assertRaisesRegex(RuntimeError, "no-follow non-blocking support"):
+                    NORMALIZER.open_contained_regular(target, evidence)
+
     def test_evidence_replacement_between_lstat_and_open_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory(prefix="crs-normalizer-identity-") as temporary:
             root = Path(temporary)

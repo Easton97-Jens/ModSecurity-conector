@@ -95,13 +95,18 @@ CURL_TRACE_LOOPBACK_CONNECT_PREFIXES = (
 )
 
 
-def file_identity(details: os.stat_result) -> tuple[int, int, int, int]:
-    """Return the stable identity and type/size checked across an open."""
+def file_identity(details: os.stat_result) -> tuple[int, int, int, int, int, int, int, int, int]:
+    """Return the security-relevant file state checked across one read."""
     return (
         details.st_dev,
         details.st_ino,
         stat.S_IFMT(details.st_mode),
         details.st_size,
+        details.st_nlink,
+        details.st_uid,
+        stat.S_IMODE(details.st_mode),
+        details.st_mtime_ns,
+        details.st_ctime_ns,
     )
 
 
@@ -165,6 +170,30 @@ def require_private_directory(path: Path, label: str) -> None:
         fail(f"{label} is not a current-user 0700 directory")
 
 
+def require_safe_read_directory(details: os.stat_result, label: str) -> None:
+    """Require a current-user directory that no group or other user can modify."""
+    if not stat.S_ISDIR(details.st_mode):
+        fail(f"{label} is not a directory")
+    if details.st_uid != os.geteuid():
+        fail(f"{label} is not owned by the current user")
+    if stat.S_IMODE(details.st_mode) & 0o022:
+        fail(f"{label} is group- or world-writable")
+
+
+def require_safe_read_file(details: os.stat_result, label: str) -> None:
+    """Require an immutable-enough regular input file for bounded reading."""
+    if not stat.S_ISREG(details.st_mode):
+        fail(f"{label} is not a regular file")
+    if details.st_nlink != 1:
+        fail(f"{label} must not be hard-linked")
+    if details.st_uid != os.geteuid():
+        fail(f"{label} is not owned by the current user")
+    if stat.S_IMODE(details.st_mode) & 0o022:
+        fail(f"{label} is group- or world-writable")
+    if details.st_size > MAX_FILE_BYTES:
+        fail(f"{label} exceeds {MAX_FILE_BYTES} bytes")
+
+
 def ensure_private_evidence_root(root: Path) -> None:
     """Require the runner-created private evidence root."""
     require_private_directory(root, "evidence root")
@@ -190,18 +219,25 @@ def open_trusted_directory(root: Path, label: str) -> int:
     if Path(os.path.realpath(checked)) != checked:
         fail(f"{label} resolves through a symlink")
     pre_open = checked.lstat()
-    if not stat.S_ISDIR(pre_open.st_mode):
-        fail(f"{label} is not a directory")
-    flags = os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0)
+    require_safe_read_directory(pre_open, label)
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    directory_flag = getattr(os, "O_DIRECTORY", None)
+    if no_follow is None or directory_flag is None:
+        fail("safe runtime evidence access requires no-follow directory support")
+    flags = os.O_RDONLY | directory_flag | no_follow
     directory_fd = os.open(checked, flags)
     details = os.fstat(directory_fd)
     if (
-        not stat.S_ISDIR(details.st_mode)
-        or (details.st_dev, details.st_ino, stat.S_IFMT(details.st_mode))
+        (details.st_dev, details.st_ino, stat.S_IFMT(details.st_mode))
         != (pre_open.st_dev, pre_open.st_ino, stat.S_IFMT(pre_open.st_mode))
     ):
         os.close(directory_fd)
         fail(f"{label} changed between validation and open")
+    try:
+        require_safe_read_directory(details, label)
+    except BaseException:
+        os.close(directory_fd)
+        raise
     return directory_fd
 
 
@@ -213,25 +249,46 @@ def open_contained_regular(path: Path, root: Path) -> tuple[int, Path]:
     if not relative.parts:
         fail("runtime evidence must name a file below its root")
     pre_open = candidate.lstat()
-    if not stat.S_ISREG(pre_open.st_mode):
-        fail(f"evidence is not a regular file: {candidate}")
-    if pre_open.st_size > MAX_FILE_BYTES:
-        fail(f"evidence exceeds {MAX_FILE_BYTES} bytes: {candidate}")
+    require_safe_read_file(pre_open, "runtime evidence")
     no_follow = getattr(os, "O_NOFOLLOW", None)
-    if no_follow is None:
-        fail("platform cannot open runtime evidence without following symlinks")
-    directory_flags = os.O_RDONLY | os.O_DIRECTORY | no_follow
+    directory_flag = getattr(os, "O_DIRECTORY", None)
+    nonblock = getattr(os, "O_NONBLOCK", None)
+    if no_follow is None or directory_flag is None or nonblock is None:
+        fail("safe runtime evidence reads require no-follow non-blocking support")
+    directory_flags = os.O_RDONLY | directory_flag | no_follow
     directory_fd = open_trusted_directory(base, "runtime evidence root")
     try:
         for component in relative.parts[:-1]:
+            before = os.stat(component, dir_fd=directory_fd, follow_symlinks=False)
+            require_safe_read_directory(before, "runtime evidence directory")
             next_fd = os.open(component, directory_flags, dir_fd=directory_fd)
+            opened_directory = os.fstat(next_fd)
+            if (
+                opened_directory.st_dev,
+                opened_directory.st_ino,
+                stat.S_IFMT(opened_directory.st_mode),
+            ) != (before.st_dev, before.st_ino, stat.S_IFMT(before.st_mode)):
+                os.close(next_fd)
+                fail("runtime evidence directory changed between validation and open")
+            try:
+                require_safe_read_directory(opened_directory, "runtime evidence directory")
+            except BaseException:
+                os.close(next_fd)
+                raise
             os.close(directory_fd)
             directory_fd = next_fd
-        file_fd = os.open(relative.parts[-1], os.O_RDONLY | no_follow, dir_fd=directory_fd)
+        file_fd = os.open(
+            relative.parts[-1], os.O_RDONLY | no_follow | nonblock, dir_fd=directory_fd
+        )
     finally:
         os.close(directory_fd)
     try:
         opened = os.fstat(file_fd)
+    except BaseException:
+        os.close(file_fd)
+        raise
+    try:
+        require_safe_read_file(opened, "runtime evidence")
     except BaseException:
         os.close(file_fd)
         raise
@@ -248,14 +305,19 @@ def read_bounded(path: Path, root: Path) -> bytes:
         return b""
     try:
         opened = os.fstat(fd)
-        if not stat.S_ISREG(opened.st_mode):
-            fail(f"evidence is not a regular file: {candidate}")
-        if opened.st_size > MAX_FILE_BYTES:
-            fail(f"evidence exceeds {MAX_FILE_BYTES} bytes: {candidate}")
-        with os.fdopen(fd, "rb", closefd=False) as handle:
-            data = handle.read(MAX_FILE_BYTES + 1)
+        require_safe_read_file(opened, "runtime evidence")
+        pieces: list[bytes] = []
+        remaining = MAX_FILE_BYTES + 1
+        while remaining:
+            chunk = os.read(fd, min(65536, remaining))
+            if not chunk:
+                break
+            pieces.append(chunk)
+            remaining -= len(chunk)
+        data = b"".join(pieces)
         final = os.fstat(fd)
-        if (final.st_dev, final.st_ino, final.st_size) != (opened.st_dev, opened.st_ino, opened.st_size):
+        require_safe_read_file(final, "runtime evidence")
+        if file_identity(final) != file_identity(opened):
             fail(f"evidence changed while reading: {candidate}")
     finally:
         os.close(fd)

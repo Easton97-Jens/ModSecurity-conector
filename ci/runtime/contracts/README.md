@@ -34,9 +34,10 @@ there are no connector-specific validator exceptions.
 | `with-crs-no-mrts` | selected, executed live CRS case | all five no-MRTS facts are `false` | live evidence and clean cleanup |
 | `with-crs-with-mrts` | selected, executed live CRS case | all five MRTS facts are `true` | live evidence and clean cleanup |
 
-For a no-MRTS profile `identity.mrts_commit` is the semantic sentinel
-`NOT_APPLICABLE`; the producer must not read or bind an MRTS checkout. For an
-MRTS profile it must be a lowercase full commit.
+For every profile `identity.mrts_commit` must be the supplied lowercase full
+commit. For a no-MRTS profile it is an identity binding only: the producer
+must not invoke an MRTS runner, load its inventory, start its process, create
+a listener, use an MRTS artifact, or read an MRTS checkout.
 
 Required runtime assertions are `config_test`, `host_start`, `reachability`,
 `allow_case`, and `block_case`. `bypass_case` is the only centrally optional
@@ -114,12 +115,13 @@ python3 ci/runtime/contracts/validate-runtime-observation.py \
   --evidence-root "<private-evidence-root>" \
   --connector envoy --profile with-crs-no-mrts --run-id RUN_ID \
   --parent-sha PARENT_SHA --framework-sha FRAMEWORK_SHA \
+  --mrts-sha MRTS_SHA \
   --policy strict
 ```
 
 The CLI emits payload-free JSON, exits `0` only for `PASS`, and exits `2` for
-a validation failure or partial result. `--mrts-sha` is required only for the
-two MRTS profiles.
+a validation failure or partial result. `--mrts-sha` is required for every
+profile.
 
 ## Verification boundary
 

@@ -36,10 +36,11 @@ Connector; es gibt keine connector-spezifischen Validatorausnahmen.
 | `with-crs-no-mrts` | ausgewählter, ausgeführter Live-CRS-Fall | alle fünf No-MRTS-Fakten sind `false` | Live-Evidence und sauberes Cleanup |
 | `with-crs-with-mrts` | ausgewählter, ausgeführter Live-CRS-Fall | alle fünf MRTS-Fakten sind `true` | Live-Evidence und sauberes Cleanup |
 
-Für ein No-MRTS-Profil ist `identity.mrts_commit` der semantische Sentinel
-`NOT_APPLICABLE`; der Producer darf keinen MRTS-Checkout lesen oder binden.
-Für ein MRTS-Profil muss der Wert ein vollständiger Commit in Kleinbuchstaben
-sein.
+Für jedes Profil muss `identity.mrts_commit` der übergebene vollständige
+Commit in Kleinbuchstaben sein. Für ein No-MRTS-Profil ist er ausschließlich
+eine Identitätsbindung: Der Producer darf keinen MRTS-Runner aufrufen, dessen
+Inventar laden, Prozess starten, Listener erzeugen, MRTS-Artefakt verwenden
+oder einen MRTS-Checkout lesen.
 
 Die erforderlichen Runtime-Assertions sind `config_test`, `host_start`,
 `reachability`, `allow_case` und `block_case`. `bypass_case` ist die einzige
@@ -123,12 +124,13 @@ python3 ci/runtime/contracts/validate-runtime-observation.py \
   --evidence-root "<private-evidence-root>" \
   --connector envoy --profile with-crs-no-mrts --run-id RUN_ID \
   --parent-sha PARENT_SHA --framework-sha FRAMEWORK_SHA \
+  --mrts-sha MRTS_SHA \
   --policy strict
 ```
 
 Die CLI gibt payloadfreies JSON aus, liefert nur bei `PASS` Exitcode `0` und
-bei Validierungsfehler oder Teilstatus Exitcode `2`. `--mrts-sha` ist nur für
-die beiden MRTS-Profile erforderlich.
+bei Validierungsfehler oder Teilstatus Exitcode `2`. `--mrts-sha` ist für
+jedes Profil erforderlich.
 
 ## Verifikationsgrenze
 
