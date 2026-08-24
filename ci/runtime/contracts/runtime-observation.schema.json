@@ -1,0 +1,284 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://easton97-jens.github.io/ModSecurity-conector/runtime-observation-v1.schema.json",
+  "title": "Canonical Runtime Observation",
+  "description": "Connector-neutral, payload-free runtime evidence contract. Semantic and safe-file rules are enforced by runtime_observation.py.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "identity",
+    "runtime",
+    "framework",
+    "isolation",
+    "cleanup",
+    "provenance"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "identity": { "$ref": "#/$defs/identity" },
+    "runtime": { "$ref": "#/$defs/runtime" },
+    "framework": { "$ref": "#/$defs/framework" },
+    "isolation": { "$ref": "#/$defs/isolation" },
+    "cleanup": { "$ref": "#/$defs/cleanup" },
+    "provenance": { "$ref": "#/$defs/provenance" }
+  },
+  "$defs": {
+    "token": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "assertionValue": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": ["boolean", "integer", "string", "array", "object", "null"]
+      }
+    },
+    "assertion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required",
+        "applicable",
+        "executed",
+        "live_executed",
+        "expected",
+        "observed",
+        "result",
+        "reason",
+        "evidence_kind"
+      ],
+      "properties": {
+        "required": { "type": "boolean" },
+        "applicable": { "type": "boolean" },
+        "executed": { "type": "boolean" },
+        "live_executed": { "type": "boolean" },
+        "expected": { "$ref": "#/$defs/assertionValue" },
+        "observed": { "$ref": "#/$defs/assertionValue" },
+        "result": { "enum": ["PASS", "FAIL", "NOT_APPLICABLE", "NOT_EXECUTED"] },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 1024 },
+        "case_id": { "$ref": "#/$defs/token" },
+        "evidence_kind": {
+          "enum": [
+            "structured_connector_evidence",
+            "live_runtime_evidence",
+            "protected_runtime_evidence",
+            "canonical_fixture"
+          ]
+        }
+      }
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "connector",
+        "integration_mode",
+        "profile",
+        "crs",
+        "mrts",
+        "run_id",
+        "parent_commit",
+        "framework_commit",
+        "mrts_commit",
+        "producer",
+        "producer_version"
+      ],
+      "properties": {
+        "connector": { "enum": ["apache", "envoy", "haproxy", "lighttpd", "traefik", "nginx"] },
+        "integration_mode": { "$ref": "#/$defs/token" },
+        "profile": {
+          "enum": [
+            "no-crs-no-mrts",
+            "no-crs-with-mrts",
+            "with-crs-no-mrts",
+            "with-crs-with-mrts"
+          ]
+        },
+        "crs": { "type": "boolean" },
+        "mrts": { "type": "boolean" },
+        "run_id": { "$ref": "#/$defs/token" },
+        "parent_commit": { "$ref": "#/$defs/commit" },
+        "framework_commit": { "$ref": "#/$defs/commit" },
+        "mrts_commit": { "$ref": "#/$defs/commit" },
+        "producer": { "$ref": "#/$defs/token" },
+        "producer_version": { "const": "1.0.0" }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "config_test",
+        "host_start",
+        "reachability",
+        "allow_case",
+        "block_case",
+        "runtime_status"
+      ],
+      "properties": {
+        "config_test": { "$ref": "#/$defs/assertion" },
+        "host_start": { "$ref": "#/$defs/assertion" },
+        "reachability": { "$ref": "#/$defs/assertion" },
+        "allow_case": { "$ref": "#/$defs/assertion" },
+        "block_case": { "$ref": "#/$defs/assertion" },
+        "bypass_case": { "$ref": "#/$defs/assertion" },
+        "runtime_status": { "enum": ["PASS", "PARTIAL", "VALIDATION_FAILED", "FAIL"] }
+      }
+    },
+    "framework": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "framework_test_id",
+        "scenario_category",
+        "selected",
+        "executed",
+        "live_executed",
+        "expectation",
+        "observation",
+        "result",
+        "validation_status",
+        "failure_count",
+        "mismatch_count"
+      ],
+      "properties": {
+        "framework_test_id": { "$ref": "#/$defs/token" },
+        "framework_test_ids": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": { "$ref": "#/$defs/token" }
+        },
+        "scenario_category": { "$ref": "#/$defs/token" },
+        "selected": { "type": "boolean" },
+        "executed": { "type": "boolean" },
+        "live_executed": { "type": "boolean" },
+        "expectation": {
+          "type": "object",
+          "required": ["kind"],
+          "properties": {
+            "kind": {
+              "enum": [
+                "http_status", "intervention", "action", "rule_match", "rule_id", "event",
+                "request_headers", "response_headers", "request_body", "response_body",
+                "transport", "lifecycle", "cleanup", "compound", "not_applicable"
+              ]
+            }
+          }
+        },
+        "observation": { "$ref": "#/$defs/assertionValue" },
+        "result": { "enum": ["PASS", "FAIL", "NOT_APPLICABLE", "NOT_EXECUTED"] },
+        "validation_status": { "enum": ["CONTRACT_VALIDATED", "VALIDATION_FAILED", "PARTIAL"] },
+        "failure_count": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+        "mismatch_count": { "type": "integer", "minimum": 0, "maximum": 1000000 }
+      }
+    },
+    "isolation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mrts_runner_invoked",
+        "mrts_inventory_loaded",
+        "mrts_process_started",
+        "mrts_listener_created",
+        "mrts_artifact_used"
+      ],
+      "properties": {
+        "mrts_runner_invoked": { "type": "boolean" },
+        "mrts_inventory_loaded": { "type": "boolean" },
+        "mrts_process_started": { "type": "boolean" },
+        "mrts_listener_created": { "type": "boolean" },
+        "mrts_artifact_used": { "type": "boolean" }
+      }
+    },
+    "cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "host_processes_remaining",
+        "helper_processes_remaining",
+        "listeners_remaining",
+        "sockets_remaining",
+        "pid_files_remaining",
+        "temporary_paths_remaining",
+        "cleanup_status"
+      ],
+      "properties": {
+        "host_processes_remaining": { "type": "integer", "minimum": 0 },
+        "helper_processes_remaining": { "type": "integer", "minimum": 0 },
+        "listeners_remaining": { "type": "integer", "minimum": 0 },
+        "sockets_remaining": { "type": "integer", "minimum": 0 },
+        "pid_files_remaining": { "type": "integer", "minimum": 0 },
+        "temporary_paths_remaining": { "type": "integer", "minimum": 0 },
+        "cleanup_status": { "enum": ["PASS", "PARTIAL", "FAIL"] }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidence_kind",
+        "fixture_id",
+        "source_contract",
+        "manifest_digest",
+        "evidence_digest",
+        "contract_schema_version",
+        "producer_version",
+        "evidence"
+      ],
+      "anyOf": [
+        { "required": ["validation_timestamp"] },
+        { "required": ["validation_basis"] }
+      ],
+      "properties": {
+        "evidence_kind": {
+          "enum": [
+            "structured_connector_evidence",
+            "live_runtime_evidence",
+            "protected_runtime_evidence",
+            "canonical_fixture"
+          ]
+        },
+        "fixture_id": { "$ref": "#/$defs/token" },
+        "source_contract": { "$ref": "#/$defs/token" },
+        "manifest_digest": { "$ref": "#/$defs/digest" },
+        "evidence_digest": { "$ref": "#/$defs/digest" },
+        "validation_timestamp": { "type": "string", "format": "date-time" },
+        "validation_basis": { "const": "evidence-digest-v1" },
+        "contract_schema_version": { "const": 1 },
+        "producer_version": { "const": "1.0.0" },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "path", "sha256", "kind"],
+            "properties": {
+              "name": { "$ref": "#/$defs/token" },
+              "path": { "type": "string", "minLength": 1, "maxLength": 512 },
+              "sha256": { "$ref": "#/$defs/digest" },
+              "kind": {
+                "enum": [
+                  "structured_connector_evidence", "live_runtime_evidence",
+                  "protected_runtime_evidence", "canonical_fixture", "manifest"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -17,9 +17,22 @@ import os
 import re
 import stat
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any
+
+
+CONTRACTS_ROOT = Path(__file__).resolve().parents[1] / "contracts"
+if str(CONTRACTS_ROOT) not in sys.path:
+    sys.path.insert(0, str(CONTRACTS_ROOT))
+
+from runtime_observation import (
+    CONTRACT_VALIDATED,
+    validate_runtime_observation,
+    write_canonical_evidence_file,
+)
+from runtime_observation_adapters import build_structured_observation
 
 CONNECTORS = {
     "envoy": ("envoy-ext-proc-service", "ext_proc", "event"),
@@ -136,6 +149,46 @@ def contained(path: Path, root: Path, label: str) -> Path:
     return candidate
 
 
+def require_private_directory(path: Path, label: str) -> None:
+    """Require one current-user evidence directory with the contract mode."""
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        fail(f"{label} is missing")
+        return
+    if (
+        stat.S_ISLNK(info.st_mode)
+        or not stat.S_ISDIR(info.st_mode)
+        or info.st_uid != os.geteuid()
+        or stat.S_IMODE(info.st_mode) != 0o700
+    ):
+        fail(f"{label} is not a current-user 0700 directory")
+
+
+def ensure_private_evidence_root(root: Path) -> None:
+    """Create or verify the declared evidence root without relaxing its mode."""
+    if not root.exists():
+        try:
+            os.mkdir(root, 0o700)
+        except FileExistsError:
+            pass
+    require_private_directory(root, "evidence root")
+
+
+def ensure_private_evidence_parent(path: Path, root: Path) -> None:
+    """Create the parent chain below an already private evidence root."""
+    contained(path, root, "evidence directory")
+    require_private_directory(root, "evidence root")
+    current = root
+    for component in path.relative_to(root).parts:
+        current = current / component
+        try:
+            os.mkdir(current, 0o700)
+        except FileExistsError:
+            pass
+        require_private_directory(current, "evidence directory")
+
+
 def open_trusted_directory(root: Path, label: str) -> int:
     """Open a previously validated, non-symlink directory as the walk root."""
     checked = root_path(str(root), label)
@@ -218,7 +271,7 @@ def read_bounded(path: Path, root: Path) -> bytes:
 
 def atomic_write(path: Path, data: bytes, root: Path) -> None:
     contained(path, root, "normalized evidence")
-    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    require_private_directory(path.parent, "normalized evidence directory")
     if path.exists() or path.is_symlink():
         fail(f"refusing to overwrite evidence: {path}")
     fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
@@ -244,11 +297,13 @@ def atomic_write(path: Path, data: bytes, root: Path) -> None:
 def create_run_directory(path: Path, root: Path) -> None:
     """Reserve a run leaf exactly once; never reuse another run's evidence."""
     contained(path, root, "run evidence directory")
-    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    if path.exists() or path.is_symlink():
+    ensure_private_evidence_parent(path.parent, root)
+    try:
+        os.mkdir(path, 0o700)
+    except FileExistsError:
         fail(f"evidence run directory already exists: {path}")
-    os.mkdir(path, 0o700)
-    fd = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    require_private_directory(path, "evidence run directory")
+    fd = open_trusted_directory(path.parent, "evidence run parent")
     try: os.fsync(fd)
     finally: os.close(fd)
 
@@ -262,13 +317,7 @@ def jsonl(path: Path, runtime_root: Path) -> list[dict[str, Any]]:
     for line in read_bounded(path, runtime_root).decode("utf-8", "replace").splitlines():
         if not line.strip():
             continue
-        try:
-            value = json.loads(line)
-        except json.JSONDecodeError as exc:
-            fail(f"malformed host event JSON: {path}")
-            raise AssertionError from exc
-        if isinstance(value, dict):
-            records.append(value)
+        records.append(read_json_object(line, "host event"))
     return records
 
 
@@ -635,7 +684,10 @@ def require_traefik_matching_event(
 
 
 def observed_traefik(runtime_root: Path, run_id: str) -> dict[str, Any]:
-    result = json.loads(read_bounded(runtime_root / RESULT_FILE, runtime_root).decode())
+    result = read_json_object(
+        read_bounded(runtime_root / RESULT_FILE, runtime_root).decode("utf-8", "strict"),
+        "Traefik completion",
+    )
     if result.get("status") != "PASS" or result.get("connector") != "traefik" or result.get("integration_mode") != "native-traefik-middleware" or result.get("run_id") != run_id:
         fail("Traefik completion identity is not a PASS native run")
     block = result.get("block")
@@ -675,9 +727,18 @@ def observed_envoy(runtime_root: Path, run_id: str) -> dict[str, Any]:
         or summary.get("run_id") != run_id
     ):
         fail("Envoy completion identity is not a PASS ext_proc run")
-    block_value = json.loads(read_bounded(runtime_root / "crs-block-probe.json", runtime_root).decode())
-    bypass_value = json.loads(read_bounded(runtime_root / "crs-bypass-probe.json", runtime_root).decode())
-    allow_value = json.loads(read_bounded(runtime_root / "crs-allow-probe.json", runtime_root).decode())
+    block_value = read_json_object(
+        read_bounded(runtime_root / "crs-block-probe.json", runtime_root).decode("utf-8", "strict"),
+        "Envoy block probe",
+    )
+    bypass_value = read_json_object(
+        read_bounded(runtime_root / "crs-bypass-probe.json", runtime_root).decode("utf-8", "strict"),
+        "Envoy bypass probe",
+    )
+    allow_value = read_json_object(
+        read_bounded(runtime_root / "crs-allow-probe.json", runtime_root).decode("utf-8", "strict"),
+        "Envoy allow probe",
+    )
     if (
         int(block_value.get("http_status", 0)) != 403
         or int(bypass_value.get("http_status", 0)) != 403
@@ -927,6 +988,34 @@ def record_json(record: dict[str, Any]) -> bytes:
     return (json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n").encode()
 
 
+def reject_duplicate_json_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    value: dict[str, Any] = {}
+    for key, item in pairs:
+        if key in value:
+            fail("runtime evidence JSON contains a duplicate key")
+        value[key] = item
+    return value
+
+
+def reject_nonfinite_json(_value: str) -> None:
+    fail("runtime evidence JSON contains a non-finite value")
+
+
+def read_json_object(text: str, label: str) -> dict[str, Any]:
+    try:
+        value = json.loads(
+            text,
+            object_pairs_hook=reject_duplicate_json_pairs,
+            parse_constant=reject_nonfinite_json,
+        )
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        fail(f"malformed {label} JSON")
+        raise AssertionError from exc
+    if not isinstance(value, dict):
+        fail(f"{label} JSON is not an object")
+    return value
+
+
 def framework_raw_value(value: Any) -> str:
     if value is True:
         return "true"
@@ -1029,6 +1118,7 @@ def normalize(args: argparse.Namespace) -> Path:
     run_id = safe_token(args.run_id, "run id")
     runtime_root = root_path(args.runtime_root, "runtime root")
     evidence_root = root_path(args.evidence_root, "evidence root")
+    ensure_private_evidence_root(evidence_root)
     source_root = root_path(args.source_root, "CRS source root")
     source_checkout = contained(source_root / "coreruleset", source_root, "CRS source")
     crs_repository, crs_release, crs_commit, rule_sha256 = framework_pins(args.framework_root)
@@ -1042,12 +1132,17 @@ def normalize(args: argparse.Namespace) -> Path:
     if not completion.is_file():
         fail("host harness completion record is missing")
     observation_path = runtime_root / "runtime-observation.json"
-    observation = json.loads(read_bounded(observation_path, runtime_root).decode())
-    if not isinstance(observation, dict):
-        fail("runner observation is not a JSON object")
+    observation = read_json_object(
+        read_bounded(observation_path, runtime_root).decode("utf-8", "strict"),
+        "runner observation",
+    )
     no_mrts, cleanup_scan = clean_runtime_observation(observation, connector, mode)
     parent_commit = commit_identity(args.connector_root, "Parent")
     framework_commit = commit_identity(args.framework_root, "Framework")
+    # The no-MRTS profile records the selected MRTS revision for provenance
+    # while its structured isolation facts prove that no MRTS runner, inventory,
+    # process, listener, or artifact was used.
+    mrts_commit = commit_identity(args.framework_root / "tools" / "MRTS", "MRTS")
     observed = observed_runtime(runtime_root, connector, run_id)
     allow = observed["allow"]
     block = observed["block"]
@@ -1082,6 +1177,52 @@ def normalize(args: argparse.Namespace) -> Path:
     atomic_write(allow_file, framework_raw_record(allow_record), evidence_root)
     atomic_write(block_file, framework_raw_record(block_record), evidence_root)
     atomic_write(cleanup_file, framework_raw_record(cleanup_record), evidence_root)
+    canonical_observation = build_structured_observation(
+        connector=connector,
+        integration_mode=mode,
+        run_id=run_id,
+        parent_commit=parent_commit,
+        framework_commit=framework_commit,
+        mrts_commit=mrts_commit,
+        rule_id=canonical_trigger,
+        observed_statuses=observed_statuses,
+        cleanup=cleanup_scan,
+        isolation=no_mrts,
+        evidence=[
+            {"name": "host_configuration", "path": str(host_file.relative_to(evidence_root))},
+            {"name": "allow_request", "path": str(allow_file.relative_to(evidence_root))},
+            {"name": "block_audit", "path": str(block_file.relative_to(evidence_root))},
+            {"name": "cleanup", "path": str(cleanup_file.relative_to(evidence_root))},
+        ],
+        evidence_root=evidence_root,
+        manifest_digest=rule_sha256,
+    )
+    expected_contract_identity = {
+        "connector": connector,
+        "integration_mode": mode,
+        "profile": "with-crs-no-mrts",
+        "crs": True,
+        "mrts": False,
+        "run_id": run_id,
+        "parent_commit": parent_commit,
+        "framework_commit": framework_commit,
+        "mrts_commit": mrts_commit,
+        "producer": f"parent-runtime-observation-adapter-{connector}",
+        "producer_version": "1.0.0",
+    }
+    contract_result = validate_runtime_observation(
+        canonical_observation,
+        expected_contract_identity,
+        {"name": "strict", "evidence_root": evidence_root},
+    )
+    if (
+        contract_result.status != "PASS"
+        or contract_result["validation_status"] != CONTRACT_VALIDATED
+    ):
+        fail("canonical runtime observation did not pass the common contract validator")
+    canonical_observation_path = write_canonical_evidence_file(
+        "runtime-observation.json", record_json(canonical_observation), normalized_dir
+    )
     event = {"schema_version": 1, "profile": PROFILE, "connector": connector, "adapter_id": adapter, "integration_mode": mode, "fixture_id": "crs_sqli_anomaly_block", "run_id": run_id, "framework_commit": framework_commit, "connector_commit": parent_commit, "request_id": request_id, "transaction_id": transaction_id, "evidence_type": evidence_type, "evidence_origin": "connector-host", "crs_repository": crs_repository, "crs_release_tag": crs_release, "crs_commit": crs_commit, "crs_rule_file": RULE_FILE, "crs_rule_file_sha256": rule_sha256, "crs_source_kind": "fresh", "crs_git_ref": crs_release, "expected_rule_id": RULE_ID, "observed_rule_id": RULE_ID, "expected_status": 403, "observed_status": 403, "intervention": "deny", "allow_case": {"fixture_id": "crs_sqli_anomaly_block:allow", "run_id": run_id, "request_id": allow_record["request_id"], "transaction_id": allow_record["transaction_id"], "expected_status": 200, "observed_status": 200, "observed_rule_id": None, "evidence_path": f"raw/{connector}/{run_id}/allow-request.log", "evidence_sha256": digest(allow_file, evidence_root)}, "host_configuration": {"config_test_status": "passed", "host_start_status": "passed", "evidence_path": f"raw/{connector}/{run_id}/host-configuration.log", "evidence_sha256": digest(host_file, evidence_root)}, "block_evidence": {"evidence_path": f"raw/{connector}/{run_id}/block-audit.log", "evidence_sha256": digest(block_file, evidence_root)}, "no_mrts": {name: no_mrts[name] for name in ("runner_invoked", "case_inventory_loaded", "process_started", "socket_or_listener_created", "artifact_used")}, "cleanup": {"status": "passed", "host_processes_remaining": 0, "helper_processes_remaining": 0, "listeners_remaining": 0, "sockets_remaining": 0, "pid_files_remaining": 0, "runtime_fixtures_remaining": 0, "temporary_paths_remaining": 0, "evidence_path": f"raw/{connector}/{run_id}/cleanup.log", "evidence_sha256": digest(cleanup_file, evidence_root)}, "status": "PASS", "failure_count": 0, "mismatch_count": 0}
     event["cleanup"].update({key: cleanup_record[key] for key in ("host_processes_remaining", "helper_processes_remaining", "listeners_remaining", "sockets_remaining", "pid_files_remaining", "runtime_fixtures_remaining", "temporary_paths_remaining")})
     event["observed_rule_id"] = canonical_trigger
@@ -1098,7 +1239,12 @@ def normalize(args: argparse.Namespace) -> Path:
         "block_request_id": request_id,
         "block_transaction_id": transaction_id,
         "bypass_request_id": str(observed.get("bypass_request_id", "")),
-        "raw_runtime_root": str(runtime_root),
+        "canonical_observation": {
+            "schema_version": canonical_observation["schema_version"],
+            "validation_status": contract_result["validation_status"],
+            "evidence_path": f"normalized/{connector}/{run_id}/runtime-observation.json",
+            "evidence_sha256": digest(canonical_observation_path, evidence_root),
+        },
         "raw_evidence_sha256": {
             "runtime_summary": digest(completion, runtime_root),
             "runtime_observation": digest(observation_path, runtime_root),
@@ -1107,7 +1253,7 @@ def normalize(args: argparse.Namespace) -> Path:
         "raw_inputs": raw_inputs,
         "observed_statuses": observed_statuses,
         "no_mrts": {name: no_mrts[name] for name in ("runner_invoked", "case_inventory_loaded", "process_started", "socket_or_listener_created", "artifact_used")},
-        "cleanup_scan": cleanup_scan,
+        "cleanup": canonical_observation["cleanup"],
     }
     parent_dir = contained(evidence_root / "runtime" / connector / run_id, evidence_root, "Parent runtime evidence")
     create_run_directory(parent_dir, evidence_root)

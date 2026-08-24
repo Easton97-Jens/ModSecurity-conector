@@ -555,7 +555,7 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
         with mock.patch.object(
             NORMALIZER,
             "commit_identity",
-            side_effect=("b" * 40, "c" * 40),
+            side_effect=("b" * 40, "c" * 40, "d" * 40),
         ):
             event = NORMALIZER.normalize(args)
         return event, evidence
@@ -737,6 +737,19 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                 parent = json.loads(
                     (evidence / "runtime" / connector / f"{connector}-run" / "runtime.json").read_text(encoding="utf-8")
                 )
+                canonical_path = (
+                    evidence
+                    / "normalized"
+                    / connector
+                    / f"{connector}-run"
+                    / "runtime-observation.json"
+                )
+                canonical = json.loads(canonical_path.read_text(encoding="utf-8"))
+                canonical_result = NORMALIZER.validate_runtime_observation(
+                    canonical,
+                    canonical["identity"],
+                    {"name": "strict", "evidence_root": evidence},
+                )
                 self.assertEqual(event["connector"], connector)
                 self.assertEqual(event["expected_rule_id"], 942270)
                 self.assertEqual(event["observed_rule_id"], 942270)
@@ -745,6 +758,20 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                 self.assertEqual(parent["actual_intervention_rule_id"], 949110)
                 self.assertEqual(parent["observed_statuses"], {"allow": 200, "block": 403, "bypass": 403})
                 self.assertEqual(parent["no_mrts"], NO_MRTS)
+                self.assertNotIn("raw_runtime_root", parent)
+                self.assertEqual(canonical["identity"]["profile"], "with-crs-no-mrts")
+                self.assertEqual(
+                    canonical["identity"]["mrts_commit"],
+                    "d" * 40,
+                )
+                self.assertEqual(canonical_result.status, "PASS")
+                self.assertEqual(
+                    canonical_result["validation_status"], NORMALIZER.CONTRACT_VALIDATED
+                )
+                self.assertEqual(
+                    parent["canonical_observation"]["evidence_path"],
+                    f"normalized/{connector}/{connector}-run/runtime-observation.json",
+                )
                 self.assertEqual(list((evidence / "normalized").rglob("event.json")), [event_path])
 
     def test_observed_http_status_accepts_lighttpd_semantic_state_only_with_numeric_evidence(self) -> None:

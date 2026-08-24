@@ -14,6 +14,7 @@ This tree contains connector-repository orchestration, contracts, and evidence t
 | `checks/evidence/` | Lifecycle, fixture, capability, and core-completion checks | evidence targets |
 | `checks/security/` | Runtime-path and artifact safety | `make check-runtime-path-policy` |
 | `runtime/common/` | Shared path, process, port, and fixture helpers | runner support only |
+| `runtime/contracts/` | Parent-owned canonical runtime-observation schema, semantic validator, and strict CLI | `validate-runtime-observation.py` |
 | `runtime/lifecycle/` | Canonical runners, normalizers, and artifact writers | lifecycle Make targets |
 | `provisioning/` | Cache-v2, component, and toolchain preparation | `make prepare-runtime-components` |
 | `evidence/collectors/` | Capability collection | `make capabilities-*` |
@@ -51,11 +52,56 @@ MRTS, full-matrix, or hosted-runtime-pass claim.
 1. Make resolves repository, build, cache, runtime, and evidence roots.
 2. `provisioning/` prepares one identity-bound Cache-v2 entry.
 3. `runtime/lifecycle/` runs a host profile and writes payload-free local data.
-4. The Framework and `evidence/collectors/` normalize and validate that data.
-5. `checks/evidence/` decides whether it supports the selected claim.
-6. `evidence/reports/` regenerates tracked reports; never edit generated output.
+4. `runtime/contracts/` validates the identity-bound, payload-free Parent runtime observation.
+5. The Framework and `evidence/collectors/` normalize and validate reusable catalog data.
+6. `checks/evidence/` decides whether it supports the selected claim.
+7. `evidence/reports/` regenerates tracked reports; never edit generated output.
 
 Exit `0` means technical completion, not that every catalog case is `PASS`. `1` is a general error, `2` is commonly a validation/aggregate error, and `77` means a declared missing optional prerequisite. A recursive GNU Make invocation can report its failed recipe as `2` even when the direct child returned `77`; callers must not infer the original status from that recursive exit code. See [test levels](../docs/testing-and-evidence.md) for status semantics.
+
+## Canonical runtime-observation contract
+
+`runtime/contracts/` is the Parent-owned boundary for canonical runtime
+observations. `runtime-observation.schema.json` defines the transport shape;
+`runtime_observation.py` is the single semantic validator and secure-file
+reader. The contract is identity-bound to connector, profile, run ID, Parent
+commit, Framework commit, and MRTS commit for every profile. It is
+payload-free and permits only safe relative evidence references, so raw
+requests, logs, secrets, and absolute runner paths do not become report
+metadata.
+
+The strict entry point is:
+
+```sh
+"$PYTHON" ci/runtime/contracts/validate-runtime-observation.py \
+  --observation "<private-evidence-root>/runtime-observation.json" \
+  --evidence-root "<private-evidence-root>" \
+  --connector envoy --profile with-crs-no-mrts \
+  --run-id RUN_ID --parent-sha PARENT_SHA --framework-sha FRAMEWORK_SHA \
+  --mrts-sha MRTS_SHA \
+  --policy strict
+```
+
+The default `--policy strict` emits payload-free JSON and exits `0` only for
+`PASS`; unsafe input, identity mismatches, missing evidence, or
+semantic mismatches emit `VALIDATION_FAILED` and exit `2`. `--policy partial`
+reports `PARTIAL` for incomplete evidence but remains non-passing. A `PASS`
+requires matching typed expectations and observations, a live selected and
+executed Framework case, zero failure/mismatch counts, and zero cleanup
+residue. No-MRTS profiles must contain only negative MRTS-isolation facts
+while still binding the selected lowercase full `mrts_commit`; they must not
+invoke an MRTS runner, load its inventory, start its process, create a
+listener, or use an MRTS artifact. `--mrts-sha` is required for every profile.
+
+The reader requires the current UID to own the evidence root and every
+descendant directory, each at exact mode 0700, and regular evidence files at
+exact mode 0600. It rejects symlinks and hard links, bounds observations to
+1 MiB, and rejects duplicate JSON keys and non-strict UTF-8. Envoy, lighttpd,
+and Traefik have live producer adapters. Apache and HAProxy expose interfaces
+only. NGINX remains a protected separate boundary: the common validator
+accepts only its approved protected producer and protected-runtime evidence,
+while this PR neither invokes nor changes the broker production path. The
+contract tests prove validator behavior, not a hosted runtime result.
 
 ## Optional-prerequisite status records
 
