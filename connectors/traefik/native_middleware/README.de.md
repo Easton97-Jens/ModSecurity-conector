@@ -14,7 +14,13 @@ Erklärung.
 ## Was die Quelle tut
 
 - Umschließt den Anforderungstext, sodass Lesevorgänge auf `maxRequestChunkBytes` begrenzt und gesendet werden
-  synchron zu einer `Transaction`-Naht pro Anforderung;
+  synchron zu einer `Transaction`-Naht pro Anforderung; vor der Auswertung der
+  Antwortheader führt sie einen ungelesenen Body über denselben Pfad bis zum
+  Request-EOS;
+- wendet das endliche aggregierte Limit `maxRequestBodyBytes` an (Standard und
+  harte Obergrenze: 1 MiB), bevor ein übergroßer Chunk die Engine erreicht. Die
+  deterministische Pre-Commit-Aktion ist HTTP 413; nach dieser Entscheidung
+  wird der verbleibende Source-Body nicht leerdrainiert;
 - umschließt den Antwortschreiber, wertet Antwortheader vor dem Commit aus und
   schneidet jeden `Write` vor der Weiterleitung in `maxResponseChunkBytes`-Rückrufe
   jede Scheibe;

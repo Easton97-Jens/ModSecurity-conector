@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -23,7 +24,7 @@ type engineRuntime struct {
 }
 
 type engineCloser interface {
-	Close() error
+	Close(context.Context) error
 }
 
 func main() {
@@ -69,12 +70,18 @@ func run() (int, error) {
 	if err != nil {
 		return 2, fmt.Errorf("engine setup: %w", err)
 	}
-	defer closeEngine(runtime)
 	if options.checkConfig {
+		if err := closeEngine(runtime, time.Duration(config.ShutdownTimeoutMS)*time.Millisecond); err != nil {
+			return 1, fmt.Errorf("engine cleanup: %w", err)
+		}
 		fmt.Printf("envoy_ext_proc: config-check-pass config=%s runtime_config=%s engine=%s listen=%s\n", options.configPath, options.runtimeConfigPath, runtime.description, config.ListenAddress)
 		return 0, nil
 	}
-	return serve(config, runtime, options.eventLogPath)
+	exitCode, serveErr := serve(config, runtime, options.eventLogPath)
+	if err := closeEngine(runtime, time.Duration(config.ShutdownTimeoutMS)*time.Millisecond); err != nil {
+		return 1, fmt.Errorf("engine cleanup: %w", err)
+	}
+	return exitCode, serveErr
 }
 
 func parseCommandLine() (commandLineOptions, error) {
@@ -105,12 +112,13 @@ func loadServiceConfig(options commandLineOptions) (processor.Config, error) {
 	return config, nil
 }
 
-func closeEngine(runtime engineRuntime) {
+func closeEngine(runtime engineRuntime, timeout time.Duration) error {
 	if closer, ok := runtime.engine.(engineCloser); ok {
-		if err := closer.Close(); err != nil {
-			fmt.Fprintf(os.Stderr, "envoy_ext_proc: Common runtime cleanup: %v\n", err)
-		}
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		return closer.Close(ctx)
 	}
+	return nil
 }
 
 func serve(config processor.Config, runtime engineRuntime, eventLogPath string) (int, error) {
@@ -133,6 +141,7 @@ func serve(config processor.Config, runtime engineRuntime, eventLogPath string) 
 	grpcServer := grpc.NewServer(
 		grpc.MaxRecvMsgSize(config.MaxGRPCMessageBytes),
 		grpc.MaxSendMsgSize(config.MaxGRPCMessageBytes),
+		grpc.MaxConcurrentStreams(uint32(config.MaxConcurrentStreams)),
 	)
 	extprocv3.RegisterExternalProcessorServer(grpcServer, service)
 	fmt.Printf("envoy_ext_proc: serving integration_mode=ext_proc evaluation_mode=%s rule_evaluation=%s engine=%s listen=%s\n", runtime.evaluationMode, runtime.ruleEvaluation, runtime.description, config.ListenAddress)
@@ -176,8 +185,23 @@ func waitForServerTermination(grpcServer *grpc.Server, listener net.Listener, sh
 	select {
 	case <-stopped:
 	case <-time.After(time.Duration(shutdownTimeoutMS) * time.Millisecond):
-		grpcServer.Stop()
-		<-stopped
+		// Stop itself waits for gRPC transports to close and can therefore block
+		// (for example while a transport is stuck). Keep that forced path
+		// bounded too; a stuck shutdown is a controlled nonzero process outcome
+		// and the supervisor must be allowed to restart the connector.
+		stopDone := make(chan struct{})
+		go func() {
+			grpcServer.Stop()
+			close(stopDone)
+		}()
+		forcedWait := time.NewTimer(time.Duration(shutdownTimeoutMS) * time.Millisecond)
+		defer forcedWait.Stop()
+		select {
+		case <-stopDone:
+			return 0, nil
+		case <-forcedWait.C:
+			return 1, fmt.Errorf("gRPC server Stop exceeded forced deadline")
+		}
 	}
 	return 0, nil
 }

@@ -2,6 +2,9 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
+For the cross-connector failure, availability, and cleanup contract, see
+[Runtime failure policy](runtime-failure-policy.md).
+
 This section navigates the six selected connector routes. “P1”, “P2”, “P3”,
 and “P4” mean the ModSecurity request-header, request-body, response-header,
 and response-body phases. A route’s actual case status is run-specific and

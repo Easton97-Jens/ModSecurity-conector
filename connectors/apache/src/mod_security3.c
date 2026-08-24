@@ -33,6 +33,26 @@ static int hook_log_transaction(request_rec *r);
 static void hook_insert_filter(request_rec *r);
 static int process_request_headers(request_rec *r, msc_t *msr);
 
+/* A native processing failure means that the request was not inspected.
+ * Return an explicit host error and close the connection so Apache cannot
+ * continue into an application handler with an untrusted transaction.  The
+ * request-pool cleanup registered by create_tx_context() still owns the
+ * transaction and remains responsible for destroying it exactly once. */
+static int apache_fail_closed(request_rec *r, const char *operation)
+{
+    if (r != NULL)
+    {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+            "ModSecurity: %s failed; refusing to dispatch an uninspected request",
+            operation != NULL ? operation : "native request processing");
+        if (r->connection != NULL)
+        {
+            r->connection->keepalive = AP_CONN_CLOSE;
+        }
+    }
+    return HTTP_INTERNAL_SERVER_ERROR;
+}
+
 
 static int apache_phase4_redirect_has_local_error_document_proof(
     const msc_t *msr, request_rec *r)
@@ -623,10 +643,11 @@ static int hook_request_early(request_rec *r) {
 
 #ifndef LATE_CONNECTION_PROCESS
 #error "Currently in v3 connection can only be processed late."
-    msc_process_connection(msr->t, client_ip,
-        client_port,
-        r->server->server_hostname,
-        (int) r->server->port);
+    if (msc_process_connection(msr->t, client_ip, client_port,
+            r->server->server_hostname, (int) r->server->port) != 1)
+    {
+        return apache_fail_closed(r, "msc_process_connection");
+    }
 
     it = process_intervention(msr->t, r);
     if (it != N_INTERVENTION_STATUS)
@@ -682,10 +703,11 @@ static int hook_request_late(request_rec *r)
     }
 
 #ifdef LATE_CONNECTION_PROCESS
-    msc_process_connection(msr->t, client_ip,
-        client_port,
-        r->server->server_hostname,
-        (int) r->server->port);
+    if (msc_process_connection(msr->t, client_ip, client_port,
+            r->server->server_hostname, (int) r->server->port) != 1)
+    {
+        return apache_fail_closed(r, "msc_process_connection");
+    }
 
     it = process_intervention(msr->t, r);
     if (it != N_INTERVENTION_STATUS)
@@ -854,7 +876,12 @@ static int process_request_headers(request_rec *r, msc_t *msr) {
 
         msr->native_event_phase = MSCONNECTOR_PHASE_REQUEST_HEADERS;
         msr->native_event_phase_active = 1;
-        msc_process_uri(msr->t, r->unparsed_uri, r->method, r->protocol + offset);
+        if (msc_process_uri(msr->t, r->unparsed_uri, r->method,
+                r->protocol + offset) != 1)
+        {
+            msr->native_event_phase_active = 0;
+            return apache_fail_closed(r, "msc_process_uri");
+        }
         msr->native_event_phase_active = 0;
         it = process_intervention(msr->t, r);
         if (it != N_INTERVENTION_STATUS)
@@ -882,11 +909,19 @@ static int process_request_headers(request_rec *r, msc_t *msr) {
              * unsigned. Keep the ownership and byte boundary explicit. */
             const unsigned char *key_bytes = (const unsigned char *)key;
             const unsigned char *val_bytes = (const unsigned char *)val;
-            msc_add_request_header(msr->t, key_bytes, val_bytes);
+            if (msc_add_request_header(msr->t, key_bytes, val_bytes) != 1)
+            {
+                msr->native_event_phase_active = 0;
+                return apache_fail_closed(r, "msc_add_request_header");
+            }
         }
         msr->native_event_phase = MSCONNECTOR_PHASE_REQUEST_HEADERS;
         msr->native_event_phase_active = 1;
-        msc_process_request_headers(msr->t);
+        if (msc_process_request_headers(msr->t) != 1)
+        {
+            msr->native_event_phase_active = 0;
+            return apache_fail_closed(r, "msc_process_request_headers");
+        }
         msr->native_event_phase_active = 0;
 
         it = process_intervention(msr->t, r);

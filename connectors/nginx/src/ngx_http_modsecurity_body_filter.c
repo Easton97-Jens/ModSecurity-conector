@@ -108,7 +108,7 @@ ngx_http_modsecurity_append_limited_response_body(ngx_http_modsecurity_ctx_t *ct
     }
 
     if (allowed > 0U) {
-        if (msc_append_response_body(ctx->modsec_transaction, data, allowed) < 0) {
+        if (msc_append_response_body(ctx->modsec_transaction, data, allowed) != 1) {
             return NGX_ERROR;
         }
         ctx->response_body_bytes_inspected += allowed;

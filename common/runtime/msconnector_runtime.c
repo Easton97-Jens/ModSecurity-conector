@@ -880,15 +880,18 @@ static int native_process_connection(
     server = string_is_empty(request->server.address) ? "127.0.0.1" : request->server.address;
     client_port = request->client.port > 0 ? request->client.port : 0;
     server_port = request->server.port > 0 ? request->server.port : 0;
-    if (msc_process_connection(native->transaction, client, client_port, server, server_port) < 0 ||
+    if (msc_process_connection(native->transaction, client, client_port, server, server_port) != 1 ||
         msc_process_uri(native->transaction, request->uri, request->method,
-            http_version_without_prefix(request->http_version)) < 0) {
+            http_version_without_prefix(request->http_version)) != 1) {
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
             "connection or URI processing failed", "libmodsecurity");
     }
     if (!string_is_empty(request->hostname)) {
-        (void)msc_set_request_hostname(native->transaction,
-            (const unsigned char *)request->hostname);
+        if (msc_set_request_hostname(native->transaction,
+                (const unsigned char *)request->hostname) != 1) {
+            return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
+                "request hostname mapping failed", "libmodsecurity");
+        }
     }
     return native_decision(runtime, native, MSCONNECTOR_PHASE_URI, decision, error);
 }
@@ -906,12 +909,12 @@ static int native_process_request_headers(
         const msconnector_header *header = &request->headers[index];
         if (msc_add_n_request_header(native->transaction,
                 (const unsigned char *)header->name, header->name_size,
-                (const unsigned char *)header->value, header->value_size) < 0) {
+                (const unsigned char *)header->value, header->value_size) != 1) {
             return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
                 "request header mapping failed", "libmodsecurity");
         }
     }
-    if (msc_process_request_headers(native->transaction) < 0) {
+    if (msc_process_request_headers(native->transaction) != 1) {
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
             "request header processing failed", "libmodsecurity");
     }
@@ -927,7 +930,7 @@ static int native_append_request_body(
     msconnector_native_transaction *native = native_transaction;
     (void)userdata;
     if (size > 0U &&
-        msc_append_request_body(native->transaction, data, size) < 0) {
+        msc_append_request_body(native->transaction, data, size) != 1) {
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
             "request body append failed", "libmodsecurity");
     }
@@ -941,7 +944,7 @@ static int native_finish_request_body(
     msconnector_error *error) {
     msconnector_native_transaction *native = native_transaction;
     msconnector_runtime *runtime = userdata;
-    if (msc_process_request_body(native->transaction) < 0) {
+    if (msc_process_request_body(native->transaction) != 1) {
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
             "request body processing failed", "libmodsecurity");
     }
@@ -973,13 +976,13 @@ static int native_process_response_headers(
         const msconnector_header *header = &response->headers[index];
         if (msc_add_n_response_header(native->transaction,
                 (const unsigned char *)header->name, header->name_size,
-                (const unsigned char *)header->value, header->value_size) < 0) {
+                (const unsigned char *)header->value, header->value_size) != 1) {
             return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
                 "response header mapping failed", "libmodsecurity");
         }
     }
     if (msc_process_response_headers(native->transaction, response->status,
-            http_version_without_prefix(response->http_version)) < 0) {
+            http_version_without_prefix(response->http_version)) != 1) {
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
             "response header processing failed", "libmodsecurity");
     }
@@ -995,7 +998,7 @@ static int native_append_response_body(
     msconnector_native_transaction *native = native_transaction;
     (void)userdata;
     if (size > 0U &&
-        msc_append_response_body(native->transaction, data, size) < 0) {
+        msc_append_response_body(native->transaction, data, size) != 1) {
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
             "response body append failed", "libmodsecurity");
     }
@@ -1009,7 +1012,7 @@ static int native_finish_response_body(
     msconnector_error *error) {
     msconnector_native_transaction *native = native_transaction;
     msconnector_runtime *runtime = userdata;
-    if (msc_process_response_body(native->transaction) < 0) {
+    if (msc_process_response_body(native->transaction) != 1) {
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
             "response body processing failed", "libmodsecurity");
     }
@@ -1034,7 +1037,7 @@ static int native_process_logging(
     msconnector_error *error) {
     msconnector_native_transaction *native = native_transaction;
     (void)userdata;
-    if (msc_process_logging(native->transaction) < 0) {
+    if (msc_process_logging(native->transaction) != 1) {
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
             "logging phase failed", "libmodsecurity");
     }

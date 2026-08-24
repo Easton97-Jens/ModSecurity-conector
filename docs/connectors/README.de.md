@@ -2,6 +2,9 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
+Der gemeinsame Vertrag für Fehler-, Verfügbarkeits- und Cleanup-Pfade steht in
+der [Runtime-Fehlerpolicy](runtime-failure-policy.de.md).
+
 Dieser Bereich navigiert die sechs ausgewählten Connector-Routen. „P1“, „P2“,
 „P3“ und „P4“ bedeuten die ModSecurity-Phasen Request Header, Request Body,
 Response Header und Response Body. Der tatsächliche Case-Status einer Route ist

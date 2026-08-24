@@ -54,11 +54,14 @@ und in [`SOURCE_MAP.json`](SOURCE_MAP.json) aufgezeichnet:
 
 - [PR #384](https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/384)
   bei `65de4cd8739209f22d924d85548bd012a4d94607` unterscheidet finales
-  Body-Processing von partieller Aufnahme. Fehler bei finalem
-  `msc_process_request_body()`/`msc_process_response_body()` sind fail-closed,
-  während `msc_append_request_body()`, `msc_request_body_from_file()` und
-  `msc_append_response_body()` nicht fatales `ProcessPartial` beibehalten,
-  weil dieses Rückgabesignal auch beabsichtigte Limit-Trunkierung bezeichnet.
+  Body-Processing von partieller Aufnahme. Im aktuellen Adapter erfordern das
+  finale `msc_process_request_body()`/`msc_process_response_body()`-Processing
+  und die Aufnahmeaufrufe `msc_append_request_body()`,
+  `msc_request_body_from_file()` sowie `msc_append_response_body()` sämtlich
+  den libmodsecurity-Erfolgswert `1`; jeder andere Rückgabewert einschließlich
+  `0` wird fail-closed behandelt. Die Upstream-Interpretation von
+  `ProcessPartial` als Limit-Trunkierung ist daher im Adapter kein nichtfataler
+  Pfad.
 - [PR #385](https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/385)
   bei `471a2a54843bb8f560758a7e75b146db2243ab29` liefert ausgewählte
   Response-Header- und Pre-Commit-Redirect-Replacement-Behandlung. Eine
@@ -95,9 +98,9 @@ Content-Type-Aufnahme wieder her. Begrenzte Response-Bytes erreichen
 ModSecurity jetzt unabhängig vom konfigurierten Connector-Content-Type-Scope;
 erkennt diese Inspection eine außerhalb des Scopes liegende Intervention, mappt
 der Connector sie zu `log_only` mit `content_type_not_in_scope`. Das lockert
-#384 nicht: Finales `msc_process_response_body()`-Processing bleibt bei einem
-Ergebnis ungleich `1` fail-closed, während Append-/From-File-
-`ProcessPartial`-Handling absichtlich nicht fatal bleibt.
+#384 nicht: Final-Processing und Response-Body-Aufnahme bleiben bei einem
+Ergebnis ungleich `1` fail-closed. Die Aufnahme des Request-Bodys aus dem
+Speicher oder aus einer Datei verwendet denselben strikten Rückgabevertrag.
 
 Der strikte isolierte Rebuild sowie C17, C23 und c2y bestanden, und die neu
 materialisierte Build-Source-SHA entsprach dem Task-Filter. Der ausgewählte
@@ -417,8 +420,10 @@ Die kanonischen Phase-4-Fälle sind evidenzbasiert und umfassen Regelbeobachtung
 Pre-Commit-Verweigerung, sichere Protokollierung, strikter Abbruch und Status-/Aktionsmetadaten.  Nein
 Die Nutzlast des Antworttextes kann in ein Ereignis oder einen Bericht eingegeben werden.
 
-Der Final-Processing-Guard ist bewusst enger als Body-Ingestion:
-`ProcessPartial`-Append-/From-File-Behandlung wird nicht zu einem generischen
-500-Pfad. Damit bleibt das bestehende Safe/Strict-Phase-4-Result-Modell
-erhalten, statt eine Partial-Body-Limitentscheidung zu einer Late-Intervention-
-Behauptung zu machen.
+Final-Processing und Body-Ingestion verwenden denselben strikten nativen
+Erfolgsvertrag: Jeder relevante libmodsecurity-Aufruf muss exakt `1` liefern.
+Ein Aufnahmefehler einschließlich eines Rückgabewerts `0` führt zu einem
+generischen fail-closed-`500`/Interventionspfad und wird nicht als nichtfatale
+`ProcessPartial`-Limitentscheidung behandelt. So bleibt das bestehende
+Safe/Strict-Phase-4-Result-Modell erhalten, ohne einen unvollständig
+aufgenommenen Body stillschweigend an Final-Processing weiterzugeben.

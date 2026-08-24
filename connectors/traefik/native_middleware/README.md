@@ -14,7 +14,12 @@ declaration.
 ## What the source does
 
 - wraps the request body so reads are capped to `maxRequestChunkBytes` and sent
-  synchronously to a per-request `Transaction` seam;
+  synchronously to a per-request `Transaction` seam; before response-header
+  evaluation it drains any unread body through that same path to request EOS;
+- applies the finite `maxRequestBodyBytes` aggregate limit (default and hard
+  cap: 1 MiB) before an over-limit chunk reaches the engine. The deterministic
+  pre-commit action is HTTP 413; after that decision it does not drain the
+  remaining source body;
 - wraps the response writer, evaluates response headers before commitment, and
   slices every `Write` into `maxResponseChunkBytes` callbacks before forwarding
   each slice;

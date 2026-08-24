@@ -3,7 +3,9 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -25,6 +27,9 @@
 #define SPOP_FRAME_MAX 65536U
 #define SPOP_MIN_FRAME_SIZE 256U
 #define SPOP_FIN_FLAG 0x00000001U
+#define SPOP_DEFAULT_TIMEOUT_MS 2000U
+#define SPOP_DEFAULT_WORKER_COUNT 8U
+#define SPOP_MAX_WORKER_COUNT 64U
 
 #define SPOP_FRM_HAPROXY_HELLO 1U
 #define SPOP_FRM_HAPROXY_DISCONNECT 2U
@@ -173,8 +178,36 @@ typedef struct agent_state {
     FILE *decision_log;
 } agent_state;
 
+typedef struct peer_worker_set {
+    pid_t pids[SPOP_MAX_WORKER_COUNT];
+    size_t count;
+    unsigned int limit;
+} peer_worker_set;
+
 static volatile sig_atomic_t stop_requested = 0;
 static const unsigned char empty_value[1] = {0};
+
+static unsigned int peer_timeout_ms(const agent_state *state);
+static int deadline_after_ms(unsigned int timeout_ms, struct timespec *deadline);
+static int initialize_agent_engine(
+    agent_state *state,
+    const agent_config *config,
+    haproxy_modsecurity_decision *decision);
+static int peer_workers_init(peer_worker_set *workers, unsigned int limit);
+static void peer_workers_reap(peer_worker_set *workers, FILE *log);
+static int peer_workers_start(
+    peer_worker_set *workers,
+    int listen_fd,
+    int peer_fd,
+    agent_state *state,
+    FILE *log,
+    const char *rules_file,
+    const char *crs_preamble_file);
+static int peer_workers_wait(
+    peer_worker_set *workers,
+    FILE *log,
+    unsigned int timeout_ms,
+    int terminate);
 
 static void on_signal(int signum) {
     (void)signum;
@@ -374,14 +407,70 @@ static int write_process_id_file(const char *path, pid_t process_id) {
     return write_text_contents(path, contents);
 }
 
-static int read_full(int fd, void *buf, size_t len) {
+static int monotonic_remaining_ms(const struct timespec *deadline) {
+    struct timespec now;
+    time_t seconds;
+    long nanoseconds;
+    long long milliseconds;
+
+    if (deadline == 0 || clock_gettime(CLOCK_MONOTONIC, &now) != 0) {
+        return -1;
+    }
+    seconds = deadline->tv_sec - now.tv_sec;
+    nanoseconds = deadline->tv_nsec - now.tv_nsec;
+    if (nanoseconds < 0L) {
+        --seconds;
+        nanoseconds += 1000000000L;
+    }
+    if (seconds < 0 || (seconds == 0 && nanoseconds <= 0L)) {
+        return 0;
+    }
+    if (seconds > (time_t)(INT_MAX / 1000)) {
+        return INT_MAX;
+    }
+    milliseconds = (long long)seconds * 1000LL +
+        ((long long)nanoseconds + 999999LL) / 1000000LL;
+    return milliseconds > INT_MAX ? INT_MAX : (int)milliseconds;
+}
+
+static int read_full_until(
+        int fd,
+        void *buf,
+        size_t len,
+        const struct timespec *deadline) {
     unsigned char *p = (unsigned char *)buf;
     while (len > 0) {
         ssize_t rc;
 
+        if (deadline != 0) {
+            struct pollfd poll_fd;
+            int remaining_ms = monotonic_remaining_ms(deadline);
+            int poll_rc;
+
+            if (remaining_ms <= 0) {
+                errno = ETIMEDOUT;
+                return -1;
+            }
+            poll_fd.fd = fd;
+            poll_fd.events = POLLIN;
+            poll_fd.revents = 0;
+            do {
+                poll_rc = poll(&poll_fd, 1U, remaining_ms);
+            } while (poll_rc < 0 && errno == EINTR && !stop_requested);
+            if (poll_rc == 0) {
+                errno = ETIMEDOUT;
+                return -1;
+            }
+            if (poll_rc < 0 || (poll_fd.revents & POLLNVAL) != 0 ||
+                    ((poll_fd.revents & (POLLERR | POLLHUP)) != 0 &&
+                    (poll_fd.revents & POLLIN) == 0)) {
+                return -1;
+            }
+        }
+
         do {
             rc = read(fd, p, len);
-        } while (rc < 0 && errno == EINTR);
+        } while (rc < 0 && errno == EINTR && !stop_requested);
         if (rc == 0) {
             return -1;
         }
@@ -400,9 +489,16 @@ static int write_full(int fd, const void *buf, size_t len) {
         ssize_t rc;
 
         do {
-            rc = write(fd, p, len);
+#ifdef MSG_NOSIGNAL
+            rc = send(fd, p, len, MSG_NOSIGNAL);
+#else
+            rc = send(fd, p, len, 0);
+#endif
         } while (rc < 0 && errno == EINTR);
-        if (rc < 0) {
+        if (rc <= 0) {
+            if (rc == 0) {
+                errno = EPIPE;
+            }
             return -1;
         }
         p += rc;
@@ -1621,17 +1717,21 @@ static int send_frame(int fd, unsigned int type, uint64_t stream_id, uint64_t fr
     return write_full(fd, &net_len, sizeof(net_len)) == 0 && write_full(fd, frame.data, frame.len) == 0 ? 0 : -1;
 }
 
-static int recv_frame(int fd, spop_frame *frame) {
+static int recv_frame_until(
+        int fd,
+        spop_frame *frame,
+        const struct timespec *deadline) {
     uint32_t net_len;
     uint32_t len;
     unsigned char data[SPOP_FRAME_MAX];
     size_t pos;
 
-    if (read_full(fd, &net_len, sizeof(net_len)) != 0) {
+    if (read_full_until(fd, &net_len, sizeof(net_len), deadline) != 0) {
         return -1;
     }
     len = ntohl(net_len);
-    if (len == 0 || len > SPOP_FRAME_MAX || read_full(fd, data, len) != 0) {
+    if (len == 0 || len > SPOP_FRAME_MAX ||
+            read_full_until(fd, data, len, deadline) != 0) {
         return -1;
     }
     pos = 0;
@@ -1649,6 +1749,10 @@ static int recv_frame(int fd, spop_frame *frame) {
     frame->payload_len = len - pos;
     memcpy(frame->payload, data + pos, frame->payload_len);
     return 0;
+}
+
+static int recv_frame(int fd, spop_frame *frame) {
+    return recv_frame_until(fd, frame, 0);
 }
 
 static int send_agent_hello(int fd, unsigned int max_frame_size) {
@@ -1704,8 +1808,8 @@ static void config_init(agent_config *config) {
     config->request_body_limit = 65532U;
     config->response_body_limit = 0U;
     config->response_body_timeout_ms = 0U;
-    config->spoe_timeout_ms = 2000U;
-    config->worker_count = 1U;
+    config->spoe_timeout_ms = SPOP_DEFAULT_TIMEOUT_MS;
+    config->worker_count = SPOP_DEFAULT_WORKER_COUNT;
     config->max_transactions = 4096U;
 }
 
@@ -1814,6 +1918,17 @@ static int config_set(agent_config *config, const char *key, const char *value) 
         return 0;
     }
     return -1;
+}
+
+static int production_config_has_safe_peer_limits(const agent_config *config) {
+    if (config == 0 || config->port == 0U ||
+            config->spoe_timeout_ms == 0U ||
+            config->spoe_timeout_ms > 60000U ||
+            config->worker_count == 0U ||
+            config->worker_count > SPOP_MAX_WORKER_COUNT) {
+        return 0;
+    }
+    return 1;
 }
 
 static char *trim_in_place(char *value) {
@@ -2040,6 +2155,12 @@ static const char *safe_decision_reason_code(
         const char *decision_text) {
     const char *safe_decision = safe_decision_name(decision_text, decision);
 
+    if (decision != 0 && strcmp(decision->log_message,
+            "peer_worker_admission_failed") == 0) {
+        return strcmp(safe_decision, "fail-closed") == 0
+            ? "peer_worker_admission_failed_closed"
+            : "peer_worker_admission_failed_open";
+    }
     if (strcmp(safe_decision, "fail-closed") == 0) {
         return "modsecurity_processing_failed_closed";
     }
@@ -2058,6 +2179,36 @@ static const char *safe_decision_reason_code(
         return "modsecurity_rule_observed";
     }
     return "modsecurity_allow";
+}
+
+static int decision_log_lock(FILE *file) {
+    struct flock lock;
+    int fd;
+    int result;
+
+    if (file == 0 || (fd = fileno(file)) < 0) {
+        return -1;
+    }
+    memset(&lock, 0, sizeof(lock));
+    lock.l_type = F_WRLCK;
+    lock.l_whence = SEEK_SET;
+    do {
+        result = fcntl(fd, F_SETLKW, &lock);
+    } while (result != 0 && errno == EINTR);
+    return result;
+}
+
+static void decision_log_unlock(FILE *file) {
+    struct flock lock;
+    int fd;
+
+    if (file == 0 || (fd = fileno(file)) < 0) {
+        return;
+    }
+    memset(&lock, 0, sizeof(lock));
+    lock.l_type = F_UNLCK;
+    lock.l_whence = SEEK_SET;
+    (void)fcntl(fd, F_SETLK, &lock);
 }
 
 static void decision_log_write(
@@ -2084,6 +2235,10 @@ static void decision_log_write(
         return;
     }
     file = state->decision_log;
+    if (decision_log_lock(file) != 0) {
+        log_line(state->log, "decision log lock failed errno=%d", errno);
+        return;
+    }
     decision_name = safe_decision_name(decision_text, decision);
     reason_code = safe_decision_reason_code(
         decision, modsecurity_processed, decision_name);
@@ -2160,7 +2315,10 @@ static void decision_log_write(
 #undef JSON_FIELD_UINT
 #undef JSON_FIELD_INT
 #undef JSON_FIELD_BOOL
-    fflush(file);
+    if (fflush(file) != 0) {
+        log_line(state->log, "decision log flush failed errno=%d", errno);
+    }
+    decision_log_unlock(file);
 }
 
 static int transaction_cache_init(agent_state *state) {
@@ -2284,14 +2442,6 @@ static void runtime_init_decision(
     copy_cstring(decision->log_message, sizeof(decision->log_message), safe_message);
 }
 
-static int send_empty_ack(int fd, const spop_frame *frame) {
-    spop_buffer ack_payload;
-
-    ack_payload.len = 0;
-    return send_frame(fd, SPOP_FRM_ACK, frame->stream_id, frame->frame_id,
-        &ack_payload);
-}
-
 static void ensure_notify_request_id(notify_request *request, const spop_frame *frame) {
     if (request->has_request_id && request->request_id[0] != '\0') {
         return;
@@ -2314,6 +2464,36 @@ static const char *set_processing_failure(
     }
     runtime_init_decision(decision, phase, "pass", 200, reason);
     return "fail-open";
+}
+
+static int send_malformed_notify_outcome(
+        int fd,
+        const spop_frame *frame,
+        const agent_state *state,
+        FILE *log) {
+    haproxy_modsecurity_decision decision;
+    spop_buffer ack_payload;
+    const char *decision_text;
+
+    if (state == 0 || state->engine == 0) {
+        log_line(log,
+            "malformed NOTIFY rejected without ACK because no production fail policy is active");
+        return -1;
+    }
+    decision_text = set_processing_failure(state, &decision, 2,
+        "invalid SPOP NOTIFY payload");
+    if (build_decision_ack_payload(&ack_payload, &decision,
+            safe_decision_reason_code(&decision, 0, decision_text),
+            mode_enforces(&state->config)) != 0) {
+        log_line(log, "malformed NOTIFY outcome encoding failed");
+        return -1;
+    }
+    log_line(log,
+        "malformed NOTIFY outcome=%s disruptive=%d status=%d enforce=%d",
+        decision_text, decision.disruptive, decision.status,
+        mode_enforces(&state->config));
+    return send_frame(fd, SPOP_FRM_ACK, frame->stream_id, frame->frame_id,
+        &ack_payload);
 }
 
 static unsigned int bounded_body_length(
@@ -2592,7 +2772,7 @@ static int process_legacy_notify(
     if (modsec_rc != 0) {
         log_line(log, "MODSECURITY live binding failed status=%d rule_id=%d",
             decision.status, decision.rule_id);
-        return send_empty_ack(fd, frame);
+        return -1;
     }
     log_line(log, "MODSECURITY live decision disruptive=%d status=%d",
         decision.disruptive, decision.status);
@@ -2613,7 +2793,7 @@ static int handle_notify_frame(
         (unsigned long long)frame->stream_id, (unsigned long long)frame->frame_id);
     if (parse_notify_payload(frame->payload, frame->payload_len, &request) != 0) {
         log_line(log, "NOTIFY request argument extraction failed");
-        rc = send_empty_ack(fd, frame);
+        rc = send_malformed_notify_outcome(fd, frame, state, log);
         free_notify_request(&request);
         return rc;
     }
@@ -2631,14 +2811,127 @@ static int handle_notify_frame(
     return rc;
 }
 
+static int admission_failure_phase(const notify_request *request) {
+    if (request != 0 && request->is_response_body) {
+        return 4;
+    }
+    if (request != 0 && request->is_response) {
+        return 3;
+    }
+    return request != 0 && request->has_body ? 2 : 1;
+}
+
+static int send_admission_failure_ack(
+        int fd,
+        const spop_frame *frame,
+        agent_state *state,
+        FILE *log) {
+    haproxy_modsecurity_decision decision;
+    notify_request request;
+    spop_buffer ack_payload;
+    const char *decision_text;
+
+    if (fd < 0 || frame == 0 || state == 0) {
+        return -1;
+    }
+    if (parse_notify_payload(frame->payload, frame->payload_len, &request) != 0) {
+        free_notify_request(&request);
+        memset(&request, 0, sizeof(request));
+        log_line(log, "admission-failure NOTIFY payload extraction failed");
+    }
+    ensure_notify_request_id(&request, frame);
+    decision_text = set_processing_failure(state, &decision,
+        admission_failure_phase(&request), "peer_worker_admission_failed");
+    decision_log_write(state, &request, &decision, 0, decision_text);
+    if (build_decision_ack_payload(&ack_payload, &decision,
+            safe_decision_reason_code(&decision, 0, decision_text),
+            mode_enforces(&state->config)) != 0) {
+        free_notify_request(&request);
+        log_line(log, "admission-failure ACK encoding failed");
+        return -1;
+    }
+    log_line(log,
+        "admission-failure decision request_id=%s phase=%d disruptive=%d status=%d enforce=%d",
+        request.request_id, decision.phase, decision.disruptive, decision.status,
+        mode_enforces(&state->config));
+    free_notify_request(&request);
+    return send_frame(fd, SPOP_FRM_ACK, frame->stream_id, frame->frame_id,
+        &ack_payload);
+}
+
+static int handle_admission_failure_connection(
+        int fd,
+        agent_state *state,
+        FILE *log) {
+    spop_frame frame;
+    hello_info hello;
+    struct timespec deadline;
+
+    if (state == 0 || deadline_after_ms(peer_timeout_ms(state), &deadline) != 0 ||
+            recv_frame_until(fd, &frame, &deadline) != 0 ||
+            frame.type != SPOP_FRM_HAPROXY_HELLO ||
+            parse_hello_payload(frame.payload, frame.payload_len, &hello) != 0) {
+        log_line(log, "admission-failure connection rejected during HELLO errno=%d", errno);
+        if (send_agent_disconnect(fd, 4, "invalid hello") != 0) {
+            log_line(log,
+                "admission-failure HELLO rejection disconnect send failed errno=%d", errno);
+        }
+        return -1;
+    }
+    if (send_agent_hello(fd, hello.max_frame_size) != 0) {
+        log_line(log, "admission-failure agent HELLO send failed errno=%d", errno);
+        return -1;
+    }
+    if (hello.healthcheck) {
+        return 0;
+    }
+    while (!stop_requested) {
+        if (deadline_after_ms(peer_timeout_ms(state), &deadline) != 0 ||
+                recv_frame_until(fd, &frame, &deadline) != 0) {
+            log_line(log, "admission-failure frame deadline/reception failed errno=%d", errno);
+            if (send_agent_disconnect(fd, 4, "frame timeout") != 0) {
+                log_line(log,
+                    "admission-failure frame rejection disconnect send failed errno=%d", errno);
+            }
+            return -1;
+        }
+        if (frame.type == SPOP_FRM_NOTIFY) {
+            if (send_admission_failure_ack(fd, &frame, state, log) != 0) {
+                return -1;
+            }
+            continue;
+        }
+        if (frame.type == SPOP_FRM_HAPROXY_DISCONNECT) {
+            if (send_agent_disconnect(fd, 0, "normal") != 0) {
+                log_line(log,
+                    "admission-failure normal disconnect send failed errno=%d", errno);
+                return -1;
+            }
+            return 0;
+        }
+        log_line(log, "admission-failure unsupported frame type=%u", frame.type);
+        if (send_agent_disconnect(fd, 4, "unsupported frame") != 0) {
+            log_line(log,
+                "admission-failure unsupported-frame disconnect send failed errno=%d", errno);
+        }
+        return -1;
+    }
+    return 0;
+}
+
 static int handle_connection(int fd, agent_state *state, FILE *log, const char *rules_file, const char *crs_preamble_file) {
     spop_frame frame;
     hello_info hello;
+    struct timespec deadline;
 
-    if (recv_frame(fd, &frame) != 0 || frame.type != SPOP_FRM_HAPROXY_HELLO ||
+    if (deadline_after_ms(peer_timeout_ms(state), &deadline) != 0 ||
+            recv_frame_until(fd, &frame, &deadline) != 0 ||
+            frame.type != SPOP_FRM_HAPROXY_HELLO ||
         parse_hello_payload(frame.payload, frame.payload_len, &hello) != 0) {
-        log_line(log, "connection rejected during HELLO");
-        send_agent_disconnect(fd, 4, "invalid hello");
+        log_line(log, "connection rejected during HELLO errno=%d", errno);
+        if (send_agent_disconnect(fd, 4, "invalid hello") != 0) {
+            log_line(log, "HELLO rejection disconnect send failed errno=%d", errno);
+        }
         return -1;
     }
     log_line(log, "HELLO received healthcheck=%d max_frame_size=%u", hello.healthcheck, hello.max_frame_size);
@@ -2651,8 +2944,13 @@ static int handle_connection(int fd, agent_state *state, FILE *log, const char *
     }
 
     while (!stop_requested) {
-        if (recv_frame(fd, &frame) != 0) {
-            return 0;
+        if (deadline_after_ms(peer_timeout_ms(state), &deadline) != 0 ||
+                recv_frame_until(fd, &frame, &deadline) != 0) {
+            log_line(log, "connection frame deadline/reception failed errno=%d", errno);
+            if (send_agent_disconnect(fd, 4, "frame timeout") != 0) {
+                log_line(log, "frame rejection disconnect send failed errno=%d", errno);
+            }
+            return -1;
         }
         if (frame.type == SPOP_FRM_NOTIFY) {
             if (handle_notify_frame(fd, &frame, state, log, rules_file,
@@ -2668,11 +2966,16 @@ static int handle_connection(int fd, agent_state *state, FILE *log, const char *
                 &status_code, message, sizeof(message));
             log_line(log, "DISCONNECT received status=%u message_present=%d",
                 status_code, message[0] != '\0');
-            send_agent_disconnect(fd, 0, "normal");
+            if (send_agent_disconnect(fd, 0, "normal") != 0) {
+                log_line(log, "normal disconnect send failed errno=%d", errno);
+                return -1;
+            }
             return 0;
         }
         log_line(log, "unsupported frame type=%u", frame.type);
-        send_agent_disconnect(fd, 4, "unsupported frame");
+        if (send_agent_disconnect(fd, 4, "unsupported frame") != 0) {
+            log_line(log, "unsupported-frame disconnect send failed errno=%d", errno);
+        }
         return -1;
     }
     return 0;
@@ -2730,31 +3033,120 @@ static int connect_localhost(unsigned int port) {
     return fd;
 }
 
+static unsigned int peer_timeout_ms(const agent_state *state) {
+    if (state != 0 && state->config.spoe_timeout_ms > 0U) {
+        return state->config.spoe_timeout_ms;
+    }
+    return SPOP_DEFAULT_TIMEOUT_MS;
+}
+
+static int deadline_after_ms(unsigned int timeout_ms, struct timespec *deadline) {
+    if (deadline == 0 || timeout_ms == 0U ||
+            clock_gettime(CLOCK_MONOTONIC, deadline) != 0) {
+        return -1;
+    }
+    deadline->tv_sec += (time_t)(timeout_ms / 1000U);
+    deadline->tv_nsec += (long)(timeout_ms % 1000U) * 1000000L;
+    if (deadline->tv_nsec >= 1000000000L) {
+        ++deadline->tv_sec;
+        deadline->tv_nsec -= 1000000000L;
+    }
+    return 0;
+}
+
+static int set_peer_socket_timeouts(int fd, unsigned int timeout_ms) {
+    struct timeval timeout;
+
+    if (timeout_ms == 0U) {
+        errno = EINVAL;
+        return -1;
+    }
+    timeout.tv_sec = (time_t)(timeout_ms / 1000U);
+    timeout.tv_usec = (suseconds_t)(timeout_ms % 1000U) * 1000;
+    if (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) != 0 ||
+            setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)) != 0) {
+        return -1;
+    }
+#if !defined(MSG_NOSIGNAL)
+#if defined(SO_NOSIGPIPE)
+    {
+        const int enabled = 1;
+        if (setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &enabled,
+                sizeof(enabled)) != 0) {
+            return -1;
+        }
+    }
+#else
+    /* Do not start a peer on a platform that cannot suppress SIGPIPE for this
+     * socket.  A process-wide signal disposition would mask write failures
+     * from unrelated code and is not an acceptable substitute. */
+    errno = ENOTSUP;
+    return -1;
+#endif
+#endif
+    return 0;
+}
+
 static int accept_loop(int listen_fd, agent_state *state, FILE *log, int max_connections, const char *rules_file, const char *crs_preamble_file) {
     int handled = 0;
+    int result = 0;
+    int drain_workers = 0;
+    peer_worker_set workers;
 
     stop_requested = 0;
     if (install_signal_handlers() != 0) {
         log_line(log, "failed to install signal handlers errno=%d", errno);
         return 1;
     }
+    if (peer_workers_init(&workers, state != 0 ? state->config.worker_count :
+            SPOP_DEFAULT_WORKER_COUNT) != 0) {
+        log_line(log, "failed to initialize peer worker set errno=%d", errno);
+        return 1;
+    }
     while (!stop_requested && (max_connections <= 0 || handled < max_connections)) {
         int fd = accept(listen_fd, 0, 0);
+
+        peer_workers_reap(&workers, log);
         if (fd < 0) {
             if (errno != EINTR) {
                 log_line(log, "accept failed errno=%d", errno);
-                return 1;
+                result = 1;
+                break;
             }
             if (stop_requested) {
                 break;
             }
             continue;
         }
-        handle_connection(fd, state, log, rules_file, crs_preamble_file);
-        close(fd);
+        if (set_peer_socket_timeouts(fd, peer_timeout_ms(state)) != 0) {
+            log_line(log, "peer socket timeout/signal setup failed errno=%d", errno);
+            close(fd);
+            handled++;
+            continue;
+        }
+        if (peer_workers_start(&workers, listen_fd, fd, state, log,
+                rules_file, crs_preamble_file) != 0) {
+            log_line(log,
+                "peer worker admission failed; closing peer without protocol processing mode=%s errno=%d",
+                state != 0 && fail_mode_closed(&state->config) ?
+                    "fail-closed" : "fail-open", errno);
+            /* This path runs in the single accept loop.  It must never read a
+             * peer's HELLO/NOTIFY sequence: a saturated or deliberately slow
+             * peer would otherwise hold every subsequent connection hostage.
+             * Child-local initialization failures may still use the bounded
+             * admission handler, but admission failure in this parent is
+             * represented by an immediate peer-local close. */
+            (void)shutdown(fd, SHUT_RDWR);
+            close(fd);
+        }
         handled++;
     }
-    return 0;
+    drain_workers = result == 0 && !stop_requested && max_connections > 0 &&
+        handled >= max_connections;
+    if (peer_workers_wait(&workers, log, peer_timeout_ms(state), !drain_workers) != 0) {
+        result = 1;
+    }
+    return result;
 }
 
 static int client_expect_frame(int fd, unsigned int type, uint64_t stream_id, uint64_t frame_id) {
@@ -2780,22 +3172,93 @@ static int client_expect_ack_set_var(int fd, uint64_t stream_id, uint64_t frame_
     return payload_has_set_var_blocked_true(&payload) ? 0 : -1;
 }
 
+static int client_expect_closed(int fd) {
+    unsigned char byte;
+    ssize_t received = recv(fd, &byte, sizeof(byte), 0);
+
+    return received == 0 ? 0 : -1;
+}
+
 static int run_client_self_test(unsigned int port, FILE *log) {
     int fd;
+    int slow_fd;
+    uint32_t incomplete_frame_len;
+    struct linger reset_linger;
+    struct timespec handshake_wait;
     spop_buffer empty;
     spop_buffer notify_payload;
 
+    /* An incomplete peer must not kill the server while it tries to reject
+     * the half-frame.  Reset the client close so the server's rejection write
+     * observes the same failure mode as an abruptly disappearing peer. */
     fd = connect_localhost(port);
     if (fd < 0) {
+        return -1;
+    }
+    incomplete_frame_len = htonl(4U);
+    if (write_full(fd, &incomplete_frame_len,
+            sizeof(incomplete_frame_len)) != 0) {
+        close(fd);
+        return -1;
+    }
+    reset_linger.l_onoff = 1;
+    reset_linger.l_linger = 0;
+    if (setsockopt(fd, SOL_SOCKET, SO_LINGER, &reset_linger,
+            sizeof(reset_linger)) != 0) {
+        close(fd);
+        return -1;
+    }
+    close(fd);
+    log_line(log, "client incomplete peer recovery PASS");
+
+    /* Keep a half-frame open while a legitimate peer completes HELLO.  The
+     * worker cap must isolate this peer, and the absolute HELLO deadline must
+     * retire it before the following normal transaction. */
+    slow_fd = connect_localhost(port);
+    if (slow_fd < 0 || write_full(slow_fd, &incomplete_frame_len,
+            sizeof(incomplete_frame_len)) != 0) {
+        if (slow_fd >= 0) {
+            close(slow_fd);
+        }
+        return -1;
+    }
+    fd = connect_localhost(port);
+    if (fd < 0) {
+        close(slow_fd);
         return -1;
     }
     if (send_haproxy_hello(fd, 1) != 0 ||
         client_expect_frame(fd, SPOP_FRM_AGENT_HELLO, 0, 0) != 0) {
         close(fd);
+        close(slow_fd);
         return -1;
     }
-    log_line(log, "client healthcheck handshake PASS");
+    log_line(log, "client parallel healthcheck handshake PASS");
     close(fd);
+
+    handshake_wait.tv_sec = 2;
+    handshake_wait.tv_nsec = 100000000L;
+    (void)nanosleep(&handshake_wait, 0);
+    close(slow_fd);
+    log_line(log, "client slow HELLO deadline recovery PASS");
+
+    /* A fragmented frame after a valid HELLO must not keep its worker alive
+     * indefinitely.  The server returns its bounded protocol rejection before
+     * the client's receive timeout expires. */
+    fd = connect_localhost(port);
+    if (fd < 0) {
+        return -1;
+    }
+    if (send_haproxy_hello(fd, 0) != 0 ||
+            client_expect_frame(fd, SPOP_FRM_AGENT_HELLO, 0, 0) != 0 ||
+            write_full(fd, &incomplete_frame_len,
+                sizeof(incomplete_frame_len)) != 0 ||
+            client_expect_frame(fd, SPOP_FRM_AGENT_DISCONNECT, 0, 0) != 0) {
+        close(fd);
+        return -1;
+    }
+    close(fd);
+    log_line(log, "client post-HELLO frame deadline recovery PASS");
 
     fd = connect_localhost(port);
     if (fd < 0) {
@@ -2819,6 +3282,86 @@ static int run_client_self_test(unsigned int port, FILE *log) {
     }
     log_line(log, "client notify set-var ack disconnect PASS");
     close(fd);
+    return 0;
+}
+
+static int run_admission_failure_self_test(FILE *log) {
+    agent_state failure_state;
+    int listen_fd;
+    int fd;
+    int slow_fd;
+    int status;
+    pid_t child;
+    unsigned int port = 0U;
+    spop_buffer empty;
+    struct timespec reap_wait;
+
+    memset(&failure_state, 0, sizeof(failure_state));
+    config_init(&failure_state.config);
+    failure_state.config.worker_count = 1U;
+    listen_fd = bind_localhost("127.0.0.1", 0, &port);
+    if (listen_fd < 0) {
+        return -1;
+    }
+    child = fork();
+    if (child < 0) {
+        close(listen_fd);
+        return -1;
+    }
+    if (child == 0) {
+        exit(accept_loop(listen_fd, &failure_state, log, 3, 0, 0));
+    }
+    close(listen_fd);
+    slow_fd = connect_localhost(port);
+    if (slow_fd < 0 || send_haproxy_hello(slow_fd, 0) != 0 ||
+            client_expect_frame(slow_fd, SPOP_FRM_AGENT_HELLO, 0, 0) != 0) {
+        if (slow_fd >= 0) {
+            close(slow_fd);
+        }
+        kill(child, SIGTERM);
+        waitpid(child, &status, 0);
+        return -1;
+    }
+    fd = connect_localhost(port);
+    if (fd < 0 || client_expect_closed(fd) != 0) {
+        if (fd >= 0) {
+            close(fd);
+        }
+        close(slow_fd);
+        kill(child, SIGTERM);
+        waitpid(child, &status, 0);
+        return -1;
+    }
+    empty.len = 0;
+    if (send_frame(slow_fd, SPOP_FRM_HAPROXY_DISCONNECT, 0, 0, &empty) != 0 ||
+            client_expect_frame(slow_fd, SPOP_FRM_AGENT_DISCONNECT, 0, 0) != 0) {
+        close(slow_fd);
+        kill(child, SIGTERM);
+        waitpid(child, &status, 0);
+        return -1;
+    }
+    close(slow_fd);
+    reap_wait.tv_sec = 0;
+    reap_wait.tv_nsec = 100000000L;
+    (void)nanosleep(&reap_wait, 0);
+    fd = connect_localhost(port);
+    if (fd < 0 || send_haproxy_hello(fd, 0) != 0 ||
+            client_expect_frame(fd, SPOP_FRM_AGENT_HELLO, 0, 0) != 0 ||
+            send_frame(fd, SPOP_FRM_HAPROXY_DISCONNECT, 0, 0, &empty) != 0 ||
+            client_expect_frame(fd, SPOP_FRM_AGENT_DISCONNECT, 0, 0) != 0) {
+        if (fd >= 0) {
+            close(fd);
+        }
+        kill(child, SIGTERM);
+        waitpid(child, &status, 0);
+        return -1;
+    }
+    close(fd);
+    waitpid(child, &status, 0);
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        return -1;
+    }
+    log_line(log, "client worker admission close isolation PASS");
     return 0;
 }
 
@@ -2868,7 +3411,7 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
                 write_text_contents(ready_path, "ready\n") != 0) {
             exit(77);
         }
-        exit(accept_loop(listen_fd, 0, log, 2, 0, 0));
+        exit(accept_loop(listen_fd, 0, log, 5, 0, 0));
     }
     close(listen_fd);
     if (run_client_self_test(port, log) != 0) {
@@ -2879,11 +3422,17 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
         return 1;
     }
     waitpid(child, &status, 0);
-    fclose(log);
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        fclose(log);
         fprintf(stderr, "SPOP protocol self-test child failed\n");
         return 1;
     }
+    if (run_admission_failure_self_test(log) != 0) {
+        fclose(log);
+        fprintf(stderr, "SPOP admission-failure self-test failed\n");
+        return 1;
+    }
+    fclose(log);
     printf("haproxy_modsecurity_spoa_protocol_self_test: PASS\n");
     printf("scope: SPOP handshake and typed set-var ACK compatibility; production ModSecurity coverage is verified by live HAProxy smoke tests\n");
     printf("log: %s\n", log_path);
@@ -2925,6 +3474,7 @@ static int write_server_runtime_files(
 static int run_server(const legacy_server_config *config) {
     int listen_fd;
     unsigned int bound_port;
+    int result;
     FILE *log;
 
     log = open_private_file(config->log_file, 1);
@@ -2947,11 +3497,11 @@ static int run_server(const legacy_server_config *config) {
     log_line(log, "legacy SPOP compatibility server listening on %s:%u rules_file=%s",
         config->host, bound_port,
         config->rules_file != 0 ? config->rules_file : "");
-    (void)accept_loop(listen_fd, 0, log, 0, config->rules_file,
+    result = accept_loop(listen_fd, 0, log, 0, config->rules_file,
         config->crs_preamble_file);
     close(listen_fd);
     fclose(log);
-    return 0;
+    return result;
 }
 
 static FILE *open_append_file_or_standard(const char *path, FILE *standard_file) {
@@ -2988,6 +3538,13 @@ static int open_agent_logs(
     if (config->decision_log[0] == '\0') {
         return 0;
     }
+    if (strcmp(config->decision_log, "-") == 0) {
+        if (stderr != NULL) {
+            fprintf(stderr,
+                "decision log must be a named append-only file when peer workers are enabled\n");
+        }
+        return -1;
+    }
     *decision_log = open_append_file_or_standard(config->decision_log, stdout);
     if (*decision_log == 0) {
         if (stderr != NULL) {
@@ -3014,6 +3571,202 @@ static int initialize_agent_engine(
     engine_config.rules_dir = config->rules_dir;
     return haproxy_modsecurity_engine_create(&engine_config, &state->engine,
         decision);
+}
+
+static int peer_workers_init(peer_worker_set *workers, unsigned int limit) {
+    if (workers == 0 || limit == 0U || limit > SPOP_MAX_WORKER_COUNT) {
+        errno = EINVAL;
+        return -1;
+    }
+    memset(workers, 0, sizeof(*workers));
+    workers->limit = limit;
+    return 0;
+}
+
+static void peer_workers_remove(peer_worker_set *workers, size_t index) {
+    if (workers == 0 || index >= workers->count) {
+        return;
+    }
+    workers->pids[index] = workers->pids[workers->count - 1U];
+    workers->pids[workers->count - 1U] = 0;
+    --workers->count;
+}
+
+static void peer_workers_reap(peer_worker_set *workers, FILE *log) {
+    size_t index = 0U;
+
+    if (workers == 0) {
+        return;
+    }
+    while (index < workers->count) {
+        int status = 0;
+        pid_t pid = workers->pids[index];
+        pid_t result = waitpid(pid, &status, WNOHANG);
+
+        if (result == 0) {
+            ++index;
+            continue;
+        }
+        if (result == pid) {
+            log_line(log, "peer worker exited pid=%ld status=%d signal=%d",
+                (long)pid, WIFEXITED(status) ? WEXITSTATUS(status) : -1,
+                WIFSIGNALED(status) ? WTERMSIG(status) : 0);
+            peer_workers_remove(workers, index);
+            continue;
+        }
+        if (result < 0 && errno == ECHILD) {
+            peer_workers_remove(workers, index);
+            continue;
+        }
+        ++index;
+    }
+}
+
+static void peer_worker_process(
+        int listen_fd,
+        int peer_fd,
+        agent_state *state,
+        FILE *log,
+        const char *rules_file,
+        const char *crs_preamble_file) {
+    agent_state peer_state;
+    agent_state *connection_state = 0;
+    haproxy_modsecurity_decision decision;
+    FILE *peer_decision_log = 0;
+    int result = 1;
+
+    memset(&peer_state, 0, sizeof(peer_state));
+    close(listen_fd);
+    if (state != 0) {
+        peer_state.config = state->config;
+        peer_state.log = state->log;
+        /* A named, locked parent descriptor remains an evidence-preserving
+         * fallback if opening a private child stream races a filesystem
+         * failure.  Standard output was rejected during startup. */
+        peer_state.decision_log = state->decision_log;
+        if (peer_state.config.decision_log[0] != '\0') {
+            peer_decision_log = open_private_file(peer_state.config.decision_log, 1);
+            if (peer_decision_log == 0) {
+                log_line(log, "peer decision log reopen failed errno=%d", errno);
+                result = handle_admission_failure_connection(peer_fd, &peer_state, log) == 0 ?
+                    0 : 1;
+                goto cleanup;
+            }
+            peer_state.decision_log = peer_decision_log;
+        }
+        if (initialize_agent_engine(&peer_state, &peer_state.config, &decision) != 0) {
+            log_line(log, "peer engine initialization failed: %s",
+                decision.log_message[0] != '\0' ? decision.log_message : "unknown");
+            result = handle_admission_failure_connection(peer_fd, &peer_state, log) == 0 ?
+                0 : 1;
+            goto cleanup;
+        }
+        if (transaction_cache_init(&peer_state) != 0) {
+            log_line(log, "peer transaction-cache allocation failed");
+            result = handle_admission_failure_connection(peer_fd, &peer_state, log) == 0 ?
+                0 : 1;
+            goto cleanup;
+        }
+        connection_state = &peer_state;
+    }
+    result = handle_connection(peer_fd, connection_state, log, rules_file,
+        crs_preamble_file) == 0 ? 0 : 1;
+cleanup:
+    transaction_cache_destroy(&peer_state);
+    haproxy_modsecurity_engine_destroy(peer_state.engine);
+    close_owned_stream(&peer_decision_log, 1);
+    close(peer_fd);
+    _exit(result);
+}
+
+static int peer_workers_start(
+        peer_worker_set *workers,
+        int listen_fd,
+        int peer_fd,
+        agent_state *state,
+        FILE *log,
+        const char *rules_file,
+        const char *crs_preamble_file) {
+    pid_t pid;
+
+    if (workers == 0 || workers->count >= workers->limit) {
+        errno = EAGAIN;
+        return -1;
+    }
+    pid = fork();
+    if (pid < 0) {
+        return -1;
+    }
+    if (pid == 0) {
+        peer_worker_process(listen_fd, peer_fd, state, log, rules_file,
+            crs_preamble_file);
+    }
+    workers->pids[workers->count++] = pid;
+    close(peer_fd);
+    return 0;
+}
+
+static int peer_workers_wait(
+        peer_worker_set *workers,
+        FILE *log,
+        unsigned int timeout_ms,
+        int terminate) {
+    struct timespec deadline;
+    struct timespec pause;
+    int force_kill = 0;
+
+    if (workers == 0) {
+        return 0;
+    }
+    if (terminate) {
+        for (size_t index = 0U; index < workers->count; ++index) {
+            if (kill(workers->pids[index], SIGTERM) != 0 && errno != ESRCH) {
+                return -1;
+            }
+        }
+    }
+    if (deadline_after_ms(timeout_ms, &deadline) != 0) {
+        return -1;
+    }
+    pause.tv_sec = 0;
+    pause.tv_nsec = 10000000L;
+    while (workers->count > 0U) {
+        peer_workers_reap(workers, log);
+        if (workers->count == 0U) {
+            return 0;
+        }
+        if (!force_kill && monotonic_remaining_ms(&deadline) <= 0) {
+            log_line(log, "peer worker deadline reached; force-stopping %lu peers",
+                (unsigned long)workers->count);
+            for (size_t index = 0U; index < workers->count; ++index) {
+                if (kill(workers->pids[index], SIGKILL) != 0 && errno != ESRCH) {
+                    return -1;
+                }
+            }
+            force_kill = 1;
+        }
+        if (force_kill) {
+            size_t index = 0U;
+
+            while (index < workers->count) {
+                int status = 0;
+                pid_t pid = workers->pids[index];
+                pid_t result;
+
+                do {
+                    result = waitpid(pid, &status, 0);
+                } while (result < 0 && errno == EINTR);
+                if (result == pid || (result < 0 && errno == ECHILD)) {
+                    peer_workers_remove(workers, index);
+                    continue;
+                }
+                return -1;
+            }
+            return 0;
+        }
+        (void)nanosleep(&pause, 0);
+    }
+    return 0;
 }
 
 static void destroy_agent_runtime(
@@ -3056,10 +3809,11 @@ static int run_agent_server(const agent_config *config) {
             decision.log_message[0] != '\0' ? decision.log_message : "unknown");
         goto cleanup;
     }
-    if (transaction_cache_init(&state) != 0) {
-        fprintf(stderr, "failed to allocate transaction cache\n");
-        goto cleanup;
-    }
+    /* Verify the configured engine before readiness, then let each bounded
+     * peer worker create its own runtime after fork.  This avoids sharing a
+     * mutable libmodsecurity instance across unrelated SPOP peers. */
+    haproxy_modsecurity_engine_destroy(state.engine);
+    state.engine = 0;
     listen_fd = bind_localhost(config->host, config->port, &bound_port);
     if (listen_fd < 0) {
         fprintf(stderr, "failed to bind %s:%u\n", config->host, config->port);
@@ -3070,11 +3824,12 @@ static int run_agent_server(const agent_config *config) {
         goto cleanup;
     }
     log_line(log,
-        "HAProxy ModSecurity SPOA production agent listening on %s:%u rules_file=%s rules_dir=%s modsecurity_conf=%s crs_root=%s mode=%s fail_mode=%s response_phases=%d response_body_limit=%u",
+        "HAProxy ModSecurity SPOA production agent listening on %s:%u rules_file=%s rules_dir=%s modsecurity_conf=%s crs_root=%s mode=%s fail_mode=%s response_phases=%d response_body_limit=%u peer_timeout_ms=%u peer_workers=%u",
         config->host, bound_port, config->rules_file, config->rules_dir,
         config->modsecurity_conf, config->crs_root, config->mode,
         config->fail_mode, config->response_phases_enabled,
-        config->response_body_limit);
+        config->response_body_limit, config->spoe_timeout_ms,
+        config->worker_count);
     rc = accept_loop(listen_fd, &state, log, 0, 0, 0);
 cleanup:
     destroy_agent_runtime(&state, listen_fd, &log, log_owned, &decision_log,
@@ -3192,7 +3947,8 @@ static int run_production_agent_command(int argc, char **argv) {
     config_init(&config);
     if (load_production_config_files(&config, argc, argv) != 0 ||
             parse_production_options(&config, argc, argv) != 0 ||
-            config.port == 0U || !has_production_rules(&config)) {
+            !production_config_has_safe_peer_limits(&config) ||
+            !has_production_rules(&config)) {
         print_usage(argv[0]);
         return 2;
     }

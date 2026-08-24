@@ -677,6 +677,9 @@ cleanup() {
         wait "$BACKEND_PID" >/dev/null 2>&1 || true
     fi
     if [ -n "${RUNTIME_ROOT:-}" ]; then
+        # The agent writes these readiness/lifecycle markers before serving.
+        # They are run-scoped state, not retained evidence, and must not
+        # survive a completed case (including an interrupted one).
         rm -f \
             "$RUNTIME_ROOT/haproxy.pid" \
             "$RUNTIME_ROOT/spoa.pid" \
@@ -754,7 +757,9 @@ write_haproxy_config() {
         echo "    option var-prefix modsec"
         echo "    register-var-names blocked action status redirect_url rule_id phase error"
         echo "    max-frame-size 65532"
-        echo "    option continue-on-error"
+        # The project harness is fail-closed.  HAProxy's continue-on-error
+        # option can turn a peer/agent failure into an Allow and is therefore
+        # incompatible with the closed failure contract.
         echo "    timeout hello 1s"
         echo "    timeout idle 3s"
         echo "    timeout processing 2s"

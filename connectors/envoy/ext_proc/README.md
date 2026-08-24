@@ -36,6 +36,45 @@ separate evidence-review decision.
 - unit and CGo lifecycle tests covering P1/P2/P3/P4, incremental EOS,
   cancellation, commit ordering, and parallel transactions.
 
+## Listener and stream admission safety
+
+The unauthenticated ext_proc gRPC endpoint accepts only numeric loopback
+listener addresses (`127.0.0.0/8` or `::1`). Hostnames, wildcard addresses,
+and other interface addresses fail configuration validation, including through
+the `--listen` override. The required service JSON fields
+`max_concurrent_streams` (1–1024) and `stream_idle_timeout_ms` provide the
+two independent stream availability controls. The first is applied both to
+each HTTP/2 connection and to process-wide `Process` admission. A process-wide
+rejection returns `ResourceExhausted` before stream state or a Common
+transaction is allocated.
+
+`stream_idle_timeout_ms` is a server-side inactivity limit, not an engine
+timeout. Its clock begins while the service waits for the first or next complete
+Envoy `ProcessingRequest`; every received request is stream activity, and the
+next interval begins after that request's engine work and response send finish.
+Consequently a long-lived streamed request or response remains legitimate when
+it continues to send messages within the interval. On expiry the service
+returns gRPC `DeadlineExceeded`, records `grpc_stream_idle_timeout`, closes the
+transaction with its separate `cleanup_timeout_ms`, and releases admission for
+a following stream. `engine_timeout_ms` independently bounds the context
+passed to an engine callback; it neither substitutes for nor restarts the
+stream-idle clock.
+
+The pending-`Recv` lifecycle is covered by an actual gRPC bufconn test: an idle
+stream leaves exactly one bounded receive wait, cancellation releases it, and a
+follow-up stream is admitted successfully. Server shutdown cancels active
+streams, releases their transactions and admission slots, and the forced-stop
+path has its own deadline. Lock acquisition and cleanup are likewise
+deadline-bounded. A native CGo call or destructor that has already entered an
+uninterruptible native section cannot be canceled in place; the service reports
+a controlled nonzero outcome so a supervisor can restart the process rather
+than claiming in-process cancellation.
+
+gRPC context cancellation (including server shutdown) follows the same
+per-stream cleanup path and is recorded as
+`grpc_context_canceled_unattributed`; it does not claim whether Envoy observed
+a downstream client or upstream reset.
+
 The pinned dependency is the official generated Envoy Go API module in
 `go.mod`/`go.sum`. `../config/envoy-ext-proc-versions.env` records the intended
 Framework-synchronized Envoy release and `../config/envoy-ext-proc-streaming.yaml.in` uses

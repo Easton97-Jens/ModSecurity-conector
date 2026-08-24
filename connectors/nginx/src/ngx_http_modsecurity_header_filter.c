@@ -484,7 +484,7 @@ ngx_http_modsecurity_phase3_log_event(ngx_http_request_t *r,
         "phase3");
 }
 
-static void
+static ngx_int_t
 ngx_http_modsecurity_add_response_headers(ngx_http_request_t *r,
     ngx_http_modsecurity_ctx_t *ctx)
 {
@@ -500,8 +500,9 @@ ngx_http_modsecurity_add_response_headers(ngx_http_request_t *r,
         if (ngx_http_modsecurity_headers_out[i].resolver(r,
                 ngx_http_modsecurity_headers_out[i].name,
                 ngx_http_modsecurity_headers_out[i].offset) != 1) {
-            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                 "ModSecurity: failed to add synthetic response header for inspection");
+            return NGX_ERROR;
         }
     }
 
@@ -526,10 +527,13 @@ ngx_http_modsecurity_add_response_headers(ngx_http_request_t *r,
                 data[i].key.len,
                 (const unsigned char *) data[i].value.data,
                 data[i].value.len) != 1) {
-            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                 "ModSecurity: failed to add response header for inspection");
+            return NGX_ERROR;
         }
     }
+
+    return NGX_OK;
 }
 
 static ngx_int_t
@@ -546,9 +550,10 @@ ngx_http_modsecurity_handle_response_header_intervention(ngx_http_request_t *r,
         ctx->intervention_triggered = 1;
         return NGX_ERROR;
     }
-    if (r->error_page) {
-        return ngx_http_next_header_filter(r);
-    }
+    /* process_intervention() returns zero for no intervention, a positive
+     * status for a disruptive intervention, and a negative value when the
+     * intervention cannot safely be applied.  Only the zero case may pass
+     * through the remaining header filters. */
     if (ret == 0) {
         return ngx_http_next_header_filter(r);
     }
@@ -646,7 +651,11 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
      * checked. Other module(s) in the chain may added some content to it.
      *
      */
-    ngx_http_modsecurity_add_response_headers(r, ctx);
+    if (ngx_http_modsecurity_add_response_headers(r, ctx) != NGX_OK) {
+        ctx->intervention_triggered = 1;
+        return ngx_http_filter_finalize_request(r,
+            &ngx_http_modsecurity_module, NGX_HTTP_INTERNAL_SERVER_ERROR);
+    }
 
     /* prepare extra paramters for msc_process_response_headers() */
     if (r->err_status) {
@@ -670,8 +679,16 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
 #endif
 
     old_pool = ngx_http_modsecurity_pcre_malloc_init(r->pool);
-    msc_process_response_headers(ctx->modsec_transaction, status, http_response_ver);
+    ret = msc_process_response_headers(ctx->modsec_transaction, status,
+        http_response_ver);
     ngx_http_modsecurity_pcre_malloc_done(old_pool);
+    if (ret != 1) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: response headers phase processing failed");
+        ctx->intervention_triggered = 1;
+        return ngx_http_filter_finalize_request(r,
+            &ngx_http_modsecurity_module, NGX_HTTP_INTERNAL_SERVER_ERROR);
+    }
     ctx->response_headers_seen = 1;
     ret = ngx_http_modsecurity_process_intervention(ctx->modsec_transaction, r, 0);
     return ngx_http_modsecurity_handle_response_header_intervention(r, ctx,

@@ -36,6 +36,48 @@ gesonderte Entscheidung zur Beweiswürdigung.
 - Unit- und CGo-Lebenszyklustests für P1/P2/P3/P4, inkrementelles EOS,
   Stornierung, Commit-Reihenfolge und parallele Transaktionen.
 
+## Sicherheit von Listener und Stream-Zulassung
+
+Der nicht authentifizierte ext_proc-gRPC-Endpunkt akzeptiert nur numerische
+Loopback-Listener-Adressen (`127.0.0.0/8` oder `::1`). Hostnamen, Wildcard-
+Adressen und andere Schnittstellenadressen schlagen die
+Konfigurationsvalidierung fehl, auch über die `--listen`-Überschreibung. Die
+obligatorischen Service-JSON-Felder `max_concurrent_streams` (1–1024) und
+`stream_idle_timeout_ms` liefern zwei unabhängige Verfügbarkeitsgrenzen. Die
+erste gilt sowohl pro HTTP/2-Verbindung als auch für die prozessweite
+`Process`-Zulassung. Eine prozessweite Zurückweisung liefert
+`ResourceExhausted`, bevor Stream-Zustand oder eine Common-Transaktion angelegt
+wird.
+
+`stream_idle_timeout_ms` ist ein serverseitiges Inaktivitätslimit und kein
+Engine-Timeout. Seine Uhr läuft, während der Service auf die erste oder nächste
+vollständige Envoy-`ProcessingRequest` wartet; jede empfangene Request ist
+Stream-Aktivität, und das nächste Intervall beginnt erst nach Engine-Verarbeitung
+und dem Senden der zugehörigen Antwort. Ein langlebiger gestreamter Request oder
+Response bleibt daher zulässig, wenn er innerhalb des Intervalls weiter
+Nachrichten liefert. Bei Ablauf liefert der Service gRPC `DeadlineExceeded`,
+zeichnet `grpc_stream_idle_timeout` auf, schließt die Transaktion mit dem
+getrennten `cleanup_timeout_ms` und gibt die Zulassung für einen Folgestream
+frei. `engine_timeout_ms` begrenzt unabhängig nur den Context eines
+Engine-Callbacks; er ersetzt oder startet die Stream-Idle-Uhr nicht neu.
+
+Der Lebenszyklus eines ausstehenden `Recv` ist durch einen echten gRPC-
+bufconn-Test abgedeckt: Ein inaktiver Stream hinterlässt genau ein begrenztes
+Receive-Warten, eine Stornierung gibt es frei und ein Folgestream wird
+erfolgreich zugelassen. Der Server-Shutdown storniert aktive Streams, gibt
+Transaktionen und Zulassungsslots frei, und der erzwungene Stop besitzt eine
+eigene Deadline. Auch Lock-Erwerb und Cleanup sind deadline-begrenzt. Ein
+nativer CGo-Aufruf oder Destruktor, der bereits in einen nicht unterbrechbaren
+nativen Abschnitt eingetreten ist, kann nicht innerhalb des Prozesses storniert
+werden; der Service meldet stattdessen ein kontrolliertes Ergebnis ungleich
+Null, damit ein Supervisor den Prozess neu startet, ohne eine In-Process-
+Stornierung zu behaupten.
+
+Eine gRPC-Context-Stornierung (einschließlich Server-Shutdown) folgt demselben
+Cleanup-Pfad pro Stream und wird als
+`grpc_context_canceled_unattributed` aufgezeichnet. Das Label behauptet nicht,
+ob Envoy einen Downstream-Client- oder Upstream-Reset gesehen hat.
+
 Die angeheftete Abhängigkeit ist das offiziell generierte Envoy Go API-Modul in
 `go.mod`/`go.sum`. `../config/envoy-ext-proc-versions.env` zeichnet das beabsichtigte auf
 Framework-synchronisierte Envoy-Version und `../config/envoy-ext-proc-streaming.yaml.in` werden verwendet
