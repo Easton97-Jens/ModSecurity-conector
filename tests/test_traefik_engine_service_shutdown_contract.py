@@ -13,7 +13,11 @@ SOURCE = (
 class TraefikEngineServiceShutdownContractTests(unittest.TestCase):
     def test_peer_writes_and_worker_admission_are_bounded(self) -> None:
         self.assertIn("TRAEFIK_ENGINE_MAX_WORKERS 64U", SOURCE)
-        self.assertIn("send(socket_fd, data + offset, size - offset,\n            MSG_NOSIGNAL)", SOURCE)
+        self.assertIn("TRAEFIK_ENGINE_SEND_TIMEOUT_MILLISECONDS", SOURCE)
+        self.assertIn("clock_gettime(CLOCK_MONOTONIC, &deadline)", SOURCE)
+        self.assertIn("poll(&descriptor, 1U, remaining_ms)", SOURCE)
+        self.assertIn("send(socket_fd, data + offset, size - offset,\n            MSG_NOSIGNAL | MSG_DONTWAIT)", SOURCE)
+        self.assertIn("errno == EAGAIN ||", SOURCE)
         self.assertNotIn("SIGPIPE", SOURCE)
         self.assertIn("if (worker_status == 0)", SOURCE)
         self.assertIn("(void)close(client);\n                continue;", SOURCE)

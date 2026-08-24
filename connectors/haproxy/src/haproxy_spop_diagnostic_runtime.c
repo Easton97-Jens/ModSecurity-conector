@@ -2161,6 +2161,10 @@ static const char *safe_decision_reason_code(
             ? "peer_worker_admission_failed_closed"
             : "peer_worker_admission_failed_open";
     }
+    if (decision != 0 && strcmp(decision->log_message,
+            "stateful response transaction missing") == 0) {
+        return "stateful_response_transaction_missing_closed";
+    }
     if (strcmp(safe_decision, "fail-closed") == 0) {
         return "modsecurity_processing_failed_closed";
     }
@@ -2466,6 +2470,21 @@ static const char *set_processing_failure(
     return "fail-open";
 }
 
+/* A response phase is stateful: it is valid only when the request-side
+ * transaction survived until the matching response NOTIFY.  A missing cache
+ * entry therefore means that enforcement context is unknown.  It must not
+ * inherit the configured engine-error fail-open policy, because doing so
+ * would silently skip the response rules after bounded-cache eviction,
+ * teardown, or an unmatched peer frame. */
+static const char *set_missing_response_transaction_failure(
+        haproxy_modsecurity_decision *decision,
+        int phase) {
+    runtime_init_decision(decision, phase, "deny", 503,
+        "stateful response transaction missing");
+    decision->disruptive = 1;
+    return "fail-closed";
+}
+
 static int send_malformed_notify_outcome(
         int fd,
         const spop_frame *frame,
@@ -2563,8 +2582,8 @@ static void process_production_response_notify(
     build_response_from_notify(request, state, &response);
     transaction = transaction_cache_take(state, request->request_id);
     if (transaction == 0) {
-        runtime_init_decision(decision, phase, "pass", 200, "transaction_resumed=false");
-        decision_log_write(state, request, decision, 0, "pass");
+        *decision_text = set_missing_response_transaction_failure(decision, phase);
+        decision_log_write(state, request, decision, 0, *decision_text);
         return;
     }
     if (request->is_response_body) {

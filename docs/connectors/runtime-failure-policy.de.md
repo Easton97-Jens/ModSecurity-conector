@@ -31,6 +31,16 @@ für ein unbestätigtes Admission-Close ist `NOT_EXECUTED`; er wird niemals als
 Allow dokumentiert. Ein Peer-lokaler Admission- oder Handshake-Fehler schließt
 nur diesen Peer und blockiert niemals die globale Accept-/HELLO-Schleife.
 
+Die SPOP-Response-Verarbeitung ist zustandsbehaftet. Fehlt ihre passende
+Request-Transaktion nach begrenzter Cache-Eviction, Teardown oder einem
+nicht zuordenbaren Response-NOTIFY, liefert sie immer `deny`/`503`,
+`disruptive=1`, `fail-closed` und
+`stateful_response_transaction_missing_closed`. Dieses eng begrenzte
+closed-Verhalten gilt auch, wenn gewöhnliche Engine-Fehler ausdrücklich mit
+`fail-mode=open` konfiguriert wurden: Bei Korrelationsverlust ist
+Response-Enforcement nicht entscheidbar und darf nie still zu `pass`/`200`
+werden.
+
 Jede fehlgeschlagene Transaktion bzw. jeder Stream muss Transaktionszustand,
 Buffer, Dateideskriptoren, Goroutines/Threads sowie eigene Socket-/Port-
 Ressourcen freigeben. Cleanup ist idempotent. Eine legitime Anfrage auf einer
@@ -109,8 +119,8 @@ In den Tabellen sind die Statusbegriffe technische Evidence-Literale und keine
 | V13 | C | NOT_EXECUTED: Live-Modul-Terminierung |
 | V14 | L | SOURCE_VALIDATED: Poolpfade begrenzt; paralleler Host-Run NOT_EXECUTED |
 | V15 | L | SOURCE_VALIDATED: Limitpfade begrenzt; vollständiger Host-Limit-Run NOT_EXECUTED |
-| V16 | A | SOURCE_VALIDATED: `tests/test_apache_fail_closed.py` erhält Kontrollpfad |
-| V17 | U | SOURCE_VALIDATED: Pool-Cleanup; Live-FD-Audit NOT_EXECUTED |
+| V16 | A | NOT_EXECUTED: Same-Host-Folgeanfrage nach Fehler; isolierte aktuelle Host-Allow-`200`- und P1/P2-Block-`403`-Kontrollen bestanden |
+| V17 | U | SELF_TEST_PASS: task-eigene Apache-Ports/-Prozesse fehlten nach jedem aktuellen Hostfall; Live-FD-Audit NOT_EXECUTED |
 
 ### NGINX
 
@@ -131,8 +141,8 @@ In den Tabellen sind die Statusbegriffe technische Evidence-Literale und keine
 | V13 | C | NOT_EXECUTED: Live-Modul-Terminierung |
 | V14 | L | SOURCE_VALIDATED: Worker-Pfade begrenzt; paralleler Host-Run NOT_EXECUTED |
 | V15 | L | SOURCE_VALIDATED: Body-Pfade begrenzt; vollständiger Host-Limit-Run NOT_EXECUTED |
-| V16 | A | SOURCE_VALIDATED: `connectors/nginx/tests/test_fail_closed_contract.py` erhält Folgeanfrage |
-| V17 | U | SOURCE_VALIDATED: Request-Finalisierung; Live-FD-Audit NOT_EXECUTED |
+| V16 | A | SELF_TEST_PASS: aktueller nativer NGINX-Host lieferte Allow `200` nach Header-Block `403` |
+| V17 | U | SELF_TEST_PASS: aktueller nativer Port `29183` wurde entfernt; ein früherer Sandbox-Harness-Listener `29182` wurde als task-eigen verifiziert und kontrolliert bereinigt; Live-FD-Audit NOT_EXECUTED |
 
 ### HAProxy HTX
 
@@ -175,13 +185,26 @@ In den Tabellen sind die Statusbegriffe technische Evidence-Literale und keine
 | V13 | C | SOURCE_VALIDATED: Worker-Isolation verhindert Prozessfehler durch Peer |
 | V14 | L | SELF_TEST_PASS: parallele Peers; gesättigter Peer wird lokal geschlossen und der Parent-Accept-Loop bleibt frei |
 | V15 | L | SELF_TEST_PASS: Worker `1..64`, begrenzte Handshake-/Socket-Deadlines und sofortiger Peer-lokaler Close bei Sättigung |
-| V16 | A | SELF_TEST_PASS: gültiges HELLO, Block-ACK `403` und Folge-HELLO nach Sättigung bleiben erhalten |
-| V17 | U | SELF_TEST_PASS: kein Listener nach Test; Peer-FDs geschlossen |
+| V16 | A | SELF_TEST_PASS: auf Cache-Miss `503` folgen Block-ACK `403` und frische Allow-Kontrolle `200` |
+| V17 | U | SELF_TEST_PASS: direkter Cache-Miss-Agent und Selbsttest-Listener sind geschlossen; Peer-FDs sind geschlossen |
 
 SPOP-Schreibvorgänge verwenden pro Send `MSG_NOSIGNAL` (und, wenn verfügbar,
 `SO_NOSIGPIPE`); `SIGPIPE` wird nicht global ignoriert. Jeder Peer ist in einem
 begrenzten Worker isoliert; fehlerhafte Eingaben verwenden standardmäßig
 closed. `fail-mode=open` ist nur ein sichtbarer Betreiber-Override.
+
+Der aktuelle direkte Protokolllauf nutzt `max-transactions=1`, um Request A
+durch Request B zu evicten. Das spätere Response-NOTIFY für A ergab
+`deny`/`503`/`stateful_response_transaction_missing_closed`; ein echter
+Rule-Block blieb `403`, frisches Allow blieb `200`. Das ist Evidence des
+Produktionsagenten, keine Behauptung zum nativen HAProxy-Clientstatus oder
+FD-Audit.
+
+`connectors/haproxy/harness/run_haproxy_spop_cache_miss.sh` reproduziert
+dieselbe Sequenz gegen einen aktuellen Agenten, wenn Build- und Runtime-Root
+explizit task-eigen sind. Der Harness prüft Cache-Miss `503`, echten Block
+`403` und frisches Allow `200` und beendet den Agenten anschließend im
+Cleanup-Pfad.
 
 ### Envoy `ext_authz`
 
@@ -273,19 +296,27 @@ Aktivität nicht wegen des Engine-Timeouts beendet. Admission ist durch
 | V6 | P | SELF_TEST_PASS: Reset-Peer bleibt lokal; Folgeanfrage gelingt |
 | V7 | P | NOT_EXECUTED: Live-Upstream-Close |
 | V8 | P | SELF_TEST_PASS: unvollständiges Framing wird abgewiesen |
-| V9 | P | SELF_TEST_PASS: UDS-Reset beendet Service nicht |
+| V9 | P | SELF_TEST_PASS: UDS-Reset und RESULT-Writes von 64 nicht lesenden Peers beenden Service nicht |
 | V10 | P | SOURCE_VALIDATED: unvollständiger Request-Frame wird abgewiesen |
 | V11 | P | SELF_TEST_PASS: unvollständige/überlange Response wird abgewiesen |
 | V12 | C | SOURCE_VALIDATED: aktive Sockets werden beim Service-Stop beendet |
 | V13 | C | SOURCE_VALIDATED: festhängende Engine nutzt kontrollierten Neustart |
-| V14 | L | SELF_TEST_PASS: Worker-Aufnahme bleibt begrenzt; Listener überlebt Peerfehler |
+| V14 | L | SELF_TEST_PASS: 64 nicht lesende Peers füllen die Worker-Grenze; ein zusätzlicher Peer wird vor der Write-Deadline nicht bedient |
 | V15 | L | SELF_TEST_PASS: Response- und Frame-Limits werden erzwungen |
-| V16 | A | SELF_TEST_PASS: gültige Anfrage nach Reset |
-| V17 | U | SELF_TEST_PASS: eigener UDS entfernt; Ersatz-Sentinel bleibt erhalten |
+| V16 | A | SELF_TEST_PASS: gültige Anfrage gelingt nach Reset und nach 31,0-Sekunden-Deadline eines nicht lesenden Peers |
+| V17 | U | SELF_TEST_PASS: Reset-, Write-Deadline- und Ownership-Replacement-Pfade hinterlassen keinen eigenen UDS oder Prozess |
 
 Der UDS-Shutdown begrenzt das Worker-Warten. Bei einem nicht unterbrechbaren
 Engine-Aufruf entfernt der Service seinen eigenen Socket und beendet sich über
 den kontrollierten Neustartpfad, ohne Worker-erreichbaren Zustand freizugeben.
+
+Die Peer-Output-Write-Deadline ist eine eigene monotone 30-Sekunden-Deadline,
+kein Engine-Operations- oder Receive-Timeout. `poll(POLLOUT)` plus
+nicht-blockierendes `MSG_NOSIGNAL | MSG_DONTWAIT` schließt bei Ablauf nur den
+nicht lesenden Peer. Der aktuelle native Service-Test füllte alle 64 Worker,
+beobachtete vor Ablauf keinen bedienten Folgepeer, danach bei 31,0 Sekunden
+eine frische Anfrage sowie vollständiges Socket-/Prozess-Cleanup; derselbe
+Fall bestand unter ASan/UBSan.
 
 ### lighttpd Stock
 

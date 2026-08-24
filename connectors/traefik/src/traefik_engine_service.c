@@ -25,6 +25,8 @@
 
 #define TRAEFIK_ENGINE_CONFIG_LINE_MAX 8192U
 #define TRAEFIK_ENGINE_SOCKET_TIMEOUT_SECONDS 30
+#define TRAEFIK_ENGINE_SEND_TIMEOUT_MILLISECONDS \
+    (TRAEFIK_ENGINE_SOCKET_TIMEOUT_SECONDS * 1000)
 #define TRAEFIK_ENGINE_WORKER_SHUTDOWN_TIMEOUT_SECONDS 30
 #define TRAEFIK_ENGINE_ACCEPT_POLL_MILLISECONDS 250
 #define TRAEFIK_ENGINE_LISTEN_BACKLOG 32
@@ -193,18 +195,81 @@ static uint16_t traefik_engine_clamp_u16(size_t value)
     return value > UINT16_MAX ? UINT16_MAX : (uint16_t)value;
 }
 
+static int traefik_engine_send_deadline_remaining_ms(
+    const struct timespec *deadline, int *remaining_ms)
+{
+    struct timespec now;
+    time_t seconds;
+    long nanoseconds;
+    long long milliseconds;
+
+    if (deadline == NULL || remaining_ms == NULL ||
+        clock_gettime(CLOCK_MONOTONIC, &now) != 0) {
+        return 0;
+    }
+    seconds = deadline->tv_sec - now.tv_sec;
+    nanoseconds = deadline->tv_nsec - now.tv_nsec;
+    if (nanoseconds < 0L) {
+        --seconds;
+        nanoseconds += 1000000000L;
+    }
+    if (seconds < 0 || (seconds == 0 && nanoseconds <= 0L)) {
+        return 0;
+    }
+    milliseconds = (long long)seconds * 1000LL +
+        (long long)(nanoseconds / 1000000L);
+    if (nanoseconds % 1000000L != 0L) {
+        ++milliseconds;
+    }
+    if (milliseconds > INT_MAX) {
+        milliseconds = INT_MAX;
+    }
+    *remaining_ms = (int)milliseconds;
+    return *remaining_ms > 0;
+}
+
 static int traefik_engine_send_all(int socket_fd, const unsigned char *data,
     size_t size)
 {
+    struct timespec deadline;
     size_t offset = 0U;
+
+    if (clock_gettime(CLOCK_MONOTONIC, &deadline) != 0) {
+        return 0;
+    }
+    deadline.tv_sec += TRAEFIK_ENGINE_SEND_TIMEOUT_MILLISECONDS / 1000;
     while (offset < size) {
-        ssize_t written = send(socket_fd, data + offset, size - offset,
-            MSG_NOSIGNAL);
+        struct pollfd descriptor;
+        int remaining_ms;
+        int polled;
+        ssize_t written;
+
+        if (!traefik_engine_send_deadline_remaining_ms(&deadline,
+                &remaining_ms)) {
+            return 0;
+        }
+        descriptor.fd = socket_fd;
+        descriptor.events = POLLOUT;
+        descriptor.revents = 0;
+        polled = poll(&descriptor, 1U, remaining_ms);
+        if (polled < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            return 0;
+        }
+        if (polled == 0 || (descriptor.revents & (POLLERR | POLLHUP |
+                POLLNVAL)) != 0) {
+            return 0;
+        }
+        written = send(socket_fd, data + offset, size - offset,
+            MSG_NOSIGNAL | MSG_DONTWAIT);
         if (written > 0) {
             offset += (size_t)written;
             continue;
         }
-        if (written < 0 && errno == EINTR) {
+        if (written < 0 && (errno == EINTR || errno == EAGAIN ||
+                errno == EWOULDBLOCK)) {
             continue;
         }
         return 0;

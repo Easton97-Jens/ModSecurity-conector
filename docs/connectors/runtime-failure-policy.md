@@ -30,6 +30,14 @@ The exact native-HAProxy client status for an unacknowledged admission close is
 handshake failure still closes only that peer and never blocks the global
 accept/HELLO loop.
 
+SPOP response processing is stateful. If its matching request transaction is
+missing after bounded-cache eviction, teardown, or an unmatched response
+NOTIFY, it always returns `deny`/`503`, `disruptive=1`, `fail-closed`, and
+`stateful_response_transaction_missing_closed`. This narrowly scoped closed
+outcome also applies when ordinary engine errors were explicitly configured
+with `fail-mode=open`: correlation loss makes response enforcement undecidable
+and must never become an implicit `pass`/`200`.
+
 Every failed transaction/stream must release its transaction state, buffers,
 file descriptors, goroutines/threads, and owned socket/port resources. Cleanup
 is idempotent. A legitimate request on a new or reusable connection must be
@@ -105,8 +113,8 @@ cleanup, and follow-up contract above. Evidence is bounded to this repository.
 | V13 | C | NOT_EXECUTED: live module termination |
 | V14 | L | SOURCE_VALIDATED: pool cleanup is retained; parallel host run NOT_EXECUTED |
 | V15 | L | SOURCE_VALIDATED: host limit remains bounded; full host run NOT_EXECUTED |
-| V16 | A | SOURCE_VALIDATED: `tests/test_apache_fail_closed.py` preserves control path |
-| V17 | U | SOURCE_VALIDATED: pool-owned terminal cleanup; live FD audit NOT_EXECUTED |
+| V16 | A | NOT_EXECUTED: same-host fault follow-up; isolated current-host Allow `200` and P1/P2 Block `403` controls pass |
+| V17 | U | SELF_TEST_PASS: task-owned Apache ports/processes were absent after each current-host case; live FD audit NOT_EXECUTED |
 
 ### NGINX
 
@@ -127,8 +135,8 @@ cleanup, and follow-up contract above. Evidence is bounded to this repository.
 | V13 | C | NOT_EXECUTED: live module termination |
 | V14 | L | SOURCE_VALIDATED: worker-local errors; parallel host run NOT_EXECUTED |
 | V15 | L | SOURCE_VALIDATED: bounded body mapping; full host limit run NOT_EXECUTED |
-| V16 | A | SOURCE_VALIDATED: `connectors/nginx/tests/test_fail_closed_contract.py` preserves follow-up contract |
-| V17 | U | SOURCE_VALIDATED: request finalization paths; live FD audit NOT_EXECUTED |
+| V16 | A | SELF_TEST_PASS: current NGINX native host returned Allow `200` after header Block `403` |
+| V17 | U | SELF_TEST_PASS: current native port `29183` was removed; a prior sandbox-harness listener `29182` was verified task-owned and then controlled-cleaned; live FD audit NOT_EXECUTED |
 
 ### HAProxy HTX
 
@@ -171,13 +179,24 @@ cleanup, and follow-up contract above. Evidence is bounded to this repository.
 | V13 | C | SOURCE_VALIDATED: worker isolation prevents process-wide peer failure |
 | V14 | L | SELF_TEST_PASS: parallel healthcheck/follow-up HELLO succeeds; a saturated peer is closed locally while the parent accept loop remains free |
 | V15 | L | SELF_TEST_PASS: worker count `1..64`, bounded handshake/socket deadlines, and immediate peer-local close on worker saturation |
-| V16 | A | SELF_TEST_PASS: valid HELLO, typed block ACK (`403`), and a follow-up HELLO after saturation remain unchanged |
-| V17 | U | SELF_TEST_PASS: no listener remains after self-test; peer FDs are closed |
+| V16 | A | SELF_TEST_PASS: cache-miss `503` is followed by a typed Block ACK (`403`) and fresh Allow (`200`) control |
+| V17 | U | SELF_TEST_PASS: direct cache-miss agent and self-test listeners were closed; peer FDs are closed |
 
 SPOP writes use per-send `MSG_NOSIGNAL` (and `SO_NOSIGPIPE` where available);
 there is no global `SIGPIPE` ignore. Each peer is isolated in a bounded worker,
 and the default malformed/failure mode is closed. The explicit open mode is an
 operator choice and must be visible in configuration and evidence.
+
+The current direct protocol run uses `max-transactions=1` to evict request A
+with request B. The later response NOTIFY for A observed
+`deny`/`503`/`stateful_response_transaction_missing_closed`; a real rule Block
+remained `403` and a fresh Allow remained `200`. This is production-agent
+evidence, not a native HAProxy client-status or FD-audit claim.
+
+`connectors/haproxy/harness/run_haproxy_spop_cache_miss.sh` reproduces that
+same sequence against a current agent when its build and runtime roots are
+explicitly task-owned. It asserts the cache-miss `503`, real Block `403`, and
+fresh Allow `200`, then terminates the agent in its cleanup path.
 
 ### Envoy `ext_authz`
 
@@ -268,20 +287,27 @@ bounded by gRPC `MaxConcurrentStreams` and the service limit.
 | V6 | P | SELF_TEST_PASS: reset peer is isolated and follow-up request succeeds |
 | V7 | P | NOT_EXECUTED: live Traefik upstream-close run |
 | V8 | P | SELF_TEST_PASS: framed protocol validation rejects incomplete input |
-| V9 | P | SELF_TEST_PASS: UDS reset path does not kill service |
+| V9 | P | SELF_TEST_PASS: UDS reset and 64 non-reading peer RESULT writes do not kill the service |
 | V10 | P | SOURCE_VALIDATED: incomplete request frame is rejected |
 | V11 | P | SELF_TEST_PASS: incomplete/oversized response is rejected |
 | V12 | C | SOURCE_VALIDATED: active sockets are shut down during service stop |
 | V13 | C | SOURCE_VALIDATED: bounded worker wait uses controlled restart on stuck engine |
-| V14 | L | SELF_TEST_PASS: worker admission remains bounded and listener survives peer failure |
+| V14 | L | SELF_TEST_PASS: 64 non-reading peers fill the worker bound; an additional peer is not served before the write deadline |
 | V15 | L | SELF_TEST_PASS: response and frame limits are enforced |
-| V16 | A | SELF_TEST_PASS: valid request after reset succeeds |
-| V17 | U | SELF_TEST_PASS: UDS is removed only when owned; replacement sentinel survives |
+| V16 | A | SELF_TEST_PASS: valid request succeeds after reset and after the 31.0-second non-reading-peer deadline |
+| V17 | U | SELF_TEST_PASS: reset, write-deadline, and ownership-replacement paths leave no owned UDS or process |
 
 The Native UDS shutdown path bounds the worker wait. If an uninterruptible
 engine call remains after active sockets are shut down, the service removes its
 owned socket and exits through the documented controlled-restart path; it does
 not free state still reachable by a worker.
+
+The peer-output write deadline is a separate 30-second monotonic deadline,
+not an engine-operation or receive timeout. `poll(POLLOUT)` plus nonblocking
+`MSG_NOSIGNAL | MSG_DONTWAIT` closes only a non-reading peer at expiry. The
+current native service test filled all 64 workers, observed no early follow-up
+service, then observed a fresh request at 31.0 seconds and complete socket and
+process cleanup; the same case passed under ASan/UBSan.
 
 ### lighttpd Stock
 
