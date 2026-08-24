@@ -279,8 +279,12 @@ as failed rather than changed.
 The initial scoped Parent commit is
 `4fa010412bfc7510da4ca787d9d923b9e8cad018` and the delivery-status
 documentation commit is `7367187de072a86cfb5314740f8e47870c530e39`. The
-Common re-audit follow-up described here is still local and unstaged pending
-final scoped review and local commit. Remote publication and Draft-PR creation
-await a new explicit current-user authorization. The active checkout also
-contains unrelated and mixed concurrent edits; they are excluded from staging.
-No merge is authorized or asserted.
+Common re-audit follow-up is committed locally as
+`16a4a06fbf1e1ed20171bc29d31ce3e8476aa3db`. Its independent sealed security
+diff review reports no reportable finding in
+`7367187de072a86cfb5314740f8e47870c530e39..16a4a06fbf1e1ed20171bc29d31ce3e8476aa3db`;
+the pre-existing `CAND-AUTH-HOST-001` fallback remains deferred pending
+host-distinct runtime-policy evidence. Remote publication and Draft-PR
+creation await a new explicit current-user authorization. The active checkout
+also contains unrelated and mixed concurrent edits; they are excluded from
+staging. No merge is authorized or asserted.

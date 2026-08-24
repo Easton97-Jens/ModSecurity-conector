@@ -305,9 +305,14 @@ Assertion wird als fehlgeschlagen berichtet, nicht geändert.
 Der anfängliche scoped Parent-Commit ist
 `4fa010412bfc7510da4ca787d9d923b9e8cad018`; der Delivery-Status-
 Dokumentationscommit ist `7367187de072a86cfb5314740f8e47870c530e39`. Das hier
-beschriebene Common-Re-Audit-Follow-up ist noch lokal und unstaged bis zum
-finalen scoped Review und lokalen Commit. Remote-Veröffentlichung und Draft-
-PR-Erstellung warten auf eine neue explizite Autorisierung des aktuellen
-Benutzers. Der aktive Checkout enthält zudem unabhängige und gemischte
-gleichzeitige Edits; sie sind vom Staging ausgeschlossen. Kein Merge ist
-autorisiert oder behauptet.
+beschriebene Common-Re-Audit-Follow-up ist lokal als
+`16a4a06fbf1e1ed20171bc29d31ce3e8476aa3db` committed. Sein unabhängiger
+versiegelter Security-Diff-Review meldet keinen berichtsfähigen Befund im
+Bereich
+`7367187de072a86cfb5314740f8e47870c530e39..16a4a06fbf1e1ed20171bc29d31ce3e8476aa3db`;
+der vorbestehende Fallback `CAND-AUTH-HOST-001` bleibt bis zur Runtime-Evidence
+für eine host-spezifisch unterscheidende Policy deferred. Remote-
+Veröffentlichung und Draft-PR-Erstellung warten auf eine neue explizite
+Autorisierung des aktuellen Benutzers. Der aktive Checkout enthält zudem
+unabhängige und gemischte gleichzeitige Edits; sie sind vom Staging
+ausgeschlossen. Kein Merge ist autorisiert oder behauptet.
