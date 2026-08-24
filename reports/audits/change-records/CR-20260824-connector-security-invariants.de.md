@@ -23,6 +23,13 @@ akzeptierte einen Wildcard-Listener und doppelte sicherheitsrelevante Header;
 und Common-Event-Ausgabe konnte unescapte Protocol-Metadaten serialisieren und
 einen unsicheren finalen Event-Pfad öffnen.
 
+Ein fokussierter zweiter Common-Re-Audit fand drei weitere unabhängig
+behebbare Grenzen: Nur positive Ressourcenkonfiguration konnte Header-/Event-/
+Body-Hard-Caps vor Allokationspfaden überschreiten; fehlerhafte UTF-8-Bytes
+konnten ungültiges Event-JSONL erzeugen; und ein abgetrennter
+Autorisierungsworker konnte nach Ablauf beider begrenzten Shutdown-Waits das
+stackbesessene Service-Objekt überleben.
+
 Der ausführbare direkte NGINX-Archivpfad liegt im separaten Framework-
 Repository. Der aktuelle Benutzer begrenzte die Implementierung auf Parent-
 Fixes, daher wird dieser Pfad als Out-of-Scope-Remediation-Abhängigkeit
@@ -42,6 +49,15 @@ berichtet und weder hier gepatcht noch als sicher extrahiert dargestellt.
   und die POSIX-final Event-Datei ist no-follow, regulär und privat (`0600`).
 - Die FNV-basierte Event-Kette ist nur als prozesslokale, nicht-kryptografische
   Korrelation dokumentiert; sie wird nicht als Tamper-Evidence beschrieben.
+- Common-Header-/Event-Ressourceneinstellungen weisen Werte über ihren festen
+  Obergrenzen ab; Request-, Response- und Phase-4-Body-Konfiguration weist
+  Werte über 10485760 Byte (10 MiB) ab.
+- Event-JSONL erhält valides UTF-8, encodiert fehlerhafte Bytes als `\\u00XX`
+  und begrenzt jeden Event-Field-Scan; Request- oder Response-Body-Payloads
+  werden nie ausgegeben.
+- Ein abgetrennter Autorisierungsworker referenziert nie einen zerstörten
+  Service/Runtime; Deferred-Shutdown übergibt das finale Cleanup sicher an den
+  letzten Worker.
 - Kein Workflow-, Branch-Protection-, Ruleset-, Required-Check- oder anderer
   Governance-Pfad wird geändert.
 
@@ -78,6 +94,25 @@ einschließlich identischer Duplikate. Das vermeidet die Abhängigkeit von
 unterschiedlichen Host-Normalisierungsregeln an einer
 Request-Smuggling-sensitiven Übersetzungsgrenze.
 
+Ressourcenlimits sind nun sowohl in der Common-Ressourcenvalidierung als auch
+in der Runtime-Konfigurationsvalidierung begrenzt. Vorhandene eingecheckte
+Profile mit einem 10-MiB-Body-Limit bleiben gültig, während größere Request-,
+Response- oder Phase-4-Budgets fehlschlagen, bevor Common-Buffering- oder
+Allokationspfade sie konsumieren.
+
+Event-Serialisierung verwendet nun einen längenbewussten JSON-Escaper an der
+Event-Grenze. Valides UTF-8 bleibt erhalten; jedes fehlerhafte Byte wird zu
+einem `\\u00XX`-JSON-Escape. Dies ist eine JSON-Sicherheits-Transformation,
+keine Behauptung byteweiser Semantikerhaltung.
+
+Für begrenzten Shutdown ist der Autorisierungsservice heapbesessen und enthält
+eine begrenzte, vollständig besessene Kopie der Profilstruktur, ihrer
+Textfelder und ihrer Original-URI-Headerliste. Laufen beide Waits ab, entlinkt
+sich der letzte abgetrennte Worker und gibt Service/Runtime frei; kann
+Mutex-Ownership nicht bewiesen werden, wird prozesslokaler State absichtlich
+geleakt, statt ihn bei potentiell lebendem Zugriff freizugeben. Mapping-
+Callbacks bleiben ausschließlich Code-Pointer.
+
 ## Geänderte Dateien
 
 - `common/src/config.c`, `common/src/rule_loader.c`, `common/src/rule_merge.c`,
@@ -91,10 +126,18 @@ Request-Smuggling-sensitiven Übersetzungsgrenze.
   Directive-Ablehnung vor nativer Remote-Konvertierung.
 - `common/runtime/http_authorization_service.c` — Loopback-only-Listener,
   Duplicate-Security-Header-Ablehnung, signal-sicheres Send und begrenztes
-  Shutdown-Verhalten.
+  Shutdown-Verhalten; heapbesessenes Deferred-Cleanup und ein begrenztes,
+  vollständig besessenes Profil für einen ununterbrechlichen abgetrennten
+  Worker.
 - `common/src/event.c`, `common/include/msconnector/event.h` und
   `common/include/msconnector/integrity_event.h` — escaped/NULL-sichere Event-
   Metadaten, sichere Korrelationssemantik und Event-Sink-Invariante.
+- `common/src/json_escape.c` und `common/include/msconnector/json_escape.h` —
+  längenbewusste Erhaltung von validem UTF-8 und JSON-Encoding fehlerhafter
+  Bytes.
+- `common/include/msconnector/limits.h`, `common/src/resource_limits.c` und
+  `common/src/config.c` — endliche Header-/Event-Limits plus eine harte
+  10-MiB-Konfigurationsobergrenze für Request-, Response- und Phase-4-Bodies.
 - `connectors/{apache,nginx}/README.md` und `.de.md` — Remote-Rule-Verhalten.
 - `connectors/{apache,nginx,envoy,haproxy,lighttpd,traefik}/capabilities.json`
   — eine konsistente Remote-Rule-Capability-Aussage.
@@ -102,6 +145,12 @@ Request-Smuggling-sensitiven Übersetzungsgrenze.
   `tests/test_http_authorization_service_security_contract.py` und
   `tests/test_event_runtime_security_contract.py` — fokussierte Regression-
   Contracts.
+- `tests/event_json_utf8_smoke.c`, `tests/test_resource_limits_hard_caps.c`
+  und `tests/http_authorization_service_detached_worker_smoke.c` — fokussierte
+  Controls für fehlerhaftes UTF-8, Caps und den Deferred-Worker-Lifecycle.
+- `examples/common/common-connector-configuration.{md,de.md}` sowie die
+  Apache-/NGINX-README-Paare — dokumentierte endliche Limits und Phase-4-
+  Konfigurationsobergrenze.
 - Dieses englisch/deutsche Change-Record-Paar und die gepaarten Archivindex-
   Einträge.
 
@@ -125,6 +174,10 @@ rtk proxy env BUILD_ROOT=<external-task-root>/fuzz make check-common-http-header
 rtk proxy cc -std=c17 -Wall -Wextra -Werror -Icommon/include -Icommon/runtime -fsyntax-only common/src/headers.c common/src/rule_merge.c common/src/event.c common/runtime/msconnector_runtime.c
 rtk proxy make check-common-security-contract check-common-flow-integrity check-directive-parity
 rtk proxy env BUILD_ROOT=<external-task-root>/docs make check-doc-links
+rtk proxy sh -c 'cc -std=c17 -Wall -Wextra -Werror -I. -Icommon/include tests/test_resource_limits_hard_caps.c common/src/resource_limits.c common/src/limits.c common/src/config.c common/src/body_policy.c common/src/block_statuses.c common/src/http_status.c -o <external-task-root>/resource-limits-hard-caps && <external-task-root>/resource-limits-hard-caps'
+rtk proxy sh -c 'clang -std=c17 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer -I. -Icommon/include tests/test_resource_limits_hard_caps.c common/src/resource_limits.c common/src/limits.c common/src/config.c common/src/body_policy.c common/src/block_statuses.c common/src/http_status.c -o <external-task-root>/resource-limits-hard-caps-asan-ubsan && ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 <external-task-root>/resource-limits-hard-caps-asan-ubsan'
+rtk proxy sh -c 'cc -std=c17 -Wall -Wextra -Werror -I. -Icommon/include tests/event_json_utf8_smoke.c common/src/*.c -o <external-task-root>/event-json-utf8-smoke && <external-task-root>/event-json-utf8-smoke | python3 -c "import json,sys; [json.loads(line) for line in sys.stdin if line.strip()]"'
+rtk proxy sh -c 'clang -std=c17 -Wall -Wextra -Werror -pthread -fsanitize=thread -fno-omit-frame-pointer -I. -Icommon/include -Icommon/runtime tests/http_authorization_service_detached_worker_smoke.c common/runtime/http_authorization_service.c common/src/*.c -o <external-task-root>/http-auth-detached-worker-tsan && TSAN_OPTIONS=halt_on_error=1 <external-task-root>/http-auth-detached-worker-tsan'
 ~~~
 
 Die fokussierte Python-Suite bestand 11 Tests. Der Loopback-
@@ -134,6 +187,18 @@ ASan/UBSan-Smoke. Der begrenzte libFuzzer-Lauf absolvierte 533086 Ausführungen
 in 16 Sekunden ohne AddressSanitizer- oder UndefinedBehaviorSanitizer-
 Diagnose. Der C17-Syntaxcheck, die aufgeführten Common-Contracts und
 Repository-Path-/Dokumentationslink-Checks bestanden.
+
+Der zweite Re-Audit ergänzte einen normalen und ASan/UBSan-Hard-Cap-Smoke,
+einen normalen und ASan/UBSan-Smoke für fehlerhaftes-UTF-8-JSONL mit strengem
+Python-JSON-Parsing sowie einen kontrollierten Detached-Worker-Smoke. Der
+Detached-Worker-Control bestand normal, mit ASan/UBSan samt Leak-Detection und
+mit TSan ohne Diagnose. Sein TSan-Ergebnis ist getrennt vom bestehenden TSan-
+Lauf des vollständigen HTTP-Timeout-Smokes, der nicht schlüssig bleibt. Ein
+weiterer Header-Fuzzer-Lauf absolvierte 516409 Ausführungen in 16 Sekunden ohne
+Sanitizer-/Crash-Diagnose; beide Fuzzerzählwerte bleiben als getrennte
+historische lokale Läufe erhalten. Der Detached-Worker-Smoke gibt zudem
+caller-besessenen Profiltext und die Original-Headerliste nach Rückkehr des
+Service-Entrypoints frei, bevor er den blockierten Worker freigibt.
 
 ### Erwartete Source-Abwesenheit
 
@@ -200,6 +265,13 @@ externes Netzwerk oder Dependency-Download.
 - Für vollständige native Host-, HTTP/2/HTTP/3-, Reload-,
   Cross-Connector-Parallel-, Leak- und ThreadSanitizer-Matrizen gibt es in
   diesem Checkout kein sicheres verfügbares Target.
+- Der kontrollierte Deferred-Worker-Test verwendet eine Fake-Runtime und
+  beweist weder einen echten libmodsecurity-Hang noch Host-Supervisor-
+  Reload-Verhalten.
+- Der UTF-8-Smoke deckt fehlerhaftes und valides UTF-8, eingebettetes NUL im
+  begrenzten Escaper und repräsentative URI-/Protocol-Felder ab. Er ist keine
+  vollständige native Host-Field-Matrix oder ein Beweis maximaler Escape-
+  Expansion.
 
 ## Verbleibende Risiken
 
@@ -212,8 +284,11 @@ Integrity-/Timeout-/Size-/Atomic-Activation-Design.
 HAProxy-HTX-Late-Response-Inspection, SPOP-Framing-/Cache-/Timeout-Verhalten,
 Traefik-Native-UDS-Peer-Identity und host-spezifisches Lifecycle-Verhalten
 bleiben plausible Kandidaten bis native, isolierte Runtime-Evidence vorliegt.
-Dieser Record lässt keinen bestätigten High- oder Critical-Impact-Befund still
-ungelöst.
+Kein bestätigter High- oder Critical-Impact-Befund wird still als erledigt
+behandelt: Das separate `FND-PARENT-0222`-NGINX-P0/High-P2/P3-Finding bleibt
+ein Release-Blocker mit Source-Level-Korrektur, aber ohne echten
+NGINX/libmodsecurity-Host-Proof. Es ist nicht Teil der staged Delivery dieses
+Common-Follow-ups.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
@@ -227,11 +302,12 @@ Assertion wird als fehlgeschlagen berichtet, nicht geändert.
 
 ## Finaler Diff- und Review-Status
 
-Nach dem lokalen Commit `4fa010412bfc7510da4ca787d9d923b9e8cad018` bleibt dies
-eine Parent-only, task-eigene Änderung. Remote-Veröffentlichung und Draft-PR-
-Erstellung warten auf eine neue explizite Autorisierung des aktuellen
+Der anfängliche scoped Parent-Commit ist
+`4fa010412bfc7510da4ca787d9d923b9e8cad018`; der Delivery-Status-
+Dokumentationscommit ist `7367187de072a86cfb5314740f8e47870c530e39`. Das hier
+beschriebene Common-Re-Audit-Follow-up ist noch lokal und unstaged bis zum
+finalen scoped Review und lokalen Commit. Remote-Veröffentlichung und Draft-
+PR-Erstellung warten auf eine neue explizite Autorisierung des aktuellen
 Benutzers. Der aktive Checkout enthält zudem unabhängige und gemischte
-gleichzeitige Edits; sie sind vom Staging ausgeschlossen. Finaler Scoped Diff,
-Dokumentationschecks, exakte Branch-/Commit-/Remote-/PR-Head-Beziehung und
-Hosted-Check-Status werden erst nach einer autorisierten Delivery abgeglichen.
-Kein Merge ist autorisiert oder behauptet.
+gleichzeitige Edits; sie sind vom Staging ausgeschlossen. Kein Merge ist
+autorisiert oder behauptet.

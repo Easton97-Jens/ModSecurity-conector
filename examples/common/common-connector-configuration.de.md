@@ -387,7 +387,7 @@ max_event_json_bytes=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| positive dezimale Byteanzahl | positive Ganzzahl | nein |
+| positive dezimale Byteanzahl | 1 bis 16384 | nein |
 
 ### Standardwert
 
@@ -409,7 +409,8 @@ Begrenzt die Größe serialisierter Metadatenereignisse.
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und schlüsselspezifisch ungültige Werte lassen die Runtime-Konfigurationsprüfung fehlschlagen.
+Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und Werte über
+16384 lassen die Runtime-Konfigurationsprüfung fehlschlagen.
 
 ### Beispiel
 
@@ -442,7 +443,7 @@ max_header_count=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| positive dezimale Anzahl | positive Ganzzahl | nein |
+| positive dezimale Anzahl | 1 bis 256 | nein |
 
 ### Standardwert
 
@@ -464,7 +465,8 @@ Begrenzt die akzeptierte Headeranzahl.
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und schlüsselspezifisch ungültige Werte lassen die Runtime-Konfigurationsprüfung fehlschlagen.
+Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und Werte über 256
+lassen die Runtime-Konfigurationsprüfung fehlschlagen.
 
 ### Beispiel
 
@@ -497,7 +499,7 @@ max_header_name_size=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| positive dezimale Byteanzahl | positive Ganzzahl | nein |
+| positive dezimale Byteanzahl | 1 bis 256 | nein |
 
 ### Standardwert
 
@@ -519,7 +521,8 @@ Begrenzt die Größe jedes Headernamens.
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und schlüsselspezifisch ungültige Werte lassen die Runtime-Konfigurationsprüfung fehlschlagen.
+Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und Werte über 256
+lassen die Runtime-Konfigurationsprüfung fehlschlagen.
 
 ### Beispiel
 
@@ -552,7 +555,7 @@ max_header_value_size=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| positive dezimale Byteanzahl | positive Ganzzahl | nein |
+| positive dezimale Byteanzahl | 1 bis 8192 | nein |
 
 ### Standardwert
 
@@ -574,7 +577,8 @@ Begrenzt die Größe jedes Headerwerts.
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und schlüsselspezifisch ungültige Werte lassen die Runtime-Konfigurationsprüfung fehlschlagen.
+Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und Werte über 8192
+lassen die Runtime-Konfigurationsprüfung fehlschlagen.
 
 ### Beispiel
 
@@ -607,7 +611,7 @@ max_total_header_bytes=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| positive dezimale Byteanzahl | positive Ganzzahl | nein |
+| positive dezimale Byteanzahl | 1 bis 65536 | nein |
 
 ### Standardwert
 
@@ -629,7 +633,8 @@ Begrenzt die gesamte Header-Byteanzahl.
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und schlüsselspezifisch ungültige Werte lassen die Runtime-Konfigurationsprüfung fehlschlagen.
+Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und Werte über
+65536 lassen die Runtime-Konfigurationsprüfung fehlschlagen.
 
 ### Beispiel
 
@@ -827,13 +832,14 @@ request_body_limit=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| positive dezimale Byteanzahl | positive Ganzzahl | nein |
+| positive dezimale Byteanzahl | 1 bis 10485760 (10 MiB) | nein |
 
 ### Standardwert
 
 1048576
 
 Quelle: `common/include/msconnector/limits.h:MSCONNECTOR_MAX_BODY_BUFFER_SIZE`.
+Harte Konfigurationsobergrenze: `MSCONNECTOR_MAX_CONFIG_BODY_BYTES` (10485760).
 
 ### Vererbung und Zusammenführung
 
@@ -849,7 +855,8 @@ Begrenzt die der Engine angebotenen Request-Bytes.
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und schlüsselspezifisch ungültige Werte lassen die Runtime-Konfigurationsprüfung fehlschlagen.
+Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und Werte über
+10485760 lassen die Runtime-Konfigurationsprüfung fehlschlagen.
 
 ### Beispiel
 
@@ -937,13 +944,14 @@ response_body_limit=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| positive dezimale Byteanzahl | positive Ganzzahl | nein |
+| positive dezimale Byteanzahl | 1 bis 10485760 (10 MiB) | nein |
 
 ### Standardwert
 
 1048576
 
 Quelle: `common/include/msconnector/limits.h:MSCONNECTOR_MAX_RESPONSE_BODY_BUFFER_SIZE`.
+Harte Konfigurationsobergrenze: `MSCONNECTOR_MAX_CONFIG_BODY_BYTES` (10485760).
 
 ### Vererbung und Zusammenführung
 
@@ -959,7 +967,8 @@ Begrenzt die der Engine angebotenen Response-Bytes.
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und schlüsselspezifisch ungültige Werte lassen die Runtime-Konfigurationsprüfung fehlschlagen.
+Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und Werte über
+10485760 lassen die Runtime-Konfigurationsprüfung fehlschlagen.
 
 ### Beispiel
 

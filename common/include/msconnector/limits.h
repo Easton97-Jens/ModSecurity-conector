@@ -10,6 +10,13 @@ extern "C" {
 #define MSCONNECTOR_MAX_TOTAL_HEADER_BYTES 65536U
 #define MSCONNECTOR_MAX_BODY_BUFFER_SIZE 1048576U
 #define MSCONNECTOR_MAX_RESPONSE_BODY_BUFFER_SIZE 1048576U
+/*
+ * Runtime files and host configuration may select a larger body limit than
+ * the conservative 1 MiB defaults above, but never an unbounded one.  The
+ * 10 MiB ceiling preserves the checked-in Envoy profiles while bounding every
+ * Common allocation and phase-4 body policy that consumes this setting.
+ */
+#define MSCONNECTOR_MAX_CONFIG_BODY_BYTES 10485760U
 #define MSCONNECTOR_MAX_EVENT_JSON_BYTES 16384U
 #define MSCONNECTOR_MAX_TRANSACTION_ID_LENGTH 128U
 #define MSCONNECTOR_MAX_RULE_ID_LENGTH 128U

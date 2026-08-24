@@ -1,12 +1,14 @@
 #include "msconnector/event.h"
 #include "msconnector/http_status.h"
 #include "msconnector/json_escape.h"
+#include "msconnector/limits.h"
 #include "msconnector/transaction_state.h"
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
 
 #define EVENT_TEXT_SIZE 256U
+#define EVENT_TEXT_INPUT_SIZE MSCONNECTOR_MAX_JSON_FIELD_LENGTH
 #define EVENT_JSON_TRUE "true"
 #define EVENT_JSON_FALSE "false"
 
@@ -206,21 +208,34 @@ static int format_event_json(
 }
 
 
+static size_t bounded_c_string_size(const char *src, size_t maximum) {
+    size_t size = 0U;
+    if (src == NULL) {
+        return 0U;
+    }
+    while (size < maximum && src[size] != '\0') {
+        ++size;
+    }
+    return size;
+}
+
 static void escape_field(const char *src, char *dst, size_t dst_size, int *truncated) {
-    const size_t needed = msconnector_json_escape(src, dst, dst_size);
-    if ((dst_size == 0 || needed >= dst_size) && truncated != 0) {
+    const size_t source_size = bounded_c_string_size(src, EVENT_TEXT_INPUT_SIZE);
+    const size_t needed = msconnector_json_escape_n(
+        src, source_size, dst, dst_size);
+    if ((dst_size == 0 || needed >= dst_size ||
+            source_size == EVENT_TEXT_INPUT_SIZE) && truncated != 0) {
         *truncated = 1;
     }
 }
 
-static int append_protocol_string(
+/* Callers supply bounded JSON-escaped text produced by escape_field(). */
+static int append_escaped_protocol_string(
     char *dst,
     size_t dst_size,
     size_t *offset,
     const char *name,
     const char *value) {
-    char escaped_value[EVENT_TEXT_SIZE * 2U];
-    size_t escaped_size;
     int written;
     if (dst == NULL || offset == NULL || name == NULL || value == NULL || value[0] == '\0') {
         return 1;
@@ -228,13 +243,8 @@ static int append_protocol_string(
     if (*offset >= dst_size) {
         return 0;
     }
-    escaped_size = msconnector_json_escape(
-        value, escaped_value, sizeof(escaped_value));
-    if (escaped_size >= sizeof(escaped_value)) {
-        return 0;
-    }
     written = snprintf(dst + *offset, dst_size - *offset,
-        ",\"%s\":\"%s\"", name, escaped_value);
+        ",\"%s\":\"%s\"", name, value);
     if (written < 0 || (size_t)written >= dst_size - *offset) {
         return 0;
     }
@@ -287,7 +297,7 @@ static int append_protocol_metadata(
     size_t index;
 
     for (index = 0U; index < EVENT_PROTOCOL_TEXT_COUNT; ++index) {
-        if (!append_protocol_string(dst, dst_size, offset,
+        if (!append_escaped_protocol_string(dst, dst_size, offset,
                 event_protocol_text_names[index], values[index])) {
             return 0;
         }
@@ -312,10 +322,11 @@ static void append_event_provenance(
     size_t offset = 0U;
 
     dst[0] = '\0';
-    if (!append_protocol_string(dst, dst_size, &offset, "run_id", run_id)) {
+    if (!append_escaped_protocol_string(dst, dst_size, &offset,
+            "run_id", run_id)) {
         *was_truncated = 1;
     }
-    if (!append_protocol_string(dst, dst_size, &offset,
+    if (!append_escaped_protocol_string(dst, dst_size, &offset,
             "transport_case_id", transport_case_id)) {
         *was_truncated = 1;
     }
@@ -601,7 +612,7 @@ int msconnector_event_write_json_ex(
     escape_field(event->meta.transport_case_id, transport_case_id,
         sizeof(transport_case_id), &was_truncated);
     if (transport_case_id[0] != '\0' &&
-        !is_bounded_transport_case_id(event->meta.transport_case_id)) {
+        !is_bounded_transport_case_id(transport_case_id)) {
         /* Correlation IDs are metadata tokens, never request-derived text. */
         transport_case_id[0] = '\0';
         was_truncated = 1;
@@ -655,11 +666,11 @@ int msconnector_event_write_json_ex(
         &was_truncated);
     escape_field(event->flags.cleanup_reason, cleanup_reason,
         sizeof(cleanup_reason), &was_truncated);
-    if (!is_bounded_transport_value(event->protocol.reset_by) ||
-        !is_bounded_transport_value(event->protocol.reset_code) ||
-        !is_bounded_transport_value(event->flags.timeout_stage) ||
-        !is_bounded_transport_value(event->flags.write_result) ||
-        !is_bounded_transport_value(event->flags.cleanup_reason)) {
+    if (!is_bounded_transport_value(reset_by) ||
+        !is_bounded_transport_value(reset_code) ||
+        !is_bounded_transport_value(timeout_stage) ||
+        !is_bounded_transport_value(write_result) ||
+        !is_bounded_transport_value(cleanup_reason)) {
         reset_by[0] = '\0';
         reset_code[0] = '\0';
         timeout_stage[0] = '\0';
@@ -669,18 +680,15 @@ int msconnector_event_write_json_ex(
     }
 
     {
-        const char *safe_connection_id = event->protocol.connection_id;
-        const char *safe_reset_by = event->protocol.reset_by;
-        const char *safe_reset_code = event->protocol.reset_code;
-        const char *safe_timeout_stage = event->flags.timeout_stage;
-        const char *safe_write_result = event->flags.write_result;
-        const char *safe_cleanup_reason = event->flags.cleanup_reason;
-        if (((event->protocol.negotiated_protocol != NULL &&
-                strcmp(event->protocol.negotiated_protocol, "h3") == 0) ||
-            (event->protocol.downstream_protocol != NULL &&
-                strcmp(event->protocol.downstream_protocol, "h3") == 0) ||
-            (event->protocol.transport != NULL &&
-                strcmp(event->protocol.transport, "quic_udp") == 0)) &&
+        const char *safe_connection_id = connection_id;
+        const char *safe_reset_by = reset_by;
+        const char *safe_reset_code = reset_code;
+        const char *safe_timeout_stage = timeout_stage;
+        const char *safe_write_result = write_result;
+        const char *safe_cleanup_reason = cleanup_reason;
+        if ((strcmp(negotiated_protocol, "h3") == 0 ||
+            strcmp(downstream_protocol, "h3") == 0 ||
+            strcmp(transport, "quic_udp") == 0) &&
             !is_nonreversible_quic_connection_id(safe_connection_id)) {
             safe_connection_id = NULL;
         }
@@ -700,16 +708,16 @@ int msconnector_event_write_json_ex(
             safe_cleanup_reason = NULL;
         }
         const char *const protocol_values[EVENT_PROTOCOL_TEXT_COUNT] = {
-            event->protocol.requested_protocol,
-            event->protocol.downstream_protocol,
-            event->protocol.upstream_protocol,
-            event->protocol.negotiated_protocol,
-            event->protocol.transport,
-            event->protocol.alpn,
-            event->protocol.stream_id,
+            requested_protocol,
+            downstream_protocol,
+            upstream_protocol,
+            negotiated_protocol,
+            transport,
+            alpn,
+            stream_id,
             safe_connection_id,
-            event->protocol.quic_version,
-            event->protocol.stream_reset_code,
+            quic_version,
+            stream_reset_code,
             safe_reset_by,
             safe_reset_code,
             safe_timeout_stage,

@@ -194,10 +194,11 @@ Response-MIME-Typ. `SecResponseBodyMimeType` wählt weiterhin die Engine-
 Inspektion, während das veraltete
 `modsecurity_phase4_content_types_file` keinen uninspektierten Pass-through-
 Pfad erzeugen kann. Das Standardlimit von
-`modsecurity_phase4_body_limit` beträgt 1048576 Byte (1 MiB). Eine Response,
-die es überschreitet, schlägt fail-closed fehl, bevor ein ursprüngliches
-Response-Byte freigegeben wird; sie wird nicht teilweise verarbeitet und dann
-gestreamt.
+`modsecurity_phase4_body_limit` beträgt 1048576 Byte (1 MiB), und der
+Common-Konfigurationsvalidator lehnt Werte über 10485760 Byte (10 MiB) ab.
+Eine Response, die ihr gewähltes Limit überschreitet, schlägt fail-closed fehl,
+bevor ein ursprüngliches Response-Byte freigegeben wird; sie wird nicht
+teilweise verarbeitet und dann gestreamt.
 Die Byte-Grenze ist nicht die einzige Ressourcengrenze für zurückgehaltene
 Ausgabe: Apache erzwingt zusätzlich eine feste, nicht konfigurierbare Obergrenze
 von 4.096 normalisierten, über Filter-Aufrufe hinweg zurückgehaltenen Buckets.
