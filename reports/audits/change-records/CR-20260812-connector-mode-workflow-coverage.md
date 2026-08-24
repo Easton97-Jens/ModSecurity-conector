@@ -778,3 +778,70 @@ upload boundary, and the unchanged secure Summary writer. Local evidence does
 not replace an exact successor hosted runtime or SonarQube Cloud analysis; both
 remain pending until a normal successor push. PR #279 remains Draft with no
 Ready-for-review transition, merge, auto-merge, or master integration.
+
+## 2026-08-24 interim update: Framework scenario coverage and independent No-CRS validation
+
+This section supersedes the earlier connector-specific summary description for
+the current PR #279 follow-up only. It remains a Parent-only interim change:
+the Framework and MRTS sources and Gitlinks stay unchanged, and PR #279 stays
+Draft without a Ready transition, merge, auto-merge, rebase, or force-push.
+
+The visible heading is now exactly `### Framework test scenario coverage` for
+every connector/profile route. The old phase/area and CRS-family headings are
+not rendered. The read-only pinned Framework commit is
+`c40e924ec5c341032908e0082feba1d37ed1dfda`: No-CRS selection comes from
+`tests/cases/no-crs-baseline/catalog.json` through
+`ci/checks/catalog/no_crs_baseline.py`; the current CRS profile fixture is
+`tests/cases/security/crs/crs_sqli_anomaly_block.yaml`. The strict Parent
+display index `ci/runtime/scenarios/framework-display-index.json` is bound to
+that exact Framework revision and maps only this actual fixture to `SQL
+Injection`. No CRS rule family, filename, log line, or free text creates a
+visible category.
+
+All four workflows pass controlled Parent/Framework SHAs, profile run ID, and
+separate selection, execution, and validation outcomes to the one renderer.
+The summary distinguishes `Framework test selection`, `Framework test
+execution`, and `Framework evidence validation`; it computes selected,
+executed, passed, failed, unsupported, not-applicable, cancelled, and
+not-executed counts from the bound plan/results. `RUN` and `PASS` require real
+live evidence and a successful independent validation, not a successful
+GitHub step.
+
+The focused review found that the No-CRS renderer had still trusted a
+`success` outcome plus self-consistent minimal JSON. The local correction now
+directly calls the exact pinned Framework `validate_command(..., check="all")`
+before No-CRS evidence can be promoted. A retained incomplete synthetic
+control is rejected with exit code `2`; a canonical Framework `NOT_EXECUTED`
+control validates without a host-runtime `PASS` claim. This local fix is
+tracked as `FND-PARENT-0219` and requires exact-successor hosted proof before
+it can be verified.
+
+Apache and HAProxy now use the same strict normalizer and summary layout, but
+their existing harnesses still only produce per-case `result.json` summaries.
+They do not produce the required correlated `runtime-observation.json` for
+configuration/start/reachability, allow/block/bypass, no-MRTS, and cleanup.
+The workflows therefore remain fail-closed and render incomplete states rather
+than fabricating `PASS`; `FND-PARENT-0218` records this blocked evidence gap.
+The HAProxy raw-runtime artifact exclusion remains unchanged.
+
+Focused local validation passed with 102 tests:
+
+```text
+python -m unittest -v tests.test_connector_mode_coverage_summary tests.test_with_crs_no_mrts_runtime tests.test_ci_security_workflows
+```
+
+The three changed Python lifecycle helpers also passed `py_compile`. A broader
+Apache No-CRS selector suite has two environment-blocked tests because the
+task worktree deliberately has no initialized Framework submodule; no recursive
+Framework/MRTS initialization or simulated runtime was performed. The final
+local security diff reviewed the 12 changed paths and found no remaining
+reportable finding. Local workflow and exact-successor hosted checks remain
+required before the PR can be considered verified.
+
+The read-only Framework workflow YAML checker passed for every changed
+workflow. The checker run through `make check-bilingual-docs` reported missing
+Framework link targets and `make` exited `2`; `make check-doc-links` likewise
+exited `2`. The deliberately uninitialized task-worktree Framework submodule
+provides no local targets for those links, and neither result is a Change-
+Record language or content mismatch. These documentation checks are recorded
+as `blocked_environment`, not as a passing proof.

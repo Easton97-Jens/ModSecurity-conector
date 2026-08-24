@@ -1065,6 +1065,16 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                 with self.assertRaises((FileNotFoundError, RuntimeError, json.JSONDecodeError)):
                     self.normalize(connector, root, runtime)
 
+    def test_apache_and_haproxy_require_common_runtime_manifest(self) -> None:
+        """A smoke summary or GitHub success must not become a common PASS."""
+        for connector in ("apache", "haproxy"):
+            with self.subTest(connector=connector), tempfile.TemporaryDirectory(prefix=f"{connector}-missing-contract-") as temporary:
+                root = Path(temporary)
+                runtime = root / "runtime"
+                runtime.mkdir(mode=0o700)
+                with self.assertRaises(RuntimeError):
+                    self.normalize(connector, root, runtime)
+
     def test_normalizer_derives_real_host_fields_for_every_connector(self) -> None:
         for connector in ("envoy", "traefik", "lighttpd"):
             with self.subTest(connector=connector), tempfile.TemporaryDirectory(prefix="crs-host-evidence-") as temporary:

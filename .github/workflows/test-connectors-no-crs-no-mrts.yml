@@ -274,7 +274,18 @@ jobs:
           case "$CONNECTOR" in apache|envoy|haproxy|lighttpd|traefik) ;; *) exit 2 ;; esac
           make "start-smoke-$CONNECTOR"
 
-      - name: Run complete canonical No-CRS baseline
+      - name: Select canonical Framework scenarios
+        id: select-canonical-framework-scenarios
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+        run: |
+          set -euo pipefail
+          case "$CONNECTOR" in apache|envoy|haproxy|lighttpd|traefik) ;; *) exit 2 ;; esac
+          test -f "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework/ci/checks/catalog/no_crs_baseline.py"
+          echo "selection_outcome=success" >> "$GITHUB_OUTPUT"
+          echo "Selected the pinned Framework no-CRS baseline for $CONNECTOR."
+
+      - name: Run canonical Framework scenarios
         id: run-canonical-no-crs-baseline
         env:
           CONNECTOR: ${{ matrix.connector }}
@@ -283,7 +294,7 @@ jobs:
           case "$CONNECTOR" in apache|envoy|haproxy|lighttpd|traefik) ;; *) exit 2 ;; esac
           make "no-crs-baseline-$CONNECTOR"
 
-      - name: Validate canonical evidence and profile receipt
+      - name: Validate canonical scenario evidence
         id: validate-canonical-evidence
         env:
           CONNECTOR: ${{ matrix.connector }}
@@ -303,6 +314,8 @@ jobs:
         env:
           CONNECTOR: ${{ matrix.connector }}
           EVIDENCE_VALIDATION_OUTCOME: ${{ steps.validate-canonical-evidence.outcome }}
+          SELECTION_OUTCOME: ${{ steps.select-canonical-framework-scenarios.outputs.selection_outcome }}
+          EXECUTION_OUTCOME: ${{ steps.run-canonical-no-crs-baseline.outcome }}
         run: |
           set -euo pipefail
           python3 ci/runtime/lifecycle/summarize-connector-mode-coverage.py \
@@ -312,8 +325,13 @@ jobs:
             --coverage-kind "$COVERAGE_KIND" \
             --connector-root "$GITHUB_WORKSPACE" \
             --framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
+            --parent-sha "$EXPECTED_PARENT_SHA" \
+            --framework-sha "$EXPECTED_FRAMEWORK_SHA" \
+            --run-id "$NO_CRS_RUN_ID" \
             --evidence-dir "$EVIDENCE_ROOT/$CONNECTOR/$NO_CRS_RUN_ID" \
-            --evidence-validation-outcome "$EVIDENCE_VALIDATION_OUTCOME"
+            --evidence-validation-outcome "$EVIDENCE_VALIDATION_OUTCOME" \
+            --selection-outcome "$SELECTION_OUTCOME" \
+            --execution-outcome "$EXECUTION_OUTCOME"
 
       - name: Publish canonical status
         if: always()

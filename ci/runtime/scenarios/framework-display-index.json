@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "framework_commit": "c40e924ec5c341032908e0082feba1d37ed1dfda",
+  "tests": [
+    {
+      "framework_test_id": "crs_sqli_anomaly_block",
+      "display_category": "SQL Injection",
+      "display_name": "CRS SQL injection anomaly block"
+    }
+  ]
+}

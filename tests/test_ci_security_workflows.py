@@ -1781,7 +1781,7 @@ jobs:
         )
         preparation = job.split(
             "      - name: Prepare fresh CRS source for Apache and HAProxy\n", 1
-        )[1].split("      - name: Run selected real with-CRS no-MRTS runtime\n", 1)[0]
+        )[1].split("      - name: Select canonical Framework scenarios\n", 1)[0]
         self.assertIn('case "$CONNECTOR" in', preparation)
         self.assertIn("apache|haproxy)", preparation)
         self.assertIn(
@@ -1789,7 +1789,7 @@ jobs:
             preparation,
         )
         runtime = job.split(
-            "      - name: Run selected real with-CRS no-MRTS runtime\n", 1
+            "      - name: Run canonical Framework scenarios\n", 1
         )[1].split("      - name: Upload real runtime evidence\n", 1)[0]
         self.assertNotIn("prepare-fresh-crs-source.sh", runtime)
         self.assertNotIn('fetch-crs.sh', runtime)
@@ -1879,7 +1879,6 @@ jobs:
         self.assertNotIn("--evidence-root", summary)
         self.assertNotIn("--evidence-path", summary)
         self.assertNotIn("--summary-file", summary)
-        self.assertNotIn("VERIFIED_RUN_ROOT", summary)
         coverage_summary = job.split(
             "      - name: Write complete connector coverage summary\n", 1
         )[1]
@@ -1889,7 +1888,28 @@ jobs:
             coverage_summary,
         )
         self.assertIn("--coverage-kind runtime", coverage_summary)
-        self.assertIn("--evidence-validation-outcome not_run", coverage_summary)
+        self.assertIn('--parent-sha "$EXPECTED_PARENT_SHA"', coverage_summary)
+        self.assertIn('--framework-sha "$EXPECTED_FRAMEWORK_SHA"', coverage_summary)
+        self.assertIn('--run-id "$CRS_RUNTIME_RUN_ID"', coverage_summary)
+        self.assertIn('--evidence-dir "$VERIFIED_RUN_ROOT/evidence"', coverage_summary)
+        self.assertIn(
+            '--selection-outcome "$SELECTION_OUTCOME"', coverage_summary
+        )
+        self.assertIn(
+            '--execution-outcome "$EXECUTION_OUTCOME"', coverage_summary
+        )
+        self.assertIn(
+            '--evidence-validation-outcome "$EVIDENCE_VALIDATION_OUTCOME"',
+            coverage_summary,
+        )
+        self.assertNotIn("--evidence-validation-outcome not_run", coverage_summary)
+        validation = job.split(
+            "      - name: Validate canonical scenario evidence\n", 1
+        )[1].split("      - name: Write connector runtime overview\n", 1)[0]
+        self.assertIn("five_connectors_with_crs_no_mrts.py", validation)
+        self.assertIn("                validate", validation)
+        self.assertIn('--evidence-root "$VERIFIED_RUN_ROOT/evidence"', validation)
+        self.assertIn('--run-id "$CRS_RUNTIME_RUN_ID"', validation)
         for environment_name, step_id in (
             ("CHECKOUT_OUTCOME", "checkout"),
             ("SETUP_PYTHON_OUTCOME", "setup-python"),
@@ -3501,7 +3521,15 @@ class ConnectorModeWorkflowContractTest(unittest.TestCase):
                     '--framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework"',
                     summary["run"],
                 )
-                self.assertIn("--evidence-validation-outcome", summary["run"])
+                for argument in (
+                    "--parent-sha",
+                    "--framework-sha",
+                    "--run-id",
+                    "--selection-outcome",
+                    "--execution-outcome",
+                    "--evidence-validation-outcome",
+                ):
+                    self.assertIn(argument, summary["run"])
                 self.assertLess(
                     text.index("Write complete connector coverage summary"),
                     len(text),
@@ -3677,7 +3705,7 @@ class ConnectorModeWorkflowContractTest(unittest.TestCase):
         self.assertIn('make "no-crs-baseline-$CONNECTOR"', no_crs_text)
         self.assertNotIn('make "runtime-smoke-$CONNECTOR"', no_crs_text)
         self.assertIn('make "evidence-check-$CONNECTOR"', no_crs_text)
-        self.assertIn("Validate canonical evidence and profile receipt", no_crs_text)
+        self.assertIn("Validate canonical scenario evidence", no_crs_text)
         self.assertIn("Write complete connector coverage summary", no_crs_text)
         self.assertIn("EVIDENCE_VALIDATION_OUTCOME", no_crs_text)
         self.assertIn('case "$status" in', no_crs_text)
@@ -3697,7 +3725,9 @@ class ConnectorModeWorkflowContractTest(unittest.TestCase):
         dedicated, dedicated_text = self.load_workflow(
             "test-connectors-with-crs-no-mrts.yml"
         )
-        self.assertIn("Run selected real with-CRS no-MRTS runtime", dedicated_text)
+        self.assertIn("Select canonical Framework scenarios", dedicated_text)
+        self.assertIn("Run canonical Framework scenarios", dedicated_text)
+        self.assertIn("Validate canonical scenario evidence", dedicated_text)
         self.assertIn("Write connector runtime overview", dedicated_text)
         self.assertIn("Write complete connector coverage summary", dedicated_text)
         self.assertIn("--coverage-kind runtime", dedicated_text)
@@ -3786,7 +3816,7 @@ class ConnectorModeWorkflowContractTest(unittest.TestCase):
                 self.assertIn(fragment, prepare_crs["run"])
         runtime = next(
             step for step in with_mrts_steps
-            if step["name"] == "Run existing focused runtime control"
+            if step["name"] == "Run canonical Framework scenarios"
         )
         self.assertLess(with_mrts_steps.index(prepare_crs), with_mrts_steps.index(runtime))
         self.assertLess(

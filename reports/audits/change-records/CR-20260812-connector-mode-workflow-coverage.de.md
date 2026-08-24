@@ -832,3 +832,75 @@ und den unveränderten sicheren Summary-Writer ab. Lokale Evidence ersetzt
 keinen Exact-Successor-Hosted-Runtime- oder SonarQube-Cloud-Check; beide bleiben
 bis zu einem normalen Successor-Push offen. PR #279 bleibt Draft ohne
 Ready-Umstellung, Merge, Auto-Merge oder Master-Integration.
+
+## Zwischen-Update vom 2026-08-24: Framework-Szenario-Coverage und unabhängige No-CRS-Validierung
+
+Dieser Abschnitt ersetzt die frühere connector-spezifische Summary-Beschreibung
+nur für das aktuelle PR-#279-Follow-up. Es bleibt eine Parent-only-
+Zwischenänderung: Framework- und MRTS-Quellen sowie Gitlinks bleiben
+unverändert und PR #279 bleibt Draft ohne Ready-Umstellung, Merge, Auto-Merge,
+Rebase oder Force-Push.
+
+Die sichtbare Überschrift lautet jetzt für jede Connector-/Profilroute exakt
+`### Framework test scenario coverage`. Die alten Phase-/Area- und CRS-
+Family-Überschriften werden nicht gerendert. Der read-only gepinnte Framework-
+Commit ist `c40e924ec5c341032908e0082feba1d37ed1dfda`: Die No-CRS-Auswahl
+stammt aus `tests/cases/no-crs-baseline/catalog.json` über
+`ci/checks/catalog/no_crs_baseline.py`; das aktuelle CRS-Profil-Fixture ist
+`tests/cases/security/crs/crs_sqli_anomaly_block.yaml`. Der strikte Parent-
+Anzeigeindex `ci/runtime/scenarios/framework-display-index.json` ist an genau
+diese Framework-Revision gebunden und ordnet nur dieses reale Fixture `SQL
+Injection` zu. Keine CRS-Rule-Family, kein Dateiname, keine Logzeile und kein
+Freitext erzeugt eine sichtbare Kategorie.
+
+Alle vier Workflows übergeben kontrollierte Parent-/Framework-SHAs, die
+profilgebundene Run-ID und getrennte Auswahl-, Ausführungs- und
+Validierungs-Outcomes an einen Renderer. Die Summary unterscheidet
+`Framework test selection`, `Framework test execution` und `Framework evidence
+validation`; sie berechnet Selected-, Executed-, Passed-, Failed-, Unsupported-,
+Not-applicable-, Cancelled- und Not-executed-Zählungen aus dem gebundenen Plan/
+den Ergebnissen. `RUN` und `PASS` verlangen reale Live-Evidence und eine
+erfolgreiche unabhängige Validierung, nicht einen erfolgreichen GitHub-Step.
+
+Das fokussierte Review fand, dass der No-CRS-Renderer noch einem
+`success`-Outcome plus selbstkonsistentem Minimal-JSON vertraute. Die lokale
+Korrektur ruft nun direkt den exakt gepinnten Framework-
+`validate_command(..., check="all")` auf, bevor No-CRS-Evidence promotet werden
+kann. Ein aufbewahrter unvollständiger synthetischer Control wird mit Exitcode
+`2` abgelehnt; ein kanonischer Framework-`NOT_EXECUTED`-Control validiert ohne
+Host-Runtime-`PASS`-Claim. Dieser lokale Fix wird als `FND-PARENT-0219`
+verfolgt und benötigt exakten Successor-Hosted-Proof, bevor er verifiziert
+werden kann.
+
+Apache und HAProxy verwenden jetzt denselben strikten Normalizer und dasselbe
+Summary-Layout, doch ihre vorhandenen Harnesses erzeugen weiterhin nur
+Per-Case-`result.json`-Summaries. Sie erzeugen nicht das erforderliche
+korrelierte `runtime-observation.json` für Konfiguration/Start/Erreichbarkeit,
+Allow/Block/Bypass, No-MRTS und Cleanup. Die Workflows bleiben daher
+fail-closed und rendern unvollständige Zustände, statt `PASS` zu erfinden;
+`FND-PARENT-0218` erfasst diese blockierte Evidence-Lücke. Der HAProxy-
+Raw-Runtime-Artifact-Ausschluss bleibt unverändert.
+
+Die fokussierte lokale Validierung bestand mit 102 Tests:
+
+```text
+python -m unittest -v tests.test_connector_mode_coverage_summary tests.test_with_crs_no_mrts_runtime tests.test_ci_security_workflows
+```
+
+Die drei geänderten Python-Lifecycle-Helper bestanden außerdem `py_compile`.
+Eine breitere Apache-No-CRS-Selector-Suite hat zwei umgebungsblockierte Tests,
+weil der Task-Worktree absichtlich kein initialisiertes Framework-Submodule
+besitzt; es wurden weder rekursive Framework-/MRTS-Initialisierung noch eine
+simulierte Runtime ausgeführt. Der finale lokale Security-Diff prüfte die 12
+geänderten Pfade und fand keinen verbleibenden reportierbaren Befund. Lokale
+Workflow- und Exact-Successor-Hosted-Checks bleiben erforderlich, bevor der PR
+als verifiziert gelten kann.
+
+Der read-only Framework-Workflow-YAML-Checker bestand für jeden geänderten
+Workflow. Der über `make check-bilingual-docs` gestartete Checker meldete
+fehlende Framework-Linkziele und `make` endete mit `2`; auch
+`make check-doc-links` endete mit `2`. Das absichtlich nicht initialisierte
+Framework-Submodule im Task-Worktree stellt keine lokalen Ziele für diese
+Links bereit; keines der Ergebnisse ist ein Change-Record-Sprach- oder
+Inhaltsmismatch. Diese Dokumentationschecks sind als `blocked_environment`,
+nicht als PASS-Nachweis erfasst.

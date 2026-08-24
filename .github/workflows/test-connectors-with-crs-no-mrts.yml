@@ -194,7 +194,15 @@ jobs:
               ;;
           esac
 
-      - name: Run selected real with-CRS no-MRTS runtime
+      - name: Select canonical Framework scenarios
+        id: select-canonical-framework-scenarios
+        run: |
+          set -euo pipefail
+          test -f "$FRAMEWORK_ROOT/tests/cases/security/crs/crs_sqli_anomaly_block.yaml"
+          echo "selection_outcome=success" >> "$GITHUB_OUTPUT"
+          echo "Selected the pinned five-connector CRS/no-MRTS scenario contract."
+
+      - name: Run canonical Framework scenarios
         id: runtime
         env:
           CONNECTOR: ${{ matrix.connector }}
@@ -232,6 +240,30 @@ jobs:
           retention-days: 10
           overwrite: false
 
+      - name: Validate canonical scenario evidence
+        id: validate-canonical-scenario-evidence
+        if: always()
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+        run: |
+          set -euo pipefail
+          case "$CONNECTOR" in
+            envoy|lighttpd|traefik)
+              python3 "$FRAMEWORK_ROOT/ci/checks/catalog/five_connectors_with_crs_no_mrts.py" \
+                validate \
+                --evidence-root "$VERIFIED_RUN_ROOT/evidence" \
+                --source-root "$SOURCE_ROOT" \
+                --connector "$CONNECTOR" \
+                --run-id "$CRS_RUNTIME_RUN_ID"
+              echo "validation_outcome=success" >> "$GITHUB_OUTPUT"
+              ;;
+            apache|haproxy)
+              echo "validation_outcome=skipped" >> "$GITHUB_OUTPUT"
+              echo "Framework scenario evidence is not yet normalized for $CONNECTOR; validation is skipped and cannot promote the run."
+              ;;
+            *) echo "FAIL: connector is outside the fixed scenario set: $CONNECTOR" >&2; exit 2 ;;
+          esac
+
       - name: Write connector runtime overview
         if: always()
         env:
@@ -259,6 +291,9 @@ jobs:
         if: always() && steps.verify-revisions.outcome == 'success'
         env:
           CONNECTOR: ${{ matrix.connector }}
+          SELECTION_OUTCOME: ${{ steps.select-canonical-framework-scenarios.outputs.selection_outcome }}
+          EXECUTION_OUTCOME: ${{ steps.runtime.outcome }}
+          EVIDENCE_VALIDATION_OUTCOME: ${{ steps.validate-canonical-scenario-evidence.outputs.validation_outcome }}
         run: |
           set -euo pipefail
           python3 ci/runtime/lifecycle/summarize-connector-mode-coverage.py \
@@ -268,4 +303,10 @@ jobs:
             --coverage-kind runtime \
             --connector-root "$GITHUB_WORKSPACE" \
             --framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
-            --evidence-validation-outcome not_run
+            --parent-sha "$EXPECTED_PARENT_SHA" \
+            --framework-sha "$EXPECTED_FRAMEWORK_SHA" \
+            --run-id "$CRS_RUNTIME_RUN_ID" \
+            --evidence-dir "$VERIFIED_RUN_ROOT/evidence" \
+            --evidence-validation-outcome "$EVIDENCE_VALIDATION_OUTCOME" \
+            --selection-outcome "$SELECTION_OUTCOME" \
+            --execution-outcome "$EXECUTION_OUTCOME"

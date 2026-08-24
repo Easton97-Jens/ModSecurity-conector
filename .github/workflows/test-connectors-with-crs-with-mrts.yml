@@ -69,6 +69,7 @@ jobs:
       EXPECTED_FRAMEWORK_SHA: c40e924ec5c341032908e0082feba1d37ed1dfda
       EXPECTED_MRTS_SHA: 615b13bacbd008562c17408246c41ab27dca3104
       EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      CRS_RUNTIME_RUN_ID: crs-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.connector }}
       CRS: ${{ matrix.crs }}
       MRTS: ${{ matrix.mrts }}
       COVERAGE_KIND: ${{ matrix.coverage_kind }}
@@ -193,7 +194,15 @@ jobs:
             *) echo "FAIL: CRS preparation is not permitted for $CONNECTOR" >&2; exit 2 ;;
           esac
 
-      - name: Run existing focused runtime control
+      - name: Select canonical Framework scenarios
+        id: select-canonical-framework-scenarios
+        run: |
+          set -euo pipefail
+          echo "selection_outcome=not_applicable" >> "$GITHUB_OUTPUT"
+          echo "No canonical Framework scenario is declared for with-CRS/with-MRTS; selection is not applicable."
+
+      - name: Run canonical Framework scenarios
+        id: run-canonical-framework-scenarios
         if: matrix.coverage_kind == 'runtime'
         env:
           CONNECTOR: ${{ matrix.connector }}
@@ -264,10 +273,21 @@ jobs:
             echo "Safe parser rejection observed for $CONNECTOR, unknown, and _template; no host runtime or build artifact was accepted."
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Validate canonical scenario evidence
+        id: validate-canonical-scenario-evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          echo "validation_outcome=not_applicable" >> "$GITHUB_OUTPUT"
+          echo "No canonical Framework scenario evidence is declared for with-CRS/with-MRTS; validation is not applicable."
+
       - name: Write complete connector coverage summary
         if: always() && steps.verify-revisions.outcome == 'success'
         env:
           CONNECTOR: ${{ matrix.connector }}
+          SELECTION_OUTCOME: ${{ steps.select-canonical-framework-scenarios.outputs.selection_outcome }}
+          EXECUTION_OUTCOME: not_applicable
+          EVIDENCE_VALIDATION_OUTCOME: ${{ steps.validate-canonical-scenario-evidence.outputs.validation_outcome }}
         run: |
           set -euo pipefail
           python3 ci/runtime/lifecycle/summarize-connector-mode-coverage.py \
@@ -277,4 +297,9 @@ jobs:
             --coverage-kind "$COVERAGE_KIND" \
             --connector-root "$GITHUB_WORKSPACE" \
             --framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
-            --evidence-validation-outcome not_run
+            --parent-sha "$EXPECTED_PARENT_SHA" \
+            --framework-sha "$EXPECTED_FRAMEWORK_SHA" \
+            --run-id "$CRS_RUNTIME_RUN_ID" \
+            --evidence-validation-outcome "$EVIDENCE_VALIDATION_OUTCOME" \
+            --selection-outcome "$SELECTION_OUTCOME" \
+            --execution-outcome "$EXECUTION_OUTCOME"

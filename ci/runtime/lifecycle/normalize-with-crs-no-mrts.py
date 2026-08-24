@@ -22,7 +22,9 @@ from pathlib import Path
 from typing import Any
 
 CONNECTORS = {
+    "apache": ("apache-native-httpd-module", "native-httpd-module", "apache"),
     "envoy": ("envoy-ext-proc-service", "ext_proc", "event"),
+    "haproxy": ("haproxy-native-htx-filter", "native-htx-filter", "haproxy"),
     "traefik": ("traefik-native-middleware", "native-traefik-middleware", "event"),
     "lighttpd": ("lighttpd-patched-native-module", "patched-native-lighttpd", "audit"),
 }
@@ -835,6 +837,81 @@ def observed_lighttpd(runtime_root: Path, run_id: str) -> dict[str, Any]:
     return {"allow": allow, "block": block, "bypass": bypass, "actual_intervention": actual_intervention, "canonical_trigger": block_trigger, "request_id": request_ids["block"], "transaction_id": block_id, "bypass_request_id": request_ids["bypass"], "wire_artifacts": wire_artifacts}
 
 
+def observed_apache_or_haproxy(runtime_root: Path, connector: str, run_id: str) -> dict[str, Any]:
+    """Read the strict host manifest for the Apache/HAProxy adapters.
+
+    The existing smoke summaries contain a case status and an HTTP status, but
+    do not prove the complete common runtime contract.  They are deliberately
+    not accepted here.  A future adapter must publish one bounded manifest
+    containing the real configuration/start/reachability observations and
+    three independently correlated requests.  In particular, defaults or a
+    copied ``403`` cannot manufacture a PASS.
+    """
+    observation = json.loads(read_bounded(runtime_root / "runtime-observation.json", runtime_root).decode("utf-8"))
+    if not isinstance(observation, dict):
+        fail(f"{connector} runtime observation is not an object")
+    expected_mode = CONNECTORS[connector][1]
+    if observation.get("status") != "PASS" or observation.get("connector") != connector:
+        fail(f"{connector} runtime observation is not a PASS for this connector")
+    if observation.get("run_id") != run_id or observation.get("integration_mode") != expected_mode:
+        fail(f"{connector} runtime observation identity is not bound to this run")
+    configuration = observation.get("configuration")
+    if not isinstance(configuration, dict):
+        fail(f"{connector} runtime observation lacks configuration evidence")
+    for field in ("config_test_status", "host_start_status", "reachability_status"):
+        if configuration.get(field) != "passed":
+            fail(f"{connector} runtime observation lacks passed {field}")
+    requests = observation.get("requests")
+    if not isinstance(requests, dict) or set(requests) != {"allow", "block", "bypass"}:
+        fail(f"{connector} runtime observation lacks the exact allow/block/bypass request set")
+    parsed: dict[str, dict[str, Any]] = {}
+    for case, expected_status in (("allow", 200), ("block", 403), ("bypass", 403)):
+        record = requests.get(case)
+        if not isinstance(record, dict):
+            fail(f"{connector} {case} request observation is not an object")
+        if record.get("run_id") != run_id or record.get("connector") != connector:
+            fail(f"{connector} {case} request identity is not bound to this run")
+        request_id = record.get("request_id")
+        transaction_id = record.get("transaction_id")
+        if not isinstance(request_id, str) or not isinstance(transaction_id, str):
+            fail(f"{connector} {case} request lacks correlation identities")
+        safe_token(request_id, f"{connector} {case} request id")
+        safe_token(transaction_id, f"{connector} {case} transaction id")
+        parsed[case] = dict(record)
+        observed_http_status(parsed[case], f"{connector} {case}", expected_status)
+        if parsed[case].get("status") != expected_status:
+            fail(f"{connector} {case} lacks the expected observed status field")
+    if len({parsed[name]["request_id"] for name in parsed}) != 3 or len({parsed[name]["transaction_id"] for name in parsed}) != 3:
+        fail(f"{connector} request correlations are not distinct")
+    block = parsed["block"]
+    bypass = parsed["bypass"]
+    if block.get("path") != "/?id=1%20UNION%20SELECT%20password%20FROM%20users":
+        fail(f"{connector} block request path is not the canonical Framework request")
+    if bypass.get("path") != "/?id=1%20uNiOn%20SeLeCt":
+        fail(f"{connector} bypass request path is not the canonical variant")
+    for case in ("block", "bypass"):
+        if parsed[case].get("observed_rule_id") != RULE_ID:
+            fail(f"{connector} {case} lacks the correlated CRS trigger rule")
+        if parsed[case].get("intervention") != "deny":
+            fail(f"{connector} {case} lacks the observed deny intervention")
+    if parsed["allow"].get("path") != "/?id=42" or parsed["allow"].get("observed_rule_id") is not None:
+        fail(f"{connector} allow request is not a clean canonical allow")
+    actual_intervention = block.get("actual_intervention_rule_id")
+    if not isinstance(actual_intervention, int) or isinstance(actual_intervention, bool) or actual_intervention != 949110:
+        fail(f"{connector} block lacks the observed 949110 intervention rule")
+    return {
+        "allow": parsed["allow"],
+        "block": parsed["block"],
+        "bypass": parsed["bypass"],
+        "actual_intervention": actual_intervention,
+        "canonical_trigger": RULE_ID,
+        "request_id": block["request_id"],
+        "transaction_id": block["transaction_id"],
+        "bypass_request_id": bypass["request_id"],
+        "configuration": configuration,
+    }
+
+
 def observed_runtime(runtime_root: Path, connector: str, run_id: str) -> dict[str, Any]:
     """Return only facts bound to this connector's fixed attack transaction."""
     if connector == "envoy":
@@ -843,6 +920,8 @@ def observed_runtime(runtime_root: Path, connector: str, run_id: str) -> dict[st
         return observed_traefik(runtime_root, run_id)
     if connector == "lighttpd":
         return observed_lighttpd(runtime_root, run_id)
+    if connector in {"apache", "haproxy"}:
+        return observed_apache_or_haproxy(runtime_root, connector, run_id)
     fail(f"unsupported connector runtime evidence: {connector}")
     raise AssertionError
 
@@ -990,7 +1069,9 @@ def clean_runtime_observation(
 
 def host_raw_inputs(runtime_root: Path, connector: str, observed: dict[str, Any]) -> dict[str, str]:
     raw_names = {
+        "apache": ("runtime-observation.json",),
         "envoy": (SUMMARY_FILE, "crs-allow-probe.json", "crs-block-probe.json", "crs-bypass-probe.json", EVENTS_FILE, COMPLETION_EVENTS_FILE, "ext-proc.stderr.log"),
+        "haproxy": ("runtime-observation.json",),
         "traefik": (RESULT_FILE, "logs/events.jsonl", "logs/engine.stderr.log"),
         "lighttpd": (SUMMARY_FILE, EVENTS_FILE, "runtime-smoke.stderr"),
     }[connector]
@@ -1038,7 +1119,8 @@ def normalize(args: argparse.Namespace) -> Path:
         fail("canonical CRS rule digest mismatch")
     if b"id:942270" not in rule_data:
         fail("canonical CRS rule fingerprint is absent")
-    completion = runtime_root / (SUMMARY_FILE if connector != "traefik" else RESULT_FILE)
+    completion_name = "runtime-observation.json" if connector in {"apache", "haproxy"} else (SUMMARY_FILE if connector != "traefik" else RESULT_FILE)
+    completion = runtime_root / completion_name
     if not completion.is_file():
         fail("host harness completion record is missing")
     observation_path = runtime_root / "runtime-observation.json"
@@ -1073,16 +1155,49 @@ def normalize(args: argparse.Namespace) -> Path:
     cleanup_file = run_dir / "cleanup.log"
     create_run_directory(run_dir, evidence_root)
     create_run_directory(normalized_dir, evidence_root)
-    config = {"schema_version": 1, "record_type": "host_configuration", "profile": PROFILE, "connector": connector, "integration_mode": mode, "run_id": run_id, "config_test_status": "passed", "host_start_status": "passed"}
-    allow_record = {"schema_version": 1, "record_type": "allow_request", "profile": PROFILE, "connector": connector, "integration_mode": mode, "fixture_id": "crs_sqli_anomaly_block:allow", "run_id": run_id, "request_id": str(allow.get("request_id", allow.get("transaction_id", "allow"))), "transaction_id": str(allow.get("transaction_id", allow.get("request_id", "allow"))), "method": "GET", "path": "/?id=42", "correlation_header": "X-Framework-Run-ID", "correlation_value": run_id, "payload_length": 0, "status": 200}
-    block_record = {"schema_version": 1, "record_type": "block_audit", "profile": PROFILE, "connector": connector, "integration_mode": mode, "fixture_id": "crs_sqli_anomaly_block", "run_id": run_id, "request_id": request_id, "transaction_id": transaction_id, "method": "GET", "path": "/?id=1%20UNION%20SELECT%20password%20FROM%20users", "correlation_header": "X-Framework-Run-ID", "correlation_value": run_id, "payload_length": 0, "expected_rule_id": RULE_ID, "observed_rule_id": RULE_ID, "expected_status": 403, "observed_status": 403, "intervention": "deny", "evidence_type": evidence_type}
+    if connector in {"apache", "haproxy"}:
+        configuration = observed["configuration"]
+    else:
+        configuration = {
+            "config_test_status": "passed",
+            "host_start_status": "passed",
+            "reachability_status": "passed",
+        }
+    config = {"schema_version": 1, "record_type": "host_configuration", "profile": PROFILE, "connector": connector, "integration_mode": mode, "run_id": run_id, "config_test_status": configuration["config_test_status"], "host_start_status": configuration["host_start_status"]}
+    if connector in {"apache", "haproxy"}:
+        config["reachability_status"] = configuration["reachability_status"]
+    if connector in {"apache", "haproxy"}:
+        allow_request_id = allow["request_id"]
+        allow_transaction_id = allow["transaction_id"]
+        allow_method = allow["method"]
+        allow_path = allow["path"]
+        allow_payload_length = allow["payload_length"]
+        allow_status = allow["status"]
+        block_method = block["method"]
+        block_path = block["path"]
+        block_payload_length = block["payload_length"]
+        block_intervention = block["intervention"]
+    else:
+        allow_request_id = allow.get("request_id", allow.get("transaction_id", "allow"))
+        allow_transaction_id = allow.get("transaction_id", allow.get("request_id", "allow"))
+        allow_method = allow.get("method", "GET")
+        allow_path = allow.get("path", "/?id=42")
+        allow_payload_length = allow.get("payload_length", 0)
+        allow_status = allow.get("status", 200)
+        block_method = block.get("method", "GET")
+        block_path = block.get("path", "/?id=1%20UNION%20SELECT%20password%20FROM%20users")
+        block_payload_length = block.get("payload_length", 0)
+        block_intervention = block.get("intervention", "deny")
+    allow_record = {"schema_version": 1, "record_type": "allow_request", "profile": PROFILE, "connector": connector, "integration_mode": mode, "fixture_id": "crs_sqli_anomaly_block:allow", "run_id": run_id, "request_id": allow_request_id, "transaction_id": allow_transaction_id, "method": allow_method, "path": allow_path, "correlation_header": "X-Framework-Run-ID", "correlation_value": run_id, "payload_length": allow_payload_length, "status": allow_status}
+    observed_block_status = block["status"] if connector in {"apache", "haproxy"} else 403
+    block_record = {"schema_version": 1, "record_type": "block_audit", "profile": PROFILE, "connector": connector, "integration_mode": mode, "fixture_id": "crs_sqli_anomaly_block", "run_id": run_id, "request_id": request_id, "transaction_id": transaction_id, "method": block_method, "path": block_path, "correlation_header": "X-Framework-Run-ID", "correlation_value": run_id, "payload_length": block_payload_length, "expected_rule_id": RULE_ID, "observed_rule_id": canonical_trigger, "expected_status": 403, "observed_status": observed_block_status, "intervention": block_intervention, "evidence_type": evidence_type}
     block_record["observed_rule_id"] = canonical_trigger
     cleanup_record = {"schema_version": 1, "record_type": "cleanup", "profile": PROFILE, "connector": connector, "run_id": run_id, "status": "passed", "host_processes_remaining": int(cleanup_scan["host_processes_remaining"]), "helper_processes_remaining": int(cleanup_scan["helper_processes_remaining"]), "listeners_remaining": int(cleanup_scan["listeners_remaining"]), "sockets_remaining": int(cleanup_scan["sockets_remaining"]), "pid_files_remaining": int(cleanup_scan["pid_files_remaining"]), "runtime_fixtures_remaining": int(cleanup_scan["runtime_fixtures_remaining"]), "temporary_paths_remaining": int(cleanup_scan["temporary_paths_remaining"]), "mrts_runner_invoked": no_mrts["runner_invoked"], "mrts_case_inventory_loaded": no_mrts["case_inventory_loaded"], "mrts_process_started": no_mrts["process_started"], "mrts_socket_or_listener_created": no_mrts["socket_or_listener_created"], "mrts_artifact_used": no_mrts["artifact_used"]}
     atomic_write(host_file, framework_raw_record(config), evidence_root)
     atomic_write(allow_file, framework_raw_record(allow_record), evidence_root)
     atomic_write(block_file, framework_raw_record(block_record), evidence_root)
     atomic_write(cleanup_file, framework_raw_record(cleanup_record), evidence_root)
-    event = {"schema_version": 1, "profile": PROFILE, "connector": connector, "adapter_id": adapter, "integration_mode": mode, "fixture_id": "crs_sqli_anomaly_block", "run_id": run_id, "framework_commit": framework_commit, "connector_commit": parent_commit, "request_id": request_id, "transaction_id": transaction_id, "evidence_type": evidence_type, "evidence_origin": "connector-host", "crs_repository": crs_repository, "crs_release_tag": crs_release, "crs_commit": crs_commit, "crs_rule_file": RULE_FILE, "crs_rule_file_sha256": rule_sha256, "crs_source_kind": "fresh", "crs_git_ref": crs_release, "expected_rule_id": RULE_ID, "observed_rule_id": RULE_ID, "expected_status": 403, "observed_status": 403, "intervention": "deny", "allow_case": {"fixture_id": "crs_sqli_anomaly_block:allow", "run_id": run_id, "request_id": allow_record["request_id"], "transaction_id": allow_record["transaction_id"], "expected_status": 200, "observed_status": 200, "observed_rule_id": None, "evidence_path": f"raw/{connector}/{run_id}/allow-request.log", "evidence_sha256": digest(allow_file, evidence_root)}, "host_configuration": {"config_test_status": "passed", "host_start_status": "passed", "evidence_path": f"raw/{connector}/{run_id}/host-configuration.log", "evidence_sha256": digest(host_file, evidence_root)}, "block_evidence": {"evidence_path": f"raw/{connector}/{run_id}/block-audit.log", "evidence_sha256": digest(block_file, evidence_root)}, "no_mrts": {name: no_mrts[name] for name in ("runner_invoked", "case_inventory_loaded", "process_started", "socket_or_listener_created", "artifact_used")}, "cleanup": {"status": "passed", "host_processes_remaining": 0, "helper_processes_remaining": 0, "listeners_remaining": 0, "sockets_remaining": 0, "pid_files_remaining": 0, "runtime_fixtures_remaining": 0, "temporary_paths_remaining": 0, "evidence_path": f"raw/{connector}/{run_id}/cleanup.log", "evidence_sha256": digest(cleanup_file, evidence_root)}, "status": "PASS", "failure_count": 0, "mismatch_count": 0}
+    event = {"schema_version": 1, "profile": PROFILE, "connector": connector, "adapter_id": adapter, "integration_mode": mode, "fixture_id": "crs_sqli_anomaly_block", "run_id": run_id, "framework_commit": framework_commit, "connector_commit": parent_commit, "request_id": request_id, "transaction_id": transaction_id, "evidence_type": evidence_type, "evidence_origin": "connector-host", "crs_repository": crs_repository, "crs_release_tag": crs_release, "crs_commit": crs_commit, "crs_rule_file": RULE_FILE, "crs_rule_file_sha256": rule_sha256, "crs_source_kind": "fresh", "crs_git_ref": crs_release, "expected_rule_id": RULE_ID, "observed_rule_id": canonical_trigger, "expected_status": 403, "observed_status": observed_block_status, "intervention": block_intervention, "allow_case": {"fixture_id": "crs_sqli_anomaly_block:allow", "run_id": run_id, "request_id": allow_record["request_id"], "transaction_id": allow_record["transaction_id"], "expected_status": 200, "observed_status": allow_status, "observed_rule_id": None, "evidence_path": f"raw/{connector}/{run_id}/allow-request.log", "evidence_sha256": digest(allow_file, evidence_root)}, "host_configuration": {"config_test_status": config["config_test_status"], "host_start_status": config["host_start_status"], **({"reachability_status": config["reachability_status"]} if connector in {"apache", "haproxy"} else {}), "evidence_path": f"raw/{connector}/{run_id}/host-configuration.log", "evidence_sha256": digest(host_file, evidence_root)}, "block_evidence": {"evidence_path": f"raw/{connector}/{run_id}/block-audit.log", "evidence_sha256": digest(block_file, evidence_root)}, "no_mrts": {name: no_mrts[name] for name in ("runner_invoked", "case_inventory_loaded", "process_started", "socket_or_listener_created", "artifact_used")}, "cleanup": {"status": "passed", "host_processes_remaining": 0, "helper_processes_remaining": 0, "listeners_remaining": 0, "sockets_remaining": 0, "pid_files_remaining": 0, "runtime_fixtures_remaining": 0, "temporary_paths_remaining": 0, "evidence_path": f"raw/{connector}/{run_id}/cleanup.log", "evidence_sha256": digest(cleanup_file, evidence_root)}, "status": "PASS", "failure_count": 0, "mismatch_count": 0}
     event["cleanup"].update({key: cleanup_record[key] for key in ("host_processes_remaining", "helper_processes_remaining", "listeners_remaining", "sockets_remaining", "pid_files_remaining", "runtime_fixtures_remaining", "temporary_paths_remaining")})
     event["observed_rule_id"] = canonical_trigger
     event_path = normalized_dir / "event.json"
