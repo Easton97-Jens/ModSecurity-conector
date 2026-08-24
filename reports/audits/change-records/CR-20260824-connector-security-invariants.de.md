@@ -10,7 +10,7 @@
 | Datum (UTC) | 2026-08-24 |
 | Basis-Revision | a6b4ced4876a19666f7c7203ed9e719674c69ec1 |
 | Repository-Grenze | Nur Parent; Framework, MRTS, Gitlink, CI und Governance unverändert |
-| Delivery-Autorität | Benutzerautorisierter Parent-Draft-PR; kein Merge |
+| Delivery-Autorität | Nur lokaler Parent-Commit; Remote-Push und Draft-PR warten auf neue explizite Autorisierung des aktuellen Benutzers; kein Merge |
 
 ## Motivation und Problemstellung
 
@@ -227,9 +227,11 @@ Assertion wird als fehlgeschlagen berichtet, nicht geändert.
 
 ## Finaler Diff- und Review-Status
 
-Bei Erstellung des Records ist dies eine Parent-only, task-eigene Änderung für
-den benutzerautorisierten Draft-PR. Der aktive Checkout enthält zudem
-unabhängige und gemischte gleichzeitige Edits; sie sind vom Staging
-ausgeschlossen. Finaler Scoped Diff, Dokumentationschecks, exakte
-Branch-/Commit-/Remote-/PR-Head-Beziehung und Hosted-Check-Status werden nach
-der Delivery abgeglichen. Kein Merge ist autorisiert oder behauptet.
+Nach dem lokalen Commit `4fa010412bfc7510da4ca787d9d923b9e8cad018` bleibt dies
+eine Parent-only, task-eigene Änderung. Remote-Veröffentlichung und Draft-PR-
+Erstellung warten auf eine neue explizite Autorisierung des aktuellen
+Benutzers. Der aktive Checkout enthält zudem unabhängige und gemischte
+gleichzeitige Edits; sie sind vom Staging ausgeschlossen. Finaler Scoped Diff,
+Dokumentationschecks, exakte Branch-/Commit-/Remote-/PR-Head-Beziehung und
+Hosted-Check-Status werden erst nach einer autorisierten Delivery abgeglichen.
+Kein Merge ist autorisiert oder behauptet.

@@ -10,7 +10,7 @@
 | Date (UTC) | 2026-08-24 |
 | Base revision | a6b4ced4876a19666f7c7203ed9e719674c69ec1 |
 | Repository boundary | Parent only; Framework, MRTS, Gitlink, CI, and governance unchanged |
-| Delivery authority | User-authorized Parent Draft PR; no merge |
+| Delivery authority | Local Parent commit only; remote push and Draft PR pending explicit current-user authorization; no merge |
 
 ## Motivation and problem statement
 
@@ -213,9 +213,10 @@ as failed rather than changed.
 
 ## Final diff and review status
 
-At record creation, this is a Parent-only, task-owned change prepared for the
-user-authorized Draft PR. The active checkout also contains unrelated and
-mixed concurrent edits; they are excluded from staging. Final scoped diff,
-documentation checks, exact branch/commit/remote/PR head relationship, and
-hosted-check status will be reconciled after delivery. No merge is authorized
-or asserted.
+After local commit `4fa010412bfc7510da4ca787d9d923b9e8cad018`, this remains a
+Parent-only, task-owned change. Remote publication and Draft-PR creation await
+a new explicit current-user authorization. The active checkout also contains
+unrelated and mixed concurrent edits; they are excluded from staging. Final
+scoped diff, documentation checks, exact branch/commit/remote/PR head
+relationship, and hosted-check status will be reconciled only after an
+authorized delivery. No merge is authorized or asserted.
