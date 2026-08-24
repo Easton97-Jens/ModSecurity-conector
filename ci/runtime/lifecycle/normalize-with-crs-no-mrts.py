@@ -1483,12 +1483,6 @@ def normalize(args: argparse.Namespace) -> Path:
             "evidence_path": f"raw/{connector}/{run_id}/host-configuration.log",
             "evidence_sha256": digest(host_file, evidence_root),
         },
-        "framework_case": {
-            "framework_test_id": framework_case["framework_test_id"],
-            "execution_status": framework_execution_status,
-            "validation_status": framework_validation_status,
-            "result": framework_case_result,
-        },
         "block_evidence": {
             "evidence_path": f"raw/{connector}/{run_id}/block-audit.log",
             "evidence_sha256": digest(block_file, evidence_root),

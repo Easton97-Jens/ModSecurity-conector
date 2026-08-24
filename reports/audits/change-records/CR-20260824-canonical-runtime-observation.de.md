@@ -90,10 +90,11 @@ bleibt Framework-Metadata statt einer profilabgeleiteten Parent-Kategorie.
 Der Validator schlägt zusätzlich für nicht hashbare geschlossene Literale sowie
 übermäßiges/zyklisches Metadata geschlossen fehl. Envoy und Lighttpd leiten
 CRS-Intervention-IDs aus validierten strukturierten Final-Events statt aus
-Summary-Literalen ab; der Normalizer prüft sie erneut. Diese fokussierten
-Remediations werden lokal als `FND-PARENT-0307`, `FND-PARENT-0308` und
-`FND-PARENT-0309` verfolgt, lokal fixed und mit ausstehender Exact-Head-
-Verifikation.
+Summary-Literalen ab; der Normalizer prüft sie erneut. `FND-PARENT-0307`
+bleibt mit ausstehender finaler Exact-Head-Evidence fixed. Die erste exakte
+Runtime-Beobachtung eröffnete `FND-PARENT-0308` und `FND-PARENT-0309` erneut
+als `in_progress`, statt einen lokal bestandenen Unit-Test als Host-Runtime-
+Nachweis zu behandeln.
 
 SonarQube Cloud meldete danach auf dem exakten Head
 `245503cdf75ae58f1077ed4c5679f9640c12ce4a` acht task-eigene
@@ -105,12 +106,21 @@ vorhandene Metadata-Traversierung, Expectation-Normalisierung,
 Case-/Aggregate-Validierung und das Framework-Execution-Predicate in private
 Helper. Sein exakter Check `97619927966` bestand das Quality Gate, meldete aber
 noch drei task-eigene Issues: Metadata- und Expectation-Dispatch-Komplexität
-sowie einen unbenutzten privaten Case-Parameter. Der aktuelle zweite enge
-Successor teilt diese verbleibenden privaten Pfade auf und entfernt den
-unbenutzten Parameter, ohne den geschlossenen Katalog, Evidence-Reads,
-PASS-Regeln oder Trust-Boundaries zu ändern. `FND-SONAR-0060` verfolgt die
-Remediation weiter, bis der exakte gepushte Successor-Head ohne Suppression
-oder Scanner-Control-Änderung null New Issues nachweist.
+sowie einen unbenutzten privaten Case-Parameter. Der zweite enge Successor
+`ee7585250f2d7af6279a5fd1b847b76a87a15c99` teilte diese verbleibenden privaten
+Pfade auf und entfernte den unbenutzten Parameter, ohne den geschlossenen
+Katalog, Evidence-Reads, PASS-Regeln oder Trust-Boundaries zu ändern. Sein
+exakter SonarQube-Cloud-Check `97624800934` bestand mit null New Issues. Der
+terminale Runtime-Workflow offenbarte danach zwei separate Parent-only-
+Integrationsfehler: Common emittiert Envoy-`rule_id` als kanonischen JSON-Text,
+während der Harness nur Python-Integer akzeptierte; und das Legacy-externe
+`event.json` leakte das interne `framework_case`-Aggregat in eine strikte
+Framework-Kompatibilitätsform. Der aktuelle Follow-up akzeptiert nur
+kanonischen begrenzten Decimal-Text (oder einen Integer), bewahrt die exakte
+`949110`-Prüfung und hält das Aggregat ausschließlich in der kanonischen
+Runtime-Observation. `FND-SONAR-0060` bleibt verfolgt, bis dieser neue exakte
+gepushte Head erneut null New Issues ohne Suppression oder Scanner-Control-
+Änderung nachweist.
 
 ## Geänderte Dateien
 
@@ -136,11 +146,12 @@ oder Scanner-Control-Änderung null New Issues nachweist.
 
 | Check | Tatsächliches Ergebnis |
 | --- | --- |
-| `python3 -m unittest -q tests.test_runtime_observation_contract tests.test_with_crs_no_mrts_runtime` | Nach dem zweiten Sonar-Refactor bestanden: `125 tests in 303.028s`. Dies deckt die verlangten Identity-, Union-, Compound-, Explicit-Fact-, Aggregate-, HAProxy-, NGINX-, Path-/Evidence- und No-Fabricated-PASS-Regressionen ab. |
-| Benutzergeforderter kombinierter Verbose-Befehl mit `tests.test_ci_security_workflows` | Die Contract-/Normalizer-Cases bestanden; der Befehl führte `126` Einträge in `41.930s` aus, wobei das letzte Modul wegen des fehlenden lokalen `PyYAML`-Imports als ein Fehler gemeldet wurde. Keine Dependency wurde installiert oder geändert. |
-| `tests.test_runtime_path_security`, `tests.test_evidence_output_security`, `tests.test_bilingual_docs` und `tests.test_envoy_transport_hardening_contract` | Nach dem zweiten Sonar-Refactor bestanden: `70 tests`. |
-| Direkte `tests.test_bilingual_docs`-Bestätigung | Bestanden: `22 tests`. |
-| Shell-Syntax des CRS/no-MRTS-Runner-Skripts | Bestanden. |
+| `python3 -m unittest -q tests.test_runtime_observation_contract tests.test_with_crs_no_mrts_runtime` | Nach dem Runtime-Follow-up bestanden: `126 tests in 46.309s`. Dies deckt die verlangten Identity-, Union-, Compound-, Explicit-Fact-, Aggregate-, HAProxy-, NGINX-, Path-/Evidence- und No-Fabricated-PASS-Regressionen ab. |
+| Fokussierte Runtime-Follow-up-Regression (`test_envoy_intervention_rule_id_accepts_only_canonical_json_values` plus All-Connector-Normalizer-Realisation) | Bestanden: `2 tests in 8.541s`. Sie führt den exakten Envoy-Inline-Parser mit der produktiven JSON-Text-Form aus und weist nichtkanonische oder unbegrenzte Formen ab; außerdem bestätigt sie, dass das externe Event `framework_case` auslässt, während das kanonische Aggregat gültig bleibt. |
+| Benutzergeforderter kombinierter Verbose-Befehl mit `tests.test_ci_security_workflows` | Die `126` Contract-/Normalizer-Cases bestanden; der Befehl führte `127` Einträge in `41.392s` aus, wobei das letzte Modul wegen des fehlenden lokalen `PyYAML`-Imports als ein Fehler gemeldet wurde. Keine Dependency wurde installiert oder geändert. |
+| `tests.test_runtime_path_security`, `tests.test_evidence_output_security`, `tests.test_bilingual_docs` und `tests.test_envoy_transport_hardening_contract` | Nach dem Runtime-Follow-up bestanden: `70 tests in 7.076s`. |
+| Direkte `tests.test_bilingual_docs`-Bestätigung | Bestanden: `22 tests in 0.284s`. |
+| Shell-Syntax des CRS/no-MRTS-Runner- und Envoy-Harness-Skripts | Bestanden. |
 | Erforderliche `py_compile`-Dateien | Bestanden: Exit `0`. |
 | `python3 -m json.tool ci/runtime/contracts/runtime-observation.schema.json /dev/null` | Bestanden. |
 | `git diff --check` | Bestanden. |
@@ -159,6 +170,12 @@ oder gelockerten Tests. Exact-Head-GitHub-Actions, SonarQube Cloud und der
 terminale Connector-Runtime-Workflow müssen nach jedem normalen Push erneut
 geprüft werden.
 
+`make check-doc-links` wurde ebenfalls ausgeführt und meldet nur die sechzehn
+bereits bestehenden Links in den absichtlich nicht initialisierten Framework-
+Gitlink; ein task-eigener Change-Record-Defekt wird nicht gemeldet. Dieses
+separate Repository zu initialisieren oder zu ändern liegt außerhalb des
+Parent-only-Tasks.
+
 ## SonarQube Cloud und Coverage
 
 Der exakte Head `245503cdf75ae58f1077ed4c5679f9640c12ce4a` bestand sein
@@ -166,11 +183,12 @@ Quality Gate, meldete aber im SonarQube-Cloud-Check `97609857745` acht New
 Issues. Der erste normale Successor
 `a7b8cc199e01f6403616792c598068d24ff645ee` reduzierte sie im exakten Check
 `97619927966` bei weiter bestandenem Quality Gate auf drei. Der zweite enge
-Successor behebt diese letzten drei task-eigenen Findings. Frühere Kommentare
-und Check-Runs sind kein Nachweis für diesen Successor: Sein Exact-Head-Sonar-
-Ergebnis muss null New Issues zeigen, bevor die Delivery verifiziert ist. Es
-wurde keine Suppression, kein `NOSONAR`, keine Exclusion, Acceptance,
-Quality-Gate-Änderung oder Coverage-Workflow-Änderung vorgenommen.
+Successor `ee7585250f2d7af6279a5fd1b847b76a87a15c99` bestand den exakten Check
+`97624800934` mit null New Issues. Dieses Ergebnis beweist nicht den nächsten
+korrektiven Successor: Sein eigenes Exact-Head-Sonar-Ergebnis muss erneut null
+New Issues zeigen, bevor die Delivery verifiziert ist. Es wurde keine
+Suppression, kein `NOSONAR`, keine Exclusion, Acceptance, Quality-Gate-
+Änderung oder Coverage-Workflow-Änderung vorgenommen.
 
 ```text
 No Python coverage report is supplied to SonarCloud.
@@ -182,15 +200,21 @@ No Python coverage report is supplied to SonarCloud.
 Die lokalen Tests validieren Contracts, strukturiertes Normalizer-Verhalten,
 Fixture-Identity und File-Safety-Controls. Sie sind kein Live-Host-Runtime-
 Ergebnis.
+Der exakte Workflow `32788272062` für `ee758525` endete nach erfolgreichen
+Apache- und HAProxy-Läufen terminal fehlgeschlagen: Envoy wies den gültigen
+strukturierten String `"949110"` ab; Lighttpd und Traefik schlossen ihre
+Host-Pfade ab, aber der strikte Kompatibilitäts-Consumer wies den zusätzlichen
+externen `framework_case`-Key zurück. Dies sind aus Logs abgeleitete Ursachen,
+keine wiederholten oder inferierten Fehler.
 
 ## Bekannte Einschränkungen
 
 Es wurden weder Apache- noch HAProxy-Live-Producer implementiert, keine
 Live-Six-Connector-by-Four-Profile-Matrix behauptet und Framework/MRTS nicht
-initialisiert oder verändert. Der terminale Exact-Head-GitHub-Workflow
-`Connector runtime with CRS and no MRTS`, die SonarQube-Cloud-Analyse und alle
-relevanten PR-Checks müssen nach dem Push beobachtet werden; jeder Fehler
-erfordert Log-basierte Diagnose vor einem weiteren Commit.
+initialisiert oder verändert. Die zwei Parent-only-Reparaturen erfordern jetzt
+einen neuen normalen Push sowie frische Exact-Head-GitHub-Workflow-, SonarQube-
+Cloud- und anwendbare PR-Check-Evidence. Jeder Fehler erfordert Log-basierte
+Diagnose vor einem weiteren Commit.
 
 ## Security-Auswirkung
 
@@ -198,7 +222,9 @@ Der versiegelte lokale Scan für `a7b8cc19` verwendete Threat Model, Candidate
 Discovery, Validation, Attack-Path-Analyse, fokussierte Regressionen und einen
 unabhängigen Read-only-Review; er fand null reportable Findings. Der spätere
 fokussierte Delta-Review des verbleibenden semantischen Refactors fand ebenfalls
-kein reportable Finding. Keine Security-Control oder Trust-Boundary wurde für
+kein reportable Finding. Ein fokussierter Review des Parser- und
+Kompatibilitätsform-Follow-ups fand ebenfalls kein reportable Security-Finding
+oder False-PASS-Bypass. Keine Security-Control oder Trust-Boundary wurde für
 diese Änderung gelockert.
 
 ## Verbleibende Risiken
@@ -215,10 +241,11 @@ fehlenden erforderlichen Template-Abschnitte dieses Change Records; die
 fokussierte Dokumentationskorrektur
 `245503cdf75ae58f1077ed4c5679f9640c12ce4a` war die daraus folgende
 Remediation und kein blinder Rerun. Dieser Head bestand lint, aber SonarQube
-Cloud fand acht Maintainability-Issues. Der normale Successor `a7b8cc19`
-reduzierte sie auf drei, und dieser zweite semantikerhaltende Source-Refactor
-mit Evidence-Update geht dem nächsten normalen Follow-up-Commit/-Push voraus.
-Danach müssen alle Exact-Head-Checks, SonarQube Cloud und `Connector runtime
-with CRS and no MRTS` erneut beobachtet werden. PR #338 bleibt Draft; Merge,
-Auto-Merge, Ready-Übergang, Rebase und Force-Push sind weder behauptet noch
-autorisiert.
+Cloud fand acht Maintainability-Issues. Die normalen Successors `a7b8cc19`
+und `ee758525` reduzierten sie auf drei und dann null. Der terminale Runtime-
+Fehler des letzteren wurde aus den exakten Envoy-, Lighttpd- und Traefik-Logs
+diagnostiziert; diese dritte enge Parent-only-Korrektur geht dem nächsten
+normalen Follow-up-Commit/-Push voraus. Danach müssen alle Exact-Head-Checks,
+SonarQube Cloud und `Connector runtime with CRS and no MRTS` erneut beobachtet
+werden. PR #338 bleibt Draft; Merge, Auto-Merge, Ready-Übergang, Rebase und
+Force-Push sind weder behauptet noch autorisiert.

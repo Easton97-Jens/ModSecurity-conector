@@ -331,6 +331,13 @@ def disruptive(records, transaction_id):
 
 def intervention_rule_id(record):
     value = record.get("rule_id")
+    # Common serializes rule identifiers as JSON text.  Accept only its
+    # canonical ASCII decimal representation before applying the existing
+    # bounded integer check; no alternate numeric syntax is evidence.
+    if type(value) is str:
+        if not value.isascii() or not value.isdecimal() or value.startswith("0"):
+            raise ValueError("structured CRS deny event lacks a bounded intervention rule id")
+        value = int(value)
     if type(value) is not int or not 1 <= value <= 9_999_999:
         raise ValueError("structured CRS deny event lacks a bounded intervention rule id")
     return value

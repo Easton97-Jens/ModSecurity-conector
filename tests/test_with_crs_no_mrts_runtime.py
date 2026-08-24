@@ -274,7 +274,7 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                     "http_status": 403,
                     "visible_http_status": 0,
                     "transport_result": "pending_host_action",
-                    "rule_id": 949110,
+                    "rule_id": "949110",
                 }
             )
             events.append(
@@ -286,7 +286,7 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                     "http_status": 403,
                     "visible_http_status": 403 if final_visible else 0,
                     "transport_result": "http_status" if final_visible else "pending_host_action",
-                    "rule_id": 949110,
+                    "rule_id": "949110",
                 }
             )
         private_file(runtime / "events.jsonl", "".join(json.dumps(event) + "\n" for event in events))
@@ -916,15 +916,10 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                 self.assertTrue(case["executed"])
                 self.assertTrue(case["live_executed"])
                 self.assertEqual(case["result"], "PASS")
-                self.assertEqual(
-                    event["framework_case"],
-                    {
-                        "framework_test_id": "crs_sqli_anomaly_block",
-                        "execution_status": "RUN",
-                        "validation_status": NORMALIZER.CONTRACT_VALIDATED,
-                        "result": "PASS",
-                    },
-                )
+                # event.json is the existing strict Framework-compatibility
+                # artifact.  The richer Parent-only case remains solely in
+                # the canonical observation above.
+                self.assertNotIn("framework_case", event)
                 self.assertNotIn("framework_execution_status", event["host_configuration"])
                 self.assertNotIn("framework_validation_status", event["host_configuration"])
                 self.assertEqual(canonical["identity"]["profile"], "with-crs-no-mrts")
@@ -995,6 +990,39 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
         self.assertIn('print(f"block_intervention_rule_id={block_intervention_rule_id}")', lighttpd)
         self.assertNotIn('print("block_intervention_rule_id=949110")', lighttpd)
         self.assertNotIn('print("bypass_intervention_rule_id=949110")', lighttpd)
+
+    def test_envoy_intervention_rule_id_accepts_only_canonical_json_values(self) -> None:
+        """Exercise the exact harness parser used for correlated final events."""
+        harness_path = ROOT / "connectors/envoy/harness/run_envoy_ext_proc_runtime.sh"
+        harness = harness_path.read_text(encoding="utf-8")
+        start = harness.index("def intervention_rule_id(record):")
+        end = harness.index("\ndef canonical_trigger", start)
+        parser_program = (
+            "import json\nimport sys\n"
+            + harness[start:end]
+            + "\nprint(intervention_rule_id(json.loads(sys.argv[1])))\n"
+        )
+
+        def invoke(value: object) -> subprocess.CompletedProcess[str]:
+            return subprocess.run(
+                [sys.executable, "-", json.dumps({"rule_id": value})],
+                input=parser_program,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+        for value, expected in ((1, 1), (949110, 949110), ("949110", 949110), ("9999999", 9999999)):
+            with self.subTest(value=value):
+                result = invoke(value)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.strip(), str(expected))
+
+        for value in (True, False, 0, 10_000_000, None, 1.0, "", "0", "01", "+949110", " 949110", "949110 ", "1.0", "١"):
+            with self.subTest(value=value):
+                result = invoke(value)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("bounded intervention rule id", result.stderr)
 
     def test_observed_http_status_accepts_lighttpd_semantic_state_only_with_numeric_evidence(self) -> None:
         self.assertEqual(
