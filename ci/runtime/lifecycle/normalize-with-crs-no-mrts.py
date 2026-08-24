@@ -166,12 +166,7 @@ def require_private_directory(path: Path, label: str) -> None:
 
 
 def ensure_private_evidence_root(root: Path) -> None:
-    """Create or verify the declared evidence root without relaxing its mode."""
-    if not root.exists():
-        try:
-            os.mkdir(root, 0o700)
-        except FileExistsError:
-            pass
+    """Require the runner-created private evidence root."""
     require_private_directory(root, "evidence root")
 
 

@@ -543,6 +543,8 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
     ) -> tuple[Path, Path]:
         framework, source = self.make_framework_and_source(root)
         evidence = root / "evidence"
+        if not evidence.exists():
+            evidence.mkdir(mode=0o700)
         args = SimpleNamespace(
             connector=connector,
             run_id=run_id or f"{connector}-run",
@@ -646,6 +648,27 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
             self.assertIn("external EVIDENCE_ROOT is not allowed", result.stderr)
             self.assertFalse(untrusted_evidence_root.exists())
             self.assertNotIn("Framework CRS fetch helper missing", result.stderr)
+
+    def test_normalizer_rejects_uncreated_evidence_root_without_creating_it(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crs-normalizer-evidence-root-") as temporary:
+            root = Path(temporary)
+            evidence = root / "uncreated-evidence"
+            args = SimpleNamespace(
+                connector="envoy",
+                run_id="valid-run",
+                runtime_root=root / "runtime",
+                evidence_root=evidence,
+                source_root=root / "source",
+                connector_root=root / "parent",
+                framework_root=root / "framework",
+            )
+
+            with self.assertRaisesRegex(RuntimeError, "evidence root is missing"):
+                NORMALIZER.normalize(args)
+
+            self.assertFalse(evidence.exists())
+            evidence.mkdir(mode=0o700)
+            NORMALIZER.ensure_private_evidence_root(evidence)
 
     def test_atomic_evidence_create_is_private_and_rejects_reuse_and_symlink(self) -> None:
         with tempfile.TemporaryDirectory(prefix="crs-normalizer-atomic-") as temporary:
