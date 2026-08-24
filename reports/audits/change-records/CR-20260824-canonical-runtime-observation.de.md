@@ -8,12 +8,21 @@
 | --- | --- |
 | Change-ID | `CR-20260824-canonical-runtime-observation` |
 | Datum (UTC) | `2026-08-24` |
+| Basis-Revision | `e776ab75a4e2689955b9c42df6e962e06598c70b` |
 | Repository / Scope | Parent-only Runtime-Observation-Contract-Abschluss für Draft PR #338; keine Framework- oder MRTS-Source, kein Gitlink, Workflow-, Pin-, Berechtigungs-, Coverage-Transfer-, NGINX-Broker-, HAProxy-Artifact-Upload-, Dependency- oder Root-Runtime-Change. |
 | Vorheriger verifizierter PR-Head | `e776ab75a4e2689955b9c42df6e962e06598c70b` |
 | Finale Source-Revision | Ausstehend bis zum autorisierten normalen, nicht umschreibenden Commit und Push zu `codex/canonical-runtime-observation`. Der finale SHA wird bewusst im PR statt in einer selbstreferenziellen Commit-Schleife festgehalten. |
 | Delivery-Disposition | PR #338 bleibt Draft. Kein neuer Branch/PR, Merge, Auto-Merge, Ready-for-review-Übergang, Rebase, Force-Push oder Default-Branch-Aktion ist autorisiert. |
 
-## Ziel und Akzeptanzkriterien
+## Motivation und Problemstellung
+
+Der bisherige Parent-Vertrag schloss Adapter-Identitätstupel nicht vollständig,
+wies nicht jede öffentliche Framework-Erwartungsform direkt nach und konnte
+Host-Runtime-Ergebnisse mit Framework-Case-Kardinalität vermischen. Die
+Korrektur muss die bestehenden Connector-Trust-Boundaries bewahren und jede
+PASS-relevante Tatsache explizit und prüfbar machen.
+
+## Akzeptanzkriterien
 
 Die gemeinsamen Runtime-Observation-Lücken ohne Framework-Source-Import
 schließen:
@@ -32,7 +41,7 @@ schließen:
 - korrekte zweisprachige Traceability, lokale Security-Evidence und Exact-
   Head-Delivery-Evidence aufbewahren.
 
-## Implementierungsentscheidung
+## Implementierungsentscheidung und Begründung
 
 Der geschlossene Katalog ist:
 
@@ -106,7 +115,7 @@ Verifikation.
 - `tests/test_with_crs_no_mrts_runtime.py`
 - dieser Change Record und sein deutscher Companion.
 
-## Validierung und tatsächliche Ergebnisse
+## Ausgeführte Befehle
 
 | Check | Tatsächliches Ergebnis |
 | --- | --- |
@@ -121,7 +130,16 @@ Verifikation.
 
 Die genaue lokale `PyYAML`-Import-Einschränkung ist eine Umgebungs-Evidence-
 Lücke, kein Produkt-Erfolg und kein Grund, den CI-Security-Test zu schwächen.
-Hosted Exact-Head-Checks bleiben erforderlich.
+
+## Nicht ausgeführte Prüfungen mit Begründung
+
+`tests.test_ci_security_workflows` wurde über den benutzergeforderten
+kombinierten Befehl aufgerufen, konnte in diesem lokalen Interpreter wegen des
+fehlenden `PyYAML` jedoch nicht importieren. Kein Dependency-Setup war
+autorisiert; dies bleibt eine ehrliche lokale Grenze statt eines übersprungenen
+oder gelockerten Tests. Exact-Head-GitHub-Actions, SonarQube Cloud und der
+terminale Connector-Runtime-Workflow müssen nach jedem normalen Push erneut
+geprüft werden.
 
 ## SonarQube Cloud und Coverage
 
@@ -136,29 +154,41 @@ No Python coverage report is supplied to SonarCloud.
 0.0% is not treated as measured test coverage.
 ```
 
-## Runtime-Evidence und verbleibende Grenzen
+## Runtime-Evidence
 
 Die lokalen Tests validieren Contracts, strukturiertes Normalizer-Verhalten,
 Fixture-Identity und File-Safety-Controls. Sie sind kein Live-Host-Runtime-
-Ergebnis. Es wurde kein Apache- oder HAProxy-Live-Producer implementiert, keine
-Live-Six-Connector-by-Four-Profile-Matrix behauptet und Framework/MRTS wurden
-nicht initialisiert oder verändert. Der terminale Exact-Head-GitHub-Workflow
+Ergebnis.
+
+## Bekannte Einschränkungen
+
+Es wurden weder Apache- noch HAProxy-Live-Producer implementiert, keine
+Live-Six-Connector-by-Four-Profile-Matrix behauptet und Framework/MRTS nicht
+initialisiert oder verändert. Der terminale Exact-Head-GitHub-Workflow
 `Connector runtime with CRS and no MRTS`, die SonarQube-Cloud-Analyse und alle
 relevanten PR-Checks müssen nach dem Push beobachtet werden; jeder Fehler
 erfordert Log-basierte Diagnose vor einem weiteren Commit.
 
-## Security- und Review-Status
+## Security-Auswirkung
 
 Der terminale Current-Local-Patch-Scan verwendete Threat Model, Candidate
 Discovery, Validation, Attack-Path-Analyse, fokussierte Regressionen und einen
 unabhängigen Read-only-Review. Er fand null reportable aktuelle
-Schwachstellen. Die dokumentierte Same-UID-Private-Root-Einschränkung bleibt,
-weil ein bereits innerhalb dieses Roots autorisierter Akteur im
-Trusted-Runner-Modell liegt; Attestation/Signatures wären ein separater Scope.
+Schwachstellen.
 
-## Delivery-Status
+## Verbleibende Risiken
 
-Bei dieser Record-Revision ist die Implementation bereit für den finalen
-Source-Recheck und anschließend den benutzerautorisierten normalen Commit und
-Push zum bestehenden PR-#338-Branch. Kein Hosted-Pass, finaler SHA, Merge oder
-Review-State-Übergang wird vorab behauptet.
+Die dokumentierte Same-UID-Private-Root-Einschränkung bleibt, weil ein bereits
+innerhalb dieses Roots autorisierter Akteur im Trusted-Runner-Modell liegt;
+Attestation/Signatures wären ein separater Scope.
+
+## Finaler Diff- und Review-Status
+
+Der erste Task-Commit `f2fcb71f47e69f33d888dd89e1b871656e02fc38` wurde normal
+zum bestehenden PR-#338-Branch gepusht. Sein Exact-Head-`lint`-Run meldete die
+fehlenden erforderlichen Template-Abschnitte dieses Change Records; diese
+fokussierte Dokumentationskorrektur ist die daraus folgende Remediation und
+kein blinder Rerun. Nach normalem Follow-up-Commit/-Push müssen alle
+Exact-Head-Checks, SonarQube Cloud und `Connector runtime with CRS and no MRTS`
+erneut beobachtet werden. PR #338 bleibt Draft; Merge, Auto-Merge,
+Ready-Übergang, Rebase und Force-Push sind weder behauptet noch autorisiert.

@@ -8,12 +8,21 @@
 | --- | --- |
 | Change ID | `CR-20260824-canonical-runtime-observation` |
 | Date (UTC) | `2026-08-24` |
+| Base revision | `e776ab75a4e2689955b9c42df6e962e06598c70b` |
 | Repository / scope | Parent-only runtime-observation contract closure for Draft PR #338; no Framework or MRTS source, Gitlink, workflow, pin, permission, coverage-transfer, NGINX broker, HAProxy artifact-upload, dependency, or root-runtime change. |
 | Previous verified PR head | `e776ab75a4e2689955b9c42df6e962e06598c70b` |
 | Final source revision | Pending the authorized normal, non-rewriting commit and push to `codex/canonical-runtime-observation`. The final SHA is deliberately recorded in the PR rather than creating a self-referential commit loop. |
 | Delivery disposition | PR #338 remains Draft. No new branch/PR, merge, auto-merge, Ready-for-review transition, rebase, force-push, or default-branch action is authorized. |
 
-## Goal and acceptance criteria
+## Motivation and problem statement
+
+The previous Parent contract did not close adapter identity tuples, did not
+directly prove every public Framework expectation form, and could mix host
+runtime outcomes with Framework-case cardinality. The correction must preserve
+the established connector trust boundaries while making every PASS-relevant
+fact explicit and auditable.
+
+## Acceptance criteria
 
 Close the shared runtime-observation gaps without importing Framework source:
 
@@ -29,7 +38,7 @@ Close the shared runtime-observation gaps without importing Framework source:
 - retain accurate bilingual traceability, local security evidence, and exact-
   head delivery evidence.
 
-## Implementation decision
+## Implementation decision and rationale
 
 The closed catalog is:
 
@@ -100,7 +109,7 @@ pending exact-head verification.
 - `tests/test_with_crs_no_mrts_runtime.py`
 - this Change Record and its German companion.
 
-## Validation and actual results
+## Commands executed
 
 | Check | Actual result |
 | --- | --- |
@@ -114,8 +123,16 @@ pending exact-head verification.
 | Terminal security-diff scan | Completed with complete coverage and zero reportable current findings. The same-UID private-runner writer is an explicit trusted-runner-boundary residual, not a silently suppressed finding. |
 
 The exact local `PyYAML` import limitation is an environment evidence gap, not
-a product success or a reason to weaken the CI-security test. Hosted exact-head
-checks remain required.
+a product success or a reason to weaken the CI-security test.
+
+## Checks not run and rationale
+
+`tests.test_ci_security_workflows` was invoked through the user-required
+combined command but could not import in this local interpreter because
+`PyYAML` is absent. No dependency setup was authorized, so it remains an
+honest local limitation rather than a skipped or weakened test. Exact-head
+GitHub Actions, SonarQube Cloud, and the terminal connector-runtime workflow
+must be checked after each normal push.
 
 ## SonarQube Cloud and coverage
 
@@ -129,10 +146,13 @@ No Python coverage report is supplied to SonarCloud.
 0.0% is not treated as measured test coverage.
 ```
 
-## Runtime evidence and remaining limits
+## Runtime evidence
 
 The local tests validate contracts, structured normalizer behavior, fixture
 identity, and file-safety controls. They are not a live host runtime result.
+
+## Known limitations
+
 No Apache or HAProxy live producer was implemented, no live six-connector by
 four-profile matrix was claimed, and Framework/MRTS were not initialized or
 modified. The terminal exact-head GitHub workflow `Connector runtime with CRS
@@ -140,18 +160,26 @@ and no MRTS`, SonarQube Cloud analysis, and all relevant PR checks must be
 observed after push; any failure requires log-based diagnosis before another
 commit.
 
-## Security and review status
+## Security impact
 
 The terminal current-local-patch scan used a threat model, candidate discovery,
 validation, attack-path analysis, focused regressions, and an independent
-read-only review. It found zero reportable current vulnerabilities. The
-documented same-UID private-root limitation is retained because an actor already
+read-only review. It found zero reportable current vulnerabilities. No security
+control or trust boundary was weakened for this change.
+
+## Remaining risks
+
+The documented same-UID private-root limitation is retained because an actor already
 authorized inside that root is within the trusted-runner model; adding
 attestation/signatures would be separate scope.
 
-## Delivery status
+## Final diff and review status
 
-At this record revision, the implementation is ready for final source recheck,
-then the user-authorized normal commit and push to the existing PR #338 branch.
-No hosted pass, final SHA, merge, or review-state transition is asserted in
-advance.
+The initial task commit `f2fcb71f47e69f33d888dd89e1b871656e02fc38` was pushed
+normally to the existing PR #338 branch. Its exact-head `lint` run identified
+this Change Record's missing required template sections; this focused
+documentation correction is the resulting remediation, not a blind rerun.
+After its normal follow-up commit/push, all exact-head checks, SonarQube Cloud,
+and `Connector runtime with CRS and no MRTS` must be observed again. PR #338
+remains Draft; no merge, auto-merge, Ready transition, rebase, or force-push is
+asserted or authorized.
