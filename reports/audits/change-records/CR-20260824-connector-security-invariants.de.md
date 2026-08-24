@@ -19,7 +19,8 @@ Common-, Engine-, Provisioning- und Runtime-Grenzen. Der Source-Review fand
 drei Parent-eigene Hardening-Möglichkeiten mit konkreter Kontrolllücke:
 Remote-Rule-Konfiguration konnte libmodsecurity-Remote-Laden ohne einheitliche
 Trust-Policy erreichen; der nicht authentifizierte HTTP-Autorisierungshelfer
-akzeptierte einen Wildcard-Listener und doppelte sicherheitsrelevante Header;
+akzeptierte einen Wildcard-Listener, doppelte sicherheitsrelevante Header und
+eine stille Listener-Adresssubstitution bei fehlendem oder zu großem `Host`;
 und Common-Event-Ausgabe konnte unescapte Protocol-Metadaten serialisieren und
 einen unsicheren finalen Event-Pfad öffnen.
 
@@ -43,8 +44,9 @@ berichtet und weder hier gepatcht noch als sicher extrahiert dargestellt.
   `msc_rules_add_remote`-Pfad; alle Connector-Capability-Records beschreiben
   dieselbe Policy.
 - Der nicht authentifizierte Common-HTTP-Autorisierungsendpunkt bleibt
-  Loopback-only und lehnt doppelte `Host`- sowie konfigurierte Original-URI-
-  Header vor dem Transaction-Mapping ab.
+  Loopback-only und lehnt doppelte, fehlende, leere oder zu große `Host`-
+  Werte sowie konfigurierte Original-URI-Header vor dem Transaction-Mapping
+  ab; er ersetzt den Hostnamen nie durch die Listener-Adresse.
 - Event-Metadaten bleiben payloadfreies JSONL, sind escaped und NULL-sicher,
   und die POSIX-final Event-Datei ist no-follow, regulär und privat (`0600`).
 - Die FNV-basierte Event-Kette ist nur als prozesslokale, nicht-kryptografische
@@ -76,10 +78,12 @@ Der Common-HTTP-Autorisierungsdienst besitzt keinen authentifizierten
 Transportmodus. Sein Listener-Parser normalisiert deshalb `localhost` zu
 `127.0.0.1` und lehnt Wildcards sowie andere Adressen ab. Außerdem weist er
 doppelte `Host`- und profildefinierte Original-URI-Header zurück, bevor ein
-ausgewählter Wert das Mapping beeinflussen kann. Das bestehende begrenzte
-Worker-Admission- und Shutdown-Ownership-Modell bleibt erhalten; Shutdown
-liefert einen definierten Fehler, statt Runtime-Objekte zu zerstören, die noch
-ein ununterbrechlicher Worker hält.
+ausgewählter Wert das Mapping beeinflussen kann. Ein fehlender, leerer oder zu
+großer `Host` erhält nun vor dem Mapping eine 400-Antwort, statt still zur
+Listener-Adresse zu werden. Das bestehende begrenzte Worker-Admission- und
+Shutdown-Ownership-Modell bleibt erhalten; Shutdown liefert einen definierten
+Fehler, statt Runtime-Objekte zu zerstören, die noch ein ununterbrechlicher
+Worker hält.
 
 Event-Protocol-Text wird mit dem gemeinsamen JSON-Escaper escaped. Der POSIX-
 Event-Sink wird mit `O_NOFOLLOW` geöffnet, als reguläre Datei geprüft, mit
@@ -125,10 +129,10 @@ Callbacks bleiben ausschließlich Code-Pointer.
   `connectors/nginx/src/ngx_http_modsecurity_module.c` — direkte Host-
   Directive-Ablehnung vor nativer Remote-Konvertierung.
 - `common/runtime/http_authorization_service.c` — Loopback-only-Listener,
-  Duplicate-Security-Header-Ablehnung, signal-sicheres Send und begrenztes
-  Shutdown-Verhalten; heapbesessenes Deferred-Cleanup und ein begrenztes,
-  vollständig besessenes Profil für einen ununterbrechlichen abgetrennten
-  Worker.
+  fail-closed-Validierung für doppelte/fehlende/leere/zu große `Host`-Werte vor
+  dem Mapping, signal-sicheres Send und begrenztes Shutdown-Verhalten;
+  heapbesessenes Deferred-Cleanup und ein begrenztes, vollständig besessenes
+  Profil für einen ununterbrechlichen abgetrennten Worker.
 - `common/src/event.c`, `common/include/msconnector/event.h` und
   `common/include/msconnector/integrity_event.h` — escaped/NULL-sichere Event-
   Metadaten, sichere Korrelationssemantik und Event-Sink-Invariante.
@@ -147,7 +151,8 @@ Callbacks bleiben ausschließlich Code-Pointer.
   Contracts.
 - `tests/event_json_utf8_smoke.c`, `tests/test_resource_limits_hard_caps.c`
   und `tests/http_authorization_service_detached_worker_smoke.c` — fokussierte
-  Controls für fehlerhaftes UTF-8, Caps und den Deferred-Worker-Lifecycle.
+  Controls für fehlerhaftes UTF-8, Caps, Missing-Host-Ablehnung vor Mapper-
+  Eintritt und den Deferred-Worker-Lifecycle.
 - `examples/common/common-connector-configuration.{md,de.md}` sowie die
   Apache-/NGINX-README-Paare — dokumentierte endliche Limits und Phase-4-
   Konfigurationsobergrenze.
@@ -200,6 +205,14 @@ historische lokale Läufe erhalten. Der Detached-Worker-Smoke gibt zudem
 caller-besessenen Profiltext und die Original-Headerliste nach Rückkehr des
 Service-Entrypoints frei, bevor er den blockierten Worker freigibt.
 
+Der nachgezogene Host-Control bestand den Python-Autorisierungsvertrag mit
+fünf Tests, einen strengen C17-Syntaxcheck und einen echten lokalen Loopback-
+Smoke: Ein fehlender `Host` erhielt HTTP 400, bevor die Fake-Runtime eintrat;
+anschließend erreichte ein Request mit gültigem `Host` weiterhin den absichtlich
+blockierten Worker. Derselbe Smoke bestand mit ASan/UBSan samt Leak-Detection
+und mit TSan ohne Diagnose. Der bestehende Timeout-/Admission-/Cancel-/Parallel-
+Smoke bestand nach der Änderung erneut.
+
 ### Erwartete Source-Abwesenheit
 
 ~~~text
@@ -234,9 +247,10 @@ schlüssig statt bestanden.
 Die ausgelieferten Parent-Kontrollen schließen Configuration-zu-Sink-Remote-
 Rule-Laden, blockieren nicht authentifizierte öffentliche HTTP-
 Autorisierungsbindungen, entfernen mehrdeutige Duplicate-Security-Header- und
-Content-Length-Pfade und schützen finale Event-Datei sowie JSONL-Grenze.
-Bestehende Request-/Header-/Body-Limits, Phase-Validierung, payloadfreies Event-
-JSONL, lokale Rules und deterministisches Cleanup werden nicht gelockert.
+Content-Length-Pfade, weisen stille Authorization-Host-Fallbacks zurück und
+schützen finale Event-Datei sowie JSONL-Grenze. Bestehende
+Request-/Header-/Body-Limits, Phase-Validierung, payloadfreies Event-JSONL,
+lokale Rules und deterministisches Cleanup werden nicht gelockert.
 
 Dies ist Hardening auf Basis von Source-to-Sink-Evidence. Es ist keine
 Behauptung, dass ein Remote-Deployment erreichbar war oder jedes HAProxy-,

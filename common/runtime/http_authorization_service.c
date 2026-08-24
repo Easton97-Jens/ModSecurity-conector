@@ -786,15 +786,21 @@ static int security_header_duplicates_are_rejected(
     return 1;
 }
 
-static const char *request_hostname(parsed_http_request *request) {
+static int request_hostname(
+    parsed_http_request *request,
+    char *error,
+    size_t error_len) {
     const msconnector_header *host = msconnector_headers_find_first(
         request->headers, request->header_count, "host");
     if (host != NULL && host->value_size > 0U &&
         copy_slice(host->value, host->value_size,
             request->hostname, sizeof(request->hostname))) {
-        return request->hostname;
+        return 1;
     }
-    return request->server_address;
+    if (error != NULL && error_len > 0U) {
+        (void)snprintf(error, error_len, "%s", "missing or invalid Host header");
+    }
+    return 0;
 }
 
 static int send_all(
@@ -990,10 +996,17 @@ static int handle_authorization_request(
         parsed_request_destroy(&parsed);
         return 0;
     }
+    if (!request_hostname(&parsed, error, sizeof(error))) {
+        (void)send_response(
+            connection->socket_fd, 400, NULL, "invalid_request",
+            service->connection_timeout_ms);
+        parsed_request_destroy(&parsed);
+        return 0;
+    }
     source.method = parsed.method;
     source.uri = request_uri(&parsed, service->profile);
     source.http_version = parsed.http_version;
-    source.hostname = request_hostname(&parsed);
+    source.hostname = parsed.hostname;
     source.client.address = parsed.client_address;
     source.client.port = parsed.client_port;
     source.server.address = parsed.server_address;

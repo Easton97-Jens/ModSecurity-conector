@@ -21,7 +21,7 @@ class HttpAuthorizationServiceSecurityContractTests(unittest.TestCase):
     def test_security_header_duplicates_are_rejected_before_mapping(self) -> None:
         duplicate_check = self.source.split(
             "static int security_header_duplicates_are_rejected(", 1
-        )[1].split("static const char *request_hostname", 1)[0]
+        )[1].split("static int request_hostname", 1)[0]
         request_path = self.source.split(
             "static int handle_authorization_request(", 1
         )[1].split("static int create_listener", 1)[0]
@@ -31,6 +31,23 @@ class HttpAuthorizationServiceSecurityContractTests(unittest.TestCase):
         self.assertIn("security_header_duplicates_are_rejected", request_path)
         self.assertLess(
             request_path.index("security_header_duplicates_are_rejected"),
+            request_path.index("source.method = parsed.method"),
+        )
+
+    def test_missing_or_oversized_host_fails_closed_before_mapping(self) -> None:
+        hostname_check = self.source.split("static int request_hostname", 1)[1].split(
+            "static int send_all", 1
+        )[0]
+        request_path = self.source.split(
+            "static int handle_authorization_request(", 1
+        )[1].split("static int create_listener", 1)[0]
+        self.assertIn("msconnector_headers_find_first(", hostname_check)
+        self.assertIn('"missing or invalid Host header"', hostname_check)
+        self.assertNotIn("return request->server_address", hostname_check)
+        self.assertIn("request_hostname(&parsed, error, sizeof(error))", request_path)
+        self.assertIn("source.hostname = parsed.hostname", request_path)
+        self.assertLess(
+            request_path.index("request_hostname(&parsed, error, sizeof(error))"),
             request_path.index("source.method = parsed.method"),
         )
 

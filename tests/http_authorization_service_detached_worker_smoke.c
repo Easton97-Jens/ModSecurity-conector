@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -67,6 +68,15 @@ static void unblock_runtime(void) {
         (void)pthread_cond_broadcast(&test_changed);
         (void)pthread_mutex_unlock(&test_lock);
     }
+}
+
+static int runtime_has_not_entered(void) {
+    int result = 0;
+    if (pthread_mutex_lock(&test_lock) == 0) {
+        result = runtime_entered == 0;
+        (void)pthread_mutex_unlock(&test_lock);
+    }
+    return result;
 }
 
 int msconnector_runtime_config_check(
@@ -249,7 +259,7 @@ static void *run_service(void *argument) {
         "--listen",
         args->listen_spec,
         "--max-requests",
-        "1",
+        "2",
         "--connection-timeout-ms",
         "25",
         NULL,
@@ -301,8 +311,31 @@ static int connect_loopback(unsigned short port) {
     return -1;
 }
 
+static int response_starts_with(int socket_fd, const char *expected) {
+    struct timeval timeout = {.tv_sec = TEST_WAIT_SECONDS, .tv_usec = 0};
+    char response[64];
+    const size_t expected_size = expected == NULL ? 0U : strlen(expected);
+    size_t used = 0U;
+
+    if (expected_size == 0U || expected_size > sizeof(response) ||
+        setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) != 0) {
+        return 0;
+    }
+    while (used < expected_size) {
+        const ssize_t received = recv(socket_fd, response + used,
+            expected_size - used, 0);
+        if (received <= 0) {
+            return 0;
+        }
+        used += (size_t)received;
+    }
+    return memcmp(response, expected, expected_size) == 0;
+}
+
 int main(void) {
     static const char request[] = "GET /ok HTTP/1.1\r\nHost: smoke.test\r\n"
+        "Connection: close\r\n\r\n";
+    static const char missing_host_request[] = "GET /ok HTTP/1.1\r\n"
         "Connection: close\r\n\r\n";
     char *connector_name = strdup("detached-worker-smoke");
     char *integration_mode = strdup("detached-worker-smoke");
@@ -335,6 +368,16 @@ int main(void) {
         (void)fprintf(stderr, "could not start detached-worker service\n");
         goto done;
     }
+    client_fd = connect_loopback(port);
+    if (client_fd < 0 ||
+        send(client_fd, missing_host_request, sizeof(missing_host_request) - 1U, 0) !=
+            (ssize_t)(sizeof(missing_host_request) - 1U) ||
+        !response_starts_with(client_fd, "HTTP/1.1 400") ||
+        !runtime_has_not_entered()) {
+        (void)fprintf(stderr, "missing Host was not rejected before mapping\n");
+        goto done;
+    }
+    (void)close(client_fd);
     client_fd = connect_loopback(port);
     if (client_fd < 0 ||
         send(client_fd, request, sizeof(request) - 1U, 0) !=
