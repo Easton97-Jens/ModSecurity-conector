@@ -211,14 +211,14 @@ nicht Common-Intent oder Logfeld.
 ## Abhängigkeiten und empfohlene Reihenfolge
 
 ```text
-Native-UDS-P0-Ordering
-  -> gemeinsamer Lifecycle/Event/Korrelation
-     -> Strict-Hostaktionen und einheitliche Fehler-Evidence
-     -> vollständige Zehnpfad-Runtime-Matrix
+Native UDS P0 ordering
+  -> common lifecycle/event/correlation
+     -> host Strict actions and uniform error evidence
+     -> full ten-path runtime matrix
 
-SPOP-Transportreparatur -> SPOP-Response-Phasen -> SPOP-Vollmatrix
-ext_proc-Idle-Reparatur -> Envoy-Composite       -> ext_authz-Vollmatrix
-Stock-Build-Reparatur   -> streamfähiger Pfad    -> Stock-Vollmatrix
+SPOP transport repair -> SPOP response phases -> SPOP full matrix
+ext_proc idle repair  -> Envoy composite       -> ext_authz full matrix
+Stock build repair    -> stream-capable path   -> Stock full matrix
 ```
 
 Zuerst Source-/Evidence-Identität einfrieren; dann Native-UDS-P0 beheben;
@@ -226,6 +226,24 @@ gemeinsame Lifecycle-/Korrelation-/Limit-/Fehler-Schnittstellen einführen;
 Stock-/SPOP-/ext_proc-Blocker auflösen; source-fähige Adapter validieren;
 request-only-Companions implementieren; echte P4-Strict-Aktion beweisen; volle
 Hostmatrix ausführen; erst dann Capability-Claims aktualisieren.
+
+## Implementierungsentscheidung und Begründung
+
+Dieser Record trifft zwei Entscheidungen für künftige Arbeit, ohne eine
+bestandene Implementierung zu behaupten. Erstens sind C1–C4 ein einziger
+Common-Vertrag: Phasenreihenfolge, terminaler Lifecycle, Safe-/Strict-Intent,
+begrenzte Korrelation und neutrale Error-Outcomes dürfen nicht unterschiedlich
+von zehn Adaptern neu implementiert werden. Zweitens behalten ext_authz und
+forwardAuth ihre Request-Seite, benötigen aber einen begrenzten hosteigenen
+Response-Observer für eine P1–P4-Transaktion; eine zweite unabhängige
+Authorization-Transaktion wird als unzureichend verworfen.
+
+Der Record entscheidet bewusst keine host-spezifische Post-Commit-Strict-
+Primitive vorab. Jeder Host muss tatsächlichen Abort/Reset und das
+client-sichtbare Transportresultat zeigen, bevor seine Zielzeile einen
+Strict-Pass erhalten kann. Kann ein Host diese Primitive nicht bereitstellen,
+benötigt der Connector eine Designänderung statt einer dokumentationsbasierten
+Ausnahme.
 
 ## Architektur für Envoy ext_authz und Traefik forwardAuth
 
@@ -300,7 +318,7 @@ verändert.
 | Ruleset-Readback | Bestanden: aktives Ruleset `Protect master` `19138299` hat keine Bypass-Akteure, fordert PR/Thread-Resolution und sechs strikte Checks. |
 | Basis-Required-Check-Snapshot | Für Basis-SHA bestanden: `actions`, `bounded-c-cpp`, `envoy-go`, `traefik-go`, `actionlint` und `zizmor` waren `completed/success`. Dies ist keine künftige PR-Head-Evidence. |
 | Boundary des gemischten Worktrees | Bestanden: vorhandene fremde Änderungen wurden durch einen sauberen Task-Worktree ausgeschlossen. |
-| Manuelle zweisprachige Parität | Bestanden: beide Records besitzen 24 entsprechende Top-Level-Abschnitte; Basis-/Evidence-SHAs, Connectormatrizen, Finding-IDs, Branch und Zielstatus wurden in beiden Sprachen geprüft. |
+| Manuelle zweisprachige Parität | Bestanden: beide Records besitzen 25 entsprechende Top-Level-Abschnitte; Basis-/Evidence-SHAs, Connectormatrizen, Finding-IDs, Branch und Zielstatus wurden in beiden Sprachen geprüft. |
 | Scoped-Diff-Review | Bestanden: der Task-Worktree enthält genau die vier geplanten Dokumentationspfade und `git diff --check` ist sauber. |
 | Dokumentationschecks | Nicht ausgeführt: Die Repository-Targets rufen CI-eigene Scripts außerhalb dieser dokumentationsbezogenen Ausnahme auf. Stattdessen laufen manuelle EN/DE-Überschriften-/Faktenparität und scoped Git-Checks. |
 
@@ -333,7 +351,7 @@ zehn Pfade bleiben unterhalb des Ziels, bis Zielmatrixbedingungen für exakte
 aktuelle Source-, Host-, Config- und Prozess-Evidence bewiesen sind. Retained
 Evidence liegt vor der Basis-Revision und kann ohne Rerun nicht promotet werden.
 
-## Restrisiken
+## Verbleibende Risiken
 
 P4 Strict kann nach Response-Commit in einem bestimmten Host unmöglich sein,
 bis eine verifizierbare Abort-/Reset-Primitive besteht. Request-only-Protokolle

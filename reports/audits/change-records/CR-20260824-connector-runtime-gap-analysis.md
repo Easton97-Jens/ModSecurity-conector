@@ -228,6 +228,22 @@ blockers; validate source-capable adapters; implement request-only composites;
 prove real P4 Strict action; execute the full host matrix; then update
 capability claims from the resulting evidence.
 
+## Implementation decision and rationale
+
+This record makes two future-work decisions without claiming an implementation
+has passed. First, C1–C4 are a single Common contract: phase order, terminal
+lifecycle, Safe/Strict intent, bounded correlation, and neutral error outcomes
+must not be reimplemented differently by ten adapters. Second, ext_authz and
+forwardAuth retain their request-side role but require a bounded, host-owned
+response observer to achieve one P1–P4 transaction; a second independent
+authorization transaction is rejected as insufficient.
+
+The record deliberately does not choose a host-specific post-commit Strict
+primitive in advance. Each host must demonstrate its actual abort/reset and
+client-visible transport result before its target row can receive a Strict
+pass. Where a host cannot provide that primitive, the connector requires a
+design change rather than a documentation-only exemption.
+
 ## Envoy ext_authz and Traefik forwardAuth architecture
 
 `common/runtime/http_authorization_service.h` defines a request-phase-only
@@ -294,7 +310,7 @@ Gitlink, dependency, or generated runtime file is changed.
 | Ruleset readback | Passed: active `Protect master` ruleset `19138299` has no bypass actors, requires PR/thread resolution, and requires six strict checks. |
 | Base required-check snapshot | Passed for base SHA: `actions`, `bounded-c-cpp`, `envoy-go`, `traefik-go`, `actionlint`, and `zizmor` were `completed/success`. This is not future PR-head evidence. |
 | Mixed-worktree boundary | Passed: existing foreign changes were excluded by a clean task worktree. |
-| Manual bilingual parity | Passed: both records have 24 corresponding top-level sections; base/evidence SHAs, connector matrices, finding IDs, branch, and target status were reviewed in both languages. |
+| Manual bilingual parity | Passed: both records have 25 corresponding top-level sections; base/evidence SHAs, connector matrices, finding IDs, branch, and target status were reviewed in both languages. |
 | Scoped diff review | Passed: the task worktree contains exactly the four planned documentation paths and `git diff --check` is clean. |
 | Documentation checks | Not run: the repository targets invoke CI-owned scripts outside this documentation-only exception. Manual EN/DE heading/fact parity and scoped Git checks are run instead. |
 
@@ -326,7 +342,7 @@ paths remain below target until target-matrix conditions are proved for exact
 current source, host, configuration, and process evidence. Retained evidence
 predates the base revision and cannot be promoted without rerun.
 
-## Residual risks
+## Remaining risks
 
 P4 Strict may be impossible after response commit in a particular host until a
 verifiable abort/reset primitive exists. Request-only protocols need stateful
