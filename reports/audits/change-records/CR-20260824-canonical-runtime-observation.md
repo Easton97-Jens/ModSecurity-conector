@@ -62,8 +62,9 @@ The change processes connector-produced JSON and filesystem evidence, so it
 adds no-follow, regular-file, owner, writable-mode, link-count, size, duplicate
 key, non-finite JSON, and exchange-race defenses. `FND-PARENT-0228` records a
 validated pre-fix raw-reader gap and its focused local remediation. The strict
-validator does not treat a test fixture, a command success, a raw log, or
-self-consistent synthetic data as live runtime PASS evidence.
+validator does not treat a test fixture, a command success, or a raw log as
+live runtime PASS evidence; the same-UID trusted-runner limitation for
+otherwise self-consistent data is documented below.
 
 The focused workflow-security equality control fails closed for two existing
 trusted workflows that are outside this task's workflow scope; this is retained

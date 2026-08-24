@@ -65,8 +65,9 @@ deshalb ergänzt sie No-Follow-, Regular-File-, Owner-, Writable-Mode-, Link-
 Count-, Size-, Duplicate-Key-, Non-Finite-JSON- und Exchange-Race-Abwehr.
 `FND-PARENT-0228` hält eine validierte Pre-Fix-Raw-Reader-Lücke und ihre
 fokussierte lokale Remediation fest. Der strikte Validator behandelt weder ein
-Test-Fixture noch Command-Success, Raw-Log oder selbstkonsistente synthetische
-Daten als Live-Runtime-PASS-Evidence.
+Test-Fixture noch Command-Success oder Raw-Log als Live-Runtime-PASS-Evidence;
+die Same-UID-Trusted-Runner-Einschränkung für ansonsten selbstkonsistente Daten
+ist unten dokumentiert.
 
 Der fokussierte Workflow-Security-Gleichheitscontrol schlägt für zwei vorhandene
 vertrauenswürdige Workflows außerhalb des Workflow-Scopes dieses Tasks
