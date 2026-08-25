@@ -1,0 +1,519 @@
+#!/usr/bin/env python3
+"""Verify one isolated, metadata-only composite observer event log.
+
+The input event log is the raw JSONL emitted by ``compositeObserver``. This
+tool does not transform, synthesize, or correlate records across cases. The
+manifest selects one isolated case artifact; correlation is established only
+by the one server-generated decision_id repeated by every raw observer event.
+Request IDs, URI, address, order between cases, and timing are never used.
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as _datetime
+import json
+import re
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Iterable
+
+SCHEMA = "msc-composite-evidence/v1"
+EVIDENCE_SCOPE = "lifecycle_only"
+MAX_EVENT_LOG_BYTES = 256 * 1024
+MAX_EVENT_LINE_BYTES = 16 * 1024
+MAX_OBSERVATION_BYTES = 16 * 1024
+PHASES = ("P1", "P2", "P3", "P4")
+# `reservation` is a payload-free pre-admission lifecycle opener. It permits
+# a private UDS reservation that ForwardAuth never receives to end with one
+# accountable abort terminal, without pretending that a lease was issued or
+# that P1/P2 occurred.
+LIFECYCLE_PHASES = {"reservation", "lease", "claim", "request_host_action", "host_action", "neutral_outcome", "terminal"}
+CASES = {
+    # An allow control still traverses P3/P4 of the same retained transaction.
+    # The case name identifies the selected request-side vector, not a reason
+    # to omit later observer phases from the lifecycle receipt.
+    "p1_allow": PHASES,
+    "p1_deny": ("P1",),
+    "p2_allow": PHASES,
+    "p2_deny": ("P1", "P2"),
+    "p2_oversize": ("P1", "P2"),
+    "p3_deny": ("P1", "P2", "P3"),
+    "p3_redirect": ("P1", "P2", "P3"),
+    "p4_safe": PHASES,
+    "p4_strict": PHASES,
+    # Lease omission is a pre-admission fail-closed path. It has a payload-free
+    # reservation opener and terminal cleanup, but deliberately no P1/P2
+    # transaction evidence after ForwardAuth rejects the missing lease.
+    "metadata_omitted": (),
+    "p2_to_p3_timeout": ("P1", "P2"),
+}
+CONNECTORS = {"envoy", "traefik"}
+MANIFEST_KEYS = {"schema", "connector", "case", "case_artifact", "expected_phases", "client_observation", "upstream_observation", "cleanup"}
+ARTIFACT_KEYS = {"id", "event_log"}
+UPSTREAM_KEYS = {"lease_observed", "request_terminal", "response_observed"}
+CLIENT_KEYS = {"lease_observed", "visible_status", "p4_outcome", "p4_visible_status", "p4_response_committed"}
+CLEANUP_KEYS = {"count", "status"}
+RAW_EVENT_KEYS = {
+    "decision_id", "connector", "phase", "outcome", "reason", "requested_action",
+    "actual_host_action", "visible_status", "cleanup_outcome", "event_time", "rule_id",
+    "request_path", "response_path", "transport",
+}
+SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
+DECISION_ID = re.compile(r"^[A-Za-z0-9_-]{16,256}$")
+RULE_ID = re.compile(r"^[0-9]{1,128}$")
+FORBIDDEN_KEY_WORDS = ("body", "lease", "credential", "secret", "token", "password")
+PIPELINE_METADATA = {
+    "envoy": ("envoy.ext_authz", "envoy.ext_proc", "envoy_ext_authz_ext_proc_grpc"),
+    "traefik": ("traefik.forwardAuth", "traefik.native_uds", "traefik_forwardauth_private_uds"),
+}
+CASE_RULE_IDS = {
+    "p1_deny": ("P1", "1101001"),
+    "p2_deny": ("P2", "1102001"),
+    "p3_deny": ("P3", "1103001"),
+    "p4_safe": ("P4", "1104002"),
+}
+
+
+class EvidenceError(ValueError):
+    """A malformed or insufficient evidence receipt."""
+
+
+@dataclass(frozen=True)
+class Verification:
+    status: str
+    connector: str | None
+    case: str | None
+    artifact_id: str | None
+    decision_id: str | None
+    phases: tuple[str, ...]
+    errors: tuple[str, ...]
+
+    # A receipt is deliberately not a rule-vector or real-host acceptance.
+    # Case artifacts are supplied by the trusted operator case driver, so the
+    # verifier can establish only metadata/lifecycle consistency.
+    scope: str = EVIDENCE_SCOPE
+    catalog_acceptance: bool = False
+
+    @property
+    def lifecycle_verified(self) -> bool:
+        return self.status == "LIFECYCLE_ONLY"
+
+    @property
+    def passed(self) -> bool:
+        """Compatibility alias for a valid lifecycle-only receipt.
+
+        Callers must inspect ``status``/``catalog_acceptance`` before treating
+        this as any broader validation result.
+        """
+        return self.lifecycle_verified
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"status": self.status, "connector": self.connector, "case": self.case,
+                "artifact_id": self.artifact_id, "decision_id": self.decision_id,
+                "phases": list(self.phases), "scope": self.scope,
+                "lifecycle_verified": self.lifecycle_verified,
+                "catalog_acceptance": self.catalog_acceptance,
+                "errors": list(self.errors)}
+
+
+def _expect_object(value: Any, path: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise EvidenceError(f"{path} must be an object")
+    return value
+
+
+def _reject_unknown(value: dict[str, Any], allowed: set[str], path: str) -> None:
+    unknown = sorted(set(value) - allowed)
+    if unknown:
+        for key in unknown:
+            if any(word in key.lower() for word in FORBIDDEN_KEY_WORDS):
+                raise EvidenceError(f"{path}.{key} is a forbidden payload field")
+        raise EvidenceError(f"{path} contains unknown field(s): {', '.join(unknown)}")
+
+
+def _required(value: dict[str, Any], keys: Iterable[str], path: str) -> None:
+    missing = [key for key in keys if key not in value]
+    if missing:
+        raise EvidenceError(f"{path} is missing required field(s): {', '.join(missing)}")
+
+
+def _string(value: Any, path: str, pattern: re.Pattern[str] | None = None, *, allow_empty: bool = False) -> str:
+    if not isinstance(value, str) or (not value and not allow_empty):
+        raise EvidenceError(f"{path} must be a string")
+    if "\r" in value or "\n" in value or len(value) > 256:
+        raise EvidenceError(f"{path} exceeds metadata bounds")
+    if pattern is not None and pattern.fullmatch(value) is None:
+        raise EvidenceError(f"{path} has an invalid format")
+    return value
+
+
+def _bool(value: Any, path: str) -> bool:
+    if type(value) is not bool:
+        raise EvidenceError(f"{path} must be boolean")
+    return value
+
+
+def _status(value: Any, path: str) -> int:
+    if type(value) is not int or not 100 <= value <= 599:
+        raise EvidenceError(f"{path} must be an HTTP status integer")
+    return value
+
+
+def _json_value(path: Path) -> Any:
+    def no_duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise EvidenceError(f"duplicate JSON field: {key}")
+            result[key] = value
+        return result
+
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            return json.load(handle, object_pairs_hook=no_duplicate_pairs)
+    except EvidenceError:
+        raise
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise EvidenceError(f"cannot read JSON {path.name}: {exc}") from exc
+
+
+def _safe_event_log_path(manifest: Path, event_log: str) -> Path:
+    relative = Path(event_log)
+    if relative.is_absolute() or relative.name != event_log or event_log in {"", ".", ".."}:
+        raise EvidenceError("case_artifact.event_log must be a relative basename")
+    candidate = manifest.parent / relative
+    if candidate.is_symlink():
+        raise EvidenceError("case_artifact.event_log must be a regular non-symlink file")
+    target = candidate.resolve()
+    if target.parent != manifest.parent.resolve() or not target.is_file():
+        raise EvidenceError("case_artifact.event_log must remain beside the manifest")
+    try:
+        if target.stat().st_size > MAX_EVENT_LOG_BYTES:
+            raise EvidenceError("event log exceeds the bounded metadata size")
+    except OSError as exc:
+        raise EvidenceError(f"cannot stat event log {target.name}: {exc}") from exc
+    return target
+
+
+def _safe_observation_path(manifest: Path, name: str, field: str) -> Path:
+    relative = Path(name)
+    if relative.is_absolute() or relative.name != name or name in {"", ".", ".."}:
+        raise EvidenceError(f"{field} must be a relative basename")
+    candidate = manifest.parent / relative
+    if candidate.is_symlink():
+        raise EvidenceError(f"{field} must reference a regular non-symlink file")
+    target = candidate.resolve()
+    if target.parent != manifest.parent.resolve() or not target.is_file():
+        raise EvidenceError(f"{field} must remain beside the manifest")
+    try:
+        if target.stat().st_size > MAX_OBSERVATION_BYTES:
+            raise EvidenceError(f"{field} exceeds the bounded metadata size")
+    except OSError as exc:
+        raise EvidenceError(f"cannot stat {field}: {exc}") from exc
+    return target
+
+
+def _load_observation(path: Path, allowed: set[str], required: set[str], label: str) -> dict[str, Any]:
+    value = _expect_object(_json_value(path), label)
+    _reject_unknown(value, allowed, label)
+    _required(value, required, label)
+    return value
+
+
+def _load_raw_events(path: Path) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
+
+    def no_duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise EvidenceError(f"duplicate JSON field: {key}")
+            result[key] = value
+        return result
+
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            for number, line in enumerate(handle, 1):
+                if not line.strip():
+                    raise EvidenceError(f"event log line {number} is blank")
+                if len(line.encode("utf-8")) > MAX_EVENT_LINE_BYTES:
+                    raise EvidenceError(f"event log line {number} exceeds metadata bounds")
+                try:
+                    event = json.loads(line, object_pairs_hook=no_duplicate_pairs)
+                except EvidenceError:
+                    raise
+                except json.JSONDecodeError as exc:
+                    raise EvidenceError(f"event log line {number} is not JSON: {exc}") from exc
+                events.append(_expect_object(event, f"event[{number}]"))
+    except EvidenceError:
+        raise
+    except (OSError, UnicodeError) as exc:
+        raise EvidenceError(f"cannot read event log {path.name}: {exc}") from exc
+    if not events:
+        raise EvidenceError("event log must contain at least one event")
+    return events
+
+
+def _validate_event(event: dict[str, Any], number: int, connector: str) -> tuple[str, str]:
+    path = f"event[{number}]"
+    _reject_unknown(event, RAW_EVENT_KEYS, path)
+    _required(event, {"decision_id", "connector", "phase", "outcome", "event_time", "request_path", "response_path", "transport"}, path)
+    decision_id = _string(event["decision_id"], f"{path}.decision_id", DECISION_ID)
+    if _string(event["connector"], f"{path}.connector") != connector:
+        raise EvidenceError(f"{path}.connector does not match manifest connector")
+    request_path = _string(event["request_path"], f"{path}.request_path")
+    response_path = _string(event["response_path"], f"{path}.response_path")
+    transport = _string(event["transport"], f"{path}.transport")
+    if (request_path, response_path, transport) != PIPELINE_METADATA[connector]:
+        raise EvidenceError(f"{path} pipeline metadata does not match the connector")
+    phase = _string(event["phase"], f"{path}.phase")
+    if phase not in PHASES and phase not in LIFECYCLE_PHASES:
+        raise EvidenceError(f"{path}.phase is not a recognized observer phase")
+    _string(event["outcome"], f"{path}.outcome")
+    event_time = _string(event["event_time"], f"{path}.event_time")
+    try:
+        _datetime.datetime.fromisoformat(event_time.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise EvidenceError(f"{path}.event_time is not RFC3339 metadata") from exc
+    for key in ("reason", "requested_action", "actual_host_action", "cleanup_outcome"):
+        if key in event:
+            _string(event[key], f"{path}.{key}", allow_empty=True)
+    if "visible_status" in event:
+        _status(event["visible_status"], f"{path}.visible_status")
+    if "rule_id" in event:
+        _string(event["rule_id"], f"{path}.rule_id", RULE_ID)
+    return phase, decision_id
+
+
+def _verify(manifest_path: Path, expected_event_log: Path | None = None) -> Verification:
+    manifest = _expect_object(_json_value(manifest_path), "manifest")
+    _reject_unknown(manifest, MANIFEST_KEYS, "manifest")
+    _required(manifest, MANIFEST_KEYS, "manifest")
+    if _string(manifest["schema"], "manifest.schema") != SCHEMA:
+        raise EvidenceError(f"manifest.schema must be {SCHEMA}")
+    connector = _string(manifest["connector"], "manifest.connector")
+    if connector not in CONNECTORS:
+        raise EvidenceError("manifest.connector must be envoy or traefik")
+    case = _string(manifest["case"], "manifest.case")
+    if case not in CASES:
+        raise EvidenceError(f"manifest.case must be one of: {', '.join(sorted(CASES))}")
+    expected = manifest["expected_phases"]
+    if not isinstance(expected, list) or tuple(expected) != CASES[case]:
+        raise EvidenceError("manifest.expected_phases must exactly match the selected case")
+
+    artifact = _expect_object(manifest["case_artifact"], "manifest.case_artifact")
+    _reject_unknown(artifact, ARTIFACT_KEYS, "manifest.case_artifact")
+    _required(artifact, ARTIFACT_KEYS, "manifest.case_artifact")
+    artifact_id = _string(artifact["id"], "manifest.case_artifact.id", SAFE_ID)
+    event_log = _safe_event_log_path(manifest_path, _string(artifact["event_log"], "manifest.case_artifact.event_log"))
+    if expected_event_log is not None:
+        if not expected_event_log.is_absolute() or expected_event_log.is_symlink() or not expected_event_log.is_file():
+            raise EvidenceError("--expected-event-log must be an absolute regular non-symlink file")
+        try:
+            expected_resolved = expected_event_log.resolve(strict=True)
+        except OSError as exc:
+            raise EvidenceError(f"cannot resolve --expected-event-log: {exc}") from exc
+        if expected_resolved != event_log:
+            raise EvidenceError("manifest event log does not match --expected-event-log")
+
+    client_path = _safe_observation_path(manifest_path, _string(manifest["client_observation"], "manifest.client_observation"), "manifest.client_observation")
+    upstream_path = _safe_observation_path(manifest_path, _string(manifest["upstream_observation"], "manifest.upstream_observation"), "manifest.upstream_observation")
+    client = _load_observation(client_path, CLIENT_KEYS, CLIENT_KEYS, "client_observation")
+    upstream = _load_observation(upstream_path, UPSTREAM_KEYS, UPSTREAM_KEYS, "upstream_observation")
+    if _bool(upstream["lease_observed"], "upstream_observation.lease_observed"):
+        raise EvidenceError("upstream reports a lease observed")
+    request_terminal = _bool(upstream["request_terminal"], "upstream_observation.request_terminal")
+    response_observed = _bool(upstream["response_observed"], "upstream_observation.response_observed")
+    if _bool(client["lease_observed"], "client_observation.lease_observed"):
+        raise EvidenceError("client reports a lease observed")
+    client_status = client["visible_status"]
+    if client_status is not None:
+        _status(client_status, "client_observation.visible_status")
+    p4_outcome = _string(client["p4_outcome"], "client_observation.p4_outcome")
+    if p4_outcome not in {"none", "abort", "reset"}:
+        raise EvidenceError("client_observation.p4_outcome is invalid")
+    p4_status = client["p4_visible_status"]
+    if p4_status is not None:
+        _status(p4_status, "client_observation.p4_visible_status")
+    p4_committed = _bool(client["p4_response_committed"], "client_observation.p4_response_committed")
+
+    cleanup = _expect_object(manifest["cleanup"], "manifest.cleanup")
+    _reject_unknown(cleanup, CLEANUP_KEYS, "manifest.cleanup")
+    _required(cleanup, CLEANUP_KEYS, "manifest.cleanup")
+    if type(cleanup["count"]) is not int or cleanup["count"] != 1:
+        raise EvidenceError("manifest.cleanup.count must be exactly one")
+    if cleanup["status"] != "completed":
+        raise EvidenceError("manifest.cleanup.status must be completed")
+
+    events = _load_raw_events(event_log)
+    ids: set[str] = set()
+    phase_positions: dict[str, int] = {}
+    terminal_count = 0
+    terminal_position = 0
+    terminal_cleanup: list[str] = []
+    for number, event in enumerate(events, 1):
+        phase, decision_id = _validate_event(event, number, connector)
+        ids.add(decision_id)
+        if phase in PHASES:
+            if phase in phase_positions:
+                raise EvidenceError(f"raw event phase {phase} occurs more than once")
+            phase_positions[phase] = number
+        if phase == "terminal":
+            terminal_count += 1
+            terminal_position = number
+            terminal_cleanup.append(event.get("cleanup_outcome", ""))
+    if len(ids) != 1:
+        raise EvidenceError("raw case log must contain exactly one decision_id")
+    if tuple(sorted(phase_positions, key=phase_positions.get)) != tuple(expected):
+        raise EvidenceError("raw P1..P4 observer events are missing or out of order")
+    if terminal_count != 1 or terminal_cleanup != ["closed"]:
+        raise EvidenceError("raw case log must contain exactly one terminal cleanup with cleanup_outcome closed")
+    if terminal_position != len(events):
+        raise EvidenceError("raw terminal cleanup must be the final observer event")
+
+    if case in CASE_RULE_IDS:
+        phase, rule_id = CASE_RULE_IDS[case]
+        event = next(event for event in events if event.get("phase") == phase)
+        if event.get("rule_id") != rule_id:
+            raise EvidenceError(f"{case} requires raw {phase} rule_id={rule_id}")
+
+    decision_id = next(iter(ids))
+    action_events = [event for event in events if event.get("phase") in {"host_action", "request_host_action"}]
+
+    def phase_action(phase: str, action: str) -> None:
+        event = next(event for event in events if event.get("phase") == phase)
+        if event.get("requested_action") != action:
+            raise EvidenceError(f"{case} requires raw {phase} requested_action={action}")
+
+    def matching_action(action: str, status_class: tuple[int, int] | None = None) -> dict[str, Any] | None:
+        for event in action_events:
+            if event.get("actual_host_action") != action:
+                continue
+            status = event.get("visible_status")
+            if status_class is not None and (not isinstance(status, int) or not status_class[0] <= status <= status_class[1]):
+                continue
+            return event
+        return None
+
+    if case == "p2_oversize":
+        oversize = matching_action("deny", (413, 413))
+        p2 = next((event for event in events if event.get("phase") == "P2"), None)
+        if oversize is None or p2 is None or p2.get("visible_status") != 413:
+            raise EvidenceError("P2 oversize requires a raw 413 P2 decision and request-side deny action")
+        if not request_terminal or response_observed:
+            raise EvidenceError("P2 oversize requires request termination before upstream observation")
+    if case in {"p1_allow", "p2_allow"}:
+        for phase in ("P1", "P2"):
+            phase_action = next(event for event in events if event.get("phase") == phase)
+            if phase_action.get("requested_action") != "allow":
+                raise EvidenceError(f"{case} requires raw {phase} allow evidence")
+        if client_status is None or not 200 <= client_status <= 299:
+            raise EvidenceError(f"{case} requires a 2xx client-visible status")
+        if request_terminal or not response_observed:
+            raise EvidenceError(f"{case} requires upstream response observation without request termination")
+        if any(event.get("phase") == "request_host_action" for event in events):
+            raise EvidenceError(f"{case} rejects request_host_action evidence")
+    if case == "p2_to_p3_timeout":
+        for phase in ("P1", "P2"):
+            phase_event = next(event for event in events if event.get("phase") == phase)
+            if phase_event.get("requested_action") != "allow":
+                raise EvidenceError(f"{case} requires raw {phase} allow evidence")
+        if client_status != 503:
+            raise EvidenceError("P2-to-P3 timeout requires a real 503 client status")
+        if request_terminal or not response_observed:
+            raise EvidenceError(
+                "P2-to-P3 timeout requires upstream request observation without request termination"
+            )
+        if p4_committed or p4_outcome != "none":
+            raise EvidenceError(
+                "P2-to-P3 timeout must stop before P4 response commitment"
+            )
+        lease = next((event for event in events if event.get("phase") == "lease"), None)
+        terminal = next((event for event in events if event.get("phase") == "terminal"), None)
+        if lease is None or terminal is None or terminal.get("reason") != "timeout":
+            raise EvidenceError(
+                "P2-to-P3 timeout requires lease issuance followed by timeout cleanup"
+            )
+    if case in {"p1_deny", "p2_deny", "p3_deny"}:
+        if client_status is None or not 400 <= client_status <= 599 or matching_action("deny", (client_status, client_status)) is None:
+            raise EvidenceError(f"{case} requires matching raw deny action and client-visible status")
+        if case in {"p1_deny", "p2_deny"} and (not request_terminal or response_observed):
+            raise EvidenceError(f"{case} requires request termination before upstream observation")
+    if case == "p1_deny":
+        phase_action("P1", "deny")
+    if case in {"p2_deny", "p2_oversize"}:
+        phase_action("P1", "allow")
+        phase_action("P2", "deny")
+    if case == "p3_deny":
+        phase_action("P3", "deny")
+        if request_terminal or not response_observed:
+            raise EvidenceError("p3_deny requires upstream response observation without request termination")
+    if case == "p3_redirect":
+        if client_status is None or not 300 <= client_status <= 399 or matching_action("redirect", (client_status, client_status)) is None:
+            raise EvidenceError("P3 redirect requires matching raw redirect action and client-visible status")
+        phase_action("P3", "redirect")
+        if request_terminal or not response_observed:
+            raise EvidenceError("p3_redirect requires upstream response observation without request termination")
+    if case == "p4_safe":
+        p4_events = [event for event in events if event.get("phase") == "P4"]
+        if not p4_events or matching_action("log_only") is None:
+            raise EvidenceError("P4 Safe requires raw P4 and host_action=log_only evidence")
+        if p4_outcome != "none":
+            raise EvidenceError("P4 Safe cannot claim a client abort/reset")
+        if request_terminal or not response_observed or not p4_committed:
+            raise EvidenceError("P4 Safe requires a committed upstream response without request termination")
+    if case == "metadata_omitted":
+        if client_status != 503:
+            raise EvidenceError("missing lease metadata requires a fail-closed 503 client status")
+        if request_terminal or response_observed or p4_committed:
+            raise EvidenceError("missing lease metadata must stop before upstream response observation")
+        reservations = [event for event in events if event.get("phase") == "reservation"]
+        lease = next((event for event in events if event.get("phase") == "lease"), None)
+        terminal = next((event for event in events if event.get("phase") == "terminal"), None)
+        if (
+            len(reservations) != 1
+            or lease is not None
+            or terminal is None
+            or terminal.get("reason") not in {"abort", "disconnect"}
+        ):
+            raise EvidenceError(
+                "missing lease metadata requires one pre-admission reservation and abort/disconnect cleanup without a lease event"
+            )
+    if case == "p4_strict":
+        # A driver-side observation is not proof that Envoy/Traefik invoked a
+        # real client-visible reset/abort primitive. No current runner has that
+        # primitive, so this case intentionally cannot become a passing result.
+        return Verification("NON_PASS", connector, case, artifact_id, decision_id, tuple(expected),
+                            ("P4 Strict remains non-promoting without independently demonstrated host reset/abort",))
+    return Verification("LIFECYCLE_ONLY", connector, case, artifact_id, decision_id, tuple(expected), ())
+
+
+def verify_manifest(path: str | Path, expected_event_log: str | Path | None = None) -> Verification:
+    manifest_path = Path(path)
+    if manifest_path.is_symlink() or not manifest_path.is_file():
+        raise EvidenceError("manifest must be a regular non-symlink file")
+    expected_path = Path(expected_event_log) if expected_event_log is not None else None
+    return _verify(manifest_path, expected_path)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("manifest", type=Path, help="isolated composite evidence manifest JSON")
+    parser.add_argument("--expected-event-log", type=Path, help="absolute event-log path that must exactly match the manifest reference")
+    parser.add_argument("--json", action="store_true", dest="json_output", help="emit a JSON result")
+    args = parser.parse_args(argv)
+    try:
+        result = verify_manifest(args.manifest, args.expected_event_log)
+    except EvidenceError as exc:
+        result = Verification("INVALID", None, None, None, None, (), (str(exc),))
+    if args.json_output:
+        print(json.dumps(result.as_dict(), sort_keys=True))
+    else:
+        print(f"{result.status}: {result.errors[0] if result.errors else 'composite evidence verified'}")
+    return 0 if result.lifecycle_verified else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

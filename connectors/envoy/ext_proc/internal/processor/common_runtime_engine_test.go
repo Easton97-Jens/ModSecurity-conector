@@ -107,6 +107,9 @@ func testCommonRuntimePhase1(t *testing.T, contextValue context.Context, transac
 	if err != nil || decision.Action != ActionDeny || decision.Status != 403 {
 		t.Fatalf("phase-1 decision=%#v err=%v", decision, err)
 	}
+	if decision.RuleID != "1200001" {
+		t.Fatalf("phase-1 rule ID=%q, want 1200001", decision.RuleID)
+	}
 	recorder, ok := transaction.(HostActionRecorder)
 	if !ok {
 		t.Fatal("Common transaction does not expose host-action recording")
@@ -121,6 +124,9 @@ func testCommonRuntimePhase2(t *testing.T, contextValue context.Context, transac
 	assertCommonDecision(t, "request headers", decision, err, ActionAllow, 0)
 	decision, err = transaction.ProcessBody(contextValue, DirectionRequest, []byte("envoy-phase2-marker"), true)
 	assertCommonDecision(t, "phase-2", decision, err, ActionDeny, 403)
+	if decision.RuleID != "1200002" {
+		t.Fatalf("phase-2 rule ID=%q, want 1200002", decision.RuleID)
+	}
 }
 
 func testCommonRuntimePhase3(t *testing.T, contextValue context.Context, transaction Transaction) {
@@ -128,6 +134,9 @@ func testCommonRuntimePhase3(t *testing.T, contextValue context.Context, transac
 	assertCommonDecision(t, "request headers", decision, err, ActionAllow, 0)
 	decision, err = transaction.ProcessHeaders(contextValue, DirectionResponse, []Header{{Name: ":status", Value: []byte("200")}, {Name: "x-ms-p3", Value: []byte("block")}}, false)
 	assertCommonDecision(t, "phase-3", decision, err, ActionDeny, 403)
+	if decision.RuleID != "1200003" {
+		t.Fatalf("phase-3 rule ID=%q, want 1200003", decision.RuleID)
+	}
 }
 
 func testCommonRuntimePhase4(t *testing.T, contextValue context.Context, transaction Transaction) {
@@ -144,6 +153,9 @@ func testCommonRuntimePhase4(t *testing.T, contextValue context.Context, transac
 	}
 	decision, err = transaction.ProcessBody(contextValue, DirectionResponse, []byte("envoy-phase4-marker"), true)
 	assertCommonDecision(t, "phase-4", decision, err, ActionDeny, 403)
+	if decision.RuleID != "1200004" {
+		t.Fatalf("phase-4 rule ID=%q, want 1200004", decision.RuleID)
+	}
 	recorder, ok := transaction.(HostActionRecorder)
 	if !ok {
 		t.Fatal("Common transaction does not expose host-action recording")

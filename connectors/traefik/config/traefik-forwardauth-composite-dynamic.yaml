@@ -1,0 +1,74 @@
+# Traefik file-provider composite configuration.
+#
+# Replace __AUTH_ADDRESS__, __COMPOSITE_SOCKET__ and __UPSTREAM_ADDRESS__ in
+# a temporary rendered copy.  The outer local plugin reserves a lease solely
+# over its private UDS connection, snapshots original P1 headers only in that
+# reservation, injects the lease only for the inner ForwardAuth call, and
+# observes the later response on that same connection. The inner header
+# middleware removes private metadata before any upstream request can begin.
+http:
+  routers:
+    connector-composite:
+      entryPoints:
+      - web
+      rule: PathPrefix(`/`)
+      middlewares:
+      - modsecurity-composite-chain
+      service: composite-upstream
+  middlewares:
+    modsecurity-composite-chain:
+      chain:
+        middlewares:
+        - modsecurity-composite
+        - modsecurity-composite-forwardauth
+        - modsecurity-composite-strip-internal-lease
+    # This outer wrapper removes client-controlled private metadata, sends a
+    # bounded P1 header snapshot only over UDS, gets a random server lease
+    # there, and defensively removes private metadata from responses.
+    modsecurity-composite:
+      plugin:
+        msconnector-composite:
+          socketPath: __COMPOSITE_SOCKET__
+          leaseHeader: X-Msconnector-Composite-Lease
+          maxResponseChunkBytes: 32768
+          maxResponseHeaderCount: 256
+          maxResponseHeaderBytes: 32768
+          timeoutMillis: 5000
+    modsecurity-composite-forwardauth:
+      forwardAuth:
+        address: http://__AUTH_ADDRESS__/authorize
+        trustForwardHeader: false
+        # The service/coordinator's hard policy limit is 32 bytes.  Permit one
+        # extra byte only so the service can emit a correlated P2-limit 413;
+        # bodies over 33 bytes are rejected fail-closed by Traefik and are not
+        # claimed as composite evidence events.
+        forwardBody: true
+        maxBodySize: 33
+        maxResponseBodySize: 32768
+        # Allow only the plugin-generated lease and the metadata that Traefik
+        # constructs for this auth request. The original P1 header snapshot is
+        # not sent over this HTTP hop; ForwardAuth activates the UDS-retained
+        # snapshot. `trustForwardHeader: false` prevents client copies of
+        # X-Forwarded-* from becoming authoritative. The lease is never copied
+        # from an HTTP response and all private metadata is removed before the
+        # real upstream call.
+        authRequestHeaders:
+        - X-Msconnector-Composite-Lease
+        - X-Forwarded-Method
+        - X-Forwarded-Uri
+        - X-Forwarded-Proto
+        - X-Forwarded-Host
+        - X-Forwarded-For
+    modsecurity-composite-strip-internal-lease:
+      headers:
+        customRequestHeaders:
+          X-Msconnector-Composite-Lease: ""
+          X-Msconnector-Composite-Request-Context: ""
+        customResponseHeaders:
+          X-Msconnector-Composite-Lease: ""
+          X-Msconnector-Composite-Request-Context: ""
+  services:
+    composite-upstream:
+      loadBalancer:
+        servers:
+        - url: http://__UPSTREAM_ADDRESS__

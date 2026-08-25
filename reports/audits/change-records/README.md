@@ -10,6 +10,15 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260825-fnd-parent-0221-composite-connectors](CR-20260825-fnd-parent-0221-composite-connectors.md)
+  | [Deutsch](CR-20260825-fnd-parent-0221-composite-connectors.de.md) — the
+  current user authorized a Parent-only composite-correlation implementation,
+  paired traceability, scoped commit/push, and one Draft PR. The record
+  retains current local and real-H1 evidence while truthfully keeping
+  `FND-PARENT-0221` release-blocking and P4 Strict, duplicate/cancel,
+  same-process Traefik follow-up, H2/H3, and parity evidence open; no merge is
+  authorized or asserted.
+
 - [CR-20260823-pr309-lighttpd-config-reference-repair](CR-20260823-pr309-lighttpd-config-reference-repair.md)
   | [Deutsch](CR-20260823-pr309-lighttpd-config-reference-repair.de.md) — the
   Parent-only successor repair restores the closed Lighttpd configuration-

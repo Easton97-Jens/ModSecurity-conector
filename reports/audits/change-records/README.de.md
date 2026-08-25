@@ -11,6 +11,15 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260825-fnd-parent-0221-composite-connectors](CR-20260825-fnd-parent-0221-composite-connectors.de.md) —
+  der aktuelle Benutzer autorisierte eine Parent-only-Composite-
+  Korrelationsimplementierung, gekoppelte Nachvollziehbarkeit, scoped
+  Commit/Push und einen Draft-PR. Der Record hält aktuelle lokale und
+  Real-H1-Evidenz fest, belässt `FND-PARENT-0221` aber wahrheitsgemäß
+  release-blockierend und P4 Strict, Duplicate/Cancel, Same-Process-Traefik-
+  Follow-up, H2/H3 und Paritäts-Evidenz offen; kein Merge ist autorisiert oder
+  behauptet.
+
 - [CR-20260823-pr309-lighttpd-config-reference-repair](CR-20260823-pr309-lighttpd-config-reference-repair.de.md) —
   die Parent-only-Nachfolgereparatur stellt den geschlossenen Lighttpd-
   Config-Reference-Vertrag nach dem Post-Merge-Validierungsfehler von PR #309

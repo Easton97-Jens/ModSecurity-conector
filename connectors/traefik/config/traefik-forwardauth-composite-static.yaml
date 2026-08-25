@@ -1,0 +1,21 @@
+# Local-plugin registration for the forwardAuth composite connector.
+#
+# A runtime harness stages this module under an isolated Traefik plugin root
+# and renders this static template plus the matching dynamic template outside
+# the checkout.  The listener is rendered into this file because Traefik
+# intentionally ignores command-line flags when --configFile is present.
+entryPoints:
+  web:
+    address: "__TRAEFIK_ADDRESS__"
+
+providers:
+  file:
+    filename: "__TRAEFIK_DYNAMIC_CONFIG__"
+    watch: false
+
+experimental:
+  localPlugins:
+    msconnector-composite:
+      moduleName: github.com/Easton97-Jens/ModSecurity-conector/connectors/traefik/composite_middleware
+      settings:
+        envs: []
