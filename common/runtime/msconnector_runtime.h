@@ -76,6 +76,8 @@ void msconnector_runtime_response_contract(
 
 size_t msconnector_runtime_request_body_limit(const msconnector_runtime *runtime);
 size_t msconnector_runtime_response_body_limit(const msconnector_runtime *runtime);
+msconnector_body_limit_action msconnector_runtime_body_limit_action(
+    const msconnector_runtime *runtime);
 msconnector_body_mode msconnector_runtime_request_body_mode(
     const msconnector_runtime *runtime);
 msconnector_body_mode msconnector_runtime_response_body_mode(

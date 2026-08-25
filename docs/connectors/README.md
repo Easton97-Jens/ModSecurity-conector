@@ -21,7 +21,7 @@ or strict behavior for all connectors.
 | HAProxy | <code>native-htx-filter</code> | <code>native-htx-filter</code> | [guide](haproxy.md) / [source](../../connectors/haproxy/README.md) | Native HTX filter route; body slices are passed incrementally and phase 4 completes at HTX EOS |
 | Envoy | <code>ext_proc</code> | <code>ext_proc</code> | [guide](envoy.md) / [source](../../connectors/envoy/README.md) | Streamed external-processing route; strict post-commit reset remains a separate, evidence-gated question |
 | Traefik | <code>native-middleware</code> | <code>native-traefik-middleware</code> | [guide](traefik.md) / [source](../../connectors/traefik/README.md) | Native middleware with a local UDS service; strict reset remains separate until host evidence proves it |
-| lighttpd | <code>patched-native</code> | <code>patched-native-lighttpd</code> | [guide](lighttpd.md) / [source](../../connectors/lighttpd/README.md) | Patched native host/module route; entity-body ranges are processed before transfer framing and phase 4 completes at entity EOS |
+| lighttpd | <code>patched-native</code> | <code>patched-native-lighttpd</code> | [guide](lighttpd.md) / [source](../../connectors/lighttpd/README.md) | Patched native host/module route; selected HTTP/1.1 `mod_proxy` P2 traffic is buffered until EOS/allow before upstream reach; P4 remains separately bounded |
 
 The profile value is the internal target identity checked by the root lifecycle
 runner. The recorded integration mode is the descriptive value written into
@@ -37,7 +37,7 @@ set them manually to reclassify a compatibility route.
 | <code>native-htx-filter</code> | HAProxy native HTX filter | HTX request/response representation | Selected HAProxy core route | HTX/EOS semantics are not a claim of complete transport or protocol coverage |
 | <code>ext_proc</code> | Envoy external processing bridge | Streamed host/processor exchange | Selected Envoy core route | A processor/gRPC event is not automatically proof of a client-visible strict reset |
 | <code>native-traefik-middleware</code> | Traefik native middleware with local UDS service | Middleware request/response path through its local engine | Recorded selected Traefik mode | UDS locality and source wiring do not themselves prove strict transport behavior |
-| <code>patched-native-lighttpd</code> | Patched lighttpd native core plus module | HTTP/1 entity-body ranges before transfer framing | Recorded selected lighttpd mode | Patch/build existence and EOS wiring require run artifacts for a result assertion |
+| <code>patched-native-lighttpd</code> | Patched lighttpd native core plus module | HTTP/1 entity-body ranges before transfer framing; selected `mod_proxy` P2 gate buffers until EOS/allow with `body_limit_action=reject` | Recorded selected lighttpd mode | The gate is not a claim for HTTP/2/HTTP/3, other stream handlers, P4, or unrestricted upstream streaming |
 | <code>ext_authz</code> | Envoy external authorization service | Normally pre-upstream authorization view | Compatibility/alternate term | It does not observe the later upstream response like ext_proc |
 | <code>forwardAuth</code> | Traefik forward-auth integration | Authorization request/response decision | Compatibility/alternate term | Do not relabel it as native middleware evidence |
 | <code>spoe-spop-agent</code> | HAProxy agent/protocol vocabulary | Agent-mediated request/response path | Compatibility/alternate term | Do not interchange it with the selected native HTX filter identity |

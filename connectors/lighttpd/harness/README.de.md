@@ -39,8 +39,37 @@ Framework-synchronisiertes lighttpd-Kern/Modul-Paar. Das isolierte Ziel sendet d
 Phase-1-200/403-Anfragen mit deaktivierten beiden Körpermodi; es ist kein Anfragetext,
 Response-Body-, Phase-4- oder Capability-Promotion-Evidenz.
 
-Nachweis des Anforderungs-/Antwortkörpers, CRS, Produktionshärtung, Sicherheit
-Eine Verifizierung und ein vollständiger Matrixbeweis werden von diesem Harness nicht bereitgestellt.
+Nachweise zu Request-/Response-Bodies, CRS, Produktionshärtung,
+Sicherheitsverifizierung und vollständiger Matrixabdeckung werden von diesem
+Harness nicht bereitgestellt.
+
+## HTTP/1.1-Pre-Upstream-Phase-2-Gate-Runner
+
+`run_phase2_pre_upstream_gate.py` ist ein separater Repository-eigener Runner
+für das ausgewählte gepatchte HTTP/1.1-`mod_proxy`-Request-Body-Profil. Er
+nimmt einen frischen Task-eigenen Root, ein gestagetes passendes Lighttpd-
+Binary/Modul, eine Rules-Datei, drei private Loopback-Ports und das
+libmodsecurity-Verzeichnis entgegen. Er startet nur Task-eigene
+Foreground-Prozesse und zeichnet begrenzte Framing-/Zähler-Metadaten auf,
+niemals Request-Nutzdaten.
+
+Der Runner beweist, dass verzögerte Chunked-Phase-2-Deny-Bytes vor terminalem
+EOS den Upstream weder verbinden noch erreichen, dass ein verzögerter
+benigner Chunked-Allow erst nach EOS/Allow weitergeleitet wird und dass der
+Host diesen erlaubten Request als `Content-Length` neu rahmt. Er verlangt
+außerdem `501` ohne neue Upstream-Verbindung für `Incremental`, konfigurierte
+`server.stream-request-body` und ausdrücklich aktivierte body-tragende
+`Upgrade`- plus `gw.upgrade-with-request-body`. Er ist nur Request-Body-P2-
+Evidence; er verlangt außerdem, dass Streaming mit
+`body_limit_action=process_partial` bereits beim Laden der Konfiguration vor
+einem Listener oder einer Upstream-Verbindung abgewiesen wird. Er fördert keine
+Claims zu Response-Body-P4, CRS, HTTP/2/HTTP/3, unbeschränktem Streaming oder
+Production-Readiness.
+
+Die Grenze für den zurückgehaltenen Body des Streaming-Profils ergibt sich aus
+seinem positiven Common-`request_body_limit` und dem ablehnenden Lesezyklus.
+Dieser Runner konfiguriert oder belegt keine unabhängige Host-Grenze durch
+`server.max-request-size`.
 
 ## No-CRS-Fixture-Isolation und Cleanup
 
