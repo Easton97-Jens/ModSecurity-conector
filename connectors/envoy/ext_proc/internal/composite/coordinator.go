@@ -170,9 +170,7 @@ func (c *Coordinator) dispatchEvents() {
 
 // Err returns the first permanent fail-closed coordinator error, if any.
 func (c *Coordinator) Err() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.fault
+	return c.currentFault()
 }
 
 func (c *Coordinator) currentFault() error {
@@ -300,7 +298,7 @@ func (c *Coordinator) BeginRequest(ctx context.Context, meta processor.StreamMet
 	if c.closed || c.fault != nil {
 		fault := c.fault
 		c.mu.Unlock()
-		tx.Close(context.Background(), e.summary)
+		tx.Close(context.WithoutCancel(ctx), e.summary)
 		c.releaseCapacity()
 		if fault != nil {
 			return nil, processor.Decision{}, fault
@@ -316,7 +314,7 @@ func (c *Coordinator) BeginRequest(ctx context.Context, meta processor.StreamMet
 	}
 	if decision.Action != processor.ActionAllow {
 		e.mu.Lock()
-		e.blocked = true
+		e.markBlockedLocked()
 		e.mu.Unlock()
 		return &Admission{c: c, e: e}, decision, nil
 	}
@@ -348,6 +346,10 @@ func (c *Coordinator) releaseCapacity() {
 	}
 }
 
+func (e *entry) markBlockedLocked() {
+	e.blocked = true
+}
+
 func (a *Admission) ProcessBody(ctx context.Context, body []byte, endStream bool) (processor.Decision, error) {
 	if a == nil || a.e == nil {
 		return processor.Decision{}, ErrClosed
@@ -360,13 +362,13 @@ func (a *Admission) ProcessBody(ctx context.Context, body []byte, endStream bool
 		}
 		if errors.Is(err, ErrLimit) {
 			a.e.mu.Lock()
-			a.e.blocked = true
+			a.e.markBlockedLocked()
 			a.e.mu.Unlock()
 		} else if err != nil {
 			a.e.finish(ctx, why)
 		} else {
 			a.e.mu.Lock()
-			a.e.blocked = true
+			a.e.markBlockedLocked()
 			a.e.mu.Unlock()
 		}
 		if err == nil {
@@ -380,7 +382,7 @@ func (a *Admission) ProcessBody(ctx context.Context, body []byte, endStream bool
 		eventErr := a.e.markReservedLeaseLocked()
 		a.e.mu.Unlock()
 		if eventErr != nil {
-			a.e.finish(context.Background(), "event_delivery_failure")
+			a.e.finish(ctx, "event_delivery_failure")
 			return d, eventErr
 		}
 	}
@@ -744,7 +746,7 @@ func (c *Coordinator) Activate(ctx context.Context, token, method, uri string, m
 	}
 	if d.Action != processor.ActionAllow {
 		e.mu.Lock()
-		e.blocked = true
+		e.markBlockedLocked()
 		e.mu.Unlock()
 	} else if endStream {
 		e.mu.Lock()

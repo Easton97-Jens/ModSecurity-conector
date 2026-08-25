@@ -19,6 +19,24 @@ type noProgressEventLogFile struct {
 	writes int
 }
 
+func readEventRecords(t *testing.T, path string) []map[string]any {
+	t.Helper()
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read event log: %v", err)
+	}
+	lines := strings.FieldsFunc(string(content), func(r rune) bool { return r == '\n' })
+	records := make([]map[string]any, 0, len(lines))
+	for _, line := range lines {
+		var record map[string]any
+		if err := json.Unmarshal([]byte(line), &record); err != nil {
+			t.Fatalf("decode event record: %v", err)
+		}
+		records = append(records, record)
+	}
+	return records
+}
+
 func (f *noProgressEventLogFile) Write(p []byte) (int, error) {
 	f.writes++
 	if f.writes == 1 && len(p) > 0 {
@@ -168,19 +186,11 @@ func TestCompositeObserverDefersRotationUntilLifecycleTerminal(t *testing.T) {
 	if info.Size() <= maxSize {
 		t.Fatalf("test did not cross deferred rotation threshold: got %d, want > %d", info.Size(), maxSize)
 	}
-	content, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read event log: %v", err)
+	records := readEventRecords(t, path)
+	if len(records) != 3 {
+		t.Fatalf("active lifecycle was split before terminal: %#v", records)
 	}
-	lines := strings.FieldsFunc(string(content), func(r rune) bool { return r == '\n' })
-	if len(lines) != 3 {
-		t.Fatalf("active lifecycle was split before terminal: %q", content)
-	}
-	for _, line := range lines {
-		var record map[string]any
-		if err := json.Unmarshal([]byte(line), &record); err != nil {
-			t.Fatalf("decode retained record: %v", err)
-		}
+	for _, record := range records {
 		if record["decision_id"] != firstID {
 			t.Fatalf("active lifecycle retained wrong decision: %#v", record)
 		}
@@ -188,18 +198,11 @@ func TestCompositeObserverDefersRotationUntilLifecycleTerminal(t *testing.T) {
 	if err := observer.Observe(largeEvent(secondID, "P1")); err != nil {
 		t.Fatalf("observe post-rotation lifecycle: %v", err)
 	}
-	content, err = os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read rotated event log: %v", err)
+	records = readEventRecords(t, path)
+	if len(records) != 1 {
+		t.Fatalf("rotation did not start a fresh lifecycle window: %#v", records)
 	}
-	lines = strings.FieldsFunc(string(content), func(r rune) bool { return r == '\n' })
-	if len(lines) != 1 {
-		t.Fatalf("rotation did not start a fresh lifecycle window: %q", content)
-	}
-	var record map[string]any
-	if err := json.Unmarshal([]byte(lines[0]), &record); err != nil {
-		t.Fatalf("decode post-rotation record: %v", err)
-	}
+	record := records[0]
 	if record["decision_id"] != secondID {
 		t.Fatalf("rotation retained wrong lifecycle: %#v", record)
 	}
@@ -236,36 +239,22 @@ func TestCompositeObserverClosesRecoveredLifecycleBeforeRotation(t *testing.T) {
 		t.Fatalf("recover observer: %v", err)
 	}
 	defer recoveredCloser.Close()
-	content, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read recovered event log: %v", err)
+	records := readEventRecords(t, path)
+	if len(records) != 3 {
+		t.Fatalf("restart recovery split or lost lifecycle: %#v", records)
 	}
-	lines := strings.FieldsFunc(string(content), func(r rune) bool { return r == '\n' })
-	if len(lines) != 3 {
-		t.Fatalf("restart recovery split or lost lifecycle: %q", content)
-	}
-	var terminal map[string]any
-	if err := json.Unmarshal([]byte(lines[2]), &terminal); err != nil {
-		t.Fatalf("decode recovery terminal: %v", err)
-	}
+	terminal := records[2]
 	if terminal["decision_id"] != firstID || terminal["phase"] != "terminal" || terminal["reason"] != "restart_recovery" || terminal["cleanup_outcome"] != "restart_recovery" {
 		t.Fatalf("missing restart-recovery terminal: %#v", terminal)
 	}
 	if err := recovered.Observe(largeEvent(secondID, "P1")); err != nil {
 		t.Fatalf("observe post-recovery lifecycle: %v", err)
 	}
-	content, err = os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read rotated event log: %v", err)
+	records = readEventRecords(t, path)
+	if len(records) != 1 {
+		t.Fatalf("post-recovery rotation did not start a fresh lifecycle: %#v", records)
 	}
-	lines = strings.FieldsFunc(string(content), func(r rune) bool { return r == '\n' })
-	if len(lines) != 1 {
-		t.Fatalf("post-recovery rotation did not start a fresh lifecycle: %q", content)
-	}
-	var record map[string]any
-	if err := json.Unmarshal([]byte(lines[0]), &record); err != nil {
-		t.Fatalf("decode post-recovery event: %v", err)
-	}
+	record := records[0]
 	if record["decision_id"] != secondID {
 		t.Fatalf("post-recovery rotation retained wrong lifecycle: %#v", record)
 	}

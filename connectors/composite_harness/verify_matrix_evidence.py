@@ -68,7 +68,7 @@ RAW_EVENT_KEYS = {
 }
 SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
 DECISION_ID = re.compile(r"^[A-Za-z0-9_-]{16,256}$")
-RULE_ID = re.compile(r"^[0-9]{1,128}$")
+RULE_ID = re.compile(r"^\d{1,128}$", re.ASCII)
 FORBIDDEN_KEY_WORDS = ("body", "lease", "credential", "secret", "token", "password")
 PIPELINE_METADATA = {
     "envoy": ("envoy.ext_authz", "envoy.ext_proc", "envoy_ext_authz_ext_proc_grpc"),
@@ -168,23 +168,24 @@ def _status(value: Any, path: str) -> int:
 
 
 def _json_value(root: PrivateRuntimeRoot, name: str, label: str, maximum_bytes: int) -> Any:
-    def no_duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-        result: dict[str, Any] = {}
-        for key, value in pairs:
-            if key in result:
-                raise EvidenceError(f"duplicate JSON field: {key}")
-            result[key] = value
-        return result
-
     try:
         text = root.read_text(name, label=label, maximum_bytes=maximum_bytes)
-        return json.loads(text, object_pairs_hook=no_duplicate_pairs)
+        return json.loads(text, object_pairs_hook=_no_duplicate_pairs)
     except EvidenceError:
         raise
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         if isinstance(exc, OSError) and getattr(exc, "errno", None) == 40:
             raise EvidenceError(f"{label} must be a regular non-symlink file") from exc
         raise EvidenceError(f"cannot read JSON {name}: {exc}") from exc
+
+
+def _no_duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise EvidenceError(f"duplicate JSON field: {key}")
+        result[key] = value
+    return result
 
 
 def _safe_leaf_name(name: str, field: str) -> str:
@@ -208,14 +209,6 @@ def _load_observation(root: PrivateRuntimeRoot, name: str, allowed: set[str], re
 def _load_raw_events(root: PrivateRuntimeRoot, name: str) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = []
 
-    def no_duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-        result: dict[str, Any] = {}
-        for key, value in pairs:
-            if key in result:
-                raise EvidenceError(f"duplicate JSON field: {key}")
-            result[key] = value
-        return result
-
     try:
         text = root.read_text(name, label="event log", maximum_bytes=MAX_EVENT_LOG_BYTES)
         for number, raw_line in enumerate(text.splitlines(keepends=True), 1):
@@ -224,7 +217,7 @@ def _load_raw_events(root: PrivateRuntimeRoot, name: str) -> list[dict[str, Any]
             if not raw_line.strip():
                 raise EvidenceError(f"event log line {number} is blank")
             try:
-                event = json.loads(raw_line, object_pairs_hook=no_duplicate_pairs)
+                event = json.loads(raw_line, object_pairs_hook=_no_duplicate_pairs)
             except EvidenceError:
                 raise
             except json.JSONDecodeError as exc:
@@ -270,6 +263,168 @@ def _validate_event(event: dict[str, Any], number: int, connector: str) -> tuple
     if "rule_id" in event:
         _string(event["rule_id"], f"{path}.rule_id", RULE_ID)
     return phase, decision_id
+
+
+def _validate_event_sequence(
+    events: list[dict[str, Any]], connector: str, expected: list[str], case: str
+) -> tuple[str, list[dict[str, Any]]]:
+    ids: set[str] = set()
+    phase_positions: dict[str, int] = {}
+    terminal_cleanup: list[str] = []
+    terminal_position = 0
+    for number, event in enumerate(events, 1):
+        phase, decision_id = _validate_event(event, number, connector)
+        ids.add(decision_id)
+        if phase in PHASES:
+            if phase in phase_positions:
+                raise EvidenceError(f"raw event phase {phase} occurs more than once")
+            phase_positions[phase] = number
+        if phase == "terminal":
+            terminal_position = number
+            terminal_cleanup.append(event.get("cleanup_outcome", ""))
+    if len(ids) != 1:
+        raise EvidenceError("raw case log must contain exactly one decision_id")
+    if tuple(sorted(phase_positions, key=phase_positions.get)) != tuple(expected):
+        raise EvidenceError("raw P1..P4 observer events are missing or out of order")
+    if len(terminal_cleanup) != 1 or terminal_cleanup != ["closed"]:
+        raise EvidenceError("raw case log must contain exactly one terminal cleanup with cleanup_outcome closed")
+    if terminal_position != len(events):
+        raise EvidenceError("raw terminal cleanup must be the final observer event")
+    if case in CASE_RULE_IDS:
+        phase, rule_id = CASE_RULE_IDS[case]
+        event = next(event for event in events if event.get("phase") == phase)
+        if event.get("rule_id") != rule_id:
+            raise EvidenceError(f"{case} requires raw {phase} rule_id={rule_id}")
+    return next(iter(ids)), [
+        event for event in events if event.get("phase") in {"host_action", "request_host_action"}
+    ]
+
+
+def _phase_action(events: list[dict[str, Any]], case: str, phase: str, action: str) -> None:
+    event = next(event for event in events if event.get("phase") == phase)
+    if event.get("requested_action") != action:
+        raise EvidenceError(f"{case} requires raw {phase} requested_action={action}")
+
+
+def _matching_action(
+    action_events: list[dict[str, Any]], action: str, status_class: tuple[int, int] | None = None
+) -> dict[str, Any] | None:
+    for event in action_events:
+        if event.get("actual_host_action") != action:
+            continue
+        status = event.get("visible_status")
+        if status_class is not None and (
+            not isinstance(status, int) or not status_class[0] <= status <= status_class[1]
+        ):
+            continue
+        return event
+    return None
+
+
+def _verify_oversize(
+    events: list[dict[str, Any]], action_events: list[dict[str, Any]], request_terminal: bool, response_observed: bool
+) -> None:
+    oversize = _matching_action(action_events, "deny", (413, 413))
+    p2 = next((event for event in events if event.get("phase") == "P2"), None)
+    if oversize is None or p2 is None or p2.get("visible_status") != 413:
+        raise EvidenceError("P2 oversize requires a raw 413 P2 decision and request-side deny action")
+    if not request_terminal or response_observed:
+        raise EvidenceError("P2 oversize requires request termination before upstream observation")
+
+
+def _verify_allow(
+    events: list[dict[str, Any]], case: str, client_status: Any, request_terminal: bool, response_observed: bool
+) -> None:
+    for phase in ("P1", "P2"):
+        _phase_action(events, case, phase, "allow")
+    if client_status is None or not 200 <= client_status <= 299:
+        raise EvidenceError(f"{case} requires a 2xx client-visible status")
+    if request_terminal or not response_observed:
+        raise EvidenceError(f"{case} requires upstream response observation without request termination")
+    if any(event.get("phase") == "request_host_action" for event in events):
+        raise EvidenceError(f"{case} rejects request_host_action evidence")
+
+
+def _verify_timeout(
+    events: list[dict[str, Any]], client_status: Any, request_terminal: bool, response_observed: bool,
+    p4_committed: bool, p4_outcome: str,
+) -> None:
+    for phase in ("P1", "P2"):
+        _phase_action(events, "p2_to_p3_timeout", phase, "allow")
+    if client_status != 503:
+        raise EvidenceError("P2-to-P3 timeout requires a real 503 client status")
+    if request_terminal or not response_observed:
+        raise EvidenceError("P2-to-P3 timeout requires upstream request observation without request termination")
+    if p4_committed or p4_outcome != "none":
+        raise EvidenceError("P2-to-P3 timeout must stop before P4 response commitment")
+    lease = next((event for event in events if event.get("phase") == "lease"), None)
+    terminal = next((event for event in events if event.get("phase") == "terminal"), None)
+    if lease is None or terminal is None or terminal.get("reason") != "timeout":
+        raise EvidenceError("P2-to-P3 timeout requires lease issuance followed by timeout cleanup")
+
+
+def _verify_denial(
+    events: list[dict[str, Any]], action_events: list[dict[str, Any]], case: str,
+    client_status: Any, request_terminal: bool, response_observed: bool,
+) -> None:
+    if client_status is None or not 400 <= client_status <= 599 or _matching_action(
+        action_events, "deny", (client_status, client_status)
+    ) is None:
+        raise EvidenceError(f"{case} requires matching raw deny action and client-visible status")
+    if case in {"p1_deny", "p2_deny"} and (not request_terminal or response_observed):
+        raise EvidenceError(f"{case} requires request termination before upstream observation")
+    if case == "p1_deny":
+        _phase_action(events, case, "P1", "deny")
+    if case == "p2_deny":
+        _phase_action(events, case, "P1", "allow")
+        _phase_action(events, case, "P2", "deny")
+    if case == "p3_deny":
+        _phase_action(events, case, "P3", "deny")
+        if request_terminal or not response_observed:
+            raise EvidenceError("p3_deny requires upstream response observation without request termination")
+
+
+def _verify_redirect(
+    events: list[dict[str, Any]], action_events: list[dict[str, Any]], client_status: Any,
+    request_terminal: bool, response_observed: bool,
+) -> None:
+    if client_status is None or not 300 <= client_status <= 399 or _matching_action(
+        action_events, "redirect", (client_status, client_status)
+    ) is None:
+        raise EvidenceError("P3 redirect requires matching raw redirect action and client-visible status")
+    _phase_action(events, "p3_redirect", "P3", "redirect")
+    if request_terminal or not response_observed:
+        raise EvidenceError("p3_redirect requires upstream response observation without request termination")
+
+
+def _verify_p4_safe(
+    events: list[dict[str, Any]], action_events: list[dict[str, Any]], p4_outcome: str,
+    request_terminal: bool, response_observed: bool, p4_committed: bool,
+) -> None:
+    p4_events = [event for event in events if event.get("phase") == "P4"]
+    if not p4_events or _matching_action(action_events, "log_only") is None:
+        raise EvidenceError("P4 Safe requires raw P4 and host_action=log_only evidence")
+    if p4_outcome != "none":
+        raise EvidenceError("P4 Safe cannot claim a client abort/reset")
+    if request_terminal or not response_observed or not p4_committed:
+        raise EvidenceError("P4 Safe requires a committed upstream response without request termination")
+
+
+def _verify_metadata_omitted(
+    events: list[dict[str, Any]], client_status: Any, request_terminal: bool,
+    response_observed: bool, p4_committed: bool,
+) -> None:
+    if client_status != 503:
+        raise EvidenceError("missing lease metadata requires a fail-closed 503 client status")
+    if request_terminal or response_observed or p4_committed:
+        raise EvidenceError("missing lease metadata must stop before upstream response observation")
+    reservations = [event for event in events if event.get("phase") == "reservation"]
+    lease = next((event for event in events if event.get("phase") == "lease"), None)
+    terminal = next((event for event in events if event.get("phase") == "terminal"), None)
+    if len(reservations) != 1 or lease is not None or terminal is None or terminal.get("reason") not in {"abort", "disconnect"}:
+        raise EvidenceError(
+            "missing lease metadata requires one pre-admission reservation and abort/disconnect cleanup without a lease event"
+        )
 
 
 def _verify(manifest_path: Path, runtime_root: PrivateRuntimeRoot, expected_event_log: Path | None = None) -> Verification:
@@ -329,139 +484,24 @@ def _verify(manifest_path: Path, runtime_root: PrivateRuntimeRoot, expected_even
         raise EvidenceError("manifest.cleanup.status must be completed")
 
     events = _load_raw_events(runtime_root, event_log)
-    ids: set[str] = set()
-    phase_positions: dict[str, int] = {}
-    terminal_count = 0
-    terminal_position = 0
-    terminal_cleanup: list[str] = []
-    for number, event in enumerate(events, 1):
-        phase, decision_id = _validate_event(event, number, connector)
-        ids.add(decision_id)
-        if phase in PHASES:
-            if phase in phase_positions:
-                raise EvidenceError(f"raw event phase {phase} occurs more than once")
-            phase_positions[phase] = number
-        if phase == "terminal":
-            terminal_count += 1
-            terminal_position = number
-            terminal_cleanup.append(event.get("cleanup_outcome", ""))
-    if len(ids) != 1:
-        raise EvidenceError("raw case log must contain exactly one decision_id")
-    if tuple(sorted(phase_positions, key=phase_positions.get)) != tuple(expected):
-        raise EvidenceError("raw P1..P4 observer events are missing or out of order")
-    if terminal_count != 1 or terminal_cleanup != ["closed"]:
-        raise EvidenceError("raw case log must contain exactly one terminal cleanup with cleanup_outcome closed")
-    if terminal_position != len(events):
-        raise EvidenceError("raw terminal cleanup must be the final observer event")
-
-    if case in CASE_RULE_IDS:
-        phase, rule_id = CASE_RULE_IDS[case]
-        event = next(event for event in events if event.get("phase") == phase)
-        if event.get("rule_id") != rule_id:
-            raise EvidenceError(f"{case} requires raw {phase} rule_id={rule_id}")
-
-    decision_id = next(iter(ids))
-    action_events = [event for event in events if event.get("phase") in {"host_action", "request_host_action"}]
-
-    def phase_action(phase: str, action: str) -> None:
-        event = next(event for event in events if event.get("phase") == phase)
-        if event.get("requested_action") != action:
-            raise EvidenceError(f"{case} requires raw {phase} requested_action={action}")
-
-    def matching_action(action: str, status_class: tuple[int, int] | None = None) -> dict[str, Any] | None:
-        for event in action_events:
-            if event.get("actual_host_action") != action:
-                continue
-            status = event.get("visible_status")
-            if status_class is not None and (not isinstance(status, int) or not status_class[0] <= status <= status_class[1]):
-                continue
-            return event
-        return None
+    decision_id, action_events = _validate_event_sequence(events, connector, expected, case)
 
     if case == "p2_oversize":
-        oversize = matching_action("deny", (413, 413))
-        p2 = next((event for event in events if event.get("phase") == "P2"), None)
-        if oversize is None or p2 is None or p2.get("visible_status") != 413:
-            raise EvidenceError("P2 oversize requires a raw 413 P2 decision and request-side deny action")
-        if not request_terminal or response_observed:
-            raise EvidenceError("P2 oversize requires request termination before upstream observation")
-    if case in {"p1_allow", "p2_allow"}:
-        for phase in ("P1", "P2"):
-            phase_action = next(event for event in events if event.get("phase") == phase)
-            if phase_action.get("requested_action") != "allow":
-                raise EvidenceError(f"{case} requires raw {phase} allow evidence")
-        if client_status is None or not 200 <= client_status <= 299:
-            raise EvidenceError(f"{case} requires a 2xx client-visible status")
-        if request_terminal or not response_observed:
-            raise EvidenceError(f"{case} requires upstream response observation without request termination")
-        if any(event.get("phase") == "request_host_action" for event in events):
-            raise EvidenceError(f"{case} rejects request_host_action evidence")
-    if case == "p2_to_p3_timeout":
-        for phase in ("P1", "P2"):
-            phase_event = next(event for event in events if event.get("phase") == phase)
-            if phase_event.get("requested_action") != "allow":
-                raise EvidenceError(f"{case} requires raw {phase} allow evidence")
-        if client_status != 503:
-            raise EvidenceError("P2-to-P3 timeout requires a real 503 client status")
-        if request_terminal or not response_observed:
-            raise EvidenceError(
-                "P2-to-P3 timeout requires upstream request observation without request termination"
-            )
-        if p4_committed or p4_outcome != "none":
-            raise EvidenceError(
-                "P2-to-P3 timeout must stop before P4 response commitment"
-            )
-        lease = next((event for event in events if event.get("phase") == "lease"), None)
-        terminal = next((event for event in events if event.get("phase") == "terminal"), None)
-        if lease is None or terminal is None or terminal.get("reason") != "timeout":
-            raise EvidenceError(
-                "P2-to-P3 timeout requires lease issuance followed by timeout cleanup"
-            )
-    if case in {"p1_deny", "p2_deny", "p3_deny"}:
-        if client_status is None or not 400 <= client_status <= 599 or matching_action("deny", (client_status, client_status)) is None:
-            raise EvidenceError(f"{case} requires matching raw deny action and client-visible status")
-        if case in {"p1_deny", "p2_deny"} and (not request_terminal or response_observed):
-            raise EvidenceError(f"{case} requires request termination before upstream observation")
-    if case == "p1_deny":
-        phase_action("P1", "deny")
-    if case in {"p2_deny", "p2_oversize"}:
-        phase_action("P1", "allow")
-        phase_action("P2", "deny")
-    if case == "p3_deny":
-        phase_action("P3", "deny")
-        if request_terminal or not response_observed:
-            raise EvidenceError("p3_deny requires upstream response observation without request termination")
-    if case == "p3_redirect":
-        if client_status is None or not 300 <= client_status <= 399 or matching_action("redirect", (client_status, client_status)) is None:
-            raise EvidenceError("P3 redirect requires matching raw redirect action and client-visible status")
-        phase_action("P3", "redirect")
-        if request_terminal or not response_observed:
-            raise EvidenceError("p3_redirect requires upstream response observation without request termination")
-    if case == "p4_safe":
-        p4_events = [event for event in events if event.get("phase") == "P4"]
-        if not p4_events or matching_action("log_only") is None:
-            raise EvidenceError("P4 Safe requires raw P4 and host_action=log_only evidence")
-        if p4_outcome != "none":
-            raise EvidenceError("P4 Safe cannot claim a client abort/reset")
-        if request_terminal or not response_observed or not p4_committed:
-            raise EvidenceError("P4 Safe requires a committed upstream response without request termination")
-    if case == "metadata_omitted":
-        if client_status != 503:
-            raise EvidenceError("missing lease metadata requires a fail-closed 503 client status")
-        if request_terminal or response_observed or p4_committed:
-            raise EvidenceError("missing lease metadata must stop before upstream response observation")
-        reservations = [event for event in events if event.get("phase") == "reservation"]
-        lease = next((event for event in events if event.get("phase") == "lease"), None)
-        terminal = next((event for event in events if event.get("phase") == "terminal"), None)
-        if (
-            len(reservations) != 1
-            or lease is not None
-            or terminal is None
-            or terminal.get("reason") not in {"abort", "disconnect"}
-        ):
-            raise EvidenceError(
-                "missing lease metadata requires one pre-admission reservation and abort/disconnect cleanup without a lease event"
-            )
+        _verify_oversize(events, action_events, request_terminal, response_observed)
+        _phase_action(events, case, "P1", "allow")
+        _phase_action(events, case, "P2", "deny")
+    elif case in {"p1_allow", "p2_allow"}:
+        _verify_allow(events, case, client_status, request_terminal, response_observed)
+    elif case == "p2_to_p3_timeout":
+        _verify_timeout(events, client_status, request_terminal, response_observed, p4_committed, p4_outcome)
+    elif case in {"p1_deny", "p2_deny", "p3_deny"}:
+        _verify_denial(events, action_events, case, client_status, request_terminal, response_observed)
+    elif case == "p3_redirect":
+        _verify_redirect(events, action_events, client_status, request_terminal, response_observed)
+    elif case == "p4_safe":
+        _verify_p4_safe(events, action_events, p4_outcome, request_terminal, response_observed, p4_committed)
+    elif case == "metadata_omitted":
+        _verify_metadata_omitted(events, client_status, request_terminal, response_observed, p4_committed)
     if case == "p4_strict":
         # A driver-side observation is not proof that Envoy/Traefik invoked a
         # real client-visible reset/abort primitive. No current runner has that

@@ -438,6 +438,8 @@ def ensure_safe_runtime_directory(path: Path | str) -> Path:
 
 _PRIVATE_RUNTIME_DIRECTORY_MODE = 0o700
 _PRIVATE_RUNTIME_FILE_MODE = 0o600
+_PRIVATE_RUNTIME_ROOT_LABEL = "private runtime root"
+_PRIVATE_RUNTIME_ARTIFACT_NOFOLLOW_ERROR = "private runtime artifacts require O_NOFOLLOW"
 _MAX_PRIVATE_RUNTIME_LEAF_NAME = 128
 
 
@@ -469,6 +471,51 @@ def _require_private_runtime_file(details: os.stat_result, label: str) -> None:
         raise ValueError(f"{label} must have private mode 0600")
     if details.st_nlink != 1:
         raise ValueError(f"{label} must not have additional hard links")
+
+
+def _close_runtime_descriptor(descriptor: int) -> None:
+    if descriptor < 0:
+        return
+    try:
+        os.close(descriptor)
+    except OSError:
+        pass
+
+
+def _open_private_runtime_components(
+    root: Path, descriptor: int, flags: int
+) -> tuple[int, int]:
+    current_path = Path("/")
+    shared_temp_root: Path | None = None
+    parent_descriptor = -1
+    components = root.parts[1:]
+    try:
+        for index, component in enumerate(components):
+            child_descriptor = -1
+            try:
+                try:
+                    child_descriptor = os.open(component, flags, dir_fd=descriptor)
+                except OSError as exc:
+                    raise ValueError(
+                        f"private runtime root is unavailable or unsafe: {root}: {exc}"
+                    ) from exc
+                if index == len(components) - 1:
+                    parent_descriptor = os.dup(descriptor)
+                os.close(descriptor)
+                descriptor = child_descriptor
+                child_descriptor = -1
+                current_path /= component
+                shared_temp_root = _validate_runtime_ancestor(
+                    descriptor, current_path, shared_temp_root
+                )
+            except BaseException:
+                _close_runtime_descriptor(child_descriptor)
+                raise
+        return descriptor, parent_descriptor
+    except BaseException:
+        _close_runtime_descriptor(descriptor)
+        _close_runtime_descriptor(parent_descriptor)
+        raise
 
 
 class PrivateRuntimeRoot:
@@ -503,29 +550,19 @@ class PrivateRuntimeRoot:
         if not directory_flag or not no_follow:
             raise ValueError("private runtime roots require O_DIRECTORY and O_NOFOLLOW")
         descriptor, flags = _open_runtime_root_descriptor()
-        current_path = Path("/")
-        shared_temp_root: Path | None = None
         parent_descriptor = -1
         leaf_name = root.name
         try:
-            components = root.parts[1:]
-            for index, component in enumerate(components):
-                try:
-                    child_descriptor = os.open(component, flags, dir_fd=descriptor)
-                except OSError as exc:
-                    raise ValueError(
-                        f"private runtime root is unavailable or unsafe: {root}: {exc}"
-                    ) from exc
-                if index == len(components) - 1:
-                    parent_descriptor = os.dup(descriptor)
-                os.close(descriptor)
-                descriptor = child_descriptor
-                current_path /= component
-                shared_temp_root = _validate_runtime_ancestor(
-                    descriptor, current_path, shared_temp_root
+            try:
+                descriptor, parent_descriptor = _open_private_runtime_components(
+                    root, descriptor, flags
                 )
+            except BaseException:
+                descriptor = -1
+                parent_descriptor = -1
+                raise
             details = os.fstat(descriptor)
-            _require_private_runtime_directory(details, "private runtime root")
+            _require_private_runtime_directory(details, _PRIVATE_RUNTIME_ROOT_LABEL)
             handle = cls(
                 descriptor,
                 (details.st_dev, details.st_ino),
@@ -557,7 +594,7 @@ class PrivateRuntimeRoot:
         details = os.fstat(self._descriptor)
         if (details.st_dev, details.st_ino) != self._identity:
             raise ValueError("private runtime root descriptor identity changed")
-        _require_private_runtime_directory(details, "private runtime root")
+        _require_private_runtime_directory(details, _PRIVATE_RUNTIME_ROOT_LABEL)
         try:
             current = os.stat(
                 self._name, dir_fd=self._parent_descriptor, follow_symlinks=False
@@ -566,7 +603,7 @@ class PrivateRuntimeRoot:
             raise ValueError("private runtime root path was replaced") from error
         if (current.st_dev, current.st_ino) != self._identity:
             raise ValueError("private runtime root path was replaced")
-        _require_private_runtime_directory(current, "private runtime root")
+        _require_private_runtime_directory(current, _PRIVATE_RUNTIME_ROOT_LABEL)
 
     def create_text(self, name: str, value: str, label: str = "private artifact") -> None:
         name = _private_runtime_leaf_name(name, label)
@@ -575,7 +612,7 @@ class PrivateRuntimeRoot:
         self._assert_identity()
         no_follow = getattr(os, "O_NOFOLLOW", 0)
         if not no_follow:
-            raise ValueError("private runtime artifacts require O_NOFOLLOW")
+            raise ValueError(_PRIVATE_RUNTIME_ARTIFACT_NOFOLLOW_ERROR)
         descriptor = os.open(
             name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow,
             _PRIVATE_RUNTIME_FILE_MODE, dir_fd=self._descriptor
@@ -599,7 +636,7 @@ class PrivateRuntimeRoot:
         self._assert_identity()
         no_follow = getattr(os, "O_NOFOLLOW", 0)
         if not no_follow:
-            raise ValueError("private runtime artifacts require O_NOFOLLOW")
+            raise ValueError(_PRIVATE_RUNTIME_ARTIFACT_NOFOLLOW_ERROR)
         descriptor = os.open(name, os.O_RDONLY | no_follow, dir_fd=self._descriptor)
         try:
             details = os.fstat(descriptor)
@@ -625,7 +662,7 @@ class PrivateRuntimeRoot:
         _require_private_runtime_file(original, label)
         no_follow = getattr(os, "O_NOFOLLOW", 0)
         if not no_follow:
-            raise ValueError("private runtime artifacts require O_NOFOLLOW")
+            raise ValueError(_PRIVATE_RUNTIME_ARTIFACT_NOFOLLOW_ERROR)
         temporary = f".{name}.{secrets.token_hex(16)}.tmp"
         descriptor = os.open(
             temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow,

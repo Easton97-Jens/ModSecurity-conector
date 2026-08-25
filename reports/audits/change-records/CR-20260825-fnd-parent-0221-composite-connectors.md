@@ -267,3 +267,25 @@ parsing and a TLS-enabled matrix run remain `blocked_environment`. The next
 steps are the authorized scoped commit/push and exact-successor hosted Sonar
 verification. The Draft PR remains `DIRTY`; no rebase, conflict-resolution
 commit, or merge is authorized.
+
+## Sonar zero-new-code remediation (hosted confirmation pending)
+
+A separate, bounded follow-up refactors the 92 current New-Code Code Smells
+and six duplicated blocks reported for this Draft PR. It changes no Sonar
+configuration, quality gate, exclusion, accepted-issue state, coverage input,
+or suppression. The source changes are limited to behavior-preserving helper
+extraction, literal reuse, dispatcher decomposition, and focused test-fixture
+reuse.
+
+The current local source review identifies a structural remediation for every
+reported issue and duplicate block. Uncached validation passed for the full
+Envoy and Traefik Go suites, the relevant Envoy race suites, both Go vet
+suites, 53 Python runtime/evidence/harness tests, Go formatting, shell syntax,
+and diff whitespace. An independent security review also confirmed that the
+temporary descriptor-cleanup and UDS outcome-routing regressions found during
+this follow-up are fixed and that fail-closed controls remain intact.
+
+The exact successor-head SonarCloud analysis is still required for final
+metric proof; this record deliberately does not claim a hosted zero result
+before that analysis completes. The PR remains Draft and no merge is
+authorized.

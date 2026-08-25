@@ -23,15 +23,16 @@ import (
 )
 
 const (
-	frameSize      = 12
-	maxFrame       = 64 << 10
-	maxChunk       = 32 << 10
-	maxTokenSize   = 256
-	maxRedirect    = 4096
-	maxHeaderCount = 256
-	maxHeaderBytes = 64 << 10
-	maxHeaderName  = 256
-	maxHeaderValue = 8192
+	frameSize         = 12
+	maxFrame          = 64 << 10
+	maxChunk          = 32 << 10
+	maxTokenSize      = 256
+	maxRedirect       = 4096
+	maxHeaderCount    = 256
+	maxHeaderBytes    = 64 << 10
+	maxHeaderName     = 256
+	maxHeaderValue    = 8192
+	envoyStatusHeader = ":status"
 
 	opClaim           byte = 1
 	opReserve         byte = 8
@@ -209,123 +210,52 @@ type wireResult struct {
 }
 
 func (s *udsSession) dispatch(ctx context.Context, op byte, p []byte) (wireResult, bool) {
-	if op == opReserve {
-		if s.leaseToken != "" {
-			return wireResult{decision: decisionDeny, status: 409}, true
-		}
-		snapshot, err := parseReservationSnapshot(p)
-		if err != nil {
-			return wireResult{decision: decisionDeny, status: 503}, true
-		}
-		defer wipeParsedHeaders(snapshot.Headers)
-		token, err := s.svc.Coordinator.Reserve(s.session, snapshot)
-		if err != nil {
-			return wireResult{decision: decisionDeny, status: 503}, true
-		}
-		s.leaseToken = token
-		return wireResult{token: token}, false
+	result, terminal, handled := s.dispatchControl(ctx, op, p)
+	if handled {
+		return result, terminal
 	}
-	if op == opClaim {
-		if s.claimed {
-			return wireResult{decision: decisionDeny, status: 409}, true
-		}
-		token, err := parseToken(p)
-		if err != nil {
-			return wireResult{decision: decisionDeny, status: 503}, true
-		}
-		if s.leaseToken == "" || token != s.leaseToken {
-			return wireResult{decision: decisionDeny, status: 503}, true
-		}
-		resp, err := s.svc.Coordinator.Claim(token, s.session)
-		if err != nil {
-			if errors.Is(err, composite.ErrNotAllowed) {
-				s.requestTerminal = true
-				return wireResult{flags: resultFlagRequestTerminal}, false
-			}
-			return wireResult{decision: decisionDeny, status: 503}, true
-		}
-		s.response, s.claimed = resp, true
-		return wireResult{}, false
-	}
-	if s.requestTerminal {
-		if op == opFinish {
-			s.cleanup(ctx, "finish")
-			return wireResult{}, true
-		}
-		return wireResult{decision: decisionDeny, status: 503}, true
-	}
-	if !s.claimed || s.response == nil || s.finished {
-		return wireResult{decision: decisionDeny, status: 503}, true
-	}
-	var d processor.Decision
-	var err error
-	switch op {
-	case opResponseHeaders:
-		if s.responseHeaders || s.responseCommitted || s.responseEOS {
-			return wireResult{decision: decisionDeny, status: 409}, true
-		}
-		h, parseErr := parseResponseHeaders(p)
-		if parseErr != nil {
-			return wireResult{decision: decisionDeny, status: 503}, true
-		}
-		d, err = s.response.Headers(ctx, h, false)
-		s.upstreamStatus = headerStatus(h)
-	case opResponseChunk:
-		if !s.responseHeaders || !s.responseCommitted || s.responseEOS {
-			return wireResult{decision: decisionDeny, status: 409}, true
-		}
-		if len(p) > maxChunk {
-			return wireResult{decision: decisionDeny, status: 503}, true
-		}
-		d, err = s.response.Body(ctx, p, false)
-		s.responseChunk = true
-	case opResponseEOS:
-		if !s.responseHeaders || !s.responseCommitted || s.responseEOS {
-			return wireResult{decision: decisionDeny, status: 409}, true
-		}
-		d, err = s.response.Body(ctx, nil, true)
-		s.responseEOS = true
-	case opResponseCommit:
-		if !s.responseHeaders || s.responseCommitted || s.responseEOS {
-			return wireResult{decision: decisionDeny, status: 409}, true
-		}
-		if len(p) != 2 || p[0] != 1 || p[1] != 0 {
-			return wireResult{decision: decisionDeny, status: 400}, true
-		}
-		committer, ok := any(s.response).(interface{ MarkResponseCommitted(context.Context) error })
-		if !ok {
-			return wireResult{decision: decisionDeny, status: 503}, true
-		}
-		err = committer.MarkResponseCommitted(ctx)
-		s.responseCommitted = err == nil
-		d = processor.Decision{Action: processor.ActionAllow}
-	case opOutcome:
-		if len(p) != 3 || (s.responseCommitted && !s.responseEOS) || (!s.responseCommitted && p[0] != 1 && p[0] != 2) || (s.responseCommitted && (p[0] == 1 || p[0] == 2)) {
-			return wireResult{decision: decisionDeny, status: 409}, true
-		}
-		if p[0] == 0 && (s.p3Action != processor.ActionAllow || s.p4Disruptive) {
-			return wireResult{decision: decisionDeny, status: 409}, true
-		}
-		if (p[0] == 1 || p[0] == 2) && (s.responseCommitted || s.p3Action == processor.ActionAllow || (p[0] == 1 && s.p3Action != processor.ActionDeny) || (p[0] == 2 && s.p3Action != processor.ActionRedirect)) {
-			return wireResult{decision: decisionDeny, status: 409}, true
-		}
-		if p[0] == 3 && !s.p4Disruptive {
-			return wireResult{decision: decisionDeny, status: 409}, true
-		}
-		if !s.outcomeStatusMatches(p[0], int(binary.BigEndian.Uint16(p[1:]))) {
-			return wireResult{decision: decisionDeny, status: 409}, true
-		}
-		err = s.recordOutcome(ctx, p)
-		d = processor.Decision{Action: processor.ActionAllow}
-	case opFinish:
-		s.cleanup(ctx, "finish")
-		return wireResult{}, true
-	default:
-		return wireResult{decision: decisionDeny, status: 400}, true
+	result, terminal, d, err := s.dispatchResponse(ctx, op, p)
+	if terminal {
+		return result, true
 	}
 	if err != nil {
 		return wireResult{decision: decisionDeny, status: 503}, true
 	}
+	s.applyResponseDecision(op, d)
+	return decisionResult(d), false
+}
+
+func (s *udsSession) dispatchControl(ctx context.Context, op byte, p []byte) (wireResult, bool, bool) {
+	if op == opReserve {
+		result, terminal := s.dispatchReserve(p)
+		return result, terminal, true
+	}
+	if op == opClaim {
+		result, terminal := s.dispatchClaim(p)
+		return result, terminal, true
+	}
+	if s.requestTerminal {
+		if op == opFinish {
+			s.cleanup(ctx, "finish")
+			return wireResult{}, true, true
+		}
+		return wireResult{decision: decisionDeny, status: 503}, true, true
+	}
+	if !s.claimed || s.response == nil || s.finished {
+		return wireResult{decision: decisionDeny, status: 503}, true, true
+	}
+	if op == opOutcome {
+		result, terminal := s.dispatchOutcome(ctx, p)
+		return result, terminal, true
+	}
+	if op == opFinish {
+		s.cleanup(ctx, "finish")
+		return wireResult{}, true, true
+	}
+	return wireResult{}, false, false
+}
+
+func (s *udsSession) applyResponseDecision(op byte, d processor.Decision) {
 	if d.Action != processor.ActionAllow {
 		s.sawDisruptive = true
 		if op == opResponseHeaders {
@@ -349,7 +279,115 @@ func (s *udsSession) dispatch(ctx context.Context, op byte, p []byte) (wireResul
 			s.expectedOutcomeStatus = int(decisionResult(d).status)
 		}
 	}
-	return decisionResult(d), false
+}
+
+func (s *udsSession) dispatchResponse(ctx context.Context, op byte, p []byte) (wireResult, bool, processor.Decision, error) {
+	var d processor.Decision
+	var err error
+	switch op {
+	case opResponseHeaders:
+		if s.responseHeaders || s.responseCommitted || s.responseEOS {
+			return wireResult{decision: decisionDeny, status: 409}, true, d, nil
+		}
+		h, parseErr := parseResponseHeaders(p)
+		if parseErr != nil {
+			return wireResult{decision: decisionDeny, status: 503}, true, d, nil
+		}
+		d, err = s.response.Headers(ctx, h, false)
+		s.upstreamStatus = headerStatus(h)
+	case opResponseChunk:
+		if !s.responseHeaders || !s.responseCommitted || s.responseEOS {
+			return wireResult{decision: decisionDeny, status: 409}, true, d, nil
+		}
+		if len(p) > maxChunk {
+			return wireResult{decision: decisionDeny, status: 503}, true, d, nil
+		}
+		d, err = s.response.Body(ctx, p, false)
+		s.responseChunk = true
+	case opResponseEOS:
+		if !s.responseHeaders || !s.responseCommitted || s.responseEOS {
+			return wireResult{decision: decisionDeny, status: 409}, true, d, nil
+		}
+		d, err = s.response.Body(ctx, nil, true)
+		s.responseEOS = true
+	case opResponseCommit:
+		if !s.responseHeaders || s.responseCommitted || s.responseEOS {
+			return wireResult{decision: decisionDeny, status: 409}, true, d, nil
+		}
+		if len(p) != 2 || p[0] != 1 || p[1] != 0 {
+			return wireResult{decision: decisionDeny, status: 400}, true, d, nil
+		}
+		committer, ok := any(s.response).(interface{ MarkResponseCommitted(context.Context) error })
+		if !ok {
+			return wireResult{decision: decisionDeny, status: 503}, true, d, nil
+		}
+		err = committer.MarkResponseCommitted(ctx)
+		s.responseCommitted = err == nil
+		d = processor.Decision{Action: processor.ActionAllow}
+	default:
+		return wireResult{decision: decisionDeny, status: 400}, true, d, nil
+	}
+	return wireResult{}, false, d, err
+}
+
+func (s *udsSession) dispatchOutcome(ctx context.Context, p []byte) (wireResult, bool) {
+	if !s.validOutcomeShape(p) || !s.outcomeStatusMatches(p[0], int(binary.BigEndian.Uint16(p[1:]))) {
+		return wireResult{decision: decisionDeny, status: 409}, true
+	}
+	if err := s.recordOutcome(ctx, p); err != nil {
+		return wireResult{decision: decisionDeny, status: 503}, true
+	}
+	return wireResult{}, false
+}
+
+func (s *udsSession) validOutcomeShape(p []byte) bool {
+	if len(p) != 3 || (s.responseCommitted && !s.responseEOS) || (!s.responseCommitted && p[0] != 1 && p[0] != 2) || (s.responseCommitted && (p[0] == 1 || p[0] == 2)) {
+		return false
+	}
+	if p[0] == 0 && (s.p3Action != processor.ActionAllow || s.p4Disruptive) {
+		return false
+	}
+	if (p[0] == 1 || p[0] == 2) && (s.responseCommitted || s.p3Action == processor.ActionAllow || (p[0] == 1 && s.p3Action != processor.ActionDeny) || (p[0] == 2 && s.p3Action != processor.ActionRedirect)) {
+		return false
+	}
+	return p[0] != 3 || s.p4Disruptive
+}
+
+func (s *udsSession) dispatchReserve(p []byte) (wireResult, bool) {
+	if s.leaseToken != "" {
+		return wireResult{decision: decisionDeny, status: 409}, true
+	}
+	snapshot, err := parseReservationSnapshot(p)
+	if err != nil {
+		return wireResult{decision: decisionDeny, status: 503}, true
+	}
+	defer wipeParsedHeaders(snapshot.Headers)
+	token, err := s.svc.Coordinator.Reserve(s.session, snapshot)
+	if err != nil {
+		return wireResult{decision: decisionDeny, status: 503}, true
+	}
+	s.leaseToken = token
+	return wireResult{token: token}, false
+}
+
+func (s *udsSession) dispatchClaim(p []byte) (wireResult, bool) {
+	if s.claimed {
+		return wireResult{decision: decisionDeny, status: 409}, true
+	}
+	token, err := parseToken(p)
+	if err != nil || s.leaseToken == "" || token != s.leaseToken {
+		return wireResult{decision: decisionDeny, status: 503}, true
+	}
+	resp, err := s.svc.Coordinator.Claim(token, s.session)
+	if err == nil {
+		s.response, s.claimed = resp, true
+		return wireResult{}, false
+	}
+	if errors.Is(err, composite.ErrNotAllowed) {
+		s.requestTerminal = true
+		return wireResult{flags: resultFlagRequestTerminal}, false
+	}
+	return wireResult{decision: decisionDeny, status: 503}, true
 }
 
 func (s *udsSession) recordOutcome(ctx context.Context, p []byte) error {
@@ -569,52 +607,65 @@ func parseReservationSnapshot(p []byte) (composite.ReservationSnapshot, error) {
 	if groups > maxHeaderCount {
 		return composite.ReservationSnapshot{}, errMSC2
 	}
-	headers := make([]processor.Header, 0, groups)
-	lastName := ""
-	hostValues := 0
-	total := 0
-	for group := 0; group < groups; group++ {
-		name, next, err := reservationText(p, i, maxHeaderName)
-		if err != nil || name != strings.ToLower(name) || !validHeaderName(name) ||
-			(lastName != "" && name <= lastName) || internalSnapshotHeader(name) {
-			wipeParsedHeaders(headers)
-			return composite.ReservationSnapshot{}, errMSC2
-		}
-		i = next
-		if i+2 > len(p) {
-			wipeParsedHeaders(headers)
-			return composite.ReservationSnapshot{}, errMSC2
-		}
-		values := int(binary.BigEndian.Uint16(p[i : i+2]))
-		i += 2
-		if values == 0 || values > maxHeaderCount-len(headers) {
-			wipeParsedHeaders(headers)
-			return composite.ReservationSnapshot{}, errMSC2
-		}
-		for valueIndex := 0; valueIndex < values; valueIndex++ {
-			value, next, err := reservationBytes(p, i, maxHeaderValue)
-			if err != nil || invalidReservationValue(value) {
-				wipeParsedHeaders(headers)
-				return composite.ReservationSnapshot{}, errMSC2
-			}
-			i = next
-			total += len(name) + len(value)
-			if total > maxHeaderBytes {
-				wipeParsedHeaders(headers)
-				return composite.ReservationSnapshot{}, errMSC2
-			}
-			headers = append(headers, processor.Header{Name: name, Value: append([]byte(nil), value...)})
-		}
-		if name == "host" {
-			hostValues += values
-		}
-		lastName = name
+	headers, next, hostValues, err := parseReservationGroups(p, i, groups)
+	if err != nil {
+		return composite.ReservationSnapshot{}, errMSC2
 	}
+	i = next
 	if i != len(p) || hostValues != 1 {
 		wipeParsedHeaders(headers)
 		return composite.ReservationSnapshot{}, errMSC2
 	}
 	return composite.ReservationSnapshot{Version: composite.ReservationSnapshotVersion, Method: method, URI: uri, Headers: headers}, nil
+}
+
+func parseReservationGroups(p []byte, offset, groups int) ([]processor.Header, int, int, error) {
+	headers := make([]processor.Header, 0, groups)
+	lastName := ""
+	hostValues := 0
+	total := 0
+	for group := 0; group < groups; group++ {
+		name, next, values, nextTotal, nextHeaders, err := parseReservationGroup(p, offset, lastName, total, headers)
+		if err != nil {
+			wipeParsedHeaders(nextHeaders)
+			return nil, 0, 0, errMSC2
+		}
+		offset, total, headers = next, nextTotal, nextHeaders
+		if name == "host" {
+			hostValues += values
+		}
+		lastName = name
+	}
+	return headers, offset, hostValues, nil
+}
+
+func parseReservationGroup(p []byte, offset int, lastName string, total int, headers []processor.Header) (string, int, int, int, []processor.Header, error) {
+	name, next, err := reservationText(p, offset, maxHeaderName)
+	if err != nil || name != strings.ToLower(name) || !validHeaderName(name) ||
+		(lastName != "" && name <= lastName) || internalSnapshotHeader(name) {
+		return "", 0, 0, total, headers, errMSC2
+	}
+	if next+2 > len(p) {
+		return "", 0, 0, total, headers, errMSC2
+	}
+	values := int(binary.BigEndian.Uint16(p[next : next+2]))
+	next += 2
+	if values == 0 || values > maxHeaderCount-len(headers) {
+		return "", 0, 0, total, headers, errMSC2
+	}
+	for valueIndex := 0; valueIndex < values; valueIndex++ {
+		value, valueNext, valueErr := reservationBytes(p, next, maxHeaderValue)
+		if valueErr != nil || invalidReservationValue(value) {
+			return "", 0, 0, total, headers, errMSC2
+		}
+		next = valueNext
+		total += len(name) + len(value)
+		if total > maxHeaderBytes {
+			return "", 0, 0, total, headers, errMSC2
+		}
+		headers = append(headers, processor.Header{Name: name, Value: append([]byte(nil), value...)})
+	}
+	return name, next, values, total, headers, nil
 }
 
 func reservationText(p []byte, offset, max int) (string, int, error) {
@@ -677,39 +728,56 @@ func parseResponseHeaders(p []byte) ([]processor.Header, error) {
 	}
 	h := make([]processor.Header, 0, n+1)
 	statusValue := []byte(strconv.Itoa(status))
-	h = append(h, processor.Header{Name: ":status", Value: statusValue})
-	total := len(":status") + len(statusValue) + 4
-	for j := 0; j < n; j++ {
-		if i+2 > len(p) {
-			return nil, errMSC2
-		}
-		nl := int(binary.BigEndian.Uint16(p[i : i+2]))
-		i += 2
-		if nl == 0 || i+nl+2 > len(p) {
-			return nil, errMSC2
-		}
-		name := p[i : i+nl]
-		i += nl
-		vl := int(binary.BigEndian.Uint16(p[i : i+2]))
-		i += 2
-		if i+vl > len(p) || !utf8.Valid(name) || !utf8.Valid(p[i:i+vl]) {
-			return nil, errMSC2
-		}
-		if !validHeaderName(string(name)) || bytes.IndexByte(p[i:i+vl], '\r') >= 0 || bytes.IndexByte(p[i:i+vl], '\n') >= 0 {
-			return nil, errMSC2
-		}
-		value := p[i : i+vl]
-		i += vl
-		total += nl + vl + 4
-		if total > maxHeaderBytes {
-			return nil, errMSC2
-		}
-		h = append(h, processor.Header{Name: string(name), Value: append([]byte(nil), value...)})
+	h = append(h, processor.Header{Name: envoyStatusHeader, Value: statusValue})
+	total := len(envoyStatusHeader) + len(statusValue) + 4
+	var err error
+	h, i, err = parseResponseHeaderList(p, i, n, h, total)
+	if err != nil {
+		return nil, errMSC2
 	}
 	if i != len(p) {
 		return nil, fmt.Errorf("%w: trailing header data", errMSC2)
 	}
 	return h, nil
+}
+
+func parseResponseHeaderList(p []byte, offset, count int, headers []processor.Header, total int) ([]processor.Header, int, error) {
+	for i := 0; i < count; i++ {
+		header, next, headerSize, err := parseResponseHeader(p, offset)
+		if err != nil {
+			return nil, 0, errMSC2
+		}
+		offset = next
+		total += headerSize
+		if total > maxHeaderBytes {
+			return nil, 0, errMSC2
+		}
+		headers = append(headers, header)
+	}
+	return headers, offset, nil
+}
+
+func parseResponseHeader(p []byte, offset int) (processor.Header, int, int, error) {
+	if offset+2 > len(p) {
+		return processor.Header{}, 0, 0, errMSC2
+	}
+	nameLen := int(binary.BigEndian.Uint16(p[offset : offset+2]))
+	i := offset + 2
+	if nameLen == 0 || i+nameLen+2 > len(p) {
+		return processor.Header{}, 0, 0, errMSC2
+	}
+	name := p[i : i+nameLen]
+	i += nameLen
+	valueLen := int(binary.BigEndian.Uint16(p[i : i+2]))
+	i += 2
+	if i+valueLen > len(p) || !utf8.Valid(name) || !utf8.Valid(p[i:i+valueLen]) {
+		return processor.Header{}, 0, 0, errMSC2
+	}
+	value := p[i : i+valueLen]
+	if !validHeaderName(string(name)) || bytes.IndexByte(value, '\r') >= 0 || bytes.IndexByte(value, '\n') >= 0 {
+		return processor.Header{}, 0, 0, errMSC2
+	}
+	return processor.Header{Name: string(name), Value: append([]byte(nil), value...)}, i + valueLen, nameLen + valueLen + 4, nil
 }
 
 func validHeaderName(s string) bool {

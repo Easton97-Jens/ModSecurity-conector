@@ -145,6 +145,27 @@ func newTestCoordinator(t *testing.T, limits Limits) (*Coordinator, *eventLog) {
 	t.Cleanup(c.Close)
 	return c, log
 }
+
+func claimedResponse(t *testing.T, c *Coordinator, session string) *Response {
+	t.Helper()
+	a, _, err := c.BeginRequest(context.Background(), metadata(), nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, err := a.Lease()
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := c.Claim(token, session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = r.Headers(context.Background(), nil, true); err != nil {
+		t.Fatal(err)
+	}
+	return r
+}
+
 func metadata() processor.StreamMetadata {
 	return processor.StreamMetadata{TransactionID: "host-id", Request: processor.RequestMetadata{Method: "POST", URI: "/"}}
 }
@@ -574,42 +595,17 @@ func TestCleanupExactlyOnceOnCancelAndRestart(t *testing.T) {
 
 func TestEmptyRequestAndResponseBody(t *testing.T) {
 	c, _ := newTestCoordinator(t, Limits{})
-	a, _, err := c.BeginRequest(context.Background(), metadata(), nil, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	token, err := a.Lease()
-	if err != nil {
-		t.Fatal(err)
-	}
-	r, err := c.Claim(token, "session")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = r.Headers(context.Background(), nil, true); err != nil {
-		t.Fatal(err)
-	}
+	r := claimedResponse(t, c, "session")
 	r.Finish(context.Background(), "success")
 }
 
 func TestCommitAndPostCommitActionAreBoundAndTruthful(t *testing.T) {
 	c, _ := newTestCoordinator(t, Limits{})
-	a, _, err := c.BeginRequest(context.Background(), metadata(), nil, true)
-	if err != nil {
+	r := claimedResponse(t, c, "server-session")
+	if err := r.MarkResponseCommitted(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	token, _ := a.Lease()
-	r, err := c.Claim(token, "server-session")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = r.Headers(context.Background(), nil, true); err != nil {
-		t.Fatal(err)
-	}
-	if err = r.MarkResponseCommitted(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if err = r.RecordHostAction(context.Background(), processor.HostAction{Action: processor.AppliedActionDeny, VisibleStatus: 403, TransportResult: "response_sent"}); err != nil {
+	if err := r.RecordHostAction(context.Background(), processor.HostAction{Action: processor.AppliedActionDeny, VisibleStatus: 403, TransportResult: "response_sent"}); err != nil {
 		t.Fatal(err)
 	}
 	r.Finish(context.Background(), "success")
@@ -685,25 +681,11 @@ func TestNeutralOutcomeCarriesVisibleStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a, _, err := c.BeginRequest(context.Background(), metadata(), nil, true)
-	if err != nil {
+	r := claimedResponse(t, c, "stream")
+	if err := r.MarkResponseCommitted(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	token, err := a.Lease()
-	if err != nil {
-		t.Fatal(err)
-	}
-	r, err := c.Claim(token, "stream")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = r.Headers(context.Background(), nil, true); err != nil {
-		t.Fatal(err)
-	}
-	if err = r.MarkResponseCommitted(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if err = r.RecordNeutralOutcome(context.Background(), 200, "continue_sent"); err != nil {
+	if err := r.RecordNeutralOutcome(context.Background(), 200, "continue_sent"); err != nil {
 		t.Fatal(err)
 	}
 	r.Finish(context.Background(), "success")

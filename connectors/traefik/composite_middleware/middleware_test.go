@@ -251,20 +251,10 @@ func TestMiddlewarePreservesForwardAuthRequestTerminalResponse(t *testing.T) {
 func TestMiddlewareReplacesPreCommitUDSFailureWith503(t *testing.T) {
 	token := testToken()
 	socket, done := startMSC2Server(t, func(conn net.Conn) error {
+		if err := reserveAndClaim(conn, token); err != nil {
+			return err
+		}
 		op, _, err := readMSC2Frame(conn)
-		if err != nil || op != opReserve {
-			return fmt.Errorf("reserve = op %d err %w", op, err)
-		}
-		if err := writeMSC2Result(conn, opReserve, decisionAllow, 0, 0, token); err != nil {
-			return err
-		}
-		if err := expectClaim(conn, token); err != nil {
-			return err
-		}
-		if err := writeMSC2Result(conn, opClaim, decisionAllow, 0, 0, ""); err != nil {
-			return err
-		}
-		op, _, err = readMSC2Frame(conn)
 		if err != nil || op != opResponseHeaders {
 			return fmt.Errorf("response headers = op %d err %w", op, err)
 		}
@@ -302,17 +292,7 @@ func TestMiddlewareReplacesPreCommitUDSFailureWith503(t *testing.T) {
 func TestMiddlewareForwardsInformationalResponseWithoutP3Commit(t *testing.T) {
 	token := testToken()
 	socket, done := startMSC2Server(t, func(conn net.Conn) error {
-		op, _, err := readMSC2Frame(conn)
-		if err != nil || op != opReserve {
-			return fmt.Errorf("reserve = op %d err %w", op, err)
-		}
-		if err := writeMSC2Result(conn, opReserve, decisionAllow, 0, 0, token); err != nil {
-			return err
-		}
-		if err := expectClaim(conn, token); err != nil {
-			return err
-		}
-		if err := writeMSC2Result(conn, opClaim, decisionAllow, 0, 0, ""); err != nil {
+		if err := reserveAndClaim(conn, token); err != nil {
 			return err
 		}
 		op, payload, err := readMSC2Frame(conn)
@@ -506,6 +486,20 @@ func expectClaim(conn net.Conn, token string) error {
 		return fmt.Errorf("claim = op %d payload %x", op, payload)
 	}
 	return nil
+}
+
+func reserveAndClaim(conn net.Conn, token string) error {
+	op, _, err := readMSC2Frame(conn)
+	if err != nil || op != opReserve {
+		return fmt.Errorf("reserve = op %d err %w", op, err)
+	}
+	if err := writeMSC2Result(conn, opReserve, decisionAllow, 0, 0, token); err != nil {
+		return err
+	}
+	if err := expectClaim(conn, token); err != nil {
+		return err
+	}
+	return writeMSC2Result(conn, opClaim, decisionAllow, 0, 0, "")
 }
 
 func expectEmptyOp(conn net.Conn, want byte) error {

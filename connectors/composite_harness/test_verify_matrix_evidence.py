@@ -182,6 +182,11 @@ class CompositeEvidenceVerifierTests(unittest.TestCase):
         manifest_path.chmod(0o600)
         return manifest_path
 
+    def assert_invalid_case(self, pattern, **case_kwargs):
+        manifest = self.write_case(**case_kwargs)
+        with self.assertRaisesRegex(EvidenceError, pattern):
+            verify_manifest(manifest)
+
     def test_real_observer_schema_passes_with_lifecycle_records(self):
         result = verify_manifest(self.write_case())
         self.assertTrue(result.passed)
@@ -260,8 +265,7 @@ class CompositeEvidenceVerifierTests(unittest.TestCase):
         def remove_reservation(events):
             events.pop(0)
 
-        with self.assertRaisesRegex(EvidenceError, "pre-admission reservation"):
-            verify_manifest(self.write_case(case="metadata_omitted", mutate=remove_reservation))
+        self.assert_invalid_case("pre-admission reservation", case="metadata_omitted", mutate=remove_reservation)
 
     def test_p2_to_p3_timeout_requires_upstream_observation_and_timeout_cleanup(self):
         result = verify_manifest(self.write_case(case="p2_to_p3_timeout"))
@@ -275,8 +279,7 @@ class CompositeEvidenceVerifierTests(unittest.TestCase):
                 **self.pipeline_fields("envoy"),
             })
 
-        with self.assertRaisesRegex(EvidenceError, "out of order"):
-            verify_manifest(self.write_case(case="p2_to_p3_timeout", mutate=fabricate_p3))
+        self.assert_invalid_case("out of order", case="p2_to_p3_timeout", mutate=fabricate_p3)
 
         manifest = self.write_case(case="p2_to_p3_timeout")
         upstream = manifest.parent / "upstream.observation.json"
@@ -306,14 +309,12 @@ class CompositeEvidenceVerifierTests(unittest.TestCase):
         def add_body(events):
             events[0]["request_body"] = "forbidden"
 
-        with self.assertRaisesRegex(EvidenceError, "forbidden payload field"):
-            verify_manifest(self.write_case(mutate=add_body))
+        self.assert_invalid_case("forbidden payload field", mutate=add_body)
 
         def add_lease(events):
             events[0]["lease"] = "forbidden"
 
-        with self.assertRaisesRegex(EvidenceError, "forbidden payload field"):
-            verify_manifest(self.write_case(mutate=add_lease))
+        self.assert_invalid_case("forbidden payload field", mutate=add_lease)
 
     def test_rejects_lease_exposure_in_separate_client_observation(self):
         manifest = self.write_case()
@@ -360,8 +361,7 @@ class CompositeEvidenceVerifierTests(unittest.TestCase):
                 def deny(events):
                     events[0]["requested_action"] = "deny"
 
-                with self.assertRaisesRegex(EvidenceError, "allow"):
-                    verify_manifest(self.write_case(case=case, mutate=deny))
+                self.assert_invalid_case("allow", case=case, mutate=deny)
 
                 def request_action(events):
                     events.insert(1, {
@@ -370,8 +370,7 @@ class CompositeEvidenceVerifierTests(unittest.TestCase):
                         "event_time": EVENT_TIME, **self.pipeline_fields("envoy"),
                     })
 
-                with self.assertRaisesRegex(EvidenceError, "request_host_action"):
-                    verify_manifest(self.write_case(case=case, mutate=request_action))
+                self.assert_invalid_case("request_host_action", case=case, mutate=request_action)
 
     def test_allow_controls_require_response_lifecycle_on_the_same_receipt(self):
         manifest = self.write_case(case="p1_allow")
@@ -398,27 +397,23 @@ class CompositeEvidenceVerifierTests(unittest.TestCase):
         def cross_connector(events):
             events[2]["connector"] = "traefik"
 
-        with self.assertRaisesRegex(EvidenceError, "connector"):
-            verify_manifest(self.write_case(mutate=cross_connector))
+        self.assert_invalid_case("connector", mutate=cross_connector)
 
         def cross_decision(events):
             events[-1]["decision_id"] = "b" * 64
 
-        with self.assertRaisesRegex(EvidenceError, "exactly one"):
-            verify_manifest(self.write_case(mutate=cross_decision))
+        self.assert_invalid_case("exactly one", mutate=cross_decision)
 
         def reorder(events):
             events[0]["phase"], events[1]["phase"] = events[1]["phase"], events[0]["phase"]
 
-        with self.assertRaisesRegex(EvidenceError, "order"):
-            verify_manifest(self.write_case(case="p2_allow", mutate=reorder))
+        self.assert_invalid_case("order", case="p2_allow", mutate=reorder)
 
     def test_requires_exactly_one_terminal_cleanup(self):
         def add_terminal(events):
             events.append(dict(events[-1]))
 
-        with self.assertRaisesRegex(EvidenceError, "terminal cleanup"):
-            verify_manifest(self.write_case(mutate=add_terminal))
+        self.assert_invalid_case("terminal cleanup", mutate=add_terminal)
 
         def append_after_terminal(events):
             events.append({
@@ -426,30 +421,26 @@ class CompositeEvidenceVerifierTests(unittest.TestCase):
                 "outcome": "allow", "event_time": EVENT_TIME, **self.pipeline_fields("envoy"),
             })
 
-        with self.assertRaisesRegex(EvidenceError, "final observer event"):
-            verify_manifest(self.write_case(mutate=append_after_terminal))
+        self.assert_invalid_case("final observer event", mutate=append_after_terminal)
 
     def test_p4_safe_requires_raw_log_only_action(self):
         def remove_log_only(events):
             events[:] = [event for event in events if event.get("actual_host_action") != "log_only"]
 
-        with self.assertRaisesRegex(EvidenceError, "log_only"):
-            verify_manifest(self.write_case(mutate=remove_log_only))
+        self.assert_invalid_case("log_only", mutate=remove_log_only)
 
     def test_requires_connector_pipeline_metadata_and_selected_rule_id(self):
         def missing_pipeline(events):
             del events[0]["transport"]
 
-        with self.assertRaisesRegex(EvidenceError, "missing required"):
-            verify_manifest(self.write_case(mutate=missing_pipeline))
+        self.assert_invalid_case("missing required", mutate=missing_pipeline)
 
         def wrong_rule(events):
             for event in events:
                 if event.get("phase") == "P4":
                     event["rule_id"] = "9999999"
 
-        with self.assertRaisesRegex(EvidenceError, "p4_safe.*rule_id=1104002"):
-            verify_manifest(self.write_case(mutate=wrong_rule))
+        self.assert_invalid_case("p4_safe.*rule_id=1104002", mutate=wrong_rule)
 
     def test_p3_deny_rejects_incorrect_raw_outcome(self):
         def replace_deny(events):
@@ -457,8 +448,7 @@ class CompositeEvidenceVerifierTests(unittest.TestCase):
                 if event.get("phase") == "request_host_action":
                     event["actual_host_action"] = "allow"
 
-        with self.assertRaisesRegex(EvidenceError, "p3_deny"):
-            verify_manifest(self.write_case(case="p3_deny", mutate=replace_deny))
+        self.assert_invalid_case("p3_deny", case="p3_deny", mutate=replace_deny)
 
     def test_p1_deny_requires_matching_request_side_deny(self):
         self.assertTrue(verify_manifest(self.write_case(case="p1_deny")).passed)
@@ -468,8 +458,7 @@ class CompositeEvidenceVerifierTests(unittest.TestCase):
                 if event.get("phase") == "request_host_action":
                     event["actual_host_action"] = "allow"
 
-        with self.assertRaisesRegex(EvidenceError, "p1_deny"):
-            verify_manifest(self.write_case(case="p1_deny", mutate=replace_deny))
+        self.assert_invalid_case("p1_deny", case="p1_deny", mutate=replace_deny)
 
     def test_p2_deny_requires_matching_request_side_deny(self):
         self.assertTrue(verify_manifest(self.write_case(case="p2_deny")).passed)
@@ -479,23 +468,20 @@ class CompositeEvidenceVerifierTests(unittest.TestCase):
                 if event.get("phase") == "request_host_action":
                     event["actual_host_action"] = "allow"
 
-        with self.assertRaisesRegex(EvidenceError, "p2_deny"):
-            verify_manifest(self.write_case(case="p2_deny", mutate=replace_deny))
+        self.assert_invalid_case("p2_deny", case="p2_deny", mutate=replace_deny)
 
     def test_phase_actions_and_response_observation_cannot_be_relabeled(self):
         def incorrect_p1(events):
             events[0]["requested_action"] = "allow"
 
-        with self.assertRaisesRegex(EvidenceError, "p1_deny.*P1"):
-            verify_manifest(self.write_case(case="p1_deny", mutate=incorrect_p1))
+        self.assert_invalid_case("p1_deny.*P1", case="p1_deny", mutate=incorrect_p1)
 
         def incorrect_p3(events):
             for event in events:
                 if event.get("phase") == "P3":
                     event["requested_action"] = "allow"
 
-        with self.assertRaisesRegex(EvidenceError, "p3_deny.*P3"):
-            verify_manifest(self.write_case(case="p3_deny", mutate=incorrect_p3))
+        self.assert_invalid_case("p3_deny.*P3", case="p3_deny", mutate=incorrect_p3)
 
         manifest = self.write_case(case="p3_redirect")
         upstream = manifest.parent / "upstream.observation.json"

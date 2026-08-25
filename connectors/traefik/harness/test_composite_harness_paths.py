@@ -15,12 +15,14 @@ import unittest
 
 HARNESS = Path(__file__).with_name("traefik_composite_case_driver.py")
 SPEC = importlib.util.spec_from_file_location("traefik_case_driver", HARNESS)
-assert SPEC and SPEC.loader
+if SPEC is None or SPEC.loader is None:
+    raise RuntimeError("failed to load Traefik case driver")
 DRIVER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(DRIVER)
 UPSTREAM_HARNESS = Path(__file__).with_name("traefik_composite_upstream.py")
 UPSTREAM_SPEC = importlib.util.spec_from_file_location("traefik_upstream", UPSTREAM_HARNESS)
-assert UPSTREAM_SPEC and UPSTREAM_SPEC.loader
+if UPSTREAM_SPEC is None or UPSTREAM_SPEC.loader is None:
+    raise RuntimeError("failed to load Traefik upstream harness")
 UPSTREAM = importlib.util.module_from_spec(UPSTREAM_SPEC)
 UPSTREAM_SPEC.loader.exec_module(UPSTREAM)
 
@@ -138,6 +140,14 @@ class CompositeHarnessPathTests(unittest.TestCase):
     thread.start()
     return server, thread
 
+  @staticmethod
+  def _open_tls_connection(context: ssl.SSLContext, port: int):
+    connection = socket.create_connection(("127.0.0.1", port), timeout=2)
+    try:
+      return context.wrap_socket(connection, server_hostname="composite-upstream.local")
+    finally:
+      connection.close()
+
   def test_controlled_upstream_uses_native_tls_server_loop(self) -> None:
     text = UPSTREAM_HARNESS.read_text(encoding="utf-8")
     self.assertIn("class ControlledServer(http.server.ThreadingHTTPSServer)", text)
@@ -198,9 +208,7 @@ class CompositeHarnessPathTests(unittest.TestCase):
       try:
         context = ssl.create_default_context(cafile=str(trusted_cert))
         with self.assertRaises(ssl.SSLCertVerificationError):
-          with socket.create_connection(("127.0.0.1", server.server_address[1]), timeout=2) as connection:
-            with context.wrap_socket(connection, server_hostname="composite-upstream.local"):
-              pass
+          self._open_tls_connection(context, server.server_address[1])
       finally:
         server.server_close()
         thread.join(timeout=2)
@@ -213,9 +221,7 @@ class CompositeHarnessPathTests(unittest.TestCase):
       try:
         context = ssl.create_default_context(cafile=str(cert))
         with self.assertRaises(ssl.SSLCertVerificationError):
-          with socket.create_connection(("127.0.0.1", server.server_address[1]), timeout=2) as connection:
-            with context.wrap_socket(connection, server_hostname="composite-upstream.local"):
-              pass
+          self._open_tls_connection(context, server.server_address[1])
       finally:
         server.server_close()
         thread.join(timeout=2)

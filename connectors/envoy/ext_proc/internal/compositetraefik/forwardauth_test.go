@@ -140,18 +140,8 @@ func TestForwardAuthNormalizesInvalidRequestDenyStatus(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/invalid-deny", nil)
-			req.Header.Set(LeaseHeader, token)
-			req.Header.Set("X-Forwarded-Method", http.MethodGet)
-			req.Header.Set("X-Forwarded-Uri", "/invalid-deny")
-			req.Header.Set("X-Forwarded-Proto", "http")
-			req.Header.Set("X-Forwarded-Host", "example.test")
-			req.Header.Set("X-Forwarded-For", "127.0.0.1")
-			req = req.WithContext(context.WithValue(req.Context(), http.LocalAddrContextKey, &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 19182}))
-			rec := httptest.NewRecorder()
-			(&ForwardAuth{Coordinator: c}).ServeHTTP(rec, req)
-			if rec.Code != http.StatusForbidden {
-				t.Fatalf("invalid request deny status reached client: got %d, want %d", rec.Code, http.StatusForbidden)
+			if got := serveForwardAuthTestRequest(t, c, token, "/invalid-deny", "127.0.0.1"); got != http.StatusForbidden {
+				t.Fatalf("invalid request deny status reached client: got %d, want %d", got, http.StatusForbidden)
 			}
 		})
 	}
@@ -167,17 +157,26 @@ func TestForwardAuthRejectsNonIPAddressForwardedClient(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/", nil)
-	req.Header.Set(LeaseHeader, token)
-	req.Header.Set("X-Forwarded-Method", http.MethodGet)
-	req.Header.Set("X-Forwarded-Uri", "/")
-	req.Header.Set("X-Forwarded-Proto", "http")
-	req.Header.Set("X-Forwarded-Host", "example.test")
-	req.Header.Set("X-Forwarded-For", "untrusted-client-name")
+	if got := serveForwardAuthTestRequest(t, c, token, "/", "untrusted-client-name"); got != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d", got)
+	}
+}
+
+func serveForwardAuthTestRequest(t *testing.T, c *composite.Coordinator, token, uri, client string) int {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1"+uri, nil)
+	for name, value := range map[string]string{
+		LeaseHeader:          token,
+		"X-Forwarded-Method": http.MethodGet,
+		"X-Forwarded-Uri":    uri,
+		"X-Forwarded-Proto":  "http",
+		"X-Forwarded-Host":   "example.test",
+		"X-Forwarded-For":    client,
+	} {
+		req.Header.Set(name, value)
+	}
 	req = req.WithContext(context.WithValue(req.Context(), http.LocalAddrContextKey, &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 19182}))
 	rec := httptest.NewRecorder()
 	(&ForwardAuth{Coordinator: c}).ServeHTTP(rec, req)
-	if rec.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d", rec.Code)
-	}
+	return rec.Code
 }

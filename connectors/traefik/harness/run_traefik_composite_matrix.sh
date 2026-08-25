@@ -35,7 +35,11 @@ REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/../../.." && pwd)
 
 die() { echo "traefik_composite_matrix: FAIL: $*" >&2; exit 1; }
 blocked() { echo "traefik_composite_matrix: BLOCKED: $*" >&2; exit 77; }
-need_env() { eval "value=\${$1-}"; [ -n "$value" ] || blocked "$1 is required"; }
+need_env() {
+    parameter_name=$1
+    eval "value=\${$parameter_name-}"
+    [ -n "$value" ] || blocked "$parameter_name is required"
+}
 
 need_env RUNTIME_ROOT
 need_env TRAEFIK_BIN
@@ -61,8 +65,10 @@ case "$PYTHON_BIN" in /*) ;; *) blocked "PYTHON_BIN must be absolute" ;; esac
 case "$UPSTREAM_BIN" in /*) ;; *) blocked "UPSTREAM_BIN must be absolute" ;; esac
 
 is_under() {
-    case "$2" in
-        "$1"|"$1"/*) return 0 ;;
+    root=$1
+    candidate=$2
+    case "$candidate" in
+        "$root"|"$root"/*) return 0 ;;
         *) return 1 ;;
     esac
 }
@@ -92,18 +98,20 @@ safe_ancestor_chain() {
 }
 
 is_private_dir() {
-    [ -d "$1" ] && [ ! -L "$1" ] || return 1
-    safe_ancestor_chain "$1" || return 1
-    [ "$(stat -c '%a' "$1" 2>/dev/null || echo -1)" = 700 ] || return 1
-    find "$1" -maxdepth 0 -perm /077 -print -quit 2>/dev/null | grep -q . && return 1
+    path=$1
+    [ -d "$path" ] && [ ! -L "$path" ] || return 1
+    safe_ancestor_chain "$path" || return 1
+    [ "$(stat -c '%a' "$path" 2>/dev/null || echo -1)" = 700 ] || return 1
+    find "$path" -maxdepth 0 -perm /077 -print -quit 2>/dev/null | grep -q . && return 1
     return 0
 }
 
 is_owner_file() {
-    [ -f "$1" ] && [ ! -L "$1" ] || return 1
-    safe_ancestor_chain "$1" || return 1
-    [ "$(stat -c '%u' "$1" 2>/dev/null || echo -1)" = "$(id -u)" ] || return 1
-    find "$1" -maxdepth 0 -perm /022 -print -quit 2>/dev/null | grep -q . && return 1
+    path=$1
+    [ -f "$path" ] && [ ! -L "$path" ] || return 1
+    safe_ancestor_chain "$path" || return 1
+    [ "$(stat -c '%u' "$path" 2>/dev/null || echo -1)" = "$(id -u)" ] || return 1
+    find "$path" -maxdepth 0 -perm /022 -print -quit 2>/dev/null | grep -q . && return 1
     return 0
 }
 
@@ -114,6 +122,7 @@ is_owner_executable() {
 case "$RUNTIME_ROOT" in
     /|/tmp|/var/tmp|"$REPO_ROOT"|"$REPO_ROOT"/*)
         blocked "RUNTIME_ROOT is too broad or inside the checkout: $RUNTIME_ROOT" ;;
+    *) : ;;
 esac
 if [ -e "$RUNTIME_ROOT" ] || [ -L "$RUNTIME_ROOT" ]; then
     is_private_dir "$RUNTIME_ROOT" || blocked "RUNTIME_ROOT must be an owner-only, non-symlink directory"
@@ -133,6 +142,7 @@ find "$COMPOSITE_RUNTIME_CONFIG" -maxdepth 0 -perm /077 -print -quit 2>/dev/null
     blocked "COMPOSITE_RUNTIME_CONFIG must not be group/world writable"
 case "$COMPOSITE_RUNTIME_CONFIG" in
     "$REPO_ROOT"|"$REPO_ROOT"/*) blocked "COMPOSITE_RUNTIME_CONFIG must be outside the checkout" ;;
+    *) : ;;
 esac
 if [ -e "$COMPOSITE_EVENT_LOG" ] || [ -L "$COMPOSITE_EVENT_LOG" ]; then
     blocked "COMPOSITE_EVENT_LOG must not already exist"
@@ -150,6 +160,7 @@ safe_direct_child() {
     esac
     case "$child" in
         *//*|*/./*|*/../*|*/.|*/..|*/) return 1 ;;
+        *) : ;;
     esac
     [ "$(dirname "$child")" = "$root" ] || return 1
     base=$(basename "$child")
@@ -181,7 +192,7 @@ SOCKET_PARENT=$(dirname "$COMPOSITE_SOCKET")
 [ "$SOCKET_PARENT" = "$RUNTIME_ROOT" ] || blocked "COMPOSITE_SOCKET parent must be RUNTIME_ROOT"
 [ ! -e "$COMPOSITE_SOCKET" ] && [ ! -L "$COMPOSITE_SOCKET" ] || blocked "COMPOSITE_SOCKET already exists"
 
-case "$TRAEFIK_VERSION" in ''|*[!0-9.]*) blocked "TRAEFIK_VERSION must be a dotted numeric pin" ;; esac
+case "$TRAEFIK_VERSION" in ''|*[!0-9.]*) blocked "TRAEFIK_VERSION must be a dotted numeric pin" ;; *) : ;; esac
 version_text=$("$TRAEFIK_BIN" version 2>&1 || true)
 printf '%s\n' "$version_text" | grep -Eq "(^|[^0-9.])$TRAEFIK_VERSION([^0-9.]|$)" || \
     blocked "TRAEFIK_BIN version output does not match explicit TRAEFIK_VERSION=$TRAEFIK_VERSION"
@@ -204,6 +215,7 @@ case "$RUNTIME_ROOT" in
     uds_unavailable|*-uds_unavailable|*-uds_unavailable-*)
         blocked "uds_unavailable is pre-admission transport failure and cannot produce correlated composite evidence"
         ;;
+    *) : ;;
 esac
 mkdir -p "$PLUGIN_ROOT" "$CONFIG_ROOT" "$UPSTREAM_ROOT" "$LOG_ROOT"
 chmod 700 "$CONFIG_ROOT" "$UPSTREAM_ROOT" "$LOG_ROOT"
@@ -217,9 +229,12 @@ cp -R --no-preserve=ownership,mode "$PLUGIN_SOURCE"/. "$PLUGIN_ROOT"/ || die "fa
 AUTH_PORT=${AUTH_PORT:-19182}
 TRAEFIK_PORT=${TRAEFIK_PORT:-19180}
 UPSTREAM_PORT=${UPSTREAM_PORT:-19181}
-case "$AUTH_PORT:$TRAEFIK_PORT:$UPSTREAM_PORT" in *[!0-9:]*|*:*:*:*) blocked "ports must be decimal" ;; esac
+case "$AUTH_PORT:$TRAEFIK_PORT:$UPSTREAM_PORT" in *[!0-9:]*|*:*:*:*) blocked "ports must be decimal" ;; *) : ;; esac
 
-escape_sed() { printf '%s' "$1" | sed 's/[\\&|]/\\&/g'; }
+escape_sed() {
+    value=$1
+    printf '%s' "$value" | sed 's/[\\&|]/\\&/g'
+}
 AUTH_ADDRESS="127.0.0.1:$AUTH_PORT"
 TRAEFIK_ADDRESS="127.0.0.1:$TRAEFIK_PORT"
 UPSTREAM_ADDRESS="127.0.0.1:$UPSTREAM_PORT"
@@ -250,6 +265,7 @@ case "$RUNTIME_ROOT" in
     *-metadata_omitted|*-metadata_omitted-*)
         sed -i '/^[[:space:]]*-[[:space:]]*X-Msconnector-Composite-Lease[[:space:]]*$/d' "$DYNAMIC_CONFIG"
         ;;
+    *) : ;;
 esac
 sed -e "s|__TRAEFIK_ADDRESS__|$TRAEFIK_ESC|g" -e "s|__TRAEFIK_DYNAMIC_CONFIG__|$DYNAMIC_CONFIG_ESC|g" \
     "$STATIC_TEMPLATE" > "$STATIC_CONFIG"
@@ -262,11 +278,12 @@ pid_start_token() {
 }
 pid_is_owned() {
     pid=$1
+    exe_path=$2
     expected_start=$3
     [ -d "/proc/$pid" ] || return 1
     [ "$(stat -c '%u' "/proc/$pid" 2>/dev/null || echo -1)" = "$(id -u)" ] || return 1
     exe=$(readlink "/proc/$pid/exe" 2>/dev/null || true)
-    [ "$exe" = "$2" ] || return 1
+    [ "$exe" = "$exe_path" ] || return 1
     actual_start=$(pid_start_token "$pid")
     [ -n "$actual_start" ] && [ "$actual_start" = "$expected_start" ]
 }
@@ -282,10 +299,11 @@ pid_is_owned_upstream() {
 wait_pid() {
     pid=$1
     limit=$2
+    exe_path=$3
     expected_start=$4
     i=0
     while [ "$i" -lt "$limit" ]; do
-        pid_is_owned "$pid" "$3" "$expected_start" && kill -0 "$pid" 2>/dev/null && return 0
+        pid_is_owned "$pid" "$exe_path" "$expected_start" && kill -0 "$pid" 2>/dev/null && return 0
         sleep 1
         i=$((i + 1))
     done

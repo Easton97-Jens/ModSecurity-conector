@@ -23,15 +23,21 @@ import (
 )
 
 const (
-	frameHeaderSize = 12
-	maxPayload      = 64 << 10
-	maxToken        = 256
-	maxChunk        = 32 << 10
-	maxHeaders      = 256
-	maxHeaderName   = 256
-	maxHeaderValue  = 8192
-	maxRedirect     = 4096
-	defaultTimeout  = 5 * time.Second
+	frameHeaderSize      = 12
+	maxPayload           = 64 << 10
+	maxToken             = 256
+	maxChunk             = 32 << 10
+	maxHeaders           = 256
+	maxHeaderName        = 256
+	maxHeaderValue       = 8192
+	maxRedirect          = 4096
+	defaultTimeout       = 5 * time.Second
+	companionUnavailable = "composite companion unavailable"
+	contentLengthHeader  = "content-length"
+	trailerHeader        = "Trailer"
+	commitPayload        = "\x01\x00"
+	rejectedBody         = "request rejected\n"
+	textContentType      = "text/plain; charset=utf-8"
 
 	reservationSnapshotVersion byte = 1
 	requestContextHeader            = "X-Msconnector-Composite-Request-Context"
@@ -129,13 +135,13 @@ func (m *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	stripInternalHeaders(r.Trailer, m.config.LeaseHeader, requestContextHeader)
 	reservePayload, err := reservationPayload(r.Method, requestURI(r), r.Header, r.Host, r.ContentLength)
 	if err != nil {
-		http.Error(w, "composite companion unavailable", http.StatusServiceUnavailable)
+		http.Error(w, companionUnavailable, http.StatusServiceUnavailable)
 		return
 	}
 	defer wipeBytes(reservePayload)
 	conn, err := dial(r.Context(), m.config.SocketPath, time.Duration(m.config.TimeoutMillis)*time.Millisecond)
 	if err != nil {
-		http.Error(w, "composite companion unavailable", http.StatusServiceUnavailable)
+		http.Error(w, companionUnavailable, http.StatusServiceUnavailable)
 		return
 	}
 	p := &protocolConn{conn: conn, timeout: time.Duration(m.config.TimeoutMillis) * time.Millisecond}
@@ -143,7 +149,7 @@ func (m *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	reservation, err := p.exchange(r.Context(), opReserve, reservePayload)
 	if err != nil || reservation.token == "" {
-		http.Error(w, "composite companion unavailable", http.StatusServiceUnavailable)
+		http.Error(w, companionUnavailable, http.StatusServiceUnavailable)
 		return
 	}
 	lease := reservation.token
@@ -151,7 +157,13 @@ func (m *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer stripInternalHeaders(r.Header, m.config.LeaseHeader, requestContextHeader)
 	defer stripInternalHeaders(r.Trailer, m.config.LeaseHeader, requestContextHeader)
 
-	rw := &responseWriter{parent: m, writer: w, proto: p, ctx: r.Context(), lease: lease}
+	rw := &responseWriter{
+		parent:   m,
+		writer:   w,
+		proto:    p,
+		exchange: func(opcode byte, payload []byte) (result, error) { return p.exchange(r.Context(), opcode, payload) },
+		lease:    lease,
+	}
 	m.next.ServeHTTP(rw, r)
 	if rw.transportErr != nil && !rw.committed {
 		for name := range w.Header() {
@@ -284,15 +296,10 @@ func reservationHeaderGroups(headers http.Header, authority string, contentLengt
 		if canonical == "host" && len(values) != 1 {
 			return nil, errProtocol
 		}
-		for _, value := range values {
-			if len(value) > maxHeaderValue || strings.ContainsAny(value, "\r\n\x00") {
-				return nil, errProtocol
-			}
-			valuesSeen++
-			total += len(canonical) + len(value)
-			if total > maxPayload {
-				return nil, errProtocol
-			}
+		var err error
+		valuesSeen, total, err = accountHeaderValues(canonical, values, valuesSeen, total)
+		if err != nil {
+			return nil, err
 		}
 		copied := append([]string(nil), values...)
 		groupsByName[canonical] = copied
@@ -303,14 +310,14 @@ func reservationHeaderGroups(headers http.Header, authority string, contentLengt
 		}
 		groupsByName["host"] = []string{authority}
 	}
-	if _, hasContentLength := groupsByName["content-length"]; !hasContentLength && contentLength >= 0 {
+	if _, hasContentLength := groupsByName[contentLengthHeader]; !hasContentLength && contentLength >= 0 {
 		value := strconv.FormatInt(contentLength, 10)
-		if valuesSeen == maxHeaders || total+len("content-length")+len(value) > maxPayload {
+		if valuesSeen == maxHeaders || total+len(contentLengthHeader)+len(value) > maxPayload {
 			return nil, errProtocol
 		}
-		groupsByName["content-length"] = []string{value}
+		groupsByName[contentLengthHeader] = []string{value}
 		valuesSeen++
-		total += len("content-length") + len(value)
+		total += len(contentLengthHeader) + len(value)
 	}
 	if len(groupsByName) > maxHeaders {
 		return nil, errProtocol
@@ -327,19 +334,28 @@ func reservationHeaderGroups(headers http.Header, authority string, contentLengt
 		if !validHeaderToken(name) || len(values) == 0 || len(values) > maxHeaders {
 			return nil, errProtocol
 		}
-		for _, value := range values {
-			if len(value) > maxHeaderValue || strings.ContainsAny(value, "\r\n\x00") {
-				return nil, errProtocol
-			}
-			valuesSeen++
-			total += len(name) + len(value)
-			if valuesSeen > maxHeaders || total > maxPayload {
-				return nil, errProtocol
-			}
+		var err error
+		valuesSeen, total, err = accountHeaderValues(name, values, valuesSeen, total)
+		if err != nil {
+			return nil, err
 		}
 		groups = append(groups, reservationHeaderGroup{name: name, values: values})
 	}
 	return groups, nil
+}
+
+func accountHeaderValues(name string, values []string, seen, total int) (int, int, error) {
+	for _, value := range values {
+		if len(value) > maxHeaderValue || strings.ContainsAny(value, "\r\n\x00") {
+			return 0, 0, errProtocol
+		}
+		seen++
+		total += len(name) + len(value)
+		if seen > maxHeaders || total > maxPayload {
+			return 0, 0, errProtocol
+		}
+	}
+	return seen, total, nil
 }
 
 func appendReservationText(payload []byte, value string, max int) ([]byte, error) {
@@ -447,16 +463,8 @@ func parseResult(b []byte) (result, error) {
 		return result{}, errProtocol
 	}
 	r := result{requestOpcode: b[0], code: b[1], decision: b[2], flags: b[3], status: binary.BigEndian.Uint16(b[4:6])}
-	n := int(binary.BigEndian.Uint16(b[6:8]))
-	limit := maxRedirect
-	if r.requestOpcode == opReserve {
-		limit = maxToken
-	}
-	if n > limit || len(b) != 8+n {
-		return result{}, errProtocol
-	}
-	value := string(b[8:])
-	if !utf8.ValidString(value) || strings.ContainsAny(value, "\r\n") {
+	value, err := resultValue(b, r.requestOpcode)
+	if err != nil {
 		return result{}, errProtocol
 	}
 	if r.requestOpcode == opReserve {
@@ -473,21 +481,39 @@ func parseResult(b []byte) (result, error) {
 		return r, nil
 	}
 	r.redirect = value
-	switch r.decision {
-	case decisionAllow:
-		if r.status != 0 || r.redirect != "" {
-			return result{}, errProtocol
-		}
-	case decisionDeny:
-		if r.status < http.StatusBadRequest || r.status > 599 || r.redirect != "" {
-			return result{}, errProtocol
-		}
-	case decisionRedir:
-		if r.status < http.StatusMultipleChoices || r.status > 399 || r.redirect == "" {
-			return result{}, errProtocol
-		}
+	if !validDecisionResult(r) {
+		return result{}, errProtocol
 	}
 	return r, nil
+}
+
+func resultValue(b []byte, opcode byte) (string, error) {
+	n := int(binary.BigEndian.Uint16(b[6:8]))
+	limit := maxRedirect
+	if opcode == opReserve {
+		limit = maxToken
+	}
+	if n > limit || len(b) != 8+n {
+		return "", errProtocol
+	}
+	value := string(b[8:])
+	if !utf8.ValidString(value) || strings.ContainsAny(value, "\r\n") {
+		return "", errProtocol
+	}
+	return value, nil
+}
+
+func validDecisionResult(r result) bool {
+	switch r.decision {
+	case decisionAllow:
+		return r.status == 0 && r.redirect == ""
+	case decisionDeny:
+		return r.status >= http.StatusBadRequest && r.status <= 599 && r.redirect == ""
+	case decisionRedir:
+		return r.status >= http.StatusMultipleChoices && r.status <= 399 && r.redirect != ""
+	default:
+		return false
+	}
 }
 
 func validOpaqueToken(token string) bool {
@@ -509,7 +535,7 @@ type responseWriter struct {
 	parent                                                       *Middleware
 	writer                                                       http.ResponseWriter
 	proto                                                        *protocolConn
-	ctx                                                          context.Context
+	exchange                                                     func(byte, []byte) (result, error)
 	lease                                                        string
 	status                                                       int
 	wroteHeader, committed, blocked, finished, hijacked, claimed bool
@@ -525,7 +551,7 @@ func (rw *responseWriter) ensureClaim() bool {
 	if rw.claimed || rw.requestTerminal {
 		return true
 	}
-	res, err := rw.proto.exchange(rw.ctx, opClaim, claimPayload(rw.lease))
+	res, err := rw.exchange(opClaim, claimPayload(rw.lease))
 	if err != nil || res.decision != decisionAllow {
 		if err == nil {
 			err = errProtocol
@@ -578,7 +604,7 @@ func (rw *responseWriter) WriteHeader(status int) {
 		rw.transportErr = err
 		return
 	}
-	res, err := rw.proto.exchange(rw.ctx, opResponseHeaders, headers)
+	res, err := rw.exchange(opResponseHeaders, headers)
 	if err != nil {
 		rw.transportErr = err
 		return
@@ -589,7 +615,7 @@ func (rw *responseWriter) WriteHeader(status int) {
 		rw.wroteHeader = true
 		return
 	}
-	res, err = rw.proto.exchange(rw.ctx, opResponseCommit, []byte{1, 0})
+	res, err = rw.exchange(opResponseCommit, []byte(commitPayload))
 	if err != nil {
 		rw.transportErr = err
 		return
@@ -634,6 +660,10 @@ func (rw *responseWriter) Write(body []byte) (int, error) {
 	if rw.requestTerminal {
 		return rw.writer.Write(body)
 	}
+	return rw.writeChunks(body)
+}
+
+func (rw *responseWriter) writeChunks(body []byte) (int, error) {
 	written := 0
 	for written < len(body) {
 		end := written + rw.parent.config.MaxResponseChunkBytes
@@ -641,7 +671,7 @@ func (rw *responseWriter) Write(body []byte) (int, error) {
 			end = len(body)
 		}
 		chunk := body[written:end]
-		res, err := rw.proto.exchange(rw.ctx, opResponseChunk, chunk)
+		res, err := rw.exchange(opResponseChunk, chunk)
 		if err != nil {
 			rw.transportErr = err
 			return written, err
@@ -704,7 +734,7 @@ func (rw *responseWriter) writeDecision(res result) {
 	if res.decision == decisionRedir && res.redirect != "" {
 		rw.writer.Header().Set("Location", res.redirect)
 	}
-	rw.writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	rw.writer.Header().Set("Content-Type", textContentType)
 	status := int(res.status)
 	if status < 100 || status > 599 {
 		status = http.StatusForbidden
@@ -716,7 +746,7 @@ func (rw *responseWriter) writeDecision(res result) {
 		_, _ = io.WriteString(rw.writer, res.redirect)
 	} else {
 		rw.outcomeAction = actualDeny
-		_, _ = io.WriteString(rw.writer, "request rejected\n")
+		_, _ = io.WriteString(rw.writer, rejectedBody)
 	}
 	rw.committed = true
 }
@@ -740,46 +770,58 @@ func stripInternalHeaders(headers http.Header, names ...string) {
 	if headers == nil || len(names) == 0 {
 		return
 	}
-	isInternal := func(value string) bool {
-		for _, name := range names {
-			if strings.EqualFold(value, name) {
-				return true
-			}
-		}
-		return false
-	}
 	for key, values := range headers {
-		if isInternal(key) {
+		if isInternalHeader(key, names) {
 			delete(headers, key)
 			continue
 		}
-		if len(key) >= len(http.TrailerPrefix) && strings.EqualFold(key[:len(http.TrailerPrefix)], http.TrailerPrefix) && isInternal(key[len(http.TrailerPrefix):]) {
+		if isInternalTrailerKey(key, names) {
 			delete(headers, key)
 			continue
 		}
-		if !strings.EqualFold(key, "Trailer") {
+		if !strings.EqualFold(key, trailerHeader) {
 			continue
 		}
-		filtered := make([]string, 0, len(values))
-		for _, value := range values {
-			parts := strings.Split(value, ",")
-			kept := make([]string, 0, len(parts))
-			for _, part := range parts {
-				part = strings.TrimSpace(part)
-				if part != "" && !isInternal(part) {
-					kept = append(kept, part)
-				}
-			}
-			if len(kept) > 0 {
-				filtered = append(filtered, strings.Join(kept, ", "))
-			}
-		}
+		filtered := filterTrailerValues(values, names)
 		if len(filtered) == 0 {
 			delete(headers, key)
 		} else {
 			headers[key] = filtered
 		}
 	}
+}
+
+func isInternalHeader(value string, names []string) bool {
+	for _, name := range names {
+		if strings.EqualFold(value, name) {
+			return true
+		}
+	}
+	return false
+}
+
+func isInternalTrailerKey(key string, names []string) bool {
+	if len(key) < len(http.TrailerPrefix) || !strings.EqualFold(key[:len(http.TrailerPrefix)], http.TrailerPrefix) {
+		return false
+	}
+	return isInternalHeader(key[len(http.TrailerPrefix):], names)
+}
+
+func filterTrailerValues(values, names []string) []string {
+	filtered := make([]string, 0, len(values))
+	for _, value := range values {
+		kept := make([]string, 0)
+		for _, part := range strings.Split(value, ",") {
+			part = strings.TrimSpace(part)
+			if part != "" && !isInternalHeader(part, names) {
+				kept = append(kept, part)
+			}
+		}
+		if len(kept) > 0 {
+			filtered = append(filtered, strings.Join(kept, ", "))
+		}
+	}
+	return filtered
 }
 
 func (rw *responseWriter) finish(ctx context.Context) {
@@ -846,23 +888,11 @@ func responseHeaders(status int, protocol string, h http.Header, maxCount, maxBy
 			return nil, errProtocol
 		}
 		for _, value := range values {
-			if len(name) > maxHeaderName || len(value) > maxHeaderValue || strings.ContainsAny(value, "\r\n") {
+			var err error
+			p, count, total, err = appendResponseHeader(p, name, value, count, total, maxCount, maxBytes, b)
+			if err != nil {
 				return nil, errProtocol
 			}
-			count++
-			if count > maxCount {
-				return nil, errProtocol
-			}
-			total += len(name) + len(value) + 4
-			if total > maxBytes || len(p)+4+len(name)+len(value) > maxPayload {
-				return nil, errProtocol
-			}
-			binary.BigEndian.PutUint16(b[:], uint16(len(name)))
-			p = append(p, b[:]...)
-			p = append(p, name...)
-			binary.BigEndian.PutUint16(b[:], uint16(len(value)))
-			p = append(p, b[:]...)
-			p = append(p, value...)
 		}
 	}
 	binary.BigEndian.PutUint16(p[countOffset:countOffset+2], uint16(count))
@@ -870,6 +900,27 @@ func responseHeaders(status int, protocol string, h http.Header, maxCount, maxBy
 		return nil, errProtocol
 	}
 	return p, nil
+}
+
+func appendResponseHeader(payload []byte, name, value string, count, total, maxCount, maxBytes int, b [2]byte) ([]byte, int, int, error) {
+	if len(name) > maxHeaderName || len(value) > maxHeaderValue || strings.ContainsAny(value, "\r\n") {
+		return nil, 0, 0, errProtocol
+	}
+	count++
+	if count > maxCount {
+		return nil, 0, 0, errProtocol
+	}
+	total += len(name) + len(value) + 4
+	if total > maxBytes || len(payload)+4+len(name)+len(value) > maxPayload {
+		return nil, 0, 0, errProtocol
+	}
+	binary.BigEndian.PutUint16(b[:], uint16(len(name)))
+	payload = append(payload, b[:]...)
+	payload = append(payload, name...)
+	binary.BigEndian.PutUint16(b[:], uint16(len(value)))
+	payload = append(payload, b[:]...)
+	payload = append(payload, value...)
+	return payload, count, total, nil
 }
 
 func validHeaderToken(s string) bool {

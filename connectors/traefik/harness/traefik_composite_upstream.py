@@ -225,7 +225,7 @@ def main(argv: list[str] | None = None) -> int:
             finally:
                 server.server_close()
         return 0
-    except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError, RuntimeError) as exc:
         print(f"traefik_composite_upstream: FAIL: {exc}", file=sys.stderr)
         return 1
 

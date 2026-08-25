@@ -165,7 +165,7 @@ def _origin_target(value: object) -> str:
     return value
 
 
-def _read_http_response(sock: socket.socket) -> int:
+def _read_response_headers(sock: socket.socket) -> tuple[bytearray, int]:
     maximum = 64 * 1024
     data = bytearray()
     while b"\r\n\r\n" not in data and len(data) <= maximum:
@@ -176,8 +176,11 @@ def _read_http_response(sock: socket.socket) -> int:
     separator = data.find(b"\r\n\r\n")
     if separator < 0:
         fail("upstream response headers are incomplete")
-    header_block = bytes(data[:separator]).split(b"\r\n")
-    match = re.fullmatch(rb"HTTP/1\.1 ([0-9]{3})(?: [^\r\n]*)?", header_block[0])
+    return data, separator
+
+
+def _parse_response_headers(header_block: list[bytes]) -> tuple[int, int | None]:
+    match = re.fullmatch(rb"HTTP/1\.1 (\d{3})(?: [^\r\n]*)?", header_block[0])
     if not match:
         fail("upstream response status line is invalid")
     status = int(match.group(1))
@@ -194,25 +197,37 @@ def _read_http_response(sock: socket.socket) -> int:
             content_length = int(value.strip())
             if content_length > 32 * 1024:
                 fail("upstream response body exceeds the bounded response size")
+    return status, content_length
+
+
+def _read_response_body(
+    sock: socket.socket, body: bytearray, content_length: int | None
+) -> None:
+    if content_length is None:
+        if len(body) > 32 * 1024:
+            fail("upstream response body exceeds the bounded response size")
+        return
+    while len(body) < content_length:
+        chunk = sock.recv(min(4096, content_length - len(body)))
+        if not chunk:
+            fail("upstream response body is incomplete")
+        body.extend(chunk)
+    if len(body) > content_length:
+        del body[content_length:]
+
+
+def _read_http_response(sock: socket.socket) -> int:
+    data, separator = _read_response_headers(sock)
+    header_block = bytes(data[:separator]).split(b"\r\n")
+    status, content_length = _parse_response_headers(header_block)
     body = bytearray(data[separator + 4 :])
-    if content_length is not None:
-        while len(body) < content_length:
-            chunk = sock.recv(min(4096, content_length - len(body)))
-            if not chunk:
-                fail("upstream response body is incomplete")
-            body.extend(chunk)
-        if len(body) > content_length:
-            del body[content_length:]
-    elif len(body) > 32 * 1024:
-        fail("upstream response body exceeds the bounded response size")
+    _read_response_body(sock, body, content_length)
     return status
 
 
-def http_request(
-    port: int, vector: dict[str, Any], add_client_lease: bool, timeout: float = 5.0
-) -> tuple[int | None, bool]:
-    if not isinstance(port, int) or not 1 <= port <= 65535:
-        fail("port is outside the valid range")
+def _build_request_wire(
+    port: int, vector: dict[str, Any], add_client_lease: bool
+) -> bytes:
     request = vector.get("request")
     if not isinstance(request, dict):
         fail("vector request metadata is malformed")
@@ -241,6 +256,15 @@ def http_request(
             fail("vector request header is invalid")
         request_lines.append(f"{key}: {value}")
     wire = ("\r\n".join(request_lines) + "\r\n\r\n").encode("ascii") + body
+    return wire
+
+
+def http_request(
+    port: int, vector: dict[str, Any], add_client_lease: bool, timeout: float = 5.0
+) -> tuple[int | None, bool]:
+    if not isinstance(port, int) or not 1 <= port <= 65535:
+        fail("port is outside the valid range")
+    wire = _build_request_wire(port, vector, add_client_lease)
     try:
         with socket.create_connection(("127.0.0.1", port), timeout=timeout) as conn:
             conn.settimeout(timeout)
@@ -343,7 +367,7 @@ def main(argv: list[str] | None = None) -> int:
             write_json(runtime, manifest_leaf, manifest, "case manifest")
         print(json.dumps({"case": case, "decision_id": decision_id, "status": status}, sort_keys=True))
         return 0
-    except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError, RuntimeError) as exc:
         print(f"traefik_composite_case_driver: FAIL: {exc}", file=sys.stderr)
         return 1
 

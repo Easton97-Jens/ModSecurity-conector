@@ -34,6 +34,9 @@ const (
 	metadataTerminalBlock     = "request_block"
 	commonTransportHTTPStatus = "http_status"
 	commonTransportLogOnly    = "log_only"
+	envoyStatusHeader         = ":status"
+	statusUnavailable         = 503
+	defaultUpstreamStatus     = 200
 	maxRedirectURLBytes       = 2048
 )
 
@@ -65,69 +68,39 @@ func NewAuthzServer(coordinator *composite.Coordinator) (*AuthzServer, error) {
 // Check deliberately does not use HttpRequest.Id as an identifier.  Envoy's
 // request id is input data and is therefore unsuitable for lease correlation.
 func (s *AuthzServer) Check(ctx context.Context, req *authv3.CheckRequest) (*authv3.CheckResponse, error) {
+	cleanupCtx := context.WithoutCancel(ctx)
 	meta, headers, body, err := authRequest(req)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 	admission, decision, err := s.coordinator.BeginRequest(ctx, meta, headers, false)
 	if err != nil {
-		if errors.Is(err, composite.ErrNotAllowed) {
-			decision = normalizePolicyDecision(decision, err)
-			return denied(decision), nil
-		}
-		if errors.Is(err, composite.ErrLimit) {
-			decision = normalizePolicyDecision(decision, err)
-			if admission != nil {
-				if recordErr := admission.RecordRequestBodyLimitHostAction(); recordErr != nil {
-					return nil, authFailure(recordErr)
-				}
-				admission.Finish(context.Background(), "request_body_limit")
-			}
-			return denied(decision), nil
-		}
-		return nil, authFailure(err)
+		return handleAdmissionError(ctx, cleanupCtx, admission, decision, err, false)
 	}
 	if decision.Action != processor.ActionAllow {
 		decision = normalizePolicyDecision(decision, nil)
 		if recordErr := admission.RecordHostAction(ctx, processor.HostAction{Action: appliedAction(decision), VisibleStatus: decision.Status, TransportResult: commonTransportHTTPStatus}); recordErr != nil {
 			return nil, authFailure(recordErr)
 		}
-		admission.Finish(context.Background(), "request_block")
+		admission.Finish(cleanupCtx, "request_block")
 		return denied(decision), nil
 	}
 	leased := false
 	defer func() {
 		if admission != nil && !leased {
-			admission.Finish(context.Background(), "request_block")
+			admission.Finish(cleanupCtx, "request_block")
 		}
 	}()
 	decision, err = admission.ProcessBody(ctx, body, true)
 	if err != nil {
-		if errors.Is(err, composite.ErrNotAllowed) {
-			decision = normalizePolicyDecision(decision, err)
-			if recordErr := admission.RecordHostAction(ctx, processor.HostAction{Action: appliedAction(decision), VisibleStatus: decision.Status, TransportResult: commonTransportHTTPStatus}); recordErr != nil {
-				return nil, authFailure(recordErr)
-			}
-			return denied(decision), nil
-		}
-		if errors.Is(err, composite.ErrLimit) {
-			decision = normalizePolicyDecision(decision, err)
-			if admission != nil {
-				if recordErr := admission.RecordRequestBodyLimitHostAction(); recordErr != nil {
-					return nil, authFailure(recordErr)
-				}
-				admission.Finish(context.Background(), "request_body_limit")
-			}
-			return denied(decision), nil
-		}
-		return nil, authFailure(err)
+		return handleAdmissionError(ctx, cleanupCtx, admission, decision, err, true)
 	}
 	if decision.Action != processor.ActionAllow {
 		decision = normalizePolicyDecision(decision, nil)
 		if recordErr := admission.RecordHostAction(ctx, processor.HostAction{Action: appliedAction(decision), VisibleStatus: decision.Status, TransportResult: commonTransportHTTPStatus}); recordErr != nil {
 			return nil, authFailure(recordErr)
 		}
-		admission.Finish(context.Background(), "request_block")
+		admission.Finish(cleanupCtx, "request_block")
 		return denied(decision), nil
 	}
 	lease, err := admission.Lease()
@@ -146,6 +119,29 @@ func (s *AuthzServer) Check(ctx context.Context, req *authv3.CheckRequest) (*aut
 		HttpResponse:    &authv3.CheckResponse_OkResponse{OkResponse: &authv3.OkHttpResponse{}},
 		DynamicMetadata: dynamic,
 	}, nil
+}
+
+func handleAdmissionError(ctx, cleanupCtx context.Context, admission *composite.Admission, decision processor.Decision, err error, recordDeny bool) (*authv3.CheckResponse, error) {
+	if errors.Is(err, composite.ErrNotAllowed) {
+		decision = normalizePolicyDecision(decision, err)
+		if recordDeny {
+			if recordErr := admission.RecordHostAction(ctx, processor.HostAction{Action: appliedAction(decision), VisibleStatus: decision.Status, TransportResult: commonTransportHTTPStatus}); recordErr != nil {
+				return nil, authFailure(recordErr)
+			}
+		}
+		return denied(decision), nil
+	}
+	if errors.Is(err, composite.ErrLimit) {
+		decision = normalizePolicyDecision(decision, err)
+		if admission != nil {
+			if recordErr := admission.RecordRequestBodyLimitHostAction(); recordErr != nil {
+				return nil, authFailure(recordErr)
+			}
+			admission.Finish(cleanupCtx, "request_body_limit")
+		}
+		return denied(decision), nil
+	}
+	return nil, authFailure(err)
 }
 
 // ExtProcServer binds one Envoy ext_proc stream to the lease minted by
@@ -176,13 +172,13 @@ func (s *ExtProcServer) Process(stream extprocv3.ExternalProcessor_ProcessServer
 		// but ext_proc must continue the marked local reply without replacing
 		// its client-visible 4xx status.
 		if !firstIsResponseHeaders {
-			return sendImmediate(stream, processor.Decision{Action: processor.ActionDeny, Status: 503})
+			return sendImmediate(stream, processor.Decision{Action: processor.ActionDeny, Status: statusUnavailable})
 		}
 		return continueMarkedTerminalReply(stream, first)
 	}
 	lease, ok := leaseFromMetadata(first.GetMetadataContext())
 	if !ok || (!firstIsRequestHeaders && !firstIsResponseHeaders) {
-		return sendImmediate(stream, processor.Decision{Action: processor.ActionDeny, Status: 503})
+		return sendImmediate(stream, processor.Decision{Action: processor.ActionDeny, Status: statusUnavailable})
 	}
 	session, err := serverSession()
 	if err != nil {
@@ -190,51 +186,22 @@ func (s *ExtProcServer) Process(stream extprocv3.ExternalProcessor_ProcessServer
 	}
 	response, err := s.coordinator.Claim(lease, session)
 	if err != nil {
-		return sendImmediate(stream, processor.Decision{Action: processor.ActionDeny, Status: 503})
+		return sendImmediate(stream, processor.Decision{Action: processor.ActionDeny, Status: statusUnavailable})
 	}
 	finished := false
+	cleanupCtx := context.WithoutCancel(ctx)
 	finish := func(reason string) {
 		if !finished {
 			finished = true
-			response.Finish(context.Background(), reason)
+			response.Finish(cleanupCtx, reason)
 		}
 	}
 	defer finish("grpc_peer_eof")
-	responseHeadersSeen, responseTrailersSeen, responseDone := false, false, false
-	upstreamStatus := 200
-	lateActionRecorded := false
-	processResponse := func(request *extprocv3.ProcessingRequest) (bool, error) {
-		if request == nil {
-			return false, errors.New("empty ext_proc request")
-		}
-		var terminal bool
-		var err error
-		switch {
-		case request.GetResponseHeaders() != nil:
-			if responseHeadersSeen || responseDone {
-				err = errors.New("duplicate response headers")
-			} else {
-				responseHeadersSeen = true
-				terminal, err = s.responseHeaders(ctx, stream, response, request.GetResponseHeaders(), &upstreamStatus)
-			}
-		case request.GetResponseBody() != nil:
-			if !responseHeadersSeen || responseDone || responseTrailersSeen {
-				err = errors.New("response body violates stream order")
-			} else {
-				terminal, err = s.responseBody(ctx, stream, response, request.GetResponseBody(), upstreamStatus, &lateActionRecorded)
-			}
-		case request.GetResponseTrailers() != nil:
-			if !responseHeadersSeen || responseDone || responseTrailersSeen {
-				err = errors.New("duplicate or out-of-order response trailers")
-			} else {
-				responseTrailersSeen = true
-				terminal, err = s.responseTrailers(ctx, stream, response, request.GetResponseTrailers(), upstreamStatus, &lateActionRecorded)
-			}
-		default:
-			err = errors.New("unexpected ext_proc phase; composite stream accepts response phases only")
-		}
-		return terminal, err
-	}
+	state := &responseStreamState{ctx: ctx, stream: stream, response: response}
+	return s.runResponseStream(state, first, firstIsRequestHeaders, finish)
+}
+
+func (s *ExtProcServer) runResponseStream(state *responseStreamState, first *extprocv3.ProcessingRequest, firstIsRequestHeaders bool, finish func(string)) error {
 	handleProcessError := func(err error) error {
 		var post *postTransportError
 		if errors.As(err, &post) {
@@ -242,32 +209,46 @@ func (s *ExtProcServer) Process(stream extprocv3.ExternalProcessor_ProcessServer
 			return status.Errorf(codes.Internal, "composite outcome evidence unavailable after Envoy response: %v", post.err)
 		}
 		finish("processor_error")
-		if sendErr := sendImmediate(stream, processor.Decision{Action: processor.ActionDeny, Status: 503}); sendErr != nil {
+		if sendErr := sendImmediate(state.stream, processor.Decision{Action: processor.ActionDeny, Status: statusUnavailable}); sendErr != nil {
 			return sendErr
 		}
 		return nil
 	}
 	if firstIsRequestHeaders {
-		// Kept as a fail-closed compatibility path for a pinned host that still
-		// sends the protected request phase. The composite template skips it.
-		if err := sendContinue(stream, requestHeadersResponse()); err != nil {
-			finish("processor_error")
-			return err
-		}
-	} else {
-		terminal, err := processResponse(first)
-		if err != nil {
-			return handleProcessError(err)
-		}
-		if terminal {
-			responseDone = true
-			finish("response_end_of_stream")
-			return nil
-		}
+		return s.runRequestHeadersPhase(state, finish, handleProcessError)
 	}
+	if err := s.processStreamRequest(state, first, finish, handleProcessError); err != nil {
+		return err
+	}
+	return s.runResponseLoop(state, finish, handleProcessError)
+}
 
+func (s *ExtProcServer) runRequestHeadersPhase(state *responseStreamState, finish func(string), handleProcessError func(error) error) error {
+	// Kept as a fail-closed compatibility path for a pinned host that still
+	// sends the protected request phase. The composite template skips it.
+	if err := sendContinue(state.stream, requestHeadersResponse()); err != nil {
+		finish("processor_error")
+		return err
+	}
+	return s.runResponseLoop(state, finish, handleProcessError)
+}
+
+func (s *ExtProcServer) processStreamRequest(state *responseStreamState, request *extprocv3.ProcessingRequest, finish func(string), handleProcessError func(error) error) error {
+	terminal, err := s.processResponse(state, request)
+	if err != nil {
+		return handleProcessError(err)
+	}
+	if terminal {
+		state.responseDone = true
+		finish("response_end_of_stream")
+		return nil
+	}
+	return nil
+}
+
+func (s *ExtProcServer) runResponseLoop(state *responseStreamState, finish func(string), handleProcessError func(error) error) error {
 	for {
-		request, err := stream.Recv()
+		request, err := state.stream.Recv()
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				return nil
@@ -275,15 +256,53 @@ func (s *ExtProcServer) Process(stream extprocv3.ExternalProcessor_ProcessServer
 			finish("grpc_context_canceled_unattributed")
 			return classifyRecv(err)
 		}
-		terminal, err := processResponse(request)
+		terminal, err := s.processResponse(state, request)
 		if err != nil {
 			return handleProcessError(err)
 		}
 		if terminal {
-			responseDone = true
+			state.responseDone = true
 			finish("response_end_of_stream")
 			return nil
 		}
+	}
+}
+
+type responseStreamState struct {
+	ctx                  context.Context
+	stream               extprocv3.ExternalProcessor_ProcessServer
+	response             *composite.Response
+	responseHeadersSeen  bool
+	responseTrailersSeen bool
+	responseDone         bool
+	upstreamStatus       int
+	lateActionRecorded   bool
+}
+
+func (s *ExtProcServer) processResponse(state *responseStreamState, request *extprocv3.ProcessingRequest) (bool, error) {
+	if request == nil {
+		return false, errors.New("empty ext_proc request")
+	}
+	switch {
+	case request.GetResponseHeaders() != nil:
+		if state.responseHeadersSeen || state.responseDone {
+			return false, errors.New("duplicate response headers")
+		}
+		state.responseHeadersSeen = true
+		return s.responseHeaders(state.ctx, state.stream, state.response, request.GetResponseHeaders(), &state.upstreamStatus)
+	case request.GetResponseBody() != nil:
+		if !state.responseHeadersSeen || state.responseDone || state.responseTrailersSeen {
+			return false, errors.New("response body violates stream order")
+		}
+		return s.responseBody(state.ctx, state.stream, state.response, request.GetResponseBody(), state.upstreamStatus, &state.lateActionRecorded)
+	case request.GetResponseTrailers() != nil:
+		if !state.responseHeadersSeen || state.responseDone || state.responseTrailersSeen {
+			return false, errors.New("duplicate or out-of-order response trailers")
+		}
+		state.responseTrailersSeen = true
+		return s.responseTrailers(state.ctx, state.stream, state.response, request.GetResponseTrailers(), state.upstreamStatus, &state.lateActionRecorded)
+	default:
+		return false, errors.New("unexpected ext_proc phase; composite stream accepts response phases only")
 	}
 }
 
@@ -306,7 +325,7 @@ func (s *ExtProcServer) responseHeaders(ctx context.Context, stream extprocv3.Ex
 		if err := response.RecordHostAction(ctx, processor.HostAction{Action: appliedAction(decision), VisibleStatus: decision.Status, TransportResult: commonTransportHTTPStatus}); err != nil {
 			return false, &postTransportError{reason: "host_action_unknown_after_immediate", err: err}
 		}
-		response.Finish(context.Background(), "response_block")
+		response.Finish(context.WithoutCancel(ctx), "response_block")
 		return true, nil
 	}
 	if err := sendContinue(stream, responseHeadersResponse()); err != nil {
@@ -328,10 +347,8 @@ func (s *ExtProcServer) responseBody(ctx context.Context, stream extprocv3.Exter
 	if err != nil {
 		return false, err
 	}
-	if decision.Action != processor.ActionAllow {
-		// The response has already crossed the commit boundary.  The adapter
-		// therefore records log-only/safe handling and never claims a reset.
-	}
+	// The response has already crossed the commit boundary. Disruptive P4
+	// decisions are therefore recorded as log-only and never reset the stream.
 	if err := sendContinue(stream, bodyResponse()); err != nil {
 		return false, err
 	}
@@ -356,8 +373,6 @@ func (s *ExtProcServer) responseTrailers(ctx context.Context, stream extprocv3.E
 	if err != nil {
 		return false, err
 	}
-	if decision.Action != processor.ActionAllow {
-	}
 	if err := sendContinue(stream, trailersResponse()); err != nil {
 		return false, err
 	}
@@ -376,7 +391,7 @@ func (s *ExtProcServer) responseTrailers(ctx context.Context, stream extprocv3.E
 
 func responseStatus(headers []processor.Header) int {
 	for _, header := range headers {
-		if header.Name == ":status" {
+		if header.Name == envoyStatusHeader {
 			if statusCode, err := strconv.Atoi(string(header.Value)); err == nil && statusCode >= 100 && statusCode <= 599 {
 				return statusCode
 			}
@@ -495,48 +510,54 @@ func continueMarkedTerminalReply(stream extprocv3.ExternalProcessor_ProcessServe
 	responseHeadersSeen := false
 	request := first
 	for {
-		if request == nil {
-			return sendImmediate(stream, processor.Decision{Action: processor.ActionDeny, Status: 503})
+		done, nextHeadersSeen, err := continueMarkedRequest(stream, request, responseHeadersSeen)
+		if err != nil || done {
+			return err
 		}
-		switch {
-		case request.GetResponseHeaders() != nil:
-			if responseHeadersSeen {
-				return sendImmediate(stream, processor.Decision{Action: processor.ActionDeny, Status: 503})
-			}
-			headers, err := decodeHeaders(request.GetResponseHeaders().GetHeaders())
-			if err != nil || !validMarkedTerminalReply(headers) {
-				return sendImmediate(stream, processor.Decision{Action: processor.ActionDeny, Status: 503})
-			}
-			responseHeadersSeen = true
-			if err := sendContinue(stream, responseHeadersResponse()); err != nil {
-				return err
-			}
-			if request.GetResponseHeaders().GetEndOfStream() {
-				return nil
-			}
-		case request.GetResponseBody() != nil:
-			if !responseHeadersSeen {
-				return sendImmediate(stream, processor.Decision{Action: processor.ActionDeny, Status: 503})
-			}
-			if err := sendContinue(stream, bodyResponse()); err != nil {
-				return err
-			}
-			if request.GetResponseBody().GetEndOfStream() {
-				return nil
-			}
-		case request.GetResponseTrailers() != nil:
-			if !responseHeadersSeen {
-				return sendImmediate(stream, processor.Decision{Action: processor.ActionDeny, Status: 503})
-			}
-			return sendContinue(stream, trailersResponse())
-		default:
-			return sendImmediate(stream, processor.Decision{Action: processor.ActionDeny, Status: 503})
-		}
+		responseHeadersSeen = nextHeadersSeen
 		next, err := stream.Recv()
 		if err != nil {
 			return classifyRecv(err)
 		}
 		request = next
+	}
+}
+
+func continueMarkedRequest(stream extprocv3.ExternalProcessor_ProcessServer, request *extprocv3.ProcessingRequest, responseHeadersSeen bool) (bool, bool, error) {
+	deny := func() (bool, bool, error) {
+		return true, responseHeadersSeen, sendImmediate(stream, processor.Decision{Action: processor.ActionDeny, Status: statusUnavailable})
+	}
+	if request == nil {
+		return deny()
+	}
+	switch {
+	case request.GetResponseHeaders() != nil:
+		if responseHeadersSeen {
+			return deny()
+		}
+		headers, err := decodeHeaders(request.GetResponseHeaders().GetHeaders())
+		if err != nil || !validMarkedTerminalReply(headers) {
+			return deny()
+		}
+		if err := sendContinue(stream, responseHeadersResponse()); err != nil {
+			return true, responseHeadersSeen, err
+		}
+		return request.GetResponseHeaders().GetEndOfStream(), true, nil
+	case request.GetResponseBody() != nil:
+		if !responseHeadersSeen {
+			return deny()
+		}
+		if err := sendContinue(stream, bodyResponse()); err != nil {
+			return true, responseHeadersSeen, err
+		}
+		return request.GetResponseBody().GetEndOfStream(), responseHeadersSeen, nil
+	case request.GetResponseTrailers() != nil:
+		if !responseHeadersSeen {
+			return deny()
+		}
+		return true, responseHeadersSeen, sendContinue(stream, trailersResponse())
+	default:
+		return deny()
 	}
 }
 
@@ -622,7 +643,7 @@ func validMarkedTerminalReply(headers []processor.Header) bool {
 	locationSeen := false
 	for _, header := range headers {
 		switch header.Name {
-		case ":status":
+		case envoyStatusHeader:
 			if statusSeen {
 				return false
 			}

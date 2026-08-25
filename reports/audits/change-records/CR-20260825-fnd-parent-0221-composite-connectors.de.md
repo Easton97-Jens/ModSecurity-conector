@@ -286,3 +286,26 @@ Traefik-Dynamic-Config-Parsing und ein TLS-aktivierter Matrix-Lauf
 `blocked_environment`. Als Nächstes folgen der autorisierte scoped Commit/Push
 und die exakte Successor-Head-Hosted-Sonar-Validierung. Der Draft-PR bleibt
 `DIRTY`; kein Rebase, Konfliktlösungs-Commit oder Merge ist autorisiert.
+
+## Sonar-Remediation für null New Code (Hosted-Bestätigung ausstehend)
+
+Ein separates, begrenztes Follow-up refaktoriert die für diesen Draft-PR
+gemeldeten 92 New-Code-Code-Smells und sechs Duplikatblöcke. Es ändert weder
+Sonar-Konfiguration noch Quality Gate, Exclusion, Accepted-Issue-Status,
+Coverage-Input oder Suppression. Die Source-Änderungen beschränken sich auf
+verhaltenserhaltende Helper-Extraktion, Literal-Wiederverwendung,
+Dispatcher-Aufteilung und fokussierte Test-Fixture-Wiederverwendung.
+
+Der aktuelle lokale Source-Review identifiziert für jeden gemeldeten Befund
+und jeden Duplikatblock eine strukturelle Remediation. Ungecachte Validierung
+bestand für die vollständigen Envoy- und Traefik-Go-Suiten, die relevanten
+Envoy-Race-Suiten, beide Go-vet-Suiten, 53 Python-Runtime-/Evidence-/Harness-
+Tests, Go-Formatierung, Shell-Syntax und Diff-Whitespace. Ein unabhängiger
+Security-Review bestätigte außerdem, dass die während dieses Follow-ups
+gefundenen temporären Descriptor-Cleanup- und UDS-Outcome-Routing-Regressions
+behoben sind und die Fail-Closed-Controls erhalten bleiben.
+
+Für den endgültigen Metriknachweis ist weiterhin die SonarCloud-Analyse des
+exakten Successor-Heads erforderlich; dieser Record behauptet bewusst kein
+Hosted-Null-Ergebnis, bevor diese Analyse abgeschlossen ist. Der PR bleibt
+Draft, und kein Merge ist autorisiert.

@@ -176,51 +176,56 @@ func (t *strictRequestTransaction) RecordHostAction(_ context.Context, action pr
 	return nil
 }
 
+type canonicalTransportCase struct {
+	name             string
+	headerAction     processor.Action
+	bodyAction       processor.Action
+	body             []byte
+	wantStatus       int32
+	wantNativeAction bool
+}
+
 func TestCheckUsesCanonicalCommonTransportForDenyAndBodyLimit(t *testing.T) {
-	tests := []struct {
-		name             string
-		headerAction     processor.Action
-		bodyAction       processor.Action
-		body             []byte
-		wantStatus       int32
-		wantNativeAction bool
-	}{
+	tests := []canonicalTransportCase{
 		{name: "p1 deny", headerAction: processor.ActionDeny, bodyAction: processor.ActionAllow, wantStatus: 403, wantNativeAction: true},
 		{name: "p2 deny", headerAction: processor.ActionAllow, bodyAction: processor.ActionDeny, body: []byte("p2"), wantStatus: 403, wantNativeAction: true},
 		{name: "p2 body limit", headerAction: processor.ActionAllow, bodyAction: processor.ActionAllow, body: make([]byte, 33), wantStatus: 413},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			opener := &strictRequestOpener{headerAction: test.headerAction, bodyAction: test.bodyAction, status: 403, rejectNativeHostAction: !test.wantNativeAction}
-			coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 2, MaxRequestBody: 32}, opener, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Cleanup(coordinator.Close)
-			server, err := NewAuthzServer(coordinator)
-			if err != nil {
-				t.Fatal(err)
-			}
-			response, err := server.Check(context.Background(), authCheckRequest(test.body))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if response.GetDeniedResponse() == nil || int32(response.GetDeniedResponse().GetStatus().GetCode()) != test.wantStatus {
-				t.Fatalf("response=%v, want denied status %d", response, test.wantStatus)
-			}
-			if response.GetDynamicMetadata().GetFields()[metadataTerminal].GetStringValue() != metadataTerminalBlock || response.GetDynamicMetadata().GetFields()[metadataLease] != nil {
-				t.Fatalf("denied response did not carry only the protected terminal marker: %v", response.GetDynamicMetadata())
-			}
-			if opener.tx == nil {
-				t.Fatal("missing request transaction")
-			}
-			if test.wantNativeAction && (len(opener.tx.actions) != 1 || opener.tx.actions[0].TransportResult != commonTransportHTTPStatus) {
-				t.Fatalf("actions=%v, want one canonical %q action", opener.tx.actions, commonTransportHTTPStatus)
-			}
-			if !test.wantNativeAction && len(opener.tx.actions) != 0 {
-				t.Fatalf("synthetic P2 limit invoked native Common action: %v", opener.tx.actions)
-			}
-		})
+		t.Run(test.name, func(t *testing.T) { runCanonicalTransportCase(t, test) })
+	}
+}
+
+func runCanonicalTransportCase(t *testing.T, test canonicalTransportCase) {
+	t.Helper()
+	opener := &strictRequestOpener{headerAction: test.headerAction, bodyAction: test.bodyAction, status: 403, rejectNativeHostAction: !test.wantNativeAction}
+	coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 2, MaxRequestBody: 32}, opener, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(coordinator.Close)
+	server, err := NewAuthzServer(coordinator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := server.Check(context.Background(), authCheckRequest(test.body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.GetDeniedResponse() == nil || int32(response.GetDeniedResponse().GetStatus().GetCode()) != test.wantStatus {
+		t.Fatalf("response=%v, want denied status %d", response, test.wantStatus)
+	}
+	if response.GetDynamicMetadata().GetFields()[metadataTerminal].GetStringValue() != metadataTerminalBlock || response.GetDynamicMetadata().GetFields()[metadataLease] != nil {
+		t.Fatalf("denied response did not carry only the protected terminal marker: %v", response.GetDynamicMetadata())
+	}
+	if opener.tx == nil {
+		t.Fatal("missing request transaction")
+	}
+	if test.wantNativeAction && (len(opener.tx.actions) != 1 || opener.tx.actions[0].TransportResult != commonTransportHTTPStatus) {
+		t.Fatalf("actions=%v, want one canonical %q action", opener.tx.actions, commonTransportHTTPStatus)
+	}
+	if !test.wantNativeAction && len(opener.tx.actions) != 0 {
+		t.Fatalf("synthetic P2 limit invoked native Common action: %v", opener.tx.actions)
 	}
 }
 
@@ -228,19 +233,7 @@ func TestCheckNormalizesMalformedRequestDenyStatus(t *testing.T) {
 	for _, malformedStatus := range []int{103, 200, 600} {
 		t.Run(strconv.Itoa(malformedStatus), func(t *testing.T) {
 			opener := &strictRequestOpener{headerAction: processor.ActionDeny, bodyAction: processor.ActionAllow, status: malformedStatus}
-			coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 2}, opener, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Cleanup(coordinator.Close)
-			server, err := NewAuthzServer(coordinator)
-			if err != nil {
-				t.Fatal(err)
-			}
-			response, err := server.Check(context.Background(), authCheckRequest(nil))
-			if err != nil {
-				t.Fatal(err)
-			}
+			response := runStrictCheck(t, opener)
 			if got := int(response.GetDeniedResponse().GetStatus().GetCode()); got != 403 {
 				t.Fatalf("visible status=%d, want 403", got)
 			}
@@ -254,19 +247,7 @@ func TestCheckNormalizesMalformedRequestDenyStatus(t *testing.T) {
 func TestCheckPreservesValidatedRedirect(t *testing.T) {
 	const location = "https://redirect.example.test/next"
 	opener := &strictRequestOpener{headerAction: processor.ActionRedirect, bodyAction: processor.ActionAllow, status: 307, redirectURL: location}
-	coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 2}, opener, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(coordinator.Close)
-	server, err := NewAuthzServer(coordinator)
-	if err != nil {
-		t.Fatal(err)
-	}
-	response, err := server.Check(context.Background(), authCheckRequest(nil))
-	if err != nil {
-		t.Fatal(err)
-	}
+	response := runStrictCheck(t, opener)
 	denied := response.GetDeniedResponse()
 	if denied == nil || int(denied.GetStatus().GetCode()) != 307 {
 		t.Fatalf("response=%v, want redirect status 307", response)
@@ -283,6 +264,24 @@ func TestCheckPreservesValidatedRedirect(t *testing.T) {
 	if opener.tx == nil || len(opener.tx.actions) != 1 || opener.tx.actions[0].Action != processor.AppliedActionRedirect || opener.tx.actions[0].VisibleStatus != 307 {
 		t.Fatalf("host actions=%v, want one redirect status 307", opener.tx.actions)
 	}
+}
+
+func runStrictCheck(t *testing.T, opener *strictRequestOpener) *authv3.CheckResponse {
+	t.Helper()
+	coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 2}, opener, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(coordinator.Close)
+	server, err := NewAuthzServer(coordinator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := server.Check(context.Background(), authCheckRequest(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return response
 }
 
 func TestNormalizePolicyDecisionRejectsInvalidRedirect(t *testing.T) {
@@ -343,7 +342,6 @@ func testAddress(host string, port uint32) *corev3.Address {
 }
 
 type processStream struct {
-	ctx       context.Context
 	requests  []*extprocv3.ProcessingRequest
 	responses []*extprocv3.ProcessingResponse
 }
@@ -351,7 +349,7 @@ type processStream struct {
 func (s *processStream) SetHeader(metadata.MD) error  { return nil }
 func (s *processStream) SendHeader(metadata.MD) error { return nil }
 func (s *processStream) SetTrailer(metadata.MD)       {}
-func (s *processStream) Context() context.Context     { return s.ctx }
+func (s *processStream) Context() context.Context     { return context.Background() }
 func (s *processStream) SendMsg(interface{}) error    { return nil }
 func (s *processStream) RecvMsg(interface{}) error    { return nil }
 func (s *processStream) Send(response *extprocv3.ProcessingResponse) error {
@@ -497,7 +495,7 @@ func terminalResponseHeaders(status string, endOfStream bool) *extprocv3.Process
 
 func TestProcessMissingMetadataFailsClosed503(t *testing.T) {
 	server, _, _, _ := newProcessFixture(t, processor.ActionAllow, 200)
-	stream := &processStream{ctx: context.Background(), requests: []*extprocv3.ProcessingRequest{{Request: &extprocv3.ProcessingRequest_ResponseHeaders{ResponseHeaders: &extprocv3.HttpHeaders{EndOfStream: true, Headers: &corev3.HeaderMap{Headers: []*corev3.HeaderValue{{Key: ":status", Value: "403"}}}}}}}}
+	stream := &processStream{requests: []*extprocv3.ProcessingRequest{{Request: &extprocv3.ProcessingRequest_ResponseHeaders{ResponseHeaders: &extprocv3.HttpHeaders{EndOfStream: true, Headers: &corev3.HeaderMap{Headers: []*corev3.HeaderValue{{Key: ":status", Value: "403"}}}}}}}}
 	if err := server.Process(stream); err != nil {
 		t.Fatal(err)
 	}
@@ -517,7 +515,7 @@ func TestProcessMarkedTerminalLocalReplyContinuesWithoutClaim(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stream := &processStream{ctx: context.Background(), requests: []*extprocv3.ProcessingRequest{terminalResponseHeaders("413", true)}}
+	stream := &processStream{requests: []*extprocv3.ProcessingRequest{terminalResponseHeaders("413", true)}}
 	if err := server.Process(stream); err != nil {
 		t.Fatal(err)
 	}
@@ -532,7 +530,7 @@ func TestProcessMarkedTerminalLocalReplyContinuesWithoutClaim(t *testing.T) {
 func TestProcessP3DenyImmediateAndAction(t *testing.T) {
 	server, opener, _, lease := newProcessFixture(t, processor.ActionDeny, 451)
 	opener.tx.expectedTransport = commonTransportHTTPStatus
-	stream := &processStream{ctx: context.Background(), requests: []*extprocv3.ProcessingRequest{initialRequest(lease), {Request: &extprocv3.ProcessingRequest_ResponseHeaders{ResponseHeaders: &extprocv3.HttpHeaders{Headers: &corev3.HeaderMap{Headers: []*corev3.HeaderValue{{Key: ":status", Value: "200"}}}}}}}}
+	stream := &processStream{requests: []*extprocv3.ProcessingRequest{initialRequest(lease), {Request: &extprocv3.ProcessingRequest_ResponseHeaders{ResponseHeaders: &extprocv3.HttpHeaders{Headers: &corev3.HeaderMap{Headers: []*corev3.HeaderValue{{Key: ":status", Value: "200"}}}}}}}}
 	if err := server.Process(stream); err != nil {
 		t.Fatal(err)
 	}
@@ -571,7 +569,7 @@ func TestProcessMarkedTerminalRedirectPassesThrough(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stream := &processStream{ctx: context.Background(), requests: []*extprocv3.ProcessingRequest{{
+	stream := &processStream{requests: []*extprocv3.ProcessingRequest{{
 		MetadataContext: &corev3.Metadata{FilterMetadata: map[string]*structpb.Struct{metadataNamespace: terminal.GetDynamicMetadata()}},
 		Request: &extprocv3.ProcessingRequest_ResponseHeaders{ResponseHeaders: &extprocv3.HttpHeaders{
 			EndOfStream: true,
@@ -592,7 +590,7 @@ func TestProcessMarkedTerminalRedirectPassesThrough(t *testing.T) {
 func TestProcessMarkedTerminalServerErrorPassesThrough(t *testing.T) {
 	server, opener, _, _ := newProcessFixture(t, processor.ActionAllow, 200)
 	requestTransaction := opener.tx
-	stream := &processStream{ctx: context.Background(), requests: []*extprocv3.ProcessingRequest{terminalResponseHeaders("500", true)}}
+	stream := &processStream{requests: []*extprocv3.ProcessingRequest{terminalResponseHeaders("500", true)}}
 	if err := server.Process(stream); err != nil {
 		t.Fatal(err)
 	}
@@ -625,7 +623,7 @@ func TestProcessMarkedTerminalInvalidRedirectFailsClosed(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			stream := &processStream{ctx: context.Background(), requests: []*extprocv3.ProcessingRequest{{
+			stream := &processStream{requests: []*extprocv3.ProcessingRequest{{
 				MetadataContext: &corev3.Metadata{FilterMetadata: map[string]*structpb.Struct{metadataNamespace: terminalBlockMetadata()}},
 				Request:         &extprocv3.ProcessingRequest_ResponseHeaders{ResponseHeaders: &extprocv3.HttpHeaders{EndOfStream: true, Headers: &corev3.HeaderMap{Headers: test.headers}}},
 			}}}
@@ -647,7 +645,7 @@ func TestProcessNormalizesMalformedP3DenyStatus(t *testing.T) {
 		t.Run(strconv.Itoa(malformedStatus), func(t *testing.T) {
 			server, opener, _, lease := newProcessFixture(t, processor.ActionDeny, malformedStatus)
 			opener.tx.expectedTransport = commonTransportHTTPStatus
-			stream := &processStream{ctx: context.Background(), requests: []*extprocv3.ProcessingRequest{
+			stream := &processStream{requests: []*extprocv3.ProcessingRequest{
 				initialRequest(lease),
 				{Request: &extprocv3.ProcessingRequest_ResponseHeaders{ResponseHeaders: &extprocv3.HttpHeaders{Headers: &corev3.HeaderMap{Headers: []*corev3.HeaderValue{{Key: ":status", Value: "200"}}}}}},
 			}}
@@ -665,7 +663,7 @@ func TestProcessNormalizesMalformedP3DenyStatus(t *testing.T) {
 }
 
 func TestSendImmediatePreservesValidatedRedirect(t *testing.T) {
-	stream := &processStream{ctx: context.Background()}
+	stream := &processStream{}
 	if err := sendImmediate(stream, processor.Decision{Action: processor.ActionRedirect, Status: 307, RedirectURL: "https://redirect.example.test/next"}); err != nil {
 		t.Fatal(err)
 	}
@@ -685,7 +683,7 @@ func TestSendImmediatePreservesValidatedRedirect(t *testing.T) {
 func TestProcessP4DisruptiveContinuesLogOnly(t *testing.T) {
 	server, opener, _, lease := newProcessFixtureWithActions(t, processor.ActionAllow, processor.ActionDeny, 451)
 	opener.tx.expectedTransport = commonTransportLogOnly
-	stream := &processStream{ctx: context.Background(), requests: []*extprocv3.ProcessingRequest{initialRequest(lease), {Request: &extprocv3.ProcessingRequest_ResponseHeaders{ResponseHeaders: &extprocv3.HttpHeaders{Headers: &corev3.HeaderMap{Headers: []*corev3.HeaderValue{{Key: ":status", Value: "204"}}}}}}, {Request: &extprocv3.ProcessingRequest_ResponseBody{ResponseBody: &extprocv3.HttpBody{Body: []byte("body"), EndOfStream: true}}}}}
+	stream := &processStream{requests: []*extprocv3.ProcessingRequest{initialRequest(lease), {Request: &extprocv3.ProcessingRequest_ResponseHeaders{ResponseHeaders: &extprocv3.HttpHeaders{Headers: &corev3.HeaderMap{Headers: []*corev3.HeaderValue{{Key: ":status", Value: "204"}}}}}}, {Request: &extprocv3.ProcessingRequest_ResponseBody{ResponseBody: &extprocv3.HttpBody{Body: []byte("body"), EndOfStream: true}}}}}
 	if err := server.Process(stream); err != nil {
 		t.Fatal(err)
 	}
@@ -701,7 +699,7 @@ func TestProcessStreamedP4DenyEmitsOnceAndSuppressesNeutralAllow(t *testing.T) {
 	server, opener, observer, lease := newProcessFixtureWithActions(t, processor.ActionAllow, processor.ActionAllow, 451)
 	opener.tx.bodyActions = []processor.Action{processor.ActionDeny, processor.ActionAllow}
 	opener.tx.expectedTransport = commonTransportLogOnly
-	stream := &processStream{ctx: context.Background(), requests: []*extprocv3.ProcessingRequest{
+	stream := &processStream{requests: []*extprocv3.ProcessingRequest{
 		initialRequest(lease),
 		{Request: &extprocv3.ProcessingRequest_ResponseHeaders{ResponseHeaders: &extprocv3.HttpHeaders{Headers: &corev3.HeaderMap{Headers: []*corev3.HeaderValue{{Key: ":status", Value: "200"}}}}}},
 		{Request: &extprocv3.ProcessingRequest_ResponseBody{ResponseBody: &extprocv3.HttpBody{Body: []byte("first"), EndOfStream: false}}},
@@ -721,7 +719,7 @@ func TestProcessStreamedP4DenyEmitsOnceAndSuppressesNeutralAllow(t *testing.T) {
 
 func TestProcessStreamedP4AllowEmitsAtEOSAndRecordsNeutralAllow(t *testing.T) {
 	server, _, observer, lease := newProcessFixtureWithActions(t, processor.ActionAllow, processor.ActionAllow, 200)
-	stream := &processStream{ctx: context.Background(), requests: []*extprocv3.ProcessingRequest{
+	stream := &processStream{requests: []*extprocv3.ProcessingRequest{
 		initialRequest(lease),
 		{Request: &extprocv3.ProcessingRequest_ResponseHeaders{ResponseHeaders: &extprocv3.HttpHeaders{Headers: &corev3.HeaderMap{Headers: []*corev3.HeaderValue{{Key: ":status", Value: "200"}}}}}},
 		{Request: &extprocv3.ProcessingRequest_ResponseBody{ResponseBody: &extprocv3.HttpBody{Body: []byte("first"), EndOfStream: false}}},
@@ -762,7 +760,7 @@ func eventCountsUntilTerminal(t *testing.T, observer *eventObserver) (int, int) 
 
 func TestProcessHeaderOnlyAllowNeutralOutcome(t *testing.T) {
 	server, opener, observer, lease := newProcessFixture(t, processor.ActionAllow, 200)
-	stream := &processStream{ctx: context.Background(), requests: []*extprocv3.ProcessingRequest{initialResponseHeaders(lease, "201", true)}}
+	stream := &processStream{requests: []*extprocv3.ProcessingRequest{initialResponseHeaders(lease, "201", true)}}
 	if err := server.Process(stream); err != nil {
 		t.Fatal(err)
 	}
@@ -792,7 +790,7 @@ func TestProcessHeaderOnlyAllowNeutralOutcome(t *testing.T) {
 
 func TestProcessOutOfOrderResponseFailsClosed(t *testing.T) {
 	server, _, _, lease := newProcessFixture(t, processor.ActionAllow, 200)
-	stream := &processStream{ctx: context.Background(), requests: []*extprocv3.ProcessingRequest{initialRequest(lease), {Request: &extprocv3.ProcessingRequest_ResponseBody{ResponseBody: &extprocv3.HttpBody{EndOfStream: true}}}}}
+	stream := &processStream{requests: []*extprocv3.ProcessingRequest{initialRequest(lease), {Request: &extprocv3.ProcessingRequest_ResponseBody{ResponseBody: &extprocv3.HttpBody{EndOfStream: true}}}}}
 	if err := server.Process(stream); err != nil {
 		t.Fatal(err)
 	}
@@ -803,7 +801,7 @@ func TestProcessOutOfOrderResponseFailsClosed(t *testing.T) {
 
 func TestProcessP3ImmediateRecorderFailureLeavesOutcomeUnknown(t *testing.T) {
 	server, opener, _, lease := newProcessFixtureWithFailures(t, processor.ActionDeny, processor.ActionDeny, 451, nil, errors.New("recorder failed"))
-	stream := &processStream{ctx: context.Background(), requests: []*extprocv3.ProcessingRequest{
+	stream := &processStream{requests: []*extprocv3.ProcessingRequest{
 		initialRequest(lease),
 		{Request: &extprocv3.ProcessingRequest_ResponseHeaders{ResponseHeaders: &extprocv3.HttpHeaders{Headers: &corev3.HeaderMap{Headers: []*corev3.HeaderValue{{Key: ":status", Value: "200"}}}}}},
 	}}
@@ -820,7 +818,7 @@ func TestProcessP3ImmediateRecorderFailureLeavesOutcomeUnknown(t *testing.T) {
 
 func TestProcessP3AllowCommitFailureDoesNotSendSecondDecision(t *testing.T) {
 	server, opener, _, lease := newProcessFixtureWithFailures(t, processor.ActionAllow, processor.ActionAllow, 200, errors.New("commit recorder failed"), nil)
-	stream := &processStream{ctx: context.Background(), requests: []*extprocv3.ProcessingRequest{
+	stream := &processStream{requests: []*extprocv3.ProcessingRequest{
 		initialRequest(lease),
 		{Request: &extprocv3.ProcessingRequest_ResponseHeaders{ResponseHeaders: &extprocv3.HttpHeaders{Headers: &corev3.HeaderMap{Headers: []*corev3.HeaderValue{{Key: ":status", Value: "204"}}}}}},
 	}}

@@ -392,25 +392,47 @@ func (o *compositeObserver) restoreFailedWriteLocked(size int64) error {
 	return nil
 }
 
+func validateCompositeEvent(event composite.Event) error {
+	for _, value := range []string{event.DecisionID, event.Connector, event.RuleID, event.Phase, event.Outcome, event.Reason, event.RequestedAction, event.ActualHostAction, event.CleanupOutcome, event.RequestPath, event.ResponsePath, event.Transport} {
+		if len(value) > 256 || strings.ContainsAny(value, "\r\n") {
+			return errors.New("event metadata exceeds bounds")
+		}
+	}
+	if len(event.RuleID) > 128 {
+		return errors.New("rule identifier exceeds bounds")
+	}
+	if event.DecisionID == "" || event.RequestPath == "" || event.ResponsePath == "" || event.Transport == "" {
+		return errors.New("event pipeline metadata is required")
+	}
+	return nil
+}
+
+func compositeEventRecordFor(event composite.Event) ([]byte, error) {
+	record := compositeEventRecord{
+		DecisionID: event.DecisionID, Connector: event.Connector, RuleID: event.RuleID,
+		Phase: event.Phase, Outcome: event.Outcome, Reason: event.Reason,
+		RequestedAction: event.RequestedAction, ActualHostAction: event.ActualHostAction,
+		VisibleStatus: event.VisibleStatus, CleanupOutcome: event.CleanupOutcome,
+		EventTime:   event.EventTime.UTC().Format("2006-01-02T15:04:05.999999999Z07:00"),
+		RequestPath: event.RequestPath, ResponsePath: event.ResponsePath, Transport: event.Transport,
+	}
+	line, err := json.Marshal(record)
+	if err != nil || len(line) > int(maxCompositeEventRecordBytes) {
+		return nil, errors.New("event record exceeds bounds")
+	}
+	return line, nil
+}
+
 func (o *compositeObserver) Observe(event composite.Event) error {
 	if o == nil || o.file == nil {
 		return o.fail(errors.New("event observer is closed"))
 	}
-	for _, value := range []string{event.DecisionID, event.Connector, event.RuleID, event.Phase, event.Outcome, event.Reason, event.RequestedAction, event.ActualHostAction, event.CleanupOutcome, event.RequestPath, event.ResponsePath, event.Transport} {
-		if len(value) > 256 || strings.ContainsAny(value, "\r\n") {
-			return o.fail(errors.New("event metadata exceeds bounds"))
-		}
+	if err := validateCompositeEvent(event); err != nil {
+		return o.fail(err)
 	}
-	if len(event.RuleID) > 128 {
-		return o.fail(errors.New("rule identifier exceeds bounds"))
-	}
-	if event.DecisionID == "" || event.RequestPath == "" || event.ResponsePath == "" || event.Transport == "" {
-		return o.fail(errors.New("event pipeline metadata is required"))
-	}
-	record := compositeEventRecord{DecisionID: event.DecisionID, Connector: event.Connector, RuleID: event.RuleID, Phase: event.Phase, Outcome: event.Outcome, Reason: event.Reason, RequestedAction: event.RequestedAction, ActualHostAction: event.ActualHostAction, VisibleStatus: event.VisibleStatus, CleanupOutcome: event.CleanupOutcome, EventTime: event.EventTime.UTC().Format("2006-01-02T15:04:05.999999999Z07:00"), RequestPath: event.RequestPath, ResponsePath: event.ResponsePath, Transport: event.Transport}
-	line, err := json.Marshal(record)
-	if err != nil || len(line) > int(maxCompositeEventRecordBytes) {
-		return o.fail(errors.New("event record exceeds bounds"))
+	line, err := compositeEventRecordFor(event)
+	if err != nil {
+		return o.fail(err)
 	}
 	o.mu.Lock()
 	defer o.mu.Unlock()

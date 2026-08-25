@@ -66,6 +66,30 @@ class RuntimeArtifactUtilsTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "mode 0700"):
                 open_private_runtime_root(broad)
 
+    def test_descriptor_backed_private_root_closes_rejected_leaf_descriptors(self) -> None:
+        descriptor_directory = Path("/proc/self/fd")
+        if not descriptor_directory.is_dir():
+            self.skipTest("descriptor accounting is unavailable")
+        with tempfile.TemporaryDirectory(prefix="private-runtime-rejected-leaf-") as temporary:
+            root = Path(temporary) / "root"
+            root.mkdir(mode=0o700)
+            os.chmod(root, 0o700)
+            descriptor_count = len(tuple(descriptor_directory.iterdir()))
+            with (
+                mock.patch.object(
+                    RUNTIME_PATH_UTILS, "is_safe_runtime_root", return_value=True
+                ),
+                mock.patch.object(
+                    RUNTIME_PATH_UTILS,
+                    "_validate_runtime_ancestor",
+                    side_effect=ValueError("rejected leaf"),
+                ),
+            ):
+                for _ in range(20):
+                    with self.assertRaisesRegex(ValueError, "rejected leaf"):
+                        open_private_runtime_root(root)
+            self.assertEqual(len(tuple(descriptor_directory.iterdir())), descriptor_count)
+
     def test_descriptor_backed_replacement_enforces_private_mode_with_nonstandard_umask(self) -> None:
         with tempfile.TemporaryDirectory(prefix="private-runtime-umask-") as temporary:
             root = Path(temporary) / "root"

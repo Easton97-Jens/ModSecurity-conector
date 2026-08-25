@@ -24,6 +24,7 @@ const LeaseHeader = "X-Msconnector-Composite-Lease"
 const (
 	commonTransportHTTPStatus = "http_status"
 	commonTransportLogOnly    = "log_only"
+	authorizationUnavailable  = "authorization unavailable"
 )
 
 var (
@@ -59,22 +60,22 @@ type ForwardAuth struct {
 
 func (h *ForwardAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if h == nil || h.Coordinator == nil {
-		http.Error(w, "authorization unavailable", http.StatusServiceUnavailable)
+		writeUnavailable(w)
 		return
 	}
 	cfg, err := h.Config.withDefaults()
 	if err != nil {
-		http.Error(w, "authorization unavailable", http.StatusServiceUnavailable)
+		writeUnavailable(w)
 		return
 	}
 	lease, ok := exactHeader(r.Header, LeaseHeader)
 	if !ok {
-		http.Error(w, "authorization unavailable", http.StatusServiceUnavailable)
+		writeUnavailable(w)
 		return
 	}
 	metaRequest, err := forwardedMetadata(r)
 	if err != nil {
-		http.Error(w, "authorization unavailable", http.StatusServiceUnavailable)
+		writeUnavailable(w)
 		return
 	}
 	meta := processor.StreamMetadata{Request: metaRequest}
@@ -82,7 +83,7 @@ func (h *ForwardAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		r.Context(), lease, metaRequest.Method, metaRequest.URI, meta, false,
 	)
 	if err != nil {
-		http.Error(w, "authorization unavailable", http.StatusServiceUnavailable)
+		writeUnavailable(w)
 		return
 	}
 	if decision.Action != processor.ActionAllow {
@@ -94,19 +95,19 @@ func (h *ForwardAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	body, tooLarge, err := readBounded(r.Body, cfg.MaxBodyBytes)
 	if err != nil {
 		admission.Cancel(r.Context())
-		http.Error(w, "authorization unavailable", http.StatusServiceUnavailable)
+		writeUnavailable(w)
 		return
 	}
 	decision, err = admission.ProcessBody(r.Context(), body, true)
 	if tooLarge {
 		if err != nil && !errors.Is(err, composite.ErrLimit) {
 			admission.Cancel(r.Context())
-			http.Error(w, "authorization unavailable", http.StatusServiceUnavailable)
+			writeUnavailable(w)
 			return
 		}
 		if admission.RecordRequestBodyLimitHostAction() != nil {
 			admission.Cancel(r.Context())
-			http.Error(w, "authorization unavailable", http.StatusServiceUnavailable)
+			writeUnavailable(w)
 			return
 		}
 		http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
@@ -114,7 +115,7 @@ func (h *ForwardAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		admission.Cancel(r.Context())
-		http.Error(w, "authorization unavailable", http.StatusServiceUnavailable)
+		writeUnavailable(w)
 		return
 	}
 	if decision.Action != processor.ActionAllow {
@@ -143,7 +144,7 @@ func (h *ForwardAuth) writeRequestDecision(w http.ResponseWriter, r *http.Reques
 	// host seam: record the exact status immediately before forwarding it.
 	if admission.RecordHostAction(r.Context(), processor.HostAction{Action: action, VisibleStatus: status, TransportResult: commonTransportHTTPStatus}) != nil {
 		admission.Cancel(r.Context())
-		http.Error(w, "authorization unavailable", http.StatusServiceUnavailable)
+		writeUnavailable(w)
 		return
 	}
 	// Write the same normalized final status that was recorded as the host
@@ -169,6 +170,10 @@ func readBounded(r io.Reader, max int64) ([]byte, bool, error) {
 		return b, true, nil
 	}
 	return b, false, nil
+}
+
+func writeUnavailable(w http.ResponseWriter) {
+	http.Error(w, authorizationUnavailable, http.StatusServiceUnavailable)
 }
 
 func exactHeader(h http.Header, name string) (string, bool) {
