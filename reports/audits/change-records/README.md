@@ -10,6 +10,14 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260825-trusted-lighttpd-runtime-supervisor-infrastructure](CR-20260825-trusted-lighttpd-runtime-supervisor-infrastructure.md)
+  | [Deutsch](CR-20260825-trusted-lighttpd-runtime-supervisor-infrastructure.de.md) — the current
+  user authorized this separate Parent-only Draft PR for the master-owned
+  Lighttpd runtime-supervisor infrastructure and its bounded fixture summary.
+  It records local contract evidence only; it does not claim a protected
+  runtime dispatch, hosted result, Framework/MRTS change, Gitlink update, or
+  merge.
+
 - [CR-20260824-canonical-runtime-observation](CR-20260824-canonical-runtime-observation.md)
   | [Deutsch](CR-20260824-canonical-runtime-observation.de.md) — the current
   user authorized this Parent-only canonical runtime-observation contract,

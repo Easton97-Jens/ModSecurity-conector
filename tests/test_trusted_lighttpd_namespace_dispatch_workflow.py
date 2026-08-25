@@ -216,20 +216,46 @@ def trusted_dispatch_errors(text: str) -> list[str]:
 
     bootstrap_marker = "      - name: Bootstrap constrained namespace host before any checkout"
     resolve_marker = "      - id: resolve-target"
-    test_marker = "      - name: Materialize and run the namespace test only as constrained ns-test"
+    test_marker = "      - id: run-namespace-fixture"
+    test_name_marker = "        name: Materialize and run the namespace test only as constrained ns-test"
+    summary_marker = "      - name: Publish the bounded trusted namespace summary"
     report_marker = "  report-trusted-lighttpd-namespace:"
     require_markers(
         errors,
         text,
         "ordered workflow step",
-        (bootstrap_marker, resolve_marker, test_marker, report_marker),
+        (
+            bootstrap_marker,
+            resolve_marker,
+            test_marker,
+            test_name_marker,
+            summary_marker,
+            report_marker,
+        ),
     )
-    if all(marker in text for marker in (bootstrap_marker, resolve_marker, test_marker, report_marker)):
+    if all(
+        marker in text
+        for marker in (
+            bootstrap_marker,
+            resolve_marker,
+            test_marker,
+            test_name_marker,
+            summary_marker,
+            report_marker,
+        )
+    ):
         require_order(
             errors,
             text,
             "workflow step",
-            (bootstrap_marker, resolve_marker, test_marker, report_marker),
+            (
+                bootstrap_marker,
+                resolve_marker,
+                test_marker,
+                test_name_marker,
+                summary_marker,
+                report_marker,
+            ),
         )
         bootstrap_step = text[text.index(bootstrap_marker) : text.index(resolve_marker)]
         require_markers(
@@ -310,7 +336,7 @@ def trusted_dispatch_errors(text: str) -> list[str]:
         errors.append("unvalidated target used outside the resolver environment")
 
     resolver_match = re.search(
-        r"(?ms)^      - id: resolve-target\n(?P<body>.*?)(?=^      - name: Materialize and run the namespace test only as constrained ns-test)",
+        r"(?ms)^      - id: resolve-target\n(?P<body>.*?)(?=^      - id: run-namespace-fixture)",
         text,
     )
     if resolver_match is None:
@@ -366,6 +392,51 @@ def trusted_dispatch_errors(text: str) -> list[str]:
         if forbidden in trusted_job:
             errors.append(f"trusted job must not use runner-workspace PR source: {forbidden}")
 
+    summary_match = re.search(
+        r"(?ms)^      - name: Publish the bounded trusted namespace summary\n(?P<body>.*?)(?=^  report-trusted-lighttpd-namespace:)",
+        text,
+    )
+    if summary_match is None:
+        errors.append("bounded trusted namespace summary boundary")
+        summary_step = ""
+    else:
+        summary_step = summary_match.group("body")
+    require_markers(
+        errors,
+        summary_step,
+        "bounded trusted namespace summary",
+        (
+            "if: always()",
+            "TARGET_SHA: ${{ steps.resolve-target.outputs.target_sha }}",
+            "FIXTURE_RESULT: ${{ steps.run-namespace-fixture.outcome }}",
+            "shell: /usr/bin/bash --noprofile --norc -euo pipefail {0}",
+            "## Trusted Lighttpd namespace dispatch",
+            '[[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]',
+            "- Target SHA: unavailable because the protected resolver did not finish.",
+            'case "$FIXTURE_RESULT" in',
+            "success)",
+            "- Result: PASS — protected namespace fixture passed.",
+            "- Result: BLOCKED — protected namespace fixture did not pass.",
+            "- Runtime supervisor: not invoked by this fixture-only dispatcher.",
+            "- Runtime evidence: no Lighttpd runtime evidence was collected or claimed.",
+            '} >> "$GITHUB_STEP_SUMMARY"',
+        ),
+    )
+    for forbidden in (
+        "GITHUB_TOKEN",
+        "github.token",
+        "GITHUB_WORKSPACE",
+        "SOURCE_ROOT",
+        "SOURCE_COPY",
+        "inputs.target",
+        "needs.",
+        "actions/checkout",
+        "sudo",
+        "curl",
+    ):
+        if forbidden in summary_step:
+            errors.append(f"bounded namespace summary must not consume privileged or PR source data: {forbidden}")
+
     report_job_match = re.search(
         r"(?ms)^  report-trusted-lighttpd-namespace:\n(?P<body>.*)\Z",
         text,
@@ -393,6 +464,9 @@ def trusted_dispatch_errors(text: str) -> list[str]:
             "status_state=success",
             "status_state=failure",
             "status_state=error",
+            "status_description='Trusted Lighttpd namespace fixture passed.'",
+            "status_description='Trusted Lighttpd namespace fixture failed.'",
+            "status_description='Trusted Lighttpd namespace fixture did not complete.'",
             "context\\\":\\\"trusted-lighttpd-namespace",
             "https://api.github.com/repos/Easton97-Jens/ModSecurity-conector/statuses/$TARGET_SHA",
         ),
@@ -420,6 +494,18 @@ def trusted_dispatch_errors(text: str) -> list[str]:
         errors.append("status reporter POST must retain retry 0")
     if re.search(r"--retry (?!0(?:\s|\\|$))", report_job):
         errors.append("status reporter POST must not use a nonzero retry policy")
+    status_mapping = re.compile(
+        r"(?s)case \"\$TRUSTED_TEST_RESULT\" in\s*"
+        r"success\)\s*status_state=success\s*"
+        r"status_description='Trusted Lighttpd namespace fixture passed\.'\s*;;\s*"
+        r"failure\)\s*status_state=failure\s*"
+        r"status_description='Trusted Lighttpd namespace fixture failed\.'\s*;;\s*"
+        r"cancelled\|skipped\)\s*status_state=error\s*"
+        r"status_description='Trusted Lighttpd namespace fixture did not complete\.'\s*;;\s*"
+        r"\*\)\s*printf .*?\s*exit 77\s*;;\s*esac"
+    )
+    if status_mapping.search(report_job) is None:
+        errors.append("status reporter must preserve the fixed fixture-result mapping")
 
     require_markers(
         errors,
@@ -992,6 +1078,34 @@ class TrustedLighttpdNamespaceDispatchWorkflowTest(unittest.TestCase):
             "status reporter loses trusted output dependency": (
                 "    needs: trusted-lighttpd-namespace\n",
                 "    needs: []\n",
+            ),
+            "summary loses its fixture outcome binding": (
+                "FIXTURE_RESULT: ${{ steps.run-namespace-fixture.outcome }}",
+                "FIXTURE_RESULT: success",
+            ),
+            "summary does not run after a fixture failure": (
+                "      - name: Publish the bounded trusted namespace summary\n        if: always()",
+                "      - name: Publish the bounded trusted namespace summary\n        if: success()",
+            ),
+            "summary claims a failed fixture passed": (
+                "- Result: BLOCKED — protected namespace fixture did not pass.",
+                "- Result: PASS — protected namespace fixture did not pass.",
+            ),
+            "summary falsely claims runtime evidence": (
+                "- Runtime evidence: no Lighttpd runtime evidence was collected or claimed.",
+                "- Runtime evidence: Lighttpd runtime evidence passed.",
+            ),
+            "summary loses its append-only GitHub presentation sink": (
+                '} >> "$GITHUB_STEP_SUMMARY"',
+                '} >> "/tmp/untrusted-summary"',
+            ),
+            "status reporter falsely calls the fixture a runtime": (
+                "status_description='Trusted Lighttpd namespace fixture passed.'",
+                "status_description='Trusted Lighttpd runtime passed.'",
+            ),
+            "status reporter turns an incomplete fixture into success": (
+                "cancelled|skipped)\n              status_state=error",
+                "cancelled|skipped)\n              status_state=success",
             ),
         }
         for name, (original, replacement) in mutations.items():

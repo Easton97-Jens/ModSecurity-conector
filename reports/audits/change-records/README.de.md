@@ -11,6 +11,14 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260825-trusted-lighttpd-runtime-supervisor-infrastructure](CR-20260825-trusted-lighttpd-runtime-supervisor-infrastructure.de.md) —
+  der aktuelle Benutzer autorisierte diesen separaten Parent-only-Draft-PR für
+  die master-eigene Lighttpd-Runtime-Supervisor-Infrastruktur und ihre
+  begrenzte Fixture-Zusammenfassung. Der Record weist nur lokale Contract-
+  Evidence aus; er beansprucht keinen geschützten Runtime-Dispatch, kein
+  Hosted-Ergebnis, keine Framework-/MRTS-Änderung, kein Gitlink-Update und
+  keinen Merge.
+
 - [CR-20260824-canonical-runtime-observation](CR-20260824-canonical-runtime-observation.de.md) —
   der aktuelle Benutzer autorisierte diesen Parent-only Canonical-Runtime-
   Observation-Vertrag, Safe-Evidence-Reader-Hardening, gekoppelte Traceability
