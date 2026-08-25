@@ -11,7 +11,7 @@
 #   RUNTIME_ROOT, TRAEFIK_BIN, TRAEFIK_VERSION, COMPOSITE_BIN,
 #   COMPOSITE_RUNTIME_CONFIG, COMPOSITE_EVENT_LOG, COMPOSITE_SOCKET,
 #   CASE_INPUT, CASE_DRIVER, PYTHON_BIN, UPSTREAM_BIN.
-# CASE_DRIVER contract: accept --input, --base-url, --manifest, --event-log,
+# CASE_DRIVER contract: accept --input, --port, --manifest, --event-log,
 # --runtime-root, and --connector; drive exactly one case and create the
 # verifier-compatible manifest plus its sibling receipt event log.  The
 # driver must obtain the server-generated decision_id from actual observer
@@ -94,6 +94,7 @@ safe_ancestor_chain() {
 is_private_dir() {
     [ -d "$1" ] && [ ! -L "$1" ] || return 1
     safe_ancestor_chain "$1" || return 1
+    [ "$(stat -c '%a' "$1" 2>/dev/null || echo -1)" = 700 ] || return 1
     find "$1" -maxdepth 0 -perm /077 -print -quit 2>/dev/null | grep -q . && return 1
     return 0
 }
@@ -158,6 +159,12 @@ safe_direct_child "$RUNTIME_ROOT" "$COMPOSITE_EVENT_LOG" || \
     blocked "COMPOSITE_EVENT_LOG must be a safe direct child of RUNTIME_ROOT"
 safe_direct_child "$RUNTIME_ROOT" "$COMPOSITE_SOCKET" || \
     blocked "COMPOSITE_SOCKET must be a safe direct child of RUNTIME_ROOT"
+CASE_MANIFEST="$RUNTIME_ROOT/case.manifest.json"
+CASE_INPUT_COPY="$RUNTIME_ROOT/case-input.json"
+safe_direct_child "$RUNTIME_ROOT" "$CASE_MANIFEST" || blocked "CASE_MANIFEST must be a safe direct child of RUNTIME_ROOT"
+safe_direct_child "$RUNTIME_ROOT" "$CASE_INPUT_COPY" || blocked "CASE_INPUT_COPY must be a safe direct child of RUNTIME_ROOT"
+[ ! -e "$CASE_MANIFEST" ] && [ ! -L "$CASE_MANIFEST" ] || blocked "CASE_MANIFEST already exists"
+[ ! -e "$CASE_INPUT_COPY" ] && [ ! -L "$CASE_INPUT_COPY" ] || blocked "CASE_INPUT_COPY already exists"
 UPSTREAM_OBSERVATION="$RUNTIME_ROOT/upstream-observation.json"
 safe_direct_child "$RUNTIME_ROOT" "$UPSTREAM_OBSERVATION" || \
     blocked "UPSTREAM_OBSERVATION must be a safe direct child of RUNTIME_ROOT"
@@ -185,7 +192,6 @@ PLUGIN_ROOT="$RUNTIME_ROOT/plugins-local/src/github.com/Easton97-Jens/ModSecurit
 CONFIG_ROOT="$RUNTIME_ROOT/effective-config"
 UPSTREAM_ROOT="$RUNTIME_ROOT/upstream"
 LOG_ROOT="$RUNTIME_ROOT/process-logs"
-CASE_MANIFEST="$RUNTIME_ROOT/case.manifest.json"
 DYNAMIC_CONFIG="$CONFIG_ROOT/traefik-forwardauth-composite-dynamic.yaml"
 STATIC_CONFIG="$CONFIG_ROOT/traefik-forwardauth-composite-static.yaml"
 case "$RUNTIME_ROOT" in
@@ -196,6 +202,8 @@ esac
 mkdir -p "$PLUGIN_ROOT" "$CONFIG_ROOT" "$UPSTREAM_ROOT" "$LOG_ROOT"
 chmod 700 "$CONFIG_ROOT" "$UPSTREAM_ROOT" "$LOG_ROOT"
 umask 077
+cp -- "$CASE_INPUT" "$CASE_INPUT_COPY" || blocked "failed to copy CASE_INPUT into private runtime root"
+chmod 600 "$CASE_INPUT_COPY"
 : > "$UPSTREAM_OBSERVATION"
 chmod 600 "$UPSTREAM_OBSERVATION"
 cp -R --no-preserve=ownership,mode "$PLUGIN_SOURCE"/. "$PLUGIN_ROOT"/ || die "failed to stage local plugin"
@@ -345,7 +353,7 @@ trap 'on_signal 143' TERM
 # The helper selects a fixed six-second response-header delay only from the
 # exact owner-controlled runtime-root case suffix; CASE_INPUT cannot activate
 # transport timing behavior.
-"$UPSTREAM_BIN" --listen "127.0.0.1:$UPSTREAM_PORT" --root "$UPSTREAM_ROOT" --case-input "$CASE_INPUT" \
+"$UPSTREAM_BIN" --listen "127.0.0.1:$UPSTREAM_PORT" --root "$RUNTIME_ROOT" --case-input "$CASE_INPUT_COPY" \
     --observation "$UPSTREAM_OBSERVATION" --observation-root "$RUNTIME_ROOT" >"$LOG_ROOT/upstream.log" 2>&1 &
 UPSTREAM_PID=$!
 UPSTREAM_START=$(pid_start_token "$UPSTREAM_PID")
@@ -378,7 +386,7 @@ sleep 1
 # create CASE_MANIFEST and its sibling receipt event log; it must not put an expected
 # decision_id in the manifest.  This runner does not synthesize event fields
 # or correlate by request id, URI, address, order, or timing.
-"$CASE_DRIVER" --input "$CASE_INPUT" --base-url "http://127.0.0.1:$TRAEFIK_PORT" \
+"$CASE_DRIVER" --input "$CASE_INPUT_COPY" --port "$TRAEFIK_PORT" \
     --manifest "$CASE_MANIFEST" --event-log "$COMPOSITE_EVENT_LOG" \
     --runtime-root "$RUNTIME_ROOT" --upstream-observation "$UPSTREAM_OBSERVATION" --connector traefik
 
@@ -390,5 +398,5 @@ is_owner_file "$COMPOSITE_EVENT_LOG" || die "composite raw event log is not owne
 # The verifier output is lifecycle-only evidence. P4 Strict is always
 # non-promoting here; a driver assertion cannot establish a real client-visible
 # host reset or abort.
-"$PYTHON_BIN" "$VERIFIER_SCRIPT" "$CASE_MANIFEST" --expected-event-log "$COMPOSITE_EVENT_LOG" --json >"$RUNTIME_ROOT/lifecycle-verification.json"
+"$PYTHON_BIN" "$VERIFIER_SCRIPT" "$CASE_MANIFEST" --expected-event-log "$COMPOSITE_EVENT_LOG" --runtime-root "$RUNTIME_ROOT" --json >"$RUNTIME_ROOT/lifecycle-verification.json"
 chmod 600 "$RUNTIME_ROOT/lifecycle-verification.json"

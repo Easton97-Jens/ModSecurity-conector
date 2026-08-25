@@ -10,14 +10,19 @@ and response bytes are held in memory for the request, never logged or saved.
 from __future__ import annotations
 
 import argparse
-import http.client
 import json
-import os
 from pathlib import Path
 import re
+import socket
 import sys
 import time
 from typing import Any, NoReturn
+
+_CI_LIB = Path(__file__).resolve().parents[3] / "ci" / "lib"
+if str(_CI_LIB) not in sys.path:
+    sys.path.insert(0, str(_CI_LIB))
+
+from runtime_path_utils import open_private_runtime_root
 
 SCHEMA = "msc-composite-evidence/v1"
 MAX_EVENT_LOG = 256 * 1024
@@ -67,13 +72,14 @@ def fail(message: str) -> NoReturn:
     raise RuntimeError(message)
 
 
-def load_catalog(path: Path) -> dict[str, Any]:
-    if path.is_symlink() or not path.is_file():
-        fail("case input must be a regular non-symlink file")
-    if path.stat().st_size > MAX_EVENT_LOG:
-        fail("case input exceeds the bounded catalog size")
-    with path.open("r", encoding="utf-8") as handle:
-        value = json.load(handle)
+def artifact_leaf(path: Path, root: Path, label: str) -> str:
+    if not path.is_absolute() or path.parent != root:
+        fail(f"{label} must be an absolute direct child of the runtime root")
+    return path.name
+
+
+def load_catalog(runtime: Any, leaf: str) -> dict[str, Any]:
+    value = json.loads(runtime.read_text(leaf, "case input", maximum_bytes=MAX_EVENT_LOG))
     if not isinstance(value, dict) or not isinstance(value.get("vectors"), list):
         fail("case input is not a catalog with vectors")
     return value
@@ -123,44 +129,94 @@ def request_body(vector: dict[str, Any]) -> bytes:
     return b""
 
 
-def read_events(path: Path) -> list[dict[str, Any]]:
-    if path.is_symlink() or not path.is_file():
+def read_events(runtime: Any, leaf: str) -> list[dict[str, Any]]:
+    try:
+        content = runtime.read_text(leaf, "observer event log", maximum_bytes=MAX_EVENT_LOG)
+    except FileNotFoundError:
         return []
-    if path.stat().st_size > MAX_EVENT_LOG:
-        fail("observer event log exceeds the bounded metadata size")
     events: list[dict[str, Any]] = []
-    with path.open("r", encoding="utf-8") as handle:
-        for number, line in enumerate(handle, 1):
-            if len(line.encode("utf-8")) > MAX_EVENT_LINE or not line.strip():
-                fail(f"observer event line {number} is not bounded metadata")
-            event = json.loads(line)
-            if not isinstance(event, dict) or set(event) - ALLOWED_EVENT_KEYS:
-                fail(f"observer event line {number} contains unsupported or payload fields")
-            if any(key.lower() in FORBIDDEN_OUTPUT_KEYS for key in event):
-                fail(f"observer event line {number} contains a forbidden payload field")
-            events.append(event)
+    for number, line in enumerate(content.splitlines(keepends=True), 1):
+        if len(line.encode("utf-8")) > MAX_EVENT_LINE or not line.strip():
+            fail(f"observer event line {number} is not bounded metadata")
+        event = json.loads(line)
+        if not isinstance(event, dict) or set(event) - ALLOWED_EVENT_KEYS:
+            fail(f"observer event line {number} contains unsupported or payload fields")
+        if any(key.lower() in FORBIDDEN_OUTPUT_KEYS for key in event):
+            fail(f"observer event line {number} contains a forbidden payload field")
+        events.append(event)
     return events
 
 
-def wait_for_terminal(path: Path, timeout: float = 8.0) -> list[dict[str, Any]]:
+def wait_for_terminal(runtime: Any, leaf: str, timeout: float = 8.0) -> list[dict[str, Any]]:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        events = read_events(path)
+        events = read_events(runtime, leaf)
         if events and events[-1].get("phase") == "terminal":
             return events
         time.sleep(0.05)
     fail("observer did not close this transaction within the bounded timeout")
 
 
+def _origin_target(value: object) -> str:
+    if not isinstance(value, str) or not 1 <= len(value) <= 2048:
+        fail("vector request path is not a bounded origin-form target")
+    if not value.startswith("/") or value.startswith("//") or any(ord(c) < 0x20 or ord(c) == 0x7F for c in value):
+        fail("vector request path must be a bounded origin-form target")
+    return value
+
+
+def _read_http_response(sock: socket.socket) -> int:
+    maximum = 64 * 1024
+    data = bytearray()
+    while b"\r\n\r\n" not in data and len(data) <= maximum:
+        chunk = sock.recv(min(4096, maximum + 1 - len(data)))
+        if not chunk:
+            break
+        data.extend(chunk)
+    separator = data.find(b"\r\n\r\n")
+    if separator < 0:
+        fail("upstream response headers are incomplete")
+    header_block = bytes(data[:separator]).split(b"\r\n")
+    match = re.fullmatch(rb"HTTP/1\.1 ([0-9]{3})(?: [^\r\n]*)?", header_block[0])
+    if not match:
+        fail("upstream response status line is invalid")
+    status = int(match.group(1))
+    if not 100 <= status <= 599:
+        fail("upstream response status is invalid")
+    content_length: int | None = None
+    for header in header_block[1:]:
+        name, header_separator, value = header.partition(b":")
+        if not header_separator or not re.fullmatch(rb"[A-Za-z0-9!#$%&'*+.^_`|~-]+", name):
+            fail("upstream response header is invalid")
+        if name.lower() == b"content-length":
+            if content_length is not None or not value.strip().isdigit():
+                fail("upstream response content length is invalid")
+            content_length = int(value.strip())
+            if content_length > 32 * 1024:
+                fail("upstream response body exceeds the bounded response size")
+    body = bytearray(data[separator + 4 :])
+    if content_length is not None:
+        while len(body) < content_length:
+            chunk = sock.recv(min(4096, content_length - len(body)))
+            if not chunk:
+                fail("upstream response body is incomplete")
+            body.extend(chunk)
+        if len(body) > content_length:
+            del body[content_length:]
+    elif len(body) > 32 * 1024:
+        fail("upstream response body exceeds the bounded response size")
+    return status
+
+
 def http_request(
-    base_url: str, vector: dict[str, Any], add_client_lease: bool, timeout: float = 5.0
+    port: int, vector: dict[str, Any], add_client_lease: bool, timeout: float = 5.0
 ) -> tuple[int | None, bool]:
-    match = re.fullmatch(r"http://([^:/]+):(\d+)", base_url)
-    if not match or match.group(1) not in {"127.0.0.1", "localhost"}:
-        fail("base-url must be a local HTTP/1.1 endpoint")
+    if not isinstance(port, int) or not 1 <= port <= 65535:
+        fail("port is outside the valid range")
     request = vector.get("request")
-    if not isinstance(request, dict) or not isinstance(request.get("path"), str):
-        fail("vector request path is missing")
+    if not isinstance(request, dict):
+        fail("vector request metadata is malformed")
+    target = _origin_target(request.get("path"))
     method = request.get("method", "GET")
     headers = request.get("headers", {})
     if not isinstance(method, str) or not isinstance(headers, dict):
@@ -169,7 +225,7 @@ def http_request(
     normalized_headers = {
         str(key): str(value)
         for key, value in headers.items()
-        if str(key).lower() not in {"content-length", "x-msconnector-composite-lease"}
+        if str(key).lower() not in {"content-length", "host", "connection", "transfer-encoding", "x-msconnector-composite-lease"}
     }
     if body or any(str(key).lower() == "content-length" for key in headers):
         normalized_headers["Content-Length"] = str(len(body))
@@ -177,17 +233,21 @@ def http_request(
         # This arbitrary client value must be removed before the real upstream.
         # It is never persisted or included in an observation receipt.
         normalized_headers["X-Msconnector-Composite-Lease"] = "client-supplied-invalid"
-    conn = http.client.HTTPConnection(match.group(1), int(match.group(2)), timeout=timeout)
+    if method not in {"GET", "POST"} or any(ord(c) < 0x21 or ord(c) > 0x7E for c in method):
+        fail("vector request method is unsupported")
+    request_lines = [f"{method} {target} HTTP/1.1", f"Host: 127.0.0.1:{port}"]
+    for key, value in normalized_headers.items():
+        if not re.fullmatch(r"[A-Za-z0-9!#$%&'*+.^_`|~-]+", key) or any(ord(c) < 0x20 or ord(c) > 0x7E for c in key + value):
+            fail("vector request header is invalid")
+        request_lines.append(f"{key}: {value}")
+    wire = ("\r\n".join(request_lines) + "\r\n\r\n").encode("ascii") + body
     try:
-        conn.request(method, request["path"], body=body, headers=normalized_headers)
-        response = conn.getresponse()
-        status = response.status
-        response.read(32 * 1024)
-        return status, True
-    except (OSError, http.client.HTTPException):
+        with socket.create_connection(("127.0.0.1", port), timeout=timeout) as conn:
+            conn.settimeout(timeout)
+            conn.sendall(wire)
+            return _read_http_response(conn), True
+    except (OSError, ValueError, RuntimeError):
         return None, False
-    finally:
-        conn.close()
 
 
 def expected_status(case: str) -> set[int] | None:
@@ -200,38 +260,13 @@ def expected_status(case: str) -> set[int] | None:
     }[case]
 
 
-def write_json(path: Path, value: dict[str, Any]) -> None:
-    if path.is_symlink() or path.exists():
-        fail(f"refusing to overwrite receipt path {path.name}")
-    path.parent.mkdir(mode=0o700, exist_ok=True)
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            json.dump(value, handle, sort_keys=True, separators=(",", ":"))
-            handle.write("\n")
-    except BaseException:
-        try:
-            os.close(fd)
-        except OSError:
-            pass
-        raise
+def write_json(runtime: Any, leaf: str, value: dict[str, Any], label: str) -> None:
+    encoded = json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n"
+    runtime.create_text(leaf, encoded, label)
 
 
-def read_upstream_observation(path: Path, runtime_root: Path, case: str) -> dict[str, Any]:
-    if path.parent != runtime_root or runtime_root.is_symlink() or not runtime_root.is_dir():
-        fail("upstream observation root is not a directory")
-    root_stat = runtime_root.stat()
-    if root_stat.st_uid != os.getuid() or root_stat.st_mode & 0o077:
-        fail("upstream observation root is not owner-only")
-    if path.is_symlink() or not path.is_file():
-        fail("upstream observation must be a direct-child regular file")
-    stat_result = path.stat()
-    if stat_result.st_uid != os.getuid() or stat_result.st_mode & 0o077:
-        fail("upstream observation is not owner-only")
-    if stat_result.st_size > MAX_UPSTREAM_OBSERVATION:
-        fail("upstream observation exceeds the bounded metadata size")
-    with path.open("r", encoding="utf-8") as handle:
-        value = json.load(handle)
+def read_upstream_observation(runtime: Any, leaf: str, case: str) -> dict[str, Any]:
+    value = json.loads(runtime.read_text(leaf, "upstream observation", maximum_bytes=MAX_UPSTREAM_OBSERVATION))
     if not isinstance(value, dict) or set(value) != {"schema", "requests_seen", "lease_header_observed"}:
         fail("upstream observation schema is invalid")
     if value.get("schema") != "traefik-composite-upstream-observation/v1":
@@ -251,7 +286,7 @@ def read_upstream_observation(path: Path, runtime_root: Path, case: str) -> dict
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", required=True, type=Path)
-    parser.add_argument("--base-url", required=True)
+    parser.add_argument("--port", required=True, type=int)
     parser.add_argument("--manifest", required=True, type=Path)
     parser.add_argument("--event-log", required=True, type=Path)
     parser.add_argument("--runtime-root", required=True, type=Path)
@@ -259,46 +294,53 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--connector", required=True, choices=("traefik",))
     args = parser.parse_args(argv)
     try:
-        catalog = load_catalog(args.input)
-        case, vector = select_case(catalog, args.runtime_root)
-        request_timeout = 10.0 if case == "p2_to_p3_timeout" else 5.0
-        status, response_completed = http_request(
-            args.base_url, vector, case == "p1_allow", request_timeout
-        )
-        allowed = expected_status(case)
-        if allowed is not None and status not in allowed:
-            fail(f"{case} returned an unexpected client status")
-        events = wait_for_terminal(args.event_log)
-        upstream_observation = read_upstream_observation(args.upstream_observation, args.runtime_root, case)
-        ids = {event.get("decision_id") for event in events}
-        if len(ids) != 1 or not isinstance(next(iter(ids)), str) or not DECISION_ID.fullmatch(next(iter(ids))):
-            fail("observer did not provide exactly one server-generated decision_id")
-        decision_id = next(iter(ids))
-        phases = [event.get("phase") for event in events if event.get("phase") in {"P1", "P2", "P3", "P4"}]
-        if tuple(phases) != CASES[case]:
-            fail("observer phases do not match the selected isolated case")
-        client = {
-            "lease_observed": False, "visible_status": status,
-            "p4_outcome": "none", "p4_visible_status": None,
-            "p4_response_committed": bool(response_completed and case in {"p1_allow", "p2_allow", "p4_safe"}),
-        }
-        upstream = {
-            "lease_observed": upstream_observation["lease_header_observed"],
-            "request_terminal": case in {"p1_deny", "p2_deny", "p2_oversize"},
-            "response_observed": upstream_observation["requests_seen"] > 0,
-        }
-        stem = args.manifest.stem
-        write_json(args.runtime_root / f"{stem}.client.json", client)
-        write_json(args.runtime_root / f"{stem}.upstream.json", upstream)
-        manifest = {
-            "schema": SCHEMA, "connector": args.connector, "case": case,
-            "case_artifact": {"id": f"traefik-{case}", "event_log": args.event_log.name},
-            "expected_phases": list(CASES[case]),
-            "client_observation": f"{stem}.client.json",
-            "upstream_observation": f"{stem}.upstream.json",
-            "cleanup": {"count": 1, "status": "completed"},
-        }
-        write_json(args.manifest, manifest)
+        runtime_root = args.runtime_root
+        input_leaf = artifact_leaf(args.input, runtime_root, "case input")
+        event_leaf = artifact_leaf(args.event_log, runtime_root, "event log")
+        manifest_leaf = artifact_leaf(args.manifest, runtime_root, "manifest")
+        observation_leaf = artifact_leaf(args.upstream_observation, runtime_root, "upstream observation")
+        runtime = open_private_runtime_root(runtime_root)
+        with runtime:
+            catalog = load_catalog(runtime, input_leaf)
+            case, vector = select_case(catalog, runtime_root)
+            request_timeout = 10.0 if case == "p2_to_p3_timeout" else 5.0
+            status, response_completed = http_request(args.port, vector, case == "p1_allow", request_timeout)
+            allowed = expected_status(case)
+            if allowed is not None and status not in allowed:
+                fail(f"{case} returned an unexpected client status")
+            events = wait_for_terminal(runtime, event_leaf)
+            upstream_observation = read_upstream_observation(runtime, observation_leaf, case)
+            ids = {event.get("decision_id") for event in events}
+            if len(ids) != 1 or not isinstance(next(iter(ids)), str) or not DECISION_ID.fullmatch(next(iter(ids))):
+                fail("observer did not provide exactly one server-generated decision_id")
+            decision_id = next(iter(ids))
+            phases = [event.get("phase") for event in events if event.get("phase") in {"P1", "P2", "P3", "P4"}]
+            if tuple(phases) != CASES[case]:
+                fail("observer phases do not match the selected isolated case")
+            client = {
+                "lease_observed": False, "visible_status": status,
+                "p4_outcome": "none", "p4_visible_status": None,
+                "p4_response_committed": bool(response_completed and case in {"p1_allow", "p2_allow", "p4_safe"}),
+            }
+            upstream = {
+                "lease_observed": upstream_observation["lease_header_observed"],
+                "request_terminal": case in {"p1_deny", "p2_deny", "p2_oversize"},
+                "response_observed": upstream_observation["requests_seen"] > 0,
+            }
+            stem = args.manifest.stem
+            client_leaf = f"{stem}.client.json"
+            upstream_leaf = f"{stem}.upstream.json"
+            write_json(runtime, client_leaf, client, "client receipt")
+            write_json(runtime, upstream_leaf, upstream, "upstream receipt")
+            manifest = {
+                "schema": SCHEMA, "connector": args.connector, "case": case,
+                "case_artifact": {"id": f"traefik-{case}", "event_log": event_leaf},
+                "expected_phases": list(CASES[case]),
+                "client_observation": client_leaf,
+                "upstream_observation": upstream_leaf,
+                "cleanup": {"count": 1, "status": "completed"},
+            }
+            write_json(runtime, manifest_leaf, manifest, "case manifest")
         print(json.dumps({"case": case, "decision_id": decision_id, "status": status}, sort_keys=True))
         return 0
     except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:

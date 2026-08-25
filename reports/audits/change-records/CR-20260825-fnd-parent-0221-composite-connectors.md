@@ -12,7 +12,7 @@
 | Finding | `FND-PARENT-0221` |
 | Scope | Parent-only Envoy `ext_authz` + `ext_proc` and Traefik `forwardAuth` + private-UDS response composite, tests, configuration, and paired documentation |
 | Framework/MRTS boundary | No Framework or MRTS source, branch, `HEAD`, Gitlink, or delivery change |
-| Delivery disposition | The current user explicitly authorized a task-owned worktree, scoped commit/push, and one Parent Draft PR; no merge authority. This record contains pre-push local evidence only. `FND-PARENT-0221` remains `in_progress`/`blocked_missing_evidence` and release-blocking, so this change is not eligible for `verified_pr` or merge. |
+| Delivery disposition | The current user explicitly authorized a task-owned worktree, scoped commit/push, and exactly one Parent Draft PR against `master`; no merge authority. Commit/head `931d6eb81207997169719bb475d50274ae281eed` is on Draft PR #341. Sonar check `97747662107` failed with New-Code Security Rating C where A is required. FND-SONAR-0061 is P0/high, `in_progress`, release- and candidate-integration-blocking. Minimal native remediation is locally validated, but exact successor-head and hosted validation remain pending; no green Sonar result is claimed. `FND-PARENT-0221` remains `in_progress`/`blocked_missing_evidence`, so this change is not eligible for `verified_pr` or merge. |
 
 ## Motivation and problem statement
 
@@ -103,6 +103,9 @@ response path remains log-only where applicable.
   host-runner paths under `connectors/envoy/`
 - Traefik `composite_middleware/`, composite configuration, driver, upstream,
   host runner, and `README.md` / `README.de.md` under `connectors/traefik/`
+- Sonar remediation paths in `ci/lib/runtime_path_utils.py`,
+  `connectors/composite_harness/verify_matrix_evidence.py`, and the Traefik
+  composite harness helpers and focused tests
 - this English/German Change Record pair and the paired archive indexes
 
 ## Commands executed
@@ -171,9 +174,9 @@ record.
   did not select the controlled six-second delay and therefore returned `200`;
   it is not accepted as evidence. The retained rerun with the exact controlled
   suffix returned the required `503` and terminal `timeout`.
-- Hosted PR checks, review, SonarQube, and branch protection results are not
-  yet observed because the authorized Draft PR has not been created at this
-  record revision.
+- Hosted check `97747662107` was observed and failed with New-Code Security
+  Rating C instead of required A. Exact successor-head checks, review, and
+  branch protection remain pending.
 
 ## Known limitations
 
@@ -193,5 +196,22 @@ risk decision. No such risk acceptance exists.
 
 The final local review covers the scoped source diff, paired documentation,
 focused tests, current CGo build, real H1 receipts, and independent post-fix
-security review. No Framework/MRTS change, Gitlink update, commit, push, PR,
-hosted check, review decision, or merge is asserted at this record revision.
+security review. Draft PR #341 and its initial scoped commit/push are
+observed; no merge was attempted. Native remediation is locally validated, but
+the post-push exact-head check, hosted check, review decision, branch
+protection, and green Sonar result remain pending. No Framework/MRTS change or
+Gitlink update is asserted.
+
+## Post-Draft PR Sonar status
+
+Draft PR #341 against `master` is present at commit/head
+`931d6eb81207997169719bb475d50274ae281eed`; no merge was attempted. Hosted
+check `97747662107` failed with New-Code Security Rating C instead of the
+required A and reported ten vulnerabilities. FND-SONAR-0061 is P0/high,
+`in_progress`, and release- and candidate-integration-blocking. Native local
+remediation is in progress using descriptor-backed exact `0700` roots, direct
+`0600` single-link leaves, a runtime-root case-input copy, and a fixed
+loopback/origin-form client. No suppression, configuration change, or
+quality-gate change was made. Focused native tests validate the remediation
+locally; the post-push exact-head and successor hosted checks remain pending,
+and no green Sonar result is claimed.

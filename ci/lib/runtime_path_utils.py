@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import secrets
 import stat
+from contextlib import suppress
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -66,7 +67,7 @@ def _contains_symbolic_link(path: Path | str) -> bool:
     absolute = _absolute_path_without_resolution(path)
     try:
         return absolute.resolve(strict=False) != absolute
-    except OSError:
+    except (OSError, RuntimeError):
         return True
 
 
@@ -433,6 +434,243 @@ def ensure_safe_runtime_directory(path: Path | str) -> Path:
     finally:
         os.close(descriptor)
     return directory_path
+
+
+_PRIVATE_RUNTIME_DIRECTORY_MODE = 0o700
+_PRIVATE_RUNTIME_FILE_MODE = 0o600
+_MAX_PRIVATE_RUNTIME_LEAF_NAME = 128
+
+
+def _private_runtime_leaf_name(value: str, label: str) -> str:
+    if (
+        not isinstance(value, str)
+        or not value
+        or value in {".", ".."}
+        or len(value) > _MAX_PRIVATE_RUNTIME_LEAF_NAME
+        or "/" in value
+        or "\\" in value
+        or "\x00" in value
+    ):
+        raise ValueError(f"{label} must be one bounded direct filename")
+    return value
+
+
+def _require_private_runtime_directory(details: os.stat_result, label: str) -> None:
+    if not stat.S_ISDIR(details.st_mode) or details.st_uid != os.geteuid():
+        raise ValueError(f"{label} must be an owned directory")
+    if stat.S_IMODE(details.st_mode) != _PRIVATE_RUNTIME_DIRECTORY_MODE:
+        raise ValueError(f"{label} must have private mode 0700")
+
+
+def _require_private_runtime_file(details: os.stat_result, label: str) -> None:
+    if not stat.S_ISREG(details.st_mode) or details.st_uid != os.geteuid():
+        raise ValueError(f"{label} must be an owned regular file")
+    if stat.S_IMODE(details.st_mode) != _PRIVATE_RUNTIME_FILE_MODE:
+        raise ValueError(f"{label} must have private mode 0600")
+    if details.st_nlink != 1:
+        raise ValueError(f"{label} must not have additional hard links")
+
+
+class PrivateRuntimeRoot:
+    """Descriptor-backed access to an existing, exact private runtime root."""
+
+    def __init__(
+        self,
+        descriptor: int,
+        identity: tuple[int, int],
+        parent_descriptor: int,
+        name: str,
+    ) -> None:
+        self._descriptor = descriptor
+        self._identity = identity
+        self._parent_descriptor = parent_descriptor
+        self._name = name
+        self._closed = False
+        self._assert_identity()
+
+    @classmethod
+    def open(cls, path: Path | str) -> "PrivateRuntimeRoot":
+        root = Path(path)
+        if not root.is_absolute():
+            raise ValueError(f"private runtime root must be absolute: {root}")
+        root = _absolute_path_without_resolution(root)
+        if not root.exists() or root.is_symlink() or _contains_symbolic_link(root):
+            raise ValueError(f"private runtime root must already exist without symlinks: {root}")
+        if not is_safe_runtime_root(root):
+            raise ValueError(f"private runtime root is unsafe for writes: {root}")
+        directory_flag = getattr(os, "O_DIRECTORY", 0)
+        no_follow = getattr(os, "O_NOFOLLOW", 0)
+        if not directory_flag or not no_follow:
+            raise ValueError("private runtime roots require O_DIRECTORY and O_NOFOLLOW")
+        descriptor, flags = _open_runtime_root_descriptor()
+        current_path = Path("/")
+        shared_temp_root: Path | None = None
+        parent_descriptor = -1
+        leaf_name = root.name
+        try:
+            components = root.parts[1:]
+            for index, component in enumerate(components):
+                try:
+                    child_descriptor = os.open(component, flags, dir_fd=descriptor)
+                except OSError as exc:
+                    raise ValueError(
+                        f"private runtime root is unavailable or unsafe: {root}: {exc}"
+                    ) from exc
+                if index == len(components) - 1:
+                    parent_descriptor = os.dup(descriptor)
+                os.close(descriptor)
+                descriptor = child_descriptor
+                current_path /= component
+                shared_temp_root = _validate_runtime_ancestor(
+                    descriptor, current_path, shared_temp_root
+                )
+            details = os.fstat(descriptor)
+            _require_private_runtime_directory(details, "private runtime root")
+            handle = cls(
+                descriptor,
+                (details.st_dev, details.st_ino),
+                parent_descriptor,
+                leaf_name,
+            )
+            descriptor = -1
+            parent_descriptor = -1
+            return handle
+        except BaseException:
+            if descriptor >= 0:
+                os.close(descriptor)
+            if parent_descriptor >= 0:
+                os.close(parent_descriptor)
+            raise
+
+    @property
+    def descriptor(self) -> int:
+        self._assert_identity()
+        return self._descriptor
+
+    @property
+    def identity(self) -> tuple[int, int]:
+        return self._identity
+
+    def _assert_identity(self) -> None:
+        if self._closed:
+            raise ValueError("private runtime root handle is closed")
+        details = os.fstat(self._descriptor)
+        if (details.st_dev, details.st_ino) != self._identity:
+            raise ValueError("private runtime root descriptor identity changed")
+        _require_private_runtime_directory(details, "private runtime root")
+        try:
+            current = os.stat(
+                self._name, dir_fd=self._parent_descriptor, follow_symlinks=False
+            )
+        except FileNotFoundError as error:
+            raise ValueError("private runtime root path was replaced") from error
+        if (current.st_dev, current.st_ino) != self._identity:
+            raise ValueError("private runtime root path was replaced")
+        _require_private_runtime_directory(current, "private runtime root")
+
+    def create_text(self, name: str, value: str, label: str = "private artifact") -> None:
+        name = _private_runtime_leaf_name(name, label)
+        if not isinstance(value, str):
+            raise ValueError(f"{label} must be text")
+        self._assert_identity()
+        no_follow = getattr(os, "O_NOFOLLOW", 0)
+        if not no_follow:
+            raise ValueError("private runtime artifacts require O_NOFOLLOW")
+        descriptor = os.open(
+            name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow,
+            _PRIVATE_RUNTIME_FILE_MODE, dir_fd=self._descriptor
+        )
+        try:
+            os.fchmod(descriptor, _PRIVATE_RUNTIME_FILE_MODE)
+            _require_private_runtime_file(os.fstat(descriptor), label)
+            with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+                descriptor = -1
+                stream.write(value)
+                stream.flush()
+                os.fsync(stream.fileno())
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
+
+    def read_text(self, name: str, label: str = "private artifact", *, maximum_bytes: int = 1 << 20) -> str:
+        name = _private_runtime_leaf_name(name, label)
+        if not isinstance(maximum_bytes, int) or maximum_bytes < 0:
+            raise ValueError(f"{label} maximum size is invalid")
+        self._assert_identity()
+        no_follow = getattr(os, "O_NOFOLLOW", 0)
+        if not no_follow:
+            raise ValueError("private runtime artifacts require O_NOFOLLOW")
+        descriptor = os.open(name, os.O_RDONLY | no_follow, dir_fd=self._descriptor)
+        try:
+            details = os.fstat(descriptor)
+            _require_private_runtime_file(details, label)
+            if details.st_size > maximum_bytes:
+                raise ValueError(f"{label} exceeds the bounded private artifact size")
+            value = os.read(descriptor, maximum_bytes + 1)
+            if len(value) > maximum_bytes:
+                raise ValueError(f"{label} exceeds the bounded private artifact size")
+            try:
+                return value.decode("utf-8")
+            except UnicodeDecodeError as error:
+                raise ValueError(f"{label} is not UTF-8 text") from error
+        finally:
+            os.close(descriptor)
+
+    def replace_text(self, name: str, value: str, label: str = "private artifact") -> None:
+        name = _private_runtime_leaf_name(name, label)
+        if not isinstance(value, str):
+            raise ValueError(f"{label} must be text")
+        self._assert_identity()
+        original = os.stat(name, dir_fd=self._descriptor, follow_symlinks=False)
+        _require_private_runtime_file(original, label)
+        no_follow = getattr(os, "O_NOFOLLOW", 0)
+        if not no_follow:
+            raise ValueError("private runtime artifacts require O_NOFOLLOW")
+        temporary = f".{name}.{secrets.token_hex(16)}.tmp"
+        descriptor = os.open(
+            temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow,
+            _PRIVATE_RUNTIME_FILE_MODE, dir_fd=self._descriptor
+        )
+        try:
+            os.fchmod(descriptor, _PRIVATE_RUNTIME_FILE_MODE)
+            _require_private_runtime_file(os.fstat(descriptor), label)
+            with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+                descriptor = -1
+                stream.write(value)
+                stream.flush()
+                os.fsync(stream.fileno())
+            current = os.stat(name, dir_fd=self._descriptor, follow_symlinks=False)
+            if (current.st_dev, current.st_ino) != (original.st_dev, original.st_ino):
+                raise ValueError(f"{label} changed before replacement")
+            _require_private_runtime_file(current, label)
+            os.replace(temporary, name, src_dir_fd=self._descriptor, dst_dir_fd=self._descriptor)
+            temporary = ""
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
+            if temporary:
+                with suppress(FileNotFoundError):
+                    os.unlink(temporary, dir_fd=self._descriptor)
+
+    def close(self) -> None:
+        if not self._closed:
+            self._closed = True
+            try:
+                os.close(self._descriptor)
+            finally:
+                os.close(self._parent_descriptor)
+
+    def __enter__(self) -> "PrivateRuntimeRoot":
+        self._assert_identity()
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.close()
+
+
+def open_private_runtime_root(path: Path | str) -> PrivateRuntimeRoot:
+    """Open an existing exact 0700 runtime root without materializing it."""
+    return PrivateRuntimeRoot.open(path)
 
 
 def verified_runtime_artifact_root(value: Path | str) -> Path:

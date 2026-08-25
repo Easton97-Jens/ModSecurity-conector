@@ -21,6 +21,7 @@ import runtime_path_utils as RUNTIME_PATH_UTILS
 from runtime_path_utils import (
     append_runtime_artifact_text,
     move_runtime_artifact_atomic,
+    open_private_runtime_root,
     prepare_verified_runtime_artifact_root,
     read_runtime_artifact_text,
     runtime_artifact_path,
@@ -43,6 +44,89 @@ def load_helper(name: str, path: Path) -> object:
 class RuntimeArtifactUtilsTest(unittest.TestCase):
     def private_root(self, temporary: str) -> Path:
         return verified_runtime_artifact_root(Path(temporary) / "runtime")
+
+    def test_descriptor_backed_private_root_requires_existing_exact_root(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="private-runtime-root-") as temporary:
+            parent = Path(temporary)
+            root = parent / "root"
+            root.mkdir(mode=0o700)
+            os.chmod(root, 0o700)
+            with open_private_runtime_root(root) as handle:
+                self.assertEqual(handle.identity, (root.stat().st_dev, root.stat().st_ino))
+                handle.create_text("observation.txt", "first\n")
+                self.assertEqual(handle.read_text("observation.txt"), "first\n")
+                handle.replace_text("observation.txt", "second\n")
+                self.assertEqual(handle.read_text("observation.txt"), "second\n")
+            self.assertEqual(stat.S_IMODE((root / "observation.txt").stat().st_mode), 0o600)
+
+            with self.assertRaisesRegex(ValueError, "already exist"):
+                open_private_runtime_root(parent / "missing")
+            broad = parent / "broad"
+            broad.mkdir(mode=0o755)
+            with self.assertRaisesRegex(ValueError, "mode 0700"):
+                open_private_runtime_root(broad)
+
+    def test_descriptor_backed_replacement_enforces_private_mode_with_nonstandard_umask(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="private-runtime-umask-") as temporary:
+            root = Path(temporary) / "root"
+            root.mkdir(mode=0o700)
+            os.chmod(root, 0o700)
+            previous_umask = os.umask(0o000)
+            try:
+                with open_private_runtime_root(root) as handle:
+                    handle.create_text("result.txt", "before\n")
+                    with mock.patch.object(
+                        RUNTIME_PATH_UTILS.os,
+                        "fchmod",
+                        wraps=os.fchmod,
+                    ) as chmod:
+                        handle.replace_text("result.txt", "after\n")
+                    self.assertTrue(
+                        any(call.args[1] == 0o600 for call in chmod.call_args_list)
+                    )
+                    self.assertEqual(handle.read_text("result.txt"), "after\n")
+                self.assertEqual(stat.S_IMODE((root / "result.txt").stat().st_mode), 0o600)
+            finally:
+                os.umask(previous_umask)
+
+    def test_descriptor_backed_private_root_rejects_links_hardlinks_and_unsafe_names(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="private-runtime-controls-") as temporary:
+            parent = Path(temporary)
+            root = parent / "root"
+            root.mkdir(mode=0o700)
+            os.chmod(root, 0o700)
+            outside = parent / "outside.txt"
+            outside.write_text("outside\n", encoding="utf-8")
+            (root / "linked.txt").symlink_to(outside)
+            with open_private_runtime_root(root) as handle:
+                with self.assertRaises((OSError, ValueError)):
+                    handle.read_text("linked.txt")
+                with self.assertRaisesRegex(ValueError, "direct filename"):
+                    handle.create_text("nested/file.txt", "nope")
+                handle.create_text("original.txt", "safe\n")
+                os.link(root / "original.txt", root / "hardlink.txt")
+                with self.assertRaisesRegex(ValueError, "additional hard links"):
+                    handle.read_text("original.txt")
+                with self.assertRaisesRegex(ValueError, "additional hard links"):
+                    handle.replace_text("original.txt", "unsafe\n")
+            self.assertEqual(outside.read_text(encoding="utf-8"), "outside\n")
+
+    def test_descriptor_backed_private_root_rejects_path_replacement(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="private-runtime-replacement-") as temporary:
+            parent = Path(temporary)
+            root = parent / "root"
+            root.mkdir(mode=0o700)
+            os.chmod(root, 0o700)
+            with open_private_runtime_root(root) as handle:
+                root.rename(parent / "old-root")
+                root.mkdir(mode=0o700)
+                os.chmod(root, 0o700)
+                with self.assertRaisesRegex(ValueError, "path was replaced"):
+                    handle.create_text("new.txt", "must fail\n")
+
+    def test_symbolic_link_runtime_error_fails_closed(self) -> None:
+        with mock.patch.object(Path, "resolve", side_effect=RuntimeError("loop")):
+            self.assertTrue(RUNTIME_PATH_UTILS._contains_symbolic_link(Path("/tmp/root")))
 
     def test_root_validation_rejects_relative_and_broad_locations(self) -> None:
         with self.assertRaisesRegex(ValueError, "must be absolute"):

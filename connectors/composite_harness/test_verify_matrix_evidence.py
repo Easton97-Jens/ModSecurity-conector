@@ -4,7 +4,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from connectors.composite_harness.verify_matrix_evidence import EvidenceError, verify_manifest
+from connectors.composite_harness.verify_matrix_evidence import (
+    MAX_EVENT_LINE_BYTES,
+    EvidenceError,
+    verify_manifest,
+)
 from connectors.traefik.harness.traefik_composite_upstream import response_header_delay_seconds
 
 
@@ -43,6 +47,7 @@ class CompositeEvidenceVerifierTests(unittest.TestCase):
 
     def write_case(self, *, case="p4_safe", connector="envoy", mutate=None, strict_observation=False):
         directory = Path(self.tempdir.name)
+        directory.chmod(0o700)
         phases = {
             "p1_allow": ["P1", "P2", "P3", "P4"],
             "p1_deny": ["P1"],
@@ -137,6 +142,7 @@ class CompositeEvidenceVerifierTests(unittest.TestCase):
             mutate(events)
         event_log = directory / "case-001.events.jsonl"
         event_log.write_text("".join(json.dumps(event) + "\n" for event in events), encoding="utf-8")
+        event_log.chmod(0o600)
         client_outcome = "none"
         client_status = 503 if case in {"metadata_omitted", "p2_to_p3_timeout"} else 200
         committed = case not in {"metadata_omitted", "p2_to_p3_timeout"}
@@ -150,6 +156,7 @@ class CompositeEvidenceVerifierTests(unittest.TestCase):
             "p4_visible_status": client_status,
             "p4_response_committed": committed,
         }), encoding="utf-8")
+        client_observation.chmod(0o600)
         upstream_observation = directory / "upstream.observation.json"
         upstream_observation.write_text(json.dumps({
             "lease_observed": False,
@@ -159,6 +166,7 @@ class CompositeEvidenceVerifierTests(unittest.TestCase):
                 "p4_strict", "p2_to_p3_timeout",
             },
         }), encoding="utf-8")
+        upstream_observation.chmod(0o600)
         manifest = {
             "schema": "msc-composite-evidence/v1",
             "connector": connector,
@@ -171,6 +179,7 @@ class CompositeEvidenceVerifierTests(unittest.TestCase):
         }
         manifest_path = directory / "case-001.manifest.json"
         manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        manifest_path.chmod(0o600)
         return manifest_path
 
     def test_real_observer_schema_passes_with_lifecycle_records(self):
@@ -180,6 +189,62 @@ class CompositeEvidenceVerifierTests(unittest.TestCase):
         self.assertTrue(result.lifecycle_verified)
         self.assertFalse(result.catalog_acceptance)
         self.assertEqual(result.phases, ("P1", "P2", "P3", "P4"))
+
+    def test_explicit_private_runtime_root_is_bound_to_direct_children(self):
+        manifest = self.write_case()
+        self.assertTrue(verify_manifest(manifest, runtime_root=manifest.parent).passed)
+        with self.assertRaisesRegex(EvidenceError, "direct child"):
+            verify_manifest(manifest, runtime_root=manifest.parent.parent)
+
+    def test_private_runtime_root_rejects_unsafe_modes(self):
+        manifest = self.write_case()
+        manifest.parent.chmod(0o755)
+        with self.assertRaisesRegex(EvidenceError, "0700"):
+            verify_manifest(manifest)
+
+        manifest = self.write_case()
+        manifest.chmod(0o644)
+        with self.assertRaisesRegex(EvidenceError, "0600"):
+            verify_manifest(manifest)
+
+    def test_private_runtime_root_rejects_hardlinks(self):
+        manifest = self.write_case()
+        duplicate = manifest.parent / "manifest-hardlink.json"
+        try:
+            os.link(manifest, duplicate)
+        except OSError:
+            self.skipTest("hard links unavailable")
+        with self.assertRaisesRegex(EvidenceError, "hard links"):
+            verify_manifest(manifest)
+
+    def test_private_runtime_root_rejects_symlink_and_traversal_leaves(self):
+        manifest = self.write_case()
+        outside = Path(self.tempdir.name).parent / "outside-event-log.jsonl"
+        outside.write_text((manifest.parent / "case-001.events.jsonl").read_text(), encoding="utf-8")
+        outside.chmod(0o600)
+        event_log = manifest.parent / "case-001.events.jsonl"
+        event_log.unlink()
+        try:
+            os.symlink(outside, event_log)
+        except OSError:
+            self.skipTest("symlinks unavailable")
+        with self.assertRaisesRegex(EvidenceError, "regular file|symlink"):
+            verify_manifest(manifest)
+
+        manifest = self.write_case()
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+        data["client_observation"] = "../outside-event-log.jsonl"
+        manifest.write_text(json.dumps(data), encoding="utf-8")
+        with self.assertRaisesRegex(EvidenceError, "relative basename"):
+            verify_manifest(manifest)
+
+    def test_event_line_limit_includes_crlf_terminator(self):
+        manifest = self.write_case()
+        event_log = manifest.parent / "case-001.events.jsonl"
+        event_log.write_bytes(b"{}" + b" " * (MAX_EVENT_LINE_BYTES - 3) + b"\r\n")
+        event_log.chmod(0o600)
+        with self.assertRaisesRegex(EvidenceError, "exceeds metadata bounds"):
+            verify_manifest(manifest)
 
     def test_strict_requires_actual_client_abort_or_reset_observation(self):
         result = verify_manifest(self.write_case(case="p4_strict"))

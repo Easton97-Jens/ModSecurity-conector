@@ -19,6 +19,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+_CI_LIB = _REPOSITORY_ROOT / "ci" / "lib"
+if str(_CI_LIB) not in sys.path:
+    sys.path.insert(0, str(_CI_LIB))
+from runtime_path_utils import PrivateRuntimeRoot, open_private_runtime_root
+
 SCHEMA = "msc-composite-evidence/v1"
 EVIDENCE_SCOPE = "lifecycle_only"
 MAX_EVENT_LOG_BYTES = 256 * 1024
@@ -161,7 +167,7 @@ def _status(value: Any, path: str) -> int:
     return value
 
 
-def _json_value(path: Path) -> Any:
+def _json_value(root: PrivateRuntimeRoot, name: str, label: str, maximum_bytes: int) -> Any:
     def no_duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
         result: dict[str, Any] = {}
         for key, value in pairs:
@@ -171,58 +177,35 @@ def _json_value(path: Path) -> Any:
         return result
 
     try:
-        with path.open("r", encoding="utf-8") as handle:
-            return json.load(handle, object_pairs_hook=no_duplicate_pairs)
+        text = root.read_text(name, label=label, maximum_bytes=maximum_bytes)
+        return json.loads(text, object_pairs_hook=no_duplicate_pairs)
     except EvidenceError:
         raise
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise EvidenceError(f"cannot read JSON {path.name}: {exc}") from exc
+        if isinstance(exc, OSError) and getattr(exc, "errno", None) == 40:
+            raise EvidenceError(f"{label} must be a regular non-symlink file") from exc
+        raise EvidenceError(f"cannot read JSON {name}: {exc}") from exc
 
 
-def _safe_event_log_path(manifest: Path, event_log: str) -> Path:
-    relative = Path(event_log)
-    if relative.is_absolute() or relative.name != event_log or event_log in {"", ".", ".."}:
-        raise EvidenceError("case_artifact.event_log must be a relative basename")
-    candidate = manifest.parent / relative
-    if candidate.is_symlink():
-        raise EvidenceError("case_artifact.event_log must be a regular non-symlink file")
-    target = candidate.resolve()
-    if target.parent != manifest.parent.resolve() or not target.is_file():
-        raise EvidenceError("case_artifact.event_log must remain beside the manifest")
-    try:
-        if target.stat().st_size > MAX_EVENT_LOG_BYTES:
-            raise EvidenceError("event log exceeds the bounded metadata size")
-    except OSError as exc:
-        raise EvidenceError(f"cannot stat event log {target.name}: {exc}") from exc
-    return target
-
-
-def _safe_observation_path(manifest: Path, name: str, field: str) -> Path:
+def _safe_leaf_name(name: str, field: str) -> str:
     relative = Path(name)
     if relative.is_absolute() or relative.name != name or name in {"", ".", ".."}:
         raise EvidenceError(f"{field} must be a relative basename")
-    candidate = manifest.parent / relative
-    if candidate.is_symlink():
-        raise EvidenceError(f"{field} must reference a regular non-symlink file")
-    target = candidate.resolve()
-    if target.parent != manifest.parent.resolve() or not target.is_file():
-        raise EvidenceError(f"{field} must remain beside the manifest")
-    try:
-        if target.stat().st_size > MAX_OBSERVATION_BYTES:
-            raise EvidenceError(f"{field} exceeds the bounded metadata size")
-    except OSError as exc:
-        raise EvidenceError(f"cannot stat {field}: {exc}") from exc
-    return target
+    return name
 
 
-def _load_observation(path: Path, allowed: set[str], required: set[str], label: str) -> dict[str, Any]:
-    value = _expect_object(_json_value(path), label)
+def _safe_observation_name(name: str, field: str) -> str:
+    return _safe_leaf_name(name, field)
+
+
+def _load_observation(root: PrivateRuntimeRoot, name: str, allowed: set[str], required: set[str], label: str) -> dict[str, Any]:
+    value = _expect_object(_json_value(root, name, label, MAX_OBSERVATION_BYTES), label)
     _reject_unknown(value, allowed, label)
     _required(value, required, label)
     return value
 
 
-def _load_raw_events(path: Path) -> list[dict[str, Any]]:
+def _load_raw_events(root: PrivateRuntimeRoot, name: str) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = []
 
     def no_duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -234,23 +217,25 @@ def _load_raw_events(path: Path) -> list[dict[str, Any]]:
         return result
 
     try:
-        with path.open("r", encoding="utf-8") as handle:
-            for number, line in enumerate(handle, 1):
-                if not line.strip():
-                    raise EvidenceError(f"event log line {number} is blank")
-                if len(line.encode("utf-8")) > MAX_EVENT_LINE_BYTES:
-                    raise EvidenceError(f"event log line {number} exceeds metadata bounds")
-                try:
-                    event = json.loads(line, object_pairs_hook=no_duplicate_pairs)
-                except EvidenceError:
-                    raise
-                except json.JSONDecodeError as exc:
-                    raise EvidenceError(f"event log line {number} is not JSON: {exc}") from exc
-                events.append(_expect_object(event, f"event[{number}]"))
+        text = root.read_text(name, label="event log", maximum_bytes=MAX_EVENT_LOG_BYTES)
+        for number, raw_line in enumerate(text.splitlines(keepends=True), 1):
+            if len(raw_line.encode("utf-8")) > MAX_EVENT_LINE_BYTES:
+                raise EvidenceError(f"event log line {number} exceeds metadata bounds")
+            if not raw_line.strip():
+                raise EvidenceError(f"event log line {number} is blank")
+            try:
+                event = json.loads(raw_line, object_pairs_hook=no_duplicate_pairs)
+            except EvidenceError:
+                raise
+            except json.JSONDecodeError as exc:
+                raise EvidenceError(f"event log line {number} is not JSON: {exc}") from exc
+            events.append(_expect_object(event, f"event[{number}]"))
     except EvidenceError:
         raise
     except (OSError, UnicodeError) as exc:
-        raise EvidenceError(f"cannot read event log {path.name}: {exc}") from exc
+        if isinstance(exc, OSError) and getattr(exc, "errno", None) == 40:
+            raise EvidenceError("event log must be a regular non-symlink file") from exc
+        raise EvidenceError(f"cannot read event log {name}: {exc}") from exc
     if not events:
         raise EvidenceError("event log must contain at least one event")
     return events
@@ -287,8 +272,8 @@ def _validate_event(event: dict[str, Any], number: int, connector: str) -> tuple
     return phase, decision_id
 
 
-def _verify(manifest_path: Path, expected_event_log: Path | None = None) -> Verification:
-    manifest = _expect_object(_json_value(manifest_path), "manifest")
+def _verify(manifest_path: Path, runtime_root: PrivateRuntimeRoot, expected_event_log: Path | None = None) -> Verification:
+    manifest = _expect_object(_json_value(runtime_root, manifest_path.name, "manifest", MAX_EVENT_LOG_BYTES), "manifest")
     _reject_unknown(manifest, MANIFEST_KEYS, "manifest")
     _required(manifest, MANIFEST_KEYS, "manifest")
     if _string(manifest["schema"], "manifest.schema") != SCHEMA:
@@ -307,21 +292,17 @@ def _verify(manifest_path: Path, expected_event_log: Path | None = None) -> Veri
     _reject_unknown(artifact, ARTIFACT_KEYS, "manifest.case_artifact")
     _required(artifact, ARTIFACT_KEYS, "manifest.case_artifact")
     artifact_id = _string(artifact["id"], "manifest.case_artifact.id", SAFE_ID)
-    event_log = _safe_event_log_path(manifest_path, _string(artifact["event_log"], "manifest.case_artifact.event_log"))
+    event_log = _safe_leaf_name(_string(artifact["event_log"], "manifest.case_artifact.event_log"), "case_artifact.event_log")
     if expected_event_log is not None:
-        if not expected_event_log.is_absolute() or expected_event_log.is_symlink() or not expected_event_log.is_file():
+        if not expected_event_log.is_absolute() or expected_event_log.parent != manifest_path.parent:
             raise EvidenceError("--expected-event-log must be an absolute regular non-symlink file")
-        try:
-            expected_resolved = expected_event_log.resolve(strict=True)
-        except OSError as exc:
-            raise EvidenceError(f"cannot resolve --expected-event-log: {exc}") from exc
-        if expected_resolved != event_log:
+        if expected_event_log.name != event_log:
             raise EvidenceError("manifest event log does not match --expected-event-log")
 
-    client_path = _safe_observation_path(manifest_path, _string(manifest["client_observation"], "manifest.client_observation"), "manifest.client_observation")
-    upstream_path = _safe_observation_path(manifest_path, _string(manifest["upstream_observation"], "manifest.upstream_observation"), "manifest.upstream_observation")
-    client = _load_observation(client_path, CLIENT_KEYS, CLIENT_KEYS, "client_observation")
-    upstream = _load_observation(upstream_path, UPSTREAM_KEYS, UPSTREAM_KEYS, "upstream_observation")
+    client_path = _safe_observation_name(_string(manifest["client_observation"], "manifest.client_observation"), "manifest.client_observation")
+    upstream_path = _safe_observation_name(_string(manifest["upstream_observation"], "manifest.upstream_observation"), "manifest.upstream_observation")
+    client = _load_observation(runtime_root, client_path, CLIENT_KEYS, CLIENT_KEYS, "client_observation")
+    upstream = _load_observation(runtime_root, upstream_path, UPSTREAM_KEYS, UPSTREAM_KEYS, "upstream_observation")
     if _bool(upstream["lease_observed"], "upstream_observation.lease_observed"):
         raise EvidenceError("upstream reports a lease observed")
     request_terminal = _bool(upstream["request_terminal"], "upstream_observation.request_terminal")
@@ -347,7 +328,7 @@ def _verify(manifest_path: Path, expected_event_log: Path | None = None) -> Veri
     if cleanup["status"] != "completed":
         raise EvidenceError("manifest.cleanup.status must be completed")
 
-    events = _load_raw_events(event_log)
+    events = _load_raw_events(runtime_root, event_log)
     ids: set[str] = set()
     phase_positions: dict[str, int] = {}
     terminal_count = 0
@@ -490,22 +471,30 @@ def _verify(manifest_path: Path, expected_event_log: Path | None = None) -> Veri
     return Verification("LIFECYCLE_ONLY", connector, case, artifact_id, decision_id, tuple(expected), ())
 
 
-def verify_manifest(path: str | Path, expected_event_log: str | Path | None = None) -> Verification:
+def verify_manifest(path: str | Path, expected_event_log: str | Path | None = None, runtime_root: str | Path | None = None) -> Verification:
     manifest_path = Path(path)
-    if manifest_path.is_symlink() or not manifest_path.is_file():
-        raise EvidenceError("manifest must be a regular non-symlink file")
-    expected_path = Path(expected_event_log) if expected_event_log is not None else None
-    return _verify(manifest_path, expected_path)
+    if not manifest_path.is_absolute():
+        manifest_path = manifest_path.absolute()
+    root_path = Path(runtime_root).absolute() if runtime_root is not None else manifest_path.parent
+    if manifest_path.parent != root_path:
+        raise EvidenceError("manifest must be a direct child of --runtime-root")
+    try:
+        with open_private_runtime_root(root_path) as private_root:
+            expected_path = Path(expected_event_log).absolute() if expected_event_log is not None else None
+            return _verify(manifest_path, private_root, expected_path)
+    except ValueError as exc:
+        raise EvidenceError(str(exc)) from exc
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("manifest", type=Path, help="isolated composite evidence manifest JSON")
     parser.add_argument("--expected-event-log", type=Path, help="absolute event-log path that must exactly match the manifest reference")
+    parser.add_argument("--runtime-root", type=Path, required=True, help="existing exact private 0700 runtime root containing the manifest and direct 0600 leaves")
     parser.add_argument("--json", action="store_true", dest="json_output", help="emit a JSON result")
     args = parser.parse_args(argv)
     try:
-        result = verify_manifest(args.manifest, args.expected_event_log)
+        result = verify_manifest(args.manifest, args.expected_event_log, args.runtime_root)
     except EvidenceError as exc:
         result = Verification("INVALID", None, None, None, None, (), (str(exc),))
     if args.json_output:

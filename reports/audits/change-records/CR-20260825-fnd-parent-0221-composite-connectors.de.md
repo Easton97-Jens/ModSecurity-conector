@@ -12,7 +12,7 @@
 | Finding | `FND-PARENT-0221` |
 | Scope | Parent-only Envoy `ext_authz` + `ext_proc` und Traefik `forwardAuth` + private-UDS-Response-Composite, Tests, Konfiguration und gekoppelte Dokumentation |
 | Framework-/MRTS-Grenze | Keine Framework- oder MRTS-Source-, Branch-, `HEAD`-, Gitlink- oder Delivery-Änderung |
-| Delivery-Disposition | Der aktuelle Benutzer autorisierte ausdrücklich einen task-owned Worktree, scoped Commit/Push und einen Parent-Draft-PR; keine Merge-Autorisierung. Dieser Record enthält nur lokale Pre-Push-Evidenz. `FND-PARENT-0221` bleibt `in_progress`/`blocked_missing_evidence` und release-blockierend, daher ist diese Änderung nicht für `verified_pr` oder Merge geeignet. |
+| Delivery-Disposition | Der aktuelle Benutzer autorisierte ausdrücklich einen task-owned Worktree, einen scoped Commit/Push und genau einen Parent-Draft-PR gegen `master`; keine Merge-Autorisierung. Commit/Head `931d6eb81207997169719bb475d50274ae281eed` liegt auf Draft-PR #341. Der Sonar-Check `97747662107` schlug mit New-Code-Security-Rating C statt erforderlichem A fehl. FND-SONAR-0061 ist P0/high, `in_progress`, release- und kandidat-integration-blockierend. Eine minimale native Remediation ist lokal validiert, doch der exakte Successor-Head und die gehostete Validierung stehen aus; kein grünes Sonar-Ergebnis wird behauptet. `FND-PARENT-0221` bleibt `in_progress`/`blocked_missing_evidence`, daher ist diese Änderung nicht für `verified_pr` oder Merge geeignet. |
 
 ## Motivation und Problemstellung
 
@@ -111,6 +111,9 @@ Response-Pfad bleibt, wo zutreffend, log-only.
   und Host-Runner-Pfade unter `connectors/envoy/`
 - Traefik-`composite_middleware/`, Composite-Konfiguration, Driver, Upstream,
   Host-Runner und `README.md` / `README.de.md` unter `connectors/traefik/`
+- Sonar-Remediation-Pfade in `ci/lib/runtime_path_utils.py`,
+  `connectors/composite_harness/verify_matrix_evidence.py` sowie Traefik-
+  Composite-Harness-Helfer und fokussierte Tests
 - dieses englisch/deutsche Change-Record-Paar und die gekoppelten
   Archivindizes
 
@@ -182,9 +185,9 @@ Decision-Token ist in diesem Record enthalten.
   `200` zurückgab; er wird nicht als Evidenz akzeptiert. Der zurückgehaltene
   Rerun mit dem exakten kontrollierten Suffix lieferte die geforderte `503` und
   terminales `timeout`.
-- Hosted-PR-Checks, Review, SonarQube und Branch-Protection-Ergebnisse sind
-  noch nicht beobachtet, weil der autorisierte Draft-PR bei dieser
-  Record-Revision noch nicht erstellt wurde.
+- Der Hosted-PR-Check `97747662107` wurde beobachtet und schlug mit New-Code-
+  Security-Rating C statt des erforderlichen A fehl. Exakte Successor-Head-
+  Checks, Review und Branch Protection stehen noch aus.
 
 ## Bekannte Einschränkungen
 
@@ -205,6 +208,25 @@ Risikoakzeptanz existiert nicht.
 
 Der finale lokale Review umfasst den scoped Source-Diff, gekoppelte
 Dokumentation, fokussierte Tests, aktuellen CGo-Build, reale H1-Receipts und
-unabhängiges Post-Fix-Security-Review. Keine Framework-/MRTS-Änderung,
-Gitlink-Update, Commit, Push, PR, Hosted-Check, Review-Entscheidung oder Merge
-wird bei dieser Record-Revision behauptet.
+unabhängiges Post-Fix-Security-Review. Draft-PR #341 und sein initialer scoped
+Commit/Push sind beobachtet; ein Merge wurde nicht versucht. Die native
+Remediation ist lokal validiert, doch der Post-Push-Exact-Head-Check,
+Hosted-Check, Review-Entscheidung, Branch Protection und ein grünes
+Sonar-Ergebnis stehen noch aus. Keine Framework-/MRTS-Änderung oder
+Gitlink-Update wird behauptet.
+
+## Sonar-Status nach Draft-PR
+
+Draft-PR #341 gegen `master` liegt mit Commit/Head
+`931d6eb81207997169719bb475d50274ae281eed` vor; ein Merge wurde nicht
+versucht. Der Hosted-Check `97747662107` schlug mit New-Code-Security-Rating
+C statt des erforderlichen A fehl und meldete zehn Vulnerabilities.
+FND-SONAR-0061 ist P0/high, `in_progress` sowie release- und
+kandidat-integration-blockierend. Eine native lokale Remediation läuft mit
+descriptor-backed exakten `0700`-Roots, direkten `0600`-Leaves mit genau einem
+Link, einer Runtime-Root-Kopie des Case-Inputs und einem festen
+Loopback-/Origin-Form-Client. Es gab keine Suppression, keine
+Konfigurationsänderung und keine Quality-Gate-Änderung. Fokussierte native
+Tests validieren die Remediation lokal; der Post-Push-Exact-Head- und die
+nachfolgenden Hosted-Checks stehen noch aus, und ein grünes Sonar-Ergebnis wird
+nicht behauptet.
