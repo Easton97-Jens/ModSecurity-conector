@@ -134,9 +134,15 @@ class CompositeHarnessPathTests(unittest.TestCase):
         str(cert),
         str(key),
     )
-    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
+    thread = threading.Thread(target=server.handle_request)
     thread.start()
     return server, thread
+
+  def test_controlled_upstream_uses_native_tls_server_loop(self) -> None:
+    text = UPSTREAM_HARNESS.read_text(encoding="utf-8")
+    self.assertIn("class ControlledServer(http.server.ThreadingHTTPSServer)", text)
+    self.assertIn("server.handle_request()", text)
+    self.assertNotIn("server.serve_forever", text)
 
   def test_loopback_client_accepts_bounded_http_response(self) -> None:
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -180,7 +186,6 @@ class CompositeHarnessPathTests(unittest.TestCase):
             tls_connection.sendall(b"GET /safe HTTP/1.1\r\nHost: composite-upstream.local\r\n\r\n")
             self.assertTrue(tls_connection.recv(4096).startswith(b"HTTP/1.1 200 OK\r\n"))
       finally:
-        server.shutdown()
         server.server_close()
         thread.join(timeout=2)
 
@@ -197,7 +202,6 @@ class CompositeHarnessPathTests(unittest.TestCase):
             with context.wrap_socket(connection, server_hostname="composite-upstream.local"):
               pass
       finally:
-        server.shutdown()
         server.server_close()
         thread.join(timeout=2)
 
@@ -213,7 +217,6 @@ class CompositeHarnessPathTests(unittest.TestCase):
             with context.wrap_socket(connection, server_hostname="composite-upstream.local"):
               pass
       finally:
-        server.shutdown()
         server.server_close()
         thread.join(timeout=2)
 

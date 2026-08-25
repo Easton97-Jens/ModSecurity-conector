@@ -125,7 +125,7 @@ class ControlledHandler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
-class ControlledServer(http.server.ThreadingHTTPServer):
+class ControlledServer(http.server.ThreadingHTTPSServer):
     daemon_threads = True
     allow_reuse_address = False
 
@@ -138,14 +138,11 @@ class ControlledServer(http.server.ThreadingHTTPServer):
         certfile: str,
         keyfile: str,
     ) -> None:
-        super().__init__(address, ControlledHandler)
+        super().__init__(address, ControlledHandler, certfile=certfile, keyfile=keyfile)
         self.vectors = vectors
         self.observation = observation
         self.observation_root = observation_root
-        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        context.minimum_version = ssl.TLSVersion.TLSv1_2
-        context.load_cert_chain(certfile=certfile, keyfile=keyfile)
-        self.socket = context.wrap_socket(self.socket, server_side=True)
+        self.socket.context.minimum_version = ssl.TLSVersion.TLSv1_2
 
 
 class ObservationWriter:
@@ -222,7 +219,9 @@ def main(argv: list[str] | None = None) -> int:
                 str(args.key),
             )
             try:
-                server.serve_forever(poll_interval=0.2)
+                server.timeout = 0.2
+                while True:
+                    server.handle_request()
             finally:
                 server.server_close()
         return 0

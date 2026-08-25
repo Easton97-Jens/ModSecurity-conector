@@ -12,7 +12,7 @@
 | Finding | `FND-PARENT-0221` |
 | Scope | Parent-only Envoy `ext_authz` + `ext_proc` und Traefik `forwardAuth` + private-UDS-Response-Composite, Tests, Konfiguration und gekoppelte Dokumentation |
 | Framework-/MRTS-Grenze | Keine Framework- oder MRTS-Source-, Branch-, `HEAD`-, Gitlink- oder Delivery-Änderung |
-| Delivery-Disposition | Der Benutzer autorisierte einen task-owned Worktree, scoped Commit/Push und genau einen Parent-Draft-PR gegen `master`; kein Merge. Die Commits `931d6eb81207997169719bb475d50274ae281eed` und `9aeb0b551b34a0e44b9409130c2ecafeac641530` liegen auf Draft-PR #341. Die Sonar-Analyse `af6a96df-297f-47dd-af26-83b5315327e6` schloss/fixte neun von zehn Vulnerability-Records, ließ jedoch LOW `python:S5332` am kontrollierten Upstream offen. Das scoped TLS-Follow-up ist lokal validiert; Commit/Push und die exakte Successor-Head-Hosted-Validierung stehen aus. FND-SONAR-0061 bleibt P0/high, `in_progress`, release- und kandidat-integration-blockierend; kein grünes Sonar-Ergebnis wird behauptet. `FND-PARENT-0221` bleibt `in_progress`/`blocked_missing_evidence`, daher ist diese Änderung nicht für `verified_pr` oder Merge geeignet. |
+| Delivery-Disposition | Der Benutzer autorisierte einen task-owned Worktree, scoped Commit/Push und genau einen Parent-Draft-PR gegen `master`; kein Merge. Die Commits `931d6eb81207997169719bb475d50274ae281eed`, `9aeb0b551b34a0e44b9409130c2ecafeac641530` und `00b767aec09ccab0a6cceba37c8dc4ae763395d5` liegen auf Draft-PR #341. Die Sonar-Analyse `af6a96df-297f-47dd-af26-83b5315327e6` schloss/fixte neun von zehn Vulnerability-Records, ließ jedoch LOW `python:S5332` am kontrollierten Upstream offen. Das exakte Head-TLS-Follow-up reduzierte das Resultat auf eine neue Vulnerability, doch der Hosted-Check `97786524327` meldet weiterhin Security Rating B, weil er `BaseServer.serve_forever` unabhängig vom TLS-wrapped Socket modelliert. Der scanner-kompatible native TLS-Server-Loop-Successor ist lokal validiert; sein Commit/Push und die exakte Successor-Hosted-Validierung stehen aus. FND-SONAR-0061 bleibt P0/high, `in_progress`, release- und kandidat-integration-blockierend; kein grünes Sonar-Ergebnis wird behauptet. `FND-PARENT-0221` bleibt `in_progress`/`blocked_missing_evidence`, daher ist diese Änderung nicht für `verified_pr` oder Merge geeignet. |
 
 ## Motivation und Problemstellung
 
@@ -204,7 +204,7 @@ H2/H3 und Cross-Connector-Parität benötigen weitere Evidenz oder eine
 ausdrückliche aktuelle Benutzer-Risikoentscheidung. Eine solche
 Risikoakzeptanz existiert nicht.
 
-## Status des initialen nativen Remediation-Diffs und Reviews
+## Finaler Diff- und Review-Status
 
 Der finale lokale Review umfasst den scoped Source-Diff, gekoppelte
 Dokumentation, fokussierte Tests, aktuellen CGo-Build, reale H1-Receipts und
@@ -256,3 +256,33 @@ dieser Umgebung blockiert. Als Nächstes folgen der autorisierte scoped
 Commit/Push und die exakte Successor-Head-Hosted-Sonar-Validierung. Der
 Draft-PR bleibt `DIRTY`; kein Rebase, Konfliktlösungs-Commit oder Merge ist
 autorisiert.
+
+## Scanner-kompatibler nativer TLS-Server-Successor
+
+Der exakte PR-Head `00b767aec09ccab0a6cceba37c8dc4ae763395d5` bewahrt den
+zertifikatverifizierenden Traefik-zu-Upstream-TLS-Transport, doch sein
+gehosteter SonarCloud-Check `97786524327` schlug weiterhin fehl: Das
+New-Code-Security-Rating war B mit einer neuen LOW-`python:S5332`-
+Vulnerability am `server.serve_forever`-Aufruf des kontrollierten Upstreams.
+Die lokale TLS-Kontrolle war real, aber diese Regel modelliert einen zu
+`socketserver.BaseServer.serve_forever` aufgelösten Aufruf als Cleartext-
+Server-Start-Sink, ohne den Zustand des wrapped Socket/Context fortzupflanzen.
+Sie wird weder unterdrückt noch umklassifiziert.
+
+Der scoped Successor behält das TLS-1.2-oder-höher-Zertifikat/Key-Paar bei und
+nutzt Pythons nativen `http.server.ThreadingHTTPSServer` aus 3.14, an dessen
+Konstruktor dieses Paar übergeben wird und dessen Socket-Context-
+Minimum-Version gesetzt wird. Sein begrenzter prozess-ownender Loop setzt
+`server.timeout = 0.2` und ruft wiederholt `server.handle_request()` auf.
+Dies bewahrt Threaded-TLS-Request-Handling und entfernt zugleich den vom
+Scanner modellierten generischen `serve_forever`-Sink; weder Traefiks
+Zertifikatsverifikation noch der unveränderte öffentliche HTTP-Listener
+ändern sich.
+
+`PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_runtime_artifact_utils connectors.composite_harness.test_verify_matrix_evidence connectors.traefik.harness.test_composite_config connectors.traefik.harness.test_composite_harness_paths` bestand mit 55 fokussierten Stdlib-Tests. Die zusätzliche Kontrolle prüft nativen TLS-Server und Request-Loop sowie verifiziertes TLS, die Ablehnung eines nicht vertrauten Zertifikats und die Ablehnung eines vertrauten Zertifikats mit falschem Hostnamen gegen den tatsächlichen kontrollierten Upstream. Quellenbasierte Python-Kompilierung, Runner-Shell-Syntax, `git diff --check` und ein Source-Scan auf den generischen Server-Start sowie Plaintext-Template- und unsichere Verifikationsmuster bestanden ebenfalls.
+
+Es gibt kein lokales `traefik`-Executable, daher bleiben tatsächliches
+Traefik-Dynamic-Config-Parsing und ein TLS-aktivierter Matrix-Lauf
+`blocked_environment`. Als Nächstes folgen der autorisierte scoped Commit/Push
+und die exakte Successor-Head-Hosted-Sonar-Validierung. Der Draft-PR bleibt
+`DIRTY`; kein Rebase, Konfliktlösungs-Commit oder Merge ist autorisiert.
