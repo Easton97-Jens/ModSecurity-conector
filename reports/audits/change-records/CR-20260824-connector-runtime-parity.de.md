@@ -139,8 +139,8 @@ Fallback-Cleanup-Verhalten.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-- Durch diesen Follow-up wurden keine CI- oder Workflow-Konfigurationen
-  verändert und keine Hosted Checks manuell ausgelöst. Das Öffnen beziehungsweise Aktualisieren des Pull
+- Es wurden keine CI- oder Workflow-Konfigurationen verändert und keine Hosted
+  Checks manuell ausgelöst. Das Öffnen beziehungsweise Aktualisieren des Pull
   Requests löste vorhandene PR-Workflows automatisch aus. Deren tatsächlicher
   Status wird getrennt von der lokalen Runtime-Evidence dokumentiert.
 - Am ursprünglichen Draft-PR-Head scheiterten die automatischen Common- und
@@ -151,15 +151,18 @@ Fallback-Cleanup-Verhalten.
   Evidence getrennt. Der spätere externe `master`-Merge aktualisierte dieses
   geerbte Pin-/Gitlink-Tupel; seine automatischen Hosted-Ergebnisse bleiben
   getrennte Evidence.
+- Die beobachteten automatischen Checks für den vorangehenden exakten
+  Follow-up-Head bestanden. Dieser ausschließlich dokumentarische Follow-up
+  erzeugt einen neuen exakten Head; dessen Hosted-Status wird deshalb aus PR
+  #339 gelesen und hier nicht vorab behauptet.
 - Es wurde keine globale Dependency-Installation und kein mutable Host-Source-
   Fallback verwendet.
-- `make check-bilingual-docs` und `make check-doc-links` wurden nach der
-  Korrektur der Change-Record-Überschriften ausgeführt. Beide bleiben in diesem
-  frischen Parent-Worktree blockiert, weil sein gepinnter Framework-Gitlink
-  absichtlich uninitialisiert ist und bestehende Repository-Links daher kein
-  lokales Ziel haben. Weder Framework-Checkout noch Source-Änderung,
-  Gitlink-Update oder Link-Workaround waren autorisiert. Die Checks meldeten
-  keinen verbleibenden Change-Record-Überschriftenfehler.
+- `make check-bilingual-docs` bestand. Ein früherer `make check-doc-links`-
+  Diagnoseaufruf in einem absichtlich uninitialisierten Vergleichs-Worktree
+  war environment-blocked, weil Framework-Gitlink-Ziele fehlten; er wurde nicht
+  zum Nachweis der bestandenen bilingualen Validierung verwendet und erforderte
+  keinen Framework-Checkout, keine Source-Änderung, kein Gitlink-Update und
+  keinen Link-Workaround.
 
 ## Bekannte Einschränkungen
 
@@ -175,15 +178,15 @@ Die isolierten Testhosts beweisen keine deploymentspezifischen
 Produktionsrichtlinien, Namespace-Einschränkungen oder Operator-Konfiguration.
 Die Aufgabe behält absichtlich fail-closed Lifecycle- und Cleanup-Prüfungen,
 damit eine nicht verfügbare normale NGINX-Worker-Umgebung nicht als
-erfolgreiches Produktionsmodell falsch berichtet werden kann.
-Die beiden repositoryweiten Dokumentationschecks verlangen einen befüllten
-gepinnten Framework-Gitlink und bleiben daher environment-blocked, nicht
-abgewählt.
+erfolgreiches Produktionsmodell falsch berichtet werden kann. Der absichtlich
+uninitialisierte diagnostische Gitlink-Zustand ist nur Evidence für den
+historischen Vergleich und keine Abwahl der bestandenen bilingualen Prüfung.
 
 ## Finaler Diff- und Review-Status
 
-Der Nutzer autorisierte einen isolierten Folgecommit und normalen Push nur auf
-dem bestehenden Draft-PR-#339-Branch. Weder Merge noch direkter `master`-Push,
-Framework-/MRTS-Modifikation, Gitlink-Update, CI- oder Workflow-
-Konfigurationsänderung durch diesen Follow-up, manueller Hosted-Check-Trigger
-oder Protected-Check-Ergebnis ist autorisiert oder wird behauptet.
+Der Nutzer autorisierte isolierte Folgecommits und normale Pushes nur auf dem
+bestehenden PR-#339-Branch. Der PR ist nach den beobachteten automatischen
+Checks Ready for review; ein Merge wurde nicht ausgeführt. Weder direkter
+`master`-Push, Framework-/MRTS-Modifikation, Gitlink-Update, CI- oder Workflow-
+Konfigurationsänderung, manueller Hosted-Check-Trigger noch ein Protected-
+Check-Ergebnis ist autorisiert oder wird behauptet.

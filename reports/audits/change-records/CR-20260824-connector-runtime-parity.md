@@ -135,8 +135,8 @@ behavior.
 
 ## Checks not run and rationale
 
-- No CI or workflow configuration was changed by this follow-up, and no hosted
-  check was triggered manually. Opening or updating the pull request automatically
+- No CI or workflow configuration was changed, and no hosted check was
+  triggered manually. Opening or updating the pull request automatically
   triggered the repository’s existing pull-request workflows. Their actual
   status is recorded separately from the local runtime evidence.
 - At the original Draft PR head, the automatic common and NGINX scaffold
@@ -146,13 +146,16 @@ behavior.
   comparison; that Base/PR Gitlink mismatch is separate from this local
   runtime evidence. The later external `master` merge updated that inherited
   pin/Gitlink tuple; its automatic hosted outcomes remain separate evidence.
+- The observed automatic checks for the preceding exact follow-up head passed.
+  This documentation-only follow-up creates a new exact head, so its hosted
+  status is deliberately read from PR #339 rather than asserted here in
+  advance.
 - No global dependency installation or mutable host-source fallback was used.
-- `make check-bilingual-docs` and `make check-doc-links` were executed after
-  the Change Record headings were corrected. Both remain blocked in this fresh
-  Parent worktree because its pinned Framework Gitlink is intentionally
-  uninitialized and existing repository links therefore have no local target.
-  No Framework checkout, source change, Gitlink update, or link workaround was
-  authorized. The checks reported no remaining Change-Record-heading failure.
+- `make check-bilingual-docs` passed. An earlier `make check-doc-links`
+  diagnostic in a deliberately uninitialized comparison worktree was
+  environment-blocked because Framework Gitlink targets were absent; it was
+  not used to establish the passed bilingual validation and required no
+  Framework checkout, source change, Gitlink update, or link workaround.
 
 ## Known limitations
 
@@ -167,13 +170,14 @@ The isolated test hosts do not prove deployment-specific production policies,
 namespace restrictions, or operator configuration. The task deliberately
 retains fail-closed lifecycle and cleanup checks so an unavailable normal NGINX
 worker environment cannot be misreported as a successful production model.
-The two repository-wide documentation checks require a populated pinned
-Framework Gitlink and therefore remain environment-blocked, not waived.
+The deliberately uninitialized diagnostic Gitlink state is evidence for the
+historical comparison only; it is not a waiver of the passed bilingual check.
 
 ## Final diff and review status
 
-The user authorized an isolated follow-up commit and normal push only on the
-existing Draft PR #339 branch. No merge, direct `master` push, Framework/MRTS
-modification, Gitlink update, CI or workflow configuration change by this
-follow-up, manual hosted-check trigger, or protected-check outcome is
-authorized or asserted.
+The user authorized isolated follow-up commits and normal pushes only on the
+existing PR #339 branch. The PR is Ready for review after the observed
+automatic checks; no merge was performed. No direct `master` push,
+Framework/MRTS modification, Gitlink update, CI or workflow configuration
+change, manual hosted-check trigger, or protected-check outcome is authorized
+or asserted.
