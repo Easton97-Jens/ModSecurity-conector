@@ -268,7 +268,7 @@ steps are the authorized scoped commit/push and exact-successor hosted Sonar
 verification. The Draft PR remains `DIRTY`; no rebase, conflict-resolution
 commit, or merge is authorized.
 
-## Sonar zero-new-code remediation (hosted confirmation pending)
+## Sonar zero-new-code remediation (hosted confirmation recorded)
 
 A separate, bounded follow-up refactors the 92 current New-Code Code Smells
 and six duplicated blocks reported for this Draft PR. It changes no Sonar
@@ -285,7 +285,12 @@ and diff whitespace. An independent security review also confirmed that the
 temporary descriptor-cleanup and UDS outcome-routing regressions found during
 this follow-up are fixed and that fail-closed controls remain intact.
 
-The exact successor-head SonarCloud analysis is still required for final
-metric proof; this record deliberately does not claim a hosted zero result
-before that analysis completes. The PR remains Draft and no merge is
-authorized.
+SonarCloud analysis at `2026-08-25T16:32:43Z` for source head
+`6af90bc98f90452faae1e7179ade38a2a41561b0` recorded Quality Gate OK, 0 open
+New Issues, 0 Accepted Issues, 0 Hotspots, 0 duplicated new blocks/lines/
+density, and `new_lines_to_cover=0` / `new_uncovered_lines=0`. The coverage UI
+still displays 0.0%; this is reported as observed UI state, not as a coverage
+claim beyond those zero new-line counters. Five GitHub workflows passed. The
+PR remains Draft/Open and no merge was attempted or authorized. Final
+verification of this documentation follow-up against its future documentation
+head is still pending.

@@ -287,7 +287,7 @@ Traefik-Dynamic-Config-Parsing und ein TLS-aktivierter Matrix-Lauf
 und die exakte Successor-Head-Hosted-Sonar-Validierung. Der Draft-PR bleibt
 `DIRTY`; kein Rebase, Konfliktlösungs-Commit oder Merge ist autorisiert.
 
-## Sonar-Remediation für null New Code (Hosted-Bestätigung ausstehend)
+## Sonar-Remediation für null New Code (Hosted-Bestätigung dokumentiert)
 
 Ein separates, begrenztes Follow-up refaktoriert die für diesen Draft-PR
 gemeldeten 92 New-Code-Code-Smells und sechs Duplikatblöcke. Es ändert weder
@@ -305,7 +305,13 @@ Security-Review bestätigte außerdem, dass die während dieses Follow-ups
 gefundenen temporären Descriptor-Cleanup- und UDS-Outcome-Routing-Regressions
 behoben sind und die Fail-Closed-Controls erhalten bleiben.
 
-Für den endgültigen Metriknachweis ist weiterhin die SonarCloud-Analyse des
-exakten Successor-Heads erforderlich; dieser Record behauptet bewusst kein
-Hosted-Null-Ergebnis, bevor diese Analyse abgeschlossen ist. Der PR bleibt
-Draft, und kein Merge ist autorisiert.
+Die SonarCloud-Analyse um `2026-08-25T16:32:43Z` für Source-Head
+`6af90bc98f90452faae1e7179ade38a2a41561b0` verzeichnete Quality Gate OK, 0
+offene New Issues, 0 Accepted Issues, 0 Hotspots, 0 duplizierte neue
+Blocks/Lines/Density sowie `new_lines_to_cover=0` /
+`new_uncovered_lines=0`. Die Coverage-UI zeigt weiterhin 0.0%; dies wird als
+beobachteter UI-Status dokumentiert und nicht als weitergehende Coverage-
+Behauptung über die Zähler für neue Zeilen hinaus. Fünf GitHub-Workflows
+bestanden. Der PR bleibt Draft/Open, und ein Merge wurde weder versucht noch
+autorisiert. Die abschließende Verifikation dieses Dokumentations-Follow-ups
+gegen seinen zukünftigen Dokumentations-Head steht noch aus.
