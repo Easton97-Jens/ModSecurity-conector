@@ -361,6 +361,71 @@ static handler_t mod_msconnector_apply_decision(
     return result;
 }
 
+/*
+ * These response-header helpers are shared by the Stock and Patched host
+ * paths.  They must remain outside the stream-hook ABI guard: Stock invokes
+ * mod_msconnector_emit_host_transaction_id() from its response-start hook,
+ * while only the entity-body callbacks below require the patched ABI.
+ */
+static int mod_msconnector_response_headers_committed(
+        const request_st *r) {
+    return r != NULL && r->resp_header_len > 0U &&
+        r->write_queue.bytes_out >= (off_t)r->resp_header_len;
+}
+
+/*
+ * The host transaction ID is created by handler_ctx_create(), never derived
+ * from request metadata, and takes precedence over the legacy fallback
+ * transaction_id_header.  A private runtime harness can opt in to returning
+ * that host-generated value on the actual response so it can correlate one
+ * wire exchange with Common Runtime evidence.  This is deliberately disabled
+ * by default: the serial includes process-local information and is not a
+ * general-purpose public response header.
+ *
+ * Use response_set rather than response_insert.  In particular, an upstream
+ * response or a client-controlled request header bearing this name must not
+ * yield a second or forged response value.  This function is called only
+ * after the real response has been mapped into Common Runtime, so the
+ * evidence header cannot influence ModSecurity response evaluation.
+ */
+static int mod_msconnector_emit_host_transaction_id(
+        request_st * const r,
+        const plugin_data * const p,
+        const handler_ctx * const ctx) {
+    size_t transaction_id_size;
+
+    if (p == NULL || !p->defaults.expose_host_transaction_id) {
+        return 1;
+    }
+    if (r == NULL || ctx == NULL || ctx->host_request_id[0] == '\0') {
+        return 0;
+    }
+    if (mod_msconnector_response_headers_committed(r)) {
+        log_error(
+            r->conf.errh,
+            __FILE__,
+            __LINE__,
+            "msconnector evidence host transaction header would be emitted after response commit");
+        return 0;
+    }
+    transaction_id_size = strlen(ctx->host_request_id);
+    if (transaction_id_size >= sizeof(ctx->host_request_id)) {
+        log_error(
+            r->conf.errh,
+            __FILE__,
+            __LINE__,
+            "msconnector host transaction identifier is not bounded");
+        return 0;
+    }
+    http_header_response_set(
+        r,
+        HTTP_HEADER_OTHER,
+        CONST_STR_LEN("X-Msconnector-Host-Transaction-Id"),
+        ctx->host_request_id,
+        (uint32_t)transaction_id_size);
+    return 1;
+}
+
 #ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
 
 typedef struct {
@@ -508,69 +573,10 @@ static handler_t mod_msconnector_handle_request_body(
     return eos ? mod_msconnector_finish_request_body(r, p, ctx) : HANDLER_GO_ON;
 }
 
-static int mod_msconnector_response_headers_committed(
-        const request_st *r) {
-    return r != NULL && r->resp_header_len > 0U &&
-        r->write_queue.bytes_out >= (off_t)r->resp_header_len;
-}
-
 static int mod_msconnector_response_body_committed(
         const request_st *r) {
     return r != NULL && r->resp_header_len > 0U &&
         r->write_queue.bytes_out > (off_t)r->resp_header_len;
-}
-
-/*
- * The host transaction ID is created by handler_ctx_create(), never derived
- * from request metadata, and takes precedence over the legacy fallback
- * transaction_id_header.  A private runtime harness can opt in to returning
- * that host-generated value on the actual response so it can correlate one
- * wire exchange with Common Runtime evidence.  This is deliberately disabled
- * by default: the serial includes process-local information and is not a
- * general-purpose public response header.
- *
- * Use response_set rather than response_insert.  In particular, an upstream
- * response or a client-controlled request header bearing this name must not
- * yield a second or forged response value.  This function is called only
- * after the real response has been mapped into Common Runtime, so the
- * evidence header cannot influence ModSecurity response evaluation.
- */
-static int mod_msconnector_emit_host_transaction_id(
-        request_st * const r,
-        const plugin_data * const p,
-        const handler_ctx * const ctx) {
-    size_t transaction_id_size;
-
-    if (p == NULL || !p->defaults.expose_host_transaction_id) {
-        return 1;
-    }
-    if (r == NULL || ctx == NULL || ctx->host_request_id[0] == '\0') {
-        return 0;
-    }
-    if (mod_msconnector_response_headers_committed(r)) {
-        log_error(
-            r->conf.errh,
-            __FILE__,
-            __LINE__,
-            "msconnector evidence host transaction header would be emitted after response commit");
-        return 0;
-    }
-    transaction_id_size = strlen(ctx->host_request_id);
-    if (transaction_id_size >= sizeof(ctx->host_request_id)) {
-        log_error(
-            r->conf.errh,
-            __FILE__,
-            __LINE__,
-            "msconnector host transaction identifier is not bounded");
-        return 0;
-    }
-    http_header_response_set(
-        r,
-        HTTP_HEADER_OTHER,
-        CONST_STR_LEN("X-Msconnector-Host-Transaction-Id"),
-        ctx->host_request_id,
-        (uint32_t)transaction_id_size);
-    return 1;
 }
 
 static plugin_body_hook_result mod_msconnector_finish_response_body(
