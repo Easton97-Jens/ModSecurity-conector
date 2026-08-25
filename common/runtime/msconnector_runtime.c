@@ -53,6 +53,8 @@
 #define RUNTIME_EVENT_CLIENT_IP_SIZE 64U
 #define RUNTIME_EVENT_CONTENT_TYPE_SIZE 256U
 #define RUNTIME_INTEGRATION_MODE_SIZE 64U
+#define RUNTIME_REQUEST_BODY_LIMIT_REJECTION_LOG \
+    "Request body limit is marked to reject the request"
 
 typedef struct msconnector_runtime_owned_config {
     char rules_inline[RUNTIME_INLINE_RULE_SIZE];
@@ -803,6 +805,27 @@ static void native_free_transaction(void *userdata, void *native_transaction) {
     }
 }
 
+/*
+ * libmodsecurity reports SecRequestBodyLimitAction Reject as a disruptive
+ * request-body intervention, but uses 403 for its status. Preserve all
+ * ordinary rule actions: only the exact no-redirect body-limit signature has
+ * the HTTP request-entity semantics of 413.
+ */
+static int native_intervention_status(
+    enum msconnector_phase phase,
+    const ModSecurityIntervention *intervention) {
+    if (intervention != NULL &&
+        intervention->disruptive != 0 &&
+        phase == MSCONNECTOR_PHASE_REQUEST_BODY &&
+        intervention->status == 403 &&
+        intervention->url == NULL &&
+        intervention->log != NULL &&
+        strcmp(intervention->log, RUNTIME_REQUEST_BODY_LIMIT_REJECTION_LOG) == 0) {
+        return 413;
+    }
+    return intervention == NULL ? 0 : intervention->status;
+}
+
 static int native_decision(
     const msconnector_runtime *runtime,
     msconnector_native_transaction *native,
@@ -826,7 +849,8 @@ static int native_decision(
             intervention.log, native->rule_id, sizeof(native->rule_id));
     }
     if (disruptive) {
-        int intervention_status = intervention.status;
+        int intervention_status = native_intervention_status(
+            phase, &intervention);
         (void)snprintf(native->reason, sizeof(native->reason), "%s",
             "ModSecurity rule requested an intervention");
         if (intervention.url != NULL) {
@@ -1276,6 +1300,12 @@ size_t msconnector_runtime_request_body_limit(const msconnector_runtime *runtime
 
 size_t msconnector_runtime_response_body_limit(const msconnector_runtime *runtime) {
     return runtime == NULL ? 0U : runtime->limits.max_response_body_bytes;
+}
+
+msconnector_body_limit_action msconnector_runtime_body_limit_action(
+    const msconnector_runtime *runtime) {
+    return runtime == NULL ? MSCONNECTOR_BODY_LIMIT_ACTION_UNSET
+        : runtime->body_policy.body_limit_action;
 }
 
 msconnector_body_mode msconnector_runtime_request_body_mode(
@@ -2277,6 +2307,53 @@ int msconnector_runtime_transaction_process_response(
         transaction, decision, error);
 }
 
+static int finish_transaction_with_logging(
+    msconnector_runtime_transaction *transaction,
+    msconnector_error *error) {
+    transaction->finish_attempted = 1;
+    if (msconnector_flow_guard_mark_immutable(&transaction->flow) !=
+        MSCONNECTOR_FLOW_GUARD_OK) {
+        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+            "transaction could not be made immutable", "flow_guard");
+    }
+    if (transaction->native_started &&
+        !msconnector_modsecurity_process_logging(&transaction->modsecurity, error)) {
+        return 0;
+    }
+    transaction->finished = 1;
+    return 1;
+}
+
+int msconnector_runtime_transaction_finish_host_rejected_request_body(
+    msconnector_runtime_transaction *transaction,
+    msconnector_error *error) {
+    if (error != NULL) {
+        msconnector_error_init(error);
+    }
+    if (transaction == NULL) {
+        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+            "transaction is required", "runtime");
+    }
+    if (transaction->finished) {
+        return 1;
+    }
+    if (transaction->finish_attempted) {
+        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+            "transaction finish previously failed", "runtime");
+    }
+    if (!transaction->native_started) {
+        return finish_transaction_with_logging(transaction, error);
+    }
+    if (transaction->runtime->body_policy.request_body_mode !=
+            MSCONNECTOR_BODY_MODE_STREAMING ||
+        transaction->request_body.finished || transaction->response_headers_processed) {
+        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+            "host-rejected request body must be incomplete streaming before response processing",
+            "runtime");
+    }
+    return finish_transaction_with_logging(transaction, error);
+}
+
 int msconnector_runtime_transaction_finish(
     msconnector_runtime_transaction *transaction,
     msconnector_error *error) {
@@ -2308,18 +2385,7 @@ int msconnector_runtime_transaction_finish(
             "response reached transaction finish without response-body end-of-stream",
             "runtime");
     }
-    transaction->finish_attempted = 1;
-    if (msconnector_flow_guard_mark_immutable(&transaction->flow) !=
-        MSCONNECTOR_FLOW_GUARD_OK) {
-        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
-            "transaction could not be made immutable", "flow_guard");
-    }
-    if (transaction->native_started &&
-        !msconnector_modsecurity_process_logging(&transaction->modsecurity, error)) {
-        return 0;
-    }
-    transaction->finished = 1;
-    return 1;
+    return finish_transaction_with_logging(transaction, error);
 }
 
 const char *msconnector_runtime_transaction_id(

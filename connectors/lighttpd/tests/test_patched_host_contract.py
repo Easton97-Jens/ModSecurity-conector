@@ -624,7 +624,7 @@ class PatchedHostContractTest(unittest.TestCase):
             encoding="utf-8"
         )
         emitter = module.split("static int mod_msconnector_emit_host_transaction_id", 1)[1].split(
-            "static plugin_body_hook_result mod_msconnector_finish_response_body", 1
+            "#ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION", 1
         )[0]
         response_start = module.rsplit("REQUEST_FUNC(mod_msconnector_handle_response_start)", 1)[1].split(
             "REQUEST_FUNC(mod_msconnector_handle_request_reset)", 1
@@ -639,7 +639,10 @@ class PatchedHostContractTest(unittest.TestCase):
         self.assertNotIn("http_header_request_get", emitter)
         self.assertIn("!p->defaults.expose_host_transaction_id", emitter)
         self.assertIn("mod_msconnector_response_headers_committed", emitter)
-        self.assertIn("if (ctx->request_intervened)", response_start)
+        self.assertIn(
+            "if (ctx->request_intervened || ctx->request_body_gate_rejected)",
+            response_start,
+        )
         self.assertIn("mod_msconnector_emit_host_transaction_id(r, p, ctx)", response_start)
         self.assertLess(
             response_start.index("msconnector_runtime_transaction_process_response_headers"),
