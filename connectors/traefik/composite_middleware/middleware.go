@@ -280,31 +280,43 @@ func reservationHeaderGroups(headers http.Header, authority string, contentLengt
 	if err != nil {
 		return nil, err
 	}
+	valuesSeen, total, err = addReservationDefaults(groupsByName, authority, contentLength, valuesSeen, total)
+	if err != nil {
+		return nil, err
+	}
+	return sortedReservationGroups(groupsByName)
+}
+
+func addReservationDefaults(groupsByName map[string][]string, authority string, contentLength int64, valuesSeen, total int) (int, int, error) {
 	if _, hasHost := groupsByName["host"]; !hasHost {
 		if authority == "" || invalidHostAuthority(authority) {
-			return nil, errProtocol
+			return 0, 0, errProtocol
 		}
 		groupsByName["host"] = []string{authority}
 	}
 	if _, hasContentLength := groupsByName[contentLengthHeader]; !hasContentLength && contentLength >= 0 {
 		value := strconv.FormatInt(contentLength, 10)
 		if valuesSeen == maxHeaders || total+len(contentLengthHeader)+len(value) > maxPayload {
-			return nil, errProtocol
+			return 0, 0, errProtocol
 		}
 		groupsByName[contentLengthHeader] = []string{value}
 		valuesSeen++
 		total += len(contentLengthHeader) + len(value)
 	}
 	if len(groupsByName) > maxHeaders {
-		return nil, errProtocol
+		return 0, 0, errProtocol
 	}
+	return valuesSeen, total, nil
+}
+
+func sortedReservationGroups(groupsByName map[string][]string) ([]reservationHeaderGroup, error) {
 	names := make([]string, 0, len(groupsByName))
 	for name := range groupsByName {
 		names = append(names, name)
 	}
 	sort.Strings(names)
 	groups := make([]reservationHeaderGroup, 0, len(names))
-	valuesSeen, total = 0, 0
+	valuesSeen, total := 0, 0
 	for _, name := range names {
 		values := groupsByName[name]
 		if !validHeaderToken(name) || len(values) == 0 || len(values) > maxHeaders {

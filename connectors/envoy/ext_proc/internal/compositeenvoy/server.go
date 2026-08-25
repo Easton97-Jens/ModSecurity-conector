@@ -637,6 +637,17 @@ func validRedirectURL(value string) bool {
 }
 
 func validMarkedTerminalReply(headers []processor.Header) bool {
+	status, statusSeen, locationSeen, valid := scanMarkedTerminalReply(headers)
+	if !valid || !statusSeen {
+		return false
+	}
+	if status >= 400 && status <= 599 {
+		return !locationSeen
+	}
+	return status >= 300 && status <= 399 && locationSeen
+}
+
+func scanMarkedTerminalReply(headers []processor.Header) (int, bool, bool, bool) {
 	status := 0
 	statusSeen := false
 	locationSeen := false
@@ -644,28 +655,22 @@ func validMarkedTerminalReply(headers []processor.Header) bool {
 		switch header.Name {
 		case envoyStatusHeader:
 			if statusSeen {
-				return false
+				return 0, false, false, false
 			}
 			parsed, ok := markedTerminalStatus(header.Value)
 			if !ok {
-				return false
+				return 0, false, false, false
 			}
 			status = parsed
 			statusSeen = true
 		case "location":
 			if locationSeen || !validRedirectURL(string(header.Value)) {
-				return false
+				return 0, false, false, false
 			}
 			locationSeen = true
 		}
 	}
-	if !statusSeen {
-		return false
-	}
-	if status >= 400 && status <= 599 {
-		return !locationSeen
-	}
-	return status >= 300 && status <= 399 && locationSeen
+	return status, statusSeen, locationSeen, true
 }
 
 func markedTerminalStatus(value []byte) (int, bool) {
