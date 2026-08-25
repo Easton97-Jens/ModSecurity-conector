@@ -27,6 +27,13 @@ angelegt werden.
   geschützte NGINX-Grenze, Hosted-Result, Ready-Status oder Merge wird
   behauptet.
 
+- [CR-20260825-lighttpd-phase2-pre-upstream-gate](CR-20260825-lighttpd-phase2-pre-upstream-gate.de.md) —
+  das vom Benutzer autorisierte Parent-only-Phase-2-Pre-Upstream-Zulassungsgate
+  für den ausgewählten gepatchten Lighttpd-HTTP/1.1-`mod_proxy`-Pfad. Es hält
+  lokale Runtime-Evidence, den gemergten PR #339 als geerbte `master`-ABI-
+  Basis und den Draft-PR—nicht einen Merge—als erlaubten Auslieferungsstatus
+  fest.
+
 - [CR-20260823-pr309-lighttpd-config-reference-repair](CR-20260823-pr309-lighttpd-config-reference-repair.de.md) —
   die Parent-only-Nachfolgereparatur stellt den geschlossenen Lighttpd-
   Config-Reference-Vertrag nach dem Post-Merge-Validierungsfehler von PR #309
