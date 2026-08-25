@@ -56,15 +56,18 @@ Metadaten auf, niemals Request-Nutzdaten.
 Der Runner beweist, dass verzögerte Chunked-Phase-2-Deny-Bytes vor terminalem
 EOS den Upstream weder verbinden noch erreichen, dass ein verzögerter
 benigner Chunked-Allow erst nach EOS/Allow weitergeleitet wird und dass der
-Host diesen erlaubten Request als `Content-Length` neu rahmt. Er verlangt
+Host diesen erlaubten Request als genau eine nicht gechunkte `Content-Length`-
+Lieferung in der Größe des zurückgehaltenen Bodys neu rahmt. Er verlangt
 außerdem `501` ohne neue Upstream-Verbindung für `Incremental`, konfigurierte
 `server.stream-request-body` und ausdrücklich aktivierte body-tragende
 `Upgrade`- plus `gw.upgrade-with-request-body`. Er ist nur Request-Body-P2-
 Evidence; er verlangt außerdem, dass Streaming mit
 `body_limit_action=process_partial` bereits beim Laden der Konfiguration vor
-einem Listener oder einer Upstream-Verbindung abgewiesen wird. Er fördert keine
-Claims zu Response-Body-P4, CRS, HTTP/2/HTTP/3, unbeschränktem Streaming oder
-Production-Readiness.
+einem Listener oder einer Upstream-Verbindung abgewiesen wird. Ein terminales
+host-seitiges `501` nutzt ausschließlich einen Logging-Abschluss: Er zeichnet
+die Audit-Phase genau einmal auf, ohne Request-Body-EOS oder eine Phase-2-
+Entscheidung zu synthetisieren. Er fördert keine Claims zu Response-Body-P4,
+CRS, HTTP/2/HTTP/3, unbeschränktem Streaming oder Production-Readiness.
 
 Die Grenze für den zurückgehaltenen Body des Streaming-Profils ergibt sich aus
 seinem positiven Common-`request_body_limit` und dem ablehnenden Lesezyklus.

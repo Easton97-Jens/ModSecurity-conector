@@ -1045,18 +1045,27 @@ REQUEST_FUNC(mod_msconnector_handle_request_reset) {
                 "msconnector could not complete unobserved response lifecycle before reset");
         }
 #endif
-        if (!ctx->request_body_gate_rejected) {
-            msconnector_error_init(&runtime_error);
-            if (!msconnector_runtime_transaction_finish(
+        msconnector_error_init(&runtime_error);
+        if (ctx->request_body_gate_rejected) {
+            if (!msconnector_runtime_transaction_finish_host_rejected_request_body(
                     ctx->transaction,
                     &runtime_error)) {
                 log_error(
                     r->conf.errh,
                     __FILE__,
                     __LINE__,
-                    "msconnector transaction finish failed: %s",
+                    "msconnector rejected request-body gate logging finalization failed: %s",
                     msconnector_error_code_name(runtime_error.code));
             }
+        } else if (!msconnector_runtime_transaction_finish(
+                ctx->transaction,
+                &runtime_error)) {
+            log_error(
+                r->conf.errh,
+                __FILE__,
+                __LINE__,
+                "msconnector transaction finish failed: %s",
+                msconnector_error_code_name(runtime_error.code));
         }
     }
     handler_ctx_destroy(ctx_slot);

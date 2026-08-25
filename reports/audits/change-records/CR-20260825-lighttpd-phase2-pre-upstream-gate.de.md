@@ -42,6 +42,9 @@ diesem Ergebnis an, ohne Suppression, Scanner-Control-Änderung oder Merge.
   Upstream-Lieferung des Bodys.
 - Bereits aktive/reaktivierte Stream-Flags, `Incremental` und body-tragendes
   `Upgrade` schlagen im ausgewählten Profil mit HTTP 501 fail closed fehl.
+- Jede terminale host-seitige 501-Ablehnung ruft die native Logging-Phase
+  genau einmal auf, ohne Request-Body-EOS oder eine Phase-2-Entscheidung zu
+  synthetisieren.
 - Streaming akzeptiert nur `body_limit_action=reject`; `process_partial`
   schlägt beim Laden der Konfiguration vor Listener oder Upstream fehl.
 - Die exakte ablehnende `SecRequestBodyLimitAction`-Phase-2-Signatur wird auf
@@ -61,7 +64,9 @@ diesem Ergebnis an, ohne Suppression, Scanner-Control-Änderung oder Merge.
 - Der Request-Body-Hook wiederholt die Aktivflag-Prüfung; auch eine spätere
   Aktivierung bleibt damit fail closed. Eine pro Request gesetzte Gate-
   Ablehnungsmarke vermeidet normale Transaction-Vervollständigung nur für
-  diesen abgelehnten Request.
+  diesen abgelehnten Request und wählt einen engen nativen Finalizer, der
+  Logging genau einmal aufruft, ohne den unvollständigen Request-Body zu
+  verarbeiten oder zu finalisieren.
 - `msconnector_runtime_body_limit_action()` stellt die geparste Common-
   Runtime-Aktion bereit. Im gepatchten ABI-Zweig lehnt das Setup Streaming ab,
   wenn die Aktion nicht `MSCONNECTOR_BODY_LIMIT_ACTION_REJECT` ist; Stock- und
@@ -102,6 +107,8 @@ diesem Ergebnis an, ohne Suppression, Scanner-Control-Änderung oder Merge.
 
 Der aktuelle Sonar-Remediation-Successor ändert nur:
 
+- `common/runtime/msconnector_runtime.c` und `common/runtime/msconnector_runtime.h`
+- `connectors/lighttpd/module/mod_msconnector.c`
 - `connectors/lighttpd/harness/run_phase2_pre_upstream_gate.py`
 - `tests/test_lighttpd_phase2_pre_upstream_gate_contract.py`
 - `connectors/lighttpd/harness/README.md` und
@@ -121,9 +128,11 @@ Der aktuelle Sonar-Remediation-Successor ändert nur:
 | Fokussierter Phase-2-/Status-/ABI-Befehl | Bestanden: 10 Tests. |
 | Master-basierte Lighttpd-Host-Contracts | Bestanden: 70 Tests, 12 erwartete Namespace-Skips. |
 | `make check-bilingual-docs` und `make check-doc-links` | Environment-blocked: Der Rerun meldete nur repositoryweite fehlende Ziele unter dem nicht initialisierten Gitlink `modules/ModSecurity-test-Framework` und keine Task-Dokumentdiagnose. |
-| Fokussierte Phase-2-Contracts des aktuellen Successors | Bestanden: 10 Tests einschließlich intern allokierter Loopback-Endpunkte, keinem externen Listener-Befehl, Summary-/Child-Symlink-Ablehnung, Group-Writable-Root-Ablehnung und Root-Path-Replacement-Confinement. |
-| Relevante Lighttpd-Contracts des aktuellen Successors | Bestanden: 70 Tests, 12 erwartete Namespace-Skips. |
+| Fokussierte Phase-2-Contracts des aktuellen Successors | Bestanden: 14 Tests einschließlich intern allokierter Loopback-Endpunkte, keinem externen Listener-Befehl, Summary-/Child-Symlink-Ablehnung, Group-Writable-Root-Ablehnung, Root-Path-Replacement-Confinement, exaktem `Content-Length`-Reframing und Erhalt der normalen EOS-Guards. |
+| Relevante Lighttpd-Contracts des aktuellen Successors | Bestanden: 87 Tests, 12 erwartete Namespace-Skips. |
 | Syntax und Diff-Hygiene des aktuellen Successors | Bestanden: `py_compile` für Runner/Contract und `git diff --check`. |
+| Patched-Host-C17-Build/-Check der Review-Remediation | Aus einem frischen externen Root mit dem gepinnten Lighttpd-1.4.85-Patch und `-std=c17 -Wall -Wextra -Werror` bestanden. |
+| Audit-aktiviertes Phase-2-Gate der Review-Remediation | Bestanden: Die sechs nativen Audit-Transaktionen hatten jeweils einen A/Z-Lebenszyklus; `Incremental`, konfiguriertes Streaming und body-tragendes `Upgrade` hatten jeweils einen Audit-Lebenszyklus ohne Phase-2-Ereignis, während der Harness HTTP 501 und null neue Upstream-Verbindungen beobachtete. |
 
 ## Runtime-Evidence
 
@@ -136,6 +145,8 @@ Evidence-URL.
 | `master-5d71-bufferbound-p0-p2-summary` | `eb72d9ce51260da3e76b8d79b0ca7eb2d2c6215efd57c40b41c4d9f192337f81` | P1/P2-Allow/Deny, leerer Body, sichtbares 413 bei 33/64 Byte, RST-Controls, Folgeanfrage und Cleanup bestanden; Deny-/Limit-/Reset-Fälle erreichten keinen Upstream. |
 | `master-5d71-bufferbound-timeout-summary` | `5d72aea037b9d08e682c31c16e75477cd55a4b181d6da613254c7b1bad136888` | Ein partieller Content-Length-Body lief vor EOS aus, ohne Event/Upstream; der Listener blieb gesund und ein folgender erlaubter 32-Byte-Request wurde genau einmal geliefert. |
 | `pr342-sonar-zero-gate-final3-summary` | `b2bf207f092fdb8225ebf931c088db02c87fede7388771fb21ce1be4bfa664c0` | Verzögerter Marker: 403 mit null Preterminal-Upstream-Reach; verzögertes Allow: 200 und eine Post-EOS-32-Byte-Lieferung; unmittelbarer Marker: 403; `Incremental`, konfigurierter Stream und aktiviertes body-tragendes `Upgrade`: 501; `process_partial`: Konfigurationscheck 255; alle Task-Listener nach Bereinigung nicht vorhanden. |
+| `pr342-sonar-zero-review-gate-summary` | `77a9020091ef1976d7431a223367f4b139760854b9fc5352bd05266dc61ad3a3` | Frisches C17-Modul/-Host: verzögertes Deny 403 mit null Preterminal-Upstream-Reach; erlaubter verzögerter Request 200 mit genau einer nicht gechunkten `Content-Length: 32`-Lieferung; drei nicht unterstützte Modi 501 ohne Upstream; `process_partial` in der Konfiguration abgewiesen; Listener-Cleanup bestanden. |
+| `pr342-sonar-zero-review-audit` | `ba9f51959b1b95e7eaa62ef5cb5f5a1020d32ad129c664f3c5ca9d39f8d72aa1` | Nutzdatenfreie `ABFHZ`-Audit-Parts: sechs A/Z-Transaction-Lebenszyklen; genau ein Lebenszyklus für jeden der drei host-seitigen 501-Modi und kein Phase-2-Ereignis in diesen Transactions. |
 
 Der historische Rules-Pfad des aufbewahrten P0/P2-Helfers fehlte, daher
 endete sein erster Start vor Prozess oder Listener. Ein task-eigener Wrapper
@@ -159,6 +170,12 @@ Root-/Case-Artefakte werden durch gepinnte Deskriptoren erzeugt und geschrieben;
 und ein Subprozess kann Runtime-Pfade nur über den absichtlich geerbten
 Case-Deskriptor auflösen. Ein unabhängiges Post-Patch-Review fand keinen
 lokalen Blocker für die sieben gemeldeten Sonar-Regeln.
+
+Die Review-Remediation erhält die Request- und Response-EOS-Guards des
+generischen normalen Finish-Pfads unverändert. Nur ein bereits vor
+Request-Body-EOS vom Host abgewiesener Request darf den dedizierten nativen
+Logging-Finalizer verwenden; er kann den Request-Body nicht verarbeiten,
+keine Phase-2-Entscheidung erzeugen und keinen Upstream erreichen.
 
 ## Bekannte Einschränkungen
 
@@ -196,9 +213,9 @@ benötigen nicht privilegierte User-, Mount- und PID-Namespace-Unterstützung.
 ## Finaler Diff- und Review-Status
 
 Der finale lokale Scope ist ein Parent-only fokussierter Successor zum
-bestehenden Draft-PR #342. Er bestand 10 fokussierte Contracts, 70 relevante
-Lighttpd-Contracts mit 12 erwarteten Namespace-Skips, Python-Kompilierung,
-Diff-Hygiene, gematchte Runtime-Evidence und unabhängiges Source-Review. Zu
-diesem Zeitpunkt werden kein neuer Commit, Push, exakter Successor-SHA,
-Hosted-Check, direkter `master`-Push oder Merge behauptet. Diese Delivery-
-Fakten werden erst nach ihrer Beobachtung dokumentiert.
+bestehenden Draft-PR #342. Er bestand 87 relevante Contracts mit 12 erwarteten
+Namespace-Skips, Python-Kompilierung, Diff-Hygiene, einen frischen C17-
+Matched-Host-Build, Audit-aktivierte Runtime-Evidence und unabhängiges
+Source-Review. Zu diesem Zeitpunkt werden kein neuer Commit, Push, exakter
+Successor-SHA, Hosted-Check, direkter `master`-Push oder Merge behauptet.
+Diese Delivery-Fakten werden erst nach ihrer Beobachtung dokumentiert.

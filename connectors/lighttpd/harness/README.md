@@ -54,14 +54,17 @@ bounded framing/counter metadata, never request payloads.
 The runner proves that delayed chunked Phase-2 deny bytes do not connect to or
 reach the upstream before terminal EOS, that a delayed benign chunked allow
 is forwarded only after EOS/allow, and that the host re-frames that allowed
-request as `Content-Length`. It also requires `501` with no new upstream
+request as one unchunked `Content-Length` delivery equal to the retained body
+size. It also requires `501` with no new upstream
 connection for `Incremental`, configured `server.stream-request-body`, and
 explicitly enabled body-bearing `Upgrade` plus `gw.upgrade-with-request-body`.
 It also requires configuration loading to reject streaming with
 `body_limit_action=process_partial` before a listener or upstream connection
-exists. It is request-body P2 evidence only; it does not promote response-body
-P4, CRS, HTTP/2/HTTP/3, unrestricted streaming, or production-readiness
-claims.
+exists. A terminal host-side `501` uses logging finalization only: it records
+the audit phase exactly once without synthesizing request-body EOS or a
+Phase-2 decision. It is request-body P2 evidence only; it does not promote
+response-body P4, CRS, HTTP/2/HTTP/3, unrestricted streaming, or
+production-readiness claims.
 
 The streaming profile's retained-body bound comes from its positive Common
 `request_body_limit` and rejecting read cycle. This runner does not configure

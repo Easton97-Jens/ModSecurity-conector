@@ -959,6 +959,12 @@ def run_delayed_allow_case(
         raise GateFailure("allowed delayed request was not delivered exactly once")
     if record.get("received_body_wire_bytes") != len(allowed):
         raise GateFailure("allowed delayed request had an unexpected upstream byte count")
+    if record.get("content_length_present") is not True:
+        raise GateFailure("allowed delayed request was not reframed with Content-Length")
+    if record.get("declared_content_length") != len(allowed):
+        raise GateFailure("allowed delayed request had an unexpected Content-Length")
+    if record.get("transfer_encoding_chunked") is not False:
+        raise GateFailure("allowed delayed request retained chunked transfer encoding")
     summary["cases"].append(
         {
             "label": "delayed_chunked_phase2_allow",
@@ -968,6 +974,7 @@ def run_delayed_allow_case(
             "upstream_delivery": {
                 "accepted_connections": 1,
                 "content_length_present": record.get("content_length_present"),
+                "declared_content_length": record.get("declared_content_length"),
                 "received_body_wire_bytes": record.get("received_body_wire_bytes"),
                 "transfer_encoding_chunked": record.get("transfer_encoding_chunked"),
                 "upstream_response_sent": record.get("upstream_response_sent"),

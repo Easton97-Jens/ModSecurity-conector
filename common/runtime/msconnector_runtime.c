@@ -2307,6 +2307,53 @@ int msconnector_runtime_transaction_process_response(
         transaction, decision, error);
 }
 
+static int finish_transaction_with_logging(
+    msconnector_runtime_transaction *transaction,
+    msconnector_error *error) {
+    transaction->finish_attempted = 1;
+    if (msconnector_flow_guard_mark_immutable(&transaction->flow) !=
+        MSCONNECTOR_FLOW_GUARD_OK) {
+        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+            "transaction could not be made immutable", "flow_guard");
+    }
+    if (transaction->native_started &&
+        !msconnector_modsecurity_process_logging(&transaction->modsecurity, error)) {
+        return 0;
+    }
+    transaction->finished = 1;
+    return 1;
+}
+
+int msconnector_runtime_transaction_finish_host_rejected_request_body(
+    msconnector_runtime_transaction *transaction,
+    msconnector_error *error) {
+    if (error != NULL) {
+        msconnector_error_init(error);
+    }
+    if (transaction == NULL) {
+        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+            "transaction is required", "runtime");
+    }
+    if (transaction->finished) {
+        return 1;
+    }
+    if (transaction->finish_attempted) {
+        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+            "transaction finish previously failed", "runtime");
+    }
+    if (!transaction->native_started) {
+        return finish_transaction_with_logging(transaction, error);
+    }
+    if (transaction->runtime->body_policy.request_body_mode !=
+            MSCONNECTOR_BODY_MODE_STREAMING ||
+        transaction->request_body.finished || transaction->response_headers_processed) {
+        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+            "host-rejected request body must be incomplete streaming before response processing",
+            "runtime");
+    }
+    return finish_transaction_with_logging(transaction, error);
+}
+
 int msconnector_runtime_transaction_finish(
     msconnector_runtime_transaction *transaction,
     msconnector_error *error) {
@@ -2338,18 +2385,7 @@ int msconnector_runtime_transaction_finish(
             "response reached transaction finish without response-body end-of-stream",
             "runtime");
     }
-    transaction->finish_attempted = 1;
-    if (msconnector_flow_guard_mark_immutable(&transaction->flow) !=
-        MSCONNECTOR_FLOW_GUARD_OK) {
-        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
-            "transaction could not be made immutable", "flow_guard");
-    }
-    if (transaction->native_started &&
-        !msconnector_modsecurity_process_logging(&transaction->modsecurity, error)) {
-        return 0;
-    }
-    transaction->finished = 1;
-    return 1;
+    return finish_transaction_with_logging(transaction, error);
 }
 
 const char *msconnector_runtime_transaction_id(

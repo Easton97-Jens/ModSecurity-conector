@@ -41,6 +41,8 @@ merge.
   complete body.
 - Pre-active/re-activated stream flags, `Incremental`, and body-bearing
   `Upgrade` fail closed with HTTP 501 on the selected profile.
+- Each terminal host-side 501 rejection invokes the native logging phase once
+  without synthesizing request-body EOS or a Phase-2 decision.
 - Streaming accepts only `body_limit_action=reject`; `process_partial` fails
   during configuration loading before a listener or upstream exists.
 - The exact rejecting `SecRequestBodyLimitAction` Phase-2 signature maps to
@@ -57,7 +59,9 @@ merge.
   decision. It rejects pre-active streaming, `Incremental`, and `Upgrade`.
 - The request-body hook repeats the active-flag check, so later activation is
   also fail closed. A per-request gate-rejection marker avoids normal
-  transaction completion only for that rejected request.
+  transaction completion only for that rejected request and selects a narrow
+  native finalizer that invokes logging once without processing or finalizing
+  the incomplete request body.
 - `msconnector_runtime_body_limit_action()` exposes the parsed Common Runtime
   action. In the patched ABI branch, setup rejects streaming unless it is
   `MSCONNECTOR_BODY_LIMIT_ACTION_REJECT`; Stock and non-streaming behavior is
@@ -95,6 +99,8 @@ merge.
 
 The current Sonar remediation successor changes only:
 
+- `common/runtime/msconnector_runtime.c` and `common/runtime/msconnector_runtime.h`
+- `connectors/lighttpd/module/mod_msconnector.c`
 - `connectors/lighttpd/harness/run_phase2_pre_upstream_gate.py`
 - `tests/test_lighttpd_phase2_pre_upstream_gate_contract.py`
 - `connectors/lighttpd/harness/README.md` and
@@ -114,9 +120,11 @@ The current Sonar remediation successor changes only:
 | Focused Phase-2/status/ABI command | Passed: 10 tests. |
 | Master-based Lighttpd host contracts | Passed: 70 tests, 12 expected namespace skips. |
 | `make check-bilingual-docs` and `make check-doc-links` | Environment-blocked: the rerun reported only repository-wide missing targets beneath the uninitialized `modules/ModSecurity-test-Framework` Gitlink and no task-document diagnostic. |
-| Current successor focused Phase-2 contracts | Passed: 10 tests, including internally allocated loopback endpoints, no external listener command, summary/child symlink rejection, group-writable-root rejection, and root-path replacement containment. |
-| Current successor relevant Lighttpd contracts | Passed: 70 tests, 12 expected namespace skips. |
+| Current successor focused Phase-2 contracts | Passed: 14 tests, including internally allocated loopback endpoints, no external listener command, summary/child symlink rejection, group-writable-root rejection, root-path replacement containment, exact `Content-Length` reframing, and preservation of the normal EOS guards. |
+| Current successor relevant Lighttpd contracts | Passed: 87 tests, 12 expected namespace skips. |
 | Current successor syntax and diff hygiene | Passed: `py_compile` for the runner/contract and `git diff --check`. |
+| Review-remediation patched-host C17 build/check | Passed from a fresh external root with the pinned Lighttpd 1.4.85 patch and `-std=c17 -Wall -Wextra -Werror`. |
+| Review-remediation audit-enabled Phase-2 gate | Passed: the six native audit transactions had one A/Z lifecycle each; each of `Incremental`, configured streaming, and body-bearing `Upgrade` had one audit lifecycle without a Phase-2 event, while the harness observed HTTP 501 and zero new upstream connections. |
 
 ## Runtime evidence
 
@@ -128,6 +136,8 @@ Private receipts contain bounded metadata and no public local-evidence URL.
 | `master-5d71-bufferbound-p0-p2-summary` | `eb72d9ce51260da3e76b8d79b0ca7eb2d2c6215efd57c40b41c4d9f192337f81` | P1/P2 allow/deny, empty body, 33/64-byte visible 413, RST controls, follow-up, and cleanup passed; deny/limit/reset cases did not reach upstream. |
 | `master-5d71-bufferbound-timeout-summary` | `5d72aea037b9d08e682c31c16e75477cd55a4b181d6da613254c7b1bad136888` | Partial Content-Length body timed out before EOS with no event/upstream; the listener remained healthy and a following allowed 32-byte request was delivered exactly once. |
 | `pr342-sonar-zero-gate-final3-summary` | `b2bf207f092fdb8225ebf931c088db02c87fede7388771fb21ce1be4bfa664c0` | Delayed marker: 403 with zero pre-terminal upstream reach; delayed allow: 200 and one post-EOS 32-byte delivery; immediate marker: 403; `Incremental`, configured stream, and enabled body-bearing `Upgrade`: 501; `process_partial`: configuration check 255; all task listeners absent after cleanup. |
+| `pr342-sonar-zero-review-gate-summary` | `77a9020091ef1976d7431a223367f4b139760854b9fc5352bd05266dc61ad3a3` | Fresh C17 module/host: delayed deny 403 with zero pre-terminal upstream reach; allowed delayed request 200 with exactly one unchunked `Content-Length: 32` delivery; three unsupported modes 501 without upstream; `process_partial` configuration rejected; listener cleanup passed. |
+| `pr342-sonar-zero-review-audit` | `ba9f51959b1b95e7eaa62ef5cb5f5a1020d32ad129c664f3c5ca9d39f8d72aa1` | Payload-free `ABFHZ` audit parts: six A/Z transaction lifecycles; exactly one lifecycle for each of the three host-side 501 modes and no Phase-2 event in those transactions. |
 
 The retained P0/P2 helper's historical rules path was absent, so its first
 launch stopped before any process or listener. A task-owned wrapper supplied
@@ -149,6 +159,12 @@ no external listener command or shell is used; root/case artifacts are created
 and written through pinned descriptors; and a subprocess can resolve runtime
 paths only through the intentionally inherited case descriptor. An independent
 post-patch review found no local blocker for the seven reported Sonar rules.
+
+The review remediation keeps the generic normal finish path's request- and
+response-EOS guards unchanged. Only a request already rejected by the host
+before request-body EOS may use the dedicated native logging finalizer; it
+cannot process the request body, produce a Phase-2 decision, or reach the
+upstream.
 
 ## Known limitations
 
@@ -183,8 +199,8 @@ user, mount, and PID namespace support.
 ## Final diff and review status
 
 The final local scope is a Parent-only focused successor to the existing Draft
-PR #342. It has passed 10 focused contracts, 70 relevant Lighttpd contracts
-with 12 expected namespace skips, Python compilation, diff hygiene, matched
+PR #342. It has passed 87 relevant contracts with 12 expected namespace skips,
+Python compilation, diff hygiene, a fresh C17 matched-host build, audit-enabled
 runtime evidence, and independent source review. At this point no new commit,
 push, exact successor SHA, hosted check, direct `master` push, or merge is
 claimed. Those delivery facts will be recorded only after they are observed.

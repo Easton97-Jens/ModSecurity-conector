@@ -159,6 +159,17 @@ int msconnector_runtime_transaction_finish_unobserved_response_body(
     msconnector_error *error);
 
 /*
+ * Close a native streaming transaction after the host has rejected its
+ * incomplete request body before EOS. This records the logging phase exactly
+ * once, but never processes or finalizes the request body, marks request-body
+ * EOS, or produces a Phase-2 decision. It is only for a terminal host-side
+ * rejection, not an alternative to the normal EOS-enforcing finish path.
+ */
+int msconnector_runtime_transaction_finish_host_rejected_request_body(
+    msconnector_runtime_transaction *transaction,
+    msconnector_error *error);
+
+/*
  * Hosts call this immediately before or after handing bytes to their next
  * filter.  It records only commit metadata; it cannot retroactively change a
  * response and does not retain any host buffer.
