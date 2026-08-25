@@ -27,6 +27,12 @@ current `master` base and its Stock ABI layout is inherited; it is not an open
 dependency. The user authorized one task branch, one atomic commit, push, and
 a Draft PR, but no merge.
 
+The first Draft PR #342 head subsequently failed SonarCloud Code Analysis
+check `97784008556`: its New-Code Security Rating was `C` where `A` is
+required. The current user explicitly directed remediation of everything
+related to that result, without a suppression, scanner-control change, or
+merge.
+
 ## Acceptance criteria
 
 - Before EOS, a Phase-2 deny, body-limit rejection, incomplete-body timeout,
@@ -41,6 +47,8 @@ a Draft PR, but no merge.
   HTTP 413 while other intervention statuses remain unchanged.
 - C17 build/contract/runtime evidence and truthful EN/DE documentation pass;
   no `.github/` file changes.
+- The exact successor PR head must have a passing SonarCloud Quality Gate,
+  New-Code Security Rating `A`, and no task-owned current annotations.
 
 ## Implementation decision and rationale
 
@@ -60,6 +68,15 @@ a Draft PR, but no merge.
   (default 1 MiB) and its rejecting read cycle. The module does not configure
   `server.max-request-size`, which remains an independent host defense-in-
   depth setting.
+- The successor runner allocates its own three numeric IPv4-loopback ports,
+  uses explicit `AF_INET` sockets, reads only `/proc/net/tcp*` listener state,
+  and has no external listener command or caller-selected port input.
+- Runtime roots reject symlinks and group/world write access. Fresh fixed-name
+  case directories and generated files are held through directory descriptors
+  with `O_NOFOLLOW`; Lighttpd consumes `/proc/self/fd/<fd>/...` paths only
+  while the matching descriptor is explicitly inherited.
+- The upstream parser and runner orchestration were decomposed while retaining
+  the existing Phase-2 deny/allow and fail-closed alternate-mode behavior.
 
 ## Changed files
 
@@ -76,6 +93,14 @@ a Draft PR, but no merge.
 - `docs/connectors/lighttpd.md` and `docs/connectors/lighttpd.de.md`
 - this paired Change Record and the paired Change-record archive indexes
 
+The current Sonar remediation successor changes only:
+
+- `connectors/lighttpd/harness/run_phase2_pre_upstream_gate.py`
+- `tests/test_lighttpd_phase2_pre_upstream_gate_contract.py`
+- `connectors/lighttpd/harness/README.md` and
+  `connectors/lighttpd/harness/README.de.md`
+- this paired Change Record
+
 ## Commands executed
 
 | Check | Actual result |
@@ -89,6 +114,9 @@ a Draft PR, but no merge.
 | Focused Phase-2/status/ABI command | Passed: 10 tests. |
 | Master-based Lighttpd host contracts | Passed: 70 tests, 12 expected namespace skips. |
 | `make check-bilingual-docs` and `make check-doc-links` | Environment-blocked: the rerun reported only repository-wide missing targets beneath the uninitialized `modules/ModSecurity-test-Framework` Gitlink and no task-document diagnostic. |
+| Current successor focused Phase-2 contracts | Passed: 10 tests, including internally allocated loopback endpoints, no external listener command, summary/child symlink rejection, group-writable-root rejection, and root-path replacement containment. |
+| Current successor relevant Lighttpd contracts | Passed: 70 tests, 12 expected namespace skips. |
+| Current successor syntax and diff hygiene | Passed: `py_compile` for the runner/contract and `git diff --check`. |
 
 ## Runtime evidence
 
@@ -99,6 +127,7 @@ Private receipts contain bounded metadata and no public local-evidence URL.
 | `master-5d71-bufferbound-gate-summary` | `17ad572e3aa4699a2af051346ba7f782db418973a22b22331dedae1bf85dd2a3` | Delayed marker: 403 and zero preterminal upstream reach; delayed allow: 200 and exactly one complete post-EOS delivery; immediate marker: 403; `Incremental`, configured stream, and enabled body-bearing `Upgrade`: 501 without a new upstream connection; streaming plus `process_partial`: configuration rejection before listener/upstream. |
 | `master-5d71-bufferbound-p0-p2-summary` | `eb72d9ce51260da3e76b8d79b0ca7eb2d2c6215efd57c40b41c4d9f192337f81` | P1/P2 allow/deny, empty body, 33/64-byte visible 413, RST controls, follow-up, and cleanup passed; deny/limit/reset cases did not reach upstream. |
 | `master-5d71-bufferbound-timeout-summary` | `5d72aea037b9d08e682c31c16e75477cd55a4b181d6da613254c7b1bad136888` | Partial Content-Length body timed out before EOS with no event/upstream; the listener remained healthy and a following allowed 32-byte request was delivered exactly once. |
+| `pr342-sonar-zero-gate-final3-summary` | `b2bf207f092fdb8225ebf931c088db02c87fede7388771fb21ce1be4bfa664c0` | Delayed marker: 403 with zero pre-terminal upstream reach; delayed allow: 200 and one post-EOS 32-byte delivery; immediate marker: 403; `Incremental`, configured stream, and enabled body-bearing `Upgrade`: 501; `process_partial`: configuration check 255; all task listeners absent after cleanup. |
 
 The retained P0/P2 helper's historical rules path was absent, so its first
 launch stopped before any process or listener. A task-owned wrapper supplied
@@ -114,6 +143,13 @@ found no plausible pre-upstream bypass or C/API error and no high/critical
 finding. `FND-PARENT-0316` is `fixed_pending_merge` on this task branch and
 is not closed on `master`.
 
+The Sonar remediation also hardens the local runner's own boundaries without
+changing the product gate: outbound requests are fixed numeric loopback only;
+no external listener command or shell is used; root/case artifacts are created
+and written through pinned descriptors; and a subprocess can resolve runtime
+paths only through the intentionally inherited case descriptor. An independent
+post-patch review found no local blocker for the seven reported Sonar rules.
+
 ## Known limitations
 
 This is only the selected patched HTTP/1.1 `mod_proxy` Phase-2 gate. It does
@@ -127,6 +163,9 @@ user, mount, and PID namespace support.
 - A future Lighttpd or libmodsecurity behavior change needs renewed runtime
   validation of stream flags and the intentionally narrow 413 mapping.
 - Exact-head hosted checks and review cannot be inferred from local evidence.
+- The internal port allocation closes its temporary bind before the task-owned
+  listeners start; a competing same-host process can make the runner fail
+  closed, but cannot redirect its fixed loopback destination.
 
 ## Checks not run and rationale
 
@@ -137,10 +176,15 @@ user, mount, and PID namespace support.
 - Documentation checks are environment-blocked solely by repository-wide
   missing targets beneath the uninitialized Framework Gitlink; no task-document
   diagnostic was reported.
+- Ruff was unavailable in the existing repository virtual environment and was
+  not installed. Exact successor-head GitHub and SonarCloud checks require the
+  normal successor push and remain pending.
 
 ## Final diff and review status
 
-The final local scope is a Parent-only change prepared for one atomic commit,
-normal push, and a Draft PR against `master`. This record deliberately asserts
-neither a push, a PR, hosted checks, a direct `master` push, nor a merge;
-delivery facts are recorded only after they are observed.
+The final local scope is a Parent-only focused successor to the existing Draft
+PR #342. It has passed 10 focused contracts, 70 relevant Lighttpd contracts
+with 12 expected namespace skips, Python compilation, diff hygiene, matched
+runtime evidence, and independent source review. At this point no new commit,
+push, exact successor SHA, hosted check, direct `master` push, or merge is
+claimed. Those delivery facts will be recorded only after they are observed.

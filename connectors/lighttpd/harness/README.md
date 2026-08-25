@@ -46,10 +46,10 @@ verification, and full-matrix evidence are not provided by this harness.
 
 `run_phase2_pre_upstream_gate.py` is a separate repository-owned runner for
 the selected patched HTTP/1.1 `mod_proxy` request-body profile. It takes a
-fresh task-owned root, staged matching lighttpd binary/module, rules file,
-three private loopback ports, and the libmodsecurity directory. It starts only
-foreground task-owned processes and records bounded framing/counter metadata,
-never request payloads.
+fresh task-owned root, staged matching lighttpd binary/module, rules file, and
+the libmodsecurity directory; it allocates three distinct private IPv4-loopback
+ports itself. It starts only foreground task-owned processes and records
+bounded framing/counter metadata, never request payloads.
 
 The runner proves that delayed chunked Phase-2 deny bytes do not connect to or
 reach the upstream before terminal EOS, that a delayed benign chunked allow

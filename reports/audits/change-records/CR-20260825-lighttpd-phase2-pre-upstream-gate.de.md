@@ -28,6 +28,11 @@ aktuelle `master`-Basis gemergt; sein Stock-ABI-Layout wird geerbt und ist
 keine offene Dependency. Der Benutzer autorisierte einen Task-Branch, einen
 atomaren Commit, Push und einen Draft PR, aber keinen Merge.
 
+Der erste Head von Draft-PR #342 scheiterte danach am SonarCloud-Code-Analysis-
+Check `97784008556`: Sein New-Code-Security-Rating war `C`, obwohl `A`
+verlangt wird. Der aktuelle User wies explizit die Remediation von allem zu
+diesem Ergebnis an, ohne Suppression, Scanner-Control-Änderung oder Merge.
+
 ## Akzeptanzkriterien
 
 - Vor EOS erzeugen eine Phase-2-Ablehnung, Body-Limit-Ablehnung, ein Timeout
@@ -43,6 +48,9 @@ atomaren Commit, Push und einen Draft PR, aber keinen Merge.
   HTTP 413 abgebildet; andere Interventionsstatus bleiben unverändert.
 - C17-Build-/Contract-/Runtime-Nachweise und wahrheitsgemäße EN/DE-
   Dokumentation bestehen; keine `.github/`-Datei ändert sich.
+- Der exakte Successor-PR-Head muss ein bestandenes SonarCloud-Quality-Gate,
+  New-Code-Security-Rating `A` und keine aktuellen task-eigenen Annotations
+  aufweisen.
 
 ## Implementierungsentscheidung und Begründung
 
@@ -65,6 +73,17 @@ atomaren Commit, Push und einen Draft PR, aber keinen Merge.
   Common-`request_body_limit` (standardmäßig 1 MiB) und dem ablehnenden
   Lesezyklus. Das Modul konfiguriert `server.max-request-size` nicht; dieser
   Wert bleibt eine unabhängige Host-seitige Defense-in-Depth-Einstellung.
+- Der Successor-Runner allokiert seine drei numerischen IPv4-Loopback-Ports
+  selbst, verwendet explizite `AF_INET`-Sockets, liest nur `/proc/net/tcp*`
+  Listener-Status und besitzt weder einen externen Listener-Befehl noch
+  vom Aufrufer gewählte Port-Eingaben.
+- Runtime-Roots lehnen Symlinks und Gruppen-/World-Schreibzugriff ab. Frische
+  Case-Verzeichnisse mit festen Namen und erzeugte Dateien werden über
+  Directory-Deskriptoren mit `O_NOFOLLOW` gehalten; Lighttpd verwendet
+  `/proc/self/fd/<fd>/...`-Pfade nur, solange der passende Deskriptor
+  explizit geerbt wird.
+- Upstream-Parser und Runner-Orchestrierung wurden zerlegt und bewahren dabei
+  das bestehende Phase-2-Deny/Allow- und Fail-Closed-Alternativmodus-Verhalten.
 
 ## Geänderte Dateien
 
@@ -81,6 +100,14 @@ atomaren Commit, Push und einen Draft PR, aber keinen Merge.
 - `docs/connectors/lighttpd.md` und `docs/connectors/lighttpd.de.md`
 - dieses Change-Record-Paar und die gepaarten Change-Record-Archivindizes
 
+Der aktuelle Sonar-Remediation-Successor ändert nur:
+
+- `connectors/lighttpd/harness/run_phase2_pre_upstream_gate.py`
+- `tests/test_lighttpd_phase2_pre_upstream_gate_contract.py`
+- `connectors/lighttpd/harness/README.md` und
+  `connectors/lighttpd/harness/README.de.md`
+- dieses Change-Record-Paar
+
 ## Ausgeführte Befehle
 
 | Check | Tatsächliches Ergebnis |
@@ -94,6 +121,9 @@ atomaren Commit, Push und einen Draft PR, aber keinen Merge.
 | Fokussierter Phase-2-/Status-/ABI-Befehl | Bestanden: 10 Tests. |
 | Master-basierte Lighttpd-Host-Contracts | Bestanden: 70 Tests, 12 erwartete Namespace-Skips. |
 | `make check-bilingual-docs` und `make check-doc-links` | Environment-blocked: Der Rerun meldete nur repositoryweite fehlende Ziele unter dem nicht initialisierten Gitlink `modules/ModSecurity-test-Framework` und keine Task-Dokumentdiagnose. |
+| Fokussierte Phase-2-Contracts des aktuellen Successors | Bestanden: 10 Tests einschließlich intern allokierter Loopback-Endpunkte, keinem externen Listener-Befehl, Summary-/Child-Symlink-Ablehnung, Group-Writable-Root-Ablehnung und Root-Path-Replacement-Confinement. |
+| Relevante Lighttpd-Contracts des aktuellen Successors | Bestanden: 70 Tests, 12 erwartete Namespace-Skips. |
+| Syntax und Diff-Hygiene des aktuellen Successors | Bestanden: `py_compile` für Runner/Contract und `git diff --check`. |
 
 ## Runtime-Evidence
 
@@ -105,6 +135,7 @@ Evidence-URL.
 | `master-5d71-bufferbound-gate-summary` | `17ad572e3aa4699a2af051346ba7f782db418973a22b22331dedae1bf85dd2a3` | Verzögerter Marker: 403 und null Preterminal-Upstream-Reach; verzögertes Allow: 200 und genau eine vollständige Post-EOS-Lieferung; unmittelbarer Marker: 403; `Incremental`, konfigurierter Stream und aktiviertes body-tragendes `Upgrade`: 501 ohne neue Upstream-Verbindung; Streaming plus `process_partial`: Konfigurationsablehnung vor Listener/Upstream. |
 | `master-5d71-bufferbound-p0-p2-summary` | `eb72d9ce51260da3e76b8d79b0ca7eb2d2c6215efd57c40b41c4d9f192337f81` | P1/P2-Allow/Deny, leerer Body, sichtbares 413 bei 33/64 Byte, RST-Controls, Folgeanfrage und Cleanup bestanden; Deny-/Limit-/Reset-Fälle erreichten keinen Upstream. |
 | `master-5d71-bufferbound-timeout-summary` | `5d72aea037b9d08e682c31c16e75477cd55a4b181d6da613254c7b1bad136888` | Ein partieller Content-Length-Body lief vor EOS aus, ohne Event/Upstream; der Listener blieb gesund und ein folgender erlaubter 32-Byte-Request wurde genau einmal geliefert. |
+| `pr342-sonar-zero-gate-final3-summary` | `b2bf207f092fdb8225ebf931c088db02c87fede7388771fb21ce1be4bfa664c0` | Verzögerter Marker: 403 mit null Preterminal-Upstream-Reach; verzögertes Allow: 200 und eine Post-EOS-32-Byte-Lieferung; unmittelbarer Marker: 403; `Incremental`, konfigurierter Stream und aktiviertes body-tragendes `Upgrade`: 501; `process_partial`: Konfigurationscheck 255; alle Task-Listener nach Bereinigung nicht vorhanden. |
 
 Der historische Rules-Pfad des aufbewahrten P0/P2-Helfers fehlte, daher
 endete sein erster Start vor Prozess oder Listener. Ein task-eigener Wrapper
@@ -121,6 +152,14 @@ Source-to-Sink-Security-Review fand keinen plausiblen Pre-Upstream-Bypass oder
 C/API-Fehler und kein High-/Critical-Finding. `FND-PARENT-0316` ist auf diesem
 Task-Branch `fixed_pending_merge` und nicht auf `master` geschlossen.
 
+Die Sonar-Remediation härtet auch die eigene lokale Runner-Grenze, ohne das
+Produkt-Gate zu ändern: Ausgehende Requests sind nur festes numerisches
+Loopback; kein externer Listener-Befehl und keine Shell werden verwendet;
+Root-/Case-Artefakte werden durch gepinnte Deskriptoren erzeugt und geschrieben;
+und ein Subprozess kann Runtime-Pfade nur über den absichtlich geerbten
+Case-Deskriptor auflösen. Ein unabhängiges Post-Patch-Review fand keinen
+lokalen Blocker für die sieben gemeldeten Sonar-Regeln.
+
 ## Bekannte Einschränkungen
 
 Dies ist nur das ausgewählte gepatchte HTTP/1.1-`mod_proxy`-Phase-2-Gate. Es
@@ -136,6 +175,10 @@ benötigen nicht privilegierte User-, Mount- und PID-Namespace-Unterstützung.
   413-Abbildung.
 - Exact-Head-Hosted-Checks und Review können nicht aus lokaler Evidence
   abgeleitet werden.
+- Die interne Port-Allokation schließt ihren temporären Bind vor dem Start der
+  task-eigenen Listener; ein konkurrierender Prozess auf demselben Host kann
+  den Runner fail closed scheitern lassen, aber nicht dessen festes
+  Loopback-Ziel umleiten.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
@@ -146,10 +189,16 @@ benötigen nicht privilegierte User-, Mount- und PID-Namespace-Unterstützung.
 - Dokumentationschecks sind allein wegen repositoryweiter fehlender Ziele
   unter dem nicht initialisierten Framework-Gitlink environment-blocked; es
   wurde keine Task-Dokumentdiagnose gemeldet.
+- Ruff war in der bestehenden Repository-Virtualenv nicht verfügbar und wurde
+  nicht installiert. Exakte Successor-Head-GitHub- und SonarCloud-Checks
+  erfordern den normalen Successor-Push und stehen noch aus.
 
 ## Finaler Diff- und Review-Status
 
-Der finale lokale Scope ist für einen atomaren Commit, normalen Push und einen
-Draft PR gegen `master` vorbereitet. Dieser Record behauptet absichtlich weder
-Push, PR, Hosted-Checks, direkten `master`-Push noch Merge; Delivery-Fakten
-werden erst nach ihrer Beobachtung dokumentiert.
+Der finale lokale Scope ist ein Parent-only fokussierter Successor zum
+bestehenden Draft-PR #342. Er bestand 10 fokussierte Contracts, 70 relevante
+Lighttpd-Contracts mit 12 erwarteten Namespace-Skips, Python-Kompilierung,
+Diff-Hygiene, gematchte Runtime-Evidence und unabhängiges Source-Review. Zu
+diesem Zeitpunkt werden kein neuer Commit, Push, exakter Successor-SHA,
+Hosted-Check, direkter `master`-Push oder Merge behauptet. Diese Delivery-
+Fakten werden erst nach ihrer Beobachtung dokumentiert.

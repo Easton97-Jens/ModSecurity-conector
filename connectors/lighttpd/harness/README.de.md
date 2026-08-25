@@ -48,10 +48,10 @@ Harness nicht bereitgestellt.
 `run_phase2_pre_upstream_gate.py` ist ein separater Repository-eigener Runner
 für das ausgewählte gepatchte HTTP/1.1-`mod_proxy`-Request-Body-Profil. Er
 nimmt einen frischen Task-eigenen Root, ein gestagetes passendes Lighttpd-
-Binary/Modul, eine Rules-Datei, drei private Loopback-Ports und das
-libmodsecurity-Verzeichnis entgegen. Er startet nur Task-eigene
-Foreground-Prozesse und zeichnet begrenzte Framing-/Zähler-Metadaten auf,
-niemals Request-Nutzdaten.
+Binary/Modul, eine Rules-Datei und das libmodsecurity-Verzeichnis entgegen;
+drei verschiedene private IPv4-Loopback-Ports wählt er selbst. Er startet
+nur Task-eigene Foreground-Prozesse und zeichnet begrenzte Framing-/Zähler-
+Metadaten auf, niemals Request-Nutzdaten.
 
 Der Runner beweist, dass verzögerte Chunked-Phase-2-Deny-Bytes vor terminalem
 EOS den Upstream weder verbinden noch erreichen, dass ein verzögerter

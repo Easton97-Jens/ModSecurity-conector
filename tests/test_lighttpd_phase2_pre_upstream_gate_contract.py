@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import importlib.util
+import json
 import re
+import socket
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -8,6 +13,19 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_SOURCE = ROOT / "connectors" / "lighttpd" / "module" / "mod_msconnector.c"
 GATE_HARNESS = ROOT / "connectors" / "lighttpd" / "harness" / "run_phase2_pre_upstream_gate.py"
+
+
+def load_gate_harness() -> object:
+    spec = importlib.util.spec_from_file_location("phase2_pre_upstream_gate", GATE_HARNESS)
+    if spec is None or spec.loader is None:
+        raise AssertionError("could not import the Phase-2 gate harness")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+GATE_RUNNER = load_gate_harness()
 
 
 def function_body(source: str, name: str, next_name: str) -> str:
@@ -105,6 +123,105 @@ class LighttpdPhase2PreUpstreamGateContractTest(unittest.TestCase):
         self.assertIn('"process_partial_body_limit_action"', self.harness)
         self.assertIn('body_limit_action="process_partial"', self.harness)
         self.assertIn('"body_payload_persisted": False', self.harness)
+
+    def test_runner_owns_distinct_numeric_loopback_ports_without_cli_port_inputs(self) -> None:
+        endpoints = GATE_RUNNER.allocate_private_loopback_endpoints()
+        ports = {endpoint.port for endpoint in endpoints}
+        self.assertEqual(3, len(ports))
+        self.assertTrue(all(1024 <= port <= 65535 for port in ports))
+        self.assertNotIn("--host-port", self.harness)
+        self.assertNotIn("--configured-host-port", self.harness)
+        self.assertNotIn("--upstream-port", self.harness)
+        self.assertNotIn("socket.create_connection", self.harness)
+        self.assertIn('LOOPBACK_HOST = "127.0.0.1"', self.harness)
+
+    def test_listener_probe_reads_tcp_listeners_without_running_ss(self) -> None:
+        endpoint = GATE_RUNNER.LoopbackEndpoint.allocate()
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+            listener.bind((GATE_RUNNER.LOOPBACK_HOST, endpoint.port))
+            listener.listen(1)
+            self.assertEqual(
+                [f"{GATE_RUNNER.LOOPBACK_HOST}:{endpoint.port}"],
+                GATE_RUNNER.listener_rows(endpoint),
+            )
+        self.assertEqual([], GATE_RUNNER.listener_rows(endpoint))
+        self.assertNotIn('["ss",', self.harness)
+        self.assertIn('Path("/proc/net/tcp")', self.harness)
+
+    def test_runtime_root_rejects_a_symlink_and_persists_summary_by_descriptor(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "target"
+            target.mkdir()
+            link = base / "runtime-link"
+            link.symlink_to(target, target_is_directory=True)
+            with self.assertRaises(GATE_RUNNER.GateFailure):
+                GATE_RUNNER.ensure_runtime_root(link)
+
+            outside = base / "outside"
+            outside.mkdir()
+            for summary_name in GATE_RUNNER.SUMMARY_NAMES:
+                summary_link = target / summary_name
+                summary_link.symlink_to(outside / summary_name)
+                with self.assertRaises(GATE_RUNNER.GateFailure):
+                    GATE_RUNNER.ensure_runtime_root(target)
+                summary_link.unlink()
+
+            root = GATE_RUNNER.ensure_runtime_root(target)
+            try:
+                GATE_RUNNER.write_summary(root, {"result": "passed"})
+            finally:
+                root.close()
+            self.assertEqual({"result": "passed"}, json.loads((target / "summary.json").read_text()))
+            self.assertEqual(0o600, (target / "summary.json").stat().st_mode & 0o777)
+        self.assertIn("os.O_NOFOLLOW", self.harness)
+        self.assertIn("src_dir_fd=root.directory_fd", self.harness)
+
+    def test_runtime_root_rejects_group_writable_directories(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "runtime-root"
+            root.mkdir()
+            root.chmod(0o770)
+            with self.assertRaises(GATE_RUNNER.GateFailure):
+                GATE_RUNNER.ensure_runtime_root(root)
+        self.assertIn("stat.S_IWGRP | stat.S_IWOTH", self.harness)
+
+    def test_runtime_child_creation_stays_on_the_pinned_root_descriptor(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            root_path = base / "runtime-root"
+            outside = base / "outside"
+            root_path.mkdir()
+            outside.mkdir()
+            root = GATE_RUNNER.ensure_runtime_root(root_path)
+            try:
+                (root_path / "normal").symlink_to(outside, target_is_directory=True)
+                with self.assertRaises(GATE_RUNNER.GateFailure):
+                    root.child("normal")
+                (root_path / "normal").unlink()
+
+                original_root = base / "pinned-runtime-root"
+                root_path.rename(original_root)
+                root_path.symlink_to(outside, target_is_directory=True)
+                child = root.child("normal")
+                try:
+                    child.write_text("marker.txt", "pinned")
+                    self.assertEqual(
+                        "pinned",
+                        (original_root / "normal" / "marker.txt").read_text(encoding="utf-8"),
+                    )
+                    self.assertFalse((outside / "normal" / "marker.txt").exists())
+                    self.assertEqual(
+                        f"/proc/self/fd/{child.directory_fd}/marker.txt",
+                        child.runtime_path("marker.txt"),
+                    )
+                finally:
+                    child.close()
+            finally:
+                root.close()
+        self.assertIn("os.mkdir(name, 0o700, dir_fd=self.directory_fd)", self.harness)
+        self.assertIn("pass_fds=root.inherited_fds()", self.harness)
+        self.assertNotIn("root.mkdir(parents=True)", self.harness)
 
 
 if __name__ == "__main__":
