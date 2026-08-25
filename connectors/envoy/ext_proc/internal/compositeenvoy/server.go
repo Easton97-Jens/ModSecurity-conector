@@ -197,11 +197,11 @@ func (s *ExtProcServer) Process(stream extprocv3.ExternalProcessor_ProcessServer
 		}
 	}
 	defer finish("grpc_peer_eof")
-	state := &responseStreamState{ctx: ctx, stream: stream, response: response}
-	return s.runResponseStream(state, first, firstIsRequestHeaders, finish)
+	state := &responseStreamState{stream: stream, response: response}
+	return s.runResponseStream(ctx, state, first, firstIsRequestHeaders, finish)
 }
 
-func (s *ExtProcServer) runResponseStream(state *responseStreamState, first *extprocv3.ProcessingRequest, firstIsRequestHeaders bool, finish func(string)) error {
+func (s *ExtProcServer) runResponseStream(ctx context.Context, state *responseStreamState, first *extprocv3.ProcessingRequest, firstIsRequestHeaders bool, finish func(string)) error {
 	handleProcessError := func(err error) error {
 		var post *postTransportError
 		if errors.As(err, &post) {
@@ -215,26 +215,26 @@ func (s *ExtProcServer) runResponseStream(state *responseStreamState, first *ext
 		return nil
 	}
 	if firstIsRequestHeaders {
-		return s.runRequestHeadersPhase(state, finish, handleProcessError)
+		return s.runRequestHeadersPhase(ctx, state, finish, handleProcessError)
 	}
-	if err := s.processStreamRequest(state, first, finish, handleProcessError); err != nil {
+	if err := s.processStreamRequest(ctx, state, first, finish, handleProcessError); err != nil {
 		return err
 	}
-	return s.runResponseLoop(state, finish, handleProcessError)
+	return s.runResponseLoop(ctx, state, finish, handleProcessError)
 }
 
-func (s *ExtProcServer) runRequestHeadersPhase(state *responseStreamState, finish func(string), handleProcessError func(error) error) error {
+func (s *ExtProcServer) runRequestHeadersPhase(ctx context.Context, state *responseStreamState, finish func(string), handleProcessError func(error) error) error {
 	// Kept as a fail-closed compatibility path for a pinned host that still
 	// sends the protected request phase. The composite template skips it.
 	if err := sendContinue(state.stream, requestHeadersResponse()); err != nil {
 		finish("processor_error")
 		return err
 	}
-	return s.runResponseLoop(state, finish, handleProcessError)
+	return s.runResponseLoop(ctx, state, finish, handleProcessError)
 }
 
-func (s *ExtProcServer) processStreamRequest(state *responseStreamState, request *extprocv3.ProcessingRequest, finish func(string), handleProcessError func(error) error) error {
-	terminal, err := s.processResponse(state, request)
+func (s *ExtProcServer) processStreamRequest(ctx context.Context, state *responseStreamState, request *extprocv3.ProcessingRequest, finish func(string), handleProcessError func(error) error) error {
+	terminal, err := s.processResponse(ctx, state, request)
 	if err != nil {
 		return handleProcessError(err)
 	}
@@ -246,7 +246,7 @@ func (s *ExtProcServer) processStreamRequest(state *responseStreamState, request
 	return nil
 }
 
-func (s *ExtProcServer) runResponseLoop(state *responseStreamState, finish func(string), handleProcessError func(error) error) error {
+func (s *ExtProcServer) runResponseLoop(ctx context.Context, state *responseStreamState, finish func(string), handleProcessError func(error) error) error {
 	for {
 		request, err := state.stream.Recv()
 		if err != nil {
@@ -256,7 +256,7 @@ func (s *ExtProcServer) runResponseLoop(state *responseStreamState, finish func(
 			finish("grpc_context_canceled_unattributed")
 			return classifyRecv(err)
 		}
-		terminal, err := s.processResponse(state, request)
+		terminal, err := s.processResponse(ctx, state, request)
 		if err != nil {
 			return handleProcessError(err)
 		}
@@ -269,7 +269,6 @@ func (s *ExtProcServer) runResponseLoop(state *responseStreamState, finish func(
 }
 
 type responseStreamState struct {
-	ctx                  context.Context
 	stream               extprocv3.ExternalProcessor_ProcessServer
 	response             *composite.Response
 	responseHeadersSeen  bool
@@ -279,7 +278,7 @@ type responseStreamState struct {
 	lateActionRecorded   bool
 }
 
-func (s *ExtProcServer) processResponse(state *responseStreamState, request *extprocv3.ProcessingRequest) (bool, error) {
+func (s *ExtProcServer) processResponse(ctx context.Context, state *responseStreamState, request *extprocv3.ProcessingRequest) (bool, error) {
 	if request == nil {
 		return false, errors.New("empty ext_proc request")
 	}
@@ -289,18 +288,18 @@ func (s *ExtProcServer) processResponse(state *responseStreamState, request *ext
 			return false, errors.New("duplicate response headers")
 		}
 		state.responseHeadersSeen = true
-		return s.responseHeaders(state.ctx, state.stream, state.response, request.GetResponseHeaders(), &state.upstreamStatus)
+		return s.responseHeaders(ctx, state.stream, state.response, request.GetResponseHeaders(), &state.upstreamStatus)
 	case request.GetResponseBody() != nil:
 		if !state.responseHeadersSeen || state.responseDone || state.responseTrailersSeen {
 			return false, errors.New("response body violates stream order")
 		}
-		return s.responseBody(state.ctx, state.stream, state.response, request.GetResponseBody(), state.upstreamStatus, &state.lateActionRecorded)
+		return s.responseBody(ctx, state.stream, state.response, request.GetResponseBody(), state.upstreamStatus, &state.lateActionRecorded)
 	case request.GetResponseTrailers() != nil:
 		if !state.responseHeadersSeen || state.responseDone || state.responseTrailersSeen {
 			return false, errors.New("duplicate or out-of-order response trailers")
 		}
 		state.responseTrailersSeen = true
-		return s.responseTrailers(state.ctx, state.stream, state.response, request.GetResponseTrailers(), state.upstreamStatus, &state.lateActionRecorded)
+		return s.responseTrailers(ctx, state.stream, state.response, request.GetResponseTrailers(), state.upstreamStatus, &state.lateActionRecorded)
 	default:
 		return false, errors.New("unexpected ext_proc phase; composite stream accepts response phases only")
 	}
@@ -647,8 +646,8 @@ func validMarkedTerminalReply(headers []processor.Header) bool {
 			if statusSeen {
 				return false
 			}
-			parsed, err := strconv.Atoi(string(header.Value))
-			if err != nil || parsed < 100 || parsed > 599 {
+			parsed, ok := markedTerminalStatus(header.Value)
+			if !ok {
 				return false
 			}
 			status = parsed
@@ -667,6 +666,11 @@ func validMarkedTerminalReply(headers []processor.Header) bool {
 		return !locationSeen
 	}
 	return status >= 300 && status <= 399 && locationSeen
+}
+
+func markedTerminalStatus(value []byte) (int, bool) {
+	status, err := strconv.Atoi(string(value))
+	return status, err == nil && status >= 100 && status <= 599
 }
 
 func appliedAction(d processor.Decision) processor.AppliedAction {

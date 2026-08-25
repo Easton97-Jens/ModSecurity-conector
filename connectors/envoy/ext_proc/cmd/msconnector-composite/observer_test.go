@@ -37,6 +37,20 @@ func readEventRecords(t *testing.T, path string) []map[string]any {
 	return records
 }
 
+func assertObserverReset(t *testing.T, path string, observer *compositeObserver) {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat reset log: %v", err)
+	}
+	if info.Size() != 0 {
+		t.Fatalf("oversized log was not reset: got %d bytes", info.Size())
+	}
+	if observer.Err() != nil {
+		t.Fatalf("observer reset became a permanent failure: %v", observer.Err())
+	}
+}
+
 func (f *noProgressEventLogFile) Write(p []byte) (int, error) {
 	f.writes++
 	if f.writes == 1 && len(p) > 0 {
@@ -274,16 +288,7 @@ func TestCompositeObserverResetsOversizedExistingLog(t *testing.T) {
 		t.Fatalf("new observer: %v", err)
 	}
 	defer closer.Close()
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatalf("stat reset log: %v", err)
-	}
-	if info.Size() != 0 {
-		t.Fatalf("oversized log was not reset: got %d bytes", info.Size())
-	}
-	if observer.Err() != nil {
-		t.Fatalf("oversized log reset became a permanent observer failure: %v", observer.Err())
-	}
+	assertObserverReset(t, path, observer)
 }
 
 func TestCompositeObserverRejectsOverflowedRetentionBounds(t *testing.T) {
@@ -333,16 +338,7 @@ func TestCompositeObserverResetsHardBoundLogWithoutRecoveryReservation(t *testin
 		t.Fatalf("recover legacy observer: %v", err)
 	}
 	defer closer.Close()
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatalf("stat reset legacy log: %v", err)
-	}
-	if info.Size() != 0 {
-		t.Fatalf("unrecoverable legacy log was not reset: got %d bytes", info.Size())
-	}
-	if observer.Err() != nil {
-		t.Fatalf("legacy reset became a permanent observer failure: %v", observer.Err())
-	}
+	assertObserverReset(t, path, observer)
 	if err := observer.Observe(composite.Event{DecisionID: "after-reset", Connector: "envoy", Phase: "P1", Outcome: "observed", RequestPath: "envoy.ext_authz", ResponsePath: "envoy.ext_proc", Transport: "envoy_ext_authz_ext_proc_grpc", EventTime: time.Unix(1, 0)}); err != nil {
 		t.Fatalf("observe after legacy reset: %v", err)
 	}

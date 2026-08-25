@@ -24,96 +24,9 @@ func TestMiddlewareReplacesClientLeaseAndCompletesPrivateLifecycle(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	socket, done := startMSC2Server(t, func(conn net.Conn) error {
-		op, payload, err := readMSC2Frame(conn)
-		if err != nil {
-			return err
-		}
-		if op != opReserve || !bytes.Equal(payload, expectedReserve) {
-			return fmt.Errorf("reserve frame = op %d payload %x", op, payload)
-		}
-		if err := writeMSC2Result(conn, opReserve, decisionAllow, 0, 0, token); err != nil {
-			return err
-		}
-		if err := expectClaim(conn, token); err != nil {
-			return err
-		}
-		if err := writeMSC2Result(conn, opClaim, decisionAllow, 0, 0, ""); err != nil {
-			return err
-		}
-		op, payload, err = readMSC2Frame(conn)
-		if err != nil {
-			return err
-		}
-		if op != opResponseHeaders || bytes.Contains(payload, []byte(token)) {
-			return fmt.Errorf("response header frame leaked lease or has op %d", op)
-		}
-		if err := writeMSC2Result(conn, opResponseHeaders, decisionAllow, 0, 0, ""); err != nil {
-			return err
-		}
-		op, payload, err = readMSC2Frame(conn)
-		if err != nil {
-			return err
-		}
-		if op != opResponseCommit || !bytes.Equal(payload, []byte{1, 0}) {
-			return fmt.Errorf("response commit = op %d payload %x", op, payload)
-		}
-		if err := writeMSC2Result(conn, opResponseCommit, decisionAllow, 0, 0, ""); err != nil {
-			return err
-		}
-		op, payload, err = readMSC2Frame(conn)
-		if err != nil {
-			return err
-		}
-		if op != opResponseChunk || string(payload) != "ok" {
-			return fmt.Errorf("response chunk = op %d payload %q", op, payload)
-		}
-		if err := writeMSC2Result(conn, opResponseChunk, decisionAllow, 0, 0, ""); err != nil {
-			return err
-		}
-		if err := expectEmptyOp(conn, opResponseEOS); err != nil {
-			return err
-		}
-		if err := writeMSC2Result(conn, opResponseEOS, decisionAllow, 0, 0, ""); err != nil {
-			return err
-		}
-		op, payload, err = readMSC2Frame(conn)
-		if err != nil {
-			return err
-		}
-		if op != opOutcome || !bytes.Equal(payload, []byte{0, 0, 201}) {
-			return fmt.Errorf("outcome = op %d payload %x", op, payload)
-		}
-		if err := writeMSC2Result(conn, opOutcome, decisionAllow, 0, 0, ""); err != nil {
-			return err
-		}
-		if err := expectEmptyOp(conn, opFinish); err != nil {
-			return err
-		}
-		return writeMSC2Result(conn, opFinish, decisionAllow, 0, 0, "")
-	})
+	socket, done := startMSC2Server(t, privateLifecycleServer(expectedReserve, token))
 
-	mw, err := New(t.Context(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if got := r.Header.Get(testLeaseHeader); got != token {
-			t.Errorf("server lease = %q", got)
-		}
-		if got := r.Header.Get(requestContextHeader); got != "" {
-			t.Errorf("client context header survived outer sanitization: %q", got)
-		}
-		// This models the documented inner header-strip middleware. The real
-		// upstream must never receive temporary private metadata.
-		stripInternalHeaders(r.Header, testLeaseHeader, requestContextHeader)
-		if got := r.Header.Get(testLeaseHeader); got != "" {
-			t.Errorf("lease reached simulated upstream: %q", got)
-		}
-		if got := r.Header.Get(requestContextHeader); got != "" {
-			t.Errorf("context reached simulated upstream: %q", got)
-		}
-		w.Header().Set(testLeaseHeader, token)
-		w.Header().Set(requestContextHeader, "forged")
-		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte("ok"))
-	}), &Config{SocketPath: socket}, "")
+	mw, err := New(t.Context(), upstreamHandler(t, token), &Config{SocketPath: socket}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,6 +48,128 @@ func TestMiddlewareReplacesClientLeaseAndCompletesPrivateLifecycle(t *testing.T)
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
+}
+
+func privateLifecycleServer(expectedReserve []byte, token string) func(net.Conn) error {
+	return func(conn net.Conn) error {
+		op, payload, err := readMSC2Frame(conn)
+		if err != nil {
+			return err
+		}
+		if op != opReserve || !bytes.Equal(payload, expectedReserve) {
+			return fmt.Errorf("reserve frame = op %d payload %x", op, payload)
+		}
+		if err := writeMSC2Result(conn, opReserve, decisionAllow, 0, 0, token); err != nil {
+			return err
+		}
+		if err := expectClaim(conn, token); err != nil {
+			return err
+		}
+		if err := writeMSC2Result(conn, opClaim, decisionAllow, 0, 0, ""); err != nil {
+			return err
+		}
+		if err := expectResponseHeaders(conn, token); err != nil {
+			return err
+		}
+		if err := writeMSC2Result(conn, opResponseHeaders, decisionAllow, 0, 0, ""); err != nil {
+			return err
+		}
+		if err := expectResponseCommit(conn); err != nil {
+			return err
+		}
+		if err := writeMSC2Result(conn, opResponseCommit, decisionAllow, 0, 0, ""); err != nil {
+			return err
+		}
+		if err := expectResponseChunk(conn); err != nil {
+			return err
+		}
+		if err := writeMSC2Result(conn, opResponseChunk, decisionAllow, 0, 0, ""); err != nil {
+			return err
+		}
+		if err := expectEmptyOp(conn, opResponseEOS); err != nil {
+			return err
+		}
+		if err := writeMSC2Result(conn, opResponseEOS, decisionAllow, 0, 0, ""); err != nil {
+			return err
+		}
+		if err := expectOutcome(conn); err != nil {
+			return err
+		}
+		if err := writeMSC2Result(conn, opOutcome, decisionAllow, 0, 0, ""); err != nil {
+			return err
+		}
+		if err := expectEmptyOp(conn, opFinish); err != nil {
+			return err
+		}
+		return writeMSC2Result(conn, opFinish, decisionAllow, 0, 0, "")
+	}
+}
+
+func expectResponseHeaders(conn net.Conn, token string) error {
+	op, payload, err := readMSC2Frame(conn)
+	if err != nil {
+		return err
+	}
+	if op != opResponseHeaders || bytes.Contains(payload, []byte(token)) {
+		return fmt.Errorf("response header frame leaked lease or has op %d", op)
+	}
+	return nil
+}
+
+func expectResponseCommit(conn net.Conn) error {
+	op, payload, err := readMSC2Frame(conn)
+	if err != nil {
+		return err
+	}
+	if op != opResponseCommit || !bytes.Equal(payload, []byte{1, 0}) {
+		return fmt.Errorf("response commit = op %d payload %x", op, payload)
+	}
+	return nil
+}
+
+func expectResponseChunk(conn net.Conn) error {
+	op, payload, err := readMSC2Frame(conn)
+	if err != nil {
+		return err
+	}
+	if op != opResponseChunk || string(payload) != "ok" {
+		return fmt.Errorf("response chunk = op %d payload %q", op, payload)
+	}
+	return nil
+}
+
+func expectOutcome(conn net.Conn) error {
+	op, payload, err := readMSC2Frame(conn)
+	if err != nil {
+		return err
+	}
+	if op != opOutcome || !bytes.Equal(payload, []byte{0, 0, 201}) {
+		return fmt.Errorf("outcome = op %d payload %x", op, payload)
+	}
+	return nil
+}
+
+func upstreamHandler(t *testing.T, token string) http.Handler {
+	t.Helper()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get(testLeaseHeader); got != token {
+			t.Errorf("server lease = %q", got)
+		}
+		if got := r.Header.Get(requestContextHeader); got != "" {
+			t.Errorf("client context header survived outer sanitization: %q", got)
+		}
+		stripInternalHeaders(r.Header, testLeaseHeader, requestContextHeader)
+		if got := r.Header.Get(testLeaseHeader); got != "" {
+			t.Errorf("lease reached simulated upstream: %q", got)
+		}
+		if got := r.Header.Get(requestContextHeader); got != "" {
+			t.Errorf("context reached simulated upstream: %q", got)
+		}
+		w.Header().Set(testLeaseHeader, token)
+		w.Header().Set(requestContextHeader, "forged")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte("ok"))
+	})
 }
 
 func TestStripInternalHeadersRemovesTrailerForms(t *testing.T) {

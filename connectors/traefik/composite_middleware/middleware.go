@@ -38,6 +38,7 @@ const (
 	commitPayload        = "\x01\x00"
 	rejectedBody         = "request rejected\n"
 	textContentType      = "text/plain; charset=utf-8"
+	forbiddenHeaderChars = "\r\n\x00"
 
 	reservationSnapshotVersion byte = 1
 	requestContextHeader            = "X-Msconnector-Composite-Request-Context"
@@ -275,34 +276,9 @@ func reservationHeaderGroups(headers http.Header, authority string, contentLengt
 	if len(headers) > maxHeaders {
 		return nil, errProtocol
 	}
-	groupsByName := make(map[string][]string, len(headers)+1)
-	valuesSeen, total := 0, 0
-	for name, values := range headers {
-		if len(values) == 0 {
-			continue
-		}
-		if len(values) > maxHeaders-valuesSeen {
-			return nil, errProtocol
-		}
-		canonical := strings.ToLower(name)
-		if !validHeaderToken(name) || internalReservationHeader(canonical) {
-			return nil, errProtocol
-		}
-		if _, duplicate := groupsByName[canonical]; duplicate {
-			// A normal net/http request cannot produce map keys that differ only
-			// by case. Reject hand-built ambiguity rather than choosing one.
-			return nil, errProtocol
-		}
-		if canonical == "host" && len(values) != 1 {
-			return nil, errProtocol
-		}
-		var err error
-		valuesSeen, total, err = accountHeaderValues(canonical, values, valuesSeen, total)
-		if err != nil {
-			return nil, err
-		}
-		copied := append([]string(nil), values...)
-		groupsByName[canonical] = copied
+	groupsByName, valuesSeen, total, err := copyReservationHeaders(headers)
+	if err != nil {
+		return nil, err
 	}
 	if _, hasHost := groupsByName["host"]; !hasHost {
 		if authority == "" || invalidHostAuthority(authority) {
@@ -344,9 +320,41 @@ func reservationHeaderGroups(headers http.Header, authority string, contentLengt
 	return groups, nil
 }
 
+func copyReservationHeaders(headers http.Header) (map[string][]string, int, int, error) {
+	groupsByName := make(map[string][]string, len(headers)+1)
+	valuesSeen, total := 0, 0
+	for name, values := range headers {
+		if len(values) == 0 {
+			continue
+		}
+		if len(values) > maxHeaders-valuesSeen {
+			return nil, 0, 0, errProtocol
+		}
+		canonical := strings.ToLower(name)
+		if !validHeaderToken(name) || internalReservationHeader(canonical) {
+			return nil, 0, 0, errProtocol
+		}
+		if _, duplicate := groupsByName[canonical]; duplicate {
+			// A normal net/http request cannot produce map keys that differ only
+			// by case. Reject hand-built ambiguity rather than choosing one.
+			return nil, 0, 0, errProtocol
+		}
+		if canonical == "host" && len(values) != 1 {
+			return nil, 0, 0, errProtocol
+		}
+		var err error
+		valuesSeen, total, err = accountHeaderValues(canonical, values, valuesSeen, total)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+		groupsByName[canonical] = append([]string(nil), values...)
+	}
+	return groupsByName, valuesSeen, total, nil
+}
+
 func accountHeaderValues(name string, values []string, seen, total int) (int, int, error) {
 	for _, value := range values {
-		if len(value) > maxHeaderValue || strings.ContainsAny(value, "\r\n\x00") {
+		if len(value) > maxHeaderValue || strings.ContainsAny(value, forbiddenHeaderChars) {
 			return 0, 0, errProtocol
 		}
 		seen++
@@ -359,7 +367,7 @@ func accountHeaderValues(name string, values []string, seen, total int) (int, in
 }
 
 func appendReservationText(payload []byte, value string, max int) ([]byte, error) {
-	if len(value) == 0 || len(value) > max || len(value) > int(^uint16(0)) || strings.ContainsAny(value, "\r\n\x00") {
+	if len(value) == 0 || len(value) > max || len(value) > int(^uint16(0)) || strings.ContainsAny(value, forbiddenHeaderChars) {
 		return nil, errProtocol
 	}
 	if len(payload)+2+len(value) > maxPayload {
@@ -373,7 +381,7 @@ func appendReservationText(payload []byte, value string, max int) ([]byte, error
 }
 
 func validReservationTarget(target string) bool {
-	return strings.HasPrefix(target, "/") && len(target) <= maxPayload && !strings.ContainsAny(target, "\r\n\x00")
+	return strings.HasPrefix(target, "/") && len(target) <= maxPayload && !strings.ContainsAny(target, forbiddenHeaderChars)
 }
 
 func internalReservationHeader(name string) bool {
@@ -889,7 +897,7 @@ func responseHeaders(status int, protocol string, h http.Header, maxCount, maxBy
 		}
 		for _, value := range values {
 			var err error
-			p, count, total, err = appendResponseHeader(p, name, value, count, total, maxCount, maxBytes, b)
+			p, count, total, err = appendResponseHeader(p, name, value, count, total, maxCount, maxBytes)
 			if err != nil {
 				return nil, errProtocol
 			}
@@ -902,7 +910,7 @@ func responseHeaders(status int, protocol string, h http.Header, maxCount, maxBy
 	return p, nil
 }
 
-func appendResponseHeader(payload []byte, name, value string, count, total, maxCount, maxBytes int, b [2]byte) ([]byte, int, int, error) {
+func appendResponseHeader(payload []byte, name, value string, count, total, maxCount, maxBytes int) ([]byte, int, int, error) {
 	if len(name) > maxHeaderName || len(value) > maxHeaderValue || strings.ContainsAny(value, "\r\n") {
 		return nil, 0, 0, errProtocol
 	}
@@ -914,6 +922,7 @@ func appendResponseHeader(payload []byte, name, value string, count, total, maxC
 	if total > maxBytes || len(payload)+4+len(name)+len(value) > maxPayload {
 		return nil, 0, 0, errProtocol
 	}
+	var b [2]byte
 	binary.BigEndian.PutUint16(b[:], uint16(len(name)))
 	payload = append(payload, b[:]...)
 	payload = append(payload, name...)

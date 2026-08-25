@@ -80,6 +80,8 @@ CASE_RULE_IDS = {
     "p3_deny": ("P3", "1103001"),
     "p4_safe": ("P4", "1104002"),
 }
+MANIFEST_CASE_ARTIFACT = "manifest.case_artifact"
+MANIFEST_CLEANUP = "manifest.cleanup"
 
 
 class EvidenceError(ValueError):
@@ -122,6 +124,111 @@ class Verification:
                 "lifecycle_verified": self.lifecycle_verified,
                 "catalog_acceptance": self.catalog_acceptance,
                 "errors": list(self.errors)}
+
+
+@dataclass(frozen=True)
+class _ManifestContext:
+    connector: str
+    case: str
+    expected: tuple[str, ...]
+    artifact_id: str
+    event_log: str
+    client_status: Any
+    request_terminal: bool
+    response_observed: bool
+    p4_outcome: str
+    p4_committed: bool
+
+
+def _manifest_identity(
+    manifest: dict[str, Any], manifest_path: Path, expected_event_log: Path | None
+) -> tuple[str, str, tuple[str, ...], str, str]:
+    if _string(manifest["schema"], "manifest.schema") != SCHEMA:
+        raise EvidenceError(f"manifest.schema must be {SCHEMA}")
+    connector = _string(manifest["connector"], "manifest.connector")
+    if connector not in CONNECTORS:
+        raise EvidenceError("manifest.connector must be envoy or traefik")
+    case = _string(manifest["case"], "manifest.case")
+    if case not in CASES:
+        raise EvidenceError(f"manifest.case must be one of: {', '.join(sorted(CASES))}")
+    expected = manifest["expected_phases"]
+    if not isinstance(expected, list) or tuple(expected) != CASES[case]:
+        raise EvidenceError("manifest.expected_phases must exactly match the selected case")
+    artifact = _expect_object(manifest["case_artifact"], MANIFEST_CASE_ARTIFACT)
+    _reject_unknown(artifact, ARTIFACT_KEYS, MANIFEST_CASE_ARTIFACT)
+    _required(artifact, ARTIFACT_KEYS, MANIFEST_CASE_ARTIFACT)
+    artifact_id = _string(artifact["id"], f"{MANIFEST_CASE_ARTIFACT}.id", SAFE_ID)
+    event_log = _safe_leaf_name(
+        _string(artifact["event_log"], f"{MANIFEST_CASE_ARTIFACT}.event_log"),
+        "case_artifact.event_log",
+    )
+    if expected_event_log is not None:
+        if not expected_event_log.is_absolute() or expected_event_log.parent != manifest_path.parent:
+            raise EvidenceError("--expected-event-log must be an absolute regular non-symlink file")
+        if expected_event_log.name != event_log:
+            raise EvidenceError("manifest event log does not match --expected-event-log")
+    return connector, case, tuple(expected), artifact_id, event_log
+
+
+def _manifest_observations(
+    manifest: dict[str, Any], runtime_root: PrivateRuntimeRoot
+) -> tuple[Any, bool, bool, str, bool]:
+    client_path = _safe_observation_name(
+        _string(manifest["client_observation"], "manifest.client_observation"),
+        "manifest.client_observation",
+    )
+    upstream_path = _safe_observation_name(
+        _string(manifest["upstream_observation"], "manifest.upstream_observation"),
+        "manifest.upstream_observation",
+    )
+    client = _load_observation(runtime_root, client_path, CLIENT_KEYS, CLIENT_KEYS, "client_observation")
+    upstream = _load_observation(runtime_root, upstream_path, UPSTREAM_KEYS, UPSTREAM_KEYS, "upstream_observation")
+    if _bool(upstream["lease_observed"], "upstream_observation.lease_observed"):
+        raise EvidenceError("upstream reports a lease observed")
+    request_terminal = _bool(upstream["request_terminal"], "upstream_observation.request_terminal")
+    response_observed = _bool(upstream["response_observed"], "upstream_observation.response_observed")
+    if _bool(client["lease_observed"], "client_observation.lease_observed"):
+        raise EvidenceError("client reports a lease observed")
+    client_status = client["visible_status"]
+    if client_status is not None:
+        _status(client_status, "client_observation.visible_status")
+    p4_outcome = _string(client["p4_outcome"], "client_observation.p4_outcome")
+    if p4_outcome not in {"none", "abort", "reset"}:
+        raise EvidenceError("client_observation.p4_outcome is invalid")
+    p4_status = client["p4_visible_status"]
+    if p4_status is not None:
+        _status(p4_status, "client_observation.p4_visible_status")
+    p4_committed = _bool(client["p4_response_committed"], "client_observation.p4_response_committed")
+    return client_status, request_terminal, response_observed, p4_outcome, p4_committed
+
+
+def _validate_manifest_cleanup(manifest: dict[str, Any]) -> None:
+    cleanup = _expect_object(manifest["cleanup"], MANIFEST_CLEANUP)
+    _reject_unknown(cleanup, CLEANUP_KEYS, MANIFEST_CLEANUP)
+    _required(cleanup, CLEANUP_KEYS, MANIFEST_CLEANUP)
+    if type(cleanup["count"]) is not int or cleanup["count"] != 1:
+        raise EvidenceError("manifest.cleanup.count must be exactly one")
+    if cleanup["status"] != "completed":
+        raise EvidenceError("manifest.cleanup.status must be completed")
+
+
+def _manifest_context(
+    manifest_path: Path, runtime_root: PrivateRuntimeRoot, expected_event_log: Path | None
+) -> _ManifestContext:
+    manifest = _expect_object(_json_value(runtime_root, manifest_path.name, "manifest", MAX_EVENT_LOG_BYTES), "manifest")
+    _reject_unknown(manifest, MANIFEST_KEYS, "manifest")
+    _required(manifest, MANIFEST_KEYS, "manifest")
+    connector, case, expected, artifact_id, event_log = _manifest_identity(
+        manifest, manifest_path, expected_event_log
+    )
+    client_status, request_terminal, response_observed, p4_outcome, p4_committed = _manifest_observations(
+        manifest, runtime_root
+    )
+    _validate_manifest_cleanup(manifest)
+    return _ManifestContext(
+        connector, case, tuple(expected), artifact_id, event_log, client_status,
+        request_terminal, response_observed, p4_outcome, p4_committed,
+    )
 
 
 def _expect_object(value: Any, path: str) -> dict[str, Any]:
@@ -265,9 +372,9 @@ def _validate_event(event: dict[str, Any], number: int, connector: str) -> tuple
     return phase, decision_id
 
 
-def _validate_event_sequence(
-    events: list[dict[str, Any]], connector: str, expected: list[str], case: str
-) -> tuple[str, list[dict[str, Any]]]:
+def _sequence_metadata(
+    events: list[dict[str, Any]], connector: str
+) -> tuple[set[str], dict[str, int], list[str], int]:
     ids: set[str] = set()
     phase_positions: dict[str, int] = {}
     terminal_cleanup: list[str] = []
@@ -282,6 +389,13 @@ def _validate_event_sequence(
         if phase == "terminal":
             terminal_position = number
             terminal_cleanup.append(event.get("cleanup_outcome", ""))
+    return ids, phase_positions, terminal_cleanup, terminal_position
+
+
+def _validate_event_sequence(
+    events: list[dict[str, Any]], connector: str, expected: list[str], case: str
+) -> tuple[str, list[dict[str, Any]]]:
+    ids, phase_positions, terminal_cleanup, terminal_position = _sequence_metadata(events, connector)
     if len(ids) != 1:
         raise EvidenceError("raw case log must contain exactly one decision_id")
     if tuple(sorted(phase_positions, key=phase_positions.get)) != tuple(expected):
@@ -428,87 +542,35 @@ def _verify_metadata_omitted(
 
 
 def _verify(manifest_path: Path, runtime_root: PrivateRuntimeRoot, expected_event_log: Path | None = None) -> Verification:
-    manifest = _expect_object(_json_value(runtime_root, manifest_path.name, "manifest", MAX_EVENT_LOG_BYTES), "manifest")
-    _reject_unknown(manifest, MANIFEST_KEYS, "manifest")
-    _required(manifest, MANIFEST_KEYS, "manifest")
-    if _string(manifest["schema"], "manifest.schema") != SCHEMA:
-        raise EvidenceError(f"manifest.schema must be {SCHEMA}")
-    connector = _string(manifest["connector"], "manifest.connector")
-    if connector not in CONNECTORS:
-        raise EvidenceError("manifest.connector must be envoy or traefik")
-    case = _string(manifest["case"], "manifest.case")
-    if case not in CASES:
-        raise EvidenceError(f"manifest.case must be one of: {', '.join(sorted(CASES))}")
-    expected = manifest["expected_phases"]
-    if not isinstance(expected, list) or tuple(expected) != CASES[case]:
-        raise EvidenceError("manifest.expected_phases must exactly match the selected case")
+    context = _manifest_context(manifest_path, runtime_root, expected_event_log)
+    events = _load_raw_events(runtime_root, context.event_log)
+    decision_id, action_events = _validate_event_sequence(
+        events, context.connector, list(context.expected), context.case
+    )
 
-    artifact = _expect_object(manifest["case_artifact"], "manifest.case_artifact")
-    _reject_unknown(artifact, ARTIFACT_KEYS, "manifest.case_artifact")
-    _required(artifact, ARTIFACT_KEYS, "manifest.case_artifact")
-    artifact_id = _string(artifact["id"], "manifest.case_artifact.id", SAFE_ID)
-    event_log = _safe_leaf_name(_string(artifact["event_log"], "manifest.case_artifact.event_log"), "case_artifact.event_log")
-    if expected_event_log is not None:
-        if not expected_event_log.is_absolute() or expected_event_log.parent != manifest_path.parent:
-            raise EvidenceError("--expected-event-log must be an absolute regular non-symlink file")
-        if expected_event_log.name != event_log:
-            raise EvidenceError("manifest event log does not match --expected-event-log")
-
-    client_path = _safe_observation_name(_string(manifest["client_observation"], "manifest.client_observation"), "manifest.client_observation")
-    upstream_path = _safe_observation_name(_string(manifest["upstream_observation"], "manifest.upstream_observation"), "manifest.upstream_observation")
-    client = _load_observation(runtime_root, client_path, CLIENT_KEYS, CLIENT_KEYS, "client_observation")
-    upstream = _load_observation(runtime_root, upstream_path, UPSTREAM_KEYS, UPSTREAM_KEYS, "upstream_observation")
-    if _bool(upstream["lease_observed"], "upstream_observation.lease_observed"):
-        raise EvidenceError("upstream reports a lease observed")
-    request_terminal = _bool(upstream["request_terminal"], "upstream_observation.request_terminal")
-    response_observed = _bool(upstream["response_observed"], "upstream_observation.response_observed")
-    if _bool(client["lease_observed"], "client_observation.lease_observed"):
-        raise EvidenceError("client reports a lease observed")
-    client_status = client["visible_status"]
-    if client_status is not None:
-        _status(client_status, "client_observation.visible_status")
-    p4_outcome = _string(client["p4_outcome"], "client_observation.p4_outcome")
-    if p4_outcome not in {"none", "abort", "reset"}:
-        raise EvidenceError("client_observation.p4_outcome is invalid")
-    p4_status = client["p4_visible_status"]
-    if p4_status is not None:
-        _status(p4_status, "client_observation.p4_visible_status")
-    p4_committed = _bool(client["p4_response_committed"], "client_observation.p4_response_committed")
-
-    cleanup = _expect_object(manifest["cleanup"], "manifest.cleanup")
-    _reject_unknown(cleanup, CLEANUP_KEYS, "manifest.cleanup")
-    _required(cleanup, CLEANUP_KEYS, "manifest.cleanup")
-    if type(cleanup["count"]) is not int or cleanup["count"] != 1:
-        raise EvidenceError("manifest.cleanup.count must be exactly one")
-    if cleanup["status"] != "completed":
-        raise EvidenceError("manifest.cleanup.status must be completed")
-
-    events = _load_raw_events(runtime_root, event_log)
-    decision_id, action_events = _validate_event_sequence(events, connector, expected, case)
-
-    if case == "p2_oversize":
-        _verify_oversize(events, action_events, request_terminal, response_observed)
-        _phase_action(events, case, "P1", "allow")
-        _phase_action(events, case, "P2", "deny")
-    elif case in {"p1_allow", "p2_allow"}:
-        _verify_allow(events, case, client_status, request_terminal, response_observed)
-    elif case == "p2_to_p3_timeout":
-        _verify_timeout(events, client_status, request_terminal, response_observed, p4_committed, p4_outcome)
-    elif case in {"p1_deny", "p2_deny", "p3_deny"}:
-        _verify_denial(events, action_events, case, client_status, request_terminal, response_observed)
-    elif case == "p3_redirect":
-        _verify_redirect(events, action_events, client_status, request_terminal, response_observed)
-    elif case == "p4_safe":
-        _verify_p4_safe(events, action_events, p4_outcome, request_terminal, response_observed, p4_committed)
-    elif case == "metadata_omitted":
-        _verify_metadata_omitted(events, client_status, request_terminal, response_observed, p4_committed)
-    if case == "p4_strict":
+    if context.case == "p2_oversize":
+        _verify_oversize(events, action_events, context.request_terminal, context.response_observed)
+        _phase_action(events, context.case, "P1", "allow")
+        _phase_action(events, context.case, "P2", "deny")
+    elif context.case in {"p1_allow", "p2_allow"}:
+        _verify_allow(events, context.case, context.client_status, context.request_terminal, context.response_observed)
+    elif context.case == "p2_to_p3_timeout":
+        _verify_timeout(events, context.client_status, context.request_terminal, context.response_observed, context.p4_committed, context.p4_outcome)
+    elif context.case in {"p1_deny", "p2_deny", "p3_deny"}:
+        _verify_denial(events, action_events, context.case, context.client_status, context.request_terminal, context.response_observed)
+    elif context.case == "p3_redirect":
+        _verify_redirect(events, action_events, context.client_status, context.request_terminal, context.response_observed)
+    elif context.case == "p4_safe":
+        _verify_p4_safe(events, action_events, context.p4_outcome, context.request_terminal, context.response_observed, context.p4_committed)
+    elif context.case == "metadata_omitted":
+        _verify_metadata_omitted(events, context.client_status, context.request_terminal, context.response_observed, context.p4_committed)
+    if context.case == "p4_strict":
         # A driver-side observation is not proof that Envoy/Traefik invoked a
         # real client-visible reset/abort primitive. No current runner has that
         # primitive, so this case intentionally cannot become a passing result.
-        return Verification("NON_PASS", connector, case, artifact_id, decision_id, tuple(expected),
+        return Verification("NON_PASS", context.connector, context.case, context.artifact_id, decision_id, context.expected,
                             ("P4 Strict remains non-promoting without independently demonstrated host reset/abort",))
-    return Verification("LIFECYCLE_ONLY", connector, case, artifact_id, decision_id, tuple(expected), ())
+    return Verification("LIFECYCLE_ONLY", context.connector, context.case, context.artifact_id, decision_id, context.expected, ())
 
 
 def verify_manifest(path: str | Path, expected_event_log: str | Path | None = None, runtime_root: str | Path | None = None) -> Verification:

@@ -438,6 +438,7 @@ def ensure_safe_runtime_directory(path: Path | str) -> Path:
 
 _PRIVATE_RUNTIME_DIRECTORY_MODE = 0o700
 _PRIVATE_RUNTIME_FILE_MODE = 0o600
+_PRIVATE_ARTIFACT_LABEL = "private artifact"
 _PRIVATE_RUNTIME_ROOT_LABEL = "private runtime root"
 _PRIVATE_RUNTIME_ARTIFACT_NOFOLLOW_ERROR = "private runtime artifacts require O_NOFOLLOW"
 _MAX_PRIVATE_RUNTIME_LEAF_NAME = 128
@@ -605,7 +606,7 @@ class PrivateRuntimeRoot:
             raise ValueError("private runtime root path was replaced")
         _require_private_runtime_directory(current, _PRIVATE_RUNTIME_ROOT_LABEL)
 
-    def create_text(self, name: str, value: str, label: str = "private artifact") -> None:
+    def create_text(self, name: str, value: str, label: str = _PRIVATE_ARTIFACT_LABEL) -> None:
         name = _private_runtime_leaf_name(name, label)
         if not isinstance(value, str):
             raise ValueError(f"{label} must be text")
@@ -629,7 +630,7 @@ class PrivateRuntimeRoot:
             if descriptor >= 0:
                 os.close(descriptor)
 
-    def read_text(self, name: str, label: str = "private artifact", *, maximum_bytes: int = 1 << 20) -> str:
+    def read_text(self, name: str, label: str = _PRIVATE_ARTIFACT_LABEL, *, maximum_bytes: int = 1 << 20) -> str:
         name = _private_runtime_leaf_name(name, label)
         if not isinstance(maximum_bytes, int) or maximum_bytes < 0:
             raise ValueError(f"{label} maximum size is invalid")
@@ -653,7 +654,7 @@ class PrivateRuntimeRoot:
         finally:
             os.close(descriptor)
 
-    def replace_text(self, name: str, value: str, label: str = "private artifact") -> None:
+    def replace_text(self, name: str, value: str, label: str = _PRIVATE_ARTIFACT_LABEL) -> None:
         name = _private_runtime_leaf_name(name, label)
         if not isinstance(value, str):
             raise ValueError(f"{label} must be text")

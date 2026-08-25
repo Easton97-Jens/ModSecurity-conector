@@ -282,52 +282,68 @@ func (s *udsSession) applyResponseDecision(op byte, d processor.Decision) {
 }
 
 func (s *udsSession) dispatchResponse(ctx context.Context, op byte, p []byte) (wireResult, bool, processor.Decision, error) {
-	var d processor.Decision
-	var err error
 	switch op {
 	case opResponseHeaders:
-		if s.responseHeaders || s.responseCommitted || s.responseEOS {
-			return wireResult{decision: decisionDeny, status: 409}, true, d, nil
-		}
-		h, parseErr := parseResponseHeaders(p)
-		if parseErr != nil {
-			return wireResult{decision: decisionDeny, status: 503}, true, d, nil
-		}
-		d, err = s.response.Headers(ctx, h, false)
-		s.upstreamStatus = headerStatus(h)
+		return s.dispatchResponseHeaders(ctx, p)
 	case opResponseChunk:
-		if !s.responseHeaders || !s.responseCommitted || s.responseEOS {
-			return wireResult{decision: decisionDeny, status: 409}, true, d, nil
-		}
-		if len(p) > maxChunk {
-			return wireResult{decision: decisionDeny, status: 503}, true, d, nil
-		}
-		d, err = s.response.Body(ctx, p, false)
-		s.responseChunk = true
+		return s.dispatchResponseChunk(ctx, p)
 	case opResponseEOS:
-		if !s.responseHeaders || !s.responseCommitted || s.responseEOS {
-			return wireResult{decision: decisionDeny, status: 409}, true, d, nil
-		}
-		d, err = s.response.Body(ctx, nil, true)
-		s.responseEOS = true
+		return s.dispatchResponseEOS(ctx)
 	case opResponseCommit:
-		if !s.responseHeaders || s.responseCommitted || s.responseEOS {
-			return wireResult{decision: decisionDeny, status: 409}, true, d, nil
-		}
-		if len(p) != 2 || p[0] != 1 || p[1] != 0 {
-			return wireResult{decision: decisionDeny, status: 400}, true, d, nil
-		}
-		committer, ok := any(s.response).(interface{ MarkResponseCommitted(context.Context) error })
-		if !ok {
-			return wireResult{decision: decisionDeny, status: 503}, true, d, nil
-		}
-		err = committer.MarkResponseCommitted(ctx)
-		s.responseCommitted = err == nil
-		d = processor.Decision{Action: processor.ActionAllow}
+		return s.dispatchResponseCommit(ctx, p)
 	default:
-		return wireResult{decision: decisionDeny, status: 400}, true, d, nil
+		return wireResult{decision: decisionDeny, status: 400}, true, processor.Decision{}, nil
 	}
+}
+
+func (s *udsSession) dispatchResponseHeaders(ctx context.Context, p []byte) (wireResult, bool, processor.Decision, error) {
+	if s.responseHeaders || s.responseCommitted || s.responseEOS {
+		return wireResult{decision: decisionDeny, status: 409}, true, processor.Decision{}, nil
+	}
+	h, err := parseResponseHeaders(p)
+	if err != nil {
+		return wireResult{decision: decisionDeny, status: 503}, true, processor.Decision{}, nil
+	}
+	d, err := s.response.Headers(ctx, h, false)
+	s.upstreamStatus = headerStatus(h)
 	return wireResult{}, false, d, err
+}
+
+func (s *udsSession) dispatchResponseChunk(ctx context.Context, p []byte) (wireResult, bool, processor.Decision, error) {
+	if !s.responseHeaders || !s.responseCommitted || s.responseEOS {
+		return wireResult{decision: decisionDeny, status: 409}, true, processor.Decision{}, nil
+	}
+	if len(p) > maxChunk {
+		return wireResult{decision: decisionDeny, status: 503}, true, processor.Decision{}, nil
+	}
+	d, err := s.response.Body(ctx, p, false)
+	s.responseChunk = true
+	return wireResult{}, false, d, err
+}
+
+func (s *udsSession) dispatchResponseEOS(ctx context.Context) (wireResult, bool, processor.Decision, error) {
+	if !s.responseHeaders || !s.responseCommitted || s.responseEOS {
+		return wireResult{decision: decisionDeny, status: 409}, true, processor.Decision{}, nil
+	}
+	d, err := s.response.Body(ctx, nil, true)
+	s.responseEOS = true
+	return wireResult{}, false, d, err
+}
+
+func (s *udsSession) dispatchResponseCommit(ctx context.Context, p []byte) (wireResult, bool, processor.Decision, error) {
+	if !s.responseHeaders || s.responseCommitted || s.responseEOS {
+		return wireResult{decision: decisionDeny, status: 409}, true, processor.Decision{}, nil
+	}
+	if len(p) != 2 || p[0] != 1 || p[1] != 0 {
+		return wireResult{decision: decisionDeny, status: 400}, true, processor.Decision{}, nil
+	}
+	committer, ok := any(s.response).(interface{ MarkResponseCommitted(context.Context) error })
+	if !ok {
+		return wireResult{decision: decisionDeny, status: 503}, true, processor.Decision{}, nil
+	}
+	err := committer.MarkResponseCommitted(ctx)
+	s.responseCommitted = err == nil
+	return wireResult{}, false, processor.Decision{Action: processor.ActionAllow}, err
 }
 
 func (s *udsSession) dispatchOutcome(ctx context.Context, p []byte) (wireResult, bool) {
@@ -341,16 +357,26 @@ func (s *udsSession) dispatchOutcome(ctx context.Context, p []byte) (wireResult,
 }
 
 func (s *udsSession) validOutcomeShape(p []byte) bool {
-	if len(p) != 3 || (s.responseCommitted && !s.responseEOS) || (!s.responseCommitted && p[0] != 1 && p[0] != 2) || (s.responseCommitted && (p[0] == 1 || p[0] == 2)) {
+	if len(p) != 3 || !s.outcomeStateAllows(p[0]) {
 		return false
 	}
-	if p[0] == 0 && (s.p3Action != processor.ActionAllow || s.p4Disruptive) {
-		return false
+	switch p[0] {
+	case 0:
+		return s.p3Action == processor.ActionAllow && !s.p4Disruptive
+	case 1:
+		return s.p3Action != processor.ActionAllow && s.p3Action == processor.ActionDeny
+	case 2:
+		return s.p3Action != processor.ActionAllow && s.p3Action == processor.ActionRedirect
+	default:
+		return p[0] != 3 || s.p4Disruptive
 	}
-	if (p[0] == 1 || p[0] == 2) && (s.responseCommitted || s.p3Action == processor.ActionAllow || (p[0] == 1 && s.p3Action != processor.ActionDeny) || (p[0] == 2 && s.p3Action != processor.ActionRedirect)) {
-		return false
+}
+
+func (s *udsSession) outcomeStateAllows(action byte) bool {
+	if s.responseCommitted {
+		return s.responseEOS && action != 1 && action != 2
 	}
-	return p[0] != 3 || s.p4Disruptive
+	return action == 1 || action == 2
 }
 
 func (s *udsSession) dispatchReserve(p []byte) (wireResult, bool) {

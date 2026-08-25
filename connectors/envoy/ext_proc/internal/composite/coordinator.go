@@ -360,13 +360,11 @@ func (a *Admission) ProcessBody(ctx context.Context, body []byte, endStream bool
 		if why == "" {
 			why = "request_block"
 		}
-		if errors.Is(err, ErrLimit) {
-			a.e.mu.Lock()
-			a.e.markBlockedLocked()
-			a.e.mu.Unlock()
-		} else if err != nil {
+		if err != nil && !errors.Is(err, ErrLimit) {
 			a.e.finish(ctx, why)
-		} else {
+			return d, err
+		}
+		if err == nil || errors.Is(err, ErrLimit) {
 			a.e.mu.Lock()
 			a.e.markBlockedLocked()
 			a.e.mu.Unlock()

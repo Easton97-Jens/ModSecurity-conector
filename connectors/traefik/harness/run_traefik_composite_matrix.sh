@@ -116,7 +116,8 @@ is_owner_file() {
 }
 
 is_owner_executable() {
-    is_owner_file "$1" && [ -x "$1" ]
+    executable_path=$1
+    is_owner_file "$executable_path" && [ -x "$executable_path" ]
 }
 
 case "$RUNTIME_ROOT" in
