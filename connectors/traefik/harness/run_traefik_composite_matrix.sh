@@ -170,6 +170,12 @@ safe_direct_child "$RUNTIME_ROOT" "$UPSTREAM_OBSERVATION" || \
     blocked "UPSTREAM_OBSERVATION must be a safe direct child of RUNTIME_ROOT"
 [ ! -e "$UPSTREAM_OBSERVATION" ] && [ ! -L "$UPSTREAM_OBSERVATION" ] || \
     blocked "UPSTREAM_OBSERVATION already exists"
+UPSTREAM_CERTIFICATE="$RUNTIME_ROOT/upstream-cert.pem"
+UPSTREAM_KEY="$RUNTIME_ROOT/upstream-key.pem"
+safe_direct_child "$RUNTIME_ROOT" "$UPSTREAM_CERTIFICATE" || blocked "UPSTREAM_CERTIFICATE must be a safe direct child of RUNTIME_ROOT"
+safe_direct_child "$RUNTIME_ROOT" "$UPSTREAM_KEY" || blocked "UPSTREAM_KEY must be a safe direct child of RUNTIME_ROOT"
+[ ! -e "$UPSTREAM_CERTIFICATE" ] && [ ! -L "$UPSTREAM_CERTIFICATE" ] || blocked "UPSTREAM_CERTIFICATE already exists"
+[ ! -e "$UPSTREAM_KEY" ] && [ ! -L "$UPSTREAM_KEY" ] || blocked "UPSTREAM_KEY already exists"
 [ "${#COMPOSITE_SOCKET}" -le 100 ] || blocked "COMPOSITE_SOCKET leaves no safe Unix-socket path budget"
 SOCKET_PARENT=$(dirname "$COMPOSITE_SOCKET")
 [ "$SOCKET_PARENT" = "$RUNTIME_ROOT" ] || blocked "COMPOSITE_SOCKET parent must be RUNTIME_ROOT"
@@ -222,8 +228,20 @@ AUTH_ESC=$(escape_sed "$AUTH_ADDRESS")
 TRAEFIK_ESC=$(escape_sed "$TRAEFIK_ADDRESS")
 UPSTREAM_ESC=$(escape_sed "$UPSTREAM_ADDRESS")
 DYNAMIC_CONFIG_ESC=$(escape_sed "$DYNAMIC_CONFIG")
+OPENSSL_BIN=$(command -v openssl 2>/dev/null || true)
+case "$OPENSSL_BIN" in /*) ;; *) blocked "openssl is required to generate the ephemeral upstream TLS certificate" ;; esac
+is_owner_executable "$OPENSSL_BIN" || blocked "openssl is not an owner-controlled executable"
+"$OPENSSL_BIN" req -x509 -newkey rsa:2048 -nodes -sha256 -days 1 \
+    -keyout "$UPSTREAM_KEY" -out "$UPSTREAM_CERTIFICATE" \
+    -subj "/CN=composite-upstream.local" \
+    -addext "subjectAltName=DNS:composite-upstream.local" \
+    >/dev/null 2>&1 || blocked "failed to generate the ephemeral upstream TLS certificate"
+chmod 600 "$UPSTREAM_CERTIFICATE" "$UPSTREAM_KEY"
+is_owner_file "$UPSTREAM_CERTIFICATE" || blocked "generated upstream certificate is unsafe"
+is_owner_file "$UPSTREAM_KEY" || blocked "generated upstream key is unsafe"
+UPSTREAM_CERT_ESC=$(escape_sed "$UPSTREAM_CERTIFICATE")
 sed -e "s|__AUTH_ADDRESS__|$AUTH_ESC|g" -e "s|__COMPOSITE_SOCKET__|$SOCKET_ESC|g" -e "s|__UPSTREAM_ADDRESS__|$UPSTREAM_ESC|g" \
-    "$DYNAMIC_TEMPLATE" > "$DYNAMIC_CONFIG"
+    -e "s|__UPSTREAM_CERTIFICATE__|$UPSTREAM_CERT_ESC|g" "$DYNAMIC_TEMPLATE" > "$DYNAMIC_CONFIG"
 # This negative case removes only the private lease from the explicit
 # ForwardAuth request allow-list. The outer plugin still reserves privately,
 # but ForwardAuth receives no lease and fails closed before P1/P2; the UDS
@@ -354,7 +372,8 @@ trap 'on_signal 143' TERM
 # exact owner-controlled runtime-root case suffix; CASE_INPUT cannot activate
 # transport timing behavior.
 "$UPSTREAM_BIN" --listen "127.0.0.1:$UPSTREAM_PORT" --root "$RUNTIME_ROOT" --case-input "$CASE_INPUT_COPY" \
-    --observation "$UPSTREAM_OBSERVATION" --observation-root "$RUNTIME_ROOT" >"$LOG_ROOT/upstream.log" 2>&1 &
+    --observation "$UPSTREAM_OBSERVATION" --observation-root "$RUNTIME_ROOT" \
+    --cert "$UPSTREAM_CERTIFICATE" --key "$UPSTREAM_KEY" >"$LOG_ROOT/upstream.log" 2>&1 &
 UPSTREAM_PID=$!
 UPSTREAM_START=$(pid_start_token "$UPSTREAM_PID")
 pid_is_owned_upstream "$UPSTREAM_PID" "$UPSTREAM_START" || die "controlled upstream failed to start"

@@ -30,6 +30,15 @@ class CompositeConfigTests(unittest.TestCase):
         self.assertIn("X-Msconnector-Composite-Lease: \"\"", text[strip_start:])
         self.assertIn("X-Msconnector-Composite-Request-Context: \"\"", text[strip_start:])
 
+    def test_upstream_uses_verifying_loopback_tls_transport(self):
+        text = CONFIG.read_text(encoding="utf-8")
+        self.assertIn("- url: https://__UPSTREAM_ADDRESS__", text)
+        self.assertIn("serversTransport: composite-upstream-transport", text)
+        self.assertIn("serverName: composite-upstream.local", text)
+        self.assertIn("rootCAs:", text)
+        self.assertIn("__UPSTREAM_CERTIFICATE__", text)
+        self.assertNotIn("insecureSkipVerify", text)
+
 
 if __name__ == "__main__":
     unittest.main()

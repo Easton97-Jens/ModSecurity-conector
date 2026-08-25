@@ -12,7 +12,7 @@
 | Finding | `FND-PARENT-0221` |
 | Scope | Parent-only Envoy `ext_authz` + `ext_proc` und Traefik `forwardAuth` + private-UDS-Response-Composite, Tests, Konfiguration und gekoppelte Dokumentation |
 | Framework-/MRTS-Grenze | Keine Framework- oder MRTS-Source-, Branch-, `HEAD`-, Gitlink- oder Delivery-Änderung |
-| Delivery-Disposition | Der aktuelle Benutzer autorisierte ausdrücklich einen task-owned Worktree, einen scoped Commit/Push und genau einen Parent-Draft-PR gegen `master`; keine Merge-Autorisierung. Commit/Head `931d6eb81207997169719bb475d50274ae281eed` liegt auf Draft-PR #341. Der Sonar-Check `97747662107` schlug mit New-Code-Security-Rating C statt erforderlichem A fehl. FND-SONAR-0061 ist P0/high, `in_progress`, release- und kandidat-integration-blockierend. Eine minimale native Remediation ist lokal validiert, doch der exakte Successor-Head und die gehostete Validierung stehen aus; kein grünes Sonar-Ergebnis wird behauptet. `FND-PARENT-0221` bleibt `in_progress`/`blocked_missing_evidence`, daher ist diese Änderung nicht für `verified_pr` oder Merge geeignet. |
+| Delivery-Disposition | Der Benutzer autorisierte einen task-owned Worktree, scoped Commit/Push und genau einen Parent-Draft-PR gegen `master`; kein Merge. Die Commits `931d6eb81207997169719bb475d50274ae281eed` und `9aeb0b551b34a0e44b9409130c2ecafeac641530` liegen auf Draft-PR #341. Die Sonar-Analyse `af6a96df-297f-47dd-af26-83b5315327e6` schloss/fixte neun von zehn Vulnerability-Records, ließ jedoch LOW `python:S5332` am kontrollierten Upstream offen. Das scoped TLS-Follow-up ist lokal validiert; Commit/Push und die exakte Successor-Head-Hosted-Validierung stehen aus. FND-SONAR-0061 bleibt P0/high, `in_progress`, release- und kandidat-integration-blockierend; kein grünes Sonar-Ergebnis wird behauptet. `FND-PARENT-0221` bleibt `in_progress`/`blocked_missing_evidence`, daher ist diese Änderung nicht für `verified_pr` oder Merge geeignet. |
 
 ## Motivation und Problemstellung
 
@@ -204,7 +204,7 @@ H2/H3 und Cross-Connector-Parität benötigen weitere Evidenz oder eine
 ausdrückliche aktuelle Benutzer-Risikoentscheidung. Eine solche
 Risikoakzeptanz existiert nicht.
 
-## Finaler Diff- und Review-Status
+## Status des initialen nativen Remediation-Diffs und Reviews
 
 Der finale lokale Review umfasst den scoped Source-Diff, gekoppelte
 Dokumentation, fokussierte Tests, aktuellen CGo-Build, reale H1-Receipts und
@@ -215,7 +215,7 @@ Hosted-Check, Review-Entscheidung, Branch Protection und ein grünes
 Sonar-Ergebnis stehen noch aus. Keine Framework-/MRTS-Änderung oder
 Gitlink-Update wird behauptet.
 
-## Sonar-Status nach Draft-PR
+## Initialer Sonar-Status nach Draft-PR
 
 Draft-PR #341 gegen `master` liegt mit Commit/Head
 `931d6eb81207997169719bb475d50274ae281eed` vor; ein Merge wurde nicht
@@ -230,3 +230,29 @@ Konfigurationsänderung und keine Quality-Gate-Änderung. Fokussierte native
 Tests validieren die Remediation lokal; der Post-Push-Exact-Head- und die
 nachfolgenden Hosted-Checks stehen noch aus, und ein grünes Sonar-Ergebnis wird
 nicht behauptet.
+
+## Successor-Sonar und Upstream-TLS-Follow-up
+
+Zu Beginn dieses scoped Follow-ups stand Draft-PR #341 auf
+`9aeb0b551b34a0e44b9409130c2ecafeac641530`. Seine exakte
+Successor-Sonar-Analyse `af6a96df-297f-47dd-af26-83b5315327e6` schloss/fixte
+neun der ursprünglichen zehn Vulnerability-Records, ließ jedoch LOW
+`python:S5332` am kontrollierten Upstream offen. Dies ist ein realer
+Cleartext-Hop; er wird weder unterdrückt noch umklassifiziert.
+
+Die Remediation ändert nur Traefiks internen kontrollierten Upstream-Hop. Der
+Runner erzeugt pro Lauf ein `0600`-Zertifikat/Key im `0700`-Runtime-Root. Die
+Dynamic-Konfiguration nutzt `https` mit einem zertifikatverifizierenden
+`serversTransport` (`serverName` und `rootCAs`), und der kontrollierte
+Upstream verlangt TLS 1.2 oder höher. Es gibt kein `insecureSkipVerify` und
+keinen Plaintext-Fallback. Der Case-Driver bleibt der HTTP-Client von
+Traefiks unverändertem öffentlichem Listener.
+
+`PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_runtime_artifact_utils connectors.composite_harness.test_verify_matrix_evidence connectors.traefik.harness.test_composite_config connectors.traefik.harness.test_composite_harness_paths` bestand mit 54 fokussierten Stdlib-Tests. Sie enthalten verifiziertes TLS, Ablehnung eines nicht vertrauten Zertifikats und Ablehnung eines vertrauten Zertifikats mit falschem Hostnamen gegen den tatsächlichen kontrollierten Upstream. Quellenbasierte Python-Kompilierung, Runner-Shell-Syntax und `git diff --check` bestanden ebenfalls. Ein unabhängiger scoped Security-Review fand keinen validierten Bypass. Die verbleibende Same-UID-Path-Replacement-Annahme ist dokumentiert; Cross-User-Zugriff wird durch den privaten Runtime-Root begrenzt.
+
+Es gibt kein lokales `traefik`-Executable, daher sind tatsächliches
+Traefik-Dynamic-Config-Parsing und ein realer TLS-aktivierter Matrix-Lauf in
+dieser Umgebung blockiert. Als Nächstes folgen der autorisierte scoped
+Commit/Push und die exakte Successor-Head-Hosted-Sonar-Validierung. Der
+Draft-PR bleibt `DIRTY`; kein Rebase, Konfliktlösungs-Commit oder Merge ist
+autorisiert.

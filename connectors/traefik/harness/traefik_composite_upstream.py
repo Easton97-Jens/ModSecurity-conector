@@ -13,6 +13,7 @@ import argparse
 import http.server
 import json
 from pathlib import Path
+import ssl
 import sys
 import threading
 import time
@@ -134,11 +135,17 @@ class ControlledServer(http.server.ThreadingHTTPServer):
         vectors: dict[str, dict[str, Any]],
         observation: "ObservationWriter",
         observation_root: Path,
+        certfile: str,
+        keyfile: str,
     ) -> None:
         super().__init__(address, ControlledHandler)
         self.vectors = vectors
         self.observation = observation
         self.observation_root = observation_root
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        context.load_cert_chain(certfile=certfile, keyfile=keyfile)
+        self.socket = context.wrap_socket(self.socket, server_side=True)
 
 
 class ObservationWriter:
@@ -183,6 +190,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--case-input", required=True, type=Path)
     parser.add_argument("--observation", required=True, type=Path)
     parser.add_argument("--observation-root", required=True, type=Path)
+    parser.add_argument("--cert", required=True, type=Path)
+    parser.add_argument("--key", required=True, type=Path)
     args = parser.parse_args(argv)
     try:
         if args.root != args.observation_root:
@@ -191,6 +200,10 @@ def main(argv: list[str] | None = None) -> int:
             fail("case input must be an absolute direct child of the runtime root")
         if not args.observation.is_absolute() or args.observation.parent != args.root:
             fail("observation must be an absolute direct child of the runtime root")
+        if not args.cert.is_absolute() or args.cert.parent != args.root:
+            fail("certificate must be an absolute direct child of the runtime root")
+        if not args.key.is_absolute() or args.key.parent != args.root:
+            fail("private key must be an absolute direct child of the runtime root")
         host, separator, port_text = args.listen.rpartition(":")
         if not separator or host != "127.0.0.1":
             fail("listen must be the numeric loopback host and port")
@@ -200,7 +213,14 @@ def main(argv: list[str] | None = None) -> int:
         runtime = open_private_runtime_root(args.root)
         with runtime:
             observation = ObservationWriter(runtime, args.observation.name)
-            server = ControlledServer((host, port), vectors_by_path(load_catalog(runtime, args.case_input.name)), observation, args.root)
+            server = ControlledServer(
+                (host, port),
+                vectors_by_path(load_catalog(runtime, args.case_input.name)),
+                observation,
+                args.root,
+                str(args.cert),
+                str(args.key),
+            )
             try:
                 server.serve_forever(poll_interval=0.2)
             finally:

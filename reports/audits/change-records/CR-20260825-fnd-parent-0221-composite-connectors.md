@@ -12,7 +12,7 @@
 | Finding | `FND-PARENT-0221` |
 | Scope | Parent-only Envoy `ext_authz` + `ext_proc` and Traefik `forwardAuth` + private-UDS response composite, tests, configuration, and paired documentation |
 | Framework/MRTS boundary | No Framework or MRTS source, branch, `HEAD`, Gitlink, or delivery change |
-| Delivery disposition | The current user explicitly authorized a task-owned worktree, scoped commit/push, and exactly one Parent Draft PR against `master`; no merge authority. Commit/head `931d6eb81207997169719bb475d50274ae281eed` is on Draft PR #341. Sonar check `97747662107` failed with New-Code Security Rating C where A is required. FND-SONAR-0061 is P0/high, `in_progress`, release- and candidate-integration-blocking. Minimal native remediation is locally validated, but exact successor-head and hosted validation remain pending; no green Sonar result is claimed. `FND-PARENT-0221` remains `in_progress`/`blocked_missing_evidence`, so this change is not eligible for `verified_pr` or merge. |
+| Delivery disposition | The user authorized a task-owned worktree, scoped commit/push, and exactly one Parent Draft PR against `master`; no merge. Commits `931d6eb81207997169719bb475d50274ae281eed` and `9aeb0b551b34a0e44b9409130c2ecafeac641530` are on Draft PR #341. Sonar analysis `af6a96df-297f-47dd-af26-83b5315327e6` closed/fixed nine of ten vulnerability records, but left LOW `python:S5332` open at the controlled upstream. The scoped TLS follow-up is locally validated; commit/push and exact-successor hosted validation remain pending. FND-SONAR-0061 remains P0/high, `in_progress`, release- and candidate-integration-blocking; no green Sonar result is claimed. `FND-PARENT-0221` remains `in_progress`/`blocked_missing_evidence`, so this change is not eligible for `verified_pr` or merge. |
 
 ## Motivation and problem statement
 
@@ -192,7 +192,7 @@ callback, raw client cancellation, same-process Traefik follow-up, H2/H3, and
 cross-connector parity require further evidence or an explicit current-user
 risk decision. No such risk acceptance exists.
 
-## Final diff and review status
+## Initial native-remediation diff and review status
 
 The final local review covers the scoped source diff, paired documentation,
 focused tests, current CGo build, real H1 receipts, and independent post-fix
@@ -202,7 +202,7 @@ the post-push exact-head check, hosted check, review decision, branch
 protection, and green Sonar result remain pending. No Framework/MRTS change or
 Gitlink update is asserted.
 
-## Post-Draft PR Sonar status
+## Initial Post-Draft PR Sonar status
 
 Draft PR #341 against `master` is present at commit/head
 `931d6eb81207997169719bb475d50274ae281eed`; no merge was attempted. Hosted
@@ -215,3 +215,28 @@ loopback/origin-form client. No suppression, configuration change, or
 quality-gate change was made. Focused native tests validate the remediation
 locally; the post-push exact-head and successor hosted checks remain pending,
 and no green Sonar result is claimed.
+
+## Successor Sonar and upstream TLS follow-up
+
+At the start of this scoped follow-up, Draft PR #341 was at
+`9aeb0b551b34a0e44b9409130c2ecafeac641530`. Its exact successor Sonar
+analysis `af6a96df-297f-47dd-af26-83b5315327e6` closed/fixed nine of the
+original ten vulnerability records but left LOW `python:S5332` open at the
+controlled upstream. This is a real clear-text hop; it is not suppressed or
+reclassified.
+
+The remediation changes only Traefik's internal controlled-upstream hop. The
+runner creates a per-run `0600` certificate/key in the `0700` runtime root.
+The dynamic configuration uses `https` with a certificate-verifying
+`serversTransport` (`serverName` and `rootCAs`), and the controlled upstream
+requires TLS 1.2 or later. There is no `insecureSkipVerify` or plaintext
+fallback. The case driver remains the HTTP client of Traefik's unchanged
+public listener.
+
+`PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_runtime_artifact_utils connectors.composite_harness.test_verify_matrix_evidence connectors.traefik.harness.test_composite_config connectors.traefik.harness.test_composite_harness_paths` passed 54 focused stdlib tests. They include verified TLS, untrusted-certificate rejection, and trusted wrong-hostname rejection against the actual controlled upstream. Source-only Python compilation, runner shell syntax, and `git diff --check` also passed. An independent scoped security review found no validated bypass. The residual same-UID path-replacement assumption is documented; cross-user access is constrained by the private runtime root.
+
+No local `traefik` executable is available, so actual Traefik dynamic-config
+parsing and a real TLS-enabled matrix run are blocked in this environment.
+The next steps are the authorized scoped commit/push and exact-successor
+hosted Sonar verification. The Draft PR remains `DIRTY`; no rebase,
+conflict-resolution commit, or merge is authorized.

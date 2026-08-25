@@ -70,5 +70,11 @@ http:
   services:
     composite-upstream:
       loadBalancer:
+        serversTransport: composite-upstream-transport
         servers:
-        - url: http://__UPSTREAM_ADDRESS__
+        - url: https://__UPSTREAM_ADDRESS__
+  serversTransports:
+    composite-upstream-transport:
+      serverName: composite-upstream.local
+      rootCAs:
+      - __UPSTREAM_CERTIFICATE__
