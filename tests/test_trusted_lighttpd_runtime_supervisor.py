@@ -327,15 +327,13 @@ class TrustedLighttpdRuntimeSupervisorTest(unittest.TestCase):
         server, thread = self.running_server()
         try:
             ProbeHandler.reflect_transaction = True
+            reflected_case = SUPERVISOR.ProbeCase(
+                case_id="reflected-transaction",
+                headers=(("X-Modsec-Transaction-Id", "lighttpd-1-1"),),
+                expected_status=200,
+            )
             with self.assertRaisesRegex(SUPERVISOR.SupervisorError, "reflected"):
-                SUPERVISOR.run_fixed_probe(
-                    server.server_port,
-                    SUPERVISOR.ProbeCase(
-                        case_id="reflected-transaction",
-                        headers=(("X-Modsec-Transaction-Id", "lighttpd-1-1"),),
-                        expected_status=200,
-                    ),
-                )
+                SUPERVISOR.run_fixed_probe(server.server_port, reflected_case)
         finally:
             server.shutdown()
             thread.join(timeout=5)

@@ -48,11 +48,8 @@ RECEIPT_NAME = "trusted-lighttpd-runtime-receipt.json"
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
-HOST_TRANSACTION_ID_RE = re.compile(r"^lighttpd-[1-9][0-9]*-[1-9][0-9]*$")
-SOCKET_LINK_RE = re.compile(r"^socket:\[(?P<inode>[1-9][0-9]*)\]$")
-CONFIG_ASSIGNMENT_RE = re.compile(
-    r"^(?P<key>[A-Za-z][A-Za-z0-9_.-]*)\s*=\s*(?P<value>[^#\r\n]+?)\s*$"
-)
+HOST_TRANSACTION_ID_RE = re.compile(r"^lighttpd-[1-9]\d*-[1-9]\d*$")
+SOCKET_LINK_RE = re.compile(r"^socket:\[(?P<inode>[1-9]\d*)\]$")
 FORBIDDEN_CRS_CONFIGURATION_TOKENS = (
     "owasp",
     "coreruleset",
@@ -61,6 +58,10 @@ FORBIDDEN_CRS_CONFIGURATION_TOKENS = (
     "\\\\crs\\\\",
 )
 FORBIDDEN_CONFIG_PATH_KEYS = frozenset({"event_path", "rules_file"})
+SEALED_ARTIFACT_ROOT = "sealed artifact root"
+SEALED_ARTIFACT_DIRECTORY = "sealed artifact directory"
+SEALED_LIBRARY_DIRECTORY = "sealed library directory"
+SUPERVISOR_RECEIPT_ROOT = "supervisor receipt root"
 HOST = "127.0.0.1"
 TRANSACTION_HEADER = "x-msconnector-host-transaction-id"
 
@@ -173,7 +174,7 @@ def require_within(path: Path, root: Path, label: str) -> Path:
     """Require a lexical descendant without resolving untrusted path components."""
 
     candidate = normalized_absolute(path, label)
-    trusted_root = normalized_absolute(root, "sealed artifact root")
+    trusted_root = normalized_absolute(root, SEALED_ARTIFACT_ROOT)
     try:
         relative = candidate.relative_to(trusted_root)
     except ValueError:
@@ -355,6 +356,31 @@ def validate_artifact(spec: ArtifactSpec, sealed_root: Path, *, owner: int) -> o
     return details
 
 
+def _sealed_tree_entries(directory: Path) -> list[os.DirEntry[str]]:
+    """Return one sealed directory's entries or stop before a partial tree scan."""
+
+    try:
+        return list(os.scandir(directory))
+    except OSError as error:
+        fail(f"cannot enumerate sealed artifact directory: {error}")
+
+
+def _sealed_tree_entry_is_directory(entry: os.DirEntry[str]) -> bool:
+    """Reject non-regular/non-directory entries and return the directory case."""
+
+    try:
+        details = entry.stat(follow_symlinks=False)
+    except OSError as error:
+        fail(f"cannot inspect sealed artifact entry: {error}")
+    if stat.S_ISLNK(details.st_mode):
+        fail("sealed artifact tree must not contain symbolic links")
+    if stat.S_ISDIR(details.st_mode):
+        return True
+    if not stat.S_ISREG(details.st_mode):
+        fail("sealed artifact tree must contain only directories and regular files")
+    return False
+
+
 def _walk_sealed_artifact_tree(root: Path, manifest_paths: frozenset[Path], *, owner: int) -> None:
     """Reject every unmanifested, writable, linked, or special sealed-tree entry."""
 
@@ -362,24 +388,12 @@ def _walk_sealed_artifact_tree(root: Path, manifest_paths: frozenset[Path], *, o
     observed_files: set[Path] = set()
     while pending:
         directory = pending.pop()
-        sealed_directory(directory, "sealed artifact directory", owner=owner)
-        try:
-            entries = list(os.scandir(directory))
-        except OSError as error:
-            fail(f"cannot enumerate sealed artifact directory: {error}")
-        for entry in entries:
+        sealed_directory(directory, SEALED_ARTIFACT_DIRECTORY, owner=owner)
+        for entry in _sealed_tree_entries(directory):
             path = Path(entry.path)
-            try:
-                details = entry.stat(follow_symlinks=False)
-            except OSError as error:
-                fail(f"cannot inspect sealed artifact entry: {error}")
-            if stat.S_ISLNK(details.st_mode):
-                fail("sealed artifact tree must not contain symbolic links")
-            if stat.S_ISDIR(details.st_mode):
+            if _sealed_tree_entry_is_directory(entry):
                 pending.append(path)
                 continue
-            if not stat.S_ISREG(details.st_mode):
-                fail("sealed artifact tree must contain only directories and regular files")
             if path not in manifest_paths:
                 fail("sealed artifact tree contains a file outside its digest manifest")
             observed_files.add(path)
@@ -452,6 +466,18 @@ def bounded_config_text(spec: ArtifactSpec, sealed_root: Path, *, owner: int) ->
     )
 
 
+def configuration_assignment_key(line: str) -> str | None:
+    """Return a narrow ASCII configuration assignment key, if the line has one."""
+
+    key, separator, _ = line.partition("=")
+    key = key.strip()
+    if not separator or not key or not key.isascii() or not key[0].isalpha():
+        return None
+    if not all(character.isalnum() or character in "_.-" for character in key):
+        return None
+    return key.lower()
+
+
 def validate_no_crs_configuration(
     config: str,
     environment: Mapping[str, str],
@@ -472,10 +498,9 @@ def validate_no_crs_configuration(
             continue
         if re.match(r"^include(?:_shell)?\b", line, flags=re.IGNORECASE):
             fail("sealed configuration must not include external files or shell output")
-        assignment = CONFIG_ASSIGNMENT_RE.fullmatch(line)
-        if assignment is None:
+        key = configuration_assignment_key(line)
+        if key is None:
             continue
-        key = assignment.group("key").lower()
         if key in FORBIDDEN_CONFIG_PATH_KEYS:
             fail(
                 f"sealed configuration must not use {key} before a canonical protected "
@@ -489,8 +514,8 @@ def validate_runtime_plan(plan: RuntimePlan) -> None:
     owner = os.geteuid()
     required_target_sha(plan.target_sha)
     required_run_id(plan.run_id)
-    sealed_root = sealed_directory(plan.sealed_root, "sealed artifact root", owner=owner)
-    receipt_root = private_directory(plan.receipt_root, "supervisor receipt root", owner=owner, mode=0o700)
+    sealed_root = sealed_directory(plan.sealed_root, SEALED_ARTIFACT_ROOT, owner=owner)
+    receipt_root = private_directory(plan.receipt_root, SUPERVISOR_RECEIPT_ROOT, owner=owner, mode=0o700)
     try:
         receipt_root.relative_to(sealed_root)
         fail("supervisor receipt root must not overlap sealed artifacts")
@@ -521,10 +546,10 @@ def validate_runtime_plan(plan: RuntimePlan) -> None:
     )
     library_directories: set[Path] = set()
     for directory in plan.library_directories:
-        candidate = require_within(directory, sealed_root, "sealed library directory")
+        candidate = require_within(directory, sealed_root, SEALED_LIBRARY_DIRECTORY)
         if candidate in library_directories:
             fail("sealed library directories must not repeat")
-        sealed_directory(candidate, "sealed library directory", owner=owner)
+        sealed_directory(candidate, SEALED_LIBRARY_DIRECTORY, owner=owner)
         if not any(path != candidate and candidate in path.parents for path in artifact_metadata):
             fail("sealed library directory must contain a digest-manifest artifact")
         library_directories.add(candidate)
@@ -602,7 +627,7 @@ def verified_artifact_identity(artifact: ArtifactSpec, sealed_root: Path) -> tup
 def process_uses_artifact(pid: int, artifact: ArtifactSpec, sealed_root: Path) -> None:
     """Tie a live `/proc` executable inode to its sealed artifact."""
 
-    expected, expected_details = verified_artifact_identity(artifact, sealed_root)
+    _, expected_details = verified_artifact_identity(artifact, sealed_root)
     try:
         observed = os.stat(f"/proc/{pid}/exe")
         executable_link = os.readlink(f"/proc/{pid}/exe")
@@ -880,7 +905,7 @@ def _write_all(descriptor: int, data: bytes) -> None:
 def write_receipt(receipt_root: Path, payload: Mapping[str, object]) -> Path:
     """Atomically publish the one root-owned receipt without replacement."""
 
-    root = private_directory(receipt_root, "supervisor receipt root", owner=os.geteuid(), mode=0o700)
+    root = private_directory(receipt_root, SUPERVISOR_RECEIPT_ROOT, owner=os.geteuid(), mode=0o700)
     data = (json.dumps(dict(payload), sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
     if len(data) > MAX_CONFIG_BYTES:
         fail("supervisor receipt exceeds its bound")
@@ -954,7 +979,7 @@ def receipt_payload(
 def supervise(plan: RuntimePlan) -> dict[str, object]:
     """Start, independently observe, probe, stop, and receipt one runtime."""
 
-    private_directory(plan.receipt_root, "supervisor receipt root", owner=os.geteuid(), mode=0o700)
+    private_directory(plan.receipt_root, SUPERVISOR_RECEIPT_ROOT, owner=os.geteuid(), mode=0o700)
     process: subprocess.Popen[bytes] | None = None
     start_ticks: int | None = None
     observation: ProcessObservation | None = None
@@ -1008,8 +1033,8 @@ def parsed_plan(arguments: argparse.Namespace) -> RuntimePlan:
     return RuntimePlan(
         target_sha=required_target_sha(arguments.target_sha),
         run_id=required_run_id(arguments.run_id),
-        sealed_root=normalized_absolute(arguments.sealed_root, "sealed artifact root"),
-        receipt_root=normalized_absolute(arguments.receipt_root, "supervisor receipt root"),
+        sealed_root=normalized_absolute(arguments.sealed_root, SEALED_ARTIFACT_ROOT),
+        receipt_root=normalized_absolute(arguments.receipt_root, SUPERVISOR_RECEIPT_ROOT),
         binary=ArtifactSpec(
             normalized_absolute(arguments.binary, "Lighttpd binary"),
             required_sha256(arguments.binary_sha256, "Lighttpd binary SHA-256"),
@@ -1034,7 +1059,7 @@ def parsed_plan(arguments: argparse.Namespace) -> RuntimePlan:
             for index, (path, digest) in enumerate(arguments.sealed_artifact, start=1)
         ),
         library_directories=tuple(
-            normalized_absolute(value, "sealed library directory") for value in arguments.library_dir
+            normalized_absolute(value, SEALED_LIBRARY_DIRECTORY) for value in arguments.library_dir
         ),
         port=arguments.port,
         runtime_uid=arguments.runtime_uid,
