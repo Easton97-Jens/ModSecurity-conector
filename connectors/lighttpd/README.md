@@ -69,8 +69,15 @@ The referenced Common runtime file uses `key=value` syntax. Supported values
 include rule sources, transaction-ID settings, body policy and limits,
 block/error statuses, event path, and header/resource limits. The stock
 Phase-1 module requires both body modes to be `none`. The separately selected
-patched build accepts `none` or `streaming` for each body direction, but its
-response streaming contract is restricted to HTTP/1.1 identity entity bytes.
+patched build accepts `none` or `streaming` for a body direction only in its
+documented selected scope. For `request_body_mode=streaming`, the selected
+HTTP/1.1 `mod_proxy` profile is a pre-upstream Phase-2 gate, not upstream
+request streaming: lighttpd buffers client bytes until terminal EOS and the
+Phase-2 decision. An allowed chunked request may then be forwarded as
+`Content-Length`. Because this gate retains the host queue until EOS, its
+streaming profile requires `body_limit_action=reject`; `process_partial` is
+rejected while request streaming is selected. The response streaming contract
+remains restricted to HTTP/1.1 identity entity bytes.
 The checked-in patched smoke still uses both modes as `none`; setting its
 preparer to response streaming is a configuration/source-contract check, not a
 Phase-4 promotion. `LIGHTTPD_PATCHED_ENTITY_ENCODING=gzip` or `br` is blocked
@@ -79,6 +86,30 @@ until the filter order and decompression behavior have real host evidence.
 `config/lighttpd-native.conf` is a documented example; its two absolute
 placeholder paths must be replaced. The native harness generates a runnable
 configuration with managed absolute paths.
+
+## HTTP/1.1 pre-upstream Phase-2 gate
+
+This bounded profile requires `mod_proxy` before `mod_msconnector` in
+`server.modules`, HTTP/1.1, a positive Common request-body limit,
+`body_limit_action=reject`, and the patched host/module pair. The connector
+suppresses active host request streaming before each body read. ModSecurity
+still receives borrowed body ranges, but no request byte may connect to or
+reach the proxy upstream until terminal EOS has produced an allow decision.
+The retained-body bound comes from the positive Common `request_body_limit`
+(default 1 MiB) and rejecting read cycle; the module does not assign
+`server.max-request-size`, which remains a host-level defense-in-depth limit.
+
+The repository-owned gate runner validates a delayed Phase-2 marker as `403`
+with zero preterminal upstream connections, and a delayed benign chunked
+32-byte request as `200` only after EOS; lighttpd forwarded that allowed
+request as `Content-Length`. Preconfigured `server.stream-request-body`, an
+`Incremental` request, and an explicitly enabled body-bearing `Upgrade` plus
+`gw.upgrade-with-request-body` request are rejected with `501` before an
+upstream connection. It also verifies that a streaming configuration with
+`body_limit_action=process_partial` fails to load before a listener or
+upstream connection exists. HTTP/2, HTTP/3, other stream handlers,
+response-body P4, and unrestricted upstream request streaming remain outside
+this profile.
 
 ## Build and validation
 
@@ -120,6 +151,9 @@ evidence.
 
 The current runtime evidence supports only `minimal_runtime_smoke` / a
 `partial_runtime_path` for request and response headers and a Phase-1 deny.
+It additionally supports the narrowly scoped HTTP/1.1 `mod_proxy` Phase-2
+pre-upstream gate described above; it does not promote a general request
+streaming, protocol, P4, CRS, or production-readiness claim.
 The patched-core compile and module-object checks establish a release-pinned
 source/build contract, not a real response-body host run. It does not establish:
 

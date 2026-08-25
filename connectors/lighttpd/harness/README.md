@@ -42,6 +42,34 @@ response-body, Phase-4, or capability-promotion evidence.
 Request/response body evidence, CRS, production hardening, security
 verification, and full-matrix evidence are not provided by this harness.
 
+## HTTP/1.1 pre-upstream Phase-2 gate runner
+
+`run_phase2_pre_upstream_gate.py` is a separate repository-owned runner for
+the selected patched HTTP/1.1 `mod_proxy` request-body profile. It takes a
+fresh task-owned root, staged matching lighttpd binary/module, rules file, and
+the libmodsecurity directory; it allocates three distinct private IPv4-loopback
+ports itself. It starts only foreground task-owned processes and records
+bounded framing/counter metadata, never request payloads.
+
+The runner proves that delayed chunked Phase-2 deny bytes do not connect to or
+reach the upstream before terminal EOS, that a delayed benign chunked allow
+is forwarded only after EOS/allow, and that the host re-frames that allowed
+request as one unchunked `Content-Length` delivery equal to the retained body
+size. It also requires `501` with no new upstream
+connection for `Incremental`, configured `server.stream-request-body`, and
+explicitly enabled body-bearing `Upgrade` plus `gw.upgrade-with-request-body`.
+It also requires configuration loading to reject streaming with
+`body_limit_action=process_partial` before a listener or upstream connection
+exists. A terminal host-side `501` uses logging finalization only: it records
+the audit phase exactly once without synthesizing request-body EOS or a
+Phase-2 decision. It is request-body P2 evidence only; it does not promote
+response-body P4, CRS, HTTP/2/HTTP/3, unrestricted streaming, or
+production-readiness claims.
+
+The streaming profile's retained-body bound comes from its positive Common
+`request_body_limit` and rejecting read cycle. This runner does not configure
+or prove an independent `server.max-request-size` host limit.
+
 ## No-CRS fixture isolation and cleanup
 
 The No-CRS baseline uses the trusted namespace runner

@@ -22,7 +22,7 @@ eigene Transaktion und Mapper-Storage.
 | Lifecycle-Bereich | Ausgewählte lighttpd-Verantwortung | Grenze |
 | --- | --- | --- |
 | P1 | URI-/Request-Header mappen und eine zulässige Request-Entscheidung anwenden | Der enge Smoke ist keine breite Hostgarantie |
-| P2 | Gepatchte geliehene Request-Body-Range nur im ausgewählten Modus verwenden | Buffered-Request-Modus liegt außerhalb des ausgewählten Pfads |
+| P2 | Gepatchte geliehene Request-Body-Ranges inspizieren, während das ausgewählte HTTP/1.1-`mod_proxy`-Gate bis EOS puffert | Nur ein Phase-2-Allow darf den Upstream erreichen; dies ist kein allgemeines Upstream-Streaming |
 | P3 | Response-Metadaten bei Response-Start mappen | Response-Status-/Action-Semantik bleibt hostspezifisch |
 | P4 | Identity-Entity-Ranges vor HTTP/1-Transfer-Framing empfangen und einmal bei EOS abschließen | Kein Socket-Queue-Callback und keine connector-eigene Body-Queue |
 | Cleanup | Mapper-Storage und Transaktion bei Request-Reset freigeben | Statische Lifetime-Checks sind kein Nachweis für Langzeitresilienz |
@@ -42,6 +42,31 @@ Kompatibilitätsfelder, Profile und Validierungsdetails stehen in der
 [lighttpd-Konfigurationsreferenz](../../examples/lighttpd/configuration-reference.de.md).
 Das ausgewählte native Profil ist vom beibehaltenen Sidecar-Proxy-
 Kompatibilitätsbeispiel getrennt.
+
+## HTTP/1.1-Pre-Upstream-Phase-2-Gate
+
+Für `request_body_mode=streaming` unterdrückt das ausgewählte gepatchte
+HTTP/1.1-`mod_proxy`-Profil aktives Host-Request-Streaming vor jedem
+Body-Lesen. Der Host puffert Request-Bytes deshalb bis zu terminalem EOS und
+der Phase-2-Allow-Entscheidung; erst dann darf der Proxy verbinden und den
+Request weiterleiten. Der validierte verzögerte Allow-Gegenfall wurde am
+Upstream als `Content-Length` neu gerahmt.
+
+Das Profil verlangt `mod_proxy` vor `mod_msconnector`, ein positives Common-
+Request-Body-Limit, `body_limit_action=reject` und das passende
+gepatchte Host-/Modulpaar. Es weist vorab konfigurierte
+`server.stream-request-body`, `Incremental` und ausdrücklich aktivierte
+body-tragende `Upgrade`- plus `gw.upgrade-with-request-body`-Anfragen vor
+einer Upstream-Verbindung mit `501` ab. Eine Streaming-Konfiguration mit
+`body_limit_action=process_partial` wird bereits beim Laden der Konfiguration
+vor einem Listener oder einer Upstream-Verbindung abgewiesen. Dies ist kein
+Claim für HTTP/2, HTTP/3, andere Stream-Handler, Response-Body-P4,
+unbeschränktes Upstream-Streaming oder Production-Readiness.
+
+Die Grenze für den zurückgehaltenen Body beruht auf dem positiven Common-
+`request_body_limit` (standardmäßig 1 MiB) und einem ablehnenden Lesezyklus.
+Das Modul konfiguriert `server.max-request-size` nicht; dieser Wert bleibt eine
+unabhängige Host-seitige Defense-in-Depth-Grenze.
 
 ## P1--P4-Lifecycle und Entity-Body-Grenze
 
@@ -67,6 +92,13 @@ ausgewählten Vertrags.
 <code>make check-lighttpd-config</code> prüft reales Modul-/Konfigurationsladen;
 das ausgewählte Lifecycle-Target führt eine laufbezogene Hostübung aus. Der
 enge native Smoke kann nur seine angegebene Request-Pfad-Beobachtung belegen.
+`connectors/lighttpd/harness/run_phase2_pre_upstream_gate.py` liefert zusätzlich
+einen Repository-eigenen, payload-sicheren Loopback-Nachweis: Ein verzögerter
+Phase-2-Marker endete mit `403` und null Upstream-Verbindungen vor EOS, und
+ein verzögerter benigner Chunked-Request erreichte den Upstream erst nach
+EOS/Allow.
+Der gleiche Runner belegt die profil-lokale `process_partial`-
+Konfigurationsablehnung, ohne Request-Nutzdaten aufzubewahren.
 P4- und Late-Intervention-Facets bleiben nicht ausgeführt oder
 capability-selected, bis reale Host-/Client-Artefakte Timing und sichtbares
 Ergebnis belegen. Siehe [Tests und Nachweise](../testing-and-evidence.de.md).

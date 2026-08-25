@@ -66,25 +66,63 @@ msconnector.enabled = "enable"
 msconnector.config-file = "/absolute/path/msconnector-runtime.conf"
 ```
 
-Die referenzierte Common Runtime-Datei verwendet die `key=value`-Syntax. Unterstützte Werte
-Dazu gehören Regelquellen, Transaktions-ID-Einstellungen, Body-Richtlinien und -Limits.
-Block-/Fehlerstatus, Ereignispfad und Header-/Ressourcengrenzen. Die Aktie
-Für das Phase-1-Modul müssen beide Körpermodi `none` sein. Die separat ausgewählten
-Der gepatchte Build akzeptiert `none` oder `streaming` für jede Körperrichtung, aber es ist
-Der Antwort-Streaming-Vertrag ist auf HTTP/1.1-Identitätsentitätsbytes beschränkt.
-Der eingecheckte gepatchte Smoke-Test verwendet weiterhin beide Modi als `none`; Einstellung seiner
-Beim Streaming vom Vorbereiter zur Antwort handelt es sich um eine Konfigurations-/Quellvertragsprüfung, nicht um eine
-Phase-4-Förderung. `LIGHTTPD_PATCHED_ENTITY_ENCODING=gzip` oder `br` ist blockiert
-bis die Filterreihenfolge und das Dekomprimierungsverhalten echte Host-Beweise haben.
+Die referenzierte Common-Runtime-Datei verwendet die `key=value`-Syntax. Zu
+den unterstützten Werten gehören Regelquellen, Transaktions-ID-Einstellungen,
+Body-Richtlinien und -Limits, Block-/Fehlerstatus, Ereignispfad sowie Header-
+und Ressourcengrenzen. Für das Stock-Phase-1-Modul müssen beide Body-Modi
+`none` sein. Der separat ausgewählte gepatchte Build akzeptiert `none` oder
+`streaming` für eine Body-Richtung nur im dokumentierten ausgewählten Scope.
+Für `request_body_mode=streaming` ist das ausgewählte HTTP/1.1-`mod_proxy`-
+Profil ein Pre-Upstream-Phase-2-Gate und kein Upstream-Request-Streaming:
+lighttpd puffert Client-Bytes bis zum terminalen EOS und zur Phase-2-
+Entscheidung. Ein erlaubter Chunked-Request kann danach als
+`Content-Length` weitergeleitet werden. Weil dieses Gate die Host-Queue bis
+EOS behält, verlangt sein Streaming-Profil `body_limit_action=reject`;
+`process_partial` wird bei ausgewähltem Request-Streaming abgewiesen. Der
+Response-Streaming-Vertrag bleibt auf HTTP/1.1-Identity-Entity-Bytes
+beschränkt.
+Der eingecheckte gepatchte Smoke-Test verwendet weiterhin beide Modi als
+`none`; eine Umstellung seines Preparers auf Response-Streaming ist eine
+Konfigurations-/Quellvertragsprüfung und keine Phase-4-Promotion.
+`LIGHTTPD_PATCHED_ENTITY_ENCODING=gzip` oder `br` bleibt blockiert, bis
+Filterreihenfolge und Dekomprimierungsverhalten durch echte Host-Beweise
+belegt sind.
 
-`config/lighttpd-native.conf` ist ein dokumentiertes Beispiel; Es sind zwei Absolute
-Platzhalterpfade müssen ersetzt werden. Der native Harness generiert ein Runnable
-Konfiguration mit verwalteten absoluten Pfaden.
+`config/lighttpd-native.conf` ist ein dokumentiertes Beispiel; seine zwei
+absoluten Platzhalterpfade müssen ersetzt werden. Der native Harness erzeugt
+eine ausführbare Konfiguration mit verwalteten absoluten Pfaden.
+
+## HTTP/1.1-Pre-Upstream-Phase-2-Gate
+
+Dieses begrenzte Profil verlangt `mod_proxy` vor `mod_msconnector` in
+`server.modules`, HTTP/1.1, ein positives Common-Request-Body-Limit,
+`body_limit_action=reject` sowie das gepatchte Host-/Modulpaar. Der Connector
+unterdrückt aktives Host-Request-Streaming vor jedem Body-Lesen. ModSecurity
+erhält weiterhin geliehene Body-Ranges, aber kein Request-Byte darf den Proxy-
+Upstream verbinden oder erreichen, bevor terminales EOS eine Allow-
+Entscheidung erzeugt hat.
+Die Grenze für den zurückgehaltenen Body ergibt sich aus dem positiven Common-
+`request_body_limit` (standardmäßig 1 MiB) und dem ablehnenden Lesezyklus;
+das Modul setzt `server.max-request-size` nicht, sodass dieser Wert eine
+zusätzliche Host-seitige Defense-in-Depth-Grenze bleibt.
+
+Der Repository-eigene Gate-Runner validiert einen verzögerten Phase-2-Marker
+als `403` mit null Upstream-Verbindungen vor EOS sowie einen verzögerten
+benignen 32-Byte-Chunked-Request als `200` erst nach EOS; lighttpd leitete
+diesen erlaubten Request als `Content-Length` weiter. Vorab konfigurierte
+`server.stream-request-body`, eine `Incremental`-Anfrage und eine ausdrücklich
+aktivierte body-tragende `Upgrade`- plus `gw.upgrade-with-request-body`-Anfrage
+werden vor einer Upstream-Verbindung mit `501` abgewiesen. Der Runner prüft
+außerdem, dass eine Streaming-Konfiguration mit
+`body_limit_action=process_partial` vor einem Listener oder einer Upstream-
+Verbindung nicht geladen wird. HTTP/2, HTTP/3, andere Stream-Handler,
+Response-Body-P4 und unbeschränktes Upstream-Request-Streaming bleiben
+außerhalb dieses Profils.
 
 ## Build und Validierung
 
-Build, Bridge-Selbsttest, Konfigurationsprüfung, Start-Smoke und Runtime-Smoke sind verfügbar
-separate Vorgänge:
+Build, Bridge-Selbsttest, Konfigurationsprüfung, Start-Smoke und Runtime-Smoke
+sind getrennte Vorgänge:
 
 ```sh
 make -C connectors/lighttpd build-lighttpd-bridge
@@ -121,6 +159,9 @@ Beweise.
 
 Der aktuelle Laufzeitnachweis unterstützt nur `minimal_runtime_smoke` / a
 `partial_runtime_path` für Anforderungs- und Antwortheader und eine Phase-1-Verweigerung.
+Er unterstützt zusätzlich das oben beschriebene eng begrenzte HTTP/1.1-
+`mod_proxy`-Pre-Upstream-Phase-2-Gate; dies fördert keinen allgemeinen
+Request-Streaming-, Protocol-, P4-, CRS- oder Production-Readiness-Claim.
 Die Patched-Core-Kompilierung und die Modulobjektprüfungen stellen eine Release-Anheftung her
 Quell-/Build-Vertrag, kein echter Antworttext-Hostlauf. Es stellt nicht fest:
 

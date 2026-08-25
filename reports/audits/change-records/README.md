@@ -18,6 +18,13 @@ reports without an explicit repository-policy decision or user decision.
   Gitlink, workflow, protected NGINX boundary, hosted result, ready state, or
   merge is asserted.
 
+- [CR-20260825-lighttpd-phase2-pre-upstream-gate](CR-20260825-lighttpd-phase2-pre-upstream-gate.md)
+  | [Deutsch](CR-20260825-lighttpd-phase2-pre-upstream-gate.de.md) — the
+  user-authorized Parent-only Phase-2 pre-upstream admission gate for the
+  selected patched Lighttpd HTTP/1.1 `mod_proxy` path. It records local runtime
+  proof, merged PR #339 as the inherited `master` ABI baseline, and that a
+  Draft PR—not a merge—is the permitted delivery state.
+
 - [CR-20260823-pr309-lighttpd-config-reference-repair](CR-20260823-pr309-lighttpd-config-reference-repair.md)
   | [Deutsch](CR-20260823-pr309-lighttpd-config-reference-repair.de.md) — the
   Parent-only successor repair restores the closed Lighttpd configuration-
