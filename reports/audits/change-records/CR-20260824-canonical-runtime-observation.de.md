@@ -125,9 +125,21 @@ offenbarte eine weitere externe Shape-Inkompatibilität: Nachdem Envoy,
 Lighttpd und Traefik jeweils erfolgreiche Host-Runtime und Parent-
 Normalisierung gemeldet hatten, wies der strikte Consumer
 `event.host_configuration.reachability_status` zurück. Apache und HAProxy
-bestanden. Diese vierte enge Parent-only-Korrektur bewahrt Reachability nur im
-Raw-Host-Log und in der kanonischen Runtime-Observation und lässt sie aus dem
-Legacy-externen Event aus. `FND-SONAR-0060` bleibt verfolgt, bis der neue
+bestanden. Die vierte enge Parent-only-Korrektur ließ dieses Parent-only-Feld
+aus dem externen Event aus und bewahrte es im ursprünglichen Host-Producer-
+Summary sowie in der kanonischen Runtime-Observation. Ihr exakter
+SonarQube-Cloud-Check `97639330346` für
+`50955796133b7b29ab601f86e4fe5ffa7030f707` hatte erneut null New Issues, doch
+der terminale Workflow `32793251039` offenbarte die nächste strikte
+Kompatibilitätsabweichung: Externe Host-Configuration- und Cleanup-Werte müssen
+kleingeschrieben `passed` sein, während Parents typisierte/kanonische Fakten
+`PASS` bleiben. Der öffentliche Vertrag bindet außerdem die Raw-
+Kompatibilitätsrecords exakt; sie dürfen keine Parent-only-Adapter-,
+Reachability- oder Intervention-Felder tragen. Diese fünfte enge Parent-only-
+Korrektur mappt nur bereits verifizierte Parent-PASS-Fakten auf das Framework-
+Literal in den externen und Raw-Kompatibilitätsansichten; sie behält den
+ursprünglichen Producer-Summary, die kanonischen Assertions und das Top-Level-
+Event `status: "PASS"` bei. `FND-SONAR-0060` bleibt verfolgt, bis der neue
 exakte gepushte Head erneut null New Issues ohne Suppression oder Scanner-
 Control-Änderung nachweist.
 
@@ -155,17 +167,18 @@ Control-Änderung nachweist.
 
 | Check | Tatsächliches Ergebnis |
 | --- | --- |
-| `python3 -m unittest -q tests.test_runtime_observation_contract tests.test_with_crs_no_mrts_runtime` | Nach dem vierten Runtime-Follow-up bestanden: `126 tests in 92.700s`. Dies deckt die verlangten Identity-, Union-, Compound-, Explicit-Fact-, Aggregate-, HAProxy-, NGINX-, Path-/Evidence- und No-Fabricated-PASS-Regressionen ab. |
+| `python3 -m unittest -q tests.test_runtime_observation_contract tests.test_with_crs_no_mrts_runtime` | Nach dem fünften Runtime-Follow-up bestanden: `127 tests in 62.442s`. Dies deckt die verlangten Identity-, Union-, Compound-, Explicit-Fact-, Aggregate-, HAProxy-, NGINX-, Path-/Evidence-, Exact-External-Record- und No-Fabricated-PASS-Regressionen ab. |
 | Fokussierte Runtime-Follow-up-Regression (`test_envoy_intervention_rule_id_accepts_only_canonical_json_values` plus All-Connector-Normalizer-Realisation) | Bestanden: `2 tests in 8.541s`. Sie führt den exakten Envoy-Inline-Parser mit der produktiven JSON-Text-Form aus und weist nichtkanonische oder unbegrenzte Formen ab; außerdem bestätigt sie, dass das externe Event `framework_case` auslässt, während das kanonische Aggregat gültig bleibt. |
 | Fokussierte vierte Runtime-Follow-up-Regression (All-Connector-Normalizer-Realisation und exakte External-Event-Records) | Bestanden: `2 tests in 10.843s`. Sie bestätigt, dass die kanonische Runtime-Observation `reachability.observed == {"status": "PASS"}` behält, während das externe `event.host_configuration` `reachability_status` auslässt. |
-| Benutzergeforderter kombinierter Verbose-Befehl mit `tests.test_ci_security_workflows` | Die `126` Contract-/Normalizer-Cases bestanden; der Befehl führte `127` Einträge in `41.392s` aus, wobei das letzte Modul wegen des fehlenden lokalen `PyYAML`-Imports als ein Fehler gemeldet wurde. Keine Dependency wurde installiert oder geändert. |
-| `tests.test_runtime_path_security`, `tests.test_evidence_output_security`, `tests.test_bilingual_docs` und `tests.test_envoy_transport_hardening_contract` | Nach dem vierten Runtime-Follow-up bestanden: `70 tests in 10.468s`. |
-| Direkte `tests.test_bilingual_docs`-Bestätigung | Nach der finalen Change-Record-Aktualisierung erneut bestanden: `22 tests in 0.288s`. |
+| Fokussierte fünfte Runtime-Follow-up-Regression (All-Connector-External-Event, exakte Raw-Records und PASS-zu-`passed`-Mapper) | Bestanden: `3 tests in 10.173s`. Sie beweist, dass die kanonische Reachability `PASS` bleibt, die strikten externen Werte `passed` sind, die Raw-Kompatibilitätsrecords exakt die veröffentlichten Felder haben und kein unverifizierter Wert zu `passed` gemappt werden kann. |
+| Benutzergeforderter kombinierter Verbose-Befehl mit `tests.test_ci_security_workflows` | Die `127` Contract-/Normalizer-Cases bestanden; der Befehl führte `128` Einträge in `42.928s` aus, wobei das letzte Modul wegen des fehlenden lokalen `PyYAML`-Imports als ein Fehler gemeldet wurde. Keine Dependency wurde installiert oder geändert. |
+| `tests.test_runtime_path_security`, `tests.test_evidence_output_security`, `tests.test_bilingual_docs` und `tests.test_envoy_transport_hardening_contract` | Nach dem fünften Runtime-Follow-up bestanden: `70 tests in 7.575s`. |
+| Direkte `tests.test_bilingual_docs`-Bestätigung | Nach der finalen Change-Record-Aktualisierung erneut bestanden: `22 tests in 0.274s`. |
 | Shell-Syntax des CRS/no-MRTS-Runner- und Envoy-Harness-Skripts | Bestanden. |
 | Erforderliche `py_compile`-Dateien | Bestanden: Exit `0`. |
 | `python3 -m json.tool ci/runtime/contracts/runtime-observation.schema.json /dev/null` | Bestanden. |
 | `git diff --check` | Bestanden. |
-| Security-Diff-Review | Der versiegelte Scan für `a7b8cc19` endete mit null reportable Findings. Nachfolgende fokussierte Delta-Reviews des verbleibenden semantischen Refactors und des dritten Parser-/Kompatibilitäts-Follow-ups fanden ebenfalls kein reportable Finding. Der frische Review dieser vierten External-Field-Auslassung fand weder ein reportable Finding noch einen False-PASS-Pfad: kanonische Reachability, Raw-Evidence, Digest-Binding und fail-closed Validation bleiben intakt. Der Same-UID-Private-Runner-Writer ist eine explizite Trusted-Runner-Boundary-Einschränkung, kein stillschweigend unterdrücktes Finding. |
+| Security-Diff-Review | Der versiegelte Scan für `a7b8cc19` endete mit null reportable Findings. Nachfolgende fokussierte Delta-Reviews des verbleibenden semantischen Refactors sowie des dritten/vierten Kompatibilitäts-Follow-ups fanden ebenfalls kein reportable Finding. Der frische Review dieses fünften Exact-Record-/Mapping-Deltas fand weder ein reportable Finding noch einen False-PASS-Pfad: Der Mapper weist jeden Nicht-`PASS`-Wert zurück; kanonische Assertions, ursprüngliche Producer-Summaries und Digest-Bindings bleiben aktiv. Der Same-UID-Private-Runner-Writer ist eine explizite Trusted-Runner-Boundary-Einschränkung, kein stillschweigend unterdrücktes Finding. |
 
 Die genaue lokale `PyYAML`-Import-Einschränkung ist eine Umgebungs-Evidence-
 Lücke, kein Produkt-Erfolg und kein Grund, den CI-Security-Test zu schwächen.
@@ -196,11 +209,14 @@ Issues. Der erste normale Successor
 Successor `ee7585250f2d7af6279a5fd1b847b76a87a15c99` bestand den exakten Check
 `97624800934` mit null New Issues. Der dritte enge Successor
 `efc2505b76734c19a0ca5766dabb268678dabc12` bestand den exakten Check
-`97632932827` mit null New Issues und null Annotations. Dieses Ergebnis beweist
-nicht diesen vierten korrektiven Successor: Sein eigenes Exact-Head-Sonar-
-Ergebnis muss erneut null New Issues zeigen, bevor die Delivery verifiziert ist.
-Es wurde keine Suppression, kein `NOSONAR`, keine Exclusion, Acceptance,
-Quality-Gate-Änderung oder Coverage-Workflow-Änderung vorgenommen.
+`97632932827` mit null New Issues und null Annotations. Der vierte enge
+Successor `50955796133b7b29ab601f86e4fe5ffa7030f707` bestand den exakten Check
+`97639330346` mit null New Issues, null Accepted Issues, null Security
+Hotspots, null Annotations und null New-Code-Duplikation. Dieses Ergebnis
+beweist nicht diesen fünften korrektiven Successor: Sein eigenes Exact-Head-
+Sonar-Ergebnis muss erneut null New Issues zeigen, bevor die Delivery
+verifiziert ist. Es wurde keine Suppression, kein `NOSONAR`, keine Exclusion,
+Acceptance, Quality-Gate-Änderung oder Coverage-Workflow-Änderung vorgenommen.
 
 ```text
 No Python coverage report is supplied to SonarCloud.
@@ -227,11 +243,21 @@ verbotene externe Feld `host_configuration.reachability_status` zurückwies.
 Dies ist ein Downstream-External-Event-Shape-Defekt, kein Nachweis einer
 fehlgeschlagenen Reachability oder eines fabrizierten PASS.
 
+Der exakte Successor-Workflow `32793251039` für `50955796` endete anschließend
+ohne Retry terminal fehlgeschlagen: Apache und HAProxy bestanden; Envoy,
+Lighttpd und Traefik meldeten wieder Host-Runtime und Parent-Normalisierung
+PASS, bevor der strikte Consumer `host_configuration.config_test_status`
+zurückwies, weil der Wert `PASS` statt der veröffentlichten externen Konstante
+`passed` war. Die schreibfreie Inspektion der öffentlichen Schnittstelle belegt
+außerdem exakte Raw-Kompatibilitätsrecord-Felder und kleingeschriebenen
+Cleanup-Status; die fünfte Korrektur behandelt diese bekannten strikten Shape-
+Abweichungen zusammen.
+
 ## Bekannte Einschränkungen
 
 Es wurden weder Apache- noch HAProxy-Live-Producer implementiert, keine
 Live-Six-Connector-by-Four-Profile-Matrix behauptet und Framework/MRTS nicht
-initialisiert oder verändert. Die vierte Parent-only-Reparatur erfordert jetzt
+initialisiert oder verändert. Die fünfte Parent-only-Reparatur erfordert jetzt
 einen neuen normalen Push sowie frische Exact-Head-GitHub-Workflow-, SonarQube-
 Cloud- und anwendbare PR-Check-Evidence. Jeder Fehler erfordert Log-basierte
 Diagnose vor einem weiteren Commit.
@@ -247,8 +273,11 @@ Kompatibilitätsform-Follow-ups fand ebenfalls kein reportable Security-Finding
 oder False-PASS-Bypass. Der frische Review dieser vierten External-Field-
 Auslassung fand ebenfalls weder ein reportable Finding noch einen False-PASS-
 Pfad; kanonische Reachability, Raw-Evidence, Digest-Binding und fail-closed
-Validation bleiben aktiv. Keine Security-Control oder Trust-Boundary wurde für
-diese Änderung gelockert.
+Validation bleiben aktiv. Der frische Review dieses fünften Exact-Record- /
+Mapping-Deltas fand ebenfalls weder ein reportable Finding noch einen False-
+PASS-Pfad: Der Mapper weist jeden Nicht-`PASS`-Wert zurück, während kanonische
+Assertions, ursprüngliche Producer-Summaries und Digest-Bindings aktiv bleiben.
+Keine Security-Control oder Trust-Boundary wurde für diese Änderung gelockert.
 
 ## Verbleibende Risiken
 
@@ -270,6 +299,9 @@ Fehler des letzteren wurde aus den exakten Envoy-, Lighttpd- und Traefik-Logs
 diagnostiziert; die dritte enge Parent-only-Korrektur erreichte null Exact-Head-
 Sonar-Issues, doch ihr eigener terminaler Runtime-Fehler wurde erneut aus den
 exakten Envoy-, Lighttpd- und Traefik-Logs diagnostiziert. Diese vierte enge
+Parent-only-Korrektur ging dem normalen Commit/Push `50955796` voraus, dessen
+exakter Sonar-Check erneut null New Issues erreichte, dessen terminaler Runtime-
+Fehler aber aus denselben drei Logs diagnostiziert wurde. Diese fünfte enge
 Parent-only-Korrektur geht dem nächsten normalen Follow-up-Commit/-Push voraus.
 Danach müssen alle Exact-Head-Checks, SonarQube Cloud und `Connector runtime
 with CRS and no MRTS` erneut beobachtet werden. PR #338 bleibt Draft; Merge,

@@ -924,9 +924,25 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                 # artifact.  The richer Parent-only case remains solely in
                 # the canonical observation above.
                 self.assertNotIn("framework_case", event)
+                self.assertEqual(
+                    set(event["host_configuration"]),
+                    {
+                        "config_test_status",
+                        "host_start_status",
+                        "evidence_path",
+                        "evidence_sha256",
+                    },
+                )
+                self.assertEqual(
+                    event["host_configuration"]["config_test_status"], "passed"
+                )
+                self.assertEqual(
+                    event["host_configuration"]["host_start_status"], "passed"
+                )
                 self.assertNotIn("reachability_status", event["host_configuration"])
                 self.assertNotIn("framework_execution_status", event["host_configuration"])
                 self.assertNotIn("framework_validation_status", event["host_configuration"])
+                self.assertEqual(event["cleanup"]["status"], "passed")
                 self.assertEqual(canonical["identity"]["profile"], "with-crs-no-mrts")
                 self.assertEqual(
                     canonical["identity"]["adapter_id"], event["adapter_id"]
@@ -1051,6 +1067,13 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, message):
                     NORMALIZER.observed_http_status(record, "Lighttpd block", 403)
 
+    def test_framework_passed_status_requires_an_explicit_parent_pass(self) -> None:
+        self.assertEqual(NORMALIZER.framework_passed_status("PASS", "test"), "passed")
+        for value in (None, "passed", "FAIL", True):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(RuntimeError, "verified Parent PASS"):
+                    NORMALIZER.framework_passed_status(value, "test")
+
     def test_normalizer_emits_exact_framework_key_value_raw_records(self) -> None:
         """Lock Parent raw files to Framework's non-JSON record grammar."""
         for connector in ("envoy", "traefik", "lighttpd"):
@@ -1145,14 +1168,7 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                         content = (raw_dir / name).read_text(encoding="utf-8")
                         self.assertFalse(content.startswith("{"), content)
                         actual = self.framework_raw_record(raw_dir / name)
-                        self.assertEqual(actual["schema_version"], "1")
-                        self.assertEqual(actual["record_type"], expected_fields["record_type"])
-                        self.assertEqual(actual["profile"], "five-connectors-with-crs-no-mrts")
-                        self.assertEqual(actual["connector"], connector)
-                        if name != "cleanup.log":
-                            self.assertEqual(actual["adapter_id"], event["adapter_id"])
-                            self.assertEqual(actual["integration_mode"], event["integration_mode"])
-                        self.assertEqual(actual["run_id"], run_id)
+                        self.assertEqual(actual, expected_fields)
 
     def test_normalizer_rejects_nonclean_no_mrts_observation(self) -> None:
         with tempfile.TemporaryDirectory(prefix="crs-no-mrts-observation-") as temporary:

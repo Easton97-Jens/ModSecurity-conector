@@ -689,6 +689,13 @@ def structured_status(
     return expected
 
 
+def framework_passed_status(value: object, label: str) -> str:
+    """Map one already verified Parent PASS fact to Framework's literal."""
+    if value != "PASS":
+        fail(f"{label} is not a verified Parent PASS")
+    return "passed"
+
+
 def structured_host_controls(record: dict[str, Any], label: str) -> dict[str, str]:
     """Return only explicit host control outcomes, never inferred PASS data.
 
@@ -1247,6 +1254,15 @@ def normalize(args: argparse.Namespace) -> Path:
     raw_inputs = host_raw_inputs(runtime_root, connector, observed)
     safe_token(request_id, "block request id")
     safe_token(transaction_id, "block transaction id")
+    framework_config_test_status = framework_passed_status(
+        observed["config_test_status"], "configuration test"
+    )
+    framework_host_start_status = framework_passed_status(
+        observed["host_start_status"], "host start"
+    )
+    framework_cleanup_status = framework_passed_status(
+        observed["cleanup_status"], "cleanup"
+    )
     run_dir = contained(evidence_root / "raw" / connector / run_id, evidence_root, "raw evidence")
     normalized_dir = contained(evidence_root / "normalized" / connector / run_id, evidence_root, "normalized evidence")
     host_file = run_dir / "host-configuration.log"
@@ -1260,19 +1276,16 @@ def normalize(args: argparse.Namespace) -> Path:
         "record_type": "host_configuration",
         "profile": PROFILE,
         "connector": connector,
-        "adapter_id": adapter,
         "integration_mode": mode,
         "run_id": run_id,
-        "config_test_status": observed["config_test_status"],
-        "host_start_status": observed["host_start_status"],
-        "reachability_status": observed["reachability_status"],
+        "config_test_status": framework_config_test_status,
+        "host_start_status": framework_host_start_status,
     }
     allow_record = {
         "schema_version": 1,
         "record_type": "allow_request",
         "profile": PROFILE,
         "connector": connector,
-        "adapter_id": adapter,
         "integration_mode": mode,
         "fixture_id": "crs_sqli_anomaly_block:allow",
         "run_id": run_id,
@@ -1283,15 +1296,13 @@ def normalize(args: argparse.Namespace) -> Path:
         "correlation_header": "X-Framework-Run-ID",
         "correlation_value": run_id,
         "payload_length": 0,
-        "expected_status": 200,
-        "observed_status": observed_statuses["allow"],
+        "status": observed_statuses["allow"],
     }
     block_record = {
         "schema_version": 1,
         "record_type": "block_audit",
         "profile": PROFILE,
         "connector": connector,
-        "adapter_id": adapter,
         "integration_mode": mode,
         "fixture_id": "crs_sqli_anomaly_block",
         "run_id": run_id,
@@ -1302,14 +1313,11 @@ def normalize(args: argparse.Namespace) -> Path:
         "correlation_header": "X-Framework-Run-ID",
         "correlation_value": run_id,
         "payload_length": 0,
-        "expected_trigger_rule_id": RULE_ID,
-        "observed_trigger_rule_id": canonical_trigger,
-        "expected_intervention_rule_id": 949110,
-        "observed_intervention_rule_id": int(observed["actual_intervention"]),
+        "expected_rule_id": RULE_ID,
+        "observed_rule_id": canonical_trigger,
         "expected_status": 403,
         "observed_status": observed_statuses["block"],
-        "expected_action": "deny",
-        "observed_action": observed["block_action"],
+        "intervention": observed["block_action"],
         "evidence_type": evidence_type,
     }
     cleanup_record = {
@@ -1317,9 +1325,8 @@ def normalize(args: argparse.Namespace) -> Path:
         "record_type": "cleanup",
         "profile": PROFILE,
         "connector": connector,
-        "adapter_id": adapter,
         "run_id": run_id,
-        "status": observed["cleanup_status"],
+        "status": framework_cleanup_status,
         "host_processes_remaining": int(cleanup_scan["host_processes_remaining"]),
         "helper_processes_remaining": int(cleanup_scan["helper_processes_remaining"]),
         "listeners_remaining": int(cleanup_scan["listeners_remaining"]),
@@ -1477,8 +1484,8 @@ def normalize(args: argparse.Namespace) -> Path:
             "evidence_sha256": digest(allow_file, evidence_root),
         },
         "host_configuration": {
-            "config_test_status": observed["config_test_status"],
-            "host_start_status": observed["host_start_status"],
+            "config_test_status": framework_config_test_status,
+            "host_start_status": framework_host_start_status,
             "evidence_path": f"raw/{connector}/{run_id}/host-configuration.log",
             "evidence_sha256": digest(host_file, evidence_root),
         },
@@ -1497,7 +1504,7 @@ def normalize(args: argparse.Namespace) -> Path:
             )
         },
         "cleanup": {
-            "status": observed["cleanup_status"],
+            "status": framework_cleanup_status,
             "host_processes_remaining": cleanup_record["host_processes_remaining"],
             "helper_processes_remaining": cleanup_record["helper_processes_remaining"],
             "listeners_remaining": cleanup_record["listeners_remaining"],
