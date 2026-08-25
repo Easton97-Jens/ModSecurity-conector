@@ -5,8 +5,8 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-HARNESS = ROOT / "harness" / "run_nginx_smoke.sh"
-TEMPLATE = ROOT / "harness" / "nginx_smoke.conf"
+HARNESS = ROOT / "connectors/nginx/harness/run_nginx_smoke.sh"
+TEMPLATE = ROOT / "connectors/nginx/harness/nginx_smoke.conf"
 
 
 class NginxMasterWorkerLifecycleContractTest(unittest.TestCase):

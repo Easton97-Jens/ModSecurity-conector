@@ -9,7 +9,7 @@
 | Change-ID | `CR-20260824-connector-runtime-parity` |
 | Datum (UTC) | `2026-08-24` |
 | Basis-Revision | `a6b4ced4876a19666f7c7203ed9e719674c69ec1` |
-| Scope | Nur Parent-Repository: fünf Connector-Source-/Testdateien und dieser gekoppelte Change Record. Keine Framework-/MRTS-/Gitlink-, Workflow-, Branch-Rule-, Required-Check-, CI-, Dependency- oder globalen Toolchain-Änderungen. |
+| Scope | Nur Parent-Follow-up: fünf Connector-Source-/Testdateien und dieser gekoppelte Change Record. Keine task-eigenen Framework-/MRTS-/Gitlink-, Workflow-, Branch-Rule-, Required-Check-, CI-, Dependency- oder globalen Toolchain-Änderungen. Ein späterer externer Merge von `master` in den bestehenden PR-Branch ist nicht Teil dieses Change Records. |
 
 ## Motivation und Problemstellung
 
@@ -55,6 +55,10 @@ entfernen.
   normalen Lauf als ungültig, erfasst erwartete initiale und Ersatz-Worker und
   schlägt fail closed fehl, wenn nach Shutdown verfolgte Prozesse, Listener,
   UDS-Pfade oder Runtime-Artefakte verbleiben.
+- Der statische NGINX-Lifecycle-Vertrag ist ein Repository-eigener Vertrag
+  unter `tests/`, kein Connector-lokaler ausführbarer Test. Der Umzug erhält
+  alle sieben Master-/Worker-Assertions und lässt das absichtlich verbotene
+  Verzeichnis `connectors/nginx/tests/` abwesend.
 
 ## Security-Auswirkung
 
@@ -73,7 +77,7 @@ durch diese Baseline nicht als abgeschlossen behauptet.
 - `connectors/lighttpd/tests/test_patched_host_contract.py`
 - `connectors/haproxy/harness/run_haproxy_smoke.sh`
 - `connectors/nginx/harness/run_nginx_smoke.sh`
-- `connectors/nginx/tests/test_master_worker_lifecycle_contract.py`
+- `tests/test_nginx_master_worker_lifecycle_contract.py`
 - `reports/audits/change-records/CR-20260824-connector-runtime-parity.md`
 - `reports/audits/change-records/CR-20260824-connector-runtime-parity.de.md`
 
@@ -91,11 +95,17 @@ durch diese Baseline nicht als abgeschlossen behauptet.
 | Finaler Patched-lighttpd-Hostlauf | Bestanden: Konfigurationsvalidierung, Allow `200`, Block `403` / Regel `1000001`, Connector-Event, geordneter Foreground-Host-Shutdown und Cleanup. Der gepatchte Host exportiert weiterhin beide Entity-Body-Hook-Symbole; dieser Lauf beansprucht kein P4. |
 | Finaler HAProxy-HTX-Lauf | Bestanden: realer Overlay-Host mit Konfigurations-/Readinessprüfung, Allow `200`, Block `403` und `processes_stopped=yes`. |
 | Finale HAProxy-SPOE/SPOP-Läufe | Getrennt bestanden: realer HAProxy `-db` + SPOA-Agent + Python-Backend Allow `200` und Block `403`; alle vier task-eigenen PID-/Readiness-Marker waren nach jedem Lauf abwesend. |
-| `python3 -m unittest connectors.nginx.tests.test_master_worker_lifecycle_contract` | Bestanden: 7 Tests. |
+| `python3 -m unittest tests.test_nginx_master_worker_lifecycle_contract` | Bestanden: 7 Tests. |
 | `sh -n connectors/nginx/harness/run_nginx_smoke.sh` | Bestanden. |
 | Finale NGINX-Transient-Service-Läufe | Bestanden: getrennte Allow-`200`-, Block-`403`- und forced-quit/`TERM`-fallback-Allow-`200`-Läufe; jeder config-testete, erreichte Readiness, nutzte root-Master plus `nobody:nogroup`-Worker, reloadete zu einem anderen Worker und beendete Cleanup mit Exit `0`. |
 | Lifecycle-disabled-NGINX-Negativkontrolle | Bestanden: Normaler Lauf endete vor Hoststart mit Exit `1`. |
 | `git diff --check` auf dem finalen Delivery-Diff | Bestanden. |
+| Exakter Follow-up-Befehl `Check common scaffold` in initialisierten Base- und korrigierten PR-Worktrees | Base und korrigierter PR bestanden; der ursprüngliche PR-Pfad stoppte bei `test ! -d connectors/nginx/tests`. |
+| Exakter Follow-up-Befehl `Check NGINX scaffold` in initialisierten Base- und korrigierten PR-Worktrees | Base und korrigierter PR bestanden; der ursprüngliche PR-Pfad stoppte bei demselben Prädikat für das verbotene Verzeichnis. |
+| Exakter Follow-up-Befehl für gepinnte Revisionen in initialisierten Base- und PR-Worktrees | Geerbten Fehler in beiden reproduziert: Parent-Vergleich bestand, danach unterschied sich Framework `7bf8b7cb...` vom festen Workflow-Pin `c40e924e...`; kein Hoststadium wurde erreicht. |
+| Fokussierte Follow-up-Static-Contracts für Lighttpd und NGINX | Bestanden: 43 Tests insgesamt; 2 namespace-gated Lighttpd-Skips. |
+| Getrennter Follow-up-Stock-lighttpd-Strict-C17-Modulbuild und Konfigurationsvalidierung | Mit `-Wall -Wextra -Werror` gegen gelocktes `1.4.85` bestanden; reales Stock-`lighttpd -tt` lud das neu gebaute Modul. |
+| Getrennter Follow-up-Patched-lighttpd-Strict-C17-Host-/Modulbuild und Konfigurationsvalidierung | Mit gelocktem `1.4.85` und Patch-SHA-256 `e00d3892...fa8b5` bestanden; der gepatchte Host behielt beide erforderlichen Hook-Exports und schloss reale `lighttpd -tt`-Validierung ab. |
 
 ## Runtime-Evidence
 
@@ -129,9 +139,18 @@ Fallback-Cleanup-Verhalten.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-- CI, Hosted-Checks, SonarCloud, Workflow-Ausführung und Required-Check-
-  Änderungen wurden absichtlich weder ausgeführt noch verändert, weil sie
-  außerhalb des autorisierten Scopes liegen.
+- Durch diesen Follow-up wurden keine CI- oder Workflow-Konfigurationen
+  verändert und keine Hosted Checks manuell ausgelöst. Das Öffnen beziehungsweise Aktualisieren des Pull
+  Requests löste vorhandene PR-Workflows automatisch aus. Deren tatsächlicher
+  Status wird getrennt von der lokalen Runtime-Evidence dokumentiert.
+- Am ursprünglichen Draft-PR-Head scheiterten die automatischen Common- und
+  NGINX-Scaffold-Checks, weil dieser statische Parent-Vertrag im verbotenen
+  Pfad `connectors/nginx/tests/` lag. Die automatischen With-CRS/No-MRTS-
+  Runtime-Jobs scheiterten vor Hostausführung am geerbten Framework-Pin-
+  Vergleich; dieser Base-/PR-Gitlink-Mismatch ist von der lokalen Runtime-
+  Evidence getrennt. Der spätere externe `master`-Merge aktualisierte dieses
+  geerbte Pin-/Gitlink-Tupel; seine automatischen Hosted-Ergebnisse bleiben
+  getrennte Evidence.
 - Es wurde keine globale Dependency-Installation und kein mutable Host-Source-
   Fallback verwendet.
 - `make check-bilingual-docs` und `make check-doc-links` wurden nach der
@@ -163,7 +182,8 @@ abgewählt.
 
 ## Finaler Diff- und Review-Status
 
-Der Nutzer autorisierte nur einen frischen task-eigenen Branch, normalen
-Commit, Push und Draft-PR. Weder Merge noch direkter `master`-Push,
-Framework-/MRTS-Modifikation, Gitlink-Update, CI-Aktion oder Protected-Check-
-Ergebnis ist autorisiert oder wird behauptet.
+Der Nutzer autorisierte einen isolierten Folgecommit und normalen Push nur auf
+dem bestehenden Draft-PR-#339-Branch. Weder Merge noch direkter `master`-Push,
+Framework-/MRTS-Modifikation, Gitlink-Update, CI- oder Workflow-
+Konfigurationsänderung durch diesen Follow-up, manueller Hosted-Check-Trigger
+oder Protected-Check-Ergebnis ist autorisiert oder wird behauptet.

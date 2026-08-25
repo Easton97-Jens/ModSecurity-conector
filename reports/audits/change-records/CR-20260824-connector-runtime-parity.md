@@ -9,7 +9,7 @@
 | Change ID | `CR-20260824-connector-runtime-parity` |
 | Date (UTC) | `2026-08-24` |
 | Base revision | `a6b4ced4876a19666f7c7203ed9e719674c69ec1` |
-| Scope | Parent repository only: five connector-source/test files and this paired Change Record. No Framework/MRTS/Gitlink, workflow, branch-rule, required-check, CI, dependency, or global-toolchain change. |
+| Scope | Parent follow-up only: five connector-source/test files and this paired Change Record. No task-owned Framework/MRTS/Gitlink, workflow, branch-rule, required-check, CI, dependency, or global-toolchain change. A later external merge of `master` into the existing PR branch is not part of this Change Record. |
 
 ## Motivation and problem statement
 
@@ -53,6 +53,10 @@ runtime markers after verified child termination.
   normal run, records expected initial and replacement workers, and fails
   closed when tracked processes, listeners, UDS paths, or runtime artifacts
   remain after shutdown.
+- The static NGINX lifecycle contract is a repository-owned `tests/` contract,
+  not a connector-local executable test. Moving it preserves all seven
+  master/worker assertions while leaving the intentionally prohibited
+  `connectors/nginx/tests/` directory absent.
 
 ## Security impact
 
@@ -70,7 +74,7 @@ not claimed complete by this baseline.
 - `connectors/lighttpd/tests/test_patched_host_contract.py`
 - `connectors/haproxy/harness/run_haproxy_smoke.sh`
 - `connectors/nginx/harness/run_nginx_smoke.sh`
-- `connectors/nginx/tests/test_master_worker_lifecycle_contract.py`
+- `tests/test_nginx_master_worker_lifecycle_contract.py`
 - `reports/audits/change-records/CR-20260824-connector-runtime-parity.md`
 - `reports/audits/change-records/CR-20260824-connector-runtime-parity.de.md`
 
@@ -88,11 +92,17 @@ not claimed complete by this baseline.
 | Final Patched-lighttpd host run | Passed: config validation, Allow `200`, Block `403` / rule `1000001`, connector event, orderly foreground-host shutdown, and cleanup. The patched host still exports both entity-body hook symbols; this run makes no P4 claim. |
 | Final HAProxy HTX run | Passed: real overlay host config/readiness, Allow `200`, Block `403`, and `processes_stopped=yes`. |
 | Final HAProxy SPOE/SPOP runs | Passed separately: real HAProxy `-db` + SPOA agent + Python backend Allow `200` and Block `403`; all four task-owned PID/readiness markers were absent after each run. |
-| `python3 -m unittest connectors.nginx.tests.test_master_worker_lifecycle_contract` | Passed: 7 tests. |
+| `python3 -m unittest tests.test_nginx_master_worker_lifecycle_contract` | Passed: 7 tests. |
 | `sh -n connectors/nginx/harness/run_nginx_smoke.sh` | Passed. |
 | Final NGINX transient-service runs | Passed: separate Allow `200`, Block `403`, and forced-quit/`TERM` fallback Allow `200`; each config-tested, reached readiness, used root master plus `nobody:nogroup` worker, reloaded to a distinct worker, and completed cleanup with exit `0`. |
 | Lifecycle-disabled NGINX negative control | Passed: normal run exited `1` before host start. |
 | `git diff --check` on the final delivery diff | Passed. |
+| Follow-up exact `Check common scaffold` command in initialized Base and corrected PR worktrees | Base and corrected PR passed; the original PR location stopped at `test ! -d connectors/nginx/tests`. |
+| Follow-up exact `Check NGINX scaffold` command in initialized Base and corrected PR worktrees | Base and corrected PR passed; the original PR location stopped at the same prohibited-directory predicate. |
+| Follow-up exact pinned-revision command in initialized Base and PR worktrees | Reproduced inherited failure in both: Parent comparison passed, then Framework `7bf8b7cb...` differed from fixed workflow pin `c40e924e...`; no host stage was reached. |
+| Follow-up focused Lighttpd and NGINX static contracts | Passed: 43 tests total; 2 namespace-gated Lighttpd skips. |
+| Follow-up separate Stock-lighttpd strict C17 module build and config validation | Passed with `-Wall -Wextra -Werror` against locked `1.4.85`; real Stock `lighttpd -tt` loaded the newly built module. |
+| Follow-up separate Patched-lighttpd strict C17 host/module build and config validation | Passed with locked `1.4.85` and patch SHA-256 `e00d3892...fa8b5`; the patched host retained both required hook exports and completed real `lighttpd -tt` validation. |
 
 ## Runtime evidence
 
@@ -125,9 +135,17 @@ behavior.
 
 ## Checks not run and rationale
 
-- CI, hosted checks, SonarCloud, workflow execution, and required-check
-  changes were intentionally not run or changed because they are outside the
-  authorized scope.
+- No CI or workflow configuration was changed by this follow-up, and no hosted
+  check was triggered manually. Opening or updating the pull request automatically
+  triggered the repository’s existing pull-request workflows. Their actual
+  status is recorded separately from the local runtime evidence.
+- At the original Draft PR head, the automatic common and NGINX scaffold
+  checks failed because this static Parent contract was placed in the
+  prohibited `connectors/nginx/tests/` path. The automatic with-CRS/no-MRTS
+  runtime jobs failed before host execution at the inherited Framework-pin
+  comparison; that Base/PR Gitlink mismatch is separate from this local
+  runtime evidence. The later external `master` merge updated that inherited
+  pin/Gitlink tuple; its automatic hosted outcomes remain separate evidence.
 - No global dependency installation or mutable host-source fallback was used.
 - `make check-bilingual-docs` and `make check-doc-links` were executed after
   the Change Record headings were corrected. Both remain blocked in this fresh
@@ -154,6 +172,8 @@ Framework Gitlink and therefore remain environment-blocked, not waived.
 
 ## Final diff and review status
 
-The user authorized a fresh task-owned branch, normal commit, push, and Draft
-PR only. No merge, direct `master` push, Framework/MRTS modification, Gitlink
-update, CI action, or protected-check outcome is authorized or asserted.
+The user authorized an isolated follow-up commit and normal push only on the
+existing Draft PR #339 branch. No merge, direct `master` push, Framework/MRTS
+modification, Gitlink update, CI or workflow configuration change by this
+follow-up, manual hosted-check trigger, or protected-check outcome is
+authorized or asserted.
