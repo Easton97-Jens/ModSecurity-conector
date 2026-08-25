@@ -11,7 +11,7 @@
 | Basis-Revision | 5d71be74369123257851eb5ec612d7523a6b061d |
 | Repository-Grenze | Nur Parent; Framework, MRTS, Gitlink, CI, Branch-Regeln, Rulesets und Required Checks unverändert |
 | Evidence | Frühere aufbewahrte Runtime-Evidence plus finale lokale Validierung `/root/git/ModSecurity-conector/.codex/runs/20260825T161923Z-connector-runtime-hardening-final/evidence/final-local-validation.md` (SHA-256 `61b9abdb709104e538e1d56d06afd374b459b0e5d06b5b2735d2863262f10765`) und versiegelter Security-Review-Report (SHA-256 `974516d3bb25d102892091e9492b03935acbe1e99bf0d8c62ba07a0637876b42`) |
-| Delivery-Status | Benutzerautorisierter Draft-PR wartet auf finalen Exact-Path-Commit, normalen Push und PR-Erstellung; kein Merge |
+| Delivery-Status | Draft-PR [#346](https://github.com/Easton97-Jens/ModSecurity-conector/pull/346) offen; initialer Head `aef7ebfad18d90b6efda2e3cc4ad4a0816e9ae7c`; kein Merge durchgeführt oder autorisiert |
 
 ## Motivation und Problemstellung
 
@@ -138,4 +138,4 @@ Betreiber müssen weiterhin connector-spezifische Limits, Timeouts, TLS-/UDS-Ber
 
 ## Finaler Diff- und Review-Status
 
-Die Implementierungs-Evidence ist aufbewahrt, auf Parent begrenzt und mit diesem bilingualen Change Record gepaart. Die Remediations für NGINX-Zero-Return, gesättigte HAProxy-SPOP-Aufnahme/Response-Cache/Timeout/Metadaten, nicht lesende Traefik-Native-UDS-Peers, nativen Envoy-`ext_proc`-Shutdown, Common-Runtime-`413` und gepatchten-lighttpd-Callback-Stride sind lokal behoben; ihre Findings bleiben offen oder `fixed` statt geschlossen, wo Native-Host-/FD-Vektor-Evidence noch fehlt. Dieser Record führt keinen Commit, Push, PR, Merge oder Finding-Abschluss aus. Die finale Auslieferung und ein etwaiger Draft-PR benötigen die separate scoped Diff-Prüfung und Delivery-Policy-Checks des Parent-Agents.
+Die Implementierungs-Evidence ist aufbewahrt, auf Parent begrenzt und mit diesem bilingualen Change Record gepaart. Die Remediations für NGINX-Zero-Return, gesättigte HAProxy-SPOP-Aufnahme/Response-Cache/Timeout/Metadaten, nicht lesende Traefik-Native-UDS-Peers, nativen Envoy-`ext_proc`-Shutdown, Common-Runtime-`413` und gepatchten-lighttpd-Callback-Stride sind lokal behoben; ihre Findings bleiben offen oder `fixed` statt geschlossen, wo Native-Host-/FD-Vektor-Evidence noch fehlt. Draft-PR [#346](https://github.com/Easton97-Jens/ModSecurity-conector/pull/346) ist nach separater scoped Diff-Prüfung und Delivery-Policy-Checks offen; er führt weder einen Merge noch einen Finding-Abschluss durch oder autorisiert sie.

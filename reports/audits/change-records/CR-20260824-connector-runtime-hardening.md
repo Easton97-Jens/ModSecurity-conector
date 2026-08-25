@@ -11,7 +11,7 @@
 | Base revision | 5d71be74369123257851eb5ec612d7523a6b061d |
 | Repository boundary | Parent only; Framework, MRTS, Gitlink, CI, branch rules, rulesets, and required checks unchanged |
 | Evidence | Earlier retained runtime evidence plus final local validation `/root/git/ModSecurity-conector/.codex/runs/20260825T161923Z-connector-runtime-hardening-final/evidence/final-local-validation.md` (SHA-256 `61b9abdb709104e538e1d56d06afd374b459b0e5d06b5b2735d2863262f10765`) and sealed security review report (SHA-256 `974516d3bb25d102892091e9492b03935acbe1e99bf0d8c62ba07a0637876b42`) |
-| Delivery status | User-authorized Draft PR pending final exact-path commit, normal push, and PR creation; no merge |
+| Delivery status | Draft PR [#346](https://github.com/Easton97-Jens/ModSecurity-conector/pull/346) open; initial head `aef7ebfad18d90b6efda2e3cc4ad4a0816e9ae7c`; no merge performed or authorized |
 
 ## Motivation and problem statement
 
@@ -136,4 +136,4 @@ Operators still need to validate connector-specific limits, timeouts, TLS/UDS pe
 
 ## Final diff and review status
 
-Implementation evidence is retained, scoped to Parent, and paired with this bilingual Change Record. The NGINX zero-return, HAProxy SPOP saturated-admission/response-cache/timeout/metadata, Traefik Native UDS unread-peer, Envoy `ext_proc` native-shutdown, Common Runtime `413`, and patched-lighttpd callback-stride remediations are locally fixed; their finding records remain open or fixed rather than closed wherever native host/FD-vector evidence is still incomplete. This record performs no commit, push, PR, merge, or finding closure. Final delivery and any Draft PR require the parent agent's separate scoped diff review and delivery-policy checks.
+Implementation evidence is retained, scoped to Parent, and paired with this bilingual Change Record. The NGINX zero-return, HAProxy SPOP saturated-admission/response-cache/timeout/metadata, Traefik Native UDS unread-peer, Envoy `ext_proc` native-shutdown, Common Runtime `413`, and patched-lighttpd callback-stride remediations are locally fixed; their finding records remain open or fixed rather than closed wherever native host/FD-vector evidence is still incomplete. Draft PR [#346](https://github.com/Easton97-Jens/ModSecurity-conector/pull/346) is open after the separate scoped diff review and delivery-policy checks; it neither performs nor authorizes a merge or finding closure.
