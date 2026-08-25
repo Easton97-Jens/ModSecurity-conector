@@ -176,6 +176,8 @@ class LighttpdPhase2PreUpstreamGateContractTest(unittest.TestCase):
             self.assertEqual(0o600, (target / "summary.json").stat().st_mode & 0o777)
         self.assertIn("os.O_NOFOLLOW", self.harness)
         self.assertIn("src_dir_fd=root.directory_fd", self.harness)
+        self.assertIn('SUMMARY_TEMPORARY_NAME = "summary.json.tmp"', self.harness)
+        self.assertEqual(1, self.harness.count('"summary.json.tmp"'))
 
     def test_runtime_root_rejects_group_writable_directories(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

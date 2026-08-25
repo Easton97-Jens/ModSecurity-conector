@@ -30,7 +30,9 @@ MAX_BODY = 1024 * 1024
 LOOPBACK_HOST = "127.0.0.1"
 MIN_UNPRIVILEGED_PORT = 1024
 MAX_TCP_PORT = 65535
-SUMMARY_NAMES = ("summary.json", "summary.json.tmp")
+SUMMARY_FILE_NAME = "summary.json"
+SUMMARY_TEMPORARY_NAME = "summary.json.tmp"
+SUMMARY_NAMES = (SUMMARY_FILE_NAME, SUMMARY_TEMPORARY_NAME)
 
 
 class GateFailure(RuntimeError):
@@ -845,7 +847,7 @@ def write_summary(root: TaskRuntimeRoot, summary: dict[str, Any]) -> None:
     descriptor: int | None = None
     try:
         descriptor = os.open(
-            "summary.json.tmp",
+            SUMMARY_TEMPORARY_NAME,
             os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
             0o600,
             dir_fd=root.directory_fd,
@@ -855,8 +857,8 @@ def write_summary(root: TaskRuntimeRoot, summary: dict[str, Any]) -> None:
         with output:
             output.write(json.dumps(summary, indent=2, sort_keys=True) + "\n")
         os.replace(
-            "summary.json.tmp",
-            "summary.json",
+            SUMMARY_TEMPORARY_NAME,
+            SUMMARY_FILE_NAME,
             src_dir_fd=root.directory_fd,
             dst_dir_fd=root.directory_fd,
         )
