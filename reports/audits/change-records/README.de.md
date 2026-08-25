@@ -20,6 +20,14 @@ angelegt werden.
   Follow-up, H2/H3 und Paritäts-Evidenz offen; kein Merge ist autorisiert oder
   behauptet.
 
+- [CR-20260824-canonical-runtime-observation](CR-20260824-canonical-runtime-observation.de.md) —
+  der aktuelle Benutzer autorisierte diesen Parent-only Canonical-Runtime-
+  Observation-Vertrag, Safe-Evidence-Reader-Hardening, gekoppelte Traceability
+  und einen unabhängigen Draft PR. Der Record hält nur beobachtete lokale
+  Evidence fest; keine Framework-/MRTS-Source, kein Gitlink, Workflow,
+  geschützte NGINX-Grenze, Hosted-Result, Ready-Status oder Merge wird
+  behauptet.
+
 - [CR-20260823-pr309-lighttpd-config-reference-repair](CR-20260823-pr309-lighttpd-config-reference-repair.de.md) —
   die Parent-only-Nachfolgereparatur stellt den geschlossenen Lighttpd-
   Config-Reference-Vertrag nach dem Post-Merge-Validierungsfehler von PR #309

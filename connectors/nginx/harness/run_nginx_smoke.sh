@@ -128,6 +128,18 @@ NGINX_MEMCHECK_WAIT_STATUS=not_started
 NGINX_MEMCHECK_WRAPPER_EXIT_CODE=
 NGINX_MEMCHECK_PROCESS_GROUP=""
 NGINX_MEMCHECK_CONTAINMENT=unverified
+# Normal smoke runs must prove the real master/worker lifecycle.  This is
+# deliberately independent from the opt-in Memcheck diagnostic: a diagnostic
+# wrapper is not evidence that the production process model was exercised.
+NGINX_LIFECYCLE_TIMEOUT_SECONDS="${NGINX_LIFECYCLE_TIMEOUT_SECONDS:-30}"
+NGINX_LIFECYCLE_ENABLED="${NGINX_LIFECYCLE_ENABLED:-1}"
+NGINX_LIFECYCLE_ROLE_FILE=""
+NGINX_LIFECYCLE_FILE=""
+NGINX_LIFECYCLE_SHUTDOWN=not_started
+NGINX_LIFECYCLE_EXIT_STATUS=not_observed
+NGINX_LIFECYCLE_RELOAD=not_attempted
+NGINX_LIFECYCLE_INITIAL_WORKER=""
+NGINX_LIFECYCLE_RELOADED_WORKER=""
 
 load_connector_adapter_metadata() {
     eval "$(CONNECTOR_ROOT="$REPO_ROOT" "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/lib/adapter_metadata.py" shell nginx --prefix CONNECTOR_ADAPTER)"
@@ -1212,6 +1224,25 @@ validate_nginx_memcheck_mode() {
         fail "missing NGINX Memcheck summarizer: $NGINX_MEMCHECK_SUMMARIZER"
 }
 
+validate_nginx_lifecycle_mode() {
+    case "$NGINX_LIFECYCLE_ENABLED" in
+        0|1) ;;
+        *) fail "NGINX_LIFECYCLE_ENABLED must be exactly 0 or 1" ;;
+    esac
+    case "$NGINX_LIFECYCLE_TIMEOUT_SECONDS" in
+        ''|0|*[!0-9]*) fail "NGINX_LIFECYCLE_TIMEOUT_SECONDS must be a positive decimal value" ;;
+        *) ;;
+    esac
+    if [ "$NGINX_LIFECYCLE_ENABLED" = "0" ] && [ "$MSCONNECTOR_SMOKE_STAGE" != "config_load" ]; then
+        fail "normal NGINX smoke requires lifecycle enabled"
+    fi
+    if [ "$NGINX_LIFECYCLE_ENABLED" = "1" ] && [ "$NGINX_MEMCHECK" = "1" ]; then
+        # The Valgrind path has its own isolated wrapper/process-group proof;
+        # it is never promoted as normal master/worker evidence.
+        write_harness_status info "normal master/worker lifecycle proof disabled for opt-in Memcheck mode"
+    fi
+}
+
 validate_nginx_protocol_request() {
     nginx_protocol_profile_valid "$NGINX_PROTOCOL_PROFILE" || \
         blocked "unsupported NGINX_PROTOCOL_PROFILE=$NGINX_PROTOCOL_PROFILE; expected h1, h1-h2, or h1-h2-h3-quic"
@@ -1650,6 +1681,202 @@ finalize_nginx_memcheck() {
     [ "$nginx_memcheck_summary_rc" -eq 0 ]
 }
 
+write_nginx_lifecycle_event() {
+    [ "$NGINX_LIFECYCLE_ENABLED" = "1" ] || return 0
+    [ -n "${NGINX_LIFECYCLE_FILE:-}" ] || return 0
+    printf '%s\n' "$*" >> "$NGINX_LIFECYCLE_FILE"
+}
+
+nginx_process_children() {
+    nginx_parent_pid=$1
+    ps -o pid= --ppid "$nginx_parent_pid" 2>/dev/null | awk '{ print $1 }' || true
+}
+
+nginx_process_record() {
+    nginx_role=$1
+    nginx_pid=$2
+    nginx_parent_pid=$(ps -o ppid= -p "$nginx_pid" 2>/dev/null | tr -d "$NGINX_TR_DELETE_WHITESPACE" || true)
+    nginx_uid=$(ps -o uid= -p "$nginx_pid" 2>/dev/null | tr -d "$NGINX_TR_DELETE_WHITESPACE" || true)
+    nginx_gid=$(ps -o gid= -p "$nginx_pid" 2>/dev/null | tr -d "$NGINX_TR_DELETE_WHITESPACE" || true)
+    nginx_command=$(ps -o comm= -p "$nginx_pid" 2>/dev/null | tr -d '\n' || true)
+    case "$nginx_pid:$nginx_parent_pid:$nginx_uid:$nginx_gid" in
+        ''|*[!0-9:]*)
+            fail "NGINX $nginx_role process metadata is unavailable for pid=$nginx_pid"
+            ;;
+    esac
+    printf 'role=%s pid=%s ppid=%s uid=%s gid=%s command=%s\n' \
+        "$nginx_role" "$nginx_pid" "$nginx_parent_pid" "$nginx_uid" "$nginx_gid" "$nginx_command" \
+        >> "$NGINX_LIFECYCLE_ROLE_FILE"
+}
+
+record_nginx_master_worker_roles() {
+    [ "$NGINX_LIFECYCLE_ENABLED" = "1" ] || return 0
+    master_pid=$(tr -d "$NGINX_TR_DELETE_WHITESPACE" < "$RUNTIME_PID_FILE" 2>/dev/null || true)
+    case "$master_pid" in
+        ''|*[!0-9]*) fail "NGINX master pid file does not contain a numeric pid" ;;
+    esac
+    kill -0 "$master_pid" >/dev/null 2>&1 || fail "NGINX master pid=$master_pid is not alive"
+    [ "$master_pid" = "$NGINX_PID" ] || \
+        fail "NGINX pid file master=$master_pid differs from harness process=$NGINX_PID"
+    nginx_process_record master "$master_pid"
+
+    worker_pids=$(nginx_process_children "$master_pid")
+    worker_count=$(printf '%s\n' "$worker_pids" | awk 'NF { count += 1 } END { print count + 0 }')
+    [ "$worker_count" -eq 1 ] || fail "NGINX master pid=$master_pid has $worker_count direct worker children; expected exactly one"
+    worker_pid=$(printf '%s\n' "$worker_pids" | awk 'NR == 1 { print $1 }')
+    case "$worker_pid" in
+        ''|*[!0-9]*) fail "NGINX master pid=$master_pid has no observable worker child" ;;
+    esac
+    worker_uid=$(ps -o uid= -p "$worker_pid" 2>/dev/null | tr -d "$NGINX_TR_DELETE_WHITESPACE" || true)
+    worker_gid=$(ps -o gid= -p "$worker_pid" 2>/dev/null | tr -d "$NGINX_TR_DELETE_WHITESPACE" || true)
+    [ "$worker_uid" = "$NGINX_WORKER_RESOLVED_UID" ] || \
+        fail "NGINX worker pid=$worker_pid uid=$worker_uid does not match configured uid=$NGINX_WORKER_RESOLVED_UID"
+    [ "$worker_uid" != "0" ] || fail "NGINX worker pid=$worker_pid is running as root"
+    [ "$worker_gid" = "$NGINX_WORKER_RESOLVED_GID" ] || \
+        fail "NGINX worker pid=$worker_pid gid=$worker_gid does not match configured gid=$NGINX_WORKER_RESOLVED_GID"
+    nginx_process_record worker "$worker_pid"
+    printf '%s\n' "$worker_pid"
+}
+
+wait_for_nginx_worker_replacement() {
+    old_worker_pid=$1
+    attempt=0
+    while [ "$attempt" -lt "$NGINX_LIFECYCLE_TIMEOUT_SECONDS" ]; do
+        new_worker_pids=$(nginx_process_children "$NGINX_PID")
+        new_worker_count=$(printf '%s\n' "$new_worker_pids" | awk 'NF { count += 1 } END { print count + 0 }')
+        [ "$new_worker_count" -eq 1 ] || {
+            attempt=$((attempt + 1))
+            sleep 1
+            continue
+        }
+        new_worker_pid=$(printf '%s\n' "$new_worker_pids" | awk 'NR == 1 { print $1 }')
+        case "$new_worker_pid" in
+            ''|*[!0-9]*) ;;
+            *)
+                if [ "$new_worker_pid" != "$old_worker_pid" ] && kill -0 "$new_worker_pid" >/dev/null 2>&1; then
+                    printf '%s\n' "$new_worker_pid"
+                    return 0
+                fi
+                ;;
+        esac
+        attempt=$((attempt + 1))
+        sleep 1
+    done
+    return 1
+}
+
+reload_nginx_master_worker() {
+    [ "$NGINX_LIFECYCLE_ENABLED" = "1" ] || return 0
+    [ "$NGINX_MEMCHECK" = "0" ] || return 0
+    NGINX_LIFECYCLE_INITIAL_WORKER=$(record_nginx_master_worker_roles)
+    write_nginx_lifecycle_event "phase=before_reload master_pid=$NGINX_PID worker_pid=$NGINX_LIFECYCLE_INITIAL_WORKER"
+    if ! "$NGINX_BINARY" -p "$RUNTIME_ROOT" -c "$CONFIG_FILE" -s reload > "$LOG_DIR/nginx-reload.log" 2>&1; then
+        fail "NGINX graceful reload command failed; see $LOG_DIR/nginx-reload.log"
+    fi
+    NGINX_LIFECYCLE_RELOADED_WORKER=$(wait_for_nginx_worker_replacement "$NGINX_LIFECYCLE_INITIAL_WORKER") || \
+        fail "NGINX reload did not replace the worker within ${NGINX_LIFECYCLE_TIMEOUT_SECONDS}s"
+    NGINX_LIFECYCLE_RELOAD=passed
+    record_nginx_master_worker_roles >/dev/null
+    write_nginx_lifecycle_event "phase=after_reload master_pid=$NGINX_PID old_worker_pid=$NGINX_LIFECYCLE_INITIAL_WORKER new_worker_pid=$NGINX_LIFECYCLE_RELOADED_WORKER result=passed"
+}
+
+wait_for_nginx_exit() {
+    wait_limit=$1
+    wait_deadline=$(( $(date +%s) + wait_limit ))
+    while kill -0 "$NGINX_PID" >/dev/null 2>&1; do
+        [ "$(date +%s)" -lt "$wait_deadline" ] || return 1
+        sleep 1
+    done
+    set +e
+    wait "$NGINX_PID"
+    NGINX_LIFECYCLE_EXIT_STATUS=$?
+    set -e
+    return 0
+}
+
+shutdown_nginx_gracefully() {
+    [ "$NGINX_LIFECYCLE_ENABLED" = "1" ] || return 0
+    [ "$NGINX_MEMCHECK" = "0" ] || return 0
+    [ -n "${NGINX_PID:-}" ] || return 0
+    if ! kill -0 "$NGINX_PID" >/dev/null 2>&1; then
+        set +e
+        wait "$NGINX_PID"
+        NGINX_LIFECYCLE_EXIT_STATUS=$?
+        set -e
+        NGINX_LIFECYCLE_SHUTDOWN=already_exited
+        return 0
+    fi
+    NGINX_LIFECYCLE_SHUTDOWN=graceful_quit
+    if ! "$NGINX_BINARY" -p "$RUNTIME_ROOT" -c "$CONFIG_FILE" -s quit > "$LOG_DIR/nginx-quit.log" 2>&1; then
+        NGINX_LIFECYCLE_SHUTDOWN=quit_command_failed
+    fi
+    if ! wait_for_nginx_exit "$NGINX_LIFECYCLE_TIMEOUT_SECONDS"; then
+        NGINX_LIFECYCLE_SHUTDOWN=forced_term
+        kill -TERM "$NGINX_PID" >/dev/null 2>&1 || true
+        wait_for_nginx_exit 5 || {
+            NGINX_LIFECYCLE_SHUTDOWN=forced_kill
+            kill -KILL "$NGINX_PID" >/dev/null 2>&1 || true
+            wait_for_nginx_exit 5 || NGINX_LIFECYCLE_EXIT_STATUS=timeout
+        }
+    fi
+    write_nginx_lifecycle_event "phase=shutdown mode=$NGINX_LIFECYCLE_SHUTDOWN exit_status=$NGINX_LIFECYCLE_EXIT_STATUS"
+    [ "$NGINX_LIFECYCLE_EXIT_STATUS" = "0" ] || return 1
+}
+
+record_nginx_cleanup_state() {
+    [ "$NGINX_LIFECYCLE_ENABLED" = "1" ] || return 0
+    nginx_cleanup_check_status=0
+    if [ -n "${NGINX_PID:-}" ] && kill -0 "$NGINX_PID" >/dev/null 2>&1; then
+        nginx_cleanup_check_status=1
+        write_nginx_lifecycle_event "phase=cleanup master_pid=$NGINX_PID result=still_alive"
+    else
+        write_nginx_lifecycle_event "phase=cleanup master_pid=${NGINX_PID:-none} result=exited"
+    fi
+    for nginx_tracked_worker_pid in "$NGINX_LIFECYCLE_INITIAL_WORKER" "$NGINX_LIFECYCLE_RELOADED_WORKER"; do
+        [ -n "$nginx_tracked_worker_pid" ] || continue
+        if kill -0 "$nginx_tracked_worker_pid" >/dev/null 2>&1; then
+            nginx_cleanup_check_status=1
+            write_nginx_lifecycle_event "phase=cleanup worker_pid=$nginx_tracked_worker_pid result=still_alive"
+        else
+            write_nginx_lifecycle_event "phase=cleanup worker_pid=$nginx_tracked_worker_pid result=exited"
+        fi
+    done
+    if [ -n "${NGINX_PID:-}" ]; then
+        if [ "$NGINX_LIFECYCLE_EXIT_STATUS" = "0" ]; then
+            write_nginx_lifecycle_event "phase=cleanup exit_status=0 result=passed"
+        else
+            nginx_cleanup_check_status=1
+            write_nginx_lifecycle_event "phase=cleanup exit_status=$NGINX_LIFECYCLE_EXIT_STATUS result=failed"
+        fi
+    fi
+    remaining_children=$(nginx_process_children "${NGINX_PID:-0}")
+    if [ -n "$remaining_children" ]; then
+        nginx_cleanup_check_status=1
+        write_nginx_lifecycle_event "phase=cleanup children=remained result=failed pids=$remaining_children"
+    else
+        write_nginx_lifecycle_event "phase=cleanup children=none result=passed"
+    fi
+    if port_is_free "$PORT"; then
+        write_nginx_lifecycle_event "phase=cleanup port=$PORT result=freed"
+    else
+        nginx_cleanup_check_status=1
+        write_nginx_lifecycle_event "phase=cleanup port=$PORT result=still_bound"
+    fi
+    if [ -e "$RUNTIME_PID_FILE" ]; then
+        write_nginx_lifecycle_event "phase=cleanup pid_file=$RUNTIME_PID_FILE result=present_before_cleanup"
+    else
+        write_nginx_lifecycle_event "phase=cleanup pid_file=$RUNTIME_PID_FILE result=absent"
+    fi
+    uds_paths=$(find "$RUNTIME_ROOT" -type s -print 2>/dev/null || true)
+    if [ -n "$uds_paths" ]; then
+        nginx_cleanup_check_status=1
+        write_nginx_lifecycle_event "phase=cleanup uds=present result=failed paths=$uds_paths"
+    else
+        write_nginx_lifecycle_event "phase=cleanup uds=none result=passed"
+    fi
+    return "$nginx_cleanup_check_status"
+}
+
 start_nginx_process() {
     if [ "$NGINX_MEMCHECK" = "1" ]; then
         (
@@ -1689,6 +1916,7 @@ start_nginx_process() {
 }
 
 cleanup() {
+    nginx_cleanup_return=0
     if [ -n "${NGINX_SOAK_WORKER_PIDS:-}" ]; then
         for soak_worker_pid in $NGINX_SOAK_WORKER_PIDS; do
             if kill -0 "$soak_worker_pid" >/dev/null 2>&1; then
@@ -1705,15 +1933,36 @@ cleanup() {
     if [ "$NGINX_MEMCHECK" = "1" ]; then
         finalize_nginx_memcheck || true
     elif [ -n "${NGINX_PID:-}" ] && kill -0 "$NGINX_PID" >/dev/null 2>&1; then
-        kill "$NGINX_PID" >/dev/null 2>&1 || true
-        wait "$NGINX_PID" >/dev/null 2>&1 || true
+        if [ "$NGINX_LIFECYCLE_ENABLED" = "1" ]; then
+            if ! shutdown_nginx_gracefully; then
+                nginx_cleanup_return=1
+                write_nginx_lifecycle_event "phase=cleanup result=failed reason=shutdown"
+            fi
+        else
+            kill "$NGINX_PID" >/dev/null 2>&1 || true
+            wait "$NGINX_PID" >/dev/null 2>&1 || true
+        fi
+    elif [ -n "${NGINX_PID:-}" ] && [ "$NGINX_LIFECYCLE_ENABLED" = "1" ]; then
+        set +e
+        wait "$NGINX_PID"
+        NGINX_LIFECYCLE_EXIT_STATUS=$?
+        set -e
     fi
     if [ -n "${RESPONSE_HEADER_BACKEND_PID:-}" ] && kill -0 "$RESPONSE_HEADER_BACKEND_PID" >/dev/null 2>&1; then
         kill "$RESPONSE_HEADER_BACKEND_PID" >/dev/null 2>&1 || true
         wait "$RESPONSE_HEADER_BACKEND_PID" >/dev/null 2>&1 || true
     fi
     if [ -n "${RUNTIME_PID_FILE:-}" ]; then
+        if ! record_nginx_cleanup_state; then
+            nginx_cleanup_return=1
+            write_nginx_lifecycle_event "phase=cleanup result=failed reason=pre_cleanup_artifact_check"
+        fi
         rm -f "$RUNTIME_PID_FILE"
+        if [ ! -e "$RUNTIME_PID_FILE" ]; then
+            write_nginx_lifecycle_event "phase=cleanup pid_file=$RUNTIME_PID_FILE result=absent_after_cleanup"
+        else
+            write_nginx_lifecycle_event "phase=cleanup pid_file=$RUNTIME_PID_FILE result=present_after_cleanup"
+        fi
     fi
     # These private keys belong only to the ephemeral local listener.  No key
     # or certificate chain may survive cleanup into a reusable runtime or an
@@ -1723,6 +1972,18 @@ cleanup() {
         "${NGINX_TLS_SERVER_KEY:-}" "${NGINX_TLS_SERVER_CERT:-}" \
         "${NGINX_TLS_SERVER_CSR:-}" "${NGINX_TLS_SERVER_EXT:-}" \
         "${NGINX_TLS_CA_CERT:-}.srl"
+    for nginx_cleanup_path in \
+        "${NGINX_TLS_CA_KEY:-}" "${NGINX_TLS_CA_CERT:-}" \
+        "${NGINX_TLS_SERVER_KEY:-}" "${NGINX_TLS_SERVER_CERT:-}" \
+        "${NGINX_TLS_SERVER_CSR:-}" "${NGINX_TLS_SERVER_EXT:-}" \
+        "${NGINX_TLS_CA_CERT:-}.srl"; do
+        [ -n "$nginx_cleanup_path" ] || continue
+        if [ -e "$nginx_cleanup_path" ]; then
+            nginx_cleanup_return=1
+            write_nginx_lifecycle_event "phase=cleanup temporary_file=$nginx_cleanup_path result=present_after_cleanup"
+        fi
+    done
+    return "$nginx_cleanup_return"
 }
 
 port_is_free() {
@@ -2094,6 +2355,7 @@ start_server() {
 
         if [ "$ready" -eq 1 ]; then
             record_nginx_memcheck_roles
+            reload_nginx_master_worker
             return 0
         fi
         fail "NGINX did not become ready on 127.0.0.1:$PORT"
@@ -2358,6 +2620,8 @@ STATUS_FILE="$LOG_DIR/status.txt"
 PERMISSIONS_LOG="${PERMISSIONS_LOG:-$LOG_DIR/permissions.log}"
 NGINX_WORKER_PREFLIGHT_FILE="${NGINX_WORKER_PREFLIGHT_FILE:-$LOG_DIR/nginx-worker-preflight.jsonl}"
 RUNTIME_PID_FILE="$RUNTIME_ROOT/nginx.pid"
+NGINX_LIFECYCLE_ROLE_FILE="$LOG_DIR/nginx-process-roles.txt"
+NGINX_LIFECYCLE_FILE="$LOG_DIR/nginx-lifecycle.txt"
 
 validate_nginx_protocol_request
 validate_nginx_docroot_projection_mode
@@ -2441,6 +2705,11 @@ rm -f "$LOG_DIR/configtest.log" \
 	    "$NGINX_MEMCHECK_EVIDENCE_DIR/nginx-memcheck-summary.json" \
 	    "$NGINX_MEMCHECK_EVIDENCE_DIR/nginx-memcheck-summary.txt" \
 	    "$RUNTIME_ROOT/nginx.pid"
+if [ "$NGINX_LIFECYCLE_ENABLED" = "1" ]; then
+    : > "$NGINX_LIFECYCLE_ROLE_FILE"
+    : > "$NGINX_LIFECYCLE_FILE"
+    chmod 600 "$NGINX_LIFECYCLE_ROLE_FILE" "$NGINX_LIFECYCLE_FILE"
+fi
 rm -f "$NGINX_MEMCHECK_EVIDENCE_DIR"/valgrind.*.log
 rm -f "$NGINX_SERVER_LOG_ROOT"/audit/*
 
@@ -2450,6 +2719,7 @@ case "$MSCONNECTOR_SMOKE_STAGE" in
     *) fail "unsupported MSCONNECTOR_SMOKE_STAGE=$MSCONNECTOR_SMOKE_STAGE" ;;
 esac
 validate_nginx_memcheck_mode
+validate_nginx_lifecycle_mode
 
 if [ "$MSCONNECTOR_SMOKE_STAGE" = "minimal_runtime_smoke" ] || \
    [ "$MSCONNECTOR_SMOKE_STAGE" = "$MSCONNECTOR_SMOKE_STAGE_BOUNDED_SOAK" ]; then
@@ -2534,7 +2804,26 @@ preflight_nginx_worker_docroot
 LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR:$NGINX_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export LD_LIBRARY_PATH
 
-trap cleanup EXIT INT TERM
+cleanup_on_signal() {
+    signal_name=$1
+    signal_status=$2
+    trap - "$signal_name"
+    cleanup || true
+    exit "$signal_status"
+}
+
+cleanup_on_exit() {
+    nginx_exit_status=$?
+    trap - EXIT
+    if ! cleanup && [ "$nginx_exit_status" -eq 0 ]; then
+        exit 1
+    fi
+    exit "$nginx_exit_status"
+}
+
+trap cleanup_on_exit EXIT
+trap 'cleanup_on_signal INT 130' INT
+trap 'cleanup_on_signal TERM 143' TERM
 start_server
 
 if [ "$MSCONNECTOR_SMOKE_STAGE" = "config_load" ]; then

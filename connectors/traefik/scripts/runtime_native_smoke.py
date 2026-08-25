@@ -1822,13 +1822,19 @@ def write_crs_success(
         {
             "capability_promotion": "canonical-finalization-required",
             "connector": "traefik",
+            # This record is written only after the pinned host configuration
+            # was accepted, the process became reachable, all CRS outcomes
+            # were validated, and both owned processes stopped cleanly.
+            "config_test_status": "PASS",
             "engine_mode": "uds",
+            "host_start_status": "PASS",
             "integration_mode": "native-traefik-middleware",
             "plugin_loaded": "Plugins loaded." in (artifacts.logs_dir / TRAEFIK_STDOUT_LOG_FILENAME).read_text(
                 encoding="utf-8", errors="replace"
             ),
             "processes_stopped": processes_stopped,
             "production_ready": False,
+            "reachability_status": "PASS",
             "run_id": inputs.run_id,
             "rules_profile": inputs.rules_profile,
             "crs_rule_id": CRS_RULE_ID,
@@ -1837,6 +1843,7 @@ def write_crs_success(
                 "request_path": CRS_BLOCK_PATH,
                 "request_id": block_event.get("transaction_id"),
                 "status": results.block_status,
+                "observed_action": block_event["actual_action"],
                 "observed_rule_id": str(block_event.get("rule_id")),
                 "trigger_rule_id": CRS_RULE_ID,
                 "raw_trigger_log": f"logs/{ENGINE_STDERR_LOG_FILENAME}",
@@ -1849,6 +1856,7 @@ def write_crs_success(
                 "request_id": bypass_event.get("transaction_id"),
                 "status": results.bypass_status,
                 "response_bytes": results.bypass_bytes,
+                "observed_action": bypass_event["actual_action"],
                 "observed_rule_id": str(bypass_event.get("rule_id")),
                 "trigger_rule_id": CRS_RULE_ID,
                 "raw_trigger_log": f"logs/{ENGINE_STDERR_LOG_FILENAME}",
@@ -1856,6 +1864,7 @@ def write_crs_success(
                 "observed_event": bypass_event,
             },
             "status": "PASS",
+            "cleanup_status": "PASS" if processes_stopped else "FAIL",
             "traefik_version": traefik_version(inputs.binary),
         },
     )
