@@ -916,10 +916,15 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                 self.assertTrue(case["executed"])
                 self.assertTrue(case["live_executed"])
                 self.assertEqual(case["result"], "PASS")
+                self.assertEqual(
+                    canonical["runtime"]["reachability"]["observed"],
+                    {"status": "PASS"},
+                )
                 # event.json is the existing strict Framework-compatibility
                 # artifact.  The richer Parent-only case remains solely in
                 # the canonical observation above.
                 self.assertNotIn("framework_case", event)
+                self.assertNotIn("reachability_status", event["host_configuration"])
                 self.assertNotIn("framework_execution_status", event["host_configuration"])
                 self.assertNotIn("framework_validation_status", event["host_configuration"])
                 self.assertEqual(canonical["identity"]["profile"], "with-crs-no-mrts")

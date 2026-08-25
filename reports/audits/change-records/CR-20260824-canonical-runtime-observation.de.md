@@ -115,12 +115,21 @@ terminale Runtime-Workflow offenbarte danach zwei separate Parent-only-
 Integrationsfehler: Common emittiert Envoy-`rule_id` als kanonischen JSON-Text,
 während der Harness nur Python-Integer akzeptierte; und das Legacy-externe
 `event.json` leakte das interne `framework_case`-Aggregat in eine strikte
-Framework-Kompatibilitätsform. Der aktuelle Follow-up akzeptiert nur
-kanonischen begrenzten Decimal-Text (oder einen Integer), bewahrt die exakte
+Framework-Kompatibilitätsform. Der dritte enge Successor
+`efc2505b76734c19a0ca5766dabb268678dabc12` akzeptiert nur kanonischen
+begrenzten Decimal-Text (oder einen Integer), bewahrt die exakte
 `949110`-Prüfung und hält das Aggregat ausschließlich in der kanonischen
-Runtime-Observation. `FND-SONAR-0060` bleibt verfolgt, bis dieser neue exakte
-gepushte Head erneut null New Issues ohne Suppression oder Scanner-Control-
-Änderung nachweist.
+Runtime-Observation. Sein exakter SonarQube-Cloud-Check `97632932827` hatte
+erneut null New Issues, doch sein terminaler Runtime-Workflow `32791114544`
+offenbarte eine weitere externe Shape-Inkompatibilität: Nachdem Envoy,
+Lighttpd und Traefik jeweils erfolgreiche Host-Runtime und Parent-
+Normalisierung gemeldet hatten, wies der strikte Consumer
+`event.host_configuration.reachability_status` zurück. Apache und HAProxy
+bestanden. Diese vierte enge Parent-only-Korrektur bewahrt Reachability nur im
+Raw-Host-Log und in der kanonischen Runtime-Observation und lässt sie aus dem
+Legacy-externen Event aus. `FND-SONAR-0060` bleibt verfolgt, bis der neue
+exakte gepushte Head erneut null New Issues ohne Suppression oder Scanner-
+Control-Änderung nachweist.
 
 ## Geänderte Dateien
 
@@ -146,16 +155,17 @@ gepushte Head erneut null New Issues ohne Suppression oder Scanner-Control-
 
 | Check | Tatsächliches Ergebnis |
 | --- | --- |
-| `python3 -m unittest -q tests.test_runtime_observation_contract tests.test_with_crs_no_mrts_runtime` | Nach dem Runtime-Follow-up bestanden: `126 tests in 46.309s`. Dies deckt die verlangten Identity-, Union-, Compound-, Explicit-Fact-, Aggregate-, HAProxy-, NGINX-, Path-/Evidence- und No-Fabricated-PASS-Regressionen ab. |
+| `python3 -m unittest -q tests.test_runtime_observation_contract tests.test_with_crs_no_mrts_runtime` | Nach dem vierten Runtime-Follow-up bestanden: `126 tests in 92.700s`. Dies deckt die verlangten Identity-, Union-, Compound-, Explicit-Fact-, Aggregate-, HAProxy-, NGINX-, Path-/Evidence- und No-Fabricated-PASS-Regressionen ab. |
 | Fokussierte Runtime-Follow-up-Regression (`test_envoy_intervention_rule_id_accepts_only_canonical_json_values` plus All-Connector-Normalizer-Realisation) | Bestanden: `2 tests in 8.541s`. Sie führt den exakten Envoy-Inline-Parser mit der produktiven JSON-Text-Form aus und weist nichtkanonische oder unbegrenzte Formen ab; außerdem bestätigt sie, dass das externe Event `framework_case` auslässt, während das kanonische Aggregat gültig bleibt. |
+| Fokussierte vierte Runtime-Follow-up-Regression (All-Connector-Normalizer-Realisation und exakte External-Event-Records) | Bestanden: `2 tests in 10.843s`. Sie bestätigt, dass die kanonische Runtime-Observation `reachability.observed == {"status": "PASS"}` behält, während das externe `event.host_configuration` `reachability_status` auslässt. |
 | Benutzergeforderter kombinierter Verbose-Befehl mit `tests.test_ci_security_workflows` | Die `126` Contract-/Normalizer-Cases bestanden; der Befehl führte `127` Einträge in `41.392s` aus, wobei das letzte Modul wegen des fehlenden lokalen `PyYAML`-Imports als ein Fehler gemeldet wurde. Keine Dependency wurde installiert oder geändert. |
-| `tests.test_runtime_path_security`, `tests.test_evidence_output_security`, `tests.test_bilingual_docs` und `tests.test_envoy_transport_hardening_contract` | Nach dem Runtime-Follow-up bestanden: `70 tests in 7.076s`. |
-| Direkte `tests.test_bilingual_docs`-Bestätigung | Bestanden: `22 tests in 0.284s`. |
+| `tests.test_runtime_path_security`, `tests.test_evidence_output_security`, `tests.test_bilingual_docs` und `tests.test_envoy_transport_hardening_contract` | Nach dem vierten Runtime-Follow-up bestanden: `70 tests in 10.468s`. |
+| Direkte `tests.test_bilingual_docs`-Bestätigung | Nach der finalen Change-Record-Aktualisierung erneut bestanden: `22 tests in 0.288s`. |
 | Shell-Syntax des CRS/no-MRTS-Runner- und Envoy-Harness-Skripts | Bestanden. |
 | Erforderliche `py_compile`-Dateien | Bestanden: Exit `0`. |
 | `python3 -m json.tool ci/runtime/contracts/runtime-observation.schema.json /dev/null` | Bestanden. |
 | `git diff --check` | Bestanden. |
-| Security-Diff-Review | Der versiegelte Scan für `a7b8cc19` endete mit null reportable Findings. Ein nachfolgender fokussierter Delta-Review des verbleibenden semantischen Refactors fand ebenfalls kein reportable Finding. Der Same-UID-Private-Runner-Writer ist eine explizite Trusted-Runner-Boundary-Einschränkung, kein stillschweigend unterdrücktes Finding. |
+| Security-Diff-Review | Der versiegelte Scan für `a7b8cc19` endete mit null reportable Findings. Nachfolgende fokussierte Delta-Reviews des verbleibenden semantischen Refactors und des dritten Parser-/Kompatibilitäts-Follow-ups fanden ebenfalls kein reportable Finding. Der frische Review dieser vierten External-Field-Auslassung fand weder ein reportable Finding noch einen False-PASS-Pfad: kanonische Reachability, Raw-Evidence, Digest-Binding und fail-closed Validation bleiben intakt. Der Same-UID-Private-Runner-Writer ist eine explizite Trusted-Runner-Boundary-Einschränkung, kein stillschweigend unterdrücktes Finding. |
 
 Die genaue lokale `PyYAML`-Import-Einschränkung ist eine Umgebungs-Evidence-
 Lücke, kein Produkt-Erfolg und kein Grund, den CI-Security-Test zu schwächen.
@@ -184,11 +194,13 @@ Issues. Der erste normale Successor
 `a7b8cc199e01f6403616792c598068d24ff645ee` reduzierte sie im exakten Check
 `97619927966` bei weiter bestandenem Quality Gate auf drei. Der zweite enge
 Successor `ee7585250f2d7af6279a5fd1b847b76a87a15c99` bestand den exakten Check
-`97624800934` mit null New Issues. Dieses Ergebnis beweist nicht den nächsten
-korrektiven Successor: Sein eigenes Exact-Head-Sonar-Ergebnis muss erneut null
-New Issues zeigen, bevor die Delivery verifiziert ist. Es wurde keine
-Suppression, kein `NOSONAR`, keine Exclusion, Acceptance, Quality-Gate-
-Änderung oder Coverage-Workflow-Änderung vorgenommen.
+`97624800934` mit null New Issues. Der dritte enge Successor
+`efc2505b76734c19a0ca5766dabb268678dabc12` bestand den exakten Check
+`97632932827` mit null New Issues und null Annotations. Dieses Ergebnis beweist
+nicht diesen vierten korrektiven Successor: Sein eigenes Exact-Head-Sonar-
+Ergebnis muss erneut null New Issues zeigen, bevor die Delivery verifiziert ist.
+Es wurde keine Suppression, kein `NOSONAR`, keine Exclusion, Acceptance,
+Quality-Gate-Änderung oder Coverage-Workflow-Änderung vorgenommen.
 
 ```text
 No Python coverage report is supplied to SonarCloud.
@@ -207,11 +219,19 @@ Host-Pfade ab, aber der strikte Kompatibilitäts-Consumer wies den zusätzlichen
 externen `framework_case`-Key zurück. Dies sind aus Logs abgeleitete Ursachen,
 keine wiederholten oder inferierten Fehler.
 
+Der exakte Successor-Workflow `32791114544` für `efc2505b` endete ebenfalls
+ohne Retry terminal fehlgeschlagen. Apache und HAProxy bestanden; Envoy,
+Lighttpd und Traefik meldeten jeweils erfolgreiche Host-Runtime und Parent-
+Normalisierung, bevor derselbe strikte Kompatibilitäts-Consumer das schema-
+verbotene externe Feld `host_configuration.reachability_status` zurückwies.
+Dies ist ein Downstream-External-Event-Shape-Defekt, kein Nachweis einer
+fehlgeschlagenen Reachability oder eines fabrizierten PASS.
+
 ## Bekannte Einschränkungen
 
 Es wurden weder Apache- noch HAProxy-Live-Producer implementiert, keine
 Live-Six-Connector-by-Four-Profile-Matrix behauptet und Framework/MRTS nicht
-initialisiert oder verändert. Die zwei Parent-only-Reparaturen erfordern jetzt
+initialisiert oder verändert. Die vierte Parent-only-Reparatur erfordert jetzt
 einen neuen normalen Push sowie frische Exact-Head-GitHub-Workflow-, SonarQube-
 Cloud- und anwendbare PR-Check-Evidence. Jeder Fehler erfordert Log-basierte
 Diagnose vor einem weiteren Commit.
@@ -224,7 +244,10 @@ unabhängigen Read-only-Review; er fand null reportable Findings. Der spätere
 fokussierte Delta-Review des verbleibenden semantischen Refactors fand ebenfalls
 kein reportable Finding. Ein fokussierter Review des Parser- und
 Kompatibilitätsform-Follow-ups fand ebenfalls kein reportable Security-Finding
-oder False-PASS-Bypass. Keine Security-Control oder Trust-Boundary wurde für
+oder False-PASS-Bypass. Der frische Review dieser vierten External-Field-
+Auslassung fand ebenfalls weder ein reportable Finding noch einen False-PASS-
+Pfad; kanonische Reachability, Raw-Evidence, Digest-Binding und fail-closed
+Validation bleiben aktiv. Keine Security-Control oder Trust-Boundary wurde für
 diese Änderung gelockert.
 
 ## Verbleibende Risiken
@@ -244,8 +267,11 @@ Remediation und kein blinder Rerun. Dieser Head bestand lint, aber SonarQube
 Cloud fand acht Maintainability-Issues. Die normalen Successors `a7b8cc19`
 und `ee758525` reduzierten sie auf drei und dann null. Der terminale Runtime-
 Fehler des letzteren wurde aus den exakten Envoy-, Lighttpd- und Traefik-Logs
-diagnostiziert; diese dritte enge Parent-only-Korrektur geht dem nächsten
-normalen Follow-up-Commit/-Push voraus. Danach müssen alle Exact-Head-Checks,
-SonarQube Cloud und `Connector runtime with CRS and no MRTS` erneut beobachtet
-werden. PR #338 bleibt Draft; Merge, Auto-Merge, Ready-Übergang, Rebase und
-Force-Push sind weder behauptet noch autorisiert.
+diagnostiziert; die dritte enge Parent-only-Korrektur erreichte null Exact-Head-
+Sonar-Issues, doch ihr eigener terminaler Runtime-Fehler wurde erneut aus den
+exakten Envoy-, Lighttpd- und Traefik-Logs diagnostiziert. Diese vierte enge
+Parent-only-Korrektur geht dem nächsten normalen Follow-up-Commit/-Push voraus.
+Danach müssen alle Exact-Head-Checks, SonarQube Cloud und `Connector runtime
+with CRS and no MRTS` erneut beobachtet werden. PR #338 bleibt Draft; Merge,
+Auto-Merge, Ready-Übergang, Rebase und Force-Push sind weder behauptet noch
+autorisiert.

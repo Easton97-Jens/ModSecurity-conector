@@ -108,10 +108,18 @@ then exposed two separate Parent-only integration defects: Common emits Envoy
 `rule_id` as canonical JSON text, while the harness accepted only Python
 integers; and the legacy external `event.json` leaked the internal
 `framework_case` aggregate into a strict Framework compatibility shape. The
-current follow-up accepts only canonical bounded decimal text (or an integer),
-preserves the exact `949110` check, and keeps the aggregate solely in the
-canonical runtime observation. `FND-SONAR-0060` remains tracked until this
-new exact pushed head again proves zero New Issues without a suppression or
+third narrow successor `efc2505b76734c19a0ca5766dabb268678dabc12` accepts
+only canonical bounded decimal text (or an integer), preserves the exact
+`949110` check, and keeps the aggregate solely in the canonical runtime
+observation. Its exact SonarQube Cloud check `97632932827` again had zero New
+Issues, but its terminal runtime workflow `32791114544` exposed one remaining
+external-shape incompatibility: after the Envoy, Lighttpd, and Traefik host
+runtimes and Parent normalizer each reported PASS, the strict consumer
+rejected `event.host_configuration.reachability_status`. Apache and HAProxy
+succeeded. This fourth narrow Parent-only correction retains reachability in
+the raw host log and canonical runtime observation only, and omits it from the
+legacy external event. `FND-SONAR-0060` remains tracked until the new exact
+pushed head again proves zero New Issues without a suppression or
 scanner-control change.
 
 ## Changed files
@@ -138,16 +146,17 @@ scanner-control change.
 
 | Check | Actual result |
 | --- | --- |
-| `python3 -m unittest -q tests.test_runtime_observation_contract tests.test_with_crs_no_mrts_runtime` | Passed after the runtime follow-up: `126 tests in 46.309s`. It covers the requested identity, union, compound, explicit-fact, aggregate, HAProxy, NGINX, path/evidence, and no-fabricated-PASS regressions. |
+| `python3 -m unittest -q tests.test_runtime_observation_contract tests.test_with_crs_no_mrts_runtime` | Passed after the fourth runtime follow-up: `126 tests in 92.700s`. It covers the requested identity, union, compound, explicit-fact, aggregate, HAProxy, NGINX, path/evidence, and no-fabricated-PASS regressions. |
 | Focused runtime-follow-up regression (`test_envoy_intervention_rule_id_accepts_only_canonical_json_values` plus the all-connector normalizer realization) | Passed: `2 tests in 8.541s`. It executes the exact Envoy inline parser with the production JSON-text form and rejects non-canonical or unbounded forms; it also confirms the external event omits `framework_case` while the canonical aggregate remains valid. |
+| Focused fourth runtime-follow-up regression (all-connector normalizer realization and exact external-event records) | Passed: `2 tests in 10.843s`. It confirms that the canonical runtime observation retains `reachability.observed == {"status": "PASS"}` while the external `event.host_configuration` omits `reachability_status`. |
 | User-required combined verbose command with `tests.test_ci_security_workflows` | The `126` contract/normalizer cases passed; the command ran `127` entries in `41.392s`, with the final module reported as one import error because the local interpreter lacks `PyYAML`. No dependency was installed or changed. |
-| `tests.test_runtime_path_security`, `tests.test_evidence_output_security`, `tests.test_bilingual_docs`, and `tests.test_envoy_transport_hardening_contract` | Passed after the runtime follow-up: `70 tests in 7.076s`. |
-| Direct `tests.test_bilingual_docs` confirmation | Passed: `22 tests in 0.284s`. |
+| `tests.test_runtime_path_security`, `tests.test_evidence_output_security`, `tests.test_bilingual_docs`, and `tests.test_envoy_transport_hardening_contract` | Passed after the fourth runtime follow-up: `70 tests in 10.468s`. |
+| Direct `tests.test_bilingual_docs` confirmation | Passed again after the final Change Record update: `22 tests in 0.288s`. |
 | Shell syntax for the CRS/no-MRTS runner and Envoy harness scripts | Passed. |
 | Required `py_compile` files | Passed: exit `0`. |
 | `python3 -m json.tool ci/runtime/contracts/runtime-observation.schema.json /dev/null` | Passed. |
 | `git diff --check` | Passed. |
-| Security-diff review | The sealed scan for `a7b8cc19` completed with zero reportable findings. A subsequent focused delta review of the residual semantic-only refactor also found no reportable finding. The same-UID private-runner writer is an explicit trusted-runner-boundary residual, not a silently suppressed finding. |
+| Security-diff review | The sealed scan for `a7b8cc19` completed with zero reportable findings. A subsequent focused delta review of the residual semantic-only refactor and the third parser/compatibility follow-up also found no reportable finding. The fresh review of this fourth external-field omission found no reportable finding or false-PASS path: canonical reachability, raw evidence, digest binding, and fail-closed validation remain intact. The same-UID private-runner writer is an explicit trusted-runner-boundary residual, not a silently suppressed finding. |
 
 The exact local `PyYAML` import limitation is an environment evidence gap, not
 a product success or a reason to weaken the CI-security test.
@@ -173,10 +182,13 @@ but reported eight New Issues in SonarQube Cloud check `97609857745`. The first
 normal successor `a7b8cc199e01f6403616792c598068d24ff645ee` reduced those to
 three in exact check `97619927966`, while still passing the Quality Gate. The
 second narrow successor `ee7585250f2d7af6279a5fd1b847b76a87a15c99` passed
-exact check `97624800934` with zero New Issues. That result does not prove the
-next corrective successor: its own exact-head Sonar result must again show zero
-New Issues before delivery is verified. No suppression, `NOSONAR`, exclusion,
-acceptance, Quality-Gate change, or coverage workflow change was made.
+exact check `97624800934` with zero New Issues. The third narrow successor
+`efc2505b76734c19a0ca5766dabb268678dabc12` passed exact check `97632932827`
+with zero New Issues and zero annotations. That result does not prove this
+fourth corrective successor: its own exact-head Sonar result must again show
+zero New Issues before delivery is verified. No suppression, `NOSONAR`,
+exclusion, acceptance, Quality-Gate change, or coverage workflow change was
+made.
 
 ```text
 No Python coverage report is supplied to SonarCloud.
@@ -193,13 +205,21 @@ Apache and HAProxy succeeded: Envoy rejected the valid structured string
 compatibility consumer rejected the extra external `framework_case` key. These
 are log-derived causes, not retried or inferred failures.
 
+The exact successor workflow `32791114544` for `efc2505b` also reached a
+terminal failure without a retry. Apache and HAProxy succeeded; Envoy,
+Lighttpd, and Traefik each recorded a successful host runtime and Parent
+normalization before the same strict compatibility consumer rejected the
+schema-forbidden external field `host_configuration.reachability_status`.
+This is a downstream external-event shape defect, not evidence that
+reachability failed or that a PASS was fabricated.
+
 ## Known limitations
 
 No Apache or HAProxy live producer was implemented, no live six-connector by
 four-profile matrix was claimed, and Framework/MRTS were not initialized or
-modified. The two Parent-only repairs now require a new normal push and fresh
-exact-head GitHub workflow, SonarQube Cloud analysis, and applicable PR checks.
-Any failure requires log-based diagnosis before another commit.
+modified. The fourth Parent-only repair now requires a new normal push and
+fresh exact-head GitHub workflow, SonarQube Cloud analysis, and applicable PR
+checks. Any failure requires log-based diagnosis before another commit.
 
 ## Security impact
 
@@ -208,8 +228,11 @@ validation, attack-path analysis, focused regressions, and an independent
 read-only review; it found zero reportable findings. The later focused delta
 review for the residual semantic-only refactor also found no reportable
 finding. A focused review of the parser and compatibility-shape follow-up also
-found no reportable security finding or false-PASS bypass. No security control
-or trust boundary was weakened for this change.
+found no reportable security finding or false-PASS bypass. The fresh review of
+this fourth external-field omission likewise found no reportable finding or
+false-PASS path; canonical reachability, raw evidence, digest binding, and
+fail-closed validation remain active. No security control or trust boundary was
+weakened for this change.
 
 ## Remaining risks
 
@@ -227,8 +250,10 @@ resulting remediation, not a blind rerun. That head passed lint but SonarQube
 Cloud found eight maintainability issues. Normal successors `a7b8cc19` and
 `ee758525` reduced those to three and then zero. The latter's terminal runtime
 failure was diagnosed from the exact Envoy, Lighttpd, and Traefik logs; this
-third narrow Parent-only correction precedes the next normal follow-up
-commit/push. All exact-head checks, SonarQube Cloud, and `Connector runtime
-with CRS and no MRTS` must then be observed again. PR #338 remains Draft; no
-merge, auto-merge, Ready transition, rebase, or force-push is asserted or
-authorized.
+third narrow Parent-only correction reached zero exact-head Sonar issues but
+its own terminal runtime failure was again diagnosed from the exact Envoy,
+Lighttpd, and Traefik logs. This fourth narrow Parent-only correction precedes
+the next normal follow-up commit/push. All exact-head checks, SonarQube Cloud,
+and `Connector runtime with CRS and no MRTS` must then be observed again. PR
+#338 remains Draft; no merge, auto-merge, Ready transition, rebase, or
+force-push is asserted or authorized.

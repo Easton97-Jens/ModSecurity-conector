@@ -1479,7 +1479,6 @@ def normalize(args: argparse.Namespace) -> Path:
         "host_configuration": {
             "config_test_status": observed["config_test_status"],
             "host_start_status": observed["host_start_status"],
-            "reachability_status": observed["reachability_status"],
             "evidence_path": f"raw/{connector}/{run_id}/host-configuration.log",
             "evidence_sha256": digest(host_file, evidence_root),
         },
