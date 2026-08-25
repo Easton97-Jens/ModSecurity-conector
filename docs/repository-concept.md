@@ -284,7 +284,7 @@ Engine layers. A value at one layer does not implicitly configure another.
 | `default_block_status` and `default_error_status` | Common Runtime defaults `403` and `500`. | Define fallback status values where a host maps them; they do not prove a uniform fail-closed response. |
 | `response_body_mode` and `phase4_mode` | Common Runtime defaults `none` and `safe`. | No P4 input is processed by default; Safe late behavior is conservative and after commit can be `log_only`, not a universal fail-open/fail-closed policy. Apache is an explicit exception for normal P4 enforcement: its all-response gate decides before original output release. |
 | Envoy `failure_mode_allow` | Selected `ext_proc` templates set `failure_mode_allow: false`. | Selected configuration documents fail-closed processor-reachability handling; it is not evidence for every Envoy deployment. |
-| `rules_remote_url` and external downloads | Optional rule/source inputs. | Treat as an external trust boundary: require declared origin, checksum/pin where applicable, and no silent fallback. |
+| `rules_remote_key` / `rules_remote_url` and external downloads | Policy A: registered configuration inputs are technically disabled. | Any nonempty remote-rule configuration is rejected before a loader, download, origin fallback, or secret forwarding path; a future policy would require separate review and evidence. |
 
 The documented selected core reports Safe P4 as requested `deny`, actual
 `log_only`, visible HTTP 200, and no connection abort after a committed

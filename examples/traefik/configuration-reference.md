@@ -982,7 +982,8 @@ The UDS fields and bounds are enforcement-relevant; passthrough is not rule eval
 
 ### Short description
 
-Selects source-only passthrough or the persistent UDS engine; the selected rule-evaluating example uses uds.
+Selects the persistent UDS engine. Legacy source-only passthrough is rejected
+so a rule-evaluating deployment cannot silently select a non-enforcing path.
 
 ### Syntax
 
@@ -998,11 +999,11 @@ http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineMod
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| native middleware engine-mode enum | passthrough \| uds | no |
+| native middleware engine-mode enum | uds | no |
 
 ### Default
 
-passthrough
+uds
 
 Source: `connectors/traefik/native_middleware/middleware.go:CreateConfig`.
 
@@ -1014,9 +1015,11 @@ Merge: Traefik/plugin configuration is normalized once by the plugin.
 
 ### Phases and runtime effect
 
-passthrough always allows and supplies no rule evaluation; uds is the engine transport for native P1/P2/P3/P4 callbacks.
+uds is the engine transport for native P1/P2/P3/P4 callbacks. Legacy
+passthrough is rejected rather than being a non-enforcing fallback.
 
-Selects source-only passthrough or the persistent UDS engine; the selected rule-evaluating example uses uds.
+Selects the persistent UDS engine; invalid or legacy non-enforcing modes are
+rejected during normalization.
 
 ### Validation and errors
 
@@ -1030,7 +1033,8 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 ### Safety and operations
 
-Use uds for the selected rule-evaluating path; passthrough is intentionally not enforcement.
+Use uds for the selected rule-evaluating path. Do not rely on a passthrough
+fallback; it is not accepted by the current implementation.
 
 <a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-enginesocketpath"></a>
 ## `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineSocketPath`

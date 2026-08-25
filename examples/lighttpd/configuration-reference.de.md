@@ -48,8 +48,8 @@ Host-/Connector-Schalter binden oder konfigurieren die Hostintegration. Sie sind
 | `use_error_log` | Schlüssel des ausgewählten Runtime-Profils | [use_error_log](../common/common-connector-configuration.de.md#use-error-log) |
 | `rules_inline` | Schlüssel des ausgewählten Runtime-Profils | [rules_inline](../common/common-connector-configuration.de.md#rules-inline) |
 | `rules_file` | Schlüssel des ausgewählten Runtime-Profils | [rules_file](../common/common-connector-configuration.de.md#rules-file) |
-| `rules_remote_key` | Schlüssel des ausgewählten Runtime-Profils | [rules_remote_key](../common/common-connector-configuration.de.md#rules-remote-key) |
-| `rules_remote_url` | Schlüssel des ausgewählten Runtime-Profils | [rules_remote_url](../common/common-connector-configuration.de.md#rules-remote-url) |
+| `rules_remote_key` | Schlüssel des ausgewählten Runtime-Profils; ein nicht leerer Wert wird von Policy A abgelehnt | [rules_remote_key](../common/common-connector-configuration.de.md#rules-remote-key) |
+| `rules_remote_url` | Schlüssel des ausgewählten Runtime-Profils; ein nicht leerer Wert wird von Policy A abgelehnt | [rules_remote_url](../common/common-connector-configuration.de.md#rules-remote-url) |
 | `transaction_id` | Schlüssel des ausgewählten Runtime-Profils | [transaction_id](../common/common-connector-configuration.de.md#transaction-id) |
 | `transaction_id_header` | Schlüssel des ausgewählten Runtime-Profils | [transaction_id_header](../common/common-connector-configuration.de.md#transaction-id-header) |
 | `phase4_mode` | Schlüssel des ausgewählten Runtime-Profils | [phase4_mode](../common/common-connector-configuration.de.md#phase4-mode) |

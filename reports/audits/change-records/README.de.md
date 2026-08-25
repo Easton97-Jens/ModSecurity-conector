@@ -12,7 +12,7 @@ angelegt werden.
 ## Ausdrücklich autorisierte Records
 
 - [CR-20260824-connector-security-invariants](CR-20260824-connector-security-invariants.de.md)
-  | [English](CR-20260824-connector-security-invariants.md) — das
+  | English companion: `CR-20260824-connector-security-invariants.md` — das
   Parent-only-Connector-Security-Hardening hält lokale Remote-Rule-, HTTP-
   Grenz- und Event-Runtime-Evidence fest. Es schließt Framework/MRTS, Gitlink,
   CI/Governance und gemischte gleichzeitige Edits aus; Remote-Delivery wartet

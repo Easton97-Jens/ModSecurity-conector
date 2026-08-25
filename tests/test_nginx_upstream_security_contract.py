@@ -49,6 +49,45 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         self.assertIn("ngx_pool_cleanup_add(r->pool, 0)", create_ctx)
         self.assertIn("return ctx;", create_ctx)
 
+    def test_native_header_sinks_have_shared_bounded_fail_closed_gate(self) -> None:
+        self.assertIn('#include "msconnector/limits.h"', self.common)
+
+        gate = function_definition(self.common, "ngx_http_modsecurity_validate_header")
+        self.assertIn("name_len > MSCONNECTOR_MAX_HEADER_NAME_LENGTH", gate)
+        self.assertIn("value_len > MSCONNECTOR_MAX_HEADER_VALUE_LENGTH", gate)
+        self.assertIn("name_len > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES - value_len", gate)
+        self.assertIn("current_bytes = name_len + value_len", gate)
+        self.assertIn("MSCONNECTOR_MAX_HEADER_COUNT", gate)
+        self.assertIn("return NGX_ERROR;", gate)
+
+        request = function_definition(
+            self.common, "ngx_http_modsecurity_add_n_request_header"
+        )
+        response = function_definition(
+            self.common, "ngx_http_modsecurity_add_n_response_header"
+        )
+        self.assertLess(
+            request.index("ngx_http_modsecurity_validate_header"),
+            request.index("msc_add_n_request_header"),
+        )
+        self.assertLess(
+            response.index("ngx_http_modsecurity_validate_header"),
+            response.index("msc_add_n_response_header"),
+        )
+        self.assertNotIn("msc_add_n_request_header", self.access)
+        self.assertNotIn("msc_add_n_response_header", self.header)
+
+        add_response = function_definition(
+            self.header, "ngx_http_modsecurity_add_response_headers"
+        )
+        self.assertIn("return NGX_ERROR;", add_response)
+        header_filter = function_definition(self.header, "ngx_http_modsecurity_header_filter")
+        self.assertIn(
+            "if (ngx_http_modsecurity_add_response_headers(r, ctx) != NGX_OK)",
+            header_filter,
+        )
+        self.assertIn("return NGX_ERROR;", header_filter)
+
     def test_final_body_processing_accepts_only_success_one(self) -> None:
         request = function_definition(
             self.access, "ngx_http_modsecurity_inspect_request_body"

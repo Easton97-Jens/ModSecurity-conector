@@ -59,6 +59,43 @@ class HttpAuthorizationServiceSecurityContractTests(unittest.TestCase):
         self.assertIn("msconnector_headers_parse_content_length", self.source)
         self.assertIn("chunked request bodies are unsupported", self.source)
 
+    def test_client_socket_never_allows_an_unprotected_sigpipe_path(self) -> None:
+        socket_setup = self.source.split("static int configure_client_socket(", 1)[1].split(
+            "static int authorization_copy_profile", 1
+        )[0]
+        send_path = self.source.split("static int send_all(", 1)[1].split(
+            "static int send_response(", 1
+        )[0]
+        self.assertIn("MSG_NOSIGNAL", send_path)
+        self.assertIn("#if !defined(MSG_NOSIGNAL)", socket_setup)
+        self.assertIn("#if defined(SO_NOSIGPIPE)", socket_setup)
+        self.assertIn("setsockopt(socket_fd, SOL_SOCKET, SO_NOSIGPIPE", socket_setup)
+        self.assertIn("errno = ENOTSUP", socket_setup)
+        self.assertIn("return 0;", socket_setup)
+
+    def test_termination_signal_ownership_excludes_workers(self) -> None:
+        worker_main = self.source.split(
+            "static void *authorization_worker_main(", 1
+        )[1].split("static int authorization_start_worker(", 1)[0]
+        worker_helpers = "\n".join(
+            self.source.split(marker, 1)[1].split(next_marker, 1)[0]
+            for marker, next_marker in (
+                ("static int wait_for_socket(", "static int recv_more("),
+                ("static int recv_more(", "static int parse_request_line("),
+                ("static int send_all(", "static int send_response("),
+            )
+        )
+        worker_start = self.source.split(
+            "static int authorization_start_worker(", 1
+        )[1].split("static void authorization_shutdown_workers(", 1)[0]
+        self.assertNotIn("authorization_stop", worker_main)
+        self.assertNotIn("authorization_stop", worker_helpers)
+        self.assertIn("pthread_sigmask(SIG_BLOCK", self.source)
+        self.assertIn("pthread_create(&thread", worker_start)
+        self.assertIn("authorization_restore_signal_mask", worker_start)
+        self.assertIn("SIGTERM", worker_start)
+        self.assertIn("SIGINT", worker_start)
+
     def test_common_content_length_parser_rejects_any_duplicate_value(self) -> None:
         headers = (ROOT / "common" / "src" / "headers.c").read_text(encoding="utf-8")
         parser = headers.split("int msconnector_headers_parse_content_length(", 1)[1].split(

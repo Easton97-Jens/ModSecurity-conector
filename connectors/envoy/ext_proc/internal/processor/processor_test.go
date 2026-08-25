@@ -3,11 +3,18 @@ package processor
 import (
 	"context"
 	"io"
+	"math"
+	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	extprocv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
+	typev3 "github.com/envoyproxy/go-control-plane/envoy/type/v3"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -43,6 +50,215 @@ func TestProcessStreamsChunksAndCleansUpAtResponseEOS(t *testing.T) {
 	summary := transaction.closed[0]
 	if summary.CloseReason != CloseResponseEOS || summary.RequestBodyBytes != 6 || summary.ResponseBodyBytes != 6 {
 		t.Fatalf("unexpected cleanup summary: %#v", summary)
+	}
+}
+
+func TestProcessRejectsExcessActiveStreamBeforeTransactionOpenAndReleasesSlot(t *testing.T) {
+	transaction := &recordingTransaction{}
+	engine := &countingEngine{transaction: transaction}
+	service := newTestServiceWithStreamLimit(t, engine, LateActionSafe, 1)
+
+	firstContext, firstCancel := context.WithCancel(context.Background())
+	defer firstCancel()
+	held := newBlockingProcessStream(firstContext)
+	firstResult := make(chan error, 1)
+	go func() {
+		firstResult <- service.Process(held)
+	}()
+
+	select {
+	case <-held.waiting:
+	case <-time.After(time.Second):
+		t.Fatal("first stream did not reach its controlled idle receive")
+	}
+	if got := engine.opens.Load(); got != 1 {
+		t.Fatalf("transaction opens before admission rejection = %d, want 1", got)
+	}
+
+	excess := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{{request: requestHeaders(true)}}}
+	if err := service.Process(excess); status.Code(err) != codes.ResourceExhausted {
+		t.Fatalf("excess stream error code = %v, want %v (err=%v)", status.Code(err), codes.ResourceExhausted, err)
+	}
+	if got := engine.opens.Load(); got != 1 {
+		t.Fatalf("excess stream opened a transaction: opens = %d, want 1", got)
+	}
+
+	close(held.release)
+	select {
+	case err := <-firstResult:
+		if err != nil {
+			t.Fatalf("held stream Process() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("held stream did not release its capacity slot")
+	}
+
+	next := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{{request: requestHeaders(true)}}}
+	if err := service.Process(next); err != nil {
+		t.Fatalf("stream after release Process() error = %v", err)
+	}
+	if got := engine.opens.Load(); got != 2 {
+		t.Fatalf("transaction opens after released slot = %d, want 2", got)
+	}
+}
+
+func TestCumulativeBodyAccountingRejectsSignedOverflow(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		direction  Direction
+		setCurrent func(*Summary, int64)
+		getCurrent func(Summary) int64
+	}{
+		{name: "request", direction: DirectionRequest,
+			setCurrent: func(summary *Summary, value int64) { summary.RequestBodyBytes = value },
+			getCurrent: func(summary Summary) int64 { return summary.RequestBodyBytes }},
+		{name: "response", direction: DirectionResponse,
+			setCurrent: func(summary *Summary, value int64) { summary.ResponseBodyBytes = value },
+			getCurrent: func(summary Summary) int64 { return summary.ResponseBodyBytes }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			config := testConfig(LateActionSafe)
+			config.MaxRequestBodyBytes = math.MaxInt64
+			config.MaxResponseBodyBytes = math.MaxInt64
+			state := newStreamState(config, recordingEngine{transaction: &recordingTransaction{}}, discardObserver{})
+
+			// The last representable byte is a legitimate boundary and must be
+			// admitted when it remains within the configured limit.
+			test.setCurrent(&state.summary, math.MaxInt64-1)
+			if decision := state.bodyLimitDecision(test.direction, 1); decision.Action != ActionAllow {
+				t.Fatalf("boundary body chunk decision = %#v, want allow", decision)
+			}
+			state.recordBodyProgress(test.direction, 1, false)
+			if got := test.getCurrent(state.summary); got != math.MaxInt64 {
+				t.Fatalf("boundary body total = %d, want %d", got, int64(math.MaxInt64))
+			}
+
+			// A further chunk must fail closed before comparison or progress
+			// recording can wrap the signed counter negative.
+			before := state.summary
+			if decision := state.bodyLimitDecision(test.direction, 1); decision.Action != ActionDeny {
+				t.Fatalf("overflow body chunk decision = %#v, want deny", decision)
+			}
+			state.recordBodyProgress(test.direction, 1, false)
+			if got := test.getCurrent(state.summary); got != test.getCurrent(before) {
+				t.Fatalf("overflow body total = %d, want unchanged %d", got, test.getCurrent(before))
+			}
+		})
+	}
+}
+
+func TestEnvoyHeaderValidationRejectsUnsafeValuesBeforeEngine(t *testing.T) {
+	cases := []struct {
+		name  string
+		value []byte
+	}{
+		{name: "crlf", value: []byte("safe\r\nInjected: yes")},
+		{name: "nul", value: []byte{'s', 'a', 'f', 0, 'e'}},
+		{name: "control", value: []byte{'s', 0x01, 'e'}},
+		{name: "invalid utf8", value: []byte{'\xc3', '('}},
+	}
+	for _, test := range cases {
+		t.Run("request/"+test.name, func(t *testing.T) {
+			transaction := &recordingTransaction{}
+			service := newTestService(t, transaction, LateActionSafe)
+			request := requestHeaders(false)
+			request.GetRequestHeaders().Headers.Headers = append(request.GetRequestHeaders().Headers.Headers,
+				&corev3.HeaderValue{Key: "x-unsafe", RawValue: test.value})
+			stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{{request: request}}}
+			if err := service.Process(stream); err == nil {
+				t.Fatalf("Process() accepted unsafe request header")
+			}
+			if len(transaction.headerCalls) != 0 {
+				t.Fatalf("engine received unsafe request headers: %v", transaction.headerCalls)
+			}
+		})
+		t.Run("response/"+test.name, func(t *testing.T) {
+			transaction := &recordingTransaction{}
+			service := newTestService(t, transaction, LateActionSafe)
+			response := responseHeaders(false)
+			response.GetResponseHeaders().Headers.Headers = append(response.GetResponseHeaders().Headers.Headers,
+				&corev3.HeaderValue{Key: "x-unsafe", RawValue: test.value})
+			stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
+				{request: requestHeaders(true)}, {request: response},
+			}}
+			if err := service.Process(stream); err == nil {
+				t.Fatalf("Process() accepted unsafe response header")
+			}
+			if got, want := transaction.headerCalls, []Direction{DirectionRequest}; !sameDirections(got, want) {
+				t.Fatalf("engine header calls = %v, want %v", got, want)
+			}
+		})
+	}
+}
+
+func TestEnvoyHeaderValidationAcceptsTokensUTF8AndHTAB(t *testing.T) {
+	for _, name := range []string{"x-valid", "X_Custom.1", ":authority", ":status"} {
+		if !validEnvoyHeaderName(name) {
+			t.Fatalf("validEnvoyHeaderName(%q) = false", name)
+		}
+	}
+	for _, value := range [][]byte{[]byte("text\tvalue"), []byte("Grüße"), []byte{0xff}} {
+		if string(value) == string([]byte{0xff}) {
+			if validEnvoyHeaderValue(value) {
+				t.Fatalf("validEnvoyHeaderValue accepted invalid UTF-8")
+			}
+			continue
+		}
+		if !validEnvoyHeaderValue(value) {
+			t.Fatalf("validEnvoyHeaderValue rejected %q", value)
+		}
+	}
+	for _, name := range []string{"", ":", "bad name", "bad\\rname", "ümlaut"} {
+		if validEnvoyHeaderName(name) {
+			t.Fatalf("validEnvoyHeaderName accepted %q", name)
+		}
+	}
+}
+
+func TestRedirectDecisionRejectsUnsafeLocationValues(t *testing.T) {
+	cases := []struct {
+		name string
+		url  string
+	}{
+		{name: "crlf header splitting", url: "/safe\r\nX-Injected: yes"},
+		{name: "nul", url: "/safe\x00target"},
+		{name: "control", url: "/safe\x01target"},
+		{name: "raw whitespace", url: "/safe target"},
+		{name: "invalid utf8", url: string([]byte{'/', 's', 'a', 'f', 'e', 0xff})},
+		{name: "oversize", url: "/" + strings.Repeat("a", maxRedirectURLBytes)},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			got := normalizeDecision(Decision{
+				Action:      ActionRedirect,
+				Status:      302,
+				RedirectURL: test.url,
+			})
+			if got.Action != ActionDeny || got.Status != int(typev3.StatusCode_Forbidden) || got.RedirectURL != "" {
+				t.Fatalf("unsafe redirect normalized to %#v, want deny 403 without URL", got)
+			}
+			response := immediateResponse(Decision{Action: ActionRedirect, Status: 302, RedirectURL: test.url})
+			if response.GetImmediateResponse().GetHeaders() != nil {
+				t.Fatalf("unsafe redirect emitted location header: %#v", response)
+			}
+		})
+	}
+}
+
+func TestRedirectDecisionPreservesValidRelativeAndAbsoluteURLs(t *testing.T) {
+	for _, url := range []string{"/login?next=%2Fhome", "https://example.test/login"} {
+		got := normalizeDecision(Decision{Action: ActionRedirect, Status: 307, RedirectURL: url})
+		if got.Action != ActionRedirect || got.Status != 307 || got.RedirectURL != url {
+			t.Fatalf("valid redirect normalized to %#v, want URL %q", got, url)
+		}
+		response := immediateResponse(got).GetImmediateResponse()
+		if response.GetHeaders() == nil || len(response.GetHeaders().GetSetHeaders()) != 1 {
+			t.Fatalf("valid redirect did not emit exactly one location header: %#v", response)
+		}
+		header := response.GetHeaders().GetSetHeaders()[0].GetHeader()
+		if header.GetKey() != "location" || header.GetValue() != url {
+			t.Fatalf("location header = %#v, want %q", header, url)
+		}
 	}
 }
 
@@ -371,6 +587,13 @@ func TestRequestMetadataAcceptsCaseInsensitiveMatchingAuthorityAndHost(t *testin
 	}
 }
 
+func TestRequestMetadataRejectsMissingAuthorityAndHost(t *testing.T) {
+	_, err := requestMetadataFromEnvoy([]Header{{Name: ":method", Value: []byte("GET")}}, map[string]*structpb.Struct{})
+	if err == nil {
+		t.Fatal("requestMetadataFromEnvoy() accepted request without :authority or Host")
+	}
+}
+
 func TestEnvoyEndpointAddressKeepsOnlyTheHostComponentOfSocketAttributes(t *testing.T) {
 	for input, want := range map[string]string{
 		"192.0.2.10:45678":  "192.0.2.10",
@@ -385,10 +608,14 @@ func TestEnvoyEndpointAddressKeepsOnlyTheHostComponentOfSocketAttributes(t *test
 }
 
 func newTestService(t *testing.T, transaction *recordingTransaction, policy LateActionPolicy) *Service {
+	return newTestServiceWithStreamLimit(t, recordingEngine{transaction: transaction}, policy, DefaultMaxActiveStreams)
+}
+
+func newTestServiceWithStreamLimit(t *testing.T, engine TransactionOpener, policy LateActionPolicy, streamLimit int) *Service {
 	t.Helper()
-	service, err := NewService(testConfig(policy), recordingEngine{transaction: transaction})
+	service, err := newServiceWithStreamLimit(testConfig(policy), engine, discardObserver{}, streamLimit)
 	if err != nil {
-		t.Fatalf("NewService() error = %v", err)
+		t.Fatalf("newServiceWithStreamLimit() error = %v", err)
 	}
 	return service
 }
@@ -420,9 +647,20 @@ func (engine recordingEngine) Open(context.Context, StreamMetadata) (Transaction
 	return engine.transaction, nil
 }
 
+type countingEngine struct {
+	transaction Transaction
+	opens       atomic.Int32
+}
+
+func (engine *countingEngine) Open(context.Context, StreamMetadata) (Transaction, error) {
+	engine.opens.Add(1)
+	return engine.transaction, nil
+}
+
 type recordingTransaction struct {
 	headerDecision      func(Direction) Decision
 	bodyDecision        func(Direction) Decision
+	headerCalls         []Direction
 	requestBodyLengths  []int
 	responseBodyLengths []int
 	closed              []Summary
@@ -430,10 +668,23 @@ type recordingTransaction struct {
 }
 
 func (transaction *recordingTransaction) ProcessHeaders(_ context.Context, direction Direction, _ []Header, _ bool) (Decision, error) {
+	transaction.headerCalls = append(transaction.headerCalls, direction)
 	if transaction.headerDecision != nil {
 		return transaction.headerDecision(direction), nil
 	}
 	return allowDecision(), nil
+}
+
+func sameDirections(left, right []Direction) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func (transaction *recordingTransaction) ProcessBody(_ context.Context, direction Direction, body []byte, _ bool) (Decision, error) {
@@ -511,6 +762,44 @@ func testStreamContext(contextValue context.Context) func() context.Context {
 		return contextValue
 	}
 }
+
+type blockingProcessStream struct {
+	contextValue context.Context
+	delivered    bool
+	waiting      chan struct{}
+	release      chan struct{}
+}
+
+func newBlockingProcessStream(contextValue context.Context) *blockingProcessStream {
+	return &blockingProcessStream{
+		contextValue: contextValue,
+		waiting:      make(chan struct{}),
+		release:      make(chan struct{}),
+	}
+}
+
+func (stream *blockingProcessStream) Send(*extprocv3.ProcessingResponse) error { return nil }
+
+func (stream *blockingProcessStream) Recv() (*extprocv3.ProcessingRequest, error) {
+	if !stream.delivered {
+		stream.delivered = true
+		return requestHeaders(false), nil
+	}
+	close(stream.waiting)
+	select {
+	case <-stream.release:
+		return nil, io.EOF
+	case <-stream.contextValue.Done():
+		return nil, stream.contextValue.Err()
+	}
+}
+
+func (stream *blockingProcessStream) SetHeader(metadata.MD) error  { return nil }
+func (stream *blockingProcessStream) SendHeader(metadata.MD) error { return nil }
+func (stream *blockingProcessStream) SetTrailer(metadata.MD)       {}
+func (stream *blockingProcessStream) Context() context.Context     { return stream.contextValue }
+func (stream *blockingProcessStream) SendMsg(any) error            { return nil }
+func (stream *blockingProcessStream) RecvMsg(any) error            { return nil }
 
 func requestHeaders(eos bool) *extprocv3.ProcessingRequest {
 	return &extprocv3.ProcessingRequest{Request: &extprocv3.ProcessingRequest_RequestHeaders{RequestHeaders: &extprocv3.HttpHeaders{

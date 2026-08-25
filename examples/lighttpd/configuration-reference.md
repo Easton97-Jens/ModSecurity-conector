@@ -48,8 +48,8 @@ Host/connector switches bind or configure host integration. They are not the sam
 | `use_error_log` | Selected runtime profile key | [use_error_log](../common/common-connector-configuration.md#use-error-log) |
 | `rules_inline` | Selected runtime profile key | [rules_inline](../common/common-connector-configuration.md#rules-inline) |
 | `rules_file` | Selected runtime profile key | [rules_file](../common/common-connector-configuration.md#rules-file) |
-| `rules_remote_key` | Selected runtime profile key | [rules_remote_key](../common/common-connector-configuration.md#rules-remote-key) |
-| `rules_remote_url` | Selected runtime profile key | [rules_remote_url](../common/common-connector-configuration.md#rules-remote-url) |
+| `rules_remote_key` | Selected runtime profile key; nonempty value is rejected by Policy A | [rules_remote_key](../common/common-connector-configuration.md#rules-remote-key) |
+| `rules_remote_url` | Selected runtime profile key; nonempty value is rejected by Policy A | [rules_remote_url](../common/common-connector-configuration.md#rules-remote-url) |
 | `transaction_id` | Selected runtime profile key | [transaction_id](../common/common-connector-configuration.md#transaction-id) |
 | `transaction_id_header` | Selected runtime profile key | [transaction_id_header](../common/common-connector-configuration.md#transaction-id-header) |
 | `phase4_mode` | Selected runtime profile key | [phase4_mode](../common/common-connector-configuration.md#phase4-mode) |

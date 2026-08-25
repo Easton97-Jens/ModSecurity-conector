@@ -37,6 +37,7 @@
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
 #include <haproxy/init.h>
+#include <haproxy/sc_strm.h>
 #include <haproxy/stream.h>
 #include <haproxy/tools.h>
 
@@ -79,8 +80,13 @@ struct haproxy_modsecurity_htx_filter_context {
     int response_started_before_request_eos;
     int response_headers_committed;
     int response_body_started;
+    size_t request_payload_bytes_seen;
+    size_t response_payload_bytes_seen;
+    size_t request_body_limit;
+    size_t response_body_limit;
     int response_finished;
     int disabled;
+    int fail_closed;
 };
 
 typedef int (*haproxy_modsecurity_htx_append_body_chunk)(
@@ -325,9 +331,10 @@ static void haproxy_modsecurity_htx_finish_context(
  * setting txn->status (that path supplies a NULL reply and only truncates the
  * stream).
  *
- * Redirects and invalid requested statuses remain observer-only.  They keep
- * the prior lifecycle behavior below until a separate host-runtime contract
- * establishes a safe HAProxy implementation for them.
+ * A disruptive decision that cannot be represented by the proven local-reply
+ * path must not be reclassified as observer-only.  Latch the filter into its
+ * fail-closed error state instead; this preserves the enforcement boundary
+ * without claiming an unverified redirect or status mapping.
  */
 static int haproxy_modsecurity_htx_apply_precommit_deny(
     struct stream *s, struct haproxy_modsecurity_htx_filter_context *ctx,
@@ -393,6 +400,47 @@ static int haproxy_modsecurity_htx_capture_request_headers(
     return 0;
 }
 
+/* Use the active frontend stream's actual socket metadata.  This must not
+ * synthesize a loopback address or a nominal port when HAProxy cannot supply
+ * a real peer/local endpoint: the Common mapper treats both endpoints as
+ * required transaction metadata. */
+static int haproxy_modsecurity_htx_capture_request_endpoints(
+    struct stream *s, haproxy_modsecurity_request *request,
+    char client_address[INET6_ADDRSTRLEN],
+    char server_address[INET6_ADDRSTRLEN])
+{
+    const struct sockaddr_storage *client_endpoint;
+    const struct sockaddr_storage *server_endpoint;
+    int client_family;
+    int server_family;
+
+    if (!s || !s->scf || !request || !client_address || !server_address) {
+        return -1;
+    }
+    client_endpoint = sc_src(s->scf);
+    server_endpoint = sc_dst(s->scf);
+    if (!client_endpoint || !server_endpoint) {
+        return -1;
+    }
+    client_family = addr_to_str(client_endpoint, client_address,
+        INET6_ADDRSTRLEN);
+    server_family = addr_to_str(server_endpoint, server_address,
+        INET6_ADDRSTRLEN);
+    /* addr_to_str preserves HAProxy's supported Internet and UNIX endpoint
+     * families.  Reject only conversion failure/unknown families; replacing a
+     * valid UNIX endpoint with an invented IP would violate the same
+     * invariant. */
+    if (client_family <= 0 || server_family <= 0) {
+        return -1;
+    }
+
+    request->client_ip = client_address;
+    request->client_port = get_host_port(client_endpoint);
+    request->server_ip = server_address;
+    request->server_port = get_host_port(server_endpoint);
+    return 0;
+}
+
 static int haproxy_modsecurity_htx_begin_request(
     struct stream *s, struct filter *filter)
 {
@@ -400,6 +448,8 @@ static int haproxy_modsecurity_htx_begin_request(
     struct haproxy_modsecurity_htx_filter_config *config = FLT_CONF(filter);
     haproxy_modsecurity_request request;
     haproxy_modsecurity_decision decision;
+    char client_address[INET6_ADDRSTRLEN];
+    char server_address[INET6_ADDRSTRLEN];
     int rc;
 
     if (!ctx || !config || !config->engine || !ctx->request_method ||
@@ -413,6 +463,10 @@ static int haproxy_modsecurity_htx_begin_request(
     request.uri = ctx->request_uri;
     request.headers = ctx->request_headers.items;
     request.header_count = ctx->request_headers.count;
+    if (haproxy_modsecurity_htx_capture_request_endpoints(s, &request,
+            client_address, server_address) != 0) {
+        return -1;
+    }
     rc = haproxy_modsecurity_transaction_begin_request(config->engine, &request,
         &decision, &ctx->transaction);
     haproxy_modsecurity_htx_request_snapshot_free(ctx);
@@ -422,8 +476,9 @@ static int haproxy_modsecurity_htx_begin_request(
     haproxy_modsecurity_htx_report_decision("request", ctx, &decision);
     if (decision.disruptive) {
         if (!haproxy_modsecurity_htx_apply_precommit_deny(s, ctx, &decision)) {
-            haproxy_modsecurity_htx_finish_context(ctx);
-            ctx->disabled = 1;
+            ctx->fail_closed = 1;
+            haproxy_modsecurity_htx_abort_context(ctx);
+            return -1;
         }
     }
     return 0;
@@ -431,7 +486,8 @@ static int haproxy_modsecurity_htx_begin_request(
 
 static int haproxy_modsecurity_htx_append_payload(
     struct filter *filter, struct http_msg *msg, unsigned int offset, unsigned int len,
-    haproxy_modsecurity_htx_append_body_chunk append_body_chunk)
+    haproxy_modsecurity_htx_append_body_chunk append_body_chunk,
+    size_t *body_bytes_seen, size_t body_limit)
 {
     struct haproxy_modsecurity_htx_filter_context *ctx = filter->ctx;
     struct htx *htx;
@@ -439,7 +495,8 @@ static int haproxy_modsecurity_htx_append_payload(
     struct htx_ret found;
     unsigned int remaining = len;
 
-    if (!ctx || !ctx->transaction || !msg || !msg->chn || !append_body_chunk) {
+    if (!ctx || !ctx->transaction || !msg || !msg->chn || !append_body_chunk ||
+            !body_bytes_seen || body_limit == 0U) {
         return -1;
     }
     htx = htxbuf(&msg->chn->buf);
@@ -466,11 +523,13 @@ static int haproxy_modsecurity_htx_append_payload(
             }
             /* `value.ptr` is borrowed from HAProxy's current HTX buffer. */
             if (value.len > UINT_MAX ||
+                value.len > body_limit || *body_bytes_seen > body_limit - value.len ||
                 append_body_chunk(
                     ctx->transaction, (const unsigned char *)value.ptr,
                     (unsigned int)value.len, &decision) != 0) {
                 return -1;
             }
+            *body_bytes_seen += value.len;
             remaining -= (unsigned int)value.len;
         } else {
             if (offset != 0U || block_size > remaining) {
@@ -488,7 +547,9 @@ static int haproxy_modsecurity_htx_append_request_payload(
 {
     return haproxy_modsecurity_htx_append_payload(
         filter, msg, offset, len,
-        haproxy_modsecurity_transaction_append_request_body_chunk);
+        haproxy_modsecurity_transaction_append_request_body_chunk,
+        &((struct haproxy_modsecurity_htx_filter_context *)filter->ctx)->request_payload_bytes_seen,
+        ((struct haproxy_modsecurity_htx_filter_context *)filter->ctx)->request_body_limit);
 }
 
 static int haproxy_modsecurity_htx_process_response_headers(
@@ -535,8 +596,9 @@ static int haproxy_modsecurity_htx_process_response_headers(
     haproxy_modsecurity_htx_report_decision("response-header", ctx, &decision);
     if (decision.disruptive) {
         if (!haproxy_modsecurity_htx_apply_precommit_deny(s, ctx, &decision)) {
-            haproxy_modsecurity_htx_finish_context(ctx);
-            ctx->disabled = 1;
+            ctx->fail_closed = 1;
+            haproxy_modsecurity_htx_abort_context(ctx);
+            return -1;
         }
     }
     return 0;
@@ -547,7 +609,9 @@ static int haproxy_modsecurity_htx_append_response_payload(
 {
     return haproxy_modsecurity_htx_append_payload(
         filter, msg, offset, len,
-        haproxy_modsecurity_transaction_append_response_body_chunk);
+        haproxy_modsecurity_transaction_append_response_body_chunk,
+        &((struct haproxy_modsecurity_htx_filter_context *)filter->ctx)->response_payload_bytes_seen,
+        ((struct haproxy_modsecurity_htx_filter_context *)filter->ctx)->response_body_limit);
 }
 
 static int haproxy_modsecurity_htx_filter_init(struct proxy *px, struct flt_conf *fconf)
@@ -590,12 +654,17 @@ static void haproxy_modsecurity_htx_filter_deinit(struct proxy *px, struct flt_c
 static int haproxy_modsecurity_htx_filter_attach(struct stream *s, struct filter *filter)
 {
     struct haproxy_modsecurity_htx_filter_context *ctx;
+    struct haproxy_modsecurity_htx_filter_config *config;
 
     (void)s;
+    config = FLT_CONF(filter);
     ctx = calloc(1U, sizeof(*ctx));
-    if (!ctx) {
+    if (!ctx || !config) {
+        free(ctx);
         return -1;
     }
+    ctx->request_body_limit = config->common_config.request_body_limit;
+    ctx->response_body_limit = config->common_config.response_body_limit;
     filter->ctx = ctx;
     return 1;
 }
@@ -621,6 +690,10 @@ static int haproxy_modsecurity_htx_filter_http_headers(
     if (!ctx || !msg || !msg->chn) {
         return -1;
     }
+    if (ctx->fail_closed) {
+        haproxy_modsecurity_htx_abort_context(ctx);
+        return -1;
+    }
     if (msg->chn->flags & CF_ISRESP) {
         if (!ctx->transaction || ctx->disabled) {
             haproxy_modsecurity_htx_abort_context(ctx);
@@ -631,7 +704,9 @@ static int haproxy_modsecurity_htx_filter_http_headers(
              * leave this response uninspected. */
             ctx->response_started_before_request_eos = 1;
         } else if (haproxy_modsecurity_htx_process_response_headers(s, filter, msg) != 0) {
+            ctx->fail_closed = 1;
             haproxy_modsecurity_htx_abort_context(ctx);
+            return -1;
         } else if (!ctx->disabled) {
             /* The following return lets HAProxy forward the headers.  By the
              * later body EOS they are necessarily committed. */
@@ -643,7 +718,9 @@ static int haproxy_modsecurity_htx_filter_http_headers(
     ctx->request_headers_seen = 1;
     if (haproxy_modsecurity_htx_capture_request_headers(filter, msg) != 0 ||
         haproxy_modsecurity_htx_begin_request(s, filter) != 0) {
+        ctx->fail_closed = 1;
         haproxy_modsecurity_htx_abort_context(ctx);
+        return -1;
     } else if (!ctx->disabled) {
         register_data_filter(s, msg->chn, filter);
     }
@@ -661,20 +738,57 @@ static int haproxy_modsecurity_htx_filter_http_payload(
         return -1;
     }
     if (!(msg->chn->flags & CF_ISRESP)) {
-        if (ctx->disabled || !ctx->transaction ||
-            haproxy_modsecurity_htx_append_request_payload(filter, msg, offset, len) != 0) {
+        if (ctx->fail_closed) {
             haproxy_modsecurity_htx_abort_context(ctx);
+            /* Setup/engine failures must never be converted into
+             * pass-through by the disabled lifecycle state. */
+            return -1;
+        }
+        if (ctx->disabled) {
+            haproxy_modsecurity_htx_abort_context(ctx);
+            /* A disabled transaction is an intentional pass-through state. */
+            return (int)len;
+        }
+        if (!ctx->transaction) {
+            haproxy_modsecurity_htx_abort_context(ctx);
+            /* A payload callback without a live request transaction is an
+             * invalid host phase; do not silently forward it. */
+            return -1;
+        }
+        if (haproxy_modsecurity_htx_append_request_payload(filter, msg, offset, len) != 0) {
+            haproxy_modsecurity_htx_abort_context(ctx);
+            /* Do not turn a bounded-body or malformed-HTX failure into
+             * successful forwarding of the offending slice. */
+            return -1;
         }
         /* Never hold or delay request content while it is inspected. */
         return (int)len;
     }
-    if (ctx->disabled || !ctx->transaction || !ctx->response_headers_seen ||
-        haproxy_modsecurity_htx_append_response_payload(filter, msg, offset, len) != 0) {
+    if (ctx->fail_closed) {
         haproxy_modsecurity_htx_abort_context(ctx);
-    } else {
-        ctx->response_headers_committed = 1;
-        ctx->response_body_started = 1;
+        /* Setup/engine failures must never be converted into
+         * pass-through by the disabled lifecycle state. */
+        return -1;
     }
+    if (ctx->disabled) {
+        haproxy_modsecurity_htx_abort_context(ctx);
+        /* A disabled transaction is an intentional pass-through state. */
+        return (int)len;
+    }
+    if (!ctx->transaction || !ctx->response_headers_seen) {
+        haproxy_modsecurity_htx_abort_context(ctx);
+        /* A response payload needs a live request transaction and the
+         * response-header phase; otherwise this is an invalid host phase. */
+        return -1;
+    }
+    if (haproxy_modsecurity_htx_append_response_payload(filter, msg, offset, len) != 0) {
+        haproxy_modsecurity_htx_abort_context(ctx);
+        /* Do not turn a bounded-body or malformed-HTX failure into
+         * successful forwarding of the offending slice. */
+        return -1;
+    }
+    ctx->response_headers_committed = 1;
+    ctx->response_body_started = 1;
     /* Never hold or delay output: report the exact bytes HAProxy forwarded. */
     return (int)len;
 }
@@ -695,8 +809,9 @@ static int haproxy_modsecurity_htx_finish_request(
     }
     if (haproxy_modsecurity_transaction_finish_request_body(
             ctx->transaction, &decision) != 0) {
+        ctx->fail_closed = 1;
         haproxy_modsecurity_htx_abort_context(ctx);
-        return 1;
+        return -1;
     }
     haproxy_modsecurity_htx_report_decision("request-body", ctx, &decision);
     if (decision.disruptive) {
@@ -707,13 +822,17 @@ static int haproxy_modsecurity_htx_finish_request(
          * neither outcome is incremental-request-forwarding evidence and both
          * remain non-promoted. Before response headers, HAProxy's normal
          * reply-and-close API can return the real client a 4xx. */
-        if (!ctx->response_headers_seen &&
+        if (!ctx->response_headers_seen && !ctx->response_started_before_request_eos &&
                 haproxy_modsecurity_htx_apply_precommit_deny(s, ctx, &decision)) {
             unregister_data_filter(s, msg->chn, filter);
             return 1;
         }
-        haproxy_modsecurity_htx_finish_context(ctx);
-        ctx->disabled = 1;
+        /* A disruptive request-body result that cannot use the proven
+         * precommit local-reply path must not be downgraded to disabled
+         * pass-through, including an early-response ordering. */
+        ctx->fail_closed = 1;
+        haproxy_modsecurity_htx_abort_context(ctx);
+        return -1;
     } else if (ctx->response_started_before_request_eos) {
         haproxy_modsecurity_htx_finish_context(ctx);
         ctx->disabled = 1;

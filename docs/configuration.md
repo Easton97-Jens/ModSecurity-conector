@@ -79,7 +79,8 @@ their examples describe only their stated boundary.
 
 | Surface | Apache | NGINX | Boundary |
 | --- | --- | --- |
-| <code>modsecurity</code>, rules, rules file, remote rules | Registered host directives | Registered host directives | Rule loading remains connector-owned |
+| <code>modsecurity</code>, rules, rules file | Registered host directives | Registered host directives | Local rule loading remains connector-owned |
+| <code>modsecurity_rules_remote</code> | Registered but rejected by the shared security policy | Registered but rejected by the shared security policy | Remote rule loading is disabled before a fetch or native remote API call |
 | <code>modsecurity_transaction_id</code> | Static-string semantics | Per-request complex-value semantics | Same name does not mean identical evaluation |
 | <code>modsecurity_transaction_id_expr</code> | Registered Apache expression directive | Not registered | Do not copy Apache expression syntax to NGINX |
 | Bounded P4 controls | Registered host directives | Registered host directives | Body limit/scope does not promote full response-body support |

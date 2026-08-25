@@ -11,7 +11,7 @@ This is the complete current `key=value` parser surface of `common/runtime/mscon
 | [`body_limit_action`](#body-limit-action) | Common Runtime | enum | no | reject | Common Runtime key=value file | Controls whether an over-limit chunk is rejected or truncated before engine input. |
 | [`default_block_status`](#default-block-status) | Common Runtime | HTTP status | no | 403 | Common Runtime key=value file | Fallback status for supported pre-commit block actions. |
 | [`default_error_status`](#default-error-status) | Common Runtime | HTTP error status | no | 500 | Common Runtime key=value file | Fallback status for runtime errors. |
-| [`enabled`](#enabled) | Common Runtime | boolean | no | off | Common Runtime key=value file | Enables the Common Runtime; enabled runtime requires an inline, file, or remote rule source. |
+| [`enabled`](#enabled) | Common Runtime | boolean | no | off | Common Runtime key=value file | Enables the Common Runtime; enabled runtime requires an inline or local-file rule source. |
 | [`event_path`](#event-path) | Common Runtime | path | no | none | Common Runtime key=value file | Appends metadata-only JSONL events when configured. |
 | [`late_intervention_timeout`](#late-intervention-timeout) | Common Runtime | non-negative decimal milliseconds | no | 0 | Common Runtime key=value file | Stores an optional late-intervention budget; Common owns no timer/cancellation primitive. |
 | [`max_event_json_bytes`](#max-event-json-bytes) | Common Runtime | positive decimal bytes | no | 16384 | Common Runtime key=value file | Bounds serialized metadata event size. |
@@ -28,8 +28,8 @@ This is the complete current `key=value` parser surface of `common/runtime/mscon
 | [`response_body_mode`](#response-body-mode) | Common Runtime | enum | no | none | Common Runtime key=value file | Selects the Common response-body handling mode; a particular host may support only a subset. |
 | [`rules_file`](#rules-file) | Common Runtime | path | no | none | Common Runtime key=value file | Loads rules from a local file. |
 | [`rules_inline`](#rules-inline) | Common Runtime | string | no | none | Common Runtime key=value file | Adds inline rule configuration. |
-| [`rules_remote_key`](#rules-remote-key) | Common Runtime | string | no | none | Common Runtime key=value file | Supplies one half of a remote-rule pair. |
-| [`rules_remote_url`](#rules-remote-url) | Common Runtime | URL | no | none | Common Runtime key=value file | Supplies the remote-rule endpoint; the selected examples do not exercise it. |
+| [`rules_remote_key`](#rules-remote-key) | Common Runtime | rejected string | no | none | Common Runtime key=value file | Legacy key recognized only to reject remote-rule configuration. |
+| [`rules_remote_url`](#rules-remote-url) | Common Runtime | rejected URL | no | none | Common Runtime key=value file | Legacy key recognized only to reject remote-rule configuration. |
 | [`transaction_id`](#transaction-id) | Common Runtime | string | no | none | Common Runtime key=value file | Sets a static runtime transaction identifier. |
 | [`transaction_id_header`](#transaction-id-header) | Common Runtime | header name | no | x-request-id | Common Runtime key=value file | Selects the fallback correlation-header name. |
 | [`use_error_log`](#use-error-log) | Common Runtime | boolean | no | on | Common Runtime key=value file | Stores the Common logging preference. A connector must consume it before a host logging effect can be claimed. |
@@ -206,7 +206,7 @@ Limits bound resource use. Fallback status for runtime errors.
 
 ### Short description
 
-Enables the Common Runtime; enabled runtime requires an inline, file, or remote rule source.
+Enables the Common Runtime; enabled runtime requires an inline or local-file rule source.
 
 ### Syntax
 
@@ -240,7 +240,7 @@ Merge: When a host uses msconnector_config, scalar child values override parent 
 
 See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
 
-Enables the Common Runtime; enabled runtime requires an inline, file, or remote rule source.
+Enables the Common Runtime; enabled runtime requires an inline or local-file rule source.
 
 ### Validation and errors
 
@@ -254,7 +254,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 ### Safety and operations
 
-Limits bound resource use. Enables the Common Runtime; enabled runtime requires an inline, file, or remote rule source.
+Limits bound resource use. Enables the Common Runtime; enabled runtime requires an inline or local-file rule source.
 
 <a id="event-path"></a>
 ## `event_path`
@@ -1150,7 +1150,8 @@ Limits bound resource use. Adds inline rule configuration.
 
 ### Short description
 
-Supplies one half of a remote-rule pair.
+Legacy compatibility key. Remote rule loading is disabled uniformly and this
+key is accepted only far enough to produce a configuration error.
 
 ### Syntax
 
@@ -1166,7 +1167,7 @@ rules_remote_key=<value>
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| string | remote key paired with rules_remote_url | no |
+| rejected string | no value is accepted | no |
 
 ### Default
 
@@ -1184,11 +1185,12 @@ Merge: When a host uses msconnector_config, scalar child values override parent 
 
 See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
 
-Supplies one half of a remote-rule pair.
+Remote rule loading is disabled before the loader, any network fetch, or a
+native remote-rule API call.
 
 ### Validation and errors
 
-Unknown keys, empty values, malformed assignments, and key-specific invalid values fail the runtime configuration check.
+Unknown keys, empty values, malformed assignments, and key-specific invalid values fail the runtime configuration check. Any configured remote-rule key or URL also fails closed.
 
 ### Example
 
@@ -1198,14 +1200,15 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 ### Safety and operations
 
-Limits bound resource use. Supplies one half of a remote-rule pair.
+Limits bound resource use. Remote rule loading is disabled; use inline rules or a local rules file.
 
 <a id="rules-remote-url"></a>
 ## `rules_remote_url`
 
 ### Short description
 
-Supplies the remote-rule endpoint; the selected examples do not exercise it.
+Legacy compatibility key. Remote rule loading is disabled uniformly and this
+key is accepted only far enough to produce a configuration error.
 
 ### Syntax
 
@@ -1221,7 +1224,7 @@ rules_remote_url=<value>
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| URL | remote URL paired with rules_remote_key | no |
+| rejected URL | no value is accepted | no |
 
 ### Default
 
@@ -1239,11 +1242,12 @@ Merge: When a host uses msconnector_config, scalar child values override parent 
 
 See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
 
-Supplies the remote-rule endpoint; the selected examples do not exercise it.
+Remote rule loading is disabled before the loader, any network fetch, or a
+native remote-rule API call.
 
 ### Validation and errors
 
-Unknown keys, empty values, malformed assignments, and key-specific invalid values fail the runtime configuration check.
+Unknown keys, empty values, malformed assignments, and key-specific invalid values fail the runtime configuration check. Any configured remote-rule key or URL also fails closed.
 
 ### Example
 
@@ -1253,7 +1257,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 ### Safety and operations
 
-Limits bound resource use. Supplies the remote-rule endpoint; the selected examples do not exercise it.
+Limits bound resource use. Remote rule loading is disabled; use inline rules or a local rules file.
 
 <a id="transaction-id"></a>
 ## `transaction_id`

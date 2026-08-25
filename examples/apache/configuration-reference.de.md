@@ -21,7 +21,7 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | Aufzählung | nein | safe | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Apache hält jede normalisierte Response-Brigade bis zum ersten EOS zurück und löst die normale P4-Entscheidung vor der Freigabe der ursprünglichen Ausgabe auf. Dieser Modus wählt nur den defensiven Fallback für unabhängig als bereits committed nachgewiesene Ausgabe: minimal/safe zeichnen log_only auf und strict fordert abort_connection an. |
 | [`modsecurity_rules`](#modsecurity-rules) | Host / Connector | Zeichenkette | nein | kein Wert; optional | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Lädt während des Konfigurationsladens Inline-Inhalt über libmodsecurity. |
 | [`modsecurity_rules_file`](#modsecurity-rules-file) | Host / Connector | Pfad | nein | kein Wert; optional | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Lädt während des Konfigurationsladens eine lokale Regeldatei über libmodsecurity. |
-| [`modsecurity_rules_remote`](#modsecurity-rules-remote) | Host / Connector | zwei Zeichenketten | nein | kein Wert; optional | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Übergibt das Schlüssel-/URL-Paar an den Remote-Regel-Loader von libmodsecurity. |
+| [`modsecurity_rules_remote`](#modsecurity-rules-remote) | Host / Connector | registrierte, aber immer abgelehnte zwei Zeichenketten | nein | kein verwendbarer Wert | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Policy A weist Remote-Rule-Konfiguration ab, bevor ein Loader- oder Netzwerkpfad erreicht wird. |
 | [`modsecurity_transaction_id`](#modsecurity-transaction-id) | Host / Connector | Zeichenkette/Ausdruck | nein | kein Wert; der Connector erzeugt eine Ersatzkennung | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Liefert die Engine- und Ereigniskorrelationskennung für eine Transaktion. |
 | [`modsecurity_transaction_id_expr`](#modsecurity-transaction-id-expr) | Host / Connector | Apache-Zeichenausdruck | nein | none | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Wertet pro Request einen Apache-Ausdruck für die Transaktionskennung aus. |
 | [`modsecurity_use_error_log`](#modsecurity-use-error-log) | Host / Connector | Boolescher Wert | nein | on | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Steuert die Weiterleitung von libmodsecurity-Meldungen an das Host-Fehlerlog; die Regelauswertung wird dadurch nicht umgeschaltet. |
@@ -632,7 +632,8 @@ Die Datei und ihre übergeordneten Verzeichnisse für nicht vertrauenswürdige I
 
 ### Kurzbeschreibung
 
-Übergibt das Schlüssel-/URL-Paar an den Remote-Regel-Loader von libmodsecurity.
+Die Parserregistrierung bleibt für einen expliziten Konfigurationsfehler
+erhalten, aber Policy A deaktiviert Remote-Rule-Loading vor einem Loader- oder Netzwerkpfad.
 
 ### Syntax
 
@@ -648,39 +649,36 @@ modsecurity_rules_remote <key> <url>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| zwei Zeichenketten | Schlüssel und URL | nein |
+| zwei Zeichenketten | kein Schlüssel-/URL-Paar wird akzeptiert | nein |
 
 ### Standardwert
 
-kein Wert; optional
+Kein verwendbarer Wert. Jede Nutzung wird von Policy A abgelehnt.
 
 Quelle: `Parserregistrierung hat keinen Standardwert`.
 
 ### Vererbung und Zusammenführung
 
-Der Elternwert steht dem Kind zur Verfügung, sofern kein Kindwert gesetzt ist; siehe die Apache-Merge-Funktion für Verzeichniskonfigurationen.
-
-Zusammenführung: Common-Skalarwerte verwenden einen Kind-vor-Eltern-Merge; Regelsätze werden über msc_rules_merge zusammengeführt. Transaktions-ID-Ausdruck und statische ID schließen sich gegenseitig aus.
+Es kann kein Remote-Wert geerbt oder zusammengeführt werden, weil jede Nutzung abgelehnt wird.
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: P1 steuert die Integration; Regeln und P4-Steuerungen betreffen nur die genannte Phase.
-
-Übergibt das Schlüssel-/URL-Paar an den Remote-Regel-Loader von libmodsecurity.
+Über diese Direktive sind kein Remote-Loader, keine Netzwerkanfrage, kein
+Origin-Fallback, kein Digest-Bypass und keine Secret-Weiterleitung erreichbar.
 
 ### Validierung und Fehler
 
-msc_config_load_rules_remote liefert für die dokumentierte ungültige Eingabe einen Apache-Konfigurationsfehler; die installierte Konfiguration mit apachectl -t validieren.
+msc_config_load_rules_remote liefert für jeden Wert den Remote-Loading-
+Security-Policy-Fehler; die installierte Konfiguration mit apachectl -t validieren.
 
 ### Beispiel
 
-Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
-
-Quellenbasiertes Beispiel: [examples/apache/safe/httpd.conf](../../examples/apache/safe/httpd.conf).
+Es gibt absichtlich keinen akzeptierten Beispielwert.
 
 ### Sicherheit und Betrieb
 
-Remote-Policy wird von den ausgewählten no-CRS-Beispielen nicht verwendet; nicht als Ersatz für eine lokale Datei behandeln.
+Policy A ist für diesen ausgewählten Pfad technisch deaktiviert; nicht als
+Ersatz für eine lokale Datei oder als zukünftige Remote-Loading-Konfiguration behandeln.
 
 <a id="modsecurity-transaction-id"></a>
 ## `modsecurity_transaction_id`

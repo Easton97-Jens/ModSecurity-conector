@@ -135,6 +135,33 @@ typedef enum authorization_listener_iteration {
 
 static volatile sig_atomic_t authorization_stop = 0;
 
+static int authorization_block_termination_signals(sigset_t *previous_mask) {
+    sigset_t termination_signals;
+    if (previous_mask == NULL || sigemptyset(&termination_signals) != 0 ||
+        sigaddset(&termination_signals, SIGTERM) != 0 ||
+        sigaddset(&termination_signals, SIGINT) != 0) {
+        return 0;
+    }
+    return pthread_sigmask(SIG_BLOCK, &termination_signals, previous_mask) == 0;
+}
+
+static int authorization_unblock_termination_signals(void) {
+    sigset_t termination_signals;
+    if (sigemptyset(&termination_signals) != 0 ||
+        sigaddset(&termination_signals, SIGTERM) != 0 ||
+        sigaddset(&termination_signals, SIGINT) != 0) {
+        return 0;
+    }
+    return pthread_sigmask(SIG_UNBLOCK, &termination_signals, NULL) == 0;
+}
+
+static int authorization_restore_signal_mask(const sigset_t *previous_mask) {
+    if (previous_mask == NULL) {
+        return 0;
+    }
+    return pthread_sigmask(SIG_SETMASK, previous_mask, NULL) == 0;
+}
+
 static void stop_service(int signal_number) {
     (void)signal_number;
     authorization_stop = 1;
@@ -384,7 +411,7 @@ static int wait_for_socket(
         descriptor.fd = socket_fd;
         descriptor.events = events;
         result = poll(&descriptor, 1U, timeout_ms);
-        if (result < 0 && errno == EINTR && !authorization_stop) {
+        if (result < 0 && errno == EINTR) {
             continue;
         }
         if (result == 0) {
@@ -419,7 +446,7 @@ static int recv_more(
         }
         do {
             received = recv(socket_fd, (char *)buffer + *used, capacity - *used, 0);
-        } while (received < 0 && errno == EINTR && !authorization_stop);
+        } while (received < 0 && errno == EINTR);
         if (received < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
             continue;
         }
@@ -821,7 +848,7 @@ static int send_all(
 #else
             result = send(socket_fd, data + sent, size - sent, 0);
 #endif
-        } while (result < 0 && errno == EINTR && !authorization_stop);
+        } while (result < 0 && errno == EINTR);
         if (result < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
             continue;
         }
@@ -1078,6 +1105,21 @@ static int configure_client_socket(int socket_fd) {
     if (socket_fd < 0) {
         return 0;
     }
+#if !defined(MSG_NOSIGNAL)
+#if defined(SO_NOSIGPIPE)
+    {
+        int enabled = 1;
+        if (setsockopt(socket_fd, SOL_SOCKET, SO_NOSIGPIPE,
+                &enabled, sizeof(enabled)) != 0) {
+            return 0;
+        }
+    }
+#else
+    /* Never expose send(..., 0) to an unprotected client socket. */
+    errno = ENOTSUP;
+    return 0;
+#endif
+#endif
     flags = fcntl(socket_fd, F_GETFL, 0);
     return flags >= 0 && fcntl(socket_fd, F_SETFL, flags | O_NONBLOCK) == 0;
 }
@@ -1228,7 +1270,7 @@ static void *authorization_worker_main(void *argument) {
     connection.local = &worker->local;
     connection.read_deadline = &worker->read_deadline;
     request_result = handle_authorization_request(&connection, worker->service);
-    if (!request_result && !authorization_stop) {
+    if (!request_result) {
         (void)fprintf(stderr, "%s authorization request terminated without "
             "a response\n", worker->service->profile->connector_name);
     }
@@ -1245,6 +1287,8 @@ static int authorization_start_worker(
     authorization_worker *worker;
     pthread_attr_t attributes;
     pthread_t thread;
+    sigset_t previous_signal_mask;
+    int worker_created = 0;
     int result;
     if (service == NULL || socket_fd < 0 || peer == NULL || local == NULL ||
         read_deadline == NULL) {
@@ -1263,13 +1307,24 @@ static int authorization_start_worker(
     worker->peer = *peer;
     worker->local = *local;
     worker->read_deadline = *read_deadline;
+    /* Signals are blocked while creating the worker so it inherits a mask
+     * that excludes SIGTERM/SIGINT.  The handler therefore has one owner:
+     * the serving thread.  This also prevents the signal handler and a
+     * worker read of authorization_stop from racing. */
+    if (!authorization_block_termination_signals(&previous_signal_mask)) {
+        (void)close(socket_fd);
+        free(worker);
+        return -1;
+    }
     if (pthread_mutex_lock(&service->worker_lock) != 0) {
+        (void)authorization_restore_signal_mask(&previous_signal_mask);
         (void)close(socket_fd);
         free(worker);
         return -1;
     }
     if (service->active_workers >= service->max_connections) {
         (void)pthread_mutex_unlock(&service->worker_lock);
+        (void)authorization_restore_signal_mask(&previous_signal_mask);
         (void)close(socket_fd);
         free(worker);
         return 0;
@@ -1279,14 +1334,26 @@ static int authorization_start_worker(
     ++service->active_workers;
     (void)pthread_mutex_unlock(&service->worker_lock);
     if (pthread_attr_init(&attributes) != 0) {
+        (void)authorization_restore_signal_mask(&previous_signal_mask);
         authorization_worker_release(worker);
         return -1;
     }
     result = pthread_attr_setdetachstate(&attributes, PTHREAD_CREATE_DETACHED);
     if (result == 0) {
         result = pthread_create(&thread, &attributes, authorization_worker_main, worker);
+        worker_created = result == 0;
     }
     (void)pthread_attr_destroy(&attributes);
+    if (!authorization_restore_signal_mask(&previous_signal_mask)) {
+        if (worker_created) {
+            /* pthread_sigmask() with a previously valid mask should not fail.
+             * If it does, keep the worker alive and make the serving thread
+             * explicitly unblocked so shutdown remains signal-driven. */
+            (void)authorization_unblock_termination_signals();
+            return 1;
+        }
+        (void)authorization_unblock_termination_signals();
+    }
     if (result != 0) {
         authorization_worker_release(worker);
         return -1;

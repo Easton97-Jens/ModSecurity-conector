@@ -20,12 +20,16 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/un.h>
+#include <time.h>
 #include <unistd.h>
 
 #define TRAEFIK_ENGINE_CONFIG_LINE_MAX 8192U
 #define TRAEFIK_ENGINE_SOCKET_TIMEOUT_SECONDS 30
+#define TRAEFIK_ENGINE_SEND_TIMEOUT_MILLISECONDS \
+    (TRAEFIK_ENGINE_SOCKET_TIMEOUT_SECONDS * 1000)
 #define TRAEFIK_ENGINE_ACCEPT_POLL_MILLISECONDS 250
 #define TRAEFIK_ENGINE_LISTEN_BACKLOG 32
+#define TRAEFIK_ENGINE_MAX_ACTIVE_WORKERS 64U
 
 typedef struct traefik_engine_frame {
     uint8_t opcode;
@@ -189,18 +193,81 @@ static uint16_t traefik_engine_clamp_u16(size_t value)
     return value > UINT16_MAX ? UINT16_MAX : (uint16_t)value;
 }
 
+static int traefik_engine_send_deadline_remaining_ms(
+    const struct timespec *deadline, int *remaining_ms)
+{
+    struct timespec now;
+    time_t seconds;
+    long nanoseconds;
+    long long milliseconds;
+
+    if (deadline == NULL || remaining_ms == NULL ||
+        clock_gettime(CLOCK_MONOTONIC, &now) != 0) {
+        return 0;
+    }
+    seconds = deadline->tv_sec - now.tv_sec;
+    nanoseconds = deadline->tv_nsec - now.tv_nsec;
+    if (nanoseconds < 0L) {
+        --seconds;
+        nanoseconds += 1000000000L;
+    }
+    if (seconds < 0 || (seconds == 0 && nanoseconds <= 0L)) {
+        return 0;
+    }
+    milliseconds = (long long)seconds * 1000LL +
+        (long long)(nanoseconds / 1000000L);
+    if (nanoseconds % 1000000L != 0L) {
+        ++milliseconds;
+    }
+    if (milliseconds > INT_MAX) {
+        milliseconds = INT_MAX;
+    }
+    *remaining_ms = (int)milliseconds;
+    return *remaining_ms > 0;
+}
+
 static int traefik_engine_send_all(int socket_fd, const unsigned char *data,
     size_t size)
 {
+    struct timespec deadline;
     size_t offset = 0U;
+
+    if (clock_gettime(CLOCK_MONOTONIC, &deadline) != 0) {
+        return 0;
+    }
+    deadline.tv_sec += TRAEFIK_ENGINE_SEND_TIMEOUT_MILLISECONDS / 1000;
     while (offset < size) {
-        ssize_t written = send(socket_fd, data + offset, size - offset,
-            MSG_NOSIGNAL);
+        struct pollfd descriptor;
+        int remaining_ms;
+        int polled;
+        ssize_t written;
+
+        if (!traefik_engine_send_deadline_remaining_ms(&deadline,
+                &remaining_ms)) {
+            return 0;
+        }
+        descriptor.fd = socket_fd;
+        descriptor.events = POLLOUT;
+        descriptor.revents = 0;
+        polled = poll(&descriptor, 1U, remaining_ms);
+        if (polled < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            return 0;
+        }
+        if (polled == 0 || (descriptor.revents & (POLLERR | POLLHUP |
+                POLLNVAL)) != 0) {
+            return 0;
+        }
+        written = send(socket_fd, data + offset, size - offset,
+            MSG_NOSIGNAL | MSG_DONTWAIT);
         if (written > 0) {
             offset += (size_t)written;
             continue;
         }
-        if (written < 0 && errno == EINTR) {
+        if (written < 0 && (errno == EINTR || errno == EAGAIN ||
+                errno == EWOULDBLOCK)) {
             continue;
         }
         return 0;
@@ -342,6 +409,46 @@ static int traefik_engine_reader_text(traefik_engine_reader *reader,
     return 1;
 }
 
+static int traefik_engine_header_name_is_valid(const char *name,
+    size_t name_size)
+{
+    if (name == NULL || name_size == 0U) {
+        return 0;
+    }
+    for (size_t index = 0U; index < name_size; ++index) {
+        unsigned char value = (unsigned char)name[index];
+        int token = (value >= (unsigned char)'A' &&
+                value <= (unsigned char)'Z') ||
+            (value >= (unsigned char)'a' &&
+                value <= (unsigned char)'z') ||
+            (value >= (unsigned char)'0' &&
+                value <= (unsigned char)'9') ||
+            value == '!' || value == '#' || value == '$' || value == '%' ||
+            value == '&' || value == '\'' || value == '*' || value == '+' ||
+            value == '-' || value == '.' || value == '^' || value == '_' ||
+            value == '`' || value == '|' || value == '~';
+        if (!token) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int traefik_engine_header_value_is_valid(const char *value,
+    size_t value_size)
+{
+    if (value == NULL) {
+        return 0;
+    }
+    for (size_t index = 0U; index < value_size; ++index) {
+        unsigned char byte = (unsigned char)value[index];
+        if ((byte < 0x20U && byte != 0x09U) || byte == 0x7fU) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 static void traefik_engine_headers_free(traefik_engine_headers *headers)
 {
     if (headers == NULL) {
@@ -390,6 +497,13 @@ static int traefik_engine_reader_headers(traefik_engine_reader *reader,
         out->items[index].name_size = strlen(out->names[index]);
         out->items[index].value = out->values[index];
         out->items[index].value_size = strlen(out->values[index]);
+        if (!traefik_engine_header_name_is_valid(out->items[index].name,
+                out->items[index].name_size) ||
+            !traefik_engine_header_value_is_valid(out->items[index].value,
+                out->items[index].value_size)) {
+            traefik_engine_headers_free(out);
+            return 0;
+        }
     }
     return 1;
 }
@@ -1265,35 +1379,48 @@ static int traefik_engine_start_worker(traefik_engine_service *service,
     pthread_t thread;
     int thread_created;
 
-    if (service == NULL || !traefik_engine_socket_timeout(socket_fd)) {
+    if (service == NULL) {
         return 0;
     }
-    worker = calloc(1U, sizeof(*worker));
-    if (worker == NULL) {
-        return 0;
-    }
-    worker->service = service;
-    worker->socket_fd = socket_fd;
+    /* Reserve admission before allocating a worker.  The persistent service
+     * deliberately has no lifetime request quota, so this active-worker cap
+     * (plus the finite listen backlog) is the resource boundary. */
     if (pthread_mutex_lock(&service->worker_lock) != 0) {
-        free(worker);
         return 0;
+    }
+    if (service->worker_count >= TRAEFIK_ENGINE_MAX_ACTIVE_WORKERS) {
+        (void)pthread_mutex_unlock(&service->worker_lock);
+        /* Admission rejection is distinct from a worker creation failure:
+         * the listener remains available for a later connection once an
+         * active worker exits. */
+        return 2;
     }
     ++service->worker_count;
     (void)pthread_mutex_unlock(&service->worker_lock);
-    thread_created = pthread_create(&thread, NULL, traefik_engine_worker, worker);
-    if (thread_created != 0) {
-        if (pthread_mutex_lock(&service->worker_lock) == 0) {
-            --service->worker_count;
-            if (service->worker_count == 0U) {
-                (void)pthread_cond_broadcast(&service->workers_idle);
+    if (traefik_engine_socket_timeout(socket_fd)) {
+        worker = calloc(1U, sizeof(*worker));
+        if (worker != NULL) {
+            worker->service = service;
+            worker->socket_fd = socket_fd;
+            thread_created = pthread_create(&thread, NULL, traefik_engine_worker,
+                worker);
+            if (thread_created == 0) {
+                (void)pthread_detach(thread);
+                return 1;
             }
-            (void)pthread_mutex_unlock(&service->worker_lock);
+            free(worker);
         }
-        free(worker);
-        return 0;
     }
-    (void)pthread_detach(thread);
-    return 1;
+    if (pthread_mutex_lock(&service->worker_lock) == 0) {
+        if (service->worker_count > 0U) {
+            --service->worker_count;
+        }
+        if (service->worker_count == 0U) {
+            (void)pthread_cond_broadcast(&service->workers_idle);
+        }
+        (void)pthread_mutex_unlock(&service->worker_lock);
+    }
+    return 0;
 }
 
 static char *traefik_engine_trim(char *text)
@@ -1717,11 +1844,18 @@ static int traefik_engine_serve_connections(int listener,
         failure_stage == NULL) {
         return 0;
     }
-    while (!traefik_engine_stop_requested &&
-        (max_connections == 0U || *accepted_connections < max_connections)) {
+    while (!traefik_engine_stop_requested) {
         struct pollfd descriptor;
         int client;
         int polled;
+
+        /* A positive CLI value is a controlled one-shot test boundary.  The
+         * default zero preserves the persistent-service contract while the
+         * active-worker and listen-backlog limits bound live resources. */
+        if (max_connections != 0U &&
+            *accepted_connections >= max_connections) {
+            break;
+        }
 
         descriptor.fd = listener;
         descriptor.events = POLLIN;
@@ -1745,12 +1879,19 @@ static int traefik_engine_serve_connections(int listener,
             *failure_stage = "listener_accept";
             return 0;
         }
-        if (!traefik_engine_start_worker(service, client)) {
+        int worker_status = traefik_engine_start_worker(service, client);
+        if (worker_status == 2) {
+            (void)close(client);
+            continue;
+        }
+        if (worker_status == 0) {
             (void)close(client);
             *failure_stage = "worker_start";
             return 0;
         }
-        ++*accepted_connections;
+        if (max_connections != 0U) {
+            ++*accepted_connections;
+        }
     }
     return 1;
 }
@@ -1864,10 +2005,29 @@ static int traefik_engine_self_test_append_text(unsigned char *buffer,
     return 1;
 }
 
+static int traefik_engine_protocol_self_test_begin_with_header(
+    unsigned char *buffer, size_t size, size_t *offset,
+    const char *name, const char *value)
+{
+    return traefik_engine_self_test_append_text(buffer, size, offset, "GET") &&
+        traefik_engine_self_test_append_text(buffer, size, offset, "/health") &&
+        traefik_engine_self_test_append_text(buffer, size, offset, "HTTP/1.1") &&
+        traefik_engine_self_test_append_text(buffer, size, offset, "example.test") &&
+        traefik_engine_self_test_append_text(buffer, size, offset, "127.0.0.1") &&
+        traefik_engine_self_test_append_u16(buffer, size, offset, 12345U) &&
+        traefik_engine_self_test_append_text(buffer, size, offset, "127.0.0.1") &&
+        traefik_engine_self_test_append_u16(buffer, size, offset, 80U) &&
+        traefik_engine_self_test_append_text(buffer, size, offset, "request-1") &&
+        traefik_engine_self_test_append_u16(buffer, size, offset, 1U) &&
+        traefik_engine_self_test_append_text(buffer, size, offset, name) &&
+        traefik_engine_self_test_append_text(buffer, size, offset, value);
+}
+
 static int traefik_engine_protocol_self_test(void)
 {
     unsigned char begin[256];
     traefik_engine_request_input input;
+    traefik_engine_response_input response_input;
     traefik_engine_frame frame;
     uint8_t action;
     uint8_t flags;
@@ -1909,6 +2069,65 @@ static int traefik_engine_protocol_self_test(void)
     traefik_engine_request_input_free(&input);
     if (!passed || traefik_engine_parse_begin(begin, offset - 1U, &input)) {
         return 1;
+    }
+    {
+        const struct {
+            const char *name;
+            const char *value;
+        } invalid_headers[] = {
+            {"bad name", "value"},
+            {"x-test", "value\r\nInjected: yes"},
+            {"x-test", "value\x01"}
+        };
+        for (size_t index = 0U;
+            index < sizeof(invalid_headers) / sizeof(invalid_headers[0]);
+            ++index) {
+            memset(begin, 0, sizeof(begin));
+            offset = 0U;
+            if (!traefik_engine_protocol_self_test_begin_with_header(begin,
+                    sizeof(begin), &offset, invalid_headers[index].name,
+                    invalid_headers[index].value) ||
+                traefik_engine_parse_begin(begin, offset, &input)) {
+                return 1;
+            }
+        }
+        memset(begin, 0, sizeof(begin));
+        offset = 0U;
+        if (!traefik_engine_self_test_append_u16(begin, sizeof(begin),
+                &offset, 200U) ||
+            !traefik_engine_self_test_append_text(begin, sizeof(begin),
+                &offset, "HTTP/1.1") ||
+            !traefik_engine_self_test_append_u16(begin, sizeof(begin),
+                &offset, 1U) ||
+            !traefik_engine_self_test_append_text(begin, sizeof(begin),
+                &offset, "X-Valid") ||
+            !traefik_engine_self_test_append_text(begin, sizeof(begin),
+                &offset, "value") ||
+            !traefik_engine_parse_response_headers(begin, offset,
+                &response_input)) {
+            return 1;
+        }
+        traefik_engine_response_input_free(&response_input);
+        for (size_t index = 0U;
+            index < sizeof(invalid_headers) / sizeof(invalid_headers[0]);
+            ++index) {
+            memset(begin, 0, sizeof(begin));
+            offset = 0U;
+            if (!traefik_engine_self_test_append_u16(begin, sizeof(begin),
+                    &offset, 200U) ||
+                !traefik_engine_self_test_append_text(begin, sizeof(begin),
+                    &offset, "HTTP/1.1") ||
+                !traefik_engine_self_test_append_u16(begin, sizeof(begin),
+                    &offset, 1U) ||
+                !traefik_engine_self_test_append_text(begin, sizeof(begin),
+                    &offset, invalid_headers[index].name) ||
+                !traefik_engine_self_test_append_text(begin, sizeof(begin),
+                    &offset, invalid_headers[index].value) ||
+                traefik_engine_parse_response_headers(begin, offset,
+                    &response_input)) {
+                return 1;
+            }
+        }
     }
     memset(&frame, 0, sizeof(frame));
     frame.opcode = TRAEFIK_ENGINE_PROTOCOL_OUTCOME;

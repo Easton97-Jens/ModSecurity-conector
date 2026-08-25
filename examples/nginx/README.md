@@ -43,7 +43,7 @@ logs, listener, and upstream values inside them are host examples.
 | modsecurity_rules_file | Readable libmodsecurity rules file | Required; no repository default; host config; http scope | /etc/modsecurity/modsecurity-phase4.conf. A reviewed ruleset can block traffic. |
 | modsecurity_phase4_mode | P4 policy: minimal, safe, or strict | Required in Safe or Strict file; host config; http scope | safe in safe/nginx.conf. Strict is configuration-only here. |
 | modsecurity_phase4_content_types_file | Explicit response MIME-type list | Optional; host config; http scope | /etc/modsecurity/phase4-content-types.conf. A missing file fails validation. |
-| modsecurity_phase4_log | Decision JSONL destination | Optional; host config; http scope | /var/log/modsecurity/nginx-phase4.jsonl. Protect and rotate request metadata. |
+| modsecurity_phase4_log | Registered but rejected native event-file directive | Not usable; host config rejects every value | Native NGINX cannot establish the Common runtime's no-follow, regular-file, private-`0600` descriptor contract. Use the Common runtime event lifecycle instead. |
 | app_backend and 127.0.0.1:8081 | Upstream group and local TCP endpoint | Required in these proxy references; host config; http scope | Replace with the intended upstream. Loopback avoids accidental exposure during a local test. |
 | listen 8080 and server_name example.test | Listener and virtual-host selector | Required in these files; host config; server scope | Replace for the installed host; a public bind changes exposure. |
 | SecResponseBodyLimit | Positive P4 byte bound | Required in bounded P4 rules; rules file; rule-engine scope | 1048576 bytes. Do not infer unbounded behavior from this reference. |

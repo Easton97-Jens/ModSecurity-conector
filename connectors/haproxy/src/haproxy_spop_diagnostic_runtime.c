@@ -3,7 +3,9 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -21,10 +23,14 @@
 #include "msconnector/event.h"
 #include "msconnector/event_jsonl.h"
 #include "msconnector/late_intervention.h"
+#include "msconnector/limits.h"
 
 #define SPOP_FRAME_MAX 65536U
 #define SPOP_MIN_FRAME_SIZE 256U
 #define SPOP_FIN_FLAG 0x00000001U
+#define SPOP_LEGACY_TIMEOUT_MS 2000U
+#define SPOP_DEFAULT_MAX_TRANSACTIONS 4096U
+#define SPOP_MAX_TRANSACTIONS 65536U
 
 #define SPOP_FRM_HAPROXY_HELLO 1U
 #define SPOP_FRM_HAPROXY_DISCONNECT 2U
@@ -374,9 +380,59 @@ static int write_process_id_file(const char *path, pid_t process_id) {
     return write_text_contents(path, contents);
 }
 
-static int read_full(int fd, void *buf, size_t len) {
+static int read_full_timeout(int fd, void *buf, size_t len, unsigned int timeout_ms) {
     unsigned char *p = (unsigned char *)buf;
+    struct timespec deadline;
+
+    if (timeout_ms > 0U && clock_gettime(CLOCK_MONOTONIC, &deadline) != 0) {
+        return -1;
+    }
+    if (timeout_ms > 0U) {
+        deadline.tv_sec += (time_t)(timeout_ms / 1000U);
+        deadline.tv_nsec += (long)(timeout_ms % 1000U) * 1000000L;
+        if (deadline.tv_nsec >= 1000000000L) {
+            deadline.tv_sec++;
+            deadline.tv_nsec -= 1000000000L;
+        }
+    }
     while (len > 0) {
+        if (timeout_ms > 0U) {
+            struct timespec now;
+            struct pollfd descriptor;
+            int wait_ms;
+            int poll_rc;
+            time_t seconds;
+            long nanoseconds;
+
+            if (clock_gettime(CLOCK_MONOTONIC, &now) != 0) {
+                return -1;
+            }
+            seconds = deadline.tv_sec - now.tv_sec;
+            nanoseconds = deadline.tv_nsec - now.tv_nsec;
+            if (nanoseconds < 0L) {
+                seconds--;
+                nanoseconds += 1000000000L;
+            }
+            if (seconds < 0 || (seconds == 0 && nanoseconds <= 0L)) {
+                return -1;
+            }
+            if (seconds > (time_t)(INT_MAX / 1000)) {
+                wait_ms = INT_MAX;
+            } else {
+                long long total_ms = (long long)seconds * 1000LL +
+                    (long long)(nanoseconds + 999999L) / 1000000LL;
+                wait_ms = total_ms > INT_MAX ? INT_MAX : (int)total_ms;
+            }
+            descriptor.fd = fd;
+            descriptor.events = POLLIN;
+            descriptor.revents = 0;
+            do {
+                poll_rc = poll(&descriptor, 1, wait_ms);
+            } while (poll_rc < 0 && errno == EINTR);
+            if (poll_rc <= 0 || (descriptor.revents & (POLLIN | POLLHUP | POLLERR)) == 0) {
+                return -1;
+            }
+        }
         ssize_t rc;
 
         do {
@@ -474,29 +530,50 @@ static int append_varint(spop_buffer *buf, uint64_t value) {
 }
 
 static int read_varint(const unsigned char *data, size_t len, size_t *pos, uint64_t *value) {
+    size_t cursor;
+    uint64_t decoded;
     unsigned int shift;
 
-    if (*pos >= len) {
+    if (data == 0 || pos == 0 || value == 0 || *pos >= len) {
         return -1;
     }
-    *value = data[(*pos)++];
-    if (*value < 240U) {
+    cursor = *pos;
+    decoded = data[cursor++];
+    if (decoded < 240U) {
+        *pos = cursor;
+        *value = decoded;
         return 0;
     }
     shift = 4U;
-    do {
+    for (unsigned int group = 0U; group < 9U; ++group) {
         unsigned int byte;
-        if (*pos >= len) {
+        uint64_t contribution;
+
+        if (cursor >= len || shift >= 64U) {
             return -1;
         }
-        byte = data[(*pos)++];
-        *value += (uint64_t)byte << shift;
-        shift += 7U;
-        if (byte < 128U) {
-            break;
+        byte = data[cursor++];
+        if ((uint64_t)byte > (UINT64_MAX >> shift)) {
+            return -1;
         }
-    } while (shift < 64U);
-    return 0;
+        contribution = (uint64_t)byte << shift;
+        if (decoded > UINT64_MAX - contribution) {
+            return -1;
+        }
+        decoded += contribution;
+        if (byte < 128U) {
+            *pos = cursor;
+            *value = decoded;
+            return 0;
+        }
+        /* A continuation at shift 60 would require an eleventh byte and
+         * cannot represent a value in the 64-bit SPOP form. */
+        if (shift > 57U) {
+            return -1;
+        }
+        shift += 7U;
+    }
+    return -1;
 }
 
 static int append_string(spop_buffer *buf, const char *value) {
@@ -685,7 +762,12 @@ static void copy_cstring(char *out, size_t out_len, const char *value) {
 }
 
 static char *dup_bytes_as_cstring(const unsigned char *value, size_t value_len) {
-    char *out = (char *)calloc(value_len + 1U, 1U);
+    char *out;
+
+    if (value_len == SIZE_MAX || (value == 0 && value_len > 0U)) {
+        return 0;
+    }
+    out = (char *)calloc(value_len + 1U, 1U);
     if (out == 0) {
         return 0;
     }
@@ -775,22 +857,53 @@ static int add_request_header(
         const unsigned char *value,
         size_t value_len) {
     runtime_header *headers;
+    char *header_name;
+    char *header_value;
 
-    if (name_len == 0) {
-        return 0;
+    if (name_len == 0 || (name == 0 && name_len > 0U) ||
+            (value == 0 && value_len > 0U)) {
+        return -1;
+    }
+    if (name_len > MSCONNECTOR_MAX_HEADER_NAME_LENGTH ||
+            value_len > MSCONNECTOR_MAX_HEADER_VALUE_LENGTH ||
+            request->header_count >= MSCONNECTOR_MAX_HEADER_COUNT ||
+            request->header_count == UINT_MAX ||
+            sizeof(*request->headers) >
+                SIZE_MAX / (size_t)(request->header_count + 1U)) {
+        return -1;
+    }
+    for (size_t index = 0U; index < name_len; ++index) {
+        unsigned char ch = name[index];
+        int token = (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') ||
+            (ch >= '0' && ch <= '9') || strchr("!#$%&'*+-.^_`|~", ch) != 0;
+        if (!token) {
+            return -1;
+        }
+    }
+    for (size_t index = 0U; index < value_len; ++index) {
+        unsigned char ch = value[index];
+        if (ch == '\0' || ch == '\r' || ch == '\n' ||
+                (ch < 0x20U && ch != '\t') || ch == 0x7fU) {
+            return -1;
+        }
+    }
+    header_name = dup_header_name(name, name_len);
+    header_value = dup_bytes_as_cstring(value, value_len);
+    if (header_name == 0 || header_value == 0) {
+        free(header_name);
+        free(header_value);
+        return -1;
     }
     headers = (runtime_header *)realloc(request->headers,
         sizeof(*request->headers) * (request->header_count + 1U));
     if (headers == 0) {
+        free(header_name);
+        free(header_value);
         return -1;
     }
     request->headers = headers;
-    request->headers[request->header_count].name = dup_header_name(name, name_len);
-    request->headers[request->header_count].value = dup_bytes_as_cstring(value, value_len);
-    if (request->headers[request->header_count].name == 0 ||
-            request->headers[request->header_count].value == 0) {
-        return -1;
-    }
+    request->headers[request->header_count].name = header_name;
+    request->headers[request->header_count].value = header_value;
     request->header_count++;
     return 0;
 }
@@ -809,6 +922,9 @@ static int parse_headers_bin(notify_request *request, const unsigned char *value
             return -1;
         }
         if (name_len == 0 && header_value_len == 0) {
+            if (pos != value_len) {
+                return -1;
+            }
             request->has_headers_bin = 1;
             return 0;
         }
@@ -825,6 +941,7 @@ static int parse_headers_text(notify_request *request, const unsigned char *valu
 
     while (start < value_len) {
         size_t end = start;
+        size_t next_start;
         size_t colon;
         size_t name_len;
         size_t header_value_start;
@@ -832,29 +949,38 @@ static int parse_headers_text(notify_request *request, const unsigned char *valu
         while (end < value_len && value[end] != '\n') {
             end++;
         }
+        next_start = end < value_len ? end + 1U : end;
         if (end > start && value[end - 1U] == '\r') {
             end--;
         }
         if (end == start) {
+            /* A blank line terminates the textual header block.  Do not
+             * silently discard bytes after that delimiter: accepting them
+             * would leave two possible interpretations of the same SPOP
+             * argument for downstream consumers. */
+            if (next_start < value_len) {
+                return -1;
+            }
             break;
         }
         colon = start;
         while (colon < end && value[colon] != ':') {
             colon++;
         }
-        if (colon < end) {
-            name_len = colon - start;
-            header_value_start = colon + 1U;
-            while (header_value_start < end &&
-                    (value[header_value_start] == ' ' || value[header_value_start] == '\t')) {
-                header_value_start++;
-            }
-            if (add_request_header(request, value + start, name_len,
-                    value + header_value_start, end - header_value_start) != 0) {
-                return -1;
-            }
+        if (colon == end) {
+            return -1;
         }
-        start = end + 1U;
+        name_len = colon - start;
+        header_value_start = colon + 1U;
+        while (header_value_start < end &&
+                (value[header_value_start] == ' ' || value[header_value_start] == '\t')) {
+            header_value_start++;
+        }
+        if (add_request_header(request, value + start, name_len,
+                value + header_value_start, end - header_value_start) != 0) {
+            return -1;
+        }
+        start = next_start;
     }
     request->has_headers_text = 1;
     return 0;
@@ -1008,6 +1134,9 @@ static int read_typed_string_to_buffer(
     if (read_string_ref(data, len, pos, &value, &value_len) != 0) {
         return -1;
     }
+    if (value_len >= out_len) {
+        return -1;
+    }
     copy_spop_string(out, out_len, value, value_len);
     *present = 1;
     return 0;
@@ -1030,6 +1159,9 @@ static int read_typed_uint32_value(
         return -1;
     }
     if (read_varint(data, len, pos, &value) != 0) {
+        return -1;
+    }
+    if (value > UINT32_MAX) {
         return -1;
     }
     *out = (unsigned int)value;
@@ -1227,8 +1359,21 @@ static int parse_notify_uint_argument(
     for (size_t index = 0U; index < sizeof(arguments) / sizeof(arguments[0]); ++index) {
         if (key_equals_literal(arg_name, arg_name_len, arguments[index].key,
                 arguments[index].key_len)) {
-            return read_typed_uint32_loose(data, len, pos, arguments[index].value,
-                arguments[index].present);
+            int result = read_typed_uint32_loose(data, len, pos,
+                arguments[index].value, arguments[index].present);
+
+            if (result != 0) {
+                return result;
+            }
+            /* Endpoint ports are later passed to a C API that takes int.
+             * Reject before the unsigned-to-signed conversion so a hostile
+             * uint32 value cannot acquire implementation-defined semantics. */
+            if ((KEY_EQUALS_LITERAL(arg_name, arg_name_len, "client_port") ||
+                    KEY_EQUALS_LITERAL(arg_name, arg_name_len, "server_port")) &&
+                    *arguments[index].present && *arguments[index].value > 65535U) {
+                return -1;
+            }
+            return 0;
         }
     }
     return 1;
@@ -1295,6 +1440,27 @@ static int parse_notify_body_length_argument(
         &request->has_body_len_arg);
 }
 
+/* Response-bearing arguments are valid only on response notifications.  Do
+ * not let one reclassify a check-request after request-host validation. */
+static int notify_argument_is_response_bearing(
+        const unsigned char *arg_name,
+        size_t arg_name_len) {
+    return KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_headers_bin") ||
+        KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_headers") ||
+        KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_body") ||
+        KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_body_len") ||
+        KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_status") ||
+        KEY_EQUALS_LITERAL(arg_name, arg_name_len,
+            "response_header_last_modified") ||
+        KEY_EQUALS_LITERAL(arg_name, arg_name_len,
+            "response_header_content_type") ||
+        KEY_EQUALS_LITERAL(arg_name, arg_name_len,
+            "response_header_location") ||
+        KEY_EQUALS_LITERAL(arg_name, arg_name_len,
+            "response_header_set_cookie") ||
+        KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_header_server");
+}
+
 static int parse_notify_argument(
         notify_request *request,
         const unsigned char *arg_name,
@@ -1303,6 +1469,11 @@ static int parse_notify_argument(
         size_t len,
         size_t *pos) {
     int result;
+
+    if (!request->is_response &&
+            notify_argument_is_response_bearing(arg_name, arg_name_len)) {
+        return -1;
+    }
 
     result = parse_notify_header_argument(request, arg_name, arg_name_len, data, len, pos);
     if (result != 1) {
@@ -1335,16 +1506,27 @@ static int parse_notify_argument(
 
 static int parse_notify_payload(const unsigned char *data, size_t len, notify_request *request) {
     size_t pos = 0;
+    const unsigned char *seen_keys[256];
+    size_t seen_key_lengths[256];
+    size_t seen_key_count = 0U;
 
     memset(request, 0, sizeof(*request));
-    while (pos < len) {
+    if (data == 0 && len > 0U) {
+        goto reject;
+    }
+    {
         const unsigned char *message_name;
         size_t message_name_len;
         unsigned int nb_args;
 
         if (read_string_ref(data, len, &pos, &message_name, &message_name_len) != 0 ||
                 pos >= len) {
-            return -1;
+            goto reject;
+        }
+        if (!KEY_EQUALS_LITERAL(message_name, message_name_len, "check-request") &&
+                !KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response") &&
+                !KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response-body")) {
+            goto reject;
         }
         copy_spop_string(request->message_name, sizeof(request->message_name),
             message_name, message_name_len);
@@ -1360,14 +1542,33 @@ static int parse_notify_payload(const unsigned char *data, size_t len, notify_re
             size_t arg_name_len;
 
             if (read_string_ref(data, len, &pos, &arg_name, &arg_name_len) != 0) {
-                return -1;
+                goto reject;
             }
+            for (size_t seen = 0U; seen < seen_key_count; ++seen) {
+                if (seen_key_lengths[seen] == arg_name_len &&
+                        memcmp(seen_keys[seen], arg_name, arg_name_len) == 0) {
+                    goto reject;
+                }
+            }
+            if (seen_key_count >= sizeof(seen_keys) / sizeof(seen_keys[0])) {
+                goto reject;
+            }
+            seen_keys[seen_key_count] = arg_name;
+            seen_key_lengths[seen_key_count] = arg_name_len;
+            seen_key_count++;
             if (parse_notify_argument(request, arg_name, arg_name_len, data, len, &pos) != 0) {
-                return -1;
+                goto reject;
             }
         }
     }
+    if (pos != len) {
+        goto reject;
+    }
     return 0;
+
+reject:
+    free_notify_request(request);
+    return -1;
 }
 
 static int build_notify_request_payload(
@@ -1390,6 +1591,24 @@ static int build_notify_request_payload(
             append_typed_string(payload, host) != 0 ||
             append_string(payload, "test_header") != 0 ||
             append_typed_string(payload, test_header) != 0) {
+        return -1;
+    }
+    return 0;
+}
+
+static int self_test_rejects_oversized_endpoint_port(void) {
+    spop_buffer payload;
+    notify_request request;
+
+    payload.len = 0U;
+    if (append_string(&payload, "check-request") != 0 ||
+            append_byte(&payload, 1U) != 0 ||
+            append_string(&payload, "client_port") != 0 ||
+            append_typed_uint32(&payload, 65536U) != 0) {
+        return -1;
+    }
+    if (parse_notify_payload(payload.data, payload.len, &request) == 0) {
+        free_notify_request(&request);
         return -1;
     }
     return 0;
@@ -1596,10 +1815,12 @@ static int parse_hello_payload(const unsigned char *data, size_t len, hello_info
     return 0;
 }
 
-static int build_frame(unsigned int type, uint64_t stream_id, uint64_t frame_id, const spop_buffer *payload, spop_buffer *frame) {
+static int build_frame_with_flags(unsigned int type, uint32_t flags,
+        uint64_t stream_id, uint64_t frame_id, const spop_buffer *payload,
+        spop_buffer *frame) {
     frame->len = 0;
     if (append_byte(frame, type) != 0 ||
-        append_uint32(frame, SPOP_FIN_FLAG) != 0 ||
+        append_uint32(frame, flags) != 0 ||
         append_varint(frame, stream_id) != 0 ||
         append_varint(frame, frame_id) != 0) {
         return -1;
@@ -1610,28 +1831,37 @@ static int build_frame(unsigned int type, uint64_t stream_id, uint64_t frame_id,
     return 0;
 }
 
-static int send_frame(int fd, unsigned int type, uint64_t stream_id, uint64_t frame_id, const spop_buffer *payload) {
+static int send_frame_with_flags(int fd, unsigned int type, uint32_t flags,
+        uint64_t stream_id, uint64_t frame_id, const spop_buffer *payload) {
     spop_buffer frame;
     uint32_t net_len;
 
-    if (build_frame(type, stream_id, frame_id, payload, &frame) != 0) {
+    if (build_frame_with_flags(type, flags, stream_id, frame_id, payload,
+            &frame) != 0) {
         return -1;
     }
     net_len = htonl((uint32_t)frame.len);
     return write_full(fd, &net_len, sizeof(net_len)) == 0 && write_full(fd, frame.data, frame.len) == 0 ? 0 : -1;
 }
 
-static int recv_frame(int fd, spop_frame *frame) {
+static int send_frame(int fd, unsigned int type, uint64_t stream_id,
+        uint64_t frame_id, const spop_buffer *payload) {
+    return send_frame_with_flags(fd, type, SPOP_FIN_FLAG, stream_id, frame_id,
+        payload);
+}
+
+static int recv_frame_timeout(int fd, spop_frame *frame, unsigned int timeout_ms) {
     uint32_t net_len;
     uint32_t len;
     unsigned char data[SPOP_FRAME_MAX];
     size_t pos;
 
-    if (read_full(fd, &net_len, sizeof(net_len)) != 0) {
+    if (read_full_timeout(fd, &net_len, sizeof(net_len), timeout_ms) != 0) {
         return -1;
     }
     len = ntohl(net_len);
-    if (len == 0 || len > SPOP_FRAME_MAX || read_full(fd, data, len) != 0) {
+    if (len == 0 || len > SPOP_FRAME_MAX ||
+            read_full_timeout(fd, data, len, timeout_ms) != 0) {
         return -1;
     }
     pos = 0;
@@ -1641,6 +1871,12 @@ static int recv_frame(int fd, spop_frame *frame) {
     }
     frame->flags = ((uint32_t)data[pos] << 24) | ((uint32_t)data[pos + 1] << 16) | ((uint32_t)data[pos + 2] << 8) | data[pos + 3];
     pos += 4U;
+    /* SPOP 2.0 deprecated payload fragmentation, so every complete frame
+     * received by this synchronous agent must carry FIN. Do not pass an
+     * incomplete payload to HELLO, NOTIFY, or ModSecurity sinks. */
+    if ((frame->flags & SPOP_FIN_FLAG) == 0U) {
+        return -1;
+    }
     if (read_varint(data, len, &pos, &frame->stream_id) != 0 ||
         read_varint(data, len, &pos, &frame->frame_id) != 0 ||
         len - pos > sizeof(frame->payload)) {
@@ -1649,6 +1885,30 @@ static int recv_frame(int fd, spop_frame *frame) {
     frame->payload_len = len - pos;
     memcpy(frame->payload, data + pos, frame->payload_len);
     return 0;
+}
+
+static int recv_frame(int fd, spop_frame *frame) {
+    return recv_frame_timeout(fd, frame, 0U);
+}
+
+static int self_test_rejects_fin_unset_frame(void) {
+    int sockets[2] = {-1, -1};
+    spop_buffer empty;
+    spop_frame frame;
+    int result = -1;
+
+    empty.len = 0U;
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) != 0) {
+        return -1;
+    }
+    if (send_frame_with_flags(sockets[0], SPOP_FRM_NOTIFY, 0U, 1U, 1U,
+            &empty) == 0 &&
+        recv_frame_timeout(sockets[1], &frame, SPOP_LEGACY_TIMEOUT_MS) != 0) {
+        result = 0;
+    }
+    close(sockets[0]);
+    close(sockets[1]);
+    return result;
 }
 
 static int send_agent_hello(int fd, unsigned int max_frame_size) {
@@ -1704,15 +1964,39 @@ static void config_init(agent_config *config) {
     config->request_body_limit = 65532U;
     config->response_body_limit = 0U;
     config->response_body_timeout_ms = 0U;
-    config->spoe_timeout_ms = 2000U;
+    config->spoe_timeout_ms = SPOP_LEGACY_TIMEOUT_MS;
     config->worker_count = 1U;
-    config->max_transactions = 4096U;
+    config->max_transactions = SPOP_DEFAULT_MAX_TRANSACTIONS;
+}
+
+static int parse_bounded_uint_range(const char *value, unsigned long minimum,
+        unsigned long maximum, unsigned int *out) {
+    char *end = 0;
+    unsigned long parsed;
+
+    if (value == 0 || out == 0 || value[0] == '\0' || minimum > maximum ||
+            maximum > (unsigned long)UINT_MAX) {
+        return -1;
+    }
+    errno = 0;
+    parsed = strtoul(value, &end, 10);
+    if (errno != 0 || end == value || *end != '\0' ||
+            parsed < minimum || parsed > maximum) {
+        return -1;
+    }
+    *out = (unsigned int)parsed;
+    return 0;
+}
+
+static int parse_bounded_uint(const char *value, unsigned long maximum,
+        unsigned int *out) {
+    return parse_bounded_uint_range(value, 1UL, maximum, out);
 }
 
 static int parse_listen(agent_config *config, const char *listen_value) {
     const char *colon;
     size_t host_len;
-    unsigned long port;
+    unsigned int port;
 
     if (listen_value == 0 || listen_value[0] == '\0') {
         return -1;
@@ -1727,11 +2011,10 @@ static int parse_listen(agent_config *config, const char *listen_value) {
     }
     memcpy(config->host, listen_value, host_len);
     config->host[host_len] = '\0';
-    port = strtoul(colon + 1, 0, 10);
-    if (port > 65535UL) {
+    if (parse_bounded_uint_range(colon + 1, 1UL, 65535UL, &port) != 0) {
         return -1;
     }
-    config->port = (unsigned int)port;
+    config->port = port;
     return 0;
 }
 
@@ -1745,8 +2028,7 @@ static int config_set(agent_config *config, const char *key, const char *value) 
         return 0;
     }
     if (strcmp(key, "port") == 0) {
-        config->port = (unsigned int)strtoul(value, 0, 10);
-        return 0;
+        return parse_bounded_uint_range(value, 1UL, 65535UL, &config->port);
     }
 #define SET_STRING_FIELD(name, field) \
     if (strcmp(key, name) == 0) { \
@@ -1771,35 +2053,45 @@ static int config_set(agent_config *config, const char *key, const char *value) 
     SET_STRING_FIELD("case", case_name)
 #undef SET_STRING_FIELD
     if (strcmp(key, "expected-status") == 0) {
-        config->expected_status = (unsigned int)strtoul(value, 0, 10);
-        return 0;
+        return parse_bounded_uint_range(value, 0UL, (unsigned long)UINT_MAX,
+            &config->expected_status);
     }
     if (strcmp(key, "request-body-limit") == 0) {
-        config->request_body_limit = (unsigned int)strtoul(value, 0, 10);
-        return 0;
+        return parse_bounded_uint(value, MSCONNECTOR_MAX_CONFIG_BODY_BYTES,
+            &config->request_body_limit);
     }
     if (strcmp(key, "response-body-limit") == 0) {
-        config->response_body_limit = (unsigned int)strtoul(value, 0, 10);
+        if (parse_bounded_uint_range(value, 0UL,
+                MSCONNECTOR_MAX_CONFIG_BODY_BYTES,
+                &config->response_body_limit) != 0) {
+            return -1;
+        }
         if (config->response_body_limit > 0U) {
             config->response_phases_enabled = 1;
         }
         return 0;
     }
     if (strcmp(key, "response-body-timeout") == 0) {
-        config->response_body_timeout_ms = (unsigned int)strtoul(value, 0, 10);
-        return 0;
+        /* This runtime has no asynchronous response-body wait queue.  Do not
+         * accept a setting that would falsely imply a deadline is enforced. */
+        if (value != 0 && strcmp(value, "0") == 0) {
+            config->response_body_timeout_ms = 0U;
+            return 0;
+        }
+        return -1;
     }
     if (strcmp(key, "spoe-timeout") == 0) {
-        config->spoe_timeout_ms = (unsigned int)strtoul(value, 0, 10);
-        return 0;
+        return parse_bounded_uint(value, 600000UL, &config->spoe_timeout_ms);
     }
     if (strcmp(key, "worker-count") == 0) {
-        config->worker_count = (unsigned int)strtoul(value, 0, 10);
+        if (parse_bounded_uint(value, 1UL, &config->worker_count) != 0) {
+            return -1;
+        }
         return 0;
     }
     if (strcmp(key, "max-transactions") == 0) {
-        config->max_transactions = (unsigned int)strtoul(value, 0, 10);
-        return 0;
+        return parse_bounded_uint(value, SPOP_MAX_TRANSACTIONS,
+            &config->max_transactions);
     }
     if (strcmp(key, "debug") == 0) {
         config->debug = strcmp(value, "1") == 0 || strcmp(value, "true") == 0 ||
@@ -2166,8 +2458,14 @@ static void decision_log_write(
 static int transaction_cache_init(agent_state *state) {
     size_t capacity;
 
+    if (state == 0) {
+        return -1;
+    }
     capacity = state->config.max_transactions > 0U ?
-        state->config.max_transactions : 4096U;
+        state->config.max_transactions : SPOP_DEFAULT_MAX_TRANSACTIONS;
+    if (capacity > SIZE_MAX / sizeof(*state->transactions)) {
+        return -1;
+    }
     state->transactions = (transaction_slot *)calloc(capacity, sizeof(*state->transactions));
     if (state->transactions == 0) {
         return -1;
@@ -2229,10 +2527,13 @@ static int transaction_cache_store(
     }
     slot = transaction_slot_find(state, request_id);
     if (slot != 0) {
-        transaction_slot_clear(slot, 1);
-    } else {
-        slot = transaction_slot_for_store(state);
+        /* A duplicate request ID must not finish and replace an active
+         * transaction: its response phase still belongs to the original
+         * request.  The caller owns (and will finish) the newly created
+         * transaction on this failure path. */
+        return -1;
     }
+    slot = transaction_slot_for_store(state);
     copy_spop_string(slot->request_id, sizeof(slot->request_id),
         (const unsigned char *)request_id,
         safe_cstring_length(request_id, RUNTIME_TEXT_LIMIT));
@@ -2347,7 +2648,8 @@ static const char *notify_request_path(const notify_request *request) {
 }
 
 static const char *notify_request_host(const notify_request *request) {
-    return request->has_host ? request->host : "localhost";
+    return request != 0 && request->has_host && request->host[0] != '\0' ?
+        request->host : 0;
 }
 
 static const char *notify_test_header(const notify_request *request) {
@@ -2422,10 +2724,10 @@ static void build_modsecurity_request_from_notify(
         haproxy_modsecurity_request *modsec_request) {
     memset(modsec_request, 0, sizeof(*modsec_request));
     modsec_request->request_id = request->request_id;
-    modsec_request->client_ip = request->has_client_ip ? request->client_ip : "127.0.0.1";
-    modsec_request->client_port = request->has_client_port ? (int)request->client_port : 49152;
-    modsec_request->server_ip = request->has_server_ip ? request->server_ip : "127.0.0.1";
-    modsec_request->server_port = request->has_server_port ? (int)request->server_port : 80;
+    modsec_request->client_ip = request->has_client_ip ? request->client_ip : NULL;
+    modsec_request->client_port = request->has_client_port ? (int)request->client_port : 0;
+    modsec_request->server_ip = request->has_server_ip ? request->server_ip : NULL;
+    modsec_request->server_port = request->has_server_port ? (int)request->server_port : 0;
     modsec_request->method = notify_request_method(request);
     modsec_request->uri = notify_request_uri(request);
     modsec_request->headers = (const haproxy_modsecurity_header *)request->headers;
@@ -2552,7 +2854,7 @@ static int evaluate_legacy_notify(
     }
     return haproxy_modsecurity_phase1_header_eval(
         notify_request_method(request), notify_request_path(request),
-        notify_test_header(request), decision);
+        notify_request_host(request), notify_test_header(request), decision);
 }
 
 static int send_legacy_decision_ack(
@@ -2621,6 +2923,13 @@ static int handle_notify_frame(
         "NOTIFY request metadata method_present=%d path_present=%d uri_present=%d host_present=%d test_header_present=%d headers=%u body_len=%lu",
         request.has_method, request.has_path, request.has_uri, request.has_host,
         request.has_test_header, request.header_count, (unsigned long)request.body_len);
+    if (!request.is_response && (!request.has_host ||
+            request.host[0] == '\0')) {
+        log_line(log, "NOTIFY rejected: missing request host");
+        free_notify_request(&request);
+        send_agent_disconnect(fd, 4, "missing request host");
+        return -1;
+    }
     if (state != 0 && state->engine != 0) {
         rc = process_production_notify(fd, frame, state, log, &request);
     } else {
@@ -2634,8 +2943,11 @@ static int handle_notify_frame(
 static int handle_connection(int fd, agent_state *state, FILE *log, const char *rules_file, const char *crs_preamble_file) {
     spop_frame frame;
     hello_info hello;
+    unsigned int timeout_ms = state != 0 ? state->config.spoe_timeout_ms :
+        SPOP_LEGACY_TIMEOUT_MS;
 
-    if (recv_frame(fd, &frame) != 0 || frame.type != SPOP_FRM_HAPROXY_HELLO ||
+    if (recv_frame_timeout(fd, &frame, timeout_ms) != 0 ||
+            frame.type != SPOP_FRM_HAPROXY_HELLO ||
         parse_hello_payload(frame.payload, frame.payload_len, &hello) != 0) {
         log_line(log, "connection rejected during HELLO");
         send_agent_disconnect(fd, 4, "invalid hello");
@@ -2651,7 +2963,7 @@ static int handle_connection(int fd, agent_state *state, FILE *log, const char *
     }
 
     while (!stop_requested) {
-        if (recv_frame(fd, &frame) != 0) {
+        if (recv_frame_timeout(fd, &frame, timeout_ms) != 0) {
             return 0;
         }
         if (frame.type == SPOP_FRM_NOTIFY) {
@@ -2833,6 +3145,14 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
     int status;
     FILE *log;
 
+    if (self_test_rejects_oversized_endpoint_port() != 0) {
+        fprintf(stderr, "SPOP oversized endpoint-port rejection self-test failed\n");
+        return 1;
+    }
+    if (self_test_rejects_fin_unset_frame() != 0) {
+        fprintf(stderr, "SPOP FIN-unset frame rejection self-test failed\n");
+        return 1;
+    }
     if (mkdir_p(tmp_root) != 0 || mkdir_p(log_root) != 0) {
         fprintf(stderr, "failed to create tmp/log roots\n");
         return 77;
@@ -3206,7 +3526,11 @@ static int assign_legacy_option(
     if (strcmp(option, "--host") == 0) {
         config->host = value;
     } else if (strcmp(option, "--port") == 0) {
-        config->port = (unsigned int)strtoul(value, 0, 10);
+        unsigned int port;
+        if (parse_bounded_uint_range(value, 1UL, 65535UL, &port) != 0) {
+            return -1;
+        }
+        config->port = port;
     } else if (strcmp(option, "--ready-file") == 0) {
         config->ready_file = value;
     } else if (strcmp(option, "--pid-file") == 0) {

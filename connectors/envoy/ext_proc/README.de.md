@@ -26,6 +26,10 @@ gesonderte Entscheidung zur Beweiswürdigung.
 - Downstream-Protokoll und Endpunkte, die den angeforderten Envoy-Attributen zugeordnet sind,
   niemals aus dem Envoy-to-Service-gRPC-Socket abgeleitet;
 - passende `HeadersResponse`-/`BodyResponse`-Nachrichten für den `STREAMED`-Modus;
+- eine prozessweite Obergrenze von 128 aktiven `Process`-Streams, die vor der
+  Allokation von Streamzustand oder Common-Transaktion greift; überzählige
+  Streams erhalten gRPC-`ResourceExhausted`, statt die native
+  Transaktionskapazität über mehrere Transporte zu vervielfachen;
 - EOS-Bereinigung, Bereinigung des gRPC-Kontextabbruchs und begrenzter, ordnungsgemäßer Stopp;
 - Pre-Commit-Anfrage- und Antwortentscheidungen, die `ImmediateResponse` zugeordnet sind,
   wobei allgemeine Host-Aktionsmetadaten erst nach dem passenden gRPC-Versand aufgezeichnet werden
@@ -78,6 +82,13 @@ Für den Kunden sichtbarer Abbruch in Envoy. Ein abgebrochener gRPC-Kontext und 
 Peer-EOF werden jeweils als `grpc_context_canceled_unattributed` und aufgezeichnet
 `grpc_peer_eof`; Keines der Labels kann ernsthaft als Downstream-Kunde behandelt werden
 Reset oder ein Upstream-Reset.
+
+Die Grenze aktiver Streams begrenzt aggregierte Ressourcen, ist aber keine
+Idle-Deadline: Ein gültiger, anschließend stiller zugelassener Stream belegt
+einen begrenzten Slot, bis Envoy eine Nachricht oder EOF sendet oder den
+gRPC-Kontext abbricht. Eine separate Idle-Policy darf erst ergänzt werden,
+wenn legitimes Streaming sowie das Fehlen blockierter Receive-Goroutinen und
+verbliebener nativer Transaktionen nachgewiesen sind.
 
 ## Lokale Quell-/Build-Befehle
 

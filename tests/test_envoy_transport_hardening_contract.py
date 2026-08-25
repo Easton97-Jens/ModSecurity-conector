@@ -226,7 +226,7 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
             root = Path(temporary)
             certificate, private_key = create_loopback_tls_material(root)
             server = mock.MagicMock()
-            with mock.patch.object(helper.http.server, "ThreadingHTTPSServer", return_value=server) as constructor:
+            with mock.patch.object(helper, "Phase4TrackingHTTPSServer", return_value=server) as constructor:
                 self.assertEqual(
                     helper.serve_upstream(
                         18081, 5.0, str(root), str(certificate), str(private_key),
@@ -299,7 +299,7 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
 
             BarrierHandler.phase4_barrier_dir = barrier_dir
             BarrierHandler.runtime_root = root
-            server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), BarrierHandler)
+            server = helper.Phase4TrackingHTTPServer(("127.0.0.1", 0), BarrierHandler)
             certificate = configure_loopback_tls(server, root)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
@@ -316,6 +316,7 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
                 )
             finally:
                 server.shutdown()
+                helper.wait_for_phase4_handlers(server, 2.0)
                 server.server_close()
                 thread.join(timeout=2)
 
@@ -339,6 +340,29 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
             self.assertNotIn("no-crs-response-body-marker", json.dumps(observation))
             self.assertNotIn("no-crs-response-body-marker", json.dumps(paused))
             self.assertNotIn("no-crs-response-body-marker", json.dumps(completed))
+
+    def test_phase4_lifecycle_waits_for_exceptional_handler_exit(self) -> None:
+        helper = load_helper()
+        lifecycle = helper.Phase4HandlerLifecycle()
+        lifecycle.begin()
+        completed = threading.Event()
+
+        def fail_and_release() -> None:
+            try:
+                raise RuntimeError("synthetic phase-4 handler failure")
+            except RuntimeError:
+                pass
+            finally:
+                lifecycle.end()
+                completed.set()
+
+        thread = threading.Thread(target=fail_and_release)
+        thread.start()
+        helper.wait_for_phase4_handlers(type("Server", (), {
+            "phase4_handler_lifecycle": lifecycle,
+        })(), 2.0)
+        thread.join(timeout=2)
+        self.assertTrue(completed.is_set())
 
     def test_phase4_first_byte_evidence_binds_to_the_common_safe_event(self) -> None:
         helper = load_helper()

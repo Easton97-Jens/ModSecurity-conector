@@ -1207,7 +1207,8 @@ description: Groups limits, transaction ID, and engine connection fields passed 
 
 ### Kurzbeschreibung
 
-Wählt source-only-passthrough oder die persistente UDS-Engine; das ausgewählte regelauswertende Beispiel verwendet uds.
+Wählt die persistente UDS-Engine. Legacy-source-only-passthrough wird
+abgelehnt, damit ein regelauswertendes Deployment keinen nicht durchsetzenden Pfad still wählt.
 
 ### Syntax
 
@@ -1223,11 +1224,11 @@ http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineMod
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| YAML-Steuerfeld | passthrough \| uds | nein |
+| YAML-Steuerfeld | uds | nein |
 
 ### Standardwert
 
-passthrough
+uds
 
 Quelle: `connectors/traefik/native_middleware/middleware.go:CreateConfig`.
 
@@ -1241,7 +1242,8 @@ Zusammenführung: Die Traefik-/Plugin-Konfiguration wird einmalig durch das Plug
 
 P1–P4-Relevanz: Die P1–P4-Relevanz folgt daraus, wie `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineMode` die Middleware-Anbindung konfiguriert.
 
-Wählt source-only-passthrough oder die persistente UDS-Engine; das ausgewählte regelauswertende Beispiel verwendet uds.
+Wählt die persistente UDS-Engine; ungültige oder Legacy-nicht-durchsetzende
+Modi werden während der Normalisierung abgelehnt.
 
 ### Validierung und Fehler
 
@@ -1255,7 +1257,8 @@ Quellenbasiertes Beispiel: [examples/traefik/safe/traefik-dynamic.yaml](../../ex
 
 ### Sicherheit und Betrieb
 
-Middleware-Referenzen und ihre Reihenfolge müssen erhalten bleiben, damit die geprüfte Sicherheitsverarbeitung nicht umgangen wird.
+Für den ausgewählten regelauswertenden Pfad uds verwenden. Nicht auf einen
+passthrough-Fallback vertrauen; die aktuelle Implementierung akzeptiert ihn nicht.
 
 ### Technische Quellmetadaten (unverändert)
 

@@ -127,8 +127,13 @@ typedef struct {
      * its native log callback can emit bounded non-disruptive rule metadata
      * with the actual host phase. */
     unsigned native_event_phase_active:1;
+    size_t request_body_bytes_seen;
     size_t response_body_bytes_seen;
     size_t response_body_bytes_inspected;
+    size_t request_header_count;
+    size_t request_header_bytes;
+    size_t response_header_count;
+    size_t response_header_bytes;
     ngx_str_t event_transaction_id;
     enum msconnector_phase native_event_phase;
     /* Keep only the bounded rule identifier needed for a metadata-only
@@ -137,6 +142,69 @@ typedef struct {
     char last_intervention_rule_id[MSCONNECTOR_MAX_RULE_ID_LENGTH + 1U];
     ngx_int_t last_intervention_status;
 } ngx_http_modsecurity_ctx_t;
+
+/* Keep the native NGINX-to-libmodsecurity header boundary bounded by the
+ * same Common limits even when NGINX's list contains attacker-controlled or
+ * module-generated entries. */
+static ngx_inline ngx_int_t
+ngx_http_modsecurity_validate_header(ngx_http_modsecurity_ctx_t *ctx,
+    const u_char *name, size_t name_len, const u_char *value, size_t value_len,
+    ngx_flag_t response)
+{
+    size_t current_bytes;
+
+    if (ctx == NULL || ctx->modsec_transaction == NULL ||
+        name == NULL || value == NULL ||
+        name_len > MSCONNECTOR_MAX_HEADER_NAME_LENGTH ||
+        value_len > MSCONNECTOR_MAX_HEADER_VALUE_LENGTH ||
+        name_len > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES - value_len) {
+        return NGX_ERROR;
+    }
+
+    current_bytes = name_len + value_len;
+    if ((response ? ctx->response_header_count : ctx->request_header_count) >=
+            MSCONNECTOR_MAX_HEADER_COUNT ||
+        (response ? ctx->response_header_bytes : ctx->request_header_bytes) >
+            MSCONNECTOR_MAX_TOTAL_HEADER_BYTES - current_bytes) {
+        return NGX_ERROR;
+    }
+
+    if (response) {
+        ctx->response_header_count++;
+        ctx->response_header_bytes += current_bytes;
+    } else {
+        ctx->request_header_count++;
+        ctx->request_header_bytes += current_bytes;
+    }
+
+    return NGX_OK;
+}
+
+static ngx_inline ngx_int_t
+ngx_http_modsecurity_add_n_request_header(ngx_http_modsecurity_ctx_t *ctx,
+    const u_char *name, size_t name_len, const u_char *value, size_t value_len)
+{
+    if (ngx_http_modsecurity_validate_header(ctx, name, name_len, value,
+            value_len, 0) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    return msc_add_n_request_header(ctx->modsec_transaction, name, name_len,
+        value, value_len) == 1 ? 1 : NGX_ERROR;
+}
+
+static ngx_inline ngx_int_t
+ngx_http_modsecurity_add_n_response_header(ngx_http_modsecurity_ctx_t *ctx,
+    const u_char *name, size_t name_len, const u_char *value, size_t value_len)
+{
+    if (ngx_http_modsecurity_validate_header(ctx, name, name_len, value,
+            value_len, 1) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    return msc_add_n_response_header(ctx->modsec_transaction, name, name_len,
+        value, value_len) == 1 ? 1 : NGX_ERROR;
+}
 
 
 typedef struct {

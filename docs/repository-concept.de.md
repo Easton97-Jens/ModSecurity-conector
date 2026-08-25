@@ -294,7 +294,7 @@ implizit.
 | `default_block_status` und `default_error_status` | Common-Runtime-Defaults `403` und `500`. | Definieren Fallback-Statuswerte, wo ein Host sie mappt; beweisen keine einheitliche fail-closed Response. |
 | `response_body_mode` und `phase4_mode` | Common-Runtime-Defaults `none` und `safe`. | Standardmäßig wird kein P4-Input verarbeitet; Safe-Late-Verhalten ist konservativ und kann nach Commit `log_only` sein, keine universelle fail-open-/fail-closed-Policy. Apache ist für normales P4-Enforcement eine ausdrückliche Ausnahme: Sein All-Response-Gate entscheidet vor Release der ursprünglichen Ausgabe. |
 | Envoy `failure_mode_allow` | Ausgewählte `ext_proc`-Templates setzen `failure_mode_allow: false`. | Ausgewählte Konfiguration dokumentiert fail-closed Processor-Erreichbarkeit; keine Evidence für jedes Envoy-Deployment. |
-| `rules_remote_url` und externe Downloads | Optionale Rule-/Source-Inputs. | Als externe Trust-Grenze behandeln: deklarierte Origin, Pin/Checksumme soweit vorhanden und kein stiller Fallback erforderlich. |
+| `rules_remote_key` / `rules_remote_url` und externe Downloads | Policy A: registrierte Konfigurationseingaben sind technisch deaktiviert. | Jede nicht leere Remote-Rule-Konfiguration wird vor Loader, Download, Origin-Fallback oder Secret-Weiterleitung abgelehnt; eine zukünftige Policy bräuchte separate Prüfung und Evidence. |
 
 Die dokumentierten Selected-Core-Reports beschreiben Safe P4 als angefordertes
 `deny`, tatsächliches `log_only`, sichtbares HTTP 200 und keinen

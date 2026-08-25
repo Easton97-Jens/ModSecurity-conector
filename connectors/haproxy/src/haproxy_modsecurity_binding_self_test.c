@@ -168,7 +168,7 @@ static int run_body_wrapper_lifecycle_self_test(
     haproxy_modsecurity_engine_config config;
     haproxy_modsecurity_engine *engine = 0;
     haproxy_modsecurity_transaction *transaction = 0;
-    haproxy_modsecurity_header request_headers[3];
+    haproxy_modsecurity_header request_headers[4];
     haproxy_modsecurity_header response_headers[1];
     haproxy_modsecurity_request request;
     haproxy_modsecurity_response response;
@@ -179,17 +179,19 @@ static int run_body_wrapper_lifecycle_self_test(
     if (rules_file == 0 || rules_file[0] == '\0') {
         return lifecycle_failure(decision, "missing lifecycle rules file");
     }
-    request_headers[0].name = "Content-Type";
-    request_headers[0].value = "application/x-www-form-urlencoded";
-    request_headers[1].name = "Content-Length";
-    request_headers[1].value = "11";
-    request_headers[2].name = "X-Haproxy-Rule-Id";
-    request_headers[2].value = "block";
+    request_headers[0].name = "Host";
+    request_headers[0].value = "localhost";
+    request_headers[1].name = "Content-Type";
+    request_headers[1].value = "application/x-www-form-urlencoded";
+    request_headers[2].name = "Content-Length";
+    request_headers[2].value = "11";
+    request_headers[3].name = "X-Haproxy-Rule-Id";
+    request_headers[3].value = "block";
     memset(&request, 0, sizeof(request));
     request.method = "POST";
     request.uri = "/haproxy-binding-lifecycle-self-test";
     request.headers = request_headers;
-    request.header_count = 3U;
+    request.header_count = 4U;
 
     response_headers[0].name = "Content-Type";
     response_headers[0].value = "text/plain";
@@ -215,6 +217,17 @@ static int run_body_wrapper_lifecycle_self_test(
 
     rc = haproxy_modsecurity_transaction_begin_request(engine, &request, &observed,
         &transaction);
+    if (expect_failure(rc, &observed, 0, "missing client endpoint",
+            "missing endpoint metadata", decision) != 0) {
+        goto cleanup;
+    }
+    request.client_ip = "192.0.2.10";
+    request.client_port = 12345;
+    request.server_ip = "198.51.100.20";
+    request.server_port = 8080;
+
+    rc = haproxy_modsecurity_transaction_begin_request(engine, &request, &observed,
+        &transaction);
     if (expect_disruptive_rule_id(rc, &observed, 1, 1000004,
             "phase-1 Rule-ID fallback block", decision) != 0) {
         goto cleanup;
@@ -222,7 +235,7 @@ static int run_body_wrapper_lifecycle_self_test(
     haproxy_modsecurity_transaction_finish(transaction);
     transaction = 0;
 
-    request_headers[2].value = "allow";
+    request_headers[3].value = "allow";
     rc = haproxy_modsecurity_transaction_begin_request(engine, &request, &observed,
         &transaction);
     if (expect_non_disruptive(rc, &observed, 1,

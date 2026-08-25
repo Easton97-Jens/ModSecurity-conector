@@ -5,10 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"strconv"
 	"strings"
 	"sync"
+	"unicode"
+	"unicode/utf8"
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	extprocv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
@@ -26,6 +29,13 @@ const (
 	DirectionRequest  Direction = "request"
 	DirectionResponse Direction = "response"
 )
+
+// DefaultMaxActiveStreams is the process-wide cap for active ext_proc Process
+// RPCs. gRPC's MaxConcurrentStreams setting applies per transport; this bound
+// is deliberately enforced before a stream state or a Common transaction is
+// allocated so multiple transports cannot multiply the service's live native
+// transaction count.
+const DefaultMaxActiveStreams = 128
 
 // Header is a bounded, temporary view over one header. Values are never held
 // in stream state. Engines must consume the value during the callback and must
@@ -81,6 +91,12 @@ const (
 	ActionDeny     Action = "deny"
 	ActionRedirect Action = "redirect"
 )
+
+// maxRedirectURLBytes matches the Common bridge's redirect_url[2049]
+// storage (2048 bytes plus its terminating NUL). Keeping the bound here
+// prevents a longer decision from reaching Envoy's location mutation even
+// when a non-CGo test engine supplies the decision directly.
+const maxRedirectURLBytes = 2048
 
 // Decision is supplied by the connector-local evaluation seam. The production
 // CGo build maps a real Common/libmodsecurity decision into this small form.
@@ -217,10 +233,11 @@ func (passthroughTransaction) Close(context.Context, Summary) {
 type Service struct {
 	extprocv3.UnimplementedExternalProcessorServer
 
-	config   Config
-	engine   TransactionOpener
-	observer Observer
-	active   sync.WaitGroup
+	config      Config
+	engine      TransactionOpener
+	observer    Observer
+	streamSlots chan struct{}
+	active      sync.WaitGroup
 }
 
 func NewService(config Config, engine TransactionOpener) (*Service, error) {
@@ -232,21 +249,43 @@ func NewService(config Config, engine TransactionOpener) (*Service, error) {
 // the existing unit-test and library API safe for callers that do not need
 // runtime evidence.
 func NewServiceWithObserver(config Config, engine TransactionOpener, observer Observer) (*Service, error) {
+	return newServiceWithStreamLimit(config, engine, observer, DefaultMaxActiveStreams)
+}
+
+// newServiceWithStreamLimit is intentionally package-private: the shipped
+// runtime has one safe aggregate limit, while tests can exercise admission and
+// release with a small deterministic capacity.
+func newServiceWithStreamLimit(config Config, engine TransactionOpener, observer Observer, streamLimit int) (*Service, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	if engine == nil {
 		return nil, fmt.Errorf("ext_proc engine is required")
 	}
+	if streamLimit <= 0 {
+		return nil, fmt.Errorf("ext_proc active stream limit must be positive")
+	}
 	if observer == nil {
 		observer = discardObserver{}
 	}
-	return &Service{config: config, engine: engine, observer: observer}, nil
+	return &Service{
+		config:      config,
+		engine:      engine,
+		observer:    observer,
+		streamSlots: make(chan struct{}, streamLimit),
+	}, nil
 }
 
 // Process owns one Envoy ext_proc gRPC stream and therefore one independent
 // transaction state. No state is shared across parallel streams.
 func (service *Service) Process(stream extprocv3.ExternalProcessor_ProcessServer) (processErr error) {
+	select {
+	case service.streamSlots <- struct{}{}:
+		defer func() { <-service.streamSlots }()
+	default:
+		return status.Error(codes.ResourceExhausted, "ext_proc active stream capacity reached")
+	}
+
 	service.active.Add(1)
 	defer service.active.Done()
 
@@ -503,13 +542,30 @@ func (state *streamState) bodyLimitDecision(direction Direction, bodyLength int)
 	if bodyLength > state.config.MaxBodyChunkBytes {
 		return payloadTooLargeDecision()
 	}
-	if direction == DirectionRequest && state.summary.RequestBodyBytes+int64(bodyLength) > state.config.MaxRequestBodyBytes {
-		return payloadTooLargeDecision()
+	current, limit := state.summary.RequestBodyBytes, state.config.MaxRequestBodyBytes
+	if direction == DirectionResponse {
+		current, limit = state.summary.ResponseBodyBytes, state.config.MaxResponseBodyBytes
 	}
-	if direction == DirectionResponse && state.summary.ResponseBodyBytes+int64(bodyLength) > state.config.MaxResponseBodyBytes {
+	next, ok := cumulativeBodyBytes(current, bodyLength)
+	if !ok || next > limit {
 		return payloadTooLargeDecision()
 	}
 	return allowDecision()
+}
+
+// cumulativeBodyBytes validates the conversion from the protobuf body length
+// to the signed counter type before adding it. A body length is normally a
+// non-negative int from len, but keeping that assumption at this boundary
+// prevents a malformed or future caller from turning the counter negative.
+func cumulativeBodyBytes(current int64, bodyLength int) (int64, bool) {
+	if current < 0 || bodyLength < 0 {
+		return 0, false
+	}
+	increment := int64(bodyLength)
+	if increment < 0 || current > math.MaxInt64-increment {
+		return 0, false
+	}
+	return current + increment, true
 }
 
 func payloadTooLargeDecision() Decision {
@@ -518,13 +574,21 @@ func payloadTooLargeDecision() Decision {
 
 func (state *streamState) recordBodyProgress(direction Direction, bodyLength int, endOfStream bool) {
 	if direction == DirectionRequest {
+		next, ok := cumulativeBodyBytes(state.summary.RequestBodyBytes, bodyLength)
+		if !ok {
+			return
+		}
 		state.summary.RequestBodyChunks++
-		state.summary.RequestBodyBytes += int64(bodyLength)
+		state.summary.RequestBodyBytes = next
 		state.requestDone = endOfStream
 		return
 	}
+	next, ok := cumulativeBodyBytes(state.summary.ResponseBodyBytes, bodyLength)
+	if !ok {
+		return
+	}
 	state.summary.ResponseBodyChunks++
-	state.summary.ResponseBodyBytes += int64(bodyLength)
+	state.summary.ResponseBodyBytes = next
 	state.responseDone = endOfStream
 }
 
@@ -647,14 +711,78 @@ func (state *streamState) decodeHeader(value *corev3.HeaderValue, total int, tra
 	if len(name) > state.config.MaxHeaderNameBytes || len(body) > state.config.MaxHeaderValueBytes {
 		return Header{}, 0, "", requestHeadersTooLargeDecision(), nil
 	}
-	updatedTotal := total + len(name) + len(body)
-	if updatedTotal > state.config.MaxTotalHeaderBytes {
+	if !validEnvoyHeaderName(name) {
+		return Header{}, 0, "", Decision{}, fmt.Errorf("invalid Envoy header name")
+	}
+	if !validEnvoyHeaderValue(body) {
+		return Header{}, 0, "", Decision{}, fmt.Errorf("invalid Envoy header value for %s", name)
+	}
+	if total > state.config.MaxTotalHeaderBytes || len(name) > state.config.MaxTotalHeaderBytes-total {
 		return Header{}, 0, "", requestHeadersTooLargeDecision(), nil
 	}
+	updatedTotal := total + len(name)
+	if len(body) > state.config.MaxTotalHeaderBytes-updatedTotal {
+		return Header{}, 0, "", requestHeadersTooLargeDecision(), nil
+	}
+	updatedTotal += len(body)
 	if transactionID == "" && strings.EqualFold(name, state.config.TransactionIDHeader) {
 		transactionID = boundedTransactionID(body)
 	}
 	return Header{Name: name, Value: body}, updatedTotal, transactionID, allowDecision(), nil
+}
+
+// validEnvoyHeaderName accepts ordinary HTTP token names and Envoy's pseudo
+// headers (a single leading colon followed by a token). Header names are
+// deliberately ASCII-only; accepting arbitrary UTF-8 here would create a
+// different name grammar at the CGo boundary.
+func validEnvoyHeaderName(name string) bool {
+	if name == "" {
+		return false
+	}
+	start := 0
+	if name[0] == ':' {
+		start = 1
+	}
+	if start == len(name) {
+		return false
+	}
+	for i := start; i < len(name); i++ {
+		if !isHTTPTokenByte(name[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func isHTTPTokenByte(value byte) bool {
+	if value >= 'a' && value <= 'z' || value >= 'A' && value <= 'Z' || value >= '0' && value <= '9' {
+		return true
+	}
+	switch value {
+	case '!', '#', '$', '%', '&', '\'', '*', '+', '-', '.', '^', '_', '`', '|', '~':
+		return true
+	default:
+		return false
+	}
+}
+
+// validEnvoyHeaderValue is the last validation before request/response
+// headers can reach the Common CGo bridge. HTAB remains valid horizontal
+// whitespace; all other C0 controls, DEL, CR/LF, and malformed UTF-8 fail
+// closed so raw header sinks cannot receive a split or binary value.
+func validEnvoyHeaderValue(value []byte) bool {
+	if !utf8.Valid(value) {
+		return false
+	}
+	for _, character := range value {
+		if character == '\t' {
+			continue
+		}
+		if character < 0x20 || character == 0x7f {
+			return false
+		}
+	}
+	return true
 }
 
 func headerValueBytes(value *corev3.HeaderValue) []byte {
@@ -695,9 +823,9 @@ func responseStatusFromHeaders(headers []Header) int {
 
 // requestMetadataFromEnvoy maps only Envoy-provided pseudo headers and the
 // explicit request_attributes requested in the checked-in filter config. It
-// accepts absent fields so the transport-only engine remains testable; the
-// Common bridge validates that its required metadata is actually present and
-// never silently substitutes the gRPC peer endpoint.
+// requires an authority or Host header, while optional transport metadata may
+// remain absent for a transport-only engine. It never silently substitutes the
+// gRPC peer endpoint for the request authority.
 func requestMetadataFromEnvoy(headers []Header, attributes map[string]*structpb.Struct) (RequestMetadata, error) {
 	metadata := RequestMetadata{}
 	authority := ""
@@ -736,6 +864,9 @@ func requestMetadataFromEnvoy(headers []Header, attributes map[string]*structpb.
 		metadata.Hostname = authority
 	} else if hostSeen {
 		metadata.Hostname = host
+	}
+	if strings.TrimSpace(metadata.Hostname) == "" {
+		return RequestMetadata{}, fmt.Errorf("Envoy request is missing :authority or Host")
 	}
 	textAssignments := []struct {
 		attribute string
@@ -897,7 +1028,7 @@ func normalizeDecision(decision Decision) Decision {
 		}
 		return decision
 	case ActionRedirect:
-		if strings.TrimSpace(decision.RedirectURL) == "" {
+		if !validRedirectURL(decision.RedirectURL) {
 			return Decision{Action: ActionDeny, Status: int(typev3.StatusCode_Forbidden)}
 		}
 		if decision.Status < 300 || decision.Status > 399 {
@@ -907,6 +1038,22 @@ func normalizeDecision(decision Decision) Decision {
 	default:
 		return Decision{Action: ActionDeny, Status: int(typev3.StatusCode_Forbidden)}
 	}
+}
+
+func validRedirectURL(value string) bool {
+	if value == "" || len(value) > maxRedirectURLBytes || !utf8.ValidString(value) {
+		return false
+	}
+	for _, character := range value {
+		// Header values must not contain controls (including CR/LF/NUL and
+		// DEL) or raw whitespace. URLs can represent such data with percent
+		// escapes, so rejecting the raw forms preserves normal absolute and
+		// relative URL behavior without imposing an origin policy.
+		if unicode.IsControl(character) || unicode.IsSpace(character) {
+			return false
+		}
+	}
+	return true
 }
 
 func (state *streamState) responseForDecision(phase processingPhase, decision Decision, responseDone bool) (*extprocv3.ProcessingResponse, bool, error) {
@@ -1054,6 +1201,10 @@ func trailerResponse(direction Direction) *extprocv3.ProcessingResponse {
 }
 
 func immediateResponse(decision Decision) *extprocv3.ProcessingResponse {
+	// Re-normalize at the final mutation sink. This protects the Envoy
+	// location header even if a future caller bypasses the normal decision
+	// path or a test engine returns an untrusted redirect directly.
+	decision = normalizeDecision(decision)
 	statusCode := typev3.StatusCode(decision.Status)
 	response := &extprocv3.ImmediateResponse{
 		Status:  &typev3.HttpStatus{Code: statusCode},

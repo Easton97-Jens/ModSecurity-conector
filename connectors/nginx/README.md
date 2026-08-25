@@ -262,13 +262,26 @@ The adapter-owned NGINX connector currently registers:
 - `modsecurity_use_error_log on|off`
 - `modsecurity_phase4_mode minimal|safe|strict`
 - `modsecurity_phase4_content_types_file <path>`
-- `modsecurity_phase4_log <path>`
+- `modsecurity_phase4_log <path>` (rejected: native NGINX event-file logging is
+  disabled because `ngx_conf_open_file()` cannot provide the required
+  no-follow, regular-file, and private `0600` descriptor contract)
 - `modsecurity_phase4_body_limit <bytes>`
 
 `modsecurity_phase4_body_limit` defaults to 1048576 bytes (1 MiB). The
 Common configuration validator rejects a selected value above 10485760 bytes
 (10 MiB), so a native response filter cannot be configured with an unbounded
 Phase-4 byte budget.
+
+When `modsecurity_phase4_content_types_file` is configured, the native module
+opens and inspects the descriptor, accepts only a regular file, limits it to
+64 KiB, and rejects short reads. FIFOs, devices, sockets, directories, and
+oversized files therefore cannot turn `nginx -t` into an unbounded or blocking
+configuration read on POSIX. The directive fails closed on Win32 because its
+file API cannot establish the same regular-file/nonblocking contract.
+
+Native NGINX Phase-4 event-file logging is deliberately unavailable. The
+Common runtime event path remains separately governed by its secure descriptor
+policy; this NGINX directive does not silently fall back to that path.
 
 `modsecurity_transaction_id` uses an NGINX complex value and may evaluate
 per-request variables. Apache-style `modsecurity_transaction_id_expr` is not

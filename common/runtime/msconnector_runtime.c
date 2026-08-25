@@ -141,74 +141,23 @@ static int runtime_error(
     return 0;
 }
 
-/*
- * Open the event sink without following a final symlink. O_APPEND makes each
- * write target the current end of the file, while O_NONBLOCK prevents a
- * configured FIFO from making runtime startup wait before its type is checked.
- * The descriptor is retained only after fstat confirms a regular file. A
- * secure Windows reparse-point equivalent is not implemented here, so that
- * platform fails closed rather than opening an attacker-controlled final path.
- */
+/* The final event-file descriptor policy is shared with native hosts.  Keep
+ * FILE ownership local to the runtime after the Common helper establishes the
+ * no-follow, regular-file, owner, and private-mode invariant. */
 static FILE *open_event_file_secure(const char *path) {
-#if defined(_WIN32)
-    (void)path;
-#if defined(ENOTSUP)
-    errno = ENOTSUP;
-#else
-    errno = EACCES;
-#endif
-    return NULL;
-#else
-    int fd;
-    struct stat file_status;
-    int flags = O_WRONLY | O_APPEND | O_CREAT | O_NONBLOCK;
-#if defined(O_CLOEXEC)
-    flags |= O_CLOEXEC;
-#endif
-#if !defined(O_NOFOLLOW)
-    errno = ENOTSUP;
-    return NULL;
-#else
-    flags |= O_NOFOLLOW;
-    fd = open(path, flags, (mode_t)0600);
-#endif
-    if (fd < 0) {
+    int fd = -1;
+    FILE *file;
+
+    if (!msconnector_open_private_event_file(path, &fd)) {
         return NULL;
     }
-    if (fstat(fd, &file_status) != 0 || !S_ISREG(file_status.st_mode)) {
-        const int saved_errno = errno == 0 ? EINVAL : errno;
-        (void)close(fd);
-        errno = saved_errno;
-        return NULL;
-    }
-    /* Creation mode alone does not repair an existing overly permissive log.
-     * Restrict the already-open regular file before returning its descriptor. */
-    if (fchmod(fd, S_IRUSR | S_IWUSR) != 0) {
+    file = fdopen(fd, "a");
+    if (file == NULL) {
         const int saved_errno = errno;
         (void)close(fd);
         errno = saved_errno;
-        return NULL;
     }
-    {
-        int descriptor_flags = fcntl(fd, F_GETFL);
-        if (descriptor_flags < 0 || fcntl(fd, F_SETFL,
-                descriptor_flags & ~O_NONBLOCK) < 0) {
-            const int saved_errno = errno;
-            (void)close(fd);
-            errno = saved_errno;
-            return NULL;
-        }
-    }
-    {
-        FILE *file = fdopen(fd, "a");
-        if (file == NULL) {
-            const int saved_errno = errno;
-            (void)close(fd);
-            errno = saved_errno;
-        }
-        return file;
-    }
-#endif
+    return file;
 }
 
 static int string_is_empty(const char *value) {
@@ -284,8 +233,8 @@ static int validate_request_input(
         !bounded_c_string(request->uri, RUNTIME_URI_SIZE, 1) ||
         !bounded_c_string(request->http_version, RUNTIME_HTTP_VERSION_SIZE, 0) ||
         !bounded_c_string(request->hostname, RUNTIME_ADDRESS_SIZE, 0) ||
-        !bounded_c_string(request->client.address, RUNTIME_ADDRESS_SIZE, 0) ||
-        !bounded_c_string(request->server.address, RUNTIME_ADDRESS_SIZE, 0)) {
+        !bounded_c_string(request->client.address, RUNTIME_ADDRESS_SIZE, 1) ||
+        !bounded_c_string(request->server.address, RUNTIME_ADDRESS_SIZE, 1)) {
         return runtime_error(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
             "request string metadata is missing or not bounded", "runtime");
     }
@@ -698,10 +647,28 @@ static int validate_runtime_event_path(
     const msconnector_runtime *runtime,
     char *error,
     size_t error_len) {
-    if (!string_is_empty(runtime->config.phase4_log_path) &&
-        msconnector_path_has_parent_reference(runtime->config.phase4_log_path)) {
-        set_text_error(error, error_len, "event_path must not contain a parent-directory segment");
-        return 0;
+    const char *path = runtime->config.phase4_log_path;
+    if (!string_is_empty(path)) {
+        const size_t path_length = strlen(path);
+        size_t index;
+        if (path_length >= RUNTIME_PATH_SIZE || path[path_length - 1U] == '/') {
+            set_text_error(error, error_len, "event_path must be a normalized path");
+            return 0;
+        }
+        for (index = 0U; index < path_length; ++index) {
+            if (iscntrl((unsigned char)path[index]) || path[index] == '\\' ||
+                (path[index] == '/' && (index + 1U == path_length || path[index + 1U] == '/'))) {
+                set_text_error(error, error_len, "event_path contains an unsafe path character");
+                return 0;
+            }
+        }
+        if (msconnector_path_has_parent_reference(path) ||
+            strstr(path, "/./") != NULL || strncmp(path, "./", 2U) == 0 ||
+            (path_length >= 2U && strcmp(path + path_length - 2U, "/.") == 0) ||
+            strcmp(path, ".") == 0 || strcmp(path, "..") == 0) {
+            set_text_error(error, error_len, "event_path must not contain a parent or dot segment");
+            return 0;
+        }
     }
     return 1;
 }
@@ -952,16 +919,10 @@ static int native_process_connection(
     msconnector_decision *decision,
     msconnector_error *error) {
     msconnector_native_transaction *native = native_transaction;
-    const char *client;
-    const char *server;
-    int client_port;
-    int server_port;
     msconnector_runtime *runtime = userdata;
-    client = string_is_empty(request->client.address) ? "127.0.0.1" : request->client.address;
-    server = string_is_empty(request->server.address) ? "127.0.0.1" : request->server.address;
-    client_port = request->client.port > 0 ? request->client.port : 0;
-    server_port = request->server.port > 0 ? request->server.port : 0;
-    if (msc_process_connection(native->transaction, client, client_port, server, server_port) != 1 ||
+    if (msc_process_connection(native->transaction,
+            request->client.address, request->client.port,
+            request->server.address, request->server.port) != 1 ||
         msc_process_uri(native->transaction, request->uri, request->method,
             http_version_without_prefix(request->http_version)) != 1) {
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,

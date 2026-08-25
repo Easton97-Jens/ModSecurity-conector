@@ -222,6 +222,134 @@ if [ -e "$SOCKET_PATH" ]; then
     exit 1
 fi
 
+# A peer that never reads must not hold a worker indefinitely. Run this in a
+# separate service instance so the bounded first-pass connection count remains
+# deterministic. The client receive buffers are deliberately small; each peer
+# sends valid frames but never reads the RESULT frames, forcing the service
+# send path to reach its monotonic 30-second deadline. All 64 worker slots are
+# exercised so the follow-up proves a timed-out worker was released before the
+# next request was admitted.
+(
+    cd "$REPO_ROOT"
+    "$ENGINE_BIN" --serve --config "$CONFIG_PATH" --socket "$SOCKET_PATH"
+) &
+SERVICE_PID=$!
+SOCKET_PATH="$SOCKET_PATH" "$PYTHON_BIN" -c '
+import os
+import socket
+import time
+
+path = os.environ["SOCKET_PATH"]
+for _ in range(250):
+    if os.path.exists(path):
+        break
+    time.sleep(0.02)
+else:
+    raise SystemExit("engine service socket did not appear for send-deadline test")
+
+def text(value):
+    raw = value.encode("ascii")
+    return len(raw).to_bytes(2, "big") + raw
+
+def begin_payload(request_id):
+    return (
+        text("GET") + text("/engine-send-deadline") + text("HTTP/1.1") +
+        text("example.test") + text("127.0.0.1") + (12345).to_bytes(2, "big") +
+        text("127.0.0.1") + (80).to_bytes(2, "big") + text(request_id) +
+        (1).to_bytes(2, "big") + text("host") + text("example.test")
+    )
+
+def frame(opcode, payload=b""):
+    return (b"MSE1" + bytes((1, opcode, 0, 0)) +
+            len(payload).to_bytes(4, "big") + payload)
+
+def exact(connection, count):
+    data = b""
+    while len(data) < count:
+        fragment = connection.recv(count - len(data))
+        if not fragment:
+            raise AssertionError("follow-up connection closed before RESULT")
+        data += fragment
+    return data
+
+def followup():
+    connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        connection.settimeout(3.0)
+        connection.connect(path)
+        connection.sendall(frame(1, begin_payload("send-deadline-followup")))
+        header = exact(connection, 12)
+        assert header[:4] == b"MSE1" and header[5] == 128
+        result = exact(connection, int.from_bytes(header[8:12], "big"))
+        assert result[0] == 1 and result[1] == 0, result[:2]
+    finally:
+        connection.close()
+
+def assert_followup_not_admitted_yet():
+    connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        connection.settimeout(1.0)
+        connection.connect(path)
+        connection.sendall(frame(1, begin_payload("send-deadline-probe")))
+        try:
+            data = connection.recv(12)
+        except socket.timeout:
+            return
+        except ConnectionResetError:
+            return
+        if data:
+            raise AssertionError("follow-up was admitted before worker deadline")
+    finally:
+        connection.close()
+
+peers = []
+try:
+    # Linux enforces a small minimum receive buffer, but this is still enough
+    # to make the bounded RESULT stream fill after a handful of frames.
+    for index in range(64):
+        connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        connection.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024)
+        connection.connect(path)
+        connection.sendall(frame(1, begin_payload("send-deadline-%03d" % index)))
+        # Empty request chunks are valid and produce fixed-size RESULT frames.
+        # They are sent in one batch; the peer deliberately never calls recv().
+        connection.sendall(frame(2) * 128)
+        peers.append(connection)
+    time.sleep(1.0)
+    assert_followup_not_admitted_yet()
+    started = time.monotonic()
+    # The production deadline is 30 seconds. Add a small scheduling margin,
+    # while keeping the wait below the repository 60-second command limit.
+    deadline = started + 31.0
+    while time.monotonic() < deadline:
+        time.sleep(min(0.25, deadline - time.monotonic()))
+    followup_started = time.monotonic()
+    followup_error = None
+    for _ in range(24):
+        try:
+            followup()
+            followup_error = None
+            break
+        except (AssertionError, OSError, socket.timeout) as error:
+            followup_error = error
+            time.sleep(0.25)
+    if followup_error is not None:
+        raise AssertionError("follow-up was not served after send deadline: %s" % followup_error)
+    elapsed = time.monotonic() - started
+    print("traefik_engine_service_nonreading_peer_deadline_test=pass peers=64 elapsed_seconds=%.1f followup_latency_seconds=%.1f" %
+          (elapsed, time.monotonic() - followup_started))
+finally:
+    for connection in peers:
+        connection.close()
+'
+kill -TERM "$SERVICE_PID"
+wait "$SERVICE_PID" || true
+SERVICE_PID=""
+if [ -e "$SOCKET_PATH" ]; then
+    echo "FAIL: send-deadline service did not remove its Unix socket" >&2
+    exit 1
+fi
+
 # A pathname replacement after a successful bind belongs to neither the
 # service nor this cleanup trap. The service must preserve it and report an
 # incomplete cleanup instead of unlinking it on shutdown.

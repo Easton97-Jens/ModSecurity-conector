@@ -11,7 +11,7 @@ Dies ist die vollständige aktuelle `key=value`-Parseroberfläche von `common/ru
 | [`body_limit_action`](#body-limit-action) | Common Runtime | Aufzählung | nein | reject | Common-Runtime-key=value-Datei | Steuert, ob ein Chunk über dem Limit vor der Engine-Eingabe abgewiesen oder gekürzt wird. |
 | [`default_block_status`](#default-block-status) | Common Runtime | HTTP-Status | nein | 403 | Common-Runtime-key=value-Datei | Fallback-Status für unterstützte Sperraktionen vor dem Commit. |
 | [`default_error_status`](#default-error-status) | Common Runtime | HTTP-Fehlerstatus | nein | 500 | Common-Runtime-key=value-Datei | Fallback-Status für Runtime-Fehler. |
-| [`enabled`](#enabled) | Common Runtime | Boolescher Wert | nein | off | Common-Runtime-key=value-Datei | Aktiviert die Common Runtime; eine aktivierte Runtime benötigt eine Inline-, Datei- oder Remote-Regelquelle. |
+| [`enabled`](#enabled) | Common Runtime | Boolescher Wert | nein | off | Common-Runtime-key=value-Datei | Aktiviert die Common Runtime; eine aktivierte Runtime benötigt eine Inline- oder lokale Datei-Regelquelle. |
 | [`event_path`](#event-path) | Common Runtime | Pfad | nein | none | Common-Runtime-key=value-Datei | Hängt bei Konfiguration JSONL-Ereignisse an, die nur Metadaten enthalten. |
 | [`late_intervention_timeout`](#late-intervention-timeout) | Common Runtime | nichtnegative dezimale Millisekundenanzahl | nein | 0 | Common-Runtime-key=value-Datei | Speichert ein optionales Budget für späte Interventionen; Common besitzt keine Timer-/Abbruchprimitive. |
 | [`max_event_json_bytes`](#max-event-json-bytes) | Common Runtime | positive dezimale Byteanzahl | nein | 16384 | Common-Runtime-key=value-Datei | Begrenzt die Größe serialisierter Metadatenereignisse. |
@@ -28,8 +28,8 @@ Dies ist die vollständige aktuelle `key=value`-Parseroberfläche von `common/ru
 | [`response_body_mode`](#response-body-mode) | Common Runtime | Aufzählung | nein | none | Common-Runtime-key=value-Datei | Wählt den Common-Modus zur Response-Body-Verarbeitung; ein bestimmter Host unterstützt möglicherweise nur eine Teilmenge. |
 | [`rules_file`](#rules-file) | Common Runtime | Pfad | nein | none | Common-Runtime-key=value-Datei | Lädt Regeln aus einer lokalen Datei. |
 | [`rules_inline`](#rules-inline) | Common Runtime | Zeichenkette | nein | none | Common-Runtime-key=value-Datei | Fügt eine Inline-Regelkonfiguration hinzu. |
-| [`rules_remote_key`](#rules-remote-key) | Common Runtime | Zeichenkette | nein | none | Common-Runtime-key=value-Datei | Liefert eine Hälfte eines Remote-Regelpaares. |
-| [`rules_remote_url`](#rules-remote-url) | Common Runtime | URL | nein | none | Common-Runtime-key=value-Datei | Liefert den Remote-Regelendpunkt; die ausgewählten Beispiele verwenden ihn nicht. |
+| [`rules_remote_key`](#rules-remote-key) | Common Runtime | abgelehnte Zeichenkette | nein | none | Common-Runtime-key=value-Datei | Legacy-Schlüssel, der nur erkannt wird, um Remote-Regelkonfiguration abzulehnen. |
+| [`rules_remote_url`](#rules-remote-url) | Common Runtime | abgelehnte URL | nein | none | Common-Runtime-key=value-Datei | Legacy-Schlüssel, der nur erkannt wird, um Remote-Regelkonfiguration abzulehnen. |
 | [`transaction_id`](#transaction-id) | Common Runtime | Zeichenkette | nein | none | Common-Runtime-key=value-Datei | Setzt eine statische Runtime-Transaktionskennung. |
 | [`transaction_id_header`](#transaction-id-header) | Common Runtime | Headername | nein | x-request-id | Common-Runtime-key=value-Datei | Wählt den Fallback-Namen des Korrelations-Headers. |
 | [`use_error_log`](#use-error-log) | Common Runtime | Boolescher Wert | nein | on | Common-Runtime-key=value-Datei | Speichert die Common-Logging-Präferenz. Ein Connector muss sie verwenden, bevor eine Logging-Wirkung beim Host behauptet werden kann. |
@@ -206,7 +206,7 @@ Limits begrenzen den Ressourcenverbrauch. Fallback-Status für Runtime-Fehler.
 
 ### Kurzbeschreibung
 
-Aktiviert die Common Runtime; eine aktivierte Runtime benötigt eine Inline-, Datei- oder Remote-Regelquelle.
+Aktiviert die Common Runtime; eine aktivierte Runtime benötigt eine Inline- oder lokale Datei-Regelquelle.
 
 ### Syntax
 
@@ -240,7 +240,8 @@ Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Ska
 
 P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
 
-Aktiviert die Common Runtime; eine aktivierte Runtime benötigt eine Inline-, Datei- oder Remote-Regelquelle.
+Aktiviert die Common Runtime; eine aktivierte Runtime benötigt eine Inline-
+oder lokale Dateiregelquelle. Remote Rules werden technisch abgelehnt.
 
 ### Validierung und Fehler
 
@@ -254,7 +255,9 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 ### Sicherheit und Betrieb
 
-Limits begrenzen den Ressourcenverbrauch. Aktiviert die Common Runtime; eine aktivierte Runtime benötigt eine Inline-, Datei- oder Remote-Regelquelle.
+Limits begrenzen den Ressourcenverbrauch. Eine aktivierte Common Runtime
+benötigt eine Inline- oder lokale Dateiregelquelle; Remote Rules werden
+technisch abgelehnt.
 
 <a id="event-path"></a>
 ## `event_path`
@@ -1150,7 +1153,8 @@ Limits begrenzen den Ressourcenverbrauch. Fügt eine Inline-Regelkonfiguration h
 
 ### Kurzbeschreibung
 
-Liefert eine Hälfte eines Remote-Regelpaares.
+Legacy-Kompatibilitätsschlüssel. Remote-Regelladen ist einheitlich deaktiviert;
+dieser Schlüssel wird nur so weit erkannt, dass ein Konfigurationsfehler entsteht.
 
 ### Syntax
 
@@ -1166,7 +1170,7 @@ rules_remote_key=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| Zeichenkette | Remote-Schlüssel, der mit rules_remote_url gepaart wird | nein |
+| abgelehnte Zeichenkette | kein Wert wird akzeptiert | nein |
 
 ### Standardwert
 
@@ -1184,11 +1188,12 @@ Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Ska
 
 P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
 
-Liefert eine Hälfte eines Remote-Regelpaares.
+Remote-Regelladen wird vor dem Loader, jedem Netzwerkauruf und jedem nativen
+Remote-Rule-API-Aufruf deaktiviert.
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und schlüsselspezifisch ungültige Werte lassen die Runtime-Konfigurationsprüfung fehlschlagen.
+Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und schlüsselspezifisch ungültige Werte lassen die Runtime-Konfigurationsprüfung fehlschlagen. Jeder konfigurierte Remote-Regel-Schlüssel oder jede Remote-Regel-URL schlägt ebenfalls fail-closed fehl.
 
 ### Beispiel
 
@@ -1198,14 +1203,15 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 ### Sicherheit und Betrieb
 
-Limits begrenzen den Ressourcenverbrauch. Liefert eine Hälfte eines Remote-Regelpaares.
+Limits begrenzen den Ressourcenverbrauch. Remote-Regelladen ist deaktiviert; Inline-Regeln oder eine lokale Regeldatei verwenden.
 
 <a id="rules-remote-url"></a>
 ## `rules_remote_url`
 
 ### Kurzbeschreibung
 
-Liefert den Remote-Regelendpunkt; die ausgewählten Beispiele verwenden ihn nicht.
+Legacy-Kompatibilitätsschlüssel. Remote-Regelladen ist einheitlich deaktiviert;
+dieser Schlüssel wird nur so weit erkannt, dass ein Konfigurationsfehler entsteht.
 
 ### Syntax
 
@@ -1221,7 +1227,7 @@ rules_remote_url=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| URL | Remote-URL, die mit rules_remote_key gepaart wird | nein |
+| abgelehnte URL | kein Wert wird akzeptiert | nein |
 
 ### Standardwert
 
@@ -1239,11 +1245,12 @@ Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Ska
 
 P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
 
-Liefert den Remote-Regelendpunkt; die ausgewählten Beispiele verwenden ihn nicht.
+Remote-Regelladen wird vor dem Loader, jedem Netzwerkauruf und jedem nativen
+Remote-Rule-API-Aufruf deaktiviert.
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und schlüsselspezifisch ungültige Werte lassen die Runtime-Konfigurationsprüfung fehlschlagen.
+Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und schlüsselspezifisch ungültige Werte lassen die Runtime-Konfigurationsprüfung fehlschlagen. Jeder konfigurierte Remote-Regel-Schlüssel oder jede Remote-Regel-URL schlägt ebenfalls fail-closed fehl.
 
 ### Beispiel
 
@@ -1253,7 +1260,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 ### Sicherheit und Betrieb
 
-Limits begrenzen den Ressourcenverbrauch. Liefert den Remote-Regelendpunkt; die ausgewählten Beispiele verwenden ihn nicht.
+Limits begrenzen den Ressourcenverbrauch. Remote-Regelladen ist deaktiviert; Inline-Regeln oder eine lokale Regeldatei verwenden.
 
 <a id="transaction-id"></a>
 ## `transaction_id`

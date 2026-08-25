@@ -272,6 +272,36 @@ int main(void)
         self.assertNotIn("session->service->runtime_lock", begin)
         self.assertEqual(begin.count("session->service"), 1)
 
+    def test_traefik_unread_peer_send_path_has_a_monotonic_deadline(self) -> None:
+        source = (
+            ROOT / "connectors" / "traefik" / "src" / "traefik_engine_service.c"
+        ).read_text(encoding="utf-8")
+        helper_start = source.index(
+            "static int traefik_engine_send_deadline_remaining_ms"
+        )
+        helper_end = source.index(
+            "\n}\n\nstatic int traefik_engine_send_all", helper_start
+        )
+        helper = source[helper_start:helper_end]
+        send_start = helper_end
+        send_end = source.index("\n}\n\n/* Returns 1 for a complete read", send_start)
+        send_all = source[send_start:send_end]
+
+        self.assertIn("#include <time.h>", source)
+        self.assertIn("TRAEFIK_ENGINE_SEND_TIMEOUT_MILLISECONDS", source)
+        self.assertIn("clock_gettime(CLOCK_MONOTONIC, &now)", helper)
+        self.assertIn("milliseconds > INT_MAX", helper)
+        self.assertIn("clock_gettime(CLOCK_MONOTONIC, &deadline)", send_all)
+        self.assertIn(
+            "deadline.tv_sec += TRAEFIK_ENGINE_SEND_TIMEOUT_MILLISECONDS / 1000;",
+            send_all,
+        )
+        self.assertIn("poll(&descriptor, 1U, remaining_ms)", send_all)
+        self.assertIn("descriptor.events = POLLOUT;", send_all)
+        self.assertIn("MSG_NOSIGNAL | MSG_DONTWAIT", send_all)
+        self.assertIn("errno == EAGAIN", send_all)
+        self.assertIn("errno == EWOULDBLOCK", send_all)
+
     def test_oracle_handles_a_missing_optional_json_string_without_dereference(self) -> None:
         source = (ROOT / "ci" / "tools" / "native_modsecurity_oracle.c").read_text(
             encoding="utf-8"
@@ -413,6 +443,67 @@ int main(void)
             success_path.index("close(fd);"), success_path.index("handled++;"),
         )
 
+    def test_haproxy_legacy_spop_path_has_bounded_timeout(self) -> None:
+        source = (
+            ROOT
+            / "connectors"
+            / "haproxy"
+            / "src"
+            / "haproxy_spop_diagnostic_runtime.c"
+        ).read_text(encoding="utf-8")
+        self.assertIn("#define SPOP_LEGACY_TIMEOUT_MS 2000U", source)
+        handle_start = source.index("static int handle_connection(")
+        handle_end = source.index(
+            "\n}\n\nstatic int bind_localhost", handle_start
+        )
+        handle = source[handle_start:handle_end]
+        self.assertIn(
+            "state != 0 ? state->config.spoe_timeout_ms :\n        SPOP_LEGACY_TIMEOUT_MS",
+            handle,
+        )
+        self.assertNotIn(
+            "state != 0 ? state->config.spoe_timeout_ms : 0U", handle
+        )
+        self.assertIn(
+            "config->spoe_timeout_ms = SPOP_LEGACY_TIMEOUT_MS;", source
+        )
+        self.assertIn(
+            "return parse_bounded_uint(value, 600000UL, &config->spoe_timeout_ms);",
+            source,
+        )
+
+    def test_haproxy_transaction_cache_config_is_bounded_before_calloc(self) -> None:
+        source = (
+            ROOT
+            / "connectors"
+            / "haproxy"
+            / "src"
+            / "haproxy_spop_diagnostic_runtime.c"
+        ).read_text(encoding="utf-8")
+        self.assertIn("#define SPOP_DEFAULT_MAX_TRANSACTIONS 4096U", source)
+        self.assertIn("#define SPOP_MAX_TRANSACTIONS 65536U", source)
+
+        config_start = source.index('if (strcmp(key, "max-transactions") == 0)')
+        config_end = source.index(
+            'if (strcmp(key, "debug") == 0)', config_start
+        )
+        config_branch = source[config_start:config_end]
+        self.assertIn(
+            "return parse_bounded_uint(value, SPOP_MAX_TRANSACTIONS,",
+            config_branch,
+        )
+        self.assertNotIn("strtoul", config_branch)
+
+        cache_start = source.index("static int transaction_cache_init")
+        cache_end = source.index(
+            "static transaction_slot *transaction_slot_find", cache_start
+        )
+        cache = source[cache_start:cache_end]
+        self.assertIn("if (state == 0)", cache)
+        self.assertIn("capacity > SIZE_MAX / sizeof(*state->transactions)", cache)
+        self.assertLess(cache.index("capacity > SIZE_MAX"), cache.index("calloc("))
+        self.assertIn("SPOP_DEFAULT_MAX_TRANSACTIONS", cache)
+
     def test_haproxy_append_string_preflights_payload_before_mutating_the_frame(self) -> None:
         source = (
             ROOT
@@ -473,6 +564,19 @@ int main(void)
 
 #include <assert.h>
 
+static unsigned int cached_transaction_finish_calls;
+
+void haproxy_modsecurity_transaction_finish(
+        haproxy_modsecurity_transaction *transaction) {
+    (void)transaction;
+    cached_transaction_finish_calls++;
+}
+
+void haproxy_modsecurity_transaction_abort(
+        haproxy_modsecurity_transaction *transaction) {
+    (void)transaction;
+}
+
 static void fill_string(char *value, size_t len, char byte) {
     memset(value, byte, len);
     value[len] = '\0';
@@ -492,6 +596,9 @@ static void test_varint_boundaries(void) {
     char value_239[240];
     char value_240[241];
     spop_buffer buffer;
+    size_t pos;
+    uint64_t decoded;
+    const uint64_t values[] = {240U, 2288U, UINT64_MAX};
 
     fill_string(value_239, 239U, 'a');
     fill_string(value_240, 240U, 'b');
@@ -508,6 +615,16 @@ static void test_varint_boundaries(void) {
     assert(buffer.data[0] == 240U);
     assert(buffer.data[1] == 0U);
     assert(memcmp(buffer.data + 2U, value_240, 240U) == 0);
+
+    for (size_t index = 0U; index < sizeof(values) / sizeof(values[0]); ++index) {
+        memset(&buffer, 0, sizeof(buffer));
+        assert(append_varint(&buffer, values[index]) == 0);
+        pos = 0U;
+        decoded = 0U;
+        assert(read_varint(buffer.data, buffer.len, &pos, &decoded) == 0);
+        assert(pos == buffer.len);
+        assert(decoded == values[index]);
+    }
 }
 
 static void test_exact_fit_and_overflow_are_atomic(void) {
@@ -543,6 +660,40 @@ static void test_unterminated_input_does_not_mutate(void) {
     assert(append_string(&buffer, unterminated) == -1);
     assert(memcmp(&buffer, &before, sizeof(buffer)) == 0);
     assert(append_string(0, "valid") == -1);
+}
+
+static void test_spop_duplicate_request_id_preserves_active_transaction(void) {
+    agent_state state;
+    transaction_slot *slot;
+    haproxy_modsecurity_transaction *original =
+        (haproxy_modsecurity_transaction *)(uintptr_t)1U;
+    haproxy_modsecurity_transaction *duplicate =
+        (haproxy_modsecurity_transaction *)(uintptr_t)2U;
+
+    memset(&state, 0, sizeof(state));
+    state.transaction_capacity = 2U;
+    state.transactions = (transaction_slot *)calloc(state.transaction_capacity,
+        sizeof(*state.transactions));
+    assert(state.transactions != 0);
+
+    assert(transaction_cache_store(&state, "request-1", original) == 0);
+    slot = transaction_slot_find(&state, "request-1");
+    assert(slot != 0 && slot->transaction == original);
+
+    /* A duplicate incoming request must fail without touching the original. */
+    assert(transaction_cache_store(&state, "request-1", duplicate) == -1);
+    assert(cached_transaction_finish_calls == 0U);
+    slot = transaction_slot_find(&state, "request-1");
+    assert(slot != 0 && slot->transaction == original);
+
+    /* The original can still be resumed by its response notification. */
+    assert(transaction_cache_take(&state, "request-1") == original);
+    assert(transaction_slot_find(&state, "request-1") == 0);
+
+    /* A unique replacement after that legitimate continuation is accepted. */
+    assert(transaction_cache_store(&state, "request-1", duplicate) == 0);
+    assert(transaction_cache_take(&state, "request-1") == duplicate);
+    free(state.transactions);
 }
 
 static void test_notify_header_argument(
@@ -599,9 +750,37 @@ static void test_notify_header_arguments_preserve_type_and_response_role(void) {
     test_notify_header_argument(
         "response_headers_bin", SPOP_DATA_BIN, &binary_headers, 1, 1, 0, 2U);
     test_notify_header_argument(
-        "headers", SPOP_DATA_STR, &text_headers, 0, 0, 1, 1U);
+        "headers", SPOP_DATA_STR, &text_headers, 0, 0, 1, 2U);
     test_notify_header_argument(
-        "response_headers", SPOP_DATA_STR, &text_headers, 1, 0, 1, 1U);
+        "response_headers", SPOP_DATA_STR, &text_headers, 1, 0, 1, 2U);
+}
+
+static void test_spop_binary_header_terminator_requires_full_consumption(void) {
+    spop_buffer valid_headers;
+    spop_buffer trailing_headers;
+    notify_request request;
+
+    memset(&valid_headers, 0, sizeof(valid_headers));
+    assert(append_string(&valid_headers, "X-One") == 0);
+    assert(append_string(&valid_headers, "one") == 0);
+    assert(append_string(&valid_headers, "") == 0);
+    assert(append_string(&valid_headers, "") == 0);
+    memset(&request, 0, sizeof(request));
+    assert(parse_headers_bin(&request,
+        valid_headers.data, valid_headers.len) == 0);
+    assert(request.has_headers_bin == 1);
+    assert(request.header_count == 1U);
+    assert(strcmp(request.headers[0].name, "X-One") == 0);
+    assert(strcmp(request.headers[0].value, "one") == 0);
+    free_notify_request(&request);
+
+    trailing_headers = valid_headers;
+    trailing_headers.data[trailing_headers.len++] = 0x01U;
+    memset(&request, 0, sizeof(request));
+    assert(parse_headers_bin(&request,
+        trailing_headers.data, trailing_headers.len) == -1);
+    assert(request.has_headers_bin == 0);
+    free_notify_request(&request);
 }
 
 static void test_response_header_key_marks_response_for_nonbytes(void) {
@@ -682,15 +861,274 @@ static void test_unknown_body_key_does_not_consume_or_mutate(void) {
     free_notify_request(&request);
 }
 
+static void test_spop_rejects_overflow_and_truncated_protocol_values(void) {
+    unsigned char overflow[] = {240U, 0xffU, 0xffU, 0xffU, 0xffU, 0xffU,
+        0xffU, 0xffU, 0xffU, 0xffU, 0x01U};
+    unsigned char unterminated[] = {240U, 0x80U, 0x80U, 0x80U, 0x80U,
+        0x80U, 0x80U, 0x80U, 0x80U, 0x80U};
+    unsigned char too_wide[] = {240U, 0x80U, 0x80U, 0x80U, 0x80U,
+        0x80U, 0x80U, 0x80U, 0x80U, 0x10U};
+    char oversized_uri[1025];
+    spop_buffer argument;
+    notify_request request;
+    size_t pos;
+    uint64_t decoded;
+
+    pos = 0U;
+    decoded = 0U;
+    assert(read_varint(overflow, sizeof(overflow), &pos, &decoded) == -1);
+    pos = 0U;
+    assert(read_varint(unterminated, sizeof(unterminated), &pos, &decoded) == -1);
+    pos = 0U;
+    assert(read_varint(too_wide, sizeof(too_wide), &pos, &decoded) == -1);
+
+    memset(&argument, 0, sizeof(argument));
+    assert(append_byte(&argument, SPOP_DATA_UINT32) == 0);
+    assert(append_varint(&argument, UINT32_MAX) == 0);
+    memset(&request, 0, sizeof(request));
+    pos = 0U;
+    {
+        unsigned int decoded_uint32 = 0U;
+        int present = 0;
+        assert(read_typed_uint32_value(argument.data, argument.len, &pos,
+            &decoded_uint32, &present) == 0);
+        assert(decoded_uint32 == UINT32_MAX);
+        assert(present == 1);
+    }
+    memset(&argument, 0, sizeof(argument));
+    assert(append_byte(&argument, SPOP_DATA_UINT32) == 0);
+    assert(append_varint(&argument, (uint64_t)UINT32_MAX + 1U) == 0);
+    pos = 0U;
+    {
+        unsigned int decoded_uint32 = 0U;
+        int present = 0;
+        assert(read_typed_uint32_value(argument.data, argument.len, &pos,
+            &decoded_uint32, &present) == -1);
+        assert(present == 0);
+    }
+
+    memset(oversized_uri, 'u', sizeof(oversized_uri) - 1U);
+    oversized_uri[sizeof(oversized_uri) - 1U] = '\0';
+    memset(&argument, 0, sizeof(argument));
+    assert(append_typed_string(&argument, oversized_uri) == 0);
+    memset(&request, 0, sizeof(request));
+    pos = 0U;
+    assert(parse_notify_string_argument(&request,
+        (const unsigned char *)"uri", sizeof("uri") - 1U,
+        argument.data, argument.len, &pos) == -1);
+    assert(request.has_uri == 0);
+    free_notify_request(&request);
+}
+
+static void test_spop_rejects_header_injection_and_invalid_names(void) {
+    notify_request request;
+
+    memset(&request, 0, sizeof(request));
+    assert(add_request_header(&request,
+        (const unsigned char *)"X-Good", 6U,
+        (const unsigned char *)"ok", 2U) == 0);
+    assert(add_request_header(&request,
+        (const unsigned char *)"X-Bad", 5U,
+        (const unsigned char *)"ok\r\nInjected: yes", 16U) == -1);
+    assert(add_request_header(&request,
+        (const unsigned char *)"Bad Name", 8U,
+        (const unsigned char *)"ok", 2U) == -1);
+    assert(request.header_count == 1U);
+    free_notify_request(&request);
+}
+
+static int append_notify_message_start(spop_buffer *payload,
+        const char *message_name, unsigned int argument_count) {
+    return append_string(payload, message_name) != 0 ||
+        append_byte(payload, argument_count) != 0 ? -1 : 0;
+}
+
+static void test_spop_notify_message_and_argument_contract(void) {
+    spop_buffer payload;
+    notify_request request;
+
+    memset(&payload, 0, sizeof(payload));
+    assert(append_notify_message_start(&payload, "check-request", 1U) == 0);
+    assert(append_string(&payload, "host") == 0);
+    assert(append_typed_string(&payload, "example.test") == 0);
+    assert(parse_notify_payload(payload.data, payload.len, &request) == 0);
+    assert(request.has_host == 1 && strcmp(request.host, "example.test") == 0);
+    free_notify_request(&request);
+
+    memset(&payload, 0, sizeof(payload));
+    assert(append_notify_message_start(&payload, "unsupported", 0U) == 0);
+    memset(&request, 0, sizeof(request));
+    assert(parse_notify_payload(payload.data, payload.len, &request) == -1);
+    free_notify_request(&request);
+
+    memset(&payload, 0, sizeof(payload));
+    assert(append_notify_message_start(&payload, "check-request", 0U) == 0);
+    assert(append_notify_message_start(&payload, "check-response", 0U) == 0);
+    memset(&request, 0, sizeof(request));
+    assert(parse_notify_payload(payload.data, payload.len, &request) == -1);
+    free_notify_request(&request);
+
+    memset(&payload, 0, sizeof(payload));
+    assert(append_notify_message_start(&payload, "check-request", 2U) == 0);
+    assert(append_string(&payload, "host") == 0);
+    assert(append_typed_string(&payload, "first.test") == 0);
+    assert(append_string(&payload, "host") == 0);
+    assert(append_typed_string(&payload, "second.test") == 0);
+    memset(&request, 0, sizeof(request));
+    assert(parse_notify_payload(payload.data, payload.len, &request) == -1);
+    free_notify_request(&request);
+
+    /* headers_bin and headers are distinct compatibility fallback wires. */
+    memset(&payload, 0, sizeof(payload));
+    assert(append_notify_message_start(&payload, "check-request", 2U) == 0);
+    assert(append_string(&payload, "headers_bin") == 0);
+    assert(append_typed_empty_string(&payload) == 0);
+    assert(append_string(&payload, "headers") == 0);
+    assert(append_typed_string(&payload, "X-Fallback: yes\n") == 0);
+    memset(&request, 0, sizeof(request));
+    assert(parse_notify_payload(payload.data, payload.len, &request) == 0);
+    assert(request.header_count == 1U);
+    free_notify_request(&request);
+}
+
+static void test_spop_rejects_response_arguments_on_request_messages(void) {
+    spop_buffer payload;
+    notify_request request;
+
+    /* A response argument must not flip a request into a response after the
+     * request-host gate; it is a phase mismatch and is rejected. */
+    memset(&payload, 0, sizeof(payload));
+    assert(append_notify_message_start(&payload, "check-request", 1U) == 0);
+    assert(append_string(&payload, "response_headers") == 0);
+    assert(append_typed_string(&payload, "X-Response: yes\r\n") == 0);
+    memset(&request, 0, sizeof(request));
+    assert(parse_notify_payload(payload.data, payload.len, &request) == -1);
+    free_notify_request(&request);
+
+    /* The same response wire is valid when the message itself is a response. */
+    memset(&payload, 0, sizeof(payload));
+    assert(append_notify_message_start(&payload, "check-response", 1U) == 0);
+    assert(append_string(&payload, "response_headers") == 0);
+    assert(append_typed_string(&payload, "X-Response: yes\r\n") == 0);
+    memset(&request, 0, sizeof(request));
+    assert(parse_notify_payload(payload.data, payload.len, &request) == 0);
+    assert(request.is_response == 1);
+    assert(request.header_count == 1U);
+    free_notify_request(&request);
+}
+
+static void test_spop_rejects_malformed_text_headers_and_bounds_count(void) {
+    spop_buffer argument;
+    notify_request request;
+
+    memset(&argument, 0, sizeof(argument));
+    assert(append_typed_string(&argument, "Malformed-Header\n") == 0);
+    memset(&request, 0, sizeof(request));
+    {
+        size_t pos = 0U;
+        assert(parse_notify_header_argument(&request,
+            (const unsigned char *)"headers", sizeof("headers") - 1U,
+            argument.data, argument.len, &pos) == -1);
+        assert(request.header_count == 0U);
+    }
+    free_notify_request(&request);
+
+    memset(&argument, 0, sizeof(argument));
+    assert(append_typed_string(&argument, "X-One: one\r\nX-Two: two\r\n") == 0);
+    memset(&request, 0, sizeof(request));
+    {
+        size_t pos = 0U;
+        assert(parse_notify_header_argument(&request,
+            (const unsigned char *)"headers", sizeof("headers") - 1U,
+            argument.data, argument.len, &pos) == 0);
+        assert(request.header_count == 2U);
+        assert(strcmp(request.headers[0].value, "one") == 0);
+        assert(strcmp(request.headers[1].value, "two") == 0);
+    }
+    free_notify_request(&request);
+
+    memset(&argument, 0, sizeof(argument));
+    assert(append_typed_string(&argument, "X-One: one\r\n\r\ntrailing") == 0);
+    memset(&request, 0, sizeof(request));
+    {
+        size_t pos = 0U;
+        assert(parse_notify_header_argument(&request,
+            (const unsigned char *)"headers", sizeof("headers") - 1U,
+            argument.data, argument.len, &pos) == -1);
+    }
+    free_notify_request(&request);
+
+    memset(&request, 0, sizeof(request));
+    for (unsigned int index = 0U; index < MSCONNECTOR_MAX_HEADER_COUNT; ++index) {
+        assert(add_request_header(&request,
+            (const unsigned char *)"X-Count", sizeof("X-Count") - 1U,
+            (const unsigned char *)"value", sizeof("value") - 1U) == 0);
+    }
+    assert(request.header_count == MSCONNECTOR_MAX_HEADER_COUNT);
+    assert(add_request_header(&request,
+        (const unsigned char *)"X-Overflow", sizeof("X-Overflow") - 1U,
+        (const unsigned char *)"value", sizeof("value") - 1U) == -1);
+    assert(request.header_count == MSCONNECTOR_MAX_HEADER_COUNT);
+    free_notify_request(&request);
+}
+
+static void test_spop_frame_read_has_a_bounded_liveness_deadline(void) {
+    int descriptors[2];
+    unsigned char byte = 0U;
+
+    assert(pipe(descriptors) == 0);
+    assert(read_full_timeout(descriptors[0], &byte, 1U, 20U) == -1);
+    close(descriptors[0]);
+    close(descriptors[1]);
+}
+
+static void test_spop_rejects_unenforced_timeout_and_worker_settings(void) {
+    agent_config config;
+
+    config_init(&config);
+    assert(config_set(&config, "spoe-timeout", "25") == 0);
+    assert(config.spoe_timeout_ms == 25U);
+    assert(config_set(&config, "spoe-timeout", "0") == -1);
+    assert(config_set(&config, "worker-count", "2") == -1);
+    assert(config_set(&config, "response-body-timeout", "5") == -1);
+    assert(config_set(&config, "max-transactions", "65536") == 0);
+    assert(config.max_transactions == SPOP_MAX_TRANSACTIONS);
+    assert(config_set(&config, "max-transactions", "65537") == -1);
+    assert(config_set(&config, "max-transactions", "0") == -1);
+    assert(config_set(&config, "max-transactions", "999999999999999999999") == -1);
+    assert(config_set(&config, "request-body-limit", "10485760") == 0);
+    assert(config.request_body_limit == 10485760U);
+    assert(config_set(&config, "request-body-limit", "10485761") == -1);
+    assert(config_set(&config, "request-body-limit", "4294967296") == -1);
+    assert(config_set(&config, "request-body-limit", "not-a-number") == -1);
+    assert(config_set(&config, "response-body-limit", "0") == 0);
+    assert(config_set(&config, "response-body-limit", "10485760") == 0);
+    assert(config_set(&config, "response-body-limit", "10485761") == -1);
+    assert(config_set(&config, "port", "65535") == 0);
+    assert(config.port == 65535U);
+    assert(config_set(&config, "port", "65536") == -1);
+    assert(config_set(&config, "port", "0") == -1);
+    assert(config_set(&config, "port", "4294967296") == -1);
+}
+
 int main(void) {
     test_varint_length_contract();
     test_varint_boundaries();
     test_exact_fit_and_overflow_are_atomic();
     test_unterminated_input_does_not_mutate();
+    test_spop_duplicate_request_id_preserves_active_transaction();
     test_notify_header_arguments_preserve_type_and_response_role();
+    test_spop_binary_header_terminator_requires_full_consumption();
     test_response_header_key_marks_response_for_nonbytes();
     test_notify_body_arguments_preserve_type_and_response_role();
     test_unknown_body_key_does_not_consume_or_mutate();
+    test_spop_rejects_overflow_and_truncated_protocol_values();
+    test_spop_rejects_header_injection_and_invalid_names();
+    test_spop_notify_message_and_argument_contract();
+    test_spop_rejects_response_arguments_on_request_messages();
+    test_spop_rejects_malformed_text_headers_and_bounds_count();
+    test_spop_frame_read_has_a_bounded_liveness_deadline();
+    test_spop_rejects_unenforced_timeout_and_worker_settings();
     return 0;
 }
 '''.replace("__RUNTIME_SOURCE__", runtime_source.as_posix())

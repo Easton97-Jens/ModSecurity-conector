@@ -12,8 +12,8 @@ void msconnector_request_mapper_contract_init(msconnector_request_mapper_contrac
     contract->uri = MSCONNECTOR_MAPPER_REQUIRED;
     contract->http_version = MSCONNECTOR_MAPPER_OPTIONAL;
     contract->hostname = MSCONNECTOR_MAPPER_OPTIONAL;
-    contract->client_endpoint = MSCONNECTOR_MAPPER_OPTIONAL;
-    contract->server_endpoint = MSCONNECTOR_MAPPER_OPTIONAL;
+    contract->client_endpoint = MSCONNECTOR_MAPPER_REQUIRED;
+    contract->server_endpoint = MSCONNECTOR_MAPPER_REQUIRED;
     contract->headers = MSCONNECTOR_MAPPER_REQUIRED;
     contract->request_body = MSCONNECTOR_MAPPER_OPTIONAL;
     contract->max_header_count = 1024U;
@@ -36,6 +36,8 @@ int msconnector_request_mapper_validate_output(const msconnector_request_mapper_
     if (contract->uri == MSCONNECTOR_MAPPER_REQUIRED && missing_string(request->uri)) { set_error(error, error_len, "missing uri"); return 0; }
     if (contract->http_version == MSCONNECTOR_MAPPER_REQUIRED && missing_string(request->http_version)) { set_error(error, error_len, "missing http_version"); return 0; }
     if (contract->hostname == MSCONNECTOR_MAPPER_REQUIRED && missing_string(request->hostname)) { set_error(error, error_len, "missing hostname"); return 0; }
+    if (contract->client_endpoint == MSCONNECTOR_MAPPER_REQUIRED && missing_string(request->client.address)) { set_error(error, error_len, "missing client endpoint"); return 0; }
+    if (contract->server_endpoint == MSCONNECTOR_MAPPER_REQUIRED && missing_string(request->server.address)) { set_error(error, error_len, "missing server endpoint"); return 0; }
     if (contract->headers == MSCONNECTOR_MAPPER_REQUIRED && request->header_count > 0U && request->headers == 0) { set_error(error, error_len, "missing headers"); return 0; }
     if (contract->max_header_count > 0U && request->header_count > contract->max_header_count) { set_error(error, error_len, "too many headers"); return 0; }
     if (contract->request_body == MSCONNECTOR_MAPPER_UNSUPPORTED && request->body.size > 0U) { set_error(error, error_len, "body unsupported"); return 0; }

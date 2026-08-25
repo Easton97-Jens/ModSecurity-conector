@@ -2,10 +2,14 @@ package processor
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
+
+	"golang.org/x/sys/unix"
 )
 
 // JSONLObserver writes one payload-free completion record per ext_proc stream.
@@ -54,10 +58,14 @@ func NewJSONLObserverWithMode(path, evaluationMode, ruleEvaluation string) (*JSO
 	if !filepath.IsAbs(path) {
 		return nil, fmt.Errorf("event log path must be absolute")
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-		return nil, fmt.Errorf("create event log directory: %w", err)
+	if filepath.Clean(path) != path {
+		return nil, fmt.Errorf("event log path must be normalized")
 	}
-	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	parent := filepath.Dir(path)
+	if err := ensurePrivateEventParent(parent); err != nil {
+		return nil, err
+	}
+	file, err := openPrivateEventLog(path)
 	if err != nil {
 		return nil, fmt.Errorf("open event log: %w", err)
 	}
@@ -68,8 +76,105 @@ func NewJSONLObserverWithMode(path, evaluationMode, ruleEvaluation string) (*JSO
 	}, nil
 }
 
+// ensurePrivateEventParent walks every absolute directory component with
+// openat(O_NOFOLLOW), creating only missing components with mkdirat. This
+// prevents an ancestor symlink from redirecting event creation elsewhere.
+func ensurePrivateEventParent(parent string) error {
+	fd, err := unix.Open("/", unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0)
+	if err != nil {
+		return fmt.Errorf("open event log root: %w", err)
+	}
+	defer func() { _ = unix.Close(fd) }()
+	relative := strings.TrimPrefix(parent, string(filepath.Separator))
+	if relative == "" {
+		return ensurePrivateEventDirectory(fd)
+	}
+	for _, component := range strings.Split(relative, string(filepath.Separator)) {
+		if component == "" || component == "." || component == ".." {
+			return fmt.Errorf("event log parent contains unsafe component")
+		}
+		next, openErr := unix.Openat(fd, component, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0)
+		if openErr != nil && errors.Is(openErr, unix.ENOENT) {
+			if mkdirErr := unix.Mkdirat(fd, component, 0o750); mkdirErr != nil && !errors.Is(mkdirErr, unix.EEXIST) {
+				return fmt.Errorf("create event log directory: %w", mkdirErr)
+			}
+			next, openErr = unix.Openat(fd, component, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0)
+		}
+		if openErr != nil {
+			return fmt.Errorf("open event log directory: %w", openErr)
+		}
+		if err := unix.Close(fd); err != nil {
+			_ = unix.Close(next)
+			return fmt.Errorf("close event log directory: %w", err)
+		}
+		fd = next
+	}
+	return ensurePrivateEventDirectory(fd)
+}
+
+func ensurePrivateEventDirectory(fd int) error {
+	var stat unix.Stat_t
+	if err := unix.Fstat(fd, &stat); err != nil {
+		return fmt.Errorf("inspect event log directory: %w", err)
+	}
+	if stat.Mode&unix.S_IFMT != unix.S_IFDIR || stat.Mode&0o022 != 0 || stat.Uid != uint32(unix.Geteuid()) {
+		return fmt.Errorf("event log parent must be an owner-private directory")
+	}
+	return nil
+}
+
+// openPrivateEventLog uses O_NOFOLLOW so the final path component cannot be
+// swapped to a symlink between validation and open. Existing files with
+// unsafe permissions are rejected without mutation; newly-created files are
+// normalized to 0600 and verified. The ext_proc module is supported on Unix
+// targets; unsupported targets fail closed at build time rather than silently
+// falling back to a symlink-following open.
+func openPrivateEventLog(path string) (*os.File, error) {
+	var existing unix.Stat_t
+	existed := true
+	if err := unix.Lstat(path, &existing); err != nil {
+		if !errors.Is(err, unix.ENOENT) {
+			return nil, err
+		}
+		existed = false
+	} else if existing.Mode&unix.S_IFMT == unix.S_IFLNK {
+		return nil, fmt.Errorf("event log final component must not be a symlink")
+	}
+	fd, err := unix.Open(path, unix.O_WRONLY|unix.O_APPEND|unix.O_CREAT|unix.O_CLOEXEC|unix.O_NOFOLLOW|unix.O_NONBLOCK, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	var stat unix.Stat_t
+	if err := unix.Fstat(fd, &stat); err != nil {
+		_ = unix.Close(fd)
+		return nil, err
+	}
+	if stat.Mode&unix.S_IFMT != unix.S_IFREG || stat.Uid != uint32(unix.Geteuid()) {
+		_ = unix.Close(fd)
+		return nil, fmt.Errorf("event log must be an owner-owned regular file")
+	}
+	if existed && stat.Mode&0o777 != 0o600 {
+		_ = unix.Close(fd)
+		return nil, fmt.Errorf("existing event log must have mode 0600")
+	}
+	if !existed {
+		if err := unix.Fchmod(fd, 0o600); err != nil {
+			_ = unix.Close(fd)
+			return nil, err
+		}
+		if err := unix.Fstat(fd, &stat); err != nil || stat.Mode&0o777 != 0o600 {
+			_ = unix.Close(fd)
+			if err != nil {
+				return nil, err
+			}
+			return nil, fmt.Errorf("event log permissions could not be restricted")
+		}
+	}
+	return os.NewFile(uintptr(fd), path), nil
+}
+
 func (observer *JSONLObserver) Record(summary Summary) error {
-	if observer == nil || observer.file == nil {
+	if observer == nil {
 		return fmt.Errorf("event observer is closed")
 	}
 	record := jsonlCompletionRecord{
@@ -93,6 +198,9 @@ func (observer *JSONLObserver) Record(summary Summary) error {
 	}
 	observer.mu.Lock()
 	defer observer.mu.Unlock()
+	if observer.file == nil {
+		return fmt.Errorf("event observer is closed")
+	}
 	if _, err := observer.file.Write(append(encoded, '\n')); err != nil {
 		return fmt.Errorf("write event: %w", err)
 	}
@@ -100,11 +208,14 @@ func (observer *JSONLObserver) Record(summary Summary) error {
 }
 
 func (observer *JSONLObserver) Close() error {
-	if observer == nil || observer.file == nil {
+	if observer == nil {
 		return nil
 	}
 	observer.mu.Lock()
 	defer observer.mu.Unlock()
+	if observer.file == nil {
+		return nil
+	}
 	err := observer.file.Close()
 	observer.file = nil
 	return err
