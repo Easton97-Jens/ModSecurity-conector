@@ -51,7 +51,7 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`spoe-agent:runtime-mode`](#spoe-agent-runtime-mode) | Compatibility | compatibility policy string | no | production | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
 | [`spoe-agent:spoe-timeout`](#spoe-agent-spoe-timeout) | Compatibility | integer | no | 2000 | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
 | [`spoe-agent:variant`](#spoe-agent-variant) | Compatibility | string/path | no | - | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
-| [`spoe-agent:worker-count`](#spoe-agent-worker-count) | Compatibility | integer | no | 1 | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
+| [`spoe-agent:worker-count`](#spoe-agent-worker-count) | Compatibility | integer | no | 8 | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
 
 ## Layer separation
 
@@ -1170,7 +1170,7 @@ expected-status=<value>
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| integer | decimal integer | no |
+| integer | `1..60000` milliseconds | no |
 
 ### Default
 
@@ -1192,7 +1192,9 @@ SPOP compatibility-agent configuration; it is not a native HTX filter option.
 
 ### Validation and errors
 
-Unknown keys fail compatibility-agent configuration parsing.
+Unknown keys and values outside `1..60000` (including zero, negative,
+overflowing, or trailing-text values) fail compatibility-agent configuration
+parsing with exit `2` before a listener starts.
 
 ### Example
 
@@ -1445,7 +1447,7 @@ max-transactions=<value>
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| integer | decimal integer | no |
+| integer | `1..4096`; additionally `worker-count * max-transactions <= 65536` | no |
 
 ### Default
 
@@ -1467,7 +1469,9 @@ SPOP compatibility-agent configuration; it is not a native HTX filter option.
 
 ### Validation and errors
 
-Unknown keys fail compatibility-agent configuration parsing.
+Unknown keys fail compatibility-agent configuration parsing. Values outside
+`1..4096`, malformed values, and a worker/cache product above 65536 fail
+closed at startup with exit `2` before a peer cache is allocated.
 
 ### Example
 
@@ -2325,11 +2329,11 @@ worker-count=<value>
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| integer | decimal integer | no |
+| integer | `1..64`; together with `max-transactions`, at most 65536 cache slots | no |
 
 ### Default
 
-1
+8
 
 Source: `config_init() where stated; otherwise zero/empty initialization`.
 
@@ -2347,7 +2351,10 @@ SPOP compatibility-agent configuration; it is not a native HTX filter option.
 
 ### Validation and errors
 
-Unknown keys fail compatibility-agent configuration parsing.
+Unknown keys and values outside `1..64` (including zero, negative,
+overflowing, or trailing-text values) fail compatibility-agent configuration
+parsing with exit `2`. A worker/cache product above 65536 fails closed at
+startup with exit `2` before allocation.
 
 ### Example
 

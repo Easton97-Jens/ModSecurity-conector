@@ -19,6 +19,12 @@
 #include "connectors/lighttpd/src/lighttpd_modsecurity_mapper.h"
 #include "msconnector/late_intervention.h"
 
+#ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
+#define MSCONNECTOR_LIGHTTPD_EVENT_INTEGRATION_MODE "patched-native-lighttpd"
+#else
+#define MSCONNECTOR_LIGHTTPD_EVENT_INTEGRATION_MODE "native-lighttpd-plugin"
+#endif
+
 typedef struct {
     int enabled;
     int expose_host_transaction_id;
@@ -52,6 +58,7 @@ typedef struct {
     int request_intervened;
     int response_body_finished;
 #ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
+    int response_body_aborted;
     off_t request_body_next_offset;
     off_t response_body_next_offset;
 #endif
@@ -79,6 +86,10 @@ static plugin_body_hook_result mod_msconnector_handle_response_body(
     off_t stream_offset,
     int eos,
     void *p_d);
+static plugin_body_hook_result mod_msconnector_handle_response_abort(
+    request_st *r,
+    plugin_response_abort_reason reason,
+    void *p_d);
 #endif
 
 static const plugin mod_msconnector_plugin = {
@@ -93,6 +104,7 @@ static const plugin mod_msconnector_plugin = {
 #ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
   .handle_request_body          = mod_msconnector_handle_request_body,
   .handle_response_body         = mod_msconnector_handle_response_body,
+  .handle_response_abort        = mod_msconnector_handle_response_abort,
 #endif
 };
 
@@ -216,12 +228,13 @@ SETDEFAULTS_FUNC(mod_msconnector_set_defaults) {
         return HANDLER_ERROR;
     }
     if (!msconnector_runtime_set_event_integration_mode(
-            p->runtime, "patched-native-lighttpd")) {
+            p->runtime, MSCONNECTOR_LIGHTTPD_EVENT_INTEGRATION_MODE)) {
         log_error(
             srv->errh,
             __FILE__,
             __LINE__,
-            "msconnector runtime could not set patched-native-lighttpd event integration mode");
+            "msconnector runtime could not set %s event integration mode",
+            MSCONNECTOR_LIGHTTPD_EVENT_INTEGRATION_MODE);
         msconnector_runtime_destroy(&p->runtime);
         return HANDLER_ERROR;
     }
@@ -737,6 +750,34 @@ static plugin_body_hook_result mod_msconnector_handle_response_body(
                : PLUGIN_BODY_HOOK_CONTINUE;
 }
 
+static plugin_body_hook_result mod_msconnector_handle_response_abort(
+        request_st *r,
+        plugin_response_abort_reason reason,
+        void *p_d) {
+    plugin_data *p = p_d;
+    handler_ctx *ctx = r->plugin_ctx[p->id];
+
+    if (reason != PLUGIN_RESPONSE_ABORT_UPSTREAM_EOF ||
+        !p->response_body_hooks_enabled || ctx == NULL ||
+        ctx->transaction == NULL || ctx->response_body_finished ||
+        ctx->response_body_aborted) {
+        return PLUGIN_BODY_HOOK_CONTINUE;
+    }
+
+    /* This is deliberately not the normal EOS callback: an upstream EOF
+     * before Content-Length/dechunk completion is a typed abort event.  The
+     * host owns the fail-closed response and request reset owns destruction. */
+    ctx->response_body_aborted = 1;
+    log_error(
+        r->conf.errh,
+        __FILE__,
+        __LINE__,
+        "msconnector event=upstream_eof response-body-abort host-transaction-id=%s offset=%lld",
+        ctx->host_request_id,
+        (long long)ctx->response_body_next_offset);
+    return PLUGIN_BODY_HOOK_CONTINUE;
+}
+
 #endif
 
 /*
@@ -955,6 +996,7 @@ REQUEST_FUNC(mod_msconnector_handle_request_reset) {
     handler_ctx **ctx_slot = (handler_ctx **)&r->plugin_ctx[p->id];
     handler_ctx *ctx = *ctx_slot;
     msconnector_error runtime_error;
+    int defer_transaction_finish = 0;
 
     if (ctx == NULL) {
         return HANDLER_GO_ON;
@@ -973,13 +1015,17 @@ REQUEST_FUNC(mod_msconnector_handle_request_reset) {
         else if (p->response_body_hooks_enabled &&
                  ctx->response_processed && !ctx->response_body_finished) {
             /* A disconnect/reset did not reach the entity EOS callback.  Do
-             * not synthesize Phase-4 completion from request reset; destroy
-             * the transaction after Common's bounded cleanup attempt. */
-            log_error(
-                r->conf.errh,
-                __FILE__,
-                __LINE__,
-                "msconnector entity-body lifecycle ended without EOS; no synthetic Phase-4 finalization was emitted");
+             * not synthesize Phase-4 completion from request reset.  Defer
+             * the single bounded finish attempt to handler_ctx_destroy(),
+             * which also performs native transaction cleanup exactly once. */
+            defer_transaction_finish = 1;
+            if (!ctx->response_body_aborted) {
+                log_error(
+                    r->conf.errh,
+                    __FILE__,
+                    __LINE__,
+                    "msconnector entity-body lifecycle ended without EOS; no synthetic Phase-4 finalization was emitted");
+            }
         }
 #else
         if (ctx->response_processed && !ctx->response_body_finished &&
@@ -991,16 +1037,18 @@ REQUEST_FUNC(mod_msconnector_handle_request_reset) {
                 "msconnector could not complete unobserved response lifecycle before reset");
         }
 #endif
-        msconnector_error_init(&runtime_error);
-        if (!msconnector_runtime_transaction_finish(
-                ctx->transaction,
-                &runtime_error)) {
-            log_error(
-                r->conf.errh,
-                __FILE__,
-                __LINE__,
-                "msconnector transaction finish failed: %s",
-                msconnector_error_code_name(runtime_error.code));
+        if (!defer_transaction_finish) {
+            msconnector_error_init(&runtime_error);
+            if (!msconnector_runtime_transaction_finish(
+                    ctx->transaction,
+                    &runtime_error)) {
+                log_error(
+                    r->conf.errh,
+                    __FILE__,
+                    __LINE__,
+                    "msconnector transaction finish failed: %s",
+                    msconnector_error_code_name(runtime_error.code));
+            }
         }
     }
     handler_ctx_destroy(ctx_slot);

@@ -51,7 +51,7 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`spoe-agent:runtime-mode`](#spoe-agent-runtime-mode) | Kompatibilität | Kompatibilitäts-Policy-Zeichenkette | nein | production | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
 | [`spoe-agent:spoe-timeout`](#spoe-agent-spoe-timeout) | Kompatibilität | Ganzzahl | nein | 2000 | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
 | [`spoe-agent:variant`](#spoe-agent-variant) | Kompatibilität | Zeichenkette/Pfad | nein | - | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
-| [`spoe-agent:worker-count`](#spoe-agent-worker-count) | Kompatibilität | Ganzzahl | nein | 1 | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
+| [`spoe-agent:worker-count`](#spoe-agent-worker-count) | Kompatibilität | Ganzzahl | nein | 8 | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
 
 ## Trennung der Ebenen
 
@@ -1170,7 +1170,7 @@ expected-status=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| Ganzzahl | dezimale Ganzzahl | nein |
+| Ganzzahl | `1..60000` Millisekunden | nein |
 
 ### Standardwert
 
@@ -1192,7 +1192,10 @@ SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
+Unbekannte Schlüssel und Werte außerhalb von `1..60000` (einschließlich Null,
+negativer, überlaufender oder nachgestellter Textwerte) lassen das Parsen der
+Konfiguration des Kompatibilitätsagenten mit Exit `2` fehlschlagen, bevor ein
+Listener startet.
 
 ### Beispiel
 
@@ -1445,7 +1448,7 @@ max-transactions=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| Ganzzahl | dezimale Ganzzahl | nein |
+| Ganzzahl | `1..4096`; zusätzlich `worker-count * max-transactions <= 65536` | nein |
 
 ### Standardwert
 
@@ -1467,7 +1470,10 @@ SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
+Unbekannte Schlüssel lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen. Werte außerhalb von
+`1..4096`, fehlerhafte Werte und ein Worker-/Cache-Produkt oberhalb von 65536
+werden beim Start mit Exit `2` fail-closed abgewiesen, bevor ein Peer-Cache
+alloziert wird.
 
 ### Beispiel
 
@@ -2325,11 +2331,11 @@ worker-count=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| Ganzzahl | dezimale Ganzzahl | nein |
+| Ganzzahl | `1..64`; zusammen mit `max-transactions` höchstens 65536 Cache-Slots | nein |
 
 ### Standardwert
 
-1
+8
 
 Quelle: `config_init(), sofern angegeben; andernfalls Initialisierung mit null/leeren Werten`.
 
@@ -2347,7 +2353,11 @@ SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
+Unbekannte Schlüssel und Werte außerhalb von `1..64` (einschließlich Null,
+negativer, überlaufender oder nachgestellter Textwerte) lassen das Parsen der
+Konfiguration des Kompatibilitätsagenten mit Exit `2` fehlschlagen. Ein
+Worker-/Cache-Produkt oberhalb von 65536 wird beim Start mit Exit `2`
+fail-closed abgewiesen, bevor eine Allokation erfolgt.
 
 ### Beispiel
 

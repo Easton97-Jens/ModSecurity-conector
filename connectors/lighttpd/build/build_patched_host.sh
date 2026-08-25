@@ -28,18 +28,43 @@ sha256_file() {
     sha256sum "$input_path" | awk '{print $1}'
 }
 
+hook_abi_from_header() {
+    header=$1
+    awk '
+        $1 == "#define" && $2 == "LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION" {
+            if ($3 !~ /^[0-9]+$/) exit 1
+            value=$3
+            count++
+        }
+        END {
+            if (count != 1) exit 1
+            print value
+        }
+    ' "$header"
+}
+
 [ -f "$CORE_MANIFEST" ] || blocked "patched core manifest is missing; run build-lighttpd-patched-core first"
 [ -x "$CORE_BIN" ] || blocked "patched lighttpd binary is missing: $CORE_BIN"
 [ -f "$CORE_BUILD_DIR/config.h" ] || blocked "patched generated config.h is missing: $CORE_BUILD_DIR/config.h"
 [ -f "$PATCHED_SOURCE_DIR/src/plugin.h" ] || blocked "patched plugin headers are missing"
-grep -Fq LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION "$PATCHED_SOURCE_DIR/src/plugin.h" || \
-    blocked "patched plugin ABI marker is missing"
+HOOK_ABI=$(hook_abi_from_header "$PATCHED_SOURCE_DIR/src/plugin.h") || \
+    blocked "patched plugin ABI marker is missing or ambiguous"
+[ "$HOOK_ABI" = 2 ] || blocked "patched host requires response-abort hook ABI v2, found v$HOOK_ABI"
+grep -Fq 'LIGHTTPD_MSCONNECTOR_PLUGIN_ABI_VERSION' "$PATCHED_SOURCE_DIR/src/plugin.h" || \
+    blocked "patched plugin ABI formula is missing"
 [ -n "$(sed -n 's/^patch_sha256=//p' "$CORE_MANIFEST" | sed -n '1p')" ] || \
     blocked "patched core manifest is missing its patch SHA-256"
+[ "$(sed -n 's/^plugin_hook_abi=//p' "$CORE_MANIFEST" | sed -n '1p')" = "$HOOK_ABI" ] || \
+    blocked "patched core manifest does not prove the same plugin hook ABI"
 [ -n "${MODSECURITY_INCLUDE_DIR:-}" ] || blocked "MODSECURITY_INCLUDE_DIR is required"
 [ -n "${MODSECURITY_LIB_DIR:-}" ] || blocked "MODSECURITY_LIB_DIR is required"
 command -v "$NM_BIN" >/dev/null 2>&1 || blocked "missing nm command: $NM_BIN"
 command -v sha256sum >/dev/null 2>&1 || blocked "missing sha256sum command"
+
+for symbol in plugins_call_handle_request_body plugins_call_handle_response_body plugins_call_handle_response_abort; do
+    "$NM_BIN" -D "$CORE_BIN" | grep -Eq "[[:space:]][Tt][[:space:]]$symbol$" || \
+        blocked "patched core does not export required hook symbol: $symbol"
+done
 
 BUILD_ROOT="$BUILD_ROOT" \
 LIGHTTPD_CONNECTOR_OUT_DIR="$CONNECTOR_BUILD_DIR" \
@@ -83,7 +108,7 @@ HOST_MANIFEST_TMP=$HOST_MANIFEST.tmp.$$
     printf 'proxy_module_sha256=%s\n' "$(sha256_file "$PROXY_MODULE_PATH")"
     printf 'module_build_dir=%s\n' "$CONNECTOR_BUILD_DIR"
     printf 'modsecurity_lib_dir=%s\n' "$MODSECURITY_LIB_DIR"
-    printf 'plugin_hook_abi=1\n'
+    printf 'plugin_hook_abi=%s\n' "$HOOK_ABI"
     printf 'response_body_mode=none\n'
     printf 'response_hook_contract=http1_entity_body_before_transfer_encoding\n'
     printf 'phase4_runtime_evidence=not_executed\n'

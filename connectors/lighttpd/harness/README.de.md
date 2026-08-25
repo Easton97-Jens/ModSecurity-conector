@@ -42,6 +42,38 @@ Response-Body-, Phase-4- oder Capability-Promotion-Evidenz.
 Nachweis des Anforderungs-/Antwortkörpers, CRS, Produktionshärtung, Sicherheit
 Eine Verifizierung und ein vollständiger Matrixbeweis werden von diesem Harness nicht bereitgestellt.
 
+## Response-Body-Backend-Close-Profil
+
+`run_lighttpd_backend_close.sh` ist ausschließlich für gepatchtes lighttpd.
+Es erzeugt absichtlich `response_body_mode=streaming`, damit der aktuelle
+Upstream-EOF-/Abort-Pfad für den Response-Body nachgewiesen werden kann. Ein
+Stock-Host besitzt keinen versionsvertraglichen Streaming-Hook und bricht daher
+fail-closed ab, bevor Runtime-Root, Host oder Listener angelegt werden; sein
+Body-Modus darf nicht stillschweigend geändert werden. Für das Stock-
+Transport-/Lifecycle-Profil ist stattdessen
+`run_lighttpd_stock_lifecycle.sh` zu verwenden. Dessen V7/V11-Ergebnis ist
+Host-/Transport-Evidence, kein typisiertes Stock-Response-Body-Connector-Event.
+
+## Stock-Lifecycle-Profil
+
+`run_lighttpd_stock_lifecycle.sh` führt das begrenzte Stock-Host-Profil aus und
+speichert die Evidence außerhalb des Checkouts. Der aktuelle Lauf-Root ist
+`lighttpd-stock-lifecycle-v6-v10-20260825T100000Z`.
+
+Das Profil zeichnet V6 als begrenzten 2-Sekunden-Gateway-/Proxy-Backend-
+Read-Timeout-Fallback auf: Direkte Client-Cancel-Propagation und ein
+typisiertes Stock-Connector-Event werden nicht behauptet; der Host-Marker
+`read timeout on socket` und ein Same-Host-Follow-up mit `200` sind erforderlich.
+Rohe abgeschnittene Upstream-Response-Fixtures für V7/V11, acht begrenzte
+parallele HTTP/1.1-`200`-Responses und Client-EOF nach Host-Terminierung werden
+als Host-/Transport-Evidence aufgezeichnet. Restart-Controls müssen
+`200 -> 403 -> 200` liefern. PIDFD-/Session-/Port-/UDS-Cleanup-Receipts sind
+für den ersten und den Ersatz-Host erforderlich.
+
+V12--V15 und die vollständige 17-Vektor-Abnahme bleiben `NOT_EXECUTED`; diese
+begrenzten Receipts heben sie nicht hoch und belegen keinen vollständigen
+Leak-Audit.
+
 ## No-CRS-Fixture-Isolation und Cleanup
 
 Die No-CRS-Baseline verwendet den vertrauenswürdigen Namespace-Runner

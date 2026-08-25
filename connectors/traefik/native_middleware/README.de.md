@@ -46,6 +46,27 @@ eine HTTP-Ablehnung. Es meldet ein störendes Ergebnis erst nach dem tatsächlic
 4 Ergebnis ist bewusst `log_only`; es stellt keinen geänderten Status dar,
 Reset oder Client-Abbruch-Anspruch.
 
+## UDS-Cancellation-, Timeout- und Cleanup-Grenze
+
+Jede `ServeHTTP`-Transaktion besitzt genau eine private UDS-Verbindung; eine
+Folgeanfrage verwendet sie nie wieder. Jeder Exchange verwendet das kleinere
+aus konfiguriertem Engine-Timeout und Request-Context-Deadline. Eine
+Context-Cancellation verkürzt die Verbindungsdeadline sofort, löst ein
+wartendes Read oder Write und beendet den Watcher vor der Rückkehr des Aufrufs.
+Timeout, Cancellation, Peer-Reset, ungültiges Result oder unvollständiges
+Result verwerfen die Verbindung, schließen ihren FD und markieren nur diese
+Transaktion terminal, sodass kein Teilframe wiederverwendet werden kann.
+`Close` bleibt idempotent, auch wenn ein früherer Exchange die Verbindung
+bereits verworfen hat.
+
+Vor einem Response-Commit ordnet die Middleware einen Engine-Exchange-Fehler
+ihrem geschlossenen HTTP-500-Pfad zu. Ein abgebrochener Host-Request kann
+seinen Response-Kanal bereits verloren haben; der Connector erfindet daher
+weder einen client-sichtbaren Status noch ein Upstream-Reset-Ereignis. Nach
+Commit bleibt die dokumentierte Log-only-/unveränderte-Response-Grenze bestehen,
+statt eine rückwirkende Umschreibung zu behaupten. Eine frische Anfrage öffnet
+eine neue UDS-Sitzung und behält die normalen Allow-/Block-Semantiken.
+
 ## Lokale Quellenprüfungen
 
 ```sh

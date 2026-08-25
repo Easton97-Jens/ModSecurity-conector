@@ -664,6 +664,10 @@ static int haproxy_modsecurity_htx_filter_http_payload(
         if (ctx->disabled || !ctx->transaction ||
             haproxy_modsecurity_htx_append_request_payload(filter, msg, offset, len) != 0) {
             haproxy_modsecurity_htx_abort_context(ctx);
+            /* A positive return is HAProxy's authorization to forward these
+             * request bytes.  Once the native transaction cannot inspect the
+             * current slice, fail the pre-commit request closed instead. */
+            return -1;
         }
         /* Never hold or delay request content while it is inspected. */
         return (int)len;
@@ -671,6 +675,10 @@ static int haproxy_modsecurity_htx_filter_http_payload(
     if (ctx->disabled || !ctx->transaction || !ctx->response_headers_seen ||
         haproxy_modsecurity_htx_append_response_payload(filter, msg, offset, len) != 0) {
         haproxy_modsecurity_htx_abort_context(ctx);
+        /* Response headers may already be committed.  A negative result still
+         * stops the affected stream rather than forwarding an uninspected
+         * response slice; HAProxy selects the resulting post-commit close. */
+        return -1;
     } else {
         ctx->response_headers_committed = 1;
         ctx->response_body_started = 1;

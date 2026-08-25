@@ -241,6 +241,13 @@ type Service struct {
 	// It is evidence for deterministic cleanup tests, not a second admission
 	// control: the gRPC stream context remains the cancellation mechanism.
 	pendingReceives atomic.Int64
+	// fatalErrors receives the first native-cleanup failure. It is buffered so
+	// an RPC cleanup never blocks while main is stopping the gRPC server for a
+	// controlled supervisor restart. The channel is deliberately never closed.
+	fatalErrors chan error
+	fatalOnce   sync.Once
+	fatalMu     sync.RWMutex
+	fatalErr    error
 }
 
 func NewService(config Config, engine TransactionOpener) (*Service, error) {
@@ -262,16 +269,51 @@ func NewServiceWithObserver(config Config, engine TransactionOpener, observer Ob
 		observer = discardObserver{}
 	}
 	return &Service{
-		config:    config,
-		engine:    engine,
-		observer:  observer,
-		admission: make(chan struct{}, config.MaxConcurrentStreams),
+		config:      config,
+		engine:      engine,
+		observer:    observer,
+		admission:   make(chan struct{}, config.MaxConcurrentStreams),
+		fatalErrors: make(chan error, 1),
 	}, nil
+}
+
+// FatalErrors reports the first cleanup failure that makes in-process reuse of
+// the native runtime unsafe. Its receipt is consumed by the process owner;
+// stream handlers only return a bounded gRPC failure and never call os.Exit.
+func (service *Service) FatalErrors() <-chan error {
+	if service == nil {
+		return nil
+	}
+	return service.fatalErrors
+}
+
+func (service *Service) terminalFailure() error {
+	if service == nil {
+		return nil
+	}
+	service.fatalMu.RLock()
+	defer service.fatalMu.RUnlock()
+	return service.fatalErr
+}
+
+func (service *Service) reportFatal(err error) {
+	if service == nil || err == nil {
+		return
+	}
+	service.fatalOnce.Do(func() {
+		service.fatalMu.Lock()
+		service.fatalErr = err
+		service.fatalMu.Unlock()
+		service.fatalErrors <- err
+	})
 }
 
 // Process owns one Envoy ext_proc gRPC stream and therefore one independent
 // transaction state. No state is shared across parallel streams.
 func (service *Service) Process(stream extprocv3.ExternalProcessor_ProcessServer) (processErr error) {
+	if service.terminalFailure() != nil {
+		return status.Error(codes.Unavailable, "ext_proc connector is restarting after a terminal cleanup failure")
+	}
 	select {
 	case service.admission <- struct{}{}:
 		defer func() { <-service.admission }()
@@ -287,7 +329,15 @@ func (service *Service) Process(stream extprocv3.ExternalProcessor_ProcessServer
 	state := newStreamState(service.config, service.engine, service.observer)
 	closeReason := ClosePeerEOF
 	defer func() {
-		if err := state.close(closeReason); err != nil && processErr == nil {
+		if err := state.close(closeReason); state.cleanupFailure != nil {
+			// A native cleanup timeout is terminal even when the active stream
+			// already failed for another reason. Do not let that earlier gRPC
+			// status hide the fact that continued process reuse is unsafe.
+			service.reportFatal(state.cleanupFailure)
+			if processErr == nil {
+				processErr = status.Errorf(codes.Internal, "ext_proc metadata evidence: %v", err)
+			}
+		} else if err != nil && processErr == nil {
 			processErr = status.Errorf(codes.Internal, "ext_proc metadata evidence: %v", err)
 		}
 	}()
@@ -380,6 +430,17 @@ func classifyProcessingReceiveResult(
 func (service *Service) processRequest(stream extprocv3.ExternalProcessor_ProcessServer, state *streamState, request *extprocv3.ProcessingRequest) (bool, CloseReason, error) {
 	response, terminal, err := state.handle(stream.Context(), request)
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			if stream.Context().Err() != nil {
+				return true, CloseContextCanceled, nil
+			}
+			return false, CloseProcessorError,
+				status.Errorf(codes.Canceled, "ext_proc engine operation canceled: %v", err)
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			return false, CloseProcessorError,
+				status.Errorf(codes.DeadlineExceeded, "ext_proc engine operation timed out: %v", err)
+		}
 		return false, CloseProcessorError, status.Errorf(codes.InvalidArgument, "ext_proc request rejected: %v", err)
 	}
 	if request.GetObservabilityMode() {
@@ -435,6 +496,7 @@ type streamState struct {
 	immediateResponse bool
 	closed            bool
 	pendingHostAction *HostAction
+	cleanupFailure    error
 
 	summary Summary
 }
@@ -1172,6 +1234,7 @@ func (state *streamState) close(reason CloseReason) error {
 		if reporter, ok := state.transaction.(CleanupFailureReporter); ok {
 			if err := reporter.CleanupFailure(); err != nil {
 				cleanupErr = err
+				state.cleanupFailure = err
 			}
 		}
 	}

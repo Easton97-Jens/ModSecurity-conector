@@ -45,6 +45,25 @@ an HTTP denial. It reports a disruptive outcome only after the actual
 4 result is deliberately `log_only`; it does not synthesize a changed status,
 reset, or client-abort claim.
 
+## UDS cancellation, timeout, and cleanup boundary
+
+Each `ServeHTTP` transaction owns one private UDS connection; it is never
+reused by a following request. Every exchange applies the smaller of the
+configured engine timeout and the request-context deadline. A context
+cancellation shortens the connection deadline immediately, unblocks a pending
+read or write, and joins its watcher before the call returns. A timeout,
+cancellation, peer reset, invalid result, or incomplete result discards the
+connection, closes its FD, and marks only that transaction terminal so no
+partial frame can be reused. `Close` is idempotent even when an earlier
+exchange already discarded the connection.
+
+Before a response is committed, the middleware turns an engine-exchange error
+into its closed HTTP 500 path. A canceled host request may already have lost
+its response channel, so the connector does not invent a client-visible
+status or an upstream-reset event. After commitment it retains the documented
+log-only/unchanged-response limit rather than claiming a retroactive rewrite.
+A fresh request opens a new UDS session and keeps normal allow/block semantics.
+
 ## Local source checks
 
 ```sh

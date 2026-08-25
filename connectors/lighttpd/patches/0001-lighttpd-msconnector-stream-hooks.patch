@@ -1,7 +1,7 @@
 # ModSecurity connector local lighttpd extension
 #
 # Target: the lighttpd source version selected by lighttpd-version.contract.
-# ABI: LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION=1.
+# ABI: LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION=2.
 #
 # This is deliberately incompatible with stock dynamic modules.  It adds
 # synchronous, borrowed request-body and HTTP/1.x entity-body/EOS callbacks.
@@ -187,9 +187,37 @@
  }
  
  int http_chunk_decode_append_buffer(request_st * const r, buffer * const mem)
+--- a/src/gw_backend.c
++++ b/src/gw_backend.c
+@@ -11,4 +11,5 @@
+ #include "gw_backend.h"
+ 
+ #include <sys/types.h>
++#include "plugins.h"
+ #include "sys-socket.h"
+@@ -2433,4 +2433,18 @@
+     case HANDLER_FINISHED:
+         /*hctx->read_ts =*/ proc->last_used = log_monotonic_secs;
+ 
++        if (r->resp_body_started
++            && (r->resp_body_scratchpad > 0
++                || (r->resp_decode_chunked && r->gw_dechunk != NULL
++                    && !r->gw_dechunk->done))) {
++            if (!r->resp_body_entity_hook_eos_sent) {
++                r->resp_body_entity_hook_eos_sent = 1;
++                (void)plugins_call_handle_response_abort(
++                    r, PLUGIN_RESPONSE_ABORT_UPSTREAM_EOF);
++            }
++            http_response_backend_error(r);
++            gw_connection_close(hctx, r);
++            return HANDLER_FINISHED;
++        }
++
+         if (hctx->gw_mode == GW_AUTHORIZER
+
 --- a/src/plugin.h
 +++ b/src/plugin.h
-@@ -5,6 +5,29 @@
+@@ -5,6 +5,32 @@
  #include "base_decls.h"
  #include "plugin_config.h"
  
@@ -201,10 +229,10 @@
 + * plugin.c effective by deriving a distinct version id here, where both the
 + * patched core and every rebuilt module see it.
 + */
-+#define LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION 1
++#define LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION 2
 +enum { LIGHTTPD_MSCONNECTOR_BASE_VERSION_ID = LIGHTTPD_VERSION_ID };
 +#define LIGHTTPD_MSCONNECTOR_PLUGIN_ABI_VERSION \
-+  ((size_t)0x4d530000U | (size_t)LIGHTTPD_MSCONNECTOR_BASE_VERSION_ID)
++  ((size_t)0x4d530200U | (size_t)LIGHTTPD_MSCONNECTOR_BASE_VERSION_ID)
 +#undef LIGHTTPD_VERSION_ID
 +#define LIGHTTPD_VERSION_ID LIGHTTPD_MSCONNECTOR_PLUGIN_ABI_VERSION
 +
@@ -216,10 +244,13 @@
 +	PLUGIN_BODY_HOOK_ABORT
 +} plugin_body_hook_result;
 +
++typedef enum plugin_response_abort_reason {
++	PLUGIN_RESPONSE_ABORT_UPSTREAM_EOF = 1
++} plugin_response_abort_reason;
  
  #define SERVER_FUNC(x) \
  		static handler_t x(server *srv, void *p_d)
-@@ -68,6 +91,24 @@
+@@ -68,6 +91,27 @@
  	const char *name;/* name of the plugin */
  	size_t version;
  	void *lib;       /* deprecated; do not use */
@@ -241,6 +272,9 @@
 +	                                  const unsigned char *data, size_t length,
 +	                                  off_t stream_offset, int eos,
 +	                                  void *p_d);
++	plugin_body_hook_result (* handle_response_abort) (request_st *r,
++	                                  plugin_response_abort_reason reason,
++	                                  void *p_d);
  };
  typedef struct plugin plugin;
  
@@ -254,7 +288,7 @@
  
  __attribute_cold__
  int plugins_load(server *srv);
-@@ -17,6 +18,13 @@
+@@ -17,6 +18,15 @@
  handler_t plugins_call_handle_subrequest_start(request_st *r);
  #endif
  handler_t plugins_call_handle_response_start(request_st *r);
@@ -265,21 +299,24 @@
 +plugin_body_hook_result plugins_call_handle_response_body(request_st *r,
 +                                           const unsigned char *data, size_t length,
 +                                           off_t stream_offset, int eos);
++plugin_body_hook_result plugins_call_handle_response_abort(request_st *r,
++                                           plugin_response_abort_reason reason);
  handler_t plugins_call_handle_request_env(request_st *r);
  handler_t plugins_call_handle_request_done(request_st *r);
  handler_t plugins_call_handle_request_reset(request_st *r);
 --- a/src/plugin.c
 +++ b/src/plugin.c
-@@ -35,6 +35,8 @@
+@@ -35,6 +35,9 @@
  	PLUGIN_FUNC_HANDLE_SUBREQUEST_START,
  	/* PLUGIN_FUNC_HANDLE_SUBREQUEST, *//* max one handler_module per req */
  	PLUGIN_FUNC_HANDLE_RESPONSE_START,
++	PLUGIN_FUNC_HANDLE_RESPONSE_ABORT,
 +	PLUGIN_FUNC_HANDLE_REQUEST_BODY,
 +	PLUGIN_FUNC_HANDLE_RESPONSE_BODY,
  	PLUGIN_FUNC_HANDLE_REQUEST_DONE,
  	PLUGIN_FUNC_HANDLE_REQUEST_RESET,
  	PLUGIN_FUNC_HANDLE_REQUEST_ENV,
-@@ -301,10 +303,27 @@
+@@ -301,10 +303,36 @@
  } plugin_fn_srv_data;
  
  typedef struct {
@@ -301,6 +338,15 @@
 +	plugin_data_base *data;
 +} plugin_fn_response_body_data;
 +
++typedef struct {
++	plugin_body_hook_result(*fn)(request_st *, plugin_response_abort_reason,
++	                             void *);
++	plugin_data_base *data;
++} plugin_fn_response_abort_data;
++
++typedef char plugin_fn_response_abort_data_must_match_plugin_fn_data[
++  sizeof(plugin_fn_response_abort_data) == sizeof(plugin_fn_data) ? 1 : -1];
++
 +typedef char plugin_fn_request_body_data_must_match_plugin_fn_data[
 +  sizeof(plugin_fn_request_body_data) == sizeof(plugin_fn_data) ? 1 : -1];
 +typedef char plugin_fn_response_body_data_must_match_plugin_fn_data[
@@ -309,10 +355,7 @@
  __attribute_hot__
  static handler_t plugins_call_fn_req_data(request_st * const r, const int e) {
      const void * const plugin_slots = r->con->plugin_slots;
-@@ -374,6 +393,49 @@
- PLUGIN_CALL_FN_REQ_DATA(PLUGIN_FUNC_HANDLE_REQUEST_RESET, handle_request_reset)
- PLUGIN_CALL_FN_REQ_DATA(PLUGIN_FUNC_HANDLE_REQUEST_ENV, handle_request_env)
- 
+@@ -402,1 +402,60 @@
 +handler_t
 +plugins_call_handle_request_body (request_st * const r,
 +                                  const struct chunkqueue * const cq,
@@ -356,10 +399,24 @@
 +	return rc;
 +}
 +
- /**
-  * plugins that use
-  *
-@@ -462,6 +524,38 @@
++plugin_body_hook_result
++plugins_call_handle_response_abort (request_st * const r,
++                                   const plugin_response_abort_reason reason)
++{
++	const void * const plugin_slots = r->con->plugin_slots;
++	const uint32_t offset =
++	  ((const uint16_t *)plugin_slots)[PLUGIN_FUNC_HANDLE_RESPONSE_ABORT];
++	if (0 == offset) return PLUGIN_BODY_HOOK_CONTINUE;
++	const plugin_fn_response_abort_data *plfd =
++	  (const plugin_fn_response_abort_data *)(((uintptr_t)plugin_slots)+offset);
++	plugin_body_hook_result rc = PLUGIN_BODY_HOOK_CONTINUE;
++	while (plfd->fn
++	       && (rc = plfd->fn(r, reason, plfd->data)) == PLUGIN_BODY_HOOK_CONTINUE)
++		++plfd;
++	return rc;
++}
+ handler_t plugins_call_set_defaults(server *srv) {
+@@ -462,6 +524,54 @@
      }
  }
  
@@ -395,10 +452,26 @@
 +	}
 +}
 +
++__attribute_cold__
++static void
++plugins_call_init_response_abort_slot (server * const srv,
++  plugin_body_hook_result(* const fn)(request_st *,
++                                      plugin_response_abort_reason, void *),
++  plugin_data_base * const data, const uint32_t offset)
++{
++	if (fn) {
++		plugin_fn_response_abort_data *plfd = (plugin_fn_response_abort_data *)
++		  (((uintptr_t)srv->plugin_slots) + offset);
++		while (plfd->fn) ++plfd;
++		plfd->fn = fn;
++		plfd->data = data;
++	}
++}
++
  handler_t plugins_call_init(server *srv) {
  	/* note: p->init() is called during plugins_load() -> plugin_data_init()
  	 * but the historical name of this function remains */
-@@ -501,6 +595,10 @@
+@@ -501,6 +595,12 @@
  			++offsets[PLUGIN_FUNC_HANDLE_SUBREQUEST_START];
  		if (p->handle_response_start)
  			++offsets[PLUGIN_FUNC_HANDLE_RESPONSE_START];
@@ -406,10 +479,12 @@
 +			++offsets[PLUGIN_FUNC_HANDLE_REQUEST_BODY];
 +		if (p->handle_response_body)
 +			++offsets[PLUGIN_FUNC_HANDLE_RESPONSE_BODY];
++		if (p->handle_response_abort)
++			++offsets[PLUGIN_FUNC_HANDLE_RESPONSE_ABORT];
  		if (p->handle_docroot)
  			++offsets[PLUGIN_FUNC_HANDLE_DOCROOT];
  		if (p->handle_physical)
-@@ -577,6 +675,10 @@
+@@ -577,5 +675,11 @@
  					offsets[PLUGIN_FUNC_HANDLE_SUBREQUEST_START]);
  		plugins_call_init_slot(srv, (pl_cb_t)p->handle_response_start, pd,
  					offsets[PLUGIN_FUNC_HANDLE_RESPONSE_START]);
@@ -417,6 +492,8 @@
 +					offsets[PLUGIN_FUNC_HANDLE_REQUEST_BODY]);
 +		plugins_call_init_response_body_slot(srv, p->handle_response_body, pd,
 +					offsets[PLUGIN_FUNC_HANDLE_RESPONSE_BODY]);
++		plugins_call_init_response_abort_slot(srv, p->handle_response_abort, pd,
++					offsets[PLUGIN_FUNC_HANDLE_RESPONSE_ABORT]);
  		plugins_call_init_slot(srv, (pl_cb_t)p->handle_docroot, pd,
  					offsets[PLUGIN_FUNC_HANDLE_DOCROOT]);
  		plugins_call_init_slot(srv, (pl_cb_t)p->handle_physical, pd,
@@ -584,3 +661,12 @@
 	char resp_body_entity_hook_eos_sent;
 	char resp_body_entity_hook_suppressed;
 	off_t resp_body_entity_hook_next_offset;
+--- a/src/response.c
++++ b/src/response.c
+@@ -490,5 +490,5 @@
+     handler_t rc;
+     for (; (rc = plfd->fn(r, plfd->data)) == HANDLER_GO_ON; ++plfd)
+-        ++r->resp_fn_step;
++        r->resp_fn_step += sizeof(*plfd);
+     return rc;
+ }

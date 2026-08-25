@@ -30,6 +30,18 @@
 #define SPOP_DEFAULT_TIMEOUT_MS 2000U
 #define SPOP_DEFAULT_WORKER_COUNT 8U
 #define SPOP_MAX_WORKER_COUNT 64U
+#define SPOP_MAX_HEADER_COUNT 256U
+#define SPOP_MAX_HEADER_NAME_BYTES 256U
+#define SPOP_MAX_HEADER_VALUE_BYTES 8192U
+#define SPOP_MAX_TOTAL_HEADER_BYTES 16384U
+#define SPOP_DEFAULT_MAX_TRANSACTIONS 4096U
+#define SPOP_MAX_TRANSACTIONS 4096U
+#define SPOP_MAX_TRANSACTION_SLOTS_TOTAL 65536U
+#define SELF_TEST_METADATA_READY 0x01U
+#define SELF_TEST_METADATA_PID 0x02U
+#define SELF_TEST_METADATA_PORT 0x04U
+#define SELF_TEST_METADATA_ALL \
+    (SELF_TEST_METADATA_READY | SELF_TEST_METADATA_PID | SELF_TEST_METADATA_PORT)
 
 #define SPOP_FRM_HAPROXY_HELLO 1U
 #define SPOP_FRM_HAPROXY_DISCONNECT 2U
@@ -97,6 +109,8 @@ typedef struct notify_request {
     struct {
     runtime_header *headers;
     unsigned int header_count;
+    unsigned int header_capacity;
+    size_t header_bytes;
     unsigned char *body;
     size_t body_len;
     };
@@ -846,6 +860,8 @@ static void free_notify_request(notify_request *request) {
     free(request->headers);
     request->headers = 0;
     request->header_count = 0;
+    request->header_capacity = 0;
+    request->header_bytes = 0;
     free(request->body);
     request->body = 0;
     request->body_len = 0;
@@ -862,6 +878,8 @@ static void clear_request_headers(notify_request *request) {
     free(request->headers);
     request->headers = 0;
     request->header_count = 0;
+    request->header_capacity = 0;
+    request->header_bytes = 0;
 }
 
 static int add_request_header(
@@ -871,23 +889,47 @@ static int add_request_header(
         const unsigned char *value,
         size_t value_len) {
     runtime_header *headers;
+    unsigned int capacity;
 
-    if (name_len == 0) {
-        return 0;
-    }
-    headers = (runtime_header *)realloc(request->headers,
-        sizeof(*request->headers) * (request->header_count + 1U));
-    if (headers == 0) {
+    if (request == 0 || name_len == 0 ||
+            name_len > SPOP_MAX_HEADER_NAME_BYTES ||
+            value_len > SPOP_MAX_HEADER_VALUE_BYTES ||
+            request->header_count >= SPOP_MAX_HEADER_COUNT ||
+            name_len > SPOP_MAX_TOTAL_HEADER_BYTES ||
+            request->header_bytes > SPOP_MAX_TOTAL_HEADER_BYTES - name_len ||
+            value_len > SPOP_MAX_TOTAL_HEADER_BYTES - request->header_bytes - name_len) {
         return -1;
     }
-    request->headers = headers;
+    if (request->header_count == request->header_capacity) {
+        capacity = request->header_capacity == 0U ? 8U :
+            request->header_capacity * 2U;
+        if (capacity > SPOP_MAX_HEADER_COUNT ||
+                capacity < request->header_capacity) {
+            capacity = SPOP_MAX_HEADER_COUNT;
+        }
+        /* capacity is capped at 256 entries, so this allocation cannot
+         * overflow size_t on a supported C17 target. */
+        headers = (runtime_header *)realloc(request->headers,
+            sizeof(*request->headers) * capacity);
+        if (headers == 0) {
+            return -1;
+        }
+        request->headers = headers;
+        request->header_capacity = capacity;
+    }
     request->headers[request->header_count].name = dup_header_name(name, name_len);
+    request->headers[request->header_count].value = 0;
+    if (request->headers[request->header_count].name == 0) {
+        return -1;
+    }
     request->headers[request->header_count].value = dup_bytes_as_cstring(value, value_len);
-    if (request->headers[request->header_count].name == 0 ||
-            request->headers[request->header_count].value == 0) {
+    if (request->headers[request->header_count].value == 0) {
+        free(request->headers[request->header_count].name);
+        request->headers[request->header_count].name = 0;
         return -1;
     }
     request->header_count++;
+    request->header_bytes += name_len + value_len;
     return 0;
 }
 
@@ -1040,9 +1082,13 @@ static int parse_notify_headers_text(
             clear_request_headers(request);
             request->headers = text_request.headers;
             request->header_count = text_request.header_count;
+            request->header_capacity = text_request.header_capacity;
+            request->header_bytes = text_request.header_bytes;
             request->has_headers_text = 1;
             text_request.headers = 0;
             text_request.header_count = 0;
+            text_request.header_capacity = 0;
+            text_request.header_bytes = 0;
         }
         free_notify_request(&text_request);
     }
@@ -1102,6 +1148,12 @@ static int read_typed_string_to_buffer(
         return skip_typed_data(data, len, pos);
     }
     if (read_string_ref(data, len, pos, &value, &value_len) != 0) {
+        return -1;
+    }
+    /* Typed peer strings are copied into fixed protocol fields.  A peer
+     * value that cannot fit, including its terminating NUL, is malformed;
+     * silently truncating it would change the transaction semantics. */
+    if (out == 0 || out_len == 0U || value_len >= out_len) {
         return -1;
     }
     copy_spop_string(out, out_len, value, value_len);
@@ -1433,10 +1485,18 @@ static int parse_notify_payload(const unsigned char *data, size_t len, notify_re
     size_t pos = 0;
 
     memset(request, 0, sizeof(*request));
+    /* HAProxy does not emit a NOTIFY frame when no message was encoded.
+     * Treat an empty peer payload as malformed instead of allowing the
+     * zero-initialized request to reach request processing. */
+    if (len == 0U) {
+        return -1;
+    }
     while (pos < len) {
         const unsigned char *message_name;
         size_t message_name_len;
         unsigned int nb_args;
+        int message_is_response;
+        int message_is_response_body;
 
         if (read_string_ref(data, len, &pos, &message_name, &message_name_len) != 0 ||
                 pos >= len) {
@@ -1444,11 +1504,17 @@ static int parse_notify_payload(const unsigned char *data, size_t len, notify_re
         }
         copy_spop_string(request->message_name, sizeof(request->message_name),
             message_name, message_name_len);
-        request->is_response =
+        message_is_response =
             KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response") ||
             KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response-body");
-        request->is_response_body =
+        message_is_response_body =
             KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response-body");
+        /* A SPOP NOTIFY payload may contain more than one message.  Preserve
+         * the strongest phase classification across the complete payload:
+         * a later request message must not erase an earlier response message
+         * and route a mixed/cross-phase frame into request processing. */
+        request->is_response |= message_is_response;
+        request->is_response_body |= message_is_response_body;
         nb_args = data[pos++];
         request->has_notify = 1;
         for (unsigned int i = 0; i < nb_args; ++i) {
@@ -1810,7 +1876,7 @@ static void config_init(agent_config *config) {
     config->response_body_timeout_ms = 0U;
     config->spoe_timeout_ms = SPOP_DEFAULT_TIMEOUT_MS;
     config->worker_count = SPOP_DEFAULT_WORKER_COUNT;
-    config->max_transactions = 4096U;
+    config->max_transactions = SPOP_DEFAULT_MAX_TRANSACTIONS;
 }
 
 static int parse_listen(agent_config *config, const char *listen_value) {
@@ -1836,6 +1902,36 @@ static int parse_listen(agent_config *config, const char *listen_value) {
         return -1;
     }
     config->port = (unsigned int)port;
+    return 0;
+}
+
+static int parse_config_uint_in_range(
+        const char *value,
+        unsigned int minimum,
+        unsigned int maximum,
+        unsigned int *out) {
+    char *end = 0;
+    unsigned long parsed;
+    const char *cursor;
+
+    /* Config-file whitespace is removed by the caller.  Keep this boundary
+     * lexical: only decimal digits are accepted, so strtoul cannot silently
+     * consume a leading sign or whitespace. */
+    if (value == 0 || out == 0 || value[0] < '0' || value[0] > '9') {
+        return -1;
+    }
+    for (cursor = value; *cursor != '\0'; ++cursor) {
+        if (*cursor < '0' || *cursor > '9') {
+            return -1;
+        }
+    }
+    errno = 0;
+    parsed = strtoul(value, &end, 10);
+    if (end == value || *end != '\0' || errno == ERANGE ||
+            parsed < minimum || parsed > maximum) {
+        return -1;
+    }
+    *out = (unsigned int)parsed;
     return 0;
 }
 
@@ -1890,19 +1986,61 @@ static int config_set(agent_config *config, const char *key, const char *value) 
         return 0;
     }
     if (strcmp(key, "response-body-timeout") == 0) {
-        config->response_body_timeout_ms = (unsigned int)strtoul(value, 0, 10);
+        char *end = 0;
+        unsigned long timeout_ms;
+
+        /*
+         * The selected SPOP response path does not expose a real streaming
+         * deadline.  Accepting this setting would therefore advertise a
+         * timeout which cannot be enforced.  Keep the zero/default value
+         * compatible, but reject every non-zero value at the configuration
+         * boundary for both config files and command-line options.
+         */
+        errno = 0;
+        timeout_ms = strtoul(value, &end, 10);
+        if (value == 0 || value[0] == '\0' || value[0] == '-' || end == value ||
+                *end != '\0' || errno == ERANGE) {
+            fprintf(stderr,
+                "response-body-timeout=%s is invalid: only 0 is supported "
+                "until the selected SPOP response path has a stream deadline\n",
+                value != 0 ? value : "");
+            return -1;
+        }
+        if (timeout_ms != 0UL) {
+            fprintf(stderr,
+                "response-body-timeout=%s is unsupported: "
+                "the selected SPOP response path has no stream deadline\n",
+                value != 0 ? value : "");
+            return -1;
+        }
+        config->response_body_timeout_ms = 0U;
         return 0;
     }
     if (strcmp(key, "spoe-timeout") == 0) {
-        config->spoe_timeout_ms = (unsigned int)strtoul(value, 0, 10);
+        if (parse_config_uint_in_range(value, 1U, 60000U,
+                &config->spoe_timeout_ms) != 0) {
+            fprintf(stderr, "spoe-timeout=%s must be within 1..60000 ms\n",
+                value != 0 ? value : "");
+            return -1;
+        }
         return 0;
     }
     if (strcmp(key, "worker-count") == 0) {
-        config->worker_count = (unsigned int)strtoul(value, 0, 10);
+        if (parse_config_uint_in_range(value, 1U, SPOP_MAX_WORKER_COUNT,
+                &config->worker_count) != 0) {
+            fprintf(stderr, "worker-count=%s must be within 1..%u\n",
+                value != 0 ? value : "", SPOP_MAX_WORKER_COUNT);
+            return -1;
+        }
         return 0;
     }
     if (strcmp(key, "max-transactions") == 0) {
-        config->max_transactions = (unsigned int)strtoul(value, 0, 10);
+        if (parse_config_uint_in_range(value, 1U, SPOP_MAX_TRANSACTIONS,
+                &config->max_transactions) != 0) {
+            fprintf(stderr, "max-transactions=%s must be within 1..%u\n",
+                value != 0 ? value : "", SPOP_MAX_TRANSACTIONS);
+            return -1;
+        }
         return 0;
     }
     if (strcmp(key, "debug") == 0) {
@@ -1925,7 +2063,31 @@ static int production_config_has_safe_peer_limits(const agent_config *config) {
             config->spoe_timeout_ms == 0U ||
             config->spoe_timeout_ms > 60000U ||
             config->worker_count == 0U ||
-            config->worker_count > SPOP_MAX_WORKER_COUNT) {
+            config->worker_count > SPOP_MAX_WORKER_COUNT ||
+            config->max_transactions == 0U ||
+            config->max_transactions > SPOP_MAX_TRANSACTIONS ||
+            config->max_transactions >
+                SPOP_MAX_TRANSACTION_SLOTS_TOTAL / config->worker_count) {
+        return 0;
+    }
+    return 1;
+}
+
+static int production_config_has_supported_response_phases(const agent_config *config) {
+    if (config == 0) {
+        return 0;
+    }
+    /*
+     * The production SPOP boundary currently has no owner-preserving,
+     * bounded P3/P4 EOS bridge.  Starting with response inspection enabled
+     * would therefore silently drop the host FSM result.  Reject every
+     * response-phase activation at the shared startup boundary until that
+     * bridge is implemented; request-only operation remains supported.
+     */
+    if (config->response_phases_enabled || config->response_body_limit > 0U) {
+        fprintf(stderr,
+            "response phases are unsupported by the production SPOP boundary; "
+            "startup rejected fail-closed\n");
         return 0;
     }
     return 1;
@@ -2165,6 +2327,10 @@ static const char *safe_decision_reason_code(
             "stateful response transaction missing") == 0) {
         return "stateful_response_transaction_missing_closed";
     }
+    if (decision != 0 && strcmp(decision->log_message,
+            "response phases disabled") == 0) {
+        return "response_phase_disabled_closed";
+    }
     if (strcmp(safe_decision, "fail-closed") == 0) {
         return "modsecurity_processing_failed_closed";
     }
@@ -2328,8 +2494,16 @@ static void decision_log_write(
 static int transaction_cache_init(agent_state *state) {
     size_t capacity;
 
-    capacity = state->config.max_transactions > 0U ?
-        state->config.max_transactions : 4096U;
+    if (state == 0 ||
+            state->config.max_transactions == 0U ||
+            state->config.max_transactions > SPOP_MAX_TRANSACTIONS ||
+            state->config.worker_count == 0U ||
+            state->config.worker_count > SPOP_MAX_WORKER_COUNT ||
+            state->config.max_transactions >
+                SPOP_MAX_TRANSACTION_SLOTS_TOTAL / state->config.worker_count) {
+        return -1;
+    }
+    capacity = state->config.max_transactions;
     state->transactions = (transaction_slot *)calloc(capacity, sizeof(*state->transactions));
     if (state->transactions == 0) {
         return -1;
@@ -2613,6 +2787,35 @@ static void process_production_response_notify(
     decision_log_write(state, request, decision, *modsec_processed, *decision_text);
 }
 
+/* A response-typed peer frame is not a request-side cache miss.  When the
+ * production boundary has response phases disabled, reject it before taking
+ * or creating any transaction state.  This peer-local guard is deliberately
+ * fail-closed even if an incompatible peer bypassed the startup gate: the
+ * response must not silently skip inspection, and one bad peer must not
+ * affect the accept loop or other peers. */
+static void reject_disabled_response_notify(
+        agent_state *state,
+        const notify_request *request,
+        haproxy_modsecurity_decision *decision,
+        int *modsec_processed,
+        const char **decision_text,
+        FILE *log) {
+    int phase = request != 0 && request->is_response_body ? 4 : 3;
+
+    runtime_init_decision(decision, phase, "deny", 503,
+        "response phases disabled");
+    decision->disruptive = 1;
+    *modsec_processed = 0;
+    *decision_text = "fail-closed";
+    log_line(log,
+        "response NOTIFY rejected event=response-phase-disabled "
+        "outcome=fail-closed status=503 phase=%d "
+        "transaction=not-consumed cleanup=peer-request-freed",
+        phase);
+    decision_log_write(state, request, decision, *modsec_processed,
+        *decision_text);
+}
+
 static void build_modsecurity_request_from_notify(
         const notify_request *request,
         unsigned int body_limit,
@@ -2704,8 +2907,13 @@ static int process_production_notify(
 
     ensure_notify_request_id(request, frame);
     if (request->is_response) {
-        process_production_response_notify(state, request, &decision,
-            &modsec_processed, &decision_text);
+        if (!state->config.response_phases_enabled) {
+            reject_disabled_response_notify(state, request, &decision,
+                &modsec_processed, &decision_text, log);
+        } else {
+            process_production_response_notify(state, request, &decision,
+                &modsec_processed, &decision_text);
+        }
     } else {
         process_production_request_notify(state, request, &decision,
             &modsec_processed, &decision_text);
@@ -3304,6 +3512,108 @@ static int run_client_self_test(unsigned int port, FILE *log) {
     return 0;
 }
 
+static int cleanup_self_test_metadata(
+        const char *ready_path,
+        const char *pid_path,
+        const char *port_path,
+        unsigned int owned_metadata,
+        FILE *log) {
+    const struct {
+        const char *path;
+        unsigned int ownership;
+    } paths[] = {
+        {ready_path, SELF_TEST_METADATA_READY},
+        {pid_path, SELF_TEST_METADATA_PID},
+        {port_path, SELF_TEST_METADATA_PORT}
+    };
+    size_t index;
+    int result = 0;
+
+    for (index = 0; index < sizeof(paths) / sizeof(paths[0]); ++index) {
+        if ((owned_metadata & paths[index].ownership) == 0 ||
+                paths[index].path == 0 || paths[index].path[0] == '\0') {
+            continue;
+        }
+        if (unlink(paths[index].path) != 0 && errno != ENOENT) {
+            result = -1;
+            log_line(log, "self-test metadata cleanup failed path=%s errno=%d",
+                paths[index].path, errno);
+        }
+    }
+    if (result == 0) {
+        log_line(log,
+            "self-test metadata cleanup PASS owned_mask=0x%x", owned_metadata);
+    }
+    return result;
+}
+
+static int claim_self_test_metadata_file(const char *path) {
+    int flags = O_WRONLY | O_CREAT | O_EXCL;
+
+    if (path == 0 || path[0] == '\0') {
+        return -1;
+    }
+#ifdef O_NOFOLLOW
+    flags |= O_NOFOLLOW;
+#endif
+    return open(path, flags, S_IRUSR | S_IWUSR);
+}
+
+static int write_self_test_metadata_fd(int fd, const char *contents) {
+    size_t contents_len;
+    size_t written = 0;
+
+    if (fd < 0 || bounded_cstring_length(contents, RUNTIME_TEXT_LIMIT,
+            &contents_len) != 0) {
+        if (fd >= 0) {
+            (void)close(fd);
+        }
+        return -1;
+    }
+    while (written < contents_len) {
+        ssize_t rc = write(fd, contents + written, contents_len - written);
+
+        if (rc > 0) {
+            written += (size_t)rc;
+            continue;
+        }
+        if (rc < 0 && errno == EINTR) {
+            continue;
+        }
+        (void)close(fd);
+        return -1;
+    }
+    return close(fd) == 0 ? 0 : -1;
+}
+
+static int write_self_test_unsigned_fd(int fd, unsigned int value) {
+    char contents[32];
+    int written;
+
+    written = snprintf(contents, sizeof(contents), "%u\n", value);
+    if (written < 0 || (size_t)written >= sizeof(contents)) {
+        if (fd >= 0) {
+            (void)close(fd);
+        }
+        return -1;
+    }
+    return write_self_test_metadata_fd(fd, contents);
+}
+
+static int write_self_test_process_id_fd(int fd, pid_t process_id) {
+    char contents[32];
+    int written;
+
+    written = snprintf(contents, sizeof(contents), "%ld\n", (long)process_id);
+    if (written < 0 || (size_t)written >= sizeof(contents)) {
+        if (fd >= 0) {
+            (void)close(fd);
+        }
+        return -1;
+    }
+    return write_self_test_metadata_fd(fd, contents);
+}
+
 static int run_admission_failure_self_test(FILE *log) {
     agent_state failure_state;
     int listen_fd;
@@ -3394,6 +3704,11 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
     pid_t child;
     int status;
     FILE *log;
+    int cleanup_rc;
+    int ready_fd = -1;
+    int pid_fd = -1;
+    int port_fd = -1;
+    unsigned int owned_metadata = 0;
 
     if (mkdir_p(tmp_root) != 0 || mkdir_p(log_root) != 0) {
         fprintf(stderr, "failed to create tmp/log roots\n");
@@ -3414,48 +3729,114 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
         fclose(log);
         return 77;
     }
-    if (write_unsigned_text_file(port_path, port) != 0) {
+    ready_fd = claim_self_test_metadata_file(ready_path);
+    if (ready_fd < 0) {
+        log_line(log, "self-test metadata claim failed path=%s errno=%d", ready_path, errno);
         close(listen_fd);
         fclose(log);
         return 77;
     }
+    owned_metadata |= SELF_TEST_METADATA_READY;
+    pid_fd = claim_self_test_metadata_file(pid_path);
+    if (pid_fd < 0) {
+        log_line(log, "self-test metadata claim failed path=%s errno=%d", pid_path, errno);
+        close(listen_fd);
+        (void)close(ready_fd);
+        ready_fd = -1;
+        (void)cleanup_self_test_metadata(ready_path, pid_path, port_path,
+            owned_metadata, log);
+        fclose(log);
+        return 77;
+    }
+    owned_metadata |= SELF_TEST_METADATA_PID;
+    port_fd = claim_self_test_metadata_file(port_path);
+    if (port_fd < 0) {
+        log_line(log, "self-test metadata claim failed path=%s errno=%d", port_path, errno);
+        close(listen_fd);
+        (void)close(ready_fd);
+        (void)close(pid_fd);
+        ready_fd = -1;
+        pid_fd = -1;
+        (void)cleanup_self_test_metadata(ready_path, pid_path, port_path,
+            owned_metadata, log);
+        fclose(log);
+        return 77;
+    }
+    owned_metadata |= SELF_TEST_METADATA_PORT;
+    if (write_self_test_unsigned_fd(port_fd, port) != 0) {
+        port_fd = -1;
+        close(listen_fd);
+        (void)close(ready_fd);
+        (void)close(pid_fd);
+        ready_fd = -1;
+        pid_fd = -1;
+        (void)cleanup_self_test_metadata(ready_path, pid_path, port_path,
+            owned_metadata, log);
+        fclose(log);
+        return 77;
+    }
+    port_fd = -1;
     child = fork();
     if (child < 0) {
         close(listen_fd);
+        (void)close(ready_fd);
+        (void)close(pid_fd);
+        ready_fd = -1;
+        pid_fd = -1;
+        (void)cleanup_self_test_metadata(ready_path, pid_path, port_path,
+            owned_metadata, log);
         fclose(log);
         return 77;
     }
     if (child == 0) {
-        if (write_process_id_file(pid_path, getpid()) != 0 ||
-                write_text_contents(ready_path, "ready\n") != 0) {
+        if (write_self_test_process_id_fd(pid_fd, getpid()) != 0) {
+            (void)close(ready_fd);
+            exit(77);
+        }
+        if (write_self_test_metadata_fd(ready_fd, "ready\n") != 0) {
             exit(77);
         }
         exit(accept_loop(listen_fd, 0, log, 5, 0, 0));
     }
+    (void)close(ready_fd);
+    (void)close(pid_fd);
     close(listen_fd);
     if (run_client_self_test(port, log) != 0) {
         kill(child, SIGTERM);
         waitpid(child, &status, 0);
+        (void)cleanup_self_test_metadata(ready_path, pid_path, port_path,
+            owned_metadata, log);
         fclose(log);
         fprintf(stderr, "SPOP protocol self-test failed\n");
         return 1;
     }
     waitpid(child, &status, 0);
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        (void)cleanup_self_test_metadata(ready_path, pid_path, port_path,
+            owned_metadata, log);
         fclose(log);
         fprintf(stderr, "SPOP protocol self-test child failed\n");
         return 1;
     }
     if (run_admission_failure_self_test(log) != 0) {
+        (void)cleanup_self_test_metadata(ready_path, pid_path, port_path,
+            owned_metadata, log);
         fclose(log);
         fprintf(stderr, "SPOP admission-failure self-test failed\n");
         return 1;
     }
+    cleanup_rc = cleanup_self_test_metadata(ready_path, pid_path, port_path,
+        owned_metadata, log);
     fclose(log);
+    if (cleanup_rc != 0) {
+        fprintf(stderr, "failed to clean SPOP protocol self-test metadata\n");
+        return 1;
+    }
     printf("haproxy_modsecurity_spoa_protocol_self_test: PASS\n");
     printf("scope: SPOP handshake and typed set-var ACK compatibility; production ModSecurity coverage is verified by live HAProxy smoke tests\n");
     printf("log: %s\n", log_path);
-    printf("port_file: %s\n", port_path);
+    printf("metadata_cleanup: PASS\n");
+    printf("port_file_removed: %s\n", port_path);
     return 0;
 }
 
@@ -3967,6 +4348,7 @@ static int run_production_agent_command(int argc, char **argv) {
     if (load_production_config_files(&config, argc, argv) != 0 ||
             parse_production_options(&config, argc, argv) != 0 ||
             !production_config_has_safe_peer_limits(&config) ||
+            !production_config_has_supported_response_phases(&config) ||
             !has_production_rules(&config)) {
         print_usage(argv[0]);
         return 2;

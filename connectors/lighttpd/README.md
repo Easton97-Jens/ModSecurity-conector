@@ -25,6 +25,11 @@ request ranges and identity response-entity ranges, but that contract is not a
 response-body runtime proof. CRS, production hardening, security verification,
 and full-matrix verification are not claimed.
 
+Raw JSONL event identity follows the compiled host ABI: the stock native
+module emits `native-lighttpd-plugin`, while the Framework-synchronized
+patched ABI emits `patched-native-lighttpd`. This provenance distinction does
+not promote Stock body capabilities or the patched lifecycle contract.
+
 The full-lifecycle profile selects a separate Framework-synchronized lighttpd
 patched-host target that copies, patches, configures, builds, installs, and
 stages a matching core and module together.
@@ -79,6 +84,24 @@ until the filter order and decompression behavior have real host evidence.
 `config/lighttpd-native.conf` is a documented example; its two absolute
 placeholder paths must be replaced. The native harness generates a runnable
 configuration with managed absolute paths.
+
+## Stock lifecycle evidence
+
+The run-scoped Stock lifecycle profile is
+`lighttpd-stock-lifecycle-v6-v10-20260825T100000Z`. It is bounded
+HTTP/1.1 host evidence, not full 17-vector acceptance. V6 did not observe or
+claim direct client-cancel propagation or a typed Stock connector event. A
+configured 2-second gateway/proxy backend read-timeout contained the request,
+emitted host `read timeout on socket`, and a same-host follow-up returned
+`200`. Raw V7/V11 upstream truncation completed with harness cleanup; eight
+parallel HTTP/1.1 requests returned `200`; host termination produced client
+EOF followed by restart controls `200 -> 403 -> 200`.
+
+Pidfd/session/port/UDS cleanup receipts passed for the first and replacement
+host. These observations do not promote V12--V15 or full 17-vector coverage,
+and they do not provide a full leak audit or a Stock-specific V6 event/status
+claim. Historical five-second frontend-timeout receipts remain tracked as
+FND-PARENT-0311 evidence.
 
 ## Build and validation
 

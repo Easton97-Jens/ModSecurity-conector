@@ -10,6 +10,11 @@ uses a versioned patched-host boundary for borrowed body ranges. It does not
 claim production readiness, security verification, CRS verification, complete
 matrix coverage, HTTP/2/HTTP/3 coverage, or canonical P4 runtime evidence.
 
+The separately supported stock native ABI emits
+<code>native-lighttpd-plugin</code> in raw event evidence. It must never be
+represented as <code>patched-native-lighttpd</code>; this is an ABI provenance
+property, not a promotion of Stock body or lifecycle capabilities.
+
 ## Architecture and ownership
 
 The plugin lifecycle layer is host-owned and the mapper is the only lighttpd
@@ -68,6 +73,26 @@ The narrow native smoke can establish only its stated request-path observation.
 P4 and late-intervention facets remain not executed or capability-selected
 until real host/client artifacts establish their timing and visible outcome.
 See [Testing and evidence](../testing-and-evidence.md).
+
+### Stock lifecycle evidence (bounded)
+
+The run-scoped evidence under
+`lighttpd-stock-lifecycle-v6-v10-20260825T100000Z` is a bounded HTTP/1.1
+host exercise, not full 17-vector acceptance. Its fail-safe boundary is
+explicit:
+
+| Case | Observed behavior | Evidence boundary |
+|---|---|---|
+| V6 client close | Direct client-cancel propagation and a typed Stock connector event were not observed or claimed. A 2-second gateway/proxy backend read-timeout contained the request, emitted host `read timeout on socket`, and a same-host follow-up returned `200`. | Host timeout fallback; no direct Stock abort-event claim |
+| V7/V11 truncated upstream response | The raw upstream truncation fixture closed and the bounded harness completed cleanup. | Host/transport closure only; no typed connector event claim |
+| Bounded parallelism | Eight parallel HTTP/1.1 requests returned `200`. | Subset observation; V14 and full matrix remain `NOT_EXECUTED` |
+| Host termination | The active client received EOF, then restart controls returned `200 -> 403 -> 200`. | Bounded host lifecycle observation; V12--V15 remain `NOT_EXECUTED` |
+| Cleanup | pidfd/session/port/UDS receipts passed for the first and replacement host. | Run-scoped cleanup receipt; no full leak audit claim |
+
+The run does not claim a Stock-specific event for V6, direct cancel
+propagation, a complete HTTP/protocol status mapping for the client-close
+fallback, or full V12--V15/17-vector coverage. The historical five-second
+frontend-timeout receipts remain separate FND-PARENT-0311 evidence.
 
 ## Operations and troubleshooting
 

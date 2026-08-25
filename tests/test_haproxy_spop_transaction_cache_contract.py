@@ -8,6 +8,9 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = (
     ROOT / "connectors" / "haproxy" / "src" / "haproxy_spop_diagnostic_runtime.c"
 ).read_text(encoding="utf-8")
+HARNESS = (
+    ROOT / "connectors" / "haproxy" / "harness" / "run_haproxy_spop_cache_miss.sh"
+).read_text(encoding="utf-8")
 
 
 class HAProxySPOPTransactionCacheContractTests(unittest.TestCase):
@@ -43,6 +46,16 @@ class HAProxySPOPTransactionCacheContractTests(unittest.TestCase):
         )
         self.assertIn("transaction_cache_store(state, request->request_id, transaction)", response)
         self.assertIn("haproxy_modsecurity_transaction_finish(transaction)", response)
+
+    def test_request_only_harness_exercises_peer_local_response_guard(self) -> None:
+        self.assertIn("response NOTIFY rejected event=response-phase-disabled", SOURCE)
+        self.assertIn('"response_phase_disabled_closed"', SOURCE)
+        self.assertIn('"--max-transactions", "1"', HARNESS)
+        self.assertNotIn('"--enable-response-headers"', HARNESS)
+        self.assertIn('"response-disabled-phase"', HARNESS)
+        self.assertIn('"response_phase_disabled_closed"', HARNESS)
+        self.assertIn('"request-block"', HARNESS)
+        self.assertIn('"request-C-fresh-allow"', HARNESS)
 
 
 if __name__ == "__main__":

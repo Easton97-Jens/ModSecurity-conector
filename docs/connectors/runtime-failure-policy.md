@@ -54,7 +54,7 @@ connector row that references the class.
 | Class | Fail mode | Host action | HTTP/protocol status | Event | User/operator effect | Cleanup | Follow-up |
 |---|---|---|---|---|---|---|---|
 | E — engine failure | closed | Abort the current decision and terminate the transaction | Apache/NGINX/lighttpd: `500`; HAProxy/Traefik: configured closed error (`500`/`503`); Envoy: gRPC `Unavailable`/`DeadlineExceeded`, host closed response | `engine_error` plus connector error log | Current request is denied or fails visibly; operator gets an actionable error | Destroy engine transaction, release body/response buffers, close failed backend/agent stream | New request may start and is tested where `SELF_TEST_PASS` is shown |
-| P — peer/protocol abort | closed for the affected transaction; peer-local close is allowed | Close/reset only the affected peer/stream; never continue with a partial decision | HTTP `400`/`502`/`503` as applicable; gRPC `Cancelled`/`Unavailable`; SPOP protocol disconnect/closed ACK | `peer_error` or `protocol_error` | One request/peer fails; other peers remain eligible | Cancel stream, close FD, discard partial frame/body, remove transaction state | A fresh peer/request is accepted; no global accept-loop block |
+| P — peer/protocol abort | closed for the affected transaction; peer-local close is allowed | Close/reset only the affected peer/stream; never continue with a partial decision | HTTP `400`/`502`/`503` as applicable; gRPC `Cancelled`/`Unavailable`; SPOP protocol disconnect/closed ACK. If HTTP headers are already committed, terminate the incomplete transfer with that committed status; do not invent a retroactive status rewrite. | Connector-owned peer: `peer_error` or `protocol_error`; host-owned upstream: transaction-bound host/proxy error record. A missing record is an evidence gap, never inferred. | One request/peer fails; other peers remain eligible | Cancel stream, close FD, discard partial frame/body, remove transaction state | A fresh peer/request is accepted; no global accept-loop block |
 | I — invalid/incomplete engine result | closed | Treat the result as unusable and abort the current transaction | Same closed status as E; no partial allow | `invalid_engine_response` or `incomplete_engine_response` | Request is denied; malformed engine data is never trusted | Free parser/result buffers and destroy transaction exactly once | Follow-up request gets a fresh engine transaction |
 | C — cancel/shutdown | closed for in-flight work | Propagate cancellation, close stream/connection, and stop accepting new work during shutdown | HTTP `499`/`503` or host-specific closed status; gRPC `Cancelled` | `cancelled` or `shutdown` | Current work ends; operator sees bounded shutdown or controlled restart | Idempotent cancellation, bounded worker wait, FD/UDS removal; controlled restart if an engine call remains stuck | After restart/new listener, a control request is accepted |
 | L — limit/admission | closed | Reject only the over-limit request/stream before unbounded state allocation | HTTP `413`/`431`/`503`; gRPC `ResourceExhausted`; protocol limit error | `limit_rejected` | Caller receives a bounded rejection; service remains available | Release admission slot and partial buffers | A request within limits succeeds |
@@ -104,7 +104,7 @@ cleanup, and follow-up contract above. Evidence is bounded to this repository.
 | V4 | I | SOURCE_VALIDATED: invalid native result is rejected |
 | V5 | I | SOURCE_VALIDATED: incomplete body/header result is rejected |
 | V6 | P | SOURCE_VALIDATED: connection/URI mapping failure closes request |
-| V7 | P | NOT_EXECUTED: host upstream-close run |
+| V7 | P | BLOCKED_ENVIRONMENT: diagnostic early-close returned proxy `502`, but the valid follow-up and owner-verifiable cleanup run is blocked by unidentifiable listeners on task ports `29471/29472` |
 | V8 | P | NOT_APPLICABLE: Apache module has no agent handshake |
 | V9 | P | NOT_EXECUTED: live reset run |
 | V10 | I | SOURCE_VALIDATED: request-body append/file failures close with `500` |
@@ -113,8 +113,14 @@ cleanup, and follow-up contract above. Evidence is bounded to this repository.
 | V13 | C | NOT_EXECUTED: live module termination |
 | V14 | L | SOURCE_VALIDATED: pool cleanup is retained; parallel host run NOT_EXECUTED |
 | V15 | L | SOURCE_VALIDATED: host limit remains bounded; full host run NOT_EXECUTED |
-| V16 | A | NOT_EXECUTED: same-host fault follow-up; isolated current-host Allow `200` and P1/P2 Block `403` controls pass |
-| V17 | U | SELF_TEST_PASS: task-owned Apache ports/processes were absent after each current-host case; live FD audit NOT_EXECUTED |
+| V16 | A | BLOCKED_ENVIRONMENT: the V7 diagnostic follow-up backend was malformed; no valid same-host post-fault control is claimed |
+| V17 | U | BLOCKED_ENVIRONMENT: after the V7 diagnostic, task ports `29471/29472` remained listening without an attributable PID; no unsafe signal was issued and live FD audit remains NOT_EXECUTED |
+
+The observed Apache `502` is diagnostic evidence for the expected proxy
+failure mode only. It is not a V7 acceptance result: the follow-up fixture was
+invalid, and the current sandbox cannot attribute or clean the two retained
+listeners safely. Earlier isolated Allow/Block cases do not supersede this
+V7-specific cleanup gap; it is tracked as `FND-HOST-0007`.
 
 ### NGINX
 
@@ -125,18 +131,31 @@ cleanup, and follow-up contract above. Evidence is bounded to this repository.
 | V3 | E | SOURCE_VALIDATED: operation failure is terminal; live timeout BLOCKED_ENVIRONMENT |
 | V4 | I | SOURCE_VALIDATED: invalid native result is rejected |
 | V5 | I | SOURCE_VALIDATED: incomplete result is rejected |
-| V6 | P | SOURCE_VALIDATED: request mapping failures finalize the request |
-| V7 | P | NOT_EXECUTED: live upstream-close run |
+| V6 | P | SELF_TEST_PASS: declared 100-byte upload sent 5 bytes then FIN; the client received no response bytes, NGINX logged `400`, host survived, and same-host controls remained usable |
+| V7 | P | SELF_TEST_PASS: bounded native-host upstream sent 21 of declared 128 bytes; NGINX logged early upstream close, the client saw committed `200` then transfer failure (`curl_exit=18`, 107 bytes missing), host survived, and valid `200 -> 403 -> 200` controls followed |
 | V8 | P | NOT_APPLICABLE: NGINX module has no agent handshake |
 | V9 | P | NOT_EXECUTED: live TCP/TLS reset run |
-| V10 | I | SOURCE_VALIDATED: request body append/file failures finalize `500` |
+| V10 | P | SELF_TEST_PASS: declared 100-byte upload sent 5 bytes then TCP RST; the client received no response bytes, NGINX logged `400`, host survived, and same-host controls remained usable; this does not separately prove V9 |
 | V11 | I | SOURCE_VALIDATED: response body append failure finalizes `500` |
 | V12 | C | NOT_EXECUTED: live worker shutdown |
 | V13 | C | NOT_EXECUTED: live module termination |
-| V14 | L | SOURCE_VALIDATED: worker-local errors; parallel host run NOT_EXECUTED |
+| V14 | L | SELF_TEST_PASS: a direct native-host run served 16 concurrent HTTP/1.1 requests (8 Allow `200`, 8 Block `403`) in one still-live process; this is direct-host evidence only, while the worker-identity harness remains `BLOCKED_ENVIRONMENT` |
 | V15 | L | SOURCE_VALIDATED: bounded body mapping; full host limit run NOT_EXECUTED |
-| V16 | A | SELF_TEST_PASS: current NGINX native host returned Allow `200` after header Block `403` |
-| V17 | U | SELF_TEST_PASS: current native port `29183` was removed; a prior sandbox-harness listener `29182` was verified task-owned and then controlled-cleaned; live FD audit NOT_EXECUTED |
+| V16 | A | SELF_TEST_PASS: the V6/V10 native host and the V7 native host each returned Allow `200`, Block `403`, then Allow `200` after their failed transfer; the same direct host also preserved `200 -> 403 -> 200` after the 16-request concurrent batch |
+| V17 | U | SELF_TEST_PASS: V6/V10 processes and port `29583`, V7 processes and ports `29371/29372`, and the direct parallel host/process/port `29671` were absent after bounded stop; separate current port `29183` was also released and later recheck found neither `29182` nor `29183` listening; live FD audit NOT_EXECUTED |
+
+For the NGINX V7 fixture, the upstream had already committed HTTP `200`
+headers before it closed. The client therefore observes a terminated,
+incomplete HTTP transfer rather than a rewritten `502`; `curl_exit=18`
+and the missing bytes are the failure evidence. This is a peer-local closed
+transport outcome, not a fail-open authorization decision or a silent change
+of the ModSecurity security model.
+
+For the NGINX V6/V10 upload fixture, the client had already closed before
+NGINX could send the server-side `400`; the zero client response bytes and
+the access-log `400` are therefore consistent. The request-level TCP RST
+uses the same incomplete-upload shape and is not promoted as a separate
+transport-reset V9 proof.
 
 ### HAProxy HTX
 
@@ -151,8 +170,8 @@ cleanup, and follow-up contract above. Evidence is bounded to this repository.
 | V7 | P | NOT_EXECUTED: live upstream-close run |
 | V8 | P | NOT_APPLICABLE: HTX route has no SPOE handshake |
 | V9 | P | NOT_EXECUTED: live reset run |
-| V10 | I | SOURCE_VALIDATED: request body append failure is terminal |
-| V11 | I | SOURCE_VALIDATED: response body append failure is terminal |
+| V10 | I | SELF_TEST_PASS: a `ProcessPartial`-derived native append failure returns `-1`; current HAProxy `3.2.22` HTTP/1.1 host evidence observed `400`, zero backend dispatches, same-process one-byte POST Allow `200`, and listener cleanup |
+| V11 | I | SELF_TEST_PASS: a `ProcessPartial`-derived native append failure returns `-1`; current HAProxy `3.2.22` HTTP/1.1 host evidence observed an affected-stream close with no HTTP response (`000`, `curl_exit=52`), one upstream fault request, same-process HEAD Allow `200`, and listener cleanup |
 | V12 | C | NOT_EXECUTED: live HAProxy shutdown |
 | V13 | C | NOT_EXECUTED: live filter termination |
 | V14 | L | SOURCE_VALIDATED: binding self-test PASS; parallel host run NOT_EXECUTED |
@@ -160,13 +179,38 @@ cleanup, and follow-up contract above. Evidence is bounded to this repository.
 | V16 | A | SELF_TEST_PASS: `self-test-modsecurity-binding` keeps disruptive decision `403` |
 | V17 | U | SOURCE_VALIDATED: transaction cleanup path; live FD audit NOT_EXECUTED |
 
+The bounded host run
+`runtime-continuation/haproxy-htx-current-retry-20260825T073000Z` is recorded
+as `native_host_runtime_nonpromoted`, not as full 17-vector acceptance. Its
+P1--P4 evidence is limited to the following sequence: legitimate Allow
+returned `200`; P1 returned `403`/`429`; P2 returned `403` without an upstream
+request; P3 returned `403` after an upstream request; and P4 returned a
+committed safe `log_only` `200`. The host receipt recorded
+`processes_stopped=yes` and task-owned cleanup. This evidence does not promote
+any unexecuted vector or establish a complete native HAProxy FD/leak audit.
+
+HTX native payload-append failure has an explicit, separate fail mode. The
+binding considers only exact native append success inspectable; any other
+result aborts the affected transaction and returns `-1`, never a positive
+payload length. For V10 this is a pre-commit fail-closed `400` with no backend
+dispatch in the retained run. For V11, headers may already be committed, so the
+fail-closed host action is peer-local transport termination rather than a
+synthetic HTTP response. There is currently no dedicated structured
+connector-error event for either callback failure; the payload-free host
+receipt supplies the event evidence. Run
+`haproxy-htx-append-failure-20260825T131500Z`, SHA-256
+`12e4d30c68ff46f45f2f8481d810eb53099f6512f384520e3942fadb0434da9c`, proves
+the same-process controls and listener cleanup only for these HTTP/1.1 cases.
+It does not promote H2/H3, reload, full FD, engine-timeout, or complete
+17-vector coverage.
+
 ### HAProxy SPOE/SPOP
 
 | Vector | Class | Local evidence |
 |---|---|---|
 | V1 | E | SOURCE_VALIDATED: engine startup failure is terminal for the agent |
 | V2 | E | SOURCE_VALIDATED: per-peer worker keeps failure local |
-| V3 | E | SOURCE_VALIDATED: handshake/operation deadlines are bounded |
+| V3 | E | SELF_TEST_PASS: handshake/operation deadlines are bounded; unsupported positive response-body timeout is rejected at configuration parsing |
 | V4 | I | SOURCE_VALIDATED: malformed protocol/result is closed; default is closed |
 | V5 | I | SOURCE_VALIDATED: incomplete result/handshake is closed |
 | V6 | P | SELF_TEST_PASS: peer close does not terminate the agent |
@@ -178,25 +222,68 @@ cleanup, and follow-up contract above. Evidence is bounded to this repository.
 | V12 | C | SOURCE_VALIDATED: bounded worker reap and listener shutdown |
 | V13 | C | SOURCE_VALIDATED: worker isolation prevents process-wide peer failure |
 | V14 | L | SELF_TEST_PASS: parallel healthcheck/follow-up HELLO succeeds; a saturated peer is closed locally while the parent accept loop remains free |
-| V15 | L | SELF_TEST_PASS: worker count `1..64`, bounded handshake/socket deadlines, and immediate peer-local close on worker saturation |
-| V16 | A | SELF_TEST_PASS: cache-miss `503` is followed by a typed Block ACK (`403`) and fresh Allow (`200`) control |
-| V17 | U | SELF_TEST_PASS: direct cache-miss agent and self-test listeners were closed; peer FDs are closed |
+| V15 | L | SELF_TEST_PASS: worker count `1..64`, `max-transactions` `1..4096` with at most `65536` slots across workers, header count/name/value/aggregate caps, bounded handshake/socket deadlines, and immediate peer-local close on worker saturation |
+| V16 | A | SELF_TEST_PASS: disabled response-phase NOTIFY returns `503` and is followed by a typed Block ACK (`403`) and fresh Allow (`200`) control |
+| V17 | U | SELF_TEST_PASS: request-only response-guard agent and self-test listeners were closed; self-test metadata is atomically owned and removed while its log is retained |
 
 SPOP writes use per-send `MSG_NOSIGNAL` (and `SO_NOSIGPIPE` where available);
 there is no global `SIGPIPE` ignore. Each peer is isolated in a bounded worker,
 and the default malformed/failure mode is closed. The explicit open mode is an
 operator choice and must be visible in configuration and evidence.
 
-The current direct protocol run uses `max-transactions=1` to evict request A
-with request B. The later response NOTIFY for A observed
-`deny`/`503`/`stateful_response_transaction_missing_closed`; a real rule Block
-remained `403` and a fresh Allow remained `200`. This is production-agent
-evidence, not a native HAProxy client-status or FD-audit claim.
+The selected SPOP path has no response-body stream. Consequently a positive
+`response-body-timeout` is rejected during configuration parsing with exit
+`2`; zero/default remains accepted and `spoe-timeout` remains a per-frame peer
+deadline. This is an explicit fail-closed configuration error, not a claimed
+stream-idle limit. Self-test PID, ready, and port paths are claimed with
+`O_CREAT|O_EXCL` (and `O_NOFOLLOW` where available); a collision is rejected
+without altering a caller-owned path, and cleanup unlinks only owned paths.
+
+`spoe-timeout` accepts only `1..60000` milliseconds and `worker-count` only
+`1..64`; zero, negative, overflowing, and trailing-text values are rejected
+before conversion. Typed peer strings that cannot fit their destination
+including its terminating NUL are also rejected rather than silently
+truncated. These are peer-local/configuration fail-closed outcomes; ordinary
+values retain their existing behavior.
+
+Every `headers_bin`, text-header, and response-header parse is fail-closed
+before allocation beyond 256 headers, a 256-byte name, an 8192-byte value, or
+16384 aggregate header bytes. The header vector grows geometrically only to
+that bound and a failed name/value allocation leaves no partially owned entry.
+`max-transactions` accepts only `1..4096`; startup also rejects any
+`worker-count * max-transactions` value above 65536 before it allocates a
+per-peer cache. An invalid limit is a visible configuration error with exit
+`2`, not an implicit open-mode fallback. The compiled SPOP resource-limit
+contract covers exact and over-limit header/count/cache controls.
+
+The default `worker-count=8` and the finite 64-worker maximum bound
+concurrent peer processes, cache slots, and native-engine initializations, but
+they are not a deployment memory reservation. Repeated pre-HELLO connections
+can still consume the bounded worker pool while each worker initializes its
+engine; live load characterization and an earlier protocol-admission budget
+remain a documented residual risk.
+
+Until a bounded, owner-preserving P3/P4 bridge exists, the production agent
+also rejects every response-phase activation (`response-body-limit > 0`,
+`enable-response-headers`, or `response-phases`) with exit `2` before it
+creates a production listener or worker. This is fail-closed configuration
+rejection, not partial response enforcement; a valid request-only startup is
+the legitimate follow-up control.
+
+The current direct protocol run starts request-only with `max-transactions=1`.
+A peer response NOTIFY is rejected before transaction-cache processing and
+observed as `deny`/`503`/`response_phase_disabled_closed`; a real rule Block
+remained `403` and a fresh Allow remained `200`. The older cache-eviction
+fixture remains source-level evidence for the separately fail-closed
+`stateful_response_transaction_missing_closed` path, but is not a current
+production startup mode. This is production-agent evidence, not a native
+HAProxy client-status or FD-audit claim.
 
 `connectors/haproxy/harness/run_haproxy_spop_cache_miss.sh` reproduces that
-same sequence against a current agent when its build and runtime roots are
-explicitly task-owned. It asserts the cache-miss `503`, real Block `403`, and
-fresh Allow `200`, then terminates the agent in its cleanup path.
+request-only response-guard sequence against a current agent when its build
+and runtime roots are explicitly task-owned. It asserts the response-guard
+`503`, real Block `403`, and fresh Allow `200`, then terminates the agent in
+its cleanup path.
 
 ### Envoy `ext_authz`
 
@@ -222,30 +309,35 @@ fresh Allow `200`, then terminates the agent in its cleanup path.
 
 ### Envoy `ext_proc`
 
-The current follow-up fixture asserts `pendingReceives == 0` after the idle
-handler returns; mutex and forced-stop waits are deadline-bounded. An already
-running uninterruptible native C destructor remains a controlled nonzero
-restart path, not an in-process cancellation claim.
+The current follow-up fixtures assert `pendingReceives == 0` after an idle
+handler returns and prove both cancellation cleanup and a valid following
+stream. The tagged Common-Runtime test holds the native mutex and proves that
+every queued operation returns its engine context deadline without entering
+native code; the service maps that result to gRPC `DeadlineExceeded`, records
+`processor_error`, emits no allow response, releases admission, and permits a
+valid following stream. Mutex and forced-stop waits are deadline-bounded. An
+already-running uninterruptible native CGo operation or destructor remains a
+controlled nonzero restart path, not an in-process cancellation claim.
 
 | Vector | Class | Local evidence |
 |---|---|---|
 | V1 | E | SOURCE_VALIDATED: service config/startup rejects invalid engine setup |
-| V2 | E | SOURCE_VALIDATED: engine failure returns a gRPC failure, not an allow |
-| V3 | E | SOURCE_VALIDATED: engine operation timeout is separate from stream idle |
+| V2 | E | SELF_TEST_PASS: engine failure returns a gRPC failure, not an allow |
+| V3 | E | SELF_TEST_PASS: tagged `TestCommonRuntimeEngineOperationsHonorMutexContext` bounds queued native-mutex waits; `TestProcessMapsEngineTimeoutToDeadlineExceededAndAllowsFollowUp` returns gRPC `DeadlineExceeded`, records `processor_error`, releases admission, and admits a valid follow-up. It is separate from stream idle. |
 | V4 | I | SOURCE_VALIDATED: invalid processing result fails the stream |
 | V5 | I | SOURCE_VALIDATED: incomplete processing message fails the stream |
-| V6 | P | SOURCE_VALIDATED: stream cancellation releases processing state |
+| V6 | P | SELF_TEST_PASS: `TestCancellationCleansUpWithoutAttributingTheHTTPReset` closes as `grpc_context_canceled_unattributed`; cancellation releases state and has no synthetic HTTP reset attribution |
 | V7 | P | NOT_EXECUTED: live Envoy upstream-close run |
 | V8 | P | NOT_APPLICABLE: ext_proc is gRPC, not an HTTP agent HELLO protocol |
 | V9 | P | SOURCE_VALIDATED: gRPC reset maps to stream failure; live Envoy reset NOT_EXECUTED |
 | V10 | P | SOURCE_VALIDATED: request-body EOF is a failed/incomplete processing stream |
 | V11 | P | SOURCE_VALIDATED: response-body EOF is a failed/incomplete processing stream |
-| V12 | C | SELF_TEST_PASS: `TestCommonRuntimeEngineCloseHonorsShutdownContext` holds the mutex, returns `ErrCommonRuntimeShutdownTimeout` within the deadline, and main performs controlled exit `1` |
-| V13 | C | SELF_TEST_PASS: connector/agent termination follows the bounded controlled-exit `1` path; no native release is attempted while the engine call is still blocked |
-| V14 | L | SELF_TEST_PASS: `go test -race ./...`; max concurrent streams is bounded |
+| V12 | C | SELF_TEST_PASS: `TestCommonRuntimeEngineCloseHonorsShutdownContext` bounds a mutex-held shutdown; `TestCommonRuntimeEngineCloseRejectsCanceledContextBeforeDestroy` proves no native destroy after an already canceled shutdown context; `TestWaitForServerTerminationStopsOnFatalCleanupFailure` proves the main process stops the listener and returns controlled exit `1` for an unsafe cleanup |
+| V13 | C | SELF_TEST_PASS: `TestGRPCServerStopCancelsIdleStreamAndReleasesAdmission` proves connector/agent termination cleanup; `TestCleanupFailureTriggersControlledRestartAndRejectsFollowUp` proves an unsafe native cleanup notifies main, releases admission, rejects a follow-up with `Unavailable`, and uses the bounded controlled-exit `1` path without concurrent native free |
+| V14 | L | SELF_TEST_PASS: `go test -race ./...`; max concurrent streams is bounded and cancellation releases its admission slot |
 | V15 | L | SOURCE_VALIDATED: `max_concurrent_streams <= 1024`; oversized admission is `ResourceExhausted` |
-| V16 | A | SELF_TEST_PASS: idle timeout cleanup followed by a valid stream succeeds |
-| V17 | U | SOURCE_VALIDATED: tagged native Common-Runtime test `TestCommonRuntimeEngineCloseHonorsShutdownContext` proves deadline-bounded cleanup and no native release; live Envoy FD audit NOT_EXECUTED |
+| V16 | A | SELF_TEST_PASS: `TestProcessMapsEngineTimeoutToDeadlineExceededAndAllowsFollowUp` and idle-timeout controls prove a valid stream after timeout cleanup |
+| V17 | U | SELF_TEST_PASS: tagged native Common-Runtime mutex and shutdown-context tests prove bounded cleanup/no canceled-context destroy; live Envoy FD audit NOT_EXECUTED |
 
 The engine operation timeout and server-side stream-idle timeout are separate.
 Activity is one complete `ProcessingRequest`; a valid message and its response
@@ -281,10 +373,10 @@ bounded by gRPC `MaxConcurrentStreams` and the service limit.
 |---|---|---|
 | V1 | E | SELF_TEST_PASS: engine service startup/configuration checks are bounded |
 | V2 | E | SELF_TEST_PASS: engine failure is returned as a protocol error |
-| V3 | E | SOURCE_VALIDATED: worker/engine waits have bounded shutdown handling |
-| V4 | I | SELF_TEST_PASS: malformed engine response is rejected |
-| V5 | I | SELF_TEST_PASS: incomplete response is rejected |
-| V6 | P | SELF_TEST_PASS: reset peer is isolated and follow-up request succeeds |
+| V3 | E | SELF_TEST_PASS: a silent UDS peer reaches the configured transaction timeout, closes only that FD, makes the transaction terminal, and a new Allow transaction succeeds |
+| V4 | I | SELF_TEST_PASS: a validly framed but invalid RESULT opcode is rejected, discarded, and followed by a fresh Allow transaction |
+| V5 | I | SELF_TEST_PASS: a truncated RESULT frame is rejected, discarded, and followed by a fresh Allow transaction |
+| V6 | P | SELF_TEST_PASS: request-context cancellation interrupts blocked UDS reads and writes, closes only that connection, and a fresh Allow transaction succeeds; it does not attribute an HTTP client reset |
 | V7 | P | NOT_EXECUTED: live Traefik upstream-close run |
 | V8 | P | SELF_TEST_PASS: framed protocol validation rejects incomplete input |
 | V9 | P | SELF_TEST_PASS: UDS reset and 64 non-reading peer RESULT writes do not kill the service |
@@ -294,8 +386,8 @@ bounded by gRPC `MaxConcurrentStreams` and the service limit.
 | V13 | C | SOURCE_VALIDATED: bounded worker wait uses controlled restart on stuck engine |
 | V14 | L | SELF_TEST_PASS: 64 non-reading peers fill the worker bound; an additional peer is not served before the write deadline |
 | V15 | L | SELF_TEST_PASS: response and frame limits are enforced |
-| V16 | A | SELF_TEST_PASS: valid request succeeds after reset and after the 31.0-second non-reading-peer deadline |
-| V17 | U | SELF_TEST_PASS: reset, write-deadline, and ownership-replacement paths leave no owned UDS or process |
+| V16 | A | SELF_TEST_PASS: a fresh Allow transaction succeeds after timeout, cancel, invalid result, incomplete result, reset, and the 31.0-second non-reading-peer deadline |
+| V17 | U | SELF_TEST_PASS: cancel read/write, timeout, invalid/incomplete result, reset, write-deadline, and ownership-replacement paths leave no owned UDS or process; repeated Close after cancel is safe |
 
 The Native UDS shutdown path bounds the worker wait. If an uninterruptible
 engine call remains after active sockets are shut down, the service removes its
@@ -309,27 +401,56 @@ current native service test filled all 64 workers, observed no early follow-up
 service, then observed a fresh request at 31.0 seconds and complete socket and
 process cleanup; the same case passed under ASan/UBSan.
 
+The Go Native UDS client has a distinct per-exchange engine timeout and
+request-context cancellation path. It applies the earlier deadline to the
+socket, aborts a blocked read or write on cancellation, closes and discards the
+failed transaction connection, and never reuses a partial frame. Component
+tests prove timeout, cancel-read, cancel-write, invalid/truncated RESULT,
+idempotent Close, cleanup, and fresh Allow follow-ups. They do not claim a live
+Traefik client-cancel event, a post-commit retroactive HTTP status, or a host
+FD audit.
+
 ### lighttpd Stock
 
 | Vector | Class | Local evidence |
 |---|---|---|
-| V1 | E | SELF_TEST_PASS: stock host runtime smoke started, returned baseline `200`, and recorded the connector event |
+| V1 | E | SELF_TEST_PASS: current Stock host started and recorded the ABI-correct `native-lighttpd-plugin` connector event |
 | V2 | E | NOT_EXECUTED: in-transaction engine failure |
 | V3 | E | NOT_EXECUTED: live timeout run |
 | V4 | I | NOT_EXECUTED: invalid engine result |
 | V5 | I | NOT_EXECUTED: incomplete engine result |
-| V6 | P | NOT_EXECUTED: live client-close run |
-| V7 | P | NOT_EXECUTED: live backend-close run |
+| V6 | P | SELF_TEST_PASS (bounded fallback only): direct client-cancel propagation and a Stock connector event were not observed or claimed; a configured 2-second gateway/proxy backend read-timeout contained the request, logged `read timeout on socket`, and a same-host `200` follow-up succeeded |
+| V7 | P | SELF_TEST_PASS: raw truncated upstream response closed and the bounded harness completed its cleanup; this is host/transport evidence, not a claim of a typed Stock connector event |
 | V8 | P | NOT_APPLICABLE: Stock module has no agent handshake |
 | V9 | P | NOT_EXECUTED: live reset run |
 | V10 | I | NOT_EXECUTED: premature request-body end |
-| V11 | I | NOT_EXECUTED: premature response-body end |
-| V12 | C | NOT_EXECUTED: live Stock shutdown |
-| V13 | C | NOT_EXECUTED: live module termination |
-| V14 | L | NOT_EXECUTED: parallel host run |
-| V15 | L | NOT_EXECUTED: maximum size/resource limit |
-| V16 | A | SELF_TEST_PASS: stock runtime smoke observed baseline `200` and rule block `403` |
-| V17 | U | SELF_TEST_PASS: smoke observed connector event and listener cleanup |
+| V11 | P | SELF_TEST_PASS: raw truncated upstream response closed and the bounded harness completed its cleanup; this is host/transport evidence, not a claim of a typed Stock connector event |
+| V12 | C | NOT_EXECUTED: live Stock shutdown acceptance |
+| V13 | C | NOT_EXECUTED: live module-termination acceptance |
+| V14 | L | NOT_EXECUTED: parallelism acceptance; a separate bounded eight-request HTTP/1.1 run passed but does not fill this vector |
+| V15 | L | NOT_EXECUTED: maximum size/resource-limit acceptance |
+| V16 | A | SELF_TEST_PASS: same-host follow-up after the bounded fault paths returned `200`, and the identity control still returned `200 -> 403 -> 200` |
+| V17 | U | SELF_TEST_PASS: pidfd/session/port/UDS cleanup receipts passed for the first and replacement host; this does not promote the unexecuted V12--V15 vectors |
+
+The Stock raw-event identifier is selected from the same compile-time ABI
+boundary as the streaming hooks: unpatched headers emit
+`native-lighttpd-plugin`; the patched streaming-hook ABI emits
+`patched-native-lighttpd`. The focused identity run validates only provenance,
+P1 Allow/Block/follow-up behavior, and PID/listener cleanup; it does not fill
+the remaining Stock body, timeout, peer, shutdown, or parallelism vectors.
+A current bounded lifecycle run under
+`lighttpd-stock-lifecycle-v6-v10-20260825T100000Z` exercised the Stock host and
+replacement host. For V6, the client-close probe did not observe direct
+client-cancel propagation or a typed connector event; the 2-second gateway/
+proxy backend read-timeout was the explicit containment fallback, emitted the
+host `read timeout on socket` marker, and was followed by a same-host `200`
+control. The raw V7/V11 upstream-truncation fixture completed, eight bounded
+parallel HTTP/1.1 requests returned `200`, and host termination produced client
+EOF followed by restart controls `200 -> 403 -> 200`. These are bounded
+host/transport observations; they do not promote V12--V15 or full 17-vector
+acceptance. The pidfd/session/port/UDS receipts passed for both the first and
+replacement host. The older five-second timeout receipts remain retained as
+historical FND-PARENT-0311 evidence and are not silently rewritten.
 
 ### lighttpd Patched
 
@@ -340,18 +461,33 @@ process cleanup; the same case passed under ASan/UBSan.
 | V3 | E | NOT_EXECUTED: live patched-host timeout run |
 | V4 | I | NOT_EXECUTED: invalid engine result |
 | V5 | I | NOT_EXECUTED: incomplete engine result |
-| V6 | P | NOT_EXECUTED: live client-close run |
-| V7 | P | NOT_EXECUTED: live backend-close run |
+| V6 | P | SELF_TEST_PASS: 27/64 benign and P2-marker TCP RST cases leave the host alive and a fresh follow-up returns `200` |
+| V7 | P | NOT_EXECUTED: controlled upstream receipt recorded 5/64 bytes followed by a five-second frontend timeout, not EOF/defined error or immediate cleanup before host stop; FND-PARENT-0311 |
 | V8 | P | NOT_APPLICABLE: patched module has no agent handshake |
-| V9 | P | NOT_EXECUTED: live reset run |
-| V10 | I | NOT_EXECUTED: premature request-body end |
-| V11 | I | NOT_EXECUTED: premature response-body end |
+| V9 | P | SELF_TEST_PASS: TCP RST during request processing is contained; normal and ASan/UBSan hosts have no abort/sanitizer diagnostic |
+| V10 | I | SELF_TEST_PASS: premature request-body TCP RST emits no synthetic P2 abort; independent follow-up returns `200` |
+| V11 | P | NOT_EXECUTED: partial response receipt does not prove that the frontend stream completed or released transaction-local state before host stop; FND-PARENT-0311 |
 | V12 | C | NOT_EXECUTED: live patched-host shutdown |
 | V13 | C | NOT_EXECUTED: live module termination |
 | V14 | L | NOT_EXECUTED: parallel host run |
-| V15 | L | NOT_EXECUTED: maximum size/resource limit |
-| V16 | A | SELF_TEST_PASS: patched runtime smoke observed baseline `200` and rule block `403` |
-| V17 | U | SELF_TEST_PASS: smoke observed connector event and listener cleanup |
+| V15 | L | SELF_TEST_PASS: request-body 33/64 bytes exceeds the configured 32-byte limit and returns `413`; 32 bytes remains `200` |
+| V16 | A | SELF_TEST_PASS: baseline/32-byte Allow `200`, ordinary P2 marker `403`, same-wording ordinary `403`/`451`, and follow-up controls pass; V7/V11 post-fault control remains NOT_EXECUTED |
+| V17 | U | SELF_TEST_PASS: normal and ASan/UBSan runs retain event evidence and remove PID/listener after RST, success, and limit paths; V7/V11 immediate cleanup remains NOT_EXECUTED |
+
+The patched-host resume callback advances `resp_fn_step` by
+`sizeof(*plfd)`, matching the record pointer stride. The Common Runtime maps
+only a raw disruptive request-body intervention with original `403`, no
+redirect, and exact engine log `Request body limit is marked to reject the request`
+to `413`; ordinary `403` and `451` rules retain their status. This proof is
+current patched-lighttpd host evidence, not a complete cross-connector Common
+Runtime consumer matrix.
+
+The narrow patched V7/V11 fixture retained only a subsequent legitimate Block
+event in its JSONL. It did not observe frontend EOF/defined failure, a separate
+connector `peer_error` event, or immediate stream/FD/transaction cleanup
+before the controlled host stop. Its partial response, later controls, and
+post-stop cleanup are not V7/V11 promotion evidence; FND-PARENT-0311 tracks
+the required raw upstream/frontend closure harness.
 
 ## Configuration-documentation boundary
 

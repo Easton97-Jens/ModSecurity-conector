@@ -42,6 +42,35 @@ response-body, Phase-4, or capability-promotion evidence.
 Request/response body evidence, CRS, production hardening, security
 verification, and full-matrix evidence are not provided by this harness.
 
+## Response-body backend-close profile
+
+`run_lighttpd_backend_close.sh` is Patched-lighttpd-only. It deliberately
+creates `response_body_mode=streaming` so it can prove the current
+response-body upstream-EOF/abort path. A Stock host has no version-contract
+streaming hook and therefore fails closed before any runtime root, host, or
+listener is created; it must not be silently switched to a different body mode.
+Use `run_lighttpd_stock_lifecycle.sh` for the Stock transport/lifecycle profile
+instead. Its V7/V11 outcome is host/transport evidence, not a typed Stock
+response-body connector event.
+
+## Stock lifecycle profile
+
+`run_lighttpd_stock_lifecycle.sh` runs the bounded Stock host profile and
+stores evidence outside the checkout. The current run root is
+`lighttpd-stock-lifecycle-v6-v10-20260825T100000Z`.
+
+The profile records V6 as a bounded 2-second gateway/proxy backend
+read-timeout fallback: direct client-cancel propagation and a typed Stock
+connector event are not claimed; the host `read timeout on socket` marker and
+a same-host `200` follow-up are required. Raw truncated upstream response
+fixtures for V7/V11, eight bounded parallel HTTP/1.1 `200` responses, and
+client EOF after host termination are recorded as host/transport evidence.
+Restart controls must return `200 -> 403 -> 200`. Pidfd/session/port/UDS
+cleanup receipts are required for both the first and replacement host.
+
+V12--V15 and full 17-vector acceptance remain `NOT_EXECUTED`; these bounded
+receipts do not promote them or establish a complete leak audit.
+
 ## No-CRS fixture isolation and cleanup
 
 The No-CRS baseline uses the trusted namespace runner

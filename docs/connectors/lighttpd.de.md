@@ -11,6 +11,12 @@ geliehene Body-Ranges. Es behauptet keine Produktionsreife, keine
 Sicherheitsverifikation, keine CRS-Verifikation, keine vollständige Matrix,
 keine HTTP/2-/HTTP/3-Abdeckung und keine kanonische P4-Runtime-Evidence.
 
+Die separat unterstützte native Stock-ABI erzeugt in roher Event-Evidence
+<code>native-lighttpd-plugin</code>. Sie darf niemals als
+<code>patched-native-lighttpd</code> dargestellt werden; dies ist eine
+ABI-Provenienz-Eigenschaft und keine Förderung von Stock-Body- oder
+Lifecycle-Fähigkeiten.
+
 ## Architektur und Ownership
 
 Die Plugin-Lifecycle-Schicht ist host-eigen, und der Mapper ist die einzige
@@ -70,6 +76,27 @@ enge native Smoke kann nur seine angegebene Request-Pfad-Beobachtung belegen.
 P4- und Late-Intervention-Facets bleiben nicht ausgeführt oder
 capability-selected, bis reale Host-/Client-Artefakte Timing und sichtbares
 Ergebnis belegen. Siehe [Tests und Nachweise](../testing-and-evidence.de.md).
+
+### Begrenzte Stock-Lifecycle-Evidence
+
+Die laufbezogenen Nachweise unter
+`lighttpd-stock-lifecycle-v6-v10-20260825T100000Z` sind eine begrenzte
+HTTP/1.1-Hostübung und keine vollständige 17-Vektor-Abnahme. Die
+Fail-Safe-Grenze ist ausdrücklich:
+
+| Fall | Beobachtetes Verhalten | Evidence-Grenze |
+|---|---|---|
+| V6 Client-Close | Direkte Client-Cancel-Propagation und ein typisiertes Stock-Connector-Event wurden nicht beobachtet oder behauptet. Ein 2-Sekunden-Gateway-/Proxy-Backend-Read-Timeout begrenzte die Anfrage, erzeugte den Host-Marker `read timeout on socket`, und ein Same-Host-Follow-up lieferte `200`. | Host-Timeout-Fallback; keine direkte Stock-Abort-Event-Behauptung |
+| V7/V11 abgeschnittene Upstream-Response | Das rohe Upstream-Truncation-Fixture wurde geschlossen und der begrenzte Harness beendete sein Cleanup. | Nur Host-/Transport-Schließung; keine typisierte Connector-Event-Behauptung |
+| Begrenzte Parallelität | Acht parallele HTTP/1.1-Anfragen lieferten `200`. | Teilbeobachtung; V14 und die vollständige Matrix bleiben `NOT_EXECUTED` |
+| Host-Terminierung | Der aktive Client erhielt EOF, danach lieferten Restart-Controls `200 -> 403 -> 200`. | Begrenzte Host-Lifecycle-Beobachtung; V12--V15 bleiben `NOT_EXECUTED` |
+| Cleanup | PIDFD-/Session-/Port-/UDS-Receipts bestanden für den ersten und den Ersatz-Host. | Laufbezogener Cleanup-Receipt; kein vollständiger Leak-Audit-Claim |
+
+Der Lauf behauptet weder ein Stock-spezifisches Event für V6 noch direkte
+Cancel-Propagation, eine vollständige HTTP-/Protokollstatus-Zuordnung für den
+Client-Close-Fallback oder vollständige V12--V15-/17-Vektor-Abdeckung. Die
+historischen fünfsekündigen Frontend-Timeout-Receipts bleiben getrennte
+FND-PARENT-0311-Evidence.
 
 ## Betrieb und Fehlerbehebung
 

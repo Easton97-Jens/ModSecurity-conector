@@ -2,6 +2,8 @@ package processor
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -441,6 +443,33 @@ func TestProcessRejectsWhenProcessWideStreamAdmissionIsFull(t *testing.T) {
 	}
 }
 
+func TestProcessMapsEngineTimeoutToDeadlineExceededAndAllowsFollowUp(t *testing.T) {
+	transaction := &recordingTransaction{
+		headerError:     context.DeadlineExceeded,
+		headerErrorOnce: true,
+	}
+	service := newTestService(t, transaction, LateActionSafe)
+
+	failed := &fakeProcessStream{receive: []receiveResult{{request: requestHeaders(true)}}}
+	if err := service.Process(failed); status.Code(err) != codes.DeadlineExceeded {
+		t.Fatalf("timed-out Process() error code = %v, want DeadlineExceeded (err=%v)", status.Code(err), err)
+	}
+	if len(transaction.closed) != 1 || transaction.closed[0].CloseReason != CloseProcessorError {
+		t.Fatalf("timed-out cleanup = %#v, want one processor_error close", transaction.closed)
+	}
+	if got := len(service.admission); got != 0 {
+		t.Fatalf("timed-out stream retained %d admission slots", got)
+	}
+
+	control := &fakeProcessStream{receive: []receiveResult{{request: requestHeaders(true)}}}
+	if err := service.Process(control); err != nil {
+		t.Fatalf("follow-up Process() error = %v", err)
+	}
+	if len(transaction.closed) != 2 || transaction.closed[1].CloseReason != ClosePeerEOF {
+		t.Fatalf("follow-up cleanup = %#v, want peer_eof close", transaction.closed)
+	}
+}
+
 func TestStreamIdleTimeoutCleansUpAndAllowsFollowUpStream(t *testing.T) {
 	transaction := &recordingTransaction{}
 	config := testConfig(LateActionSafe)
@@ -699,6 +728,50 @@ func TestConcurrentStreamLimitReleasesAfterCancellation(t *testing.T) {
 	}
 }
 
+func TestCleanupFailureTriggersControlledRestartAndRejectsFollowUp(t *testing.T) {
+	cleanupErr := fmt.Errorf("native cleanup gate: %w", context.DeadlineExceeded)
+	transaction := &cleanupFailureTransaction{
+		recordingTransaction: &recordingTransaction{headerError: errors.New("engine processing failed")},
+		cleanupErr:           cleanupErr,
+	}
+	service, err := NewService(testConfig(LateActionSafe), cleanupFailureEngine{transaction: transaction})
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+
+	failed := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{{request: requestHeaders(true)}}}
+	if err := service.Process(failed); err == nil {
+		t.Fatal("Process() accepted a stream whose native cleanup timed out")
+	}
+	select {
+	case reported := <-service.FatalErrors():
+		if !errors.Is(reported, context.DeadlineExceeded) {
+			t.Fatalf("FatalErrors() = %v, want cleanup deadline", reported)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("cleanup failure did not notify the process owner")
+	}
+	if got := len(service.admission); got != 0 {
+		t.Fatalf("cleanup failure retained %d admission slots", got)
+	}
+	if got := len(transaction.closed); got != 1 {
+		t.Fatalf("cleanup close calls = %d, want 1", got)
+	}
+
+	control := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{{request: requestHeaders(true)}}}
+	if err := service.Process(control); status.Code(err) != codes.Unavailable {
+		t.Fatalf("follow-up Process() error = %v, want Unavailable", err)
+	}
+	if got := len(transaction.closed); got != 1 {
+		t.Fatalf("terminal follow-up opened another transaction; close calls = %d, want 1", got)
+	}
+	select {
+	case extra := <-service.FatalErrors():
+		t.Fatalf("FatalErrors() emitted more than one cleanup notification: %v", extra)
+	default:
+	}
+}
+
 func newTestService(t *testing.T, transaction *recordingTransaction, policy LateActionPolicy) *Service {
 	t.Helper()
 	service, err := NewService(testConfig(policy), recordingEngine{transaction: transaction})
@@ -733,6 +806,23 @@ type recordingEngine struct {
 	transaction *recordingTransaction
 }
 
+type cleanupFailureEngine struct {
+	transaction *cleanupFailureTransaction
+}
+
+func (engine cleanupFailureEngine) Open(context.Context, StreamMetadata) (Transaction, error) {
+	return engine.transaction, nil
+}
+
+type cleanupFailureTransaction struct {
+	*recordingTransaction
+	cleanupErr error
+}
+
+func (transaction *cleanupFailureTransaction) CleanupFailure() error {
+	return transaction.cleanupErr
+}
+
 func (engine recordingEngine) Open(context.Context, StreamMetadata) (Transaction, error) {
 	return engine.transaction, nil
 }
@@ -740,6 +830,8 @@ func (engine recordingEngine) Open(context.Context, StreamMetadata) (Transaction
 type recordingTransaction struct {
 	headerDecision      func(Direction) Decision
 	bodyDecision        func(Direction) Decision
+	headerError         error
+	headerErrorOnce     bool
 	requestBodyLengths  []int
 	responseBodyLengths []int
 	closed              []Summary
@@ -749,6 +841,13 @@ type recordingTransaction struct {
 }
 
 func (transaction *recordingTransaction) ProcessHeaders(_ context.Context, direction Direction, _ []Header, _ bool) (Decision, error) {
+	if transaction.headerError != nil {
+		err := transaction.headerError
+		if transaction.headerErrorOnce {
+			transaction.headerError = nil
+		}
+		return Decision{}, err
+	}
 	if transaction.headerDecision != nil {
 		return transaction.headerDecision(direction), nil
 	}

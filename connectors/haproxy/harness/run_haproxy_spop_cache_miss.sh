@@ -4,11 +4,11 @@ set -eu
 # Direct, production-mode SPOP transaction-cache regression.  This is
 # intentionally independent of HAProxy and the Framework: it exercises the
 # agent's wire contract and keeps every generated file in one task-owned root.
-SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
-REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/../../.." && pwd)
+SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
+REPO_ROOT=$(CDPATH='' cd "$SCRIPT_DIR/../../.." && pwd)
 BUILD_ROOT=${BUILD_ROOT:-/var/tmp/codex/ModSecurity-conector/spop-cache-miss-build}
 SPOA_BIN=${SPOA_BIN:-$BUILD_ROOT/haproxy-spoa-runtime/haproxy-modsecurity-spoa}
-RUNTIME_ROOT=${RUNTIME_ROOT:-$BUILD_ROOT/cache-miss-regression}
+RUNTIME_ROOT=${RUNTIME_ROOT:-$BUILD_ROOT/response-phase-guard-regression}
 PYTHON_BIN=${PYTHON_BIN:-python3}
 RULES_FILE=${RULES_FILE:-$REPO_ROOT/common/rules/modsecurity_targeted_smoke.conf}
 
@@ -184,7 +184,7 @@ try:
     env["ASAN_OPTIONS"] = env.get("ASAN_OPTIONS", "detect_leaks=1:abort_on_error=1")
     agent = subprocess.Popen([
         SPOA_BIN, "--listen", f"127.0.0.1:{PORT}", "--rules-file", RULES_FILE,
-        "--enable-response-headers", "--max-transactions", "1", "--worker-count", "2",
+        "--max-transactions", "1", "--worker-count", "2",
         "--spoe-timeout", "1000", "--fail-mode", "closed", "--mode", "block",
         "--log-file", os.path.join(ROOT, "agent.log"),
         "--decision-log", os.path.join(ROOT, "decisions.jsonl")],
@@ -207,17 +207,19 @@ try:
         raise AssertionError(f"agent HELLO missing, got kind={kind}")
 
     results.append(record("request-A-allow", expect(sock, notify("check-request", "A"), 1, 1)))
-    results.append(record("request-B-allow-evicts-A", expect(sock, notify("check-request", "B"), 2, 1)))
-    miss = record("response-A-cache-miss", expect(sock, notify("check-response", "A"), 1, 2))
-    if miss["fields"].get("status") != 503 or miss["fields"].get("error") != "stateful_response_transaction_missing_closed":
-        raise AssertionError(f"cache miss did not fail closed: {miss}")
+    results.append(record("request-B-follow-up", expect(sock, notify("check-request", "B"), 2, 1)))
+    rejected = record("response-disabled-phase", expect(sock, notify("check-response", "A"), 1, 2))
+    if (rejected["fields"].get("status") != 503 or
+            rejected["fields"].get("blocked") is not True or
+            rejected["fields"].get("error") != "response_phase_disabled_closed"):
+        raise AssertionError(f"disabled response phase was not rejected fail-closed: {rejected}")
     blocked = record("request-block", expect(sock, notify("check-request", "BLOCK", "block"), 3, 1))
     if blocked["fields"].get("status") != 403 or blocked["fields"].get("blocked") is not True:
         raise AssertionError(f"legitimate block control failed: {blocked}")
     allowed = record("request-C-fresh-allow", expect(sock, notify("check-request", "C"), 4, 1))
     if allowed["fields"].get("status") != 200 or allowed["fields"].get("blocked") is not False:
         raise AssertionError(f"fresh allow control failed: {allowed}")
-    print("spop-cache-miss-regression: PASS")
+    print("spop-response-phase-guard-regression: PASS")
 finally:
     if sock is not None:
         try:

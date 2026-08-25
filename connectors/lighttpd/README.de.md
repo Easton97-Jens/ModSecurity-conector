@@ -26,6 +26,12 @@ Anforderungsbereiche und Identitätsantwort-Entitätsbereiche, aber dieser Vertr
 Antworttext-Laufzeitnachweis. CRS, Produktionshärtung, Sicherheitsüberprüfung,
 und Vollmatrixverifizierung werden nicht beansprucht.
 
+Die rohe JSONL-Event-Identität folgt der kompilierten Host-ABI: Das native
+Stock-Modul erzeugt `native-lighttpd-plugin`, während die
+Framework-synchronisierte Patched-ABI `patched-native-lighttpd` erzeugt. Diese
+Provenienzunterscheidung fördert weder Stock-Body-Fähigkeiten noch den
+Patched-Lifecycle-Vertrag.
+
 Das Full-Lifecycle-Profil wählt ein separates Framework-synchronisiertes Lighttpd aus
 Patched-Host-Ziel, das kopiert, patcht, konfiguriert, erstellt, installiert und
 stellt einen passenden Kern und ein passendes Modul zusammen.
@@ -80,6 +86,27 @@ bis die Filterreihenfolge und das Dekomprimierungsverhalten echte Host-Beweise h
 `config/lighttpd-native.conf` ist ein dokumentiertes Beispiel; Es sind zwei Absolute
 Platzhalterpfade müssen ersetzt werden. Der native Harness generiert ein Runnable
 Konfiguration mit verwalteten absoluten Pfaden.
+
+## Stock-Lifecycle-Evidence
+
+Das laufbezogene Stock-Lifecycle-Profil ist
+`lighttpd-stock-lifecycle-v6-v10-20260825T100000Z`. Es ist begrenzte
+HTTP/1.1-Host-Evidence und keine vollständige 17-Vektor-Abnahme. V6
+beobachtete oder behauptete weder direkte Client-Cancel-Propagation noch ein
+typisiertes Stock-Connector-Event. Ein konfiguriertes
+2-Sekunden-Gateway-/Proxy-Backend-Read-Timeout begrenzte die Anfrage,
+erzeugte den Host-Marker `read timeout on socket`, und ein Same-Host-Follow-up
+lieferte `200`. Die rohe V7/V11-Upstream-Truncation wurde mit Harness-Cleanup
+beendet; acht parallele HTTP/1.1-Anfragen lieferten `200`; die
+Host-Terminierung erzeugte Client-EOF, gefolgt von Restart-Controls
+`200 -> 403 -> 200`.
+
+PIDFD-/Session-/Port-/UDS-Cleanup-Receipts bestanden für den ersten und den
+Ersatz-Host. Diese Beobachtungen heben V12--V15 oder die vollständige
+17-Vektor-Abdeckung nicht hoch und liefern weder einen vollständigen
+Leak-Audit noch einen Stock-spezifischen V6-Event-/Status-Claim. Historische
+fünfsekündige Frontend-Timeout-Receipts bleiben als FND-PARENT-0311-Evidence
+verfolgt.
 
 ## Build und Validierung
 

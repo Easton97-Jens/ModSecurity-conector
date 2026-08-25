@@ -22,10 +22,17 @@ import (
 
 const commonRuntimeErrorBufferSize = 512
 
-// ErrCommonRuntimeShutdownTimeout means a native operation kept the runtime
-// mutex past shutdown's deadline. Native CGo calls cannot be interrupted
-// safely; the process must terminate for a supervisor restart.
-var ErrCommonRuntimeShutdownTimeout = errors.New("Common runtime shutdown timed out; controlled process restart required")
+var (
+	// ErrCommonRuntimeShutdownTimeout means a native operation kept the runtime
+	// mutex past shutdown's deadline. Native CGo calls cannot be interrupted
+	// safely; the process must terminate for a supervisor restart.
+	ErrCommonRuntimeShutdownTimeout = errors.New("Common runtime shutdown timed out; controlled process restart required")
+	// ErrCommonRuntimeTransactionCleanupTimeout means a transaction could not
+	// acquire the native runtime gate during its bounded cleanup. Continuing to
+	// serve with the transaction still registered would leak native state, so
+	// the connector must stop and let its supervisor restart it.
+	ErrCommonRuntimeTransactionCleanupTimeout = errors.New("Common runtime transaction cleanup timed out; controlled process restart required")
+)
 
 // CommonRuntimeEngine is the Envoy-specific, CGo-backed adapter for the
 // checked-in Common Runtime. It holds one libmodsecurity engine and opens one
@@ -38,6 +45,8 @@ type CommonRuntimeEngine struct {
 	closed       bool
 	closing      atomic.Bool
 	transactions map[*commonRuntimeTransaction]struct{}
+	failureMu    sync.Mutex
+	terminalErr  error
 }
 
 // NewCommonRuntimeEngine creates a real Common/libmodsecurity runtime from a
@@ -71,22 +80,17 @@ func (engine *CommonRuntimeEngine) Close(ctx context.Context) error {
 	if engine == nil {
 		return nil
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx = commonRuntimeContext(ctx)
 	engine.closing.Store(true)
-	poll := time.NewTicker(time.Millisecond)
-	defer poll.Stop()
-	for !engine.mu.TryLock() {
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("%w: %v", ErrCommonRuntimeShutdownTimeout, ctx.Err())
-		case <-poll.C:
-		}
+	if err := lockCommonRuntimeMutex(ctx, &engine.mu); err != nil {
+		return fmt.Errorf("%w: %v", ErrCommonRuntimeShutdownTimeout, err)
 	}
 	defer engine.mu.Unlock()
 	if engine.closed {
 		return nil
+	}
+	if err := engine.terminalFailure(); err != nil {
+		return fmt.Errorf("cannot close Common runtime after unsafe transaction cleanup: %w", err)
 	}
 	if len(engine.transactions) != 0 {
 		return fmt.Errorf("cannot close Common runtime with %d active transactions", len(engine.transactions))
@@ -97,6 +101,7 @@ func (engine *CommonRuntimeEngine) Close(ctx context.Context) error {
 }
 
 func (engine *CommonRuntimeEngine) Open(ctx context.Context, metadata StreamMetadata) (Transaction, error) {
+	ctx = commonRuntimeContext(ctx)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -106,7 +111,9 @@ func (engine *CommonRuntimeEngine) Open(ctx context.Context, metadata StreamMeta
 	if engine.closing.Load() {
 		return nil, fmt.Errorf("Common runtime engine is shutting down")
 	}
-	engine.mu.Lock()
+	if err := lockCommonRuntimeMutex(ctx, &engine.mu); err != nil {
+		return nil, err
+	}
 	defer engine.mu.Unlock()
 	if engine.closed || engine.runtime == nil || engine.closing.Load() {
 		return nil, fmt.Errorf("Common runtime engine is closed")
@@ -129,13 +136,16 @@ type commonRuntimeTransaction struct {
 }
 
 func (transaction *commonRuntimeTransaction) ProcessHeaders(ctx context.Context, direction Direction, headers []Header, endOfStream bool) (Decision, error) {
+	ctx = commonRuntimeContext(ctx)
 	if err := ctx.Err(); err != nil {
 		return Decision{}, err
 	}
 	if transaction == nil || transaction.engine == nil {
 		return Decision{}, fmt.Errorf("Common transaction is nil")
 	}
-	transaction.engine.mu.Lock()
+	if err := lockCommonRuntimeMutex(ctx, &transaction.engine.mu); err != nil {
+		return Decision{}, err
+	}
 	defer transaction.engine.mu.Unlock()
 	if err := transaction.assertUsableLocked(); err != nil {
 		return Decision{}, err
@@ -193,13 +203,16 @@ func (transaction *commonRuntimeTransaction) processResponseHeadersLocked(direct
 }
 
 func (transaction *commonRuntimeTransaction) ProcessBody(ctx context.Context, direction Direction, body []byte, endOfStream bool) (Decision, error) {
+	ctx = commonRuntimeContext(ctx)
 	if err := ctx.Err(); err != nil {
 		return Decision{}, err
 	}
 	if transaction == nil || transaction.engine == nil {
 		return Decision{}, fmt.Errorf("Common transaction is nil")
 	}
-	transaction.engine.mu.Lock()
+	if err := lockCommonRuntimeMutex(ctx, &transaction.engine.mu); err != nil {
+		return Decision{}, err
+	}
 	defer transaction.engine.mu.Unlock()
 	if err := transaction.assertUsableLocked(); err != nil {
 		return Decision{}, err
@@ -236,13 +249,16 @@ func (transaction *commonRuntimeTransaction) ProcessBody(ctx context.Context, di
 // matching gRPC response was successfully written to Envoy. It deliberately
 // does not claim that a downstream byte was observed.
 func (transaction *commonRuntimeTransaction) MarkResponseCommitted(ctx context.Context) error {
+	ctx = commonRuntimeContext(ctx)
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if transaction == nil || transaction.engine == nil {
 		return fmt.Errorf("Common transaction is nil")
 	}
-	transaction.engine.mu.Lock()
+	if err := lockCommonRuntimeMutex(ctx, &transaction.engine.mu); err != nil {
+		return err
+	}
 	defer transaction.engine.mu.Unlock()
 	if err := transaction.assertUsableLocked(); err != nil {
 		return err
@@ -259,6 +275,7 @@ func (transaction *commonRuntimeTransaction) MarkResponseCommitted(ctx context.C
 // C ABI retains the original disruptive decision internally; this method never
 // reserializes a request/response payload into an adapter-local event.
 func (transaction *commonRuntimeTransaction) RecordHostAction(ctx context.Context, action HostAction) error {
+	ctx = commonRuntimeContext(ctx)
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -284,7 +301,9 @@ func (transaction *commonRuntimeTransaction) RecordHostAction(ctx context.Contex
 	}
 	cTransportResult := C.CString(action.TransportResult)
 	defer C.free(unsafe.Pointer(cTransportResult))
-	transaction.engine.mu.Lock()
+	if err := lockCommonRuntimeMutex(ctx, &transaction.engine.mu); err != nil {
+		return err
+	}
 	defer transaction.engine.mu.Unlock()
 	if err := transaction.assertUsableLocked(); err != nil {
 		return err
@@ -312,11 +331,11 @@ func (transaction *commonRuntimeTransaction) Close(ctx context.Context, _ Summar
 	if transaction == nil || transaction.engine == nil {
 		return
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if !lockCommonRuntimeMutex(ctx, &transaction.engine.mu) {
-		transaction.setCleanupFailure(fmt.Errorf("Common transaction cleanup timed out: %w", ctx.Err()))
+	ctx = commonRuntimeContext(ctx)
+	if err := lockCommonRuntimeMutex(ctx, &transaction.engine.mu); err != nil {
+		failure := fmt.Errorf("%w: %w", ErrCommonRuntimeTransactionCleanupTimeout, err)
+		transaction.setCleanupFailure(failure)
+		transaction.engine.markTerminalFailure(failure)
 		return
 	}
 	defer transaction.engine.mu.Unlock()
@@ -337,6 +356,31 @@ func (transaction *commonRuntimeTransaction) setCleanupFailure(err error) {
 	transaction.cleanupErr = err
 }
 
+// markTerminalFailure prevents new native work as soon as a transaction cannot
+// be safely cleaned up. It deliberately does not acquire the native mutex:
+// that mutex may be held by the uninterruptible CGo call which made cleanup
+// unsafe in the first place.
+func (engine *CommonRuntimeEngine) markTerminalFailure(err error) {
+	if engine == nil || err == nil {
+		return
+	}
+	engine.closing.Store(true)
+	engine.failureMu.Lock()
+	defer engine.failureMu.Unlock()
+	if engine.terminalErr == nil {
+		engine.terminalErr = err
+	}
+}
+
+func (engine *CommonRuntimeEngine) terminalFailure() error {
+	if engine == nil {
+		return nil
+	}
+	engine.failureMu.Lock()
+	defer engine.failureMu.Unlock()
+	return engine.terminalErr
+}
+
 // CleanupFailure lets the stream owner propagate a bounded native cleanup
 // failure without freeing native memory that may still be in use. The process
 // must be terminated/restarted if an already-entered native C call remains
@@ -350,22 +394,41 @@ func (transaction *commonRuntimeTransaction) CleanupFailure() error {
 	return transaction.cleanupErr
 }
 
-func lockCommonRuntimeMutex(ctx context.Context, mutex *sync.Mutex) bool {
+func commonRuntimeContext(ctx context.Context) context.Context {
 	if ctx == nil {
-		ctx = context.Background()
+		return context.Background()
+	}
+	return ctx
+}
+
+// lockCommonRuntimeMutex waits for the serial native-runtime gate without
+// spending a stream's context budget on a queued CGo call. If it returns nil,
+// the caller owns mutex and must unlock it.
+func lockCommonRuntimeMutex(ctx context.Context, mutex *sync.Mutex) error {
+	ctx = commonRuntimeContext(ctx)
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	if mutex.TryLock() {
-		return true
+		if err := ctx.Err(); err != nil {
+			mutex.Unlock()
+			return err
+		}
+		return nil
 	}
 	poll := time.NewTicker(time.Millisecond)
 	defer poll.Stop()
 	for {
 		select {
 		case <-ctx.Done():
-			return false
+			return ctx.Err()
 		case <-poll.C:
 			if mutex.TryLock() {
-				return true
+				if err := ctx.Err(); err != nil {
+					mutex.Unlock()
+					return err
+				}
+				return nil
 			}
 		}
 	}

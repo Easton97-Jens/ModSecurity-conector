@@ -56,9 +56,16 @@ Consequently a long-lived streamed request or response remains legitimate when
 it continues to send messages within the interval. On expiry the service
 returns gRPC `DeadlineExceeded`, records `grpc_stream_idle_timeout`, closes the
 transaction with its separate `cleanup_timeout_ms`, and releases admission for
-a following stream. `engine_timeout_ms` independently bounds the context
-passed to an engine callback; it neither substitutes for nor restarts the
-stream-idle clock.
+a following stream. `engine_timeout_ms` independently bounds every engine
+operation: it covers both waiting for the serialized Common-Runtime mutex and
+the remaining callback execution after that mutex is acquired. It neither
+substitutes for nor restarts the stream-idle clock. If that context expires
+before native entry, the current stream receives gRPC `DeadlineExceeded`, its
+completion evidence is `processor_error`, it emits no allow response, and the
+normal per-stream cleanup and admission release permit a following stream. A
+native CGo call that had already entered an uninterruptible section remains a
+separate controlled-restart case; the timeout never claims to cancel it in
+place.
 
 The pending-`Recv` lifecycle is covered by an actual gRPC bufconn test: an idle
 stream leaves exactly one bounded receive wait, cancellation releases it, and a
@@ -67,8 +74,10 @@ streams, releases their transactions and admission slots, and the forced-stop
 path has its own deadline. Lock acquisition and cleanup are likewise
 deadline-bounded. A native CGo call or destructor that has already entered an
 uninterruptible native section cannot be canceled in place; the service reports
-a controlled nonzero outcome so a supervisor can restart the process rather
-than claiming in-process cancellation.
+a terminal cleanup failure to `main`. The current stream fails, new streams
+receive gRPC `Unavailable`, `main` stops the gRPC listener with its bounded
+forced-stop path, and the process exits nonzero for supervisor restart rather
+than claiming in-process cancellation or reusing native state.
 
 gRPC context cancellation (including server shutdown) follows the same
 per-stream cleanup path and is recorded as

@@ -58,8 +58,16 @@ Response bleibt daher zulässig, wenn er innerhalb des Intervalls weiter
 Nachrichten liefert. Bei Ablauf liefert der Service gRPC `DeadlineExceeded`,
 zeichnet `grpc_stream_idle_timeout` auf, schließt die Transaktion mit dem
 getrennten `cleanup_timeout_ms` und gibt die Zulassung für einen Folgestream
-frei. `engine_timeout_ms` begrenzt unabhängig nur den Context eines
-Engine-Callbacks; er ersetzt oder startet die Stream-Idle-Uhr nicht neu.
+frei. `engine_timeout_ms` begrenzt unabhängig jede Engine-Operation: sowohl
+das Warten auf den serialisierten Common-Runtime-Mutex als auch die
+verbleibende Callback-Ausführung nach dessen Erwerb. Er ersetzt oder startet
+die Stream-Idle-Uhr nicht neu. Läuft dieser Context vor dem nativen Eintritt
+ab, erhält der aktuelle Stream gRPC `DeadlineExceeded`, seine Abschluss-
+Evidence lautet `processor_error`, er emittiert keine Allow-Antwort, und der
+reguläre Stream-Cleanup mit Freigabe der Zulassung erlaubt einen Folgestream.
+Ein nativer CGo-Aufruf, der bereits einen nicht unterbrechbaren Abschnitt
+betreten hat, bleibt ein getrennter kontrollierter Restart-Fall; der Timeout
+behauptet nicht, ihn in-process abzubrechen.
 
 Der Lebenszyklus eines ausstehenden `Recv` ist durch einen echten gRPC-
 bufconn-Test abgedeckt: Ein inaktiver Stream hinterlässt genau ein begrenztes
@@ -69,9 +77,11 @@ Transaktionen und Zulassungsslots frei, und der erzwungene Stop besitzt eine
 eigene Deadline. Auch Lock-Erwerb und Cleanup sind deadline-begrenzt. Ein
 nativer CGo-Aufruf oder Destruktor, der bereits in einen nicht unterbrechbaren
 nativen Abschnitt eingetreten ist, kann nicht innerhalb des Prozesses storniert
-werden; der Service meldet stattdessen ein kontrolliertes Ergebnis ungleich
-Null, damit ein Supervisor den Prozess neu startet, ohne eine In-Process-
-Stornierung zu behaupten.
+werden; der Service meldet einen terminalen Cleanup-Fehler an `main`. Der
+aktuelle Stream schlägt fehl, neue Streams erhalten gRPC `Unavailable`, `main`
+stoppt den gRPC-Listener über seinen begrenzten Forced-Stop-Pfad, und der
+Prozess endet mit Nonzero für den Supervisor-Restart, statt eine In-Process-
+Stornierung oder Wiederverwendung nativen States zu behaupten.
 
 Eine gRPC-Context-Stornierung (einschließlich Server-Shutdown) folgt demselben
 Cleanup-Pfad pro Stream und wird als
