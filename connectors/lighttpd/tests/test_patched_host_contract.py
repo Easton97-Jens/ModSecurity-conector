@@ -706,6 +706,28 @@ class PatchedHostContractTest(unittest.TestCase):
             self.assertEqual(rejected.returncode, 77)
             self.assertIn("must be 0 or 1", rejected.stderr)
 
+    def test_stock_response_helpers_are_outside_the_patched_stream_abi_guard(self) -> None:
+        module = (CONNECTOR / "module" / "mod_msconnector.c").read_text(
+            encoding="utf-8"
+        )
+        stream_guard = module.index(
+            "#ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION",
+            module.index("static handler_t mod_msconnector_apply_decision"),
+        )
+        response_headers = module.index(
+            "static int mod_msconnector_response_headers_committed"
+        )
+        host_transaction = module.index(
+            "static int mod_msconnector_emit_host_transaction_id"
+        )
+        response_body = module.index(
+            "static int mod_msconnector_response_body_committed"
+        )
+
+        self.assertLess(response_headers, stream_guard)
+        self.assertLess(host_transaction, stream_guard)
+        self.assertGreater(response_body, stream_guard)
+
     def test_crs_harness_records_private_wire_correlation_without_a_client_transaction_id(self) -> None:
         runner = (CONNECTOR / "harness" / "run_patched_full_lifecycle.sh").read_text(
             encoding="utf-8"

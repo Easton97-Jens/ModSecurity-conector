@@ -676,6 +676,13 @@ cleanup() {
         kill "$BACKEND_PID" >/dev/null 2>&1 || true
         wait "$BACKEND_PID" >/dev/null 2>&1 || true
     fi
+    if [ -n "${RUNTIME_ROOT:-}" ]; then
+        rm -f \
+            "$RUNTIME_ROOT/haproxy.pid" \
+            "$RUNTIME_ROOT/spoa.pid" \
+            "$RUNTIME_ROOT/spoa.port" \
+            "$RUNTIME_ROOT/spoa.ready"
+    fi
 }
 
 write_haproxy_config() {
