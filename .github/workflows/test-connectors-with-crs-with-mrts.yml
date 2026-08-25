@@ -1,0 +1,305 @@
+name: connector-tests-with-crs-with-mrts
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - .github/workflows/test-connectors-with-crs-with-mrts.yml
+      - tests/test_ci_security_workflows.py
+      - tests/test_connector_mode_coverage_summary.py
+      - tests/test_python_version_contract.py
+      - ci/checks/common/check-python-version-contract.py
+      - ci/checks/common/check-python-interpreter-contract.py
+      - ci/provisioning/**
+      - ci/tools/print-framework-apr-util-env.sh
+      - ci/lib/**
+      - ci/evidence/reports/update-runtime-reports.py
+      - ci/runtime/**
+      - connectors/apache/**
+      - connectors/envoy/**
+      - connectors/haproxy/**
+      - connectors/lighttpd/**
+      - connectors/traefik/**
+      - config/**
+      - Makefile
+      - .python-version
+      - .gitmodules
+      - modules/ModSecurity-test-Framework
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: connector-tests-with-crs-with-mrts
+  cancel-in-progress: false
+
+jobs:
+  connector-mode:
+    name: with-crs/with-mrts / ${{ matrix.connector }} / ${{ matrix.coverage_kind }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - connector: apache
+            coverage_kind: runtime
+            crs: with-crs
+            mrts: with-mrts
+          - connector: envoy
+            coverage_kind: expected_unsupported
+            crs: with-crs
+            mrts: with-mrts
+          - connector: haproxy
+            coverage_kind: runtime
+            crs: with-crs
+            mrts: with-mrts
+          - connector: lighttpd
+            coverage_kind: expected_unsupported
+            crs: with-crs
+            mrts: with-mrts
+          - connector: traefik
+            coverage_kind: expected_unsupported
+            crs: with-crs
+            mrts: with-mrts
+    env:
+      ALLOW_RUNTIME_BUILDS: "1"
+      ALLOW_RUNTIME_DOWNLOADS: "1"
+      EXPECTED_FRAMEWORK_SHA: c40e924ec5c341032908e0082feba1d37ed1dfda
+      EXPECTED_MRTS_SHA: 615b13bacbd008562c17408246c41ab27dca3104
+      EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      CRS_RUNTIME_RUN_ID: crs-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.connector }}
+      CRS: ${{ matrix.crs }}
+      MRTS: ${{ matrix.mrts }}
+      COVERAGE_KIND: ${{ matrix.coverage_kind }}
+      PYTHONDONTWRITEBYTECODE: "1"
+
+    steps:
+      - name: Checkout pinned Parent, Framework, and MRTS source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Set up toolchain
+        id: setup-python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+
+      - name: Verify recorded Framework and MRTS revisions
+        id: verify-revisions
+        run: |
+          set -euo pipefail
+          parent_commit=$(git rev-parse HEAD)
+          framework_commit=$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)
+          mrts_commit=$(git -C modules/ModSecurity-test-Framework/tools/MRTS rev-parse HEAD)
+          test "$parent_commit" = "$EXPECTED_PARENT_SHA"
+          test "$framework_commit" = "$EXPECTED_FRAMEWORK_SHA"
+          test "$mrts_commit" = "$EXPECTED_MRTS_SHA"
+
+      - name: Verify selected static cell
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+        run: |
+          set -euo pipefail
+          test "$CRS" = with-crs
+          test "$MRTS" = with-mrts
+          case "$CONNECTOR:$COVERAGE_KIND" in
+            apache:runtime|haproxy:runtime|envoy:expected_unsupported|lighttpd:expected_unsupported|traefik:expected_unsupported) ;;
+            *) echo "FAIL: static coverage cell is not permitted: $CONNECTOR/$COVERAGE_KIND" >&2; exit 2 ;;
+          esac
+
+      - name: Declare coverage classification
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+        run: |
+          set -euo pipefail
+          case "$COVERAGE_KIND" in
+            runtime) claim="native with-MRTS runtime control; DetectionOnly expected; no enforcement claim" ;;
+            expected_unsupported) claim="real full-matrix parser rejection before runtime" ;;
+            *) echo "FAIL: unsupported coverage kind: $COVERAGE_KIND" >&2; exit 2 ;;
+          esac
+          {
+            echo "### $CONNECTOR $CRS/$MRTS"
+            echo
+            echo "| Axis | Fixed value |"
+            echo "| --- | --- |"
+            echo "| coverage kind | $COVERAGE_KIND |"
+            echo "| claim | $claim |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Initialize private runner paths
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+          SETUP_PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}
+        run: |
+          set -euo pipefail
+          case "$CONNECTOR" in apache|envoy|haproxy|lighttpd|traefik) ;; *) exit 2 ;; esac
+          cell_root="$RUNNER_TEMP/ModSecurity-conector-connector-modes/$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/$CRS-$MRTS/$CONNECTOR"
+          case "$cell_root" in "$RUNNER_TEMP"/*) ;; *) echo "FAIL: unsafe runner path" >&2; exit 2 ;; esac
+          umask 077
+          mkdir -p "$cell_root"
+          {
+            echo "CELL_ROOT=$cell_root"
+            echo "VERIFIED_RUN_ROOT=$cell_root/verified"
+            echo "BUILD_ROOT=$cell_root/verified/build"
+            echo "SOURCE_ROOT=$cell_root/src"
+            echo "TMP_ROOT=$cell_root/tmp"
+            echo "LOG_ROOT=$cell_root/logs"
+            echo "CACHE_ROOT=$cell_root/cache"
+            echo "CONNECTOR_COMPONENT_CACHE=$cell_root/cache/shared"
+            echo "FRAMEWORK_ROOT=$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework"
+            echo "PYTHON=$SETUP_PYTHON_PATH"
+            echo "PYTHON_BIN=$SETUP_PYTHON_PATH"
+            echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
+          } >> "$GITHUB_ENV"
+
+      - name: Install hash-locked Framework runtime dependency
+        if: matrix.coverage_kind == 'runtime'
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock
+          python3 -m pip check
+
+      - name: Prepare fresh CRS source for Apache and HAProxy
+        id: prepare-crs-source
+        if: matrix.coverage_kind == 'runtime'
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+          CONNECTOR_REPOSITORY_ROOT: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          case "$FRAMEWORK_ROOT" in "$GITHUB_WORKSPACE"/modules/ModSecurity-test-Framework) ;; *) echo "FAIL: unsafe Framework root" >&2; exit 2 ;; esac
+          case "$CONNECTOR_COMPONENT_CACHE" in "$CACHE_ROOT"/shared) ;; *) echo "FAIL: unsafe connector component cache" >&2; exit 2 ;; esac
+          case "$CONNECTOR" in
+            apache|haproxy)
+              (
+                . "$FRAMEWORK_ROOT/ci/lib/common.sh"
+                . ci/runtime/lifecycle/prepare-fresh-crs-source.sh
+                sh "$FRAMEWORK_ROOT/ci/provisioning/fetch-crs.sh"
+                . ci/runtime/lifecycle/promote-fresh-crs-source-to-component-cache.sh
+                printf '%s\n' "SOURCE_ROOT=$SOURCE_ROOT" "CRS_SOURCE_DIR=$CRS_SOURCE_DIR" >> "$GITHUB_ENV"
+              )
+              ;;
+            *) echo "FAIL: CRS preparation is not permitted for $CONNECTOR" >&2; exit 2 ;;
+          esac
+
+      - name: Select canonical Framework scenarios
+        id: select-canonical-framework-scenarios
+        run: |
+          set -euo pipefail
+          echo "selection_outcome=not_applicable" >> "$GITHUB_OUTPUT"
+          echo "No canonical Framework scenario is declared for with-CRS/with-MRTS; selection is not applicable."
+
+      - name: Run canonical Framework scenarios
+        id: run-canonical-framework-scenarios
+        if: matrix.coverage_kind == 'runtime'
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+        run: |
+          set -euo pipefail
+          case "$CONNECTOR" in
+            apache)
+              RUNTIME_COMPONENT_TARGET=apache make verified-apache-case CASE=action_allow_phase1_pass CRS="$CRS" MRTS="$MRTS"
+              ;;
+            haproxy)
+              haproxy_source_root="$CACHE_ROOT/shared/sources"
+              case "$haproxy_source_root" in "$CACHE_ROOT"/*) ;; *) echo "FAIL: unsafe HAProxy source root" >&2; exit 2 ;; esac
+              SOURCE_ROOT="$haproxy_source_root" RUNTIME_COMPONENT_TARGET=haproxy make verified-haproxy-case CASE=action_allow_phase1_pass CRS="$CRS" MRTS="$MRTS"
+              ;;
+            *) echo "FAIL: runtime path is not permitted for $CONNECTOR" >&2; exit 2 ;;
+          esac
+
+      - name: Verify focused runtime cleanup
+        if: always() && matrix.coverage_kind == 'runtime'
+        run: |
+          set -euo pipefail
+          test -n "${BUILD_ROOT:-}"
+          if ps -eo comm=,args= | awk -v root="$BUILD_ROOT" '
+            index($0, root) > 0 && $1 ~ /^(httpd|apache2|haproxy|spoa|python|python3)$/ { found=1 }
+            END { exit found ? 0 : 1 }
+          '; then
+            echo "FAIL: a focused runtime process remains below $BUILD_ROOT" >&2
+            exit 1
+          fi
+
+      - name: Prove current safe full-matrix rejection
+        if: matrix.coverage_kind == 'expected_unsupported'
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+        run: |
+          set -euo pipefail
+          for candidate in "$CONNECTOR" unknown _template; do
+            rejected_build_root="$CELL_ROOT/rejected-$candidate-build"
+            rejection_log="$CELL_ROOT/rejected-$candidate.stderr"
+            case "$candidate" in envoy|lighttpd|traefik|unknown|_template) ;; *) exit 2 ;; esac
+            test ! -e "$rejected_build_root"
+            if python3 ci/runtime/lifecycle/run-full-matrix-job.py \
+              --connector "$candidate" \
+              --crs "$CRS" \
+              --mrts "$MRTS" \
+              --connector-root "$GITHUB_WORKSPACE" \
+              --framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
+              --build-root "$rejected_build_root" >"$rejection_log" 2>&1; then
+              echo "FAIL: full-matrix runner unexpectedly accepted $candidate" >&2
+              exit 1
+            else
+              rc=$?
+            fi
+            if [ "$rc" -ne 2 ]; then
+              printf 'FAIL: expected parser exit 2 for %s, got %s\n' "$candidate" "$rc" >&2
+              cat "$rejection_log" >&2
+              exit 1
+            fi
+            if ! grep -F -- "argument --connector: invalid choice:" "$rejection_log" >/dev/null; then
+              printf 'FAIL: expected invalid-choice rejection for %s\n' "$candidate" >&2
+              cat "$rejection_log" >&2
+              exit 1
+            fi
+            test ! -e "$rejected_build_root"
+          done
+          {
+            echo
+            echo "Safe parser rejection observed for $CONNECTOR, unknown, and _template; no host runtime or build artifact was accepted."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Validate canonical scenario evidence
+        id: validate-canonical-scenario-evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          echo "validation_outcome=not_applicable" >> "$GITHUB_OUTPUT"
+          echo "No canonical Framework scenario evidence is declared for with-CRS/with-MRTS; validation is not applicable."
+
+      - name: Write complete connector coverage summary
+        if: always() && steps.verify-revisions.outcome == 'success'
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+          SELECTION_OUTCOME: ${{ steps.select-canonical-framework-scenarios.outputs.selection_outcome }}
+          EXECUTION_OUTCOME: not_applicable
+          EVIDENCE_VALIDATION_OUTCOME: ${{ steps.validate-canonical-scenario-evidence.outputs.validation_outcome }}
+        run: |
+          set -euo pipefail
+          python3 ci/runtime/lifecycle/summarize-connector-mode-coverage.py \
+            --connector "$CONNECTOR" \
+            --crs "$CRS" \
+            --mrts "$MRTS" \
+            --coverage-kind "$COVERAGE_KIND" \
+            --connector-root "$GITHUB_WORKSPACE" \
+            --framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
+            --parent-sha "$EXPECTED_PARENT_SHA" \
+            --framework-sha "$EXPECTED_FRAMEWORK_SHA" \
+            --run-id "$CRS_RUNTIME_RUN_ID" \
+            --evidence-validation-outcome "$EVIDENCE_VALIDATION_OUTCOME" \
+            --selection-outcome "$SELECTION_OUTCOME" \
+            --execution-outcome "$EXECUTION_OUTCOME"

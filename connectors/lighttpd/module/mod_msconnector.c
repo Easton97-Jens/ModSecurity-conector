@@ -508,16 +508,12 @@ static handler_t mod_msconnector_handle_request_body(
     return eos ? mod_msconnector_finish_request_body(r, p, ctx) : HANDLER_GO_ON;
 }
 
+#endif
+
 static int mod_msconnector_response_headers_committed(
         const request_st *r) {
     return r != NULL && r->resp_header_len > 0U &&
         r->write_queue.bytes_out >= (off_t)r->resp_header_len;
-}
-
-static int mod_msconnector_response_body_committed(
-        const request_st *r) {
-    return r != NULL && r->resp_header_len > 0U &&
-        r->write_queue.bytes_out > (off_t)r->resp_header_len;
 }
 
 /*
@@ -571,6 +567,14 @@ static int mod_msconnector_emit_host_transaction_id(
         ctx->host_request_id,
         (uint32_t)transaction_id_size);
     return 1;
+}
+
+#ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
+
+static int mod_msconnector_response_body_committed(
+        const request_st *r) {
+    return r != NULL && r->resp_header_len > 0U &&
+        r->write_queue.bytes_out > (off_t)r->resp_header_len;
 }
 
 static plugin_body_hook_result mod_msconnector_finish_response_body(

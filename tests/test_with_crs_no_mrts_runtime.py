@@ -78,6 +78,126 @@ def read_json(path: Path) -> dict[str, object]:
     return value
 
 
+def summary_evidence_context(
+    root: Path,
+    *,
+    run_id: str = "valid-run",
+) -> tuple[dict[str, str], Path]:
+    """Return a workflow-derived verified-root context for Summary fixtures."""
+    parent_sha = "a" * 40
+    framework_sha = "b" * 40
+    runner_temp = root / "runner-temp"
+    verified_root = (
+        runner_temp
+        / "ModSecurity-conector-with-crs-no-mrts"
+        / parent_sha
+        / run_id
+        / "verified"
+    )
+    return (
+        {
+            "runner_temp": str(runner_temp),
+            "parent_sha": parent_sha,
+            "framework_sha": framework_sha,
+            "run_id": run_id,
+        },
+        verified_root,
+    )
+
+
+def write_normalized_summary_evidence(
+    verified_root: Path,
+    context: dict[str, str],
+    connector: str,
+) -> None:
+    """Create the complete normalized contract accepted by the Summary reader."""
+    run_id = context["run_id"]
+    event = {
+        "schema_version": 1,
+        "profile": SUMMARY.PROFILE,
+        "connector": connector,
+        "integration_mode": SUMMARY.INTEGRATION_MODES[connector],
+        "run_id": run_id,
+        "connector_commit": context["parent_sha"],
+        "framework_commit": context["framework_sha"],
+        "status": "PASS",
+        "host_configuration": {
+            "config_test_status": "passed",
+            "host_start_status": "passed",
+        },
+        "allow_case": {"expected_status": 200, "observed_status": 200},
+        "expected_status": 403,
+        "observed_status": 403,
+        "expected_rule_id": SUMMARY.RULE_ID,
+        "observed_rule_id": SUMMARY.RULE_ID,
+        "no_mrts": dict(NO_MRTS),
+        "cleanup": {
+            "status": "passed",
+            **{
+                field: 0
+                for _name, field in SUMMARY.CLEANUP_ASSERTIONS
+                if field != "processes_remaining"
+            },
+        },
+    }
+    runtime = {
+        "schema_version": 1,
+        "record_type": "parent_runtime_attestation",
+        "connector": connector,
+        "run_id": run_id,
+        "runtime_status": "PASS",
+        "observed_statuses": {"allow": 200, "block": 403, "bypass": 403},
+        "no_mrts": dict(NO_MRTS),
+        "cleanup_scan": {
+            **{field: 0 for _name, field in SUMMARY.CLEANUP_ASSERTIONS},
+            "paths": [],
+            "listener_records": [],
+        },
+    }
+    private_json(
+        verified_root / "evidence" / "normalized" / connector / run_id / "event.json",
+        event,
+    )
+    private_json(
+        verified_root / "evidence" / "runtime" / connector / run_id / "runtime.json",
+        runtime,
+    )
+
+
+def write_case_summary_evidence(
+    verified_root: Path,
+    connector: str,
+    *,
+    status: str = "pass",
+    expected_status: int = 403,
+    actual_status: int = 403,
+) -> None:
+    """Create the fixed one-case Apache/HAProxy Summary contract."""
+    private_json(
+        verified_root
+        / "build"
+        / f"verified-{connector}-case"
+        / "with-crs"
+        / "no-mrts"
+        / "results"
+        / f"{connector}-summary.json",
+        {
+            connector: {
+                "cases": {
+                    "crs_sqli_anomaly_block": {
+                        "name": "crs_sqli_anomaly_block",
+                        "status": status,
+                        "expected_status": expected_status,
+                        "actual_status": actual_status,
+                        "observed_transport_result": "http_status",
+                        "live_executed": True,
+                    }
+                }
+            }
+        },
+    )
+
+
 class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
     def workflow_outcomes(self, **overrides: str) -> dict[str, str]:
         outcomes = {stage: "success" for stage, _label, _environment_name in SUMMARY.STAGES}
@@ -101,8 +221,229 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
         self.assertIn("| Stages failed | `1` |", summary)
         self.assertIn("| First non-passing stage | `Real connector runtime target` |", summary)
         self.assertIn("| Real connector runtime target | `failure` |", summary)
-        self.assertIn("`FAIL — runtime assertions did not complete`", summary)
+        self.assertIn("Overall runtime assertion status: `FAIL`", summary)
+        self.assertIn(
+            "| Configuration/load | passed | not reported | `NOT_AVAILABLE` | not reported |",
+            summary,
+        )
+        self.assertNotIn("| Configuration/load | passed | passed | `PASS` |", summary)
         self.assertNotIn("skipped_by_security_policy", summary)
+
+    def test_runtime_summary_renders_each_envoy_assertion_from_normalized_evidence(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crs-summary-envoy-") as temporary:
+            context, verified_root = summary_evidence_context(Path(temporary))
+            write_normalized_summary_evidence(verified_root, context, "envoy")
+            summary = SUMMARY.render_summary(
+                "envoy", self.workflow_outcomes(), evidence_context=context
+            )
+            bundle = SUMMARY.runtime_assertion_bundle(
+                "envoy", "success", evidence_context=context
+            )
+
+        self.assertIn("Overall runtime assertion status: `PASS`", summary)
+        self.assertNotIn("Config/load, start, allow request", summary)
+        for heading in (
+            "#### Configuration and startup",
+            "#### Request and CRS behavior",
+            "#### no-MRTS isolation and cleanup",
+        ):
+            self.assertIn(heading, summary)
+        for row in (
+            "| Configuration/load | passed | passed | `PASS` | normalized event |",
+            "| Connector host start | passed | passed | `PASS` | normalized event |",
+            "| Allow request | HTTP 200 | HTTP 200 | `PASS` | normalized event |",
+            "| CRS block request | HTTP 403 | HTTP 403 | `PASS` | normalized event |",
+            "| CRS trigger rule | rule 942270 | rule 942270 | `PASS` | normalized event |",
+            "| Case-variant/bypass probe | HTTP 403 | HTTP 403 | `PASS` | runtime attestation |",
+            "| MRTS runner invoked | false | false | `PASS` | runtime attestation |",
+            "| Remaining processes | 0 | 0 | `PASS` | runtime attestation |",
+        ):
+            self.assertIn(row, summary)
+        self.assertTrue(
+            all(
+                row["result"] == "PASS"
+                for section in ("configuration", "requests", "isolation_cleanup")
+                for row in bundle[section]
+            )
+        )
+        self.assertIn("ext_proc", summary)
+        self.assertNotIn("HAProxy-plus-SPOA", summary)
+
+    def test_runtime_summary_accepts_complete_lighttpd_and_traefik_evidence(self) -> None:
+        for connector, phrase in (
+            ("lighttpd", "patched native module"),
+            ("traefik", "native middleware"),
+        ):
+            with self.subTest(connector=connector), tempfile.TemporaryDirectory(
+                prefix=f"crs-summary-{connector}-"
+            ) as temporary:
+                context, verified_root = summary_evidence_context(Path(temporary))
+                write_normalized_summary_evidence(verified_root, context, connector)
+                summary = SUMMARY.render_summary(
+                    connector, self.workflow_outcomes(), evidence_context=context
+                )
+                bundle = SUMMARY.runtime_assertion_bundle(
+                    connector, "success", evidence_context=context
+                )
+                self.assertEqual(bundle["overall"], "PASS")
+                self.assertTrue(
+                    all(
+                        row["result"] == "PASS"
+                        for section in ("configuration", "requests", "isolation_cleanup")
+                        for row in bundle[section]
+                    )
+                )
+                self.assertIn(phrase, summary)
+                self.assertNotIn("HAProxy-plus-SPOA", summary)
+
+    def test_apache_and_haproxy_case_summaries_do_not_invent_missing_assertions(self) -> None:
+        for connector in ("apache", "haproxy"):
+            with self.subTest(connector=connector), tempfile.TemporaryDirectory(
+                prefix=f"crs-summary-{connector}-"
+            ) as temporary:
+                context, verified_root = summary_evidence_context(Path(temporary))
+                write_case_summary_evidence(verified_root, connector)
+                outcomes = self.workflow_outcomes(
+                    **({"upload_evidence": "skipped"} if connector == "haproxy" else {})
+                )
+                summary = SUMMARY.render_summary(
+                    connector, outcomes, evidence_context=context
+                )
+                self.assertIn("Overall runtime assertion status: `PARTIAL`", summary)
+                self.assertIn(
+                    f"| CRS block request | HTTP 403 | HTTP 403 | `PASS` | {connector} summary |",
+                    summary,
+                )
+                self.assertIn(
+                    "| Configuration/load | passed | not reported | `NOT_AVAILABLE` | not reported |",
+                    summary,
+                )
+                self.assertNotIn(
+                    "| MRTS runner invoked | false | false | `PASS` |", summary
+                )
+                self.assertNotIn(
+                    "| Remaining processes | 0 | 0 | `PASS` |", summary
+                )
+                if connector == "apache":
+                    self.assertIn("real httpd path", summary)
+                    self.assertNotIn("HAProxy-plus-SPOA", summary)
+                else:
+                    self.assertIn("HAProxy-plus-SPOA", summary)
+                    self.assertIn("skipped_by_security_policy", summary)
+
+        with tempfile.TemporaryDirectory(prefix="crs-summary-nonlive-case-") as temporary:
+            context, verified_root = summary_evidence_context(Path(temporary))
+            write_case_summary_evidence(verified_root, "apache")
+            summary_path = (
+                verified_root
+                / "build"
+                / "verified-apache-case"
+                / "with-crs"
+                / "no-mrts"
+                / "results"
+                / "apache-summary.json"
+            )
+            evidence = read_json(summary_path)
+            case = evidence["apache"]["cases"]["crs_sqli_anomaly_block"]
+            self.assertIsInstance(case, dict)
+            case["live_executed"] = False
+            private_json(summary_path, evidence)
+            bundle = SUMMARY.runtime_assertion_bundle(
+                "apache", "success", evidence_context=context
+            )
+        self.assertEqual(bundle["overall"], "PARTIAL")
+        self.assertEqual(bundle["requests"][1]["result"], "NOT_AVAILABLE")
+
+    def test_skipped_and_cancelled_runtime_do_not_invent_assertions(self) -> None:
+        skipped = SUMMARY.render_summary(
+            "envoy", self.workflow_outcomes(runtime="skipped"), evidence_context={}
+        )
+        cancelled = SUMMARY.render_summary(
+            "envoy", self.workflow_outcomes(runtime="cancelled"), evidence_context={}
+        )
+        self.assertIn("Overall runtime assertion status: `NOT_RUN`", skipped)
+        self.assertIn("| Allow request | HTTP 200 | not run | `NOT_RUN` | GitHub step outcome |", skipped)
+        self.assertIn("Overall runtime assertion status: `CANCELLED`", cancelled)
+        self.assertNotIn("| Allow request | HTTP 200 | HTTP 200 | `PASS` |", cancelled)
+
+    def test_summary_evidence_reader_rejects_wrong_identity_and_unsafe_files(self) -> None:
+        def sections(context: dict[str, str]) -> dict[str, list[dict[str, str]]]:
+            root, run_id, parent_sha, framework_sha = SUMMARY._verified_runtime_root(context)
+            return SUMMARY._normalized_assertion_sections(
+                "envoy", root, run_id, parent_sha, framework_sha
+            )
+
+        for mutation in (
+            "wrong_connector",
+            "wrong_run_id",
+            "wrong_profile",
+            "malformed",
+            "symlink",
+            "hardlink",
+            "group_writable",
+            "oversized",
+        ):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory(
+                prefix="crs-summary-invalid-"
+            ) as temporary:
+                context, verified_root = summary_evidence_context(Path(temporary))
+                write_normalized_summary_evidence(verified_root, context, "envoy")
+                event_path = (
+                    verified_root
+                    / "evidence"
+                    / "normalized"
+                    / "envoy"
+                    / context["run_id"]
+                    / "event.json"
+                )
+                if mutation in {"wrong_connector", "wrong_run_id", "wrong_profile"}:
+                    event = read_json(event_path)
+                    event[
+                        {
+                            "wrong_connector": "connector",
+                            "wrong_run_id": "run_id",
+                            "wrong_profile": "profile",
+                        }[mutation]
+                    ] = {
+                        "wrong_connector": "traefik",
+                        "wrong_run_id": "other-run",
+                        "wrong_profile": "another-profile",
+                    }[mutation]
+                    private_json(event_path, event)
+                elif mutation == "malformed":
+                    private_file(event_path, "{not-json\n")
+                elif mutation == "symlink":
+                    outside = event_path.with_name("outside.json")
+                    private_file(outside, event_path.read_text(encoding="utf-8"))
+                    event_path.unlink()
+                    event_path.symlink_to(outside)
+                elif mutation == "hardlink":
+                    source = event_path.with_name("event-source.json")
+                    event_path.replace(source)
+                    os.link(source, event_path)
+                elif mutation == "group_writable":
+                    event_path.chmod(0o620)
+                else:
+                    private_file(event_path, b"{" + b" " * SUMMARY.MAX_EVIDENCE_FILE_BYTES)
+
+                with self.assertRaises(ValueError):
+                    sections(context)
+                bundle = SUMMARY.runtime_assertion_bundle(
+                    "envoy", "success", evidence_context=context
+                )
+                self.assertEqual(bundle["overall"], "PARTIAL")
+                self.assertFalse(
+                    any(
+                        row["result"] == "PASS"
+                        for section in ("configuration", "requests", "isolation_cleanup")
+                        for row in bundle[section]
+                    )
+                )
+
+        with tempfile.TemporaryDirectory(prefix="crs-summary-unsafe-context-") as temporary:
+            context, _verified_root = summary_evidence_context(Path(temporary))
+            with self.assertRaises(ValueError):
+                SUMMARY._verified_runtime_root({**context, "run_id": "../escape"})
 
     def test_workflow_summary_rejects_missing_outcome(self) -> None:
         environment = {
@@ -233,6 +574,80 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                     "source": "parent-runner",
                     "connector": connector,
                     "integration_mode": modes[connector],
+                    "test_variant": "with-crs",
+                    "mrts_variant": "no-mrts",
+                },
+            },
+        )
+
+    def make_strict_host_observation(self, runtime: Path, connector: str) -> None:
+        """Build unit-only input for the strict Apache/HAProxy normalizer path."""
+        run_id = f"{connector}-run"
+        passed = "passed"
+        request = {
+            "connector": connector,
+            "run_id": run_id,
+            "method": "GET",
+            "payload_length": 0,
+        }
+        private_json(
+            runtime / NORMALIZER.RUNTIME_OBSERVATION_FILE,
+            {
+                "status": "PASS",
+                "connector": connector,
+                "run_id": run_id,
+                "integration_mode": NORMALIZER.CONNECTORS[connector][1],
+                "configuration": {
+                    "config_test_status": passed,
+                    "host_start_status": passed,
+                    "reachability_status": passed,
+                },
+                "requests": {
+                    "allow": {
+                        **request,
+                        "request_id": f"allow-{connector}",
+                        "transaction_id": f"allow-transaction-{connector}",
+                        "path": "/?id=42",
+                        "status": 200,
+                        "observed_rule_id": None,
+                    },
+                    "block": {
+                        **request,
+                        "request_id": f"block-{connector}",
+                        "transaction_id": f"block-transaction-{connector}",
+                        "path": "/?id=1%20UNION%20SELECT%20password%20FROM%20users",
+                        "status": 403,
+                        "observed_rule_id": NORMALIZER.RULE_ID,
+                        "intervention": "deny",
+                        "actual_intervention_rule_id": 949110,
+                    },
+                    "bypass": {
+                        **request,
+                        "request_id": f"bypass-{connector}",
+                        "transaction_id": f"bypass-transaction-{connector}",
+                        "path": "/?id=1%20uNiOn%20SeLeCt",
+                        "status": 403,
+                        "observed_rule_id": NORMALIZER.RULE_ID,
+                        "intervention": "deny",
+                    },
+                },
+                "no_mrts": NO_MRTS,
+                "cleanup": {
+                    "processes_remaining": 0,
+                    "host_processes_remaining": 0,
+                    "helper_processes_remaining": 0,
+                    "listeners_remaining": 0,
+                    "sockets_remaining": 0,
+                    "pid_files_remaining": 0,
+                    "runtime_fixtures_remaining": 0,
+                    "temporary_paths_remaining": 0,
+                    "paths": [],
+                    "listener_records": [],
+                },
+                "dispatch": {
+                    "source": "parent-runner",
+                    "connector": connector,
+                    "integration_mode": NORMALIZER.CONNECTORS[connector][1],
                     "test_variant": "with-crs",
                     "mrts_variant": "no-mrts",
                 },
@@ -723,6 +1138,32 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                 private_json(runtime / completion, {"status": "PASS"})
                 with self.assertRaises((FileNotFoundError, RuntimeError, json.JSONDecodeError)):
                     self.normalize(connector, root, runtime)
+
+    def test_apache_and_haproxy_require_common_runtime_manifest(self) -> None:
+        """A smoke summary or GitHub success must not become a common PASS."""
+        for connector in ("apache", "haproxy"):
+            with self.subTest(connector=connector), tempfile.TemporaryDirectory(prefix=f"{connector}-missing-contract-") as temporary:
+                root = Path(temporary)
+                runtime = root / "runtime"
+                runtime.mkdir(mode=0o700)
+                with self.assertRaises(RuntimeError):
+                    self.normalize(connector, root, runtime)
+
+    def test_apache_and_haproxy_normalize_complete_strict_runtime_observations(self) -> None:
+        """Unit input may exercise the normalizer without inventing a harness."""
+        for connector in ("apache", "haproxy"):
+            with self.subTest(connector=connector), tempfile.TemporaryDirectory(
+                prefix=f"{connector}-strict-contract-"
+            ) as temporary:
+                root = Path(temporary)
+                runtime = root / "runtime"
+                self.make_strict_host_observation(runtime, connector)
+                event_path, _evidence = self.normalize(connector, root, runtime)
+
+                event = read_json(event_path)
+                self.assertEqual(event["observed_status"], 403)
+                self.assertEqual(event["observed_rule_id"], NORMALIZER.RULE_ID)
+                self.assertEqual(event["host_configuration"]["reachability_status"], "passed")
 
     def test_normalizer_derives_real_host_fields_for_every_connector(self) -> None:
         for connector in ("envoy", "traefik", "lighttpd"):
