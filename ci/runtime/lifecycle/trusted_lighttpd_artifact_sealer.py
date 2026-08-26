@@ -31,6 +31,7 @@ SEALED_DIRECTORY_MODE = 0o710
 SEALED_EXECUTABLE_FILE_MODE = 0o550
 SEALED_READONLY_FILE_MODE = 0o440
 CANDIDATE_ROOT_LABEL = "candidate root"
+SEALED_TEMPORARY_ROOT_LABEL = "sealed temporary root"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _PROVENANCE_KEYS = frozenset({"parent_sha", "framework_sha", "mrts_sha"})
 
@@ -286,13 +287,13 @@ def _new_sealed_directory(parent_descriptor: int, runtime_gid: int) -> tuple[str
             continue
         except OSError as error:
             _fail(f"cannot create sealed root: {error}")
-        descriptor = _open_directory_component(parent_descriptor, name, "sealed temporary root")
+        descriptor = _open_directory_component(parent_descriptor, name, SEALED_TEMPORARY_ROOT_LABEL)
         try:
-            _set_required_mode(descriptor, "sealed temporary root", SEALED_DIRECTORY_MODE)
-            _set_runtime_group(descriptor, "sealed temporary root", runtime_gid)
+            _set_required_mode(descriptor, SEALED_TEMPORARY_ROOT_LABEL, SEALED_DIRECTORY_MODE)
+            _set_runtime_group(descriptor, SEALED_TEMPORARY_ROOT_LABEL, runtime_gid)
             _require_directory_descriptor(
                 descriptor,
-                "sealed temporary root",
+                SEALED_TEMPORARY_ROOT_LABEL,
                 owner=0,
                 group=runtime_gid,
                 mode=SEALED_DIRECTORY_MODE,

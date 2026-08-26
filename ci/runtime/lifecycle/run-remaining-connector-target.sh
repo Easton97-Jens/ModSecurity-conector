@@ -39,7 +39,8 @@ require_mrts_python_invocation() {
 is_hosted_setup_go_binary() {
     # Only the exact setup-go toolcache route has a workflow-bound digest.
     # Keep every other approved Go path on the strict non-writable contract.
-    case "$1" in
+    candidate=$1
+    case "$candidate" in
         /opt/hostedtoolcache/go/*/bin/go) return 0 ;;
         *) return 1 ;;
     esac
