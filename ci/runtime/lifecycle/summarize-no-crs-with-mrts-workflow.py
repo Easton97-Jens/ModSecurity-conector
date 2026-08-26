@@ -48,7 +48,7 @@ STAGES = (
 GO_TOOLCHAIN_NOT_APPLICABLE_STAGES = frozenset(
     ("setup_go", "verify_go", "snapshot_go")
 )
-GO_TOOLCHAIN_NOT_APPLICABLE_CONNECTORS = frozenset(("apache", "haproxy"))
+GO_TOOLCHAIN_NOT_APPLICABLE_CONNECTORS = frozenset(("apache", "haproxy", "lighttpd"))
 
 
 def require_connector(value: str) -> str:
@@ -64,9 +64,10 @@ def _summary_stages(
 ) -> tuple[tuple[str, str, str], ...]:
     """Exclude intentional connector-inapplicable Go stages from metrics.
 
-    Apache and HAProxy never invoke Go in this profile.  A skipped Go setup,
-    version check, or provenance snapshot is therefore neither a workload
-    failure nor an incomplete runtime check for those isolated jobs.
+    Apache and HAProxy never invoke Go in this profile; Lighttpd runs its
+    patched native C host. A skipped Go setup, version check, or provenance
+    snapshot is therefore neither a workload failure nor an incomplete
+    runtime check for those isolated jobs.
     """
 
     if connector not in GO_TOOLCHAIN_NOT_APPLICABLE_CONNECTORS:

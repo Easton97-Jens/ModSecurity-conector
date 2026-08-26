@@ -504,9 +504,9 @@ void apache_log_rule_match_event(msc_t *msr, request_rec *r,
     }
 
     /* This record is emitted synchronously by the real libmodsecurity log
-     * callback while Apache is in the named request phase.  It intentionally
-     * preserves a non-disruptive match as `pass`, rather than pretending that
-     * a rule with `log` was a deny or a late log-only intervention. */
+     * callback while Apache is in the named request phase.  `allow` records
+     * that the request proceeded after a non-disruptive match; it does not
+     * pretend that a rule with `log` was a deny or a late intervention. */
     msconnector_event_init(&event);
     event.meta.level = "info";
     event.meta.message_id = "MSCONN_EVENT_RULE_MATCHED";
@@ -517,9 +517,9 @@ void apache_log_rule_match_event(msc_t *msr, request_rec *r,
     event.meta.transaction_id = msr->event_transaction_id;
     event.decision.phase = phase;
     event.decision.status = MSCONNECTOR_STATUS_OK;
-    event.decision.action = "pass";
-    event.decision.requested_action = "pass";
-    event.decision.actual_action = "pass";
+    event.decision.action = "allow";
+    event.decision.requested_action = "allow";
+    event.decision.actual_action = "allow";
     event.decision.rule_id = rule_id;
     event.decision.reason = "non_disruptive_rule_match";
     event.http.transport_result = "not_observable";

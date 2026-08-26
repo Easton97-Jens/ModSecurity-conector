@@ -109,9 +109,9 @@ class NoCrsWithMrtsWorkflowSummaryTest(unittest.TestCase):
         self.assertIn("`MISSING — runtime target did not run`", summary)
         self.assertNotIn("PASS — real target", summary)
 
-    def test_summary_marks_all_go_stages_not_applicable_for_apache_and_haproxy(self) -> None:
+    def test_summary_marks_all_go_stages_not_applicable_for_go_free_connectors(self) -> None:
         summary = SUMMARY.render_summary(
-            "apache",
+            "lighttpd",
             self.outcomes(
                 setup_go="skipped", verify_go="skipped", snapshot_go="skipped"
             ),

@@ -52,7 +52,7 @@ jobs:
 
       - name: Set up Go
         id: setup-go
-        if: ${{ matrix.connector == 'envoy' || matrix.connector == 'traefik' || matrix.connector == 'lighttpd' }}
+        if: ${{ matrix.connector == 'envoy' || matrix.connector == 'traefik' }}
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: .go-version
@@ -66,7 +66,7 @@ jobs:
 
       - name: Verify Go version contract without acquisition
         id: verify-go
-        if: ${{ matrix.connector == 'envoy' || matrix.connector == 'traefik' || matrix.connector == 'lighttpd' }}
+        if: ${{ matrix.connector == 'envoy' || matrix.connector == 'traefik' }}
         env:
           GOTOOLCHAIN: local
         run: |
@@ -79,7 +79,7 @@ jobs:
 
       - name: Snapshot verified setup-Go binary provenance
         id: snapshot-go-provenance
-        if: ${{ matrix.connector == 'envoy' || matrix.connector == 'traefik' || matrix.connector == 'lighttpd' }}
+        if: ${{ matrix.connector == 'envoy' || matrix.connector == 'traefik' }}
         run: |
           set -euo pipefail
           go_path="$(command -v go)"
@@ -153,12 +153,12 @@ jobs:
         run: |
           set -euo pipefail
           case "$CONNECTOR" in
-            envoy|traefik|lighttpd)
+            envoy|traefik)
               MRTS_WORKFLOW_GO_BINARY="${SNAPSHOT_GO_BINARY}"
               MRTS_WORKFLOW_GO_BINARY_SHA256="${SNAPSHOT_GO_BINARY_SHA256}"
               export MRTS_WORKFLOW_GO_BINARY MRTS_WORKFLOW_GO_BINARY_SHA256
               ;;
-            apache|haproxy) ;;
+            apache|haproxy|lighttpd) ;;
             *) echo "unreachable connector" >&2; exit 2 ;;
           esac
           case "$CONNECTOR" in

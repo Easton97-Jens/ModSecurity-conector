@@ -157,6 +157,25 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
             2,
         )
 
+    def test_native_rule_match_uses_canonical_allow_action(self) -> None:
+        rule_match = c_function(
+            self.filters,
+            "void apache_log_rule_match_event(msc_t *msr, request_rec *r,\n"
+            "    enum msconnector_phase phase, const char *rule_id)",
+        )
+
+        self.assertIn("event.meta.event = \"request_rule_match\";", rule_match)
+        self.assertEqual(rule_match.count('event.decision.action = "allow";'), 1)
+        self.assertEqual(
+            rule_match.count('event.decision.requested_action = "allow";'), 1
+        )
+        self.assertEqual(
+            rule_match.count('event.decision.actual_action = "allow";'), 1
+        )
+        self.assertNotIn('event.decision.action = "pass";', rule_match)
+        self.assertNotIn('event.decision.requested_action = "pass";', rule_match)
+        self.assertNotIn('event.decision.actual_action = "pass";', rule_match)
+
 
 if __name__ == "__main__":
     unittest.main()

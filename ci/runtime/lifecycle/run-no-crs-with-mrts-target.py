@@ -23,7 +23,10 @@ if str(LIB_ROOT) not in sys.path:
 from go_version_contract import GoVersionContractError, read_go_version_contract as read_shared_go_version_contract
 
 CONNECTORS = {"apache", "envoy", "haproxy", "lighttpd", "traefik"}
-GO_RUNTIME_CONNECTORS = {"envoy", "traefik", "lighttpd"}
+# Envoy and Traefik build their connector adapters with Go.  Lighttpd's
+# no-CRS/with-MRTS route is the patched native C runtime and must not acquire
+# or validate an unrelated Go toolchain.
+GO_RUNTIME_CONNECTORS = {"envoy", "traefik"}
 PROFILE = "no-crs/with-mrts"
 MAX_PLAN_BYTES = 1_048_576
 MAX_RULE_ID_INVENTORY = 100_000
@@ -1165,9 +1168,13 @@ def _prepare_target_context(args: argparse.Namespace) -> dict[str, Any]:
         stop("stage runtime root is not a private owner-controlled directory")
     os.chmod(stage_runtime, 0o700)
     env = {key: os.environ[key] for key in ("PATH", "HOME", "LANG", "LC_ALL") if key in os.environ}
-    env.update({"PYTHON": str(python_path), "PYTHON_BIN": str(python_path), "FRAMEWORK_ROOT": str(framework), "CONNECTOR_ROOT": str(parent), "VERIFIED_RUN_ROOT": str(root), "BUILD_ROOT": str(build), "MRTS_BUILD_ROOT": str(build / "mrts"), "TMP_ROOT": str(root / "tmp"), "LOG_ROOT": str(root / "logs"), "MODSECURITY_TEST_VARIANT": "no-crs", "MODSECURITY_MRTS_VARIANT": "with-mrts", "MODSECURITY_MRTS_PREPARED": "0", "MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO": "0", "GOTOOLCHAIN": "local", "NO_CRS_RUN_ID": no_crs_run_id})
+    if args.connector == "lighttpd":
+        # The patched native Lighttpd route does not use Go.  Its preparation
+        # process gets the same minimal command search path as the host stage.
+        env["PATH"] = "/usr/bin:/bin"
+    env.update({"PYTHON": str(python_path), "PYTHON_BIN": str(python_path), "FRAMEWORK_ROOT": str(framework), "CONNECTOR_ROOT": str(parent), "VERIFIED_RUN_ROOT": str(root), "BUILD_ROOT": str(build), "MRTS_BUILD_ROOT": str(build / "mrts"), "TMP_ROOT": str(build / "tmp"), "LOG_ROOT": str(build / "logs"), "MODSECURITY_TEST_VARIANT": "no-crs", "MODSECURITY_MRTS_VARIANT": "with-mrts", "MODSECURITY_MRTS_PREPARED": "0", "MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO": "0", "NO_CRS_RUN_ID": no_crs_run_id})
     if go_path is not None:
-        env.update({"MRTS_GO_BINARY": str(go_path), "MRTS_GO_BINARY_SHA256": go_sha256, "MRTS_GO_VERSION": go_version})
+        env.update({"MRTS_GO_BINARY": str(go_path), "MRTS_GO_BINARY_SHA256": go_sha256, "MRTS_GO_VERSION": go_version, "GOTOOLCHAIN": "local"})
     env.update(provisioning_environment)
     prepare = '. "$FRAMEWORK_ROOT/ci/lib/common.sh"; . "$FRAMEWORK_ROOT/ci/lib/mrts-common.sh"; prepare_mrts_runtime_variant'
     subprocess.run(["sh", "-eu", "-c", prepare], env=env, cwd=parent, check=True)

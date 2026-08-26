@@ -135,7 +135,7 @@ class NoCrsWithMrtsWorkflowContractTest(unittest.TestCase):
         self.assertIn("id: snapshot-go-provenance", snapshot)
         self.assertIn("matrix.connector == 'envoy'", snapshot)
         self.assertIn("matrix.connector == 'traefik'", snapshot)
-        self.assertIn("matrix.connector == 'lighttpd'", snapshot)
+        self.assertNotIn("matrix.connector == 'lighttpd'", snapshot)
         self.assertNotIn("matrix.connector == 'apache'", snapshot)
         self.assertNotIn("matrix.connector == 'haproxy'", snapshot)
         setup_go = self.source.split("      - name: Set up Go\n", 1)[1].split(
@@ -147,7 +147,7 @@ class NoCrsWithMrtsWorkflowContractTest(unittest.TestCase):
         for block in (setup_go, verify_go, snapshot):
             self.assertIn("matrix.connector == 'envoy'", block)
             self.assertIn("matrix.connector == 'traefik'", block)
-            self.assertIn("matrix.connector == 'lighttpd'", block)
+            self.assertNotIn("matrix.connector == 'lighttpd'", block)
             self.assertNotIn("matrix.connector == 'apache'", block)
             self.assertNotIn("matrix.connector == 'haproxy'", block)
         self.assertIn('go_path="$(command -v go)"', snapshot)
@@ -159,8 +159,8 @@ class NoCrsWithMrtsWorkflowContractTest(unittest.TestCase):
             "      - name: Upload isolated runtime evidence\n", 1
         )[0]
         target_go = runtime.split('case "$CONNECTOR" in', 1)[1].split('case "$CONNECTOR" in', 1)[0]
-        self.assertIn("envoy|traefik|lighttpd)", target_go)
-        self.assertIn("apache|haproxy) ;;", target_go)
+        self.assertIn("envoy|traefik)", target_go)
+        self.assertIn("apache|haproxy|lighttpd) ;;", target_go)
         self.assertIn("SNAPSHOT_GO_BINARY: ${{ steps.snapshot-go-provenance.outputs.path }}", runtime)
         self.assertIn(
             "SNAPSHOT_GO_BINARY_SHA256: ${{ steps.snapshot-go-provenance.outputs.sha256 }}", runtime

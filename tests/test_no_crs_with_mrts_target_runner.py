@@ -159,7 +159,7 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
         )
         self.assertEqual(TARGET.PROFILE, "no-crs/with-mrts")
         self.assertNotIn("nginx", TARGET.CONNECTORS)
-        self.assertEqual(TARGET.GO_RUNTIME_CONNECTORS, {"envoy", "traefik", "lighttpd"})
+        self.assertEqual(TARGET.GO_RUNTIME_CONNECTORS, {"envoy", "traefik"})
 
     def test_connector_phase_mapping_is_closed_and_native(self):
         self.assertEqual(TARGET.rule_match_event_phase("apache"), "request_headers")
@@ -377,7 +377,7 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
         self.assertIn('"NO_CRS_RUN_ID": no_crs_run_id', target)
         self.assertIn("MRTS_CLOSED_NO_CRS_RUN_ID=$NO_CRS_RUN_ID", remaining)
         self.assertIn("NO_CRS_RUN_ID=$MRTS_CLOSED_NO_CRS_RUN_ID", remaining)
-        self.assertIn('NO_CRS_RUN_ID="$NO_CRS_RUN_ID"', stage)
+        self.assertIn('"NO_CRS_RUN_ID=$NO_CRS_RUN_ID"', stage)
 
     def test_runtime_provisioning_requires_fixed_explicit_opt_ins(self):
         with mock.patch.dict(os.environ, {}, clear=True):
@@ -506,6 +506,27 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
             "def _create_runtime_plan", 1
         )[0]
         self.assertNotIn("RUNTIME_COMPONENT_ENV_SNAPSHOT", target_context)
+
+    def test_target_context_keeps_connector_temp_and_log_roots_under_build_root(self):
+        source = (
+            ROOT / "ci" / "runtime" / "lifecycle"
+            / "run-no-crs-with-mrts-target.py"
+        ).read_text(encoding="utf-8")
+        target_context = source.split("def _prepare_target_context", 1)[1].split(
+            "def _create_runtime_plan", 1
+        )[0]
+        self.assertIn('"BUILD_ROOT": str(build)', target_context)
+        self.assertIn('"TMP_ROOT": str(build / "tmp")', target_context)
+        self.assertIn('"LOG_ROOT": str(build / "logs")', target_context)
+        self.assertNotIn('"TMP_ROOT": str(root / "tmp")', target_context)
+        self.assertNotIn('"LOG_ROOT": str(root / "logs")', target_context)
+        base_environment, go_environment = target_context.split(
+            "if go_path is not None:", 1
+        )
+        self.assertIn('if args.connector == "lighttpd":', base_environment)
+        self.assertIn('env["PATH"] = "/usr/bin:/bin"', base_environment)
+        self.assertNotIn('"GOTOOLCHAIN": "local"', base_environment)
+        self.assertIn('"GOTOOLCHAIN": "local"', go_environment)
 
     def test_active_python_executable_preserves_a_venv_style_final_symlink(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -760,8 +781,26 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
                 )
 
     def test_haproxy_detection_requires_the_sealed_expected_rule_id(self):
-        """An allowed extra match cannot replace the selected detection rule."""
+        """A correlated HAProxy match must be the selected detection rule."""
 
+        with tempfile.TemporaryDirectory() as directory:
+            event_log = Path(directory) / "events.jsonl"
+            event_log.write_text(
+                json.dumps(haproxy_decision_event(rule_id=100001)) + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(SystemExit, "outside the selected expectation"):
+                EXECUTOR.event_ids(
+                    event_log,
+                    "run-0001",
+                    "haproxy",
+                    "/?not-stored-in-private-evidence",
+                    "request_body",
+                    {"100000"},
+                    {"100000", "100001"},
+                )
+
+    def test_haproxy_control_and_bypass_keep_correlated_ids_for_empty_oracle(self):
         with tempfile.TemporaryDirectory() as directory:
             event_log = Path(directory) / "events.jsonl"
             event_log.write_text(
@@ -774,14 +813,12 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
                 "haproxy",
                 "/?not-stored-in-private-evidence",
                 "request_body",
-                {"100000"},
-                {"100000", "100001"},
+                set(),
+                {"100001"},
             )
             self.assertEqual(observed, {"100001"})
-            with self.assertRaisesRegex(SystemExit, "missing expected IDs"):
-                EXECUTOR.require_case_rule_matches(
-                    "detection", "detection", {"100000"}, observed
-                )
+            with self.assertRaisesRegex(SystemExit, "unexpectedly matched rules"):
+                EXECUTOR.require_case_rule_matches("control", "control", set(), observed)
 
     def test_event_ids_rejects_wrong_event_kind_and_arbitrary_nested_rule_ids(self):
         with tempfile.TemporaryDirectory() as directory:

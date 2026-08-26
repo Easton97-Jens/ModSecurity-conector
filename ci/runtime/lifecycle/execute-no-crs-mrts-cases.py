@@ -618,6 +618,8 @@ def haproxy_event_ids(
             continue
         if rule_id not in allowed_rule_ids:
             fail("HAProxy decision evidence has a rule ID outside the pinned corpus")
+        if expected_ids and rule_id not in expected_ids:
+            fail("HAProxy decision evidence has a rule ID outside the selected expectation")
         if rule_id in found:
             fail("HAProxy decision evidence duplicates a rule ID")
         found.add(rule_id)

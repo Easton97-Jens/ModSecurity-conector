@@ -121,8 +121,9 @@ class NoCrsWithMrtsDispatchContractTests(unittest.TestCase):
         self.assertIn("sha256sum \"$MRTS_GO_BINARY\"", source)
         self.assertIn("sha256sum \"$GO\"", source)
         stage = STAGE.read_text(encoding="utf-8")
-        self.assertIn('MRTS_GO_BINARY_SHA256="${MRTS_GO_BINARY_SHA256:?MRTS_GO_BINARY_SHA256 is required}"', stage)
-        self.assertIn('MRTS_GO_VERSION="${MRTS_GO_VERSION:?MRTS_GO_VERSION is required}"', stage)
+        runner = RUNNER.read_text(encoding="utf-8")
+        self.assertIn('MRTS_GO_BINARY_SHA256=${MRTS_GO_BINARY_SHA256:?MRTS_GO_BINARY_SHA256 is required}', runner)
+        self.assertIn('MRTS_GO_VERSION=${MRTS_GO_VERSION:?MRTS_GO_VERSION is required}', runner)
         self.assertIn("MRTS_CLOSED_PLAN_SHA256=$MRTS_RUNTIME_PLAN_SHA256", source)
         self.assertIn("MRTS_RUNTIME_EXECUTOR_SHA256=$MRTS_CLOSED_EXECUTOR_SHA256", source)
         self.assertIn("MRTS_CLOSED_ALLOW_RUNTIME_DOWNLOADS=1", source)
@@ -233,6 +234,23 @@ class NoCrsWithMrtsDispatchContractTests(unittest.TestCase):
             "export NO_CRS_ARTIFACT_PROFILE FULL_LIFECYCLE_EVIDENCE_OUTPUT",
             mrts,
         )
+
+    def test_lighttpd_native_route_does_not_receive_go_toolchain_state(self) -> None:
+        stage = STAGE.read_text(encoding="utf-8")
+        runner = RUNNER.read_text(encoding="utf-8")
+        self.assertIn('isolated_env="PATH=/usr/bin:/bin"', stage)
+        self.assertIn('if [ "$connector" != lighttpd ]; then', stage)
+        self.assertIn('unset GO GOTOOLCHAIN GOPATH GOMODCACHE GOCACHE GOTMPDIR GOENV', runner)
+        self.assertIn('unset MRTS_GO_BINARY MRTS_GO_BINARY_SHA256 MRTS_GO_VERSION', runner)
+        self.assertIn("env | grep -Eq '^(GO|GOTOOLCHAIN|GOPATH|GOMODCACHE|GOCACHE|GOTMPDIR|GOENV|MRTS_GO_)='", runner)
+
+    def test_go_connectors_keep_sealed_environment_branch(self) -> None:
+        stage = STAGE.read_text(encoding="utf-8")
+        runner = RUNNER.read_text(encoding="utf-8")
+        self.assertIn('isolated_env="PATH=/usr/local/go/bin:/usr/bin:/bin"', stage)
+        self.assertIn('"MRTS_GO_BINARY=${MRTS_GO_BINARY:?MRTS_GO_BINARY is required}"', stage)
+        self.assertIn('require_mrts_go_invocation "$MRTS_GO_BINARY" || exit $?', runner)
+        self.assertIn('set_mrts_go_path "$MRTS_GO_BINARY" || return $?', runner)
 
     def test_python_invocation_contract_allows_only_a_final_venv_symlink(self) -> None:
         for source in (STAGE.read_text(encoding="utf-8"), RUNNER.read_text(encoding="utf-8")):

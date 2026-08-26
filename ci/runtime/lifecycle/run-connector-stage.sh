@@ -355,6 +355,19 @@ prepare_mrts_toolchain_roots() {
     esac
     prepare_private_mrts_directory "$VERIFIED_RUN_ROOT" "$(dirname "$VERIFIED_RUN_ROOT")" "verified runtime root" || exit 77
     prepare_private_mrts_directory "$TMP_ROOT" "$VERIFIED_RUN_ROOT" "MRTS temporary root" || exit 77
+    if [ "$connector" = lighttpd ]; then
+        # Lighttpd uses the patched native C runtime.  Give it private
+        # process/cache roots, but do not create or expose a Go toolchain.
+        MRTS_HOME=$VERIFIED_RUN_ROOT/lighttpd-home
+        MRTS_XDG_CACHE_HOME=$VERIFIED_RUN_ROOT/lighttpd-xdg-cache
+        MRTS_TMPDIR=$TMP_ROOT/lighttpd
+        for private_dir in "$MRTS_HOME" "$MRTS_XDG_CACHE_HOME"; do
+            prepare_private_mrts_directory "$private_dir" "$VERIFIED_RUN_ROOT" "Lighttpd private runtime directory" || exit 77
+        done
+        prepare_private_mrts_directory "$MRTS_TMPDIR" "$TMP_ROOT" "Lighttpd temporary directory" || exit 77
+        export MRTS_HOME MRTS_XDG_CACHE_HOME MRTS_TMPDIR
+        return
+    fi
     MRTS_TOOLCHAIN_ROOT=$VERIFIED_RUN_ROOT/mrts-toolchain/$connector
     MRTS_HOME=$MRTS_TOOLCHAIN_ROOT/home
     MRTS_XDG_CACHE_HOME=$MRTS_TOOLCHAIN_ROOT/xdg-cache
@@ -418,60 +431,70 @@ run_framework_host() {
 run_remaining_connector() {
     target=$1
     if [ "$stage" = no_crs_with_mrts ]; then
-        exec env -i \
-            PATH=/usr/local/go/bin:/usr/bin:/bin \
-            HOME="$MRTS_HOME" \
-            XDG_CACHE_HOME="$MRTS_XDG_CACHE_HOME" \
-            GOPATH="$MRTS_GOPATH" \
-            GOMODCACHE="$MRTS_GOMODCACHE" \
-            GOCACHE="$MRTS_GOCACHE" \
-            GOTMPDIR="$MRTS_GOTMPDIR" \
-            TMPDIR="$MRTS_TMPDIR" \
-            GOENV=off \
-            ALLOW_RUNTIME_DOWNLOADS=1 \
-            ALLOW_RUNTIME_BUILDS=1 \
-            PYTHON="$MRTS_PYTHON_BIN" \
-            PYTHON_BIN="$MRTS_PYTHON_BIN" \
-            CONNECTOR_ROOT="$CONNECTOR_ROOT" \
-            FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
-            VERIFIED_RUN_ROOT="$VERIFIED_RUN_ROOT" \
-            VERIFIED_COMPONENT_CACHE="$VERIFIED_COMPONENT_CACHE" \
-            CONNECTOR_COMPONENT_CACHE="$CONNECTOR_COMPONENT_CACHE" \
-            CACHE_ROOT="$CACHE_ROOT" \
-            BUILD_ROOT="$BUILD_ROOT" \
-            TMP_ROOT="$TMP_ROOT" \
-            LOG_ROOT="$LOG_ROOT" \
-            RESULTS_DIR="$RESULTS_DIR" \
-            RUNTIME_ROOT="$BUILD_ROOT/stages/$connector/no_crs_with_mrts/runtime" \
-            RUNTIME_BASE="$BUILD_ROOT/stages/$connector/no_crs_with_mrts/runtime" \
-            RUNTIME_REPORT_OUTPUT_ROOT="$RUNTIME_REPORT_OUTPUT_ROOT" \
-            RUNTIME_COMPONENT_TARGET="$RUNTIME_COMPONENT_TARGET" \
-            RUNTIME_COMPONENT_ENV_SNAPSHOT="${RUNTIME_COMPONENT_ENV_SNAPSHOT:-}" \
+        # Build the clean environment as argument data.  Lighttpd is the
+        # native C route and must not receive Go variables or cache roots;
+        # Envoy and Traefik retain the sealed setup-Go environment.
+        isolated_env="PATH=/usr/bin:/bin"
+        if [ "$connector" != lighttpd ]; then
+            isolated_env="PATH=/usr/local/go/bin:/usr/bin:/bin"
+        fi
+        set -- \
+            "$isolated_env" \
+            "HOME=$MRTS_HOME" \
+            "XDG_CACHE_HOME=$MRTS_XDG_CACHE_HOME" \
+            "TMPDIR=$MRTS_TMPDIR" \
+            "ALLOW_RUNTIME_DOWNLOADS=1" \
+            "ALLOW_RUNTIME_BUILDS=1" \
+            "PYTHON=$MRTS_PYTHON_BIN" \
+            "PYTHON_BIN=$MRTS_PYTHON_BIN" \
+            "CONNECTOR_ROOT=$CONNECTOR_ROOT" \
+            "FRAMEWORK_ROOT=$FRAMEWORK_ROOT" \
+            "VERIFIED_RUN_ROOT=$VERIFIED_RUN_ROOT" \
+            "VERIFIED_COMPONENT_CACHE=$VERIFIED_COMPONENT_CACHE" \
+            "CONNECTOR_COMPONENT_CACHE=$CONNECTOR_COMPONENT_CACHE" \
+            "CACHE_ROOT=$CACHE_ROOT" \
+            "BUILD_ROOT=$BUILD_ROOT" \
+            "TMP_ROOT=$TMP_ROOT" \
+            "LOG_ROOT=$LOG_ROOT" \
+            "RESULTS_DIR=$RESULTS_DIR" \
+            "RUNTIME_ROOT=$BUILD_ROOT/stages/$connector/no_crs_with_mrts/runtime" \
+            "RUNTIME_BASE=$BUILD_ROOT/stages/$connector/no_crs_with_mrts/runtime" \
+            "RUNTIME_REPORT_OUTPUT_ROOT=$RUNTIME_REPORT_OUTPUT_ROOT" \
+            "RUNTIME_COMPONENT_TARGET=$RUNTIME_COMPONENT_TARGET" \
+            "RUNTIME_COMPONENT_ENV_SNAPSHOT=${RUNTIME_COMPONENT_ENV_SNAPSHOT:-}" \
             MSCONNECTOR_MRTS_STAGE=no_crs_with_mrts \
             MSCONNECTOR_MRTS_RUNTIME=1 \
-            NO_CRS_RUN_ID="$NO_CRS_RUN_ID" \
-            TRAEFIK_ENGINE_SOCKET_PARENT="${TRAEFIK_ENGINE_SOCKET_PARENT:-}" \
+            "NO_CRS_RUN_ID=$NO_CRS_RUN_ID" \
+            "TRAEFIK_ENGINE_SOCKET_PARENT=${TRAEFIK_ENGINE_SOCKET_PARENT:-}" \
             NO_CRS_BASELINE=1 \
             MODSECURITY_TEST_VARIANT=no-crs \
             MODSECURITY_MRTS_VARIANT=with-mrts \
-            MRTS_RUNTIME_PLAN="$MRTS_RUNTIME_PLAN" \
-            MRTS_RUNTIME_PLAN_SHA256="$MRTS_RUNTIME_PLAN_SHA256" \
-            MRTS_RUNTIME_RESULT="$MRTS_RUNTIME_RESULT" \
-            MRTS_RUNTIME_EXECUTOR="$MRTS_RUNTIME_EXECUTOR" \
-            MRTS_RUNTIME_EXECUTOR_SHA256="$MRTS_RUNTIME_EXECUTOR_SHA256" \
-            MRTS_RUNTIME_RULES_ROOT="$MRTS_RUNTIME_RULES_ROOT" \
-            MRTS_LOAD_FILE="$MRTS_LOAD_FILE" \
-            MRTS_CASE_ROOT="$MRTS_CASE_ROOT" \
-            MSCONNECTOR_RULES_FILE="$MRTS_LOAD_FILE" \
-            NO_CRS_RULES_FILE="$MRTS_LOAD_FILE" \
-            RULES_FILE="$MRTS_LOAD_FILE" \
-            MODSECURITY_RULE_PREAMBLE_FILE="$MRTS_LOAD_FILE" \
-            MRTS_GO_BINARY="${MRTS_GO_BINARY:?MRTS_GO_BINARY is required}" \
-            MRTS_GO_BINARY_SHA256="${MRTS_GO_BINARY_SHA256:?MRTS_GO_BINARY_SHA256 is required}" \
-            MRTS_GO_VERSION="${MRTS_GO_VERSION:?MRTS_GO_VERSION is required}" \
-            GO="$MRTS_GO_BINARY" \
-            GOTOOLCHAIN=local \
-            sh "$CONNECTOR_ROOT/ci/runtime/lifecycle/run-remaining-connector-target.sh" "$connector" "$target"
+            "MRTS_RUNTIME_PLAN=$MRTS_RUNTIME_PLAN" \
+            "MRTS_RUNTIME_PLAN_SHA256=$MRTS_RUNTIME_PLAN_SHA256" \
+            "MRTS_RUNTIME_RESULT=$MRTS_RUNTIME_RESULT" \
+            "MRTS_RUNTIME_EXECUTOR=$MRTS_RUNTIME_EXECUTOR" \
+            "MRTS_RUNTIME_EXECUTOR_SHA256=$MRTS_RUNTIME_EXECUTOR_SHA256" \
+            "MRTS_RUNTIME_RULES_ROOT=$MRTS_RUNTIME_RULES_ROOT" \
+            "MRTS_LOAD_FILE=$MRTS_LOAD_FILE" \
+            "MRTS_CASE_ROOT=$MRTS_CASE_ROOT" \
+            "MSCONNECTOR_RULES_FILE=$MRTS_LOAD_FILE" \
+            "NO_CRS_RULES_FILE=$MRTS_LOAD_FILE" \
+            "RULES_FILE=$MRTS_LOAD_FILE" \
+            "MODSECURITY_RULE_PREAMBLE_FILE=$MRTS_LOAD_FILE"
+        if [ "$connector" != lighttpd ]; then
+            set -- "$@" \
+                "GOPATH=$MRTS_GOPATH" \
+                "GOMODCACHE=$MRTS_GOMODCACHE" \
+                "GOCACHE=$MRTS_GOCACHE" \
+                "GOTMPDIR=$MRTS_GOTMPDIR" \
+                GOENV=off \
+                "MRTS_GO_BINARY=${MRTS_GO_BINARY:?MRTS_GO_BINARY is required}" \
+                "MRTS_GO_BINARY_SHA256=${MRTS_GO_BINARY_SHA256:?MRTS_GO_BINARY_SHA256 is required}" \
+                "MRTS_GO_VERSION=${MRTS_GO_VERSION:?MRTS_GO_VERSION is required}" \
+                "GO=$MRTS_GO_BINARY" \
+                GOTOOLCHAIN=local
+        fi
+        exec env -i "$@" sh "$CONNECTOR_ROOT/ci/runtime/lifecycle/run-remaining-connector-target.sh" "$connector" "$target"
     fi
     exec env \
         CONNECTOR_ROOT="$CONNECTOR_ROOT" \
