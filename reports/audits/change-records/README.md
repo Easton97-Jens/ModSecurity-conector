@@ -10,6 +10,13 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260826-http2-http3-protocol-parity](CR-20260826-http2-http3-protocol-parity.md)
+  | [Deutsch](CR-20260826-http2-http3-protocol-parity.de.md) — the current
+  user authorized this independent Parent HTTP/2/HTTP/3 protocol-parity
+  workstream and its paired documentation. It records supplied evidence only;
+  runtime gaps, the uninitialized Framework submodule, untouched MRTS, and the
+  not-yet-committed/pushed/created-PR delivery state remain explicit.
+
 - [CR-20260825-fnd-parent-0221-composite-connectors](CR-20260825-fnd-parent-0221-composite-connectors.md)
   | [Deutsch](CR-20260825-fnd-parent-0221-composite-connectors.de.md) — the
   current user authorized a Parent-only composite-correlation implementation,

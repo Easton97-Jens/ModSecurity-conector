@@ -1,0 +1,157 @@
+# Change Record: HTTP/2- und HTTP/3-Protokollparitäts-Workstream
+
+**Sprache:** [English](CR-20260826-http2-http3-protocol-parity.md) | Deutsch
+
+## Identität
+
+| Feld | Wert |
+| --- | --- |
+| Change-ID | `CR-20260826-http2-http3-protocol-parity` |
+| Datum (UTC) | 2026-08-26 |
+| Basis-Revision | `6ccfd8de555855ac540fc4d3d9e330f82d5e8cff` |
+| Delivery-Status | Noch nicht committed, gepushed oder durch einen erstellten Pull Request vertreten; kein Merge. |
+
+## Motivation und Problemstellung
+
+Dieser unabhängige Parent-Workstream dokumentiert Evidence für HTTP/2- und
+HTTP/3-Lifecycle-Parität über Apache, NGINX, HAProxy, Envoy, Traefik und
+lighttpd, während HTTP/1.1 als Regressions-Baseline erhalten bleibt. Er ist
+noch nicht abgeschlossen und keine Abschlussbehauptung.
+
+## Akzeptanzkriterien
+
+- Protokoll-, Stream-Identitäts-, Commit-, EOS- und
+  Late-Intervention-Status für jeden ausgewählten Connector getrennt halten.
+- `unknown`, H1, H2 und H3 im neutralen Common-Contract modellieren, ohne
+  dieses Modell zu Adapter-Nachweis zu erheben.
+- H3 unabhängig erfassen und H3-Runtime niemals ohne echten Traffic behaupten.
+- Bei fehlender Runtime-Evidence die Formulierung source-level fixed / runtime
+  not verified bewahren.
+- Gleichwertige englische und deutsche Dokumentation und Traceability pflegen.
+
+## Implementierungsentscheidung und Begründung
+
+Common besitzt ein neutrales Protokoll-/Late-Intervention-Modell für `unknown`,
+H1, H2 und H3, einschließlich Stream-Identität, Commit/EOS und
+Stream-Reset-Auswahl. Dies beweist nicht, dass alle Adapter es verwenden.
+
+Apache P3 leitet das Protokoll jetzt aus `ap_get_protocol(r->connection)` plus
+kanonischem HTTP/1-`r->proto_num` ab; unbekanntes Protokoll schlägt fail closed
+fehl. Common gibt für H2-Stream-ID 0 oder ein frei gesetztes `STREAM_RESET`
+konservativ keinen Stream-Reset aus. NGINX erzeugt für H2-Streams kein
+`Transfer-Encoding` mehr und besitzt einen geschützten H3-Pfad. Traefik markiert
+`responseIncomplete` bei Host-, Engine-, Commit- und Source-Fehlern, darunter
+ein nach Commit fehlgeschlagener EOS-Callback in `finish()` sowie
+fehlgeschriebene oder nicht bestätigte Pre-Commit-Deny-/Fehlerantworten, und
+unterdrückt falsches EOS sowie normales FINISH. Ein initiales `(0,nil)`
+ReaderFrom delegiert nicht vor Pre-Commit-Kontrollen; es wird kein falsches
+EOS- oder normales FINISH-Verhalten behauptet. Ein Pre-Commit-EOS-Enginefehler
+markiert den Abschluss trotz eines sichtbaren Fallbacks als unvollständig.
+Fehlende Applied- oder Late-Log-Only-Acknowledgements markieren den Abschluss
+ebenfalls als unvollständig; normales FINISH wird nicht behauptet. Bei
+Late-Log-Only-Ack-Fehlern erzeugt auch der delegierte ReaderFrom-EOF-Pfad kein
+synthetisches EOS. Die
+vollständige unabhängige Statusmatrix wird in `docs/protocol-parity.md` und
+seiner deutschen Begleitdatei gepflegt.
+
+## Security-Auswirkung
+
+Die Grenze umfasst nicht vertrauenswürdigen Protokoll-, Stream-,
+Response-Body-, EOS- und Late-Intervention-Zustand. Die dokumentierten
+Änderungen bewahren das angegebene fail-closed-Verhalten und unterscheiden
+Source-Evidence von Runtime-Evidence. Kein Security-Finding ist vollständig
+verifiziert; die zutreffende Formulierung ist source-level fixed / runtime not
+verified.
+
+## Geänderte Dateien
+
+- `docs/protocol-parity.md`
+- `docs/protocol-parity.de.md`
+- `ci/checks/common/check-common-helpers.sh`
+- `common/include/msconnector/late_intervention.h`
+- `common/src/late_intervention.c`
+- `connectors/apache/src/msc_filters.c`
+- `tests/test_apache_phase4_response_regression_wiring.py`
+- `connectors/nginx/src/ngx_http_modsecurity_header_filter.c`
+- `tests/test_nginx_upstream_security_contract.py`
+- `connectors/traefik/native_middleware/middleware.go`
+- `connectors/traefik/native_middleware/middleware_test.go`
+- `reports/audits/change-records/CR-20260826-http2-http3-protocol-parity.md`
+- `reports/audits/change-records/CR-20260826-http2-http3-protocol-parity.de.md`
+- `reports/audits/change-records/README.md`
+- `reports/audits/change-records/README.de.md`
+
+Das Framework-Submodul ist nicht initialisiert und wurde nicht geändert. MRTS
+wurde nicht angefasst.
+
+## Ausgeführte Befehle
+
+- `curl --http3` — beendet sich mit `2`.
+- `rtk proxy env TMPDIR=<registered-run>/tmp GOCACHE=<registered-run>/build/gocache GOMODCACHE=<registered-run>/build/gomodcache GOPATH=<registered-run>/build/gopath GOTOOLCHAIN=local GOFLAGS=-mod=readonly GOPROXY=off go test -run 'Test(EngineErrorAfterCommittedResponseDoesNotInventResponseEOS|IncompleteHostWriteDoesNotInventResponseEOS|LateResponseDecisionDoesNotReplaceCommittedResponse|ReadFromEngineEOSErrorAfterHostCommitDoesNotWriteFailure|ReadFromInitialSourceErrorDoesNotInventResponseEOS)$' .` — bestanden (fokussierte Post-Patch-Go-Auswahl).
+
+Die folgenden gelieferten Testergebnisse werden ohne erfundene Befehlszeilen
+aufgezeichnet:
+
+- 28 ausgewählte Python-Tests bestanden (Apache/NGINX/C/C++-Gruppe).
+- `rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest -v tests.test_apache_phase4_response_regression_wiring tests.test_nginx_upstream_security_contract tests.test_nginx_protocol_harness_contract tests.test_transport_lifecycle_artifacts tests.test_runtime_observation_contract` — bestanden (98 Tests, 1 erwarteter Framework-Identity-Skip).
+- Frühere Baselines: 20 passed/3 skipped und 39 passed/2 skipped.
+- Capability-Gruppe 93 hatte einen erwarteten Environment-Fehler wegen des
+  fehlenden, nicht initialisierten Framework-Validators.
+- Common C17 bestand.
+- Common SDK/adapter/security checks bestanden.
+- Apache C17 bestand.
+- Apache fokussierter statischer Test bestand.
+- NGINX statischer Test bestand.
+- Traefik fokussierter Go-Test bestand; die erste Pre-Fix-Reproduktion schlug
+  fehl.
+- Die ursprüngliche direkte Post-Commit-Engine-Error-Reproduktion und die neue
+  Initial-`ReadFrom`-Source-Error-Reproduktion schlugen vor der Reparatur fehl.
+- NGINX native C17-Kompilierung war wegen fehlender NGINX-Header blockiert.
+- Explizites task-worktree `make protocol-client` — mit Exit `2` beendet, weil
+  der nicht initialisierte Framework-Gitlink kein `protocol-client`-Target hat.
+- Apache statischer Test — bestanden.
+- Apache C17 — bestanden.
+- Common C17 helper — bestanden.
+- Traefik-Pakettest — bestanden.
+- Vier fokussierte Go-Regressionen schlugen absichtlich vor dem Fix fehl und
+  bestanden danach.
+- Drei test-first Go-Regressionen schlugen absichtlich vor dem Fix fehl und
+  bestanden danach.
+- Ein neuer test-first ReaderFrom-Regressionsfall schlug vor dem Guard fehl und
+  besteht danach.
+
+## Runtime-Evidence
+
+curl hat HTTP/2, aber kein HTTP/3. `curl --http3` beendet sich mit `2`.
+H3-Runtime ist `runtime_skipped_missing_client` und nicht verifiziert. Es wird
+keine H2/H3-Traffic-Behauptung aufgestellt. Die tatsächliche
+Traefik-H2/H3-Runtime wurde nicht ausgeführt.
+
+## Nicht ausgeführte Prüfungen mit Begründung
+
+Für diesen Dokumentations-Record wurden keine weiteren Befehle oder Ergebnisse
+geliefert. Unbekannte Source-, Build-, Contract-, Runtime-, P1-, P2-, P3-, P4-
+und Late-Intervention-Dimensionen bleiben wie in der Matrix als `not_run` oder
+`blocked` ausgewiesen. Die versehentliche anfängliche Ausgabe im gemeinsamen
+Build-Verzeichnis wird nur als lokale Storage-Beschränkung erfasst; sie ist
+keine Protokoll- oder Runtime-Evidence.
+
+## Bekannte Einschränkungen
+
+Das Framework-Submodul ist nicht initialisiert. H3 fehlt in dieser Umgebung ein
+Client. Für die Matrix ist keine Connector-Runtime-Evidence etabliert,
+einschließlich H2/H3-Traffic. Die native NGINX-C17-Kompilierung bleibt wegen
+fehlender NGINX-Header blockiert.
+
+## Verbleibende Risiken
+
+Das neutrale Common-Modell wird möglicherweise noch nicht von jedem Adapter
+verwendet. Source-Level-Fixes wurden nicht zu Runtime-Verifikation erhoben.
+Kein Security-Finding ist vollständig verifiziert.
+
+## Finaler Diff- und Review-Status
+
+Dies ist ein unabhängiger laufender Workstream. Die gepaarte Dokumentation und
+der Change Record berichten ausschließlich die gelieferten Ergebnisse. Der
+Workstream ist noch nicht committed, gepushed oder durch einen erstellten Pull
+Request vertreten; kein Merge hat stattgefunden.
