@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+import shlex
 import socket
 import ssl
 import subprocess
@@ -28,6 +29,33 @@ UPSTREAM_SPEC.loader.exec_module(UPSTREAM)
 
 
 class CompositeHarnessPathTests(unittest.TestCase):
+  def test_safe_ancestor_chain_allows_root_owned_ancestor_but_rejects_writable_one(self) -> None:
+    script = Path(__file__).with_name("run_traefik_composite_matrix.sh").read_text(
+        encoding="utf-8"
+    )
+    start = script.index("safe_ancestor_chain() {")
+    end = script.index("\nis_private_dir()", start)
+    safe_ancestor_chain = script[start:end]
+    self.assertIn('[ "$owner" = "$(id -u)" ] || [ "$owner" = 0 ]', safe_ancestor_chain)
+
+    with tempfile.TemporaryDirectory(prefix="traefik-harness-path-") as temporary:
+      base = Path(temporary)
+      leaf = base / "leaf"
+      leaf.mkdir(mode=0o700)
+
+      def check() -> subprocess.CompletedProcess[str]:
+        command = f"{safe_ancestor_chain}\nsafe_ancestor_chain {shlex.quote(str(leaf))}\n"
+        return subprocess.run(
+            ["bash", "-c", command],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+      self.assertEqual(check().returncode, 0)
+      base.chmod(0o777)
+      self.assertNotEqual(check().returncode, 0)
+
   def test_artifact_leaf_requires_absolute_direct_child(self) -> None:
     root = Path("/private/runtime")
     assert DRIVER.artifact_leaf(root / "input.json", root, "input") == "input.json"

@@ -107,17 +107,25 @@ func run() error {
 	// Allow/P4/cleanup record could still be queued and its write failure would
 	// be missed. The deferred idempotent cleanup remains for early failures.
 	coordinator.Close()
-	if observerErr := observer.Err(); observerErr != nil {
-		_ = closeObserver.Close()
-		ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-		defer cancel()
-		_ = runtime.close(ctx)
-		return fmt.Errorf("metadata event evidence failed: %w", observerErr)
-	}
+	coordinatorErr := coordinator.Err()
+	observerErr := observer.Err()
 	observerCloseErr := closeObserver.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	engineCloseErr := runtime.close(ctx)
 	cancel()
+	return shutdownResult(serveErr, coordinatorErr, observerErr, observerCloseErr, engineCloseErr)
+}
+
+// shutdownResult makes the fail-closed shutdown precedence explicit. A
+// coordinator fault indicates that lifecycle evidence may be incomplete, so
+// it supersedes serving and dependent observer/cleanup errors.
+func shutdownResult(serveErr, coordinatorErr, observerErr, observerCloseErr, engineCloseErr error) error {
+	if coordinatorErr != nil {
+		return fmt.Errorf("coordinator failed: %w", coordinatorErr)
+	}
+	if observerErr != nil {
+		return fmt.Errorf("metadata event evidence failed: %w", observerErr)
+	}
 	if observerCloseErr != nil {
 		return fmt.Errorf("metadata event close: %w", observerCloseErr)
 	}

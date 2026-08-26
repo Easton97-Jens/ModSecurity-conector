@@ -324,6 +324,26 @@ func TestUnactivatedReservationAbortOpensAndClosesEventLifecycle(t *testing.T) {
 	}
 }
 
+func TestPreActivationClaimLeavesTerminalReasonToOwner(t *testing.T) {
+	c, log := newTestCoordinator(t, Limits{Capacity: 1})
+	token, err := c.Reserve("uds-session", reservationSnapshot("GET", "/pre-claim"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Claim(token, "uds-session"); !errors.Is(err, ErrOutOfOrder) {
+		t.Fatalf("pre-activation claim = %v", err)
+	}
+	if err := c.AbortWithReason(token, "uds-session", "disconnect"); err != nil {
+		t.Fatal(err)
+	}
+	c.Close()
+	log.mu.Lock()
+	defer log.mu.Unlock()
+	if len(log.events) != 2 || log.events[1].Phase != "terminal" || log.events[1].Reason != "disconnect" {
+		t.Fatalf("pre-activation lifecycle = %#v", log.events)
+	}
+}
+
 func TestReservationSnapshotIsImmutableAndBoundToForwardAuthMetadata(t *testing.T) {
 	engine := &snapshotCaptureEngine{}
 	c, err := New("traefik", []byte("01234567890123456789012345678901"), Limits{}, engine, nil)

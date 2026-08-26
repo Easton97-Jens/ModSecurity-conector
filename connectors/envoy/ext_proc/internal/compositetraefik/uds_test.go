@@ -193,6 +193,33 @@ func TestReservationSnapshotRejectsPrivateOrNonCanonicalHeaders(t *testing.T) {
 	}
 }
 
+func TestReservationSnapshotAllowsEmptyOrdinaryValueOnly(t *testing.T) {
+	snapshot, err := parseReservationSnapshot(reservationSnapshotPayload(t, http.MethodGet, "/", []processor.Header{{Name: "x-optional", Value: nil}}))
+	if err != nil {
+		t.Fatalf("empty ordinary header value rejected: %v", err)
+	}
+	defer wipeParsedHeaders(snapshot.Headers)
+	foundEmptyOptional := false
+	for _, header := range snapshot.Headers {
+		if header.Name == "x-optional" && len(header.Value) == 0 {
+			foundEmptyOptional = true
+			break
+		}
+	}
+	if !foundEmptyOptional {
+		t.Fatalf("empty ordinary header value missing: %#v", snapshot.Headers)
+	}
+	for name, payload := range map[string][]byte{
+		"method":      {composite.ReservationSnapshotVersion, 0, 0},
+		"uri":         {composite.ReservationSnapshotVersion, 0, 3, 'G', 'E', 'T', 0, 0},
+		"header-name": {composite.ReservationSnapshotVersion, 0, 3, 'G', 'E', 'T', 0, 1, '/', 0, 1, 0, 0},
+	} {
+		if _, err := parseReservationSnapshot(payload); err == nil {
+			t.Fatalf("accepted empty %s", name)
+		}
+	}
+}
+
 func startUDSPipe(t *testing.T, svc *UDS) net.Conn {
 	t.Helper()
 	server, client := net.Pipe()

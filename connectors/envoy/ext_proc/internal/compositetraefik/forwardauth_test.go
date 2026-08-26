@@ -3,14 +3,52 @@ package compositetraefik
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/Easton97-Jens/ModSecurity-conector/connectors/envoy/ext_proc/internal/composite"
 	"github.com/Easton97-Jens/ModSecurity-conector/connectors/envoy/ext_proc/internal/processor"
 )
+
+func TestForwardedMetadataAcceptsLongCommaSeparatedURI(t *testing.T) {
+	uri := "/route?allow=a,b&" + strings.Repeat("x", (64<<10)-len("/route?allow=a,b&")-1)
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/", nil)
+	for name, value := range map[string]string{
+		"X-Forwarded-Method": http.MethodGet,
+		"X-Forwarded-Uri":    uri,
+		"X-Forwarded-Proto":  "http",
+		"X-Forwarded-Host":   "example.test",
+		"X-Forwarded-For":    "127.0.0.1",
+	} {
+		req.Header.Set(name, value)
+	}
+	req = req.WithContext(context.WithValue(req.Context(), http.LocalAddrContextKey, &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 19182}))
+	metadata, err := forwardedMetadata(req)
+	if err != nil || metadata.URI != uri {
+		t.Fatalf("long URI metadata = %#v, err=%v", metadata, err)
+	}
+}
+
+func TestForwardedMetadataRejectsURIOverReservationLimit(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/", nil)
+	for name, value := range map[string]string{
+		"X-Forwarded-Method": http.MethodGet,
+		"X-Forwarded-Uri":    "/" + strings.Repeat("x", 64<<10),
+		"X-Forwarded-Proto":  "http",
+		"X-Forwarded-Host":   "example.test",
+		"X-Forwarded-For":    "127.0.0.1",
+	} {
+		req.Header.Set(name, value)
+	}
+	req = req.WithContext(context.WithValue(req.Context(), http.LocalAddrContextKey, &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 19182}))
+	if _, err := forwardedMetadata(req); !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("oversized URI error = %v", err)
+	}
+}
 
 type snapshotP1Engine struct {
 	headers    []processor.Header

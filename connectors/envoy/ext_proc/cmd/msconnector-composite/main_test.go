@@ -1,6 +1,18 @@
 package main
 
-import "testing"
+import (
+	"errors"
+	"strings"
+	"testing"
+)
+
+func TestShutdownResultPrioritizesCoordinatorFault(t *testing.T) {
+	coordinatorErr := errors.New("event queue saturated")
+	got := shutdownResult(errors.New("serve"), coordinatorErr, errors.New("observer"), errors.New("observer close"), errors.New("engine close"))
+	if !errors.Is(got, coordinatorErr) || !strings.Contains(got.Error(), "coordinator failed") {
+		t.Fatalf("shutdown result = %v", got)
+	}
+}
 
 func TestValidateLoopbackAddressRequiresNumericLoopback(t *testing.T) {
 	for _, address := range []string{"127.0.0.1:18081", "[::1]:18081"} {

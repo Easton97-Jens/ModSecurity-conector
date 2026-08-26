@@ -571,7 +571,13 @@ func (c *Coordinator) Claim(token, session string) (*Response, error) {
 		return nil, ErrNotAllowed
 	}
 	if e.phase != phaseLeased {
-		go e.finish(context.Background(), "out_of_order")
+		// A private reservation may be claimed before ForwardAuth has
+		// activated it. Leave cleanup to the owning UDS session so a
+		// disconnect/abort retains its truthful terminal reason instead of
+		// racing an asynchronous out_of_order cleanup.
+		if !e.reserved {
+			go e.finish(context.Background(), "out_of_order")
+		}
 		return nil, ErrOutOfOrder
 	}
 	e.claimed, e.session, e.phase, e.last = true, session, phaseResponseHeaders, time.Now()

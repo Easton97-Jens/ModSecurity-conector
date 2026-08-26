@@ -188,13 +188,25 @@ func exactHeader(h http.Header, name string) (string, bool) {
 	return value, true
 }
 
+func exactURIHeader(h http.Header, name string) (string, bool) {
+	values := h.Values(name)
+	if len(values) != 1 {
+		return "", false
+	}
+	value := strings.TrimSpace(values[0])
+	if value == "" || len(value) > 64<<10 || strings.ContainsAny(value, "\r\n\x00") {
+		return "", false
+	}
+	return value, true
+}
+
 func forwardedMetadata(r *http.Request) (processor.RequestMetadata, error) {
 	method, ok := exactHeader(r.Header, "X-Forwarded-Method")
 	if !ok || !validMethod(method) {
 		return processor.RequestMetadata{}, ErrInvalidRequest
 	}
-	uri, ok := exactHeader(r.Header, "X-Forwarded-Uri")
-	if !ok || !strings.HasPrefix(uri, "/") || strings.ContainsAny(uri, "\r\n") {
+	uri, ok := exactURIHeader(r.Header, "X-Forwarded-Uri")
+	if !ok || !strings.HasPrefix(uri, "/") {
 		return processor.RequestMetadata{}, ErrInvalidRequest
 	}
 	proto, ok := exactHeader(r.Header, "X-Forwarded-Proto")

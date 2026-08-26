@@ -6,7 +6,6 @@
 package composite_middleware
 
 import (
-	"bufio"
 	"context"
 	"encoding/base64"
 	"encoding/binary"
@@ -257,7 +256,7 @@ func reservationPayload(method, target string, headers http.Header, authority st
 		binary.BigEndian.PutUint16(size[:], uint16(len(group.values)))
 		p = append(p, size[:]...)
 		for _, value := range group.values {
-			p, err = appendReservationText(p, value, maxHeaderValue)
+			p, err = appendReservationValue(p, value)
 			if err != nil {
 				return nil, err
 			}
@@ -351,7 +350,7 @@ func copyReservationHeaders(headers http.Header) (map[string][]string, int, int,
 			// by case. Reject hand-built ambiguity rather than choosing one.
 			return nil, 0, 0, errProtocol
 		}
-		if canonical == "host" && len(values) != 1 {
+		if canonical == "host" && (len(values) != 1 || values[0] == "") {
 			return nil, 0, 0, errProtocol
 		}
 		var err error
@@ -382,6 +381,17 @@ func appendReservationText(payload []byte, value string, max int) ([]byte, error
 	if len(value) == 0 || len(value) > max || len(value) > int(^uint16(0)) || strings.ContainsAny(value, forbiddenHeaderChars) {
 		return nil, errProtocol
 	}
+	return appendReservationField(payload, value)
+}
+
+func appendReservationValue(payload []byte, value string) ([]byte, error) {
+	if len(value) > maxHeaderValue || len(value) > int(^uint16(0)) || strings.ContainsAny(value, forbiddenHeaderChars) {
+		return nil, errProtocol
+	}
+	return appendReservationField(payload, value)
+}
+
+func appendReservationField(payload []byte, value string) ([]byte, error) {
 	if len(payload)+2+len(value) > maxPayload {
 		return nil, errProtocol
 	}
@@ -552,17 +562,17 @@ func claimPayload(token string) []byte {
 }
 
 type responseWriter struct {
-	parent                                                       *Middleware
-	writer                                                       http.ResponseWriter
-	proto                                                        *protocolConn
-	exchange                                                     func(byte, []byte) (result, error)
-	lease                                                        string
-	status                                                       int
-	wroteHeader, committed, blocked, finished, hijacked, claimed bool
-	requestTerminal                                              bool
-	late                                                         bool
-	outcomeAction                                                byte
-	transportErr                                                 error
+	parent                                             *Middleware
+	writer                                             http.ResponseWriter
+	proto                                              *protocolConn
+	exchange                                           func(byte, []byte) (result, error)
+	lease                                              string
+	status                                             int
+	wroteHeader, committed, blocked, finished, claimed bool
+	requestTerminal                                    bool
+	late                                               bool
+	outcomeAction                                      byte
+	transportErr                                       error
 }
 
 func (rw *responseWriter) Header() http.Header { return rw.writer.Header() }
@@ -702,10 +712,12 @@ func (rw *responseWriter) writeChunks(body []byte) (int, error) {
 		n, err := rw.writer.Write(chunk)
 		written += n
 		if err != nil {
+			rw.transportErr = err
 			return written, err
 		}
 		if n != len(chunk) {
-			return written, io.ErrShortWrite
+			rw.transportErr = io.ErrShortWrite
+			return written, rw.transportErr
 		}
 	}
 	return written, nil
@@ -722,21 +734,6 @@ func (rw *responseWriter) Flush() {
 	}
 }
 
-// Hijack preserves the host's connection takeover surface. It intentionally
-// leaves the response lifecycle open: a hijacked stream cannot truthfully
-// claim P3/P4 completion, so UDS disconnect cleanup closes the reservation.
-func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	hijacker, ok := rw.writer.(http.Hijacker)
-	if !ok {
-		return nil, nil, http.ErrNotSupported
-	}
-	conn, buffered, err := hijacker.Hijack()
-	if err == nil {
-		rw.hijacked = true
-	}
-	return conn, buffered, err
-}
-
 func (rw *responseWriter) Push(target string, options *http.PushOptions) error {
 	pusher, ok := rw.writer.(http.Pusher)
 	if !ok {
@@ -744,8 +741,6 @@ func (rw *responseWriter) Push(target string, options *http.PushOptions) error {
 	}
 	return pusher.Push(target, options)
 }
-
-func (rw *responseWriter) Unwrap() http.ResponseWriter { return rw.writer }
 
 func (rw *responseWriter) writeDecision(res result) {
 	for name := range rw.writer.Header() {
@@ -849,7 +844,7 @@ func (rw *responseWriter) finish(ctx context.Context) {
 		return
 	}
 	rw.finished = true
-	if rw.hijacked || rw.proto == nil {
+	if rw.proto == nil {
 		return
 	}
 	if rw.requestTerminal {

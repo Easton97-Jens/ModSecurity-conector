@@ -82,11 +82,18 @@ safe_ancestor_chain() {
     while [ "$current" != "/" ]; do
         [ -e "$current" ] && [ ! -L "$current" ] || return 1
         owner=$(stat -c '%u' "$current" 2>/dev/null || echo -1)
-        [ "$owner" = "$(id -u)" ] || return 1
+        if [ "$current" = "$path" ]; then
+            [ "$owner" = "$(id -u)" ] || return 1
+        else
+            [ "$owner" = "$(id -u)" ] || [ "$owner" = 0 ] || return 1
+        fi
         mode_unsafe=$(find "$current" -maxdepth 0 -perm /022 -print -quit 2>/dev/null || true)
         if [ -n "$mode_unsafe" ]; then
             case "$current" in
-                /tmp|/var/tmp) : ;;
+                /tmp|/var/tmp)
+                    [ "$owner" = 0 ] || return 1
+                    find "$current" -maxdepth 0 -perm -1000 -print -quit 2>/dev/null | grep -q . || return 1
+                    ;;
                 *) return 1 ;;
             esac
         fi

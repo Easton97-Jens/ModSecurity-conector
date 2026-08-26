@@ -315,3 +315,42 @@ Behauptung über die Zähler für neue Zeilen hinaus. Fünf GitHub-Workflows
 bestanden. Der PR bleibt Draft/Open, und ein Merge wurde weder versucht noch
 autorisiert. Die abschließende Verifikation dieses Dokumentations-Follow-ups
 gegen seinen zukünftigen Dokumentations-Head steht noch aus.
+
+## Codex-Feedback-Remediation für PR #341 — 2026-08-26
+
+Der registrierte Task-Worktree für `agent/fnd-parent-0221-composite-connectors`
+wurde normal auf `origin/master` bei
+`c1653fb84201bc6a29c47723fa74e12270deb164` vorgezogen; `master` blieb
+unverändert. Sieben aktuelle Codex-Review-Threads wurden behoben, ohne
+Quality-Gate, Suppression, CI-Konfiguration oder Security-Control zu ändern:
+
+- root-eigene nicht schreibbare Pfad-Ahnen werden akzeptiert; schreibbare
+  Ahnen bleiben mit Ausnahme von root-eigenen sticky `/tmp` und `/var/tmp`
+  abgewiesen;
+- ein Claim vor der Aktivierung überlässt dem besitzenden UDS-Cleanup die
+  `disconnect`-Begründung, statt mit einem `out_of_order`-Terminal zu rennen;
+- ForwardAuth akzeptiert genau eine begrenzte URI mit Kommas und weist
+  Control- oder übergroße Daten ab;
+- leere gewöhnliche Headerwerte werden konsistent serialisiert und geparst,
+  während Methode, URI, Headername und Host nichtleer bleiben;
+- Downstream-Fehler und Short-Writes verhindern falsche P3/P4-EOS-/Outcome-
+  Evidenz;
+- ein Coordinator-Fehler wird nach Close abgefragt und hat Vorrang im
+  Shutdown-Ergebnis; und
+- der Composite-Response-Writer exponiert weder `Hijack` noch `Unwrap`, sodass
+  ein nicht unterstütztes HTTP-Upgrade-Takeover fail-closed statt an P3/P4
+  vorbeizulaufen fehlschlägt.
+
+Die finalen lokalen Checks bestanden: Envoy-Coordinator-/ForwardAuth-/UDS- und
+Command-Race-Tests, Traefik-Middleware-Race-Tests, beide betroffenen Go-vet-
+Suiten, 39 fokussierte Python-Verifier-/Konfigurations-/Harness-Tests,
+Traefik-Runner-Shell-Syntax und `git diff --check`. Das unabhängige
+33-Dateien-Security-Diff-Review fand keinen neuen offenen Security-Kandidaten;
+es hält den Pre-Fix-Raw-Writer-Escape als behobene Instanz von
+`FND-PARENT-0221` fest und den separaten P4-Strict-Harness-Hinweis als
+unterdrückte, nicht-promotende Evidence-Integrity-Notiz.
+
+Dies sind ausschließlich lokale Final-Worktree-Ergebnisse. Corrective Commit,
+Push sowie neue exakte Head-GitHub-/SonarCloud-Checks stehen noch aus; hier
+wird kein zukünftiges Sonarqube-Ergebnis behauptet, und kein Merge ist
+autorisiert.

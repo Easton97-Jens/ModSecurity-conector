@@ -294,3 +294,37 @@ claim beyond those zero new-line counters. Five GitHub workflows passed. The
 PR remains Draft/Open and no merge was attempted or authorized. Final
 verification of this documentation follow-up against its future documentation
 head is still pending.
+
+## PR #341 Codex-feedback remediation — 2026-08-26
+
+The registered task worktree for `agent/fnd-parent-0221-composite-connectors`
+was advanced normally to include `origin/master` at
+`c1653fb84201bc6a29c47723fa74e12270deb164`; `master` was not changed. Seven
+current Codex review threads were repaired without changing a quality gate,
+suppression, CI configuration, or security control:
+
+- root-owned non-writable path ancestors are accepted while writable ancestors
+  remain rejected except for root-owned sticky `/tmp` and `/var/tmp`;
+- a pre-activation claim leaves the owning UDS cleanup to retain `disconnect`
+  rather than race an `out_of_order` terminal;
+- ForwardAuth accepts one bounded comma-containing URI and rejects control or
+  over-limit data;
+- empty ordinary header values are consistently serialized and parsed while
+  method, URI, header name, and Host remain non-empty;
+- downstream errors and short writes stop false P3/P4 EOS/outcome evidence;
+- a coordinator fault is queried after close and takes shutdown-result
+  precedence; and
+- the composite response writer no longer exposes `Hijack` or `Unwrap`, so
+  unsupported HTTP upgrade takeover fails closed rather than bypassing P3/P4.
+
+The final local checks passed: Envoy coordinator/ForwardAuth/UDS/command race
+tests, Traefik middleware race tests, both affected Go-vet suites, 39 focused
+Python verifier/configuration/harness tests, Traefik runner shell syntax, and
+`git diff --check`. The independent 33-file security-diff review found no new
+open security candidate; it records the pre-fix raw-writer escape as a
+remediated instance of `FND-PARENT-0221` and retains the separate P4 Strict
+harness observation as a suppressed, non-promoting evidence-integrity note.
+
+These are local final-worktree results only. The corrective commit, push, and
+new exact-head GitHub/SonarCloud checks remain to be performed; no future
+Sonar result is claimed here, and no merge is authorized.

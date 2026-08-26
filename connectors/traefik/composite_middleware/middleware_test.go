@@ -1,9 +1,12 @@
 package composite_middleware
 
 import (
+	"bufio"
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -12,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 const testLeaseHeader = "X-Msconnector-Composite-Lease"
@@ -215,6 +219,87 @@ func TestReservationPayloadPreservesZeroTransportContentLength(t *testing.T) {
 	headers := reservationPayloadHeaderValues(t, payload)
 	if got := headers["content-length"]; len(got) != 1 || got[0] != "0" {
 		t.Fatalf("zero content-length snapshot = %#v", got)
+	}
+}
+
+func TestReservationPayloadAllowsEmptyOrdinaryHeaderValue(t *testing.T) {
+	payload, err := reservationPayload(http.MethodGet, "/empty-header", http.Header{"X-Optional": []string{""}}, "example.test", -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	headers := reservationPayloadHeaderValues(t, payload)
+	if got, ok := headers["x-optional"]; !ok || len(got) != 1 || got[0] != "" {
+		t.Fatalf("empty ordinary header value = %#v", got)
+	}
+	if _, err := reservationPayload(http.MethodGet, "/empty-host", http.Header{"Host": []string{""}}, "example.test", -1); err == nil {
+		t.Fatal("accepted empty Host value")
+	}
+}
+
+func TestResponseWriterRecordsDownstreamWriteFailures(t *testing.T) {
+	for name, writer := range map[string]http.ResponseWriter{
+		"error":       &failingResponseWriter{err: io.ErrClosedPipe},
+		"short-write": &failingResponseWriter{short: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			client, peer := net.Pipe()
+			defer client.Close()
+			defer peer.Close()
+			peerResult := make(chan error, 1)
+			go func() {
+				op, _, err := readMSC2Frame(peer)
+				if err != nil || op != opResponseChunk {
+					peerResult <- fmt.Errorf("response chunk = op %d, err %w", op, err)
+					return
+				}
+				if err := writeMSC2Result(peer, opResponseChunk, decisionAllow, 0, 0, ""); err != nil {
+					peerResult <- err
+					return
+				}
+				_ = peer.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+				if op, _, err := readMSC2Frame(peer); err == nil {
+					peerResult <- fmt.Errorf("unexpected terminal op %d after downstream write failure", op)
+					return
+				}
+				peerResult <- nil
+			}()
+			rw := &responseWriter{
+				writer: writer,
+				proto:  &protocolConn{conn: client, timeout: time.Second},
+				parent: &Middleware{config: Config{MaxResponseChunkBytes: 4}},
+			}
+			rw.exchange = func(op byte, payload []byte) (result, error) {
+				return rw.proto.exchange(context.Background(), op, payload)
+			}
+			n, err := rw.writeChunks([]byte("chunk"))
+			if err == nil || rw.transportErr == nil {
+				t.Fatalf("writeChunks = %d, %v; transportErr = %v", n, err, rw.transportErr)
+			}
+			if rw.transportErr != err {
+				t.Fatalf("transportErr = %v, write error = %v", rw.transportErr, err)
+			}
+			rw.finish(context.Background())
+			if err := <-peerResult; err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestResponseWriterFailsClosedForHijackAndUnwrap(t *testing.T) {
+	underlying := &hijackResponseWriter{}
+	rw := &responseWriter{writer: underlying}
+	if _, ok := any(rw).(http.Hijacker); ok {
+		t.Fatal("responseWriter still exposes http.Hijacker")
+	}
+	if _, ok := any(rw).(interface{ Unwrap() http.ResponseWriter }); ok {
+		t.Fatal("responseWriter still exposes Unwrap")
+	}
+	if _, _, err := http.NewResponseController(rw).Hijack(); !errors.Is(err, http.ErrNotSupported) {
+		t.Fatalf("Hijack error = %v, want %v", err, http.ErrNotSupported)
+	}
+	if underlying.hijacked {
+		t.Fatal("underlying writer was hijacked through wrapper")
 	}
 }
 
@@ -437,21 +522,21 @@ func reservationPayloadHeaderValues(t *testing.T, payload []byte) map[string][]s
 		t.Fatal("reservation payload version")
 	}
 	i := 1
-	readText := func() string {
+	readText := func(allowEmpty bool) string {
 		if i+2 > len(payload) {
 			t.Fatal("reservation payload length")
 		}
 		n := int(binary.BigEndian.Uint16(payload[i : i+2]))
 		i += 2
-		if n == 0 || i+n > len(payload) {
+		if (!allowEmpty && n == 0) || i+n > len(payload) {
 			t.Fatal("reservation payload field")
 		}
 		value := string(payload[i : i+n])
 		i += n
 		return value
 	}
-	_ = readText() // method
-	_ = readText() // URI
+	_ = readText(false) // method
+	_ = readText(false) // URI
 	if i+2 > len(payload) {
 		t.Fatal("reservation payload group count")
 	}
@@ -459,20 +544,63 @@ func reservationPayloadHeaderValues(t *testing.T, payload []byte) map[string][]s
 	i += 2
 	result := make(map[string][]string, groups)
 	for group := 0; group < groups; group++ {
-		name := readText()
+		name := readText(false)
 		if i+2 > len(payload) {
 			t.Fatal("reservation payload value count")
 		}
 		count := int(binary.BigEndian.Uint16(payload[i : i+2]))
 		i += 2
 		for value := 0; value < count; value++ {
-			result[name] = append(result[name], readText())
+			result[name] = append(result[name], readText(true))
 		}
 	}
 	if i != len(payload) {
 		t.Fatal("reservation payload trailing data")
 	}
 	return result
+}
+
+type failingResponseWriter struct {
+	header http.Header
+	err    error
+	short  bool
+}
+
+func (w *failingResponseWriter) Header() http.Header {
+	if w.header == nil {
+		w.header = make(http.Header)
+	}
+	return w.header
+}
+
+func (*failingResponseWriter) WriteHeader(int) {}
+
+func (w *failingResponseWriter) Write(p []byte) (int, error) {
+	if w.err != nil {
+		return 0, w.err
+	}
+	return len(p) - 1, nil
+}
+
+type hijackResponseWriter struct {
+	header   http.Header
+	hijacked bool
+}
+
+func (w *hijackResponseWriter) Header() http.Header {
+	if w.header == nil {
+		w.header = make(http.Header)
+	}
+	return w.header
+}
+
+func (*hijackResponseWriter) WriteHeader(int) {}
+
+func (*hijackResponseWriter) Write([]byte) (int, error) { return 0, nil }
+
+func (w *hijackResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	w.hijacked = true
+	return nil, nil, nil
 }
 
 func testToken() string {

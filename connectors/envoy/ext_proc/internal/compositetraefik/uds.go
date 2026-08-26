@@ -680,7 +680,7 @@ func parseReservationGroup(p []byte, offset int, lastName string, total int, hea
 		return "", 0, 0, total, headers, errMSC2
 	}
 	for valueIndex := 0; valueIndex < values; valueIndex++ {
-		value, valueNext, valueErr := reservationBytes(p, next, maxHeaderValue)
+		value, valueNext, valueErr := reservationValue(p, next, maxHeaderValue)
 		if valueErr != nil || invalidReservationValue(value) {
 			return "", 0, 0, total, headers, errMSC2
 		}
@@ -709,6 +709,18 @@ func reservationBytes(p []byte, offset, max int) ([]byte, int, error) {
 	n := int(binary.BigEndian.Uint16(p[offset : offset+2]))
 	next := offset + 2 + n
 	if n == 0 || n > max || next > len(p) {
+		return nil, 0, errMSC2
+	}
+	return p[offset+2 : next], next, nil
+}
+
+func reservationValue(p []byte, offset, max int) ([]byte, int, error) {
+	if offset+2 > len(p) {
+		return nil, 0, errMSC2
+	}
+	n := int(binary.BigEndian.Uint16(p[offset : offset+2]))
+	next := offset + 2 + n
+	if n > max || next > len(p) {
 		return nil, 0, errMSC2
 	}
 	return p[offset+2 : next], next, nil
