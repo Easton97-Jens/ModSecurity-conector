@@ -20,13 +20,14 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
-- [CR-20260825-trusted-lighttpd-runtime-supervisor-infrastructure](CR-20260825-trusted-lighttpd-runtime-supervisor-infrastructure.de.md) —
-  der aktuelle Benutzer autorisierte diesen separaten Parent-only-Draft-PR für
-  die master-eigene Lighttpd-Runtime-Supervisor-Infrastruktur und ihre
-  begrenzte Fixture-Zusammenfassung. Der Record weist nur lokale Contract-
-  Evidence aus; er beansprucht keinen geschützten Runtime-Dispatch, kein
-  Hosted-Ergebnis, keine Framework-/MRTS-Änderung, kein Gitlink-Update und
-  keinen Merge.
+- [CR-20260825-fnd-parent-0221-composite-connectors](CR-20260825-fnd-parent-0221-composite-connectors.de.md) —
+  der aktuelle Benutzer autorisierte eine Parent-only-Composite-
+  Korrelationsimplementierung, gekoppelte Nachvollziehbarkeit, scoped
+  Commit/Push und einen Draft-PR. Der Record hält aktuelle lokale und
+  Real-H1-Evidenz fest, belässt `FND-PARENT-0221` aber wahrheitsgemäß
+  release-blockierend und P4 Strict, Duplicate/Cancel, Same-Process-Traefik-
+  Follow-up, H2/H3 und Paritäts-Evidenz offen; kein Merge ist autorisiert oder
+  behauptet.
 
 - [CR-20260824-canonical-runtime-observation](CR-20260824-canonical-runtime-observation.de.md) —
   der aktuelle Benutzer autorisierte diesen Parent-only Canonical-Runtime-

@@ -35,6 +35,36 @@ checked-in capability declaration, CRS state, Safe/Strict status, or production
 readiness. Upstream response headers and bodies remain unsupported in the
 separate `forwardAuth` compatibility protocol.
 
+## Bounded forwardAuth response composite (experimental)
+
+The opt-in composite is separate from the compatibility path. Its outer
+`composite_middleware/` local plugin strips client-supplied composite headers
+and trailers, sends a versioned and bounded P1 header snapshot only over its
+owner-only private UDS connection, and receives an opaque server-generated
+lease. The immediate inner ForwardAuth call receives only that lease and the
+Traefik-generated forwarded metadata; it never receives raw P1 headers or a
+request-context capsule over HTTP. The lease is removed again before the real
+upstream request and before the client response.
+
+The same retained UDS state then carries the response companion's P3/P4
+observation. The coordinator has bounded capacity and TTL cleanup; missing
+metadata, expiry, or a pre-commit companion failure fail closed rather than
+forwarding the request. The response path is configured by
+[`config/traefik-forwardauth-composite-static.yaml`](config/traefik-forwardauth-composite-static.yaml)
+and
+[`config/traefik-forwardauth-composite-dynamic.yaml`](config/traefik-forwardauth-composite-dynamic.yaml),
+with the local runner at
+[`harness/run_traefik_composite_matrix.sh`](harness/run_traefik_composite_matrix.sh).
+
+P4 Safe is log-only and preserves the original response. P4 Strict is not a
+passing result unless a real client-visible abort or reset is independently
+observed; this composite currently makes no such claim. The normal sanitized
+HTTP response path deliberately does not support downstream `Hijack` or
+`Unwrap`: those escape hatches are outside the composite contract and cannot
+be used as evidence for no-egress or P3/P4 guarantees. This experimental
+evidence does not promote production readiness or the existing capability
+declarations.
+
 ## Persistent native UDS engine service
 
 `src/traefik_engine_service.c` and

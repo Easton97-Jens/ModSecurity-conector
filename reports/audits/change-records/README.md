@@ -19,13 +19,14 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
-- [CR-20260825-trusted-lighttpd-runtime-supervisor-infrastructure](CR-20260825-trusted-lighttpd-runtime-supervisor-infrastructure.md)
-  | [Deutsch](CR-20260825-trusted-lighttpd-runtime-supervisor-infrastructure.de.md) — the current
-  user authorized this separate Parent-only Draft PR for the master-owned
-  Lighttpd runtime-supervisor infrastructure and its bounded fixture summary.
-  It records local contract evidence only; it does not claim a protected
-  runtime dispatch, hosted result, Framework/MRTS change, Gitlink update, or
-  merge.
+- [CR-20260825-fnd-parent-0221-composite-connectors](CR-20260825-fnd-parent-0221-composite-connectors.md)
+  | [Deutsch](CR-20260825-fnd-parent-0221-composite-connectors.de.md) — the
+  current user authorized a Parent-only composite-correlation implementation,
+  paired traceability, scoped commit/push, and one Draft PR. The record
+  retains current local and real-H1 evidence while truthfully keeping
+  `FND-PARENT-0221` release-blocking and P4 Strict, duplicate/cancel,
+  same-process Traefik follow-up, H2/H3, and parity evidence open; no merge is
+  authorized or asserted.
 
 - [CR-20260824-canonical-runtime-observation](CR-20260824-canonical-runtime-observation.md)
   | [Deutsch](CR-20260824-canonical-runtime-observation.de.md) — the current

@@ -1,0 +1,153 @@
+# Envoy composite authorization/response configuration.
+#
+# Placeholders are rendered by the invoking harness:
+#   @LISTEN_PORT@       downstream TLS listener
+#   @AUTHZ_PORT@        composite gRPC server (ext_authz and ext_proc)
+#   @UPSTREAM_PORT@     protected TLS upstream
+#   @ADMIN_PORT@        local Envoy admin listener
+#   @TLS_CERTIFICATE@   certificate/CA bundle
+#   @TLS_PRIVATE_KEY@   downstream private key
+#
+# The ext_authz response carries the server-issued lease only as dynamic
+# metadata.  It is intentionally never propagated as an HTTP header.
+static_resources:
+  listeners:
+  - name: msconnector_composite_listener
+    address:
+      socket_address:
+        address: 127.0.0.1
+        port_value: @LISTEN_PORT@
+    filter_chains:
+    - transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
+          common_tls_context:
+            tls_certificates:
+            - certificate_chain:
+                filename: "@TLS_CERTIFICATE@"
+              private_key:
+                filename: "@TLS_PRIVATE_KEY@"
+      filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: msconnector_composite_ingress
+          route_config:
+            name: msconnector_composite_route
+            virtual_hosts:
+            - name: protected_service
+              domains: ["*"]
+              routes:
+              - match:
+                  prefix: "/"
+                route:
+                  cluster: upstream_service
+          http_filters:
+          # This name is reserved for connector-generated correlation only.
+          # Remove every client-supplied spelling before ext_authz sees the
+          # request; the adapter also filters it defensively.
+          - name: envoy.filters.http.header_mutation
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.header_mutation.v3.HeaderMutation
+              mutations:
+                request_mutations:
+                - remove: x-msconnector-composite-lease
+          # P1/P2: this gRPC check is the only owner of the retained Common
+          # transaction's request phase.  The service enforces the 32-byte
+          # policy and uses one bounded overflow byte to correlate a P2-limit
+          # decision; at most 33 bytes are buffered/inspected and no body over
+          # 32 bytes is ever forwarded upstream.
+          - name: envoy.filters.http.ext_authz
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+              failure_mode_allow: false
+              grpc_service:
+                envoy_grpc:
+                  cluster_name: msconnector_composite
+                timeout: 0.2s
+              with_request_body:
+                max_request_bytes: 33
+                allow_partial_message: true
+                pack_as_bytes: true
+          # P3/P4: this companion receives only the untyped ext_authz dynamic
+          # metadata namespace below (CheckResponse.dynamic_metadata is a
+          # protobuf Struct), never a lease header. Request headers and bodies
+          # stay SKIP/NONE because ext_authz already completed P1/P2 on this
+          # transaction. In particular, ext_proc must not receive a P1/P2
+          # local reply and replace its client-visible denial with a 503.
+          - name: envoy.filters.http.ext_proc
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor
+              grpc_service:
+                envoy_grpc:
+                  cluster_name: msconnector_composite
+                timeout: 0.2s
+              processing_mode:
+                request_header_mode: SKIP
+                request_body_mode: NONE
+                response_header_mode: SEND
+                response_body_mode: STREAMED
+              metadata_options:
+                forwarding_namespaces:
+                  untyped:
+                  - @EXT_PROC_METADATA_NAMESPACE@
+              failure_mode_allow: false
+              allow_mode_override: false
+              send_body_without_waiting_for_header_response: false
+              message_timeout: 0.2s
+              max_message_timeout: 0.25s
+          - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+  clusters:
+  - name: upstream_service
+    connect_timeout: 0.5s
+    type: STATIC
+    transport_socket:
+      name: envoy.transport_sockets.tls
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+        common_tls_context:
+          validation_context:
+            trusted_ca:
+              filename: "@TLS_CERTIFICATE@"
+    load_assignment:
+      cluster_name: upstream_service
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: 127.0.0.1
+                port_value: @UPSTREAM_PORT@
+  - name: msconnector_composite
+    connect_timeout: 0.5s
+    type: STATIC
+    typed_extension_protocol_options:
+      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+        "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+        explicit_http_config:
+          http2_protocol_options: {}
+    load_assignment:
+      cluster_name: msconnector_composite
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: 127.0.0.1
+                port_value: @AUTHZ_PORT@
+admin:
+  access_log:
+  - name: envoy.access_loggers.file
+    typed_config:
+      "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
+      path: /dev/null
+      log_format:
+        text_format_source:
+          inline_string: ""
+  address:
+    socket_address:
+      address: 127.0.0.1
+      port_value: @ADMIN_PORT@
