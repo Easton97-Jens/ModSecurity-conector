@@ -1404,6 +1404,10 @@ class NativeConfigModeTest(unittest.TestCase):
                 configs[mode] = (smoke / "msconnector-runtime.conf").read_text(
                     encoding="utf-8"
                 )
+                if mode == "1":
+                    event_path = smoke / "events.jsonl"
+                    self.assertFalse(event_path.exists())
+                    self.assertIn(f"event_path={event_path}\n", configs[mode])
             self.assertIn("transaction_id_header=x-modsec-transaction-id\n", configs["0"])
             self.assertIn("emit_rule_match_evidence=off\n", configs["0"])
             self.assertIn("transaction_id_header=x-mrts-transaction-id\n", configs["1"])

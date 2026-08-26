@@ -84,7 +84,8 @@ if [ -n "$PROXY_BARRIER_PORT" ] || [ -n "$PROXY_FIXTURE_PORT" ]; then
 fi
 
 mkdir -p "$SMOKE_DIR/document-root" "$SMOKE_DIR/upload"
-: > "$EVENT_PATH"
+# MRTS evidence is created by the Common runtime with O_NOFOLLOW and mode
+# 0600.  Do not pre-create a umask-controlled predecessor here.
 printf '%s\n' 'lighttpd native connector smoke' > "$SMOKE_DIR/document-root/index.html"
 printf '%s\n' 'lighttpd phase-3 response header probe' > "$SMOKE_DIR/document-root/phase3-block"
 printf '%s\n' 'lighttpd phase-3 redirect header probe' > "$SMOKE_DIR/document-root/phase3-redirect"
