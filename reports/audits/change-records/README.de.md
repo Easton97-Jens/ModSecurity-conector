@@ -11,6 +11,15 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260826-p1-p4-connector-parity-baseline](CR-20260826-p1-p4-connector-parity-baseline.de.md) —
+  der Benutzer autorisierte ein schrittweises Parent-only-P1–P4-
+  Connector-Paritätsprogramm aus einem separaten Worktree mit regelmäßig
+  aktualisiertem Draft-PR. Diese gekoppelte Baseline dokumentiert
+  Current-Master-Source- und Evidenzlücken für alle zehn Pfade, behält die
+  ungelöste Ownership-Entscheidung zu überlappenden Draft-PRs bei und behauptet
+  keine Source-Implementierung, Framework-/MRTS-Änderung, Gitlink-Update,
+  CI-Änderung, Hosted-Ergebnis oder Merge.
+
 - [CR-20260825-fnd-parent-0221-composite-connectors](CR-20260825-fnd-parent-0221-composite-connectors.de.md) —
   der aktuelle Benutzer autorisierte eine Parent-only-Composite-
   Korrelationsimplementierung, gekoppelte Nachvollziehbarkeit, scoped

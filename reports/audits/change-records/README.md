@@ -10,6 +10,15 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260826-p1-p4-connector-parity-baseline](CR-20260826-p1-p4-connector-parity-baseline.md)
+  | [Deutsch](CR-20260826-p1-p4-connector-parity-baseline.de.md) — the user
+  authorized a step-by-step Parent-only P1–P4 connector-parity program from a
+  separate worktree and a regularly updated Draft PR. This paired baseline
+  records current-master source and evidence gaps for all ten paths, retains
+  the unresolved overlapping Draft-PR ownership decision, and asserts no
+  source implementation, Framework/MRTS change, Gitlink update, CI change,
+  hosted result, or merge.
+
 - [CR-20260825-fnd-parent-0221-composite-connectors](CR-20260825-fnd-parent-0221-composite-connectors.md)
   | [Deutsch](CR-20260825-fnd-parent-0221-composite-connectors.de.md) — the
   current user authorized a Parent-only composite-correlation implementation,
