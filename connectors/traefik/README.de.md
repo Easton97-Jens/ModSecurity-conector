@@ -36,6 +36,38 @@ Deklaration der eingecheckten Fähigkeit, CRS-Status, sicherer/strikter Status o
 Bereitschaft. Upstream-Antwortheader und -körper werden in der weiterhin nicht unterstützt
 separates `forwardAuth`-Kompatibilitätsprotokoll.
 
+## Begrenztes forwardAuth-Antwort-Composite (experimentell)
+
+Das optionale Composite ist vom Kompatibilitätspfad getrennt. Sein äußeres
+lokales Plugin `composite_middleware/` entfernt clientgelieferte
+Composite-Header und -Trailer, überträgt einen versionierten und begrenzten
+P1-Header-Snapshot ausschließlich über die owner-only private UDS-Verbindung
+und erhält ein undurchsichtiges, servergeneriertes Lease. Der unmittelbare
+innere ForwardAuth-Aufruf erhält nur dieses Lease und die von Traefik erzeugten
+Forwarded-Metadaten; er erhält weder rohe P1-Header noch eine
+Request-Context-Capsule über HTTP. Das Lease wird vor der echten
+Upstream-Anfrage und vor der Client-Antwort wieder entfernt.
+
+Der gleiche zurückbehaltene UDS-Zustand trägt anschließend die P3/P4-
+Beobachtung des Response-Companion. Der Coordinator besitzt begrenzte
+Kapazität und TTL-Cleanup; fehlende Metadaten, Ablauf oder ein Fehler des
+Companion vor dem Commit schlagen fail-closed fehl, statt die Anfrage
+weiterzuleiten. Der Response-Pfad wird durch
+[`config/traefik-forwardauth-composite-static.yaml`](config/traefik-forwardauth-composite-static.yaml)
+und
+[`config/traefik-forwardauth-composite-dynamic.yaml`](config/traefik-forwardauth-composite-dynamic.yaml)
+konfiguriert; der lokale Runner liegt unter
+[`harness/run_traefik_composite_matrix.sh`](harness/run_traefik_composite_matrix.sh).
+
+P4 Safe ist log-only und erhält die ursprüngliche Antwort. P4 Strict ist kein
+bestandenes Ergebnis, solange kein echter, für den Client sichtbarer Abbruch
+oder Reset unabhängig beobachtet wurde; das Composite behauptet dies derzeit
+nicht. Der normale sanitierte HTTP-Antwortpfad unterstützt bewusst kein
+nachgelagertes `Hijack` oder `Unwrap`: Diese Escape-Hatches liegen außerhalb
+des Composite-Vertrags und dürfen nicht als Evidenz für No-Egress- oder
+P3/P4-Garantien verwendet werden. Diese experimentelle Evidenz bewirbt weder
+Produktionsreife noch die bestehenden Capability-Deklarationen.
+
 ## Persistenter nativer UDS-Engine-Dienst
 
 `src/traefik_engine_service.c` und

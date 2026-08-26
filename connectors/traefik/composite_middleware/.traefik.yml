@@ -1,0 +1,8 @@
+displayName: ModSecurity Composite Connector
+type: middleware
+import: github.com/Easton97-Jens/ModSecurity-conector/connectors/traefik/composite_middleware
+summary: Bounded response-capable companion using a private UDS-reserved composite lease.
+testData:
+  socketPath: /var/run/modsecurity/composite.sock
+  leaseHeader: X-Msconnector-Composite-Lease
+  maxResponseChunkBytes: 32768

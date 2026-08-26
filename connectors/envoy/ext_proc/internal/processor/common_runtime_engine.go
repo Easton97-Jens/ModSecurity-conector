@@ -321,11 +321,11 @@ func (transaction *commonRuntimeTransaction) updateTransactionIDLocked() {
 func commonDecision(native C.msc_envoy_ext_proc_decision) Decision {
 	switch int(native.action) {
 	case int(C.MSC_ENVOY_EXT_PROC_ALLOW):
-		return allowDecision()
+		return Decision{Action: ActionAllow, RuleID: C.GoString(&native.rule_id[0])}
 	case int(C.MSC_ENVOY_EXT_PROC_REDIRECT):
-		return Decision{Action: ActionRedirect, Status: int(native.status), RedirectURL: C.GoString(&native.redirect_url[0])}
+		return Decision{Action: ActionRedirect, Status: int(native.status), RuleID: C.GoString(&native.rule_id[0]), RedirectURL: C.GoString(&native.redirect_url[0])}
 	default:
-		return Decision{Action: ActionDeny, Status: int(native.status)}
+		return Decision{Action: ActionDeny, Status: int(native.status), RuleID: C.GoString(&native.rule_id[0])}
 	}
 }
 

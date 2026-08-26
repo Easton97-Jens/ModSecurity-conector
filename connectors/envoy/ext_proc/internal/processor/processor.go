@@ -85,8 +85,12 @@ const (
 // Decision is supplied by the connector-local evaluation seam. The production
 // CGo build maps a real Common/libmodsecurity decision into this small form.
 type Decision struct {
-	Action      Action
-	Status      int
+	Action Action
+	Status int
+	// RuleID is bounded Common rule metadata. It is emitted only as an
+	// identifier in lifecycle evidence; request/response payloads never cross
+	// this seam.
+	RuleID      string
 	RedirectURL string
 }
 
