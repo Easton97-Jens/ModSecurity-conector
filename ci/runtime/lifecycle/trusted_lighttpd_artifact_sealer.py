@@ -27,6 +27,10 @@ from typing import Mapping
 MAX_FILE_BYTES = 128 * 1024 * 1024
 MAX_TOTAL_BYTES = 256 * 1024 * 1024
 MANIFEST_NAME = "artifact-manifest.json"
+SEALED_DIRECTORY_MODE = 0o710
+SEALED_EXECUTABLE_FILE_MODE = 0o550
+SEALED_READONLY_FILE_MODE = 0o440
+CANDIDATE_ROOT_LABEL = "candidate root"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _PROVENANCE_KEYS = frozenset({"parent_sha", "framework_sha", "mrts_sha"})
 
@@ -47,6 +51,7 @@ class _SourceArtifact:
     descriptor: int
     details: os.stat_result
     mode: int
+    group: int
 
 
 def _absolute(path: Path | str, label: str) -> Path:
@@ -110,14 +115,43 @@ def _open_absolute_directory(path: Path, label: str) -> int:
         raise
 
 
-def _require_directory_descriptor(descriptor: int, label: str, *, owner: int | None = None) -> None:
+def _require_directory_descriptor(
+    descriptor: int,
+    label: str,
+    *,
+    owner: int | None = None,
+    group: int | None = None,
+    mode: int | None = None,
+) -> None:
     details = os.fstat(descriptor)
     if not stat.S_ISDIR(details.st_mode):
         _fail(f"{label} must be a directory")
     if owner is not None and details.st_uid != owner:
         _fail(f"{label} must be owned by root")
+    if group is not None and details.st_gid != group:
+        _fail(f"{label} must use the configured runtime group")
+    if mode is not None and stat.S_IMODE(details.st_mode) != mode:
+        _fail(f"{label} did not receive the required mode")
     if details.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
         _fail(f"{label} must not be group/world writable")
+
+
+def _set_runtime_group(descriptor: int, label: str, runtime_gid: int) -> None:
+    """Set the root/runtime-group ownership through an already-open descriptor."""
+
+    try:
+        os.fchown(descriptor, 0, runtime_gid)
+    except OSError as error:
+        _fail(f"cannot assign {label} to the configured runtime group: {error}")
+
+
+def _set_required_mode(descriptor: int, label: str, required_mode: int) -> None:
+    """Apply the exact mode through an already-open descriptor despite a restrictive umask."""
+
+    try:
+        os.fchmod(descriptor, required_mode)
+    except OSError as error:
+        _fail(f"cannot set the required mode on {label}: {error}")
 
 
 def _directory_names(descriptor: int, label: str) -> set[str]:
@@ -227,8 +261,8 @@ def _copy_stable(source: _SourceArtifact, output_directory: int, output_name: st
                 or copied != before.st_size
             ):
                 _fail(f"{label} changed while it was being sealed")
+            _set_runtime_group(out, label, source.group)
             os.fchmod(out, source.mode)
-            os.fchown(out, 0, 0)
             os.fsync(out)
         finally:
             os.close(out)
@@ -241,22 +275,28 @@ def _copy_stable(source: _SourceArtifact, output_directory: int, output_name: st
             pass
 
 
-def _new_sealed_directory(parent_descriptor: int) -> tuple[str, int]:
+def _new_sealed_directory(parent_descriptor: int, runtime_gid: int) -> tuple[str, int]:
     """Create one fresh output directory through its retained parent FD."""
 
     for _ in range(32):
         name = f".trusted-lighttpd-sealed-{secrets.token_hex(16)}"
         try:
-            os.mkdir(name, 0o700, dir_fd=parent_descriptor)
+            os.mkdir(name, SEALED_DIRECTORY_MODE, dir_fd=parent_descriptor)
         except FileExistsError:
             continue
         except OSError as error:
             _fail(f"cannot create sealed root: {error}")
         descriptor = _open_directory_component(parent_descriptor, name, "sealed temporary root")
         try:
-            os.fchown(descriptor, 0, 0)
-            os.fchmod(descriptor, 0o755)
-            _require_directory_descriptor(descriptor, "sealed temporary root", owner=0)
+            _set_required_mode(descriptor, "sealed temporary root", SEALED_DIRECTORY_MODE)
+            _set_runtime_group(descriptor, "sealed temporary root", runtime_gid)
+            _require_directory_descriptor(
+                descriptor,
+                "sealed temporary root",
+                owner=0,
+                group=runtime_gid,
+                mode=SEALED_DIRECTORY_MODE,
+            )
         except Exception:
             os.close(descriptor)
             try:
@@ -268,7 +308,7 @@ def _new_sealed_directory(parent_descriptor: int) -> tuple[str, int]:
     _fail("cannot allocate a fresh sealed root")
 
 
-def _output_directory(root_descriptor: int, relative: str) -> tuple[int, str]:
+def _output_directory(root_descriptor: int, relative: str, runtime_gid: int) -> tuple[int, str]:
     """Create and return the retained output parent for one fixed role path."""
 
     components = relative.split("/")
@@ -278,7 +318,7 @@ def _output_directory(root_descriptor: int, relative: str) -> tuple[int, str]:
     try:
         for component in components[:-1]:
             try:
-                os.mkdir(component, 0o755, dir_fd=directory)
+                os.mkdir(component, SEALED_DIRECTORY_MODE, dir_fd=directory)
             except FileExistsError:
                 pass
             except OSError as error:
@@ -286,16 +326,22 @@ def _output_directory(root_descriptor: int, relative: str) -> tuple[int, str]:
             child = _open_directory_component(directory, component, f"sealed output directory {component}")
             os.close(directory)
             directory = child
-            os.fchown(directory, 0, 0)
-            os.fchmod(directory, 0o755)
-            _require_directory_descriptor(directory, f"sealed output directory {component}", owner=0)
+            _set_required_mode(directory, f"sealed output directory {component}", SEALED_DIRECTORY_MODE)
+            _set_runtime_group(directory, f"sealed output directory {component}", runtime_gid)
+            _require_directory_descriptor(
+                directory,
+                f"sealed output directory {component}",
+                owner=0,
+                group=runtime_gid,
+                mode=SEALED_DIRECTORY_MODE,
+            )
         return directory, components[-1]
     except Exception:
         os.close(directory)
         raise
 
 
-def _library_artifacts(directory_descriptor: int, prefix: str) -> list[_SourceArtifact]:
+def _library_artifacts(directory_descriptor: int, prefix: str, runtime_gid: int) -> list[_SourceArtifact]:
     """Open every regular library from its retained parent directory."""
 
     artifacts: list[_SourceArtifact] = []
@@ -309,14 +355,16 @@ def _library_artifacts(directory_descriptor: int, prefix: str) -> list[_SourceAr
                 child = _open_directory_component(directory_descriptor, name, relative, expected=details)
                 try:
                     _require_directory_descriptor(child, relative)
-                    artifacts.extend(_library_artifacts(child, relative))
+                    artifacts.extend(_library_artifacts(child, relative, runtime_gid))
                 finally:
                     os.close(child)
                 continue
             if not stat.S_ISREG(details.st_mode):
                 _fail(f"{relative} must be a regular file")
             descriptor, before = _open_regular_file(directory_descriptor, name, relative, expected=details)
-            artifacts.append(_SourceArtifact(relative, descriptor, before, 0o444))
+            artifacts.append(
+                _SourceArtifact(relative, descriptor, before, SEALED_READONLY_FILE_MODE, runtime_gid)
+            )
         return artifacts
     except Exception:
         for artifact in artifacts:
@@ -324,12 +372,12 @@ def _library_artifacts(directory_descriptor: int, prefix: str) -> list[_SourceAr
         raise
 
 
-def _candidate_files(candidate_descriptor: int) -> list[_SourceArtifact]:
+def _candidate_files(candidate_descriptor: int, runtime_gid: int) -> list[_SourceArtifact]:
     """Open and retain the fixed artifact set from one candidate root inode."""
 
-    _require_directory_descriptor(candidate_descriptor, "candidate root")
+    _require_directory_descriptor(candidate_descriptor, CANDIDATE_ROOT_LABEL)
     allowed_top = {"bin", "modules", "lib"}
-    top = _directory_names(candidate_descriptor, "candidate root")
+    top = _directory_names(candidate_descriptor, CANDIDATE_ROOT_LABEL)
     if top != allowed_top:
         _fail("candidate contains an unlisted top-level entry")
     directories: dict[str, int] = {}
@@ -349,14 +397,19 @@ def _candidate_files(candidate_descriptor: int) -> list[_SourceArtifact]:
             if _directory_names(directories[directory], f"candidate {directory} directory") != expected:
                 _fail(f"candidate {directory} directory contains an unlisted entry")
         for descriptor, name, relative, mode in (
-            (directories["bin"], "lighttpd", "bin/lighttpd", 0o555),
-            (directories["modules"], "mod_msconnector.so", "modules/mod_msconnector.so", 0o444),
-            (directories["modules"], "mod_proxy.so", "modules/mod_proxy.so", 0o444),
+            (directories["bin"], "lighttpd", "bin/lighttpd", SEALED_EXECUTABLE_FILE_MODE),
+            (
+                directories["modules"],
+                "mod_msconnector.so",
+                "modules/mod_msconnector.so",
+                SEALED_READONLY_FILE_MODE,
+            ),
+            (directories["modules"], "mod_proxy.so", "modules/mod_proxy.so", SEALED_READONLY_FILE_MODE),
         ):
             expected = _entry_details(descriptor, name, relative)
             file_descriptor, details = _open_regular_file(descriptor, name, relative, expected=expected)
-            artifacts.append(_SourceArtifact(relative, file_descriptor, details, mode))
-        artifacts.extend(_library_artifacts(directories["lib"], "lib"))
+            artifacts.append(_SourceArtifact(relative, file_descriptor, details, mode, runtime_gid))
+        artifacts.extend(_library_artifacts(directories["lib"], "lib", runtime_gid))
         if len(artifacts) == 3:
             _fail("candidate lib directory must contain at least one file")
         return artifacts
@@ -383,28 +436,38 @@ def _validate_provenance(provenance: Mapping[str, str] | None) -> dict[str, str]
     return result
 
 
+def _runtime_group(value: object) -> int:
+    """Require the non-root group that will consume sealed runtime artifacts."""
+
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        _fail("runtime GID must be a non-root integer")
+    return value
+
+
 def seal_candidate(
     candidate_root: Path | str,
     sealed_root: Path | str,
     *,
+    runtime_gid: int,
     provenance: Mapping[str, str] | None = None,
 ) -> Path:
     """Create a fresh root-owned sealed tree and return its generated manifest."""
 
     if os.geteuid() != 0:
         _fail("artifact sealing requires a root-owned protected job")
-    candidate = _absolute(candidate_root, "candidate root")
+    runtime_group = _runtime_group(runtime_gid)
+    candidate = _absolute(candidate_root, CANDIDATE_ROOT_LABEL)
     destination = _absolute(sealed_root, "sealed root")
     if candidate == destination:
         _fail("candidate and sealed roots must be different")
     parent = destination.parent
-    candidate_descriptor = _open_absolute_directory(candidate, "candidate root")
+    candidate_descriptor = _open_absolute_directory(candidate, CANDIDATE_ROOT_LABEL)
     parent_descriptor = _open_absolute_directory(parent, "sealed root parent")
     temporary_name = ""
     temporary_descriptor = -1
     entries: list[_SourceArtifact] = []
     try:
-        _require_directory_descriptor(candidate_descriptor, "candidate root")
+        _require_directory_descriptor(candidate_descriptor, CANDIDATE_ROOT_LABEL)
         _require_directory_descriptor(parent_descriptor, "sealed root parent", owner=0)
         try:
             os.stat(destination.name, dir_fd=parent_descriptor, follow_symlinks=False)
@@ -412,12 +475,16 @@ def seal_candidate(
             pass
         else:
             _fail("sealed root must be fresh")
-        temporary_name, temporary_descriptor = _new_sealed_directory(parent_descriptor)
+        temporary_name, temporary_descriptor = _new_sealed_directory(parent_descriptor, runtime_group)
         records: list[dict[str, object]] = []
         total = 0
-        entries = _candidate_files(candidate_descriptor)
+        entries = _candidate_files(candidate_descriptor, runtime_group)
         for source in entries:
-            output_directory, output_name = _output_directory(temporary_descriptor, source.relative)
+            output_directory, output_name = _output_directory(
+                temporary_descriptor,
+                source.relative,
+                runtime_group,
+            )
             try:
                 digest, size = _copy_stable(source, output_directory, output_name)
             finally:
@@ -429,6 +496,7 @@ def seal_candidate(
         manifest = {
             "schema_version": 1,
             "artifact_layout": "lighttpd-fixed-v1",
+            "runtime_gid": runtime_group,
             "provenance": _validate_provenance(provenance),
             "artifacts": records,
         }
