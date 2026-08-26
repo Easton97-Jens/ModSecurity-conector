@@ -14,6 +14,7 @@ FILTERS = ROOT / "connectors" / "apache" / "src" / "msc_filters.c"
 C17_CHECK = (
     ROOT / "ci" / "checks" / "connectors" / "apache" / "check-apache-c-standards.sh"
 )
+APXS_WRAPPER = ROOT / "connectors" / "apache" / "build" / "apxs-wrapper.in"
 
 
 def c_function(source: str, signature: str) -> str:
@@ -44,6 +45,7 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
         self.header = HEADER.read_text(encoding="utf-8")
         self.utils = UTILS.read_text(encoding="utf-8")
         self.filters = FILTERS.read_text(encoding="utf-8")
+        self.apxs_wrapper = APXS_WRAPPER.read_text(encoding="utf-8")
         self.create_context = c_function(
             self.module, "static msc_t *create_tx_context(request_rec *r)"
         )
@@ -113,6 +115,14 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
     def test_c17_check_compiles_the_cleanup_helper(self) -> None:
         source_list = C17_CHECK.read_text(encoding="utf-8")
         self.assertIn("connectors/apache/src/msc_utils.c", source_list)
+
+    def test_apxs_wrapper_links_native_integrity_implementation(self) -> None:
+        self.assertIn("event_jsonl.c integrity_event.c", self.apxs_wrapper)
+        self.assertIn(
+            "$MSCONNECTOR_COMMON_SRC/integrity_event.c", self.apxs_wrapper
+        )
+        source_list = C17_CHECK.read_text(encoding="utf-8")
+        self.assertIn("common/src/integrity_event.c", source_list)
 
     def test_unread_request_body_failure_returns_before_response_headers(self) -> None:
         drain = self.output_filter.index(

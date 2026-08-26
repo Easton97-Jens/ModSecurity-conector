@@ -37,7 +37,7 @@ if test -n "$MSCONNECTOR_COMMON_SRC"; then
     for common_source in \
         config.c config_parser.c directive_spec.c directive_adapter.c \
         request_helpers.c response_helpers.c request_mapper_contract.c \
-        response_mapper_contract.c headers.c event.c event_jsonl.c \
+        response_mapper_contract.c headers.c event.c event_jsonl.c integrity_event.c \
         json_escape.c rule_id.c log_sanitize.c redaction.c \
         resource_limits.c dos_guard.c error.c status.c body_policy.c \
         block_statuses.c http_status.c transaction_state.c late_intervention.c limits.c crs.c \
@@ -59,6 +59,7 @@ $MSCONNECTOR_COMMON_SRC/response_mapper_contract.c
 $MSCONNECTOR_COMMON_SRC/headers.c
 $MSCONNECTOR_COMMON_SRC/event.c
 $MSCONNECTOR_COMMON_SRC/event_jsonl.c
+$MSCONNECTOR_COMMON_SRC/integrity_event.c
 $MSCONNECTOR_COMMON_SRC/json_escape.c
 $MSCONNECTOR_COMMON_SRC/rule_id.c
 $MSCONNECTOR_COMMON_SRC/log_sanitize.c

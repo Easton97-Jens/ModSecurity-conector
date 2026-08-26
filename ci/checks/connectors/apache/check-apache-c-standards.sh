@@ -94,6 +94,7 @@ common/src/response_mapper_contract.c
 common/src/headers.c
 common/src/event.c
 common/src/event_jsonl.c
+common/src/integrity_event.c
 common/src/json_escape.c
 common/src/rule_id.c
 common/src/log_sanitize.c
