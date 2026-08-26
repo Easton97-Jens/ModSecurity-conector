@@ -844,6 +844,46 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "unexpectedly matched rules"):
                 EXECUTOR.require_case_rule_matches("control", "control", set(), observed)
 
+    def test_haproxy_selects_only_the_closed_single_decision_mrts_profile(self):
+        """HAProxy must not claim a narrow MRTS match from its generic ID."""
+
+        framework = ROOT / "modules" / "ModSecurity-test-Framework"
+        if not (framework / "tools" / "MRTS").is_dir():
+            self.skipTest("exact Framework/MRTS gitlink is unavailable")
+        with tempfile.TemporaryDirectory() as directory:
+            case_root = Path(directory)
+            generic = case_root / "generic.yaml"
+            narrower = case_root / "narrower.yaml"
+            template = (
+                "name: {name}\n"
+                "metadata:\n"
+                "  upstream_file: tools/MRTS/generated/tests/regression/tests/"
+                "MRTS_002_ARGS_A-GET.yaml\n"
+                "  phase: 1\n"
+                "portable: true\n"
+                "request:\n"
+                "  method: GET\n"
+                "  path: {path}\n"
+                "expect:\n"
+                "  rule_id: {rule_id}\n"
+            )
+            generic.write_text(
+                template.format(name="mrts_generic", path="/?foo=attack", rule_id="100000"),
+                encoding="utf-8",
+            )
+            narrower.write_text(
+                template.format(name="mrts_narrower", path="/?arg1=attack", rule_id="100004"),
+                encoding="utf-8",
+            )
+
+            cases, sources = TARGET.select_cases(case_root, framework, "haproxy")
+
+            detection = [case for case in cases if case["kind"] == "detection"]
+            self.assertEqual([case["id"] for case in detection], [generic.stem])
+            self.assertEqual(detection[0]["expect_ids"], ["100000"])
+            self.assertEqual(sources, [generic])
+            self.assertEqual({case["kind"] for case in cases}, {"control", "detection", "bypass"})
+
     def test_event_ids_rejects_wrong_event_kind_and_arbitrary_nested_rule_ids(self):
         with tempfile.TemporaryDirectory() as directory:
             event_log = Path(directory) / "events.jsonl"

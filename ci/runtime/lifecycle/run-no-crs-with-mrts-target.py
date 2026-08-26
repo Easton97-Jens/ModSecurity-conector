@@ -47,6 +47,12 @@ RULE_MATCH_EVENT_PHASE_BY_CONNECTOR = {
     "lighttpd": "request_body",
     "traefik": "request_body",
 }
+# The native HAProxy/SPOE response contains one Rule-ID: the first correlated
+# ModSecurity message.  In the pinned MRTS ARGS corpus, the generic
+# ``ARGS @contains attack`` rule (100000) deliberately overlaps the narrower
+# ARGS-name cases.  Keep HAProxy's one-decision profile closed to the generic
+# rule rather than treating that first ID as evidence for a narrower MRTS case.
+HAPROXY_SINGLE_DECISION_EXPECTED_IDS = ("100000",)
 NO_CRS_RUN_ID_PREFIX = "mrts-"
 NO_CRS_RUN_ID_HEX_LENGTH = 32
 TRAEFIK_ENGINE_SOCKET_PARENT_PREFIX = "msct-"
@@ -639,6 +645,28 @@ def _select_document_cases(
     return _select_staged_cases(source, document, event_phase)
 
 
+def _select_connector_capability_cases(
+    connector: str, cases: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Keep each connector's MRTS execution within its native evidence contract.
+
+    HAProxy's SPOE path reports one native decision Rule-ID, while the pinned
+    MRTS generic ARGS rule can co-match narrower ARGS-name rules in the same
+    real request.  Selecting a narrower expectation would therefore make the
+    executor correctly reject the observed generic ID.  Its closed profile
+    instead runs every imported case that declares exactly the generic rule;
+    the real control and bypass requests remain added by ``select_cases``.
+    """
+
+    if connector != "haproxy":
+        return cases
+    return [
+        case for case in cases
+        if case.get("kind") == "detection"
+        and case.get("expect_ids") == list(HAPROXY_SINGLE_DECISION_EXPECTED_IDS)
+    ]
+
+
 def select_cases(
     case_root: Path, framework_root: Path, connector: str = "envoy",
 ) -> tuple[list[dict[str, Any]], list[Path]]:
@@ -651,6 +679,7 @@ def select_cases(
         cases = _select_document_cases(
             source, load_framework_yaml(source, framework_root), event_phase,
         )
+        cases = _select_connector_capability_cases(connector, cases)
         selected.extend(cases)
         sources.extend(source for _ in cases)
     if not selected:
