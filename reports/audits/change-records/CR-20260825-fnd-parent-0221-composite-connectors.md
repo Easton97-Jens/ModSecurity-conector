@@ -12,7 +12,7 @@
 | Finding | `FND-PARENT-0221` |
 | Scope | Parent-only Envoy `ext_authz` + `ext_proc` and Traefik `forwardAuth` + private-UDS response composite, tests, configuration, and paired documentation |
 | Framework/MRTS boundary | No Framework or MRTS source, branch, `HEAD`, Gitlink, or delivery change |
-| Delivery disposition | The user authorized a task-owned worktree, scoped commit/push, and exactly one Parent Draft PR against `master`; no merge. Commits `931d6eb81207997169719bb475d50274ae281eed`, `9aeb0b551b34a0e44b9409130c2ecafeac641530`, and `00b767aec09ccab0a6cceba37c8dc4ae763395d5` are on Draft PR #341. Sonar analysis `af6a96df-297f-47dd-af26-83b5315327e6` closed/fixed nine of ten vulnerability records, but left LOW `python:S5332` open at the controlled upstream. The exact-head TLS follow-up reduced the result to one new vulnerability but hosted check `97786524327` still reports Security Rating B because it models `BaseServer.serve_forever` independently of the TLS-wrapped socket. The scanner-compatible native TLS server-loop successor is locally validated; its commit/push and exact-successor hosted validation remain pending. FND-SONAR-0061 remains P0/high, `in_progress`, release- and candidate-integration-blocking; no green Sonar result is claimed. `FND-PARENT-0221` remains `in_progress`/`blocked_missing_evidence`, so this change is not eligible for `verified_pr` or merge. |
+| Delivery disposition | Historical entries below retain the former Draft-only authorization. For the pre-documentation-successor head `2a5aeb91b20ef6ec100206a9afef09cae416dbe9`, Draft PR #341 is `OPEN`/`MERGEABLE`/`CLEAN` against `master`; local and PR heads agree, all required checks and review threads are resolved, and its matching `2026-08-26T12:09:25Z` SonarQube Cloud analysis has Quality Gate `OK` with zero open/accepted issues, security hotspots, new duplication, and new-coverage counters. The current user explicitly accepts the remaining P4 Strict, duplicate/cancel, same-process Traefik follow-up, H2/H3, and cross-connector-parity evidence gaps only for PR #341 and authorizes a protected squash merge. This paired correction must be normally committed/pushed and receive a new exact-head verification round before the Draft transition or merge; no merge or `master` change has occurred. |
 
 ## Motivation and problem statement
 
@@ -187,20 +187,25 @@ provide strict client disruption.
 
 ## Remaining risks
 
-`FND-PARENT-0221` remains a P0/high release blocker. P4 Strict, duplicate
-callback, raw client cancellation, same-process Traefik follow-up, H2/H3, and
-cross-connector parity require further evidence or an explicit current-user
-risk decision. No such risk acceptance exists.
+`FND-PARENT-0221` remains a P0/high release blocker and is neither closed nor
+downgraded. The current user explicitly accepts, only for the protected squash
+merge of PR #341, the P4 Strict, duplicate/cancel, same-process Traefik
+follow-up, H2/H3, and cross-connector-parity evidence gaps. That limited
+delivery decision does not claim that any gap is verified, does not weaken a
+control, and does not replace the remaining evidence work.
 
 ## Final diff and review status
 
 The final local review covers the scoped source diff, paired documentation,
 focused tests, current CGo build, real H1 receipts, and independent post-fix
-security review. Draft PR #341 and its initial scoped commit/push are
-observed; no merge was attempted. Native remediation is locally validated, but
-the post-push exact-head check, hosted check, review decision, branch
-protection, and green Sonar result remain pending. No Framework/MRTS change or
-Gitlink update is asserted.
+security review. The pre-documentation-successor PR #341 head has passed its
+hosted checks, branch-protection requirements, resolved-thread review, and
+matching SonarQube Cloud zero-new-code analysis. The current user has
+authorized a protected squash merge after the limited residual-risk acceptance,
+but no merge has been attempted. This paired correction creates a new exact PR
+head, so the complete GitHub, review, branch-protection, and SonarQube Cloud
+cycle must be repeated before the Draft transition or merge. No Framework/MRTS
+change or Gitlink update is asserted.
 
 ## Initial Post-Draft PR Sonar status
 

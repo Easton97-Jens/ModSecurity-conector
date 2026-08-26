@@ -12,7 +12,7 @@
 | Finding | `FND-PARENT-0221` |
 | Scope | Parent-only Envoy `ext_authz` + `ext_proc` und Traefik `forwardAuth` + private-UDS-Response-Composite, Tests, Konfiguration und gekoppelte Dokumentation |
 | Framework-/MRTS-Grenze | Keine Framework- oder MRTS-Source-, Branch-, `HEAD`-, Gitlink- oder Delivery-Änderung |
-| Delivery-Disposition | Der Benutzer autorisierte einen task-owned Worktree, scoped Commit/Push und genau einen Parent-Draft-PR gegen `master`; kein Merge. Die Commits `931d6eb81207997169719bb475d50274ae281eed`, `9aeb0b551b34a0e44b9409130c2ecafeac641530` und `00b767aec09ccab0a6cceba37c8dc4ae763395d5` liegen auf Draft-PR #341. Die Sonar-Analyse `af6a96df-297f-47dd-af26-83b5315327e6` schloss/fixte neun von zehn Vulnerability-Records, ließ jedoch LOW `python:S5332` am kontrollierten Upstream offen. Das exakte Head-TLS-Follow-up reduzierte das Resultat auf eine neue Vulnerability, doch der Hosted-Check `97786524327` meldet weiterhin Security Rating B, weil er `BaseServer.serve_forever` unabhängig vom TLS-wrapped Socket modelliert. Der scanner-kompatible native TLS-Server-Loop-Successor ist lokal validiert; sein Commit/Push und die exakte Successor-Hosted-Validierung stehen aus. FND-SONAR-0061 bleibt P0/high, `in_progress`, release- und kandidat-integration-blockierend; kein grünes Sonar-Ergebnis wird behauptet. `FND-PARENT-0221` bleibt `in_progress`/`blocked_missing_evidence`, daher ist diese Änderung nicht für `verified_pr` oder Merge geeignet. |
+| Delivery-Disposition | Historische Einträge unten behalten die frühere Draft-only-Autorisierung. Für den Pre-Documentation-Successor-Head `2a5aeb91b20ef6ec100206a9afef09cae416dbe9` ist Draft-PR #341 gegen `master` `OPEN`/`MERGEABLE`/`CLEAN`; lokaler und PR-Head stimmen überein, alle erforderlichen Checks und Review-Threads sind aufgelöst, und die passende SonarQube-Cloud-Analyse `2026-08-26T12:09:25Z` hat Quality Gate `OK` mit null offenen/akzeptierten Issues, Security Hotspots, neuer Duplikation und New-Coverage-Zählern. Der aktuelle Benutzer akzeptiert die verbleibenden Evidenzlücken P4 Strict, Duplicate/Cancel, Same-Process-Traefik-Follow-up, H2/H3 und Cross-Connector-Parität ausschließlich für PR #341 und autorisiert einen geschützten Squash-Merge. Diese gekoppelte Korrektur muss normal committed/pushed werden und vor Draft-Transition oder Merge eine neue Exact-Head-Verifikation erhalten; kein Merge und keine `master`-Änderung sind erfolgt. |
 
 ## Motivation und Problemstellung
 
@@ -198,22 +198,27 @@ Safe liefert keine strikte Client-Disruption.
 
 ## Verbleibende Risiken
 
-`FND-PARENT-0221` bleibt ein P0/high-Release-Blocker. P4 Strict,
-Duplicate-Callback, Raw-Client-Cancellation, Same-Process-Traefik-Follow-up,
-H2/H3 und Cross-Connector-Parität benötigen weitere Evidenz oder eine
-ausdrückliche aktuelle Benutzer-Risikoentscheidung. Eine solche
-Risikoakzeptanz existiert nicht.
+`FND-PARENT-0221` bleibt ein P0/high-Release-Blocker und wird weder geschlossen
+noch herabgestuft. Der aktuelle Benutzer akzeptiert ausschließlich für den
+geschützten Squash-Merge von PR #341 die Evidenzlücken P4 Strict,
+Duplicate/Cancel, Same-Process-Traefik-Follow-up, H2/H3 und
+Cross-Connector-Parität. Diese begrenzte Delivery-Entscheidung behauptet keine
+verifizierte Lücke, schwächt kein Control und ersetzt die verbleibende
+Evidenzarbeit nicht.
 
 ## Finaler Diff- und Review-Status
 
 Der finale lokale Review umfasst den scoped Source-Diff, gekoppelte
 Dokumentation, fokussierte Tests, aktuellen CGo-Build, reale H1-Receipts und
-unabhängiges Post-Fix-Security-Review. Draft-PR #341 und sein initialer scoped
-Commit/Push sind beobachtet; ein Merge wurde nicht versucht. Die native
-Remediation ist lokal validiert, doch der Post-Push-Exact-Head-Check,
-Hosted-Check, Review-Entscheidung, Branch Protection und ein grünes
-Sonar-Ergebnis stehen noch aus. Keine Framework-/MRTS-Änderung oder
-Gitlink-Update wird behauptet.
+unabhängiges Post-Fix-Security-Review. Der Pre-Documentation-Successor-Head
+von PR #341 hat seine Hosted-Checks, Branch-Protection-Anforderungen,
+aufgelöste-Threads-Review und passende SonarQube-Cloud-Null-New-Code-Analyse
+bestanden. Der aktuelle Benutzer hat nach begrenzter Restrisikoakzeptanz einen
+geschützten Squash-Merge autorisiert, aber es wurde kein Merge versucht. Diese
+gekoppelte Korrektur erzeugt einen neuen exakten PR-Head; daher müssen vor
+Draft-Transition oder Merge der vollständige GitHub-, Review-,
+Branch-Protection- und SonarQube-Cloud-Zyklus wiederholt werden. Keine
+Framework-/MRTS-Änderung oder Gitlink-Update wird behauptet.
 
 ## Initialer Sonar-Status nach Draft-PR
 
