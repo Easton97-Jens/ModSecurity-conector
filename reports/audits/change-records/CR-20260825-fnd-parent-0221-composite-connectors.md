@@ -401,3 +401,37 @@ These are local results for the uncommitted successor only. The remaining
 steps are a normal scoped commit and push, exact-head GitHub/SonarCloud checks,
 and then factual review-thread reconciliation. The PR remains Draft and no
 merge is authorized.
+
+## PR #341 Sonar-zero remediation (local validation) — 2026-08-26
+
+At published Draft PR #341 head `7a1473c17ac3343e4b4ac4944d8a7cea5da816dc`,
+the raw SonarQube Cloud pull-request API reported five task-owned New-Code code
+smells: parser complexity in `parseReservationSnapshot`, P4 Safe test
+complexity, eight `reservationPayloadWithMetadata` parameters, response-writer
+finish complexity, and reservation-payload test parser complexity. This local
+successor addresses each structurally without changing Sonar configuration,
+Quality Gate, exclusions, accepted-issue state, suppression, coverage input,
+CI configuration, or a security control.
+
+`parseReservationMetadata` now preserves the exact bounded private-frame
+validation order before existing header-group parsing. The P4 Safe test splits
+lifecycle exercise from event assertions. `reservationTransportMetadata`
+groups the protected listener facts, while `finishTransport` and
+`finishResponse` retain the previous fail-closed terminal ordering. The
+test-only reservation parser now uses a bounded cursor. These decompositions
+do not alter the version-2 snapshot wire layout, HMAC-bound protocol/IP/port
+metadata, result-flag restriction, or post-commit reject behavior.
+
+The integrated local regression set passed: Envoy `go test -race -count=1
+./internal/composite ./internal/compositeenvoy ./internal/compositetraefik
+./cmd/msconnector-composite`; Traefik `go test -race -count=1 .`; both
+corresponding Go-vet suites; `gofmt -d`; and `git diff --check`. A fresh
+read-only security review found no new validated security or functional
+finding and confirmed that malformed private input remains fail-closed and
+that response EOS/error paths retain their original safeguards.
+
+This section records local pre-delivery evidence. The following delivery
+operation must perform the authorized scoped commit and normal push; matching-
+head GitHub CI, matching-head Sonar zero evidence, and review-thread
+reconciliation remain required afterward. The PR remains Draft and no merge
+is authorized.

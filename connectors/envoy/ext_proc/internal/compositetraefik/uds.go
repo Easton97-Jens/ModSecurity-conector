@@ -626,44 +626,8 @@ func parseToken(p []byte) (string, error) {
 // is checked before allocation so malformed private-peer input cannot retain
 // unbounded memory or create an ambiguous P1 snapshot.
 func parseReservationSnapshot(p []byte) (composite.ReservationSnapshot, error) {
-	if len(p) < 13 || len(p) > maxFrame || p[0] != composite.ReservationSnapshotVersion {
-		return composite.ReservationSnapshot{}, errMSC2
-	}
-	i := 1
-	method, next, err := reservationText(p, i, 256)
-	if err != nil || !validHeaderName(method) {
-		return composite.ReservationSnapshot{}, errMSC2
-	}
-	i = next
-	uri, next, err := reservationText(p, i, maxHeaderBytes)
-	if err != nil || !validReservationURI(uri) {
-		return composite.ReservationSnapshot{}, errMSC2
-	}
-	i = next
-	protocol, next, err := reservationText(p, i, 16)
-	if err != nil || !validHTTPProtocol(protocol) {
-		return composite.ReservationSnapshot{}, errMSC2
-	}
-	i = next
-	serverAddress, next, err := reservationText(p, i, 256)
-	if err != nil || net.ParseIP(serverAddress) == nil {
-		return composite.ReservationSnapshot{}, errMSC2
-	}
-	i = next
-	if i+2 > len(p) {
-		return composite.ReservationSnapshot{}, errMSC2
-	}
-	serverPort := int(binary.BigEndian.Uint16(p[i : i+2]))
-	i += 2
-	if serverPort < 1 || serverPort > 65535 {
-		return composite.ReservationSnapshot{}, errMSC2
-	}
-	if i+2 > len(p) {
-		return composite.ReservationSnapshot{}, errMSC2
-	}
-	groups := int(binary.BigEndian.Uint16(p[i : i+2]))
-	i += 2
-	if groups > maxHeaderCount {
+	method, uri, protocol, serverAddress, serverPort, groups, i, err := parseReservationMetadata(p)
+	if err != nil {
 		return composite.ReservationSnapshot{}, errMSC2
 	}
 	headers, next, hostValues, err := parseReservationGroups(p, i, groups)
@@ -676,6 +640,46 @@ func parseReservationSnapshot(p []byte) (composite.ReservationSnapshot, error) {
 		return composite.ReservationSnapshot{}, errMSC2
 	}
 	return composite.ReservationSnapshot{Version: composite.ReservationSnapshotVersion, Protocol: protocol, ServerAddress: serverAddress, ServerPort: serverPort, Method: method, URI: uri, Headers: headers}, nil
+}
+
+func parseReservationMetadata(p []byte) (method, uri, protocol, serverAddress string, serverPort, groups, offset int, err error) {
+	if len(p) < 13 || len(p) > maxFrame || p[0] != composite.ReservationSnapshotVersion {
+		return "", "", "", "", 0, 0, 0, errMSC2
+	}
+	offset = 1
+	method, offset, err = reservationText(p, offset, 256)
+	if err != nil || !validHeaderName(method) {
+		return "", "", "", "", 0, 0, 0, errMSC2
+	}
+	uri, offset, err = reservationText(p, offset, maxHeaderBytes)
+	if err != nil || !validReservationURI(uri) {
+		return "", "", "", "", 0, 0, 0, errMSC2
+	}
+	protocol, offset, err = reservationText(p, offset, 16)
+	if err != nil || !validHTTPProtocol(protocol) {
+		return "", "", "", "", 0, 0, 0, errMSC2
+	}
+	serverAddress, offset, err = reservationText(p, offset, 256)
+	if err != nil || net.ParseIP(serverAddress) == nil {
+		return "", "", "", "", 0, 0, 0, errMSC2
+	}
+	if offset+2 > len(p) {
+		return "", "", "", "", 0, 0, 0, errMSC2
+	}
+	serverPort = int(binary.BigEndian.Uint16(p[offset : offset+2]))
+	offset += 2
+	if serverPort < 1 || serverPort > 65535 {
+		return "", "", "", "", 0, 0, 0, errMSC2
+	}
+	if offset+2 > len(p) {
+		return "", "", "", "", 0, 0, 0, errMSC2
+	}
+	groups = int(binary.BigEndian.Uint16(p[offset : offset+2]))
+	offset += 2
+	if groups > maxHeaderCount {
+		return "", "", "", "", 0, 0, 0, errMSC2
+	}
+	return method, uri, protocol, serverAddress, serverPort, groups, offset, nil
 }
 
 func parseReservationGroups(p []byte, offset, groups int) ([]processor.Header, int, int, error) {

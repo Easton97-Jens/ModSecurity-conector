@@ -143,7 +143,16 @@ func TestP4LogOnlyResultPreservesCommittedChunkAndRecordsOutcome(t *testing.T) {
 		t.Fatalf("reserve result = %#v", reserved)
 	}
 	forwardAuthRequest(t, c, reserved.value, http.MethodPost, "/p4-log-only", []byte("request"), http.StatusOK)
-	if got := exchangeUDS(t, client, opClaim, tokenPayload(reserved.value)); got.decision != decisionAllow || got.flags != 0 {
+	completeP4LogOnlyLifecycle(t, client, reserved.value)
+
+	events := waitForTerminal(t, log)
+	assertOneTransaction(t, events, "P1", "P2", "P3", "P4")
+	assertP4LogOnlyEvents(t, events)
+}
+
+func completeP4LogOnlyLifecycle(t *testing.T, client net.Conn, lease string) {
+	t.Helper()
+	if got := exchangeUDS(t, client, opClaim, tokenPayload(lease)); got.decision != decisionAllow || got.flags != 0 {
 		t.Fatalf("claim result = %#v", got)
 	}
 	if got := exchangeUDS(t, client, opResponseHeaders, responseHeaderPayload(http.StatusOK)); got.decision != decisionAllow {
@@ -164,9 +173,10 @@ func TestP4LogOnlyResultPreservesCommittedChunkAndRecordsOutcome(t *testing.T) {
 	if got := exchangeUDS(t, client, opFinish, nil); got.decision != decisionAllow {
 		t.Fatalf("finish result = %#v", got)
 	}
+}
 
-	events := waitForTerminal(t, log)
-	assertOneTransaction(t, events, "P1", "P2", "P3", "P4")
+func assertP4LogOnlyEvents(t *testing.T, events []composite.Event) {
+	t.Helper()
 	var sawP4Deny, sawLogOnlyOutcome bool
 	for _, event := range events {
 		switch event.Phase {

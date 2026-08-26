@@ -243,17 +243,26 @@ func reservationPayloadForRequest(r *http.Request) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return reservationPayloadWithMetadata(r.Method, requestURI(r), r.Header, r.Host, r.ContentLength, r.Proto, host, port)
+	return reservationPayloadWithMetadata(r.Method, requestURI(r), r.Header, reservationTransportMetadata{
+		authority: r.Host, contentLength: r.ContentLength, protocol: r.Proto,
+		serverAddress: host, serverPort: port,
+	})
 }
 
-func reservationPayloadWithMetadata(method, target string, headers http.Header, authority string, contentLength int64, protocol, serverAddress string, serverPort int) ([]byte, error) {
+type reservationTransportMetadata struct {
+	authority, protocol, serverAddress string
+	contentLength                      int64
+	serverPort                         int
+}
+
+func reservationPayloadWithMetadata(method, target string, headers http.Header, metadata reservationTransportMetadata) ([]byte, error) {
 	if !validHeaderToken(method) || !validReservationTarget(target) {
 		return nil, errProtocol
 	}
-	if !validHTTPProtocol(protocol) || net.ParseIP(serverAddress) == nil || serverPort < 1 || serverPort > 65535 {
+	if !validHTTPProtocol(metadata.protocol) || net.ParseIP(metadata.serverAddress) == nil || metadata.serverPort < 1 || metadata.serverPort > 65535 {
 		return nil, errProtocol
 	}
-	groups, err := reservationHeaderGroups(headers, authority, contentLength)
+	groups, err := reservationHeaderGroups(headers, metadata.authority, metadata.contentLength)
 	if err != nil {
 		return nil, err
 	}
@@ -267,16 +276,16 @@ func reservationPayloadWithMetadata(method, target string, headers http.Header, 
 	if err != nil {
 		return nil, err
 	}
-	p, err = appendReservationText(p, protocol, maxHeaderValue)
+	p, err = appendReservationText(p, metadata.protocol, maxHeaderValue)
 	if err != nil {
 		return nil, err
 	}
-	p, err = appendReservationText(p, serverAddress, maxHeaderValue)
+	p, err = appendReservationText(p, metadata.serverAddress, maxHeaderValue)
 	if err != nil {
 		return nil, err
 	}
 	var port [2]byte
-	binary.BigEndian.PutUint16(port[:], uint16(serverPort))
+	binary.BigEndian.PutUint16(port[:], uint16(metadata.serverPort))
 	p = append(p, port[:]...)
 	if len(groups) > maxHeaders {
 		return nil, errProtocol
@@ -907,35 +916,8 @@ func (rw *responseWriter) finish(ctx context.Context) {
 		return
 	}
 	rw.finished = true
-	if rw.proto == nil {
+	if !rw.finishTransport(ctx) || !rw.finishResponse(ctx) {
 		return
-	}
-	if rw.requestTerminal {
-		_, _ = rw.proto.exchange(ctx, opFinish, nil)
-		return
-	}
-	if rw.transportErr != nil {
-		return
-	}
-	if !rw.blocked {
-		if !rw.wroteHeader {
-			rw.WriteHeader(http.StatusOK)
-		}
-		if rw.transportErr != nil {
-			return
-		}
-		if res, err := rw.proto.exchange(ctx, opResponseEOS, nil); err != nil {
-			rw.transportErr = err
-			return
-		} else {
-			if res.flags == resultFlagPostCommitLogOnly {
-				rw.late = true
-			}
-			if res.decision != decisionAllow {
-				rw.transportErr = errResponseBodyRejected
-				return
-			}
-		}
 	}
 	action := rw.outcomeAction
 	if rw.late {
@@ -947,6 +929,42 @@ func (rw *responseWriter) finish(ctx context.Context) {
 		return
 	}
 	_, _ = rw.proto.exchange(ctx, opFinish, nil)
+}
+
+func (rw *responseWriter) finishTransport(ctx context.Context) bool {
+	if rw.proto == nil {
+		return false
+	}
+	if rw.requestTerminal {
+		_, _ = rw.proto.exchange(ctx, opFinish, nil)
+		return false
+	}
+	return rw.transportErr == nil
+}
+
+func (rw *responseWriter) finishResponse(ctx context.Context) bool {
+	if rw.blocked {
+		return true
+	}
+	if !rw.wroteHeader {
+		rw.WriteHeader(http.StatusOK)
+	}
+	if rw.transportErr != nil {
+		return false
+	}
+	res, err := rw.proto.exchange(ctx, opResponseEOS, nil)
+	if err != nil {
+		rw.transportErr = err
+		return false
+	}
+	if res.flags == resultFlagPostCommitLogOnly {
+		rw.late = true
+	}
+	if res.decision != decisionAllow {
+		rw.transportErr = errResponseBodyRejected
+		return false
+	}
+	return true
 }
 
 func responseHeaders(status int, protocol string, h http.Header, maxCount, maxBytes int) ([]byte, error) {

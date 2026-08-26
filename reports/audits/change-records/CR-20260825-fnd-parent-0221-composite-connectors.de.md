@@ -431,3 +431,39 @@ Dies sind ausschließlich lokale Ergebnisse für den noch nicht eingecheckten
 Successor. Verbleibend sind ein normaler scoped Commit und Push, exakte
 Head-GitHub-/SonarCloud-Checks und danach die sachliche Thread-Reconciliation.
 Der PR bleibt Draft, und kein Merge ist autorisiert.
+
+## Sonar-Null-Remediation für PR #341 (lokale Validierung) — 2026-08-26
+
+Am veröffentlichten Draft-PR-#341-Head `7a1473c17ac3343e4b4ac4944d8a7cea5da816dc`
+meldete die rohe SonarQube-Cloud-Pull-Request-API fünf task-eigene New-Code-
+Code-Smells: Parser-Komplexität in `parseReservationSnapshot`, P4-Safe-Test-
+Komplexität, acht `reservationPayloadWithMetadata`-Parameter, Response-Writer-
+Finish-Komplexität und Reservation-Payload-Test-Parser-Komplexität. Dieser
+lokale Successor behebt alle strukturell, ohne Sonar-Konfiguration, Quality
+Gate, Exclusions, Accepted-Issue-Status, Suppression, Coverage-Input,
+CI-Konfiguration oder ein Security-Control zu ändern.
+
+`parseReservationMetadata` bewahrt die exakte begrenzte Validierungsreihenfolge
+des privaten Frames vor dem bestehenden Header-Group-Parsing. Der P4-Safe-Test
+trennt Lifecycle-Ausführung von Event-Assertions.
+`reservationTransportMetadata` gruppiert die Fakten des geschützten Listeners,
+während `finishTransport` und `finishResponse` die vorherige fail-closed
+Terminalreihenfolge bewahren. Der ausschließlich testseitige Reservation-Parser
+verwendet jetzt einen begrenzten Cursor. Diese Zerlegungen ändern weder das
+Version-2-Snapshot-Wire-Layout, die HMAC-gebundenen Protokoll-/IP-/Port-
+Metadaten, die Result-Flag-Restriktion noch das Post-Commit-Reject-Verhalten.
+
+Die integrierte lokale Regressionsmenge bestand: Envoy `go test -race -count=1
+./internal/composite ./internal/compositeenvoy ./internal/compositetraefik
+./cmd/msconnector-composite`; Traefik `go test -race -count=1 .`; beide
+zugehörigen Go-vet-Suiten; `gofmt -d`; und `git diff --check`. Ein frischer
+read-only Security-Review fand keine neue validierte Security- oder funktionale
+Schwachstelle und bestätigte, dass fehlgeformter privater Input fail-closed
+bleibt und dass Response-EOS-/Fehlerpfade ihre ursprünglichen Sicherungen
+behalten.
+
+Dieser Abschnitt hält lokale Pre-Delivery-Evidenz fest. Der folgende Delivery-
+Schritt muss den autorisierten scoped Commit und normalen Push durchführen;
+passende Head-GitHub-CI, passende Head-Sonar-Null-Evidenz und die Review-
+Thread-Reconciliation bleiben danach erforderlich. Der PR bleibt Draft, und
+kein Merge ist autorisiert.

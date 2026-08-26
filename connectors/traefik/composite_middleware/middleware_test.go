@@ -26,7 +26,10 @@ func testRequest(method, target string) *http.Request {
 }
 
 func reservationPayloadForTest(method, target string, headers http.Header, authority string, contentLength int64) ([]byte, error) {
-	return reservationPayloadWithMetadata(method, target, headers, authority, contentLength, "HTTP/1.1", "127.0.0.1", 2443)
+	return reservationPayloadWithMetadata(method, target, headers, reservationTransportMetadata{
+		authority: authority, contentLength: contentLength, protocol: "HTTP/1.1",
+		serverAddress: "127.0.0.1", serverPort: 2443,
+	})
 }
 
 func TestMiddlewareReplacesClientLeaseAndCompletesPrivateLifecycle(t *testing.T) {
@@ -629,52 +632,80 @@ func TestNewRejectsUnsafeSocketPath(t *testing.T) {
 
 func reservationPayloadHeaderValues(t *testing.T, payload []byte) map[string][]string {
 	t.Helper()
-	if len(payload) < 1 || payload[0] != reservationSnapshotVersion {
-		t.Fatal("reservation payload version")
-	}
-	i := 1
-	readText := func(allowEmpty bool) string {
-		if i+2 > len(payload) {
-			t.Fatal("reservation payload length")
-		}
-		n := int(binary.BigEndian.Uint16(payload[i : i+2]))
-		i += 2
-		if (!allowEmpty && n == 0) || i+n > len(payload) {
-			t.Fatal("reservation payload field")
-		}
-		value := string(payload[i : i+n])
-		i += n
-		return value
-	}
-	_ = readText(false) // method
-	_ = readText(false) // URI
-	_ = readText(false) // HTTP protocol
-	_ = readText(false) // actual server address
-	if i+2 > len(payload) {
-		t.Fatal("reservation payload server port")
-	}
-	i += 2 // actual server port
-	if i+2 > len(payload) {
-		t.Fatal("reservation payload group count")
-	}
-	groups := int(binary.BigEndian.Uint16(payload[i : i+2]))
-	i += 2
-	result := make(map[string][]string, groups)
-	for group := 0; group < groups; group++ {
-		name := readText(false)
-		if i+2 > len(payload) {
-			t.Fatal("reservation payload value count")
-		}
-		count := int(binary.BigEndian.Uint16(payload[i : i+2]))
-		i += 2
-		for value := 0; value < count; value++ {
-			result[name] = append(result[name], readText(true))
-		}
-	}
-	if i != len(payload) {
-		t.Fatal("reservation payload trailing data")
+	result, err := parseReservationPayloadHeaderValues(payload)
+	if err != nil {
+		t.Fatal(err)
 	}
 	return result
+}
+
+type reservationPayloadCursor struct {
+	payload []byte
+	i       int
+}
+
+func (c *reservationPayloadCursor) text(allowEmpty bool) (string, error) {
+	if c.i+2 > len(c.payload) {
+		return "", errors.New("reservation payload length")
+	}
+	n := int(binary.BigEndian.Uint16(c.payload[c.i : c.i+2]))
+	c.i += 2
+	if (!allowEmpty && n == 0) || c.i+n > len(c.payload) {
+		return "", errors.New("reservation payload field")
+	}
+	value := string(c.payload[c.i : c.i+n])
+	c.i += n
+	return value, nil
+}
+
+func (c *reservationPayloadCursor) uint16(label string) (int, error) {
+	if c.i+2 > len(c.payload) {
+		return 0, fmt.Errorf("reservation payload %s", label)
+	}
+	value := int(binary.BigEndian.Uint16(c.payload[c.i : c.i+2]))
+	c.i += 2
+	return value, nil
+}
+
+func parseReservationPayloadHeaderValues(payload []byte) (map[string][]string, error) {
+	if len(payload) < 1 || payload[0] != reservationSnapshotVersion {
+		return nil, errors.New("reservation payload version")
+	}
+	c := reservationPayloadCursor{payload: payload, i: 1}
+	for range 4 {
+		if _, err := c.text(false); err != nil {
+			return nil, err
+		}
+	}
+	if _, err := c.uint16("server port"); err != nil {
+		return nil, err
+	}
+	groups, err := c.uint16("group count")
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string][]string, groups)
+	for group := 0; group < groups; group++ {
+		name, err := c.text(false)
+		if err != nil {
+			return nil, err
+		}
+		count, err := c.uint16("value count")
+		if err != nil {
+			return nil, err
+		}
+		for value := 0; value < count; value++ {
+			text, err := c.text(true)
+			if err != nil {
+				return nil, err
+			}
+			result[name] = append(result[name], text)
+		}
+	}
+	if c.i != len(payload) {
+		return nil, errors.New("reservation payload trailing data")
+	}
+	return result, nil
 }
 
 type transportMetadata struct {
