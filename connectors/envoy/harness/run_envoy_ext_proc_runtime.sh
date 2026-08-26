@@ -1,9 +1,22 @@
 #!/bin/sh
 set -eu
 
-SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
-CONNECTOR_DIR=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
-REPO_ROOT=$(CDPATH= cd "$CONNECTOR_DIR/../.." && pwd)
+SCRIPT_DIR=$(
+    CDPATH=
+    export CDPATH
+    cd "$(dirname "$0")" && pwd
+)
+CONNECTOR_DIR=$(
+    CDPATH=
+    export CDPATH
+    cd "$SCRIPT_DIR/.." && pwd
+)
+REPO_ROOT=$(
+    CDPATH=
+    export CDPATH
+    cd "$CONNECTOR_DIR/../.." && pwd
+)
+CONNECTOR_ROOT=${CONNECTOR_ROOT:-$REPO_ROOT}
 BUILD_ROOT=${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecurity-conector-build}
 EXT_PROC_BIN=${EXT_PROC_BIN:-$BUILD_ROOT/envoy-ext-proc/msconnector_envoy_ext_proc}
 EXT_PROC_CONFIG=${EXT_PROC_CONFIG:-$CONNECTOR_DIR/config/envoy-ext-proc-service.json}
@@ -11,11 +24,21 @@ RUNTIME_ROOT=${RUNTIME_ROOT:-$BUILD_ROOT/envoy-ext-proc/runtime-smoke}
 COMMON_EVENT_LOG_PATH=${COMMON_EVENT_LOG_PATH:-${EVENT_LOG_PATH:-$RUNTIME_ROOT/events.jsonl}}
 COMPLETION_LOG_PATH=${COMPLETION_LOG_PATH:-$RUNTIME_ROOT/completion-events.jsonl}
 EXT_PROC_RUNTIME_CONFIG=${EXT_PROC_RUNTIME_CONFIG:-$RUNTIME_ROOT/envoy-ext-proc-runtime.conf}
+PROCESSOR_TRANSACTION_ID_HEADER=x-request-id
+READINESS_TRANSACTION_ID_HEADER=x-request-id
 # The canonical dispatcher exports MSCONNECTOR_RULES_FILE. Prefer it over an
 # incidental make/environment RULES_FILE so this real-host runner cannot fall
 # back to a connector-local smoke ruleset. Direct local invocation may still
 # supply RULES_FILE, and otherwise uses the Framework's canonical baseline.
-if [ -n "${MSCONNECTOR_RULES_FILE:-}" ]; then
+MSCONNECTOR_MRTS_RUNTIME=${MSCONNECTOR_MRTS_RUNTIME:-0}
+if [ "$MSCONNECTOR_MRTS_RUNTIME" = 1 ]; then
+    # MRTS mode must never inherit the canonical no-CRS smoke rules or an
+    # incidental RULES_FILE from the caller.
+    RULES_FILE=${MRTS_LOAD_FILE:-}
+    RULES_SOURCE=MRTS_LOAD_FILE
+    PROCESSOR_TRANSACTION_ID_HEADER=x-mrts-transaction-id
+    READINESS_TRANSACTION_ID_HEADER=x-mrts-transaction-id
+elif [ -n "${MSCONNECTOR_RULES_FILE:-}" ]; then
     RULES_FILE=$MSCONNECTOR_RULES_FILE
     RULES_SOURCE=MSCONNECTOR_RULES_FILE
 elif [ -n "${RULES_FILE:-}" ]; then
@@ -437,6 +460,136 @@ PY
     } > "$SUMMARY"
 }
 
+verify_mrts_runtime_cleanup() {
+    cleanup
+    for process_pair in "envoy:$envoy_pid" "ext_proc:$service_pid" "upstream:$upstream_pid"; do
+        process_name=${process_pair%%:*}
+        process_id=${process_pair##*:}
+        if [ -n "$process_id" ] && kill -0 "$process_id" 2>/dev/null; then
+            echo "envoy_ext_proc_runtime: FAIL - MRTS cleanup left $process_name process $process_id alive" >&2
+            return 1
+        fi
+    done
+    if ! "$PYTHON_BIN" - "$listen_port" "$upstream_port" "$ext_proc_port" "$admin_port" <<'PY'
+import socket
+import sys
+
+for raw_port in sys.argv[1:]:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind(("127.0.0.1", int(raw_port)))
+    except OSError as exc:
+        raise SystemExit(f"listener remains on 127.0.0.1:{raw_port}: {exc}")
+    finally:
+        sock.close()
+PY
+    then
+        echo "envoy_ext_proc_runtime: FAIL - MRTS cleanup left an owned listener active" >&2
+        return 1
+    fi
+    envoy_pid=
+    service_pid=
+    upstream_pid=
+    trap - EXIT HUP INT TERM
+}
+
+validate_mrts_runtime_inputs() {
+    case "$MSCONNECTOR_MRTS_RUNTIME" in
+        0) return 0 ;;
+        1) ;;
+        *) echo "envoy_ext_proc_runtime: FAIL - MSCONNECTOR_MRTS_RUNTIME must be 0 or 1" >&2; exit 1 ;;
+    esac
+    [ -n "${MRTS_RUNTIME_EXECUTOR:-}" ] || missing_dependency "MRTS_RUNTIME_EXECUTOR is required for MRTS runtime mode"
+    [ -n "${MRTS_RUNTIME_PLAN:-}" ] || missing_dependency "MRTS_RUNTIME_PLAN is required for MRTS runtime mode"
+    [ -n "${MRTS_RUNTIME_RESULT:-}" ] || missing_dependency "MRTS_RUNTIME_RESULT is required for MRTS runtime mode"
+    [ -n "${MRTS_RUNTIME_PLAN_SHA256:-}" ] || missing_dependency "MRTS_RUNTIME_PLAN_SHA256 is required for MRTS runtime mode"
+    [ "${#MRTS_RUNTIME_PLAN_SHA256}" -eq 64 ] || {
+        echo "envoy_ext_proc_runtime: FAIL - MRTS_RUNTIME_PLAN_SHA256 must be exactly 64 lowercase hexadecimal characters" >&2
+        exit 1
+    }
+    case "$MRTS_RUNTIME_PLAN_SHA256" in
+        *[!0-9a-f]*)
+            echo "envoy_ext_proc_runtime: FAIL - MRTS_RUNTIME_PLAN_SHA256 must be exactly 64 lowercase hexadecimal characters" >&2
+            exit 1
+            ;;
+        *) : ;;
+    esac
+    [ -n "${MRTS_LOAD_FILE:-}" ] || missing_dependency "MRTS_LOAD_FILE is required for MRTS runtime mode"
+    case "$MRTS_RUNTIME_EXECUTOR" in /*) ;; *) echo "envoy_ext_proc_runtime: FAIL - MRTS_RUNTIME_EXECUTOR must be absolute" >&2; exit 1 ;; esac
+    case "$MRTS_RUNTIME_PLAN" in /*) ;; *) echo "envoy_ext_proc_runtime: FAIL - MRTS_RUNTIME_PLAN must be absolute" >&2; exit 1 ;; esac
+    case "$MRTS_RUNTIME_RESULT" in /*) ;; *) echo "envoy_ext_proc_runtime: FAIL - MRTS_RUNTIME_RESULT must be absolute" >&2; exit 1 ;; esac
+    case "$MRTS_LOAD_FILE" in /*) ;; *) echo "envoy_ext_proc_runtime: FAIL - MRTS_LOAD_FILE must be absolute" >&2; exit 1 ;; esac
+    [ -f "$MRTS_RUNTIME_EXECUTOR" ] || missing_dependency "MRTS_RUNTIME_EXECUTOR is not a regular file: $MRTS_RUNTIME_EXECUTOR"
+    [ -r "$MRTS_RUNTIME_EXECUTOR" ] || missing_dependency "MRTS_RUNTIME_EXECUTOR is not readable: $MRTS_RUNTIME_EXECUTOR"
+    [ -f "$MRTS_RUNTIME_PLAN" ] || missing_dependency "MRTS_RUNTIME_PLAN is missing: $MRTS_RUNTIME_PLAN"
+    [ -f "$MRTS_LOAD_FILE" ] || missing_dependency "MRTS_LOAD_FILE is missing: $MRTS_LOAD_FILE"
+    [ ! -L "$MRTS_RUNTIME_EXECUTOR" ] || { echo "envoy_ext_proc_runtime: FAIL - MRTS_RUNTIME_EXECUTOR must not be a symlink" >&2; exit 1; }
+    [ ! -L "$MRTS_RUNTIME_PLAN" ] || { echo "envoy_ext_proc_runtime: FAIL - MRTS_RUNTIME_PLAN must not be a symlink" >&2; exit 1; }
+    [ ! -L "$MRTS_LOAD_FILE" ] || { echo "envoy_ext_proc_runtime: FAIL - MRTS_LOAD_FILE must not be a symlink" >&2; exit 1; }
+    if ! "$PYTHON_BIN" - "$MRTS_RUNTIME_EXECUTOR" "$MRTS_RUNTIME_PLAN" "$MRTS_RUNTIME_RESULT" "$MRTS_LOAD_FILE" <<'PY'
+import pathlib
+import sys
+
+for raw in sys.argv[1:]:
+    path = pathlib.Path(raw)
+    for parent in (path, *path.parents):
+        if parent.exists() and parent.is_symlink():
+            raise SystemExit(f"symlink path component: {parent}")
+PY
+    then
+        echo "envoy_ext_proc_runtime: FAIL - MRTS runtime input contains a symlink path component" >&2
+        exit 1
+    fi
+    case "$MRTS_RUNTIME_PLAN" in
+        "$RUNTIME_ROOT"/*) ;;
+        *) echo "envoy_ext_proc_runtime: FAIL - MRTS_RUNTIME_PLAN must be under RUNTIME_ROOT" >&2; exit 1 ;;
+    esac
+    case "$MRTS_RUNTIME_RESULT" in
+        "$RUNTIME_ROOT"/*) ;;
+        *) echo "envoy_ext_proc_runtime: FAIL - MRTS_RUNTIME_RESULT must be under RUNTIME_ROOT" >&2; exit 1 ;;
+    esac
+    if ! "$PYTHON_BIN" - "$RUNTIME_ROOT" "$MRTS_RUNTIME_PLAN" "$MRTS_RUNTIME_RESULT" <<'PY'
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1]).resolve()
+for raw in sys.argv[2:]:
+    candidate = pathlib.Path(raw).resolve(strict=False)
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        raise SystemExit(f"runtime path escapes root: {candidate}")
+PY
+    then
+        echo "envoy_ext_proc_runtime: FAIL - MRTS runtime path escapes RUNTIME_ROOT" >&2
+        exit 1
+    fi
+    [ ! -e "$MRTS_RUNTIME_RESULT" ] && [ ! -L "$MRTS_RUNTIME_RESULT" ] || {
+        echo "envoy_ext_proc_runtime: FAIL - MRTS_RUNTIME_RESULT must not already exist" >&2
+        exit 1
+    }
+    result_parent=$(dirname "$MRTS_RUNTIME_RESULT")
+    [ -d "$result_parent" ] || { echo "envoy_ext_proc_runtime: FAIL - MRTS_RUNTIME_RESULT parent is missing" >&2; exit 1; }
+    [ ! -L "$result_parent" ] || { echo "envoy_ext_proc_runtime: FAIL - MRTS_RUNTIME_RESULT parent must not be a symlink" >&2; exit 1; }
+    sealed_plan_validator=$CONNECTOR_ROOT/ci/runtime/lifecycle/run-no-crs-with-mrts-target.py
+    [ -f "$sealed_plan_validator" ] && [ ! -L "$sealed_plan_validator" ] || {
+        echo "envoy_ext_proc_runtime: FAIL - sealed MRTS plan validator is unavailable" >&2
+        exit 1
+    }
+    if ! "$PYTHON_BIN" "$sealed_plan_validator" --validate-sealed-plan \
+        --plan "$MRTS_RUNTIME_PLAN" --runtime-root "$VERIFIED_RUN_ROOT" \
+        --framework-root "$FRAMEWORK_ROOT" --rules-root "$MRTS_RUNTIME_RULES_ROOT" \
+        --load-file "$MRTS_LOAD_FILE" --plan-sha256 "$MRTS_RUNTIME_PLAN_SHA256"; then
+        echo "envoy_ext_proc_runtime: FAIL - sealed MRTS plan no-CRS validation failed" >&2
+        exit 1
+    fi
+    grep -Eq '^[[:space:]]*Include[[:space:]]+' "$MRTS_LOAD_FILE" || {
+        echo "envoy_ext_proc_runtime: FAIL - MRTS_LOAD_FILE contains no rule includes" >&2
+        exit 1
+    }
+}
+
 [ -n "${ENVOY_BIN:-}" ] || missing_dependency "ENVOY_BIN is required"
 [ -x "$ENVOY_BIN" ] || missing_dependency "ENVOY_BIN is not executable: $ENVOY_BIN"
 [ -x "$EXT_PROC_BIN" ] || missing_dependency "ext_proc service is not executable: $EXT_PROC_BIN"
@@ -452,6 +605,10 @@ case "$CRS_RUNTIME" in
     0|1) ;;
     *) echo "envoy_ext_proc_runtime: FAIL - MSCONNECTOR_CRS_RUNTIME must be 0 or 1" >&2; exit 1 ;;
 esac
+if [ "$CRS_RUNTIME" = 1 ] && [ "$MSCONNECTOR_MRTS_RUNTIME" = 1 ]; then
+    echo "envoy_ext_proc_runtime: FAIL - CRS and MRTS runtime modes are mutually exclusive" >&2
+    exit 1
+fi
 if [ "$CRS_RUNTIME" = 1 ]; then
     # The framework supplies a run-scoped identifier.  Keep it short enough
     # that the derived wire IDs remain bounded, and derive every CRS request
@@ -471,6 +628,7 @@ if [ "$CRS_RUNTIME" = 1 ]; then
     CRS_BLOCK_TRANSACTION_ID="envoy-ext-proc-crs-${CRS_RUNTIME_RUN_ID}-block"
     CRS_BYPASS_TRANSACTION_ID="envoy-ext-proc-crs-${CRS_RUNTIME_RUN_ID}-bypass"
 fi
+# shellcheck disable=SC1090 # Runtime path is a connector-owned, prevalidated renderer.
 . "$TLS_RENDERER"
 [ -f "$RULES_FILE" ] || missing_dependency "canonical rules file is missing: $RULES_FILE"
 resolved_rules_file=$("$PYTHON_BIN" -c 'import pathlib,sys; print(pathlib.Path(sys.argv[1]).resolve(strict=True))' "$RULES_FILE") || {
@@ -548,6 +706,7 @@ if ! "$PYTHON_BIN" "$HELPER" prepare-runtime-root --runtime-root "$RUNTIME_ROOT"
     echo "envoy_ext_proc_runtime: FAIL - RUNTIME_ROOT is unsafe for private runtime artifacts" >&2
     exit 1
 fi
+validate_mrts_runtime_inputs
 trap cleanup EXIT HUP INT TERM
 mkdir -p "$PHASE4_BARRIER_DIR"
 rm -f "$COMMON_EVENT_LOG_PATH" "$COMPLETION_LOG_PATH" "$SUMMARY" "$EXT_PROC_RUNTIME_CONFIG" \
@@ -566,6 +725,12 @@ if ! "$ENVOY_BIN" --version >"$RUNTIME_ROOT/envoy-version.txt" 2>&1; then
     echo "envoy_ext_proc_runtime: FAIL - could not read Envoy version" >&2
     exit 1
 fi
+command -v sha256sum >/dev/null 2>&1 || missing_dependency "sha256sum is required for Envoy runtime provenance"
+sha256sum "$ENVOY_BIN" | awk '{print $1}' >"$RUNTIME_ROOT/envoy-binary-sha256.txt"
+test -s "$RUNTIME_ROOT/envoy-binary-sha256.txt" || {
+    echo "envoy_ext_proc_runtime: FAIL - could not record Envoy binary SHA-256" >&2
+    exit 1
+}
 envoy_version=$(cat "$RUNTIME_ROOT/envoy-version.txt")
 case "$envoy_version" in
     *"/$pinned_envoy_release/"*|*"version: $pinned_envoy_release"*) ;;
@@ -576,12 +741,44 @@ case "$envoy_version" in
         ;;
 esac
 
-set -- $("$PYTHON_BIN" "$HELPER" free-ports --count 4)
-listen_port=${ENVOY_SMOKE_PORT:-$1}
-upstream_port=${ENVOY_UPSTREAM_PORT:-$2}
-ext_proc_port=${ENVOY_EXT_PROC_PORT:-$3}
-admin_port=${ENVOY_ADMIN_PORT:-$4}
-base_id=$(((listen_port + admin_port) % 100000))
+free_ports=$("$PYTHON_BIN" "$HELPER" free-ports --count 4)
+case "$free_ports" in
+    *'
+'*) echo "envoy_ext_proc_runtime: FAIL - free-ports returned multiple lines" >&2; exit 1 ;;
+    *) : ;;
+esac
+IFS=' ' read -r default_listen_port default_upstream_port default_ext_proc_port default_admin_port extra_port <<EOF
+$free_ports
+EOF
+[ -n "${default_listen_port:-}" ] && [ -n "${default_upstream_port:-}" ] && \
+    [ -n "${default_ext_proc_port:-}" ] && [ -n "${default_admin_port:-}" ] && \
+    [ -z "${extra_port:-}" ] || {
+    echo "envoy_ext_proc_runtime: FAIL - free-ports did not return exactly four ports" >&2
+    exit 1
+}
+listen_port=${ENVOY_SMOKE_PORT:-$default_listen_port}
+upstream_port=${ENVOY_UPSTREAM_PORT:-$default_upstream_port}
+ext_proc_port=${ENVOY_EXT_PROC_PORT:-$default_ext_proc_port}
+admin_port=${ENVOY_ADMIN_PORT:-$default_admin_port}
+if ! base_id=$("$PYTHON_BIN" - "$listen_port" "$upstream_port" "$ext_proc_port" "$admin_port" <<'PY'
+import sys
+
+ports = []
+for raw in sys.argv[1:]:
+    if not raw.isascii() or not raw.isdecimal():
+        raise SystemExit(f"non-numeric port: {raw!r}")
+    port = int(raw)
+    if not 1 <= port <= 65535:
+        raise SystemExit(f"out-of-range port: {port}")
+    ports.append(port)
+if len(set(ports)) != len(ports):
+    raise SystemExit("ports must be distinct")
+print((ports[0] + ports[3]) % 100000)
+PY
+); then
+    echo "envoy_ext_proc_runtime: FAIL - invalid Envoy runtime port selection" >&2
+    exit 1
+fi
 
 command -v openssl >/dev/null 2>&1 || missing_dependency "openssl is required for the private loopback TLS certificate"
 if ! create_private_loopback_tls "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY"; then
@@ -595,6 +792,7 @@ OUTPUT_CONFIG="$ENVOY_CONFIG" LISTEN_PORT="$listen_port" \
     TLS_CERTIFICATE="$TLS_CERTIFICATE" TLS_PRIVATE_KEY="$TLS_PRIVATE_KEY" \
     sh "$PREPARE_ENVOY_CONFIG" >/dev/null
 OUTPUT_CONFIG="$EXT_PROC_RUNTIME_CONFIG" RULES_FILE="$RULES_FILE" EVENT_PATH="$COMMON_EVENT_LOG_PATH" \
+    TRANSACTION_ID_HEADER="$PROCESSOR_TRANSACTION_ID_HEADER" \
     sh "$PREPARE_RUNTIME_CONFIG" >/dev/null
 
 if ! grep -Fq 'name: envoy.filters.http.ext_proc' "$ENVOY_CONFIG" || \
@@ -629,9 +827,21 @@ if ! grep -Fqx "rules_file=$resolved_rules_file" "$EXT_PROC_RUNTIME_CONFIG"; the
     echo "envoy_ext_proc_runtime: FAIL - Common runtime config did not load the canonical rules file" >&2
     exit 1
 fi
+if [ "$MSCONNECTOR_MRTS_RUNTIME" = 1 ]; then
+    if ! grep -Fqx 'transaction_id_header=x-mrts-transaction-id' "$EXT_PROC_RUNTIME_CONFIG" || \
+        ! grep -Fqx 'emit_rule_match_evidence=on' "$EXT_PROC_RUNTIME_CONFIG"; then
+        echo "envoy_ext_proc_runtime: FAIL - sealed MRTS config lacks typed rule-match evidence" >&2
+        exit 1
+    fi
+elif ! grep -Fqx 'transaction_id_header=x-request-id' "$EXT_PROC_RUNTIME_CONFIG" || \
+    ! grep -Fqx 'emit_rule_match_evidence=off' "$EXT_PROC_RUNTIME_CONFIG"; then
+    echo "envoy_ext_proc_runtime: FAIL - normal config must not enable typed rule-match evidence" >&2
+    exit 1
+fi
 
 "$EXT_PROC_BIN" --check-config --config "$EXT_PROC_CONFIG" \
     --runtime-config "$EXT_PROC_RUNTIME_CONFIG" \
+    --transaction-id-header "$PROCESSOR_TRANSACTION_ID_HEADER" \
     >"$RUNTIME_ROOT/ext-proc-config-check.stdout.log" \
     2>"$RUNTIME_ROOT/ext-proc-config-check.stderr.log"
 
@@ -659,6 +869,7 @@ upstream_start_token=$(owned_process_start_token "$upstream_pid") || {
 
 EXT_PROC_BIN="$EXT_PROC_BIN" EXT_PROC_CONFIG="$EXT_PROC_CONFIG" \
     EXT_PROC_RUNTIME_CONFIG="$EXT_PROC_RUNTIME_CONFIG" \
+    PROCESSOR_TRANSACTION_ID_HEADER="$PROCESSOR_TRANSACTION_ID_HEADER" \
     EVENT_LOG_PATH="$COMPLETION_LOG_PATH" LISTEN_ADDRESS=127.0.0.1 \
     LISTEN_PORT="$ext_proc_port" sh "$SCRIPT_DIR/serve_envoy_ext_proc.sh" \
     >"$SERVICE_STDOUT" 2>"$SERVICE_STDERR" &
@@ -694,7 +905,7 @@ while [ "$attempt" -lt 30 ]; do
     readiness_status=$("$PYTHON_BIN" "$HELPER" probe \
         --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
         --url "https://127.0.0.1:$listen_port/allowed" \
-        --header "X-Request-Id: $READINESS_TRANSACTION_ID" \
+        --header "$READINESS_TRANSACTION_ID_HEADER: $READINESS_TRANSACTION_ID" \
         --evidence-path "$READINESS_PROBE_EVIDENCE" 2>/dev/null)
     probe_rc=$?
     set -e
@@ -719,6 +930,61 @@ if [ "$CRS_RUNTIME" = 1 ]; then
     printf 'cleanup_status=PASS\n' >> "$SUMMARY"
     printf 'processes_stopped=yes\n' >> "$SUMMARY"
     printf 'envoy_ext_proc_runtime: pass (CRS runtime) summary=%s\n' "$SUMMARY"
+    exit 0
+elif [ "$MSCONNECTOR_MRTS_RUNTIME" = 1 ]; then
+    # The executor owns MRTS case selection and result construction.  Run it
+    # against the live host immediately after readiness; the fixed baseline
+    # probes below use rules that are intentionally not part of MRTS mode.
+    set +e
+    "$PYTHON_BIN" "$MRTS_RUNTIME_EXECUTOR" \
+        --connector envoy \
+        --runtime-root "$VERIFIED_RUN_ROOT" \
+        --plan "$MRTS_RUNTIME_PLAN" \
+        --plan-sha256 "$MRTS_RUNTIME_PLAN_SHA256" \
+        --result "$MRTS_RUNTIME_RESULT" \
+        --load-file "$MRTS_LOAD_FILE" \
+        --event-log "$COMMON_EVENT_LOG_PATH" \
+        --scheme https \
+        --host 127.0.0.1 \
+        --port "$listen_port" \
+        --tls-certificate "$TLS_CERTIFICATE"
+    mrts_executor_rc=$?
+    set -e
+    if [ "$mrts_executor_rc" -ne 0 ]; then
+        echo "envoy_ext_proc_runtime: FAIL - MRTS runtime executor failed (exit $mrts_executor_rc)" >&2
+        exit "$mrts_executor_rc"
+    fi
+    [ -f "$MRTS_RUNTIME_RESULT" ] && [ ! -L "$MRTS_RUNTIME_RESULT" ] && [ -s "$MRTS_RUNTIME_RESULT" ] || {
+        echo "envoy_ext_proc_runtime: FAIL - MRTS runtime executor produced no safe result" >&2
+        exit 1
+    }
+    for process_pair in "envoy:$envoy_pid" "ext_proc:$service_pid" "upstream:$upstream_pid"; do
+        process_name=${process_pair%%:*}
+        process_id=${process_pair##*:}
+        if ! kill -0 "$process_id" 2>/dev/null; then
+            echo "envoy_ext_proc_runtime: FAIL - $process_name exited during MRTS execution" >&2
+            exit 1
+        fi
+    done
+    if ! verify_mrts_runtime_cleanup; then
+        exit 1
+    fi
+    {
+        printf 'status=PASS\n'
+        printf 'connector=envoy\n'
+        printf 'integration_mode=ext_proc\n'
+        printf 'mrts_runtime=true\n'
+        printf 'mrts_runtime_plan=%s\n' "$MRTS_RUNTIME_PLAN"
+        printf 'mrts_runtime_result=%s\n' "$MRTS_RUNTIME_RESULT"
+        printf 'mrts_load_file=%s\n' "$resolved_rules_file"
+        printf 'envoy_release=%s\n' "$pinned_envoy_release"
+        printf 'envoy_binary_path=%s\n' "$ENVOY_BIN"
+        printf 'envoy_binary_sha256=%s\n' "$(cat "$RUNTIME_ROOT/envoy-binary-sha256.txt")"
+        printf 'envoy_version_file=%s\n' "$RUNTIME_ROOT/envoy-version.txt"
+        printf 'host_readiness_status=%s\n' "$readiness_status"
+        printf 'event_log=%s\n' "$COMMON_EVENT_LOG_PATH"
+        printf 'cleanup=passed\n'
+    } > "$SUMMARY"
     exit 0
 fi
 
@@ -893,23 +1159,23 @@ fi
 # copies only bounded counters/status metadata and adds the client/upstream
 # barrier facts; neither response fixture is ever written into JSONL.
 if [ -n "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" ]; then
-    if ! phase4_barrier_binding=$("$PYTHON_BIN" "$HELPER" write-phase4-first-byte-evidence \
+    if ! "$PYTHON_BIN" "$HELPER" write-phase4-first-byte-evidence \
         --runtime-root "$RUNTIME_ROOT" \
         --event-log "$COMMON_EVENT_LOG_PATH" \
         --observation "$PHASE4_BARRIER_OBSERVATION" \
         --transaction-id "$PHASE4_BARRIER_TRANSACTION_ID" \
         --evidence-output "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" \
-        --run-id "${NO_CRS_RUN_ID:-}"); then
+        --run-id "${NO_CRS_RUN_ID:-}" >/dev/null; then
         echo "envoy_ext_proc_runtime: FAIL - could not bind phase-4 first-byte evidence to the Common event" >&2
         exit 1
     fi
 else
-    if ! phase4_barrier_binding=$("$PYTHON_BIN" "$HELPER" write-phase4-first-byte-evidence \
+    if ! "$PYTHON_BIN" "$HELPER" write-phase4-first-byte-evidence \
         --runtime-root "$RUNTIME_ROOT" \
         --event-log "$COMMON_EVENT_LOG_PATH" \
         --observation "$PHASE4_BARRIER_OBSERVATION" \
         --transaction-id "$PHASE4_BARRIER_TRANSACTION_ID" \
-        --run-id "${NO_CRS_RUN_ID:-}"); then
+        --run-id "${NO_CRS_RUN_ID:-}" >/dev/null; then
         echo "envoy_ext_proc_runtime: FAIL - could not append phase-4 first-byte barrier event" >&2
         exit 1
     fi
@@ -1034,12 +1300,12 @@ for process_pair in "envoy:$envoy_pid" "ext_proc:$service_pid" "upstream:$upstre
         exit 1
     fi
 done
-if ! allow_event_binding=$("$PYTHON_BIN" "$HELPER" write-allow-event \
+if ! "$PYTHON_BIN" "$HELPER" write-allow-event \
     --runtime-root "$RUNTIME_ROOT" \
     --event-log "$COMMON_EVENT_LOG_PATH" \
     --probe-evidence "$ALLOW_PROBE_EVIDENCE" \
     --completion-log "$COMPLETION_LOG_PATH" \
-    --transaction-id "$ALLOW_TRANSACTION_ID"); then
+    --transaction-id "$ALLOW_TRANSACTION_ID" >/dev/null; then
     echo "envoy_ext_proc_runtime: FAIL - could not bind the P1 allow response to its ext_proc completion" >&2
     exit 1
 fi
@@ -1086,6 +1352,7 @@ PY
     printf 'connector=envoy\n'
     printf 'integration_mode=ext_proc\n'
     printf 'envoy_release=%s\n' "$pinned_envoy_release"
+    printf 'envoy_binary_sha256=%s\n' "$(cat "$RUNTIME_ROOT/envoy-binary-sha256.txt")"
     printf 'evaluation_mode=common_libmodsecurity_nonpromoted\n'
     printf 'rule_evaluation=libmodsecurity\n'
     printf 'common_runtime_bridge=true\n'

@@ -26,10 +26,16 @@
 #include "msconnector/path_policy.h"
 #include "msconnector/rule_id.h"
 #include "msconnector/rule_loader.h"
+#include "msconnector_rule_match_observer.h"
 #include "msconnector/transaction_id.h"
 
 #include <ctype.h>
 #include <errno.h>
+#if !defined(_WIN32)
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -69,6 +75,7 @@ typedef struct msconnector_runtime_owned_config {
 
 typedef struct msconnector_native_transaction {
     Transaction *transaction;
+    msconnector_rule_match_observer rule_match_observer;
     char rule_id[MSCONNECTOR_MAX_RULE_ID_LENGTH];
     char reason[RUNTIME_REASON_SIZE];
     char redirect_url[RUNTIME_REDIRECT_SIZE];
@@ -322,6 +329,9 @@ static int assign_boolean_config_value(
     } else if (strcmp(key, "use_error_log") == 0) {
         target = &runtime->config.use_error_log;
         message = "invalid use_error_log value";
+    } else if (strcmp(key, "emit_rule_match_evidence") == 0) {
+        target = &runtime->config.emit_rule_match_evidence;
+        message = "invalid emit_rule_match_evidence value";
     } else {
         return -1;
     }
@@ -624,6 +634,30 @@ static int validate_runtime_event_path(
         set_text_error(error, error_len, "event_path must not contain a parent-directory segment");
         return 0;
     }
+    if (runtime->config.emit_rule_match_evidence == MSCONNECTOR_BOOL_ON &&
+        runtime->config.enable != MSCONNECTOR_BOOL_ON) {
+        set_text_error(error, error_len,
+            "rule-match evidence requires an enabled connector");
+        return 0;
+    }
+    if (runtime->config.emit_rule_match_evidence == MSCONNECTOR_BOOL_ON &&
+        string_is_empty(runtime->config.phase4_log_path)) {
+        set_text_error(error, error_len,
+            "rule-match evidence requires event_path");
+        return 0;
+    }
+    /* Rule-match records are consumed by the sealed MRTS executor.  Bind
+     * their native transaction identity to its one explicit request header;
+     * static, expression, host, and fallback IDs would break that proof. */
+    if (runtime->config.emit_rule_match_evidence == MSCONNECTOR_BOOL_ON &&
+        (runtime->config.transaction_id != NULL ||
+            runtime->config.transaction_id_expr != NULL ||
+            strcmp(runtime->owned.transaction_id_header,
+                "x-mrts-transaction-id") != 0)) {
+        set_text_error(error, error_len,
+            "rule-match evidence requires x-mrts-transaction-id header only");
+        return 0;
+    }
     return 1;
 }
 
@@ -739,6 +773,11 @@ static int native_init(void *userdata, msconnector_error *error) {
             "msc_init failed", "libmodsecurity");
     }
     msc_set_connector_info(runtime->modsecurity, runtime->connector_name);
+    if (runtime->config.emit_rule_match_evidence == MSCONNECTOR_BOOL_ON &&
+        !msconnector_rule_match_observer_install(runtime->modsecurity)) {
+        return runtime_error(error, MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE,
+            "RuleMessage callback installation failed", "libmodsecurity");
+    }
     return 1;
 }
 
@@ -780,11 +819,26 @@ static void *native_new_transaction(
             "transaction allocation failed", "libmodsecurity");
         return NULL;
     }
+    msconnector_rule_match_observer_init(&native->rule_match_observer,
+        runtime->config.emit_rule_match_evidence == MSCONNECTOR_BOOL_ON,
+        transaction_id);
+    if (msconnector_rule_match_observer_failed(&native->rule_match_observer)) {
+        msconnector_secure_zero(native, sizeof(*native));
+        free(native);
+        (void)runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+            "rule-match observer transaction initialization failed", "runtime");
+        return NULL;
+    }
     native->transaction = string_is_empty(transaction_id)
-        ? msc_new_transaction(runtime->modsecurity, (RulesSet *)rules_set, NULL)
+        ? msc_new_transaction(runtime->modsecurity, (RulesSet *)rules_set,
+              runtime->config.emit_rule_match_evidence == MSCONNECTOR_BOOL_ON
+                  ? &native->rule_match_observer : NULL)
         : msc_new_transaction_with_id(runtime->modsecurity, (RulesSet *)rules_set,
-              transaction_id, NULL);
+              transaction_id,
+              runtime->config.emit_rule_match_evidence == MSCONNECTOR_BOOL_ON
+                  ? &native->rule_match_observer : NULL);
     if (native->transaction == NULL) {
+        msconnector_secure_zero(native, sizeof(*native));
         free(native);
         (void)runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
             "msc_new_transaction failed", "libmodsecurity");
@@ -874,6 +928,12 @@ static int native_decision(
                 "failed to map intervention", "runtime");
         }
     } else {
+        if (runtime->config.emit_rule_match_evidence == MSCONNECTOR_BOOL_ON &&
+            msconnector_rule_match_observer_failed(&native->rule_match_observer)) {
+            msc_intervention_cleanup(&intervention);
+            return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+                "typed rule-match capture failed", "runtime");
+        }
         msconnector_decision_set_allow(decision);
         decision->phase = phase;
     }
@@ -1132,6 +1192,110 @@ static int rules_add_remote(
     return 1;
 }
 
+/* The typed MRTS evidence sink must not follow a symlink at any path
+ * component between validation and opening. Its caller already confines the
+ * path to a private root; walk the absolute path through no-follow directory
+ * descriptors and enforce the final file identity at the open boundary. */
+static int open_rule_match_event_descriptor(const char *path) {
+#if defined(_WIN32) || !defined(O_NOFOLLOW) || !defined(O_DIRECTORY)
+    (void)path;
+    errno = EINVAL;
+    return -1;
+#else
+    int directory;
+    int next_directory;
+    const char *component;
+    const char *separator;
+    size_t component_length;
+    char component_name[RUNTIME_PATH_SIZE];
+
+    if (string_is_empty(path) || path[0] != '/') {
+        errno = EINVAL;
+        return -1;
+    }
+    directory = open("/", O_RDONLY | O_DIRECTORY | O_NOFOLLOW);
+    if (directory < 0) {
+        return -1;
+    }
+    component = path + 1;
+    if (*component == '\0') {
+        (void)close(directory);
+        errno = EINVAL;
+        return -1;
+    }
+    for (;;) {
+        separator = strchr(component, '/');
+        component_length = separator == NULL
+            ? strlen(component)
+            : (size_t)(separator - component);
+        if (component_length == 0U || component_length >= sizeof(component_name) ||
+            (component_length == 1U && component[0] == '.') ||
+            (component_length == 2U && component[0] == '.' && component[1] == '.')) {
+            (void)close(directory);
+            errno = EINVAL;
+            return -1;
+        }
+        memcpy(component_name, component, component_length);
+        component_name[component_length] = '\0';
+        if (separator == NULL) {
+            int descriptor = openat(directory, component_name,
+                O_WRONLY | O_CREAT | O_APPEND | O_NOFOLLOW, 0600);
+            int saved_errno = errno;
+            (void)close(directory);
+            if (descriptor < 0) {
+                errno = saved_errno;
+                return -1;
+            }
+            return descriptor;
+        }
+        next_directory = openat(directory, component_name,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW);
+        if (next_directory < 0) {
+            int saved_errno = errno;
+            (void)close(directory);
+            errno = saved_errno;
+            return -1;
+        }
+        (void)close(directory);
+        directory = next_directory;
+        component = separator + 1;
+    }
+#endif
+}
+
+static FILE *open_rule_match_event_file(const char *path) {
+#if defined(_WIN32) || !defined(O_NOFOLLOW) || !defined(O_DIRECTORY)
+    (void)path;
+    errno = EINVAL;
+    return NULL;
+#else
+    int descriptor = open_rule_match_event_descriptor(path);
+    int saved_errno;
+    struct stat status;
+    FILE *file;
+
+    if (descriptor < 0) {
+        return NULL;
+    }
+    if (fstat(descriptor, &status) != 0 || !S_ISREG(status.st_mode) ||
+        status.st_uid != geteuid() || (status.st_mode & 0777) != 0600 ||
+        status.st_nlink != 1) {
+        saved_errno = errno == 0 ? EINVAL : errno;
+        (void)close(descriptor);
+        errno = saved_errno;
+        return NULL;
+    }
+    file = fdopen(descriptor, "a");
+    if (file == NULL) {
+        saved_errno = errno;
+        (void)close(descriptor);
+        errno = saved_errno;
+        return NULL;
+    }
+    return file;
+#endif
+}
+
 static int start_runtime(msconnector_runtime *runtime, char *error, size_t error_len) {
     msconnector_modsecurity_engine_ops ops;
     msconnector_rule_loader_backend rule_backend;
@@ -1140,6 +1304,18 @@ static int start_runtime(msconnector_runtime *runtime, char *error, size_t error
 
     if (runtime->config.enable != MSCONNECTOR_BOOL_ON) {
         return 1;
+    }
+    if (runtime->config.emit_rule_match_evidence == MSCONNECTOR_BOOL_ON) {
+        runtime->event_file = open_rule_match_event_file(
+            runtime->config.phase4_log_path);
+        if (runtime->event_file == NULL) {
+            if (error != NULL && error_len > 0U) {
+                (void)snprintf(error, error_len, "cannot open event_path %s: %s",
+                    runtime->config.phase4_log_path, strerror(errno));
+            }
+            return 0;
+        }
+        (void)setvbuf(runtime->event_file, NULL, _IOLBF, 0U);
     }
     memset(&ops, 0, sizeof(ops));
     ops.userdata = runtime;
@@ -1176,7 +1352,8 @@ static int start_runtime(msconnector_runtime *runtime, char *error, size_t error
         set_text_error(error, error_len, common_error.message);
         return 0;
     }
-    if (!string_is_empty(runtime->config.phase4_log_path)) {
+    if (runtime->event_file == NULL &&
+        !string_is_empty(runtime->config.phase4_log_path)) {
         runtime->event_file = fopen(runtime->config.phase4_log_path, "a");
         if (runtime->event_file == NULL) {
             if (error != NULL && error_len > 0U) {
@@ -1629,6 +1806,89 @@ static int emit_decision_event(
     return 1;
 }
 
+static int emit_rule_match_events(
+    msconnector_runtime_transaction *transaction,
+    enum msconnector_phase phase,
+    msconnector_error *error) {
+    msconnector_runtime *runtime;
+    msconnector_native_transaction *native;
+
+    if (transaction == NULL) {
+        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+            "rule-match event transaction is required", "runtime");
+    }
+    runtime = transaction->runtime;
+    if (runtime->config.emit_rule_match_evidence != MSCONNECTOR_BOOL_ON) {
+        return 1;
+    }
+    native = transaction->modsecurity.native_transaction;
+    if (native == NULL ||
+        msconnector_rule_match_observer_failed(&native->rule_match_observer)) {
+        return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+            "typed rule-match capture failed", "runtime");
+    }
+    /* RuleMessage exposes only libmodsecurity phases 0..4, which map to
+     * Common request headers through logging. URI/connection have no valid
+     * RuleMessage counterpart and cannot drain evidence. */
+    if (phase < MSCONNECTOR_PHASE_REQUEST_HEADERS) {
+        return 1;
+    }
+    if (runtime->event_file == NULL) {
+        return runtime_error(error, MSCONNECTOR_ERROR_IO,
+            "rule-match event_path is unavailable", "runtime");
+    }
+    if (transaction->metadata.truncated != 0) {
+        return runtime_error(error, MSCONNECTOR_ERROR_EVENT_TOO_LARGE,
+            "rule-match evidence metadata was truncated", "runtime");
+    }
+    for (;;) {
+        const char *rule_id;
+        int next = msconnector_rule_match_observer_next(
+            &native->rule_match_observer, phase, &rule_id);
+        msconnector_event event;
+        char timestamp[RUNTIME_TIMESTAMP_SIZE];
+
+        if (next < 0) {
+            return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+                "typed rule-match capture failed", "runtime");
+        }
+        if (next == 0) {
+            return 1;
+        }
+        msconnector_event_init(&event);
+        timestamp_now(timestamp, sizeof(timestamp));
+        event.meta.timestamp = timestamp;
+        event.meta.level = "info";
+        event.meta.message_id = MSCONN_EVENT_RULE_MATCHED;
+        event.meta.message = "";
+        event.meta.event = "request_rule_match";
+        event.meta.connector = runtime->connector_name;
+        event.meta.integration_mode = runtime->integration_mode;
+        event.meta.transaction_id = transaction->metadata.transaction_id;
+        event.decision.phase = phase;
+        event.decision.status = MSCONNECTOR_STATUS_OK;
+        event.decision.action = "allow";
+        event.decision.requested_action = "allow";
+        event.decision.actual_action = "allow";
+        event.decision.rule_id = rule_id;
+        event.decision.reason = "";
+        event.request.method = transaction->metadata.request_method;
+        event.request.uri = transaction->metadata.request_uri;
+        if (msconnector_flow_guard_next_sequence(&transaction->flow,
+                &event.integrity.sequence) != MSCONNECTOR_FLOW_GUARD_OK) {
+            return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+                "rule-match event sequence failed", "runtime");
+        }
+        event.integrity.previous_hash = runtime->previous_event_hash;
+        event.integrity.event_hash = msconnector_integrity_event_hash(
+            &event, event.integrity.previous_hash);
+        if (!write_event_jsonl(runtime, &event, error)) {
+            return 0;
+        }
+        runtime->previous_event_hash = event.integrity.event_hash;
+    }
+}
+
 static int mark_flow(
     msconnector_runtime_transaction *transaction,
     enum msconnector_phase phase,
@@ -1653,7 +1913,7 @@ static int handle_decision(
     *terminal = 0;
     if (!msconnector_decision_action_is_disruptive(
             msconnector_decision_action_from_decision(decision))) {
-        return 1;
+        return emit_rule_match_events(transaction, decision->phase, error);
     }
     transaction->request_blocked = 1;
     if (!emit_decision_event(transaction, decision, NULL, error)) {
@@ -1725,7 +1985,14 @@ static msconnector_runtime_transaction *create_runtime_transaction(
     memset(&id_context, 0, sizeof(id_context));
     id_context.config = &runtime->config;
     id_context.request = request;
-    id_context.host_request_id = string_is_empty(host_request_id) ? NULL : host_request_id;
+    /* In sealed MRTS evidence mode, the x-mrts header is the sole accepted
+     * correlation source.  In particular, adapters' local host IDs must not
+     * take precedence over the executor-issued transaction ID. */
+    id_context.host_request_id = NULL;
+    if (runtime->config.emit_rule_match_evidence != MSCONNECTOR_BOOL_ON &&
+        !string_is_empty(host_request_id)) {
+        id_context.host_request_id = host_request_id;
+    }
     id_context.fallback_id = fallback_id;
     id_context.header_name = runtime->owned.transaction_id_header;
     if (!msconnector_transaction_id_resolve(&id_context, &id_result, error) ||
@@ -1733,6 +2000,13 @@ static msconnector_runtime_transaction *create_runtime_transaction(
             transaction->metadata.transaction_id,
             sizeof(transaction->metadata.transaction_id))) {
         free(transaction);
+        return NULL;
+    }
+    if (runtime->config.emit_rule_match_evidence == MSCONNECTOR_BOOL_ON &&
+        id_result.source != MSCONNECTOR_TRANSACTION_ID_SOURCE_HEADER) {
+        free(transaction);
+        (void)runtime_error(error, MSCONNECTOR_ERROR_INVALID_CONFIG,
+            "rule-match evidence requires x-mrts transaction header", "runtime");
         return NULL;
     }
     msconnector_flow_guard_init(&transaction->flow, transaction->metadata.transaction_id);
@@ -2318,6 +2592,10 @@ static int finish_transaction_with_logging(
     }
     if (transaction->native_started &&
         !msconnector_modsecurity_process_logging(&transaction->modsecurity, error)) {
+        return 0;
+    }
+    if (transaction->native_started && !transaction->request_blocked &&
+        !emit_rule_match_events(transaction, MSCONNECTOR_PHASE_LOGGING, error)) {
         return 0;
     }
     transaction->finished = 1;

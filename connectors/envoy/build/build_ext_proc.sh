@@ -12,6 +12,7 @@ OUT_BIN="$OUT_DIR/msconnector_envoy_ext_proc"
 OBJECT_DIR="$OUT_DIR/common-runtime-objects"
 COMMON_ARCHIVE="$OUT_DIR/libmsconnector_envoy_ext_proc_common.a"
 CC_BIN=${CC:-cc}
+CXX_BIN=${CXX:-c++}
 AR_BIN=${AR:-ar}
 
 case "$BUILD_ROOT" in
@@ -45,6 +46,10 @@ command -v go >/dev/null 2>&1 || {
 }
 command -v "$CC_BIN" >/dev/null 2>&1 || {
     echo "envoy_ext_proc: missing C compiler: $CC_BIN" >&2
+    exit 77
+}
+command -v "$CXX_BIN" >/dev/null 2>&1 || {
+    echo "envoy_ext_proc: missing C++ compiler: $CXX_BIN" >&2
     exit 77
 }
 command -v "$AR_BIN" >/dev/null 2>&1 || {
@@ -96,6 +101,7 @@ fi
 
 for required_source in \
     "$REPO_ROOT/common/runtime/msconnector_runtime.c" \
+    "$REPO_ROOT/common/runtime/msconnector_rule_match_observer.cc" \
     "$EXT_PROC_ROOT/internal/processor/common_runtime_bridge.c" \
     "$EXT_PROC_ROOT/internal/processor/common_runtime_bridge.h"
 do
@@ -149,10 +155,25 @@ compile_common_source() {
     objects="$objects $object"
 }
 
+compile_common_cpp_source() {
+    source=$1
+    relative=${source#"$REPO_ROOT"/}
+    object_name=$(printf '%s' "$relative" | tr '/.' '__')
+    object="$OBJECT_DIR/$object_name.o"
+    # Keep the typed observer isolated as C++17 PIC; Common C remains C17.
+    # shellcheck disable=SC2086
+    "$CXX_BIN" ${CXXFLAGS:-} -std=c++17 -Wall -Wextra -Werror -pthread -fPIC \
+        -I "$REPO_ROOT" -I "$REPO_ROOT/common/include" \
+        -I "$REPO_ROOT/common/runtime" -isystem "$MODSECURITY_INCLUDE_DIR" \
+        -c "$source" -o "$object"
+    objects="$objects $object"
+}
+
 for source in "$REPO_ROOT"/common/src/*.c "$REPO_ROOT"/common/runtime/*.c; do
     [ -f "$source" ] || continue
     compile_common_source "$source"
 done
+compile_common_cpp_source "$REPO_ROOT/common/runtime/msconnector_rule_match_observer.cc"
 # shellcheck disable=SC2086
 "$AR_BIN" rcs "$COMMON_ARCHIVE" $objects
 

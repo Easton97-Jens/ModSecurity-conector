@@ -48,6 +48,9 @@ CONNECTOR_ORIGIN_LICENSE="${CONNECTOR_ORIGIN_LICENSE:-}"
 CONNECTOR_ORIGIN_IMPORTED_PATH="${CONNECTOR_ORIGIN_IMPORTED_PATH:-}"
 MODSECURITY_TEST_VARIANT="${MODSECURITY_TEST_VARIANT:-}"
 MODSECURITY_RULE_PREAMBLE_FILE="${MODSECURITY_RULE_PREAMBLE_FILE:-}"
+MSCONNECTOR_MRTS_RUNTIME="${MSCONNECTOR_MRTS_RUNTIME:-0}"
+MRTS_RUNTIME_EVENT_LOG="${MRTS_RUNTIME_EVENT_LOG:-}"
+APACHE_MRTS_TRANSACTION_ID_DIRECTIVE=""
 MSCONNECTOR_FULL_LIFECYCLE_SYNC="${MSCONNECTOR_FULL_LIFECYCLE_SYNC:-0}"
 FULL_LIFECYCLE_EVIDENCE_OUTPUT="${FULL_LIFECYCLE_EVIDENCE_OUTPUT:-}"
 MSCONNECTOR_PHASE4_SYNC_EXPECTATION="${MSCONNECTOR_PHASE4_SYNC_EXPECTATION:-first_byte}"
@@ -147,6 +150,40 @@ require_absolute_generated_path() {
             ;;
         *) ;;
     esac
+}
+
+require_apache_mrts_runtime() {
+    [ "$MSCONNECTOR_MRTS_RUNTIME" = 1 ] || return 0
+    [ "$MODSECURITY_TEST_VARIANT" = no-crs ] || \
+        blocked "MRTS runtime requires MODSECURITY_TEST_VARIANT=no-crs"
+    [ "${MODSECURITY_MRTS_VARIANT:-}" = with-mrts ] || \
+        blocked "MRTS runtime requires MODSECURITY_MRTS_VARIANT=with-mrts"
+    [ "$MSCONNECTOR_SMOKE_STAGE" = minimal_runtime_smoke ] || \
+        blocked "MRTS runtime requires the minimal host-runtime stage"
+    [ "${case_name:-}" = allow_without_marker ] || \
+        blocked "MRTS runtime must use the fixed Apache bootstrap case"
+    [ "${MRTS_RUNTIME_EXECUTOR:-}" = "$REPO_ROOT/ci/runtime/lifecycle/execute-no-crs-mrts-cases.py" ] || \
+        blocked "MRTS runtime executor is not the approved Parent executor"
+    [ -f "${MRTS_RUNTIME_EXECUTOR:-}" ] && [ ! -L "${MRTS_RUNTIME_EXECUTOR:-}" ] || \
+        blocked "MRTS runtime executor is unavailable"
+    [ -f "${MRTS_RUNTIME_PLAN:-}" ] && [ ! -L "${MRTS_RUNTIME_PLAN:-}" ] || \
+        blocked "MRTS runtime plan is unavailable"
+    [ -f "${MRTS_LOAD_FILE:-}" ] && [ ! -L "${MRTS_LOAD_FILE:-}" ] || \
+        blocked "MRTS load file is unavailable"
+    [ -n "${MRTS_RUNTIME_PLAN_SHA256:-}" ] || \
+        blocked "MRTS runtime plan digest is unavailable"
+    [ -n "${MRTS_RUNTIME_RESULT:-}" ] || \
+        blocked "MRTS runtime result path is unavailable"
+    expected_event_log=$BUILD_ROOT/stages/apache/no_crs_with_mrts/runtime/events.jsonl
+    [ "$MRTS_RUNTIME_EVENT_LOG" = "$expected_event_log" ] || \
+        blocked "MRTS event log is outside the closed Apache runtime layout"
+    event_parent=$(dirname "$MRTS_RUNTIME_EVENT_LOG")
+    [ -d "$event_parent" ] && [ ! -L "$event_parent" ] || \
+        blocked "MRTS event-log parent is unavailable"
+    [ ! -e "$MRTS_RUNTIME_EVENT_LOG" ] || \
+        blocked "MRTS event log must be created by the native Apache module"
+    APACHE_MRTS_TRANSACTION_ID_DIRECTIVE='modsecurity_transaction_id_expr "%{HTTP:X-MRTS-Transaction-ID}"'
+    APACHE_PHASE4_LOG_FILE=$MRTS_RUNTIME_EVENT_LOG
 }
 
 resolve_case_path() {
@@ -493,6 +530,7 @@ render_config() {
         -e "s|@@APACHE_PHASE4_MODE@@|$(escape_sed "$APACHE_PHASE4_MODE")|g" \
         -e "s|@@APACHE_PHASE4_BODY_LIMIT@@|$(escape_sed "$APACHE_PHASE4_BODY_LIMIT")|g" \
         -e "s|@@APACHE_PHASE4_EXTRA_CONFIG@@|$(escape_sed "$APACHE_PHASE4_EXTRA_CONFIG")|g" \
+        -e "s|@@MRTS_TRANSACTION_ID_DIRECTIVE@@|$(escape_sed "$APACHE_MRTS_TRANSACTION_ID_DIRECTIVE")|g" \
         "$TEMPLATE" > "$CONFIG_FILE"
 }
 
@@ -2385,6 +2423,8 @@ PHASE4_ROGUE_TRACE="$LOG_DIR/phase4-rogue-trace.txt"
 PHASE4_ROGUE_TLS_KEY="$RUNTIME_ROOT/conf/phase4-rogue.key"
 APACHE_PHASE4_REDIRECT_TARGET_RULES_FILE="$RUNTIME_ROOT/conf/phase4-redirect-target-rules.conf"
 
+require_apache_mrts_runtime
+
 if [ -f "$HTTPD_PREFIX/conf/mime.types" ]; then
     cp -a "$HTTPD_PREFIX/conf/mime.types" "$MIME_TYPES_FILE"
     cp -a "$HTTPD_PREFIX/conf/mime.types" "$MIME_TYPES_ROOT_FILE"
@@ -2404,6 +2444,11 @@ if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     --output-root "$APACHE_CASE_OUTPUT_ROOT" \
     --rules-preamble-file "$MODSECURITY_RULE_PREAMBLE_FILE" > "$LOG_DIR/case-materialize.log" 2>&1; then
     not_executable "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
+fi
+if [ "$MSCONNECTOR_MRTS_RUNTIME" = 1 ]; then
+    if ! cat "$MRTS_LOAD_FILE" >> "$RULES_FILE"; then
+        fail "failed to append the sealed MRTS load file to Apache rules"
+    fi
 fi
 . "$CASE_ENV_FILE"
 if ! "$PYTHON_BIN" "$REPO_ROOT/ci/runtime/common/harness-case-metadata.py" response-header-fixture \
@@ -2454,6 +2499,24 @@ if [ "$MSCONNECTOR_SMOKE_STAGE" = "config_load" ]; then
 fi
 if [ "$MSCONNECTOR_SMOKE_STAGE" = "start_smoke" ]; then
     echo "apache_smoke: pass start_smoke (request-free host liveness verified)"
+    exit 0
+fi
+
+if [ "$MSCONNECTOR_MRTS_RUNTIME" = 1 ]; then
+    if ! "$PYTHON_BIN" "$MRTS_RUNTIME_EXECUTOR" \
+        --connector apache \
+        --runtime-root "$VERIFIED_RUN_ROOT" \
+        --plan "$MRTS_RUNTIME_PLAN" \
+        --plan-sha256 "$MRTS_RUNTIME_PLAN_SHA256" \
+        --load-file "$MRTS_LOAD_FILE" \
+        --result "$MRTS_RUNTIME_RESULT" \
+        --event-log "$MRTS_RUNTIME_EVENT_LOG" \
+        --host 127.0.0.1 \
+        --port "$PORT" \
+        --scheme http; then
+        fail "Apache DetectionOnly MRTS executor failed"
+    fi
+    echo "apache_smoke: pass sealed no-CRS/with-MRTS DetectionOnly runtime"
     exit 0
 fi
 

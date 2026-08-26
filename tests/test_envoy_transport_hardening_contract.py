@@ -753,10 +753,55 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
 
         self.assertIn("READINESS_TRANSACTION_ID=envoy-ext-proc-readiness-1", source)
         self.assertIn("ALLOW_TRANSACTION_ID=envoy-ext-proc-allow-1", source)
-        self.assertIn('X-Request-Id: $READINESS_TRANSACTION_ID', source)
+        self.assertIn('READINESS_TRANSACTION_ID_HEADER=x-request-id', source)
+        self.assertIn('READINESS_TRANSACTION_ID_HEADER=x-mrts-transaction-id', source)
+        self.assertIn('--header "$READINESS_TRANSACTION_ID_HEADER: $READINESS_TRANSACTION_ID"', source)
         self.assertIn('X-Request-Id: $ALLOW_TRANSACTION_ID', source)
         self.assertIn('READINESS_PROBE_EVIDENCE="$RUNTIME_ROOT/readiness-probe.json"', source)
         self.assertIn('ALLOW_PROBE_EVIDENCE="$RUNTIME_ROOT/allow-probe.json"', source)
+        executor_start = source.index('\"$PYTHON_BIN\" \"$MRTS_RUNTIME_EXECUTOR\"')
+        executor_end = source.index("    mrts_executor_rc=$?", executor_start)
+        executor_source = source[executor_start:executor_end]
+        self.assertIn('--runtime-root \"$VERIFIED_RUN_ROOT\"', executor_source)
+        self.assertIn('--plan-sha256 \"$MRTS_RUNTIME_PLAN_SHA256\"', executor_source)
+        self.assertNotIn('--runtime-root \"$RUNTIME_ROOT\"', executor_source)
+
+    def test_crs_runtime_exits_before_the_no_crs_probe_path(self) -> None:
+        source = RUNTIME_PATH.read_text(encoding="utf-8")
+        crs_branch_start = source.index('if [ "$CRS_RUNTIME" = 1 ]; then\n    run_crs_runtime')
+        mrts_branch_start = source.index(
+            'elif [ "$MSCONNECTOR_MRTS_RUNTIME" = 1 ]; then', crs_branch_start
+        )
+
+        self.assertTrue(source[crs_branch_start:mrts_branch_start].rstrip().endswith("exit 0"))
+
+    def test_readiness_header_is_closed_per_runtime_mode(self) -> None:
+        source = RUNTIME_PATH.read_text(encoding="utf-8")
+        normal_header = source.index("READINESS_TRANSACTION_ID_HEADER=x-request-id")
+        mrts_mode = source.index(
+            'if [ "$MSCONNECTOR_MRTS_RUNTIME" = 1 ]; then\n    # MRTS mode must never'
+        )
+        mrts_header = source.index("READINESS_TRANSACTION_ID_HEADER=x-mrts-transaction-id")
+        probe_header = source.index('--header \"$READINESS_TRANSACTION_ID_HEADER: $READINESS_TRANSACTION_ID\"')
+
+        self.assertLess(normal_header, mrts_mode)
+        self.assertLess(mrts_mode, mrts_header)
+        self.assertLess(mrts_header, probe_header)
+        self.assertNotIn("READINESS_TRANSACTION_ID_HEADER=${", source)
+        self.assertIn("PROCESSOR_TRANSACTION_ID_HEADER=x-request-id", source)
+        self.assertIn("PROCESSOR_TRANSACTION_ID_HEADER=x-mrts-transaction-id", source)
+
+    def test_mrts_rule_match_evidence_is_after_sealed_plan_validation(self) -> None:
+        source = RUNTIME_PATH.read_text(encoding="utf-8")
+        validation = source.index("validate_mrts_runtime_inputs\ntrap cleanup")
+        materializer = source.index('OUTPUT_CONFIG="$EXT_PROC_RUNTIME_CONFIG"')
+        self.assertLess(validation, materializer)
+        self.assertIn("transaction_id_header=x-mrts-transaction-id", source)
+        self.assertIn("emit_rule_match_evidence=on", source)
+        self.assertIn("transaction_id_header=x-request-id", source)
+        self.assertIn("emit_rule_match_evidence=off", source)
+        self.assertIn("MRTS_RUNTIME_PLAN_SHA256", source)
+        self.assertIn('--plan-sha256 \"$MRTS_RUNTIME_PLAN_SHA256\"', source)
 
 
 if __name__ == "__main__":

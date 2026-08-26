@@ -42,6 +42,9 @@ MSCONNECTOR_SMOKE_STAGE="${MSCONNECTOR_SMOKE_STAGE:-minimal_runtime_smoke}"
 STATUS_FILE="$LOG_DIR/status.txt"
 MODSECURITY_TEST_VARIANT="${MODSECURITY_TEST_VARIANT:-no-crs}"
 MODSECURITY_RULE_PREAMBLE_FILE="${MODSECURITY_RULE_PREAMBLE_FILE:-}"
+MSCONNECTOR_MRTS_RUNTIME="${MSCONNECTOR_MRTS_RUNTIME:-0}"
+HAPROXY_DETECTION_ONLY="${HAPROXY_DETECTION_ONLY:-0}"
+MRTS_RUNTIME_EVENT_LOG="${MRTS_RUNTIME_EVENT_LOG:-}"
 export MODSECURITY_TEST_VARIANT
 
 . "$FRAMEWORK_ROOT/ci/lib/common.sh"
@@ -173,6 +176,46 @@ require_generated_roots() {
     require_under_build_root "$LOG_DIR" LOG_DIR
     require_under_build_root "$RUNTIME_BASE" RUNTIME_BASE
     [ -f "$CASE_CLI" ] || blocked "shared case CLI missing: $CASE_CLI"
+}
+
+require_haproxy_mrts_runtime() {
+    case "$MSCONNECTOR_MRTS_RUNTIME:$HAPROXY_DETECTION_ONLY" in
+        0:0) return 0 ;;
+        1:1) ;;
+        *)
+            blocked "HAProxy DetectionOnly is reserved for the closed no-CRS/with-MRTS runtime"
+            ;;
+    esac
+    [ "$HAPROXY_DETECTION_ONLY" = 1 ] || \
+        blocked "MRTS runtime requires the closed HAProxy DetectionOnly mode"
+    [ "$MODSECURITY_TEST_VARIANT" = no-crs ] || \
+        blocked "MRTS runtime requires MODSECURITY_TEST_VARIANT=no-crs"
+    [ "${MODSECURITY_MRTS_VARIANT:-}" = with-mrts ] || \
+        blocked "MRTS runtime requires MODSECURITY_MRTS_VARIANT=with-mrts"
+    [ "$MSCONNECTOR_SMOKE_STAGE" = minimal_runtime_smoke ] || \
+        blocked "MRTS runtime requires the minimal host-runtime stage"
+    [ "${case_name:-}" = allow_without_marker ] || \
+        blocked "MRTS runtime must use the fixed HAProxy bootstrap case"
+    [ "${MRTS_RUNTIME_EXECUTOR:-}" = "$REPO_ROOT/ci/runtime/lifecycle/execute-no-crs-mrts-cases.py" ] || \
+        blocked "MRTS runtime executor is not the approved Parent executor"
+    [ -f "${MRTS_RUNTIME_EXECUTOR:-}" ] && [ ! -L "${MRTS_RUNTIME_EXECUTOR:-}" ] || \
+        blocked "MRTS runtime executor is unavailable"
+    [ -f "${MRTS_RUNTIME_PLAN:-}" ] && [ ! -L "${MRTS_RUNTIME_PLAN:-}" ] || \
+        blocked "MRTS runtime plan is unavailable"
+    [ -f "${MRTS_LOAD_FILE:-}" ] && [ ! -L "${MRTS_LOAD_FILE:-}" ] || \
+        blocked "MRTS load file is unavailable"
+    [ -n "${MRTS_RUNTIME_PLAN_SHA256:-}" ] || \
+        blocked "MRTS runtime plan digest is unavailable"
+    [ -n "${MRTS_RUNTIME_RESULT:-}" ] || \
+        blocked "MRTS runtime result path is unavailable"
+    expected_event_log=$BUILD_ROOT/stages/haproxy/no_crs_with_mrts/runtime/events.jsonl
+    [ "$MRTS_RUNTIME_EVENT_LOG" = "$expected_event_log" ] || \
+        blocked "MRTS event log is outside the closed HAProxy runtime layout"
+    event_parent=$(dirname "$MRTS_RUNTIME_EVENT_LOG")
+    [ -d "$event_parent" ] && [ ! -L "$event_parent" ] || \
+        blocked "MRTS event-log parent is unavailable"
+    [ ! -e "$MRTS_RUNTIME_EVENT_LOG" ] || \
+        blocked "MRTS event log must be created by the native HAProxy agent"
 }
 
 if [ "${HAPROXY_SMOKE_POLICY_SELFTEST:-0}" = "1" ]; then
@@ -706,14 +749,16 @@ write_haproxy_config() {
         echo "    option http-buffer-request"
         echo "    filter spoe engine modsecurity config $SPOE_CFG"
         echo "    http-request send-spoe-group modsecurity request-check"
-        echo "    http-request redirect location %[var(txn.modsec.redirect_url)] code 302 if { var(txn.modsec.action) -m str redirect } { var(txn.modsec.redirect_url) -m found }"
-        echo "    http-request silent-drop if { var(txn.modsec.action) -m str drop }"
-        echo "    http-request deny status 401 if { var(txn.modsec.status) -m int 401 }"
-        echo "    http-request deny status 406 if { var(txn.modsec.status) -m int 406 }"
-        echo "    http-request deny status 429 if { var(txn.modsec.status) -m int 429 }"
-        echo "    http-request deny status 503 if { var(txn.modsec.status) -m int 503 }"
-        # Preserve an explicit disruptive status before falling back to 403.
-        echo "    http-request deny status 403 if { var(txn.modsec.blocked) -m bool }"
+        if [ "$HAPROXY_DETECTION_ONLY" != 1 ]; then
+            echo "    http-request redirect location %[var(txn.modsec.redirect_url)] code 302 if { var(txn.modsec.action) -m str redirect } { var(txn.modsec.redirect_url) -m found }"
+            echo "    http-request silent-drop if { var(txn.modsec.action) -m str drop }"
+            echo "    http-request deny status 401 if { var(txn.modsec.status) -m int 401 }"
+            echo "    http-request deny status 406 if { var(txn.modsec.status) -m int 406 }"
+            echo "    http-request deny status 429 if { var(txn.modsec.status) -m int 429 }"
+            echo "    http-request deny status 503 if { var(txn.modsec.status) -m int 503 }"
+            # Preserve an explicit disruptive status before falling back to 403.
+            echo "    http-request deny status 403 if { var(txn.modsec.blocked) -m bool }"
+        fi
         if [ "${HAPROXY_ENABLE_RESPONSE_HEADERS:-0}" = "1" ]; then
             echo "    http-response set-header Last-Modified \"Wed, 21 Oct 2015 07:28:00 GMT\""
             echo "    http-response set-header Content-Type \"text/html; charset=utf-8\""
@@ -721,13 +766,15 @@ write_haproxy_config() {
             echo "    http-response add-header Set-Cookie \"session=token\""
             echo "    http-response add-header Set-Cookie \"a=b\""
             echo "    http-response send-spoe-group modsecurity response-check"
-            echo "    http-response silent-drop if { var(txn.modsec.action) -m str drop }"
-            echo "    http-response deny status 401 if { var(txn.modsec.status) -m int 401 }"
-            echo "    http-response deny status 406 if { var(txn.modsec.status) -m int 406 }"
-            echo "    http-response deny status 429 if { var(txn.modsec.status) -m int 429 }"
-            echo "    http-response deny status 503 if { var(txn.modsec.status) -m int 503 }"
-            # Preserve an explicit disruptive status before falling back to 403.
-            echo "    http-response deny status 403 if { var(txn.modsec.blocked) -m bool }"
+            if [ "$HAPROXY_DETECTION_ONLY" != 1 ]; then
+                echo "    http-response silent-drop if { var(txn.modsec.action) -m str drop }"
+                echo "    http-response deny status 401 if { var(txn.modsec.status) -m int 401 }"
+                echo "    http-response deny status 406 if { var(txn.modsec.status) -m int 406 }"
+                echo "    http-response deny status 429 if { var(txn.modsec.status) -m int 429 }"
+                echo "    http-response deny status 503 if { var(txn.modsec.status) -m int 503 }"
+                # Preserve an explicit disruptive status before falling back to 403.
+                echo "    http-response deny status 403 if { var(txn.modsec.blocked) -m bool }"
+            fi
         fi
         echo "    default_backend be_haproxy_smoke_app"
         echo
@@ -764,7 +811,11 @@ write_haproxy_config() {
         echo "    messages check-request"
         echo
         echo "spoe-message check-request"
-        echo "    args request_id=unique-id client_ip=src client_port=src_port server_ip=dst server_port=dst_port method=method path=path uri=url host=req.hdr(host) headers_bin=req.hdrs_bin headers=req.hdrs body=req.body body_len=req.body_len"
+        if [ "$HAPROXY_DETECTION_ONLY" = 1 ]; then
+            echo "    args request_id=req.hdr(X-MRTS-Transaction-ID) client_ip=src client_port=src_port server_ip=dst server_port=dst_port method=method path=path uri=url host=req.hdr(host) headers_bin=req.hdrs_bin headers=req.hdrs body=req.body body_len=req.body_len"
+        else
+            echo "    args request_id=unique-id client_ip=src client_port=src_port server_ip=dst server_port=dst_port method=method path=path uri=url host=req.hdr(host) headers_bin=req.hdrs_bin headers=req.hdrs body=req.body body_len=req.body_len"
+        fi
         if [ "${HAPROXY_ENABLE_RESPONSE_HEADERS:-0}" = "1" ]; then
             echo
             echo "spoe-group response-check"
@@ -838,6 +889,16 @@ start_agent() {
     pid_file="$RUNTIME_ROOT/spoa.pid"
     port_file="$RUNTIME_ROOT/spoa.port"
     response_header_arg=
+    decision_log="$LOG_DIR/decision.jsonl"
+    agent_mode=block
+    agent_case=$CASE_NAME
+    if [ "$MSCONNECTOR_MRTS_RUNTIME" = 1 ]; then
+        decision_log=$MRTS_RUNTIME_EVENT_LOG
+        agent_mode=detect-only
+        # The sealed executor owns the case plan; do not let an inherited
+        # Framework case label claim individual MRTS case execution.
+        agent_case=mrts-no-crs-with-mrts
+    fi
     if [ "${HAPROXY_ENABLE_RESPONSE_HEADERS:-0}" = "1" ]; then
         response_header_arg=--enable-response-headers
     fi
@@ -848,14 +909,14 @@ start_agent() {
             --pid-file "$pid_file" \
             --port-file "$port_file" \
             --log-file "$LOG_DIR/spoa-agent.log" \
-            --decision-log "$LOG_DIR/decision.jsonl" \
+            --decision-log "$decision_log" \
             --audit-log "$AUDIT_LOG_FILE" \
             --rules-file "$RULES_FILE" \
-            --mode block \
+            --mode "$agent_mode" \
             --fail-mode closed \
             --runtime-mode test \
             --variant "$MODSECURITY_TEST_VARIANT" \
-            --case "$CASE_NAME" \
+            --case "$agent_case" \
             --expected-status "$EXPECT_STATUS" \
             --request-body-limit 65532 \
             $response_header_arg \
@@ -1003,6 +1064,12 @@ if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     fail "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
 fi
 . "$CASE_ENV_FILE"
+require_haproxy_mrts_runtime
+if [ "$MSCONNECTOR_MRTS_RUNTIME" = 1 ]; then
+    if ! cat "$MRTS_LOAD_FILE" >> "$RULES_FILE"; then
+        fail "failed to append the sealed MRTS load file to HAProxy rules"
+    fi
+fi
 
 eval "$(case_runtime_shape)"
 if [ -n "${HAPROXY_NOT_EXECUTABLE_REASON:-}" ]; then
@@ -1031,6 +1098,24 @@ if [ "$MSCONNECTOR_SMOKE_STAGE" = "start_smoke" ]; then
     kill -0 "$AGENT_PID" >/dev/null 2>&1 || fail "SPOA agent exited during request-free start smoke"
     kill -0 "$HAPROXY_PID" >/dev/null 2>&1 || fail "HAProxy exited during request-free start smoke"
     echo "haproxy_smoke: pass start_smoke (request-free host and agent liveness verified)"
+    exit 0
+fi
+
+if [ "$MSCONNECTOR_MRTS_RUNTIME" = 1 ]; then
+    if ! "$PYTHON_BIN" "$MRTS_RUNTIME_EXECUTOR" \
+        --connector haproxy \
+        --runtime-root "$VERIFIED_RUN_ROOT" \
+        --plan "$MRTS_RUNTIME_PLAN" \
+        --plan-sha256 "$MRTS_RUNTIME_PLAN_SHA256" \
+        --load-file "$MRTS_LOAD_FILE" \
+        --result "$MRTS_RUNTIME_RESULT" \
+        --event-log "$MRTS_RUNTIME_EVENT_LOG" \
+        --host 127.0.0.1 \
+        --port "$PORT" \
+        --scheme http; then
+        fail "HAProxy DetectionOnly MRTS executor failed"
+    fi
+    echo "haproxy_smoke: pass sealed no-CRS/with-MRTS DetectionOnly runtime"
     exit 0
 fi
 

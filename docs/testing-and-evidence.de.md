@@ -22,6 +22,231 @@ Run-/Commit-Identität und Cleanup-Status. Diese Validierung ist kein Nachweis
 eines bestandenen gehosteten Runtime-Laufs und liefert keine CRS-, MRTS-,
 HTTP/2-, HTTP/3-, Full-Matrix- oder Produktions-Claims.
 
+## Geschlossener no-CRS/with-MRTS-Runtimepfad
+
+Der auf der dokumentierten Task-Basis basierende Task ergänzt einen
+separaten, geschlossenen
+<code>no-crs/with-mrts</code>-Runtimepfad genau für Envoy, Traefik und lighttpd.
+Der Einstieg ist
+<code>ci/runtime/lifecycle/run-no-crs-with-mrts-target.py</code>; er verlangt
+<code>--execute-stage</code> und weist jeden Connector außerhalb dieser drei
+Einträge zurück. Apache und HAProxy verwenden im Fünf-Connector-Workflow
+weiterhin ihren bestehenden MRTS-Hostpfad; dieser Abschnitt ändert deren
+Vertrag nicht.
+
+Der Pfad erzeugt einen privaten Run-Root, prüft den Parent-Gitlink auf das
+Framework und den Framework-Gitlink auf MRTS und importiert die MRTS-Cases über
+das exakt ausgecheckte Framework. Die aktuell gepinnte Kette lautet:
+
+| Repository | Vom Pfad verwendete Revision |
+| --- | --- |
+| Parent | dokumentierte Task-Basis `7c403fada21de4547259fef1dc4a1b079cb0cb25` |
+| Framework-Gitlink | `c40e924ec5c341032908e0082feba1d37ed1dfda` |
+| MRTS-Gitlink | `615b13bacbd008562c17408246c41ab27dca3104` |
+
+Der erzeugte Plan zeichnet die drei Revisionen, das importierte Case-Inventar
+und seine Hashes, die erzeugte Load-Datei, das Profil sowie den geschlossenen
+Case-Satz auf. Der Executor
+<code>ci/runtime/lifecycle/execute-no-crs-mrts-cases.py</code> sendet echte
+Requests durch den ausgewählten laufenden Host und korreliert Request-,
+Transaktions-, Case-, erwartete Regel- und beobachtete Event-IDs. Er verlangt
+HTTP 200 im DetectionOnly-Modus, einen echten Detection-Case, einen legitimen
+Kontrollfall und einen gutartigen Bypass-Kontrollfall, bevor er das begrenzte
+Ergebnis atomar schreibt.
+
+Der Plan wird durch einen SHA-256-Digest über die exakten Planbytes versiegelt
+und durch jede Hostadapter-Grenze weitergereicht. Vor dem Hoststart liest der
+Validator die versiegelten Bytes erneut, weist doppelte JSON-Schlüssel zurück,
+prüft den Plan-Digest und rekonstruiert die ausgewählten Cases aus dem exakten
+Framework-Inventar. Die ausgewählten Case-Hashes und der Inventar-Hash müssen
+mit dem Plan übereinstimmen; eine Änderung an URI, erwarteter Event-ID oder
+Case-Quelle führt daher zu einem fail-closed-Abbruch. Der Executor erhält
+denselben Digest explizit und zeichnet ihn im Receipt auf.
+
+### Connector-isolierter gehosteter Workflow
+
+Der Workflow <code>test-connectors-no-crs-with-mrts.yml</code> besitzt genau
+fünf geschlossene Matrix-Jobs: Apache, Envoy, HAProxy, lighttpd und Traefik.
+Vorbereitung und Ausführung werden pro Job aus einem geschlossenen
+Connector-Zweig abgeleitet, nie aus einem Matrix-bereitgestellten Befehl oder
+Runtime-Target. Apache wählt ausschließlich seine
+<code>apache</code>-Runtime-Komponente und seinen Hostpfad; HAProxy wählt nur
+seine <code>haproxy</code>-Komponente und seinen Hostpfad. Envoy, Traefik und
+lighttpd verwenden jeweils ihren eigenen literalen Aufruf des geschlossenen
+versiegelten MRTS-Target-Runners. Ein Job bereitet oder führt damit keinen
+Runtimepfad eines anderen Connectors aus; NGINX ist nicht Teil dieses
+Workflows.
+
+Jeder Job leitet jeden Build-, Source-, temporären, Log- und Verified-Run-Pfad
+aus denselben expliziten Runner-, Run-, Attempt- und Connector-Koordinaten ab;
+er verlässt sich nicht auf die Auflösung einer gleichrangigen Workflow-
+Umgebungsvariable. Im Traefik-MRTS-Modus bindet die erzeugte native
+Middleware-Konfiguration die Korrelation an
+<code>X-MRTS-Transaction-ID</code>, während der Normalmodus
+<code>X-Request-Id</code> behält.
+
+Nach dem Evidence-Upload ruft jeder Matrix-Job unter <code>if: always()</code>
+<code>summarize-no-crs-with-mrts-workflow.py</code> auf. Das Programm schreibt
+nur die festen Step-Outcomes, ihre Zählung, die erste nicht bestandene Stufe
+und den Runtime-Bundle-Status (<code>PASS</code>, <code>FAIL</code>,
+<code>MISSING</code> oder <code>CANCELLED</code>) in die runner-eigene GitHub
+Step Summary. Die Zusammenfassung parst weder rohe Runtime-Evidence noch
+macht sie aus einer fehlenden, übersprungenen oder fehlgeschlagenen Runtime
+einen Capability-Erfolg.
+
+Die Korrektur verwendet für beide Connector-Workflowprofile einen gemeinsamen
+sicheren Step-Summary-Helper. Dadurch bleiben Summary-Format und
+Pfadvalidierung in einer Implementierung und es gibt keine doppelte
+Summary-Logik. Der Target-Runner verwendet den privaten Build-Root sicher
+wieder, den der Workflow vor dem Dispatch anlegt; er bestimmt ihn nicht aus
+einem Umgebungs-Fallback neu. Für Traefik wird das kurze AF_UNIX-Socket-
+Verzeichnis sicher mit `tempfile.mkdtemp` angelegt; nur der Traefik-Aufruf
+erhält `TMPDIR=/tmp`, während Pläne, Logs, Ergebnisse und aufbewahrte Evidence
+im privaten Run-Root bleiben. Der Envoy-MRTS-HTTPS-Pfad prüft das versiegelte,
+run-lokale Zertifikat an der Peer-Grenze; eine unsichere TLS-Option oder
+Umgehung der Zertifikatsprüfung ist nicht vorhanden.
+
+Die Rule-Match-Evidence verwendet einen typisierten nativen
+`RuleMessage`-Observer. Standardmäßig ist er deaktiviert und wird nur für das
+versiegelte MRTS-Runtimeprofil aktiviert. Der Observer erzeugt begrenzte,
+metadatenbasierte JSONL-Datensätze mit Request-/Transaktionskorrelation; er
+liest keine Audit-Logs, Error-Logs, stderr- oder Request-/Response-Payloads.
+Native Integritäts- und Verkettungsprüfungen erfolgen, bevor das Ergebnis
+akzeptiert wird.
+
+Das versiegelte `mrts.load` enthält absichtlich den vollständigen gepinnten
+MRTS-Korpus. Daher verwendet DetectionOnly dasselbe kanonische Orakel wie
+Apache und HAProxy: Jede vom Case deklarierte erwartete Regel-ID muss in ihrer
+exakt korrelierten Phase beobachtet werden, während zusätzliche vollständig
+validierte native Treffer derselben Phase nur bei Mitgliedschaft im erneut
+validierten gepinnten Regel-ID-Inventar im Receipt erhalten bleiben. Sie
+können keine erwartete ID ersetzen. Eine erwartete ID in einer anderen Phase
+führt fail-closed zum Fehler; jeder korrelierte Regeltreffer lässt weiterhin
+einen Kontroll- oder Bypass-Case fehlschlagen.
+
+Die Parent-Python-Grenze erhält den geprüften task-lokalen venv-Interpreter,
+ohne dessen letzten Symlink aufzulösen. Symlinkte übergeordnete Verzeichnisse
+werden zurückgewiesen; die Shell-Dispatcher reichen vor MRTS-Materialisierung
+und Child-Prozess-Ausführung denselben genehmigten Interpreter durch ihre
+geschlossene Grenze weiter. Die Behebung behauptet keine Umschreibung des
+aufrufenden `PATH`; der Framework-Generator verwendet die explizite
+`PYTHON`-Auswahl. Damit wird der diagnostizierte Fehler `FND-PARENT-0194`
+behoben, bei dem System-Python während der Regelerzeugung die PyYAML-
+Abhängigkeit der venv verlor. Das Finding bleibt bis zur frischen
+Runtime-Validierung der Behebung
+release-blockierend.
+
+Frisches Envoy `r10` erreichte gepinnte Provisionierung, echten Hoststart und
+Readiness, stoppte aber vor der MRTS-Case-Ausführung mit HTTP 500. Im
+versiegelten MRTS-Evidence-Modus verlangt Common ausschließlich den
+Korrelations-Header `x-mrts-transaction-id`; der Readiness-Probe sendete noch
+den Normalmodus-Header `X-Request-Id`. Dieser rein diagnostische Versuch
+erzeugte keinen MRTS-Receipt und ist kein Runtime-Nachweis. Die enge aktuelle
+Parent-Korrektur wählt das Literal `x-mrts-transaction-id` nur für MRTS-
+Readiness und bewahrt `x-request-id` für den normalen Envoy-Modus. Separat
+routet der Lighttpd-Dispatcher `MSCONNECTOR_MRTS_RUNTIME=1` nun ausschließlich
+zu seinem versiegelten Full-Lifecycle-Hostexecutor und erhält den Nicht-MRTS-
+Kompatibilitäts-Smoke-Pfad. Keine der beiden Quellkorrekturen begründet ein
+Host-Runtime-Ergebnis.
+
+Commit `6e63fb52` enthält diese Korrekturen für den versiegelten MRTS-
+Readiness-Header und den Lighttpd-Dispatcher. Frisches Envoy `r11` erreichte
+danach echten Envoy-/ext-proc-Start und den korrigierten Readiness-Pfad, ist
+aber nur diagnostisch: Der Lauf stoppte vor MRTS-Case-Receipts, weil gültige
+unabhängige Readiness-Events vor der Transaktions-/URI-Korrelation auf ihre
+Phase geprüft wurden. Die gültige unabhängige Transaktion
+`envoy-ext-proc-readiness-1` enthält `request_body`-, `response_headers`- und
+`response_body`-Records; ihre Existenz ist keine Runtime-Erfolgsbehauptung.
+
+Die enge Executor-Korrektur erhält Duplicate-safe-Parsing, exaktes Schema,
+native Hash- und globale Chain-Validierung für jede Event-Zeile. Sie verwendet
+eine endliche native Phasenzuordnung, ignoriert nur vollständig gültige
+unabhängige Transaktions-/URI-Records nach dieser Validierung und behält ein
+relevantes Event mit falscher Phase fail-closed. `FND-PARENT-0198` verfolgt
+diesen Parent-eigenen Reihenfolgenfehler. Frische Envoy-Receipts nach dem Fix
+und eine unabhängige Wiederholung bleiben erforderlich.
+
+Frisches Envoy `r12c` erreichte den gepinnten Build, echten ext-proc-Hoststart,
+Readiness und einen DetectionOnly-Request, erzeugte aber keinen gültigen
+MRTS-Receipt. Ein zweites Executor-Klassifikationsproblem behandelte gültige
+`response_headers`- und `response_body`-Rule-Matches derselben Transaktion als
+ungültig, nur weil sie außerhalb des ausgewählten Request-Body-Profils liegen.
+Diese nicht erwarteten Response-Phasen derselben Request-Transaktion müssen
+weiter integritätsvalidiert werden und liegen danach außerhalb des ausgewählten
+Request-Body-Akzeptanzprofils. Demgegenüber bleiben eine erwartete Regel-ID in
+falscher Phase sowie alle Kontroll-/Bypass-Erwartungen fail-closed. Vor jeder
+Runtime-Klassifikation ist weiterhin ein frischer Hostlauf nach dem Fix nötig.
+
+Dieses Profil ist ausdrücklich no-CRS. Der Pfad weist CRS-Referenzen in der
+erzeugten MRTS-Load-Datei zurück und übergibt als aktive Nicht-CRS-Eingabe nur
+die repository-eigenen no-CRS-Regeln. OWASP CRS wird weder aktiviert noch
+beschafft, gecacht oder wiederverwendet. Erzeugter Plan, Resultat, Event-Log,
+Host-Zusammenfassung und Cleanup-Status verbleiben im privaten Run-Root; sie
+sind Runtime-Evidence und keine einzucheckenden Quelldateien.
+
+Die drei Hostadapter müssen ihren echten Connector starten und den Plan
+ausführen, solange dieser Connector läuft:
+
+- Envoy verwendet den bestehenden ext-proc-Hostpfad;
+- Traefik verwendet den bestehenden nativen Middleware-Hostpfad; und
+- lighttpd verwendet den bestehenden gepatchten nativen Hostpfad.
+
+Der Task ändert weder die negativen <code>with-crs/with-mrts</code>-Ziele für
+diese Connectoren noch NGINX. Ebenso wird keine Framework- oder MRTS-Quelle
+geändert; die oben genannten Framework- und MRTS-Revisionen werden als exakte
+Gitlinks verwendet.
+
+### Evidence-Status dieses Tasks
+
+Zum Zeitpunkt dieser Dokumentationsänderung ist der Pfad mit seinen Verträgen
+im Task-Worktree vorhanden. Die beobachtete lokale Validierung umfasst 97
+fokussierte Python-Contract-Tests, Shell-Syntaxprüfungen für die geänderten
+Runner, Python-Kompilierung, `check-common-security-contract.py`,
+`check-adapter-contracts.py`, `check-remaining-connectors-build-wiring.py`
+und `git diff --check`. Die Go-Prüfungen für Envoy und Traefik verwendeten
+`/usr/local/go/bin/go` `go1.26.6` mit `GOTOOLCHAIN=local`: `gofmt`,
+`go mod verify`, `go list -deps ./...`, `go test ./...`, `go vet ./...` und
+`govulncheck ./...` bestanden (das Traefik-Modul wurde aus
+`connectors/traefik/native_middleware` ausgeführt; der erste längere
+temporäre Socket-Pfad wurde durch einen privaten kurzen Test-Root ersetzt).
+C/C++-Syntaxprüfungen und der repository-native C17-Check für die übrigen
+Connectoren bestanden ebenfalls. Der breite C++-Security-Scan behielt die
+ursprüngliche C/H-Baseline bei und ergänzte nur die neue typisierte Observer-
+`.cc`-Datei; die bestehende
+`common/scripts/modsecurity_targeted_eval.cc` wurde nicht ausgenommen. Vier
+vorbestehende ShellCheck-SC1007-Warnungen verbleiben im Envoy-
+Konfigurationshelfer.
+Das anschließende fokussierte Envoy-/Lighttpd-Contract-Paar bestand 50 Tests,
+und `sh -n` bestand für die beiden geänderten Dispatch-Skripte. Dies sind nur
+lokale Contract-Prüfungen. Die fokussierte Target-Runner-Suite für die r11-
+Phasenkorrektur bestand 28 Tests; ihr Security-Review fand keinen konkreten
+Blocker. Keines der Ergebnisse ersetzt frische Realhost-Evidence.
+
+Der Branch-Abgleich vom 2026-08-23 ergänzte die Connector-Isolations- und
+Summary-Verträge. Seine ausgewählte Parent-Suite bestand 188 Tests (vier
+erwartete Skips, weil der lokale verschachtelte Framework-Checkout nicht dem
+vom Parent aufgezeichneten Gitlink entspricht), und die fokussierte
+CI-Security-Suite bestand 125 Tests (fünf erwartete Skips). Gepinntes
+actionlint und offline ausgeführtes zizmor meldeten keinen Workflow-Befund.
+Repository und gehosteter Workflow verlangen weiterhin
+<code>.go-version</code> <code>1.26.7</code>; diese lokale Umgebung stellt
+<code>/usr/local/go/bin/go1.26.6</code> bereit. Auf ausdrückliche
+Benutzeranweisung wird die lokale Abweichung dokumentiert statt beschafft,
+aktualisiert oder versteckt; sie ist kein Exact-Head-Go-Vertragsnachweis.
+
+Für den vorherigen exakten PR-Head <code>da25068e</code> wurde eine erfolgreiche
+SonarQube-Cloud-Prüfung beobachtet: 0,0 % Duplikation im neuen Code,
+Reliability A, Security A sowie null neue Bugs, Vulnerabilities oder Hotspots.
+Zum Beobachtungszeitpunkt vor dieser Dokumentationsaktualisierung war PR #335
+Draft/BEHIND mit Head
+<code>541356440c926dfa935d52dc303315e316668cbf</code>. Runtime-Jobs, Required
+Checks und SonarQube-Cloud-Analyse für jeden nachfolgenden PR-Head bleiben
+<code>PENDING</code>, bis die zugehörige Exact-Head-Evidence vorliegt. Ein
+statischer Plan, ein Inventar, ein Parser-Test oder ein Workflow-Vertrag darf
+nicht zu einem Runtime-<code>PASS</code> befördert werden. Der gepaarte
+[Change Record](../reports/audits/change-records/CR-20260820-no-crs-with-mrts-runtime.de.md)
+beschreibt den begrenzten Lieferstatus und die Einschränkungen.
+
 ## Testebenen
 
 | Ebene | Typisches Target | Belegt | Belegt nicht |

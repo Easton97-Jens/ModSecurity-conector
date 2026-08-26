@@ -13,13 +13,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TextIO
 
+LIB_ROOT = Path(__file__).resolve().parents[2] / "lib"
+if str(LIB_ROOT) not in sys.path:
+    sys.path.insert(0, str(LIB_ROOT))
+from go_version_contract import GoVersionContractError, read_go_version_contract as read_shared_go_version_contract
+
 
 CANONICAL_VERSION_FILE = ".go-version"
 CODEQL_WORKFLOW = Path(".github/workflows/ci-security-codeql.yml")
 SETUP_GO_REFERENCE = "actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0"
 EXPECTED_JOBS = frozenset({"envoy-go", "traefik-go"})
 TRUSTED_VERSION_JOB = "trusted-go-version"
-VERSION_RE = re.compile(r"^1\.26\.(?:0|[1-9]\d*)$", re.ASCII)
 JOB_HEADER = re.compile(r"^ {2}(?P<name>[A-Za-z0-9_-]+):\s*$")
 SETUP_GO_PREFIX = "      - uses: actions/setup-go@"
 TRUSTED_VERSION_VALIDATOR = (
@@ -60,46 +64,9 @@ def repository_root() -> Path:
 
 def read_canonical_version(root: Path) -> str:
     try:
-        root_stat = os.lstat(root)
-    except OSError as error:
-        raise ContractError("repository root cannot be inspected safely") from error
-    if stat.S_ISLNK(root_stat.st_mode) or not stat.S_ISDIR(root_stat.st_mode):
-        raise ContractError("repository root must be a real directory")
-    target = root / CANONICAL_VERSION_FILE
-    try:
-        before_open = os.lstat(target)
-    except OSError as error:
-        raise ContractError("root .go-version cannot be inspected safely") from error
-    if not stat.S_ISREG(before_open.st_mode):
-        raise ContractError("root .go-version must be a regular non-symlink file")
-    nofollow = getattr(os, "O_NOFOLLOW", None)
-    if nofollow is None:
-        raise ContractError("platform cannot safely open .go-version without following symlinks")
-    descriptor: int | None = None
-    try:
-        descriptor = os.open(target, os.O_RDONLY | nofollow)
-        opened = os.fstat(descriptor)
-        if not stat.S_ISREG(opened.st_mode) or not os.path.samestat(before_open, opened):
-            raise ContractError("root .go-version changed while being opened")
-        body = os.read(descriptor, 65)
-    except ContractError:
-        raise
-    except OSError as error:
-        raise ContractError("root .go-version cannot be read safely") from error
-    finally:
-        if descriptor is not None:
-            os.close(descriptor)
-    if len(body) > 64:
-        raise ContractError("root .go-version is unexpectedly large")
-    try:
-        value = body.decode("utf-8")
-    except UnicodeDecodeError as error:
-        raise ContractError("root .go-version is not UTF-8") from error
-    if value.endswith("\n"):
-        value = value[:-1]
-    if not VERSION_RE.fullmatch(value):
-        raise ContractError("root .go-version must be an exact stable Go 1.26 patch")
-    return value
+        return read_shared_go_version_contract(root)
+    except GoVersionContractError as error:
+        raise ContractError(str(error)) from error
 
 
 def job_blocks(text: str) -> dict[str, str]:

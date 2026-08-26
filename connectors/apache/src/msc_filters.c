@@ -4,11 +4,14 @@
 #include "http_protocol.h"
 #include "msconnector/event.h"
 #include "msconnector/event_jsonl.h"
+#include "msconnector/integrity_event.h"
 #include "msconnector/late_intervention.h"
 #include "msconnector/options.h"
 #include "msconnector/rule_id.h"
 
 #include <apr_file_io.h>
+#include <apr_time.h>
+#include <limits.h>
 #include <string.h>
 
 
@@ -16,8 +19,6 @@
  * one-byte APR buckets. Hold a bounded number of normalized buckets pending
  * EOS so the Phase-4 byte cap also has a bounded object/setaside cost. */
 #define MSCONNECTOR_PHASE4_MAX_HELD_BUCKETS 4096U
-
-
 /* Kept private to this translation unit; Phase 2 reaches it before the
  * implementation below because input-filter EOS is handled near the start
  * of this file. */
@@ -199,6 +200,49 @@ static const char *apache_event_phase_name(enum msconnector_phase phase)
         default:
             return "unknown";
     }
+}
+
+/* Common event validation requires a canonical UTC timestamp.  Apache's
+ * request_time is captured when the request is created and remains stable for
+ * every event belonging to that transaction. */
+static const char *apache_event_timestamp(request_rec *r)
+{
+    apr_time_exp_t exploded;
+    apr_size_t written;
+    char timestamp[21];
+
+    if (r == NULL || r->pool == NULL ||
+        apr_time_exp_gmt(&exploded, r->request_time) != APR_SUCCESS ||
+        apr_strftime(timestamp, &written, sizeof(timestamp),
+            "%Y-%m-%dT%H:%M:%SZ", &exploded) != APR_SUCCESS ||
+        written != 20U)
+    {
+        return "";
+    }
+    timestamp[written] = '\0';
+    return apr_pstrmemdup(r->pool, timestamp, written);
+}
+
+/* Native callbacks can emit more than one match for a request. Keep their
+ * integrity chain in the request-owned transaction state, so 64-bit hashes
+ * never cross a lossy signed or string conversion boundary. */
+static int apache_set_rule_match_integrity(msc_t *msr,
+    msconnector_event *event)
+{
+    if (msr == NULL || event == NULL ||
+        msr->intervention.native_event_sequence == ULONG_MAX)
+    {
+        return 0;
+    }
+    event->integrity.sequence = msr->intervention.native_event_sequence + 1UL;
+    event->integrity.previous_hash = msr->intervention.native_event_hash;
+    event->integrity.event_hash = msconnector_integrity_event_hash(event,
+        event->integrity.previous_hash);
+    if (event->integrity.event_hash == 0U)
+    {
+        return 0;
+    }
+    return 1;
 }
 
 
@@ -408,6 +452,7 @@ static void apache_log_intervention_event(msc_t *msr, request_rec *r,
         rule_id, sizeof(rule_id));
 
     msconnector_event_init(&event);
+    event.meta.timestamp = apache_event_timestamp(r);
     event.meta.message_id = apache_intervention_message_id(input);
     event.meta.level = msconnector_event_default_level(event.meta.message_id);
     event.meta.message = msconnector_event_default_message(event.meta.message_id);
@@ -504,34 +549,37 @@ void apache_log_rule_match_event(msc_t *msr, request_rec *r,
     }
 
     /* This record is emitted synchronously by the real libmodsecurity log
-     * callback while Apache is in the named request phase.  It intentionally
-     * preserves a non-disruptive match as `pass`, rather than pretending that
-     * a rule with `log` was a deny or a late log-only intervention. */
+     * callback while Apache is in the named request phase.  `allow` records
+     * that the request proceeded after a non-disruptive match; it does not
+     * pretend that a rule with `log` was a deny or a late intervention. */
     msconnector_event_init(&event);
+    event.meta.timestamp = apache_event_timestamp(r);
     event.meta.level = "info";
     event.meta.message_id = "MSCONN_EVENT_RULE_MATCHED";
-    event.meta.message = "Non-disruptive ModSecurity rule match observed in native Apache module.";
     event.meta.event = "request_rule_match";
     event.meta.connector = "apache";
     event.meta.integration_mode = "native-httpd-module";
     event.meta.transaction_id = msr->event_transaction_id;
     event.decision.phase = phase;
     event.decision.status = MSCONNECTOR_STATUS_OK;
-    event.decision.action = "pass";
-    event.decision.requested_action = "pass";
-    event.decision.actual_action = "pass";
+    event.decision.action = "allow";
+    event.decision.requested_action = "allow";
+    event.decision.actual_action = "allow";
     event.decision.rule_id = rule_id;
-    event.decision.reason = "non_disruptive_rule_match";
-    event.http.transport_result = "not_observable";
     event.request.method = r->method;
     event.request.uri = r->unparsed_uri;
-    event.body.content_type = phase == MSCONNECTOR_PHASE_REQUEST_HEADERS ||
-        phase == MSCONNECTOR_PHASE_REQUEST_BODY
-        ? apache_request_content_type(r) : apache_response_content_type(r);
     event.body.bytes_seen = phase == MSCONNECTOR_PHASE_REQUEST_BODY
         ? msr->request_body_bytes_seen : 0U;
     event.body.bytes_inspected = phase == MSCONNECTOR_PHASE_REQUEST_BODY
         ? msr->request_body_bytes_inspected : 0U;
+
+    if (!apache_set_rule_match_integrity(msr, &event))
+    {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+            "ModSecurity: failed to create native rule-match integrity metadata");
+        (void)apr_file_close(file);
+        return;
+    }
 
     if (msconnector_event_write_jsonl_line(&event, line, sizeof(line),
         &json_truncated))
@@ -542,6 +590,13 @@ void apache_log_rule_match_event(msc_t *msr, request_rec *r,
             ap_log_rerror(APLOG_MARK, APLOG_WARNING, rc, r,
                 "ModSecurity: failed to write native rule-match log %s",
                 conf->common_config.phase4_log_path);
+        }
+        else
+        {
+            /* Advance the request-owned chain only after the complete JSONL
+             * record reached Apache's file API. */
+            msr->intervention.native_event_sequence = event.integrity.sequence;
+            msr->intervention.native_event_hash = event.integrity.event_hash;
         }
     }
     else

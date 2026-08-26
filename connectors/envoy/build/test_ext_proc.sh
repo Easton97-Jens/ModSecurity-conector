@@ -88,6 +88,29 @@ do
         exit 1
     fi
 done
+if ! grep -Fqx 'transaction_id_header=x-request-id' "$runtime_config"; then
+    echo "envoy_ext_proc_test: normal runtime config must use x-request-id" >&2
+    exit 1
+fi
+if ! grep -Fqx 'emit_rule_match_evidence=off' "$runtime_config"; then
+    echo "envoy_ext_proc_test: normal runtime config must disable rule-match evidence" >&2
+    exit 1
+fi
+mrts_runtime_config="$temporary_root/envoy-ext-proc-mrts-runtime.conf"
+MSCONNECTOR_RULES_FILE="$canonical_rules" TRANSACTION_ID_HEADER=x-mrts-transaction-id \
+    EVENT_PATH="$common_event_log" OUTPUT_CONFIG="$mrts_runtime_config" sh "$RUNTIME_CONFIG_MATERIALIZER" >/dev/null
+if ! grep -Fqx 'transaction_id_header=x-mrts-transaction-id' "$mrts_runtime_config"; then
+    echo "envoy_ext_proc_test: MRTS runtime config must use x-mrts-transaction-id" >&2
+    exit 1
+fi
+if ! grep -Fqx 'emit_rule_match_evidence=on' "$mrts_runtime_config"; then
+    echo "envoy_ext_proc_test: MRTS runtime config must enable rule-match evidence" >&2
+    exit 1
+fi
+if TRANSACTION_ID_HEADER=x-request-id-invalid OUTPUT_CONFIG="$temporary_root/invalid.conf" sh "$RUNTIME_CONFIG_MATERIALIZER" >/dev/null 2>&1; then
+    echo "envoy_ext_proc_test: unsupported transaction correlation header was accepted" >&2
+    exit 1
+fi
 if ! grep -Fqx "event_path=$common_event_log" "$runtime_config"; then
     echo "envoy_ext_proc_test: Common runtime config does not select its run-local raw event path" >&2
     exit 1

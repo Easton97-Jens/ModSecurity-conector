@@ -28,6 +28,34 @@ DEFAULT_VARIANTS = (
 
 
 class FullMatrixParallelSchedulerTest(unittest.TestCase):
+    def test_no_crs_mrts_cache_backed_profiles_separate_canonical_preamble_from_mrts_load(self) -> None:
+        source = MATRIX_RUNNER.read_text(encoding="utf-8")
+        self.assertIn(
+            'case "$connector:$test_variant:$mrts_variant" in',
+            source,
+        )
+        self.assertIn(
+            'apache:no-crs:with-mrts|haproxy:no-crs:with-mrts)',
+            source,
+        )
+        self.assertIn(
+            'NO_CRS_RULES_FILE=$FRAMEWORK_ROOT/tests/rules/no-crs-baseline.conf',
+            source,
+        )
+        self.assertIn(
+            'MODSECURITY_RULE_PREAMBLE_FILE=$FRAMEWORK_ROOT/tests/rules/no-crs-baseline.conf',
+            source,
+        )
+        self.assertIn(
+            'MRTS_LOAD_FILE=$MRTS_BUILD_ROOT/upstream-config-tests/mrts.load',
+            source,
+        )
+
+        profile_block = source[source.index('case "$connector:$test_variant:$mrts_variant" in'):]
+        profile_block = profile_block[:profile_block.index('    set +e')]
+        self.assertNotIn('MODSECURITY_RULE_PREAMBLE_FILE=$MRTS_LOAD_FILE', profile_block)
+        self.assertNotIn('nginx:no-crs:with-mrts', profile_block)
+
     def planner_command(
         self,
         *,

@@ -1,0 +1,267 @@
+"""Contracts for the closed no-CRS/with-MRTS shell dispatch boundary."""
+from __future__ import annotations
+
+import os
+import subprocess
+import tempfile
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+RUNNER = ROOT / "ci" / "runtime" / "lifecycle" / "run-remaining-connector-target.sh"
+STAGE = ROOT / "ci" / "runtime" / "lifecycle" / "run-connector-stage.sh"
+ENVOY = ROOT / "connectors" / "envoy" / "harness" / "run_envoy_ext_proc_runtime.sh"
+
+
+class NoCrsWithMrtsDispatchContractTests(unittest.TestCase):
+    @staticmethod
+    def run_go_guard(candidate: Path, hosted_root: Path, strict_binary: Path) -> subprocess.CompletedProcess[str]:
+        source = RUNNER.read_text(encoding="utf-8")
+        guard = source.split("is_hosted_setup_go_binary() {", 1)[1].split("set_mrts_go_path() {", 1)[0]
+        guard = "is_hosted_setup_go_binary() {" + guard
+        guard = guard.replace("/opt/hostedtoolcache", str(hosted_root))
+        guard = guard.replace("/usr/local/go/bin/go", str(strict_binary))
+        script = "set -eu\nCONNECTOR_ROOT=/checkout\n" + guard + '\nrequire_mrts_go_invocation "$1"\n'
+        return subprocess.run(
+            ["sh", "-ceu", script, "mrts-go-guard", str(candidate)],
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+
+    def test_snapshot_load_reasserts_closed_toolchain_environment(self) -> None:
+        source = RUNNER.read_text(encoding="utf-8")
+        load_index = source.index('. "$runtime_env"')
+        reassert_index = source.index("reassert_mrts_closed_environment", load_index)
+        self.assertGreater(reassert_index, load_index)
+        for variable in (
+            "GO=$MRTS_GO_BINARY",
+            "MRTS_GO_BINARY=$MRTS_CLOSED_GO_BINARY",
+            "GOTOOLCHAIN=local",
+            "GOENV=off",
+            "PYTHON=$MRTS_CLOSED_PYTHON",
+            "PYTHON_BIN=$MRTS_CLOSED_PYTHON",
+            "HOME=$MRTS_CLOSED_HOME",
+            "GOPATH=$MRTS_CLOSED_GOPATH",
+            "GOMODCACHE=$MRTS_CLOSED_GOMODCACHE",
+            "GOCACHE=$MRTS_CLOSED_GOCACHE",
+            "GOTMPDIR=$MRTS_CLOSED_GOTMPDIR",
+            "TMPDIR=$MRTS_CLOSED_TMPDIR",
+            "ALLOW_RUNTIME_DOWNLOADS=$MRTS_CLOSED_ALLOW_RUNTIME_DOWNLOADS",
+            "ALLOW_RUNTIME_BUILDS=$MRTS_CLOSED_ALLOW_RUNTIME_BUILDS",
+        ):
+            self.assertIn(variable, source)
+
+    def test_direct_target_builds_resolve_literal_go_to_the_sealed_binary(self) -> None:
+        source = RUNNER.read_text(encoding="utf-8")
+        self.assertIn("set_mrts_go_path()", source)
+        self.assertIn("MRTS_GO_BIN_DIR=${candidate%/go}", source)
+        self.assertIn("MRTS Go binary path contains a PATH separator", source)
+        self.assertIn(
+            "PATH=$MRTS_GO_BIN_DIR:/usr/local/go/bin:/usr/bin:/bin",
+            source,
+        )
+        self.assertIn('set_mrts_go_path "$MRTS_GO_BINARY" || exit $?', source)
+        self.assertIn('set_mrts_go_path "$MRTS_GO_BINARY" || return $?', source)
+        self.assertIn('[ "$PATH" = "$MRTS_CLOSED_PATH" ]', source)
+
+    def test_hosted_go_snapshot_group_write_exception_is_narrow_and_digest_bound(self) -> None:
+        source = RUNNER.read_text(encoding="utf-8")
+        helper = source.split("is_hosted_setup_go_binary() {", 1)[1].split("require_mrts_go_invocation() {", 1)[0]
+        self.assertIn("/opt/hostedtoolcache/go/*/bin/go", helper)
+        self.assertNotIn("/usr/local/go/bin/go", helper)
+
+        guard = source.split("require_mrts_go_invocation() {", 1)[1].split("set_mrts_go_path() {", 1)[0]
+        self.assertIn('if is_hosted_setup_go_binary "$candidate"; then', guard)
+        self.assertIn('?[2367]*) echo "FAIL: MRTS Go binary is writable by other"', guard)
+        self.assertIn('"$current_uid:$current_gid") : ;;', guard)
+        self.assertIn('[ "$group" != "$current_gid" ]', guard)
+        self.assertIn('MRTS Go binary is writable by a runner-held group', guard)
+        self.assertIn('[2367]?|?[2367]*) echo "FAIL: MRTS Go binary is writable by group or other"', guard)
+        self.assertIn('MRTS_GO_BINARY_SHA256 is required', source)
+        self.assertIn('MRTS Go binary digest does not match the sealed value', source)
+
+    def test_shell_go_guard_accepts_only_hosted_group_write_and_rejects_weaker_modes(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="mrts-go-guard-") as temporary:
+            root = Path(temporary)
+            hosted_root = root / "hostedtoolcache"
+            hosted_go = hosted_root / "go/1.26.7/x64/bin/go"
+            strict_go = root / "strict/go/bin/go"
+            other_go = root / "other/bin/go"
+            for candidate in (hosted_go, strict_go, other_go):
+                candidate.parent.mkdir(parents=True, exist_ok=True)
+                candidate.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+                os.chmod(candidate, 0o775)
+
+            accepted = self.run_go_guard(hosted_go, hosted_root, strict_go)
+            self.assertEqual(accepted.returncode, 0, accepted.stderr)
+
+            os.chmod(hosted_go, 0o777)
+            world_writable = self.run_go_guard(hosted_go, hosted_root, strict_go)
+            self.assertNotEqual(world_writable.returncode, 0)
+            self.assertIn("writable by other", world_writable.stderr)
+
+            strict = self.run_go_guard(strict_go, hosted_root, strict_go)
+            self.assertNotEqual(strict.returncode, 0)
+            self.assertIn("writable by group or other", strict.stderr)
+
+            unapproved = self.run_go_guard(other_go, hosted_root, strict_go)
+            self.assertNotEqual(unapproved.returncode, 0)
+            self.assertIn("outside the approved setup-go roots", unapproved.stderr)
+
+    def test_closed_values_are_readonly_before_snapshot_source(self) -> None:
+        source = RUNNER.read_text(encoding="utf-8")
+        self.assertIn("readonly MRTS_CLOSED_CONNECTOR_ROOT", source)
+        self.assertIn("readonly MRTS_CLOSED_RUNTIME_ENV", source)
+        self.assertIn("MRTS_CLOSED_STAGE=$MSCONNECTOR_MRTS_STAGE", source)
+        self.assertIn("MRTS_CLOSED_GO_BINARY=$MRTS_GO_BINARY", source)
+        self.assertIn("MRTS_CLOSED_GO_SHA256=$MRTS_GO_BINARY_SHA256", source)
+        self.assertIn("MRTS_CLOSED_GO_VERSION=$MRTS_GO_VERSION", source)
+        self.assertIn("sha256sum \"$MRTS_GO_BINARY\"", source)
+        self.assertIn("sha256sum \"$GO\"", source)
+        stage = STAGE.read_text(encoding="utf-8")
+        runner = RUNNER.read_text(encoding="utf-8")
+        self.assertIn('MRTS_GO_BINARY_SHA256=${MRTS_GO_BINARY_SHA256:?MRTS_GO_BINARY_SHA256 is required}', runner)
+        self.assertIn('MRTS_GO_VERSION=${MRTS_GO_VERSION:?MRTS_GO_VERSION is required}', runner)
+        self.assertIn("MRTS_CLOSED_PLAN_SHA256=$MRTS_RUNTIME_PLAN_SHA256", source)
+        self.assertIn("MRTS_RUNTIME_EXECUTOR_SHA256=$MRTS_CLOSED_EXECUTOR_SHA256", source)
+        self.assertIn("MRTS_CLOSED_ALLOW_RUNTIME_DOWNLOADS=1", source)
+        self.assertIn("MRTS_CLOSED_ALLOW_RUNTIME_BUILDS=1", source)
+
+    def test_runtime_provisioning_opt_ins_are_gated_and_reasserted_as_literals(self) -> None:
+        stage_source = STAGE.read_text(encoding="utf-8")
+        runner_source = RUNNER.read_text(encoding="utf-8")
+        for source in (stage_source, runner_source):
+            self.assertIn('"${ALLOW_RUNTIME_DOWNLOADS:-}" = 1', source)
+            self.assertIn('"${ALLOW_RUNTIME_BUILDS:-}" = 1', source)
+        self.assertIn("env -i", stage_source)
+        self.assertIn("ALLOW_RUNTIME_DOWNLOADS=1", stage_source)
+        self.assertIn("ALLOW_RUNTIME_BUILDS=1", stage_source)
+
+    def test_all_mrts_dispatch_boundaries_revalidate_the_sealed_no_crs_plan(self) -> None:
+        for path in (STAGE, RUNNER, ENVOY):
+            source = path.read_text(encoding="utf-8")
+            self.assertIn("--validate-sealed-plan", source)
+            self.assertIn("--plan-sha256", source)
+            self.assertNotIn("grep -Eiq 'crs", source)
+
+    def test_envoy_standalone_mrts_runner_defaults_connector_root_to_its_repository(self) -> None:
+        source = ENVOY.read_text(encoding="utf-8")
+        self.assertIn("CONNECTOR_ROOT=${CONNECTOR_ROOT:-$REPO_ROOT}", source)
+        self.assertLess(
+            source.index("CONNECTOR_ROOT=${CONNECTOR_ROOT:-$REPO_ROOT}"),
+            source.index("sealed_plan_validator=$CONNECTOR_ROOT/"),
+        )
+
+    def test_parent_held_plan_digest_is_required_and_survives_each_shell_boundary(self) -> None:
+        stage_source = STAGE.read_text(encoding="utf-8")
+        runner_source = RUNNER.read_text(encoding="utf-8")
+        for source in (stage_source, runner_source):
+            self.assertIn("MRTS_RUNTIME_PLAN_SHA256 is required", source)
+            self.assertIn("MRTS_RUNTIME_PLAN_SHA256 must be a lowercase SHA-256 digest", source)
+            self.assertIn('"$MRTS_RUNTIME_PLAN_SHA256"', source)
+        self.assertIn('MRTS_RUNTIME_PLAN_SHA256="$MRTS_RUNTIME_PLAN_SHA256"', stage_source)
+        self.assertIn("MRTS_CLOSED_PLAN_SHA256=$MRTS_RUNTIME_PLAN_SHA256", runner_source)
+        self.assertIn("MRTS_RUNTIME_PLAN_SHA256=$MRTS_CLOSED_PLAN_SHA256", runner_source)
+
+    def test_no_crs_mrts_keeps_canonical_preamble_separate_from_mrts_load_file(self) -> None:
+        source = RUNNER.read_text(encoding="utf-8")
+        self.assertIn(
+            "NO_CRS_RULES_FILE=$FRAMEWORK_ROOT/tests/rules/no-crs-baseline.conf",
+            source,
+        )
+        self.assertIn("MODSECURITY_RULE_PREAMBLE_FILE=$NO_CRS_RULES_FILE", source)
+        self.assertIn("MSCONNECTOR_RULES_FILE=$MRTS_LOAD_FILE", source)
+        self.assertIn("RULES_FILE=$MRTS_LOAD_FILE", source)
+        self.assertNotIn("MODSECURITY_RULE_PREAMBLE_FILE=$MRTS_LOAD_FILE", source)
+
+    def test_apache_and_haproxy_use_closed_native_mrts_routes_only(self) -> None:
+        source = STAGE.read_text(encoding="utf-8")
+        self.assertIn(
+            "no_crs_with_mrts is closed to apache, envoy, haproxy, lighttpd, and traefik",
+            source,
+        )
+        self.assertNotIn("nginx:no_crs_with_mrts)", source)
+        native = source.split("run_mrts_native_host() {", 1)[1].split(
+            "run_full_lifecycle_haproxy_htx()", 1
+        )[0]
+        self.assertIn('native_connector=$1', native)
+        self.assertIn("apache)", native)
+        self.assertIn("haproxy)", native)
+        self.assertIn('MRTS_RUNTIME_EVENT_LOG="$EVENT_LOG"', native)
+        self.assertIn('MODSECURITY_RULE_PREAMBLE_FILE="$NO_CRS_RULES_FILE"', native)
+        self.assertIn('HAPROXY_DETECTION_ONLY="$haproxy_detection_only"', native)
+        self.assertNotIn("RUNTIME_COMPONENT_ENV_SNAPSHOT=", native)
+        self.assertIn("apache:no_crs_with_mrts)", source)
+        self.assertIn("run_mrts_native_host apache connectors/apache/harness/run_apache_smoke.sh", source)
+        self.assertIn("haproxy:no_crs_with_mrts)", source)
+        self.assertIn("run_mrts_native_host haproxy connectors/haproxy/harness/run_haproxy_smoke.sh", source)
+
+    def test_native_harnesses_keep_detection_only_and_evidence_connector_scoped(self) -> None:
+        apache = (ROOT / "connectors/apache/harness/run_apache_smoke.sh").read_text(
+            encoding="utf-8"
+        )
+        haproxy = (ROOT / "connectors/haproxy/harness/run_haproxy_smoke.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('APACHE_MRTS_TRANSACTION_ID_DIRECTIVE=', apache)
+        self.assertIn('modsecurity_transaction_id_expr "%{HTTP:X-MRTS-Transaction-ID}"', apache)
+        self.assertIn('cat "$MRTS_LOAD_FILE" >> "$RULES_FILE"', apache)
+        self.assertIn("--connector apache", apache)
+        self.assertIn('MRTS_RUNTIME_EVENT_LOG="$EVENT_LOG"', STAGE.read_text(encoding="utf-8"))
+
+        self.assertIn("HAProxy DetectionOnly is reserved for the closed no-CRS/with-MRTS runtime", haproxy)
+        self.assertIn('agent_mode=detect-only', haproxy)
+        self.assertIn('decision_log=$MRTS_RUNTIME_EVENT_LOG', haproxy)
+        self.assertIn('request_id=req.hdr(X-MRTS-Transaction-ID)', haproxy)
+        self.assertIn('cat "$MRTS_LOAD_FILE" >> "$RULES_FILE"', haproxy)
+        self.assertIn("--connector haproxy", haproxy)
+
+    def test_lighttpd_mrts_route_seals_its_canonical_evidence_output(self) -> None:
+        source = RUNNER.read_text(encoding="utf-8")
+        lighttpd = source.split("    lighttpd)\n", 1)[1].split("    *)\n", 1)[0]
+        mrts = lighttpd.split(
+            'if [ "${MSCONNECTOR_MRTS_STAGE:-}" = no_crs_with_mrts ]; then\n', 1
+        )[1].split("        else\n", 1)[0]
+        self.assertIn("lighttpd_patched_smoke_dir=$RUNTIME_ROOT", mrts)
+        self.assertIn("NO_CRS_ARTIFACT_PROFILE=full_lifecycle", mrts)
+        self.assertIn(
+            "FULL_LIFECYCLE_EVIDENCE_OUTPUT=$lighttpd_patched_smoke_dir/first-byte-evidence.json",
+            mrts,
+        )
+        self.assertIn(
+            "export NO_CRS_ARTIFACT_PROFILE FULL_LIFECYCLE_EVIDENCE_OUTPUT",
+            mrts,
+        )
+
+    def test_lighttpd_native_route_does_not_receive_go_toolchain_state(self) -> None:
+        stage = STAGE.read_text(encoding="utf-8")
+        runner = RUNNER.read_text(encoding="utf-8")
+        self.assertIn('isolated_env="PATH=/usr/bin:/bin"', stage)
+        self.assertIn('if [ "$connector" != lighttpd ]; then', stage)
+        self.assertIn('unset GO GOTOOLCHAIN GOPATH GOMODCACHE GOCACHE GOTMPDIR GOENV', runner)
+        self.assertIn('unset MRTS_GO_BINARY MRTS_GO_BINARY_SHA256 MRTS_GO_VERSION', runner)
+        self.assertIn("env | grep -Eq '^(GO|GOTOOLCHAIN|GOPATH|GOMODCACHE|GOCACHE|GOTMPDIR|GOENV|MRTS_GO_)='", runner)
+
+    def test_go_connectors_keep_sealed_environment_branch(self) -> None:
+        stage = STAGE.read_text(encoding="utf-8")
+        runner = RUNNER.read_text(encoding="utf-8")
+        self.assertIn('isolated_env="PATH=/usr/local/go/bin:/usr/bin:/bin"', stage)
+        self.assertIn('"MRTS_GO_BINARY=${MRTS_GO_BINARY:?MRTS_GO_BINARY is required}"', stage)
+        self.assertIn('require_mrts_go_invocation "$MRTS_GO_BINARY" || exit $?', runner)
+        self.assertIn('set_mrts_go_path "$MRTS_GO_BINARY" || return $?', runner)
+
+    def test_python_invocation_contract_allows_only_a_final_venv_symlink(self) -> None:
+        for source in (STAGE.read_text(encoding="utf-8"), RUNNER.read_text(encoding="utf-8")):
+            self.assertIn("require_mrts_python_invocation()", source)
+            self.assertIn('require_mrts_python_invocation "$MRTS_PYTHON_BIN" || exit 77', source)
+            self.assertIn('*/../*|../*|*/..|..)', source)
+            self.assertIn('symlinked parent: $candidate', source)
+            self.assertNotIn('MRTS Python interpreter must not be a symlink', source)
+        runner_source = RUNNER.read_text(encoding="utf-8")
+        self.assertIn('require_mrts_python_invocation "$PYTHON_BIN" || {', runner_source)
+
+
+if __name__ == "__main__":
+    unittest.main()

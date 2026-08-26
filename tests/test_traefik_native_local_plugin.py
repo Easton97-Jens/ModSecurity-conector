@@ -228,6 +228,7 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
         rules_file.write_text("SecRuleEngine On\n", encoding="utf-8")
         inputs = runner.NativeRuntimeInputs(
             runtime_root=runtime_root,
+            verified_run_root=temporary_root,
             engine_socket_parent=engine_socket_parent(socket_parent),
             run_id=None,
             first_byte_output=None,
@@ -238,6 +239,12 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
             rule_ids={},
             rules_profile="test",
             module_name="test-plugin",
+            mrts_runtime=False,
+            mrts_executor=None,
+            mrts_load_file=None,
+            mrts_plan=None,
+            mrts_plan_sha256=None,
+            mrts_result=None,
         )
         artifacts = runner.NativeRuntimeArtifacts(
             logs_dir=logs_dir,
@@ -247,6 +254,8 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
             dynamic_config=dynamic_config,
             engine_config=engine_config,
             event_path=event_path,
+            native_summary_path=runtime_root / "native-host-summary.json",
+            provenance_path=logs_dir / "traefik-provenance.json",
         )
         return inputs, artifacts, {
             **workspaces,
@@ -386,7 +395,16 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
     ) -> object:
         """Collect inputs while leaving first-byte path validation unmocked."""
 
-        runtime_root = temporary_root / "traefik-runtime"
+        verified_run_root = temporary_root / "verified-run"
+        verified_run_root.mkdir(mode=0o700)
+        runtime_root = (
+            verified_run_root
+            / "build"
+            / "stages"
+            / "traefik"
+            / "no_crs_with_mrts"
+            / "runtime"
+        )
         socket_parent = temporary_root / "socket-parent"
         socket_parent.mkdir(mode=0o700)
         environment = {
@@ -394,6 +412,7 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
             "NO_CRS_ARTIFACT_PROFILE": "full_lifecycle",
             "TRAEFIK_BIN": "/bin/true",
             "TRAEFIK_NATIVE_RUNTIME_ROOT": str(runtime_root),
+            "VERIFIED_RUN_ROOT": str(verified_run_root),
         }
         if evidence_root is not None:
             environment["TRAEFIK_FIRST_BYTE_EVIDENCE_ROOT"] = str(evidence_root)
@@ -532,6 +551,21 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
                 f"engineSocketPath: {json.dumps(str(unusual_socket))}",
                 dynamic_config.read_text(encoding="utf-8"),
             )
+            self.assertIn(
+                "transactionIDHeader: X-Request-Id",
+                dynamic_config.read_text(encoding="utf-8"),
+            )
+
+            runner.write_dynamic_config(
+                dynamic_config,
+                18080,
+                unusual_socket,
+                mrts_runtime=True,
+            )
+            self.assertIn(
+                "transactionIDHeader: X-MRTS-Transaction-ID",
+                dynamic_config.read_text(encoding="utf-8"),
+            )
 
     @mock.patch.object(runner, "ENGINE_SOCKET_PATH_MAX_BYTES", 1000)
     def test_engine_socket_child_is_private_short_and_cleanup_keeps_parent(self) -> None:
@@ -622,15 +656,23 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
     def test_engine_socket_setup_failure_removes_the_allocated_child(self) -> None:
         with tempfile.TemporaryDirectory(prefix="msconnector-traefik-test-") as temporary:
             root = Path(temporary)
-            runtime_root = root / "runtime"
+            runtime_root = root / "build" / "stages" / "traefik" / "no_crs_with_mrts" / "runtime"
             parent_path = root / "socket-parent"
             parent_path.mkdir(mode=0o700)
             selected_parent = engine_socket_parent(parent_path)
             with mock.patch.dict(
                 os.environ,
-                {"TRAEFIK_NATIVE_RUNTIME_ROOT": str(runtime_root), "TRAEFIK_BIN": "/bin/true"},
+                {
+                    "TRAEFIK_NATIVE_RUNTIME_ROOT": str(runtime_root),
+                    "VERIFIED_RUN_ROOT": str(root),
+                    "TRAEFIK_BIN": "/bin/true",
+                },
                 clear=False,
-            ), mock.patch.object(runner, "assert_runtime_root", return_value=runtime_root), mock.patch.object(
+            ), mock.patch.object(
+                runner,
+                "assert_runtime_root",
+                side_effect=lambda path: runtime_root if path == runtime_root else root,
+            ), mock.patch.object(
                 runner, "require_local_executable", return_value=Path("/bin/true")
             ), mock.patch.object(
                 runner, "require_modsecurity_environment", return_value=(root, root)
@@ -656,13 +698,14 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
     def test_missing_engine_socket_parent_fails_before_runtime_root_setup(self) -> None:
         with tempfile.TemporaryDirectory(prefix="msconnector-traefik-test-") as temporary:
             temporary_root = Path(temporary)
-            runtime_root = temporary_root / "runtime"
+            runtime_root = temporary_root / "build" / "stages" / "traefik" / "no_crs_with_mrts" / "runtime"
             inherited_tmpdir = temporary_root / "valid-inherited-tmpdir"
             inherited_tmpdir.mkdir(mode=0o700)
             with mock.patch.dict(
                 os.environ,
                 {
                     "TRAEFIK_NATIVE_RUNTIME_ROOT": str(runtime_root),
+                    "VERIFIED_RUN_ROOT": str(temporary_root),
                     runner.ENGINE_SOCKET_PARENT_ENV: "",
                     "TMPDIR": str(inherited_tmpdir),
                 },
@@ -744,6 +787,7 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
                 engine_config=root / "engine.conf",
                 event_path=logs / "events.jsonl",
                 static_config=root / "traefik.yaml",
+                provenance_path=logs / "traefik-provenance.json",
             )
             setup = SimpleNamespace(engine_socket=root / "engine.sock", traefik_port=18443)
             processes = runner.NativeProcesses()
@@ -765,6 +809,8 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
                 runner, "wait_for_socket"
             ), mock.patch.object(runner, "wait_for_port"), mock.patch.object(
                 runner.subprocess, "Popen", side_effect=(live_process, live_process)
+            ), mock.patch.object(
+                runner, "write_traefik_provenance"
             ), mock.patch.object(runner, "request_through_traefik", side_effect=request):
                 results = runner.run_crs_requests(inputs, artifacts, setup, processes)
 
@@ -795,6 +841,7 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
                 logs_dir=logs,
                 engine_config=root / "engine.conf",
                 static_config=root / "traefik.yaml",
+                provenance_path=logs / "traefik-provenance.json",
             )
             setup = SimpleNamespace(engine_socket=root / "engine.sock", traefik_port=18443)
             processes = runner.NativeProcesses()
@@ -807,7 +854,9 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
                 runner, "wait_for_port"
             ) as wait_for_port, mock.patch.object(
                 runner.subprocess, "Popen", side_effect=(engine_process, traefik_process)
-            ) as popen:
+            ) as popen, mock.patch.object(
+                runner, "write_traefik_provenance"
+            ):
                 with runner.running_traefik_host(
                     inputs,
                     artifacts,

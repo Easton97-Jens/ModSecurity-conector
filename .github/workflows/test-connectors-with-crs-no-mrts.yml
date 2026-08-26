@@ -169,6 +169,7 @@ jobs:
 
       - name: Prepare fresh CRS source for Apache and HAProxy
         id: prepare-crs-source
+        if: matrix.connector == 'apache' || matrix.connector == 'haproxy'
         env:
           CONNECTOR: ${{ matrix.connector }}
         run: |

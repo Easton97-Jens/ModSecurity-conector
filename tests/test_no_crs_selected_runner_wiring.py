@@ -279,8 +279,14 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
         self.assertIn("LIGHTTPD_PATCHED_SMOKE_DIR", target_runner)
 
         self.assertIn(
-            'TRAEFIK_ENGINE_SOCKET_PARENT="${TRAEFIK_ENGINE_SOCKET_PARENT:-}"',
+            '"TRAEFIK_ENGINE_SOCKET_PARENT=${TRAEFIK_ENGINE_SOCKET_PARENT:-}"',
             stage,
+        )
+        mrts_stage_start = stage.index('if [ "$stage" = no_crs_with_mrts ]; then')
+        mrts_stage_end = stage.index("\n    fi\n    exec env", mrts_stage_start)
+        self.assertIn(
+            '"TRAEFIK_ENGINE_SOCKET_PARENT=${TRAEFIK_ENGINE_SOCKET_PARENT:-}"',
+            stage[mrts_stage_start:mrts_stage_end],
         )
         native_makefile = (ROOT / "connectors/traefik/Makefile").read_text(encoding="utf-8")
         native_recipe = native_makefile.split("runtime-smoke-traefik-native:\n", 1)[1].split(
@@ -511,9 +517,17 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
         self.assertNotIn("PYTHON_RECIPE_INJECTION_REACHED", engine_service_output)
         self.assertNotIn(python_recipe_payload, engine_service_output)
         with tempfile.TemporaryDirectory(prefix="msconnector-traefik-make-test-") as temporary:
-            runtime_root = Path(temporary) / "runtime"
+            verified_run_root = Path(temporary) / "verified-run"
+            verified_run_root.mkdir(mode=0o700)
+            verified_run_root.chmod(0o700)
+            runtime_root = (
+                verified_run_root
+                / "build/stages/traefik/no_crs_with_mrts/runtime"
+            )
             shell_sentinel = Path(temporary) / "shell-injection-sentinel"
             injected_parent = f'{Path(temporary) / "unsafe"}"; : > "{shell_sentinel}"; #'
+            native_environment = os.environ.copy()
+            native_environment["VERIFIED_RUN_ROOT"] = str(verified_run_root)
             native_make_dry_run = subprocess.run(
                 [
                     "make",
@@ -526,6 +540,7 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
                     "runtime-smoke-traefik-native",
                 ],
                 cwd=ROOT,
+                env=native_environment,
                 check=False,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -545,6 +560,7 @@ class NoCrsSelectedRunnerWiringTest(unittest.TestCase):
                     "runtime-smoke-traefik-native",
                 ],
                 cwd=ROOT,
+                env=native_environment,
                 check=False,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,

@@ -1,6 +1,7 @@
 
 
 #include <ctype.h>
+#include <stdint.h>
 
 #include <modsecurity/modsecurity.h>
 #if defined(MODSECURITY_CHECK_VERSION)
@@ -130,6 +131,10 @@ typedef struct
     const char *transaction_id;
     enum msconnector_phase native_event_phase;
     int native_event_phase_active;
+    /* Rule-match records are emitted synchronously inside one native
+     * transaction. Keep their integrity state typed and request-owned. */
+    unsigned long native_event_sequence;
+    uint64_t native_event_hash;
 } msc_intervention_state;
 
 

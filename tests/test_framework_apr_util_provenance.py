@@ -260,6 +260,21 @@ class FrameworkAprUtilProvenanceTest(unittest.TestCase):
         for key in components.FRAMEWORK_TRANSIENT_ENV_KEYS:
             self.assertNotIn(key, loaded)
 
+    def test_python_loader_does_not_reexport_framework_inherited_snapshot(self) -> None:
+        loaded, status = components.load_framework_environment(
+            ROOT,
+            self.framework_root,
+            self.clean_environment(),
+        )
+        self.assertEqual(status, "loaded")
+        self.assertNotIn("CI_INHERITED_UPSTREAM_ENV", loaded)
+        self.assertNotIn("CI_INHERITED_UPSTREAM_ENV_STATUS", loaded)
+        provenance = components.verify_framework_approved_modsecurity_v3_provenance(
+            loaded,
+            self.framework_root,
+        )
+        self.assertEqual(provenance["status"], "passed", provenance)
+
     def test_python_loader_rejects_partial_empty_mismatch_and_alternative_tuples(self) -> None:
         canonical = self.canonical_tuple()
         partial = self.clean_environment()

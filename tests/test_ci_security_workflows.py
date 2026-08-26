@@ -1407,6 +1407,15 @@ jobs:
         self.assertIn("Fuzz Traefik UDS frame parser", text)
         self.assertIn("-fuzz='^FuzzUDSFrameAndResult$'", text)
         self.assertIn("-fuzztime=15s -parallel=1", text)
+        traefik_job = self.jobs("ci-security-codeql.yml")["traefik-go"]
+        self.assertLess(
+            traefik_job.index("Fuzz Traefik UDS frame parser"),
+            traefik_job.index("github/codeql-action/init"),
+        )
+        self.assertLess(
+            traefik_job.index("github/codeql-action/init"),
+            traefik_job.index("Build Traefik Go module"),
+        )
         self.assertIn("make check-common-helpers-c17", text)
         self.assertIn("Fuzz Common HTTP header parser", text)
         self.assertIn("make check-common-http-header-fuzz", text)
@@ -1708,8 +1717,17 @@ jobs:
         preparation = job.split(
             "      - name: Prepare fresh CRS source for Apache and HAProxy\n", 1
         )[1].split("      - name: Run selected real with-CRS no-MRTS runtime\n", 1)[0]
+        self.assertIn(
+            "if: matrix.connector == 'apache' || matrix.connector == 'haproxy'",
+            preparation,
+        )
         self.assertIn('case "$CONNECTOR" in', preparation)
         self.assertIn("apache|haproxy)", preparation)
+        self.assertIn("envoy|lighttpd|traefik)", preparation)
+        non_crs_preparation = preparation.split("envoy|lighttpd|traefik)", 1)[1].split(
+            "*)", 1
+        )[0]
+        self.assertNotIn("fetch-crs.sh", non_crs_preparation)
         self.assertIn(
             'printf \'%s\\n\' "SOURCE_ROOT=$SOURCE_ROOT" "CRS_SOURCE_DIR=$CRS_SOURCE_DIR" >> "$GITHUB_ENV"',
             preparation,

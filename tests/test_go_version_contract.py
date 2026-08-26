@@ -153,6 +153,17 @@ class GoVersionContractTests(unittest.TestCase):
         self.assertTrue(any("actions/setup-go" in entry for entry in result["violations"]))
         self.assertEqual((2, "error"), (bad_status, bad_result["status"]))
 
+    def test_trusted_version_job_requires_the_current_safe_awk_guard(self) -> None:
+        workflow = self.valid_workflow().replace(
+            "if ! printf '%s\\n' \"$version\" | awk 'NR == 1 && $0 ~ /^1\\.26\\.(0|[1-9][0-9]*)$/ { valid = 1 } END { exit !(NR == 1 && valid) }'; then",
+            '[[ ! "$version" =~ ^1\\.26\\.(0|[1-9][0-9]*)$ ]]',
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            status, result = self.check_json(self.root_with_workflow(Path(temporary), workflow))
+        self.assertEqual(status, 2)
+        self.assertEqual(result["status"], "failed")
+        self.assertTrue(any("lacks required contract" in entry for entry in result["violations"]))
+
     def test_setup_go_step_body_ends_at_the_next_step(self) -> None:
         job = go_job("envoy-go") + "      - name: unrelated\n        run: echo unrelated\n"
         steps = checker.setup_go_blocks(job)

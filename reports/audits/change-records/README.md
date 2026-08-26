@@ -8,6 +8,15 @@ maintained in the current repository tree. Historical changes remain traceable
 through Git history, commits, and pull requests. Do not add new per-change
 reports without an explicit repository-policy decision or user decision.
 
+## Current task record
+
+- [CR-20260820-no-crs-with-mrts-runtime](CR-20260820-no-crs-with-mrts-runtime.md)
+  | [Deutsch](CR-20260820-no-crs-with-mrts-runtime.de.md) — explicitly
+  delegated Parent documentation and traceability for the current-master
+  no-CRS/with-MRTS runtime task. It records the implementation boundary and
+  pending local, hosted, PR, Required-Check, and SonarQube evidence; it does
+  not assert delivery or merge.
+
 ## Explicitly authorized records
 
 - [CR-20260825-fnd-parent-0221-composite-connectors](CR-20260825-fnd-parent-0221-composite-connectors.md)

@@ -24,14 +24,201 @@ FULL_LIFECYCLE_EXECUTED_TARGET=${FULL_LIFECYCLE_EXECUTED_TARGET:-}
 NO_CRS_SELECTED_CASES_MISSING_MESSAGE='FAIL: capability-selected No-CRS runner cases are missing'
 readonly NO_CRS_SELECTED_CASES_MISSING_MESSAGE
 
+require_mrts_python_invocation() {
+    candidate=$1
+    case "$candidate" in
+        /*) ;;
+        *) echo "FAIL: MRTS Python interpreter must be an absolute path" >&2; return 77 ;;
+    esac
+    case "$candidate" in
+        */../*|../*|*/..|..) echo "FAIL: MRTS Python interpreter contains traversal" >&2; return 77 ;;
+        *) : ;;
+    esac
+    [ -f "$candidate" ] || { echo "FAIL: MRTS Python interpreter is not a regular file: $candidate" >&2; return 77; }
+    [ -x "$candidate" ] || { echo "FAIL: MRTS Python interpreter is not executable: $candidate" >&2; return 77; }
+    parent=${candidate%/*}
+    while [ -n "$parent" ] && [ "$parent" != / ]; do
+        [ ! -L "$parent" ] || { echo "FAIL: MRTS Python interpreter has a symlinked parent: $candidate" >&2; return 77; }
+        parent=${parent%/*}
+    done
+}
+
 case "$connector" in
     apache|nginx|haproxy|envoy|traefik|lighttpd) ;;
-    *) echo "usage: $0 apache|nginx|haproxy|envoy|traefik|lighttpd build|config_load|start_smoke|minimal_runtime_smoke|no_crs_baseline" >&2; exit 2 ;;
+    *) echo "usage: $0 apache|nginx|haproxy|envoy|traefik|lighttpd build|config_load|start_smoke|minimal_runtime_smoke|no_crs_baseline|no_crs_with_mrts" >&2; exit 2 ;;
 esac
 case "$stage" in
-    build|config_load|start_smoke|minimal_runtime_smoke|no_crs_baseline) ;;
-    *) echo "usage: $0 apache|nginx|haproxy|envoy|traefik|lighttpd build|config_load|start_smoke|minimal_runtime_smoke|no_crs_baseline" >&2; exit 2 ;;
+    build|config_load|start_smoke|minimal_runtime_smoke|no_crs_baseline|no_crs_with_mrts) ;;
+    *) echo "usage: $0 apache|nginx|haproxy|envoy|traefik|lighttpd build|config_load|start_smoke|minimal_runtime_smoke|no_crs_baseline|no_crs_with_mrts" >&2; exit 2 ;;
 esac
+
+require_mrts_stage_connector() {
+    [ "$connector" = apache ] || [ "$connector" = envoy ] || \
+        [ "$connector" = haproxy ] || [ "$connector" = traefik ] || \
+        [ "$connector" = lighttpd ] || {
+        echo "FAIL: no_crs_with_mrts is closed to apache, envoy, haproxy, lighttpd, and traefik" >&2
+        exit 2
+    }
+    [ "${MSCONNECTOR_MRTS_RUNTIME:-}" = 1 ] || {
+        echo "FAIL: no_crs_with_mrts requires MSCONNECTOR_MRTS_RUNTIME=1" >&2
+        exit 2
+    }
+    [ "${ALLOW_RUNTIME_DOWNLOADS:-}" = 1 ] && [ "${ALLOW_RUNTIME_BUILDS:-}" = 1 ] || {
+        echo "FAIL: no_crs_with_mrts requires explicit ALLOW_RUNTIME_DOWNLOADS=1 and ALLOW_RUNTIME_BUILDS=1" >&2
+        exit 77
+    }
+}
+
+require_mrts_stage_configuration() {
+    [ -n "${MRTS_RUNTIME_PLAN:-}" ] || { echo "FAIL: MRTS_RUNTIME_PLAN is required" >&2; exit 2; }
+    [ -n "${MRTS_RUNTIME_PLAN_SHA256:-}" ] || { echo "FAIL: MRTS_RUNTIME_PLAN_SHA256 is required" >&2; exit 2; }
+    [ -n "${MRTS_RUNTIME_RESULT:-}" ] || { echo "FAIL: MRTS_RUNTIME_RESULT is required" >&2; exit 2; }
+    [ -n "${MRTS_RUNTIME_EXECUTOR:-}" ] || { echo "FAIL: MRTS_RUNTIME_EXECUTOR is required" >&2; exit 2; }
+    [ -n "${MRTS_RUNTIME_EXECUTOR_SHA256:-}" ] || { echo "FAIL: MRTS_RUNTIME_EXECUTOR_SHA256 is required" >&2; exit 2; }
+    [ -n "${MRTS_RUNTIME_RULES_ROOT:-}" ] || { echo "FAIL: MRTS_RUNTIME_RULES_ROOT is required" >&2; exit 2; }
+    [ -n "${MRTS_LOAD_FILE:-}" ] || { echo "FAIL: MRTS_LOAD_FILE is required" >&2; exit 2; }
+    [ -n "${MRTS_CASE_ROOT:-}" ] || { echo "FAIL: MRTS_CASE_ROOT is required" >&2; exit 2; }
+    [ -n "${EVENT_LOG:-}" ] || { echo "FAIL: EVENT_LOG is required" >&2; exit 2; }
+    MRTS_PYTHON_BIN=${PYTHON_BIN:-${PYTHON:-}}
+    [ -n "$MRTS_PYTHON_BIN" ] || { echo "FAIL: no_crs_with_mrts requires an explicit PYTHON_BIN or PYTHON" >&2; exit 2; }
+    if [ -n "${PYTHON_BIN:-}" ] && [ -n "${PYTHON:-}" ] && [ "$PYTHON_BIN" != "$PYTHON" ]; then
+        echo "FAIL: PYTHON_BIN and PYTHON disagree" >&2
+        exit 77
+    fi
+    require_mrts_python_invocation "$MRTS_PYTHON_BIN" || exit 77
+}
+
+validate_mrts_runtime_paths() {
+    case "$MRTS_RUNTIME_PLAN:$MRTS_RUNTIME_RESULT:$MRTS_RUNTIME_EXECUTOR:$MRTS_RUNTIME_RULES_ROOT:$MRTS_LOAD_FILE:$MRTS_CASE_ROOT" in
+        *[!A-Za-z0-9_./:-]*) echo "FAIL: MRTS runtime paths contain unsafe characters" >&2; exit 2 ;;
+        *) : ;;
+    esac
+    case "$MRTS_RUNTIME_PLAN:$MRTS_RUNTIME_RESULT:$MRTS_RUNTIME_EXECUTOR:$MRTS_RUNTIME_RULES_ROOT:$MRTS_LOAD_FILE:$MRTS_CASE_ROOT" in
+        /*:/*:/*:/*:/*:/*) ;;
+        *) echo "FAIL: MRTS runtime inputs must be absolute paths" >&2; exit 2 ;;
+    esac
+    case "$MRTS_RUNTIME_EXECUTOR_SHA256" in
+        *[!0-9a-f]*) echo "FAIL: MRTS_RUNTIME_EXECUTOR_SHA256 must be a lowercase SHA-256 digest" >&2; exit 2 ;;
+        *) : ;;
+    esac
+    [ "${#MRTS_RUNTIME_EXECUTOR_SHA256}" -eq 64 ] || {
+        echo "FAIL: MRTS_RUNTIME_EXECUTOR_SHA256 must be a SHA-256 digest" >&2
+        exit 2
+    }
+    case "$MRTS_RUNTIME_PLAN_SHA256" in
+        *[!0-9a-f]*) echo "FAIL: MRTS_RUNTIME_PLAN_SHA256 must be a lowercase SHA-256 digest" >&2; exit 2 ;;
+        *) : ;;
+    esac
+    [ "${#MRTS_RUNTIME_PLAN_SHA256}" -eq 64 ] || {
+        echo "FAIL: MRTS_RUNTIME_PLAN_SHA256 must be a SHA-256 digest" >&2
+        exit 2
+    }
+    case "$MRTS_RUNTIME_PLAN:$MRTS_RUNTIME_RESULT" in
+        "$CONNECTOR_ROOT"/*:*|*:"$CONNECTOR_ROOT"/*)
+            echo "FAIL: MRTS plan/result must be outside the checkout" >&2
+            exit 77
+            ;;
+        *) : ;;
+    esac
+    case "$MRTS_LOAD_FILE" in
+        "$VERIFIED_RUN_ROOT"/*) ;;
+        *) echo "FAIL: MRTS_LOAD_FILE must remain under the private runtime root" >&2; exit 77 ;;
+    esac
+    case "$MRTS_CASE_ROOT" in
+        "$VERIFIED_RUN_ROOT"/*) ;;
+        *) echo "FAIL: MRTS_CASE_ROOT must remain under the private runtime root" >&2; exit 77 ;;
+    esac
+    case "$MRTS_RUNTIME_PLAN:$MRTS_RUNTIME_RESULT" in
+        "$VERIFIED_RUN_ROOT"/*:*|*:"$VERIFIED_RUN_ROOT"/*) ;;
+        *) echo "FAIL: MRTS plan/result must remain under the private runtime root" >&2; exit 77 ;;
+    esac
+}
+
+validate_mrts_runtime_files() {
+    [ -f "$MRTS_RUNTIME_PLAN" ] || { echo "FAIL: MRTS runtime plan is missing: $MRTS_RUNTIME_PLAN" >&2; exit 77; }
+    [ ! -L "$MRTS_RUNTIME_PLAN" ] || { echo "FAIL: MRTS runtime plan must not be a symlink" >&2; exit 77; }
+    result_parent=$(dirname "$MRTS_RUNTIME_RESULT")
+    [ -d "$result_parent" ] || { echo "FAIL: MRTS runtime result parent is missing: $result_parent" >&2; exit 77; }
+    [ ! -L "$MRTS_RUNTIME_RESULT" ] || { echo "FAIL: MRTS runtime result must not be a symlink" >&2; exit 77; }
+    expected_mrts_executor=$CONNECTOR_ROOT/ci/runtime/lifecycle/execute-no-crs-mrts-cases.py
+    [ "$MRTS_RUNTIME_EXECUTOR" = "$expected_mrts_executor" ] || { echo "FAIL: MRTS runtime executor path is not approved" >&2; exit 77; }
+    [ -f "$MRTS_RUNTIME_EXECUTOR" ] || { echo "FAIL: MRTS runtime executor is not a regular file: $MRTS_RUNTIME_EXECUTOR" >&2; exit 77; }
+    [ -r "$MRTS_RUNTIME_EXECUTOR" ] || { echo "FAIL: MRTS runtime executor is not readable: $MRTS_RUNTIME_EXECUTOR" >&2; exit 77; }
+    [ ! -L "$MRTS_RUNTIME_EXECUTOR" ] || { echo "FAIL: MRTS runtime executor must not be a symlink" >&2; exit 77; }
+}
+
+validate_mrts_event_log() {
+    expected_event_log=$BUILD_ROOT/stages/$connector/no_crs_with_mrts/runtime/events.jsonl
+    [ "$EVENT_LOG" = "$expected_event_log" ] || {
+        echo "FAIL: EVENT_LOG does not match the closed connector runtime layout" >&2
+        exit 77
+    }
+    event_parent=$(dirname "$EVENT_LOG")
+    [ -d "$event_parent" ] || { echo "FAIL: EVENT_LOG parent is missing" >&2; exit 77; }
+    [ ! -L "$event_parent" ] || { echo "FAIL: EVENT_LOG parent must not be a symlink" >&2; exit 77; }
+    [ ! -e "$EVENT_LOG" ] || { echo "FAIL: EVENT_LOG must be created by the native host" >&2; exit 77; }
+}
+
+validate_mrts_runtime_plan() {
+    actual_mrts_executor_sha256=$("$MRTS_PYTHON_BIN" -c 'import hashlib, pathlib, sys; print(hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest())' "$MRTS_RUNTIME_EXECUTOR") || {
+        echo "FAIL: MRTS runtime executor digest calculation failed" >&2
+        exit 77
+    }
+    [ "$actual_mrts_executor_sha256" = "$MRTS_RUNTIME_EXECUTOR_SHA256" ] || {
+        echo "FAIL: MRTS runtime executor digest mismatch" >&2
+        exit 77
+    }
+    if ! "$MRTS_PYTHON_BIN" -c 'import hashlib, json, pathlib, sys
+def reject_duplicates(pairs):
+    value = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError("duplicate JSON key")
+        value[key] = item
+    return value
+data = pathlib.Path(sys.argv[1]).read_bytes()
+if hashlib.sha256(data).hexdigest() != sys.argv[4]:
+    raise SystemExit(1)
+plan = json.loads(data.decode("utf-8"), object_pairs_hook=reject_duplicates)
+executor = plan.get("executor") if isinstance(plan, dict) else None
+if not isinstance(executor, dict) or executor.get("path") != sys.argv[2] or executor.get("sha256") != sys.argv[3]:
+    raise SystemExit(1)' "$MRTS_RUNTIME_PLAN" "$expected_mrts_executor" "$MRTS_RUNTIME_EXECUTOR_SHA256" "$MRTS_RUNTIME_PLAN_SHA256"; then
+        echo "FAIL: sealed MRTS plan executor identity does not match the approved executor" >&2
+        exit 77
+    fi
+}
+
+validate_mrts_stage_inputs() {
+    require_mrts_stage_connector
+    require_mrts_stage_configuration
+    validate_mrts_runtime_paths
+    validate_mrts_runtime_files
+    validate_mrts_event_log
+    validate_mrts_runtime_plan
+    [ -d "$MRTS_RUNTIME_RULES_ROOT" ] || { echo "FAIL: MRTS runtime rules root is not a directory: $MRTS_RUNTIME_RULES_ROOT" >&2; exit 77; }
+    [ ! -L "$MRTS_RUNTIME_RULES_ROOT" ] || { echo "FAIL: MRTS runtime rules root must not be a symlink" >&2; exit 77; }
+    [ -f "$MRTS_LOAD_FILE" ] || { echo "FAIL: MRTS_LOAD_FILE is not a regular file: $MRTS_LOAD_FILE" >&2; exit 77; }
+    [ ! -L "$MRTS_LOAD_FILE" ] || { echo "FAIL: MRTS_LOAD_FILE must not be a symlink" >&2; exit 77; }
+    [ -d "$MRTS_CASE_ROOT" ] || { echo "FAIL: MRTS_CASE_ROOT is not a directory: $MRTS_CASE_ROOT" >&2; exit 77; }
+    [ ! -L "$MRTS_CASE_ROOT" ] || { echo "FAIL: MRTS_CASE_ROOT must not be a symlink" >&2; exit 77; }
+    sealed_plan_validator=$CONNECTOR_ROOT/ci/runtime/lifecycle/run-no-crs-with-mrts-target.py
+    [ -f "$sealed_plan_validator" ] && [ ! -L "$sealed_plan_validator" ] || {
+        echo "FAIL: sealed MRTS plan validator is unavailable" >&2
+        exit 77
+    }
+    if ! "$MRTS_PYTHON_BIN" "$sealed_plan_validator" --validate-sealed-plan \
+        --plan "$MRTS_RUNTIME_PLAN" --runtime-root "$VERIFIED_RUN_ROOT" \
+        --framework-root "$FRAMEWORK_ROOT" --rules-root "$MRTS_RUNTIME_RULES_ROOT" \
+        --load-file "$MRTS_LOAD_FILE" --plan-sha256 "$MRTS_RUNTIME_PLAN_SHA256"; then
+        echo "FAIL: sealed MRTS plan no-CRS validation failed" >&2
+        exit 77
+    fi
+    export MRTS_PYTHON_BIN
+}
+
+if [ "$stage" = no_crs_with_mrts ]; then
+    validate_mrts_stage_inputs
+fi
 
 # A profile-selected stage has no fallback route.  The shared generic runner
 # still serves the existing master connector targets when no profile is set,
@@ -106,6 +293,102 @@ case "$BUILD_ROOT" in
     *) ;;
 esac
 
+assert_no_symlink_components() {
+    checked_path=$1
+    checked_label=$2
+    while [ "$checked_path" != / ]; do
+        if [ -L "$checked_path" ]; then
+            echo "FAIL: $checked_label contains a symlink component: $checked_path" >&2
+            return 1
+        fi
+        checked_path=$(dirname "$checked_path")
+    done
+}
+
+prepare_private_mrts_directory() {
+    private_directory=$1
+    private_parent=$2
+    private_label=$3
+    case "$private_directory" in
+        "$private_parent"/*) ;;
+        *) echo "FAIL: $private_label escapes its private runtime root" >&2; return 1 ;;
+    esac
+    assert_no_symlink_components "$private_parent" "$private_label" || return 1
+    mkdir -p "$private_directory" || {
+        echo "FAIL: cannot create $private_label" >&2
+        return 1
+    }
+    assert_no_symlink_components "$private_directory" "$private_label" || return 1
+    [ -d "$private_directory" ] || {
+        echo "FAIL: $private_label is not a directory" >&2
+        return 1
+    }
+    private_owner=$(stat -c '%u' "$private_directory") || {
+        echo "FAIL: cannot inspect $private_label ownership" >&2
+        return 1
+    }
+    [ "$private_owner" = "$(id -u)" ] || {
+        echo "FAIL: $private_label is not owned by the current user" >&2
+        return 1
+    }
+    chmod 700 "$private_directory" || {
+        echo "FAIL: cannot protect $private_label" >&2
+        return 1
+    }
+}
+
+prepare_mrts_toolchain_roots() {
+    case "$VERIFIED_RUN_ROOT:$TMP_ROOT" in
+        /*:/*) ;;
+        *) echo "FAIL: MRTS private runtime roots must be absolute" >&2; exit 77 ;;
+    esac
+    case "$VERIFIED_RUN_ROOT:$TMP_ROOT" in
+        "$CONNECTOR_ROOT"*|*:"$CONNECTOR_ROOT"*)
+            echo "FAIL: MRTS private runtime roots must be outside the checkout" >&2
+            exit 77
+            ;;
+        *) : ;;
+    esac
+    case "$TMP_ROOT" in
+        "$VERIFIED_RUN_ROOT"/*) ;;
+        *) echo "FAIL: TMP_ROOT must remain under the verified private runtime root" >&2; exit 77 ;;
+    esac
+    prepare_private_mrts_directory "$VERIFIED_RUN_ROOT" "$(dirname "$VERIFIED_RUN_ROOT")" "verified runtime root" || exit 77
+    prepare_private_mrts_directory "$TMP_ROOT" "$VERIFIED_RUN_ROOT" "MRTS temporary root" || exit 77
+    if [ "$connector" = lighttpd ]; then
+        # Lighttpd uses the patched native C runtime.  Give it private
+        # process/cache roots, but do not create or expose a Go toolchain.
+        MRTS_HOME=$VERIFIED_RUN_ROOT/lighttpd-home
+        MRTS_XDG_CACHE_HOME=$VERIFIED_RUN_ROOT/lighttpd-xdg-cache
+        MRTS_TMPDIR=$TMP_ROOT/lighttpd
+        for private_dir in "$MRTS_HOME" "$MRTS_XDG_CACHE_HOME"; do
+            prepare_private_mrts_directory "$private_dir" "$VERIFIED_RUN_ROOT" "Lighttpd private runtime directory" || exit 77
+        done
+        prepare_private_mrts_directory "$MRTS_TMPDIR" "$TMP_ROOT" "Lighttpd temporary directory" || exit 77
+        export MRTS_HOME MRTS_XDG_CACHE_HOME MRTS_TMPDIR
+        return
+    fi
+    MRTS_TOOLCHAIN_ROOT=$VERIFIED_RUN_ROOT/mrts-toolchain/$connector
+    MRTS_HOME=$MRTS_TOOLCHAIN_ROOT/home
+    MRTS_XDG_CACHE_HOME=$MRTS_TOOLCHAIN_ROOT/xdg-cache
+    MRTS_GOPATH=$MRTS_TOOLCHAIN_ROOT/gopath
+    MRTS_GOMODCACHE=$MRTS_GOPATH/pkg/mod
+    MRTS_GOCACHE=$MRTS_TOOLCHAIN_ROOT/go-build-cache
+    MRTS_GOTMPDIR=$TMP_ROOT/mrts-go/$connector
+    MRTS_TMPDIR=$TMP_ROOT/mrts-tmp/$connector
+    for private_dir in "$MRTS_TOOLCHAIN_ROOT" "$MRTS_HOME" "$MRTS_XDG_CACHE_HOME" "$MRTS_GOPATH" "$MRTS_GOMODCACHE" "$MRTS_GOCACHE"; do
+        prepare_private_mrts_directory "$private_dir" "$VERIFIED_RUN_ROOT" "MRTS toolchain directory" || exit 77
+    done
+    for private_dir in "$MRTS_GOTMPDIR" "$MRTS_TMPDIR"; do
+        prepare_private_mrts_directory "$private_dir" "$TMP_ROOT" "MRTS temporary directory" || exit 77
+    done
+    export MRTS_TOOLCHAIN_ROOT MRTS_HOME MRTS_XDG_CACHE_HOME MRTS_GOPATH MRTS_GOMODCACHE MRTS_GOCACHE MRTS_GOTMPDIR MRTS_TMPDIR
+}
+
+if [ "$stage" = no_crs_with_mrts ]; then
+    prepare_mrts_toolchain_roots
+fi
+
 export CONNECTOR_ROOT FRAMEWORK_ROOT VERIFIED_RUN_ROOT BUILD_ROOT CACHE_ROOT VERIFIED_COMPONENT_CACHE CONNECTOR_COMPONENT_CACHE TMP_ROOT LOG_ROOT RESULTS_DIR
 export RUNTIME_REPORT_OUTPUT_ROOT RUNTIME_ROOT RUNTIME_BASE PYTHON RUNTIME_COMPONENT_ENV_SNAPSHOT
 case "$connector" in
@@ -147,6 +430,72 @@ run_framework_host() {
 
 run_remaining_connector() {
     target=$1
+    if [ "$stage" = no_crs_with_mrts ]; then
+        # Build the clean environment as argument data.  Lighttpd is the
+        # native C route and must not receive Go variables or cache roots;
+        # Envoy and Traefik retain the sealed setup-Go environment.
+        isolated_env="PATH=/usr/bin:/bin"
+        if [ "$connector" != lighttpd ]; then
+            isolated_env="PATH=/usr/local/go/bin:/usr/bin:/bin"
+        fi
+        set -- \
+            "$isolated_env" \
+            "HOME=$MRTS_HOME" \
+            "XDG_CACHE_HOME=$MRTS_XDG_CACHE_HOME" \
+            "TMPDIR=$MRTS_TMPDIR" \
+            "ALLOW_RUNTIME_DOWNLOADS=1" \
+            "ALLOW_RUNTIME_BUILDS=1" \
+            "PYTHON=$MRTS_PYTHON_BIN" \
+            "PYTHON_BIN=$MRTS_PYTHON_BIN" \
+            "CONNECTOR_ROOT=$CONNECTOR_ROOT" \
+            "FRAMEWORK_ROOT=$FRAMEWORK_ROOT" \
+            "VERIFIED_RUN_ROOT=$VERIFIED_RUN_ROOT" \
+            "VERIFIED_COMPONENT_CACHE=$VERIFIED_COMPONENT_CACHE" \
+            "CONNECTOR_COMPONENT_CACHE=$CONNECTOR_COMPONENT_CACHE" \
+            "CACHE_ROOT=$CACHE_ROOT" \
+            "BUILD_ROOT=$BUILD_ROOT" \
+            "TMP_ROOT=$TMP_ROOT" \
+            "LOG_ROOT=$LOG_ROOT" \
+            "RESULTS_DIR=$RESULTS_DIR" \
+            "RUNTIME_ROOT=$BUILD_ROOT/stages/$connector/no_crs_with_mrts/runtime" \
+            "RUNTIME_BASE=$BUILD_ROOT/stages/$connector/no_crs_with_mrts/runtime" \
+            "RUNTIME_REPORT_OUTPUT_ROOT=$RUNTIME_REPORT_OUTPUT_ROOT" \
+            "RUNTIME_COMPONENT_TARGET=$RUNTIME_COMPONENT_TARGET" \
+            "RUNTIME_COMPONENT_ENV_SNAPSHOT=${RUNTIME_COMPONENT_ENV_SNAPSHOT:-}" \
+            MSCONNECTOR_MRTS_STAGE=no_crs_with_mrts \
+            MSCONNECTOR_MRTS_RUNTIME=1 \
+            "NO_CRS_RUN_ID=$NO_CRS_RUN_ID" \
+            "TRAEFIK_ENGINE_SOCKET_PARENT=${TRAEFIK_ENGINE_SOCKET_PARENT:-}" \
+            NO_CRS_BASELINE=1 \
+            MODSECURITY_TEST_VARIANT=no-crs \
+            MODSECURITY_MRTS_VARIANT=with-mrts \
+            "MRTS_RUNTIME_PLAN=$MRTS_RUNTIME_PLAN" \
+            "MRTS_RUNTIME_PLAN_SHA256=$MRTS_RUNTIME_PLAN_SHA256" \
+            "MRTS_RUNTIME_RESULT=$MRTS_RUNTIME_RESULT" \
+            "MRTS_RUNTIME_EXECUTOR=$MRTS_RUNTIME_EXECUTOR" \
+            "MRTS_RUNTIME_EXECUTOR_SHA256=$MRTS_RUNTIME_EXECUTOR_SHA256" \
+            "MRTS_RUNTIME_RULES_ROOT=$MRTS_RUNTIME_RULES_ROOT" \
+            "MRTS_LOAD_FILE=$MRTS_LOAD_FILE" \
+            "MRTS_CASE_ROOT=$MRTS_CASE_ROOT" \
+            "MSCONNECTOR_RULES_FILE=$MRTS_LOAD_FILE" \
+            "NO_CRS_RULES_FILE=$MRTS_LOAD_FILE" \
+            "RULES_FILE=$MRTS_LOAD_FILE" \
+            "MODSECURITY_RULE_PREAMBLE_FILE=$MRTS_LOAD_FILE"
+        if [ "$connector" != lighttpd ]; then
+            set -- "$@" \
+                "GOPATH=$MRTS_GOPATH" \
+                "GOMODCACHE=$MRTS_GOMODCACHE" \
+                "GOCACHE=$MRTS_GOCACHE" \
+                "GOTMPDIR=$MRTS_GOTMPDIR" \
+                GOENV=off \
+                "MRTS_GO_BINARY=${MRTS_GO_BINARY:?MRTS_GO_BINARY is required}" \
+                "MRTS_GO_BINARY_SHA256=${MRTS_GO_BINARY_SHA256:?MRTS_GO_BINARY_SHA256 is required}" \
+                "MRTS_GO_VERSION=${MRTS_GO_VERSION:?MRTS_GO_VERSION is required}" \
+                "GO=$MRTS_GO_BINARY" \
+                GOTOOLCHAIN=local
+        fi
+        exec env -i "$@" sh "$CONNECTOR_ROOT/ci/runtime/lifecycle/run-remaining-connector-target.sh" "$connector" "$target"
+    fi
     exec env \
         CONNECTOR_ROOT="$CONNECTOR_ROOT" \
         FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
@@ -165,6 +514,65 @@ run_remaining_connector() {
         RUNTIME_COMPONENT_ENV_SNAPSHOT="${RUNTIME_COMPONENT_ENV_SNAPSHOT:-}" \
         TRAEFIK_ENGINE_SOCKET_PARENT="${TRAEFIK_ENGINE_SOCKET_PARENT:-}" \
         sh "$CONNECTOR_ROOT/ci/runtime/lifecycle/run-remaining-connector-target.sh" "$connector" "$target"
+}
+
+run_mrts_native_host() {
+    native_connector=$1
+    native_harness=$2
+    case "$native_connector" in
+        apache)
+            haproxy_detection_only=0
+            ;;
+        haproxy)
+            haproxy_detection_only=1
+            ;;
+        *)
+            echo "FAIL: unsupported native MRTS host route: $native_connector" >&2
+            exit 2
+            ;;
+    esac
+    [ "$connector" = "$native_connector" ] || {
+        echo "FAIL: native MRTS host connector mismatch" >&2
+        exit 77
+    }
+    umask 077
+    exec "$CONNECTOR_ROOT/ci/provisioning/cache/with-runtime-components.sh" env \
+        CONNECTOR_ROOT="$CONNECTOR_ROOT" \
+        FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
+        VERIFIED_RUN_ROOT="$VERIFIED_RUN_ROOT" \
+        VERIFIED_COMPONENT_CACHE="$VERIFIED_COMPONENT_CACHE" \
+        CACHE_ROOT="$CACHE_ROOT" \
+        CONNECTOR_COMPONENT_CACHE="$CONNECTOR_COMPONENT_CACHE" \
+        BUILD_ROOT="$BUILD_ROOT" \
+        TMP_ROOT="$TMP_ROOT" \
+        LOG_ROOT="$LOG_ROOT" \
+        LOG_DIR="$LOG_ROOT/$native_connector-mrts-runtime" \
+        RESULTS_DIR="$RESULTS_DIR" \
+        RUNTIME_ROOT="$BUILD_ROOT/stages/$native_connector/no_crs_with_mrts/runtime" \
+        RUNTIME_BASE="$BUILD_ROOT/stages/$native_connector/no_crs_with_mrts/runtime" \
+        RUNTIME_REPORT_OUTPUT_ROOT="$RUNTIME_REPORT_OUTPUT_ROOT" \
+        RUNTIME_COMPONENT_TARGET="$RUNTIME_COMPONENT_TARGET" \
+        PYTHON="$MRTS_PYTHON_BIN" \
+        PYTHON_BIN="$MRTS_PYTHON_BIN" \
+        NO_CRS_BASELINE=1 \
+        MODSECURITY_TEST_VARIANT=no-crs \
+        MODSECURITY_MRTS_VARIANT=with-mrts \
+        MODSECURITY_RULE_PREAMBLE_FILE="$NO_CRS_RULES_FILE" \
+        MSCONNECTOR_MRTS_RUNTIME=1 \
+        MSCONNECTOR_SMOKE_STAGE=minimal_runtime_smoke \
+        RUN_ONE_CASE=1 \
+        TEST_CASE=allow_without_marker \
+        HAPROXY_DETECTION_ONLY="$haproxy_detection_only" \
+        MRTS_RUNTIME_PLAN="$MRTS_RUNTIME_PLAN" \
+        MRTS_RUNTIME_PLAN_SHA256="$MRTS_RUNTIME_PLAN_SHA256" \
+        MRTS_RUNTIME_RESULT="$MRTS_RUNTIME_RESULT" \
+        MRTS_RUNTIME_EXECUTOR="$MRTS_RUNTIME_EXECUTOR" \
+        MRTS_RUNTIME_EXECUTOR_SHA256="$MRTS_RUNTIME_EXECUTOR_SHA256" \
+        MRTS_RUNTIME_RULES_ROOT="$MRTS_RUNTIME_RULES_ROOT" \
+        MRTS_LOAD_FILE="$MRTS_LOAD_FILE" \
+        MRTS_CASE_ROOT="$MRTS_CASE_ROOT" \
+        MRTS_RUNTIME_EVENT_LOG="$EVENT_LOG" \
+        sh "$CONNECTOR_ROOT/$native_harness"
 }
 
 run_full_lifecycle_haproxy_htx() {
@@ -193,6 +601,12 @@ run_full_lifecycle_haproxy_htx() {
 }
 
 case "$connector:$stage" in
+    apache:no_crs_with_mrts)
+        run_mrts_native_host apache connectors/apache/harness/run_apache_smoke.sh
+        ;;
+    haproxy:no_crs_with_mrts)
+        run_mrts_native_host haproxy connectors/haproxy/harness/run_haproxy_smoke.sh
+        ;;
     apache:build)
         run_framework_host run-apache-smoke.sh build
         ;;
@@ -289,6 +703,15 @@ case "$connector:$stage" in
             }
             run_remaining_connector no-crs-baseline-envoy
         fi
+        ;;
+    envoy:no_crs_with_mrts)
+        run_remaining_connector runtime-smoke-envoy-ext-proc
+        ;;
+    traefik:no_crs_with_mrts)
+        run_remaining_connector runtime-smoke-traefik-native
+        ;;
+    lighttpd:no_crs_with_mrts)
+        run_remaining_connector runtime-smoke-lighttpd-patched
         ;;
     traefik:no_crs_baseline)
         if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then

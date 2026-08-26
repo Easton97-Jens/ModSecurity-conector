@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+from dataclasses import replace
 import importlib.util
 import json
 import os
@@ -390,6 +391,37 @@ class NamespaceContractTest(unittest.TestCase):
                 "required unprivileged user/mount/PID namespace integration is unavailable: "
                 f"{reason}",
             )
+
+    def test_production_no_crs_root_is_the_exact_mrts_stage_root(self) -> None:
+        """The writable bind cannot drift to a legacy or arbitrary directory."""
+
+        verified_root = Path("/var/tmp/msconnector-lighttpd-production")
+        stage_root = (
+            verified_root
+            / "build"
+            / "stages"
+            / "lighttpd"
+            / "no_crs_with_mrts"
+            / "runtime"
+        )
+        paths = HELPER.ProductionRuntimePaths(
+            runtime_root=stage_root,
+            smoke_root=stage_root,
+            verified_root=verified_root,
+            evidence=stage_root / "first-byte-evidence.json",
+            parent_host=None,
+        )
+        self.assertEqual(HELPER._expected_production_smoke_root(paths), stage_root)
+
+        legacy_root = verified_root / "lighttpd-runtime"
+        legacy_paths = replace(
+            paths,
+            runtime_root=legacy_root,
+            smoke_root=legacy_root,
+            evidence=legacy_root / "first-byte-evidence.json",
+        )
+        with self.assertRaisesRegex(HELPER.NamespaceUnavailable, "exact Parent"):
+            HELPER._expected_production_smoke_root(legacy_paths)
 
     def test_multiline_test_payload_keeps_command_validator_strict(self) -> None:
         """Test code transports newlines without weakening the argv boundary."""

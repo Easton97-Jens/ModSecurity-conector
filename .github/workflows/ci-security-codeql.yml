@@ -84,10 +84,16 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      # This bounded fuzz run must not inherit CodeQL's Go tracing wrapper:
+      # the wrapper consumes the 15-second fuzz budget.  The CodeQL build
+      # remains below the init step and is still extracted for analysis.
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ needs.trusted-go-version.outputs.version }}
           check-latest: false
+      - name: Fuzz Traefik UDS frame parser
+        working-directory: connectors/traefik/native_middleware
+        run: GOTOOLCHAIN=local go test -mod=readonly -run='^$' -fuzz='^FuzzUDSFrameAndResult$' -fuzztime=15s -parallel=1 .
       - uses: github/codeql-action/init@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
         with:
           languages: go
@@ -95,9 +101,6 @@ jobs:
       - name: Build Traefik Go module
         working-directory: connectors/traefik/native_middleware
         run: go build ./...
-      - name: Fuzz Traefik UDS frame parser
-        working-directory: connectors/traefik/native_middleware
-        run: GOTOOLCHAIN=local go test -mod=readonly -run='^$' -fuzz='^FuzzUDSFrameAndResult$' -fuzztime=15s -parallel=1 .
       - uses: github/codeql-action/analyze@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
 
   bounded-c-cpp:

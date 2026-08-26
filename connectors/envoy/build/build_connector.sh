@@ -6,6 +6,7 @@ CONNECTOR_DIR=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
 REPO_ROOT=$(CDPATH= cd "$CONNECTOR_DIR/../.." && pwd)
 BUILD_ROOT=${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecurity-conector-build}
 CC_BIN=${CC:-cc}
+CXX_BIN=${CXX:-c++}
 OUT_DIR="$BUILD_ROOT/envoy-connector"
 OBJ_DIR="$OUT_DIR/obj"
 SERVICE_BIN="$OUT_DIR/msconnector_envoy_ext_authz"
@@ -25,6 +26,10 @@ esac
 
 command -v "$CC_BIN" >/dev/null 2>&1 || {
     echo "envoy_connector: missing C compiler: $CC_BIN" >&2
+    exit 77
+}
+command -v "$CXX_BIN" >/dev/null 2>&1 || {
+    echo "envoy_connector: missing C++ linker/compiler: $CXX_BIN" >&2
     exit 77
 }
 
@@ -95,6 +100,20 @@ compile_source() {
     objects="$objects $object"
 }
 
+compile_cpp_source() {
+    source=$1
+    relative=${source#"$REPO_ROOT"/}
+    object_name=$(printf '%s' "$relative" | tr '/.' '__')
+    object="$OBJ_DIR/$object_name.o"
+    # Keep the typed observer isolated as C++17 PIC; Common C remains C17.
+    # shellcheck disable=SC2086
+    "$CXX_BIN" ${CXXFLAGS:-} -std=c++17 -Wall -Wextra -Werror -pthread -fPIC \
+        -I "$REPO_ROOT" -I "$REPO_ROOT/common/include" \
+        -I "$REPO_ROOT/common/runtime" -isystem "$MODSECURITY_INCLUDE_DIR" \
+        -c "$source" -o "$object"
+    objects="$objects $object"
+}
+
 for source in \
     "$REPO_ROOT"/common/src/*.c \
     "$REPO_ROOT"/common/runtime/*.c \
@@ -104,14 +123,15 @@ for source in \
 do
     compile_source "$source"
 done
+compile_cpp_source "$REPO_ROOT/common/runtime/msconnector_rule_match_observer.cc"
 
 if [ -n "$MODSECURITY_LIB_FILE" ]; then
     # shellcheck disable=SC2086
-    "$CC_BIN" ${LDFLAGS:-} $objects "$MODSECURITY_LIB_FILE" \
+    "$CXX_BIN" ${LDFLAGS:-} $objects "$MODSECURITY_LIB_FILE" \
         "-Wl,-rpath,$MODSECURITY_RUNTIME_LIB_DIR" ${LDLIBS:-} -pthread -o "$SERVICE_BIN"
 else
     # shellcheck disable=SC2086
-    "$CC_BIN" ${LDFLAGS:-} $objects -L "$MODSECURITY_RUNTIME_LIB_DIR" \
+    "$CXX_BIN" ${LDFLAGS:-} $objects -L "$MODSECURITY_RUNTIME_LIB_DIR" \
         -lmodsecurity "-Wl,-rpath,$MODSECURITY_RUNTIME_LIB_DIR" ${LDLIBS:-} -pthread \
         -o "$SERVICE_BIN"
 fi

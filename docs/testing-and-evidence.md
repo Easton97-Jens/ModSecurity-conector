@@ -19,6 +19,210 @@ bound result and receipt per selected connector, including run and commit
 identity plus cleanup status. That validation is not hosted-runtime proof and
 does not provide CRS, MRTS, HTTP/2, HTTP/3, full-matrix, or production claims.
 
+## Closed no-CRS/with-MRTS runtime route
+
+The task route based on the documented task baseline adds a separate, closed
+<code>no-crs/with-mrts</code> runtime path for exactly Envoy, Traefik, and
+lighttpd. The entry point is
+<code>ci/runtime/lifecycle/run-no-crs-with-mrts-target.py</code>; it requires
+<code>--execute-stage</code> and rejects any connector outside that three-item
+set. Apache and HAProxy continue to use their existing MRTS host route in the
+five-connector workflow; this section does not alter their contract.
+
+The route creates a private run root, verifies the Parent gitlink to
+Framework and the Framework gitlink to MRTS, and imports the MRTS cases through
+the exact checked-out Framework. The current pinned chain is:
+
+| Repository | Revision used by the route |
+| --- | --- |
+| Parent | documented task baseline `7c403fada21de4547259fef1dc4a1b079cb0cb25` |
+| Framework gitlink | `c40e924ec5c341032908e0082feba1d37ed1dfda` |
+| MRTS gitlink | `615b13bacbd008562c17408246c41ab27dca3104` |
+
+The generated plan records the three revisions, the imported case inventory
+and hashes, the generated load file, the selected profile, and the closed case
+set. The executor
+<code>ci/runtime/lifecycle/execute-no-crs-mrts-cases.py</code> sends actual
+requests through the selected live host and correlates request, transaction,
+case, expected-rule, and observed-event identifiers. It requires a
+DetectionOnly HTTP 200 result, an actual detection case, a legitimate control,
+and a benign bypass control before atomically writing the bounded result.
+
+The plan is sealed by a SHA-256 digest computed over the exact plan bytes and
+propagated through every host-adapter boundary. Before a host starts, the
+validator re-reads the sealed bytes, rejects duplicate JSON keys, verifies the
+plan digest, and reconstructs the selected cases from the exact Framework
+inventory. The selected case hashes and inventory hash must match the plan;
+changing a URI, expected event ID, or case source therefore fails closed. The
+executor receives the same digest explicitly and records it in the receipt.
+
+### Connector-isolated hosted workflow
+
+The <code>test-connectors-no-crs-with-mrts.yml</code> workflow has exactly five
+closed matrix jobs: Apache, Envoy, HAProxy, lighttpd, and Traefik. Preparation
+and execution are derived from a closed connector branch in each job, never
+from a matrix-provided command or runtime target. Apache selects only its
+<code>apache</code> runtime component and host path; HAProxy selects only its
+<code>haproxy</code> component and host path. Envoy, Traefik, and lighttpd each
+use their own literal invocation of the closed sealed-MRTS target runner. A
+job therefore does not prepare or execute another connector's runtime path;
+NGINX is absent from this workflow.
+
+Each job derives every build, source, temporary, log, and verified-run path
+from the same explicit runner, run, attempt, and connector coordinates; it
+does not rely on a sibling workflow-environment expansion. In the Traefik MRTS
+mode, the generated native middleware configuration binds correlation to
+<code>X-MRTS-Transaction-ID</code>, while its normal mode retains
+<code>X-Request-Id</code>.
+
+After evidence upload, every matrix job invokes
+<code>summarize-no-crs-with-mrts-workflow.py</code> under <code>if: always()</code>.
+It writes only the fixed step outcomes, their counts, the first non-passing
+stage, and the runtime-bundle state (<code>PASS</code>, <code>FAIL</code>,
+<code>MISSING</code>, or <code>CANCELLED</code>) to the runner-owned GitHub
+Step Summary. The summary neither parses raw runtime evidence nor changes a
+missing, skipped, or failed runtime into a capability success.
+
+The remediation uses one shared safe step-summary helper for both connector
+workflow profiles. This keeps summary formatting and path validation in one
+implementation and prevents duplicate summary logic. The target runner safely
+reuses the private build root created by the workflow before dispatch; it does
+not reconstruct that root from an ambient path. For Traefik, the short AF_UNIX
+socket directory is securely created with `tempfile.mkdtemp`; only the Traefik
+invocation receives `TMPDIR=/tmp`, while plans, logs, results, and retained
+evidence remain in the private run root. Envoy's MRTS HTTPS path verifies the
+sealed run-local certificate at the peer boundary; no insecure TLS switch or
+certificate-verification bypass is available.
+
+Rule-match evidence uses a typed native `RuleMessage` observer. It is disabled
+by default and is enabled only for the sealed MRTS runtime profile. The
+observer emits bounded metadata-only JSONL records with request and
+transaction correlation; it does not scrape audit logs, error logs, stderr, or
+request/response payloads. Native integrity and contiguous-chain validation is
+performed before the result is accepted.
+
+The sealed `mrts.load` intentionally contains the complete pinned MRTS corpus.
+Consequently, DetectionOnly uses the same canonical oracle as Apache and
+HAProxy: every case-declared expected rule ID must be observed in its exact
+correlated phase, while additional fully validated same-phase native matches
+remain recorded only when their IDs are members of the revalidated pinned rule
+inventory. They cannot replace an expected ID. An
+expected ID in a different phase fails closed, and any correlated rule match
+still fails a control or bypass case.
+
+The Parent Python boundary preserves the approved task-local venv interpreter
+without collapsing its final symlink. Symlinked parent directories are
+rejected, and the shell dispatchers pass the same approved interpreter through
+their closed boundary before MRTS materialization and child-process execution.
+The fix does not claim to rewrite the caller's `PATH`; the Framework generator
+uses its explicit `PYTHON` selection. This remediates diagnosed
+`FND-PARENT-0194`, where system Python lost the venv's
+PyYAML dependency during rule generation. The finding remains release-blocking
+until fresh runtime validation confirms the remediation.
+
+Fresh Envoy `r10` reached pinned provisioning, real host start, and readiness,
+but stopped before MRTS case execution with HTTP 500. In sealed MRTS evidence
+mode, Common requires the sole `x-mrts-transaction-id` correlation header;
+the readiness probe still sent normal-mode `X-Request-Id`. This diagnostic-only
+attempt created no MRTS receipt and is not runtime proof. The narrow current
+Parent correction selects the literal `x-mrts-transaction-id` only for MRTS
+readiness while preserving `x-request-id` for normal Envoy mode. Separately,
+the Lighttpd dispatcher now routes `MSCONNECTOR_MRTS_RUNTIME=1` only to its
+sealed full-lifecycle host executor, preserving the non-MRTS compatibility
+smoke path. Neither source correction establishes a host-runtime result.
+
+Commit `6e63fb52` contains those sealed MRTS readiness-header and Lighttpd
+dispatcher corrections. Fresh Envoy `r11` then reached real Envoy/ext-proc
+start and the corrected readiness path, but is diagnostic-only: it stopped
+before MRTS case receipts because valid unrelated readiness events were
+phase-checked before transaction/URI correlation. The valid unrelated
+transaction `envoy-ext-proc-readiness-1` contains `request_body`,
+`response_headers`, and `response_body` records; their presence is not a
+runtime success claim.
+
+The narrow executor correction keeps duplicate-safe parsing, exact schema,
+native hash, and global chain validation for every event line. It uses a finite
+native phase mapping, ignores only fully valid unrelated transaction/URI
+records after that validation, and keeps a relevant event with the wrong phase
+fail-closed. `FND-PARENT-0198` tracks this Parent-owned ordering defect. Fresh
+post-fix Envoy receipts and an independent repetition remain required.
+
+Fresh Envoy `r12c` reached the pinned build, real ext-proc host start,
+readiness, and a DetectionOnly request, but produced no valid MRTS receipt. A
+second executor-classification issue treated valid same-transaction
+`response_headers` and `response_body` rule matches as invalid merely because
+they are outside the selected request-body profile. Those nonexpected
+same-request response-phase records must remain integrity-validated, then sit
+outside the selected request-body acceptance profile. In contrast, an expected
+rule ID at a wrong phase and all control/bypass expectations remain
+fail-closed. A post-fix fresh host run is still required before any runtime
+classification.
+
+This profile is explicitly no-CRS. The route rejects CRS references in the
+generated MRTS load file and passes the repository-owned no-CRS rules only as
+the active non-CRS input. The route does not enable, acquire, cache, or reuse
+OWASP CRS. The generated plan, result, event log, host summary, and cleanup
+state remain under the private run root; they are runtime evidence, not source
+files to commit.
+
+The three host adapters must start their real connector and execute this plan
+while that connector is live:
+
+- Envoy uses the existing ext-proc host path;
+- Traefik uses the existing native middleware host path; and
+- lighttpd uses the existing patched native host path.
+
+The task changes neither the <code>with-crs/with-mrts</code> negative targets
+for these connectors nor NGINX. It also makes no Framework or MRTS source
+change; the Framework and MRTS revisions above are consumed as exact
+gitlinks.
+
+### Evidence status for this task
+
+At documentation time, the route and its contracts are present in the task
+worktree. The observed local validation includes 97 focused Python contract
+tests, shell syntax checks for the changed runners, Python compilation,
+`check-common-security-contract.py`, `check-adapter-contracts.py`,
+`check-remaining-connectors-build-wiring.py`, and `git diff --check`. The
+Envoy and Traefik Go checks used `/usr/local/go/bin/go` `go1.26.6` with
+`GOTOOLCHAIN=local`: `gofmt`, `go mod verify`, `go list -deps ./...`,
+`go test ./...`, `go vet ./...`, and `govulncheck ./...` passed (the Traefik
+module was run from `connectors/traefik/native_middleware`; the first longer
+temporary socket path was replaced by a private short test root). C/C++
+syntax checks and the repository C17 remaining-connector check also passed.
+The broad C++ security scan was kept at its original C/H baseline plus the
+new typed observer `.cc` file; the pre-existing `common/scripts/
+modsecurity_targeted_eval.cc` was not exempted. Four pre-existing ShellCheck
+SC1007 warnings remain in the Envoy configuration helper.
+The subsequent focused Envoy/Lighttpd contract pair passed 50 tests, and
+`sh -n` passed for the two changed dispatch scripts. These are local contract
+checks only. The focused target-runner suite for the r11 phase correction
+passed 28 tests; its security review found no concrete blocker. Neither result
+substitutes for fresh real-host evidence.
+
+The 2026-08-23 branch reconciliation added the connector-isolation and summary
+contracts. Its selected Parent suite passed 188 tests (four expected skips
+from the local nested Framework checkout not matching the Parent-recorded
+gitlink), and the focused CI-security suite passed 125 tests (five expected
+skips). Pinned actionlint and offline zizmor reported no workflow finding. The
+repository and hosted workflow still require <code>.go-version</code>
+<code>1.26.7</code>; this local environment exposes
+<code>/usr/local/go/bin/go1.26.6</code>. Under explicit user direction the
+local difference is documented rather than acquired, upgraded, or hidden; it
+is not an exact hosted Go-contract result.
+
+The prior exact PR head <code>da25068e</code> had observed SonarQube Cloud
+success: 0.0% duplication on new code, Reliability A, Security A, and zero
+new bugs, vulnerabilities, or hotspots. At the time of this observation before
+this documentation update, PR #335 was Draft/BEHIND at head
+<code>541356440c926dfa935d52dc303315e316668cbf</code>. Runtime jobs, Required
+Checks, and SonarQube Cloud analysis for each subsequent PR head remain
+<code>PENDING</code> until their exact-head evidence exists. A static plan,
+inventory, parser test, or workflow
+contract must not be promoted to a runtime <code>PASS</code>. See the paired
+[Change Record](../reports/audits/change-records/CR-20260820-no-crs-with-mrts-runtime.md)
+for the bounded delivery state and limitations.
+
 ## Test layers
 
 | Layer | Typical target | Establishes | Does not establish |

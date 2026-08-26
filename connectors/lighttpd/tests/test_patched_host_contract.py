@@ -1080,6 +1080,49 @@ class PatchedHostContractTest(unittest.TestCase):
         self.assertNotIn("wire bytes", runner)
         self.assertIn(': "${NO_CRS_RUN_ID:?NO_CRS_RUN_ID is required}"', runner)
 
+    def test_mrts_dispatch_selects_full_lifecycle_host_executor(self) -> None:
+        dispatcher = (CONNECTOR / "harness" / "run_patched_lifecycle_smoke.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            '[ "${NO_CRS_ARTIFACT_PROFILE:-}" = full_lifecycle ] ||', dispatcher
+        )
+        self.assertIn(
+            '[ "${MSCONNECTOR_MRTS_RUNTIME:-0}" = 1 ]; then', dispatcher
+        )
+        self.assertIn('exec sh "$SCRIPT_DIR/run_patched_full_lifecycle.sh"', dispatcher)
+        self.assertNotIn(
+            'if [ "${MSCONNECTOR_MRTS_RUNTIME:-0}" = 0 ]; then', dispatcher
+        )
+
+    def test_mrts_executor_uses_verified_top_level_root_not_smoke_root(self) -> None:
+        runner = (CONNECTOR / "harness" / "run_patched_full_lifecycle.sh").read_text(
+            encoding="utf-8"
+        )
+        executor = runner.split(
+            '"$PYTHON_BIN" "$MRTS_RUNTIME_EXECUTOR" \\\n', 1
+        )[1].split('fail "MRTS runtime executor failed"', 1)[0]
+        self.assertIn('--runtime-root "$VERIFIED_RUN_ROOT"', executor)
+        self.assertNotIn('--runtime-root "$SMOKE_DIR"', executor)
+        self.assertIn('"$MRTS_RUNTIME_PLAN"', runner)
+        self.assertIn('"$MRTS_RUNTIME_RESULT"', runner)
+        self.assertIn('MRTS_RUNTIME_PLAN_SHA256', runner)
+        self.assertIn('--plan-sha256 "$MRTS_RUNTIME_PLAN_SHA256"', runner)
+        self.assertIn('"$EVENT_PATH"', runner)
+        self.assertIn('path.resolve(strict=False).relative_to(smoke_resolved)', runner)
+        self.assertIn('"build" / "stages" / "lighttpd"', runner)
+        self.assertIn('"no_crs_with_mrts" / "runtime"', runner)
+
+    def test_mrts_runtime_root_boundary_rejects_checkout_and_non_private_roots(self) -> None:
+        runner = (CONNECTOR / "harness" / "run_patched_full_lifecycle.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('VERIFIED_RUN_ROOT must be outside the repository checkout', runner)
+        self.assertIn('VERIFIED_RUN_ROOT must be owner-controlled with exact mode 0700', runner)
+        self.assertIn('contains a symbolic-link component', runner)
+        self.assertIn('VERIFIED_RUN_ROOT must be an existing directory', runner)
+        self.assertIn('SMOKE_DIR must be the canonical Lighttpd MRTS stage root', runner)
+
         serve_command = runner.split(
             '"$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --serve', 1
         )[1].split("BARRIER_PID=$!", 1)[0]
@@ -1305,6 +1348,71 @@ class PatchedHostContractTest(unittest.TestCase):
             self.assertEqual(summary_value["phase4_end_of_stream_evaluation_status"], 200)
             self.assertEqual(summary_value["phase4_first_byte_before_response_end_status"], 200)
             self.assertEqual(summary_value["phase4_no_full_response_buffering_status"], 200)
+
+
+class NativeConfigModeTest(unittest.TestCase):
+    def test_full_lifecycle_passes_derived_mrts_mode_to_native_config(self) -> None:
+        runner = (CONNECTOR / "harness" / "run_patched_full_lifecycle.sh").read_text(
+            encoding="utf-8"
+        )
+        config_setup = runner.split("LIGHTTPD_CONFIG=$( \\\n", 1)[1].split(")\nconfigure_mrts", 1)[0]
+
+        self.assertIn('MSCONNECTOR_MRTS_RUNTIME="$MRTS_RUNTIME_MODE"', config_setup)
+
+    def test_full_lifecycle_validates_the_derived_mode_not_ambient_environment(self) -> None:
+        runner = (CONNECTOR / "harness" / "run_patched_full_lifecycle.sh").read_text(
+            encoding="utf-8"
+        )
+        check = runner.split("configure_mrts_request_id_header() {", 1)[1].split(
+            "write_mrts_runtime_summary()", 1
+        )[0]
+
+        self.assertIn('"$SMOKE_DIR/msconnector-runtime.conf" "$MRTS_RUNTIME_MODE"', check)
+        self.assertNotIn('"$LIGHTTPD_CONFIG" "$MRTS_RUNTIME_MODE"', check)
+        self.assertNotIn('\nconfig = Path(sys.argv[1])\n', check)
+        self.assertNotIn('os.environ.get("MSCONNECTOR_MRTS_RUNTIME", "0")', check)
+
+    def test_prepare_native_config_has_sealed_mrts_mode_and_safe_normal_mode(self) -> None:
+        preparer = CONNECTOR / "harness" / "prepare_native_smoke.sh"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            rules = root / "rules.conf"
+            rules.write_text("SecRuleEngine DetectionOnly\n", encoding="utf-8")
+            configs: dict[str, str] = {}
+            for mode in ("0", "1"):
+                smoke = root / f"smoke-{mode}"
+                environment = os.environ.copy()
+                environment.update(
+                    {
+                        "BUILD_ROOT": str(root / "build"),
+                        "LIGHTTPD_SMOKE_DIR": str(smoke),
+                        "LIGHTTPD_SMOKE_PORT": str(18084 + int(mode)),
+                        "MSCONNECTOR_RULES_FILE": str(rules),
+                        "MSCONNECTOR_MRTS_RUNTIME": mode,
+                    }
+                )
+                result = subprocess.run(
+                    ["sh", str(preparer)],
+                    cwd=REPO_ROOT,
+                    env=environment,
+                    check=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                configs[mode] = (smoke / "msconnector-runtime.conf").read_text(
+                    encoding="utf-8"
+                )
+                if mode == "1":
+                    event_path = smoke / "events.jsonl"
+                    self.assertFalse(event_path.exists())
+                    self.assertIn(f"event_path={event_path}\n", configs[mode])
+            self.assertIn("transaction_id_header=x-modsec-transaction-id\n", configs["0"])
+            self.assertIn("emit_rule_match_evidence=off\n", configs["0"])
+            self.assertIn("transaction_id_header=x-mrts-transaction-id\n", configs["1"])
+            self.assertIn("emit_rule_match_evidence=on\n", configs["1"])
+            self.assertNotIn("transaction_id_header=x-request-id\n", configs["1"])
 
 
 if __name__ == "__main__":

@@ -482,10 +482,21 @@ def _production_runtime_paths(environment: Mapping[str, str]) -> ProductionRunti
 
 def _expected_production_smoke_root(paths: ProductionRuntimePaths) -> Path:
     with_crs_smoke = paths.runtime_root / "host"
-    no_crs_smoke = paths.verified_root / "lighttpd-runtime"
+    no_crs_smoke = (
+        paths.verified_root
+        / "build"
+        / "stages"
+        / "lighttpd"
+        / "no_crs_with_mrts"
+        / "runtime"
+    )
     if paths.smoke_root == with_crs_smoke and paths.parent_host == with_crs_smoke:
         return with_crs_smoke
-    if paths.smoke_root == no_crs_smoke and paths.parent_host is None:
+    if (
+        paths.runtime_root == no_crs_smoke
+        and paths.smoke_root == no_crs_smoke
+        and paths.parent_host is None
+    ):
         return no_crs_smoke
     raise NamespaceUnavailable("No-CRS namespace writable root is not an exact Parent Lighttpd runtime root")
 
