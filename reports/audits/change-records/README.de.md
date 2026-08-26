@@ -11,6 +11,14 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260826-p1-p4-connector-security-scan](CR-20260826-p1-p4-connector-security-scan.de.md) —
+  die benutzerautorisierte Parent-only-P1–P4-Parity-Aufgabe schloss einen
+  versiegelten Scoped-Security-Scan ab. Dieser gekoppelte Record unterscheidet
+  einen lokal reproduzierten P0/high-Traefik-Native-UDS-Body-Inspection-Bypass
+  von acht im Source bestätigten Kandidaten, dokumentiert ergänzte bestehende
+  Findings und behauptet keine Source-Behebung, Framework-/MRTS-Änderung,
+  Gitlink-Update, CI-Änderung, Hosted-Ergebnis oder Merge.
+
 - [CR-20260826-p1-p4-connector-parity-baseline](CR-20260826-p1-p4-connector-parity-baseline.de.md) —
   der Benutzer autorisierte ein schrittweises Parent-only-P1–P4-
   Connector-Paritätsprogramm aus einem separaten Worktree mit regelmäßig

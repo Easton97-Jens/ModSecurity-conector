@@ -10,6 +10,14 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260826-p1-p4-connector-security-scan](CR-20260826-p1-p4-connector-security-scan.md)
+  | [Deutsch](CR-20260826-p1-p4-connector-security-scan.de.md) — the user-
+  authorized Parent-only P1–P4 parity task completed a sealed scoped security
+  scan. This paired record distinguishes one locally reproduced P0/high
+  Traefik Native UDS body-inspection bypass from eight source-confirmed
+  candidates, records enriched existing findings, and asserts no source repair,
+  Framework/MRTS change, Gitlink update, CI change, hosted result, or merge.
+
 - [CR-20260826-p1-p4-connector-parity-baseline](CR-20260826-p1-p4-connector-parity-baseline.md)
   | [Deutsch](CR-20260826-p1-p4-connector-parity-baseline.de.md) — the user
   authorized a step-by-step Parent-only P1–P4 connector-parity program from a
