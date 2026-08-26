@@ -39,6 +39,7 @@ def dedicated_rule_match_event(
     rule_id: str = "100000",
     phase: str = "request_body",
     previous_event_hash: int = 0,
+    sequence: int = 1,
 ) -> dict[str, object]:
     event: dict[str, object] = {
         "timestamp": "2026-08-20T12:34:56Z",
@@ -81,12 +82,39 @@ def dedicated_rule_match_event(
         "eos_seen": False,
         "redacted": False,
         "truncated": False,
-        "sequence": 1,
+        "sequence": sequence,
         "previous_event_hash": previous_event_hash,
         "event_hash": 0,
     }
     event["event_hash"] = EXECUTOR.rule_match_event_hash(event)
     return event
+
+
+def apache_rule_match_event(**values: object) -> dict[str, object]:
+    return dedicated_rule_match_event(
+        connector="apache", phase="request_headers", **values,
+    )
+
+
+def write_event_log(event_log: Path, *events: dict[str, object]) -> None:
+    event_log.write_text(
+        "\n".join(json.dumps(event) for event in events) + "\n",
+        encoding="utf-8",
+    )
+
+
+def apache_event_ids(
+    event_log: Path, expected_ids: set[str], allowed_rule_ids: set[str],
+) -> set[str]:
+    return EXECUTOR.event_ids(
+        event_log,
+        "run-0001",
+        "apache",
+        "/?foo=attack",
+        "request_headers",
+        expected_ids,
+        allowed_rule_ids,
+    )
 
 
 def haproxy_decision_event(
@@ -167,6 +195,19 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
         self.assertEqual(TARGET.rule_match_event_phase("envoy"), "request_body")
         with self.assertRaisesRegex(SystemExit, "outside the closed"):
             TARGET.rule_match_event_phase("nginx")
+
+    def test_rule_match_integrity_chain_scopes_are_closed_and_native(self):
+        self.assertEqual(
+            EXECUTOR.RULE_MATCH_INTEGRITY_CHAIN_SCOPE_BY_CONNECTOR,
+            {
+                "apache": "transaction",
+                "envoy": "global",
+                "lighttpd": "global",
+                "traefik": "global",
+            },
+        )
+        with self.assertRaisesRegex(SystemExit, "no closed native integrity-chain scope"):
+            EXECUTOR.rule_match_integrity_chain_scope("nginx")
 
     def test_active_go_executable_uses_the_existing_absolute_binary(self):
         go = Path(TARGET.shutil.which("go") or "")
@@ -906,23 +947,34 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
 
     def test_event_ids_accepts_globally_chained_unrelated_event_before_target(self):
         with tempfile.TemporaryDirectory() as directory:
-            event_log = Path(directory) / "events.jsonl"
-            first = dedicated_rule_match_event(
-                transaction_id="other-run", uri="/?foo=other"
-            )
-            second = dedicated_rule_match_event(
-                previous_event_hash=int(first["event_hash"])
-            )
-            event_log.write_text(
-                json.dumps(first) + "\n" + json.dumps(second) + "\n",
-                encoding="utf-8",
-            )
-            self.assertEqual(
-                EXECUTOR.event_ids(
-                    event_log, "run-0001", "envoy", "/?foo=attack", "request_body", {"100000"}, {"100000"}
-                ),
-                {"100000"},
-            )
+            for connector in ("envoy", "lighttpd", "traefik"):
+                with self.subTest(connector=connector):
+                    event_log = Path(directory) / f"{connector}-events.jsonl"
+                    first = dedicated_rule_match_event(
+                        connector=connector,
+                        transaction_id="other-run",
+                        uri="/?foo=other",
+                    )
+                    second = dedicated_rule_match_event(
+                        connector=connector,
+                        previous_event_hash=int(first["event_hash"]),
+                    )
+                    event_log.write_text(
+                        json.dumps(first) + "\n" + json.dumps(second) + "\n",
+                        encoding="utf-8",
+                    )
+                    self.assertEqual(
+                        EXECUTOR.event_ids(
+                            event_log,
+                            "run-0001",
+                            connector,
+                            "/?foo=attack",
+                            "request_body",
+                            {"100000"},
+                            {"100000"},
+                        ),
+                        {"100000"},
+                    )
 
     def test_event_ids_accepts_interleaved_globally_chained_events(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1011,6 +1063,95 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
                     {"100000"},
                     {"100000", "100001"},
                 )
+
+    def test_event_ids_accepts_interleaved_apache_transaction_chains(self):
+        with tempfile.TemporaryDirectory() as directory:
+            event_log = Path(directory) / "events.jsonl"
+            first_target = apache_rule_match_event()
+            first_other = apache_rule_match_event(
+                transaction_id="other-run", uri="/?foo=other",
+            )
+            second_target = apache_rule_match_event(
+                rule_id="100001",
+                previous_event_hash=int(first_target["event_hash"]),
+                sequence=2,
+            )
+            second_other = apache_rule_match_event(
+                transaction_id="other-run",
+                uri="/?foo=other",
+                rule_id="100001",
+                previous_event_hash=int(first_other["event_hash"]),
+                sequence=2,
+            )
+            write_event_log(
+                event_log, first_target, first_other, second_target, second_other,
+            )
+            self.assertEqual(
+                apache_event_ids(
+                    event_log, {"100000", "100001"}, {"100000", "100001"},
+                ),
+                {"100000", "100001"},
+            )
+
+    def test_event_ids_rejects_apache_transaction_chain_reused_with_new_start(self):
+        with tempfile.TemporaryDirectory() as directory:
+            event_log = Path(directory) / "events.jsonl"
+            first = apache_rule_match_event()
+            duplicate_start = apache_rule_match_event(rule_id="100001")
+            write_event_log(event_log, first, duplicate_start)
+            with self.assertRaisesRegex(
+                SystemExit, "does not continue the native integrity chain",
+            ):
+                apache_event_ids(event_log, {"100000"}, {"100000", "100001"})
+
+    def test_event_ids_rejects_apache_transaction_sequence_gap(self):
+        with tempfile.TemporaryDirectory() as directory:
+            event_log = Path(directory) / "events.jsonl"
+            first = apache_rule_match_event()
+            sequence_gap = apache_rule_match_event(
+                rule_id="100001",
+                previous_event_hash=int(first["event_hash"]),
+                sequence=3,
+            )
+            write_event_log(event_log, first, sequence_gap)
+            with self.assertRaisesRegex(
+                SystemExit, "does not continue the native transaction sequence",
+            ):
+                apache_event_ids(event_log, {"100000"}, {"100000", "100001"})
+
+    def test_event_ids_rejects_apache_first_event_chained_from_other_transaction(self):
+        with tempfile.TemporaryDirectory() as directory:
+            event_log = Path(directory) / "events.jsonl"
+            other = apache_rule_match_event(
+                transaction_id="other-run", uri="/?foo=other",
+            )
+            target = apache_rule_match_event(
+                previous_event_hash=int(other["event_hash"]),
+            )
+            write_event_log(event_log, other, target)
+            with self.assertRaisesRegex(
+                SystemExit, "first rule-match event does not start",
+            ):
+                apache_event_ids(event_log, {"100000"}, {"100000"})
+
+    def test_event_ids_rejects_cross_connector_event_before_correlation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            event_log = Path(directory) / "events.jsonl"
+            write_event_log(event_log, dedicated_rule_match_event())
+            with self.assertRaisesRegex(SystemExit, "invalid connector"):
+                apache_event_ids(event_log, {"100000"}, {"100000"})
+
+    def test_apache_control_and_bypass_reject_correlated_rule_match(self):
+        with tempfile.TemporaryDirectory() as directory:
+            event_log = Path(directory) / "events.jsonl"
+            write_event_log(event_log, apache_rule_match_event())
+            observed = apache_event_ids(event_log, set(), {"100000"})
+            for case_kind in ("control", "bypass"):
+                with self.subTest(case_kind=case_kind):
+                    with self.assertRaisesRegex(SystemExit, "unexpectedly matched rules"):
+                        EXECUTOR.require_case_rule_matches(
+                            case_kind, f"apache-{case_kind}", set(), observed,
+                        )
 
     def test_event_ids_integrity_validates_and_ignores_unrelated_response_phase(self):
         with tempfile.TemporaryDirectory() as directory:

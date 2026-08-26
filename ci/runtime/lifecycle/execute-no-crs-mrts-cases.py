@@ -36,6 +36,12 @@ RULE_MATCH_EVENT_PHASE_BY_CONNECTOR = {
     "lighttpd": "request_body",
     "traefik": "request_body",
 }
+RULE_MATCH_INTEGRITY_CHAIN_SCOPE_BY_CONNECTOR = {
+    "apache": "transaction",
+    "envoy": "global",
+    "lighttpd": "global",
+    "traefik": "global",
+}
 HAPROXY_DECISION_REQUIRED_KEYS = frozenset({
     "timestamp", "connector", "mode", "runtime_mode", "variant", "case",
     "request_id", "transaction_id", "phase", "live_executed",
@@ -515,6 +521,37 @@ def validate_event_chain(item: dict[str, Any], previous_event_hash: int | None) 
         fail("rule-match event does not continue the native integrity chain")
 
 
+def validate_transaction_event_chain(
+    item: dict[str, Any], previous: tuple[int, int] | None,
+) -> None:
+    """Validate Apache's request-owned native integrity chain.
+
+    Apache appends events from independent requests to one file, but its native
+    producer intentionally resets sequence and predecessor hash per request.
+    A repeated transaction ID may not create a second chain: its next event
+    must continue the retained hash and sequence exactly.
+    """
+
+    if previous is None:
+        validate_event_chain(item, None)
+        if item["sequence"] != 1:
+            fail("first Apache rule-match event does not start at native sequence 1")
+        return
+    previous_event_hash, previous_sequence = previous
+    validate_event_chain(item, previous_event_hash)
+    if item["sequence"] != previous_sequence + 1:
+        fail("rule-match event does not continue the native transaction sequence")
+
+
+def rule_match_integrity_chain_scope(connector: str) -> str:
+    """Return the closed native evidence-chain scope for one Common adapter."""
+
+    scope = RULE_MATCH_INTEGRITY_CHAIN_SCOPE_BY_CONNECTOR.get(connector)
+    if scope is None:
+        fail("rule-match connector has no closed native integrity-chain scope")
+    return scope
+
+
 def correlate_event(
     item: dict[str, Any], rule_id: str, correlation_id: str, connector: str,
     uri: str, expected_phase: str, expected_ids: set[str],
@@ -657,14 +694,14 @@ def event_ids(
     integration_mode = RULE_MATCH_INTEGRATION_MODES.get(connector)
     if integration_mode is None:
         fail("rule-match connector is outside the closed profile")
+    chain_scope = rule_match_integrity_chain_scope(connector)
     found: set[str] = set()
-    # The native runtime owns one serialized integrity chain for its complete
-    # append-only evidence stream.  It deliberately does not reset the chain
-    # when a transaction changes, so readiness and unrelated requests remain
-    # authenticated predecessors of a relevant MRTS event.  Validate every
-    # record before correlation; a transaction-local chain would accept a
-    # reset, deletion, or reordering across requests.
+    # Every record remains schema- and hash-validated before correlation. The
+    # native producer, not test data, selects its scope from the closed map:
+    # Apache owns a chain per request, whereas the Common adapters serialize
+    # one append-only runtime chain across requests.
     previous_event_hash: int | None = None
+    transaction_predecessors: dict[str, tuple[int, int]] = {}
     for line in read_bounded_event_log(event_log, missing_is_empty=True):
         item = parse_event_record(line)
         # Validate the complete native record and chain before correlating it.
@@ -675,8 +712,16 @@ def event_ids(
         rule_id, event_hash = validate_rule_match_event(
             item, connector, integration_mode
         )
-        validate_event_chain(item, previous_event_hash)
-        previous_event_hash = event_hash
+        if chain_scope == "global":
+            validate_event_chain(item, previous_event_hash)
+            previous_event_hash = event_hash
+        elif chain_scope == "transaction":
+            transaction_id = item["transaction_id"]
+            previous = transaction_predecessors.get(transaction_id)
+            validate_transaction_event_chain(item, previous)
+            transaction_predecessors[transaction_id] = (event_hash, item["sequence"])
+        else:
+            fail("rule-match connector has an invalid native integrity-chain scope")
         correlate_event(
             item, rule_id, correlation_id, connector, uri, expected_phase,
             expected_ids, allowed_rule_ids, found,
