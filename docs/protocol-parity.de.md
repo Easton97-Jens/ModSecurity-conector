@@ -117,6 +117,10 @@ keine weitergehende Behauptung.
 
 ## Delivery-Status
 
-Dieser Workstream ist noch nicht committed, gepushed oder durch einen erstellten
-Pull Request vertreten. Kein Merge hat stattgefunden. Das Framework-Submodul
-und MRTS bleiben unverändert.
+Commit `5e7b34d1887984f74d061872d7652a3f71d87856` ist als
+`feature/http2-http3-protocol-parity` gepusht und durch Draft-PR
+[#348](https://github.com/Easton97-Jens/ModSecurity-conector/pull/348)
+vertreten. Bei der initialen Delivery-Verifikation stimmten lokaler, Remote- und
+PR-Head-SHA überein. CI-Prüfungen waren in Warteschlange oder in Ausführung und
+werden nicht als bestanden behauptet. Kein Merge hat stattgefunden. Das
+Framework-Submodul und MRTS bleiben unverändert.

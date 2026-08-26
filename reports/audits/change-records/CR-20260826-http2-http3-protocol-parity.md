@@ -9,7 +9,7 @@
 | Change ID | `CR-20260826-http2-http3-protocol-parity` |
 | Date (UTC) | 2026-08-26 |
 | Base revision | `6ccfd8de555855ac540fc4d3d9e330f82d5e8cff` |
-| Delivery status | Not yet committed, pushed, or represented by a created pull request; no merge. |
+| Delivery status | Committed as `5e7b34d1887984f74d061872d7652a3f71d87856`, pushed to `feature/http2-http3-protocol-parity`, and represented by Draft PR [#348](https://github.com/Easton97-Jens/ModSecurity-conector/pull/348); local, remote, and PR head matched at initial delivery verification. No merge. |
 
 ## Motivation and problem statement
 
@@ -145,7 +145,11 @@ fully verified.
 
 ## Final diff and review status
 
-This is an in-progress independent workstream. The paired documentation and
-Change Record report only supplied results. The workstream is not yet
-committed, pushed, or represented by a created pull request; no merge has
+This is an independent Draft-PR workstream. The paired documentation and
+Change Record report only observed results. Commit
+`5e7b34d1887984f74d061872d7652a3f71d87856` is pushed as
+`feature/http2-http3-protocol-parity` and represented by Draft PR
+[#348](https://github.com/Easton97-Jens/ModSecurity-conector/pull/348).
+At initial delivery verification, the local, remote, and PR-head SHAs matched. CI
+checks were queued or in progress and are not claimed as passed. No merge has
 occurred.

@@ -111,6 +111,9 @@ evidence and does not support a broader claim.
 
 ## Delivery state
 
-This workstream is not yet committed, pushed, or represented by a created
-pull request. No merge has occurred. The Framework submodule and MRTS remain
-unchanged.
+Commit `5e7b34d1887984f74d061872d7652a3f71d87856` is pushed as
+`feature/http2-http3-protocol-parity` and represented by Draft PR
+[#348](https://github.com/Easton97-Jens/ModSecurity-conector/pull/348).
+At initial delivery verification, local, remote, and PR-head SHAs matched. CI checks
+were queued or in progress and are not claimed as passed. No merge has
+occurred. The Framework submodule and MRTS remain unchanged.

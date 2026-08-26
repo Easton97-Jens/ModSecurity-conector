@@ -9,7 +9,7 @@
 | Change-ID | `CR-20260826-http2-http3-protocol-parity` |
 | Datum (UTC) | 2026-08-26 |
 | Basis-Revision | `6ccfd8de555855ac540fc4d3d9e330f82d5e8cff` |
-| Delivery-Status | Noch nicht committed, gepushed oder durch einen erstellten Pull Request vertreten; kein Merge. |
+| Delivery-Status | Als `5e7b34d1887984f74d061872d7652a3f71d87856` committed, nach `feature/http2-http3-protocol-parity` gepusht und durch Draft-PR [#348](https://github.com/Easton97-Jens/ModSecurity-conector/pull/348) vertreten; lokaler, Remote- und PR-Head stimmten bei der initialen Delivery-Verifikation überein. Kein Merge. |
 
 ## Motivation und Problemstellung
 
@@ -151,7 +151,11 @@ Kein Security-Finding ist vollständig verifiziert.
 
 ## Finaler Diff- und Review-Status
 
-Dies ist ein unabhängiger laufender Workstream. Die gepaarte Dokumentation und
-der Change Record berichten ausschließlich die gelieferten Ergebnisse. Der
-Workstream ist noch nicht committed, gepushed oder durch einen erstellten Pull
-Request vertreten; kein Merge hat stattgefunden.
+Dies ist ein unabhängiger Draft-PR-Workstream. Die gepaarte Dokumentation und
+der Change Record berichten ausschließlich beobachtete Ergebnisse. Commit
+`5e7b34d1887984f74d061872d7652a3f71d87856` ist als
+`feature/http2-http3-protocol-parity` gepusht und durch Draft-PR
+[#348](https://github.com/Easton97-Jens/ModSecurity-conector/pull/348)
+vertreten. Bei der initialen Delivery-Verifikation stimmten lokaler, Remote- und
+PR-Head-SHA überein. CI-Prüfungen waren in Warteschlange oder in Ausführung und
+werden nicht als bestanden behauptet. Kein Merge hat stattgefunden.
