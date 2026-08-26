@@ -26,10 +26,24 @@ BUILD_PROVENANCE=${HAPROXY_HTX_BUILD_PROVENANCE:-$(dirname "$(dirname "$HAPROXY_
 FIRST_BYTE_EVIDENCE_PATH=${FULL_LIFECYCLE_EVIDENCE_OUTPUT:-$RUNTIME_ROOT/first-byte-evidence.json}
 RUN_ID=${NO_CRS_RUN_ID:-haproxy-htx-local}
 readonly HAPROXY_HTX_DIAGNOSTIC_RANGE='1,160p'
+readonly HAPROXY_HTX_CHILD_STOP_ATTEMPTS=5
+readonly HAPROXY_HTX_CHILD_STOP_DELAY_SECONDS=1
 upstream_pid=
+upstream_pid_token=
 haproxy_pid=
+haproxy_pid_token=
+haproxy_command_pid=
+haproxy_command_pid_token=
 sync_upstream_pid=
+sync_upstream_pid_token=
 streaming_client_pid=
+streaming_client_pid_token=
+owned_child_captured_token=
+owned_launch_pending=
+owned_launch_pid=
+owned_launch_token=
+owned_launch_label=
+owned_launch_signal_status=
 
 missing_dependency() {
     reason=$1
@@ -57,56 +71,413 @@ helper() {
     esac
 }
 
+start_helper() {
+    # This function is called only as a background job. exec keeps the
+    # recorded background PID bound to the Python worker rather than a shell
+    # wrapper, so cleanup can reliably stop and reap that worker.
+    helper_command=$1
+    shift
+    case "$helper_command" in
+        free-port|wait-port)
+            exec "$PYTHON_BIN" "$HELPER" "$helper_command" "$@"
+            ;;
+        *)
+            exec "$PYTHON_BIN" "$HELPER" "$helper_command" "$@" --runtime-root "$RUNTIME_ROOT"
+            ;;
+    esac
+}
+
+start_haproxy_command() {
+    # The caller starts this function in the background. exec preserves the
+    # tracked PID when HAProxy replaces the shell process.
+    exec "$HAPROXY_BIN" "$@"
+}
+
+read_owned_process_stat_field() {
+    owned_process_pid=$1
+    owned_process_field=$2
+    case "$owned_process_pid" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    case "$owned_process_field" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    [ -r "/proc/$owned_process_pid/stat" ] || return 1
+    IFS= read -r owned_process_stat_line < "/proc/$owned_process_pid/stat" || return 1
+    case "$owned_process_stat_line" in
+        *') '*) ;;
+        *) return 1 ;;
+    esac
+    # `comm` can contain spaces and right parentheses. Strip through its last
+    # closing delimiter, then count fields after it (state is field 1 here).
+    owned_process_stat_fields=${owned_process_stat_line##*) }
+    owned_process_saved_ifs=$IFS
+    IFS=' '
+    set -- $owned_process_stat_fields
+    IFS=$owned_process_saved_ifs
+    owned_process_index=1
+    for owned_process_value do
+        if [ "$owned_process_index" -eq "$owned_process_field" ]; then
+            owned_process_stat_value=$owned_process_value
+            [ -n "$owned_process_stat_value" ] || return 1
+            return 0
+        fi
+        owned_process_index=$((owned_process_index + 1))
+    done
+    return 1
+}
+
+owned_child_stat_field() {
+    read_owned_process_stat_field "$1" "$2" || return 1
+    printf '%s\n' "$owned_process_stat_value"
+}
+
+read_process_start_token() {
+    read_owned_process_stat_field "$1" 20 || return 1
+    case "$owned_process_stat_value" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    owned_process_start_token=$owned_process_stat_value
+    return 0
+}
+
+owned_child_start_token() {
+    read_process_start_token "$1" || return 1
+    printf '%s\n' "$owned_process_start_token"
+}
+
+owned_child_has_runner_parent() {
+    read_owned_process_stat_field "$1" 2 || return 1
+    case "$owned_process_stat_value" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    [ "$owned_process_stat_value" = "$$" ]
+}
+
+read_owned_child_identity_token() {
+    owned_child_identity_pid=$1
+    owned_child_has_runner_parent "$owned_child_identity_pid" || return 1
+    read_process_start_token "$owned_child_identity_pid" || return 1
+    owned_child_identity_token=$owned_process_start_token
+    return 0
+}
+
+owned_child_is_current() {
+    owned_child_current_pid=$1
+    owned_child_expected_token=$2
+    read_owned_child_identity_token "$owned_child_current_pid" || return 1
+    [ "$owned_child_identity_token" = "$owned_child_expected_token" ]
+}
+
+owned_child_is_zombie() {
+    read_owned_process_stat_field "$1" 1 || return 1
+    [ "$owned_process_stat_value" = Z ]
+}
+
+wait_for_owned_child_stop() {
+    child_pid=$1
+    child_token=$2
+    child_label=$3
+    child_attempt=0
+    while [ "$child_attempt" -lt "$HAPROXY_HTX_CHILD_STOP_ATTEMPTS" ]; do
+        if ! kill -0 "$child_pid" 2>/dev/null; then
+            return 0
+        fi
+        if ! owned_child_is_current "$child_pid" "$child_token"; then
+            printf 'haproxy_htx_runtime: refusing to signal changed %s PID %s\n' \
+                "$child_label" "$child_pid" >&2
+            return 1
+        fi
+        if owned_child_is_zombie "$child_pid"; then
+            return 0
+        fi
+        child_attempt=$((child_attempt + 1))
+        sleep "$HAPROXY_HTX_CHILD_STOP_DELAY_SECONDS"
+    done
+    return 1
+}
+
+stop_owned_child() {
+    child_pid=$1
+    child_token=$2
+    child_label=$3
+    [ -n "$child_pid" ] || return 0
+    case "$child_token" in
+        ''|*[!0-9]*)
+            printf 'haproxy_htx_runtime: missing owned-process identity for %s PID %s\n' \
+                "$child_label" "$child_pid" >&2
+            # A signal can arrive after `$!` is assigned and before the
+            # start token is captured. Only the direct-parent fallback may
+            # clean that child; it refuses every unbound or changed PID.
+            discard_direct_child_without_token "$child_pid" "$child_label"
+            return $?
+            ;;
+    esac
+    if kill -0 "$child_pid" 2>/dev/null; then
+        if ! owned_child_is_current "$child_pid" "$child_token"; then
+            printf 'haproxy_htx_runtime: refusing to signal changed %s PID %s\n' \
+                "$child_label" "$child_pid" >&2
+            return 1
+        fi
+        if ! owned_child_is_zombie "$child_pid"; then
+            if ! kill -TERM "$child_pid" 2>/dev/null; then
+                if kill -0 "$child_pid" 2>/dev/null && ! owned_child_is_zombie "$child_pid"; then
+                    printf 'haproxy_htx_runtime: owned %s PID %s did not accept SIGTERM\n' \
+                        "$child_label" "$child_pid" >&2
+                    return 1
+                fi
+            fi
+        fi
+    fi
+    if ! wait_for_owned_child_stop "$child_pid" "$child_token" "$child_label"; then
+        if kill -0 "$child_pid" 2>/dev/null; then
+            if ! owned_child_is_current "$child_pid" "$child_token"; then
+                printf 'haproxy_htx_runtime: refusing to signal changed %s PID %s\n' \
+                    "$child_label" "$child_pid" >&2
+                return 1
+            fi
+            if ! owned_child_is_zombie "$child_pid"; then
+                if ! kill -KILL "$child_pid" 2>/dev/null; then
+                    if kill -0 "$child_pid" 2>/dev/null && ! owned_child_is_zombie "$child_pid"; then
+                        printf 'haproxy_htx_runtime: owned %s PID %s did not accept SIGKILL\n' \
+                            "$child_label" "$child_pid" >&2
+                        return 1
+                    fi
+                fi
+            fi
+            if ! wait_for_owned_child_stop "$child_pid" "$child_token" "$child_label"; then
+                printf 'haproxy_htx_runtime: owned %s PID %s did not stop within the bounded timeout\n' \
+                    "$child_label" "$child_pid" >&2
+                return 1
+            fi
+        fi
+    fi
+    set +e
+    wait "$child_pid" 2>/dev/null
+    set -e
+    return 0
+}
+
+discard_direct_child_without_token() {
+    child_pid=$1
+    child_label=$2
+    if ! owned_child_has_runner_parent "$child_pid"; then
+        printf 'haproxy_htx_runtime: refusing to signal unbound %s PID %s\n' \
+            "$child_label" "$child_pid" >&2
+        return 1
+    fi
+    if kill -0 "$child_pid" 2>/dev/null && ! owned_child_is_zombie "$child_pid"; then
+        if ! owned_child_has_runner_parent "$child_pid"; then
+            printf 'haproxy_htx_runtime: refusing to signal changed %s PID %s\n' \
+                "$child_label" "$child_pid" >&2
+            return 1
+        fi
+        kill -TERM "$child_pid" 2>/dev/null || true
+    fi
+    child_attempt=0
+    while [ "$child_attempt" -lt "$HAPROXY_HTX_CHILD_STOP_ATTEMPTS" ]; do
+        if ! kill -0 "$child_pid" 2>/dev/null || owned_child_is_zombie "$child_pid"; then
+            set +e
+            wait "$child_pid" 2>/dev/null
+            set -e
+            return 0
+        fi
+        if ! owned_child_has_runner_parent "$child_pid"; then
+            printf 'haproxy_htx_runtime: refusing to signal changed %s PID %s\n' \
+                "$child_label" "$child_pid" >&2
+            return 1
+        fi
+        child_attempt=$((child_attempt + 1))
+        sleep "$HAPROXY_HTX_CHILD_STOP_DELAY_SECONDS"
+    done
+    if kill -0 "$child_pid" 2>/dev/null && ! owned_child_is_zombie "$child_pid"; then
+        if ! owned_child_has_runner_parent "$child_pid"; then
+            printf 'haproxy_htx_runtime: refusing to signal changed %s PID %s\n' \
+                "$child_label" "$child_pid" >&2
+            return 1
+        fi
+        kill -KILL "$child_pid" 2>/dev/null || true
+    fi
+    child_attempt=0
+    while [ "$child_attempt" -lt "$HAPROXY_HTX_CHILD_STOP_ATTEMPTS" ]; do
+        if ! kill -0 "$child_pid" 2>/dev/null || owned_child_is_zombie "$child_pid"; then
+            set +e
+            wait "$child_pid" 2>/dev/null
+            set -e
+            return 0
+        fi
+        child_attempt=$((child_attempt + 1))
+        sleep "$HAPROXY_HTX_CHILD_STOP_DELAY_SECONDS"
+    done
+    printf 'haproxy_htx_runtime: could not reap direct %s PID %s after token capture failed\n' \
+        "$child_label" "$child_pid" >&2
+    return 1
+}
+
+capture_owned_child_token() {
+    child_pid=$1
+    child_label=$2
+    owned_child_captured_token=
+    if read_owned_child_identity_token "$child_pid"; then
+        owned_child_captured_token=$owned_child_identity_token
+        return 0
+    fi
+    printf 'haproxy_htx_runtime: could not bind owned %s PID %s\n' \
+        "$child_label" "$child_pid" >&2
+    discard_direct_child_without_token "$child_pid" "$child_label" || true
+    return 1
+}
+
+clear_owned_launch() {
+    owned_launch_pending=
+    owned_launch_pid=
+    owned_launch_token=
+    owned_launch_label=
+    owned_launch_signal_status=
+}
+
+start_owned_child() {
+    owned_launch_label=$1
+    shift
+    owned_launch_pending=yes
+    owned_launch_pid=
+    owned_launch_token=
+    owned_launch_signal_status=
+    "$@" &
+    owned_launch_pid=$!
+    if ! capture_owned_child_token "$owned_launch_pid" "$owned_launch_label"; then
+        if [ -n "$owned_launch_signal_status" ]; then
+            owned_launch_deferred_signal_status=$owned_launch_signal_status
+            cleanup_on_signal "$owned_launch_deferred_signal_status"
+        fi
+        clear_owned_launch
+        return 1
+    fi
+    owned_launch_token=$owned_child_captured_token
+    if [ -n "$owned_launch_signal_status" ]; then
+        owned_launch_deferred_signal_status=$owned_launch_signal_status
+        cleanup_on_signal "$owned_launch_deferred_signal_status"
+    fi
+    return 0
+}
+
+run_owned_haproxy_command() {
+    haproxy_command_label=$1
+    shift
+    if ! start_owned_child "$haproxy_command_label" start_haproxy_command "$@"; then
+        haproxy_command_pid=
+        haproxy_command_pid_token=
+        return 1
+    fi
+    haproxy_command_pid_token=$owned_launch_token
+    haproxy_command_pid=$owned_launch_pid
+    clear_owned_launch
+    if wait "$haproxy_command_pid"; then
+        haproxy_command_status=0
+    else
+        haproxy_command_status=$?
+    fi
+    haproxy_command_pid=
+    haproxy_command_pid_token=
+    return "$haproxy_command_status"
+}
+
+require_owned_process_identity() {
+    read_process_start_token "$$" >/dev/null 2>&1 || \
+        missing_dependency "Linux /proc process identity is required before starting owned children"
+}
+
 cleanup_haproxy() {
-    if [ -n "$haproxy_pid" ] && kill -0 "$haproxy_pid" 2>/dev/null; then
-        kill "$haproxy_pid" 2>/dev/null || true
-    fi
-    if [ -n "$haproxy_pid" ]; then
-        set +e
-        wait "$haproxy_pid" 2>/dev/null
-        set -e
-    fi
+    [ -n "$haproxy_pid" ] || return 0
+    cleanup_child_pid=$haproxy_pid
+    cleanup_child_token=$haproxy_pid_token
     haproxy_pid=
+    haproxy_pid_token=
+    stop_owned_child "$cleanup_child_pid" "$cleanup_child_token" "HAProxy"
+}
+
+cleanup_haproxy_command() {
+    [ -n "$haproxy_command_pid" ] || return 0
+    cleanup_child_pid=$haproxy_command_pid
+    cleanup_child_token=$haproxy_command_pid_token
+    haproxy_command_pid=
+    haproxy_command_pid_token=
+    stop_owned_child "$cleanup_child_pid" "$cleanup_child_token" "HAProxy command"
 }
 
 cleanup_streaming_client() {
-    if [ -n "$streaming_client_pid" ] && kill -0 "$streaming_client_pid" 2>/dev/null; then
-        kill "$streaming_client_pid" 2>/dev/null || true
-    fi
-    if [ -n "$streaming_client_pid" ]; then
-        set +e
-        wait "$streaming_client_pid" 2>/dev/null
-        set -e
-    fi
+    [ -n "$streaming_client_pid" ] || return 0
+    cleanup_child_pid=$streaming_client_pid
+    cleanup_child_token=$streaming_client_pid_token
     streaming_client_pid=
+    streaming_client_pid_token=
+    stop_owned_child "$cleanup_child_pid" "$cleanup_child_token" "streaming client"
 }
 
 cleanup_synchronized_upstream() {
-    if [ -n "$sync_upstream_pid" ] && kill -0 "$sync_upstream_pid" 2>/dev/null; then
-        kill "$sync_upstream_pid" 2>/dev/null || true
-    fi
-    if [ -n "$sync_upstream_pid" ]; then
-        set +e
-        wait "$sync_upstream_pid" 2>/dev/null
-        set -e
-    fi
+    [ -n "$sync_upstream_pid" ] || return 0
+    cleanup_child_pid=$sync_upstream_pid
+    cleanup_child_token=$sync_upstream_pid_token
     sync_upstream_pid=
+    sync_upstream_pid_token=
+    stop_owned_child "$cleanup_child_pid" "$cleanup_child_token" "synchronized upstream"
+}
+
+cleanup_upstream() {
+    [ -n "$upstream_pid" ] || return 0
+    cleanup_child_pid=$upstream_pid
+    cleanup_child_token=$upstream_pid_token
+    upstream_pid=
+    upstream_pid_token=
+    stop_owned_child "$cleanup_child_pid" "$cleanup_child_token" "upstream"
+}
+
+cleanup_pending_owned_launch() {
+    [ -n "$owned_launch_pid" ] || return 0
+    cleanup_child_pid=$owned_launch_pid
+    cleanup_child_token=$owned_launch_token
+    cleanup_child_label=$owned_launch_label
+    owned_launch_pid=
+    owned_launch_token=
+    owned_launch_pending=
+    stop_owned_child "$cleanup_child_pid" "$cleanup_child_token" "$cleanup_child_label"
 }
 
 cleanup() {
-    cleanup_streaming_client
-    cleanup_haproxy
-    cleanup_synchronized_upstream
-    if [ -n "$upstream_pid" ] && kill -0 "$upstream_pid" 2>/dev/null; then
-        kill "$upstream_pid" 2>/dev/null || true
-    fi
-    if [ -n "$upstream_pid" ]; then
-        set +e
-        wait "$upstream_pid" 2>/dev/null
-        set -e
-    fi
+    cleanup_failed=0
+    cleanup_pending_owned_launch || cleanup_failed=1
+    cleanup_haproxy_command || cleanup_failed=1
+    cleanup_streaming_client || cleanup_failed=1
+    cleanup_haproxy || cleanup_failed=1
+    cleanup_synchronized_upstream || cleanup_failed=1
+    cleanup_upstream || cleanup_failed=1
+    return "$cleanup_failed"
 }
-trap cleanup EXIT HUP INT TERM
+
+cleanup_on_signal() {
+    signal_status=$1
+    # An asynchronous child can start before this shell receives `$!`. Keep
+    # the first cancellation pending until the child is registered, then run
+    # the ordinary bounded cleanup path rather than losing that child.
+    if [ "$owned_launch_pending" = yes ] && [ -z "$owned_launch_pid" ]; then
+        [ -n "$owned_launch_signal_status" ] || \
+            owned_launch_signal_status=$signal_status
+        return 0
+    fi
+    # A signal must terminate this runner after cleanup. Ignoring later
+    # signals keeps the bounded owned-process cleanup from being interrupted.
+    trap - EXIT
+    trap '' HUP INT TERM
+    if ! cleanup; then
+        echo "haproxy_htx_runtime: FAIL - signal cleanup could not stop every owned process" >&2
+    fi
+    exit "$signal_status"
+}
+
+trap cleanup EXIT
+trap 'cleanup_on_signal 129' HUP
+trap 'cleanup_on_signal 130' INT
+trap 'cleanup_on_signal 143' TERM
 
 generate_loopback_tls_certificate() {
     command -v openssl >/dev/null 2>&1 || missing_dependency "OpenSSL is required for the local TLS smoke client"
@@ -132,6 +503,7 @@ generate_loopback_tls_certificate() {
 [ -f "$BUILD_PROVENANCE" ] || missing_dependency "HTX overlay provenance is missing: $BUILD_PROVENANCE"
 [ -f "$CANONICAL_RULES_FILE" ] || missing_dependency "canonical No-CRS rules are missing: $CANONICAL_RULES_FILE"
 command -v "$PYTHON_BIN" >/dev/null 2>&1 || missing_dependency "Python interpreter is missing: $PYTHON_BIN"
+require_owned_process_identity
 
 case "$RUNTIME_ROOT" in
     /*) ;;
@@ -185,7 +557,10 @@ generate_loopback_tls_certificate
 }
 rm -f "$EVENT_LOG_PATH" "$HOST_EVIDENCE_LOG_PATH" "$SUMMARY" "$UPSTREAM_LOG"
 
-"$HAPROXY_BIN" -vv >"$VERSION_FILE" 2>&1
+if ! run_owned_haproxy_command "HAProxy version probe" -vv >"$VERSION_FILE" 2>&1; then
+    echo "haproxy_htx_runtime: FAIL - HAProxy version probe failed" >&2
+    exit 1
+fi
 if ! grep -Fq "HAProxy version $HAPROXY_HTX_VERSION" "$VERSION_FILE"; then
     echo "haproxy_htx_runtime: FAIL - patched binary is not HAProxy $HAPROXY_HTX_VERSION" >&2
     sed -n '1,40p' "$VERSION_FILE" >&2 || true
@@ -193,9 +568,16 @@ if ! grep -Fq "HAProxy version $HAPROXY_HTX_VERSION" "$VERSION_FILE"; then
 fi
 
 upstream_port=$(helper free-port)
-helper serve-upstream --port "$upstream_port" --request-log "$UPSTREAM_LOG" \
-    >"$RUNTIME_ROOT/upstream.stdout.log" 2>"$RUNTIME_ROOT/upstream.stderr.log" &
-upstream_pid=$!
+if ! start_owned_child "upstream" start_helper serve-upstream \
+    --port "$upstream_port" --request-log "$UPSTREAM_LOG" \
+    >"$RUNTIME_ROOT/upstream.stdout.log" 2>"$RUNTIME_ROOT/upstream.stderr.log"; then
+    upstream_pid=
+    upstream_pid_token=
+    exit 1
+fi
+upstream_pid_token=$owned_launch_token
+upstream_pid=$owned_launch_pid
+clear_owned_launch
 phase2_upstream_request_count=not_observed
 phase2_request_dispatch_observed=not_observed
 phase2_host_action=enforced_reply
@@ -233,15 +615,23 @@ run_case() {
         echo "haproxy_htx_runtime: FAIL - generated $case_name rules use temporary 91000x IDs" >&2
         exit 1
     fi
-    if ! "$HAPROXY_BIN" -c -f "$config_file" >"$case_root/config-check.stdout.log" \
+    if ! run_owned_haproxy_command "HAProxy configuration check" -c -f "$config_file" \
+        >"$case_root/config-check.stdout.log" \
         2>"$case_root/config-check.stderr.log"; then
         echo "haproxy_htx_runtime: FAIL - HAProxy rejected $case_name HTX config" >&2
         sed -n "$HAPROXY_HTX_DIAGNOSTIC_RANGE" "$case_root/config-check.stderr.log" >&2 || true
         exit 1
     fi
 
-    "$HAPROXY_BIN" -db -f "$config_file" >"$case_root/haproxy.stdout.log" 2>"$log_file" &
-    haproxy_pid=$!
+    if ! start_owned_child "HAProxy" start_haproxy_command -db -f "$config_file" \
+        >"$case_root/haproxy.stdout.log" 2>"$log_file"; then
+        haproxy_pid=
+        haproxy_pid_token=
+        exit 1
+    fi
+    haproxy_pid_token=$owned_launch_token
+    haproxy_pid=$owned_launch_pid
+    clear_owned_launch
     ready=0
     attempt=0
     while [ "$attempt" -lt 30 ]; do
@@ -400,13 +790,19 @@ run_phase4_safe_barrier() {
     # still absent, and waits for this runner to release it.  That makes the
     # client-first-byte observation a real host boundary rather than a
     # post-response fixture check.
-    "$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --serve \
+    if ! start_owned_child "synchronized upstream" "$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --serve \
         --control-root "$case_root" \
         --ready-file "$ready_file" --paused-file "$paused_file" \
         --release-file "$release_file" --server-evidence-file "$server_evidence_file" \
         --timeout 10 >"$case_root/synchronized-upstream.stdout.log" \
-        2>"$case_root/synchronized-upstream.stderr.log" &
-    sync_upstream_pid=$!
+        2>"$case_root/synchronized-upstream.stderr.log"; then
+        sync_upstream_pid=
+        sync_upstream_pid_token=
+        exit 1
+    fi
+    sync_upstream_pid_token=$owned_launch_token
+    sync_upstream_pid=$owned_launch_pid
+    clear_owned_launch
     if ! helper wait-file --path "$ready_file" --timeout 10; then
         echo "haproxy_htx_runtime: FAIL - $case_name synchronized upstream did not become ready" >&2
         sed -n "$HAPROXY_HTX_DIAGNOSTIC_RANGE" "$case_root/synchronized-upstream.stderr.log" >&2 || true
@@ -430,15 +826,23 @@ run_phase4_safe_barrier() {
         echo "haproxy_htx_runtime: FAIL - generated $case_name rules use temporary 91000x IDs" >&2
         exit 1
     fi
-    if ! "$HAPROXY_BIN" -c -f "$config_file" >"$case_root/config-check.stdout.log" \
+    if ! run_owned_haproxy_command "HAProxy configuration check" -c -f "$config_file" \
+        >"$case_root/config-check.stdout.log" \
         2>"$case_root/config-check.stderr.log"; then
         echo "haproxy_htx_runtime: FAIL - HAProxy rejected $case_name HTX config" >&2
         sed -n "$HAPROXY_HTX_DIAGNOSTIC_RANGE" "$case_root/config-check.stderr.log" >&2 || true
         exit 1
     fi
 
-    "$HAPROXY_BIN" -db -f "$config_file" >"$case_root/haproxy.stdout.log" 2>"$log_file" &
-    haproxy_pid=$!
+    if ! start_owned_child "HAProxy" start_haproxy_command -db -f "$config_file" \
+        >"$case_root/haproxy.stdout.log" 2>"$log_file"; then
+        haproxy_pid=
+        haproxy_pid_token=
+        exit 1
+    fi
+    haproxy_pid_token=$owned_launch_token
+    haproxy_pid=$owned_launch_pid
+    clear_owned_launch
     ready=0
     attempt=0
     while [ "$attempt" -lt 30 ]; do
@@ -459,13 +863,19 @@ run_phase4_safe_barrier() {
         exit 1
     fi
 
-    helper streaming-probe \
+    if ! start_owned_child "streaming client" start_helper streaming-probe \
         --url "https://127.0.0.1:$listener_port/no-crs/response-body" \
         --release-path "$release_file" --first-byte-path "$client_first_byte_file" \
         --evidence-path "$client_probe_file" --tls-certificate "$TLS_CA_CERTIFICATE_PATH" --timeout 10 \
         >"$case_root/streaming-client.stdout.log" \
-        2>"$case_root/streaming-client.stderr.log" &
-    streaming_client_pid=$!
+        2>"$case_root/streaming-client.stderr.log"; then
+        streaming_client_pid=
+        streaming_client_pid_token=
+        exit 1
+    fi
+    streaming_client_pid_token=$owned_launch_token
+    streaming_client_pid=$owned_launch_pid
+    clear_owned_launch
     if ! helper wait-file --path "$paused_file" --timeout 10 || \
         ! helper wait-file --path "$client_first_byte_file" --timeout 10; then
         echo "haproxy_htx_runtime: FAIL - $case_name did not observe a client first byte before upstream EOS" >&2
@@ -490,12 +900,14 @@ run_phase4_safe_barrier() {
         exit 1
     fi
     streaming_client_pid=
+    streaming_client_pid_token=
     if ! wait "$sync_upstream_pid"; then
         echo "haproxy_htx_runtime: FAIL - $case_name synchronized upstream failed after release" >&2
         sed -n "$HAPROXY_HTX_DIAGNOSTIC_RANGE" "$case_root/synchronized-upstream.stderr.log" >&2 || true
         exit 1
     fi
     sync_upstream_pid=
+    sync_upstream_pid_token=
     helper validate-synchronized-upstream --path "$server_evidence_file"
 
     status=$(helper probe-status --path "$client_probe_file")
@@ -590,8 +1002,11 @@ fi
     printf 'production_ready=false\n'
 } > "$SUMMARY"
 
-cleanup
-upstream_pid=
+if ! cleanup; then
+    echo "haproxy_htx_runtime: FAIL - cleanup could not stop every owned process" >&2
+    trap - EXIT HUP INT TERM
+    exit 1
+fi
 trap - EXIT HUP INT TERM
 printf 'processes_stopped=yes\n' >> "$SUMMARY"
 printf 'haproxy_htx_runtime: pass (real-host precommit evidence, non-promoted) summary=%s\n' "$SUMMARY"
