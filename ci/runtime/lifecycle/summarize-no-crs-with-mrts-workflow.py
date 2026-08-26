@@ -45,8 +45,10 @@ STAGES = (
     ("runtime", "Real connector MRTS host runtime", "RUNTIME_OUTCOME"),
     ("upload_evidence", "Isolated runtime evidence publication", "UPLOAD_EVIDENCE_OUTCOME"),
 )
-TARGET_GO_PROVENANCE_STAGE = "snapshot_go"
-TARGET_GO_PROVENANCE_NOT_APPLICABLE_CONNECTORS = frozenset(("apache", "haproxy"))
+GO_TOOLCHAIN_NOT_APPLICABLE_STAGES = frozenset(
+    ("setup_go", "verify_go", "snapshot_go")
+)
+GO_TOOLCHAIN_NOT_APPLICABLE_CONNECTORS = frozenset(("apache", "haproxy"))
 
 
 def require_connector(value: str) -> str:
@@ -60,16 +62,21 @@ def outcomes_from_environment(environment: Mapping[str, str]) -> dict[str, str]:
 def _summary_stages(
     connector: str, outcomes: Mapping[str, str]
 ) -> tuple[tuple[str, str, str], ...]:
-    """Exclude only the intentionally absent target-Go snapshot from metrics."""
+    """Exclude intentional connector-inapplicable Go stages from metrics.
 
-    if connector not in TARGET_GO_PROVENANCE_NOT_APPLICABLE_CONNECTORS:
+    Apache and HAProxy never invoke Go in this profile.  A skipped Go setup,
+    version check, or provenance snapshot is therefore neither a workload
+    failure nor an incomplete runtime check for those isolated jobs.
+    """
+
+    if connector not in GO_TOOLCHAIN_NOT_APPLICABLE_CONNECTORS:
         return STAGES
     return tuple(
         stage
         for stage in STAGES
         if not (
-            stage[0] == TARGET_GO_PROVENANCE_STAGE
-            and outcomes[TARGET_GO_PROVENANCE_STAGE] == "skipped"
+            stage[0] in GO_TOOLCHAIN_NOT_APPLICABLE_STAGES
+            and outcomes[stage[0]] == "skipped"
         )
     )
 
@@ -99,19 +106,30 @@ def render_summary(connector: str, outcomes: Mapping[str, str]) -> str:
         ),
     )
     if (
-        connector in TARGET_GO_PROVENANCE_NOT_APPLICABLE_CONNECTORS
-        and outcomes[TARGET_GO_PROVENANCE_STAGE] == "skipped"
+        connector in GO_TOOLCHAIN_NOT_APPLICABLE_CONNECTORS
+        and any(
+            outcomes[stage] == "skipped"
+            for stage in GO_TOOLCHAIN_NOT_APPLICABLE_STAGES
+        )
     ):
         marker = "| Connector-local stage | Actual outcome |\n| --- | --- |\n"
+        rows = "".join(
+            f"| {label} | `not_applicable` |\n"
+            for stage, label, _environment_name in STAGES
+            if (
+                stage in GO_TOOLCHAIN_NOT_APPLICABLE_STAGES
+                and outcomes[stage] == "skipped"
+            )
+        )
         summary = summary.replace(
             marker,
-            marker + "| Verified setup-Go binary provenance | `not_applicable` |\n",
+            marker + rows,
             1,
         )
         summary = summary.replace(
             "a connector capability pass.",
-            "a connector capability pass. The target-Go provenance snapshot is intentionally "
-            "not applicable to this connector and is excluded from pass/fail metrics.",
+            "a connector capability pass. Go toolchain and provenance checks are intentionally "
+            "not applicable to this connector and are excluded from pass/fail metrics.",
             1,
         )
     return summary

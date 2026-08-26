@@ -31,7 +31,6 @@ jobs:
       CONNECTOR: ${{ matrix.connector }}
       CRS_VARIANT: no-crs
       MRTS_VARIANT: with-mrts
-      GOTOOLCHAIN: local
       MODSECURITY_TEST_VARIANT: no-crs
       MODSECURITY_MRTS_VARIANT: with-mrts
       PYTHONDONTWRITEBYTECODE: "1"
@@ -53,6 +52,7 @@ jobs:
 
       - name: Set up Go
         id: setup-go
+        if: ${{ matrix.connector == 'envoy' || matrix.connector == 'traefik' || matrix.connector == 'lighttpd' }}
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: .go-version
@@ -66,6 +66,9 @@ jobs:
 
       - name: Verify Go version contract without acquisition
         id: verify-go
+        if: ${{ matrix.connector == 'envoy' || matrix.connector == 'traefik' || matrix.connector == 'lighttpd' }}
+        env:
+          GOTOOLCHAIN: local
         run: |
           set -euo pipefail
           expected_go_version="$(tr -d '[:space:]' < .go-version)"
@@ -160,10 +163,20 @@ jobs:
           esac
           case "$CONNECTOR" in
             apache)
-              RUNTIME_COMPONENT_TARGET=apache make full-matrix-single-job-runtime CONNECTOR=apache CRS=no-crs MRTS=with-mrts
+              ./.venv/bin/python ci/runtime/lifecycle/run-no-crs-with-mrts-target.py \
+                --connector apache \
+                --execute-stage \
+                --parent-root "$GITHUB_WORKSPACE" \
+                --framework-root "$FRAMEWORK_ROOT" \
+                --runtime-root "$RUNTIME_ROOT"
               ;;
             haproxy)
-              RUNTIME_COMPONENT_TARGET=haproxy make full-matrix-single-job-runtime CONNECTOR=haproxy CRS=no-crs MRTS=with-mrts
+              ./.venv/bin/python ci/runtime/lifecycle/run-no-crs-with-mrts-target.py \
+                --connector haproxy \
+                --execute-stage \
+                --parent-root "$GITHUB_WORKSPACE" \
+                --framework-root "$FRAMEWORK_ROOT" \
+                --runtime-root "$RUNTIME_ROOT"
               ;;
             envoy)
               ./.venv/bin/python ci/runtime/lifecycle/run-no-crs-with-mrts-target.py \

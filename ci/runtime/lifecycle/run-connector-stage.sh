@@ -53,8 +53,10 @@ case "$stage" in
 esac
 
 require_mrts_stage_connector() {
-    [ "$connector" = envoy ] || [ "$connector" = traefik ] || [ "$connector" = lighttpd ] || {
-        echo "FAIL: no_crs_with_mrts is closed to envoy, traefik, and lighttpd" >&2
+    [ "$connector" = apache ] || [ "$connector" = envoy ] || \
+        [ "$connector" = haproxy ] || [ "$connector" = traefik ] || \
+        [ "$connector" = lighttpd ] || {
+        echo "FAIL: no_crs_with_mrts is closed to apache, envoy, haproxy, lighttpd, and traefik" >&2
         exit 2
     }
     [ "${MSCONNECTOR_MRTS_RUNTIME:-}" = 1 ] || {
@@ -76,6 +78,7 @@ require_mrts_stage_configuration() {
     [ -n "${MRTS_RUNTIME_RULES_ROOT:-}" ] || { echo "FAIL: MRTS_RUNTIME_RULES_ROOT is required" >&2; exit 2; }
     [ -n "${MRTS_LOAD_FILE:-}" ] || { echo "FAIL: MRTS_LOAD_FILE is required" >&2; exit 2; }
     [ -n "${MRTS_CASE_ROOT:-}" ] || { echo "FAIL: MRTS_CASE_ROOT is required" >&2; exit 2; }
+    [ -n "${EVENT_LOG:-}" ] || { echo "FAIL: EVENT_LOG is required" >&2; exit 2; }
     MRTS_PYTHON_BIN=${PYTHON_BIN:-${PYTHON:-}}
     [ -n "$MRTS_PYTHON_BIN" ] || { echo "FAIL: no_crs_with_mrts requires an explicit PYTHON_BIN or PYTHON" >&2; exit 2; }
     if [ -n "${PYTHON_BIN:-}" ] && [ -n "${PYTHON:-}" ] && [ "$PYTHON_BIN" != "$PYTHON" ]; then
@@ -144,6 +147,18 @@ validate_mrts_runtime_files() {
     [ ! -L "$MRTS_RUNTIME_EXECUTOR" ] || { echo "FAIL: MRTS runtime executor must not be a symlink" >&2; exit 77; }
 }
 
+validate_mrts_event_log() {
+    expected_event_log=$BUILD_ROOT/stages/$connector/no_crs_with_mrts/runtime/events.jsonl
+    [ "$EVENT_LOG" = "$expected_event_log" ] || {
+        echo "FAIL: EVENT_LOG does not match the closed connector runtime layout" >&2
+        exit 77
+    }
+    event_parent=$(dirname "$EVENT_LOG")
+    [ -d "$event_parent" ] || { echo "FAIL: EVENT_LOG parent is missing" >&2; exit 77; }
+    [ ! -L "$event_parent" ] || { echo "FAIL: EVENT_LOG parent must not be a symlink" >&2; exit 77; }
+    [ ! -e "$EVENT_LOG" ] || { echo "FAIL: EVENT_LOG must be created by the native host" >&2; exit 77; }
+}
+
 validate_mrts_runtime_plan() {
     actual_mrts_executor_sha256=$("$MRTS_PYTHON_BIN" -c 'import hashlib, pathlib, sys; print(hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest())' "$MRTS_RUNTIME_EXECUTOR") || {
         echo "FAIL: MRTS runtime executor digest calculation failed" >&2
@@ -178,6 +193,7 @@ validate_mrts_stage_inputs() {
     require_mrts_stage_configuration
     validate_mrts_runtime_paths
     validate_mrts_runtime_files
+    validate_mrts_event_log
     validate_mrts_runtime_plan
     [ -d "$MRTS_RUNTIME_RULES_ROOT" ] || { echo "FAIL: MRTS runtime rules root is not a directory: $MRTS_RUNTIME_RULES_ROOT" >&2; exit 77; }
     [ ! -L "$MRTS_RUNTIME_RULES_ROOT" ] || { echo "FAIL: MRTS runtime rules root must not be a symlink" >&2; exit 77; }
@@ -477,6 +493,65 @@ run_remaining_connector() {
         sh "$CONNECTOR_ROOT/ci/runtime/lifecycle/run-remaining-connector-target.sh" "$connector" "$target"
 }
 
+run_mrts_native_host() {
+    native_connector=$1
+    native_harness=$2
+    case "$native_connector" in
+        apache)
+            haproxy_detection_only=0
+            ;;
+        haproxy)
+            haproxy_detection_only=1
+            ;;
+        *)
+            echo "FAIL: unsupported native MRTS host route: $native_connector" >&2
+            exit 2
+            ;;
+    esac
+    [ "$connector" = "$native_connector" ] || {
+        echo "FAIL: native MRTS host connector mismatch" >&2
+        exit 77
+    }
+    umask 077
+    exec "$CONNECTOR_ROOT/ci/provisioning/cache/with-runtime-components.sh" env \
+        CONNECTOR_ROOT="$CONNECTOR_ROOT" \
+        FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
+        VERIFIED_RUN_ROOT="$VERIFIED_RUN_ROOT" \
+        VERIFIED_COMPONENT_CACHE="$VERIFIED_COMPONENT_CACHE" \
+        CACHE_ROOT="$CACHE_ROOT" \
+        CONNECTOR_COMPONENT_CACHE="$CONNECTOR_COMPONENT_CACHE" \
+        BUILD_ROOT="$BUILD_ROOT" \
+        TMP_ROOT="$TMP_ROOT" \
+        LOG_ROOT="$LOG_ROOT" \
+        LOG_DIR="$LOG_ROOT/$native_connector-mrts-runtime" \
+        RESULTS_DIR="$RESULTS_DIR" \
+        RUNTIME_ROOT="$BUILD_ROOT/stages/$native_connector/no_crs_with_mrts/runtime" \
+        RUNTIME_BASE="$BUILD_ROOT/stages/$native_connector/no_crs_with_mrts/runtime" \
+        RUNTIME_REPORT_OUTPUT_ROOT="$RUNTIME_REPORT_OUTPUT_ROOT" \
+        RUNTIME_COMPONENT_TARGET="$RUNTIME_COMPONENT_TARGET" \
+        PYTHON="$MRTS_PYTHON_BIN" \
+        PYTHON_BIN="$MRTS_PYTHON_BIN" \
+        NO_CRS_BASELINE=1 \
+        MODSECURITY_TEST_VARIANT=no-crs \
+        MODSECURITY_MRTS_VARIANT=with-mrts \
+        MODSECURITY_RULE_PREAMBLE_FILE="$NO_CRS_RULES_FILE" \
+        MSCONNECTOR_MRTS_RUNTIME=1 \
+        MSCONNECTOR_SMOKE_STAGE=minimal_runtime_smoke \
+        RUN_ONE_CASE=1 \
+        TEST_CASE=allow_without_marker \
+        HAPROXY_DETECTION_ONLY="$haproxy_detection_only" \
+        MRTS_RUNTIME_PLAN="$MRTS_RUNTIME_PLAN" \
+        MRTS_RUNTIME_PLAN_SHA256="$MRTS_RUNTIME_PLAN_SHA256" \
+        MRTS_RUNTIME_RESULT="$MRTS_RUNTIME_RESULT" \
+        MRTS_RUNTIME_EXECUTOR="$MRTS_RUNTIME_EXECUTOR" \
+        MRTS_RUNTIME_EXECUTOR_SHA256="$MRTS_RUNTIME_EXECUTOR_SHA256" \
+        MRTS_RUNTIME_RULES_ROOT="$MRTS_RUNTIME_RULES_ROOT" \
+        MRTS_LOAD_FILE="$MRTS_LOAD_FILE" \
+        MRTS_CASE_ROOT="$MRTS_CASE_ROOT" \
+        MRTS_RUNTIME_EVENT_LOG="$EVENT_LOG" \
+        sh "$CONNECTOR_ROOT/$native_harness"
+}
+
 run_full_lifecycle_haproxy_htx() {
     # The overlay build is connector-local while its pinned source and
     # libmodsecurity prerequisites remain in Cache-v2 shared components.
@@ -503,6 +578,12 @@ run_full_lifecycle_haproxy_htx() {
 }
 
 case "$connector:$stage" in
+    apache:no_crs_with_mrts)
+        run_mrts_native_host apache connectors/apache/harness/run_apache_smoke.sh
+        ;;
+    haproxy:no_crs_with_mrts)
+        run_mrts_native_host haproxy connectors/haproxy/harness/run_haproxy_smoke.sh
+        ;;
     apache:build)
         run_framework_host run-apache-smoke.sh build
         ;;

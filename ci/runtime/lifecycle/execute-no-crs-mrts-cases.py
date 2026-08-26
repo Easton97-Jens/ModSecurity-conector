@@ -10,6 +10,7 @@ import json
 import os
 import secrets
 import ssl
+import stat
 import struct
 import sys
 from pathlib import Path
@@ -22,10 +23,29 @@ FNV64_OFFSET = 14_695_981_039_346_656_037
 FNV64_PRIME = 1_099_511_628_211
 FNV64_MASK = (1 << 64) - 1
 RULE_MATCH_INTEGRATION_MODES = {
+    "apache": "native-httpd-module",
     "envoy": "ext_proc",
+    "haproxy": "spoe-spop-agent",
     "traefik": "native-traefik-middleware",
     "lighttpd": "patched-native-lighttpd",
 }
+RULE_MATCH_EVENT_PHASE_BY_CONNECTOR = {
+    "apache": "request_headers",
+    "envoy": "request_body",
+    "haproxy": "request_body",
+    "lighttpd": "request_body",
+    "traefik": "request_body",
+}
+HAPROXY_DECISION_REQUIRED_KEYS = frozenset({
+    "timestamp", "connector", "mode", "runtime_mode", "variant", "case",
+    "request_id", "transaction_id", "phase", "live_executed",
+    "modsecurity_processed", "request_headers_seen", "request_body_seen",
+    "response_headers_seen", "response_body_seen", "expected_status",
+    "observed_status", "result", "decision", "disruptive",
+    "intervention_status", "http_status", "redirect_present", "rule_id",
+    "anomaly_score", "audit_log_path", "haproxy_log_path", "spoa_log_path",
+    "reason_code", "reason",
+})
 RULE_MATCH_EVENT_KEYS = frozenset({
     "timestamp", "level", "message_id", "message", "event", "connector",
     "integration_mode", "transaction_id", "phase", "status", "action",
@@ -451,6 +471,42 @@ def parse_event_record(line: str) -> dict[str, Any]:
     return item
 
 
+def read_bounded_event_log(event_log: Path, *, missing_is_empty: bool) -> list[str]:
+    """Read one native JSONL evidence file without following a substituted link."""
+
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    if nofollow is None:
+        fail("event-log no-follow descriptor support is unavailable")
+    try:
+        descriptor = os.open(event_log, os.O_RDONLY | nofollow)
+    except FileNotFoundError:
+        if missing_is_empty:
+            return []
+        fail("native decision evidence is missing")
+    except OSError as exc:
+        fail(f"event log cannot be opened without following links: {exc}")
+    try:
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode):
+            fail("event log is not a regular file")
+        if metadata.st_nlink != 1 or metadata.st_mode & 0o022:
+            fail("event log has unsafe link or write permissions")
+        if metadata.st_size > MAX_BYTES:
+            fail("event log exceeds bounded size")
+        with os.fdopen(descriptor, "rb") as handle:
+            descriptor = -1
+            data = handle.read(MAX_BYTES + 1)
+    finally:
+        if descriptor != -1:
+            os.close(descriptor)
+    if len(data) > MAX_BYTES:
+        fail("event log exceeds bounded size")
+    try:
+        return data.decode("utf-8").splitlines()
+    except UnicodeDecodeError as exc:
+        fail(f"event log is not UTF-8 JSONL: {exc}")
+
+
 def validate_event_chain(item: dict[str, Any], previous_event_hash: int | None) -> None:
     if previous_event_hash is None:
         if item["previous_event_hash"] != 0:
@@ -484,6 +540,92 @@ def correlate_event(
         fail("relevant rule-match event has invalid phase")
 
 
+def expected_rule_match_event_phase(connector: str) -> str:
+    phase = RULE_MATCH_EVENT_PHASE_BY_CONNECTOR.get(connector)
+    if phase is None:
+        fail("rule-match connector is outside the closed profile")
+    return phase
+
+
+def validate_haproxy_decision_event(item: dict[str, Any]) -> str | None:
+    """Validate a native HAProxy/SPOE decision record without widening it.
+
+    HAProxy's privacy-preserving record intentionally omits the URI and does
+    not use the Common JSONL integrity chain.  It is therefore authenticated
+    by the exact request/transaction correlation, closed runtime identity, and
+    native process fields rather than by treating it as a Common event.
+    """
+
+    if set(item) != HAPROXY_DECISION_REQUIRED_KEYS:
+        fail("HAProxy decision evidence does not match the exact native schema")
+    string_fields = (
+        "connector", "mode", "runtime_mode", "variant", "case", "request_id",
+        "transaction_id", "observed_status", "result", "decision",
+        "audit_log_path", "haproxy_log_path", "spoa_log_path", "reason_code",
+        "reason",
+    )
+    if any(not isinstance(item.get(key), str) for key in string_fields):
+        fail("HAProxy decision evidence has an invalid string field")
+    integer_fields = (
+        "timestamp", "phase", "expected_status", "intervention_status",
+        "http_status", "rule_id", "anomaly_score",
+    )
+    if any(type(item.get(key)) is not int for key in integer_fields):
+        fail("HAProxy decision evidence has an invalid numeric field")
+    boolean_fields = (
+        "live_executed", "modsecurity_processed", "request_headers_seen",
+        "request_body_seen", "response_headers_seen", "response_body_seen",
+        "disruptive", "redirect_present",
+    )
+    if any(type(item.get(key)) is not bool for key in boolean_fields):
+        fail("HAProxy decision evidence has an invalid boolean field")
+    if (
+        item["connector"] != "haproxy"
+        or item["mode"] != "detect-only"
+        or item["runtime_mode"] != "test"
+        or item["variant"] != "no-crs"
+        or item["case"] != "mrts-no-crs-with-mrts"
+        or not item["live_executed"]
+        or not item["modsecurity_processed"]
+        or not item["request_headers_seen"]
+        or item["expected_status"] != 200
+        or item["transaction_id"] != item["request_id"]
+        or item["phase"] != 2
+        or item["rule_id"] < 0
+        or item["rule_id"] > 999_999_999_999
+    ):
+        fail("HAProxy decision evidence is outside the closed DetectionOnly profile")
+    return str(item["rule_id"]) if item["rule_id"] else None
+
+
+def haproxy_event_ids(
+    event_log: Path,
+    correlation_id: str,
+    expected_ids: set[str],
+    allowed_rule_ids: set[str],
+) -> set[str]:
+    """Return one correlated SPOE/SPOP rule set for the real HAProxy host."""
+
+    found: set[str] = set()
+    correlated = False
+    for line in read_bounded_event_log(event_log, missing_is_empty=False):
+        item = parse_event_record(line)
+        rule_id = validate_haproxy_decision_event(item)
+        if item["transaction_id"] != correlation_id:
+            continue
+        correlated = True
+        if rule_id is None:
+            continue
+        if rule_id not in allowed_rule_ids:
+            fail("HAProxy decision evidence has a rule ID outside the pinned corpus")
+        if rule_id in found:
+            fail("HAProxy decision evidence duplicates a rule ID")
+        found.add(rule_id)
+    if not correlated:
+        fail("HAProxy decision evidence has no correlated live transaction")
+    return found
+
+
 def event_ids(
     event_log: Path,
     correlation_id: str,
@@ -504,18 +646,18 @@ def event_ids(
     their empty-set oracle can reject any match.  Records for another
     transaction or request remain irrelevant and are ignored.
     """
+    if expected_phase != expected_rule_match_event_phase(connector):
+        fail("rule-match phase is outside the closed MRTS profile")
+    if connector == "haproxy":
+        return haproxy_event_ids(
+            event_log, correlation_id, expected_ids, allowed_rule_ids,
+        )
     integration_mode = RULE_MATCH_INTEGRATION_MODES.get(connector)
     if integration_mode is None:
         fail("rule-match connector is outside the closed profile")
-    if expected_phase != "request_body":
-        fail("rule-match phase is outside the closed MRTS profile")
     found: set[str] = set()
     previous_event_hash: int | None = None
-    if not event_log.exists():
-        return found
-    if event_log.stat().st_size > MAX_BYTES:
-        fail("event log exceeds bounded size")
-    for line in event_log.read_text(encoding="utf-8").splitlines():
+    for line in read_bounded_event_log(event_log, missing_is_empty=True):
         item = parse_event_record(line)
         # Validate the complete native record and chain before correlating it.
         # Phase is intentionally checked against the closed enum here, while
@@ -615,7 +757,11 @@ def verified_tls_context(root: Path, certificate_value: str) -> ssl.SSLContext:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--connector", required=True, choices=("envoy", "traefik", "lighttpd"))
+    parser.add_argument(
+        "--connector",
+        required=True,
+        choices=("apache", "envoy", "haproxy", "lighttpd", "traefik"),
+    )
     parser.add_argument("--runtime-root", required=True)
     parser.add_argument("--plan", required=True)
     parser.add_argument("--plan-sha256", required=True)
@@ -793,7 +939,7 @@ def prepare_runtime(
     )
 
 
-def validate_case(case: Any) -> tuple[str, str, list[Any]]:
+def validate_case(case: Any) -> tuple[str, str, list[Any], str]:
     if not isinstance(case, dict) or case.get("kind") not in {"control", "detection", "bypass"}:
         fail("invalid case kind")
     uri = case.get("uri")
@@ -807,9 +953,9 @@ def validate_case(case: Any) -> tuple[str, str, list[Any]]:
     ):
         fail("invalid expected rule ID")
     expected_phase = case.get("expect_event_phase")
-    if expected_phase != "request_body":
+    if expected_phase not in {"request_headers", "request_body"}:
         fail("invalid expected MRTS rule-match phase")
-    return str(case["kind"]), uri, raw_expected_ids
+    return str(case["kind"]), uri, raw_expected_ids, expected_phase
 
 
 def execute_case(
@@ -817,7 +963,7 @@ def execute_case(
     event_path: Path, allowed_rule_ids: set[str],
     tls_context: ssl.SSLContext | None, endpoint: LoopbackEndpoint,
 ) -> dict[str, Any]:
-    case_kind, uri, raw_expected_ids = validate_case(case)
+    case_kind, uri, raw_expected_ids, expected_phase = validate_case(case)
     correlation_id = f"{run_id}-{index:04d}"
     request_id = correlation_id
     transaction_id = correlation_id
@@ -831,7 +977,7 @@ def execute_case(
     }, 15.0, args.scheme, tls_context)
     expected_ids = {str(value) for value in raw_expected_ids}
     matched = event_ids(
-        event_path, correlation_id, args.connector, uri, "request_body",
+        event_path, correlation_id, args.connector, uri, expected_phase,
         expected_ids, allowed_rule_ids,
     )
     if status != 200:
@@ -842,7 +988,7 @@ def execute_case(
         "case_id": case.get("id", str(index)), "kind": case_kind, "uri": uri,
         "connector": args.connector, "correlation_id": correlation_id,
         "request_id": request_id, "transaction_id": transaction_id,
-        "host_request_id": host_request_id, "expected_event_phase": "request_body",
+        "host_request_id": host_request_id, "expected_event_phase": expected_phase,
         "status": status, "expected_rule_ids": sorted(expected_ids),
         "observed_rule_ids": sorted(matched),
     }

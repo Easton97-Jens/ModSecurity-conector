@@ -22,7 +22,8 @@ if str(LIB_ROOT) not in sys.path:
     sys.path.insert(0, str(LIB_ROOT))
 from go_version_contract import GoVersionContractError, read_go_version_contract as read_shared_go_version_contract
 
-CONNECTORS = {"envoy", "traefik", "lighttpd"}
+CONNECTORS = {"apache", "envoy", "haproxy", "lighttpd", "traefik"}
+GO_RUNTIME_CONNECTORS = {"envoy", "traefik", "lighttpd"}
 PROFILE = "no-crs/with-mrts"
 MAX_PLAN_BYTES = 1_048_576
 MAX_RULE_ID_INVENTORY = 100_000
@@ -32,7 +33,17 @@ WORKFLOW_GO_BINARY_SHA256_ENV = "MRTS_WORKFLOW_GO_BINARY_SHA256"
 # The pinned CGo/libmodsecurity bridge observes the selected MRTS phase-1
 # rule as Common request-body evidence. Retain that observed value as a single
 # closed profile value rather than accepting either request phase.
-RULE_MATCH_EVENT_PHASE = "request_body"
+# The existing CGo/libmodsecurity bridge exposes the selected phase-1 MRTS
+# rule as request-body evidence. Apache observes native request-header
+# evidence, while HAProxy/SPOE emits its native phase-2 decision record.
+# Keep the mapping closed to real adapter identities.
+RULE_MATCH_EVENT_PHASE_BY_CONNECTOR = {
+    "apache": "request_headers",
+    "envoy": "request_body",
+    "haproxy": "request_body",
+    "lighttpd": "request_body",
+    "traefik": "request_body",
+}
 NO_CRS_RUN_ID_PREFIX = "mrts-"
 NO_CRS_RUN_ID_HEX_LENGTH = 32
 TRAEFIK_ENGINE_SOCKET_PARENT_PREFIX = "msct-"
@@ -70,6 +81,13 @@ def _canonical_rule_id(value: str) -> bool:
 
 def stop(message: str) -> NoReturn:
     raise SystemExit(f"BLOCKED: {message}")
+
+
+def rule_match_event_phase(connector: str) -> str:
+    phase = RULE_MATCH_EVENT_PHASE_BY_CONNECTOR.get(connector)
+    if phase is None:
+        stop("connector is outside the closed no-CRS/with-MRTS profile")
+    return phase
 
 
 def new_no_crs_run_id() -> str:
@@ -533,7 +551,9 @@ def load_framework_yaml(path: Path, framework_root: Path) -> dict[str, Any]:
     return parsed
 
 
-def _select_direct_case(source: Path, document: dict[str, Any]) -> list[dict[str, Any]]:
+def _select_direct_case(
+    source: Path, document: dict[str, Any], event_phase: str,
+) -> list[dict[str, Any]]:
     request = document.get("request")
     if not isinstance(request, dict) or document.get("portable") is not True:
         return []
@@ -544,11 +564,12 @@ def _select_direct_case(source: Path, document: dict[str, Any]) -> list[dict[str
     expected = expectation.get("rule_id") if isinstance(expectation, dict) else None
     if not isinstance(uri, str) or not uri.startswith("/?") or expected is None:
         return []
-    return [{"id": source.stem, "source": source.name, "kind": "detection", "uri": uri, "expect_ids": [str(expected)], "expect_event_phase": RULE_MATCH_EVENT_PHASE}]
+    return [{"id": source.stem, "source": source.name, "kind": "detection", "uri": uri, "expect_ids": [str(expected)], "expect_event_phase": event_phase}]
 
 
 def _staged_detection_case(
     source: Path, item: dict[str, Any], stage: Any, selected_count: int,
+    event_phase: str,
 ) -> dict[str, Any] | None:
     if not isinstance(stage, dict):
         return None
@@ -567,12 +588,12 @@ def _staged_detection_case(
         "kind": "detection",
         "uri": uri,
         "expect_ids": [str(value) for value in expected],
-        "expect_event_phase": RULE_MATCH_EVENT_PHASE,
+        "expect_event_phase": event_phase,
     }
 
 
 def _select_item_staged_cases(
-    source: Path, item: Any, selected_count: int,
+    source: Path, item: Any, selected_count: int, event_phase: str,
 ) -> list[dict[str, Any]]:
     if not isinstance(item, dict):
         stop(f"MRTS test is not a mapping: {source}")
@@ -581,23 +602,29 @@ def _select_item_staged_cases(
         stop(f"MRTS test stages is not a list: {source}")
     selected: list[dict[str, Any]] = []
     for stage in stages:
-        case = _staged_detection_case(source, item, stage, selected_count + len(selected))
+        case = _staged_detection_case(
+            source, item, stage, selected_count + len(selected), event_phase,
+        )
         if case is not None:
             selected.append(case)
     return selected
 
 
-def _select_staged_cases(source: Path, document: dict[str, Any]) -> list[dict[str, Any]]:
+def _select_staged_cases(
+    source: Path, document: dict[str, Any], event_phase: str,
+) -> list[dict[str, Any]]:
     tests = document.get("tests", [])
     if not isinstance(tests, list):
         stop(f"MRTS tests is not a list: {source}")
     selected: list[dict[str, Any]] = []
     for item in tests:
-        selected.extend(_select_item_staged_cases(source, item, len(selected)))
+        selected.extend(_select_item_staged_cases(source, item, len(selected), event_phase))
     return selected
 
 
-def _select_document_cases(source: Path, document: dict[str, Any]) -> list[dict[str, Any]]:
+def _select_document_cases(
+    source: Path, document: dict[str, Any], event_phase: str,
+) -> list[dict[str, Any]]:
     meta = document.get("meta", {})
     metadata = document.get("metadata", {})
     upstream_file = metadata.get("upstream_file", "") if isinstance(metadata, dict) else ""
@@ -605,25 +632,30 @@ def _select_document_cases(source: Path, document: dict[str, Any]) -> list[dict[
     if not is_args_get or metadata.get("phase") != 1:
         return []
     if isinstance(document.get("request"), dict):
-        return _select_direct_case(source, document)
-    return _select_staged_cases(source, document)
+        return _select_direct_case(source, document, event_phase)
+    return _select_staged_cases(source, document, event_phase)
 
 
-def select_cases(case_root: Path, framework_root: Path) -> tuple[list[dict[str, Any]], list[Path]]:
+def select_cases(
+    case_root: Path, framework_root: Path, connector: str = "envoy",
+) -> tuple[list[dict[str, Any]], list[Path]]:
+    event_phase = rule_match_event_phase(connector)
     selected: list[dict[str, Any]] = []
     sources: list[Path] = []
     for source in sorted(case_root.glob("*.yaml")):
         if source.is_symlink() or not source.is_file() or case_root not in source.resolve(strict=True).parents:
             stop(f"generated MRTS case is not a contained regular file: {source}")
-        cases = _select_document_cases(source, load_framework_yaml(source, framework_root))
+        cases = _select_document_cases(
+            source, load_framework_yaml(source, framework_root), event_phase,
+        )
         selected.extend(cases)
         sources.extend(source for _ in cases)
     if not selected:
         stop("no applicable phase-1 GET ARGS MRTS cases were generated")
     # These controls are deliberately outside the imported attack cases and
     # use the same real host path. They prove DetectionOnly and bypass safety.
-    selected.insert(0, {"id": "control-empty-args", "kind": "control", "uri": "/?mrts_control=1", "expect_ids": [], "expect_event_phase": RULE_MATCH_EVENT_PHASE})
-    selected.append({"id": "bypass-safe-args", "kind": "bypass", "uri": "/?foo=benign-value", "expect_ids": [], "expect_event_phase": RULE_MATCH_EVENT_PHASE})
+    selected.insert(0, {"id": "control-empty-args", "kind": "control", "uri": "/?mrts_control=1", "expect_ids": [], "expect_event_phase": event_phase})
+    selected.append({"id": "bypass-safe-args", "kind": "bypass", "uri": "/?foo=benign-value", "expect_ids": [], "expect_event_phase": event_phase})
     return selected, sorted(set(sources))
 
 
@@ -737,7 +769,7 @@ def validate_mrts_load_file(
 
 
 def closed_connector_stage_command(connector: str) -> list[str]:
-    """Build a fixed shell argv only for the three closed profile members."""
+    """Build a fixed shell argv only for the closed profile members."""
 
     stage_script_raw = Path(__file__).with_name("run-connector-stage.sh")
     if has_symlink_component(stage_script_raw):
@@ -748,12 +780,8 @@ def closed_connector_stage_command(connector: str) -> list[str]:
         stop(f"connector stage runner is unavailable: {exc}")
     if stage_script_raw.is_symlink() or not stage_script.is_file():
         stop("connector stage runner is not a regular file")
-    if connector == "envoy":
-        return ["sh", str(stage_script), "envoy", "no_crs_with_mrts"]
-    if connector == "traefik":
-        return ["sh", str(stage_script), "traefik", "no_crs_with_mrts"]
-    if connector == "lighttpd":
-        return ["sh", str(stage_script), "lighttpd", "no_crs_with_mrts"]
+    if connector in CONNECTORS:
+        return ["sh", str(stage_script), connector, "no_crs_with_mrts"]
     stop("connector stage is outside the closed no-crs/with-mrts profile")
 
 
@@ -865,17 +893,22 @@ def load_sealed_plan(plan_path: Path, expected_plan_sha256: str) -> dict[str, An
     return plan
 
 
-def validate_plan_cases(cases: Any, allowed_rule_ids: set[str]) -> None:
+def validate_plan_cases(
+    cases: Any, allowed_rule_ids: set[str], connector: str,
+) -> None:
     if not isinstance(cases, list) or len(cases) < 3:
         stop("sealed MRTS plan must contain bounded control, detection, and bypass cases")
     kinds: set[str] = set()
+    expected_phase = rule_match_event_phase(connector)
     for case in cases:
-        kinds.add(_validate_plan_case(case, allowed_rule_ids))
+        kinds.add(_validate_plan_case(case, allowed_rule_ids, expected_phase))
     if kinds != {"control", "detection", "bypass"}:
         stop("sealed MRTS plan lacks a required case kind")
 
 
-def _validate_plan_case(case: Any, allowed_rule_ids: set[str]) -> str:
+def _validate_plan_case(
+    case: Any, allowed_rule_ids: set[str], expected_phase: str,
+) -> str:
     if not isinstance(case, dict):
         stop("sealed MRTS plan case is not an object")
     case_id = case.get("id")
@@ -887,7 +920,7 @@ def _validate_plan_case(case: Any, allowed_rule_ids: set[str]) -> str:
         or not isinstance(uri, str) or not uri.startswith("/") or len(uri) > 2048
         or any(ord(character) < 0x20 or ord(character) == 0x7F for character in uri)
         or kind not in {"control", "detection", "bypass"}
-        or case.get("expect_event_phase") != RULE_MATCH_EVENT_PHASE
+        or case.get("expect_event_phase") != expected_phase
         or not isinstance(expected_ids, list)
     ):
         stop("sealed MRTS plan case is outside the closed runtime profile")
@@ -934,7 +967,10 @@ def validate_plan_case_binding(
     """
 
     case_root = _private_case_root(runtime_root)
-    expected_cases, sources = select_cases(case_root, framework_root)
+    connector = plan.get("connector")
+    if not isinstance(connector, str):
+        stop("sealed MRTS plan connector is invalid")
+    expected_cases, sources = select_cases(case_root, framework_root, connector)
     expected_case_hashes = selected_case_hashes(case_root, sources)
     expected_inventory_hash = selected_case_inventory_hash(sources)
     if plan.get("inventory_root") != str(case_root):
@@ -1031,7 +1067,10 @@ def _validate_sealed_plan_contents(
     }
     if validation != expected_validation:
         stop("sealed MRTS plan no-CRS validation does not match loaded rules")
-    validate_plan_cases(plan.get("cases"), set(inventory))
+    connector = plan.get("connector")
+    if not isinstance(connector, str):
+        stop("sealed MRTS plan connector is invalid")
+    validate_plan_cases(plan.get("cases"), set(inventory), connector)
     if plan.get("load_file") != str(load_file):
         stop("sealed MRTS plan load-file path does not match")
     if plan.get("load_file_sha256") != hashlib.sha256(load_file.read_bytes()).hexdigest():
@@ -1113,7 +1152,11 @@ def _prepare_target_context(args: argparse.Namespace) -> dict[str, Any]:
         stop("MRTS checkout is missing or symlinked")
     provenance = repository_provenance(parent, framework, mrts)
     python_path = active_python_executable()
-    go_path, go_sha256, go_version = active_go_provenance(parent)
+    go_path: Path | None = None
+    go_sha256 = ""
+    go_version = ""
+    if args.connector in GO_RUNTIME_CONNECTORS:
+        go_path, go_sha256, go_version = active_go_provenance(parent)
     no_crs_rules = (framework / "tests" / "rules" / "no-crs-baseline.conf").resolve(strict=True)
     build = private_runtime_build(root)
     stage_runtime = build / "stages" / args.connector / "no_crs_with_mrts" / "runtime"
@@ -1122,7 +1165,9 @@ def _prepare_target_context(args: argparse.Namespace) -> dict[str, Any]:
         stop("stage runtime root is not a private owner-controlled directory")
     os.chmod(stage_runtime, 0o700)
     env = {key: os.environ[key] for key in ("PATH", "HOME", "LANG", "LC_ALL") if key in os.environ}
-    env.update({"PYTHON": str(python_path), "PYTHON_BIN": str(python_path), "MRTS_GO_BINARY": str(go_path), "MRTS_GO_BINARY_SHA256": go_sha256, "MRTS_GO_VERSION": go_version, "FRAMEWORK_ROOT": str(framework), "CONNECTOR_ROOT": str(parent), "VERIFIED_RUN_ROOT": str(root), "BUILD_ROOT": str(build), "MRTS_BUILD_ROOT": str(build / "mrts"), "TMP_ROOT": str(root / "tmp"), "LOG_ROOT": str(root / "logs"), "MODSECURITY_TEST_VARIANT": "no-crs", "MODSECURITY_MRTS_VARIANT": "with-mrts", "MODSECURITY_MRTS_PREPARED": "0", "MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO": "0", "GOTOOLCHAIN": "local", "NO_CRS_RUN_ID": no_crs_run_id})
+    env.update({"PYTHON": str(python_path), "PYTHON_BIN": str(python_path), "FRAMEWORK_ROOT": str(framework), "CONNECTOR_ROOT": str(parent), "VERIFIED_RUN_ROOT": str(root), "BUILD_ROOT": str(build), "MRTS_BUILD_ROOT": str(build / "mrts"), "TMP_ROOT": str(root / "tmp"), "LOG_ROOT": str(root / "logs"), "MODSECURITY_TEST_VARIANT": "no-crs", "MODSECURITY_MRTS_VARIANT": "with-mrts", "MODSECURITY_MRTS_PREPARED": "0", "MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO": "0", "GOTOOLCHAIN": "local", "NO_CRS_RUN_ID": no_crs_run_id})
+    if go_path is not None:
+        env.update({"MRTS_GO_BINARY": str(go_path), "MRTS_GO_BINARY_SHA256": go_sha256, "MRTS_GO_VERSION": go_version})
     env.update(provisioning_environment)
     prepare = '. "$FRAMEWORK_ROOT/ci/lib/common.sh"; . "$FRAMEWORK_ROOT/ci/lib/mrts-common.sh"; prepare_mrts_runtime_variant'
     subprocess.run(["sh", "-eu", "-c", prepare], env=env, cwd=parent, check=True)
@@ -1141,7 +1186,7 @@ def _create_runtime_plan(context: dict[str, Any], connector: str) -> tuple[Path,
     load_file = build / "mrts" / "upstream-config-tests" / "mrts.load"
     if not case_root.is_dir() or not load_file.is_file():
         stop("Framework did not produce MRTS case/load artifacts")
-    cases, sources = select_cases(case_root, framework)
+    cases, sources = select_cases(case_root, framework, connector)
     for artifact in (case_root, load_file):
         resolved = artifact.resolve(strict=True)
         if artifact.is_symlink() or root not in resolved.parents:

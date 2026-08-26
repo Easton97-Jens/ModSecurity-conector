@@ -89,6 +89,47 @@ def dedicated_rule_match_event(
     return event
 
 
+def haproxy_decision_event(
+    *,
+    transaction_id: str = "run-0001",
+    rule_id: int = 100000,
+) -> dict[str, object]:
+    """One metadata-only record emitted by the native SPOE/SPOP agent."""
+
+    return {
+        "timestamp": 1_785_484_496,
+        "connector": "haproxy",
+        "mode": "detect-only",
+        "runtime_mode": "test",
+        "variant": "no-crs",
+        "case": "mrts-no-crs-with-mrts",
+        "request_id": transaction_id,
+        "transaction_id": transaction_id,
+        "phase": 2,
+        "live_executed": True,
+        "modsecurity_processed": True,
+        "request_headers_seen": True,
+        "request_body_seen": False,
+        "response_headers_seen": False,
+        "response_body_seen": False,
+        "expected_status": 200,
+        "observed_status": "",
+        "result": "",
+        "decision": "pass",
+        "disruptive": False,
+        "intervention_status": 403,
+        "http_status": 403,
+        "redirect_present": False,
+        "rule_id": rule_id,
+        "anomaly_score": 0,
+        "audit_log_path": "/private/audit.log",
+        "haproxy_log_path": "",
+        "spoa_log_path": "/private/spoa-agent.log",
+        "reason_code": "modsecurity_rule_observed",
+        "reason": "modsecurity_rule_observed",
+    }
+
+
 class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
     @staticmethod
     def validate_plan(plan_path, runtime, framework, rules, load_file, digest):
@@ -111,9 +152,21 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
         ):
             return TARGET.create_private_traefik_engine_socket_parent()
 
-    def test_profile_is_closed_to_three_connectors(self):
-        self.assertEqual(TARGET.CONNECTORS, {"envoy", "traefik", "lighttpd"})
+    def test_profile_is_closed_to_five_connectors_without_nginx(self):
+        self.assertEqual(
+            TARGET.CONNECTORS,
+            {"apache", "envoy", "haproxy", "traefik", "lighttpd"},
+        )
         self.assertEqual(TARGET.PROFILE, "no-crs/with-mrts")
+        self.assertNotIn("nginx", TARGET.CONNECTORS)
+        self.assertEqual(TARGET.GO_RUNTIME_CONNECTORS, {"envoy", "traefik", "lighttpd"})
+
+    def test_connector_phase_mapping_is_closed_and_native(self):
+        self.assertEqual(TARGET.rule_match_event_phase("apache"), "request_headers")
+        self.assertEqual(TARGET.rule_match_event_phase("haproxy"), "request_body")
+        self.assertEqual(TARGET.rule_match_event_phase("envoy"), "request_body")
+        with self.assertRaisesRegex(SystemExit, "outside the closed"):
+            TARGET.rule_match_event_phase("nginx")
 
     def test_active_go_executable_uses_the_existing_absolute_binary(self):
         go = Path(TARGET.shutil.which("go") or "")
@@ -421,7 +474,7 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
                 TARGET.private_runtime_build(root)
 
     def test_closed_connector_stage_command_uses_only_literal_profile_members(self):
-        for connector in ("envoy", "traefik", "lighttpd"):
+        for connector in ("apache", "envoy", "haproxy", "traefik", "lighttpd"):
             command = TARGET.closed_connector_stage_command(connector)
             self.assertEqual(command[0], "sh")
             self.assertEqual(command[2], connector)
@@ -435,6 +488,24 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
         self.assertIn('parser.add_argument("--framework-root", required=True)', source)
         self.assertIn('stop("--execute-stage is mandatory', source)
         self.assertIn('"no_crs_with_mrts"', source)
+
+    def test_apache_and_haproxy_do_not_acquire_or_validate_go(self):
+        source = (ROOT / "ci" / "runtime" / "lifecycle" / "run-no-crs-with-mrts-target.py").read_text(encoding="utf-8")
+        self.assertIn('if args.connector in GO_RUNTIME_CONNECTORS:', source)
+        self.assertNotIn('"apache", "haproxy"', source.split("GO_RUNTIME_CONNECTORS", 1)[1].split("PROFILE", 1)[0])
+        with mock.patch.object(TARGET, "active_go_provenance", side_effect=AssertionError("Go must stay out of Apache/HAProxy")):
+            self.assertNotIn("apache", TARGET.GO_RUNTIME_CONNECTORS)
+            self.assertNotIn("haproxy", TARGET.GO_RUNTIME_CONNECTORS)
+
+    def test_target_context_does_not_forward_inherited_component_snapshots(self):
+        source = (
+            ROOT / "ci" / "runtime" / "lifecycle"
+            / "run-no-crs-with-mrts-target.py"
+        ).read_text(encoding="utf-8")
+        target_context = source.split("def _prepare_target_context", 1)[1].split(
+            "def _create_runtime_plan", 1
+        )[0]
+        self.assertNotIn("RUNTIME_COMPONENT_ENV_SNAPSHOT", target_context)
 
     def test_active_python_executable_preserves_a_venv_style_final_symlink(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -552,9 +623,165 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
             )
             self.assertEqual(
                 EXECUTOR.event_ids(
-                    event_log, "run-0001", "envoy", "/?foo=attack%20value", "request_body", {"100000"}, {"100000"}),
+                    event_log,
+                    "run-0001",
+                    "envoy",
+                    "/?foo=attack%20value",
+                    "request_body",
+                    {"100000"},
+                    {"100000"},
+                ),
                 {"100000"},
             )
+
+    def test_apache_native_event_uses_its_real_request_header_phase(self):
+        with tempfile.TemporaryDirectory() as directory:
+            event_log = Path(directory) / "events.jsonl"
+            event_log.write_text(
+                json.dumps(
+                    dedicated_rule_match_event(
+                        connector="apache", phase="request_headers"
+                    )
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                EXECUTOR.event_ids(
+                    event_log,
+                    "run-0001",
+                    "apache",
+                    "/?foo=attack",
+                    "request_headers",
+                    {"100000"},
+                    {"100000"},
+                ),
+                {"100000"},
+            )
+
+    def test_haproxy_native_decision_requires_closed_detection_only_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            event_log = Path(directory) / "events.jsonl"
+            event_log.write_text(
+                json.dumps(haproxy_decision_event()) + "\n", encoding="utf-8"
+            )
+            self.assertEqual(
+                EXECUTOR.event_ids(
+                    event_log,
+                    "run-0001",
+                    "haproxy",
+                    "/?not-stored-in-private-evidence",
+                    "request_body",
+                    {"100000"},
+                    {"100000"},
+                ),
+                {"100000"},
+            )
+            malformed = haproxy_decision_event()
+            malformed["mode"] = "block"
+            event_log.write_text(json.dumps(malformed) + "\n", encoding="utf-8")
+            with self.assertRaisesRegex(SystemExit, "closed DetectionOnly"):
+                EXECUTOR.event_ids(
+                    event_log,
+                    "run-0001",
+                    "haproxy",
+                    "/?not-stored-in-private-evidence",
+                    "request_body",
+                    {"100000"},
+                    {"100000"},
+                )
+
+            malformed = haproxy_decision_event()
+            malformed["case"] = "another-case"
+            event_log.write_text(json.dumps(malformed) + "\n", encoding="utf-8")
+            with self.assertRaisesRegex(SystemExit, "closed DetectionOnly"):
+                EXECUTOR.event_ids(
+                    event_log,
+                    "run-0001",
+                    "haproxy",
+                    "/?not-stored-in-private-evidence",
+                    "request_body",
+                    {"100000"},
+                    {"100000"},
+                )
+
+            malformed = haproxy_decision_event()
+            malformed["untrusted_extra"] = "must-not-enter-runtime-evidence"
+            event_log.write_text(json.dumps(malformed) + "\n", encoding="utf-8")
+            with self.assertRaisesRegex(SystemExit, "exact native schema"):
+                EXECUTOR.event_ids(
+                    event_log,
+                    "run-0001",
+                    "haproxy",
+                    "/?not-stored-in-private-evidence",
+                    "request_body",
+                    {"100000"},
+                    {"100000"},
+                )
+
+    def test_event_ids_rejects_symlinked_native_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / "target.jsonl"
+            target.write_text(
+                json.dumps(dedicated_rule_match_event()) + "\n", encoding="utf-8"
+            )
+            event_log = root / "events.jsonl"
+            event_log.symlink_to(target)
+            with self.assertRaisesRegex(SystemExit, "without following links"):
+                EXECUTOR.event_ids(
+                    event_log,
+                    "run-0001",
+                    "envoy",
+                    "/?foo=attack",
+                    "request_body",
+                    {"100000"},
+                    {"100000"},
+                )
+
+    def test_event_ids_rejects_hardlinked_native_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / "target.jsonl"
+            target.write_text(
+                json.dumps(dedicated_rule_match_event()) + "\n", encoding="utf-8"
+            )
+            event_log = root / "events.jsonl"
+            os.link(target, event_log)
+            with self.assertRaisesRegex(SystemExit, "unsafe link"):
+                EXECUTOR.event_ids(
+                    event_log,
+                    "run-0001",
+                    "envoy",
+                    "/?foo=attack",
+                    "request_body",
+                    {"100000"},
+                    {"100000"},
+                )
+
+    def test_haproxy_detection_requires_the_sealed_expected_rule_id(self):
+        """An allowed extra match cannot replace the selected detection rule."""
+
+        with tempfile.TemporaryDirectory() as directory:
+            event_log = Path(directory) / "events.jsonl"
+            event_log.write_text(
+                json.dumps(haproxy_decision_event(rule_id=100001)) + "\n",
+                encoding="utf-8",
+            )
+            observed = EXECUTOR.event_ids(
+                event_log,
+                "run-0001",
+                "haproxy",
+                "/?not-stored-in-private-evidence",
+                "request_body",
+                {"100000"},
+                {"100000", "100001"},
+            )
+            self.assertEqual(observed, {"100001"})
+            with self.assertRaisesRegex(SystemExit, "missing expected IDs"):
+                EXECUTOR.require_case_rule_matches(
+                    "detection", "detection", {"100000"}, observed
+                )
 
     def test_event_ids_rejects_wrong_event_kind_and_arbitrary_nested_rule_ids(self):
         with tempfile.TemporaryDirectory() as directory:

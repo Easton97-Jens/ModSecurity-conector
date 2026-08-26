@@ -109,11 +109,18 @@ class NoCrsWithMrtsWorkflowSummaryTest(unittest.TestCase):
         self.assertIn("`MISSING — runtime target did not run`", summary)
         self.assertNotIn("PASS — real target", summary)
 
-    def test_summary_marks_target_go_snapshot_not_applicable_for_apache_and_haproxy(self) -> None:
-        summary = SUMMARY.render_summary("apache", self.outcomes(snapshot_go="skipped"))
-        self.assertIn("| Stages passed | `9` |", summary)
+    def test_summary_marks_all_go_stages_not_applicable_for_apache_and_haproxy(self) -> None:
+        summary = SUMMARY.render_summary(
+            "apache",
+            self.outcomes(
+                setup_go="skipped", verify_go="skipped", snapshot_go="skipped"
+            ),
+        )
+        self.assertIn("| Stages passed | `7` |", summary)
         self.assertIn("| Stages skipped | `0` |", summary)
         self.assertIn("| First non-passing stage | `none` |", summary)
+        self.assertIn("| Locked Go toolchain | `not_applicable` |", summary)
+        self.assertIn("| Go interpreter contract | `not_applicable` |", summary)
         self.assertIn("| Verified setup-Go binary provenance | `not_applicable` |", summary)
 
     def test_summary_reports_cancelled_runtime_as_not_completed(self) -> None:

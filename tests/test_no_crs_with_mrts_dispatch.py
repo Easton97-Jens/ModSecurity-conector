@@ -175,6 +175,48 @@ class NoCrsWithMrtsDispatchContractTests(unittest.TestCase):
         self.assertIn("RULES_FILE=$MRTS_LOAD_FILE", source)
         self.assertNotIn("MODSECURITY_RULE_PREAMBLE_FILE=$MRTS_LOAD_FILE", source)
 
+    def test_apache_and_haproxy_use_closed_native_mrts_routes_only(self) -> None:
+        source = STAGE.read_text(encoding="utf-8")
+        self.assertIn(
+            "no_crs_with_mrts is closed to apache, envoy, haproxy, lighttpd, and traefik",
+            source,
+        )
+        self.assertNotIn("nginx:no_crs_with_mrts)", source)
+        native = source.split("run_mrts_native_host() {", 1)[1].split(
+            "run_full_lifecycle_haproxy_htx()", 1
+        )[0]
+        self.assertIn('native_connector=$1', native)
+        self.assertIn("apache)", native)
+        self.assertIn("haproxy)", native)
+        self.assertIn('MRTS_RUNTIME_EVENT_LOG="$EVENT_LOG"', native)
+        self.assertIn('MODSECURITY_RULE_PREAMBLE_FILE="$NO_CRS_RULES_FILE"', native)
+        self.assertIn('HAPROXY_DETECTION_ONLY="$haproxy_detection_only"', native)
+        self.assertNotIn("RUNTIME_COMPONENT_ENV_SNAPSHOT=", native)
+        self.assertIn("apache:no_crs_with_mrts)", source)
+        self.assertIn("run_mrts_native_host apache connectors/apache/harness/run_apache_smoke.sh", source)
+        self.assertIn("haproxy:no_crs_with_mrts)", source)
+        self.assertIn("run_mrts_native_host haproxy connectors/haproxy/harness/run_haproxy_smoke.sh", source)
+
+    def test_native_harnesses_keep_detection_only_and_evidence_connector_scoped(self) -> None:
+        apache = (ROOT / "connectors/apache/harness/run_apache_smoke.sh").read_text(
+            encoding="utf-8"
+        )
+        haproxy = (ROOT / "connectors/haproxy/harness/run_haproxy_smoke.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('APACHE_MRTS_TRANSACTION_ID_DIRECTIVE=', apache)
+        self.assertIn('modsecurity_transaction_id_expr "%{HTTP:X-MRTS-Transaction-ID}"', apache)
+        self.assertIn('cat "$MRTS_LOAD_FILE" >> "$RULES_FILE"', apache)
+        self.assertIn("--connector apache", apache)
+        self.assertIn('MRTS_RUNTIME_EVENT_LOG="$EVENT_LOG"', STAGE.read_text(encoding="utf-8"))
+
+        self.assertIn("HAProxy DetectionOnly is reserved for the closed no-CRS/with-MRTS runtime", haproxy)
+        self.assertIn('agent_mode=detect-only', haproxy)
+        self.assertIn('decision_log=$MRTS_RUNTIME_EVENT_LOG', haproxy)
+        self.assertIn('request_id=req.hdr(X-MRTS-Transaction-ID)', haproxy)
+        self.assertIn('cat "$MRTS_LOAD_FILE" >> "$RULES_FILE"', haproxy)
+        self.assertIn("--connector haproxy", haproxy)
+
     def test_lighttpd_mrts_route_seals_its_canonical_evidence_output(self) -> None:
         source = RUNNER.read_text(encoding="utf-8")
         lighttpd = source.split("    lighttpd)\n", 1)[1].split("    *)\n", 1)[0]

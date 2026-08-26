@@ -53,15 +53,7 @@ class NoCrsWithMrtsWorkflowContractTest(unittest.TestCase):
         )[0]
         self.assertIn("id: runtime", runtime)
         self.assertIn('case "$CONNECTOR" in', runtime)
-        self.assertIn(
-            "RUNTIME_COMPONENT_TARGET=apache make full-matrix-single-job-runtime CONNECTOR=apache CRS=no-crs MRTS=with-mrts",
-            runtime,
-        )
-        self.assertIn(
-            "RUNTIME_COMPONENT_TARGET=haproxy make full-matrix-single-job-runtime CONNECTOR=haproxy CRS=no-crs MRTS=with-mrts",
-            runtime,
-        )
-        for connector in ("envoy", "traefik", "lighttpd"):
+        for connector in ("apache", "envoy", "haproxy", "traefik", "lighttpd"):
             self.assertIn(f"--connector {connector}", runtime)
         self.assertIn("ci/runtime/lifecycle/run-no-crs-with-mrts-target.py", runtime)
         self.assertIn("--execute-stage", runtime)
@@ -80,8 +72,9 @@ class NoCrsWithMrtsWorkflowContractTest(unittest.TestCase):
         self.assertEqual(runtime.count("TMPDIR=/tmp ./.venv/bin/python"), 1)
         self.assertEqual(
             runtime.count("./.venv/bin/python ci/runtime/lifecycle/run-no-crs-with-mrts-target.py"),
-            3,
+            5,
         )
+        self.assertNotIn("full-matrix-single-job-runtime", runtime)
 
     def test_summary_reports_each_connector_job_without_reading_raw_evidence(self) -> None:
         summary = self.source.split(
@@ -145,6 +138,18 @@ class NoCrsWithMrtsWorkflowContractTest(unittest.TestCase):
         self.assertIn("matrix.connector == 'lighttpd'", snapshot)
         self.assertNotIn("matrix.connector == 'apache'", snapshot)
         self.assertNotIn("matrix.connector == 'haproxy'", snapshot)
+        setup_go = self.source.split("      - name: Set up Go\n", 1)[1].split(
+            "      - name: Verify Python interpreter contract\n", 1
+        )[0]
+        verify_go = self.source.split(
+            "      - name: Verify Go version contract without acquisition\n", 1
+        )[1].split("      - name: Snapshot verified setup-Go binary provenance\n", 1)[0]
+        for block in (setup_go, verify_go, snapshot):
+            self.assertIn("matrix.connector == 'envoy'", block)
+            self.assertIn("matrix.connector == 'traefik'", block)
+            self.assertIn("matrix.connector == 'lighttpd'", block)
+            self.assertNotIn("matrix.connector == 'apache'", block)
+            self.assertNotIn("matrix.connector == 'haproxy'", block)
         self.assertIn('go_path="$(command -v go)"', snapshot)
         self.assertIn("/opt/hostedtoolcache/go/*/bin/go", snapshot)
         self.assertIn('canonical_go_path="$(realpath -e -- "$go_path")"', snapshot)
