@@ -658,7 +658,10 @@ def event_ids(
     if integration_mode is None:
         fail("rule-match connector is outside the closed profile")
     found: set[str] = set()
-    previous_event_hash: int | None = None
+    # Native hosts own integrity chains per transaction.  Records from
+    # different requests can be interleaved in the same append-only evidence
+    # log, but must never continue one another's chains.
+    previous_event_hash_by_transaction: dict[str, int] = {}
     for line in read_bounded_event_log(event_log, missing_is_empty=True):
         item = parse_event_record(line)
         # Validate the complete native record and chain before correlating it.
@@ -669,8 +672,11 @@ def event_ids(
         rule_id, event_hash = validate_rule_match_event(
             item, connector, integration_mode
         )
-        validate_event_chain(item, previous_event_hash)
-        previous_event_hash = event_hash
+        transaction_id = item["transaction_id"]
+        validate_event_chain(
+            item, previous_event_hash_by_transaction.get(transaction_id)
+        )
+        previous_event_hash_by_transaction[transaction_id] = event_hash
         correlate_event(
             item, rule_id, correlation_id, connector, uri, expected_phase,
             expected_ids, allowed_rule_ids, found,
@@ -961,29 +967,20 @@ def validate_case(case: Any) -> tuple[str, str, list[Any], str]:
 
 
 def effective_expected_rule_ids(
-    connector: str, raw_expected_ids: set[str], allowed_rule_ids: set[str],
+    raw_expected_ids: set[str], allowed_rule_ids: set[str],
 ) -> set[str]:
-    """Resolve the native rule phase exposed by the selected connector.
+    """Keep the exact rule IDs declared by the sealed MRTS case.
 
-    MRTS ARGS-A GET cases declare the phase-1 rule.  The selected HAProxy
-    SPOE/SPOP adapter receives a fully buffered request and runs ModSecurity
-    at request-body phase 2, whose canonical MRTS rule is the immediately
-    following phase-2 rule in the sealed generated rule family.  Require that
-    counterpart to be present in the pinned inventory; never accept an
-    arbitrary observed rule as a substitute.
+    The case selector already assigns the connector's actual match phase.
+    A rule's numeric successor is not a phase relationship: the real HAProxy
+    SPOE DetectionOnly evidence reports the exact selected MRTS rule ID at
+    request-body phase 2.  Require each declared ID to remain in the pinned
+    inventory, but never translate it to a neighboring rule.
     """
-    if connector != "haproxy" or not raw_expected_ids:
-        return raw_expected_ids
-    effective: set[str] = set()
-    for value in raw_expected_ids:
-        try:
-            counterpart = str(int(value) + 1)
-        except (TypeError, ValueError):
-            fail("HAProxy expected rule ID has no canonical request-body counterpart")
-        if counterpart not in allowed_rule_ids:
-            fail("HAProxy expected rule ID has no canonical request-body counterpart")
-        effective.add(counterpart)
-    return effective
+    unpinned_ids = raw_expected_ids - allowed_rule_ids
+    if unpinned_ids:
+        fail("selected MRTS case has a rule ID outside the pinned corpus")
+    return raw_expected_ids
 
 
 def execute_case(
@@ -1004,9 +1001,7 @@ def execute_case(
         "User-Agent": "MRTS-runtime/1",
     }, 15.0, args.scheme, tls_context)
     expected_ids = {str(value) for value in raw_expected_ids}
-    effective_expected_ids = effective_expected_rule_ids(
-        args.connector, expected_ids, allowed_rule_ids,
-    )
+    effective_expected_ids = effective_expected_rule_ids(expected_ids, allowed_rule_ids)
     matched = event_ids(
         event_path, correlation_id, args.connector, uri, expected_phase,
         effective_expected_ids, allowed_rule_ids,

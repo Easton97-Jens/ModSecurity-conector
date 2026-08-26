@@ -800,26 +800,26 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
                     {"100000", "100001"},
                 )
 
-    def test_haproxy_detection_resolves_phase_two_counterpart_from_sealed_inventory(self):
+    def test_haproxy_detection_keeps_the_exact_sealed_rule_id(self):
         self.assertEqual(
             EXECUTOR.effective_expected_rule_ids(
-                "haproxy", {"100000"}, {"100000", "100001"}
+                {"100000"}, {"100000", "100001"}
             ),
-            {"100001"},
+            {"100000"},
         )
 
-    def test_haproxy_detection_rejects_missing_phase_two_counterpart(self):
+    def test_effective_expected_rule_ids_rejects_an_unpinned_case_declaration(self):
         with self.assertRaisesRegex(
-            SystemExit, "no canonical request-body counterpart"
+            SystemExit, "outside the pinned corpus"
         ):
             EXECUTOR.effective_expected_rule_ids(
-                "haproxy", {"100000"}, {"100000"}
+                {"100000"}, {"100001"}
             )
 
-    def test_non_haproxy_detection_keeps_declared_rule_ids(self):
+    def test_effective_expected_rule_ids_keeps_declared_rule_ids_for_other_connectors(self):
         self.assertEqual(
             EXECUTOR.effective_expected_rule_ids(
-                "envoy", {"100000"}, {"100000"}
+                {"100000"}, {"100000"}
             ),
             {"100000"},
         )
@@ -864,7 +864,65 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
                 set(),
             )
 
-    def test_event_ids_validates_the_native_integrity_hash_chain(self):
+    def test_event_ids_accepts_independent_native_integrity_chains(self):
+        with tempfile.TemporaryDirectory() as directory:
+            event_log = Path(directory) / "events.jsonl"
+            first = dedicated_rule_match_event(
+                transaction_id="other-run", uri="/?foo=other"
+            )
+            second = dedicated_rule_match_event()
+            event_log.write_text(
+                json.dumps(first) + "\n" + json.dumps(second) + "\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                EXECUTOR.event_ids(
+                    event_log, "run-0001", "envoy", "/?foo=attack", "request_body", {"100000"}, {"100000"}
+                ),
+                {"100000"},
+            )
+
+    def test_event_ids_accepts_interleaved_native_integrity_chains(self):
+        with tempfile.TemporaryDirectory() as directory:
+            event_log = Path(directory) / "events.jsonl"
+            first_target = dedicated_rule_match_event()
+            first_other = dedicated_rule_match_event(
+                transaction_id="other-run", uri="/?foo=other"
+            )
+            second_target = dedicated_rule_match_event(
+                rule_id="100001",
+                phase="response_body",
+                previous_event_hash=int(first_target["event_hash"]),
+            )
+            second_other = dedicated_rule_match_event(
+                transaction_id="other-run",
+                uri="/?foo=other",
+                rule_id="100001",
+                phase="response_body",
+                previous_event_hash=int(first_other["event_hash"]),
+            )
+            event_log.write_text(
+                "\n".join(
+                    json.dumps(event)
+                    for event in (first_target, first_other, second_target, second_other)
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                EXECUTOR.event_ids(
+                    event_log,
+                    "run-0001",
+                    "envoy",
+                    "/?foo=attack",
+                    "request_body",
+                    {"100000"},
+                    {"100000", "100001"},
+                ),
+                {"100000"},
+            )
+
+    def test_event_ids_rejects_cross_transaction_integrity_continuation(self):
         with tempfile.TemporaryDirectory() as directory:
             event_log = Path(directory) / "events.jsonl"
             first = dedicated_rule_match_event(
@@ -877,12 +935,40 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
                 json.dumps(first) + "\n" + json.dumps(second) + "\n",
                 encoding="utf-8",
             )
-            self.assertEqual(
+            with self.assertRaisesRegex(
+                SystemExit, "does not start a native integrity chain"
+            ):
                 EXECUTOR.event_ids(
-                    event_log, "run-0001", "envoy", "/?foo=attack", "request_body", {"100000"}, {"100000"}
-                ),
-                {"100000"},
+                    event_log,
+                    "run-0001",
+                    "envoy",
+                    "/?foo=attack",
+                    "request_body",
+                    {"100000"},
+                    {"100000"},
+                )
+
+    def test_event_ids_rejects_broken_same_transaction_integrity_chain(self):
+        with tempfile.TemporaryDirectory() as directory:
+            event_log = Path(directory) / "events.jsonl"
+            first = dedicated_rule_match_event()
+            second = dedicated_rule_match_event(rule_id="100001")
+            event_log.write_text(
+                json.dumps(first) + "\n" + json.dumps(second) + "\n",
+                encoding="utf-8",
             )
+            with self.assertRaisesRegex(
+                SystemExit, "does not continue the native integrity chain"
+            ):
+                EXECUTOR.event_ids(
+                    event_log,
+                    "run-0001",
+                    "envoy",
+                    "/?foo=attack",
+                    "request_body",
+                    {"100000"},
+                    {"100000", "100001"},
+                )
 
     def test_event_ids_integrity_validates_and_ignores_unrelated_response_phase(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -890,9 +976,7 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
             unrelated = dedicated_rule_match_event(
                 transaction_id="other-run", uri="/?foo=other", phase="response_body"
             )
-            relevant = dedicated_rule_match_event(
-                previous_event_hash=int(unrelated["event_hash"])
-            )
+            relevant = dedicated_rule_match_event()
             event_log.write_text(
                 json.dumps(unrelated) + "\n" + json.dumps(relevant) + "\n",
                 encoding="utf-8",
