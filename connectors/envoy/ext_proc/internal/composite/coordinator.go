@@ -530,6 +530,12 @@ func (r *Response) RecordNeutralOutcome(ctx context.Context, visibleStatus int, 
 	return e.emitLocked(Event{DecisionID: e.id, Connector: e.c.connector, Phase: "neutral_outcome", Outcome: "allow", ActualHostAction: "allow", VisibleStatus: visibleStatus, EventTime: time.Now()})
 }
 
+func finishOutOfOrderClaim(e *entry) {
+	if !e.reserved {
+		go e.finish(context.Background(), "out_of_order")
+	}
+}
+
 func (c *Coordinator) Claim(token, session string) (*Response, error) {
 	if session == "" || len(session) > 256 {
 		return nil, ErrSession
@@ -575,9 +581,7 @@ func (c *Coordinator) Claim(token, session string) (*Response, error) {
 		// activated it. Leave cleanup to the owning UDS session so a
 		// disconnect/abort retains its truthful terminal reason instead of
 		// racing an asynchronous out_of_order cleanup.
-		if !e.reserved {
-			go e.finish(context.Background(), "out_of_order")
-		}
+		finishOutOfOrderClaim(e)
 		return nil, ErrOutOfOrder
 	}
 	e.claimed, e.session, e.phase, e.last = true, session, phaseResponseHeaders, time.Now()

@@ -328,3 +328,29 @@ harness observation as a suppressed, non-promoting evidence-integrity note.
 These are local final-worktree results only. The corrective commit, push, and
 new exact-head GitHub/SonarCloud checks remain to be performed; no future
 Sonar result is claimed here, and no merge is authorized.
+
+## PR #341 Sonar cognitive-complexity successor — 2026-08-26
+
+At exact Draft PR #341 head `19c441c28ffb431167b62b1a75df9ac0ec929180`, the
+raw SonarQube Cloud pull-request API reported one task-owned New-Code issue:
+`AaA9jhYnEWWk2M7bnB7N` (`go:S3776`) in `Coordinator.Claim`, cognitive
+complexity `17` where `15` is allowed. This is remediated structurally, not by
+changing Sonar configuration, Quality Gate, coverage input, exclusions,
+accepted-issue state, false-positive state, or a suppression.
+
+The nested non-reserved out-of-order cleanup was extracted into
+`finishOutOfOrderClaim`. The helper preserves the existing asynchronous
+`out_of_order` terminal path. Reserved pre-activation claims still leave their
+terminal reason to the owning UDS session, so a disconnect remains truthful.
+`TestPreActivationClaimLeavesTerminalReasonToOwner` and the new
+`TestFinishOutOfOrderClaimClosesUnreservedEntry` cover those respective
+controls.
+
+`go test -race -count=1 ./internal/composite ./internal/compositetraefik
+./cmd/msconnector-composite`, `go vet ./internal/composite
+./internal/compositetraefik ./cmd/msconnector-composite`, `gofmt -d`, and
+`git diff --check` passed in the corrective worktree. A focused independent
+security review found no new candidate and confirmed that locking,
+single-close cleanup, capacity release, and terminal-event behavior are
+unchanged. Commit, normal push, and exact-successor Sonar evidence remain
+pending; no merge is authorized.

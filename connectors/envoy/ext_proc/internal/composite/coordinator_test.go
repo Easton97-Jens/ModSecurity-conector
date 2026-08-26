@@ -344,6 +344,62 @@ func TestPreActivationClaimLeavesTerminalReasonToOwner(t *testing.T) {
 	}
 }
 
+func TestFinishOutOfOrderClaimClosesUnreservedEntry(t *testing.T) {
+	c, log := newTestCoordinator(t, Limits{Capacity: 1})
+	if err := c.admitCapacity(); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	e := &entry{
+		c:       c,
+		id:      "unreserved-out-of-order",
+		created: now,
+		last:    now,
+		phase:   phaseRequestHeaders,
+		summary: processor.Summary{TransactionID: "unreserved-out-of-order", LateAction: processor.LateActionNone},
+	}
+	c.mu.Lock()
+	c.entries[e.id] = e
+	c.mu.Unlock()
+
+	finishOutOfOrderClaim(e)
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		c.mu.Lock()
+		_, present := c.entries[e.id]
+		c.mu.Unlock()
+		log.mu.Lock()
+		complete := !present && len(log.events) == 1
+		log.mu.Unlock()
+		if complete {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	c.mu.Lock()
+	_, present := c.entries[e.id]
+	c.mu.Unlock()
+	if present {
+		t.Fatal("unreserved entry remained registered")
+	}
+	e.mu.Lock()
+	terminal, closeReason := e.terminal, e.summary.CloseReason
+	e.mu.Unlock()
+	if !terminal || closeReason != processor.CloseReason("out_of_order") {
+		t.Fatalf("unreserved close = terminal %v, reason %q", terminal, closeReason)
+	}
+	log.mu.Lock()
+	events := append([]Event(nil), log.events...)
+	log.mu.Unlock()
+	if len(events) != 1 || events[0].Phase != "terminal" || events[0].Reason != "out_of_order" {
+		t.Fatalf("unreserved terminal events = %#v", events)
+	}
+	if got := len(c.slots); got != 0 {
+		t.Fatalf("capacity slots after unreserved close = %d, want 0", got)
+	}
+}
+
 func TestReservationSnapshotIsImmutableAndBoundToForwardAuthMetadata(t *testing.T) {
 	engine := &snapshotCaptureEngine{}
 	c, err := New("traefik", []byte("01234567890123456789012345678901"), Limits{}, engine, nil)

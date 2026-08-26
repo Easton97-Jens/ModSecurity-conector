@@ -354,3 +354,30 @@ Dies sind ausschließlich lokale Final-Worktree-Ergebnisse. Corrective Commit,
 Push sowie neue exakte Head-GitHub-/SonarCloud-Checks stehen noch aus; hier
 wird kein zukünftiges Sonarqube-Ergebnis behauptet, und kein Merge ist
 autorisiert.
+
+## Sonar-Complexity-Successor für PR #341 — 2026-08-26
+
+Am exakten Draft-PR-#341-Head `19c441c28ffb431167b62b1a75df9ac0ec929180`
+meldete die rohe SonarQube-Cloud-Pull-Request-API ein task-eigenes New-Code-
+Issue: `AaA9jhYnEWWk2M7bnB7N` (`go:S3776`) in `Coordinator.Claim`, kognitive
+Komplexität `17` bei erlaubten `15`. Dies wird strukturell behoben, nicht durch
+Änderung von Sonar-Konfiguration, Quality Gate, Coverage-Input, Exclusions,
+Accepted-Issue-Status, False-Positive-Status oder Suppression.
+
+Das verschachtelte nicht reservierte Out-of-Order-Cleanup wurde in
+`finishOutOfOrderClaim` extrahiert. Der Helper bewahrt den bestehenden
+asynchronen `out_of_order`-Terminalpfad. Reservierte Claims vor der Aktivierung
+überlassen ihre Terminal-Begründung weiterhin der besitzenden UDS-Session,
+sodass ein Disconnect wahrheitsgetreu bleibt.
+`TestPreActivationClaimLeavesTerminalReasonToOwner` und der neue
+`TestFinishOutOfOrderClaimClosesUnreservedEntry` decken die jeweiligen
+Kontrollen ab.
+
+`go test -race -count=1 ./internal/composite ./internal/compositetraefik
+./cmd/msconnector-composite`, `go vet ./internal/composite
+./internal/compositetraefik ./cmd/msconnector-composite`, `gofmt -d` und
+`git diff --check` bestanden im Corrective-Worktree. Ein fokussierter
+unabhängiger Security-Review fand keinen neuen Kandidaten und bestätigte, dass
+Locking, Single-Close-Cleanup, Kapazitätsfreigabe und Terminal-Event-Verhalten
+unverändert sind. Commit, normaler Push und exakte Successor-Sonar-Evidenz
+stehen noch aus; kein Merge ist autorisiert.
