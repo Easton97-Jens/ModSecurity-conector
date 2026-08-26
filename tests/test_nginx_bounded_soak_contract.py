@@ -96,11 +96,20 @@ class NginxBoundedSoakContractTest(unittest.TestCase):
         ):
             self.assertIn(canonical_case, selection)
 
-    def test_soak_output_is_a_count_only_summary_and_cleanup_trap_remains(self) -> None:
+    def test_soak_output_is_a_count_only_summary_and_cleanup_traps_remain(self) -> None:
         source = HARNESS.read_text(encoding="utf-8")
         summary_start = source.index("write_bounded_soak_summary()")
         summary_end = source.index("run_bounded_soak()")
         summary = source[summary_start:summary_end]
+        signal_cleanup_start = source.index("cleanup_on_signal()")
+        signal_cleanup_end = source.index("cleanup_on_exit()")
+        signal_cleanup = source[signal_cleanup_start:signal_cleanup_end]
+        failed_start_cleanup = source[
+            source.index("discard_failed_nginx_start()"):source.index("port_is_free()")
+        ]
+        retry_start = source.index("start_server()")
+        retry_end = source.index("if [ \"$ready\" -eq 1 ];", retry_start)
+        retry = source[retry_start:retry_end]
 
         self.assertIn("nginx-bounded-soak-summary.txt", source)
         for field in (
@@ -112,7 +121,25 @@ class NginxBoundedSoakContractTest(unittest.TestCase):
             self.assertIn(field, summary)
         self.assertNotIn("RESPONSE_BODY", summary)
         self.assertNotIn("curl-attack.err", summary)
-        self.assertIn("trap cleanup EXIT INT TERM", source)
+        self.assertIn('trap - "$signal_name" EXIT', signal_cleanup)
+        for required in (
+            "trap cleanup_on_exit EXIT",
+            "trap 'cleanup_on_signal INT 130' INT",
+            "trap 'cleanup_on_signal TERM 143' TERM",
+            "discard_failed_nginx_start || \\",
+            "failed to discard NGINX start attempt after bind conflict",
+        ):
+            self.assertIn(required, source)
+        for required in (
+            'if kill -0 "$NGINX_PID" >/dev/null 2>&1; then',
+            'wait "$NGINX_PID"',
+            'rm -f "$RUNTIME_PID_FILE"',
+            'NGINX_PID=""',
+        ):
+            self.assertIn(required, failed_start_cleanup)
+        self.assertNotIn("RESPONSE_HEADER_BACKEND_PID", failed_start_cleanup)
+        self.assertNotIn("SYNCHRONIZED_UPSTREAM_PID", failed_start_cleanup)
+        self.assertNotIn("cleanup || true", retry)
 
     def test_opt_in_make_target_uses_the_existing_framework_wrapper_only(self) -> None:
         makefile = MAKEFILE.read_text(encoding="utf-8")

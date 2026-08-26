@@ -1986,6 +1986,21 @@ cleanup() {
     return "$nginx_cleanup_return"
 }
 
+discard_failed_nginx_start() {
+    [ -n "${NGINX_PID:-}" ] || return 1
+    if kill -0 "$NGINX_PID" >/dev/null 2>&1; then
+        return 1
+    fi
+    set +e
+    wait "$NGINX_PID"
+    NGINX_LIFECYCLE_EXIT_STATUS=$?
+    set -e
+    rm -f "$RUNTIME_PID_FILE"
+    [ ! -e "$RUNTIME_PID_FILE" ] || return 1
+    write_nginx_lifecycle_event "phase=bind_conflict_retry exit_status=$NGINX_LIFECYCLE_EXIT_STATUS result=failed_start_discarded"
+    NGINX_PID=""
+}
+
 port_is_free() {
     port_to_probe=$1
     "$PYTHON_BIN" - "$port_to_probe" "$NGINX_DOWNSTREAM_PROTOCOL" <<'PY'
@@ -2336,7 +2351,11 @@ start_server() {
         while [ "$i" -lt 30 ]; do
             if ! kill -0 "$NGINX_PID" >/dev/null 2>&1; then
                 if [ "$attempt" -lt "$PORT_RETRY_LIMIT" ] && bind_conflict_seen; then
-                    cleanup
+                    # Preserve the already-started auxiliary backends while
+                    # reaping only this failed NGINX start attempt. Full
+                    # cleanup would stop those backends before the retry.
+                    discard_failed_nginx_start || \
+                        fail "failed to discard NGINX start attempt after bind conflict"
                     attempt=$((attempt + 1))
                     PORT=$((PORT + 1))
                     echo "nginx_smoke: retrying after bind conflict attempt=$attempt"
@@ -2807,7 +2826,9 @@ export LD_LIBRARY_PATH
 cleanup_on_signal() {
     signal_name=$1
     signal_status=$2
-    trap - "$signal_name"
+    # exit below would otherwise run cleanup_on_exit as well, duplicating
+    # process and artifact cleanup for one signal.
+    trap - "$signal_name" EXIT
     cleanup || true
     exit "$signal_status"
 }
