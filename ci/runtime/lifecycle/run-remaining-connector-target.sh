@@ -36,6 +36,15 @@ require_mrts_python_invocation() {
     done
 }
 
+is_hosted_setup_go_binary() {
+    # Only the exact setup-go toolcache route has a workflow-bound digest.
+    # Keep every other approved Go path on the strict non-writable contract.
+    case "$1" in
+        /opt/hostedtoolcache/go/*/bin/go) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 require_mrts_go_invocation() {
     candidate=$1
     case "$candidate" in
@@ -59,13 +68,56 @@ require_mrts_go_invocation() {
     [ -f "$candidate" ] || { echo "FAIL: MRTS Go binary is not a regular file: $candidate" >&2; return 77; }
     [ -x "$candidate" ] || { echo "FAIL: MRTS Go binary is not executable: $candidate" >&2; return 77; }
     owner=$(stat -c '%u' "$candidate") || return 77
+    group=$(stat -c '%g' "$candidate") || return 77
     mode=$(stat -c '%a' "$candidate") || return 77
-    [ "$owner" = "0" ] || [ "$owner" = "$(id -u)" ] || { echo "FAIL: MRTS Go binary is not trusted-owned" >&2; return 77; }
-    mode_tail=$(printf '%s' "$mode" | sed 's/.*\(..\)$/\1/')
-    case "$mode_tail" in
-        *[2367]*) echo "FAIL: MRTS Go binary is writable by group or other" >&2; return 77 ;;
+    current_uid=$(id -u) || return 77
+    current_gid=$(id -g) || return 77
+    case "$owner:$group:$mode:$current_uid:$current_gid" in
+        *[!0-9:]*) echo "FAIL: MRTS Go binary ownership or mode is invalid" >&2; return 77 ;;
         *) : ;;
     esac
+    mode_tail=$(printf '%s' "$mode" | sed 's/.*\(..\)$/\1/')
+    if is_hosted_setup_go_binary "$candidate"; then
+        # actions/setup-go can intentionally expose a runner-group-writable
+        # toolcache file.  This narrowly mirrors the Python snapshot policy:
+        # only the exact hosted route may use that exception, it may never be
+        # world-writable, and the sealed digest/version checks remain required.
+        case "$mode_tail" in
+            ?[2367]*) echo "FAIL: MRTS Go binary is writable by other" >&2; return 77 ;;
+            *) : ;;
+        esac
+        case "$owner:$group" in
+            "$current_uid:$current_gid") : ;;
+            0:*)
+                case "$mode_tail" in
+                    [2367]?)
+                        if [ "$group" != "$current_gid" ]; then
+                            runner_groups=$(id -G) || return 77
+                            case "$runner_groups" in
+                                ''|*[!0-9\ ]*) echo "FAIL: MRTS Go runtime groups are invalid" >&2; return 77 ;;
+                                *) : ;;
+                            esac
+                            case " $runner_groups " in
+                                *" $group "*) echo "FAIL: MRTS Go binary is writable by a runner-held group" >&2; return 77 ;;
+                                *) : ;;
+                            esac
+                        fi
+                        ;;
+                    *) : ;;
+                esac
+                ;;
+            *) echo "FAIL: MRTS Go binary is not trusted-owned" >&2; return 77 ;;
+        esac
+    else
+        [ "$owner" = "0" ] || [ "$owner" = "$current_uid" ] || {
+            echo "FAIL: MRTS Go binary is not trusted-owned" >&2
+            return 77
+        }
+        case "$mode_tail" in
+            [2367]?|?[2367]*) echo "FAIL: MRTS Go binary is writable by group or other" >&2; return 77 ;;
+            *) : ;;
+        esac
+    fi
     parent=${candidate%/*}
     while [ -n "$parent" ] && [ "$parent" != / ]; do
         [ ! -L "$parent" ] || { echo "FAIL: MRTS Go binary has a symlinked parent: $candidate" >&2; return 77; }

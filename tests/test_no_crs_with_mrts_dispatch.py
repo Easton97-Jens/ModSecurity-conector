@@ -1,6 +1,9 @@
 """Contracts for the closed no-CRS/with-MRTS shell dispatch boundary."""
 from __future__ import annotations
 
+import os
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -12,6 +15,21 @@ ENVOY = ROOT / "connectors" / "envoy" / "harness" / "run_envoy_ext_proc_runtime.
 
 
 class NoCrsWithMrtsDispatchContractTests(unittest.TestCase):
+    @staticmethod
+    def run_go_guard(candidate: Path, hosted_root: Path, strict_binary: Path) -> subprocess.CompletedProcess[str]:
+        source = RUNNER.read_text(encoding="utf-8")
+        guard = source.split("is_hosted_setup_go_binary() {", 1)[1].split("set_mrts_go_path() {", 1)[0]
+        guard = "is_hosted_setup_go_binary() {" + guard
+        guard = guard.replace("/opt/hostedtoolcache", str(hosted_root))
+        guard = guard.replace("/usr/local/go/bin/go", str(strict_binary))
+        script = "set -eu\nCONNECTOR_ROOT=/checkout\n" + guard + '\nrequire_mrts_go_invocation "$1"\n'
+        return subprocess.run(
+            ["sh", "-ceu", script, "mrts-go-guard", str(candidate)],
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+
     def test_snapshot_load_reasserts_closed_toolchain_environment(self) -> None:
         source = RUNNER.read_text(encoding="utf-8")
         load_index = source.index('. "$runtime_env"')
@@ -47,6 +65,50 @@ class NoCrsWithMrtsDispatchContractTests(unittest.TestCase):
         self.assertIn('set_mrts_go_path "$MRTS_GO_BINARY" || exit $?', source)
         self.assertIn('set_mrts_go_path "$MRTS_GO_BINARY" || return $?', source)
         self.assertIn('[ "$PATH" = "$MRTS_CLOSED_PATH" ]', source)
+
+    def test_hosted_go_snapshot_group_write_exception_is_narrow_and_digest_bound(self) -> None:
+        source = RUNNER.read_text(encoding="utf-8")
+        helper = source.split("is_hosted_setup_go_binary() {", 1)[1].split("require_mrts_go_invocation() {", 1)[0]
+        self.assertIn("/opt/hostedtoolcache/go/*/bin/go", helper)
+        self.assertNotIn("/usr/local/go/bin/go", helper)
+
+        guard = source.split("require_mrts_go_invocation() {", 1)[1].split("set_mrts_go_path() {", 1)[0]
+        self.assertIn('if is_hosted_setup_go_binary "$candidate"; then', guard)
+        self.assertIn('?[2367]*) echo "FAIL: MRTS Go binary is writable by other"', guard)
+        self.assertIn('"$current_uid:$current_gid") : ;;', guard)
+        self.assertIn('[ "$group" != "$current_gid" ]', guard)
+        self.assertIn('MRTS Go binary is writable by a runner-held group', guard)
+        self.assertIn('[2367]?|?[2367]*) echo "FAIL: MRTS Go binary is writable by group or other"', guard)
+        self.assertIn('MRTS_GO_BINARY_SHA256 is required', source)
+        self.assertIn('MRTS Go binary digest does not match the sealed value', source)
+
+    def test_shell_go_guard_accepts_only_hosted_group_write_and_rejects_weaker_modes(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="mrts-go-guard-") as temporary:
+            root = Path(temporary)
+            hosted_root = root / "hostedtoolcache"
+            hosted_go = hosted_root / "go/1.26.7/x64/bin/go"
+            strict_go = root / "strict/go/bin/go"
+            other_go = root / "other/bin/go"
+            for candidate in (hosted_go, strict_go, other_go):
+                candidate.parent.mkdir(parents=True, exist_ok=True)
+                candidate.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+                os.chmod(candidate, 0o775)
+
+            accepted = self.run_go_guard(hosted_go, hosted_root, strict_go)
+            self.assertEqual(accepted.returncode, 0, accepted.stderr)
+
+            os.chmod(hosted_go, 0o777)
+            world_writable = self.run_go_guard(hosted_go, hosted_root, strict_go)
+            self.assertNotEqual(world_writable.returncode, 0)
+            self.assertIn("writable by other", world_writable.stderr)
+
+            strict = self.run_go_guard(strict_go, hosted_root, strict_go)
+            self.assertNotEqual(strict.returncode, 0)
+            self.assertIn("writable by group or other", strict.stderr)
+
+            unapproved = self.run_go_guard(other_go, hosted_root, strict_go)
+            self.assertNotEqual(unapproved.returncode, 0)
+            self.assertIn("outside the approved setup-go roots", unapproved.stderr)
 
     def test_closed_values_are_readonly_before_snapshot_source(self) -> None:
         source = RUNNER.read_text(encoding="utf-8")
