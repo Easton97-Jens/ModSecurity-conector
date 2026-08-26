@@ -904,13 +904,15 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
                 set(),
             )
 
-    def test_event_ids_accepts_independent_native_integrity_chains(self):
+    def test_event_ids_accepts_globally_chained_unrelated_event_before_target(self):
         with tempfile.TemporaryDirectory() as directory:
             event_log = Path(directory) / "events.jsonl"
             first = dedicated_rule_match_event(
                 transaction_id="other-run", uri="/?foo=other"
             )
-            second = dedicated_rule_match_event()
+            second = dedicated_rule_match_event(
+                previous_event_hash=int(first["event_hash"])
+            )
             event_log.write_text(
                 json.dumps(first) + "\n" + json.dumps(second) + "\n",
                 encoding="utf-8",
@@ -922,24 +924,26 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
                 {"100000"},
             )
 
-    def test_event_ids_accepts_interleaved_native_integrity_chains(self):
+    def test_event_ids_accepts_interleaved_globally_chained_events(self):
         with tempfile.TemporaryDirectory() as directory:
             event_log = Path(directory) / "events.jsonl"
             first_target = dedicated_rule_match_event()
             first_other = dedicated_rule_match_event(
-                transaction_id="other-run", uri="/?foo=other"
+                transaction_id="other-run",
+                uri="/?foo=other",
+                previous_event_hash=int(first_target["event_hash"]),
             )
             second_target = dedicated_rule_match_event(
                 rule_id="100001",
                 phase="response_body",
-                previous_event_hash=int(first_target["event_hash"]),
+                previous_event_hash=int(first_other["event_hash"]),
             )
             second_other = dedicated_rule_match_event(
                 transaction_id="other-run",
                 uri="/?foo=other",
                 rule_id="100001",
                 phase="response_body",
-                previous_event_hash=int(first_other["event_hash"]),
+                previous_event_hash=int(second_target["event_hash"]),
             )
             event_log.write_text(
                 "\n".join(
@@ -962,21 +966,19 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
                 {"100000"},
             )
 
-    def test_event_ids_rejects_cross_transaction_integrity_continuation(self):
+    def test_event_ids_rejects_independent_transaction_integrity_chain(self):
         with tempfile.TemporaryDirectory() as directory:
             event_log = Path(directory) / "events.jsonl"
             first = dedicated_rule_match_event(
                 transaction_id="other-run", uri="/?foo=other"
             )
-            second = dedicated_rule_match_event(
-                previous_event_hash=int(first["event_hash"])
-            )
+            second = dedicated_rule_match_event()
             event_log.write_text(
                 json.dumps(first) + "\n" + json.dumps(second) + "\n",
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(
-                SystemExit, "does not start a native integrity chain"
+                SystemExit, "does not continue the native integrity chain"
             ):
                 EXECUTOR.event_ids(
                     event_log,
@@ -988,7 +990,7 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
                     {"100000"},
                 )
 
-    def test_event_ids_rejects_broken_same_transaction_integrity_chain(self):
+    def test_event_ids_rejects_broken_global_integrity_chain(self):
         with tempfile.TemporaryDirectory() as directory:
             event_log = Path(directory) / "events.jsonl"
             first = dedicated_rule_match_event()
@@ -1016,7 +1018,9 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
             unrelated = dedicated_rule_match_event(
                 transaction_id="other-run", uri="/?foo=other", phase="response_body"
             )
-            relevant = dedicated_rule_match_event()
+            relevant = dedicated_rule_match_event(
+                previous_event_hash=int(unrelated["event_hash"])
+            )
             event_log.write_text(
                 json.dumps(unrelated) + "\n" + json.dumps(relevant) + "\n",
                 encoding="utf-8",

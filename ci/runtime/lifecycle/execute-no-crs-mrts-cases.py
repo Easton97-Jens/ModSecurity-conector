@@ -658,10 +658,13 @@ def event_ids(
     if integration_mode is None:
         fail("rule-match connector is outside the closed profile")
     found: set[str] = set()
-    # Native hosts own integrity chains per transaction.  Records from
-    # different requests can be interleaved in the same append-only evidence
-    # log, but must never continue one another's chains.
-    previous_event_hash_by_transaction: dict[str, int] = {}
+    # The native runtime owns one serialized integrity chain for its complete
+    # append-only evidence stream.  It deliberately does not reset the chain
+    # when a transaction changes, so readiness and unrelated requests remain
+    # authenticated predecessors of a relevant MRTS event.  Validate every
+    # record before correlation; a transaction-local chain would accept a
+    # reset, deletion, or reordering across requests.
+    previous_event_hash: int | None = None
     for line in read_bounded_event_log(event_log, missing_is_empty=True):
         item = parse_event_record(line)
         # Validate the complete native record and chain before correlating it.
@@ -672,11 +675,8 @@ def event_ids(
         rule_id, event_hash = validate_rule_match_event(
             item, connector, integration_mode
         )
-        transaction_id = item["transaction_id"]
-        validate_event_chain(
-            item, previous_event_hash_by_transaction.get(transaction_id)
-        )
-        previous_event_hash_by_transaction[transaction_id] = event_hash
+        validate_event_chain(item, previous_event_hash)
+        previous_event_hash = event_hash
         correlate_event(
             item, rule_id, correlation_id, connector, uri, expected_phase,
             expected_ids, allowed_rule_ids, found,
