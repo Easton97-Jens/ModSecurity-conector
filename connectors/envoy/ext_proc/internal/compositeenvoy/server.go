@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Easton97-Jens/ModSecurity-conector/connectors/envoy/ext_proc/internal/composite"
 	"github.com/Easton97-Jens/ModSecurity-conector/connectors/envoy/ext_proc/internal/processor"
@@ -38,7 +39,11 @@ const (
 	statusUnavailable         = 503
 	defaultUpstreamStatus     = 200
 	maxRedirectURLBytes       = 2048
+	defaultStreamIdleTimeout  = 4 * time.Second
+	defaultActiveStreamLimit  = 128
 )
+
+var errStreamIdle = errors.New("ext_proc stream idle deadline exceeded")
 
 // postTransportError marks a failure discovered only after the adapter has
 // successfully sent an irreversible response to Envoy.  Its caller must not
@@ -148,19 +153,44 @@ func handleAdmissionError(ctx, cleanupCtx context.Context, admission *composite.
 // AuthzServer.  It never opens a second Common transaction.
 type ExtProcServer struct {
 	extprocv3.UnimplementedExternalProcessorServer
-	coordinator *composite.Coordinator
+	coordinator       *composite.Coordinator
+	streamIdleTimeout time.Duration
+	activeStreams     chan struct{}
 }
 
 func NewExtProcServer(coordinator *composite.Coordinator) (*ExtProcServer, error) {
+	return newExtProcServerWithLimits(coordinator, defaultStreamIdleTimeout, defaultActiveStreamLimit)
+}
+
+// newExtProcServerWithLimits keeps tests deterministic while production uses
+// the fixed private contract: a four-second receive deadline precedes the
+// Coordinator's five-second retained-transaction idle TTL. The deadline is a
+// receive deadline, not an engine timeout: each valid stream message starts a
+// new interval.
+func newExtProcServerWithLimits(coordinator *composite.Coordinator, streamIdleTimeout time.Duration, maxActiveStreams int) (*ExtProcServer, error) {
 	if coordinator == nil {
 		return nil, errors.New("composite coordinator is required")
 	}
-	return &ExtProcServer{coordinator: coordinator}, nil
+	if streamIdleTimeout <= 0 {
+		return nil, errors.New("composite ext_proc stream idle timeout must be positive")
+	}
+	if maxActiveStreams <= 0 {
+		return nil, errors.New("composite ext_proc active stream limit must be positive")
+	}
+	return &ExtProcServer{
+		coordinator:       coordinator,
+		streamIdleTimeout: streamIdleTimeout,
+		activeStreams:     make(chan struct{}, maxActiveStreams),
+	}, nil
 }
 
 func (s *ExtProcServer) Process(stream extprocv3.ExternalProcessor_ProcessServer) error {
 	ctx := stream.Context()
-	first, err := stream.Recv()
+	if err := s.admitStream(ctx); err != nil {
+		return err
+	}
+	defer s.releaseStream()
+	first, err := s.recv(ctx, stream)
 	if err != nil {
 		return classifyRecv(err)
 	}
@@ -174,7 +204,7 @@ func (s *ExtProcServer) Process(stream extprocv3.ExternalProcessor_ProcessServer
 		if !firstIsResponseHeaders {
 			return sendImmediate(stream, processor.Decision{Action: processor.ActionDeny, Status: statusUnavailable})
 		}
-		return continueMarkedTerminalReply(stream, first)
+		return s.continueMarkedTerminalReply(ctx, stream, first)
 	}
 	lease, ok := leaseFromMetadata(first.GetMetadataContext())
 	if !ok || (!firstIsRequestHeaders && !firstIsResponseHeaders) {
@@ -248,10 +278,14 @@ func (s *ExtProcServer) processStreamRequest(ctx context.Context, state *respons
 
 func (s *ExtProcServer) runResponseLoop(ctx context.Context, state *responseStreamState, finish func(string), handleProcessError func(error) error) error {
 	for {
-		request, err := state.stream.Recv()
+		request, err := s.recv(ctx, state.stream)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				return nil
+			}
+			if errors.Is(err, errStreamIdle) {
+				finish("grpc_stream_idle_timeout")
+				return classifyRecv(err)
 			}
 			finish("grpc_context_canceled_unattributed")
 			return classifyRecv(err)
@@ -264,6 +298,56 @@ func (s *ExtProcServer) runResponseLoop(ctx context.Context, state *responseStre
 			state.responseDone = true
 			finish("response_end_of_stream")
 			return nil
+		}
+	}
+}
+
+func (s *ExtProcServer) admitStream(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return classifyRecv(err)
+	}
+	select {
+	case s.activeStreams <- struct{}{}:
+		return nil
+	default:
+		return status.Error(codes.ResourceExhausted, "composite ext_proc active stream capacity exhausted")
+	}
+}
+
+func (s *ExtProcServer) releaseStream() {
+	<-s.activeStreams
+}
+
+type recvResult struct {
+	request *extprocv3.ProcessingRequest
+	err     error
+}
+
+// recv bounds one pending gRPC receive. Returning from a gRPC handler causes
+// the server transport to cancel its stream context, which unblocks the
+// receive goroutine; the buffered result channel ensures that cancellation
+// never leaves it blocked trying to report its result.
+func (s *ExtProcServer) recv(ctx context.Context, stream extprocv3.ExternalProcessor_ProcessServer) (*extprocv3.ProcessingRequest, error) {
+	result := make(chan recvResult, 1)
+	go func() {
+		request, err := stream.Recv()
+		result <- recvResult{request: request, err: err}
+	}()
+	timer := time.NewTimer(s.streamIdleTimeout)
+	defer timer.Stop()
+	select {
+	case received := <-result:
+		return received.request, received.err
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-timer.C:
+		// Prefer a receive that completed at the deadline so a legitimate
+		// message is never rejected merely because scheduling was delayed.
+		select {
+		case received := <-result:
+			return received.request, received.err
+		default:
+			return nil, errStreamIdle
 		}
 	}
 }
@@ -505,7 +589,7 @@ func terminalBlockFromMetadata(metadata *corev3.Metadata) bool {
 // after validating its protected marker. It retains no payload and never
 // opens, claims, or records a Common transaction; any unmarked lease-less
 // response remains fail-closed in Process.
-func continueMarkedTerminalReply(stream extprocv3.ExternalProcessor_ProcessServer, first *extprocv3.ProcessingRequest) error {
+func (s *ExtProcServer) continueMarkedTerminalReply(ctx context.Context, stream extprocv3.ExternalProcessor_ProcessServer, first *extprocv3.ProcessingRequest) error {
 	responseHeadersSeen := false
 	request := first
 	for {
@@ -514,7 +598,7 @@ func continueMarkedTerminalReply(stream extprocv3.ExternalProcessor_ProcessServe
 			return err
 		}
 		responseHeadersSeen = nextHeadersSeen
-		next, err := stream.Recv()
+		next, err := s.recv(ctx, stream)
 		if err != nil {
 			return classifyRecv(err)
 		}
@@ -689,6 +773,9 @@ func authFailure(err error) error {
 	return status.Errorf(codes.Unavailable, "composite authorization unavailable: %v", err)
 }
 func classifyRecv(err error) error {
+	if errors.Is(err, errStreamIdle) {
+		return status.Error(codes.DeadlineExceeded, errStreamIdle.Error())
+	}
 	if errors.Is(err, io.EOF) {
 		return nil
 	}

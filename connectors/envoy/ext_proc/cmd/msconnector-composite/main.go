@@ -24,8 +24,10 @@ import (
 )
 
 const (
-	shutdownTimeout = 5 * time.Second
-	maxGRPCMessage  = 256 << 10
+	shutdownTimeout             = 5 * time.Second
+	maxGRPCMessage              = 256 << 10
+	compositeCoordinatorIdleTTL = 5 * time.Second
+	compositeStreamCapacity     = 128
 )
 
 type options struct {
@@ -75,9 +77,9 @@ func run() error {
 		defer closeObserver.Close()
 	}
 	coordinator, err := composite.New(opts.mode, key, composite.Limits{
-		Capacity:        128,
+		Capacity:        compositeStreamCapacity,
 		TTL:             30 * time.Second,
-		IdleTTL:         5 * time.Second,
+		IdleTTL:         compositeCoordinatorIdleTTL,
 		MaxRequestBody:  32,
 		MaxResponseBody: 1 << 20,
 		MaxBodyChunks:   256,
@@ -207,7 +209,7 @@ func serveEnvoy(address string, coordinator *composite.Coordinator) error {
 	server := grpc.NewServer(
 		grpc.MaxRecvMsgSize(maxGRPCMessage),
 		grpc.MaxSendMsgSize(maxGRPCMessage),
-		grpc.MaxConcurrentStreams(128),
+		grpc.MaxConcurrentStreams(compositeStreamCapacity),
 	)
 	authv3.RegisterAuthorizationServer(server, authz)
 	extprocv3.RegisterExternalProcessorServer(server, extproc)

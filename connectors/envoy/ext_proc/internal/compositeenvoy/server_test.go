@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 	"strconv"
 	"strings"
 	"testing"
@@ -14,7 +15,12 @@ import (
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	authv3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	extprocv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
+	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -365,6 +371,317 @@ func (s *processStream) Recv() (*extprocv3.ProcessingRequest, error) {
 	return request, nil
 }
 
+type blockingProcessStream struct {
+	ctx         context.Context
+	requests    chan *extprocv3.ProcessingRequest
+	responses   []*extprocv3.ProcessingResponse
+	recvEntered chan struct{}
+	recvExited  chan struct{}
+}
+
+func newBlockingProcessStream(ctx context.Context) *blockingProcessStream {
+	return &blockingProcessStream{
+		ctx:         ctx,
+		requests:    make(chan *extprocv3.ProcessingRequest, 4),
+		recvEntered: make(chan struct{}, 4),
+		recvExited:  make(chan struct{}, 4),
+	}
+}
+
+func (s *blockingProcessStream) SetHeader(metadata.MD) error  { return nil }
+func (s *blockingProcessStream) SendHeader(metadata.MD) error { return nil }
+func (s *blockingProcessStream) SetTrailer(metadata.MD)       {}
+func (s *blockingProcessStream) Context() context.Context     { return s.ctx }
+func (s *blockingProcessStream) SendMsg(interface{}) error    { return nil }
+func (s *blockingProcessStream) RecvMsg(interface{}) error    { return nil }
+func (s *blockingProcessStream) Send(response *extprocv3.ProcessingResponse) error {
+	s.responses = append(s.responses, response)
+	return nil
+}
+func (s *blockingProcessStream) Recv() (*extprocv3.ProcessingRequest, error) {
+	s.recvEntered <- struct{}{}
+	defer func() { s.recvExited <- struct{}{} }()
+	select {
+	case request := <-s.requests:
+		return request, nil
+	case <-s.ctx.Done():
+		return nil, s.ctx.Err()
+	}
+}
+
+func waitForStreamSignal(t *testing.T, signal <-chan struct{}, name string) {
+	t.Helper()
+	select {
+	case <-signal:
+	case <-time.After(time.Second):
+		t.Fatalf("timed out waiting for %s", name)
+	}
+}
+
+func waitForProcessResult(t *testing.T, done <-chan error) error {
+	t.Helper()
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(time.Second):
+		t.Fatal("Process did not return by its deadline")
+		return nil
+	}
+}
+
+func TestProcessIdleDeadlineBeforeInitialRequest(t *testing.T) {
+	opener := &recordingOpener{}
+	coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 1}, opener, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(coordinator.Close)
+	server, err := newExtProcServerWithLimits(coordinator, 20*time.Millisecond, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	stream := newBlockingProcessStream(ctx)
+	done := make(chan error, 1)
+	go func() { done <- server.Process(stream) }()
+	waitForStreamSignal(t, stream.recvEntered, "initial Recv entry")
+	if code := status.Code(waitForProcessResult(t, done)); code != codes.DeadlineExceeded {
+		t.Fatalf("Process status=%s, want DeadlineExceeded", code)
+	}
+	if opener.opened.TransactionID != "" {
+		t.Fatalf("idle pre-request stream opened a transaction: %+v", opener.opened)
+	}
+	if len(stream.responses) != 0 {
+		t.Fatalf("idle pre-request responses=%v, want none", stream.responses)
+	}
+	cancel()
+	waitForStreamSignal(t, stream.recvExited, "initial Recv exit after stream cancellation")
+	if err := server.Process(&processStream{}); err != nil {
+		t.Fatalf("capacity was not released after idle stream: %v", err)
+	}
+}
+
+func TestProcessMarkedTerminalIdleDeadlineReleasesCapacity(t *testing.T) {
+	opener := &recordingOpener{}
+	coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 1}, opener, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(coordinator.Close)
+	server, err := newExtProcServerWithLimits(coordinator, 20*time.Millisecond, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	stream := newBlockingProcessStream(ctx)
+	stream.requests <- terminalResponseHeaders("403", false)
+	done := make(chan error, 1)
+	go func() { done <- server.Process(stream) }()
+	waitForStreamSignal(t, stream.recvEntered, "marked-terminal initial Recv entry")
+	waitForStreamSignal(t, stream.recvExited, "marked-terminal initial Recv exit")
+	waitForStreamSignal(t, stream.recvEntered, "marked-terminal continuation Recv entry")
+	if code := status.Code(waitForProcessResult(t, done)); code != codes.DeadlineExceeded {
+		t.Fatalf("marked-terminal Process status=%s, want DeadlineExceeded", code)
+	}
+	if len(stream.responses) != 1 || stream.responses[0].GetResponseHeaders() == nil || stream.responses[0].GetImmediateResponse() != nil {
+		t.Fatalf("responses=%v, want only marked response-header CONTINUE", stream.responses)
+	}
+	if opener.opened.TransactionID != "" {
+		t.Fatalf("marked terminal idle stream opened a transaction: %+v", opener.opened)
+	}
+	cancel()
+	waitForStreamSignal(t, stream.recvExited, "marked-terminal continuation Recv exit after stream cancellation")
+	if err := server.Process(&processStream{}); err != nil {
+		t.Fatalf("capacity was not released after marked-terminal idle stream: %v", err)
+	}
+}
+
+func TestProcessIdleDeadlineAfterClaimClosesResponseAndReleasesCapacity(t *testing.T) {
+	closed := make(chan processor.Summary, 1)
+	opener := &responseOpener{action: processor.ActionAllow, bodyAction: processor.ActionAllow, status: 200, closeSummary: closed}
+	observer := &eventObserver{notify: make(chan composite.Event, 8)}
+	coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 1}, opener, observer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(coordinator.Close)
+	authz, err := NewAuthzServer(coordinator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	check, err := authz.Check(context.Background(), authCheckRequest(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lease := check.GetDynamicMetadata().GetFields()[metadataLease].GetStringValue()
+	if lease == "" {
+		t.Fatal("fixture did not receive a lease")
+	}
+	server, err := newExtProcServerWithLimits(coordinator, 20*time.Millisecond, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	stream := newBlockingProcessStream(ctx)
+	stream.requests <- initialRequest(lease)
+	done := make(chan error, 1)
+	go func() { done <- server.Process(stream) }()
+	waitForStreamSignal(t, stream.recvEntered, "claimed initial Recv entry")
+	waitForStreamSignal(t, stream.recvExited, "claimed initial Recv exit")
+	waitForStreamSignal(t, stream.recvEntered, "claimed response-loop Recv entry")
+	if code := status.Code(waitForProcessResult(t, done)); code != codes.DeadlineExceeded {
+		t.Fatalf("Process status=%s, want DeadlineExceeded", code)
+	}
+	if len(stream.responses) != 1 || stream.responses[0].GetRequestHeaders() == nil || stream.responses[0].GetImmediateResponse() != nil {
+		t.Fatalf("responses=%v, want only request-header CONTINUE", stream.responses)
+	}
+	select {
+	case summary := <-closed:
+		if summary.CloseReason != processor.CloseReason("grpc_stream_idle_timeout") {
+			t.Fatalf("close reason=%q, want grpc_stream_idle_timeout", summary.CloseReason)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("claimed idle stream did not close its transaction")
+	}
+	for {
+		select {
+		case event := <-observer.notify:
+			if event.Phase == "terminal" {
+				if event.Reason != "grpc_stream_idle_timeout" || event.CleanupOutcome != "closed" {
+					t.Fatalf("terminal event=%+v, want idle timeout cleanup", event)
+				}
+				goto terminalObserved
+			}
+		case <-time.After(time.Second):
+			t.Fatal("claimed idle stream did not emit a terminal event")
+		}
+	}
+
+terminalObserved:
+	next, err := authz.Check(context.Background(), authCheckRequest(nil))
+	if err != nil || next.GetOkResponse() == nil {
+		t.Fatalf("capacity was not released for a legitimate follow-up: response=%v err=%v", next, err)
+	}
+	cancel()
+	waitForStreamSignal(t, stream.recvExited, "claimed response-loop Recv exit after stream cancellation")
+}
+
+func TestProcessIdleDeadlineResetsAfterEachMessage(t *testing.T) {
+	opener := &responseOpener{action: processor.ActionAllow, bodyAction: processor.ActionAllow, status: 200}
+	coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 1}, opener, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(coordinator.Close)
+	authz, err := NewAuthzServer(coordinator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	check, err := authz.Check(context.Background(), authCheckRequest(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lease := check.GetDynamicMetadata().GetFields()[metadataLease].GetStringValue()
+	if lease == "" {
+		t.Fatal("fixture did not receive a lease")
+	}
+	server, err := newExtProcServerWithLimits(coordinator, 100*time.Millisecond, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stream := newBlockingProcessStream(context.Background())
+	stream.requests <- initialResponseHeaders(lease, "200", false)
+	done := make(chan error, 1)
+	go func() { done <- server.Process(stream) }()
+	waitForStreamSignal(t, stream.recvEntered, "initial response-header Recv entry")
+	waitForStreamSignal(t, stream.recvExited, "initial response-header Recv exit")
+	waitForStreamSignal(t, stream.recvEntered, "first response-body Recv entry")
+	time.Sleep(60 * time.Millisecond)
+	stream.requests <- &extprocv3.ProcessingRequest{Request: &extprocv3.ProcessingRequest_ResponseBody{ResponseBody: &extprocv3.HttpBody{Body: []byte("first"), EndOfStream: false}}}
+	waitForStreamSignal(t, stream.recvExited, "first response-body Recv exit")
+	waitForStreamSignal(t, stream.recvEntered, "second response-body Recv entry")
+	time.Sleep(60 * time.Millisecond)
+	stream.requests <- &extprocv3.ProcessingRequest{Request: &extprocv3.ProcessingRequest_ResponseBody{ResponseBody: &extprocv3.HttpBody{EndOfStream: true}}}
+	if err := waitForProcessResult(t, done); err != nil {
+		t.Fatalf("active streamed response did not complete: %v", err)
+	}
+	if len(stream.responses) != 3 || stream.responses[0].GetResponseHeaders() == nil || stream.responses[1].GetResponseBody() == nil || stream.responses[2].GetResponseBody() == nil {
+		t.Fatalf("responses=%v, want response-header and two response-body CONTINUE messages", stream.responses)
+	}
+}
+
+func TestProcessRejectsStreamsBeyondProcessWideCapacity(t *testing.T) {
+	coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 1}, &recordingOpener{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(coordinator.Close)
+	server, err := newExtProcServerWithLimits(coordinator, time.Second, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	stream := newBlockingProcessStream(ctx)
+	done := make(chan error, 1)
+	go func() { done <- server.Process(stream) }()
+	waitForStreamSignal(t, stream.recvEntered, "capacity-held Recv entry")
+	if code := status.Code(server.Process(&processStream{})); code != codes.ResourceExhausted {
+		t.Fatalf("overflow Process status=%s, want ResourceExhausted", code)
+	}
+	cancel()
+	if err := waitForProcessResult(t, done); err != nil {
+		t.Fatalf("cancelled Process err=%v, want nil", err)
+	}
+	waitForStreamSignal(t, stream.recvExited, "capacity-held Recv exit")
+	if err := server.Process(&processStream{}); err != nil {
+		t.Fatalf("capacity was not released after cancellation: %v", err)
+	}
+}
+
+func TestProcessIdleDeadlineClosesARealGRPCStream(t *testing.T) {
+	coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 1}, &recordingOpener{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(coordinator.Close)
+	server, err := newExtProcServerWithLimits(coordinator, 20*time.Millisecond, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	listener := bufconn.Listen(1 << 20)
+	grpcServer := grpc.NewServer()
+	extprocv3.RegisterExternalProcessorServer(grpcServer, server)
+	go func() { _ = grpcServer.Serve(listener) }()
+	t.Cleanup(func() {
+		grpcServer.Stop()
+		_ = listener.Close()
+	})
+	dialCtx, cancelDial := context.WithTimeout(context.Background(), time.Second)
+	defer cancelDial()
+	connection, err := grpc.DialContext(dialCtx, "bufnet", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+		return listener.Dial()
+	}), grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = connection.Close() })
+	client := extprocv3.NewExternalProcessorClient(connection)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	started := time.Now()
+	stream, err := client.Process(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = stream.Recv()
+	if code := status.Code(err); code != codes.DeadlineExceeded {
+		t.Fatalf("real gRPC idle stream status=%s err=%v, want DeadlineExceeded", code, err)
+	}
+	if elapsed := time.Since(started); elapsed > 500*time.Millisecond {
+		t.Fatalf("real gRPC idle deadline took %s, want bounded server-side timeout", elapsed)
+	}
+}
+
 type eventObserver struct {
 	events []composite.Event
 	notify chan composite.Event
@@ -388,11 +705,12 @@ type responseOpener struct {
 	commitErr     error
 	hostActionErr error
 	bodyErr       error
+	closeSummary  chan processor.Summary
 	tx            *responseTransaction
 }
 
 func (o *responseOpener) Open(_ context.Context, _ processor.StreamMetadata) (processor.Transaction, error) {
-	o.tx = &responseTransaction{action: o.action, bodyAction: o.bodyAction, status: o.status, commitErr: o.commitErr, hostActionErr: o.hostActionErr, bodyErr: o.bodyErr}
+	o.tx = &responseTransaction{action: o.action, bodyAction: o.bodyAction, status: o.status, commitErr: o.commitErr, hostActionErr: o.hostActionErr, bodyErr: o.bodyErr, closeSummary: o.closeSummary}
 	return o.tx, nil
 }
 
@@ -407,6 +725,7 @@ type responseTransaction struct {
 	hostActionErr     error
 	bodyErr           error
 	expectedTransport string
+	closeSummary      chan processor.Summary
 }
 
 func (t *responseTransaction) ProcessHeaders(_ context.Context, direction processor.Direction, _ []processor.Header, _ bool) (processor.Decision, error) {
@@ -447,7 +766,11 @@ func TestProcessP4ProcessingErrorDoesNotSendSecondImmediateResponse(t *testing.T
 		t.Fatalf("responses=%v, want only the committed P3 CONTINUE", stream.responses)
 	}
 }
-func (t *responseTransaction) Close(context.Context, processor.Summary) {}
+func (t *responseTransaction) Close(_ context.Context, summary processor.Summary) {
+	if t.closeSummary != nil {
+		t.closeSummary <- summary
+	}
+}
 func (t *responseTransaction) RecordHostAction(_ context.Context, action processor.HostAction) error {
 	if t.hostActionErr != nil {
 		return t.hostActionErr
