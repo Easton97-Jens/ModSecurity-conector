@@ -93,7 +93,7 @@ func TestForwardAuthNeverReturnsLeaseHeader(t *testing.T) {
 	}
 	defer c.Close()
 	body := []byte("hello")
-	token, err := c.Reserve("uds-session", composite.ReservationSnapshot{Version: composite.ReservationSnapshotVersion, Method: http.MethodPost, URI: "/check", Headers: []processor.Header{{Name: "host", Value: []byte("example.test")}}})
+	token, err := c.Reserve("uds-session", composite.ReservationSnapshot{Version: composite.ReservationSnapshotVersion, Protocol: "HTTP/1.1", ServerAddress: "127.0.0.1", ServerPort: 8080, Method: http.MethodPost, URI: "/check", Headers: []processor.Header{{Name: "host", Value: []byte("example.test")}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,9 +123,10 @@ func TestForwardAuthUsesOnlyPrivateReservationSnapshotForP1(t *testing.T) {
 	}
 	defer c.Close()
 	token, err := c.Reserve("uds-session", composite.ReservationSnapshot{
-		Version: composite.ReservationSnapshotVersion,
-		Method:  http.MethodPost,
-		URI:     "/snapshot",
+		Version:  composite.ReservationSnapshotVersion,
+		Protocol: "HTTP/1.1", ServerAddress: "127.0.0.1", ServerPort: 8080,
+		Method: http.MethodPost,
+		URI:    "/snapshot",
 		Headers: []processor.Header{
 			{Name: "host", Value: []byte("example.test")},
 			{Name: "x-msconnector-vector", Value: []byte("p1-block")},
@@ -167,9 +168,10 @@ func TestForwardAuthNormalizesInvalidRequestDenyStatus(t *testing.T) {
 			}
 			defer c.Close()
 			token, err := c.Reserve("uds-session", composite.ReservationSnapshot{
-				Version: composite.ReservationSnapshotVersion,
-				Method:  http.MethodGet,
-				URI:     "/invalid-deny",
+				Version:  composite.ReservationSnapshotVersion,
+				Protocol: "HTTP/1.1", ServerAddress: "127.0.0.1", ServerPort: 8080,
+				Method: http.MethodGet,
+				URI:    "/invalid-deny",
 				Headers: []processor.Header{
 					{Name: "host", Value: []byte("example.test")},
 					{Name: "x-msconnector-vector", Value: []byte("p1-block")},
@@ -191,7 +193,7 @@ func TestForwardAuthRejectsNonIPAddressForwardedClient(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer c.Close()
-	token, err := c.Reserve("uds-session", composite.ReservationSnapshot{Version: composite.ReservationSnapshotVersion, Method: http.MethodGet, URI: "/", Headers: []processor.Header{{Name: "host", Value: []byte("example.test")}}})
+	token, err := c.Reserve("uds-session", composite.ReservationSnapshot{Version: composite.ReservationSnapshotVersion, Protocol: "HTTP/1.1", ServerAddress: "127.0.0.1", ServerPort: 8080, Method: http.MethodGet, URI: "/", Headers: []processor.Header{{Name: "host", Value: []byte("example.test")}}})
 	if err != nil {
 		t.Fatal(err)
 	}

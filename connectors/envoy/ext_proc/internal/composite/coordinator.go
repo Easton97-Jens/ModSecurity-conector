@@ -16,6 +16,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"net"
 	"strings"
 	"sync"
 	"time"
@@ -55,13 +56,16 @@ type Limits struct {
 // Header names are canonical lower-case HTTP tokens. Repeated values are
 // separate, contiguous Header entries and are never comma-joined.
 type ReservationSnapshot struct {
-	Version uint8
-	Method  string
-	URI     string
-	Headers []processor.Header
+	Version       uint8
+	Method        string
+	URI           string
+	Protocol      string
+	ServerAddress string
+	ServerPort    int
+	Headers       []processor.Header
 }
 
-const ReservationSnapshotVersion uint8 = 1
+const ReservationSnapshotVersion uint8 = 2
 
 func (l Limits) withDefaults() Limits {
 	if l.Capacity <= 0 {
@@ -631,7 +635,7 @@ type entry struct {
 	created, last                                                              time.Time
 	phase                                                                      phase
 	requestBodyBytes, responseBodyBytes                                        int64
-	chunks                                                                     int
+	requestChunks, responseChunks                                              int
 	terminal, removed, claimed, leaseIssued, committed, responseEnded, blocked bool
 	reserved                                                                   bool
 	binding                                                                    [sha256.Size]byte
@@ -720,20 +724,24 @@ func (c *Coordinator) Activate(ctx context.Context, token, method, uri string, m
 	// Hash an explicit version and length-delimited canonical fields rather
 	// than an ambiguous separator-delimited string. The stored headers are
 	// part of the commitment, but never leave the private UDS/coordinator path.
-	candidate := e.snapshot
+	snapshot := e.snapshot
+	candidate := snapshot
 	candidate.Method, candidate.URI = method, uri
 	candidateBinding := reservationBinding(candidate)
 	if !validReservationMethod(method) || !validReservationURI(uri) ||
 		meta.Request.Method != method || meta.Request.URI != uri ||
-		!strings.EqualFold(meta.Request.Hostname, reservationSnapshotHost(e.snapshot.Headers)) ||
+		!strings.EqualFold(meta.Request.Hostname, reservationSnapshotHost(snapshot.Headers)) ||
 		subtle.ConstantTimeCompare(e.binding[:], candidateBinding[:]) != 1 {
 		e.mu.Unlock()
 		return nil, processor.Decision{}, ErrInvalidLease
 	}
-	headers := e.snapshot.Headers
+	headers := snapshot.Headers
 	e.snapshot = ReservationSnapshot{}
 	clear(e.binding[:])
 	meta.TransactionID = e.id
+	meta.Request.Protocol = snapshot.Protocol
+	meta.Request.ServerAddress = snapshot.ServerAddress
+	meta.Request.ServerPort = snapshot.ServerPort
 	tx, err := c.engine.Open(ctx, meta)
 	if err != nil {
 		e.mu.Unlock()
@@ -854,14 +862,14 @@ func (e *entry) requestBody(ctx context.Context, b []byte, eos bool) (processor.
 	if e.phase != phaseRequestBody {
 		return processor.Decision{}, ErrOutOfOrder
 	}
-	if e.requestBodyBytes+int64(len(b)) > e.c.limits.MaxRequestBody || e.chunks+1 > e.c.limits.MaxBodyChunks {
+	if e.requestBodyBytes+int64(len(b)) > e.c.limits.MaxRequestBody || e.requestChunks+1 > e.c.limits.MaxBodyChunks {
 		return e.requestBodyLimitLocked()
 	}
 	e.requestBodyBytes += int64(len(b))
-	e.chunks++
+	e.requestChunks++
 	d, err := e.tx.ProcessBody(ctx, processor.DirectionRequest, b, eos)
 	e.summary.RequestBodyBytes = e.requestBodyBytes
-	e.summary.RequestBodyChunks = uint64(e.chunks)
+	e.summary.RequestBodyChunks = uint64(e.requestChunks)
 	if eos {
 		e.phase = phaseLeased
 	}
@@ -942,6 +950,12 @@ func (e *entry) responseHeaders(ctx context.Context, s string, h []processor.Hea
 	if eventErr := e.emitLocked(Event{DecisionID: e.id, Connector: e.c.connector, RuleID: d.RuleID, Phase: "P3", Outcome: "observed", RequestedAction: string(d.Action), VisibleStatus: d.Status}); eventErr != nil {
 		return d, eventErr
 	}
+	if eos && !e.p4EventEmitted {
+		if eventErr := e.emitLocked(Event{DecisionID: e.id, Connector: e.c.connector, RuleID: d.RuleID, Phase: "P4", Outcome: "observed", RequestedAction: string(d.Action), VisibleStatus: d.Status}); eventErr != nil {
+			return d, eventErr
+		}
+		e.p4EventEmitted = true
+	}
 	if err != nil {
 		go e.finish(context.Background(), "companion_failure")
 	}
@@ -966,8 +980,8 @@ func (e *entry) responseBody(ctx context.Context, s string, b []byte, eos bool) 
 		return processor.Decision{}, ErrLimit
 	}
 	e.responseBodyBytes += int64(len(b))
-	e.chunks++
-	if e.chunks > e.c.limits.MaxBodyChunks {
+	e.responseChunks++
+	if e.responseChunks > e.c.limits.MaxBodyChunks {
 		return processor.Decision{}, ErrLimit
 	}
 	d, err := e.tx.ProcessBody(ctx, processor.DirectionResponse, b, eos)
@@ -1174,14 +1188,20 @@ func cloneReservationSnapshot(l Limits, snapshot ReservationSnapshot) (Reservati
 	if snapshot.Version != ReservationSnapshotVersion || !validReservationMethod(snapshot.Method) || !validReservationURI(snapshot.URI) {
 		return ReservationSnapshot{}, [sha256.Size]byte{}, ErrInvalidLease
 	}
+	if !validReservationMetadata(snapshot.Protocol, snapshot.ServerAddress, snapshot.ServerPort) {
+		return ReservationSnapshot{}, [sha256.Size]byte{}, ErrInvalidLease
+	}
 	if err := checkHeaders(l, snapshot.Headers); err != nil {
 		return ReservationSnapshot{}, [sha256.Size]byte{}, err
 	}
 	stored := ReservationSnapshot{
-		Version: snapshot.Version,
-		Method:  snapshot.Method,
-		URI:     snapshot.URI,
-		Headers: make([]processor.Header, len(snapshot.Headers)),
+		Version:       snapshot.Version,
+		Method:        snapshot.Method,
+		URI:           snapshot.URI,
+		Protocol:      snapshot.Protocol,
+		ServerAddress: snapshot.ServerAddress,
+		ServerPort:    snapshot.ServerPort,
+		Headers:       make([]processor.Header, len(snapshot.Headers)),
 	}
 	lastName := ""
 	hostValues := 0
@@ -1202,6 +1222,13 @@ func cloneReservationSnapshot(l Limits, snapshot ReservationSnapshot) (Reservati
 		return ReservationSnapshot{}, [sha256.Size]byte{}, ErrInvalidLease
 	}
 	return stored, reservationBinding(stored), nil
+}
+
+func validReservationMetadata(protocol, serverAddress string, serverPort int) bool {
+	if protocol == "" || len(protocol) > 16 || serverAddress == "" || len(serverAddress) > 256 || serverPort < 1 || serverPort > 65535 {
+		return false
+	}
+	return strings.HasPrefix(protocol, "HTTP/") && !strings.ContainsAny(protocol, "\r\n\x00") && net.ParseIP(serverAddress) != nil
 }
 
 func validReservationMethod(value string) bool {
@@ -1251,6 +1278,11 @@ func reservationBinding(snapshot ReservationSnapshot) [sha256.Size]byte {
 	_, _ = h.Write([]byte{snapshot.Version})
 	writeReservationField(h, []byte(snapshot.Method))
 	writeReservationField(h, []byte(snapshot.URI))
+	writeReservationField(h, []byte(snapshot.Protocol))
+	writeReservationField(h, []byte(snapshot.ServerAddress))
+	var port [4]byte
+	binary.BigEndian.PutUint32(port[:], uint32(snapshot.ServerPort))
+	_, _ = h.Write(port[:])
 	var count [4]byte
 	binary.BigEndian.PutUint32(count[:], uint32(len(snapshot.Headers)))
 	_, _ = h.Write(count[:])

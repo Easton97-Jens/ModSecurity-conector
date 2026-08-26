@@ -81,9 +81,13 @@ func (f *fakeTx) RecordHostAction(_ context.Context, action processor.HostAction
 type snapshotCaptureEngine struct {
 	mu      sync.Mutex
 	headers []processor.Header
+	meta    processor.StreamMetadata
 }
 
-func (e *snapshotCaptureEngine) Open(context.Context, processor.StreamMetadata) (processor.Transaction, error) {
+func (e *snapshotCaptureEngine) Open(_ context.Context, meta processor.StreamMetadata) (processor.Transaction, error) {
+	e.mu.Lock()
+	e.meta = meta
+	e.mu.Unlock()
 	return &snapshotCaptureTx{engine: e}, nil
 }
 
@@ -183,11 +187,11 @@ func reservationSnapshot(method, uri string, headers ...processor.Header) Reserv
 		stored = append(stored, processor.Header{Name: "host", Value: []byte("example.test")})
 	}
 	sort.SliceStable(stored, func(i, j int) bool { return stored[i].Name < stored[j].Name })
-	return ReservationSnapshot{Version: ReservationSnapshotVersion, Method: method, URI: uri, Headers: stored}
+	return ReservationSnapshot{Version: ReservationSnapshotVersion, Method: method, URI: uri, Protocol: "HTTP/1.1", ServerAddress: "198.51.100.7", ServerPort: 443, Headers: stored}
 }
 
 func reservationMetadata(method, uri string) processor.StreamMetadata {
-	return processor.StreamMetadata{TransactionID: "host-id", Request: processor.RequestMetadata{Method: method, URI: uri, Hostname: "example.test"}}
+	return processor.StreamMetadata{TransactionID: "host-id", Request: processor.RequestMetadata{Method: method, URI: uri, Protocol: "HTTP/1.1", Hostname: "example.test", ServerAddress: "198.51.100.7", ServerPort: 443}}
 }
 
 func TestLeaseTamperReplayAndSessionBinding(t *testing.T) {
@@ -437,6 +441,58 @@ func TestReservationSnapshotIsImmutableAndBoundToForwardAuthMetadata(t *testing.
 	}
 }
 
+func TestReservationSnapshotBindsOriginalConnectionMetadata(t *testing.T) {
+	engine := &snapshotCaptureEngine{}
+	c, err := New("traefik", []byte("01234567890123456789012345678901"), Limits{}, engine, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	snapshot := reservationSnapshot("GET", "/bound")
+	token, err := c.Reserve("uds-session", snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loopback := reservationMetadata("GET", "/bound")
+	loopback.Request.Protocol, loopback.Request.ServerAddress, loopback.Request.ServerPort = "HTTP/2", "127.0.0.1", 19182
+	a, _, err := c.Activate(context.Background(), token, "GET", "/bound", loopback, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Finish(context.Background(), "test")
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
+	if engine.meta.Request.Protocol != snapshot.Protocol || engine.meta.Request.ServerAddress != snapshot.ServerAddress || engine.meta.Request.ServerPort != snapshot.ServerPort {
+		t.Fatalf("Common metadata=%+v, want original connection metadata", engine.meta.Request)
+	}
+}
+
+func TestReservationSnapshotRejectsMissingConnectionMetadata(t *testing.T) {
+	c, _ := newTestCoordinator(t, Limits{})
+	snapshot := reservationSnapshot("GET", "/missing")
+	snapshot.Protocol, snapshot.ServerAddress, snapshot.ServerPort = "", "", 0
+	if _, err := c.Reserve("uds-session", snapshot); !errors.Is(err, ErrInvalidLease) {
+		t.Fatalf("missing connection metadata = %v", err)
+	}
+}
+
+func TestReservationSnapshotRejectsInvalidConnectionMetadata(t *testing.T) {
+	c, _ := newTestCoordinator(t, Limits{})
+	for name, mutate := range map[string]func(*ReservationSnapshot){
+		"non-http-protocol": func(snapshot *ReservationSnapshot) { snapshot.Protocol = "SMTP/1" },
+		"non-ip-address":    func(snapshot *ReservationSnapshot) { snapshot.ServerAddress = "listener.example.test" },
+		"invalid-port":      func(snapshot *ReservationSnapshot) { snapshot.ServerPort = 65536 },
+	} {
+		t.Run(name, func(t *testing.T) {
+			snapshot := reservationSnapshot("GET", "/invalid-metadata")
+			mutate(&snapshot)
+			if _, err := c.Reserve("uds-session", snapshot); !errors.Is(err, ErrInvalidLease) {
+				t.Fatalf("invalid connection metadata = %v", err)
+			}
+		})
+	}
+}
+
 func TestReservationSnapshotRejectsNonCanonicalHeaders(t *testing.T) {
 	c, _ := newTestCoordinator(t, Limits{})
 	if _, err := c.Reserve("uds-session", reservationSnapshot("GET", "/", processor.Header{Name: "X-Upper", Value: []byte("value")})); !errors.Is(err, ErrInvalidLease) {
@@ -672,6 +728,32 @@ func TestCleanupExactlyOnceOnCancelAndRestart(t *testing.T) {
 func TestEmptyRequestAndResponseBody(t *testing.T) {
 	c, _ := newTestCoordinator(t, Limits{})
 	r := claimedResponse(t, c, "session")
+	r.Finish(context.Background(), "success")
+}
+
+func TestRequestAndResponseBodyChunkLimitsAreIndependent(t *testing.T) {
+	c, _ := newTestCoordinator(t, Limits{MaxBodyChunks: 1})
+	a, _, err := c.BeginRequest(context.Background(), metadata(), nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = a.ProcessBody(context.Background(), []byte("request"), true); err != nil {
+		t.Fatalf("request body = %v", err)
+	}
+	token, err := a.Lease()
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := c.Claim(token, "stream")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = r.Headers(context.Background(), nil, false); err != nil {
+		t.Fatalf("response headers = %v", err)
+	}
+	if _, err = r.Body(context.Background(), []byte("response"), true); err != nil {
+		t.Fatalf("first response body must have its own budget: %v", err)
+	}
 	r.Finish(context.Background(), "success")
 }
 

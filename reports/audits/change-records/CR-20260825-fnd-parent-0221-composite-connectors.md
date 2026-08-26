@@ -354,3 +354,50 @@ security review found no new candidate and confirmed that locking,
 single-close cleanup, capacity release, and terminal-event behavior are
 unchanged. Commit, normal push, and exact-successor Sonar evidence remain
 pending; no merge is authorized.
+
+## Current Codex-thread successor (local validation)
+
+After a fresh fetch, `origin/master` remains
+`c1653fb84201bc6a29c47723fa74e12270deb164` and is already an ancestor of the
+registered task branch. The worktree is therefore current without a merge,
+rebase, or any change to `master`.
+
+This scoped successor repairs the remaining current Codex feedback without
+altering a Quality Gate, suppression, coverage input, CI configuration, or
+security control:
+
+- response-header end-of-stream now emits P4 evidence, response processing
+  errors after P3 are terminal transport errors rather than a second Immediate
+  Response, and request/response body chunk budgets are independent;
+- the version-2 private Traefik reservation snapshot binds the protected
+  request's HTTP protocol, listener IP address, and listener port. The outer
+  middleware obtains these only from the protected request, the UDS parser and
+  coordinator validate them fail-closed, and activation restores them instead
+  of using the ForwardAuth loopback listener. No request-context header or
+  HTTP capsule was added; and
+- the private result protocol now distinguishes a successful post-commit P4
+  Safe decision from an inspection processing/limit failure. The former carries
+  a bounded opcode-specific log-only flag, preserves already committed bytes,
+  and requires a truthful log-only outcome. The latter remains a terminal
+  reject and is stopped before the downstream response writer.
+
+The local regression set passed: Envoy `go test -race -count=1
+./internal/composite ./internal/compositeenvoy ./internal/compositetraefik
+./cmd/msconnector-composite`; Traefik `go test -race -count=1 .`; both scoped
+Go-vet suites; `gofmt -d`; and `git diff --check`. The Traefik tests use a
+short task-owned temporary root because Unix-domain socket paths are bounded;
+the initially longer cache path produced only a local `bind: invalid argument`
+test-environment failure and was not a product result.
+
+An independent post-patch security review found no new validated exploitable
+or functional finding in these boundaries. It confirmed that no header/capsule
+bypass was introduced and that only successful Safe decisions use the
+post-commit flag. Its residual evidence gap is the separately required runtime
+host matrix; IPv6 link-local listener addresses with a zone are deliberately
+fail-closed by the literal-IP validation and merit explicit future runtime
+coverage.
+
+These are local results for the uncommitted successor only. The remaining
+steps are a normal scoped commit and push, exact-head GitHub/SonarCloud checks,
+and then factual review-thread reconciliation. The PR remains Draft and no
+merge is authorized.

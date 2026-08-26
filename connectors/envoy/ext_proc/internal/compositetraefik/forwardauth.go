@@ -225,20 +225,13 @@ func forwardedMetadata(r *http.Request) (processor.RequestMetadata, error) {
 	if err != nil {
 		return processor.RequestMetadata{}, ErrInvalidRequest
 	}
-	if !validHTTPProtocol(r.Proto) {
-		return processor.RequestMetadata{}, ErrInvalidRequest
-	}
-	local, ok := r.Context().Value(http.LocalAddrContextKey).(net.Addr)
-	if !ok || local == nil {
-		return processor.RequestMetadata{}, ErrInvalidRequest
-	}
-	serverAddress, serverPort, err := parseServerAddr(local.String())
-	if err != nil {
-		return processor.RequestMetadata{}, ErrInvalidRequest
-	}
+	// The ForwardAuth hop terminates on a distinct loopback listener. Its
+	// protocol and local address therefore describe only this hop, not the
+	// protected inbound request. Coordinator.Activate restores and validates
+	// those fields from the private UDS reservation before opening Common.
 	return processor.RequestMetadata{
-		Method: method, URI: uri, Protocol: r.Proto, Hostname: host,
-		ClientAddress: address, ClientPort: port, ServerAddress: serverAddress, ServerPort: serverPort,
+		Method: method, URI: uri, Hostname: host,
+		ClientAddress: address, ClientPort: port,
 	}, nil
 }
 
@@ -254,7 +247,7 @@ func parseForwardedClient(value string) (string, int, error) {
 }
 
 func validHTTPProtocol(s string) bool {
-	return strings.HasPrefix(s, "HTTP/") && len(s) <= 16 && !strings.ContainsAny(s, "\r\n")
+	return strings.HasPrefix(s, "HTTP/") && len(s) <= 16 && !strings.ContainsAny(s, "\r\n\x00")
 }
 
 func parseServerAddr(s string) (string, int, error) {

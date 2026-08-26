@@ -20,11 +20,20 @@ import (
 
 const testLeaseHeader = "X-Msconnector-Composite-Lease"
 
+func testRequest(method, target string) *http.Request {
+	req := httptest.NewRequest(method, target, nil)
+	return req.WithContext(context.WithValue(req.Context(), http.LocalAddrContextKey, &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 2443}))
+}
+
+func reservationPayloadForTest(method, target string, headers http.Header, authority string, contentLength int64) ([]byte, error) {
+	return reservationPayloadWithMetadata(method, target, headers, authority, contentLength, "HTTP/1.1", "127.0.0.1", 2443)
+}
+
 func TestMiddlewareReplacesClientLeaseAndCompletesPrivateLifecycle(t *testing.T) {
 	token := testToken()
 	expectedHeaders := make(http.Header)
 	expectedHeaders.Set("X-Msconnector-Vector", "p1-private-snapshot")
-	expectedReserve, err := reservationPayload(http.MethodGet, "/items?mode=full", expectedHeaders, "example.test", 0)
+	expectedReserve, err := reservationPayloadForTest(http.MethodGet, "/items?mode=full", expectedHeaders, "example.test", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +43,7 @@ func TestMiddlewareReplacesClientLeaseAndCompletesPrivateLifecycle(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/items?mode=full", nil)
+	req := testRequest(http.MethodGet, "http://example.test/items?mode=full")
 	req.Header.Set(testLeaseHeader, "client-controlled")
 	req.Header.Set(requestContextHeader, "client-controlled")
 	req.Header.Set("X-Msconnector-Vector", "p1-private-snapshot")
@@ -198,7 +207,7 @@ func TestStripInternalHeadersRemovesTrailerForms(t *testing.T) {
 }
 
 func TestReservationPayloadPreservesTransportContentLength(t *testing.T) {
-	payload, err := reservationPayload(http.MethodPost, "/body", make(http.Header), "example.test", 19)
+	payload, err := reservationPayloadForTest(http.MethodPost, "/body", make(http.Header), "example.test", 19)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +221,7 @@ func TestReservationPayloadPreservesTransportContentLength(t *testing.T) {
 }
 
 func TestReservationPayloadPreservesZeroTransportContentLength(t *testing.T) {
-	payload, err := reservationPayload(http.MethodPost, "/empty", make(http.Header), "example.test", 0)
+	payload, err := reservationPayloadForTest(http.MethodPost, "/empty", make(http.Header), "example.test", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,8 +231,35 @@ func TestReservationPayloadPreservesZeroTransportContentLength(t *testing.T) {
 	}
 }
 
+func TestReservationPayloadBindsActualRequestTransportMetadata(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "http://example.test/metadata", nil)
+	req.Proto = "HTTP/2.0"
+	req = req.WithContext(context.WithValue(req.Context(), http.LocalAddrContextKey, &net.TCPAddr{IP: net.ParseIP("192.0.2.44"), Port: 2443}))
+	payload, err := reservationPayloadForRequest(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	metadata := reservationPayloadTransportMetadata(t, payload)
+	if metadata.protocol != "HTTP/2.0" || metadata.address != "192.0.2.44" || metadata.port != 2443 {
+		t.Fatalf("transport metadata = %#v", metadata)
+	}
+}
+
+func TestReservationPayloadRejectsMissingOrInvalidLocalAddress(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "http://example.test/metadata", nil)
+	if _, err := reservationPayloadForRequest(req); err == nil {
+		t.Fatal("accepted request without actual local address")
+	}
+	for _, address := range []net.Addr{&net.TCPAddr{IP: nil, Port: 2443}, &net.TCPAddr{IP: net.ParseIP("192.0.2.44"), Port: 0}} {
+		r := req.WithContext(context.WithValue(req.Context(), http.LocalAddrContextKey, address))
+		if _, err := reservationPayloadForRequest(r); err == nil {
+			t.Fatalf("accepted invalid local address %v", address)
+		}
+	}
+}
+
 func TestReservationPayloadAllowsEmptyOrdinaryHeaderValue(t *testing.T) {
-	payload, err := reservationPayload(http.MethodGet, "/empty-header", http.Header{"X-Optional": []string{""}}, "example.test", -1)
+	payload, err := reservationPayloadForTest(http.MethodGet, "/empty-header", http.Header{"X-Optional": []string{""}}, "example.test", -1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +267,7 @@ func TestReservationPayloadAllowsEmptyOrdinaryHeaderValue(t *testing.T) {
 	if got, ok := headers["x-optional"]; !ok || len(got) != 1 || got[0] != "" {
 		t.Fatalf("empty ordinary header value = %#v", got)
 	}
-	if _, err := reservationPayload(http.MethodGet, "/empty-host", http.Header{"Host": []string{""}}, "example.test", -1); err == nil {
+	if _, err := reservationPayloadForTest(http.MethodGet, "/empty-host", http.Header{"Host": []string{""}}, "example.test", -1); err == nil {
 		t.Fatal("accepted empty Host value")
 	}
 }
@@ -286,6 +322,71 @@ func TestResponseWriterRecordsDownstreamWriteFailures(t *testing.T) {
 	}
 }
 
+func TestResponseWriterSuppressesRejectedResponseChunk(t *testing.T) {
+	written := &informationalRecorder{header: make(http.Header)}
+	chunkCalls := 0
+	rw := &responseWriter{
+		writer: written,
+		parent: &Middleware{config: Config{MaxResponseChunkBytes: 4}},
+	}
+	rw.exchange = func(op byte, payload []byte) (result, error) {
+		if op != opResponseChunk {
+			return result{}, fmt.Errorf("unexpected opcode %d", op)
+		}
+		chunkCalls++
+		if string(payload) != "bad!" {
+			return result{}, fmt.Errorf("chunk = %q", payload)
+		}
+		return result{decision: decisionDeny, status: http.StatusServiceUnavailable}, nil
+	}
+
+	n, err := rw.writeChunks([]byte("bad!"))
+	if !errors.Is(err, errResponseBodyRejected) || !errors.Is(rw.transportErr, errResponseBodyRejected) {
+		t.Fatalf("writeChunks = %d, %v; transportErr = %v", n, err, rw.transportErr)
+	}
+	if n != 0 || written.body.Len() != 0 || chunkCalls != 1 {
+		t.Fatalf("rejected chunk reached writer: n=%d bytes=%q calls=%d", n, written.body.Bytes(), chunkCalls)
+	}
+}
+
+func TestResponseWriterForwardsAllowedResponseChunkAtSameBoundary(t *testing.T) {
+	written := &informationalRecorder{header: make(http.Header)}
+	rw := &responseWriter{
+		writer: written,
+		parent: &Middleware{config: Config{MaxResponseChunkBytes: 4}},
+	}
+	rw.exchange = func(op byte, payload []byte) (result, error) {
+		if op != opResponseChunk || string(payload) != "good" {
+			return result{}, fmt.Errorf("unexpected chunk op=%d payload=%q", op, payload)
+		}
+		return result{decision: decisionAllow}, nil
+	}
+
+	n, err := rw.writeChunks([]byte("good"))
+	if err != nil || n != 4 || written.body.String() != "good" {
+		t.Fatalf("allowed chunk = %d, %v; body=%q", n, err, written.body.String())
+	}
+}
+
+func TestResponseWriterForwardsPostCommitLogOnlyResponseChunk(t *testing.T) {
+	written := &informationalRecorder{header: make(http.Header)}
+	rw := &responseWriter{
+		writer: written,
+		parent: &Middleware{config: Config{MaxResponseChunkBytes: 4}},
+	}
+	rw.exchange = func(op byte, payload []byte) (result, error) {
+		if op != opResponseChunk || string(payload) != "safe" {
+			return result{}, fmt.Errorf("unexpected chunk op=%d payload=%q", op, payload)
+		}
+		return result{decision: decisionAllow, flags: resultFlagPostCommitLogOnly}, nil
+	}
+
+	n, err := rw.writeChunks([]byte("safe"))
+	if err != nil || n != 4 || written.body.String() != "safe" || !rw.late {
+		t.Fatalf("post-commit log-only chunk = %d, %v; body=%q late=%t", n, err, written.body.String(), rw.late)
+	}
+}
+
 func TestResponseWriterFailsClosedForHijackAndUnwrap(t *testing.T) {
 	underlying := &hijackResponseWriter{}
 	rw := &responseWriter{writer: underlying}
@@ -308,7 +409,7 @@ func TestReservationPayloadRejectsUnboundedHeadersBeforeCopy(t *testing.T) {
 	for i := 0; i < maxHeaders+1; i++ {
 		tooManyNames[fmt.Sprintf("X-Test-%d", i)] = []string{"v"}
 	}
-	if _, err := reservationPayload(http.MethodGet, "/", tooManyNames, "example.test", 0); err == nil {
+	if _, err := reservationPayloadForTest(http.MethodGet, "/", tooManyNames, "example.test", 0); err == nil {
 		t.Fatal("accepted too many request header names")
 	}
 	tooManyValues := make(http.Header)
@@ -317,7 +418,7 @@ func TestReservationPayloadRejectsUnboundedHeadersBeforeCopy(t *testing.T) {
 		values[i] = "v"
 	}
 	tooManyValues["X-Test"] = values
-	if _, err := reservationPayload(http.MethodGet, "/", tooManyValues, "example.test", 0); err == nil {
+	if _, err := reservationPayloadForTest(http.MethodGet, "/", tooManyValues, "example.test", 0); err == nil {
 		t.Fatal("accepted too many request header values")
 	}
 }
@@ -356,7 +457,7 @@ func TestMiddlewarePreservesForwardAuthRequestTerminalResponse(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec := httptest.NewRecorder()
-	mw.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "http://example.test/blocked", nil))
+	mw.ServeHTTP(rec, testRequest(http.MethodPost, "http://example.test/blocked"))
 	if rec.Code != http.StatusForbidden || rec.Body.String() != "blocked\n" {
 		t.Fatalf("request-terminal response = %d %q", rec.Code, rec.Body.String())
 	}
@@ -394,7 +495,7 @@ func TestMiddlewareReplacesPreCommitUDSFailureWith503(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec := httptest.NewRecorder()
-	mw.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "http://example.test/timeout", nil))
+	mw.ServeHTTP(rec, testRequest(http.MethodGet, "http://example.test/timeout"))
 	if rec.Code != http.StatusServiceUnavailable || rec.Body.Len() != 0 {
 		t.Fatalf("pre-commit failure response = %d %q", rec.Code, rec.Body.String())
 	}
@@ -458,7 +559,7 @@ func TestMiddlewareForwardsInformationalResponseWithoutP3Commit(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec := &informationalRecorder{header: make(http.Header)}
-	mw.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "http://example.test/information", nil))
+	mw.ServeHTTP(rec, testRequest(http.MethodGet, "http://example.test/information"))
 	if got := rec.statuses; !bytes.Equal(intsAsBytes(got), intsAsBytes([]int{http.StatusEarlyHints, http.StatusNoContent})) {
 		t.Fatalf("statuses = %v", got)
 	}
@@ -490,7 +591,7 @@ func TestMiddlewareRejectsProtocolSwitchBeforeP3(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec := &informationalRecorder{header: make(http.Header)}
-	mw.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "http://example.test/upgrade", nil))
+	mw.ServeHTTP(rec, testRequest(http.MethodGet, "http://example.test/upgrade"))
 	if len(rec.statuses) != 1 || rec.statuses[0] != http.StatusServiceUnavailable {
 		t.Fatalf("protocol switch was not failed closed: %v", rec.statuses)
 	}
@@ -507,6 +608,16 @@ func TestParseResultRejectsUnexpectedTerminalFlag(t *testing.T) {
 	frame = resultPayload(opReserve, decisionAllow, 0, 0, "not-base64")
 	if _, err := parseResult(frame); err == nil {
 		t.Fatal("accepted non-opaque reservation token")
+	}
+}
+
+func TestParseResultAcceptsPostCommitLogOnlyFlagOnlyAtP4(t *testing.T) {
+	res, err := parseResult(resultPayload(opResponseChunk, decisionAllow, resultFlagPostCommitLogOnly, 0, ""))
+	if err != nil || res.flags != resultFlagPostCommitLogOnly {
+		t.Fatalf("post-commit log-only result = %#v, %v", res, err)
+	}
+	if _, err := parseResult(resultPayload(opResponseHeaders, decisionAllow, resultFlagPostCommitLogOnly, 0, "")); err == nil {
+		t.Fatal("accepted post-commit log-only flag outside P4")
 	}
 }
 
@@ -537,6 +648,12 @@ func reservationPayloadHeaderValues(t *testing.T, payload []byte) map[string][]s
 	}
 	_ = readText(false) // method
 	_ = readText(false) // URI
+	_ = readText(false) // HTTP protocol
+	_ = readText(false) // actual server address
+	if i+2 > len(payload) {
+		t.Fatal("reservation payload server port")
+	}
+	i += 2 // actual server port
 	if i+2 > len(payload) {
 		t.Fatal("reservation payload group count")
 	}
@@ -558,6 +675,40 @@ func reservationPayloadHeaderValues(t *testing.T, payload []byte) map[string][]s
 		t.Fatal("reservation payload trailing data")
 	}
 	return result
+}
+
+type transportMetadata struct {
+	protocol, address string
+	port              int
+}
+
+func reservationPayloadTransportMetadata(t *testing.T, payload []byte) transportMetadata {
+	t.Helper()
+	if len(payload) < 1 || payload[0] != reservationSnapshotVersion {
+		t.Fatal("reservation payload version")
+	}
+	i := 1
+	read := func() string {
+		if i+2 > len(payload) {
+			t.Fatal("reservation payload length")
+		}
+		n := int(binary.BigEndian.Uint16(payload[i : i+2]))
+		i += 2
+		if i+n > len(payload) {
+			t.Fatal("reservation payload field")
+		}
+		value := string(payload[i : i+n])
+		i += n
+		return value
+	}
+	_ = read()
+	_ = read()
+	protocol, address := read(), read()
+	if i+2 > len(payload) {
+		t.Fatal("reservation payload port")
+	}
+	port := int(binary.BigEndian.Uint16(payload[i : i+2]))
+	return transportMetadata{protocol: protocol, address: address, port: port}
 }
 
 type failingResponseWriter struct {

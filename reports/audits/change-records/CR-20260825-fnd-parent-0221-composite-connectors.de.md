@@ -381,3 +381,53 @@ unabhängiger Security-Review fand keinen neuen Kandidaten und bestätigte, dass
 Locking, Single-Close-Cleanup, Kapazitätsfreigabe und Terminal-Event-Verhalten
 unverändert sind. Commit, normaler Push und exakte Successor-Sonar-Evidenz
 stehen noch aus; kein Merge ist autorisiert.
+
+## Aktueller Codex-Thread-Successor (lokale Validierung)
+
+Nach einem frischen Fetch bleibt `origin/master` bei
+`c1653fb84201bc6a29c47723fa74e12270deb164` und ist bereits ein Vorfahr des
+registrierten Task-Branches. Der Worktree ist daher aktuell, ohne Merge,
+Rebase oder Änderung an `master`.
+
+Dieser begrenzte Successor behebt das verbleibende aktuelle Codex-Feedback,
+ohne Quality Gate, Suppression, Coverage-Input, CI-Konfiguration oder
+Security-Control zu ändern:
+
+- Response-Header-End-of-Stream emittiert jetzt P4-Evidenz, Fehler bei der
+  Response-Verarbeitung nach P3 sind terminale Transportfehler statt einer
+  zweiten Immediate Response, und die Request-/Response-Body-Chunk-Budgets
+  sind voneinander unabhängig;
+- der private Traefik-Reservation-Snapshot der Version 2 bindet HTTP-Protokoll,
+  Listener-IP-Adresse und Listener-Port der geschützten Anfrage. Die äußere
+  Middleware gewinnt diese ausschließlich aus der geschützten Anfrage,
+  UDS-Parser und Coordinator validieren sie fail-closed, und die Aktivierung
+  stellt sie wieder her, statt den ForwardAuth-Loopback-Listener zu verwenden.
+  Es wurde weder ein Request-Context-Header noch eine HTTP-Kapsel ergänzt; und
+- das private Ergebnisprotokoll unterscheidet jetzt einen erfolgreichen
+  Post-Commit-P4-Safe-Fund von einem Inspektions-Verarbeitungs-/Limitfehler.
+  Ersterer trägt ein begrenztes opcode-spezifisches Log-Only-Flag, bewahrt
+  bereits committete Bytes und erfordert ein wahrheitsgetreues Log-Only-
+  Outcome. Letzterer bleibt ein terminaler Reject und wird vor dem
+  Downstream-Response-Writer gestoppt.
+
+Die lokalen Regressionstests bestanden: Envoy `go test -race -count=1
+./internal/composite ./internal/compositeenvoy ./internal/compositetraefik
+./cmd/msconnector-composite`; Traefik `go test -race -count=1 .`; beide
+betroffenen Go-vet-Suiten; `gofmt -d`; und `git diff --check`. Die
+Traefik-Tests verwenden ein kurzes task-eigenes temporäres Root, weil
+Unix-Domain-Socket-Pfade begrenzt sind; der zuerst längere Cache-Pfad erzeugte
+nur den lokalen Testumgebungsfehler `bind: invalid argument` und kein
+Produktergebnis.
+
+Ein unabhängiger Post-Patch-Security-Review fand in diesen Grenzen keine neue
+validierte ausnutzbare oder funktionale Schwachstelle. Er bestätigte, dass
+kein Header-/Kapsel-Bypass eingeführt wurde und nur erfolgreiche Safe-Entschei-
+dungen das Post-Commit-Flag verwenden. Seine verbleibende Evidenzlücke ist die
+getrennt erforderliche Runtime-Host-Matrix; IPv6-Link-Local-Listener-Adressen
+mit Zone werden durch die Literal-IP-Validierung bewusst fail-closed behandelt
+und benötigen künftig explizite Runtime-Abdeckung.
+
+Dies sind ausschließlich lokale Ergebnisse für den noch nicht eingecheckten
+Successor. Verbleibend sind ein normaler scoped Commit und Push, exakte
+Head-GitHub-/SonarCloud-Checks und danach die sachliche Thread-Reconciliation.
+Der PR bleibt Draft, und kein Merge ist autorisiert.

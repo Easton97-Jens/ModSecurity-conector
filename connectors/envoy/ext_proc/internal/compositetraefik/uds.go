@@ -52,6 +52,12 @@ const (
 	// action. The outer plugin must preserve that exact host response, emit no
 	// P3/P4 frames, and finish the retained reservation over this UDS session.
 	resultFlagRequestTerminal byte = 1
+
+	// resultFlagPostCommitLogOnly records a successful P4 policy decision after
+	// the upstream response has committed. The outer plugin must forward the
+	// already committed bytes, then report an actualLogOnly outcome. Processing
+	// failures and inspection-limit errors never use this flag.
+	resultFlagPostCommitLogOnly byte = 2
 )
 
 var errMSC2 = errors.New("invalid MSC2 frame")
@@ -222,6 +228,9 @@ func (s *udsSession) dispatch(ctx context.Context, op byte, p []byte) (wireResul
 		return wireResult{decision: decisionDeny, status: 503}, true
 	}
 	s.applyResponseDecision(op, d)
+	if s.responseCommitted && (op == opResponseChunk || op == opResponseEOS) && d.Action != processor.ActionAllow {
+		return wireResult{flags: resultFlagPostCommitLogOnly}, false
+	}
 	return decisionResult(d), false
 }
 
@@ -500,8 +509,12 @@ func (s *udsSession) cleanup(ctx context.Context, reason string) {
 
 func (s *udsSession) writeResult(ctx context.Context, op byte, r wireResult) error {
 	_ = ctx
-	if r.flags != 0 && (op != opClaim || r.flags != resultFlagRequestTerminal || r.decision != decisionAllow || r.status != 0 || r.redirect != "") {
-		return errMSC2
+	if r.flags != 0 {
+		requestTerminal := op == opClaim && r.flags == resultFlagRequestTerminal
+		postCommitLogOnly := (op == opResponseChunk || op == opResponseEOS) && r.flags == resultFlagPostCommitLogOnly
+		if (!requestTerminal && !postCommitLogOnly) || r.decision != decisionAllow || r.status != 0 || r.redirect != "" {
+			return errMSC2
+		}
 	}
 	value := r.redirect
 	limit := maxRedirect
@@ -602,7 +615,9 @@ func parseToken(p []byte) (string, error) {
 // parseReservationSnapshot decodes the private opReserve payload. The wire
 // format is versioned and length-delimited:
 //
-//	version(1), methodLen(2), method, uriLen(2), uri, headerGroups(2),
+//	version(2), methodLen(2), method, uriLen(2), uri, protocolLen(2),
+//	protocol, serverAddressLen(2), serverAddress, serverPort(2),
+//	headerGroups(2),
 //	repeated nameLen(2), lower-case-name, valueCount(2), repeated
 //	valueLen(2), value.
 //
@@ -611,7 +626,7 @@ func parseToken(p []byte) (string, error) {
 // is checked before allocation so malformed private-peer input cannot retain
 // unbounded memory or create an ambiguous P1 snapshot.
 func parseReservationSnapshot(p []byte) (composite.ReservationSnapshot, error) {
-	if len(p) < 7 || len(p) > maxFrame || p[0] != composite.ReservationSnapshotVersion {
+	if len(p) < 13 || len(p) > maxFrame || p[0] != composite.ReservationSnapshotVersion {
 		return composite.ReservationSnapshot{}, errMSC2
 	}
 	i := 1
@@ -625,6 +640,24 @@ func parseReservationSnapshot(p []byte) (composite.ReservationSnapshot, error) {
 		return composite.ReservationSnapshot{}, errMSC2
 	}
 	i = next
+	protocol, next, err := reservationText(p, i, 16)
+	if err != nil || !validHTTPProtocol(protocol) {
+		return composite.ReservationSnapshot{}, errMSC2
+	}
+	i = next
+	serverAddress, next, err := reservationText(p, i, 256)
+	if err != nil || net.ParseIP(serverAddress) == nil {
+		return composite.ReservationSnapshot{}, errMSC2
+	}
+	i = next
+	if i+2 > len(p) {
+		return composite.ReservationSnapshot{}, errMSC2
+	}
+	serverPort := int(binary.BigEndian.Uint16(p[i : i+2]))
+	i += 2
+	if serverPort < 1 || serverPort > 65535 {
+		return composite.ReservationSnapshot{}, errMSC2
+	}
 	if i+2 > len(p) {
 		return composite.ReservationSnapshot{}, errMSC2
 	}
@@ -642,7 +675,7 @@ func parseReservationSnapshot(p []byte) (composite.ReservationSnapshot, error) {
 		wipeParsedHeaders(headers)
 		return composite.ReservationSnapshot{}, errMSC2
 	}
-	return composite.ReservationSnapshot{Version: composite.ReservationSnapshotVersion, Method: method, URI: uri, Headers: headers}, nil
+	return composite.ReservationSnapshot{Version: composite.ReservationSnapshotVersion, Protocol: protocol, ServerAddress: serverAddress, ServerPort: serverPort, Method: method, URI: uri, Headers: headers}, nil
 }
 
 func parseReservationGroups(p []byte, offset, groups int) ([]processor.Header, int, int, error) {

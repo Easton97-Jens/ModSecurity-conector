@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -47,6 +48,48 @@ func (p2BlockingTx) ProcessBody(context.Context, processor.Direction, []byte, bo
 
 func (p2BlockingTx) Close(context.Context, processor.Summary) {}
 
+type p4LogOnlyEngine struct{}
+
+func (p4LogOnlyEngine) Open(context.Context, processor.StreamMetadata) (processor.Transaction, error) {
+	return p4LogOnlyTx{}, nil
+}
+
+type p4LogOnlyTx struct{}
+
+func (p4LogOnlyTx) ProcessHeaders(context.Context, processor.Direction, []processor.Header, bool) (processor.Decision, error) {
+	return processor.Decision{Action: processor.ActionAllow}, nil
+}
+
+func (p4LogOnlyTx) ProcessBody(_ context.Context, direction processor.Direction, body []byte, _ bool) (processor.Decision, error) {
+	if direction == processor.DirectionResponse && len(body) > 0 {
+		return processor.Decision{Action: processor.ActionDeny, Status: http.StatusForbidden}, nil
+	}
+	return processor.Decision{Action: processor.ActionAllow}, nil
+}
+
+func (p4LogOnlyTx) Close(context.Context, processor.Summary) {}
+
+type p4ProcessingErrorEngine struct{}
+
+func (p4ProcessingErrorEngine) Open(context.Context, processor.StreamMetadata) (processor.Transaction, error) {
+	return p4ProcessingErrorTx{}, nil
+}
+
+type p4ProcessingErrorTx struct{}
+
+func (p4ProcessingErrorTx) ProcessHeaders(context.Context, processor.Direction, []processor.Header, bool) (processor.Decision, error) {
+	return processor.Decision{Action: processor.ActionAllow}, nil
+}
+
+func (p4ProcessingErrorTx) ProcessBody(_ context.Context, direction processor.Direction, _ []byte, _ bool) (processor.Decision, error) {
+	if direction == processor.DirectionResponse {
+		return processor.Decision{}, errors.New("P4 processing failure")
+	}
+	return processor.Decision{Action: processor.ActionAllow}, nil
+}
+
+func (p4ProcessingErrorTx) Close(context.Context, processor.Summary) {}
+
 func TestPrivateUDSForwardAuthAndResponseUseOneTransaction(t *testing.T) {
 	log := &udsEventLog{}
 	c, err := composite.New("traefik", []byte("01234567890123456789012345678901"), composite.Limits{}, processor.PassthroughEngine{}, log)
@@ -84,6 +127,85 @@ func TestPrivateUDSForwardAuthAndResponseUseOneTransaction(t *testing.T) {
 
 	events := waitForTerminal(t, log)
 	assertOneTransaction(t, events, "P1", "P2", "P3", "P4")
+}
+
+func TestP4LogOnlyResultPreservesCommittedChunkAndRecordsOutcome(t *testing.T) {
+	log := &udsEventLog{}
+	c, err := composite.New("traefik", []byte("01234567890123456789012345678901"), composite.Limits{}, p4LogOnlyEngine{}, log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	client := startUDSPipe(t, &UDS{Coordinator: c})
+
+	reserved := exchangeUDS(t, client, opReserve, reservationSnapshotPayload(t, http.MethodPost, "/p4-log-only", nil))
+	if reserved.decision != decisionAllow || reserved.value == "" {
+		t.Fatalf("reserve result = %#v", reserved)
+	}
+	forwardAuthRequest(t, c, reserved.value, http.MethodPost, "/p4-log-only", []byte("request"), http.StatusOK)
+	if got := exchangeUDS(t, client, opClaim, tokenPayload(reserved.value)); got.decision != decisionAllow || got.flags != 0 {
+		t.Fatalf("claim result = %#v", got)
+	}
+	if got := exchangeUDS(t, client, opResponseHeaders, responseHeaderPayload(http.StatusOK)); got.decision != decisionAllow {
+		t.Fatalf("P3 result = %#v", got)
+	}
+	if got := exchangeUDS(t, client, opResponseCommit, []byte{1, 0}); got.decision != decisionAllow {
+		t.Fatalf("commit result = %#v", got)
+	}
+	if got := exchangeUDS(t, client, opResponseChunk, []byte("committed")); got.decision != decisionAllow || got.flags != resultFlagPostCommitLogOnly || got.status != 0 {
+		t.Fatalf("P4 log-only result = %#v", got)
+	}
+	if got := exchangeUDS(t, client, opResponseEOS, nil); got.decision != decisionAllow || got.flags != 0 {
+		t.Fatalf("P4 EOS result = %#v", got)
+	}
+	if got := exchangeUDS(t, client, opOutcome, []byte{3, 0, http.StatusOK}); got.decision != decisionAllow {
+		t.Fatalf("log-only outcome result = %#v", got)
+	}
+	if got := exchangeUDS(t, client, opFinish, nil); got.decision != decisionAllow {
+		t.Fatalf("finish result = %#v", got)
+	}
+
+	events := waitForTerminal(t, log)
+	assertOneTransaction(t, events, "P1", "P2", "P3", "P4")
+	var sawP4Deny, sawLogOnlyOutcome bool
+	for _, event := range events {
+		switch event.Phase {
+		case "P4":
+			sawP4Deny = event.RequestedAction == string(processor.ActionDeny)
+		case "host_action":
+			sawLogOnlyOutcome = event.ActualHostAction == string(processor.AppliedActionLogOnly) && event.VisibleStatus == http.StatusOK
+		}
+	}
+	if !sawP4Deny || !sawLogOnlyOutcome {
+		t.Fatalf("P4 log-only lifecycle evidence = %#v", events)
+	}
+}
+
+func TestP4ProcessingErrorReturnsTerminalRejectWithoutLogOnlyFlag(t *testing.T) {
+	c, err := composite.New("traefik", []byte("01234567890123456789012345678901"), composite.Limits{}, p4ProcessingErrorEngine{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	client := startUDSPipe(t, &UDS{Coordinator: c})
+
+	reserved := exchangeUDS(t, client, opReserve, reservationSnapshotPayload(t, http.MethodPost, "/p4-processing-error", nil))
+	if reserved.decision != decisionAllow || reserved.value == "" {
+		t.Fatalf("reserve result = %#v", reserved)
+	}
+	forwardAuthRequest(t, c, reserved.value, http.MethodPost, "/p4-processing-error", []byte("request"), http.StatusOK)
+	if got := exchangeUDS(t, client, opClaim, tokenPayload(reserved.value)); got.decision != decisionAllow {
+		t.Fatalf("claim result = %#v", got)
+	}
+	if got := exchangeUDS(t, client, opResponseHeaders, responseHeaderPayload(http.StatusOK)); got.decision != decisionAllow {
+		t.Fatalf("P3 result = %#v", got)
+	}
+	if got := exchangeUDS(t, client, opResponseCommit, []byte{1, 0}); got.decision != decisionAllow {
+		t.Fatalf("commit result = %#v", got)
+	}
+	if got := exchangeUDS(t, client, opResponseChunk, []byte("invalid")); got.decision != decisionDeny || got.status != http.StatusServiceUnavailable || got.flags != 0 {
+		t.Fatalf("P4 processing failure result = %#v", got)
+	}
 }
 
 func TestP2BlockUsesRequestTerminalFlagWithoutP3P4(t *testing.T) {
@@ -220,6 +342,25 @@ func TestReservationSnapshotAllowsEmptyOrdinaryValueOnly(t *testing.T) {
 	}
 }
 
+func TestReservationSnapshotPreservesProtectedConnectionMetadata(t *testing.T) {
+	snapshot, err := parseReservationSnapshot(reservationSnapshotPayload(t, http.MethodGet, "/metadata", nil))
+	if err != nil {
+		t.Fatalf("parse reservation snapshot: %v", err)
+	}
+	if snapshot.Protocol != "HTTP/1.1" || snapshot.ServerAddress != "127.0.0.1" || snapshot.ServerPort != 8080 {
+		t.Fatalf("protected connection metadata = %#v", snapshot)
+	}
+}
+
+func TestReservationSnapshotRejectsMissingProtectedConnectionMetadata(t *testing.T) {
+	// The pre-metadata wire layout must not remain activatable after the
+	// protocol change; it has no authenticated protected listener context.
+	old := []byte{composite.ReservationSnapshotVersion, 0, 3, 'G', 'E', 'T', 0, 1, '/', 0, 1, 0, 0}
+	if _, err := parseReservationSnapshot(old); err == nil {
+		t.Fatal("accepted reservation without protected connection metadata")
+	}
+}
+
 func startUDSPipe(t *testing.T, svc *UDS) net.Conn {
 	t.Helper()
 	server, client := net.Pipe()
@@ -327,6 +468,11 @@ func reservationSnapshotPayload(t *testing.T, method, uri string, headers []proc
 	payload := []byte{composite.ReservationSnapshotVersion}
 	payload = appendReservationTestText(t, payload, method)
 	payload = appendReservationTestText(t, payload, uri)
+	payload = appendReservationTestText(t, payload, "HTTP/1.1")
+	payload = appendReservationTestText(t, payload, "127.0.0.1")
+	var port [2]byte
+	binary.BigEndian.PutUint16(port[:], 8080)
+	payload = append(payload, port[:]...)
 	var size [2]byte
 	binary.BigEndian.PutUint16(size[:], uint16(len(names)))
 	payload = append(payload, size[:]...)

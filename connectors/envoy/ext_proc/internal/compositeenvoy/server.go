@@ -344,7 +344,7 @@ func (s *ExtProcServer) responseHeaders(ctx context.Context, stream extprocv3.Ex
 func (s *ExtProcServer) responseBody(ctx context.Context, stream extprocv3.ExternalProcessor_ProcessServer, response *composite.Response, msg *extprocv3.HttpBody, upstreamStatus int, lateActionRecorded *bool) (bool, error) {
 	decision, err := response.Body(ctx, msg.GetBody(), msg.GetEndOfStream())
 	if err != nil {
-		return false, err
+		return false, &postTransportError{reason: "response_body_processing_failed_after_commit", err: err}
 	}
 	// The response has already crossed the commit boundary. Disruptive P4
 	// decisions are therefore recorded as log-only and never reset the stream.
@@ -370,7 +370,7 @@ func (s *ExtProcServer) responseTrailers(ctx context.Context, stream extprocv3.E
 	}
 	decision, err := response.Body(ctx, nil, true)
 	if err != nil {
-		return false, err
+		return false, &postTransportError{reason: "response_trailer_processing_failed_after_commit", err: err}
 	}
 	if err := sendContinue(stream, trailersResponse()); err != nil {
 		return false, err

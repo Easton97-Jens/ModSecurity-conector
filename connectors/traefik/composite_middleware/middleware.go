@@ -39,7 +39,7 @@ const (
 	textContentType      = "text/plain; charset=utf-8"
 	forbiddenHeaderChars = "\r\n\x00"
 
-	reservationSnapshotVersion byte = 1
+	reservationSnapshotVersion byte = 2
 	requestContextHeader            = "X-Msconnector-Composite-Request-Context"
 
 	opClaim           byte = 1
@@ -63,11 +63,18 @@ const (
 	// resultFlagRequestTerminal preserves an actual P1/P2 ForwardAuth block.
 	// The writer must forward that response unchanged and must not send P3/P4.
 	resultFlagRequestTerminal byte = 1
+
+	// resultFlagPostCommitLogOnly marks a successful P4 decision after the
+	// upstream response has committed. The writer must retain the committed
+	// bytes and record actualLogOnly; processing and limit failures never use
+	// this flag.
+	resultFlagPostCommitLogOnly byte = 2
 )
 
 var (
-	errInvalidConfig = errors.New("modsecurity composite middleware: invalid configuration")
-	errProtocol      = errors.New("modsecurity composite middleware: invalid MSC2 protocol frame")
+	errInvalidConfig        = errors.New("modsecurity composite middleware: invalid configuration")
+	errProtocol             = errors.New("modsecurity composite middleware: invalid MSC2 protocol frame")
+	errResponseBodyRejected = errors.New("modsecurity composite middleware: response body rejected")
 )
 
 // Config is the bounded local-plugin configuration.
@@ -133,7 +140,7 @@ func (m *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// and Traefik-generated metadata from its explicit allow-list.
 	stripInternalHeaders(r.Header, m.config.LeaseHeader, requestContextHeader)
 	stripInternalHeaders(r.Trailer, m.config.LeaseHeader, requestContextHeader)
-	reservePayload, err := reservationPayload(r.Method, requestURI(r), r.Header, r.Host, r.ContentLength)
+	reservePayload, err := reservationPayloadForRequest(r)
 	if err != nil {
 		http.Error(w, companionUnavailable, http.StatusServiceUnavailable)
 		return
@@ -219,13 +226,31 @@ type reservationHeaderGroup struct {
 	values []string
 }
 
-// reservationPayload is the private UDS opReserve snapshot. It is deliberately
-// versioned and length-delimited: no raw request header crosses the loopback
-// ForwardAuth HTTP hop, no field is comma-joined, and no unbounded allocation
-// is possible at the UDS peer. The paired parser accepts only this canonical
-// lower-case, sorted representation.
-func reservationPayload(method, target string, headers http.Header, authority string, contentLength int64) ([]byte, error) {
+// reservationPayloadForRequest builds the private UDS opReserve snapshot. It
+// is deliberately versioned and length-delimited: no raw request header
+// crosses the loopback ForwardAuth HTTP hop, no field is comma-joined, and no
+// unbounded allocation is possible at the UDS peer. The paired parser accepts
+// only this canonical lower-case, sorted representation.
+func reservationPayloadForRequest(r *http.Request) ([]byte, error) {
+	if r == nil || !validHTTPProtocol(r.Proto) {
+		return nil, errProtocol
+	}
+	local, ok := r.Context().Value(http.LocalAddrContextKey).(net.Addr)
+	if !ok || local == nil {
+		return nil, errProtocol
+	}
+	host, port, err := parseServerAddr(local.String())
+	if err != nil {
+		return nil, err
+	}
+	return reservationPayloadWithMetadata(r.Method, requestURI(r), r.Header, r.Host, r.ContentLength, r.Proto, host, port)
+}
+
+func reservationPayloadWithMetadata(method, target string, headers http.Header, authority string, contentLength int64, protocol, serverAddress string, serverPort int) ([]byte, error) {
 	if !validHeaderToken(method) || !validReservationTarget(target) {
+		return nil, errProtocol
+	}
+	if !validHTTPProtocol(protocol) || net.ParseIP(serverAddress) == nil || serverPort < 1 || serverPort > 65535 {
 		return nil, errProtocol
 	}
 	groups, err := reservationHeaderGroups(headers, authority, contentLength)
@@ -242,6 +267,17 @@ func reservationPayload(method, target string, headers http.Header, authority st
 	if err != nil {
 		return nil, err
 	}
+	p, err = appendReservationText(p, protocol, maxHeaderValue)
+	if err != nil {
+		return nil, err
+	}
+	p, err = appendReservationText(p, serverAddress, maxHeaderValue)
+	if err != nil {
+		return nil, err
+	}
+	var port [2]byte
+	binary.BigEndian.PutUint16(port[:], uint16(serverPort))
+	p = append(p, port[:]...)
 	if len(groups) > maxHeaders {
 		return nil, errProtocol
 	}
@@ -406,6 +442,22 @@ func validReservationTarget(target string) bool {
 	return strings.HasPrefix(target, "/") && len(target) <= maxPayload && !strings.ContainsAny(target, forbiddenHeaderChars)
 }
 
+func validHTTPProtocol(value string) bool {
+	return strings.HasPrefix(value, "HTTP/") && len(value) <= 16 && !strings.ContainsAny(value, "\r\n\x00")
+}
+
+func parseServerAddr(value string) (string, int, error) {
+	host, portText, err := net.SplitHostPort(value)
+	if err != nil || host == "" || net.ParseIP(host) == nil {
+		return "", 0, errProtocol
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil || port < 1 || port > 65535 {
+		return "", 0, errProtocol
+	}
+	return host, port, nil
+}
+
 func internalReservationHeader(name string) bool {
 	return strings.EqualFold(name, "x-msconnector-composite-lease") ||
 		strings.EqualFold(name, strings.ToLower(requestContextHeader))
@@ -505,7 +557,9 @@ func parseResult(b []byte) (result, error) {
 		return r, nil
 	}
 	if r.flags != 0 {
-		if r.requestOpcode != opClaim || r.flags != resultFlagRequestTerminal || r.decision != decisionAllow || r.status != 0 || value != "" {
+		requestTerminal := r.requestOpcode == opClaim && r.flags == resultFlagRequestTerminal
+		postCommitLogOnly := (r.requestOpcode == opResponseChunk || r.requestOpcode == opResponseEOS) && r.flags == resultFlagPostCommitLogOnly
+		if (!requestTerminal && !postCommitLogOnly) || r.decision != decisionAllow || r.status != 0 || value != "" {
 			return result{}, errProtocol
 		}
 		return r, nil
@@ -706,8 +760,17 @@ func (rw *responseWriter) writeChunks(body []byte) (int, error) {
 			rw.transportErr = err
 			return written, err
 		}
-		if res.decision != decisionAllow {
+		if res.flags == resultFlagPostCommitLogOnly {
 			rw.late = true
+		}
+		if res.decision != decisionAllow {
+			// A successful P4 Safe decision is represented by the explicit
+			// post-commit log-only flag above. A deny that reaches this wrapper
+			// instead represents an inspection failure or protocol error (for
+			// example ProcessBody returning an error mapped to 503). Never
+			// forward the inspected-invalid bytes.
+			rw.transportErr = errResponseBodyRejected
+			return written, rw.transportErr
 		}
 		n, err := rw.writer.Write(chunk)
 		written += n
@@ -864,8 +927,14 @@ func (rw *responseWriter) finish(ctx context.Context) {
 		if res, err := rw.proto.exchange(ctx, opResponseEOS, nil); err != nil {
 			rw.transportErr = err
 			return
-		} else if res.decision != decisionAllow {
-			rw.late = true
+		} else {
+			if res.flags == resultFlagPostCommitLogOnly {
+				rw.late = true
+			}
+			if res.decision != decisionAllow {
+				rw.transportErr = errResponseBodyRejected
+				return
+			}
 		}
 	}
 	action := rw.outcomeAction

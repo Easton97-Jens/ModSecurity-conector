@@ -387,11 +387,12 @@ type responseOpener struct {
 	status        int
 	commitErr     error
 	hostActionErr error
+	bodyErr       error
 	tx            *responseTransaction
 }
 
 func (o *responseOpener) Open(_ context.Context, _ processor.StreamMetadata) (processor.Transaction, error) {
-	o.tx = &responseTransaction{action: o.action, bodyAction: o.bodyAction, status: o.status, commitErr: o.commitErr, hostActionErr: o.hostActionErr}
+	o.tx = &responseTransaction{action: o.action, bodyAction: o.bodyAction, status: o.status, commitErr: o.commitErr, hostActionErr: o.hostActionErr, bodyErr: o.bodyErr}
 	return o.tx, nil
 }
 
@@ -404,6 +405,7 @@ type responseTransaction struct {
 	commits           int
 	commitErr         error
 	hostActionErr     error
+	bodyErr           error
 	expectedTransport string
 }
 
@@ -415,6 +417,9 @@ func (t *responseTransaction) ProcessHeaders(_ context.Context, direction proces
 }
 func (t *responseTransaction) ProcessBody(_ context.Context, direction processor.Direction, _ []byte, _ bool) (processor.Decision, error) {
 	if direction == processor.DirectionResponse {
+		if t.bodyErr != nil {
+			return processor.Decision{}, t.bodyErr
+		}
 		action := t.bodyAction
 		if len(t.bodyActions) != 0 {
 			action = t.bodyActions[0]
@@ -423,6 +428,24 @@ func (t *responseTransaction) ProcessBody(_ context.Context, direction processor
 		return processor.Decision{Action: action, Status: t.status}, nil
 	}
 	return processor.Decision{Action: processor.ActionAllow}, nil
+}
+
+func TestProcessP4ProcessingErrorDoesNotSendSecondImmediateResponse(t *testing.T) {
+	server, opener, _, lease := newProcessFixture(t, processor.ActionAllow, 200)
+	// Configure the transaction before ext_proc claims it; the fixture opener
+	// copies this fault into the transaction at Open time.
+	opener.tx.bodyErr = errors.New("body inspection failed")
+	stream := &processStream{requests: []*extprocv3.ProcessingRequest{
+		initialRequest(lease),
+		{Request: &extprocv3.ProcessingRequest_ResponseHeaders{ResponseHeaders: &extprocv3.HttpHeaders{Headers: &corev3.HeaderMap{Headers: []*corev3.HeaderValue{{Key: ":status", Value: "200"}}}}}},
+		{Request: &extprocv3.ProcessingRequest_ResponseBody{ResponseBody: &extprocv3.HttpBody{Body: []byte("body"), EndOfStream: true}}},
+	}}
+	if err := server.Process(stream); err == nil {
+		t.Fatal("post-commit body error unexpectedly succeeded")
+	}
+	if len(stream.responses) != 2 || stream.responses[1].GetResponseHeaders() == nil {
+		t.Fatalf("responses=%v, want only the committed P3 CONTINUE", stream.responses)
+	}
 }
 func (t *responseTransaction) Close(context.Context, processor.Summary) {}
 func (t *responseTransaction) RecordHostAction(_ context.Context, action processor.HostAction) error {
@@ -785,6 +808,18 @@ func TestProcessHeaderOnlyAllowNeutralOutcome(t *testing.T) {
 	}
 	if opener.tx == nil {
 		t.Fatal("transaction missing")
+	}
+}
+
+func TestProcessHeaderOnlyDenyEmitsFinalP4BeforeTerminalization(t *testing.T) {
+	server, _, observer, lease := newProcessFixture(t, processor.ActionDeny, 451)
+	stream := &processStream{requests: []*extprocv3.ProcessingRequest{initialRequest(lease), initialResponseHeaders(lease, "200", true)}}
+	if err := server.Process(stream); err != nil {
+		t.Fatal(err)
+	}
+	p4, neutral := eventCountsUntilTerminal(t, observer)
+	if p4 != 1 || neutral != 0 {
+		t.Fatalf("P4=%d neutral=%d, want final disruptive P4 and no neutral allow", p4, neutral)
 	}
 }
 
