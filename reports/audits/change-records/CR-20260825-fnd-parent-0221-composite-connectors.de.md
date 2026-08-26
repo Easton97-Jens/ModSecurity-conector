@@ -467,3 +467,31 @@ Schritt muss den autorisierten scoped Commit und normalen Push durchführen;
 passende Head-GitHub-CI, passende Head-Sonar-Null-Evidenz und die Review-
 Thread-Reconciliation bleiben danach erforderlich. Der PR bleibt Draft, und
 kein Merge ist autorisiert.
+
+## Sonar-Duplikat-Successor für PR #341 (lokale Validierung) — 2026-08-26
+
+Die exakte SonarQube-Cloud-Analyse für
+`cdc4d9c7c60a25a9f38e02089f2a7f16d7b433c1` entfernte alle fünf New-Code-
+Code-Smells und alle offenen Issues, meldete aber weiterhin
+`new_duplicated_lines=22` und
+`new_duplicated_lines_density=0.1653140967838894`. Die exakte Duplikations-
+API-Evidenz lokalisiert beide 11-Zeilen-Blöcke ausschließlich in `uds_test.go`;
+keine Produktionsdatei hat eine neue duplizierte Zeile. Dies bleibt ein strikter
+Null-Akzeptanzblocker, obwohl das Quality Gate OK ist.
+
+`startP4Test` besitzt jetzt das gemeinsame ausschließlich testseitige
+Coordinator-/UDS-Reservation- und ForwardAuth-Setup. Der P4-Safe-Test prüft
+weiterhin das explizite Log-Only-Flag und Allow-Ergebnis, während der P4-
+Processing-Error-Test weiterhin terminalen Reject ohne dieses Flag prüft. Es
+wurden weder Produktionscode, Sonar-Konfiguration, Quality Gate, Exclusion,
+Suppression, Accepted-Issue-Status, Coverage-Input noch ein Security-Control
+geändert.
+
+Die vollständige fokussierte Regressionsmenge bestand nach dem ausschließlich
+testseitigen Refactoring: Envoy `go test -race -count=1 ./internal/composite
+./internal/compositeenvoy ./internal/compositetraefik
+./cmd/msconnector-composite`; Traefik `go test -race -count=1 .`; beide
+zugehörigen Go-vet-Suiten; `gofmt -d`; und `git diff --check`. Der folgende
+Delivery-Schritt muss den scoped Successor pushen und GitHub-/Sonar-Evidenz vor
+der Review-Thread-Reconciliation an seinen exakten Head binden. Der PR bleibt
+Draft, und kein Merge ist autorisiert.

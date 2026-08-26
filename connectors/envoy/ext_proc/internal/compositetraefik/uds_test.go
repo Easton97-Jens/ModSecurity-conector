@@ -131,23 +131,28 @@ func TestPrivateUDSForwardAuthAndResponseUseOneTransaction(t *testing.T) {
 
 func TestP4LogOnlyResultPreservesCommittedChunkAndRecordsOutcome(t *testing.T) {
 	log := &udsEventLog{}
-	c, err := composite.New("traefik", []byte("01234567890123456789012345678901"), composite.Limits{}, p4LogOnlyEngine{}, log)
-	if err != nil {
-		t.Fatal(err)
-	}
+	c, client, lease := startP4Test(t, p4LogOnlyEngine{}, log, "/p4-log-only", []byte("request"))
 	defer c.Close()
-	client := startUDSPipe(t, &UDS{Coordinator: c})
-
-	reserved := exchangeUDS(t, client, opReserve, reservationSnapshotPayload(t, http.MethodPost, "/p4-log-only", nil))
-	if reserved.decision != decisionAllow || reserved.value == "" {
-		t.Fatalf("reserve result = %#v", reserved)
-	}
-	forwardAuthRequest(t, c, reserved.value, http.MethodPost, "/p4-log-only", []byte("request"), http.StatusOK)
-	completeP4LogOnlyLifecycle(t, client, reserved.value)
+	completeP4LogOnlyLifecycle(t, client, lease)
 
 	events := waitForTerminal(t, log)
 	assertOneTransaction(t, events, "P1", "P2", "P3", "P4")
 	assertP4LogOnlyEvents(t, events)
+}
+
+func startP4Test(t *testing.T, engine processor.TransactionOpener, log composite.Observer, path string, body []byte) (*composite.Coordinator, net.Conn, string) {
+	t.Helper()
+	c, err := composite.New("traefik", []byte("01234567890123456789012345678901"), composite.Limits{}, engine, log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := startUDSPipe(t, &UDS{Coordinator: c})
+	reserved := exchangeUDS(t, client, opReserve, reservationSnapshotPayload(t, http.MethodPost, path, nil))
+	if reserved.decision != decisionAllow || reserved.value == "" {
+		t.Fatalf("reserve result = %#v", reserved)
+	}
+	forwardAuthRequest(t, c, reserved.value, http.MethodPost, path, body, http.StatusOK)
+	return c, client, reserved.value
 }
 
 func completeP4LogOnlyLifecycle(t *testing.T, client net.Conn, lease string) {
@@ -192,19 +197,9 @@ func assertP4LogOnlyEvents(t *testing.T, events []composite.Event) {
 }
 
 func TestP4ProcessingErrorReturnsTerminalRejectWithoutLogOnlyFlag(t *testing.T) {
-	c, err := composite.New("traefik", []byte("01234567890123456789012345678901"), composite.Limits{}, p4ProcessingErrorEngine{}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	c, client, lease := startP4Test(t, p4ProcessingErrorEngine{}, nil, "/p4-processing-error", []byte("request"))
 	defer c.Close()
-	client := startUDSPipe(t, &UDS{Coordinator: c})
-
-	reserved := exchangeUDS(t, client, opReserve, reservationSnapshotPayload(t, http.MethodPost, "/p4-processing-error", nil))
-	if reserved.decision != decisionAllow || reserved.value == "" {
-		t.Fatalf("reserve result = %#v", reserved)
-	}
-	forwardAuthRequest(t, c, reserved.value, http.MethodPost, "/p4-processing-error", []byte("request"), http.StatusOK)
-	if got := exchangeUDS(t, client, opClaim, tokenPayload(reserved.value)); got.decision != decisionAllow {
+	if got := exchangeUDS(t, client, opClaim, tokenPayload(lease)); got.decision != decisionAllow {
 		t.Fatalf("claim result = %#v", got)
 	}
 	if got := exchangeUDS(t, client, opResponseHeaders, responseHeaderPayload(http.StatusOK)); got.decision != decisionAllow {

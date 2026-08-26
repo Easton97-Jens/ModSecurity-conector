@@ -435,3 +435,27 @@ operation must perform the authorized scoped commit and normal push; matching-
 head GitHub CI, matching-head Sonar zero evidence, and review-thread
 reconciliation remain required afterward. The PR remains Draft and no merge
 is authorized.
+
+## PR #341 Sonar duplication successor (local validation) — 2026-08-26
+
+The exact `cdc4d9c7c60a25a9f38e02089f2a7f16d7b433c1` SonarQube Cloud analysis
+cleared all five New-Code code smells and all open issues, but still reported
+`new_duplicated_lines=22` and `new_duplicated_lines_density=0.1653140967838894`.
+The exact duplication API evidence locates both 11-line blocks only in
+`uds_test.go`; no production file has a new duplicated line. This remains a
+strict zero-acceptance blocker even though the Quality Gate is OK.
+
+`startP4Test` now owns the common test-only coordinator/UDS reservation and
+ForwardAuth setup. The P4 Safe test still asserts the explicit log-only flag
+and allow result, while the P4 processing-error test still asserts terminal
+reject without that flag. No production code, Sonar configuration, Quality
+Gate, exclusion, suppression, accepted-issue state, coverage input, or
+security control changed.
+
+The full focused regression set passed after the test-only refactoring: Envoy
+`go test -race -count=1 ./internal/composite ./internal/compositeenvoy
+./internal/compositetraefik ./cmd/msconnector-composite`; Traefik `go test
+-race -count=1 .`; both corresponding Go-vet suites; `gofmt -d`; and `git
+diff --check`. The following delivery operation must push the scoped successor
+and rebind GitHub/Sonar evidence to its exact head before review-thread
+reconciliation. The PR remains Draft and no merge is authorized.
