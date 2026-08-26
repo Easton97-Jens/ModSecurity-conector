@@ -50,6 +50,7 @@ typedef struct {
     int response_processed;
     int request_body_finished;
     int request_intervened;
+    int request_body_gate_rejected;
     int response_body_finished;
 #ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
     off_t request_body_next_offset;
@@ -240,6 +241,17 @@ SETDEFAULTS_FUNC(mod_msconnector_set_defaults) {
         msconnector_runtime_destroy(&p->runtime);
         return HANDLER_ERROR;
     }
+    if (request_body_mode == MSCONNECTOR_BODY_MODE_STREAMING &&
+        msconnector_runtime_body_limit_action(p->runtime) !=
+          MSCONNECTOR_BODY_LIMIT_ACTION_REJECT) {
+        log_error(
+            srv->errh,
+            __FILE__,
+            __LINE__,
+            "patched lighttpd request_body_mode=streaming requires body_limit_action=reject to retain a bounded pre-upstream request-body buffer");
+        msconnector_runtime_destroy(&p->runtime);
+        return HANDLER_ERROR;
+    }
     p->request_body_hooks_enabled =
         request_body_mode == MSCONNECTOR_BODY_MODE_STREAMING;
     p->response_body_hooks_enabled =
@@ -361,6 +373,71 @@ static handler_t mod_msconnector_apply_decision(
     return result;
 }
 
+/*
+ * These response-header helpers are shared by the Stock and Patched host
+ * paths.  They must remain outside the stream-hook ABI guard: Stock invokes
+ * mod_msconnector_emit_host_transaction_id() from its response-start hook,
+ * while only the entity-body callbacks below require the patched ABI.
+ */
+static int mod_msconnector_response_headers_committed(
+        const request_st *r) {
+    return r != NULL && r->resp_header_len > 0U &&
+        r->write_queue.bytes_out >= (off_t)r->resp_header_len;
+}
+
+/*
+ * The host transaction ID is created by handler_ctx_create(), never derived
+ * from request metadata, and takes precedence over the legacy fallback
+ * transaction_id_header.  A private runtime harness can opt in to returning
+ * that host-generated value on the actual response so it can correlate one
+ * wire exchange with Common Runtime evidence.  This is deliberately disabled
+ * by default: the serial includes process-local information and is not a
+ * general-purpose public response header.
+ *
+ * Use response_set rather than response_insert.  In particular, an upstream
+ * response or a client-controlled request header bearing this name must not
+ * yield a second or forged response value.  This function is called only
+ * after the real response has been mapped into Common Runtime, so the
+ * evidence header cannot influence ModSecurity response evaluation.
+ */
+static int mod_msconnector_emit_host_transaction_id(
+        request_st * const r,
+        const plugin_data * const p,
+        const handler_ctx * const ctx) {
+    size_t transaction_id_size;
+
+    if (p == NULL || !p->defaults.expose_host_transaction_id) {
+        return 1;
+    }
+    if (r == NULL || ctx == NULL || ctx->host_request_id[0] == '\0') {
+        return 0;
+    }
+    if (mod_msconnector_response_headers_committed(r)) {
+        log_error(
+            r->conf.errh,
+            __FILE__,
+            __LINE__,
+            "msconnector evidence host transaction header would be emitted after response commit");
+        return 0;
+    }
+    transaction_id_size = strlen(ctx->host_request_id);
+    if (transaction_id_size >= sizeof(ctx->host_request_id)) {
+        log_error(
+            r->conf.errh,
+            __FILE__,
+            __LINE__,
+            "msconnector host transaction identifier is not bounded");
+        return 0;
+    }
+    http_header_response_set(
+        r,
+        HTTP_HEADER_OTHER,
+        CONST_STR_LEN("X-Msconnector-Host-Transaction-Id"),
+        ctx->host_request_id,
+        (uint32_t)transaction_id_size);
+    return 1;
+}
+
 #ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
 
 typedef struct {
@@ -420,6 +497,20 @@ static handler_t mod_msconnector_finish_request_body(
     return mod_msconnector_apply_decision(r, p, ctx, &decision);
 }
 
+static handler_t mod_msconnector_reject_request_body_gate_conflict(
+        request_st *r,
+        handler_ctx *ctx,
+        const char *reason) {
+    log_error(
+        r->conf.errh,
+        __FILE__,
+        __LINE__,
+        "msconnector pre-upstream request-body gate rejected request: %s",
+        reason);
+    ctx->request_body_gate_rejected = 1;
+    return http_status_set_err(r, 501);
+}
+
 static handler_t mod_msconnector_prepare_request_body(
         request_st *r,
         plugin_data *p,
@@ -440,8 +531,31 @@ static handler_t mod_msconnector_prepare_request_body(
     if (r->reqbody_length == 0) {
         return mod_msconnector_finish_request_body(r, p, ctx);
     }
+    if (r->conf.stream_request_body
+        & (FDEVENT_STREAM_REQUEST | FDEVENT_STREAM_REQUEST_BUFMIN)) {
+        return mod_msconnector_reject_request_body_gate_conflict(
+            r, ctx, "streaming was already active before Phase-2 completion");
+    }
+    if (http_header_request_get(
+            r, HTTP_HEADER_INCREMENTAL, CONST_STR_LEN("Incremental")) != NULL) {
+        return mod_msconnector_reject_request_body_gate_conflict(
+            r, ctx, "Incremental request streaming is unsupported");
+    }
+    if (http_header_request_get(
+            r, HTTP_HEADER_UPGRADE, CONST_STR_LEN("Upgrade")) != NULL) {
+        return mod_msconnector_reject_request_body_gate_conflict(
+            r, ctx, "body-bearing Upgrade request streaming is unsupported");
+    }
 
-    r->conf.stream_request_body |= FDEVENT_STREAM_REQUEST;
+    /*
+     * Keep the host request body buffered until the EOS callback has produced
+     * the Phase-2 allow decision.  In particular, do not let the proxy
+     * gateway's FDEVENT_STREAM_REQUEST exception connect or write upstream
+     * while the decision is pending.  FDEVENT_STREAM_REQUEST_POLLIN remains
+     * owned by h1_reqbody_read().
+     */
+    r->conf.stream_request_body &=
+      ~(FDEVENT_STREAM_REQUEST | FDEVENT_STREAM_REQUEST_BUFMIN);
     rc = r->con->reqbody_read(r);
     if (rc != HANDLER_GO_ON) {
         return rc;
@@ -465,6 +579,11 @@ static handler_t mod_msconnector_handle_request_body(
     if (!p->request_body_hooks_enabled || ctx == NULL ||
         ctx->transaction == NULL || ctx->request_body_finished) {
         return HANDLER_GO_ON;
+    }
+    if (r->conf.stream_request_body
+        & (FDEVENT_STREAM_REQUEST | FDEVENT_STREAM_REQUEST_BUFMIN)) {
+        return mod_msconnector_reject_request_body_gate_conflict(
+            r, ctx, "streaming became active before Phase-2 completion");
     }
     if (stream_offset != ctx->request_body_next_offset) {
         log_error(
@@ -508,69 +627,10 @@ static handler_t mod_msconnector_handle_request_body(
     return eos ? mod_msconnector_finish_request_body(r, p, ctx) : HANDLER_GO_ON;
 }
 
-static int mod_msconnector_response_headers_committed(
-        const request_st *r) {
-    return r != NULL && r->resp_header_len > 0U &&
-        r->write_queue.bytes_out >= (off_t)r->resp_header_len;
-}
-
 static int mod_msconnector_response_body_committed(
         const request_st *r) {
     return r != NULL && r->resp_header_len > 0U &&
         r->write_queue.bytes_out > (off_t)r->resp_header_len;
-}
-
-/*
- * The host transaction ID is created by handler_ctx_create(), never derived
- * from request metadata, and takes precedence over the legacy fallback
- * transaction_id_header.  A private runtime harness can opt in to returning
- * that host-generated value on the actual response so it can correlate one
- * wire exchange with Common Runtime evidence.  This is deliberately disabled
- * by default: the serial includes process-local information and is not a
- * general-purpose public response header.
- *
- * Use response_set rather than response_insert.  In particular, an upstream
- * response or a client-controlled request header bearing this name must not
- * yield a second or forged response value.  This function is called only
- * after the real response has been mapped into Common Runtime, so the
- * evidence header cannot influence ModSecurity response evaluation.
- */
-static int mod_msconnector_emit_host_transaction_id(
-        request_st * const r,
-        const plugin_data * const p,
-        const handler_ctx * const ctx) {
-    size_t transaction_id_size;
-
-    if (p == NULL || !p->defaults.expose_host_transaction_id) {
-        return 1;
-    }
-    if (r == NULL || ctx == NULL || ctx->host_request_id[0] == '\0') {
-        return 0;
-    }
-    if (mod_msconnector_response_headers_committed(r)) {
-        log_error(
-            r->conf.errh,
-            __FILE__,
-            __LINE__,
-            "msconnector evidence host transaction header would be emitted after response commit");
-        return 0;
-    }
-    transaction_id_size = strlen(ctx->host_request_id);
-    if (transaction_id_size >= sizeof(ctx->host_request_id)) {
-        log_error(
-            r->conf.errh,
-            __FILE__,
-            __LINE__,
-            "msconnector host transaction identifier is not bounded");
-        return 0;
-    }
-    http_header_response_set(
-        r,
-        HTTP_HEADER_OTHER,
-        CONST_STR_LEN("X-Msconnector-Host-Transaction-Id"),
-        ctx->host_request_id,
-        (uint32_t)transaction_id_size);
-    return 1;
 }
 
 static plugin_body_hook_result mod_msconnector_finish_response_body(
@@ -886,7 +946,7 @@ REQUEST_FUNC(mod_msconnector_handle_response_start) {
      * error document.  That construction clears earlier response headers, so
      * emit the opt-in evidence header here rather than during request setup.
      */
-    if (ctx->request_intervened) {
+    if (ctx->request_intervened || ctx->request_body_gate_rejected) {
         return mod_msconnector_emit_host_transaction_id(r, p, ctx)
             ? HANDLER_GO_ON : HANDLER_ERROR;
     }
@@ -986,7 +1046,18 @@ REQUEST_FUNC(mod_msconnector_handle_request_reset) {
         }
 #endif
         msconnector_error_init(&runtime_error);
-        if (!msconnector_runtime_transaction_finish(
+        if (ctx->request_body_gate_rejected) {
+            if (!msconnector_runtime_transaction_finish_host_rejected_request_body(
+                    ctx->transaction,
+                    &runtime_error)) {
+                log_error(
+                    r->conf.errh,
+                    __FILE__,
+                    __LINE__,
+                    "msconnector rejected request-body gate logging finalization failed: %s",
+                    msconnector_error_code_name(runtime_error.code));
+            }
+        } else if (!msconnector_runtime_transaction_finish(
                 ctx->transaction,
                 &runtime_error)) {
             log_error(

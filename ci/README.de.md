@@ -14,6 +14,7 @@ Dieser Baum enthält Connector-Repository-Orchestrierung, Verträge und Evidence
 | `checks/evidence/` | Lifecycle-, Fixture-, Capability- und Core-Completion-Prüfungen | Evidence-Targets |
 | `checks/security/` | Runtime-Pfad- und Artefaktsicherheit | `make check-runtime-path-policy` |
 | `runtime/common/` | Gemeinsame Pfad-, Prozess-, Port- und Fixture-Helfer | Nur Runner-Unterstützung |
+| `runtime/contracts/` | Parent-eigener kanonischer Runtime-Observation-Vertrag, semantischer Validator und striktes CLI | `validate-runtime-observation.py` |
 | `runtime/lifecycle/` | Kanonische Runner, Normalisierer und Artefaktschreiber | Lifecycle-Make-Targets |
 | `provisioning/` | Cache-v2-, Komponenten- und Toolchain-Vorbereitung | `make prepare-runtime-components` |
 | `evidence/collectors/` | Capability-Erfassung | `make capabilities-*` |
@@ -52,11 +53,60 @@ einen bestandenen gehosteten Runtime-Lauf.
 1. Make löst Repository-, Build-, Cache-, Runtime- und Evidence-Roots auf.
 2. `provisioning/` bereitet einen identity-gebundenen Cache-v2-Eintrag vor.
 3. `runtime/lifecycle/` führt ein Hostprofil aus und schreibt payloadfreie lokale Daten.
-4. Framework und `evidence/collectors/` normalisieren und validieren diese Daten.
-5. `checks/evidence/` entscheidet, ob sie den gewählten Claim stützen.
-6. `evidence/reports/` erzeugt versionierte Berichte neu; Generated-Ausgabe nie manuell ändern.
+4. `runtime/contracts/` validiert die identity-gebundene, payloadfreie Parent-Runtime-Observation.
+5. Framework und `evidence/collectors/` normalisieren und validieren wiederverwendbare Katalogdaten.
+6. `checks/evidence/` entscheidet, ob sie den gewählten Claim stützen.
+7. `evidence/reports/` erzeugt versionierte Berichte neu; Generated-Ausgabe nie manuell ändern.
 
 Exit `0` bedeutet technische Beendigung, nicht dass jeder Katalogfall `PASS` ist. `1` ist ein allgemeiner Fehler, `2` typischerweise ein Validierungs-/Aggregate-Fehler und `77` eine deklarierte fehlende optionale Voraussetzung. Ein rekursiver GNU-Make-Aufruf kann seine fehlgeschlagene Recipe als `2` berichten, obwohl der direkte Child-Prozess `77` lieferte; Aufrufer dürfen den ursprünglichen Status nicht aus diesem rekursiven Exitcode ableiten. Statussemantik steht unter [Testebenen](../docs/testing-and-evidence.de.md).
+
+## Kanonischer Runtime-Observation-Vertrag
+
+`runtime/contracts/` ist die Parent-eigene Grenze für kanonische
+Runtime-Observations. `runtime-observation.schema.json` definiert die
+Transportform; `runtime_observation.py` ist der einzige semantische Validator
+und sichere Dateileser. Der Vertrag bindet Connector, Profil, Laufkennung,
+Parent-Commit, Framework-Commit und MRTS-Commit für jedes Profil an die
+Evidence. Er ist payloadfrei und erlaubt nur sichere relative Evidence-Referenzen,
+damit keine Requests, Logs, Secrets oder absoluten Runner-Pfade zu
+Berichtsmetadaten werden.
+
+Der strikte Einstiegspunkt ist:
+
+```sh
+"$PYTHON" ci/runtime/contracts/validate-runtime-observation.py \
+  --observation "<private-evidence-root>/runtime-observation.json" \
+  --evidence-root "<private-evidence-root>" \
+  --connector envoy --profile with-crs-no-mrts \
+  --run-id RUN_ID --parent-sha PARENT_SHA --framework-sha FRAMEWORK_SHA \
+  --mrts-sha MRTS_SHA \
+  --policy strict
+```
+
+Die Standardeinstellung `--policy strict` gibt payloadfreies JSON aus und
+liefert nur für `PASS` den Exitcode `0`; unsichere Eingaben,
+Identitätsabweichungen, fehlende Evidence oder semantische Abweichungen
+liefern `VALIDATION_FAILED` und Exitcode `2`. `--policy partial` meldet
+unvollständige Evidence als `PARTIAL`, bleibt aber nicht erfolgreich. Ein
+`PASS` verlangt übereinstimmende typisierte Erwartungen und Observations,
+einen ausgewählten und ausgeführten Live-Framework-Fall, null Fehler bzw.
+Abweichungen und keine Cleanup-Reste. No-MRTS-Profile dürfen ausschließlich
+negative MRTS-Isolationsfakten enthalten und müssen zugleich den ausgewählten
+klein geschriebenen vollständigen `mrts_commit` binden; sie dürfen keinen
+MRTS-Runner aufrufen, kein Inventory laden, keinen Prozess oder Listener
+starten und kein MRTS-Artefakt verwenden. `--mrts-sha` ist für jedes Profil
+erforderlich.
+
+Der Leser verlangt, dass die aktuelle UID den Evidence-Root und jedes
+Unterverzeichnis besitzt, jeweils mit exakt Modus 0700, sowie reguläre
+Evidence-Dateien mit exakt Modus 0600. Er weist symbolische und harte Links
+ab, begrenzt Observations auf 1 MiB und weist doppelte JSON-Schlüssel sowie
+nicht striktes UTF-8 ab. Envoy, lighttpd und Traefik besitzen Live-Producer-
+Adapter. Apache und HAProxy stellen nur Schnittstellen bereit. NGINX bleibt
+eine geschützte separate Grenze: Der gemeinsame Validator akzeptiert nur
+seinen genehmigten Protected-Producer und Protected-Runtime-Evidence, während
+dieser PR den Broker-Produktionspfad weder aufruft noch verändert. Die
+Contract-Tests belegen Validator-Verhalten, kein gehostetes Runtime-Ergebnis.
 
 ## Statusdatensätze für optionale Voraussetzungen
 

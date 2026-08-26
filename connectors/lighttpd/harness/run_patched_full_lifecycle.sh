@@ -1440,10 +1440,14 @@ def observed(uri, request_id, response_transaction_id):
     print(f"{request_id}_observed_crs_trigger_rule_id=942270")
     print(f"{request_id}_observed_http_status={event['visible_http_status']}")
     print(f"{request_id}_observed_uri={event['uri']}")
-    return transaction_id
+    return transaction_id, event["rule_id"]
 
-block_transaction_id = observed(block_uri, "block", block_response_transaction_id)
-bypass_transaction_id = observed(bypass_uri, "bypass", bypass_response_transaction_id)
+block_transaction_id, block_intervention_rule_id = observed(
+    block_uri, "block", block_response_transaction_id
+)
+bypass_transaction_id, bypass_intervention_rule_id = observed(
+    bypass_uri, "bypass", bypass_response_transaction_id
+)
 if block_transaction_id == bypass_transaction_id:
     raise SystemExit("CRS block and bypass-class requests reused a transaction id")
 print("connector=lighttpd")
@@ -1453,7 +1457,7 @@ print("crs_runtime=true")
 print("requests_sent=true")
 print("crs_repository=OWASP CRS")
 print("crs_rule_id=942270")
-print("intervention_rule_id=949110")
+print(f"intervention_rule_id={block_intervention_rule_id}")
 print("raw_crs_trigger_rule_id=942270")
 print("allow_request_method=GET")
 print("allow_request_uri=/?id=42")
@@ -1466,11 +1470,17 @@ print(f"block_request_uri={block_uri}")
 print(f"block_request_id={block_request_id}")
 print(f"block_response_transaction_id={block_response_transaction_id}")
 print("block_request_status=403")
+print("block_observed_action=deny")
+print("block_trigger_rule_id=942270")
+print(f"block_intervention_rule_id={block_intervention_rule_id}")
 print("bypass_class=case-variation")
 print(f"bypass_request_uri={bypass_uri}")
 print(f"bypass_request_id={bypass_request_id}")
 print(f"bypass_response_transaction_id={bypass_response_transaction_id}")
 print("bypass_request_status=403")
+print("bypass_observed_action=deny")
+print("bypass_trigger_rule_id=942270")
+print(f"bypass_intervention_rule_id={bypass_intervention_rule_id}")
 print(f"response_transaction_header_name={response_transaction_header}")
 print("response_transaction_header_origin=server_generated_lighttpd_host")
 print(f"allow_request_trace={allow_trace_path}")
@@ -1483,12 +1493,15 @@ print("evidence_origin=real_host_event_and_wire_response")
 print(f"events={event_path}")
 print(f"raw_crs_evidence={raw_log_path}")
 print("raw_crs_correlation=verified_by_response_header_and_transaction_id")
+print("config_test_status=PASS")
+print("host_start_status=PASS")
+print("reachability_status=PASS")
 PY
 
     if ! cleanup; then
         fail "CRS cleanup did not stop every owned process"
     fi
-    printf 'cleanup_status=verified\n' >> "$SUMMARY_PATH"
+    printf 'cleanup_status=PASS\n' >> "$SUMMARY_PATH"
     printf 'status=PASS\n' >> "$SUMMARY_PATH"
     trap - EXIT HUP INT TERM
     printf 'lighttpd_patched_full_lifecycle: PASS CRS allow=%s block=%s bypass=%s events=%s\n' \
@@ -1792,6 +1805,7 @@ if ! cleanup; then
     fail "cleanup did not stop every owned process"
 fi
 trap - EXIT HUP INT TERM
+printf 'cleanup_status=PASS\n' >> "$SUMMARY_PATH"
 
 printf 'lighttpd_patched_full_lifecycle: PASS allow=%s deny=%s alternative=%s p2=%s p3=%s p4-safe=%s results=%s\n' \
     "$allow_status" "$deny_status" "$alternative_status" "$request_body_status" \

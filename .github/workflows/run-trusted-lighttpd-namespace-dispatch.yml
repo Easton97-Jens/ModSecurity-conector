@@ -659,7 +659,8 @@ jobs:
           printf 'target_pr=%s\n' "$target_pr" >> "$GITHUB_OUTPUT"
           printf 'target_sha=%s\n' "$target_sha" >> "$GITHUB_OUTPUT"
 
-      - name: Materialize and run the namespace test only as constrained ns-test
+      - id: run-namespace-fixture
+        name: Materialize and run the namespace test only as constrained ns-test
         env:
           TARGET_SHA: ${{ steps.resolve-target.outputs.target_sha }}
         shell: /usr/bin/bash --noprofile --norc -euo pipefail {0}
@@ -690,6 +691,32 @@ jobs:
             exit 77
           fi
 
+      - name: Publish the bounded trusted namespace summary
+        if: always()
+        env:
+          TARGET_SHA: ${{ steps.resolve-target.outputs.target_sha }}
+          FIXTURE_RESULT: ${{ steps.run-namespace-fixture.outcome }}
+        shell: /usr/bin/bash --noprofile --norc -euo pipefail {0}
+        run: |
+          {
+            printf '%s\n\n' '## Trusted Lighttpd namespace dispatch'
+            if [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+              printf '%s\n' "- Target SHA: \`$TARGET_SHA\`"
+            else
+              printf '%s\n' '- Target SHA: unavailable because the protected resolver did not finish.'
+            fi
+            case "$FIXTURE_RESULT" in
+              success)
+                printf '%s\n' '- Result: PASS — protected namespace fixture passed.'
+                ;;
+              *)
+                printf '%s\n' '- Result: BLOCKED — protected namespace fixture did not pass.'
+                ;;
+            esac
+            printf '%s\n' '- Runtime supervisor: not invoked by this fixture-only dispatcher.'
+            printf '%s\n' '- Runtime evidence: no Lighttpd runtime evidence was collected or claimed.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   report-trusted-lighttpd-namespace:
     needs: trusted-lighttpd-namespace
     if: >-
@@ -715,15 +742,15 @@ jobs:
           case "$TRUSTED_TEST_RESULT" in
             success)
               status_state=success
-              status_description='Trusted Lighttpd namespace test passed.'
+              status_description='Trusted Lighttpd namespace fixture passed.'
               ;;
             failure)
               status_state=failure
-              status_description='Trusted Lighttpd namespace test failed.'
+              status_description='Trusted Lighttpd namespace fixture failed.'
               ;;
             cancelled|skipped)
               status_state=error
-              status_description='Trusted Lighttpd namespace test did not complete.'
+              status_description='Trusted Lighttpd namespace fixture did not complete.'
               ;;
             *)
               printf '%s\n' 'BLOCKED: trusted test returned an unknown result.' >&2
