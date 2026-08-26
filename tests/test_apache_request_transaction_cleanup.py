@@ -175,6 +175,43 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
         self.assertNotIn('event.decision.action = "pass";', rule_match)
         self.assertNotIn('event.decision.requested_action = "pass";', rule_match)
         self.assertNotIn('event.decision.actual_action = "pass";', rule_match)
+        self.assertNotIn('event.meta.message = ', rule_match)
+        self.assertNotIn('event.decision.reason = ', rule_match)
+        self.assertNotIn('event.http.transport_result = ', rule_match)
+        self.assertNotIn('event.body.content_type = ', rule_match)
+
+    def test_native_events_use_canonical_request_timestamp(self) -> None:
+        timestamp_helper = c_function(
+            self.filters, "static const char *apache_event_timestamp(request_rec *r)"
+        )
+        self.assertIn("apr_time_exp_gmt(&exploded, r->request_time)", timestamp_helper)
+        self.assertIn('"%Y-%m-%dT%H:%M:%SZ"', timestamp_helper)
+        self.assertIn("written != 20U", timestamp_helper)
+        self.assertIn("event.meta.timestamp = apache_event_timestamp(r);", self.filters)
+        self.assertEqual(
+            self.filters.count("event.meta.timestamp = apache_event_timestamp(r);"),
+            2,
+        )
+
+    def test_native_rule_matches_publish_integrity_chain(self) -> None:
+        integrity_helper = c_function(
+            self.filters,
+            "static int apache_set_rule_match_integrity(msc_t *msr,\n"
+            "    msconnector_event *event)",
+        )
+        rule_match = c_function(
+            self.filters,
+            "void apache_log_rule_match_event(msc_t *msr, request_rec *r,\n"
+            "    enum msconnector_phase phase, const char *rule_id)",
+        )
+        self.assertIn("msconnector_integrity_event_hash(event", integrity_helper)
+        self.assertIn("event->integrity.previous_hash = msr->intervention.native_event_hash", integrity_helper)
+        self.assertIn("event->integrity.sequence = msr->intervention.native_event_sequence + 1UL", integrity_helper)
+        self.assertNotIn("apr_table_setn", integrity_helper)
+        self.assertIn("apache_set_rule_match_integrity(msr, &event)", rule_match)
+        self.assertIn("Advance the request-owned chain only after", self.filters)
+        self.assertIn("msr->intervention.native_event_hash = event.integrity.event_hash", rule_match)
+        self.assertIn("msr->intervention.native_event_sequence = event.integrity.sequence", rule_match)
 
 
 if __name__ == "__main__":

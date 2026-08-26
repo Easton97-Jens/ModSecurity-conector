@@ -960,6 +960,32 @@ def validate_case(case: Any) -> tuple[str, str, list[Any], str]:
     return str(case["kind"]), uri, raw_expected_ids, expected_phase
 
 
+def effective_expected_rule_ids(
+    connector: str, raw_expected_ids: set[str], allowed_rule_ids: set[str],
+) -> set[str]:
+    """Resolve the native rule phase exposed by the selected connector.
+
+    MRTS ARGS-A GET cases declare the phase-1 rule.  The selected HAProxy
+    SPOE/SPOP adapter receives a fully buffered request and runs ModSecurity
+    at request-body phase 2, whose canonical MRTS rule is the immediately
+    following phase-2 rule in the sealed generated rule family.  Require that
+    counterpart to be present in the pinned inventory; never accept an
+    arbitrary observed rule as a substitute.
+    """
+    if connector != "haproxy" or not raw_expected_ids:
+        return raw_expected_ids
+    effective: set[str] = set()
+    for value in raw_expected_ids:
+        try:
+            counterpart = str(int(value) + 1)
+        except (TypeError, ValueError):
+            fail("HAProxy expected rule ID has no canonical request-body counterpart")
+        if counterpart not in allowed_rule_ids:
+            fail("HAProxy expected rule ID has no canonical request-body counterpart")
+        effective.add(counterpart)
+    return effective
+
+
 def execute_case(
     args: argparse.Namespace, case: Any, index: int, run_id: str,
     event_path: Path, allowed_rule_ids: set[str],
@@ -978,20 +1004,23 @@ def execute_case(
         "User-Agent": "MRTS-runtime/1",
     }, 15.0, args.scheme, tls_context)
     expected_ids = {str(value) for value in raw_expected_ids}
+    effective_expected_ids = effective_expected_rule_ids(
+        args.connector, expected_ids, allowed_rule_ids,
+    )
     matched = event_ids(
         event_path, correlation_id, args.connector, uri, expected_phase,
-        expected_ids, allowed_rule_ids,
+        effective_expected_ids, allowed_rule_ids,
     )
     if status != 200:
         fail(f"{case.get('id', index)} returned HTTP {status}, expected DetectionOnly 200")
     case_id = str(case.get("id", index))
-    require_case_rule_matches(case_kind, case_id, expected_ids, matched)
+    require_case_rule_matches(case_kind, case_id, effective_expected_ids, matched)
     return {
         "case_id": case.get("id", str(index)), "kind": case_kind, "uri": uri,
         "connector": args.connector, "correlation_id": correlation_id,
         "request_id": request_id, "transaction_id": transaction_id,
         "host_request_id": host_request_id, "expected_event_phase": expected_phase,
-        "status": status, "expected_rule_ids": sorted(expected_ids),
+        "status": status, "expected_rule_ids": sorted(effective_expected_ids),
         "observed_rule_ids": sorted(matched),
     }
 

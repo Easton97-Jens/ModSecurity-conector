@@ -800,6 +800,30 @@ class NoCrsWithMrtsTargetContractTests(unittest.TestCase):
                     {"100000", "100001"},
                 )
 
+    def test_haproxy_detection_resolves_phase_two_counterpart_from_sealed_inventory(self):
+        self.assertEqual(
+            EXECUTOR.effective_expected_rule_ids(
+                "haproxy", {"100000"}, {"100000", "100001"}
+            ),
+            {"100001"},
+        )
+
+    def test_haproxy_detection_rejects_missing_phase_two_counterpart(self):
+        with self.assertRaisesRegex(
+            SystemExit, "no canonical request-body counterpart"
+        ):
+            EXECUTOR.effective_expected_rule_ids(
+                "haproxy", {"100000"}, {"100000"}
+            )
+
+    def test_non_haproxy_detection_keeps_declared_rule_ids(self):
+        self.assertEqual(
+            EXECUTOR.effective_expected_rule_ids(
+                "envoy", {"100000"}, {"100000"}
+            ),
+            {"100000"},
+        )
+
     def test_haproxy_control_and_bypass_keep_correlated_ids_for_empty_oracle(self):
         with tempfile.TemporaryDirectory() as directory:
             event_log = Path(directory) / "events.jsonl"
