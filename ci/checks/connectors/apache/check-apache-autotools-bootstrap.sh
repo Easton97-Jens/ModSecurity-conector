@@ -22,7 +22,8 @@ fail() {
         for log_file in \
             "${CONFIGTEST_LOG:-}" \
             "${MODULES_LOG:-}" \
-            "${HTTPD_LOG:-}"
+            "${HTTPD_LOG:-}" \
+            "${PHASE4_LOG:-}"
         do
             if [ -f "$log_file" ]; then
                 echo "apache-autotools-bootstrap: Apache log follows: $log_file" >&2
@@ -162,6 +163,10 @@ CONFIGTEST_LOG="$ROOT_LOG_DIR/configtest.log"
 MODULES_LOG="$ROOT_LOG_DIR/modules.log"
 HTTPD_LOG="$ROOT_LOG_DIR/httpd.log"
 HTTPD_ERROR_LOG="$HTTPD_LOG_DIR/error.log"
+PHASE4_LOG="$HTTPD_LOG_DIR/phase4.log"
+P4_ALLOW_RESPONSE="$ROOT_LOG_DIR/p4-allow-response.txt"
+P4_BLOCKED_RESPONSE="$ROOT_LOG_DIR/p4-blocked-response.txt"
+P4_PRECOMMIT_MARKER=msconnector-p4-safe
 PORT_START=${APACHE_AUTOTOOLS_PORT_START:-18880}
 PORT_SEARCH_LIMIT=${APACHE_AUTOTOOLS_PORT_SEARCH_LIMIT:-50}
 
@@ -330,6 +335,14 @@ chmod 0700 "$ROOT_LOG_DIR" "$HTTPD_LOG_DIR" "$RUNTIME_ROOT/run"
 chmod 0644 "$RUNTIME_ROOT/conf/mime.types"
 printf 'Apache Autotools smoke control\n' > "$RUNTIME_ROOT/htdocs/index.html"
 chmod 0644 "$RUNTIME_ROOT/htdocs/index.html"
+printf 'Apache Autotools P3 response-header control\n' > \
+    "$RUNTIME_ROOT/htdocs/p3blocked.txt"
+printf 'Apache Autotools P4 allow control\n' > \
+    "$RUNTIME_ROOT/htdocs/p4allow.txt"
+printf '%s\n' "$P4_PRECOMMIT_MARKER" > "$RUNTIME_ROOT/htdocs/p4blocked.txt"
+chmod 0644 "$RUNTIME_ROOT/htdocs/p3blocked.txt" \
+    "$RUNTIME_ROOT/htdocs/p4allow.txt" \
+    "$RUNTIME_ROOT/htdocs/p4blocked.txt"
 cp "$MODULE_PATH" "$RUNTIME_MODULE_PATH"
 chmod 0755 "$RUNTIME_MODULE_PATH"
 cmp -s "$MODULE_PATH" "$RUNTIME_MODULE_PATH" || \
@@ -362,11 +375,27 @@ DocumentRoot "$RUNTIME_ROOT/htdocs"
 <Directory "$RUNTIME_ROOT/htdocs">
     Require all granted
 </Directory>
+<Files "p3blocked.txt">
+    ForceType application/x-apache-p3-block
+</Files>
+<Files "p4allow.txt">
+    ForceType text/plain
+</Files>
+<Files "p4blocked.txt">
+    ForceType text/plain
+</Files>
 
 modsecurity on
 modsecurity_rules "SecRuleEngine On"
+modsecurity_rules "SecRequestBodyAccess On"
+modsecurity_rules "SecResponseBodyAccess On"
+modsecurity_rules "SecResponseBodyMimeType text/plain"
 modsecurity_rules "SecRule REQUEST_URI \"@streq /blocked\" \"id:100001,phase:1,deny,status:403,log\""
-modsecurity_phase4_mode minimal
+modsecurity_rules "SecRule REQUEST_BODY \"@contains msconnector-p2-only\" \"id:100002,phase:2,deny,status:403,log,t:none,msg:'Apache Autotools P2 request-body deny'\""
+modsecurity_rules "SecRule RESPONSE_HEADERS:Content-Type \"@contains application/x-apache-p3-block\" \"id:100003,phase:3,deny,status:403,log,t:none,msg:'Apache Autotools P3 response-header deny'\""
+modsecurity_rules "SecRule RESPONSE_BODY \"@contains $P4_PRECOMMIT_MARKER\" \"id:100004,phase:4,deny,status:403,log,t:none,msg:'Apache Autotools P4 response-body deny'\""
+modsecurity_phase4_mode safe
+modsecurity_phase4_log "$PHASE4_LOG"
 modsecurity_phase4_body_limit 1048576
 EOF
 chmod 0644 "$CONFIG_FILE"
@@ -404,7 +433,7 @@ while [ "$attempt" -lt 50 ]; do
     if ! kill -0 "$HTTPD_PID" >/dev/null 2>&1; then
         fail "Apache exited before accepting the loopback request"
     fi
-    if status=$(curl -s --max-time 2 -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/index.html") && [ "$status" = 200 ]; then
+    if status=$(curl --noproxy '*' -s --max-time 2 -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/index.html") && [ "$status" = 200 ]; then
         ready=1
         break
     fi
@@ -413,11 +442,58 @@ while [ "$attempt" -lt 50 ]; do
 done
 [ "$ready" = 1 ] || fail "Apache did not accept an allowed loopback request"
 
-allowed_status=$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/index.html")
+allowed_status=$(curl --noproxy '*' -sS --max-time 5 -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/index.html")
 [ "$allowed_status" = 200 ] || \
     fail "allowed loopback request returned HTTP $allowed_status instead of 200"
-blocked_status=$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/blocked")
+blocked_status=$(curl --noproxy '*' -sS --max-time 5 -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/blocked")
 [ "$blocked_status" = 403 ] || \
     fail "ModSecurity loopback rule returned HTTP $blocked_status instead of 403"
 
-echo "PASS: apache-autotools-bootstrap module=$MODULE_PATH loaded_module=$RUNTIME_MODULE_PATH port=$PORT config=$CONFIG_FILE"
+p2_allowed_status=$(curl --noproxy '*' -sS --max-time 5 -X POST \
+    -H 'Content-Type: application/x-www-form-urlencoded' \
+    --data 'payload=apache-autotools-p2-allow' \
+    -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/index.html")
+[ "$p2_allowed_status" = 200 ] || \
+    fail "P2 allow loopback request returned HTTP $p2_allowed_status instead of 200"
+p2_blocked_status=$(curl --noproxy '*' -sS --max-time 5 -X POST \
+    -H 'Content-Type: application/x-www-form-urlencoded' \
+    --data 'payload=msconnector-p2-only' \
+    -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/index.html")
+[ "$p2_blocked_status" = 403 ] || \
+    fail "P2 request-body rule returned HTTP $p2_blocked_status instead of 403"
+
+p3_blocked_status=$(curl --noproxy '*' -sS --max-time 5 -o /dev/null -w '%{http_code}' \
+    "http://127.0.0.1:$PORT/p3blocked.txt")
+[ "$p3_blocked_status" = 403 ] || \
+    fail "P3 response-header rule returned HTTP $p3_blocked_status instead of 403"
+
+p4_allowed_status=$(curl --noproxy '*' -sS --max-time 5 -o "$P4_ALLOW_RESPONSE" -w '%{http_code}' \
+    "http://127.0.0.1:$PORT/p4allow.txt")
+[ "$p4_allowed_status" = 200 ] || \
+    fail "P4 allow loopback request returned HTTP $p4_allowed_status instead of 200"
+grep -F 'Apache Autotools P4 allow control' "$P4_ALLOW_RESPONSE" >/dev/null || \
+    fail "P4 allow loopback response did not retain its expected body"
+p4_precommit_status=$(curl --noproxy '*' -sS --max-time 5 -o "$P4_BLOCKED_RESPONSE" -w '%{http_code}' \
+    "http://127.0.0.1:$PORT/p4blocked.txt")
+[ "$p4_precommit_status" = 403 ] || \
+    fail "P4 response-body rule returned HTTP $p4_precommit_status instead of 403"
+if grep -F "$P4_PRECOMMIT_MARKER" "$P4_BLOCKED_RESPONSE" >/dev/null 2>&1; then
+    fail "P4 pre-commit denial leaked the protected response body"
+fi
+p4_follow_up_status=$(curl --noproxy '*' -sS --max-time 5 -o "$P4_ALLOW_RESPONSE" -w '%{http_code}' \
+    "http://127.0.0.1:$PORT/p4allow.txt")
+[ "$p4_follow_up_status" = 200 ] || \
+    fail "P4 follow-up request returned HTTP $p4_follow_up_status instead of 200"
+grep -F 'Apache Autotools P4 allow control' "$P4_ALLOW_RESPONSE" >/dev/null || \
+    fail "P4 follow-up response did not retain its expected body"
+
+for expected_rule_id in 100001 100002 100003 100004; do
+    grep -F "$expected_rule_id" "$PHASE4_LOG" >/dev/null || \
+        fail "Apache event log lacks expected rule ID $expected_rule_id"
+done
+for expected_phase4_event in 100004 response_not_committed deny; do
+    grep -F "$expected_phase4_event" "$PHASE4_LOG" >/dev/null || \
+        fail "Apache Phase-4 event log lacks expected value $expected_phase4_event"
+done
+
+echo "PASS: apache-autotools-bootstrap module=$MODULE_PATH loaded_module=$RUNTIME_MODULE_PATH port=$PORT config=$CONFIG_FILE p1=$blocked_status p2=$p2_blocked_status p3=$p3_blocked_status p4_precommit=$p4_precommit_status"
