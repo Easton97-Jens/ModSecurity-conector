@@ -76,6 +76,15 @@ verified.
 - `tests/test_nginx_upstream_security_contract.py`
 - `connectors/traefik/native_middleware/middleware.go`
 - `connectors/traefik/native_middleware/middleware_test.go`
+- `connectors/envoy/Makefile`
+- `connectors/envoy/README.md`
+- `connectors/envoy/README.de.md`
+- `connectors/envoy/capabilities.json`
+- `connectors/envoy/config/envoy-ext-proc-streaming.yaml.in`
+- `connectors/envoy/config/prepare_envoy_ext_proc_config.sh`
+- `connectors/envoy/ext_proc/internal/processor/processor.go`
+- `connectors/envoy/ext_proc/internal/processor/processor_test.go`
+- `tests/test_envoy_transport_hardening_contract.py`
 - `reports/audits/change-records/CR-20260826-http2-http3-protocol-parity.md`
 - `reports/audits/change-records/CR-20260826-http2-http3-protocol-parity.de.md`
 - `reports/audits/change-records/README.md`
@@ -192,6 +201,33 @@ neuen doppelten Zeilen/Blöcken und `0.0%` New-Code-Duplikation. FND-SONAR-0068
 und FND-SONAR-0069 sind an diesem Draft-PR-Head `fixed`, bis zur
 Post-Merge-Current-Master-Verifikation und Originalreproduktion. Dies behauptet
 weder einen Merge noch vollständige H2/H3-/Runtime-Evidence.
+
+## Envoy-Downstream-H1/H2-Profil und Metadaten-Härtung — 2026-08-27
+
+Der ext_proc-Materializer wählt über
+`EXT_PROC_DOWNSTREAM_PROTOCOL` jetzt ausschließlich `http1` (Vorgabe)
+oder `h2`; ein unbekanntes Profil endet mit Status `2`. Das Rendering `http1`
+kündigt ausschließlich ALPN `http/1.1` mit dem HTTP/1-HCM-Codec an. Das
+Rendering `h2` kündigt ausschließlich ALPN `h2` mit dem HTTP/2-HCM-Codec und
+`http2_protocol_options` an. `EXT_PROC_DOWNSTREAM_PROTOCOL` macht dieselbe
+Auswahl über das Connector-Make-Target verfügbar. Dies ist ein
+statischer/Profil-Contract, keine Client- oder Host-Aussage.
+
+Die direkte `ext_proc`-Request-Header-Adaptergrenze bewahrt jetzt den
+gelieferten Metadatenwert `HTTP/2` und weist doppelte, großgeschriebene und
+nicht unterstützte Request-Pseudo-Header, ungültige Headernamen, CR/LF/NUL-
+Headerwerte, Connection-spezifische Header für moderne Protokolle sowie
+ungültige `TE`-Werte zurück, wenn das gelieferte Downstream-Protokoll HTTP/2
+oder HTTP/3 ist. Die test-first-fokussierte Go-Auswahl schlug vor dem Guard
+fehl und bestand danach. Der fokussierte Materializer-Contract und `sh -n`
+bestanden.
+
+Das bekannte Non-Loopback-Plaintext-ext_proc-Admission-Risiko bleibt als
+FND-PARENT-0135 getrackt; dieses Increment fügt weder mTLS, Listener-
+Admission-Control noch Raw-Lifecycle-Artifact-Protokollkorrelations-
+Enforcement hinzu. Kein neuer Befund wird geschlossen oder hochgestuft.
+Envoy-Config-Load, ein verwalteter H2-Client, ausgehandeltes ALPN,
+Multiplexing, Reset-Verhalten und H3 bleiben nicht ausgeübt.
 
 ## Runtime-Evidence
 

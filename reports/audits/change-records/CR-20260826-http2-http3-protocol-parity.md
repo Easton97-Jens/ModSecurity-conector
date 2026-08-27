@@ -74,6 +74,15 @@ not verified.
 - `tests/test_nginx_upstream_security_contract.py`
 - `connectors/traefik/native_middleware/middleware.go`
 - `connectors/traefik/native_middleware/middleware_test.go`
+- `connectors/envoy/Makefile`
+- `connectors/envoy/README.md`
+- `connectors/envoy/README.de.md`
+- `connectors/envoy/capabilities.json`
+- `connectors/envoy/config/envoy-ext-proc-streaming.yaml.in`
+- `connectors/envoy/config/prepare_envoy_ext_proc_config.sh`
+- `connectors/envoy/ext_proc/internal/processor/processor.go`
+- `connectors/envoy/ext_proc/internal/processor/processor_test.go`
+- `tests/test_envoy_transport_hardening_contract.py`
 - `reports/audits/change-records/CR-20260826-http2-http3-protocol-parity.md`
 - `reports/audits/change-records/CR-20260826-http2-http3-protocol-parity.de.md`
 - `reports/audits/change-records/README.md`
@@ -185,6 +194,30 @@ unresolved issues, zero new duplicated lines/blocks, and `0.0%` new-code
 duplication. FND-SONAR-0068 and FND-SONAR-0069 are `fixed` on this Draft PR
 head, pending post-merge current-master verification and original
 reproduction. This does not claim a merge or complete H2/H3/runtime evidence.
+
+## Envoy downstream H1/H2 profile and metadata hardening — 2026-08-27
+
+The ext_proc materializer now selects only `http1` (default) or `h2` through
+`EXT_PROC_DOWNSTREAM_PROTOCOL`; an unknown profile exits with status `2`.
+The `http1` rendering advertises only ALPN `http/1.1` with the HTTP/1 HCM codec.
+The `h2` rendering advertises only ALPN `h2` with the HTTP/2 HCM codec and
+`http2_protocol_options`. `EXT_PROC_DOWNSTREAM_PROTOCOL` exposes the same
+selection through the connector Make target. This is a static/profile contract,
+not a client or host assertion.
+
+The direct `ext_proc` request-header adapter boundary now preserves the
+supplied `HTTP/2` metadata value while rejecting duplicate, uppercase, and
+unsupported request pseudo-headers; invalid header names; CR/LF/NUL header
+values; connection-specific headers for modern protocols; and invalid `TE`
+values when the supplied downstream protocol is HTTP/2 or HTTP/3. The
+test-first focused Go selection failed before the guard and passed after it.
+The focused materializer contract and `sh -n` passed.
+
+The known non-loopback plaintext ext_proc admission risk remains tracked as
+FND-PARENT-0135; this increment does not add mTLS, listener admission control,
+or raw lifecycle-artifact protocol-correlation enforcement. No new finding is
+closed or promoted. Envoy config-load, a managed H2 client, negotiated ALPN,
+multiplexing, reset behavior, and H3 remain unexercised.
 
 ## Runtime evidence
 

@@ -188,16 +188,16 @@
       "reason": "Envoy HTTP/2 transport behavior is not exercised by a canonical ext_authz full-lifecycle case."
     },
     "http2_downstream": {
-      "state": "not_implemented",
-      "reason": "The selected native ext_proc harness has no TLS/ALPN HTTP/2 listener profile."
+      "state": "configured_not_exercised",
+      "reason": "The ext_proc materializer has a separately selected h2 TLS/ALPN listener profile, but no canonical HTTP/2 host case has exercised it."
     },
     "http2_upstream": {
       "state": "not_implemented",
       "reason": "No ext_proc upstream HTTP/2 evidence profile is implemented."
     },
     "http2_tls_alpn": {
-      "state": "not_implemented",
-      "reason": "No pinned ext_proc TLS/ALPN listener is configured."
+      "state": "configured_not_exercised",
+      "reason": "The h2 ext_proc profile pins ALPN h2 and an HTTP/2 HCM codec, but no negotiated-ALPN HTTP/2 runtime observation is available."
     },
     "http2_cleartext_h2c": {
       "state": "not_implemented",

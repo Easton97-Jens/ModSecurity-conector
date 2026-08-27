@@ -31,7 +31,7 @@ evidence only and are not runtime passes.
 | Apache | contract_verified (source only) | configured_not_exercised | not_run | not_implemented | runtime_skipped_missing_client / runtime_not_verified | not_run | not_run | contract_verified (source only; protocol from `ap_get_protocol(r->connection)` plus canonical HTTP/1 `r->proto_num`; unknown fails closed) | not_run | not_run | source-level fixed / runtime not verified |
 | NGINX | contract_verified (source only) | implemented_not_asserted | not_run | implemented_not_asserted | runtime_skipped_missing_client / runtime_not_verified | not_run | not_run | not_run | not_run | not_run | source-level fixed / runtime not verified |
 | HAProxy | not_run | not_implemented | not_run | not_implemented | runtime_skipped_missing_client / runtime_not_verified | not_run | not_run | not_run | not_run | not_run | not_implemented |
-| Envoy | not_run | not_implemented | not_run | not_implemented | runtime_skipped_missing_client / runtime_not_verified | not_run | not_run | not_run | not_run | not_run | not_implemented |
+| Envoy | not_run | configured_not_exercised | not_run | not_implemented | runtime_skipped_missing_client / runtime_not_verified | not_run | not_run | not_run | not_run | not_run | source-level configured / runtime not verified |
 | Traefik | contract_verified (source only) | not_implemented | not_run | not_implemented | runtime_skipped_missing_client / runtime_not_verified | not_run | not_run | not_run | not_run | contract_verified (source only) | source-level fixed / runtime not verified |
 | lighttpd | not_run | unsupported_by_host_model | not_run | not_implemented | runtime_skipped_missing_client / runtime_not_verified | not_run | not_run | not_run | not_run | not_run | not_implemented |
 
@@ -56,12 +56,25 @@ Late log-only acknowledgements also mark completion incomplete, so normal
 FINISH is not claimed. On Late log-only acknowledgement errors, the delegated
 ReaderFrom-EOF path also emits no synthetic EOS.
 
+Envoy now has separately materialized `http1` and `h2` downstream profiles:
+`http1` selects only ALPN `http/1.1` and the HTTP/1 HCM codec, while `h2`
+selects ALPN `h2`, the HTTP/2 HCM codec, and `http2_protocol_options`. The
+materializer rejects another value instead of falling back. Its existing Python
+runtime helper remains HTTP/1.1-only. Focused Go contract tests for the
+`ext_proc` request-header adapter path preserve an Envoy-provided `HTTP/2`
+metadata value and reject duplicate, uppercase, or unsupported request
+pseudo-headers, CR/LF/NUL header values, connection-specific headers for modern
+protocols, and invalid `TE` values when the supplied protocol is HTTP/2 or
+HTTP/3.
+These are source/configuration and adapter-boundary checks only: no Envoy
+binary/config-load or client-negotiated H2 traffic was run.
+
 The matrix preserves the separate `connectors/*/capabilities.json` claims:
 Apache H2 is `configured_not_exercised` and its H3 host path is
-`not_implemented`; NGINX H2 and H3 are `implemented_not_asserted`; HAProxy,
-Envoy, and Traefik are `not_implemented` for the selected native modern-
-protocol profiles; lighttpd H2 is `unsupported_by_host_model` and H3 is
-`not_implemented`.
+`not_implemented`; NGINX H2 and H3 are `implemented_not_asserted`; HAProxy
+and Traefik are `not_implemented` for the selected native modern-protocol
+profiles; Envoy downstream H2 and TLS/ALPN are `configured_not_exercised`;
+lighttpd H2 is `unsupported_by_host_model` and H3 is `not_implemented`.
 
 No security finding is fully verified. The accurate classification for the
 changes above is source-level fixed / runtime not verified.

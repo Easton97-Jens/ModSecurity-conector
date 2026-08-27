@@ -706,35 +706,62 @@ func requestMetadataFromEnvoy(headers []Header, attributes map[string]*structpb.
 	metadata := RequestMetadata{}
 	authority := ""
 	host := ""
+	methodSeen := false
+	pathSeen := false
+	schemeSeen := false
 	authoritySeen := false
 	hostSeen := false
+	invalidModernProtocolHeaderSeen := false
 	for _, header := range headers {
-		name := strings.ToLower(header.Name)
+		name, err := normalizedRequestHeaderName(header.Name)
+		if err != nil {
+			return RequestMetadata{}, err
+		}
 		value, err := boundedMetadataText(header.Value, name)
 		if err != nil {
 			return RequestMetadata{}, err
 		}
 		switch name {
 		case ":method":
+			if methodSeen {
+				return RequestMetadata{}, errors.New("Envoy request contains multiple :method headers")
+			}
 			metadata.Method = value
+			methodSeen = true
 		case ":path":
+			if pathSeen {
+				return RequestMetadata{}, errors.New("Envoy request contains multiple :path headers")
+			}
 			metadata.URI = value
+			pathSeen = true
+		case ":scheme":
+			if schemeSeen {
+				return RequestMetadata{}, errors.New("Envoy request contains multiple :scheme headers")
+			}
+			schemeSeen = true
 		case ":authority":
 			if authoritySeen {
-				return RequestMetadata{}, fmt.Errorf("Envoy request contains multiple :authority headers")
+				return RequestMetadata{}, errors.New("Envoy request contains multiple :authority headers")
 			}
 			authority = value
 			authoritySeen = true
 		case "host":
 			if hostSeen {
-				return RequestMetadata{}, fmt.Errorf("Envoy request contains multiple Host headers")
+				return RequestMetadata{}, errors.New("Envoy request contains multiple Host headers")
 			}
 			host = value
 			hostSeen = true
+		default:
+			if strings.HasPrefix(name, ":") {
+				return RequestMetadata{}, errors.New("Envoy request contains an unsupported pseudo header")
+			}
+		}
+		if isHTTP1ConnectionSpecificHeader(name) || (name == "te" && !strings.EqualFold(strings.TrimSpace(value), "trailers")) {
+			invalidModernProtocolHeaderSeen = true
 		}
 	}
 	if authoritySeen && hostSeen && !strings.EqualFold(authority, host) {
-		return RequestMetadata{}, fmt.Errorf("Envoy :authority and Host headers disagree")
+		return RequestMetadata{}, errors.New("Envoy :authority and Host headers disagree")
 	}
 	if authoritySeen {
 		metadata.Hostname = authority
@@ -767,7 +794,64 @@ func requestMetadataFromEnvoy(headers []Header, attributes map[string]*structpb.
 			return RequestMetadata{}, err
 		}
 	}
+	if isModernRequestProtocol(metadata.Protocol) && invalidModernProtocolHeaderSeen {
+		return RequestMetadata{}, errors.New("Envoy HTTP/2 or HTTP/3 request contains an invalid connection-specific or TE header")
+	}
 	return metadata, nil
+}
+
+func normalizedRequestHeaderName(name string) (string, error) {
+	if name == "" {
+		return "", errors.New("Envoy request header name is empty")
+	}
+	pseudoHeader := name[0] == ':'
+	token := name
+	if pseudoHeader {
+		token = name[1:]
+	}
+	if !isHTTPHeaderToken(token) {
+		return "", errors.New("Envoy request header name is invalid")
+	}
+	normalized := strings.ToLower(name)
+	if pseudoHeader && name != normalized {
+		return "", errors.New("Envoy request pseudo header must be lowercase")
+	}
+	return normalized, nil
+}
+
+func isHTTPHeaderToken(token string) bool {
+	if token == "" {
+		return false
+	}
+	for index := 0; index < len(token); index++ {
+		switch character := token[index]; {
+		case character >= 'a' && character <= 'z':
+		case character >= 'A' && character <= 'Z':
+		case character >= '0' && character <= '9':
+		case strings.ContainsRune("!#$%&'*+-.^_`|~", rune(character)):
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func isHTTP1ConnectionSpecificHeader(name string) bool {
+	switch name {
+	case "connection", "keep-alive", "proxy-connection", "transfer-encoding", "upgrade":
+		return true
+	default:
+		return false
+	}
+}
+
+func isModernRequestProtocol(protocol string) bool {
+	switch strings.ToLower(strings.TrimSpace(protocol)) {
+	case "h2", "http2", "http/2", "http/2.0", "h3", "http3", "http/3", "http/3.0":
+		return true
+	default:
+		return false
+	}
 }
 
 func assignEnvoyTextAttribute(
@@ -817,8 +901,8 @@ func boundedMetadataText(value []byte, field string) (string, error) {
 		return "", fmt.Errorf("%s exceeds metadata limit", field)
 	}
 	text := string(value)
-	if strings.IndexByte(text, 0) >= 0 {
-		return "", fmt.Errorf("%s contains a NUL byte", field)
+	if strings.ContainsAny(text, "\x00\r\n") {
+		return "", fmt.Errorf("%s contains a forbidden control character", field)
 	}
 	return text, nil
 }
@@ -835,7 +919,7 @@ func envoyAttributeText(attributes map[string]*structpb.Struct, name string) (st
 	if !ok {
 		return "", true, fmt.Errorf("Envoy attribute %s is not a string", name)
 	}
-	if len(kind.StringValue) > 4096 || strings.IndexByte(kind.StringValue, 0) >= 0 {
+	if len(kind.StringValue) > 4096 || strings.ContainsAny(kind.StringValue, "\x00\r\n") {
 		return "", true, fmt.Errorf("Envoy attribute %s is invalid", name)
 	}
 	return kind.StringValue, true, nil
