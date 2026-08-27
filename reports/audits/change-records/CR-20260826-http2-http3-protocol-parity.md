@@ -236,10 +236,14 @@ documentation checks, shell/JSON checks, and configuration-reference checks
 passed. A fresh sealed source-level security-diff scan covers the one changed
 production file with complete coverage and zero reportable new findings.
 
-The finding remains `in_progress` until a normal successor commit has an exact
-SonarQube Cloud result without the target issue. This local source review does
-not claim Envoy configuration loading, negotiated ALPN, H2 multiplexing, or H3
-runtime evidence, and it does not close FND-PARENT-0135.
+Normal successor `07a9d19cc3f1ee832c170d5cfc55cdd607349a66` matches the
+local, remote, and open Draft PR #348 head. Its `SonarCloud Code Analysis`
+check `98552049461` passed, the PR Quality Gate is `OK`, and the unresolved
+issue query returns zero results, including no `AaBDdUxoMD5aIOx72SVh` target.
+FND-SONAR-0070 is fixed on that Draft PR head pending post-merge current-master
+verification and original reproduction. This source review does not claim
+Envoy configuration loading, negotiated ALPN, H2 multiplexing, or H3 runtime
+evidence, and it does not close FND-PARENT-0135.
 
 ## Runtime evidence
 
