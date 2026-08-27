@@ -211,7 +211,7 @@ func (transaction *unixSocketTransaction) AcknowledgeLateLogOnly(ctx context.Con
 	return err
 }
 
-func (transaction *unixSocketTransaction) Close(ctx context.Context, _ Summary) {
+func (transaction *unixSocketTransaction) Close(ctx context.Context, summary Summary) {
 	transaction.mu.Lock()
 	defer transaction.mu.Unlock()
 	if transaction.closed {
@@ -221,7 +221,7 @@ func (transaction *unixSocketTransaction) Close(ctx context.Context, _ Summary) 
 	if transaction.connection == nil {
 		return
 	}
-	if transaction.begun {
+	if transaction.begun && !summary.ResponseIncomplete {
 		if _, err := transaction.exchangeLocked(ctx, udsOpcodeFinish, nil); err == nil {
 			_, _ = transaction.exchangeLocked(ctx, udsOpcodeDestroy, nil)
 		}

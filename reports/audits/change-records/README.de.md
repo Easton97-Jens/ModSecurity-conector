@@ -11,6 +11,14 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260826-http2-http3-protocol-parity](CR-20260826-http2-http3-protocol-parity.de.md) —
+  der aktuelle Benutzer autorisierte diesen unabhängigen Parent-Workstream zur
+  HTTP/2-/HTTP/3-Protokollparität und seine gekoppelte Dokumentation. Er weist
+  nur gelieferte Evidence aus; Runtime-Lücken, das nicht initialisierte
+  Framework-Submodul, das unberührte MRTS sowie der noch nicht committed,
+  gepushed oder durch einen erstellten PR vertretene Delivery-Status bleiben
+  ausdrücklich sichtbar.
+
 - [CR-20260825-fnd-parent-0221-composite-connectors](CR-20260825-fnd-parent-0221-composite-connectors.de.md) —
   der aktuelle Benutzer autorisierte eine Parent-only-Composite-
   Korrelationsimplementierung, gekoppelte Nachvollziehbarkeit, scoped

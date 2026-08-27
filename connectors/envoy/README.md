@@ -46,6 +46,29 @@ The exact ext_proc API boundary, opt-in client-cancel observation, and
 non-promotion conditions are documented in the
 [canonical Envoy guide](../../docs/connectors/envoy.md).
 
+## Downstream H1/H2 configuration profiles (source/configuration only)
+
+`prepare_envoy_ext_proc_config.sh` accepts only `http1` (the default) and `h2`
+through `EXT_PROC_DOWNSTREAM_PROTOCOL`. The `http1` materialization contains
+only ALPN `http/1.1` and the HTTP/1 HCM codec. The `h2` materialization contains
+only ALPN `h2`, the HTTP/2 HCM codec, and `http2_protocol_options`; an unknown
+profile fails instead of falling back to H1.
+
+For a provisioned private loopback certificate/key pair, materialize the
+unexercised H2 profile outside the checkout with:
+
+```sh
+make -C connectors/envoy prepare-envoy-ext-proc-config \
+  EXT_PROC_DOWNSTREAM_PROTOCOL=h2 \
+  EXT_PROC_TLS_CERTIFICATE=/absolute/path/loopback.crt \
+  EXT_PROC_TLS_PRIVATE_KEY=/absolute/path/loopback.key
+```
+
+This configuration does not relabel the existing Python helper, start Envoy,
+or establish H2 runtime evidence. A real H2 claim still requires an H2-capable
+client, an Envoy config-load/host run, negotiated-ALPN observation, and
+matching canonical lifecycle evidence. H3 is not a selectable profile here.
+
 ## Source layout
 
 - `src/envoy_ext_authz_service_main.c` defines the Envoy host profile, original
