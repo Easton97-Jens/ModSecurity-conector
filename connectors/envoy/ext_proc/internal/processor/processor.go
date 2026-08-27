@@ -703,71 +703,115 @@ func responseStatusFromHeaders(headers []Header) int {
 // Common bridge validates that its required metadata is actually present and
 // never silently substitutes the gRPC peer endpoint.
 func requestMetadataFromEnvoy(headers []Header, attributes map[string]*structpb.Struct) (RequestMetadata, error) {
-	metadata := RequestMetadata{}
-	authority := ""
-	host := ""
-	methodSeen := false
-	pathSeen := false
-	schemeSeen := false
-	authoritySeen := false
-	hostSeen := false
-	invalidModernProtocolHeaderSeen := false
+	state := requestMetadataState{}
 	for _, header := range headers {
-		name, err := normalizedRequestHeaderName(header.Name)
-		if err != nil {
+		if err := state.addHeader(header); err != nil {
 			return RequestMetadata{}, err
 		}
-		value, err := boundedMetadataText(header.Value, name)
-		if err != nil {
-			return RequestMetadata{}, err
-		}
-		switch name {
-		case ":method":
-			if methodSeen {
-				return RequestMetadata{}, errors.New("Envoy request contains multiple :method headers")
-			}
-			metadata.Method = value
-			methodSeen = true
-		case ":path":
-			if pathSeen {
-				return RequestMetadata{}, errors.New("Envoy request contains multiple :path headers")
-			}
-			metadata.URI = value
-			pathSeen = true
-		case ":scheme":
-			if schemeSeen {
-				return RequestMetadata{}, errors.New("Envoy request contains multiple :scheme headers")
-			}
-			schemeSeen = true
-		case ":authority":
-			if authoritySeen {
-				return RequestMetadata{}, errors.New("Envoy request contains multiple :authority headers")
-			}
-			authority = value
-			authoritySeen = true
-		case "host":
-			if hostSeen {
-				return RequestMetadata{}, errors.New("Envoy request contains multiple Host headers")
-			}
-			host = value
-			hostSeen = true
-		default:
-			if strings.HasPrefix(name, ":") {
-				return RequestMetadata{}, errors.New("Envoy request contains an unsupported pseudo header")
-			}
-		}
-		if isHTTP1ConnectionSpecificHeader(name) || (name == "te" && !strings.EqualFold(strings.TrimSpace(value), "trailers")) {
-			invalidModernProtocolHeaderSeen = true
+	}
+	if err := state.finalizeHostname(); err != nil {
+		return RequestMetadata{}, err
+	}
+	if err := assignRequestMetadataAttributes(&state.metadata, attributes); err != nil {
+		return RequestMetadata{}, err
+	}
+	if isModernRequestProtocol(state.metadata.Protocol) && state.invalidModernProtocolHeaderSeen {
+		return RequestMetadata{}, errors.New("Envoy HTTP/2 or HTTP/3 request contains an invalid connection-specific or TE header")
+	}
+	return state.metadata, nil
+}
+
+type requestMetadataState struct {
+	metadata RequestMetadata
+
+	authority string
+	host      string
+
+	methodSeen    bool
+	pathSeen      bool
+	schemeSeen    bool
+	authoritySeen bool
+	hostSeen      bool
+
+	invalidModernProtocolHeaderSeen bool
+}
+
+func (state *requestMetadataState) addHeader(header Header) error {
+	name, err := normalizedRequestHeaderName(header.Name)
+	if err != nil {
+		return err
+	}
+	value, err := boundedMetadataText(header.Value, name)
+	if err != nil {
+		return err
+	}
+	if strings.HasPrefix(name, ":") {
+		return state.addPseudoHeader(name, value)
+	}
+	return state.addOrdinaryHeader(name, value)
+}
+
+func (state *requestMetadataState) addPseudoHeader(name, value string) error {
+	switch name {
+	case ":method":
+		return assignRequestMetadataText(&state.methodSeen, &state.metadata.Method, name, value)
+	case ":path":
+		return assignRequestMetadataText(&state.pathSeen, &state.metadata.URI, name, value)
+	case ":scheme":
+		return markRequestMetadataHeader(&state.schemeSeen, name)
+	case ":authority":
+		return assignRequestMetadataText(&state.authoritySeen, &state.authority, name, value)
+	default:
+		return errors.New("Envoy request contains an unsupported pseudo header")
+	}
+}
+
+func (state *requestMetadataState) addOrdinaryHeader(name, value string) error {
+	if name == "host" {
+		if err := assignRequestMetadataText(&state.hostSeen, &state.host, "Host", value); err != nil {
+			return err
 		}
 	}
-	if authoritySeen && hostSeen && !strings.EqualFold(authority, host) {
-		return RequestMetadata{}, errors.New("Envoy :authority and Host headers disagree")
+	if isInvalidModernProtocolHeader(name, value) {
+		state.invalidModernProtocolHeaderSeen = true
 	}
-	if authoritySeen {
-		metadata.Hostname = authority
-	} else if hostSeen {
-		metadata.Hostname = host
+	return nil
+}
+
+func assignRequestMetadataText(seen *bool, target *string, name, value string) error {
+	if *seen {
+		return fmt.Errorf("Envoy request contains multiple %s headers", name)
 	}
+	*target = value
+	*seen = true
+	return nil
+}
+
+func markRequestMetadataHeader(seen *bool, name string) error {
+	if *seen {
+		return fmt.Errorf("Envoy request contains multiple %s headers", name)
+	}
+	*seen = true
+	return nil
+}
+
+func (state *requestMetadataState) finalizeHostname() error {
+	if state.authoritySeen && state.hostSeen && !strings.EqualFold(state.authority, state.host) {
+		return errors.New("Envoy :authority and Host headers disagree")
+	}
+	if state.authoritySeen {
+		state.metadata.Hostname = state.authority
+	} else if state.hostSeen {
+		state.metadata.Hostname = state.host
+	}
+	return nil
+}
+
+func isInvalidModernProtocolHeader(name, value string) bool {
+	return isHTTP1ConnectionSpecificHeader(name) || (name == "te" && !strings.EqualFold(strings.TrimSpace(value), "trailers"))
+}
+
+func assignRequestMetadataAttributes(metadata *RequestMetadata, attributes map[string]*structpb.Struct) error {
 	textAssignments := []struct {
 		attribute string
 		assign    func(string)
@@ -778,7 +822,7 @@ func requestMetadataFromEnvoy(headers []Header, attributes map[string]*structpb.
 	}
 	for _, assignment := range textAssignments {
 		if err := assignEnvoyTextAttribute(attributes, assignment.attribute, assignment.assign); err != nil {
-			return RequestMetadata{}, err
+			return err
 		}
 	}
 
@@ -791,13 +835,10 @@ func requestMetadataFromEnvoy(headers []Header, attributes map[string]*structpb.
 	}
 	for _, assignment := range portAssignments {
 		if err := assignEnvoyPortAttribute(attributes, assignment.attribute, assignment.assign); err != nil {
-			return RequestMetadata{}, err
+			return err
 		}
 	}
-	if isModernRequestProtocol(metadata.Protocol) && invalidModernProtocolHeaderSeen {
-		return RequestMetadata{}, errors.New("Envoy HTTP/2 or HTTP/3 request contains an invalid connection-specific or TE header")
-	}
-	return metadata, nil
+	return nil
 }
 
 func normalizedRequestHeaderName(name string) (string, error) {

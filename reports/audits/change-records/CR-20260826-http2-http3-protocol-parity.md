@@ -219,6 +219,28 @@ or raw lifecycle-artifact protocol-correlation enforcement. No new finding is
 closed or promoted. Envoy config-load, a managed H2 client, negotiated ALPN,
 multiplexing, reset behavior, and H3 remain unexercised.
 
+## Envoy helper-extraction Sonar remediation — 2026-08-27
+
+At the current pre-remediation Draft PR #348 head
+`1ecf2353e14832424cd492efa9919cb3c4418727`, SonarQube Cloud reports the
+task-owned `go:S3776` issue `AaBDdUxoMD5aIOx72SVh`: the Envoy request-metadata
+function has cognitive complexity `33` where `15` is allowed. FND-SONAR-0070
+tracks it as a maintainability delivery blocker, not as a newly asserted
+security severity.
+
+The narrow follow-up extracts request-metadata state, pseudo-header,
+ordinary-header, finalization, and attribute helpers while preserving the
+existing validation path and error behavior. Focused metadata tests, the full
+Envoy ext_proc Go suite, `go vet`, format/diff checks, the transport contract,
+documentation checks, shell/JSON checks, and configuration-reference checks
+passed. A fresh sealed source-level security-diff scan covers the one changed
+production file with complete coverage and zero reportable new findings.
+
+The finding remains `in_progress` until a normal successor commit has an exact
+SonarQube Cloud result without the target issue. This local source review does
+not claim Envoy configuration loading, negotiated ALPN, H2 multiplexing, or H3
+runtime evidence, and it does not close FND-PARENT-0135.
+
 ## Runtime evidence
 
 curl has HTTP/2 but lacks HTTP/3. `curl --http3` exits `2`. H3 runtime is

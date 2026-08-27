@@ -229,6 +229,29 @@ Enforcement hinzu. Kein neuer Befund wird geschlossen oder hochgestuft.
 Envoy-Config-Load, ein verwalteter H2-Client, ausgehandeltes ALPN,
 Multiplexing, Reset-Verhalten und H3 bleiben nicht ausgeübt.
 
+## Envoy-Helper-Extraktion zur Sonar-Remediation — 2026-08-27
+
+Am aktuellen Pre-Remediation-Draft-PR-#348-Head
+`1ecf2353e14832424cd492efa9919cb3c4418727` meldet SonarQube Cloud den
+task-eigenen `go:S3776`-Befund `AaBDdUxoMD5aIOx72SVh`: Die Envoy-Request-
+Metadata-Funktion hat kognitive Komplexität `33` bei erlaubten `15`.
+FND-SONAR-0070 verfolgt ihn als Wartbarkeits-Delivery-Blocker, nicht als neu
+behaupteten Sicherheits-Schweregrad.
+
+Der enge Follow-up extrahiert Request-Metadata-State-, Pseudo-Header-,
+gewöhnliche-Header-, Finalisierungs- und Attribut-Helper und erhält dabei den
+vorhandenen Validierungspfad und das Fehlerverhalten. Fokussierte Metadata-
+Tests, die vollständige Envoy-ext_proc-Go-Suite, `go vet`, Format-/Diff-Checks,
+der Transport-Contract, Dokumentations-Checks, Shell-/JSON-Checks und
+Konfigurationsreferenz-Checks bestanden. Ein frischer versiegelter
+quellcodebasierter Security-Diff-Scan deckt die eine geänderte Produktdatei
+vollständig ab und hat keine reportable neuen Befunde.
+
+Der Befund bleibt `in_progress`, bis ein normaler Successor-Commit ein exaktes
+SonarQube-Cloud-Ergebnis ohne Target-Issue besitzt. Dieser lokale Source-Review
+behauptet weder Envoy-Configuration-Loading noch ausgehandeltes ALPN, H2-
+Multiplexing oder H3-Runtime-Evidenz und schließt FND-PARENT-0135 nicht.
+
 ## Runtime-Evidence
 
 curl hat HTTP/2, aber kein HTTP/3. `curl --http3` beendet sich mit `2`.
