@@ -196,6 +196,49 @@ func (transaction *acknowledgementErrorTransaction) AcknowledgeLateLogOnly(conte
 	return transaction.lateErr
 }
 
+func newDeniedResponseRecording() *recordingTransaction {
+	return &recordingTransaction{
+		bodyDecision: func(direction Direction, _ []byte, _ bool) Decision {
+			if direction == DirectionResponse {
+				return Decision{Action: ActionDeny, Status: http.StatusForbidden}
+			}
+			return allowDecision()
+		},
+	}
+}
+
+func newLateAcknowledgementErrorTransaction(lateErr error) (*recordingTransaction, *acknowledgementErrorTransaction) {
+	responseCalls := 0
+	recording := &recordingTransaction{
+		bodyDecision: func(direction Direction, _ []byte, end bool) Decision {
+			if direction == DirectionResponse && !end {
+				responseCalls++
+				if responseCalls == 2 {
+					return Decision{Action: ActionDeny, Status: http.StatusForbidden}
+				}
+			}
+			return allowDecision()
+		},
+	}
+	return recording, &acknowledgementErrorTransaction{
+		recordingTransaction: recording,
+		lateErr:              lateErr,
+	}
+}
+
+func serveResponseScenario(t *testing.T, response http.ResponseWriter, target string, next http.Handler, transaction Transaction) {
+	t.Helper()
+	middleware := newTestMiddlewareWithTransaction(t, next, transaction)
+	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, target, nil))
+}
+
+func assertResponseIncomplete(t *testing.T, description string, recording *recordingTransaction) {
+	t.Helper()
+	if len(recording.closed) != 1 || !recording.closed[0].ResponseIncomplete || recording.closed[0].ResponseEOS {
+		t.Fatalf("%s did not close incomplete: %#v", description, recording.closed)
+	}
+}
+
 func TestMiddlewareStreamsRequestAndResponseInBoundedChunks(t *testing.T) {
 	transaction := &recordingTransaction{}
 	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -770,28 +813,15 @@ func TestPreCommitDenialWriteFailureMarksResponseIncomplete(t *testing.T) {
 }
 
 func TestPreCommitDenialCommitErrorMarksResponseIncomplete(t *testing.T) {
-	recording := &recordingTransaction{
-		bodyDecision: func(direction Direction, _ []byte, _ bool) Decision {
-			if direction == DirectionResponse {
-				return Decision{Action: ActionDeny, Status: http.StatusForbidden}
-			}
-			return allowDecision()
-		},
-	}
+	recording := newDeniedResponseRecording()
 	transaction := &commitErrorTransaction{
 		recordingTransaction: recording,
 		err:                  errors.New("denial response commit failed"),
 	}
-	middleware := newTestMiddlewareWithTransaction(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+	serveResponseScenario(t, httptest.NewRecorder(), "http://example.test/denial-commit-error", http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		_, _ = writer.Write([]byte("blocked response"))
 	}), transaction)
-	response := httptest.NewRecorder()
-
-	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/denial-commit-error", nil))
-
-	if len(recording.closed) != 1 || !recording.closed[0].ResponseIncomplete || recording.closed[0].ResponseEOS {
-		t.Fatalf("denial commit error did not close incomplete: %#v", recording.closed)
-	}
+	assertResponseIncomplete(t, "denial commit error", recording)
 }
 
 func TestEvaluationFailureCommitErrorMarksResponseIncomplete(t *testing.T) {
@@ -807,16 +837,10 @@ func TestEvaluationFailureCommitErrorMarksResponseIncomplete(t *testing.T) {
 		recordingTransaction: recording,
 		err:                  errors.New("failure response commit failed"),
 	}
-	middleware := newTestMiddlewareWithTransaction(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+	serveResponseScenario(t, httptest.NewRecorder(), "http://example.test/failure-commit-error", http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		_, _ = writer.Write([]byte("body"))
 	}), transaction)
-	response := httptest.NewRecorder()
-
-	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/failure-commit-error", nil))
-
-	if len(recording.closed) != 1 || !recording.closed[0].ResponseIncomplete || recording.closed[0].ResponseEOS {
-		t.Fatalf("failure commit error did not close incomplete: %#v", recording.closed)
-	}
+	assertResponseIncomplete(t, "failure commit error", recording)
 }
 
 func TestPreCommitResponseEOSErrorFallbackMarksResponseIncomplete(t *testing.T) {
@@ -842,58 +866,24 @@ func TestPreCommitResponseEOSErrorFallbackMarksResponseIncomplete(t *testing.T) 
 }
 
 func TestPreCommitDenialAcknowledgementErrorMarksResponseIncomplete(t *testing.T) {
-	recording := &recordingTransaction{
-		bodyDecision: func(direction Direction, _ []byte, _ bool) Decision {
-			if direction == DirectionResponse {
-				return Decision{Action: ActionDeny, Status: http.StatusForbidden}
-			}
-			return allowDecision()
-		},
-	}
+	recording := newDeniedResponseRecording()
 	transaction := &acknowledgementErrorTransaction{
 		recordingTransaction: recording,
 		appliedErr:           errors.New("outcome acknowledgement failed"),
 	}
-	middleware := newTestMiddlewareWithTransaction(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+	serveResponseScenario(t, httptest.NewRecorder(), "http://example.test/denial-ack-error", http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		_, _ = writer.Write([]byte("blocked response"))
 	}), transaction)
-	response := httptest.NewRecorder()
-
-	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/denial-ack-error", nil))
-
-	if len(recording.closed) != 1 || !recording.closed[0].ResponseIncomplete || recording.closed[0].ResponseEOS {
-		t.Fatalf("denial acknowledgement error did not close incomplete: %#v", recording.closed)
-	}
+	assertResponseIncomplete(t, "denial acknowledgement error", recording)
 }
 
 func TestLateDecisionAcknowledgementErrorMarksResponseIncomplete(t *testing.T) {
-	responseCalls := 0
-	recording := &recordingTransaction{
-		bodyDecision: func(direction Direction, _ []byte, end bool) Decision {
-			if direction == DirectionResponse && !end {
-				responseCalls++
-				if responseCalls == 2 {
-					return Decision{Action: ActionDeny, Status: http.StatusForbidden}
-				}
-			}
-			return allowDecision()
-		},
-	}
-	transaction := &acknowledgementErrorTransaction{
-		recordingTransaction: recording,
-		lateErr:              errors.New("late outcome acknowledgement failed"),
-	}
-	middleware := newTestMiddlewareWithTransaction(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+	recording, transaction := newLateAcknowledgementErrorTransaction(errors.New("late outcome acknowledgement failed"))
+	serveResponseScenario(t, httptest.NewRecorder(), "http://example.test/late-ack-error", http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		_, _ = writer.Write([]byte("one"))
 		_, _ = writer.Write([]byte("two"))
 	}), transaction)
-	response := httptest.NewRecorder()
-
-	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/late-ack-error", nil))
-
-	if len(recording.closed) != 1 || !recording.closed[0].ResponseIncomplete || recording.closed[0].ResponseEOS {
-		t.Fatalf("late acknowledgement error did not close incomplete: %#v", recording.closed)
-	}
+	assertResponseIncomplete(t, "late acknowledgement error", recording)
 	if got, want := recording.closed[0].LateAction, "log_only"; got != want {
 		t.Fatalf("late action = %q, want %q", got, want)
 	}
@@ -905,39 +895,20 @@ func TestLateDecisionAcknowledgementErrorMarksResponseIncomplete(t *testing.T) {
 }
 
 func TestReadFromLateDecisionAcknowledgementErrorDoesNotInventResponseEOS(t *testing.T) {
-	responseCalls := 0
-	recording := &recordingTransaction{
-		bodyDecision: func(direction Direction, _ []byte, end bool) Decision {
-			if direction == DirectionResponse && !end {
-				responseCalls++
-				if responseCalls == 2 {
-					return Decision{Action: ActionDeny, Status: http.StatusForbidden}
-				}
-			}
-			return allowDecision()
-		},
-	}
-	transaction := &acknowledgementErrorTransaction{
-		recordingTransaction: recording,
-		lateErr:              errors.New("late ReadFrom acknowledgement failed"),
-	}
-	middleware := newTestMiddlewareWithTransaction(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+	recording, transaction := newLateAcknowledgementErrorTransaction(errors.New("late ReadFrom acknowledgement failed"))
+	response := &readerFromResponseWriter{header: make(http.Header)}
+	serveResponseScenario(t, response, "http://example.test/read-from-late-ack-error", http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		readerFrom, ok := writer.(io.ReaderFrom)
 		if !ok {
 			t.Fatal("wrapped ResponseWriter does not implement io.ReaderFrom")
 		}
 		_, _ = readerFrom.ReadFrom(&plainReader{reader: strings.NewReader("one-two")})
 	}), transaction)
-	response := &readerFromResponseWriter{header: make(http.Header)}
-
-	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/read-from-late-ack-error", nil))
 
 	if !response.readFromCalled {
 		t.Fatal("ReaderFrom late-ack path did not delegate after the pre-commit chunk")
 	}
-	if len(recording.closed) != 1 || !recording.closed[0].ResponseIncomplete || recording.closed[0].ResponseEOS {
-		t.Fatalf("ReaderFrom late acknowledgement error did not close incomplete: %#v", recording.closed)
-	}
+	assertResponseIncomplete(t, "ReaderFrom late acknowledgement error", recording)
 	for _, call := range recording.bodyCalls {
 		if call.direction == DirectionResponse && call.end {
 			t.Fatalf("ReaderFrom late acknowledgement error invoked a response EOS callback: %#v", recording.bodyCalls)

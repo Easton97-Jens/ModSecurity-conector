@@ -153,6 +153,43 @@ Dokumentations- und Diff-Checks liefen aus dem Parent-Task-Worktree. Die
 Exact-Successor-SonarQube-Cloud-Evidenz bleibt ausstehend, bis der fokussierte
 Follow-up-Commit gepusht ist; hier wird kein Successor-Quality-Gate behauptet.
 
+## Successor-SonarQube-Cloud-Duplikationsremediation — 2026-08-27
+
+Der erste normale Successor, `1b8da7ff02489efc1b2bb2b37be46daa20d26cb4`, ist
+gepusht und der übereinstimmende lokale, Remote- und Draft-PR-#348-Head. Sein
+exakter SonarQube-Cloud-Check-Run `98507227257` hat keine GitHub-Annotationen
+und die Suche nach ungelösten PR-Issues liefert null Ergebnisse; das
+ursprüngliche `go:S3776`-Target reproduziert daher nicht mehr. Das Quality Gate
+scheitert dennoch unabhängig an `new_duplicated_lines_density`:
+`7.789678675754625%` / 80 neue doppelte Zeilen über sieben Blöcke, obwohl
+`<= 3%` erforderlich ist.
+
+Diese getrennte, task-eigene Testduplikation wird als FND-SONAR-0069 getrackt.
+Ihre Evidenz identifiziert ausschließlich
+`connectors/traefik/native_middleware/middleware_test.go`: Die Inline-Fixtures
+für Pre-Commit-Commit-/Evaluation-/Acknowledgement-Errors und die Fixtures für
+Direct-Write-/ReaderFrom-Late-Acknowledgement teilen wiederholtes Setup und
+Incomplete-Response-Checks. Der neue lokale test-only-Refactor führt
+`newDeniedResponseRecording`, `newLateAcknowledgementErrorTransaction`,
+`serveResponseScenario` und `assertResponseIncomplete` ein; jedes benannte
+Szenario, seine individuelle Fehlerquelle, der Direct-Write-/ReaderFrom-Pfad,
+der No-Invented-Response-EOS-Guard und die `log_only`-Assertion bleiben
+erhalten. Kein Produktionsquelltext, keine Scanner-Konfiguration, kein Quality
+Gate, keine Regel, Suppression, `NOSONAR`, Exclusion, False-Positive-Status,
+Framework-Gitlink, MRTS-Quelltext oder Merge änderte sich.
+
+- Die fünf direkt betroffenen benannten Go-Tests bestanden vor und nach der
+  Helper-Extraktion mit registriertem externem Cache und deaktivierter
+  Modul-/Netzwerk-Akquisition.
+- Package `go test -mod=readonly .`, `go vet -mod=readonly .`, `gofmt -d` und
+  `git diff --check` bestanden nach der Extraktion.
+
+Das zweite lokale Follow-up ist zum Zeitpunkt dieses Record-Updates noch nicht
+committed oder gepusht. Es benötigt einen normalen Commit auf demselben Branch,
+einen exakten lokalen/Remote/PR-Head-Vergleich und ein frisches
+Successor-SonarQube-Cloud-Quality-Gate, bevor FND-SONAR-0068 oder
+FND-SONAR-0069 als vollständig gelten können.
+
 ## Runtime-Evidence
 
 curl hat HTTP/2, aber kein HTTP/3. `curl --http3` beendet sich mit `2`.
@@ -193,9 +230,12 @@ vertreten. Bei der initialen Delivery-Verifikation stimmten lokaler, Remote- und
 PR-Head-SHA überein. CI-Prüfungen waren in Warteschlange oder in Ausführung und
 werden nicht als bestanden behauptet. Kein Merge hat stattgefunden.
 
-Das aktuelle lokale Follow-up ist zum Zeitpunkt dieses Record-Updates noch
-nicht gepusht. Es muss normal auf denselben Draft-PR-#348-Branch committed
-werden; danach müssen seine exakte lokale, Remote- und PR-Head-SHA sowie das
-Successor-SonarQube-Cloud-Ergebnis erneut geprüft werden. Framework-Draft-PR
-#112 ist getrennt; seine grünen Checks ändern weder Parent-Framework-Gitlink,
-Parent-Delivery-Status noch MRTS-Scope.
+Das erste lokale Follow-up ist als
+`1b8da7ff02489efc1b2bb2b37be46daa20d26cb4` gepusht; sein exakter Successor
+löste das ursprüngliche `go:S3776`-Issue, scheiterte aber am unabhängigen
+FND-SONAR-0069-Duplikations-Gate. Das zweite lokale Follow-up muss normal auf
+denselben Draft-PR-#348-Branch committed werden; danach müssen seine exakte
+lokale, Remote- und PR-Head-SHA sowie das Successor-SonarQube-Cloud-Ergebnis
+erneut geprüft werden. Framework-Draft-PR #112 ist getrennt; seine grünen
+Checks ändern weder Parent-Framework-Gitlink, Parent-Delivery-Status noch
+MRTS-Scope.

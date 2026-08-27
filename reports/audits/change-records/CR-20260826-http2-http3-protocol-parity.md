@@ -150,6 +150,39 @@ and diff checks ran from the Parent task worktree. Exact-successor SonarQube
 Cloud evidence remains pending until the focused follow-up commit is pushed; no
 successor Quality Gate is claimed here.
 
+## Successor SonarQube Cloud duplication remediation — 2026-08-27
+
+The first normal successor, `1b8da7ff02489efc1b2bb2b37be46daa20d26cb4`, is
+pushed and is the matching local, remote, and Draft PR #348 head. Its exact
+SonarQube Cloud check run `98507227257` has no GitHub annotations and the
+unresolved PR issue search returns zero results, so the original `go:S3776`
+target no longer reproduces. The Quality Gate nevertheless fails independently
+on `new_duplicated_lines_density`: `7.789678675754625%` / 80 new duplicated
+lines across seven blocks, where `<= 3%` is required.
+
+This distinct, task-owned test duplication is tracked as FND-SONAR-0069. Its
+evidence identifies only `connectors/traefik/native_middleware/middleware_test.go`:
+the inline pre-commit commit/evaluation/acknowledgement-error fixtures and the
+direct-write/ReaderFrom late-acknowledgement fixtures share repeated setup and
+incomplete-response checks. The new local test-only refactor introduces
+`newDeniedResponseRecording`, `newLateAcknowledgementErrorTransaction`,
+`serveResponseScenario`, and `assertResponseIncomplete`; every named scenario,
+its unique error source, direct-write/ReaderFrom path, no-invented-response-EOS
+guard, and `log_only` assertion remains. No production source, scanner
+configuration, Quality Gate, rule, suppression, `NOSONAR`, exclusion,
+false-positive status, Framework Gitlink, MRTS source, or merge changed.
+
+- The five directly affected named Go tests passed before and after the helper
+  extraction with the registered external cache and disabled module/network
+  acquisition.
+- Package `go test -mod=readonly .`, `go vet -mod=readonly .`, `gofmt -d`, and
+  `git diff --check` passed after the extraction.
+
+The second local follow-up is not yet committed or pushed at the time of this
+record update. It requires a normal same-branch commit, exact
+local/remote/PR-head comparison, and a fresh successor SonarQube Cloud Quality
+Gate before either FND-SONAR-0068 or FND-SONAR-0069 can be considered complete.
+
 ## Runtime evidence
 
 curl has HTTP/2 but lacks HTTP/3. `curl --http3` exits `2`. H3 runtime is
@@ -187,8 +220,11 @@ At initial delivery verification, the local, remote, and PR-head SHAs matched. C
 checks were queued or in progress and are not claimed as passed. No merge has
 occurred.
 
-The current local follow-up is not yet pushed at the time of this record
-update. It must be committed normally to the same Draft PR #348 branch, then
-its exact local, remote, and PR-head SHA plus successor SonarQube Cloud result
-must be rechecked. Framework Draft PR #112 is separate; its green checks do
-not alter the Parent Framework gitlink, Parent delivery state, or MRTS scope.
+The first local follow-up is pushed as
+`1b8da7ff02489efc1b2bb2b37be46daa20d26cb4`; its exact successor resolved the
+original `go:S3776` issue but failed the independent FND-SONAR-0069 duplication
+gate. The second local follow-up must be committed normally to the same Draft
+PR #348 branch, then its exact local, remote, and PR-head SHA plus successor
+SonarQube Cloud result must be rechecked. Framework Draft PR #112 is separate;
+its green checks do not alter the Parent Framework gitlink, Parent delivery
+state, or MRTS scope.
