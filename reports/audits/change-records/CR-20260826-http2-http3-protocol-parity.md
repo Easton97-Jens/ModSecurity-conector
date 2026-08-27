@@ -117,6 +117,39 @@ lines:
 - A new test-first ReaderFrom regression intentionally failed before the guard
   and passed after it.
 
+## Follow-up SonarQube Cloud remediation — 2026-08-27
+
+Exact prior Draft PR #348 head
+`9e4cea8dfa9eff6dd4a48051f1500306f02e0f4d` has failed SonarQube Cloud check
+run `98318846059`: issue `AaA_yqaofjcmWz1J_WHw`, rule `go:S3776`, marks
+`TestReadFromInitialSourceErrorDoesNotInventResponseEOS` at
+`connectors/traefik/native_middleware/middleware_test.go:442` with cognitive
+complexity `23` where `15` is allowed. The exact current finding is tracked as
+FND-SONAR-0068; it is a task-owned maintainability delivery blocker, not a
+security finding.
+
+Only the existing table-subtest body was extracted into the test-local
+`t.Helper()` function `assertInitialSourceErrorDoesNotInventResponseEOS`.
+`before_body`, `after_body`, source-error propagation, response-body checks,
+the closed-transaction response-EOS guard, and the response-body-call EOS
+guard remain unchanged. No production source, protocol assertion, scanner
+configuration, Quality Gate, rule, suppression, `NOSONAR`, exclusion, or
+false-positive status changed.
+
+- `rtk proxy env GOCACHE=<task-owned-cache> GOTOOLCHAIN=local GOWORK=off GOPROXY=off GOSUMDB=off go test -mod=readonly . -run '^TestReadFromInitialSourceErrorDoesNotInventResponseEOS$' -count=1` — passed.
+- `rtk proxy env GOCACHE=<task-owned-cache> GOTOOLCHAIN=local GOWORK=off GOPROXY=off GOSUMDB=off go test -mod=readonly . -count=1` — passed.
+- `rtk proxy env GOCACHE=<task-owned-cache> GOTOOLCHAIN=local GOWORK=off GOPROXY=off GOSUMDB=off go vet -mod=readonly .` — passed.
+- `rtk proxy gofmt -d middleware_test.go` — passed with no diff.
+- `rtk proxy env PYTHONDONTWRITEBYTECODE=1 make check-bilingual-docs` and `rtk proxy env PYTHONDONTWRITEBYTECODE=1 make check-doc-links` — blocked (exit `2`) only by missing Framework-submodule link targets in the uninitialized Parent gitlink; neither reported a changed Change Record defect.
+- Targeted `ci/checks/documentation/check-bilingual-docs.py` Change Record pair/structure validation — passed.
+- `rtk proxy git diff --check` — passed.
+
+The Go commands ran from `connectors/traefik/native_middleware` with a
+registered external cache and disabled module/network acquisition; documentation
+and diff checks ran from the Parent task worktree. Exact-successor SonarQube
+Cloud evidence remains pending until the focused follow-up commit is pushed; no
+successor Quality Gate is claimed here.
+
 ## Runtime evidence
 
 curl has HTTP/2 but lacks HTTP/3. `curl --http3` exits `2`. H3 runtime is
@@ -153,3 +186,9 @@ Change Record report only observed results. Commit
 At initial delivery verification, the local, remote, and PR-head SHAs matched. CI
 checks were queued or in progress and are not claimed as passed. No merge has
 occurred.
+
+The current local follow-up is not yet pushed at the time of this record
+update. It must be committed normally to the same Draft PR #348 branch, then
+its exact local, remote, and PR-head SHA plus successor SonarQube Cloud result
+must be rechecked. Framework Draft PR #112 is separate; its green checks do
+not alter the Parent Framework gitlink, Parent delivery state, or MRTS scope.

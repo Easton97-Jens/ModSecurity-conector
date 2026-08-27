@@ -120,6 +120,39 @@ aufgezeichnet:
 - Ein neuer test-first ReaderFrom-Regressionsfall schlug vor dem Guard fehl und
   besteht danach.
 
+## Follow-up-SonarQube-Cloud-Remediation — 2026-08-27
+
+Der exakte vorherige Draft-PR-#348-Head
+`9e4cea8dfa9eff6dd4a48051f1500306f02e0f4d` hat den fehlgeschlagenen
+SonarQube-Cloud-Check-Run `98318846059`: Issue `AaA_yqaofjcmWz1J_WHw`, Regel
+`go:S3776`, markiert `TestReadFromInitialSourceErrorDoesNotInventResponseEOS`
+bei `connectors/traefik/native_middleware/middleware_test.go:442` mit
+kognitiver Komplexität `23`, obwohl `15` erlaubt sind. Der exakte aktuelle
+Befund wird als FND-SONAR-0068 getrackt; er ist ein task-eigener
+Wartbarkeits-Delivery-Blocker, kein Security-Finding.
+
+Nur der vorhandene Table-Subtest-Body wurde in die test-lokale `t.Helper()`-
+Funktion `assertInitialSourceErrorDoesNotInventResponseEOS` extrahiert.
+`before_body`, `after_body`, Source-Error-Propagation, Response-Body-Checks,
+der Closed-Transaction-Response-EOS-Guard und der Response-Body-Call-EOS-Guard
+bleiben unverändert. Kein produktiver Source-Code, keine Protokoll-Assertion,
+Scanner-Konfiguration, Quality Gate, Regel, Suppression, `NOSONAR`, Exclusion
+oder False-Positive-Status änderte sich.
+
+- `rtk proxy env GOCACHE=<task-owned-cache> GOTOOLCHAIN=local GOWORK=off GOPROXY=off GOSUMDB=off go test -mod=readonly . -run '^TestReadFromInitialSourceErrorDoesNotInventResponseEOS$' -count=1` — bestanden.
+- `rtk proxy env GOCACHE=<task-owned-cache> GOTOOLCHAIN=local GOWORK=off GOPROXY=off GOSUMDB=off go test -mod=readonly . -count=1` — bestanden.
+- `rtk proxy env GOCACHE=<task-owned-cache> GOTOOLCHAIN=local GOWORK=off GOPROXY=off GOSUMDB=off go vet -mod=readonly .` — bestanden.
+- `rtk proxy gofmt -d middleware_test.go` — ohne Diff bestanden.
+- `rtk proxy env PYTHONDONTWRITEBYTECODE=1 make check-bilingual-docs` und `rtk proxy env PYTHONDONTWRITEBYTECODE=1 make check-doc-links` — nur durch fehlende Framework-Submodule-Link-Ziele im nicht initialisierten Parent-Gitlink blockiert (Exit `2`); keiner meldete einen geänderten Change-Record-Defekt.
+- Zielgerichtete Change-Record-Pair-/Strukturvalidierung mit `ci/checks/documentation/check-bilingual-docs.py` — bestanden.
+- `rtk proxy git diff --check` — bestanden.
+
+Die Go-Befehle liefen in `connectors/traefik/native_middleware` mit einem
+registrierten externen Cache und deaktivierter Modul-/Netzwerk-Akquisition;
+Dokumentations- und Diff-Checks liefen aus dem Parent-Task-Worktree. Die
+Exact-Successor-SonarQube-Cloud-Evidenz bleibt ausstehend, bis der fokussierte
+Follow-up-Commit gepusht ist; hier wird kein Successor-Quality-Gate behauptet.
+
 ## Runtime-Evidence
 
 curl hat HTTP/2, aber kein HTTP/3. `curl --http3` beendet sich mit `2`.
@@ -159,3 +192,10 @@ der Change Record berichten ausschließlich beobachtete Ergebnisse. Commit
 vertreten. Bei der initialen Delivery-Verifikation stimmten lokaler, Remote- und
 PR-Head-SHA überein. CI-Prüfungen waren in Warteschlange oder in Ausführung und
 werden nicht als bestanden behauptet. Kein Merge hat stattgefunden.
+
+Das aktuelle lokale Follow-up ist zum Zeitpunkt dieses Record-Updates noch
+nicht gepusht. Es muss normal auf denselben Draft-PR-#348-Branch committed
+werden; danach müssen seine exakte lokale, Remote- und PR-Head-SHA sowie das
+Successor-SonarQube-Cloud-Ergebnis erneut geprüft werden. Framework-Draft-PR
+#112 ist getrennt; seine grünen Checks ändern weder Parent-Framework-Gitlink,
+Parent-Delivery-Status noch MRTS-Scope.

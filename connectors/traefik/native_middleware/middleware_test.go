@@ -449,34 +449,40 @@ func TestReadFromInitialSourceErrorDoesNotInventResponseEOS(t *testing.T) {
 		{name: "after_body", data: "ok"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			transaction := &recordingTransaction{}
-			var readFromErr error
-			middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-				readerFrom, ok := writer.(io.ReaderFrom)
-				if !ok {
-					t.Fatal("wrapped ResponseWriter does not implement io.ReaderFrom")
-				}
-				_, readFromErr = readerFrom.ReadFrom(&errorReader{data: []byte(test.data), err: sourceErr})
-			}), transaction)
-			response := &readerFromResponseWriter{header: make(http.Header)}
-
-			middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/read-from-source-error", nil))
-
-			if !errors.Is(readFromErr, sourceErr) {
-				t.Fatalf("ReadFrom() error = %v, want %v", readFromErr, sourceErr)
-			}
-			if got, want := response.body.String(), test.data; got != want {
-				t.Fatalf("response body = %q, want %q", got, want)
-			}
-			if len(transaction.closed) != 1 || transaction.closed[0].ResponseEOS {
-				t.Fatalf("initial source error fabricated response EOS: %#v", transaction.closed)
-			}
-			for _, call := range transaction.bodyCalls {
-				if call.direction == DirectionResponse && call.end {
-					t.Fatalf("initial source error invoked a response EOS callback: %#v", transaction.bodyCalls)
-				}
-			}
+			assertInitialSourceErrorDoesNotInventResponseEOS(t, test.data, sourceErr)
 		})
+	}
+}
+
+func assertInitialSourceErrorDoesNotInventResponseEOS(t *testing.T, data string, sourceErr error) {
+	t.Helper()
+
+	transaction := &recordingTransaction{}
+	var readFromErr error
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		readerFrom, ok := writer.(io.ReaderFrom)
+		if !ok {
+			t.Fatal("wrapped ResponseWriter does not implement io.ReaderFrom")
+		}
+		_, readFromErr = readerFrom.ReadFrom(&errorReader{data: []byte(data), err: sourceErr})
+	}), transaction)
+	response := &readerFromResponseWriter{header: make(http.Header)}
+
+	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/read-from-source-error", nil))
+
+	if !errors.Is(readFromErr, sourceErr) {
+		t.Fatalf("ReadFrom() error = %v, want %v", readFromErr, sourceErr)
+	}
+	if got, want := response.body.String(), data; got != want {
+		t.Fatalf("response body = %q, want %q", got, want)
+	}
+	if len(transaction.closed) != 1 || transaction.closed[0].ResponseEOS {
+		t.Fatalf("initial source error fabricated response EOS: %#v", transaction.closed)
+	}
+	for _, call := range transaction.bodyCalls {
+		if call.direction == DirectionResponse && call.end {
+			t.Fatalf("initial source error invoked a response EOS callback: %#v", transaction.bodyCalls)
+		}
 	}
 }
 
