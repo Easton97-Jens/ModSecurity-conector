@@ -184,11 +184,14 @@ Framework-Gitlink, MRTS-Quelltext oder Merge änderte sich.
 - Package `go test -mod=readonly .`, `go vet -mod=readonly .`, `gofmt -d` und
   `git diff --check` bestanden nach der Extraktion.
 
-Das zweite lokale Follow-up ist zum Zeitpunkt dieses Record-Updates noch nicht
-committed oder gepusht. Es benötigt einen normalen Commit auf demselben Branch,
-einen exakten lokalen/Remote/PR-Head-Vergleich und ein frisches
-Successor-SonarQube-Cloud-Quality-Gate, bevor FND-SONAR-0068 oder
-FND-SONAR-0069 als vollständig gelten können.
+Der normale Commit auf demselben Branch
+`35c6b339da9144578b800a3877fded414f24fe31` wurde ohne History-Rewrite gepusht;
+sein lokaler, Remote- und PR-Head stimmen überein. Der exakte SonarQube-Cloud-
+Check `98514348339` bestand mit null Annotationen, null ungelösten Issues, null
+neuen doppelten Zeilen/Blöcken und `0.0%` New-Code-Duplikation. FND-SONAR-0068
+und FND-SONAR-0069 sind an diesem Draft-PR-Head `fixed`, bis zur
+Post-Merge-Current-Master-Verifikation und Originalreproduktion. Dies behauptet
+weder einen Merge noch vollständige H2/H3-/Runtime-Evidence.
 
 ## Runtime-Evidence
 
@@ -233,9 +236,8 @@ werden nicht als bestanden behauptet. Kein Merge hat stattgefunden.
 Das erste lokale Follow-up ist als
 `1b8da7ff02489efc1b2bb2b37be46daa20d26cb4` gepusht; sein exakter Successor
 löste das ursprüngliche `go:S3776`-Issue, scheiterte aber am unabhängigen
-FND-SONAR-0069-Duplikations-Gate. Das zweite lokale Follow-up muss normal auf
-denselben Draft-PR-#348-Branch committed werden; danach müssen seine exakte
-lokale, Remote- und PR-Head-SHA sowie das Successor-SonarQube-Cloud-Ergebnis
-erneut geprüft werden. Framework-Draft-PR #112 ist getrennt; seine grünen
-Checks ändern weder Parent-Framework-Gitlink, Parent-Delivery-Status noch
-MRTS-Scope.
+FND-SONAR-0069-Duplikations-Gate. Das zweite normale Follow-up
+`35c6b339da9144578b800a3877fded414f24fe31` ist ebenfalls gepusht und sein
+exakter SonarQube-Cloud-Check `98514348339` bestand sauber. Framework-Draft-PR
+#112 ist getrennt; seine grünen Checks ändern weder Parent-Framework-Gitlink,
+Parent-Delivery-Status noch MRTS-Scope.

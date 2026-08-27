@@ -178,10 +178,13 @@ false-positive status, Framework Gitlink, MRTS source, or merge changed.
 - Package `go test -mod=readonly .`, `go vet -mod=readonly .`, `gofmt -d`, and
   `git diff --check` passed after the extraction.
 
-The second local follow-up is not yet committed or pushed at the time of this
-record update. It requires a normal same-branch commit, exact
-local/remote/PR-head comparison, and a fresh successor SonarQube Cloud Quality
-Gate before either FND-SONAR-0068 or FND-SONAR-0069 can be considered complete.
+The normal same-branch commit `35c6b339da9144578b800a3877fded414f24fe31` was
+pushed without rewriting history; its local, remote, and PR heads match. Exact
+SonarQube Cloud check `98514348339` passed with zero annotations, zero
+unresolved issues, zero new duplicated lines/blocks, and `0.0%` new-code
+duplication. FND-SONAR-0068 and FND-SONAR-0069 are `fixed` on this Draft PR
+head, pending post-merge current-master verification and original
+reproduction. This does not claim a merge or complete H2/H3/runtime evidence.
 
 ## Runtime evidence
 
@@ -223,8 +226,8 @@ occurred.
 The first local follow-up is pushed as
 `1b8da7ff02489efc1b2bb2b37be46daa20d26cb4`; its exact successor resolved the
 original `go:S3776` issue but failed the independent FND-SONAR-0069 duplication
-gate. The second local follow-up must be committed normally to the same Draft
-PR #348 branch, then its exact local, remote, and PR-head SHA plus successor
-SonarQube Cloud result must be rechecked. Framework Draft PR #112 is separate;
-its green checks do not alter the Parent Framework gitlink, Parent delivery
-state, or MRTS scope.
+gate. The second normal follow-up
+`35c6b339da9144578b800a3877fded414f24fe31` is also pushed and its exact
+SonarQube Cloud check `98514348339` passed cleanly. Framework Draft PR #112 is
+separate; its green checks do not alter the Parent Framework gitlink, Parent
+delivery state, or MRTS scope.
