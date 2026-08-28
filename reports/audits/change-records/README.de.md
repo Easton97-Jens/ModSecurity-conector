@@ -28,6 +28,14 @@ angelegt werden.
   geschützte NGINX-Grenze, Hosted-Result, Ready-Status oder Merge wird
   behauptet.
 
+- [CR-20260825-shared-transaction-phase-contract](CR-20260825-shared-transaction-phase-contract.de.md) —
+  der aktuelle Benutzer hat ausdrücklich einen Parent-Draft-PR für den
+  gemeinsamen Transaktions-Phasenvertrag autorisiert. Der Record unterscheidet
+  lokale Komponentenvalidierung von nicht ausgeführter Real-Host-/Hosted-
+  Evidence und erhält die offenen P0/P1-Findings; kein Merge, keine
+  CI-Scope-Änderung, keine Framework-/MRTS- oder Gitlink-Aktion wird
+  behauptet.
+
 - [CR-20260825-lighttpd-phase2-pre-upstream-gate](CR-20260825-lighttpd-phase2-pre-upstream-gate.de.md) —
   das vom Benutzer autorisierte Parent-only-Phase-2-Pre-Upstream-Zulassungsgate
   für den ausgewählten gepatchten Lighttpd-HTTP/1.1-`mod_proxy`-Pfad. Es hält

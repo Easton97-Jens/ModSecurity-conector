@@ -147,6 +147,8 @@ done
 
 RUNTIME_OBJECT=$OBJ_DIR/msconnector_runtime.o
 compile_common "$REPO_ROOT/common/runtime/msconnector_runtime.c" "$RUNTIME_OBJECT"
+PROFILE_REGISTRY_OBJECT=$OBJ_DIR/profile_registry.o
+compile_common "$REPO_ROOT/connectors/profile_registry.c" "$PROFILE_REGISTRY_OBJECT"
 
 "$CC_BIN" \
     -std="$MSCONNECTOR_C_STD" \
@@ -190,6 +192,7 @@ compile_common "$REPO_ROOT/common/runtime/msconnector_runtime.c" "$RUNTIME_OBJEC
     -shared \
     "$OBJ_DIR"/common_*.o \
     "$RUNTIME_OBJECT" \
+    "$PROFILE_REGISTRY_OBJECT" \
     "$OBJ_DIR/lighttpd_modsecurity_mapper.o" \
     "$OBJ_DIR/mod_msconnector.o" \
     -L "$MODSECURITY_LIB_DIR" \

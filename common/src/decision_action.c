@@ -20,6 +20,8 @@ const char *msconnector_decision_action_name(msconnector_decision_action action)
         return "error";
     case MSCONNECTOR_DECISION_ACTION_UNSUPPORTED:
         return "unsupported";
+    case MSCONNECTOR_DECISION_ACTION_RATE_LIMIT:
+        return "rate_limit";
     default:
         return "unknown";
     }
@@ -36,7 +38,8 @@ msconnector_decision_action msconnector_decision_action_from_decision(
     case MSCONNECTOR_DECISION_KIND_LOG_ONLY:
         return MSCONNECTOR_DECISION_ACTION_LOG_ONLY;
     case MSCONNECTOR_DECISION_KIND_DENY:
-        return MSCONNECTOR_DECISION_ACTION_DENY;
+        return decision->http_status == 429 ? MSCONNECTOR_DECISION_ACTION_RATE_LIMIT :
+            MSCONNECTOR_DECISION_ACTION_DENY;
     case MSCONNECTOR_DECISION_KIND_REDIRECT:
         return MSCONNECTOR_DECISION_ACTION_REDIRECT;
     case MSCONNECTOR_DECISION_KIND_DROP:
@@ -54,6 +57,7 @@ msconnector_decision_action msconnector_decision_action_from_decision(
 
 int msconnector_decision_action_is_disruptive(msconnector_decision_action action) {
     return action == MSCONNECTOR_DECISION_ACTION_DENY ||
+        action == MSCONNECTOR_DECISION_ACTION_RATE_LIMIT ||
         action == MSCONNECTOR_DECISION_ACTION_REDIRECT ||
         action == MSCONNECTOR_DECISION_ACTION_DROP ||
         action == MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION ||

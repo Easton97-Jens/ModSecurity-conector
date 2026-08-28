@@ -21,8 +21,11 @@ Konfiguration verspricht keinen vollständigen Response-Buffer und keine
 Regelbewertung pro Chunk. Die Strict-Profilgrenze dokumentiert die optionale
 Grenze, statt einen ausführbaren Host-Abbruch zu behaupten.
 
-[forwardAuth-Kompatibilitätsdateien](#forwardauth-kompatibilität) sind nur
-Request-Authorization und dürfen nicht als P3/P4-Kernpfad gelten.
+Die vollständige Matrix liegt unter [native-uds/](native-uds/) und
+[forwardauth/](forwardauth/) und enthält die Bundles `minimal`, `safe`,
+`strict` und `all`. `all` verwendet den bestehenden Strict-P4-Policy-Wert und
+ist kein vierter Phasenmodus. Die älteren [forwardAuth-Kompatibilitätsdateien](#forwardauth-kompatibilität)
+bleiben Request-only-Beispiele und dürfen nicht als P3/P4-Kernpfad gelten.
 
 ## Dateien
 
@@ -169,13 +172,41 @@ Strict-Verhalten, Produktionsreife oder CRS-Abdeckung.
 
 ## Strict-Profilgrenze <a id="strict-profilgrenze"></a>
 
-Common Runtime akzeptiert `phase4_mode=strict`, aber die native Go-Middleware
-stuft disruptive P4-Entscheidungen nach Commit zu log-only herab. Strict ist
-optional und es wird kein Abbruchprofil behauptet.
+Common Runtime weist `phase4_mode=strict` für beide Traefik-Profile beim Start
+ab, weil keines eine nachgewiesene `strict_post_commit_action` besitzt. Dies
+ist ein fail-closed-Konfigurationsfehler, kein später Log-only-Downgrade und
+kein behaupteter Abbruch.
 
 Das Safe-UDS-Setup beibehalten, statische/dynamische Konfiguration und den
-Engine-Service validieren und neue Host-Evidenz verlangen, bevor ein strikter
-Transportanspruch erhoben wird.
+Engine-Service validieren und eine deterministische Hostaktion samt
+Client-Evidenz verlangen, bevor Strict aktiviert wird.
+
+## Vollständige Matrix der logischen Lösungen
+
+Jede logische Lösung besitzt sichtbare Bundles für `minimal`, `safe`, `strict`
+und `all`. Minimal und Safe sind zur Laufzeit zulässig; die Strict-Bundles
+sind parsergestützt, werden aber absichtlich vom Common-Runtime-Zulassungsgate
+abgewiesen. Die nativen UDS-Bundles verwenden das repository-eigene
+`modsecurityNative`-Plugin und decken P1/P2/P3/P4 in einer gestreamten
+Transaktion ab. Die forwardAuth-Bundles sind eine logische Lösung aus
+Traefik-`forwardAuth`, unmittelbar gefolgt vom privaten UDS-Plugin
+`modsecurityResponseObserver`: forwardAuth liefert P1 und den begrenzten
+gepufferten P2-Body (`forwardBody: true`, `maxBodySize: 4096`), der Observer
+beansprucht das undurchsichtige Handle für P3/P4. Ein fehlendes Handle oder ein
+Observer-Timeout wird fail-closed behandelt und bereinigt die korrelierte
+Transaktion.
+
+| Lösung | Varianten | P1/P2 | P3/P4 | Hostgrenze |
+| --- | --- | --- | --- | --- |
+| Native UDS | [minimal](native-uds/minimal/), [safe](native-uds/safe/), [strict](native-uds/strict/), [all](native-uds/all/) | Natives Plugin, gestreamt und begrenzt | Natives Plugin, gestreamt und begrenzt | Strict-Start wird abgewiesen, bis ein Host-Abbruch nachgewiesen ist. |
+| forwardAuth + Observer | [minimal](forwardauth/minimal/), [safe](forwardauth/safe/), [strict](forwardauth/strict/), [all](forwardauth/all/) | forwardAuth plus begrenzter gepufferter Body | Privater Response-Observer über ein undurchsichtiges Handle | Strict-Start wird abgewiesen; kein später clientseitiger Abbruch wird behauptet. |
+
+Jede Runtime-Datei zeigt alle aktuell geparsten Common-Runtime-Schlüssel. Die
+aktive Rules-Quelle ist die geprüfte private `rules_file`; `rules_inline`,
+Remote-Ruleschlüssel, statische `transaction_id` und die optionale
+Content-Type-Datei sind als auskommentierte, gegenseitig ausschließende
+Alternativen sichtbar. Event-JSONL enthält nur Metadaten und nutzt einen
+begrenzten privaten Pfad.
 
 ## Verwandtes Material
 

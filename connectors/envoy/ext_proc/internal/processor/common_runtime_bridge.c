@@ -8,6 +8,7 @@
 
 #include "msconnector/memory.h"
 #include "common/runtime/msconnector_runtime.h"
+#include "connectors/profile_registry.h"
 
 struct msc_envoy_ext_proc_runtime {
     msconnector_runtime *runtime;
@@ -251,6 +252,14 @@ int msc_envoy_ext_proc_runtime_create(
         free(runtime);
         return 0;
     }
+    if (!msconnector_runtime_set_transaction_profile(runtime->runtime,
+            msconnector_profile_registry_find("envoy-ext-proc"))) {
+        msc_envoy_ext_proc_set_error(error, error_len,
+            "could not inject Common transaction profile");
+        msconnector_runtime_destroy(&runtime->runtime);
+        free(runtime);
+        return 0;
+    }
     if (msconnector_runtime_request_body_mode(runtime->runtime) !=
             MSCONNECTOR_BODY_MODE_STREAMING ||
         msconnector_runtime_response_body_mode(runtime->runtime) !=
@@ -273,6 +282,25 @@ void msc_envoy_ext_proc_runtime_destroy(msc_envoy_ext_proc_runtime **runtime)
     msconnector_runtime_destroy(&(*runtime)->runtime);
     free(*runtime);
     *runtime = NULL;
+}
+
+int msc_envoy_ext_proc_runtime_phase4_mode(
+    const msc_envoy_ext_proc_runtime *runtime)
+{
+    if (runtime == NULL || runtime->runtime == NULL) {
+        return MSC_ENVOY_EXT_PROC_PHASE4_MODE_UNSET;
+    }
+    switch (msconnector_runtime_phase4_mode(runtime->runtime)) {
+      case MSCONNECTOR_PHASE4_MODE_MINIMAL:
+        return MSC_ENVOY_EXT_PROC_PHASE4_MODE_MINIMAL;
+      case MSCONNECTOR_PHASE4_MODE_SAFE:
+        return MSC_ENVOY_EXT_PROC_PHASE4_MODE_SAFE;
+      case MSCONNECTOR_PHASE4_MODE_STRICT:
+        return MSC_ENVOY_EXT_PROC_PHASE4_MODE_STRICT;
+      case MSCONNECTOR_PHASE4_MODE_UNSET:
+      default:
+        return MSC_ENVOY_EXT_PROC_PHASE4_MODE_UNSET;
+    }
 }
 
 int msc_envoy_ext_proc_transaction_begin(

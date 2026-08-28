@@ -711,6 +711,50 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             "missing_expat_headers",
         )
 
+    def test_apache_blocker_keeps_profile_registry_compile_failure_distinct_from_libmodsecurity(self) -> None:
+        compiler_error = (
+            "gcc -L/cache/modsecurity/lib -lmodsecurity -c src/mod_security3.c\n"
+            "src/mod_security3.c:14:10: fatal error: connectors/profile_registry.h: "
+            "No such file or directory\n"
+        )
+
+        self.assertEqual(
+            components.map_apache_blocker(compiler_error, []),
+            "apache_connector_build_failed",
+        )
+
+    def test_apache_blocker_detects_a_real_missing_libmodsecurity_linker_error(self) -> None:
+        compiler_error = "/usr/bin/ld: cannot find -lmodsecurity\n"
+
+        self.assertEqual(
+            components.map_apache_blocker(compiler_error, []),
+            "missing_libmodsecurity_build",
+        )
+
+    def test_apache_build_environment_disables_archive_owner_restoration(self) -> None:
+        environment = components.apache_build_environment(
+            {"TAR_OPTIONS": "--same-owner"},
+            Path("/connector"),
+            Path("/framework"),
+            Path("/cache"),
+            Path("/build"),
+            Path("/sources"),
+            Path("/archives"),
+            {"prefix": "/modsecurity-prefix", "build_id": "modsecurity-build"},
+            {
+                "expat_lib_dir": "/expat/lib",
+                "expat_pkg_config_path": "/expat/lib/pkgconfig",
+                "apache_build_root": Path("/apache-build"),
+                "httpd_prefix": Path("/httpd-prefix"),
+                "expat_cppflags": "-I/expat/include",
+                "expat_ldflags": "-L/expat/lib",
+                "apache_libs": "-lexpat",
+                "crypt_link_arg": "-lcrypt",
+            },
+        )
+
+        self.assertEqual(environment["TAR_OPTIONS"], "--no-same-owner")
+
     def test_expat_autotools_stops_when_autoreconf_fails(self) -> None:
         with tempfile.TemporaryDirectory(prefix="expat-autoreconf-") as temporary:
             root = Path(temporary)
@@ -1532,6 +1576,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             ).resolve()
             self.assertEqual(context["root"], expected_root)
             self.assertEqual(prep_env["BUILD_ROOT"], str(build_root.resolve()))
+            self.assertEqual(prep_env["LOG_DIR"], str(context["framework_log_dir"]))
             self.assertEqual(
                 components.connector_output_layout(
                     "haproxy",
@@ -1550,6 +1595,8 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                 context["spoa_bin"],
                 context["paths_env"],
                 context["log_path"],
+                context["framework_log_dir"],
+                context["framework_build_log"],
             )
             for path in mutable_paths:
                 with self.subTest(path=path):

@@ -193,9 +193,9 @@ See [Engine reference](../common/modsecurity-directives.md).
 
 | Profile | File | Status |
 | --- | --- | --- |
-| Minimal | [minimal/envoy-ext-proc-streaming.yaml.in](minimal/envoy-ext-proc-streaming.yaml.in) | Active starter configuration |
-| Safe full lifecycle | [safe/envoy-ext-proc-streaming.yaml.in](safe/envoy-ext-proc-streaming.yaml.in) | Selected bounded reference |
-| Strict | [README.md#strict-profile-boundary](README.md#strict-profile-boundary) | Parser-supported or explicitly optional boundary |
+| Minimal | [ext-proc/minimal/envoy.yaml.in](ext-proc/minimal/envoy.yaml.in) | Active starter configuration |
+| Safe full lifecycle | [ext-proc/safe/envoy.yaml.in](ext-proc/safe/envoy.yaml.in) | Selected bounded reference |
+| Strict | [ext-proc/strict/envoy.yaml.in](ext-proc/strict/envoy.yaml.in) | Parser-supported or explicitly optional boundary |
 | DetectionOnly | [detection-only/msconnector-runtime.conf](detection-only/msconnector-runtime.conf) | Engine evaluates/logs without disruptive action |
 | Disabled | [disabled/msconnector-runtime.conf](disabled/msconnector-runtime.conf) | Connector or engine path disabled |
 

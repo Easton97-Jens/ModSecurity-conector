@@ -6263,7 +6263,14 @@ def map_apache_blocker(text: str, missing: list[str]) -> str:
         return "missing_expat_headers"
     if "missing required command" in lowered or MISSING_COMMAND_TEXT in lowered:
         return "missing_apache_build_dependency"
-    if any(item.startswith("modsecurity_lib:") for item in missing) or "libmodsecurity" in lowered:
+    if any(item.startswith("modsecurity_lib:") for item in missing) or any(
+        marker in lowered
+        for marker in (
+            "cannot find -lmodsecurity",
+            "cannot find libmodsecurity",
+            "libmodsecurity.so: cannot open shared object file",
+        )
+    ):
         return "missing_libmodsecurity_build"
     if re.search(r"(?m)^.+:\d+(?::\d+)?: (?:fatal )?error:", text) or "apxs:error:" in lowered:
         return "apache_connector_build_failed"
@@ -7297,6 +7304,12 @@ def apache_build_environment(
             if expat_lib_dir
             else env.get("LD_LIBRARY_PATH", "")
         ),
+        # The Framework-owned Apache provisioner extracts verified source
+        # archives.  The task-owned runtime roots can be user namespaces or
+        # id-mapped mounts, where restoring the archive's original owner
+        # fails even though extraction is otherwise valid.  Archive ownership
+        # is not build input, so consistently suppress its restoration.
+        TAR_OPTIONS="--no-same-owner",
         BUILD_HTTPD_FROM_SOURCE="1",
         BUILD_PCRE2_FROM_SOURCE="1",
         AUTO_FETCH_SMOKE_SOURCES="0",
@@ -8686,6 +8699,7 @@ def haproxy_runtime_context(plan: dict[str, Any], build_root: Path) -> dict[str,
     spoa_dir = root / "haproxy-spoa-runtime"
     spoa_bin = spoa_dir / "haproxy-modsecurity-spoa"
     paths_env = binding_dir / "paths.env"
+    framework_log_dir = root / "logs" / "haproxy-prepare"
     return {
         "root": root,
         "build_root": invocation_build_root,
@@ -8699,6 +8713,8 @@ def haproxy_runtime_context(plan: dict[str, Any], build_root: Path) -> dict[str,
         "spoa_bin": spoa_bin,
         "paths_env": paths_env,
         "log_path": root / "logs/haproxy-build.log",
+        "framework_log_dir": framework_log_dir,
+        "framework_build_log": framework_log_dir / "haproxy-build.log",
     }
 
 
@@ -8724,6 +8740,8 @@ def haproxy_runtime_record(
         "spoa_runtime_bin": str(context["spoa_bin"]),
         "modsecurity_binding_dir": str(context["binding_dir"]),
         "paths_env": str(context["paths_env"]),
+        "framework_prepare_log_dir": str(context["framework_log_dir"]),
+        "framework_prepare_build_log": str(context["framework_build_log"]),
         "output_paths": {
             "binary": str(context["haproxy_bin"]),
             "module": str(context["spoa_bin"]),
@@ -8762,6 +8780,8 @@ def haproxy_preflight_blocked(
         context["spoa_bin"],
         context["paths_env"],
         context["log_path"],
+        context["framework_log_dir"],
+        context["framework_build_log"],
     ):
         if (
             is_system_path(path)
@@ -8878,6 +8898,7 @@ def haproxy_prepare_environment(
         BUILD_ROOT=str(context["build_root"]),
         TMP_ROOT=str(context["root"] / "tmp"),
         LOG_ROOT=str(context["root"] / "logs"),
+        LOG_DIR=str(context["framework_log_dir"]),
         HAPROXY_SOURCE_ROOT=str(sources_root / "haproxy"),
         HAPROXY_DOWNLOAD_DIR=str(archives_root / "haproxy"),
         HAPROXY_SOURCE_DIR=str(

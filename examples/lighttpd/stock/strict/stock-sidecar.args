@@ -1,0 +1,6 @@
+# CLI argv record; strict records the strict engine decision but does not
+# promise a transport abort after a response has been committed.
+--config /etc/lighttpd/msconnector-stock-strict.conf
+--listen 127.0.0.1:8080
+--upstream 127.0.0.1:8081
+--timeout-ms 10000

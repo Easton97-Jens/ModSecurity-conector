@@ -3,20 +3,55 @@
   "connector": "envoy",
   "host_name": "envoy",
   "integration_mode": "http-ext-authz-service",
+  "transaction_contract_profiles": [
+    "envoy-ext-authz",
+    "envoy-ext-proc"
+  ],
+  "transaction_contract_note": "ext_authz plus its mandatory private-UDS ext_proc response observer use the same opaque-handle Common P3/P4 companion contract; ext_proc maps all phases directly through its Common bridge.",
+  "logical_transaction_contract": {
+    "state": "implemented_not_asserted",
+    "host_path": {
+      "request_component": "http-ext-authz-service",
+      "response_component": "private-uds-ext-proc-response-observer",
+      "logical_connector": "request_component + response_component",
+      "direct_service_phases": ["P1", "P2"],
+      "logical_connector_phases": ["P1", "P2", "P3", "P4"],
+      "direct_service_response_phases": "not_exposed_by_protocol",
+      "logical_connector_status": "implemented_not_asserted"
+    },
+    "scope": "The legacy capability table below describes the direct request-only ext_authz service. This object describes the required complete logical connector and must be used for P1-P4 contract assessment.",
+    "phases": {
+      "P1": "ext_authz authorization service maps request headers into Common Runtime",
+      "P2": "ext_authz bounded request-body handoff completes Common request EOS",
+      "P3": "following private-UDS ext_proc observer claims the opaque handle and maps response headers before commitment",
+      "P4": "same observer maps bounded response chunks and exactly one EOS through MRC1"
+    },
+    "correlation": "server-generated 256-bit opaque handle; one claim; transaction and host IDs remain internal",
+    "failure_behavior": "missing observer, malformed/replayed handle, MRC1 error, deadline, or cleanup failure is fail-closed",
+    "evidence": [
+      "connectors/envoy/src/envoy_ext_authz_service_main.c",
+      "connectors/envoy/config/envoy-ext-authz-smoke.yaml.in",
+      "connectors/envoy/ext_proc/internal/responseobserver/service.go"
+    ]
+  },
   "metadata_source": "connectors/envoy/metadata.c",
   "source_contract": [
     "connectors/envoy/metadata.c",
     "connectors/envoy/config/envoy-ext-authz-smoke.yaml.in",
     "connectors/envoy/config/envoy-ext-authz.conf",
     "connectors/envoy/src/envoy_ext_authz_service_main.c",
+    "connectors/envoy/src/envoy_ext_authz_response_companion.c",
+    "connectors/envoy/ext_proc/cmd/msconnector-envoy-response-observer/main.go",
+    "connectors/envoy/ext_proc/internal/responseobserver/service.go",
     "connectors/envoy/src/envoy_modsecurity_mapper.c",
     "connectors/envoy/harness/run_envoy_connector_runtime.sh"
   ],
   "host_model_constraints": [
-    "The selected Envoy HTTP ext_authz service observes a pre-upstream authorization request and cannot inspect the later upstream response headers or body.",
+    "The HTTP ext_authz service alone observes a pre-upstream authorization request; the mandatory following private-UDS ext_proc response observer receives the corresponding upstream response headers and streaming body.",
     "The checked-in ext_authz configuration buffers at most 4096 request-body bytes with partial messages disabled; the existing minimal smoke sends no request body.",
     "Only the headers allowed by the ext_authz authorization_request configuration are forwarded to the authorization service.",
-    "The authorization service currently sees the Envoy-to-service socket endpoints and does not map original downstream connection endpoints into Common connection metadata."
+    "The authorization service currently sees the Envoy-to-service socket endpoints and does not map original downstream connection endpoints into Common connection metadata.",
+    "The opaque response handle is propagated only from ext_authz to the following local ext_proc observer and is removed before routing upstream; missing observer or correlation is fail-closed."
   ],
   "capabilities": {
     "connection_metadata": {

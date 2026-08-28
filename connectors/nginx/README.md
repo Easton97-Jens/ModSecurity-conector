@@ -57,7 +57,9 @@ selective intake is recorded per file in [the origin map](ORIGIN.md) and
   closed, while `msc_append_request_body()`,
   `msc_request_body_from_file()`, and `msc_append_response_body()` retain
   nonfatal `ProcessPartial` handling because that return signal also denotes
-  by-design limit truncation.
+  engine-level limit handling. That compatibility is separate from the
+  connector-owned Phase-4 body budget: an over-limit current buffer is
+  rejected before it can be forwarded downstream.
 - [PR #385](https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/385)
   at `471a2a54843bb8f560758a7e75b146db2243ab29` supplies selected
   response-header and pre-commit redirect-replacement handling. A task-local
@@ -94,7 +96,10 @@ Content-Type scope; when that inspection detects an out-of-scope intervention,
 the connector maps it to `log_only` with `content_type_not_in_scope`. This does
 not relax #384: final `msc_process_response_body()` processing remains
 fail-closed for a result other than `1`, while append/from-file
-`ProcessPartial` handling remains intentionally nonfatal.
+`ProcessPartial` handling remains intentionally nonfatal for accepted engine
+chunks. The connector's `modsecurity_phase4_body_limit` uses the Common reject
+plan before forwarding each in-scope memory or file buffer, so an over-limit
+buffer cannot release an uninspected tail.
 
 The strict isolated rebuild and C17, C23, and c2y passed, and the newly
 materialized build-source SHA matched the task filter. The selected native
@@ -262,7 +267,8 @@ The adapter-owned NGINX connector currently registers:
 - `modsecurity_phase4_mode minimal|safe|strict`
 - `modsecurity_phase4_content_types_file <path>`
 - `modsecurity_phase4_log <path>`
-- `modsecurity_phase4_body_limit <bytes>`
+- `modsecurity_phase4_body_limit <bytes>` (a positive effective limit; an
+  over-limit current buffer is rejected before downstream forwarding)
 
 `modsecurity_transaction_id` uses an NGINX complex value and may evaluate
 per-request variables. Apache-style `modsecurity_transaction_id_expr` is not
@@ -387,6 +393,13 @@ after the response-header path.  `response_body_buffered`, `phase4`,
 `implemented_not_asserted` until a current canonical real-host run proves the
 individual behavior.
 
+For a file-only NGINX buffer, the filter reads the visible `file_pos..file_last`
+range through one reusable 32 KiB scratch buffer and offers each bounded chunk
+once to P4. NGINX's memory-first buffer semantics prevent a mixed memory/file
+buffer from being counted twice. Invalid metadata, allocation failure, and a
+short or failed file read return a connector error before that current chain is
+forwarded; neither the scratch bytes nor response payloads enter event JSONL.
+
 A rule match must be reported independently from a visible 403.  Canonical
 events preserve the original host status, requested WAF status, visible client
 status, requested action, actual action, header/commit timing, and connection
@@ -399,7 +412,9 @@ The canonical Phase-4 cases are evidence-gated and include rule observation,
 pre-commit deny, safe log-only, strict abort, and status/action metadata.  No
 response-body payload may enter an event or report.
 
-The final-processing guard is intentionally narrower than body ingestion:
-`ProcessPartial` append/from-file handling does not become a generic 500 path.
-It therefore preserves the existing Safe/Strict Phase-4 outcome model rather
-than turning a partial-body limit decision into a late intervention claim.
+The final-processing guard remains narrower than engine append handling:
+`ProcessPartial` append/from-file handling does not by itself create a generic
+500 path. Separately, the connector-owned Phase-4 body limit uses bounded
+rejection before forwarding an oversized current buffer, so it cannot turn a
+partial-body limit decision into an uninspected downstream tail or a late
+intervention claim.

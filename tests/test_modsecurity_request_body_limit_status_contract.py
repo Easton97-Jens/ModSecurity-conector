@@ -14,7 +14,7 @@ class ModSecurityRequestBodyLimitStatusContractTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.source = RUNTIME_SOURCE.read_text(encoding="utf-8")
         match = re.search(
-            r"static int native_intervention_status\([\s\S]*?\n}\n\nstatic int native_decision",
+            r"static int native_is_request_body_limit_rejection\([\s\S]*?\n}\n\nstatic int native_decision",
             cls.source,
         )
         assert match is not None
@@ -52,6 +52,26 @@ class ModSecurityRequestBodyLimitStatusContractTest(unittest.TestCase):
         fallback = self.source.index("msconnector_block_status_is_allowed(intervention_status)")
         self.assertLess(invocation, fallback)
         self.assertIn("phase, &intervention", self.source[invocation:fallback])
+
+    def test_exact_limit_signature_uses_the_rule_id_free_body_limit_decision(self) -> None:
+        self.assertIn(
+            "body_limit = native_is_request_body_limit_rejection(phase, &intervention);",
+            self.source,
+        )
+        self.assertIn(
+            "msconnector_decision_set_body_limit(decision, native->reason);",
+            self.source,
+        )
+
+    def test_body_limit_terminal_and_host_actions_remain_413_denies(self) -> None:
+        self.assertIn(
+            "contract->error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT",
+            self.source,
+        )
+        self.assertIn("return 413;", self.source)
+        self.assertIn("msconnector_decision_is_body_limit(decision)", self.source)
+        self.assertIn("visible_http_status != 413", self.source)
+        self.assertIn("a body-limit decision requires an HTTP 413 deny action", self.source)
 
 
 if __name__ == "__main__":

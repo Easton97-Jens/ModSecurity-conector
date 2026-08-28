@@ -208,6 +208,30 @@ or a post-commit response point.  It therefore implements neither safe
 original/requested/visible-status metadata.  An agent timeout, agent failure,
 or generic HAProxy disconnect is not evidence of a late-intervention abort.
 
+### Mandatory native HTX response companion boundary
+
+The logical `haproxy-spoe-spop` solution requires a native HTX response
+companion for P3/P4. It must use the same HAProxy unique ID, claim one live
+transaction, forward bounded response headers and borrowed DATA slices, and
+finish exactly once at native `http_end`. Missing or duplicate correlation,
+cancel, timeout, and cleanup abort the transaction; an SPOP notification or
+`wait-for-body` sample is never an EOS signal.
+
+The production SPOP agent accepts `response-companion=native-htx` only with an
+explicit private companion socket, matching uid/gid, and a non-zero bounded
+response-body limit. The implemented combined profile registers the HTX request
+data filter after P1, binds the SPOP-published opaque handle to
+`stream->uniq_id`, and invokes the common response-header/DATA/EOS callbacks
+from HAProxy's `http_payload`/`http_end` hooks. A missing, malformed, expired,
+or duplicate handle remains fail-closed; the default `response-companion=none`
+path still rejects response-body activation because it has no response EOS
+transport. The repository-native current-source MRC1-v2 harness exercises the
+combined P1/P2-to-P3/P4 route locally; an external v1 artifact is not a
+substitute and this qualified local result is not a general production-readiness
+claim. Internal connector, protocol, timeout, unavailable, and invalid
+engine-response cleanup must use the corresponding typed MRC1 terminal cause,
+not a guessed client or upstream disconnect.
+
 The shared Phase-4 case set remains evidence-gated. Rule observation is
 separate from a client-visible 403; the semantic pre-commit, late-action, and
 status-metadata cases remain `NOT_EXECUTED` until their missing host behavior

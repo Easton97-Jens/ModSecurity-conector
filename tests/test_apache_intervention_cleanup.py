@@ -9,6 +9,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT / "connectors" / "apache" / "src" / "mod_security3.c"
+FILTERS = ROOT / "connectors" / "apache" / "src" / "msc_filters.c"
 C17_CHECK = (
     ROOT / "ci" / "checks" / "connectors" / "apache" / "check-apache-c-standards.sh"
 )
@@ -17,7 +18,12 @@ C17_CHECK = (
 def c_function(source: str, signature: str) -> str:
     """Return one complete C function body for the exact signature."""
     start = source.index(signature)
-    opening_brace = source.index("{", start)
+    while True:
+        opening_brace = source.index("{", start)
+        semicolon = source.index(";", start)
+        if opening_brace < semicolon:
+            break
+        start = source.index(signature, semicolon)
     depth = 0
     for index in range(opening_brace, len(source)):
         if source[index] == "{":
@@ -32,6 +38,7 @@ def c_function(source: str, signature: str) -> str:
 class ApacheInterventionCleanupTests(unittest.TestCase):
     def setUp(self) -> None:
         self.module_source = MODULE.read_text(encoding="utf-8")
+        self.filters_source = FILTERS.read_text(encoding="utf-8")
         self.source = c_function(
             self.module_source,
             "int process_intervention (Transaction *t, request_rec *r)",
@@ -94,6 +101,60 @@ class ApacheInterventionCleanupTests(unittest.TestCase):
         self.assertLess(self.source.index(assign), self.source.index(cleanup))
         self.assertIn("result = HTTP_MOVED_TEMPORARILY;", self.source)
         self.assertIn("result = intervention.status;", self.source)
+
+    def test_p3_intervention_records_a_canonical_terminal_decision_before_sink(self) -> None:
+        phase3 = c_function(
+            self.filters_source,
+            "static apr_status_t apache_output_filter_process_headers(",
+        )
+        mapper = c_function(
+            self.module_source,
+            "int msc_apache_contract_record_intervention_decision(msc_t *msr)",
+        )
+        decision_kind_mapper = c_function(
+            self.module_source,
+            "static msconnector_transaction_decision_kind apache_intervention_decision_kind(",
+        )
+        decision_wrapper = c_function(
+            self.module_source,
+            "int msc_apache_contract_record_decision(",
+        )
+        failure_wrapper = c_function(
+            self.module_source,
+            "int msc_apache_contract_fail(",
+        )
+
+        complete = phase3.index("msc_apache_contract_complete(msr,")
+        record = phase3.index("msc_apache_contract_record_intervention_decision(msr)")
+        failure = phase3.index(
+            "MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE", record
+        )
+        event = phase3.index("apache_phase3_log_event(msr, r, wanted, wanted, original_status)")
+        sink = phase3.index(
+            "apache_send_precommit_terminal_error(msr, filter, brigade,", event
+        )
+        self.assertLess(complete, record)
+        self.assertLess(record, event)
+        self.assertLess(event, sink)
+        self.assertLess(record, failure)
+        self.assertLess(failure, sink)
+        self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE", phase3)
+        self.assertIn("char rule_id[MSCONNECTOR_MAX_RULE_ID_LENGTH]", mapper)
+        self.assertIn("msconnector_rule_id_extract_from_message", mapper)
+        self.assertIn("MSCONNECTOR_TRANSACTION_DECISION_REDIRECT", decision_kind_mapper)
+        self.assertIn("MSCONNECTOR_TRANSACTION_DECISION_RATE_LIMIT", decision_kind_mapper)
+        self.assertIn("MSCONNECTOR_TRANSACTION_DECISION_BLOCK", decision_kind_mapper)
+        self.assertIn("HTTP_TOO_MANY_REQUESTS", decision_kind_mapper)
+        self.assertNotIn("last_intervention_status >= 300", decision_kind_mapper)
+        for redirect_status in ("case 301:", "case 302:", "case 303:", "case 307:"):
+            with self.subTest(redirect_status=redirect_status):
+                self.assertIn(redirect_status, decision_kind_mapper)
+        self.assertIn("apache_intervention_decision_kind", mapper)
+        self.assertIn("msc_apache_contract_record_decision(msr, kind, rule_id)", mapper)
+        self.assertIn("msconnector_transaction_contract_record_decision", decision_wrapper)
+        self.assertIn("apache_contract_now_ms()", decision_wrapper)
+        self.assertIn("msconnector_transaction_contract_fail", failure_wrapper)
+        self.assertIn("apache_contract_now_ms()", failure_wrapper)
 
     def test_changed_translation_unit_and_regression_are_in_required_wiring(self) -> None:
         source_list = C17_CHECK.read_text(encoding="utf-8")

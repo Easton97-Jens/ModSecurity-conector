@@ -13,6 +13,11 @@ FILTERS = ROOT / "connectors/apache/src/msc_filters.c"
 UTILS = ROOT / "connectors/apache/src/msc_utils.c"
 ROGUE_HANDLER = ROOT / "connectors/apache/harness/mod_phase4_terminal_rogue.c"
 PHASE4_RESPONSE_BODY_MARKER = "no-crs-response-body-marker"
+APACHE_EXAMPLE_README = ROOT / "examples/apache/README.md"
+APACHE_EXAMPLE_README_DE = ROOT / "examples/apache/README.de.md"
+APACHE_SAFE_CONFIGURATION = ROOT / "examples/apache/safe/httpd.conf"
+APACHE_CONFIGURATION_REFERENCE = ROOT / "examples/apache/configuration-reference.md"
+APACHE_CONFIGURATION_REFERENCE_DE = ROOT / "examples/apache/configuration-reference.de.md"
 
 
 class ApachePhase4ResponseRegressionWiringTest(unittest.TestCase):
@@ -155,19 +160,25 @@ class ApachePhase4ResponseRegressionWiringTest(unittest.TestCase):
                 for marker in markers:
                     self.assertIn(marker, source)
 
-    def test_all_mime_phase4_gate_uses_setaside_and_terminal_cleanup(self) -> None:
+    def test_all_mime_phase4_path_streams_the_pre_eos_prefix_and_keeps_only_eos(self) -> None:
         filters = FILTERS.read_text(encoding="utf-8")
         utils = UTILS.read_text(encoding="utf-8")
         self.assertIn("apache_output_filter_prepare_response_brigade(msr, conf, f, &bb_in,", filters)
-        self.assertIn("ap_save_brigade(filter, &msr->response_brigade, brigade,", filters)
+        self.assertIn("apr_brigade_split_ex(bb_in, eos_bucket, NULL)", filters)
         self.assertIn("apache_phase4_release_response_brigade", filters)
         self.assertIn("apache_phase4_normalize_response_brigade", filters)
         self.assertIn("APR_BUCKET_IS_FLUSH(bucket)", filters)
-        self.assertIn("bucket->length == 0", filters)
+        self.assertNotIn("ap_save_brigade(", filters)
+        self.assertNotIn("MSCONNECTOR_PHASE4_MAX_HELD_BUCKETS", filters)
+        self.assertNotIn("response_brigade_bucket_count", filters)
+        self.assertIn("pre-EOS prefix immediately", filters)
+        self.assertIn("terminal EOS fragment", filters)
+        self.assertIn("next-filter invocation is the Apache commitment boundary", filters)
+        self.assertIn("(starts_response || terminal) && !msr->response.committed", filters)
+        self.assertIn("A progressive downstream failure may already have exposed a body", filters)
+        self.assertIn("apache_phase4_release_response_brigade(msr, f, bb_in, 0)", filters)
+        self.assertIn("terminal_brigade,\n        1)", filters)
         self.assertIn("MSCONNECTOR_BODY_LIMIT_ACTION_REJECT", filters)
-        self.assertIn("MSCONNECTOR_PHASE4_MAX_HELD_BUCKETS 4096U", filters)
-        self.assertIn("response_brigade_bucket_count", filters)
-        self.assertIn("response brigade exceeds modsecurity_phase4_bucket_limit", filters)
         self.assertIn("response_brigade_bucket_count = 0U;", utils)
         self.assertIn("APACHE_PHASE4_FRAGMENTED_BUCKETS_TEST", HARNESS.read_text(encoding="utf-8"))
         self.assertIn("APACHE_PHASE4_FRAGMENTED_BUCKET_BOUNDARY_TEST", HARNESS.read_text(encoding="utf-8"))
@@ -186,7 +197,7 @@ class ApachePhase4ResponseRegressionWiringTest(unittest.TestCase):
         self.assertIn("r->bytes_sent > 0", filters)
         self.assertIn("response_phase4_eos_released", filters)
         self.assertNotIn("|| r->eos_sent", filters)
-        self.assertIn("missing saved response brigade", filters)
+        self.assertIn("missing progressive response brigade", filters)
         self.assertIn("response_phase4_gate_failed", filters)
         self.assertIn("if (msr->response_phase4_eos_released)", filters)
         self.assertIn("r->connection->aborted = 1", filters)
@@ -199,6 +210,33 @@ class ApachePhase4ResponseRegressionWiringTest(unittest.TestCase):
         self.assertNotIn("ap_bucket_eoc_create", filters)
         self.assertNotIn("ap_flush_conn(r->connection)", filters)
         self.assertIn("msc_discard_response_brigade(msr);", utils)
+
+    def test_example_guidance_matches_the_progressive_phase4_contract(self) -> None:
+        english = APACHE_EXAMPLE_README.read_text(encoding="utf-8")
+        german = APACHE_EXAMPLE_README_DE.read_text(encoding="utf-8")
+        safe = APACHE_SAFE_CONFIGURATION.read_text(encoding="utf-8")
+        reference = APACHE_CONFIGURATION_REFERENCE.read_text(encoding="utf-8")
+        reference_de = APACHE_CONFIGURATION_REFERENCE_DE.read_text(encoding="utf-8")
+
+        self.assertIn("[comprehensive reference](all/httpd.conf)", english)
+        self.assertIn("[vollständige Referenz](all/httpd.conf)", german)
+        self.assertIn("forwards that\nbucket to the next Apache filter without waiting for EOS", english)
+        self.assertIn("leitet diesen\nBucket anschließend ohne Warten auf EOS an den nächsten Apache-Filter weiter", german)
+        self.assertIn("No full response copy is\nkept by this filter.", english)
+        self.assertIn("Dieser Filter hält keine vollständige Response-Kopie.", german)
+        self.assertNotIn("retains every\nnormalized response brigade through first EOS", english)
+        self.assertNotIn("Apache saves all normalized output\nbrigades through first EOS", english)
+        self.assertNotIn("hält aber jede\nnormalisierte Response-Brigade bis zum ersten EOS zurück", german)
+        self.assertNotIn("Apache speichert alle\nnormalisierten Output-Brigades bis zum ersten EOS", german)
+        self.assertIn("forwards\n# non-terminal output without waiting for EOS", safe)
+        self.assertNotIn("retains every normalized response through first EOS", safe)
+        self.assertIn("forwards non-terminal output to the next filter without waiting for EOS", reference)
+        self.assertIn("retains only the terminal EOS fragment", reference)
+        self.assertNotIn("retains every normalized response brigade through first EOS", reference)
+        self.assertNotIn("saved all-response brigade", reference)
+        self.assertIn("leitet nichtterminale Ausgabe ohne Warten auf EOS an den nächsten Filter weiter", reference_de)
+        self.assertIn("hält nur das terminale EOS-Fragment", reference_de)
+        self.assertNotIn("hält jede normalisierte Response-Brigade bis zum ersten EOS zurück", reference_de)
 
     def test_rogue_handler_exercises_late_output_after_a_phase4_eos(self) -> None:
         harness = HARNESS.read_text(encoding="utf-8")
@@ -284,11 +322,13 @@ class ApachePhase4ResponseRegressionWiringTest(unittest.TestCase):
         self.assertIn("ap_hook_handler(hook_phase4_redirect_handler", connector)
         self.assertIn("apache_phase4_terminal_error_redirect_note", connector)
 
-    def test_downstream_apache_error_document_is_a_bounded_allow_path(self) -> None:
+    def test_downstream_apache_error_after_commit_is_a_bounded_abort_path(self) -> None:
         harness = HARNESS.read_text(encoding="utf-8")
         handler = ROGUE_HANDLER.read_text(encoding="utf-8")
         runner = RUNNER.read_text(encoding="utf-8")
-        connector = (ROOT / "connectors/apache/src/mod_security3.c").read_text(encoding="utf-8")
+        downstream_start = harness.index("send_phase4_downstream_error_request() {")
+        downstream_end = harness.index("send_phase4_upstream_error_request() {", downstream_start)
+        downstream = harness[downstream_start:downstream_end]
         self.assertIn("APACHE_PHASE4_DOWNSTREAM_ERROR_TEST", harness)
         self.assertIn("APACHE_PHASE4_UPSTREAM_ERROR_TEST", harness)
         self.assertIn("send_phase4_downstream_error_request", harness)
@@ -308,16 +348,37 @@ class ApachePhase4ResponseRegressionWiringTest(unittest.TestCase):
         self.assertIn("AP_BUCKET_IS_ERROR", FILTERS.read_text(encoding="utf-8"))
         self.assertIn("apache_phase4_error_bucket_status", FILTERS.read_text(encoding="utf-8"))
         filters = FILTERS.read_text(encoding="utf-8")
-        self.assertIn("ap_die(status, r)", filters)
-        self.assertIn("r->status = HTTP_OK", filters)
-        self.assertIn("r->status_line = NULL", filters)
-        self.assertNotIn("ap_send_error_response(r, 0)", filters)
-        self.assertIn("REDIRECT_STATUS", connector)
-        self.assertIn("ap_is_HTTP_ERROR(r->prev->status)", connector)
-        self.assertIn("no_local_copy", connector)
-        self.assertIn("response_phase4_terminal_error_redirect_seen", connector)
-        self.assertIn("assert_phase4_error_document_headers", harness)
-        self.assertIn("X-Phase4-Original-Response", handler)
+        self.assertIn("apache_emit_contract_failure_event_with_action", filters)
+        self.assertIn('"abort_connection"', filters)
+        self.assertIn(
+            "Phase-4 downstream error must abort the post-commit response",
+            downstream,
+        )
+        self.assertIn('"actual_action":"abort_connection"', downstream)
+        self.assertIn('"connection_aborted":true', downstream)
+        self.assertIn('"transport_result":"connection_aborted"', downstream)
+        self.assertIn('grep -F "$HTTP2_PROTOCOL_LABEL"', downstream)
+        self.assertIn('grep -E "$CURL_H2_ALPN_ACCEPT_PATTERN"', downstream)
+        self.assertNotIn(
+            "Phase-4 downstream error TLS client did not negotiate HTTP/2",
+            downstream,
+        )
+        self.assertNotIn("assert_phase4_error_document_headers", downstream)
+        self.assertNotIn(
+            "sole configured ErrorDocument body", downstream
+        )
+
+    def test_downstream_output_failure_is_a_canonical_connector_error(self) -> None:
+        filters = FILTERS.read_text(encoding="utf-8")
+        start = filters.index("static apr_status_t apache_phase4_release_response_brigade")
+        end = filters.index("apr_status_t phase4_terminal_guard_filter", start)
+        release = filters[start:end]
+
+        self.assertIn("rc = ap_pass_brigade(f->next, brigade);", release)
+        self.assertIn("if (rc != APR_SUCCESS)", release)
+        self.assertIn("msc_apache_contract_fail(msr,", release)
+        self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR", release)
+        self.assertIn("response_phase4_terminal_output", release)
 
     def test_error_document_redirect_boundary_is_single_hop_and_preoutput_fail_closed(self) -> None:
         harness = HARNESS.read_text(encoding="utf-8")

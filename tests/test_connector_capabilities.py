@@ -293,7 +293,7 @@ class ConnectorCapabilitiesTest(unittest.TestCase):
         cases = (
             ("envoy", "configured_not_exercised", ("request_body_buffered", "phase2")),
             ("envoy", "unsupported_by_host_model", shared_capabilities),
-            ("traefik", "not_implemented", ("request_body_buffered", "phase2")),
+            ("traefik", "configured_not_exercised", ("request_body_buffered", "phase2")),
             (
                 "traefik",
                 "unsupported_by_host_model",
@@ -327,6 +327,46 @@ class ConnectorCapabilitiesTest(unittest.TestCase):
                         ),
                         errors,
                     )
+
+    def test_companion_profiles_distinguish_direct_service_from_logical_connector(self) -> None:
+        expected = {
+            "envoy": (
+                "http-ext-authz-service",
+                "private-uds-ext-proc-response-observer",
+            ),
+            "traefik": (
+                "http-forwardauth-service",
+                "private-uds-response-observer-plugin",
+            ),
+        }
+        for connector, (request_component, response_component) in expected.items():
+            with self.subTest(connector=connector):
+                contract = self.manifests[connector]["logical_transaction_contract"]
+                host_path = contract["host_path"]
+                self.assertEqual(host_path["request_component"], request_component)
+                self.assertEqual(host_path["response_component"], response_component)
+                self.assertEqual(
+                    host_path["logical_connector"],
+                    "request_component + response_component",
+                )
+                self.assertEqual(host_path["direct_service_phases"], ["P1", "P2"])
+                self.assertEqual(
+                    host_path["logical_connector_phases"], ["P1", "P2", "P3", "P4"]
+                )
+                self.assertEqual(
+                    host_path["direct_service_response_phases"],
+                    "not_exposed_by_protocol",
+                )
+                self.assertEqual(host_path["logical_connector_status"], contract["state"])
+                self.assertEqual(contract["state"], "implemented_not_asserted")
+                self.assertEqual(
+                    self.manifests[connector]["capabilities"]["phase3"]["state"],
+                    "unsupported_by_host_model",
+                )
+                self.assertEqual(
+                    self.manifests[connector]["capabilities"]["phase4"]["state"],
+                    "unsupported_by_host_model",
+                )
 
     def test_host_model_state_requirements_are_deeply_immutable(self) -> None:
         requirements = connector_capabilities._HOST_MODEL_REQUIRED_STATES
@@ -502,12 +542,24 @@ class ConnectorCapabilitiesTest(unittest.TestCase):
         run_dir = ROOT / "evidence" / "apache" / "ci-123"
         manifest_path = ROOT / "connectors/apache/capabilities.json"
         completed = subprocess.CompletedProcess([], 0, stdout="ok", stderr="")
-        with mock.patch.object(
-            connector_capabilities.subprocess, "run", return_value=completed
-        ) as run:
-            errors = connector_capabilities._validate_evidence_run(
-                "apache", run_dir, manifest_path
-            )
+        with tempfile.TemporaryDirectory() as temporary:
+            validator = Path(temporary) / "no_crs_baseline.py"
+            validator.write_text("# test validator\n", encoding="utf-8")
+            with (
+                mock.patch.object(
+                    connector_capabilities,
+                    "FRAMEWORK_NO_CRS_TOOL",
+                    validator,
+                ),
+                mock.patch.object(
+                    connector_capabilities.subprocess,
+                    "run",
+                    return_value=completed,
+                ) as run,
+            ):
+                errors = connector_capabilities._validate_evidence_run(
+                    "apache", run_dir, manifest_path
+                )
 
         self.assertEqual(errors, [])
         command = run.call_args.args[0]

@@ -3,6 +3,37 @@
   "connector": "traefik",
   "host_name": "traefik",
   "integration_mode": "http-forwardauth-service",
+  "transaction_contract_profiles": [
+    "traefik-forwardauth",
+    "traefik-native-uds"
+  ],
+  "transaction_contract_note": "forwardAuth plus its mandatory private-UDS response observer use the same opaque-handle Common P3/P4 companion contract; Native UDS maps all phases directly through Common Runtime.",
+  "logical_transaction_contract": {
+    "state": "implemented_not_asserted",
+    "host_path": {
+      "request_component": "http-forwardauth-service",
+      "response_component": "private-uds-response-observer-plugin",
+      "logical_connector": "request_component + response_component",
+      "direct_service_phases": ["P1", "P2"],
+      "logical_connector_phases": ["P1", "P2", "P3", "P4"],
+      "direct_service_response_phases": "not_exposed_by_protocol",
+      "logical_connector_status": "implemented_not_asserted"
+    },
+    "scope": "The legacy capability table below describes the direct request-only forwardAuth service. This object describes the required complete logical connector and must be used for P1-P4 contract assessment.",
+    "phases": {
+      "P1": "forwardAuth authorization service maps request headers into Common Runtime",
+      "P2": "forwardAuth buffers the bounded request body with forwardBody=true and maxBodySize=4096, then the authorization service supplies the configured Common request EOS",
+      "P3": "following private-UDS response-observer plugin claims the opaque handle and maps response headers before writer commitment",
+      "P4": "same observer maps bounded response chunks and exactly one EOS through MRC1"
+    },
+    "correlation": "server-generated 256-bit opaque handle; one claim; transaction and host IDs remain internal",
+    "failure_behavior": "missing observer, malformed/replayed handle, MRC1 error, deadline, or cleanup failure is fail-closed",
+    "evidence": [
+      "connectors/traefik/src/traefik_forwardauth_service_main.c",
+      "connectors/traefik/config/traefik-forwardauth-dynamic.yaml",
+      "connectors/traefik/response_observer/observer.go"
+    ]
+  },
   "metadata_source": "connectors/traefik/metadata.c",
   "external_references": [
     {
@@ -16,6 +47,10 @@
     "connectors/traefik/config/traefik-forwardauth-dynamic.yaml",
     "connectors/traefik/config/traefik-forwardauth.conf",
     "connectors/traefik/src/traefik_forwardauth_service_main.c",
+    "connectors/traefik/src/traefik_forwardauth_response_companion.c",
+    "connectors/traefik/response_observer/observer.go",
+    "connectors/traefik/config/traefik-response-observer-static.yaml",
+    "connectors/traefik/config/traefik-response-observer-dynamic.yaml",
     "connectors/traefik/src/traefik_modsecurity_mapper.c",
     "connectors/traefik/scripts/runtime_smoke.py",
     "connectors/traefik/native_middleware/middleware.go",
@@ -26,11 +61,12 @@
     "connectors/traefik/scripts/runtime_native_smoke.py"
   ],
   "host_model_constraints": [
-    "The selected forwardAuth service observes the authorization request before the upstream request and cannot inspect the later upstream response headers or body.",
-    "Traefik v3.7 supports buffered forwardAuth request bodies with forwardBody and maxBodySize, but the checked-in dynamic configuration does not enable them and the service config sets request_body_mode=none.",
+    "The forwardAuth service alone observes the authorization request before upstream handling; the mandatory following response-observer plugin receives the corresponding response headers and streaming body.",
+    "Traefik v3.7 supports buffered forwardAuth request bodies with forwardBody and maxBodySize; the checked-in dynamic configuration enables both with a 4096-byte cap and the service config requires request_body_mode=buffered.",
     "Traefik documents that forwardBody buffering breaks streaming, so streaming request-body inspection is outside this host path.",
     "The authorization service currently sees the Traefik-to-service socket endpoints and does not map original client connection endpoints into Common connection metadata.",
-    "The full-lifecycle profile separately selects native-middleware through full-lifecycle-traefik-native in a pinned Traefik local-plugin host probe. Its selected UDS engine service performs Common/libmodsecurity evaluation, while this forwardAuth compatibility declaration remains separate and unpromoted."
+    "The full-lifecycle profile separately selects native-middleware through full-lifecycle-traefik-native in a pinned Traefik local-plugin host probe. Its selected UDS engine service performs Common/libmodsecurity evaluation, while this forwardAuth compatibility declaration remains separate and unpromoted.",
+    "The opaque response handle is propagated only from forwardAuth to the following local response observer and is removed before the upstream handler; missing observer or correlation is fail-closed."
   ],
   "capabilities": {
     "connection_metadata": {
@@ -42,8 +78,8 @@
       "reason": "Configured forwardAuth request headers are mapped into Common Runtime; canonical multi-header and limit evidence is pending."
     },
     "request_body_buffered": {
-      "state": "not_implemented",
-      "reason": "Traefik v3.7 supports forwardBody plus maxBodySize, but the checked-in middleware omits both and the connector config disables request bodies; see the versioned official reference."
+      "state": "configured_not_exercised",
+      "reason": "The checked-in middleware explicitly sets forwardBody=true and maxBodySize=4096, and the service requires request_body_mode=buffered; a fresh real-host P2 result is still required for runtime promotion."
     },
     "request_body_streaming": {
       "state": "unsupported_by_host_model",
@@ -66,8 +102,8 @@
       "reason": "The forwardAuth request headers enter the Common Runtime Phase-1 path; a fresh canonical baseline result is pending."
     },
     "phase2": {
-      "state": "not_implemented",
-      "reason": "The checked-in host middleware does not set forwardBody and the connector config disables request-body processing."
+      "state": "configured_not_exercised",
+      "reason": "The checked-in forwardAuth path buffers and bounds P2 at 4096 bytes, and the start harness rejects templates that omit either setting; a fresh real-host P2 result is still required."
     },
     "phase3": {
       "state": "unsupported_by_host_model",
@@ -147,7 +183,7 @@
     },
     "request_body_incremental_ingest": {
       "state": "unsupported_by_host_model",
-      "reason": "The selected forwardAuth path disables request bodies, and Traefik forwardBody is buffered rather than incremental when enabled."
+      "reason": "Traefik forwardBody buffers the bounded body before authorization and does not provide incremental request-body callbacks."
     },
     "response_body_incremental_ingest": {
       "state": "unsupported_by_host_model",
@@ -166,8 +202,8 @@
       "reason": "Forwarded request headers have no connector-local canonical header-limit enforcement contract."
     },
     "request_body_limits": {
-      "state": "not_implemented",
-      "reason": "The checked-in forwardAuth middleware disables request-body forwarding and defines no active request-body limit behavior."
+      "state": "configured_not_exercised",
+      "reason": "Traefik maxBodySize=4096 and the Common request_body_limit=4096 are explicitly configured; a fresh real-host over-limit result is still required."
     },
     "response_body_limits": {
       "state": "unsupported_by_host_model",

@@ -49,6 +49,65 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         self.assertIn("ngx_pool_cleanup_add(r->pool, 0)", create_ctx)
         self.assertIn("return ctx;", create_ctx)
 
+    def test_request_derived_transaction_id_is_validated_before_retention_or_native_use(self) -> None:
+        create_ctx = function_definition(
+            self.module, "ngx_http_modsecurity_create_ctx"
+        )
+        validation = create_ctx.index(
+            "msconnector_transaction_contract_validate_transaction_id_bytes"
+        )
+        retention = create_ctx.index("transaction_id = ngx_pnalloc", validation)
+        native = create_ctx.index("msc_new_transaction_with_id", retention)
+        contract = create_ctx.index("msconnector_transaction_contract_init")
+        self.assertLess(validation, retention)
+        self.assertLess(retention, contract)
+        self.assertLess(contract, native)
+        self.assertIn("s.data == NULL", create_ctx)
+        self.assertIn(
+            "invalid canonical transaction identifier", create_ctx
+        )
+        native_failure = conditional_block(
+            create_ctx, "if (ctx->modsec_transaction == NULL)"
+        )
+        self.assertIn(
+            "msconnector_transaction_contract_cleanup(&ctx->contract, 0U);",
+            native_failure,
+        )
+        self.assertIn("ctx->contract_initialized = 0;", native_failure)
+
+    def test_disruptive_interventions_record_terminal_contract_decisions_before_host_sinks(self) -> None:
+        record = function_definition(
+            self.module, "ngx_http_modsecurity_contract_record_intervention"
+        )
+        intervention = function_definition(
+            self.module, "ngx_http_modsecurity_process_intervention"
+        )
+
+        self.assertIn("ctx->contract_initialized", record)
+        self.assertIn("MSCONNECTOR_TRANSACTION_DECISION_REDIRECT", record)
+        self.assertIn("MSCONNECTOR_TRANSACTION_DECISION_RATE_LIMIT", record)
+        self.assertIn("MSCONNECTOR_TRANSACTION_DECISION_BLOCK", record)
+        self.assertIn("NGX_HTTP_TOO_MANY_REQUESTS", record)
+        self.assertIn("ctx->last_intervention_rule_id", record)
+        self.assertIn("msconnector_transaction_contract_record_decision", record)
+        self.assertIn("MSCONNECTOR_TRANSACTION_TRANSITION_OK", record)
+        self.assertIn("canonical intervention decision", record)
+
+        self.assertIn("if (intervention.log != NULL)", intervention)
+        self.assertNotIn(
+            "mcf->phase4_log_file != NULL && intervention.log != NULL",
+            intervention,
+        )
+        extract = intervention.index("msconnector_rule_id_extract_from_message")
+        terminal = intervention.index(
+            "ngx_http_modsecurity_contract_record_intervention(r, ctx, &intervention)"
+        )
+        redirect = intervention.index("ngx_http_modsecurity_process_redirect_intervention")
+        status = intervention.index("ngx_http_modsecurity_process_status_intervention")
+        self.assertLess(extract, terminal)
+        self.assertLess(terminal, redirect)
+        self.assertLess(terminal, status)
+
     def test_final_body_processing_accepts_only_success_one(self) -> None:
         request = function_definition(
             self.access, "ngx_http_modsecurity_inspect_request_body"
@@ -99,7 +158,7 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         )
 
         response_append = function_definition(
-            self.body, "ngx_http_modsecurity_append_limited_response_body"
+            self.body, "ngx_http_modsecurity_append_response_body_chunk"
         )
         self.assertRegex(
             response_append,
@@ -139,7 +198,11 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         self.assertNotIn("ngx_http_filter_finalize_request", negative)
 
         body_filter = function_definition(self.body, "ngx_http_modsecurity_body_filter")
-        self.assertIn("ngx_http_modsecurity_process_final_response_body", body_filter)
+        terminal = function_definition(
+            self.body, "ngx_http_modsecurity_finalize_terminal_response_body"
+        )
+        self.assertIn("ngx_http_modsecurity_process_response_body_chain", body_filter)
+        self.assertIn("ngx_http_modsecurity_process_final_response_body", terminal)
         body_intervention = function_definition(
             self.body, "ngx_http_modsecurity_process_final_response_body"
         )
@@ -233,14 +296,16 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
             "if (r->headers_out.location != NULL)", positive_intervention
         )
 
-        body_filter = function_definition(self.body, "ngx_http_modsecurity_body_filter")
+        prepare = function_definition(
+            self.body, "ngx_http_modsecurity_prepare_response_body_filter"
+        )
         replacement_drain = function_definition(
             self.body, "ngx_http_modsecurity_discard_replaced_response_body"
         )
-        response_replaced = conditional_block(body_filter, "if (ctx->response_replaced)")
+        response_replaced = conditional_block(prepare, "if (ctx->response_replaced)")
         self.assertLess(
-            body_filter.index("if (ctx->response_replaced)"),
-            body_filter.index("if (ctx->intervention_triggered)"),
+            prepare.index("if (ctx->response_replaced)"),
+            prepare.index("if (ctx->intervention_triggered || ctx->phase4_processed)"),
         )
         self.assertRegex(
             replacement_drain,
@@ -250,7 +315,12 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
             "ngx_http_modsecurity_discard_replaced_response_body(in);",
             response_replaced,
         )
-        self.assertIn("return ngx_http_next_body_filter(r, in);", response_replaced)
+        self.assertIn("return NGX_DECLINED;", response_replaced)
+        body_filter = function_definition(self.body, "ngx_http_modsecurity_body_filter")
+        self.assertIn(
+            "return ngx_http_next_body_filter(r, in);",
+            conditional_block(body_filter, "if (status == NGX_DECLINED)"),
+        )
 
     def test_response_protocol_metadata_and_transaction_grammar_are_exact(self) -> None:
         content_length = function_definition(
@@ -312,35 +382,104 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
 
     def test_phase4_finalization_stops_inspection_but_keeps_forwarding(self) -> None:
         body_filter = function_definition(self.body, "ngx_http_modsecurity_body_filter")
-        append = body_filter.index("ngx_http_modsecurity_append_limited_response_body")
-        already_finalized = body_filter.index("if (ctx->phase4_processed)")
-        self.assertLess(already_finalized, append)
+        prepare = function_definition(
+            self.body, "ngx_http_modsecurity_prepare_response_body_filter"
+        )
+        body_chain = function_definition(
+            self.body, "ngx_http_modsecurity_process_response_body_chain"
+        )
+        terminal = function_definition(
+            self.body, "ngx_http_modsecurity_finalize_terminal_response_body"
+        )
+        append = body_chain.index("ngx_http_modsecurity_append_response_chain_buffer")
+        already_finalized = prepare.index(
+            "if (ctx->intervention_triggered || ctx->phase4_processed)"
+        )
+        self.assertLess(already_finalized, prepare.index("*context = ctx;"))
         self.assertIn(
             "return ngx_http_next_body_filter(r, in);",
-            conditional_block(body_filter, "if (ctx->phase4_processed)"),
+            conditional_block(body_filter, "if (status == NGX_DECLINED)"),
         )
 
-        finalized = body_filter.index("ctx->phase4_processed = 1;")
-        tail = body_filter[finalized:]
+        tail = body_chain[
+            body_chain.index("ngx_http_modsecurity_finalize_terminal_response_body") :
+        ]
         self.assertIn("break;", tail)
         self.assertIn("return ngx_http_next_body_filter(r, in);", tail)
         self.assertLess(tail.index("break;"), tail.rindex("return ngx_http_next_body_filter(r, in);"))
+        self.assertLess(
+            append,
+            body_chain.index("ngx_http_modsecurity_finalize_terminal_response_body"),
+        )
+        self.assertIn("ngx_http_modsecurity_process_final_response_body", terminal)
+
+    def test_terminal_chain_releases_progressive_prefix_before_eos_decision(self) -> None:
+        body_chain = function_definition(
+            self.body, "ngx_http_modsecurity_process_response_body_chain"
+        )
+        prefix = function_definition(
+            self.body, "ngx_http_modsecurity_forward_response_body_prefix"
+        )
+        self.assertIn("ngx_chain_t *segment_start = in;", body_chain)
+        self.assertIn("ngx_chain_t *segment_previous = NULL;", body_chain)
+        self.assertIn("segment_previous->next = NULL;", prefix)
+        self.assertIn("prefix_ret = ngx_http_next_body_filter(r, segment_start);", prefix)
+        self.assertIn("segment_previous->next = chain;", prefix)
+        self.assertLess(
+            body_chain.index("ngx_http_modsecurity_forward_response_body_prefix"),
+            body_chain.index("ngx_http_modsecurity_finalize_terminal_response_body"),
+        )
+
+    def test_phase4_counter_and_late_policy_preserve_exact_body_start_state(self) -> None:
+        plan = function_definition(
+            self.body, "ngx_http_modsecurity_plan_limited_response_body"
+        )
+        self.assertIn("msconnector_body_limit_plan_chunk", plan)
+        self.assertIn("MSCONNECTOR_BODY_LIMIT_ACTION_REJECT", plan)
+        self.assertNotIn("MSCONNECTOR_BODY_LIMIT_ACTION_PROCESS_PARTIAL", plan)
+        self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT", plan)
+        self.assertLess(
+            plan.index("MSCONNECTOR_BODY_LIMIT_ACTION_REJECT"),
+            plan.index("ctx->response_body_bytes_seen = plan.bytes_seen;"),
+        )
+        rejected = conditional_block(plan, "if (!msconnector_body_limit_plan_chunk")
+        self.assertIn("ctx->response_body_truncated = 1;", rejected)
+        self.assertIn("return NGX_ERROR;", rejected)
+
+        phase4 = function_definition(
+            self.body, "ngx_http_modsecurity_phase4_handle_intervention"
+        )
+        resolver = phase4[phase4.index("msconnector_late_intervention_resolve"):]
+        self.assertIn("ngx_http_modsecurity_phase4_response_started(r, ctx)", resolver)
+        self.assertNotIn(
+            "r->header_sent ? 1 : 0,\n        r->header_sent ? 1 : 0",
+            resolver,
+        )
 
     def test_out_of_scope_phase4_body_is_not_exposed_and_is_mapped_log_only(self) -> None:
-        append = function_definition(
-            self.body, "ngx_http_modsecurity_append_limited_response_body"
+        plan = function_definition(
+            self.body, "ngx_http_modsecurity_plan_limited_response_body"
         )
-        self.assertNotIn("in_scope", append)
-        self.assertIn("phase4_body_limit", append)
+        append = function_definition(
+            self.body, "ngx_http_modsecurity_append_response_body_chunk"
+        )
+        self.assertNotIn("in_scope", plan)
+        self.assertIn("phase4_body_limit", plan)
         self.assertIn("msc_append_response_body", append)
 
-        body_filter = function_definition(self.body, "ngx_http_modsecurity_body_filter")
+        body_chain = function_definition(
+            self.body, "ngx_http_modsecurity_process_response_body_chain"
+        )
+        append_chain = function_definition(
+            self.body, "ngx_http_modsecurity_append_response_chain_buffer"
+        )
         self.assertIn(
             "phase4_in_scope = ngx_http_modsecurity_phase4_in_scope(r)",
-            body_filter,
+            body_chain,
         )
-        scoped_append = conditional_block(body_filter, "if (phase4_in_scope != 0")
-        self.assertIn("ngx_http_modsecurity_append_limited_response_body", scoped_append)
+        scoped_append = conditional_block(append_chain, "if (phase4_in_scope == 0)")
+        self.assertIn("return NGX_OK;", scoped_append)
+        self.assertIn("ngx_http_modsecurity_append_response_body_buffer", append_chain)
 
         phase4 = function_definition(
             self.body, "ngx_http_modsecurity_phase4_handle_intervention"
@@ -354,6 +493,58 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         ]
         self.assertIn("checks its configured response Content-Type scope", scope_reason)
         self.assertIn("out-of-scope response bodies are not appended", scope_reason)
+
+    def test_file_backed_phase4_buffers_are_boundedly_materialized(self) -> None:
+        body_chain = function_definition(
+            self.body, "ngx_http_modsecurity_process_response_body_chain"
+        )
+        append_chain = function_definition(
+            self.body, "ngx_http_modsecurity_append_response_chain_buffer"
+        )
+        buffer_append = function_definition(
+            self.body, "ngx_http_modsecurity_append_response_body_buffer"
+        )
+        file_append = function_definition(
+            self.body, "ngx_http_modsecurity_append_file_response_body"
+        )
+        plan = function_definition(
+            self.body, "ngx_http_modsecurity_plan_limited_response_body"
+        )
+
+        self.assertIn("ngx_http_modsecurity_append_response_body_buffer", append_chain)
+        self.assertIn("if (ngx_buf_in_memory(buffer))", buffer_append)
+        self.assertIn("if (buffer->in_file)", buffer_append)
+        memory_append = conditional_block(
+            buffer_append, "if (ngx_buf_in_memory(buffer))"
+        )
+        self.assertIn("u_char *data = buffer->pos;", memory_append)
+        self.assertIn("buffer->last >= buffer->pos", memory_append)
+        self.assertNotIn(
+            "u_char *data = buffer->pos;",
+            buffer_append[: buffer_append.index("if (ngx_buf_in_memory(buffer))")],
+        )
+        file_call = body_chain.index("ngx_http_modsecurity_append_response_chain_buffer(")
+        self.assertLess(
+            file_call,
+            body_chain.index("is_request_processed =", file_call),
+        )
+        for required in (
+            "buffer->file_pos < 0",
+            "buffer->file_last < buffer->file_pos",
+            "buffer->file == NULL",
+            "ngx_read_file(buffer->file, ctx->phase4_file_scratch",
+            "NGX_HTTP_MODSECURITY_PHASE4_FILE_READ_CHUNK",
+            "ngx_http_modsecurity_append_response_body_chunk",
+            "MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR",
+        ):
+            with self.subTest(required=required):
+                self.assertIn(required, file_append)
+        self.assertIn("read_count < 0 || (size_t)read_count != chunk", file_append)
+        self.assertNotIn("buffer->file_pos =", file_append)
+        self.assertNotIn("buffer->file_last =", file_append)
+        self.assertIn("MSCONNECTOR_BODY_LIMIT_ACTION_REJECT", plan)
+        self.assertIn("ctx->response_body_bytes_seen = plan.bytes_seen", plan)
+        self.assertIn("ctx->response_body_truncated = 1", plan)
 
 
 if __name__ == "__main__":

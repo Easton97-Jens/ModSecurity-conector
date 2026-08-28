@@ -2,6 +2,10 @@
   "schema_version": 1,
   "connector": "haproxy",
   "host_name": "haproxy",
+  "transaction_contract_profiles": [
+    "haproxy-htx",
+    "haproxy-spoe-spop"
+  ],
   "integration_mode": "spoe-spop-agent",
   "metadata_source": "connectors/haproxy/metadata.c",
   "source_contract": [

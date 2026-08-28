@@ -213,18 +213,46 @@ oder ein Post-Commit-Antwortpunkt.  Es ist daher weder sicher noch implementiert
 Original-/Angefordert-/Sichtbarstatus-Metadaten.  Ein Agent-Timeout, ein Agent-Fehler,
 oder eine generische HAProxy-Trennung ist kein Beweis für einen Abbruch durch eine späte Intervention.
 
-Der gemeinsame Fallsatz der Phase 4 bleibt evidenzgeschützt. Regelbeobachtung ist
-getrennt von einem für den Kunden sichtbaren 403; das semantische Pre-Commit, Late-Action und
-Statusmetadatenfälle bleiben bis zu ihrem fehlenden Hostverhalten `NOT_EXECUTED`
-umgesetzt wird. Antworttext-Nutzlasten dürfen niemals in Ereignisse oder geschrieben werden
-Berichte.
+### Verbindliche native-HTX-Response-Begleitkomponente
+
+Die logische Lösung `haproxy-spoe-spop` benötigt für P3/P4 eine native
+HTX-Response-Begleitkomponente. Sie muss dieselbe HAProxy-Unique-ID nutzen,
+genau eine lebende Transaktion übernehmen, begrenzte Response-Header und
+geliehene DATA-Slices weiterleiten und genau einmal am nativen `http_end`
+abschließen. Fehlende oder doppelte Korrelation, Cancel, Timeout und Cleanup
+müssen die Transaktion abbrechen; eine SPOP-Notification oder ein
+`wait-for-body`-Sample ist niemals ein EOS-Signal.
+
+Der produktive SPOP-Agent akzeptiert `response-companion=native-htx` nur mit
+einem expliziten privaten Companion-Socket, passenden UID/GID-Werten und einem
+begrenzten Response-Body-Limit größer null. Das implementierte kombinierte Profil
+registriert den HTX-Request-Data-Filter nach P1, bindet das vom SPOP-Agenten
+veröffentlichte opake Handle an `stream->uniq_id` und ruft die gemeinsamen
+Response-Header-/DATA-/EOS-Callbacks aus den HAProxy-Filter-Hooks
+`http_payload`/`http_end` auf. Fehlende, ungültige, abgelaufene oder doppelte
+Handles bleiben Fail-Closed; der Standardpfad `response-companion=none` weist
+Response-Body-Aktivierung weiterhin zurück, weil dort kein Response-EOS-
+Transport vorhanden ist. Der repository-native Current-Source-MRC1-v2-
+Hostharness prüft den kombinierten P1/P2-zu-P3/P4-Pfad lokal; ein externes
+v1-Artefakt ist kein Ersatz, und dieses qualifizierte lokale Ergebnis ist keine
+allgemeine Produktionsreifebehauptung. Interne Connector-, Protokoll-,
+Timeout-, Unavailable- und Invalid-Engine-Response-Cleanups müssen die
+entsprechende typisierte MRC1-Terminalursache verwenden und dürfen nicht als
+geratener Client- oder Upstream-Disconnect erscheinen.
+
+Der gemeinsame Fallsatz der Phase 4 bleibt evidenzgeschützt. Regelbeobachtung
+ist getrennt von einem für den Client sichtbaren 403; die semantischen Fälle
+für Pre-Commit, Late-Action und Statusmetadaten bleiben `NOT_EXECUTED`, bis
+das fehlende Hostverhalten implementiert ist. Response-Body-Payloads dürfen
+niemals in Ereignisse oder Berichte geschrieben werden.
 
 ## Natives HTX-Precommit-Overlay für das vollständige Lebenszyklusprofil
 
-`htx-overlay/` enthält einen quellengebundenen Framework-synchronisierten HAProxy-nativen HTX-Filter für
-die nativen HTX-Rückrufe `http_payload` und `http_end`. Es ist in eine eingebaut
-Einweg-Upstream-Arbeitsbaum. `full-lifecycle-haproxy-htx` wählt es aus, während
-die SPOE/SPOP-Laufzeit bleibt der separate Kompatibilitätspfad:
+`htx-overlay/` enthält einen quellengebundenen, Framework-synchronisierten,
+nativen HAProxy-HTX-Filter für die HTX-Rückrufe `http_payload` und `http_end`.
+Er wird in einen entbehrlichen Upstream-Arbeitsbaum gebaut.
+`full-lifecycle-haproxy-htx` wählt ihn aus, während die SPOE/SPOP-Laufzeit ein
+getrennter Kompatibilitätspfad bleibt:
 
 ```sh
 make -C connectors/haproxy check-htx-overlay
@@ -235,34 +263,38 @@ BUILD_ROOT=/srv/modsecurity-work/haproxy-htx-smoke \
 make -C connectors/haproxy runtime-smoke-haproxy-htx
 ```
 
-Der dedizierte Smoke-Test baut einen gepatchten Einweg-Framework-synchronisierten-HAProxy-Arbeitsbaum auf.
-Lädt die kanonischen No-CRS-Regeln des Frameworks und validiert die generierten
-`filter modsecurity-htx`-Konfiguration und sendet echten lokalen Socket-Verkehr.
-Es handelt sich um normale Upstream-200, kanonische P1-Verweigerungsantworten für die Regel `1100001`
-(403) und `1100002` (429) sowie eine kanonische P3-Verweigerungsantwort für die Regel `1100201`
-(403). Der P3-Fall beweist auch, dass vor dem eine Upstream-Antwort eingegangen ist
-Die lokale Antwort hat es ersetzt. Das Overlay leitet nur die aktuell geliehenen Daten weiter
-`HTX_BLK_DATA` schneidet zur Bindung und beendet Phase 4 einmal bei Antwort-EOS.
-Es verwendet weder `wait-for-body`/`res.body` noch behält es eine Connector-eigene Antwort bei
-Puffer. Beweise behalten nur begrenzten Client-Status/Byte-Anzahl, Upstream-Anzahl,
-Transaktions-ID, Phase, Regel-ID und Aktionsmetadaten.
+Der dedizierte Smoke-Test baut einen gepatchten, entbehrlichen,
+Framework-synchronisierten HAProxy-Arbeitsbaum, lädt die kanonischen
+No-CRS-Regeln des Frameworks, validiert die erzeugte
+`filter modsecurity-htx`-Konfiguration und sendet echten lokalen Socket-
+Verkehr. Er deckt eine normale Upstream-200, kanonische P1-Deny-Antworten für
+Regel `1100001` (403) und `1100002` (429) sowie eine kanonische P3-Deny-
+Antwort für Regel `1100201` (403) ab. Der P3-Fall beweist außerdem, dass eine
+Upstream-Antwort einging, bevor die lokale Antwort sie ersetzte. Das Overlay
+leitet nur die aktuell geliehenen `HTX_BLK_DATA`-Slices an die Bindung weiter
+und beendet Phase 4 einmal bei Response-EOS. Es verwendet weder
+`wait-for-body`/`res.body` noch behält es einen connector-eigenen
+Response-Puffer. Die Evidenz bewahrt nur begrenzten Client-Status/
+Byte-Anzahl, Upstream-Anzahl, Transaktions-ID, Phase, Regel-ID und
+Aktionsmetadaten auf.
 
-Für die Ein-Block-P2-Sonde (`1100101`) gibt `http_payload` geliehene Daten zurück
-vor der späteren Entscheidung `http_end`. Der Host-Läufer zeichnet auf, ob der Test durchgeführt wurde
-Upstream sah keine oder eine Anfrage; Keiner der Werte legt ihre Reihenfolge fest
-gegen den für den Client sichtbaren 403. Der Filter verwendet das normale Reply-and-Close von HAProxy
-Pfad ohne Connector-eigenen Körperpuffer. Dies ist kein Beweis für einen Zuwachs
-Anforderungsweiterleitung oder eine allgemeine Host-Puffer-Garantie. P4 (`1100301`) verwendet geliehene Daten
-Antwortdaten und eine Antwort EOS. Sicher/minimal bewahrt den Upstream
-200/Körper und Aufzeichnungen `host_action=log_only`; Strenge hält
-`host_action=not_attempted`, da kein für den Client sichtbares HAProxy-Abbruchprimitiv vorhanden ist
-ist bewiesen. Der Smoke-Test beansprucht keine Umleitung, keinen Post-Commit-Abbruch,
-First-Byte-Proof, ein Client-No-Full-Buffer-Proof, eine Common Runtime Bridge oder eine andere
-Fähigkeitsförderung. Seine Zusammenfassung bleibt bewusst erhalten
-`capability_promotion=not_permitted`, daher kann kein lokaler Hostnachweis vorliegen
-als synthetische kanonische Werbung umklassifiziert.
+Für die Ein-Block-P2-Sonde (`1100101`) gibt `http_payload` geliehene Daten vor
+der späteren `http_end`-Entscheidung zurück. Der Host-Runner zeichnet auf, ob
+der Test-Upstream null oder eine Anfrage sah; keiner dieser Werte belegt ihre
+Reihenfolge gegenüber dem für den Client sichtbaren 403. Der Filter verwendet
+HAProxys normalen Reply-and-Close-Pfad ohne connector-eigenen Body-Puffer.
+Dies ist kein Nachweis für inkrementelle Request-Weiterleitung oder eine
+allgemeine Host-Puffergarantie. P4 (`1100301`) verwendet geliehene
+Response-DATA und ein Response-EOS. Safe/minimal bewahrt Upstream-200/Body und
+zeichnet `host_action=log_only` auf; Strict behält
+`host_action=not_attempted`, weil kein client-sichtbares HAProxy-
+Abbruchprimitiv belegt ist. Der Smoke-Test behauptet weder Umleitung noch
+Post-Commit-Abbruch, First-Byte-Nachweis, Client-No-Full-Buffer-Nachweis,
+Common-Runtime-Bridge oder andere Fähigkeitsförderung. Seine Zusammenfassung
+behält bewusst `capability_promotion=not_permitted`; lokaler Hostnachweis darf
+daher nicht als synthetische kanonische Förderung umklassifiziert werden.
 
-Dieses Overlay wird nicht vom eingecheckten SPOP-Harness konfiguriert und ist es auch
-Nur nicht geförderte kanonische Host-Beweise. Deshalb wird **keine** Werbung gemacht
-die SPOE/SPOP Phase-4, Late-Intervention, No-Buffer oder First-Byte
-Fähigkeiten.
+Dieses Overlay wird nicht vom eingecheckten SPOP-Harness konfiguriert und ist
+nur nicht hochgestufter kanonischer Hostnachweis. Es fördert daher **nicht**
+die SPOE/SPOP-Fähigkeiten für Phase 4, Late-Intervention, No-Buffer oder
+First-Byte.

@@ -30,6 +30,7 @@ CASE_RULE_IDS = {
     ("p1_deny", "P1"): "1101001",
     ("p2_deny", "P2"): "1102001",
     ("p3_deny", "P3"): "1103001",
+    ("p3_redirect", "P3"): "1103002",
     ("p4_safe", "P4"): "1104002",
 }
 
@@ -59,6 +60,7 @@ class CompositeEvidenceVerifierTests(unittest.TestCase):
             "p4_safe": ["P1", "P2", "P3", "P4"],
             "p4_strict": ["P1", "P2", "P3", "P4"],
             "metadata_omitted": [],
+            "envoy_response_metadata_omitted": ["P1", "P2"],
             "p2_to_p3_timeout": ["P1", "P2"],
         }[case]
         events = []
@@ -94,6 +96,15 @@ class CompositeEvidenceVerifierTests(unittest.TestCase):
                 "event_time": EVENT_TIME,
                 **self.pipeline_fields(connector),
             })
+            if case == "p2_to_p3_timeout" and connector == "traefik":
+                events.insert(0, {
+                    "decision_id": DECISION,
+                    "connector": connector,
+                    "phase": "reservation",
+                    "outcome": "reserved",
+                    "event_time": EVENT_TIME,
+                    **self.pipeline_fields(connector),
+                })
         else:
             events.insert(0, {
                 "decision_id": DECISION,
@@ -133,7 +144,7 @@ class CompositeEvidenceVerifierTests(unittest.TestCase):
             "event_time": EVENT_TIME,
             **self.pipeline_fields(connector),
         }
-        if case == "p2_to_p3_timeout":
+        if case in {"p2_to_p3_timeout", "envoy_response_metadata_omitted"}:
             terminal_event["reason"] = "timeout"
         if case == "metadata_omitted":
             terminal_event["reason"] = "disconnect"
@@ -144,16 +155,17 @@ class CompositeEvidenceVerifierTests(unittest.TestCase):
         event_log.write_text("".join(json.dumps(event) + "\n" for event in events), encoding="utf-8")
         event_log.chmod(0o600)
         client_outcome = "none"
-        client_status = 503 if case in {"metadata_omitted", "p2_to_p3_timeout"} else 200
-        committed = case not in {"metadata_omitted", "p2_to_p3_timeout"}
+        client_status = 503 if case in {"metadata_omitted", "envoy_response_metadata_omitted", "p2_to_p3_timeout"} else 200
+        committed = case not in {"metadata_omitted", "envoy_response_metadata_omitted", "p2_to_p3_timeout"}
         if case == "p4_strict" and strict_observation:
             client_outcome, client_status, committed = "abort", None, False
         client_observation = directory / "client.observation.json"
         client_observation.write_text(json.dumps({
             "lease_observed": False,
-            "visible_status": 503 if case in {"metadata_omitted", "p2_to_p3_timeout"} else (413 if case == "p2_oversize" else (302 if case == "p3_redirect" else (403 if case in {"p1_deny", "p2_deny", "p3_deny"} else 200))),
+            "visible_status": 503 if case in {"metadata_omitted", "envoy_response_metadata_omitted", "p2_to_p3_timeout"} else (413 if case == "p2_oversize" else (302 if case == "p3_redirect" else (403 if case in {"p1_deny", "p2_deny", "p3_deny"} else 200))),
+            "redirect_location_verified": case == "p3_redirect",
             "p4_outcome": client_outcome,
-            "p4_visible_status": client_status,
+            "p4_visible_status": client_status if committed else None,
             "p4_response_committed": committed,
         }), encoding="utf-8")
         client_observation.chmod(0o600)
@@ -163,7 +175,7 @@ class CompositeEvidenceVerifierTests(unittest.TestCase):
             "request_terminal": case in {"p1_deny", "p2_deny", "p2_oversize"},
             "response_observed": case in {
                 "p1_allow", "p2_allow", "p3_deny", "p3_redirect", "p4_safe",
-                "p4_strict", "p2_to_p3_timeout",
+                "p4_strict", "envoy_response_metadata_omitted", "p2_to_p3_timeout",
             },
         }), encoding="utf-8")
         upstream_observation.chmod(0o600)
@@ -267,6 +279,106 @@ class CompositeEvidenceVerifierTests(unittest.TestCase):
 
         self.assert_invalid_case("pre-admission reservation", case="metadata_omitted", mutate=remove_reservation)
 
+    def test_envoy_response_metadata_omitted_requires_bounded_response_boundary_cleanup(self):
+        result = verify_manifest(self.write_case(case="envoy_response_metadata_omitted"))
+        self.assertEqual(result.status, "LIFECYCLE_ONLY")
+        self.assertEqual(result.phases, ("P1", "P2"))
+
+        def add_claim(events):
+            events.insert(-1, {
+                "decision_id": DECISION, "connector": "envoy", "phase": "claim",
+                "outcome": "claimed", "event_time": EVENT_TIME,
+                **self.pipeline_fields("envoy"),
+            })
+
+        self.assert_invalid_case(
+            "one unclaimed lease", case="envoy_response_metadata_omitted", mutate=add_claim
+        )
+
+        def deny_p1(events):
+            events[0]["requested_action"] = "deny"
+
+        self.assert_invalid_case("requested_action=allow", case="envoy_response_metadata_omitted", mutate=deny_p1)
+
+        manifest = self.write_case(case="envoy_response_metadata_omitted")
+        event_log = manifest.parent / "case-001.events.jsonl"
+        events = [json.loads(line) for line in event_log.read_text(encoding="utf-8").splitlines()]
+        events[2]["outcome"] = "claimed"
+        event_log.write_text(
+            "".join(json.dumps(event) + "\n" for event in events), encoding="utf-8"
+        )
+        with self.assertRaisesRegex(EvidenceError, "issued lease"):
+            verify_manifest(manifest)
+
+        manifest = self.write_case(case="envoy_response_metadata_omitted")
+        client = manifest.parent / "client.observation.json"
+        data = json.loads(client.read_text(encoding="utf-8"))
+        data["p4_visible_status"] = 503
+        client.write_text(json.dumps(data), encoding="utf-8")
+        with self.assertRaisesRegex(EvidenceError, "before P4 response commitment"):
+            verify_manifest(manifest)
+
+        manifest = self.write_case(case="envoy_response_metadata_omitted")
+        client = manifest.parent / "client.observation.json"
+        data = json.loads(client.read_text(encoding="utf-8"))
+        data["visible_status"] = 502
+        client.write_text(json.dumps(data), encoding="utf-8")
+        with self.assertRaisesRegex(EvidenceError, "fail-closed 503"):
+            verify_manifest(manifest)
+
+        manifest = self.write_case(case="envoy_response_metadata_omitted")
+        client = manifest.parent / "client.observation.json"
+        data = json.loads(client.read_text(encoding="utf-8"))
+        data["p4_response_committed"] = True
+        client.write_text(json.dumps(data), encoding="utf-8")
+        with self.assertRaisesRegex(EvidenceError, "before P4 response commitment"):
+            verify_manifest(manifest)
+
+        manifest = self.write_case(case="envoy_response_metadata_omitted")
+        upstream = manifest.parent / "upstream.observation.json"
+        data = json.loads(upstream.read_text(encoding="utf-8"))
+        data["response_observed"] = False
+        upstream.write_text(json.dumps(data), encoding="utf-8")
+        with self.assertRaisesRegex(EvidenceError, "upstream response"):
+            verify_manifest(manifest)
+
+        manifest = self.write_case(case="envoy_response_metadata_omitted")
+        event_log = manifest.parent / "case-001.events.jsonl"
+        events = [json.loads(line) for line in event_log.read_text(encoding="utf-8").splitlines()]
+        events[-1]["reason"] = "disconnect"
+        event_log.write_text(
+            "".join(json.dumps(event) + "\n" for event in events), encoding="utf-8"
+        )
+        with self.assertRaisesRegex(EvidenceError, "timeout cleanup"):
+            verify_manifest(manifest)
+
+        def duplicate_lease(events):
+            events.insert(-1, dict(events[2]))
+
+        self.assert_invalid_case(
+            "one unclaimed lease", case="envoy_response_metadata_omitted", mutate=duplicate_lease
+        )
+
+        def replace_with_traefik_reservation(events):
+            reservation = dict(events[0])
+            reservation.pop("requested_action", None)
+            reservation.pop("visible_status", None)
+            reservation["phase"] = "reservation"
+            reservation["outcome"] = "reserved"
+            terminal = dict(events[-1])
+            terminal["reason"] = "disconnect"
+            events[:] = [reservation, terminal]
+
+        self.assert_invalid_case(
+            "missing or out of order", case="envoy_response_metadata_omitted", mutate=replace_with_traefik_reservation
+        )
+
+        invalid_connector_manifest = self.write_case(
+            case="envoy_response_metadata_omitted", connector="traefik"
+        )
+        with self.assertRaisesRegex(EvidenceError, "valid only for the Envoy composite"):
+            verify_manifest(invalid_connector_manifest)
+
     def test_p2_to_p3_timeout_requires_upstream_observation_and_timeout_cleanup(self):
         result = verify_manifest(self.write_case(case="p2_to_p3_timeout"))
         self.assertEqual(result.status, "LIFECYCLE_ONLY")
@@ -297,6 +409,103 @@ class CompositeEvidenceVerifierTests(unittest.TestCase):
             "".join(json.dumps(event) + "\n" for event in events), encoding="utf-8"
         )
         with self.assertRaisesRegex(EvidenceError, "timeout cleanup"):
+            verify_manifest(manifest)
+
+        manifest = self.write_case(case="p2_to_p3_timeout")
+        event_log = manifest.parent / "case-001.events.jsonl"
+        events = [json.loads(line) for line in event_log.read_text(encoding="utf-8").splitlines()]
+        events[2]["outcome"] = "cancelled"
+        event_log.write_text(
+            "".join(json.dumps(event) + "\n" for event in events), encoding="utf-8"
+        )
+        with self.assertRaisesRegex(EvidenceError, "issued lease"):
+            verify_manifest(manifest)
+
+        def add_claim(events):
+            events.insert(-1, {
+                "decision_id": DECISION, "connector": "envoy", "phase": "claim",
+                "outcome": "claimed", "event_time": EVENT_TIME,
+                **self.pipeline_fields("envoy"),
+            })
+
+        self.assert_invalid_case(
+            "unclaimed lease", case="p2_to_p3_timeout", mutate=add_claim
+        )
+
+    def test_traefik_p2_to_p3_timeout_requires_one_pre_admission_reservation(self):
+        result = verify_manifest(self.write_case(case="p2_to_p3_timeout", connector="traefik"))
+        self.assertEqual(result.status, "LIFECYCLE_ONLY")
+        self.assertEqual(result.phases, ("P1", "P2"))
+
+        def remove_reservation(events):
+            events.pop(0)
+
+        self.assert_invalid_case(
+            "unclaimed lease", case="p2_to_p3_timeout", connector="traefik", mutate=remove_reservation
+        )
+
+        def corrupt_reservation(events):
+            events[0]["outcome"] = "issued"
+
+        self.assert_invalid_case(
+            "pre-admission reservation", case="p2_to_p3_timeout", connector="traefik", mutate=corrupt_reservation
+        )
+
+    def test_p2_oversize_requires_the_observed_client_413(self):
+        manifest = self.write_case(case="p2_oversize")
+        client = manifest.parent / "client.observation.json"
+        data = json.loads(client.read_text(encoding="utf-8"))
+        data["visible_status"] = 200
+        client.write_text(json.dumps(data), encoding="utf-8")
+
+        with self.assertRaisesRegex(EvidenceError, "raw 413 P2 decision"):
+            verify_manifest(manifest)
+
+    def test_p4_safe_requires_matching_committed_client_status(self):
+        manifest = self.write_case(case="p4_safe")
+        client = manifest.parent / "client.observation.json"
+        data = json.loads(client.read_text(encoding="utf-8"))
+        data["visible_status"] = 503
+        data["p4_visible_status"] = 503
+        client.write_text(json.dumps(data), encoding="utf-8")
+
+        with self.assertRaisesRegex(EvidenceError, "matching committed client"):
+            verify_manifest(manifest)
+
+        manifest = self.write_case(case="p4_safe")
+        event_log = manifest.parent / "case-001.events.jsonl"
+        events = [json.loads(line) for line in event_log.read_text(encoding="utf-8").splitlines()]
+        events[3]["requested_action"] = "allow"
+        event_log.write_text(
+            "".join(json.dumps(event) + "\n" for event in events), encoding="utf-8"
+        )
+
+        with self.assertRaisesRegex(EvidenceError, "requested_action=deny"):
+            verify_manifest(manifest)
+
+        manifest = self.write_case(case="p4_safe")
+        event_log = manifest.parent / "case-001.events.jsonl"
+        events = [json.loads(line) for line in event_log.read_text(encoding="utf-8").splitlines()]
+        del events[5]["visible_status"]
+        event_log.write_text(
+            "".join(json.dumps(event) + "\n" for event in events), encoding="utf-8"
+        )
+        client = manifest.parent / "client.observation.json"
+        data = json.loads(client.read_text(encoding="utf-8"))
+        data["visible_status"] = None
+        data["p4_visible_status"] = None
+        client.write_text(json.dumps(data), encoding="utf-8")
+
+        with self.assertRaisesRegex(EvidenceError, "matching committed client"):
+            verify_manifest(manifest)
+
+        manifest = self.write_case(case="p4_safe")
+        client = manifest.parent / "client.observation.json"
+        data = json.loads(client.read_text(encoding="utf-8"))
+        data["p4_visible_status"] = 503
+        client.write_text(json.dumps(data), encoding="utf-8")
+
+        with self.assertRaisesRegex(EvidenceError, "matching committed client"):
             verify_manifest(manifest)
 
     def test_timeout_header_delay_is_selected_only_by_exact_runtime_root(self):
@@ -449,6 +658,30 @@ class CompositeEvidenceVerifierTests(unittest.TestCase):
                     event["actual_host_action"] = "allow"
 
         self.assert_invalid_case("p3_deny", case="p3_deny", mutate=replace_deny)
+
+    def test_p3_redirect_requires_exact_client_boundary_location_attestation(self):
+        self.assertTrue(verify_manifest(self.write_case(case="p3_redirect")).passed)
+        manifest = self.write_case(case="p3_redirect")
+        client = manifest.parent / "client.observation.json"
+        data = json.loads(client.read_text(encoding="utf-8"))
+        data["redirect_location_verified"] = False
+        client.write_text(json.dumps(data), encoding="utf-8")
+        with self.assertRaisesRegex(EvidenceError, "Location attestation"):
+            verify_manifest(manifest)
+
+    def test_p3_redirect_requires_the_canonical_302_status(self):
+        def noncanonical_redirect(events):
+            for event in events:
+                if event.get("phase") in {"P3", "request_host_action"}:
+                    event["visible_status"] = 301
+
+        manifest = self.write_case(case="p3_redirect", mutate=noncanonical_redirect)
+        client = manifest.parent / "client.observation.json"
+        data = json.loads(client.read_text(encoding="utf-8"))
+        data["visible_status"] = 301
+        client.write_text(json.dumps(data), encoding="utf-8")
+        with self.assertRaisesRegex(EvidenceError, "canonical HTTP 302"):
+            verify_manifest(manifest)
 
     def test_p1_deny_requires_matching_request_side_deny(self):
         self.assertTrue(verify_manifest(self.write_case(case="p1_deny")).passed)

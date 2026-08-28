@@ -3,6 +3,32 @@
   "connector": "lighttpd",
   "host_name": "lighttpd",
   "integration_mode": "native-lighttpd-plugin",
+  "transaction_contract_profiles": ["lighttpd-stock", "lighttpd-patched"],
+  "logical_routes": {
+    "lighttpd-stock": {
+      "integration_mode": "stock-lighttpd-sidecar",
+      "topology": "traffic-owning Common Runtime sidecar -> private unchanged Stock backend",
+      "binding": "literal 127.0.0.1 loopback only",
+      "transport": "bounded HTTP/1.1",
+      "phase_route": {"P1": "direct", "P2": "direct", "P3": "direct", "P4": "direct"},
+      "correlation": "none across processes; one bounded sidecar worker owns the complete exchange",
+      "event_payload": "metadata and counters only; no request or response body payloads",
+      "p4_streaming": {
+        "state": "implemented_not_asserted",
+        "reason": "The sidecar appends one bounded response chunk at a time, forwards it before the next read, and finishes P4 once at EOS. Its real HTTP/1.1 loopback component test is not native Stock-module host evidence."
+      },
+      "native_stock_route": "stock-lighttpd is an explicit noncanonical P1/P3 compatibility translation and never a fallback"
+    },
+    "lighttpd-stock-native-translation": {
+      "integration_mode": "stock-lighttpd",
+      "phase_route": {"P1": "direct", "P2": "unsupported", "P3": "direct", "P4": "unsupported"},
+      "status": "noncanonical compatibility translation; no silent fallback"
+    },
+    "lighttpd-patched": {
+      "integration_mode": "patched-native-lighttpd",
+      "status": "separate logical solution; not a Stock-route fallback"
+    }
+  },
   "metadata_source": "connectors/lighttpd/metadata.c",
   "source_contract": [
     "connectors/lighttpd/metadata.c",
@@ -12,7 +38,11 @@
     "connectors/lighttpd/harness/runtime_lighttpd_smoke.sh",
     "connectors/lighttpd/patches/0001-lighttpd-msconnector-stream-hooks.patch",
     "connectors/lighttpd/build/build_patched_host.sh",
-    "connectors/lighttpd/harness/run_patched_lifecycle_smoke.sh"
+    "connectors/lighttpd/harness/run_patched_lifecycle_smoke.sh",
+    "connectors/lighttpd/stock_sidecar/stock_sidecar.c",
+    "connectors/lighttpd/stock_sidecar/README.md",
+    "connectors/lighttpd/build/build_stock_sidecar.sh",
+    "connectors/lighttpd/tests/test_stock_sidecar_contract.py"
   ],
   "host_model_constraints": [
     "The stock native plugin requires both body modes to be none. The matched patched Framework-synchronized core/module pair accepts streaming request ranges and HTTP/1.1 identity response-entity ranges before transfer framing; this source/build contract has no canonical runtime promotion.",

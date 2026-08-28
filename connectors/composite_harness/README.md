@@ -39,8 +39,8 @@ manifest is one isolated case artifact:
 
 The two observation files are separately captured, sibling regular
 non-symlink files. The client file schema is exactly
-`lease_observed`, `visible_status`, `p4_outcome`, `p4_visible_status`, and
-`p4_response_committed`; the upstream file schema is exactly
+`lease_observed`, `visible_status`, `redirect_location_verified`, `p4_outcome`,
+`p4_visible_status`, and `p4_response_committed`; the upstream file schema is exactly
 `lease_observed`, `request_terminal`, and `response_observed`. Each file is
 bounded, duplicate-key rejecting, and metadata-only. The manifest only
 references their basenames; inline observation assertions are invalid.
@@ -94,7 +94,11 @@ requires a P1 deny decision and matching client-visible 4xx/5xx status,
 request termination, and no upstream response observation. `p2_deny` and
 `p2_oversize` require P1 allow/P2 deny sequence; `p2_oversize` additionally
 requires status 413. `p3_deny` and `p3_redirect` require P3 deny/redirect,
-matching client status, and upstream-response observation.
+matching client status, and upstream-response observation. `p3_redirect` also
+requires a true `redirect_location_verified` attestation: the trusted client
+boundary must have observed exactly one `Location` field matching the canonical
+bounded target, while the receipt retains only that boolean and never the
+header value.
 `p4_safe` requires a P4 observer decision, a raw `host_action` of `log_only`,
 a committed upstream response, and a client outcome of `none`. `p4_strict` is
 always `NON_PASS` in this harness: a driver-side assertion of `abort` or

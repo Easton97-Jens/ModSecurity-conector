@@ -5,7 +5,10 @@
 ## Scope
 
 This is the current architecture source of truth for the connector repository.
-It describes the selected six HTTP/1.1 core routes and their shared boundaries.
+It describes the selected host routes and their shared boundaries. The
+[shared transaction and phase contract](../common/docs/transaction-phase-contract.md)
+maps all ten logical connector solutions without promoting a source route to a
+runtime-evidence claim.
 It does not claim production readiness, production hardening, CRS verification,
 complete HTTP/2 or HTTP/3 coverage, a complete matrix, or strict behavior for
 every connector.
@@ -43,7 +46,7 @@ limitations, compatibility paths, operations, and validation:
 
 | Phase | Neutral operation | Host responsibility | Evidence boundary |
 | --- | --- | --- | --- |
-| P1 | Connection, URI, and request-header processing | Map connection/request metadata and apply an eligible pre-commit intervention | A request result is not proof of other phases |
+| P1 | Request-header processing after Connection/URI prerequisites | Map request metadata and apply an eligible pre-commit intervention | Connection and URI are prerequisites, not P1 itself |
 | P2 | Request-body append and finalization | Stream or buffer only as the selected host route permits; finalize once at request EOS | Body support is profile-specific |
 | P3 | Response-header processing | Preserve original status and determine whether headers are still mutable | A P3 result does not establish P4 behavior |
 | P4 | Response-body append and finalization | Process bounded chunks, honor the selected host release boundary, and resolve late intervention safely; Apache retains all normalized output through first EOS before release | Post-commit action remains host- and evidence-dependent |
@@ -53,6 +56,13 @@ The engine-facing public sequence is based on libmodsecurity v3 calls for
 connection, URI, request headers/body, response headers/body, intervention,
 logging, and cleanup. A connector must not advertise a phase merely because a
 neutral type or source branch exists.
+
+The [shared transaction and phase contract](../common/docs/transaction-phase-contract.md)
+is the authoritative Common mapping for P1--P4, bounded state, decisions,
+response companions, and the ten solution identities. This architecture guide
+continues to distinguish source configuration from observed host behavior.
+Its durable decision rationale is
+[ADR-003](decisions/ADR-003-shared-p1-p4-lifecycle-semantics.md).
 
 ## Common boundary and C-first contract
 

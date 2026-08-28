@@ -533,6 +533,47 @@ ngx_http_modsecurity_add_response_headers(ngx_http_request_t *r,
 }
 
 static ngx_int_t
+ngx_http_modsecurity_response_header_metrics(ngx_http_request_t *r,
+    size_t *count, size_t *bytes)
+{
+    ngx_list_part_t *part;
+    ngx_table_elt_t *data;
+    ngx_uint_t index;
+
+    if (r == NULL || count == NULL || bytes == NULL) {
+        return NGX_ERROR;
+    }
+    *count = 0U;
+    *bytes = 0U;
+    part = &r->headers_out.headers.part;
+    data = part->elts;
+    index = 0U;
+    for (;;) {
+        if (index >= part->nelts) {
+            if (part->next == NULL) {
+                return NGX_OK;
+            }
+            part = part->next;
+            data = part->elts;
+            index = 0U;
+            continue;
+        }
+        if (data[index].key.len == 0U ||
+            data[index].key.len > MSCONNECTOR_MAX_HEADER_NAME_LENGTH ||
+            data[index].value.len > MSCONNECTOR_MAX_HEADER_VALUE_LENGTH ||
+            *count >= MSCONNECTOR_MAX_HEADER_COUNT ||
+            data[index].key.len > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES - *bytes ||
+            data[index].value.len > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES - *bytes -
+                data[index].key.len) {
+            return NGX_ERROR;
+        }
+        ++*count;
+        *bytes += data[index].key.len + data[index].value.len;
+        ++index;
+    }
+}
+
+static ngx_int_t
 ngx_http_modsecurity_handle_response_header_intervention(ngx_http_request_t *r,
     ngx_http_modsecurity_ctx_t *ctx, ngx_uint_t status, int ret)
 {
@@ -596,6 +637,10 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
     ngx_uint_t status;
     char *http_response_ver;
     ngx_pool_t *old_pool;
+    ngx_http_modsecurity_conf_t *mcf;
+    size_t response_header_count;
+    size_t response_header_bytes;
+    char *response_content_type = NULL;
 
 
 /* XXX: if NOT_MODIFIED, do we need to process it at all?  see xslt_header_filter() */
@@ -654,6 +699,24 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
     } else {
         status = r->headers_out.status;
     }
+    mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
+    if (r->headers_out.content_type.len > 0U) {
+        response_content_type = ngx_str_to_char(r->headers_out.content_type,
+            r->pool);
+    }
+    if (mcf == NULL || response_content_type == (char *)-1 ||
+        ngx_http_modsecurity_response_header_metrics(r, &response_header_count,
+            &response_header_bytes) != NGX_OK ||
+        msconnector_transaction_contract_record_response_metadata(
+            &ctx->contract, (int)status, response_content_type,
+            response_header_count, response_header_bytes,
+            mcf->common_config.phase4_body_limit > 0U
+                ? mcf->common_config.phase4_body_limit : MSCONNECTOR_MAX_BODY_BUFFER_SIZE) !=
+            MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: failed to record canonical response metadata");
+        return NGX_ERROR;
+    }
 
     /* The WAF-visible response version must match the negotiated request
      * protocol, including the native HTTP/3 mapping where available. */
@@ -670,7 +733,21 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
 #endif
 
     old_pool = ngx_http_modsecurity_pcre_malloc_init(r->pool);
+    if (ngx_http_modsecurity_contract_begin(ctx,
+            MSCONNECTOR_PHASE_RESPONSE_HEADERS) != NGX_OK) {
+        ngx_http_modsecurity_pcre_malloc_done(old_pool);
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: invalid canonical P3 transition");
+        return NGX_ERROR;
+    }
     msc_process_response_headers(ctx->modsec_transaction, status, http_response_ver);
+    if (ngx_http_modsecurity_contract_complete(ctx,
+            MSCONNECTOR_PHASE_RESPONSE_HEADERS) != NGX_OK) {
+        ngx_http_modsecurity_pcre_malloc_done(old_pool);
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: invalid canonical P3 completion");
+        return NGX_ERROR;
+    }
     ngx_http_modsecurity_pcre_malloc_done(old_pool);
     ctx->response_headers_seen = 1;
     ret = ngx_http_modsecurity_process_intervention(ctx->modsec_transaction, r, 0);

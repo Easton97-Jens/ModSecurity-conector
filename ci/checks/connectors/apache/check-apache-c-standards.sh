@@ -58,7 +58,7 @@ if [ -n "$APXS_INCLUDEDIR" ]; then
     APXS_INCLUDEDIR_FLAG="-I$APXS_INCLUDEDIR"
 fi
 
-INCLUDES="-I$REPO_ROOT/common/include -I$REPO_ROOT/connectors/apache/src $APXS_INCLUDEDIR_FLAG $APXS_INCLUDES $APR_INCLUDES $MODSECURITY_INCLUDE_FLAGS"
+INCLUDES="-I$REPO_ROOT -I$REPO_ROOT/common/include -I$REPO_ROOT/connectors/apache/src $APXS_INCLUDEDIR_FLAG $APXS_INCLUDES $APR_INCLUDES $MODSECURITY_INCLUDE_FLAGS"
 
 mkdir -p "$OUT"
 
@@ -82,6 +82,7 @@ connectors/apache/src/msc_config.c
 connectors/apache/src/msc_filters.c
 connectors/apache/src/msc_utils.c
 "
+PROFILE_REGISTRY_SOURCE="connectors/profile_registry.c"
 COMMON_SOURCES="
 common/src/config.c
 common/src/config_parser.c
@@ -110,7 +111,7 @@ common/src/late_intervention.c
 common/src/limits.c
 common/src/crs.c
 "
-SOURCES="$APACHE_SOURCES $COMMON_SOURCES"
+SOURCES="$APACHE_SOURCES $PROFILE_REGISTRY_SOURCE $COMMON_SOURCES"
 
 object_name() {
     path=$1

@@ -20,7 +20,12 @@ int msconnector_resource_limits_validate(const msconnector_resource_limits *limi
         limits->max_header_value_size > 0U && limits->max_total_header_bytes > 0U &&
         limits->max_request_body_bytes > 0U && limits->max_response_body_bytes > 0U &&
         limits->max_event_json_bytes > 0U && limits->max_transaction_id_length > 0U &&
-        limits->max_rule_id_length > 0U && limits->max_log_message_length > 0U;
+        limits->max_rule_id_length > 0U && limits->max_log_message_length > 0U &&
+        limits->max_header_count <= MSCONNECTOR_MAX_HEADER_COUNT &&
+        limits->max_header_name_size <= MSCONNECTOR_MAX_HEADER_NAME_LENGTH &&
+        limits->max_header_value_size <= MSCONNECTOR_MAX_HEADER_VALUE_LENGTH &&
+        limits->max_total_header_bytes <= MSCONNECTOR_MAX_TOTAL_HEADER_BYTES &&
+        limits->max_event_json_bytes <= MSCONNECTOR_MAX_EVENT_JSON_BYTES;
 }
 
 int msconnector_resource_limits_headers_ok(const msconnector_header *headers, size_t header_count, const msconnector_resource_limits *limits) {

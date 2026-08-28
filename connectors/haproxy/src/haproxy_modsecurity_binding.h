@@ -3,6 +3,7 @@
 
 #include "msconnector/config.h"
 #include "msconnector/crs.h"
+#include "msconnector/decision_action.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -81,6 +82,16 @@ int haproxy_modsecurity_transaction_begin_request(
     const haproxy_modsecurity_request *request,
     haproxy_modsecurity_decision *decision,
     haproxy_modsecurity_transaction **transaction);
+/* Selects one explicit HAProxy host profile for a streaming transaction.
+ * The generic begin_request() entry point remains the SPOE/SPOP compatibility
+ * wrapper. HTX callers must select ``haproxy-htx`` so the shared contract
+ * cannot silently inherit the SPOE/SPOP connector identity. */
+int haproxy_modsecurity_transaction_begin_request_with_profile(
+    haproxy_modsecurity_engine *engine,
+    const haproxy_modsecurity_request *request,
+    const char *profile_id,
+    haproxy_modsecurity_decision *decision,
+    haproxy_modsecurity_transaction **transaction);
 /* Borrowed request chunks are never retained by the binding.  Phase 2 is
  * evaluated only by finish_request_body() at the host request EOS. */
 int haproxy_modsecurity_transaction_append_request_body_chunk(
@@ -91,6 +102,22 @@ int haproxy_modsecurity_transaction_append_request_body_chunk(
 int haproxy_modsecurity_transaction_finish_request_body(
     haproxy_modsecurity_transaction *transaction,
     haproxy_modsecurity_decision *decision);
+/* SPOE/SPOP owns the native ModSecurity transaction.  Its P3/P4 bridge must
+ * explicitly move the Common contract into the response-companion state and
+ * then claim it in that same owner process.  Direct HAProxy HTX transactions
+ * must not call either function. */
+int haproxy_modsecurity_transaction_handoff_response_companion(
+    haproxy_modsecurity_transaction *transaction);
+int haproxy_modsecurity_transaction_claim_response_companion(
+    haproxy_modsecurity_transaction *transaction);
+int haproxy_modsecurity_transaction_set_response_commit_state(
+    haproxy_modsecurity_transaction *transaction,
+    int headers_sent, int body_started);
+int haproxy_modsecurity_transaction_record_response_companion_outcome(
+    haproxy_modsecurity_transaction *transaction,
+    msconnector_decision_action actual_action,
+    const char *transport_result,
+    int visible_http_status, int connection_aborted);
 int haproxy_modsecurity_transaction_process_response_headers(
     haproxy_modsecurity_transaction *transaction,
     const haproxy_modsecurity_response *response,
@@ -109,7 +136,12 @@ int haproxy_modsecurity_transaction_append_response_body_chunk(
 int haproxy_modsecurity_transaction_finish_response_body(
     haproxy_modsecurity_transaction *transaction,
     haproxy_modsecurity_decision *decision);
-void haproxy_modsecurity_transaction_finish(
+/* Returns zero only when P1--P4 completed normally.  An incomplete, missing,
+ * or unclaimed companion phase is recorded as a terminal Common failure
+ * before deterministic cleanup.  Existing callers may safely ignore the
+ * return value, but new bridge code must propagate it as a fail-closed host
+ * action. */
+int haproxy_modsecurity_transaction_finish(
     haproxy_modsecurity_transaction *transaction);
 void haproxy_modsecurity_transaction_abort(
     haproxy_modsecurity_transaction *transaction);

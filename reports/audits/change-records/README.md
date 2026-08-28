@@ -27,6 +27,14 @@ reports without an explicit repository-policy decision or user decision.
   Gitlink, workflow, protected NGINX boundary, hosted result, ready state, or
   merge is asserted.
 
+- [CR-20260825-shared-transaction-phase-contract](CR-20260825-shared-transaction-phase-contract.md)
+  | [Deutsch](CR-20260825-shared-transaction-phase-contract.de.md) — the
+  current user explicitly authorized a Parent Draft PR for the shared
+  transaction-phase contract. The record distinguishes local component
+  validation from unrun real-host/hosted evidence and retains the open P0/P1
+  findings; no merge, CI-scope change, Framework/MRTS, or Gitlink action is
+  asserted.
+
 - [CR-20260825-lighttpd-phase2-pre-upstream-gate](CR-20260825-lighttpd-phase2-pre-upstream-gate.md)
   | [Deutsch](CR-20260825-lighttpd-phase2-pre-upstream-gate.de.md) — the
   user-authorized Parent-only Phase-2 pre-upstream admission gate for the

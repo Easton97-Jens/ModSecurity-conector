@@ -57,13 +57,17 @@ func run() (int, error) {
 	if err != nil {
 		return 2, err
 	}
+	return runWithOptions(options)
+}
+
+// runWithOptions keeps the command's admission boundary testable without
+// registering process-global flags. In particular, --check-config must create
+// and admit the same engine that serving would use; it is not a JSON-only
+// parser mode.
+func runWithOptions(options commandLineOptions) (int, error) {
 	config, err := loadServiceConfig(options)
 	if err != nil {
 		return 2, err
-	}
-	if options.checkConfig && options.runtimeConfigPath == "" {
-		fmt.Printf("envoy_ext_proc: config-check-pass config=%s listen=%s\n", options.configPath, config.ListenAddress)
-		return 0, nil
 	}
 	runtime, err := configuredEngine(options.runtimeConfigPath)
 	if err != nil {
@@ -71,6 +75,9 @@ func run() (int, error) {
 	}
 	defer closeEngine(runtime)
 	if options.checkConfig {
+		if err := validateServiceAdmission(config, runtime); err != nil {
+			return 2, err
+		}
 		fmt.Printf("envoy_ext_proc: config-check-pass config=%s runtime_config=%s engine=%s listen=%s\n", options.configPath, options.runtimeConfigPath, runtime.description, config.ListenAddress)
 		return 0, nil
 	}
@@ -113,12 +120,18 @@ func closeEngine(runtime engineRuntime) {
 	}
 }
 
-func serve(config processor.Config, runtime engineRuntime, eventLogPath string) (int, error) {
-	listener, err := net.Listen("tcp", config.ListenAddress)
-	if err != nil {
-		return 1, fmt.Errorf("listen %s: %w", config.ListenAddress, err)
+// validateServiceAdmission makes --check-config exercise the same policy
+// boundary that serve() reaches before it binds a listener. The discard
+// observer allocates no event sink, so validation cannot create a traffic or
+// evidence side effect.
+func validateServiceAdmission(config processor.Config, runtime engineRuntime) error {
+	if _, err := processor.NewService(config, runtime.engine); err != nil {
+		return fmt.Errorf("service admission: %w", err)
 	}
-	defer listener.Close()
+	return nil
+}
+
+func serve(config processor.Config, runtime engineRuntime, eventLogPath string) (int, error) {
 	observer, observerCloser, err := newObserver(eventLogPath, runtime)
 	if err != nil {
 		return 2, fmt.Errorf("event log: %w", err)
@@ -130,6 +143,11 @@ func serve(config processor.Config, runtime engineRuntime, eventLogPath string) 
 	if err != nil {
 		return 1, fmt.Errorf("service setup: %w", err)
 	}
+	listener, err := net.Listen("tcp", config.ListenAddress)
+	if err != nil {
+		return 1, fmt.Errorf("listen %s: %w", config.ListenAddress, err)
+	}
+	defer listener.Close()
 	grpcServer := grpc.NewServer(
 		grpc.MaxRecvMsgSize(config.MaxGRPCMessageBytes),
 		grpc.MaxSendMsgSize(config.MaxGRPCMessageBytes),

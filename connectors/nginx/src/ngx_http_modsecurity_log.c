@@ -131,6 +131,13 @@ ngx_http_modsecurity_log_handler(ngx_http_request_t *r)
         return NGX_OK;
     }
 
+    if (ctx->contract_initialized &&
+        msconnector_transaction_contract_finish(&ctx->contract, 0U) !=
+            MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: canonical transaction completed with an invalid phase sequence");
+    }
+
     dd("calling msc_process_logging for %p", ctx);
     old_pool = ngx_http_modsecurity_pcre_malloc_init(r->pool);
     msc_process_logging(ctx->modsec_transaction);

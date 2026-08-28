@@ -453,6 +453,7 @@ class PatchedHostContractTest(unittest.TestCase):
                 {
                     "BUILD_ROOT": str(root),
                     "LIGHTTPD_PATCHED_ROOT": str(root / "lighttpd-core-patched"),
+                    "LIGHTTPD_PATCHED_REQUEST_BODY_MODE": "streaming",
                     "LIGHTTPD_PATCHED_RESPONSE_BODY_MODE": "streaming",
                     "LIGHTTPD_PROXY_BARRIER_PORT": "19001",
                     "LIGHTTPD_PROXY_FIXTURE_PORT": "19002",
@@ -471,6 +472,7 @@ class PatchedHostContractTest(unittest.TestCase):
             config = Path(result.stdout.strip()).read_text(encoding="utf-8")
         self.assertIn('server.modules = ( "mod_proxy", "mod_msconnector" )', config)
         self.assertIn("server.stream-response-body = 1", config)
+        self.assertIn('msconnector.request-body-gate = "pre-upstream"', config)
         self.assertIn('"/p4/barrier/"', config)
         self.assertIn('"/p4/fixture/"', config)
         self.assertNotIn("mod_h2", config)

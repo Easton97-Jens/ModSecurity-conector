@@ -235,6 +235,61 @@
       "path": "connectors/envoy/config/prepare_envoy_ext_proc_runtime_config.sh",
       "kind": "repository-local Common Runtime configuration materializer with a run-local raw event path",
       "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/src/envoy_ext_authz_response_companion.h",
+      "kind": "repository-local thin Envoy ext_authz wrapper for the shared opaque-handle response companion",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/src/envoy_ext_authz_response_companion.c",
+      "kind": "repository-local Envoy ext_authz companion wrapper with bounded Common Runtime limits",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/src/envoy_ext_authz_response_companion_test.c",
+      "kind": "repository-local focused wrapper initialization and limit test",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/ext_proc/cmd/msconnector-envoy-response-observer/main.go",
+      "kind": "repository-local private-UDS Envoy ext_proc response-observer process entrypoint",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/ext_proc/cmd/msconnector-envoy-response-observer/peercred_linux.go",
+      "kind": "repository-local Linux SO_PEERCRED verification for the response-observer UDS listener",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/ext_proc/cmd/msconnector-envoy-response-observer/peercred_other.go",
+      "kind": "repository-local fail-closed unsupported-platform response-observer peer credential stub",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/ext_proc/cmd/msconnector-envoy-response-observer/peercred_test.go",
+      "kind": "repository-local response-observer peer credential listener test coverage",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/ext_proc/internal/responseobserver/protocol.go",
+      "kind": "repository-local bounded MRC1 private response-observer protocol client and strict result validation",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/ext_proc/internal/responseobserver/client.go",
+      "kind": "repository-local response-observer request, response, commit, outcome, and cleanup frame encoding",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/ext_proc/internal/responseobserver/service.go",
+      "kind": "repository-local ext_proc P3/P4 observer state machine and fail-closed host translation",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/ext_proc/internal/responseobserver/protocol_test.go",
+      "kind": "repository-local strict MRC1 result and response-observer protocol unit coverage",
+      "upstream_origin": "none"
     }
   ],
   "shared_dependencies": [

@@ -752,7 +752,7 @@ write_haproxy_config() {
             echo "    groups request-check"
         fi
         echo "    option var-prefix modsec"
-        echo "    register-var-names blocked action status redirect_url rule_id phase error"
+        echo "    register-var-names blocked action status redirect_url rule_id phase error response_handle"
         echo "    max-frame-size 65532"
         echo "    option continue-on-error"
         echo "    timeout hello 1s"

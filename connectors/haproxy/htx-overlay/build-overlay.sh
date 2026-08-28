@@ -18,6 +18,7 @@ HAPROXY_MODSECURITY_BINDING_CPPFLAGS=${HAPROXY_MODSECURITY_BINDING_CPPFLAGS:-}
 MAKE_JOBS=${MAKE_JOBS:-2}
 CONTRACT_FILE="$SCRIPT_DIR/version-contract.json"
 CONTRACT_PARSER="$SCRIPT_DIR/version_contract.py"
+PATCH_CONTEXT_CHECKER="$SCRIPT_DIR/verify-makefile-patch-context.py"
 contract_field() {
     field_name=$1
     python3 "$CONTRACT_PARSER" --contract "$CONTRACT_FILE" --field "$field_name"
@@ -78,6 +79,7 @@ require_dir "$MODSECURITY_INCLUDE_DIR/modsecurity" "libmodsecurity headers"
 require_dir "$MODSECURITY_LIB_DIR" "libmodsecurity library directory"
 require_file "$SCRIPT_DIR/haproxy_modsecurity_htx_filter.c" "HTX filter source"
 require_file "$SCRIPT_DIR/$MAKEFILE_PATCH" "HAProxy Makefile overlay"
+require_file "$PATCH_CONTEXT_CHECKER" "HAProxy Makefile patch context checker"
 command -v sha256sum >/dev/null 2>&1 || die "sha256sum is required for overlay build provenance"
 
 version=$(tr -d '[:space:]' < "$SOURCE_DIR/VERSION")
@@ -95,9 +97,22 @@ cp "$CONNECTOR_ROOT/connectors/haproxy/src/haproxy_modsecurity_binding.c" "$WORK
 cp "$CONNECTOR_ROOT/connectors/haproxy/src/haproxy_modsecurity_binding.h" "$WORKTREE/src/haproxy_modsecurity_binding.h"
 cp "$CONNECTOR_ROOT/connectors/haproxy/src/haproxy_modsecurity_mapper.c" "$WORKTREE/src/haproxy_modsecurity_mapper.c"
 cp "$CONNECTOR_ROOT/connectors/haproxy/src/haproxy_modsecurity_mapper.h" "$WORKTREE/src/haproxy_modsecurity_mapper.h"
+require_file "$CONNECTOR_ROOT/connectors/profile_registry.c" "connector profile registry source"
+require_file "$CONNECTOR_ROOT/connectors/profile_registry.h" "connector profile registry header"
+mkdir -p "$WORKTREE/src/connectors"
+cp "$CONNECTOR_ROOT/connectors/profile_registry.c" "$WORKTREE/src/msconnector_profile_registry.c"
+cp "$CONNECTOR_ROOT/connectors/profile_registry.h" "$WORKTREE/src/connectors/profile_registry.h"
 cp -R "$CONNECTOR_ROOT/common/include/msconnector" "$WORKTREE/include/"
 require_file "$CONNECTOR_ROOT/common/src/header_validation_internal.h" "Common internal header"
 cp "$CONNECTOR_ROOT/common/src/header_validation_internal.h" "$WORKTREE/src/header_validation_internal.h"
+require_file "$CONNECTOR_ROOT/common/runtime/response_companion_client.c" "Common MRC1 client source"
+require_file "$CONNECTOR_ROOT/common/runtime/response_companion_client.h" "Common MRC1 client header"
+require_file "$CONNECTOR_ROOT/common/runtime/response_companion_transport.h" "Common MRC1 transport contract header"
+require_file "$CONNECTOR_ROOT/common/runtime/msconnector_runtime.h" "Common runtime contract header"
+cp "$CONNECTOR_ROOT/common/runtime/response_companion_client.c" "$WORKTREE/src/msconnector_response_companion_client.c"
+cp "$CONNECTOR_ROOT/common/runtime/response_companion_client.h" "$WORKTREE/src/response_companion_client.h"
+cp "$CONNECTOR_ROOT/common/runtime/response_companion_transport.h" "$WORKTREE/src/response_companion_transport.h"
+cp "$CONNECTOR_ROOT/common/runtime/msconnector_runtime.h" "$WORKTREE/src/msconnector_runtime.h"
 
 COMMON_SOURCES='config.c config_parser.c directive_spec.c directive_adapter.c request_helpers.c response_helpers.c request_mapper_contract.c response_mapper_contract.c headers.c event.c event_jsonl.c json_escape.c rule_id.c log_sanitize.c redaction.c resource_limits.c dos_guard.c error.c status.c body_policy.c crs.c transaction_state.c decision.c decision_action.c late_intervention.c flow_guard.c integrity_event.c rule_loader.c rule_merge.c http_status.c block_statuses.c path_policy.c intervention.c rule_error.c rule_event.c artifacts.c artifact_layout.c test_result.c test_result_json.c'
 for source in $COMMON_SOURCES; do
@@ -105,8 +120,11 @@ for source in $COMMON_SOURCES; do
     cp "$CONNECTOR_ROOT/common/src/$source" "$WORKTREE/src/msconnector_$source"
 done
 
-(cd "$WORKTREE" && patch --dry-run -p1 < "$SCRIPT_DIR/$MAKEFILE_PATCH")
-(cd "$WORKTREE" && patch -p1 < "$SCRIPT_DIR/$MAKEFILE_PATCH")
+# The version contract pins the Makefile context.  Do not accept a shifted or
+# fuzzy application: an upstream Makefile drift must fail before compilation.
+python3 "$PATCH_CONTEXT_CHECKER" --makefile "$WORKTREE/Makefile"
+(cd "$WORKTREE" && patch --dry-run -p1 --fuzz=0 --posix < "$SCRIPT_DIR/$MAKEFILE_PATCH")
+(cd "$WORKTREE" && patch --fuzz=0 --posix -p1 < "$SCRIPT_DIR/$MAKEFILE_PATCH")
 
 modsecurity_library=
 for candidate in "$MODSECURITY_LIB_DIR"/libmodsecurity.so \
@@ -121,7 +139,7 @@ done
 
 make -C "$WORKTREE" TARGET=linux-glibc -j "$MAKE_JOBS" \
 	USE_OPENSSL=1 \
-    CFLAGS="-I$MODSECURITY_INCLUDE_DIR $HAPROXY_MODSECURITY_BINDING_CPPFLAGS" \
+    CFLAGS="-I$WORKTREE/src/connectors -I$MODSECURITY_INCLUDE_DIR $HAPROXY_MODSECURITY_BINDING_CPPFLAGS" \
     ADDLIB="$modsecurity_library -Wl,-rpath,$MODSECURITY_LIB_DIR -lstdc++" \
     haproxy
 
@@ -133,6 +151,8 @@ make -C "$WORKTREE" TARGET=linux-glibc -j "$MAKE_JOBS" \
     printf 'overlay_filter_sha256=%s\n' "$(sha256_of "$SCRIPT_DIR/haproxy_modsecurity_htx_filter.c")"
     printf 'overlay_patch_sha256=%s\n' "$(sha256_of "$SCRIPT_DIR/$MAKEFILE_PATCH")"
     printf 'binding_sha256=%s\n' "$(sha256_of "$CONNECTOR_ROOT/connectors/haproxy/src/haproxy_modsecurity_binding.c")"
+    printf 'profile_registry_source_sha256=%s\n' "$(sha256_of "$CONNECTOR_ROOT/connectors/profile_registry.c")"
+    printf 'profile_registry_header_sha256=%s\n' "$(sha256_of "$CONNECTOR_ROOT/connectors/profile_registry.h")"
     printf 'haproxy_binary=%s\n' "$WORKTREE/haproxy"
     printf 'haproxy_binary_sha256=%s\n' "$(sha256_of "$WORKTREE/haproxy")"
 } > "$BUILD_DIR/overlay-build.env"

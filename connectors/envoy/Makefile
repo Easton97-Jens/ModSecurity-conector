@@ -146,8 +146,8 @@ test-envoy-ext-proc:
 	CC="$(CC)" CFLAGS="$(CFLAGS)" AR="$(AR)" \
 	sh build/test_ext_proc.sh
 
-check-envoy-ext-proc-config: build-envoy-ext-proc
-	"$(EXT_PROC_BIN)" --check-config --config "$(EXT_PROC_CONFIG)"
+check-envoy-ext-proc-config: build-envoy-ext-proc prepare-envoy-ext-proc-runtime-config
+	"$(EXT_PROC_BIN)" --check-config --config "$(EXT_PROC_CONFIG)" --runtime-config "$(EXT_PROC_RUNTIME_CONFIG)"
 
 prepare-envoy-ext-proc-config:
 	OUTPUT_CONFIG="$(EXT_PROC_ENVOY_CONFIG)" \

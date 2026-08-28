@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
 import os
 import stat
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -204,3 +206,112 @@ class TraefikRuntimeSmokeSecurityTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="traefik-no-crs-control-") as temporary:
             with mock.patch.dict(os.environ, {"MSCONNECTOR_NO_CRS_BASELINE": ""}, clear=False):
                 RUNNER.consume_no_crs_selected_cases(Path(temporary) / "checkout")
+
+    def test_forwardauth_runtime_chain_requires_the_private_response_observer(self) -> None:
+        dynamic = RUNNER.dynamic_config(
+            18081,
+            18082,
+            Path("/run/modsecurity/traefik-forwardauth-companion.sock"),
+        )
+        start_smoke = (ROOT / "connectors" / "traefik" / "scripts" / "start-smoke.sh").read_text(
+            encoding="utf-8"
+        )
+        service = (ROOT / "connectors" / "traefik" / "src" / "traefik_forwardauth_service_main.c").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("- modsecurity-forwardauth\n      - modsecurity-response-observer", dynamic)
+        self.assertIn("authResponseHeaders:\n        - X-Msconnector-Response-Handle", dynamic)
+        self.assertIn("socketPath: /run/modsecurity/traefik-forwardauth-companion.sock", dynamic)
+        self.assertIn("MSCONNECTOR_TRAEFIK_FORWARDAUTH_COMPANION_SOCKET", start_smoke)
+        self.assertIn('getenv(\n        "MSCONNECTOR_TRAEFIK_FORWARDAUTH_COMPANION_SOCKET")', service)
+        self.assertIn("plugins-local/src/$OBSERVER_MODULE", start_smoke)
+        self.assertIn("__COMPANION_SOCKET__", start_smoke)
+
+    def test_response_phase_evidence_requires_precommit_p3_and_safe_p4_without_bodies(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="traefik-response-phase-events-") as temporary:
+            event_path = Path(temporary) / "events.jsonl"
+            records = [
+                {
+                    "connector": "traefik",
+                    "transaction_id": "traefik-forwardauth-p3-block",
+                    "rule_id": "1000003",
+                    "phase": "response_headers",
+                    "status": "blocked",
+                    "actual_action": "deny",
+                    "response_committed": False,
+                },
+                {
+                    "connector": "traefik",
+                    "transaction_id": "traefik-forwardauth-p4-safe",
+                    "rule_id": "1000004",
+                    "phase": "response_body",
+                    "status": "blocked",
+                    "actual_action": "log_only",
+                    "response_committed": True,
+                    "body_bytes_seen": 28,
+                },
+            ]
+            event_path.write_text(
+                "\n".join(json.dumps(record) for record in records) + "\n",
+                encoding="utf-8",
+            )
+            RUNNER.verify_response_phase_events(event_path)
+
+            records[1]["response_body"] = "must-not-appear"
+            event_path.write_text(
+                "\n".join(json.dumps(record) for record in records) + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(RuntimeError, "forbidden body payload"):
+                RUNNER.verify_response_phase_events(event_path)
+
+    def test_response_observer_staging_is_private_and_rejects_symlinks(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="traefik-response-observer-") as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            source.mkdir(mode=0o700)
+            (source / "go.mod").write_text("module example.test/observer\n", encoding="utf-8")
+            runtime_root = root / "runtime"
+            runtime_root.mkdir(mode=0o700)
+
+            RUNNER.stage_response_observer(source, runtime_root)
+
+            staged = runtime_root / "plugins-local" / "src" / RUNNER.OBSERVER_MODULE
+            self.assertTrue((staged / "go.mod").is_file())
+            self.assertEqual(stat.S_IMODE((runtime_root / "plugins-local").stat().st_mode), 0o700)
+            self.assertEqual(stat.S_IMODE((staged / "go.mod").stat().st_mode), 0o600)
+
+            unsafe = root / "unsafe-source"
+            unsafe.mkdir(mode=0o700)
+            (unsafe / "linked").symlink_to(source / "go.mod")
+            with self.assertRaisesRegex(RUNNER.MissingDependency, "contains a symlink"):
+                RUNNER.stage_response_observer(unsafe, runtime_root)
+
+    def test_start_smoke_rejects_dotdot_before_cleanup(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="traefik-start-root-") as temporary:
+            temporary_root = Path(temporary)
+            build_root = temporary_root / "build"
+            allowed_root = build_root / "traefik-connector"
+            target = allowed_root / "other-target"
+            target.mkdir(parents=True, mode=0o700)
+            sentinel = target / "must-survive"
+            sentinel.write_text("keep", encoding="utf-8")
+            unsafe_start_root = allowed_root / "owned" / ".." / "other-target"
+
+            result = subprocess.run(
+                ["sh", str(ROOT / "connectors/traefik/scripts/start-smoke.sh")],
+                cwd=ROOT,
+                env={
+                    **os.environ,
+                    "BUILD_ROOT": str(build_root),
+                    "TRAEFIK_CONNECTOR_START_ROOT": str(unsafe_start_root),
+                },
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 77)
+            self.assertIn("dot components", result.stderr)
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), "keep")

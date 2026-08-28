@@ -23,7 +23,7 @@ mkdir -p "$OUT"
 require_command_or_blocked "$CC_BIN" "haproxy_c_standards missing C compiler: $CC_BIN"
 HAPROXY_INCLUDE_FLAGS=$(require_or_provision_haproxy_headers)
 MODSECURITY_INCLUDE_FLAGS=$(modsecurity_include_flags_or_provision)
-incs="-I$ROOT/common/include -I$ROOT/connectors/haproxy/src $HAPROXY_INCLUDE_FLAGS $MODSECURITY_INCLUDE_FLAGS"
+incs="-I$ROOT -I$ROOT/common/include -I$ROOT/connectors/haproxy/src $HAPROXY_INCLUDE_FLAGS $MODSECURITY_INCLUDE_FLAGS"
 probe_haproxy_headers() {
   std_flag=$1
   for header in haproxy/api.h haproxy/http.h haproxy/htx.h common/cfgparse.h types/global.h proto/proxy.h; do

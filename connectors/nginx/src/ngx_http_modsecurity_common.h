@@ -30,6 +30,7 @@
 #include "msconnector/limits.h"
 #include "msconnector/phase.h"
 #include "msconnector/rule_load_stats.h"
+#include "msconnector/transaction_contract.h"
 
 
 /* #define MSC_USE_RULES_SET 1 */
@@ -86,6 +87,8 @@ typedef struct {
 typedef struct {
     ngx_http_request_t *r;
     Transaction *modsec_transaction;
+    msconnector_transaction_contract contract;
+    unsigned contract_initialized:1;
     ModSecurityIntervention *delayed_intervention;
 
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
@@ -129,6 +132,11 @@ typedef struct {
     unsigned native_event_phase_active:1;
     size_t response_body_bytes_seen;
     size_t response_body_bytes_inspected;
+    /* A file-only response buffer cannot be passed directly to
+     * libModSecurity. The body filter allocates this fixed-size scratch
+     * buffer once per request and reuses it for bounded file reads; it never
+     * retains a response payload in the Common transaction or event path. */
+    u_char *phase4_file_scratch;
     ngx_str_t event_transaction_id;
     enum msconnector_phase native_event_phase;
     /* Keep only the bounded rule identifier needed for a metadata-only
@@ -205,6 +213,10 @@ int ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_htt
 ngx_http_modsecurity_ctx_t *ngx_http_modsecurity_create_ctx(ngx_http_request_t *r);
 ngx_http_modsecurity_ctx_t *ngx_http_modsecurity_get_module_ctx(ngx_http_request_t *r);
 char *ngx_str_to_char(ngx_str_t a, ngx_pool_t *p);
+int ngx_http_modsecurity_contract_begin(ngx_http_modsecurity_ctx_t *ctx,
+    enum msconnector_phase phase);
+int ngx_http_modsecurity_contract_complete(ngx_http_modsecurity_ctx_t *ctx,
+    enum msconnector_phase phase);
 
 typedef struct {
     const char *method;

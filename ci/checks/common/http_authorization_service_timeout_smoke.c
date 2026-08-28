@@ -35,6 +35,8 @@
 
 struct msconnector_runtime {
     unsigned int active_transactions;
+    int event_integration_configured;
+    int transaction_profile_configured;
 };
 
 struct msconnector_runtime_transaction {
@@ -71,8 +73,36 @@ int msconnector_runtime_create(
     if (error != NULL && error_len > 0U) {
         error[0] = '\0';
     }
+    fake_runtime.active_transactions = 0U;
+    fake_runtime.event_integration_configured = 0;
+    fake_runtime.transaction_profile_configured = 0;
     *out = &fake_runtime;
     return 1;
+}
+
+int msconnector_runtime_set_event_integration_mode(
+    msconnector_runtime *runtime,
+    const char *integration_mode) {
+    if (runtime == NULL || integration_mode == NULL || integration_mode[0] == '\0') {
+        return 0;
+    }
+    runtime->event_integration_configured = 1;
+    return 1;
+}
+
+int msconnector_runtime_set_transaction_profile(
+    msconnector_runtime *runtime,
+    const msconnector_transaction_profile *profile) {
+    if (runtime == NULL || profile == NULL || profile->profile_id == 0U) {
+        return 0;
+    }
+    runtime->transaction_profile_configured = 1;
+    return 1;
+}
+
+int msconnector_runtime_error_log_enabled(const msconnector_runtime *runtime) {
+    (void)runtime;
+    return 0;
 }
 
 void msconnector_runtime_destroy(msconnector_runtime **runtime) {
@@ -116,6 +146,8 @@ int msconnector_runtime_transaction_begin(
     (void)host_request_id;
     if (runtime == NULL || request == NULL || out == NULL || decision == NULL ||
         request->method == NULL || request->uri == NULL ||
+        runtime->event_integration_configured == 0 ||
+        runtime->transaction_profile_configured == 0 ||
         strcmp(request->method, "GET") != 0 || strcmp(request->uri, "/ok") != 0) {
         return 0;
     }
@@ -203,9 +235,21 @@ static int smoke_map_request(
     return 1;
 }
 
+static const msconnector_transaction_profile smoke_transaction_profile = {
+    .profile_id = 1U,
+    .profile_name = "timeout-smoke",
+    .connector_id = "timeout-smoke",
+    .host_adapter_id = "timeout-smoke",
+    .direct_phase_mask = MSCONNECTOR_TRANSACTION_PHASE_MASK_ALL,
+    .companion_phase_mask = 0U,
+    .strict_post_commit_action = 0,
+    .private_default_binding = 1,
+};
+
 static const msconnector_http_authorization_profile smoke_profile = {
     .connector_name = "timeout-smoke",
     .integration_mode = "timeout-smoke",
+    .transaction_profile = &smoke_transaction_profile,
     .original_uri_headers = NULL,
     .original_uri_header_count = 0U,
     .map_request = smoke_map_request,

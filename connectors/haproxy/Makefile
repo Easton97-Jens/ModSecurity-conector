@@ -15,7 +15,10 @@ HAPROXY_HTX_CANONICAL_RULES_FILE ?= $(FRAMEWORK_ROOT)/tests/rules/no-crs-baselin
 COMMON_INCLUDE := $(REPO_ROOT)/common/include
 COMMON_SRC := $(REPO_ROOT)/common/src
 COMMON_CPPFLAGS := -I$(COMMON_INCLUDE)
-COMMON_SDK_SRCS := $(COMMON_SRC)/config.c $(COMMON_SRC)/config_parser.c $(COMMON_SRC)/directive_spec.c $(COMMON_SRC)/directive_adapter.c $(COMMON_SRC)/request_helpers.c $(COMMON_SRC)/response_helpers.c $(COMMON_SRC)/request_mapper_contract.c $(COMMON_SRC)/response_mapper_contract.c $(COMMON_SRC)/headers.c $(COMMON_SRC)/event.c $(COMMON_SRC)/event_jsonl.c $(COMMON_SRC)/json_escape.c $(COMMON_SRC)/rule_id.c $(COMMON_SRC)/log_sanitize.c $(COMMON_SRC)/redaction.c $(COMMON_SRC)/resource_limits.c $(COMMON_SRC)/dos_guard.c $(COMMON_SRC)/error.c $(COMMON_SRC)/status.c $(COMMON_SRC)/body_policy.c $(COMMON_SRC)/crs.c $(COMMON_SRC)/transaction_state.c $(COMMON_SRC)/decision.c $(COMMON_SRC)/decision_action.c $(COMMON_SRC)/late_intervention.c $(COMMON_SRC)/flow_guard.c $(COMMON_SRC)/integrity_event.c $(COMMON_SRC)/rule_loader.c $(COMMON_SRC)/rule_merge.c $(COMMON_SRC)/http_status.c $(COMMON_SRC)/block_statuses.c $(COMMON_SRC)/path_policy.c $(COMMON_SRC)/intervention.c $(COMMON_SRC)/rule_error.c $(COMMON_SRC)/rule_event.c $(COMMON_SRC)/artifacts.c $(COMMON_SRC)/artifact_layout.c $(COMMON_SRC)/test_result.c $(COMMON_SRC)/test_result_json.c
+REPO_ROOT_CPPFLAGS := -I$(abspath $(REPO_ROOT))
+PROFILE_REGISTRY_SOURCE := $(REPO_ROOT)/connectors/profile_registry.c
+COMMON_SDK_SRCS := $(COMMON_SRC)/config.c $(COMMON_SRC)/config_parser.c $(COMMON_SRC)/directive_spec.c $(COMMON_SRC)/directive_adapter.c $(COMMON_SRC)/request_helpers.c $(COMMON_SRC)/response_helpers.c $(COMMON_SRC)/request_mapper_contract.c $(COMMON_SRC)/response_mapper_contract.c $(COMMON_SRC)/headers.c $(COMMON_SRC)/event.c $(COMMON_SRC)/event_jsonl.c $(COMMON_SRC)/json_escape.c $(COMMON_SRC)/rule_id.c $(COMMON_SRC)/log_sanitize.c $(COMMON_SRC)/redaction.c $(COMMON_SRC)/resource_limits.c $(COMMON_SRC)/dos_guard.c $(COMMON_SRC)/error.c $(COMMON_SRC)/status.c $(COMMON_SRC)/body_policy.c $(COMMON_SRC)/crs.c $(COMMON_SRC)/memory.c $(COMMON_SRC)/modsecurity_engine.c $(COMMON_SRC)/transaction_id.c $(COMMON_SRC)/transaction_state.c $(COMMON_SRC)/decision.c $(COMMON_SRC)/decision_action.c $(COMMON_SRC)/late_intervention.c $(COMMON_SRC)/flow_guard.c $(COMMON_SRC)/integrity_event.c $(COMMON_SRC)/rule_loader.c $(COMMON_SRC)/rule_merge.c $(COMMON_SRC)/http_status.c $(COMMON_SRC)/block_statuses.c $(COMMON_SRC)/path_policy.c $(COMMON_SRC)/intervention.c $(COMMON_SRC)/rule_error.c $(COMMON_SRC)/rule_event.c $(COMMON_SRC)/artifacts.c $(COMMON_SRC)/artifact_layout.c $(COMMON_SRC)/test_result.c $(COMMON_SRC)/test_result_json.c
+RESPONSE_COMPANION_SRCS := $(REPO_ROOT)/common/runtime/msconnector_runtime.c $(REPO_ROOT)/common/runtime/response_companion_transport.c $(REPO_ROOT)/common/runtime/response_companion_client.c $(PROFILE_REGISTRY_SOURCE) src/haproxy_spop_response_companion_backend.c
 SPOA_STARTER_BIN := $(HAPROXY_BUILD_DIR)/haproxy-spoa-agent-starter
 SPOA_RUNTIME_BIN := $(HAPROXY_SPOA_RUNTIME_DIR)/haproxy-modsecurity-spoa
 MODSECURITY_BINDING_BIN := $(HAPROXY_MODSECURITY_BINDING_DIR)/haproxy-modsecurity-binding-self-test
@@ -192,22 +195,22 @@ $(SPOA_STARTER_BIN): src/haproxy_spoa_main.c src/haproxy_spoa_agent_starter.c sr
 		src/haproxy_spoa_main.c src/haproxy_spoa_agent_starter.c "$(COMMON_SRC)/intervention.c" \
 		-o "$@"
 
-$(SPOA_RUNTIME_BIN): FORCE src/haproxy_spop_diagnostic_runtime.c src/haproxy_modsecurity_binding.c src/haproxy_modsecurity_binding.h src/haproxy_modsecurity_mapper.c src/haproxy_modsecurity_mapper.h $(COMMON_SDK_SRCS) $(MODSECURITY_BINDING_BIN)
+$(SPOA_RUNTIME_BIN): FORCE src/haproxy_spop_diagnostic_runtime.c src/haproxy_modsecurity_binding.c src/haproxy_modsecurity_binding.h src/haproxy_modsecurity_mapper.c src/haproxy_modsecurity_mapper.h $(COMMON_SDK_SRCS) $(RESPONSE_COMPANION_SRCS) $(MODSECURITY_BINDING_BIN)
 	@set -eu; \
 	mkdir -p "$(HAPROXY_SPOA_RUNTIME_DIR)"; \
 	. "$(HAPROXY_MODSECURITY_BINDING_DIR)/paths.env"; \
-	$(CC) $(CPPFLAGS) $(CFLAGS) $$HAPROXY_MODSECURITY_BINDING_CPPFLAGS -I"$$MODSECURITY_INCLUDE_DIR" $(COMMON_CPPFLAGS) -Isrc -c src/haproxy_modsecurity_binding.c -o "$(HAPROXY_SPOA_RUNTIME_DIR)/haproxy_modsecurity_binding.o" || { \
+	$(CC) $(CPPFLAGS) $(CFLAGS) $$HAPROXY_MODSECURITY_BINDING_CPPFLAGS -I"$$MODSECURITY_INCLUDE_DIR" $(REPO_ROOT_CPPFLAGS) $(COMMON_CPPFLAGS) -Isrc -c src/haproxy_modsecurity_binding.c -o "$(HAPROXY_SPOA_RUNTIME_DIR)/haproxy_modsecurity_binding.o" || { \
 		echo "FAIL: HAProxy ModSecurity binding source did not compile for diagnostic SPOP runtime" >&2; \
 		exit 1; \
 	}; \
-	$(CC) $(CPPFLAGS) $(CFLAGS) -I"$$MODSECURITY_INCLUDE_DIR" $(COMMON_CPPFLAGS) -Isrc -c src/haproxy_spop_diagnostic_runtime.c -o "$(HAPROXY_SPOA_RUNTIME_DIR)/haproxy_spop_diagnostic_runtime.o" || { \
+	$(CC) $(CPPFLAGS) $(CFLAGS) -I"$$MODSECURITY_INCLUDE_DIR" $(COMMON_CPPFLAGS) -I"$(REPO_ROOT)/common/runtime" -Isrc -c src/haproxy_spop_diagnostic_runtime.c -o "$(HAPROXY_SPOA_RUNTIME_DIR)/haproxy_spop_diagnostic_runtime.o" || { \
 		echo "FAIL: HAProxy ModSecurity SPOA runtime source did not compile" >&2; \
 		exit 1; \
 	}; \
 	common_objects=""; \
-	for src in src/haproxy_modsecurity_mapper.c $(COMMON_SDK_SRCS); do \
+	for src in src/haproxy_modsecurity_mapper.c $(COMMON_SDK_SRCS) $(RESPONSE_COMPANION_SRCS); do \
 		obj="$(HAPROXY_SPOA_RUNTIME_DIR)/$$(printf '%s' "$$src" | tr '/.' '__').o"; \
-		$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) -Isrc -c "$$src" -o "$$obj" || { \
+		$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) -I"$(REPO_ROOT)/common/runtime" -Isrc -c "$$src" -o "$$obj" || { \
 			echo "FAIL: HAProxy Common SDK source did not compile: $$src" >&2; \
 			exit 1; \
 		}; \
@@ -218,7 +221,7 @@ $(SPOA_RUNTIME_BIN): FORCE src/haproxy_spop_diagnostic_runtime.c src/haproxy_mod
 		exit 1; \
 	}
 
-$(MODSECURITY_BINDING_BIN): FORCE src/haproxy_modsecurity_binding.c src/haproxy_modsecurity_binding.h src/haproxy_modsecurity_mapper.c src/haproxy_modsecurity_mapper.h src/haproxy_modsecurity_binding_self_test.c $(MODSECURITY_BINDING_LIFECYCLE_RULES) $(COMMON_SDK_SRCS)
+$(MODSECURITY_BINDING_BIN): FORCE src/haproxy_modsecurity_binding.c src/haproxy_modsecurity_binding.h src/haproxy_modsecurity_mapper.c src/haproxy_modsecurity_mapper.h src/haproxy_modsecurity_binding_self_test.c $(MODSECURITY_BINDING_LIFECYCLE_RULES) $(COMMON_SDK_SRCS) $(PROFILE_REGISTRY_SOURCE)
 	@set -eu; \
 	mkdir -p "$(HAPROXY_MODSECURITY_BINDING_DIR)"; \
 	resolver_include="$${MODSECURITY_INCLUDE_DIR:-}"; \
@@ -312,7 +315,7 @@ $(MODSECURITY_BINDING_BIN): FORCE src/haproxy_modsecurity_binding.c src/haproxy_
 		echo "INFO: msc_get_rules_messages_rule_ids is unavailable for the selected libModSecurity headers; using the supported 3.0.14 baseline Rule-ID path."; \
 		sed -n '1,8p' "$$optional_compile_log"; \
 	fi; \
-	$(CC) $(CPPFLAGS) $(CFLAGS) $$binding_cppflags -I"$$include_dir" $(COMMON_CPPFLAGS) -Isrc -c src/haproxy_modsecurity_binding.c -o "$(HAPROXY_MODSECURITY_BINDING_DIR)/haproxy_modsecurity_binding.o" || { \
+	$(CC) $(CPPFLAGS) $(CFLAGS) $$binding_cppflags -I"$$include_dir" $(REPO_ROOT_CPPFLAGS) $(COMMON_CPPFLAGS) -Isrc -c src/haproxy_modsecurity_binding.c -o "$(HAPROXY_MODSECURITY_BINDING_DIR)/haproxy_modsecurity_binding.o" || { \
 		echo "FAIL: HAProxy ModSecurity binding source did not compile" >&2; \
 		exit 1; \
 	}; \
@@ -321,7 +324,7 @@ $(MODSECURITY_BINDING_BIN): FORCE src/haproxy_modsecurity_binding.c src/haproxy_
 		exit 1; \
 	}; \
 	common_objects=""; \
-	for src in src/haproxy_modsecurity_mapper.c $(COMMON_SDK_SRCS); do \
+	for src in src/haproxy_modsecurity_mapper.c $(COMMON_SDK_SRCS) $(PROFILE_REGISTRY_SOURCE); do \
 		obj="$(HAPROXY_MODSECURITY_BINDING_DIR)/$$(printf '%s' "$$src" | tr '/.' '__').o"; \
 		$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) -Isrc -c "$$src" -o "$$obj" || { \
 			echo "FAIL: HAProxy Common SDK source did not compile: $$src" >&2; \

@@ -14,6 +14,7 @@
  */
 
 #include <ngx_config.h>
+#include <stdint.h>
 
 #ifndef MODSECURITY_DDEBUG
 #define MODSECURITY_DDEBUG 0
@@ -337,18 +338,92 @@ ngx_http_modsecurity_add_request_headers(ngx_http_request_t *r,
 }
 
 static ngx_int_t
+ngx_http_modsecurity_request_header_metrics(ngx_http_request_t *r,
+    size_t *count, size_t *bytes)
+{
+    ngx_list_part_t *part;
+    ngx_table_elt_t *data;
+    ngx_uint_t index;
+
+    if (r == NULL || count == NULL || bytes == NULL) {
+        return NGX_ERROR;
+    }
+    *count = 0U;
+    *bytes = 0U;
+    part = &r->headers_in.headers.part;
+    data = part->elts;
+    index = 0U;
+    for (;;) {
+        if (index >= part->nelts) {
+            if (part->next == NULL) {
+                return NGX_OK;
+            }
+            part = part->next;
+            data = part->elts;
+            index = 0U;
+            continue;
+        }
+        if (data[index].key.len == 0U ||
+            data[index].key.len > MSCONNECTOR_MAX_HEADER_NAME_LENGTH ||
+            data[index].value.len > MSCONNECTOR_MAX_HEADER_VALUE_LENGTH ||
+            *count >= MSCONNECTOR_MAX_HEADER_COUNT ||
+            data[index].key.len > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES - *bytes ||
+            data[index].value.len > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES - *bytes -
+                data[index].key.len) {
+            return NGX_ERROR;
+        }
+        ++*count;
+        *bytes += data[index].key.len + data[index].value.len;
+        ++index;
+    }
+}
+
+static ngx_int_t
 ngx_http_modsecurity_process_request_headers(ngx_http_request_t *r,
     ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf)
 {
     ngx_pool_t *old_pool;
+    char *method;
+    char *uri;
+    size_t header_count;
+    size_t header_bytes;
     int ret;
 
+    method = ngx_str_to_char(r->method_name, r->pool);
+    uri = ngx_str_to_char(r->unparsed_uri.len > 0U ? r->unparsed_uri : r->uri,
+        r->pool);
+    if (method == (char *)-1 || method == NULL || uri == (char *)-1 || uri == NULL ||
+        ngx_http_modsecurity_request_header_metrics(r, &header_count,
+            &header_bytes) != NGX_OK ||
+        msconnector_transaction_contract_record_request_metadata(&ctx->contract,
+            method, uri, NULL, header_count, header_bytes,
+            mcf->common_config.request_body_limit > 0U
+                ? mcf->common_config.request_body_limit : MSCONNECTOR_MAX_BODY_BUFFER_SIZE) !=
+            MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: failed to record canonical request metadata");
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
     ngx_http_modsecurity_add_request_headers(r, ctx);
     old_pool = ngx_http_modsecurity_pcre_malloc_init(r->pool);
+    if (ngx_http_modsecurity_contract_begin(ctx,
+            MSCONNECTOR_PHASE_REQUEST_HEADERS) != NGX_OK) {
+        ngx_http_modsecurity_pcre_malloc_done(old_pool);
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: invalid canonical P1 transition");
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
     ctx->native_event_phase = MSCONNECTOR_PHASE_REQUEST_HEADERS;
     ctx->native_event_phase_active = 1;
     msc_process_request_headers(ctx->modsec_transaction);
     ctx->native_event_phase_active = 0;
+    if (ngx_http_modsecurity_contract_complete(ctx,
+            MSCONNECTOR_PHASE_REQUEST_HEADERS) != NGX_OK) {
+        ngx_http_modsecurity_pcre_malloc_done(old_pool);
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: invalid canonical P1 completion");
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
     ngx_http_modsecurity_pcre_malloc_done(old_pool);
 
     dd("Processing intervention with the request headers information filled in");
@@ -456,11 +531,26 @@ ngx_http_modsecurity_append_request_body(ngx_http_request_t *r,
     chain = r->request_body->bufs;
     while (chain != NULL) {
         u_char *data = chain->buf->pos;
+        size_t length = (size_t)(chain->buf->last - data);
+
+        if (ctx->contract.active_phase != MSCONNECTOR_PHASE_REQUEST_BODY &&
+            ngx_http_modsecurity_contract_begin(ctx,
+                MSCONNECTOR_PHASE_REQUEST_BODY) != NGX_OK) {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                "ModSecurity: invalid canonical P2 transition");
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+        if (msconnector_transaction_contract_record_body(&ctx->contract, 0,
+                length) != MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                "ModSecurity: canonical request body limit reached");
+            return NGX_HTTP_REQUEST_ENTITY_TOO_LARGE;
+        }
 
         ctx->native_event_phase = MSCONNECTOR_PHASE_REQUEST_BODY;
         ctx->native_event_phase_active = 1;
         msc_append_request_body(ctx->modsec_transaction, data,
-            chain->buf->last - data);
+            length);
         ctx->native_event_phase_active = 0;
 
         if (chain->buf->last_buf) {
@@ -496,14 +586,27 @@ ngx_http_modsecurity_inspect_request_body(ngx_http_request_t *r,
 
     dd("request body is ready to be processed");
     r->write_event_handler = ngx_http_core_run_phases;
+    if (ctx->contract.active_phase != MSCONNECTOR_PHASE_REQUEST_BODY &&
+        ngx_http_modsecurity_contract_begin(ctx,
+            MSCONNECTOR_PHASE_REQUEST_BODY) != NGX_OK) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: invalid canonical P2 transition");
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
     if (r->request_body->temp_file != NULL) {
         const char *file_name = ngx_str_to_char(
             r->request_body->temp_file->file.name, r->pool);
+        off_t file_size = r->request_body->temp_file->offset;
 
-        if (file_name == (char *)-1 || file_name == NULL) {
+        if (file_name == (char *)-1 || file_name == NULL || file_size < 0 ||
+            (uintmax_t)file_size > (uintmax_t)SIZE_MAX ||
+            (file_size > 0 && msconnector_transaction_contract_record_body(
+                &ctx->contract, 0, (size_t)file_size) !=
+                MSCONNECTOR_TRANSACTION_TRANSITION_OK)) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                "ModSecurity: request body file name conversion failed");
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+                "ModSecurity: request body file metadata violates canonical limits");
+            return file_size > 0 ? NGX_HTTP_REQUEST_ENTITY_TOO_LARGE :
+                NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
         dd("request body inspection: file -- %s", file_name);
         ctx->native_event_phase = MSCONNECTOR_PHASE_REQUEST_BODY;
@@ -525,6 +628,13 @@ ngx_http_modsecurity_inspect_request_body(ngx_http_request_t *r,
     ctx->native_event_phase_active = 0;
     ngx_http_modsecurity_pcre_malloc_done(old_pool);
     ctx->request_body_processed = 1;
+
+    if (ngx_http_modsecurity_contract_complete(ctx,
+            MSCONNECTOR_PHASE_REQUEST_BODY) != NGX_OK) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: invalid canonical P2 completion");
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
 
     if (ret != 1) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,

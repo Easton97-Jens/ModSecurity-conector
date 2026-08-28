@@ -25,7 +25,7 @@ payload-sichere Event-Primitiven; es besitzt keine Apache-Objekte.
 | --- | --- | --- |
 | P1/P2 | Request-Metadaten mappen und Request-Bodies über den Inputpfad verarbeiten | Request-Body-Verarbeitung bei EOS abschließen |
 | P3 | Response-Header vor der Commit-Grenze mappen | Ursprungs- und sichtbaren Statuskontext erhalten |
-| P4 | Daten-Buckets inkrementell anhängen, normalisierte Response bis zum ersten EOS zurückhalten und dann einmal abschließen | Apache-eigenes All-Response-Gate im Request-Pool; kein ursprüngliches Byte wird vor der Phase-4-Entscheidung freigegeben |
+| P4 | Jeden begrenzten Daten-Bucket genau einmal anhängen und das normalisierte Präfix vor EOS sofort an den nächsten Filter weiterreichen | Nur das terminale EOS-Fragment wartet auf ein Phase-4-Finish; Next-Filter-Forwarding ist die Source-Commit-Grenze |
 | Logging | Nur Metadaten enthaltende Events ausgeben und Transaktionszustand freigeben | Event-Payloads enthalten keine Response-Bodies |
 
 Jede erfolgreich erzeugte native <code>Transaction</code> gehört der primären
@@ -70,41 +70,41 @@ Enable/Disable-Direktive.
 
 Das native Modul verarbeitet P1 bis P4 in seinen Host-Hooks und Filtern. P3
 kann handeln, bevor die Response committed ist, wenn ausgewählter Case und
-Hostzustand es erlauben. P4 ist ein EOS-only-All-Response-Gate: Jede
-normalisierte Response-Brigade, einschließlich des EOS einer leeren Response,
-bleibt im Apache-Request-Pool, bis `msc_process_response_body` und die
-Interventionsauflösung abgeschlossen sind. Dadurch kann ein normaler
-Phase-4-Deny die gespeicherte ursprüngliche Brigade verwerfen und genau eine
-terminale Error-Response ausgeben, bevor die ursprüngliche Ausgabe freigegeben
-wird. Der ausgewählte Apache-Pfad bietet deshalb bewusst kein für Clients
-sichtbares progressives Response-Streaming.
+Hostzustand es erlauben. P4 bleibt für die Regelauswertung EOS-only, ist nun
+aber ein progressiver Ausgabepfad: Jeder Response-Daten-Bucket wird genau
+einmal angehängt, FLUSH und andere Apache-Metadaten vor EOS bleiben erhalten,
+und das normalisierte Präfix vor EOS wird sofort an den nächsten Filter
+weitergereicht. Der Filter hält keine vollständige Response-Brigade; nur das
+terminale EOS-Fragment wartet auf den einmaligen Aufruf von
+`msc_process_response_body` und die Late-Action-Auflösung.
 
 Die C-API gibt keine sichere Antwort auf die wirksame
 `SecResponseBodyMimeType`-Auswahl von libModSecurity. Apache gate't deshalb
 jeden Response-MIME-Typ; die Engine-Direktive wählt weiterhin die Inspektion,
 aber das veraltete `modsecurity_phase4_content_types_file` kann keinen
 Pass-through-Pfad öffnen. Das Connector-Standardlimit ist ein hartes Limit von
-1048576 Byte (1 MiB); eine übergroße Response schlägt fail-closed fehl, bevor
-ihre ursprünglichen Bytes freigegeben werden.
-Zusätzlich gilt eine feste, nicht konfigurierbare Obergrenze von 4.096
-normalisierten, über Filter-Aufrufe hinweg zurückgehaltenen Buckets; vor dem
-Zurückhalten des nächsten Buckets schlägt sie fail-closed fehl, sodass eine
-stark fragmentierte Response schon unterhalb des Byte-Limits abgelehnt werden
-kann. `r->sent_bodyct` und `eos_sent`
-sind kein Commit-Nachweis, weil Upstream-/Core-Pfade sie setzen können, bevor
-dieser Filter Ausgabe freigibt. Das Gate verwendet stattdessen seinen eigenen
-Released-EOS-Marker und Apaches `r->bytes_sent`.
+1048576 Byte (1 MiB); die Grenze wird geprüft, bevor ein weiterer Daten-Bucket
+angehängt wird. Ein Fehler nach einem weitergereichten Präfix kann dieses nicht
+umschreiben; die terminale Aktion wird darum über die gemeinsame
+Post-Commit-Policy abgebildet. `r->sent_bodyct` und `eos_sent` sind kein
+Commit-Nachweis, weil Upstream-/Core-Pfade sie setzen können, bevor dieser
+Filter Ausgabe freigibt. Der Next-Filter-Aufruf ist die monotone
+Commit-Grenze des Source-Contracts; zusätzlich behält der Filter seinen
+EOS-Release-Guard und Apaches `r->bytes_sent`-Metadaten.
 
-Safe-/Minimal-`log_only` und Strict-`abort_connection` bleiben defensive
-Fallbacks nur für eine unabhängig als bereits committed nachgewiesene Response.
-Sie wandeln einen normalen noch gegateten Deny nicht in Log-only um.
-Source-Wiring für einen Strict-Fallback beweist weiterhin keinen
-client-sichtbaren Abbruch.
+P4-Regelauswertung erfolgt nicht pro Chunk, sondern nur bei EOS. Ein
+progressiver P4-Pfad behauptet darum keinen verlässlichen Deny oder Redirect
+vor Commit, nachdem ein Response-Präfix weitergereicht wurde; P3 bleibt der
+Entscheidungspunkt vor dem Response-Header-Commit. Safe/Minimal ordnet ein
+disruptives EOS-Ergebnis als `log_only` zu und erhält die bereits
+weitergereichte Response. Strict verwendet `abort_connection`. Source-Wiring
+für diesen Abort beweist weiterhin keinen client-sichtbaren Abbruch.
 
 | P4-Frage | Erforderliche Beobachtung |
 | --- | --- |
 | Regel beobachtet | Reale Host-Phase-4-Regelbeobachtung mit ausgewählter Regel/Profil |
-| Deny vor Commit | Angeforderter Deny, kein freigegebenes ursprüngliches EOS/Byte, passender sichtbarer terminaler Status und keine ursprüngliche Body-Ausgabe |
+| Progressives Präfix | Ein client-sichtbares erstes Byte vor Response-EOS, erhaltenes FLUSH/Metadaten und genau ein Append pro Daten-Bucket |
+| P4-Deny vor Commit | Ein host-spezifischer Commit-Nachweis; dieser progressive Apache-Source-Path behauptet keinen nach einem weitergereichten Präfix |
 | Safe Late Result | Angeforderte Aktion, tatsächliches <code>log_only</code>, unveränderter sichtbarer Status und Late-Flag |
 | Strict Late Result | Tatsächliche Abort-Aktion und Host-/Client-Nachweis des aufgezeichneten Abbruchs |
 
@@ -138,9 +138,9 @@ Direktiven. Verwenden Sie die registrierte Modulsyntax und die vollständige
 Referenz, statt eine Legacy-Direktive, Merge-Regel oder Ausdruckssyntax als
 portabel anzunehmen. P4-Response-Body- und Post-Commit-Verhalten bleiben
 evidence-gesteuert; ein Regelmatch, Quellzweig oder historische Matrix ist
-keine Promotion. Das Apache-All-Response-Gate ist beabsichtigtes
-Kompatibilitätsverhalten für diese Sicherheitsgrenze, kein generisches
-Connector-Buffering-Modell.
+keine Promotion. Der progressive Apache-Pfad ist eine begrenzte
+Adapterübersetzung, kein generisches Connector-Buffering-Modell und keine
+Behauptung eines client-sichtbaren späten Abbruchs.
 
 ## Verwandte Referenzen
 

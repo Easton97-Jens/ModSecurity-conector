@@ -34,6 +34,8 @@ typedef struct msconnector_decision {
     const char *reason;
     const char *log_message;
     int disruptive;
+    /* A validated P2 body-limit rejection carries no rule correlation. */
+    int body_limit;
     int late_intervention;
     msconnector_intervention intervention;
 } msconnector_decision;
@@ -47,9 +49,11 @@ int msconnector_decision_is_drop(const msconnector_decision *decision);
 int msconnector_decision_is_connection_abort(const msconnector_decision *decision);
 int msconnector_decision_is_allow(const msconnector_decision *decision);
 int msconnector_decision_http_status(const msconnector_decision *decision);
+int msconnector_decision_is_body_limit(const msconnector_decision *decision);
 void msconnector_decision_set_allow(msconnector_decision *decision);
 void msconnector_decision_set_log_only(msconnector_decision *decision, const char *reason);
 void msconnector_decision_set_deny(msconnector_decision *decision, int http_status, const char *rule_id, const char *reason);
+void msconnector_decision_set_body_limit(msconnector_decision *decision, const char *reason);
 void msconnector_decision_set_redirect(msconnector_decision *decision, int http_status, const char *url, const char *rule_id, const char *reason);
 void msconnector_decision_set_drop(msconnector_decision *decision, const char *rule_id, const char *reason);
 void msconnector_decision_set_connection_abort(msconnector_decision *decision, const char *rule_id, const char *reason);
