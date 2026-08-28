@@ -667,3 +667,21 @@ nicht wegcasten oder den Pointer behalten. Der Successor-Commit war zum
 Zeitpunkt dieses Nachtrags noch nicht gepusht; deshalb muss die Wrapper-
 Abfrage für genau diesen Remote-Head wiederholt werden, bevor null offene
 Sonar-Issues beansprucht werden.
+
+## 2026-08-28-Nachtrag zur Successor-Analyse
+
+SonarQube Cloud analysierte den Successor
+`f67395bf89f0ceb39b1629ed637b77bf07629bcd` mit `OK`-Quality-Gate und entfernte
+acht der zehn früheren aufgabeneigenen Issues. Die exakte Analyse fand dennoch
+zwei neue `c:S995`-Findings im HAProxy-Response-Companion-Backend-Test. Der
+Follow-up ändert ausschließlich einen nur verglichenen Native-Transaction-
+Parameter zu Pointer-zu-const und einen nur lesenden Fake-Owner-Parameter zu
+Pointer-zu-const. Er ändert weder eine Produkt-API noch Testfall, Assertion,
+Phase, Limit, Hostaktion, Scanner oder Quality Gate.
+
+`pytest -q -p no:cacheprovider tests/test_haproxy_transaction_contract_binding.py`
+bestand nach der Korrektur alle 23 Tests; auch der direkte C17-
+`-Wall -Wextra -Werror`-Syntaxcheck und `git diff --check` bestanden. Die
+nächste normale Successor-Auslieferung und ihre Exact-Head-Wrapper-Abfrage
+bleiben erforderlich, bevor dieser Record null offene SonarQube-Cloud-Issues
+beansprucht.

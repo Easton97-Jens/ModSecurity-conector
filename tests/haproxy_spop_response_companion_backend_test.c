@@ -244,7 +244,8 @@ static void set_response_decision(
 }
 
 static void wait_for_blocking_callback(
-    fake_owner *const owner, haproxy_modsecurity_transaction *const transaction,
+    fake_owner *const owner,
+    const haproxy_modsecurity_transaction *const transaction,
     const haproxy_spop_response_companion_owner_command *const command) {
   if (owner->control.blocking.block_a_claim && transaction == owner->transaction_a &&
       command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_CLAIM) {
@@ -269,7 +270,7 @@ static void wait_for_blocking_callback(
 }
 
 static int handle_callback_error(
-    fake_owner *const owner,
+    const fake_owner *const owner,
     const haproxy_spop_response_companion_owner_command *const command,
     msconnector_error *const error, int *const transaction_consumed) {
   if (command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_BODY &&

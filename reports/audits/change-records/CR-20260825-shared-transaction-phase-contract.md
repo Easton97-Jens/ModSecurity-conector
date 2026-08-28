@@ -610,3 +610,19 @@ must recompile and provide bounded scratch storage before invoking P3/P4; they
 must not cast away `const` or retain the pointer. The successor commit has not
 yet been pushed at this addendum's time, so the wrapper query must be repeated
 for that exact remote head before claiming zero open Sonar issues.
+
+## 2026-08-28 successor-analysis follow-up
+
+SonarQube Cloud analyzed successor `f67395bf89f0ceb39b1629ed637b77bf07629bcd`
+with an `OK` Quality Gate and removed eight of the ten earlier task-owned
+issues. Its exact analysis nevertheless found two new `c:S995` findings in
+the HAProxy response-companion backend test. The follow-up changes only a
+compare-only native-transaction parameter to pointer-to-const and a read-only
+fake-owner parameter to pointer-to-const. It does not change a production API,
+test scenario, assertion, phase, limit, host action, scanner, or Quality Gate.
+
+`pytest -q -p no:cacheprovider tests/test_haproxy_transaction_contract_binding.py`
+passed all 23 tests after the correction; the direct C17
+`-Wall -Wextra -Werror` syntax check and `git diff --check` also passed. The
+next normal successor delivery and its exact-head wrapper query remain
+required before this record claims zero open SonarQube Cloud issues.
