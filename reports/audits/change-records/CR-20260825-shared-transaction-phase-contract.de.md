@@ -490,3 +490,41 @@ Exact-Head-Apache- und -HAProxy-Hosted-Runtime-Checks bleiben nach der nächsten
 normalen PR-Head-Auslieferung ausstehend; ihre historischen Fehler und der
 historische Gitleaks-Finding werden nicht allein aufgrund dieser lokalen
 Evidenz als behoben behauptet.
+
+## 2026-08-28-Nachtrag zu Clean-History und Exact-Head-Validierung
+
+Der PR-Produktbaum wurde von `origin/master`
+`6ccfd8de555855ac540fc4d3d9e330f82d5e8cff` als lokaler Ersatz-Commit
+`47eefcd3432608361d093919ae117049034b86ea` neu aufgebaut. Vor diesem
+Evidenznachtrag war dieser Ersatzbaum bytegenau gleich dem vorherigen
+PR-Produktbaum bei `66155ac03681214c59bc9fc661145227980be130`. Der frühere
+Head bleibt lokal unter einer dedizierten Backup-Referenz erhalten. Der
+historische redigierte Gitleaks-Match liegt nicht in der Ersatz-Ancestry; der
+Scan wird weder umgangen noch unterdrückt.
+
+Die projektgepinnte Gitleaks-Binärdatei hat einen redigierten Scan von
+`origin/master..47eefcd3432608361d093919ae117049034b86ea` ohne Findings
+abgeschlossen. Der Scanner-Workflow sowie alle Workflow-, Scanner-, Quality-
+Gate-, Ruleset-, Required-Check- und Branch-Rule-Dateien sind bytegenau gleich
+dem vorherigen PR-Baum. Nach diesem Dokumentations-Commit sind noch ein
+abschließender redigierter Scan und eine exakte `--force-with-lease`-
+Auslieferung erforderlich; danach müssen Hosted Checks und SonarCloud für den
+neuen Remote-Head beobachtet werden.
+
+| Lokale Validierung | Tatsächliches Ergebnis |
+| --- | --- |
+| Common-SDK-/Security-/Flow- und Adapter-Contract-Checks; Common-C17-Helper; HAProxy-HTX-Overlay | Bestanden. |
+| C-Transaktions-FSM-, Runtime-Companion-, Response-Companion-Client-, HAProxy-SPOE-Response-Companion-Backend- und UDS-Transporttests | Bestanden. |
+| Fokussierte Common-/Apache-/NGINX-/Envoy-/Traefik-/lighttpd-Python-Contract-Tests | Bestanden: 115 Tests; 3 Framework-Gitlink-Mismatch-Skips. |
+| Sonar-Wrapper-Authentifizierung | Über `/usr/local/bin/sonar-with-env` verbunden; keine Credential-Werte gelesen oder persistiert. |
+
+Der UDS-Transporttest verwendet einen privaten kurzen Taskpfad, weil die
+Länge von Unix-Domain-Socket-Pfaden begrenzt ist. Das Sandbox-Standard-`/tmp`
+ist schreibgeschützt, und ein langer Evidenzroot überschreitet `sun_path`; der
+Rerun mit kurzem Pfad bestand und begründet keinen Produktdefekt. Der
+Framework-Checkout ist nicht initialisiert und erforderliche Host-Binärdateien
+fehlen. Deshalb bleiben echte Host-/Client-H1-Evidenz—einschließlich des nur
+aggregierten gehosteten HAProxy-Runtime-Fehlers—und Patched-lighttpd-Evidenz
+unverifiziert. Diese Lücken sind nicht bestanden und weder Kompatibilitäts-
+noch Safe-Mode-Fallbacks. Der PR bleibt Draft, bis Exact-Head-Hosted- und
+Host-Runtime-Evidenz die genannten Akzeptanzkriterien erfüllt.

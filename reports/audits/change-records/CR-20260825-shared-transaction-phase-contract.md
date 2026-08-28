@@ -452,3 +452,39 @@ required check, or branch rule was changed. The exact-head Apache and HAProxy
 hosted runtime checks remain pending after the next normal PR-head delivery;
 their historical failures and the historical Gitleaks finding are not claimed
 as repaired by this local evidence alone.
+
+## 2026-08-28 clean-history and exact-head validation addendum
+
+The PR product tree was rebuilt from `origin/master`
+`6ccfd8de555855ac540fc4d3d9e330f82d5e8cff` as local replacement commit
+`47eefcd3432608361d093919ae117049034b86ea`. Before this evidence addendum,
+that replacement tree was byte-for-byte equal to the previous PR product tree
+at `66155ac03681214c59bc9fc661145227980be130`. The previous head is retained
+locally under a dedicated backup reference. The historical redacted Gitleaks
+match is not in the replacement ancestry; the scan is not bypassed or
+suppressed.
+
+The project-pinned Gitleaks binary completed a redacted scan of
+`origin/master..47eefcd3432608361d093919ae117049034b86ea` with no findings.
+The scanner workflow and all workflow, scanner, Quality Gate, ruleset,
+required-check, and branch-rule files remain byte-identical to the prior PR
+tree. A final redacted scan and an exact `--force-with-lease` delivery are
+still required after this documentation commit; hosted checks and SonarCloud
+must then be observed for the new remote head.
+
+| Local validation | Actual result |
+| --- | --- |
+| Common SDK/security/flow and adapter-contract checks; Common C17 helper; HAProxy HTX overlay | Passed. |
+| C transaction FSM, runtime companion, response-companion client, HAProxy SPOE response-companion backend, and UDS transport tests | Passed. |
+| Focused Common/Apache/NGINX/Envoy/Traefik/lighttpd Python contract tests | Passed: 115 tests; 3 Framework-gitlink-mismatch skips. |
+| Sonar wrapper authentication | Connected through `/usr/local/bin/sonar-with-env`; no credential values were read or persisted. |
+
+The UDS transport test uses a private short task path because Unix-domain
+socket path length is bounded. The sandbox default `/tmp` is read-only and a
+long evidence root exceeds `sun_path`; the short-path rerun passed and leaves
+no product defect claim. The Framework checkout is uninitialized and required
+host binaries are unavailable, so real host/client H1 evidence—including the
+aggregate-only hosted HAProxy runtime failure—and Patched-lighttpd evidence
+remain unverified. These gaps are non-passing entries, not compatibility or
+Safe-mode fallbacks. The PR remains Draft until exact-head hosted and host
+runtime evidence meets the stated acceptance criteria.
