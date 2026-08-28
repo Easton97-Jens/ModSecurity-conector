@@ -85,6 +85,7 @@ typedef struct response_companion_response_input {
 } response_companion_response_input;
 
 typedef struct response_companion_session_state {
+    msconnector_response_companion_decision_storage decision_storage;
     msconnector_response_companion_backend_session session;
     msconnector_decision latest_decision;
     char latest_redirect[RESPONSE_COMPANION_MAX_REDIRECT + 1U];
@@ -102,6 +103,16 @@ typedef struct response_companion_session_state {
     int outcome_recorded;
     size_t response_body_bytes;
 } response_companion_session_state;
+
+static void response_companion_reset_session_state(
+    response_companion_session_state *state)
+{
+    if (state == NULL) {
+        return;
+    }
+    memset(state, 0, sizeof(*state));
+    state->session.decision_storage = &state->decision_storage;
+}
 
 struct msconnector_response_companion_transport_worker {
     msconnector_response_companion_transport *transport;
@@ -1082,7 +1093,7 @@ static int response_companion_runtime_backend_claim(void *context,
 }
 
 static int response_companion_runtime_backend_process_response_headers(
-    void *context, msconnector_response_companion_backend_session *session,
+    void *context, const msconnector_response_companion_backend_session *session,
     const msconnector_response *response, msconnector_decision *decision,
     msconnector_error *error)
 {
@@ -1096,7 +1107,7 @@ static int response_companion_runtime_backend_process_response_headers(
 }
 
 static int response_companion_runtime_backend_append_response_body_chunk(
-    void *context, msconnector_response_companion_backend_session *session,
+    void *context, const msconnector_response_companion_backend_session *session,
     const unsigned char *data, size_t size, msconnector_error *error)
 {
     msconnector_runtime_response_companion_session *runtime_session =
@@ -1109,7 +1120,7 @@ static int response_companion_runtime_backend_append_response_body_chunk(
 }
 
 static int response_companion_runtime_backend_finish_response_body(void *context,
-    msconnector_response_companion_backend_session *session,
+    const msconnector_response_companion_backend_session *session,
     msconnector_decision *decision, msconnector_error *error)
 {
     msconnector_runtime_response_companion_session *runtime_session =
@@ -1288,7 +1299,7 @@ static int response_companion_backend_claim(
 
 static int response_companion_backend_process_response_headers(
     msconnector_response_companion_transport *transport,
-    msconnector_response_companion_backend_session *session,
+    const msconnector_response_companion_backend_session *session,
     const msconnector_response *response, msconnector_decision *decision,
     msconnector_error *error)
 {
@@ -1314,7 +1325,7 @@ static int response_companion_backend_process_response_headers(
 
 static int response_companion_backend_append_response_body_chunk(
     msconnector_response_companion_transport *transport,
-    msconnector_response_companion_backend_session *session,
+    const msconnector_response_companion_backend_session *session,
     const unsigned char *data, size_t size, msconnector_error *error)
 {
     int result;
@@ -1339,7 +1350,7 @@ static int response_companion_backend_append_response_body_chunk(
 
 static int response_companion_backend_finish_response_body(
     msconnector_response_companion_transport *transport,
-    msconnector_response_companion_backend_session *session,
+    const msconnector_response_companion_backend_session *session,
     msconnector_decision *decision, msconnector_error *error)
 {
     int result;
@@ -1604,6 +1615,7 @@ static int response_companion_handle_claim(
 
     msconnector_secure_zero(handle, sizeof(handle));
     msconnector_error_init(&error);
+    state->session.decision_storage = &state->decision_storage;
     result = response_companion_parse_claim(frame, handle) &&
         response_companion_backend_claim(worker->transport, handle, &state->session,
             &error);
@@ -1887,8 +1899,7 @@ static int response_companion_handle_cancel(
         /* CANCEL performs deterministic ownership release. A connection may
          * carry another transaction only after that release, never while a
          * session is active. */
-        state->session.opaque = NULL;
-        memset(state, 0, sizeof(*state));
+        response_companion_reset_session_state(state);
         return 1;
     }
     return 0;
@@ -1923,8 +1934,7 @@ static int response_companion_handle_release(
         /* RELEASE has finished P4 and detached the exact claimed registry
          * entry. Reset every per-session bit before admitting the next CLAIM
          * on this trusted connection. */
-        state->session.opaque = NULL;
-        memset(state, 0, sizeof(*state));
+        response_companion_reset_session_state(state);
         return 1;
     }
     return 0;
@@ -1968,7 +1978,7 @@ static void *response_companion_worker_main(void *argument)
     if (worker == NULL || worker->transport == NULL) {
         return NULL;
     }
-    memset(&state, 0, sizeof(state));
+    response_companion_reset_session_state(&state);
     while (keep_running && !atomic_load_explicit(&worker->transport->listener.stopping,
             memory_order_acquire)) {
         response_companion_frame frame;

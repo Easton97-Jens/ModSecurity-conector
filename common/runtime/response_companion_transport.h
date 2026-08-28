@@ -63,10 +63,13 @@ typedef struct msconnector_response_companion_transport_worker
  * backend) must queue/synchronize its operation to that owner; it must never
  * dereference the native transaction directly from a detached MRC1 worker.
  */
-/* Backend callback decisions borrow text pointers. The transport provides
- * this bounded session-owned scratch storage so an owner-thread bridge can
- * preserve native decision text until MRC1 has copied it after the callback.
- * It is not wire-visible and must never contain request or response bodies. */
+/* Backend callback decisions borrow text pointers. The transport binds this
+ * bounded state-owned scratch storage to each claimed session so an
+ * owner-thread bridge can preserve native decision text until MRC1 has copied
+ * it after the callback. P3/P4 callbacks receive the session itself as
+ * read-only; they may write only through this pointer during the synchronous
+ * callback and must never retain it. It is not wire-visible and must never
+ * contain request or response bodies. */
 typedef struct msconnector_response_companion_decision_storage {
     char redirect_url[MSCONNECTOR_MAX_PATH_LENGTH + 1U];
     char log_message[MSCONNECTOR_MAX_LOG_MESSAGE_LENGTH + 1U];
@@ -74,7 +77,7 @@ typedef struct msconnector_response_companion_decision_storage {
 
 typedef struct msconnector_response_companion_backend_session {
     void *opaque;
-    msconnector_response_companion_decision_storage decision_storage;
+    msconnector_response_companion_decision_storage *decision_storage;
 } msconnector_response_companion_backend_session;
 
 typedef struct msconnector_response_companion_host_action {
@@ -94,14 +97,14 @@ typedef struct msconnector_response_companion_backend {
         msconnector_response_companion_backend_session *session,
         msconnector_error *error);
     int (*process_response_headers)(void *context,
-        msconnector_response_companion_backend_session *session,
+        const msconnector_response_companion_backend_session *session,
         const msconnector_response *response, msconnector_decision *decision,
         msconnector_error *error);
     int (*append_response_body_chunk)(void *context,
-        msconnector_response_companion_backend_session *session,
+        const msconnector_response_companion_backend_session *session,
         const unsigned char *data, size_t size, msconnector_error *error);
     int (*finish_response_body)(void *context,
-        msconnector_response_companion_backend_session *session,
+        const msconnector_response_companion_backend_session *session,
         msconnector_decision *decision, msconnector_error *error);
     int (*set_response_commit_state)(void *context,
         const msconnector_response_companion_backend_session *session,

@@ -565,3 +565,48 @@ pre-successor head reported zero open/confirmed SonarQube Cloud issues and an
 aggregate-only HAProxy hosted-runtime failure, the unavailable full ten-host
 matrix, and the missing fresh external Codex review remain non-passing
 evidence gaps. The PR remains Draft; no merge or `master` push is claimed.
+
+## 2026-08-28 Sonar remediation addendum
+
+### Motivation and bounded change
+
+The required managed Sonar wrapper, `/usr/local/bin/sonar-with-env`, is now
+authenticated through its managed environment. Its query of PR #344 at
+`8a35aa6a752a28ce2062945c2d36e8ee7c41574c` returned an `OK` Quality Gate but
+ten open task-owned code-smell issues. The explicit acceptance criterion is
+zero open issues, so the green gate alone was not treated as completion.
+
+The remediation makes only P3/P4 response-companion callbacks const-correct.
+Their bounded decision scratch storage now belongs to the transport's
+per-worker session state and is rebound on initialization, CLAIM, CANCEL, and
+RELEASE. A P3/P4 callback can write only through that bounded pointer while
+it is synchronous; it cannot change the session capability or retain the
+pointer. HAProxy rejects a missing scratch pointer before owner dispatch. The
+existing task/result deep-copy boundary remains responsible for delayed owner
+work and still prevents callback-storage use after a timeout.
+
+The same focused patch also merges one nested HAProxy result-copy condition,
+turns two Stock-lighttpd header-terminator nested expressions into explicit
+state transitions, and splits the backend test owner's independent assertion,
+blocking, error, and operation-contract checks into helpers. No behavior,
+limit, phase order, fail-open/fail-closed choice, workflow, scanner,
+suppression, Quality Gate, rule, or branch protection was weakened or changed.
+
+### Validation and compatibility
+
+| Local validation | Actual result |
+| --- | --- |
+| `pytest -q -p no:cacheprovider tests/test_haproxy_transaction_contract_binding.py` | Passed: 23 tests, including the delayed-owner ASan/UBSan regression. |
+| Direct HAProxy response-companion backend C17 ASan/UBSan binary | Passed, including the missing-decision-storage fail-closed control. |
+| `pytest -q -p no:cacheprovider connectors/lighttpd/tests/test_stock_sidecar_contract.py` | Passed: 16 tests; 16 native-runtime tests skipped because that runtime is unavailable. |
+| C17 `-Wall -Wextra -Werror` syntax checks for the Common transport, HAProxy backend/diagnostic runtime, Stock-lighttpd sidecar, and transport mock test | Passed. |
+| `make check-haproxy-c17`, `make check-remaining-connectors-c17`, `make check-common-helpers-c17`, and `make -C connectors/haproxy check-htx-overlay` | Passed. |
+
+Changing the P3/P4 callback qualifiers and replacing the inline session member
+with an explicit scratch pointer is source/ABI-incompatible for independently
+compiled external implementations of this experimental backend vtable.
+Internal implementations and mocks are updated in this PR. External adapters
+must recompile and provide bounded scratch storage before invoking P3/P4; they
+must not cast away `const` or retain the pointer. The successor commit has not
+yet been pushed at this addendum's time, so the wrapper query must be repeated
+for that exact remote head before claiming zero open Sonar issues.

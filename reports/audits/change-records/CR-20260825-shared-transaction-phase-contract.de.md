@@ -614,3 +614,56 @@ HAProxy-Hosted-Runtime-Fehler, die nicht verfügbare vollständige
 Ten-Host-Matrix und der fehlende frische externe Codex-Review bleiben nicht
 bestandene Evidenzlücken. Der PR bleibt Draft; weder ein Merge noch ein
 `master`-Push wird beansprucht.
+
+## 2026-08-28-Nachtrag zur Sonar-Remediation
+
+### Motivation und begrenzte Änderung
+
+Der erforderliche verwaltete Sonar-Wrapper
+`/usr/local/bin/sonar-with-env` ist nun über seine verwaltete Umgebung
+authentifiziert. Seine Abfrage von PR #344 bei
+`8a35aa6a752a28ce2062945c2d36e8ee7c41574c` ergab ein `OK`-Quality-Gate,
+aber zehn offene aufgabeneigene Code-Smell-Issues. Das explizite
+Akzeptanzkriterium ist null offene Issues; deshalb gilt das grüne Gate allein
+nicht als Abschluss.
+
+Die Remediation macht ausschließlich P3/P4-Response-Companion-Callbacks
+const-korrekt. Ihr begrenzter Decision-Scratch-Storage gehört nun zum
+Worker-eigenen Session-State des Transports und wird bei Initialisierung,
+CLAIM, CANCEL und RELEASE erneut gebunden. Ein P3/P4-Callback kann nur durch
+diesen begrenzten Pointer schreiben, solange er synchron läuft; er kann weder
+die Session-Capability ändern noch den Pointer behalten. HAProxy lehnt einen
+fehlenden Scratch-Pointer vor dem Owner-Dispatch ab. Die bestehende
+Task-/Result-Deep-Copy-Grenze bleibt für verzögerte Owner-Arbeit zuständig und
+verhindert weiter die Verwendung von Callback-Storage nach einem Timeout.
+
+Der gleiche fokussierte Patch führt außerdem eine verschachtelte
+HAProxy-Result-Copy-Bedingung zusammen, ersetzt zwei verschachtelte
+Stock-lighttpd-Header-Terminator-Ausdrücke durch explizite
+Zustandsübergänge und teilt die unabhängigen Assertions, Blocking-, Fehler-
+und Operation-Contract-Prüfungen des Backend-Test-Owners in Helper auf. Es
+wurden kein Verhalten, Limit, keine Phasenreihenfolge, keine
+Fail-open-/Fail-closed-Entscheidung, kein Workflow, Scanner, keine
+Suppression, kein Quality Gate, keine Regel und kein Branch-Schutz geschwächt
+oder geändert.
+
+### Validierung und Kompatibilität
+
+| Lokale Validierung | Tatsächliches Ergebnis |
+| --- | --- |
+| `pytest -q -p no:cacheprovider tests/test_haproxy_transaction_contract_binding.py` | Bestanden: 23 Tests, einschließlich der ASan/UBSan-Regression für verzögerten Owner. |
+| Direkte C17-ASan/UBSan-Binärdatei für das HAProxy-Response-Companion-Backend | Bestanden, einschließlich des Fail-closed-Controls für fehlenden Decision-Storage. |
+| `pytest -q -p no:cacheprovider connectors/lighttpd/tests/test_stock_sidecar_contract.py` | Bestanden: 16 Tests; 16 Native-Runtime-Tests übersprungen, weil diese Runtime nicht verfügbar ist. |
+| C17-`-Wall -Wextra -Werror`-Syntaxchecks für Common-Transport, HAProxy-Backend/-Diagnoseruntime, Stock-lighttpd-Sidecar und Transport-Mock-Test | Bestanden. |
+| `make check-haproxy-c17`, `make check-remaining-connectors-c17`, `make check-common-helpers-c17` und `make -C connectors/haproxy check-htx-overlay` | Bestanden. |
+
+Die Änderung der P3/P4-Callback-Qualifizierer und der Ersatz des Inline-
+Session-Members durch einen expliziten Scratch-Pointer sind für unabhängig
+kompilierte externe Implementierungen dieser experimentellen Backend-Vtable
+source-/ABI-inkompatibel. Interne Implementierungen und Mocks sind in diesem
+PR aktualisiert. Externe Adapter müssen neu kompilieren und begrenzten
+Scratch-Storage bereitstellen, bevor sie P3/P4 aufrufen; sie dürfen `const`
+nicht wegcasten oder den Pointer behalten. Der Successor-Commit war zum
+Zeitpunkt dieses Nachtrags noch nicht gepusht; deshalb muss die Wrapper-
+Abfrage für genau diesen Remote-Head wiederholt werden, bevor null offene
+Sonar-Issues beansprucht werden.

@@ -501,8 +501,8 @@ def test_spop_response_bridge_owns_decision_text_through_the_transport_callback(
     assert dispatch.index("spop_owner_queue_submit") < dispatch.index(
         "copy_spop_bridge_decision(decision, command->decision_storage"
     )
-    assert "command.decision_storage = &session->decision_storage;" in SPOP_BACKEND_SOURCE
-    assert "msconnector_response_companion_decision_storage decision_storage;" in TRANSPORT_HEADER
+    assert "command.decision_storage = session->decision_storage;" in SPOP_BACKEND_SOURCE
+    assert "msconnector_response_companion_decision_storage *decision_storage;" in TRANSPORT_HEADER
 
 
 def test_spop_delayed_owner_lifetime_harness_is_asan_ubsan_clean() -> None:

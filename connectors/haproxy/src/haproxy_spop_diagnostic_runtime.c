@@ -3768,11 +3768,10 @@ static int spop_response_companion_owner_dispatch(
         }
         return 0;
     }
-    if (decision != NULL) {
-        if (!copy_spop_bridge_decision(decision, command->decision_storage,
-                &result.decision, error)) {
-            return 0;
-        }
+    if (decision != NULL &&
+            !copy_spop_bridge_decision(decision, command->decision_storage,
+                    &result.decision, error)) {
+        return 0;
     }
     return 1;
 }

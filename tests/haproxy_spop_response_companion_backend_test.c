@@ -209,21 +209,23 @@ static void dispatch_claim_reuse(fake_owner *const owner,
   pthread_mutex_unlock(&owner->backend->lock);
 }
 
-static int
-dispatch(void *const context, haproxy_modsecurity_transaction *const transaction,
-         const haproxy_spop_response_companion_owner_command *const command,
-         msconnector_decision *const decision, msconnector_error *const error,
-         int *const transaction_consumed) {
-  fake_owner *owner = context;
-  assert(transaction != NULL);
-  assert(command->operation <= HAPROXY_SPOP_RESPONSE_COMPANION_FAIL);
-  assert(command->lease != 0U);
-  owner->calls[command->operation]++;
-  if (command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_HEADERS ||
-      command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_BODY ||
-      command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_EOS) {
+static int is_response_operation(
+    const haproxy_spop_response_companion_owner_operation operation) {
+  return operation == HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_HEADERS ||
+         operation == HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_BODY ||
+         operation == HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_EOS;
+}
+
+static void assert_response_command(
+    const haproxy_spop_response_companion_owner_command *const command) {
+  if (is_response_operation(command->operation)) {
     assert(command->decision_storage != NULL);
   }
+}
+
+static void set_response_decision(
+    const haproxy_spop_response_companion_owner_command *const command,
+    msconnector_decision *const decision) {
   if (command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_HEADERS) {
     memcpy(command->decision_storage->redirect_url, "/owner-redirect",
            sizeof("/owner-redirect"));
@@ -239,6 +241,90 @@ dispatch(void *const context, haproxy_modsecurity_transaction *const transaction
     msconnector_decision_set_deny(decision, 451, NULL,
                                   command->decision_storage->log_message);
   }
+}
+
+static void wait_for_blocking_callback(
+    fake_owner *const owner, haproxy_modsecurity_transaction *const transaction,
+    const haproxy_spop_response_companion_owner_command *const command) {
+  if (owner->control.blocking.block_a_claim && transaction == owner->transaction_a &&
+      command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_CLAIM) {
+    pthread_mutex_lock(&owner->lock);
+    owner->control.blocking.a_started = 1;
+    pthread_cond_broadcast(&owner->changed);
+    while (!owner->control.blocking.release_a) {
+      pthread_cond_wait(&owner->changed, &owner->lock);
+    }
+    pthread_mutex_unlock(&owner->lock);
+  }
+  if (owner->control.blocking.block_a_body && transaction == owner->transaction_a &&
+      command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_BODY) {
+    pthread_mutex_lock(&owner->lock);
+    owner->control.blocking.body_started = 1;
+    pthread_cond_broadcast(&owner->changed);
+    while (!owner->control.blocking.release_body) {
+      pthread_cond_wait(&owner->changed, &owner->lock);
+    }
+    pthread_mutex_unlock(&owner->lock);
+  }
+}
+
+static int handle_callback_error(
+    fake_owner *const owner,
+    const haproxy_spop_response_companion_owner_command *const command,
+    msconnector_error *const error, int *const transaction_consumed) {
+  if (command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_BODY &&
+      owner->control.blocking.timeout_body) {
+    msconnector_error_set(error, MSCONNECTOR_ERROR_TIMEOUT,
+                          "owner callback timeout", "test");
+    return 1;
+  }
+  if (command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_RELEASE &&
+      owner->control.terminal.timeout_release) {
+    msconnector_error_set(error, MSCONNECTOR_ERROR_TIMEOUT,
+                          "terminal owner timeout", "test");
+    return 1;
+  }
+  if (command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_RELEASE &&
+      owner->control.blocking.fail_release) {
+    *transaction_consumed = 1;
+    msconnector_error_set(error, MSCONNECTOR_ERROR_PHASE_SEQUENCE,
+                          "finish failed after consuming transaction", "test");
+    return 1;
+  }
+  return 0;
+}
+
+static void assert_operation_contract(
+    const fake_owner *const owner,
+    const haproxy_spop_response_companion_owner_command *const command) {
+  if (command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_BODY) {
+    assert(command->body == owner->expected_body);
+    assert(command->body_size == owner->expected_body_size);
+  }
+  if (command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_COMMIT) {
+    assert(command->headers_sent == 1);
+    assert(command->body_started == 0);
+  }
+  if (command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_OUTCOME) {
+    assert(command->decision == owner->expected_decision);
+    assert(strcmp(command->transport_result, "sent") == 0);
+    assert(command->visible_http_status == 200);
+    assert(command->connection_aborted == 0);
+  }
+}
+
+static int
+dispatch(void *const context, haproxy_modsecurity_transaction *const transaction,
+         const haproxy_spop_response_companion_owner_command *const command,
+         msconnector_decision *const decision, msconnector_error *const error,
+         int *const transaction_consumed) {
+  fake_owner *owner = context;
+  assert(transaction != NULL);
+  assert(command->operation <= HAPROXY_SPOP_RESPONSE_COMPANION_FAIL);
+  assert(command->lease != 0U);
+  owner->calls[command->operation]++;
+  assert_response_command(command);
+  set_response_decision(command, decision);
   if (owner->control.terminal.defer_response_headers_finalizer &&
       command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_HEADERS &&
       transaction == owner->transaction_a) {
@@ -262,64 +348,26 @@ dispatch(void *const context, haproxy_modsecurity_transaction *const transaction
     return 0;
   }
   dispatch_claim_reuse(owner, transaction, command);
-  if (owner->control.blocking.block_a_claim && transaction == owner->transaction_a &&
-      command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_CLAIM) {
-    pthread_mutex_lock(&owner->lock);
-    owner->control.blocking.a_started = 1;
-    pthread_cond_broadcast(&owner->changed);
-    while (!owner->control.blocking.release_a) {
-      pthread_cond_wait(&owner->changed, &owner->lock);
-    }
-    pthread_mutex_unlock(&owner->lock);
-  }
-  if (owner->control.blocking.block_a_body && transaction == owner->transaction_a &&
-      command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_BODY) {
-    pthread_mutex_lock(&owner->lock);
-    owner->control.blocking.body_started = 1;
-    pthread_cond_broadcast(&owner->changed);
-    while (!owner->control.blocking.release_body) {
-      pthread_cond_wait(&owner->changed, &owner->lock);
-    }
-    pthread_mutex_unlock(&owner->lock);
-  }
-  if (command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_BODY &&
-      owner->control.blocking.timeout_body) {
-    msconnector_error_set(error, MSCONNECTOR_ERROR_TIMEOUT,
-                          "owner callback timeout", "test");
+  wait_for_blocking_callback(owner, transaction, command);
+  if (handle_callback_error(owner, command, error, transaction_consumed)) {
     return 0;
   }
-  if (command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_RELEASE &&
-      owner->control.terminal.timeout_release) {
-    msconnector_error_set(error, MSCONNECTOR_ERROR_TIMEOUT,
-                          "terminal owner timeout", "test");
-    return 0;
-  }
-  if (command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_RELEASE &&
-      owner->control.blocking.fail_release) {
-    *transaction_consumed = 1;
-    msconnector_error_set(error, MSCONNECTOR_ERROR_PHASE_SEQUENCE,
-                          "finish failed after consuming transaction", "test");
-    return 0;
-  }
-  if (command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_BODY) {
-    assert(command->body == owner->expected_body);
-    assert(command->body_size == owner->expected_body_size);
-  }
-  if (command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_COMMIT) {
-    assert(command->headers_sent == 1);
-    assert(command->body_started == 0);
-  }
-  if (command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_OUTCOME) {
-    assert(command->decision == owner->expected_decision);
-    assert(strcmp(command->transport_result, "sent") == 0);
-    assert(command->visible_http_status == 200);
-    assert(command->connection_aborted == 0);
-  }
+  assert_operation_contract(owner, command);
   return 1;
 }
 
 static void init_error(msconnector_error *const error) {
   msconnector_error_init(error);
+}
+
+static void reset_backend_session(
+    msconnector_response_companion_backend_session *const session,
+    msconnector_response_companion_decision_storage *const decision_storage) {
+  assert(session != NULL);
+  assert(decision_storage != NULL);
+  memset(session, 0, sizeof(*session));
+  memset(decision_storage, 0, sizeof(*decision_storage));
+  session->decision_storage = decision_storage;
 }
 
 typedef struct claim_thread_context {
@@ -342,7 +390,7 @@ static void *run_claim_thread(void *opaque) {
 
 typedef struct body_thread_context {
   msconnector_response_companion_backend *vtable;
-  msconnector_response_companion_backend_session *session;
+  const msconnector_response_companion_backend_session *session;
   const unsigned char *body;
   size_t body_size;
   msconnector_error error;
@@ -363,7 +411,8 @@ int main(void) {
   haproxy_spop_response_companion_backend backend;
   haproxy_spop_response_companion_slot slots[2];
   msconnector_response_companion_backend vtable;
-  msconnector_response_companion_backend_session session = {.opaque = NULL};
+  msconnector_response_companion_backend_session session;
+  msconnector_response_companion_decision_storage session_decision_storage;
   msconnector_error error;
   msconnector_decision decision;
   fake_owner owner;
@@ -372,6 +421,7 @@ int main(void) {
   const unsigned char body[] = "bounded";
 
   memset(&owner, 0, sizeof(owner));
+  reset_backend_session(&session, &session_decision_storage);
   owner.expected_body = body;
   owner.expected_body_size = sizeof(body) - 1U;
   init_error(&error);
@@ -408,6 +458,13 @@ int main(void) {
   assert(vtable.claim(vtable.context, handle, &session, &error));
   assert(session.opaque != NULL);
   {
+    msconnector_response_companion_backend_session missing_storage = session;
+    missing_storage.decision_storage = NULL;
+    assert(!vtable.process_response_headers(vtable.context, &missing_storage,
+                                            NULL, &decision, &error));
+    assert(error.code == MSCONNECTOR_ERROR_CORRELATION_MISSING);
+  }
+  {
     msconnector_response_companion_backend_session forged = {
         .opaque = (void *)(uintptr_t)1U};
     assert(!vtable.release(vtable.context, &forged, &error));
@@ -420,15 +477,15 @@ int main(void) {
   }
   assert(vtable.process_response_headers(vtable.context, &session, NULL,
                                          &decision, &error));
-  assert(decision.redirect_url == session.decision_storage.redirect_url);
-  assert(decision.reason == session.decision_storage.log_message);
+  assert(decision.redirect_url == session.decision_storage->redirect_url);
+  assert(decision.reason == session.decision_storage->log_message);
   assert(
       vtable.set_response_commit_state(vtable.context, &session, 1, 0, &error));
   assert(vtable.append_response_body_chunk(vtable.context, &session, body,
                                            sizeof(body) - 1U, &error));
   assert(
       vtable.finish_response_body(vtable.context, &session, &decision, &error));
-  assert(decision.reason == session.decision_storage.log_message);
+  assert(decision.reason == session.decision_storage->log_message);
   assert(strcmp(decision.reason, "owner-p4-decision") == 0);
   {
     const msconnector_response_companion_host_action action = {
@@ -457,7 +514,7 @@ int main(void) {
         &backend, owner.transaction_a, 6000U, handle, &error));
     owner.control.claim_reuse.simulate_claim_finalizer_reuse = 1;
     owner.control.claim_reuse.simulated_reuse_done = 0;
-    memset(&session, 0, sizeof(session));
+    reset_backend_session(&session, &session_decision_storage);
     assert(!vtable.claim(vtable.context, handle, &session, &error));
     assert(error.code == MSCONNECTOR_ERROR_CORRELATION_MISMATCH);
     assert(session.opaque == NULL);
@@ -467,7 +524,7 @@ int main(void) {
     assert(slots[0].in_flight == 1);
     slots[0].in_flight = 0;
     owner.control.claim_reuse.simulate_claim_finalizer_reuse = 0;
-    memset(&session, 0, sizeof(session));
+    reset_backend_session(&session, &session_decision_storage);
     assert(vtable.claim(vtable.context, owner.control.claim_reuse.simulated_reuse_handle, &session,
                         &error));
     assert(vtable.release(vtable.context, &session, &error));
@@ -478,7 +535,7 @@ int main(void) {
    * returned; afterwards normal release remains available. */
   assert(haproxy_spop_response_companion_handoff(&backend, owner.transaction_a,
                                                  1500U, handle, &error));
-  memset(&session, 0, sizeof(session));
+  reset_backend_session(&session, &session_decision_storage);
   assert(vtable.claim(vtable.context, handle, &session, &error));
   owner.control.blocking.timeout_body = 1;
   assert(!vtable.append_response_body_chunk(vtable.context, &session, body,
@@ -501,7 +558,7 @@ int main(void) {
   /* A released handle is single-use; the other slot expires through the
    * owner dispatch and cannot be claimed afterwards. */
   init_error(&error);
-  memset(&session, 0, sizeof(session));
+  reset_backend_session(&session, &session_decision_storage);
   haproxy_spop_response_companion_backend_expire(&backend, 1101U);
   assert(owner.calls[HAPROXY_SPOP_RESPONSE_COMPANION_EXPIRE] == 1U);
   assert(!vtable.claim(vtable.context, second, &session, &error));
@@ -542,7 +599,7 @@ int main(void) {
 
     assert(haproxy_spop_response_companion_handoff(
         &backend, owner.transaction_a, 7300U, handle, &error));
-    memset(&session, 0, sizeof(session));
+    reset_backend_session(&session, &session_decision_storage);
     assert(vtable.claim(vtable.context, handle, &session, &error));
     owner.control.terminal.simulate_terminal_finalizer_before_return = 1;
     owner.control.terminal.terminal_finalizer_simulated = 0;
@@ -569,7 +626,7 @@ int main(void) {
 
     assert(haproxy_spop_response_companion_handoff(
         &backend, owner.transaction_a, 7450U, handle, &error));
-    memset(&session, 0, sizeof(session));
+    reset_backend_session(&session, &session_decision_storage);
     assert(vtable.claim(vtable.context, handle, &session, &error));
     lease = slots[0].lease;
     owner.control.terminal.timeout_release = 1;
@@ -595,7 +652,7 @@ int main(void) {
 
     assert(haproxy_spop_response_companion_handoff(
         &backend, owner.transaction_a, 7500U, handle, &error));
-    memset(&session, 0, sizeof(session));
+    reset_backend_session(&session, &session_decision_storage);
     assert(vtable.claim(vtable.context, handle, &session, &error));
     lease = slots[0].lease;
     owner.control.terminal.timeout_release = 1;
@@ -618,7 +675,7 @@ int main(void) {
 
     assert(haproxy_spop_response_companion_handoff(
         &backend, owner.transaction_a, 7550U, handle, &error));
-    memset(&session, 0, sizeof(session));
+    reset_backend_session(&session, &session_decision_storage);
     assert(vtable.claim(vtable.context, handle, &session, &error));
     owner.control.terminal.simulate_terminal_timeout_finalizer_before_return = 1;
     owner.control.terminal.terminal_timeout_finalizer_simulated = 0;
@@ -640,7 +697,7 @@ int main(void) {
 
     assert(haproxy_spop_response_companion_handoff(
         &backend, owner.transaction_a, 7600U, handle, &error));
-    memset(&session, 0, sizeof(session));
+    reset_backend_session(&session, &session_decision_storage);
     assert(vtable.claim(vtable.context, handle, &session, &error));
     owner.control.terminal.simulate_terminal_timeout_finalizer_before_return = 1;
     owner.control.terminal.terminal_timeout_finalizer_simulated = 0;
@@ -664,7 +721,7 @@ int main(void) {
 
     assert(haproxy_spop_response_companion_handoff(
         &backend, owner.transaction_a, 7650U, handle, &error));
-    memset(&session, 0, sizeof(session));
+    reset_backend_session(&session, &session_decision_storage);
     assert(vtable.claim(vtable.context, handle, &session, &error));
     owner.control.terminal.defer_response_headers_finalizer = 1;
     assert(vtable.process_response_headers(vtable.context, &session, NULL,
@@ -697,7 +754,7 @@ int main(void) {
 
     assert(haproxy_spop_response_companion_handoff(
         &backend, owner.transaction_a, 7500U, handle, &error));
-    memset(&session, 0, sizeof(session));
+    reset_backend_session(&session, &session_decision_storage);
     assert(vtable.claim(vtable.context, handle, &session, &error));
     owner.control.fail_reuse.simulate_fail_finalizer_reuse = 1;
     owner.control.fail_reuse.fail_reuse_done = 0;
@@ -712,7 +769,7 @@ int main(void) {
     assert(!slots[0].expire_pending);
     assert(!slots[0].in_flight);
     owner.control.fail_reuse.simulate_fail_finalizer_reuse = 0;
-    memset(&session, 0, sizeof(session));
+    reset_backend_session(&session, &session_decision_storage);
     assert(vtable.claim(vtable.context, owner.control.fail_reuse.fail_reuse_handle, &session,
                         &error));
     assert(vtable.release(vtable.context, &session, &error));
@@ -785,7 +842,7 @@ int main(void) {
 
     assert(haproxy_spop_response_companion_handoff(
         &backend, owner.transaction_a, 4500U, handle, &error));
-    memset(&session, 0, sizeof(session));
+    reset_backend_session(&session, &session_decision_storage);
     assert(vtable.claim(vtable.context, handle, &session, &error));
     assert(vtable.process_response_headers(vtable.context, &session, NULL,
                                            &decision, &error));
@@ -844,7 +901,7 @@ int main(void) {
     assert(haproxy_spop_response_companion_handoff(
         &backend, owner.transaction_a, 5000U, handle, &error));
     old_lease = slots[0].lease;
-    memset(&session, 0, sizeof(session));
+    reset_backend_session(&session, &session_decision_storage);
     assert(vtable.claim(vtable.context, handle, &session, &error));
     stale_opaque = session.opaque;
     assert(vtable.release(vtable.context, &session, &error));
@@ -859,7 +916,7 @@ int main(void) {
     stale_session.opaque = stale_opaque;
     assert(!vtable.release(vtable.context, &stale_session, &error));
     assert(slots[0].in_use && slots[0].lease == new_lease);
-    memset(&session, 0, sizeof(session));
+    reset_backend_session(&session, &session_decision_storage);
     assert(vtable.claim(vtable.context, handle, &session, &error));
     assert(vtable.release(vtable.context, &session, &error));
   }
@@ -878,7 +935,7 @@ int main(void) {
    * owner signal clears the backend slot without a second abort. */
   assert(haproxy_spop_response_companion_handoff(&backend, owner.transaction_a,
                                                  3000U, handle, &error));
-  memset(&session, 0, sizeof(session));
+  reset_backend_session(&session, &session_decision_storage);
   assert(vtable.claim(vtable.context, handle, &session, &error));
   owner.control.blocking.fail_release = 1;
   assert(!vtable.release(vtable.context, &session, &error));

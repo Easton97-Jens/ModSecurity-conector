@@ -567,7 +567,7 @@ static int mock_backend_claim(void *opaque, const char *handle,
 }
 
 static int mock_backend_process_response_headers(void *opaque,
-    msconnector_response_companion_backend_session *session,
+    const msconnector_response_companion_backend_session *session,
     const msconnector_response *response, msconnector_decision *decision,
     msconnector_error *error)
 {
@@ -606,7 +606,7 @@ static int mock_backend_process_response_headers(void *opaque,
 }
 
 static int mock_backend_append_response_body_chunk(void *opaque,
-    msconnector_response_companion_backend_session *session,
+    const msconnector_response_companion_backend_session *session,
     const unsigned char *data, size_t size, msconnector_error *error)
 {
     mock_backend *backend = opaque;
@@ -629,7 +629,7 @@ static int mock_backend_append_response_body_chunk(void *opaque,
 }
 
 static int mock_backend_finish_response_body(void *opaque,
-    msconnector_response_companion_backend_session *session,
+    const msconnector_response_companion_backend_session *session,
     msconnector_decision *decision, msconnector_error *error)
 {
     mock_backend *backend = opaque;

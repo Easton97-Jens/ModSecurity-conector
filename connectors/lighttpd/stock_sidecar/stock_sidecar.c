@@ -453,11 +453,23 @@ static size_t sidecar_header_terminator_advance(size_t matched,
     case 0U:
         return value == '\r' ? 1U : 0U;
     case 1U:
-        return value == '\n' ? 2U : (value == '\r' ? 1U : 0U);
+        if (value == '\n') {
+            return 2U;
+        }
+        if (value == '\r') {
+            return 1U;
+        }
+        return 0U;
     case 2U:
         return value == '\r' ? 3U : 0U;
     case 3U:
-        return value == '\n' ? 4U : (value == '\r' ? 1U : 0U);
+        if (value == '\n') {
+            return 4U;
+        }
+        if (value == '\r') {
+            return 1U;
+        }
+        return 0U;
     default:
         return 0U;
     }
