@@ -507,7 +507,7 @@ static int invoke_readonly(
 }
 
 static int headers(void *context,
-                   const msconnector_response_companion_backend_session *session,
+                   msconnector_response_companion_backend_session *session,
                    const msconnector_response *response,
                    msconnector_decision *decision, msconnector_error *error) {
   haproxy_spop_response_companion_owner_command command;
@@ -515,12 +515,13 @@ static int headers(void *context,
   memset(&command, 0, sizeof(command));
   command.operation = HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_HEADERS;
   command.response = response;
+  command.decision_storage = &session->decision_storage;
   request = (haproxy_spop_response_companion_invoke_request){&command, decision,
                                                              error, NULL, NULL};
   return invoke_readonly(context, session, &request);
 }
 static int body(void *context,
-                const msconnector_response_companion_backend_session *session,
+                msconnector_response_companion_backend_session *session,
                 const unsigned char *data, size_t size,
                 msconnector_error *error) {
   haproxy_spop_response_companion_owner_command command;
@@ -530,18 +531,20 @@ static int body(void *context,
   command.operation = HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_BODY;
   command.body = data;
   command.body_size = size;
+  command.decision_storage = &session->decision_storage;
   msconnector_decision_init(&decision);
   request = (haproxy_spop_response_companion_invoke_request){
       &command, &decision, error, NULL, NULL};
   return invoke_readonly(context, session, &request);
 }
 static int eos(void *context,
-               const msconnector_response_companion_backend_session *session,
+               msconnector_response_companion_backend_session *session,
                msconnector_decision *decision, msconnector_error *error) {
   haproxy_spop_response_companion_owner_command command;
   haproxy_spop_response_companion_invoke_request request;
   memset(&command, 0, sizeof(command));
   command.operation = HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_EOS;
+  command.decision_storage = &session->decision_storage;
   request = (haproxy_spop_response_companion_invoke_request){&command, decision,
                                                              error, NULL, NULL};
   return invoke_readonly(context, session, &request);

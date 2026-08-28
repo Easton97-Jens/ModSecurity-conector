@@ -29,6 +29,12 @@ typedef enum haproxy_spop_response_companion_owner_operation {
   HAPROXY_SPOP_RESPONSE_COMPANION_FAIL
 } haproxy_spop_response_companion_owner_operation;
 
+/* Borrowed transport-session storage. The owner task may write only while
+ * synchronously returning a P3/P4 decision; MRC1 copies it before a later
+ * callback, terminal release, or slot reuse can invalidate the session. */
+typedef msconnector_response_companion_decision_storage
+    haproxy_spop_response_companion_decision_storage;
+
 typedef struct haproxy_spop_response_companion_owner_command {
   haproxy_spop_response_companion_owner_operation operation;
   /* A non-zero lease identifies this exact handoff.  It must accompany
@@ -42,6 +48,7 @@ typedef struct haproxy_spop_response_companion_owner_command {
   size_t body_size;
   const msconnector_decision *decision;
   const char *transport_result;
+  haproxy_spop_response_companion_decision_storage *decision_storage;
   msconnector_decision_action action;
   int headers_sent;
   int body_started;

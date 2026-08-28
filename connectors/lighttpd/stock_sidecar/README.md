@@ -31,6 +31,9 @@ reuse correlation. It supports identity framing with an optional request
 `Content-Length` and a response `Content-Length` (except HEAD, 204, and 304).
 Ordinary HTTP/1.1 response reason phrases and `Connection: close`/
 `keep-alive` are accepted; connection fields are stripped before forwarding.
+Non-upgrade informational `1xx` responses are forwarded within the configured
+bounds and never enter P3; only the following final response enters P3. A
+`101` upgrade remains rejected.
 Chunked transfer encoding, upgrades, TE, Trailer, Proxy-Connection, unknown
 Connection tokens, conflicting lengths, malformed start lines, and oversized
 headers or bodies fail closed.

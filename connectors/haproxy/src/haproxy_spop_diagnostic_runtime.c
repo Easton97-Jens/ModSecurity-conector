@@ -25,6 +25,8 @@
 #include "msconnector/event.h"
 #include "msconnector/event_jsonl.h"
 #include "msconnector/late_intervention.h"
+#include "msconnector/limits.h"
+#include "msconnector/memory.h"
 
 #define SPOP_FRAME_MAX 65536U
 #define SPOP_MIN_FRAME_SIZE 256U
@@ -3339,8 +3341,8 @@ typedef struct spop_owner_queue_gate_task {
 } spop_owner_queue_gate_task;
 
 #define SPOP_BRIDGE_MAX_HEADERS 128U
-#define SPOP_BRIDGE_HEADER_NAME_MAX 256U
-#define SPOP_BRIDGE_HEADER_VALUE_MAX 4096U
+#define SPOP_BRIDGE_HEADER_NAME_MAX (MSCONNECTOR_MAX_HEADER_NAME_LENGTH + 1U)
+#define SPOP_BRIDGE_HEADER_VALUE_MAX (MSCONNECTOR_MAX_HEADER_VALUE_LENGTH + 1U)
 
 typedef struct spop_bridge_task_context {
     agent_state *state;
@@ -3354,6 +3356,10 @@ typedef struct spop_bridge_task_context {
     char header_values[SPOP_BRIDGE_MAX_HEADERS][SPOP_BRIDGE_HEADER_VALUE_MAX];
     unsigned char body[MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_BODY_CHUNK];
     char transport_result[64];
+    /* An owner task may outlive a timed-out MRC1 callback.  Native decision
+     * text therefore belongs to the heap task, never to command storage that
+     * was borrowed from that callback. */
+    haproxy_spop_response_companion_decision_storage decision_storage;
     msconnector_decision decision;
     msconnector_error error;
     int success;
@@ -3363,9 +3369,96 @@ typedef struct spop_bridge_task_context {
 typedef struct spop_bridge_task_result {
     int success;
     int transaction_consumed;
+    /* The submitter copies this while the task is still referenced.  It must
+     * not retain pointers into the task context after that reference drops. */
+    haproxy_spop_response_companion_decision_storage decision_storage;
     msconnector_decision decision;
     msconnector_error error;
 } spop_bridge_task_result;
+
+static int copy_bridge_native_decision_text(char *destination, size_t capacity,
+        const char *source)
+{
+    size_t size;
+
+    if (destination == NULL || capacity == 0U || source == NULL) {
+        return 0;
+    }
+    size = strnlen(source, capacity);
+    if (size >= capacity) {
+        return 0;
+    }
+    memcpy(destination, source, size);
+    destination[size] = '\0';
+    return 1;
+}
+
+/* The native bridge produces only allow, deny, or redirect decisions.  Copy
+ * their borrowed text into the supplied bounded owner before exposing the
+ * decision across another lifetime boundary.  Reject any other shape instead
+ * of returning a pointer that this bridge cannot safely preserve. */
+static int copy_spop_bridge_decision(msconnector_decision *destination,
+        haproxy_spop_response_companion_decision_storage *storage,
+        const msconnector_decision *source, msconnector_error *error)
+{
+    if (destination == NULL || source == NULL) {
+        msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
+            "SPOP response decision copy is unavailable", "haproxy-spoe-spop");
+        return 0;
+    }
+    if (!msconnector_decision_is_disruptive(source)) {
+        if (source->kind != MSCONNECTOR_DECISION_KIND_ALLOW) {
+            msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
+                "SPOP response decision has an unsupported non-disruptive kind",
+                "haproxy-spoe-spop");
+            return 0;
+        }
+        msconnector_decision_set_allow(destination);
+        return 1;
+    }
+    if (storage == NULL || source->rule_id != NULL || source->reason == NULL ||
+            source->log_message != NULL || !source->intervention.disruptive ||
+            source->intervention.status != source->http_status ||
+            source->intervention.log_message != source->reason) {
+        msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
+            "SPOP response decision has an unsupported borrowed-text shape",
+            "haproxy-spoe-spop");
+        return 0;
+    }
+    if (!copy_bridge_native_decision_text(storage->log_message,
+            sizeof(storage->log_message), source->reason)) {
+        msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
+            "SPOP response decision log text exceeds bounded storage",
+            "haproxy-spoe-spop");
+        return 0;
+    }
+    if (source->kind == MSCONNECTOR_DECISION_KIND_REDIRECT) {
+        if (source->redirect_url == NULL ||
+                source->intervention.redirect_url != source->redirect_url ||
+                !copy_bridge_native_decision_text(storage->redirect_url,
+                    sizeof(storage->redirect_url), source->redirect_url)) {
+            msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
+                "SPOP response redirect exceeds bounded storage",
+                "haproxy-spoe-spop");
+            return 0;
+        }
+        msconnector_decision_set_redirect(destination, source->http_status,
+            storage->redirect_url, NULL, storage->log_message);
+    } else if (source->kind == MSCONNECTOR_DECISION_KIND_DENY &&
+            source->redirect_url == NULL &&
+            source->intervention.redirect_url == NULL) {
+        msconnector_decision_set_deny(destination, source->http_status, NULL,
+            storage->log_message);
+    } else {
+        msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
+            "SPOP response decision kind is unsupported", "haproxy-spoe-spop");
+        return 0;
+    }
+    destination->phase = source->phase;
+    destination->body_limit = source->body_limit;
+    destination->late_intervention = source->late_intervention;
+    return 1;
+}
 
 static void destroy_spop_bridge_task(void *opaque) {
     spop_bridge_task_context *context = opaque;
@@ -3375,6 +3468,10 @@ static void destroy_spop_bridge_task(void *opaque) {
             &context->state->response_backend, context->transaction,
             context->lease, context->command.operation,
             context->transaction_consumed);
+    }
+    if (context != NULL) {
+        msconnector_secure_zero(&context->decision_storage,
+            sizeof(context->decision_storage));
     }
     free(context);
 }
@@ -3387,23 +3484,43 @@ static void copy_spop_bridge_result(const void *opaque, void *result) {
     }
     output->success = context->success;
     output->transaction_consumed = context->transaction_consumed;
-    output->decision = context->decision;
     output->error = context->error;
+    msconnector_decision_init(&output->decision);
+    if (output->success && !copy_spop_bridge_decision(&output->decision,
+            &output->decision_storage, &context->decision, &output->error)) {
+        output->success = 0;
+    }
 }
 
-static void set_bridge_native_decision(spop_bridge_task_context *context,
+static int set_bridge_native_decision(spop_bridge_task_context *context,
         const haproxy_modsecurity_decision *native_decision)
 {
+    haproxy_spop_response_companion_decision_storage *storage;
+
+    if (context == NULL || native_decision == NULL) {
+        return 0;
+    }
     if (native_decision->disruptive == 0) {
         msconnector_decision_set_allow(&context->decision);
+        return 1;
+    }
+    storage = context->command.decision_storage;
+    if (storage == NULL || !copy_bridge_native_decision_text(storage->redirect_url,
+            sizeof(storage->redirect_url), native_decision->redirect_url) ||
+            !copy_bridge_native_decision_text(storage->log_message,
+            sizeof(storage->log_message), native_decision->log_message)) {
+        msconnector_error_set(&context->error, MSCONNECTOR_ERROR_INTERNAL,
+            "SPOP response decision storage is unavailable", "haproxy-spoe-spop");
+        return 0;
     } else if (strcmp(native_decision->action, "redirect") == 0) {
         msconnector_decision_set_redirect(&context->decision,
-            native_decision->status, native_decision->redirect_url, NULL,
-            native_decision->log_message);
+            native_decision->status, storage->redirect_url, NULL,
+            storage->log_message);
     } else {
         msconnector_decision_set_deny(&context->decision,
-            native_decision->status, NULL, native_decision->log_message);
+            native_decision->status, NULL, storage->log_message);
     }
+    return 1;
 }
 
 static void run_spop_bridge_native_operation(spop_bridge_task_context *context,
@@ -3482,7 +3599,9 @@ static void run_spop_bridge_task(void *opaque) {
         msconnector_error_set(&context->error, MSCONNECTOR_ERROR_PHASE_SEQUENCE,
             "SPOP response companion owner operation failed", "haproxy-spoe-spop");
     }
-    set_bridge_native_decision(context, &native_decision);
+    if (!set_bridge_native_decision(context, &native_decision)) {
+        context->success = 0;
+    }
 }
 
 static int prepare_spop_bridge_headers(
@@ -3577,6 +3696,10 @@ static int prepare_spop_bridge_context(
         msconnector_error *error)
 {
     context->command = *command;
+    /* The owner task must never retain callback-owned decision storage after
+     * a caller timeout.  Successful results are copied back separately while
+     * the synchronous callback is still active. */
+    context->command.decision_storage = &context->decision_storage;
     context->lease = command->lease;
     if (context->lease == 0U) {
         msconnector_error_set(error, MSCONNECTOR_ERROR_CORRELATION_MISSING,
@@ -3625,6 +3748,8 @@ static int spop_response_companion_owner_dispatch(
         destroy_spop_bridge_task(context);
         return 0;
     }
+    memset(&result, 0, sizeof(result));
+    msconnector_decision_init(&result.decision);
     msconnector_error_init(&result.error);
     timeout_ms = state->config.spoe_timeout_ms;
     if (spop_owner_queue_submit(state, run_spop_bridge_task, context,
@@ -3644,7 +3769,10 @@ static int spop_response_companion_owner_dispatch(
         return 0;
     }
     if (decision != NULL) {
-        *decision = result.decision;
+        if (!copy_spop_bridge_decision(decision, command->decision_storage,
+                &result.decision, error)) {
+            return 0;
+        }
     }
     return 1;
 }

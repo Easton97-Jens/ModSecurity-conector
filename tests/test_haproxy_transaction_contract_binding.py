@@ -1,5 +1,9 @@
 """Focused source contract checks for the HAProxy transaction adapter."""
 
+import os
+import shutil
+import subprocess
+import tempfile
 from pathlib import Path
 
 
@@ -25,6 +29,13 @@ SPOP_BACKEND_HEADER = (
     / "haproxy"
     / "src"
     / "haproxy_spop_response_companion_backend.h"
+).read_text(encoding="utf-8")
+
+TRANSPORT_HEADER = (
+    Path(__file__).resolve().parents[1]
+    / "common"
+    / "runtime"
+    / "response_companion_transport.h"
 ).read_text(encoding="utf-8")
 
 
@@ -441,6 +452,114 @@ def test_spop_terminal_timeout_finalizers_have_exactly_once_cleanup_regressions(
     assert "early-finalizer ordering with an unconsumed transaction" in backend_test
     assert "terminal owner timeout after stale response finalizer" in backend_test
     assert "delayed response-header finalizer must not become the completion" in backend_test
+
+
+def test_spop_response_bridge_owns_decision_text_through_the_transport_callback() -> None:
+    """Native stack text must be copied into MRC1 session storage before return."""
+    spop_source = (
+        Path(__file__).resolve().parents[1]
+        / "connectors"
+        / "haproxy"
+        / "src"
+        / "haproxy_spop_diagnostic_runtime.c"
+    ).read_text(encoding="utf-8")
+    decision_start = spop_source.index("static int copy_bridge_native_decision_text")
+    decision_end = spop_source.index(
+        "static void run_spop_bridge_native_operation", decision_start
+    )
+    decision_path = spop_source[decision_start:decision_end]
+
+    assert '#include "msconnector/limits.h"' in spop_source
+    assert "#define SPOP_BRIDGE_HEADER_NAME_MAX (MSCONNECTOR_MAX_HEADER_NAME_LENGTH + 1U)" in spop_source
+    assert "#define SPOP_BRIDGE_HEADER_VALUE_MAX (MSCONNECTOR_MAX_HEADER_VALUE_LENGTH + 1U)" in spop_source
+    assert "storage = context->command.decision_storage;" in decision_path
+    assert "storage->redirect_url" in decision_path
+    assert "storage->log_message" in decision_path
+    set_start = spop_source.index("static int set_bridge_native_decision(")
+    set_end = spop_source.index("static void run_spop_bridge_native_operation", set_start)
+    set_path = spop_source[set_start:set_end]
+    assert "native_decision->redirect_url" not in set_path.split(
+        "msconnector_decision_set_redirect", 1
+    )[1]
+    assert "haproxy_spop_response_companion_decision_storage decision_storage;" in spop_source
+    prepare_start = spop_source.index("static int prepare_spop_bridge_context(")
+    prepare_end = spop_source.index(
+        "static int spop_response_companion_owner_dispatch(", prepare_start
+    )
+    assert "context->command.decision_storage = &context->decision_storage;" in spop_source[
+        prepare_start:prepare_end
+    ]
+    result_start = spop_source.index("static void copy_spop_bridge_result(")
+    result_end = spop_source.index("static int set_bridge_native_decision(", result_start)
+    result_copy = spop_source[result_start:result_end]
+    assert "&output->decision_storage" in result_copy
+    assert "output->decision = context->decision;" not in result_copy
+    dispatch_start = spop_source.index("static int spop_response_companion_owner_dispatch(")
+    dispatch_end = spop_source.index("static void run_spop_owner_queue_self_test_task", dispatch_start)
+    dispatch = spop_source[dispatch_start:dispatch_end]
+    assert "copy_spop_bridge_decision(decision, command->decision_storage" in dispatch
+    assert dispatch.index("spop_owner_queue_submit") < dispatch.index(
+        "copy_spop_bridge_decision(decision, command->decision_storage"
+    )
+    assert "command.decision_storage = &session->decision_storage;" in SPOP_BACKEND_SOURCE
+    assert "msconnector_response_companion_decision_storage decision_storage;" in TRANSPORT_HEADER
+
+
+def test_spop_delayed_owner_lifetime_harness_is_asan_ubsan_clean() -> None:
+    """A delayed P3/P4 owner task cannot write callback storage after return."""
+    compiler = shutil.which("cc")
+    assert compiler is not None, "requires a C compiler with AddressSanitizer"
+    root = Path(__file__).resolve().parents[1]
+    temporary_parent = os.environ.get("TMPDIR")
+    with tempfile.TemporaryDirectory(
+        prefix="haproxy-spop-owner-lifetime-", dir=temporary_parent
+    ) as temporary_directory:
+        binary = Path(temporary_directory) / "haproxy_spop_owner_lifetime"
+        compiled = subprocess.run(
+            [
+                compiler,
+                "-std=c17",
+                "-Wall",
+                "-Wextra",
+                "-Werror",
+                "-fsanitize=address,undefined",
+                "-fno-omit-frame-pointer",
+                "-ffunction-sections",
+                "-fdata-sections",
+                "-I.",
+                "-Icommon/include",
+                "-Icommon/runtime",
+                "-Iconnectors/haproxy/src",
+                "tests/haproxy_spop_response_companion_lifetime_test.c",
+                "common/src/decision.c",
+                "common/src/error.c",
+                "common/src/intervention.c",
+                "common/src/block_statuses.c",
+                "common/src/http_status.c",
+                "common/src/memory.c",
+                "-Wl,--gc-sections",
+                "-pthread",
+                "-o",
+                str(binary),
+            ],
+            cwd=root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert compiled.returncode == 0, compiled.stderr
+        environment = os.environ.copy()
+        environment["ASAN_OPTIONS"] = "detect_leaks=1:abort_on_error=1"
+        environment["UBSAN_OPTIONS"] = "halt_on_error=1"
+        executed = subprocess.run(
+            [str(binary)],
+            cwd=root,
+            env=environment,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert executed.returncode == 0, executed.stderr
 
 
 def test_spop_stop_failure_retains_worker_owned_runtime_state() -> None:

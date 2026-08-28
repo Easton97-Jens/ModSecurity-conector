@@ -151,8 +151,10 @@ static int sidecar_send_all(int fd, const unsigned char *data, size_t size,
     return sidecar_send_all_observed(fd, data, size, deadline, NULL);
 }
 
-static int sidecar_recv_some(int fd, unsigned char *data, size_t capacity,
-                             const sidecar_deadline *deadline, size_t *received) {
+static int sidecar_recv_some_with_flags(int fd, unsigned char *data,
+                                        size_t capacity,
+                                        const sidecar_deadline *deadline,
+                                        size_t *received, int flags) {
     ssize_t result;
     if (received == NULL || capacity == 0U) {
         return 0;
@@ -160,7 +162,7 @@ static int sidecar_recv_some(int fd, unsigned char *data, size_t capacity,
     for (;;) {
         if (!sidecar_wait(fd, POLLIN, deadline)) return 0;
         do {
-            result = recv(fd, data, capacity, MSG_DONTWAIT);
+            result = recv(fd, data, capacity, MSG_DONTWAIT | flags);
         } while (result < 0 && errno == EINTR && sidecar_remaining(deadline) > 0);
         if (result > 0) {
             *received = (size_t)result;
@@ -169,6 +171,19 @@ static int sidecar_recv_some(int fd, unsigned char *data, size_t capacity,
         if (result < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) continue;
         return 0;
     }
+}
+
+static int sidecar_recv_some(int fd, unsigned char *data, size_t capacity,
+                             const sidecar_deadline *deadline, size_t *received) {
+    return sidecar_recv_some_with_flags(fd, data, capacity, deadline, received, 0);
+}
+
+/* Peek before consuming a header block so a bounded read never discards the
+ * first bytes of a following informational or final response. */
+static int sidecar_peek_some(int fd, unsigned char *data, size_t capacity,
+                             const sidecar_deadline *deadline, size_t *received) {
+    return sidecar_recv_some_with_flags(fd, data, capacity, deadline, received,
+                                        MSG_PEEK);
 }
 
 static void sidecar_headers_release(sidecar_headers *headers) {
@@ -290,7 +305,7 @@ static int sidecar_parse_response_start(char *line, char **version, int *status)
         *reason = '\0';
         if (!sidecar_safe_text(reason + 1)) return 0;
     }
-    if (!sidecar_decimal(end, &value) || value < 200U || value > 599U) return 0;
+    if (!sidecar_decimal(end, &value) || value < 100U || value > 599U) return 0;
     *version = line;
     *status = (int)value;
     return strcmp(*version, "HTTP/1.1") == 0;
@@ -359,7 +374,7 @@ static int sidecar_parse_response_headers_start(char *cursor, int response_no_bo
     (void)snprintf(version, sizeof(version), "%s", parsed_version);
     (void)snprintf(out->version, sizeof(out->version), "%s", version);
     out->status_code = status;
-    out->no_body = response_no_body || status == 204 || status == 304;
+    out->no_body = response_no_body || status < 200 || status == 204 || status == 304;
     return 1;
 }
 
@@ -432,9 +447,26 @@ static int sidecar_parse_headers(char *block, size_t block_size,
     return 1;
 }
 
+static size_t sidecar_header_terminator_advance(size_t matched,
+                                                unsigned char value) {
+    switch (matched) {
+    case 0U:
+        return value == '\r' ? 1U : 0U;
+    case 1U:
+        return value == '\n' ? 2U : (value == '\r' ? 1U : 0U);
+    case 2U:
+        return value == '\r' ? 3U : 0U;
+    case 3U:
+        return value == '\n' ? 4U : (value == '\r' ? 1U : 0U);
+    default:
+        return 0U;
+    }
+}
+
 static int sidecar_read_header_block(int fd, const sidecar_deadline *deadline,
                                      size_t limit, char **out, size_t *out_size) {
     size_t used = 0U;
+    size_t matched = 0U;
     char *buffer;
     if (limit == 0U || limit > SIDECAR_HEADER_BUFFER) {
         return 0;
@@ -444,18 +476,46 @@ static int sidecar_read_header_block(int fd, const sidecar_deadline *deadline,
         return 0;
     }
     for (;;) {
-        unsigned char byte;
+        unsigned char probe[SIDECAR_IO_CHUNK];
         size_t received;
-        if (used == limit || !sidecar_recv_some(fd, &byte, 1U, deadline, &received)) {
+        size_t probe_size;
+        size_t wanted;
+        size_t probe_matched;
+
+        if (used == limit) {
             free(buffer);
             return 0;
         }
-        (void)received;
-        buffer[used++] = (char)byte;
+        wanted = limit - used;
+        if (wanted > sizeof(probe)) {
+            wanted = sizeof(probe);
+        }
+        if (!sidecar_peek_some(fd, probe, wanted, deadline, &probe_size)) {
+            free(buffer);
+            return 0;
+        }
+        probe_matched = matched;
+        for (size_t index = 0U; index < probe_size; ++index) {
+            probe_matched = sidecar_header_terminator_advance(probe_matched,
+                                                               probe[index]);
+            if (probe_matched == 4U) {
+                wanted = index + 1U;
+                break;
+            }
+        }
+        if (!sidecar_recv_some(fd, (unsigned char *)buffer + used, wanted,
+                               deadline, &received)) {
+            free(buffer);
+            return 0;
+        }
+        for (size_t index = 0U; index < received; ++index) {
+            matched = sidecar_header_terminator_advance(matched,
+                (unsigned char)buffer[used + index]);
+        }
+        used += received;
         buffer[used] = '\0';
-        if (used >= 4U && strstr(buffer, "\r\n\r\n") != NULL) {
-            const char *end = strstr(buffer, "\r\n\r\n") + 4;
-            *out_size = (size_t)(end - buffer);
+        if (matched == 4U) {
+            *out_size = used;
             *out = buffer;
             return 1;
         }
@@ -741,6 +801,42 @@ static int sidecar_write_upstream_response_headers_observed(
         bytes_sent);
 }
 
+/* Informational responses are deliberately translated before the final
+ * response enters Common P3. Do not add Connection: close or Content-Length:
+ * a 1xx response has no body and must not alter the following final response. */
+static int sidecar_write_interim_response_headers_observed(
+    int client, const sidecar_headers *headers, const sidecar_deadline *deadline,
+    size_t *bytes_sent) {
+    char status_line[64];
+    int length;
+
+    if (headers == NULL || bytes_sent == NULL || headers->status_code < 100 ||
+        headers->status_code >= 200 || headers->status_code == 101) {
+        return 0;
+    }
+    *bytes_sent = 0U;
+    length = snprintf(status_line, sizeof(status_line), "HTTP/1.1 %d Informational\r\n",
+                      headers->status_code);
+    if (length <= 0 || (size_t)length >= sizeof(status_line) ||
+        !sidecar_send_all_accumulated(client, (const unsigned char *)status_line,
+                                      (size_t)length, deadline, bytes_sent)) {
+        return 0;
+    }
+    for (size_t i = 0U; i < headers->count; ++i) {
+        if (strcasecmp(headers->items[i].name, "Connection") == 0 ||
+            strcasecmp(headers->items[i].name, "Keep-Alive") == 0 ||
+            strcasecmp(headers->items[i].name, "Content-Length") == 0) {
+            continue;
+        }
+        if (!sidecar_write_header_field_observed(client, &headers->items[i], deadline,
+                                                 bytes_sent)) {
+            return 0;
+        }
+    }
+    return sidecar_send_all_accumulated(client, (const unsigned char *)"\r\n", 2U,
+                                        deadline, bytes_sent);
+}
+
 typedef struct sidecar_exchange_payload {
     char *request_block;
     char *response_block;
@@ -790,6 +886,49 @@ static void sidecar_exchange_state_init(sidecar_exchange_state *state, int clien
     state->upstream = -1;
     state->failure_status = 502;
     state->failure_origin = SIDECAR_FAILURE_CONNECTOR;
+}
+
+static int sidecar_read_final_response_headers(sidecar_exchange_state *state) {
+    for (;;) {
+        char *block = NULL;
+        size_t block_size = 0U;
+        size_t bytes_sent = 0U;
+        sidecar_headers headers;
+
+        memset(&headers, 0, sizeof(headers));
+        if (!sidecar_read_header_block(state->upstream, &state->deadline, state->header_limit,
+                                       &block, &block_size)) {
+            state->failure_origin = SIDECAR_FAILURE_UPSTREAM;
+            return 0;
+        }
+        if (!sidecar_parse_headers(block, block_size, state->header_limit, state->count_limit,
+                                   0, state->request_is_head, &headers) || headers.chunked ||
+            headers.upgrade || headers.status_code == 101) {
+            sidecar_headers_release(&headers);
+            free(block);
+            state->failure_origin = SIDECAR_FAILURE_PROTOCOL;
+            return 0;
+        }
+        if (headers.status_code >= 200) {
+            state->payload.response_block = block;
+            state->payload.response_size = block_size;
+            state->payload.response_headers = headers;
+            return 1;
+        }
+        if (!sidecar_write_interim_response_headers_observed(state->client, &headers,
+                &state->deadline, &bytes_sent)) {
+            if (bytes_sent > 0U) {
+                state->client_response_started = 1;
+            }
+            sidecar_headers_release(&headers);
+            free(block);
+            state->failure_origin = SIDECAR_FAILURE_CLIENT;
+            return 0;
+        }
+        state->client_response_started = 1;
+        sidecar_headers_release(&headers);
+        free(block);
+    }
 }
 
 static int sidecar_runtime_limits_supported(const msconnector_runtime *runtime) {
@@ -1238,15 +1377,7 @@ static int sidecar_exchange_response(sidecar_exchange_state *state) {
             return 0;
         }
     }
-    if (!sidecar_read_header_block(state->upstream, &state->deadline, state->header_limit,
-                                   &state->payload.response_block, &state->payload.response_size) ||
-        !sidecar_parse_headers(state->payload.response_block, state->payload.response_size, state->header_limit,
-                                state->count_limit, 0, state->request_is_head,
-                                &state->payload.response_headers) || state->payload.response_headers.chunked ||
-        state->payload.response_headers.upgrade) {
-        state->failure_origin = SIDECAR_FAILURE_PROTOCOL;
-        return 0;
-    }
+    if (!sidecar_read_final_response_headers(state)) return 0;
     if (!state->payload.response_headers.no_body &&
         state->payload.response_headers.content_length > state->response_limit) {
         int status = msconnector_runtime_error_http_status(state->runtime,

@@ -17,6 +17,24 @@ import (
 	"google.golang.org/grpc"
 )
 
+const (
+	responseObserverMaxRecvMessageBytes = (1 << 20) + (64 << 10)
+	responseObserverMaxSendMessageBytes = 64 << 10
+)
+
+// newResponseObserverGRPCServer keeps the gRPC ingress bound aligned with the
+// bounded one-MiB response body accepted by the observer. The additional
+// 64-KiB headroom covers the protobuf envelope and bounded metadata without
+// turning the private UDS endpoint into an unbounded input path.
+func newResponseObserverGRPCServer(service extprocv3.ExternalProcessorServer) *grpc.Server {
+	server := grpc.NewServer(
+		grpc.MaxRecvMsgSize(responseObserverMaxRecvMessageBytes),
+		grpc.MaxSendMsgSize(responseObserverMaxSendMessageBytes),
+	)
+	extprocv3.RegisterExternalProcessorServer(server, service)
+	return server
+}
+
 func main() {
 	listen := flag.String("listen", "/run/modsecurity/envoy-ext-proc-response-observer.sock", "private Envoy ext_proc UDS (parent must be mode 0700)")
 	socket := flag.String("socket", "/run/modsecurity/envoy-ext-authz-companion.sock", "private response companion UDS")
@@ -34,8 +52,7 @@ func main() {
 	}
 	defer listener.Close()
 	listener = &peerCredListener{Listener: listener, uid: os.Geteuid(), gid: os.Getegid()}
-	server := grpc.NewServer(grpc.MaxRecvMsgSize(65536), grpc.MaxSendMsgSize(65536))
-	extprocv3.RegisterExternalProcessorServer(server, service)
+	server := newResponseObserverGRPCServer(service)
 	go func() { _ = server.Serve(listener) }()
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)

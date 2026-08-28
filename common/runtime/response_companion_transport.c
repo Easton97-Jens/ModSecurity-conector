@@ -1082,7 +1082,7 @@ static int response_companion_runtime_backend_claim(void *context,
 }
 
 static int response_companion_runtime_backend_process_response_headers(
-    void *context, const msconnector_response_companion_backend_session *session,
+    void *context, msconnector_response_companion_backend_session *session,
     const msconnector_response *response, msconnector_decision *decision,
     msconnector_error *error)
 {
@@ -1096,7 +1096,7 @@ static int response_companion_runtime_backend_process_response_headers(
 }
 
 static int response_companion_runtime_backend_append_response_body_chunk(
-    void *context, const msconnector_response_companion_backend_session *session,
+    void *context, msconnector_response_companion_backend_session *session,
     const unsigned char *data, size_t size, msconnector_error *error)
 {
     msconnector_runtime_response_companion_session *runtime_session =
@@ -1109,7 +1109,7 @@ static int response_companion_runtime_backend_append_response_body_chunk(
 }
 
 static int response_companion_runtime_backend_finish_response_body(void *context,
-    const msconnector_response_companion_backend_session *session,
+    msconnector_response_companion_backend_session *session,
     msconnector_decision *decision, msconnector_error *error)
 {
     msconnector_runtime_response_companion_session *runtime_session =
@@ -1288,7 +1288,7 @@ static int response_companion_backend_claim(
 
 static int response_companion_backend_process_response_headers(
     msconnector_response_companion_transport *transport,
-    const msconnector_response_companion_backend_session *session,
+    msconnector_response_companion_backend_session *session,
     const msconnector_response *response, msconnector_decision *decision,
     msconnector_error *error)
 {
@@ -1314,7 +1314,7 @@ static int response_companion_backend_process_response_headers(
 
 static int response_companion_backend_append_response_body_chunk(
     msconnector_response_companion_transport *transport,
-    const msconnector_response_companion_backend_session *session,
+    msconnector_response_companion_backend_session *session,
     const unsigned char *data, size_t size, msconnector_error *error)
 {
     int result;
@@ -1339,7 +1339,7 @@ static int response_companion_backend_append_response_body_chunk(
 
 static int response_companion_backend_finish_response_body(
     msconnector_response_companion_transport *transport,
-    const msconnector_response_companion_backend_session *session,
+    msconnector_response_companion_backend_session *session,
     msconnector_decision *decision, msconnector_error *error)
 {
     int result;

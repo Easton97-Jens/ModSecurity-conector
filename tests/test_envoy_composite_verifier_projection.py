@@ -273,7 +273,16 @@ class EnvoyCompositeVerifierProjectionTest(unittest.TestCase):
         self.set_case("p3_redirect", redirect_location_verified=False)
         with self.assertRaisesRegex(self.projection.ProjectionError, "common verifier rejected"):
             self.project("p3_redirect")
-        self.assert_no_projection_artifacts()
+        for leaf in (
+            "verifier-events.jsonl",
+            "verifier-client.observation.json",
+            "verifier-upstream.observation.json",
+            "verifier-manifest.json",
+        ):
+            artifact = self.case_root / leaf
+            self.assertTrue(artifact.is_file())
+            self.assertEqual(stat.S_IMODE(artifact.stat().st_mode), 0o600)
+        self.assertFalse((self.case_root / "verifier-summary.json").exists())
 
     def test_case_root_traversal_is_rejected_before_projection_artifacts_are_created(self) -> None:
         self.set_case("p3_redirect")
@@ -344,7 +353,7 @@ class EnvoyCompositeVerifierProjectionTest(unittest.TestCase):
 
         self.assertFalse((self.case_root / "verifier-summary.json").exists())
 
-    def test_write_failure_rolls_back_projection_artifacts_and_staging_files(self) -> None:
+    def test_write_failure_before_atomic_publication_leaves_no_projection_artifacts(self) -> None:
         self.set_case("p4_safe")
 
         with patch.object(self.projection.os, "fsync", side_effect=OSError("injected fsync failure")):
@@ -370,24 +379,14 @@ class EnvoyCompositeVerifierProjectionTest(unittest.TestCase):
         ):
             self.assertFalse((self.case_root / leaf).exists())
 
-    def test_preexisting_staging_name_is_preserved_when_exclusive_create_fails(self) -> None:
+    def test_projection_output_requires_anonymous_staging(self) -> None:
         self.set_case("p4_safe")
-        collision = self.case_root / ".verifier-events.jsonl.collision.tmp"
-        self.write_private(collision, "pre-existing staging artifact\n")
 
-        with patch.object(self.projection.secrets, "token_hex", return_value="collision"):
-            with self.assertRaises(FileExistsError):
+        with patch.object(self.projection.os, "O_TMPFILE", 0):
+            with self.assertRaisesRegex(self.projection.ProjectionError, "O_TMPFILE"):
                 self.project("p4_safe")
 
-        self.assertEqual(collision.read_text(encoding="utf-8"), "pre-existing staging artifact\n")
-        for leaf in (
-            "verifier-events.jsonl",
-            "verifier-client.observation.json",
-            "verifier-upstream.observation.json",
-            "verifier-manifest.json",
-            "verifier-summary.json",
-        ):
-            self.assertFalse((self.case_root / leaf).exists())
+        self.assert_no_projection_artifacts()
 
     def test_cleanup_refuses_to_delete_a_replaced_projection_artifact(self) -> None:
         self.set_case("p4_safe")
@@ -399,7 +398,7 @@ class EnvoyCompositeVerifierProjectionTest(unittest.TestCase):
             raise self.projection.EvidenceError("injected verifier rejection")
 
         with patch.object(self.projection, "verify_manifest", side_effect=replace_and_reject):
-            with self.assertRaisesRegex(self.projection.ProjectionError, "projection cleanup failed"):
+            with self.assertRaisesRegex(self.projection.ProjectionError, "common verifier rejected"):
                 self.project("p4_safe")
 
         self.assertEqual(replaced.read_text(encoding="utf-8"), "replacement artifact\n")
@@ -407,9 +406,9 @@ class EnvoyCompositeVerifierProjectionTest(unittest.TestCase):
             "verifier-client.observation.json",
             "verifier-upstream.observation.json",
             "verifier-manifest.json",
-            "verifier-summary.json",
         ):
-            self.assertFalse((self.case_root / leaf).exists())
+            self.assertTrue((self.case_root / leaf).exists())
+        self.assertFalse((self.case_root / "verifier-summary.json").exists())
 
     def test_forbidden_event_metadata_is_rejected_before_artifact_creation(self) -> None:
         self.set_case("p4_safe")

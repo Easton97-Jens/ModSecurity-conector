@@ -528,3 +528,89 @@ aggregierten gehosteten HAProxy-Runtime-Fehlers—und Patched-lighttpd-Evidenz
 unverifiziert. Diese Lücken sind nicht bestanden und weder Kompatibilitäts-
 noch Safe-Mode-Fallbacks. Der PR bleibt Draft, bis Exact-Head-Hosted- und
 Host-Runtime-Evidenz die genannten Akzeptanzkriterien erfüllt.
+
+## 2026-08-28-Nachtrag zur finalen Review-Thread-Remediation
+
+### Motivation und Akzeptanzkriterien
+
+Am damaligen Draft-PR-#344-Head
+`efcaa86d5afd225aa7402cec424b3c7e785b212d` identifizierten sechs ungelöste
+Final-Head-Review-Threads Begrenzungs-, Lifecycle- und Protokolldefekte in den
+Response-Companion-Pfaden von Envoy, Stock-lighttpd und HAProxy. Die lokalen
+Akzeptanzkriterien sind, dass ein gültiger ein-MiB-Envoy-Response-Callback
+innerhalb einer endlichen Receive-Grenze bleibt, dass ein Projection-Rollback
+keinen Same-UID-Pfadnamenersatz entfernen kann, dass Stock lighttpd begrenzte
+Nicht-Upgrade-Informationsresponses weiterleitet, während nur die finale
+Response P3 erreicht, und dass gequeuete HAProxy-Owner-Arbeit keinen
+callback-eigenen Entscheidungstext nach der Callback-Rückkehr behält.
+Common/MRC1-Headergrenzen müssen einschließlich C-String-Terminatoren exakt
+bleiben.
+
+### Technische Entscheidungen und geänderte Komponenten
+
+- Envoy ext_proc akzeptiert nun einen ein-MiB-Response-Body zuzüglich 64-KiB
+  begrenztem gRPC-Framing-Headroom (`1114112` Bytes) und behält das 64-KiB-
+  Sendelimit. Eine bufconn-Regression sendet den vollständigen begrenzten Body
+  durch den tatsächlichen gRPC-Server.
+- Der Envoy-Composite-Verifier verwendet anonymes `O_TMPFILE`-Staging und
+  behält bereits veröffentlichte owner-private Projection-Artefakte mit festen
+  Namen nach einem späteren Fehler. Er versucht keinen nicht atomaren
+  stat-then-unlink-Rollback eines Pfadnamens mehr, den ein Same-UID-Akteur
+  ersetzen könnte.
+- Der Stock-lighttpd-Sidecar erkennt den HTTP-Header-Terminator inkrementell
+  in begrenzten Chunks und vermeidet wiederholte Full-Buffer-Scans. Er leitet
+  begrenzte Nicht-Upgrade-`1xx`-Responses weiter, ruft P3 genau einmal nur für
+  die finale Response auf und lehnt `101`-Upgrades weiterhin ab. Das
+  englische/deutsche Stock-lighttpd-README-Paar dokumentiert nun diese
+  sichtbare Protokollregel.
+- HAProxy-Response-Companion-Callbacks erhalten begrenzten Session-Storage
+  für Entscheidungstext. Ein verzögerter Owner-Task und sein kopiertes Ergebnis
+  verwenden getrennten begrenzten Storage; Callback-Storage wird erst nach
+  erfolgreichem Owner-Abschluss befüllt. Die Bridge akzeptiert die bestehenden
+  Common/MRC1-Maxima für Header-Namen und -Werte zusammen mit ihren
+  C-String-Terminatoren und behält Aggregate- und Count-Grenzen bei.
+
+Die betroffenen Dateien sind die Common-Response-Companion-Transport-
+Deklaration und ihr Test, Envoy-Observer/Projection und Tests, der
+Stock-lighttpd-Sidecar und sein Test sowie HAProxy-Diagnosebridge, Backend,
+Backend-Tests und die Lifetime-Regression für verzögerte Owner. Es wurden
+keine Workflows, Scanner-Konfigurationen, Suppressions, Quality Gates,
+Rulesets, Required Checks oder Branch-Regeln geändert.
+
+### Sicherheitsauswirkung und Verifikation
+
+Die betroffenen Sicherheitsgrenzen sind der private Response-Companion-
+Owner-/Worker-Handoff, begrenztes Upstream-Response-Parsing und private
+Projection-Ausgabe. Ein konkreter Pre-Fix-
+AddressSanitizer/UndefinedBehaviorSanitizer-Harness reproduzierte einen
+Heap-Use-after-Free, wenn ein Owner-Task nach einem Callback-Timeout
+Entscheidungstext durch freigegebenen Callback-Storage schrieb. Die Reparatur
+macht diesen Storage bis zu einer synchronen Kopie nach Abschluss task- und
+result-eigen; derselbe Response-Header- und Response-EOS-Harness ist unter
+beiden Sanitisern sauber. Die Projection-Änderung entfernt die Same-UID-
+Replacement-/Deletion-Race, statt Output-Validierung zu schwächen oder einen
+Ersatz zu löschen.
+
+| Lokale Validierung | Tatsächliches Ergebnis |
+| --- | --- |
+| `pytest -q tests/test_haproxy_transaction_contract_binding.py` | Bestanden: 23 Tests, einschließlich des ASan/UBSan-Harness für verzögerten Owner. |
+| HAProxy-MRC1-Overlay-, kombinierte SPOE/HTX- und Binding-Contract-Suite | Bestanden: 36 Tests. |
+| Envoy-Projection- und Stock-lighttpd-Sidecar-Suite | Bestanden: 31 Tests; 16 External-Runtime-Tests übersprungen, weil ihre native Runtime nicht verfügbar ist. |
+| `go test -race -count=1 ./...` in `connectors/envoy/ext_proc` | Bestanden: alle acht Packages. |
+| Direkter C17-Syntaxabschluss, direkter HAProxy-Backend-ASan/UBSan-Test und `make -C connectors/haproxy check-htx-overlay` | Bestanden. |
+| `pytest -q -p no:cacheprovider tests/test_bilingual_docs.py` und `make check-bilingual-docs` | Bestanden: 22 Tests; der Repository-Checker meldete `bilingual docs ok`. |
+| `git diff --check` | Bestanden. |
+
+### Runtime-Evidenz, nicht ausgeführte Checks und Restrisiko
+
+Dies sind fokussierte Source-/Komponenten- und Sanitizer-Controls, keine neue
+vollständige Native-Host-Evidenz. Der Successor-PR-Head ist beim Schreiben
+dieses Nachtrags noch nicht gepusht; Exact-Successor-GitHub-Checks,
+SonarQube-Cloud-Analyse und Hosted-Connector-Runtime-Zellen müssen erneut
+laufen. Die Wrapper-Abfrage für den Pre-Successor-Head meldete null offene/
+bestätigte SonarQube-Cloud-Issues und ein `OK` Quality Gate, aber dieses
+Ergebnis wird nach einem Successor-Push stale. Der nur aggregierte
+HAProxy-Hosted-Runtime-Fehler, die nicht verfügbare vollständige
+Ten-Host-Matrix und der fehlende frische externe Codex-Review bleiben nicht
+bestandene Evidenzlücken. Der PR bleibt Draft; weder ein Merge noch ein
+`master`-Push wird beansprucht.

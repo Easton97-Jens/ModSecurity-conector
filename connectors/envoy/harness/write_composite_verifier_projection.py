@@ -14,7 +14,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import secrets
 import stat
 import sys
 from dataclasses import dataclass
@@ -164,89 +163,77 @@ def _projection_artifact_identity(details: os.stat_result, label: str) -> tuple[
     return details.st_dev, details.st_ino
 
 
+def _projection_staging_identity(details: os.stat_result, label: str) -> tuple[int, int]:
+    if (
+        not stat.S_ISREG(details.st_mode)
+        or details.st_uid != os.geteuid()
+        or stat.S_IMODE(details.st_mode) != 0o600
+        or details.st_nlink != 0
+    ):
+        raise ProjectionError(f"{label} is not an owner-private anonymous staging file")
+    return details.st_dev, details.st_ino
+
+
 class _ProjectionOutputTransaction:
-    """Publish projection leaves atomically and remove only owned leaves on failure."""
+    """Publish projection leaves atomically without unsafe pathname cleanup.
+
+    POSIX cannot make a later unlink conditional on a previously observed
+    device/inode pair. A same-UID writer could otherwise replace a published
+    leaf between validation and removal. Anonymous ``O_TMPFILE`` staging has
+    no attacker-addressable name; once linked into the fixed output name, a
+    failed projection deliberately retains the private artifact for the owner
+    instead of risking deletion of a replacement.
+    """
 
     def __init__(self, root: PrivateRuntimeRoot) -> None:
         self._root = root
-        self._published: list[tuple[str, tuple[int, int]]] = []
-
-    def _remove_temporary(self, name: str) -> None:
-        try:
-            os.unlink(name, dir_fd=self._root.descriptor)
-        except FileNotFoundError:
-            pass
-
-    def _remove_published(self, name: str, expected_identity: tuple[int, int]) -> None:
-        details = os.stat(name, dir_fd=self._root.descriptor, follow_symlinks=False)
-        if _projection_artifact_identity(details, "projection artifact") != expected_identity:
-            raise ProjectionError(f"refusing to clean replaced projection artifact: {name}")
-        os.unlink(name, dir_fd=self._root.descriptor)
 
     def rollback(self) -> None:
-        failures: list[BaseException] = []
-        for name, identity in reversed(self._published):
-            try:
-                self._remove_published(name, identity)
-            except FileNotFoundError:
-                continue
-            except (OSError, ProjectionError) as exc:
-                failures.append(exc)
-        self._published.clear()
-        if failures:
-            raise ProjectionError("projection cleanup failed") from failures[0]
+        # Do not unlink a pathname after publication. The directory is
+        # descriptor-anchored and owner-private, but same-UID mutation is not
+        # an atomic unlink-if-identity boundary. Retained leaves remain
+        # bounded, fixed-name private artifacts for explicit owner cleanup.
+        return None
 
     def create_text(self, name: str, value: str) -> None:
         if name not in PROJECTION_ARTIFACT_LEAVES:
             raise ProjectionError("projection artifact name is not permitted")
-        no_follow = getattr(os, "O_NOFOLLOW", 0)
-        if not no_follow:
-            raise ProjectionError("projection output requires O_NOFOLLOW")
-        temporary = f".{name}.{secrets.token_hex(16)}.tmp"
-        temporary_created = False
+        anonymous_temporary = getattr(os, "O_TMPFILE", 0)
+        if not anonymous_temporary:
+            raise ProjectionError("projection output requires O_TMPFILE")
         descriptor = -1
         try:
             descriptor = os.open(
-                temporary,
-                os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow,
+                ".",
+                os.O_WRONLY | anonymous_temporary,
                 0o600,
                 dir_fd=self._root.descriptor,
             )
-            temporary_created = True
             os.fchmod(descriptor, 0o600)
-            _projection_artifact_identity(os.fstat(descriptor), "projection staging artifact")
-            with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-                descriptor = -1
+            identity = _projection_staging_identity(
+                os.fstat(descriptor), "projection staging artifact"
+            )
+            with os.fdopen(descriptor, "w", encoding="utf-8", closefd=False) as stream:
                 stream.write(value)
                 stream.flush()
                 os.fsync(stream.fileno())
-            identity = _projection_artifact_identity(
-                os.stat(temporary, dir_fd=self._root.descriptor, follow_symlinks=False),
-                "projection staging artifact",
-            )
             os.link(
-                temporary,
+                f"/proc/self/fd/{descriptor}",
                 name,
-                src_dir_fd=self._root.descriptor,
                 dst_dir_fd=self._root.descriptor,
-                follow_symlinks=False,
+                follow_symlinks=True,
             )
-            self._published.append((name, identity))
-            self._remove_temporary(temporary)
-            temporary = ""
-            temporary_created = False
+            if _projection_artifact_identity(
+                os.stat(name, dir_fd=self._root.descriptor, follow_symlinks=False),
+                "projection artifact",
+            ) != identity:
+                raise ProjectionError("published projection artifact identity changed")
         except BaseException:
-            if temporary and temporary_created:
-                self._remove_temporary(temporary)
-                temporary = ""
-                temporary_created = False
             self.rollback()
             raise
         finally:
             if descriptor >= 0:
                 os.close(descriptor)
-            if temporary and temporary_created:
-                self._remove_temporary(temporary)
 
     def __enter__(self) -> "_ProjectionOutputTransaction":
         return self

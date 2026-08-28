@@ -879,6 +879,18 @@ class StockSidecarSourceContractTest(unittest.TestCase):
         self.assertIn("Connection: close", source)
         self.assertNotIn("sidecar_proxy", source)
 
+        header_reader_start = source.index("static int sidecar_read_header_block")
+        header_reader_end = source.index("static int sidecar_connect", header_reader_start)
+        header_reader = source[header_reader_start:header_reader_end]
+        self.assertIn("sidecar_peek_some", header_reader)
+        self.assertIn("unsigned char probe[SIDECAR_IO_CHUNK]", header_reader)
+        self.assertIn("sidecar_header_terminator_advance", header_reader)
+        self.assertNotIn('strstr(buffer, "\\r\\n\\r\\n")', header_reader)
+        self.assertNotIn("&byte, 1U", header_reader)
+        self.assertIn("static int sidecar_read_final_response_headers", source)
+        self.assertIn("headers.status_code == 101", source)
+        self.assertIn("sidecar_write_interim_response_headers_observed", source)
+
     def test_response_metadata_and_request_target_use_common_contract_bounds(self) -> None:
         source = SIDECAR_SOURCE.read_text(encoding="utf-8")
         request_start = source.index("static int sidecar_parse_request_headers_start")
@@ -997,6 +1009,108 @@ int main(void) {
             directory = Path(temporary)
             harness = directory / "header_ownership.c"
             binary = directory / "header_ownership"
+            harness.write_text(harness_source, encoding="utf-8")
+            compiled = subprocess.run(
+                [
+                    compiler,
+                    "-std=c17", "-Wall", "-Wextra", "-Werror",
+                    "-ffunction-sections", "-fdata-sections", "-pthread",
+                    "-I.", "-Icommon/include", "-Icommon/runtime",
+                    "-Iconnectors/lighttpd/stock_sidecar", f"-I{include_directory}",
+                    str(harness), "-Wl,--gc-sections", "-o", str(binary),
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(compiled.returncode, 0, compiled.stderr)
+            executed = subprocess.run(
+                [str(binary)], cwd=ROOT, text=True, capture_output=True, check=False,
+            )
+            self.assertEqual(executed.returncode, 0, executed.stderr)
+
+    def test_informational_response_is_forwarded_before_exactly_one_final_response(self) -> None:
+        """A non-upgrade 1xx is client-visible but never becomes Common P3."""
+        compiler = shutil.which("cc")
+        include_directory = Path(os.environ.get("MODSECURITY_INCLUDE_DIR", "/usr/include"))
+        if compiler is None:
+            self.skipTest("requires a C compiler")
+        if not (include_directory / "modsecurity" / "modsecurity.h").is_file():
+            self.skipTest("requires libmodsecurity headers")
+
+        harness_source = r'''
+#define MSCONNECTOR_STOCK_SIDECAR_MAIN
+#define main stock_sidecar_program_main
+#include "__SIDECAR_SOURCE__"
+#undef main
+
+#include <assert.h>
+
+static void initialize_exchange(sidecar_exchange_state *state, int client, int upstream) {
+    memset(state, 0, sizeof(*state));
+    state->client = client;
+    state->upstream = upstream;
+    state->header_limit = 4096U;
+    state->count_limit = 16U;
+    state->deadline.at_ms = sidecar_now_ms() + 1000U;
+}
+
+int main(void) {
+    static const char informational_then_final[] =
+        "HTTP/1.1 103 Early Hints\r\n"
+        "Link: </style.css>; rel=preload\r\n"
+        "Content-Length: 17\r\n\r\n"
+        "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
+    static const char upgrade[] = "HTTP/1.1 101 Switching Protocols\r\n\r\n";
+    int upstream[2];
+    int client[2];
+    char forwarded[512];
+    ssize_t received;
+    sidecar_exchange_state state;
+
+    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, upstream) == 0);
+    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, client) == 0);
+    assert(send(upstream[1], informational_then_final,
+                sizeof(informational_then_final) - 1U, MSG_NOSIGNAL) ==
+           (ssize_t)(sizeof(informational_then_final) - 1U));
+    initialize_exchange(&state, client[0], upstream[0]);
+    assert(sidecar_read_final_response_headers(&state) == 1);
+    assert(state.payload.response_headers.status_code == 200);
+    assert(state.client_response_started == 1);
+    received = recv(client[1], forwarded, sizeof(forwarded) - 1U, 0);
+    assert(received > 0);
+    forwarded[received] = '\0';
+    assert(strstr(forwarded, "HTTP/1.1 103 Informational\r\n") != NULL);
+    assert(strstr(forwarded, "Content-Length:") == NULL);
+    assert(strstr(forwarded, "HTTP/1.1 200") == NULL);
+    sidecar_headers_release(&state.payload.response_headers);
+    free(state.payload.response_block);
+    assert(close(upstream[0]) == 0);
+    assert(close(upstream[1]) == 0);
+    assert(close(client[0]) == 0);
+    assert(close(client[1]) == 0);
+
+    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, upstream) == 0);
+    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, client) == 0);
+    assert(send(upstream[1], upgrade, sizeof(upgrade) - 1U, MSG_NOSIGNAL) ==
+           (ssize_t)(sizeof(upgrade) - 1U));
+    initialize_exchange(&state, client[0], upstream[0]);
+    assert(sidecar_read_final_response_headers(&state) == 0);
+    assert(state.failure_origin == SIDECAR_FAILURE_PROTOCOL);
+    assert(state.payload.response_block == NULL);
+    assert(close(upstream[0]) == 0);
+    assert(close(upstream[1]) == 0);
+    assert(close(client[0]) == 0);
+    assert(close(client[1]) == 0);
+    return 0;
+}
+'''.replace("__SIDECAR_SOURCE__", SIDECAR_SOURCE.as_posix())
+        with tempfile.TemporaryDirectory(prefix="stock-sidecar-informational-",
+                                         dir=_temporary_root()) as temporary:
+            directory = Path(temporary)
+            harness = directory / "informational_response.c"
+            binary = directory / "informational_response"
             harness.write_text(harness_source, encoding="utf-8")
             compiled = subprocess.run(
                 [

@@ -34,8 +34,11 @@ requestübergreifender State noch Reuse-Korrelation. Unterstützt werden
 Identity-Framing mit optionalem Request-`Content-Length` und Response-
 `Content-Length` (ausgenommen HEAD, 204 und 304). Übliche HTTP/1.1-
 Response-Reason-Phrases sowie `Connection: close`/`keep-alive` werden
-akzeptiert; Connection-Felder werden vor dem Forwarding entfernt. Chunked
-Transfer-Encoding, Upgrades, TE, Trailer, Proxy-Connection, unbekannte
+akzeptiert; Connection-Felder werden vor dem Forwarding entfernt.
+Nicht-Upgrade-informative `1xx`-Responses werden innerhalb der konfigurierten
+Grenzen weitergeleitet und treten nicht in P3 ein; nur die folgende finale
+Response tritt in P3 ein. Ein `101`-Upgrade bleibt abgelehnt.
+Chunked Transfer-Encoding, Upgrades, TE, Trailer, Proxy-Connection, unbekannte
 Connection-Tokens, widersprüchliche Längen, fehlerhafte Startzeilen sowie zu
 große Header oder Bodies schlagen fail-closed fehl.
 

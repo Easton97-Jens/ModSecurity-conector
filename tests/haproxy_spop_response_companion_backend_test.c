@@ -212,13 +212,33 @@ static void dispatch_claim_reuse(fake_owner *const owner,
 static int
 dispatch(void *const context, haproxy_modsecurity_transaction *const transaction,
          const haproxy_spop_response_companion_owner_command *const command,
-         msconnector_decision *const, msconnector_error *const error,
+         msconnector_decision *const decision, msconnector_error *const error,
          int *const transaction_consumed) {
   fake_owner *owner = context;
   assert(transaction != NULL);
   assert(command->operation <= HAPROXY_SPOP_RESPONSE_COMPANION_FAIL);
   assert(command->lease != 0U);
   owner->calls[command->operation]++;
+  if (command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_HEADERS ||
+      command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_BODY ||
+      command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_EOS) {
+    assert(command->decision_storage != NULL);
+  }
+  if (command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_HEADERS) {
+    memcpy(command->decision_storage->redirect_url, "/owner-redirect",
+           sizeof("/owner-redirect"));
+    memcpy(command->decision_storage->log_message, "owner-p3-decision",
+           sizeof("owner-p3-decision"));
+    msconnector_decision_set_redirect(
+        decision, 302, command->decision_storage->redirect_url, NULL,
+        command->decision_storage->log_message);
+  }
+  if (command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_EOS) {
+    memcpy(command->decision_storage->log_message, "owner-p4-decision",
+           sizeof("owner-p4-decision"));
+    msconnector_decision_set_deny(decision, 451, NULL,
+                                  command->decision_storage->log_message);
+  }
   if (owner->control.terminal.defer_response_headers_finalizer &&
       command->operation == HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_HEADERS &&
       transaction == owner->transaction_a) {
@@ -400,12 +420,16 @@ int main(void) {
   }
   assert(vtable.process_response_headers(vtable.context, &session, NULL,
                                          &decision, &error));
+  assert(decision.redirect_url == session.decision_storage.redirect_url);
+  assert(decision.reason == session.decision_storage.log_message);
   assert(
       vtable.set_response_commit_state(vtable.context, &session, 1, 0, &error));
   assert(vtable.append_response_body_chunk(vtable.context, &session, body,
                                            sizeof(body) - 1U, &error));
   assert(
       vtable.finish_response_body(vtable.context, &session, &decision, &error));
+  assert(decision.reason == session.decision_storage.log_message);
+  assert(strcmp(decision.reason, "owner-p4-decision") == 0);
   {
     const msconnector_response_companion_host_action action = {
         .decision = &decision,
