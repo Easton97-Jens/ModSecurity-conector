@@ -180,7 +180,18 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
             with self.subTest(function=name):
                 function = function_definition(self.access, name)
                 intervention = function.index("ret = ngx_http_modsecurity_process_intervention")
-                negative = conditional_block(function, "if (ret < 0)", intervention)
+                if name == "ngx_http_modsecurity_process_request_headers":
+                    self.assertIn(
+                        "ngx_http_modsecurity_intervention_disposition(ret,",
+                        function[intervention:],
+                    )
+                    negative = conditional_block(
+                        function,
+                        "if (disposition == MSCONNECTOR_NGINX_INTERVENTION_FAILURE)",
+                        intervention,
+                    )
+                else:
+                    negative = conditional_block(function, "if (ret < 0)", intervention)
                 self.assertIn("ctx->intervention_triggered = 1;", negative)
                 self.assertIn("return NGX_HTTP_INTERNAL_SERVER_ERROR;", negative)
 
@@ -192,7 +203,14 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         header_intervention = function_definition(
             self.header, "ngx_http_modsecurity_handle_response_header_intervention"
         )
-        negative = conditional_block(header_intervention, "if (ret < 0)")
+        self.assertIn(
+            "ngx_http_modsecurity_intervention_disposition(ret,",
+            header_intervention,
+        )
+        negative = conditional_block(
+            header_intervention,
+            "if (disposition == MSCONNECTOR_NGINX_INTERVENTION_FAILURE)",
+        )
         self.assertIn("ctx->intervention_triggered = 1;", negative)
         self.assertIn("return NGX_ERROR;", negative)
         self.assertNotIn("ngx_http_filter_finalize_request", negative)
@@ -258,7 +276,7 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         )
         normal_intervention = conditional_block(
             header_intervention,
-            "if (ret == 0)",
+            "if (disposition == MSCONNECTOR_NGINX_INTERVENTION_ALLOW)",
         )
         self.assertIn("return ngx_http_next_header_filter(r);", normal_intervention)
         positive_intervention = header_intervention[

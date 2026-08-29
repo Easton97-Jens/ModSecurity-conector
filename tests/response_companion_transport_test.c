@@ -818,24 +818,48 @@ static void *stop_transport_in_thread(void *opaque)
     return NULL;
 }
 
+static void setup_mock_transport(msconnector_response_companion_transport *transport,
+    msconnector_response_companion_backend *vtable, mock_backend *backend,
+    const char *handle, const char *directory_template, const char *label,
+    unsigned timeout_ms, void (*expire)(void *, uint64_t),
+    char socket_directory[TEST_PATH_SIZE],
+    char socket_path[MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_SOCKET_SIZE])
+{
+    assert(transport != NULL && vtable != NULL && backend != NULL);
+    assert(handle != NULL && directory_template != NULL && label != NULL);
+    memset(vtable, 0, sizeof(*vtable));
+    vtable->claim = mock_backend_claim;
+    vtable->process_response_headers = mock_backend_process_response_headers;
+    vtable->append_response_body_chunk = mock_backend_append_response_body_chunk;
+    vtable->finish_response_body = mock_backend_finish_response_body;
+    vtable->set_response_commit_state = mock_backend_set_response_commit_state;
+    vtable->record_host_action = mock_backend_record_host_action;
+    vtable->cancel = mock_backend_cancel;
+    vtable->release = mock_backend_release;
+    vtable->fail = mock_backend_fail;
+    vtable->expire = expire;
+    backend->handle = handle;
+    vtable->context = backend;
+    assert(pthread_mutex_init(&backend->lock, NULL) == 0);
+    assert(snprintf(socket_directory, TEST_PATH_SIZE, "%s/%s",
+        test_private_directory(), directory_template) > 0);
+    assert(mkdtemp(socket_directory) != NULL);
+    assert(chmod(socket_directory, 0700) == 0);
+    assert(snprintf(socket_path, MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_SOCKET_SIZE,
+        "%s/s", socket_directory) > 0);
+    msconnector_error error;
+    msconnector_error_init(&error);
+    assert(msconnector_response_companion_transport_init_with_backend(transport,
+        vtable, TEST_TRANSPORT_OPTIONS(label, socket_path, 32U, 64U, 8U,
+            timeout_ms), &error));
+    assert(msconnector_response_companion_transport_start(transport, &error));
+}
+
 static void run_explicit_backend_contract_test(void)
 {
     static const char handle[] =
         "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-    const msconnector_response_companion_backend vtable = {
-        .context = NULL,
-        .claim = mock_backend_claim,
-        .process_response_headers = mock_backend_process_response_headers,
-        .append_response_body_chunk = mock_backend_append_response_body_chunk,
-        .finish_response_body = mock_backend_finish_response_body,
-        .set_response_commit_state = mock_backend_set_response_commit_state,
-        .record_host_action = mock_backend_record_host_action,
-        .cancel = mock_backend_cancel,
-        .release = mock_backend_release,
-        .fail = mock_backend_fail,
-        .expire = NULL
-    };
-    msconnector_response_companion_backend backend_vtable = vtable;
+    msconnector_response_companion_backend backend_vtable;
     msconnector_response_companion_transport transport;
     mock_backend backend;
     mock_backend_observation observation;
@@ -849,20 +873,8 @@ static void run_explicit_backend_contract_test(void)
 
     assert(strlen(handle) == MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_HANDLE_SIZE - 1U);
     memset(&backend, 0, sizeof(backend));
-    backend.handle = handle;
-    assert(pthread_mutex_init(&backend.lock, NULL) == 0);
-    backend_vtable.context = &backend;
-    assert(snprintf(socket_directory, sizeof(socket_directory), "%s/mrb.XXXXXX",
-        test_private_directory()) > 0);
-    assert(mkdtemp(socket_directory) != NULL);
-    assert(chmod(socket_directory, 0700) == 0);
-    assert(snprintf(socket_path, sizeof(socket_path), "%s/s", socket_directory) > 0);
-    msconnector_error_init(&error);
-    assert(msconnector_response_companion_transport_init_with_backend(&transport,
-        &backend_vtable, TEST_TRANSPORT_OPTIONS("backend-test", socket_path,
-            32U, 64U, 8U, 100U),
-        &error));
-    assert(msconnector_response_companion_transport_start(&transport, &error));
+    setup_mock_transport(&transport, &backend_vtable, &backend, handle,
+        "mrb.XXXXXX", "backend-test", 100U, NULL, socket_directory, socket_path);
     assert((fcntl(transport.listener.listener_fd, F_GETFD) & FD_CLOEXEC) != 0);
 
     /* CLAIM has only a provisional allow. A raw peer cannot turn it into a
@@ -965,20 +977,7 @@ static void run_backend_fault_claim_race_test(void)
 {
     static const char handle[] =
         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-    const msconnector_response_companion_backend vtable = {
-        .context = NULL,
-        .claim = mock_backend_claim,
-        .process_response_headers = mock_backend_process_response_headers,
-        .append_response_body_chunk = mock_backend_append_response_body_chunk,
-        .finish_response_body = mock_backend_finish_response_body,
-        .set_response_commit_state = mock_backend_set_response_commit_state,
-        .record_host_action = mock_backend_record_host_action,
-        .cancel = mock_backend_cancel,
-        .release = mock_backend_release,
-        .fail = mock_backend_fail,
-        .expire = NULL
-    };
-    msconnector_response_companion_backend backend_vtable = vtable;
+    msconnector_response_companion_backend backend_vtable;
     msconnector_response_companion_transport transport;
     mock_backend backend;
     mock_backend_observation observation;
@@ -992,22 +991,11 @@ static void run_backend_fault_claim_race_test(void)
     int first_socket;
 
     memset(&backend, 0, sizeof(backend));
-    backend.handle = handle;
     backend.retain_terminal_opaque = 1;
     atomic_init(&backend.pause_cancel, 0);
     atomic_init(&backend.cancel_started, 0);
-    assert(pthread_mutex_init(&backend.lock, NULL) == 0);
-    backend_vtable.context = &backend;
-    assert(snprintf(socket_directory, sizeof(socket_directory), "%s/mrf.XXXXXX",
-        test_private_directory()) > 0);
-    assert(mkdtemp(socket_directory) != NULL);
-    assert(chmod(socket_directory, 0700) == 0);
-    assert(snprintf(socket_path, sizeof(socket_path), "%s/s", socket_directory) > 0);
-    msconnector_error_init(&error);
-    assert(msconnector_response_companion_transport_init_with_backend(&transport,
-        &backend_vtable, TEST_TRANSPORT_OPTIONS("fault-race-test", socket_path,
-            32U, 64U, 8U, 100U), &error));
-    assert(msconnector_response_companion_transport_start(&transport, &error));
+    setup_mock_transport(&transport, &backend_vtable, &backend, handle,
+        "mrf.XXXXXX", "fault-race-test", 100U, NULL, socket_directory, socket_path);
     first_socket = connect_client(socket_path);
     assert(claim(first_socket, handle));
 
@@ -1069,20 +1057,7 @@ static void run_typed_cancel_cause_test(void)
         {MSCONNECTOR_RESPONSE_COMPANION_CANCEL_INVALID_ENGINE_RESPONSE,
             MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE}
     };
-    const msconnector_response_companion_backend vtable = {
-        .context = NULL,
-        .claim = mock_backend_claim,
-        .process_response_headers = mock_backend_process_response_headers,
-        .append_response_body_chunk = mock_backend_append_response_body_chunk,
-        .finish_response_body = mock_backend_finish_response_body,
-        .set_response_commit_state = mock_backend_set_response_commit_state,
-        .record_host_action = mock_backend_record_host_action,
-        .cancel = mock_backend_cancel,
-        .release = mock_backend_release,
-        .fail = mock_backend_fail,
-        .expire = NULL
-    };
-    msconnector_response_companion_backend backend_vtable = vtable;
+    msconnector_response_companion_backend backend_vtable;
     msconnector_response_companion_transport transport;
     mock_backend backend;
     mock_backend_observation observation;
@@ -1093,20 +1068,8 @@ static void run_typed_cancel_cause_test(void)
     int socket_fd;
 
     memset(&backend, 0, sizeof(backend));
-    backend.handle = handle;
-    assert(pthread_mutex_init(&backend.lock, NULL) == 0);
-    backend_vtable.context = &backend;
-    assert(snprintf(socket_directory, sizeof(socket_directory), "%s/mrtv.XXXXXX",
-        test_private_directory()) > 0);
-    assert(mkdtemp(socket_directory) != NULL);
-    assert(chmod(socket_directory, 0700) == 0);
-    assert(snprintf(socket_path, sizeof(socket_path), "%s/s", socket_directory) > 0);
-    msconnector_error_init(&error);
-    assert(msconnector_response_companion_transport_init_with_backend(&transport,
-        &backend_vtable, TEST_TRANSPORT_OPTIONS("typed-cancel-test", socket_path,
-            32U, 64U, 8U, 100U),
-        &error));
-    assert(msconnector_response_companion_transport_start(&transport, &error));
+    setup_mock_transport(&transport, &backend_vtable, &backend, handle,
+        "mrtv.XXXXXX", "typed-cancel-test", 100U, NULL, socket_directory, socket_path);
     socket_fd = connect_client(socket_path);
 
     for (size_t index = 0U; index < sizeof(cases) / sizeof(cases[0]); ++index) {
@@ -1151,20 +1114,7 @@ static void run_transport_security_regression_test(void)
 {
     static const char handle[] =
         "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
-    const msconnector_response_companion_backend template_vtable = {
-        .context = NULL,
-        .claim = mock_backend_claim,
-        .process_response_headers = mock_backend_process_response_headers,
-        .append_response_body_chunk = mock_backend_append_response_body_chunk,
-        .finish_response_body = mock_backend_finish_response_body,
-        .set_response_commit_state = mock_backend_set_response_commit_state,
-        .record_host_action = mock_backend_record_host_action,
-        .cancel = mock_backend_cancel,
-        .release = mock_backend_release,
-        .fail = mock_backend_fail,
-        .expire = NULL
-    };
-    msconnector_response_companion_backend vtable = template_vtable;
+    msconnector_response_companion_backend vtable;
     msconnector_response_companion_transport transport;
     mock_backend backend;
     mock_backend_observation observation;
@@ -1179,19 +1129,8 @@ static void run_transport_security_regression_test(void)
 
     assert(strlen(handle) == MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_HANDLE_SIZE - 1U);
     memset(&backend, 0, sizeof(backend));
-    backend.handle = handle;
-    assert(pthread_mutex_init(&backend.lock, NULL) == 0);
-    vtable.context = &backend;
-    assert(snprintf(socket_directory, sizeof(socket_directory), "%s/mrs.XXXXXX",
-        test_private_directory()) > 0);
-    assert(mkdtemp(socket_directory) != NULL);
-    assert(chmod(socket_directory, 0700) == 0);
-    assert(snprintf(socket_path, sizeof(socket_path), "%s/s", socket_directory) > 0);
-    msconnector_error_init(&error);
-    assert(msconnector_response_companion_transport_init_with_backend(&transport,
-        &vtable, TEST_TRANSPORT_OPTIONS("security-test", socket_path,
-            32U, 64U, 8U, 100U), &error));
-    assert(msconnector_response_companion_transport_start(&transport, &error));
+    setup_mock_transport(&transport, &vtable, &backend, handle,
+        "mrs.XXXXXX", "security-test", 100U, NULL, socket_directory, socket_path);
 
     /* A malformed frame after CLAIM is a protocol error, never an upstream
      * disconnect. The worker owns no body payload after this failure. */
@@ -1218,21 +1157,10 @@ static void run_transport_security_regression_test(void)
      * later outcome reporting must use the transport's bounded copy, not the
      * backend's mutable source buffer. */
     memset(&backend, 0, sizeof(backend));
-    backend.handle = handle;
     backend.use_borrowed_decision = 1;
-    assert(pthread_mutex_init(&backend.lock, NULL) == 0);
+    setup_mock_transport(&transport, &vtable, &backend, handle,
+        "mrd.XXXXXX", "decision-test", 100U, NULL, socket_directory, socket_path);
     mock_backend_set_borrowed_rule(&backend, "borrowed-original");
-    vtable.context = &backend;
-    assert(snprintf(socket_directory, sizeof(socket_directory), "%s/mrd.XXXXXX",
-        test_private_directory()) > 0);
-    assert(mkdtemp(socket_directory) != NULL);
-    assert(chmod(socket_directory, 0700) == 0);
-    assert(snprintf(socket_path, sizeof(socket_path), "%s/s", socket_directory) > 0);
-    msconnector_error_init(&error);
-    assert(msconnector_response_companion_transport_init_with_backend(&transport,
-        &vtable, TEST_TRANSPORT_OPTIONS("decision-test", socket_path,
-            32U, 64U, 8U, 100U), &error));
-    assert(msconnector_response_companion_transport_start(&transport, &error));
     socket_fd = connect_client(socket_path);
     assert(claim(socket_fd, handle));
     assert(exchange(socket_fd, TEST_RESPONSE_HEADERS, headers,
@@ -1259,20 +1187,9 @@ static void run_transport_security_regression_test(void)
      * it receives fail() while its opaque session is still available, and no
      * subsequent CLAIM can inherit that native ownership. */
     memset(&backend, 0, sizeof(backend));
-    backend.handle = handle;
     backend.retain_terminal_opaque = 1;
-    assert(pthread_mutex_init(&backend.lock, NULL) == 0);
-    vtable.context = &backend;
-    assert(snprintf(socket_directory, sizeof(socket_directory), "%s/mrt.XXXXXX",
-        test_private_directory()) > 0);
-    assert(mkdtemp(socket_directory) != NULL);
-    assert(chmod(socket_directory, 0700) == 0);
-    assert(snprintf(socket_path, sizeof(socket_path), "%s/s", socket_directory) > 0);
-    msconnector_error_init(&error);
-    assert(msconnector_response_companion_transport_init_with_backend(&transport,
-        &vtable, TEST_TRANSPORT_OPTIONS("terminal-test", socket_path,
-            32U, 64U, 8U, 100U), &error));
-    assert(msconnector_response_companion_transport_start(&transport, &error));
+    setup_mock_transport(&transport, &vtable, &backend, handle,
+        "mrt.XXXXXX", "terminal-test", 100U, NULL, socket_directory, socket_path);
     socket_fd = connect_client(socket_path);
     assert(claim(socket_fd, handle));
     assert(exchange(socket_fd, TEST_CANCEL, (const unsigned char *)"\0", 1U,
@@ -1300,44 +1217,19 @@ static void run_listener_stop_regression_test(void)
 {
     static const char handle[] =
         "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-    const msconnector_response_companion_backend template_vtable = {
-        .context = NULL,
-        .claim = mock_backend_claim,
-        .process_response_headers = mock_backend_process_response_headers,
-        .append_response_body_chunk = mock_backend_append_response_body_chunk,
-        .finish_response_body = mock_backend_finish_response_body,
-        .set_response_commit_state = mock_backend_set_response_commit_state,
-        .record_host_action = mock_backend_record_host_action,
-        .cancel = mock_backend_cancel,
-        .release = mock_backend_release,
-        .fail = mock_backend_fail,
-        .expire = NULL
-    };
-    msconnector_response_companion_backend vtable = template_vtable;
+    msconnector_response_companion_backend vtable;
     msconnector_response_companion_transport transport;
     mock_backend backend;
     transport_stop_call stop_call;
     pthread_t stop_thread;
     char socket_directory[TEST_PATH_SIZE];
     char socket_path[MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_SOCKET_SIZE];
-    msconnector_error error;
     int socket_fd;
     int descriptors[32];
 
     memset(&backend, 0, sizeof(backend));
-    backend.handle = handle;
-    assert(pthread_mutex_init(&backend.lock, NULL) == 0);
-    vtable.context = &backend;
-    assert(snprintf(socket_directory, sizeof(socket_directory), "%s/mrl.XXXXXX",
-        test_private_directory()) > 0);
-    assert(mkdtemp(socket_directory) != NULL);
-    assert(chmod(socket_directory, 0700) == 0);
-    assert(snprintf(socket_path, sizeof(socket_path), "%s/s", socket_directory) > 0);
-    msconnector_error_init(&error);
-    assert(msconnector_response_companion_transport_init_with_backend(&transport,
-        &vtable, TEST_TRANSPORT_OPTIONS("listener-test", socket_path,
-            32U, 64U, 8U, 100U), &error));
-    assert(msconnector_response_companion_transport_start(&transport, &error));
+    setup_mock_transport(&transport, &vtable, &backend, handle,
+        "mrl.XXXXXX", "listener-test", 100U, NULL, socket_directory, socket_path);
     socket_fd = connect_client(socket_path);
     memset(&stop_call, 0, sizeof(stop_call));
     stop_call.transport = &transport;
@@ -1365,20 +1257,7 @@ static void run_expire_serialization_regression_test(void)
 {
     static const char handle[] =
         "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210";
-    const msconnector_response_companion_backend template_vtable = {
-        .context = NULL,
-        .claim = mock_backend_claim,
-        .process_response_headers = mock_backend_process_response_headers,
-        .append_response_body_chunk = mock_backend_append_response_body_chunk,
-        .finish_response_body = mock_backend_finish_response_body,
-        .set_response_commit_state = mock_backend_set_response_commit_state,
-        .record_host_action = mock_backend_record_host_action,
-        .cancel = mock_backend_cancel,
-        .release = mock_backend_release,
-        .fail = mock_backend_fail,
-        .expire = mock_backend_expire
-    };
-    msconnector_response_companion_backend vtable = template_vtable;
+    msconnector_response_companion_backend vtable;
     msconnector_response_companion_transport transport;
     mock_backend backend;
     msconnector_error error;
@@ -1389,23 +1268,13 @@ static void run_expire_serialization_regression_test(void)
     int socket_fd;
 
     memset(&backend, 0, sizeof(backend));
-    backend.handle = handle;
     backend.pause_headers = 1;
     atomic_init(&backend.callback_active, 0);
     atomic_init(&backend.expire_during_callback, 0);
     atomic_init(&backend.expires, 0U);
-    assert(pthread_mutex_init(&backend.lock, NULL) == 0);
-    vtable.context = &backend;
-    assert(snprintf(socket_directory, sizeof(socket_directory), "%s/mre.XXXXXX",
-        test_private_directory()) > 0);
-    assert(mkdtemp(socket_directory) != NULL);
-    assert(chmod(socket_directory, 0700) == 0);
-    assert(snprintf(socket_path, sizeof(socket_path), "%s/s", socket_directory) > 0);
-    msconnector_error_init(&error);
-    assert(msconnector_response_companion_transport_init_with_backend(&transport,
-        &vtable, TEST_TRANSPORT_OPTIONS("expire-test", socket_path,
-            32U, 64U, 8U, 1000U), &error));
-    assert(msconnector_response_companion_transport_start(&transport, &error));
+    setup_mock_transport(&transport, &vtable, &backend, handle,
+        "mre.XXXXXX", "expire-test", 1000U, mock_backend_expire,
+        socket_directory, socket_path);
     socket_fd = connect_client(socket_path);
     assert(claim(socket_fd, handle));
     /* The P3 callback sleeps longer than the listener poll period.  Without

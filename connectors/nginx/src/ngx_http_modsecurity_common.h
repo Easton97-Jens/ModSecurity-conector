@@ -108,6 +108,50 @@ ngx_http_modsecurity_next_header(ngx_list_part_t **part,
 }
 
 
+/* Validate and measure one bounded NGINX header list.  Request and response
+ * phases use the same limits; only the owning list differs. */
+static ngx_inline ngx_int_t
+ngx_http_modsecurity_header_metrics(ngx_list_t *headers,
+    size_t *count, size_t *bytes)
+{
+    ngx_list_part_t *part;
+    ngx_table_elt_t *data;
+    ngx_uint_t index;
+
+    if (headers == NULL || count == NULL || bytes == NULL) {
+        return NGX_ERROR;
+    }
+    *count = 0U;
+    *bytes = 0U;
+    part = &headers->part;
+    data = part->elts;
+    index = 0U;
+    for (;;) {
+        if (index >= part->nelts) {
+            if (part->next == NULL) {
+                return NGX_OK;
+            }
+            part = part->next;
+            data = part->elts;
+            index = 0U;
+            continue;
+        }
+        if (data[index].key.len == 0U ||
+            data[index].key.len > MSCONNECTOR_MAX_HEADER_NAME_LENGTH ||
+            data[index].value.len > MSCONNECTOR_MAX_HEADER_VALUE_LENGTH ||
+            *count >= MSCONNECTOR_MAX_HEADER_COUNT ||
+            data[index].key.len > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES - *bytes ||
+            data[index].value.len > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES - *bytes -
+                data[index].key.len) {
+            return NGX_ERROR;
+        }
+        ++*count;
+        *bytes += data[index].key.len + data[index].value.len;
+        ++index;
+    }
+}
+
+
 typedef struct {
     ngx_http_request_t *r;
     Transaction *modsec_transaction;
@@ -169,6 +213,30 @@ typedef struct {
     char last_intervention_rule_id[MSCONNECTOR_MAX_RULE_ID_LENGTH + 1U];
     ngx_int_t last_intervention_status;
 } ngx_http_modsecurity_ctx_t;
+
+typedef enum {
+    MSCONNECTOR_NGINX_INTERVENTION_FAILURE,
+    MSCONNECTOR_NGINX_INTERVENTION_BYPASS,
+    MSCONNECTOR_NGINX_INTERVENTION_ALLOW,
+    MSCONNECTOR_NGINX_INTERVENTION_ACTIVE
+} msconnector_nginx_intervention_disposition;
+
+/* Classify libmodsecurity's common intervention result.  Callers retain
+ * their phase-specific status and filter-chain actions. */
+static ngx_inline msconnector_nginx_intervention_disposition
+ngx_http_modsecurity_intervention_disposition(int ret, ngx_flag_t error_page)
+{
+    if (ret < 0) {
+        return MSCONNECTOR_NGINX_INTERVENTION_FAILURE;
+    }
+    if (error_page) {
+        return MSCONNECTOR_NGINX_INTERVENTION_BYPASS;
+    }
+    if (ret == 0) {
+        return MSCONNECTOR_NGINX_INTERVENTION_ALLOW;
+    }
+    return MSCONNECTOR_NGINX_INTERVENTION_ACTIVE;
+}
 
 
 typedef struct {

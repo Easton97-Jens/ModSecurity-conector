@@ -284,6 +284,38 @@ class _RunningSidecar:
 
 
 class StockSidecarSourceContractTest(unittest.TestCase):
+    def _compile_and_run_c_harness(
+        self, harness_source: str, *, prefix: str, filename: str,
+        compiler: str, include_directory: Path,
+    ) -> None:
+        harness_source = harness_source.replace(
+            "__SIDECAR_SOURCE__", SIDECAR_SOURCE.as_posix()
+        )
+        with tempfile.TemporaryDirectory(prefix=prefix, dir=_temporary_root()) as temporary:
+            directory = Path(temporary)
+            harness = directory / f"{filename}.c"
+            binary = directory / filename
+            harness.write_text(harness_source, encoding="utf-8")
+            compiled = subprocess.run(
+                [
+                    compiler,
+                    "-std=c17", "-Wall", "-Wextra", "-Werror",
+                    "-ffunction-sections", "-fdata-sections", "-pthread",
+                    "-I.", "-Icommon/include", "-Icommon/runtime",
+                    "-Iconnectors/lighttpd/stock_sidecar", f"-I{include_directory}",
+                    str(harness), "-Wl,--gc-sections", "-o", str(binary),
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(compiled.returncode, 0, compiled.stderr)
+            executed = subprocess.run(
+                [str(binary)], cwd=ROOT, text=True, capture_output=True, check=False,
+            )
+            self.assertEqual(executed.returncode, 0, executed.stderr)
+
     def test_real_backend_event_selection_separates_engine_and_host_action(self) -> None:
         harness = _load_real_backend_harness()
         case = next(candidate for candidate in harness.REAL_BACKEND_CASES
@@ -990,32 +1022,12 @@ int main(void) {
     assert(close(sockets[1]) == 0);
     return 0;
 }
-'''.replace("__SIDECAR_SOURCE__", SIDECAR_SOURCE.as_posix())
-        with tempfile.TemporaryDirectory(prefix="stock-sidecar-header-ownership-",
-                                         dir=_temporary_root()) as temporary:
-            directory = Path(temporary)
-            harness = directory / "header_ownership.c"
-            binary = directory / "header_ownership"
-            harness.write_text(harness_source, encoding="utf-8")
-            compiled = subprocess.run(
-                [
-                    compiler,
-                    "-std=c17", "-Wall", "-Wextra", "-Werror",
-                    "-ffunction-sections", "-fdata-sections", "-pthread",
-                    "-I.", "-Icommon/include", "-Icommon/runtime",
-                    "-Iconnectors/lighttpd/stock_sidecar", f"-I{include_directory}",
-                    str(harness), "-Wl,--gc-sections", "-o", str(binary),
-                ],
-                cwd=ROOT,
-                text=True,
-                capture_output=True,
-                check=False,
-            )
-            self.assertEqual(compiled.returncode, 0, compiled.stderr)
-            executed = subprocess.run(
-                [str(binary)], cwd=ROOT, text=True, capture_output=True, check=False,
-            )
-            self.assertEqual(executed.returncode, 0, executed.stderr)
+'''
+        self._compile_and_run_c_harness(
+            harness_source, prefix="stock-sidecar-header-ownership-",
+            filename="header_ownership", compiler=compiler,
+            include_directory=include_directory,
+        )
 
     def test_informational_response_is_forwarded_before_exactly_one_final_response(self) -> None:
         """A non-upgrade 1xx is client-visible but never becomes Common P3."""
@@ -1092,32 +1104,12 @@ int main(void) {
     assert(close(client[1]) == 0);
     return 0;
 }
-'''.replace("__SIDECAR_SOURCE__", SIDECAR_SOURCE.as_posix())
-        with tempfile.TemporaryDirectory(prefix="stock-sidecar-informational-",
-                                         dir=_temporary_root()) as temporary:
-            directory = Path(temporary)
-            harness = directory / "informational_response.c"
-            binary = directory / "informational_response"
-            harness.write_text(harness_source, encoding="utf-8")
-            compiled = subprocess.run(
-                [
-                    compiler,
-                    "-std=c17", "-Wall", "-Wextra", "-Werror",
-                    "-ffunction-sections", "-fdata-sections", "-pthread",
-                    "-I.", "-Icommon/include", "-Icommon/runtime",
-                    "-Iconnectors/lighttpd/stock_sidecar", f"-I{include_directory}",
-                    str(harness), "-Wl,--gc-sections", "-o", str(binary),
-                ],
-                cwd=ROOT,
-                text=True,
-                capture_output=True,
-                check=False,
-            )
-            self.assertEqual(compiled.returncode, 0, compiled.stderr)
-            executed = subprocess.run(
-                [str(binary)], cwd=ROOT, text=True, capture_output=True, check=False,
-            )
-            self.assertEqual(executed.returncode, 0, executed.stderr)
+'''
+        self._compile_and_run_c_harness(
+            harness_source, prefix="stock-sidecar-informational-",
+            filename="informational_response", compiler=compiler,
+            include_directory=include_directory,
+        )
 
 
 class StockSidecarLoopbackContractTest(unittest.TestCase):

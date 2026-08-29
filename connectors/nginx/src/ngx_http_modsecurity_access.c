@@ -323,41 +323,8 @@ static ngx_int_t
 ngx_http_modsecurity_request_header_metrics(ngx_http_request_t *r,
     size_t *count, size_t *bytes)
 {
-    ngx_list_part_t *part;
-    ngx_table_elt_t *data;
-    ngx_uint_t index;
-
-    if (r == NULL || count == NULL || bytes == NULL) {
-        return NGX_ERROR;
-    }
-    *count = 0U;
-    *bytes = 0U;
-    part = &r->headers_in.headers.part;
-    data = part->elts;
-    index = 0U;
-    for (;;) {
-        if (index >= part->nelts) {
-            if (part->next == NULL) {
-                return NGX_OK;
-            }
-            part = part->next;
-            data = part->elts;
-            index = 0U;
-            continue;
-        }
-        if (data[index].key.len == 0U ||
-            data[index].key.len > MSCONNECTOR_MAX_HEADER_NAME_LENGTH ||
-            data[index].value.len > MSCONNECTOR_MAX_HEADER_VALUE_LENGTH ||
-            *count >= MSCONNECTOR_MAX_HEADER_COUNT ||
-            data[index].key.len > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES - *bytes ||
-            data[index].value.len > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES - *bytes -
-                data[index].key.len) {
-            return NGX_ERROR;
-        }
-        ++*count;
-        *bytes += data[index].key.len + data[index].value.len;
-        ++index;
-    }
+    return ngx_http_modsecurity_header_metrics(r == NULL ? NULL
+        : &r->headers_in.headers, count, bytes);
 }
 
 static ngx_int_t
@@ -370,6 +337,7 @@ ngx_http_modsecurity_process_request_headers(ngx_http_request_t *r,
     size_t header_count;
     size_t header_bytes;
     int ret;
+    msconnector_nginx_intervention_disposition disposition;
 
     method = ngx_str_to_char(r->method_name, r->pool);
     uri = ngx_str_to_char(r->unparsed_uri.len > 0U ? r->unparsed_uri : r->uri,
@@ -411,14 +379,16 @@ ngx_http_modsecurity_process_request_headers(ngx_http_request_t *r,
     dd("Processing intervention with the request headers information filled in");
     ret = ngx_http_modsecurity_process_intervention(ctx->modsec_transaction,
         r, 1);
-    if (ret < 0) {
+    disposition = ngx_http_modsecurity_intervention_disposition(ret,
+        r->error_page);
+    if (disposition == MSCONNECTOR_NGINX_INTERVENTION_FAILURE) {
         ctx->intervention_triggered = 1;
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-    if (r->error_page) {
+    if (disposition == MSCONNECTOR_NGINX_INTERVENTION_BYPASS) {
         return NGX_DECLINED;
     }
-    if (ret > 0) {
+    if (disposition == MSCONNECTOR_NGINX_INTERVENTION_ACTIVE) {
         ngx_http_modsecurity_request_intervention_log_event(r, mcf,
             MSCONNECTOR_PHASE_REQUEST_HEADERS,
             "request_headers_before_handler");

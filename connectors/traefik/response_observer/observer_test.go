@@ -59,12 +59,7 @@ func TestReadResultRejectsInvalidCanonicalFields(t *testing.T) {
 			payload[2] = decisionAllow
 			binary.BigEndian.PutUint16(payload[4:], 200)
 			test.mutate(payload)
-			frame := make([]byte, frameHeaderSize+len(payload))
-			copy(frame[:4], []byte("MRC1"))
-			frame[4], frame[5] = protocolVersion, opResult
-			binary.BigEndian.PutUint32(frame[8:], uint32(len(payload)))
-			copy(frame[frameHeaderSize:], payload)
-			if _, err := readResult(bufio.NewReader(bytes.NewReader(frame))); err == nil {
+			if _, err := readResult(bufio.NewReader(bytes.NewReader(testResultFrame(payload)))); err == nil {
 				t.Fatal("invalid result accepted")
 			}
 		})
@@ -80,12 +75,7 @@ func TestReadResultAcceptsCanonicalStatuslessSuccess(t *testing.T) {
 	} {
 		payload := make([]byte, 12)
 		payload[0], payload[1], payload[2] = opClaim, resultOK, decision
-		frame := make([]byte, frameHeaderSize+len(payload))
-		copy(frame[:4], []byte("MRC1"))
-		frame[4], frame[5] = protocolVersion, opResult
-		binary.BigEndian.PutUint32(frame[8:], uint32(len(payload)))
-		copy(frame[frameHeaderSize:], payload)
-		if got, err := readResult(bufio.NewReader(bytes.NewReader(frame))); err != nil || got.status != 0 {
+		if got, err := readResult(bufio.NewReader(bytes.NewReader(testResultFrame(payload)))); err != nil || got.status != 0 {
 			t.Fatalf("statusless decision %d was rejected: result=%+v err=%v", decision, got, err)
 		}
 	}
@@ -95,12 +85,7 @@ func TestReadResultAcceptsStatuslessCleanupAcknowledgement(t *testing.T) {
 	for _, operation := range []byte{opCancel, opRelease} {
 		payload := make([]byte, 12)
 		payload[0], payload[1], payload[2] = operation, resultOK, decisionError
-		frame := make([]byte, frameHeaderSize+len(payload))
-		copy(frame[:4], []byte("MRC1"))
-		frame[4], frame[5] = protocolVersion, opResult
-		binary.BigEndian.PutUint32(frame[8:], uint32(len(payload)))
-		copy(frame[frameHeaderSize:], payload)
-		if got, err := readResult(bufio.NewReader(bytes.NewReader(frame))); err != nil || got.status != 0 {
+		if got, err := readResult(bufio.NewReader(bytes.NewReader(testResultFrame(payload)))); err != nil || got.status != 0 {
 			t.Fatalf("statusless cleanup acknowledgement for op %d was rejected: result=%+v err=%v", operation, got, err)
 		}
 	}
@@ -128,16 +113,20 @@ func TestReadResultRejectsHeaderControlResultText(t *testing.T) {
 			binary.BigEndian.PutUint16(payload[10:], uint16(len(test.rule)))
 			copy(payload[12:], test.redirect)
 			copy(payload[12+len(test.redirect):], test.rule)
-			frame := make([]byte, frameHeaderSize+len(payload))
-			copy(frame[:4], []byte("MRC1"))
-			frame[4], frame[5] = protocolVersion, opResult
-			binary.BigEndian.PutUint32(frame[8:], uint32(len(payload)))
-			copy(frame[frameHeaderSize:], payload)
-			if _, err := readResult(bufio.NewReader(bytes.NewReader(frame))); err == nil {
+			if _, err := readResult(bufio.NewReader(bytes.NewReader(testResultFrame(payload)))); err == nil {
 				t.Fatal("result text with a header control byte was accepted")
 			}
 		})
 	}
+}
+
+func testResultFrame(payload []byte) []byte {
+	frame := make([]byte, frameHeaderSize+len(payload))
+	copy(frame[:4], []byte("MRC1"))
+	frame[4], frame[5] = protocolVersion, opResult
+	binary.BigEndian.PutUint32(frame[8:], uint32(len(payload)))
+	copy(frame[frameHeaderSize:], payload)
+	return frame
 }
 
 func TestResponseHeaderEncodingUsesLengthThenBytesOrder(t *testing.T) {
@@ -203,7 +192,7 @@ func TestP3DenyOutcomeDoesNotSetConnectionAbortedFlag(t *testing.T) {
 func TestMiddlewareStreamsHeaderOnlyResponseAndStripsHandle(t *testing.T) {
 	path, stop, operations := startFakeObserver(t, func(byte) (byte, byte) { return decisionAllow, resultOK })
 	defer stop()
-	handler, err := New(nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := newObserverHandler(t, path, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-Msconnector-Response-Handle") != "" {
 			t.Error("handle leaked upstream")
 		}
@@ -212,12 +201,8 @@ func TestMiddlewareStreamsHeaderOnlyResponseAndStripsHandle(t *testing.T) {
 		}
 		w.Header().Set("X-Test", "yes")
 		w.WriteHeader(http.StatusNoContent)
-	}), &Config{SocketPath: path, TimeoutMillis: 1000}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
-	req.Header.Set("X-Msconnector-Response-Handle", testHandle)
+	}))
+	req := newObserverRequest()
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, req)
 	if recorder.Code != http.StatusNoContent {
@@ -262,17 +247,13 @@ func runPanicMiddleware(t *testing.T, panicValue string, commitResponse bool) (*
 	t.Helper()
 	path, stop, operations := startFakeObserver(t, func(byte) (byte, byte) { return decisionAllow, resultOK })
 	t.Cleanup(stop)
-	handler, err := New(nil, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := newObserverHandler(t, path, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		if commitResponse {
 			w.WriteHeader(http.StatusNoContent)
 		}
 		panic(panicValue)
-	}), &Config{SocketPath: path, TimeoutMillis: 1000}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
-	req.Header.Set("X-Msconnector-Response-Handle", testHandle)
+	}))
+	req := newObserverRequest()
 	recorder := httptest.NewRecorder()
 	var recovered any
 	func() {
@@ -280,6 +261,21 @@ func runPanicMiddleware(t *testing.T, panicValue string, commitResponse bool) (*
 		handler.ServeHTTP(recorder, req)
 	}()
 	return recorder, recovered, operations
+}
+
+func newObserverHandler(t *testing.T, path string, next http.Handler) http.Handler {
+	t.Helper()
+	handler, err := New(nil, next, &Config{SocketPath: path, TimeoutMillis: 1000}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return handler
+}
+
+func newObserverRequest() *http.Request {
+	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	req.Header.Set("X-Msconnector-Response-Handle", testHandle)
+	return req
 }
 
 func TestMiddlewareFailsClosedForMissingOrMalformedHandle(t *testing.T) {
@@ -313,12 +309,8 @@ func TestMiddlewareFailsClosedForRejectedReplay(t *testing.T) {
 	})
 	defer stop()
 	called := false
-	handler, err := New(nil, http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true }), &Config{SocketPath: path, TimeoutMillis: 1000}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
-	req.Header.Set("X-Msconnector-Response-Handle", testHandle)
+	handler := newObserverHandler(t, path, http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true }))
+	req := newObserverRequest()
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, req)
 	if recorder.Code != http.StatusServiceUnavailable || called {
@@ -334,7 +326,7 @@ func TestMiddlewareAppliesPrecommitBlockAndCancel(t *testing.T) {
 		return decisionAllow, resultOK
 	})
 	defer stop()
-	handler, err := New(nil, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := newObserverHandler(t, path, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Length", "21")
 		w.Header().Set("Set-Cookie", "session=upstream")
 		w.Header().Set("Location", "https://upstream.invalid/private")
@@ -344,12 +336,8 @@ func TestMiddlewareAppliesPrecommitBlockAndCancel(t *testing.T) {
 		if written, err := w.Write([]byte("must-not-reach-client")); err != nil || written != len("must-not-reach-client") {
 			t.Errorf("terminal upstream body write=%d err=%v", written, err)
 		}
-	}), &Config{SocketPath: path, TimeoutMillis: 1000}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
-	req.Header.Set("X-Msconnector-Response-Handle", testHandle)
+	}))
+	req := newObserverRequest()
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, req)
 	if recorder.Code != http.StatusForbidden {
@@ -383,14 +371,10 @@ func TestMiddlewareConsumesImplicitWriteAfterPrecommitBlock(t *testing.T) {
 	defer stop()
 	var written int
 	var writeErr error
-	handler, err := New(nil, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := newObserverHandler(t, path, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		written, writeErr = w.Write([]byte("discarded"))
-	}), &Config{SocketPath: path, TimeoutMillis: 1000}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
-	req.Header.Set("X-Msconnector-Response-Handle", testHandle)
+	}))
+	req := newObserverRequest()
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, req)
 	if written != len("discarded") || writeErr != nil {
@@ -509,14 +493,10 @@ func TestMiddlewareUsesClientCancelForDownstreamWriteFailure(t *testing.T) {
 func TestMiddlewareSendsBoundedResponseBodyChunks(t *testing.T) {
 	path, stop, operations := startFakeObserver(t, func(byte) (byte, byte) { return decisionAllow, resultOK })
 	defer stop()
-	handler, err := New(nil, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := newObserverHandler(t, path, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write(make([]byte, maxBodyChunk+7))
-	}), &Config{SocketPath: path, TimeoutMillis: 1000}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
-	req.Header.Set("X-Msconnector-Response-Handle", testHandle)
+	}))
+	req := newObserverRequest()
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, req)
 	if recorder.Code != http.StatusOK || recorder.Body.Len() != maxBodyChunk+7 {
@@ -536,16 +516,12 @@ func TestMiddlewareStopsBodyOnCanonicalResultFailure(t *testing.T) {
 		return decisionAllow, resultOK
 	})
 	defer stop()
-	handler, err := New(nil, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := newObserverHandler(t, path, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		if _, err := w.Write([]byte("must-not-be-forwarded")); err == nil {
 			t.Error("body write succeeded after response-companion failure")
 		}
-	}), &Config{SocketPath: path, TimeoutMillis: 1000}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
-	req.Header.Set("X-Msconnector-Response-Handle", testHandle)
+	}))
+	req := newObserverRequest()
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, req)
 	if recorder.Body.Len() != 0 {
@@ -596,12 +572,8 @@ func TestReleaseFailureTriggersDeterministicCleanup(t *testing.T) {
 		return decisionAllow, resultOK
 	})
 	defer stop()
-	handler, err := New(nil, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }), &Config{SocketPath: path, TimeoutMillis: 1000}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
-	req.Header.Set("X-Msconnector-Response-Handle", testHandle)
+	handler := newObserverHandler(t, path, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }))
+	req := newObserverRequest()
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, req)
 	if recorder.Code != http.StatusNoContent {
@@ -627,12 +599,8 @@ func TestLateOutcomeFailureCancelsWithoutRelease(t *testing.T) {
 		return decisionAllow, resultOK
 	})
 	defer stop()
-	handler, err := New(nil, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }), &Config{SocketPath: path, TimeoutMillis: 1000}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
-	req.Header.Set("X-Msconnector-Response-Handle", testHandle)
+	handler := newObserverHandler(t, path, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }))
+	req := newObserverRequest()
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, req)
 	if recorder.Code != http.StatusNoContent {
