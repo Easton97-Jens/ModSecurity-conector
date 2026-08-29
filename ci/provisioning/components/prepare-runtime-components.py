@@ -104,6 +104,19 @@ DEFAULT_NGINX_QUIC_TLS_SOURCE_SHA256 = "2db3f3a0d6ea4b59e1f094ace2c8cd536dffb87c
 PATH_POLICY_ENV = dict(os.environ)
 FULL_GIT_COMMIT_ID = re.compile(r"[0-9a-fA-F]{40,64}")
 SAFE_RUNTIME_BUILD_KEY = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+HAPROXY_BINDING_BUILD_TARGETS = ("build-modsecurity-binding", "build-spoa-runtime")
+HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINES = 8
+HAPROXY_FAILURE_DIAGNOSTIC_CLASSIFIERS = (
+    (re.compile(r"\bNo such file or directory\b", re.IGNORECASE), "missing_file_or_header"),
+    (re.compile(r"\bnot found\b", re.IGNORECASE), "required_tool_or_file_not_found"),
+    (re.compile(r"\bfatal error:", re.IGNORECASE), "compiler_fatal_error"),
+    (re.compile(r"\berror:", re.IGNORECASE), "compiler_error"),
+    (re.compile(r"\bundefined reference\b", re.IGNORECASE), "linker_undefined_reference"),
+    (re.compile(r"\bcollect2:", re.IGNORECASE), "linker_driver_error"),
+    (re.compile(r"\bld(?:\.bfd|\.gold)?:", re.IGNORECASE), "linker_error"),
+    (re.compile(r"make: \*\*\*", re.IGNORECASE), "make_recipe_error"),
+    (re.compile(r"\bFAIL:", re.IGNORECASE), "connector_build_step_failure"),
+)
 
 
 # Bump this whenever the on-disk cache contract or the identity inputs change.
@@ -8969,8 +8982,7 @@ def run_haproxy_binding_build(
             "make",
             "-C",
             str(connector_root / "connectors/haproxy"),
-            "build-modsecurity-binding",
-            "build-spoa-runtime",
+            *HAPROXY_BINDING_BUILD_TARGETS,
         ],
         env=make_env,
     )
@@ -8979,6 +8991,55 @@ def run_haproxy_binding_build(
         handle.write(proc.stdout)
         handle.write(proc.stderr)
     return proc
+
+
+def haproxy_failure_diagnostic_lines(proc: subprocess.CompletedProcess[str]) -> list[str]:
+    """Return only fixed failure classifications; raw tool output stays private."""
+
+    output = "\n".join((str(proc.stdout or ""), str(proc.stderr or "")))
+    selected: list[str] = []
+    truncated = False
+    for raw_line in output.splitlines():
+        for pattern, classification in HAPROXY_FAILURE_DIAGNOSTIC_CLASSIFIERS:
+            if not pattern.search(raw_line) or classification in selected:
+                continue
+            if len(selected) >= HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINES:
+                truncated = True
+                break
+            selected.append(classification)
+        if truncated:
+            break
+    result = [f"classification={classification}" for classification in selected]
+    if truncated:
+        result[-1] = "[classification list truncated]"
+    return result
+
+
+def emit_haproxy_binding_failure_diagnostic(
+    proc: subprocess.CompletedProcess[str],
+    missing_artifacts: tuple[str, ...],
+) -> None:
+    """Expose a bounded summary while retaining raw compiler output privately."""
+
+    print(
+        "prepare-runtime-components: HAProxy binding build failed "
+        f"target={' '.join(HAPROXY_BINDING_BUILD_TARGETS)} exit_code={proc.returncode} "
+        "build_log=private_task_owned_haproxy-build.log",
+        file=sys.stderr,
+    )
+    for artifact in missing_artifacts:
+        print(
+            f"prepare-runtime-components: HAProxy binding build missing_artifact={artifact}",
+            file=sys.stderr,
+        )
+    diagnostics = haproxy_failure_diagnostic_lines(proc)
+    if not diagnostics:
+        diagnostics = ["[no allowlisted compiler or linker failure classification captured]"]
+    for diagnostic in diagnostics:
+        print(
+            f"prepare-runtime-components: HAProxy binding diagnostic: {diagnostic}",
+            file=sys.stderr,
+        )
 
 
 def prepare_haproxy_runtime(
@@ -9064,9 +9125,16 @@ def prepare_haproxy_runtime(
         return write_haproxy_record(plan, record)
     make_env = haproxy_binding_environment(prep_env, connector_root, modsecurity, context)
     proc = run_haproxy_binding_build(connector_root, make_env, context["log_path"])
-    if proc.returncode != 0 or not (
-        executable(context["spoa_bin"]) and context["paths_env"].is_file()
-    ):
+    missing_artifacts = tuple(
+        label
+        for label, available in (
+            ("spoa_runtime_binary", executable(context["spoa_bin"])),
+            ("modsecurity_binding_paths", context["paths_env"].is_file()),
+        )
+        if not available
+    )
+    if proc.returncode != 0 or missing_artifacts:
+        emit_haproxy_binding_failure_diagnostic(proc, missing_artifacts)
         record.update(
             status="failed",
             blocker_reason="haproxy_connector_build_failed",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -1520,6 +1521,64 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             self.assertFalse(any(path.name.startswith(f".{cache_key}.tmp-") for path in connector_build.parent.iterdir()))
             return record
 
+    def prepare_haproxy_binding_failure_with(
+        self,
+        returncode: int,
+        output: str,
+    ) -> tuple[dict[str, object], str, tuple[tuple[Path, bool], ...]]:
+        with tempfile.TemporaryDirectory(prefix="haproxy-binding-failure-") as temporary:
+            root = Path(temporary)
+            cache = root / "cache"
+            components.ensure_managed_cache_root(cache)
+            plan = self.haproxy_runtime_plan(cache)
+            prep = subprocess.CompletedProcess(
+                args=["prepare-haproxy-runtime.sh"],
+                returncode=0,
+                stdout="haproxy_prepare: ready\n",
+                stderr="",
+            )
+            binding = subprocess.CompletedProcess(
+                args=["make"],
+                returncode=returncode,
+                stdout=output,
+                stderr="",
+            )
+
+            def prepare_with_runtime_binary(
+                _script: Path,
+                environment: dict[str, str],
+                _cwd: Path,
+                _log_path: Path,
+            ) -> subprocess.CompletedProcess[str]:
+                binary = Path(environment["HAPROXY_BIN"])
+                binary.parent.mkdir(parents=True, exist_ok=True)
+                binary.write_text("#!/bin/sh\n", encoding="utf-8")
+                binary.chmod(0o700)
+                return prep
+
+            with mock.patch.object(components, "run_build", side_effect=prepare_with_runtime_binary), mock.patch.object(
+                components, "run_haproxy_binding_build", return_value=binding
+            ), mock.patch.object(components, "safe_remove_dir", wraps=components.safe_remove_dir) as cleanup, mock.patch(
+                "sys.stderr", new_callable=io.StringIO
+            ) as stderr:
+                record = components.prepare_haproxy_runtime(
+                    {},
+                    ROOT,
+                    ROOT / "modules/ModSecurity-test-Framework",
+                    cache,
+                    root / "build",
+                    cache / "sources",
+                    cache / "archives",
+                    {"status": "built", "build_id": "modsecurity-build"},
+                    plan,
+                )
+                diagnostic = stderr.getvalue()
+                cleanup_observations = tuple(
+                    (Path(call.args[0]), Path(call.args[0]).exists())
+                    for call in cleanup.call_args_list
+                )
+        return record, diagnostic, cleanup_observations
+
     def haproxy_runtime_plan(
         self,
         cache_root: Path,
@@ -1718,6 +1777,92 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         )
         self.assertEqual(record["status"], "failed")
         self.assertEqual(record["build_exit_code"], 77)
+
+    def test_haproxy_binding_failure_diagnostic_is_bounded_and_opaque(self) -> None:
+        proc = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout=(
+                "cc1: fatal error: required-header.h: No such file or directory\n"
+                "error: -DAPI_SECRET=super-secret-token body=must-not-appear\n"
+                "make: *** [https://example.invalid/private] Error 2\n"
+            ),
+            stderr="collect2: error: ld returned 1 exit status\n",
+        )
+
+        diagnostics = components.haproxy_failure_diagnostic_lines(proc)
+        rendered = "\n".join(diagnostics)
+
+        self.assertIn("classification=compiler_fatal_error", rendered)
+        self.assertIn("classification=compiler_error", rendered)
+        self.assertIn("classification=linker_driver_error", rendered)
+        self.assertIn("classification=make_recipe_error", rendered)
+        self.assertIn("classification=missing_file_or_header", rendered)
+        self.assertNotIn("super-secret-token", rendered)
+        self.assertNotIn("must-not-appear", rendered)
+        self.assertNotIn("https://example.invalid/private", rendered)
+        self.assertLessEqual(len(diagnostics), components.HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINES)
+
+    def test_haproxy_binding_failure_preserves_status_and_emits_safe_summary(self) -> None:
+        record, diagnostic, _ = self.prepare_haproxy_binding_failure_with(
+            23,
+            "FAIL: binding compile failed\n"
+            "Authorization: Bearer hidden \x1b[31mhttps://example.invalid/private"
+            "\N{RIGHT-TO-LEFT OVERRIDE}\n",
+        )
+        self.assertEqual(record["status"], "failed")
+        self.assertEqual(record["blocker_reason"], "haproxy_connector_build_failed")
+        self.assertEqual(record["build_exit_code"], 23)
+        self.assertIn("target=build-modsecurity-binding build-spoa-runtime", diagnostic)
+        self.assertIn("build_log=private_task_owned_haproxy-build.log", diagnostic)
+        self.assertNotIn("hidden", diagnostic)
+        self.assertNotIn("https://example.invalid/private", diagnostic)
+        self.assertNotIn("\x1b", diagnostic)
+        self.assertNotIn("\N{RIGHT-TO-LEFT OVERRIDE}", diagnostic)
+
+    def test_haproxy_binding_missing_artifacts_remain_failure(self) -> None:
+        record, diagnostic, _ = self.prepare_haproxy_binding_failure_with(0, "unclassified output\n")
+
+        self.assertEqual(record["status"], "failed")
+        self.assertEqual(record["blocker_reason"], "haproxy_connector_build_failed")
+        self.assertEqual(record["build_exit_code"], 0)
+        self.assertIn("missing_artifact=spoa_runtime_binary", diagnostic)
+        self.assertIn("missing_artifact=modsecurity_binding_paths", diagnostic)
+        self.assertNotIn("unclassified output", diagnostic)
+
+    def test_haproxy_binding_failure_cleans_transactional_staging(self) -> None:
+        record, _, cleanup_observations = self.prepare_haproxy_binding_failure_with(
+            2,
+            "fatal error: required-header.h: No such file or directory\n",
+        )
+
+        self.assertEqual(record["status"], "failed")
+        self.assertEqual(len(cleanup_observations), 1)
+        cleanup_path, exists_after_cleanup = cleanup_observations[0]
+        self.assertIn(".tmp-", cleanup_path.name)
+        self.assertFalse(exists_after_cleanup)
+
+    def test_haproxy_binding_failure_diagnostic_limits_classifications_and_handles_empty_output(self) -> None:
+        proc = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout=(
+                "No such file or directory\nnot found\nfatal error:\nerror:\nundefined reference\n"
+                "collect2:\nld: error\nmake: *** [target]\nFAIL: build failed\n"
+            ),
+            stderr=None,
+        )
+
+        diagnostics = components.haproxy_failure_diagnostic_lines(proc)
+
+        self.assertEqual(len(diagnostics), components.HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINES)
+        self.assertEqual(diagnostics[-1], "[classification list truncated]")
+        self.assertEqual(
+            components.haproxy_failure_diagnostic_lines(
+                subprocess.CompletedProcess(args=["make"], returncode=2, stdout=None, stderr=None)
+            ),
+            [],
+        )
 
     def test_haproxy_missing_prerequisite_remains_blocked(self) -> None:
         record = self.prepare_haproxy_with(
