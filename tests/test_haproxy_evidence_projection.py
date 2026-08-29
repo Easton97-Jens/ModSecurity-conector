@@ -81,6 +81,7 @@ class HaproxyEvidenceRootGuardTests(unittest.TestCase):
                 stage_root=Path("/nonexistent/parent/package"),
                 trusted=trusted,
                 runtime_uid=1001,
+                upload_gid=1002,
             ),
             lambda: projector.verify_staged_package(
                 runner_temp=Path("/nonexistent"),
@@ -88,6 +89,7 @@ class HaproxyEvidenceRootGuardTests(unittest.TestCase):
                 stage_root=Path("/nonexistent/parent/package"),
                 trusted=trusted,
                 runtime_uid=1001,
+                upload_gid=1002,
             ),
         )
         for call in calls:
@@ -205,6 +207,8 @@ class HaproxyEvidenceDocumentValidationTests(unittest.TestCase):
             "/tmp/runner-temp/haproxy-runtime-evidence-parent.A1b2C3d4/package",
             "--runtime-uid",
             "1001",
+            "--upload-gid",
+            "1002",
             "--expected-parent-sha",
             "a" * 40,
             "--expected-framework-sha",
@@ -224,13 +228,16 @@ class HaproxyEvidenceDocumentValidationTests(unittest.TestCase):
             partial = stage / projector.EVIDENCE_FILENAME
             partial.write_text("{}\n", encoding="utf-8")
             partial.chmod(0o444)
-            stage.chmod(0o555)
+            stage.chmod(0o550)
+            stage_uid = os.geteuid()
+            stage_gid = os.getegid()
             descriptor = os.open(stage, os.O_RDONLY | os.O_DIRECTORY)
             try:
                 projector._discard_staged_files(
                     descriptor,
-                    stage_uid=os.geteuid(),
-                    stage_gid=os.getegid(),
+                    stage_uid=stage_uid,
+                    stage_gid=stage_gid,
+                    file_gid=stage_gid,
                 )
             finally:
                 os.close(descriptor)
@@ -245,8 +252,9 @@ class HaproxyEvidenceDocumentValidationTests(unittest.TestCase):
                 with self.assertRaises(projector.EvidenceProjectionError):
                     projector._discard_staged_files(
                         descriptor,
-                        stage_uid=os.geteuid(),
-                        stage_gid=os.getegid(),
+                        stage_uid=stage_uid,
+                        stage_gid=stage_gid,
+                        file_gid=stage_gid,
                     )
             finally:
                 os.close(descriptor)
@@ -316,7 +324,7 @@ class HaproxyEvidenceProjectionTests(unittest.TestCase):
         os.chown(self.stage_parent, 0, 0)
         self.stage_parent.chmod(0o755)
         self.stage_root.mkdir(mode=0o700)
-        os.chown(self.stage_root, self.evidence_uid, self.evidence_gid)
+        os.chown(self.stage_root, self.evidence_uid, self.runtime_gid)
         self.stage_root.chmod(0o700)
 
     def _run_as(
@@ -347,6 +355,23 @@ class HaproxyEvidenceProjectionTests(unittest.TestCase):
             check=False,
             capture_output=True,
             input=standard_input,
+        )
+
+    def _run_command_as(
+        self, uid: int, gid: int, command: list[str]
+    ) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.run(
+            [
+                str(SETPRIV),
+                f"--reuid={uid}",
+                f"--regid={gid}",
+                "--clear-groups",
+                "--no-new-privs",
+                "--",
+                *command,
+            ],
+            check=False,
+            capture_output=True,
         )
 
     def _trusted_arguments(self) -> list[str]:
@@ -389,6 +414,8 @@ class HaproxyEvidenceProjectionTests(unittest.TestCase):
                 os.fspath(self.stage_root),
                 "--runtime-uid",
                 str(self.runtime_uid),
+                "--upload-gid",
+                str(self.runtime_gid),
                 *self._trusted_arguments(),
             ],
             standard_input=source_document,
@@ -408,6 +435,8 @@ class HaproxyEvidenceProjectionTests(unittest.TestCase):
                 os.fspath(self.stage_root),
                 "--runtime-uid",
                 str(self.runtime_uid),
+                "--upload-gid",
+                str(self.runtime_gid),
                 *self._trusted_arguments(),
             ],
         )
@@ -444,8 +473,8 @@ class HaproxyEvidenceProjectionTests(unittest.TestCase):
             [projector.EVIDENCE_FILENAME, projector.MANIFEST_FILENAME],
         )
         stage_details = self.stage_root.stat()
-        self.assertEqual((stage_details.st_uid, stage_details.st_gid), (self.evidence_uid, self.evidence_gid))
-        self.assertEqual(stat.S_IMODE(stage_details.st_mode), 0o555)
+        self.assertEqual((stage_details.st_uid, stage_details.st_gid), (self.evidence_uid, self.runtime_gid))
+        self.assertEqual(stat.S_IMODE(stage_details.st_mode), 0o550)
         self.assertNotEqual(stage_details.st_uid, self.runtime_uid)
         self.assertEqual(self._verify().returncode, 0)
 
@@ -471,24 +500,37 @@ class HaproxyEvidenceProjectionTests(unittest.TestCase):
 
     def test_runtime_identity_cannot_mutate_the_sealed_package(self) -> None:
         self._project_valid_document()
+        evidence = self.stage_root / projector.EVIDENCE_FILENAME
+        reader = self._run_command_as(
+            self.runtime_uid,
+            self.runtime_gid,
+            ["/usr/bin/test", "-r", os.fspath(evidence)],
+        )
+        self.assertEqual(reader.returncode, 0, reader.stderr.decode("utf-8", "replace"))
         mutation = self.stage_root / "runtime-mutation"
-        result = subprocess.run(
-            [
-                str(SETPRIV),
-                f"--reuid={self.runtime_uid}",
-                f"--regid={self.runtime_gid}",
-                "--clear-groups",
-                "--no-new-privs",
-                "--",
-                "/usr/bin/touch",
-                os.fspath(mutation),
-            ],
-            check=False,
-            capture_output=True,
+        result = self._run_command_as(
+            self.runtime_uid,
+            self.runtime_gid,
+            ["/usr/bin/touch", os.fspath(mutation)],
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse(mutation.exists())
         self.assertEqual(self._verify().returncode, 0)
+
+    def test_unrelated_identity_cannot_read_the_sealed_package(self) -> None:
+        self._project_valid_document()
+        unrelated_uid = self.runtime_uid + 1
+        unrelated_gid = self.runtime_gid + 1
+        probe = self._run_command_as(unrelated_uid, unrelated_gid, ["/usr/bin/id", "-u"])
+        if probe.returncode != 0 or probe.stdout.strip() != str(unrelated_uid).encode("ascii"):
+            self.skipTest("the local namespace cannot model an unrelated upload reader identity")
+        evidence = self.stage_root / projector.EVIDENCE_FILENAME
+        denied = self._run_command_as(
+            unrelated_uid,
+            unrelated_gid,
+            ["/usr/bin/test", "-r", os.fspath(evidence)],
+        )
+        self.assertNotEqual(denied.returncode, 0)
 
     def test_projector_contains_no_privileged_helper_path(self) -> None:
         source = PROJECTOR_PATH.read_text(encoding="utf-8")
@@ -620,12 +662,18 @@ class HaproxyEvidenceProjectionTests(unittest.TestCase):
 
     def test_stage_path_identity_extra_file_and_digest_mutation_are_rejected(self) -> None:
         self._project_valid_document()
+        self.stage_root.chmod(0o555)
+        self.assertEqual(self._verify().returncode, 2)
+        self.stage_root.chmod(0o550)
+        os.chown(self.stage_root, self.evidence_uid, self.evidence_gid)
+        self.assertEqual(self._verify().returncode, 2)
+        os.chown(self.stage_root, self.evidence_uid, self.runtime_gid)
         self.stage_root.chmod(0o755)
         extra = self.stage_root / "unexpected.json"
         extra.write_text("{}\n", encoding="utf-8")
         os.chown(extra, self.evidence_uid, self.evidence_gid)
         extra.chmod(0o444)
-        self.stage_root.chmod(0o555)
+        self.stage_root.chmod(0o550)
         self.assertEqual(self._verify().returncode, 2)
 
         self.stage_root.chmod(0o755)
@@ -636,7 +684,7 @@ class HaproxyEvidenceProjectionTests(unittest.TestCase):
         manifest.write_bytes(projector.canonical_json_bytes(manifest_data))
         os.chown(manifest, self.evidence_uid, self.evidence_gid)
         manifest.chmod(0o444)
-        self.stage_root.chmod(0o555)
+        self.stage_root.chmod(0o550)
         self.assertEqual(self._verify().returncode, 2)
 
         linked_runner = self.root / "linked-runner"
@@ -654,6 +702,8 @@ class HaproxyEvidenceProjectionTests(unittest.TestCase):
                 os.fspath(linked_runner / self.stage_parent.name / projector.STAGE_DIRECTORY_NAME),
                 "--runtime-uid",
                 str(self.runtime_uid),
+                "--upload-gid",
+                str(self.runtime_gid),
                 *self._trusted_arguments(),
             ],
         )
@@ -665,13 +715,14 @@ class HaproxyEvidenceProjectionTests(unittest.TestCase):
         partial.write_text("{}\n", encoding="utf-8")
         os.chown(partial, self.evidence_uid, self.evidence_gid)
         partial.chmod(0o444)
-        self.stage_root.chmod(0o555)
+        self.stage_root.chmod(0o550)
         descriptor = os.open(self.stage_root, os.O_RDONLY | os.O_DIRECTORY)
         try:
             projector._discard_staged_files(
                 descriptor,
                 stage_uid=self.evidence_uid,
-                stage_gid=self.evidence_gid,
+                stage_gid=self.runtime_gid,
+                file_gid=self.evidence_gid,
             )
         finally:
             os.close(descriptor)
@@ -687,7 +738,8 @@ class HaproxyEvidenceProjectionTests(unittest.TestCase):
                 projector._discard_staged_files(
                     descriptor,
                     stage_uid=self.evidence_uid,
-                    stage_gid=self.evidence_gid,
+                    stage_gid=self.runtime_gid,
+                    file_gid=self.evidence_gid,
                 )
         finally:
             os.close(descriptor)

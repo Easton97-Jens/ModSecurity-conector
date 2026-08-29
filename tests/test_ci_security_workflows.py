@@ -1718,6 +1718,11 @@ jobs:
             "      - name: Run selected real with-CRS no-MRTS runtime\n", 1
         )[1].split("      - name: Project HAProxy runtime evidence\n", 1)[0]
         runtime_script = runtime.split("        run: |\n", 1)[1]
+        self.assertIn(
+            "SETUP_PYTHON_PATH: $" + "{{ steps.setup-python.outputs.python-path }}",
+            runtime,
+        )
+        self.assertIn('PYTHON="$SETUP_PYTHON_PATH"', runtime_script)
         for runtime_value in (
             "RUNTIME_UID",
             "RUNTIME_GID",
@@ -1870,6 +1875,11 @@ jobs:
         self.assertIn("exec(compile(source", project)
         self.assertIn('stage_root="$stage_parent/package"', project)
         self.assertIn("sudo -n /usr/bin/chown --no-dereference", project)
+        self.assertIn(
+            'sudo -n /usr/bin/chown --no-dereference "$EVIDENCE_UID:$RUNTIME_GID" -- "$stage_root"',
+            project,
+        )
+        self.assertIn('= "$EVIDENCE_UID:$RUNTIME_GID:700"', project)
         self.assertIn("run_runner_projector export-source-receipt", project)
         self.assertIn("| /usr/bin/head --bytes=16385", project)
         self.assertIn("| run_evidence_projector project-document --source-document-stdin", project)
@@ -1883,6 +1893,7 @@ jobs:
             project.index("| /usr/bin/head --bytes=16385"),
             project.index("| run_evidence_projector project-document --source-document-stdin"),
         )
+        self.assertIn('--upload-gid "$RUNTIME_GID"', project)
         for forbidden in (
             "seal-helper",
             "SEALED_HELPER",
@@ -1904,6 +1915,7 @@ jobs:
         self.assertIn("EVIDENCE_GID", verification)
         self.assertIn("hashlib.sha1", verification)
         self.assertIn("run_evidence_projector verify", verification)
+        self.assertIn('--upload-gid "$RUNTIME_GID"', verification)
         self.assertNotIn("sudo -n /usr/bin/python3", verification)
         self.assertNotIn("seal-helper", verification)
         for projector_block in (project, verification):

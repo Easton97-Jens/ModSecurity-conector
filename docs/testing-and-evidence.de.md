@@ -108,12 +108,19 @@ Kommandozeilen-Argumente für `sudo`, `unshare` oder `setpriv`.
 
 Projektion und Verifier weisen unerwartete Namen, Pfade, JSON-Schlüssel,
 Typen, Special Files, Symlinks, Größenlimitverletzungen und Digest-Mismatches
-zurück. Ihr Staging-Paket entsteht unterhalb eines neuen `RUNNER_TEMP`-Childs,
-der einer getrennten Evidence-Identität gehört, wird vor dem Upload versiegelt
-und unmittelbar vor dem Zugriff der gepinnten Upload-Action erneut validiert.
-Checkout-Code für Runtime, Source-Export, Projektion, Verifikation und die
-abschließende Workflow-Summary läuft nur nach privatem PID-/Mount-Namespace
-und Privilegabgabe mit `no_new_privs`; privilegierte Operationen haben feste
+zurück. Ihr Staging-Paket entsteht unterhalb eines neuen root-besessenen
+`RUNNER_TEMP`-Childs. Das Paketverzeichnis gehört der getrennten Evidence-UID
+und hat die Runtime-GID des Upload-Lesers als Gruppe: Es beginnt mit `0700`,
+danach versiegelt der Projektor es mit `0550`. Die zwei festen Dateien der
+Evidence-Identität bleiben `0444`, aber eine nicht zugehörige Identität kann
+das `0550`-Verzeichnis nicht traversieren; der effektive lesbare Pfadzugriff
+ist auf den Evidence-Owner und diese Upload-Leser-Gruppe begrenzt. Der
+Runtime-/Upload-Leser erhält nur Lesen/Traversieren, niemals Verzeichnis-
+Schreiben, Umbenennen, Unlink oder chmod. Der Verifier prüft diesen Ownership-
+und Modusvertrag unmittelbar vor der gepinnten Upload-Action. Checkout-Code
+für Runtime, Source-Export, Projektion, Verifikation und die abschließende
+Workflow-Summary läuft nur nach privatem PID-/Mount-Namespace und
+Privilegabgabe mit `no_new_privs`; privilegierte Operationen haben feste
 nur-Staging-Pfade und führen keinen Checkout-Code aus.
 
 Diese Grenze zeichnet nur den festen P2-Receipt auf und beansprucht weder

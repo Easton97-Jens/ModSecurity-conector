@@ -74,6 +74,11 @@ class HaproxyEvidenceWorkflowContractTests(unittest.TestCase):
             "      - name: Project HAProxy runtime evidence\n",
         )
         runtime_script = runtime.split("        run: |\n", 1)[1]
+        self.assertIn(
+            "SETUP_PYTHON_PATH: $" + "{{ steps.setup-python.outputs.python-path }}",
+            runtime,
+        )
+        self.assertIn('PYTHON="$SETUP_PYTHON_PATH"', runtime_script)
         for runtime_value in (
             "RUNTIME_UID",
             "RUNTIME_GID",
@@ -137,8 +142,16 @@ class HaproxyEvidenceWorkflowContractTests(unittest.TestCase):
         self.assertIn('stage_parent=$(sudo -n /usr/bin/mktemp -d -- "$TRUSTED_RUNNER_TEMP/haproxy-runtime-evidence-parent.XXXXXXXX")', project)
         self.assertIn('stage_root="$stage_parent/package"', project)
         self.assertIn("sudo -n /usr/bin/mkdir -m 0700", project)
-        self.assertIn("sudo -n /usr/bin/chown --no-dereference", project)
+        self.assertIn(
+            'sudo -n /usr/bin/chown --no-dereference "$EVIDENCE_UID:$RUNTIME_GID" -- "$stage_root"',
+            project,
+        )
+        self.assertNotIn(
+            'sudo -n /usr/bin/chown --no-dereference "$EVIDENCE_UID:$EVIDENCE_GID" -- "$stage_root"',
+            project,
+        )
         self.assertIn("sudo -n /usr/bin/chmod 0755", project)
+        self.assertIn('= "$EVIDENCE_UID:$RUNTIME_GID:700"', project)
         self.assertIn("run_runner_projector export-source-receipt", project)
         self.assertIn("| /usr/bin/head --bytes=16385", project)
         self.assertIn("| run_evidence_projector project-document --source-document-stdin", project)
@@ -147,6 +160,7 @@ class HaproxyEvidenceWorkflowContractTests(unittest.TestCase):
         self.assertLess(project.index("run_runner_projector export-source-receipt"), project.index("| /usr/bin/head --bytes=16385"))
         self.assertLess(project.index("| /usr/bin/head --bytes=16385"), project.index("| run_evidence_projector project-document --source-document-stdin"))
         self.assertLess(project.index("stage_parent="), project.index("project-document"))
+        self.assertIn('--upload-gid "$RUNTIME_GID"', project)
         self.assertIn(
             "if: matrix.connector == 'haproxy' && steps.project-haproxy-runtime-evidence.outcome == 'success'",
             verify,
@@ -157,6 +171,7 @@ class HaproxyEvidenceWorkflowContractTests(unittest.TestCase):
         self.assertIn("hashlib.sha1", verify)
         self.assertIn("exec(compile(source", verify)
         self.assertIn("run_evidence_projector verify", verify)
+        self.assertIn('--upload-gid "$RUNTIME_GID"', verify)
         for block in (project, verify):
             self.assertIn("sudo -n /usr/bin/env -i", block)
             self.assertIn("/usr/bin/unshare", block)
@@ -184,6 +199,13 @@ class HaproxyEvidenceWorkflowContractTests(unittest.TestCase):
             constrained_projector.index("/usr/bin/python3 -I -c"),
             constrained_projector.index("exec(compile(source"),
         )
+
+    def test_projector_seals_the_upload_reader_path_without_other_traversal(self) -> None:
+        projector = (
+            ROOT / "ci" / "runtime" / "lifecycle" / "project-haproxy-runtime-evidence.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("os.fchmod(descriptor, 0o550)", projector)
+        self.assertNotIn("os.fchmod(descriptor, 0o555)", projector)
 
     def test_upload_is_exactly_the_verified_two_file_package(self) -> None:
         source = self.source()

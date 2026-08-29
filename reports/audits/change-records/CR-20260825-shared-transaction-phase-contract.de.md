@@ -856,3 +856,49 @@ Der lokale Sandbox kann die getrennten Hosted-Identitäten oder das erforderlich
 prüft sie vorab und schlägt fehlgeschlossen fehl, statt zurückzufallen. PR #344
 bleibt Draft und `UNSTABLE`; es gibt keinen `master`-Push, Merge, `verified_pr`
 oder Produktions-Runtime-Claim.
+
+## 2026-08-29-Nachtrag zu HAProxy-Upload-Leser und Sonar
+
+### Root Cause und begrenzte Korrektur
+
+Der Exact-Head-Hosted-Lauf `33260079101` belegte, dass der HAProxy-Runtime-
+Schritt unter `set -u` abbrach, bevor er das Runtime-Target startete, weil
+`SETUP_PYTHON_PATH` schrittlokal war. Der Runtime-Schritt erhält nun explizit
+den direkten, action-besessenen `setup-python`-Output; er vertraut nicht dem
+veränderbaren, über `GITHUB_ENV` exportierten Job-Level-Wert `PYTHON`.
+
+Am selben Exact Head lag ein SonarQube-Cloud-Permissionsbefund für die
+`0555`-Versiegelung des Evidence-Verzeichnisses vor. Das Paketverzeichnis
+gehört jetzt der Evidence-UID, hat die Runtime-GID des Upload-Lesers als Gruppe
+und wird mit `0550` versiegelt. Die zwei festen, payloadfreien Dateien behalten
+die Evidence-Identität und `0444`; keine unbeteiligte Identität kann das
+versiegelte Verzeichnis traversieren, während der Upload-Leser lesen, aber
+nicht erstellen, ersetzen, umbenennen, unlinken, chmoden oder das Paket auf
+andere Weise verändern kann. Dies vermeidet rekursive Kopie, ACL, Suppression
+und einen privilegierten Checkout-Code-Pfad.
+
+Die fokussierte Source-Korrektur entfernt außerdem die reproduzierten Sonar-
+Regelmuster für redundante Exception-Typen, unsicheres Type Narrowing,
+kognitive Komplexität, einen ungenutzten Summary-Parameter und einen
+mehrdeutigen Exception-Test-Ausdruck. Sonar-Konfiguration, Exclusion,
+Suppression, Quality Gate, CI-Anforderung, Ruleset, Branch-Regel und
+`paths.env` blieben unverändert.
+
+### Tatsächliche lokale Validierung
+
+| Lokale Validierung | Tatsächliches Ergebnis |
+| --- | --- |
+| Fokussierte Projector-, Evidence-Workflow-, Harness- und CI-Security-Unittests | Bestanden: 59 Tests; 10 erwartete Cross-Identity-Skips, weil diese Sandbox die erforderlichen Identitäten nicht mappen kann. |
+| Runtime-Workflow-Summary-Contract-Tests | Bestanden: 61 Tests. |
+| `make check-ci-security-contract` | Bestanden: 125 Tests; 5 dokumentierte Host-Capability-Skips. |
+| `actionlint`, `zizmor --offline`, `make check-bilingual-docs`, `make check-doc-links`, `sh -n` und `git diff --check` | Bestanden; zizmor meldete keine Findings. |
+| Lokale Sonar-Agentic-Analyse | Nicht verfügbar: Die authentifizierte CLI meldet, dass Vortex für diese Organisation nicht verfügbar ist; dies ersetzt nicht die erforderliche PR-Analyse. |
+
+### Verbleibende Exact-Head-Evidence
+
+Der neue lokale Kandidat war beim Schreiben dieses Nachtrags noch nicht
+committed oder gepusht. Daher werden weder Hosted-Runtime-/Upload-Ergebnis,
+Artefaktinspektion, Secret-Scan- oder CodeQL-Ergebnis, SonarQube-Cloud-
+Nullergebnis noch frischer regulärer und Security-Codex-Review beansprucht.
+Diese Checks müssen auf dem exakten Successor-PR-Head erneut laufen, und PR
+#344 bleibt bis dahin Draft.

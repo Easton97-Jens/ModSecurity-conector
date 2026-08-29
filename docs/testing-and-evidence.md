@@ -101,12 +101,19 @@ or `setpriv`.
 
 The projection and verifier reject unexpected names, paths, JSON keys, types,
 special files, symlinks, size-limit violations, and digest mismatches. Their
-staging package is created below a new `RUNNER_TEMP` child owned by a distinct
-evidence identity, sealed before upload, and revalidated immediately before
-the pinned upload action consumes it. Checkout code for runtime, source export,
-projection, verification, and the final workflow summary executes only after a
-private PID/mount namespace and privilege drop with `no_new_privs`; privileged
-operations have fixed staging-only paths and do not execute checkout code.
+staging package is created below a new root-owned `RUNNER_TEMP` child. The
+package directory is owned by the separate evidence UID and grouped to the
+upload reader's runtime GID: it starts as `0700`, then the projector seals it
+at `0550`. The two fixed evidence-identity files remain `0444`, but an
+unrelated identity cannot traverse the `0550` directory; effective pathname
+read access is limited to the evidence owner and that upload-reader group.
+The runtime/upload reader has read/traverse permission only, never directory
+write, rename, unlink, or chmod permission. The verifier checks this ownership
+and mode contract immediately before the pinned upload action. Checkout code
+for runtime, source export, projection, verification, and the final workflow
+summary executes only after a private PID/mount namespace and privilege drop
+with `no_new_privs`; privileged operations have fixed staging-only paths and
+do not execute checkout code.
 
 This boundary records only the fixed P2 receipt and does not claim P3/P4,
 production readiness, or a successful hosted result until the exact workflow

@@ -785,3 +785,46 @@ The local sandbox cannot dynamically prove the distinct hosted identities or
 the required `unshare`/`sudo` namespace behavior. The workflow preflights them
 and fails closed instead of falling back. PR #344 remains Draft and `UNSTABLE`;
 there is no `master` push, merge, `verified_pr`, or production-runtime claim.
+
+## 2026-08-29 HAProxy upload-reader and Sonar follow-up
+
+### Root cause and bounded correction
+
+Exact-head hosted run `33260079101` established that the HAProxy runtime step
+aborted under `set -u` before it started the runtime target because
+`SETUP_PYTHON_PATH` was step-local. The runtime step now receives the direct,
+action-owned `setup-python` output explicitly; it does not trust the mutable
+job-level `PYTHON` value exported through `GITHUB_ENV`.
+
+The same exact head had a SonarQube Cloud permission finding for the evidence
+directory's `0555` seal. The package directory is now owned by the evidence
+UID, grouped to the upload reader's runtime GID, and sealed at `0550`. The two
+fixed, payload-free files retain the evidence identity and `0444`; no unrelated
+identity can traverse the sealed directory, while the upload reader can read
+but cannot create, replace, rename, unlink, chmod, or otherwise mutate the
+package. This avoids a recursive copy, ACL, suppression, or privileged
+checkout-code path.
+
+The focused source correction also removes the reproduced Sonar rule patterns
+for redundant exception types, unsafe type narrowing, cognitive complexity,
+an unused summary parameter, and an ambiguous exception-test expression. No
+Sonar configuration, exclusion, suppression, Quality Gate, CI requirement,
+ruleset, branch rule, or `paths.env` changed.
+
+### Actual local validation
+
+| Local validation | Actual result |
+| --- | --- |
+| Focused projector, evidence-workflow, harness, and CI-security unittests | Passed: 59 tests; 10 expected cross-identity skips because this sandbox cannot map the required identities. |
+| Runtime workflow-summary contract tests | Passed: 61 tests. |
+| `make check-ci-security-contract` | Passed: 125 tests; 5 documented host-capability skips. |
+| `actionlint`, `zizmor --offline`, `make check-bilingual-docs`, `make check-doc-links`, `sh -n`, and `git diff --check` | Passed; zizmor reported no findings. |
+| Local Sonar agentic analysis | Not available: the authenticated CLI reports that Vortex analysis is unavailable for this organization; this does not replace the required PR analysis. |
+
+### Remaining exact-head evidence
+
+The new local candidate has not been committed or pushed when this addendum is
+written. Therefore no hosted runtime/upload result, artifact inspection,
+secret-scan or CodeQL result, SonarQube Cloud zero result, or fresh regular and
+security Codex review is claimed. Those checks must be rerun on the exact
+successor PR head, and PR #344 remains Draft until then.

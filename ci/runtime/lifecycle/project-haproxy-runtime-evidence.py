@@ -146,9 +146,9 @@ def _parse_canonical_object(raw: bytes, *, maximum_bytes: int) -> dict[str, obje
             object_pairs_hook=_reject_duplicate_keys,
             parse_constant=_reject_json_constant,
         )
-    except (RecursionError, UnicodeDecodeError, ValueError, json.JSONDecodeError, EvidenceProjectionError) as error:
-        if isinstance(error, EvidenceProjectionError):
-            raise
+    except EvidenceProjectionError:
+        raise
+    except (RecursionError, UnicodeDecodeError, ValueError) as error:
         raise EvidenceProjectionError("INVALID_JSON") from error
     if not isinstance(parsed, dict):
         raise EvidenceProjectionError("JSON_OBJECT_REQUIRED")
@@ -283,6 +283,62 @@ def _read_regular_child(
             os.close(descriptor)
 
 
+def _validate_output_request(
+    name: str,
+    data: bytes,
+    *,
+    owner_uid: int | None,
+    owner_gid: int | None,
+    label: str,
+) -> None:
+    _validated_component(name)
+    if not data or len(data) > MAX_FILE_BYTES or b"\x00" in data:
+        raise EvidenceProjectionError(f"UNSAFE_{label.upper()}_OUTPUT")
+    if (owner_uid is None) != (owner_gid is None):
+        raise EvidenceProjectionError(f"UNSAFE_{label.upper()}_OWNER")
+
+
+def _apply_output_owner(
+    descriptor: int,
+    *,
+    owner_uid: int | None,
+    owner_gid: int | None,
+) -> None:
+    if owner_uid is None or owner_gid is None:
+        return
+    current_owner = os.fstat(descriptor)
+    if current_owner.st_uid != owner_uid or current_owner.st_gid != owner_gid:
+        os.fchown(descriptor, owner_uid, owner_gid)
+
+
+def _write_all(descriptor: int, data: bytes) -> None:
+    written = 0
+    while written < len(data):
+        count = os.write(descriptor, data[written:])
+        if count <= 0:
+            raise OSError("short evidence write")
+        written += count
+
+
+def _verify_regular_output(
+    descriptor: int,
+    *,
+    mode: int,
+    owner_uid: int | None,
+    owner_gid: int | None,
+    label: str,
+) -> None:
+    details = os.fstat(descriptor)
+    if (
+        not stat.S_ISREG(details.st_mode)
+        or details.st_nlink != 1
+        or stat.S_IMODE(details.st_mode) != mode
+        or (owner_uid is not None and details.st_uid != owner_uid)
+        or (owner_gid is not None and details.st_gid != owner_gid)
+    ):
+        raise EvidenceProjectionError(f"UNSAFE_{label.upper()}_OUTPUT")
+
+
 def _write_regular_child(
     directory_descriptor: int,
     name: str,
@@ -293,11 +349,13 @@ def _write_regular_child(
     owner_gid: int | None = None,
     label: str,
 ) -> None:
-    _validated_component(name)
-    if not data or len(data) > MAX_FILE_BYTES or b"\x00" in data:
-        raise EvidenceProjectionError(f"UNSAFE_{label.upper()}_OUTPUT")
-    if (owner_uid is None) != (owner_gid is None):
-        raise EvidenceProjectionError(f"UNSAFE_{label.upper()}_OWNER")
+    _validate_output_request(
+        name,
+        data,
+        owner_uid=owner_uid,
+        owner_gid=owner_gid,
+        label=label,
+    )
     nofollow, _directory, _nonblock, close_on_exec = _required_open_flags()
     descriptor = -1
     try:
@@ -307,27 +365,17 @@ def _write_regular_child(
             mode,
             dir_fd=directory_descriptor,
         )
-        if owner_uid is not None and owner_gid is not None:
-            current_owner = os.fstat(descriptor)
-            if current_owner.st_uid != owner_uid or current_owner.st_gid != owner_gid:
-                os.fchown(descriptor, owner_uid, owner_gid)
-        written = 0
-        while written < len(data):
-            count = os.write(descriptor, data[written:])
-            if count <= 0:
-                raise OSError("short evidence write")
-            written += count
+        _apply_output_owner(descriptor, owner_uid=owner_uid, owner_gid=owner_gid)
+        _write_all(descriptor, data)
         os.fsync(descriptor)
         os.fchmod(descriptor, mode)
-        details = os.fstat(descriptor)
-        if (
-            not stat.S_ISREG(details.st_mode)
-            or details.st_nlink != 1
-            or stat.S_IMODE(details.st_mode) != mode
-            or (owner_uid is not None and details.st_uid != owner_uid)
-            or (owner_gid is not None and details.st_gid != owner_gid)
-        ):
-            raise EvidenceProjectionError(f"UNSAFE_{label.upper()}_OUTPUT")
+        _verify_regular_output(
+            descriptor,
+            mode=mode,
+            owner_uid=owner_uid,
+            owner_gid=owner_gid,
+            label=label,
+        )
     except EvidenceProjectionError:
         raise
     except OSError as error:
@@ -375,20 +423,28 @@ def _evidence_document(trusted: TrustedRuntimeValues) -> dict[str, object]:
     return document
 
 
+def _strictly_equal_mappings(
+    actual: dict[object, object], expected: dict[object, object]
+) -> bool:
+    return set(actual) == set(expected) and all(
+        _strictly_equal(actual[key], expected[key]) for key in expected
+    )
+
+
+def _strictly_equal_lists(actual: list[object], expected: list[object]) -> bool:
+    return len(actual) == len(expected) and all(
+        _strictly_equal(item, expected_item) for item, expected_item in zip(actual, expected)
+    )
+
+
 def _strictly_equal(actual: object, expected: object) -> bool:
     """Compare parsed JSON without Python's bool/int or int/float aliases."""
     if type(actual) is not type(expected):
         return False
-    if isinstance(expected, dict):
-        return (
-            set(actual) == set(expected)
-            and all(_strictly_equal(actual[key], expected[key]) for key in expected)
-        )
-    if isinstance(expected, list):
-        return len(actual) == len(expected) and all(
-            _strictly_equal(item, expected_item)
-            for item, expected_item in zip(actual, expected)
-        )
+    if isinstance(actual, dict) and isinstance(expected, dict):
+        return _strictly_equal_mappings(actual, expected)
+    if isinstance(actual, list) and isinstance(expected, list):
+        return _strictly_equal_lists(actual, expected)
     return actual == expected
 
 
@@ -587,7 +643,13 @@ def _open_staging_directory(
     return runner_descriptor, parent_descriptor, stage_descriptor
 
 
-def _discard_staged_files(descriptor: int, *, stage_uid: int, stage_gid: int) -> None:
+def _discard_staged_files(
+    descriptor: int,
+    *,
+    stage_uid: int,
+    stage_gid: int,
+    file_gid: int,
+) -> None:
     """Remove only partial allowlisted files owned by this evidence identity."""
     try:
         directory = os.fstat(descriptor)
@@ -595,10 +657,10 @@ def _discard_staged_files(descriptor: int, *, stage_uid: int, stage_gid: int) ->
             not stat.S_ISDIR(directory.st_mode)
             or directory.st_uid != stage_uid
             or directory.st_gid != stage_gid
-            or stat.S_IMODE(directory.st_mode) not in {0o700, 0o555}
+            or stat.S_IMODE(directory.st_mode) not in {0o700, 0o550}
         ):
             raise EvidenceProjectionError("UNSAFE_STAGE_CLEANUP")
-        if stat.S_IMODE(directory.st_mode) == 0o555:
+        if stat.S_IMODE(directory.st_mode) == 0o550:
             os.fchmod(descriptor, 0o700)
             directory = os.fstat(descriptor)
             if (
@@ -619,7 +681,7 @@ def _discard_staged_files(descriptor: int, *, stage_uid: int, stage_gid: int) ->
                 not stat.S_ISREG(details.st_mode)
                 or details.st_nlink != 1
                 or details.st_uid != stage_uid
-                or details.st_gid != stage_gid
+                or details.st_gid != file_gid
                 or details.st_mode & 0o222
             ):
                 raise EvidenceProjectionError("UNSAFE_STAGE_CLEANUP")
@@ -634,14 +696,14 @@ def _discard_staged_files(descriptor: int, *, stage_uid: int, stage_gid: int) ->
 
 def _seal_stage_directory(descriptor: int, *, stage_uid: int, stage_gid: int) -> None:
     try:
-        os.fchmod(descriptor, 0o555)
+        os.fchmod(descriptor, 0o550)
         os.fsync(descriptor)
         details = os.fstat(descriptor)
         if (
             not stat.S_ISDIR(details.st_mode)
             or details.st_uid != stage_uid
             or details.st_gid != stage_gid
-            or stat.S_IMODE(details.st_mode) != 0o555
+            or stat.S_IMODE(details.st_mode) != 0o550
         ):
             raise EvidenceProjectionError("CANNOT_SEAL_STAGE_DIRECTORY")
     except EvidenceProjectionError:
@@ -680,10 +742,13 @@ def project_document(
     stage_root: Path,
     trusted: TrustedRuntimeValues,
     runtime_uid: int,
+    upload_gid: int,
 ) -> None:
     """Create two fixed files below the pre-created separate-owner stage."""
     runtime_uid = _require_runtime_uid(runtime_uid)
-    stage_uid, stage_gid = _require_unprivileged_identity()
+    stage_uid, evidence_gid = _require_unprivileged_identity()
+    if isinstance(upload_gid, bool) or not isinstance(upload_gid, int) or upload_gid <= 0:
+        raise EvidenceProjectionError("INVALID_UPLOAD_GID")
     _parse_source_document(source_document, trusted)
     evidence = canonical_json_bytes(_evidence_document(trusted))
     manifest = canonical_json_bytes(_manifest(evidence))
@@ -704,7 +769,7 @@ def project_document(
             stage_root=stage_root,
             runtime_uid=runtime_uid,
             stage_uid=stage_uid,
-            stage_gid=stage_gid,
+            stage_gid=upload_gid,
             expected_stage_mode=0o700,
         )
         _list_exactly(stage_descriptor, set(), label="stage")
@@ -715,7 +780,7 @@ def project_document(
             evidence,
             mode=0o444,
             owner_uid=stage_uid,
-            owner_gid=stage_gid,
+            owner_gid=evidence_gid,
             label="evidence",
         )
         _write_regular_child(
@@ -724,14 +789,19 @@ def project_document(
             manifest,
             mode=0o444,
             owner_uid=stage_uid,
-            owner_gid=stage_gid,
+            owner_gid=evidence_gid,
             label="manifest",
         )
-        _seal_stage_directory(stage_descriptor, stage_uid=stage_uid, stage_gid=stage_gid)
+        _seal_stage_directory(stage_descriptor, stage_uid=stage_uid, stage_gid=upload_gid)
     except BaseException:
         if write_started and stage_descriptor >= 0:
             try:
-                _discard_staged_files(stage_descriptor, stage_uid=stage_uid, stage_gid=stage_gid)
+                _discard_staged_files(
+                    stage_descriptor,
+                    stage_uid=stage_uid,
+                    stage_gid=upload_gid,
+                    file_gid=evidence_gid,
+                )
             except EvidenceProjectionError as cleanup_error:
                 raise EvidenceProjectionError("STAGE_CLEANUP_FAILED") from cleanup_error
         raise
@@ -746,10 +816,13 @@ def verify_staged_package(
     stage_root: Path,
     trusted: TrustedRuntimeValues,
     runtime_uid: int,
+    upload_gid: int,
 ) -> dict[str, str]:
     """Reopen and validate exactly the two files passed to upload-artifact."""
     runtime_uid = _require_runtime_uid(runtime_uid)
-    stage_uid, stage_gid = _require_unprivileged_identity()
+    stage_uid, evidence_gid = _require_unprivileged_identity()
+    if isinstance(upload_gid, bool) or not isinstance(upload_gid, int) or upload_gid <= 0:
+        raise EvidenceProjectionError("INVALID_UPLOAD_GID")
     runner_descriptor = -1
     parent_descriptor = -1
     stage_descriptor = -1
@@ -760,8 +833,8 @@ def verify_staged_package(
             stage_root=stage_root,
             runtime_uid=runtime_uid,
             stage_uid=stage_uid,
-            stage_gid=stage_gid,
-            expected_stage_mode=0o555,
+            stage_gid=upload_gid,
+            expected_stage_mode=0o550,
         )
         _list_exactly(stage_descriptor, {EVIDENCE_FILENAME, MANIFEST_FILENAME}, label="stage")
         evidence = _read_regular_child(
@@ -769,7 +842,7 @@ def verify_staged_package(
             EVIDENCE_FILENAME,
             maximum_bytes=MAX_FILE_BYTES,
             owner_uid=stage_uid,
-            owner_gid=stage_gid,
+            owner_gid=evidence_gid,
             mode=0o444,
             label="evidence",
         )
@@ -778,7 +851,7 @@ def verify_staged_package(
             MANIFEST_FILENAME,
             maximum_bytes=MAX_FILE_BYTES,
             owner_uid=stage_uid,
-            owner_gid=stage_gid,
+            owner_gid=evidence_gid,
             mode=0o444,
             label="manifest",
         )
@@ -835,6 +908,7 @@ def _parser() -> argparse.ArgumentParser:
     project.add_argument("--stage-parent", required=True)
     project.add_argument("--stage-root", required=True)
     project.add_argument("--runtime-uid", required=True, type=int)
+    project.add_argument("--upload-gid", required=True, type=int)
     _add_trusted_arguments(project)
 
     verify = commands.add_parser("verify")
@@ -842,6 +916,7 @@ def _parser() -> argparse.ArgumentParser:
     verify.add_argument("--stage-parent", required=True)
     verify.add_argument("--stage-root", required=True)
     verify.add_argument("--runtime-uid", required=True, type=int)
+    verify.add_argument("--upload-gid", required=True, type=int)
     _add_trusted_arguments(verify)
     return parser
 
@@ -874,6 +949,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
                 stage_root=Path(args.stage_root),
                 trusted=trusted,
                 runtime_uid=args.runtime_uid,
+                upload_gid=args.upload_gid,
             )
         else:
             verify_staged_package(
@@ -882,6 +958,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
                 stage_root=Path(args.stage_root),
                 trusted=trusted,
                 runtime_uid=args.runtime_uid,
+                upload_gid=args.upload_gid,
             )
     except EvidenceProjectionError as error:
         print(f"FAIL: {error}", file=sys.stderr)

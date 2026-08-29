@@ -299,6 +299,7 @@ jobs:
         id: runtime
         env:
           CONNECTOR: ${{ matrix.connector }}
+          SETUP_PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}
           RUNTIME_UID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_uid }}
           RUNTIME_GID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_gid }}
           RUNTIME_PARENT_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.parent_sha }}
@@ -534,10 +535,10 @@ jobs:
           case "$stage_parent" in "$TRUSTED_RUNNER_TEMP"/haproxy-runtime-evidence-parent.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]) ;; *) echo "FAIL: unsafe evidence stage parent" >&2; exit 2 ;; esac
           stage_root="$stage_parent/package"
           sudo -n /usr/bin/mkdir -m 0700 -- "$stage_root"
-          sudo -n /usr/bin/chown --no-dereference "$EVIDENCE_UID:$EVIDENCE_GID" -- "$stage_root"
+          sudo -n /usr/bin/chown --no-dereference "$EVIDENCE_UID:$RUNTIME_GID" -- "$stage_root"
           sudo -n /usr/bin/chmod 0755 -- "$stage_parent"
           test "$(/usr/bin/stat -Lc '%u:%g:%a' -- "$stage_parent")" = 0:0:755
-          test "$(/usr/bin/stat -Lc '%u:%g:%a' -- "$stage_root")" = "$EVIDENCE_UID:$EVIDENCE_GID:700"
+          test "$(/usr/bin/stat -Lc '%u:%g:%a' -- "$stage_root")" = "$EVIDENCE_UID:$RUNTIME_GID:700"
           run_runner_projector export-source-receipt \
             --source-root "$TRUSTED_SOURCE_ROOT" \
             --runtime-uid "$RUNTIME_UID" \
@@ -550,6 +551,7 @@ jobs:
               --stage-parent "$stage_parent" \
               --stage-root "$stage_root" \
               --runtime-uid "$RUNTIME_UID" \
+              --upload-gid "$RUNTIME_GID" \
               --expected-parent-sha "$PARENT_SHA" \
               --expected-framework-sha "$FRAMEWORK_SHA" \
               --expected-mrts-sha "$MRTS_SHA"
@@ -646,7 +648,7 @@ jobs:
           exec(compile(source, namespace["__file__"], "exec"), namespace)
           ' "$PROJECTOR_BLOB" "$GITHUB_WORKSPACE" "$@"
           }
-          run_evidence_projector verify --runner-temp "$TRUSTED_RUNNER_TEMP" --stage-parent "$STAGE_PARENT" --stage-root "$STAGE_ROOT" --runtime-uid "$RUNTIME_UID" --expected-parent-sha "$PARENT_SHA" --expected-framework-sha "$FRAMEWORK_SHA" --expected-mrts-sha "$MRTS_SHA"
+          run_evidence_projector verify --runner-temp "$TRUSTED_RUNNER_TEMP" --stage-parent "$STAGE_PARENT" --stage-root "$STAGE_ROOT" --runtime-uid "$RUNTIME_UID" --upload-gid "$RUNTIME_GID" --expected-parent-sha "$PARENT_SHA" --expected-framework-sha "$FRAMEWORK_SHA" --expected-mrts-sha "$MRTS_SHA"
 
       - name: Upload non-HAProxy runtime evidence
         id: upload-non-haproxy-runtime-evidence

@@ -56,7 +56,7 @@ def rendered_outcome(connector: str, stage: str, outcome: str) -> str:
     return outcome
 
 
-def outcome_counts(connector: str, outcomes: Mapping[str, str]) -> dict[str, int]:
+def outcome_counts(outcomes: Mapping[str, str]) -> dict[str, int]:
     counts = {
         "passed": 0,
         "failed": 0,
@@ -101,7 +101,7 @@ def render_summary(connector: str, outcomes: Mapping[str, str]) -> str:
         raise ValueError("summary outcomes do not match the fixed workflow stage set")
     if any(outcome not in VALID_OUTCOMES for outcome in outcomes.values()):
         raise ValueError("summary outcomes contain an invalid state")
-    counts = outcome_counts(connector, outcomes)
+    counts = outcome_counts(outcomes)
     rows = [
         f"### {connector} — CRS/no-MRTS runtime overview",
         "",
