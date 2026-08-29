@@ -148,7 +148,7 @@ def _parse_canonical_object(raw: bytes, *, maximum_bytes: int) -> dict[str, obje
         )
     except EvidenceProjectionError:
         raise
-    except (RecursionError, UnicodeDecodeError, ValueError) as error:
+    except (RecursionError, ValueError) as error:
         raise EvidenceProjectionError("INVALID_JSON") from error
     if not isinstance(parsed, dict):
         raise EvidenceProjectionError("JSON_OBJECT_REQUIRED")
