@@ -119,6 +119,14 @@ HAPROXY_DIAGNOSTIC_RESOLVER_ERROR = "classification=resolver_error"
 HAPROXY_DIAGNOSTIC_COMPILER_FATAL_ERROR = "classification=compiler_fatal_error"
 HAPROXY_DIAGNOSTIC_COMPILER_ERROR = "classification=compiler_error"
 HAPROXY_DIAGNOSTIC_LINKER_ERROR = "classification=linker_error"
+HAPROXY_RESOLVER_UNRESOLVED_RUNTIME_DEPENDENCIES_FAILURE = (
+    "BLOCKED: HAProxy libModSecurity resolver: libModSecurity has unresolved runtime dependencies"
+)
+HAPROXY_RESOLVER_UNRESOLVED_RUNTIME_DEPENDENCIES_DIAGNOSTICS = (
+    HAPROXY_DIAGNOSTIC_RESOLVER_ERROR,
+    "build_step=modsecurity_resolver",
+    "resolver_cause=unresolved_runtime_dependencies",
+)
 HAPROXY_FAILURE_DIAGNOSTIC_RULES = (
     (
         re.compile(r"^BLOCKED: HAProxy libModSecurity resolver:", re.ASCII),
@@ -9111,9 +9119,9 @@ def haproxy_failure_output_lines(output: str) -> Iterator[str]:
         line_end = output.find("\n", position, scan_end)
         if line_end < 0:
             if scan_end == len(output):
-                yield output[position:scan_end].rstrip("\r")
+                yield output[position:scan_end].removesuffix("\r")
             return
-        yield output[position:line_end].rstrip("\r")
+        yield output[position:line_end].removesuffix("\r")
         position = line_end + 1
 
 
@@ -9193,8 +9201,18 @@ def haproxy_failure_diagnostic_lines(
     target_failure = haproxy_failure_target_from_footers(proc, expected_target_paths)
     if target_failure is not None:
         selected.append(f"target_failure={target_failure}")
-    for output in (str(proc.stderr or ""), str(proc.stdout or "")):
+    for is_stderr, output in ((True, str(proc.stderr or "")), (False, str(proc.stdout or ""))):
         for raw_line in haproxy_failure_output_lines(output):
+            if (
+                is_stderr
+                and raw_line == HAPROXY_RESOLVER_UNRESOLVED_RUNTIME_DEPENDENCIES_FAILURE
+                and append_haproxy_failure_diagnostics(
+                    selected,
+                    HAPROXY_RESOLVER_UNRESOLVED_RUNTIME_DEPENDENCIES_DIAGNOSTICS,
+                )
+            ):
+                selected[-1] = "[classification list truncated]"
+                return selected
             for diagnostics in haproxy_failure_diagnostics_for_line(raw_line):
                 if append_haproxy_failure_diagnostics(selected, diagnostics):
                     selected[-1] = "[classification list truncated]"

@@ -997,3 +997,50 @@ required check, `paths.env`, Framework, MRTS, `master`, or merge state changed.
 The next normal successor must receive exact-head hosted HAProxy evidence,
 SonarQube Cloud zero results, and fresh regular plus Security Codex review;
 PR #344 remains Draft.
+
+## 2026-08-29 exact resolver-cause correlation follow-up
+
+### Exact-head boundary and narrow diagnostic
+
+At exact PR #344 head `888482e81348850c6281f446c8cadbae48d6f6da`, workflow
+[`33274434129`](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/33274434129)
+completed Apache, Envoy, Traefik, and lighttpd successfully. HAProxy job
+`99158566221` failed in the real with-CRS/no-MRTS step before evidence
+projection, verification, or upload. An authorized bounded inspection retained
+only `target_failure=build-modsecurity-binding`,
+`classification=resolver_error`, and `build_step=modsecurity_resolver` in an
+external payload-free summary. Its raw 76,712-byte job-log download was
+checksum-recorded and deleted from the task root; it is neither repository
+content nor evidence of a source cause.
+
+The provisioning helper now adds the fixed
+`resolver_cause=unresolved_runtime_dependencies` value only when one bounded
+`stderr` line equals the resolver's existing static failure line after the
+normal single terminal CRLF carriage return is removed. It does not parse a
+path, header, tool output, credential, or suffix. A line with any additional
+content retains at most the existing generic resolver labels, and the same
+text on `stdout` cannot select the new cause enum. The
+diagnostic stays advisory: a build recipe can still emit a static-looking
+line, so an emitted enum narrows follow-up investigation but does not prove
+the underlying resolver input, dependency, or source owner.
+
+The original nonzero build result, transactional cleanup, private raw-log
+handling, receipt eligibility, projection, verifier, upload gate, workflow
+permissions, and all scanner and Quality-Gate settings are unchanged. No
+resolver, Makefile, connector, harness, or workflow repair is claimed by this
+follow-up.
+
+### Actual local validation and remaining evidence
+
+`PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v
+tests.test_prepare_runtime_components` passed 68 tests. The new regression
+covers the exact `stderr` line, a credential-bearing suffix, the same line on
+`stdout`, and an unknown resolver failure, while existing integration tests
+retain failed status, original exit code, and staging cleanup controls.
+
+The current hosted summary did not contain the exact static resolver line, so
+the actual sub-cause remains unestablished. A normal successor must obtain its
+own exact-head hosted result before any resolver or build repair can be
+considered. PR #344 remains Draft and still requires successful hosted
+HAProxy evidence publication, final scanner/Sonar evidence, and fresh regular
+and Security Codex review.

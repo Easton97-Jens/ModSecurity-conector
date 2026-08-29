@@ -1081,3 +1081,53 @@ Framework-, MRTS-, `master`- oder Merge-Zustände. Der nächste normale
 Successor benötigt Exact-Head-Hosted-HAProxy-Evidenz, SonarQube-Cloud-
 Nullergebnisse und frische reguläre sowie Security-Codex-Reviews; PR #344
 bleibt Draft.
+
+## 2026-08-29-Nachtrag zur exakten Resolver-Ursachenkorrelation
+
+### Exact-Head-Grenze und enge Diagnose
+
+Am exakten PR-#344-Head `888482e81348850c6281f446c8cadbae48d6f6da` beendete
+der Workflow
+[`33274434129`](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/33274434129)
+Apache, Envoy, Traefik und lighttpd erfolgreich. Der HAProxy-Job
+`99158566221` scheiterte im realen With-CRS/No-MRTS-Schritt vor Evidenz-
+Projektion, Verifikation oder Upload. Eine autorisierte begrenzte Inspektion
+behielt nur `target_failure=build-modsecurity-binding`,
+`classification=resolver_error` und `build_step=modsecurity_resolver` in
+einer externen payloadfreien Summary. Der rohe Download des 76.712-Byte-
+Joblogs wurde mit Checksumme festgehalten und aus dem Task-Root gelöscht; er
+ist weder Repository-Inhalt noch Evidenz einer Source-Ursache.
+
+Der Provisioning-Helper ergänzt den festen Wert
+`resolver_cause=unresolved_runtime_dependencies` nur dann, wenn eine
+begrenzte `stderr`-Zeile nach dem Entfernen genau eines terminalen CRLF-
+Carriage-Return der bestehenden statischen Fehlerzeile des Resolvers entspricht.
+Er parst weder Pfad, Header, Tooloutput, Credential noch Suffix. Eine Zeile
+mit jedem zusätzlichen Inhalt behält höchstens die bisherigen generischen
+Resolver-Labels, und derselbe Text auf `stdout` kann die neue Ursache-Enum
+nicht auswählen. Die Diagnose bleibt advisory: Ein
+Build-Rezept kann weiterhin eine statisch wirkende Zeile ausgeben; daher
+grenzt eine ausgegebene Enum die Folgeuntersuchung ein, beweist aber nicht den
+zugrunde liegenden Resolver-Input, die Abhängigkeit oder den Source-Owner.
+
+Der ursprüngliche Nonzero-Build-Result, transaktionales Cleanup, private
+Raw-Log-Behandlung, Receipt-Berechtigung, Projektion, Verifier, Upload-Gate,
+Workflow-Berechtigungen sowie alle Scanner- und Quality-Gate-Einstellungen
+bleiben unverändert. Dieser Nachtrag beansprucht keine Resolver-, Makefile-,
+Connector-, Harness- oder Workflow-Reparatur.
+
+### Tatsächliche lokale Validierung und verbleibende Evidenz
+
+`PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v
+tests.test_prepare_runtime_components` bestand 68 Tests. Die neue Regression
+deckt die exakte `stderr`-Zeile, ein Credential-tragendes Suffix, dieselbe
+Zeile auf `stdout` und einen unbekannten Resolver-Fehler ab; bestehende
+Integrationstests erhalten Fehlerstatus, ursprünglichen Exit-Code und
+Staging-Cleanup-Controls.
+
+Die aktuelle Hosted-Summary enthielt die exakte statische Resolverzeile nicht;
+die tatsächliche Unterursache ist daher weiterhin nicht belegt. Ein normaler
+Successor benötigt ein eigenes Exact-Head-Hosted-Ergebnis, bevor eine
+Resolver- oder Build-Reparatur erwogen werden kann. PR #344 bleibt Draft und
+benötigt weiter erfolgreichen Hosted-HAProxy-Evidenz-Upload, finale
+Scanner-/Sonar-Evidenz sowie frische reguläre und Security-Codex-Reviews.

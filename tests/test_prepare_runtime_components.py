@@ -1999,6 +1999,53 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         self.assertNotIn("/private", rendered)
         self.assertNotIn("hidden", rendered)
 
+    def test_haproxy_binding_failure_diagnostic_maps_only_exact_resolver_cause_on_stderr(self) -> None:
+        exact_resolver_failure = (
+            "BLOCKED: HAProxy libModSecurity resolver: libModSecurity has unresolved runtime dependencies"
+        )
+        generic_resolver_diagnostics = [
+            components.HAPROXY_DIAGNOSTIC_RESOLVER_ERROR,
+            "build_step=modsecurity_resolver",
+        ]
+        expected_exact_diagnostics = [
+            *generic_resolver_diagnostics,
+            "resolver_cause=unresolved_runtime_dependencies",
+        ]
+        cases = (
+            ("exact_stderr", "", exact_resolver_failure, expected_exact_diagnostics),
+            ("crlf_stderr", "", exact_resolver_failure + "\r\n", expected_exact_diagnostics),
+            (
+                "double_cr_suffix",
+                "",
+                exact_resolver_failure + "\r\r\n",
+                generic_resolver_diagnostics,
+            ),
+            (
+                "untrusted_suffix",
+                "",
+                exact_resolver_failure + " Authorization: Bearer hidden body=private",
+                generic_resolver_diagnostics,
+            ),
+            ("exact_stdout", exact_resolver_failure, "", generic_resolver_diagnostics),
+            (
+                "unknown_stderr",
+                "",
+                "BLOCKED: HAProxy libModSecurity resolver: /private/resolver-token",
+                generic_resolver_diagnostics,
+            ),
+        )
+
+        for name, stdout, stderr, expected in cases:
+            with self.subTest(name=name):
+                diagnostics = components.haproxy_failure_diagnostic_lines(
+                    subprocess.CompletedProcess(args=["make"], returncode=77, stdout=stdout, stderr=stderr)
+                )
+
+                self.assertEqual(diagnostics, expected)
+                rendered = "\n".join(diagnostics)
+                self.assertNotIn("hidden", rendered)
+                self.assertNotIn("private", rendered)
+
     def test_haproxy_binding_failure_diagnostic_stops_after_bounded_untrusted_output(self) -> None:
         proc = subprocess.CompletedProcess(
             args=["make"],
