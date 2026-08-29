@@ -626,3 +626,75 @@ passed all 23 tests after the correction; the direct C17
 `-Wall -Wextra -Werror` syntax check and `git diff --check` also passed. The
 next normal successor delivery and its exact-head wrapper query remain
 required before this record claims zero open SonarQube Cloud issues.
+
+## 2026-08-29 Sonar-zero and traceability addendum
+
+### Scope and implementation decision
+
+This bounded follow-up removes only real duplication and test-helper
+complexity discovered by SonarQube Cloud. Commit
+`d91a0df57daf5800fe3520c1f63e9f383c25d240` table-drives identical Envoy
+response-header cases, centralizes the shared NGINX intervention
+classification while retaining each host action, and reuses equivalent
+Traefik, lighttpd, and C transport-test setup. Commit
+`b2da4449672975f14d2c0953f7b779942af3122f` then groups the five coherent C
+transport setup values into `mock_transport_setup`, reducing the helper from
+ten to six parameters. It does not alter a connector protocol, P1--P4,
+limits, Strict/Safe behavior, callbacks, cancellation, cleanup, or production
+source behavior.
+
+No workflow, ruleset, required check, branch rule, SonarQube setting,
+exclusion, suppression, Quality Gate threshold, test case, or `paths.env`
+file changed. The changes stay within the Parent repository; Framework and
+MRTS source and Gitlinks remain untouched.
+
+### Observed exact-head SonarQube Cloud result
+
+SonarQube Cloud analyzed PR #344 at
+`b2da4449672975f14d2c0953f7b779942af3122f` on
+`2026-08-29T10:05:19+0000`. The managed read-only wrapper
+`/usr/local/bin/sonar-with-env` observed all required zero values:
+
+| Metric | Observed result |
+| --- | --- |
+| Quality Gate | `OK` |
+| Open or confirmed issues | `0` |
+| Accepted issues | `0` |
+| New Code bugs | `0` |
+| New Code vulnerabilities | `0` |
+| New Code code smells | `0` |
+| New Code security hotspots | `0` |
+| New Code duplicated lines | `0` |
+| Duplication on New Code | `0.0%` |
+
+`new_coverage` was not returned by the PR measure query; no coverage file was
+removed, hidden, or altered. The Quality Gate has no failed coverage condition.
+
+### Local validation and security boundary
+
+| Validation | Actual result |
+| --- | --- |
+| Direct `response_companion_transport_test` C17 build with `-Wall -Wextra -Werror` and execution | Passed. |
+| Common helper, SDK, security-contract, memory-safety, and flow-integrity checks | Passed. |
+| `make check-no-crs-source-normalization` | Passed: 124 tests. |
+| Envoy processor unit and race checks; Traefik observer unit and race checks | Passed. |
+| Scoped NGINX/lighttpd contracts | Passed: 32 tests, one expected Stock-sidecar loopback skip because local ModSecurity include/library paths are unavailable. |
+| `git diff --check`, Go formatting, and source-tree bytecode inspection | Passed. |
+
+An independent focused review of the C setup-value refactor found no security
+regression: callback binding, private `0700` socket directories, timeout
+values, cancellation/race assertions, body-payload exclusion, and deterministic
+cleanup remain intact. NGINX C17 remains `blocked_environment` because NGINX
+headers/source are absent locally; its common-adoption check still has the two
+unchanged documented body-mapper assertions. Those limitations are not treated
+as passing evidence.
+
+### Delivery boundary
+
+This paired documentation addendum itself advances the PR head. The final
+remote/PR head SHA, exact-head hosted checks, fresh SonarQube Cloud result,
+and final regular and security Codex reviews are therefore revalidated after
+this documentation commit. To avoid a self-referential commit loop, the final
+SHA is bound in the mutable PR description and task-completion evidence, as
+per the repository traceability policy. PR #344 remains Draft and `UNSTABLE`;
+this record makes no merge or `verified_pr` claim.

@@ -685,3 +685,79 @@ bestand nach der Korrektur alle 23 Tests; auch der direkte C17-
 nächste normale Successor-Auslieferung und ihre Exact-Head-Wrapper-Abfrage
 bleiben erforderlich, bevor dieser Record null offene SonarQube-Cloud-Issues
 beansprucht.
+
+## 2026-08-29-Nachtrag zu Sonar-null und Traceability
+
+### Scope und Implementierungsentscheidung
+
+Dieser begrenzte Follow-up beseitigt nur echte von SonarQube Cloud gefundene
+Duplikation und Testhelper-Komplexität. Commit
+`d91a0df57daf5800fe3520c1f63e9f383c25d240` steuert identische
+Envoy-Response-Header-Fälle tabellengesteuert, zentralisiert die gemeinsame
+NGINX-Interventionsklassifizierung bei Beibehaltung jeder Hostaktion und
+verwendet gleichwertiges Traefik-, lighttpd- und C-Transporttest-Setup wieder.
+Commit `b2da4449672975f14d2c0953f7b779942af3122f` fasst danach die fünf
+zusammengehörigen C-Transport-Setup-Werte in `mock_transport_setup` zusammen
+und reduziert den Helper von zehn auf sechs Parameter. Er ändert weder ein
+Connector-Protokoll noch P1--P4, Limits, Strict-/Safe-Verhalten, Callbacks,
+Cancel, Cleanup oder produktives Source-Verhalten.
+
+Es wurden kein Workflow, Ruleset, Required Check, keine Branch-Regel,
+SonarQube-Einstellung, Exclusion, Suppression, Quality-Gate-Schwelle, kein
+Testfall und keine `paths.env`-Datei geändert. Die Änderungen bleiben im
+Parent-Repository; Framework- und MRTS-Source sowie Gitlinks bleiben
+unverändert.
+
+### Beobachtetes Exact-Head-SonarQube-Cloud-Ergebnis
+
+SonarQube Cloud analysierte PR #344 bei
+`b2da4449672975f14d2c0953f7b779942af3122f` am
+`2026-08-29T10:05:19+0000`. Der verwaltete schreibgeschützte Wrapper
+`/usr/local/bin/sonar-with-env` beobachtete alle geforderten Nullwerte:
+
+| Metrik | Beobachtetes Ergebnis |
+| --- | --- |
+| Quality Gate | `OK` |
+| Offene oder bestätigte Issues | `0` |
+| Akzeptierte Issues | `0` |
+| New-Code-Bugs | `0` |
+| New-Code-Vulnerabilities | `0` |
+| New-Code-Code-Smells | `0` |
+| New-Code-Security-Hotspots | `0` |
+| New-Code-Duplikatzeilen | `0` |
+| Duplication on New Code | `0.0%` |
+
+`new_coverage` wurde von der PR-Metrikabfrage nicht zurückgegeben; es wurde
+keine Coverage-Datei entfernt, verborgen oder geändert. Das Quality Gate hat
+keine fehlgeschlagene Coverage-Bedingung.
+
+### Lokale Validierung und Sicherheitsgrenze
+
+| Validierung | Tatsächliches Ergebnis |
+| --- | --- |
+| Direkter C17-Build von `response_companion_transport_test` mit `-Wall -Wextra -Werror` und Ausführung | Bestanden. |
+| Common-Helper-, SDK-, Security-Contract-, Memory-Safety- und Flow-Integrity-Checks | Bestanden. |
+| `make check-no-crs-source-normalization` | Bestanden: 124 Tests. |
+| Envoy-Processor-Unit- und Race-Checks; Traefik-Observer-Unit- und Race-Checks | Bestanden. |
+| Scoped NGINX-/lighttpd-Contracts | Bestanden: 32 Tests, ein erwarteter Stock-Sidecar-Loopback-Skip, weil lokale ModSecurity-Include-/Library-Pfade fehlen. |
+| `git diff --check`, Go-Formatierung und Source-Tree-Bytecode-Inspektion | Bestanden. |
+
+Ein unabhängiger fokussierter Review des C-Setup-Werte-Refactorings fand keine
+Security-Regression: Callback-Binding, private `0700`-Socket-Verzeichnisse,
+Timeout-Werte, Cancel-/Race-Assertions, Body-Payload-Ausschluss und
+deterministisches Cleanup bleiben erhalten. NGINX C17 bleibt
+`blocked_environment`, weil NGINX-Header/-Source lokal fehlen; sein
+Common-Adoption-Check enthält weiterhin die zwei unveränderten dokumentierten
+Body-Mapper-Assertions. Diese Einschränkungen gelten nicht als bestandene
+Evidenz.
+
+### Delivery-Grenze
+
+Dieser gepaarte Dokumentationsnachtrag verschiebt selbst den PR-Head. Der
+finale Remote-/PR-Head-SHA, Exact-Head-Hosted-Checks, das frische
+SonarQube-Cloud-Ergebnis sowie der finale reguläre und Security-Codex-Review
+werden deshalb nach diesem Dokumentationscommit erneut validiert. Um eine
+selbstreferenzielle Commit-Schleife zu vermeiden, wird der finale SHA gemäß
+der Repository-Traceability-Policy in der veränderlichen PR-Beschreibung und
+der Task-Completion-Evidenz gebunden. PR #344 bleibt Draft und `UNSTABLE`;
+dieser Record beansprucht weder einen Merge noch `verified_pr`.
