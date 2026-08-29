@@ -230,22 +230,7 @@ func TestMiddlewareStreamsHeaderOnlyResponseAndStripsHandle(t *testing.T) {
 }
 
 func TestMiddlewareCancelsEscapingPanicWithoutSuccessfulFinalization(t *testing.T) {
-	path, stop, operations := startFakeObserver(t, func(byte) (byte, byte) { return decisionAllow, resultOK })
-	defer stop()
-	handler, err := New(nil, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		panic("downstream panic")
-	}), &Config{SocketPath: path, TimeoutMillis: 1000}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
-	req.Header.Set("X-Msconnector-Response-Handle", testHandle)
-	recorder := httptest.NewRecorder()
-	var recovered any
-	func() {
-		defer func() { recovered = recover() }()
-		handler.ServeHTTP(recorder, req)
-	}()
+	recorder, recovered, operations := runPanicMiddleware(t, "downstream panic", false)
 	if recovered != "downstream panic" {
 		t.Fatalf("recovered panic = %#v, want original value", recovered)
 	}
@@ -261,11 +246,27 @@ func TestMiddlewareCancelsEscapingPanicWithoutSuccessfulFinalization(t *testing.
 }
 
 func TestMiddlewareCancelsEscapingPanicAfterCommitWithoutEOSOrRelease(t *testing.T) {
+	recorder, recovered, operations := runPanicMiddleware(t, "downstream panic after commit", true)
+	if recovered != "downstream panic after commit" {
+		t.Fatalf("recovered panic = %#v, want original value", recovered)
+	}
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("status=%d, want committed upstream status 204", recorder.Code)
+	}
+	if got, want := operations.snapshot(), []byte{opClaim, opResponseHeaders, opCommit, opCancel}; !sameBytes(got, want) {
+		t.Fatalf("operations=%v, want cancellation without EOS/release %v", got, want)
+	}
+}
+
+func runPanicMiddleware(t *testing.T, panicValue string, commitResponse bool) (*httptest.ResponseRecorder, any, *opLog) {
+	t.Helper()
 	path, stop, operations := startFakeObserver(t, func(byte) (byte, byte) { return decisionAllow, resultOK })
-	defer stop()
+	t.Cleanup(stop)
 	handler, err := New(nil, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
-		panic("downstream panic after commit")
+		if commitResponse {
+			w.WriteHeader(http.StatusNoContent)
+		}
+		panic(panicValue)
 	}), &Config{SocketPath: path, TimeoutMillis: 1000}, "")
 	if err != nil {
 		t.Fatal(err)
@@ -278,15 +279,7 @@ func TestMiddlewareCancelsEscapingPanicAfterCommitWithoutEOSOrRelease(t *testing
 		defer func() { recovered = recover() }()
 		handler.ServeHTTP(recorder, req)
 	}()
-	if recovered != "downstream panic after commit" {
-		t.Fatalf("recovered panic = %#v, want original value", recovered)
-	}
-	if recorder.Code != http.StatusNoContent {
-		t.Fatalf("status=%d, want committed upstream status 204", recorder.Code)
-	}
-	if got, want := operations.snapshot(), []byte{opClaim, opResponseHeaders, opCommit, opCancel}; !sameBytes(got, want) {
-		t.Fatalf("operations=%v, want cancellation without EOS/release %v", got, want)
-	}
+	return recorder, recovered, operations
 }
 
 func TestMiddlewareFailsClosedForMissingOrMalformedHandle(t *testing.T) {

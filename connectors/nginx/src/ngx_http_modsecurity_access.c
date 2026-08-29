@@ -290,50 +290,32 @@ ngx_http_modsecurity_process_request_uri(ngx_http_request_t *r,
     return NGX_OK;
 }
 
-static ngx_int_t
-ngx_http_modsecurity_advance_request_header_part(ngx_list_part_t **part,
-    ngx_table_elt_t **data, ngx_uint_t *index)
-{
-    *part = (*part)->next;
-    if (*part == NULL) {
-        return NGX_DECLINED;
-    }
-
-    *data = (*part)->elts;
-    *index = 0U;
-    return NGX_OK;
-}
-
 static void
 ngx_http_modsecurity_add_request_headers(ngx_http_request_t *r,
     ngx_http_modsecurity_ctx_t *ctx)
 {
     ngx_list_part_t *part;
     ngx_table_elt_t *data;
+    ngx_table_elt_t *header;
     ngx_uint_t index;
 
     part = &r->headers_in.headers.part;
     data = part->elts;
     index = 0U;
-    for (;;) {
-        if (index >= part->nelts &&
-            ngx_http_modsecurity_advance_request_header_part(&part, &data,
-                &index) != NGX_OK) {
-            break;
-        }
+    while ((header = ngx_http_modsecurity_next_header(&part, &data,
+            &index)) != NULL) {
 
         dd("Adding request header: %.*s with value %.*s",
-            (int)data[index].key.len, data[index].key.data,
-            (int)data[index].value.len, data[index].value.data);
+            (int)header->key.len, header->key.data,
+            (int)header->value.len, header->value.data);
         if (msc_add_n_request_header(ctx->modsec_transaction,
-                (const unsigned char *)data[index].key.data,
-                data[index].key.len,
-                (const unsigned char *)data[index].value.data,
-                data[index].value.len) != 1) {
+                (const unsigned char *)header->key.data,
+                header->key.len,
+                (const unsigned char *)header->value.data,
+                header->value.len) != 1) {
             ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
                 "ModSecurity: failed to add request header for inspection");
         }
-        index++;
     }
 }
 

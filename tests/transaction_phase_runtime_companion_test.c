@@ -11,6 +11,7 @@
 
 #include "common/runtime/msconnector_runtime.h"
 #include "connectors/profile_registry.h"
+#include "tests/transaction_phase_test_support.h"
 
 typedef struct companion_worker {
     msconnector_runtime_response_companion_registry *registry;
@@ -116,7 +117,6 @@ static void test_regular_block_emits_one_terminal_event(void) {
     msconnector_runtime *runtime = NULL;
     msconnector_runtime_transaction *transaction = NULL;
     msconnector_runtime_transaction_snapshot snapshot;
-    msconnector_request request;
     msconnector_decision decision;
     msconnector_error error;
     char config_path[TEST_PATH_SIZE];
@@ -132,17 +132,7 @@ static void test_regular_block_emits_one_terminal_event(void) {
     assert(msconnector_runtime_set_event_integration_mode(runtime, "ext_authz"));
     assert(msconnector_runtime_set_transaction_profile(runtime,
         msconnector_profile_registry_find("envoy-ext-authz")));
-    memset(&request, 0, sizeof(request));
-    request.method = "GET";
-    request.uri = "/blocked";
-    request.http_version = "HTTP/1.1";
-    request.client.address = "127.0.0.1";
-    request.client.port = 12345;
-    request.server.address = "127.0.0.1";
-    request.server.port = 9191;
-    msconnector_error_init(&error);
-    msconnector_decision_init(&decision);
-    assert(msconnector_runtime_transaction_begin(runtime, &request, "rule-block",
+    assert(msconnector_test_begin_transaction(runtime, "/blocked", "rule-block",
         &transaction, &decision, &error));
     assert(transaction != NULL);
     assert(msconnector_decision_action_from_decision(&decision) ==
@@ -174,23 +164,12 @@ static void begin_handed_off(
     msconnector_runtime_response_companion_registry *registry,
     const char *transaction_id,
     char handle[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE]) {
-    msconnector_request request;
     msconnector_runtime_transaction *transaction = NULL;
     msconnector_decision decision;
     msconnector_error error;
 
-    memset(&request, 0, sizeof(request));
-    request.method = "GET";
-    request.uri = "/phase-contract";
-    request.http_version = "HTTP/1.1";
-    request.client.address = "127.0.0.1";
-    request.client.port = 12345;
-    request.server.address = "127.0.0.1";
-    request.server.port = 9191;
-    msconnector_error_init(&error);
-    msconnector_decision_init(&decision);
-    assert(msconnector_runtime_transaction_begin(runtime, &request, transaction_id,
-        &transaction, &decision, &error));
+    assert(msconnector_test_begin_transaction(runtime, "/phase-contract",
+        transaction_id, &transaction, &decision, &error));
     assert(transaction != NULL);
     assert(strcmp(msconnector_runtime_transaction_id(transaction), transaction_id) == 0);
     assert(msconnector_runtime_response_companion_handoff_with_handle(registry,
@@ -396,21 +375,10 @@ int main(void) {
         begin_handed_off(runtime, &registry, transaction_id, handle);
     }
     {
-        msconnector_request request;
         msconnector_runtime_transaction *overflow = NULL;
         msconnector_decision decision;
 
-        memset(&request, 0, sizeof(request));
-        request.method = "GET";
-        request.uri = "/phase-contract";
-        request.http_version = "HTTP/1.1";
-        request.client.address = "127.0.0.1";
-        request.client.port = 12345;
-        request.server.address = "127.0.0.1";
-        request.server.port = 9191;
-        msconnector_error_init(&error);
-        msconnector_decision_init(&decision);
-        assert(msconnector_runtime_transaction_begin(runtime, &request,
+        assert(msconnector_test_begin_transaction(runtime, "/phase-contract",
             "capacity-overflow", &overflow, &decision, &error));
         assert(overflow != NULL);
         assert(!msconnector_runtime_response_companion_handoff_with_handle(&registry,

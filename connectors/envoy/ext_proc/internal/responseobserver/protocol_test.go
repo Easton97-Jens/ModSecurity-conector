@@ -27,6 +27,20 @@ func testSocketDir(t *testing.T) string {
 	return dir
 }
 
+func writeResultFrame(w io.Writer, op, code, decision byte) error {
+	payload := make([]byte, 12)
+	payload[0], payload[1], payload[2] = op, code, decision
+	var header [frameSize]byte
+	copy(header[:4], []byte("MRC1"))
+	header[4], header[5] = protocolVersion, resultOpcode
+	binary.BigEndian.PutUint32(header[8:], uint32(len(payload)))
+	if _, err := w.Write(header[:]); err != nil {
+		return err
+	}
+	_, err := w.Write(payload)
+	return err
+}
+
 func TestValidHandleRejectsCallerIdentifiers(t *testing.T) {
 	if !validHandle("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef") {
 		t.Fatal("expected valid opaque handle")
@@ -68,20 +82,10 @@ func TestClientFramesBoundedOrderedOperations(t *testing.T) {
 				versionSeen <- string(payload[4:12]) == "HTTP/1.1"
 			}
 			seen <- h[5]
-			resultPayload := make([]byte, 12)
-			resultPayload[0], resultPayload[1], resultPayload[2] = h[5], 0, decisionAllow
 			/* Common encodes a successful ALLOW without an HTTP response status.
 			 * This is the real MRC1 claim/commit/body/EOS interoperability case,
 			 * not a synthetic 200 acknowledgement. */
-			binary.BigEndian.PutUint16(resultPayload[4:], 0)
-			var out [frameSize]byte
-			copy(out[:4], []byte("MRC1"))
-			out[4], out[5] = protocolVersion, resultOpcode
-			binary.BigEndian.PutUint32(out[8:], uint32(len(resultPayload)))
-			if _, err := conn.Write(out[:]); err != nil {
-				return
-			}
-			if _, err := conn.Write(resultPayload); err != nil {
+			if err := writeResultFrame(conn, h[5], resultOK, decisionAllow); err != nil {
 				return
 			}
 		}
@@ -150,14 +154,7 @@ func TestCancelCarriesTypedTerminationCause(t *testing.T) {
 					return
 				}
 				seen <- append([]byte{h[4], h[5]}, payload...)
-				resultPayload := make([]byte, 12)
-				resultPayload[0], resultPayload[1], resultPayload[2] = opCancel, resultOK, decisionError
-				var out [frameSize]byte
-				copy(out[:4], []byte("MRC1"))
-				out[4], out[5] = protocolVersion, resultOpcode
-				binary.BigEndian.PutUint32(out[8:], uint32(len(resultPayload)))
-				_, _ = right.Write(out[:])
-				_, _ = right.Write(resultPayload)
+				_ = writeResultFrame(right, opCancel, resultOK, decisionError)
 			}()
 			c := &client{conn: left, timeout: time.Second}
 			if _, err := c.cancel(wantCause); err != nil {
@@ -263,16 +260,7 @@ func TestPrecommitRecordsFailClosedFallbackOutcome(t *testing.T) {
 				return
 			}
 			seen <- frame{op: header[5], payload: payload}
-			resultPayload := make([]byte, 12)
-			resultPayload[0], resultPayload[1], resultPayload[2] = header[5], resultOK, decisionAllow
-			var out [frameSize]byte
-			copy(out[:4], []byte("MRC1"))
-			out[4], out[5] = protocolVersion, resultOpcode
-			binary.BigEndian.PutUint32(out[8:], uint32(len(resultPayload)))
-			if _, err := conn.Write(out[:]); err != nil {
-				return
-			}
-			if _, err := conn.Write(resultPayload); err != nil {
+			if err := writeResultFrame(conn, header[5], resultOK, decisionAllow); err != nil {
 				return
 			}
 		}
@@ -421,16 +409,7 @@ func TestServiceSplitsStreamedResponseBodyBeforeMRC1Limit(t *testing.T) {
 				op      byte
 				payload []byte
 			}{op: header[5], payload: payload}
-			resultPayload := make([]byte, 12)
-			resultPayload[0], resultPayload[1], resultPayload[2] = header[5], resultOK, decisionAllow
-			var resultHeader [frameSize]byte
-			copy(resultHeader[:4], []byte("MRC1"))
-			resultHeader[4], resultHeader[5] = protocolVersion, resultOpcode
-			binary.BigEndian.PutUint32(resultHeader[8:], uint32(len(resultPayload)))
-			if _, err := right.Write(resultHeader[:]); err != nil {
-				return
-			}
-			if _, err := right.Write(resultPayload); err != nil || header[5] == opRelease {
+			if err := writeResultFrame(right, header[5], resultOK, decisionAllow); err != nil || header[5] == opRelease {
 				return
 			}
 		}

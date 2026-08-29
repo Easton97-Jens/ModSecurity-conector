@@ -358,6 +358,26 @@ static int begin_contract_phase(haproxy_modsecurity_transaction *transaction,
         phase, 0U);
 }
 
+static int validate_body_preconditions(
+        haproxy_modsecurity_transaction *transaction,
+        haproxy_modsecurity_decision *decision,
+        const haproxy_modsecurity_body_phase *phase,
+        const char *body_processed_message) {
+    if (transaction == 0 || transaction->transaction == 0) {
+        copy_message(decision->log_message, sizeof(decision->log_message), phase->missing_message);
+        return 1;
+    }
+    if (!*phase->headers_processed) {
+        copy_message(decision->log_message, sizeof(decision->log_message), phase->headers_required_message);
+        return 1;
+    }
+    if (*phase->body_processed) {
+        copy_message(decision->log_message, sizeof(decision->log_message), body_processed_message);
+        return 1;
+    }
+    return 0;
+}
+
 static int append_body_chunk(
         haproxy_modsecurity_transaction *transaction,
         const unsigned char *body,
@@ -368,16 +388,8 @@ static int append_body_chunk(
         MSCONNECTOR_TRANSACTION_PHASE_P2 : MSCONNECTOR_TRANSACTION_PHASE_P4;
 
     init_decision(decision, phase->phase);
-    if (transaction == 0 || transaction->transaction == 0) {
-        copy_message(decision->log_message, sizeof(decision->log_message), phase->missing_message);
-        return 1;
-    }
-    if (!*phase->headers_processed) {
-        copy_message(decision->log_message, sizeof(decision->log_message), phase->headers_required_message);
-        return 1;
-    }
-    if (*phase->body_processed) {
-        copy_message(decision->log_message, sizeof(decision->log_message), phase->append_after_eos_message);
+    if (validate_body_preconditions(transaction, decision, phase,
+            phase->append_after_eos_message) != 0) {
         return 1;
     }
     if (body_len > 0U && body == 0) {
@@ -452,16 +464,8 @@ static int finish_body(
         MSCONNECTOR_TRANSACTION_PHASE_P2 : MSCONNECTOR_TRANSACTION_PHASE_P4;
 
     init_decision(decision, phase->phase);
-    if (transaction == 0 || transaction->transaction == 0) {
-        copy_message(decision->log_message, sizeof(decision->log_message), phase->missing_message);
-        return 1;
-    }
-    if (!*phase->headers_processed) {
-        copy_message(decision->log_message, sizeof(decision->log_message), phase->headers_required_message);
-        return 1;
-    }
-    if (*phase->body_processed) {
-        copy_message(decision->log_message, sizeof(decision->log_message), phase->finish_once_message);
+    if (validate_body_preconditions(transaction, decision, phase,
+            phase->finish_once_message) != 0) {
         return 1;
     }
     if (transaction->contract.active_phase < 0 &&

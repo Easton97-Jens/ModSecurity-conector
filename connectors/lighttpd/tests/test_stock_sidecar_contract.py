@@ -135,6 +135,22 @@ def _content_length(header_block: bytes) -> int:
     return 0
 
 
+def _transaction_receipt(transaction_id: str) -> dict[str, str]:
+    return {
+        "transaction_id_sha256": hashlib.sha256(
+            transaction_id.encode("utf-8")
+        ).hexdigest(),
+    }
+
+
+def _write_event_log(path: Path, records: tuple[dict[str, object], ...]) -> None:
+    path.write_text(
+        "\n".join(json.dumps(record) for record in records) + "\n",
+        encoding="utf-8",
+    )
+    path.chmod(0o600)
+
+
 class _RecordingUpstream(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
     daemon_threads = True
@@ -287,19 +303,11 @@ class StockSidecarSourceContractTest(unittest.TestCase):
             response_committed=case.expected_response_committed,
             rule_id=case.expected_rule_id or "",
         )
-        receipt = {
-            "transaction_id_sha256": hashlib.sha256(
-                transaction_id.encode("utf-8")
-            ).hexdigest(),
-        }
+        receipt = _transaction_receipt(transaction_id)
         with tempfile.TemporaryDirectory(prefix="stock-host-action-selection-",
                                          dir=_temporary_root()) as temporary:
             events = Path(temporary) / "events.jsonl"
-            events.write_text(
-                "\n".join(json.dumps(value) for value in (engine_event, host_action_event)) + "\n",
-                encoding="utf-8",
-            )
-            events.chmod(0o600)
+            _write_event_log(events, (engine_event, host_action_event))
             selected = harness.select_host_action_event(events, case, receipt)
             duplicate = _strict_stock_event(
                 harness, message_id=case.expected_host_action_event or "",
@@ -311,12 +319,7 @@ class StockSidecarSourceContractTest(unittest.TestCase):
                 response_committed=case.expected_response_committed,
                 rule_id=case.expected_rule_id or "",
             )
-            events.write_text(
-                "\n".join(json.dumps(value) for value in (
-                    engine_event, host_action_event, duplicate,
-                )) + "\n",
-                encoding="utf-8",
-            )
+            _write_event_log(events, (engine_event, host_action_event, duplicate))
             with self.assertRaisesRegex(RuntimeError, "duplicate host-action events"):
                 harness.select_host_action_event(events, case, receipt)
         self.assertEqual(selected["actual_host_action"], case.expected_actual_action)
@@ -342,19 +345,11 @@ class StockSidecarSourceContractTest(unittest.TestCase):
             sequence=2, previous_hash=int(host_action_event["event_hash"]), phase="request_headers",
             actual_action="deny", rule_id=case.expected_rule_id or "",
         )
-        receipt = {
-            "transaction_id_sha256": hashlib.sha256(
-                transaction_id.encode("utf-8")
-            ).hexdigest(),
-        }
+        receipt = _transaction_receipt(transaction_id)
         with tempfile.TemporaryDirectory(prefix="stock-reverse-causal-",
                                          dir=_temporary_root()) as temporary:
             events = Path(temporary) / "events.jsonl"
-            events.write_text(
-                "\n".join(json.dumps(value) for value in (host_action_event, engine_event)) + "\n",
-                encoding="utf-8",
-            )
-            events.chmod(0o600)
+            _write_event_log(events, (host_action_event, engine_event))
             with self.assertRaisesRegex(RuntimeError, "engine event must precede"):
                 harness.select_host_action_event(events, case, receipt)
 
@@ -403,19 +398,11 @@ class StockSidecarSourceContractTest(unittest.TestCase):
                 {**engine_event, "late_intervention": True},
             ):
                 self.assertFalse(harness._is_engine_event_candidate(invalid, case))
-            receipt = {
-                "transaction_id_sha256": hashlib.sha256(
-                    transaction_id.encode("utf-8")
-                ).hexdigest(),
-            }
+            receipt = _transaction_receipt(transaction_id)
             with tempfile.TemporaryDirectory(prefix="stock-response-event-selection-",
                                              dir=_temporary_root()) as temporary:
                 events = Path(temporary) / "events.jsonl"
-                events.write_text(
-                    "\n".join(json.dumps(record) for record in (engine_event, host_event)) + "\n",
-                    encoding="utf-8",
-                )
-                events.chmod(0o600)
+                _write_event_log(events, (engine_event, host_event))
                 selected = harness.select_host_action_event(events, case, receipt)
             self.assertEqual(selected["actual_host_action"], host_action)
             self.assertEqual(selected["transport_result"], transport_result)

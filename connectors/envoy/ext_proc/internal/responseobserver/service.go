@@ -293,6 +293,14 @@ func (s *Service) observedResponseHeaders(state *stream, message *extprocv3.Http
 }
 
 func (s *Service) finishHeaderOnlyResponse(state *stream) (*extprocv3.ProcessingResponse, bool, error) {
+	return s.finalizeResponseEOS(state, continueResponse)
+}
+
+// finalizeResponseEOS applies the common response EOS transaction semantics
+// for header-only and body-streamed responses. The continuation is the only
+// host-specific part; the EOS result, late fail-closed outcome, and cleanup
+// ordering remain identical for both response shapes.
+func (s *Service) finalizeResponseEOS(state *stream, continuation func(bool) *extprocv3.ProcessingResponse) (*extprocv3.ProcessingResponse, bool, error) {
 	eos, err := state.c.eos()
 	if err != nil {
 		return nil, false, err
@@ -310,7 +318,7 @@ func (s *Service) finishHeaderOnlyResponse(state *stream) (*extprocv3.Processing
 	if err := state.releaseAndClose(); err != nil {
 		return nil, false, err
 	}
-	return continueResponse(true), true, nil
+	return continuation(true), true, nil
 }
 
 func (s *Service) terminalAuthorizationResponse(state *stream,
@@ -429,24 +437,7 @@ func (s *Service) observeResponseChunk(state *stream, chunk []byte) error {
 }
 
 func (s *Service) finishResponseBody(state *stream) (*extprocv3.ProcessingResponse, bool, error) {
-	eos, err := state.c.eos()
-	if err != nil {
-		return nil, false, err
-	}
-	if eos.code != 0 {
-		state.failClosed(causeForErrorCode(eos.errorCode))
-		return nil, false, fmt.Errorf("response observer: EOS failed (%d)", eos.errorCode)
-	}
-	if disruptive(eos.decision) {
-		if err := state.sendLateOutcome(); err != nil {
-			return nil, false, err
-		}
-	}
-	state.responseDone = true
-	if err := state.releaseAndClose(); err != nil {
-		return nil, false, err
-	}
-	return continueBody(true), true, nil
+	return s.finalizeResponseEOS(state, continueBody)
 }
 
 func (s *Service) responseEOS(state *stream) (*extprocv3.ProcessingResponse, bool, error) {

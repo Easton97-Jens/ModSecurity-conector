@@ -2241,6 +2241,38 @@ int msconnector_response_companion_transport_init(
     return result;
 }
 
+int msconnector_response_companion_transport_ensure_started(
+    msconnector_response_companion_transport *transport,
+    msconnector_runtime_response_companion_registry *registry,
+    int *transport_initialized,
+    int *transport_ready,
+    const msconnector_response_companion_transport_options *options,
+    msconnector_error *error)
+{
+    if (transport == NULL || registry == NULL || transport_initialized == NULL ||
+        transport_ready == NULL || options == NULL) {
+        return response_companion_error(error, MSCONNECTOR_ERROR_INVALID_CONFIG,
+            "response companion transport startup requires complete host state");
+    }
+    if (*transport_ready && !*transport_initialized) {
+        return response_companion_error(error, MSCONNECTOR_ERROR_INVALID_CONFIG,
+            "response companion transport startup flags are inconsistent");
+    }
+    if (!*transport_initialized) {
+        if (!msconnector_response_companion_transport_init(transport, registry, options, error)) {
+            return 0;
+        }
+        *transport_initialized = 1;
+    }
+    if (!*transport_ready) {
+        if (!msconnector_response_companion_transport_start(transport, error)) {
+            return 0;
+        }
+        *transport_ready = 1;
+    }
+    return 1;
+}
+
 int msconnector_response_companion_transport_start(
     msconnector_response_companion_transport *transport,
     msconnector_error *error)

@@ -84,6 +84,30 @@ typedef struct {
 } ngx_http_modsecurity_header_t;
 
 
+/* Iterate one NGINX list header at a time, including headers in chained
+ * parts. Keeping this traversal in one helper prevents request and response
+ * paths from drifting while leaving their phase-specific inspection actions
+ * in their respective callers. */
+static ngx_inline ngx_table_elt_t *
+ngx_http_modsecurity_next_header(ngx_list_part_t **part,
+    ngx_table_elt_t **data, ngx_uint_t *index)
+{
+    for (;;) {
+        if (*index < (*part)->nelts) {
+            return &(*data)[(*index)++];
+        }
+
+        if ((*part)->next == NULL) {
+            return NULL;
+        }
+
+        *part = (*part)->next;
+        *data = (*part)->elts;
+        *index = 0U;
+    }
+}
+
+
 typedef struct {
     ngx_http_request_t *r;
     Transaction *modsec_transaction;

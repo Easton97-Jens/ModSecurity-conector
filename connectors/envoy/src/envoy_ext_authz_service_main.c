@@ -54,25 +54,16 @@ static int envoy_handoff_response_companion(
         }
         envoy_response_companion_ready = 1;
     }
-    if (!companion->transport_initialized) {
-        if (!msconnector_response_companion_transport_init(&companion->transport,
-                &companion->runtime_transactions,
-                &(msconnector_response_companion_transport_options){
-                    "envoy", companion->socket_path, companion->max_header_count,
-                    companion->max_header_bytes, companion->max_response_body_bytes,
-                    configured_timeout == 0U ?
-                    MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_DEFAULT_TIMEOUT_MS :
-                    configured_timeout}, error)) {
-            return 0;
-        }
-        companion->transport_initialized = 1;
-    }
-    if (!companion->transport_ready) {
-        if (!msconnector_response_companion_transport_start(&companion->transport,
-                error)) {
-            return 0;
-        }
-        companion->transport_ready = 1;
+    if (!msconnector_response_companion_transport_ensure_started(
+            &companion->transport, &companion->runtime_transactions,
+            &companion->transport_initialized, &companion->transport_ready,
+            &(msconnector_response_companion_transport_options){
+                "envoy", companion->socket_path, companion->max_header_count,
+                companion->max_header_bytes, companion->max_response_body_bytes,
+                configured_timeout == 0U ?
+                MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_DEFAULT_TIMEOUT_MS :
+                configured_timeout}, error)) {
+        return 0;
     }
     return msconnector_runtime_response_companion_handoff_with_handle(
         &companion->runtime_transactions, transaction, companion->ttl_ms,

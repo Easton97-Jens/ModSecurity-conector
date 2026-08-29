@@ -136,77 +136,65 @@ func TestRedirectDecisionRejectsUnsafeHeaderTargets(t *testing.T) {
 	}
 }
 
-func TestResponseHeaderDenyUsesImmediateResponseBeforeCommit(t *testing.T) {
-	transaction := &recordingTransaction{
-		headerDecision: func(direction Direction) Decision {
-			if direction == DirectionResponse {
-				return Decision{Action: ActionDeny, Status: 403}
+func TestResponseHeaderDecisionsUseImmediateResponseBeforeCommit(t *testing.T) {
+	for _, test := range []struct {
+		name               string
+		decision           Decision
+		wantAction         AppliedAction
+		wantLocation       bool
+		wantHTTPHostAction bool
+	}{
+		{name: "deny", decision: Decision{Action: ActionDeny, Status: 403}, wantAction: AppliedActionDeny},
+		{name: "redirect", decision: Decision{Action: ActionRedirect, Status: 302, RedirectURL: "/msconnector-p3-redirect-target"}, wantAction: AppliedActionRedirect, wantLocation: true, wantHTTPHostAction: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			transaction := &recordingTransaction{
+				headerDecision: func(direction Direction) Decision {
+					if direction == DirectionResponse {
+						return test.decision
+					}
+					return allowDecision()
+				},
 			}
-			return allowDecision()
-		},
-	}
-	service := newTestService(t, transaction, LateActionSafe)
-	stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
-		{request: requestHeaders(true)},
-		{request: responseHeaders(false)},
-	}}
+			service := newTestService(t, transaction, LateActionSafe)
+			stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
+				{request: requestHeaders(true)},
+				{request: responseHeaders(false)},
+			}}
 
-	if err := service.Process(stream); err != nil {
-		t.Fatalf("Process() error = %v", err)
-	}
-	if got, want := len(stream.sent), 2; got != want {
-		t.Fatalf("sent responses = %d, want %d", got, want)
-	}
-	if stream.sent[0].GetRequestHeaders() == nil {
-		t.Fatalf("request headers did not receive a continue response: %#v", stream.sent[0])
-	}
-	if response := stream.sent[1].GetImmediateResponse(); response == nil || int(response.GetStatus().GetCode()) != 403 {
-		t.Fatalf("expected a response-header immediate 403 response, got %#v", stream.sent[1])
-	}
-	if len(transaction.closed) != 1 || transaction.closed[0].CloseReason != CloseImmediateResponse {
-		t.Fatalf("unexpected cleanup after response-header denial: %#v", transaction.closed)
-	}
-	if len(transaction.hostActions) != 1 || transaction.hostActions[0].Action != AppliedActionDeny {
-		t.Fatalf("response-header host action = %#v", transaction.hostActions)
-	}
-}
-
-func TestResponseHeaderRedirectUsesImmediateResponseBeforeCommit(t *testing.T) {
-	transaction := &recordingTransaction{
-		headerDecision: func(direction Direction) Decision {
-			if direction == DirectionResponse {
-				return Decision{Action: ActionRedirect, Status: 302, RedirectURL: "/msconnector-p3-redirect-target"}
+			if err := service.Process(stream); err != nil {
+				t.Fatalf("Process() error = %v", err)
 			}
-			return allowDecision()
-		},
-	}
-	service := newTestService(t, transaction, LateActionSafe)
-	stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
-		{request: requestHeaders(true)},
-		{request: responseHeaders(false)},
-	}}
-
-	if err := service.Process(stream); err != nil {
-		t.Fatalf("Process() error = %v", err)
-	}
-	if got, want := len(stream.sent), 2; got != want {
-		t.Fatalf("sent responses = %d, want %d", got, want)
-	}
-	response := stream.sent[1].GetImmediateResponse()
-	if response == nil || int(response.GetStatus().GetCode()) != 302 {
-		t.Fatalf("expected a response-header immediate 302 response, got %#v", stream.sent[1])
-	}
-	headers := response.GetHeaders().GetSetHeaders()
-	if len(headers) != 1 || headers[0].GetHeader().GetKey() != "location" || string(headers[0].GetHeader().GetRawValue()) != "/msconnector-p3-redirect-target" || headers[0].GetHeader().GetValue() != "" || headers[0].GetAppendAction() != corev3.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD {
-		t.Fatalf("response-header redirect location = %#v", headers)
-	}
-	if len(transaction.closed) != 1 || transaction.closed[0].CloseReason != CloseImmediateResponse {
-		t.Fatalf("unexpected cleanup after response-header redirect: %#v", transaction.closed)
-	}
-	if got, want := transaction.hostActions, []HostAction{{
-		Action: AppliedActionRedirect, VisibleStatus: 302, TransportResult: "http_status",
-	}}; !sameHostActions(got, want) {
-		t.Fatalf("response-header redirect host action = %#v", got)
+			if got, want := len(stream.sent), 2; got != want {
+				t.Fatalf("sent responses = %d, want %d", got, want)
+			}
+			if stream.sent[0].GetRequestHeaders() == nil {
+				t.Fatalf("request headers did not receive a continue response: %#v", stream.sent[0])
+			}
+			response := stream.sent[1].GetImmediateResponse()
+			if response == nil || int(response.GetStatus().GetCode()) != test.decision.Status {
+				t.Fatalf("expected a response-header immediate %d response, got %#v", test.decision.Status, stream.sent[1])
+			}
+			if len(transaction.closed) != 1 || transaction.closed[0].CloseReason != CloseImmediateResponse {
+				t.Fatalf("unexpected cleanup after response-header decision: %#v", transaction.closed)
+			}
+			if len(transaction.hostActions) != 1 || transaction.hostActions[0].Action != test.wantAction {
+				t.Fatalf("response-header host action = %#v", transaction.hostActions)
+			}
+			if test.wantHTTPHostAction {
+				if got, want := transaction.hostActions, []HostAction{{
+					Action: AppliedActionRedirect, VisibleStatus: test.decision.Status, TransportResult: "http_status",
+				}}; !sameHostActions(got, want) {
+					t.Fatalf("response-header redirect host action = %#v", got)
+				}
+			}
+			if test.wantLocation {
+				headers := response.GetHeaders().GetSetHeaders()
+				if len(headers) != 1 || headers[0].GetHeader().GetKey() != "location" || string(headers[0].GetHeader().GetRawValue()) != test.decision.RedirectURL || headers[0].GetHeader().GetValue() != "" || headers[0].GetAppendAction() != corev3.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD {
+					t.Fatalf("response-header redirect location = %#v", headers)
+				}
+			}
+		})
 	}
 }
 

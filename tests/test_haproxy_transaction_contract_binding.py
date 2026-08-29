@@ -75,6 +75,26 @@ def test_body_chunks_use_common_limits_and_contract_phases() -> None:
     assert "msconnector_transaction_contract_record_body" in SOURCE
 
 
+def test_body_preconditions_are_shared_without_changing_phase_specific_messages() -> None:
+    helper_start = SOURCE.index("static int validate_body_preconditions(")
+    helper_end = SOURCE.index("static int append_body_chunk(", helper_start)
+    helper = SOURCE[helper_start:helper_end]
+    append_start = SOURCE.index("static int append_body_chunk(")
+    append_end = SOURCE.index("static int finish_body(", append_start)
+    finish_start = append_end
+    finish_end = SOURCE.index("static int load_rules_file(", finish_start)
+    append = SOURCE[append_start:append_end]
+    finish = SOURCE[finish_start:finish_end]
+
+    assert "phase->missing_message" in helper
+    assert "phase->headers_required_message" in helper
+    assert "body_processed_message" in helper
+    assert append.count("validate_body_preconditions(transaction, decision, phase,") == 1
+    assert finish.count("validate_body_preconditions(transaction, decision, phase,") == 1
+    assert "phase->append_after_eos_message" in append
+    assert "phase->finish_once_message" in finish
+
+
 def test_body_accounting_precedes_the_native_engine_sink() -> None:
     start = SOURCE.index("static int append_body_chunk(")
     end = SOURCE.index("static int finish_body(", start)

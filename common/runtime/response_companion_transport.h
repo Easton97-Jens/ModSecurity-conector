@@ -202,6 +202,15 @@ int msconnector_response_companion_transport_init(
     msconnector_runtime_response_companion_registry *registry,
     const msconnector_response_companion_transport_options *options,
     msconnector_error *error);
+/* Initializes and starts a companion transport once. The two caller-owned
+ * state flags preserve the host's lifecycle ownership across handoffs. */
+int msconnector_response_companion_transport_ensure_started(
+    msconnector_response_companion_transport *transport,
+    msconnector_runtime_response_companion_registry *registry,
+    int *transport_initialized,
+    int *transport_ready,
+    const msconnector_response_companion_transport_options *options,
+    msconnector_error *error);
 int msconnector_response_companion_transport_start(
     msconnector_response_companion_transport *transport,
     msconnector_error *error);

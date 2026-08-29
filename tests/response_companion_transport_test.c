@@ -21,6 +21,7 @@
 #include "common/runtime/response_companion_client.h"
 #include "common/runtime/response_companion_transport.h"
 #include "connectors/profile_registry.h"
+#include "tests/transaction_phase_test_support.h"
 
 #define TEST_PATH_SIZE 4096U
 #define TEST_FRAME_HEADER_SIZE 12U
@@ -391,23 +392,12 @@ static void handoff(msconnector_runtime *runtime,
     const char *transaction_id,
     char handle[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE])
 {
-    msconnector_request request;
     msconnector_runtime_transaction *transaction = NULL;
     msconnector_decision decision;
     msconnector_error error;
 
-    memset(&request, 0, sizeof(request));
-    request.method = "GET";
-    request.uri = "/response-transport";
-    request.http_version = "HTTP/1.1";
-    request.client.address = "127.0.0.1";
-    request.client.port = 12345;
-    request.server.address = "127.0.0.1";
-    request.server.port = 9191;
-    msconnector_error_init(&error);
-    msconnector_decision_init(&decision);
-    assert(msconnector_runtime_transaction_begin(runtime, &request, transaction_id,
-        &transaction, &decision, &error));
+    assert(msconnector_test_begin_transaction(runtime, "/response-transport",
+        transaction_id, &transaction, &decision, &error));
     assert(msconnector_runtime_response_companion_handoff_with_handle(registry,
         transaction, UINT64_C(3000), handle, &error));
     assert(strlen(handle) == MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE - 1U);
@@ -1438,6 +1428,88 @@ static void run_expire_serialization_regression_test(void)
     assert(rmdir(socket_directory) == 0);
 }
 
+static void run_transport_startup_helper_contract_test(void)
+{
+    msconnector_runtime_response_companion_registry registry;
+    msconnector_response_companion_transport transport;
+    msconnector_response_companion_transport failed_transport;
+    msconnector_error error;
+    char socket_directory[TEST_PATH_SIZE];
+    char socket_path[MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_SOCKET_SIZE];
+    char blocked_directory[TEST_PATH_SIZE];
+    char blocked_socket_path[MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_SOCKET_SIZE];
+    int initialized = 0;
+    int ready = 0;
+    int failed_initialized = 0;
+    int failed_ready = 0;
+    int inconsistent_initialized = 0;
+    int inconsistent_ready = 1;
+    int listener_fd;
+    int blocked_fd;
+
+    memset(&transport, 0, sizeof(transport));
+    memset(&failed_transport, 0, sizeof(failed_transport));
+    msconnector_runtime_response_companion_registry_init(&registry);
+    assert(snprintf(socket_directory, sizeof(socket_directory), "%s/mrs.XXXXXX",
+        test_private_directory()) > 0);
+    assert(mkdtemp(socket_directory) != NULL);
+    assert(chmod(socket_directory, 0700) == 0);
+    assert(snprintf(socket_path, sizeof(socket_path), "%s/s", socket_directory) > 0);
+    assert(snprintf(blocked_directory, sizeof(blocked_directory), "%s/mrb.XXXXXX",
+        test_private_directory()) > 0);
+    assert(mkdtemp(blocked_directory) != NULL);
+    assert(chmod(blocked_directory, 0700) == 0);
+    assert(snprintf(blocked_socket_path, sizeof(blocked_socket_path), "%s/s",
+        blocked_directory) > 0);
+
+    msconnector_error_init(&error);
+    assert(!msconnector_response_companion_transport_ensure_started(NULL, &registry,
+        &initialized, &ready, TEST_TRANSPORT_OPTIONS("startup-test", socket_path,
+            32U, 64U, 8U, 100U), &error));
+    assert(error.code == MSCONNECTOR_ERROR_INVALID_CONFIG);
+    assert(!initialized && !ready);
+    assert(!msconnector_response_companion_transport_ensure_started(&transport, &registry,
+        &inconsistent_initialized, &inconsistent_ready,
+        TEST_TRANSPORT_OPTIONS("startup-test", socket_path, 32U, 64U, 8U, 100U),
+        &error));
+    assert(error.code == MSCONNECTOR_ERROR_INVALID_CONFIG);
+    assert(!inconsistent_initialized && inconsistent_ready);
+    assert(!msconnector_response_companion_transport_ensure_started(&transport, &registry,
+        &initialized, &ready, TEST_TRANSPORT_OPTIONS("startup-test", "",
+            32U, 64U, 8U, 100U), &error));
+    assert(error.code == MSCONNECTOR_ERROR_INVALID_CONFIG);
+    assert(!initialized && !ready);
+
+    assert(msconnector_response_companion_transport_ensure_started(&transport, &registry,
+        &initialized, &ready, TEST_TRANSPORT_OPTIONS("startup-test", socket_path,
+            32U, 64U, 8U, 100U), &error));
+    assert(initialized && ready);
+    listener_fd = transport.listener.listener_fd;
+    assert(listener_fd >= 0);
+    assert(msconnector_response_companion_transport_ensure_started(&transport, &registry,
+        &initialized, &ready, TEST_TRANSPORT_OPTIONS("startup-test", socket_path,
+            32U, 64U, 8U, 100U), &error));
+    assert(transport.listener.listener_fd == listener_fd);
+    assert(msconnector_response_companion_transport_stop(&transport, &error));
+    assert(access(socket_path, F_OK) != 0);
+
+    blocked_fd = open(blocked_socket_path, O_CREAT | O_EXCL | O_WRONLY | O_CLOEXEC,
+        0600);
+    assert(blocked_fd >= 0);
+    assert(close(blocked_fd) == 0);
+    assert(!msconnector_response_companion_transport_ensure_started(&failed_transport,
+        &registry, &failed_initialized, &failed_ready,
+        TEST_TRANSPORT_OPTIONS("startup-failed", blocked_socket_path,
+            32U, 64U, 8U, 100U), &error));
+    assert(error.code == MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE);
+    assert(failed_initialized && !failed_ready);
+    assert(msconnector_response_companion_transport_stop(&failed_transport, &error));
+    assert(unlink(blocked_socket_path) == 0);
+    assert(msconnector_runtime_response_companion_registry_shutdown(&registry, &error));
+    assert(rmdir(socket_directory) == 0);
+    assert(rmdir(blocked_directory) == 0);
+}
+
 int main(void)
 {
     msconnector_runtime *runtime = NULL;
@@ -1467,6 +1539,7 @@ int main(void)
     unsigned char headers[256];
     unsigned char body[9] = {0};
 
+    run_transport_startup_helper_contract_test();
     create_runtime_fixture(config_path, event_path, rules_path);
     assert(msconnector_runtime_create("envoy", config_path, &runtime, NULL, 0U));
     assert(msconnector_runtime_set_event_integration_mode(runtime, "ext_authz"));

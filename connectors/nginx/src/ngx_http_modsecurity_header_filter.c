@@ -490,6 +490,7 @@ ngx_http_modsecurity_add_response_headers(ngx_http_request_t *r,
 {
     ngx_list_part_t *part = &r->headers_out.headers.part;
     ngx_table_elt_t *data = part->elts;
+    ngx_table_elt_t *header;
     ngx_uint_t i;
 
     for (i = 0; ngx_http_modsecurity_headers_out[i].name.len; i++) {
@@ -505,27 +506,20 @@ ngx_http_modsecurity_add_response_headers(ngx_http_request_t *r,
         }
     }
 
-    for (i = 0; ; i++) {
-        if (i >= part->nelts) {
-            if (part->next == NULL) {
-                break;
-            }
-
-            part = part->next;
-            data = part->elts;
-            i = 0;
-        }
+    i = 0U;
+    while ((header = ngx_http_modsecurity_next_header(&part, &data,
+            &i)) != NULL) {
 
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
-        ngx_http_modsecurity_store_ctx_header(r, &data[i].key, &data[i].value);
+        ngx_http_modsecurity_store_ctx_header(r, &header->key, &header->value);
 #endif
 
         /* Doing this ugly cast here, explanation on the request header. */
         if (msc_add_n_response_header(ctx->modsec_transaction,
-                (const unsigned char *) data[i].key.data,
-                data[i].key.len,
-                (const unsigned char *) data[i].value.data,
-                data[i].value.len) != 1) {
+                (const unsigned char *) header->key.data,
+                header->key.len,
+                (const unsigned char *) header->value.data,
+                header->value.len) != 1) {
             ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
                 "ModSecurity: failed to add response header for inspection");
         }
