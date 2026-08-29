@@ -1017,3 +1017,67 @@ Ein erfolgreicher finaler Exact Head erfordert weiterhin alle fünf
 Runtime-Zellen, HAProxy-Projektion/Verifikation/Upload und Artefaktinspektion,
 Secret Scanning, CodeQL, das vollständige SonarQube-Cloud-Nullziel sowie
 frische reguläre und Security-Codex-Reviews. PR #344 bleibt Draft.
+
+## 2026-08-29-Nachtrag zu begrenztem HAProxy-Diagnoseparser und Decoder
+
+### SonarQube-Cloud-Remediation und Diagnosegrenze
+
+Am exakten PR-#344-Head `1a6d711752d86033e8c0b959a73683e1125ff3bc` meldete
+SonarQube Cloud einen offenen `python:S8786`-Befund im HAProxy-Make-Footer-
+Parser. Das Quality Gate war `OK`, aber der offene Code Smell erfüllte das
+verbindliche Nullziel des Users nicht. Die Regex wird durch einen
+deterministischen ASCII-Parser für bestehenden Make-Präfix, optionalen
+numerischen Job-Level, Footer-Delimiter, numerischen Exit-Code und optionalen
+Location-Präfix ersetzt. Er behält die geschlossene Allowlist der zwei
+logischen Targets und den exakten vertrauenswürdigen Outputpfad-Control. Er
+gibt niemals erfassten Target- oder Pfadtext aus.
+
+Das Diagnosescanning ist explizit pro Stream: `stderr` wird vor `stdout`
+untersucht, pro Stream werden höchstens 512 Zeilen und 4096 Zeichen je Zeile
+untersucht, und eine überlange untrusted Zeile stoppt diesen Stream. Erkannte
+Resolver-, Compiler- und Linkerindikatoren werden nur auf feste Konstanten
+abgebildet. Fehlerstatus, Exit-Code, Receipt, Cleanup, Projektion, Verifier,
+Upload-Berechtigung und Event-Privacy-Controls bleiben unverändert.
+
+Ein separater kontrollierter Child-Prozess zeigte eine Decodergrenze:
+Ungültige Tooloutput-Bytes lösten zuvor `UnicodeDecodeError` aus, bevor der
+HAProxy-Helfer sein Failed-Result zurückgeben konnte. `run_env` akzeptiert nun
+eine optionale Decoding-Policy, aber nur `run_haproxy_binding_build` übergibt
+`errors="replace"`. Andere Caller behalten striktes Decoding. Das exakte feste
+Make-argv und der private Logpfad bleiben unverändert; das ursprüngliche
+Nonzero-Ergebnis erreicht den bestehenden strukturierten Fehler- und
+Cleanuppfad. Diese lokale Korrektur wird als `FND-PARENT-0990` bis zur
+Exact-Delivered-Head-Hosted-Verifikation verfolgt.
+
+### Root-Cause-Disziplin
+
+Das vorherige Hosted-Target-Label `target_failure=build-modsecurity-binding`
+ist keine Source-Cause-Diagnose. Ein unabhängiger Source-Review bestätigte,
+dass die Binding-Common-Object-Schleife nicht die Response-Runtime-Source mit
+ModSecurity-Headern kompiliert; die Response-Runtime-Schleife übergibt bereits
+das aufgelöste Include-Verzeichnis. Es wird keine spekulative Makefile-
+Include-Path-Änderung vorgenommen. Das nächste Exact-Head-Hosted-Ergebnis muss
+eine feste allowlistete Ursache liefern, bevor eine HAProxy-Build-Source-,
+Resolver-, Makefile-, Harness- oder Workflow-Reparatur erwogen wird.
+
+### Tatsächliche lokale Validierung und verbleibende Evidenz
+
+| Lokale Validierung | Tatsächliches Ergebnis |
+| --- | --- |
+| `tests.test_prepare_runtime_components` | Bestanden: 67 Tests, einschließlich deterministischer Footer-Grammatik/-Grenzen und Invalid-Text-Decoder-Regression/-Control. |
+| HAProxy-Projector-/Workflow-/Harness-/Provisioning- plus ausgewählter Five-Cell-Contract | Bestanden: 99 Tests; 10 erwartete Cross-Identity-Skips. |
+| `make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python check-ci-security-contract` | Bestanden: 125 Tests; 5 Host-Capability-Skips. |
+| HAProxy-Resolver- und libModSecurity-Kompatibilitäts-Contracts | Bestanden: 18 Tests. |
+| Python-Compile-Check | `python -m compileall -q ci/provisioning/components/prepare-runtime-components.py` bestanden. |
+| Workflow-/Dokumentations-/Shell-Static-Checks | `actionlint`, `zizmor --offline`, Harness-`sh -n`, `make check-bilingual-docs` und 22 bilinguale Doc-Tests bestanden. |
+| Whitespace-Review | `git diff --check` bestanden. |
+| Unabhängiger Post-Fix-Security-Review | Kein konkreter Decoding-Bypass, Command-Injection, Raw-Output-Disclosure, Fail-open-, Cleanup-, Projektions- oder Upload-Regressionsbefund. |
+
+Das bestehende `stdout=PIPE`/`stderr=PIPE`-Capture und die private Buildlog-
+Menge werden durch diese enge Decoder-Remediation nicht begrenzt und bleiben
+eine Hardening-Beobachtung. Es änderten sich keine Workflow-, Scanner-,
+Quality-Gate-, Suppression-, Ruleset-, Required-Check-, `paths.env`-,
+Framework-, MRTS-, `master`- oder Merge-Zustände. Der nächste normale
+Successor benötigt Exact-Head-Hosted-HAProxy-Evidenz, SonarQube-Cloud-
+Nullergebnisse und frische reguläre sowie Security-Codex-Reviews; PR #344
+bleibt Draft.

@@ -1927,6 +1927,119 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         )
         self.assertEqual(components.haproxy_failure_diagnostic_lines(rejected), [])
 
+    def test_haproxy_binding_build_replaces_invalid_tool_output_without_broadening_run_env(self) -> None:
+        command = [
+            sys.executable,
+            "-c",
+            "import sys; sys.stderr.buffer.write(bytes([255]) + b'\\nFAIL: HAProxy Common SDK source did not compile: /private/source.c\\n'); raise SystemExit(2)",
+        ]
+
+        with self.assertRaises(UnicodeDecodeError):
+            components.run_env(command)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tools = root / "tools"
+            tools.mkdir()
+            fake_make = tools / "make"
+            fake_make.write_text(
+                "#!" + sys.executable + "\n" + command[2] + "\n",
+                encoding="utf-8",
+            )
+            fake_make.chmod(0o700)
+            log_path = root / "private-build.log"
+
+            proc = components.run_haproxy_binding_build(
+                root / "connector",
+                {"PATH": str(tools)},
+                log_path,
+            )
+            logged_output = log_path.read_text(encoding="utf-8")
+
+        self.assertEqual(proc.returncode, 2)
+        self.assertEqual(proc.stdout, "")
+        self.assertEqual(proc.stderr, "\ufffd\nFAIL: HAProxy Common SDK source did not compile: /private/source.c\n")
+        self.assertIn("\ufffd", logged_output)
+        self.assertEqual(
+            components.haproxy_failure_diagnostic_lines(proc),
+            [
+                components.HAPROXY_DIAGNOSTIC_COMPILER_ERROR,
+                "build_step=modsecurity_common_sdk_source_compile",
+            ],
+        )
+
+    def test_haproxy_binding_failure_diagnostic_scans_stderr_before_stdout_with_fixed_values(self) -> None:
+        proc = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout=(
+                "FAIL: HAProxy ModSecurity SPOA runtime did not link with libmodsecurity\n"
+                "Authorization: Bearer hidden\n"
+            ),
+            stderr=(
+                "BLOCKED: HAProxy libModSecurity resolver: /private/resolver-token\n"
+                "FAIL: HAProxy Common SDK source did not compile: /private/source.c\n"
+            ),
+        )
+
+        diagnostics = components.haproxy_failure_diagnostic_lines(proc)
+
+        self.assertEqual(
+            diagnostics,
+            [
+                components.HAPROXY_DIAGNOSTIC_RESOLVER_ERROR,
+                "build_step=modsecurity_resolver",
+                components.HAPROXY_DIAGNOSTIC_COMPILER_ERROR,
+                "build_step=modsecurity_common_sdk_source_compile",
+                components.HAPROXY_DIAGNOSTIC_LINKER_ERROR,
+                "build_step=spoa_runtime_link",
+            ],
+        )
+        rendered = "\n".join(diagnostics)
+        self.assertNotIn("/private", rendered)
+        self.assertNotIn("hidden", rendered)
+
+    def test_haproxy_binding_failure_diagnostic_stops_after_bounded_untrusted_output(self) -> None:
+        proc = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout="FAIL: HAProxy Common SDK source did not compile: /private/stdout-source.c\n",
+            stderr=(
+                "Authorization: Bearer hidden\n"
+                * components.HAPROXY_FAILURE_DIAGNOSTIC_SCAN_MAX_LINES
+                + "FAIL: HAProxy Common SDK source did not compile: /private/source.c\n"
+            ),
+        )
+
+        diagnostics = components.haproxy_failure_diagnostic_lines(proc)
+
+        self.assertEqual(
+            diagnostics,
+            [
+                components.HAPROXY_DIAGNOSTIC_COMPILER_ERROR,
+                "build_step=modsecurity_common_sdk_source_compile",
+            ],
+        )
+        self.assertNotIn("hidden", "\n".join(diagnostics))
+
+    def test_haproxy_binding_failure_diagnostic_accepts_maximum_line_and_stops_on_overlong_line(self) -> None:
+        marker = "FAIL: HAProxy Common SDK source did not compile: /private/source.c\n"
+        maximum_line = "x" * components.HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINE_CHARS
+        expected = [
+            components.HAPROXY_DIAGNOSTIC_COMPILER_ERROR,
+            "build_step=modsecurity_common_sdk_source_compile",
+        ]
+
+        accepted = subprocess.CompletedProcess(
+            args=["make"], returncode=2, stdout="", stderr=f"{maximum_line}\n{marker}"
+        )
+        rejected = subprocess.CompletedProcess(
+            args=["make"], returncode=2, stdout="", stderr=f"{maximum_line}x\n{marker}"
+        )
+
+        self.assertEqual(components.haproxy_failure_diagnostic_lines(accepted), expected)
+        self.assertEqual(components.haproxy_failure_diagnostic_lines(rejected), [])
+
     def test_haproxy_binding_failure_footer_emits_first_allowlisted_target(self) -> None:
         proc = subprocess.CompletedProcess(
             args=["make"],
@@ -1948,6 +2061,50 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             "target_failure=build-modsecurity-binding",
             components.haproxy_failure_diagnostic_lines(proc),
         )
+
+    def test_haproxy_binding_failure_footer_accepts_exact_make_grammar(self) -> None:
+        expected_target_paths = {
+            "build-modsecurity-binding": "/task/haproxy-modsecurity-binding-self-test",
+            "build-spoa-runtime": "/task/haproxy-modsecurity-spoa",
+        }
+        cases = (
+            ("make: *** [build-modsecurity-binding] Error 2", "build-modsecurity-binding"),
+            ("make[001]: *** [Makefile:7:\tbuild-spoa-runtime] Error 12", "build-spoa-runtime"),
+            (
+                "make[0]: *** [Makefile:224:/task/haproxy-modsecurity-binding-self-test] Error 2",
+                "build-modsecurity-binding",
+            ),
+            ("make: *** [Makefile:198:/task/haproxy-modsecurity-spoa] Error 2", "build-spoa-runtime"),
+        )
+
+        for footer, expected_target in cases:
+            with self.subTest(footer=footer):
+                proc = subprocess.CompletedProcess(
+                    args=["make"], returncode=2, stdout="", stderr=f"{footer}\n"
+                )
+                self.assertEqual(
+                    components.haproxy_failure_target_from_footers(proc, expected_target_paths),
+                    expected_target,
+                )
+
+    def test_haproxy_binding_failure_footer_rejects_malformed_or_adversarial_grammar(self) -> None:
+        adversarial_prefix = "location:1:" * 2048
+        footers = (
+            "make[one]: *** [build-modsecurity-binding] Error 2",
+            "make[１２]: *** [build-modsecurity-binding] Error 2",
+            "make: *** [build-modsecurity-binding] Error ٢",
+            "make: *** [build-modsecurity-binding] Error",
+            "make: *** [build-modsecurity-binding] Error 2 unexpected",
+            f"make: *** [{adversarial_prefix}build-modsecurity-binding Error 2",
+        )
+
+        for footer in footers:
+            with self.subTest(footer=footer[:80]):
+                proc = subprocess.CompletedProcess(
+                    args=["make"], returncode=2, stdout="", stderr=f"{footer}\n"
+                )
+                self.assertIsNone(components.haproxy_failure_target_from_footers(proc))
+                self.assertNotIn("target_failure=", components.haproxy_failure_diagnostic_lines(proc))
 
     def test_haproxy_binding_failure_footer_maps_only_the_expected_output_path(self) -> None:
         expected_target_paths = {

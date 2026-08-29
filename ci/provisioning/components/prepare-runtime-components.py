@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 import hashlib
 import json
 import os
@@ -110,18 +110,20 @@ HAPROXY_BINDING_FAILURE_OUTPUT_NAMES = {
     "build-spoa-runtime": "haproxy-modsecurity-spoa",
 }
 HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINES = 8
-# GNU Make prints one of these bounded footers when a recipe fails.  Keep the
-# target capture closed over the two targets from the single combined
-# invocation.  A phony goal can report its fixed output target instead, so
-# compare that spelling only to the trusted expected output path and discard it.
-HAPROXY_FAILURE_FOOTER_PATTERN = re.compile(
-    r"^make(?:\[\d+\])?: \*\*\* \[(?:[^\]\r\n]*?:\d+:\s*)?([^\]\r\n]+)\] Error \d+$",
-    re.ASCII,
-)
+HAPROXY_FAILURE_DIAGNOSTIC_SCAN_MAX_LINES = 512
+HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINE_CHARS = 4096
+HAPROXY_FAILURE_FOOTER_MARKER = ": *** ["
+HAPROXY_FAILURE_FOOTER_SUFFIX = "] Error "
+HAPROXY_FAILURE_FOOTER_WHITESPACE = " \t\f\v"
+HAPROXY_DIAGNOSTIC_RESOLVER_ERROR = "classification=resolver_error"
 HAPROXY_DIAGNOSTIC_COMPILER_FATAL_ERROR = "classification=compiler_fatal_error"
 HAPROXY_DIAGNOSTIC_COMPILER_ERROR = "classification=compiler_error"
 HAPROXY_DIAGNOSTIC_LINKER_ERROR = "classification=linker_error"
 HAPROXY_FAILURE_DIAGNOSTIC_RULES = (
+    (
+        re.compile(r"^BLOCKED: HAProxy libModSecurity resolver:", re.ASCII),
+        (HAPROXY_DIAGNOSTIC_RESOLVER_ERROR, "build_step=modsecurity_resolver"),
+    ),
     (
         re.compile(
             r"\bfatal error:\s*modsecurity/modsecurity\.h:\s*No such file or directory\b",
@@ -161,6 +163,10 @@ HAPROXY_FAILURE_DIAGNOSTIC_RULES = (
     (
         re.compile(r"^FAIL: HAProxy ModSecurity binding source did not compile$", re.ASCII),
         (HAPROXY_DIAGNOSTIC_COMPILER_ERROR, "build_step=modsecurity_binding_source_compile"),
+    ),
+    (
+        re.compile(r"^FAIL: HAProxy Common SDK source did not compile:", re.ASCII),
+        (HAPROXY_DIAGNOSTIC_COMPILER_ERROR, "build_step=modsecurity_common_sdk_source_compile"),
     ),
     (
         re.compile(r"^FAIL: HAProxy ModSecurity binding self-test source did not compile$", re.ASCII),
@@ -334,8 +340,17 @@ def run_env(
     cwd: Path | None = None,
     env: dict[str, str] | None = None,
     check: bool = False,
+    errors: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(cmd, cwd=cwd, env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(
+        cmd,
+        cwd=cwd,
+        env=env,
+        text=True,
+        errors=errors,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     if check and proc.returncode != 0:
         raise RuntimeError((proc.stdout + proc.stderr).strip() or f"command failed: {' '.join(cmd)}")
     return proc
@@ -9048,6 +9063,7 @@ def run_haproxy_binding_build(
             *HAPROXY_BINDING_BUILD_TARGETS,
         ],
         env=make_env,
+        errors="replace",
     )
     with log_path.open("a", encoding="utf-8", errors="replace") as handle:
         handle.write("\n[haproxy-modsecurity-binding]\n")
@@ -9080,6 +9096,74 @@ def append_haproxy_failure_diagnostics(
     return False
 
 
+def haproxy_failure_output_lines(output: str) -> Iterator[str]:
+    """Yield a per-stream bounded prefix of lines for fixed diagnostics only.
+
+    An overlong untrusted line ends the scan for that stream rather than being
+    copied, truncated, or searched beyond the configured bound.
+    """
+
+    position = 0
+    for _ in range(HAPROXY_FAILURE_DIAGNOSTIC_SCAN_MAX_LINES):
+        if position >= len(output):
+            return
+        scan_end = min(len(output), position + HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINE_CHARS + 1)
+        line_end = output.find("\n", position, scan_end)
+        if line_end < 0:
+            if scan_end == len(output):
+                yield output[position:scan_end].rstrip("\r")
+            return
+        yield output[position:line_end].rstrip("\r")
+        position = line_end + 1
+
+
+def ascii_decimal(value: str) -> bool:
+    """Return whether ``value`` consists of one or more ASCII decimal digits."""
+
+    return bool(value) and all("0" <= character <= "9" for character in value)
+
+
+def haproxy_make_footer_target_text(footer_target: str) -> str:
+    """Remove the first GNU Make ``:line:`` location prefix, when present."""
+
+    for index, character in enumerate(footer_target):
+        if character != ":":
+            continue
+        line_start = index + 1
+        line_end = line_start
+        while line_end < len(footer_target) and "0" <= footer_target[line_end] <= "9":
+            line_end += 1
+        if line_end == line_start or line_end == len(footer_target):
+            continue
+        if footer_target[line_end] == ":":
+            return footer_target[line_end + 1 :].lstrip(HAPROXY_FAILURE_FOOTER_WHITESPACE)
+    return footer_target
+
+
+def haproxy_make_footer_target(raw_line: str) -> str | None:
+    """Parse one GNU Make footer in linear time without retaining raw output."""
+
+    if not raw_line.startswith("make"):
+        return None
+    footer = raw_line[len("make") :]
+    if footer.startswith("["):
+        level_end = footer.find("]")
+        if level_end <= 1 or not ascii_decimal(footer[1:level_end]):
+            return None
+        footer = footer[level_end + 1 :]
+    if not footer.startswith(HAPROXY_FAILURE_FOOTER_MARKER):
+        return None
+    footer = footer[len(HAPROXY_FAILURE_FOOTER_MARKER) :]
+    target_end = footer.find(HAPROXY_FAILURE_FOOTER_SUFFIX)
+    if target_end <= 0:
+        return None
+    target = footer[:target_end]
+    exit_code = footer[target_end + len(HAPROXY_FAILURE_FOOTER_SUFFIX) :]
+    if "]" in target or not ascii_decimal(exit_code):
+        return None
+    return haproxy_make_footer_target_text(target)
+
+
 def haproxy_failure_target_from_footers(
     proc: subprocess.CompletedProcess[str], expected_target_paths: dict[str, str] | None = None
 ) -> str | None:
@@ -9088,11 +9172,10 @@ def haproxy_failure_target_from_footers(
     # GNU Make writes its failure footer to stderr.  Ignore stdout entirely so
     # compiler output cannot forge a target label or influence footer order.
     expected_target_paths = expected_target_paths or {}
-    for raw_line in str(proc.stderr or "").splitlines():
-        match = HAPROXY_FAILURE_FOOTER_PATTERN.fullmatch(raw_line)
-        if not match:
+    for raw_line in haproxy_failure_output_lines(str(proc.stderr or "")):
+        target = haproxy_make_footer_target(raw_line)
+        if target is None:
             continue
-        target = match.group(1)
         if target in HAPROXY_BINDING_BUILD_TARGETS:
             return target
         for logical_target in HAPROXY_BINDING_BUILD_TARGETS:
@@ -9106,16 +9189,16 @@ def haproxy_failure_diagnostic_lines(
 ) -> list[str]:
     """Return only repository-known diagnostic constants; raw tool output stays private."""
 
-    output = "\n".join((str(proc.stdout or ""), str(proc.stderr or "")))
     selected: list[str] = []
     target_failure = haproxy_failure_target_from_footers(proc, expected_target_paths)
     if target_failure is not None:
         selected.append(f"target_failure={target_failure}")
-    for raw_line in output.splitlines():
-        for diagnostics in haproxy_failure_diagnostics_for_line(raw_line):
-            if append_haproxy_failure_diagnostics(selected, diagnostics):
-                selected[-1] = "[classification list truncated]"
-                return selected
+    for output in (str(proc.stderr or ""), str(proc.stdout or "")):
+        for raw_line in haproxy_failure_output_lines(output):
+            for diagnostics in haproxy_failure_diagnostics_for_line(raw_line):
+                if append_haproxy_failure_diagnostics(selected, diagnostics):
+                    selected[-1] = "[classification list truncated]"
+                    return selected
     return selected
 
 

@@ -936,3 +936,64 @@ successful exact final head still requires all five runtime cells, HAProxy
 projection/verification/upload and artifact inspection, Secret Scanning,
 CodeQL, the complete SonarQube Cloud zero target, and fresh regular plus
 Security Codex review. PR #344 remains Draft.
+
+## 2026-08-29 bounded HAProxy diagnostic parser and decoder follow-up
+
+### SonarQube Cloud remediation and diagnostic boundary
+
+At exact PR #344 head `1a6d711752d86033e8c0b959a73683e1125ff3bc`, SonarQube
+Cloud reported one open `python:S8786` issue in the HAProxy Make-footer parser.
+The Quality Gate was `OK`, but the open code smell meant the user's required
+zero target was not met. The regex is replaced with a deterministic ASCII
+parser for the existing Make prefix, optional numeric job level, footer
+delimiter, numeric exit code, and optional location prefix. It retains the
+closed allowlist of the two logical targets and the exact trusted output-path
+control. It never emits captured target or path text.
+
+Diagnostic scanning is explicitly per stream: `stderr` is examined before
+`stdout`, at most 512 lines and 4096 characters per line are examined for each
+stream, and an overlong untrusted line stops that stream. Recognized resolver,
+compiler, and linker indicators map only to fixed constants. The failed build
+status, exit code, receipt, cleanup, projection, verifier, upload eligibility,
+and event privacy controls remain unchanged.
+
+A separate controlled child exposed a decoding boundary: invalid tool-output
+bytes previously raised `UnicodeDecodeError` before the HAProxy helper could
+return its failed result. `run_env` now accepts an optional decoding policy,
+but only `run_haproxy_binding_build` supplies `errors="replace"`. Other
+callers retain strict decoding. The exact fixed Make argv and private-log path
+are unchanged; the original nonzero result reaches the existing structured
+failure and cleanup path. This local correction is tracked as
+`FND-PARENT-0990` pending exact delivered-head hosted verification.
+
+### Root-cause discipline
+
+The prior hosted target label `target_failure=build-modsecurity-binding` is
+not a source-cause diagnosis. Independent source review confirmed that the
+binding common-object loop does not compile the response-runtime source that
+includes ModSecurity headers; the response-runtime loop already passes the
+resolved include directory. No speculative Makefile include-path change is
+made. The next exact-head hosted result must provide a fixed allowlisted cause
+before any HAProxy build-source, resolver, Makefile, harness, or workflow
+repair is considered.
+
+### Actual local validation and remaining evidence
+
+| Local validation | Actual result |
+| --- | --- |
+| `tests.test_prepare_runtime_components` | Passed: 67 tests, including deterministic footer grammar/bounds and invalid-text decoder regression/control. |
+| HAProxy projector/workflow/harness/provisioning plus selected five-cell contract | Passed: 99 tests; 10 expected cross-identity skips. |
+| `make PYTHON=/root/git/ModSecurity-conector/.venv/bin/python check-ci-security-contract` | Passed: 125 tests; 5 host-capability skips. |
+| HAProxy resolver and libModSecurity compatibility contracts | Passed: 18 tests. |
+| Python compile check | `python -m compileall -q ci/provisioning/components/prepare-runtime-components.py` passed. |
+| Workflow/documentation/shell static checks | `actionlint`, `zizmor --offline`, harness `sh -n`, `make check-bilingual-docs`, and 22 bilingual-doc tests passed. |
+| Whitespace review | `git diff --check` passed. |
+| Independent post-fix security review | No concrete decoding bypass, command injection, raw-output disclosure, fail-open, cleanup, projection, or upload regression found. |
+
+The existing `stdout=PIPE`/`stderr=PIPE` capture and private-build-log volume
+are not bounded by this narrow decoder remediation and remain a hardening
+observation. No workflow, scanner, Quality Gate, suppression, ruleset,
+required check, `paths.env`, Framework, MRTS, `master`, or merge state changed.
+The next normal successor must receive exact-head hosted HAProxy evidence,
+SonarQube Cloud zero results, and fresh regular plus Security Codex review;
+PR #344 remains Draft.
