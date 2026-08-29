@@ -873,3 +873,66 @@ CodeQL, successor SonarQube Cloud zero result, or fresh regular and Security
 Codex review is claimed. Those checks must bind to the eventual exact pushed
 head; PR #344 remains Draft, and no scanner, Quality Gate, ruleset,
 required-check, `paths.env`, `master`, or merge change is part of this work.
+
+## 2026-08-29 bounded HAProxy build-target diagnostic follow-up
+
+### Current hosted state
+
+The exact-head five-cell workflow
+[`33266984528`](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/33266984528)
+ran at `8757a8d1689d6cccd70327b681b9bb90f7e44433`. Apache, Envoy, Traefik,
+and lighttpd completed successfully. HAProxy job `99138670479` failed while
+preparing the runtime components, before projection, verification, upload, or
+artifact creation. Its existing sanitized output established the real nonzero
+exit but did not contain an allowlisted compiler/linker classification. This
+record therefore does not attribute the current failure to an earlier,
+historical header diagnosis.
+
+### Bounded correction and security boundary
+
+The provisioning helper now reads only GNU Make failure footers from the
+captured `stderr` stream. It accepts exactly two existing logical target names
+— `build-modsecurity-binding` and `build-spoa-runtime` — or maps a footer's
+output-target spelling only when it is byte-for-byte equal to the
+internally-derived expected output path. It emits, at most, one fixed
+`target_failure=<allowlisted-target>` label. It discards Makefile paths, line
+numbers, commands, raw compiler output, arbitrary targets, secrets, and all
+`stdout` target-like text.
+
+A controlled standalone GNU Make run confirms that a failing prerequisite can
+produce only the file-target footer, not a phony-goal footer. The exact
+expected-path comparison therefore keeps the combined invocation intact while
+covering both Make footer forms without publishing the path.
+
+The Make invocation remains one combined invocation; it is not split merely
+for diagnostics. A failure still preserves its original status and exit code,
+keeps raw build output private, and blocks the receipt, projector, verifier,
+and upload exactly as before. The label is diagnostic metadata only; it is not
+trusted evidence and cannot influence cleanup, authorization, or artifact
+publication. A syntactically valid footer could be forged by a failing build
+recipe on `stderr`, so it can only guide the next root-cause investigation; it
+does not prove source attribution.
+
+The independent review also revisited numeric-PID cleanup. The historical
+detached-session condition remains tracked as `FND-PARENT-0988`. The hosted
+runtime executes in a mandatory private PID/mount namespace with
+`--kill-child=SIGKILL` before the separate-owner staging step starts. A
+PID/PGID reuse scenario is not reproduced and is contained to that namespace;
+it remains an availability-risk consideration rather than a newly validated
+cross-stage integrity bypass.
+
+### Actual local validation and remaining evidence
+
+| Local validation | Actual result |
+| --- | --- |
+| Projector, evidence-workflow, evidence-harness, and provisioning unit suites | Passed: 93 tests; 10 cross-identity tests skipped because this sandbox cannot provide the required hosted identity mapping. |
+| Five-cell runtime workflow security contract | Passed: 1 test. |
+| Whitespace review | `git diff --check` passed. |
+| Independent post-patch diagnostic/security review | No injection, path disclosure, fail-open, cleanup, or upload-boundary regression found. |
+
+The next normal PR-branch successor must identify the target on an exact
+hosted run before any HAProxy build-source correction is considered. A
+successful exact final head still requires all five runtime cells, HAProxy
+projection/verification/upload and artifact inspection, Secret Scanning,
+CodeQL, the complete SonarQube Cloud zero target, and fresh regular plus
+Security Codex review. PR #344 remains Draft.

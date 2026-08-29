@@ -105,7 +105,19 @@ PATH_POLICY_ENV = dict(os.environ)
 FULL_GIT_COMMIT_ID = re.compile(r"[0-9a-fA-F]{40,64}")
 SAFE_RUNTIME_BUILD_KEY = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 HAPROXY_BINDING_BUILD_TARGETS = ("build-modsecurity-binding", "build-spoa-runtime")
+HAPROXY_BINDING_FAILURE_OUTPUT_NAMES = {
+    "build-modsecurity-binding": "haproxy-modsecurity-binding-self-test",
+    "build-spoa-runtime": "haproxy-modsecurity-spoa",
+}
 HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINES = 8
+# GNU Make prints one of these bounded footers when a recipe fails.  Keep the
+# target capture closed over the two targets from the single combined
+# invocation.  A phony goal can report its fixed output target instead, so
+# compare that spelling only to the trusted expected output path and discard it.
+HAPROXY_FAILURE_FOOTER_PATTERN = re.compile(
+    r"^make(?:\[\d+\])?: \*\*\* \[(?:[^\]\r\n]*?:\d+:\s*)?([^\]\r\n]+)\] Error \d+$",
+    re.ASCII,
+)
 HAPROXY_DIAGNOSTIC_COMPILER_FATAL_ERROR = "classification=compiler_fatal_error"
 HAPROXY_DIAGNOSTIC_COMPILER_ERROR = "classification=compiler_error"
 HAPROXY_DIAGNOSTIC_LINKER_ERROR = "classification=linker_error"
@@ -9068,11 +9080,37 @@ def append_haproxy_failure_diagnostics(
     return False
 
 
-def haproxy_failure_diagnostic_lines(proc: subprocess.CompletedProcess[str]) -> list[str]:
+def haproxy_failure_target_from_footers(
+    proc: subprocess.CompletedProcess[str], expected_target_paths: dict[str, str] | None = None
+) -> str | None:
+    """Return the first logical target named by an exact GNU Make stderr footer."""
+
+    # GNU Make writes its failure footer to stderr.  Ignore stdout entirely so
+    # compiler output cannot forge a target label or influence footer order.
+    expected_target_paths = expected_target_paths or {}
+    for raw_line in str(proc.stderr or "").splitlines():
+        match = HAPROXY_FAILURE_FOOTER_PATTERN.fullmatch(raw_line)
+        if not match:
+            continue
+        target = match.group(1)
+        if target in HAPROXY_BINDING_BUILD_TARGETS:
+            return target
+        for logical_target in HAPROXY_BINDING_BUILD_TARGETS:
+            if target == expected_target_paths.get(logical_target):
+                return logical_target
+    return None
+
+
+def haproxy_failure_diagnostic_lines(
+    proc: subprocess.CompletedProcess[str], expected_target_paths: dict[str, str] | None = None
+) -> list[str]:
     """Return only repository-known diagnostic constants; raw tool output stays private."""
 
     output = "\n".join((str(proc.stdout or ""), str(proc.stderr or "")))
     selected: list[str] = []
+    target_failure = haproxy_failure_target_from_footers(proc, expected_target_paths)
+    if target_failure is not None:
+        selected.append(f"target_failure={target_failure}")
     for raw_line in output.splitlines():
         for diagnostics in haproxy_failure_diagnostics_for_line(raw_line):
             if append_haproxy_failure_diagnostics(selected, diagnostics):
@@ -9084,6 +9122,7 @@ def haproxy_failure_diagnostic_lines(proc: subprocess.CompletedProcess[str]) -> 
 def emit_haproxy_binding_failure_diagnostic(
     proc: subprocess.CompletedProcess[str],
     missing_artifacts: tuple[str, ...],
+    expected_target_paths: dict[str, str] | None = None,
 ) -> None:
     """Expose a bounded summary while retaining raw compiler output privately."""
 
@@ -9098,7 +9137,7 @@ def emit_haproxy_binding_failure_diagnostic(
             f"prepare-runtime-components: HAProxy binding build missing_artifact={artifact}",
             file=sys.stderr,
         )
-    diagnostics = haproxy_failure_diagnostic_lines(proc)
+    diagnostics = haproxy_failure_diagnostic_lines(proc, expected_target_paths)
     if not diagnostics:
         diagnostics = ["[no allowlisted compiler or linker failure classification captured]"]
     for diagnostic in diagnostics:
@@ -9191,6 +9230,13 @@ def prepare_haproxy_runtime(
         return write_haproxy_record(plan, record)
     make_env = haproxy_binding_environment(prep_env, connector_root, modsecurity, context)
     proc = run_haproxy_binding_build(connector_root, make_env, context["log_path"])
+    expected_target_paths = {
+        "build-modsecurity-binding": str(
+            context["binding_dir"]
+            / HAPROXY_BINDING_FAILURE_OUTPUT_NAMES["build-modsecurity-binding"]
+        ),
+        "build-spoa-runtime": str(context["spoa_bin"]),
+    }
     missing_artifacts = tuple(
         label
         for label, available in (
@@ -9200,7 +9246,7 @@ def prepare_haproxy_runtime(
         if not available
     )
     if proc.returncode != 0 or missing_artifacts:
-        emit_haproxy_binding_failure_diagnostic(proc, missing_artifacts)
+        emit_haproxy_binding_failure_diagnostic(proc, missing_artifacts, expected_target_paths)
         record.update(
             status="failed",
             blocker_reason="haproxy_connector_build_failed",

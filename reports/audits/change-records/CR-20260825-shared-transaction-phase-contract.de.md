@@ -952,3 +952,68 @@ regulärer und Security-Codex-Review beansprucht. Diese Checks müssen an den
 späteren exakten gepushten Head gebunden werden; PR #344 bleibt Draft, und
 Scanner-, Quality-Gate-, Ruleset-, Required-Check-, `paths.env`-, `master`-
 oder Merge-Änderungen sind nicht Teil dieser Arbeit.
+
+## 2026-08-29-Nachtrag zur begrenzten HAProxy-Build-Target-Diagnose
+
+### Aktueller Hosted-Status
+
+Der Exact-Head-Five-Cell-Workflow
+[`33266984528`](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/33266984528)
+lief auf `8757a8d1689d6cccd70327b681b9bb90f7e44433`. Apache, Envoy, Traefik
+und lighttpd endeten erfolgreich. Der HAProxy-Job `99138670479` scheiterte
+beim Vorbereiten der Runtime-Komponenten, noch vor Projektion, Verifikation,
+Upload oder Artefakterzeugung. Seine bestehende sanitisierte Ausgabe belegt den
+tatsächlichen Nonzero-Exit, enthält aber keine allowlistete Compiler-/Linker-
+Klassifikation. Dieser Nachtrag schreibt den aktuellen Fehler daher nicht
+einer früheren historischen Header-Diagnose zu.
+
+### Begrenzte Korrektur und Sicherheitsgrenze
+
+Der Provisioning-Helper liest nun ausschließlich GNU-Make-Fehlerfooter aus dem
+erfassten `stderr`-Stream. Er akzeptiert genau zwei bestehende logische
+Target-Namen — `build-modsecurity-binding` und `build-spoa-runtime` — oder
+mappt die Output-Target-Schreibweise eines Footers nur dann, wenn sie
+bytegenau dem intern abgeleiteten erwarteten Output-Pfad entspricht. Er gibt
+höchstens ein festes Label `target_failure=<allowlisted-target>` aus.
+Makefile-Pfade, Zeilennummern, Befehle, rohe Compiler-Ausgabe, beliebige
+Targets, Secrets und alle target-ähnlichen Texte aus `stdout` werden verworfen.
+
+Ein kontrollierter eigenständiger GNU-Make-Lauf bestätigt, dass ein
+fehlschlagendes Prerequisite nur den File-Target-Footer und keinen
+Phony-Goal-Footer liefern kann. Der exakte Vergleich mit dem erwarteten Pfad
+erhält daher die kombinierte Invocation, deckt beide Make-Footer-Formen ab und
+veröffentlicht den Pfad nicht.
+
+Die Make-Invocation bleibt eine kombinierte Invocation; sie wird nicht allein
+für Diagnosezwecke geteilt. Ein Fehler behält weiterhin seinen ursprünglichen
+Status und Exit-Code, hält die rohe Build-Ausgabe privat und blockiert Receipt,
+Projektor, Verifier und Upload unverändert. Das Label ist ausschließlich
+Diagnosemetadaten, keine vertrauenswürdige Evidenz, und kann Cleanup,
+Autorisierung oder Artefaktveröffentlichung nicht beeinflussen. Ein fehlerhaftes
+Build-Rezept könnte auf `stderr` einen syntaktisch gültigen Footer fälschen;
+dies kann nur die nächste Root-Cause-Untersuchung leiten, nicht die
+Quellzuordnung beweisen.
+
+Der unabhängige Review bewertete auch das numerische PID-Cleanup erneut. Die
+historische Detached-Session-Bedingung bleibt in `FND-PARENT-0988` verfolgt.
+Die Hosted-Runtime läuft vor dem separaten Owner-Staging in einem
+verpflichtenden privaten PID-/Mount-Namespace mit `--kill-child=SIGKILL`. Ein
+PID-/PGID-Wiederverwendungsszenario ist nicht reproduziert und bleibt auf
+diesen Namespace begrenzt; es ist daher eine Verfügbarkeitsüberlegung und kein
+neu validierter Cross-Stage-Integritätsbypass.
+
+### Tatsächliche lokale Validierung und verbleibende Evidenz
+
+| Lokale Validierung | Tatsächliches Ergebnis |
+| --- | --- |
+| Projector-, Evidence-Workflow-, Evidence-Harness- und Provisioning-Unittests | Bestanden: 93 Tests; 10 Cross-Identity-Tests übersprungen, weil diese Sandbox das erforderliche Hosted-Identity-Mapping nicht bereitstellt. |
+| Security-Contract des Five-Cell-Runtime-Workflows | Bestanden: 1 Test. |
+| Whitespace-Review | `git diff --check` bestanden. |
+| Unabhängiger Post-Patch-Diagnose-/Security-Review | Keine Injection-, Pfadoffenlegungs-, Fail-open-, Cleanup- oder Upload-Grenzregression gefunden. |
+
+Der nächste normale PR-Branch-Successor muss das Target in einem exakten
+Hosted-Lauf benennen, bevor eine HAProxy-Build-Source-Korrektur erwogen wird.
+Ein erfolgreicher finaler Exact Head erfordert weiterhin alle fünf
+Runtime-Zellen, HAProxy-Projektion/Verifikation/Upload und Artefaktinspektion,
+Secret Scanning, CodeQL, das vollständige SonarQube-Cloud-Nullziel sowie
+frische reguläre und Security-Codex-Reviews. PR #344 bleibt Draft.

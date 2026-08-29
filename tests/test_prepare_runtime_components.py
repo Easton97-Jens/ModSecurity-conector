@@ -1540,8 +1540,8 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             binding = subprocess.CompletedProcess(
                 args=["make"],
                 returncode=returncode,
-                stdout=output,
-                stderr="",
+                stdout="",
+                stderr=output,
             )
 
             def prepare_with_runtime_binary(
@@ -1926,6 +1926,136 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             stderr=None,
         )
         self.assertEqual(components.haproxy_failure_diagnostic_lines(rejected), [])
+
+    def test_haproxy_binding_failure_footer_emits_first_allowlisted_target(self) -> None:
+        proc = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout=(
+                "make: *** [Makefile:12: build-spoa-runtime] Error 2\n"
+            ),
+            stderr=(
+                "make[1]: *** [build-modsecurity-binding] Error 2\n"
+                "make: *** [Makefile:13: build-spoa-runtime] Error 2\n"
+            ),
+        )
+
+        self.assertEqual(
+            components.haproxy_failure_target_from_footers(proc),
+            "build-modsecurity-binding",
+        )
+        self.assertIn(
+            "target_failure=build-modsecurity-binding",
+            components.haproxy_failure_diagnostic_lines(proc),
+        )
+
+    def test_haproxy_binding_failure_footer_maps_only_the_expected_output_path(self) -> None:
+        expected_target_paths = {
+            "build-modsecurity-binding": "/task/build/haproxy-modsecurity-binding/"
+            "haproxy-modsecurity-binding-self-test",
+            "build-spoa-runtime": "/task/build/haproxy-spoa-runtime/haproxy-modsecurity-spoa",
+        }
+        proc = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout="",
+            stderr=(
+                "make: *** [Makefile:224: /task/build/haproxy-modsecurity-binding/"
+                "haproxy-modsecurity-binding-self-test] Error 2\n"
+            ),
+        )
+        spoa = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout="",
+            stderr=(
+                "make: *** [Makefile:198: /task/build/haproxy-spoa-runtime/"
+                "haproxy-modsecurity-spoa] Error 2\n"
+            ),
+        )
+        ordered = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout="",
+            stderr=proc.stderr + spoa.stderr,
+        )
+        rejected = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout="",
+            stderr=(
+                "make: *** [Makefile:224: /other/build/haproxy-modsecurity-binding/"
+                "haproxy-modsecurity-binding-self-test] Error 2\n"
+            ),
+        )
+
+        self.assertEqual(
+            components.haproxy_failure_target_from_footers(proc, expected_target_paths),
+            "build-modsecurity-binding",
+        )
+        self.assertIn(
+            "target_failure=build-modsecurity-binding",
+            components.haproxy_failure_diagnostic_lines(proc, expected_target_paths),
+        )
+        self.assertIsNone(
+            components.haproxy_failure_target_from_footers(rejected, expected_target_paths)
+        )
+        self.assertNotIn(
+            "target_failure=",
+            components.haproxy_failure_diagnostic_lines(rejected, expected_target_paths),
+        )
+        self.assertEqual(
+            components.haproxy_failure_target_from_footers(spoa, expected_target_paths),
+            "build-spoa-runtime",
+        )
+        self.assertEqual(
+            components.haproxy_failure_target_from_footers(ordered, expected_target_paths),
+            "build-modsecurity-binding",
+        )
+
+    def test_haproxy_binding_failure_footer_ignores_stdout_target_like_text(self) -> None:
+        proc = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout="make: *** [Makefile:12: build-modsecurity-binding] Error 2\n",
+            stderr="compiler output only\n",
+        )
+
+        self.assertIsNone(components.haproxy_failure_target_from_footers(proc))
+        self.assertNotIn(
+            "target_failure=",
+            components.haproxy_failure_diagnostic_lines(proc),
+        )
+
+    def test_haproxy_binding_failure_footer_rejects_unallowlisted_or_hostile_target(self) -> None:
+        proc = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout="make: *** [Makefile:11: build-spoa-runtime] Error 2\n",
+            stderr=(
+                "make: *** [Makefile:12: not-allowlisted] Error 2\n"
+                "make: *** [Makefile:13: build-modsecurity-binding; touch /tmp/pwned] Error 2\n"
+            ),
+        )
+
+        self.assertIsNone(components.haproxy_failure_target_from_footers(proc))
+        self.assertNotIn(
+            "target_failure=",
+            components.haproxy_failure_diagnostic_lines(proc),
+        )
+
+    def test_haproxy_binding_failure_footer_keeps_failed_status_exit_and_safe_summary(self) -> None:
+        record, diagnostic, _ = self.prepare_haproxy_binding_failure_with(
+            17,
+            "make: *** [Makefile:24: build-modsecurity-binding] Error 2\n"
+            "Authorization: Bearer hidden\n",
+        )
+
+        self.assertEqual(record["status"], "failed")
+        self.assertEqual(record["build_exit_code"], 17)
+        self.assertIn("target_failure=build-modsecurity-binding", diagnostic)
+        self.assertNotIn("Makefile:24", diagnostic)
+        self.assertNotIn("hidden", diagnostic)
 
     def test_haproxy_missing_prerequisite_remains_blocked(self) -> None:
         record = self.prepare_haproxy_with(
