@@ -106,54 +106,57 @@ FULL_GIT_COMMIT_ID = re.compile(r"[0-9a-fA-F]{40,64}")
 SAFE_RUNTIME_BUILD_KEY = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 HAPROXY_BINDING_BUILD_TARGETS = ("build-modsecurity-binding", "build-spoa-runtime")
 HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINES = 8
+HAPROXY_DIAGNOSTIC_COMPILER_FATAL_ERROR = "classification=compiler_fatal_error"
+HAPROXY_DIAGNOSTIC_COMPILER_ERROR = "classification=compiler_error"
+HAPROXY_DIAGNOSTIC_LINKER_ERROR = "classification=linker_error"
 HAPROXY_FAILURE_DIAGNOSTIC_RULES = (
     (
         re.compile(
             r"\bfatal error:\s*modsecurity/modsecurity\.h:\s*No such file or directory\b",
             re.IGNORECASE | re.ASCII,
         ),
-        ("classification=compiler_fatal_error", "missing_header=modsecurity.h"),
+        (HAPROXY_DIAGNOSTIC_COMPILER_FATAL_ERROR, "missing_header=modsecurity.h"),
     ),
     (
         re.compile(
             r"\bfatal error:\s*modsecurity/rules_set\.h:\s*No such file or directory\b",
             re.IGNORECASE | re.ASCII,
         ),
-        ("classification=compiler_fatal_error", "missing_header=rules_set.h"),
+        (HAPROXY_DIAGNOSTIC_COMPILER_FATAL_ERROR, "missing_header=rules_set.h"),
     ),
     (
         re.compile(
             r"\bfatal error:\s*modsecurity/transaction\.h:\s*No such file or directory\b",
             re.IGNORECASE | re.ASCII,
         ),
-        ("classification=compiler_fatal_error", "missing_header=transaction.h"),
+        (HAPROXY_DIAGNOSTIC_COMPILER_FATAL_ERROR, "missing_header=transaction.h"),
     ),
     (
         re.compile(
             r"^FAIL: HAProxy ModSecurity binding source did not compile for diagnostic SPOP runtime$",
             re.ASCII,
         ),
-        ("classification=compiler_error", "build_step=spoa_binding_source_compile"),
+        (HAPROXY_DIAGNOSTIC_COMPILER_ERROR, "build_step=spoa_binding_source_compile"),
     ),
     (
         re.compile(r"^FAIL: HAProxy ModSecurity SPOA runtime source did not compile$", re.ASCII),
-        ("classification=compiler_error", "build_step=spoa_runtime_source_compile"),
+        (HAPROXY_DIAGNOSTIC_COMPILER_ERROR, "build_step=spoa_runtime_source_compile"),
     ),
     (
         re.compile(r"^FAIL: HAProxy ModSecurity SPOA runtime did not link with libmodsecurity$", re.ASCII),
-        ("classification=linker_error", "build_step=spoa_runtime_link"),
+        (HAPROXY_DIAGNOSTIC_LINKER_ERROR, "build_step=spoa_runtime_link"),
     ),
     (
         re.compile(r"^FAIL: HAProxy ModSecurity binding source did not compile$", re.ASCII),
-        ("classification=compiler_error", "build_step=modsecurity_binding_source_compile"),
+        (HAPROXY_DIAGNOSTIC_COMPILER_ERROR, "build_step=modsecurity_binding_source_compile"),
     ),
     (
         re.compile(r"^FAIL: HAProxy ModSecurity binding self-test source did not compile$", re.ASCII),
-        ("classification=compiler_error", "build_step=modsecurity_binding_self_test_source_compile"),
+        (HAPROXY_DIAGNOSTIC_COMPILER_ERROR, "build_step=modsecurity_binding_self_test_source_compile"),
     ),
     (
         re.compile(r"^FAIL: HAProxy ModSecurity binding self-test did not link$", re.ASCII),
-        ("classification=linker_error", "build_step=modsecurity_binding_self_test_link"),
+        (HAPROXY_DIAGNOSTIC_LINKER_ERROR, "build_step=modsecurity_binding_self_test_link"),
     ),
     (
         re.compile(
@@ -9041,31 +9044,41 @@ def run_haproxy_binding_build(
     return proc
 
 
+def haproxy_failure_diagnostics_for_line(raw_line: str) -> tuple[tuple[str, ...], ...]:
+    """Return the fixed diagnostic values allowlisted for one tool-output line."""
+
+    return tuple(
+        diagnostics
+        for pattern, diagnostics in HAPROXY_FAILURE_DIAGNOSTIC_RULES
+        if pattern.search(raw_line)
+    )
+
+
+def append_haproxy_failure_diagnostics(
+    selected: list[str], diagnostics: tuple[str, ...]
+) -> bool:
+    """Append unseen fixed diagnostics and report whether the bounded list overflowed."""
+
+    for diagnostic in diagnostics:
+        if diagnostic in selected:
+            continue
+        if len(selected) >= HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINES:
+            return True
+        selected.append(diagnostic)
+    return False
+
+
 def haproxy_failure_diagnostic_lines(proc: subprocess.CompletedProcess[str]) -> list[str]:
     """Return only repository-known diagnostic constants; raw tool output stays private."""
 
     output = "\n".join((str(proc.stdout or ""), str(proc.stderr or "")))
     selected: list[str] = []
-    truncated = False
     for raw_line in output.splitlines():
-        for pattern, diagnostics in HAPROXY_FAILURE_DIAGNOSTIC_RULES:
-            if not pattern.search(raw_line):
-                continue
-            for diagnostic in diagnostics:
-                if diagnostic in selected:
-                    continue
-                if len(selected) >= HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINES:
-                    truncated = True
-                    break
-                selected.append(diagnostic)
-            if truncated:
-                break
-        if truncated:
-            break
-    result = list(selected)
-    if truncated:
-        result[-1] = "[classification list truncated]"
-    return result
+        for diagnostics in haproxy_failure_diagnostics_for_line(raw_line):
+            if append_haproxy_failure_diagnostics(selected, diagnostics):
+                selected[-1] = "[classification list truncated]"
+                return selected
+    return selected
 
 
 def emit_haproxy_binding_failure_diagnostic(

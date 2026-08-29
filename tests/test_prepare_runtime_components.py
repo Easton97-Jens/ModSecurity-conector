@@ -1873,6 +1873,35 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             [],
         )
 
+    def test_haproxy_binding_failure_diagnostic_keeps_order_at_exact_limit(self) -> None:
+        proc = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout=(
+                "fatal error: modsecurity/modsecurity.h: No such file or directory\n"
+                "fatal error: modsecurity/rules_set.h: No such file or directory\n"
+                "fatal error: modsecurity/transaction.h: No such file or directory\n"
+                "FAIL: HAProxy ModSecurity binding source did not compile for diagnostic SPOP runtime\n"
+                "FAIL: HAProxy ModSecurity SPOA runtime source did not compile\n"
+                "FAIL: HAProxy ModSecurity binding source did not compile\n"
+            ),
+            stderr=None,
+        )
+
+        self.assertEqual(
+            components.haproxy_failure_diagnostic_lines(proc),
+            [
+                components.HAPROXY_DIAGNOSTIC_COMPILER_FATAL_ERROR,
+                "missing_header=modsecurity.h",
+                "missing_header=rules_set.h",
+                "missing_header=transaction.h",
+                components.HAPROXY_DIAGNOSTIC_COMPILER_ERROR,
+                "build_step=spoa_binding_source_compile",
+                "build_step=spoa_runtime_source_compile",
+                "build_step=modsecurity_binding_source_compile",
+            ],
+        )
+
     def test_haproxy_binding_failure_diagnostic_accepts_known_stdout_or_stderr_only(self) -> None:
         known_message = "FAIL: HAProxy ModSecurity SPOA runtime source did not compile\n"
         expected = {"classification=compiler_error", "build_step=spoa_runtime_source_compile"}
