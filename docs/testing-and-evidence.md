@@ -80,6 +80,38 @@ capability boundary.
 Do not commit credentials, cookies, authorization values, private keys,
 certificates, raw request bodies, raw response bodies, or local runtime output.
 
+### HAProxy hosted evidence projection
+
+The fixed `with-crs/no-mrts` HAProxy runtime cell may upload evidence only
+after its runtime has exited and its cleanup result has been checked. It does
+not upload the runtime root, build root, cache root, process logs, or a copy of
+any of those roots. Instead, a source receipt for the fixed HAProxy P2 case is
+strictly parsed and compared with trusted workflow values, then newly
+serialized into exactly `haproxy-runtime-evidence.json` and `manifest.json`.
+Both files contain bounded allowlist metadata and SHA-256 digests only; they
+contain no body, header value, cookie, token, credential, opaque handle,
+absolute path, raw log, or free-form runtime error text.
+
+Receipt bytes cross through a fixed unprivileged `head --bytes=16385` stream
+cap, then to the evidence projector only through standard input after the
+identity drop. The projector accepts at most 16 KiB and rejects the 16,385th
+byte, so the workflow never buffers untrusted receipt output in a shell
+variable. Receipt bytes are never command-line arguments to `sudo`, `unshare`,
+or `setpriv`.
+
+The projection and verifier reject unexpected names, paths, JSON keys, types,
+special files, symlinks, size-limit violations, and digest mismatches. Their
+staging package is created below a new `RUNNER_TEMP` child owned by a distinct
+evidence identity, sealed before upload, and revalidated immediately before
+the pinned upload action consumes it. Checkout code for runtime, source export,
+projection, verification, and the final workflow summary executes only after a
+private PID/mount namespace and privilege drop with `no_new_privs`; privileged
+operations have fixed staging-only paths and do not execute checkout code.
+
+This boundary records only the fixed P2 receipt and does not claim P3/P4,
+production readiness, or a successful hosted result until the exact workflow
+run and its uploaded artifact have been observed.
+
 ## Status and promotion
 
 | Status | Meaning |

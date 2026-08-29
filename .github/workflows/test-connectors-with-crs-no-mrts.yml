@@ -193,18 +193,188 @@ jobs:
               ;;
           esac
 
+      - name: Prepare HAProxy runtime evidence boundary
+        id: prepare-haproxy-runtime-evidence
+        if: matrix.connector == 'haproxy'
+        env:
+          PARENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          FRAMEWORK_SHA: 86451b45ae7bb7953baf9f81f2c2dad07395a808
+          MRTS_SHA: 615b13bacbd008562c17408246c41ab27dca3104
+          SETUP_PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}
+        run: |
+          set -euo pipefail
+          require_sha() {
+            case "$1" in ''|*[!0-9a-f]*) return 1 ;; esac
+            test "${#1}" -eq 40
+          }
+          require_decimal() {
+            case "$1" in ''|*[!0-9]*) return 1 ;; esac
+            test "$1" -gt 0
+          }
+          case "$RUNNER_TEMP:$GITHUB_WORKSPACE:$SETUP_PYTHON_PATH" in /*:/*:/*) ;; *) echo "FAIL: unsafe evidence boundary path" >&2; exit 2 ;; esac
+          case "$CRS_RUNTIME_RUN_ID" in [A-Za-z0-9]*) ;; *) echo "FAIL: invalid runtime run id" >&2; exit 2 ;; esac
+          case "$CRS_RUNTIME_RUN_ID" in *[!A-Za-z0-9._-]*) echo "FAIL: invalid runtime run id" >&2; exit 2 ;; esac
+          test "${#CRS_RUNTIME_RUN_ID}" -le 48
+          test "$CRS" = with-crs
+          test "$MRTS" = no-mrts
+          require_sha "$PARENT_SHA"
+          require_sha "$FRAMEWORK_SHA"
+          require_sha "$MRTS_SHA"
+          parent_commit=$(git rev-parse HEAD)
+          test "$parent_commit" = "$PARENT_SHA"
+          runtime_uid=$(/usr/bin/id -u)
+          runtime_gid=$(/usr/bin/id -g)
+          require_decimal "$runtime_uid"
+          require_decimal "$runtime_gid"
+          evidence_uid=$(/usr/bin/getent passwd nobody | /usr/bin/cut -d: -f3)
+          evidence_gid=$(/usr/bin/getent group nogroup | /usr/bin/cut -d: -f3)
+          require_decimal "$evidence_uid"
+          require_decimal "$evidence_gid"
+          test "$evidence_uid" -ne "$runtime_uid"
+          test "$evidence_gid" -ne "$runtime_gid"
+          test "$(/usr/bin/id -g nobody)" = "$evidence_gid"
+          for system_binary in /usr/bin/chmod /usr/bin/chown /usr/bin/env /usr/bin/git /usr/bin/head /usr/bin/id /usr/bin/mkdir /usr/bin/mktemp /usr/bin/python3 /usr/bin/setpriv /usr/bin/stat /usr/bin/unshare; do
+            test -x "$system_binary"
+          done
+          projector_blob=$(
+            /usr/bin/env -i \
+              PATH=/usr/bin:/bin \
+              HOME=/nonexistent \
+              GIT_CONFIG_NOSYSTEM=1 \
+              GIT_CONFIG_GLOBAL=/dev/null \
+              GIT_CONFIG_SYSTEM=/dev/null \
+              GIT_OPTIONAL_LOCKS=0 \
+              /usr/bin/git --no-pager -C "$GITHUB_WORKSPACE" rev-parse "$PARENT_SHA:ci/runtime/lifecycle/project-haproxy-runtime-evidence.py"
+          )
+          require_sha "$projector_blob"
+          /usr/bin/env -i \
+            PATH=/usr/bin:/bin \
+            HOME=/nonexistent \
+            GIT_CONFIG_NOSYSTEM=1 \
+            GIT_CONFIG_GLOBAL=/dev/null \
+            GIT_CONFIG_SYSTEM=/dev/null \
+            GIT_OPTIONAL_LOCKS=0 \
+            /usr/bin/git --no-pager -C "$GITHUB_WORKSPACE" cat-file -e "${projector_blob}^{blob}"
+          runner_temp_identity=$(/usr/bin/stat -Lc '%d:%i:%u:%g:%a' -- "$RUNNER_TEMP")
+          case "$runner_temp_identity" in [0-9]*:[0-9]*:[0-9]*:[0-9]*:[0-7][0-7][0-7]) ;; *) echo "FAIL: unsafe RUNNER_TEMP identity" >&2; exit 2 ;; esac
+          probe_uid=$(
+            sudo -n /usr/bin/env -i \
+              PATH=/usr/bin:/bin \
+              HOME=/nonexistent \
+              /usr/bin/unshare \
+                --mount \
+                --pid \
+                --fork \
+                --kill-child=SIGKILL \
+                --mount-proc=/proc \
+                --propagation private \
+                /usr/bin/setpriv \
+                  --reuid="$runtime_uid" \
+                  --regid="$runtime_gid" \
+                  --clear-groups \
+                  --no-new-privs \
+                  --inh-caps=-all \
+                  --ambient-caps=-all \
+                  --bounding-set=-all \
+                  -- /usr/bin/id -u
+          )
+          test "$probe_uid" = "$runtime_uid"
+          source_root="$RUNNER_TEMP/ModSecurity-conector-with-crs-no-mrts/$PARENT_SHA/$CRS_RUNTIME_RUN_ID/verified/build/verified-haproxy-case/with-crs-no-mrts-haproxy/logs/haproxy-runtime/haproxy-runtime-evidence-source"
+          case "$source_root" in "$RUNNER_TEMP"/*) ;; *) echo "FAIL: unsafe evidence source root" >&2; exit 2 ;; esac
+          {
+            printf '%s\n' "runtime_uid=$runtime_uid"
+            printf '%s\n' "runtime_gid=$runtime_gid"
+            printf '%s\n' "evidence_uid=$evidence_uid"
+            printf '%s\n' "evidence_gid=$evidence_gid"
+            printf '%s\n' "runner_temp=$RUNNER_TEMP"
+            printf '%s\n' "runner_temp_identity=$runner_temp_identity"
+            printf '%s\n' "source_root=$source_root"
+            printf '%s\n' "projector_blob=$projector_blob"
+            printf '%s\n' "parent_sha=$PARENT_SHA"
+            printf '%s\n' "framework_sha=$FRAMEWORK_SHA"
+            printf '%s\n' "mrts_sha=$MRTS_SHA"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Run selected real with-CRS no-MRTS runtime
         id: runtime
         env:
           CONNECTOR: ${{ matrix.connector }}
+          RUNTIME_UID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_uid }}
+          RUNTIME_GID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_gid }}
+          RUNTIME_PARENT_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.parent_sha }}
+          RUNTIME_FRAMEWORK_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.framework_sha }}
+          RUNTIME_MRTS_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.mrts_sha }}
         run: |
           set -euo pipefail
+          require_sha() {
+            case "$1" in ''|*[!0-9a-f]*) return 1 ;; esac
+            test "${#1}" -eq 40
+          }
+          require_decimal() {
+            case "$1" in ''|*[!0-9]*) return 1 ;; esac
+            test "$1" -gt 0
+          }
           case "$CONNECTOR" in
             apache)
               EVIDENCE_ROOT='' make verified-apache-case CASE=crs_sqli_anomaly_block CRS="$CRS" MRTS="$MRTS"
               ;;
             haproxy)
-              EVIDENCE_ROOT='' make verified-haproxy-case CASE=crs_sqli_anomaly_block CRS="$CRS" MRTS="$MRTS"
+              require_decimal "$RUNTIME_UID"
+              require_decimal "$RUNTIME_GID"
+              require_sha "$RUNTIME_PARENT_SHA"
+              require_sha "$RUNTIME_FRAMEWORK_SHA"
+              require_sha "$RUNTIME_MRTS_SHA"
+              sudo -n /usr/bin/env -i \
+                PATH=/usr/bin:/bin \
+                HOME=/nonexistent \
+                /usr/bin/unshare \
+                  --mount \
+                  --pid \
+                  --fork \
+                  --kill-child=SIGKILL \
+                  --mount-proc=/proc \
+                  --propagation private \
+                  /usr/bin/setpriv \
+                    --reuid="$RUNTIME_UID" \
+                    --regid="$RUNTIME_GID" \
+                    --clear-groups \
+                    --no-new-privs \
+                    --inh-caps=-all \
+                    --ambient-caps=-all \
+                    --bounding-set=-all \
+                    -- /usr/bin/env -i \
+                      PATH=/usr/bin:/bin \
+                      HOME=/nonexistent \
+                      LANG=C \
+                      LC_ALL=C \
+                      TMPDIR="$TMP_ROOT" \
+                      ALLOW_RUNTIME_BUILDS=1 \
+                      ALLOW_RUNTIME_DOWNLOADS=1 \
+                      CRS=with-crs \
+                      MRTS=no-mrts \
+                      RUNTIME_COMPONENT_TARGET=haproxy \
+                      CRS_RUNTIME_RUN_ID="$CRS_RUNTIME_RUN_ID" \
+                      EXPECTED_PARENT_SHA="$RUNTIME_PARENT_SHA" \
+                      EXPECTED_FRAMEWORK_SHA="$RUNTIME_FRAMEWORK_SHA" \
+                      EXPECTED_MRTS_SHA="$RUNTIME_MRTS_SHA" \
+                      EVIDENCE_ROOT='' \
+                      PYTHONDONTWRITEBYTECODE=1 \
+                      PYTHON="$SETUP_PYTHON_PATH" \
+                      PYTHONPYCACHEPREFIX="$PYTHONPYCACHEPREFIX" \
+                      GITHUB_WORKSPACE="$GITHUB_WORKSPACE" \
+                      RUNNER_TEMP="$RUNNER_TEMP" \
+                      VERIFIED_RUN_ROOT="$VERIFIED_RUN_ROOT" \
+                      BUILD_ROOT="$BUILD_ROOT" \
+                      SOURCE_ROOT="$SOURCE_ROOT" \
+                      CRS_SOURCE_DIR="$CRS_SOURCE_DIR" \
+                      TMP_ROOT="$TMP_ROOT" \
+                      LOG_ROOT="$LOG_ROOT" \
+                      CACHE_ROOT="$CACHE_ROOT" \
+                      CONNECTOR_COMPONENT_CACHE="$CONNECTOR_COMPONENT_CACHE" \
+                      FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
+                      HAPROXY_EVIDENCE_RECEIPT=1 \
+                      HAPROXY_EVIDENCE_RECEIPT_PROJECTOR="$GITHUB_WORKSPACE/ci/runtime/lifecycle/project-haproxy-runtime-evidence.py" \
+                      /usr/bin/make -C "$GITHUB_WORKSPACE" verified-haproxy-case CASE=crs_sqli_anomaly_block CRS=with-crs MRTS=no-mrts
               ;;
             envoy|lighttpd|traefik)
               EVIDENCE_ROOT='' make with-crs-no-mrts-runtime CONNECTOR="$CONNECTOR"
@@ -215,11 +385,271 @@ jobs:
               ;;
           esac
 
-      - name: Upload real runtime evidence
-        id: upload-runtime-evidence
-        # The one-case HAProxy harness validates its raw host evidence before
-        # returning.  Do not pass its same-UID writable runtime root to this
-        # action: upload-artifact follows symlinks during discovery.
+      - name: Project HAProxy runtime evidence
+        id: project-haproxy-runtime-evidence
+        if: matrix.connector == 'haproxy' && steps.runtime.outcome == 'success'
+        env:
+          TRUSTED_SOURCE_ROOT: ${{ steps.prepare-haproxy-runtime-evidence.outputs.source_root }}
+          TRUSTED_RUNNER_TEMP: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runner_temp }}
+          TRUSTED_RUNNER_TEMP_IDENTITY: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runner_temp_identity }}
+          RUNTIME_UID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_uid }}
+          RUNTIME_GID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_gid }}
+          EVIDENCE_UID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.evidence_uid }}
+          EVIDENCE_GID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.evidence_gid }}
+          PROJECTOR_BLOB: ${{ steps.prepare-haproxy-runtime-evidence.outputs.projector_blob }}
+          PARENT_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.parent_sha }}
+          FRAMEWORK_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.framework_sha }}
+          MRTS_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.mrts_sha }}
+        run: |
+          set -euo pipefail
+          require_sha() {
+            case "$1" in ''|*[!0-9a-f]*) return 1 ;; esac
+            test "${#1}" -eq 40
+          }
+          require_decimal() {
+            case "$1" in ''|*[!0-9]*) return 1 ;; esac
+            test "$1" -gt 0
+          }
+          require_sha "$PROJECTOR_BLOB"
+          require_decimal "$RUNTIME_UID"
+          require_decimal "$RUNTIME_GID"
+          require_decimal "$EVIDENCE_UID"
+          require_decimal "$EVIDENCE_GID"
+          test "$RUNTIME_UID" -ne "$EVIDENCE_UID"
+          test "$RUNTIME_GID" -ne "$EVIDENCE_GID"
+          test "$(/usr/bin/stat -Lc '%d:%i:%u:%g:%a' -- "$TRUSTED_RUNNER_TEMP")" = "$TRUSTED_RUNNER_TEMP_IDENTITY"
+          case "$TRUSTED_SOURCE_ROOT" in "$TRUSTED_RUNNER_TEMP"/*) ;; *) echo "FAIL: unsafe evidence source root" >&2; exit 2 ;; esac
+          run_runner_projector() {
+            sudo -n /usr/bin/env -i \
+              PATH=/usr/bin:/bin \
+              HOME=/nonexistent \
+              /usr/bin/unshare \
+                --mount \
+                --pid \
+                --fork \
+                --kill-child=SIGKILL \
+                --mount-proc=/proc \
+                --propagation private \
+                /usr/bin/setpriv \
+                  --reuid="$RUNTIME_UID" \
+                  --regid="$RUNTIME_GID" \
+                  --clear-groups \
+                  --no-new-privs \
+                  --inh-caps=-all \
+                  --ambient-caps=-all \
+                  --bounding-set=-all \
+                  -- /usr/bin/env -i \
+              PATH=/usr/bin:/bin \
+              HOME=/nonexistent \
+              GIT_CONFIG_NOSYSTEM=1 \
+              GIT_CONFIG_GLOBAL=/dev/null \
+              GIT_CONFIG_SYSTEM=/dev/null \
+              GIT_OPTIONAL_LOCKS=0 \
+              /usr/bin/python3 -I -c '
+          import hashlib
+          import subprocess
+          import sys
+          blob, workspace, *arguments = sys.argv[1:]
+          try:
+              source = subprocess.check_output(
+                  ["/usr/bin/git", "--no-pager", "-C", workspace, "cat-file", "blob", blob],
+                  env={
+                      "PATH": "/usr/bin:/bin",
+                      "HOME": "/nonexistent",
+                      "GIT_CONFIG_NOSYSTEM": "1",
+                      "GIT_CONFIG_GLOBAL": "/dev/null",
+                      "GIT_CONFIG_SYSTEM": "/dev/null",
+                      "GIT_OPTIONAL_LOCKS": "0",
+                  },
+                  stderr=subprocess.DEVNULL,
+              )
+          except subprocess.CalledProcessError:
+              raise SystemExit(2)
+          if not source or len(source) > 131072:
+              raise SystemExit(2)
+          if hashlib.sha1(b"blob " + str(len(source)).encode("ascii") + b"\\0" + source).hexdigest() != blob:
+              raise SystemExit(2)
+          sys.argv = ["<verified-haproxy-evidence-projector>", *arguments]
+          namespace = {"__name__": "__main__", "__file__": "<verified-git-blob>"}
+          exec(compile(source, namespace["__file__"], "exec"), namespace)
+          ' "$PROJECTOR_BLOB" "$GITHUB_WORKSPACE" "$@"
+          }
+          run_evidence_projector() {
+            sudo -n /usr/bin/env -i \
+              PATH=/usr/bin:/bin \
+              HOME=/nonexistent \
+              /usr/bin/unshare \
+                --mount \
+                --pid \
+                --fork \
+                --kill-child=SIGKILL \
+                --mount-proc=/proc \
+                --propagation private \
+                /usr/bin/setpriv \
+                  --reuid="$EVIDENCE_UID" \
+                  --regid="$EVIDENCE_GID" \
+                  --clear-groups \
+                  --no-new-privs \
+                  --inh-caps=-all \
+                  --ambient-caps=-all \
+                  --bounding-set=-all \
+                  -- /usr/bin/env -i \
+              PATH=/usr/bin:/bin \
+              HOME=/nonexistent \
+              GIT_CONFIG_NOSYSTEM=1 \
+              GIT_CONFIG_GLOBAL=/dev/null \
+              GIT_CONFIG_SYSTEM=/dev/null \
+              GIT_OPTIONAL_LOCKS=0 \
+              /usr/bin/python3 -I -c '
+          import hashlib
+          import subprocess
+          import sys
+          blob, workspace, *arguments = sys.argv[1:]
+          try:
+              source = subprocess.check_output(
+                  ["/usr/bin/git", "--no-pager", "-C", workspace, "cat-file", "blob", blob],
+                  env={
+                      "PATH": "/usr/bin:/bin",
+                      "HOME": "/nonexistent",
+                      "GIT_CONFIG_NOSYSTEM": "1",
+                      "GIT_CONFIG_GLOBAL": "/dev/null",
+                      "GIT_CONFIG_SYSTEM": "/dev/null",
+                      "GIT_OPTIONAL_LOCKS": "0",
+                  },
+                  stderr=subprocess.DEVNULL,
+              )
+          except subprocess.CalledProcessError:
+              raise SystemExit(2)
+          if not source or len(source) > 131072:
+              raise SystemExit(2)
+          if hashlib.sha1(b"blob " + str(len(source)).encode("ascii") + b"\\0" + source).hexdigest() != blob:
+              raise SystemExit(2)
+          sys.argv = ["<verified-haproxy-evidence-projector>", *arguments]
+          namespace = {"__name__": "__main__", "__file__": "<verified-git-blob>"}
+          exec(compile(source, namespace["__file__"], "exec"), namespace)
+          ' "$PROJECTOR_BLOB" "$GITHUB_WORKSPACE" "$@"
+          }
+          test "$(/usr/bin/stat -Lc '%d:%i:%u:%g:%a' -- "$TRUSTED_RUNNER_TEMP")" = "$TRUSTED_RUNNER_TEMP_IDENTITY"
+          stage_parent=$(sudo -n /usr/bin/mktemp -d -- "$TRUSTED_RUNNER_TEMP/haproxy-runtime-evidence-parent.XXXXXXXX")
+          case "$stage_parent" in "$TRUSTED_RUNNER_TEMP"/haproxy-runtime-evidence-parent.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]) ;; *) echo "FAIL: unsafe evidence stage parent" >&2; exit 2 ;; esac
+          stage_root="$stage_parent/package"
+          sudo -n /usr/bin/mkdir -m 0700 -- "$stage_root"
+          sudo -n /usr/bin/chown --no-dereference "$EVIDENCE_UID:$EVIDENCE_GID" -- "$stage_root"
+          sudo -n /usr/bin/chmod 0755 -- "$stage_parent"
+          test "$(/usr/bin/stat -Lc '%u:%g:%a' -- "$stage_parent")" = 0:0:755
+          test "$(/usr/bin/stat -Lc '%u:%g:%a' -- "$stage_root")" = "$EVIDENCE_UID:$EVIDENCE_GID:700"
+          run_runner_projector export-source-receipt \
+            --source-root "$TRUSTED_SOURCE_ROOT" \
+            --runtime-uid "$RUNTIME_UID" \
+            --expected-parent-sha "$PARENT_SHA" \
+            --expected-framework-sha "$FRAMEWORK_SHA" \
+            --expected-mrts-sha "$MRTS_SHA" \
+            | /usr/bin/head --bytes=16385 \
+            | run_evidence_projector project-document --source-document-stdin \
+              --runner-temp "$TRUSTED_RUNNER_TEMP" \
+              --stage-parent "$stage_parent" \
+              --stage-root "$stage_root" \
+              --runtime-uid "$RUNTIME_UID" \
+              --expected-parent-sha "$PARENT_SHA" \
+              --expected-framework-sha "$FRAMEWORK_SHA" \
+              --expected-mrts-sha "$MRTS_SHA"
+          printf '%s\n' "stage_root=$stage_root" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "stage_parent=$stage_parent" >> "$GITHUB_OUTPUT"
+
+      - name: Verify HAProxy runtime evidence
+        id: verify-haproxy-runtime-evidence
+        if: matrix.connector == 'haproxy' && steps.project-haproxy-runtime-evidence.outcome == 'success'
+        env:
+          STAGE_ROOT: ${{ steps.project-haproxy-runtime-evidence.outputs.stage_root }}
+          STAGE_PARENT: ${{ steps.project-haproxy-runtime-evidence.outputs.stage_parent }}
+          TRUSTED_RUNNER_TEMP: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runner_temp }}
+          TRUSTED_RUNNER_TEMP_IDENTITY: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runner_temp_identity }}
+          RUNTIME_UID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_uid }}
+          RUNTIME_GID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_gid }}
+          EVIDENCE_UID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.evidence_uid }}
+          EVIDENCE_GID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.evidence_gid }}
+          PROJECTOR_BLOB: ${{ steps.prepare-haproxy-runtime-evidence.outputs.projector_blob }}
+          PARENT_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.parent_sha }}
+          FRAMEWORK_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.framework_sha }}
+          MRTS_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.mrts_sha }}
+        run: |
+          set -euo pipefail
+          require_sha() {
+            case "$1" in ''|*[!0-9a-f]*) return 1 ;; esac
+            test "${#1}" -eq 40
+          }
+          require_decimal() {
+            case "$1" in ''|*[!0-9]*) return 1 ;; esac
+            test "$1" -gt 0
+          }
+          require_sha "$PROJECTOR_BLOB"
+          require_decimal "$RUNTIME_UID"
+          require_decimal "$RUNTIME_GID"
+          require_decimal "$EVIDENCE_UID"
+          require_decimal "$EVIDENCE_GID"
+          test "$RUNTIME_UID" -ne "$EVIDENCE_UID"
+          test "$RUNTIME_GID" -ne "$EVIDENCE_GID"
+          test "$(/usr/bin/stat -Lc '%d:%i:%u:%g:%a' -- "$TRUSTED_RUNNER_TEMP")" = "$TRUSTED_RUNNER_TEMP_IDENTITY"
+          case "$STAGE_PARENT:$STAGE_ROOT" in "$TRUSTED_RUNNER_TEMP"/haproxy-runtime-evidence-parent.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]:"$TRUSTED_RUNNER_TEMP"/haproxy-runtime-evidence-parent.*/package) ;; *) echo "FAIL: unsafe evidence stage path" >&2; exit 2 ;; esac
+          run_evidence_projector() {
+            sudo -n /usr/bin/env -i \
+              PATH=/usr/bin:/bin \
+              HOME=/nonexistent \
+              /usr/bin/unshare \
+                --mount \
+                --pid \
+                --fork \
+                --kill-child=SIGKILL \
+                --mount-proc=/proc \
+                --propagation private \
+                /usr/bin/setpriv \
+                  --reuid="$EVIDENCE_UID" \
+                  --regid="$EVIDENCE_GID" \
+                  --clear-groups \
+                  --no-new-privs \
+                  --inh-caps=-all \
+                  --ambient-caps=-all \
+                  --bounding-set=-all \
+                  -- /usr/bin/env -i \
+              PATH=/usr/bin:/bin \
+              HOME=/nonexistent \
+              GIT_CONFIG_NOSYSTEM=1 \
+              GIT_CONFIG_GLOBAL=/dev/null \
+              GIT_CONFIG_SYSTEM=/dev/null \
+              GIT_OPTIONAL_LOCKS=0 \
+              /usr/bin/python3 -I -c '
+          import hashlib
+          import subprocess
+          import sys
+          blob, workspace, *arguments = sys.argv[1:]
+          try:
+              source = subprocess.check_output(
+                  ["/usr/bin/git", "--no-pager", "-C", workspace, "cat-file", "blob", blob],
+                  env={
+                      "PATH": "/usr/bin:/bin",
+                      "HOME": "/nonexistent",
+                      "GIT_CONFIG_NOSYSTEM": "1",
+                      "GIT_CONFIG_GLOBAL": "/dev/null",
+                      "GIT_CONFIG_SYSTEM": "/dev/null",
+                      "GIT_OPTIONAL_LOCKS": "0",
+                  },
+                  stderr=subprocess.DEVNULL,
+              )
+          except subprocess.CalledProcessError:
+              raise SystemExit(2)
+          if not source or len(source) > 131072:
+              raise SystemExit(2)
+          if hashlib.sha1(b"blob " + str(len(source)).encode("ascii") + b"\\0" + source).hexdigest() != blob:
+              raise SystemExit(2)
+          sys.argv = ["<verified-haproxy-evidence-projector>", *arguments]
+          namespace = {"__name__": "__main__", "__file__": "<verified-git-blob>"}
+          exec(compile(source, namespace["__file__"], "exec"), namespace)
+          ' "$PROJECTOR_BLOB" "$GITHUB_WORKSPACE" "$@"
+          }
+          run_evidence_projector verify --runner-temp "$TRUSTED_RUNNER_TEMP" --stage-parent "$STAGE_PARENT" --stage-root "$STAGE_ROOT" --runtime-uid "$RUNTIME_UID" --expected-parent-sha "$PARENT_SHA" --expected-framework-sha "$FRAMEWORK_SHA" --expected-mrts-sha "$MRTS_SHA"
+
+      - name: Upload non-HAProxy runtime evidence
+        id: upload-non-haproxy-runtime-evidence
         if: always() && matrix.connector != 'haproxy'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -231,10 +661,24 @@ jobs:
           retention-days: 10
           overwrite: false
 
+      - name: Upload real runtime evidence
+        id: upload-runtime-evidence
+        if: matrix.connector == 'haproxy' && steps.verify-haproxy-runtime-evidence.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: with-crs-no-mrts-${{ matrix.connector }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ steps.project-haproxy-runtime-evidence.outputs.stage_root }}/haproxy-runtime-evidence.json
+            ${{ steps.project-haproxy-runtime-evidence.outputs.stage_root }}/manifest.json
+          if-no-files-found: error
+          retention-days: 10
+          overwrite: false
+
       - name: Write connector runtime overview
         if: always()
         env:
           CONNECTOR: ${{ matrix.connector }}
+          PARENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           CHECKOUT_OUTCOME: ${{ steps.checkout.outcome }}
           SETUP_PYTHON_OUTCOME: ${{ steps.setup-python.outcome }}
           VERIFY_PYTHON_OUTCOME: ${{ steps.verify-python.outcome }}
@@ -244,7 +688,103 @@ jobs:
           INITIALIZE_ROOTS_OUTCOME: ${{ steps.initialize-runtime-roots.outcome }}
           PREPARE_CRS_OUTCOME: ${{ steps.prepare-crs-source.outcome }}
           RUNTIME_OUTCOME: ${{ steps.runtime.outcome }}
-          UPLOAD_EVIDENCE_OUTCOME: ${{ steps.upload-runtime-evidence.outcome }}
+          UPLOAD_EVIDENCE_OUTCOME: ${{ matrix.connector == 'haproxy' && steps.upload-runtime-evidence.outcome || steps.upload-non-haproxy-runtime-evidence.outcome }}
         run: |
           set -euo pipefail
-          python3 ci/runtime/lifecycle/summarize-with-crs-no-mrts-workflow.py --connector "$CONNECTOR"
+          require_sha() {
+            case "$1" in ''|*[!0-9a-f]*) return 1 ;; esac
+            test "${#1}" -eq 40
+          }
+          require_decimal() {
+            case "$1" in ''|*[!0-9]*) return 1 ;; esac
+            test "$1" -gt 0
+          }
+          require_sha "$PARENT_SHA"
+          summary_uid=$(/usr/bin/id -u)
+          summary_gid=$(/usr/bin/id -g)
+          require_decimal "$summary_uid"
+          require_decimal "$summary_gid"
+          summary_blob=$(
+            /usr/bin/env -i \
+              PATH=/usr/bin:/bin \
+              HOME=/nonexistent \
+              GIT_CONFIG_NOSYSTEM=1 \
+              GIT_CONFIG_GLOBAL=/dev/null \
+              GIT_CONFIG_SYSTEM=/dev/null \
+              GIT_OPTIONAL_LOCKS=0 \
+              /usr/bin/git --no-pager -C "$GITHUB_WORKSPACE" rev-parse "$PARENT_SHA:ci/runtime/lifecycle/summarize-with-crs-no-mrts-workflow.py"
+          )
+          require_sha "$summary_blob"
+          /usr/bin/env -i \
+            PATH=/usr/bin:/bin \
+            HOME=/nonexistent \
+            GIT_CONFIG_NOSYSTEM=1 \
+            GIT_CONFIG_GLOBAL=/dev/null \
+            GIT_CONFIG_SYSTEM=/dev/null \
+            GIT_OPTIONAL_LOCKS=0 \
+            /usr/bin/git --no-pager -C "$GITHUB_WORKSPACE" cat-file -e "${summary_blob}^{blob}"
+          sudo -n /usr/bin/env -i \
+            PATH=/usr/bin:/bin \
+            HOME=/nonexistent \
+            /usr/bin/unshare \
+              --mount \
+              --pid \
+              --fork \
+              --kill-child=SIGKILL \
+              --mount-proc=/proc \
+              --propagation private \
+              /usr/bin/setpriv \
+                --reuid="$summary_uid" \
+                --regid="$summary_gid" \
+                --clear-groups \
+                --no-new-privs \
+                --inh-caps=-all \
+                --ambient-caps=-all \
+                --bounding-set=-all \
+                -- /usr/bin/env -i \
+                  PATH=/usr/bin:/bin \
+                  HOME=/nonexistent \
+                  GIT_CONFIG_NOSYSTEM=1 \
+                  GIT_CONFIG_GLOBAL=/dev/null \
+                  GIT_CONFIG_SYSTEM=/dev/null \
+                  GIT_OPTIONAL_LOCKS=0 \
+                  RUNNER_TEMP="$RUNNER_TEMP" \
+                  GITHUB_STEP_SUMMARY="$GITHUB_STEP_SUMMARY" \
+                  CHECKOUT_OUTCOME="$CHECKOUT_OUTCOME" \
+                  SETUP_PYTHON_OUTCOME="$SETUP_PYTHON_OUTCOME" \
+                  VERIFY_PYTHON_OUTCOME="$VERIFY_PYTHON_OUTCOME" \
+                  VERIFY_REVISIONS_OUTCOME="$VERIFY_REVISIONS_OUTCOME" \
+                  INSTALL_DEPENDENCIES_OUTCOME="$INSTALL_DEPENDENCIES_OUTCOME" \
+                  VERIFY_CELL_OUTCOME="$VERIFY_CELL_OUTCOME" \
+                  INITIALIZE_ROOTS_OUTCOME="$INITIALIZE_ROOTS_OUTCOME" \
+                  PREPARE_CRS_OUTCOME="$PREPARE_CRS_OUTCOME" \
+                  RUNTIME_OUTCOME="$RUNTIME_OUTCOME" \
+                  UPLOAD_EVIDENCE_OUTCOME="$UPLOAD_EVIDENCE_OUTCOME" \
+                  /usr/bin/python3 -I -c '
+          import hashlib
+          import subprocess
+          import sys
+          blob, workspace, *arguments = sys.argv[1:]
+          try:
+              source = subprocess.check_output(
+                  ["/usr/bin/git", "--no-pager", "-C", workspace, "cat-file", "blob", blob],
+                  env={
+                      "PATH": "/usr/bin:/bin",
+                      "HOME": "/nonexistent",
+                      "GIT_CONFIG_NOSYSTEM": "1",
+                      "GIT_CONFIG_GLOBAL": "/dev/null",
+                      "GIT_CONFIG_SYSTEM": "/dev/null",
+                      "GIT_OPTIONAL_LOCKS": "0",
+                  },
+                  stderr=subprocess.DEVNULL,
+              )
+          except subprocess.CalledProcessError:
+              raise SystemExit(2)
+          if not source or len(source) > 131072:
+              raise SystemExit(2)
+          if hashlib.sha1(b"blob " + str(len(source)).encode("ascii") + b"\\0" + source).hexdigest() != blob:
+              raise SystemExit(2)
+          sys.argv = ["<verified-workflow-summary>", *arguments]
+          namespace = {"__name__": "__main__", "__file__": "<verified-git-blob>"}
+          exec(compile(source, namespace["__file__"], "exec"), namespace)
+          ' "$summary_blob" "$GITHUB_WORKSPACE" --connector "$CONNECTOR"

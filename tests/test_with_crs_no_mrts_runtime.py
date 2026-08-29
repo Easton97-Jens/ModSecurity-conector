@@ -84,15 +84,23 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
         outcomes.update(overrides)
         return outcomes
 
-    def test_workflow_summary_counts_actual_outcomes_and_security_skips(self) -> None:
+    def test_workflow_summary_counts_actual_haproxy_evidence_upload(self) -> None:
+        summary = SUMMARY.render_summary("haproxy", self.workflow_outcomes())
+        self.assertIn("| Stages passed | `10` |", summary)
+        self.assertIn("| Stages failed | `0` |", summary)
+        self.assertIn("| Security-policy skips | `0` |", summary)
+        self.assertIn("| Evidence publication | `success` |", summary)
+        self.assertIn("| First non-passing stage | `none` |", summary)
+
+    def test_workflow_summary_treats_skipped_haproxy_upload_as_nonpassing(self) -> None:
         summary = SUMMARY.render_summary(
             "haproxy", self.workflow_outcomes(upload_evidence="skipped")
         )
         self.assertIn("| Stages passed | `9` |", summary)
-        self.assertIn("| Stages failed | `0` |", summary)
-        self.assertIn("| Security-policy skips | `1` |", summary)
-        self.assertIn("| Evidence publication | `skipped_by_security_policy` |", summary)
-        self.assertIn("| First non-passing stage | `none` |", summary)
+        self.assertIn("| Stages skipped | `1` |", summary)
+        self.assertIn("| Security-policy skips | `0` |", summary)
+        self.assertIn("| Evidence publication | `skipped` |", summary)
+        self.assertIn("| First non-passing stage | `Evidence publication` |", summary)
 
     def test_workflow_summary_exposes_failed_runtime_without_promoting_capability(self) -> None:
         summary = SUMMARY.render_summary(

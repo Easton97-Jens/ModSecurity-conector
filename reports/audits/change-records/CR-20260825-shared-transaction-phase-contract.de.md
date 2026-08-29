@@ -761,3 +761,98 @@ selbstreferenzielle Commit-Schleife zu vermeiden, wird der finale SHA gemäß
 der Repository-Traceability-Policy in der veränderlichen PR-Beschreibung und
 der Task-Completion-Evidenz gebunden. PR #344 bleibt Draft und `UNSTABLE`;
 dieser Record beansprucht weder einen Merge noch `verified_pr`.
+
+## 2026-08-29-Nachtrag zur HAProxy-Hosted-Evidence-Projektion
+
+### Motivation und Akzeptanzkriterien
+
+Die bestehende HAProxy-Hosted-Runtime `with-crs/no-mrts` übersprang ihren
+Evidence-Upload bewusst: Ihr Runtime-Root kann durch Prozesse mit derselben
+Runtime-Identität verändert werden, daher würde dessen Kopie oder eine
+Modusänderung keine vertrauenswürdige Upload-Grenze schaffen. Dieser begrenzte
+Follow-up akzeptiert nur einen festen, erfolgreichen HAProxy-P2-Source-Receipt
+und erzeugt nach Runtime-Cleanup ein neues kanonisches, begrenztes,
+payloadfreies und secretfreies Metadatenpaket.
+
+Die lokalen Akzeptanzkriterien sind strikte Source-Schema-/Pfad-/Typ-/Größen-/
+Digest-Validierung, exakt die zwei Allowlist-Dateien
+`haproxy-runtime-evidence.json` und `manifest.json`, ein getrennt besessenes
+versiegeltes Staging-Paket sowie Checkout-Code, der niemals mit erhaltenem
+Root-Privileg läuft. Die finale Abnahme verlangt zusätzlich, dass der exakte
+gepushte PR-Head alle fünf Hosted-Runtime-Zellen abschließt, `Upload real
+runtime evidence` als `success` zeigt, ein vom gemeinsamen Verifier
+akzeptiertes Artefakt bereitstellt und die geforderten frischen externen
+Checks und Reviews erhält.
+
+### Technische Entscheidungen und Sicherheitsauswirkung
+
+`ci/runtime/lifecycle/project-haproxy-runtime-evidence.py` verwendet nur die
+Standardbibliothek und descriptor-relative `O_NOFOLLOW`-Reads, um Pfade,
+Symlinks, Special Files, unerwartetes JSON, verbotene Metadatenkategorien und
+nicht kanonische Ausgabe zurückzuweisen. Es entdeckt oder kopiert keinen
+Runtime-Tree rekursiv. Der Harness schreibt den festen Receipt nach seinem
+bestehenden Cleanup, statt Runtime-Ausgabe für den Upload bereitzustellen. Der
+Workflow startet Runtime-, Source-Export-, Projektions-, Verifikations- und
+finalen Summary-Code nur in einem privaten PID-/Mount-Namespace, nachdem
+`setpriv` auf die vorgesehene unprivilegierte Identität mit `no_new_privs` und
+gelöschten Capabilities/Gruppen abgegeben hat. Feste privilegierte Operationen
+erzeugen, besitzen und versiegeln nur den Staging-Parent; sie führen kein
+Checkout-Python aus und akzeptieren keine runtimekontrollierten Pfade.
+
+Der untrusted Receipt passiert zuerst eine feste unprivilegierte
+`head --bytes=16385`-Stream-Grenze und erreicht den Projektor danach nur über
+Standardeingabe nach der Privilegabgabe. Der Projektor akzeptiert höchstens 16
+KiB und weist das 16.385. Byte zurück; der Workflow sammelt damit keine
+untrusted Receipt-Ausgabe in einer Shell-Variablen. Er ist kein Argument für
+`sudo`, `unshare` oder `setpriv`.
+
+Die exakten Git-Object-Checks binden jede Post-Runtime-Invocation an den
+angeforderten Blob statt an einen Workspace-Pfad, den die vorangehende Runtime
+ändern könnte. Sie beanspruchen nicht, dass PR-ausgewählter Code authentisiert
+ist: Die Sicherheitseigenschaft ist, dass solcher Code sein Privileg bereits
+verloren hat und im begrenzten Namespace läuft. Der finale Uploadpfad ist auf
+die zwei erneut validierten Paketdateien begrenzt und behält
+`if-no-files-found: error`.
+
+Dies behebt die lokalen Findings `FND-PARENT-0987` (Checkout-Python war zuvor
+über einen privilegierten Helper-Pfad erreichbar) und `FND-PARENT-0988` (ein
+abgetrennter Runtime-Descendant konnte ein nur prozessgruppenbasiertes Cleanup
+verlassen) auf Source- und Workflow-Contract-Ebene. Ihre Exact-Head-Hosted-
+Validierung bleibt offen; keines der Findings wird als verified oder closed
+erfasst.
+
+### Geänderte Dateien und tatsächliche lokale Ergebnisse
+
+Die Implementierung ändert den einen benannten Workflow, dessen finalen
+Summary-Runner, den HAProxy-Smoke-Harness, den Projektor/Verifier sowie
+fokussierte Projektor-, Harness-, Workflow-, CI-Security- und Runtime-Tests.
+Dieses englische/deutsche Testing-Guide-Paar und dieses Change-Record-Paar
+dokumentieren den neuen begrenzten Evidence-Vertrag. Es wurden keine Scanner-
+Konfiguration, SonarQube-Einstellung, Exclusion, Suppression, Quality Gate,
+Ruleset, Required Check, Branch-Regel, `paths.env`, Framework-, MRTS-,
+`master`- oder Merge-Status geändert.
+
+| Lokale Validierung | Tatsächliches Ergebnis |
+| --- | --- |
+| Fokussierte Projector-Unittest-Suite | Bestanden: 17 Tests; 9 Cross-Identity-Cases übersprungen, weil dieser Sandbox die erforderliche Host-Capability fehlt. |
+| Fokussierte Harness-, Workflow- und CI-Security-Unittest-Suite (retained Python Environment) | Bestanden: 40 Tests. |
+| `make check-ci-security-contract` | Bestanden: 125 Tests; 5 Host-Capability-Cases übersprungen. |
+| `actionlint` für `.github/workflows/test-connectors-with-crs-no-mrts.yml` | Ohne Ausgabe bestanden. |
+| `zizmor --offline .github/workflows/test-connectors-with-crs-no-mrts.yml` | Bestanden: `No findings to report. Good job!` |
+| Unabhängiger Post-Patch-Security-Review | Kein konkreter verbleibender lokaler Root-Bypass-Pfad gefunden; er behielt Hosted-Namespace-/Cross-Identity-Ausführung als erforderliche Evidenz bei. |
+
+### Runtime-Evidenz, nicht ausgeführte Checks und Restrisiko
+
+Diese Ergebnisse sind nur lokale Source-, Contract- und statische Workflow-
+Evidenz. Für diesen Nachtrag wurde noch keine finale Hosted-Runtime-Matrix
+gestartet; es werden weder HAProxy-Artefakt, Secret-Scan-Ergebnis, CodeQL-
+Ergebnis, finale SonarQube-Cloud-Abfrage noch frischer Exact-Head-regulärer/
+Security-Review beansprucht. Das vorherige SonarQube-Cloud-Nullergebnis wird
+stale, sobald diese Änderung den PR-Head verschiebt, und muss nach dem Push
+über `/usr/local/bin/sonar-with-env` abgefragt werden.
+
+Der lokale Sandbox kann die getrennten Hosted-Identitäten oder das erforderliche
+`unshare`/`sudo`-Namespace-Verhalten nicht dynamisch beweisen. Der Workflow
+prüft sie vorab und schlägt fehlgeschlossen fehl, statt zurückzufallen. PR #344
+bleibt Draft und `UNSTABLE`; es gibt keinen `master`-Push, Merge, `verified_pr`
+oder Produktions-Runtime-Claim.

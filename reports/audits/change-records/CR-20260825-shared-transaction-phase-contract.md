@@ -698,3 +698,90 @@ this documentation commit. To avoid a self-referential commit loop, the final
 SHA is bound in the mutable PR description and task-completion evidence, as
 per the repository traceability policy. PR #344 remains Draft and `UNSTABLE`;
 this record makes no merge or `verified_pr` claim.
+
+## 2026-08-29 HAProxy hosted-evidence projection addendum
+
+### Motivation and acceptance criteria
+
+The existing HAProxy `with-crs/no-mrts` hosted runtime deliberately skipped its
+evidence upload: its runtime root can be modified by processes running as the
+same runtime identity, so copying it or changing its mode would not establish
+a trustworthy upload boundary. This limited follow-up accepts only a fixed,
+successful HAProxy P2 source receipt and produces a new, canonical, bounded,
+payload-free, secret-free metadata package after runtime cleanup.
+
+The local acceptance criteria are strict source schema/path/type/size/digest
+validation, exactly the two allowlisted files `haproxy-runtime-evidence.json`
+and `manifest.json`, a separately owned sealed staging package, and no checkout
+code running with retained root privilege. Final acceptance additionally
+requires the exact pushed PR head to complete all five hosted runtime cells,
+show `Upload real runtime evidence` as `success`, expose an artifact accepted
+by the shared verifier, and receive the required fresh external checks and
+reviews.
+
+### Technical decisions and security impact
+
+`ci/runtime/lifecycle/project-haproxy-runtime-evidence.py` uses only the
+standard library and descriptor-relative `O_NOFOLLOW` reads to reject paths,
+symlinks, special files, unexpected JSON, forbidden metadata categories, and
+non-canonical output. It never recursively discovers or copies a runtime tree.
+The harness writes the fixed receipt after its existing cleanup instead of
+providing runtime output for upload. The workflow starts runtime, source export,
+projection, verification, and final summary code only in a private PID/mount
+namespace after `setpriv` drops to the intended unprivileged identity with
+`no_new_privs` and cleared capabilities/groups. Fixed privileged operations
+only create, own, and seal the staging parent; they do not execute checkout
+Python or accept runtime-controlled paths.
+
+The untrusted receipt first crosses a fixed unprivileged
+`head --bytes=16385` stream cap and then reaches the projector only through
+standard input after the identity drop. The projector accepts at most 16 KiB
+and rejects the 16,385th byte, so the workflow does not collect untrusted
+receipt output in a shell variable. It is not an argument to `sudo`,
+`unshare`, or `setpriv`.
+
+The exact Git-object checks bind each post-runtime invocation to the requested
+blob rather than a workspace pathname that the preceding runtime could change.
+They are not a claim that PR-selected code is authenticated: the security
+property is that such code has already lost privilege and runs in the bounded
+namespace. The final upload path is limited to the two revalidated package
+files and retains `if-no-files-found: error`.
+
+This resolves local findings `FND-PARENT-0987` (checkout Python previously
+reachable through a privileged helper path) and `FND-PARENT-0988` (a detached
+runtime descendant could escape process-group-only cleanup) at the source and
+workflow-contract level. Their exact-head hosted validation remains open;
+neither finding is recorded as verified or closed.
+
+### Changed files and actual local results
+
+The implementation changes the one named workflow, its final summary runner,
+the HAProxy smoke harness, the projector/verifier, and focused projector,
+harness, workflow, CI-security, and runtime tests. This English/German testing
+guide pair and this Change Record pair document the new bounded evidence
+contract. No scanner configuration, SonarQube setting, exclusion, suppression,
+Quality Gate, ruleset, required check, branch rule, `paths.env`, Framework,
+MRTS, `master`, or merge state changed.
+
+| Local validation | Actual result |
+| --- | --- |
+| Focused projector unittest suite | Passed: 17 tests; 9 cross-identity cases skipped because this sandbox cannot provide the required host capability. |
+| Focused harness, workflow, and CI-security unittest suite (retained Python environment) | Passed: 40 tests. |
+| `make check-ci-security-contract` | Passed: 125 tests; 5 host-capability cases skipped. |
+| `actionlint` for `.github/workflows/test-connectors-with-crs-no-mrts.yml` | Passed with no output. |
+| `zizmor --offline .github/workflows/test-connectors-with-crs-no-mrts.yml` | Passed: `No findings to report. Good job!` |
+| Independent post-patch security review | No concrete remaining local root-bypass path found; it retained hosted namespace/cross-identity execution as required evidence. |
+
+### Runtime evidence, checks not run, and residual risk
+
+These results are local source, contract, and static-workflow evidence only.
+No final-head hosted runtime matrix has yet been started for this addendum; no
+HAProxy artifact, secret-scan result, CodeQL result, final SonarQube Cloud
+query, or fresh exact-head regular/security review is claimed. The prior
+SonarQube Cloud zero result is stale as soon as this change advances the PR
+head and must be queried through `/usr/local/bin/sonar-with-env` after push.
+
+The local sandbox cannot dynamically prove the distinct hosted identities or
+the required `unshare`/`sudo` namespace behavior. The workflow preflights them
+and fails closed instead of falling back. PR #344 remains Draft and `UNSTABLE`;
+there is no `master` push, merge, `verified_pr`, or production-runtime claim.
