@@ -210,7 +210,7 @@ $(SPOA_RUNTIME_BIN): FORCE src/haproxy_spop_diagnostic_runtime.c src/haproxy_mod
 	common_objects=""; \
 	for src in src/haproxy_modsecurity_mapper.c $(COMMON_SDK_SRCS) $(RESPONSE_COMPANION_SRCS); do \
 		obj="$(HAPROXY_SPOA_RUNTIME_DIR)/$$(printf '%s' "$$src" | tr '/.' '__').o"; \
-		$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) -I"$(REPO_ROOT)/common/runtime" -Isrc -c "$$src" -o "$$obj" || { \
+		$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) -I"$$MODSECURITY_INCLUDE_DIR" -I"$(REPO_ROOT)/common/runtime" -Isrc -c "$$src" -o "$$obj" || { \
 			echo "FAIL: HAProxy Common SDK source did not compile: $$src" >&2; \
 			exit 1; \
 		}; \

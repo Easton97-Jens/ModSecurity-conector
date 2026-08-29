@@ -194,6 +194,21 @@ class HAProxyModSecurityResolverTests(unittest.TestCase):
         self.assertIn("version-contract.json", overlay)
         self.assertIn("HAPROXY_VERSION=$(contract_field version)", overlay)
 
+    def test_spoa_common_sources_receive_the_resolved_modsecurity_include_dir(self) -> None:
+        makefile = (ROOT / "connectors/haproxy/Makefile").read_text(encoding="utf-8")
+        runtime = (ROOT / "common/runtime/msconnector_runtime.c").read_text(encoding="utf-8")
+        spoa_rule = makefile[
+            makefile.index("$(SPOA_RUNTIME_BIN):") : makefile.index("$(MODSECURITY_BINDING_BIN):")
+        ]
+
+        self.assertIn("$(RESPONSE_COMPANION_SRCS)", spoa_rule)
+        self.assertIn('#include "modsecurity/modsecurity.h"', runtime)
+        self.assertIn(
+            '$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) -I"$$MODSECURITY_INCLUDE_DIR" '
+            '-I"$(REPO_ROOT)/common/runtime" -Isrc -c "$$src" -o "$$obj"',
+            spoa_rule,
+        )
+
     def test_version_contract_accepts_the_repository_contract(self) -> None:
         contract = CONTRACT_MODULE.load_contract(CONTRACT)
         version_parts = contract["version"].split(".")
