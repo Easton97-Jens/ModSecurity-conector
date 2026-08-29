@@ -50,6 +50,7 @@ HAPROXY_PID=
 RUNTIME_CLEANUP_COMPLETE=0
 RUNTIME_SETSID_BIN=
 RUNTIME_PGREP_BIN=
+RUNTIME_PS_BIN=
 export MODSECURITY_TEST_VARIANT
 
 . "$FRAMEWORK_ROOT/ci/lib/common.sh"
@@ -683,9 +684,27 @@ cleanup_runtime_process() {
             ;;
     esac
     if [ -n "$RUNTIME_SETSID_BIN" ]; then
-        if /bin/kill -0 -- "-$process_pid" >/dev/null 2>&1 && \
-            ! /bin/kill -TERM -- "-$process_pid" >/dev/null 2>&1; then
-            printf '%s\n' "haproxy_smoke: cannot stop $process_name process group during cleanup" >&2
+        if kill -0 "$process_pid" >/dev/null 2>&1 && \
+            ! /bin/kill -TERM "$process_pid" >/dev/null 2>&1; then
+            printf '%s\n' "haproxy_smoke: cannot stop $process_name leader during cleanup" >&2
+            return 1
+        fi
+        if ! wait_for_runtime_process_leader_exit "$process_pid" 20; then
+            if /bin/kill -0 -- "-$process_pid" >/dev/null 2>&1 && \
+                ! /bin/kill -TERM -- "-$process_pid" >/dev/null 2>&1; then
+                printf '%s\n' "haproxy_smoke: cannot stop $process_name process group during cleanup" >&2
+                return 1
+            fi
+        fi
+        if ! wait_for_runtime_process_leader_exit "$process_pid" 20; then
+            if /bin/kill -0 -- "-$process_pid" >/dev/null 2>&1 && \
+                ! /bin/kill -KILL -- "-$process_pid" >/dev/null 2>&1; then
+                printf '%s\n' "haproxy_smoke: cannot kill $process_name process group during cleanup" >&2
+                return 1
+            fi
+        fi
+        if ! wait_for_runtime_process_leader_exit "$process_pid" 20; then
+            printf '%s\n' "haproxy_smoke: $process_name leader did not exit during cleanup" >&2
             return 1
         fi
     elif kill -0 "$process_pid" >/dev/null 2>&1 && \
@@ -704,6 +723,24 @@ cleanup_runtime_process() {
             return 1
         fi
     fi
+    if [ -n "$RUNTIME_SETSID_BIN" ] && runtime_process_group_running "$process_pid"; then
+        if ! /bin/kill -TERM -- "-$process_pid" >/dev/null 2>&1 && \
+            runtime_process_group_running "$process_pid"; then
+            printf '%s\n' "haproxy_smoke: cannot stop remaining $process_name process group during cleanup" >&2
+            return 1
+        fi
+        if ! wait_for_runtime_process_group_exit "$process_pid" 20; then
+            if ! /bin/kill -KILL -- "-$process_pid" >/dev/null 2>&1 && \
+                runtime_process_group_running "$process_pid"; then
+                printf '%s\n' "haproxy_smoke: cannot kill remaining $process_name process group during cleanup" >&2
+                return 1
+            fi
+        fi
+        if ! wait_for_runtime_process_group_exit "$process_pid" 20; then
+            printf '%s\n' "haproxy_smoke: $process_name process group did not exit during cleanup" >&2
+            return 1
+        fi
+    fi
     if kill -0 "$process_pid" >/dev/null 2>&1; then
         printf '%s\n' "haproxy_smoke: $process_name remains alive after cleanup" >&2
         return 1
@@ -714,6 +751,59 @@ cleanup_runtime_process() {
         return 1
     fi
     return 0
+}
+
+runtime_process_group_running() {
+    cleanup_group_pid=$1
+
+    if [ -n "$RUNTIME_PGREP_BIN" ]; then
+        "$RUNTIME_PGREP_BIN" -g "$cleanup_group_pid" >/dev/null 2>&1
+    else
+        /bin/kill -0 -- "-$cleanup_group_pid" >/dev/null 2>&1
+    fi
+}
+
+wait_for_runtime_process_group_exit() {
+    cleanup_group_pid=$1
+    cleanup_wait_limit=$2
+    cleanup_wait_attempt=0
+
+    while [ "$cleanup_wait_attempt" -lt "$cleanup_wait_limit" ]; do
+        if ! runtime_process_group_running "$cleanup_group_pid"; then
+            return 0
+        fi
+        sleep 0.1
+        cleanup_wait_attempt=$((cleanup_wait_attempt + 1))
+    done
+    return 1
+}
+
+runtime_process_leader_running() {
+    cleanup_leader_pid=$1
+
+    if ! kill -0 "$cleanup_leader_pid" >/dev/null 2>&1; then
+        return 1
+    fi
+    cleanup_leader_state=$("$RUNTIME_PS_BIN" -o stat= -p "$cleanup_leader_pid" 2>/dev/null || :)
+    case "$cleanup_leader_state" in
+        Z*) return 1 ;;
+    esac
+    return 0
+}
+
+wait_for_runtime_process_leader_exit() {
+    cleanup_leader_pid=$1
+    cleanup_wait_limit=$2
+    cleanup_wait_attempt=0
+
+    while [ "$cleanup_wait_attempt" -lt "$cleanup_wait_limit" ]; do
+        if ! runtime_process_leader_running "$cleanup_leader_pid"; then
+            return 0
+        fi
+        sleep 0.1
+        cleanup_wait_attempt=$((cleanup_wait_attempt + 1))
+    done
+    return 1
 }
 
 require_runtime_process_stopped() {
@@ -1155,8 +1245,11 @@ case "$HAPROXY_EVIDENCE_RECEIPT" in
         if ! RUNTIME_PGREP_BIN=$(command -v pgrep); then
             fail "HAProxy evidence receipt requires pgrep"
         fi
-        case "$RUNTIME_SETSID_BIN:$RUNTIME_PGREP_BIN" in
-            /*:/*) ;;
+        if ! RUNTIME_PS_BIN=$(command -v ps); then
+            fail "HAProxy evidence receipt requires ps"
+        fi
+        case "$RUNTIME_SETSID_BIN:$RUNTIME_PGREP_BIN:$RUNTIME_PS_BIN" in
+            /*:/*:/*) ;;
             *) fail "HAProxy evidence receipt process tools must be absolute" ;;
         esac
         ;;

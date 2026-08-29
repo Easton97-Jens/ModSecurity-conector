@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
+import subprocess
 import unittest
 
 
@@ -206,6 +208,29 @@ class HaproxyEvidenceWorkflowContractTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("os.fchmod(descriptor, 0o550)", projector)
         self.assertNotIn("os.fchmod(descriptor, 0o555)", projector)
+
+    def test_immutable_git_blob_verifiers_use_the_git_nul_delimiter(self) -> None:
+        source = self.source()
+        verifier = (
+            'hashlib.sha1(b"blob " + str(len(source)).encode("ascii") + '
+            'b"\\0" + source).hexdigest() != blob'
+        )
+        malformed_verifier = (
+            'hashlib.sha1(b"blob " + str(len(source)).encode("ascii") + '
+            'b"\\\\0" + source).hexdigest() != blob'
+        )
+        self.assertEqual(source.count(verifier), 4)
+        self.assertNotIn(malformed_verifier, source)
+
+        path = "ci/runtime/lifecycle/summarize-with-crs-no-mrts-workflow.py"
+        blob = subprocess.check_output(
+            ["git", "rev-parse", f"HEAD:{path}"], cwd=ROOT, text=True
+        ).strip()
+        blob_source = subprocess.check_output(["git", "cat-file", "blob", blob], cwd=ROOT)
+        git_digest = hashlib.sha1(
+            b"blob " + str(len(blob_source)).encode("ascii") + b"\0" + blob_source
+        ).hexdigest()
+        self.assertEqual(git_digest, blob)
 
     def test_upload_is_exactly_the_verified_two_file_package(self) -> None:
         source = self.source()

@@ -123,6 +123,19 @@ Workflow-Summary läuft nur nach privatem PID-/Mount-Namespace und
 Privilegabgabe mit `no_new_privs`; privilegierte Operationen haben feste
 nur-Staging-Pfade und führen keinen Checkout-Code aus.
 
+Jeder eingebettete Immutable-Git-Object-Launcher verifiziert den exakten
+Git-Blob-Preimage `b"blob " + Dezimallänge + b"\0" + source`, bevor `compile`
+ihn ausführen kann. `\0` ist hier Git's einzelnes NUL-Trennbyte und nicht ein
+druckbarer Backslash plus Null; ein abweichender Preimage lässt den Job
+fehlschlagen, bevor ausgewählter Checkout-Code ausgeführt wird.
+
+Für eine Evidence-Receipt-Runtime fordert das Cleanup zuerst den `setsid`-
+Leader zum Stoppen auf, gibt ihm ein begrenztes Reaping-Fenster, beendet dann
+eine verbleibende Prozessgruppe und eskaliert nur nach Ablauf des begrenzten
+Termination-Fensters auf `KILL`. Es wartet weiterhin auf den aufgezeichneten
+Leader und verifiziert eine leere Prozessgruppe. Jeder fehlgeschlagene Stop-,
+Wait- oder Residual-Group-Check verhindert Receipt, Projektion und Upload.
+
 Diese Grenze zeichnet nur den festen P2-Receipt auf und beansprucht weder
 P3/P4 noch Produktionsreife oder ein erfolgreiches Hosted-Ergebnis, bevor der
 exakte Workflow-Lauf und sein hochgeladenes Artefakt beobachtet wurden.

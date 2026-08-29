@@ -902,3 +902,53 @@ Artefaktinspektion, Secret-Scan- oder CodeQL-Ergebnis, SonarQube-Cloud-
 Nullergebnis noch frischer regulärer und Security-Codex-Review beansprucht.
 Diese Checks müssen auf dem exakten Successor-PR-Head erneut laufen, und PR
 #344 bleibt bis dahin Draft.
+
+## 2026-08-29-Nachtrag zu immutable Git-Blobs und begrenztem Cleanup
+
+### Evidenzgebundene Korrektur
+
+Der Exact-Head-Hosted-Lauf `33263212757` erreichte in den vier Nicht-HAProxy-
+Zellen den finalen Summary-Schritt, endete jedoch mit Status `2`; HAProxy-
+Projektor und -Verifier verwenden dasselbe Launcher-Muster. Die vier
+eingebetteten Python-Launcher bildeten ihren Git-SHA-1-Preimage mit
+druckbaren `b"\\0"`-Bytes statt mit Git's erforderlichem NUL-Trennbyte
+`b"\0"`. Eine direkte Current-Blob-Berechnung reproduzierte, dass der korrekte
+NUL-Preimage der Git-Object-ID entspricht, die druckbare Form dagegen nicht;
+somit schlug jeder Launcher vor `exec(compile(...))` fehl. Die Korrektur ändert
+nur diese vier Trennbyte-Literale. Object-ID-Check, 128-KiB-Source-Grenze,
+sanitisierte Git-Umgebung, Namespace, Identity Drop, Capability Clearing und
+fail-closed Shell-Verhalten bleiben unverändert.
+
+Die HAProxy-Cleanup-Regression verwendet einen `setsid`-Leader mit einem
+TERM-ignorierenden Nachfahren. Der vorherige reine Gruppen-TERM-Pfad ließ diese
+Gruppe sichtbar und lieferte ein fehlgeschlagenes Cleanup zurück. Der Harness
+gibt dem aufgezeichneten Leader nun ein begrenztes Grace-Fenster, wartet auf
+ihn, sobald er beendet oder als reapbarer Zombie erkennbar ist, beendet danach
+verbleibende Gruppenmitglieder und eskaliert erst nach einem weiteren
+begrenzten Fenster auf `KILL`. Er weist weiterhin einen nicht beendbaren Leader
+oder eine nicht leere Gruppe zurück und unterdrückt Receipt, Projektion und
+Upload bei jedem Fehler. Der ergänzte `ps`-Preflight ist nur für den bereits
+vorhandenen Evidence-Receipt-`setsid`-Modus erforderlich; er unterscheidet
+einen beendeten, aber noch nicht gereapten Leader von einem weiterlaufenden
+Leader, sodass normales erfolgreiches Cleanup nicht jedes begrenzte Fenster
+verbraucht.
+
+### Tatsächliche lokale Validierung
+
+| Lokale Validierung | Tatsächliches Ergebnis |
+| --- | --- |
+| Immutable-Git-Blob-Workflow-Regression vor der Korrektur | Wie beabsichtigt fehlgeschlagen: Der Workflow enthielt null von vier korrekten NUL-Trennbytes. |
+| Immutable-Git-Blob-Workflow-Regression nach der Korrektur | Bestanden. |
+| Cleanup-Regression mit TERM-ignorierendem Nachfahren vor der Korrektur | Wie beabsichtigt fehlgeschlagen: `stubborn process group remains alive after cleanup`. |
+| Fokussierte HAProxy-Cleanup-Harness-Suite nach der Korrektur | Bestanden: 6 Tests. |
+| Fokussierte Projector-, Workflow-, Harness-, CI-Security- und Runtime-Summary-Suite | Bestanden: 122 Tests; 10 erwartete Cross-Identity-Skips. |
+
+### Verbleibende Exact-Head-Evidenz
+
+Dieser Successor ist beim Schreiben dieses Nachtrags noch lokal. Es werden
+weder erfolgreiche Five-Cell-Hosted-Runtime, HAProxy-Artefakt-Upload/-Inspektion,
+Secret Scanning, CodeQL, Successor-SonarQube-Cloud-Nullergebnis noch frischer
+regulärer und Security-Codex-Review beansprucht. Diese Checks müssen an den
+späteren exakten gepushten Head gebunden werden; PR #344 bleibt Draft, und
+Scanner-, Quality-Gate-, Ruleset-, Required-Check-, `paths.env`-, `master`-
+oder Merge-Änderungen sind nicht Teil dieser Arbeit.

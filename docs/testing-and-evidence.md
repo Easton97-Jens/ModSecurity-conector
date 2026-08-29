@@ -115,6 +115,19 @@ summary executes only after a private PID/mount namespace and privilege drop
 with `no_new_privs`; privileged operations have fixed staging-only paths and
 do not execute checkout code.
 
+Each embedded immutable-Git-object launcher verifies the exact Git blob
+preimage `b"blob " + decimal length + b"\0" + source` before `compile` can
+run it. Here `\0` is Git's single NUL delimiter, not a printable backslash and
+zero; a mismatched preimage fails the job before any selected checkout code is
+executed.
+
+For an evidence-receipt runtime, cleanup first asks the `setsid` leader to
+stop, gives it a bounded reaping window, then terminates any remaining process
+group and escalates to `KILL` only if the bounded termination window expires.
+It still waits for the recorded leader and verifies that its process group is
+empty. Any failed stop, wait, or residual-group check prevents the receipt,
+projection, and upload.
+
 This boundary records only the fixed P2 receipt and does not claim P3/P4,
 production readiness, or a successful hosted result until the exact workflow
 run and its uploaded artifact have been observed.

@@ -31,8 +31,11 @@ class HaproxyEvidenceHarnessContractTests(unittest.TestCase):
             self.assertIn(f'cleanup_runtime_process', source)
         self.assertIn("RUNTIME_SETSID_BIN", source)
         self.assertIn("RUNTIME_PGREP_BIN", source)
+        self.assertIn("RUNTIME_PS_BIN", source)
         self.assertIn('"$RUNTIME_PGREP_BIN" -g "$process_pid"', source)
         self.assertIn('/bin/kill -TERM -- "-$process_pid"', source)
+        self.assertIn('! /bin/kill -TERM "$process_pid"', source)
+        self.assertIn('/bin/kill -KILL -- "-$process_pid"', source)
         self.assertIn('if wait "$process_pid" >/dev/null 2>&1; then', source)
         self.assertIn("wait_status", source)
         self.assertIn('trap cleanup_on_exit EXIT', source)
@@ -44,7 +47,7 @@ class HaproxyEvidenceHarnessContractTests(unittest.TestCase):
         self.assertIn("RUNTIME_CLEANUP_COMPLETE=0", cleanup)
 
     @unittest.skipUnless(
-        shutil.which("setsid") and shutil.which("pgrep"),
+        shutil.which("setsid") and shutil.which("pgrep") and shutil.which("ps"),
         "process-group tools are unavailable",
     )
     def test_cleanup_runtime_process_terminates_and_reaps_a_descendant_group(self) -> None:
@@ -57,6 +60,7 @@ set -eu
 library=$1
 RUNTIME_SETSID_BIN=$(command -v setsid)
 RUNTIME_PGREP_BIN=$(command -v pgrep)
+RUNTIME_PS_BIN=$(command -v ps)
 RUNTIME_ROOT=
 HAPROXY_PID=
 AGENT_PID=
@@ -91,6 +95,58 @@ trap - EXIT INT TERM
                 capture_output=True,
                 text=True,
                 timeout=10,
+            )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    @unittest.skipUnless(
+        shutil.which("setsid") and shutil.which("pgrep") and shutil.which("ps"),
+        "process-group tools are unavailable",
+    )
+    def test_cleanup_runtime_process_escalates_for_a_term_ignoring_descendant(self) -> None:
+        source = self.source()
+        cleanup_library = "cleanup_runtime_process() {" + source.split(
+            "cleanup_runtime_process() {", 1
+        )[1].split("write_haproxy_config() {", 1)[0]
+        script = r'''
+set -eu
+library=$1
+RUNTIME_SETSID_BIN=$(command -v setsid)
+RUNTIME_PGREP_BIN=$(command -v pgrep)
+RUNTIME_PS_BIN=$(command -v ps)
+RUNTIME_ROOT=
+HAPROXY_PID=
+AGENT_PID=
+BACKEND_PID=
+. "$library"
+leader=
+test_cleanup() {
+    if [ -n "$leader" ]; then
+        /bin/kill -KILL -- "-$leader" >/dev/null 2>&1 || :
+        wait "$leader" >/dev/null 2>&1 || :
+    fi
+}
+trap test_cleanup EXIT INT TERM
+setsid sh -c '(trap "" TERM; while :; do /bin/sleep 1; done) & wait' &
+leader=$!
+sleep 0.1
+cleanup_runtime_process stubborn "$leader"
+if kill -0 "$leader" >/dev/null 2>&1; then
+    exit 1
+fi
+if "$RUNTIME_PGREP_BIN" -g "$leader" >/dev/null 2>&1; then
+    exit 1
+fi
+trap - EXIT INT TERM
+'''
+        with tempfile.TemporaryDirectory(prefix="haproxy-evidence-stubborn-cleanup-") as directory:
+            library = Path(directory) / "cleanup-library.sh"
+            library.write_text(cleanup_library, encoding="utf-8")
+            result = subprocess.run(
+                ["sh", "-eu", "-c", script, "sh", str(library)],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=15,
             )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 

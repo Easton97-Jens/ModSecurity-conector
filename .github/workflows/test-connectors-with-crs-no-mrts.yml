@@ -468,7 +468,7 @@ jobs:
               raise SystemExit(2)
           if not source or len(source) > 131072:
               raise SystemExit(2)
-          if hashlib.sha1(b"blob " + str(len(source)).encode("ascii") + b"\\0" + source).hexdigest() != blob:
+          if hashlib.sha1(b"blob " + str(len(source)).encode("ascii") + b"\0" + source).hexdigest() != blob:
               raise SystemExit(2)
           sys.argv = ["<verified-haproxy-evidence-projector>", *arguments]
           namespace = {"__name__": "__main__", "__file__": "<verified-git-blob>"}
@@ -523,7 +523,7 @@ jobs:
               raise SystemExit(2)
           if not source or len(source) > 131072:
               raise SystemExit(2)
-          if hashlib.sha1(b"blob " + str(len(source)).encode("ascii") + b"\\0" + source).hexdigest() != blob:
+          if hashlib.sha1(b"blob " + str(len(source)).encode("ascii") + b"\0" + source).hexdigest() != blob:
               raise SystemExit(2)
           sys.argv = ["<verified-haproxy-evidence-projector>", *arguments]
           namespace = {"__name__": "__main__", "__file__": "<verified-git-blob>"}
@@ -641,7 +641,7 @@ jobs:
               raise SystemExit(2)
           if not source or len(source) > 131072:
               raise SystemExit(2)
-          if hashlib.sha1(b"blob " + str(len(source)).encode("ascii") + b"\\0" + source).hexdigest() != blob:
+          if hashlib.sha1(b"blob " + str(len(source)).encode("ascii") + b"\0" + source).hexdigest() != blob:
               raise SystemExit(2)
           sys.argv = ["<verified-haproxy-evidence-projector>", *arguments]
           namespace = {"__name__": "__main__", "__file__": "<verified-git-blob>"}
@@ -784,7 +784,7 @@ jobs:
               raise SystemExit(2)
           if not source or len(source) > 131072:
               raise SystemExit(2)
-          if hashlib.sha1(b"blob " + str(len(source)).encode("ascii") + b"\\0" + source).hexdigest() != blob:
+          if hashlib.sha1(b"blob " + str(len(source)).encode("ascii") + b"\0" + source).hexdigest() != blob:
               raise SystemExit(2)
           sys.argv = ["<verified-workflow-summary>", *arguments]
           namespace = {"__name__": "__main__", "__file__": "<verified-git-blob>"}

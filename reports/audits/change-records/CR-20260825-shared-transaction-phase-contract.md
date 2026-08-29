@@ -828,3 +828,48 @@ written. Therefore no hosted runtime/upload result, artifact inspection,
 secret-scan or CodeQL result, SonarQube Cloud zero result, or fresh regular and
 security Codex review is claimed. Those checks must be rerun on the exact
 successor PR head, and PR #344 remains Draft until then.
+
+## 2026-08-29 immutable Git-blob and bounded-cleanup follow-up
+
+### Evidence-bound correction
+
+Exact-head hosted run `33263212757` reached the final summary step in the
+four non-HAProxy cells but exited with status `2`; the HAProxy projector and
+verifier use the same launcher pattern. The four embedded Python launchers
+formed their Git SHA-1 preimage with printable `b"\\0"` bytes instead of
+Git's required NUL delimiter `b"\0"`. A direct current-blob calculation
+reproduced that the correct NUL preimage equals the Git object ID while the
+printable form does not, so each launcher failed before `exec(compile(...))`.
+The correction changes only those four delimiter literals. It leaves the
+object-ID check, 128-KiB source bound, sanitized Git environment, namespace,
+identity drop, capability clearing, and fail-closed shell behavior unchanged.
+
+The HAProxy cleanup regression uses a `setsid` leader with a TERM-ignoring
+descendant. The prior group-only TERM path left that group observable and
+returned a failed cleanup. The harness now gives the recorded leader a bounded
+grace window, waits for it once it has exited or become a reapable zombie, then
+terminates residual group members and escalates to `KILL` only after another
+bounded window. It still rejects an unkillable leader or nonempty group and
+withholds the receipt, projection, and upload on any failure. The added `ps`
+preflight is required only for the existing evidence-receipt `setsid` mode;
+it distinguishes an exited-but-unreaped leader from a still-running leader so
+ordinary successful cleanup does not consume every bounded window.
+
+### Actual local validation
+
+| Local validation | Actual result |
+| --- | --- |
+| Immutable Git-blob workflow regression before correction | Failed as intended: the workflow contained zero of four correct NUL delimiters. |
+| Immutable Git-blob workflow regression after correction | Passed. |
+| TERM-ignoring descendant cleanup regression before correction | Failed as intended: `stubborn process group remains alive after cleanup`. |
+| Focused HAProxy cleanup harness suite after correction | Passed: 6 tests. |
+| Focused projector, workflow, harness, CI-security, and runtime-summary suite | Passed: 122 tests; 10 expected cross-identity skips. |
+
+### Remaining exact-head evidence
+
+This successor is still local at the time of this addendum. No successful
+five-cell hosted runtime, HAProxy artifact upload/inspection, Secret Scanning,
+CodeQL, successor SonarQube Cloud zero result, or fresh regular and Security
+Codex review is claimed. Those checks must bind to the eventual exact pushed
+head; PR #344 remains Draft, and no scanner, Quality Gate, ruleset,
+required-check, `paths.env`, `master`, or merge change is part of this work.
