@@ -1783,30 +1783,34 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             args=["make"],
             returncode=2,
             stdout=(
-                "cc1: fatal error: required-header.h: No such file or directory\n"
-                "error: -DAPI_SECRET=super-secret-token body=must-not-appear\n"
-                "make: *** [https://example.invalid/private] Error 2\n"
+                "cc1: fatal error: modsecurity/transaction.h: No such file or directory "
+                "Authorization: Bearer hidden\x1b[31m\N{RIGHT-TO-LEFT OVERRIDE}\n"
+                "FAIL: binding compile failed error: -DAPI_SECRET=super-secret-token "
+                "body=must-not-appear https://example.invalid/private\x00\n"
             ),
-            stderr="collect2: error: ld returned 1 exit status\n",
+            stderr="FAIL: HAProxy ModSecurity binding source did not compile\n",
         )
 
         diagnostics = components.haproxy_failure_diagnostic_lines(proc)
         rendered = "\n".join(diagnostics)
 
         self.assertIn("classification=compiler_fatal_error", rendered)
+        self.assertIn("missing_header=transaction.h", rendered)
         self.assertIn("classification=compiler_error", rendered)
-        self.assertIn("classification=linker_driver_error", rendered)
-        self.assertIn("classification=make_recipe_error", rendered)
-        self.assertIn("classification=missing_file_or_header", rendered)
+        self.assertIn("build_step=modsecurity_binding_source_compile", rendered)
         self.assertNotIn("super-secret-token", rendered)
         self.assertNotIn("must-not-appear", rendered)
         self.assertNotIn("https://example.invalid/private", rendered)
+        self.assertNotIn("hidden", rendered)
+        self.assertNotIn("\x1b", rendered)
+        self.assertNotIn("\N{RIGHT-TO-LEFT OVERRIDE}", rendered)
+        self.assertNotIn("\x00", rendered)
         self.assertLessEqual(len(diagnostics), components.HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINES)
 
     def test_haproxy_binding_failure_preserves_status_and_emits_safe_summary(self) -> None:
         record, diagnostic, _ = self.prepare_haproxy_binding_failure_with(
             23,
-            "FAIL: binding compile failed\n"
+            "FAIL: HAProxy ModSecurity binding self-test source did not compile\n"
             "Authorization: Bearer hidden \x1b[31mhttps://example.invalid/private"
             "\N{RIGHT-TO-LEFT OVERRIDE}\n",
         )
@@ -1815,6 +1819,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         self.assertEqual(record["build_exit_code"], 23)
         self.assertIn("target=build-modsecurity-binding build-spoa-runtime", diagnostic)
         self.assertIn("build_log=private_task_owned_haproxy-build.log", diagnostic)
+        self.assertIn("build_step=modsecurity_binding_self_test_source_compile", diagnostic)
         self.assertNotIn("hidden", diagnostic)
         self.assertNotIn("https://example.invalid/private", diagnostic)
         self.assertNotIn("\x1b", diagnostic)
@@ -1847,8 +1852,12 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             args=["make"],
             returncode=2,
             stdout=(
-                "No such file or directory\nnot found\nfatal error:\nerror:\nundefined reference\n"
-                "collect2:\nld: error\nmake: *** [target]\nFAIL: build failed\n"
+                "fatal error: modsecurity/modsecurity.h: No such file or directory\n"
+                "fatal error: modsecurity/rules_set.h: No such file or directory\n"
+                "fatal error: modsecurity/transaction.h: No such file or directory\n"
+                "FAIL: HAProxy ModSecurity binding source did not compile\n"
+                "FAIL: HAProxy ModSecurity binding self-test source did not compile\n"
+                "FAIL: HAProxy ModSecurity binding self-test did not link\n"
             ),
             stderr=None,
         )
@@ -1863,6 +1872,31 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             ),
             [],
         )
+
+    def test_haproxy_binding_failure_diagnostic_accepts_known_stdout_or_stderr_only(self) -> None:
+        known_message = "FAIL: HAProxy ModSecurity SPOA runtime source did not compile\n"
+        expected = {"classification=compiler_error", "build_step=spoa_runtime_source_compile"}
+
+        for output_name in ("stdout", "stderr"):
+            with self.subTest(output_name=output_name):
+                proc = subprocess.CompletedProcess(
+                    args=["make"],
+                    returncode=2,
+                    stdout=known_message if output_name == "stdout" else "",
+                    stderr=known_message if output_name == "stderr" else "",
+                )
+                self.assertEqual(set(components.haproxy_failure_diagnostic_lines(proc)), expected)
+
+        rejected = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout=(
+                "FAIL: build https://example.invalid/Authorization: Bearer hidden\n"
+                "error: body=must-not-appear API_SECRET=super-secret-token\n"
+            ),
+            stderr=None,
+        )
+        self.assertEqual(components.haproxy_failure_diagnostic_lines(rejected), [])
 
     def test_haproxy_missing_prerequisite_remains_blocked(self) -> None:
         record = self.prepare_haproxy_with(
