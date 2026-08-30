@@ -328,6 +328,30 @@ def test_spop_native_htx_companion_requires_explicit_private_bridge() -> None:
     ).read_text(encoding="utf-8")
 
 
+def test_spop_handoff_requires_a_live_common_response_listener() -> None:
+    """Ownership reaches the backend only after Common recovers its listener."""
+    spop_source = (
+        Path(__file__).resolve().parents[1]
+        / "connectors"
+        / "haproxy"
+        / "src"
+        / "haproxy_spop_diagnostic_runtime.c"
+    ).read_text(encoding="utf-8")
+    request_start = spop_source.index("static void process_production_request_notify(")
+    request_end = spop_source.index("static int process_production_notify(", request_start)
+    request_path = spop_source[request_start:request_end]
+    listener = request_path.index(
+        "msconnector_response_companion_transport_ensure_running("
+    )
+    transaction = request_path.index(
+        "haproxy_modsecurity_transaction_handoff_response_companion(transaction)"
+    )
+    backend = request_path.index("haproxy_spop_response_companion_handoff(")
+
+    assert listener < transaction < backend
+    assert "response companion handoff failed closed" in request_path
+
+
 def test_spop_rejects_p3_only_none_activation_and_admits_the_p4_capable_bridge() -> None:
     spop_source = (
         Path(__file__).resolve().parents[1]

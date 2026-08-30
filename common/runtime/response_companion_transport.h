@@ -210,8 +210,18 @@ int msconnector_response_companion_transport_init(
     msconnector_runtime_response_companion_registry *registry,
     const msconnector_response_companion_transport_options *options,
     msconnector_error *error);
+/* Ensures that an initialized transport has a live private listener. A dead
+ * listener is joined and fully cleaned before a fresh listener starts; an
+ * incomplete cleanup fails closed, so no caller can hand off a transaction to
+ * an unavailable listener. */
+int msconnector_response_companion_transport_ensure_running(
+    msconnector_response_companion_transport *transport,
+    msconnector_error *error);
 /* Initializes and starts a companion transport once. The two caller-owned
- * state flags preserve the host's lifecycle ownership across handoffs. */
+ * state flags preserve the host's lifecycle ownership across handoffs. A
+ * stale ready flag is reconciled against the listener's atomic live state;
+ * `ensure_running` requires complete cleanup and a fresh private listener
+ * before another handoff can succeed. */
 int msconnector_response_companion_transport_ensure_started(
     msconnector_response_companion_transport *transport,
     msconnector_runtime_response_companion_registry *registry,
@@ -223,9 +233,10 @@ int msconnector_response_companion_transport_start(
     msconnector_response_companion_transport *transport,
     msconnector_error *error);
 /* Quiesces the listener, shuts down accepted clients, waits for all bounded
- * workers, and unlinks only the socket inode created by this transport. The
- * caller must invoke registry_shutdown() afterwards to drain unclaimed TTL
- * entries. */
+ * workers, and unlinks only the socket inode created by this transport. A
+ * successful cleanup leaves a valid initialized transport restartable; a
+ * failed cleanup remains stopped. The caller must invoke registry_shutdown()
+ * afterwards to drain unclaimed TTL entries when permanently shutting down. */
 int msconnector_response_companion_transport_stop(
     msconnector_response_companion_transport *transport,
     msconnector_error *error);

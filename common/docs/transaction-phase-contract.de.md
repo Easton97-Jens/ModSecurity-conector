@@ -180,6 +180,19 @@ Socket, speichert dessen exakte Inode für Cleanup und prüft unter Linux für
 jeden Peer <code>SO_PEERCRED</code>; Plattformen ohne diese Identitätsprüfung
 schlagen fehl, statt auf TCP oder bloße Mode-Bits zurückzufallen.
 
+Ein erfolgreicher MRC1-Handoff erfordert außerdem, dass dieser private Listener
+im Moment des Ownership-Übergangs lebt.
+<code>msconnector_response_companion_transport_ensure_running</code> ist die
+gemeinsame Vorbedingung: Nach einem terminalen <code>poll</code>- oder
+<code>accept4</code>-Exit joint und bereinigt sie den vorherigen Listener,
+bevor sie einen frischen privaten Socket startet. Envoy ext_authz und Traefik
+forwardAuth dürfen ein gecachtes Ready-Flag nicht als Nachweis behandeln, und
+der direkte HAProxy-SPOE/SPOP-Handoff verwendet dieselbe Vorbedingung vor der
+Backend-Admission. Unvollständiger Cleanup oder fehlgeschlagener Neustart ist
+ein fehlgeschlossener Connector-Fehler: Es wird kein opakes Handle ausgegeben,
+keine Transaktion übergeben und kein Transport-, Versions- oder Capability-
+Fallback erlaubt.
+
 ## Einheitliche Entscheidungen
 
 | Entscheidung | Hostaktion | Eventtyp | Regel-ID | Fehlerrichtlinie | Cleanup |

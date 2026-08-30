@@ -164,6 +164,17 @@ directory, creates a 0600 socket, records its exact inode for cleanup, and on
 Linux checks <code>SO_PEERCRED</code> for every peer; unsupported identity
 platforms fail closed rather than falling back to TCP or mode bits alone.
 
+A successful MRC1 handoff also requires that this private listener is live at
+the moment ownership moves. <code>msconnector_response_companion_transport_ensure_running</code>
+is the shared precondition: after a terminal <code>poll</code> or
+<code>accept4</code> exit it joins and cleans the prior listener before it
+starts a fresh private socket. Envoy ext_authz and Traefik forwardAuth cannot
+treat a cached ready flag as proof, and the direct HAProxy SPOE/SPOP handoff
+uses the same precondition before backend admission. An incomplete cleanup or
+failed restart is a fail-closed connector error: no opaque handle is issued,
+no transaction is handed off, and no transport, version, or capability
+fallback is allowed.
+
 ## Uniform decisions
 
 | Decision | Host action | Event type | Rule ID | Failure policy | Cleanup |

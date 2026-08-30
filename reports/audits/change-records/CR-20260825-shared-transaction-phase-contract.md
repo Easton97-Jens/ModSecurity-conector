@@ -1240,3 +1240,81 @@ successor hosted run. This addendum does not claim that the cache correction
 alone proves the hosted HAProxy root cause or that HAProxy evidence publication
 has succeeded. No workflow, scanner, Quality-Gate, ruleset, required-check,
 `paths.env`, `master`, or merge change is part of this addendum.
+
+## 2026-08-30 response-companion listener recovery
+
+### Motivation and acceptance criteria
+
+`FND-PARENT-0997` records a reproduced shared lifecycle defect: a terminal
+Common listener `poll` or `accept4` exit cleared `listener.running`, but a
+caller-owned ready flag could still make a later Envoy ext_authz or Traefik
+forwardAuth startup call succeed. The direct HAProxy SPOE/SPOP native-HTX route
+had no equivalent live-listener check before it moved transaction ownership to
+the bounded response backend.
+
+The acceptance criteria are that every opaque P2-to-P3/P4 handoff has a live
+private listener and expiry owner, a dead listener is fully cleaned before a
+fresh start, incomplete cleanup fails closed before ownership moves, normal
+live-listener startup remains accepted, and the direct HAProxy order is covered
+by a regression. Exact delivered-head hosted, SonarQube Cloud, and review
+evidence remain required after the normal successor.
+
+### Technical decision and security impact
+
+The shared
+`msconnector_response_companion_transport_ensure_running` helper is the single
+lifecycle seam. It rejects a transport whose stopping state denotes incomplete
+cleanup, joins and cleans a dead prior listener, and starts a fresh private UDS
+listener. `ensure_started` delegates to it for Envoy and Traefik. HAProxy calls
+it before both `haproxy_modsecurity_transaction_handoff_response_companion` and
+`haproxy_spop_response_companion_handoff`. A nonzero `pthread_join` result is
+now a cleanup failure, so the transport remains stopped and cannot be reused.
+
+The change preserves the private UDS, peer-identity, bounded worker, opaque
+handle, TTL, and no-payload-event invariants. It adds no network endpoint,
+fallback, or privilege. An incomplete cleanup or listener restart failure
+returns the existing fail-closed connector path before a handle/lease can be
+created. The deterministic descriptor-close test proves the lifecycle
+transition, not a remote method for causing a terminal kernel error; no
+authorization bypass or fail-open behavior was observed.
+
+### Changed files and documentation
+
+- `common/runtime/response_companion_transport.h`
+- `common/runtime/response_companion_transport.c`
+- `connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c`
+- `tests/response_companion_transport_test.c`
+- `tests/test_haproxy_transaction_contract_binding.py`
+- `common/docs/transaction-phase-contract.md` and
+  `common/docs/transaction-phase-contract.de.md`
+- this English/German Change Record pair
+
+### Tests and actual results
+
+| Validation | Actual result |
+| --- | --- |
+| Strict C17 listener-recovery regression | Passed with `-std=c17 -Wall -Wextra -Werror`; after forced terminal listener exit it joins, restarts, accepts a fresh private client, and removes the owned socket. |
+| Pre-fix regression | Reproduced as expected: exit `134` at the assertion that a stale-ready call must not leave `listener.running` false. |
+| HAProxy handoff contract | `python3 tests/test_haproxy_transaction_contract_binding.py` passed; it proves `ensure_running` precedes both transaction ownership transfer and backend handoff. |
+| Envoy/Traefik companion contracts | `python3 -m unittest -v tests.test_envoy_transport_hardening_contract tests.test_traefik_transport_hardening_contract tests.test_traefik_forwardauth_p2_contract` passed `39` tests. |
+| Common and adapter controls | `make check-common-helpers-c17 check-common-sdk-contract check-common-security-contract check-common-memory-safety check-common-flow-integrity` and `make check-adapter-contracts check-http-authorization-service-timeout` passed. |
+| Documentation and whitespace | `git diff --check`, `make check-bilingual-docs`, and `make check-doc-links` passed against the final local candidate. |
+
+### Runtime evidence, checks not run, and limitations
+
+The C regression is a local private-UDS runtime control. It does not claim a
+deployed Envoy, Traefik, or HAProxy host runtime, and no fresh hosted check,
+SonarQube Cloud result, or remote listener-error trigger exists for this
+uncommitted successor. The direct module invocation of `unittest` found no
+function-style HAProxy tests, so the file's repository-native direct entrypoint
+was used; `pytest` is unavailable locally. Neither result is treated as a
+product failure or as the regression evidence.
+
+### Final review and delivery status
+
+The one permitted independent post-patch bypass/regression review found the
+direct HAProxy sibling route. It was confirmed from source, incorporated in
+the same remediation, and all focused checks above were rerun; no second review
+cycle was opened. At this local-validation point, PR #344 remains Draft and
+this Change Record has no successor-delivery fact yet. No workflow, scanner, Quality-Gate, ruleset,
+required-check, `paths.env`, `master`, or merge change is included.

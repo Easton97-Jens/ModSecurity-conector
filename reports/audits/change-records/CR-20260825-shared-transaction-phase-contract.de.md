@@ -1344,3 +1344,89 @@ Cache-Korrektur die gehostete HAProxy-Root-Cause beweist oder dass die
 HAProxy-Evidence-Publication erfolgreich war. Kein Workflow, Scanner, Quality
 Gate, Ruleset, Required Check, `paths.env`, `master` oder Merge ist Teil dieses
 Nachtrags.
+
+## 2026-08-30 Response-Companion-Listener-Recovery
+
+### Motivation und Akzeptanzkriterien
+
+`FND-PARENT-0997` erfasst einen reproduzierten gemeinsamen Lifecycle-Defekt:
+Ein terminaler Common-Listener-`poll`- oder `accept4`-Exit löschte
+`listener.running`, aber ein aufruferverwaltetes Ready-Flag konnte einen
+späteren Envoy-ext_authz- oder Traefik-forwardAuth-Startaufruf weiterhin
+erfolgreich machen. Die direkte HAProxy-SPOE/SPOP-native-HTX-Route hatte vor
+dem Ownership-Übergang an das begrenzte Response-Backend keine gleichwertige
+Live-Listener-Prüfung.
+
+Die Akzeptanzkriterien sind, dass jeder opake P2-zu-P3/P4-Handoff einen
+lebenden privaten Listener und Ablauf-Owner besitzt, ein beendeter Listener
+vor einem frischen Start vollständig bereinigt wird, unvollständiger Cleanup
+vor Ownership-Übergang fehlgeschlossen endet, normaler Live-Listener-Startup
+akzeptiert bleibt und die direkte HAProxy-Reihenfolge von einer Regression
+abgedeckt ist. Exact-Delivered-Head-Hosted-, SonarQube-Cloud- und Review-
+Evidenz bleiben nach dem normalen Successor erforderlich.
+
+### Technische Entscheidung und Security-Auswirkung
+
+Der gemeinsame Helper
+`msconnector_response_companion_transport_ensure_running` ist der einzige
+Lifecycle-Seam. Er weist einen Transport ab, dessen Stopping-Zustand
+unvollständigen Cleanup bedeutet, joint und bereinigt einen beendeten früheren
+Listener und startet einen frischen privaten UDS-Listener. `ensure_started`
+delegiert für Envoy und Traefik an ihn. HAProxy ruft ihn vor
+`haproxy_modsecurity_transaction_handoff_response_companion` und
+`haproxy_spop_response_companion_handoff` auf. Ein von null verschiedener
+`pthread_join`-Result ist nun Cleanup-Fehler, sodass der Transport gestoppt
+bleibt und nicht wiederverwendet werden kann.
+
+Die Änderung erhält Private-UDS-, Peer-Identity-, begrenzte-Worker-, opake-
+Handle-, TTL- und No-Payload-Event-Invarianten. Sie fügt keinen Netzwerk-
+Endpunkt, Fallback oder Privileg hinzu. Unvollständiger Cleanup oder
+Listener-Neustartfehler gibt den bestehenden fehlgeschlossenen Connector-Pfad
+zurück, bevor ein Handle/Lease erzeugt werden kann. Der deterministische
+Descriptor-Close-Test beweist den Lifecycle-Übergang, nicht eine Remote-Methode
+für einen terminalen Kernel-Fehler; weder Autorisierungs-Bypass noch Fail-open-
+Verhalten wurden beobachtet.
+
+### Geänderte Dateien und Dokumentation
+
+- `common/runtime/response_companion_transport.h`
+- `common/runtime/response_companion_transport.c`
+- `connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c`
+- `tests/response_companion_transport_test.c`
+- `tests/test_haproxy_transaction_contract_binding.py`
+- `common/docs/transaction-phase-contract.md` und
+  `common/docs/transaction-phase-contract.de.md`
+- dieses englische/deutsche Change-Record-Paar
+
+### Tests und tatsächliche Ergebnisse
+
+| Validierung | Tatsächliches Ergebnis |
+| --- | --- |
+| Strikte C17-Listener-Recovery-Regression | Bestand mit `-std=c17 -Wall -Wextra -Werror`; nach erzwungenem terminalen Listener-Exit joint, startet und akzeptiert sie einen frischen privaten Client und entfernt den eigenen Socket. |
+| Pre-Fix-Regression | Wie erwartet reproduziert: Exit `134` an der Assertion, dass ein Stale-Ready-Aufruf `listener.running` nicht false lassen darf. |
+| HAProxy-Handoff-Contract | `python3 tests/test_haproxy_transaction_contract_binding.py` bestand; er beweist, dass `ensure_running` vor Transaktions-Ownership-Transfer und Backend-Handoff liegt. |
+| Envoy-/Traefik-Companion-Contracts | `python3 -m unittest -v tests.test_envoy_transport_hardening_contract tests.test_traefik_transport_hardening_contract tests.test_traefik_forwardauth_p2_contract` bestand mit `39` Tests. |
+| Common- und Adapter-Controls | `make check-common-helpers-c17 check-common-sdk-contract check-common-security-contract check-common-memory-safety check-common-flow-integrity` und `make check-adapter-contracts check-http-authorization-service-timeout` bestanden. |
+| Dokumentation und Whitespace | `git diff --check`, `make check-bilingual-docs` und `make check-doc-links` bestanden gegen den finalen lokalen Kandidaten. |
+
+### Runtime-Evidenz, nicht ausgeführte Checks und Einschränkungen
+
+Die C-Regression ist ein lokaler Private-UDS-Runtime-Control. Sie beansprucht
+weder eine deployte Envoy-, Traefik- oder HAProxy-Host-Runtime, noch existieren
+für diesen uncommitteten Successor ein frischer Hosted-Check, ein
+SonarQube-Cloud-Result oder ein Remote-Listener-Error-Trigger. Die direkte
+`unittest`-Modulinvokation fand keine funktionalen HAProxy-Tests; daher wurde
+der repository-native direkte Entry-Point der Datei verwendet; `pytest` ist
+lokal nicht verfügbar. Keines dieser Ergebnisse wird als Produktfehler oder
+als Regressionsevidenz behandelt.
+
+### Finaler Review- und Delivery-Status
+
+Der eine erlaubte unabhängige Post-Patch-Bypass-/Regression-Review fand die
+direkte HAProxy-Sibling-Route. Sie wurde aus der Source bestätigt, in dieselbe
+Remediation aufgenommen und alle obigen fokussierten Checks wurden erneut
+ausgeführt; es wurde kein zweiter Review-Zyklus geöffnet. Zu diesem Zeitpunkt
+der lokalen Validierung bleibt PR #344 Draft und enthält dieser Change Record
+noch keine Successor-Delivery-Tatsache. Kein Workflow,
+Scanner, Quality Gate, Ruleset, Required Check, `paths.env`, `master` oder
+Merge ist enthalten.

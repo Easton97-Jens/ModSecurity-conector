@@ -2261,6 +2261,33 @@ int msconnector_response_companion_transport_init(
     return result;
 }
 
+int msconnector_response_companion_transport_ensure_running(
+    msconnector_response_companion_transport *transport,
+    msconnector_error *error)
+{
+    if (error != NULL) {
+        msconnector_error_init(error);
+    }
+    if (transport == NULL || !transport->synchronization.initialized) {
+        return response_companion_error(error, MSCONNECTOR_ERROR_INVALID_CONFIG,
+            "response companion transport is not initialized");
+    }
+    if (atomic_load_explicit(&transport->listener.stopping, memory_order_acquire)) {
+        return response_companion_error(error, MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE,
+            "response companion transport cleanup is incomplete");
+    }
+    if (atomic_load_explicit(&transport->listener.running, memory_order_acquire)) {
+        return 1;
+    }
+    if (transport->listener.listener_started ||
+        transport->listener.listener_fd >= 0 || transport->listener.identity_valid) {
+        if (!msconnector_response_companion_transport_stop(transport, error)) {
+            return 0;
+        }
+    }
+    return msconnector_response_companion_transport_start(transport, error);
+}
+
 int msconnector_response_companion_transport_ensure_started(
     msconnector_response_companion_transport *transport,
     msconnector_runtime_response_companion_registry *registry,
@@ -2284,12 +2311,11 @@ int msconnector_response_companion_transport_ensure_started(
         }
         *transport_initialized = 1;
     }
-    if (!*transport_ready) {
-        if (!msconnector_response_companion_transport_start(transport, error)) {
-            return 0;
-        }
-        *transport_ready = 1;
+    if (!msconnector_response_companion_transport_ensure_running(transport, error)) {
+        *transport_ready = 0;
+        return 0;
     }
+    *transport_ready = 1;
     return 1;
 }
 
@@ -2341,6 +2367,7 @@ int msconnector_response_companion_transport_stop(
     msconnector_error *error)
 {
     int cleanup_result = 1;
+    int join_result;
 
     if (error != NULL) {
         msconnector_error_init(error);
@@ -2354,7 +2381,11 @@ int msconnector_response_companion_transport_stop(
         (void)shutdown(transport->listener.listener_fd, SHUT_RDWR);
     }
     if (transport->listener.listener_started) {
-        (void)pthread_join(transport->listener.listener_thread, NULL);
+        join_result = pthread_join(transport->listener.listener_thread, NULL);
+        if (join_result != 0) {
+            return response_companion_error(error, MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE,
+                "response companion listener join failed during cleanup");
+        }
         transport->listener.listener_started = 0;
     }
     /* The listener is the only thread that polls/accepts this descriptor.
@@ -2388,5 +2419,9 @@ int msconnector_response_companion_transport_stop(
         return response_companion_error(error, MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE,
             "response companion transport cleanup was incomplete");
     }
+    /* A successful complete cleanup leaves the initialized transport
+     * restartable.  Failed cleanup deliberately retains `stopping` so no
+     * caller can reuse a transport whose listener or workers may still live. */
+    atomic_store_explicit(&transport->listener.stopping, 0, memory_order_release);
     return 1;
 }

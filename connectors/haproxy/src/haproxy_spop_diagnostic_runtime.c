@@ -2932,7 +2932,9 @@ static void process_production_request_notify(
         } else {
             now_ms = (uint64_t)now.tv_sec * UINT64_C(1000) +
                 (uint64_t)now.tv_nsec / UINT64_C(1000000);
-            if (haproxy_modsecurity_transaction_handoff_response_companion(transaction) != 0 ||
+            if (!msconnector_response_companion_transport_ensure_running(
+                    &state->response_transport, &companion_error) ||
+                    haproxy_modsecurity_transaction_handoff_response_companion(transaction) != 0 ||
                     !haproxy_spop_response_companion_handoff(
                         &state->response_backend, transaction, now_ms,
                         response_handle, &companion_error)) {

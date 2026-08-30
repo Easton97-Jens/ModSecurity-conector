@@ -182,6 +182,18 @@ static void sleep_milliseconds(long milliseconds)
     }
 }
 
+static void wait_for_listener_stop(const msconnector_response_companion_transport *transport)
+{
+    size_t attempt;
+
+    assert(transport != NULL);
+    for (attempt = 0U; attempt < 500U && atomic_load_explicit(
+            &transport->listener.running, memory_order_acquire); ++attempt) {
+        sleep_milliseconds(1L);
+    }
+    assert(!atomic_load_explicit(&transport->listener.running, memory_order_acquire));
+}
+
 static int write_all(int socket_fd, const unsigned char *data, size_t size)
 {
     size_t offset = 0U;
@@ -1643,6 +1655,7 @@ static void run_transport_startup_helper_contract_test(void)
     int inconsistent_initialized = 0;
     int inconsistent_ready = 1;
     int listener_fd;
+    int recovery_fd;
     int blocked_fd;
 
     memset(&transport, 0, sizeof(transport));
@@ -1688,6 +1701,18 @@ static void run_transport_startup_helper_contract_test(void)
         &initialized, &ready, TEST_TRANSPORT_OPTIONS("startup-test", socket_path,
             32U, 64U, 8U, 100U), &error));
     assert(transport.listener.listener_fd == listener_fd);
+
+    /* A terminal poll path leaves the old descriptor invalid and ends the
+     * listener thread.  No descriptor is opened here before Common joins the
+     * dead thread, so the test cannot accidentally reuse the stale number. */
+    assert(close(listener_fd) == 0);
+    wait_for_listener_stop(&transport);
+    assert(msconnector_response_companion_transport_ensure_started(&transport, &registry,
+        &initialized, &ready, TEST_TRANSPORT_OPTIONS("startup-test", socket_path,
+            32U, 64U, 8U, 100U), &error));
+    assert(atomic_load_explicit(&transport.listener.running, memory_order_acquire));
+    recovery_fd = connect_client(socket_path);
+    assert(close(recovery_fd) == 0);
     assert(msconnector_response_companion_transport_stop(&transport, &error));
     assert(access(socket_path, F_OK) != 0);
 
