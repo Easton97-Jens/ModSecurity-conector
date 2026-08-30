@@ -207,7 +207,7 @@ func TestResponseHeaderEncodingAllowsCommonHeaderCountLimit(t *testing.T) {
 	for index := 0; index < acceptedFieldCount; index++ {
 		headers[fmt.Sprintf("X-%03d", index)] = []string{"v"}
 	}
-	if payload := encodeResponseHeaders(http.StatusOK, headers); payload == nil {
+	if encodeResponseHeaders(http.StatusOK, headers) == nil {
 		t.Fatal("encodeResponseHeaders(256 headers) = nil, want payload")
 	}
 	headers["X-256"] = []string{"v"}
