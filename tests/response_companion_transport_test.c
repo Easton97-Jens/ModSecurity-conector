@@ -184,10 +184,8 @@ static void sleep_milliseconds(long milliseconds)
 
 static void wait_for_listener_stop(const msconnector_response_companion_transport *transport)
 {
-    size_t attempt;
-
     assert(transport != NULL);
-    for (attempt = 0U; attempt < 500U && atomic_load_explicit(
+    for (size_t attempt = 0U; attempt < 500U && atomic_load_explicit(
             &transport->listener.running, memory_order_acquire); ++attempt) {
         sleep_milliseconds(1L);
     }

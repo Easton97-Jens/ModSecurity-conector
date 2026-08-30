@@ -2279,11 +2279,10 @@ int msconnector_response_companion_transport_ensure_running(
     if (atomic_load_explicit(&transport->listener.running, memory_order_acquire)) {
         return 1;
     }
-    if (transport->listener.listener_started ||
-        transport->listener.listener_fd >= 0 || transport->listener.identity_valid) {
-        if (!msconnector_response_companion_transport_stop(transport, error)) {
-            return 0;
-        }
+    if ((transport->listener.listener_started ||
+            transport->listener.listener_fd >= 0 || transport->listener.identity_valid) &&
+        !msconnector_response_companion_transport_stop(transport, error)) {
+        return 0;
     }
     return msconnector_response_companion_transport_start(transport, error);
 }
