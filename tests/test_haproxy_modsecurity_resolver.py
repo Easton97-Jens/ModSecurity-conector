@@ -118,12 +118,27 @@ class HAProxyModSecurityResolverTests(unittest.TestCase):
             self.assertIn("architecture", result.stderr)
             self.assertIn("sentinel=architecture_mismatch", result.stderr)
 
-    def test_required_header_failures_are_specific_only_when_unambiguous(self) -> None:
+    def test_required_header_failures_are_specific_for_every_header_mask(self) -> None:
         cases = (
             (("modsecurity.h",), "header_modsecurity_h_missing"),
             (("rules_set.h",), "header_rules_set_h_missing"),
             (("transaction.h",), "header_transaction_h_missing"),
-            (("modsecurity.h", "rules_set.h"), "headers_missing"),
+            (
+                ("modsecurity.h", "rules_set.h"),
+                "headers_modsecurity_h_and_rules_set_h_missing",
+            ),
+            (
+                ("modsecurity.h", "transaction.h"),
+                "headers_modsecurity_h_and_transaction_h_missing",
+            ),
+            (
+                ("rules_set.h", "transaction.h"),
+                "headers_rules_set_h_and_transaction_h_missing",
+            ),
+            (
+                ("modsecurity.h", "rules_set.h", "transaction.h"),
+                "headers_modsecurity_h_and_rules_set_h_and_transaction_h_missing",
+            ),
         )
         for missing_headers, expected_cause in cases:
             with self.subTest(missing_headers=missing_headers):
@@ -238,6 +253,10 @@ class HAProxyModSecurityResolverTests(unittest.TestCase):
             "headers_not_found",
             "library_not_found",
             "headers_missing",
+            "headers_modsecurity_h_and_rules_set_h_missing",
+            "headers_modsecurity_h_and_transaction_h_missing",
+            "headers_rules_set_h_and_transaction_h_missing",
+            "headers_modsecurity_h_and_rules_set_h_and_transaction_h_missing",
             "header_modsecurity_h_missing",
             "header_rules_set_h_missing",
             "header_transaction_h_missing",

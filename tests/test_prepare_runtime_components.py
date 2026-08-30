@@ -2050,6 +2050,25 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unknown HAProxy resolver diagnostic cause"):
             components.haproxy_resolver_cause_diagnostics("untrusted-cause")
 
+    def test_haproxy_multi_header_resolver_sentinels_are_exact_and_fixed(self) -> None:
+        causes = (
+            "headers_modsecurity_h_and_rules_set_h_missing",
+            "headers_modsecurity_h_and_transaction_h_missing",
+            "headers_rules_set_h_and_transaction_h_missing",
+            "headers_modsecurity_h_and_rules_set_h_and_transaction_h_missing",
+        )
+        for cause in causes:
+            with self.subTest(cause=cause):
+                sentinel = components.HAPROXY_RESOLVER_SENTINEL_PREFIX + cause
+                self.assertEqual(
+                    components.HAPROXY_RESOLVER_SENTINEL_DIAGNOSTICS[sentinel],
+                    (
+                        components.HAPROXY_DIAGNOSTIC_RESOLVER_ERROR,
+                        "build_step=modsecurity_resolver",
+                        f"resolver_cause={cause}",
+                    ),
+                )
+
     def test_haproxy_binding_failure_diagnostic_emits_only_safe_resolver_annotation(self) -> None:
         exact_sentinel, exact_diagnostics = next(
             iter(components.HAPROXY_RESOLVER_SENTINEL_DIAGNOSTICS.items())

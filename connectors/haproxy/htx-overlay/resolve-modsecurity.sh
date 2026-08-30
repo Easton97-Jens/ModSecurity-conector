@@ -28,6 +28,18 @@ blocked_sentinel() {
         headers_missing)
             printf '%s\n' 'BLOCKED: HAProxy libModSecurity resolver: sentinel=headers_missing' >&2
             ;;
+        headers_modsecurity_h_and_rules_set_h_missing)
+            printf '%s\n' 'BLOCKED: HAProxy libModSecurity resolver: sentinel=headers_modsecurity_h_and_rules_set_h_missing' >&2
+            ;;
+        headers_modsecurity_h_and_transaction_h_missing)
+            printf '%s\n' 'BLOCKED: HAProxy libModSecurity resolver: sentinel=headers_modsecurity_h_and_transaction_h_missing' >&2
+            ;;
+        headers_rules_set_h_and_transaction_h_missing)
+            printf '%s\n' 'BLOCKED: HAProxy libModSecurity resolver: sentinel=headers_rules_set_h_and_transaction_h_missing' >&2
+            ;;
+        headers_modsecurity_h_and_rules_set_h_and_transaction_h_missing)
+            printf '%s\n' 'BLOCKED: HAProxy libModSecurity resolver: sentinel=headers_modsecurity_h_and_rules_set_h_and_transaction_h_missing' >&2
+            ;;
         header_modsecurity_h_missing)
             printf '%s\n' 'BLOCKED: HAProxy libModSecurity resolver: sentinel=header_modsecurity_h_missing' >&2
             ;;
@@ -205,6 +217,26 @@ if ! valid_include "$include_dir"; then
        [ -f "$include_dir/modsecurity/rules_set.h" ] &&
        [ ! -f "$include_dir/modsecurity/transaction.h" ]; then
         blocked header_transaction_h_missing "header/library pairing rejected: required headers missing under $include_dir"
+    fi
+    if [ ! -f "$include_dir/modsecurity/modsecurity.h" ] &&
+       [ ! -f "$include_dir/modsecurity/rules_set.h" ] &&
+       [ -f "$include_dir/modsecurity/transaction.h" ]; then
+        blocked headers_modsecurity_h_and_rules_set_h_missing "header/library pairing rejected: required headers missing under $include_dir"
+    fi
+    if [ ! -f "$include_dir/modsecurity/modsecurity.h" ] &&
+       [ -f "$include_dir/modsecurity/rules_set.h" ] &&
+       [ ! -f "$include_dir/modsecurity/transaction.h" ]; then
+        blocked headers_modsecurity_h_and_transaction_h_missing "header/library pairing rejected: required headers missing under $include_dir"
+    fi
+    if [ -f "$include_dir/modsecurity/modsecurity.h" ] &&
+       [ ! -f "$include_dir/modsecurity/rules_set.h" ] &&
+       [ ! -f "$include_dir/modsecurity/transaction.h" ]; then
+        blocked headers_rules_set_h_and_transaction_h_missing "header/library pairing rejected: required headers missing under $include_dir"
+    fi
+    if [ ! -f "$include_dir/modsecurity/modsecurity.h" ] &&
+       [ ! -f "$include_dir/modsecurity/rules_set.h" ] &&
+       [ ! -f "$include_dir/modsecurity/transaction.h" ]; then
+        blocked headers_modsecurity_h_and_rules_set_h_and_transaction_h_missing "header/library pairing rejected: required headers missing under $include_dir"
     fi
     blocked headers_missing "header/library pairing rejected: required headers missing under $include_dir"
 fi

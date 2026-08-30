@@ -1172,12 +1172,12 @@ That is a release blocker, not a source-cause result.
 The successor candidate gives the resolver one closed machine-readable
 channel. Every controlled `blocked` branch first emits one literal
 `BLOCKED: HAProxy libModSecurity resolver: sentinel=<cause>` line from the
-fixed 18-value allowlist, then retains its existing human-detail line and exit
-status `77`. Three additive causes identify exactly one missing public header
-(`modsecurity.h`, `rules_set.h`, or `transaction.h`); ambiguous multi-header
-absence retains the prior `headers_missing` cause. An unknown internal code is
-rejected with the same nonzero exit. The legacy detail is not parsed as a
-cause.
+fixed 22-value allowlist, then retains its existing human-detail line and exit
+status `77`. Seven additive causes identify every nonempty missing-header mask
+of the fixed public trio (`modsecurity.h`, `rules_set.h`, and
+`transaction.h`); the defensive `headers_missing` cause remains as the
+fallback for a non-exact state. An unknown internal code is rejected with the
+same nonzero exit. The legacy detail is not parsed as a cause.
 
 The Python recognizer maps only one complete, bounded `stderr` sentinel line
 to fixed `classification=resolver_error`, `build_step=modsecurity_resolver`,
@@ -1192,7 +1192,7 @@ it. The annotation cannot change build status, cleanup, receipt eligibility,
 projection, verification, upload, scanner, or Quality-Gate behavior.
 
 Actual local validation of this uncommitted candidate passed: resolver shell
-syntax; an in-memory Python syntax check; 13 focused resolver tests; and 70
+syntax; an in-memory Python syntax check; 14 focused resolver tests; and 71
 focused provisioning tests. The latter cover all sentinels, CRLF, suffix,
 stdout, unknown, and overlong rejection, a rejected unknown internal cause,
 private-output non-leakage, and exact annotation behavior. The candidate has

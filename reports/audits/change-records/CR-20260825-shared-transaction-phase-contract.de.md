@@ -1269,13 +1269,13 @@ Source-Cause-Ergebnis.
 Der Successor-Kandidat gibt dem Resolver einen geschlossenen maschinenlesbaren
 Kanal. Jeder kontrollierte `blocked`-Zweig gibt zuerst genau eine literale
 Zeile `BLOCKED: HAProxy libModSecurity resolver: sentinel=<cause>` aus der
-festen Allowlist von 18 Werten aus, behält anschließend seine bisherige
-Detailzeile für Menschen und den Exit-Status `77`. Drei additive Ursachen
-benennen genau einen fehlenden öffentlichen Header (`modsecurity.h`,
-`rules_set.h` oder `transaction.h`); mehrdeutiges Fehlen mehrerer Header
-behält die bisherige Ursache `headers_missing`. Ein unbekannter interner Code
-wird mit demselben Nonzero-Exit zurückgewiesen. Die Legacy-Detailzeile wird
-nicht als Ursache geparst.
+festen Allowlist von 22 Werten aus, behält anschließend seine bisherige
+Detailzeile für Menschen und den Exit-Status `77`. Sieben additive Ursachen
+benennen jede nichtleere Fehlermenge des festen öffentlichen Trios
+(`modsecurity.h`, `rules_set.h` und `transaction.h`); die defensive Ursache
+`headers_missing` bleibt der Fallback für einen nicht-exakten Zustand. Ein
+unbekannter interner Code wird mit demselben Nonzero-Exit zurückgewiesen. Die
+Legacy-Detailzeile wird nicht als Ursache geparst.
 
 Der Python-Recognizer ordnet nur eine vollständige, begrenzte `stderr`-
 Sentinel-Zeile festen Diagnosen `classification=resolver_error`,
@@ -1292,8 +1292,8 @@ Annotation kann Buildstatus, Cleanup, Receipt-Berechtigung, Projektion,
 Verifikation, Upload, Scanner oder Quality-Gate nicht ändern.
 
 Die tatsächliche lokale Validierung dieses noch uncommitteten Kandidaten
-bestand: Resolver-Shellsyntax; ein Python-Syntaxcheck im Speicher; 13
-fokussierte Resolver-Tests; und 70 fokussierte Provisioning-Tests. Letztere
+bestand: Resolver-Shellsyntax; ein Python-Syntaxcheck im Speicher; 14
+fokussierte Resolver-Tests; und 71 fokussierte Provisioning-Tests. Letztere
 decken alle Sentinel, CRLF, Suffix-, stdout-, unbekannte und überlange
 Zurückweisungen, einen zurückgewiesenen unbekannten internen Code, die
 Nichtweitergabe privater Ausgabe sowie das exakte Annotationsverhalten ab. Der
