@@ -1393,21 +1393,22 @@ raw build log.
 
 ### Acceptance criteria
 
-The diagnostic is off by default, usable only for the HAProxy target with its
-evidence receipt, and emits at most a fixed component, build-step, bounded
-exit-code, and classification tuple. It must not alter build outcomes,
-records, cleanup, receipt eligibility, projection, verification, upload, or
-the runtime sandbox. The switch, emitter, and dedicated tests are removed in a
-successor after one enabled dispatch.
+The diagnostic was off by default, usable only for the HAProxy target with its
+evidence receipt, and emitted at most a fixed component, build-step, bounded
+exit-code, and classification tuple. It did not alter build outcomes, records,
+cleanup, receipt eligibility, projection, verification, upload, or the runtime
+sandbox. The switch, emitter, and dedicated tests are now removed after one
+enabled dispatch.
 
 ### Technical decisions
 
-`workflow_dispatch` has one Boolean input,
-`haproxy_component_failure_diagnostics`, defaulting to `false`. It evaluates
-to `RUNTIME_COMPONENT_FAILURE_DIAGNOSTICS=1` only for an explicit `true`
-dispatch and is passed only inside the existing HAProxy isolated `env -i`
-environment. The provisioner additionally requires
-`RUNTIME_COMPONENT_TARGET=haproxy` and `HAPROXY_EVIDENCE_RECEIPT=1`.
+The temporary `workflow_dispatch` Boolean input,
+`haproxy_component_failure_diagnostics`, defaulted to `false`. It evaluated to
+`RUNTIME_COMPONENT_FAILURE_DIAGNOSTICS=1` only for an explicit `true` dispatch
+and was passed only inside the existing HAProxy isolated `env -i` environment.
+The provisioner additionally required `RUNTIME_COMPONENT_TARGET=haproxy` and
+`HAPROXY_EVIDENCE_RECEIPT=1`. All of these temporary surfaces are removed in
+the cleanup candidate.
 
 Private Expat/ModSecurity output is examined only in memory to select a static
 allowlist value. The sole output has the fixed form
@@ -1419,11 +1420,11 @@ failure classification and exit-code behavior.
 ### Security impact
 
 No private command output, argument, path, URL, environment value, header,
-body, credential, token, cookie, or raw log is emitted or added to evidence.
+body, credential, token, cookie, or raw log was emitted or added to evidence.
 The existing `env -i`, `unshare`, `setpriv --no-new-privs`, capability-drop,
 UID/GID isolation, cleanup, strict projector, verifier, and fail-closed upload
-boundary remain unchanged. An independent post-patch security review found no
-diagnostic leak or sandbox regression.
+boundary remained unchanged. An independent post-patch security review found
+no diagnostic leak or sandbox regression.
 
 ### Changed files
 
@@ -1439,23 +1440,34 @@ diagnostic leak or sandbox regression.
 | --- | --- |
 | Focused diagnostic and HAProxy workflow tests | Passed: 5 tests. |
 | `tests.test_prepare_runtime_components` | Passed: 81 tests. |
+| Cleanup `tests.test_prepare_runtime_components` | Passed: 77 tests. |
 | HAProxy workflow-contract suites | Passed: 38 tests. |
 | Runtime, projection, and HAProxy harness contract suites | Passed: 101 tests; 11 environment-supported skips. |
-| `actionlint` | Passed for `.github/workflows/test-connectors-with-crs-no-mrts.yml`. |
-| `zizmor` | Passed for that workflow; it reported only its offline capability note. |
-| `git diff --check` | Passed. |
+| Cleanup combined workflow, runtime, projection, and harness contracts | Passed: 139 tests; 11 environment-supported skips. |
+| `actionlint` | Passed for `.github/workflows/test-connectors-with-crs-no-mrts.yml` before and after cleanup. |
+| `zizmor` | Passed for that workflow before and after cleanup; it reported only its offline capability note. |
+| Documentation and whitespace cleanup checks | `make check-bilingual-docs`, `make check-doc-links`, and `git diff --check` passed. |
 
 ### Runtime evidence
 
-No enabled diagnostic dispatch, commit, push, hosted runtime result, artifact,
-or evidence publication exists for this local candidate yet. The diagnostic is
-not a production repair and does not prove the HAProxy root cause.
+One enabled manual dispatch ran as
+[`33333351395`](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/33333351395)
+at exact head `092276eb6395d8caaddbe1a167f5ad065029430c`. Apache, Envoy,
+Traefik, and lighttpd succeeded; HAProxy failed in its selected real runtime
+step before projection, verification, upload, or HAProxy artifact publication.
+The only retained diagnostics were
+`component=expat build_step=expat-configure exit_code=1 classification=expat_build_failed`
+and
+`component=modsecurity build_step=modsecurity-configure exit_code=1 classification=modsecurity_build_failed`.
+They establish no source-backed missing dependency, tool, path, or environment
+value. No raw job log was stored, reported, or published. The temporary
+workflow switch, emitter, and dedicated tests are removed in the cleanup
+candidate; this remains a diagnosis, not a production repair.
 
 ### Checks not run
 
-`ruff` was not run because no local executable is available. The bilingual and
-documentation-link checks, delivery preflight, and hosted/manual-dispatch
-checks remain pending at this point.
+`ruff` was not run because no local executable is available. Delivery
+preflight and successor hosted checks remain pending at this point.
 
 ### Known limitations
 
@@ -1465,15 +1477,16 @@ valid evidence that no source-backed repair is justified yet.
 
 ### Residual risks
 
-PR #344 remains Draft and blocked on a safe, exact-head hosted diagnosis and
-subsequent runtime verification. `FND-PARENT-0975` remains `in_progress` /
+PR #344 remains Draft and blocked on a source-backed runtime repair and
+subsequent exact-head verification. `FND-PARENT-0975` remains `in_progress` /
 `blocked_missing_evidence`; the preflight status-integrity behavior is already
 covered there and needs no duplicate finding.
 
 ### Final review status
 
-Local implementation and independent security review are complete. Delivery,
-one enabled bounded manual dispatch, full temporary-path removal, and all
-successor hosted verification are still pending. No workflow security control,
-scanner, Quality Gate, ruleset, required check, `paths.env`, `master`, or
-merge change is included.
+The initial local implementation and independent security review completed;
+the one enabled bounded manual dispatch completed; the temporary path is
+removed; and cleanup validation is complete. Normal delivery to the existing
+Draft PR branch and all successor hosted verification are still pending. No
+workflow security control, scanner, Quality Gate, ruleset, required check,
+`paths.env`, `master`, or merge change is included.

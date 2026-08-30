@@ -94,61 +94,6 @@ HTTPS_URL_KEYS = (
 NGINX_HTTPS_URL_KEYS = frozenset({"NGINX_QUIC_TLS_SOURCE_URL"})
 RUNTIME_COMPONENT_TARGETS = ("all", "shared", "apache", "nginx", "haproxy")
 NGINX_RUNTIME_COMPONENT_TARGETS = frozenset({"all", "nginx"})
-RUNTIME_COMPONENT_FAILURE_DIAGNOSTICS_ENV = "RUNTIME_COMPONENT_FAILURE_DIAGNOSTICS"
-RUNTIME_COMPONENT_FAILURE_DIAGNOSTIC_TARGET = "haproxy"
-HAPROXY_EVIDENCE_RECEIPT_ENV = "HAPROXY_EVIDENCE_RECEIPT"
-RUNTIME_COMPONENT_FAILURE_DIAGNOSTIC_STEPS = {
-    "expat": frozenset(
-        {
-            "expat-buildconf",
-            "expat-autoreconf",
-            "expat-configure",
-            "expat-make",
-            "expat-make-install",
-            "expat-cmake-configure",
-            "expat-cmake-build",
-            "expat-cmake-install",
-        }
-    ),
-    "modsecurity": frozenset(
-        {
-            "modsecurity-build-sh",
-            "modsecurity-configure",
-            "modsecurity-make",
-        }
-    ),
-}
-RUNTIME_COMPONENT_FAILURE_DIAGNOSTIC_CLASSIFICATIONS = {
-    "expat": frozenset(
-        {
-            "missing_cmake",
-            "missing_autoconf",
-            "missing_automake",
-            "missing_libtool",
-            "missing_make",
-            "missing_compiler",
-            "configure_c_compiler_unusable",
-            "configure_c_program_execution_unavailable",
-            "configure_compiler_link_failure",
-            "temporary_file_creation_failed",
-            "filesystem_full",
-            "memory_unavailable",
-            "filesystem_permission_denied",
-            "expat_build_failed",
-        }
-    ),
-    "modsecurity": frozenset({"modsecurity_build_failed"}),
-}
-EXPAT_FAILURE_DIAGNOSTIC_MARKERS = (
-    ("configure: error: c compiler cannot create executables", "configure_c_compiler_unusable"),
-    ("configure: error: cannot run c compiled programs.", "configure_c_program_execution_unavailable"),
-    ("cannot compute suffix of executables", "configure_compiler_link_failure"),
-    ("cannot create temporary file", "temporary_file_creation_failed"),
-    ("no space left on device", "filesystem_full"),
-    ("cannot allocate memory", "memory_unavailable"),
-    ("out of memory", "memory_unavailable"),
-    ("permission denied", "filesystem_permission_denied"),
-)
 
 
 NGINX_PROTOCOL_PROFILES = ("h1", "h1-h2", "h1-h2-h3-quic")
@@ -3437,82 +3382,6 @@ def map_expat_build_failure(text: str) -> str:
     return "expat_build_failed"
 
 
-def expat_failure_diagnostic_classification(text: str) -> str:
-    """Map private tool output to one static diagnosis enum without exposing it."""
-
-    classification = map_expat_build_failure(text)
-    if classification != "expat_build_failed":
-        return classification
-    matches = {
-        candidate
-        for marker, candidate in EXPAT_FAILURE_DIAGNOSTIC_MARKERS
-        if marker in text.lower()
-    }
-    return next(iter(matches)) if len(matches) == 1 else classification
-
-
-def runtime_component_failure_diagnostics_enabled(env: dict[str, str]) -> bool:
-    """Allow the temporary closed-enum diagnostic only for the HAProxy target."""
-
-    return (
-        env.get(RUNTIME_COMPONENT_FAILURE_DIAGNOSTICS_ENV) == "1"
-        and env.get("RUNTIME_COMPONENT_TARGET") == RUNTIME_COMPONENT_FAILURE_DIAGNOSTIC_TARGET
-        and env.get(HAPROXY_EVIDENCE_RECEIPT_ENV) == "1"
-    )
-
-
-def configure_runtime_component_failure_diagnostics(
-    env: dict[str, str],
-    initial_env: dict[str, str],
-    target_connector: str,
-) -> None:
-    """Bind the temporary diagnostic to the parsed target and receipt mode."""
-
-    env["RUNTIME_COMPONENT_TARGET"] = target_connector
-    if (
-        initial_env.get(RUNTIME_COMPONENT_FAILURE_DIAGNOSTICS_ENV) == "1"
-        and initial_env.get(HAPROXY_EVIDENCE_RECEIPT_ENV) == "1"
-        and target_connector == RUNTIME_COMPONENT_FAILURE_DIAGNOSTIC_TARGET
-    ):
-        env[RUNTIME_COMPONENT_FAILURE_DIAGNOSTICS_ENV] = "1"
-        env[HAPROXY_EVIDENCE_RECEIPT_ENV] = "1"
-        return
-    env.pop(RUNTIME_COMPONENT_FAILURE_DIAGNOSTICS_ENV, None)
-
-
-def runtime_component_failure_diagnostic_exit_code(return_code: int) -> str:
-    """Return a bounded representation without accepting arbitrary process data."""
-
-    if isinstance(return_code, int) and not isinstance(return_code, bool) and 0 <= return_code <= 255:
-        return str(return_code)
-    return "unavailable"
-
-
-def emit_runtime_component_failure_diagnostic(
-    env: dict[str, str],
-    component: str,
-    build_step: str,
-    return_code: int,
-    classification: str,
-) -> None:
-    """Emit fixed failure metadata without tool output, paths, or environment values."""
-
-    if not runtime_component_failure_diagnostics_enabled(env):
-        return
-    allowed_steps = RUNTIME_COMPONENT_FAILURE_DIAGNOSTIC_STEPS.get(component)
-    allowed_classifications = RUNTIME_COMPONENT_FAILURE_DIAGNOSTIC_CLASSIFICATIONS.get(component)
-    if allowed_steps is None or allowed_classifications is None or build_step not in allowed_steps:
-        return
-    safe_classification = classification if classification in allowed_classifications else "unclassified"
-    print(
-        "prepare-runtime-components: temporary component failure diagnostic "
-        f"component={component} build_step={build_step} "
-        f"exit_code={runtime_component_failure_diagnostic_exit_code(return_code)} "
-        f"classification={safe_classification}",
-        file=sys.stderr,
-    )
-
-
 def expat_override_entries_complete(
     prefix: Path,
     build_dir: Path,
@@ -4198,19 +4067,10 @@ def run_expat_build_step(
     append_command_log(log_parts, label, proc)
     if proc.returncode == 0:
         return True
-    failure_text = proc.stdout + proc.stderr
-    failure_classification = map_expat_build_failure(failure_text)
-    emit_runtime_component_failure_diagnostic(
-        env,
-        "expat",
-        label,
-        proc.returncode,
-        expat_failure_diagnostic_classification(failure_text),
-    )
     write_component_log(log_path, log_parts)
     record.update(
         status="failed",
-        blocker_reason=failure_classification,
+        blocker_reason=map_expat_build_failure(proc.stdout + proc.stderr),
         build_exit_code=proc.returncode,
     )
     return False
@@ -5634,13 +5494,6 @@ def build_modsecurity_staging_entry(
         proc = run_env(command, cwd=build_source, env=build_env_vars)
         append_command_log(log_parts, label, proc)
         if proc.returncode != 0:
-            emit_runtime_component_failure_diagnostic(
-                env,
-                "modsecurity",
-                label,
-                proc.returncode,
-                MODSECURITY_BUILD_FAILURE_BLOCKER,
-            )
             write_component_log(log_path, log_parts)
             record_modsecurity_build_failure(record, staging_build, log_path, proc.returncode)
             return False
@@ -10202,7 +10055,6 @@ def runtime_component_context(args: argparse.Namespace) -> tuple[dict[str, Any] 
     if common_status != "loaded":
         print(f"prepare-runtime-components: BLOCKED: framework common.sh could not be loaded ({common_status})")
         return None, 77
-    configure_runtime_component_failure_diagnostics(env, initial_env, args.target_connector)
     cache_root = Path(args.cache_root).resolve()
     output_root = Path(args.output_root).resolve()
     requested_runtime_env_snapshot: Path | None = None

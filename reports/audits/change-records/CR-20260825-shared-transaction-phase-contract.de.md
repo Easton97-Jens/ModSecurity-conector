@@ -1510,23 +1510,23 @@ Klassifikation ausgeben, ohne ein rohes Buildlog zu veröffentlichen.
 
 ### Akzeptanzkriterien
 
-Die Diagnostik ist standardmäßig ausgeschaltet, nur für das HAProxy-Target mit
-seinem Evidence-Receipt nutzbar und gibt höchstens ein festes Tupel aus
-Komponente, Build-Schritt, begrenztem Exit-Code und Klassifikation aus. Sie darf
-keine Build-Ergebnisse, Records, Cleanup, Receipt-Berechtigung, Projektion,
-Verifikation, Upload oder die Runtime-Sandbox ändern. Switch, Emitter und
-dedizierte Tests werden nach einem aktivierten Dispatch in einem Successor
-entfernt.
+Die Diagnostik war standardmäßig ausgeschaltet, nur für das HAProxy-Target mit
+seinem Evidence-Receipt nutzbar und gab höchstens ein festes Tupel aus
+Komponente, Build-Schritt, begrenztem Exit-Code und Klassifikation aus. Sie
+änderte keine Build-Ergebnisse, Records, Cleanup, Receipt-Berechtigung,
+Projektion, Verifikation, Upload oder die Runtime-Sandbox. Switch, Emitter und
+dedizierte Tests sind nach einem aktivierten Dispatch nun entfernt.
 
 ### Technische Entscheidungen
 
-`workflow_dispatch` enthält einen Boolean-Input,
-`haproxy_component_failure_diagnostics`, mit Standardwert `false`. Er wird nur
-bei einem expliziten `true`-Dispatch zu
+Der temporäre `workflow_dispatch`-Boolean-Input,
+`haproxy_component_failure_diagnostics`, hatte den Standardwert `false`. Er
+wurde nur bei einem expliziten `true`-Dispatch zu
 `RUNTIME_COMPONENT_FAILURE_DIAGNOSTICS=1` ausgewertet und nur innerhalb der
 vorhandenen isolierten HAProxy-`env -i`-Umgebung weitergegeben. Der Provisioner
-fordert zusätzlich `RUNTIME_COMPONENT_TARGET=haproxy` und
-`HAPROXY_EVIDENCE_RECEIPT=1`.
+forderte zusätzlich `RUNTIME_COMPONENT_TARGET=haproxy` und
+`HAPROXY_EVIDENCE_RECEIPT=1`. Alle diese temporären Oberflächen sind im
+Cleanup-Kandidaten entfernt.
 
 Private Expat-/ModSecurity-Ausgabe wird nur im Speicher ausgewertet, um einen
 statischen Allowlist-Wert auszuwählen. Die einzige Ausgabe hat die feste Form
@@ -1538,10 +1538,10 @@ behalten ihr bisheriges Fehlerklassifikations- und Exit-Code-Verhalten.
 ### Sicherheitsauswirkung
 
 Keine private Command-Ausgabe, kein Argument, Pfad, URL, Environment-Wert,
-Header, Body, Credential, Token, Cookie oder Raw-Log wird ausgegeben oder zur
+Header, Body, Credential, Token, Cookie oder Raw-Log wurde ausgegeben oder zur
 Evidence hinzugefügt. Die vorhandene `env -i`-, `unshare`-,
 `setpriv --no-new-privs`-, Capability-Drop-, UID/GID-Isolation-, Cleanup-,
-strikte Projektor-, Verifikator- und Fail-Closed-Upload-Grenze bleiben
+strikte Projektor-, Verifikator- und Fail-Closed-Upload-Grenze blieben
 unverändert. Ein unabhängiger Post-Patch-Sicherheitsreview fand keinen
 Diagnostik-Leak und keine Sandbox-Regression.
 
@@ -1559,24 +1559,35 @@ Diagnostik-Leak und keine Sandbox-Regression.
 | --- | --- |
 | Fokussierte Diagnostik- und HAProxy-Workflow-Tests | Bestand: 5 Tests. |
 | `tests.test_prepare_runtime_components` | Bestand: 81 Tests. |
+| Cleanup `tests.test_prepare_runtime_components` | Bestand: 77 Tests. |
 | HAProxy-Workflow-Contract-Suites | Bestand: 38 Tests. |
 | Runtime-, Projektions- und HAProxy-Harness-Contract-Suites | Bestand: 101 Tests; 11 umgebungsunterstützte Skips. |
-| `actionlint` | Bestand für `.github/workflows/test-connectors-with-crs-no-mrts.yml`. |
-| `zizmor` | Bestand für diesen Workflow; es meldete nur seinen Offline-Capability-Hinweis. |
-| `git diff --check` | Bestand. |
+| Kombinierte Cleanup-Workflow-, Runtime-, Projektions- und Harness-Contracts | Bestand: 139 Tests; 11 umgebungsunterstützte Skips. |
+| `actionlint` | Bestand für `.github/workflows/test-connectors-with-crs-no-mrts.yml` vor und nach dem Cleanup. |
+| `zizmor` | Bestand für diesen Workflow vor und nach dem Cleanup; es meldete nur seinen Offline-Capability-Hinweis. |
+| Dokumentations- und Whitespace-Cleanup-Checks | `make check-bilingual-docs`, `make check-doc-links` und `git diff --check` bestanden. |
 
 ### Runtime-Evidenz
 
-Für diesen lokalen Kandidaten gibt es noch keinen aktivierten Diagnostik-
-Dispatch, Commit, Push, Hosted-Runtime-Ergebnis, kein Artefakt und keine
-Evidence-Publication. Die Diagnostik ist keine Produktreparatur und beweist
-nicht die HAProxy-Ursache.
+Ein aktivierter manueller Dispatch lief als
+[`33333351395`](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/33333351395)
+auf dem exakten Head `092276eb6395d8caaddbe1a167f5ad065029430c`. Apache,
+Envoy, Traefik und lighttpd waren erfolgreich; HAProxy scheiterte in seinem
+ausgewählten Real-Runtime-Schritt vor Projektion, Verifikation, Upload oder
+HAProxy-Artefakt-Publication. Die einzigen behaltenen Diagnostiken waren
+`component=expat build_step=expat-configure exit_code=1 classification=expat_build_failed`
+und
+`component=modsecurity build_step=modsecurity-configure exit_code=1 classification=modsecurity_build_failed`.
+Sie belegen keine Source-gestützte fehlende Dependency, kein Tool, keinen Pfad
+und keinen Environment-Wert. Kein Raw-Joblog wurde gespeichert, berichtet oder
+veröffentlicht. Workflow-Switch, Emitter und dedizierte Tests sind im Cleanup-
+Kandidaten entfernt; dies bleibt eine Diagnose und keine Produktreparatur.
 
 ### Nicht ausgeführte Checks
 
-`ruff` wurde nicht ausgeführt, weil lokal kein Executable verfügbar ist. Die
-Checks für Zweisprachigkeit und Dokumentationslinks, der Delivery-Preflight
-und die Hosted-/Manual-Dispatch-Checks sind zu diesem Zeitpunkt noch offen.
+`ruff` wurde nicht ausgeführt, weil lokal kein Executable verfügbar ist.
+Delivery-Preflight und Successor-Hosted-Checks sind zu diesem Zeitpunkt noch
+offen.
 
 ### Bekannte Einschränkungen
 
@@ -1587,17 +1598,18 @@ source-gestützte Korrektur gerechtfertigt ist.
 
 ### Restrisiken
 
-PR #344 bleibt Draft und ist auf eine sichere Exact-Head-Hosted-Diagnose und
-anschließende Runtime-Verifikation blockiert. `FND-PARENT-0975` bleibt
+PR #344 bleibt Draft und ist auf eine Source-gestützte Runtime-Reparatur und
+anschließende Exact-Head-Verifikation blockiert. `FND-PARENT-0975` bleibt
 `in_progress` / `blocked_missing_evidence`; das Preflight-
 Statusintegritätsverhalten ist dort bereits abgedeckt und benötigt kein
 dupliziertes Finding.
 
 ### Finaler Review-Status
 
-Lokale Implementierung und unabhängiger Sicherheitsreview sind abgeschlossen.
-Delivery, ein aktivierter begrenzter manueller Dispatch, vollständige
-Entfernung des temporären Pfads und sämtliche Successor-Hosted-Verifikationen
-sind noch offen. Keine Änderung an Workflow-Sicherheitskontrolle, Scanner,
-Quality Gate, Ruleset, Required Check, `paths.env`, `master` oder Merge ist
-enthalten.
+Die anfängliche lokale Implementierung und der unabhängige Sicherheitsreview
+sind abgeschlossen; der eine aktivierte begrenzte manuelle Dispatch ist
+abgeschlossen; der temporäre Pfad ist entfernt; und die Cleanup-Validierung ist
+abgeschlossen. Normale Delivery an den bestehenden Draft-PR-Branch und
+sämtliche Successor-Hosted-Verifikationen sind noch offen. Keine Änderung an
+Workflow-Sicherheitskontrolle, Scanner, Quality Gate, Ruleset, Required Check,
+`paths.env`, `master` oder Merge ist enthalten.

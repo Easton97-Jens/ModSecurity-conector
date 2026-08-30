@@ -23,12 +23,6 @@ on:
       - modules/ModSecurity-test-Framework
       - modules/ModSecurity-test-Framework/**
   workflow_dispatch:
-    inputs:
-      haproxy_component_failure_diagnostics:
-        description: Emit fixed HAProxy component failure classifications only
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: read
@@ -305,7 +299,6 @@ jobs:
         id: runtime
         env:
           CONNECTOR: ${{ matrix.connector }}
-          RUNTIME_COMPONENT_FAILURE_DIAGNOSTICS: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.haproxy_component_failure_diagnostics == 'true' && '1' || '0' }}
           SETUP_PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}
           RUNTIME_UID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_uid }}
           RUNTIME_GID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_gid }}
@@ -361,7 +354,6 @@ jobs:
                       CRS=with-crs \
                       MRTS=no-mrts \
                       RUNTIME_COMPONENT_TARGET=haproxy \
-                      RUNTIME_COMPONENT_FAILURE_DIAGNOSTICS="$RUNTIME_COMPONENT_FAILURE_DIAGNOSTICS" \
                       CRS_RUNTIME_RUN_ID="$CRS_RUNTIME_RUN_ID" \
                       EXPECTED_PARENT_SHA="$RUNTIME_PARENT_SHA" \
                       EXPECTED_FRAMEWORK_SHA="$RUNTIME_FRAMEWORK_SHA" \
