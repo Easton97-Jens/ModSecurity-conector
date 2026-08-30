@@ -211,8 +211,8 @@ func TestResponseHeaderEncodingAllowsCommonHeaderCountLimit(t *testing.T) {
 		t.Fatal("encodeResponseHeaders(256 headers) = nil, want payload")
 	}
 	headers["X-256"] = []string{"v"}
-	if payload := encodeResponseHeaders(http.StatusOK, headers); payload != nil {
-		t.Fatalf("encodeResponseHeaders(257 headers) = payload length %d, want nil", len(payload))
+	if encodeResponseHeaders(http.StatusOK, headers) != nil {
+		t.Fatal("encodeResponseHeaders(257 headers) accepted, want nil")
 	}
 }
 
