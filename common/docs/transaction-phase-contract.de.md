@@ -139,6 +139,13 @@ Eintrags, daher muss der Observer zuvor quiescen. Das private
 begrenzte Frames, zwingendes erstes <code>CLAIM</code>, P3-Header, monotonen
 Commit, begrenzte P4-Chunks, genau ein EOS sowie Outcome und Release/Cancel.
 Nur beim CLAIM transportiert es das opaque Handle.
+Sein generisches Payloadmaximum bleibt 65536 Byte. Nur
+<code>RESPONSE_HEADERS</code> darf einen Payload von bis zu 66630 Byte verwenden,
+damit die festen MRC1-Felder und bis zu 256 Feldlängenpräfixe Commons
+logisches 65536-Byte-Namens-/Wertaggregat transportieren können. Das erhöht
+das logische Headerlimit nicht: Decoder weisen weiterhin mehr als 256 Felder
+oder mehr als 65536 aggregierte Namens-/Wertbytes zurück, und jeder andere
+Opcode bleibt auf 65536 Payloadbytes begrenzt.
 Die MRC1-Familie erfordert derzeit Protokollversion 2. Ihr ein Byte großer
 <code>CANCEL</code>-Payload ist eine kanonische terminale Ursache:
 <code>0=client_cancel</code>, <code>1=upstream_disconnect</code>,

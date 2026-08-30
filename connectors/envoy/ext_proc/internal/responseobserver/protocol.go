@@ -10,10 +10,15 @@ import (
 )
 
 const (
-	maxPayload = 65536
-	maxBody    = 32768
-	maxHeaders = 65535
-	frameSize  = 12
+	maxPayload                  = 65536
+	maxBody                     = 32768
+	maxHeaders                  = 65535
+	maxResponseHeaderFieldCount = 256
+	maxResponseHeaderNameBytes  = 256
+	maxResponseHeaderValueBytes = 8192
+	maxResponseHeaderPayload    = maxPayload + 2 + 2 + len("HTTP/1.1") + 2 +
+		4*maxResponseHeaderFieldCount
+	frameSize = 12
 )
 
 const (
@@ -104,6 +109,13 @@ type client struct {
 	timeout time.Duration
 }
 
+func maxPayloadForOpcode(op byte) int {
+	if op == opResponseHeaders {
+		return maxResponseHeaderPayload
+	}
+	return maxPayload
+}
+
 func dial(path string, timeout time.Duration) (*client, error) {
 	if strings.TrimSpace(path) == "" || timeout <= 0 {
 		return nil, fmt.Errorf("response observer: socket path and positive timeout are required")
@@ -124,8 +136,8 @@ func (c *client) close() error {
 }
 
 func (c *client) call(op byte, payload []byte) (result, error) {
-	if len(payload) > maxPayload {
-		return result{}, fmt.Errorf("response observer: payload exceeds %d bytes", maxPayload)
+	if len(payload) > maxPayloadForOpcode(op) {
+		return result{}, fmt.Errorf("response observer: payload exceeds %d bytes", maxPayloadForOpcode(op))
 	}
 	if err := c.conn.SetDeadline(time.Now().Add(c.timeout)); err != nil {
 		return result{}, err

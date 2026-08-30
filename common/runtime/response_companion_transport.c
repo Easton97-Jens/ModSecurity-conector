@@ -29,7 +29,8 @@
 #define RESPONSE_COMPANION_FRAME_HEADER_SIZE 12U
 #define RESPONSE_COMPANION_LISTEN_BACKLOG 32
 #define RESPONSE_COMPANION_ACCEPT_POLL_MS 250
-#define RESPONSE_COMPANION_MAX_HTTP_VERSION 64U
+#define RESPONSE_COMPANION_MAX_HTTP_VERSION \
+    MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_HTTP_VERSION_SIZE
 #define RESPONSE_COMPANION_MAX_HEADER_NAME 256U
 #define RESPONSE_COMPANION_MAX_HEADER_VALUE 8192U
 #define RESPONSE_COMPANION_MAX_RULE_ID 256U
@@ -47,6 +48,13 @@ enum response_companion_opcode {
     RESPONSE_COMPANION_OUTCOME = 8U,
     RESPONSE_COMPANION_RESULT = 128U
 };
+
+static size_t response_companion_max_payload_for_opcode(uint8_t opcode)
+{
+    return opcode == RESPONSE_COMPANION_RESPONSE_HEADERS ?
+        MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_RESPONSE_HEADER_FRAME :
+        MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_FRAME;
+}
 
 typedef enum response_companion_io_result {
     RESPONSE_COMPANION_IO_READY = 0,
@@ -380,7 +388,7 @@ static response_companion_frame_result response_companion_receive_frame(
         return RESPONSE_COMPANION_FRAME_MALFORMED;
     }
     payload_size = response_companion_read_u32(header + 8U);
-    if (payload_size > MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_FRAME) {
+    if (payload_size > response_companion_max_payload_for_opcode(header[5])) {
         return RESPONSE_COMPANION_FRAME_MALFORMED;
     }
     if (payload_size > 0U) {
@@ -409,7 +417,7 @@ static int response_companion_send_frame(
     const uint64_t deadline_ms = response_companion_deadline(transport);
 
     if (deadline_ms == 0U || payload_size >
-        MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_FRAME ||
+        response_companion_max_payload_for_opcode(opcode) ||
         (payload_size > 0U && payload == NULL)) {
         return 0;
     }
@@ -671,6 +679,7 @@ static int response_companion_parse_response_headers(
             RESPONSE_COMPANION_MAX_HTTP_VERSION, 1, 0, &input->http_version,
             &http_version_size) ||
         !response_companion_reader_u16(&reader, &header_count) ||
+        header_count > MSCONNECTOR_MAX_HEADER_COUNT ||
         header_count > transport->config.max_header_count) {
         response_companion_response_input_destroy(input);
         return response_companion_error(error, MSCONNECTOR_ERROR_PROTOCOL,
@@ -700,6 +709,9 @@ static int response_companion_parse_response_headers(
             !response_companion_reader_text(&reader,
                 RESPONSE_COMPANION_MAX_HEADER_VALUE, 0, 0,
                 &value, &value_size) ||
+            header_bytes > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES ||
+            name_size > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES - header_bytes ||
+            value_size > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES - header_bytes - name_size ||
             header_bytes > transport->config.max_header_bytes ||
             name_size > transport->config.max_header_bytes - header_bytes ||
             value_size > transport->config.max_header_bytes - header_bytes - name_size) {
@@ -2145,6 +2157,15 @@ static void *response_companion_listener_main(void *argument)
     return NULL;
 }
 
+static int response_companion_header_limits_are_valid(size_t max_header_count,
+    size_t max_header_bytes)
+{
+    return max_header_count > 0U &&
+        max_header_count <= MSCONNECTOR_MAX_HEADER_COUNT &&
+        max_header_bytes > 0U &&
+        max_header_bytes <= MSCONNECTOR_MAX_TOTAL_HEADER_BYTES;
+}
+
 static int response_companion_backend_is_valid(
     const msconnector_response_companion_backend *backend)
 {
@@ -2177,9 +2198,8 @@ int msconnector_response_companion_transport_init_with_backend(
         connector_size == 0U ||
         connector_size >= sizeof(transport->config.connector_id) || path_size == 0U ||
         path_size >= sizeof(transport->config.socket_path) || !response_companion_path_is_safe(
-            options->socket_path) || options->max_header_count == 0U ||
-        options->max_header_bytes == 0U ||
-        options->max_header_bytes > MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_FRAME ||
+        options->socket_path) || !response_companion_header_limits_are_valid(
+            options->max_header_count, options->max_header_bytes) ||
         options->max_response_body_bytes == 0U || options->operation_timeout_ms == 0U ||
         options->operation_timeout_ms > UINT64_C(600000)) {
         return response_companion_error(error, MSCONNECTOR_ERROR_INVALID_CONFIG,
@@ -2284,6 +2304,8 @@ int msconnector_response_companion_transport_start(
     }
     if (transport == NULL || !transport->synchronization.initialized ||
         !response_companion_backend_is_valid(&transport->config.backend) ||
+        !response_companion_header_limits_are_valid(
+            transport->config.max_header_count, transport->config.max_header_bytes) ||
         atomic_load_explicit(&transport->listener.running, memory_order_acquire) ||
         atomic_load_explicit(&transport->listener.stopping, memory_order_acquire) ||
         atomic_load_explicit(&transport->synchronization.backend_faulted, memory_order_acquire)) {

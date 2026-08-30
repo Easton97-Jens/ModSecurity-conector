@@ -1198,3 +1198,45 @@ stdout, unknown, and overlong rejection, a rejected unknown internal cause,
 private-output non-leakage, and exact annotation behavior. The candidate has
 not yet produced a hosted run, so it does not establish the HAProxy root cause
 or successful evidence publication.
+
+## 2026-08-30 HAProxy cache completeness and MRC1 P3 framing
+
+The hosted HAProxy resolver reported the bounded generic
+`resolver_cause=headers_missing`. The resolver requires the v3 public trio
+`modsecurity.h`, `rules_set.h`, and `transaction.h`, while the shared-cache
+readiness predicate had accepted a prefix containing only `modsecurity.h` and
+the library. The Parent cache publisher now uses the same three-header
+predicate both before publishing source build output and before reusing a
+published prefix. A marker-valid but incomplete prefix is therefore discarded
+and rebuilt rather than silently reaching the HAProxy resolver.
+
+MRC1 keeps its 65,536-byte generic frame and logical name/value aggregate
+limits. It makes only P3 `RESPONSE_HEADERS` opcode-aware: a C peer may receive
+or send a payload of at most 66,630 bytes, enough for the existing 64-byte HTTP
+version maximum, 256 four-byte field prefixes, and the unchanged 65,536-byte
+logical aggregate. Other opcodes remain at 65,536 bytes. The Envoy and
+Traefik HTTP/1.1 observers emit at most 66,574 P3 payload bytes and still reject
+more than 256 fields or one byte beyond the logical aggregate; this is a
+framing-capacity correction, not a phase or header-policy expansion.
+
+The shared C transport treats those Common count and aggregate ceilings as
+non-negotiable: initialization and start reject counts outside `1..256` and
+aggregate-byte limits outside `1..65,536`, and the decoder repeats both hard
+limits before any backend header callback. This remains true if public
+configuration is modified after initialization. Raw P3 controls reject a
+257-field frame and a 65,537-byte aggregate before backend processing; the
+ordinary exact-limit P3/cancel control remains accepted and cleans up
+deterministically.
+
+| Local validation | Actual result |
+| --- | --- |
+| ModSecurity cache contract | Passed: 45 tests, including complete-prefix reuse and deterministic rebuild after each required public header is removed while cache markers remain valid. |
+| Provisioning and HAProxy resolver contracts | Passed: 70 provisioning tests and 14 resolver tests. |
+| Direct C17 MRC1 transport integration | Passed with `-std=c17 -Wall -Wextra -Werror`: 256 P3 fields with exactly 65,536 logical bytes are accepted, then cancel performs deterministic cleanup. |
+| Envoy and Traefik response observers | Passed: focused `go test -race -count=1` plus `go vet` with a short task-owned Unix-socket temporary root. |
+
+At the time of this local validation, the candidate had not yet produced a
+successor hosted run. This addendum does not claim that the cache correction
+alone proves the hosted HAProxy root cause or that HAProxy evidence publication
+has succeeded. No workflow, scanner, Quality-Gate, ruleset, required-check,
+`paths.env`, `master`, or merge change is part of this addendum.

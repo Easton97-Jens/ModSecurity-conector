@@ -20,7 +20,8 @@
 #define MRC1_FRAME_HEADER_SIZE 12U
 #define MRC1_MAX_REDIRECT 4096U
 #define MRC1_MAX_RULE_ID 256U
-#define MRC1_MAX_HTTP_VERSION 64U
+#define MRC1_MAX_HTTP_VERSION \
+    MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_HTTP_VERSION_SIZE
 #define MRC1_MAX_HEADER_NAME 256U
 #define MRC1_MAX_HEADER_VALUE 8192U
 
@@ -35,6 +36,13 @@ enum mrc1_opcode {
     MRC1_OUTCOME = 8U,
     MRC1_RESULT = 128U
 };
+
+static size_t mrc1_max_payload_for_opcode(uint8_t opcode)
+{
+    return opcode == MRC1_RESPONSE_HEADERS ?
+        MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_RESPONSE_HEADER_FRAME :
+        MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_FRAME;
+}
 
 enum mrc1_result_code { MRC1_RESULT_OK = 0U, MRC1_RESULT_ERROR = 1U };
 
@@ -239,7 +247,7 @@ static int send_frame(const msconnector_response_companion_client *client,
             "MRC1 client connection is not open");
         return 0;
     }
-    if (payload_size > MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_FRAME ||
+    if (payload_size > mrc1_max_payload_for_opcode(opcode) ||
         (payload_size > 0U && payload == NULL)) {
         set_error(error, MSCONNECTOR_ERROR_PROTOCOL,
             "MRC1 client frame arguments are invalid");
@@ -623,14 +631,15 @@ int msconnector_response_companion_client_response_headers(
     msconnector_response_companion_client *client, const msconnector_response *response,
     msconnector_response_companion_result *result, msconnector_error *error)
 {
-    unsigned char payload[MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_FRAME];
+    unsigned char payload[
+        MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_RESPONSE_HEADER_FRAME];
     size_t offset = 0U;
     size_t version_size;
     size_t header_bytes = 0U;
     if (!client_is_open(client) || response == NULL || !client->claimed ||
         client->response_headers || client->committed || client->outcome_recorded ||
         client->response_eos || response->status < 100 || response->status > 999 ||
-        response->header_count > UINT16_MAX ||
+        response->header_count > MSCONNECTOR_MAX_HEADER_COUNT ||
         (response->header_count > 0U && response->headers == NULL)) {
         set_error(error, MSCONNECTOR_ERROR_PHASE_SEQUENCE,
             "MRC1 response headers are out of sequence or invalid");
@@ -661,9 +670,9 @@ int msconnector_response_companion_client_response_headers(
             !valid_response_header_name(header->name, header->name_size) ||
             !valid_header_text(header->value, header->value_size, 0) ||
             !valid_status_pseudoheader(header, response->status) ||
-            header_bytes > MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_FRAME ||
-            header->name_size > MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_FRAME - header_bytes ||
-            header->value_size > MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_FRAME -
+            header_bytes > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES ||
+            header->name_size > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES - header_bytes ||
+            header->value_size > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES -
                 header_bytes - header->name_size ||
             offset > sizeof(payload) - 4U - header->name_size - header->value_size) {
             set_error(error, MSCONNECTOR_ERROR_HEADER_TOO_LARGE,

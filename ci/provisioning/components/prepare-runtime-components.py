@@ -248,6 +248,11 @@ MODSECURITY_LIBRARY_FILENAME = "libmodsecurity.so"
 # generic prefix keeps the libtool linker alias above, while the protected
 # NGINX broker records only this regular, non-symlinked runtime artifact.
 MODSECURITY_RUNTIME_LIBRARY_FILENAME = "libmodsecurity.so.3"
+MODSECURITY_REQUIRED_PUBLIC_HEADERS = (
+    "modsecurity.h",
+    "rules_set.h",
+    "transaction.h",
+)
 MODSECURITY_OUTPUT_LAYOUT_VERSION = 1
 NGINX_MODULE_FILENAME = "ngx_http_modsecurity_module.so"
 NATIVE_NGINX_OVERRIDE_ENV = "MRTS_NATIVE_NGINX_BIN/MRTS_NATIVE_NGINX_MODULE_DIR"
@@ -4277,8 +4282,18 @@ def modsecurity_lib_file(prefix: Path) -> Path:
     return prefix / "lib" / MODSECURITY_LIBRARY_FILENAME
 
 
+def modsecurity_public_headers_present(include_root: Path) -> bool:
+    return all(
+        (include_root / "modsecurity" / header_name).is_file()
+        for header_name in MODSECURITY_REQUIRED_PUBLIC_HEADERS
+    )
+
+
 def modsecurity_ready(prefix: Path) -> bool:
-    return (prefix / "include/modsecurity/modsecurity.h").is_file() and modsecurity_lib_file(prefix).is_file()
+    return (
+        modsecurity_public_headers_present(prefix / "include")
+        and modsecurity_lib_file(prefix).is_file()
+    )
 
 
 def modsecurity_build_manifest_binds_prefix(
@@ -4671,7 +4686,7 @@ def _copy_verified_modsecurity_runtime_library(
 def copy_modsecurity_outputs(source_dir: Path, prefix: Path) -> None:
     headers = source_dir / "headers"
     libs = source_dir / "src/.libs"
-    if not (headers / "modsecurity/modsecurity.h").is_file():
+    if not modsecurity_public_headers_present(headers):
         raise RuntimeError("modsecurity_headers_missing_after_build")
     terminal_descriptor, terminal_details = _verified_modsecurity_runtime_library(libs)
     include_dir = prefix / "include"

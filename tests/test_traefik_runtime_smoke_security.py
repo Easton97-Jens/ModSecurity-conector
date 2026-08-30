@@ -244,7 +244,15 @@ class TraefikRuntimeSmokeSecurityTest(unittest.TestCase):
             "msconnector_runtime_total_header_limit(runtime),",
             compact,
         )
-        self.assertIn("maxHeaderCount    = 256", observer)
+        self.assertRegex(observer, r"maxHeaderCount\s*=\s*256")
+        self.assertRegex(
+            observer,
+            r'maxResponseHeaderPayload\s*=\s*maxPayload\s*\+\s*2\s*\+\s*2\s*\+'
+            r'\s*len\("HTTP/1\.1"\)\s*\+\s*2\s*\+\s*4\*maxHeaderCount',
+        )
+        self.assertIn(
+            "headerBytes > maxPayload || total > maxResponseHeaderPayload", observer
+        )
 
     def test_response_phase_evidence_requires_precommit_p3_and_safe_p4_without_bodies(self) -> None:
         with tempfile.TemporaryDirectory(prefix="traefik-response-phase-events-") as temporary:

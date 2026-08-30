@@ -17,6 +17,9 @@ func (c *client) claim(handle string) (result, error) {
 }
 
 func (c *client) responseHeaders(status int, headers []header) (result, error) {
+	if len(headers) > maxResponseHeaderFieldCount {
+		return result{}, fmt.Errorf("response observer: response header count exceeds limit")
+	}
 	payload, err := appendU16(nil, status)
 	if err != nil {
 		return result{}, err
@@ -31,8 +34,12 @@ func (c *client) responseHeaders(status int, headers []header) (result, error) {
 	if err != nil {
 		return result{}, err
 	}
+	headerBytes := 0
 	for _, h := range headers {
-		if len(h.name) == 0 || len(h.name) > 65535 || len(h.value) > 65535 || strings.ContainsAny(h.name, "\x00\r\n") || strings.ContainsAny(h.value, "\x00\r\n") {
+		if len(h.name) == 0 || len(h.name) > maxResponseHeaderNameBytes ||
+			len(h.value) > maxResponseHeaderValueBytes ||
+			strings.ContainsAny(h.name, "\x00\r\n") ||
+			strings.ContainsAny(h.value, "\x00\r\n") {
 			return result{}, fmt.Errorf("response observer: invalid response header")
 		}
 		payload, err = appendU16(payload, len(h.name))
@@ -45,7 +52,8 @@ func (c *client) responseHeaders(status int, headers []header) (result, error) {
 			return result{}, err
 		}
 		payload = append(payload, h.value...)
-		if len(payload) > maxPayload {
+		headerBytes += len(h.name) + len(h.value)
+		if headerBytes > maxPayload || len(payload) > maxResponseHeaderPayload {
 			return result{}, fmt.Errorf("response observer: response headers exceed frame limit")
 		}
 	}

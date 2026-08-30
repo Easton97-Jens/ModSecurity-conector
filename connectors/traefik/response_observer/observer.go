@@ -21,13 +21,15 @@ import (
 const (
 	// MRC1 magic family, protocol version 2.  No v1 fallback is allowed
 	// because v1 cannot represent typed terminal causes safely.
-	protocolVersion   = byte(2)
-	frameHeaderSize   = 12
-	maxPayload        = 65536
-	maxBodyChunk      = 32768
-	maxHeaderCount    = 256
-	maxHeaderName     = 256
-	maxHeaderValue    = 8192
+	protocolVersion          = byte(2)
+	frameHeaderSize          = 12
+	maxPayload               = 65536
+	maxBodyChunk             = 32768
+	maxHeaderCount           = 256
+	maxHeaderName            = 256
+	maxHeaderValue           = 8192
+	maxResponseHeaderPayload = maxPayload + 2 + 2 + len("HTTP/1.1") + 2 +
+		4*maxHeaderCount
 	defaultTimeout    = 5 * time.Second
 	opClaim           = byte(1)
 	opResponseHeaders = byte(2)
@@ -178,6 +180,13 @@ type session struct {
 	closed  bool
 }
 
+func maxPayloadForOpcode(opcode byte) int {
+	if opcode == opResponseHeaders {
+		return maxResponseHeaderPayload
+	}
+	return maxPayload
+}
+
 func openSession(ctx context.Context, config Config, handle string) (*session, error) {
 	dialer := net.Dialer{Timeout: time.Duration(config.TimeoutMillis) * time.Millisecond}
 	conn, err := dialer.DialContext(ctx, "unix", config.SocketPath)
@@ -200,7 +209,7 @@ func openSession(ctx context.Context, config Config, handle string) (*session, e
 func (s *session) exchange(ctx context.Context, opcode byte, payload []byte) (result, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.closed || len(payload) > maxPayload {
+	if s.closed || len(payload) > maxPayloadForOpcode(opcode) {
 		return result{}, errProtocol
 	}
 	if err := ctx.Err(); err != nil {
@@ -240,6 +249,9 @@ func (s *session) exchange(ctx context.Context, opcode byte, payload []byte) (re
 }
 
 func writeFrame(writer io.Writer, opcode byte, payload []byte) error {
+	if len(payload) > maxPayloadForOpcode(opcode) {
+		return errProtocol
+	}
 	header := make([]byte, frameHeaderSize)
 	copy(header[:4], []byte("MRC1"))
 	header[4] = protocolVersion
@@ -724,17 +736,18 @@ func disruptive(action byte) bool {
 
 func encodeResponseHeaders(status int, headers http.Header) []byte {
 	version := "HTTP/1.1"
-	count, total := 0, 6+len(version)
+	count, headerBytes, total := 0, 0, 6+len(version)
 	for name, values := range headers {
 		for _, value := range values {
 			if count >= maxHeaderCount || len(name) > maxHeaderName || len(value) > maxHeaderValue {
 				return nil
 			}
 			count++
+			headerBytes += len(name) + len(value)
 			total += 4 + len(name) + len(value)
 		}
 	}
-	if total > maxPayload {
+	if headerBytes > maxPayload || total > maxResponseHeaderPayload {
 		return nil
 	}
 	payload := make([]byte, total)

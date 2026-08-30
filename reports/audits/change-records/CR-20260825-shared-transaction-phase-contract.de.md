@@ -1299,3 +1299,48 @@ Zurückweisungen, einen zurückgewiesenen unbekannten internen Code, die
 Nichtweitergabe privater Ausgabe sowie das exakte Annotationsverhalten ab. Der
 Kandidat hat noch keinen Hosted-Run erzeugt; er belegt daher weder die
 HAProxy-Root-Cause noch eine erfolgreiche Evidence-Publication.
+
+## 2026-08-30 HAProxy-Cache-Vollständigkeit und MRC1-P3-Framing
+
+Der gehostete HAProxy-Resolver meldete die begrenzte generische Ursache
+`resolver_cause=headers_missing`. Der Resolver verlangt das öffentliche
+v3-Trio `modsecurity.h`, `rules_set.h` und `transaction.h`, während das
+Readiness-Prädikat des Shared Cache bisher einen Prefix mit nur
+`modsecurity.h` und der Library akzeptierte. Der Parent-Cache-Publisher
+verwendet nun dasselbe Drei-Header-Prädikat sowohl vor dem Veröffentlichen der
+Source-Build-Ausgabe als auch vor der Wiederverwendung eines veröffentlichten
+Prefix. Ein Marker-valider, aber unvollständiger Prefix wird damit verworfen
+und neu gebaut, statt still den HAProxy-Resolver zu erreichen.
+
+MRC1 behält seine generischen Frame- und logischen Namens-/Wertaggregatlimits
+von 65.536 Bytes. Ausschließlich P3 `RESPONSE_HEADERS` wird opcode-bewusst:
+Ein C-Peer darf einen Payload von höchstens 66.630 Bytes empfangen oder senden, genug für
+das bestehende 64-Byte-HTTP-Versionmaximum, 256 Vier-Byte-Feldpräfixe und das
+unveränderte logische 65.536-Byte-Aggregat. Andere Opcodes bleiben bei 65.536
+Bytes. Die HTTP/1.1-Observer von Envoy und Traefik emittieren höchstens 66.574
+P3-Payload-Bytes und weisen weiterhin mehr als 256 Felder oder ein Byte über dem
+logischen Aggregat zurück; dies korrigiert Framing-Kapazität, erweitert jedoch
+weder Phasen noch Header-Policy.
+
+Der gemeinsame C-Transport behandelt diese Common-Count- und Aggregatgrenzen
+als nicht verhandelbar: Initialisierung und Start weisen Counts außerhalb von
+`1..256` und Aggregat-Byte-Grenzen außerhalb von `1..65,536` zurück, und der
+Decoder wiederholt beide harten Grenzen vor jedem Backend-Header-Callback. Das
+gilt auch, wenn die öffentliche Konfiguration nach der Initialisierung geändert
+wird. Raw-P3-Controls weisen einen 257-Feld-Frame und ein 65,537-Byte-Aggregat
+vor der Backend-Verarbeitung zurück; der reguläre Exact-Limit-P3-/Cancel-Control
+bleibt akzeptiert und räumt deterministisch auf.
+
+| Lokale Validierung | Tatsächliches Ergebnis |
+| --- | --- |
+| ModSecurity-Cache-Contract | Bestanden: 45 Tests, einschließlich vollständiger-Prefix-Reuse und deterministischem Rebuild nach dem Entfernen jedes erforderlichen öffentlichen Headers bei weiterhin validen Cache-Markern. |
+| Provisioning- und HAProxy-Resolver-Contracts | Bestanden: 70 Provisioning-Tests und 14 Resolver-Tests. |
+| Direkte C17-MRC1-Transportintegration | Bestanden mit `-std=c17 -Wall -Wextra -Werror`: 256 P3-Felder mit exakt 65.536 logischen Bytes werden akzeptiert, danach führt Cancel deterministisches Cleanup aus. |
+| Envoy- und Traefik-Response-Observer | Bestanden: fokussiertes `go test -race -count=1` plus `go vet` mit kurzem task-eigenen Unix-Socket-Temporary-Root. |
+
+Zum Zeitpunkt dieser lokalen Validierung hatte der Kandidat noch keinen
+Successor-Hosted-Run erzeugt. Dieser Nachtrag behauptet nicht, dass allein die
+Cache-Korrektur die gehostete HAProxy-Root-Cause beweist oder dass die
+HAProxy-Evidence-Publication erfolgreich war. Kein Workflow, Scanner, Quality
+Gate, Ruleset, Required Check, `paths.env`, `master` oder Merge ist Teil dieses
+Nachtrags.

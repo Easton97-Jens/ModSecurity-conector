@@ -121,13 +121,21 @@ typedef struct mock_transport_setup {
     const char *handle;
     const char *directory_template;
     const char *label;
+    size_t max_header_count;
+    size_t max_header_bytes;
+    size_t max_response_body_bytes;
     unsigned timeout_ms;
     void (*expire)(void *, uint64_t);
 } mock_transport_setup;
 
-#define TEST_MOCK_TRANSPORT_SETUP(handle, directory, label, timeout, expire) \
+#define TEST_MOCK_TRANSPORT_SETUP(handle_value, directory_value, label_value, \
+    timeout_value, expire_value) \
     (&(mock_transport_setup){ \
-        (handle), (directory), (label), (timeout), (expire) })
+        .handle = (handle_value), .directory_template = (directory_value), \
+        .label = (label_value), \
+        .max_header_count = 32U, .max_header_bytes = 64U, \
+        .max_response_body_bytes = 8U, .timeout_ms = (timeout_value), \
+        .expire = (expire_value) })
 
 typedef struct transport_stop_call {
     msconnector_response_companion_transport *transport;
@@ -242,9 +250,12 @@ static int exchange(int socket_fd, unsigned char opcode,
     unsigned char response_header[TEST_FRAME_HEADER_SIZE];
     unsigned char *response = NULL;
     uint32_t response_size;
+    const size_t max_payload_size = opcode == TEST_RESPONSE_HEADERS ?
+        MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_RESPONSE_HEADER_FRAME :
+        MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_FRAME;
     int success = 0;
 
-    if (payload_size > MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_FRAME ||
+    if (payload_size > max_payload_size ||
         (payload_size > 0U && payload == NULL) || result == NULL) {
         return 0;
     }
@@ -315,6 +326,79 @@ static size_t build_headers(unsigned char *payload, size_t payload_size,
         memcpy(payload + offset, value, value_size);
         offset += value_size;
     }
+    return offset;
+}
+
+static size_t build_repeated_headers(unsigned char *payload, size_t payload_size,
+    int status, size_t header_count)
+{
+    static const char version[] = "HTTP/1.1";
+    const size_t fixed_size = 2U + 2U + sizeof(version) - 1U + 2U;
+    size_t offset = 0U;
+
+    if (payload == NULL || status < 100 || status > 999 ||
+        header_count > UINT16_MAX || payload_size < fixed_size ||
+        header_count > (payload_size - fixed_size) / 6U) {
+        return 0U;
+    }
+    write_u16(payload + offset, (unsigned short)status);
+    offset += 2U;
+    write_u16(payload + offset, (unsigned short)(sizeof(version) - 1U));
+    offset += 2U;
+    memcpy(payload + offset, version, sizeof(version) - 1U);
+    offset += sizeof(version) - 1U;
+    write_u16(payload + offset, (unsigned short)header_count);
+    offset += 2U;
+    for (size_t index = 0U; index < header_count; ++index) {
+        write_u16(payload + offset, 1U);
+        offset += 2U;
+        payload[offset++] = 'x';
+        write_u16(payload + offset, 1U);
+        offset += 2U;
+        payload[offset++] = 'v';
+    }
+    return offset;
+}
+
+static size_t build_aggregate_headers(unsigned char *payload, size_t payload_size,
+    int status, size_t aggregate_bytes)
+{
+    static const char version[] = "HTTP/1.1";
+    const size_t header_count = 8U;
+    const size_t fixed_size = 2U + 2U + sizeof(version) - 1U + 2U;
+    size_t value_bytes;
+    size_t offset = 0U;
+
+    if (payload == NULL || status < 100 || status > 999 ||
+        aggregate_bytes < header_count ||
+        aggregate_bytes > header_count * (1U + MSCONNECTOR_MAX_HEADER_VALUE_LENGTH) ||
+        payload_size < fixed_size + 4U * header_count ||
+        aggregate_bytes > payload_size - fixed_size - 4U * header_count) {
+        return 0U;
+    }
+    write_u16(payload + offset, (unsigned short)status);
+    offset += 2U;
+    write_u16(payload + offset, (unsigned short)(sizeof(version) - 1U));
+    offset += 2U;
+    memcpy(payload + offset, version, sizeof(version) - 1U);
+    offset += sizeof(version) - 1U;
+    write_u16(payload + offset, (unsigned short)header_count);
+    offset += 2U;
+    value_bytes = aggregate_bytes - header_count;
+    for (size_t index = 0U; index < header_count; ++index) {
+        const size_t value_size = value_bytes / (header_count - index);
+
+        assert(value_size <= MSCONNECTOR_MAX_HEADER_VALUE_LENGTH);
+        write_u16(payload + offset, 1U);
+        offset += 2U;
+        payload[offset++] = 'x';
+        write_u16(payload + offset, (unsigned short)value_size);
+        offset += 2U;
+        memset(payload + offset, 'v', value_size);
+        offset += value_size;
+        value_bytes -= value_size;
+    }
+    assert(value_bytes == 0U);
     return offset;
 }
 
@@ -862,9 +946,234 @@ static void setup_mock_transport(msconnector_response_companion_transport *trans
     msconnector_error error;
     msconnector_error_init(&error);
     assert(msconnector_response_companion_transport_init_with_backend(transport,
-        vtable, TEST_TRANSPORT_OPTIONS(setup->label, socket_path, 32U, 64U, 8U,
-            setup->timeout_ms), &error));
+        vtable, TEST_TRANSPORT_OPTIONS(setup->label, socket_path,
+            setup->max_header_count, setup->max_header_bytes,
+            setup->max_response_body_bytes, setup->timeout_ms), &error));
     assert(msconnector_response_companion_transport_start(transport, &error));
+}
+
+static void run_response_header_wire_capacity_test(void)
+{
+    static const char handle[] =
+        "76543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba98";
+    const mock_transport_setup setup = {
+        .handle = handle,
+        .directory_template = "mrh.XXXXXX",
+        .label = "header-capacity-test",
+        .max_header_count = MSCONNECTOR_MAX_HEADER_COUNT,
+        .max_header_bytes = MSCONNECTOR_MAX_TOTAL_HEADER_BYTES,
+        .max_response_body_bytes = 8U,
+        .timeout_ms = 100U,
+        .expire = NULL
+    };
+    msconnector_response_companion_backend backend_vtable;
+    msconnector_response_companion_transport transport;
+    msconnector_response_companion_client client;
+    msconnector_response_companion_result result;
+    msconnector_response response;
+    msconnector_header headers[MSCONNECTOR_MAX_HEADER_COUNT];
+    char names[MSCONNECTOR_MAX_HEADER_COUNT][8U];
+    unsigned char values[MSCONNECTOR_MAX_TOTAL_HEADER_BYTES];
+    mock_backend backend;
+    mock_backend_observation observation;
+    msconnector_error error;
+    char socket_directory[TEST_PATH_SIZE];
+    char socket_path[MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_SOCKET_SIZE];
+    size_t header_bytes = 0U;
+    size_t values_offset = 0U;
+
+    assert(strlen(handle) == MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_HANDLE_SIZE - 1U);
+    memset(&backend, 0, sizeof(backend));
+    atomic_init(&backend.pause_cancel, 0);
+    atomic_init(&backend.cancel_started, 0);
+    setup_mock_transport(&transport, &backend_vtable, &backend, &setup,
+        socket_directory, socket_path);
+    memset(&client, 0, sizeof(client));
+    memset(&result, 0, sizeof(result));
+    memset(&response, 0, sizeof(response));
+    memset(headers, 0, sizeof(headers));
+    for (size_t index = 0U; index < MSCONNECTOR_MAX_HEADER_COUNT; ++index) {
+        assert(snprintf(names[index], sizeof(names[index]), "X-%03zu", index) > 0);
+        headers[index].name = names[index];
+        headers[index].name_size = strlen(names[index]);
+        header_bytes += headers[index].name_size;
+    }
+    for (size_t index = 0U; index < MSCONNECTOR_MAX_HEADER_COUNT; ++index) {
+        const size_t value_size =
+            (MSCONNECTOR_MAX_TOTAL_HEADER_BYTES - header_bytes) /
+            (MSCONNECTOR_MAX_HEADER_COUNT - index);
+
+        assert(values_offset <= sizeof(values) - value_size);
+        memset(values + values_offset, 'v', value_size);
+        headers[index].value = (const char *)(values + values_offset);
+        headers[index].value_size = value_size;
+        header_bytes += value_size;
+        values_offset += value_size;
+    }
+    assert(header_bytes == MSCONNECTOR_MAX_TOTAL_HEADER_BYTES);
+    response.status = 200;
+    response.http_version = "HTTP/1.1";
+    response.headers = headers;
+    response.header_count = MSCONNECTOR_MAX_HEADER_COUNT;
+    msconnector_error_init(&error);
+    assert(msconnector_response_companion_client_open(&client, socket_path, 1000U,
+        geteuid(), getegid(), &error));
+    assert(msconnector_response_companion_client_claim(&client, handle, &result,
+        &error));
+    assert(msconnector_response_companion_client_response_headers(&client,
+        &response, &result, &error));
+    assert(result.decision == MSCONNECTOR_DECISION_KIND_ALLOW);
+    mock_backend_snapshot(&backend, &observation);
+    assert(observation.claims == 1U);
+    assert(observation.response_headers == 1U);
+    assert(observation.active);
+    assert(msconnector_response_companion_client_cancel(&client, 0, &result,
+        &error));
+    mock_backend_snapshot(&backend, &observation);
+    assert(observation.cancels == 1U);
+    assert(!observation.active);
+    assert(observation.failures == 0U);
+    msconnector_response_companion_result_destroy(&result);
+    assert(msconnector_response_companion_client_close(&client, &error));
+    assert(msconnector_response_companion_transport_stop(&transport, &error));
+    assert(access(socket_path, F_OK) != 0);
+    assert(pthread_mutex_destroy(&backend.lock) == 0);
+    assert(rmdir(socket_directory) == 0);
+}
+
+static void run_response_header_count_contract_test(void)
+{
+    static const char handle[] =
+        "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
+    const mock_transport_setup setup = {
+        .handle = handle,
+        .directory_template = "mrc.XXXXXX",
+        .label = "header-count-test",
+        .max_header_count = MSCONNECTOR_MAX_HEADER_COUNT,
+        .max_header_bytes = MSCONNECTOR_MAX_TOTAL_HEADER_BYTES,
+        .max_response_body_bytes = 8U,
+        .timeout_ms = 100U,
+        .expire = NULL
+    };
+    msconnector_response_companion_backend backend_vtable;
+    msconnector_response_companion_transport transport;
+    msconnector_response_companion_transport invalid_transport;
+    msconnector_response_companion_client client;
+    msconnector_response_companion_result result;
+    test_result raw_result;
+    msconnector_header header = {
+        .name = "x", .name_size = 1U, .value = "v", .value_size = 1U};
+    msconnector_response response = {
+        .status = 200, .http_version = "HTTP/1.1", .headers = &header,
+        .header_count = MSCONNECTOR_MAX_HEADER_COUNT + 1U};
+    unsigned char oversized_headers[2U + 2U + sizeof("HTTP/1.1") - 1U + 2U +
+        (MSCONNECTOR_MAX_HEADER_COUNT + 1U) * 6U];
+    unsigned char oversized_aggregate[
+        MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_RESPONSE_HEADER_FRAME];
+    mock_backend backend;
+    mock_backend_observation observation;
+    msconnector_error error;
+    char socket_directory[TEST_PATH_SIZE];
+    char socket_path[MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_SOCKET_SIZE];
+    size_t oversized_header_size;
+    size_t oversized_aggregate_size;
+    int socket_fd;
+
+    assert(strlen(handle) == MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_HANDLE_SIZE - 1U);
+    memset(&backend, 0, sizeof(backend));
+    atomic_init(&backend.pause_cancel, 0);
+    atomic_init(&backend.cancel_started, 0);
+    setup_mock_transport(&transport, &backend_vtable, &backend, &setup,
+        socket_directory, socket_path);
+
+    memset(&invalid_transport, 0, sizeof(invalid_transport));
+    msconnector_error_init(&error);
+    assert(!msconnector_response_companion_transport_init_with_backend(
+        &invalid_transport, &backend_vtable,
+        TEST_TRANSPORT_OPTIONS("invalid-header-count", socket_path,
+            MSCONNECTOR_MAX_HEADER_COUNT + 1U,
+            MSCONNECTOR_MAX_TOTAL_HEADER_BYTES, 8U, 100U), &error));
+    assert(error.code == MSCONNECTOR_ERROR_INVALID_CONFIG);
+
+    memset(&invalid_transport, 0, sizeof(invalid_transport));
+    msconnector_error_init(&error);
+    assert(!msconnector_response_companion_transport_init_with_backend(
+        &invalid_transport, &backend_vtable,
+        TEST_TRANSPORT_OPTIONS("invalid-header-bytes", socket_path,
+            MSCONNECTOR_MAX_HEADER_COUNT,
+            MSCONNECTOR_MAX_TOTAL_HEADER_BYTES + 1U, 8U, 100U), &error));
+    assert(error.code == MSCONNECTOR_ERROR_INVALID_CONFIG);
+
+    memset(&invalid_transport, 0, sizeof(invalid_transport));
+    msconnector_error_init(&error);
+    assert(msconnector_response_companion_transport_init_with_backend(
+        &invalid_transport, &backend_vtable,
+        TEST_TRANSPORT_OPTIONS("start-header-bytes", socket_path,
+            MSCONNECTOR_MAX_HEADER_COUNT,
+            MSCONNECTOR_MAX_TOTAL_HEADER_BYTES, 8U, 100U), &error));
+    invalid_transport.config.max_header_bytes = MSCONNECTOR_MAX_TOTAL_HEADER_BYTES + 1U;
+    msconnector_error_init(&error);
+    assert(!msconnector_response_companion_transport_start(&invalid_transport, &error));
+    assert(error.code == MSCONNECTOR_ERROR_INVALID_CONFIG);
+    assert(msconnector_response_companion_transport_stop(&invalid_transport, &error));
+
+    memset(&client, 0, sizeof(client));
+    memset(&result, 0, sizeof(result));
+    msconnector_error_init(&error);
+    assert(msconnector_response_companion_client_open(&client, socket_path, 1000U,
+        geteuid(), getegid(), &error));
+    assert(msconnector_response_companion_client_claim(&client, handle, &result,
+        &error));
+    msconnector_error_init(&error);
+    assert(!msconnector_response_companion_client_response_headers(&client,
+        &response, &result, &error));
+    assert(error.code == MSCONNECTOR_ERROR_PHASE_SEQUENCE);
+    msconnector_error_init(&error);
+    assert(msconnector_response_companion_client_cancel(&client, 0, &result,
+        &error));
+    msconnector_response_companion_result_destroy(&result);
+    assert(msconnector_response_companion_client_close(&client, &error));
+
+    /* The parser repeats the Common bound so a corrupt internal configuration
+     * cannot turn a valid transport into a wider P3 acceptance boundary. */
+    transport.config.max_header_count = MSCONNECTOR_MAX_HEADER_COUNT + 1U;
+    oversized_header_size = build_repeated_headers(oversized_headers,
+        sizeof(oversized_headers), 200, MSCONNECTOR_MAX_HEADER_COUNT + 1U);
+    assert(oversized_header_size > 0U);
+    socket_fd = connect_client(socket_path);
+    assert(claim(socket_fd, handle));
+    assert(exchange(socket_fd, TEST_RESPONSE_HEADERS, oversized_headers,
+        oversized_header_size, &raw_result));
+    assert(!raw_result.success && raw_result.error_code == MSCONNECTOR_ERROR_PROTOCOL);
+    assert(close(socket_fd) == 0);
+    mock_backend_snapshot(&backend, &observation);
+    assert(observation.claims == 2U);
+    assert(observation.response_headers == 0U);
+    assert(observation.failures == 1U);
+    assert(!observation.active);
+
+    transport.config.max_header_count = MSCONNECTOR_MAX_HEADER_COUNT;
+    transport.config.max_header_bytes = MSCONNECTOR_MAX_TOTAL_HEADER_BYTES + 1U;
+    oversized_aggregate_size = build_aggregate_headers(oversized_aggregate,
+        sizeof(oversized_aggregate), 200, MSCONNECTOR_MAX_TOTAL_HEADER_BYTES + 1U);
+    assert(oversized_aggregate_size > 0U);
+    socket_fd = connect_client(socket_path);
+    assert(claim(socket_fd, handle));
+    assert(exchange(socket_fd, TEST_RESPONSE_HEADERS, oversized_aggregate,
+        oversized_aggregate_size, &raw_result));
+    assert(!raw_result.success && raw_result.error_code == MSCONNECTOR_ERROR_HEADER_TOO_LARGE);
+    assert(close(socket_fd) == 0);
+    mock_backend_snapshot(&backend, &observation);
+    assert(observation.claims == 3U);
+    assert(observation.response_headers == 0U);
+    assert(observation.failures == 2U);
+    assert(!observation.active);
+
+    msconnector_error_init(&error);
+    assert(msconnector_response_companion_transport_stop(&transport, &error));
+    assert(access(socket_path, F_OK) != 0);
+    assert(pthread_mutex_destroy(&backend.lock) == 0);
+    assert(rmdir(socket_directory) == 0);
 }
 
 static void run_explicit_backend_contract_test(void)
@@ -1604,6 +1913,8 @@ int main(void)
     msconnector_runtime_destroy(&runtime);
     assert_metadata_only_events(event_path);
     run_explicit_backend_contract_test();
+    run_response_header_wire_capacity_test();
+    run_response_header_count_contract_test();
     run_backend_fault_claim_race_test();
     run_typed_cancel_cause_test();
     run_transport_security_regression_test();

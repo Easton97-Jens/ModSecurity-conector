@@ -158,16 +158,14 @@ func TestResponseHeaderEncodingUsesLengthThenBytesOrder(t *testing.T) {
 	}
 }
 
-func TestResponseHeaderEncodingFitsIndependentMRC1WireCapacity(t *testing.T) {
+func TestResponseHeaderEncodingPreservesCommonLogicalCapacity(t *testing.T) {
 	const (
-		independentFrameLimit = 65536
 		independentFixedBytes = 2 + 2 + len("HTTP/1.1") + 2
-		fieldCount            = 128
+		fieldCount            = maxHeaderCount
 		fieldLengthWords      = 4
 		fieldName             = "X-000"
 	)
-	maxHeaderContent := independentFrameLimit - independentFixedBytes -
-		fieldCount*fieldLengthWords
+	maxHeaderContent := maxPayload
 	values := make(http.Header, fieldCount)
 	remaining := maxHeaderContent - fieldCount*len(fieldName)
 	for index := 0; index < fieldCount; index++ {
@@ -176,26 +174,27 @@ func TestResponseHeaderEncodingFitsIndependentMRC1WireCapacity(t *testing.T) {
 		remaining -= length
 		values[name] = []string{strings.Repeat("v", length)}
 	}
-	if payload := encodeResponseHeaders(http.StatusOK, values); len(payload) != independentFrameLimit {
-		t.Fatalf("wire-boundary payload length=%d, want %d", len(payload), independentFrameLimit)
+	if payload := encodeResponseHeaders(http.StatusOK, values); len(payload) != maxResponseHeaderPayload {
+		t.Fatalf("wire-boundary payload length=%d, want %d", len(payload), maxResponseHeaderPayload)
 	}
 	values["X-000"][0] += "v"
 	if payload := encodeResponseHeaders(http.StatusOK, values); payload != nil {
-		t.Fatalf("over-capacity P3 payload was accepted with length %d", len(payload))
+		t.Fatalf("over-logical-limit P3 payload was accepted with length %d", len(payload))
 	}
 
 	const (
-		sparseFieldCount    = 10
-		sparseValueSize     = 6510
-		sparseContentBytes  = sparseFieldCount * (len(fieldName) + sparseValueSize)
-		sparsePayloadLength = independentFixedBytes +
-			sparseFieldCount*fieldLengthWords + sparseContentBytes
+		sparseFieldCount = 10
 	)
 	sparse := make(http.Header, sparseFieldCount)
+	remaining = maxPayload - sparseFieldCount*len(fieldName)
 	for index := 0; index < sparseFieldCount; index++ {
 		name := fmt.Sprintf("X-%03d", index)
-		sparse[name] = []string{strings.Repeat("v", sparseValueSize)}
+		length := remaining / (sparseFieldCount - index)
+		remaining -= length
+		sparse[name] = []string{strings.Repeat("v", length)}
 	}
+	sparsePayloadLength := maxPayload + independentFixedBytes +
+		sparseFieldCount*fieldLengthWords
 	if payload := encodeResponseHeaders(http.StatusOK, sparse); len(payload) != sparsePayloadLength {
 		t.Fatalf("encodeResponseHeaders(sparse) length = %d, want %d", len(payload), sparsePayloadLength)
 	}

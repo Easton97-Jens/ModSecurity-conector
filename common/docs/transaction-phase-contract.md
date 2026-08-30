@@ -127,6 +127,13 @@ so the observer must quiesce first. The private <code>MRC1</code> UDS protocol
 uses a fixed 12-byte frame header, bounded frames, a required first
 <code>CLAIM</code>, P3 headers, monotonic commit, bounded P4 chunks, one EOS,
 then outcome and release/cancel. It carries only the opaque handle at CLAIM.
+Its generic payload maximum remains 65536 bytes. Only
+<code>RESPONSE_HEADERS</code> may use a payload of up to 66630 bytes, so the
+fixed MRC1 fields and up to 256 field-length prefixes can carry Common's
+65536-byte logical name/value aggregate. This does not raise the logical
+header limit: decoders still reject more than 256 fields or more than 65536
+aggregate name/value bytes, and every other opcode remains limited to 65536
+payload bytes.
 The MRC1 family currently requires protocol version 2. Its one-byte
 <code>CANCEL</code> payload is a canonical terminal cause:
 <code>0=client_cancel</code>, <code>1=upstream_disconnect</code>,

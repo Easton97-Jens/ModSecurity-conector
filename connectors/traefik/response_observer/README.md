@@ -9,10 +9,14 @@ server-generated `X-Msconnector-Response-Handle`, and Traefik's
 one handle, removes it before invoking the upstream handler, and sends P3/P4
 frames to the private Unix socket configured in `socketPath`.
 
-The wire protocol is bounded `MRC1` version 2 with 12-byte headers, a 64 KiB
-frame limit, and 32 KiB response chunks. Its one-byte `CANCEL` payload carries
-the canonical terminal cause (client cancel, upstream disconnect, connector or
-protocol failure, engine timeout/unavailable, or invalid engine response).
+The wire protocol is bounded `MRC1` version 2 with 12-byte headers and 32 KiB
+response chunks. All non-P3 frames remain limited to 64 KiB. A P3
+`RESPONSE_HEADERS` frame may use a payload of up to 66,630 bytes across MRC1 peers;
+this HTTP/1.1 observer emits at most 66,574 payload bytes, while the logical header
+name/value aggregate remains capped at 64 KiB. Its one-byte `CANCEL` payload
+carries the canonical terminal cause (client cancel, upstream disconnect,
+connector or protocol failure, engine timeout/unavailable, or invalid engine
+response).
 There is no version-1 fallback: a mismatched listener fails closed. The plugin
 does not carry transaction or host identifiers, does not open P1/P2, and does
 not implement a second state machine. Invalid, missing, replayed, or

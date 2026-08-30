@@ -128,6 +128,77 @@ func TestClientFramesBoundedOrderedOperations(t *testing.T) {
 	}
 }
 
+func TestClientResponseHeadersPreserveCommonLogicalCapacity(t *testing.T) {
+	left, right := net.Pipe()
+	defer left.Close()
+	defer right.Close()
+	c := &client{conn: left, timeout: time.Second}
+	headers := make([]header, maxResponseHeaderFieldCount)
+	remaining := maxPayload
+	for index := range headers {
+		headers[index].name = fmt.Sprintf("X-%03d", index)
+		remaining -= len(headers[index].name)
+	}
+	for index := range headers {
+		length := remaining / (len(headers) - index)
+		remaining -= length
+		headers[index].value = strings.Repeat("v", length)
+	}
+	if remaining != 0 {
+		t.Fatalf("logical header bytes remaining=%d, want 0", remaining)
+	}
+
+	serverDone := make(chan error, 1)
+	go func() {
+		var wire [frameSize]byte
+		if _, err := io.ReadFull(right, wire[:]); err != nil {
+			serverDone <- err
+			return
+		}
+		if wire[5] != opResponseHeaders {
+			serverDone <- fmt.Errorf("opcode=%d, want response headers", wire[5])
+			return
+		}
+		length := int(binary.BigEndian.Uint32(wire[8:]))
+		if length != maxResponseHeaderPayload {
+			serverDone <- fmt.Errorf("payload length=%d, want %d", length, maxResponseHeaderPayload)
+			return
+		}
+		payload := make([]byte, length)
+		if _, err := io.ReadFull(right, payload); err != nil {
+			serverDone <- err
+			return
+		}
+		serverDone <- writeResultFrame(right, opResponseHeaders, resultOK, decisionAllow)
+	}()
+
+	if _, err := c.responseHeaders(http.StatusOK, headers); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-serverDone; err != nil {
+		t.Fatal(err)
+	}
+	headers[0].value += "v"
+	if _, err := c.responseHeaders(http.StatusOK, headers); err == nil {
+		t.Fatal("logical header limit overflow was accepted")
+	}
+}
+
+func TestClientResponseHeadersRejectFieldsOutsideCommonBounds(t *testing.T) {
+	c := &client{}
+	for name, headers := range map[string][]header{
+		"count": make([]header, maxResponseHeaderFieldCount+1),
+		"name":  {{name: strings.Repeat("n", maxResponseHeaderNameBytes+1), value: "v"}},
+		"value": {{name: "x", value: strings.Repeat("v", maxResponseHeaderValueBytes+1)}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := c.responseHeaders(http.StatusOK, headers); err == nil {
+				t.Fatal("header outside Common bounds was accepted")
+			}
+		})
+	}
+}
+
 func TestCancelCarriesTypedTerminationCause(t *testing.T) {
 	causes := []byte{
 		terminationClientCancel,
