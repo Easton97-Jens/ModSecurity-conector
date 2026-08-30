@@ -1157,3 +1157,41 @@ runtime is the relevant build evidence.
 pathname-UDS topology decision. PR #344 remains Draft; no `paths.env`,
 scanner, Quality Gate, ruleset, required-check, `master`, or merge change is
 made by this addendum.
+
+## 2026-08-30 bounded HAProxy resolver-sentinel follow-up
+
+At exact head `eabf2b07ed4e5f317e2435d5f40e5b48d84f92a1`, workflow
+[`33288804917`](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/33288804917)
+is terminal. Apache, lighttpd, and Traefik succeeded; Envoy and HAProxy
+failed. HAProxy again reached the real runtime step after its evidence-boundary
+preparation, but exposed only `target_failure=build-modsecurity-binding`,
+`classification=resolver_error`, and `build_step=modsecurity_resolver` before
+failing. Projection, verification, upload, and a HAProxy artifact did not run.
+That is a release blocker, not a source-cause result.
+
+The successor candidate gives the resolver one closed machine-readable
+channel. Every controlled `blocked` branch first emits one literal
+`BLOCKED: HAProxy libModSecurity resolver: sentinel=<cause>` line from the
+fixed 15-value allowlist, then retains its existing human-detail line and exit
+status `77`. An unknown internal code is rejected with the same nonzero exit.
+The legacy detail is not parsed as a cause.
+
+The Python recognizer maps only one complete, bounded `stderr` sentinel line
+to fixed `classification=resolver_error`, `build_step=modsecurity_resolver`,
+and `resolver_cause=<allowlisted-value>` diagnostics. It accepts the existing
+single-terminal-CRLF normalization but rejects a suffix, second carriage
+return, unknown value, overlong line, and the same text on `stdout` for cause
+correlation. Those cases retain at most generic resolver labels. When
+`GITHUB_ACTIONS=true`, exactly one recognized cause additionally emits only
+the fixed `::error title=HAProxy resolver diagnostic::resolver_cause=…`
+annotation; no raw path, header, body, token, command, or tool output reaches
+it. The annotation cannot change build status, cleanup, receipt eligibility,
+projection, verification, upload, scanner, or Quality-Gate behavior.
+
+Actual local validation of this uncommitted candidate passed: resolver shell
+syntax; an in-memory Python syntax check; 13 focused resolver tests; and 70
+focused provisioning tests. The latter cover all sentinels, CRLF, suffix,
+stdout, unknown, and overlong rejection, a rejected unknown internal cause,
+private-output non-leakage, and exact annotation behavior. The candidate has
+not yet produced a hosted run, so it does not establish the HAProxy root cause
+or successful evidence publication.

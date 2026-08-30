@@ -1999,52 +1999,110 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         self.assertNotIn("/private", rendered)
         self.assertNotIn("hidden", rendered)
 
-    def test_haproxy_binding_failure_diagnostic_maps_only_exact_resolver_cause_on_stderr(self) -> None:
-        exact_resolver_failure = (
-            "BLOCKED: HAProxy libModSecurity resolver: libModSecurity has unresolved runtime dependencies"
-        )
+    def test_haproxy_binding_failure_diagnostic_maps_only_exact_resolver_sentinel_on_stderr(self) -> None:
         generic_resolver_diagnostics = [
             components.HAPROXY_DIAGNOSTIC_RESOLVER_ERROR,
             "build_step=modsecurity_resolver",
         ]
-        expected_exact_diagnostics = [
-            *generic_resolver_diagnostics,
-            "resolver_cause=unresolved_runtime_dependencies",
-        ]
+
+        for exact_sentinel, exact_diagnostics in (
+            components.HAPROXY_RESOLVER_SENTINEL_DIAGNOSTICS.items()
+        ):
+            expected_exact_diagnostics = list(exact_diagnostics)
+            cases = (
+                ("exact_stderr", "", exact_sentinel, expected_exact_diagnostics),
+                ("crlf_stderr", "", exact_sentinel + "\r\n", expected_exact_diagnostics),
+                (
+                    "double_cr_suffix",
+                    "",
+                    exact_sentinel + "\r\r\n",
+                    generic_resolver_diagnostics,
+                ),
+                (
+                    "untrusted_suffix",
+                    "",
+                    exact_sentinel + " Authorization: Bearer hidden body=private",
+                    generic_resolver_diagnostics,
+                ),
+                ("exact_stdout", exact_sentinel, "", generic_resolver_diagnostics),
+                (
+                    "unknown_stderr",
+                    "",
+                    "BLOCKED: HAProxy libModSecurity resolver: /private/resolver-token",
+                    generic_resolver_diagnostics,
+                ),
+            )
+
+            for name, stdout, stderr, expected in cases:
+                with self.subTest(sentinel=exact_sentinel, name=name):
+                    diagnostics = components.haproxy_failure_diagnostic_lines(
+                        subprocess.CompletedProcess(
+                            args=["make"], returncode=77, stdout=stdout, stderr=stderr
+                        )
+                    )
+
+                    self.assertEqual(diagnostics, expected)
+                    rendered = "\n".join(diagnostics)
+                    self.assertNotIn("hidden", rendered)
+                    self.assertNotIn("private", rendered)
+
+    def test_haproxy_resolver_cause_diagnostics_rejects_unknown_cause(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unknown HAProxy resolver diagnostic cause"):
+            components.haproxy_resolver_cause_diagnostics("untrusted-cause")
+
+    def test_haproxy_binding_failure_diagnostic_emits_only_safe_resolver_annotation(self) -> None:
+        exact_sentinel, exact_diagnostics = next(
+            iter(components.HAPROXY_RESOLVER_SENTINEL_DIAGNOSTICS.items())
+        )
+        expected_annotation = (
+            "::error title=HAProxy resolver diagnostic::" f"{exact_diagnostics[-1]}"
+        )
         cases = (
-            ("exact_stderr", "", exact_resolver_failure, expected_exact_diagnostics),
-            ("crlf_stderr", "", exact_resolver_failure + "\r\n", expected_exact_diagnostics),
             (
-                "double_cr_suffix",
+                "exact_stderr",
                 "",
-                exact_resolver_failure + "\r\r\n",
-                generic_resolver_diagnostics,
+                exact_sentinel + "\nBLOCKED: HAProxy libModSecurity resolver: /private/detail",
+                True,
             ),
             (
-                "untrusted_suffix",
+                "suffix_stderr",
                 "",
-                exact_resolver_failure + " Authorization: Bearer hidden body=private",
-                generic_resolver_diagnostics,
+                exact_sentinel + " Authorization: Bearer hidden body=private",
+                False,
             ),
-            ("exact_stdout", exact_resolver_failure, "", generic_resolver_diagnostics),
+            ("stdout_only", exact_sentinel, "", False),
             (
                 "unknown_stderr",
                 "",
                 "BLOCKED: HAProxy libModSecurity resolver: /private/resolver-token",
-                generic_resolver_diagnostics,
+                False,
+            ),
+            (
+                "overlong_stderr",
+                "",
+                exact_sentinel + "x" * components.HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINE_CHARS,
+                False,
             ),
         )
 
-        for name, stdout, stderr, expected in cases:
+        for name, stdout, stderr, expect_annotation in cases:
             with self.subTest(name=name):
-                diagnostics = components.haproxy_failure_diagnostic_lines(
-                    subprocess.CompletedProcess(args=["make"], returncode=77, stdout=stdout, stderr=stderr)
+                proc = subprocess.CompletedProcess(
+                    args=["make"], returncode=77, stdout=stdout, stderr=stderr
                 )
+                with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
+                    with mock.patch.object(components.sys, "stderr", new_callable=io.StringIO) as output:
+                        components.emit_haproxy_binding_failure_diagnostic(proc, ())
+                rendered = output.getvalue()
 
-                self.assertEqual(diagnostics, expected)
-                rendered = "\n".join(diagnostics)
+                if expect_annotation:
+                    self.assertIn(expected_annotation, rendered)
+                    self.assertEqual(rendered.count("::error title=HAProxy resolver diagnostic::"), 1)
+                else:
+                    self.assertNotIn("::error title=HAProxy resolver diagnostic::", rendered)
                 self.assertNotIn("hidden", rendered)
-                self.assertNotIn("private", rendered)
+                self.assertNotIn("/private", rendered)
+                self.assertNotIn("resolver-token", rendered)
 
     def test_haproxy_binding_failure_diagnostic_stops_after_bounded_untrusted_output(self) -> None:
         proc = subprocess.CompletedProcess(

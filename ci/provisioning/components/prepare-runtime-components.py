@@ -119,13 +119,44 @@ HAPROXY_DIAGNOSTIC_RESOLVER_ERROR = "classification=resolver_error"
 HAPROXY_DIAGNOSTIC_COMPILER_FATAL_ERROR = "classification=compiler_fatal_error"
 HAPROXY_DIAGNOSTIC_COMPILER_ERROR = "classification=compiler_error"
 HAPROXY_DIAGNOSTIC_LINKER_ERROR = "classification=linker_error"
-HAPROXY_RESOLVER_UNRESOLVED_RUNTIME_DEPENDENCIES_FAILURE = (
-    "BLOCKED: HAProxy libModSecurity resolver: libModSecurity has unresolved runtime dependencies"
+HAPROXY_RESOLVER_SENTINEL_PREFIX = "BLOCKED: HAProxy libModSecurity resolver: sentinel="
+HAPROXY_RESOLVER_SENTINEL_CAUSES = (
+    "invalid_path_syntax",
+    "output_path_not_absolute",
+    "output_path_symlink",
+    "path_contains_whitespace",
+    "headers_not_found",
+    "library_not_found",
+    "headers_missing",
+    "library_missing",
+    "readlink_missing",
+    "library_target_unresolved",
+    "library_target_not_regular",
+    "file_missing",
+    "architecture_mismatch",
+    "ldd_missing",
+    "unresolved_runtime_dependencies",
 )
-HAPROXY_RESOLVER_UNRESOLVED_RUNTIME_DEPENDENCIES_DIAGNOSTICS = (
-    HAPROXY_DIAGNOSTIC_RESOLVER_ERROR,
-    "build_step=modsecurity_resolver",
-    "resolver_cause=unresolved_runtime_dependencies",
+
+
+def haproxy_resolver_cause_diagnostics(cause: str) -> tuple[str, ...]:
+    """Return the closed, payload-free diagnostics for one resolver cause."""
+
+    if cause not in HAPROXY_RESOLVER_SENTINEL_CAUSES:
+        raise ValueError("unknown HAProxy resolver diagnostic cause")
+    return (
+        HAPROXY_DIAGNOSTIC_RESOLVER_ERROR,
+        "build_step=modsecurity_resolver",
+        f"resolver_cause={cause}",
+    )
+
+
+HAPROXY_RESOLVER_SENTINEL_DIAGNOSTICS = {
+    f"{HAPROXY_RESOLVER_SENTINEL_PREFIX}{cause}": haproxy_resolver_cause_diagnostics(cause)
+    for cause in HAPROXY_RESOLVER_SENTINEL_CAUSES
+}
+HAPROXY_RESOLVER_CAUSE_VALUES = frozenset(
+    diagnostics[-1] for diagnostics in HAPROXY_RESOLVER_SENTINEL_DIAGNOSTICS.values()
 )
 HAPROXY_FAILURE_DIAGNOSTIC_RULES = (
     (
@@ -9198,16 +9229,13 @@ def append_haproxy_failure_output_diagnostics(
     """Append fixed diagnostics for one bounded stream and report truncation."""
 
     for raw_line in haproxy_failure_output_lines(output):
-        if (
-            is_stderr
-            and raw_line == HAPROXY_RESOLVER_UNRESOLVED_RUNTIME_DEPENDENCIES_FAILURE
-            and append_haproxy_failure_diagnostics(
-                selected,
-                HAPROXY_RESOLVER_UNRESOLVED_RUNTIME_DEPENDENCIES_DIAGNOSTICS,
-            )
-        ):
-            selected[-1] = "[classification list truncated]"
-            return True
+        if is_stderr:
+            resolver_diagnostics = HAPROXY_RESOLVER_SENTINEL_DIAGNOSTICS.get(raw_line)
+            if resolver_diagnostics is not None and append_haproxy_failure_diagnostics(
+                selected, resolver_diagnostics
+            ):
+                selected[-1] = "[classification list truncated]"
+                return True
         for diagnostics in haproxy_failure_diagnostics_for_line(raw_line):
             if append_haproxy_failure_diagnostics(selected, diagnostics):
                 selected[-1] = "[classification list truncated]"
@@ -9228,6 +9256,15 @@ def haproxy_failure_diagnostic_lines(
         if append_haproxy_failure_output_diagnostics(selected, output, is_stderr):
             return selected
     return selected
+
+
+def haproxy_resolver_cause_annotation(diagnostics: list[str]) -> str | None:
+    """Return one exact resolver cause suitable for a GitHub Actions annotation."""
+
+    matches = [
+        diagnostic for diagnostic in diagnostics if diagnostic in HAPROXY_RESOLVER_CAUSE_VALUES
+    ]
+    return matches[0] if len(matches) == 1 else None
 
 
 def emit_haproxy_binding_failure_diagnostic(
@@ -9254,6 +9291,12 @@ def emit_haproxy_binding_failure_diagnostic(
     for diagnostic in diagnostics:
         print(
             f"prepare-runtime-components: HAProxy binding diagnostic: {diagnostic}",
+            file=sys.stderr,
+        )
+    resolver_cause = haproxy_resolver_cause_annotation(diagnostics)
+    if resolver_cause is not None and os.environ.get("GITHUB_ACTIONS") == "true":
+        print(
+            f"::error title=HAProxy resolver diagnostic::{resolver_cause}",
             file=sys.stderr,
         )
 

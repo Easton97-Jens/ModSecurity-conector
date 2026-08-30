@@ -1253,3 +1253,46 @@ die exakte Hosted-Runtime bleibt der relevante Buildnachweis.
 UDS-Topologieentscheidung vorliegt. PR #344 bleibt Draft; dieses Addendum
 ändert weder `paths.env` noch Scanner, Quality Gate, Ruleset, Required Check,
 `master` oder einen Merge.
+
+## 2026-08-30 Begrenzter HAProxy-Resolver-Sentinel-Nachtrag
+
+Am exakten Head `eabf2b07ed4e5f317e2435d5f40e5b48d84f92a1` ist der Workflow
+[`33288804917`](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/33288804917)
+beendet. Apache, lighttpd und Traefik waren erfolgreich; Envoy und HAProxy
+schlugen fehl. HAProxy erreichte erneut den realen Runtime-Schritt nach seiner
+Evidence-Boundary-Vorbereitung, veröffentlichte aber vor dem Fehler nur
+`target_failure=build-modsecurity-binding`, `classification=resolver_error`
+und `build_step=modsecurity_resolver`. Projektion, Verifikation, Upload und
+ein HAProxy-Artefakt liefen nicht. Das ist ein Release-Blocker, kein
+Source-Cause-Ergebnis.
+
+Der Successor-Kandidat gibt dem Resolver einen geschlossenen maschinenlesbaren
+Kanal. Jeder kontrollierte `blocked`-Zweig gibt zuerst genau eine literale
+Zeile `BLOCKED: HAProxy libModSecurity resolver: sentinel=<cause>` aus der
+festen Allowlist von 15 Werten aus, behält anschließend seine bisherige
+Detailzeile für Menschen und den Exit-Status `77`. Ein unbekannter interner
+Code wird mit demselben Nonzero-Exit zurückgewiesen. Die Legacy-Detailzeile
+wird nicht als Ursache geparst.
+
+Der Python-Recognizer ordnet nur eine vollständige, begrenzte `stderr`-
+Sentinel-Zeile festen Diagnosen `classification=resolver_error`,
+`build_step=modsecurity_resolver` und
+`resolver_cause=<allowlisted-value>` zu. Er akzeptiert die bestehende
+Normalisierung eines einzigen terminalen CRLF, weist jedoch Suffix, zweites
+Carriage Return, unbekannten Wert, überlange Zeile sowie denselben Text auf
+`stdout` für die Ursachen-Korrelation zurück. Diese Fälle behalten höchstens
+generische Resolver-Labels. Bei `GITHUB_ACTIONS=true` gibt genau eine erkannte
+Ursache zusätzlich ausschließlich die feste Annotation
+`::error title=HAProxy resolver diagnostic::resolver_cause=…` aus; kein
+Rohpfad, Header, Body, Token, Command oder Tooloutput erreicht sie. Die
+Annotation kann Buildstatus, Cleanup, Receipt-Berechtigung, Projektion,
+Verifikation, Upload, Scanner oder Quality-Gate nicht ändern.
+
+Die tatsächliche lokale Validierung dieses noch uncommitteten Kandidaten
+bestand: Resolver-Shellsyntax; ein Python-Syntaxcheck im Speicher; 13
+fokussierte Resolver-Tests; und 70 fokussierte Provisioning-Tests. Letztere
+decken alle Sentinel, CRLF, Suffix-, stdout-, unbekannte und überlange
+Zurückweisungen, einen zurückgewiesenen unbekannten internen Code, die
+Nichtweitergabe privater Ausgabe sowie das exakte Annotationsverhalten ab. Der
+Kandidat hat noch keinen Hosted-Run erzeugt; er belegt daher weder die
+HAProxy-Root-Cause noch eine erfolgreiche Evidence-Publication.

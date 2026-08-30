@@ -5,7 +5,63 @@ set -eu
 
 OUTPUT_FILE=${1:?usage: resolve-modsecurity.sh OUTPUT_FILE}
 
+blocked_sentinel() {
+    case "$1" in
+        invalid_path_syntax)
+            printf '%s\n' 'BLOCKED: HAProxy libModSecurity resolver: sentinel=invalid_path_syntax' >&2
+            ;;
+        output_path_not_absolute)
+            printf '%s\n' 'BLOCKED: HAProxy libModSecurity resolver: sentinel=output_path_not_absolute' >&2
+            ;;
+        output_path_symlink)
+            printf '%s\n' 'BLOCKED: HAProxy libModSecurity resolver: sentinel=output_path_symlink' >&2
+            ;;
+        path_contains_whitespace)
+            printf '%s\n' 'BLOCKED: HAProxy libModSecurity resolver: sentinel=path_contains_whitespace' >&2
+            ;;
+        headers_not_found)
+            printf '%s\n' 'BLOCKED: HAProxy libModSecurity resolver: sentinel=headers_not_found' >&2
+            ;;
+        library_not_found)
+            printf '%s\n' 'BLOCKED: HAProxy libModSecurity resolver: sentinel=library_not_found' >&2
+            ;;
+        headers_missing)
+            printf '%s\n' 'BLOCKED: HAProxy libModSecurity resolver: sentinel=headers_missing' >&2
+            ;;
+        library_missing)
+            printf '%s\n' 'BLOCKED: HAProxy libModSecurity resolver: sentinel=library_missing' >&2
+            ;;
+        readlink_missing)
+            printf '%s\n' 'BLOCKED: HAProxy libModSecurity resolver: sentinel=readlink_missing' >&2
+            ;;
+        library_target_unresolved)
+            printf '%s\n' 'BLOCKED: HAProxy libModSecurity resolver: sentinel=library_target_unresolved' >&2
+            ;;
+        library_target_not_regular)
+            printf '%s\n' 'BLOCKED: HAProxy libModSecurity resolver: sentinel=library_target_not_regular' >&2
+            ;;
+        file_missing)
+            printf '%s\n' 'BLOCKED: HAProxy libModSecurity resolver: sentinel=file_missing' >&2
+            ;;
+        architecture_mismatch)
+            printf '%s\n' 'BLOCKED: HAProxy libModSecurity resolver: sentinel=architecture_mismatch' >&2
+            ;;
+        ldd_missing)
+            printf '%s\n' 'BLOCKED: HAProxy libModSecurity resolver: sentinel=ldd_missing' >&2
+            ;;
+        unresolved_runtime_dependencies)
+            printf '%s\n' 'BLOCKED: HAProxy libModSecurity resolver: sentinel=unresolved_runtime_dependencies' >&2
+            ;;
+        *)
+            printf '%s\n' 'BLOCKED: HAProxy libModSecurity resolver: internal diagnostic code rejected' >&2
+            exit 77
+            ;;
+    esac
+}
+
 blocked() {
+    blocked_sentinel "$1"
+    shift
     printf 'BLOCKED: HAProxy libModSecurity resolver: %s\n' "$*" >&2
     exit 77
 }
@@ -15,7 +71,7 @@ validate_path_syntax() {
     path_label=$2
     case "$path_value" in
         ''|*[!A-Za-z0-9_./+-]*)
-            blocked "$path_label contains unsupported shell/path metacharacters"
+            blocked invalid_path_syntax "$path_label contains unsupported shell/path metacharacters"
             ;;
         *)
             ;;
@@ -24,10 +80,10 @@ validate_path_syntax() {
 
 case "$OUTPUT_FILE" in
     /*) ;;
-    *) blocked "resolution output path must be absolute" ;;
+    *) blocked output_path_not_absolute "resolution output path must be absolute" ;;
 esac
 validate_path_syntax "$OUTPUT_FILE" MODSECURITY_RESOLUTION_FILE
-[ ! -L "$OUTPUT_FILE" ] || blocked "resolution output path must not be a symbolic link"
+[ ! -L "$OUTPUT_FILE" ] || blocked output_path_symlink "resolution output path must not be a symbolic link"
 
 valid_include() {
     [ -f "$1/modsecurity/modsecurity.h" ] &&
@@ -62,7 +118,7 @@ find_library() {
 
 reject_whitespace() {
     case "$1" in
-        *[[:space:]]*) blocked "paths containing whitespace are not supported: $2" ;;
+        *[[:space:]]*) blocked path_contains_whitespace "paths containing whitespace are not supported: $2" ;;
         *) ;;
     esac
 }
@@ -121,21 +177,21 @@ if [ -z "$lib_dir" ]; then
     done
 fi
 
-[ -n "$include_dir" ] || blocked "libModSecurity headers were not found; set MODSECURITY_INCLUDE_DIR"
-[ -n "$lib_dir" ] || blocked "libModSecurity library was not found; set MODSECURITY_LIB_DIR"
+[ -n "$include_dir" ] || blocked headers_not_found "libModSecurity headers were not found; set MODSECURITY_INCLUDE_DIR"
+[ -n "$lib_dir" ] || blocked library_not_found "libModSecurity library was not found; set MODSECURITY_LIB_DIR"
 reject_whitespace "$include_dir" MODSECURITY_INCLUDE_DIR
 reject_whitespace "$lib_dir" MODSECURITY_LIB_DIR
-valid_include "$include_dir" || blocked "header/library pairing rejected: required headers missing under $include_dir"
+valid_include "$include_dir" || blocked headers_missing "header/library pairing rejected: required headers missing under $include_dir"
 library=$(find_library "$lib_dir" || true)
-[ -n "$library" ] || blocked "header/library pairing rejected: libmodsecurity is missing under $lib_dir"
+[ -n "$library" ] || blocked library_missing "header/library pairing rejected: libmodsecurity is missing under $lib_dir"
 
-command -v readlink >/dev/null 2>&1 || blocked "readlink is required for libModSecurity symlink validation"
+command -v readlink >/dev/null 2>&1 || blocked readlink_missing "readlink is required for libModSecurity symlink validation"
 library_target=$(readlink -f -- "$library" 2>/dev/null || true)
-[ -n "$library_target" ] || blocked "libModSecurity library symlink target could not be resolved"
-[ -f "$library_target" ] || blocked "libModSecurity library symlink target is not a regular file"
+[ -n "$library_target" ] || blocked library_target_unresolved "libModSecurity library symlink target could not be resolved"
+[ -f "$library_target" ] || blocked library_target_not_regular "libModSecurity library symlink target is not a regular file"
 reject_whitespace "$library_target" MODSECURITY_LIBRARY_TARGET
 
-command -v file >/dev/null 2>&1 || blocked "file is required for libModSecurity architecture validation"
+command -v file >/dev/null 2>&1 || blocked file_missing "file is required for libModSecurity architecture validation"
 file_description=$(file -b "$library_target")
 case "$(uname -m):$file_description" in
     x86_64:*'x86-64'*) ;;
@@ -143,15 +199,15 @@ case "$(uname -m):$file_description" in
     aarch64:*'ARM aarch64'*) ;;
     arm64:*'ARM aarch64'*) ;;
     *'statically linked'*|*'current ar archive'*) ;;
-    *) blocked "libModSecurity architecture does not match host: $(uname -m), $file_description" ;;
+    *) blocked architecture_mismatch "libModSecurity architecture does not match host: $(uname -m), $file_description" ;;
 esac
 
 case "$library" in
     *.so|*.so.*)
-        command -v ldd >/dev/null 2>&1 || blocked "ldd is required for shared libModSecurity dependency validation"
+        command -v ldd >/dev/null 2>&1 || blocked ldd_missing "ldd is required for shared libModSecurity dependency validation"
         ldd_output=$(ldd "$library_target" 2>&1 || true)
         case "$ldd_output" in
-            *'not found'*) blocked "libModSecurity has unresolved runtime dependencies" ;;
+            *'not found'*) blocked unresolved_runtime_dependencies "libModSecurity has unresolved runtime dependencies" ;;
             *) ;;
         esac
         ;;
