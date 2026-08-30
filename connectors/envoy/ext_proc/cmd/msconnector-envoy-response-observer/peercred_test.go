@@ -65,3 +65,33 @@ func TestPrivateUDSRejectsNonCanonicalAndSymlinkPaths(t *testing.T) {
 		t.Fatal("accepted symlinked UDS parent")
 	}
 }
+
+func TestPrivateUDSClosePreservesReplacedSocketPath(t *testing.T) {
+	dir := testSocketDir(t)
+	if err := os.Chmod(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "observer.sock")
+	listener, err := secureListener(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(path); err != nil {
+		_ = listener.Close()
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("replacement"), 0600); err != nil {
+		_ = listener.Close()
+		t.Fatal(err)
+	}
+	if err := listener.Close(); err != nil {
+		t.Fatal(err)
+	}
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(contents), "replacement"; got != want {
+		t.Fatalf("replacement socket path = %q, want %q", got, want)
+	}
+}

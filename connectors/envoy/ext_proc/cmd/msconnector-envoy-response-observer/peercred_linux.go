@@ -5,7 +5,6 @@ package main
 import (
 	"fmt"
 	"net"
-	"syscall"
 
 	"golang.org/x/sys/unix"
 )
@@ -33,8 +32,4 @@ func verifyPeerCredentials(conn net.Conn, expectedUID, expectedGID int) error {
 		return err
 	}
 	return checkErr
-}
-
-type syscallConnProvider interface {
-	SyscallConn() (syscall.RawConn, error)
 }
