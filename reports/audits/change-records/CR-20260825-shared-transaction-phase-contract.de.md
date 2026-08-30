@@ -1430,3 +1430,38 @@ der lokalen Validierung bleibt PR #344 Draft und enthält dieser Change Record
 noch keine Successor-Delivery-Tatsache. Kein Workflow,
 Scanner, Quality Gate, Ruleset, Required Check, `paths.env`, `master` oder
 Merge ist enthalten.
+
+## 2026-08-30 HAProxy-Preflight für nicht bereites ModSecurity
+
+Der exakte Head `7f4f7a8a5060b4cc2d32a08116c66c95363146dc` erreichte die
+gehostete Fünfzellen-Runtime-Matrix. Apache, Envoy, Traefik und lighttpd waren
+erfolgreich; HAProxy scheiterte, nachdem die gemeinsame ModSecurity-Komponente
+`modsecurity_build_failed` gemeldet hatte und der Resolver alle drei
+öffentlichen Header als fehlend beobachtete. Dieses Ergebnis ist ein
+Release-Blocker und kein Nachweis einer erfolgreichen HAProxy-Runtime-
+Evidence-Publication.
+
+Der Source-Trace fand eine Statusintegritätslücke im HAProxy-Preflight: Er
+wies nur den literalen Zustand `blocked` zurück, während die kanonische Menge
+bereiter Zustände exakt `present`, `built` und `reused` ist. Ein gemeinsamer
+Record mit `failed`, `unknown`, fehlendem oder anderem nicht bereiten Status
+konnte daher Host-Vorbereitung und Binding-Resolver erreichen. Der Resolver
+blieb fail-closed, jedoch zu spät und mit vermeidbarer Gelegenheit für
+hostabhängiges Auflösungsverhalten.
+
+HAProxy weist nun jeden Zustand außerhalb von `READY_COMPONENT_STATUSES` vor
+Cache-Reuse, Vorbereitung, Binding-Kompilierung, Linken oder umgebungsbasierter
+Resolver-Fallback-Nutzung zurück. Es schreibt `blocked` und erhält den
+Blocker-Grund der Quelle, mit dem bestehenden festen Fallback
+`modsecurity_build_failed`. Die gemeinsamen Producer-/Cache-Prädikate, der
+Resolver, Diagnostik und andere Connector-Preflights bleiben bei dieser engen
+Korrektur unverändert.
+
+Die direkte lokale Regression deckt `blocked`, `failed`, `unknown`, `corrupt`,
+optional/nicht ausgewählt und fehlende Statuswerte sowie alle drei erlaubten
+Zustände ab. Ein separater Sink-Test beweist, dass ein fehlgeschlagener
+gemeinsamer Record weder HAProxy-Vorbereitung noch Binding-Build aufruft. Diese
+beiden fokussierten Tests bestanden lokal; breitere Validierung und frische
+Exact-Head-Hosted-Evidenz bleiben erforderlich, bevor PR #344 als verifiziert
+gelten kann. Kein Workflow, Scanner, Quality Gate, Ruleset, Required Check,
+`paths.env`, `master` oder Merge ist enthalten.

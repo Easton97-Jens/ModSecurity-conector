@@ -8915,7 +8915,7 @@ def haproxy_preflight_blocked(
     cache_root: Path,
     context: dict[str, Any],
 ) -> bool:
-    if modsecurity.get("status") == "blocked":
+    if modsecurity.get("status") not in READY_COMPONENT_STATUSES:
         record.update(
             status="blocked",
             blocker_reason=modsecurity.get("blocker_reason") or "modsecurity_build_failed",

@@ -1318,3 +1318,35 @@ the same remediation, and all focused checks above were rerun; no second review
 cycle was opened. At this local-validation point, PR #344 remains Draft and
 this Change Record has no successor-delivery fact yet. No workflow, scanner, Quality-Gate, ruleset,
 required-check, `paths.env`, `master`, or merge change is included.
+
+## 2026-08-30 HAProxy non-ready ModSecurity preflight
+
+Exact head `7f4f7a8a5060b4cc2d32a08116c66c95363146dc` reached the five-cell
+hosted runtime matrix. Apache, Envoy, Traefik, and lighttpd succeeded; HAProxy
+failed after the shared ModSecurity component reported
+`modsecurity_build_failed` and the resolver observed all three public headers
+absent. That outcome is a release blocker, not evidence of successful HAProxy
+runtime evidence publication.
+
+The source trace found a status-integrity gap in HAProxy's preflight: it
+rejected only the literal `blocked` state, while the canonical ready set is
+exactly `present`, `built`, and `reused`. A `failed`, `unknown`, missing, or
+otherwise non-ready shared record could therefore reach host preparation and
+the binding resolver. The resolver still failed closed, but too late and with
+an avoidable opportunity for host-level resolution behaviour.
+
+HAProxy now rejects every state outside `READY_COMPONENT_STATUSES` before
+cache reuse, preparation, binding compilation, linking, or environment-based
+resolver fallback. It records `blocked` and preserves the source blocker
+reason, with the existing fixed `modsecurity_build_failed` fallback. The
+shared producer/cache predicates, resolver, diagnostics, and other connector
+preflights are unchanged by this narrow repair.
+
+The direct local regression covers `blocked`, `failed`, `unknown`, `corrupt`,
+optional/not-selected, and absent status values, plus all three allowed
+statuses. A separate sink test proves a failed shared record invokes neither
+HAProxy preparation nor the binding build. These two focused tests passed
+locally; broader validation and fresh exact-head hosted evidence remain
+required before PR #344 can be considered verified. No workflow, scanner,
+Quality-Gate, ruleset, required-check, `paths.env`, `master`, or merge change
+is included.

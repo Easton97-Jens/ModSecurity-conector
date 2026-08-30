@@ -1778,6 +1778,85 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         self.assertEqual(record["status"], "failed")
         self.assertEqual(record["build_exit_code"], 77)
 
+    def test_haproxy_preflight_blocks_non_ready_modsecurity_statuses(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="haproxy-non-ready-modsecurity-") as temporary:
+            root = Path(temporary)
+            cache = root / "cache"
+            components.ensure_managed_cache_root(cache)
+            plan = self.haproxy_runtime_plan(cache)
+            context = components.haproxy_runtime_context(plan, root / "build")
+            non_ready_statuses = (
+                ("blocked", "shared_modsecurity_blocked"),
+                ("failed", "shared_modsecurity_failed"),
+                ("unknown", "shared_modsecurity_unknown"),
+                ("corrupt", "shared_modsecurity_corrupt"),
+                ("blocked_optional", "shared_modsecurity_optional"),
+                ("not_selected", ""),
+                (None, ""),
+            )
+            for status, blocker_reason in non_ready_statuses:
+                with self.subTest(status=status):
+                    modsecurity: dict[str, object] = {
+                        "build_id": "modsecurity-build",
+                        "blocker_reason": blocker_reason,
+                    }
+                    if status is not None:
+                        modsecurity["status"] = status
+                    record = components.haproxy_runtime_record(plan, modsecurity, context)
+
+                    self.assertTrue(
+                        components.haproxy_preflight_blocked(record, modsecurity, cache, context)
+                    )
+                    self.assertEqual(record["status"], "blocked")
+                    self.assertEqual(
+                        record["blocker_reason"],
+                        blocker_reason or "modsecurity_build_failed",
+                    )
+            for status in components.READY_COMPONENT_STATUSES:
+                with self.subTest(status=status):
+                    modsecurity = {"status": status, "build_id": "modsecurity-build"}
+                    record = components.haproxy_runtime_record(plan, modsecurity, context)
+
+                    self.assertFalse(
+                        components.haproxy_preflight_blocked(record, modsecurity, cache, context)
+                    )
+
+    def test_haproxy_failed_modsecurity_stops_before_host_build(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="haproxy-failed-modsecurity-") as temporary:
+            root = Path(temporary)
+            cache = root / "cache"
+            components.ensure_managed_cache_root(cache)
+            plan = self.haproxy_runtime_plan(cache)
+            modsecurity = {
+                "status": "failed",
+                "build_id": "modsecurity-build",
+                "blocker_reason": "modsecurity_build_failed",
+            }
+            with mock.patch.object(components, "run_build") as prepare, mock.patch.object(
+                components, "run_haproxy_binding_build"
+            ) as binding, mock.patch.object(
+                components,
+                "write_haproxy_record",
+                side_effect=lambda _plan, record: record,
+            ):
+                record = components.prepare_haproxy_runtime(
+                    {},
+                    ROOT,
+                    ROOT / "modules/ModSecurity-test-Framework",
+                    cache,
+                    root / "build",
+                    cache / "sources",
+                    cache / "archives",
+                    modsecurity,
+                    plan,
+                    _transactional=True,
+                )
+
+            self.assertEqual(record["status"], "blocked")
+            self.assertEqual(record["blocker_reason"], "modsecurity_build_failed")
+            prepare.assert_not_called()
+            binding.assert_not_called()
+
     def test_haproxy_binding_failure_diagnostic_is_bounded_and_opaque(self) -> None:
         proc = subprocess.CompletedProcess(
             args=["make"],
