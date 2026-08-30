@@ -1131,3 +1131,87 @@ Successor benötigt ein eigenes Exact-Head-Hosted-Ergebnis, bevor eine
 Resolver- oder Build-Reparatur erwogen werden kann. PR #344 bleibt Draft und
 benötigt weiter erfolgreichen Hosted-HAProxy-Evidenz-Upload, finale
 Scanner-/Sonar-Evidenz sowie frische reguläre und Security-Codex-Reviews.
+
+## 2026-08-30 Kandidatenvalidierung und verbleibende Entscheidungsgrenze
+
+### Aktueller Kandidat und Sicherheitsgrenze
+
+Zum lokalen Validierungszeitpunkt dieses Change Records war der breitere
+Successor-Kandidat noch weder gestaged, committed noch gepusht. Sein
+HAProxy-Anteil ergänzt eine Descriptor-Open-Regression für eine symlinkte
+Zwischenkomponente des Quellverzeichnisses; das Cleanup im Receipt-Modus
+verwendet feste vertrauenswürdige Prozesstools und `/bin/rm`, propagiert Fehler
+beim Result-Writer und beim Startup-Cleanup und weist jedes unerwartete
+Process-Inspection-Ergebnis zurück. Diese Änderungen erhalten die bestehenden
+Receipt-, Projektions-, Verifier- und Upload-Gates: Ein fehlgeschlagenes
+Cleanup kann kein zulässiges Receipt erzeugen.
+
+Der Kandidat enthält außerdem die enge `python:S3776`-Hilfsextraktion im
+HAProxy-Diagnosepfad sowie zuvor geprüfte Envoy- und Traefik-Härtungen. Die
+Envoy-Arbeit löst die unmittelbar beobachteten Fälle Unlink-on-Error,
+unexpected-`Serve`, Shutdown-Deadline und Late-Accept. Sie beansprucht nicht,
+die separate Pathname-UDS-Race für Substitution und finalen Unlink unter
+derselben effektiven UID zu lösen. Dieses Restrisiko bleibt lokal als
+`FND-PARENT-0991`, `P1`, `blocked` und `requires_user_decision` erfasst: Die
+erforderliche restart-kompatible UDS-Topologie kann nicht implizit sicher
+ausgewählt werden. `FND-PARENT-0992`, der HAProxy-Receipt-Befund zur
+Command-Resolution beim Cleanup, ist lokal behoben und wartet auf die
+Hosted-Verifikation am exakten ausgelieferten Head.
+
+Am exakten Remote-PR-Head `c1a9a80aa33959e418ac9467278a7685cc51399a`
+scheiterte der Hosted-Workflow
+[`33276652544`](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/33276652544)
+im HAProxy-Job `99164435759` während des libModSecurity-Resolvers, vor
+Projektion, Verifikation oder `Upload real runtime evidence`. Das bekannte
+Result ist `target_failure=build-modsecurity-binding`,
+`classification=resolver_error` und `build_step=modsecurity_resolver`; es ist
+keine Upload-Evidenz und rechtfertigt keine spekulative Makefile-Reparatur. Der
+aktuelle SonarQube-Cloud-Readback für denselben Remote-Head enthält einen
+offenen kritischen `python:S3776`-Befund (`AaBPeSvj3f23caWmipnJ`) in
+`ci/provisioning/components/prepare-runtime-components.py`; für die noch
+uncommittete Extraktion wird kein Nullbefund beansprucht.
+
+Der Kandidat macht nun die bei zwei Paketdateien unvermeidliche Digest-Grenze
+explizit, ohne einen Selbst-Digest zu erfinden: Nachdem der gemeinsame
+Verifier beide festen Paketdateien erneut geöffnet und validiert hat, gibt er
+einen kanonischen, mit Zeilenumbruch terminierten, höchstens 1-KiB großen
+abgetrennten Record mit beiden SHA-256-Werten aus. Der Workflow erfasst diesen
+Record außerhalb des Zweidateienpakets in einer festen root-owned-`0640`-Datei,
+öffnet ihn mit `O_NOFOLLOW` erneut, weist nichtkanonisches JSON, doppelte
+Schlüssel, nicht-ganzzahlige Schemaversionen, unerwartete Felder, unsichere
+Ownership/Modus/Größe sowie alles außer den zwei festen Kleinbuchstaben-Digests
+zurück und schreibt nur diese beiden validierten Werte in `GITHUB_OUTPUT`.
+Der abgetrennte Record wird vor dem Upload entfernt; weder er noch ein
+Runtime-Root ist Artefaktinput. Ein unabhängiger Post-Patch-Review fand in
+diesem zusätzlichen Evidenzpfad keinen konkreten Bypass oder Regression.
+
+### Tatsächliche lokale Validierung
+
+| Lokale Validierung | Tatsächliches Ergebnis |
+| --- | --- |
+| Fokussierte HAProxy-Projector-Suite | Bestanden: 26 Tests; 11 erwartete Cross-Identity-Skips. Der Block-Device-Source-Test ist vorhanden, benötigt aber eine gemappte Cross-Identity-Fixture. |
+| Python-Suite für Projector, Workflow-Contract, HAProxy-Harness, Provisioning, CI-Security und Traefik-Runtime-Security | Bestanden: 162 Tests; 11 erwartete Cross-Identity-Skips. |
+| HAProxy-Receipt-Harness-Syntax und direkte Contract-Suite | Bestanden: `sh -n` und 14 Tests, einschließlich PATH-geschattetem `rm`, stale Startup-Cleanup, Result-Writer-Fehler und Process-Group-Controls. |
+| Envoy-ext_proc-Observer | Mit einem kurzen isolierten Unix-Socket-Temporary-Root bestanden: `go test -race -count=1 ./...` über acht Packages und `go vet ./...`. |
+| Traefik-Response-Observer | Mit einem kurzen isolierten Unix-Socket-Temporary-Root bestanden: `go test -race -count=1 ./...` und `go vet ./...`. |
+| Statische Hosted-Workflow-Controls | Workflow-YAML-Validierung, `actionlint` und `zizmor --offline` bestanden. |
+| Formatierung und Whitespace | `gofmt -d` für die geänderten Envoy-Dateien und `git diff --check` bestanden. |
+
+Ein früherer Go-Testversuch mit einem zu tiefen Temporary-Verzeichnis schlug
+fehl, bevor die relevanten Unix-Socket-Tests starteten (`bind: invalid argument`);
+er zählt nicht als erfolgreicher Test. Die obigen Wiederholungen mit kurzem
+Root sind die dokumentierte Evidenz.
+
+### Delivery-Status und verbleibende Blocker
+
+Der HAProxy-Runtime-Evidence-Workflow ist die eine ausdrücklich autorisierte
+Workflow-Änderung dieses Kandidaten. Scanner, Quality Gate, Ruleset,
+Required Check, `paths.env`, `master` und ein Merge wurden nicht geändert.
+PR #344 bleibt Draft.
+Die verbleibenden Delivery-Blocker sind: eine explizite Envoy-UDS-
+Ownership-/Restart-Topologieentscheidung für `FND-PARENT-0991`; eine
+source-spezifische Diagnose oder ein neuer erfolgreicher Hosted-Run für den
+HAProxy-Resolverfehler; ein gepushtes SonarQube-Cloud-Nullergebnis am exakten
+Head; danach die geforderte Artefakt-, Scanner- sowie reguläre und
+Security-Codex-Review-Evidenz am exakten Head. Vor deren Vorliegen auf einem
+letzten unveränderten Head wird kein finaler Hosted-Erfolg beansprucht.

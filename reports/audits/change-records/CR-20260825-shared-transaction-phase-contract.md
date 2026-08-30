@@ -1044,3 +1044,82 @@ own exact-head hosted result before any resolver or build repair can be
 considered. PR #344 remains Draft and still requires successful hosted
 HAProxy evidence publication, final scanner/Sonar evidence, and fresh regular
 and Security Codex review.
+
+## 2026-08-30 candidate validation and remaining decision boundary
+
+### Current candidate and security boundary
+
+At the local-validation point of this Change Record, the broader successor
+candidate had not yet been staged, committed, or pushed. Its HAProxy component
+adds a descriptor-open regression for a symlinked intermediate
+source-directory component; receipt-mode cleanup uses fixed trusted process
+tools and `/bin/rm`, propagates result-writer and startup-cleanup failures,
+and rejects any unexpected process-inspection result. These changes preserve
+the existing receipt, projection, verifier, and upload gates: a failed cleanup
+cannot create an eligible receipt.
+
+The candidate also contains the narrow `python:S3776` helper extraction in
+the HAProxy diagnostic path and previously reviewed Envoy and Traefik
+hardening. The Envoy work resolves the directly observed unlink-on-error,
+unexpected-`Serve`, shutdown-deadline, and late-accept cases. It does not
+claim to solve the separate pathname-UDS same-effective-UID substitution and
+final-unlink race. That residual is retained locally as `FND-PARENT-0991`,
+`P1`, `blocked`, and `requires_user_decision`: the required restart-compatible
+UDS topology cannot safely be selected implicitly. `FND-PARENT-0992`, the
+HAProxy receipt cleanup command-resolution finding, is locally fixed and
+awaits exact delivered-head hosted verification.
+
+At exact remote PR head `c1a9a80aa33959e418ac9467278a7685cc51399a`, hosted
+workflow [`33276652544`](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/33276652544)
+failed in HAProxy job `99164435759` during the libModSecurity resolver before
+projection, verification, or `Upload real runtime evidence`. The known result
+is `target_failure=build-modsecurity-binding`,
+`classification=resolver_error`, and `build_step=modsecurity_resolver`; it is
+not upload evidence and does not justify a speculative Makefile repair. The
+current SonarQube Cloud readback for that same remote head has one open
+critical `python:S3776` issue (`AaBPeSvj3f23caWmipnJ`) in
+`ci/provisioning/components/prepare-runtime-components.py`; no zero-issue
+claim is made for the uncommitted extraction.
+
+The candidate now makes the unavoidable two-file digest boundary explicit
+without fabricating a self-digest: after the common verifier has reopened and
+validated both fixed package files, it emits a canonical, newline-terminated,
+at-most-1-KiB detached record with both SHA-256 values. The workflow captures
+that record outside the two-file package in a fixed root-owned `0640` file,
+reopens it with `O_NOFOLLOW`, rejects noncanonical JSON, duplicate keys,
+non-integer schema versions, unexpected fields, unsafe ownership/mode/size,
+or anything other than the two fixed lowercase digests, and writes only those
+two validated values to `GITHUB_OUTPUT`. It removes the detached record before
+upload; neither it nor a runtime root is an artifact input. An independent
+post-patch review found no concrete bypass or regression in this additional
+evidence path.
+
+### Actual local validation
+
+| Local validation | Actual result |
+| --- | --- |
+| Focused HAProxy projector suite | Passed: 26 tests; 11 expected cross-identity skips. The block-device source test is present but needs a mapped Cross-Identity fixture. |
+| Projector, workflow-contract, HAProxy-harness, provisioning, CI-security, and Traefik runtime-security Python suite | Passed: 162 tests; 11 expected cross-identity skips. |
+| HAProxy receipt harness syntax and direct contract suite | Passed: `sh -n` and 14 tests, including PATH-shadowed `rm`, stale startup cleanup, result-writer failure, and process-group controls. |
+| Envoy ext_proc observer | Passed with a short isolated Unix-socket temporary root: `go test -race -count=1 ./...` across eight packages and `go vet ./...`. |
+| Traefik response observer | Passed with a short isolated Unix-socket temporary root: `go test -race -count=1 ./...` and `go vet ./...`. |
+| Hosted workflow static controls | Workflow-YAML validation, `actionlint`, and `zizmor --offline` passed. |
+| Formatting and whitespace | `gofmt -d` for changed Envoy files and `git diff --check` passed. |
+
+An earlier Go test attempt with an excessively deep temporary directory failed
+before the relevant Unix-socket tests started (`bind: invalid argument`); it
+is not counted as a successful test. The short-root reruns above are the
+recorded evidence.
+
+### Delivery state and remaining blockers
+
+The HAProxy runtime-evidence workflow is the one explicitly authorized
+workflow edit in this candidate. No scanner, Quality-Gate, ruleset,
+required-check, `paths.env`, `master`, or merge change was made. PR #344
+remains Draft.
+The remaining delivery blockers are: an explicit Envoy UDS ownership/restart
+topology decision for `FND-PARENT-0991`; a source-specific diagnosis or a new
+successful hosted result for the HAProxy resolver failure; a pushed exact-head
+SonarQube Cloud zero result; then the required exact-head artifact, scanner,
+and regular plus Security Codex review evidence. No final-hosted success is
+asserted before those conditions exist on one last unchanged head.

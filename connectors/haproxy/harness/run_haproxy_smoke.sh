@@ -244,20 +244,26 @@ write_case_result() {
     actual_status=${3:-}
     output=$4
     if [ -n "$actual_status" ]; then
-        "$PYTHON_BIN" "$CASE_CLI" case-info \
+        if ! "$PYTHON_BIN" "$CASE_CLI" case-info \
             --case "$case_path" \
             --connector haproxy \
             --status "$case_status" \
             --actual-status "$actual_status" \
-            --output "$output"
+            --output "$output"; then
+            return 1
+        fi
     else
-        "$PYTHON_BIN" "$CASE_CLI" case-info \
+        if ! "$PYTHON_BIN" "$CASE_CLI" case-info \
             --case "$case_path" \
             --connector haproxy \
             --status "$case_status" \
-            --output "$output"
+            --output "$output"; then
+            return 1
+        fi
     fi
-    enrich_case_result "$output" || true
+    [ -f "$output" ] || return 1
+    enrich_case_result "$output"
+    [ -f "$output" ] || return 1
 }
 
 enrich_case_result() {
@@ -672,6 +678,20 @@ ensure_spoa_runtime() {
     [ -n "${MODSECURITY_LIB_DIR:-}" ] || fail "ModSecurity library directory missing from paths.env"
 }
 
+configure_haproxy_evidence_receipt_process_tools() {
+    RUNTIME_SETSID_BIN=/usr/bin/setsid
+    RUNTIME_PGREP_BIN=/usr/bin/pgrep
+    RUNTIME_PS_BIN=/usr/bin/ps
+
+    for runtime_process_tool in \
+        "$RUNTIME_SETSID_BIN" \
+        "$RUNTIME_PGREP_BIN" \
+        "$RUNTIME_PS_BIN"; do
+        [ -x "$runtime_process_tool" ] || \
+            fail "HAProxy evidence receipt requires trusted runtime process tools"
+    done
+}
+
 cleanup_runtime_process() {
     process_name=$1
     process_pid=$2
@@ -684,6 +704,16 @@ cleanup_runtime_process() {
             ;;
     esac
     if [ -n "$RUNTIME_SETSID_BIN" ]; then
+        signal_runtime_process_group_members "$process_pid" TERM || return 1
+        if wait_for_runtime_process_group_exit "$process_pid" 20; then
+            :
+        else
+            cleanup_wait_status=$?
+            if [ "$cleanup_wait_status" -ne 1 ]; then
+                return 1
+            fi
+            signal_runtime_process_group_members "$process_pid" KILL || return 1
+        fi
         if kill -0 "$process_pid" >/dev/null 2>&1 && \
             ! /bin/kill -TERM "$process_pid" >/dev/null 2>&1; then
             printf '%s\n' "haproxy_smoke: cannot stop $process_name leader during cleanup" >&2
@@ -723,33 +753,87 @@ cleanup_runtime_process() {
             return 1
         fi
     fi
-    if [ -n "$RUNTIME_SETSID_BIN" ] && runtime_process_group_running "$process_pid"; then
-        if ! /bin/kill -TERM -- "-$process_pid" >/dev/null 2>&1 && \
-            runtime_process_group_running "$process_pid"; then
-            printf '%s\n' "haproxy_smoke: cannot stop remaining $process_name process group during cleanup" >&2
-            return 1
-        fi
-        if ! wait_for_runtime_process_group_exit "$process_pid" 20; then
-            if ! /bin/kill -KILL -- "-$process_pid" >/dev/null 2>&1 && \
+    if [ -n "$RUNTIME_SETSID_BIN" ]; then
+        if runtime_process_group_running "$process_pid"; then
+            if ! /bin/kill -TERM -- "-$process_pid" >/dev/null 2>&1 && \
                 runtime_process_group_running "$process_pid"; then
-                printf '%s\n' "haproxy_smoke: cannot kill remaining $process_name process group during cleanup" >&2
+                printf '%s\n' "haproxy_smoke: cannot stop remaining $process_name process group during cleanup" >&2
                 return 1
             fi
-        fi
-        if ! wait_for_runtime_process_group_exit "$process_pid" 20; then
-            printf '%s\n' "haproxy_smoke: $process_name process group did not exit during cleanup" >&2
-            return 1
+            if wait_for_runtime_process_group_exit "$process_pid" 20; then
+                :
+            else
+                cleanup_wait_status=$?
+                if [ "$cleanup_wait_status" -ne 1 ]; then
+                    return 1
+                fi
+                if ! /bin/kill -KILL -- "-$process_pid" >/dev/null 2>&1 && \
+                    runtime_process_group_running "$process_pid"; then
+                    printf '%s\n' "haproxy_smoke: cannot kill remaining $process_name process group during cleanup" >&2
+                    return 1
+                fi
+            fi
+            if wait_for_runtime_process_group_exit "$process_pid" 20; then
+                :
+            else
+                cleanup_wait_status=$?
+                if [ "$cleanup_wait_status" -ne 1 ]; then
+                    return 1
+                fi
+                printf '%s\n' "haproxy_smoke: $process_name process group did not exit during cleanup" >&2
+                return 1
+            fi
+        else
+            cleanup_pgrep_status=$?
+            if [ "$cleanup_pgrep_status" -ne 1 ]; then
+                printf '%s\n' "haproxy_smoke: cannot inspect process-group members during cleanup" >&2
+                return 1
+            fi
         fi
     fi
     if kill -0 "$process_pid" >/dev/null 2>&1; then
         printf '%s\n' "haproxy_smoke: $process_name remains alive after cleanup" >&2
         return 1
     fi
-    if [ -n "$RUNTIME_PGREP_BIN" ] && \
-        "$RUNTIME_PGREP_BIN" -g "$process_pid" >/dev/null 2>&1; then
-        printf '%s\n' "haproxy_smoke: $process_name process group remains alive after cleanup" >&2
-        return 1
+    if [ -n "$RUNTIME_PGREP_BIN" ]; then
+        if runtime_process_group_running "$process_pid"; then
+            printf '%s\n' "haproxy_smoke: $process_name process group remains alive after cleanup" >&2
+            return 1
+        else
+            cleanup_pgrep_status=$?
+        fi
+        if [ "$cleanup_pgrep_status" -ne 1 ]; then
+            printf '%s\n' "haproxy_smoke: cannot inspect process-group members during cleanup" >&2
+            return 1
+        fi
     fi
+    return 0
+}
+
+signal_runtime_process_group_members() {
+    cleanup_group_pid=$1
+    cleanup_signal=$2
+
+    if cleanup_group_members=$("$RUNTIME_PGREP_BIN" -g "$cleanup_group_pid" -d ' ' 2>/dev/null); then
+        :
+    else
+        cleanup_pgrep_status=$?
+        if [ "$cleanup_pgrep_status" -ne 1 ]; then
+            printf '%s\n' "haproxy_smoke: cannot inspect process-group members during cleanup" >&2
+            return 1
+        fi
+        cleanup_group_members=
+    fi
+    for cleanup_member_pid in $cleanup_group_members; do
+        case "$cleanup_member_pid" in
+            *[!0-9]*|0|"$cleanup_group_pid") continue ;;
+        esac
+        if kill -0 "$cleanup_member_pid" >/dev/null 2>&1 && \
+            ! /bin/kill -"$cleanup_signal" "$cleanup_member_pid" >/dev/null 2>&1; then
+            printf '%s\n' "haproxy_smoke: cannot send $cleanup_signal to process-group member during cleanup" >&2
+            return 1
+        fi
+    done
     return 0
 }
 
@@ -757,7 +841,15 @@ runtime_process_group_running() {
     cleanup_group_pid=$1
 
     if [ -n "$RUNTIME_PGREP_BIN" ]; then
-        "$RUNTIME_PGREP_BIN" -g "$cleanup_group_pid" >/dev/null 2>&1
+        if "$RUNTIME_PGREP_BIN" -g "$cleanup_group_pid" >/dev/null 2>&1; then
+            return 0
+        else
+            cleanup_pgrep_status=$?
+        fi
+        if [ "$cleanup_pgrep_status" -eq 1 ]; then
+            return 1
+        fi
+        return 2
     else
         /bin/kill -0 -- "-$cleanup_group_pid" >/dev/null 2>&1
     fi
@@ -769,11 +861,18 @@ wait_for_runtime_process_group_exit() {
     cleanup_wait_attempt=0
 
     while [ "$cleanup_wait_attempt" -lt "$cleanup_wait_limit" ]; do
-        if ! runtime_process_group_running "$cleanup_group_pid"; then
+        if runtime_process_group_running "$cleanup_group_pid"; then
+            sleep 0.1
+            cleanup_wait_attempt=$((cleanup_wait_attempt + 1))
+            continue
+        else
+            cleanup_pgrep_status=$?
+        fi
+        if [ "$cleanup_pgrep_status" -eq 1 ]; then
             return 0
         fi
-        sleep 0.1
-        cleanup_wait_attempt=$((cleanup_wait_attempt + 1))
+        printf '%s\n' "haproxy_smoke: cannot inspect process-group members during cleanup" >&2
+        return 2
     done
     return 1
 }
@@ -813,9 +912,16 @@ require_runtime_process_stopped() {
     [ -n "$process_pid" ] || return 1
     case "$process_pid" in *[!0-9]*|0) return 1 ;; esac
     ! kill -0 "$process_pid" >/dev/null 2>&1 || return 1
-    if [ -n "$RUNTIME_PGREP_BIN" ] && \
-        "$RUNTIME_PGREP_BIN" -g "$process_pid" >/dev/null 2>&1; then
-        return 1
+    if [ -n "$RUNTIME_PGREP_BIN" ]; then
+        if runtime_process_group_running "$process_pid"; then
+            return 1
+        else
+            cleanup_pgrep_status=$?
+        fi
+        if [ "$cleanup_pgrep_status" -ne 1 ]; then
+            printf '%s\n' "haproxy_smoke: cannot inspect process-group members before evidence receipt" >&2
+            return 1
+        fi
     fi
     return 0
 }
@@ -825,7 +931,7 @@ cleanup() {
     cleanup_runtime_process haproxy "$HAPROXY_PID" || cleanup_status=1
     cleanup_runtime_process spoa "$AGENT_PID" || cleanup_status=1
     cleanup_runtime_process backend "$BACKEND_PID" || cleanup_status=1
-    if [ -n "$RUNTIME_ROOT" ] && ! rm -f \
+    if [ -n "$RUNTIME_ROOT" ] && ! /bin/rm -f \
         "$RUNTIME_ROOT/haproxy.pid" \
         "$RUNTIME_ROOT/spoa.pid" \
         "$RUNTIME_ROOT/spoa.port" \
@@ -1138,6 +1244,26 @@ print(quote(sys.argv[1], safe="/:?&=%+$,;@[]!'()*"))
 PY
 }
 
+cleanup_startup_artifacts() {
+    if ! /bin/rm -f "$LOG_DIR/"*.log \
+        "$LOG_DIR/"*.err \
+        "$LOG_DIR/observed-status.txt" \
+        "$LOG_DIR/response-body.txt" \
+        "$LOG_DIR/audit.log" \
+        "$LOG_DIR/decision.jsonl" \
+        "$LOG_DIR/spoa-agent.log" \
+        "$RUNTIME_ROOT/conf/"*.conf \
+        "$RUNTIME_ROOT/conf/"*.txt \
+        "$RUNTIME_ROOT/conf/"*.bin \
+        "$RUNTIME_ROOT/conf/"*.env \
+        "$RUNTIME_ROOT/"*.pid \
+        "$RUNTIME_ROOT/"*.ready \
+        "$RUNTIME_ROOT/"*.port; then
+        return 1
+    fi
+    /bin/rm -f "$LOG_DIR/audit/"*
+}
+
 if [ "$RUN_ONE_CASE" != "1" ]; then
     run_all_cases
 fi
@@ -1170,21 +1296,13 @@ fi
 require_under_build_root "$RUNTIME_ROOT" RUNTIME_ROOT
 mkdir -p "$LOG_DIR" "$LOG_DIR/audit" "$RUNTIME_ROOT/conf" "$RUNTIME_ROOT/htdocs"
 : > "$STATUS_FILE"
-rm -f "$LOG_DIR/"*.log \
-    "$LOG_DIR/"*.err \
-    "$LOG_DIR/observed-status.txt" \
-    "$LOG_DIR/response-body.txt" \
-    "$LOG_DIR/audit.log" \
-    "$LOG_DIR/decision.jsonl" \
-    "$LOG_DIR/spoa-agent.log" \
-    "$RUNTIME_ROOT/conf/"*.conf \
-    "$RUNTIME_ROOT/conf/"*.txt \
-    "$RUNTIME_ROOT/conf/"*.bin \
-    "$RUNTIME_ROOT/conf/"*.env \
-    "$RUNTIME_ROOT/"*.pid \
-    "$RUNTIME_ROOT/"*.ready \
-    "$RUNTIME_ROOT/"*.port 2>/dev/null || true
-rm -f "$LOG_DIR/audit/"* 2>/dev/null || true
+if [ "$HAPROXY_EVIDENCE_RECEIPT" = "1" ]; then
+    if ! cleanup_startup_artifacts; then
+        fail "cannot clear stale HAProxy artifacts before evidence receipt"
+    fi
+else
+    cleanup_startup_artifacts 2>/dev/null || true
+fi
 
 case "$MSCONNECTOR_SMOKE_STAGE" in
     config_load|start_smoke|minimal_runtime_smoke) ;;
@@ -1239,19 +1357,7 @@ case "$HAPROXY_EVIDENCE_RECEIPT" in
     1)
         [ "$MSCONNECTOR_SMOKE_STAGE" = "minimal_runtime_smoke" ] || \
             fail "HAProxy evidence receipt requires minimal_runtime_smoke"
-        if ! RUNTIME_SETSID_BIN=$(command -v setsid); then
-            fail "HAProxy evidence receipt requires setsid"
-        fi
-        if ! RUNTIME_PGREP_BIN=$(command -v pgrep); then
-            fail "HAProxy evidence receipt requires pgrep"
-        fi
-        if ! RUNTIME_PS_BIN=$(command -v ps); then
-            fail "HAProxy evidence receipt requires ps"
-        fi
-        case "$RUNTIME_SETSID_BIN:$RUNTIME_PGREP_BIN:$RUNTIME_PS_BIN" in
-            /*:/*:/*) ;;
-            *) fail "HAProxy evidence receipt process tools must be absolute" ;;
-        esac
+        configure_haproxy_evidence_receipt_process_tools
         ;;
     *) fail "HAPROXY_EVIDENCE_RECEIPT must be 0 or 1" ;;
 esac
@@ -1290,7 +1396,9 @@ set -e
 printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
 
 if [ "$curl_rc" -ne 0 ]; then
-    write_case_result "$TEST_CASE" fail "$http_status" "$LOG_DIR/result.json" || true
+    if ! write_case_result "$TEST_CASE" fail "$http_status" "$LOG_DIR/result.json"; then
+        fail "failed to write HAProxy case result after request failure"
+    fi
     fail "curl attack request failed rc=$curl_rc; see $LOG_DIR/curl-attack.err"
 fi
 
@@ -1300,7 +1408,9 @@ if "$PYTHON_BIN" "$CASE_CLI" assert-status \
     --response-body-file "$RESPONSE_BODY" \
     --audit-log-file "$AUDIT_LOG_FILE" \
     --status-file "$STATUS_FILE" > "$LOG_DIR/case-assert.log" 2>&1; then
-    write_case_result "$TEST_CASE" pass "$http_status" "$LOG_DIR/result.json" || true
+    if ! write_case_result "$TEST_CASE" pass "$http_status" "$LOG_DIR/result.json"; then
+        fail "failed to write HAProxy successful case result"
+    fi
     if [ "$HAPROXY_EVIDENCE_RECEIPT" = "1" ]; then
         if ! cleanup; then
             fail "HAProxy evidence receipt cleanup did not complete"
@@ -1312,6 +1422,8 @@ if "$PYTHON_BIN" "$CASE_CLI" assert-status \
     exit 0
 fi
 
-write_case_result "$TEST_CASE" fail "$http_status" "$LOG_DIR/result.json" || true
+if ! write_case_result "$TEST_CASE" fail "$http_status" "$LOG_DIR/result.json"; then
+    fail "failed to write HAProxy failed case result"
+fi
 echo "haproxy_smoke: fail case=$CASE_NAME observed=$http_status expected=$EXPECT_STATUS"
 exit 1

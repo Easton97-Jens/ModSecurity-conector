@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import grp
+import hashlib
 import importlib.util
 import io
 import json
@@ -220,6 +221,242 @@ class HaproxyEvidenceDocumentValidationTests(unittest.TestCase):
         with contextlib.redirect_stderr(stderr):
             self.assertEqual(projector.main(arguments), 2)
         self.assertIn("UNSAFE_SOURCE_DOCUMENT", stderr.getvalue())
+
+    def test_descriptor_open_rejects_a_symlink_intermediate_component(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="haproxy-evidence-symlink-") as directory:
+            root = Path(directory)
+            target_parent = root / "target-parent"
+            target_leaf = target_parent / "leaf"
+            target_parent.mkdir()
+            target_leaf.mkdir()
+            intermediate = root / "intermediate"
+            intermediate.symlink_to(target_parent, target_is_directory=True)
+            with self.assertRaisesRegex(
+                projector.EvidenceProjectionError, "UNSAFE_SOURCE_DIRECTORY"
+            ):
+                projector._open_absolute_directory(
+                    intermediate / target_leaf.name, label="source"
+                )
+
+    def test_directory_and_stage_paths_reject_noncanonical_components(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="haproxy-evidence-path-") as directory:
+            root = Path(directory)
+            runner_temp = root / "runner-temp"
+            stage_parent = runner_temp / "haproxy-runtime-evidence-parent.A1b2C3d4"
+            stage_root = stage_parent / projector.STAGE_DIRECTORY_NAME
+            runner_temp.mkdir()
+            self.assertEqual(
+                projector._stage_parent_name(
+                    runner_temp=runner_temp,
+                    stage_parent=stage_parent,
+                    stage_root=stage_root,
+                ),
+                stage_parent.name,
+            )
+            for unsafe_path in (
+                Path("relative"),
+                root / "noncanonical" / "..",
+                Path(os.sep),
+            ):
+                with self.subTest(unsafe_path=os.fspath(unsafe_path)), self.assertRaises(
+                    projector.EvidenceProjectionError
+                ):
+                    projector._open_absolute_directory(unsafe_path, label="source")
+            for unsafe_arguments in (
+                (Path("relative"), stage_parent, stage_root),
+                (runner_temp, runner_temp / ".." / stage_parent.name, stage_root),
+                (runner_temp, stage_parent, stage_parent / ".." / projector.STAGE_DIRECTORY_NAME),
+                (runner_temp, stage_parent, stage_parent / "different-package"),
+            ):
+                with self.subTest(unsafe_arguments=unsafe_arguments), self.assertRaises(
+                    projector.EvidenceProjectionError
+                ):
+                    projector._stage_parent_name(
+                        runner_temp=unsafe_arguments[0],
+                        stage_parent=unsafe_arguments[1],
+                        stage_root=unsafe_arguments[2],
+                    )
+
+    def test_directory_listing_rejects_hidden_and_nested_entries(self) -> None:
+        for entry_name, create in (
+            (".hidden", lambda path: path.write_text("{}\n", encoding="utf-8")),
+            ("nested", lambda path: path.mkdir()),
+        ):
+            with self.subTest(entry_name=entry_name), tempfile.TemporaryDirectory(
+                prefix="haproxy-evidence-listing-"
+            ) as directory:
+                root = Path(directory)
+                create(root / entry_name)
+                descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+                try:
+                    with self.assertRaisesRegex(
+                        projector.EvidenceProjectionError, "UNEXPECTED_STAGE_CONTENTS"
+                    ):
+                        projector._list_exactly(descriptor, set(), label="stage")
+                finally:
+                    os.close(descriptor)
+
+    def test_staged_child_reader_rejects_nonregular_and_oversized_files(self) -> None:
+        for kind in ("symlink", "directory", "fifo", "socket", "oversized"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory(
+                prefix="haproxy-evidence-child-"
+            ) as directory:
+                root = Path(directory)
+                candidate = root / "candidate"
+                server: socket.socket | None = None
+                if kind == "symlink":
+                    target = root / "target"
+                    target.write_text("{}\n", encoding="utf-8")
+                    candidate.symlink_to(target)
+                elif kind == "directory":
+                    candidate.mkdir()
+                elif kind == "fifo":
+                    os.mkfifo(candidate, 0o444)
+                elif kind == "socket":
+                    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                    server.bind(os.fspath(candidate))
+                else:
+                    candidate.write_bytes(b"x" * (projector.MAX_FILE_BYTES + 1))
+                    candidate.chmod(0o444)
+                descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+                try:
+                    with self.assertRaisesRegex(
+                        projector.EvidenceProjectionError, "UNSAFE_STAGE_FILE"
+                    ):
+                        projector._read_regular_child(
+                            descriptor,
+                            candidate.name,
+                            maximum_bytes=projector.MAX_FILE_BYTES,
+                            owner_uid=os.geteuid(),
+                            owner_gid=os.getegid(),
+                            mode=0o444,
+                            label="stage",
+                        )
+                finally:
+                    os.close(descriptor)
+                    if server is not None:
+                        server.close()
+
+    def test_project_document_enforces_total_size_limit_before_staging(self) -> None:
+        source_document = projector.canonical_json_bytes(
+            projector._source_receipt(self.trusted, 403)
+        ).decode("utf-8")
+        evidence = projector.canonical_json_bytes(projector._evidence_document(self.trusted))
+        manifest = projector.canonical_json_bytes(projector._manifest(evidence))
+        with tempfile.TemporaryDirectory(prefix="haproxy-evidence-total-") as directory:
+            root = Path(directory)
+            stage_parent = root / "haproxy-runtime-evidence-parent.A1b2C3d4"
+            stage_root = stage_parent / projector.STAGE_DIRECTORY_NAME
+            # This only reaches the pre-I/O size branch: the root guard is
+            # otherwise orthogonal to the package arithmetic being tested.
+            with mock.patch.object(
+                projector, "_require_unprivileged_identity", return_value=(1001, 1002)
+            ), mock.patch.object(
+                projector, "MAX_TOTAL_BYTES", len(evidence) + len(manifest) - 1
+            ), self.assertRaisesRegex(projector.EvidenceProjectionError, "PACKAGE_SIZE_LIMIT"):
+                projector.project_document(
+                    source_document=source_document,
+                    runner_temp=root,
+                    stage_parent=stage_parent,
+                    stage_root=stage_root,
+                    trusted=self.trusted,
+                    runtime_uid=1003,
+                    upload_gid=1004,
+                )
+
+    def test_digest_report_is_canonical_and_covers_each_fixed_file(self) -> None:
+        evidence = projector.canonical_json_bytes(projector._evidence_document(self.trusted))
+        manifest = projector.canonical_json_bytes(projector._manifest(evidence))
+        digests = {
+            projector.EVIDENCE_FILENAME: hashlib.sha256(evidence).hexdigest(),
+            projector.MANIFEST_FILENAME: hashlib.sha256(manifest).hexdigest(),
+        }
+        report = projector._digest_report_bytes(digests)
+        self.assertLessEqual(len(report), projector.MAX_DIGEST_REPORT_BYTES)
+        self.assertNotIn(b"\x00", report)
+        self.assertTrue(report.endswith(b"\n"))
+        self.assertEqual(report, projector.canonical_json_bytes(json.loads(report)))
+        self.assertEqual(
+            json.loads(report),
+            {
+                "files": [
+                    {
+                        "name": projector.EVIDENCE_FILENAME,
+                        "sha256": digests[projector.EVIDENCE_FILENAME],
+                    },
+                    {
+                        "name": projector.MANIFEST_FILENAME,
+                        "sha256": digests[projector.MANIFEST_FILENAME],
+                    },
+                ],
+                "record_type": "haproxy_runtime_evidence_digests",
+                "schema_version": projector.EVIDENCE_SCHEMA_VERSION,
+            },
+        )
+        for malformed in (
+            {projector.EVIDENCE_FILENAME: digests[projector.EVIDENCE_FILENAME]},
+            {
+                **digests,
+                "unexpected": "a" * 64,
+            },
+            {
+                projector.EVIDENCE_FILENAME: "A" * 64,
+                projector.MANIFEST_FILENAME: digests[projector.MANIFEST_FILENAME],
+            },
+            {
+                projector.EVIDENCE_FILENAME: "a" * 63,
+                projector.MANIFEST_FILENAME: digests[projector.MANIFEST_FILENAME],
+            },
+        ):
+            with self.subTest(malformed=malformed), self.assertRaisesRegex(
+                projector.EvidenceProjectionError, "DIGEST_REPORT_REJECTED"
+            ):
+                projector._digest_report_bytes(malformed)
+
+    def test_verify_cli_emits_digest_report_only_after_success(self) -> None:
+        arguments = (
+            "verify",
+            "--runner-temp",
+            "/runner-temp",
+            "--stage-parent",
+            "/runner-temp/haproxy-runtime-evidence-parent.A1b2C3d4",
+            "--stage-root",
+            "/runner-temp/haproxy-runtime-evidence-parent.A1b2C3d4/package",
+            "--runtime-uid",
+            "1001",
+            "--upload-gid",
+            "1002",
+            "--expected-parent-sha",
+            self.trusted.parent_sha,
+            "--expected-framework-sha",
+            self.trusted.framework_sha,
+            "--expected-mrts-sha",
+            self.trusted.mrts_sha,
+        )
+        digests = {
+            projector.EVIDENCE_FILENAME: "a" * 64,
+            projector.MANIFEST_FILENAME: "b" * 64,
+        }
+        expected = projector._digest_report_bytes(digests)
+        successful_raw = io.BytesIO()
+        successful_stdout = io.TextIOWrapper(successful_raw, encoding="utf-8")
+        with mock.patch.object(projector, "verify_staged_package", return_value=digests), mock.patch.object(
+            projector.sys, "stdout", successful_stdout
+        ):
+            self.assertEqual(projector.main(arguments), 0)
+        self.assertEqual(successful_raw.getvalue(), expected)
+
+        failed_raw = io.BytesIO()
+        failed_stdout = io.TextIOWrapper(failed_raw, encoding="utf-8")
+        with mock.patch.object(
+            projector,
+            "verify_staged_package",
+            side_effect=projector.EvidenceProjectionError("MANIFEST_REJECTED"),
+        ), mock.patch.object(projector.sys, "stdout", failed_stdout), contextlib.redirect_stderr(
+            io.StringIO()
+        ):
+            self.assertEqual(projector.main(arguments), 2)
+        self.assertEqual(failed_raw.getvalue(), b"")
 
     def test_partial_cleanup_reopens_a_sealed_directory_only_to_remove_allowlisted_files(self) -> None:
         with tempfile.TemporaryDirectory(prefix="haproxy-evidence-cleanup-") as directory:
@@ -599,6 +836,18 @@ class HaproxyEvidenceProjectionTests(unittest.TestCase):
             os.mknod(self.receipt_path, stat.S_IFCHR | 0o600, os.makedev(1, 3))
         except PermissionError:
             self.skipTest("the current root namespace cannot create device fixtures")
+        try:
+            os.chown(self.receipt_path, self.runtime_uid, self.runtime_gid)
+            self._assert_export_rejected()
+        finally:
+            self.receipt_path.unlink(missing_ok=True)
+
+    def test_block_device_source_is_rejected_when_fixture_is_permitted(self) -> None:
+        self.receipt_path.unlink()
+        try:
+            os.mknod(self.receipt_path, stat.S_IFBLK | 0o600, os.makedev(7, 0))
+        except PermissionError:
+            self.skipTest("the current root namespace cannot create block-device fixtures")
         try:
             os.chown(self.receipt_path, self.runtime_uid, self.runtime_gid)
             self._assert_export_rejected()

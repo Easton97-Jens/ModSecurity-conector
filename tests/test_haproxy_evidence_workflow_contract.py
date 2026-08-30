@@ -202,6 +202,43 @@ class HaproxyEvidenceWorkflowContractTests(unittest.TestCase):
             constrained_projector.index("exec(compile(source"),
         )
 
+    def test_verifier_persists_only_a_bounded_canonical_digest_report(self) -> None:
+        source = self.source()
+        verify = self.block(
+            source,
+            "      - name: Verify HAProxy runtime evidence\n",
+            "      - name: Upload non-HAProxy runtime evidence\n",
+        )
+        self.assertIn(
+            'digest_report="$STAGE_PARENT/haproxy-runtime-evidence-digests.json"',
+            verify,
+        )
+        self.assertIn(
+            'sudo -n /usr/bin/install -m 0640 -o 0 -g "$RUNTIME_GID" /dev/null "$digest_report"',
+            verify,
+        )
+        self.assertIn("/usr/bin/head --bytes=1025", verify)
+        self.assertIn('sudo -n /usr/bin/tee -- "$digest_report" >/dev/null', verify)
+        self.assertIn("os.O_NOFOLLOW", verify)
+        self.assertIn("before.st_uid != 0", verify)
+        self.assertIn("stat.S_IMODE(before.st_mode) != 0o640", verify)
+        self.assertIn("object_pairs_hook=reject_duplicate_keys", verify)
+        self.assertIn('"haproxy_runtime_evidence_digests"', verify)
+        self.assertIn('type(document["schema_version"]) is not int', verify)
+        self.assertIn('output.write("evidence_sha256="', verify)
+        self.assertIn('output.write("manifest_sha256="', verify)
+        self.assertIn('sudo -n /usr/bin/rm -f -- "$digest_report"', verify)
+        self.assertLess(
+            verify.index("run_evidence_projector verify"),
+            verify.index('output.write("evidence_sha256="'),
+        )
+        self.assertLess(
+            verify.index('output.write("manifest_sha256="'),
+            verify.index('sudo -n /usr/bin/rm -f -- "$digest_report"'),
+        )
+        for forbidden in ("|| true", "continue-on-error:", "stage_root=$digest_report"):
+            self.assertNotIn(forbidden, verify)
+
     def test_projector_seals_the_upload_reader_path_without_other_traversal(self) -> None:
         projector = (
             ROOT / "ci" / "runtime" / "lifecycle" / "project-haproxy-runtime-evidence.py"
@@ -262,6 +299,7 @@ class HaproxyEvidenceWorkflowContractTests(unittest.TestCase):
             "logs",
             "result.json",
             "source_root",
+            "haproxy-runtime-evidence-digests.json",
         ):
             self.assertNotIn(forbidden, upload)
 

@@ -29,12 +29,14 @@ EVIDENCE_SCHEMA_VERSION = 1
 MAX_SOURCE_RECEIPT_BYTES = 16 * 1024
 MAX_FILE_BYTES = 64 * 1024
 MAX_TOTAL_BYTES = 256 * 1024
+MAX_DIGEST_REPORT_BYTES = 1024
 STAGE_PARENT_PREFIX = "haproxy-runtime-evidence-parent."
 STAGE_PARENT_NAME = re.compile(
     rf"^{re.escape(STAGE_PARENT_PREFIX)}[A-Za-z0-9]{{8}}$", re.ASCII
 )
 STAGE_DIRECTORY_NAME = "package"
 SHA40 = re.compile(r"^[0-9a-f]{40}$", re.ASCII)
+SHA256 = re.compile(r"^[0-9a-f]{64}$", re.ASCII)
 
 
 class EvidenceProjectionError(ValueError):
@@ -82,6 +84,7 @@ SOURCE_RECEIPT_FIELDS = frozenset(
 )
 EVIDENCE_FIELDS = frozenset(SOURCE_RECEIPT_FIELDS)
 MANIFEST_FIELDS = frozenset({"files", "record_type", "schema_version"})
+DIGEST_REPORT_FIELDS = frozenset({"files", "record_type", "schema_version"})
 
 
 def _require_sha(value: str) -> str:
@@ -467,6 +470,34 @@ def _manifest(evidence: bytes) -> dict[str, object]:
         "record_type": "haproxy_runtime_evidence_manifest",
         "schema_version": EVIDENCE_SCHEMA_VERSION,
     }
+
+
+def _digest_report(digests: Mapping[str, str]) -> dict[str, object]:
+    expected_names = (EVIDENCE_FILENAME, MANIFEST_FILENAME)
+    if set(digests) != set(expected_names):
+        raise EvidenceProjectionError("DIGEST_REPORT_REJECTED")
+    files: list[dict[str, str]] = []
+    for name in expected_names:
+        digest = digests[name]
+        if not isinstance(digest, str) or SHA256.fullmatch(digest) is None:
+            raise EvidenceProjectionError("DIGEST_REPORT_REJECTED")
+        files.append({"name": name, "sha256": digest})
+    return {
+        "files": files,
+        "record_type": "haproxy_runtime_evidence_digests",
+        "schema_version": EVIDENCE_SCHEMA_VERSION,
+    }
+
+
+def _digest_report_bytes(digests: Mapping[str, str]) -> bytes:
+    report = _digest_report(digests)
+    data = canonical_json_bytes(report)
+    if not data or len(data) > MAX_DIGEST_REPORT_BYTES or b"\x00" in data:
+        raise EvidenceProjectionError("DIGEST_REPORT_REJECTED")
+    parsed = _parse_canonical_object(data, maximum_bytes=MAX_DIGEST_REPORT_BYTES)
+    if set(parsed) != DIGEST_REPORT_FIELDS or not _strictly_equal(parsed, report):
+        raise EvidenceProjectionError("DIGEST_REPORT_REJECTED")
+    return data
 
 
 def write_source_receipt(
@@ -952,13 +983,17 @@ def main(arguments: Sequence[str] | None = None) -> int:
                 upload_gid=args.upload_gid,
             )
         else:
-            verify_staged_package(
-                runner_temp=Path(args.runner_temp),
-                stage_parent=Path(args.stage_parent),
-                stage_root=Path(args.stage_root),
-                trusted=trusted,
-                runtime_uid=args.runtime_uid,
-                upload_gid=args.upload_gid,
+            sys.stdout.buffer.write(
+                _digest_report_bytes(
+                    verify_staged_package(
+                        runner_temp=Path(args.runner_temp),
+                        stage_parent=Path(args.stage_parent),
+                        stage_root=Path(args.stage_root),
+                        trusted=trusted,
+                        runtime_uid=args.runtime_uid,
+                        upload_gid=args.upload_gid,
+                    )
+                )
             )
     except EvidenceProjectionError as error:
         print(f"FAIL: {error}", file=sys.stderr)
