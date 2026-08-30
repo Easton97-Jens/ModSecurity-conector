@@ -354,6 +354,7 @@ jobs:
                       CRS=with-crs \
                       MRTS=no-mrts \
                       RUNTIME_COMPONENT_TARGET=haproxy \
+                      RUNTIME_COMPONENT_FAILURE_DIAGNOSTICS=1 \
                       CRS_RUNTIME_RUN_ID="$CRS_RUNTIME_RUN_ID" \
                       EXPECTED_PARENT_SHA="$RUNTIME_PARENT_SHA" \
                       EXPECTED_FRAMEWORK_SHA="$RUNTIME_FRAMEWORK_SHA" \
