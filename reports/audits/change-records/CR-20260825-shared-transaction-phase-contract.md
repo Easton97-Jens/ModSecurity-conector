@@ -1380,3 +1380,100 @@ provisioning/cache, documentation, and exact-successor hosted validation remain
 required before PR #344 is considered verified. No workflow, scanner,
 Quality-Gate, ruleset, required-check, `paths.env`, `master`, or merge change
 is included.
+
+## 2026-08-30 temporary HAProxy component failure classification
+
+### Motivation
+
+The isolated HAProxy hosted-runtime failure stopped at a generic private Expat
+or ModSecurity component result. That is insufficient evidence for a build
+environment or source repair. This temporary diagnostic can expose one fixed
+classification during a deliberately enabled manual run without publishing a
+raw build log.
+
+### Acceptance criteria
+
+The diagnostic is off by default, usable only for the HAProxy target with its
+evidence receipt, and emits at most a fixed component, build-step, bounded
+exit-code, and classification tuple. It must not alter build outcomes,
+records, cleanup, receipt eligibility, projection, verification, upload, or
+the runtime sandbox. The switch, emitter, and dedicated tests are removed in a
+successor after one enabled dispatch.
+
+### Technical decisions
+
+`workflow_dispatch` has one Boolean input,
+`haproxy_component_failure_diagnostics`, defaulting to `false`. It evaluates
+to `RUNTIME_COMPONENT_FAILURE_DIAGNOSTICS=1` only for an explicit `true`
+dispatch and is passed only inside the existing HAProxy isolated `env -i`
+environment. The provisioner additionally requires
+`RUNTIME_COMPONENT_TARGET=haproxy` and `HAPROXY_EVIDENCE_RECEIPT=1`.
+
+Private Expat/ModSecurity output is examined only in memory to select a static
+allowlist value. The sole output has the fixed form
+`component=<enum> build_step=<enum> exit_code=<0..255|unavailable> classification=<enum>`.
+Unknown classifications become `unclassified`; unknown components or steps
+produce no diagnostic. Existing component records retain their previous
+failure classification and exit-code behavior.
+
+### Security impact
+
+No private command output, argument, path, URL, environment value, header,
+body, credential, token, cookie, or raw log is emitted or added to evidence.
+The existing `env -i`, `unshare`, `setpriv --no-new-privs`, capability-drop,
+UID/GID isolation, cleanup, strict projector, verifier, and fail-closed upload
+boundary remain unchanged. An independent post-patch security review found no
+diagnostic leak or sandbox regression.
+
+### Changed files
+
+- `.github/workflows/test-connectors-with-crs-no-mrts.yml`
+- `ci/provisioning/components/prepare-runtime-components.py`
+- `tests/test_prepare_runtime_components.py`
+- `tests/test_ci_security_workflows.py`
+- this English/German Change Record pair
+
+### Tests and actual results
+
+| Validation | Actual result |
+| --- | --- |
+| Focused diagnostic and HAProxy workflow tests | Passed: 5 tests. |
+| `tests.test_prepare_runtime_components` | Passed: 81 tests. |
+| HAProxy workflow-contract suites | Passed: 38 tests. |
+| Runtime, projection, and HAProxy harness contract suites | Passed: 101 tests; 11 environment-supported skips. |
+| `actionlint` | Passed for `.github/workflows/test-connectors-with-crs-no-mrts.yml`. |
+| `zizmor` | Passed for that workflow; it reported only its offline capability note. |
+| `git diff --check` | Passed. |
+
+### Runtime evidence
+
+No enabled diagnostic dispatch, commit, push, hosted runtime result, artifact,
+or evidence publication exists for this local candidate yet. The diagnostic is
+not a production repair and does not prove the HAProxy root cause.
+
+### Checks not run
+
+`ruff` was not run because no local executable is available. The bilingual and
+documentation-link checks, delivery preflight, and hosted/manual-dispatch
+checks remain pending at this point.
+
+### Known limitations
+
+The tuple deliberately cannot disclose a compiler, configure, linker, or
+network message beyond its fixed classification. A result of `unclassified` is
+valid evidence that no source-backed repair is justified yet.
+
+### Residual risks
+
+PR #344 remains Draft and blocked on a safe, exact-head hosted diagnosis and
+subsequent runtime verification. `FND-PARENT-0975` remains `in_progress` /
+`blocked_missing_evidence`; the preflight status-integrity behavior is already
+covered there and needs no duplicate finding.
+
+### Final review status
+
+Local implementation and independent security review are complete. Delivery,
+one enabled bounded manual dispatch, full temporary-path removal, and all
+successor hosted verification are still pending. No workflow security control,
+scanner, Quality Gate, ruleset, required check, `paths.env`, `master`, or
+merge change is included.

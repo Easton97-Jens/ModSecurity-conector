@@ -1626,6 +1626,14 @@ jobs:
 
         self.assertIn("  pull_request:\n    branches: [master]\n", workflow)
         self.assertIn("  workflow_dispatch:\n", workflow)
+        self.assertIn(
+            "      haproxy_component_failure_diagnostics:\n"
+            "        description: Emit fixed HAProxy component failure classifications only\n"
+            "        required: false\n"
+            "        default: false\n"
+            "        type: boolean\n",
+            workflow,
+        )
         for forbidden in (
             "pull_request_target:",
             "workflow_run:",
@@ -1843,6 +1851,21 @@ jobs:
             self.assertNotIn(forbidden, boundary)
         self.assertIn("HAPROXY_EVIDENCE_RECEIPT=1", runtime)
         self.assertIn("HAPROXY_EVIDENCE_RECEIPT_PROJECTOR=", runtime)
+        self.assertIn(
+            "RUNTIME_COMPONENT_FAILURE_DIAGNOSTICS: $"
+            "{{ github.event_name == 'workflow_dispatch' && "
+            "github.event.inputs.haproxy_component_failure_diagnostics == 'true' && '1' || '0' }}",
+            runtime,
+        )
+        self.assertEqual(runtime.count('RUNTIME_COMPONENT_FAILURE_DIAGNOSTICS="$RUNTIME_COMPONENT_FAILURE_DIAGNOSTICS"'), 1)
+        self.assertLess(
+            runtime.index("RUNTIME_COMPONENT_TARGET=haproxy"),
+            runtime.index('RUNTIME_COMPONENT_FAILURE_DIAGNOSTICS="$RUNTIME_COMPONENT_FAILURE_DIAGNOSTICS"'),
+        )
+        self.assertLess(
+            runtime.index('RUNTIME_COMPONENT_FAILURE_DIAGNOSTICS="$RUNTIME_COMPONENT_FAILURE_DIAGNOSTICS"'),
+            runtime.index('/usr/bin/make -C "$GITHUB_WORKSPACE" verified-haproxy-case'),
+        )
         self.assertIn("EXPECTED_PARENT_SHA=", runtime)
         self.assertIn("EXPECTED_FRAMEWORK_SHA=", runtime)
         self.assertIn("EXPECTED_MRTS_SHA=", runtime)

@@ -1497,3 +1497,107 @@ für `status=built` `False`. Breitere Provisioning-/Cache-, Dokumentations- und
 Exact-Successor-Hosted-Validierung bleiben erforderlich, bevor PR #344 als
 verifiziert gilt. Kein Workflow, Scanner, Quality Gate, Ruleset, Required
 Check, `paths.env`, `master` oder Merge ist enthalten.
+
+## 2026-08-30 temporäre HAProxy-Komponentenfehlerklassifikation
+
+### Motivation
+
+Der isolierte HAProxy-Hosted-Runtime-Fehler endete bei einem generischen
+privaten Expat- oder ModSecurity-Komponentenergebnis. Das ist keine ausreichende
+Evidenz für eine Build-Umgebungs- oder Source-Korrektur. Diese temporäre
+Diagnostik kann bei einem bewusst aktivierten manuellen Lauf genau eine feste
+Klassifikation ausgeben, ohne ein rohes Buildlog zu veröffentlichen.
+
+### Akzeptanzkriterien
+
+Die Diagnostik ist standardmäßig ausgeschaltet, nur für das HAProxy-Target mit
+seinem Evidence-Receipt nutzbar und gibt höchstens ein festes Tupel aus
+Komponente, Build-Schritt, begrenztem Exit-Code und Klassifikation aus. Sie darf
+keine Build-Ergebnisse, Records, Cleanup, Receipt-Berechtigung, Projektion,
+Verifikation, Upload oder die Runtime-Sandbox ändern. Switch, Emitter und
+dedizierte Tests werden nach einem aktivierten Dispatch in einem Successor
+entfernt.
+
+### Technische Entscheidungen
+
+`workflow_dispatch` enthält einen Boolean-Input,
+`haproxy_component_failure_diagnostics`, mit Standardwert `false`. Er wird nur
+bei einem expliziten `true`-Dispatch zu
+`RUNTIME_COMPONENT_FAILURE_DIAGNOSTICS=1` ausgewertet und nur innerhalb der
+vorhandenen isolierten HAProxy-`env -i`-Umgebung weitergegeben. Der Provisioner
+fordert zusätzlich `RUNTIME_COMPONENT_TARGET=haproxy` und
+`HAPROXY_EVIDENCE_RECEIPT=1`.
+
+Private Expat-/ModSecurity-Ausgabe wird nur im Speicher ausgewertet, um einen
+statischen Allowlist-Wert auszuwählen. Die einzige Ausgabe hat die feste Form
+`component=<enum> build_step=<enum> exit_code=<0..255|unavailable> classification=<enum>`.
+Unbekannte Klassifikationen werden zu `unclassified`; unbekannte Komponenten
+oder Schritte erzeugen keine Diagnostik. Bestehende Komponenten-Records
+behalten ihr bisheriges Fehlerklassifikations- und Exit-Code-Verhalten.
+
+### Sicherheitsauswirkung
+
+Keine private Command-Ausgabe, kein Argument, Pfad, URL, Environment-Wert,
+Header, Body, Credential, Token, Cookie oder Raw-Log wird ausgegeben oder zur
+Evidence hinzugefügt. Die vorhandene `env -i`-, `unshare`-,
+`setpriv --no-new-privs`-, Capability-Drop-, UID/GID-Isolation-, Cleanup-,
+strikte Projektor-, Verifikator- und Fail-Closed-Upload-Grenze bleiben
+unverändert. Ein unabhängiger Post-Patch-Sicherheitsreview fand keinen
+Diagnostik-Leak und keine Sandbox-Regression.
+
+### Geänderte Dateien
+
+- `.github/workflows/test-connectors-with-crs-no-mrts.yml`
+- `ci/provisioning/components/prepare-runtime-components.py`
+- `tests/test_prepare_runtime_components.py`
+- `tests/test_ci_security_workflows.py`
+- dieses englisch/deutsche Change-Record-Paar
+
+### Tests und tatsächliche Ergebnisse
+
+| Validierung | Tatsächliches Ergebnis |
+| --- | --- |
+| Fokussierte Diagnostik- und HAProxy-Workflow-Tests | Bestand: 5 Tests. |
+| `tests.test_prepare_runtime_components` | Bestand: 81 Tests. |
+| HAProxy-Workflow-Contract-Suites | Bestand: 38 Tests. |
+| Runtime-, Projektions- und HAProxy-Harness-Contract-Suites | Bestand: 101 Tests; 11 umgebungsunterstützte Skips. |
+| `actionlint` | Bestand für `.github/workflows/test-connectors-with-crs-no-mrts.yml`. |
+| `zizmor` | Bestand für diesen Workflow; es meldete nur seinen Offline-Capability-Hinweis. |
+| `git diff --check` | Bestand. |
+
+### Runtime-Evidenz
+
+Für diesen lokalen Kandidaten gibt es noch keinen aktivierten Diagnostik-
+Dispatch, Commit, Push, Hosted-Runtime-Ergebnis, kein Artefakt und keine
+Evidence-Publication. Die Diagnostik ist keine Produktreparatur und beweist
+nicht die HAProxy-Ursache.
+
+### Nicht ausgeführte Checks
+
+`ruff` wurde nicht ausgeführt, weil lokal kein Executable verfügbar ist. Die
+Checks für Zweisprachigkeit und Dokumentationslinks, der Delivery-Preflight
+und die Hosted-/Manual-Dispatch-Checks sind zu diesem Zeitpunkt noch offen.
+
+### Bekannte Einschränkungen
+
+Das Tupel kann absichtlich keine Compiler-, Configure-, Linker- oder
+Netzwerk-Nachricht über seine feste Klassifikation hinaus offenlegen. Ein
+Ergebnis `unclassified` ist gültige Evidenz dafür, dass noch keine
+source-gestützte Korrektur gerechtfertigt ist.
+
+### Restrisiken
+
+PR #344 bleibt Draft und ist auf eine sichere Exact-Head-Hosted-Diagnose und
+anschließende Runtime-Verifikation blockiert. `FND-PARENT-0975` bleibt
+`in_progress` / `blocked_missing_evidence`; das Preflight-
+Statusintegritätsverhalten ist dort bereits abgedeckt und benötigt kein
+dupliziertes Finding.
+
+### Finaler Review-Status
+
+Lokale Implementierung und unabhängiger Sicherheitsreview sind abgeschlossen.
+Delivery, ein aktivierter begrenzter manueller Dispatch, vollständige
+Entfernung des temporären Pfads und sämtliche Successor-Hosted-Verifikationen
+sind noch offen. Keine Änderung an Workflow-Sicherheitskontrolle, Scanner,
+Quality Gate, Ruleset, Required Check, `paths.env`, `master` oder Merge ist
+enthalten.
