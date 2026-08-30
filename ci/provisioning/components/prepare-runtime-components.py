@@ -9192,6 +9192,29 @@ def haproxy_failure_target_from_footers(
     return None
 
 
+def append_haproxy_failure_output_diagnostics(
+    selected: list[str], output: str, is_stderr: bool
+) -> bool:
+    """Append fixed diagnostics for one bounded stream and report truncation."""
+
+    for raw_line in haproxy_failure_output_lines(output):
+        if (
+            is_stderr
+            and raw_line == HAPROXY_RESOLVER_UNRESOLVED_RUNTIME_DEPENDENCIES_FAILURE
+            and append_haproxy_failure_diagnostics(
+                selected,
+                HAPROXY_RESOLVER_UNRESOLVED_RUNTIME_DEPENDENCIES_DIAGNOSTICS,
+            )
+        ):
+            selected[-1] = "[classification list truncated]"
+            return True
+        for diagnostics in haproxy_failure_diagnostics_for_line(raw_line):
+            if append_haproxy_failure_diagnostics(selected, diagnostics):
+                selected[-1] = "[classification list truncated]"
+                return True
+    return False
+
+
 def haproxy_failure_diagnostic_lines(
     proc: subprocess.CompletedProcess[str], expected_target_paths: dict[str, str] | None = None
 ) -> list[str]:
@@ -9202,21 +9225,8 @@ def haproxy_failure_diagnostic_lines(
     if target_failure is not None:
         selected.append(f"target_failure={target_failure}")
     for is_stderr, output in ((True, str(proc.stderr or "")), (False, str(proc.stdout or ""))):
-        for raw_line in haproxy_failure_output_lines(output):
-            if (
-                is_stderr
-                and raw_line == HAPROXY_RESOLVER_UNRESOLVED_RUNTIME_DEPENDENCIES_FAILURE
-                and append_haproxy_failure_diagnostics(
-                    selected,
-                    HAPROXY_RESOLVER_UNRESOLVED_RUNTIME_DEPENDENCIES_DIAGNOSTICS,
-                )
-            ):
-                selected[-1] = "[classification list truncated]"
-                return selected
-            for diagnostics in haproxy_failure_diagnostics_for_line(raw_line):
-                if append_haproxy_failure_diagnostics(selected, diagnostics):
-                    selected[-1] = "[classification list truncated]"
-                    return selected
+        if append_haproxy_failure_output_diagnostics(selected, output, is_stderr):
+            return selected
     return selected
 
 

@@ -5,12 +5,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -153,6 +155,64 @@ func TestResponseHeaderEncodingUsesLengthThenBytesOrder(t *testing.T) {
 	offset += 2
 	if string(payload[offset:offset+valueLen]) != "value" {
 		t.Fatalf("value order malformed: %q", payload[offset:offset+valueLen])
+	}
+}
+
+func TestResponseHeaderEncodingFitsIndependentMRC1WireCapacity(t *testing.T) {
+	const (
+		independentFrameLimit = 65536
+		independentFixedBytes = 2 + 2 + len("HTTP/1.1") + 2
+		fieldCount            = 128
+		fieldLengthWords      = 4
+		fieldName             = "X-000"
+	)
+	maxHeaderContent := independentFrameLimit - independentFixedBytes -
+		fieldCount*fieldLengthWords
+	values := make(http.Header, fieldCount)
+	remaining := maxHeaderContent - fieldCount*len(fieldName)
+	for index := 0; index < fieldCount; index++ {
+		name := fmt.Sprintf("X-%03d", index)
+		length := remaining / (fieldCount - index)
+		remaining -= length
+		values[name] = []string{strings.Repeat("v", length)}
+	}
+	if payload := encodeResponseHeaders(http.StatusOK, values); len(payload) != independentFrameLimit {
+		t.Fatalf("wire-boundary payload length=%d, want %d", len(payload), independentFrameLimit)
+	}
+	values["X-000"][0] += "v"
+	if payload := encodeResponseHeaders(http.StatusOK, values); payload != nil {
+		t.Fatalf("over-capacity P3 payload was accepted with length %d", len(payload))
+	}
+
+	const (
+		sparseFieldCount    = 10
+		sparseValueSize     = 6510
+		sparseContentBytes  = sparseFieldCount * (len(fieldName) + sparseValueSize)
+		sparsePayloadLength = independentFixedBytes +
+			sparseFieldCount*fieldLengthWords + sparseContentBytes
+	)
+	sparse := make(http.Header, sparseFieldCount)
+	for index := 0; index < sparseFieldCount; index++ {
+		name := fmt.Sprintf("X-%03d", index)
+		sparse[name] = []string{strings.Repeat("v", sparseValueSize)}
+	}
+	if payload := encodeResponseHeaders(http.StatusOK, sparse); len(payload) != sparsePayloadLength {
+		t.Fatalf("encodeResponseHeaders(sparse) length = %d, want %d", len(payload), sparsePayloadLength)
+	}
+}
+
+func TestResponseHeaderEncodingAllowsCommonHeaderCountLimit(t *testing.T) {
+	const acceptedFieldCount = 256
+	headers := make(http.Header, acceptedFieldCount)
+	for index := 0; index < acceptedFieldCount; index++ {
+		headers[fmt.Sprintf("X-%03d", index)] = []string{"v"}
+	}
+	if payload := encodeResponseHeaders(http.StatusOK, headers); payload == nil {
+		t.Fatal("encodeResponseHeaders(256 headers) = nil, want payload")
+	}
+	headers["X-256"] = []string{"v"}
+	if payload := encodeResponseHeaders(http.StatusOK, headers); payload != nil {
+		t.Fatalf("encodeResponseHeaders(257 headers) = payload length %d, want nil", len(payload))
 	}
 }
 

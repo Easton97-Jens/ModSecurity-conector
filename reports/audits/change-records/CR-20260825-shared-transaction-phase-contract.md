@@ -1123,3 +1123,37 @@ successful hosted result for the HAProxy resolver failure; a pushed exact-head
 SonarQube Cloud zero result; then the required exact-head artifact, scanner,
 and regular plus Security Codex review evidence. No final-hosted success is
 asserted before those conditions exist on one last unchanged head.
+
+## 2026-08-30 post-delivery observation and successor correction
+
+The authorized HAProxy evidence-publication correction was committed and
+normally pushed as `74aab90978107e0f104b4441a476dfa2d6a53279`. Exact-head
+workflow
+[`33285597376`](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/33285597376)
+passed Apache, Envoy, Traefik, and lighttpd. HAProxy failed in its real runtime
+step before projection, verification, or upload, so its evidence upload was
+skipped fail-closed and no artifact/upload success is claimed.
+
+Exact-head SonarQube Cloud reported two open issues: `python:S5778` at
+`tests/test_haproxy_evidence_projection.py:323` and `python:S3776` at
+`ci/provisioning/components/prepare-runtime-components.py:9195`. The local
+S5778 test-only adjustment preserves the projector call; the local S3776
+helper extraction preserves the bounded, stderr-first, fixed-label diagnostic
+behavior. Neither is yet a remote Sonar result.
+
+`FND-PARENT-0993` records and corrects a local Traefik forwardAuth P3
+compatibility defect. The C adapter now passes Common's total-header limit
+unchanged, while the Go observer enforces the actual MRC1 frame size. Its
+observer header ceiling is aligned from 128 to Common's 256; controls cover
+256 accepted, 257 rejected, exact 65,536-byte payload accepted, one byte over
+rejected, and a sparse Common-valid 65,204-byte frame. The focused Python
+suite passed 16 tests, `go test -race -count=1 ./...` and `go vet ./...`
+passed, and the combined affected Python suite passed 162 tests with 11
+explicit cross-identity skips. A native C build remains not run because this
+checkout lacks a local libModSecurity include/library pair; the exact hosted
+runtime is the relevant build evidence.
+
+`FND-PARENT-0991` remains intentionally unstaged pending the explicit Envoy
+pathname-UDS topology decision. PR #344 remains Draft; no `paths.env`,
+scanner, Quality Gate, ruleset, required-check, `master`, or merge change is
+made by this addendum.

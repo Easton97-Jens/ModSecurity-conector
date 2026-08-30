@@ -228,6 +228,24 @@ class TraefikRuntimeSmokeSecurityTest(unittest.TestCase):
         self.assertIn("plugins-local/src/$OBSERVER_MODULE", start_smoke)
         self.assertIn("__COMPANION_SOCKET__", start_smoke)
 
+    def test_forwardauth_preserves_common_header_limit_for_actual_mrc1_framing(self) -> None:
+        service = (ROOT / "connectors" / "traefik" / "src" / "traefik_forwardauth_service_main.c").read_text(
+            encoding="utf-8"
+        )
+        observer = (ROOT / "connectors" / "traefik" / "response_observer" / "observer.go").read_text(
+            encoding="utf-8"
+        )
+        compact = "".join(service.split())
+
+        self.assertNotIn("traefik_response_wire_header_limit", service)
+        self.assertIn(
+            "msconnector_traefik_forwardauth_response_companion_set_limits(companion,"
+            "msconnector_runtime_header_count_limit(runtime),"
+            "msconnector_runtime_total_header_limit(runtime),",
+            compact,
+        )
+        self.assertIn("maxHeaderCount    = 256", observer)
+
     def test_response_phase_evidence_requires_precommit_p3_and_safe_p4_without_bodies(self) -> None:
         with tempfile.TemporaryDirectory(prefix="traefik-response-phase-events-") as temporary:
             event_path = Path(temporary) / "events.jsonl"

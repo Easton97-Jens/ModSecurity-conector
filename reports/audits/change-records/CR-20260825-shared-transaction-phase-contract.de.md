@@ -1215,3 +1215,41 @@ HAProxy-Resolverfehler; ein gepushtes SonarQube-Cloud-Nullergebnis am exakten
 Head; danach die geforderte Artefakt-, Scanner- sowie reguläre und
 Security-Codex-Review-Evidenz am exakten Head. Vor deren Vorliegen auf einem
 letzten unveränderten Head wird kein finaler Hosted-Erfolg beansprucht.
+
+## 2026-08-30 Beobachtung nach Auslieferung und Successor-Korrektur
+
+Die autorisierte HAProxy-Evidence-Publication-Korrektur wurde als
+`74aab90978107e0f104b4441a476dfa2d6a53279` committed und normal gepusht. Der
+Exact-Head-Workflow
+[`33285597376`](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/33285597376)
+bestand für Apache, Envoy, Traefik und lighttpd. HAProxy scheiterte in seinem
+realen Runtime-Schritt vor Projektion, Verifikation oder Upload; daher wurde
+sein Evidence-Upload fail-closed übersprungen und kein Artefakt-/Upload-Erfolg
+behauptet.
+
+Der Exact-Head-SonarQube-Cloud-Readback meldete zwei offene Issues:
+`python:S5778` bei `tests/test_haproxy_evidence_projection.py:323` und
+`python:S3776` bei
+`ci/provisioning/components/prepare-runtime-components.py:9195`. Die lokale
+S5778-Test-only-Anpassung erhält den Projector-Call; die lokale S3776-
+Helper-Extraktion erhält das begrenzte stderr-first-/Fixed-Label-
+Diagnostic-Verhalten. Keiner der beiden Punkte ist bereits ein Remote-Sonar-
+Ergebnis.
+
+`FND-PARENT-0993` dokumentiert und korrigiert einen lokalen Traefik-
+forwardAuth-P3-Kompatibilitätsdefekt. Der C-Adapter übergibt jetzt Commons
+Total-Header-Limit unverändert, während der Go-Observer die tatsächliche
+MRC1-Framegröße durchsetzt. Seine Observer-Headergrenze ist von 128 auf die
+256 von Common angeglichen; Controls decken 256 akzeptiert, 257 abgelehnt,
+exakten 65.536-Byte-Payload akzeptiert, ein Byte mehr abgelehnt und einen
+sparse Common-validen 65.204-Byte-Frame ab. Die fokussierte Python-Suite
+bestand 16 Tests, `go test -race -count=1 ./...` und `go vet ./...` bestanden,
+und die kombinierte betroffene Python-Suite bestand 162 Tests mit 11
+expliziten Cross-Identity-Skips. Ein nativer C-Build wurde nicht ausgeführt,
+weil diesem Checkout ein lokales libModSecurity-Include-/Library-Paar fehlt;
+die exakte Hosted-Runtime bleibt der relevante Buildnachweis.
+
+`FND-PARENT-0991` bleibt bewusst unstaged, bis die explizite Envoy-Pathname-
+UDS-Topologieentscheidung vorliegt. PR #344 bleibt Draft; dieses Addendum
+ändert weder `paths.env` noch Scanner, Quality Gate, Ruleset, Required Check,
+`master` oder einen Merge.

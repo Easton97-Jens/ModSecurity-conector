@@ -319,6 +319,8 @@ class HaproxyEvidenceDocumentValidationTests(unittest.TestCase):
                     candidate.write_bytes(b"x" * (projector.MAX_FILE_BYTES + 1))
                     candidate.chmod(0o444)
                 descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+                owner_uid = os.geteuid()
+                owner_gid = os.getegid()
                 try:
                     with self.assertRaisesRegex(
                         projector.EvidenceProjectionError, "UNSAFE_STAGE_FILE"
@@ -327,8 +329,8 @@ class HaproxyEvidenceDocumentValidationTests(unittest.TestCase):
                             descriptor,
                             candidate.name,
                             maximum_bytes=projector.MAX_FILE_BYTES,
-                            owner_uid=os.geteuid(),
-                            owner_gid=os.getegid(),
+                            owner_uid=owner_uid,
+                            owner_gid=owner_gid,
                             mode=0o444,
                             label="stage",
                         )

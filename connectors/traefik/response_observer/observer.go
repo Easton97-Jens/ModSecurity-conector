@@ -25,7 +25,7 @@ const (
 	frameHeaderSize   = 12
 	maxPayload        = 65536
 	maxBodyChunk      = 32768
-	maxHeaderCount    = 128
+	maxHeaderCount    = 256
 	maxHeaderName     = 256
 	maxHeaderValue    = 8192
 	defaultTimeout    = 5 * time.Second
