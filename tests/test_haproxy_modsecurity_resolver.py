@@ -118,6 +118,35 @@ class HAProxyModSecurityResolverTests(unittest.TestCase):
             self.assertIn("architecture", result.stderr)
             self.assertIn("sentinel=architecture_mismatch", result.stderr)
 
+    def test_required_header_failures_are_specific_only_when_unambiguous(self) -> None:
+        cases = (
+            (("modsecurity.h",), "header_modsecurity_h_missing"),
+            (("rules_set.h",), "header_rules_set_h_missing"),
+            (("transaction.h",), "header_transaction_h_missing"),
+            (("modsecurity.h", "rules_set.h"), "headers_missing"),
+        )
+        for missing_headers, expected_cause in cases:
+            with self.subTest(missing_headers=missing_headers):
+                with tempfile.TemporaryDirectory(prefix="haproxy-resolver-header-") as temporary:
+                    root = Path(temporary)
+                    include_dir, lib_dir = self.make_installation(root / "installation")
+                    for header in missing_headers:
+                        (include_dir / "modsecurity" / header).unlink()
+                    output = root / "resolution.env"
+                    env = os.environ.copy()
+                    env["MODSECURITY_INCLUDE_DIR"] = str(include_dir)
+                    env["MODSECURITY_LIB_DIR"] = str(lib_dir)
+
+                    result = self.run_resolver(output, env)
+
+                    self.assertEqual(result.returncode, 77)
+                    self.assertEqual(result.stdout, "")
+                    self.assertEqual(
+                        result.stderr.splitlines()[0],
+                        "BLOCKED: HAProxy libModSecurity resolver: sentinel=" + expected_cause,
+                    )
+                    self.assertFalse(output.exists())
+
     def test_shared_library_symlink_is_resolved_for_validation(self) -> None:
         with tempfile.TemporaryDirectory(prefix="haproxy-resolver-symlink-") as temporary:
             root = Path(temporary)
@@ -209,6 +238,9 @@ class HAProxyModSecurityResolverTests(unittest.TestCase):
             "headers_not_found",
             "library_not_found",
             "headers_missing",
+            "header_modsecurity_h_missing",
+            "header_rules_set_h_missing",
+            "header_transaction_h_missing",
             "library_missing",
             "readlink_missing",
             "library_target_unresolved",

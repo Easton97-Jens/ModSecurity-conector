@@ -1269,10 +1269,13 @@ Source-Cause-Ergebnis.
 Der Successor-Kandidat gibt dem Resolver einen geschlossenen maschinenlesbaren
 Kanal. Jeder kontrollierte `blocked`-Zweig gibt zuerst genau eine literale
 Zeile `BLOCKED: HAProxy libModSecurity resolver: sentinel=<cause>` aus der
-festen Allowlist von 15 Werten aus, behält anschließend seine bisherige
-Detailzeile für Menschen und den Exit-Status `77`. Ein unbekannter interner
-Code wird mit demselben Nonzero-Exit zurückgewiesen. Die Legacy-Detailzeile
-wird nicht als Ursache geparst.
+festen Allowlist von 18 Werten aus, behält anschließend seine bisherige
+Detailzeile für Menschen und den Exit-Status `77`. Drei additive Ursachen
+benennen genau einen fehlenden öffentlichen Header (`modsecurity.h`,
+`rules_set.h` oder `transaction.h`); mehrdeutiges Fehlen mehrerer Header
+behält die bisherige Ursache `headers_missing`. Ein unbekannter interner Code
+wird mit demselben Nonzero-Exit zurückgewiesen. Die Legacy-Detailzeile wird
+nicht als Ursache geparst.
 
 Der Python-Recognizer ordnet nur eine vollständige, begrenzte `stderr`-
 Sentinel-Zeile festen Diagnosen `classification=resolver_error`,

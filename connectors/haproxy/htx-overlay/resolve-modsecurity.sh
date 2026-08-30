@@ -28,6 +28,15 @@ blocked_sentinel() {
         headers_missing)
             printf '%s\n' 'BLOCKED: HAProxy libModSecurity resolver: sentinel=headers_missing' >&2
             ;;
+        header_modsecurity_h_missing)
+            printf '%s\n' 'BLOCKED: HAProxy libModSecurity resolver: sentinel=header_modsecurity_h_missing' >&2
+            ;;
+        header_rules_set_h_missing)
+            printf '%s\n' 'BLOCKED: HAProxy libModSecurity resolver: sentinel=header_rules_set_h_missing' >&2
+            ;;
+        header_transaction_h_missing)
+            printf '%s\n' 'BLOCKED: HAProxy libModSecurity resolver: sentinel=header_transaction_h_missing' >&2
+            ;;
         library_missing)
             printf '%s\n' 'BLOCKED: HAProxy libModSecurity resolver: sentinel=library_missing' >&2
             ;;
@@ -181,7 +190,24 @@ fi
 [ -n "$lib_dir" ] || blocked library_not_found "libModSecurity library was not found; set MODSECURITY_LIB_DIR"
 reject_whitespace "$include_dir" MODSECURITY_INCLUDE_DIR
 reject_whitespace "$lib_dir" MODSECURITY_LIB_DIR
-valid_include "$include_dir" || blocked headers_missing "header/library pairing rejected: required headers missing under $include_dir"
+if ! valid_include "$include_dir"; then
+    if [ ! -f "$include_dir/modsecurity/modsecurity.h" ] &&
+       [ -f "$include_dir/modsecurity/rules_set.h" ] &&
+       [ -f "$include_dir/modsecurity/transaction.h" ]; then
+        blocked header_modsecurity_h_missing "header/library pairing rejected: required headers missing under $include_dir"
+    fi
+    if [ -f "$include_dir/modsecurity/modsecurity.h" ] &&
+       [ ! -f "$include_dir/modsecurity/rules_set.h" ] &&
+       [ -f "$include_dir/modsecurity/transaction.h" ]; then
+        blocked header_rules_set_h_missing "header/library pairing rejected: required headers missing under $include_dir"
+    fi
+    if [ -f "$include_dir/modsecurity/modsecurity.h" ] &&
+       [ -f "$include_dir/modsecurity/rules_set.h" ] &&
+       [ ! -f "$include_dir/modsecurity/transaction.h" ]; then
+        blocked header_transaction_h_missing "header/library pairing rejected: required headers missing under $include_dir"
+    fi
+    blocked headers_missing "header/library pairing rejected: required headers missing under $include_dir"
+fi
 library=$(find_library "$lib_dir" || true)
 [ -n "$library" ] || blocked library_missing "header/library pairing rejected: libmodsecurity is missing under $lib_dir"
 

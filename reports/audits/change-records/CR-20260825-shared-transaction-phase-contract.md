@@ -1172,9 +1172,12 @@ That is a release blocker, not a source-cause result.
 The successor candidate gives the resolver one closed machine-readable
 channel. Every controlled `blocked` branch first emits one literal
 `BLOCKED: HAProxy libModSecurity resolver: sentinel=<cause>` line from the
-fixed 15-value allowlist, then retains its existing human-detail line and exit
-status `77`. An unknown internal code is rejected with the same nonzero exit.
-The legacy detail is not parsed as a cause.
+fixed 18-value allowlist, then retains its existing human-detail line and exit
+status `77`. Three additive causes identify exactly one missing public header
+(`modsecurity.h`, `rules_set.h`, or `transaction.h`); ambiguous multi-header
+absence retains the prior `headers_missing` cause. An unknown internal code is
+rejected with the same nonzero exit. The legacy detail is not parsed as a
+cause.
 
 The Python recognizer maps only one complete, bounded `stderr` sentinel line
 to fixed `classification=resolver_error`, `build_step=modsecurity_resolver`,
