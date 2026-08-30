@@ -756,6 +756,135 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
 
         self.assertEqual(environment["TAR_OPTIONS"], "--no-same-owner")
 
+    def assert_modsecurity_preflight_statuses(self, preflight, *args) -> None:
+        non_ready_statuses = (
+            ("blocked", "shared_modsecurity_blocked"),
+            ("failed", "shared_modsecurity_failed"),
+            ("unknown", "shared_modsecurity_unknown"),
+            ("corrupt", "shared_modsecurity_corrupt"),
+            ("blocked_optional", "shared_modsecurity_optional"),
+            ("not_selected", ""),
+            (None, ""),
+        )
+        for status, blocker_reason in non_ready_statuses:
+            with self.subTest(status=status):
+                modsecurity: dict[str, object] = {
+                    "build_id": "modsecurity-build",
+                    "blocker_reason": blocker_reason,
+                }
+                if status is not None:
+                    modsecurity["status"] = status
+                record: dict[str, object] = {}
+
+                self.assertTrue(preflight(record, modsecurity, *args))
+                self.assertEqual(record["status"], "blocked")
+                self.assertEqual(
+                    record["blocker_reason"],
+                    blocker_reason or "modsecurity_build_failed",
+                )
+        for status in components.READY_COMPONENT_STATUSES:
+            with self.subTest(status=status):
+                self.assertFalse(preflight({}, {"status": status}, *args))
+
+    def test_apache_preflight_blocks_non_ready_modsecurity_statuses(self) -> None:
+        self.assert_modsecurity_preflight_statuses(components.apache_preflight_blocked, "")
+
+    def test_nginx_preflight_blocks_non_ready_modsecurity_statuses(self) -> None:
+        context = {
+            "require_pinned_provenance": False,
+            "override_bin": "",
+            "override_module_dir": "",
+            "managed_local_artifacts_match_plan": True,
+        }
+        self.assert_modsecurity_preflight_statuses(components.nginx_preflight_blocked, context)
+
+    def test_apache_failed_modsecurity_stops_before_host_build(self) -> None:
+        record: dict[str, object] = {}
+        modsecurity = {
+            "status": "failed",
+            "build_id": "modsecurity-build",
+            "blocker_reason": "modsecurity_build_failed",
+        }
+        with tempfile.TemporaryDirectory(prefix="apache-failed-modsecurity-") as temporary:
+            root = Path(temporary)
+            with mock.patch.object(
+                components,
+                "apache_runtime_context",
+                return_value={"override_apachectl": ""},
+            ), mock.patch.object(
+                components,
+                "apache_runtime_record",
+                return_value=record,
+            ), mock.patch.object(components, "build_apache_source") as build:
+                result = components._prepare_apache_httpd_for_plan(
+                    {},
+                    ROOT,
+                    ROOT,
+                    root / "cache",
+                    root / "build",
+                    root / "sources",
+                    root / "archives",
+                    {},
+                    modsecurity,
+                    {},
+                )
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["blocker_reason"], "modsecurity_build_failed")
+        build.assert_not_called()
+
+    def test_nginx_failed_modsecurity_stops_before_host_build(self) -> None:
+        record: dict[str, object] = {}
+        modsecurity = {
+            "status": "failed",
+            "build_id": "modsecurity-build",
+            "blocker_reason": "modsecurity_build_failed",
+        }
+        context = {
+            "require_pinned_provenance": False,
+            "override_bin": "",
+            "override_module_dir": "",
+            "managed_local_artifacts_match_plan": True,
+        }
+        with tempfile.TemporaryDirectory(prefix="nginx-failed-modsecurity-") as temporary:
+            root = Path(temporary)
+            with mock.patch.object(components, "nginx_pinned_provenance"), mock.patch.object(
+                components,
+                "nginx_pinned_provenance_required",
+                return_value=False,
+            ), mock.patch.object(
+                components,
+                "nginx_protocol_context",
+                return_value=({}, "h1", "", ""),
+            ), mock.patch.object(
+                components,
+                "nginx_runtime_context",
+                return_value=context,
+            ), mock.patch.object(
+                components,
+                "nginx_runtime_record",
+                return_value=record,
+            ), mock.patch.object(
+                components,
+                "nginx_archive_preflight_blocked",
+                return_value=False,
+            ), mock.patch.object(components, "nginx_prepare_or_reuse_runtime") as prepare:
+                result = components._prepare_nginx_runtime_for_plan(
+                    {},
+                    ROOT,
+                    ROOT,
+                    root / "cache",
+                    root / "build",
+                    root / "sources",
+                    root / "archives",
+                    modsecurity,
+                    {},
+                )
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["blocker_reason"], "modsecurity_build_failed")
+        prepare.assert_not_called()
+
     def test_expat_autotools_stops_when_autoreconf_fails(self) -> None:
         with tempfile.TemporaryDirectory(prefix="expat-autoreconf-") as temporary:
             root = Path(temporary)

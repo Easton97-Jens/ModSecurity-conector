@@ -7323,7 +7323,7 @@ def apache_preflight_blocked(
     modsecurity: dict[str, Any],
     override_apachectl: str,
 ) -> bool:
-    if modsecurity.get("status") == "blocked":
+    if modsecurity.get("status") not in READY_COMPONENT_STATUSES:
         record.update(
             status="blocked",
             blocker_reason=modsecurity.get("blocker_reason") or "modsecurity_build_failed",
@@ -8246,7 +8246,7 @@ def nginx_preflight_blocked(
     modsecurity: dict[str, Any],
     context: dict[str, Any],
 ) -> bool:
-    if modsecurity.get("status") == "blocked":
+    if modsecurity.get("status") not in READY_COMPONENT_STATUSES:
         record.update(
             status="blocked",
             blocker_reason=modsecurity.get("blocker_reason") or "modsecurity_build_failed",

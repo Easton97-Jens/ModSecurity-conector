@@ -1350,3 +1350,33 @@ locally; broader validation and fresh exact-head hosted evidence remain
 required before PR #344 can be considered verified. No workflow, scanner,
 Quality-Gate, ruleset, required-check, `paths.env`, `master`, or merge change
 is included.
+
+## 2026-08-30 Apache and NGINX non-ready ModSecurity preflight parity
+
+The subsequent exact-head review established the same status-integrity gap in
+the two remaining direct shared-ModSecurity consumers. Apache and NGINX had
+rejected only the literal `blocked` state, so a record with `failed`,
+`unknown`, `corrupt`, an optional/not-selected value, or no status could reach
+their cache-reuse and host-build continuations. The pre-fix direct control
+returned `False` for both Apache and NGINX with `status=failed`, while the
+legitimate `status=built` control also returned `False`.
+
+Both preflights now use the same canonical allowlist as HAProxy:
+`READY_COMPONENT_STATUSES = {present, built, reused}`. Every state outside
+that set records `blocked`, preserves the source blocker reason, and uses the
+existing fixed `modsecurity_build_failed` fallback. The gate runs before
+Apache artifact/cache checks and `build_apache_source`, and before NGINX cache
+reuse or `nginx_prepare_or_reuse_runtime`; it therefore cannot publish a
+ready-looking host record from a non-ready shared component. The shared
+producer/cache schema, host-specific later preflights, resolver behavior,
+transaction phases, and the other eight connector solutions are unchanged.
+
+Four focused controls passed locally: Apache and NGINX each exercise all seven
+sampled non-ready representations and the three accepted states; separate
+Apache/NGINX sink controls prove a failed shared record calls neither host
+build continuation. The direct post-fix control returns `True` for
+`status=failed` and `False` for `status=built` in both functions. Broader
+provisioning/cache, documentation, and exact-successor hosted validation remain
+required before PR #344 is considered verified. No workflow, scanner,
+Quality-Gate, ruleset, required-check, `paths.env`, `master`, or merge change
+is included.

@@ -1465,3 +1465,35 @@ beiden fokussierten Tests bestanden lokal; breitere Validierung und frische
 Exact-Head-Hosted-Evidenz bleiben erforderlich, bevor PR #344 als verifiziert
 gelten kann. Kein Workflow, Scanner, Quality Gate, Ruleset, Required Check,
 `paths.env`, `master` oder Merge ist enthalten.
+
+## 2026-08-30 Apache- und NGINX-Preflight-Parität für nicht bereites ModSecurity
+
+Der nachfolgende Exact-Head-Review belegte dieselbe Statusintegritätslücke in
+den zwei verbleibenden direkten Shared-ModSecurity-Konsumenten. Apache und
+NGINX wiesen nur den literalen Zustand `blocked` zurück. Ein Record mit
+`failed`, `unknown`, `corrupt`, einem optionalen/nicht ausgewählten Wert oder
+ohne Status konnte daher ihre Cache-Reuse- und Host-Build-Fortsetzungen
+erreichen. Der direkte Pre-Fix-Control lieferte für Apache und NGINX bei
+`status=failed` jeweils `False`; auch der legitime Control `status=built`
+lieferte jeweils `False`.
+
+Beide Preflights verwenden jetzt dieselbe kanonische Allowlist wie HAProxy:
+`READY_COMPONENT_STATUSES = {present, built, reused}`. Jeder Zustand außerhalb
+dieser Menge schreibt `blocked`, erhält den Blocker-Grund der Quelle und nutzt
+den bestehenden festen Fallback `modsecurity_build_failed`. Das Gate läuft vor
+den Apache-Artifact-/Cache-Checks und `build_apache_source` sowie vor
+NGINX-Cache-Reuse oder `nginx_prepare_or_reuse_runtime`; es kann damit aus
+einer nicht bereiten gemeinsamen Komponente keinen bereit aussehenden
+Host-Record veröffentlichen. Das gemeinsame Producer-/Cache-Schema, spätere
+host-spezifische Preflights, Resolver-Verhalten, Transaktionsphasen und die
+anderen acht Connectorlösungen bleiben unverändert.
+
+Vier fokussierte Controls bestanden lokal: Apache und NGINX prüfen jeweils
+alle sieben erfassten nicht bereiten Repräsentationen sowie die drei akzeptierten
+Zustände; getrennte Apache-/NGINX-Sink-Controls beweisen, dass ein
+fehlgeschlagener Shared-Record keine Host-Build-Fortsetzung aufruft. Der direkte
+Post-Fix-Control liefert in beiden Funktionen für `status=failed` `True` und
+für `status=built` `False`. Breitere Provisioning-/Cache-, Dokumentations- und
+Exact-Successor-Hosted-Validierung bleiben erforderlich, bevor PR #344 als
+verifiziert gilt. Kein Workflow, Scanner, Quality Gate, Ruleset, Required
+Check, `paths.env`, `master` oder Merge ist enthalten.
