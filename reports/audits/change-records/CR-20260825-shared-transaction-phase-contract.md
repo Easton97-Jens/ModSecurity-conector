@@ -1490,3 +1490,87 @@ removed; and cleanup validation is complete. Normal delivery to the existing
 Draft PR branch and all successor hosted verification are still pending. No
 workflow security control, scanner, Quality Gate, ruleset, required check,
 `paths.env`, `master`, or merge change is included.
+
+## 2026-08-31 workflow-reset disposition
+
+### Motivation
+
+The user requested that the workflow be reset for now and that decision be
+recorded. The temporary HAProxy component-diagnostic workflow path was already
+removed at `90cd00384efbbce4e2a26a760ee9e532eb8e953e`; this addendum records
+that state and the result of reviewing a broader reset.
+
+### Acceptance criteria
+
+The temporary diagnostic remains absent. The record distinguishes that
+completed cleanup from a full HAProxy workflow rollback, describes the
+security consequence of the latter, and makes no unverified claim that the
+hosted failure is fixed.
+
+### Technical decisions
+
+No workflow behavior is changed by this addendum. Relative to master
+`6ccfd8de555855ac540fc4d3d9e330f82d5e8cff`, the current HAProxy workflow
+delta is 657 additions and 8 deletions. A full reset would replace the
+isolated `env -i` / `unshare` / `setpriv --no-new-privs` execution and its
+receipt projection, verification, and HAProxy-specific upload path with the
+master-style direct `make verified-haproxy-case` invocation. That full reset
+was not made.
+
+### Security impact
+
+The current invariant is that PR-controlled Make/runtime code cannot retain
+the runner identity or capabilities and cannot directly control uploaded
+evidence. The master-style direct invocation would remove the privilege drop,
+capability clearing, namespace boundary, and verified evidence path. Therefore
+the broader reset is not a safe automatic change, even though it is
+Git-reversible.
+
+### Changed files
+
+- this English/German Change Record pair
+
+### Tests and actual results
+
+| Validation | Actual result |
+| --- | --- |
+| HAProxy evidence, harness, and workflow contracts | Passed: 23 tests. |
+| `actionlint` | Passed for `.github/workflows/test-connectors-with-crs-no-mrts.yml`. |
+| `zizmor` | Passed for that workflow; it reported only its offline capability note. |
+| `make check-bilingual-docs` | Passed: bilingual docs ok. |
+| `make check-doc-links` | Passed: repository path references and documentation links ok. |
+| `git diff --check` | Passed: no whitespace errors. |
+| Delivery preflight | Passed: expected writable `origin`, `master` default branch, and Draft PR #344 were confirmed. |
+
+### Runtime evidence
+
+At exact head `90cd00384efbbce4e2a26a760ee9e532eb8e953e`, pull-request run
+[`33334626289`](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/33334626289)
+completed with Apache, Envoy, Traefik, and lighttpd successful and HAProxy
+failed. It is evidence that the temporary diagnostic removal did not make a
+hosted repair; it does not justify removing the hardened workflow boundary.
+
+### Checks not run
+
+`ruff` was not run because no local executable is available. Successor hosted
+checks remain pending for this documentation-only addendum.
+
+### Known limitations
+
+"Reset the workflow" has two materially different meanings: the temporary
+diagnostic reset is already complete; a full reset to master would remove
+security controls. No security-preserving broad rollback has been specified.
+
+### Residual risks
+
+PR #344 remains Draft and blocked on a source-backed HAProxy runtime repair.
+Removing its isolation or evidence-verification controls merely to make the
+job resemble the master path would reintroduce a privilege/evidence boundary
+risk.
+
+### Final review status
+
+The requested reset was reviewed and recorded. The temporary path remains
+removed; the current hardened workflow remains unchanged. No workflow,
+master, merge, scanner, Quality Gate, ruleset, or required-check change is
+performed by this addendum.

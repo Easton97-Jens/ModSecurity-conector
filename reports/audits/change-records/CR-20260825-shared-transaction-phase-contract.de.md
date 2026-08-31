@@ -1613,3 +1613,94 @@ abgeschlossen. Normale Delivery an den bestehenden Draft-PR-Branch und
 sämtliche Successor-Hosted-Verifikationen sind noch offen. Keine Änderung an
 Workflow-Sicherheitskontrolle, Scanner, Quality Gate, Ruleset, Required Check,
 `paths.env`, `master` oder Merge ist enthalten.
+
+## 2026-08-31 Workflow-Reset-Entscheidung
+
+### Motivation
+
+Der Nutzer bat darum, den Workflow zunächst zurückzusetzen und diese
+Entscheidung zu notieren. Der temporäre HAProxy-Komponenten-Diagnostik-
+Workflowpfad war bereits mit `90cd00384efbbce4e2a26a760ee9e532eb8e953e`
+entfernt; dieser Nachtrag dokumentiert diesen Zustand und das Ergebnis der
+Prüfung eines weitergehenden Resets.
+
+### Akzeptanzkriterien
+
+Die temporäre Diagnostik bleibt entfernt. Der Record unterscheidet diesen
+abgeschlossenen Cleanup von einem vollständigen HAProxy-Workflow-Rollback,
+beschreibt dessen Sicherheitsfolge und behauptet nicht unbestätigt, dass der
+gehostete Fehler behoben ist.
+
+### Technische Entscheidungen
+
+Dieser Nachtrag ändert kein Workflow-Verhalten. Gegenüber master
+`6ccfd8de555855ac540fc4d3d9e330f82d5e8cff` umfasst der aktuelle
+HAProxy-Workflow-Diff 657 Hinzufügungen und 8 Löschungen. Ein vollständiger
+Reset würde die isolierte `env -i`- / `unshare`- /
+`setpriv --no-new-privs`-Ausführung und ihren Receipt-Projektions-,
+Verifikations- und HAProxy-spezifischen Uploadpfad durch den Master-artigen
+direkten Aufruf `make verified-haproxy-case` ersetzen. Dieser vollständige
+Reset wurde nicht durchgeführt.
+
+### Sicherheitsauswirkung
+
+Die aktuelle Invariante ist, dass PR-kontrollierter Make-/Runtime-Code weder
+Runner-Identität noch Capabilities behält und Upload-Evidence nicht direkt
+kontrollieren kann. Der Master-artige direkte Aufruf würde Privilege-Drop,
+Capability-Clearing, Namespace-Grenze und den verifizierten Evidence-Pfad
+entfernen. Daher ist der weitergehende Reset keine sichere automatische
+Änderung, auch wenn er Git-reversibel ist.
+
+### Geänderte Dateien
+
+- dieses englisch/deutsche Change-Record-Paar
+
+### Tests und tatsächliche Ergebnisse
+
+| Validierung | Tatsächliches Ergebnis |
+| --- | --- |
+| HAProxy-Evidence-, Harness- und Workflow-Contracts | Bestand: 23 Tests. |
+| `actionlint` | Bestand für `.github/workflows/test-connectors-with-crs-no-mrts.yml`. |
+| `zizmor` | Bestand für diesen Workflow; es meldete nur seinen Offline-Capability-Hinweis. |
+| `make check-bilingual-docs` | Bestand: Zweisprachige Dokumentation ist in Ordnung. |
+| `make check-doc-links` | Bestand: Repository-Pfadreferenzen und Dokumentationslinks sind in Ordnung. |
+| `git diff --check` | Bestand: keine Whitespace-Fehler. |
+| Delivery-Preflight | Bestand: erwartetes schreibbares `origin`, Default-Branch `master` und Draft-PR #344 bestätigt. |
+
+### Runtime-Evidenz
+
+Auf dem exakten Head `90cd00384efbbce4e2a26a760ee9e532eb8e953e` endete der
+Pull-Request-Lauf
+[`33334626289`](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/33334626289)
+mit erfolgreichen Apache-, Envoy-, Traefik- und lighttpd-Zellen sowie einem
+fehlgeschlagenen HAProxy. Er belegt, dass die Entfernung der temporären
+Diagnostik keine gehostete Reparatur darstellt; er rechtfertigt nicht die
+Entfernung der gehärteten Workflow-Grenze.
+
+### Nicht ausgeführte Checks
+
+`ruff` wurde nicht ausgeführt, weil lokal kein Executable verfügbar ist.
+Successor-Hosted-Checks sind für diesen reinen Dokumentationsnachtrag noch
+offen.
+
+### Bekannte Einschränkungen
+
+"Den Workflow zurücksetzen" hat zwei materiell unterschiedliche Bedeutungen:
+Der Reset der temporären Diagnostik ist bereits abgeschlossen; ein
+vollständiger Reset auf master würde Security-Controls entfernen. Ein
+sicherheitswahrender breiter Rollback ist nicht spezifiziert.
+
+### Restrisiken
+
+PR #344 bleibt Draft und auf eine Source-gestützte HAProxy-Runtime-Reparatur
+blockiert. Seine Isolation oder Evidence-Verifikations-Controls nur zu
+entfernen, damit der Job dem Master-Pfad ähnelt, würde ein Privilege-/Evidence-
+Boundary-Risiko erneut einführen.
+
+### Finaler Review-Status
+
+Der angeforderte Reset wurde geprüft und dokumentiert. Der temporäre Pfad
+bleibt entfernt; der aktuelle gehärtete Workflow bleibt unverändert. Dieser
+Nachtrag führt keine Workflow- oder master-Änderung, keinen Merge, keine
+Scanner-Änderung, keine Quality-Gate-Änderung sowie keine Ruleset- oder
+Required-Check-Änderung durch.
