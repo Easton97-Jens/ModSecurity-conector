@@ -243,7 +243,8 @@ def test_spop_request_id_parser_validates_length_delimited_bytes_before_copy() -
 
     assert "msconnector_transaction_contract_validate_transaction_id_bytes" in parser
     assert "value, value_len" in parser
-    assert "type == 0U" in parser and "return -1;" in parser
+    assert "type == 0U" in parser
+    assert "return -1;" in parser
     assert "copy_spop_string(out, out_len, value, value_len);" in parser
     assert parser.index("msconnector_transaction_contract_validate_transaction_id_bytes") < parser.index(
         "copy_spop_string(out, out_len, value, value_len);"
@@ -253,7 +254,8 @@ def test_spop_request_id_parser_validates_length_delimited_bytes_before_copy() -
     assert "embedded NUL" in parser
     assert "control" in parser
     assert "A\\0X" in parser
-    assert "A" in parser and "UUID" in parser
+    assert "A" in parser
+    assert "UUID" in parser
     assert "run_spop_request_id_validation_self_test" in spop_source
     assert '"SPOP request-id validation self-test failed\\n"' in spop_source
 
