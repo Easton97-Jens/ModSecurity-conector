@@ -201,6 +201,8 @@ jobs:
           FRAMEWORK_SHA: 86451b45ae7bb7953baf9f81f2c2dad07395a808
           MRTS_SHA: 615b13bacbd008562c17408246c41ab27dca3104
           SETUP_PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}
+          TRUSTED_RUNNER_TEMP: ${{ runner.temp }}
+          TRUSTED_CRS_RUNTIME_RUN_ID: crs-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.connector }}
         run: |
           set -euo pipefail
           require_sha() {
@@ -211,10 +213,12 @@ jobs:
             case "$1" in ''|*[!0-9]*) return 1 ;; esac
             test "$1" -gt 0
           }
-          case "$RUNNER_TEMP:$GITHUB_WORKSPACE:$SETUP_PYTHON_PATH" in /*:/*:/*) ;; *) echo "FAIL: unsafe evidence boundary path" >&2; exit 2 ;; esac
-          case "$CRS_RUNTIME_RUN_ID" in [A-Za-z0-9]*) ;; *) echo "FAIL: invalid runtime run id" >&2; exit 2 ;; esac
-          case "$CRS_RUNTIME_RUN_ID" in *[!A-Za-z0-9._-]*) echo "FAIL: invalid runtime run id" >&2; exit 2 ;; esac
-          test "${#CRS_RUNTIME_RUN_ID}" -le 48
+          case "$TRUSTED_RUNNER_TEMP:$RUNNER_TEMP:$GITHUB_WORKSPACE:$SETUP_PYTHON_PATH" in /*:/*:/*:/*) ;; *) echo "FAIL: unsafe evidence boundary path" >&2; exit 2 ;; esac
+          test "$RUNNER_TEMP" = "$TRUSTED_RUNNER_TEMP"
+          test "$CRS_RUNTIME_RUN_ID" = "$TRUSTED_CRS_RUNTIME_RUN_ID"
+          case "$TRUSTED_CRS_RUNTIME_RUN_ID" in [A-Za-z0-9]*) ;; *) echo "FAIL: invalid runtime run id" >&2; exit 2 ;; esac
+          case "$TRUSTED_CRS_RUNTIME_RUN_ID" in *[!A-Za-z0-9._-]*) echo "FAIL: invalid runtime run id" >&2; exit 2 ;; esac
+          test "${#TRUSTED_CRS_RUNTIME_RUN_ID}" -le 48
           test "$CRS" = with-crs
           test "$MRTS" = no-mrts
           require_sha "$PARENT_SHA"
@@ -233,7 +237,7 @@ jobs:
           test "$evidence_uid" -ne "$runtime_uid"
           test "$evidence_gid" -ne "$runtime_gid"
           test "$(/usr/bin/id -g nobody)" = "$evidence_gid"
-          for system_binary in /usr/bin/chmod /usr/bin/chown /usr/bin/env /usr/bin/git /usr/bin/head /usr/bin/id /usr/bin/install /usr/bin/mkdir /usr/bin/mktemp /usr/bin/python3 /usr/bin/rm /usr/bin/setpriv /usr/bin/stat /usr/bin/tee /usr/bin/unshare; do
+          for system_binary in /usr/bin/chmod /usr/bin/chown /usr/bin/env /usr/bin/git /usr/bin/head /usr/bin/id /usr/bin/install /usr/bin/mkdir /usr/bin/mktemp /usr/bin/python3 /usr/bin/realpath /usr/bin/rm /usr/bin/setpriv /usr/bin/stat /usr/bin/sudo /usr/bin/tee /usr/bin/unshare; do
             test -x "$system_binary"
           done
           projector_blob=$(
@@ -255,10 +259,42 @@ jobs:
             GIT_CONFIG_SYSTEM=/dev/null \
             GIT_OPTIONAL_LOCKS=0 \
             /usr/bin/git --no-pager -C "$GITHUB_WORKSPACE" cat-file -e "${projector_blob}^{blob}"
-          runner_temp_identity=$(/usr/bin/stat -Lc '%d:%i:%u:%g:%a' -- "$RUNNER_TEMP")
+          runner_temp_identity=$(/usr/bin/stat -Lc '%d:%i:%u:%g:%a' -- "$TRUSTED_RUNNER_TEMP")
           case "$runner_temp_identity" in [0-9]*:[0-9]*:[0-9]*:[0-9]*:[0-7][0-7][0-7]) ;; *) echo "FAIL: unsafe RUNNER_TEMP identity" >&2; exit 2 ;; esac
+          expected_runtime_root="$TRUSTED_RUNNER_TEMP/ModSecurity-conector-with-crs-no-mrts"
+          expected_cell_parent="$expected_runtime_root/$PARENT_SHA"
+          expected_cell_root="$expected_cell_parent/$TRUSTED_CRS_RUNTIME_RUN_ID"
+          expected_verified_root="$expected_cell_root/verified"
+          expected_build_root="$expected_verified_root/build"
+          expected_tmp_root="$expected_verified_root/tmp"
+          expected_log_root="$expected_verified_root/logs"
+          expected_cache_root="$expected_verified_root/cache-v2"
+          expected_component_cache="$expected_cache_root/shared"
+          expected_crs_source_root="$expected_verified_root/crs-fresh-source"
+          expected_crs_source_dir="$expected_crs_source_root/coreruleset"
+          expected_framework_root="$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework"
+          expected_pycache_root="$TRUSTED_RUNNER_TEMP/python-pycache"
+          for runtime_path in "$TRUSTED_RUNNER_TEMP" "$expected_runtime_root" "$expected_cell_parent" "$expected_cell_root" "$expected_verified_root"; do
+            test -d "$runtime_path"
+            test ! -L "$runtime_path"
+            test "$(/usr/bin/realpath -e -- "$runtime_path")" = "$runtime_path"
+          done
+          test "$VERIFIED_RUN_ROOT" = "$expected_verified_root"
+          test "$BUILD_ROOT" = "$expected_build_root"
+          test "$TMP_ROOT" = "$expected_tmp_root"
+          test "$LOG_ROOT" = "$expected_log_root"
+          test "$CACHE_ROOT" = "$expected_cache_root"
+          test "$CONNECTOR_COMPONENT_CACHE" = "$expected_component_cache"
+          test "$SOURCE_ROOT" = "$expected_crs_source_root"
+          test "$CRS_SOURCE_DIR" = "$expected_crs_source_dir"
+          test "$FRAMEWORK_ROOT" = "$expected_framework_root"
+          test "$PYTHONPYCACHEPREFIX" = "$expected_pycache_root"
+          test -d "$expected_crs_source_root"
+          test -d "$expected_crs_source_dir"
+          cell_root_identity=$(/usr/bin/stat -Lc '%d:%i:%u:%g:%a' -- "$expected_cell_root")
+          case "$cell_root_identity" in [0-9]*:[0-9]*:[0-9]*:[0-9]*:[0-7][0-7][0-7]) ;; *) echo "FAIL: unsafe runtime cell identity" >&2; exit 2 ;; esac
           probe_uid=$(
-            sudo -n /usr/bin/env -i \
+            /usr/bin/sudo -n /usr/bin/env -i \
               PATH=/usr/bin:/bin \
               HOME=/nonexistent \
               /usr/bin/unshare \
@@ -279,15 +315,17 @@ jobs:
                   -- /usr/bin/id -u
           )
           test "$probe_uid" = "$runtime_uid"
-          source_root="$RUNNER_TEMP/ModSecurity-conector-with-crs-no-mrts/$PARENT_SHA/$CRS_RUNTIME_RUN_ID/verified/build/verified-haproxy-case/with-crs-no-mrts-haproxy/logs/haproxy-runtime/haproxy-runtime-evidence-source"
-          case "$source_root" in "$RUNNER_TEMP"/*) ;; *) echo "FAIL: unsafe evidence source root" >&2; exit 2 ;; esac
+          source_root="$expected_build_root/verified-haproxy-case/with-crs-no-mrts-haproxy/logs/haproxy-runtime/haproxy-runtime-evidence-source"
+          case "$source_root" in "$TRUSTED_RUNNER_TEMP"/*) ;; *) echo "FAIL: unsafe evidence source root" >&2; exit 2 ;; esac
           {
             printf '%s\n' "runtime_uid=$runtime_uid"
             printf '%s\n' "runtime_gid=$runtime_gid"
             printf '%s\n' "evidence_uid=$evidence_uid"
             printf '%s\n' "evidence_gid=$evidence_gid"
-            printf '%s\n' "runner_temp=$RUNNER_TEMP"
+            printf '%s\n' "runner_temp=$TRUSTED_RUNNER_TEMP"
             printf '%s\n' "runner_temp_identity=$runner_temp_identity"
+            printf '%s\n' "runtime_run_id=$TRUSTED_CRS_RUNTIME_RUN_ID"
+            printf '%s\n' "cell_root_identity=$cell_root_identity"
             printf '%s\n' "source_root=$source_root"
             printf '%s\n' "projector_blob=$projector_blob"
             printf '%s\n' "parent_sha=$PARENT_SHA"
@@ -305,6 +343,10 @@ jobs:
           RUNTIME_PARENT_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.parent_sha }}
           RUNTIME_FRAMEWORK_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.framework_sha }}
           RUNTIME_MRTS_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.mrts_sha }}
+          TRUSTED_RUNNER_TEMP: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runner_temp }}
+          TRUSTED_RUNNER_TEMP_IDENTITY: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runner_temp_identity }}
+          TRUSTED_CRS_RUNTIME_RUN_ID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_run_id }}
+          RUNTIME_CELL_ROOT_IDENTITY: ${{ steps.prepare-haproxy-runtime-evidence.outputs.cell_root_identity }}
         run: |
           set -euo pipefail
           require_sha() {
@@ -325,7 +367,49 @@ jobs:
               require_sha "$RUNTIME_PARENT_SHA"
               require_sha "$RUNTIME_FRAMEWORK_SHA"
               require_sha "$RUNTIME_MRTS_SHA"
-              sudo -n /usr/bin/env -i \
+              case "$TRUSTED_RUNNER_TEMP:$RUNNER_TEMP:$SETUP_PYTHON_PATH" in /*:/*:/*) ;; *) echo "FAIL: unsafe runtime path" >&2; exit 2 ;; esac
+              test "$RUNNER_TEMP" = "$TRUSTED_RUNNER_TEMP"
+              test "$(/usr/bin/stat -Lc '%d:%i:%u:%g:%a' -- "$TRUSTED_RUNNER_TEMP")" = "$TRUSTED_RUNNER_TEMP_IDENTITY"
+              test "$CRS_RUNTIME_RUN_ID" = "$TRUSTED_CRS_RUNTIME_RUN_ID"
+              case "$TRUSTED_CRS_RUNTIME_RUN_ID" in [A-Za-z0-9]*) ;; *) echo "FAIL: invalid runtime run id" >&2; exit 2 ;; esac
+              case "$TRUSTED_CRS_RUNTIME_RUN_ID" in *[!A-Za-z0-9._-]*) echo "FAIL: invalid runtime run id" >&2; exit 2 ;; esac
+              test "${#TRUSTED_CRS_RUNTIME_RUN_ID}" -le 48
+              expected_runtime_root="$TRUSTED_RUNNER_TEMP/ModSecurity-conector-with-crs-no-mrts"
+              expected_cell_parent="$expected_runtime_root/$RUNTIME_PARENT_SHA"
+              expected_cell_root="$expected_cell_parent/$TRUSTED_CRS_RUNTIME_RUN_ID"
+              expected_verified_root="$expected_cell_root/verified"
+              expected_build_root="$expected_verified_root/build"
+              expected_tmp_root="$expected_verified_root/tmp"
+              expected_log_root="$expected_verified_root/logs"
+              expected_cache_root="$expected_verified_root/cache-v2"
+              expected_component_cache="$expected_cache_root/shared"
+              expected_crs_source_root="$expected_verified_root/crs-fresh-source"
+              expected_crs_source_dir="$expected_crs_source_root/coreruleset"
+              expected_pycache_root="$TRUSTED_RUNNER_TEMP/python-pycache"
+              for runtime_path in "$TRUSTED_RUNNER_TEMP" "$expected_runtime_root" "$expected_cell_parent" "$expected_cell_root" "$expected_verified_root"; do
+                test -d "$runtime_path"
+                test ! -L "$runtime_path"
+                test "$(/usr/bin/realpath -e -- "$runtime_path")" = "$runtime_path"
+              done
+              test "$(/usr/bin/stat -Lc '%d:%i:%u:%g:%a' -- "$expected_cell_root")" = "$RUNTIME_CELL_ROOT_IDENTITY"
+              test "$VERIFIED_RUN_ROOT" = "$expected_verified_root"
+              test "$BUILD_ROOT" = "$expected_build_root"
+              test "$TMP_ROOT" = "$expected_tmp_root"
+              test "$LOG_ROOT" = "$expected_log_root"
+              test "$CACHE_ROOT" = "$expected_cache_root"
+              test "$CONNECTOR_COMPONENT_CACHE" = "$expected_component_cache"
+              test "$SOURCE_ROOT" = "$expected_crs_source_root"
+              test "$CRS_SOURCE_DIR" = "$expected_crs_source_dir"
+              test "$PYTHONPYCACHEPREFIX" = "$expected_pycache_root"
+              test -d "$expected_crs_source_root"
+              test -d "$expected_crs_source_dir"
+              test ! -e "$expected_tmp_root"
+              test ! -L "$expected_tmp_root"
+              /usr/bin/install -d -m 0700 -- "$expected_tmp_root"
+              /usr/bin/chmod 0700 -- "$expected_verified_root" "$expected_tmp_root"
+              test "$(/usr/bin/stat -Lc '%u:%g:%a' -- "$expected_verified_root")" = "$RUNTIME_UID:$RUNTIME_GID:700"
+              test "$(/usr/bin/stat -Lc '%u:%g:%a' -- "$expected_tmp_root")" = "$RUNTIME_UID:$RUNTIME_GID:700"
+              /usr/bin/sudo -n /usr/bin/env -i \
                 PATH=/usr/bin:/bin \
                 HOME=/nonexistent \
                 /usr/bin/unshare \
@@ -348,31 +432,31 @@ jobs:
                       HOME=/nonexistent \
                       LANG=C \
                       LC_ALL=C \
-                      TMPDIR="$TMP_ROOT" \
+                      TMPDIR="$expected_tmp_root" \
                       ALLOW_RUNTIME_BUILDS=1 \
                       ALLOW_RUNTIME_DOWNLOADS=1 \
                       CRS=with-crs \
                       MRTS=no-mrts \
                       RUNTIME_COMPONENT_TARGET=haproxy \
-                      CRS_RUNTIME_RUN_ID="$CRS_RUNTIME_RUN_ID" \
+                      CRS_RUNTIME_RUN_ID="$TRUSTED_CRS_RUNTIME_RUN_ID" \
                       EXPECTED_PARENT_SHA="$RUNTIME_PARENT_SHA" \
                       EXPECTED_FRAMEWORK_SHA="$RUNTIME_FRAMEWORK_SHA" \
                       EXPECTED_MRTS_SHA="$RUNTIME_MRTS_SHA" \
                       EVIDENCE_ROOT='' \
                       PYTHONDONTWRITEBYTECODE=1 \
                       PYTHON="$SETUP_PYTHON_PATH" \
-                      PYTHONPYCACHEPREFIX="$PYTHONPYCACHEPREFIX" \
+                      PYTHONPYCACHEPREFIX="$expected_pycache_root" \
                       GITHUB_WORKSPACE="$GITHUB_WORKSPACE" \
-                      RUNNER_TEMP="$RUNNER_TEMP" \
-                      VERIFIED_RUN_ROOT="$VERIFIED_RUN_ROOT" \
-                      BUILD_ROOT="$BUILD_ROOT" \
-                      SOURCE_ROOT="$SOURCE_ROOT" \
-                      CRS_SOURCE_DIR="$CRS_SOURCE_DIR" \
-                      TMP_ROOT="$TMP_ROOT" \
-                      LOG_ROOT="$LOG_ROOT" \
-                      CACHE_ROOT="$CACHE_ROOT" \
-                      CONNECTOR_COMPONENT_CACHE="$CONNECTOR_COMPONENT_CACHE" \
-                      FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
+                      RUNNER_TEMP="$TRUSTED_RUNNER_TEMP" \
+                      VERIFIED_RUN_ROOT="$expected_verified_root" \
+                      BUILD_ROOT="$expected_build_root" \
+                      SOURCE_ROOT="$expected_crs_source_root" \
+                      CRS_SOURCE_DIR="$expected_crs_source_dir" \
+                      TMP_ROOT="$expected_tmp_root" \
+                      LOG_ROOT="$expected_log_root" \
+                      CACHE_ROOT="$expected_cache_root" \
+                      CONNECTOR_COMPONENT_CACHE="$expected_component_cache" \
+                      FRAMEWORK_ROOT="$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
                       HAPROXY_EVIDENCE_RECEIPT=1 \
                       HAPROXY_EVIDENCE_RECEIPT_PROJECTOR="$GITHUB_WORKSPACE/ci/runtime/lifecycle/project-haproxy-runtime-evidence.py" \
                       /usr/bin/make -C "$GITHUB_WORKSPACE" verified-haproxy-case CASE=crs_sqli_anomaly_block CRS=with-crs MRTS=no-mrts
@@ -421,7 +505,7 @@ jobs:
           test "$(/usr/bin/stat -Lc '%d:%i:%u:%g:%a' -- "$TRUSTED_RUNNER_TEMP")" = "$TRUSTED_RUNNER_TEMP_IDENTITY"
           case "$TRUSTED_SOURCE_ROOT" in "$TRUSTED_RUNNER_TEMP"/*) ;; *) echo "FAIL: unsafe evidence source root" >&2; exit 2 ;; esac
           run_runner_projector() {
-            sudo -n /usr/bin/env -i \
+            /usr/bin/sudo -n /usr/bin/env -i \
               PATH=/usr/bin:/bin \
               HOME=/nonexistent \
               /usr/bin/unshare \
@@ -476,7 +560,7 @@ jobs:
           ' "$PROJECTOR_BLOB" "$GITHUB_WORKSPACE" "$@"
           }
           run_evidence_projector() {
-            sudo -n /usr/bin/env -i \
+            /usr/bin/sudo -n /usr/bin/env -i \
               PATH=/usr/bin:/bin \
               HOME=/nonexistent \
               /usr/bin/unshare \
@@ -531,12 +615,12 @@ jobs:
           ' "$PROJECTOR_BLOB" "$GITHUB_WORKSPACE" "$@"
           }
           test "$(/usr/bin/stat -Lc '%d:%i:%u:%g:%a' -- "$TRUSTED_RUNNER_TEMP")" = "$TRUSTED_RUNNER_TEMP_IDENTITY"
-          stage_parent=$(sudo -n /usr/bin/mktemp -d -- "$TRUSTED_RUNNER_TEMP/haproxy-runtime-evidence-parent.XXXXXXXX")
+          stage_parent=$(/usr/bin/sudo -n /usr/bin/mktemp -d -- "$TRUSTED_RUNNER_TEMP/haproxy-runtime-evidence-parent.XXXXXXXX")
           case "$stage_parent" in "$TRUSTED_RUNNER_TEMP"/haproxy-runtime-evidence-parent.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]) ;; *) echo "FAIL: unsafe evidence stage parent" >&2; exit 2 ;; esac
           stage_root="$stage_parent/package"
-          sudo -n /usr/bin/mkdir -m 0700 -- "$stage_root"
-          sudo -n /usr/bin/chown --no-dereference "$EVIDENCE_UID:$RUNTIME_GID" -- "$stage_root"
-          sudo -n /usr/bin/chmod 0755 -- "$stage_parent"
+          /usr/bin/sudo -n /usr/bin/mkdir -m 0700 -- "$stage_root"
+          /usr/bin/sudo -n /usr/bin/chown --no-dereference "$EVIDENCE_UID:$RUNTIME_GID" -- "$stage_root"
+          /usr/bin/sudo -n /usr/bin/chmod 0755 -- "$stage_parent"
           test "$(/usr/bin/stat -Lc '%u:%g:%a' -- "$stage_parent")" = 0:0:755
           test "$(/usr/bin/stat -Lc '%u:%g:%a' -- "$stage_root")" = "$EVIDENCE_UID:$RUNTIME_GID:700"
           run_runner_projector export-source-receipt \
@@ -594,7 +678,7 @@ jobs:
           test "$(/usr/bin/stat -Lc '%d:%i:%u:%g:%a' -- "$TRUSTED_RUNNER_TEMP")" = "$TRUSTED_RUNNER_TEMP_IDENTITY"
           case "$STAGE_PARENT:$STAGE_ROOT" in "$TRUSTED_RUNNER_TEMP"/haproxy-runtime-evidence-parent.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]:"$TRUSTED_RUNNER_TEMP"/haproxy-runtime-evidence-parent.*/package) ;; *) echo "FAIL: unsafe evidence stage path" >&2; exit 2 ;; esac
           run_evidence_projector() {
-            sudo -n /usr/bin/env -i \
+            /usr/bin/sudo -n /usr/bin/env -i \
               PATH=/usr/bin:/bin \
               HOME=/nonexistent \
               /usr/bin/unshare \
@@ -651,11 +735,11 @@ jobs:
           digest_report="$STAGE_PARENT/haproxy-runtime-evidence-digests.json"
           test ! -e "$digest_report"
           test ! -L "$digest_report"
-          sudo -n /usr/bin/install -m 0640 -o 0 -g "$RUNTIME_GID" /dev/null "$digest_report"
+          /usr/bin/sudo -n /usr/bin/install -m 0640 -o 0 -g "$RUNTIME_GID" /dev/null "$digest_report"
           test "$(/usr/bin/stat -Lc '%u:%g:%a:%s' -- "$digest_report")" = "0:$RUNTIME_GID:640:0"
           run_evidence_projector verify --runner-temp "$TRUSTED_RUNNER_TEMP" --stage-parent "$STAGE_PARENT" --stage-root "$STAGE_ROOT" --runtime-uid "$RUNTIME_UID" --upload-gid "$RUNTIME_GID" --expected-parent-sha "$PARENT_SHA" --expected-framework-sha "$FRAMEWORK_SHA" --expected-mrts-sha "$MRTS_SHA" \
             | /usr/bin/head --bytes=1025 \
-            | sudo -n /usr/bin/tee -- "$digest_report" >/dev/null
+            | /usr/bin/sudo -n /usr/bin/tee -- "$digest_report" >/dev/null
           /usr/bin/env -i \
             PATH=/usr/bin:/bin \
             HOME=/nonexistent \
@@ -753,7 +837,7 @@ jobs:
           print("haproxy_runtime_evidence_sha256=" + values[expected_names[0]])
           print("haproxy_runtime_manifest_sha256=" + values[expected_names[1]])
           PY
-          sudo -n /usr/bin/rm -f -- "$digest_report"
+          /usr/bin/sudo -n /usr/bin/rm -f -- "$digest_report"
           test ! -e "$digest_report"
           test ! -L "$digest_report"
 
@@ -832,7 +916,7 @@ jobs:
             GIT_CONFIG_SYSTEM=/dev/null \
             GIT_OPTIONAL_LOCKS=0 \
             /usr/bin/git --no-pager -C "$GITHUB_WORKSPACE" cat-file -e "${summary_blob}^{blob}"
-          sudo -n /usr/bin/env -i \
+          /usr/bin/sudo -n /usr/bin/env -i \
             PATH=/usr/bin:/bin \
             HOME=/nonexistent \
             /usr/bin/unshare \

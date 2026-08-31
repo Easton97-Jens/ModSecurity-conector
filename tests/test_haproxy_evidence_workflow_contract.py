@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+import re
 import subprocess
 import unittest
 
@@ -38,6 +39,7 @@ class HaproxyEvidenceWorkflowContractTests(unittest.TestCase):
         self.assertIn('cat-file -e "${projector_blob}^{blob}"', boundary)
         self.assertIn("runner_temp_identity=", boundary)
         self.assertIn("/usr/bin/head", boundary)
+        self.assertIn("/usr/bin/sudo", boundary)
         self.assertIn("sudo -n /usr/bin/env -i", boundary)
         self.assertIn("probe_uid=$(", boundary)
         for namespace_flag in (
@@ -67,6 +69,11 @@ class HaproxyEvidenceWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("sudo -n sh", boundary)
         self.assertNotIn("find ", boundary)
         self.assertNotIn("cp -", boundary)
+
+    def test_haproxy_privileged_operations_do_not_resolve_sudo_from_path(self) -> None:
+        source = self.source()
+        self.assertIn("/usr/bin/sudo -n", source)
+        self.assertIsNone(re.search(r"(?<!/usr/bin/)sudo -n", source))
 
     def test_runtime_executes_checkout_only_after_privilege_drop_and_receipts_fail_closed(self) -> None:
         source = self.source()
@@ -119,6 +126,129 @@ class HaproxyEvidenceWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("|| true", runtime)
         self.assertNotIn("continue-on-error:", runtime)
 
+    def test_runtime_prepares_a_validated_private_tmp_root_before_privilege_drop(
+        self,
+    ) -> None:
+        source = self.source()
+        runtime = self.block(
+            source,
+            "      - name: Run selected real with-CRS no-MRTS runtime\n",
+            "      - name: Project HAProxy runtime evidence\n",
+        )
+        self.assertIn(
+            'expected_verified_root="$expected_cell_root/verified"',
+            runtime,
+        )
+        self.assertIn('expected_tmp_root="$expected_verified_root/tmp"', runtime)
+        self.assertIn('test "$VERIFIED_RUN_ROOT" = "$expected_verified_root"', runtime)
+        self.assertIn('test "$TMP_ROOT" = "$expected_tmp_root"', runtime)
+        self.assertIn('test ! -L "$runtime_path"', runtime)
+        self.assertIn('test ! -e "$expected_tmp_root"', runtime)
+        self.assertIn('test ! -L "$expected_tmp_root"', runtime)
+        self.assertIn('/usr/bin/install -d -m 0700 -- "$expected_tmp_root"', runtime)
+        self.assertIn(
+            '/usr/bin/chmod 0700 -- "$expected_verified_root" "$expected_tmp_root"',
+            runtime,
+        )
+        self.assertIn(
+            'test "$(/usr/bin/stat -Lc \'%u:%g:%a\' -- "$expected_tmp_root")" = "$RUNTIME_UID:$RUNTIME_GID:700"',
+            runtime,
+        )
+        self.assertLess(
+            runtime.index("expected_verified_root="),
+            runtime.index("sudo -n /usr/bin/env -i"),
+        )
+        self.assertLess(
+            runtime.index(
+                '/usr/bin/chmod 0700 -- "$expected_verified_root" "$expected_tmp_root"',
+            ),
+            runtime.index("sudo -n /usr/bin/env -i"),
+        )
+        self.assertNotIn("|| true", runtime)
+        self.assertNotIn("continue-on-error:", runtime)
+
+    def test_runtime_rederives_all_build_roots_after_checkout_controlled_steps(
+        self,
+    ) -> None:
+        source = self.source()
+        boundary = self.block(
+            source,
+            "      - name: Prepare HAProxy runtime evidence boundary\n",
+            "      - name: Run selected real with-CRS no-MRTS runtime\n",
+        )
+        runtime = self.block(
+            source,
+            "      - name: Run selected real with-CRS no-MRTS runtime\n",
+            "      - name: Project HAProxy runtime evidence\n",
+        )
+        self.assertIn("TRUSTED_RUNNER_TEMP: $" + "{{ runner.temp }}", boundary)
+        self.assertIn(
+            "TRUSTED_CRS_RUNTIME_RUN_ID: crs-$"
+            + "{{ github.run_id }}-$"
+            + "{{ github.run_attempt }}-$"
+            + "{{ matrix.connector }}",
+            boundary,
+        )
+        self.assertIn(
+            'test "$CRS_RUNTIME_RUN_ID" = "$TRUSTED_CRS_RUNTIME_RUN_ID"',
+            boundary,
+        )
+        self.assertIn("cell_root_identity=", boundary)
+        self.assertIn('"cell_root_identity=$cell_root_identity"', boundary)
+        self.assertIn('RUNTIME_CELL_ROOT_IDENTITY: $' + "{{", runtime)
+        self.assertIn('TRUSTED_CRS_RUNTIME_RUN_ID: $' + "{{", runtime)
+        self.assertIn('expected_build_root="$expected_verified_root/build"', runtime)
+        self.assertIn('expected_log_root="$expected_verified_root/logs"', runtime)
+        self.assertIn('expected_cache_root="$expected_verified_root/cache-v2"', runtime)
+        self.assertIn(
+            'expected_component_cache="$expected_cache_root/shared"',
+            runtime,
+        )
+        self.assertIn(
+            'expected_crs_source_root="$expected_verified_root/crs-fresh-source"',
+            runtime,
+        )
+        self.assertIn(
+            'expected_crs_source_dir="$expected_crs_source_root/coreruleset"',
+            runtime,
+        )
+        for environment_check in (
+            'test "$RUNNER_TEMP" = "$TRUSTED_RUNNER_TEMP"',
+            'test "$CRS_RUNTIME_RUN_ID" = "$TRUSTED_CRS_RUNTIME_RUN_ID"',
+            'test "$BUILD_ROOT" = "$expected_build_root"',
+            'test "$SOURCE_ROOT" = "$expected_crs_source_root"',
+            'test "$CRS_SOURCE_DIR" = "$expected_crs_source_dir"',
+            'test "$LOG_ROOT" = "$expected_log_root"',
+            'test "$CACHE_ROOT" = "$expected_cache_root"',
+            'test "$CONNECTOR_COMPONENT_CACHE" = "$expected_component_cache"',
+            'test "$PYTHONPYCACHEPREFIX" = "$expected_pycache_root"',
+        ):
+            self.assertIn(environment_check, runtime)
+        self.assertIn('/usr/bin/realpath -e -- "$runtime_path"', runtime)
+        self.assertIn('"$expected_cell_root"', runtime)
+        self.assertIn(
+            'test "$(/usr/bin/stat -Lc \'%d:%i:%u:%g:%a\' -- "$expected_cell_root")" = "$RUNTIME_CELL_ROOT_IDENTITY"',
+            runtime,
+        )
+        dropped_runtime = runtime.split("-- /usr/bin/env -i", 1)[1]
+        for canonical_assignment in (
+            'RUNNER_TEMP="$TRUSTED_RUNNER_TEMP"',
+            'CRS_RUNTIME_RUN_ID="$TRUSTED_CRS_RUNTIME_RUN_ID"',
+            'VERIFIED_RUN_ROOT="$expected_verified_root"',
+            'BUILD_ROOT="$expected_build_root"',
+            'SOURCE_ROOT="$expected_crs_source_root"',
+            'CRS_SOURCE_DIR="$expected_crs_source_dir"',
+            'TMP_ROOT="$expected_tmp_root"',
+            'LOG_ROOT="$expected_log_root"',
+            'CACHE_ROOT="$expected_cache_root"',
+            'CONNECTOR_COMPONENT_CACHE="$expected_component_cache"',
+            'FRAMEWORK_ROOT="$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework"',
+        ):
+            self.assertIn(canonical_assignment, dropped_runtime)
+        self.assertNotIn('BUILD_ROOT="$BUILD_ROOT"', dropped_runtime)
+        self.assertNotIn('SOURCE_ROOT="$SOURCE_ROOT"', dropped_runtime)
+        self.assertNotIn('CRS_SOURCE_DIR="$CRS_SOURCE_DIR"', dropped_runtime)
+
     def test_projection_and_verification_are_unprivileged_and_descriptor_bound(self) -> None:
         source = self.source()
         project = self.block(
@@ -141,18 +271,21 @@ class HaproxyEvidenceWorkflowContractTests(unittest.TestCase):
         self.assertIn('"/usr/bin/git", "--no-pager", "-C", workspace, "cat-file", "blob", blob', project)
         self.assertIn("hashlib.sha1", project)
         self.assertIn("exec(compile(source", project)
-        self.assertIn('stage_parent=$(sudo -n /usr/bin/mktemp -d -- "$TRUSTED_RUNNER_TEMP/haproxy-runtime-evidence-parent.XXXXXXXX")', project)
-        self.assertIn('stage_root="$stage_parent/package"', project)
-        self.assertIn("sudo -n /usr/bin/mkdir -m 0700", project)
         self.assertIn(
-            'sudo -n /usr/bin/chown --no-dereference "$EVIDENCE_UID:$RUNTIME_GID" -- "$stage_root"',
+            'stage_parent=$(/usr/bin/sudo -n /usr/bin/mktemp -d -- "$TRUSTED_RUNNER_TEMP/haproxy-runtime-evidence-parent.XXXXXXXX")',
+            project,
+        )
+        self.assertIn('stage_root="$stage_parent/package"', project)
+        self.assertIn("/usr/bin/sudo -n /usr/bin/mkdir -m 0700", project)
+        self.assertIn(
+            '/usr/bin/sudo -n /usr/bin/chown --no-dereference "$EVIDENCE_UID:$RUNTIME_GID" -- "$stage_root"',
             project,
         )
         self.assertNotIn(
-            'sudo -n /usr/bin/chown --no-dereference "$EVIDENCE_UID:$EVIDENCE_GID" -- "$stage_root"',
+            '/usr/bin/sudo -n /usr/bin/chown --no-dereference "$EVIDENCE_UID:$EVIDENCE_GID" -- "$stage_root"',
             project,
         )
-        self.assertIn("sudo -n /usr/bin/chmod 0755", project)
+        self.assertIn("/usr/bin/sudo -n /usr/bin/chmod 0755", project)
         self.assertIn('= "$EVIDENCE_UID:$RUNTIME_GID:700"', project)
         self.assertIn("run_runner_projector export-source-receipt", project)
         self.assertIn("| /usr/bin/head --bytes=16385", project)
@@ -214,11 +347,11 @@ class HaproxyEvidenceWorkflowContractTests(unittest.TestCase):
             verify,
         )
         self.assertIn(
-            'sudo -n /usr/bin/install -m 0640 -o 0 -g "$RUNTIME_GID" /dev/null "$digest_report"',
+            '/usr/bin/sudo -n /usr/bin/install -m 0640 -o 0 -g "$RUNTIME_GID" /dev/null "$digest_report"',
             verify,
         )
         self.assertIn("/usr/bin/head --bytes=1025", verify)
-        self.assertIn('sudo -n /usr/bin/tee -- "$digest_report" >/dev/null', verify)
+        self.assertIn('/usr/bin/sudo -n /usr/bin/tee -- "$digest_report" >/dev/null', verify)
         self.assertIn("os.O_NOFOLLOW", verify)
         self.assertIn("before.st_uid != 0", verify)
         self.assertIn("stat.S_IMODE(before.st_mode) != 0o640", verify)
@@ -227,14 +360,14 @@ class HaproxyEvidenceWorkflowContractTests(unittest.TestCase):
         self.assertIn('type(document["schema_version"]) is not int', verify)
         self.assertIn('output.write("evidence_sha256="', verify)
         self.assertIn('output.write("manifest_sha256="', verify)
-        self.assertIn('sudo -n /usr/bin/rm -f -- "$digest_report"', verify)
+        self.assertIn('/usr/bin/sudo -n /usr/bin/rm -f -- "$digest_report"', verify)
         self.assertLess(
             verify.index("run_evidence_projector verify"),
             verify.index('output.write("evidence_sha256="'),
         )
         self.assertLess(
             verify.index('output.write("manifest_sha256="'),
-            verify.index('sudo -n /usr/bin/rm -f -- "$digest_report"'),
+            verify.index('/usr/bin/sudo -n /usr/bin/rm -f -- "$digest_report"'),
         )
         for forbidden in ("|| true", "continue-on-error:", "stage_root=$digest_report"):
             self.assertNotIn(forbidden, verify)

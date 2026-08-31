@@ -1704,3 +1704,81 @@ bleibt entfernt; der aktuelle gehärtete Workflow bleibt unverändert. Dieser
 Nachtrag führt keine Workflow- oder master-Änderung, keinen Merge, keine
 Scanner-Änderung, keine Quality-Gate-Änderung sowie keine Ruleset- oder
 Required-Check-Änderung durch.
+
+## 2026-08-31 HAProxy-Reparatur für die Vorbereitung eines privaten TMPDIR
+
+### Motivation
+
+Die ausgewählte HAProxy-Runtime scheiterte vor der Evidence-Projektion mit
+einem Expat-`configure`-Fehler, gefolgt von den erwarteten Fail-Closed-
+ModSecurity- und HAProxy-Blockierungs-Records. Die generische Hosted-
+Zusammenfassung enthielt keine private Configure-Ausgabe. Eine begrenzte
+lokale Configure-only-Differenzprüfung belegte, dass der isolierte Lauf ein
+`TMPDIR` unterhalb des verifizierten Run-Roots übergab, ohne dieses Verzeichnis
+zuvor anzulegen.
+
+### Technische Entscheidung
+
+Der HAProxy-Zweig bindet das kanonische Runner-Temp-Verzeichnis und die Run-ID
+jetzt an GitHub-Kontextwerte und leitet danach jeden Runtime-Root aus diesen
+Werten und dem validierten Parent-SHA ab. Er verwirft einen veränderten
+geerbten Root, eine Run-ID oder Zellidentität; verifiziert, dass jeder
+existierende Root-Vorfahre ein Verzeichnis statt eines Symlinks ist und sich
+kanonisch auflöst; und übergibt nur die neu abgeleiteten Build-, Source-,
+Cache-, Log-, temporären und Component-Cache-Pfade an die isolierte Umgebung.
+Die CRS-Vorbereitung besitzt den bereits vorhandenen Verified-Root; die
+Runtime legt nur dessen zuvor fehlendes privates Kind `tmp` mit Modus `0700`
+an, setzt strikte Modi erneut und verifiziert vor der bestehenden Grenze aus
+`sudo` → `env -i` → `unshare` → `setpriv --no-new-privs` → Capability-Drop den
+erwarteten Runtime-UID/GID-Besitz.
+
+Alle privilegierten HAProxy-Workflow-Operationen rufen jetzt `/usr/bin/sudo`
+auf, statt `sudo` über einen geerbten `PATH` aufzulösen. Dadurch kann ein
+vorheriger checkout-kontrollierter `GITHUB_ENV`-Write Namespace-, Privilege-
+oder Evidence-Befehle nicht abfangen.
+
+Die Reparatur erzeugt keinen Fallback, übernimmt keine Host-
+Build-Library-Variablen und ändert weder Receipt-Projektion noch Verifikation,
+Upload-Zulässigkeit oder Fehlerverhalten. Ein fehlender oder unsicherer Root
+scheitert weiterhin Fail-Closed.
+
+### Evidenz und Validierung
+
+Die lokale Configure-only-Kontrolle verwendete eine frische externe Expat-
+Source-Kopie und dieselbe begrenzte Environment-Form. `configure` scheiterte,
+wenn `TMPDIR` ein fehlendes Verzeichnis bezeichnete, und war erfolgreich,
+wenn das Verzeichnis existierte und privat war; keine rohe Configure-Ausgabe
+wurde behalten. Der exakte Workflow-Source ist durch einen Regressions-
+Contract abgedeckt, der verlangt, dass Pfadvalidierung, `0700`-Anlage und
+Besitzprüfung vor dem Privilege-Drop erfolgen.
+
+| Validierung | Tatsächliches Ergebnis |
+| --- | --- |
+| Expat-Configure-only-Kontrolle mit fehlendem TMPDIR | Erwartet fehlgeschlagen. |
+| Expat-Configure-only-Kontrolle mit gültigem privatem TMPDIR | Bestand. |
+| HAProxy-Workflow-, Evidence-, Harness- und CI-Security-Contracts | Bestand: 26 Tests. |
+| `actionlint` | Bestand für `.github/workflows/test-connectors-with-crs-no-mrts.yml`. |
+| `zizmor` | Bestand für diesen Workflow; es meldete nur seinen Offline-Capability-Hinweis. |
+| `git diff --check` | Bestand: keine Whitespace-Fehler. |
+
+### Geänderte Dateien
+
+- `.github/workflows/test-connectors-with-crs-no-mrts.yml`
+- `tests/test_haproxy_evidence_workflow_contract.py`
+- dieses englisch/deutsche Change-Record-Paar
+
+### Nicht ausgeführte Checks
+
+`ruff` wurde nicht ausgeführt, weil lokal kein Executable verfügbar ist. Eine
+Exact-Head-Hosted-HAProxy-Runtime und Evidence-Publication liefen für diese
+Reparatur noch nicht; dieser Record behauptet daher keine Hosted-Reparatur.
+
+### Restrisiko und Status
+
+Die gehärtete Ausführungs- und Evidence-Grenze bleibt intakt. Zwei unabhängige
+Post-Patch-Reviews fanden keinen konkreten Bypass und keine Regression: Einer
+prüfte die Trusted-Root-, Identitäts-, Namespace- und Fail-Closed-Grenze; der
+andere verifizierte, dass alle privilegierten Aufrufe den absoluten Pfad
+`/usr/bin/sudo` verwenden. Der Patch ist bereit für die normale Delivery an
+PR #344. `FND-PARENT-0975` bleibt offen, bis eine Exact-Head-Hosted-HAProxy-
+Runtime erfolgreich ist und ihre erwartete Evidence verifiziert wurde.

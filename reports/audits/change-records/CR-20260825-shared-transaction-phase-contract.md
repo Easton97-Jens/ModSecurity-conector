@@ -1574,3 +1574,77 @@ The requested reset was reviewed and recorded. The temporary path remains
 removed; the current hardened workflow remains unchanged. No workflow,
 master, merge, scanner, Quality Gate, ruleset, or required-check change is
 performed by this addendum.
+
+## 2026-08-31 HAProxy private TMPDIR preparation repair
+
+### Motivation
+
+The selected HAProxy runtime failed before evidence projection with an Expat
+`configure` failure, followed by the expected fail-closed ModSecurity and
+HAProxy blocking records. The generic hosted summary did not contain private
+configure output. A bounded local configure-only differential established that
+the isolated run passed a `TMPDIR` below the verified run root without first
+creating that directory.
+
+### Technical decision
+
+The HAProxy branch now binds the canonical runner temporary directory and run
+ID to GitHub context values, then derives every runtime root from those values
+and the validated parent SHA. It rejects a changed inherited root, run ID, or
+cell identity; verifies every existing root ancestor is a directory rather
+than a symlink and resolves canonically; and passes only the re-derived build,
+source, cache, log, temporary, and component-cache paths into the isolated
+environment. The CRS preparation owns the pre-existing verified root; the
+runtime creates only its previously absent private `tmp` child with mode
+`0700`, re-applies strict modes, and verifies the expected runtime UID/GID
+ownership before the existing `sudo` → `env -i` → `unshare` →
+`setpriv --no-new-privs` → capability-drop boundary.
+
+All privileged HAProxy workflow operations now invoke `/usr/bin/sudo` rather
+than resolving `sudo` through an inherited `PATH`. This prevents a prior
+checkout-controlled `GITHUB_ENV` write from intercepting namespace, privilege,
+or evidence commands.
+
+The fix creates no fallback, does not inherit host build-library variables,
+and does not change receipt projection, verification, upload eligibility, or
+failure behavior. A missing or unsafe root still fails closed.
+
+### Evidence and validation
+
+The local configure-only control used a fresh external Expat source copy and
+the same bounded environment shape. `configure` failed when `TMPDIR` named a
+missing directory and succeeded when that directory existed and was private;
+no raw configure output was retained. The exact workflow source is covered by
+a regression contract that requires the path validation, `0700` creation and
+ownership check to occur before the privilege drop.
+
+| Validation | Actual result |
+| --- | --- |
+| Expat configure-only missing-TMPDIR control | Failed, as expected. |
+| Expat configure-only valid-private-TMPDIR control | Passed. |
+| HAProxy workflow, evidence, harness, and CI-security contracts | Passed: 26 tests. |
+| `actionlint` | Passed for `.github/workflows/test-connectors-with-crs-no-mrts.yml`. |
+| `zizmor` | Passed for that workflow; it reported only its offline capability note. |
+| `git diff --check` | Passed: no whitespace errors. |
+
+### Changed files
+
+- `.github/workflows/test-connectors-with-crs-no-mrts.yml`
+- `tests/test_haproxy_evidence_workflow_contract.py`
+- this English/German Change Record pair
+
+### Checks not run
+
+`ruff` was not run because no local executable is available. An exact-head
+hosted HAProxy runtime and evidence publication have not run for this repair
+yet; therefore this record does not claim a hosted fix.
+
+### Residual risk and status
+
+The hardened execution and evidence boundary remains intact. Two independent
+post-patch reviews found no concrete bypass or regression: one reviewed the
+trusted-root, identity, namespace, and fail-closed boundary; the other verified
+that all privileged calls use the absolute `/usr/bin/sudo` path. The patch is
+ready for normal delivery to PR #344. `FND-PARENT-0975` remains open until an
+exact-head hosted HAProxy runtime succeeds and its expected evidence is
+verified.
