@@ -669,13 +669,16 @@ jobs:
           source_path, *arguments = sys.argv[1:]
           blob = os.environ["PROJECTOR_BLOB"]
           maximum_bytes = 131072
+          def fail(label):
+              print("FAIL: evidence-source-capsule-" + label, file=sys.stderr)
+              raise SystemExit(2)
           try:
               descriptor = os.open(
                   source_path,
                   os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0),
               )
           except OSError:
-              raise SystemExit(2)
+              fail("open")
           try:
               details = os.fstat(descriptor)
               if (
@@ -687,11 +690,11 @@ jobs:
                   or details.st_size <= 0
                   or details.st_size > maximum_bytes
               ):
-                  raise SystemExit(2)
+                  fail("metadata")
               source = os.read(descriptor, maximum_bytes + 1)
               after = os.fstat(descriptor)
           except OSError:
-              raise SystemExit(2)
+              fail("read")
           finally:
               os.close(descriptor)
           if len(source) != details.st_size or len(source) > maximum_bytes or (
@@ -711,12 +714,17 @@ jobs:
               after.st_gid,
               after.st_nlink,
           ):
-              raise SystemExit(2)
+              fail("identity")
           if hashlib.sha1(b"blob " + str(len(source)).encode("ascii") + b"\0" + source).hexdigest() != blob:
-              raise SystemExit(2)
+              fail("hash")
           sys.argv = ["<verified-haproxy-evidence-projector>", *arguments]
           namespace = {"__name__": "__main__", "__file__": "<sealed-staged-source>"}
-          exec(compile(source, namespace["__file__"], "exec"), namespace)
+          try:
+              exec(compile(source, namespace["__file__"], "exec"), namespace)
+          except SystemExit as error:
+              if error.code not in (None, 0):
+                  print("FAIL: evidence-projector-exit", file=sys.stderr)
+              raise
           ' "$PROJECTOR_SOURCE" "$@"
           }
           test "$(/usr/bin/stat -Lc '%d:%i:%u:%g:%a' -- "$TRUSTED_RUNNER_TEMP")" = "$TRUSTED_RUNNER_TEMP_IDENTITY"
@@ -824,13 +832,16 @@ jobs:
           source_path, *arguments = sys.argv[1:]
           blob = os.environ["PROJECTOR_BLOB"]
           maximum_bytes = 131072
+          def fail(label):
+              print("FAIL: evidence-source-capsule-" + label, file=sys.stderr)
+              raise SystemExit(2)
           try:
               descriptor = os.open(
                   source_path,
                   os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0),
               )
           except OSError:
-              raise SystemExit(2)
+              fail("open")
           try:
               details = os.fstat(descriptor)
               if (
@@ -842,11 +853,11 @@ jobs:
                   or details.st_size <= 0
                   or details.st_size > maximum_bytes
               ):
-                  raise SystemExit(2)
+                  fail("metadata")
               source = os.read(descriptor, maximum_bytes + 1)
               after = os.fstat(descriptor)
           except OSError:
-              raise SystemExit(2)
+              fail("read")
           finally:
               os.close(descriptor)
           if len(source) != details.st_size or len(source) > maximum_bytes or (
@@ -866,12 +877,17 @@ jobs:
               after.st_gid,
               after.st_nlink,
           ):
-              raise SystemExit(2)
+              fail("identity")
           if hashlib.sha1(b"blob " + str(len(source)).encode("ascii") + b"\0" + source).hexdigest() != blob:
-              raise SystemExit(2)
+              fail("hash")
           sys.argv = ["<verified-haproxy-evidence-projector>", *arguments]
           namespace = {"__name__": "__main__", "__file__": "<sealed-staged-source>"}
-          exec(compile(source, namespace["__file__"], "exec"), namespace)
+          try:
+              exec(compile(source, namespace["__file__"], "exec"), namespace)
+          except SystemExit as error:
+              if error.code not in (None, 0):
+                  print("FAIL: evidence-projector-exit", file=sys.stderr)
+              raise
           ' "$PROJECTOR_SOURCE" "$@"
           }
           digest_report="$STAGE_PARENT/haproxy-runtime-evidence-digests.json"

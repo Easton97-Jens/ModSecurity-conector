@@ -1835,8 +1835,11 @@ Trust-Grenze.
 
 ### Status
 
-Dieser Nachfolger behauptet noch keinen Exact-Head-Hosted-Erfolg. Die aktuelle
-Reparatur ist lokal validiert und wartet auf normale PR-Delivery sowie danach
-auf die Hosted-Bestätigung von HAProxy-Runtime, Projektion, Verifikation,
-Upload und Artefaktinspektion. `FND-PARENT-0998` ist lokal behoben und bleibt
-bis zu dieser Evidenz unverifiziert.
+Dieser Nachfolger behauptet noch keinen Exact-Head-Hosted-Erfolg. Hosted-Lauf
+`33381788663` auf `4221526d91506adc246b422219a2537cf39702ff` bestand sowohl
+die neue Vorbereitungsgrenze als auch den HAProxy-Realruntime-Schritt, aber die
+Projektion beendete sich weiterhin fail-closed ohne eine allowlist-basierte
+Quellenlader-Klassifikation; das exakte Cleanup bestand danach. Der nächste
+enge Nachfolger ergänzt ausschließlich feste payloadfreie Source-Capsule-
+Fehlerlabels. `FND-PARENT-0998` bleibt in Bearbeitung, bis Hosted-Runtime,
+Projektion, Verifikation, Upload und Artefaktinspektion alle bestehen.

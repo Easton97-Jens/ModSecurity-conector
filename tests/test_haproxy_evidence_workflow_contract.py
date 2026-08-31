@@ -111,6 +111,13 @@ class HaproxyEvidenceWorkflowContractTests(unittest.TestCase):
             self.assertIn("details.st_gid != 0", evidence_block)
             self.assertIn("stat.S_IMODE(details.st_mode) != 0o444", evidence_block)
             self.assertIn("details.st_nlink != 1", evidence_block)
+            self.assertIn('print("FAIL: evidence-source-capsule-" + label', evidence_block)
+            self.assertIn('fail("open")', evidence_block)
+            self.assertIn('fail("metadata")', evidence_block)
+            self.assertIn('fail("read")', evidence_block)
+            self.assertIn('fail("identity")', evidence_block)
+            self.assertIn('fail("hash")', evidence_block)
+            self.assertIn("FAIL: evidence-projector-exit", evidence_block)
             self.assertNotIn("safe.directory=", evidence_block)
         self.assertNotIn("safe.directory=", source)
         cleanup = self.block(

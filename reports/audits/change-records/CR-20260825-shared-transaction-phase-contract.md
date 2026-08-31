@@ -1696,8 +1696,11 @@ boundary.
 
 ### Status
 
-This successor is not yet an exact-head hosted success claim. The current
-repair is locally validated and awaits normal PR delivery, followed by hosted
-confirmation of HAProxy runtime, projection, verification, upload, and
-artifact inspection. `FND-PARENT-0998` is fixed locally and remains unverified
-until that evidence exists.
+This successor is not yet an exact-head hosted success claim. Hosted run
+`33381788663` at `4221526d91506adc246b422219a2537cf39702ff` passed both the
+new preparation boundary and the HAProxy real-runtime step, but projection
+still exited fail closed without an allowlisted source-loader classification;
+the exact cleanup then passed. The next narrow successor adds only fixed,
+payload-free source-capsule failure labels. `FND-PARENT-0998` remains in
+progress until hosted runtime, projection, verification, upload, and artifact
+inspection all succeed.
