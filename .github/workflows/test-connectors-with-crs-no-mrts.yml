@@ -202,6 +202,7 @@ jobs:
           MRTS_SHA: 615b13bacbd008562c17408246c41ab27dca3104
           SETUP_PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}
           TRUSTED_RUNNER_TEMP: ${{ runner.temp }}
+          TRUSTED_EVIDENCE_STAGE_ROOT: /tmp
           TRUSTED_CRS_RUNTIME_RUN_ID: crs-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.connector }}
         run: |
           set -euo pipefail
@@ -213,7 +214,7 @@ jobs:
             case "$1" in ''|*[!0-9]*) return 1 ;; esac
             test "$1" -gt 0
           }
-          case "$TRUSTED_RUNNER_TEMP:$RUNNER_TEMP:$GITHUB_WORKSPACE:$SETUP_PYTHON_PATH" in /*:/*:/*:/*) ;; *) echo "FAIL: unsafe evidence boundary path" >&2; exit 2 ;; esac
+          case "$TRUSTED_RUNNER_TEMP:$TRUSTED_EVIDENCE_STAGE_ROOT:$RUNNER_TEMP:$GITHUB_WORKSPACE:$SETUP_PYTHON_PATH" in /*:/*:/*:/*:/*) ;; *) echo "FAIL: unsafe evidence boundary path" >&2; exit 2 ;; esac
           test "$RUNNER_TEMP" = "$TRUSTED_RUNNER_TEMP"
           test "$CRS_RUNTIME_RUN_ID" = "$TRUSTED_CRS_RUNTIME_RUN_ID"
           case "$TRUSTED_CRS_RUNTIME_RUN_ID" in [A-Za-z0-9]*) ;; *) echo "FAIL: invalid runtime run id" >&2; exit 2 ;; esac
@@ -263,11 +264,16 @@ jobs:
           case "$runner_temp_identity" in [0-9]*:[0-9]*:[0-9]*:[0-9]*:[0-7][0-7][0-7]) ;; *) echo "FAIL: unsafe RUNNER_TEMP identity" >&2; exit 2 ;; esac
           test ! -L "$TRUSTED_RUNNER_TEMP"
           test "$(/usr/bin/realpath -e -- "$TRUSTED_RUNNER_TEMP")" = "$TRUSTED_RUNNER_TEMP"
+          test "$TRUSTED_EVIDENCE_STAGE_ROOT" = /tmp
+          test -d "$TRUSTED_EVIDENCE_STAGE_ROOT"
+          test ! -L "$TRUSTED_EVIDENCE_STAGE_ROOT"
+          test "$(/usr/bin/realpath -e -- "$TRUSTED_EVIDENCE_STAGE_ROOT")" = "$TRUSTED_EVIDENCE_STAGE_ROOT"
+          test "$(/usr/bin/stat -Lc '%u:%g:%a' -- "$TRUSTED_EVIDENCE_STAGE_ROOT")" = 0:0:1777
           stage_parent=''
           cleanup_stage_parent() {
             case "$stage_parent" in
               '') return 0 ;;
-              "$TRUSTED_RUNNER_TEMP"/haproxy-runtime-evidence-parent.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]) ;;
+              "$TRUSTED_EVIDENCE_STAGE_ROOT"/haproxy-runtime-evidence-parent.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]) ;;
               *) return 2 ;;
             esac
             test ! -L "$stage_parent"
@@ -280,8 +286,8 @@ jobs:
             test ! -L "$stage_parent"
           }
           trap cleanup_stage_parent EXIT
-          stage_parent=$(/usr/bin/sudo -n /usr/bin/mktemp -d -- "$TRUSTED_RUNNER_TEMP/haproxy-runtime-evidence-parent.XXXXXXXX")
-          case "$stage_parent" in "$TRUSTED_RUNNER_TEMP"/haproxy-runtime-evidence-parent.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]) ;; *) echo "FAIL: unsafe evidence stage parent" >&2; exit 2 ;; esac
+          stage_parent=$(/usr/bin/sudo -n /usr/bin/mktemp -d -- "$TRUSTED_EVIDENCE_STAGE_ROOT/haproxy-runtime-evidence-parent.XXXXXXXX")
+          case "$stage_parent" in "$TRUSTED_EVIDENCE_STAGE_ROOT"/haproxy-runtime-evidence-parent.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]) ;; *) echo "FAIL: unsafe evidence stage parent" >&2; exit 2 ;; esac
           test ! -L "$stage_parent"
           test "$(/usr/bin/sudo -n /usr/bin/realpath -e -- "$stage_parent")" = "$stage_parent"
           test "$(/usr/bin/sudo -n /usr/bin/stat -Lc '%u:%g:%a' -- "$stage_parent")" = 0:0:700
@@ -543,6 +549,7 @@ jobs:
           TRUSTED_SOURCE_ROOT: ${{ steps.prepare-haproxy-runtime-evidence.outputs.source_root }}
           TRUSTED_RUNNER_TEMP: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runner_temp }}
           TRUSTED_RUNNER_TEMP_IDENTITY: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runner_temp_identity }}
+          TRUSTED_EVIDENCE_STAGE_ROOT: /tmp
           RUNTIME_UID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_uid }}
           RUNTIME_GID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_gid }}
           EVIDENCE_UID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.evidence_uid }}
@@ -572,7 +579,12 @@ jobs:
           test "$RUNTIME_GID" -ne "$EVIDENCE_GID"
           test "$(/usr/bin/stat -Lc '%d:%i:%u:%g:%a' -- "$TRUSTED_RUNNER_TEMP")" = "$TRUSTED_RUNNER_TEMP_IDENTITY"
           case "$TRUSTED_SOURCE_ROOT" in "$TRUSTED_RUNNER_TEMP"/*) ;; *) echo "FAIL: unsafe evidence source root" >&2; exit 2 ;; esac
-          case "$STAGE_PARENT" in "$TRUSTED_RUNNER_TEMP"/haproxy-runtime-evidence-parent.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]) ;; *) echo "FAIL: unsafe evidence stage parent" >&2; exit 2 ;; esac
+          test "$TRUSTED_EVIDENCE_STAGE_ROOT" = /tmp
+          test -d "$TRUSTED_EVIDENCE_STAGE_ROOT"
+          test ! -L "$TRUSTED_EVIDENCE_STAGE_ROOT"
+          test "$(/usr/bin/realpath -e -- "$TRUSTED_EVIDENCE_STAGE_ROOT")" = "$TRUSTED_EVIDENCE_STAGE_ROOT"
+          test "$(/usr/bin/stat -Lc '%u:%g:%a' -- "$TRUSTED_EVIDENCE_STAGE_ROOT")" = 0:0:1777
+          case "$STAGE_PARENT" in "$TRUSTED_EVIDENCE_STAGE_ROOT"/haproxy-runtime-evidence-parent.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]) ;; *) echo "FAIL: unsafe evidence stage parent" >&2; exit 2 ;; esac
           test "$PROJECTOR_SOURCE" = "$STAGE_PARENT/verified-projector.py"
           test ! -L "$STAGE_PARENT"
           test ! -L "$PROJECTOR_SOURCE"
@@ -744,7 +756,7 @@ jobs:
             --expected-mrts-sha "$MRTS_SHA" \
             | /usr/bin/head --bytes=16385 \
             | run_evidence_projector project-document --source-document-stdin \
-              --runner-temp "$TRUSTED_RUNNER_TEMP" \
+              --runner-temp "$TRUSTED_EVIDENCE_STAGE_ROOT" \
               --stage-parent "$STAGE_PARENT" \
               --stage-root "$stage_root" \
               --runtime-uid "$RUNTIME_UID" \
@@ -763,6 +775,7 @@ jobs:
           PROJECTOR_SOURCE: ${{ steps.prepare-haproxy-runtime-evidence.outputs.projector_source }}
           TRUSTED_RUNNER_TEMP: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runner_temp }}
           TRUSTED_RUNNER_TEMP_IDENTITY: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runner_temp_identity }}
+          TRUSTED_EVIDENCE_STAGE_ROOT: /tmp
           RUNTIME_UID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_uid }}
           RUNTIME_GID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_gid }}
           EVIDENCE_UID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.evidence_uid }}
@@ -789,7 +802,12 @@ jobs:
           test "$RUNTIME_UID" -ne "$EVIDENCE_UID"
           test "$RUNTIME_GID" -ne "$EVIDENCE_GID"
           test "$(/usr/bin/stat -Lc '%d:%i:%u:%g:%a' -- "$TRUSTED_RUNNER_TEMP")" = "$TRUSTED_RUNNER_TEMP_IDENTITY"
-          case "$STAGE_PARENT" in "$TRUSTED_RUNNER_TEMP"/haproxy-runtime-evidence-parent.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]) ;; *) echo "FAIL: unsafe evidence stage parent" >&2; exit 2 ;; esac
+          test "$TRUSTED_EVIDENCE_STAGE_ROOT" = /tmp
+          test -d "$TRUSTED_EVIDENCE_STAGE_ROOT"
+          test ! -L "$TRUSTED_EVIDENCE_STAGE_ROOT"
+          test "$(/usr/bin/realpath -e -- "$TRUSTED_EVIDENCE_STAGE_ROOT")" = "$TRUSTED_EVIDENCE_STAGE_ROOT"
+          test "$(/usr/bin/stat -Lc '%u:%g:%a' -- "$TRUSTED_EVIDENCE_STAGE_ROOT")" = 0:0:1777
+          case "$STAGE_PARENT" in "$TRUSTED_EVIDENCE_STAGE_ROOT"/haproxy-runtime-evidence-parent.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]) ;; *) echo "FAIL: unsafe evidence stage parent" >&2; exit 2 ;; esac
           test "$STAGE_ROOT" = "$STAGE_PARENT/package"
           test "$PROJECTOR_SOURCE" = "$STAGE_PARENT/verified-projector.py"
           test ! -L "$STAGE_PARENT"
@@ -895,7 +913,7 @@ jobs:
           test ! -L "$digest_report"
           /usr/bin/sudo -n /usr/bin/install -m 0640 -o 0 -g "$RUNTIME_GID" /dev/null "$digest_report"
           test "$(/usr/bin/stat -Lc '%u:%g:%a:%s' -- "$digest_report")" = "0:$RUNTIME_GID:640:0"
-          run_evidence_projector verify --runner-temp "$TRUSTED_RUNNER_TEMP" --stage-parent "$STAGE_PARENT" --stage-root "$STAGE_ROOT" --runtime-uid "$RUNTIME_UID" --upload-gid "$RUNTIME_GID" --expected-parent-sha "$PARENT_SHA" --expected-framework-sha "$FRAMEWORK_SHA" --expected-mrts-sha "$MRTS_SHA" \
+          run_evidence_projector verify --runner-temp "$TRUSTED_EVIDENCE_STAGE_ROOT" --stage-parent "$STAGE_PARENT" --stage-root "$STAGE_ROOT" --runtime-uid "$RUNTIME_UID" --upload-gid "$RUNTIME_GID" --expected-parent-sha "$PARENT_SHA" --expected-framework-sha "$FRAMEWORK_SHA" --expected-mrts-sha "$MRTS_SHA" \
             | /usr/bin/head --bytes=1025 \
             | /usr/bin/sudo -n /usr/bin/tee -- "$digest_report" >/dev/null
           /usr/bin/env -i \
@@ -1029,15 +1047,16 @@ jobs:
         if: always() && matrix.connector == 'haproxy'
         env:
           STAGE_PARENT: ${{ steps.prepare-haproxy-runtime-evidence.outputs.stage_parent }}
-          TRUSTED_RUNNER_TEMP: ${{ runner.temp }}
+          TRUSTED_EVIDENCE_STAGE_ROOT: /tmp
         run: |
           set -euo pipefail
-          case "$TRUSTED_RUNNER_TEMP" in /*) ;; *) echo "FAIL: unsafe cleanup runner temp" >&2; exit 2 ;; esac
-          test -d "$TRUSTED_RUNNER_TEMP"
-          test ! -L "$TRUSTED_RUNNER_TEMP"
-          test "$(/usr/bin/realpath -e -- "$TRUSTED_RUNNER_TEMP")" = "$TRUSTED_RUNNER_TEMP"
+          test "$TRUSTED_EVIDENCE_STAGE_ROOT" = /tmp
+          test -d "$TRUSTED_EVIDENCE_STAGE_ROOT"
+          test ! -L "$TRUSTED_EVIDENCE_STAGE_ROOT"
+          test "$(/usr/bin/realpath -e -- "$TRUSTED_EVIDENCE_STAGE_ROOT")" = "$TRUSTED_EVIDENCE_STAGE_ROOT"
+          test "$(/usr/bin/stat -Lc '%u:%g:%a' -- "$TRUSTED_EVIDENCE_STAGE_ROOT")" = 0:0:1777
           if test -n "$STAGE_PARENT"; then
-            case "$STAGE_PARENT" in "$TRUSTED_RUNNER_TEMP"/haproxy-runtime-evidence-parent.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]) ;; *) echo "FAIL: unsafe evidence cleanup path" >&2; exit 2 ;; esac
+            case "$STAGE_PARENT" in "$TRUSTED_EVIDENCE_STAGE_ROOT"/haproxy-runtime-evidence-parent.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]) ;; *) echo "FAIL: unsafe evidence cleanup path" >&2; exit 2 ;; esac
             test ! -L "$STAGE_PARENT"
             test "$(/usr/bin/sudo -n /usr/bin/realpath -e -- "$STAGE_PARENT")" = "$STAGE_PARENT"
             case "$(/usr/bin/sudo -n /usr/bin/stat -Lc '%u:%g:%a' -- "$STAGE_PARENT")" in

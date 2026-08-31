@@ -1843,3 +1843,68 @@ Quellenlader-Klassifikation; das exakte Cleanup bestand danach. Der nächste
 enge Nachfolger ergänzt ausschließlich feste payloadfreie Source-Capsule-
 Fehlerlabels. `FND-PARENT-0998` bleibt in Bearbeitung, bis Hosted-Runtime,
 Projektion, Verifikation, Upload und Artefaktinspektion alle bestehen.
+
+## 2026-08-31 HAProxy-Reparatur der Evidence-Stage-Root-Verfügbarkeit
+
+### Motivation und Grundursache
+
+Der Exact-Head-Hosted-Lauf `33383672335` auf
+`e2f8c70f4800ac84bf9ffeb3d1c8b11ab8a8022a` bestand die HAProxy-
+Vorbereitungsgrenze und die reale Runtime und scheiterte anschließend nur bei
+`Project HAProxy runtime evidence`. Die begrenzte payloadfreie Klassifikation
+lautete `evidence-source-capsule-open`. Verifikation und Upload wurden
+fail-closed übersprungen; das exakte Cleanup bestand. Die 120.825 Byte große
+Rohantwort hatte SHA-256
+`3f878fc503d5b22bffe51c9e7fce461095e4437123ad12de832d959db0dd1a5d` und
+wurde nach dem lokalen Finding-Update aus ihrem exakten task-eigenen
+Verzeichnis gelöscht.
+
+Die Kapsel selbst war korrekt root-eigen, regulär, ein-linkig, im Modus
+`0444`, begrenzt und SHA-verifiziert. Der Fehler lag stattdessen in ihrer
+Vorgängerkette: `runner.temp` ist für die abweichende `EVIDENCE_UID` nicht
+garantiert traversierbar. Zusätzlich verlangt der Projector, dass der
+zufällige Stage-Parent ein direktes Kind seines `--runner-temp`-Arguments und
+root-eigen im Modus `0755` ist.
+
+### Technische Entscheidung
+
+Nur der zufällige Source-Capsule-Parent wechselt zum literalen
+`TRUSTED_EVIDENCE_STAGE_ROOT` `/tmp`. Prepare, Project, Verify und Cleanup
+verlangen jeweils genau diesen Wert und verwerfen einen fehlenden, verlinkten,
+nichtkanonischen oder nicht-`root:root`-Sticky-Modus-`1777`-Root. Root legt das
+zufällige Kind mit Modus `0700` an, versiegelt `verified-projector.py` als
+`root:root` `0444` und wechselt den Parent erst unmittelbar vor der
+unprivilegierten Projektion in den bestehenden Projector-erforderlichen Modus
+`0755`. Das Package bleibt `EVIDENCE_UID:RUNTIME_GID:0700`, und der bestehende
+Projector versiegelt es weiterhin auf `0550`.
+
+Beide Projector-Operationen übergeben `/tmp` als `--runner-temp` und erhalten
+damit die Direct-Child-, descriptor-relative, `O_NOFOLLOW`-, Besitz-, Modus-,
+Linkanzahl-, Größen- und SHA-Validierung des Helpers. Runtime-, Build-, Cache-,
+Source- und Receipt-Roots bleiben unter dem separat validierten `runner.temp`;
+weder Runtime-Befehl noch Upload-Allowlist ändern sich. `/tmp` ist hier
+akzeptabel, weil seine Sticky-Semantik das zufällige root-eigene Kind vor Ersatz
+schützt und die Kapsel nur bereits öffentliche gepinnte Projectorquelle enthält,
+niemals Runtime-Receipt, Payload, Log oder Secret.
+
+### Evidenz und Validierung
+
+| Validierung | Tatsächliches Ergebnis |
+| --- | --- |
+| Fokussierte HAProxy-Projector-, Workflow-Contract-, Harness- und CI-Security-Tests | Bestand: 53 Tests in 5.249 Sekunden; 11 erwartete Cross-Identity-Skips. |
+| `actionlint .github/workflows/test-connectors-with-crs-no-mrts.yml` | Bestand. |
+| `zizmor --offline .github/workflows/test-connectors-with-crs-no-mrts.yml` | Bestand: keine Findings. |
+| `git diff --check` | Bestand. |
+| Frischer unabhängiger Bypass-/Regressionsreview | Bestand: kein konkreter verbleibender Bypass und keine Regression gefunden. |
+
+### Status und Restrisiko
+
+Diese Änderung erhält Namespace, Identity-Drop, Source-Capsule, die fail-
+closed-Verifikations-/Upload-Grenze und das exakte Cleanup; sie setzt den
+Workflow nicht auf den weniger isolierten master-Pfad zurück. Der echte
+Hosted-`/tmp`-Cross-UID-Fluss, Projektion, Verifikation, Upload, Cleanup und
+Artefaktinspektion wurden für diesen Nachfolger noch nicht ausgeführt und
+bleiben erforderlich, bevor PR #344 verifiziert werden kann. Ein harter
+Runner-Abbruch kann weiterhin einen späteren `always()`-Cleanup-Schritt
+verhindern; dies bleibt eine Hosted-Lebenszyklusbegrenzung statt eines
+Fail-open-Pfads.

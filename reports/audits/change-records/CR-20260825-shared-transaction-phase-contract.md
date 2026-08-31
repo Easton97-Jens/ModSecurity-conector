@@ -1704,3 +1704,64 @@ the exact cleanup then passed. The next narrow successor adds only fixed,
 payload-free source-capsule failure labels. `FND-PARENT-0998` remains in
 progress until hosted runtime, projection, verification, upload, and artifact
 inspection all succeed.
+
+## 2026-08-31 HAProxy evidence-stage-root availability repair
+
+### Motivation and root cause
+
+Exact-head hosted run `33383672335` at
+`e2f8c70f4800ac84bf9ffeb3d1c8b11ab8a8022a` passed the HAProxy preparation
+boundary and real runtime, then failed only `Project HAProxy runtime evidence`.
+The bounded payload-free classification was `evidence-source-capsule-open`.
+Verification and upload skipped fail closed; exact cleanup passed. The
+120,825-byte raw response had SHA-256
+`3f878fc503d5b22bffe51c9e7fce461095e4437123ad12de832d959db0dd1a5d` and was
+deleted from its exact task-owned directory after the local finding update.
+
+The capsule itself was correctly root-owned, regular, single-linked, mode
+`0444`, bounded, and SHA-verified. The failure was instead its ancestry:
+`runner.temp` is not guaranteed to be traversable by the distinct
+`EVIDENCE_UID`. The projector additionally requires the random stage parent to
+be a direct child of its `--runner-temp` argument and root-owned mode `0755`.
+
+### Technical decision
+
+Only the random source-capsule parent moves to the literal
+`TRUSTED_EVIDENCE_STAGE_ROOT` `/tmp`. Prepare, Project, Verify, and Cleanup
+each require that exact value and reject a missing, linked, non-canonical, or
+non-`root:root`-sticky-mode-`1777` root. Root creates the random child with
+mode `0700`, seals `verified-projector.py` as `root:root` `0444`, then changes
+the parent only to the pre-existing projector-required `0755` immediately
+before unprivileged projection. The package remains
+`EVIDENCE_UID:RUNTIME_GID:0700` and the existing projector still seals it to
+`0550`.
+
+Both projector operations now pass `/tmp` as `--runner-temp`, retaining the
+helper's direct-child, descriptor-relative, `O_NOFOLLOW`, ownership, mode,
+link-count, size, and SHA validation. Runtime, build, cache, source, and
+receipt roots remain below the separately validated `runner.temp`; neither the
+runtime command nor the upload allowlist changes. `/tmp` is acceptable here
+because its sticky semantics protect the random root-owned child from
+replacement, and the capsule contains only already public pinned projector
+source, never a runtime receipt, payload, log, or secret.
+
+### Evidence and validation
+
+| Validation | Actual result |
+| --- | --- |
+| Focused HAProxy projector, workflow-contract, harness, and CI-security tests | Passed: 53 tests in 5.249 seconds; 11 expected cross-identity skips. |
+| `actionlint .github/workflows/test-connectors-with-crs-no-mrts.yml` | Passed. |
+| `zizmor --offline .github/workflows/test-connectors-with-crs-no-mrts.yml` | Passed: no findings. |
+| `git diff --check` | Passed. |
+| Fresh independent bypass/regression review | Passed: no concrete surviving bypass or regression found. |
+
+### Status and residual risk
+
+This change preserves the namespace, identity drop, source-capsule, fail-
+closed verification/upload gate, and exact cleanup; it does not reset the
+workflow to the less isolated master path. The exact hosted `/tmp` cross-UID
+flow, projection, verification, upload, cleanup, and artifact inspection are
+not yet run for this successor and remain required before PR #344 can be
+verified. A hard runner cancellation can still prevent a later `always()`
+cleanup step; this remains a hosted lifecycle limitation rather than a
+fail-open path.

@@ -1814,6 +1814,11 @@ jobs:
             boundary,
         )
         self.assertIn("projector_blob", boundary)
+        self.assertIn("TRUSTED_EVIDENCE_STAGE_ROOT: /tmp", boundary)
+        self.assertIn(
+            'stage_parent=$(/usr/bin/sudo -n /usr/bin/mktemp -d -- "$TRUSTED_EVIDENCE_STAGE_ROOT/haproxy-runtime-evidence-parent.XXXXXXXX")',
+            boundary,
+        )
         self.assertIn('projector_source="$stage_parent/verified-projector.py"', boundary)
         self.assertIn('/usr/bin/sudo -n /usr/bin/chmod 0444 -- "$projector_source"', boundary)
         self.assertIn("runner_temp_identity=", boundary)
@@ -1873,6 +1878,7 @@ jobs:
         self.assertIn("PROJECTOR_BLOB", project)
         self.assertIn("PROJECTOR_SOURCE", project)
         self.assertIn("STAGE_PARENT", project)
+        self.assertIn("TRUSTED_EVIDENCE_STAGE_ROOT", project)
         self.assertIn("run_runner_projector()", project)
         self.assertIn("run_evidence_projector()", project)
         self.assertIn("hashlib.sha1", project)
@@ -1918,6 +1924,7 @@ jobs:
         self.assertIn("EVIDENCE_UID", verification)
         self.assertIn("EVIDENCE_GID", verification)
         self.assertIn("PROJECTOR_SOURCE", verification)
+        self.assertIn("TRUSTED_EVIDENCE_STAGE_ROOT", verification)
         self.assertIn("hashlib.sha1", verification)
         self.assertIn("run_evidence_projector verify", verification)
         self.assertIn('--upload-gid "$RUNTIME_GID"', verification)
