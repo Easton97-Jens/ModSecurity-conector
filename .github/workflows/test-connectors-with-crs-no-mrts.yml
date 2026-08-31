@@ -592,7 +592,7 @@ jobs:
           blob, workspace, *arguments = sys.argv[1:]
           try:
               source = subprocess.check_output(
-                  ["/usr/bin/git", "--no-pager", "-C", workspace, "cat-file", "blob", blob],
+                  ["/usr/bin/git", "-c", "safe.directory=" + workspace, "--no-pager", "-C", workspace, "cat-file", "blob", blob],
                   env={
                       "PATH": "/usr/bin:/bin",
                       "HOME": "/nonexistent",
@@ -710,7 +710,7 @@ jobs:
           blob, workspace, *arguments = sys.argv[1:]
           try:
               source = subprocess.check_output(
-                  ["/usr/bin/git", "--no-pager", "-C", workspace, "cat-file", "blob", blob],
+                  ["/usr/bin/git", "-c", "safe.directory=" + workspace, "--no-pager", "-C", workspace, "cat-file", "blob", blob],
                   env={
                       "PATH": "/usr/bin:/bin",
                       "HOME": "/nonexistent",

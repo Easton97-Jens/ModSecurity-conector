@@ -1782,3 +1782,41 @@ andere verifizierte, dass alle privilegierten Aufrufe den absoluten Pfad
 `/usr/bin/sudo` verwenden. Der Patch ist bereit für die normale Delivery an
 PR #344. `FND-PARENT-0975` bleibt offen, bis eine Exact-Head-Hosted-HAProxy-
 Runtime erfolgreich ist und ihre erwartete Evidence verifiziert wurde.
+
+## 2026-08-31 HAProxy-Reparatur für Evidence-Projector-Besitzverhältnisse
+
+### Motivation und Diagnose
+
+Der gehostete Nachfolgelauf `33372492366` auf dem Head
+`582656e081238daa8382b59eef671745650a1334` bestand den realen
+HAProxy-Runtime-Schritt, scheiterte jedoch bei `Project HAProxy runtime
+evidence`. Die beobachtete Broken-Pipe-Meldung von `head` war nur sekundär: Der
+Evidence-Projector beendete sich zuvor beim Lesen seines SHA-gepinnten
+Git-Blobs als abgesenkte Evidence-UID, weil Git den Workspace wegen
+unterschiedlicher Besitzverhältnisse ablehnte.
+
+### Technische Entscheidung
+
+Eine begrenzte Cross-Identity-Kontrolle ergab ohne scoped
+Safe-Directory-Eintrag Exit `128` und mit
+`git -c safe.directory=<exakter-workspace>` Exit `0`. Der Workflow verwendet
+diese exakte Workspace-Einstellung daher ausschließlich bei den zwei
+Evidence-Projector-/Verifier-Blob-Lesevorgängen. `safe.directory=*` wird nicht
+verwendet; globale und System-Git-Konfiguration bleiben deaktiviert, und die
+Prüfung von festem Source-SHA und Dateigröße bleibt aktiv.
+
+### Evidenz und Validierung
+
+Der fokussierte Workflow-Regressions-Contract verlangt die zwei exakten scoped
+Reads, verwirft einen Wildcard-Eintrag und eine Ausweitung auf weitere Leser.
+Die lokale fokussierte Validierung bestand: 53 Tests, `actionlint`,
+Offline-`zizmor` und `git diff --check`. Ein unabhängiger
+Post-Patch-Security-Review fand keine konkrete Sicherheitsregression.
+
+### Status
+
+Die gehostete Nachfolgeprüfung steht noch aus; dieser Nachtrag behauptet keinen
+vollständigen Hosted-Erfolg. Der frühere Runtime-Component-Fehler ist nur in dem
+Umfang als behoben belegt, in dem der reale Runtime-Schritt bestand; Evidence-
+Projektion, Verifikation und Veröffentlichung benötigen weiterhin eine
+Exact-Head-Hosted-Bestätigung.

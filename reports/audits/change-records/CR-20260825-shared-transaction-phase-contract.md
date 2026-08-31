@@ -1648,3 +1648,39 @@ that all privileged calls use the absolute `/usr/bin/sudo` path. The patch is
 ready for normal delivery to PR #344. `FND-PARENT-0975` remains open until an
 exact-head hosted HAProxy runtime succeeds and its expected evidence is
 verified.
+
+## 2026-08-31 HAProxy evidence-projector ownership repair
+
+### Motivation and diagnosis
+
+Hosted successor run `33372492366` at head
+`582656e081238daa8382b59eef671745650a1334` passed the HAProxy real-runtime
+step but failed during `Project HAProxy runtime evidence`. The observed
+`head` broken-pipe message was secondary: the evidence projector exited earlier
+while reading its pinned Git blob as the dropped evidence UID because Git
+rejected the workspace as dubious ownership.
+
+### Technical decision
+
+A bounded cross-identity control returned exit `128` without a scoped
+safe-directory entry and exit `0` with
+`git -c safe.directory=<exact-workspace>`. The workflow therefore adds this
+exact workspace-scoped option only to the two evidence projector/verifier blob
+reads. It does not use `safe.directory=*`; global and system Git configuration
+remain disabled, and the fixed source SHA and size checks remain enforced.
+
+### Evidence and validation
+
+The focused workflow regression contract requires the two exact scoped reads,
+rejects a wildcard, and rejects an expansion to more readers. Local focused
+validation passed: 53 tests, `actionlint`, offline `zizmor`, and
+`git diff --check`. An independent post-patch security review found no concrete
+security regression.
+
+### Status
+
+Hosted successor verification remains pending; this addendum does not claim
+complete hosted success. The earlier runtime-component failure is resolved only
+to the extent demonstrated by the passed real-runtime step; evidence
+projection, verification, and publication still require exact-head hosted
+confirmation.

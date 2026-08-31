@@ -75,6 +75,29 @@ class HaproxyEvidenceWorkflowContractTests(unittest.TestCase):
         self.assertIn("/usr/bin/sudo -n", source)
         self.assertIsNone(re.search(r"(?<!/usr/bin/)sudo -n", source))
 
+    def test_evidence_projector_reads_the_pinned_blob_with_a_scoped_safe_directory(
+        self,
+    ) -> None:
+        source = self.source()
+        project = self.block(
+            source,
+            "      - name: Project HAProxy runtime evidence\n",
+            "      - name: Verify HAProxy runtime evidence\n",
+        )
+        verify = self.block(
+            source,
+            "      - name: Verify HAProxy runtime evidence\n",
+            "      - name: Upload non-HAProxy runtime evidence\n",
+        )
+        trusted_git_read = (
+            '["/usr/bin/git", "-c", "safe.directory=" + workspace, '
+            '"--no-pager", "-C", workspace, "cat-file", "blob", blob]'
+        )
+        self.assertIn(trusted_git_read, project)
+        self.assertIn(trusted_git_read, verify)
+        self.assertEqual(source.count(trusted_git_read), 2)
+        self.assertNotIn("safe.directory=*", source)
+
     def test_runtime_executes_checkout_only_after_privilege_drop_and_receipts_fail_closed(self) -> None:
         source = self.source()
         runtime = self.block(
