@@ -1901,10 +1901,27 @@ niemals Runtime-Receipt, Payload, Log oder Secret.
 
 Diese Änderung erhält Namespace, Identity-Drop, Source-Capsule, die fail-
 closed-Verifikations-/Upload-Grenze und das exakte Cleanup; sie setzt den
-Workflow nicht auf den weniger isolierten master-Pfad zurück. Der echte
-Hosted-`/tmp`-Cross-UID-Fluss, Projektion, Verifikation, Upload, Cleanup und
-Artefaktinspektion wurden für diesen Nachfolger noch nicht ausgeführt und
-bleiben erforderlich, bevor PR #344 verifiziert werden kann. Ein harter
-Runner-Abbruch kann weiterhin einen späteren `always()`-Cleanup-Schritt
-verhindern; dies bleibt eine Hosted-Lebenszyklusbegrenzung statt eines
-Fail-open-Pfads.
+Workflow nicht auf den weniger isolierten master-Pfad zurück. Der exakte
+Code-Head `6cac8ab83163d9728f03564a1444d38c8514a150` beendete den Hosted-
+Workflow-Lauf `33386995419` um `2026-08-31T11:43:04Z` erfolgreich.
+HAProxy-Job `99471747111` bestand Vorbereitung, reale Runtime, Projektion,
+Verifikation, Upload und exaktes Cleanup.
+
+Das veröffentlichte Artefakt
+`with-crs-no-mrts-haproxy-33386995419-1` (GitHub-Artefakt-ID `9756326224`)
+wurde ausschließlich gegen den begrenzten Vertrag geprüft: Sein 807-Byte-
+Beleg bestand die erwarteten Schema-/Ergebnisprüfungen, und das Manifest
+entsprach dem Receipt-SHA-256
+`79bf09bda36757f5625cec448553249a54e50bd7b6a688e8dd97f03029e24522` sowie
+der Größe. Apache, Envoy, Traefik und lighttpd bestanden ebenfalls im selben
+terminalen Connector-Runtime-Workflow. Beim final beobachteten PR-Stand
+bestanden alle angezeigten nicht übersprungenen PR-Checks, einschließlich
+SonarCloud Code Analysis.
+
+`FND-PARENT-0998` ist damit am PR-Head behoben. Ein harter Runner-Abbruch
+kann weiterhin einen späteren `always()`-Cleanup-Schritt verhindern; dies
+bleibt eine Hosted-Lebenszyklusbegrenzung statt eines Fail-open-Pfads. Die
+Finding-Policy verlangt nach einer autorisierten Integration eine Reproduktion
+auf aktuellem Master, bevor dieses Finding verifiziert oder geschlossen werden
+kann. Dieser Record ändert keinen master-Stand, CI-Schutz, Ruleset,
+Required-Check, Scanner, Quality Gate oder Evidence-Grenze.

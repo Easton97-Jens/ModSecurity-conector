@@ -1759,9 +1759,25 @@ source, never a runtime receipt, payload, log, or secret.
 
 This change preserves the namespace, identity drop, source-capsule, fail-
 closed verification/upload gate, and exact cleanup; it does not reset the
-workflow to the less isolated master path. The exact hosted `/tmp` cross-UID
-flow, projection, verification, upload, cleanup, and artifact inspection are
-not yet run for this successor and remain required before PR #344 can be
-verified. A hard runner cancellation can still prevent a later `always()`
-cleanup step; this remains a hosted lifecycle limitation rather than a
-fail-open path.
+workflow to the less isolated master path. Exact code head
+`6cac8ab83163d9728f03564a1444d38c8514a150` completed hosted workflow run
+`33386995419` successfully at `2026-08-31T11:43:04Z`. HAProxy job
+`99471747111` passed preparation, real runtime, projection, verification,
+upload, and exact cleanup.
+
+The published artifact
+`with-crs-no-mrts-haproxy-33386995419-1` (GitHub artifact ID `9756326224`)
+was inspected only through the bounded contract: its 807-byte receipt passed
+the expected schema/result checks and the manifest matched receipt SHA-256
+`79bf09bda36757f5625cec448553249a54e50bd7b6a688e8dd97f03029e24522` and
+size. Apache, Envoy, Traefik, and lighttpd also passed in the same terminal
+connector-runtime workflow. At the final observed PR state, all displayed
+non-skipped PR checks, including SonarCloud Code Analysis, passed.
+
+`FND-PARENT-0998` is therefore fixed on the PR head. A hard runner
+cancellation can still prevent a later `always()` cleanup step; this remains
+a hosted lifecycle limitation rather than a fail-open path. The finding policy
+requires an authorized post-merge current-master reproduction before that
+finding can become verified or closed. This record changes no master state,
+CI protection, ruleset, required check, scanner, Quality Gate, or evidence
+boundary.
