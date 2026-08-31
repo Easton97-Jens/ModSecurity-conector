@@ -75,6 +75,17 @@ Gemeinsam genutzte konnektorneutrale Datenformen, die vom Starter verwendet werd
   Wird nur vom Full-Lifecycle-Profil ausgewählt, prüft P1/P3-Hostantworten und
   fördert nicht die Fähigkeit des Antwortkörpers.
 
+### SPOP-Korrelationsgrenze der Request-ID
+
+`request_id` ist ein Korrelationsschlüssel, kein Display-String. Die
+Produktions-SPOP-Runtime validiert die ursprünglichen längenbegrenzten Bytes
+vor ihrer C-String-Kopie: leere, eingebettete-NUL-, Control-Byte-, Nicht-ASCII-
+und zu lange Werte werden abgewiesen. Damit kann `A\0X` an der
+Transaktions-Cache-Grenze nicht zu `A` kollabieren, während eine nichtleere
+druckbare ASCII-ID einschließlich der normalen UUID-Form zulässig bleibt. Eine
+fehlerhafte `request_id` lässt die Notification-Extraktion fehlschlagen und
+kann keine Transaktion erzeugen, ersetzen oder claimen.
+
 ## Build-Starter
 
 Für die vollständige Repository-gestützte HAProxy-Kompilierung und lokale Verifizierung

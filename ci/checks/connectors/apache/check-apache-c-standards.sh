@@ -104,6 +104,7 @@ common/src/dos_guard.c
 common/src/error.c
 common/src/status.c
 common/src/body_policy.c
+common/src/intervention.c
 common/src/block_statuses.c
 common/src/http_status.c
 common/src/transaction_state.c

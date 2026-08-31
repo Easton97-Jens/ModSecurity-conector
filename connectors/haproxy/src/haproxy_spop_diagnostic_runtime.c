@@ -27,6 +27,7 @@
 #include "msconnector/late_intervention.h"
 #include "msconnector/limits.h"
 #include "msconnector/memory.h"
+#include "msconnector/transaction_contract.h"
 
 #define SPOP_FRAME_MAX 65536U
 #define SPOP_MIN_FRAME_SIZE 256U
@@ -1125,7 +1126,10 @@ static int read_typed_string_to_buffer(
 }
 
 /* Correlation identifiers are not display strings: truncating one can make
- * two independent SPOP streams address the same cache slot. */
+ * two independent SPOP streams address the same cache slot. Validate the
+ * original length-delimited bytes before the C-string copy, so A\0X cannot
+ * collapse to A and embedded NUL, empty/control/non-ASCII IDs cannot enter
+ * the cache; ordinary ASCII and UUID-style IDs remain valid. */
 static int read_typed_request_id(
         const unsigned char *data,
         size_t len,
@@ -1142,17 +1146,11 @@ static int read_typed_request_id(
         return -1;
     }
     type = data[(*pos)++] & SPOP_DATA_TYPE_MASK;
-    if (type == 0U) {
-        copy_spop_string(out, out_len, (const unsigned char *)"", 0U);
-        *present = 1;
-        return 0;
-    }
-    if (type != SPOP_DATA_STR ||
-            read_string_ref(data, len, pos, &value, &value_len) != 0) {
-        *pos = value_pos;
-        return skip_typed_data(data, len, pos);
-    }
-    if (value_len >= out_len) {
+    if (type == 0U || type != SPOP_DATA_STR ||
+            read_string_ref(data, len, pos, &value, &value_len) != 0 ||
+            value_len >= out_len ||
+            !msconnector_transaction_contract_validate_transaction_id_bytes(
+                (const char *)value, value_len)) {
         *pos = value_pos;
         return -1;
     }
@@ -3931,6 +3929,53 @@ static int run_spop_body_limit_self_test(void)
     return 0;
 }
 
+static int run_spop_request_id_validation_self_test(void)
+{
+    static const unsigned char valid[] = {
+        SPOP_DATA_STR, 36U,
+        '5', '5', '0', 'e', '8', '4', '0', '0', '-',
+        'e', '2', '9', 'b', '-', '4', '1', 'd', '4', '-',
+        'a', '7', '1', '6', '-', '4', '4', '6', '6', '5',
+        '5', '4', '4', '0', '0', '0', '0', '0'
+    };
+    static const unsigned char embedded_nul[] = {
+        SPOP_DATA_STR, 3U, 'A', '\0', 'X'
+    };
+    static const unsigned char control[] = {
+        SPOP_DATA_STR, 3U, 'A', 1U, 'X'
+    };
+    static const unsigned char empty[] = {SPOP_DATA_STR, 0U};
+    unsigned char overlong[131U];
+    const unsigned char *cases[] = {embedded_nul, control, empty, overlong};
+    size_t lengths[] = {sizeof(embedded_nul), sizeof(control), sizeof(empty), sizeof(overlong)};
+    char output[128];
+    int present;
+    size_t pos;
+
+    pos = 0U;
+    present = 0;
+    memset(output, 0, sizeof(output));
+    if (read_typed_request_id(valid, sizeof(valid), &pos, output,
+            sizeof(output), &present) != 0 || !present ||
+            strcmp(output, "550e8400-e29b-41d4-a716-446655440000") != 0) {
+        return -1;
+    }
+    memset(overlong, 'x', sizeof(overlong));
+    overlong[0] = SPOP_DATA_STR;
+    overlong[1] = 0x80U;
+    overlong[2] = 0x01U;
+    for (size_t index = 0U; index < sizeof(cases) / sizeof(cases[0]); ++index) {
+        pos = 0U;
+        present = 0;
+        memset(output, 0, sizeof(output));
+        if (read_typed_request_id(cases[index], lengths[index], &pos, output,
+                sizeof(output), &present) == 0 || pos != 0U || present) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
 static int run_spop_write_deadline_self_test(void)
 {
     int sockets[2];
@@ -4289,6 +4334,10 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
     }
     if (run_spop_body_limit_self_test() != 0) {
         fprintf(stderr, "SPOP body-limit self-test failed\n");
+        return 1;
+    }
+    if (run_spop_request_id_validation_self_test() != 0) {
+        fprintf(stderr, "SPOP request-id validation self-test failed\n");
         return 1;
     }
     if (run_spop_write_deadline_self_test() != 0) {

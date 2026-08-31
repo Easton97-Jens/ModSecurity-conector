@@ -1019,14 +1019,13 @@ static int native_decision(
             intervention.log, native->rule_id, sizeof(native->rule_id));
     }
     if (disruptive) {
-        int intervention_status = native_intervention_status(
-            phase, &intervention);
+        int intervention_status = msconnector_intervention_normalize_status(
+            intervention.url, native_intervention_status(phase, &intervention),
+            runtime->config.default_block_status);
         (void)snprintf(native->reason, sizeof(native->reason), "%s",
             "ModSecurity rule requested an intervention");
-        if (intervention.url != NULL) {
+        if (msconnector_intervention_has_redirect_url(intervention.url)) {
             (void)snprintf(native->redirect_url, sizeof(native->redirect_url), "%s", intervention.url);
-        } else if (!msconnector_block_status_is_allowed(intervention_status)) {
-            intervention_status = runtime->config.default_block_status;
         }
         if (body_limit) {
             msconnector_decision_set_body_limit(decision, native->reason);

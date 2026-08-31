@@ -74,6 +74,16 @@ Shared connector-neutral data shapes used by the starter:
   selected only by the full-lifecycle profile, proves P1/P3 host replies, and
   does not promote the response-body capability.
 
+### SPOP request-ID correlation boundary
+
+`request_id` is a correlation key, not a display string. The production SPOP
+runtime validates the original length-delimited bytes before its C-string copy:
+empty, embedded-NUL, control-byte, non-ASCII, and overlong values are rejected.
+Thus `A\0X` cannot collapse to `A` at the transaction cache boundary, while a
+nonempty printable-ASCII ID, including the normal UUID form, remains accepted.
+A malformed `request_id` fails notification extraction and cannot create,
+replace, or claim a transaction.
+
 ## Build Starter
 
 For the complete repository-supported HAProxy compile and local verification

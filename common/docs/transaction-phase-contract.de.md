@@ -213,6 +213,28 @@ Eine disruptive Regelentscheidung ohne begrenzte Regel-ID wird zu
 <code>invalid_engine_response</code>, niemals zu Allow. Ein Host nach Commit
 darf keinen neuen Status erfinden oder Safe still zu Enforcement hochstufen.
 
+## Normalisierung nativer Interventionen
+
+Wenn ein nativer Adapter eine disruptive <code>msc_intervention</code> erhält,
+normalisiert er den Status vor dem Aufzeichnen der Common-Entscheidung und vor
+dem Aufruf des Host-Sinks. Dies kanonisiert eine native Regelentscheidung; es
+ist vom <code>invalid_engine_response</code>-Fehlerpfad für einen Engine-,
+Connector- oder Protokollfehler getrennt.
+
+| Form der nativen Intervention | Kanonischer Status |
+| --- | --- |
+| Nichtleere Redirect-URL und ein 3xx-Status | Diesen 3xx-Status beibehalten. |
+| Nichtleere Redirect-URL und jeder Nicht-3xx-Status | HTTP 302. |
+| Keine Redirect-URL und ein erlaubter Blockstatus | Diesen Blockstatus beibehalten. |
+| Keine Redirect-URL und jeder andere Status | Der konfigurierte erlaubte <code>default_block_status</code>, andernfalls HTTP 403. |
+
+Adapter validieren weiterhin jede Engine-bereitgestellte Redirect-URL und
+kopieren sie in Request-Ownership vor dem nativen Cleanup. Sie dürfen eine
+leere URL nicht als Redirect ausgeben, für eine reine Statusintervention keinen
+erfolgreichen oder beliebigen 3xx-Status zurückgeben und nach dieser
+Kanonisierung die normale Safe-/Strict- und Response-Commit-Policy nicht
+umgehen.
+
 ## Zehn logische Connectorlösungen
 
 | Lösung | P1/P2-Pfad | P3/P4-Pfad | Aktuelle Grenze |

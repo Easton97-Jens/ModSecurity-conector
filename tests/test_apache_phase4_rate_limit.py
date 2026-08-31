@@ -31,7 +31,7 @@ class ApachePhase4RateLimitTests(unittest.TestCase):
             'else if (strcmp(input->actual, "abort_connection") == 0)', 1
         )[0]
 
-        self.assertIn("case HTTP_TOO_MANY_REQUESTS:", decision_kind)
+        self.assertIn("if (status == HTTP_TOO_MANY_REQUESTS)", decision_kind)
         self.assertIn(
             "return MSCONNECTOR_TRANSACTION_DECISION_RATE_LIMIT;", decision_kind
         )

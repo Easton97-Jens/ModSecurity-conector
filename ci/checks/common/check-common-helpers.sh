@@ -15,6 +15,7 @@ SMOKE_C="$OUT_DIR/common_helper_smoke.c"
 SMOKE_BIN="$OUT_DIR/common_helper_smoke"
 STARTER_C="$OUT_DIR/common_transaction_constructor_smoke.c"
 STARTER_BIN="$OUT_DIR/common_transaction_constructor_smoke"
+INTERVENTION_NORMALIZATION_BIN="$OUT_DIR/intervention_normalization_test"
 CXX_SMOKE_CPP="$OUT_DIR/common_cpp_wrapper_smoke.cpp"
 CXX_SMOKE_OBJ="$OUT_DIR/common_cpp_wrapper_smoke.o"
 
@@ -1806,8 +1807,17 @@ int main(void) {
 }
 EOF
 
-"$CC_BIN" $MSCONNECTOR_CFLAGS     -I "$REPO_ROOT/common/include"     "$STARTER_C"     "$REPO_ROOT/common/src/transaction.c"     "$REPO_ROOT/common/src/intervention.c"     -o "$STARTER_BIN"
+"$CC_BIN" $MSCONNECTOR_CFLAGS     -I "$REPO_ROOT/common/include"     "$STARTER_C"     "$REPO_ROOT/common/src/transaction.c"     "$REPO_ROOT/common/src/intervention.c"     "$REPO_ROOT/common/src/block_statuses.c"     "$REPO_ROOT/common/src/http_status.c"     -o "$STARTER_BIN"
 "$STARTER_BIN"
+
+"$CC_BIN" $MSCONNECTOR_CFLAGS \
+    -I "$REPO_ROOT/common/include" \
+    "$REPO_ROOT/tests/intervention_normalization_test.c" \
+    "$REPO_ROOT/common/src/intervention.c" \
+    "$REPO_ROOT/common/src/block_statuses.c" \
+    "$REPO_ROOT/common/src/http_status.c" \
+    -o "$INTERVENTION_NORMALIZATION_BIN"
+"$INTERVENTION_NORMALIZATION_BIN"
 
 . "$REPO_ROOT/ci/runtime/common/common-harness.sh"
 msconnector_harness_require_under_root /tmp/run /tmp/run/logs/result.json

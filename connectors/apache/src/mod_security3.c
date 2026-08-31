@@ -8,6 +8,7 @@
 #include "mod_security3.h"
 #include "msc_utils.h"
 #include "msc_config.h"
+#include "msconnector/intervention.h"
 #include "msconnector/limits.h"
 #include "msconnector/options.h"
 #include "msconnector/rule_id.h"
@@ -160,50 +161,18 @@ int msc_apache_contract_record_decision(msc_t *msr,
         MSCONNECTOR_TRANSACTION_TRANSITION_OK;
 }
 
-/* Keep this classification aligned with process_intervention().  Apache only
- * creates a Location header and returns its canonical redirect result for
- * these four statuses; arbitrary 3xx statuses are still a disruptive block,
- * not a redirect the host can actually perform. */
+/* process_intervention() normalizes native status before retaining it, so
+ * status alone now carries the canonical host action at this boundary. */
 static msconnector_transaction_decision_kind apache_intervention_decision_kind(
     int status)
 {
-    switch (status)
-    {
-        case 301:
-        case 302:
-        case 303:
-        case 307:
-            return MSCONNECTOR_TRANSACTION_DECISION_REDIRECT;
-        case HTTP_TOO_MANY_REQUESTS:
-            return MSCONNECTOR_TRANSACTION_DECISION_RATE_LIMIT;
-        default:
-            return MSCONNECTOR_TRANSACTION_DECISION_BLOCK;
+    if (status >= HTTP_MULTIPLE_CHOICES && status < HTTP_BAD_REQUEST) {
+        return MSCONNECTOR_TRANSACTION_DECISION_REDIRECT;
     }
-}
-
-/* A libModSecurity intervention is disruptive only when it supplies a
- * terminal HTTP status. Treat 1xx/2xx, zero, and out-of-range values as an
- * invalid engine response; returning one of them to httpd could otherwise
- * stop the filter while exposing a successful response. */
-static int apache_intervention_status_is_valid(int status)
-{
-    return status >= HTTP_MULTIPLE_CHOICES && status <= 599;
-}
-
-static enum msconnector_phase apache_intervention_failure_phase(
-    const msc_t *msr)
-{
-    if (msr != NULL && msr->native_event_phase_active)
-    {
-        return msr->native_event_phase;
+    if (status == HTTP_TOO_MANY_REQUESTS) {
+        return MSCONNECTOR_TRANSACTION_DECISION_RATE_LIMIT;
     }
-    if (msr != NULL && msr->contract.active_phase >=
-            MSCONNECTOR_PHASE_REQUEST_HEADERS &&
-        msr->contract.active_phase <= MSCONNECTOR_PHASE_RESPONSE_BODY)
-    {
-        return (enum msconnector_phase)msr->contract.active_phase;
-    }
-    return MSCONNECTOR_PHASE_REQUEST_HEADERS;
+    return MSCONNECTOR_TRANSACTION_DECISION_BLOCK;
 }
 
 /* process_intervention() retains the native log in request-pool storage
@@ -217,9 +186,6 @@ int msc_apache_contract_record_intervention_decision(msc_t *msr)
     msconnector_transaction_decision_kind kind;
 
     if (msr == NULL || !msr->contract_initialized) {
-        return 0;
-    }
-    if (!apache_intervention_status_is_valid(msr->last_intervention_status)) {
         return 0;
     }
     rule_id[0] = '\0';
@@ -416,6 +382,7 @@ static void msc_release_intervention_buffers(ModSecurityIntervention *interventi
 int process_intervention (Transaction *t, request_rec *r)
 {
     ModSecurityIntervention intervention;
+    msc_conf_t *config = NULL;
     msc_t *msr = NULL;
     const char *log;
     const char *location;
@@ -435,21 +402,15 @@ int process_intervention (Transaction *t, request_rec *r)
         return N_INTERVENTION_STATUS;
     }
 
-    msr = (msc_t *)apr_table_get(r->notes, NOTE_MSR);
-    if (!apache_intervention_status_is_valid(intervention.status))
-    {
-        if (msr != NULL)
-        {
-            (void)msc_apache_contract_fail(msr,
-                MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE);
-            apache_emit_contract_failure_event(msr, r,
-                apache_intervention_failure_phase(msr),
-                MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE,
-                HTTP_INTERNAL_SERVER_ERROR);
-        }
-        result = HTTP_INTERNAL_SERVER_ERROR;
-        goto cleanup;
+    if (r->per_dir_config != NULL) {
+        config = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
+            &security3_module);
     }
+    intervention.status = msconnector_intervention_normalize_status(
+        intervention.url, intervention.status, config == NULL
+            ? MSCONNECTOR_DEFAULT_BLOCK_STATUS
+            : config->common_config.default_block_status);
+    msr = (msc_t *)apr_table_get(r->notes, NOTE_MSR);
 
     log = intervention.log;
     if (log == NULL)
@@ -464,16 +425,14 @@ int process_intervention (Transaction *t, request_rec *r)
         msr->phase4_intervention = intervention.disruptive ? 1 : msr->phase4_intervention;
     }
 
-    if (intervention.status == 301 || intervention.status == 302
-        ||intervention.status == 303 || intervention.status == 307)
+    if (msconnector_intervention_has_redirect_url(intervention.url) &&
+        intervention.status >= HTTP_MULTIPLE_CHOICES &&
+        intervention.status < HTTP_BAD_REQUEST)
     {
-        if (intervention.url != NULL)
-        {
-            location = apr_pstrdup(r->pool, intervention.url);
-            apr_table_setn(r->headers_out, "Location", location);
-            result = HTTP_MOVED_TEMPORARILY;
-            goto cleanup;
-        }
+        location = apr_pstrdup(r->pool, intervention.url);
+        apr_table_setn(r->headers_out, "Location", location);
+        result = intervention.status;
+        goto cleanup;
     }
 
     if (intervention.status != N_INTERVENTION_STATUS)

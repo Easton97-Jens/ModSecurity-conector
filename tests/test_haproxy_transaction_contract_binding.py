@@ -229,6 +229,35 @@ def test_spop_missing_response_correlation_is_terminal_error() -> None:
     assert '"correlation-failure"' in spop_source
 
 
+def test_spop_request_id_parser_validates_length_delimited_bytes_before_copy() -> None:
+    spop_source = (
+        Path(__file__).resolve().parents[1]
+        / "connectors"
+        / "haproxy"
+        / "src"
+        / "haproxy_spop_diagnostic_runtime.c"
+    ).read_text(encoding="utf-8")
+    parser_start = spop_source.index("/* Correlation identifiers are not display strings")
+    parser_end = spop_source.index("static int read_typed_uint32_value(", parser_start)
+    parser = spop_source[parser_start:parser_end]
+
+    assert "msconnector_transaction_contract_validate_transaction_id_bytes" in parser
+    assert "value, value_len" in parser
+    assert "type == 0U" in parser and "return -1;" in parser
+    assert "copy_spop_string(out, out_len, value, value_len);" in parser
+    assert parser.index("msconnector_transaction_contract_validate_transaction_id_bytes") < parser.index(
+        "copy_spop_string(out, out_len, value, value_len);"
+    )
+    # These are length-delimited byte cases; a C-string copy would collapse A\0X
+    # to A and must therefore never be used as the validation boundary.
+    assert "embedded NUL" in parser
+    assert "control" in parser
+    assert "A\\0X" in parser
+    assert "A" in parser and "UUID" in parser
+    assert "run_spop_request_id_validation_self_test" in spop_source
+    assert '"SPOP request-id validation self-test failed\\n"' in spop_source
+
+
 def test_spop_response_body_chunks_do_not_finalize_without_transport_eos() -> None:
     spop_source = (
         Path(__file__).resolve().parents[1]

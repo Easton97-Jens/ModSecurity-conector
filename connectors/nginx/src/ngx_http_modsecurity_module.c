@@ -27,6 +27,7 @@
 #include "msconnector/directive_adapter.h"
 #include "msconnector/directive_spec.h"
 #include "msconnector/directives.h"
+#include "msconnector/intervention.h"
 #include "msconnector/options.h"
 #include "msconnector/rule_id.h"
 #include "stdio.h"
@@ -94,18 +95,14 @@ ngx_http_modsecurity_contract_record_intervention(ngx_http_request_t *r,
     const ModSecurityIntervention *intervention)
 {
     msconnector_transaction_decision_kind kind;
-    int disruptive;
 
     if (r == NULL || ctx == NULL || intervention == NULL) {
         return NGX_ERROR;
     }
-    disruptive = (intervention->url != NULL && intervention->url[0] != '\0') ||
-        intervention->status != 200;
-    if (!disruptive || !ctx->contract_initialized) {
+    if (!ctx->contract_initialized) {
         return NGX_OK;
     }
-    if ((intervention->url != NULL && intervention->url[0] != '\0') ||
-        (intervention->status >= 300 && intervention->status < 400)) {
+    if (msconnector_intervention_has_redirect_url(intervention->url)) {
         kind = MSCONNECTOR_TRANSACTION_DECISION_REDIRECT;
     } else if (intervention->status == NGX_HTTP_TOO_MANY_REQUESTS) {
         kind = MSCONNECTOR_TRANSACTION_DECISION_RATE_LIMIT;
@@ -344,13 +341,16 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
         dd("nothing to do");
         goto cleanup;
     }
-    ctx->last_intervention_status = intervention.status;
-    ctx->last_intervention_rule_id[0] = '\0';
     mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
     if (mcf == NULL) {
         result = NGX_HTTP_INTERNAL_SERVER_ERROR;
         goto cleanup;
     }
+    intervention.status = msconnector_intervention_normalize_status(
+        intervention.url, intervention.status,
+        mcf->common_config.default_block_status);
+    ctx->last_intervention_status = intervention.status;
+    ctx->last_intervention_rule_id[0] = '\0';
 
     /* Extract only the bounded rule ID before libmodsecurity's message is
      * released.  Phase-4 evidence is metadata-only, so retaining a complete
@@ -376,7 +376,7 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
         ngx_log_error(NGX_LOG_ERR, (ngx_log_t *)r->connection->log, 0, "%s", log);
     }
 
-    if (intervention.url != NULL && intervention.url[0] != '\0')
+    if (msconnector_intervention_has_redirect_url(intervention.url))
     {
         result = ngx_http_modsecurity_process_redirect_intervention(r, ctx,
             &intervention);

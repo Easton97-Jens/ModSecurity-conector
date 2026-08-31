@@ -195,6 +195,26 @@ A disruptive rule decision without a bounded rule ID becomes
 <code>invalid_engine_response</code>, never Allow. A post-commit host must not
 invent a new status or silently upgrade Safe to enforcement.
 
+## Native intervention normalization
+
+When a native adapter receives a disruptive <code>msc_intervention</code>, it
+normalizes the status before recording the Common decision and before invoking
+the host sink. This canonicalizes one native rule decision; it is distinct from
+the <code>invalid_engine_response</code> error path for an engine, connector,
+or protocol failure.
+
+| Native intervention form | Canonical status |
+| --- | --- |
+| Nonempty redirect URL and a 3xx status | Preserve that 3xx status. |
+| Nonempty redirect URL and any non-3xx status | HTTP 302. |
+| No redirect URL and an allowed block status | Preserve that block status. |
+| No redirect URL and every other status | The configured allowed <code>default_block_status</code>, otherwise HTTP 403. |
+
+Adapters still validate and request-own any engine-provided redirect URL before
+native cleanup. They must not expose an empty URL as a redirect, return a
+successful or arbitrary 3xx status for a status-only intervention, or bypass
+the normal Safe/Strict and response-commit policy after this canonicalization.
+
 ## Ten logical connector solutions
 
 | Solution | P1/P2 route | P3/P4 route | Current boundary |

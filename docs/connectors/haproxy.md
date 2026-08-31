@@ -99,6 +99,16 @@ default `response-companion=none` compatibility path continues to reject
 response-body activation because it cannot transport response EOS. The selected
 native HTX route above remains independently available.
 
+### SPOP request-ID byte boundary
+
+The SPOP `request_id` is a correlation key, not a display string. The runtime
+validates its original length-delimited bytes before copying it into a C string.
+Empty, embedded-NUL, control-byte, non-ASCII, and overlong values are rejected;
+for example, `A\0X` can never collapse to `A` and address the same transaction
+cache slot. A nonempty printable-ASCII ID, including the normal UUID form,
+remains accepted. A malformed `request_id` fails the notification extraction
+and does not create, replace, or claim a transaction.
+
 ## Historical SPOE/SPOP compatibility
 
 The files under <code>examples/haproxy/compatibility-spoe/</code> are

@@ -106,6 +106,17 @@ begrenztes Response-Body-Limit größer null sind verpflichtend. Der Standardpfa
 weil er kein Response-EOS transportieren kann. Der oben ausgewählte native
 HTX-Pfad bleibt davon unabhängig verfügbar.
 
+### Byte-Grenze für die SPOP-Request-ID
+
+Die SPOP-`request_id` ist ein Korrelationsschlüssel, kein Display-String. Die
+Runtime validiert ihre ursprünglichen längenbegrenzten Bytes, bevor sie in
+einen C-String kopiert werden. Leere, eingebettete-NUL-, Control-Byte-, Nicht-
+ASCII- und zu lange Werte werden abgewiesen; zum Beispiel kann `A\0X` niemals
+zu `A` kollabieren und denselben Transaktions-Cache-Slot adressieren. Eine
+nichtleere druckbare ASCII-ID, einschließlich der normalen UUID-Form, bleibt
+zulässig. Eine fehlerhafte `request_id` lässt die Notification-Extraktion
+fehlschlagen und erzeugt, ersetzt oder claimt keine Transaktion.
+
 ## Historische SPOE/SPOP-Kompatibilität
 
 Die Dateien unter <code>examples/haproxy/compatibility-spoe/</code> sind

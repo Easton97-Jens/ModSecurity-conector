@@ -11,7 +11,7 @@
 | Basis-Revision | `a6b4ced4876a19666f7c7203ed9e719674c69ec1` |
 | Abgeglichene Delivery-Basis | `5d71be74369123257851eb5ec612d7523a6b061d` (`origin/master` vor dem ersten Task-Branch-Push) |
 | PR-#344-Remediation-Basis | `c1653fb84201bc6a29c47723fa74e12270deb164` (`origin/master` lokal normal als `b1b6e72294a654c96dc44c9db69d25a704084c8f` gemergt; Auslieferung weiterhin ausstehend) |
-| Scope | Nur Parent-Repository: gemeinsamer P1--P4-Transaktionsvertrag, zehn Connector-Zuordnungen, begrenzte Response-Companions, Stock-lighttpd-Sidecar, Tests, englische/deutsche Dokumentation und dieser gepaarte Change Record. Keine Framework-, MRTS-, Gitlink-, Workflow-, Ruleset-, Branch-Protection- oder Required-Check-Änderung. |
+| Scope | Nur Parent-Repository: gemeinsamer P1--P4-Transaktionsvertrag, zehn Connector-Zuordnungen, begrenzte Response-Companions, Stock-lighttpd-Sidecar, Tests, englische/deutsche Dokumentation und dieser gepaarte Change Record. Der ursprüngliche Contract-Slice vom 2026-08-25 änderte weder Framework, MRTS, Gitlink, Workflow, Ruleset, Branch Protection noch Required Check. Später separat autorisierte HAProxy-Evidence-Remediation für PR #344 änderte begrenztes Workflow- und CI-Helper-Material; Framework, MRTS, Gitlinks, Rulesets, Branch Protection und Required Checks änderte sie nicht. |
 
 ## Motivation und Problemstellung
 
@@ -89,8 +89,10 @@ bleibt P0/high, `in_progress`/`blocked_missing_evidence`; P4-Strict-
 Real-Host-Proof und weitere benannte Host-Evidenz werden nicht promoted.
 `FND-PARENT-0947` erfasst den out-of-scope-CI-Capability-Konflikt: sein
 Collector erwartet für Traefik forwardAuth P2 `not_implemented`, während das
-Produktmanifest wahrheitsgemäß `configured_not_exercised` sagt. Keine CI-Datei
-wurde geändert und kein Risk Acceptance wird behauptet.
+Produktmanifest wahrheitsgemäß `configured_not_exercised` sagt. Der
+ursprüngliche Contract-Slice änderte keine CI-Datei und behauptet keinen Risk
+Acceptance; später separat autorisierte HAProxy-Evidence-Arbeit ist in eigenen
+Nachträgen festgehalten.
 
 ## Geänderte Dateien
 
@@ -122,7 +124,7 @@ wurde geändert und kein Risk Acceptance wird behauptet.
 | HAProxy-Binding-/Overlay-/Combined-Harness-`python3 -m unittest`-Suite | Bestanden: 12 Tests. |
 | `go test -buildvcs=false -count=1 ./...` in Envoy ext_proc, Traefik Response Observer und Traefik Native-UDS-Middleware | Bestanden. |
 | `python3 -m unittest tests.test_bilingual_docs` | Bestanden: 22 Tests. |
-| `git diff --check` und der gescopte `.github`/`ci`-Diff-Check | Bestanden; keine CI-/Governance-Datei ist im Task-Diff. |
+| `git diff --check` und der gescopte `.github`/`ci`-Diff-Check | Für den ursprünglichen Contract-Slice bestanden; in diesem Slice lag keine CI-/Governance-Datei. Später separat autorisierte HAProxy-Evidence-Arbeit für PR #344 änderte begrenztes Workflow-/CI-Helper-Material ohne Governance-Kontrollen zu ändern. |
 | `make check-bilingual-docs` und `make check-doc-links` | Nur fehlgeschlagen, weil nicht zugeordnete Dokumente auf im Task-Worktree nicht verfügbare `modules/ModSecurity-test-Framework`-Pfade verweisen. Die task-eigene English-/German-Paar-/Switch-Prüfung bestand; kein Link- oder CI-Workaround wurde ergänzt. |
 | Kombinierte Capability-/Dokumentations-/Adapter-`python3 -m unittest`-Suite | Erwartet fehlgeschlagen bei 95 Tests/einem Fehler: unveränderter CI-Collector widerspricht dem wahrheitsgemäßen Traefik-forwardAuth-P2-Manifest; als `FND-PARENT-0947` festgehalten, nicht unterdrückt. |
 
@@ -144,9 +146,11 @@ Host-, H2-, H3- oder client-sichtbaren Late-Action-Claims.
 - Keine unveränderte reale Stock-lighttpd-Backend-Topologie, keine vollständige
   native Hostmatrix, kein H2- oder H3-Lauf waren in diesem Task verfügbar;
   Komponenten-Evidenz wird in ihrem tatsächlichen Scope erfasst.
-- Keine CI-Workflow-, Ruleset-, Required-Check- oder CI-Collector-Änderung
-  wurde vorgenommen, weil der Benutzer CI ausdrücklich aus dem
-  Implementierungsscope ausgeschlossen hat.
+- Der ursprüngliche Contract-Slice nahm keine CI-Workflow-, Ruleset-,
+  Required-Check- oder CI-Collector-Änderung vor, weil der Benutzer CI aus
+  diesem Implementierungsscope ausdrücklich ausgeschlossen hatte. Später
+  separat autorisierte HAProxy-Evidence-Arbeit ist in eigenen Nachträgen
+  festgehalten und änderte keine Governance-Kontrollen.
 - Die repository-weiten Documentation-Make-Targets wurden ausgeführt und
   scheiterten nur an nicht verfügbaren Framework-/MRTS-Linkzielen außerhalb
   der in diesem Task geänderten Dateien. Der fokussierte bilinguale
@@ -1974,3 +1978,72 @@ Evidence-Targets; dieser Record behauptet nicht, dass alle zehn Profile
 gleichwertige Native-Host-Runtime-Evidence besitzen. Vor dem Merge bleiben die
 finale Exact-Head-PR-Validierung, Hosted-Checks, SonarCloud-Metriken und neue
 Reviews erforderlich.
+
+## 2026-08-31 Normalisierung nativer Interventionen und SPOP-Korrelationsreparatur
+
+### Motivation und Scope
+
+Ein frischer Source-to-Sink-Sicherheitsreview identifizierte zwei unabhängig
+behebbare Grenzen. Apache und NGINX konnten eine terminale Common-Regelaktion
+aufzeichnen und einen rohen nativen Interventionsstatus an den Host übergeben.
+Separat kopierte HAProxy SPOP eine längenbegrenzte `request_id` vor der
+Validierung in einen C-String, sodass byteverschiedene Werte wie `A\0X` und
+`A` einen Cache-Key adressieren konnten.
+
+Dieser Nachtrag ändert nur die Common-/Native-Interventionsgrenze, direkte
+Apache-/NGINX-/HAProxy-Adapterverdrahtung, fokussierte Tests, gepaarte
+Dokumentation und diesen Record. Die C-Standard-Source-List-Updates machen die
+neu gelinkte Common-Quelle für bestehende lokale Checks sichtbar; Workflow,
+Scanner, Quality Gate, Ruleset, Required Check, `paths.env`, Framework, MRTS
+und Gitlink wurden nicht geändert.
+
+### Technische Entscheidung
+
+`msconnector_intervention_normalize_status()` zentralisiert jetzt das bereits
+vorhandene Common-Runtime-Rule-Decision-Mapping: Eine nichtleere URL behält
+einen gültigen 3xx-Status oder wird zu `302`; ohne URL bleibt nur ein erlaubter
+Blockstatus erhalten, und jeder andere Wert verwendet einen erlaubten
+`default_block_status`, andernfalls `403`. Common Runtime, Apache und NGINX
+rufen die Funktion auf, bevor sie Status behalten, eine Contract-Entscheidung
+aufzeichnen, Event-Metadaten schreiben oder einen Host-Sink verwenden. Dies
+bleibt von der Common-`invalid_engine_response`-Error-Policy getrennt.
+
+HAProxy SPOP validiert exakt längenbegrenzte `request_id`-Bytes mit dem
+kanonischen Transaction-ID-Validator vor jeder C-String-Kopie. Leere,
+eingebettete-NUL-, Control-Byte-, Nicht-ASCII- und zu lange Werte lassen die
+Notification-Extraktion fehlschlagen und können keinen Transaction-Cache-
+Eintrag erzeugen, ersetzen oder claimen; druckbare ASCII-UUIDs bleiben zulässig.
+
+### Evidenz und Validierung
+
+| Validierung | Tatsächliches Ergebnis |
+| --- | --- |
+| Fokussierte Diagnostics-, Apache-/NGINX-Source-Contract-, HAProxy-Combined-Harness- und bilinguale Dokumentationstests | Bestand: 63 Tests mit `PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest -v`. |
+| HAProxy-Transaction-ID-Binding-Regression | `PYTHONDONTWRITEBYTECODE=1 python3 -B tests/test_haproxy_transaction_contract_binding.py` bestand. |
+| Direkte Common-Normalizer-Unit | C17-Compile und Ausführung von `tests/intervention_normalization_test.c` mit `-Wall -Wextra -Werror` bestanden. |
+| Common-Helper und Connector-Source-Wiring | `make check-common-helpers-c17`, alle Apache-/NGINX-/HAProxy-C-Standard-Wiring-Checks und Shell-Syntaxchecks bestanden. |
+| Connector-C17-Kompilierung | Apache und HAProxy bestanden. NGINX wurde korrekt blockiert/übersprungen, weil dieser Umgebung NGINX-Header/Source fehlen. |
+| Unabhängiger Bypass-/Regressionsreview | Fand keinen verbleibenden host-sichtbaren-Success- oder beliebigen-3xx-Bypass und bestätigte, dass `A\0X` nicht zu `A` kollabieren kann. |
+
+### Grenzen und Restrisiko
+
+`make check-apache-common-adoption` bleibt an vier vorbestehenden
+strukturellen Erwartungen in `msc_filters.c`/`msc_utils.c` fehlgeschlagen.
+Diese Dateien sind byteidentisch zum Pre-Repair-Kandidaten
+`297330cf91ab65af4958dd75d12e1b9e1862d235`; diese Reparatur schwächt oder
+ändert diese unabhängige Kontrolle nicht.
+
+Der Bypass-Review bestätigte außerdem eine vorbestehende fail-closed
+NGINX-Randabweichung: Eine Redirect-URL mit CR/LF liefert HTTP `400` ohne
+`Location`, aber die frühere Contract-/Event-Klassifikation bleibt `redirect`.
+Dies ist weder Header-Injection noch ein Success-Bypass. Vor einer Änderung
+dieses Error-Mappings sind ein separat gescopter regelgenerierter URL-Test und
+eine Host-Policy-Entscheidung erforderlich; die Abweichung bleibt in
+`FND-PARENT-0999`, statt hier stillschweigend umgedeutet zu werden.
+
+Die zwei neuen lokalen Findings sind `fixed`, nicht `verified`, bis ein
+exakter Nachfolger-PR-Head Native-/Hosted-Validierung abschließt. Der
+Repository-Finding-Katalog bleibt unter `FND-PARENT-0996` absichtlich nicht
+synchronisiert; dieser Nachtrag behauptet keine breite Katalogreparatur.
+Frühere Hosted-, SonarCloud- und Review-Evidenz wird nach der normalen
+Nachfolgerauslieferung stale.

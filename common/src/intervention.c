@@ -1,4 +1,5 @@
 #include "msconnector/intervention.h"
+#include "msconnector/block_statuses.h"
 
 msconnector_intervention msconnector_intervention_make(
     int disruptive,
@@ -19,4 +20,21 @@ msconnector_intervention msconnector_intervention_none(void) {
 
 int msconnector_intervention_is_disruptive(const msconnector_intervention *intervention) {
     return intervention != 0 && intervention->disruptive != 0;
+}
+
+int msconnector_intervention_has_redirect_url(const char *redirect_url) {
+    return redirect_url != 0 && redirect_url[0] != '\0';
+}
+
+int msconnector_intervention_normalize_status(const char *redirect_url,
+    int requested_status, int default_block_status) {
+    if (msconnector_intervention_has_redirect_url(redirect_url)) {
+        return requested_status >= 300 && requested_status < 400
+            ? requested_status : 302;
+    }
+    if (msconnector_block_status_is_allowed(requested_status)) {
+        return requested_status;
+    }
+    return msconnector_block_status_is_allowed(default_block_status)
+        ? default_block_status : MSCONNECTOR_DEFAULT_BLOCK_STATUS;
 }

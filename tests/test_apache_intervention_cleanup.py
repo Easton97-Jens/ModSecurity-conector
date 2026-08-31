@@ -99,8 +99,31 @@ class ApacheInterventionCleanupTests(unittest.TestCase):
         )
         self.assertLess(self.source.index(copy), self.source.index(assign))
         self.assertLess(self.source.index(assign), self.source.index(cleanup))
-        self.assertIn("result = HTTP_MOVED_TEMPORARILY;", self.source)
         self.assertIn("result = intervention.status;", self.source)
+        self.assertNotIn("result = HTTP_MOVED_TEMPORARILY;", self.source)
+
+    def test_native_intervention_status_is_normalized_before_contract_or_sink(self) -> None:
+        mapper = c_function(
+            self.module_source,
+            "int msc_apache_contract_record_intervention_decision(msc_t *msr)",
+        )
+        decision_kind_mapper = c_function(
+            self.module_source,
+            "static msconnector_transaction_decision_kind apache_intervention_decision_kind(",
+        )
+
+        self.assertIn('#include "msconnector/intervention.h"', self.module_source)
+        normalize = self.source.index("msconnector_intervention_normalize_status(")
+        retained_status = self.source.index("msr->last_intervention_status =")
+        redirect = self.source.index("msconnector_intervention_has_redirect_url(")
+        sink = self.source.index("result = intervention.status;")
+        self.assertLess(normalize, retained_status)
+        self.assertLess(retained_status, redirect)
+        self.assertLess(redirect, sink)
+        self.assertNotIn("apache_intervention_status_is_valid", self.module_source)
+        self.assertIn("status >= HTTP_MULTIPLE_CHOICES", decision_kind_mapper)
+        self.assertIn("status < HTTP_BAD_REQUEST", decision_kind_mapper)
+        self.assertNotIn("case 301:", mapper)
 
     def test_p3_intervention_records_a_canonical_terminal_decision_before_sink(self) -> None:
         phase3 = c_function(
@@ -145,10 +168,9 @@ class ApacheInterventionCleanupTests(unittest.TestCase):
         self.assertIn("MSCONNECTOR_TRANSACTION_DECISION_RATE_LIMIT", decision_kind_mapper)
         self.assertIn("MSCONNECTOR_TRANSACTION_DECISION_BLOCK", decision_kind_mapper)
         self.assertIn("HTTP_TOO_MANY_REQUESTS", decision_kind_mapper)
-        self.assertNotIn("last_intervention_status >= 300", decision_kind_mapper)
-        for redirect_status in ("case 301:", "case 302:", "case 303:", "case 307:"):
-            with self.subTest(redirect_status=redirect_status):
-                self.assertIn(redirect_status, decision_kind_mapper)
+        self.assertIn("status >= HTTP_MULTIPLE_CHOICES", decision_kind_mapper)
+        self.assertIn("status < HTTP_BAD_REQUEST", decision_kind_mapper)
+        self.assertNotIn("case 301:", decision_kind_mapper)
         self.assertIn("apache_intervention_decision_kind", mapper)
         self.assertIn("msc_apache_contract_record_decision(msr, kind, rule_id)", mapper)
         self.assertIn("msconnector_transaction_contract_record_decision", decision_wrapper)
