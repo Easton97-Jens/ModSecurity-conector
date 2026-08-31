@@ -75,10 +75,15 @@ class HaproxyEvidenceWorkflowContractTests(unittest.TestCase):
         self.assertIn("/usr/bin/sudo -n", source)
         self.assertIsNone(re.search(r"(?<!/usr/bin/)sudo -n", source))
 
-    def test_evidence_projector_reads_the_pinned_blob_with_a_scoped_safe_directory(
+    def test_evidence_projector_uses_a_sealed_staged_source_capsule(
         self,
     ) -> None:
         source = self.source()
+        prepare = self.block(
+            source,
+            "      - name: Prepare HAProxy runtime evidence boundary\n",
+            "      - name: Run selected real with-CRS no-MRTS runtime\n",
+        )
         project = self.block(
             source,
             "      - name: Project HAProxy runtime evidence\n",
@@ -89,14 +94,32 @@ class HaproxyEvidenceWorkflowContractTests(unittest.TestCase):
             "      - name: Verify HAProxy runtime evidence\n",
             "      - name: Upload non-HAProxy runtime evidence\n",
         )
-        trusted_git_read = (
-            '["/usr/bin/git", "-c", "safe.directory=" + workspace, '
-            '"--no-pager", "-C", workspace, "cat-file", "blob", blob]'
+        self.assertIn('projector_source="$stage_parent/verified-projector.py"', prepare)
+        self.assertIn('/usr/bin/sudo -n /usr/bin/chmod 0444 -- "$projector_source"', prepare)
+        self.assertIn(
+            "PROJECTOR_SOURCE: ${{ steps.prepare-haproxy-runtime-evidence.outputs.projector_source }}",
+            project,
         )
-        self.assertIn(trusted_git_read, project)
-        self.assertIn(trusted_git_read, verify)
-        self.assertEqual(source.count(trusted_git_read), 2)
-        self.assertNotIn("safe.directory=*", source)
+        self.assertIn(
+            "PROJECTOR_SOURCE: ${{ steps.prepare-haproxy-runtime-evidence.outputs.projector_source }}",
+            verify,
+        )
+        for evidence_block in (project, verify):
+            self.assertIn("source_path, *arguments = sys.argv[1:]", evidence_block)
+            self.assertIn("os.O_NOFOLLOW", evidence_block)
+            self.assertIn("details.st_uid != 0", evidence_block)
+            self.assertIn("details.st_gid != 0", evidence_block)
+            self.assertIn("stat.S_IMODE(details.st_mode) != 0o444", evidence_block)
+            self.assertIn("details.st_nlink != 1", evidence_block)
+            self.assertNotIn("safe.directory=", evidence_block)
+        self.assertNotIn("safe.directory=", source)
+        cleanup = self.block(
+            source,
+            "      - name: Cleanup HAProxy runtime evidence stage\n",
+            "      - name: Write connector runtime overview\n",
+        )
+        self.assertIn("if: always() && matrix.connector == 'haproxy'", cleanup)
+        self.assertIn('/usr/bin/sudo -n /usr/bin/rm -rf -- "$STAGE_PARENT"', cleanup)
 
     def test_runtime_executes_checkout_only_after_privilege_drop_and_receipts_fail_closed(self) -> None:
         source = self.source()
@@ -274,6 +297,11 @@ class HaproxyEvidenceWorkflowContractTests(unittest.TestCase):
 
     def test_projection_and_verification_are_unprivileged_and_descriptor_bound(self) -> None:
         source = self.source()
+        prepare = self.block(
+            source,
+            "      - name: Prepare HAProxy runtime evidence boundary\n",
+            "      - name: Run selected real with-CRS no-MRTS runtime\n",
+        )
         project = self.block(
             source,
             "      - name: Project HAProxy runtime evidence\n",
@@ -296,9 +324,12 @@ class HaproxyEvidenceWorkflowContractTests(unittest.TestCase):
         self.assertIn("exec(compile(source", project)
         self.assertIn(
             'stage_parent=$(/usr/bin/sudo -n /usr/bin/mktemp -d -- "$TRUSTED_RUNNER_TEMP/haproxy-runtime-evidence-parent.XXXXXXXX")',
-            project,
+            prepare,
         )
-        self.assertIn('stage_root="$stage_parent/package"', project)
+        self.assertIn('projector_source="$stage_parent/verified-projector.py"', prepare)
+        self.assertIn("STAGE_PARENT", project)
+        self.assertIn("PROJECTOR_SOURCE", project)
+        self.assertIn('stage_root="$STAGE_PARENT/package"', project)
         self.assertIn("/usr/bin/sudo -n /usr/bin/mkdir -m 0700", project)
         self.assertIn(
             '/usr/bin/sudo -n /usr/bin/chown --no-dereference "$EVIDENCE_UID:$RUNTIME_GID" -- "$stage_root"',
@@ -317,7 +348,10 @@ class HaproxyEvidenceWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("--source-document ", project)
         self.assertLess(project.index("run_runner_projector export-source-receipt"), project.index("| /usr/bin/head --bytes=16385"))
         self.assertLess(project.index("| /usr/bin/head --bytes=16385"), project.index("| run_evidence_projector project-document --source-document-stdin"))
-        self.assertLess(project.index("stage_parent="), project.index("project-document"))
+        self.assertLess(
+            project.index('stage_root="$STAGE_PARENT/package"'),
+            project.index("project-document"),
+        )
         self.assertIn('--upload-gid "$RUNTIME_GID"', project)
         self.assertIn(
             "if: matrix.connector == 'haproxy' && steps.project-haproxy-runtime-evidence.outcome == 'success'",
@@ -326,6 +360,7 @@ class HaproxyEvidenceWorkflowContractTests(unittest.TestCase):
         self.assertIn("RUNTIME_GID", verify)
         self.assertIn("EVIDENCE_UID", verify)
         self.assertIn("EVIDENCE_GID", verify)
+        self.assertIn("PROJECTOR_SOURCE", verify)
         self.assertIn("hashlib.sha1", verify)
         self.assertIn("exec(compile(source", verify)
         self.assertIn("run_evidence_projector verify", verify)

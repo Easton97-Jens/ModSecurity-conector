@@ -1814,6 +1814,8 @@ jobs:
             boundary,
         )
         self.assertIn("projector_blob", boundary)
+        self.assertIn('projector_source="$stage_parent/verified-projector.py"', boundary)
+        self.assertIn('/usr/bin/sudo -n /usr/bin/chmod 0444 -- "$projector_source"', boundary)
         self.assertIn("runner_temp_identity=", boundary)
         self.assertIn("probe_uid=$(", boundary)
         for required in (
@@ -1869,11 +1871,13 @@ jobs:
         self.assertIn("TRUSTED_RUNNER_TEMP", project)
         self.assertIn("RUNTIME_GID", project)
         self.assertIn("PROJECTOR_BLOB", project)
+        self.assertIn("PROJECTOR_SOURCE", project)
+        self.assertIn("STAGE_PARENT", project)
         self.assertIn("run_runner_projector()", project)
         self.assertIn("run_evidence_projector()", project)
         self.assertIn("hashlib.sha1", project)
         self.assertIn("exec(compile(source", project)
-        self.assertIn('stage_root="$stage_parent/package"', project)
+        self.assertIn('stage_root="$STAGE_PARENT/package"', project)
         self.assertIn("sudo -n /usr/bin/chown --no-dereference", project)
         self.assertIn(
             'sudo -n /usr/bin/chown --no-dereference "$EVIDENCE_UID:$RUNTIME_GID" -- "$stage_root"',
@@ -1913,9 +1917,12 @@ jobs:
         self.assertIn("RUNTIME_GID", verification)
         self.assertIn("EVIDENCE_UID", verification)
         self.assertIn("EVIDENCE_GID", verification)
+        self.assertIn("PROJECTOR_SOURCE", verification)
         self.assertIn("hashlib.sha1", verification)
         self.assertIn("run_evidence_projector verify", verification)
         self.assertIn('--upload-gid "$RUNTIME_GID"', verification)
+        self.assertNotIn("safe.directory=", project)
+        self.assertNotIn("safe.directory=", verification)
         self.assertNotIn("sudo -n /usr/bin/python3", verification)
         self.assertNotIn("seal-helper", verification)
         for projector_block in (project, verification):
@@ -1954,6 +1961,9 @@ jobs:
         self.assertNotIn("BUILD_ROOT", upload)
         self.assertNotIn("VERIFIED_RUN_ROOT", upload)
         self.assertNotIn("EVIDENCE_ROOT", upload)
+        self.assertIn("Cleanup HAProxy runtime evidence stage", upload)
+        self.assertIn("if: always() && matrix.connector == 'haproxy'", upload)
+        self.assertIn('/usr/bin/sudo -n /usr/bin/rm -rf -- "$STAGE_PARENT"', upload)
         self.assertLess(
             job.index('/usr/bin/make -C "$GITHUB_WORKSPACE" verified-haproxy-case CASE=crs_sqli_anomaly_block'),
             job.index("      - name: Project HAProxy runtime evidence\n"),

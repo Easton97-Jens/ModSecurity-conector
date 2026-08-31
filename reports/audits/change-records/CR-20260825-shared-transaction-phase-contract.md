@@ -1649,38 +1649,55 @@ ready for normal delivery to PR #344. `FND-PARENT-0975` remains open until an
 exact-head hosted HAProxy runtime succeeds and its expected evidence is
 verified.
 
-## 2026-08-31 HAProxy evidence-projector ownership repair
+## 2026-08-31 HAProxy evidence-projector staged-source repair
 
-### Motivation and diagnosis
+### Motivation and updated diagnosis
 
-Hosted successor run `33372492366` at head
-`582656e081238daa8382b59eef671745650a1334` passed the HAProxy real-runtime
-step but failed during `Project HAProxy runtime evidence`. The observed
-`head` broken-pipe message was secondary: the evidence projector exited earlier
-while reading its pinned Git blob as the dropped evidence UID because Git
-rejected the workspace as dubious ownership.
+Hosted successor run `33372492366` proved the private-TMPDIR correction: its
+HAProxy real-runtime step passed. The following scoped Git experiment was a
+useful local ownership control, but hosted run `33376138121` at head
+`6d7ed04c51169aec6d2785b5363d7a68ca566ffb` again passed the real runtime and
+then failed only in `Project HAProxy runtime evidence`. The bounded evidence
+shows no projector `FAIL:` classification before the secondary `head`
+broken-pipe message. Therefore the evidence-UID Git loader still exited before
+the pinned projector executed; a scoped `safe.directory` setting was not a
+sufficient hosted repair.
 
 ### Technical decision
 
-A bounded cross-identity control returned exit `128` without a scoped
-safe-directory entry and exit `0` with
-`git -c safe.directory=<exact-workspace>`. The workflow therefore adds this
-exact workspace-scoped option only to the two evidence projector/verifier blob
-reads. It does not use `safe.directory=*`; global and system Git configuration
-remain disabled, and the fixed source SHA and size checks remain enforced.
+The evidence identity no longer reads the checkout or invokes Git. During the
+trusted preparation step, the workflow resolves the projector blob from the
+pinned Parent SHA with global and system Git configuration disabled, bounds it
+to 128 KiB, and verifies its Git blob SHA-1. It writes the verified bytes to a
+random exact `RUNNER_TEMP` staging parent, then seals the fixed
+`verified-projector.py` capsule as a regular `root:root` `0444` file. The
+parent is private until projection.
+
+Both unprivileged projector invocations receive only the capsule path and the
+expected blob ID. They use `O_NOFOLLOW`, verify canonical ancestor paths, a
+regular single-link `root:root` `0444` source, the bounded size, stable
+pre/post-descriptor identity, and the Git blob SHA-1 before `compile`/`exec`.
+No `safe.directory` fallback, global Git configuration, or evidence-UID Git
+read remains. The exact stage parent is cleaned on preparation failure by a
+local trap and after upload by an HAProxy-only `always()` step; both paths
+validate the literal random parent before deletion. A hard runner cancellation
+can still prevent a later workflow step, which remains a hosted lifecycle
+limitation rather than a fail-open path.
 
 ### Evidence and validation
 
-The focused workflow regression contract requires the two exact scoped reads,
-rejects a wildcard, and rejects an expansion to more readers. Local focused
-validation passed: 53 tests, `actionlint`, offline `zizmor`, and
-`git diff --check`. An independent post-patch security review found no concrete
-security regression.
+The source-capsule contract failed before implementation and now requires the
+sealed source, descriptor checks, absence of `safe.directory`, and explicit
+cleanup. The focused projector, workflow-contract, harness, and CI-security
+command passed 53 tests with 11 expected cross-identity skips. `actionlint`,
+offline `zizmor`, and `git diff --check` also passed. A fresh independent
+security review found no validated control regression in the new trust
+boundary.
 
 ### Status
 
-Hosted successor verification remains pending; this addendum does not claim
-complete hosted success. The earlier runtime-component failure is resolved only
-to the extent demonstrated by the passed real-runtime step; evidence
-projection, verification, and publication still require exact-head hosted
-confirmation.
+This successor is not yet an exact-head hosted success claim. The current
+repair is locally validated and awaits normal PR delivery, followed by hosted
+confirmation of HAProxy runtime, projection, verification, upload, and
+artifact inspection. `FND-PARENT-0998` is fixed locally and remains unverified
+until that evidence exists.

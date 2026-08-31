@@ -261,6 +261,69 @@ jobs:
             /usr/bin/git --no-pager -C "$GITHUB_WORKSPACE" cat-file -e "${projector_blob}^{blob}"
           runner_temp_identity=$(/usr/bin/stat -Lc '%d:%i:%u:%g:%a' -- "$TRUSTED_RUNNER_TEMP")
           case "$runner_temp_identity" in [0-9]*:[0-9]*:[0-9]*:[0-9]*:[0-7][0-7][0-7]) ;; *) echo "FAIL: unsafe RUNNER_TEMP identity" >&2; exit 2 ;; esac
+          test ! -L "$TRUSTED_RUNNER_TEMP"
+          test "$(/usr/bin/realpath -e -- "$TRUSTED_RUNNER_TEMP")" = "$TRUSTED_RUNNER_TEMP"
+          stage_parent=''
+          cleanup_stage_parent() {
+            case "$stage_parent" in
+              '') return 0 ;;
+              "$TRUSTED_RUNNER_TEMP"/haproxy-runtime-evidence-parent.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]) ;;
+              *) return 2 ;;
+            esac
+            test ! -L "$stage_parent"
+            case "$(/usr/bin/sudo -n /usr/bin/stat -Lc '%u:%g:%a' -- "$stage_parent")" in
+              0:0:700|0:0:710|0:0:755) ;;
+              *) return 2 ;;
+            esac
+            /usr/bin/sudo -n /usr/bin/rm -rf -- "$stage_parent"
+            test ! -e "$stage_parent"
+            test ! -L "$stage_parent"
+          }
+          trap cleanup_stage_parent EXIT
+          stage_parent=$(/usr/bin/sudo -n /usr/bin/mktemp -d -- "$TRUSTED_RUNNER_TEMP/haproxy-runtime-evidence-parent.XXXXXXXX")
+          case "$stage_parent" in "$TRUSTED_RUNNER_TEMP"/haproxy-runtime-evidence-parent.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]) ;; *) echo "FAIL: unsafe evidence stage parent" >&2; exit 2 ;; esac
+          test ! -L "$stage_parent"
+          test "$(/usr/bin/sudo -n /usr/bin/realpath -e -- "$stage_parent")" = "$stage_parent"
+          test "$(/usr/bin/sudo -n /usr/bin/stat -Lc '%u:%g:%a' -- "$stage_parent")" = 0:0:700
+          projector_source="$stage_parent/verified-projector.py"
+          test ! -e "$projector_source"
+          test ! -L "$projector_source"
+          /usr/bin/sudo -n /usr/bin/chown --no-dereference "0:$runtime_gid" -- "$stage_parent"
+          /usr/bin/sudo -n /usr/bin/chmod 0710 -- "$stage_parent"
+          /usr/bin/sudo -n /usr/bin/install -m 0600 /dev/null "$projector_source"
+          /usr/bin/sudo -n /usr/bin/chown --no-dereference "$runtime_uid:$runtime_gid" -- "$projector_source"
+          test ! -L "$projector_source"
+          test "$(/usr/bin/sudo -n /usr/bin/stat -Lc '%u:%g:%a:%h:%s' -- "$projector_source")" = "$runtime_uid:$runtime_gid:600:1:0"
+          /usr/bin/env -i \
+            PATH=/usr/bin:/bin \
+            HOME=/nonexistent \
+            GIT_CONFIG_NOSYSTEM=1 \
+            GIT_CONFIG_GLOBAL=/dev/null \
+            GIT_CONFIG_SYSTEM=/dev/null \
+            GIT_OPTIONAL_LOCKS=0 \
+            /usr/bin/git --no-pager -C "$GITHUB_WORKSPACE" cat-file blob "$projector_blob" > "$projector_source"
+          projector_source_size=$(/usr/bin/stat -Lc '%s' -- "$projector_source")
+          require_decimal "$projector_source_size"
+          test "$projector_source_size" -le 131072
+          projector_source_blob=$(
+            /usr/bin/env -i \
+              PATH=/usr/bin:/bin \
+              HOME=/nonexistent \
+              GIT_CONFIG_NOSYSTEM=1 \
+              GIT_CONFIG_GLOBAL=/dev/null \
+              GIT_CONFIG_SYSTEM=/dev/null \
+              GIT_OPTIONAL_LOCKS=0 \
+              /usr/bin/git --no-pager -C "$GITHUB_WORKSPACE" hash-object -t blob --stdin < "$projector_source"
+          )
+          require_sha "$projector_source_blob"
+          test "$projector_source_blob" = "$projector_blob"
+          /usr/bin/sudo -n /usr/bin/chown --no-dereference 0:0 -- "$projector_source"
+          /usr/bin/sudo -n /usr/bin/chmod 0444 -- "$projector_source"
+          /usr/bin/sudo -n /usr/bin/chown --no-dereference 0:0 -- "$stage_parent"
+          /usr/bin/sudo -n /usr/bin/chmod 0700 -- "$stage_parent"
+          test "$(/usr/bin/sudo -n /usr/bin/stat -Lc '%u:%g:%a' -- "$stage_parent")" = 0:0:700
+          test "$(/usr/bin/sudo -n /usr/bin/realpath -e -- "$projector_source")" = "$projector_source"
+          test "$(/usr/bin/sudo -n /usr/bin/stat -Lc '%u:%g:%a:%h:%s' -- "$projector_source")" = "0:0:444:1:$projector_source_size"
           expected_runtime_root="$TRUSTED_RUNNER_TEMP/ModSecurity-conector-with-crs-no-mrts"
           expected_cell_parent="$expected_runtime_root/$PARENT_SHA"
           expected_cell_root="$expected_cell_parent/$TRUSTED_CRS_RUNTIME_RUN_ID"
@@ -327,11 +390,14 @@ jobs:
             printf '%s\n' "runtime_run_id=$TRUSTED_CRS_RUNTIME_RUN_ID"
             printf '%s\n' "cell_root_identity=$cell_root_identity"
             printf '%s\n' "source_root=$source_root"
+            printf '%s\n' "stage_parent=$stage_parent"
+            printf '%s\n' "projector_source=$projector_source"
             printf '%s\n' "projector_blob=$projector_blob"
             printf '%s\n' "parent_sha=$PARENT_SHA"
             printf '%s\n' "framework_sha=$FRAMEWORK_SHA"
             printf '%s\n' "mrts_sha=$MRTS_SHA"
           } >> "$GITHUB_OUTPUT"
+          trap - EXIT
 
       - name: Run selected real with-CRS no-MRTS runtime
         id: runtime
@@ -481,6 +547,8 @@ jobs:
           RUNTIME_GID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_gid }}
           EVIDENCE_UID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.evidence_uid }}
           EVIDENCE_GID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.evidence_gid }}
+          STAGE_PARENT: ${{ steps.prepare-haproxy-runtime-evidence.outputs.stage_parent }}
+          PROJECTOR_SOURCE: ${{ steps.prepare-haproxy-runtime-evidence.outputs.projector_source }}
           PROJECTOR_BLOB: ${{ steps.prepare-haproxy-runtime-evidence.outputs.projector_blob }}
           PARENT_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.parent_sha }}
           FRAMEWORK_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.framework_sha }}
@@ -504,6 +572,17 @@ jobs:
           test "$RUNTIME_GID" -ne "$EVIDENCE_GID"
           test "$(/usr/bin/stat -Lc '%d:%i:%u:%g:%a' -- "$TRUSTED_RUNNER_TEMP")" = "$TRUSTED_RUNNER_TEMP_IDENTITY"
           case "$TRUSTED_SOURCE_ROOT" in "$TRUSTED_RUNNER_TEMP"/*) ;; *) echo "FAIL: unsafe evidence source root" >&2; exit 2 ;; esac
+          case "$STAGE_PARENT" in "$TRUSTED_RUNNER_TEMP"/haproxy-runtime-evidence-parent.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]) ;; *) echo "FAIL: unsafe evidence stage parent" >&2; exit 2 ;; esac
+          test "$PROJECTOR_SOURCE" = "$STAGE_PARENT/verified-projector.py"
+          test ! -L "$STAGE_PARENT"
+          test ! -L "$PROJECTOR_SOURCE"
+          test "$(/usr/bin/sudo -n /usr/bin/realpath -e -- "$STAGE_PARENT")" = "$STAGE_PARENT"
+          test "$(/usr/bin/sudo -n /usr/bin/realpath -e -- "$PROJECTOR_SOURCE")" = "$PROJECTOR_SOURCE"
+          test "$(/usr/bin/sudo -n /usr/bin/stat -Lc '%u:%g:%a' -- "$STAGE_PARENT")" = 0:0:700
+          projector_source_size=$(/usr/bin/sudo -n /usr/bin/stat -Lc '%s' -- "$PROJECTOR_SOURCE")
+          require_decimal "$projector_source_size"
+          test "$projector_source_size" -le 131072
+          test "$(/usr/bin/sudo -n /usr/bin/stat -Lc '%u:%g:%a:%h:%s' -- "$PROJECTOR_SOURCE")" = "0:0:444:1:$projector_source_size"
           run_runner_projector() {
             /usr/bin/sudo -n /usr/bin/env -i \
               PATH=/usr/bin:/bin \
@@ -581,47 +660,73 @@ jobs:
                   -- /usr/bin/env -i \
               PATH=/usr/bin:/bin \
               HOME=/nonexistent \
-              GIT_CONFIG_NOSYSTEM=1 \
-              GIT_CONFIG_GLOBAL=/dev/null \
-              GIT_CONFIG_SYSTEM=/dev/null \
-              GIT_OPTIONAL_LOCKS=0 \
+              PROJECTOR_BLOB="$PROJECTOR_BLOB" \
               /usr/bin/python3 -I -c '
           import hashlib
-          import subprocess
+          import os
+          import stat
           import sys
-          blob, workspace, *arguments = sys.argv[1:]
+          source_path, *arguments = sys.argv[1:]
+          blob = os.environ["PROJECTOR_BLOB"]
+          maximum_bytes = 131072
           try:
-              source = subprocess.check_output(
-                  ["/usr/bin/git", "-c", "safe.directory=" + workspace, "--no-pager", "-C", workspace, "cat-file", "blob", blob],
-                  env={
-                      "PATH": "/usr/bin:/bin",
-                      "HOME": "/nonexistent",
-                      "GIT_CONFIG_NOSYSTEM": "1",
-                      "GIT_CONFIG_GLOBAL": "/dev/null",
-                      "GIT_CONFIG_SYSTEM": "/dev/null",
-                      "GIT_OPTIONAL_LOCKS": "0",
-                  },
-                  stderr=subprocess.DEVNULL,
+              descriptor = os.open(
+                  source_path,
+                  os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0),
               )
-          except subprocess.CalledProcessError:
+          except OSError:
               raise SystemExit(2)
-          if not source or len(source) > 131072:
+          try:
+              details = os.fstat(descriptor)
+              if (
+                  not stat.S_ISREG(details.st_mode)
+                  or details.st_nlink != 1
+                  or details.st_uid != 0
+                  or details.st_gid != 0
+                  or stat.S_IMODE(details.st_mode) != 0o444
+                  or details.st_size <= 0
+                  or details.st_size > maximum_bytes
+              ):
+                  raise SystemExit(2)
+              source = os.read(descriptor, maximum_bytes + 1)
+              after = os.fstat(descriptor)
+          except OSError:
+              raise SystemExit(2)
+          finally:
+              os.close(descriptor)
+          if len(source) != details.st_size or len(source) > maximum_bytes or (
+              details.st_dev,
+              details.st_ino,
+              details.st_size,
+              details.st_mode,
+              details.st_uid,
+              details.st_gid,
+              details.st_nlink,
+          ) != (
+              after.st_dev,
+              after.st_ino,
+              after.st_size,
+              after.st_mode,
+              after.st_uid,
+              after.st_gid,
+              after.st_nlink,
+          ):
               raise SystemExit(2)
           if hashlib.sha1(b"blob " + str(len(source)).encode("ascii") + b"\0" + source).hexdigest() != blob:
               raise SystemExit(2)
           sys.argv = ["<verified-haproxy-evidence-projector>", *arguments]
-          namespace = {"__name__": "__main__", "__file__": "<verified-git-blob>"}
+          namespace = {"__name__": "__main__", "__file__": "<sealed-staged-source>"}
           exec(compile(source, namespace["__file__"], "exec"), namespace)
-          ' "$PROJECTOR_BLOB" "$GITHUB_WORKSPACE" "$@"
+          ' "$PROJECTOR_SOURCE" "$@"
           }
           test "$(/usr/bin/stat -Lc '%d:%i:%u:%g:%a' -- "$TRUSTED_RUNNER_TEMP")" = "$TRUSTED_RUNNER_TEMP_IDENTITY"
-          stage_parent=$(/usr/bin/sudo -n /usr/bin/mktemp -d -- "$TRUSTED_RUNNER_TEMP/haproxy-runtime-evidence-parent.XXXXXXXX")
-          case "$stage_parent" in "$TRUSTED_RUNNER_TEMP"/haproxy-runtime-evidence-parent.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]) ;; *) echo "FAIL: unsafe evidence stage parent" >&2; exit 2 ;; esac
-          stage_root="$stage_parent/package"
+          stage_root="$STAGE_PARENT/package"
+          test ! -e "$stage_root"
+          test ! -L "$stage_root"
           /usr/bin/sudo -n /usr/bin/mkdir -m 0700 -- "$stage_root"
           /usr/bin/sudo -n /usr/bin/chown --no-dereference "$EVIDENCE_UID:$RUNTIME_GID" -- "$stage_root"
-          /usr/bin/sudo -n /usr/bin/chmod 0755 -- "$stage_parent"
-          test "$(/usr/bin/stat -Lc '%u:%g:%a' -- "$stage_parent")" = 0:0:755
+          /usr/bin/sudo -n /usr/bin/chmod 0755 -- "$STAGE_PARENT"
+          test "$(/usr/bin/stat -Lc '%u:%g:%a' -- "$STAGE_PARENT")" = 0:0:755
           test "$(/usr/bin/stat -Lc '%u:%g:%a' -- "$stage_root")" = "$EVIDENCE_UID:$RUNTIME_GID:700"
           run_runner_projector export-source-receipt \
             --source-root "$TRUSTED_SOURCE_ROOT" \
@@ -632,7 +737,7 @@ jobs:
             | /usr/bin/head --bytes=16385 \
             | run_evidence_projector project-document --source-document-stdin \
               --runner-temp "$TRUSTED_RUNNER_TEMP" \
-              --stage-parent "$stage_parent" \
+              --stage-parent "$STAGE_PARENT" \
               --stage-root "$stage_root" \
               --runtime-uid "$RUNTIME_UID" \
               --upload-gid "$RUNTIME_GID" \
@@ -640,14 +745,14 @@ jobs:
               --expected-framework-sha "$FRAMEWORK_SHA" \
               --expected-mrts-sha "$MRTS_SHA"
           printf '%s\n' "stage_root=$stage_root" >> "$GITHUB_OUTPUT"
-          printf '%s\n' "stage_parent=$stage_parent" >> "$GITHUB_OUTPUT"
 
       - name: Verify HAProxy runtime evidence
         id: verify-haproxy-runtime-evidence
         if: matrix.connector == 'haproxy' && steps.project-haproxy-runtime-evidence.outcome == 'success'
         env:
           STAGE_ROOT: ${{ steps.project-haproxy-runtime-evidence.outputs.stage_root }}
-          STAGE_PARENT: ${{ steps.project-haproxy-runtime-evidence.outputs.stage_parent }}
+          STAGE_PARENT: ${{ steps.prepare-haproxy-runtime-evidence.outputs.stage_parent }}
+          PROJECTOR_SOURCE: ${{ steps.prepare-haproxy-runtime-evidence.outputs.projector_source }}
           TRUSTED_RUNNER_TEMP: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runner_temp }}
           TRUSTED_RUNNER_TEMP_IDENTITY: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runner_temp_identity }}
           RUNTIME_UID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_uid }}
@@ -676,7 +781,18 @@ jobs:
           test "$RUNTIME_UID" -ne "$EVIDENCE_UID"
           test "$RUNTIME_GID" -ne "$EVIDENCE_GID"
           test "$(/usr/bin/stat -Lc '%d:%i:%u:%g:%a' -- "$TRUSTED_RUNNER_TEMP")" = "$TRUSTED_RUNNER_TEMP_IDENTITY"
-          case "$STAGE_PARENT:$STAGE_ROOT" in "$TRUSTED_RUNNER_TEMP"/haproxy-runtime-evidence-parent.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]:"$TRUSTED_RUNNER_TEMP"/haproxy-runtime-evidence-parent.*/package) ;; *) echo "FAIL: unsafe evidence stage path" >&2; exit 2 ;; esac
+          case "$STAGE_PARENT" in "$TRUSTED_RUNNER_TEMP"/haproxy-runtime-evidence-parent.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]) ;; *) echo "FAIL: unsafe evidence stage parent" >&2; exit 2 ;; esac
+          test "$STAGE_ROOT" = "$STAGE_PARENT/package"
+          test "$PROJECTOR_SOURCE" = "$STAGE_PARENT/verified-projector.py"
+          test ! -L "$STAGE_PARENT"
+          test ! -L "$PROJECTOR_SOURCE"
+          test "$(/usr/bin/sudo -n /usr/bin/realpath -e -- "$STAGE_PARENT")" = "$STAGE_PARENT"
+          test "$(/usr/bin/sudo -n /usr/bin/realpath -e -- "$PROJECTOR_SOURCE")" = "$PROJECTOR_SOURCE"
+          test "$(/usr/bin/sudo -n /usr/bin/stat -Lc '%u:%g:%a' -- "$STAGE_PARENT")" = 0:0:755
+          projector_source_size=$(/usr/bin/sudo -n /usr/bin/stat -Lc '%s' -- "$PROJECTOR_SOURCE")
+          require_decimal "$projector_source_size"
+          test "$projector_source_size" -le 131072
+          test "$(/usr/bin/sudo -n /usr/bin/stat -Lc '%u:%g:%a:%h:%s' -- "$PROJECTOR_SOURCE")" = "0:0:444:1:$projector_source_size"
           run_evidence_projector() {
             /usr/bin/sudo -n /usr/bin/env -i \
               PATH=/usr/bin:/bin \
@@ -699,38 +815,64 @@ jobs:
                   -- /usr/bin/env -i \
               PATH=/usr/bin:/bin \
               HOME=/nonexistent \
-              GIT_CONFIG_NOSYSTEM=1 \
-              GIT_CONFIG_GLOBAL=/dev/null \
-              GIT_CONFIG_SYSTEM=/dev/null \
-              GIT_OPTIONAL_LOCKS=0 \
+              PROJECTOR_BLOB="$PROJECTOR_BLOB" \
               /usr/bin/python3 -I -c '
           import hashlib
-          import subprocess
+          import os
+          import stat
           import sys
-          blob, workspace, *arguments = sys.argv[1:]
+          source_path, *arguments = sys.argv[1:]
+          blob = os.environ["PROJECTOR_BLOB"]
+          maximum_bytes = 131072
           try:
-              source = subprocess.check_output(
-                  ["/usr/bin/git", "-c", "safe.directory=" + workspace, "--no-pager", "-C", workspace, "cat-file", "blob", blob],
-                  env={
-                      "PATH": "/usr/bin:/bin",
-                      "HOME": "/nonexistent",
-                      "GIT_CONFIG_NOSYSTEM": "1",
-                      "GIT_CONFIG_GLOBAL": "/dev/null",
-                      "GIT_CONFIG_SYSTEM": "/dev/null",
-                      "GIT_OPTIONAL_LOCKS": "0",
-                  },
-                  stderr=subprocess.DEVNULL,
+              descriptor = os.open(
+                  source_path,
+                  os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0),
               )
-          except subprocess.CalledProcessError:
+          except OSError:
               raise SystemExit(2)
-          if not source or len(source) > 131072:
+          try:
+              details = os.fstat(descriptor)
+              if (
+                  not stat.S_ISREG(details.st_mode)
+                  or details.st_nlink != 1
+                  or details.st_uid != 0
+                  or details.st_gid != 0
+                  or stat.S_IMODE(details.st_mode) != 0o444
+                  or details.st_size <= 0
+                  or details.st_size > maximum_bytes
+              ):
+                  raise SystemExit(2)
+              source = os.read(descriptor, maximum_bytes + 1)
+              after = os.fstat(descriptor)
+          except OSError:
+              raise SystemExit(2)
+          finally:
+              os.close(descriptor)
+          if len(source) != details.st_size or len(source) > maximum_bytes or (
+              details.st_dev,
+              details.st_ino,
+              details.st_size,
+              details.st_mode,
+              details.st_uid,
+              details.st_gid,
+              details.st_nlink,
+          ) != (
+              after.st_dev,
+              after.st_ino,
+              after.st_size,
+              after.st_mode,
+              after.st_uid,
+              after.st_gid,
+              after.st_nlink,
+          ):
               raise SystemExit(2)
           if hashlib.sha1(b"blob " + str(len(source)).encode("ascii") + b"\0" + source).hexdigest() != blob:
               raise SystemExit(2)
           sys.argv = ["<verified-haproxy-evidence-projector>", *arguments]
-          namespace = {"__name__": "__main__", "__file__": "<verified-git-blob>"}
+          namespace = {"__name__": "__main__", "__file__": "<sealed-staged-source>"}
           exec(compile(source, namespace["__file__"], "exec"), namespace)
-          ' "$PROJECTOR_BLOB" "$GITHUB_WORKSPACE" "$@"
+          ' "$PROJECTOR_SOURCE" "$@"
           }
           digest_report="$STAGE_PARENT/haproxy-runtime-evidence-digests.json"
           test ! -e "$digest_report"
@@ -866,6 +1008,30 @@ jobs:
           if-no-files-found: error
           retention-days: 10
           overwrite: false
+
+      - name: Cleanup HAProxy runtime evidence stage
+        if: always() && matrix.connector == 'haproxy'
+        env:
+          STAGE_PARENT: ${{ steps.prepare-haproxy-runtime-evidence.outputs.stage_parent }}
+          TRUSTED_RUNNER_TEMP: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          case "$TRUSTED_RUNNER_TEMP" in /*) ;; *) echo "FAIL: unsafe cleanup runner temp" >&2; exit 2 ;; esac
+          test -d "$TRUSTED_RUNNER_TEMP"
+          test ! -L "$TRUSTED_RUNNER_TEMP"
+          test "$(/usr/bin/realpath -e -- "$TRUSTED_RUNNER_TEMP")" = "$TRUSTED_RUNNER_TEMP"
+          if test -n "$STAGE_PARENT"; then
+            case "$STAGE_PARENT" in "$TRUSTED_RUNNER_TEMP"/haproxy-runtime-evidence-parent.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]) ;; *) echo "FAIL: unsafe evidence cleanup path" >&2; exit 2 ;; esac
+            test ! -L "$STAGE_PARENT"
+            test "$(/usr/bin/sudo -n /usr/bin/realpath -e -- "$STAGE_PARENT")" = "$STAGE_PARENT"
+            case "$(/usr/bin/sudo -n /usr/bin/stat -Lc '%u:%g:%a' -- "$STAGE_PARENT")" in
+              0:0:700|0:0:755) ;;
+              *) echo "FAIL: unsafe evidence cleanup parent" >&2; exit 2 ;;
+            esac
+            /usr/bin/sudo -n /usr/bin/rm -rf -- "$STAGE_PARENT"
+            test ! -e "$STAGE_PARENT"
+            test ! -L "$STAGE_PARENT"
+          fi
 
       - name: Write connector runtime overview
         if: always()

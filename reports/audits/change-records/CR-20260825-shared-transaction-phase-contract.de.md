@@ -1783,40 +1783,60 @@ andere verifizierte, dass alle privilegierten Aufrufe den absoluten Pfad
 PR #344. `FND-PARENT-0975` bleibt offen, bis eine Exact-Head-Hosted-HAProxy-
 Runtime erfolgreich ist und ihre erwartete Evidence verifiziert wurde.
 
-## 2026-08-31 HAProxy-Reparatur für Evidence-Projector-Besitzverhältnisse
+## 2026-08-31 HAProxy-Reparatur mit gekapselter Evidence-Projector-Quelle
 
-### Motivation und Diagnose
+### Motivation und aktualisierte Diagnose
 
-Der gehostete Nachfolgelauf `33372492366` auf dem Head
-`582656e081238daa8382b59eef671745650a1334` bestand den realen
-HAProxy-Runtime-Schritt, scheiterte jedoch bei `Project HAProxy runtime
-evidence`. Die beobachtete Broken-Pipe-Meldung von `head` war nur sekundär: Der
-Evidence-Projector beendete sich zuvor beim Lesen seines SHA-gepinnten
-Git-Blobs als abgesenkte Evidence-UID, weil Git den Workspace wegen
-unterschiedlicher Besitzverhältnisse ablehnte.
+Der gehostete Nachfolgelauf `33372492366` belegte die private-TMPDIR-Korrektur:
+Sein realer HAProxy-Runtime-Schritt bestand. Das anschließende begrenzte
+Git-Experiment für abweichende Besitzverhältnisse war lokal aussagekräftig,
+doch der gehostete Lauf `33376138121` auf dem Head
+`6d7ed04c51169aec6d2785b5363d7a68ca566ffb` bestand erneut die reale Runtime
+und scheiterte dann ausschließlich bei `Project HAProxy runtime evidence`. Die
+begrenzte Evidenz enthält vor der sekundären Broken-Pipe-Meldung von `head`
+keine Projector-`FAIL:`-Klassifikation. Der Evidence-UID-Git-Loader beendete
+sich damit weiter vor der Ausführung des gepinnten Projectors; ein scoped
+`safe.directory` war keine ausreichende Hosted-Reparatur.
 
 ### Technische Entscheidung
 
-Eine begrenzte Cross-Identity-Kontrolle ergab ohne scoped
-Safe-Directory-Eintrag Exit `128` und mit
-`git -c safe.directory=<exakter-workspace>` Exit `0`. Der Workflow verwendet
-diese exakte Workspace-Einstellung daher ausschließlich bei den zwei
-Evidence-Projector-/Verifier-Blob-Lesevorgängen. `safe.directory=*` wird nicht
-verwendet; globale und System-Git-Konfiguration bleiben deaktiviert, und die
-Prüfung von festem Source-SHA und Dateigröße bleibt aktiv.
+Die Evidence-Identität liest den Checkout nicht mehr und ruft kein Git mehr
+auf. Im vertrauenswürdigen Vorbereitungsschritt löst der Workflow das
+Projector-Blob aus dem gepinnten Parent-SHA bei deaktivierter globaler und
+System-Git-Konfiguration auf, begrenzt es auf 128 KiB und verifiziert seinen
+Git-Blob-SHA-1. Die verifizierten Bytes werden in einem zufälligen exakten
+`RUNNER_TEMP`-Staging-Parent abgelegt und anschließend als feste Kapsel
+`verified-projector.py` mit regulärem `root:root`-Modus `0444` versiegelt. Der
+Parent bleibt bis zur Projektion privat.
+
+Beide unprivilegierten Projector-Aufrufe erhalten ausschließlich den
+Kapselpfad und die erwartete Blob-ID. Sie verwenden `O_NOFOLLOW`, prüfen
+kanonische Vorgängerpfade, eine reguläre Datei mit einem Link und
+`root:root`/`0444`, die begrenzte Größe, eine stabile
+Pre-/Post-Descriptor-Identität und den Git-Blob-SHA-1 vor `compile`/`exec`.
+Es verbleibt kein `safe.directory`-Fallback, keine globale Git-Konfiguration
+und kein Git-Lesezugriff der Evidence-UID. Der exakte Staging-Parent wird bei
+einem Vorbereitungsfehler durch einen lokalen Trap und nach dem Upload durch
+einen HAProxy-spezifischen `always()`-Schritt aufgeräumt; beide Pfade validieren
+den literalen zufälligen Parent vor dem Löschen. Eine harte Runner-Abbruchlage
+kann einen späteren Workflow-Schritt weiterhin verhindern; das bleibt eine
+Hosted-Lebenszyklusbegrenzung und kein Fail-open-Pfad.
 
 ### Evidenz und Validierung
 
-Der fokussierte Workflow-Regressions-Contract verlangt die zwei exakten scoped
-Reads, verwirft einen Wildcard-Eintrag und eine Ausweitung auf weitere Leser.
-Die lokale fokussierte Validierung bestand: 53 Tests, `actionlint`,
-Offline-`zizmor` und `git diff --check`. Ein unabhängiger
-Post-Patch-Security-Review fand keine konkrete Sicherheitsregression.
+Der Source-Capsule-Contract schlug vor der Implementierung fehl und verlangt
+nun die versiegelte Quelle, Descriptor-Prüfungen, die Abwesenheit von
+`safe.directory` und das explizite Cleanup. Der fokussierte Befehl für
+Projector, Workflow-Contract, Harness und CI-Sicherheit bestand mit 53 Tests
+und 11 erwarteten Cross-Identity-Skips. `actionlint`, Offline-`zizmor` und
+`git diff --check` bestanden ebenfalls. Ein frischer unabhängiger
+Security-Review fand keine validierte Kontrollregression an der neuen
+Trust-Grenze.
 
 ### Status
 
-Die gehostete Nachfolgeprüfung steht noch aus; dieser Nachtrag behauptet keinen
-vollständigen Hosted-Erfolg. Der frühere Runtime-Component-Fehler ist nur in dem
-Umfang als behoben belegt, in dem der reale Runtime-Schritt bestand; Evidence-
-Projektion, Verifikation und Veröffentlichung benötigen weiterhin eine
-Exact-Head-Hosted-Bestätigung.
+Dieser Nachfolger behauptet noch keinen Exact-Head-Hosted-Erfolg. Die aktuelle
+Reparatur ist lokal validiert und wartet auf normale PR-Delivery sowie danach
+auf die Hosted-Bestätigung von HAProxy-Runtime, Projektion, Verifikation,
+Upload und Artefaktinspektion. `FND-PARENT-0998` ist lokal behoben und bleibt
+bis zu dieser Evidenz unverifiziert.
