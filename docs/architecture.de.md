@@ -24,16 +24,21 @@ vollständige Matrix und kein Strict-Verhalten für alle Connectoren.
 Eingecheckte Quellen und Buildskripte definieren Implementierungsdetails. Dieses
 Dokument hält die beabsichtigte Ownership- und Sicherheitsgrenze fest.
 
-## Ausgewählte Hostpfade
+## Navigation nach Hostfamilie und logische Profile
 
-| Connector | Ausgewählter Integrationsmodus | Grenze für Response-Body |
+Die folgenden sechs Zeilen navigieren Hostfamilien; sie behaupten nicht, dass
+jede Familie nur ein logisches Profil besitzt. Der gemeinsame Transaktions- und
+Phasenvertrag definiert die zehn logischen Profilidentitäten und hält
+Companion-/Composite-Profile von direkten Hostrouten getrennt.
+
+| Hostintegration | Aktueller Kernpfad der Hostfamilie | Grenze für Response-Body |
 | --- | --- | --- |
 | Apache | Natives HTTPD-Modul | EOS-only-All-Response-Output-Gate; normalisierte Brigades werden bis zum ersten EOS vor Release zurückgehalten |
 | NGINX | Natives HTTP-Modul | Response-Filter und Request-/Subrequest-End-of-Stream |
 | HAProxy | Nativer HTX-Filter | HTX-End-of-Stream |
 | Envoy | Gestreamter <code>ext_proc</code>-Dienst | Stream-Abschluss im ausgewählten Service-Protokoll |
 | Traefik | Native Middleware mit lokalem UDS-Engine-Service | ResponseWriter-Commit-Grenze |
-| lighttpd | Gepatchtes natives Modul | Dekodiertes Entity-Body-End-of-Stream |
+| lighttpd | Kanonische logische Stock-Route <code>stock-lighttpd-sidecar</code>; separate gepatchte Native-Route <code>patched-native-lighttpd</code> | Das Stock-Sidecar besitzt begrenztes HTTP/1.1 P1--P4; die gepatchte Route besitzt Semantik für dekodiertes Entity-Body-EOS |
 
 Jeder Connector-Guide dokumentiert seinen hostspezifischen Pfad, Lifecycle,
 Buildpfad, Grenzen, Kompatibilitätspfade, Betrieb und Validierung:

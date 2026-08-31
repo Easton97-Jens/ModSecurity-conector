@@ -5,16 +5,19 @@
 ## Verbindlichkeit, Geltungsbereich und Claim-Disziplin
 
 Dieses Dokument ist das verbindliche Zielkonzept für das Produkt-Monorepo. Es
-definiert, wie die sechs Connector-Produkte, der gemeinsame Produktvertrag und
-das unabhängige Test-Framework zusammengehören. Es ergänzt, ersetzt aber nicht,
-die aktuelle [Architektur](architecture.de.md), die Connector-Guides,
+definiert, wie die sechs Connector-Produkte, ihre zehn logischen
+Connector-Profile, der gemeinsame Produktvertrag und das unabhängige
+Test-Framework zusammengehören. Es ergänzt, ersetzt aber nicht, die aktuelle
+[Architektur](architecture.de.md), die Connector-Guides,
 Konfigurationsreferenzen und Evidence-Berichte. Wenn diese Quellen einander
 widersprechen, sind relevanter Code, Tests, aktuelle Evidence und angenommene
 Entscheidungen abzugleichen; der Widerspruch ist sichtbar zu machen statt
 stillschweigend einen Claim zu wählen.
 
-Das Konzept umfasst Apache, NGINX, HAProxy, Envoy, Traefik und lighttpd. Es ist
-kein Claim über Production Readiness, Production Hardening, CRS-Vollständigkeit,
+Das Konzept umfasst Apache, NGINX, HAProxy, Envoy, Traefik und lighttpd. Ihre
+sechs Hostintegrationen tragen zehn getrennt bewertete logische Profile, wie
+sie der gemeinsame Transaktions- und Phasenvertrag benennt. Es ist kein Claim
+über Production Readiness, Production Hardening, CRS-Vollständigkeit,
 vollständiges HTTP/2/HTTP/3, vollständige Matrix oder Strict-Post-Commit-
 Enforcement.
 
@@ -31,7 +34,7 @@ hinaus.
 | `documented_not_runtime_verified` | Durch Prosa, Konfiguration, Metadaten oder einen generierten/informativen Record dokumentiert, ohne passende aktuelle Runtime-Evidence für das genannte Verhalten. | Eine Capability-Deklaration, einen Build oder ein Konfigurationsladen als PASS behandeln. |
 | `compatibility_only` | Beibehaltener alternativer oder historischer Pfad, dessen Semantik und Evidence den ausgewählten Pfad nicht ersetzen. | Ihn als P1--P4-Evidence des ausgewählten Pfads umetikettieren. |
 | `unknown` | Das untersuchte Repository-Material belegt den Fakt oder den aktuellen Promotion-Status nicht. | Hostverhalten, Ownership oder Readiness erraten. |
-| `out_of_scope` | Bewusst außerhalb des ausgewählten Sechs-Connector-HTTP/1.1-Kerns oder dieser Dokumentationsänderung. | Ihn ohne getrennte Arbeit als unsupported, implementiert oder verified bezeichnen. |
+| `out_of_scope` | Bewusst außerhalb des ausgewählten Hostfamilien-HTTP/1.1-Kerns, eines benannten logischen Profils oder dieser Dokumentationsänderung. | Ihn ohne getrennte Arbeit als unsupported, implementiert oder verified bezeichnen. |
 
 ### Quellenhierarchie und Evidence-Grenze
 
@@ -51,7 +54,10 @@ Connector-Produkte. Es löst das gemeinsame Produktproblem, einen gemeinsamen
 ModSecurity-Transaktionsvertrag auf sechs verschiedene HTTP-Server- oder
 Proxy-Host-APIs anzuwenden und dabei hostspezifische Hooks, Filter, Services,
 Middleware, Konfiguration, Build, Packaging, Installation und
-client-sichtbare Aktionen beim zuständigen Adapter zu halten.
+client-sichtbare Aktionen beim zuständigen Adapter zu halten. Eine Hostfamilie
+kann mehr als ein logisches Profil bereitstellen; Companion- und Observer-
+Routen bleiben in Source- und Evidence-Claims von ihrer direkten Hostroute
+getrennt.
 
 libmodsecurity stellt Rule Engine und transaktionsnahe Operationen bereit. Es
 stellt für dieses Repository kein Apache-Modul, NGINX-Modul, HAProxy-Filter,
@@ -136,7 +142,7 @@ nicht sechs unabhängige Produkte mit demselben Namen.
 | `connectors/haproxy/` | Native HTX-Overlay/-Filter, HAProxy-Mapping, Konfiguration, Build-/Harness-Seam und getrenntes historisches SPOP-Material. | `common/`, libmodsecurity, HAProxy-HTX-APIs, Parent-Build/-Konfiguration. | `spoe-spop-agent` als nativen HTX-Produktpfad behandeln. |
 | `connectors/envoy/` | Envoy-`ext_proc`-Service, Protocol-Mapping, generiertes Host-Konfigurationsmaterial, Build-/Harness-Seam und `ext_authz`-Compatibility-Material. | `common/`, libmodsecurity, Envoy-/gRPC-/Go-Interfaces, Parent-Build/-Konfiguration. | `ext_authz` als Response-Phasen-Evidence für `ext_proc` behandeln. |
 | `connectors/traefik/` | Native Middleware, lokale UDS-Engine-Service-Client-/Server-Grenze, Traefik-Konfigurations-/Build-Seam und `forwardAuth`-Compatibility-Material. | `common/`, libmodsecurity, Go- und Traefik-Plugin-Interfaces, Parent-Build/-Konfiguration. | `forwardAuth` als Response-Phasen-Evidence für native Middleware behandeln. |
-| `connectors/lighttpd/` | Gepatchtes natives lighttpd-Modul, Mapper- und gepatchte-Host-Grenze, Konfigurations-/Build-Seam und getrenntes Stock-/Sidecar-Compatibility-Material. | `common/`, libmodsecurity, ausgewählte lighttpd-APIs, Parent-Build/-Konfiguration. | Stock-/Sidecar-Verhalten als `patched-native`-Evidence behandeln. |
+| `connectors/lighttpd/` | Kanonisches traffic-owning Stock-Sidecar, separate gepatchte native lighttpd-Modul-/Mapper-Grenze, Konfigurations-/Build-Seam und behaltenes natives Stock-/Legacy-Kompatibilitätsmaterial. | `common/`, libmodsecurity, ausgewählte lighttpd-APIs, Parent-Build/-Konfiguration. | Stock-Sidecar- und patched-native-Evidence als austauschbar behandeln oder die native Stock-Übersetzung als Fallback behandeln. |
 | `ci/` | Parent-Orchestrierung, sichere Path-Checks, Source-/Contract-Checks, Lifecycle-Stage-Invocation, Artefaktproduzenten und Report-Consumer. | Parent-Code, Root-Makefile und ausdrücklich delegierte Framework-Tools. | Wiederverwendbare Katalog-/Normalizer-Rolle des Frameworks ersetzen oder Host-Produktlogik einbetten, die in einen Connector gehört. |
 | `config/` | Versionierte deklarative Test-/Konfigurationsinputs und Import-Status. | Parent-Dokumentation und Checker. | Runtime-Secrets, generierte Evidence oder Host-Implementierung. |
 | `tests/` | Fokussierte Parent-Produkt-Contract-, Path-/Security-, Artefakt- und Adapter-Seam-Tests. | Parent-`ci/`, Root-Makefile und deklarierte Framework-Fixtures, wenn nötig. | Einen zweiten wiederverwendbaren Case-Korpus oder kanonisches Host-Runtime-Ergebnis. |
@@ -204,10 +210,10 @@ Buffer, Wire-Semantik und Commit-Semantik der Response.
 | --- | --- | --- |
 | Apache | Request-/Output-Filter leihen APR-Buckets; P2 endet bei EOS; P4 hängt jeden Daten-Bucket genau einmal an, erhält Metadaten vor EOS und reicht dieses Präfix an den nächsten Filter weiter. Allein das terminale EOS-Fragment führt das eine P4-Finish aus. <code>r-&gt;sent_bodyct</code>/<code>eos_sent</code> sind für diesen Filter kein Commit-Nachweis. | <code>implemented</code>-Source-Contract und fokussierter Wiring-Test; aktuelle Native-Host-Evidence ist pending. |
 | NGINX | Der Host liefert den Request-Body zunächst vollständig; der Connector iteriert ihn, daher ist P2 kein End-to-End-Request-Streaming. Response-Chains nutzen Filter-/EOS-Handling. | `verified` Source-Contract; kein Request-Streaming behaupten. |
-| HAProxy | Native HTX leitet aktuelle Blocks weiter und finalisiert am HTTP-Ende; Native HTX und SPOP sind getrennt. | `verified` Source-Contract. |
-| Envoy | `ext_proc` mappt einen gestreamten gRPC-Austausch; Request-/Response-EOS oder Trailer schließen die relevante Phase. | `verified` Source-Contract; `ext_authz` ist `compatibility_only`. |
-| Traefik | Native Middleware und ihr lokaler UDS-Engine-Service halten eine Transaction pro Request; ResponseWriter-Commit begrenzt späte Action. | `verified` Source-Contract; `forwardAuth` ist `compatibility_only`. |
-| lighttpd | Gepatchte native Hooks erhalten geliehene Identity-Entity-Ranges und ein EOS; Short Writes oder nicht ausgewählte Modi dürfen keine doppelte Ingestion verursachen. | `verified` Source-Contract für den ausgewählten Patch; breite Fault Tolerance ist `out_of_scope`. |
+| HAProxy | Native HTX leitet aktuelle Blocks weiter und finalisiert am HTTP-Ende. Das separate logische Profil <code>haproxy-spoe-spop</code> mappt P1/P2 über SPOP und P3/P4 über seinen verpflichtenden nativen HTX-Response-Companion. | `verified` Source-Contract; rohes SPOP allein ist keine Response-Phasen-Evidence. |
+| Envoy | <code>ext_proc</code> mappt einen gestreamten gRPC-Austausch; Request-/Response-EOS oder Trailer schließen die relevante Phase. Das separate Profil <code>envoy-ext-authz</code> koppelt request-only ext_authz an seinen verpflichtenden Response-Observer. | `verified` Source-Contract; direktes ext_authz allein ist keine ext_proc- oder Response-Phasen-Evidence. |
+| Traefik | Native Middleware und ihr lokaler UDS-Engine-Service halten eine Transaction pro Request; ResponseWriter-Commit begrenzt späte Action. Das separate Profil <code>traefik-forwardauth</code> koppelt request-only forwardAuth an seinen verpflichtenden Response-Observer. | `verified` Source-Contract; direktes forwardAuth allein ist keine Native-Middleware- oder Response-Phasen-Evidence. |
+| lighttpd | Kanonisches <code>lighttpd-stock</code> ist ein traffic-owning Sidecar mit einem begrenzten HTTP/1.1-Austausch; <code>lighttpd-patched</code> ist ein separater nativer Pfad, dessen Hooks geliehene Identity-Entity-Ranges und ein EOS erhalten. | Stock-Sidecar-Source-/Component-Evidence ist keine Native-Stock-Modul-Host-Evidence; patched-native-Evidence ist getrennt; breite Fault Tolerance ist <code>out_of_scope</code>. |
 
 Für den aufgezeichneten Selected Core sagt `reports/current/core-completion.md`,
 dass P1, P2, P3, P4-Rule-Evaluation, Safe-Late-Action, erstes Byte vor
@@ -253,18 +259,18 @@ Host-Callback-Modell abweicht.
 
 ## Connector-Profil-Crosswalk
 
-Ausgewählter Pfad, Compatibility-Begriff und seine Evidence stehen absichtlich
+Direkte Route, separates Composite-Profil und ihre Evidence stehen absichtlich
 in getrennten Spalten. Aus einem alternativen Profil oder einem stale
 Capability-Manifest darf kein Selected-Route-Support abgeleitet werden.
 
-| Connector | Ausgewählter Produktpfad | Compatibility-Pfad | Hostintegration und Engine-Grenze | Unterstützter ausgewählter Phasen-Scope | Runtime-/Evidence-Status | Bekannte Grenze | Build-, Check-, Smoke- und Lifecycle-Targets |
+| Connector | Direkter Produktpfad | Separater Composite- oder Compatibility-Pfad | Hostintegration und Engine-Grenze | Unterstützter Phasen-Scope und Grenze | Runtime-/Evidence-Status | Bekannte Grenze | Build-, Check-, Smoke- und Lifecycle-Targets |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Apache | `native-httpd-module` | Kein separater benannter Alternativpfad ist ausgewählt; die veraltete Legacy-MIME-Direktive ist kein Gate-Bypass-Pfad. | Natives httpd-Modul mit Common-/libmodsecurity-Mapping. | P1--P4; P4 leitet jedes begrenzte Präfix vor EOS weiter und schließt einmal bei EOS ab. | Source-/Wiring-Evidence ist aktuell; Native-Host-Runtime-Evidence ist pending. | Eine EOS-only-P4-Action nach einem weitergereichten Präfix ist spät: Safe zeichnet log-only auf und Strict verwendet den aufgezeichneten Abort-Pfad; keines wird zu client-sichtbarer Runtime-Evidence promoted. Die Existenz eines H1/H2-Runners ist keine Evidence. | `build-apache`, `check-config-apache`, `start-smoke-apache`, `runtime-smoke-apache`, `full-lifecycle-apache`, `evidence-check-apache` |
 | NGINX | `native-nginx-http-module` | Kein separater benannter Alternativpfad ist ausgewählt; Apache-Syntax ist nicht kompatibel. | Natives NGINX-HTTP-Modul mit Common-/libmodsecurity-Mapping. | P1--P4; Host-vorbereiteter P2-Body und Filter-/EOS-P4. | Aktueller Report sagt `PASS`; hier `documented_not_runtime_verified`, ebenso Capability-Deklarationen. | Request-Body wird vom ausgewählten Adapter nicht End-to-End gestreamt; Strict-/Protocol-Claims bleiben getrennt. | `build-nginx`, `check-config-nginx`, `start-smoke-nginx`, `runtime-smoke-nginx`, `full-lifecycle-nginx`, `evidence-check-nginx` |
-| HAProxy | `native-htx-filter` | `spoe-spop-agent` ist `compatibility_only`. | Nativer HTX-Filter und Common-/libmodsecurity-Mapping. | P1--P4 auf HTX-/EOS-Selected-Core. | Aktueller Report sagt `PASS`; hier `documented_not_runtime_verified`; Manifest-Mode-Divergenz ist ebenfalls `documented_not_runtime_verified`. | Safe P4 ist `log_only`; Strict-Post-Commit-Action ist im Selected Guide `not_attempted`. | `build-haproxy`, `check-config-haproxy`, `start-smoke-haproxy`, `runtime-smoke-haproxy`, `full-lifecycle-haproxy-htx`, `evidence-check-haproxy` |
-| Envoy | `ext_proc` | `ext_authz` / `http-ext-authz-service` ist `compatibility_only`. | Gestreamter Envoy-External-Processor-Service mappt gRPC-Messages auf Common/libmodsecurity. | P1--P4 über ausgewählte Stream-/EOS-Grenze. | Aktueller Report sagt `PASS`; hier `documented_not_runtime_verified`; Manifest-Mode-Divergenz und generierter Capability-Status sind ebenfalls so gelabelt. | Strict Reset/Cancellation wird nicht allein durch eine Service-Decision etabliert. | `build-envoy`, `check-config-envoy`, `start-smoke-envoy`, `runtime-smoke-envoy`, `full-lifecycle-envoy-ext-proc`, `evidence-check-envoy` |
-| Traefik | `native-middleware` / `native-traefik-middleware` | `forwardAuth` / `http-forwardauth-service` ist `compatibility_only`. | Native Go-Middleware kommuniziert mit einem privaten UDS-Common-/libmodsecurity-Engine-Service. | P1--P4 mit ResponseWriter-/EOS-Grenze. | Aktueller Report sagt `PASS`; hier `documented_not_runtime_verified`; Manifest-Mode-Divergenz und generierter Capability-Status sind ebenfalls so gelabelt. | Safe P4 ist `log_only`; nativer Strict-Abort bleibt getrennte Evidence-Arbeit. | `build-traefik`, `check-config-traefik`, `start-smoke-traefik`, `runtime-smoke-traefik`, `full-lifecycle-traefik-native`, `evidence-check-traefik` |
-| lighttpd | `patched-native` / `patched-native-lighttpd` | Stock-native-, Sidecar- und Legacy-Bridge-Material ist `compatibility_only`. | Versionsgebundenes gepatchtes lighttpd-Modul mappt ausgewählte geliehene Entity-Ranges auf Common/libmodsecurity. | P1--P4 für ausgewählte HTTP/1-Identity-Entity-Ranges und EOS. | Aktueller Report sagt `PASS`; hier `documented_not_runtime_verified`; Manifest-Mode-Divergenz und generierter Capability-Status sind ebenfalls so gelabelt. | Compression, HTTP/2, nicht ausgewähltes Buffering und Strict-Client-Abort sind `out_of_scope`. | `build-lighttpd`, `check-config-lighttpd`, `start-smoke-lighttpd`, `runtime-smoke-lighttpd`, `full-lifecycle-lighttpd-patched`, `evidence-check-lighttpd` |
+| HAProxy | `native-htx-filter` / `haproxy-htx` | <code>haproxy-spoe-spop</code> ist ein separates logisches Companion-Profil; roher <code>spoe-spop-agent</code> allein ist request-only. | Nativer HTX-Filter und Common-/libmodsecurity-Mapping; der Companion besitzt für sein logisches Profil die Response-Grenze. | Direktes P1--P4 auf HTX/EOS; Companion-P3/P4 benötigen eigene Evidence. | Aktueller Report sagt `PASS`; hier `documented_not_runtime_verified`; jede logische Profil-Capability bleibt getrennt begrenzt. | Safe P4 ist `log_only`; Strict-Post-Commit-Action ist im Selected Guide `not_attempted`. | `build-haproxy`, `check-config-haproxy`, `start-smoke-haproxy`, `runtime-smoke-haproxy`, `full-lifecycle-haproxy-htx`, `evidence-check-haproxy` |
+| Envoy | `ext_proc` / `envoy-ext-proc` | <code>envoy-ext-authz</code> ist ein separates ext_authz-plus-Response-Observer-logisches Profil; direkter <code>http-ext-authz-service</code> ist request-only. | Gestreamter Envoy-External-Processor mappt gRPC-Messages auf Common/libmodsecurity; der Observer liefert die Companion-Response-Grenze. | Direktes P1--P4 über ausgewählte Stream-/EOS-Grenze; ext_authz-Response-Phasen benötigen Companion-Evidence. | Aktueller Report sagt `PASS`; hier `documented_not_runtime_verified`; jede logische Profil-Capability bleibt getrennt begrenzt. | Strict Reset/Cancellation wird nicht allein durch eine Service-Decision etabliert. | `build-envoy`, `check-config-envoy`, `start-smoke-envoy`, `runtime-smoke-envoy`, `full-lifecycle-envoy-ext-proc`, `evidence-check-envoy` |
+| Traefik | `native-middleware` / `traefik-native-uds` | <code>traefik-forwardauth</code> ist ein separates forwardAuth-plus-Response-Observer-logisches Profil; direkter <code>http-forwardauth-service</code> ist request-only. | Native Go-Middleware kommuniziert mit einem privaten UDS-Common-/libmodsecurity-Engine-Service; der Observer liefert die Companion-Response-Grenze. | Direktes P1--P4 mit ResponseWriter-/EOS-Grenze; forwardAuth-Response-Phasen benötigen Companion-Evidence. | Aktueller Report sagt `PASS`; hier `documented_not_runtime_verified`; jede logische Profil-Capability bleibt getrennt begrenzt. | Safe P4 ist `log_only`; nativer Strict-Abort bleibt getrennte Evidence-Arbeit. | `build-traefik`, `check-config-traefik`, `start-smoke-traefik`, `runtime-smoke-traefik`, `full-lifecycle-traefik-native`, `evidence-check-traefik` |
+| lighttpd | Kanonisches Stock <code>lighttpd-stock</code> / <code>stock-lighttpd-sidecar</code>; separates <code>lighttpd-patched</code> / <code>patched-native-lighttpd</code>. | Natives <code>stock-lighttpd</code> und die Legacy-Bridge sind <code>compatibility_only</code>; keines der logischen Profile ist Fallback des anderen. | Das Stock-Sidecar besitzt einen begrenzten HTTP/1.1-Austausch; das versionsgebundene gepatchte Modul mappt ausgewählte geliehene Entity-Ranges auf Common/libmodsecurity. | Stock-Sidecar besitzt P1--P4 in seiner Component-Grenze; gepatchtes natives P1--P4 benötigt separat ausgewählte HTTP/1-Identity-Range-Evidence. | Das aktuelle Hostfamilien-Target ist <code>full-lifecycle-lighttpd-patched</code>; es ist keine Stock-Sidecar- oder Native-Stock-Host-Evidence. | Compression, HTTP/2, nicht ausgewähltes Buffering und Strict-Client-Abort sind <code>out_of_scope</code>. | `build-lighttpd`, `check-config-lighttpd`, `start-smoke-lighttpd`, `runtime-smoke-lighttpd`, `full-lifecycle-lighttpd-patched`, `evidence-check-lighttpd` |
 
 Das Root-Makefile behält Aliase wie `full-lifecycle-haproxy`,
 `full-lifecycle-envoy`, `full-lifecycle-traefik` und

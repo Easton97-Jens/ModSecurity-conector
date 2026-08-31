@@ -59,6 +59,30 @@ ROOT_COMPATIBILITY_LINKS_DE = (
     "traefik/README.de.md#forwardauth-kompatibilität",
     "lighttpd/README.de.md#sidecar-kompatibilität",
 )
+CONNECTOR_NAVIGATION_DOCS = (
+    (
+        ROOT / "docs/connectors/README.md",
+        "six host integrations and ten logical connector",
+        "Logical profile inventory",
+    ),
+    (
+        ROOT / "docs/connectors/README.de.md",
+        "sechs Hostintegrationen und zehn logische",
+        "Inventar der logischen Profile",
+    ),
+)
+LOGICAL_PROFILE_IDS = (
+    "apache",
+    "nginx",
+    "haproxy-htx",
+    "haproxy-spoe-spop",
+    "envoy-ext-authz",
+    "envoy-ext-proc",
+    "traefik-forwardauth",
+    "traefik-native-uds",
+    "lighttpd-stock",
+    "lighttpd-patched",
+)
 
 
 PROFILE_MATRIX = {
@@ -247,6 +271,28 @@ def all_example_errors(root: Path) -> list[str]:
 
 
 class LogicalConnectorAllExamplesTests(unittest.TestCase):
+    def test_connector_navigation_docs_preserve_all_ten_logical_profiles(self) -> None:
+        for path, host_navigation_text, inventory_heading in CONNECTOR_NAVIGATION_DOCS:
+            with self.subTest(path=path.name):
+                text = path.read_text(encoding="utf-8")
+                self.assertIn(host_navigation_text, text)
+                self.assertIn(inventory_heading, text)
+                for profile in LOGICAL_PROFILE_IDS:
+                    self.assertIn(f"<code>{profile}</code>", text)
+
+        manifest = json.loads(
+            (ROOT / "connectors/lighttpd/capabilities.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            manifest["transaction_contract_profiles"],
+            ["lighttpd-stock", "lighttpd-patched"],
+        )
+        self.assertEqual(
+            manifest["logical_routes"]["lighttpd-stock"]["integration_mode"],
+            "stock-lighttpd-sidecar",
+        )
+        self.assertIn("canonical logical Stock profile", manifest["host_model_constraints"][-1])
+
     def test_root_documentation_catalogues_all_ten_logical_solutions(self) -> None:
         english = ROOT_EXAMPLE_READMES[0].read_text(encoding="utf-8")
         german = ROOT_EXAMPLE_READMES[1].read_text(encoding="utf-8")

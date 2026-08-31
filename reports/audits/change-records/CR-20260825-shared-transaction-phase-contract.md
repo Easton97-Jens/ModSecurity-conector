@@ -1781,3 +1781,50 @@ requires an authorized post-merge current-master reproduction before that
 finding can become verified or closed. This record changes no master state,
 CI protection, ruleset, required check, scanner, Quality Gate, or evidence
 boundary.
+
+## 2026-08-31 Logical-profile documentation reconciliation
+
+### Motivation and root cause
+
+The shared transaction contract, the source-backed example matrix, and the
+capability manifests identify ten logical connector profiles. Connector
+navigation documentation nevertheless described six host-family routes as six
+selected routes, which could be read as a complete logical-profile inventory.
+The lighttpd manifest likewise named its current patched lifecycle target
+without restating that the canonical Stock profile is the traffic-owning
+sidecar.
+
+### Technical decision
+
+The six host-family rows are now explicitly navigation only, and their
+English/German connector guides contain a ten-profile inventory. Direct host
+routes and their separate HAProxy SPOE/SPOP, Envoy ext_authz, and Traefik
+forwardAuth composite profiles remain evidence-distinct. The lighttpd text and
+capability constraint now distinguish canonical `lighttpd-stock` /
+`stock-lighttpd-sidecar`, separate `lighttpd-patched`, and the noncanonical
+native Stock P1/P3 translation.
+
+No host code, workflow, source-phase contract, runtime result, protection
+configuration, event schema, or safety limit changed. This is a claim
+reconciliation only; it does not promote host-runtime evidence for a composite
+or sidecar profile.
+
+### Evidence and validation
+
+| Validation | Actual result |
+| --- | --- |
+| Focused logical-connector examples | `python3 -m unittest -v tests.test_logical_connector_all_examples` passed 11 tests in 0.653 seconds. |
+| Logical examples, matrix, capabilities, and bilingual documentation | `python3 -m unittest -v tests.test_logical_connector_all_examples tests.test_logical_connector_example_matrix tests.test_connector_capabilities tests.test_bilingual_docs` passed 52 tests in 2.730 seconds. |
+| Source-backed logical-profile matrix | `python3 ci/checks/documentation/check-logical-connector-example-matrix.py` passed with 10 profiles and 30 variants. |
+| Documentation and capability checks | `make check-bilingual-docs`, `make check-doc-links`, and `python3 ci/evidence/collectors/connector_capabilities.py check` passed. |
+| Whitespace/error scan | `git diff --check` passed. |
+
+### Status and residual risk
+
+The new regression test prevents the connector navigation guides from again
+presenting six host integrations as the complete set of logical profiles and
+checks the canonical lighttpd Stock-sidecar identity. The six host-family
+runtime targets remain navigation and bounded-evidence targets; this record is
+not a claim that all ten profiles have equivalent native-host runtime evidence.
+Final exact-head PR validation, hosted checks, SonarCloud metrics, and fresh
+reviews are still required before merge.

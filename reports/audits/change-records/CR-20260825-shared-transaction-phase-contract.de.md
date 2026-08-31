@@ -1925,3 +1925,52 @@ Finding-Policy verlangt nach einer autorisierten Integration eine Reproduktion
 auf aktuellem Master, bevor dieses Finding verifiziert oder geschlossen werden
 kann. Dieser Record ändert keinen master-Stand, CI-Schutz, Ruleset,
 Required-Check, Scanner, Quality Gate oder Evidence-Grenze.
+
+## 2026-08-31 Abstimmung der Dokumentation logischer Profile
+
+### Motivation und Grundursache
+
+Der gemeinsame Transaktionsvertrag, die quellenbasierte Beispielmatrix und die
+Capability-Manifeste benennen zehn logische Connector-Profile. Die
+Connector-Navigationsdokumentation beschrieb dennoch sechs
+Hostfamilienrouten als sechs ausgewählte Routen, was als vollständiges
+Inventar der logischen Profile gelesen werden konnte. Das lighttpd-Manifest
+nannte außerdem sein aktuelles gepatchtes Lifecycle-Target, ohne erneut
+festzuhalten, dass das kanonische Stock-Profil das traffic-owning Sidecar ist.
+
+### Technische Entscheidung
+
+Die sechs Hostfamilienzeilen sind nun ausdrücklich nur Navigation, und ihre
+englischen/deutschen Connector-Guides enthalten ein Inventar mit zehn
+Profilen. Direkte Hostrouten und ihre getrennten HAProxy-SPOE/SPOP-,
+Envoy-ext_authz- und Traefik-forwardAuth-Composite-Profile bleiben hinsichtlich
+der Evidence getrennt. Der lighttpd-Text und die Capability-Grenze
+unterscheiden nun kanonisches `lighttpd-stock` /
+`stock-lighttpd-sidecar`, separates `lighttpd-patched` und die nichtkanonische
+native Stock-P1/P3-Übersetzung.
+
+Es änderten sich kein Hostcode, kein Workflow, kein Source-Phasenvertrag, kein
+Runtime-Ergebnis, keine Schutzkonfiguration, kein Event-Schema und kein
+Sicherheitslimit. Dies ist ausschließlich eine Claim-Abstimmung; sie promoted
+keine Host-Runtime-Evidence für ein Composite- oder Sidecar-Profil.
+
+### Evidenz und Validierung
+
+| Validierung | Tatsächliches Ergebnis |
+| --- | --- |
+| Fokussierte logische Connector-Beispiele | `python3 -m unittest -v tests.test_logical_connector_all_examples` bestand mit 11 Tests in 0,653 Sekunden. |
+| Logische Beispiele, Matrix, Capabilities und zweisprachige Dokumentation | `python3 -m unittest -v tests.test_logical_connector_all_examples tests.test_logical_connector_example_matrix tests.test_connector_capabilities tests.test_bilingual_docs` bestand mit 52 Tests in 2,730 Sekunden. |
+| Quellenbasierte Matrix logischer Profile | `python3 ci/checks/documentation/check-logical-connector-example-matrix.py` bestand mit 10 Profilen und 30 Varianten. |
+| Dokumentations- und Capability-Prüfungen | `make check-bilingual-docs`, `make check-doc-links` und `python3 ci/evidence/collectors/connector_capabilities.py check` bestanden. |
+| Whitespace-/Fehlerscan | `git diff --check` bestand. |
+
+### Status und Restrisiko
+
+Der neue Regressionstest verhindert, dass die Connector-Navigations-Guides
+wieder sechs Hostintegrationen als vollständige Menge logischer Profile
+darstellen, und prüft die kanonische lighttpd-Stock-Sidecar-Identität. Die
+sechs Hostfamilien-Runtime-Targets bleiben Navigations- und begrenzte
+Evidence-Targets; dieser Record behauptet nicht, dass alle zehn Profile
+gleichwertige Native-Host-Runtime-Evidence besitzen. Vor dem Merge bleiben die
+finale Exact-Head-PR-Validierung, Hosted-Checks, SonarCloud-Metriken und neue
+Reviews erforderlich.

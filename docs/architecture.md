@@ -25,16 +25,21 @@ every connector.
 The checked-in source and build scripts define implementation details. This
 document records the intended ownership and safety boundary around them.
 
-## Selected host routes
+## Host-family navigation and logical profiles
 
-| Connector | Selected integration mode | Response-body boundary |
+The following six rows are host-family navigation, not a statement that each
+family has only one logical profile. The shared transaction and phase contract
+defines the ten logical profile identities and keeps companion/composite
+profiles separate from direct host routes.
+
+| Host integration | Current host-family core route | Response-body boundary |
 | --- | --- | --- |
 | Apache | Native HTTPD module | EOS-only all-response output gate; normalized brigades are retained through first EOS before release |
 | NGINX | Native HTTP module | Response filter and request/subrequest end-of-stream |
 | HAProxy | Native HTX filter | HTX end-of-stream |
 | Envoy | Streamed <code>ext_proc</code> service | Stream completion in the selected service protocol |
 | Traefik | Native middleware with local UDS engine service | Response-writer commit boundary |
-| lighttpd | Patched native module | Decoded entity-body end-of-stream |
+| lighttpd | Canonical Stock logical route <code>stock-lighttpd-sidecar</code>; separate patched-native route <code>patched-native-lighttpd</code> | The Stock sidecar owns bounded HTTP/1.1 P1--P4; the patched route has decoded entity-body EOS semantics |
 
 Each connector guide documents its host-specific route, lifecycle, build path,
 limitations, compatibility paths, operations, and validation:

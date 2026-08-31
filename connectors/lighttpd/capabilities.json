@@ -48,7 +48,7 @@
     "The stock native plugin requires both body modes to be none. The matched patched Framework-synchronized core/module pair accepts streaming request ranges and HTTP/1.1 identity response-entity ranges before transfer framing; this source/build contract has no canonical runtime promotion.",
     "The response-header mapper is called from handle_response_start, but source wiring alone is not Phase-3 behavioral verification.",
     "The legacy bridge and starter self-tests are separate from native mod_msconnector.so host-runtime evidence.",
-    "The full-lifecycle profile separately selects patched-native through full-lifecycle-lighttpd-patched: its checked-in host smoke uses both body modes as none. Identity streaming configuration is available for contract checks, while gzip/br, HTTP/2, strict abort, first-byte, and no-full-buffer client evidence remain NOT EXECUTED."
+    "The canonical logical Stock profile lighttpd-stock selects stock-lighttpd-sidecar and owns P1--P4 within its bounded HTTP/1.1 component. The current host-family full-lifecycle target separately selects patched-native through full-lifecycle-lighttpd-patched: its checked-in host smoke uses both body modes as none and does not prove Stock-sidecar or native-Stock host behavior. Identity streaming configuration is available for contract checks, while gzip/br, HTTP/2, strict abort, first-byte, and no-full-buffer client evidence remain NOT EXECUTED."
   ],
   "capabilities": {
     "connection_metadata": {
