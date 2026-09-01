@@ -198,6 +198,10 @@ typedef struct {
      * its native log callback can emit bounded non-disruptive rule metadata
      * with the actual host phase. */
     unsigned native_event_phase_active:1;
+    /* Exact P2 SecRequestBodyLimitAction Reject marker.  It is distinct from
+     * ordinary rule-ID-bearing denies and permits the canonical rule-ID-free
+     * BODY_LIMIT/413 translation only at this native boundary. */
+    unsigned native_request_body_limit_rejection:1;
     size_t response_body_bytes_seen;
     size_t response_body_bytes_inspected;
     /* A file-only response buffer cannot be passed directly to

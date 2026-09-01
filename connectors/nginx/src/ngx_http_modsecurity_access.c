@@ -60,6 +60,7 @@ ngx_http_modsecurity_request_intervention_log_event(ngx_http_request_t *r,
     msconnector_event event;
     ngx_http_modsecurity_ctx_t *ctx;
     const char *wanted;
+    int body_limit;
     ngx_http_modsecurity_event_request_metadata_t request_metadata;
 
     if (r == NULL || mcf == NULL || mcf->phase4_log_file == NULL ||
@@ -68,16 +69,20 @@ ngx_http_modsecurity_request_intervention_log_event(ngx_http_request_t *r,
     }
 
     ctx = ngx_http_modsecurity_get_module_ctx(r);
-    wanted = ctx != NULL && ctx->last_intervention_status >= 300 &&
+    body_limit = phase == MSCONNECTOR_PHASE_REQUEST_BODY && ctx != NULL &&
+        ctx->native_request_body_limit_rejection;
+    wanted = !body_limit && ctx != NULL && ctx->last_intervention_status >= 300 &&
         ctx->last_intervention_status < 400 ? "redirect" : "deny";
     request_metadata = ngx_http_modsecurity_event_request_metadata(r);
 
     msconnector_event_init(&event);
-    event.meta.message_id = MSCONN_EVENT_REQUEST_BLOCKED;
+    event.meta.message_id = body_limit ? MSCONN_EVENT_BODY_LIMIT :
+        MSCONN_EVENT_REQUEST_BLOCKED;
     event.meta.level = msconnector_event_default_level(event.meta.message_id);
     event.meta.message = msconnector_event_default_message(event.meta.message_id);
-    event.meta.event = phase == MSCONNECTOR_PHASE_REQUEST_BODY
-        ? "phase2_intervention" : "phase1_intervention";
+    event.meta.event = body_limit ? "body_limit" :
+        phase == MSCONNECTOR_PHASE_REQUEST_BODY
+            ? "phase2_intervention" : "phase1_intervention";
     event.meta.connector = "nginx";
     event.meta.integration_mode = "native-nginx-http-module";
     event.meta.transaction_id = ctx != NULL && ctx->event_transaction_id.len > 0U
@@ -87,8 +92,9 @@ ngx_http_modsecurity_request_intervention_log_event(ngx_http_request_t *r,
     event.decision.action = wanted;
     event.decision.requested_action = wanted;
     event.decision.actual_action = wanted;
-    event.decision.rule_id = ctx != NULL ? ctx->last_intervention_rule_id : "";
-    event.decision.reason = reason;
+    event.decision.rule_id = body_limit ? "" :
+        ctx != NULL ? ctx->last_intervention_rule_id : "";
+    event.decision.reason = body_limit ? "request_body_limit_exceeded" : reason;
     event.http.http_status = ctx != NULL && ctx->last_intervention_status > 0
         ? (int)ctx->last_intervention_status : NGX_HTTP_FORBIDDEN;
     event.http.visible_http_status = event.http.http_status;
@@ -96,6 +102,7 @@ ngx_http_modsecurity_request_intervention_log_event(ngx_http_request_t *r,
     event.request.method = request_metadata.method;
     event.request.uri = request_metadata.uri;
     event.body.content_type = request_metadata.content_type;
+    event.body.limit_outcome = body_limit ? "reject" : NULL;
 
     if (!ngx_http_modsecurity_write_event_jsonl(
             r, mcf, &event,

@@ -25,6 +25,7 @@
 #include "msconnector/flow_guard.h"
 #include "msconnector/headers.h"
 #include "msconnector/integrity_event.h"
+#include "msconnector/intervention.h"
 #include "msconnector/json_escape.h"
 #include "msconnector/late_intervention.h"
 #include "msconnector/log_sanitize.h"
@@ -250,9 +251,11 @@ static void capture_intervention(
         int phase,
         haproxy_modsecurity_decision *decision) {
     ModSecurityIntervention intervention;
+    msconnector_intervention common_intervention;
     char common_rule_id[64];
     int rule_id_result;
     int truncated = 0;
+    int body_limit;
 #if defined(HAPROXY_HAVE_MSC_GET_RULES_MESSAGES_RULE_IDS)
     int64_t ids[1];
     size_t id_count;
@@ -262,10 +265,20 @@ static void capture_intervention(
     common_rule_id[0] = '\0';
     init_intervention(&intervention);
     if (msc_intervention(transaction, &intervention) != 0) {
+        common_intervention = msconnector_intervention_make(
+            intervention.disruptive, intervention.status, intervention.url,
+            intervention.log);
+        body_limit = msconnector_intervention_is_request_body_limit_rejection(
+            phase == 2 ? MSCONNECTOR_PHASE_REQUEST_BODY :
+                MSCONNECTOR_PHASE_CONNECTION,
+            &common_intervention);
+        decision->body_limit = body_limit;
         decision->disruptive = intervention.disruptive;
-        decision->status = intervention.status > 0 ?
+        decision->status = body_limit ? 413 : intervention.status > 0 ?
             intervention.status : HAPROXY_MODSECURITY_EXPECTED_STATUS;
-        if (intervention.url != 0 && intervention.url[0] != '\0') {
+        if (body_limit) {
+            copy_message(decision->action, sizeof(decision->action), "deny");
+        } else if (intervention.url != 0 && intervention.url[0] != '\0') {
             copy_message(decision->action, sizeof(decision->action), "redirect");
             copy_message(decision->redirect_url, sizeof(decision->redirect_url),
                 intervention.url);
@@ -305,6 +318,10 @@ static int record_contract_decision(
 
     if (transaction == 0 || decision == 0) {
         return MSCONNECTOR_TRANSACTION_TRANSITION_INVALID;
+    }
+    if (decision->body_limit != 0) {
+        return msconnector_transaction_contract_fail(&transaction->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, 0U);
     }
     msconnector_decision_init(&common);
     common.http_status = decision->status;
@@ -1599,6 +1616,49 @@ int haproxy_modsecurity_phase1_header_self_test(
     return 1;
 }
 
+static int haproxy_modsecurity_request_body_limit_self_test(
+        haproxy_modsecurity_decision *decision) {
+    static const char rules_text[] =
+        "SecRuleEngine On\n"
+        "SecRequestBodyAccess On\n"
+        "SecRequestBodyLimit 8\n"
+        "SecRequestBodyNoFilesLimit 8\n"
+        "SecRequestBodyLimitAction Reject\n";
+    static const unsigned char body[] = "token=block";
+    haproxy_modsecurity_header headers[2];
+    haproxy_modsecurity_request request;
+    int rc;
+
+    headers[0].name = "Content-Type";
+    headers[0].value = "application/x-www-form-urlencoded";
+    headers[1].name = "Content-Length";
+    headers[1].value = "11";
+    memset(&request, 0, sizeof(request));
+    request.method = "POST";
+    request.uri = "/haproxy-binding-request-body-limit-self-test";
+    request.headers = headers;
+    request.header_count = 2U;
+    request.body = body;
+    request.body_len = (unsigned int)(sizeof(body) - 1U);
+    rc = eval_request_internal(&request, rules_text, decision);
+    if (rc != 0) {
+        return rc;
+    }
+    if (decision != 0 && decision->phase == 2 && decision->disruptive != 0 &&
+            decision->body_limit != 0 && decision->status == 413 &&
+            decision->rule_id == 0 && strcmp(decision->action, "deny") == 0 &&
+            decision->redirect_url[0] == '\0') {
+        return 0;
+    }
+    if (decision != 0) {
+        snprintf(decision->log_message, sizeof(decision->log_message),
+            "expected native request-body-limit deny status 413 without Rule-ID, got phase=%d disruptive=%d body_limit=%d status=%d rule_id=%d",
+            decision->phase, decision->disruptive, decision->body_limit,
+            decision->status, decision->rule_id);
+    }
+    return 1;
+}
+
 int haproxy_modsecurity_request_body_self_test(
         haproxy_modsecurity_decision *decision) {
     static const char rules_text[] =
@@ -1630,7 +1690,7 @@ int haproxy_modsecurity_request_body_self_test(
     if (decision != 0 && decision->disruptive != 0 &&
             decision->status == HAPROXY_MODSECURITY_EXPECTED_STATUS &&
             decision->rule_id == 1000002) {
-        return 0;
+        return haproxy_modsecurity_request_body_limit_self_test(decision);
     }
     if (decision != 0) {
         snprintf(decision->log_message, sizeof(decision->log_message),

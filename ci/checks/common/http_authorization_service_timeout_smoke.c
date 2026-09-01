@@ -32,6 +32,7 @@
 #define TEST_DEFAULT_CONNECTION_COUNT 8U
 #define TEST_SEQUENTIAL_REQUEST_COUNT 64U
 #define TEST_PARALLEL_REQUEST_COUNT 4U
+#define TEST_REDIRECT_URL_SIZE 1152U
 
 struct msconnector_runtime {
     unsigned int active_transactions;
@@ -42,6 +43,7 @@ struct msconnector_runtime {
 struct msconnector_runtime_transaction {
     msconnector_runtime *runtime;
     int finished;
+    char redirect_url[TEST_REDIRECT_URL_SIZE];
 };
 
 static msconnector_runtime fake_runtime = {0U};
@@ -135,6 +137,21 @@ size_t msconnector_runtime_header_count_limit(const msconnector_runtime *runtime
     return 64U;
 }
 
+static int smoke_request_is_supported(const char *method, const char *uri) {
+    if (method == NULL || uri == NULL) {
+        return 0;
+    }
+    if (strcmp(method, "GET") == 0) {
+        return strcmp(uri, "/ok") == 0 ||
+            strcmp(uri, "/redirect-p1") == 0 ||
+            strcmp(uri, "/unsafe-redirect") == 0 ||
+            strcmp(uri, "/empty-redirect") == 0 ||
+            strcmp(uri, "/overlong-redirect") == 0 ||
+            strcmp(uri, "/deny") == 0;
+    }
+    return strcmp(method, "POST") == 0 && strcmp(uri, "/redirect-p2") == 0;
+}
+
 int msconnector_runtime_transaction_begin(
     msconnector_runtime *runtime,
     const msconnector_request *request,
@@ -148,7 +165,7 @@ int msconnector_runtime_transaction_begin(
         request->method == NULL || request->uri == NULL ||
         runtime->event_integration_configured == 0 ||
         runtime->transaction_profile_configured == 0 ||
-        strcmp(request->method, "GET") != 0 || strcmp(request->uri, "/ok") != 0) {
+        !smoke_request_is_supported(request->method, request->uri)) {
         return 0;
     }
     transaction = calloc(1U, sizeof(*transaction));
@@ -159,7 +176,35 @@ int msconnector_runtime_transaction_begin(
     transaction->finished = 0;
     ++runtime->active_transactions;
     *out = transaction;
-    msconnector_decision_set_allow(decision);
+    if (strcmp(request->uri, "/redirect-p1") == 0 ||
+        strcmp(request->uri, "/redirect-p2") == 0) {
+        const char *target = strcmp(request->uri, "/redirect-p1") == 0 ?
+            "/redirect-p1-target" : "/redirect-p2-target";
+        (void)snprintf(transaction->redirect_url,
+            sizeof(transaction->redirect_url), "%s", target);
+        msconnector_decision_set_redirect(decision, 302, transaction->redirect_url,
+            "redirect-rule", "redirect smoke decision");
+    } else if (strcmp(request->uri, "/unsafe-redirect") == 0) {
+        (void)snprintf(transaction->redirect_url,
+            sizeof(transaction->redirect_url), "%s",
+            "/redirect-target\r\nx-injected: rejected");
+        msconnector_decision_set_redirect(decision, 302, transaction->redirect_url,
+            "redirect-rule", "unsafe redirect smoke decision");
+    } else if (strcmp(request->uri, "/empty-redirect") == 0) {
+        msconnector_decision_set_redirect(decision, 302, "", "redirect-rule",
+            "empty redirect smoke decision");
+    } else if (strcmp(request->uri, "/overlong-redirect") == 0) {
+        memset(transaction->redirect_url, 'a',
+            sizeof(transaction->redirect_url) - 1U);
+        transaction->redirect_url[sizeof(transaction->redirect_url) - 1U] = '\0';
+        msconnector_decision_set_redirect(decision, 302, transaction->redirect_url,
+            "redirect-rule", "overlong redirect smoke decision");
+    } else if (strcmp(request->uri, "/deny") == 0) {
+        msconnector_decision_set_deny(decision, 403, "deny-rule",
+            "deny smoke decision");
+    } else {
+        msconnector_decision_set_allow(decision);
+    }
     if (error != NULL) {
         msconnector_error_init(error);
     }
@@ -178,6 +223,10 @@ int msconnector_runtime_transaction_finish(
     if (transaction->runtime->active_transactions == 0U) {
         return 0;
     }
+    /* The service must copy redirect data before finish/destroy. This models
+     * the native transaction-owned redirect buffer becoming unavailable once
+     * request processing has completed. */
+    memset(transaction->redirect_url, 0, sizeof(transaction->redirect_url));
     --transaction->runtime->active_transactions;
     transaction->finished = 1;
     if (error != NULL) {
@@ -214,9 +263,8 @@ static int smoke_map_request(
     char *error,
     size_t error_len) {
     (void)contract;
-    if (source == NULL || request == NULL || source->method == NULL ||
-        source->uri == NULL || strcmp(source->method, "GET") != 0 ||
-        strcmp(source->uri, "/ok") != 0) {
+    if (source == NULL || request == NULL ||
+        !smoke_request_is_supported(source->method, source->uri)) {
         if (error != NULL && error_len > 0U) {
             (void)snprintf(error, error_len, "%s", "unexpected smoke request");
         }
@@ -252,6 +300,41 @@ static const msconnector_http_authorization_profile smoke_profile = {
     .transaction_profile = &smoke_transaction_profile,
     .original_uri_headers = NULL,
     .original_uri_header_count = 0U,
+    .map_request = smoke_map_request,
+    .map_response = NULL,
+};
+
+static const char *const envoy_redirect_original_uri_headers[] = {
+    "x-envoy-original-path",
+    "x-forwarded-uri",
+    "x-original-uri",
+};
+
+static const msconnector_http_authorization_profile envoy_redirect_profile = {
+    .connector_name = "envoy",
+    .integration_mode = "ext_authz",
+    .transaction_profile = &smoke_transaction_profile,
+    .original_uri_headers = envoy_redirect_original_uri_headers,
+    .original_uri_header_count = sizeof(envoy_redirect_original_uri_headers) /
+        sizeof(envoy_redirect_original_uri_headers[0]),
+    .map_request = smoke_map_request,
+    .map_response = NULL,
+    .terminal_response_marker_header = "x-msconnector-terminal-authz",
+    .terminal_response_marker_value = "1",
+};
+
+static const char *const traefik_redirect_original_uri_headers[] = {
+    "X-Forwarded-Uri",
+    "X-Original-Uri",
+};
+
+static const msconnector_http_authorization_profile traefik_redirect_profile = {
+    .connector_name = "traefik",
+    .integration_mode = "forwardAuth",
+    .transaction_profile = &smoke_transaction_profile,
+    .original_uri_headers = traefik_redirect_original_uri_headers,
+    .original_uri_header_count = sizeof(traefik_redirect_original_uri_headers) /
+        sizeof(traefik_redirect_original_uri_headers[0]),
     .map_request = smoke_map_request,
     .map_response = NULL,
 };
@@ -370,7 +453,8 @@ static int read_response(int socket_fd, char *response, size_t response_size) {
     return used > 0U;
 }
 
-static pid_t start_service_with_options(
+static pid_t start_service_with_profile_options(
+    const msconnector_http_authorization_profile *profile,
     unsigned short port,
     unsigned long max_requests,
     unsigned long timeout_ms,
@@ -381,7 +465,12 @@ static pid_t start_service_with_options(
     char max_connections_value[32];
     char *argv[13];
     int argc = 0;
-    const pid_t child = fork();
+    pid_t child;
+
+    if (profile == NULL) {
+        return -1;
+    }
+    child = fork();
     if (child != 0) {
         return child;
     }
@@ -405,7 +494,16 @@ static pid_t start_service_with_options(
     argv[argc++] = "--connection-timeout-ms";
     argv[argc++] = timeout;
     argv[argc] = NULL;
-    _exit(msconnector_http_authorization_service_main(argc, argv, &smoke_profile));
+    _exit(msconnector_http_authorization_service_main(argc, argv, profile));
+}
+
+static pid_t start_service_with_options(
+    unsigned short port,
+    unsigned long max_requests,
+    unsigned long timeout_ms,
+    unsigned long max_connections) {
+    return start_service_with_profile_options(&smoke_profile, port, max_requests,
+        timeout_ms, max_connections);
 }
 
 static pid_t start_service_with_capacity(
@@ -445,6 +543,134 @@ static int wait_for_service(pid_t child) {
 
 static int response_has_status(const char *response, const char *status) {
     return response != NULL && strncmp(response, status, strlen(status)) == 0;
+}
+
+static int request_response(
+    unsigned short port,
+    const char *request,
+    char *response,
+    size_t response_size) {
+    int socket_fd = connect_loopback(port, TEST_RESPONSE_TIMEOUT_MS);
+    int result = 0;
+
+    if (socket_fd >= 0 && send_all(socket_fd, request) &&
+        read_response(socket_fd, response, response_size)) {
+        result = 1;
+    }
+    if (socket_fd >= 0) {
+        (void)close(socket_fd);
+    }
+    return result;
+}
+
+static int response_has_exact_header_once(const char *response,
+    const char *header) {
+    const char *first;
+
+    if (response == NULL || header == NULL) {
+        return 0;
+    }
+    first = strstr(response, header);
+    return first != NULL && strstr(first + strlen(header), header) == NULL;
+}
+
+static int run_redirect_profile_case(const char *case_name,
+    const msconnector_http_authorization_profile *profile,
+    int expect_terminal_marker) {
+    const char redirect_p1_request[] =
+        "GET /redirect-p1 HTTP/1.1\r\nHost: redirect.example\r\n\r\n";
+    const char redirect_p2_request[] =
+        "POST /redirect-p2 HTTP/1.1\r\nHost: redirect.example\r\n"
+        "Content-Length: 4\r\n\r\nbody";
+    const char unsafe_redirect_request[] =
+        "GET /unsafe-redirect HTTP/1.1\r\nHost: redirect.example\r\n\r\n";
+    const char empty_redirect_request[] =
+        "GET /empty-redirect HTTP/1.1\r\nHost: redirect.example\r\n\r\n";
+    const char overlong_redirect_request[] =
+        "GET /overlong-redirect HTTP/1.1\r\nHost: redirect.example\r\n\r\n";
+    const char allow_request[] =
+        "GET /ok HTTP/1.1\r\nHost: redirect.example\r\n\r\n";
+    const char deny_request[] =
+        "GET /deny HTTP/1.1\r\nHost: redirect.example\r\n\r\n";
+    const char location_p1[] = "\r\nlocation: /redirect-p1-target\r\n";
+    const char location_p2[] = "\r\nlocation: /redirect-p2-target\r\n";
+    const char terminal_marker[] = "\r\nx-msconnector-terminal-authz: 1\r\n";
+    char response[2048];
+    unsigned short port;
+    pid_t service = -1;
+    int result = 0;
+
+    if (!reserve_loopback_port(&port)) {
+        (void)fprintf(stderr, "%s: could not reserve loopback port\n", case_name);
+        return 0;
+    }
+    service = start_service_with_profile_options(profile, port, 7UL,
+        TEST_CONNECTION_TIMEOUT_MS, 2UL);
+    if (service < 0) {
+        (void)fprintf(stderr, "%s: could not fork service\n", case_name);
+        return 0;
+    }
+    if (!request_response(port, redirect_p1_request, response, sizeof(response)) ||
+        !response_has_status(response, "HTTP/1.1 302") ||
+        !response_has_exact_header_once(response, location_p1) ||
+        (expect_terminal_marker !=
+            (strstr(response, terminal_marker) != NULL))) {
+        (void)fprintf(stderr, "%s: P1 redirect response was not preserved\n", case_name);
+        goto done;
+    }
+    if (!request_response(port, redirect_p2_request, response, sizeof(response)) ||
+        !response_has_status(response, "HTTP/1.1 302") ||
+        !response_has_exact_header_once(response, location_p2)) {
+        (void)fprintf(stderr, "%s: P2 redirect response was not preserved\n", case_name);
+        goto done;
+    }
+    if (!request_response(port, unsafe_redirect_request, response, sizeof(response)) ||
+        !response_has_status(response, "HTTP/1.1 500") ||
+        strstr(response, "\r\nlocation:") != NULL ||
+        strstr(response, "\r\nx-injected:") != NULL) {
+        (void)fprintf(stderr, "%s: unsafe redirect did not fail closed\n", case_name);
+        goto done;
+    }
+    if (!request_response(port, empty_redirect_request, response, sizeof(response)) ||
+        !response_has_status(response, "HTTP/1.1 500") ||
+        strstr(response, "\r\nlocation:") != NULL) {
+        (void)fprintf(stderr, "%s: empty redirect did not fail closed\n", case_name);
+        goto done;
+    }
+    if (!request_response(port, overlong_redirect_request, response,
+            sizeof(response)) ||
+        !response_has_status(response, "HTTP/1.1 500") ||
+        strstr(response, "\r\nlocation:") != NULL) {
+        (void)fprintf(stderr, "%s: overlong redirect did not fail closed\n", case_name);
+        goto done;
+    }
+    if (!request_response(port, allow_request, response, sizeof(response)) ||
+        !response_has_status(response, "HTTP/1.1 200") ||
+        strstr(response, "\r\nlocation:") != NULL) {
+        (void)fprintf(stderr, "%s: allow response unexpectedly carried Location\n", case_name);
+        goto done;
+    }
+    if (!request_response(port, deny_request, response, sizeof(response)) ||
+        !response_has_status(response, "HTTP/1.1 403") ||
+        strstr(response, "\r\nlocation:") != NULL) {
+        (void)fprintf(stderr, "%s: deny response unexpectedly carried Location\n", case_name);
+        goto done;
+    }
+    if (!wait_for_service(service)) {
+        (void)fprintf(stderr, "%s: service did not exit cleanly\n", case_name);
+        service = -1;
+        goto done;
+    }
+    service = -1;
+    result = 1;
+
+done:
+    if (service > 0) {
+        int status = 0;
+        (void)kill(service, SIGTERM);
+        (void)waitpid(service, &status, 0);
+    }
+    return result;
 }
 
 static int run_stalled_request_case(const char *case_name, const char *stall_request) {
@@ -1220,6 +1446,10 @@ int main(void) {
     }
     if (!accepts_max_connection_boundaries()) {
         (void)fprintf(stderr, "valid max-connections boundary was unexpectedly rejected\n");
+        return 1;
+    }
+    if (!run_redirect_profile_case("envoy_redirect", &envoy_redirect_profile, 1) ||
+        !run_redirect_profile_case("traefik_redirect", &traefik_redirect_profile, 0)) {
         return 1;
     }
     if (!run_parallel_request_case() ||

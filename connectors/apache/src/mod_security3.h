@@ -132,6 +132,7 @@ typedef struct
     const char *transaction_id;
     enum msconnector_phase native_event_phase;
     int native_event_phase_active;
+    int request_body_limit_rejection;
     int contract_failure_event_emitted;
 } msc_intervention_state;
 
@@ -216,6 +217,7 @@ typedef struct
 #define event_transaction_id intervention.transaction_id
 #define native_event_phase intervention.native_event_phase
 #define native_event_phase_active intervention.native_event_phase_active
+#define last_intervention_body_limit intervention.request_body_limit_rejection
 #define contract_failure_event_emitted intervention.contract_failure_event_emitted
 
 

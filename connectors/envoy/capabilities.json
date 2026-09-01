@@ -127,8 +127,8 @@
       "reason": "A disruptive Common Runtime decision is returned as a non-2xx ext_authz response; a fresh canonical deny result is pending."
     },
     "redirect": {
-      "state": "not_implemented",
-      "reason": "The Common Runtime preserves redirect status and URL, but the repository HTTP authorization response does not emit the Location header."
+      "state": "implemented_not_asserted",
+      "reason": "The shared authorization service emits one bounded, validated Location header for a redirect decision; the focused Common service regression covers the Envoy ext_authz profile, while fresh canonical Envoy runtime evidence remains pending."
     },
     "drop": {
       "state": "unsupported_by_host_model",

@@ -20,6 +20,7 @@
 #include "msconnector/headers.h"
 #include "msconnector/http_status.h"
 #include "msconnector/integrity_event.h"
+#include "msconnector/intervention.h"
 #include "msconnector/transaction_contract.h"
 #include "msconnector/limits.h"
 #include "msconnector/memory.h"
@@ -59,8 +60,6 @@
 #define RUNTIME_EVENT_CLIENT_IP_SIZE 64U
 #define RUNTIME_EVENT_CONTENT_TYPE_SIZE 256U
 #define RUNTIME_INTEGRATION_MODE_SIZE 64U
-#define RUNTIME_REQUEST_BODY_LIMIT_REJECTION_LOG \
-    "Request body limit is marked to reject the request"
 
 typedef struct msconnector_runtime_owned_config {
     char rules_inline[RUNTIME_INLINE_RULE_SIZE];
@@ -976,13 +975,16 @@ static void native_free_transaction(void *userdata, void *native_transaction) {
 static int native_is_request_body_limit_rejection(
     enum msconnector_phase phase,
     const ModSecurityIntervention *intervention) {
-    return intervention != NULL &&
-        intervention->disruptive != 0 &&
-        phase == MSCONNECTOR_PHASE_REQUEST_BODY &&
-        intervention->status == 403 &&
-        intervention->url == NULL &&
-        intervention->log != NULL &&
-        strcmp(intervention->log, RUNTIME_REQUEST_BODY_LIMIT_REJECTION_LOG) == 0;
+    msconnector_intervention common_intervention;
+
+    if (intervention == NULL) {
+        return 0;
+    }
+    common_intervention = msconnector_intervention_make(
+        intervention->disruptive, intervention->status, intervention->url,
+        intervention->log);
+    return msconnector_intervention_is_request_body_limit_rejection(phase,
+        &common_intervention);
 }
 
 static int native_intervention_status(
@@ -1005,6 +1007,7 @@ static int native_decision(
     int intervention_result;
     int disruptive;
     int body_limit;
+    int redirect_length;
 
     memset(&intervention, 0, sizeof(intervention));
     intervention.status = 200;
@@ -1025,7 +1028,14 @@ static int native_decision(
         (void)snprintf(native->reason, sizeof(native->reason), "%s",
             "ModSecurity rule requested an intervention");
         if (msconnector_intervention_has_redirect_url(intervention.url)) {
-            (void)snprintf(native->redirect_url, sizeof(native->redirect_url), "%s", intervention.url);
+            redirect_length = snprintf(native->redirect_url,
+                sizeof(native->redirect_url), "%s", intervention.url);
+            if (redirect_length < 0 ||
+                (size_t)redirect_length >= sizeof(native->redirect_url)) {
+                msc_intervention_cleanup(&intervention);
+                return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
+                    "redirect target exceeds the native runtime limit", "runtime");
+            }
         }
         if (body_limit) {
             msconnector_decision_set_body_limit(decision, native->reason);

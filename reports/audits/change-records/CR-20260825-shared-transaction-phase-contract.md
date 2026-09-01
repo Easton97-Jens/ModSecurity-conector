@@ -1895,3 +1895,63 @@ successor PR head completes native/hosted validation. The repository finding
 catalog remains intentionally unsynchronized under `FND-PARENT-0996`; no
 broad catalog repair is claimed. Prior hosted, SonarCloud, and review evidence
 becomes stale after normal successor delivery.
+
+## 2026-09-01 Redirect preservation and native P2 body-limit parity repair
+
+### Motivation and scope
+
+A fresh PR #344 review found that the shared HTTP authorization service could
+return a redirect status after discarding the rule-owned target, so it emitted
+no `Location` header. The same review cycle found that the direct Apache,
+NGINX, and HAProxy native adapters did not share Common Runtime's exact
+`SecRequestBodyLimitAction Reject` P2 translation. They could treat the valid,
+rule-ID-free native result as an invalid generic intervention; HAProxy's
+legacy SPOP sink also recognized only disruptive HTTP 403 decisions.
+
+This focused Parent-only repair changes the Common intervention/auth-service
+boundary, direct Apache/NGINX/HAProxy translation, focused regression tests,
+the HAProxy source README pair, Envoy/Traefik capability claims, and this
+paired Change Record. It changes no `.github/` workflow, ruleset, required
+check, scanner, Quality Gate, `paths.env`, Framework, MRTS, Gitlink, or
+HTTP/2/HTTP/3 host-model claim.
+
+### Technical decision
+
+The authorization service copies a redirect target into response-owned,
+1024-byte bounded storage before native transaction cleanup. It accepts only
+nonempty, NUL-terminated targets without C0/DEL bytes or leading/trailing
+space and emits exactly one generated `location` header for a 3xx response.
+An empty, control-bearing, overlong, inconsistent, or native-truncated target
+becomes the configured runtime-error response without `Location`; it is never
+silently truncated or retained after transaction destruction.
+
+`msconnector_intervention_is_request_body_limit_rejection()` is the shared,
+exact P2 classifier: disruptive, HTTP 403, no redirect URL, and
+`Request body limit is marked to reject the request`. Common Runtime and each
+direct native adapter classify it before ordinary status normalization or
+rule-ID correlation. Only that signature records the canonical rule-ID-free
+`BODY_LIMIT` terminal outcome and a 413 deny; every other missing-rule-ID
+intervention remains fail closed. HAProxy keeps the marker through its decision
+structure so the legacy SPOP ACK sets `txn.blocked=true` for this exact
+body-limit result without broadly accepting arbitrary HTTP 413 decisions.
+
+### Evidence and validation
+
+| Validation | Actual result |
+| --- | --- |
+| Shared authorization-service redirect regression | The new P1/P2 valid-redirect, cleanup-lifetime, deny/allow, empty, overlong, and CR/LF cases first exposed the missing `Location`; `BUILD_ROOT=/var/tmp/codex/ModSecurity-conector/verified/pr344-final-closure-20260828/build make check-http-authorization-service-timeout` then passed. |
+| Common and focused adapter contracts | `make check-common-helpers` passed; `python3 -m unittest -v tests.test_modsecurity_request_body_limit_status_contract tests.test_native_request_body_limit_adapter_contract tests.test_apache_intervention_cleanup tests.test_nginx_upstream_security_contract` passed 30 tests. |
+| Native HAProxy P2 proof | `make -C connectors/haproxy self-test-modsecurity-binding` passed. Its new `SecRequestBodyLimit 8` / `SecRequestBodyLimitAction Reject` request obtains a disruptive, rule-ID-free P2 413 deny through the real libmodsecurity binding. The optional rule-ID API probe is unavailable with the selected libmodsecurity 3.0.14 headers, but the supported baseline self-test passed. |
+| C17 connector checks | `make check-apache-c17` and `make check-haproxy-c17` passed. `make check-nginx-c17` is environment-blocked because NGINX headers/source are unavailable. |
+| Composite adoption and manifests | `make check-envoy-common-adoption check-traefik-common-adoption` and `jq empty connectors/envoy/capabilities.json connectors/traefik/capabilities.json` passed. |
+| Diff and independent security review | `git diff --check` passed. A fresh read-only bypass/regression review found no concrete bypass or legitimate regression. |
+
+### Limits, risk, and delivery status
+
+The NGINX native C17 compile remains blocked by the local host prerequisite,
+not by a source diagnostic. The new local evidence does not replace the
+required exact-successor PR hosted matrix, SonarQube Cloud analysis, Secret
+Scanning, CodeQL, or fresh regular and Security Codex reviews. No merge,
+direct `master` push, admin bypass, or scanner/Quality-Gate weakening is
+claimed by this addendum. The known H2/H3 and host-model limitations remain
+unchanged.

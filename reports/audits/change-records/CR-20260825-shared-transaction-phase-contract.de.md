@@ -2047,3 +2047,69 @@ Repository-Finding-Katalog bleibt unter `FND-PARENT-0996` absichtlich nicht
 synchronisiert; dieser Nachtrag behauptet keine breite Katalogreparatur.
 Frühere Hosted-, SonarCloud- und Review-Evidenz wird nach der normalen
 Nachfolgerauslieferung stale.
+
+## 2026-09-01 Redirect-Erhalt und native P2-Body-Limit-Paritätsreparatur
+
+### Motivation und Scope
+
+Ein frischer PR-#344-Review stellte fest, dass der gemeinsame HTTP-
+Authorization-Service einen Redirect-Status zurückgeben konnte, nachdem er
+das regel-eigene Ziel verworfen hatte; dadurch wurde kein `Location`-Header
+ausgegeben. Derselbe Review-Zyklus stellte fest, dass die direkten nativen
+Apache-, NGINX- und HAProxy-Adapter die exakte P2-Übersetzung von
+`SecRequestBodyLimitAction Reject` der Common Runtime nicht teilten. Sie
+konnten das gültige rule-ID-freie native Ergebnis als ungültige generische
+Intervention behandeln; der Legacy-SPOP-Sink von HAProxy erkannte außerdem
+nur disruptive HTTP-403-Entscheidungen.
+
+Diese fokussierte Parent-only-Reparatur ändert die Common-
+Interventions-/Authorization-Service-Grenze, die direkte Apache-/NGINX-/
+HAProxy-Übersetzung, fokussierte Regressionstests, das HAProxy-Source-
+README-Paar, Envoy-/Traefik-Capability-Claims und diesen gepaarten Change
+Record. Sie ändert keinen `.github/`-Workflow, kein Ruleset, keinen Required
+Check, keinen Scanner, kein Quality Gate, kein `paths.env`, kein Framework,
+kein MRTS, keinen Gitlink und keine HTTP/2-/HTTP/3-Hostmodell-Behauptung.
+
+### Technische Entscheidung
+
+Der Authorization-Service kopiert ein Redirect-Ziel vor dem Cleanup der
+nativen Transaktion in response-eigenen, auf 1024 Byte begrenzten Speicher. Er
+akzeptiert nur nichtleere, NUL-terminierte Ziele ohne C0-/DEL-Bytes und ohne
+führendes oder nachgestelltes Leerzeichen und gibt für eine 3xx-Response genau
+einen generierten `location`-Header aus. Ein leeres, Control-Byte-tragendes,
+zu langes, inkonsistentes oder nativ abgeschnittenes Ziel wird zur
+konfigurierten Runtime-Error-Response ohne `Location`; es wird weder still
+abgeschnitten noch nach der Transaction-Zerstörung behalten.
+
+`msconnector_intervention_is_request_body_limit_rejection()` ist der
+gemeinsame exakte P2-Klassifizierer: disruptiv, HTTP 403, keine Redirect-URL
+und `Request body limit is marked to reject the request`. Common Runtime und
+jeder direkte native Adapter klassifizieren ihn vor der normalen Status-
+Normalisierung oder Rule-ID-Korrelation. Nur diese Signatur zeichnet das
+kanonische rule-ID-freie terminale `BODY_LIMIT`-Ergebnis und eine 413-Deny auf;
+jede andere Missing-Rule-ID-Intervention bleibt fail closed. HAProxy behält
+die Markierung in seiner Decision-Struktur, sodass der Legacy-SPOP-ACK für
+dieses exakte Body-Limit-Ergebnis `txn.blocked=true` setzt, ohne pauschal
+beliebige HTTP-413-Entscheidungen zu akzeptieren.
+
+### Evidenz und Validierung
+
+| Validierung | Tatsächliches Ergebnis |
+| --- | --- |
+| Shared-Authorization-Service-Redirect-Regression | Die neuen P1-/P2-Valid-Redirect-, Cleanup-Lifetime-, Deny-/Allow-, Empty-, Overlong- und CR/LF-Fälle zeigten zunächst den fehlenden `Location`; `BUILD_ROOT=/var/tmp/codex/ModSecurity-conector/verified/pr344-final-closure-20260828/build make check-http-authorization-service-timeout` bestand danach. |
+| Common- und fokussierte Adapter-Contracts | `make check-common-helpers` bestand; `python3 -m unittest -v tests.test_modsecurity_request_body_limit_status_contract tests.test_native_request_body_limit_adapter_contract tests.test_apache_intervention_cleanup tests.test_nginx_upstream_security_contract` bestand mit 30 Tests. |
+| Nativer HAProxy-P2-Nachweis | `make -C connectors/haproxy self-test-modsecurity-binding` bestand. Sein neuer `SecRequestBodyLimit 8`-/`SecRequestBodyLimitAction Reject`-Request erhält über die echte libmodsecurity-Bindung ein disruptives, rule-ID-freies P2-413-Deny. Die optionale Rule-ID-API-Probe ist mit den ausgewählten libmodsecurity-3.0.14-Headern nicht verfügbar, der unterstützte Baseline-Selftest bestand jedoch. |
+| C17-Connector-Checks | `make check-apache-c17` und `make check-haproxy-c17` bestanden. `make check-nginx-c17` ist environment-blocked, weil NGINX-Header/-Source nicht verfügbar sind. |
+| Composite-Adoption und Manifeste | `make check-envoy-common-adoption check-traefik-common-adoption` und `jq empty connectors/envoy/capabilities.json connectors/traefik/capabilities.json` bestanden. |
+| Diff und unabhängiger Security-Review | `git diff --check` bestand. Ein frischer Read-only-Bypass-/Regressionsreview fand keinen konkreten Bypass und keine legitime Regression. |
+
+### Grenzen, Risiko und Delivery-Status
+
+Der native NGINX-C17-Compile bleibt wegen der lokalen Host-Voraussetzung
+blockiert, nicht wegen einer Source-Diagnose. Die neue lokale Evidenz ersetzt
+nicht die erforderliche Exact-Successor-PR-Hosted-Matrix, SonarQube-Cloud-
+Analyse, Secret Scanning, CodeQL oder frische reguläre und Security-Codex-
+Reviews. Dieser Nachtrag behauptet keinen Merge, keinen direkten
+`master`-Push, keinen Admin-Bypass und keine Scanner-/Quality-Gate-
+Abschwächung. Die bekannten H2/H3- und Hostmodell-Einschränkungen bleiben
+unverändert.

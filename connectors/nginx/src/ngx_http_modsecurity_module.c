@@ -102,6 +102,16 @@ ngx_http_modsecurity_contract_record_intervention(ngx_http_request_t *r,
     if (!ctx->contract_initialized) {
         return NGX_OK;
     }
+    if (ctx->native_request_body_limit_rejection) {
+        if (msconnector_transaction_contract_fail(&ctx->contract,
+                MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, 0U) !=
+            MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                "ModSecurity: canonical request body limit decision is invalid");
+            return NGX_ERROR;
+        }
+        return NGX_OK;
+    }
     if (msconnector_intervention_has_redirect_url(intervention->url)) {
         kind = MSCONNECTOR_TRANSACTION_DECISION_REDIRECT;
     } else if (intervention->status == NGX_HTTP_TOO_MANY_REQUESTS) {
@@ -321,9 +331,11 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
 {
     const char *log = NULL;
     ModSecurityIntervention intervention;
+    msconnector_intervention common_intervention;
     ngx_int_t result = 0;
     ngx_http_modsecurity_ctx_t *ctx = NULL;
     ngx_http_modsecurity_conf_t  *mcf;
+    int request_body_limit_rejection;
 
     ngx_memzero(&intervention, sizeof(intervention));
     intervention.status = 200;
@@ -336,6 +348,7 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
         result = NGX_HTTP_INTERNAL_SERVER_ERROR;
         goto cleanup;
     }
+    ctx->native_request_body_limit_rejection = 0;
 
     if (msc_intervention(transaction, &intervention) == 0) {
         dd("nothing to do");
@@ -346,9 +359,18 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
         result = NGX_HTTP_INTERNAL_SERVER_ERROR;
         goto cleanup;
     }
-    intervention.status = msconnector_intervention_normalize_status(
-        intervention.url, intervention.status,
-        mcf->common_config.default_block_status);
+    common_intervention = msconnector_intervention_make(
+        intervention.disruptive, intervention.status, intervention.url,
+        intervention.log);
+    request_body_limit_rejection =
+        msconnector_intervention_is_request_body_limit_rejection(
+            ctx->native_event_phase, &common_intervention);
+    ctx->native_request_body_limit_rejection =
+        request_body_limit_rejection != 0;
+    intervention.status = request_body_limit_rejection
+        ? NGX_HTTP_REQUEST_ENTITY_TOO_LARGE
+        : msconnector_intervention_normalize_status(intervention.url,
+            intervention.status, mcf->common_config.default_block_status);
     ctx->last_intervention_status = intervention.status;
     ctx->last_intervention_rule_id[0] = '\0';
 

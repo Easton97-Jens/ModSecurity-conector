@@ -188,6 +188,10 @@ int msc_apache_contract_record_intervention_decision(msc_t *msr)
     if (msr == NULL || !msr->contract_initialized) {
         return 0;
     }
+    if (msr->last_intervention_body_limit) {
+        return msc_apache_contract_fail(msr,
+            MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT);
+    }
     rule_id[0] = '\0';
     if (msconnector_rule_id_extract_from_message(msr->last_intervention_log,
             rule_id, sizeof(rule_id)) <= 0) {
@@ -382,6 +386,7 @@ static void msc_release_intervention_buffers(ModSecurityIntervention *interventi
 int process_intervention (Transaction *t, request_rec *r)
 {
     ModSecurityIntervention intervention;
+    msconnector_intervention common_intervention;
     msc_conf_t *config = NULL;
     msc_t *msr = NULL;
     const char *log;
@@ -406,11 +411,21 @@ int process_intervention (Transaction *t, request_rec *r)
         config = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
             &security3_module);
     }
-    intervention.status = msconnector_intervention_normalize_status(
-        intervention.url, intervention.status, config == NULL
-            ? MSCONNECTOR_DEFAULT_BLOCK_STATUS
-            : config->common_config.default_block_status);
     msr = (msc_t *)apr_table_get(r->notes, NOTE_MSR);
+    common_intervention = msconnector_intervention_make(
+        intervention.disruptive, intervention.status, intervention.url,
+        intervention.log);
+    if (msr != NULL) {
+        msr->last_intervention_body_limit =
+            msconnector_intervention_is_request_body_limit_rejection(
+                msr->native_event_phase, &common_intervention);
+    }
+    intervention.status = msr != NULL && msr->last_intervention_body_limit
+        ? HTTP_REQUEST_ENTITY_TOO_LARGE
+        : msconnector_intervention_normalize_status(intervention.url,
+            intervention.status, config == NULL
+                ? MSCONNECTOR_DEFAULT_BLOCK_STATUS
+                : config->common_config.default_block_status);
 
     log = intervention.log;
     if (log == NULL)

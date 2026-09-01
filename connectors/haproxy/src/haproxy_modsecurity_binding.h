@@ -12,6 +12,7 @@ extern "C" {
 typedef struct haproxy_modsecurity_decision {
     int disruptive;
     int status;
+    int body_limit;
     int phase;
     int rule_id;
     int anomaly_score;

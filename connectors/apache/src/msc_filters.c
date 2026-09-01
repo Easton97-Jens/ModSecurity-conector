@@ -88,9 +88,6 @@ int msc_finalize_request_body(msc_t *msr, request_rec *r)
     msr->native_event_phase_active = 0;
     if (intervention != N_INTERVENTION_STATUS)
     {
-        apache_intervention_event_input event_input;
-        const char *action = msc_apache_contract_intervention_action(msr);
-
         if (!msc_apache_contract_record_intervention_decision(msr))
         {
             (void)msc_apache_contract_fail(msr,
@@ -104,17 +101,30 @@ int msc_finalize_request_body(msc_t *msr, request_rec *r)
             return HTTP_INTERNAL_SERVER_ERROR;
         }
 
-        /* This is the actual Apache input-filter terminal path.  Emit the
-         * bounded decision metadata before returning the disruptive status to
-         * httpd, rather than reconstructing Phase 2 from audit output. */
-        event_input.event_name = "phase2_intervention";
-        event_input.phase = MSCONNECTOR_PHASE_REQUEST_BODY;
-        event_input.wanted = action;
-        event_input.actual = action;
-        event_input.reason = "request_body_before_handler";
-        event_input.original_status = r->status;
-        event_input.response_already_committed = 0;
-        apache_log_intervention_event(msr, r, &event_input);
+        if (msr->last_intervention_body_limit)
+        {
+            apache_emit_contract_failure_event(msr, r,
+                MSCONNECTOR_PHASE_REQUEST_BODY,
+                MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT,
+                HTTP_REQUEST_ENTITY_TOO_LARGE);
+        }
+        else
+        {
+            apache_intervention_event_input event_input;
+            const char *action = msc_apache_contract_intervention_action(msr);
+
+            /* This is the actual Apache input-filter terminal path.  Emit the
+             * bounded decision metadata before returning the disruptive status to
+             * httpd, rather than reconstructing Phase 2 from audit output. */
+            event_input.event_name = "phase2_intervention";
+            event_input.phase = MSCONNECTOR_PHASE_REQUEST_BODY;
+            event_input.wanted = action;
+            event_input.actual = action;
+            event_input.reason = "request_body_before_handler";
+            event_input.original_status = r->status;
+            event_input.response_already_committed = 0;
+            apache_log_intervention_event(msr, r, &event_input);
+        }
     }
     return intervention;
 }

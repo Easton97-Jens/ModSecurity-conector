@@ -4043,7 +4043,8 @@ static int send_legacy_decision_ack(
     spop_buffer ack_payload;
 
     ack_payload.len = 0;
-    if (decision->disruptive == 0 || decision->status != 403) {
+    if (decision->disruptive == 0 ||
+        (decision->status != 403 && decision->body_limit == 0)) {
         log_line(log, "ACK empty sent");
         return send_frame(fd, SPOP_FRM_ACK, frame->stream_id, frame->frame_id,
             &ack_payload);
