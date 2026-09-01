@@ -2211,3 +2211,29 @@ und frische sequenzielle Codex-Reviews abgeschlossen hat. Die H2/H3- und
 Hostmodell-Einschränkungen bleiben unverändert. Dieser Nachtrag behauptet
 keinen Merge, keinen direkten `master`-Push, keinen Admin-Bypass und keine
 Scanner-/Quality-Gate-Abschwächung.
+
+## 2026-09-01 Sonar-Komplexitätsnachtrag für den Envoy-Response-Observer
+
+Der erste Successor-Scan für P2-Reparatur-Head `8425f9c2` behielt das Quality
+Gate `OK` und die New-Code-Duplikation bei `0,0 %`, erzeugte aber zwei offene
+`go:S3776`-Cognitive-Complexity-Befunde: einen in `Service.Process` und einen
+in seinem neuen Delivery-Order-Regressionstest. Weil der PR null offene/
+bestätigte und akzeptierte Issues verlangt, wurde kein Befund unterdrückt oder
+akzeptiert.
+
+Der lokale Nachtrag extrahiert nur `processRequest` und kleine Test-Companion-
+Helper. Er erhält dieselben zwei Kontrollen: ein erfolgreicher ext_proc-Send
+zeichnet `CLAIM`, `RESPONSE_HEADERS`, `OUTCOME`, dann `CANCEL` auf; ein
+fehlgeschlagener zweiter Send zeichnet `CLAIM`, `RESPONSE_HEADERS`, dann
+`CANCEL` ohne `OUTCOME` auf. Fokussierte Race-Tests, `go vet`, `gofmt` und die
+Whitespace-Validierung bestanden. Ein neuer normaler Successor-Commit und der
+vollständige Exact-Head-Sonar-/Hosted-/Review-Zyklus bleiben zwingend; dieser
+Record behauptet kein Nullergebnis und keinen Merge.
+
+Ein frischer lokaler No-Context-Review fand vor Delivery eine Helper-
+Extraktionsregression: Eine erfolgreiche fail-closed Immediate-`503` für einen
+uncommitted Handle-Fehler hätte Recv fortgesetzt. Die Reparatur gibt terminalen
+Abschluss zusammen mit diesem erfolgreichen Send zurück, und eine
+Malformed-Handle-Kontrolle beweist einen Recv, eine `503` und keinen Konsum
+eines späteren Callbacks. Derselbe Review bestätigte die korrigierte P3-
+Outcome- und Cleanup-Reihenfolge.

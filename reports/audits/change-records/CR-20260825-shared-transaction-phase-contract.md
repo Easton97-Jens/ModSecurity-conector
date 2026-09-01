@@ -2046,3 +2046,26 @@ hosted matrix, HAProxy evidence flow, SonarQube Cloud target, security checks,
 and fresh sequential Codex reviews. The H2/H3 and host-model limitations remain
 unchanged. This addendum claims no merge, direct `master` push, admin bypass,
 or scanner/Quality-Gate weakening.
+
+## 2026-09-01 Sonar complexity-only follow-up for the Envoy response observer
+
+The first successor scan for P2 repair head `8425f9c2` kept the Quality Gate
+`OK` and new-code duplication at `0.0 %`, but it produced two open `go:S3776`
+cognitive-complexity findings: one in `Service.Process` and one in its new
+delivery-order regression test. Because the PR requires zero open/confirmed
+and accepted issues, neither finding was suppressed or accepted.
+
+The local follow-up only extracts `processRequest` and small test-companion
+helpers. It preserves the same two controls: a successful ext_proc send records
+`CLAIM`, `RESPONSE_HEADERS`, `OUTCOME`, then `CANCEL`; a failed second Send
+records `CLAIM`, `RESPONSE_HEADERS`, then `CANCEL` without `OUTCOME`. Focused
+race tests, `go vet`, `gofmt`, and whitespace validation passed. A new normal
+successor commit and complete exact-head Sonar/hosted/review cycle remain
+mandatory; this record makes no zero-result or merge claim.
+
+A fresh no-context local review caught one helper-extraction regression before
+delivery: a successful fail-closed immediate `503` for an uncommitted handle
+error would have continued `Recv`. The repair returns terminal completion with
+that successful Send, and a malformed-handle control proves one `Recv`, one
+`503`, and no later callback consumption. The same review confirmed the
+post-correction P3 outcome and cleanup ordering.

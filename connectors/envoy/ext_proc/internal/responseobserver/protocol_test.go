@@ -378,84 +378,122 @@ func TestProcessRecordsOutcomeOnlyAfterEnvoyAcceptsResponse(t *testing.T) {
 		{name: "failed send", failSend: true, wantError: true, wantOps: []byte{opClaim, opResponseHeaders, opCancel}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			dir := testSocketDir(t)
-			path := filepath.Join(dir, "observer.sock")
-			listener, err := net.Listen("unix", path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer listener.Close()
-			ops := make(chan byte, 8)
-			go func() {
-				conn, err := listener.Accept()
-				if err != nil {
-					return
-				}
-				defer conn.Close()
-				for {
-					var header [frameSize]byte
-					if _, err := io.ReadFull(conn, header[:]); err != nil {
-						return
-					}
-					length := int(binary.BigEndian.Uint32(header[8:]))
-					payload := make([]byte, length)
-					if _, err := io.ReadFull(conn, payload); err != nil {
-						return
-					}
-					ops <- header[5]
-					decision := decisionAllow
-					if header[5] == opResponseHeaders {
-						decision = decisionDeny
-					}
-					resultPayload := make([]byte, 12)
-					resultPayload[0], resultPayload[1], resultPayload[2] = header[5], resultOK, decision
-					if header[5] == opResponseHeaders {
-						binary.BigEndian.PutUint16(resultPayload[4:], 403)
-					}
-					var resultHeader [frameSize]byte
-					copy(resultHeader[:4], []byte("MRC1"))
-					resultHeader[4], resultHeader[5] = protocolVersion, resultOpcode
-					binary.BigEndian.PutUint32(resultHeader[8:], uint32(len(resultPayload)))
-					if _, err := conn.Write(resultHeader[:]); err != nil {
-						return
-					}
-					if _, err := conn.Write(resultPayload); err != nil {
-						return
-					}
-				}
-			}()
-
-			stream := &processTestStream{
-				receive: []*extprocv3.ProcessingRequest{responseObserverRequestHeaders(), responseObserverResponseHeaders()},
-				failAt: func() int {
-					if test.failSend {
-						return 2
-					}
-					return 0
-				}(),
-			}
-			service, err := New(Config{SocketPath: path, Timeout: time.Second})
-			if err != nil {
-				t.Fatal(err)
-			}
-			err = service.Process(stream)
+			err, got := runProcessOutcomeOrderingCase(t, test.failSend, len(test.wantOps))
 			if (err != nil) != test.wantError {
 				t.Fatalf("Process() error=%v, wantError=%t", err, test.wantError)
-			}
-			var got []byte
-			for len(got) < len(test.wantOps) {
-				select {
-				case op := <-ops:
-					got = append(got, op)
-				case <-time.After(time.Second):
-					t.Fatalf("timed out waiting for companion operations; got %v", got)
-				}
 			}
 			if !reflect.DeepEqual(got, test.wantOps) {
 				t.Fatalf("companion operations=%v, want %v", got, test.wantOps)
 			}
 		})
 	}
+}
+
+func TestProcessStopsAfterUncommittedHandleError(t *testing.T) {
+	service, err := New(Config{SocketPath: "/unused"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stream := &processTestStream{
+		receive: []*extprocv3.ProcessingRequest{
+			malformedResponseObserverRequestHeaders(),
+			responseObserverResponseHeaders(),
+		},
+	}
+	if err := service.Process(stream); err != nil {
+		t.Fatalf("Process() error=%v, want successful fail-closed response", err)
+	}
+	if stream.index != 1 {
+		t.Fatalf("Recv calls consumed %d requests, want 1", stream.index)
+	}
+	if len(stream.sent) != 1 {
+		t.Fatalf("sent %d responses, want exactly one immediate response", len(stream.sent))
+	}
+	if got := stream.sent[0].GetImmediateResponse().GetStatus().GetCode(); got != failClosedStatus {
+		t.Fatalf("immediate response status=%d, want %d", got, failClosedStatus)
+	}
+}
+
+func runProcessOutcomeOrderingCase(t *testing.T, failSend bool, wantOperationCount int) (error, []byte) {
+	t.Helper()
+	dir := testSocketDir(t)
+	path := filepath.Join(dir, "observer.sock")
+	listener, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	ops := make(chan byte, 8)
+	go serveProcessOutcomeOrderingCompanion(listener, ops)
+
+	stream := &processTestStream{
+		receive: []*extprocv3.ProcessingRequest{responseObserverRequestHeaders(), responseObserverResponseHeaders()},
+		failAt: func() int {
+			if failSend {
+				return 2
+			}
+			return 0
+		}(),
+	}
+	service, err := New(Config{SocketPath: path, Timeout: time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = service.Process(stream)
+	return err, collectProcessOutcomeOperations(t, ops, wantOperationCount)
+}
+
+func serveProcessOutcomeOrderingCompanion(listener net.Listener, ops chan<- byte) {
+	conn, err := listener.Accept()
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+	for {
+		var header [frameSize]byte
+		if _, err := io.ReadFull(conn, header[:]); err != nil {
+			return
+		}
+		length := int(binary.BigEndian.Uint32(header[8:]))
+		payload := make([]byte, length)
+		if _, err := io.ReadFull(conn, payload); err != nil {
+			return
+		}
+		ops <- header[5]
+		decision := decisionAllow
+		if header[5] == opResponseHeaders {
+			decision = decisionDeny
+		}
+		resultPayload := make([]byte, 12)
+		resultPayload[0], resultPayload[1], resultPayload[2] = header[5], resultOK, decision
+		if header[5] == opResponseHeaders {
+			binary.BigEndian.PutUint16(resultPayload[4:], 403)
+		}
+		var resultHeader [frameSize]byte
+		copy(resultHeader[:4], []byte("MRC1"))
+		resultHeader[4], resultHeader[5] = protocolVersion, resultOpcode
+		binary.BigEndian.PutUint32(resultHeader[8:], uint32(len(resultPayload)))
+		if _, err := conn.Write(resultHeader[:]); err != nil {
+			return
+		}
+		if _, err := conn.Write(resultPayload); err != nil {
+			return
+		}
+	}
+}
+
+func collectProcessOutcomeOperations(t *testing.T, ops <-chan byte, wantOperationCount int) []byte {
+	t.Helper()
+	got := make([]byte, 0, wantOperationCount)
+	for len(got) < wantOperationCount {
+		select {
+		case op := <-ops:
+			got = append(got, op)
+		case <-time.After(time.Second):
+			t.Fatalf("timed out waiting for companion operations; got %v", got)
+		}
+	}
+	return got
 }
 
 type processTestStream struct {
@@ -492,6 +530,10 @@ func (s *processTestStream) RecvMsg(any) error            { return nil }
 
 func responseObserverRequestHeaders() *extprocv3.ProcessingRequest {
 	return &extprocv3.ProcessingRequest{Request: &extprocv3.ProcessingRequest_RequestHeaders{RequestHeaders: &extprocv3.HttpHeaders{Headers: &corev3.HeaderMap{Headers: []*corev3.HeaderValue{{Key: DefaultHandleHeader, Value: strings.Repeat("a", 64)}}}}}}
+}
+
+func malformedResponseObserverRequestHeaders() *extprocv3.ProcessingRequest {
+	return &extprocv3.ProcessingRequest{Request: &extprocv3.ProcessingRequest_RequestHeaders{RequestHeaders: &extprocv3.HttpHeaders{Headers: &corev3.HeaderMap{Headers: []*corev3.HeaderValue{{Key: DefaultHandleHeader, Value: "malformed"}}}}}}
 }
 
 func responseObserverResponseHeaders() *extprocv3.ProcessingRequest {

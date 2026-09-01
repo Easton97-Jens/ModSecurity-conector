@@ -85,31 +85,37 @@ func (s *Service) Process(server extprocv3.ExternalProcessor_ProcessServer) erro
 		if err != nil {
 			return err
 		}
-		response, done, err := s.handle(server.Context(), state, req)
-		if err != nil {
-			// This reports only a fixed protocol/error classification.  The
-			// opaque MRC1 handle and all HTTP payloads remain out of logs.
-			fmt.Fprintf(os.Stderr, "response observer stream error: %v\n", err)
-			if !state.committed {
-				return server.Send(immediate(503))
-			}
+		if done, err := s.processRequest(server, state, req); err != nil {
 			return err
-		}
-		if err := server.Send(response); err != nil {
-			if state.pendingOutcome {
-				state.failClosed(causeForTransport(err))
-			}
-			return err
-		}
-		if done && state.pendingOutcome {
-			if err := s.finalizePrecommit(state); err != nil {
-				return err
-			}
-		}
-		if done {
+		} else if done {
 			return nil
 		}
 	}
+}
+
+func (s *Service) processRequest(server extprocv3.ExternalProcessor_ProcessServer, state *stream, req *extprocv3.ProcessingRequest) (bool, error) {
+	response, done, err := s.handle(server.Context(), state, req)
+	if err != nil {
+		// This reports only a fixed protocol/error classification.  The
+		// opaque MRC1 handle and all HTTP payloads remain out of logs.
+		fmt.Fprintf(os.Stderr, "response observer stream error: %v\n", err)
+		if !state.committed {
+			return true, server.Send(immediate(503))
+		}
+		return false, err
+	}
+	if err := server.Send(response); err != nil {
+		if state.pendingOutcome {
+			state.failClosed(causeForTransport(err))
+		}
+		return false, err
+	}
+	if done && state.pendingOutcome {
+		if err := s.finalizePrecommit(state); err != nil {
+			return false, err
+		}
+	}
+	return done, nil
 }
 
 func (s *Service) handle(ctx context.Context, state *stream, req *extprocv3.ProcessingRequest) (*extprocv3.ProcessingResponse, bool, error) {
