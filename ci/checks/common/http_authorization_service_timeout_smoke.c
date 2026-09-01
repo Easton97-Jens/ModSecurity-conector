@@ -574,27 +574,101 @@ static int response_has_exact_header_once(const char *response,
     return first != NULL && strstr(first + strlen(header), header) == NULL;
 }
 
-static int run_redirect_profile_case(const char *case_name,
-    const msconnector_http_authorization_profile *profile,
+static int run_redirect_success_cases(
+    unsigned short port,
+    const char *case_name,
+    char *response,
+    size_t response_size,
     int expect_terminal_marker) {
     const char redirect_p1_request[] =
         "GET /redirect-p1 HTTP/1.1\r\nHost: redirect.example\r\n\r\n";
     const char redirect_p2_request[] =
         "POST /redirect-p2 HTTP/1.1\r\nHost: redirect.example\r\n"
         "Content-Length: 4\r\n\r\nbody";
+    const char location_p1[] = "\r\nlocation: /redirect-p1-target\r\n";
+    const char location_p2[] = "\r\nlocation: /redirect-p2-target\r\n";
+    const char terminal_marker[] = "\r\nx-msconnector-terminal-authz: 1\r\n";
+
+    if (!request_response(port, redirect_p1_request, response, response_size) ||
+        !response_has_status(response, "HTTP/1.1 302") ||
+        !response_has_exact_header_once(response, location_p1) ||
+        (expect_terminal_marker !=
+            (strstr(response, terminal_marker) != NULL))) {
+        (void)fprintf(stderr, "%s: P1 redirect response was not preserved\n", case_name);
+        return 0;
+    }
+    if (!request_response(port, redirect_p2_request, response, response_size) ||
+        !response_has_status(response, "HTTP/1.1 302") ||
+        !response_has_exact_header_once(response, location_p2)) {
+        (void)fprintf(stderr, "%s: P2 redirect response was not preserved\n", case_name);
+        return 0;
+    }
+    return 1;
+}
+
+static int run_rejected_redirect_cases(
+    unsigned short port,
+    const char *case_name,
+    char *response,
+    size_t response_size) {
     const char unsafe_redirect_request[] =
         "GET /unsafe-redirect HTTP/1.1\r\nHost: redirect.example\r\n\r\n";
     const char empty_redirect_request[] =
         "GET /empty-redirect HTTP/1.1\r\nHost: redirect.example\r\n\r\n";
     const char overlong_redirect_request[] =
         "GET /overlong-redirect HTTP/1.1\r\nHost: redirect.example\r\n\r\n";
+
+    if (!request_response(port, unsafe_redirect_request, response, response_size) ||
+        !response_has_status(response, "HTTP/1.1 500") ||
+        strstr(response, "\r\nlocation:") != NULL ||
+        strstr(response, "\r\nx-injected:") != NULL) {
+        (void)fprintf(stderr, "%s: unsafe redirect did not fail closed\n", case_name);
+        return 0;
+    }
+    if (!request_response(port, empty_redirect_request, response, response_size) ||
+        !response_has_status(response, "HTTP/1.1 500") ||
+        strstr(response, "\r\nlocation:") != NULL) {
+        (void)fprintf(stderr, "%s: empty redirect did not fail closed\n", case_name);
+        return 0;
+    }
+    if (!request_response(port, overlong_redirect_request, response,
+            response_size) ||
+        !response_has_status(response, "HTTP/1.1 500") ||
+        strstr(response, "\r\nlocation:") != NULL) {
+        (void)fprintf(stderr, "%s: overlong redirect did not fail closed\n", case_name);
+        return 0;
+    }
+    return 1;
+}
+
+static int run_non_redirect_control_cases(
+    unsigned short port,
+    const char *case_name,
+    char *response,
+    size_t response_size) {
     const char allow_request[] =
         "GET /ok HTTP/1.1\r\nHost: redirect.example\r\n\r\n";
     const char deny_request[] =
         "GET /deny HTTP/1.1\r\nHost: redirect.example\r\n\r\n";
-    const char location_p1[] = "\r\nlocation: /redirect-p1-target\r\n";
-    const char location_p2[] = "\r\nlocation: /redirect-p2-target\r\n";
-    const char terminal_marker[] = "\r\nx-msconnector-terminal-authz: 1\r\n";
+
+    if (!request_response(port, allow_request, response, response_size) ||
+        !response_has_status(response, "HTTP/1.1 200") ||
+        strstr(response, "\r\nlocation:") != NULL) {
+        (void)fprintf(stderr, "%s: allow response unexpectedly carried Location\n", case_name);
+        return 0;
+    }
+    if (!request_response(port, deny_request, response, response_size) ||
+        !response_has_status(response, "HTTP/1.1 403") ||
+        strstr(response, "\r\nlocation:") != NULL) {
+        (void)fprintf(stderr, "%s: deny response unexpectedly carried Location\n", case_name);
+        return 0;
+    }
+    return 1;
+}
+
+static int run_redirect_profile_case(const char *case_name,
+    const msconnector_http_authorization_profile *profile,
+    int expect_terminal_marker) {
     char response[2048];
     unsigned short port;
     pid_t service = -1;
@@ -610,50 +684,11 @@ static int run_redirect_profile_case(const char *case_name,
         (void)fprintf(stderr, "%s: could not fork service\n", case_name);
         return 0;
     }
-    if (!request_response(port, redirect_p1_request, response, sizeof(response)) ||
-        !response_has_status(response, "HTTP/1.1 302") ||
-        !response_has_exact_header_once(response, location_p1) ||
-        (expect_terminal_marker !=
-            (strstr(response, terminal_marker) != NULL))) {
-        (void)fprintf(stderr, "%s: P1 redirect response was not preserved\n", case_name);
-        goto done;
-    }
-    if (!request_response(port, redirect_p2_request, response, sizeof(response)) ||
-        !response_has_status(response, "HTTP/1.1 302") ||
-        !response_has_exact_header_once(response, location_p2)) {
-        (void)fprintf(stderr, "%s: P2 redirect response was not preserved\n", case_name);
-        goto done;
-    }
-    if (!request_response(port, unsafe_redirect_request, response, sizeof(response)) ||
-        !response_has_status(response, "HTTP/1.1 500") ||
-        strstr(response, "\r\nlocation:") != NULL ||
-        strstr(response, "\r\nx-injected:") != NULL) {
-        (void)fprintf(stderr, "%s: unsafe redirect did not fail closed\n", case_name);
-        goto done;
-    }
-    if (!request_response(port, empty_redirect_request, response, sizeof(response)) ||
-        !response_has_status(response, "HTTP/1.1 500") ||
-        strstr(response, "\r\nlocation:") != NULL) {
-        (void)fprintf(stderr, "%s: empty redirect did not fail closed\n", case_name);
-        goto done;
-    }
-    if (!request_response(port, overlong_redirect_request, response,
-            sizeof(response)) ||
-        !response_has_status(response, "HTTP/1.1 500") ||
-        strstr(response, "\r\nlocation:") != NULL) {
-        (void)fprintf(stderr, "%s: overlong redirect did not fail closed\n", case_name);
-        goto done;
-    }
-    if (!request_response(port, allow_request, response, sizeof(response)) ||
-        !response_has_status(response, "HTTP/1.1 200") ||
-        strstr(response, "\r\nlocation:") != NULL) {
-        (void)fprintf(stderr, "%s: allow response unexpectedly carried Location\n", case_name);
-        goto done;
-    }
-    if (!request_response(port, deny_request, response, sizeof(response)) ||
-        !response_has_status(response, "HTTP/1.1 403") ||
-        strstr(response, "\r\nlocation:") != NULL) {
-        (void)fprintf(stderr, "%s: deny response unexpectedly carried Location\n", case_name);
+    if (!run_redirect_success_cases(port, case_name, response, sizeof(response),
+            expect_terminal_marker) ||
+        !run_rejected_redirect_cases(port, case_name, response, sizeof(response)) ||
+        !run_non_redirect_control_cases(port, case_name, response,
+            sizeof(response))) {
         goto done;
     }
     if (!wait_for_service(service)) {

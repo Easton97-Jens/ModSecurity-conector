@@ -391,6 +391,7 @@ int process_intervention (Transaction *t, request_rec *r)
     msc_t *msr = NULL;
     const char *log;
     const char *location;
+    int default_block_status;
     int z;
     int result = N_INTERVENTION_STATUS;
 
@@ -411,6 +412,8 @@ int process_intervention (Transaction *t, request_rec *r)
         config = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
             &security3_module);
     }
+    default_block_status = config == NULL ? MSCONNECTOR_DEFAULT_BLOCK_STATUS
+        : config->common_config.default_block_status;
     msr = (msc_t *)apr_table_get(r->notes, NOTE_MSR);
     common_intervention = msconnector_intervention_make(
         intervention.disruptive, intervention.status, intervention.url,
@@ -420,12 +423,12 @@ int process_intervention (Transaction *t, request_rec *r)
             msconnector_intervention_is_request_body_limit_rejection(
                 msr->native_event_phase, &common_intervention);
     }
-    intervention.status = msr != NULL && msr->last_intervention_body_limit
-        ? HTTP_REQUEST_ENTITY_TOO_LARGE
-        : msconnector_intervention_normalize_status(intervention.url,
-            intervention.status, config == NULL
-                ? MSCONNECTOR_DEFAULT_BLOCK_STATUS
-                : config->common_config.default_block_status);
+    if (msr != NULL && msr->last_intervention_body_limit) {
+        intervention.status = HTTP_REQUEST_ENTITY_TOO_LARGE;
+    } else {
+        intervention.status = msconnector_intervention_normalize_status(
+            intervention.url, intervention.status, default_block_status);
+    }
 
     log = intervention.log;
     if (log == NULL)

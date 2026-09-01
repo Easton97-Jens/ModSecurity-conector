@@ -2113,3 +2113,33 @@ Reviews. Dieser Nachtrag behauptet keinen Merge, keinen direkten
 `master`-Push, keinen Admin-Bypass und keine Scanner-/Quality-Gate-
 Abschwächung. Die bekannten H2/H3- und Hostmodell-Einschränkungen bleiben
 unverändert.
+
+## 2026-09-01 SonarCloud-Nullziel-erhaltende Refaktorierung
+
+### Beobachtung und Scope
+
+Der erste Successor-Scan bei
+`a1f9c41c4106c2dd7326ba8ec854348f22d2f11c` besaß ein `OK`-Quality-Gate,
+erfüllte aber das zusätzlich verbindliche Nullziel nicht: sieben offene Issues
+und `0.056328625372916365 %` neue Duplikation. Dieser fokussierte Nachtrag
+ändert nur lokale Source-Form und die passende Source-Contract-Assertion; er
+ändert keinen Workflow, Scanner, kein Quality Gate, Ruleset, Required Check,
+`paths.env`, Capability-Claim oder Connector-Entscheidungsbedeutung.
+
+### Technische Entscheidung und lokale Evidenz
+
+Der gemeinsame Response-Serializer verwendet jetzt sein vorhandenes
+Response-State-Objekt statt eines achten Parameters, Redirect-Smoke-Assertions
+sind in kleine geordnete Helper aufgeteilt, verschachtelte Adapter-
+Conditionals sind explizite `if`-/`else`-Zuweisungen, und beide HAProxy-
+Request-Body-Selftests verwenden einen gemeinsamen Request-Setup-Helper. Der
+exakte P2-Body-Limit-Klassifizierer, Rule-ID-Verhalten, 413-Aktion,
+Redirect-Lifetime und Invalid-Target-Fail-Closed-Verhalten bleiben unverändert.
+
+Der fokussierte Authorization-/Common-C17-Test, der echte native HAProxy-
+P2-413-Selftest, 30 Python-Adapter-Contracts, Apache- und HAProxy-C17-Checks
+sowie Envoy-/Traefik-Common-Adoption-Checks bestanden nach der Refaktorierung.
+NGINX-C17 bleibt wegen nicht verfügbarer NGINX-Header/-Source environment-
+blocked. Ein neuer Exact-Successor-SonarCloud-Scan und der vollständige
+Hosted-/Review-Evidenzzyklus bleiben zwingend; dieser Record behauptet kein
+Nullergebnis und keinen Merge.

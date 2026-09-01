@@ -256,6 +256,7 @@ static void capture_intervention(
     int rule_id_result;
     int truncated = 0;
     int body_limit;
+    enum msconnector_phase common_phase;
 #if defined(HAPROXY_HAVE_MSC_GET_RULES_MESSAGES_RULE_IDS)
     int64_t ids[1];
     size_t id_count;
@@ -268,14 +269,21 @@ static void capture_intervention(
         common_intervention = msconnector_intervention_make(
             intervention.disruptive, intervention.status, intervention.url,
             intervention.log);
+        common_phase = MSCONNECTOR_PHASE_CONNECTION;
+        if (phase == 2) {
+            common_phase = MSCONNECTOR_PHASE_REQUEST_BODY;
+        }
         body_limit = msconnector_intervention_is_request_body_limit_rejection(
-            phase == 2 ? MSCONNECTOR_PHASE_REQUEST_BODY :
-                MSCONNECTOR_PHASE_CONNECTION,
-            &common_intervention);
+            common_phase, &common_intervention);
         decision->body_limit = body_limit;
         decision->disruptive = intervention.disruptive;
-        decision->status = body_limit ? 413 : intervention.status > 0 ?
-            intervention.status : HAPROXY_MODSECURITY_EXPECTED_STATUS;
+        if (body_limit) {
+            decision->status = 413;
+        } else if (intervention.status > 0) {
+            decision->status = intervention.status;
+        } else {
+            decision->status = HAPROXY_MODSECURITY_EXPECTED_STATUS;
+        }
         if (body_limit) {
             copy_message(decision->action, sizeof(decision->action), "deny");
         } else if (intervention.url != 0 && intervention.url[0] != '\0') {
@@ -1616,6 +1624,28 @@ int haproxy_modsecurity_phase1_header_self_test(
     return 1;
 }
 
+static int haproxy_modsecurity_request_body_eval(
+        const char *uri,
+        const char *rules_text,
+        haproxy_modsecurity_decision *decision) {
+    static const unsigned char body[] = "token=block";
+    haproxy_modsecurity_header headers[2];
+    haproxy_modsecurity_request request;
+
+    headers[0].name = "Content-Type";
+    headers[0].value = "application/x-www-form-urlencoded";
+    headers[1].name = "Content-Length";
+    headers[1].value = "11";
+    memset(&request, 0, sizeof(request));
+    request.method = "POST";
+    request.uri = uri;
+    request.headers = headers;
+    request.header_count = 2U;
+    request.body = body;
+    request.body_len = (unsigned int)(sizeof(body) - 1U);
+    return eval_request_internal(&request, rules_text, decision);
+}
+
 static int haproxy_modsecurity_request_body_limit_self_test(
         haproxy_modsecurity_decision *decision) {
     static const char rules_text[] =
@@ -1624,23 +1654,10 @@ static int haproxy_modsecurity_request_body_limit_self_test(
         "SecRequestBodyLimit 8\n"
         "SecRequestBodyNoFilesLimit 8\n"
         "SecRequestBodyLimitAction Reject\n";
-    static const unsigned char body[] = "token=block";
-    haproxy_modsecurity_header headers[2];
-    haproxy_modsecurity_request request;
     int rc;
 
-    headers[0].name = "Content-Type";
-    headers[0].value = "application/x-www-form-urlencoded";
-    headers[1].name = "Content-Length";
-    headers[1].value = "11";
-    memset(&request, 0, sizeof(request));
-    request.method = "POST";
-    request.uri = "/haproxy-binding-request-body-limit-self-test";
-    request.headers = headers;
-    request.header_count = 2U;
-    request.body = body;
-    request.body_len = (unsigned int)(sizeof(body) - 1U);
-    rc = eval_request_internal(&request, rules_text, decision);
+    rc = haproxy_modsecurity_request_body_eval(
+        "/haproxy-binding-request-body-limit-self-test", rules_text, decision);
     if (rc != 0) {
         return rc;
     }
@@ -1667,23 +1684,10 @@ int haproxy_modsecurity_request_body_self_test(
         "SecRule ARGS:token \"@streq block\" "
         "\"id:1000002,phase:2,deny,status:403,"
         "msg:'HAProxy ModSecurity binding request-body self-test block'\"\n";
-    static const unsigned char body[] = "token=block";
-    haproxy_modsecurity_header headers[2];
-    haproxy_modsecurity_request request;
     int rc;
 
-    headers[0].name = "Content-Type";
-    headers[0].value = "application/x-www-form-urlencoded";
-    headers[1].name = "Content-Length";
-    headers[1].value = "11";
-    memset(&request, 0, sizeof(request));
-    request.method = "POST";
-    request.uri = "/haproxy-binding-body-self-test";
-    request.headers = headers;
-    request.header_count = 2U;
-    request.body = body;
-    request.body_len = (unsigned int)(sizeof(body) - 1U);
-    rc = eval_request_internal(&request, rules_text, decision);
+    rc = haproxy_modsecurity_request_body_eval(
+        "/haproxy-binding-body-self-test", rules_text, decision);
     if (rc != 0) {
         return rc;
     }

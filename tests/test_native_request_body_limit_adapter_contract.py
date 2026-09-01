@@ -95,7 +95,7 @@ class NativeRequestBodyLimitAdapterContractTests(unittest.TestCase):
 
         self.assertIn("msconnector_intervention_is_request_body_limit_rejection", capture)
         self.assertIn("decision->body_limit", capture)
-        self.assertIn("decision->status = body_limit ? 413", capture)
+        self.assertIn("if (body_limit) {\n            decision->status = 413;", capture)
         self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT", mapper)
         self.assertLess(
             mapper.index("MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT"),

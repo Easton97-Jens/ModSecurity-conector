@@ -822,12 +822,10 @@ static int copy_redirect_location(
     char *destination,
     size_t destination_size,
     const char *source) {
-    size_t index;
-
     if (destination == NULL || destination_size < 2U || source == NULL) {
         return 0;
     }
-    for (index = 0U; index < destination_size - 1U; ++index) {
+    for (size_t index = 0U; index < destination_size - 1U; ++index) {
         const unsigned char character = (unsigned char)source[index];
 
         if (character == '\0') {
@@ -851,12 +849,9 @@ static int copy_redirect_location(
 
 static int send_response(
     int socket_fd,
-    int status,
-    const char *response_handle,
-    const char *redirect_location,
+    const authorization_response_state *response_state,
     const char *terminal_marker_header,
     const char *terminal_marker_value,
-    const char *decision_name,
     unsigned long timeout_ms) {
     char response[AUTH_RESPONSE_SIZE];
     char companion_header[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE + 48U];
@@ -864,9 +859,23 @@ static int send_response(
     char copied_location[AUTH_REDIRECT_LOCATION_SIZE];
     char terminal_marker[AUTH_RESPONSE_SIZE / 4U];
     connection_deadline deadline;
-    const char *reason = msconnector_http_status_reason_phrase(status);
-    const char *body = status >= 400 ? "request denied\n" : "request allowed\n";
+    int status;
+    const char *response_handle;
+    const char *redirect_location;
+    const char *decision_name;
+    const char *reason;
+    const char *body;
     int written;
+
+    if (response_state == NULL) {
+        return 0;
+    }
+    status = response_state->status;
+    response_handle = response_state->response_handle;
+    redirect_location = response_state->redirect_location;
+    decision_name = response_state->decision_name;
+    reason = msconnector_http_status_reason_phrase(status);
+    body = status >= 400 ? "request denied\n" : "request allowed\n";
     if (!msconnector_http_status_is_valid(status)) {
         status = 500;
         reason = msconnector_http_status_reason_phrase(status);
@@ -1109,9 +1118,10 @@ static int handle_authorization_request(
     error[0] = '\0';
     if (!read_http_request(connection, &service->request_limits,
             &parsed, error, sizeof(error))) {
-        const int status = error_status_from_message(error);
+        response.status = error_status_from_message(error);
+        response.decision_name = "invalid_request";
         (void)send_response(
-            connection->socket_fd, status, NULL, NULL, NULL, NULL, "invalid_request",
+            connection->socket_fd, &response, NULL, NULL,
             service->connection_timeout_ms);
         parsed_request_destroy(&parsed);
         return 0;
@@ -1129,8 +1139,9 @@ static int handle_authorization_request(
     source.body.data = parsed.body;
     source.body.size = parsed.body_size;
     if (pthread_mutex_lock(&service->runtime_lock) != 0) {
-        (void)send_response(connection->socket_fd, 500, NULL, NULL,
-            NULL, NULL, "runtime_error",
+        response.status = 500;
+        response.decision_name = "runtime_error";
+        (void)send_response(connection->socket_fd, &response, NULL, NULL,
             service->connection_timeout_ms);
         parsed_request_destroy(&parsed);
         return 0;
@@ -1141,13 +1152,11 @@ static int handle_authorization_request(
         return 0;
     }
     if (!send_response(
-            connection->socket_fd, response.status, response.response_handle,
-            response.redirect_location,
+            connection->socket_fd, &response,
             response.terminal_response_marker ?
                 service->profile->terminal_response_marker_header : NULL,
             response.terminal_response_marker ?
                 service->profile->terminal_response_marker_value : NULL,
-            response.decision_name,
             service->connection_timeout_ms)) {
         if (response.response_handle != NULL &&
             service->profile->revoke_response_companion != NULL) {

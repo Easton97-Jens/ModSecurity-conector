@@ -1955,3 +1955,31 @@ Scanning, CodeQL, or fresh regular and Security Codex reviews. No merge,
 direct `master` push, admin bypass, or scanner/Quality-Gate weakening is
 claimed by this addendum. The known H2/H3 and host-model limitations remain
 unchanged.
+
+## 2026-09-01 SonarCloud zero-target preservation refactor
+
+### Observation and scope
+
+The first successor scan at
+`a1f9c41c4106c2dd7326ba8ec854348f22d2f11c` had an `OK` Quality Gate but did
+not meet the separately required zero target: seven open issues and
+`0.056328625372916365 %` new-code duplication. This focused follow-up changes
+only local source shape and the matching source-contract assertion; it changes
+no workflow, scanner, Quality Gate, ruleset, required check, `paths.env`,
+capability claim, or connector decision meaning.
+
+### Technical decision and local evidence
+
+The shared response serializer now consumes its existing response-state object
+instead of an eighth parameter, redirect smoke assertions are split into small
+ordered helpers, nested adapter conditionals are explicit `if`/`else`
+assignments, and both HAProxy request-body self-tests use one shared request
+setup helper. The exact P2 body-limit predicate, rule-ID behavior, 413 action,
+redirect lifetime, and invalid-target fail-closed behavior are unchanged.
+
+The focused authorization/Common C17 test, actual native HAProxy P2-413
+self-test, 30 Python adapter contracts, Apache and HAProxy C17 checks, and
+Envoy/Traefik Common-adoption checks passed after the refactor. NGINX C17
+remains environment-blocked by unavailable NGINX headers/source. A new exact
+successor SonarCloud scan and the complete hosted/review evidence cycle remain
+mandatory; this record makes no zero-result or merge claim.
