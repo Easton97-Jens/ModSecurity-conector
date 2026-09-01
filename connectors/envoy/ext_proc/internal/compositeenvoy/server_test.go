@@ -254,7 +254,7 @@ func TestCheckPreservesValidatedRedirect(t *testing.T) {
 	}
 	foundLocation := false
 	for _, header := range denied.GetHeaders() {
-		if header.GetHeader().GetKey() == "location" && header.GetHeader().GetValue() == location {
+		if header.GetHeader().GetKey() == "location" && string(header.GetHeader().GetRawValue()) == location && header.GetHeader().GetValue() == "" && header.GetAppendAction() == corev3.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD {
 			foundLocation = true
 		}
 	}
@@ -698,7 +698,7 @@ func TestSendImmediatePreservesValidatedRedirect(t *testing.T) {
 		t.Fatalf("redirect status=%d, want 307", got)
 	}
 	headers := immediate.GetHeaders().GetSetHeaders()
-	if len(headers) != 1 || headers[0].GetHeader().GetKey() != "location" || headers[0].GetHeader().GetValue() != "https://redirect.example.test/next" {
+	if len(headers) != 1 || headers[0].GetHeader().GetKey() != "location" || string(headers[0].GetHeader().GetRawValue()) != "https://redirect.example.test/next" || headers[0].GetHeader().GetValue() != "" || headers[0].GetAppendAction() != corev3.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD {
 		t.Fatalf("redirect headers=%v, want one location", headers)
 	}
 }

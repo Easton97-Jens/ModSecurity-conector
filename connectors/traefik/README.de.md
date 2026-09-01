@@ -1,20 +1,21 @@
-# Traefik-Anschluss
+# Traefik-Connector
 
 **Sprache:** [English](README.md) | Deutsch
 
 
-Status: ForwardAuth-Kompatibilitätsrauch plus eine nicht beworbene Host-Probe für native lokale Plugins
-Laufzeitstatus: gezielte lokale Traefik/Common-Runtime-Zulassung 200/Block 403
-Verifizierungsstatus: not_verified / Connector-Gap
+Status: forwardAuth-Kompatibilitäts-Smoke plus eine nicht hochgestufte
+Host-Probe für native lokale Plugins
+Laufzeitstatus: gezielte lokale Traefik/Common-Runtime-Zulassung 200 / Block 403
+Verifizierungsstatus: `not_verified` / `connector-gap`
 
 Die ausgewählte Connector-Architektur ist ein externer HTTP-Dienst `forwardAuth`.
 `src/traefik_forwardauth_service_main.c` registriert ein Traefik-Hostprofil bei
-die connector-neutrale Common Runtime, während `traefik_modsecurity_mapper.c`
-Bietet echte Thin-Mapper-Funktionen. Es bleibt der ausgewählte Pfad und tut dies nicht
-Herstellung der Produktionsbereitschaft.
+der connector-neutralen Common Runtime, während
+`traefik_modsecurity_mapper.c` schlanke echte Mapper-Funktionen bereitstellt.
+Dies bleibt der ausgewählte Pfad und begründet keine Produktionsreife.
 
-Die Repository-Build-Oberflächen kompilieren nur Repository-eigenen und gemeinsam genutzten C-Code
-Gemeinsame Helfer:
+Die Repository-Build-Oberflächen kompilieren nur Repository-eigenen C-Code und
+gemeinsame Common-Helfer:
 
 - `connectors/traefik/metadata.c`
 - `connectors/traefik/metadata.h`
@@ -22,19 +23,41 @@ Gemeinsame Helfer:
 - `connectors/traefik/src/traefik_decision_service.*`
 - `connectors/traefik/src/traefik_modsecurity_mapper.*`
 - `connectors/traefik/src/traefik_forwardauth_service_main.c`
+- `connectors/traefik/response_observer/` (verpflichtender lokaler Plugin-
+  Companion für P3/P4 von `forwardAuth`)
 - `connectors/traefik/native_middleware/` (native lokale Plugin-Hostquelle)
 - Gemeinsame Helfer von `common/src/` und `common/include/msconnector/`
 - Gemeinsame Laufzeitimplementierung von `common/runtime/`
 
-Der `forwardAuth`-Pfad bleibt der Nur-Anfrage-Kompatibilitätspfad. Die
-Repository-eigene Go-Middleware unter `native_middleware/` wird von ausgewählt
-`full-lifecycle-traefik-native` über den lokalen Plugin-Arbeitsbereich von Traefik. Es ist
-Die isolierte Host-Probe wählt `engineMode: uds`, also eine persistente lokale
-Der Common/libmodsecurity-Dienst wird in einer UDS-Sitzung pro Host wiederverwendet
-Anfrage. Es zielt auf P1--P4-Beweise auf realen Wirten ab, ändert jedoch nichts daran
-Deklaration der eingecheckten Fähigkeit, CRS-Status, sicherer/strikter Status oder Produktion
-Bereitschaft. Upstream-Antwortheader und -körper werden in der weiterhin nicht unterstützt
-separates `forwardAuth`-Kompatibilitätsprotokoll.
+Das direkte `forwardAuth`-Protokoll bleibt der Nur-Anfrage-
+Kompatibilitätspfad; allein kann es P3/P4 nicht abbilden. Die benannte
+logische Connectorlösung `traefik-forwardauth` benötigt stattdessen den
+Repository-eigenen privaten UDS-Response-Observer: Er behält dieselbe lebende
+Common-/native Transaktion ab P2, beansprucht einen servererzeugten opaken Handle
+genau einmal und liefert P3/P4 über MRC1. Das Weglassen des Observers ist ein
+Konfigurationsfehler; Observer- oder Korrelationsfehler sind fail-closed. Dies
+ist Source-/Component-Wiring mit Status `implemented_not_asserted`, kein
+Live-Host-Nachweis.
+
+Die eingecheckte forwardAuth-Konfiguration aktiviert Request-seitiges P2
+ausdrücklich mit `forwardBody: true` und `maxBodySize: 4096`. Die
+C-Dienstkonfiguration muss `request_body_mode=buffered` mit demselben
+4096-Byte-Common-Limit verwenden; das Start-Harness lehnt Templates ohne eine
+Einstellung oder mit einem anderen Dienstmodus ab. Dies ist begrenzte,
+gepufferte Host-Semantik und kein inkrementelles Request-Body-Streaming; bis
+frische echte Host-Evidence vorliegt, bleibt der Status
+`configured_not_exercised`.
+
+Die Repository-eigene Go-Middleware unter `native_middleware/` wird vom
+Profil `full-lifecycle-traefik-native` über Traefiks lokalen Plugin-Arbeitsbereich
+ausgewählt. Ihre isolierte Host-Probe wählt `engineMode: uds`; damit wird ein
+persistenter lokaler Common/libmodsecurity-Dienst über eine UDS-Sitzung pro
+Host-Request wiederverwendet. Sie zielt auf P1--P4-Nachweise auf realen Hosts,
+ändert aber weder die eingecheckte Fähigkeitsdeklaration noch CRS-Status,
+Safe-/Strict-Status oder Produktionsreife. Upstream-Response-Header und -Bodies
+bleiben im getrennten direkten `forwardAuth`-Protokoll nicht verfügbar, nicht
+jedoch in der vollständigen logischen Connectorlösung mit verpflichtendem
+Response-Observer.
 
 ## Begrenztes forwardAuth-Antwort-Composite (experimentell)
 
@@ -71,13 +94,15 @@ Produktionsreife noch die bestehenden Capability-Deklarationen.
 ## Persistenter nativer UDS-Engine-Dienst
 
 `src/traefik_engine_service.c` und
-`src/traefik_engine_protocol.h` fügt einen dauerhaften lokalen Unix-Domänen-Socket hinzu
-Common/libmodsecurity-Dienst für die Yaegi-kompatible Go-Bridge. Es hat
-begrenzte Metadaten/Chunk-Frames und explizite Transaktion EOS, Fertigstellen und Zerstören
-Operationen. Die native Host-Probe stellt ihren privaten Socket und Run-Local bereit
-Ereignispfad; Es zeichnet ein Host-Ergebnis erst nach dem eigentlichen ResponseWriter auf
-Aktion gelingt. Nach der Reaktionszusage erfolgt eine P4-disruptive Entscheidung
-wird nur als `LOG_ONLY` mit dem tatsächlich sichtbaren Status akzeptiert.
+`src/traefik_engine_protocol.h` ergänzen einen persistenten lokalen
+Unix-Domain-Socket-Common/libmodsecurity-Dienst für die Yaegi-kompatible
+Go-Bridge. Er verwendet begrenzte Metadaten-/Chunk-Frames sowie explizite
+Operationen für Transaktions-EOS, Abschluss und Zerstörung. Die native
+Host-Probe liefert ihren privaten Socket und run-lokalen Ereignispfad; sie
+zeichnet ein Host-Ergebnis erst auf, nachdem die tatsächliche ResponseWriter-
+Aktion erfolgreich war. Nach dem Response-Commit wird eine disruptive
+P4-Entscheidung nur als `LOG_ONLY` mit dem tatsächlich sichtbaren Status
+akzeptiert.
 
 ```sh
 TRAEFIK_ENGINE_SOCKET_TEST_PARENT=/absolute/private/short-socket-parent \
@@ -86,8 +111,8 @@ MODSECURITY_LIB_DIR=/local/lib \
 make -C connectors/traefik test-engine-service
 ```
 
-Der fokussierte Test startet nur den lokalen Motorservice und ist kein Traefik
-Host-Laufzeittest. Siehe den [kanonischen Traefik-Guide](../../docs/connectors/traefik.de.md)
+Der fokussierte Test startet nur den lokalen Engine-Service und ist kein
+Traefik-Host-Laufzeittest. Siehe den [kanonischen Traefik-Guide](../../docs/connectors/traefik.de.md)
 für Lebenszyklus, Konfiguration, kanonische Regelauswahl und Ergebnisgrenzen.
 Nur für einen lokalen Sandbox-Test ist `TRAEFIK_ENGINE_SOCKET_TEST_PARENT`
 erforderlich und muss einen bestehenden kanonischen, symlinkfreien, dem
@@ -99,13 +124,13 @@ der Host-Probe nicht und besitzt keinen öffentlich beschreibbaren Fallback.
 
 ## Native Go-Streaming-Host-Probe (nicht beworben)
 
-`native_middleware/` implementiert Traefik-förmige `CreateConfig`, `New` und
-`ServeHTTP`-Einstiegspunkte unter Verwendung der Go `net/http`-Schnittstellen. Seine Antwort
-Der Autor behält `Flush`, `Hijack`, `Push`, `ReadFrom` und `Unwrap` bei; es sendet
-Begrenzte Anforderungs- und Antwortkörperabschnitte an eine explizite Engine-Naht und niemals
-sammelt eine ganze Antwort. Der Quellstandard ist bewusst Pass-Through;
-Die isolierte Host-Probe wählt das separat erstellte persistente UDS aus
-Common/libmodsecurity-Engine.
+`native_middleware/` implementiert Traefik-artige `CreateConfig`-, `New`- und
+`ServeHTTP`-Einstiegspunkte mit den Go-`net/http`-Schnittstellen. Sein
+ResponseWriter erhält `Flush`, `Hijack`, `Push`, `ReadFrom` und `Unwrap`; die
+Middleware sendet begrenzte Request- und Response-Body-Slices an eine explizite
+Engine-Naht und sammelt niemals eine vollständige Response. Der Source-Default
+ist bewusst Pass-through; die isolierte Host-Probe wählt die separat gebaute
+persistente UDS-Common/libmodsecurity-Engine.
 
 Führen Sie nur die lokalen Quellprüfungen aus mit:
 
@@ -114,10 +139,11 @@ make -C connectors/traefik test-native-middleware
 make -C connectors/traefik build-native-middleware
 ```
 
-Diese Befehle kompilieren und testen die Repository-Quelle. Der separate Host
-Die Sondenstufen, die unterhalb eines verfügbaren `plugins-local`-Arbeitsbereichs liegen, werden gestartet
-Die angeheftete Traefik-Binärdatei erfordert die Ladebestätigung des Plugins und sendet eine
-Body-Lager-Anfrage über einen Router, der die Middleware auswählt:
+Diese Befehle kompilieren und testen die Repository-Quelle. Die getrennte
+Host-Probe staged diese Quelle unter einem entbehrlichen `plugins-local`-
+Arbeitsbereich, startet die angeheftete Traefik-Binärdatei, verlangt die
+Bestätigung des Plugin-Ladens und sendet eine Request mit Body über einen
+Router, der die Middleware auswählt:
 
 ```sh
 TRAEFIK_BIN=/absolute/local/traefik \
@@ -245,8 +271,11 @@ und den [Test-/Evidence-Guide](../../docs/testing-and-evidence.de.md).
 - Gezielte native No-CRS-Laufzeit: echte lokale P1--P4-sichere Beweise; vollständige Matrix
   und Fähigkeitsförderung nicht ausgeführt
 - With-CRS-Laufzeit: nicht ausgeführt
-- RESPONSE_BODY-Blockierung: `unsupported_by_host_model` für `forwardAuth`; die
-  Die separate native UDS-Probe verfügt nur über nicht geförderte P4-sichere/nur-Protokoll-Beweise
+- Direktes `forwardAuth`-Protokoll: RESPONSE_BODY ist
+  `unsupported_by_host_model`; das vollständige logische Profil
+  `traefik-forwardauth` benötigt stattdessen seinen privaten UDS-
+  Response-Observer für P3/P4 und ist bis zum Live-Host-Nachweis
+  `implemented_not_asserted`
 
 ## Erstellen und Selbsttest
 
@@ -430,24 +459,43 @@ Dieser Connector ist für das Common SDK vorbereitet, bleibt aber `not_verified`
   `native-traefik-middleware` sendet Host-Ergebnisse erst nach ResponseWriter
   Bestätigung und behält separate Rohentscheidungs- und Host-Ergebnisereignisse bei.
 - Connector-spezifischer Code bleibt für das Hostprofil, den Build-Glue, die Beispielkonfiguration und den Prozesseinstiegspunkt verantwortlich.
-- Die Antwortzuordnung ist nur zur Vertragsprüfung verknüpft. Die Upstream-Antwortinspektion wird von `forwardAuth` nicht unterstützt.
+- Die vollständige logische Connectorlösung `traefik-forwardauth` benötigt den
+  privaten Response-Observer. Er claimed und entfernt den opaken Handle,
+  bildet P3 vor dem Writer-Commit sowie begrenzte P4-Chunks mit einem EOS über
+  MRC1 ab und gibt deterministisch frei oder cancelt; nur das direkte
+  `forwardAuth`-Protokoll bleibt response-blind.
 - Es wird keine Produktions-, CRS-vollständige, vollständige Matrix-, breite Laufzeit- oder RESPONSE_BODY-Verifizierung beansprucht.
 
-## Kompatibilität und native Phase-4-Grenze
+## Direkte `forwardAuth`-Grenze und logischer Phase-4-Vertrag
 
-Das Kompatibilitätshostmodell ist Traefik `forwardAuth`. Es wird vorher ausgeführt
-Upstream-Handhabung und kann den späteren Upstream-Antworttext nicht überprüfen.
-Folglich gilt für diesen Kompatibilitätspfad:
-`response_body_buffered`, `phase4`, `phase4_rule_evaluation`,
-`phase4_pre_commit_deny`, `late_intervention`,
-`late_intervention_log_only`, `late_intervention_abort` und
-`late_intervention_status_metadata` sind
-`unsupported_by_host_model`, nicht nur bei einem lokalen Lauf nicht vorhanden.
+Das direkte Traefik-`forwardAuth`-Protokoll wird vor der Upstream-Verarbeitung
+ausgeführt und kann den späteren Upstream-Response-Body nicht untersuchen. In
+seiner Legacy-Capability-Tabelle sind deshalb `response_body_buffered`,
+`phase4`, `phase4_rule_evaluation`, `phase4_pre_commit_deny`,
+`late_intervention`, `late_intervention_log_only`, `late_intervention_abort`
+und `late_intervention_status_metadata` `unsupported_by_host_model`, nicht
+nur bei einem lokalen Lauf nicht vorhanden.
 
-Die separat ausgewählte native UDS-Probe beobachtet die Upstream-Antwort. Es
-hat gezielte Beweise für eine P3-Pre-Commit-Ablehnung und eine P4-Post-Commit-Verweigerung
-`log_only`-Ergebnis mit ursprünglichen und sichtbaren Statusmetadaten. Es kann nicht bewiesen werden
-eine späte Abtreibung; streng P4 ist `NOT EXECUTED`. Keiner der Pfade ändert eine Fähigkeit
-Staat ohne den separaten kanonischen Beweis-/Beförderungsprozess.
+Diese Grenze macht P3/P4 für die vollständige logische Connectorlösung
+`traefik-forwardauth` nicht not-applicable. Ihre verpflichtende Kette ist
+`forwardAuth -> privater Response-Observer -> Upstream`: Nach P2 übergibt der
+Autorisierungsdienst dieselbe lebende Common-/native Transaktion über einen
+servererzeugten opaken Handle. Der Observer claimed und entfernt den Handle vor
+der Upstream-Verarbeitung, sendet P3 vor dem Writer-Commit, sendet begrenzte
+P4-Chunks mit genau einem EOS und gibt dann deterministisch frei oder cancelt.
+Fehlende, fehlerhafte, abgelaufene, wiederverwendete oder nicht erreichbare
+Korrelation ist ein Konfigurations- oder Protokollfehler und fail-closed vor
+dem Response-Commit.
 
-In ein Ereignis oder einen Bericht gehört keine Antworttext-Nutzlast.
+Die separat ausgewählte native UDS-Probe beobachtet ebenfalls die Upstream-
+Response. Sie hat gezielte Beweise für eine P3-Pre-Commit-Ablehnung und ein
+P4-Post-Commit-`log_only`-Ergebnis mit ursprünglichen und sichtbaren
+Statusmetadaten. Sie kann keinen späten Abbruch beweisen; Strict P4 ist
+`NOT EXECUTED`. Keiner der Pfade ändert einen Capability-Status ohne den
+separaten kanonischen Nachweis-/Beförderungsprozess.
+
+Ein gemeinsamer P4-Fall ist damit nur für ein ungepaartes direktes
+`forwardAuth` `UNSUPPORTED`. Die logische Connectorlösung muss ihren
+verpflichtenden Observer verwenden oder als fehlkonfiguriert fehlschlagen; sie
+darf P3/P4 nie stillschweigend als unsupported bezeichnen. Event-JSONL und
+Berichte enthalten keine Response-Body-Nutzlast.

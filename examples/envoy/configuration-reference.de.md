@@ -193,9 +193,9 @@ Siehe [Engine-Referenz](../common/modsecurity-directives.de.md).
 
 | Profil | Datei | Status |
 | --- | --- | --- |
-| Minimal | [minimal/envoy-ext-proc-streaming.yaml.in](minimal/envoy-ext-proc-streaming.yaml.in) | Aktive Startkonfiguration |
-| Sicherer vollständiger Lebenszyklus | [safe/envoy-ext-proc-streaming.yaml.in](safe/envoy-ext-proc-streaming.yaml.in) | Ausgewählte begrenzte Referenz |
-| Strikt | [README.de.md#strict-profilgrenze](README.de.md#strict-profilgrenze) | Parserunterstützte oder ausdrücklich optionale Grenze |
+| Minimal | [ext-proc/minimal/envoy.yaml.in](ext-proc/minimal/envoy.yaml.in) | Aktive Startkonfiguration |
+| Sicherer vollständiger Lebenszyklus | [ext-proc/safe/envoy.yaml.in](ext-proc/safe/envoy.yaml.in) | Ausgewählte begrenzte Referenz |
+| Strikt | [ext-proc/strict/envoy.yaml.in](ext-proc/strict/envoy.yaml.in) | Parserunterstützte oder ausdrücklich optionale Grenze |
 | DetectionOnly | [detection-only/msconnector-runtime.conf](detection-only/msconnector-runtime.conf) | Engine wertet aus/protokolliert ohne disruptive Aktion |
 | Deaktiviert | [disabled/msconnector-runtime.conf](disabled/msconnector-runtime.conf) | Connector- oder Engine-Pfad deaktiviert |
 

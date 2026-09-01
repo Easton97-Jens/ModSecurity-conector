@@ -1454,10 +1454,6 @@ send_phase4_internal_redirect_request() {
 }
 
 send_phase4_downstream_error_request() {
-    downstream_error_expected="$LOG_DIR/phase4-downstream-error.expected"
-
-    printf '%s' 'phase4-downstream-error-document' > \
-        "$downstream_error_expected"
     case "$APACHE_PHASE4_ROGUE_PROTOCOL" in
         http1)
             : > "$RESPONSE_BODY"
@@ -1467,8 +1463,8 @@ send_phase4_downstream_error_request() {
                 "http://127.0.0.1:$PORT/__phase4_downstream_error")
             curl_rc=$?
             set -e
-            [ "$curl_rc" -eq 0 ] || \
-                fail "Phase-4 downstream error H1 client failed rc=$curl_rc"
+            [ "$curl_rc" -ne 0 ] || \
+                fail "Phase-4 downstream error must abort the post-commit response"
             ;;
         h2)
             "$CURL_BIN" --version | grep -E "$CURL_HTTP2_FEATURE_PATTERN" >/dev/null 2>&1 || \
@@ -1485,14 +1481,8 @@ send_phase4_downstream_error_request() {
                 2> "$LOG_DIR/phase4-downstream-error-h2-client.err"
             curl_rc=$?
             set -e
-            [ "$curl_rc" -eq 0 ] || \
-                fail "Phase-4 downstream error H2 client failed rc=$curl_rc"
-            http_status=$(awk -F '\t' "$AWK_FIRST_TAB_RECORD_STATUS" \
-                "$PHASE4_ROGUE_TRANSFERS")
-            http_version=$(awk -F '\t' "$AWK_FIRST_TAB_RECORD_VERSION" \
-                "$PHASE4_ROGUE_TRANSFERS")
-            [ "$http_version" = "2" ] || \
-                fail "Phase-4 downstream error TLS client did not negotiate HTTP/2"
+            [ "$curl_rc" -ne 0 ] || \
+                fail "Phase-4 downstream error must abort the post-commit response"
             grep -F "$HTTP2_PROTOCOL_LABEL" "$PHASE4_ROGUE_TRACE" >/dev/null 2>&1 || \
                 fail "Phase-4 downstream error H2 trace lacks HTTP/2 evidence"
             grep -E "$CURL_H2_ALPN_ACCEPT_PATTERN" \
@@ -1502,16 +1492,10 @@ send_phase4_downstream_error_request() {
         *) fail "unsupported APACHE_PHASE4_ROGUE_PROTOCOL=$APACHE_PHASE4_ROGUE_PROTOCOL" ;;
     esac
 
-    [ "$http_status" = "500" ] || \
-        fail "Phase-4 downstream error expected status 500, observed $http_status"
-    case "$APACHE_PHASE4_ROGUE_PROTOCOL" in
-        http1) assert_single_h1_status 500 ;;
-        h2) assert_single_h2_status 500 ;;
-        *) fail "unsupported APACHE_PHASE4_ROGUE_PROTOCOL=$APACHE_PHASE4_ROGUE_PROTOCOL" ;;
-    esac
-    cmp -s "$downstream_error_expected" "$RESPONSE_BODY" || \
-        fail "Phase-4 downstream error did not produce the sole configured ErrorDocument body"
-    assert_phase4_error_document_headers "$downstream_error_expected" 500
+    [ ! -s "$RESPONSE_HEADERS" ] || \
+        fail "Phase-4 downstream error exposed response headers after the abort boundary"
+    [ ! -s "$RESPONSE_BODY" ] || \
+        fail "Phase-4 downstream error exposed a response body after the abort boundary"
     if grep -F 'phase4-allow-before-downstream-error' \
         "$RESPONSE_BODY" >/dev/null 2>&1; then
         fail "Phase-4 downstream error leaked the allowed pre-error response body"
@@ -1519,14 +1503,16 @@ send_phase4_downstream_error_request() {
     grep -F 'ModSecurity Phase4 downstream error test replaced the released response with an error bucket' \
         "$LOG_DIR/error.log" >/dev/null 2>&1 || \
         fail "Phase-4 downstream error filter did not replace the released response"
-    require_audit_rule 2190402 \
-        "Phase-4 downstream error did not complete the log-only P4 control before the downstream failure"
-    if grep -F 'refusing normal internal redirect across the Phase 4 response boundary' \
-        "$LOG_DIR/error.log" >/dev/null 2>&1; then
-        fail "Phase-4 downstream ErrorDocument was mistaken for a normal redirect"
-    fi
-    printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
-    printf '%s\n' "$OBSERVED_TRANSPORT_HTTP_STATUS" > "$LOG_DIR/observed-transport-result.txt"
+    grep -F '"event":"connector_error"' "$APACHE_PHASE4_LOG_FILE" >/dev/null 2>&1 || \
+        fail "Phase-4 downstream error lacks the canonical connector-error event"
+    grep -F '"actual_action":"abort_connection"' "$APACHE_PHASE4_LOG_FILE" >/dev/null 2>&1 || \
+        fail "Phase-4 downstream error lacks the canonical abort action"
+    grep -F '"connection_aborted":true' "$APACHE_PHASE4_LOG_FILE" >/dev/null 2>&1 || \
+        fail "Phase-4 downstream error lacks the aborted-connection event flag"
+    grep -F '"transport_result":"connection_aborted"' "$APACHE_PHASE4_LOG_FILE" >/dev/null 2>&1 || \
+        fail "Phase-4 downstream error lacks the aborted-connection transport result"
+    printf '%s\n' '0' > "$LOG_DIR/observed-status.txt"
+    printf '%s\n' 'connection_aborted' > "$LOG_DIR/observed-transport-result.txt"
 }
 
 

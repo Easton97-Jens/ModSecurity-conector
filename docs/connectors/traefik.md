@@ -44,6 +44,42 @@ defaults, placeholders, and forwardAuth compatibility fields are in the
 The selected native UDS route and forwardAuth have different response
 visibility; do not promote a forwardAuth request result as native P3/P4 proof.
 
+## forwardAuth logical response companion
+
+The <code>forwardAuth</code> request protocol cannot itself carry P3/P4. Its
+authorization service transfers the same live Common/native transaction after
+completed P1/P2 into a fixed 64-entry, TTL-bounded response companion. It emits
+one server-generated 256-bit opaque response handle, never a transaction ID,
+connector ID, or host ID. The private MRC1 listener accepts that handle exactly
+once, so all retained native state stays inside Common Runtime.
+
+The supplied response-observer plugin and the
+<code>traefik-response-observer-{static,dynamic}.yaml</code> artifacts make
+forwardAuth plus its response observer one logical connector. The dynamic
+chain is <code>forwardAuth -&gt; response observer -&gt; upstream</code> and permits
+only <code>X-Msconnector-Response-Handle</code> from the authorization response.
+The observer claims and strips that header before the upstream handler. It
+sends P3 before the writer commits, P4 chunks/EOS after commitment, records
+the actual host outcome, and releases or cancels deterministically. It uses
+only a private UDS; the default companion path is below
+<code>/run/modsecurity</code>, whose canonical owner-only <code>0700</code>
+parent must be provisioned by the operator. There is no TCP fallback.
+
+Missing, malformed, expired, duplicate, replayed, or unavailable handles are
+fail-closed before upstream response commitment. A malformed MRC1 result,
+deadline, or cleanup failure follows the same error/cancel path; TTL expiry
+records timeout and destroys retained state. Post-commit disruptive engine
+results are recorded as log-only because Traefik cannot retroactively rewrite
+the response. The local plugin exposes neither <code>Unwrap</code> nor
+<code>Hijacker</code>, avoiding a bypass around that boundary.
+
+These files and their component tests are source-level evidence. A deployed
+Traefik instance still requires plugin-load, configuration, and traffic
+evidence before it is described as host-runtime evidence.
+
+See the [shared transaction and phase contract](../../common/docs/transaction-phase-contract.md)
+for the state machine and uniform decision policy.
+
 ## P1--P4 lifecycle and local engine service
 
 The selected native host check stages the middleware in an isolated local-plugin

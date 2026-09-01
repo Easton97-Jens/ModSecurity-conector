@@ -1,0 +1,6 @@
+# `all` is a configuration-completeness profile; strict is the supported
+# phase4 policy selected here. The sidecar remains the traffic owner.
+--config /etc/lighttpd/msconnector-stock-all.conf
+--listen 127.0.0.1:8080
+--upstream 127.0.0.1:8081
+--timeout-ms 10000

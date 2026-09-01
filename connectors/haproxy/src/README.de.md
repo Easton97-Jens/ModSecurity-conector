@@ -27,7 +27,8 @@ Die SPOP-Laufzeit analysiert Live-NOTIFY-Argumente von HAProxy, einschließlich 
 `uri`, `req.hdrs_bin` mit einem sicheren `req.hdrs`-Fallback und `req.body`. Die
 Bindung lädt die materialisierte Regeldatei, verarbeitet URI, Header, optional
 Anforderungshauptteilbytes und libmodsecurity-Eingriffe, dann sendet die Laufzeit
-die verifizierte Set-Var ACK für 403 störende Entscheidungen.
+die verifizierte Set-Var ACK für störende 403-Entscheidungen und exakte
+P2-Body-Limit-413-Entscheidungen.
 
 Live-Beweise umfassen derzeit anforderungsseitige Variablen `REQUEST_URI`,
 `REQUEST_HEADERS`, `REQUEST_HEADERS_NAMES`, `ARGS`, `ARGS_NAMES`,
@@ -36,8 +37,9 @@ plus CRS SQLi-Anomalieblockierung in der With-CRS-Variante. Unterstützung für 
 begrenzt durch den aktuellen anforderungsgepufferten Single-Frame-SPOE-Pfad von HAProxy
 (`tune.bufsize 65536`, `max-frame-size 65532`, ein `req.body`-Argument).
 
-Reaktionsphasen, Audit-Log-Zusicherungen, Weiterleitungen, Nicht-403-Störungsstatus,
-und `RESPONSE_BODY` bleiben für die HAProxy-Laufzeitförderung nicht implementiert.
+Reaktionsphasen, Audit-Log-Zusicherungen, Weiterleitungen, andere Nicht-403-
+Störungsstatus und `RESPONSE_BODY` bleiben für die HAProxy-Laufzeitförderung
+nicht implementiert.
 
 Eine produktive Quelle darf nur mit Herkunfts-/Lizenz-/Metadatennachweisen hinzugefügt werden.
 einschließlich des zukünftigen HAProxy-Quellursprungs, der Lizenz, importierter Dateien und lokal

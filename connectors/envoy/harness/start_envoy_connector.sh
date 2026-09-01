@@ -6,6 +6,7 @@ CONNECTOR_DIR=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
 REPO_ROOT=$(CDPATH= cd "$CONNECTOR_DIR/../.." && pwd)
 BUILD_ROOT=${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecurity-conector-build}
 SERVICE_BIN=${SERVICE_BIN:-$BUILD_ROOT/envoy-connector/msconnector_envoy_ext_authz}
+RESPONSE_OBSERVER_BIN=${RESPONSE_OBSERVER_BIN:-$BUILD_ROOT/envoy-connector/msconnector_envoy_response_observer}
 CONFIG_FILE=${CONFIG_FILE:-$CONNECTOR_DIR/config/envoy-ext-authz.conf}
 RULES_FILE=${RULES_FILE:-$REPO_ROOT/common/rules/modsecurity_targeted_smoke.conf}
 EVENT_LOG_PATH=${EVENT_LOG_PATH:-$BUILD_ROOT/envoy-connector/start-smoke/events.jsonl}
@@ -20,10 +21,17 @@ ENVOY_STDERR="$START_ROOT/envoy.stderr.log"
 SERVICE_STDOUT="$START_ROOT/service.stdout.log"
 SERVICE_STDERR="$START_ROOT/service.stderr.log"
 SUMMARY="$START_ROOT/start-summary.txt"
+SED_LOG_RANGE='1,160p'
 TLS_CERTIFICATE="$START_ROOT/envoy-loopback.crt"
 TLS_PRIVATE_KEY="$START_ROOT/envoy-loopback.key"
+PRIVATE_SOCKET_DIR="$START_ROOT/mrc"
+RESPONSE_OBSERVER_SOCKET="$PRIVATE_SOCKET_DIR/envoy-response-observer.sock"
+COMPANION_SOCKET="$PRIVATE_SOCKET_DIR/envoy-ext-authz-companion.sock"
+OBSERVER_STDOUT="$START_ROOT/response-observer.stdout.log"
+OBSERVER_STDERR="$START_ROOT/response-observer.stderr.log"
 envoy_pid=
 service_pid=
+observer_pid=
 
 missing_dependency() {
     reason=$1
@@ -32,12 +40,12 @@ missing_dependency() {
 }
 
 cleanup() {
-    for pid in "$envoy_pid" "$service_pid"; do
+    for pid in "$envoy_pid" "$service_pid" "$observer_pid"; do
         if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
             kill "$pid" 2>/dev/null || true
         fi
     done
-    for pid in "$envoy_pid" "$service_pid"; do
+    for pid in "$envoy_pid" "$service_pid" "$observer_pid"; do
         if [ -n "$pid" ]; then
             set +e
             wait "$pid" 2>/dev/null
@@ -50,6 +58,7 @@ cleanup() {
 [ -n "${ENVOY_BIN:-}" ] || missing_dependency "ENVOY_BIN is required"
 [ -x "$ENVOY_BIN" ] || missing_dependency "ENVOY_BIN is not executable: $ENVOY_BIN"
 [ -x "$SERVICE_BIN" ] || missing_dependency "connector service is not executable: $SERVICE_BIN"
+[ -x "$RESPONSE_OBSERVER_BIN" ] || missing_dependency "required response observer is not executable: $RESPONSE_OBSERVER_BIN"
 [ -f "$HELPER" ] || missing_dependency "smoke helper is missing: $HELPER"
 [ -f "$TLS_RENDERER" ] || missing_dependency "TLS YAML renderer is missing: $TLS_RENDERER"
 [ -f "$YAML_TEMPLATE" ] || missing_dependency "Envoy config template is missing: $YAML_TEMPLATE"
@@ -73,6 +82,24 @@ if ! "$PYTHON_BIN" "$HELPER" prepare-runtime-root --runtime-root "$START_ROOT"; 
 fi
 trap cleanup EXIT HUP INT TERM
 rm -f "$SUMMARY" "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY"
+if [ -L "$PRIVATE_SOCKET_DIR" ]; then
+    echo "envoy_start_smoke: FAIL - private response-observer directory must not be a symlink" >&2
+    exit 1
+fi
+if [ ! -d "$PRIVATE_SOCKET_DIR" ]; then
+    (umask 077 && mkdir "$PRIVATE_SOCKET_DIR") || {
+        echo "envoy_start_smoke: FAIL - could not create private response-observer directory" >&2
+        exit 1
+    }
+fi
+chmod 700 "$PRIVATE_SOCKET_DIR" || {
+    echo "envoy_start_smoke: FAIL - private response-observer directory must be owner-only" >&2
+    exit 1
+}
+if [ "${#RESPONSE_OBSERVER_SOCKET}" -ge 108 ] || [ "${#COMPANION_SOCKET}" -ge 108 ]; then
+    echo "envoy_start_smoke: FAIL - private response-observer socket path is too long" >&2
+    exit 1
+fi
 
 set -- $("$PYTHON_BIN" "$HELPER" free-ports --count 4)
 listen_port=${ENVOY_SMOKE_PORT:-$1}
@@ -109,6 +136,7 @@ sed \
     -e "s|@UPSTREAM_PORT@|$upstream_port|g" \
     -e "s|@AUTHZ_PORT@|$authz_port|g" \
     -e "s|@ADMIN_PORT@|$admin_port|g" \
+    -e "s|@RESPONSE_OBSERVER_SOCKET@|$RESPONSE_OBSERVER_SOCKET|g" \
     -e "s|@TLS_CERTIFICATE@|$TLS_CERTIFICATE_ESCAPED|g" \
     -e "s|@TLS_PRIVATE_KEY@|$TLS_PRIVATE_KEY_ESCAPED|g" \
     "$YAML_TEMPLATE" > "$ENVOY_CONFIG"
@@ -121,12 +149,31 @@ if ! "$ENVOY_BIN" --mode validate -c "$ENVOY_CONFIG" \
     --base-id "$base_id" --disable-hot-restart >"$START_ROOT/envoy-validate.stdout.log" \
     2>"$START_ROOT/envoy-validate.stderr.log"; then
     echo "envoy_start_smoke: FAIL - Envoy rejected generated config" >&2
-    sed -n '1,160p' "$START_ROOT/envoy-validate.stderr.log" >&2 || true
+    sed -n "$SED_LOG_RANGE" "$START_ROOT/envoy-validate.stderr.log" >&2 || true
+    exit 1
+fi
+
+"$RESPONSE_OBSERVER_BIN" --listen "$RESPONSE_OBSERVER_SOCKET" \
+    --socket "$COMPANION_SOCKET" >"$OBSERVER_STDOUT" 2>"$OBSERVER_STDERR" &
+observer_pid=$!
+attempt=0
+while [ "$attempt" -lt 20 ] && [ ! -S "$RESPONSE_OBSERVER_SOCKET" ]; do
+    attempt=$((attempt + 1))
+    if ! kill -0 "$observer_pid" 2>/dev/null; then
+        echo "envoy_start_smoke: FAIL - response observer exited before socket readiness" >&2
+        sed -n "$SED_LOG_RANGE" "$OBSERVER_STDERR" >&2 || true
+        exit 1
+    fi
+    sleep 0.1
+done
+if [ ! -S "$RESPONSE_OBSERVER_SOCKET" ]; then
+    echo "envoy_start_smoke: FAIL - response observer private socket was not created" >&2
     exit 1
 fi
 
 SERVICE_BIN="$SERVICE_BIN" BUILD_ROOT="$BUILD_ROOT" CONFIG_FILE="$CONFIG_FILE" \
     RULES_FILE="$RULES_FILE" EVENT_LOG_PATH="$EVENT_LOG_PATH" \
+    MSCONNECTOR_ENVOY_EXT_AUTHZ_COMPANION_SOCKET="$COMPANION_SOCKET" \
     LISTEN_ADDRESS=127.0.0.1 LISTEN_PORT="$authz_port" \
     sh "$SCRIPT_DIR/serve_envoy_connector.sh" >"$SERVICE_STDOUT" 2>"$SERVICE_STDERR" &
 service_pid=$!
@@ -138,12 +185,17 @@ envoy_pid=$!
 sleep 1
 if ! kill -0 "$service_pid" 2>/dev/null; then
     echo "envoy_start_smoke: FAIL - connector service exited before liveness check" >&2
-    sed -n '1,160p' "$SERVICE_STDERR" >&2 || true
+    sed -n "$SED_LOG_RANGE" "$SERVICE_STDERR" >&2 || true
+    exit 1
+fi
+if ! kill -0 "$observer_pid" 2>/dev/null; then
+    echo "envoy_start_smoke: FAIL - response observer exited before liveness check" >&2
+    sed -n "$SED_LOG_RANGE" "$OBSERVER_STDERR" >&2 || true
     exit 1
 fi
 if ! kill -0 "$envoy_pid" 2>/dev/null; then
     echo "envoy_start_smoke: FAIL - Envoy exited before liveness check" >&2
-    sed -n '1,160p' "$ENVOY_STDERR" >&2 || true
+    sed -n "$SED_LOG_RANGE" "$ENVOY_STDERR" >&2 || true
     exit 1
 fi
 
@@ -152,6 +204,9 @@ fi
     printf 'envoy_config_validate=pass\n'
     printf 'service_process_started=yes\n'
     printf 'service_pid=%s\n' "$service_pid"
+    printf 'response_observer_process_started=yes\n'
+    printf 'response_observer_pid=%s\n' "$observer_pid"
+    printf 'response_observer_socket=%s\n' "$RESPONSE_OBSERVER_SOCKET"
     printf 'envoy_process_started=yes\n'
     printf 'envoy_pid=%s\n' "$envoy_pid"
     printf 'envoy_listen=127.0.0.1:%s\n' "$listen_port"
@@ -163,7 +218,9 @@ fi
 cleanup
 envoy_pid=
 service_pid=
+observer_pid=
 trap - EXIT HUP INT TERM
 printf 'service_process_stopped=yes\n' >> "$SUMMARY"
 printf 'envoy_process_stopped=yes\n' >> "$SUMMARY"
+printf 'response_observer_process_stopped=yes\n' >> "$SUMMARY"
 printf 'envoy_start_smoke: pass summary=%s\n' "$SUMMARY"

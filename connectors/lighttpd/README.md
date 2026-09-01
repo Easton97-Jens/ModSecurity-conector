@@ -2,7 +2,31 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
-Status: `minimal_runtime_smoke` for the native Phase-1 header path
+Status: canonical Stock sidecar component plus separate native/patched host paths
+
+## Canonical Stock solution
+
+The canonical `lighttpd-stock` solution is the traffic-owning
+`stock-lighttpd-sidecar` in `stock_sidecar/`. It binds only to an explicitly
+configured literal `127.0.0.1` address, speaks bounded HTTP/1.1, owns the
+complete client-to-private-Stock-backend exchange, and executes P1, P2, P3,
+and P4 through the Common Runtime contract. One bounded worker owns the
+transaction and deterministic cleanup, so this topology needs no cross-process
+correlation handle or TTL registry. Event JSONL contains bounded metadata and
+counters only; request and response body payloads are never emitted.
+
+For P4, the sidecar uses one bounded response chunk at a time: it appends that
+chunk once to Common/libModSecurity and forwards it immediately to the client;
+only response EOS invokes the final P4 decision. After a committed prefix,
+Safe records `log_only` and continues, while Strict shuts down the client
+connection. This is sidecar component behavior, not a native body-hook claim
+for the unmodified Stock lighttpd process.
+
+The unmodified native Stock module route (`stock-lighttpd`) is retained only as
+an explicit noncanonical P1/P3 compatibility translation. It has no safe body
+or EOS callbacks, is never a silent capability fallback, and must not be
+enabled as a second traffic owner beside the sidecar. The patched route is a
+separate logical solution.
 
 The primary integration is now a repository-owned native lighttpd module. It
 loads the connector-neutral runtime from `common/runtime`, maps real lighttpd
@@ -57,12 +81,14 @@ transaction lifetime.
 
 ## Configuration
 
-The lighttpd host configuration has two server-scoped directives:
+The lighttpd host configuration has these server-scoped directives:
 
 ```lighttpd
 server.modules += ( "mod_msconnector" )
 msconnector.enabled = "enable"
 msconnector.config-file = "/absolute/path/msconnector-runtime.conf"
+# Required only when request_body_mode=streaming in the patched profile:
+# msconnector.request-body-gate = "pre-upstream"
 ```
 
 The referenced Common runtime file uses `key=value` syntax. Supported values
@@ -74,10 +100,19 @@ documented selected scope. For `request_body_mode=streaming`, the selected
 HTTP/1.1 `mod_proxy` profile is a pre-upstream Phase-2 gate, not upstream
 request streaming: lighttpd buffers client bytes until terminal EOS and the
 Phase-2 decision. An allowed chunked request may then be forwarded as
-`Content-Length`. Because this gate retains the host queue until EOS, its
+`Content-Length`. The module requires the explicit server directive
+`msconnector.request-body-gate = "pre-upstream"` and never enables
+`FDEVENT_STREAM_REQUEST` in this profile: request ranges are inspected
+through the patched borrowed request hook and proxy/upstream dispatch remains
+held until request-body EOS has produced the Common P2 decision. A disruptive,
+body-limit, engine, mapping, or host error terminates the request before any
+upstream byte is released. A declared Content-Length above the Common P2
+limit is rejected before body reading; chunked ranges are bounded by the same
+limit in the hook. Because this gate retains the host queue until EOS, its
 streaming profile requires `body_limit_action=reject`; `process_partial` is
 rejected while request streaming is selected. The response streaming contract
-remains restricted to HTTP/1.1 identity entity bytes.
+remains restricted to HTTP/1.1 identity entity bytes. This source/build
+contract is still not a real-host promotion.
 The checked-in patched smoke still uses both modes as `none`; setting its
 preparer to response streaming is a configuration/source-contract check, not a
 Phase-4 promotion. `LIGHTTPD_PATCHED_ENTITY_ENCODING=gzip` or `br` is blocked
@@ -123,6 +158,11 @@ make -C connectors/lighttpd build-lighttpd-connector
 make -C connectors/lighttpd check-lighttpd-config
 make -C connectors/lighttpd start-smoke-lighttpd
 make -C connectors/lighttpd runtime-smoke-lighttpd
+
+# Builds and runs the traffic-owning Stock sidecar component contract.
+# BUILD_ROOT must be an absolute path outside the repository.
+make -C connectors/lighttpd build-lighttpd-stock-sidecar
+make -C connectors/lighttpd self-test-lighttpd-stock-sidecar
 
 # Requires LIGHTTPD_SOURCE_DIR, MODSECURITY_INCLUDE_DIR and
 # MODSECURITY_LIB_DIR.  This builds a copied Framework-synchronized core and its module
@@ -179,14 +219,16 @@ The selected scope does not assert gzip/br, HTTP/2, or every file/zero-copy
 output route. The current harness does not execute streaming P4 traffic, and
 there is no real-client proof of a visible safe result, a precommit deny,
 first-byte delivery, or a strict connection abort. The source path records a
-safe/minimal disruptive outcome as `log_only`; strict deliberately logs
-`NOT EXECUTED` and continues because no client-validated abort primitive has
-been proven. Accordingly the checked-in Phase-4-related capability states
+safe/minimal disruptive outcome as `log_only`. The patched callback now returns
+`PLUGIN_BODY_HOOK_ABORT` into the patched core's response-error path for a
+committed Strict intervention; the shared runtime rejects Strict at adapter
+activation for this profile until client-visible abort and follow-up-health
+evidence exists. Accordingly the checked-in Phase-4-related capability states
 remain `not_implemented` for the selected evidence profile.
 
 This is an evidence boundary, not a statement that lighttpd can never support
-response-body processing. Phase-4 cases remain `NOT_EXECUTED` (or are omitted
-by capability selection) until a real host run supplies the missing client and
+response-body processing. Phase-4 cases remain unverified (or are omitted by
+capability selection) until a real host run supplies the missing client and
 transport artifacts; they must not be called `UNSUPPORTED` without an
 architecture proof. There is consequently no client-verified Phase-4
 original/requested/visible status split, late action, or connection-abort

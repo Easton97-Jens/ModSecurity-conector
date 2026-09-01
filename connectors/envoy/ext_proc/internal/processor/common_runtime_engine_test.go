@@ -35,6 +35,14 @@ func TestCommonRuntimeEngineEvaluatesIncrementalLifecycle(t *testing.T) {
 	}
 }
 
+func TestCommonRuntimeEngineRejectsStrictPolicyBeforeStreamAdmission(t *testing.T) {
+	engine, _ := newCommonRuntimeEngineForTest(t)
+	_, err := NewService(testConfig(LateActionStrict), engine)
+	if err == nil || !strings.Contains(err.Error(), "phase4_mode=safe") {
+		t.Fatalf("NewService() error = %v, want strict/safe admission rejection", err)
+	}
+}
+
 func TestRequestHeadersForCommonRestoresOnlyValidatedAuthority(t *testing.T) {
 	t.Run("authority becomes Host when absent", testRequestHeadersForCommonAddsValidatedHost)
 	t.Run("ordinary Host wins without duplicate", testRequestHeadersForCommonRetainsOrdinaryHost)
@@ -245,13 +253,111 @@ func TestCommonRuntimeEngineUsesCanonicalEnvoyEventIdentity(t *testing.T) {
 	}
 }
 
+func TestCommonRuntimeEngineClassifiesModSecurityBodyLimitWithoutRuleID(t *testing.T) {
+	const body = "envoy-body-limit-payload-must-not-be-an-event-field"
+	engine, eventPath := newCommonRuntimeEngineForRulesTest(t, `SecRuleEngine On
+SecRequestBodyAccess On
+SecRequestBodyLimit 32
+SecRequestBodyLimitAction Reject
+`)
+	contextValue := context.Background()
+	transaction, err := engine.Open(contextValue, commonTestStreamMetadata("body-limit-without-rule-id"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer transaction.Close(contextValue, Summary{CloseReason: CloseImmediateResponse})
+
+	decision, err := transaction.ProcessHeaders(contextValue, DirectionRequest,
+		[]Header{{Name: "host", Value: []byte("example.test")}}, false)
+	assertCommonDecision(t, "request headers", decision, err, ActionAllow, 0)
+	decision, err = transaction.ProcessBody(contextValue, DirectionRequest, []byte(body), true)
+	assertCommonDecision(t, "body limit", decision, err, ActionDeny, 413)
+	if decision.RuleID != "" {
+		t.Fatalf("body-limit rule ID=%q, want empty", decision.RuleID)
+	}
+	recorder, ok := transaction.(HostActionRecorder)
+	if !ok {
+		t.Fatal("Common transaction does not expose host-action recording")
+	}
+	if err := recorder.RecordHostAction(contextValue, HostAction{
+		Action: AppliedActionRedirect, VisibleStatus: 302, TransportResult: "http_status",
+	}); err == nil {
+		t.Fatal("RecordHostAction() accepted a non-413 body-limit action")
+	}
+	if err := recorder.RecordHostAction(contextValue, HostAction{
+		Action: AppliedActionDeny, VisibleStatus: 413, TransportResult: "http_status",
+	}); err != nil {
+		t.Fatalf("RecordHostAction() error = %v", err)
+	}
+
+	raw, err := os.ReadFile(eventPath)
+	if err != nil {
+		t.Fatalf("ReadFile(%s): %v", eventPath, err)
+	}
+	if strings.Contains(string(raw), body) {
+		t.Fatal("event JSONL retained a request-body payload")
+	}
+	foundBodyLimit := false
+	for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+		if line == "" {
+			continue
+		}
+		var event map[string]any
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			t.Fatalf("unmarshal Common event: %v", err)
+		}
+		if event["message_id"] != "MSCONN_EVENT_BODY_LIMIT" {
+			continue
+		}
+		foundBodyLimit = true
+		if status, ok := event["http_status"].(float64); !ok || int(status) != 413 {
+			t.Fatalf("body-limit event status=%#v, want 413", event["http_status"])
+		}
+		if ruleID, present := event["rule_id"]; present && ruleID != nil && ruleID != "" {
+			t.Fatalf("body-limit event rule ID=%#v, want absent or empty", ruleID)
+		}
+	}
+	if !foundBodyLimit {
+		t.Fatal("body-limit event was not emitted")
+	}
+}
+
+func TestCommonRuntimeEngineMapsP3RedirectLocation(t *testing.T) {
+	const redirectTarget = "/msconnector-p3-redirect-target"
+	engine, _ := newCommonRuntimeEngineForRulesTest(t, `SecRuleEngine On
+SecRequestBodyAccess On
+SecResponseBodyAccess On
+SecRule RESPONSE_HEADERS:X-Msconnector-Vector "@streq msconnector-p3-redirect" "id:1203002,phase:3,redirect:/msconnector-p3-redirect-target,status:302,log,t:none"
+`)
+	contextValue := context.Background()
+	transaction, err := engine.Open(contextValue, commonTestStreamMetadata("p3-redirect-location"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer transaction.Close(contextValue, Summary{CloseReason: CloseImmediateResponse})
+
+	decision, err := transaction.ProcessHeaders(contextValue, DirectionRequest, nil, true)
+	assertCommonDecision(t, "request headers", decision, err, ActionAllow, 0)
+	decision, err = transaction.ProcessHeaders(contextValue, DirectionResponse, []Header{
+		{Name: ":status", Value: []byte("200")},
+		{Name: "x-msconnector-vector", Value: []byte("msconnector-p3-redirect")},
+	}, false)
+	if err != nil || decision.Action != ActionRedirect || decision.Status != 302 || decision.RedirectURL != redirectTarget {
+		t.Fatalf("phase-3 redirect decision=%#v err=%v", decision, err)
+	}
+	recorder, ok := transaction.(HostActionRecorder)
+	if !ok {
+		t.Fatal("Common transaction does not expose host-action recording")
+	}
+	if err := recorder.RecordHostAction(contextValue, HostAction{
+		Action: AppliedActionRedirect, VisibleStatus: 302, TransportResult: "http_status",
+	}); err != nil {
+		t.Fatalf("RecordHostAction() error = %v", err)
+	}
+}
+
 func newCommonRuntimeEngineForTest(t *testing.T) (*CommonRuntimeEngine, string) {
-	t.Helper()
-	directory := t.TempDir()
-	rulesPath := filepath.Join(directory, "rules.conf")
-	configPath := filepath.Join(directory, "runtime.conf")
-	eventPath := filepath.Join(directory, "events.jsonl")
-	rules := `SecRuleEngine On
+	return newCommonRuntimeEngineForRulesTest(t, `SecRuleEngine On
 SecRequestBodyAccess On
 SecResponseBodyAccess On
 SecResponseBodyMimeType text/plain
@@ -259,7 +365,15 @@ SecRule REQUEST_HEADERS:X-Ms-P1 "@streq block" "id:1200001,phase:1,deny,status:4
 SecRule REQUEST_BODY "@contains envoy-phase2-marker" "id:1200002,phase:2,deny,status:403,log,t:none"
 SecRule RESPONSE_HEADERS:X-Ms-P3 "@streq block" "id:1200003,phase:3,deny,status:403,log,t:none"
 SecRule RESPONSE_BODY "@contains envoy-phase4-marker" "id:1200004,phase:4,deny,status:403,log,t:none"
-`
+`)
+}
+
+func newCommonRuntimeEngineForRulesTest(t *testing.T, rules string) (*CommonRuntimeEngine, string) {
+	t.Helper()
+	directory := t.TempDir()
+	rulesPath := filepath.Join(directory, "rules.conf")
+	configPath := filepath.Join(directory, "runtime.conf")
+	eventPath := filepath.Join(directory, "events.jsonl")
 	if err := os.WriteFile(rulesPath, []byte(rules), 0o600); err != nil {
 		t.Fatalf("write rules: %v", err)
 	}

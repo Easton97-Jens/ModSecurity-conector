@@ -2,11 +2,14 @@ package processor
 
 import (
 	"context"
+	"errors"
 	"io"
+	"strings"
 	"testing"
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	extprocv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
+	typev3 "github.com/envoyproxy/go-control-plane/envoy/type/v3"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -77,11 +80,92 @@ func TestRequestDenyUsesImmediateResponseBeforeResponseHeaders(t *testing.T) {
 	}
 }
 
-func TestResponseHeaderDenyUsesImmediateResponseBeforeCommit(t *testing.T) {
+func TestRequestBodyLimitUses413WithoutEngineBodyDispatch(t *testing.T) {
+	transaction := &recordingTransaction{}
+	config := testConfig(LateActionSafe)
+	config.MaxRequestBodyBytes = 4
+	service, err := NewService(config, recordingEngine{transaction: transaction})
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+	stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
+		{request: requestHeaders(false)},
+		{request: requestBody([]byte("12345"), true)},
+	}}
+
+	if err := service.Process(stream); err != nil {
+		t.Fatalf("Process() error = %v", err)
+	}
+	if got, want := len(stream.sent), 2; got != want {
+		t.Fatalf("sent responses = %d, want %d", got, want)
+	}
+	if response := stream.sent[1].GetImmediateResponse(); response == nil || int(response.GetStatus().GetCode()) != 413 {
+		t.Fatalf("expected a request-body immediate 413 response, got %#v", stream.sent[1])
+	}
+	if got := transaction.requestBodyLengths; len(got) != 0 {
+		t.Fatalf("over-limit request body reached engine dispatch: %v", got)
+	}
+	if len(transaction.closed) != 1 {
+		t.Fatalf("close calls = %d, want 1", len(transaction.closed))
+	}
+	summary := transaction.closed[0]
+	if summary.CloseReason != CloseImmediateResponse || summary.RequestBodyChunks != 1 || summary.RequestBodyBytes != 5 {
+		t.Fatalf("unexpected body-limit cleanup summary: %#v", summary)
+	}
+	if got, want := transaction.hostActions, []HostAction{{
+		Action: AppliedActionDeny, VisibleStatus: 413, TransportResult: "http_status",
+	}}; !sameHostActions(got, want) {
+		t.Fatalf("host actions = %#v, want %#v", got, want)
+	}
+}
+
+func TestRedirectDecisionRejectsUnsafeHeaderTargets(t *testing.T) {
+	for _, target := range []string{
+		"https://example.test/next\r\nX-Injected: yes",
+		"https://example.test/next\x1f",
+		"https://example.test/next\x7f",
+		strings.Repeat("a", maxRedirectURLBytes+1),
+	} {
+		decision := normalizeDecision(Decision{Action: ActionRedirect, Status: 302, RedirectURL: target})
+		if decision.Action != ActionDeny || decision.Status != int(typev3.StatusCode_Forbidden) {
+			t.Fatalf("unsafe redirect %q normalized to %#v, want deny/403", target, decision)
+		}
+		if response := immediateResponse(decision); response.GetImmediateResponse().GetHeaders() != nil {
+			t.Fatalf("rejected redirect retained a Location mutation: %#v", response)
+		}
+	}
+}
+
+func TestResponseHeaderDecisionsUseImmediateResponseBeforeCommit(t *testing.T) {
+	for _, test := range responseHeaderDecisionCases() {
+		t.Run(test.name, func(t *testing.T) {
+			transaction, response := processResponseHeaderDecision(t, test)
+			assertResponseHeaderDecision(t, transaction, response, test)
+		})
+	}
+}
+
+type responseHeaderDecisionCase struct {
+	name               string
+	decision           Decision
+	wantAction         AppliedAction
+	wantLocation       bool
+	wantHTTPHostAction bool
+}
+
+func responseHeaderDecisionCases() []responseHeaderDecisionCase {
+	return []responseHeaderDecisionCase{
+		{name: "deny", decision: Decision{Action: ActionDeny, Status: 403}, wantAction: AppliedActionDeny},
+		{name: "redirect", decision: Decision{Action: ActionRedirect, Status: 302, RedirectURL: "/msconnector-p3-redirect-target"}, wantAction: AppliedActionRedirect, wantLocation: true, wantHTTPHostAction: true},
+	}
+}
+
+func processResponseHeaderDecision(t *testing.T, test responseHeaderDecisionCase) (*recordingTransaction, *extprocv3.ImmediateResponse) {
+	t.Helper()
 	transaction := &recordingTransaction{
 		headerDecision: func(direction Direction) Decision {
 			if direction == DirectionResponse {
-				return Decision{Action: ActionDeny, Status: 403}
+				return test.decision
 			}
 			return allowDecision()
 		},
@@ -101,14 +185,43 @@ func TestResponseHeaderDenyUsesImmediateResponseBeforeCommit(t *testing.T) {
 	if stream.sent[0].GetRequestHeaders() == nil {
 		t.Fatalf("request headers did not receive a continue response: %#v", stream.sent[0])
 	}
-	if response := stream.sent[1].GetImmediateResponse(); response == nil || int(response.GetStatus().GetCode()) != 403 {
-		t.Fatalf("expected a response-header immediate 403 response, got %#v", stream.sent[1])
+	return transaction, stream.sent[1].GetImmediateResponse()
+}
+
+func assertResponseHeaderDecision(t *testing.T, transaction *recordingTransaction, response *extprocv3.ImmediateResponse, test responseHeaderDecisionCase) {
+	t.Helper()
+	if response == nil || int(response.GetStatus().GetCode()) != test.decision.Status {
+		t.Fatalf("expected a response-header immediate %d response, got %#v", test.decision.Status, response)
 	}
 	if len(transaction.closed) != 1 || transaction.closed[0].CloseReason != CloseImmediateResponse {
-		t.Fatalf("unexpected cleanup after response-header denial: %#v", transaction.closed)
+		t.Fatalf("unexpected cleanup after response-header decision: %#v", transaction.closed)
 	}
-	if len(transaction.hostActions) != 1 || transaction.hostActions[0].Action != AppliedActionDeny {
+	if len(transaction.hostActions) != 1 || transaction.hostActions[0].Action != test.wantAction {
 		t.Fatalf("response-header host action = %#v", transaction.hostActions)
+	}
+	if test.wantHTTPHostAction {
+		assertResponseHeaderHostAction(t, transaction, test)
+	}
+	if test.wantLocation {
+		assertResponseHeaderLocation(t, response, test.decision.RedirectURL)
+	}
+}
+
+func assertResponseHeaderHostAction(t *testing.T, transaction *recordingTransaction, test responseHeaderDecisionCase) {
+	t.Helper()
+	want := []HostAction{{
+		Action: AppliedActionRedirect, VisibleStatus: test.decision.Status, TransportResult: "http_status",
+	}}
+	if !sameHostActions(transaction.hostActions, want) {
+		t.Fatalf("response-header redirect host action = %#v", transaction.hostActions)
+	}
+}
+
+func assertResponseHeaderLocation(t *testing.T, response *extprocv3.ImmediateResponse, redirectURL string) {
+	t.Helper()
+	headers := response.GetHeaders().GetSetHeaders()
+	if len(headers) != 1 || headers[0].GetHeader().GetKey() != "location" || string(headers[0].GetHeader().GetRawValue()) != redirectURL || headers[0].GetHeader().GetValue() != "" || headers[0].GetAppendAction() != corev3.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD {
+		t.Fatalf("response-header redirect location = %#v", headers)
 	}
 }
 
@@ -197,35 +310,32 @@ func TestResponseCommitRequiresSuccessfulResponseHeaderContinue(t *testing.T) {
 	}
 }
 
-func TestLateStrictDecisionDoesNotClaimOrSendAbort(t *testing.T) {
-	transaction := &recordingTransaction{
-		bodyDecision: func(direction Direction) Decision {
-			if direction == DirectionResponse {
-				return Decision{Action: ActionDeny, Status: 403}
-			}
-			return allowDecision()
-		},
+func TestStrictPolicyIsRejectedBeforeStreamAdmission(t *testing.T) {
+	_, err := NewService(testConfig(LateActionStrict), recordingEngine{transaction: &recordingTransaction{}})
+	if err == nil || !strings.Contains(err.Error(), "proven strict post-commit host action") {
+		t.Fatalf("NewService() error = %v, want strict admission rejection", err)
 	}
-	service := newTestService(t, transaction, LateActionStrict)
-	stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
-		{request: requestHeaders(true)},
-		{request: responseHeaders(false)},
-		{request: responseBody([]byte("late"), true)},
-	}}
+}
 
-	if err := service.Process(stream); err != nil {
-		t.Fatalf("Process() error = %v", err)
+func TestLatePolicyAdmissionDelegatesToRuleEvaluatingEngine(t *testing.T) {
+	engine := &policyValidationEngine{
+		recordingEngine: recordingEngine{transaction: &recordingTransaction{}},
+		rejection:       errors.New("phase4_mode=safe cannot prove strict"),
 	}
-	last := stream.sent[len(stream.sent)-1]
-	if last.GetResponseBody() == nil || last.GetImmediateResponse() != nil {
-		t.Fatalf("late decision must continue the response body, got %#v", last)
+	_, err := NewService(testConfig(LateActionStrict), engine)
+	if err == nil || !strings.Contains(err.Error(), "phase4_mode=safe") {
+		t.Fatalf("NewService() error = %v, want runtime policy rejection", err)
 	}
-	summary := transaction.closed[0]
-	if summary.LateAction != LateActionStrictNotAttempted {
-		t.Fatalf("late action = %q, want %q", summary.LateAction, LateActionStrictNotAttempted)
+	if got, want := engine.policies, []LateActionPolicy{LateActionStrict}; !sameLateActionPolicies(got, want) {
+		t.Fatalf("validated policies = %v, want %v", got, want)
 	}
-	if len(transaction.hostActions) != 0 {
-		t.Fatalf("strict late decision recorded a fabricated host action: %#v", transaction.hostActions)
+
+	engine.rejection = nil
+	if _, err := NewService(testConfig(LateActionSafe), engine); err != nil {
+		t.Fatalf("NewService() safe policy error = %v", err)
+	}
+	if got, want := engine.policies, []LateActionPolicy{LateActionStrict, LateActionSafe}; !sameLateActionPolicies(got, want) {
+		t.Fatalf("validated policies = %v, want %v", got, want)
 	}
 }
 
@@ -420,6 +530,17 @@ func (engine recordingEngine) Open(context.Context, StreamMetadata) (Transaction
 	return engine.transaction, nil
 }
 
+type policyValidationEngine struct {
+	recordingEngine
+	rejection error
+	policies  []LateActionPolicy
+}
+
+func (engine *policyValidationEngine) ValidateLateActionPolicy(policy LateActionPolicy) error {
+	engine.policies = append(engine.policies, policy)
+	return engine.rejection
+}
+
 type recordingTransaction struct {
 	headerDecision      func(Direction) Decision
 	bodyDecision        func(Direction) Decision
@@ -561,6 +682,18 @@ func responseTrailers() *extprocv3.ProcessingRequest {
 }
 
 func sameInts(left, right []int) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
+}
+
+func sameLateActionPolicies(left, right []LateActionPolicy) bool {
 	if len(left) != len(right) {
 		return false
 	}

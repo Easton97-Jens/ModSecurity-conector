@@ -19,6 +19,9 @@ from typing import Any, Iterable
 
 ROOT = next(parent for parent in Path(__file__).resolve().parents if (parent / "Makefile").is_file())
 CONNECTORS = ("apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd")
+COMMON_CONFIGURATION_PATH = "examples/common/common-connector-configuration"
+ENGINE_DIRECTIVES_PATH = "examples/common/modsecurity-directives"
+CONNECTOR_REFERENCE_PATH = "examples/{connector}/configuration-reference"
 
 
 # Reused source-backed text values.  Keeping these constants local to the
@@ -50,6 +53,7 @@ DEFAULT_SOURCE_RUNTIME_PARSER = "runtime parser has no default"
 ALLOWED_VALUES_HEADER_NAME = "non-empty HTTP header name"
 DEFAULT_SOURCE_RUNTIME_DEFAULTS = "common/runtime/msconnector_runtime.c:runtime_defaults"
 ALLOWED_VALUES_BODY_MODE = "none | buffered | streaming"
+ALLOWED_VALUES_RESPONSE_COMPANION = "none | native-htx"
 VALUE_TYPE_POSITIVE_DECIMAL_BYTES = "positive decimal bytes"
 DEFAULT_SOURCE_MAX_BODY_BUFFER = "common/include/msconnector/limits.h:MSCONNECTOR_MAX_BODY_BUFFER_SIZE"
 DEFAULT_SOURCE_MAX_RESPONSE_BODY_BUFFER = "common/include/msconnector/limits.h:MSCONNECTOR_MAX_RESPONSE_BODY_BUFFER_SIZE"
@@ -99,6 +103,10 @@ ENGLISH_OPTION_DETAILS_HEADER = "## Option details"
 APACHE_RULE_EXPRESSION = 'SecRule RESPONSE_BODY "@contains response-attack" \\'
 APACHE_RULE_ACTIONS = '    "id:1100301,phase:4,deny,log,status:403"'
 MARKDOWN_APACHE_FENCE = "```apache"
+HAPROXY_FILTER_NAME = "modsecurity-htx"
+VALUE_TYPE_BOOLEAN = "boolean"
+VALUE_TYPE_ENUM = "enum"
+VALUE_TYPE_PATH = "path"
 
 
 @dataclass(frozen=True)
@@ -201,10 +209,10 @@ def integration_mode(connector: str) -> str:
 def documented_path(connector: str, german: bool) -> str:
     suffix = ".de.md" if german else ".md"
     if connector == "common":
-        return f"examples/common/common-connector-configuration{suffix}"
+        return f"{COMMON_CONFIGURATION_PATH}{suffix}"
     if connector == "engine":
-        return f"examples/common/modsecurity-directives{suffix}"
-    return f"examples/{connector}/configuration-reference{suffix}"
+        return f"{ENGINE_DIRECTIVES_PATH}{suffix}"
+    return f"{CONNECTOR_REFERENCE_PATH.format(connector=connector)}{suffix}"
 
 
 def directive_macros(root: Path) -> dict[str, str]:
@@ -304,26 +312,27 @@ DIRECTIVE_DETAILS: dict[str, dict[str, str]] = {
 }
 
 
-# Apache's Phase-4 all-response gate intentionally differs from the shared
+# Apache's progressive Phase-4 adapter intentionally differs from the shared
 # late-intervention descriptions used by other native hosts. Keep the override
-# local so a connector-specific security invariant cannot silently rewrite the
+# local so a connector-specific streaming invariant cannot silently rewrite the
 # NGINX/HTX documentation contract.
 APACHE_DIRECTIVE_DETAILS: dict[str, dict[str, str]] = {
     "modsecurity_phase4_mode": {
         "effect": (
-            "Apache retains every normalized response brigade through first EOS and resolves "
-            "the normal P4 decision before original output release. This mode selects only the "
-            "defensive fallback for independently proven already-committed output: minimal/safe "
-            "record log_only and strict requests abort_connection."
+            "Apache appends each normalized response bucket exactly once and forwards non-terminal "
+            "output to the next filter without waiting for EOS. It finishes P4 exactly once at actual "
+            "EOS. After the next-filter commitment boundary, minimal/safe record log_only and strict "
+            "requests abort_connection instead of a late status rewrite."
         ),
         "security": (
-            "A normal Phase-4 deny must not be reinterpreted as log_only: Apache discards the "
-            "saved original brigade and emits one terminal error before release. strict is not a "
-            "guaranteed later 403; host-specific abort evidence is still required."
+            "Already forwarded response bytes cannot be rewritten. Safe records a post-commit "
+            "disruptive decision as log_only; strict requests the configured host abort action "
+            "rather than synthesizing a later 403."
         ),
         "phase_relevance": (
-            "P4 only. Apache's EOS-only all-response gate resolves intervention before original "
-            "output release; this setting applies only if independent commit proof already exists."
+            "P4 only. Apache commits at the next-filter boundary before it forwards a current "
+            "non-terminal brigade; this setting controls the canonical pre- and post-commit "
+            "decision mapping."
         ),
     },
     "modsecurity_phase4_content_types_file": {
@@ -333,34 +342,34 @@ APACHE_DIRECTIVE_DETAILS: dict[str, dict[str, str]] = {
         "default_source": "Apache compatibility parser; deprecated",
         "effect": (
             "Deprecated Apache compatibility parser for a legacy MIME list. It does not narrow "
-            "the all-response Phase-4 gate; use SecResponseBodyMimeType to select libModSecurity "
+            "the universal P4 inspection path; use SecResponseBodyMimeType to select libModSecurity "
             "inspection."
         ),
         "security": (
-            "Do not use this legacy list to permit a pass-through route. The connector cannot safely "
-            "query libModSecurity's effective MIME selection, so every response remains gated through EOS."
+            "Do not use this legacy list to permit an uninspected pass-through route. The connector "
+            "cannot safely query libModSecurity's effective MIME selection, so every response passes "
+            "through the bounded P4 path."
         ),
         "phase_relevance": (
             "P4 only. The parser is retained for compatibility but cannot select which Apache "
-            "responses bypass the EOS-only enforcement gate."
+            "responses bypass the bounded inspection path."
         ),
     },
     "modsecurity_phase4_body_limit": {
         "effect": (
-            "Bounds Apache's saved all-response brigade before Phase-4 completion. The configurable "
-            "default is 1048576 bytes; independently, a fixed non-configurable 4096-normalized-bucket "
-            "ceiling applies across filter calls. An over-byte-limit or over-bucket-limit response fails "
-            "closed before any original response byte is released."
+            "Bounds Apache response bytes offered to P4 across current normalized brigades. The "
+            "configurable default is 1048576 bytes; independently, a fixed non-configurable "
+            "4096-normalized-bucket ceiling spans filter calls. A limit breach fails closed before "
+            "the current offending bucket is forwarded; already committed output is not rewritten."
         ),
         "security": (
-            "The byte and fixed bucket ceilings bound payload and retained APR-object/setaside memory/CPU "
-            "exposure. Do not process a prefix and release an uninspected tail: exceeding either connector "
-            "limit must fail closed."
+            "The byte and fixed bucket ceilings bound payload and per-transaction APR-object/setaside "
+            "memory/CPU exposure. Each accepted current bucket is appended once before direct forwarding; "
+            "do not retain a full response or forward an uninspected tail."
         ),
         "phase_relevance": (
-            "P4 only. The byte limit and the fixed bucket ceiling apply while normalized brigades are "
-            "retained through first EOS for the all-response enforcement decision; the bucket count spans "
-            "filter calls and resets on release or discard."
+            "P4 only. The byte limit and fixed bucket ceiling span filter calls. The adapter retains only "
+            "the terminal EOS fragment for the one-shot finish; the bucket count resets on release or discard."
         ),
     },
 }
@@ -563,10 +572,38 @@ def extract_nginx(root: Path) -> list[dict[str, Any]]:
     return result
 
 
+def _haproxy_spop_option_details(
+    key: str, companion_keys: set[str]
+) -> tuple[str, str, str, str, str]:
+    value_type = "string/path"
+    allowed = "parser-supported compatibility value"
+    if key in {"port", "expected-status", "request-body-limit", "response-body-limit", "response-body-timeout", "spoe-timeout", "worker-count", "max-transactions", "response-companion-uid", "response-companion-gid"}:
+        value_type, allowed = "integer", "decimal integer"
+    elif key in {"debug", "enable-response-headers", "response-phases"}:
+        value_type, allowed = VALUE_TYPE_BOOLEAN, "on/off-style compatibility boolean"
+    elif key in {"mode", "fail-mode", "runtime-mode"}:
+        value_type = "compatibility policy string"
+    elif key == "response-companion":
+        value_type, allowed = VALUE_TYPE_ENUM, ALLOWED_VALUES_RESPONSE_COMPANION
+    elif key == "response-companion-socket":
+        value_type, allowed = VALUE_TYPE_PATH, "private UNIX-domain socket path"
+    effect = "SPOP compatibility-agent configuration; it is not a native HTX filter option."
+    if key in {"response-body-limit", "response-body-timeout", "response-phases", "enable-response-headers"}:
+        effect = "Compatibility response control. The selected SPOE messages do not supply a response body, so this is not native P4 support."
+    if key in companion_keys:
+        effect = "SPOP owner configuration for the required native-HTX MRC1 response companion. native-htx publishes one bounded opaque handle for HTX P3/P4 processing."
+    phase_relevance = "Compatibility request/response-header path only; no native response-body lifecycle claim."
+    security_relevance = "Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core."
+    if key in companion_keys:
+        phase_relevance = "native-htx is the required P3/P4 companion for the logical HAProxy SPOE/SPOP profile; none rejects response-phase activation because raw SPOE/SPOP has no response EOS."
+        security_relevance = "The companion must use an explicit private UDS socket, matching service UID/GID, bounded response-body limit, and fail-closed opaque-handle correlation."
+    return value_type, allowed, effect, phase_relevance, security_relevance
+
+
 def extract_haproxy(root: Path) -> list[dict[str, Any]]:
     source = "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c"
     text = _read(root, source)
-    required = ("modsecurity-htx", "rules-file", "phase4-mode")
+    required = (HAPROXY_FILTER_NAME, "rules-file", "phase4-mode")
     if any(token not in text for token in required):
         raise ValueError("HAProxy HTX parser surface is incomplete")
     common = {
@@ -576,7 +613,7 @@ def extract_haproxy(root: Path) -> list[dict[str, Any]]:
         "example": "examples/haproxy/safe/haproxy-htx.cfg",
     }
     result = [
-        _option("haproxy", "filter modsecurity-htx", "host_connector_directive", source,
+        _option("haproxy", f"filter {HAPROXY_FILTER_NAME}", "host_connector_directive", source,
                 "haproxy_modsecurity_htx_filter_keywords / haproxy_modsecurity_htx_filter_parse",
                 syntax="filter modsecurity-htx rules-file <path> [phase4-mode minimal|safe|strict]",
                 value_type="HAProxy filter declaration", allowed_values="one required rules-file argument; optional phase4-mode",
@@ -617,7 +654,7 @@ def extract_haproxy(root: Path) -> list[dict[str, Any]]:
     parser_body = compatibility_text[compatibility_text.index("static int config_set"):compatibility_text.index("static char *trim_in_place")]
     raw_compatibility_keys = list(dict.fromkeys(re.findall(r'"([a-z][a-z-]+)"', parser_body)))
     expected_compatibility_keys = {
-        "listen", "host", "port", "ready-file", "pid-file", "port-file", "log-file", "decision-log", "audit-log", "modsecurity-conf", "crs-root", "rules-file", "rules-dir", "mode", "fail-mode", "runtime-mode", "variant", "case", "expected-status", "request-body-limit", "response-body-limit", "response-body-timeout", "spoe-timeout", "worker-count", "max-transactions", "debug", "enable-response-headers", "response-phases",
+        "listen", "host", "port", "ready-file", "pid-file", "port-file", "log-file", "decision-log", "audit-log", "modsecurity-conf", "crs-root", "rules-file", "rules-dir", "mode", "fail-mode", "runtime-mode", "variant", "case", "response-companion", "response-companion-socket", "response-companion-uid", "response-companion-gid", "expected-status", "request-body-limit", "response-body-limit", "response-body-timeout", "spoe-timeout", "worker-count", "max-transactions", "debug", "enable-response-headers", "response-phases",
     }
     parser_literals = {"true", "yes", "on", "false", "off", "no"}
     unexpected = set(raw_compatibility_keys) - expected_compatibility_keys - parser_literals
@@ -626,30 +663,26 @@ def extract_haproxy(root: Path) -> list[dict[str, Any]]:
         raise ValueError(f"HAProxy SPOP parser/schema drift: missing={sorted(expected_compatibility_keys - set(compatibility_keys))}, unexpected={sorted(unexpected)}")
     defaults = {
         "host": "127.0.0.1", "mode": "block", "fail-mode": "closed", "runtime-mode": "production", "variant": "-", "log-file": "-",
-        "request-body-limit": "65532", "response-body-limit": "0", "response-body-timeout": "0", "spoe-timeout": "2000", "worker-count": "1", "max-transactions": "4096", "response-phases": "false",
+        "request-body-limit": "65532", "response-companion": "none", "response-body-limit": "0", "response-body-timeout": "0", "spoe-timeout": "2000", "worker-count": "1", "max-transactions": "4096", "response-phases": "false",
     }
     for key in compatibility_keys:
-        value_type = "string/path"
-        allowed = "parser-supported compatibility value"
-        if key in {"port", "expected-status", "request-body-limit", "response-body-limit", "response-body-timeout", "spoe-timeout", "worker-count", "max-transactions"}:
-            value_type, allowed = "integer", "decimal integer"
-        elif key in {"debug", "enable-response-headers", "response-phases"}:
-            value_type, allowed = "boolean", "on/off-style compatibility boolean"
-        elif key in {"mode", "fail-mode", "runtime-mode"}:
-            value_type = "compatibility policy string"
-        effect = "SPOP compatibility-agent configuration; it is not a native HTX filter option."
-        if key in {"response-body-limit", "response-body-timeout", "response-phases", "enable-response-headers"}:
-            effect = "Compatibility response control. The selected SPOE messages do not supply a response body, so this is not native P4 support."
+        companion_keys = {
+            "response-companion",
+            "response-companion-socket",
+            "response-companion-uid",
+            "response-companion-gid",
+        }
+        value_type, allowed, effect, phase_relevance, security_relevance = _haproxy_spop_option_details(key, companion_keys)
         result.append(_option(
             "haproxy", f"spoe-agent:{key}", "compatibility", compatibility_source, f"config_set(key={key})",
             syntax=f"{key}=<value>", value_type=value_type, allowed_values=allowed,
             default=defaults.get(key, "unset unless configured"), default_source="config_init() where stated; otherwise zero/empty initialization",
             required=False, contexts="SPOE/SPOP compatibility agent key=value file", inheritance="No native HTX inheritance; one compatibility-agent config file.",
             merge_behavior="No merge; config_set applies one parsed value.", validation="Unknown keys fail compatibility-agent configuration parsing.",
-            phase_relevance="Compatibility request/response-header path only; no native response-body lifecycle claim.",
-            security_relevance="Compatibility logs, ports, rules, and fail policy require operator review; do not promote this path to the selected native core.",
+            phase_relevance=phase_relevance,
+            security_relevance=security_relevance,
             runtime_effect=effect, example_file="examples/haproxy/compatibility-spoe/modsecurity-agent.conf", description=effect,
-            compatibility_only=True,
+            compatibility_only=key not in companion_keys,
         ))
     result.append(_option(
         "haproxy", "legacy-phase4-strict-abort", "compatibility", "examples/haproxy/compatibility-spoe/legacy-phase4-strict-abort.cfg", "disabled historical example",
@@ -675,6 +708,11 @@ def extract_lighttpd(root: Path) -> list[dict[str, Any]]:
         (
             "msconnector.expose-host-transaction-id",
             "T_CONFIG_BOOL",
+            LIGHTTPD_SERVER_SCOPE,
+        ),
+        (
+            "msconnector.request-body-gate",
+            "T_CONFIG_STRING",
             LIGHTTPD_SERVER_SCOPE,
         ),
     ]:
@@ -718,6 +756,21 @@ def extract_lighttpd(root: Path) -> list[dict[str, Any]]:
         example_file="connectors/lighttpd/harness/prepare_native_smoke.sh",
         example_value='msconnector.expose-host-transaction-id = "enable"',
         description="Opt-in response-header evidence for the server-generated host transaction ID."))
+    values.append(_option(
+        "lighttpd", "msconnector.request-body-gate", "host_connector_directive", source,
+        "mod_msconnector_set_defaults / mod_msconnector_prepare_request_body",
+        syntax='msconnector.request-body-gate = "pre-upstream"', value_type="enum",
+        allowed_values="pre-upstream when request_body_mode=streaming; absent otherwise",
+        default="none", default_source="plugin request_body_gate defaults to NULL", required=False,
+        contexts=LIGHTTPD_SERVER_SCOPE, inheritance=LIGHTTPD_DEFAULTS_ONLY_INHERITANCE,
+        merge_behavior=LIGHTTPD_DEFAULTS_MERGE,
+        validation="The patched module rejects a missing/other gate value when request_body_mode=streaming and rejects a configured gate for non-streaming request bodies.",
+        phase_relevance="P2 only. The gate keeps the bounded request body from reaching an upstream before the Phase-2 decision completes.",
+        security_relevance="pre-upstream is required for patched streaming P2 so body-bearing requests cannot bypass Common Runtime enforcement before the bounded EOS decision.",
+        runtime_effect="Enables the patched-host pre-upstream request-body gate; stock lighttpd does not select it.",
+        example_file="examples/lighttpd/safe/lighttpd-http1-identity.conf",
+        example_value='msconnector.request-body-gate = "pre-upstream"',
+        description="Patched-host P2 gate that retains a bounded request body before upstream release."))
     values.append(_option(
         "lighttpd", "sidecar proxy", "compatibility", LIGHTTPD_SIDECAR_CONFIGURATION,
         "compatibility-sidecar example", syntax="proxy.server = (...)", value_type="compatibility host setup", allowed_values="ordinary lighttpd proxy fields",
@@ -3329,15 +3382,31 @@ GERMAN_TEXT: dict[str, str] = {
     "one readable legacy file with MIME tokens": "eine lesbare Legacy-Datei mit MIME-Token",
     "none; deprecated Apache compatibility input": "kein Wert; veraltete Apache-Kompatibilitätseingabe",
     "Apache compatibility parser; deprecated": "Apache-Kompatibilitätsparser; veraltet",
-    "Apache retains every normalized response brigade through first EOS and resolves the normal P4 decision before original output release. This mode selects only the defensive fallback for independently proven already-committed output: minimal/safe record log_only and strict requests abort_connection.": "Apache hält jede normalisierte Response-Brigade bis zum ersten EOS zurück und löst die normale P4-Entscheidung vor der Freigabe der ursprünglichen Ausgabe auf. Dieser Modus wählt nur den defensiven Fallback für unabhängig als bereits committed nachgewiesene Ausgabe: minimal/safe zeichnen log_only auf und strict fordert abort_connection an.",
-    "A normal Phase-4 deny must not be reinterpreted as log_only: Apache discards the saved original brigade and emits one terminal error before release. strict is not a guaranteed later 403; host-specific abort evidence is still required.": "Ein normaler Phase-4-Deny darf nicht als log_only umgedeutet werden: Apache verwirft die gespeicherte ursprüngliche Brigade und gibt vor dem Release genau einen terminalen Fehler aus. strict ist keine garantierte spätere 403; hostspezifische Abort-Evidence ist weiterhin erforderlich.",
-    "P4 only. Apache's EOS-only all-response gate resolves intervention before original output release; this setting applies only if independent commit proof already exists.": "Nur P4. Apaches EOS-only-All-Response-Gate löst die Intervention vor der Freigabe der ursprünglichen Ausgabe auf; diese Einstellung gilt nur, wenn ein unabhängiger Commit-Nachweis bereits existiert.",
-    "Deprecated Apache compatibility parser for a legacy MIME list. It does not narrow the all-response Phase-4 gate; use SecResponseBodyMimeType to select libModSecurity inspection.": "Veralteter Apache-Kompatibilitätsparser für eine Legacy-MIME-Liste. Er schränkt das All-Response-Phase-4-Gate nicht ein; SecResponseBodyMimeType wählt die libModSecurity-Inspektion.",
-    "Do not use this legacy list to permit a pass-through route. The connector cannot safely query libModSecurity's effective MIME selection, so every response remains gated through EOS.": "Diese Legacy-Liste darf keinen Pass-through-Pfad erlauben. Der Connector kann die wirksame MIME-Auswahl von libModSecurity nicht sicher abfragen, daher bleibt jede Response bis EOS gegatet.",
-    "P4 only. The parser is retained for compatibility but cannot select which Apache responses bypass the EOS-only enforcement gate.": "Nur P4. Der Parser bleibt aus Kompatibilitätsgründen erhalten, kann aber nicht auswählen, welche Apache-Responses das EOS-only-Enforcement-Gate umgehen.",
-    "Bounds Apache's saved all-response brigade before Phase-4 completion. The configurable default is 1048576 bytes; independently, a fixed non-configurable 4096-normalized-bucket ceiling applies across filter calls. An over-byte-limit or over-bucket-limit response fails closed before any original response byte is released.": "Begrenzt Apaches gespeicherte All-Response-Brigade vor dem Phase-4-Abschluss. Der konfigurierbare Standardwert ist 1048576 Byte; unabhängig davon gilt über Filter-Aufrufe hinweg eine feste, nicht konfigurierbare Obergrenze von 4096 normalisierten Buckets. Eine Response über dem Byte- oder Bucket-Limit schlägt fail-closed fehl, bevor ein ursprüngliches Response-Byte freigegeben wird.",
-    "The byte and fixed bucket ceilings bound payload and retained APR-object/setaside memory/CPU exposure. Do not process a prefix and release an uninspected tail: exceeding either connector limit must fail closed.": "Die Byte- und feste Bucket-Obergrenze begrenzen Payload- sowie zurückgehaltene APR-Objekt-/Setaside-Speicher-/CPU-Exposition. Keinen Präfix verarbeiten und einen uninspektierten Tail freigeben: Das Überschreiten einer der Connector-Grenzen muss fail-closed fehlschlagen.",
-    "P4 only. The byte limit and the fixed bucket ceiling apply while normalized brigades are retained through first EOS for the all-response enforcement decision; the bucket count spans filter calls and resets on release or discard.": "Nur P4. Das Byte-Limit und die feste Bucket-Obergrenze gelten, während normalisierte Brigades für die All-Response-Enforcement-Entscheidung bis zum ersten EOS zurückgehalten werden; der Bucket-Zähler gilt über Filter-Aufrufe hinweg und wird bei Release oder Discard zurückgesetzt.",
+    "Apache appends each normalized response bucket exactly once and forwards non-terminal output to the next filter without waiting for EOS. It finishes P4 exactly once at actual EOS. After the next-filter commitment boundary, minimal/safe record log_only and strict requests abort_connection instead of a late status rewrite.": "Apache hängt jeden normalisierten Response-Bucket genau einmal an und leitet nichtterminale Ausgabe ohne Warten auf EOS an den nächsten Filter weiter. Es beendet P4 genau einmal am tatsächlichen EOS. Nach der Commit-Grenze des nächsten Filters zeichnen minimal/safe log_only auf und strict fordert abort_connection statt einer späten Statusumschreibung an.",
+    "Already forwarded response bytes cannot be rewritten. Safe records a post-commit disruptive decision as log_only; strict requests the configured host abort action rather than synthesizing a later 403.": "Bereits weitergeleitete Response-Bytes können nicht umgeschrieben werden. Safe zeichnet eine disruptive Entscheidung nach Commit als log_only auf; strict fordert die konfigurierte Host-Abort-Action an, statt eine spätere 403 zu synthetisieren.",
+    "P4 only. Apache commits at the next-filter boundary before it forwards a current non-terminal brigade; this setting controls the canonical pre- and post-commit decision mapping.": "Nur P4. Apache committet an der Grenze zum nächsten Filter, bevor es eine aktuelle nichtterminale Brigade weiterleitet; diese Einstellung steuert die kanonische Decision-Zuordnung vor und nach Commit.",
+    "Deprecated Apache compatibility parser for a legacy MIME list. It does not narrow the universal P4 inspection path; use SecResponseBodyMimeType to select libModSecurity inspection.": "Veralteter Apache-Kompatibilitätsparser für eine Legacy-MIME-Liste. Er schränkt den universellen P4-Inspektionspfad nicht ein; SecResponseBodyMimeType wählt die libModSecurity-Inspektion.",
+    "Do not use this legacy list to permit an uninspected pass-through route. The connector cannot safely query libModSecurity's effective MIME selection, so every response passes through the bounded P4 path.": "Diese Legacy-Liste darf keinen uninspektierten Pass-through-Pfad erlauben. Der Connector kann die wirksame MIME-Auswahl von libModSecurity nicht sicher abfragen, daher durchläuft jede Response den begrenzten P4-Pfad.",
+    "P4 only. The parser is retained for compatibility but cannot select which Apache responses bypass the bounded inspection path.": "Nur P4. Der Parser bleibt aus Kompatibilitätsgründen erhalten, kann aber nicht auswählen, welche Apache-Responses den begrenzten Inspektionspfad umgehen.",
+    "Bounds Apache response bytes offered to P4 across current normalized brigades. The configurable default is 1048576 bytes; independently, a fixed non-configurable 4096-normalized-bucket ceiling spans filter calls. A limit breach fails closed before the current offending bucket is forwarded; already committed output is not rewritten.": "Begrenzt Apache-Response-Bytes, die P4 über aktuelle normalisierte Brigades angeboten werden. Der konfigurierbare Standardwert ist 1048576 Byte; unabhängig davon gilt über Filter-Aufrufe hinweg eine feste, nicht konfigurierbare Obergrenze von 4096 normalisierten Buckets. Eine Limitverletzung schlägt fail-closed fehl, bevor der aktuelle fehlerhafte Bucket weitergeleitet wird; bereits committed Ausgabe wird nicht umgeschrieben.",
+    "The byte and fixed bucket ceilings bound payload and per-transaction APR-object/setaside memory/CPU exposure. Each accepted current bucket is appended once before direct forwarding; do not retain a full response or forward an uninspected tail.": "Die Byte- und feste Bucket-Obergrenze begrenzen Payload- sowie APR-Objekt-/Setaside-Speicher-/CPU-Exposition pro Transaktion. Jeder akzeptierte aktuelle Bucket wird vor der direkten Weiterleitung genau einmal angehängt; keine vollständige Response zurückhalten oder einen uninspektierten Tail weiterleiten.",
+    "P4 only. The byte limit and fixed bucket ceiling span filter calls. The adapter retains only the terminal EOS fragment for the one-shot finish; the bucket count resets on release or discard.": "Nur P4. Das Byte-Limit und die feste Bucket-Obergrenze gelten über Filter-Aufrufe hinweg. Der Adapter hält nur das terminale EOS-Fragment für den einmaligen Abschluss zurück; der Bucket-Zähler wird bei Release oder Discard zurückgesetzt.",
+
+    # Response-capable HAProxy SPOE/SPOP and patched-lighttpd parameters.
+    # These remain explicit rather than taking the YAML fallback because they
+    # are parsed key=value host configuration, not YAML metadata.
+    "private UNIX-domain socket path": "privater UNIX-Domain-Socket-Pfad",
+    ALLOWED_VALUES_RESPONSE_COMPANION: ALLOWED_VALUES_RESPONSE_COMPANION,
+    "pre-upstream when request_body_mode=streaming; absent otherwise": "pre-upstream bei request_body_mode=streaming; andernfalls nicht gesetzt",
+    "plugin request_body_gate defaults to NULL": "plugin request_body_gate hat den Standardwert NULL",
+    "The patched module rejects a missing/other gate value when request_body_mode=streaming and rejects a configured gate for non-streaming request bodies.": "Das gepatchte Modul weist bei request_body_mode=streaming einen fehlenden oder anderen Gate-Wert zurück und weist ein konfiguriertes Gate bei nicht-streamenden Request-Bodys zurück.",
+    "native-htx is the required P3/P4 companion for the logical HAProxy SPOE/SPOP profile; none rejects response-phase activation because raw SPOE/SPOP has no response EOS.": "native-htx ist der erforderliche P3/P4-Begleiter für das logische HAProxy-SPOE/SPOP-Profil; none weist die Aktivierung von Response-Phasen zurück, weil reines SPOE/SPOP kein Response-EOS besitzt.",
+    "P2 only. The gate keeps the bounded request body from reaching an upstream before the Phase-2 decision completes.": "Nur P2. Das Gate verhindert, dass der begrenzte Request-Body einen Upstream erreicht, bevor die Phase-2-Entscheidung abgeschlossen ist.",
+    "The companion must use an explicit private UDS socket, matching service UID/GID, bounded response-body limit, and fail-closed opaque-handle correlation.": "Der Begleiter muss einen expliziten privaten UDS-Socket, passende Service-UID/GID, ein begrenztes Response-Body-Limit und eine fail-closed-Korrelation über einen opaken Handle verwenden.",
+    "pre-upstream is required for patched streaming P2 so body-bearing requests cannot bypass Common Runtime enforcement before the bounded EOS decision.": "pre-upstream ist für gepatchtes streamendes P2 erforderlich, damit Request-Bodys die Durchsetzung der Common Runtime nicht vor der begrenzten EOS-Entscheidung umgehen können.",
+    "SPOP owner configuration for the required native-HTX MRC1 response companion. native-htx publishes one bounded opaque handle for HTX P3/P4 processing.": "SPOP-Owner-Konfiguration für den erforderlichen nativen-HTX-MRC1-Response-Begleiter. native-htx veröffentlicht einen begrenzten opaken Handle für die HTX-P3/P4-Verarbeitung.",
+    "Enables the patched-host pre-upstream request-body gate; stock lighttpd does not select it.": "Aktiviert das Pre-upstream-Request-Body-Gate des gepatchten Hosts; ungepatchtes lighttpd wählt es nicht.",
+    "Patched-host P2 gate that retains a bounded request body before upstream release.": "P2-Gate des gepatchten Hosts, das einen begrenzten Request-Body vor der Upstream-Freigabe zurückhält.",
 }
 
 
@@ -3827,12 +3896,12 @@ def common_runtime_section(connector: str, german: bool) -> list[str]:
 
 def profile_rows(connector: str, german: bool) -> list[str]:
     files = {
-        "apache": ("minimal/httpd.conf", "safe/httpd.conf", "README", "detection-only/httpd.conf", "disabled/httpd.conf"),
+        "apache": ("minimal/httpd.conf", "safe/httpd.conf", "strict/httpd.conf", "detection-only/httpd.conf", "disabled/httpd.conf"),
         "nginx": ("minimal/nginx.conf", "safe/nginx.conf", "strict/nginx.conf", "detection-only/nginx.conf", "disabled/nginx.conf"),
-        "haproxy": ("minimal/haproxy-htx.cfg", "safe/haproxy-htx.cfg", "README", "detection-only/haproxy-htx.cfg", "disabled/haproxy-htx.cfg"),
-        "envoy": ("minimal/envoy-ext-proc-streaming.yaml.in", "safe/envoy-ext-proc-streaming.yaml.in", "README", "detection-only/msconnector-runtime.conf", "disabled/msconnector-runtime.conf"),
-        "traefik": ("minimal/traefik-static.yaml", "safe/traefik-dynamic.yaml", "README", "detection-only/traefik-engine-service.conf", "disabled/traefik-engine-service.conf"),
-        "lighttpd": ("minimal/lighttpd.conf", "safe/lighttpd-http1-identity.conf", "README", "detection-only/msconnector-runtime.conf", "disabled/lighttpd.conf"),
+        "haproxy": ("minimal/haproxy-htx.cfg", "safe/haproxy-htx.cfg", "strict/haproxy-htx.cfg", "detection-only/haproxy-htx.cfg", "disabled/haproxy-htx.cfg"),
+        "envoy": ("ext-proc/minimal/envoy.yaml.in", "ext-proc/safe/envoy.yaml.in", "ext-proc/strict/envoy.yaml.in", "detection-only/msconnector-runtime.conf", "disabled/msconnector-runtime.conf"),
+        "traefik": ("native-uds/minimal/traefik-static.yaml", "native-uds/safe/traefik-static.yaml", "native-uds/strict/traefik-static.yaml", "detection-only/traefik-engine-service.conf", "disabled/traefik-engine-service.conf"),
+        "lighttpd": ("patched/minimal/lighttpd.conf", "patched/safe/lighttpd.conf", "patched/strict/lighttpd.conf", "detection-only/msconnector-runtime.conf", "disabled/lighttpd.conf"),
     }[connector]
     labels = ("Minimal", "Safe full lifecycle", "Strict", "DetectionOnly", "Disabled")
     statuses = (
@@ -3896,6 +3965,33 @@ def configuration_combinations_section(german: bool) -> list[str]:
     ]
 
 
+def _engine_reference_section(german: bool) -> list[str]:
+    engine_reference = "../common/modsecurity-directives.de.md" if german else "../common/modsecurity-directives.md"
+    return [
+        "", localized(german, "## Engine directives used by profiles", "## Von Profilen verwendete Engine-Direktiven"), "",
+        localized(
+            german,
+            "The local rule profiles use `SecRuleEngine` for On, DetectionOnly, and Off. Where body inspection is selected, `SecRequestBodyAccess`, `SecResponseBodyAccess`, MIME scope, limits, and `SecRule` remain ModSecurity Engine directives.",
+            "Die lokalen Regelprofile verwenden `SecRuleEngine` für On, DetectionOnly und Off. Wo Body-Inspektion gewählt wird, bleiben `SecRequestBodyAccess`, `SecResponseBodyAccess`, MIME-Scope, Limits und `SecRule` ModSecurity-Engine-Direktiven.",
+        ),
+        "",
+        f"{'Siehe' if german else 'See'} [{ 'Engine reference' if not german else 'Engine-Referenz'}]({engine_reference}).",
+    ]
+
+
+def _validation_section(connector: str, german: bool) -> list[str]:
+    validation = {
+        "apache": VALIDATE_APACHE, "nginx": VALIDATE_NGINX, "haproxy": VALIDATE_HAPROXY,
+        "envoy": "envoy --mode validate -c <generated-config>", "traefik": "traefik check --configFile=<static-config>", "lighttpd": VALIDATE_LIGHTTPD,
+    }[connector]
+    target_text = localized(
+        german,
+        f"Repository targets: `make check-config-{connector}` and `make check-config-all-connectors`.",
+        f"Repository-Ziele: `make check-config-{connector}` und `make check-config-all-connectors`.",
+    )
+    return ["", localized(german, "## Validation", "## Validierung"), "", "```sh", validation, "```", "", target_text, ""]
+
+
 def render_connector_reference(options: list[dict[str, Any]], connector: str, german: bool) -> str:
     local = _local_options(options, connector)
     title = connector_reference_title(connector, german)
@@ -3905,21 +4001,10 @@ def render_connector_reference(options: list[dict[str, Any]], connector: str, ge
     lines.extend(_table_row(option, german) for option in local)
     lines.extend(layer_separation_section(german))
     lines.extend(common_runtime_section(connector, german))
-    lines.extend(["", "## Engine directives used by profiles" if not german else "## Von Profilen verwendete Engine-Direktiven", ""])
-    engine_reference = "../common/modsecurity-directives.de.md" if german else "../common/modsecurity-directives.md"
-    lines.extend([
-        "The local rule profiles use `SecRuleEngine` for On, DetectionOnly, and Off. Where body inspection is selected, `SecRequestBodyAccess`, `SecResponseBodyAccess`, MIME scope, limits, and `SecRule` remain ModSecurity Engine directives." if not german else "Die lokalen Regelprofile verwenden `SecRuleEngine` für On, DetectionOnly und Off. Wo Body-Inspektion gewählt wird, bleiben `SecRequestBodyAccess`, `SecResponseBodyAccess`, MIME-Scope, Limits und `SecRule` ModSecurity-Engine-Direktiven.",
-        "",
-        f"{'Siehe' if german else 'See'} [{ 'Engine reference' if not german else 'Engine-Referenz'}]({engine_reference}).",
-    ])
+    lines.extend(_engine_reference_section(german))
     lines.extend(profiles_section(connector, german))
     lines.extend(configuration_combinations_section(german))
-    lines.extend(["", "## Validation" if not german else "## Validierung", ""])
-    validation = {
-        "apache": VALIDATE_APACHE, "nginx": VALIDATE_NGINX, "haproxy": VALIDATE_HAPROXY,
-        "envoy": "envoy --mode validate -c <generated-config>", "traefik": "traefik check --configFile=<static-config>", "lighttpd": VALIDATE_LIGHTTPD,
-    }[connector]
-    lines.extend(["```sh", validation, "```", "", "Repository targets: `make check-config-" + connector + "` and `make check-config-all-connectors`." if not german else "Repository-Ziele: `make check-config-" + connector + "` und `make check-config-all-connectors`.", ""])
+    lines.extend(_validation_section(connector, german))
     lines.extend([ENGLISH_OPTION_DETAILS_HEADER if not german else GERMAN_OPTION_DETAILS_HEADER, ""])
     for option in local:
         lines.extend(_render_option(option, german))

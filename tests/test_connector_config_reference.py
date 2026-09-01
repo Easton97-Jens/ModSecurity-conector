@@ -27,6 +27,7 @@ class ConnectorConfigReferenceTests(unittest.TestCase):
                 "msconnector.enabled",
                 "msconnector.config-file",
                 "msconnector.expose-host-transaction-id",
+                "msconnector.request-body-gate",
             },
         )
         evidence = directives["msconnector.expose-host-transaction-id"]
@@ -37,6 +38,13 @@ class ConnectorConfigReferenceTests(unittest.TestCase):
         )
         self.assertIn("server-generated", evidence["security_relevance"])
         self.assertIn("never reflects a request header", evidence["security_relevance"])
+        request_gate = directives["msconnector.request-body-gate"]
+        self.assertEqual(
+            request_gate["syntax"],
+            'msconnector.request-body-gate = "pre-upstream"',
+        )
+        self.assertIn("P2", request_gate["phase_relevance"])
+        self.assertIn("pre-upstream", request_gate["security_relevance"])
 
     def test_apache_example_file_mapping_is_complete_and_stable(self) -> None:
         example_by_directive = {

@@ -40,8 +40,8 @@ Manifest beschreibt genau ein isoliertes Fallartefakt:
 
 Die beiden Observation-Dateien sind separat erfasste, benachbarte reguläre
 Nicht-Symlink-Dateien. Das Schema der Client-Datei besteht exakt aus
-`lease_observed`, `visible_status`, `p4_outcome`, `p4_visible_status` und
-`p4_response_committed`; das Schema der Upstream-Datei exakt aus
+`lease_observed`, `visible_status`, `redirect_location_verified`, `p4_outcome`,
+`p4_visible_status` und `p4_response_committed`; das Schema der Upstream-Datei exakt aus
 `lease_observed`, `request_terminal` und `response_observed`. Jede Datei ist
 begrenzt, weist doppelte Schlüssel zurück und enthält nur Metadaten. Das
 Manifest referenziert nur ihre Basenames; inline Observation-Assertions sind
@@ -102,7 +102,11 @@ P1-Deny-Entscheidung und einen passenden clientsichtbaren 4xx/5xx-Status,
 Request-Termination und keine Upstream-Response-Beobachtung. `p2_deny` und
 `p2_oversize` verlangen die Sequenz P1 Allow/P2 Deny; `p2_oversize` zusätzlich
 Status 413. `p3_deny` und `p3_redirect` verlangen P3 Deny/Redirect, den
-passenden Client-Status und eine Upstream-Response-Beobachtung. `p4_safe`
+passenden Client-Status und eine Upstream-Response-Beobachtung. `p3_redirect`
+verlangt zusätzlich die wahre Attestation `redirect_location_verified`: Die
+vertraute Client-Grenze muss genau ein `Location` mit dem kanonischen begrenzten
+Target beobachtet haben; der Receipt behält nur dieses Boolean und niemals den
+Header-Wert. `p4_safe`
 verlangt eine P4-Observer-Entscheidung, eine rohe `host_action` `log_only`,
 eine committed Upstream-Response und das Client-Ergebnis `none`. `p4_strict`
 ist in diesem Harness immer `NON_PASS`: Eine Driver-seitige Assertion `abort`

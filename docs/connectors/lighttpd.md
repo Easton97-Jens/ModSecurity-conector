@@ -4,11 +4,22 @@
 
 ## Overview
 
-lighttpd uses the selected <code>patched-native-lighttpd</code> route with
+The canonical Stock solution uses the selected traffic-owning
+<code>stock-lighttpd-sidecar</code>; the separately documented
+<code>patched-native-lighttpd</code> route remains a distinct solution with
 <code>mod_msconnector.so</code>. The selected profile is HTTP/1.1-focused and
 uses a versioned patched-host boundary for borrowed body ranges. It does not
 claim production readiness, security verification, CRS verification, complete
 matrix coverage, HTTP/2/HTTP/3 coverage, or canonical P4 runtime evidence.
+
+The <code>lighttpd-stock</code> logical solution is the traffic-owning
+<code>stock-lighttpd-sidecar</code>: it binds only to literal private loopback,
+speaks bounded HTTP/1.1, and owns one complete client/backend exchange in one
+worker. It executes P1--P4 directly without a cross-process correlation handle
+or TTL registry. Its event JSONL is metadata-only and never carries body
+payloads. The unmodified native Stock module is an explicit noncanonical P1/P3
+compatibility translation, never a silent fallback. The patched route remains a
+separate direct P1--P4 solution.
 
 ## Architecture and ownership
 

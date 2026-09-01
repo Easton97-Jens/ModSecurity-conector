@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 import hashlib
 import json
 import os
@@ -104,6 +104,134 @@ DEFAULT_NGINX_QUIC_TLS_SOURCE_SHA256 = "2db3f3a0d6ea4b59e1f094ace2c8cd536dffb87c
 PATH_POLICY_ENV = dict(os.environ)
 FULL_GIT_COMMIT_ID = re.compile(r"[0-9a-fA-F]{40,64}")
 SAFE_RUNTIME_BUILD_KEY = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+HAPROXY_BINDING_BUILD_TARGETS = ("build-modsecurity-binding", "build-spoa-runtime")
+HAPROXY_BINDING_FAILURE_OUTPUT_NAMES = {
+    "build-modsecurity-binding": "haproxy-modsecurity-binding-self-test",
+    "build-spoa-runtime": "haproxy-modsecurity-spoa",
+}
+HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINES = 8
+HAPROXY_FAILURE_DIAGNOSTIC_SCAN_MAX_LINES = 512
+HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINE_CHARS = 4096
+HAPROXY_FAILURE_FOOTER_MARKER = ": *** ["
+HAPROXY_FAILURE_FOOTER_SUFFIX = "] Error "
+HAPROXY_FAILURE_FOOTER_WHITESPACE = " \t\f\v"
+HAPROXY_DIAGNOSTIC_RESOLVER_ERROR = "classification=resolver_error"
+HAPROXY_DIAGNOSTIC_COMPILER_FATAL_ERROR = "classification=compiler_fatal_error"
+HAPROXY_DIAGNOSTIC_COMPILER_ERROR = "classification=compiler_error"
+HAPROXY_DIAGNOSTIC_LINKER_ERROR = "classification=linker_error"
+HAPROXY_RESOLVER_SENTINEL_PREFIX = "BLOCKED: HAProxy libModSecurity resolver: sentinel="
+HAPROXY_RESOLVER_SENTINEL_CAUSES = (
+    "invalid_path_syntax",
+    "output_path_not_absolute",
+    "output_path_symlink",
+    "path_contains_whitespace",
+    "headers_not_found",
+    "library_not_found",
+    "headers_missing",
+    "headers_modsecurity_h_and_rules_set_h_missing",
+    "headers_modsecurity_h_and_transaction_h_missing",
+    "headers_rules_set_h_and_transaction_h_missing",
+    "headers_modsecurity_h_and_rules_set_h_and_transaction_h_missing",
+    "header_modsecurity_h_missing",
+    "header_rules_set_h_missing",
+    "header_transaction_h_missing",
+    "library_missing",
+    "readlink_missing",
+    "library_target_unresolved",
+    "library_target_not_regular",
+    "file_missing",
+    "architecture_mismatch",
+    "ldd_missing",
+    "unresolved_runtime_dependencies",
+)
+
+
+def haproxy_resolver_cause_diagnostics(cause: str) -> tuple[str, ...]:
+    """Return the closed, payload-free diagnostics for one resolver cause."""
+
+    if cause not in HAPROXY_RESOLVER_SENTINEL_CAUSES:
+        raise ValueError("unknown HAProxy resolver diagnostic cause")
+    return (
+        HAPROXY_DIAGNOSTIC_RESOLVER_ERROR,
+        "build_step=modsecurity_resolver",
+        f"resolver_cause={cause}",
+    )
+
+
+HAPROXY_RESOLVER_SENTINEL_DIAGNOSTICS = {
+    f"{HAPROXY_RESOLVER_SENTINEL_PREFIX}{cause}": haproxy_resolver_cause_diagnostics(cause)
+    for cause in HAPROXY_RESOLVER_SENTINEL_CAUSES
+}
+HAPROXY_RESOLVER_CAUSE_VALUES = frozenset(
+    diagnostics[-1] for diagnostics in HAPROXY_RESOLVER_SENTINEL_DIAGNOSTICS.values()
+)
+HAPROXY_FAILURE_DIAGNOSTIC_RULES = (
+    (
+        re.compile(r"^BLOCKED: HAProxy libModSecurity resolver:", re.ASCII),
+        (HAPROXY_DIAGNOSTIC_RESOLVER_ERROR, "build_step=modsecurity_resolver"),
+    ),
+    (
+        re.compile(
+            r"\bfatal error:\s*modsecurity/modsecurity\.h:\s*No such file or directory\b",
+            re.IGNORECASE | re.ASCII,
+        ),
+        (HAPROXY_DIAGNOSTIC_COMPILER_FATAL_ERROR, "missing_header=modsecurity.h"),
+    ),
+    (
+        re.compile(
+            r"\bfatal error:\s*modsecurity/rules_set\.h:\s*No such file or directory\b",
+            re.IGNORECASE | re.ASCII,
+        ),
+        (HAPROXY_DIAGNOSTIC_COMPILER_FATAL_ERROR, "missing_header=rules_set.h"),
+    ),
+    (
+        re.compile(
+            r"\bfatal error:\s*modsecurity/transaction\.h:\s*No such file or directory\b",
+            re.IGNORECASE | re.ASCII,
+        ),
+        (HAPROXY_DIAGNOSTIC_COMPILER_FATAL_ERROR, "missing_header=transaction.h"),
+    ),
+    (
+        re.compile(
+            r"^FAIL: HAProxy ModSecurity binding source did not compile for diagnostic SPOP runtime$",
+            re.ASCII,
+        ),
+        (HAPROXY_DIAGNOSTIC_COMPILER_ERROR, "build_step=spoa_binding_source_compile"),
+    ),
+    (
+        re.compile(r"^FAIL: HAProxy ModSecurity SPOA runtime source did not compile$", re.ASCII),
+        (HAPROXY_DIAGNOSTIC_COMPILER_ERROR, "build_step=spoa_runtime_source_compile"),
+    ),
+    (
+        re.compile(r"^FAIL: HAProxy ModSecurity SPOA runtime did not link with libmodsecurity$", re.ASCII),
+        (HAPROXY_DIAGNOSTIC_LINKER_ERROR, "build_step=spoa_runtime_link"),
+    ),
+    (
+        re.compile(r"^FAIL: HAProxy ModSecurity binding source did not compile$", re.ASCII),
+        (HAPROXY_DIAGNOSTIC_COMPILER_ERROR, "build_step=modsecurity_binding_source_compile"),
+    ),
+    (
+        re.compile(r"^FAIL: HAProxy Common SDK source did not compile:", re.ASCII),
+        (HAPROXY_DIAGNOSTIC_COMPILER_ERROR, "build_step=modsecurity_common_sdk_source_compile"),
+    ),
+    (
+        re.compile(r"^FAIL: HAProxy ModSecurity binding self-test source did not compile$", re.ASCII),
+        (HAPROXY_DIAGNOSTIC_COMPILER_ERROR, "build_step=modsecurity_binding_self_test_source_compile"),
+    ),
+    (
+        re.compile(r"^FAIL: HAProxy ModSecurity binding self-test did not link$", re.ASCII),
+        (HAPROXY_DIAGNOSTIC_LINKER_ERROR, "build_step=modsecurity_binding_self_test_link"),
+    ),
+    (
+        re.compile(
+            r"^FAIL: The HAProxy connector requires the public libModSecurity API available in version "
+            r"3\.0\.14 or newer\. The detected headers and library do not provide the required baseline "
+            r"API or do not match\.$",
+            re.ASCII,
+        ),
+        ("classification=modsecurity_baseline_api_failure", "build_step=modsecurity_baseline_api_validation"),
+    ),
+)
 
 
 # Bump this whenever the on-disk cache contract or the identity inputs change.
@@ -124,6 +252,11 @@ MODSECURITY_LIBRARY_FILENAME = "libmodsecurity.so"
 # generic prefix keeps the libtool linker alias above, while the protected
 # NGINX broker records only this regular, non-symlinked runtime artifact.
 MODSECURITY_RUNTIME_LIBRARY_FILENAME = "libmodsecurity.so.3"
+MODSECURITY_REQUIRED_PUBLIC_HEADERS = (
+    "modsecurity.h",
+    "rules_set.h",
+    "transaction.h",
+)
 MODSECURITY_OUTPUT_LAYOUT_VERSION = 1
 NGINX_MODULE_FILENAME = "ngx_http_modsecurity_module.so"
 NATIVE_NGINX_OVERRIDE_ENV = "MRTS_NATIVE_NGINX_BIN/MRTS_NATIVE_NGINX_MODULE_DIR"
@@ -258,8 +391,17 @@ def run_env(
     cwd: Path | None = None,
     env: dict[str, str] | None = None,
     check: bool = False,
+    errors: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(cmd, cwd=cwd, env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(
+        cmd,
+        cwd=cwd,
+        env=env,
+        text=True,
+        errors=errors,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     if check and proc.returncode != 0:
         raise RuntimeError((proc.stdout + proc.stderr).strip() or f"command failed: {' '.join(cmd)}")
     return proc
@@ -4144,8 +4286,18 @@ def modsecurity_lib_file(prefix: Path) -> Path:
     return prefix / "lib" / MODSECURITY_LIBRARY_FILENAME
 
 
+def modsecurity_public_headers_present(include_root: Path) -> bool:
+    return all(
+        (include_root / "modsecurity" / header_name).is_file()
+        for header_name in MODSECURITY_REQUIRED_PUBLIC_HEADERS
+    )
+
+
 def modsecurity_ready(prefix: Path) -> bool:
-    return (prefix / "include/modsecurity/modsecurity.h").is_file() and modsecurity_lib_file(prefix).is_file()
+    return (
+        modsecurity_public_headers_present(prefix / "include")
+        and modsecurity_lib_file(prefix).is_file()
+    )
 
 
 def modsecurity_build_manifest_binds_prefix(
@@ -4538,7 +4690,7 @@ def _copy_verified_modsecurity_runtime_library(
 def copy_modsecurity_outputs(source_dir: Path, prefix: Path) -> None:
     headers = source_dir / "headers"
     libs = source_dir / "src/.libs"
-    if not (headers / "modsecurity/modsecurity.h").is_file():
+    if not modsecurity_public_headers_present(headers):
         raise RuntimeError("modsecurity_headers_missing_after_build")
     terminal_descriptor, terminal_details = _verified_modsecurity_runtime_library(libs)
     include_dir = prefix / "include"
@@ -6263,7 +6415,14 @@ def map_apache_blocker(text: str, missing: list[str]) -> str:
         return "missing_expat_headers"
     if "missing required command" in lowered or MISSING_COMMAND_TEXT in lowered:
         return "missing_apache_build_dependency"
-    if any(item.startswith("modsecurity_lib:") for item in missing) or "libmodsecurity" in lowered:
+    if any(item.startswith("modsecurity_lib:") for item in missing) or any(
+        marker in lowered
+        for marker in (
+            "cannot find -lmodsecurity",
+            "cannot find libmodsecurity",
+            "libmodsecurity.so: cannot open shared object file",
+        )
+    ):
         return "missing_libmodsecurity_build"
     if re.search(r"(?m)^.+:\d+(?::\d+)?: (?:fatal )?error:", text) or "apxs:error:" in lowered:
         return "apache_connector_build_failed"
@@ -7164,7 +7323,7 @@ def apache_preflight_blocked(
     modsecurity: dict[str, Any],
     override_apachectl: str,
 ) -> bool:
-    if modsecurity.get("status") == "blocked":
+    if modsecurity.get("status") not in READY_COMPONENT_STATUSES:
         record.update(
             status="blocked",
             blocker_reason=modsecurity.get("blocker_reason") or "modsecurity_build_failed",
@@ -7297,6 +7456,12 @@ def apache_build_environment(
             if expat_lib_dir
             else env.get("LD_LIBRARY_PATH", "")
         ),
+        # The Framework-owned Apache provisioner extracts verified source
+        # archives.  The task-owned runtime roots can be user namespaces or
+        # id-mapped mounts, where restoring the archive's original owner
+        # fails even though extraction is otherwise valid.  Archive ownership
+        # is not build input, so consistently suppress its restoration.
+        TAR_OPTIONS="--no-same-owner",
         BUILD_HTTPD_FROM_SOURCE="1",
         BUILD_PCRE2_FROM_SOURCE="1",
         AUTO_FETCH_SMOKE_SOURCES="0",
@@ -8081,7 +8246,7 @@ def nginx_preflight_blocked(
     modsecurity: dict[str, Any],
     context: dict[str, Any],
 ) -> bool:
-    if modsecurity.get("status") == "blocked":
+    if modsecurity.get("status") not in READY_COMPONENT_STATUSES:
         record.update(
             status="blocked",
             blocker_reason=modsecurity.get("blocker_reason") or "modsecurity_build_failed",
@@ -8686,6 +8851,7 @@ def haproxy_runtime_context(plan: dict[str, Any], build_root: Path) -> dict[str,
     spoa_dir = root / "haproxy-spoa-runtime"
     spoa_bin = spoa_dir / "haproxy-modsecurity-spoa"
     paths_env = binding_dir / "paths.env"
+    framework_log_dir = root / "logs" / "haproxy-prepare"
     return {
         "root": root,
         "build_root": invocation_build_root,
@@ -8699,6 +8865,8 @@ def haproxy_runtime_context(plan: dict[str, Any], build_root: Path) -> dict[str,
         "spoa_bin": spoa_bin,
         "paths_env": paths_env,
         "log_path": root / "logs/haproxy-build.log",
+        "framework_log_dir": framework_log_dir,
+        "framework_build_log": framework_log_dir / "haproxy-build.log",
     }
 
 
@@ -8724,6 +8892,8 @@ def haproxy_runtime_record(
         "spoa_runtime_bin": str(context["spoa_bin"]),
         "modsecurity_binding_dir": str(context["binding_dir"]),
         "paths_env": str(context["paths_env"]),
+        "framework_prepare_log_dir": str(context["framework_log_dir"]),
+        "framework_prepare_build_log": str(context["framework_build_log"]),
         "output_paths": {
             "binary": str(context["haproxy_bin"]),
             "module": str(context["spoa_bin"]),
@@ -8745,7 +8915,7 @@ def haproxy_preflight_blocked(
     cache_root: Path,
     context: dict[str, Any],
 ) -> bool:
-    if modsecurity.get("status") == "blocked":
+    if modsecurity.get("status") not in READY_COMPONENT_STATUSES:
         record.update(
             status="blocked",
             blocker_reason=modsecurity.get("blocker_reason") or "modsecurity_build_failed",
@@ -8762,6 +8932,8 @@ def haproxy_preflight_blocked(
         context["spoa_bin"],
         context["paths_env"],
         context["log_path"],
+        context["framework_log_dir"],
+        context["framework_build_log"],
     ):
         if (
             is_system_path(path)
@@ -8878,6 +9050,7 @@ def haproxy_prepare_environment(
         BUILD_ROOT=str(context["build_root"]),
         TMP_ROOT=str(context["root"] / "tmp"),
         LOG_ROOT=str(context["root"] / "logs"),
+        LOG_DIR=str(context["framework_log_dir"]),
         HAPROXY_SOURCE_ROOT=str(sources_root / "haproxy"),
         HAPROXY_DOWNLOAD_DIR=str(archives_root / "haproxy"),
         HAPROXY_SOURCE_DIR=str(
@@ -8948,16 +9121,206 @@ def run_haproxy_binding_build(
             "make",
             "-C",
             str(connector_root / "connectors/haproxy"),
-            "build-modsecurity-binding",
-            "build-spoa-runtime",
+            *HAPROXY_BINDING_BUILD_TARGETS,
         ],
         env=make_env,
+        errors="replace",
     )
     with log_path.open("a", encoding="utf-8", errors="replace") as handle:
         handle.write("\n[haproxy-modsecurity-binding]\n")
         handle.write(proc.stdout)
         handle.write(proc.stderr)
     return proc
+
+
+def haproxy_failure_diagnostics_for_line(raw_line: str) -> tuple[tuple[str, ...], ...]:
+    """Return the fixed diagnostic values allowlisted for one tool-output line."""
+
+    return tuple(
+        diagnostics
+        for pattern, diagnostics in HAPROXY_FAILURE_DIAGNOSTIC_RULES
+        if pattern.search(raw_line)
+    )
+
+
+def append_haproxy_failure_diagnostics(
+    selected: list[str], diagnostics: tuple[str, ...]
+) -> bool:
+    """Append unseen fixed diagnostics and report whether the bounded list overflowed."""
+
+    for diagnostic in diagnostics:
+        if diagnostic in selected:
+            continue
+        if len(selected) >= HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINES:
+            return True
+        selected.append(diagnostic)
+    return False
+
+
+def haproxy_failure_output_lines(output: str) -> Iterator[str]:
+    """Yield a per-stream bounded prefix of lines for fixed diagnostics only.
+
+    An overlong untrusted line ends the scan for that stream rather than being
+    copied, truncated, or searched beyond the configured bound.
+    """
+
+    position = 0
+    for _ in range(HAPROXY_FAILURE_DIAGNOSTIC_SCAN_MAX_LINES):
+        if position >= len(output):
+            return
+        scan_end = min(len(output), position + HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINE_CHARS + 1)
+        line_end = output.find("\n", position, scan_end)
+        if line_end < 0:
+            if scan_end == len(output):
+                yield output[position:scan_end].removesuffix("\r")
+            return
+        yield output[position:line_end].removesuffix("\r")
+        position = line_end + 1
+
+
+def ascii_decimal(value: str) -> bool:
+    """Return whether ``value`` consists of one or more ASCII decimal digits."""
+
+    return bool(value) and all("0" <= character <= "9" for character in value)
+
+
+def haproxy_make_footer_target_text(footer_target: str) -> str:
+    """Remove the first GNU Make ``:line:`` location prefix, when present."""
+
+    for index, character in enumerate(footer_target):
+        if character != ":":
+            continue
+        line_start = index + 1
+        line_end = line_start
+        while line_end < len(footer_target) and "0" <= footer_target[line_end] <= "9":
+            line_end += 1
+        if line_end == line_start or line_end == len(footer_target):
+            continue
+        if footer_target[line_end] == ":":
+            return footer_target[line_end + 1 :].lstrip(HAPROXY_FAILURE_FOOTER_WHITESPACE)
+    return footer_target
+
+
+def haproxy_make_footer_target(raw_line: str) -> str | None:
+    """Parse one GNU Make footer in linear time without retaining raw output."""
+
+    if not raw_line.startswith("make"):
+        return None
+    footer = raw_line[len("make") :]
+    if footer.startswith("["):
+        level_end = footer.find("]")
+        if level_end <= 1 or not ascii_decimal(footer[1:level_end]):
+            return None
+        footer = footer[level_end + 1 :]
+    if not footer.startswith(HAPROXY_FAILURE_FOOTER_MARKER):
+        return None
+    footer = footer[len(HAPROXY_FAILURE_FOOTER_MARKER) :]
+    target_end = footer.find(HAPROXY_FAILURE_FOOTER_SUFFIX)
+    if target_end <= 0:
+        return None
+    target = footer[:target_end]
+    exit_code = footer[target_end + len(HAPROXY_FAILURE_FOOTER_SUFFIX) :]
+    if "]" in target or not ascii_decimal(exit_code):
+        return None
+    return haproxy_make_footer_target_text(target)
+
+
+def haproxy_failure_target_from_footers(
+    proc: subprocess.CompletedProcess[str], expected_target_paths: dict[str, str] | None = None
+) -> str | None:
+    """Return the first logical target named by an exact GNU Make stderr footer."""
+
+    # GNU Make writes its failure footer to stderr.  Ignore stdout entirely so
+    # compiler output cannot forge a target label or influence footer order.
+    expected_target_paths = expected_target_paths or {}
+    for raw_line in haproxy_failure_output_lines(str(proc.stderr or "")):
+        target = haproxy_make_footer_target(raw_line)
+        if target is None:
+            continue
+        if target in HAPROXY_BINDING_BUILD_TARGETS:
+            return target
+        for logical_target in HAPROXY_BINDING_BUILD_TARGETS:
+            if target == expected_target_paths.get(logical_target):
+                return logical_target
+    return None
+
+
+def append_haproxy_failure_output_diagnostics(
+    selected: list[str], output: str, is_stderr: bool
+) -> bool:
+    """Append fixed diagnostics for one bounded stream and report truncation."""
+
+    for raw_line in haproxy_failure_output_lines(output):
+        if is_stderr:
+            resolver_diagnostics = HAPROXY_RESOLVER_SENTINEL_DIAGNOSTICS.get(raw_line)
+            if resolver_diagnostics is not None and append_haproxy_failure_diagnostics(
+                selected, resolver_diagnostics
+            ):
+                selected[-1] = "[classification list truncated]"
+                return True
+        for diagnostics in haproxy_failure_diagnostics_for_line(raw_line):
+            if append_haproxy_failure_diagnostics(selected, diagnostics):
+                selected[-1] = "[classification list truncated]"
+                return True
+    return False
+
+
+def haproxy_failure_diagnostic_lines(
+    proc: subprocess.CompletedProcess[str], expected_target_paths: dict[str, str] | None = None
+) -> list[str]:
+    """Return only repository-known diagnostic constants; raw tool output stays private."""
+
+    selected: list[str] = []
+    target_failure = haproxy_failure_target_from_footers(proc, expected_target_paths)
+    if target_failure is not None:
+        selected.append(f"target_failure={target_failure}")
+    for is_stderr, output in ((True, str(proc.stderr or "")), (False, str(proc.stdout or ""))):
+        if append_haproxy_failure_output_diagnostics(selected, output, is_stderr):
+            return selected
+    return selected
+
+
+def haproxy_resolver_cause_annotation(diagnostics: list[str]) -> str | None:
+    """Return one exact resolver cause suitable for a GitHub Actions annotation."""
+
+    matches = [
+        diagnostic for diagnostic in diagnostics if diagnostic in HAPROXY_RESOLVER_CAUSE_VALUES
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
+def emit_haproxy_binding_failure_diagnostic(
+    proc: subprocess.CompletedProcess[str],
+    missing_artifacts: tuple[str, ...],
+    expected_target_paths: dict[str, str] | None = None,
+) -> None:
+    """Expose a bounded summary while retaining raw compiler output privately."""
+
+    print(
+        "prepare-runtime-components: HAProxy binding build failed "
+        f"target={' '.join(HAPROXY_BINDING_BUILD_TARGETS)} exit_code={proc.returncode} "
+        "build_log=private_task_owned_haproxy-build.log",
+        file=sys.stderr,
+    )
+    for artifact in missing_artifacts:
+        print(
+            f"prepare-runtime-components: HAProxy binding build missing_artifact={artifact}",
+            file=sys.stderr,
+        )
+    diagnostics = haproxy_failure_diagnostic_lines(proc, expected_target_paths)
+    if not diagnostics:
+        diagnostics = ["[no allowlisted compiler or linker failure classification captured]"]
+    for diagnostic in diagnostics:
+        print(
+            f"prepare-runtime-components: HAProxy binding diagnostic: {diagnostic}",
+            file=sys.stderr,
+        )
+    resolver_cause = haproxy_resolver_cause_annotation(diagnostics)
+    if resolver_cause is not None and os.environ.get("GITHUB_ACTIONS") == "true":
+        print(
+            f"::error title=HAProxy resolver diagnostic::{resolver_cause}",
+            file=sys.stderr,
+        )
 
 
 def prepare_haproxy_runtime(
@@ -9043,9 +9406,23 @@ def prepare_haproxy_runtime(
         return write_haproxy_record(plan, record)
     make_env = haproxy_binding_environment(prep_env, connector_root, modsecurity, context)
     proc = run_haproxy_binding_build(connector_root, make_env, context["log_path"])
-    if proc.returncode != 0 or not (
-        executable(context["spoa_bin"]) and context["paths_env"].is_file()
-    ):
+    expected_target_paths = {
+        "build-modsecurity-binding": str(
+            context["binding_dir"]
+            / HAPROXY_BINDING_FAILURE_OUTPUT_NAMES["build-modsecurity-binding"]
+        ),
+        "build-spoa-runtime": str(context["spoa_bin"]),
+    }
+    missing_artifacts = tuple(
+        label
+        for label, available in (
+            ("spoa_runtime_binary", executable(context["spoa_bin"])),
+            ("modsecurity_binding_paths", context["paths_env"].is_file()),
+        )
+        if not available
+    )
+    if proc.returncode != 0 or missing_artifacts:
+        emit_haproxy_binding_failure_diagnostic(proc, missing_artifacts, expected_target_paths)
         record.update(
             status="failed",
             blocker_reason="haproxy_connector_build_failed",

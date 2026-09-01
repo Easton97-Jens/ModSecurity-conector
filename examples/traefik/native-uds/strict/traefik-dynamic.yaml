@@ -1,0 +1,23 @@
+http:
+  routers:
+    app:
+      rule: "PathPrefix(`/`)"
+      entryPoints: ["web"]
+      middlewares: ["modsecurity-native"]
+      service: app
+  middlewares:
+    modsecurity-native:
+      plugin:
+        modsecurityNative:
+          maxHeaderCount: 100
+          maxHeaderBytes: 65536
+          maxRequestChunkBytes: 32768
+          maxResponseChunkBytes: 32768
+          transactionIDHeader: X-Request-Id
+          engineMode: uds
+          engineSocketPath: /run/traefik-msconnector/engine.sock
+  services:
+    app:
+      loadBalancer:
+        servers:
+        - url: "http://127.0.0.1:8081"

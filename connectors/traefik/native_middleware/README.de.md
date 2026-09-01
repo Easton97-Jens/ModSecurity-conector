@@ -2,43 +2,48 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
-Dabei handelt es sich um ein Repository-eigenes Go-Paket, das für die Go-Middleware von Traefik konzipiert ist
-Einstiegspunkte: `CreateConfig`, `New` und `ServeHTTP`. `New` verfügt über die erforderlichen
-`(http.Handler, error)`-Signatur und `.traefik.yml` zeichnen Plugin-Metadaten auf
-und Testdaten. Es verwendet nur die Go-Standardbibliothek. Traefik liefert den nächsten
-`http.Handler`, wenn ein Plugin geladen wird. Der Full-Lifecycle-Runner führt dies durch
-Paket unter einem angehefteten lokalen Traefik-Plugin-Arbeitsbereich; es ersetzt nicht das
-Sie können den vorhandenen C `forwardAuth`-Kompatibilitätsdienst deaktivieren oder dessen Leistungsfähigkeit ändern
-Erklärung.
+Dabei handelt es sich um ein Repository-eigenes Go-Paket für Traefiks
+Go-Middleware-Einstiegspunkte `CreateConfig`, `New` und `ServeHTTP`. `New`
+verwendet die erforderliche Signatur `(http.Handler, error)`, und `.traefik.yml`
+enthält Plugin-Metadaten und Testdaten. Das Paket verwendet ausschließlich die
+Go-Standardbibliothek; beim Laden des Plugins liefert Traefik den nächsten
+`http.Handler`. Der Full-Lifecycle-Runner legt dieses Paket in einem
+angehefteten lokalen Traefik-Plugin-Arbeitsbereich ab. Er ersetzt weder den
+vorhandenen C-`forwardAuth`-Kompatibilitätsdienst noch ändert er dessen
+Capability-Deklaration.
 
 ## Was die Quelle tut
 
-- Umschließt den Anforderungstext, sodass Lesevorgänge auf `maxRequestChunkBytes` begrenzt und gesendet werden
-  synchron zu einer `Transaction`-Naht pro Anforderung;
-- umschließt den Antwortschreiber, wertet Antwortheader vor dem Commit aus und
-  schneidet jeden `Write` vor der Weiterleitung in `maxResponseChunkBytes`-Rückrufe
-  jede Scheibe;
-- implementiert `http.Flusher`, `http.Hijacker`, `http.Pusher`, `io.ReaderFrom`,
-  und `Unwrap`; `ReadFrom` behält den schnellen Pfad des umschlossenen Autors nach einem bei
-  begrenzter erster Block;
-- Behält nur Metadaten und Byte-/Chunk-Zähler in `Summary`, niemals einen vollständigen
-  Anfrage- oder Antworttext;
-- behandelt ein störendes Ergebnis nach der Reaktionsverpflichtung als `log_only`; das tut es
-  einen geänderten Status, eine Zurücksetzung oder einen Client-Abbruch-Anspruch nicht synthetisieren.
+- umschließt den Request-Body, sodass Lesevorgänge auf
+  `maxRequestChunkBytes` begrenzt und synchron an eine
+  `Transaction`-Nahtstelle pro Request übergeben werden;
+- umschließt den ResponseWriter, wertet Response-Header vor dem Commit aus
+  und teilt jeden `Write` vor der Weiterleitung in
+  `maxResponseChunkBytes`-Callbacks auf;
+- implementiert `http.Flusher`, `http.Hijacker`, `http.Pusher`, `io.ReaderFrom`
+  und `Unwrap`; `ReadFrom` behält nach einem begrenzten ersten Chunk den
+  schnellen Pfad des umschlossenen Writers bei;
+- speichert in `Summary` nur Metadaten sowie Byte-/Chunk-Zähler und niemals
+  einen vollständigen Request- oder Response-Body;
+- behandelt ein disruptives Ergebnis nach dem Response-Commit als `log_only`.
+  Es wird kein geänderter Status, kein Reset und kein Client-Abbruch-Claim
+  synthetisiert.
 
-Die Form des optionalen Motors ist beabsichtigt. `New` ist standardmäßig auf
-`PassthroughEngine` für eine reine Quellkonfiguration, während `engineMode: uds`
-Öffnet eine private Unix-Domain-Socket-Sitzung pro `ServeHTTP` für den Persistenten
-Common/libmodsecurity-Engine-Dienst. Der ausgewählte Host-Läufer stellt seine bereit
-eigener privater Socket und lauflokaler Ereignispfad; Ein eingechecktes Objekt wird nicht wiederverwendet
-Socket-Pfad. Es beweist gezieltes P1--P4-Wirtsverhalten, ohne a zu fördern
-Fähigkeit, CRS-Vollständigkeit, sicher/streng oder Produktionsbereitschaft.
+Die Form des optionalen Engines ist beabsichtigt. `New` verwendet für eine
+reine Source-Konfiguration standardmäßig `PassthroughEngine`, während
+`engineMode: uds` pro `ServeHTTP` eine private Unix-Domain-Socket-Sitzung zum
+persistenten Common-/libmodsecurity-Engine-Service öffnet. Der ausgewählte
+Host-Läufer verwendet dafür einen eigenen privaten Socket und einen
+laufbezogenen Event-Pfad; ein eingecheckter Socket-Pfad wird nicht
+wiederverwendet. Damit wird gezieltes P1--P4-Hostverhalten geprüft, ohne einen
+Capability-, CRS-Vollständigkeits-, Safe-/Strict- oder Produktions-Claim zu
+fördern.
 
-Das UDS-Protokoll lehnt unbekannte Engine-Aktionen ab, anstatt sie als neu zu kennzeichnen
-eine HTTP-Ablehnung. Es meldet ein störendes Ergebnis erst nach dem tatsächlichen
-`ResponseWriter`-Schreibvorgang erfolgreich. Nach Reaktionseinsatz eine disruptive Phase
-4 Ergebnis ist bewusst `log_only`; es stellt keinen geänderten Status dar,
-Reset oder Client-Abbruch-Anspruch.
+Das UDS-Protokoll lehnt unbekannte Engine-Aktionen ab, statt sie als
+HTTP-Ablehnung umzudeuten. Ein disruptives Ergebnis wird erst gemeldet, wenn
+der tatsächliche `ResponseWriter`-Write erfolgreich war. Nach dem Response-
+Commit ist ein disruptives Ergebnis aus Phase 4 bewusst `log_only`; es
+synthetisiert weder einen geänderten Status noch Reset oder Client-Abbruch.
 
 ## Lokale Quellenprüfungen
 
@@ -47,40 +52,46 @@ make -C connectors/traefik test-native-middleware
 make -C connectors/traefik build-native-middleware
 ```
 
-Das Build-Skript führt `go test ./...`, `go vet ./...` und (für `build`) „go“ aus
-build ./...`. Standardmäßig wird nur ein Kompilierungsbericht außerhalb des Checkouts geschrieben
-an `$BUILD_ROOT/traefik-native-middleware/build.txt`. Es wird kein installiert
-Traefik-Plugin, starten Sie die persistente Engine, rufen Sie Common/libmodsecurity auf, oder
-Laufzeitbeweise schreiben.
+Das Build-Skript führt `go test ./...`, `go vet ./...` und (für `build`) `go
+build ./...` aus. Standardmäßig schreibt es nur einen Kompilierungsbericht
+außerhalb des Checkouts nach
+`$BUILD_ROOT/traefik-native-middleware/build.txt`. Es installiert kein
+Traefik-Plugin, startet keine persistente Engine, ruft Common/libmodsecurity
+nicht auf und schreibt keine Laufzeitnachweise.
 
 ## Begrenztes Fuzzing des UDS-Parsers
 
-`FuzzUDSFrameAndResult` übt den eigenen UDS-Frame-Reader und Result-Parser mit
-abgeschnittenen, fehlerhaften, Allow-, Deny- und Redirect-Seeds sowie beliebigen
-begrenzten Frames aus. Er verwendet nur einen In-Memory-Reader: Er öffnet keinen
-Socket, startet keine Engine und ruft weder CGo noch Common auf. Ein fehlerhafter
-Frame muss ohne Panic einen Fehler liefern; jeder erfolgreich geparste Frame muss
-zu seinen konsumierten Bytes unverändert round-trippen dürfen (weitere Stream-Frames
-können folgen), und ein erfolgreich geparstes Result muss eine erkannte Aktion haben.
+`FuzzUDSFrameAndResult` prüft den benutzerdefinierten UDS-Frame-Reader und
+Result-Parser mit abgeschnittenen, fehlerhaften sowie Allow-, Deny- und
+Redirect-Seeds und beliebigen begrenzten Frames. Es wird nur ein
+In-Memory-Reader verwendet: Der Test öffnet keinen Socket, startet keine
+Engine und ruft weder CGo noch Common auf. Ein fehlerhafter Frame muss ohne
+Panic einen Fehler liefern. Jeder erfolgreich geparste Frame muss unverändert
+auf die von ihm verbrauchten Bytes zurückführbar sein (weitere Stream-Frames
+können folgen), und ein erfolgreich geparstes Result muss eine bekannte Aktion
+enthalten.
 
-Führen Sie dieselbe begrenzte Kontrolle aus diesem Modulverzeichnis aus:
+Führen Sie dieselbe begrenzte Prüfung aus diesem Modulverzeichnis aus:
 
 ```sh
 GOTOOLCHAIN=local go test -mod=readonly -run='^$' -fuzz='^FuzzUDSFrameAndResult$' -fuzztime=15s -parallel=1 .
 ```
 
-Der `traefik-go`-CodeQL-Job führt diese Kontrolle mit derselben 15-Sekunden-
-und Single-Worker-Grenze aus. Es handelt sich um Source-Level-Parser-Evidence,
-nicht um Traefik-Host-Runtime- oder Capability-Promotion-Evidence.
+Der `traefik-go`-CodeQL-Job führt diese Prüfung mit derselben Begrenzung von
+15 Sekunden und einem Worker aus. Dies ist ein Source-Level-Nachweis für den
+Parser, kein Nachweis für Traefik-Host-Runtime oder Capability-Promotion.
 
-## Konfigurationsgrenze`../config/traefik-native-middleware-static.yaml` und
-`../config/traefik-native-middleware-dynamic.yaml` sind passende lokale Plugins
-und Dateianbieterformen für eine vom Bediener erstellte Registrierung mit dem Namen
-`modsecurityNative`. Sie sind bewusst von den Auserwählten getrennt
-`../config/traefik-forwardauth-dynamic.yaml`. Die
-Das `full-lifecycle-traefik-native`-Hostziel stellt unabhängig ein Äquivalent bereit
-Verfügbarer Arbeitsbereich, erstellt und startet den lokalen Engine-Dienst und bestätigt
-Laden des Plugins im angepinnten Host. Diese eingecheckten Referenzen werden nicht wiederverwendet
-Dateien oder einen gemeinsam genutzten Engine-Socket. Eine Betreiberbereitstellung muss weiterhin durchgeführt werden
-Modul unter dem lokalen Plugin-Arbeitsbereich, der von der installierten Traefik-Version verwendet wird.
-Bei der Untersuchung handelt es sich nicht um einen Einsatz- oder Fähigkeitsförderungsbeweis.
+## Konfigurationsgrenze
+
+`../config/traefik-native-middleware-static.yaml` und
+`../config/traefik-native-middleware-dynamic.yaml` sind passende
+Local-Plugin- und File-Provider-Formen für eine vom Betreiber angelegte
+Registrierung namens `modsecurityNative`. Sie sind bewusst getrennt von der
+ausgewählten `../config/traefik-forwardauth-dynamic.yaml`. Das Hostziel
+`full-lifecycle-traefik-native` richtet unabhängig davon einen gleichwertigen
+temporären Arbeitsbereich ein, baut und startet den lokalen Engine-Service und
+prüft das Laden des Plugins im angehefteten Host. Es verwendet weder diese
+eingecheckten Referenzdateien noch einen gemeinsam genutzten Engine-Socket.
+Für einen Betreibereinsatz muss das Modul weiterhin im Local-Plugin-
+Arbeitsbereich der installierten Traefik-Version abgelegt werden. Die Prüfung
+ist kein Deployment- oder Capability-Promotion-Nachweis.

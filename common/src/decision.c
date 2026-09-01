@@ -29,6 +29,7 @@ void msconnector_decision_init(msconnector_decision *decision) {
     decision->reason = 0;
     decision->log_message = 0;
     decision->disruptive = 0;
+    decision->body_limit = 0;
     decision->late_intervention = 0;
     decision->intervention = msconnector_intervention_none();
 }
@@ -41,6 +42,20 @@ int msconnector_decision_is_drop(const msconnector_decision *decision) { return 
 int msconnector_decision_is_connection_abort(const msconnector_decision *decision) { return decision != 0 && decision->kind == MSCONNECTOR_DECISION_KIND_CONNECTION_ABORT; }
 int msconnector_decision_is_allow(const msconnector_decision *decision) { return decision != 0 && decision->kind == MSCONNECTOR_DECISION_KIND_ALLOW; }
 int msconnector_decision_http_status(const msconnector_decision *decision) { return decision == 0 ? 0 : decision->http_status; }
+int msconnector_decision_is_body_limit(const msconnector_decision *decision) {
+    return decision != 0 &&
+        decision->body_limit == 1 &&
+        decision->kind == MSCONNECTOR_DECISION_KIND_DENY &&
+        decision->status == MSCONNECTOR_STATUS_BLOCKED &&
+        decision->phase == MSCONNECTOR_PHASE_REQUEST_BODY &&
+        decision->http_status == 413 &&
+        decision->redirect_url == 0 &&
+        (decision->rule_id == 0 || decision->rule_id[0] == '\0') &&
+        decision->disruptive != 0 &&
+        msconnector_intervention_is_disruptive(&decision->intervention) &&
+        decision->intervention.status == 413 &&
+        decision->intervention.redirect_url == 0;
+}
 
 void msconnector_decision_set_allow(msconnector_decision *decision) { msconnector_decision_init(decision); }
 void msconnector_decision_set_log_only(msconnector_decision *decision, const char *reason) {
@@ -53,6 +68,12 @@ void msconnector_decision_set_deny(msconnector_decision *decision, int http_stat
     decision->kind = MSCONNECTOR_DECISION_KIND_DENY; decision->status = MSCONNECTOR_STATUS_BLOCKED;
     decision->http_status = normalized; decision->rule_id = rule_id; decision->reason = reason;
     decision->disruptive = 1; decision->intervention = msconnector_intervention_make(1, normalized, 0, reason);
+}
+void msconnector_decision_set_body_limit(msconnector_decision *decision, const char *reason) {
+    msconnector_decision_set_deny(decision, 413, 0, reason);
+    if (decision == 0) { return; }
+    decision->phase = MSCONNECTOR_PHASE_REQUEST_BODY;
+    decision->body_limit = 1;
 }
 void msconnector_decision_set_redirect(msconnector_decision *decision, int http_status, const char *url, const char *rule_id, const char *reason) {
     int status = redirect_status(http_status) ? http_status : 302;
@@ -101,6 +122,10 @@ static const char *blocked_message_id(const msconnector_decision *decision) {
 static const char *decision_message_id(const msconnector_decision *decision) {
     switch (decision->kind) {
     case MSCONNECTOR_DECISION_KIND_DENY:
+        if (msconnector_decision_is_body_limit(decision)) {
+            return MSCONN_EVENT_BODY_LIMIT;
+        }
+        return blocked_message_id(decision);
     case MSCONNECTOR_DECISION_KIND_REDIRECT:
     case MSCONNECTOR_DECISION_KIND_DROP:
     case MSCONNECTOR_DECISION_KIND_CONNECTION_ABORT:

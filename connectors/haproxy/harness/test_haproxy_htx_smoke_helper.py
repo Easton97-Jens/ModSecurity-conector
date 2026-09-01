@@ -4,13 +4,17 @@
 from __future__ import annotations
 
 import importlib.util
+from email.message import Message
 import json
 import os
 from pathlib import Path
+import socket
 import stat
 import sys
 import tempfile
+import threading
 import unittest
+from unittest import mock
 
 
 HELPER_PATH = Path(__file__).with_name("haproxy_htx_smoke_helper.py")
@@ -54,6 +58,14 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
         self.assertIn('SYNCHRONIZED_UPSTREAM="$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py"', runtime)
         self.assertIn(
             'CANONICAL_RULES_FILE=${HAPROXY_HTX_CANONICAL_RULES_FILE:-$FRAMEWORK_ROOT/tests/rules/no-crs-baseline.conf}',
+            runtime,
+        )
+        self.assertIn(
+            '"$PYTHON_BIN" "$HELPER" serve-upstream --port "$upstream_port"',
+            runtime,
+        )
+        self.assertNotIn(
+            'helper serve-upstream --port "$upstream_port"',
             runtime,
         )
         self.assertIn(
@@ -104,6 +116,13 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
         self.assertIn("FULL_LIFECYCLE_EVIDENCE_OUTPUT", runtime)
         self.assertIn("streaming-probe", runtime)
         self.assertIn("phase2_deny_status=403", runtime)
+        self.assertIn("phase2_bodyless_eos_status=200", runtime)
+        self.assertIn("phase2_bodyless_eos_host_action=observed_only", runtime)
+        self.assertIn("phase4_bodyless_eos_status=200", runtime)
+        self.assertIn("phase4_bodyless_eos_host_action=observed_only", runtime)
+        self.assertIn("phase2_bodyless_eos", runtime)
+        self.assertIn("phase4_bodyless_eos", runtime)
+        self.assertIn('--published-path "$FIRST_BYTE_EVIDENCE_PATH"', runtime)
         for key in (
             "phase4_safe_status=%s",
             "phase4_end_of_stream_evaluation_status=%s",
@@ -112,6 +131,27 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
         ):
             with self.subTest(key=key):
                 self.assertIn(key, runtime)
+
+    def test_bodyless_eos_controls_are_observation_only(self) -> None:
+        runtime = RUNTIME_PATH.read_text(encoding="utf-8")
+        self.assertIn(
+            "run_case phase2_bodyless_eos 2 0 200 phase2 1 observed_only",
+            runtime,
+        )
+        self.assertIn(
+            "run_case phase4_bodyless_eos 4 0 200 phase4 1 observed_only",
+            runtime,
+        )
+        self.assertIn("        observed_only)", runtime)
+        self.assertIn(
+            "phase2_bodyless_eos:2:0:200:1|phase4_bodyless_eos:4:0:200:1)",
+            runtime,
+        )
+        # These controls prove the HTTP/1.1 EOS path only; their host action is
+        # explicitly observation-only and therefore cannot synthesize a policy
+        # decision or capability promotion.
+        self.assertEqual(runtime.count("phase2_bodyless_eos 2 0 200"), 1)
+        self.assertEqual(runtime.count("phase4_bodyless_eos 4 0 200"), 1)
 
     def test_runtime_diagnostic_range_is_centralized_without_changing_sed_calls(self) -> None:
         runtime = RUNTIME_PATH.read_text(encoding="utf-8")
@@ -240,6 +280,246 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
             self.assertEqual(raw_record["upstream_requests"], 0)
             self.assertEqual(raw_record["client_response_bytes"], 93)
             self.assertNotIn("no-crs-request-body-marker", host_evidence.read_text(encoding="utf-8"))
+
+    def test_host_decision_log_requires_exactly_one_matching_record(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            decision_log = root / "haproxy.stderr.log"
+            records = (
+                (
+                    HELPER.decision_from_log,
+                    1,
+                    1100001,
+                    "modsecurity-htx: request intervention observed; "
+                    "transaction_id=haproxy-htx-unique phase=1 status=403 "
+                    "rule_id=1100001 action=deny\n",
+                ),
+                (
+                    HELPER.late_decision_from_log,
+                    4,
+                    1100301,
+                    "modsecurity-htx: response-body late intervention observed; "
+                    "transaction_id=haproxy-htx-unique phase=4 status=403 "
+                    "rule_id=1100301 requested_action=deny "
+                    "resolved_policy_action=log_only host_action=log_only\n",
+                ),
+            )
+            for parser, phase, rule_id, record in records:
+                with self.subTest(parser=parser.__name__):
+                    duplicate = record.replace(
+                        "transaction_id=haproxy-htx-unique",
+                        "transaction_id=haproxy-htx-duplicate",
+                    )
+                    for duplicate_records in (record + duplicate, record.rstrip() + " " + duplicate):
+                        decision_log.write_text(duplicate_records, encoding="utf-8")
+                        with self.assertRaisesRegex(ValueError, "exactly one"):
+                            parser(str(root), str(decision_log), phase, rule_id)
+
+    def test_host_evidence_rejects_noncanonical_case_shapes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            probe = root / "client-probe.json"
+            decision_log = root / "haproxy.stderr.log"
+            evidence = root / "host-runtime-evidence.jsonl"
+            probe.write_text(
+                json.dumps({"status": 403, "response_bytes": 93, "content_type": "text/html"}),
+                encoding="utf-8",
+            )
+            decision_log.write_text(
+                "modsecurity-htx: request intervention observed; "
+                "transaction_id=haproxy-htx-phase1 phase=1 status=403 "
+                "rule_id=1100001 action=deny\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "closed contract"):
+                HELPER.write_host_evidence(
+                    str(root), str(evidence), "phase1_403", 2, 1100001,
+                    str(probe), 0, "enforced_reply", str(decision_log),
+                )
+            self.assertFalse(evidence.exists())
+            with self.assertRaisesRegex(ValueError, "decision-log presence"):
+                HELPER.write_host_evidence(
+                    str(root), str(evidence), "phase1_403", 1, 1100001,
+                    str(probe), 0, "enforced_reply",
+                )
+            self.assertFalse(evidence.exists())
+            for malformed_decision in (
+                "modsecurity-htx: request intervention observed; "
+                "transaction_id=haproxy-htx-phase1 phase=1 status=403 "
+                "rule_id=1100001 action=allow\n",
+                "modsecurity-htx: request intervention observed; "
+                "transaction_id=haproxy-htx-phase1 phase=1 status=200 "
+                "rule_id=1100001 action=deny\n",
+            ):
+                decision_log.write_text(malformed_decision, encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "host decision does not match"):
+                    HELPER.write_host_evidence(
+                        str(root), str(evidence), "phase1_403", 1, 1100001,
+                        str(probe), 0, "enforced_reply", str(decision_log),
+                    )
+                self.assertFalse(evidence.exists())
+
+    def test_private_harness_limits_request_framing_and_headers(self) -> None:
+        exact_length_headers = Message()
+        exact_length_headers["Content-Length"] = str(HELPER.MAX_HARNESS_REQUEST_BODY_BYTES)
+        self.assertEqual(
+            HELPER.upstream_content_length(exact_length_headers),
+            HELPER.MAX_HARNESS_REQUEST_BODY_BYTES,
+        )
+        for description, configure in (
+            (
+                "oversized",
+                lambda headers: headers.__setitem__(
+                    "Content-Length", str(HELPER.MAX_HARNESS_REQUEST_BODY_BYTES + 1),
+                ),
+            ),
+            ("duplicate", lambda headers: (headers.__setitem__("Content-Length", "0"), headers.__setitem__("Content-Length", "0"))),
+            (
+                "conflicting",
+                lambda headers: (
+                    headers.__setitem__("Transfer-Encoding", "chunked"),
+                    headers.__setitem__("Content-Length", "0"),
+                ),
+            ),
+        ):
+            with self.subTest(description=description):
+                headers = Message()
+                configure(headers)
+                with self.assertRaises(ValueError):
+                    HELPER.upstream_content_length(headers)
+        with self.assertRaisesRegex(ValueError, "headers exceed"):
+            HELPER.probe_headers(["X-Large: " + "x" * HELPER.MAX_HARNESS_HEADER_BYTES])
+
+    def test_upstream_rejects_oversized_aggregate_headers(self) -> None:
+        server = HELPER.http.server.ThreadingHTTPServer(("127.0.0.1", 0), HELPER.UpstreamHandler)
+        worker = threading.Thread(target=server.serve_forever, daemon=True)
+        worker.start()
+        try:
+            request = (
+                b"GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\nX-Large: "
+                + b"x" * HELPER.MAX_HARNESS_HEADER_BYTES
+                + b"\r\n\r\n"
+            )
+            with socket.create_connection(("127.0.0.1", server.server_port), timeout=2) as client:
+                client.sendall(request)
+                client.shutdown(socket.SHUT_WR)
+                response = client.recv(1024)
+            self.assertIn(b" 431 ", response)
+        finally:
+            server.shutdown()
+            worker.join(timeout=2)
+            server.server_close()
+
+    def test_probes_reject_bounded_request_and_response_overflow(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            evidence = root / "client-probe.json"
+            with self.assertRaisesRegex(ValueError, "request body exceeds"):
+                HELPER.probe(
+                    str(root), "https://127.0.0.1:1/", [], "POST",
+                    "x" * (HELPER.MAX_HARNESS_REQUEST_BODY_BYTES + 1), str(root / "missing.crt"),
+                    str(evidence),
+                )
+            self.assertFalse(evidence.exists())
+
+            class OverflowResponse:
+                status = 200
+                headers = {"content-type": "text/plain"}
+
+                def __init__(self) -> None:
+                    self.read_amount: int | None = None
+
+                def read(self, amount: int | None = None) -> bytes:
+                    self.read_amount = amount
+                    assert amount is not None
+                    return b"x" * amount
+
+                def close(self) -> None:
+                    return None
+
+            class OverflowConnection:
+                def __init__(self, response: OverflowResponse) -> None:
+                    self.response = response
+
+                def request(self, *args: object, **kwargs: object) -> None:
+                    del args, kwargs
+
+                def getresponse(self) -> OverflowResponse:
+                    return self.response
+
+                def close(self) -> None:
+                    return None
+
+            response = OverflowResponse()
+            connection = OverflowConnection(response)
+            with (
+                mock.patch.object(HELPER, "trusted_loopback_tls_context", return_value=object()),
+                mock.patch.object(HELPER.http.client, "HTTPSConnection", return_value=connection),
+            ):
+                with self.assertRaisesRegex(ValueError, "response body exceeds"):
+                    HELPER.probe(
+                        str(root), "https://127.0.0.1:1/", [], "GET", None,
+                        str(root / "missing.crt"), str(evidence),
+                    )
+            self.assertEqual(response.read_amount, HELPER.MAX_HARNESS_RESPONSE_BODY_BYTES + 1)
+            self.assertFalse(evidence.exists())
+
+    def test_streaming_probe_rejects_cumulative_response_overflow(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            release = root / "release"
+            first_byte = root / "first-byte.json"
+            evidence = root / "streaming-probe.json"
+            release.touch()
+
+            class OverflowResponse:
+                status = 200
+
+                def __init__(self) -> None:
+                    self.read_count = 0
+
+                def read(self, amount: int | None = None) -> bytes:
+                    self.read_count += 1
+                    if self.read_count == 1:
+                        return b"x"
+                    if self.read_count <= 9:
+                        assert amount == 8192
+                        return b"x" * 8192
+                    return b""
+
+                def getheader(self, name: str, default: object = None) -> object:
+                    del name
+                    return default
+
+                def close(self) -> None:
+                    return None
+
+            class OverflowConnection:
+                def __init__(self, response: OverflowResponse) -> None:
+                    self.response = response
+
+                def request(self, *args: object, **kwargs: object) -> None:
+                    del args, kwargs
+
+                def getresponse(self) -> OverflowResponse:
+                    return self.response
+
+                def close(self) -> None:
+                    return None
+
+            with (
+                mock.patch.object(HELPER, "trusted_loopback_tls_context", return_value=object()),
+                mock.patch.object(
+                    HELPER.http.client, "HTTPSConnection", return_value=OverflowConnection(OverflowResponse()),
+                ),
+            ):
+                with self.assertRaisesRegex(ValueError, "response body exceeds"):
+                    HELPER.streaming_probe(
+                        str(root), "https://127.0.0.1:1/", str(release), str(first_byte),
+                        str(evidence), str(root / "missing.crt"), 1.0,
+                    )
+            self.assertTrue(first_byte.is_file())
+            self.assertFalse(evidence.exists())
 
     def test_allow_event_binds_completed_client_and_upstream_transaction(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -376,6 +656,14 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
                 [],
             )
             self.assertNotIn("no-crs-response-body-marker", evidence.read_text(encoding="utf-8"))
+            outside = root / "other-case"
+            outside.mkdir()
+            outside_client = outside / "client-first-byte.json"
+            outside_client.write_text(client.read_text(encoding="utf-8"), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "share one private case root"):
+                HELPER.write_first_byte_evidence(
+                    str(root), str(evidence), str(paused), str(outside_client),
+                )
 
     def test_phase4_safe_event_requires_real_barrier_and_native_late_decision(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -417,6 +705,15 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
                 }),
                 encoding="utf-8",
             )
+            outside = root / "other-case"
+            outside.mkdir()
+            outside_first_byte = outside / "first-byte-evidence.json"
+            outside_first_byte.write_text(first_byte.read_text(encoding="utf-8"), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "share one private case root"):
+                HELPER.phase4_safe_event(
+                    str(root), str(events), str(decision_log), str(probe),
+                    str(outside_first_byte), "run-42", "phase4_first_byte_before_response_end",
+                )
             self.assertEqual(
                 HELPER.phase4_safe_event(
                     str(root),

@@ -32,7 +32,7 @@ NGINX-Smokes bestanden hatten.
 | --- | --- | --- | --- | --- | --- | --- |
 | `connectors/nginx/config` | `config` | ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | none | Apache-2.0 | NGINX-Dynamic-Module-Build-Metadaten |
 | `connectors/nginx/src/ngx_http_modsecurity_access.c` | `src/ngx_http_modsecurity_access.c` | ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | PR #384 `65de4cd8739209f22d924d85548bd012a4d94607`; PR #386 `a7fd4fcc18dc442b1b093d253f457b9317b7f588` | Apache-2.0 | NGINX-Integration in der Access-Phase plus ausgewählte Final-Processing-, ProcessPartial-kompatible, Address- und Header-Registration-Behandlung |
-| `connectors/nginx/src/ngx_http_modsecurity_body_filter.c` | `src/ngx_http_modsecurity_body_filter.c` | ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | PR #377 `3d72b004ff27a78ea19c6b945870e2cae62a97ac`; PR #384 `65de4cd8739209f22d924d85548bd012a4d94607`; PR #385 `471a2a54843bb8f560758a7e75b146db2243ab29`; PR #386 `a7fd4fcc18dc442b1b093d253f457b9317b7f588`; Parent FND-PARENT-0080; Parent-Phase-3-Gate für connector-eigene `Location`-Provenance | Apache-2.0 | NGINX-Integration für Response-/Body-Filter plus Phase-4-, Final-Processing-, Redirect-Body-Replacement nur nach connector-eigener `Location`-Provenance, Terminal-Loop-Behandlung und wiederhergestellte begrenzte Aufnahme vor dem Connector-Scope-Action-Mapping |
+| `connectors/nginx/src/ngx_http_modsecurity_body_filter.c` | `src/ngx_http_modsecurity_body_filter.c` | ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | PR #377 `3d72b004ff27a78ea19c6b945870e2cae62a97ac`; PR #384 `65de4cd8739209f22d924d85548bd012a4d94607`; PR #385 `471a2a54843bb8f560758a7e75b146db2243ab29`; PR #386 `a7fd4fcc18dc442b1b093d253f457b9317b7f588`; Parent FND-PARENT-0006; Parent FND-PARENT-0080; Parent-Phase-3-Gate für connector-eigene `Location`-Provenance | Apache-2.0 | NGINX-Integration für Response-/Body-Filter plus Phase-4-, Final-Processing-, Redirect-Body-Replacement nur nach connector-eigener `Location`-Provenance, Terminal-Loop-Behandlung, begrenzte File-only-Aufnahme und einen Common-Reject-Body-Limit-Plan vor dem Downstream-Forwarding |
 | `connectors/nginx/src/ngx_http_modsecurity_common.h` | `src/ngx_http_modsecurity_common.h` | ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | PR #377 `3d72b004ff27a78ea19c6b945870e2cae62a97ac`; PR #385 `471a2a54843bb8f560758a7e75b146db2243ab29`; Parent-Phase-3-State für connector-eigene `Location`-Provenance | Apache-2.0 | Gemeinsame NGINX-Connector-Deklarationen plus Phase-4-Felder und Response-Replacement-State, der eine Connector-installierte `Location` von einer Upstream-`Location` unterscheidet |
 | `connectors/nginx/src/ngx_http_modsecurity_header_filter.c` | `src/ngx_http_modsecurity_header_filter.c` | ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | PR #384 `65de4cd8739209f22d924d85548bd012a4d94607`; PR #385 `471a2a54843bb8f560758a7e75b146db2243ab29`; PR #386 `a7fd4fcc18dc442b1b093d253f457b9317b7f588`; Parent-Phase-3-Gate für connector-eigene `Location`-Provenance | Apache-2.0 | NGINX-Header-Filter-Integration plus ausgewählte Intervention-, Protocol-/Header-, Redirect- und Registration-Härtung; eine Status-only-Intervention mit Upstream-`Location` finalisiert statt die Response zu ersetzen |
 | `connectors/nginx/src/ngx_http_modsecurity_log.c` | `src/ngx_http_modsecurity_log.c` | ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | none | Apache-2.0 | NGINX-Integration in der Log-Phase |
@@ -97,7 +97,10 @@ Intervention wird zu `log_only` mit `content_type_not_in_scope`. Die Reparatur
 schwächt die ausgewählte #384-Final-Processing-Grenze nicht: Ein finales
 `msc_process_response_body()`-Ergebnis ungleich `1` bleibt fail-closed,
 während `ProcessPartial`-Append-/From-File-Verhalten absichtlich nicht fatal
-bleibt.
+bleibt. Das Connector-eigene Phase-4-Body-Limit ist eine getrennte
+Common-Reject-Grenze: Ein über dem Limit liegender aktueller Buffer schlägt
+fehl, bevor die originale NGINX-Chain einen uninspektierten Tail weitergeben
+kann.
 
 ### Parent-Phase-3-Response-Replacement-Härtung
 

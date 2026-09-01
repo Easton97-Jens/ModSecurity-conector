@@ -10,6 +10,9 @@ CONNECTOR_BIN="${TRAEFIK_CONNECTOR_BIN:-$BUILD_ROOT/traefik-connector/traefik-fo
 TRAEFIK_BIN="${TRAEFIK_BIN:-$COMPONENT_CACHE/traefik/bin/traefik}"
 CONFIG_PATH="${TRAEFIK_CONNECTOR_CONFIG:-$CONNECTOR_ROOT/config/traefik-forwardauth.conf}"
 TRAEFIK_TEMPLATE="${TRAEFIK_CONNECTOR_TRAEFIK_CONFIG:-$CONNECTOR_ROOT/config/traefik-forwardauth-dynamic.yaml}"
+OBSERVER_BUILD_SCRIPT="${TRAEFIK_RESPONSE_OBSERVER_BUILD:-$CONNECTOR_ROOT/build/build-response-observer.sh}"
+OBSERVER_SOURCE="$CONNECTOR_ROOT/response_observer"
+OBSERVER_MODULE="github.com/Easton97-Jens/ModSecurity-conector/connectors/traefik/response_observer"
 SERVICE_LISTEN="${TRAEFIK_CONNECTOR_LISTEN:-127.0.0.1:19090}"
 TRAEFIK_LISTEN="${TRAEFIK_START_LISTEN:-127.0.0.1:19080}"
 UPSTREAM_ADDRESS="${TRAEFIK_START_UPSTREAM:-127.0.0.1:19091}"
@@ -23,8 +26,27 @@ CONFIG_STDERR="$START_ROOT/config-check.stderr.log"
 SERVICE_PID_FILE="$START_ROOT/service.pid"
 TRAEFIK_PID_FILE="$START_ROOT/traefik.pid"
 TRAEFIK_CONFIG="$START_ROOT/traefik-dynamic.yaml"
+COMPANION_DIR="$START_ROOT/mrc"
+COMPANION_SOCKET="${TRAEFIK_CONNECTOR_COMPANION_SOCKET:-$COMPANION_DIR/traefik-forwardauth-companion.sock}"
 service_pid=""
 traefik_pid=""
+
+require_private_directory() {
+    directory=$1
+    label=$2
+    if [ ! -d "$directory" ] || [ -L "$directory" ]; then
+        echo "BLOCKED: $label must be an existing, non-symlink directory: $directory" >&2
+        exit 77
+    fi
+    if [ "$(stat -c '%u' "$directory" 2>/dev/null || true)" != "$(id -u)" ]; then
+        echo "BLOCKED: $label must be owned by the current user: $directory" >&2
+        exit 77
+    fi
+    if find "$directory" -maxdepth 0 -perm /022 -print -quit | grep -q .; then
+        echo "BLOCKED: $label must not be group or world writable: $directory" >&2
+        exit 77
+    fi
+}
 
 case "$START_ROOT" in
     /*) ;;
@@ -37,6 +59,63 @@ case "$START_ROOT" in
         ;;
     *) ;;
 esac
+
+case "$BUILD_ROOT" in
+    /*) ;;
+    *) echo "BLOCKED: BUILD_ROOT must be absolute: $BUILD_ROOT" >&2; exit 77 ;;
+esac
+case "/$BUILD_ROOT/" in
+    *"/../"*|*"/./"*)
+        echo "BLOCKED: BUILD_ROOT must be canonical and contain no dot components: $BUILD_ROOT" >&2
+        exit 77
+        ;;
+    *) ;;
+esac
+BUILD_ROOT_CANONICAL=$(readlink -f -- "$BUILD_ROOT" 2>/dev/null || true)
+if [ -z "$BUILD_ROOT_CANONICAL" ] || [ "$BUILD_ROOT_CANONICAL" != "$BUILD_ROOT" ]; then
+    echo "BLOCKED: BUILD_ROOT must resolve canonically without symlinks: $BUILD_ROOT" >&2
+    exit 77
+fi
+require_private_directory "$BUILD_ROOT_CANONICAL" "BUILD_ROOT"
+
+ALLOWED_START_ROOT="$BUILD_ROOT_CANONICAL/traefik-connector"
+case "$START_ROOT" in
+    *"/../"*|*"/.."|*"/./"*|*"/.")
+        echo "BLOCKED: TRAEFIK_CONNECTOR_START_ROOT must contain no dot components: $START_ROOT" >&2
+        exit 77
+        ;;
+    *) ;;
+esac
+START_ROOT_CANONICAL=$(readlink -f -- "$START_ROOT" 2>/dev/null || true)
+if [ -z "$START_ROOT_CANONICAL" ] || [ "$START_ROOT_CANONICAL" != "$START_ROOT" ]; then
+    echo "BLOCKED: TRAEFIK_CONNECTOR_START_ROOT must resolve canonically without symlinks: $START_ROOT" >&2
+    exit 77
+fi
+case "$START_ROOT_CANONICAL" in
+    "$ALLOWED_START_ROOT"/*) ;;
+    *)
+        echo "BLOCKED: TRAEFIK_CONNECTOR_START_ROOT must remain below the private build root: $START_ROOT" >&2
+        exit 77
+        ;;
+esac
+case "$START_ROOT_CANONICAL" in
+    "$ALLOWED_START_ROOT")
+        echo "BLOCKED: TRAEFIK_CONNECTOR_START_ROOT must not be the connector build root: $START_ROOT" >&2
+        exit 77
+        ;;
+    *) ;;
+esac
+START_ROOT_ANCESTOR="$START_ROOT_CANONICAL"
+while [ ! -e "$START_ROOT_ANCESTOR" ]; do
+    START_ROOT_ANCESTOR=$(dirname "$START_ROOT_ANCESTOR")
+done
+START_ROOT_CHECK="$START_ROOT_ANCESTOR"
+while :; do
+    require_private_directory "$START_ROOT_CHECK" "TRAEFIK_CONNECTOR_START_ROOT ancestor"
+    [ "$START_ROOT_CHECK" = "$BUILD_ROOT_CANONICAL" ] && break
+    START_ROOT_CHECK=$(dirname "$START_ROOT_CHECK")
+done
+
 case "$START_ROOT" in
     "$REPO_ROOT"|"$REPO_ROOT"/*)
         echo "BLOCKED: start-smoke output must be outside the checkout: $START_ROOT" >&2
@@ -84,6 +163,18 @@ require_loopback_address() {
 
 require_executable "$CONNECTOR_BIN" "Traefik forwardAuth connector"
 require_executable "$TRAEFIK_BIN" "Traefik"
+case "$OBSERVER_BUILD_SCRIPT" in
+    /*) ;;
+    *) echo "BLOCKED: response observer build script must be an absolute path: $OBSERVER_BUILD_SCRIPT" >&2; exit 77 ;;
+esac
+if [ ! -x "$OBSERVER_BUILD_SCRIPT" ]; then
+    echo "BLOCKED: response observer build script is not executable: $OBSERVER_BUILD_SCRIPT" >&2
+    exit 77
+fi
+if [ ! -d "$OBSERVER_SOURCE" ] || [ -L "$OBSERVER_SOURCE" ] || find "$OBSERVER_SOURCE" -type l -print -quit | grep -q .; then
+    echo "BLOCKED: response observer source contains an unsafe symlink or is missing: $OBSERVER_SOURCE" >&2
+    exit 77
+fi
 require_loopback_address "$SERVICE_LISTEN" "TRAEFIK_CONNECTOR_LISTEN"
 require_loopback_address "$TRAEFIK_LISTEN" "TRAEFIK_START_LISTEN"
 require_loopback_address "$UPSTREAM_ADDRESS" "TRAEFIK_START_UPSTREAM"
@@ -95,6 +186,17 @@ if [ ! -f "$TRAEFIK_TEMPLATE" ]; then
     echo "BLOCKED: Traefik File Provider config template is missing: $TRAEFIK_TEMPLATE" >&2
     exit 77
 fi
+case "$COMPANION_SOCKET" in
+    /*) ;;
+    *) echo "BLOCKED: companion socket must be an absolute path: $COMPANION_SOCKET" >&2; exit 77 ;;
+esac
+case "$COMPANION_SOCKET" in
+    *" "*|*"	"*|*"\n"*) echo "BLOCKED: companion socket contains whitespace/control data" >&2; exit 77 ;;
+esac
+case "$COMPANION_SOCKET" in
+    "$START_ROOT"/*) ;;
+    *) echo "BLOCKED: companion socket must remain below the private start root: $COMPANION_SOCKET" >&2; exit 77 ;;
+esac
 
 cleanup() {
     if [ -n "$traefik_pid" ] && kill -0 "$traefik_pid" 2>/dev/null; then
@@ -112,11 +214,40 @@ trap cleanup EXIT HUP INT TERM
 TRAEFIK_DIAGNOSTIC_SED_RANGE='1,160p'
 
 rm -rf "$START_ROOT"
-mkdir -p "$START_ROOT"
+mkdir -p "$COMPANION_DIR"
+chmod 700 "$START_ROOT" "$COMPANION_DIR"
+mkdir -p "$START_ROOT/plugins-local/src/$OBSERVER_MODULE"
+cp -R "$OBSERVER_SOURCE/." "$START_ROOT/plugins-local/src/$OBSERVER_MODULE/"
+chmod -R u=rwX,go= "$START_ROOT/plugins-local"
+if [ -e "$COMPANION_SOCKET" ] || [ -L "$COMPANION_SOCKET" ]; then
+    echo "BLOCKED: companion socket path already exists: $COMPANION_SOCKET" >&2
+    exit 77
+fi
+if ! "$OBSERVER_BUILD_SCRIPT" build >"$START_ROOT/response-observer-build.log" 2>&1; then
+    rc=$?
+    echo "BLOCKED: Traefik response observer build failed (rc=$rc)" >&2
+    sed -n "$TRAEFIK_DIAGNOSTIC_SED_RANGE" "$START_ROOT/response-observer-build.log" >&2
+    exit 77
+fi
 sed \
     -e "s|__AUTH_ADDRESS__|$SERVICE_LISTEN|g" \
     -e "s|__UPSTREAM_ADDRESS__|$UPSTREAM_ADDRESS|g" \
+    -e "s|__COMPANION_SOCKET__|$COMPANION_SOCKET|g" \
     "$TRAEFIK_TEMPLATE" > "$TRAEFIK_CONFIG"
+
+# A forwardAuth template without these settings silently drops the request
+# body before the authorization service. Refuse to start such a deployment;
+# P2 is buffered by the host and bounded at the same value as the service.
+if ! grep -Fqx '        forwardBody: true' "$TRAEFIK_CONFIG" ||
+    ! grep -Fqx '        maxBodySize: 4096' "$TRAEFIK_CONFIG"; then
+    echo "BLOCKED: forwardAuth P2 requires forwardBody=true and maxBodySize=4096" >&2
+    exit 77
+fi
+if ! grep -Fqx 'request_body_mode=buffered' "$CONFIG_PATH" ||
+    ! grep -Fqx 'request_body_limit=4096' "$CONFIG_PATH"; then
+    echo "BLOCKED: forwardAuth P2 requires buffered mode and request_body_limit=4096" >&2
+    exit 77
+fi
 
 (
     cd "$REPO_ROOT"
@@ -130,6 +261,7 @@ sed \
 
 (
     cd "$REPO_ROOT"
+    MSCONNECTOR_TRAEFIK_FORWARDAUTH_COMPANION_SOCKET="$COMPANION_SOCKET" \
     exec "$CONNECTOR_BIN" \
         --serve \
         --config "$CONFIG_PATH" \
@@ -138,14 +270,18 @@ sed \
 service_pid=$!
 printf '%s\n' "$service_pid" > "$SERVICE_PID_FILE"
 
-"$TRAEFIK_BIN" \
-    "--entryPoints.web.address=$TRAEFIK_LISTEN" \
-    "--providers.file.filename=$TRAEFIK_CONFIG" \
-    --providers.file.watch=false \
-    --api=false \
-    --log.level=ERROR \
-    --global.sendAnonymousUsage=false \
-    >"$TRAEFIK_STDOUT" 2>"$TRAEFIK_STDERR" &
+(
+    cd "$START_ROOT"
+    exec "$TRAEFIK_BIN" \
+        "--entryPoints.web.address=$TRAEFIK_LISTEN" \
+        "--experimental.localPlugins.modsecurityResponseObserver.moduleName=$OBSERVER_MODULE" \
+        "--providers.file.filename=$TRAEFIK_CONFIG" \
+        --providers.file.watch=false \
+        --api=false \
+        --log.level=ERROR \
+        --global.sendAnonymousUsage=false \
+        >"$TRAEFIK_STDOUT" 2>"$TRAEFIK_STDERR"
+) &
 traefik_pid=$!
 printf '%s\n' "$traefik_pid" > "$TRAEFIK_PID_FILE"
 
@@ -181,6 +317,8 @@ printf 'traefik_listen=%s\n' "$TRAEFIK_LISTEN"
 printf 'service_pid=%s\n' "$service_pid"
 printf 'traefik_pid=%s\n' "$traefik_pid"
 printf 'traefik_config=%s\n' "$TRAEFIK_CONFIG"
+printf 'response_observer_build_log=%s\n' "$START_ROOT/response-observer-build.log"
+printf 'companion_socket=%s\n' "$COMPANION_SOCKET"
 printf 'service_stdout_log=%s\n' "$SERVICE_STDOUT"
 printf 'service_stderr_log=%s\n' "$SERVICE_STDERR"
 printf 'traefik_stdout_log=%s\n' "$TRAEFIK_STDOUT"

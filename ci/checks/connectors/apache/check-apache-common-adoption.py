@@ -156,7 +156,16 @@ checks.append((
 ))
 checks.append(("msc_finalize_request_body" in filters_c and "request_body_processed" in filters_c and "APR_BUCKET_REMOVE(pbktIn)" in filters_c, "Apache request chunks are borrowed and phase 2 finalizes once at EOS"))
 input_filter_c = filters_c.split("apr_status_t input_filter", 1)[1].split("static const char *apache_response_content_type", 1)[0]
-checks.append((input_filter_c.count("send_input_error_bucket") == 2 and "apache_input_filter_handle_eos" in input_filter_c and "send_input_error_bucket" in filters_c and "send_error_bucket(msr, f" not in input_filter_c, "Apache input-filter errors use the input-specific output-chain bridge"))
+checks.append((
+    input_filter_c.count("return send_input_error_bucket") >= 4
+    and "msc_apache_contract_begin" in input_filter_c
+    and "msc_apache_contract_record_body" in input_filter_c
+    and "HTTP_REQUEST_ENTITY_TOO_LARGE" in input_filter_c
+    and "apache_input_filter_handle_eos" in input_filter_c
+    and "send_input_error_bucket" in filters_c
+    and "send_error_bucket(msr, f" not in input_filter_c,
+    "Apache input-filter errors use the input-specific output-chain bridge",
+))
 checks.append(("return pass_error_bucket(f, status, f->r->output_filters);" in utils_c and "return ap_pass_brigade(destination, brigade);" in utils_c, "Apache input-error bridge propagates the output-chain filter result"))
 checks.append(("msc_process_request_body(msr->t)" not in module_c, "Apache does not finalize Phase 2 before the input filter reaches EOS"))
 checks.append(("ap_request_has_body(r)" in module_c and "msc_finalize_request_body(msr, r)" in module_c, "Apache completes Phase 2 for a known empty request body"))
@@ -181,8 +190,10 @@ apxs_wrapper = read(ROOT / "connectors/apache/build/apxs-wrapper.in")
 checks.append((
     "MSCONNECTOR_COMMON_SOURCES" in apxs_wrapper
     and "common/src" in apxs_wrapper
-    and "header_validation_internal.h" in apxs_wrapper,
-    "Apache APXS wrapper materializes Common SDK sources and their private validation header",
+    and "header_validation_internal.h" in apxs_wrapper
+    and "MSCONNECTOR_PROFILE_REGISTRY_SRC" in apxs_wrapper
+    and "profile_registry.c" in apxs_wrapper,
+    "Apache APXS wrapper materializes Common SDK sources and the connector-owned profile registry",
 ))
 for field in ["msc_state", "use_error_log;", "int phase4_mode;", "const char *phase4_log_path;", "apr_size_t phase4_body_limit;"]:
     checks.append((field not in config_h, f"Duplicate config field removed: {field}"))

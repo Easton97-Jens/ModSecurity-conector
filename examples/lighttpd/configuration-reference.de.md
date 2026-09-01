@@ -14,6 +14,7 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`msconnector.config-file`](#msconnector-config-file) | Host / Connector | Pfad | ja | none | T_CONFIG_SCOPE_SERVER | Pfad zur Common-Runtime-Konfiguration, die das native Plugin verwendet. |
 | [`msconnector.enabled`](#msconnector-enabled) | Host / Connector | lighttpd-Boolean | nein | off | T_CONFIG_SCOPE_SERVER | Aktiviert das native lighttpd-Plugin. |
 | [`msconnector.expose-host-transaction-id`](#msconnector-expose-host-transaction-id) | Host / Connector | lighttpd-Boolean | nein | off | T_CONFIG_SCOPE_SERVER | Opt-in-Response-Header-Nachweis für die servergenerierte Host-Transaktions-ID. |
+| [`msconnector.request-body-gate`](#msconnector-request-body-gate) | Host / Connector | Aufzählung | nein | none | T_CONFIG_SCOPE_SERVER | P2-Gate des gepatchten Hosts, das einen begrenzten Request-Body vor der Upstream-Freigabe zurückhält. |
 | [`proxy.server`](#proxy-server) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`server.bind`](#server-bind) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`server.compat-module-load`](#server-compat-module-load) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
@@ -80,9 +81,9 @@ Siehe [Engine-Referenz](../common/modsecurity-directives.de.md).
 
 | Profil | Datei | Status |
 | --- | --- | --- |
-| Minimal | [minimal/lighttpd.conf](minimal/lighttpd.conf) | Aktive Startkonfiguration |
-| Sicherer vollständiger Lebenszyklus | [safe/lighttpd-http1-identity.conf](safe/lighttpd-http1-identity.conf) | Ausgewählte begrenzte Referenz |
-| Strikt | [README.de.md#strict-profilgrenze](README.de.md#strict-profilgrenze) | Parserunterstützte oder ausdrücklich optionale Grenze |
+| Minimal | [patched/minimal/lighttpd.conf](patched/minimal/lighttpd.conf) | Aktive Startkonfiguration |
+| Sicherer vollständiger Lebenszyklus | [patched/safe/lighttpd.conf](patched/safe/lighttpd.conf) | Ausgewählte begrenzte Referenz |
+| Strikt | [patched/strict/lighttpd.conf](patched/strict/lighttpd.conf) | Parserunterstützte oder ausdrücklich optionale Grenze |
 | DetectionOnly | [detection-only/msconnector-runtime.conf](detection-only/msconnector-runtime.conf) | Engine wertet aus/protokolliert ohne disruptive Aktion |
 | Deaktiviert | [disabled/lighttpd.conf](disabled/lighttpd.conf) | Connector- oder Engine-Pfad deaktiviert |
 
@@ -273,6 +274,61 @@ Quellenbasiertes Beispiel: `connectors/lighttpd/harness/prepare_native_smoke.sh`
 ### Sicherheit und Betrieb
 
 Bei Aktivierung wird eine servergenerierte Korrelationskennung in einem Response-Header ausgegeben. Sie spiegelt niemals einen Request-Header wider; nur für vertrauenswürdige Laufzeitnachweise aktivieren.
+
+<a id="msconnector-request-body-gate"></a>
+## `msconnector.request-body-gate`
+
+### Kurzbeschreibung
+
+P2-Gate des gepatchten Hosts, das einen begrenzten Request-Body vor der Upstream-Freigabe zurückhält.
+
+### Syntax
+
+```text
+msconnector.request-body-gate = "pre-upstream"
+```
+
+### Gültige Kontexte
+
+- T_CONFIG_SCOPE_SERVER
+
+### Werte
+
+| Typ | Zulässige Werte | Erforderlich |
+| --- | --- | --- |
+| Aufzählung | pre-upstream bei request_body_mode=streaming; andernfalls nicht gesetzt | nein |
+
+### Standardwert
+
+none
+
+Quelle: `plugin request_body_gate hat den Standardwert NULL`.
+
+### Vererbung und Zusammenführung
+
+Es werden nur Standardwerte geladen; das Modul besitzt keinen bedingten Patch-Pfad zur Request-Zeit.
+
+Zusammenführung: config_plugin_values_init belegt Standardwerte; kein dokumentierter Merge pro Request.
+
+### Phasen und Laufzeitwirkung
+
+P1–P4-Relevanz: Nur P2. Das Gate verhindert, dass der begrenzte Request-Body einen Upstream erreicht, bevor die Phase-2-Entscheidung abgeschlossen ist.
+
+Aktiviert das Pre-upstream-Request-Body-Gate des gepatchten Hosts; ungepatchtes lighttpd wählt es nicht.
+
+### Validierung und Fehler
+
+Das gepatchte Modul weist bei request_body_mode=streaming einen fehlenden oder anderen Gate-Wert zurück und weist ein konfiguriertes Gate bei nicht-streamenden Request-Bodys zurück.
+
+### Beispiel
+
+Ausgewählter Beispielwert: `msconnector.request-body-gate = "pre-upstream"`.
+
+Quellenbasiertes Beispiel: [examples/lighttpd/safe/lighttpd-http1-identity.conf](../../examples/lighttpd/safe/lighttpd-http1-identity.conf).
+
+### Sicherheit und Betrieb
+
+pre-upstream ist für gepatchtes streamendes P2 erforderlich, damit Request-Bodys die Durchsetzung der Common Runtime nicht vor der begrenzten EOS-Entscheidung umgehen können.
 
 <a id="proxy-server"></a>
 ## `proxy.server`

@@ -8,6 +8,7 @@ import contextlib
 import http.server
 import json
 import os
+import re
 import shutil
 import socket
 import stat
@@ -27,6 +28,8 @@ class MissingDependency(RuntimeError):
 RUNTIME_ROOT_ENVIRONMENTS = ("BUILD_ROOT", "CONNECTOR_COMPONENT_CACHE")
 RESULT_FILE_NAME = "result.json"
 SERVICE_CONFIG_FILE_NAME = "traefik-forwardauth.conf"
+OBSERVER_MODULE = "github.com/Easton97-Jens/ModSecurity-conector/connectors/traefik/response_observer"
+FORWARDAUTH_P2_BODY_LIMIT = 4096
 
 
 class TrustedExecutable:
@@ -52,8 +55,15 @@ class TrustedExecutable:
 class UpstreamHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
         body = b"traefik forwardauth upstream ok\n"
+        response_headers: list[tuple[str, str]] = []
+        if self.path == "/phase3-block":
+            response_headers.append(("X-Modsec-Upstream", "block"))
+        elif self.path == "/phase4-marker":
+            body = b"no-crs-response-body-marker\n"
         self.send_response(200)
         self.send_header("Content-Type", "text/plain")
+        for name, value in response_headers:
+            self.send_header(name, value)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -341,6 +351,45 @@ def verify_block_event(path: Path, expected_rule_id: str) -> dict[str, object]:
     )
 
 
+def verify_response_phase_events(path: Path) -> None:
+    """Require P3 deny plus P4 Safe metadata without retaining body data."""
+
+    if not path.is_file():
+        raise RuntimeError(f"Common event JSONL is missing: {path}")
+    records: list[dict[str, object]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            value = json.loads(line)
+            if not isinstance(value, dict):
+                raise RuntimeError("Common event JSONL record is not an object")
+            records.append(value)
+    forbidden = {"request_body", "response_body", "body_payload", "body_snippet"}
+    p3 = [
+        record for record in records
+        if record.get("connector") == "traefik"
+        and record.get("transaction_id") == "traefik-forwardauth-p3-block"
+        and record.get("rule_id") == "1000003"
+        and record.get("phase") == "response_headers"
+        and record.get("status") == "blocked"
+        and record.get("actual_action") == "deny"
+        and record.get("response_committed") is False
+    ]
+    p4 = [
+        record for record in records
+        if record.get("connector") == "traefik"
+        and record.get("transaction_id") == "traefik-forwardauth-p4-safe"
+        and record.get("rule_id") == "1000004"
+        and record.get("phase") == "response_body"
+        and record.get("status") == "blocked"
+        and record.get("actual_action") == "log_only"
+        and record.get("response_committed") is True
+    ]
+    if not p3 or not p4:
+        raise RuntimeError("Common event JSONL lacks P3 deny or P4 Safe evidence")
+    if any(forbidden.intersection(record) for record in [*p3, *p4]):
+        raise RuntimeError("Common event JSONL contains a forbidden body payload field")
+
+
 def write_concrete_service_config(
     template: Path, config_dir: Path, rules_file: Path, event_path: Path
 ) -> Path:
@@ -356,7 +405,7 @@ def write_concrete_service_config(
     return write_fixed_runtime_text(config_dir, SERVICE_CONFIG_FILE_NAME, "\n".join(lines) + "\n")
 
 
-def dynamic_config(upstream_port: int, auth_port: int) -> str:
+def dynamic_config(upstream_port: int, auth_port: int, companion_socket: Path) -> str:
     return f"""http:
   routers:
     smoke:
@@ -365,21 +414,53 @@ def dynamic_config(upstream_port: int, auth_port: int) -> str:
       rule: PathPrefix(`/`)
       middlewares:
       - modsecurity-forwardauth
+      - modsecurity-response-observer
       service: upstream
   middlewares:
     modsecurity-forwardauth:
       forwardAuth:
         address: http://127.0.0.1:{auth_port}/authorize
         trustForwardHeader: false
+        # Keep the logical forwardAuth P2 contract explicit and bounded.
+        forwardBody: true
+        maxBodySize: 4096
         authRequestHeaders:
         - X-Modsec-Smoke
         - X-Request-Id
+        - Content-Type
+        - Content-Length
+        authResponseHeaders:
+        - X-Msconnector-Response-Handle
+    modsecurity-response-observer:
+      plugin:
+        modsecurityResponseObserver:
+          socketPath: {companion_socket}
+          timeoutMillis: 5000
   services:
     upstream:
       loadBalancer:
         servers:
         - url: http://127.0.0.1:{upstream_port}
 """
+
+
+def validate_forwardauth_p2_contract(
+    dynamic_text: str, service_text: str
+) -> None:
+    """Reject a forwardAuth/service pair that silently disables or loosens P2."""
+
+    if "        forwardBody: true" not in dynamic_text:
+        raise RuntimeError("forwardAuth P2 requires forwardBody: true")
+    body_size = re.search(r"(?m)^\s{8}maxBodySize:\s*(\d+)\s*$", dynamic_text)
+    if body_size is None:
+        raise RuntimeError("forwardAuth P2 requires maxBodySize")
+    if int(body_size.group(1)) != FORWARDAUTH_P2_BODY_LIMIT:
+        raise RuntimeError("forwardAuth maxBodySize must equal 4096")
+    if "request_body_mode=buffered" not in service_text:
+        raise RuntimeError("forwardAuth P2 requires request_body_mode=buffered")
+    service_size = re.search(r"(?m)^request_body_limit=(\d+)\s*$", service_text)
+    if service_size is None or int(service_size.group(1)) != FORWARDAUTH_P2_BODY_LIMIT:
+        raise RuntimeError("forwardAuth request_body_limit must equal 4096")
 
 
 def http_status(url: str, headers: dict[str, str] | None = None) -> int:
@@ -409,18 +490,85 @@ def wait_for_tcp(port: int, process: subprocess.Popen[bytes], label: str) -> Non
 
 
 def wait_for_traefik(port: int, process: subprocess.Popen[bytes]) -> None:
+    """Wait for the entrypoint socket without sending a routed probe request.
+
+    The smoke router intentionally covers ``/`` and its forwardAuth/response
+    companion path.  A synthetic ``/ready`` request would therefore exercise
+    the transaction contract and can fail for reasons unrelated to process
+    startup.  Socket readiness is the only startup fact needed here; the
+    subsequent allow/block requests are the behavioral probes.
+    """
+
     deadline = time.monotonic() + 12
-    last_error: Exception | None = None
+    last_error: OSError | None = None
     while time.monotonic() < deadline:
         if process.poll() is not None:
             raise RuntimeError(f"Traefik exited early with code {process.returncode}")
         try:
-            if http_status(f"http://127.0.0.1:{port}/ready") == 200:
-                return
-        except Exception as exc:  # startup connection failures are retried
+            with socket.create_connection(("127.0.0.1", port), timeout=0.2):
+                break
+        except OSError as exc:
             last_error = exc
         time.sleep(0.2)
-    raise RuntimeError(f"Traefik did not become ready: {last_error}")
+    else:
+        raise RuntimeError(f"Traefik did not become ready: {last_error}")
+
+    # The entrypoint can accept TCP before the file provider has installed the
+    # router.  A 404 means only that the provider is still loading; any other
+    # HTTP status proves that the configured route is live.  Do not require a
+    # 2xx status because this probe itself traverses forwardAuth and the
+    # response companion.
+    deadline = time.monotonic() + 12
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            raise RuntimeError(f"Traefik exited early with code {process.returncode}")
+        try:
+            if http_status(f"http://127.0.0.1:{port}/ready") != 404:
+                return
+        except Exception:
+            pass
+        time.sleep(0.2)
+    raise RuntimeError("Traefik file-provider route did not become available")
+
+
+def wait_for_private_socket(path: Path, process: subprocess.Popen[bytes]) -> None:
+    """Require the connector-created observer socket before response traffic."""
+
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            raise RuntimeError(f"forwardAuth service exited early with code {process.returncode}")
+        try:
+            socket_stat = path.lstat()
+        except FileNotFoundError:
+            time.sleep(0.1)
+            continue
+        if not stat.S_ISSOCK(socket_stat.st_mode):
+            raise RuntimeError(f"companion path is not a Unix socket: {path}")
+        if socket_stat.st_uid != os.geteuid() or stat.S_IMODE(socket_stat.st_mode) != 0o600:
+            raise RuntimeError(f"companion socket ownership/mode is unsafe: {path}")
+        return
+    raise RuntimeError(f"response companion socket did not become ready: {path}")
+
+
+def stage_response_observer(source: Path, runtime_root: Path) -> None:
+    """Stage the repository-owned local plugin below the private Traefik root."""
+
+    if not source.is_dir() or source.is_symlink():
+        raise MissingDependency(f"response observer source is missing or symlinked: {source}")
+    for candidate in source.rglob("*"):
+        if candidate.is_symlink():
+            raise MissingDependency(f"response observer source contains a symlink: {candidate}")
+    destination = runtime_root / "plugins-local" / "src" / OBSERVER_MODULE
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source, destination, symlinks=False)
+    os.chmod(runtime_root / "plugins-local", 0o700)
+    os.chmod(runtime_root / "plugins-local" / "src", 0o700)
+    for candidate in destination.rglob("*"):
+        if candidate.is_dir():
+            os.chmod(candidate, 0o700)
+        else:
+            os.chmod(candidate, 0o600)
 
 
 def stop_process(process: subprocess.Popen[bytes] | None) -> None:
@@ -473,12 +621,15 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def run(args: argparse.Namespace) -> int:
-    repo_root = Path(__file__).resolve().parents[3]
+def prepare_smoke_inputs(args: argparse.Namespace, repo_root: Path):
     consume_no_crs_selected_cases(repo_root)
     build_root, connector_binary, traefik_binary = resolve_runtime_paths(args, repo_root)
     result_root = require_private_result_root(args.result_root, build_root)
     expected_rule_id = os.environ.get("MSCONNECTOR_EXPECTED_RULE_ID", "1000001")
+    response_phase_smoke_value = os.environ.get("MSCONNECTOR_RESPONSE_PHASE_SMOKE", "0")
+    if response_phase_smoke_value not in {"0", "1"}:
+        raise MissingDependency("MSCONNECTOR_RESPONSE_PHASE_SMOKE must be 0 or 1")
+    response_phase_smoke = response_phase_smoke_value == "1"
     template = args.config_template.resolve()
     rules_file = Path(
         os.environ.get(
@@ -490,22 +641,61 @@ def run(args: argparse.Namespace) -> int:
         raise MissingDependency(f"connector config template is missing: {template}")
     if not rules_file.is_file():
         raise MissingDependency(f"targeted smoke rule is missing: {rules_file}")
+    return (build_root, connector_binary, traefik_binary, result_root,
+            expected_rule_id, response_phase_smoke, template, rules_file)
+
+
+def prepare_smoke_workspace(repo_root: Path, result_root: Path,
+                            template: Path, rules_file: Path):
 
     if result_root.exists():
         shutil.rmtree(result_root)
     result_root.mkdir(parents=True, exist_ok=True)
     log_dir = result_root / "logs"
     config_dir = result_root / "config"
+    companion_dir = result_root / "mrc"
     log_dir.mkdir(parents=True, exist_ok=True)
     config_dir.mkdir(parents=True, exist_ok=True)
+    companion_dir.mkdir(parents=True, exist_ok=True)
+    os.chmod(result_root, 0o700)
+    os.chmod(companion_dir, 0o700)
+    companion_socket = companion_dir / "traefik-forwardauth-companion.sock"
+    stage_response_observer(repo_root / "connectors/traefik/response_observer", result_root)
+    observer_build = repo_root / "connectors/traefik/build/build-response-observer.sh"
+    if not observer_build.is_file() or not os.access(observer_build, os.X_OK):
+        raise MissingDependency(f"response observer build script is unavailable: {observer_build}")
+    observer_check = subprocess.run(
+        [str(observer_build), "build"], cwd=repo_root, check=False,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+    )
+    (log_dir / "response-observer-build.log").write_text(observer_check.stdout, encoding="utf-8")
+    if observer_check.returncode != 0:
+        raise MissingDependency(f"response observer build failed with code {observer_check.returncode}")
     traefik_config = config_dir / "traefik-dynamic.yml"
     event_path = log_dir / "events.jsonl"
     service_config = write_concrete_service_config(template, config_dir, rules_file, event_path)
+    return log_dir, config_dir, companion_socket, traefik_config, event_path, service_config
+
+
+def run(args: argparse.Namespace) -> int:
+    repo_root = Path(__file__).resolve().parents[3]
+    (build_root, connector_binary, traefik_binary, result_root,
+     expected_rule_id, response_phase_smoke, template, rules_file) = prepare_smoke_inputs(
+        args, repo_root
+    )
+    log_dir, config_dir, companion_socket, traefik_config, event_path, service_config = prepare_smoke_workspace(
+        repo_root, result_root, template, rules_file
+    )
 
     upstream_port = free_port()
     auth_port = free_port()
     traefik_port = free_port()
-    traefik_config.write_text(dynamic_config(upstream_port, auth_port), encoding="utf-8")
+    dynamic_text = dynamic_config(upstream_port, auth_port, companion_socket)
+    validate_forwardauth_p2_contract(
+        dynamic_text,
+        service_config.read_text(encoding="utf-8"),
+    )
+    traefik_config.write_text(dynamic_text, encoding="utf-8")
 
     upstream = http.server.ThreadingHTTPServer(("127.0.0.1", upstream_port), UpstreamHandler)
     upstream_thread = threading.Thread(target=upstream.serve_forever, daemon=True)
@@ -514,6 +704,8 @@ def run(args: argparse.Namespace) -> int:
     traefik_process: subprocess.Popen[bytes] | None = None
     allowed_status: int | None = None
     blocked_status: int | None = None
+    p3_status: int | None = None
+    p4_status: int | None = None
     blocked_event: dict[str, object] | None = None
 
     service_stdout_path = log_dir / "service.stdout.log"
@@ -547,6 +739,10 @@ def run(args: argparse.Namespace) -> int:
                 ),
                 cwd=repo_root,
                 shell=False,
+                env={
+                    **os.environ,
+                    "MSCONNECTOR_TRAEFIK_FORWARDAUTH_COMPANION_SOCKET": str(companion_socket),
+                },
                 stdout=service_stdout,
                 stderr=service_stderr,
             )
@@ -554,6 +750,7 @@ def run(args: argparse.Namespace) -> int:
 
             command = traefik_binary.arguments(
                 f"--entryPoints.web.address=127.0.0.1:{traefik_port}",
+                f"--experimental.localPlugins.modsecurityResponseObserver.moduleName={OBSERVER_MODULE}",
                 f"--providers.file.filename={traefik_config}",
                 "--providers.file.watch=false",
                 "--api=false",
@@ -566,7 +763,7 @@ def run(args: argparse.Namespace) -> int:
             with traefik_stdout_path.open("wb") as traefik_stdout, traefik_stderr_path.open("wb") as traefik_stderr:
                 traefik_process = subprocess.Popen(
                     command,
-                    cwd=repo_root,
+                    cwd=result_root,
                     shell=False,
                     stdout=traefik_stdout,
                     stderr=traefik_stderr,
@@ -576,6 +773,7 @@ def run(args: argparse.Namespace) -> int:
                     f"http://127.0.0.1:{traefik_port}/allowed",
                     {"X-Request-Id": "traefik-forwardauth-allow"},
                 )
+                wait_for_private_socket(companion_socket, service_process)
                 blocked_status = http_status(
                     f"http://127.0.0.1:{traefik_port}/blocked",
                     {
@@ -583,16 +781,31 @@ def run(args: argparse.Namespace) -> int:
                         "X-Request-Id": "traefik-forwardauth-block",
                     },
                 )
+                if response_phase_smoke:
+                    p3_status = http_status(
+                        f"http://127.0.0.1:{traefik_port}/phase3-block",
+                        {"X-Request-Id": "traefik-forwardauth-p3-block"},
+                    )
+                    p4_status = http_status(
+                        f"http://127.0.0.1:{traefik_port}/phase4-marker",
+                        {"X-Request-Id": "traefik-forwardauth-p4-safe"},
+                    )
 
         if allowed_status != 200 or blocked_status != 403:
             raise RuntimeError(
                 f"unexpected Traefik statuses: allowed={allowed_status}, blocked={blocked_status}"
+            )
+        if response_phase_smoke and (p3_status != 403 or p4_status != 200):
+            raise RuntimeError(
+                f"unexpected Traefik response-phase statuses: P3={p3_status}, P4 Safe={p4_status}"
             )
         if service_process.poll() is not None:
             raise RuntimeError(f"forwardAuth service exited with code {service_process.returncode}")
         if traefik_process.poll() is not None:
             raise RuntimeError(f"Traefik exited with code {traefik_process.returncode}")
         blocked_event = verify_block_event(event_path, expected_rule_id)
+        if response_phase_smoke:
+            verify_response_phase_events(event_path)
 
         result_path = write_runtime_result(
             result_root,
@@ -604,6 +817,7 @@ def run(args: argparse.Namespace) -> int:
                 "connector_binary": str(connector_binary.path),
                 "crs_complete": False,
                 "event_path": str(event_path),
+                "companion_socket": str(companion_socket),
                 "full_matrix_ready": False,
                 "integration_mode": "forwardAuth",
                 "intervention_status": 403,
@@ -612,8 +826,11 @@ def run(args: argparse.Namespace) -> int:
                 "modsecurity_rule_loaded": True,
                 "production_ready": False,
                 "request_body_verified": False,
-                "response_body_verified": False,
-                "response_processing_supported": False,
+                "response_body_verified": response_phase_smoke,
+                "response_processing_supported": response_phase_smoke,
+                "response_phase_smoke": response_phase_smoke,
+                "p3_response_status": p3_status,
+                "p4_safe_response_status": p4_status,
                 "runtime_verified": True,
                 "status": "PASS",
                 "traefik_binary": str(traefik_binary.path),
@@ -631,10 +848,14 @@ def run(args: argparse.Namespace) -> int:
                 "connector": "traefik",
                 "error": str(exc),
                 "event_path": str(event_path),
+                "companion_socket": str(companion_socket),
                 "integration_mode": "forwardAuth",
                 "request_body_verified": False,
                 "response_body_verified": False,
                 "response_processing_supported": False,
+                "response_phase_smoke": response_phase_smoke,
+                "p3_response_status": p3_status,
+                "p4_safe_response_status": p4_status,
                 "runtime_verified": False,
                 "status": "FAIL",
             },

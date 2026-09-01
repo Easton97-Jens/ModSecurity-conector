@@ -121,6 +121,14 @@ def _load_helper():
 
 HELPER = _load_helper()
 
+
+def _production_smoke_root(environment: dict[str, str]) -> Path:
+    """Resolve and validate the production smoke root as one asserted operation."""
+
+    paths = HELPER._production_runtime_paths(environment)
+    return HELPER._expected_production_smoke_root(paths)
+
+
 _ENCODED_PYTHON_PAYLOAD_RUNNER = (
     "import base64,subprocess,sys;"
     "raise SystemExit(subprocess.run("
@@ -338,6 +346,24 @@ def _namespace_integration_is_required() -> bool:
 @unittest.skipUnless(os.name == "posix" and sys.platform == "linux", "Linux only")
 class NamespaceContractTest(unittest.TestCase):
     @staticmethod
+    def _no_crs_production_environment(
+        run_id: str = "lighttpd-current-run",
+    ) -> dict[str, str]:
+        verified_root = Path("/verified-runtime")
+        smoke_root = (
+            verified_root / "runs" / "lighttpd" / run_id / "lighttpd-runtime"
+        )
+        return {
+            "RUNTIME_ROOT": "/stage-runtime",
+            "LIGHTTPD_PATCHED_SMOKE_DIR": str(smoke_root),
+            "VERIFIED_RUN_ROOT": str(verified_root),
+            "FULL_LIFECYCLE_EVIDENCE_OUTPUT": str(
+                smoke_root / "first-byte-evidence.json"
+            ),
+            "NO_CRS_RUN_ID": run_id,
+        }
+
+    @staticmethod
     def _failed_namespace_probe(
         stderr: str, returncode: int = 1, stdout: str = ""
     ) -> tuple[bool, str]:
@@ -359,6 +385,71 @@ class NamespaceContractTest(unittest.TestCase):
             candidate.chmod(0o755)
             with self.assertRaisesRegex(RuntimeError, "mode 0700"):
                 _configured_test_temp_parent(str(candidate))
+
+    def test_production_no_crs_smoke_root_matches_the_exact_resolver_path(self) -> None:
+        environment = self._no_crs_production_environment()
+        paths = HELPER._production_runtime_paths(environment)
+        expected = Path(
+            "/verified-runtime/runs/lighttpd/lighttpd-current-run/lighttpd-runtime"
+        )
+        self.assertEqual(paths.run_id, "lighttpd-current-run")
+        self.assertEqual(HELPER._expected_production_smoke_root(paths), expected)
+
+    def test_production_no_crs_smoke_root_rejects_other_namespaces_and_run_ids(self) -> None:
+        cases = (
+            ("wrong-connector", "lighttpd-current-run", "/verified-runtime/runs/apache/lighttpd-current-run/lighttpd-runtime"),
+            ("wrong-run", "lighttpd-current-run", "/verified-runtime/runs/lighttpd/lighttpd-foreign-run/lighttpd-runtime"),
+            ("legacy-root", "lighttpd-current-run", "/verified-runtime/lighttpd-runtime"),
+            ("unsafe-run-id", "../outside", "/verified-runtime/runs/lighttpd/../outside/lighttpd-runtime"),
+        )
+        for label, run_id, smoke_root in cases:
+            with self.subTest(case=label):
+                environment = self._no_crs_production_environment(run_id)
+                environment["LIGHTTPD_PATCHED_SMOKE_DIR"] = smoke_root
+                environment["FULL_LIFECYCLE_EVIDENCE_OUTPUT"] = str(
+                    Path(smoke_root) / "first-byte-evidence.json"
+                )
+                with self.assertRaises(HELPER.NamespaceUnavailable):
+                    _production_smoke_root(environment)
+
+    def test_production_paths_reject_parent_traversal_before_namespace_binding(self) -> None:
+        base_environment = self._no_crs_production_environment()
+        cases = (
+            "RUNTIME_ROOT",
+            "LIGHTTPD_PATCHED_SMOKE_DIR",
+            "VERIFIED_RUN_ROOT",
+            "FULL_LIFECYCLE_EVIDENCE_OUTPUT",
+        )
+        for name in cases:
+            with self.subTest(name=name):
+                environment = dict(base_environment)
+                environment[name] = f"{environment[name]}/.."
+                with self.assertRaisesRegex(
+                    HELPER.NamespaceUnavailable,
+                    "normalized absolute paths",
+                ):
+                    HELPER._production_runtime_paths(environment)
+
+        with_crs_environment = self._no_crs_production_environment()
+        with_crs_environment["PARENT_HOST_RUNTIME_ROOT"] = "/stage-runtime/host/.."
+        with self.assertRaisesRegex(
+            HELPER.NamespaceUnavailable,
+            "normalized absolute paths",
+        ):
+            HELPER._production_runtime_paths(with_crs_environment)
+
+    def test_production_with_crs_smoke_root_remains_exact(self) -> None:
+        environment = self._no_crs_production_environment()
+        environment["RUNTIME_ROOT"] = "/stage-runtime"
+        environment["LIGHTTPD_PATCHED_SMOKE_DIR"] = "/stage-runtime/host"
+        environment["PARENT_HOST_RUNTIME_ROOT"] = "/stage-runtime/host"
+        environment["FULL_LIFECYCLE_EVIDENCE_OUTPUT"] = (
+            "/stage-runtime/host/first-byte-evidence.json"
+        )
+        paths = HELPER._production_runtime_paths(environment)
+        self.assertEqual(
+            HELPER._expected_production_smoke_root(paths), Path("/stage-runtime/host")
+        )
 
     def test_required_workflow_identity_is_non_root_and_restricted(self) -> None:
         """Hosted evidence must attest the outer test identity before isolation."""

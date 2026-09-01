@@ -1707,7 +1707,7 @@ jobs:
         )
         preparation = job.split(
             "      - name: Prepare fresh CRS source for Apache and HAProxy\n", 1
-        )[1].split("      - name: Run selected real with-CRS no-MRTS runtime\n", 1)[0]
+        )[1].split("      - name: Prepare HAProxy runtime evidence boundary\n", 1)[0]
         self.assertIn('case "$CONNECTOR" in', preparation)
         self.assertIn("apache|haproxy)", preparation)
         self.assertIn(
@@ -1716,7 +1716,29 @@ jobs:
         )
         runtime = job.split(
             "      - name: Run selected real with-CRS no-MRTS runtime\n", 1
-        )[1].split("      - name: Upload real runtime evidence\n", 1)[0]
+        )[1].split("      - name: Project HAProxy runtime evidence\n", 1)[0]
+        runtime_script = runtime.split("        run: |\n", 1)[1]
+        self.assertIn(
+            "SETUP_PYTHON_PATH: $" + "{{ steps.setup-python.outputs.python-path }}",
+            runtime,
+        )
+        self.assertIn('PYTHON="$SETUP_PYTHON_PATH"', runtime_script)
+        for runtime_value in (
+            "RUNTIME_UID",
+            "RUNTIME_GID",
+            "RUNTIME_PARENT_SHA",
+            "RUNTIME_FRAMEWORK_SHA",
+            "RUNTIME_MRTS_SHA",
+        ):
+            self.assertIn(
+                f"{runtime_value}: $" + "{{ steps.prepare-haproxy-runtime-evidence.outputs.",
+                runtime,
+            )
+            self.assertIn(f'"${runtime_value}"', runtime_script)
+        self.assertNotIn(
+            "$" + "{{ steps.prepare-haproxy-runtime-evidence.outputs.",
+            runtime_script,
+        )
         self.assertNotIn("prepare-fresh-crs-source.sh", runtime)
         self.assertNotIn('fetch-crs.sh', runtime)
         self.assertEqual(
@@ -1729,14 +1751,14 @@ jobs:
         )
         self.assertLess(
             job.index("prepare-fresh-crs-source.sh"),
-            job.index("make verified-haproxy-case CASE=crs_sqli_anomaly_block"),
+            job.index('/usr/bin/make -C "$GITHUB_WORKSPACE" verified-haproxy-case CASE=crs_sqli_anomaly_block'),
         )
         self.assertIn(
             'make verified-apache-case CASE=crs_sqli_anomaly_block CRS="$CRS" MRTS="$MRTS"',
             job,
         )
         self.assertIn(
-            'make verified-haproxy-case CASE=crs_sqli_anomaly_block CRS="$CRS" MRTS="$MRTS"',
+            '/usr/bin/make -C "$GITHUB_WORKSPACE" verified-haproxy-case CASE=crs_sqli_anomaly_block CRS=with-crs MRTS=no-mrts',
             job,
         )
         self.assertEqual(
@@ -1756,7 +1778,6 @@ jobs:
             "continue-on-error:",
             "|| true",
             "exit 0",
-            "unshare",
             "run_no_crs_fixture_trusted_namespace.py",
         ):
             self.assertNotIn(forbidden, job)
@@ -1772,28 +1793,214 @@ jobs:
             "verify-runtime-cell",
             "initialize-runtime-roots",
             "prepare-crs-source",
+            "prepare-haproxy-runtime-evidence",
             "runtime",
+            "project-haproxy-runtime-evidence",
+            "verify-haproxy-runtime-evidence",
+            "upload-non-haproxy-runtime-evidence",
             "upload-runtime-evidence",
         ):
             self.assertIn(f"id: {step_id}", job)
         self.assertEqual(
             job.count("actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1"),
-            1,
+            2,
         )
-        upload = job.split("      - name: Upload real runtime evidence\n", 1)[1]
-        self.assertIn("if: always() && matrix.connector != 'haproxy'", upload)
-        self.assertNotIn("verified-haproxy-case", upload)
-        self.assertNotIn("Upload HAProxy host-runtime artifacts", job)
+        boundary = job.split("      - name: Prepare HAProxy runtime evidence boundary\n", 1)[1].split(
+            "      - name: Run selected real with-CRS no-MRTS runtime\n", 1
+        )[0]
+        self.assertIn("if: matrix.connector == 'haproxy'", boundary)
+        self.assertIn(
+            'rev-parse "$PARENT_SHA:ci/runtime/lifecycle/project-haproxy-runtime-evidence.py"',
+            boundary,
+        )
+        self.assertIn("projector_blob", boundary)
+        self.assertIn("TRUSTED_EVIDENCE_STAGE_ROOT: /tmp", boundary)
+        self.assertIn(
+            'stage_parent=$(/usr/bin/sudo -n /usr/bin/mktemp -d -- "$TRUSTED_EVIDENCE_STAGE_ROOT/haproxy-runtime-evidence-parent.XXXXXXXX")',
+            boundary,
+        )
+        self.assertIn('projector_source="$stage_parent/verified-projector.py"', boundary)
+        self.assertIn('/usr/bin/sudo -n /usr/bin/chmod 0444 -- "$projector_source"', boundary)
+        self.assertIn("runner_temp_identity=", boundary)
+        self.assertIn("probe_uid=$(", boundary)
+        for required in (
+            "/usr/bin/unshare",
+            "--mount",
+            "--pid",
+            "--fork",
+            "--kill-child=SIGKILL",
+            "--mount-proc=/proc",
+            "--propagation private",
+            "/usr/bin/setpriv",
+            "--no-new-privs",
+            "--inh-caps=-all",
+            "--ambient-caps=-all",
+            "--bounding-set=-all",
+            'test "$probe_uid" = "$runtime_uid"',
+        ):
+            self.assertIn(required, boundary)
+        for forbidden in (
+            "seal-helper",
+            "SEALED_HELPER",
+            "sudo -n /usr/bin/python3",
+            "sudo -n sh",
+            "find ",
+            "cp -",
+        ):
+            self.assertNotIn(forbidden, boundary)
+        self.assertIn("HAPROXY_EVIDENCE_RECEIPT=1", runtime)
+        self.assertIn("HAPROXY_EVIDENCE_RECEIPT_PROJECTOR=", runtime)
+        self.assertIn("EXPECTED_PARENT_SHA=", runtime)
+        self.assertIn("EXPECTED_FRAMEWORK_SHA=", runtime)
+        self.assertIn("EXPECTED_MRTS_SHA=", runtime)
+        self.assertIn("/usr/bin/unshare", runtime)
+        self.assertIn("/usr/bin/setpriv", runtime)
+        self.assertLess(runtime.index("/usr/bin/setpriv"), runtime.index("/usr/bin/make"))
+        runtime_root_launch, dropped_runtime = runtime.split("-- /usr/bin/env -i", 1)
+        self.assertNotIn("$GITHUB_WORKSPACE", runtime_root_launch)
+        for forbidden in (
+            "GITHUB_ENV",
+            "GITHUB_OUTPUT",
+            "GITHUB_PATH",
+            "GITHUB_STATE",
+            "HAPROXY_EVIDENCE_RECEIPT_HELPER",
+            "seal-helper",
+            "sudo -n /usr/bin/python3",
+        ):
+            self.assertNotIn(forbidden, dropped_runtime)
+        project = job.split("      - name: Project HAProxy runtime evidence\n", 1)[1].split(
+            "      - name: Verify HAProxy runtime evidence\n", 1
+        )[0]
+        self.assertIn("if: matrix.connector == 'haproxy' && steps.runtime.outcome == 'success'", project)
+        self.assertIn("TRUSTED_SOURCE_ROOT", project)
+        self.assertIn("TRUSTED_RUNNER_TEMP", project)
+        self.assertIn("RUNTIME_GID", project)
+        self.assertIn("PROJECTOR_BLOB", project)
+        self.assertIn("PROJECTOR_SOURCE", project)
+        self.assertIn("STAGE_PARENT", project)
+        self.assertIn("TRUSTED_EVIDENCE_STAGE_ROOT", project)
+        self.assertIn("run_runner_projector()", project)
+        self.assertIn("run_evidence_projector()", project)
+        self.assertIn("hashlib.sha1", project)
+        self.assertIn("exec(compile(source", project)
+        self.assertIn('stage_root="$STAGE_PARENT/package"', project)
+        self.assertIn("sudo -n /usr/bin/chown --no-dereference", project)
+        self.assertIn(
+            'sudo -n /usr/bin/chown --no-dereference "$EVIDENCE_UID:$RUNTIME_GID" -- "$stage_root"',
+            project,
+        )
+        self.assertIn('= "$EVIDENCE_UID:$RUNTIME_GID:700"', project)
+        self.assertIn("run_runner_projector export-source-receipt", project)
+        self.assertIn("| /usr/bin/head --bytes=16385", project)
+        self.assertIn("| run_evidence_projector project-document --source-document-stdin", project)
+        self.assertNotIn("source_document=", project)
+        self.assertNotIn("--source-document ", project)
         self.assertLess(
-            job.index("make verified-haproxy-case CASE=crs_sqli_anomaly_block"),
-            job.index("if: always() && matrix.connector != 'haproxy'"),
+            project.index("run_runner_projector export-source-receipt"),
+            project.index("| /usr/bin/head --bytes=16385"),
+        )
+        self.assertLess(
+            project.index("| /usr/bin/head --bytes=16385"),
+            project.index("| run_evidence_projector project-document --source-document-stdin"),
+        )
+        self.assertIn('--upload-gid "$RUNTIME_GID"', project)
+        for forbidden in (
+            "seal-helper",
+            "SEALED_HELPER",
+            "sudo -n /usr/bin/python3",
+            "find ",
+            "cp -",
+            "|| true",
+        ):
+            self.assertNotIn(forbidden, project)
+        verification = job.split("      - name: Verify HAProxy runtime evidence\n", 1)[1].split(
+            "      - name: Upload non-HAProxy runtime evidence\n", 1
+        )[0]
+        self.assertIn(
+            "if: matrix.connector == 'haproxy' && steps.project-haproxy-runtime-evidence.outcome == 'success'",
+            verification,
+        )
+        self.assertIn("RUNTIME_GID", verification)
+        self.assertIn("EVIDENCE_UID", verification)
+        self.assertIn("EVIDENCE_GID", verification)
+        self.assertIn("PROJECTOR_SOURCE", verification)
+        self.assertIn("TRUSTED_EVIDENCE_STAGE_ROOT", verification)
+        self.assertIn("hashlib.sha1", verification)
+        self.assertIn("run_evidence_projector verify", verification)
+        self.assertIn('--upload-gid "$RUNTIME_GID"', verification)
+        self.assertNotIn("safe.directory=", project)
+        self.assertNotIn("safe.directory=", verification)
+        self.assertNotIn("sudo -n /usr/bin/python3", verification)
+        self.assertNotIn("seal-helper", verification)
+        for projector_block in (project, verification):
+            self.assertIn("sudo -n /usr/bin/env -i", projector_block)
+            self.assertIn("/usr/bin/unshare", projector_block)
+            self.assertIn("/usr/bin/setpriv", projector_block)
+            self.assertIn("--no-new-privs", projector_block)
+            self.assertIn("--inh-caps=-all", projector_block)
+            self.assertIn("--ambient-caps=-all", projector_block)
+            self.assertIn("--bounding-set=-all", projector_block)
+            self.assertIn('--reuid="$EVIDENCE_UID"', projector_block)
+            self.assertIn('--regid="$EVIDENCE_GID"', projector_block)
+            self.assertNotIn("sudo -n -u nobody -g nogroup", projector_block)
+        self.assertIn('--reuid="$RUNTIME_UID"', project)
+        self.assertIn('--regid="$RUNTIME_GID"', project)
+        projector_root_launcher, constrained_projector = project.split("-- /usr/bin/env -i", 1)
+        self.assertNotIn("$GITHUB_WORKSPACE", projector_root_launcher)
+        self.assertLess(
+            constrained_projector.index("/usr/bin/python3 -I -c"),
+            constrained_projector.index("exec(compile(source"),
+        )
+        non_haproxy_upload = job.split("      - name: Upload non-HAProxy runtime evidence\n", 1)[1].split(
+            "      - name: Upload real runtime evidence\n", 1
+        )[0]
+        self.assertIn("if: always() && matrix.connector != 'haproxy'", non_haproxy_upload)
+        self.assertNotIn("verified-haproxy-case", non_haproxy_upload)
+        upload = job.split("      - name: Upload real runtime evidence\n", 1)[1].split(
+            "      - name: Write connector runtime overview\n", 1
+        )[0]
+        self.assertIn(
+            "if: matrix.connector == 'haproxy' && steps.verify-haproxy-runtime-evidence.outcome == 'success'",
+            upload,
+        )
+        self.assertIn("haproxy-runtime-evidence.json", upload)
+        self.assertIn("manifest.json", upload)
+        self.assertNotIn("BUILD_ROOT", upload)
+        self.assertNotIn("VERIFIED_RUN_ROOT", upload)
+        self.assertNotIn("EVIDENCE_ROOT", upload)
+        self.assertIn("Cleanup HAProxy runtime evidence stage", upload)
+        self.assertIn("if: always() && matrix.connector == 'haproxy'", upload)
+        self.assertIn('/usr/bin/sudo -n /usr/bin/rm -rf -- "$STAGE_PARENT"', upload)
+        self.assertLess(
+            job.index('/usr/bin/make -C "$GITHUB_WORKSPACE" verified-haproxy-case CASE=crs_sqli_anomaly_block'),
+            job.index("      - name: Project HAProxy runtime evidence\n"),
         )
         summary = job.split("      - name: Write connector runtime overview\n", 1)[1]
         self.assertIn("if: always()", summary)
         self.assertIn(
-            'python3 ci/runtime/lifecycle/summarize-with-crs-no-mrts-workflow.py --connector "$CONNECTOR"',
+            "PARENT_SHA: $" + "{{ github.event.pull_request.head.sha || github.sha }}",
             summary,
         )
+        self.assertIn(
+            'rev-parse "$PARENT_SHA:ci/runtime/lifecycle/summarize-with-crs-no-mrts-workflow.py"',
+            summary,
+        )
+        self.assertIn("summary_blob=", summary)
+        self.assertIn("cat-file -e \"${summary_blob}^{blob}\"", summary)
+        self.assertIn("sudo -n /usr/bin/env -i", summary)
+        self.assertIn("/usr/bin/unshare", summary)
+        self.assertIn("/usr/bin/setpriv", summary)
+        self.assertIn("--no-new-privs", summary)
+        self.assertIn("exec(compile(source", summary)
+        self.assertNotIn(
+            'python3 ci/runtime/lifecycle/summarize-with-crs-no-mrts-workflow.py',
+            summary,
+        )
+        summary_root_launcher = summary.split("sudo -n /usr/bin/env -i", 1)[1].split(
+            "-- /usr/bin/env -i", 1
+        )[0]
+        self.assertNotIn("$GITHUB_WORKSPACE", summary_root_launcher)
+        self.assertLess(summary.index("/usr/bin/setpriv"), summary.index("exec(compile(source"))
         self.assertNotIn("--summary-file", summary)
         for environment_name, step_id in (
             ("CHECKOUT_OUTCOME", "checkout"),
@@ -1805,9 +2012,20 @@ jobs:
             ("INITIALIZE_ROOTS_OUTCOME", "initialize-runtime-roots"),
             ("PREPARE_CRS_OUTCOME", "prepare-crs-source"),
             ("RUNTIME_OUTCOME", "runtime"),
-            ("UPLOAD_EVIDENCE_OUTCOME", "upload-runtime-evidence"),
         ):
             self.assertIn(f"{environment_name}: ${{{{ steps.{step_id}.outcome }}}}", summary)
+        self.assertIn(
+            "UPLOAD_EVIDENCE_OUTCOME: ${{ matrix.connector == 'haproxy' && steps.upload-runtime-evidence.outcome || steps.upload-non-haproxy-runtime-evidence.outcome }}",
+            summary,
+        )
+        self.assertLess(
+            job.index("      - name: Prepare HAProxy runtime evidence boundary\n"),
+            job.index("      - name: Run selected real with-CRS no-MRTS runtime\n"),
+        )
+        self.assertLess(
+            job.index("      - name: Project HAProxy runtime evidence\n"),
+            job.index("      - name: Verify HAProxy runtime evidence\n"),
+        )
         self.assertLess(
             job.index("      - name: Upload real runtime evidence\n"),
             job.index("      - name: Write connector runtime overview\n"),

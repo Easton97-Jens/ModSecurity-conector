@@ -1,4 +1,5 @@
 #include "haproxy_modsecurity_binding.h"
+#include "msconnector/transaction_contract.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -58,6 +59,72 @@ static int expect_disruptive_rule_id(
         return lifecycle_failure(decision, label);
     }
     return 0;
+}
+
+static int expect_invalid_request_id(
+        int rc,
+        const haproxy_modsecurity_transaction *transaction,
+        const haproxy_modsecurity_decision *observed,
+        const char *label,
+        haproxy_modsecurity_decision *decision) {
+    if (rc != 1 || transaction != 0 || observed == 0 ||
+            observed->phase != 1 || observed->disruptive == 0 ||
+            observed->status != 500 || strcmp(observed->action, "deny") != 0 ||
+            strcmp(observed->log_message, "invalid HAProxy transaction id") != 0) {
+        return lifecycle_failure(decision, label);
+    }
+    return 0;
+}
+
+static int run_request_id_boundary_self_test(
+        haproxy_modsecurity_engine *engine,
+        haproxy_modsecurity_request *request,
+        haproxy_modsecurity_decision *observed,
+        haproxy_modsecurity_decision *decision) {
+    char accepted[MSCONNECTOR_MAX_TRANSACTION_ID_LENGTH];
+    char oversized[MSCONNECTOR_MAX_TRANSACTION_ID_LENGTH + 1U];
+    const char *saved_request_id = request->request_id;
+    haproxy_modsecurity_transaction *transaction = 0;
+    int rc;
+    int result = 1;
+
+    memset(accepted, 'a', sizeof(accepted) - 1U);
+    accepted[sizeof(accepted) - 1U] = '\0';
+    request->request_id = accepted;
+    rc = haproxy_modsecurity_transaction_begin_request_with_profile(engine, request,
+        "haproxy-htx", observed, &transaction);
+    if (expect_non_disruptive(rc, observed, 1,
+            "maximum-length transaction id", decision) != 0 || transaction == 0) {
+        goto done;
+    }
+    haproxy_modsecurity_transaction_abort(transaction);
+    transaction = 0;
+
+    memset(oversized, 'b', sizeof(oversized) - 1U);
+    oversized[sizeof(oversized) - 1U] = '\0';
+    request->request_id = oversized;
+    rc = haproxy_modsecurity_transaction_begin_request_with_profile(engine, request,
+        "haproxy-htx", observed, &transaction);
+    if (expect_invalid_request_id(rc, transaction, observed,
+            "overlong transaction id", decision) != 0) {
+        goto done;
+    }
+
+    request->request_id = "invalid\ntransaction-id";
+    rc = haproxy_modsecurity_transaction_begin_request_with_profile(engine, request,
+        "haproxy-htx", observed, &transaction);
+    if (expect_invalid_request_id(rc, transaction, observed,
+            "control-character transaction id", decision) != 0) {
+        goto done;
+    }
+    result = 0;
+
+done:
+    if (transaction != 0) {
+        haproxy_modsecurity_transaction_abort(transaction);
+    }
+    request->request_id = saved_request_id;
+    return result;
 }
 
 typedef int (*body_append_function)(
@@ -134,6 +201,87 @@ static int check_response_body_requires_headers(
     return expect_failure(rc, observed, response_phase->phase,
         "response headers must be processed before response body chunks",
         "response append before headers", decision);
+}
+
+struct body_wrapper_lifecycle_test_context {
+    haproxy_modsecurity_engine *engine;
+    haproxy_modsecurity_transaction **transaction;
+    haproxy_modsecurity_request *request;
+    haproxy_modsecurity_response *response;
+    const struct body_wrapper_lifecycle *request_phase;
+    const struct body_wrapper_lifecycle *response_phase;
+    haproxy_modsecurity_decision *observed;
+    haproxy_modsecurity_decision *decision;
+};
+
+static int run_direct_body_lifecycle(
+        struct body_wrapper_lifecycle_test_context *test) {
+    int rc = haproxy_modsecurity_transaction_begin_request_with_profile(
+        test->engine, test->request, "haproxy-htx", test->observed,
+        test->transaction);
+    if (expect_non_disruptive(rc, test->observed, 1, "request begin",
+            test->decision) != 0 || *test->transaction == 0) {
+        lifecycle_failure(test->decision, "request begin transaction");
+        return 1;
+    }
+    if (run_body_lifecycle(test->request_phase, *test->transaction,
+            test->observed, test->decision) != 0 ||
+        check_response_body_requires_headers(*test->transaction,
+            test->response_phase, test->observed, test->decision) != 0) {
+        return 1;
+    }
+    rc = haproxy_modsecurity_transaction_process_response_headers(
+        *test->transaction, test->response, test->observed);
+    if (expect_non_disruptive(rc, test->observed, 3, "response headers",
+            test->decision) != 0 ||
+        run_body_lifecycle(test->response_phase, *test->transaction,
+            test->observed, test->decision) != 0) {
+        return 1;
+    }
+    if (haproxy_modsecurity_transaction_finish(*test->transaction) != 0) {
+        lifecycle_failure(test->decision, "direct transaction completion");
+        *test->transaction = 0;
+        return 1;
+    }
+    *test->transaction = 0;
+    return 0;
+}
+
+static int run_spop_body_lifecycle(
+        struct body_wrapper_lifecycle_test_context *test) {
+    int rc = haproxy_modsecurity_transaction_begin_request_with_profile(
+        test->engine, test->request, "haproxy-spoe-spop", test->observed,
+        test->transaction);
+    if (expect_non_disruptive(rc, test->observed, 1, "SPOP request begin",
+            test->decision) != 0 || *test->transaction == 0) {
+        lifecycle_failure(test->decision, "SPOP request transaction");
+        return 1;
+    }
+    if (run_body_lifecycle(test->request_phase, *test->transaction,
+            test->observed, test->decision) != 0 ||
+        haproxy_modsecurity_transaction_handoff_response_companion(
+            *test->transaction) != 0 ||
+        haproxy_modsecurity_transaction_claim_response_companion(
+            *test->transaction) != 0) {
+        lifecycle_failure(test->decision, "SPOP response companion handoff/claim");
+        return 1;
+    }
+    rc = haproxy_modsecurity_transaction_process_response_headers(
+        *test->transaction, test->response, test->observed);
+    if (expect_non_disruptive(rc, test->observed, 3,
+            "SPOP companion response headers", test->decision) != 0 ||
+        run_body_lifecycle(test->response_phase, *test->transaction,
+            test->observed, test->decision) != 0) {
+        return 1;
+    }
+    if (haproxy_modsecurity_transaction_finish(*test->transaction) != 0) {
+        lifecycle_failure(test->decision,
+            "SPOP companion transaction completion");
+        *test->transaction = 0;
+        return 1;
+    }
+    *test->transaction = 0;
+    return 0;
 }
 
 static int run_body_wrapper_lifecycle_self_test(
@@ -213,49 +361,50 @@ static int run_body_wrapper_lifecycle_self_test(
         goto cleanup;
     }
 
-    rc = haproxy_modsecurity_transaction_begin_request(engine, &request, &observed,
-        &transaction);
+    rc = haproxy_modsecurity_transaction_begin_request_with_profile(engine, &request,
+        "haproxy-htx", &observed, &transaction);
     if (expect_disruptive_rule_id(rc, &observed, 1, 1000004,
             "phase-1 Rule-ID fallback block", decision) != 0) {
         goto cleanup;
     }
-    haproxy_modsecurity_transaction_finish(transaction);
+    haproxy_modsecurity_transaction_abort(transaction);
     transaction = 0;
 
     request_headers[2].value = "allow";
-    rc = haproxy_modsecurity_transaction_begin_request(engine, &request, &observed,
-        &transaction);
+    rc = haproxy_modsecurity_transaction_begin_request_with_profile(engine, &request,
+        "haproxy-htx", &observed, &transaction);
     if (expect_non_disruptive(rc, &observed, 1,
             "phase-1 Rule-ID fallback allow isolation", decision) != 0) {
         goto cleanup;
     }
-    haproxy_modsecurity_transaction_finish(transaction);
+    haproxy_modsecurity_transaction_abort(transaction);
     transaction = 0;
 
-    rc = haproxy_modsecurity_transaction_begin_request(engine, &request, &observed,
-        &transaction);
-    if (expect_non_disruptive(rc, &observed, 1, "request begin", decision) != 0) {
-        goto cleanup;
-    }
-    if (transaction == 0) {
-        lifecycle_failure(decision, "request begin transaction");
-        goto cleanup;
-    }
-    if (run_body_lifecycle(&request_phase, transaction, &observed, decision) != 0) {
+    if (run_request_id_boundary_self_test(engine, &request, &observed, decision) != 0) {
         goto cleanup;
     }
 
-    if (check_response_body_requires_headers(transaction, &response_phase, &observed,
-            decision) != 0) {
-        goto cleanup;
+    {
+        struct body_wrapper_lifecycle_test_context test = {
+            engine, &transaction, &request, &response, &request_phase,
+            &response_phase, &observed, decision
+        };
+        if (run_direct_body_lifecycle(&test) != 0) {
+            goto cleanup;
+        }
     }
-    rc = haproxy_modsecurity_transaction_process_response_headers(transaction, &response,
-        &observed);
-    if (expect_non_disruptive(rc, &observed, 3, "response headers", decision) != 0) {
-        goto cleanup;
-    }
-    if (run_body_lifecycle(&response_phase, transaction, &observed, decision) != 0) {
-        goto cleanup;
+
+    /* The SPOP profile deliberately cannot consume direct P3/P4 callbacks.
+     * Exercise the owner-preserving handoff/claim sequence here without
+     * pretending that this binding-only test is a HAProxy UDS bridge. */
+    {
+        struct body_wrapper_lifecycle_test_context test = {
+            engine, &transaction, &request, &response, &request_phase,
+            &response_phase, &observed, decision
+        };
+        if (run_spop_body_lifecycle(&test) != 0) {
+            goto cleanup;
+        }
     }
     result = 0;
 

@@ -63,7 +63,8 @@ oder Transaktionseigentum.
 
 Die Phase-4-Direktiven sind begrenzte Laufzeitsteuerungen. Insbesondere ist
 `modsecurity_phase4_content_types_file` ein veralteter Kompatibilitätsparser:
-Er kann das Apache-Pre-Commit-Gate für alle Responses nicht einschränken.
+Er kann das Response-Inspektions-Gate nicht einschränken und keine
+P4-Entscheidung vor Commit erzeugen.
 `SecResponseBodyMimeType` wählt stattdessen die libModSecurity-Inspektion.
 Phase 4 / RESPONSE_BODY bleibt nicht hochgestuft; Strict-Mode-Verkabelung auf
 Quellebene beweist keinen späten Abbruch.
@@ -179,14 +180,14 @@ vollständige Matrixabdeckung oder neues Laufzeitüberprüfungsverhalten.
 
 ## Kanonische Phase-4-Grenze
 
-Der Apache-Ausgabefilter ist ein EOS-only-All-Response-Enforcement-Gate. Er
-hängt jeden Daten-Bucket inkrementell an libModSecurity an und speichert die
-normalisierte Apache-Brigade über Filteraufrufe hinweg im Request-Pool. Kein
-ursprüngliches Response-Byte wird weitergegeben — auch nicht bei einer leeren
-Response, die nur aus EOS besteht — bevor das erste EOS eingetroffen ist,
-`msc_process_response_body` abgeschlossen und die Intervention aufgelöst ist.
-Das tauscht sichtbares progressives Response-Streaming bewusst gegen eine
-vollständige Phase-4-Entscheidung ein; es ist keine Regelauswertung pro Chunk.
+Der Apache-Ausgabefilter bleibt für die Phase-4-Regelauswertung EOS-only, ist
+nun aber ein progressiver Response-Pfad. Er hängt jeden Daten-Bucket genau
+einmal an libModSecurity an, erhält FLUSH und Apache-Metadaten vor EOS, trennt
+am ersten EOS und reicht das Präfix vor EOS sofort an den nächsten Filter
+weiter. Er speichert keine vollständige normalisierte Brigade über Callbacks
+hinweg. Nur das terminale EOS-Fragment wartet auf `msc_process_response_body`
+und die Late-Action-Auflösung; es handelt sich nicht um Regelauswertung pro
+Chunk.
 
 Der Connector kann die wirksame `SecResponseBodyMimeType`-Auswahl von
 libModSecurity über die C-API nicht sicher abfragen. Deshalb gate't er jeden
@@ -194,36 +195,27 @@ Response-MIME-Typ. `SecResponseBodyMimeType` wählt weiterhin die Engine-
 Inspektion, während das veraltete
 `modsecurity_phase4_content_types_file` keinen uninspektierten Pass-through-
 Pfad erzeugen kann. Das Standardlimit von
-`modsecurity_phase4_body_limit` beträgt 1048576 Byte (1 MiB). Eine Response,
-die es überschreitet, schlägt fail-closed fehl, bevor ein ursprüngliches
-Response-Byte freigegeben wird; sie wird nicht teilweise verarbeitet und dann
-gestreamt.
-Die Byte-Grenze ist nicht die einzige Ressourcengrenze für zurückgehaltene
-Ausgabe: Apache erzwingt zusätzlich eine feste, nicht konfigurierbare Obergrenze
-von 4.096 normalisierten, über Filter-Aufrufe hinweg zurückgehaltenen Buckets.
-Vor dem Zurückhalten des nächsten Buckets schlägt sie fail-closed fehl; daher
-kann eine stark fragmentierte Response schon unterhalb des Byte-Limits
-abgelehnt werden.
+`modsecurity_phase4_body_limit` beträgt 1048576 Byte (1 MiB). Die Grenze wird
+geprüft, bevor ein weiterer Daten-Bucket angehängt wird; nachdem ein Präfix den
+nächsten Filter erreicht hat, kann ein späterer Fehler es nicht umschreiben und
+verwendet die gemeinsame Post-Commit-Action. Es gibt keinen aktiven
+callbackübergreifenden Puffer für normalisierte Brigades oder Bucket-Zähler.
 
 An der normalen Entscheidungsgrenze sind Apaches `r->sent_bodyct` und
 `eos_sent` kein Commit-Nachweis: Upstream-Module können sie setzen, bevor
-dieser Filter etwas freigegeben hat. Das Gate verwendet stattdessen seinen
-eigenen Released-EOS-Zustand und Apaches `r->bytes_sent`. Ein normaler
-Phase-4-Deny verwirft die gespeicherte ursprüngliche Brigade, erhält den
-relevanten P3-Response-Zustand und gibt genau eine terminale Error-Response
-aus, bevor ursprüngliche Ausgabe freigegeben werden kann. Bei Allow wird die
-zurückgehaltene Brigade einschließlich EOS genau einmal synchron weitergereicht
-und der Terminal-Output-Guard versiegelt; dadurch kann ein späterer Producer
-weder Body noch EOS doppelt ausgeben. Fehler beim Speichern, Anhängen oder
-Abschließen der Response verwerfen die zurückgehaltene Brigade und schlagen
-fail-closed fehl; ein tatsächlich nach Commit auftretender Fehler bricht die
-Verbindung ab.
+dieser Filter sein erstes Präfix weitergibt. Der Aufruf des nächsten Filters
+ist die monotone Source-Commit-Grenze; ein separater Terminal-EOS-Guard und
+Apaches `r->bytes_sent` bleiben als Metadaten erhalten. Ein Downstream-Fehler
+nach progressivem Forwarding versiegelt das Phase-4-Gate, weil ein Body-Präfix
+bereits sichtbar sein kann. P4 wird genau einmal bei EOS abgeschlossen;
+doppelte terminale Ausgabe wird abgewiesen.
 
-`log_only` im Safe-/Minimal-Modus und `abort_connection` im Strict-Modus sind
-nur defensive Late-Intervention-Fallbacks, wenn ein unabhängiger Commit-
-Nachweis bereits existiert. Sie deuten einen normalen, noch gegateten
-Phase-4-Deny nicht zu Log-only um und entfernen den Deny-Pfad vor Release
-nicht.
+`log_only` im Safe-/Minimal-Modus erhält ein bereits weitergereichtes Präfix.
+Strict verwendet `abort_connection` nach einem disruptiven EOS-Ergebnis,
+statt emittierte Bytes zu ersetzen. Weil die P4-Regelauswertung bei EOS
+erfolgt, behauptet dieser progressive Pfad keinen verlässlichen P4-HTTP-Deny
+oder Redirect vor Commit; P3 ist der Entscheidungspunkt für Response-Header
+vor dem Commit.
 
 Ein normaler `r->prev`-interner Redirect, einschließlich eines ErrorDocument
 vor Output, schlägt fail-closed fehl, weil eine Transaktion, die Quell-URI,
