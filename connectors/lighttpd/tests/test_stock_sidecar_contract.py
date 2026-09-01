@@ -957,6 +957,17 @@ class StockSidecarSourceContractTest(unittest.TestCase):
         self.assertIn("printf '%s\\000' \"$source_relative\"", script)
         self.assertNotIn('${HOME', script)
 
+    def test_terminal_accept_failure_returns_nonzero_after_cleanup(self) -> None:
+        source = SIDECAR_SOURCE.read_text(encoding="utf-8")
+        main_start = source.index("int msconnector_stock_sidecar_main(")
+        main = source[main_start:]
+        self.assertIn("int accept_status = 0;", main)
+        self.assertIn("if (errno == EINTR) continue;", main)
+        self.assertIn("accept_status = 69;", main)
+        self.assertIn("return accept_status;", main)
+        self.assertLess(main.index("accept_status = 69;"), main.index("close(listener);"))
+        self.assertLess(main.index("return accept_status;"), main.index("#ifdef MSCONNECTOR_STOCK_SIDECAR_MAIN"))
+
     def test_partial_response_header_write_claims_client_response_ownership(self) -> None:
         """A partial proxied header must suppress a second fallback response."""
         compiler = shutil.which("cc")
@@ -1046,6 +1057,29 @@ int main(void) {
 
 #include <assert.h>
 
+int msconnector_runtime_transaction_record_failure_host_action(
+    msconnector_runtime_transaction *transaction, int visible_http_status,
+    int connection_aborted, msconnector_error *error) {
+    (void)transaction; (void)visible_http_status; (void)connection_aborted; (void)error;
+    return 1;
+}
+int msconnector_runtime_transaction_timeout(
+    msconnector_runtime_transaction *transaction, msconnector_error *error) {
+    (void)transaction; (void)error;
+    return 1;
+}
+int msconnector_runtime_transaction_fail(
+    msconnector_runtime_transaction *transaction,
+    msconnector_transaction_error_class error_class, msconnector_error *error) {
+    (void)transaction; (void)error_class; (void)error;
+    return 1;
+}
+int msconnector_runtime_transaction_finish(
+    msconnector_runtime_transaction *transaction, msconnector_error *error) {
+    (void)transaction; (void)error;
+    return 1;
+}
+
 static void initialize_exchange(sidecar_exchange_state *state, int client, int upstream) {
     memset(state, 0, sizeof(*state));
     state->client = client;
@@ -1076,7 +1110,7 @@ int main(void) {
     initialize_exchange(&state, client[0], upstream[0]);
     assert(sidecar_read_final_response_headers(&state) == 1);
     assert(state.payload.response_headers.status_code == 200);
-    assert(state.client_response_started == 1);
+    assert(state.client_response_started == 0);
     received = recv(client[1], forwarded, sizeof(forwarded) - 1U, 0);
     assert(received > 0);
     forwarded[received] = '\0';
@@ -1085,6 +1119,30 @@ int main(void) {
     assert(strstr(forwarded, "HTTP/1.1 200") == NULL);
     sidecar_headers_release(&state.payload.response_headers);
     free(state.payload.response_block);
+    assert(close(upstream[0]) == 0);
+    assert(close(upstream[1]) == 0);
+    assert(close(client[0]) == 0);
+    assert(close(client[1]) == 0);
+
+    /* A complete interim response does not commit the final response stream.
+     * If the upstream then closes, the sidecar must still emit its 502. */
+    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, upstream) == 0);
+    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, client) == 0);
+    assert(send(upstream[1], informational_then_final,
+                sizeof("HTTP/1.1 103 Early Hints\r\n"
+                       "Link: </style.css>; rel=preload\r\n"
+                       "Content-Length: 17\r\n\r\n") - 1U,
+                MSG_NOSIGNAL) > 0);
+    assert(shutdown(upstream[1], SHUT_WR) == 0);
+    initialize_exchange(&state, client[0], upstream[0]);
+    assert(sidecar_read_final_response_headers(&state) == 0);
+    assert(state.client_response_started == 0);
+    sidecar_exchange_error(&state);
+    received = recv(client[1], forwarded, sizeof(forwarded) - 1U, 0);
+    assert(received > 0);
+    forwarded[received] = '\0';
+    assert(strstr(forwarded, "HTTP/1.1 103 Informational\r\n") != NULL);
+    assert(strstr(forwarded, "HTTP/1.1 502") != NULL);
     assert(close(upstream[0]) == 0);
     assert(close(upstream[1]) == 0);
     assert(close(client[0]) == 0);

@@ -2143,3 +2143,71 @@ NGINX-C17 bleibt wegen nicht verfügbarer NGINX-Header/-Source environment-
 blocked. Ein neuer Exact-Successor-SonarCloud-Scan und der vollständige
 Hosted-/Review-Evidenzzyklus bleiben zwingend; dieser Record behauptet kein
 Nullergebnis und keinen Merge.
+
+## 2026-09-01 Envoy-Outcome-Reihenfolge und Stock-lighttpd-Final-Response-Lebenszyklusreparatur
+
+### Motivation und Scope
+
+Ein aktueller PR-#344-Review identifizierte drei unabhängig behebbare
+P2-Randfälle. Der Envoy-ext_proc-Response-Observer zeichnete den MRC1-
+Host-`OUTCOME` auf, bevor `server.Send` die zugehörige Immediate Response
+angenommen hatte. Ein fehlgeschlagener oder abgebrochener gRPC-Send konnte
+dadurch payload-freie Common-Evidenz mit einer von Envoy nicht angenommenen
+Hostaktion hinterlassen. Separat behandelte Stock-lighttpd eine vollständig
+zugestellte gewöhnliche `1xx`-Response als Besitz der finalen Response. Endete
+der Upstream anschließend vor der finalen Response, unterdrückte der generische
+Fehlerpfad seinen konfigurierten `502`-/`504`-Fallback. Schließlich bereinigte
+ein terminaler Nicht-`EINTR`-Fehler der `accept()`-Schleife des Stock-Sidecars
+die Worker, gab aber Prozessstatus `0` zurück.
+
+Diese Parent-only-Reparatur ändert den Envoy-Response-Observer-Service und
+seine direkten Go-Protokolltests, das Stock-lighttpd-Sidecar und seine direkten
+Contract-Tests sowie dieses Change-Record-Paar. Sie ändert keinen Workflow,
+kein Ruleset, keinen Required Check, Scanner, Quality Gate, `paths.env`,
+Framework, MRTS, Gitlink, Protokolllimit, Event-Payload-Schema oder eine
+H2/H3-/Hostmodell-Behauptung.
+
+### Technische Entscheidung
+
+`precommit` behält die gemappte Aktion und den Status jetzt als ausstehenden
+Outcome. `Process` sendet zuerst die ext_proc-Response; erst nach erfolgreichem
+Send schreibt es `OUTCOME`, sendet `CANCEL` und schließt den Companion. Ein
+fehlgeschlagener Send nutzt den bestehenden typisierten Cancellation-/Cleanup-
+Pfad ohne Outcome. Ein erfolgreicher Envoy-Stream-Send wird bewusst nur als
+Host-Adapter-Annahme der Response erfasst; er wird nicht als Zustellung eines
+Client-Bytes behauptet.
+
+Bei Stock-lighttpd bleibt eine vollständige Nicht-Upgrade-Informationsresponse
+client-sichtbar, setzt aber `client_response_started` nicht und betritt Common
+P3 nicht. Ein partieller Interim-Write setzt dieses Ownership-Flag weiterhin,
+sodass das Sidecar nach client-sichtbaren Bytes niemals eine zweite vollständige
+HTTP-Response anhängt. Folgt auf ein vollständiges `103` ein Upstream-EOF vor
+einer finalen Response, emittiert der noch nicht besessene Final-Response-Pfad
+seinen konfigurierten `502`-Fallback. Der Listener behält seinen `EINTR`-Retry
+und gibt `69` jetzt nur nach terminalem Nicht-`EINTR`-Fehler und normalem
+Listener-/Worker-/Runtime-Cleanup zurück.
+
+### Evidenz und Validierung
+
+| Validierung | Tatsächliches Ergebnis |
+| --- | --- |
+| Fokussierte Stock-Sidecar-Regressionen | `PYTHONDONTWRITEBYTECODE=1 MSCONNECTOR_TEST_TMPDIR=<task-root> python3 -m unittest -v` für terminales `accept`, `103` gefolgt von EOF/Fallback und partielle Header-Ownership bestand: 3 Tests. |
+| Stock-Sidecar-C17-Build und vollständige direkte Contract-Suite | `BUILD_ROOT=<external-task-root> MODSECURITY_INCLUDE_DIR=/usr/include MODSECURITY_LIB_DIR=/usr/lib/x86_64-linux-gnu make -C connectors/lighttpd self-test-lighttpd-stock-sidecar` bestand: C17-Binaries bauten und 33 Tests bestanden. |
+| Envoy-Response-Observer-Regression | `go test -count=1 ./internal/responseobserver` und `go test -race -count=1 ./internal/responseobserver` bestanden aus `connectors/envoy/ext_proc` mit einem kurzen externen Unix-Socket-Testroot. |
+| Envoy-Formatierung und statische Validierung | `gofmt -d` gab nichts aus und `go vet -mod=readonly ./internal/responseobserver` bestand. |
+| Whitespace-Review | `git diff --check` bestand vor dem nachfolgenden Dokumentations-/Finding-Record-Schritt. |
+
+Der erste isolierte Go-Versuch verwendete einen ansonsten gültigen, aber zu
+langen Unix-Domain-Socket-Temporary-Pfad und scheiterte vor Ausführung des
+Pakets. Dieselben Befehle wurden mit einem kurzen task-eigenen Pfad wiederholt
+und bestanden; dies war eine lokale Testroot-Grenze, kein Produktfehler.
+
+### Status und Restrisiko
+
+`FND-PARENT-1005`, `FND-PARENT-1006` und `FND-PARENT-1007` sind lokal
+`fixed`, nicht `verified`, bis ihr Successor-PR-Head die Exact-Head-Hosted-
+Matrix, den HAProxy-Evidence-Flow, das SonarQube-Cloud-Ziel, Security-Checks
+und frische sequenzielle Codex-Reviews abgeschlossen hat. Die H2/H3- und
+Hostmodell-Einschränkungen bleiben unverändert. Dieser Nachtrag behauptet
+keinen Merge, keinen direkten `master`-Push, keinen Admin-Bypass und keine
+Scanner-/Quality-Gate-Abschwächung.

@@ -1,6 +1,7 @@
 package responseobserver
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -15,6 +16,7 @@ import (
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	extprocv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
+	"google.golang.org/grpc/metadata"
 )
 
 func testSocketDir(t *testing.T) string {
@@ -344,12 +346,16 @@ func TestPrecommitRecordsFailClosedFallbackOutcome(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	response, err := service.precommit(&stream{c: c}, result{decision: decisionDrop})
+	state := &stream{c: c}
+	response, err := service.precommit(state, result{decision: decisionDrop})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if int(response.GetImmediateResponse().GetStatus().GetCode()) != failClosedStatus {
 		t.Fatalf("drop response status = %d, want %d", response.GetImmediateResponse().GetStatus().GetCode(), failClosedStatus)
+	}
+	if err := service.finalizePrecommit(state); err != nil {
+		t.Fatal(err)
 	}
 	outcome := <-seen
 	if outcome.op != opOutcome || len(outcome.payload) != 4 || outcome.payload[0] != actionDeny || outcome.payload[1] != 0 || binary.BigEndian.Uint16(outcome.payload[2:]) != failClosedStatus {
@@ -359,6 +365,137 @@ func TestPrecommitRecordsFailClosedFallbackOutcome(t *testing.T) {
 	if cancel.op != opCancel || !reflect.DeepEqual(cancel.payload, []byte{0}) {
 		t.Fatalf("precommit cleanup = %#v, want non-disconnect cancel", cancel)
 	}
+}
+
+func TestProcessRecordsOutcomeOnlyAfterEnvoyAcceptsResponse(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		failSend  bool
+		wantError bool
+		wantOps   []byte
+	}{
+		{name: "successful send", wantOps: []byte{opClaim, opResponseHeaders, opOutcome, opCancel}},
+		{name: "failed send", failSend: true, wantError: true, wantOps: []byte{opClaim, opResponseHeaders, opCancel}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			dir := testSocketDir(t)
+			path := filepath.Join(dir, "observer.sock")
+			listener, err := net.Listen("unix", path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer listener.Close()
+			ops := make(chan byte, 8)
+			go func() {
+				conn, err := listener.Accept()
+				if err != nil {
+					return
+				}
+				defer conn.Close()
+				for {
+					var header [frameSize]byte
+					if _, err := io.ReadFull(conn, header[:]); err != nil {
+						return
+					}
+					length := int(binary.BigEndian.Uint32(header[8:]))
+					payload := make([]byte, length)
+					if _, err := io.ReadFull(conn, payload); err != nil {
+						return
+					}
+					ops <- header[5]
+					decision := decisionAllow
+					if header[5] == opResponseHeaders {
+						decision = decisionDeny
+					}
+					resultPayload := make([]byte, 12)
+					resultPayload[0], resultPayload[1], resultPayload[2] = header[5], resultOK, decision
+					if header[5] == opResponseHeaders {
+						binary.BigEndian.PutUint16(resultPayload[4:], 403)
+					}
+					var resultHeader [frameSize]byte
+					copy(resultHeader[:4], []byte("MRC1"))
+					resultHeader[4], resultHeader[5] = protocolVersion, resultOpcode
+					binary.BigEndian.PutUint32(resultHeader[8:], uint32(len(resultPayload)))
+					if _, err := conn.Write(resultHeader[:]); err != nil {
+						return
+					}
+					if _, err := conn.Write(resultPayload); err != nil {
+						return
+					}
+				}
+			}()
+
+			stream := &processTestStream{
+				receive: []*extprocv3.ProcessingRequest{responseObserverRequestHeaders(), responseObserverResponseHeaders()},
+				failAt: func() int {
+					if test.failSend {
+						return 2
+					}
+					return 0
+				}(),
+			}
+			service, err := New(Config{SocketPath: path, Timeout: time.Second})
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = service.Process(stream)
+			if (err != nil) != test.wantError {
+				t.Fatalf("Process() error=%v, wantError=%t", err, test.wantError)
+			}
+			var got []byte
+			for len(got) < len(test.wantOps) {
+				select {
+				case op := <-ops:
+					got = append(got, op)
+				case <-time.After(time.Second):
+					t.Fatalf("timed out waiting for companion operations; got %v", got)
+				}
+			}
+			if !reflect.DeepEqual(got, test.wantOps) {
+				t.Fatalf("companion operations=%v, want %v", got, test.wantOps)
+			}
+		})
+	}
+}
+
+type processTestStream struct {
+	extprocv3.ExternalProcessor_ProcessServer
+	receive []*extprocv3.ProcessingRequest
+	sent    []*extprocv3.ProcessingResponse
+	failAt  int
+	index   int
+}
+
+func (s *processTestStream) Recv() (*extprocv3.ProcessingRequest, error) {
+	if s.index >= len(s.receive) {
+		return nil, io.EOF
+	}
+	req := s.receive[s.index]
+	s.index++
+	return req, nil
+}
+
+func (s *processTestStream) Send(response *extprocv3.ProcessingResponse) error {
+	s.sent = append(s.sent, response)
+	if s.failAt != 0 && len(s.sent) == s.failAt {
+		return fmt.Errorf("simulated Envoy send failure")
+	}
+	return nil
+}
+
+func (s *processTestStream) Context() context.Context     { return context.Background() }
+func (s *processTestStream) SetHeader(metadata.MD) error  { return nil }
+func (s *processTestStream) SendHeader(metadata.MD) error { return nil }
+func (s *processTestStream) SetTrailer(metadata.MD)       {}
+func (s *processTestStream) SendMsg(any) error            { return nil }
+func (s *processTestStream) RecvMsg(any) error            { return nil }
+
+func responseObserverRequestHeaders() *extprocv3.ProcessingRequest {
+	return &extprocv3.ProcessingRequest{Request: &extprocv3.ProcessingRequest_RequestHeaders{RequestHeaders: &extprocv3.HttpHeaders{Headers: &corev3.HeaderMap{Headers: []*corev3.HeaderValue{{Key: DefaultHandleHeader, Value: strings.Repeat("a", 64)}}}}}}
+}
+
+func responseObserverResponseHeaders() *extprocv3.ProcessingRequest {
+	return &extprocv3.ProcessingRequest{Request: &extprocv3.ProcessingRequest_ResponseHeaders{ResponseHeaders: &extprocv3.HttpHeaders{Headers: &corev3.HeaderMap{Headers: []*corev3.HeaderValue{{Key: ":status", Value: "200"}}}}}}
 }
 
 func TestTerminalAuthzResponseRequiresAttestationAndStripsIt(t *testing.T) {

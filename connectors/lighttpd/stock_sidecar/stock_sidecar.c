@@ -937,7 +937,6 @@ static int sidecar_read_final_response_headers(sidecar_exchange_state *state) {
             state->failure_origin = SIDECAR_FAILURE_CLIENT;
             return 0;
         }
-        state->client_response_started = 1;
         sidecar_headers_release(&headers);
         free(block);
     }
@@ -1897,10 +1896,12 @@ int msconnector_stock_sidecar_main(int argc, char **argv) {
     context.runtime = runtime;
     (void)pthread_mutex_init(&context.lock, NULL);
     (void)signal(SIGPIPE, SIG_IGN);
+    int accept_status = 0;
     for (;;) {
         int client = accept(listener, NULL, NULL);
         if (client < 0) {
             if (errno == EINTR) continue;
+            accept_status = 69;
             break;
         }
         if (!sidecar_prepare_client(client)) continue;
@@ -1911,7 +1912,7 @@ int msconnector_stock_sidecar_main(int argc, char **argv) {
     (void)pthread_mutex_destroy(&context.lock);
     msconnector_error_init(&error);
     msconnector_runtime_destroy(&runtime);
-    return 0;
+    return accept_status;
 }
 
 #ifdef MSCONNECTOR_STOCK_SIDECAR_MAIN

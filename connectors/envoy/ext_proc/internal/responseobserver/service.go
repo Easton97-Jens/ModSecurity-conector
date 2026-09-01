@@ -44,6 +44,9 @@ type stream struct {
 	responseStatus                int
 	terminal, released            bool
 	terminalAuthorizationResponse bool
+	pendingAction                 byte
+	pendingStatus                 int
+	pendingOutcome                bool
 }
 
 func New(config Config) (*Service, error) {
@@ -93,7 +96,15 @@ func (s *Service) Process(server extprocv3.ExternalProcessor_ProcessServer) erro
 			return err
 		}
 		if err := server.Send(response); err != nil {
+			if state.pendingOutcome {
+				state.failClosed(causeForTransport(err))
+			}
 			return err
+		}
+		if done && state.pendingOutcome {
+			if err := s.finalizePrecommit(state); err != nil {
+				return err
+			}
 		}
 		if done {
 			return nil
@@ -486,27 +497,38 @@ func precommitHostAction(r result) (byte, int, *extprocv3.ProcessingResponse) {
 
 func (s *Service) precommit(state *stream, r result) (*extprocv3.ProcessingResponse, error) {
 	action, status, response := precommitHostAction(r)
-	outcome, err := state.c.outcome(action, status)
+	state.pendingAction, state.pendingStatus, state.pendingOutcome = action, status, true
+	return response, nil
+}
+
+// finalizePrecommit records the host action only after Envoy accepted the
+// ext_proc response.  A failed Send must never leave a claimed outcome.
+func (s *Service) finalizePrecommit(state *stream) error {
+	if state == nil || !state.pendingOutcome {
+		return nil
+	}
+	outcome, err := state.c.outcome(state.pendingAction, state.pendingStatus)
 	if err != nil || outcome.code != resultOK {
 		state.failClosed(terminationConnectorError)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return nil, fmt.Errorf("response observer: outcome failed (%d)", outcome.errorCode)
+		return fmt.Errorf("response observer: outcome failed (%d)", outcome.errorCode)
 	}
 	cancelled, err := state.c.cancel(terminationClientCancel)
 	if err != nil || cancelled.code != resultOK {
 		state.failClosed(causeForErrorCode(cancelled.errorCode))
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return nil, fmt.Errorf("response observer: pre-commit cancellation failed (%d)", cancelled.errorCode)
+		return fmt.Errorf("response observer: pre-commit cancellation failed (%d)", cancelled.errorCode)
 	}
 	state.terminal = true
 	if err := state.c.close(); err != nil {
-		return nil, err
+		return err
 	}
-	return response, nil
+	state.pendingOutcome = false
+	return nil
 }
 
 func (state *stream) failClosed(cause byte) {

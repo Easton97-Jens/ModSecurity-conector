@@ -1983,3 +1983,66 @@ Envoy/Traefik Common-adoption checks passed after the refactor. NGINX C17
 remains environment-blocked by unavailable NGINX headers/source. A new exact
 successor SonarCloud scan and the complete hosted/review evidence cycle remain
 mandatory; this record makes no zero-result or merge claim.
+
+## 2026-09-01 Envoy outcome ordering and Stock-lighttpd final-response lifecycle repair
+
+### Motivation and scope
+
+A current PR #344 review identified three independently remediable P2 edges.
+The Envoy ext_proc response observer recorded the MRC1 host `OUTCOME` before
+`server.Send` had accepted the matching immediate response. A failed or
+cancelled gRPC send could therefore leave payload-free Common evidence claiming
+a host action that Envoy had not accepted. Separately, Stock-lighttpd treated a
+fully delivered ordinary `1xx` response as final-response ownership. If its
+upstream then ended before the final response, the generic failure path
+suppressed its configured `502`/`504` fallback. Finally, a terminal non-`EINTR`
+failure from the Stock-sidecar listener's `accept()` loop cleaned up workers but
+returned process status `0`.
+
+This Parent-only repair changes the Envoy response-observer service and its
+direct Go protocol tests, the Stock-lighttpd sidecar and its direct contract
+tests, and this Change Record pair. It changes no workflow, ruleset, required
+check, scanner, Quality Gate, `paths.env`, Framework, MRTS, Gitlink, protocol
+limit, event payload schema, or H2/H3/host-model claim.
+
+### Technical decision
+
+`precommit` now retains the mapped action and status as a pending outcome.
+`Process` first sends the ext_proc response; only after that send succeeds does
+it write `OUTCOME`, send `CANCEL`, and close the companion. A failed Send uses
+the existing typed cancellation/cleanup path without an outcome. Envoy's
+successful stream send is deliberately recorded only as host-adapter acceptance
+of the response; it is not claimed as client-byte delivery.
+
+For Stock-lighttpd, a complete non-upgrade informational response remains
+client-visible but does not set `client_response_started` and does not enter
+Common P3. A partial interim write still sets that ownership flag, so the
+sidecar never appends a second complete HTTP response after client-visible
+bytes. If a complete `103` is followed by upstream EOF before a final response,
+the unowned final-response path emits its configured `502` fallback. The
+listener retains its `EINTR` retry and now returns `69` only after a terminal
+non-`EINTR` failure and normal listener/worker/runtime cleanup.
+
+### Evidence and validation
+
+| Validation | Actual result |
+| --- | --- |
+| Focused Stock-sidecar regressions | `PYTHONDONTWRITEBYTECODE=1 MSCONNECTOR_TEST_TMPDIR=<task-root> python3 -m unittest -v` for terminal `accept`, `103` followed by EOF/fallback, and partial-header ownership passed: 3 tests. |
+| Stock-sidecar C17 build and complete direct contract suite | `BUILD_ROOT=<external-task-root> MODSECURITY_INCLUDE_DIR=/usr/include MODSECURITY_LIB_DIR=/usr/lib/x86_64-linux-gnu make -C connectors/lighttpd self-test-lighttpd-stock-sidecar` passed: C17 binaries built and 33 tests passed. |
+| Envoy response-observer regression | `go test -count=1 ./internal/responseobserver` and `go test -race -count=1 ./internal/responseobserver` passed from `connectors/envoy/ext_proc`, using a short external Unix-socket test root. |
+| Envoy formatting and static validation | `gofmt -d` produced no output and `go vet -mod=readonly ./internal/responseobserver` passed. |
+| Whitespace review | `git diff --check` passed before documentation/finding-record follow-up. |
+
+The first isolated Go attempt used an otherwise valid but overlong Unix-domain
+socket temporary path and failed before exercising the package. The same
+commands were repeated with a short task-owned path and passed; it was a local
+test-root limit, not a product failure.
+
+### Status and residual risk
+
+`FND-PARENT-1005`, `FND-PARENT-1006`, and `FND-PARENT-1007` are locally
+`fixed`, not `verified`, until their successor PR head completes the exact-head
+hosted matrix, HAProxy evidence flow, SonarQube Cloud target, security checks,
+and fresh sequential Codex reviews. The H2/H3 and host-model limitations remain
+unchanged. This addendum claims no merge, direct `master` push, admin bypass,
+or scanner/Quality-Gate weakening.
