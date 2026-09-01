@@ -42,6 +42,16 @@ def source_section(text: str, start: str, end: str) -> str:
     return text[begin:finish]
 
 
+def tokens_in_order(text: str, *tokens: str) -> bool:
+    """Return whether the required source tokens occur in this order."""
+    position = -1
+    for token in tokens:
+        position = text.find(token, position + 1)
+        if position < 0:
+            return False
+    return True
+
+
 intervention_event_helper = source_section(
     filters_c,
     "static void apache_log_intervention_event",
@@ -61,6 +71,37 @@ phase3_event_wrapper = source_section(
     filters_c,
     "static void apache_phase3_log_event",
     "static apr_status_t apache_phase4_append_bucket",
+)
+input_filter_terminal_error = source_section(
+    filters_c,
+    "static apr_status_t apache_input_filter_terminal_error",
+    "static apr_status_t apache_input_filter_handle_eos",
+)
+input_filter_eos_handler = source_section(
+    filters_c,
+    "static apr_status_t apache_input_filter_handle_eos",
+    "apr_status_t input_filter",
+)
+phase4_release_helper = source_section(
+    filters_c,
+    "static apr_status_t apache_phase4_release_response_brigade",
+    "apr_status_t phase4_terminal_guard_filter",
+)
+output_filter_c = filters_c.split("apr_status_t output_filter", 1)[1]
+intervention_action_mapper = source_section(
+    module_c,
+    "static msconnector_transaction_decision_kind apache_intervention_decision_kind",
+    "int msc_apache_contract_record_intervention_decision",
+)
+intervention_action_helper = source_section(
+    module_c,
+    "const char *msc_apache_contract_intervention_action",
+    "int msc_apache_contract_fail",
+)
+process_intervention_helper = source_section(
+    module_c,
+    "int process_intervention (Transaction *t, request_rec *r)",
+    "int msc_apache_init",
 )
 
 checks.append(("msconnector_config common_config" in config_h, "Apache config embeds msconnector_config common_config"))
@@ -122,12 +163,14 @@ checks.append((
     "apr_bucket_brigade *brigade;" in config_h
     and "response_body_scope_decided" not in config_h
     and "apache_output_filter_prepare_response_brigade(msr, conf, f, &bb_in," in filters_c
-    and "ap_save_brigade(filter, &msr->response_brigade, brigade," in filters_c
     and "apache_phase4_release_response_brigade" in filters_c
     and "apache_phase4_normalize_response_brigade" in filters_c
     and "APR_BUCKET_IS_FLUSH(bucket)" in filters_c
-    and "bucket->length == 0" in filters_c
-    and "No later\n         * bucket belongs to this response" in filters_c
+    and "if (eos_bucket == NULL)\n    {\n        return apache_phase4_release_response_brigade(msr, f, bb_in, 0);\n    }" in output_filter_c
+    and "apr_brigade_split_ex(bb_in, eos_bucket, NULL)" in output_filter_c
+    and "APR_BRIGADE_FIRST(bb_in) != APR_BRIGADE_SENTINEL(bb_in)" in output_filter_c
+    and "apache_output_filter_finish_response(msr, conf, f," in output_filter_c
+    and "ap_save_brigade(" not in filters_c
     and DISCARD_RESPONSE_BRIGADE_CALL in filters_c
     and DISCARD_RESPONSE_BRIGADE_CALL in utils_c
     and "MSCONNECTOR_BODY_LIMIT_ACTION_REJECT" in filters_c
@@ -137,11 +180,22 @@ checks.append((
     and "msc_process_response_body(msr->t) != 1" in filters_c
     and "r->bytes_sent > 0" in filters_c
     and "response_phase4_eos_released" in filters_c
-    and "missing saved response brigade" in filters_c
+    and "missing progressive response brigade" in filters_c
     and "response_phase4_gate_failed" in filters_c
     and "r->connection->aborted = 1" in filters_c
     and "phase4_terminal_guard_filter" in filters_c
     and "apache_send_precommit_terminal_error" in filters_c
+    and "msc_apache_contract_mark_response_committed(msr)" in phase4_release_helper
+    and "rc = ap_pass_brigade(f->next, brigade);" in phase4_release_helper
+    and "if (rc != APR_SUCCESS)" in phase4_release_helper
+    and "apache_phase4_abort_response_connection(f)" in phase4_release_helper
+    and tokens_in_order(
+        phase4_release_helper,
+        "msc_apache_contract_mark_response_committed(msr)",
+        "rc = ap_pass_brigade(f->next, brigade);",
+        "if (rc != APR_SUCCESS)",
+        "MSC_PHASE4_TERMINAL_OUTPUT_SEALED",
+    )
     and DISCARD_RESPONSE_BRIGADE_CALL in filters_c
     and "MSC_PHASE4_TERMINAL_OUTPUT_EMITTING" in filters_c
     and "MSC_PHASE4_TERMINAL_OUTPUT_SEALED" in filters_c
@@ -150,27 +204,52 @@ checks.append((
     and 'ap_add_output_filter("MODSECURITY_OUT", msr, r,' in module_c
     and "mandatory Phase 4 content filter; aborting request" in module_c
     and "ap_bucket_eoc_create" not in filters_c
-    and "ap_flush_conn(r->connection)" not in filters_c
-    and "if (!eos_seen)\n    {\n        return APR_SUCCESS;" in filters_c,
-    "Apache Phase4 sets aside every response through EOS, treats C API failures as fail-closed, uses downstream-safe commit evidence, and seals terminal request output",
+    and "ap_flush_conn(r->connection)" not in filters_c,
+    "Apache Phase4 splits at EOS, releases pre-EOS buckets progressively, fails closed at the native boundary, and seals terminal output",
 ))
 checks.append(("msc_finalize_request_body" in filters_c and "request_body_processed" in filters_c and "APR_BUCKET_REMOVE(pbktIn)" in filters_c, "Apache request chunks are borrowed and phase 2 finalizes once at EOS"))
 input_filter_c = filters_c.split("apr_status_t input_filter", 1)[1].split("static const char *apache_response_content_type", 1)[0]
 checks.append((
-    input_filter_c.count("return send_input_error_bucket") >= 4
+    input_filter_c.count("return apache_input_filter_terminal_error") >= 4
     and "msc_apache_contract_begin" in input_filter_c
     and "msc_apache_contract_record_body" in input_filter_c
     and "HTTP_REQUEST_ENTITY_TOO_LARGE" in input_filter_c
     and "apache_input_filter_handle_eos" in input_filter_c
-    and "send_input_error_bucket" in filters_c
-    and "send_error_bucket(msr, f" not in input_filter_c,
-    "Apache input-filter errors use the input-specific output-chain bridge",
+    and "ap_remove_input_filter(f);" in input_filter_c
+    and "ap_die(status, r);" in input_filter_terminal_error
+    and "return AP_FILTER_ERROR;" in input_filter_terminal_error
+    and "r->status = HTTP_OK;" in input_filter_terminal_error
+    and "send_input_error_bucket" not in filters_c
+    and input_filter_eos_handler.count("return apache_input_filter_terminal_error") >= 2
+    and "send_error_bucket(msr, f" not in input_filter_c
+    and "pass_error_bucket(" not in input_filter_c
+    and "pass_error_bucket(" not in input_filter_eos_handler,
+    "Apache input-filter errors enter Apache core through the input-side terminal bridge",
 ))
-checks.append(("return pass_error_bucket(f, status, f->r->output_filters);" in utils_c and "return ap_pass_brigade(destination, brigade);" in utils_c, "Apache input-error bridge propagates the output-chain filter result"))
 checks.append(("msc_process_request_body(msr->t)" not in module_c, "Apache does not finalize Phase 2 before the input filter reaches EOS"))
 checks.append(("ap_request_has_body(r)" in module_c and "msc_finalize_request_body(msr, r)" in module_c, "Apache completes Phase 2 for a known empty request body"))
 checks.append(("ap_discard_request_body(r)" in filters_c and "apache_finish_unread_request_body" in filters_c and "return APR_ECONNABORTED" in filters_c, "Apache drains an unread request body through the streaming input filter or aborts before Phase 3 when EOS is unavailable"))
-checks.append(("wanted = msr->last_intervention_status" in filters_c and "\"redirect\" : \"deny\"" in filters_c, "Apache retains redirect as requested action"))
+checks.append((
+    "wanted = msc_apache_contract_intervention_action(msr);" in filters_c
+    and "status >= HTTP_MULTIPLE_CHOICES" in intervention_action_mapper
+    and "status < HTTP_BAD_REQUEST" in intervention_action_mapper
+    and tokens_in_order(
+        intervention_action_helper,
+        "switch (apache_intervention_decision_kind(msr->last_intervention_status))",
+        "MSCONNECTOR_TRANSACTION_DECISION_REDIRECT",
+        'return "redirect";',
+    )
+    and tokens_in_order(
+        process_intervention_helper,
+        "msconnector_intervention_has_redirect_url(intervention.url)",
+        "intervention.status >= HTTP_MULTIPLE_CHOICES",
+        "intervention.status < HTTP_BAD_REQUEST",
+        'apr_table_setn(r->headers_out, "Location", location);',
+        "result = intervention.status;",
+        "goto cleanup;",
+    ),
+    "Apache preserves redirect through the canonical decision mapper and native Location sink",
+))
 checks.append((
     "failed to open intervention log" in intervention_event_helper
     and "failed to write intervention log" in intervention_event_helper
