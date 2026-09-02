@@ -59,6 +59,7 @@ review_guards: list[tuple[bool, str]] = [
         base.tokens_in_order(
             phase4_normalize_helper,
             "for (bucket = APR_BRIGADE_FIRST(bb_in);",
+            "bucket != APR_BRIGADE_SENTINEL(bb_in); bucket = next)",
             "if (eos != NULL)",
             "APR_BUCKET_REMOVE(bucket);",
             "apr_bucket_destroy(bucket);",
@@ -92,12 +93,14 @@ review_guards: list[tuple[bool, str]] = [
             prepare_response_brigade,
             NORMALIZE_ASSIGNMENT,
             "for (bucket = APR_BRIGADE_FIRST(*brigade);",
+            "bucket != APR_BRIGADE_SENTINEL(*brigade);",
+            "bucket = APR_BUCKET_NEXT(bucket))",
             "rc = apache_phase4_append_bucket(msr, conf, bucket);",
             "if (rc != APR_SUCCESS)",
             "return apache_phase4_fail_closed(msr, filter, *brigade,",
             '"failed to append response body to libmodsecurity"',
         ),
-        "Apache Phase4 appends every normalized bucket and fails closed on append errors",
+        "Apache Phase4 walks every normalized bucket and fails closed on append errors",
     ),
     (
         base.tokens_in_order(
