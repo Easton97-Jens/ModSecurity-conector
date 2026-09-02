@@ -30,6 +30,7 @@ RESPONSE_BODY_PHASE = "MSCONNECTOR_PHASE_RESPONSE_BODY"
 P2_PROCESS = "if (msc_process_request_body(msr->t) < 0)"
 P3_PROCESS = 'if (msc_process_response_headers(msr->t, original_status, "HTTP 1.1") != 1)'
 P4_PROCESS = "if (msc_process_response_body(msr->t) != 1)"
+BUCKET_NEXT_LOOP = "bucket = APR_BUCKET_NEXT(bucket))"
 
 request_body_finalizer = base.source_section(
     base.filters_c,
@@ -162,7 +163,7 @@ review_guards: list[tuple[bool, str]] = [
             error_bucket_classifier,
             "first = APR_BRIGADE_FIRST(bb_in);",
             "for (bucket = first; bucket != APR_BRIGADE_SENTINEL(bb_in);",
-            "bucket = APR_BUCKET_NEXT(bucket))",
+            BUCKET_NEXT_LOOP,
             "if (!AP_BUCKET_IS_ERROR(bucket))",
             "if (bucket != first)",
             "return -1;",
@@ -178,7 +179,7 @@ review_guards: list[tuple[bool, str]] = [
             response_start_classifier,
             "for (bucket = APR_BRIGADE_FIRST(brigade);",
             "bucket != APR_BRIGADE_SENTINEL(brigade);",
-            "bucket = APR_BUCKET_NEXT(bucket))",
+            BUCKET_NEXT_LOOP,
             "if (APR_BUCKET_IS_FLUSH(bucket) ||",
             "(!APR_BUCKET_IS_METADATA(bucket) && !APR_BUCKET_IS_EOS(bucket)))",
             "return 1;",
@@ -206,7 +207,7 @@ review_guards: list[tuple[bool, str]] = [
             NORMALIZE_ASSIGNMENT,
             "for (bucket = APR_BRIGADE_FIRST(*brigade);",
             "bucket != APR_BRIGADE_SENTINEL(*brigade);",
-            "bucket = APR_BUCKET_NEXT(bucket))",
+            BUCKET_NEXT_LOOP,
             "rc = apache_phase4_append_bucket(msr, conf, bucket);",
             RC_NOT_SUCCESS,
             "return apache_phase4_fail_closed(msr, filter, *brigade,",
