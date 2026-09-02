@@ -46,7 +46,7 @@ nur `STREAMED` Körpermodi, niemals `BUFFERED`.
 Das Modul hält für die aktuell triagierten Dependency-Advisories mindestens
 folgende stabile Auswahlen ein:
 
-- `google.golang.org/grpc` `v1.82.1` oder höher;
+- `google.golang.org/grpc` `v1.83.1` oder höher;
 - `golang.org/x/net` `v0.56.0` oder höher;
 - `golang.org/x/sys` `v0.46.0` oder höher; und
 - `golang.org/x/text` `v0.39.0` oder höher.

@@ -1,4 +1,4 @@
-# Change Record: NGINX workflow-contract repair
+# Change Record: NGINX workflow-contract repair and Envoy gRPC security update
 
 **Language:** English | [Deutsch](CR-20260902-nginx-workflow-contract-repair.de.md)
 
@@ -9,7 +9,7 @@
 | Change ID | CR-20260902-nginx-workflow-contract-repair |
 | Date (UTC) | 2026-09-02 |
 | Base revision | 8743fceeb708c06329c14ac00a1f333945edf1d7 |
-| Delivery status | The user authorized a Parent-only repair in a dedicated worktree and one Draft PR. Commit, push, PR creation, exact-head hosted checks, and SonarQube Cloud evidence remain pending. No merge, direct master write, force action, bypass, or auto-merge is authorized. |
+| Delivery status | The first repair commit was normally pushed and created Draft PR #351; its exact first head passed all reported hosted checks and SonarCloud’s PR Quality Gate with zero PR issues. A High-severity runtime dependency remediation discovered during that delivery is now being added to the same Draft PR and requires fresh exact-successor evidence. No merge, direct master write, force action, bypass, or auto-merge is authorized. |
 
 ## Motivation and problem statement
 
@@ -26,6 +26,14 @@ ordering, while ngx_http_modsecurity_plan_limited_response_body uses the Common
 body-limit plan to record plan.bytes_seen. This repair aligns the checker with
 those live boundaries instead of changing request or response handling.
 
+During normal Draft-PR delivery, GitHub surfaced open Dependabot alert #3:
+`GHSA-vp52-pcj8-j9qc` / `CVE-2026-84304`. The directly resolved Envoy ext_proc
+runtime dependency `google.golang.org/grpc v1.82.1` is within its affected range
+through v1.83.0; v1.83.1 is the first patched version. Independent boundary
+review confirmed that productive standalone and composite servers use grpc-go
+before application-level body/message limits, so the narrow security update is
+required for a safe delivery.
+
 ## Acceptance criteria
 
 - make check-nginx-common-adoption passes and verifies the live helper
@@ -37,6 +45,11 @@ those live boundaries instead of changing request or response handling.
 - Existing NGINX upstream security contracts and CI-security workflow
   contracts pass without a suppression, permission change, scanner change, or
   control relaxation.
+- Envoy ext_proc resolves grpc-go v1.83.1 with its complete tidy module graph;
+  the security-floor contract rejects the former v1.82.1 minimum.
+- Readonly module verification, tests, build, and vet succeed using task-owned
+  caches; existing listener, message-size, stream, and UDS safeguards remain
+  unchanged.
 - A task branch and Draft PR are delivered only after exact-head review; no
   merge is performed by this task.
 
@@ -50,8 +63,12 @@ mapper-once helper; that chain append returns before body ingestion for an
 out-of-scope Phase 4 response; and that the Common plan records plan.bytes_seen.
 
 No NGINX C source, workflow YAML, action pin, job permission, trigger,
-credential, dependency, Framework source, MRTS source, Gitlink, scanner, or
-Quality Gate configuration changes.
+credential, Framework source, MRTS source, Gitlink, scanner, or Quality Gate
+configuration changes. The sole dependency change is the Direct Envoy grpc-go
+security remediation and the Go tool's required tidy graph adjustment: grpc-go
+v1.83.1, its checksum, the grpc-go-selected genproto RPC requirement/checksum,
+the already-selected direct x/sys requirement, and the transitively selected
+OpenTelemetry 1.44 checksums.
 
 ## Security impact
 
@@ -66,6 +83,12 @@ critical-severity issue. The reviewed SARIF-upload jobs retain the intentionally
 allowlisted contents: read plus security-events: write permissions required for
 uploads; no workflow file is changed here.
 
+FND-PARENT-1011 records the High-severity gRPC dependency finding. The patch
+raises only the direct requirement, complete resolved checksums, semantic CI
+floor, and paired module documentation to v1.83.1. It does not claim that
+connector message limits, loopback configuration, or the response observer's
+UDS authorization substitute for the upstream transport fix.
+
 ## Changed files
 
 - ci/checks/connectors/nginx/check-nginx-common-adoption.py
@@ -73,6 +96,11 @@ uploads; no workflow file is changed here.
 - reports/audits/change-records/CR-20260902-nginx-workflow-contract-repair.de.md
 - reports/audits/change-records/README.md
 - reports/audits/change-records/README.de.md
+- connectors/envoy/ext_proc/go.mod
+- connectors/envoy/ext_proc/go.sum
+- connectors/envoy/ext_proc/README.md
+- connectors/envoy/ext_proc/README.de.md
+- tests/test_ci_security_workflows.py
 
 ## Commands executed
 
@@ -84,10 +112,17 @@ uploads; no workflow file is changed here.
 | Python compilation of the changed checker | Passed. |
 | rtk proxy git diff --check | Passed. |
 | Codex Security Standard and post-patch diff scans | Both sealed reports validate with complete coverage and 0 reportable findings. |
+| gRPC pre-patch dependency and transport-boundary triage | Confirmed Dependabot #3, direct v1.82.1 resolution, the productive server boundary, and v1.83.1 as the first patched version. |
+| go mod tidy -diff | Passed after the complete required grpc-go module graph adjustment. |
+| go mod verify | Passed: all modules verified. |
+| go test -mod=readonly ./... | Passed: all eight Envoy ext_proc packages. |
+| go build -mod=readonly -buildvcs=false ./... | Passed; `-buildvcs=false` is required only because the sandbox denies Go’s VCS stamping metadata read. |
+| go vet -mod=readonly ./... | Passed. |
+| Independent Codex Security bypass/regression review | Passed: no surviving vulnerable resolution route or legitimate behavior regression was validated; `GOWORK=off` module verification and complete module-list evidence passed. |
 | make check-bilingual-docs | Blocked only by 20 pre-existing missing Framework Gitlink targets; no current change-record path was reported. |
 | make check-doc-links / repository-path reference check | Blocked only by the same absent Framework checkout and its pre-existing targets. |
 | make lint | Reached host-runtime preflight, then stopped at the absent Framework no-CRS baseline catalog; no Framework initialization or change was authorized. |
-| Exact-head hosted and SonarQube Cloud checks | Pending normal Draft-PR delivery. |
+| First Draft-PR #351 exact head hosted checks and SonarCloud PR analysis | Passed before the gRPC remediation; successor-head evidence remains required. |
 
 ## Runtime evidence
 
@@ -95,6 +130,11 @@ The repair is a source-contract alignment. No NGINX runtime was started, no
 request or response payload was retained, and no privileged, protected, or
 maintenance workflow was dispatched. Fresh exact-head hosted evidence remains
 required after PR delivery.
+
+The dependency remediation likewise starts no connector listener and retains no
+traffic. It proves module integrity and source-level compatibility through the
+module's readonly tests, build, and vet controls rather than attempting an
+availability attack against gRPC transport buffering.
 
 ## Checks not run and rationale
 
@@ -104,7 +144,9 @@ documentation errors name only missing Framework targets, and lint stops at the
 Framework no-CRS baseline catalog after its available local preflight. No
 Framework initialization, dependency installation, or cross-repository change
 is inferred from this Parent-only request. Full connector runtime matrices and
-make quick-check remain outside the checker repair's scope.
+make quick-check remain outside the checker repair's scope. The gRPC change has
+no suitable safe local exploit replay; it uses the authenticated advisory,
+resolved-version proof, and standard module controls instead.
 
 ## Known limitations
 
@@ -119,19 +161,27 @@ Framework-owned issue outside this Parent-only authority. Literal project-wide
 zero therefore requires a user scope decision; no issue is hidden, suppressed,
 or marked false-positive by this change.
 
+The default-branch Dependabot alert will remain open until an authorized merge.
+This task can validate the PR successor head but cannot claim default-branch
+remediation or perform the merge.
+
 ## Remaining risks
 
 The checker will deliberately fail if a future refactor removes the extracted
 helper relationships or the required guards and Common-plan assignment. Hosted
 CI may expose an independent environment or integration failure after PR
 creation. This task does not claim that the seven historical SonarQube Cloud
-issues are resolved.
+issues are resolved. The directly remediated gRPC transport risk remains present
+on master until the draft PR is reviewed and an authorized actor merges it; no
+such merge is within the current delivery authorization.
 
 ## Final diff and review status
 
-The final local diff check, focused source-contract controls, combined security
-contracts, Python compilation, and sealed Codex Security Standard/diff scans
-have passed; both scans have 0 reportable findings. Documentation controls are
-blocked only by the absent Framework checkout. Commit, push, Draft PR creation,
-exact-head GitHub Actions checks, and exact-head SonarQube Cloud analysis remain
-required. No merge is authorized.
+The original workflow repair is committed, pushed, and opened as Draft PR #351;
+its first exact head passed the hosted checks and SonarCloud PR Quality Gate
+with zero issues. The combined successor diff has passed focused NGINX controls,
+44 Python security-contract tests, readonly Go module validation/tests/build/vet,
+and the tidy-diff control. Documentation controls remain blocked only by the
+absent Framework checkout. The independent Codex Security bypass/regression
+review passed; immutable-commit diff scan, normal push, and exact-successor
+hosted/SonarCloud evidence remain required. No merge is authorized.

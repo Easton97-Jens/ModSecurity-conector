@@ -14,10 +14,12 @@ angelegt werden.
 - [CR-20260902-nginx-workflow-contract-repair](CR-20260902-nginx-workflow-contract-repair.de.md) —
   der aktuelle Benutzer autorisierte diese Parent-only-Reparatur eines
   reproduzierten NGINX-Source-Contract-Checker-Fehlers in einem eigenen
-  Worktree und einen Draft PR. Der Record bewahrt die laufenden Once-only-
-  Mapper-, Phase-4-Scope- und Common-Body-Limit-Assertions; er ändert weder
-  NGINX-Runtime-Source, Workflows, Framework/MRTS, Gitlinks, Sonar-Controls
-  noch Merge-Status.
+  Worktree und einen Draft PR. Die erforderliche Codex-Security-Arbeit
+  identifizierte und ergänzte anschließend die enge Envoy-grpc-go-High-Severity-
+  Dependency-Remediation. Der Record bewahrt die laufenden Once-only-Mapper-,
+  Phase-4-Scope- und Common-Body-Limit-Assertions; er ändert weder NGINX-
+  Runtime-Source, Workflows, Framework/MRTS, Gitlinks, Sonar-Controls noch
+  Merge-Status.
 
 - [CR-20260825-fnd-parent-0221-composite-connectors](CR-20260825-fnd-parent-0221-composite-connectors.de.md) —
   der aktuelle Benutzer autorisierte eine Parent-only-Composite-
