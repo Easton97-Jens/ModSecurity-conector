@@ -12,6 +12,7 @@ NORMALIZE_ASSIGNMENT = (
 RC_NOT_SUCCESS = "if (rc != APR_SUCCESS)"
 RETURN_APR_SUCCESS = "return APR_SUCCESS;"
 RETURN_APR_EGENERAL = "return APR_EGENERAL;"
+RETURN_VOID = "return;"
 INTERVENTION_SENTINEL = "N_INTERVENTION_STATUS"
 TERMINAL_EMITTING = "MSC_PHASE4_TERMINAL_OUTPUT_EMITTING"
 TERMINAL_SEALED = "MSC_PHASE4_TERMINAL_OUTPUT_SEALED"
@@ -19,6 +20,9 @@ RESET_HTTP_STATUS = "r->status = HTTP_OK;"
 RESET_STATUS_LINE = "r->status_line = NULL;"
 AP_DIE_STATUS = "ap_die(status, r);"
 FILTER_ATTACH_FAILURE = "r->connection) == NULL"
+CONNECTION_ABORT = "r->connection->aborted = 1;"
+CONNECTION_CLOSE = "r->connection->keepalive = AP_CONN_CLOSE;"
+PHASE4_GATE_FAILED = "msr->response_phase4_gate_failed = 1;"
 RECORD_INTERVENTION = "!msc_apache_contract_record_intervention_decision(msr)"
 REQUEST_BODY_PHASE = "MSCONNECTOR_PHASE_REQUEST_BODY"
 RESPONSE_HEADERS_PHASE = "MSCONNECTOR_PHASE_RESPONSE_HEADERS"
@@ -117,12 +121,14 @@ review_guards: list[tuple[bool, str]] = [
     (
         base.tokens_in_order(
             request_body_finalizer,
+            "if (msr->request_body_processed)",
+            f"return {INTERVENTION_SENTINEL};",
             P2_PROCESS,
             f"msc_apache_contract_complete(msr,\n            {REQUEST_BODY_PHASE})",
             "msr->request_body_processed = 1;",
             "intervention = process_intervention(msr->t, r);",
         ),
-        "Apache Phase2 processes and canonically completes the request body before collecting intervention",
+        "Apache Phase2 one-shot gate precedes processing, completion, and intervention collection",
     ),
     (
         base.tokens_in_order(
@@ -219,6 +225,7 @@ review_guards: list[tuple[bool, str]] = [
     (
         base.tokens_in_order(
             finish_response_handler,
+            "if (!msr->response_body_processed)",
             "rc = apache_phase4_finish_response_body(msr, f, bb_in,",
             "&intervention);",
             RC_NOT_SUCCESS,
@@ -228,7 +235,7 @@ review_guards: list[tuple[bool, str]] = [
             RC_NOT_SUCCESS,
             "return apache_phase4_release_response_brigade(msr, f, terminal_brigade,",
         ),
-        "Apache Phase4 dispatches every collected disruptive result before terminal release",
+        "Apache Phase4 first-EOS gate finalizes before intervention dispatch and terminal release",
     ),
     (
         base.tokens_in_order(
@@ -246,6 +253,9 @@ review_guards: list[tuple[bool, str]] = [
         base.tokens_in_order(
             phase3_headers_handler,
             P3_PROCESS,
+            "ap_remove_output_filter(filter);",
+            "return apache_send_precommit_terminal_error(msr, filter, brigade,",
+            "HTTP_INTERNAL_SERVER_ERROR);",
             f"msc_apache_contract_complete(msr,\n            {RESPONSE_HEADERS_PHASE})",
             "msr->response_headers_processed = 1;",
             "intervention = process_intervention(msr->t, r);",
@@ -257,7 +267,7 @@ review_guards: list[tuple[bool, str]] = [
             "return apache_send_precommit_terminal_error(msr, filter, brigade,",
             "intervention);",
         ),
-        "Apache Phase3 processes and completes headers before collecting and enforcing intervention",
+        "Apache Phase3 fails closed on engine error, then completes before collecting and enforcing intervention",
     ),
     (
         base.tokens_in_order(
@@ -317,12 +327,33 @@ review_guards: list[tuple[bool, str]] = [
     (
         base.tokens_in_order(
             hook_insert_filter,
+            "if (r->prev != NULL)",
+            "if (!apache_phase4_redirect_is_terminal_error_emission(msr, r))",
+            "apache_phase4_fail_normal_redirect(msr, r,",
+            '"request transaction cannot be safely rebound to the target URI");',
+            RETURN_VOID,
+            'ap_add_input_filter("MODSECURITY_IN", msr, r, r->connection);',
+        ),
+        "Apache rejects normal internal redirects before attaching request or response filters",
+    ),
+    (
+        base.tokens_in_order(
+            hook_insert_filter,
             'ap_add_output_filter("MODSECURITY_PHASE4_GUARD", msr, r,',
             FILTER_ATTACH_FAILURE,
+            '"ModSecurity: unable to install the mandatory Phase 4 terminal guard; aborting request"',
+            CONNECTION_ABORT,
+            RETURN_VOID,
             'ap_add_output_filter("MODSECURITY_OUT", msr, r,',
             FILTER_ATTACH_FAILURE,
+            PHASE4_GATE_FAILED,
+            TERMINAL_SEALED,
+            '"ModSecurity: unable to install the mandatory Phase 4 content filter; aborting request"',
+            CONNECTION_CLOSE,
+            CONNECTION_ABORT,
+            RETURN_VOID,
         ),
-        "Apache attaches both output filters with the canonical transaction and request context",
+        "Apache fails closed when either mandatory output filter cannot be attached",
     ),
     (
         base.tokens_in_order(
@@ -331,6 +362,21 @@ review_guards: list[tuple[bool, str]] = [
             "phase4_terminal_guard_filter, NULL, AP_FTYPE_PROTOCOL);",
         ),
         "Apache registers the terminal guard as a protocol output filter",
+    ),
+    (
+        base.tokens_in_order(
+            base.process_intervention_helper,
+            "z = msc_intervention(t, &intervention);",
+            "if (z == 0)",
+            f"return {INTERVENTION_SENTINEL};",
+            "msconnector_intervention_has_redirect_url(intervention.url)",
+            "intervention.status >= HTTP_MULTIPLE_CHOICES",
+            "intervention.status < HTTP_BAD_REQUEST",
+            'apr_table_setn(r->headers_out, "Location", location);',
+            "result = intervention.status;",
+            "goto cleanup;",
+        ),
+        "Apache validates the native intervention result before enforcing redirects or other decisions",
     ),
     (
         base.tokens_in_order(
