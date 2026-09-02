@@ -10,6 +10,14 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260902-nginx-workflow-contract-repair](CR-20260902-nginx-workflow-contract-repair.md)
+  | [Deutsch](CR-20260902-nginx-workflow-contract-repair.de.md) — the current
+  user authorized this Parent-only repair of one reproduced NGINX
+  source-contract checker failure in a dedicated worktree and one Draft PR.
+  The record preserves the live once-only mapper, Phase-4 scope, and Common
+  body-limit assertions; it does not change NGINX runtime source, workflows,
+  Framework/MRTS, Gitlinks, Sonar controls, or merge state.
+
 - [CR-20260825-fnd-parent-0221-composite-connectors](CR-20260825-fnd-parent-0221-composite-connectors.md)
   | [Deutsch](CR-20260825-fnd-parent-0221-composite-connectors.de.md) — the
   current user authorized a Parent-only composite-correlation implementation,
