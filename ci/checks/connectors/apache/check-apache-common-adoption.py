@@ -9,15 +9,31 @@ DOWNSTREAM_PASS = "rc = ap_pass_brigade(f->next, brigade);"
 NORMALIZE_ASSIGNMENT = (
     "*eos_bucket = apache_phase4_normalize_response_brigade(*brigade);"
 )
+
 phase4_normalize_helper = base.source_section(
     base.filters_c,
     "static apr_bucket *apache_phase4_normalize_response_brigade",
     "static int apache_phase4_error_bucket_status",
 )
+error_bucket_classifier = base.source_section(
+    base.filters_c,
+    "static int apache_phase4_error_bucket_status",
+    "static int apache_phase3_snapshot_table_value",
+)
 phase4_terminal_guard = base.source_section(
     base.filters_c,
     "apr_status_t phase4_terminal_guard_filter",
     "static int apache_phase4_response_committed",
+)
+precommit_terminal_helper = base.source_section(
+    base.filters_c,
+    "static apr_status_t apache_send_precommit_terminal_error",
+    "static apr_status_t apache_phase4_fail_closed",
+)
+input_eos_handler = base.source_section(
+    base.filters_c,
+    "static apr_status_t apache_input_filter_handle_eos",
+    "apr_status_t input_filter",
 )
 prepare_response_brigade = base.source_section(
     base.filters_c,
@@ -38,6 +54,16 @@ phase4_intervention_handler = base.source_section(
     base.filters_c,
     "static apr_status_t apache_phase4_handle_intervention",
     "static apr_status_t apache_output_filter_finish_response",
+)
+finish_response_handler = base.source_section(
+    base.filters_c,
+    "static apr_status_t apache_output_filter_finish_response",
+    "apr_status_t output_filter",
+)
+hook_insert_filter = base.source_section(
+    base.module_c,
+    "static void hook_insert_filter(request_rec *r)\n{",
+    "static int apache_emit_phase1_intervention_event",
 )
 register_hooks = base.source_section(
     base.module_c,
@@ -66,13 +92,29 @@ review_guards: list[tuple[bool, str]] = [
             "continue;",
             "if (APR_BUCKET_IS_EOS(bucket))",
             "eos = bucket;",
+            "return eos;",
         )
         and base.tokens_in_order(
             prepare_response_brigade,
             NORMALIZE_ASSIGNMENT,
             "for (bucket = APR_BRIGADE_FIRST(*brigade);",
         ),
-        "Apache Phase4 normalizes at the prepare call site and destroys every suffix bucket after the first EOS",
+        "Apache Phase4 normalizes at the prepare call site, destroys every suffix bucket after the first EOS, and returns that EOS",
+    ),
+    (
+        base.tokens_in_order(
+            error_bucket_classifier,
+            "first = APR_BRIGADE_FIRST(bb_in);",
+            "for (bucket = first; bucket != APR_BRIGADE_SENTINEL(bb_in);",
+            "if (!AP_BUCKET_IS_ERROR(bucket))",
+            "if (bucket != first)",
+            "return -1;",
+            "error = (ap_bucket_error *)bucket->data;",
+            "if (error == NULL || !ap_is_HTTP_ERROR(error->status))",
+            "return -1;",
+            "return error->status;",
+        ),
+        "Apache Phase4 error-bucket classifier validates type, placement, HTTP status, and returns the validated status",
     ),
     (
         base.tokens_in_order(
@@ -104,6 +146,78 @@ review_guards: list[tuple[bool, str]] = [
     ),
     (
         base.tokens_in_order(
+            phase4_finish_helper,
+            "if (msc_process_response_body(msr->t) != 1)",
+            "if (!msc_apache_contract_complete(msr, MSCONNECTOR_PHASE_RESPONSE_BODY))",
+            "msr->response_body_processed = 1;",
+            "*intervention = process_intervention(msr->t, f->r);",
+            "if (*intervention != N_INTERVENTION_STATUS &&",
+            "!msc_apache_contract_record_intervention_decision(msr))",
+            "MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE",
+            '"could not record canonical P4 intervention decision"',
+        ),
+        "Apache Phase4 finalizes and completes the body before collecting and recording the terminal intervention",
+    ),
+    (
+        base.tokens_in_order(
+            finish_response_handler,
+            "rc = apache_phase4_finish_response_body(msr, f, bb_in,",
+            "&intervention);",
+            "if (rc != APR_SUCCESS)",
+            "if (intervention != N_INTERVENTION_STATUS)",
+            "rc = apache_phase4_handle_intervention(msr, conf, f, bb_in,",
+            "intervention);",
+            "if (rc != APR_SUCCESS)",
+            "return apache_phase4_release_response_brigade(msr, f, terminal_brigade,",
+        ),
+        "Apache Phase4 dispatches every collected disruptive result before terminal release",
+    ),
+    (
+        base.tokens_in_order(
+            input_eos_handler,
+            "intervention = msc_finalize_request_body(msr, r);",
+            "if (intervention != N_INTERVENTION_STATUS)",
+            "msr->request_body_intervention_sent = 1;",
+            "ap_remove_input_filter(filter);",
+            "return apache_input_filter_terminal_error(msr, r, intervention);",
+            "msr->request_body_eos_released = 1;",
+        ),
+        "Apache Phase2 routes every EOS intervention to the terminal error path before successful EOS release",
+    ),
+    (
+        base.tokens_in_order(
+            phase3_headers_handler,
+            "intervention = process_intervention(msr->t, r);",
+            "if (intervention == N_INTERVENTION_STATUS)",
+            "return APR_SUCCESS;",
+            "if (!msc_apache_contract_record_intervention_decision(msr))",
+            "wanted = msc_apache_contract_intervention_action(msr);",
+            "apache_phase3_log_event(msr, r, wanted, wanted, original_status);",
+            "return apache_send_precommit_terminal_error(msr, filter, brigade,",
+            "intervention);",
+        ),
+        "Apache Phase3 bypasses only the sentinel and routes every disruptive result to the terminal path",
+    ),
+    (
+        base.tokens_in_order(
+            phase4_intervention_handler,
+            "wanted = msc_apache_contract_intervention_action(msr);",
+            "msconnector_late_intervention_policy_init(&policy);",
+            "action = msconnector_late_intervention_resolve(&policy,",
+            "msr->response.committed, msr->response.committed,",
+            "conf->common_config.phase4_mode == MSCONNECTOR_PHASE4_MODE_STRICT);",
+            "actual = apache_phase4_actual_action(action, wanted);",
+            "if (action == MSCONNECTOR_LATE_INTERVENTION_LOG_ONLY)",
+            "return APR_SUCCESS;",
+            "if (action == MSCONNECTOR_LATE_INTERVENTION_ABORT_CONNECTION)",
+            "return apache_phase4_abort_response_connection(f);",
+            '"response_not_committed"',
+            "return apache_send_precommit_terminal_error(msr, f, NULL, intervention);",
+        ),
+        "Apache Phase4 bypasses only log-only, aborts strict committed responses, and denies before commit",
+    ),
+    (
+        base.tokens_in_order(
             base.phase4_release_helper,
             "msc_apache_contract_mark_response_committed(msr)",
             "msr->response.committed = 1;",
@@ -129,6 +243,16 @@ review_guards: list[tuple[bool, str]] = [
     ),
     (
         base.tokens_in_order(
+            hook_insert_filter,
+            'ap_add_output_filter("MODSECURITY_PHASE4_GUARD", msr, r,',
+            "r->connection) == NULL",
+            'ap_add_output_filter("MODSECURITY_OUT", msr, r,',
+            "r->connection) == NULL",
+        ),
+        "Apache attaches both output filters with the canonical transaction and request context",
+    ),
+    (
+        base.tokens_in_order(
             register_hooks,
             'ap_register_output_filter("MODSECURITY_PHASE4_GUARD",',
             "phase4_terminal_guard_filter, NULL, AP_FTYPE_PROTOCOL);",
@@ -149,40 +273,15 @@ review_guards: list[tuple[bool, str]] = [
     ),
     (
         base.tokens_in_order(
-            phase3_headers_handler,
-            "msc_apache_contract_record_intervention_decision(msr)",
-            "wanted = msc_apache_contract_intervention_action(msr);",
-            "apache_phase3_log_event(msr, r, wanted, wanted, original_status);",
-        )
-        and base.tokens_in_order(
-            phase4_intervention_handler,
-            "wanted = msc_apache_contract_intervention_action(msr);",
-            "msconnector_late_intervention_policy_init(&policy);",
-            "actual = apache_phase4_actual_action(action, wanted);",
+            precommit_terminal_helper,
+            "MSC_PHASE4_TERMINAL_OUTPUT_EMITTING",
+            "r->status = HTTP_OK;",
+            "r->status_line = NULL;",
+            "ap_die(status, r);",
+            "MSC_PHASE4_TERMINAL_OUTPUT_SEALED",
+            "return APR_EGENERAL;",
         ),
-        "Apache P3 and P4 independently preserve the canonical redirect action",
-    ),
-    (
-        base.tokens_in_order(
-            phase4_finish_helper,
-            "*intervention = process_intervention(msr->t, f->r);",
-            "if (*intervention != N_INTERVENTION_STATUS &&",
-            "!msc_apache_contract_record_intervention_decision(msr))",
-            "MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE",
-            '"could not record canonical P4 intervention decision"',
-        ),
-        "Apache Phase4 records disruptive decisions and fails closed on invalid engine correlation",
-    ),
-    (
-        base.tokens_in_order(
-            phase4_intervention_handler,
-            "msconnector_late_intervention_policy_init(&policy);",
-            "action = msconnector_late_intervention_resolve(&policy,",
-            "msr->response.committed, msr->response.committed,",
-            "conf->common_config.phase4_mode == MSCONNECTOR_PHASE4_MODE_STRICT);",
-            "actual = apache_phase4_actual_action(action, wanted);",
-        ),
-        "Apache Phase4 resolves late intervention with the canonical strict-mode predicate",
+        "Apache pre-commit terminal errors neutralize status, emit, and seal the protocol output guard in order",
     ),
 ]
 
