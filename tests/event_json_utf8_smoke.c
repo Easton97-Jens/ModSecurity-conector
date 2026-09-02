@@ -56,7 +56,9 @@ int main(void) {
     event.protocol.requested_protocol = invalid_utf8;
     if (!msconnector_event_write_jsonl_line(&event, json, sizeof(json),
             &truncated) || truncated != 0 ||
-        strstr(json, "\\u0080\\u00c0\\u00af") == NULL) {
+        strstr(json, "\\u0080\\u00c0\\u00af") == NULL ||
+        strstr(json,
+            "\"requested_protocol\":\"ok\\\\u0080\\\\u00c0\\\\u00af\"") == NULL) {
         (void)fprintf(stderr, "event JSONL UTF-8 serialization control failed\n");
         return 1;
     }
