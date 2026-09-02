@@ -44,6 +44,7 @@ static pthread_mutex_t test_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t test_changed = PTHREAD_COND_INITIALIZER;
 static int runtime_event_mode_configured = 0;
 static int runtime_transaction_profile_configured = 0;
+static int mapper_entered = 0;
 static int runtime_entered = 0;
 static int runtime_release = 0;
 static int runtime_destroyed = 0;
@@ -87,6 +88,29 @@ static int runtime_setup_was_configured(void) {
         (void)pthread_mutex_unlock(&test_lock);
     }
     return result;
+}
+
+static int mapper_has_not_entered(void) {
+    int result = 0;
+    if (pthread_mutex_lock(&test_lock) == 0) {
+        result = mapper_entered == 0;
+        (void)pthread_mutex_unlock(&test_lock);
+    }
+    return result;
+}
+
+static int reset_runtime_lifecycle(void) {
+    if (pthread_mutex_lock(&test_lock) != 0) {
+        return 0;
+    }
+    runtime_event_mode_configured = 0;
+    runtime_transaction_profile_configured = 0;
+    mapper_entered = 0;
+    runtime_entered = 0;
+    runtime_release = 0;
+    runtime_destroyed = 0;
+    (void)pthread_mutex_unlock(&test_lock);
+    return 1;
 }
 
 int msconnector_runtime_config_check(
@@ -284,6 +308,15 @@ static int map_request(
         }
         return 0;
     }
+    if (pthread_mutex_lock(&test_lock) != 0) {
+        if (error != NULL && error_len > 0U) {
+            (void)snprintf(error, error_len, "%s", "could not record mapper entry");
+        }
+        return 0;
+    }
+    ++mapper_entered;
+    (void)pthread_cond_broadcast(&test_changed);
+    (void)pthread_mutex_unlock(&test_lock);
     memset(request, 0, sizeof(*request));
     request->method = source->method;
     request->uri = source->uri;
@@ -317,6 +350,7 @@ static const msconnector_http_authorization_profile profile = {
 
 typedef struct server_thread_args {
     char listen_spec[64];
+    char max_requests[4];
     int result;
 } server_thread_args;
 
@@ -330,7 +364,7 @@ static void *run_service(void *argument) {
         "--listen",
         args->listen_spec,
         "--max-requests",
-        "2",
+        args->max_requests,
         "--connection-timeout-ms",
         "25",
         NULL,
@@ -407,15 +441,27 @@ int main(void) {
         "Connection: close\r\n\r\n";
     static const char missing_host_request[] = "GET /ok HTTP/1.1\r\n"
         "Connection: close\r\n\r\n";
-    server_thread_args args = {{0}, -1};
+    static const char oversized_host_prefix[] = "GET /ok HTTP/1.1\r\nHost: ";
+    static const char oversized_host_suffix[] = "\r\nConnection: close\r\n\r\n";
+    char oversized_host_request[sizeof(oversized_host_prefix) - 1U + 1024U +
+        sizeof(oversized_host_suffix) - 1U];
+    const size_t oversized_host_request_size = sizeof(oversized_host_request);
+    server_thread_args args = {{0}, {0}, -1};
     unsigned short port = 0U;
     pthread_t server;
     int client_fd = -1;
     int result = 1;
 
+    memcpy(oversized_host_request, oversized_host_prefix,
+        sizeof(oversized_host_prefix) - 1U);
+    memset(oversized_host_request + sizeof(oversized_host_prefix) - 1U,
+        'a', 1024U);
+    memcpy(oversized_host_request + sizeof(oversized_host_prefix) - 1U + 1024U,
+        oversized_host_suffix, sizeof(oversized_host_suffix) - 1U);
     if (!reserve_loopback_port(&port) ||
         snprintf(args.listen_spec, sizeof(args.listen_spec), "127.0.0.1:%u",
             (unsigned int)port) < 0 ||
+        snprintf(args.max_requests, sizeof(args.max_requests), "%s", "2") < 0 ||
         pthread_create(&server, NULL, run_service, &args) != 0) {
         (void)fprintf(stderr, "could not start detached-worker service\n");
         return 1;
@@ -429,13 +475,39 @@ int main(void) {
         send(client_fd, missing_host_request, sizeof(missing_host_request) - 1U, 0) !=
             (ssize_t)(sizeof(missing_host_request) - 1U) ||
         !response_starts_with(client_fd, "HTTP/1.1 400") ||
-        !runtime_has_not_entered()) {
+        !mapper_has_not_entered() || !runtime_has_not_entered()) {
         (void)fprintf(stderr, "missing Host was not rejected before mapping\n");
         goto done;
     }
     (void)close(client_fd);
     client_fd = connect_loopback(port);
     if (client_fd < 0 ||
+        send(client_fd, oversized_host_request, oversized_host_request_size, 0) !=
+            (ssize_t)oversized_host_request_size ||
+        !response_starts_with(client_fd, "HTTP/1.1 400") ||
+        !mapper_has_not_entered() || !runtime_has_not_entered()) {
+        (void)fprintf(stderr, "oversized Host was not rejected before mapping\n");
+        goto done;
+    }
+    (void)close(client_fd);
+    client_fd = -1;
+    if (pthread_join(server, NULL) != 0 || args.result != 0 ||
+        !mapper_has_not_entered() || !runtime_has_not_entered() ||
+        !wait_for_flag(&runtime_destroyed)) {
+        (void)fprintf(stderr, "host-rejection service did not cleanly stop\n");
+        goto done;
+    }
+
+    if (!reset_runtime_lifecycle() || !reserve_loopback_port(&port) ||
+        snprintf(args.listen_spec, sizeof(args.listen_spec), "127.0.0.1:%u",
+            (unsigned int)port) < 0 ||
+        snprintf(args.max_requests, sizeof(args.max_requests), "%s", "1") < 0 ||
+        pthread_create(&server, NULL, run_service, &args) != 0) {
+        (void)fprintf(stderr, "could not restart detached-worker service\n");
+        goto done;
+    }
+    client_fd = connect_loopback(port);
+    if (!runtime_setup_was_configured() || client_fd < 0 ||
         send(client_fd, request, sizeof(request) - 1U, 0) !=
             (ssize_t)(sizeof(request) - 1U) ||
         !wait_for_flag(&runtime_entered) || pthread_join(server, NULL) != 0 ||
@@ -443,6 +515,8 @@ int main(void) {
         (void)fprintf(stderr, "service did not reach bounded deferred shutdown\n");
         goto done;
     }
+    (void)close(client_fd);
+    client_fd = -1;
     unblock_runtime();
     if (!wait_for_flag(&runtime_destroyed)) {
         (void)fprintf(stderr, "deferred worker cleanup did not finish\n");

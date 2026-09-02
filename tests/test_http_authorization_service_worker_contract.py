@@ -50,6 +50,16 @@ class HttpAuthorizationServiceWorkerContractTests(unittest.TestCase):
             self.source,
         )
 
+    def test_deferred_cleanup_releases_only_profiles_without_a_companion(self) -> None:
+        deferred_path = self.source.split(
+            "if (authorization_defer_cleanup(service) != 0) {", 1
+        )[1].split("if (!authorization_shutdown_response_companion(profile)) {", 1)[0]
+        self.assertIn("profile->shutdown_response_companion == NULL", deferred_path)
+        self.assertIn(
+            "authorization_mark_response_companion_quiesced(service)", deferred_path
+        )
+        self.assertIn("return 1;", deferred_path)
+
     def test_http_writes_are_sigpipe_safe_without_global_signal_suppression(self) -> None:
         self.assertIn("MSG_NOSIGNAL", self.source)
         self.assertIn("SO_NOSIGPIPE", self.source)
