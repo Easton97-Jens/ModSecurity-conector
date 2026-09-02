@@ -68,10 +68,20 @@ phase4_fail_closed_helper = base.source_section(
     "    apr_bucket_brigade *bb_in, const char *reason)\n{",
     "static apr_status_t apache_finish_unread_request_body",
 )
+finish_unread_request_body = base.source_section(
+    base.filters_c,
+    "static apr_status_t apache_finish_unread_request_body",
+    "static apr_status_t apache_output_filter_terminal_result",
+)
 input_eos_handler = base.source_section(
     base.filters_c,
     "static apr_status_t apache_input_filter_handle_eos",
     "apr_status_t input_filter",
+)
+input_filter_handler = base.source_section(
+    base.filters_c,
+    "apr_status_t input_filter",
+    "static const char *apache_response_content_type",
 )
 prepare_response_brigade = base.source_section(
     base.filters_c,
@@ -260,6 +270,22 @@ review_guards: list[tuple[bool, str]] = [
     ),
     (
         base.tokens_in_order(
+            input_filter_handler,
+            "while (!APR_BRIGADE_EMPTY(pbbTmp))",
+            "ret=apr_bucket_read(pbktIn, &data, &len, block);",
+            "if (ret != APR_SUCCESS)",
+            "if (!msc_apache_contract_record_body(msr, 0, (size_t)len))",
+            "if (msc_append_request_body(msr->t,",
+            "(const unsigned char *)data, len) < 0)",
+            "msr->request_body_bytes_seen += len;",
+            "msr->request_body_bytes_inspected += len;",
+            "APR_BUCKET_REMOVE(pbktIn);",
+            "APR_BRIGADE_INSERT_TAIL(pbbOut, pbktIn);",
+        ),
+        "Apache Phase2 reads, accounts, and appends every request-body bucket before forwarding the unchanged host bucket",
+    ),
+    (
+        base.tokens_in_order(
             phase3_headers_handler,
             "apache_add_response_headers(msr, r->err_headers_out);",
             "apache_add_response_headers(msr, r->headers_out);",
@@ -313,9 +339,33 @@ review_guards: list[tuple[bool, str]] = [
     ),
     (
         base.tokens_in_order(
+            finish_unread_request_body,
+            "if (msr->request_body_processed)",
+            RETURN_APR_SUCCESS,
+            "if (ap_request_has_body(r))",
+            "discard_status = ap_discard_request_body(r);",
+            "if (discard_status != OK)",
+            "ap_remove_output_filter(f);",
+            "if (msr->request_body_intervention_sent)",
+            "return AP_FILTER_ERROR;",
+            "return apache_send_precommit_terminal_error(msr, f, NULL,",
+            "if (!msr->request_body_processed)",
+            "ap_remove_output_filter(f);",
+            "return APR_ECONNABORTED;",
+            RETURN_APR_SUCCESS,
+            "it = msc_finalize_request_body(msr, r);",
+        ),
+        "Apache drains every advertised unread request body and fails closed unless Phase2 reached its processed state before response inspection",
+    ),
+    (
+        base.tokens_in_order(
             base.phase4_release_helper,
             "starts_response = apache_phase4_brigade_starts_response(brigade);",
             "if ((starts_response || terminal) && !msr->response.committed &&",
+            "!apache_phase3_restore_response_state(msr, f->r))",
+            "return apache_phase4_fail_closed(msr, f, brigade,",
+            '"missing Phase 3 response-state snapshot"',
+            "if ((starts_response || terminal) && !msr->response.committed)",
             "msc_apache_contract_mark_response_committed(msr)",
             "msr->response.committed = 1;",
             DOWNSTREAM_PASS,
@@ -326,7 +376,7 @@ review_guards: list[tuple[bool, str]] = [
             terminal_success_seal,
             "return rc;",
         ),
-        "Apache progressive release derives response-start state, commits before output, and seals the successful terminal path afterward",
+        "Apache progressive release restores the Phase3 snapshot, commits before output, and seals the successful terminal path afterward",
     ),
     (
         base.tokens_in_order(
@@ -345,7 +395,7 @@ review_guards: list[tuple[bool, str]] = [
             "if (!apache_phase4_redirect_has_local_error_document_proof(msr, r))",
             "return 0;",
             "msr->response_phase4_terminal_error_redirect_seen = 1;",
-            'apr_table_setn(r->notes, apache_phase4_terminal_error_redirect_note,',
+            "apr_table_setn(r->notes, apache_phase4_terminal_error_redirect_note,",
             "return 1;",
         ),
         "Apache terminal-error redirect exception requires the local ErrorDocument proof before permitting the bounded redirect",
