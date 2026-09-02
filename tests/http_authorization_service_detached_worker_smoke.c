@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -41,6 +42,8 @@ struct msconnector_runtime_transaction {
 static msconnector_runtime fake_runtime = {0};
 static pthread_mutex_t test_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t test_changed = PTHREAD_COND_INITIALIZER;
+static int runtime_event_mode_configured = 0;
+static int runtime_transaction_profile_configured = 0;
 static int runtime_entered = 0;
 static int runtime_release = 0;
 static int runtime_destroyed = 0;
@@ -68,6 +71,24 @@ static void unblock_runtime(void) {
     }
 }
 
+static int runtime_has_not_entered(void) {
+    int result = 0;
+    if (pthread_mutex_lock(&test_lock) == 0) {
+        result = runtime_entered == 0;
+        (void)pthread_mutex_unlock(&test_lock);
+    }
+    return result;
+}
+
+static int runtime_setup_was_configured(void) {
+    int result = 0;
+    if (pthread_mutex_lock(&test_lock) == 0) {
+        result = runtime_event_mode_configured && runtime_transaction_profile_configured;
+        (void)pthread_mutex_unlock(&test_lock);
+    }
+    return result;
+}
+
 int msconnector_runtime_config_check(
     const char *connector_name,
     const char *config_path,
@@ -79,6 +100,50 @@ int msconnector_runtime_config_check(
         error[0] = '\0';
     }
     return 1;
+}
+
+/* The fixture has no production engine, but it must still reject a service
+ * startup that fails to supply the exact adapter-owned #344 configuration. */
+int msconnector_runtime_set_event_integration_mode(
+    msconnector_runtime *runtime,
+    const char *integration_mode) {
+    if (runtime != &fake_runtime || integration_mode == NULL ||
+        strcmp(integration_mode, "detached-worker-smoke") != 0 ||
+        pthread_mutex_lock(&test_lock) != 0) {
+        return 0;
+    }
+    runtime_event_mode_configured = 1;
+    (void)pthread_mutex_unlock(&test_lock);
+    return 1;
+}
+
+int msconnector_runtime_set_transaction_profile(
+    msconnector_runtime *runtime,
+    const msconnector_transaction_profile *transaction_profile) {
+    if (runtime != &fake_runtime || transaction_profile == NULL ||
+        transaction_profile->profile_id != 1U ||
+        transaction_profile->profile_name == NULL ||
+        transaction_profile->connector_id == NULL ||
+        transaction_profile->host_adapter_id == NULL ||
+        strcmp(transaction_profile->profile_name, "detached-worker-smoke") != 0 ||
+        strcmp(transaction_profile->connector_id, "detached-worker-smoke") != 0 ||
+        strcmp(transaction_profile->host_adapter_id, "detached-worker-smoke") != 0 ||
+        transaction_profile->direct_phase_mask != 1U ||
+        transaction_profile->strict_post_commit_action == 0 ||
+        transaction_profile->private_default_binding == 0 ||
+        pthread_mutex_lock(&test_lock) != 0) {
+        return 0;
+    }
+    runtime_transaction_profile_configured = 1;
+    (void)pthread_mutex_unlock(&test_lock);
+    return 1;
+}
+
+int msconnector_runtime_error_log_enabled(const msconnector_runtime *runtime) {
+    /* The fake runtime explicitly has diagnostics disabled; requests and
+     * response payloads must not be emitted by this fixture. */
+    (void)runtime;
+    return 0;
 }
 
 int msconnector_runtime_create(
@@ -235,6 +300,15 @@ static int map_request(
 static const msconnector_http_authorization_profile profile = {
     .connector_name = "detached-worker-smoke",
     .integration_mode = "detached-worker-smoke",
+    .transaction_profile = &(const msconnector_transaction_profile){
+        .profile_id = 1U,
+        .profile_name = "detached-worker-smoke",
+        .connector_id = "detached-worker-smoke",
+        .host_adapter_id = "detached-worker-smoke",
+        .direct_phase_mask = 1U,
+        .strict_post_commit_action = 1,
+        .private_default_binding = 1,
+    },
     .original_uri_headers = NULL,
     .original_uri_header_count = 0U,
     .map_request = map_request,
@@ -256,7 +330,7 @@ static void *run_service(void *argument) {
         "--listen",
         args->listen_spec,
         "--max-requests",
-        "1",
+        "2",
         "--connection-timeout-ms",
         "25",
         NULL,
@@ -307,8 +381,31 @@ static int connect_loopback(unsigned short port) {
     return -1;
 }
 
+static int response_starts_with(int socket_fd, const char *expected) {
+    struct timeval timeout = {.tv_sec = TEST_WAIT_SECONDS, .tv_usec = 0};
+    char response[64];
+    const size_t expected_size = expected == NULL ? 0U : strlen(expected);
+    size_t used = 0U;
+
+    if (expected_size == 0U || expected_size > sizeof(response) ||
+        setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) != 0) {
+        return 0;
+    }
+    while (used < expected_size) {
+        const ssize_t received = recv(socket_fd, response + used,
+            expected_size - used, 0);
+        if (received <= 0) {
+            return 0;
+        }
+        used += (size_t)received;
+    }
+    return memcmp(response, expected, expected_size) == 0;
+}
+
 int main(void) {
     static const char request[] = "GET /ok HTTP/1.1\r\nHost: smoke.test\r\n"
+        "Connection: close\r\n\r\n";
+    static const char missing_host_request[] = "GET /ok HTTP/1.1\r\n"
         "Connection: close\r\n\r\n";
     server_thread_args args = {{0}, -1};
     unsigned short port = 0U;
@@ -323,6 +420,20 @@ int main(void) {
         (void)fprintf(stderr, "could not start detached-worker service\n");
         return 1;
     }
+    client_fd = connect_loopback(port);
+    if (!runtime_setup_was_configured()) {
+        (void)fprintf(stderr, "runtime profile setup was not enforced\n");
+        goto done;
+    }
+    if (client_fd < 0 ||
+        send(client_fd, missing_host_request, sizeof(missing_host_request) - 1U, 0) !=
+            (ssize_t)(sizeof(missing_host_request) - 1U) ||
+        !response_starts_with(client_fd, "HTTP/1.1 400") ||
+        !runtime_has_not_entered()) {
+        (void)fprintf(stderr, "missing Host was not rejected before mapping\n");
+        goto done;
+    }
+    (void)close(client_fd);
     client_fd = connect_loopback(port);
     if (client_fd < 0 ||
         send(client_fd, request, sizeof(request) - 1U, 0) !=
