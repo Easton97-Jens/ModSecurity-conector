@@ -5,6 +5,7 @@ import sys
 import apache_common_adoption_base as base
 
 
+DOWNSTREAM_PASS = "rc = ap_pass_brigade(f->next, brigade);"
 phase4_normalize_helper = base.source_section(
     base.filters_c,
     "static apr_bucket *apache_phase4_normalize_response_brigade",
@@ -25,9 +26,7 @@ phase4_intervention_handler = base.source_section(
     "static apr_status_t apache_phase4_handle_intervention",
     "static apr_status_t apache_output_filter_finish_response",
 )
-release_after_pass = base.phase4_release_helper.split(
-    "rc = ap_pass_brigade(f->next, brigade);", 1
-)[1] if "rc = ap_pass_brigade(f->next, brigade);" in base.phase4_release_helper else ""
+release_after_pass = base.phase4_release_helper.partition(DOWNSTREAM_PASS)[2]
 terminal_success_seal = (
     "if (terminal)\n"
     "    {\n"
@@ -61,7 +60,7 @@ review_guards: list[tuple[bool, str]] = [
             base.phase4_release_helper,
             "msc_apache_contract_mark_response_committed(msr)",
             "msr->response.committed = 1;",
-            "rc = ap_pass_brigade(f->next, brigade);",
+            DOWNSTREAM_PASS,
         )
         and base.tokens_in_order(
             release_after_pass,
