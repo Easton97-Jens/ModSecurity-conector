@@ -20,7 +20,18 @@ RESET_STATUS_LINE = "r->status_line = NULL;"
 AP_DIE_STATUS = "ap_die(status, r);"
 FILTER_ATTACH_FAILURE = "r->connection) == NULL"
 RECORD_INTERVENTION = "!msc_apache_contract_record_intervention_decision(msr)"
+REQUEST_BODY_PHASE = "MSCONNECTOR_PHASE_REQUEST_BODY"
+RESPONSE_HEADERS_PHASE = "MSCONNECTOR_PHASE_RESPONSE_HEADERS"
+RESPONSE_BODY_PHASE = "MSCONNECTOR_PHASE_RESPONSE_BODY"
+P2_PROCESS = "if (msc_process_request_body(msr->t) < 0)"
+P3_PROCESS = 'if (msc_process_response_headers(msr->t, original_status, "HTTP 1.1") != 1)'
+P4_PROCESS = "if (msc_process_response_body(msr->t) != 1)"
 
+request_body_finalizer = base.source_section(
+    base.filters_c,
+    "int msc_finalize_request_body(msc_t *msr, request_rec *r)",
+    "static apr_status_t apache_input_filter_terminal_error",
+)
 phase4_normalize_helper = base.source_section(
     base.filters_c,
     "static apr_bucket *apache_phase4_normalize_response_brigade",
@@ -31,6 +42,11 @@ error_bucket_classifier = base.source_section(
     "static int apache_phase4_error_bucket_status",
     "static int apache_phase3_snapshot_table_value",
 )
+response_start_classifier = base.source_section(
+    base.filters_c,
+    "static int apache_phase4_brigade_starts_response",
+    "static apr_status_t apache_phase4_release_response_brigade",
+)
 phase4_terminal_guard = base.source_section(
     base.filters_c,
     "apr_status_t phase4_terminal_guard_filter",
@@ -40,6 +56,12 @@ precommit_terminal_helper = base.source_section(
     base.filters_c,
     "static apr_status_t apache_send_precommit_terminal_error",
     "static apr_status_t apache_phase4_fail_closed",
+)
+phase4_fail_closed_helper = base.source_section(
+    base.filters_c,
+    "static apr_status_t apache_phase4_fail_closed(msc_t *msr, ap_filter_t *f,\n"
+    "    apr_bucket_brigade *bb_in, const char *reason)\n{",
+    "static apr_status_t apache_finish_unread_request_body",
 )
 input_eos_handler = base.source_section(
     base.filters_c,
@@ -94,6 +116,16 @@ terminal_success_seal = (
 review_guards: list[tuple[bool, str]] = [
     (
         base.tokens_in_order(
+            request_body_finalizer,
+            P2_PROCESS,
+            f"msc_apache_contract_complete(msr,\n            {REQUEST_BODY_PHASE})",
+            "msr->request_body_processed = 1;",
+            "intervention = process_intervention(msr->t, r);",
+        ),
+        "Apache Phase2 processes and canonically completes the request body before collecting intervention",
+    ),
+    (
+        base.tokens_in_order(
             phase4_normalize_helper,
             "for (bucket = APR_BRIGADE_FIRST(bb_in);",
             "bucket != APR_BRIGADE_SENTINEL(bb_in); bucket = next)",
@@ -129,6 +161,19 @@ review_guards: list[tuple[bool, str]] = [
     ),
     (
         base.tokens_in_order(
+            response_start_classifier,
+            "for (bucket = APR_BRIGADE_FIRST(brigade);",
+            "bucket != APR_BRIGADE_SENTINEL(brigade);",
+            "bucket = APR_BUCKET_NEXT(bucket))",
+            "if (APR_BUCKET_IS_FLUSH(bucket) ||",
+            "(!APR_BUCKET_IS_METADATA(bucket) && !APR_BUCKET_IS_EOS(bucket)))",
+            "return 1;",
+            "return 0;",
+        ),
+        "Apache response-start classifier detects every FLUSH or non-metadata body bucket before release",
+    ),
+    (
+        base.tokens_in_order(
             prepare_response_brigade,
             "error_status = apache_phase4_error_bucket_status(*brigade);",
             "if (error_status < 0)",
@@ -158,8 +203,10 @@ review_guards: list[tuple[bool, str]] = [
     (
         base.tokens_in_order(
             phase4_finish_helper,
-            "if (msc_process_response_body(msr->t) != 1)",
-            "if (!msc_apache_contract_complete(msr, MSCONNECTOR_PHASE_RESPONSE_BODY))",
+            P4_PROCESS,
+            "return apache_phase4_fail_closed(msr, f, bb_in,",
+            '"failed to finish response body in libmodsecurity"',
+            f"msc_apache_contract_complete(msr, {RESPONSE_BODY_PHASE})",
             "msr->response_body_processed = 1;",
             "*intervention = process_intervention(msr->t, f->r);",
             f"if (*intervention != {INTERVENTION_SENTINEL} &&",
@@ -167,7 +214,7 @@ review_guards: list[tuple[bool, str]] = [
             "MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE",
             '"could not record canonical P4 intervention decision"',
         ),
-        "Apache Phase4 finalizes and completes the body before collecting and recording the terminal intervention",
+        "Apache Phase4 fails closed on engine finalization errors and completes before collecting intervention",
     ),
     (
         base.tokens_in_order(
@@ -198,6 +245,9 @@ review_guards: list[tuple[bool, str]] = [
     (
         base.tokens_in_order(
             phase3_headers_handler,
+            P3_PROCESS,
+            f"msc_apache_contract_complete(msr,\n            {RESPONSE_HEADERS_PHASE})",
+            "msr->response_headers_processed = 1;",
             "intervention = process_intervention(msr->t, r);",
             f"if (intervention == {INTERVENTION_SENTINEL})",
             RETURN_APR_SUCCESS,
@@ -207,7 +257,7 @@ review_guards: list[tuple[bool, str]] = [
             "return apache_send_precommit_terminal_error(msr, filter, brigade,",
             "intervention);",
         ),
-        "Apache Phase3 bypasses only the sentinel and routes every disruptive result to the terminal path",
+        "Apache Phase3 processes and completes headers before collecting and enforcing intervention",
     ),
     (
         base.tokens_in_order(
@@ -226,6 +276,18 @@ review_guards: list[tuple[bool, str]] = [
             "return apache_send_precommit_terminal_error(msr, f, NULL, intervention);",
         ),
         "Apache Phase4 bypasses only log-only, aborts strict committed responses, and denies before commit",
+    ),
+    (
+        base.tokens_in_order(
+            phase4_fail_closed_helper,
+            "if (apache_phase4_response_committed(msr, r))",
+            "return apache_phase4_abort_response_connection(f);",
+            '"ModSecurity: Phase 4 response gate failed before response commit: %s"',
+            "ap_remove_output_filter(f);",
+            "return apache_send_precommit_terminal_error(msr, f, NULL,",
+            "HTTP_INTERNAL_SERVER_ERROR);",
+        ),
+        "Apache Phase4 fail-closed helper removes the resource filter and emits a terminal error before commit",
     ),
     (
         base.tokens_in_order(
