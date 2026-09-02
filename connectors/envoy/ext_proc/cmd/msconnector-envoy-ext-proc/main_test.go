@@ -32,8 +32,10 @@ func TestServeRejectsUnprovenStrictPolicyBeforeListenerAdmission(t *testing.T) {
 		MaxResponseBodyBytes: 4096,
 		MaxGRPCMessageBytes:  2048,
 		EngineTimeoutMS:      100,
+		MaxConcurrentStreams: 8,
 		CleanupTimeoutMS:     100,
 		ShutdownTimeoutMS:    100,
+		StreamIdleTimeoutMS:  100,
 		LateActionPolicy:     processor.LateActionStrict,
 	}
 	code, err := serve(config, engineRuntime{engine: rejectingPolicyEngine{}}, "")
@@ -85,8 +87,10 @@ func strictTestConfig(listenAddress string) processor.Config {
 		MaxResponseBodyBytes: 4096,
 		MaxGRPCMessageBytes:  2048,
 		EngineTimeoutMS:      100,
+		MaxConcurrentStreams: 8,
 		CleanupTimeoutMS:     100,
 		ShutdownTimeoutMS:    100,
+		StreamIdleTimeoutMS:  100,
 		LateActionPolicy:     processor.LateActionStrict,
 	}
 }

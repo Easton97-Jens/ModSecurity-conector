@@ -100,6 +100,8 @@ typedef struct authorization_service {
     unsigned long max_connections;
     unsigned long active_workers;
     int deferred_cleanup;
+    int response_companion_quiesced;
+    int release_claimed;
     struct authorization_worker *workers;
     pthread_mutex_t runtime_lock;
     pthread_mutex_t worker_lock;
@@ -1311,8 +1313,10 @@ static void authorization_worker_release(authorization_worker *worker) {
             if (service->active_workers > 0UL) {
                 --service->active_workers;
             }
-            if (service->active_workers == 0UL && service->deferred_cleanup) {
+            if (service->active_workers == 0UL && service->deferred_cleanup &&
+                service->response_companion_quiesced && !service->release_claimed) {
                 service->deferred_cleanup = 0;
+                service->release_claimed = 1;
                 release_service = 1;
             }
             (void)pthread_cond_broadcast(&service->workers_idle);
@@ -1443,6 +1447,30 @@ static int authorization_defer_cleanup(authorization_service *service) {
     if (service->active_workers > 0UL) { service->deferred_cleanup = 1; deferred = 1; }
     (void)pthread_mutex_unlock(&service->worker_lock);
     return deferred;
+}
+
+static int authorization_mark_response_companion_quiesced(
+    authorization_service *service) {
+    int release_service = 0;
+
+    if (service == NULL || pthread_mutex_lock(&service->worker_lock) != 0) {
+        return -1;
+    }
+    service->response_companion_quiesced = 1;
+    if (service->active_workers == 0UL) {
+        if (service->deferred_cleanup && !service->release_claimed) {
+            service->deferred_cleanup = 0;
+            service->release_claimed = 1;
+            release_service = 1;
+        } else if (!service->deferred_cleanup && !service->release_claimed) {
+            service->release_claimed = 1;
+            release_service = 1;
+        }
+    } else {
+        service->deferred_cleanup = 1;
+    }
+    (void)pthread_mutex_unlock(&service->worker_lock);
+    return release_service;
 }
 
 static int authorization_shutdown_response_companion(
@@ -1626,10 +1654,14 @@ static int serve_authorization(
     if (!authorization_shutdown_response_companion(profile)) {
         (void)fprintf(stderr, "%s response companion did not quiesce; refusing runtime destruction\n",
             profile->connector_name);
-        authorization_service_destroy(service);
-        abort();
+        /* Keep the service and runtime quarantined: the companion may still
+         * reference live transaction state, so neither teardown nor process
+         * termination is safe on this failure path. */
+        return service_status != 0 ? service_status : 1;
     }
-    authorization_service_release(service);
+    if (authorization_mark_response_companion_quiesced(service) > 0) {
+        authorization_service_release(service);
+    }
     return service_status;
 }
 

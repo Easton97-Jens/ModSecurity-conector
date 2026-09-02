@@ -54,6 +54,7 @@
 #define SPOP_SCOPE_TXN 2U
 #define RUNTIME_PATH_LIMIT 4096U
 #define RUNTIME_TEXT_LIMIT 65536U
+#define SPOP_ACCEPT_QUARANTINED 2
 
 typedef struct spop_buffer {
     unsigned char data[SPOP_FRAME_MAX];
@@ -185,6 +186,7 @@ typedef struct transaction_slot {
 typedef struct peer_worker_set {
     pthread_mutex_t lock;
     pthread_cond_t drained;
+    int active_fds[SPOP_MAX_WORKER_COUNT];
     size_t active;
     unsigned int limit;
     int initialized;
@@ -491,7 +493,9 @@ static int read_full_until(int fd, void *buf, size_t len, uint64_t deadline) {
         do {
             rc = poll(&descriptor, 1U, wait_ms);
         } while (rc < 0 && errno == EINTR);
-        if (rc <= 0 || (descriptor.revents & (POLLERR | POLLNVAL | POLLHUP)) != 0) {
+        if (rc <= 0 || (descriptor.revents & (POLLERR | POLLNVAL)) != 0 ||
+                ((descriptor.revents & POLLHUP) != 0 &&
+                    (descriptor.revents & POLLIN) == 0)) {
             return -1;
         }
 
@@ -4275,25 +4279,42 @@ static void *peer_worker_main(void *opaque) {
         (void)handle_connection(task->fd, task->state, task->log,
             task->rules_file, task->crs_preamble_file,
             peer_timeout_ms(task->state));
-        close(task->fd);
         pthread_mutex_lock(&task->workers->lock);
+        for (size_t i = 0U; i < task->workers->active; ++i) {
+            if (task->workers->active_fds[i] == task->fd) {
+                task->workers->active_fds[i] =
+                    task->workers->active_fds[task->workers->active - 1U];
+                break;
+            }
+        }
         if (task->workers->active > 0U) --task->workers->active;
         pthread_cond_broadcast(&task->workers->drained);
         pthread_mutex_unlock(&task->workers->lock);
+        close(task->fd);
         free(task);
     }
     return NULL;
 }
 
 static int peer_workers_init(peer_worker_set *workers, unsigned int limit) {
+    pthread_condattr_t condattr;
     if (workers == NULL || limit == 0U || limit > SPOP_MAX_WORKER_COUNT) {
         errno = EINVAL; return -1;
     }
     memset(workers, 0, sizeof(*workers));
     if (pthread_mutex_init(&workers->lock, NULL) != 0) return -1;
-    if (pthread_cond_init(&workers->drained, NULL) != 0) {
+    if (pthread_condattr_init(&condattr) != 0) {
         pthread_mutex_destroy(&workers->lock); return -1;
     }
+    if (pthread_condattr_setclock(&condattr, CLOCK_MONOTONIC) != 0) {
+        pthread_condattr_destroy(&condattr);
+        pthread_mutex_destroy(&workers->lock); return -1;
+    }
+    if (pthread_cond_init(&workers->drained, &condattr) != 0) {
+        pthread_condattr_destroy(&condattr);
+        pthread_mutex_destroy(&workers->lock); return -1;
+    }
+    pthread_condattr_destroy(&condattr);
     workers->limit = limit; workers->initialized = 1; return 0;
 }
 
@@ -4312,9 +4333,11 @@ static int peer_workers_start(peer_worker_set *workers, int listen_fd,
     if (workers->active >= workers->limit) {
         pthread_mutex_unlock(&workers->lock); free(task); errno = EAGAIN; return -1;
     }
+    workers->active_fds[workers->active] = peer_fd;
     ++workers->active; pthread_mutex_unlock(&workers->lock);
     if (pthread_create(&thread, NULL, peer_worker_main, task) != 0) {
-        pthread_mutex_lock(&workers->lock); --workers->active;
+        pthread_mutex_lock(&workers->lock);
+        if (workers->active > 0U) --workers->active;
         pthread_cond_broadcast(&workers->drained); pthread_mutex_unlock(&workers->lock);
         free(task); return -1;
     }
@@ -4323,10 +4346,45 @@ static int peer_workers_start(peer_worker_set *workers, int listen_fd,
 
 static int peer_workers_wait(peer_worker_set *workers, FILE *log,
         unsigned int timeout_ms, int terminate) {
-    (void)log; (void)timeout_ms; (void)terminate;
+    struct timespec deadline;
+    int deadline_reached = 0;
     if (workers == NULL || !workers->initialized) return 0;
     pthread_mutex_lock(&workers->lock);
-    while (workers->active != 0U) pthread_cond_wait(&workers->drained, &workers->lock);
+    if (clock_gettime(CLOCK_MONOTONIC, &deadline) != 0) {
+        pthread_mutex_unlock(&workers->lock);
+        log_line(log, "peer worker deadline clock failed errno=%d", errno);
+        return -1;
+    }
+    deadline.tv_sec += timeout_ms / 1000U;
+    deadline.tv_nsec += (long)(timeout_ms % 1000U) * 1000000L;
+    if (deadline.tv_nsec >= 1000000000L) {
+        ++deadline.tv_sec; deadline.tv_nsec -= 1000000000L;
+    }
+    if (terminate) {
+        for (size_t i = 0U; i < workers->active; ++i) {
+            (void)shutdown(workers->active_fds[i], SHUT_RDWR);
+        }
+    }
+    while (workers->active != 0U) {
+        const int wait_result = pthread_cond_timedwait(&workers->drained,
+            &workers->lock, &deadline);
+        if (wait_result == ETIMEDOUT) {
+            deadline_reached = 1;
+            break;
+        }
+        if (wait_result != 0) {
+            pthread_mutex_unlock(&workers->lock);
+            log_line(log, "peer worker wait failed errno=%d", wait_result);
+            return -1;
+        }
+    }
+    if (deadline_reached) {
+        log_line(log, "peer worker deadline reached; force-stopping");
+        /* Detached workers still own task/state references.  Keep this set
+         * quarantined until they drain; destroying it here would be a UAF. */
+        pthread_mutex_unlock(&workers->lock);
+        return 1;
+    }
     pthread_mutex_unlock(&workers->lock);
     pthread_cond_destroy(&workers->drained); pthread_mutex_destroy(&workers->lock);
     workers->initialized = 0; return 0;
@@ -4335,24 +4393,31 @@ static int peer_workers_wait(peer_worker_set *workers, FILE *log,
 static int accept_loop(int listen_fd, agent_state *state, FILE *log, int max_connections, const char *rules_file, const char *crs_preamble_file, unsigned int timeout_ms) {
     int handled = 0;
     int result = 0;
-    peer_worker_set workers;
+    peer_worker_set *workers = calloc(1U, sizeof(*workers));
+
+    if (workers == NULL) return 1;
 
     stop_requested = 0;
     if (install_signal_handlers() != 0) {
         log_line(log, "failed to install signal handlers errno=%d", errno);
+        free(workers);
         return 1;
     }
-    if (peer_workers_init(&workers, state != NULL && state->config.worker_count > 0U ?
+    if (peer_workers_init(workers, state != NULL && state->config.worker_count > 0U ?
             state->config.worker_count : SPOP_DEFAULT_WORKER_COUNT) != 0) {
         log_line(log, "failed to initialize peer worker set errno=%d", errno);
-        return 1;
+        free(workers); return 1;
     }
     while (!stop_requested && (max_connections <= 0 || handled < max_connections)) {
         int fd = accept(listen_fd, 0, 0);
         if (fd < 0) {
             if (errno != EINTR) {
                 log_line(log, "accept failed errno=%d", errno);
-                return 1;
+                /* Stop admission, then drain what can be drained.  If any
+                 * detached worker remains, callers must retain every object
+                 * it can still reference until process exit. */
+                result = 1;
+                break;
             }
             if (stop_requested) {
                 break;
@@ -4365,7 +4430,7 @@ static int accept_loop(int listen_fd, agent_state *state, FILE *log, int max_con
             handled++;
             continue;
         }
-        if (peer_workers_start(&workers, listen_fd, fd, state, log,
+        if (peer_workers_start(workers, listen_fd, fd, state, log,
                 rules_file, crs_preamble_file) != 0) {
             log_line(log,
                 "peer worker admission failed; closing peer without protocol processing mode=%s errno=%d",
@@ -4376,10 +4441,19 @@ static int accept_loop(int listen_fd, agent_state *state, FILE *log, int max_con
         }
         handled++;
     }
-    if (peer_workers_wait(&workers, log, peer_timeout_ms(state),
-            result != 0 || stop_requested) != 0) {
-        result = 1;
+    {
+        const int wait_result = peer_workers_wait(workers, log,
+            timeout_ms > 0U ? timeout_ms : peer_timeout_ms(state),
+            result != 0 || stop_requested);
+        if (wait_result < 0) {
+            result = 1;
+        }
     }
+    if (workers->initialized) {
+        /* A deadline leaves detached workers and their references quarantined. */
+        return SPOP_ACCEPT_QUARANTINED;
+    }
+    free(workers);
     return result;
 }
 
@@ -4406,14 +4480,43 @@ static int client_expect_ack_set_var(int fd, uint64_t stream_id, uint64_t frame_
     return payload_has_set_var_blocked_true(&payload) ? 0 : -1;
 }
 
+typedef struct client_handshake_test {
+    unsigned int port;
+    int healthcheck;
+    int result;
+} client_handshake_test;
+
+static void *run_client_handshake_test(void *opaque) {
+    client_handshake_test *test = (client_handshake_test *)opaque;
+    int fd;
+
+    test->result = -1;
+    fd = connect_localhost(test->port);
+    if (fd < 0) {
+        return NULL;
+    }
+    if (send_haproxy_hello(fd, test->healthcheck) == 0 &&
+            client_expect_frame(fd, SPOP_FRM_AGENT_HELLO, 0, 0) == 0) {
+        test->result = 0;
+    }
+    close(fd);
+    return NULL;
+}
+
 static int run_client_self_test(unsigned int port, FILE *log) {
     int fd;
+    int slow_fd;
+    int admission_fds[SPOP_DEFAULT_WORKER_COUNT];
+    size_t admission_count = 0U;
+    pthread_t handshake_threads[2];
+    client_handshake_test handshake_tests[2];
+    struct timespec delay;
     spop_buffer empty;
     spop_buffer notify_payload;
 
-    /* A peer that sends only part of a frame must not monopolize the
-     * sequential accept loop.  The following connection intentionally
-     * expires its two-second frame deadline before the valid connections. */
+    /* Keep an incomplete peer open while a valid peer completes its HELLO.
+     * This proves recovery from a partial frame without waiting for the
+     * timeout merely to emit a marker. */
     fd = connect_localhost(port);
     if (fd < 0 || write(fd, "\0", 1U) != 1) {
         if (fd >= 0) {
@@ -4421,8 +4524,83 @@ static int run_client_self_test(unsigned int port, FILE *log) {
         }
         return -1;
     }
-    sleep(3U);
+    slow_fd = fd;
+    fd = connect_localhost(port);
+    if (fd < 0 || send_haproxy_hello(fd, 1) != 0 ||
+            client_expect_frame(fd, SPOP_FRM_AGENT_HELLO, 0, 0) != 0) {
+        close(slow_fd);
+        if (fd >= 0) {
+            close(fd);
+        }
+        return -1;
+    }
     close(fd);
+    log_line(log, "client incomplete peer recovery PASS");
+    close(slow_fd);
+
+    /* Two independent clients must be admitted and complete concurrently.
+     * The thread results are checked before the PASS marker is written. */
+    memset(handshake_tests, 0, sizeof(handshake_tests));
+    handshake_tests[0].port = port;
+    handshake_tests[0].healthcheck = 1;
+    handshake_tests[1].port = port;
+    handshake_tests[1].healthcheck = 1;
+    if (pthread_create(&handshake_threads[0], NULL, run_client_handshake_test,
+            &handshake_tests[0]) != 0) {
+        return -1;
+    }
+    if (pthread_create(&handshake_threads[1], NULL, run_client_handshake_test,
+            &handshake_tests[1]) != 0) {
+        pthread_join(handshake_threads[0], NULL);
+        return -1;
+    }
+    pthread_join(handshake_threads[0], NULL);
+    pthread_join(handshake_threads[1], NULL);
+    if (handshake_tests[0].result != 0 || handshake_tests[1].result != 0) {
+        return -1;
+    }
+    log_line(log, "client parallel healthcheck handshake PASS");
+
+    /* A second slow HELLO must be closed by its per-peer deadline; only
+     * after that deadline do we verify a fresh peer can still handshake. */
+    slow_fd = connect_localhost(port);
+    if (slow_fd < 0 || write(slow_fd, "\0", 1U) != 1) {
+        if (slow_fd >= 0) {
+            close(slow_fd);
+        }
+        return -1;
+    }
+    delay.tv_sec = 2;
+    delay.tv_nsec = 300000000L;
+    while (nanosleep(&delay, &delay) != 0 && errno == EINTR) {
+    }
+    {
+        unsigned char byte;
+        ssize_t received;
+        spop_frame disconnect_frame;
+
+        /* A deadline failure is allowed to send the protocol-level
+         * AGENT-DISCONNECT before closing the peer.  Accept that valid
+         * terminal frame; otherwise prove that the socket reached EOF or
+         * was reset instead of treating its first frame byte as a failure. */
+        if (recv_frame(slow_fd, &disconnect_frame, 100U) == 0) {
+            if (disconnect_frame.type != SPOP_FRM_AGENT_DISCONNECT ||
+                    disconnect_frame.stream_id != 0U ||
+                    disconnect_frame.frame_id != 0U) {
+                close(slow_fd);
+                return -1;
+            }
+        } else {
+            do {
+                received = recv(slow_fd, &byte, sizeof(byte), MSG_DONTWAIT);
+            } while (received < 0 && errno == EINTR);
+            if (received != 0 && !(received < 0 && errno == ECONNRESET)) {
+                close(slow_fd);
+                return -1;
+            }
+        }
+    }
+    close(slow_fd);
 
     fd = connect_localhost(port);
     if (fd < 0) {
@@ -4433,7 +4611,7 @@ static int run_client_self_test(unsigned int port, FILE *log) {
         close(fd);
         return -1;
     }
-    log_line(log, "client healthcheck handshake PASS");
+    log_line(log, "server enforced slow HELLO deadline recovery PASS");
     close(fd);
 
     fd = connect_localhost(port);
@@ -4458,6 +4636,49 @@ static int run_client_self_test(unsigned int port, FILE *log) {
     }
     log_line(log, "client notify set-var ack disconnect PASS");
     close(fd);
+
+    /* Fill every worker slot with an incomplete peer.  The next connection
+     * must be rejected and closed without entering protocol processing. */
+    for (admission_count = 0U; admission_count < SPOP_DEFAULT_WORKER_COUNT;
+            ++admission_count) {
+        admission_fds[admission_count] = connect_localhost(port);
+        if (admission_fds[admission_count] < 0 ||
+                write(admission_fds[admission_count], "\0", 1U) != 1) {
+            for (size_t i = 0U; i <= admission_count; ++i) {
+                if (admission_fds[i] >= 0) {
+                    close(admission_fds[i]);
+                }
+            }
+            return -1;
+        }
+    }
+    delay.tv_sec = 0;
+    delay.tv_nsec = 100000000L;
+    while (nanosleep(&delay, &delay) != 0 && errno == EINTR) {
+    }
+    fd = connect_localhost(port);
+    if (fd < 0) {
+        for (size_t i = 0U; i < admission_count; ++i) {
+            close(admission_fds[i]);
+        }
+        return -1;
+    }
+    {
+        unsigned char byte;
+        const ssize_t received = recv(fd, &byte, sizeof(byte), 0);
+        if (received != 0) {
+            close(fd);
+            for (size_t i = 0U; i < admission_count; ++i) {
+                close(admission_fds[i]);
+            }
+            return -1;
+        }
+    }
+    close(fd);
+    for (size_t i = 0U; i < admission_count; ++i) {
+        close(admission_fds[i]);
+    }
+    log_line(log, "client worker admission close isolation PASS");
     return 0;
 }
 
@@ -4524,7 +4745,7 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
                 write_text_contents(ready_path, "ready\n") != 0) {
             exit(77);
         }
-        exit(accept_loop(listen_fd, 0, log, 3, 0, 0, 2000U));
+        exit(accept_loop(listen_fd, 0, log, 16, 0, 0, 2000U));
     }
     close(listen_fd);
     if (run_client_self_test(port, log) != 0) {
@@ -4603,8 +4824,16 @@ static int run_server(const legacy_server_config *config) {
     log_line(log, "legacy SPOP compatibility server listening on %s:%u rules_file=%s",
         config->host, bound_port,
         config->rules_file != 0 ? config->rules_file : "");
-    (void)accept_loop(listen_fd, 0, log, 0, config->rules_file,
+    const int accept_result = accept_loop(listen_fd, 0, log, 0, config->rules_file,
         config->crs_preamble_file, 2000U);
+    if (accept_result == SPOP_ACCEPT_QUARANTINED) {
+        /* Worker threads still reference the log and process state.  Let the
+         * process exit with the quarantined runtime intact. */
+        log_line(log, "SPOP accept loop quarantined detached workers; terminating fail-closed");
+        fflush(log);
+        fflush(stderr);
+        _Exit(SPOP_ACCEPT_QUARANTINED);
+    }
     close(listen_fd);
     fclose(log);
     return 0;
@@ -4840,6 +5069,19 @@ static int run_agent_server(const agent_config *config) {
         config->response_body_limit);
     rc = accept_loop(listen_fd, &state, log, 0, 0, 0,
         state.config.spoe_timeout_ms);
+    if (rc == SPOP_ACCEPT_QUARANTINED) {
+        /* Detached peer workers still reference state, queues, caches and
+         * logs; terminate without returning through stack-state cleanup. */
+        log_line(log, "SPOP accept loop quarantined detached workers; terminating fail-closed");
+        if (log != NULL) {
+            fflush(log);
+        }
+        if (decision_log != NULL && decision_log != log) {
+            fflush(decision_log);
+        }
+        fflush(stderr);
+        _Exit(SPOP_ACCEPT_QUARANTINED);
+    }
 cleanup:
     destroy_agent_runtime(&state, listen_fd, &log, log_owned, &decision_log,
         decision_log_owned);

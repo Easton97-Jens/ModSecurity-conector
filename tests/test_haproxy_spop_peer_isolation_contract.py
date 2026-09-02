@@ -28,8 +28,12 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
         self.assertIn("SPOP_DEFAULT_WORKER_COUNT 8U", SOURCE)
         self.assertIn("SPOP_MAX_WORKER_COUNT 64U", SOURCE)
         self.assertIn("set_peer_socket_timeouts(fd, peer_timeout_ms(state))", SOURCE)
-        self.assertIn("peer_workers_start(&workers, listen_fd, fd, state, log,", SOURCE)
+        self.assertIn("peer_workers_start(workers, listen_fd, fd, state, log,", SOURCE)
         self.assertIn("peer worker deadline reached; force-stopping", SOURCE)
+        self.assertIn("active_fds[SPOP_MAX_WORKER_COUNT]", SOURCE)
+        self.assertIn("pthread_cond_timedwait(&workers->drained", SOURCE)
+        self.assertIn("shutdown(workers->active_fds[i], SHUT_RDWR)", SOURCE)
+        self.assertNotIn("pthread_cancel", SOURCE)
 
     def test_parent_admission_rejection_cannot_parse_a_peer_loop(self) -> None:
         accept_loop = SOURCE.split("static int accept_loop", 1)[1].split(
@@ -42,9 +46,38 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
     def test_runtime_self_test_covers_reset_slow_peer_and_follow_up_hello(self) -> None:
         self.assertIn("client incomplete peer recovery PASS", SOURCE)
         self.assertIn("client parallel healthcheck handshake PASS", SOURCE)
-        self.assertIn("client slow HELLO deadline recovery PASS", SOURCE)
+        self.assertIn("server enforced slow HELLO deadline recovery PASS", SOURCE)
+        slow_hello = SOURCE.split("/* A second slow HELLO", 1)[1].split(
+            "\n    fd = connect_localhost(port);", 1
+        )[0]
+        self.assertIn(
+            "received = recv(slow_fd, &byte, sizeof(byte), MSG_DONTWAIT)",
+            slow_hello,
+        )
+        self.assertIn("if (received != 0", slow_hello)
         self.assertIn("client notify set-var ack disconnect PASS", SOURCE)
         self.assertIn("client worker admission close isolation PASS", SOURCE)
+
+    def test_deadline_keeps_worker_state_quarantined_until_drain(self) -> None:
+        self.assertIn("destroying it here would be a UAF", SOURCE)
+        self.assertIn("if (workers->initialized)", SOURCE)
+        self.assertIn("#define SPOP_ACCEPT_QUARANTINED 2", SOURCE)
+        self.assertIn("return SPOP_ACCEPT_QUARANTINED;", SOURCE)
+        self.assertIn("if (accept_result == SPOP_ACCEPT_QUARANTINED)", SOURCE)
+        self.assertIn("if (rc == SPOP_ACCEPT_QUARANTINED)", SOURCE)
+        self.assertIn("_Exit(SPOP_ACCEPT_QUARANTINED);", SOURCE)
+
+    def test_read_accepts_payload_with_terminal_poll_hup(self) -> None:
+        self.assertIn("(descriptor.revents & POLLHUP) != 0", SOURCE)
+        self.assertIn("(descriptor.revents & POLLIN) == 0", SOURCE)
+
+    def test_accept_error_also_enters_worker_quarantine_path(self) -> None:
+        accept_loop = SOURCE.split("static int accept_loop", 1)[1].split(
+            "static int client_expect_frame", 1
+        )[0]
+        self.assertIn('result = 1;\n                break;', accept_loop)
+        self.assertIn("const int wait_result = peer_workers_wait", accept_loop)
+        self.assertIn("if (workers->initialized)", accept_loop)
 
     def test_safe_example_does_not_reintroduce_a_single_peer_bottleneck(self) -> None:
         self.assertIn("worker-count=8", EXAMPLE)
