@@ -9,6 +9,17 @@ DOWNSTREAM_PASS = "rc = ap_pass_brigade(f->next, brigade);"
 NORMALIZE_ASSIGNMENT = (
     "*eos_bucket = apache_phase4_normalize_response_brigade(*brigade);"
 )
+RC_NOT_SUCCESS = "if (rc != APR_SUCCESS)"
+RETURN_APR_SUCCESS = "return APR_SUCCESS;"
+RETURN_APR_EGENERAL = "return APR_EGENERAL;"
+INTERVENTION_SENTINEL = "N_INTERVENTION_STATUS"
+TERMINAL_EMITTING = "MSC_PHASE4_TERMINAL_OUTPUT_EMITTING"
+TERMINAL_SEALED = "MSC_PHASE4_TERMINAL_OUTPUT_SEALED"
+RESET_HTTP_STATUS = "r->status = HTTP_OK;"
+RESET_STATUS_LINE = "r->status_line = NULL;"
+AP_DIE_STATUS = "ap_die(status, r);"
+FILTER_ATTACH_FAILURE = "r->connection) == NULL"
+RECORD_INTERVENTION = "!msc_apache_contract_record_intervention_decision(msr)"
 
 phase4_normalize_helper = base.source_section(
     base.filters_c,
@@ -75,7 +86,7 @@ terminal_success_seal = (
     "if (terminal)\n"
     "    {\n"
     "        msr->response_phase4_terminal_output =\n"
-    "            MSC_PHASE4_TERMINAL_OUTPUT_SEALED;\n"
+    f"            {TERMINAL_SEALED};\n"
     "        apr_brigade_cleanup(brigade);\n"
     "    }"
 )
@@ -138,7 +149,7 @@ review_guards: list[tuple[bool, str]] = [
             "bucket != APR_BRIGADE_SENTINEL(*brigade);",
             "bucket = APR_BUCKET_NEXT(bucket))",
             "rc = apache_phase4_append_bucket(msr, conf, bucket);",
-            "if (rc != APR_SUCCESS)",
+            RC_NOT_SUCCESS,
             "return apache_phase4_fail_closed(msr, filter, *brigade,",
             '"failed to append response body to libmodsecurity"',
         ),
@@ -151,8 +162,8 @@ review_guards: list[tuple[bool, str]] = [
             "if (!msc_apache_contract_complete(msr, MSCONNECTOR_PHASE_RESPONSE_BODY))",
             "msr->response_body_processed = 1;",
             "*intervention = process_intervention(msr->t, f->r);",
-            "if (*intervention != N_INTERVENTION_STATUS &&",
-            "!msc_apache_contract_record_intervention_decision(msr))",
+            f"if (*intervention != {INTERVENTION_SENTINEL} &&",
+            RECORD_INTERVENTION,
             "MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE",
             '"could not record canonical P4 intervention decision"',
         ),
@@ -163,11 +174,11 @@ review_guards: list[tuple[bool, str]] = [
             finish_response_handler,
             "rc = apache_phase4_finish_response_body(msr, f, bb_in,",
             "&intervention);",
-            "if (rc != APR_SUCCESS)",
-            "if (intervention != N_INTERVENTION_STATUS)",
+            RC_NOT_SUCCESS,
+            f"if (intervention != {INTERVENTION_SENTINEL})",
             "rc = apache_phase4_handle_intervention(msr, conf, f, bb_in,",
             "intervention);",
-            "if (rc != APR_SUCCESS)",
+            RC_NOT_SUCCESS,
             "return apache_phase4_release_response_brigade(msr, f, terminal_brigade,",
         ),
         "Apache Phase4 dispatches every collected disruptive result before terminal release",
@@ -176,7 +187,7 @@ review_guards: list[tuple[bool, str]] = [
         base.tokens_in_order(
             input_eos_handler,
             "intervention = msc_finalize_request_body(msr, r);",
-            "if (intervention != N_INTERVENTION_STATUS)",
+            f"if (intervention != {INTERVENTION_SENTINEL})",
             "msr->request_body_intervention_sent = 1;",
             "ap_remove_input_filter(filter);",
             "return apache_input_filter_terminal_error(msr, r, intervention);",
@@ -188,9 +199,9 @@ review_guards: list[tuple[bool, str]] = [
         base.tokens_in_order(
             phase3_headers_handler,
             "intervention = process_intervention(msr->t, r);",
-            "if (intervention == N_INTERVENTION_STATUS)",
-            "return APR_SUCCESS;",
-            "if (!msc_apache_contract_record_intervention_decision(msr))",
+            f"if (intervention == {INTERVENTION_SENTINEL})",
+            RETURN_APR_SUCCESS,
+            f"if ({RECORD_INTERVENTION})",
             "wanted = msc_apache_contract_intervention_action(msr);",
             "apache_phase3_log_event(msr, r, wanted, wanted, original_status);",
             "return apache_send_precommit_terminal_error(msr, filter, brigade,",
@@ -208,7 +219,7 @@ review_guards: list[tuple[bool, str]] = [
             "conf->common_config.phase4_mode == MSCONNECTOR_PHASE4_MODE_STRICT);",
             "actual = apache_phase4_actual_action(action, wanted);",
             "if (action == MSCONNECTOR_LATE_INTERVENTION_LOG_ONLY)",
-            "return APR_SUCCESS;",
+            RETURN_APR_SUCCESS,
             "if (action == MSCONNECTOR_LATE_INTERVENTION_ABORT_CONNECTION)",
             "return apache_phase4_abort_response_connection(f);",
             '"response_not_committed"',
@@ -225,7 +236,7 @@ review_guards: list[tuple[bool, str]] = [
         )
         and base.tokens_in_order(
             release_after_pass,
-            "if (rc != APR_SUCCESS)",
+            RC_NOT_SUCCESS,
             terminal_success_seal,
             "return rc;",
         ),
@@ -235,9 +246,9 @@ review_guards: list[tuple[bool, str]] = [
         base.tokens_in_order(
             phase4_terminal_guard,
             "msr->response_phase4_terminal_output ==",
-            "MSC_PHASE4_TERMINAL_OUTPUT_SEALED",
+            TERMINAL_SEALED,
             "apr_brigade_cleanup(bb_in);",
-            "return APR_EGENERAL;",
+            RETURN_APR_EGENERAL,
         ),
         "Apache protocol terminal guard rejects every brigade after output is sealed",
     ),
@@ -245,9 +256,9 @@ review_guards: list[tuple[bool, str]] = [
         base.tokens_in_order(
             hook_insert_filter,
             'ap_add_output_filter("MODSECURITY_PHASE4_GUARD", msr, r,',
-            "r->connection) == NULL",
+            FILTER_ATTACH_FAILURE,
             'ap_add_output_filter("MODSECURITY_OUT", msr, r,',
-            "r->connection) == NULL",
+            FILTER_ATTACH_FAILURE,
         ),
         "Apache attaches both output filters with the canonical transaction and request context",
     ),
@@ -262,11 +273,11 @@ review_guards: list[tuple[bool, str]] = [
     (
         base.tokens_in_order(
             base.input_filter_terminal_error,
-            "MSC_PHASE4_TERMINAL_OUTPUT_EMITTING",
-            "r->status = HTTP_OK;",
-            "r->status_line = NULL;",
-            "ap_die(status, r);",
-            "MSC_PHASE4_TERMINAL_OUTPUT_SEALED",
+            TERMINAL_EMITTING,
+            RESET_HTTP_STATUS,
+            RESET_STATUS_LINE,
+            AP_DIE_STATUS,
+            TERMINAL_SEALED,
             "return AP_FILTER_ERROR;",
         ),
         "Apache input terminal errors neutralize status, emit, and seal the protocol output guard in order",
@@ -274,12 +285,12 @@ review_guards: list[tuple[bool, str]] = [
     (
         base.tokens_in_order(
             precommit_terminal_helper,
-            "MSC_PHASE4_TERMINAL_OUTPUT_EMITTING",
-            "r->status = HTTP_OK;",
-            "r->status_line = NULL;",
-            "ap_die(status, r);",
-            "MSC_PHASE4_TERMINAL_OUTPUT_SEALED",
-            "return APR_EGENERAL;",
+            TERMINAL_EMITTING,
+            RESET_HTTP_STATUS,
+            RESET_STATUS_LINE,
+            AP_DIE_STATUS,
+            TERMINAL_SEALED,
+            RETURN_APR_EGENERAL,
         ),
         "Apache pre-commit terminal errors neutralize status, emit, and seal the protocol output guard in order",
     ),
