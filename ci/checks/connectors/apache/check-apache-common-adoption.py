@@ -97,6 +97,11 @@ finish_response_handler = base.source_section(
     "static apr_status_t apache_output_filter_finish_response",
     "apr_status_t output_filter",
 )
+redirect_terminal_emission = base.source_section(
+    base.module_c,
+    "static int apache_phase4_redirect_is_terminal_error_emission",
+    "static void apache_phase4_fail_normal_redirect",
+)
 hook_insert_filter = base.source_section(
     base.module_c,
     "static void hook_insert_filter(request_rec *r)\n{",
@@ -127,14 +132,16 @@ review_guards: list[tuple[bool, str]] = [
             f"msc_apache_contract_complete(msr,\n            {REQUEST_BODY_PHASE})",
             "msr->request_body_processed = 1;",
             "intervention = process_intervention(msr->t, r);",
+            "return intervention;",
         ),
-        "Apache Phase2 one-shot gate precedes processing, completion, and intervention collection",
+        "Apache Phase2 one-shot gate precedes processing, completion, intervention collection, and the collected result return",
     ),
     (
         base.tokens_in_order(
             phase4_normalize_helper,
             "for (bucket = APR_BRIGADE_FIRST(bb_in);",
             "bucket != APR_BRIGADE_SENTINEL(bb_in); bucket = next)",
+            "next = APR_BUCKET_NEXT(bucket);",
             "if (eos != NULL)",
             "APR_BUCKET_REMOVE(bucket);",
             "apr_bucket_destroy(bucket);",
@@ -148,13 +155,14 @@ review_guards: list[tuple[bool, str]] = [
             NORMALIZE_ASSIGNMENT,
             "for (bucket = APR_BRIGADE_FIRST(*brigade);",
         ),
-        "Apache Phase4 normalizes at the prepare call site, destroys every suffix bucket after the first EOS, and returns that EOS",
+        "Apache Phase4 advances through normalization, destroys every suffix bucket after the first EOS, returns that EOS, and binds the prepare call site",
     ),
     (
         base.tokens_in_order(
             error_bucket_classifier,
             "first = APR_BRIGADE_FIRST(bb_in);",
             "for (bucket = first; bucket != APR_BRIGADE_SENTINEL(bb_in);",
+            "bucket = APR_BUCKET_NEXT(bucket))",
             "if (!AP_BUCKET_IS_ERROR(bucket))",
             "if (bucket != first)",
             "return -1;",
@@ -163,7 +171,7 @@ review_guards: list[tuple[bool, str]] = [
             "return -1;",
             "return error->status;",
         ),
-        "Apache Phase4 error-bucket classifier validates type, placement, HTTP status, and returns the validated status",
+        "Apache Phase4 error-bucket classifier scans the complete brigade, validates type, placement, and HTTP status, and returns the validated status",
     ),
     (
         base.tokens_in_order(
@@ -252,6 +260,8 @@ review_guards: list[tuple[bool, str]] = [
     (
         base.tokens_in_order(
             phase3_headers_handler,
+            "apache_add_response_headers(msr, r->err_headers_out);",
+            "apache_add_response_headers(msr, r->headers_out);",
             P3_PROCESS,
             "ap_remove_output_filter(filter);",
             "return apache_send_precommit_terminal_error(msr, filter, brigade,",
@@ -267,11 +277,12 @@ review_guards: list[tuple[bool, str]] = [
             "return apache_send_precommit_terminal_error(msr, filter, brigade,",
             "intervention);",
         ),
-        "Apache Phase3 fails closed on engine error, then completes before collecting and enforcing intervention",
+        "Apache Phase3 populates both response-header tables, fails closed on engine error, completes, and then collects and enforces intervention",
     ),
     (
         base.tokens_in_order(
             phase4_intervention_handler,
+            "msr->response.committed = apache_phase4_response_committed(msr, r);",
             "wanted = msc_apache_contract_intervention_action(msr);",
             "msconnector_late_intervention_policy_init(&policy);",
             "action = msconnector_late_intervention_resolve(&policy,",
@@ -285,7 +296,7 @@ review_guards: list[tuple[bool, str]] = [
             '"response_not_committed"',
             "return apache_send_precommit_terminal_error(msr, f, NULL, intervention);",
         ),
-        "Apache Phase4 bypasses only log-only, aborts strict committed responses, and denies before commit",
+        "Apache Phase4 derives commitment before policy resolution, bypasses only log-only, aborts strict committed responses, and denies before commit",
     ),
     (
         base.tokens_in_order(
@@ -302,6 +313,8 @@ review_guards: list[tuple[bool, str]] = [
     (
         base.tokens_in_order(
             base.phase4_release_helper,
+            "starts_response = apache_phase4_brigade_starts_response(brigade);",
+            "if ((starts_response || terminal) && !msr->response.committed &&",
             "msc_apache_contract_mark_response_committed(msr)",
             "msr->response.committed = 1;",
             DOWNSTREAM_PASS,
@@ -312,21 +325,35 @@ review_guards: list[tuple[bool, str]] = [
             terminal_success_seal,
             "return rc;",
         ),
-        "Apache progressive release commits before output and seals the successful terminal path after downstream output",
+        "Apache progressive release derives response-start state, commits before output, and seals the successful terminal path afterward",
     ),
     (
         base.tokens_in_order(
             phase4_terminal_guard,
+            "msc_t *msr = f != NULL ? (msc_t *)f->ctx : NULL;",
             "msr->response_phase4_terminal_output ==",
             TERMINAL_SEALED,
             "apr_brigade_cleanup(bb_in);",
             RETURN_APR_EGENERAL,
         ),
-        "Apache protocol terminal guard rejects every brigade after output is sealed",
+        "Apache protocol terminal guard reads its transaction context and rejects every brigade after output is sealed",
+    ),
+    (
+        base.tokens_in_order(
+            redirect_terminal_emission,
+            "if (!apache_phase4_redirect_has_local_error_document_proof(msr, r))",
+            "return 0;",
+            "msr->response_phase4_terminal_error_redirect_seen = 1;",
+            'apr_table_setn(r->notes, apache_phase4_terminal_error_redirect_note,',
+            "return 1;",
+        ),
+        "Apache terminal-error redirect exception requires the local ErrorDocument proof before permitting the bounded redirect",
     ),
     (
         base.tokens_in_order(
             hook_insert_filter,
+            "if (r->main != NULL)",
+            RETURN_VOID,
             "if (r->prev != NULL)",
             "if (!apache_phase4_redirect_is_terminal_error_emission(msr, r))",
             "apache_phase4_fail_normal_redirect(msr, r,",
@@ -334,7 +361,7 @@ review_guards: list[tuple[bool, str]] = [
             RETURN_VOID,
             'ap_add_input_filter("MODSECURITY_IN", msr, r, r->connection);',
         ),
-        "Apache rejects normal internal redirects before attaching request or response filters",
+        "Apache excludes subrequests and rejects normal internal redirects before attaching request or response filters",
     ),
     (
         base.tokens_in_order(
@@ -375,8 +402,13 @@ review_guards: list[tuple[bool, str]] = [
             'apr_table_setn(r->headers_out, "Location", location);',
             "result = intervention.status;",
             "goto cleanup;",
+            f"if (intervention.status != {INTERVENTION_SENTINEL})",
+            "result = intervention.status;",
+            "cleanup:",
+            "msc_release_intervention_buffers(&intervention);",
+            "return result;",
         ),
-        "Apache validates the native intervention result before enforcing redirects or other decisions",
+        "Apache validates the native intervention result and preserves both redirect and non-redirect enforcement sinks",
     ),
     (
         base.tokens_in_order(
