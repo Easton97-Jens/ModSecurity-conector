@@ -94,10 +94,14 @@ struct authorization_worker;
 typedef struct authorization_service {
     msconnector_runtime *runtime;
     const msconnector_http_authorization_profile *profile;
+    msconnector_http_authorization_profile profile_copy;
     authorization_request_limits request_limits;
     unsigned long connection_timeout_ms;
     unsigned long max_connections;
     unsigned long active_workers;
+    int deferred_cleanup;
+    int response_companion_quiesced;
+    int release_claimed;
     struct authorization_worker *workers;
     pthread_mutex_t runtime_lock;
     pthread_mutex_t worker_lock;
@@ -1230,7 +1234,8 @@ static int authorization_service_init(
     }
     memset(service, 0, sizeof(*service));
     service->runtime = runtime;
-    service->profile = profile;
+    service->profile_copy = *profile;
+    service->profile = &service->profile_copy;
     service->connection_timeout_ms = cli->connection_timeout_ms;
     service->max_connections = cli->max_connections;
     msconnector_runtime_request_contract(runtime, &service->request_limits.mapper_contract);
@@ -1265,8 +1270,16 @@ static void authorization_service_destroy(authorization_service *service) {
     memset(service, 0, sizeof(*service));
 }
 
+static void authorization_service_release(authorization_service *service) {
+    if (service == NULL) return;
+    msconnector_runtime_destroy(&service->runtime);
+    authorization_service_destroy(service);
+    free(service);
+}
+
 static void authorization_worker_release(authorization_worker *worker) {
     authorization_service *service;
+    int release_service = 0;
     if (worker == NULL) {
         return;
     }
@@ -1281,6 +1294,12 @@ static void authorization_worker_release(authorization_worker *worker) {
             if (service->active_workers > 0UL) {
                 --service->active_workers;
             }
+            if (service->active_workers == 0UL && service->deferred_cleanup &&
+                service->response_companion_quiesced && !service->release_claimed) {
+                service->deferred_cleanup = 0;
+                service->release_claimed = 1;
+                release_service = 1;
+            }
             (void)pthread_cond_broadcast(&service->workers_idle);
         }
         (void)pthread_mutex_unlock(&service->worker_lock);
@@ -1289,6 +1308,7 @@ static void authorization_worker_release(authorization_worker *worker) {
         (void)close(worker->socket_fd);
     }
     free(worker);
+    if (release_service) authorization_service_release(service);
 }
 
 static void *authorization_worker_main(void *argument) {
@@ -1375,19 +1395,58 @@ static void authorization_shutdown_workers(authorization_service *service) {
     (void)pthread_mutex_unlock(&service->worker_lock);
 }
 
-static int authorization_wait_for_workers(authorization_service *service) {
+static int authorization_wait_for_workers(authorization_service *service, unsigned long timeout_ms) {
+    struct timespec deadline;
     int result;
-    if (service == NULL || pthread_mutex_lock(&service->worker_lock) != 0) {
+    int workers_finished;
+    if (service == NULL || timeout_ms == 0UL || clock_gettime(CLOCK_REALTIME, &deadline) != 0 ||
+        pthread_mutex_lock(&service->worker_lock) != 0) {
         return 0;
     }
+    deadline.tv_sec += (time_t)(timeout_ms / 1000UL);
+    deadline.tv_nsec += (long)((timeout_ms % 1000UL) * 1000000UL);
+    if (deadline.tv_nsec >= 1000000000L) { ++deadline.tv_sec; deadline.tv_nsec -= 1000000000L; }
     result = 0;
     while (service->active_workers > 0UL && result == 0) {
-        result = pthread_cond_wait(&service->workers_idle, &service->worker_lock);
+        result = pthread_cond_timedwait(&service->workers_idle, &service->worker_lock, &deadline);
     }
+    workers_finished = result == 0 && service->active_workers == 0UL;
     if (pthread_mutex_unlock(&service->worker_lock) != 0) {
         return 0;
     }
-    return result == 0;
+    return workers_finished;
+}
+
+static int authorization_defer_cleanup(authorization_service *service) {
+    int deferred = 0;
+    if (service == NULL || pthread_mutex_lock(&service->worker_lock) != 0) return -1;
+    if (service->active_workers > 0UL) { service->deferred_cleanup = 1; deferred = 1; }
+    (void)pthread_mutex_unlock(&service->worker_lock);
+    return deferred;
+}
+
+static int authorization_mark_response_companion_quiesced(
+    authorization_service *service) {
+    int release_service = 0;
+
+    if (service == NULL || pthread_mutex_lock(&service->worker_lock) != 0) {
+        return -1;
+    }
+    service->response_companion_quiesced = 1;
+    if (service->active_workers == 0UL) {
+        if (service->deferred_cleanup && !service->release_claimed) {
+            service->deferred_cleanup = 0;
+            service->release_claimed = 1;
+            release_service = 1;
+        } else if (!service->deferred_cleanup && !service->release_claimed) {
+            service->release_claimed = 1;
+            release_service = 1;
+        }
+    } else {
+        service->deferred_cleanup = 1;
+    }
+    (void)pthread_mutex_unlock(&service->worker_lock);
+    return release_service;
 }
 
 static int authorization_shutdown_response_companion(
@@ -1495,7 +1554,7 @@ static int serve_authorization(
     const authorization_cli *cli,
     const msconnector_http_authorization_profile *profile) {
     msconnector_runtime *runtime = NULL;
-    authorization_service service;
+    authorization_service *service = NULL;
     struct sockaddr_in local = {0};
     int listener = -1;
     int service_status = 0;
@@ -1523,17 +1582,18 @@ static int serve_authorization(
         msconnector_runtime_destroy(&runtime);
         return 1;
     }
-    if (!authorization_service_init(&service, runtime, profile, cli)) {
+    service = calloc(1U, sizeof(*service));
+    if (service == NULL || !authorization_service_init(service, runtime, profile, cli)) {
         (void)fprintf(stderr, "%s service synchronization setup failed\n",
             profile->connector_name);
+        free(service);
         msconnector_runtime_destroy(&runtime);
         return 1;
     }
     if (!create_listener(cli->listen_spec, &listener, &local, error, sizeof(error))) {
         (void)fprintf(stderr, "%s service start failed: %s\n",
             profile->connector_name, error);
-        authorization_service_destroy(&service);
-        msconnector_runtime_destroy(&runtime);
+        authorization_service_release(service);
         return 1;
     }
     memset(&action, 0, sizeof(action));
@@ -1546,27 +1606,46 @@ static int serve_authorization(
         profile->connector_name, profile->integration_mode, cli->listen_spec);
     (void)fflush(stdout);
     service_status = authorization_serve_requests(
-        &service, listener, &local, cli->max_requests);
+        service, listener, &local, cli->max_requests);
     if (listener >= 0) {
         (void)close(listener);
     }
     if (authorization_stop || service_status != 0) {
-        authorization_shutdown_workers(&service);
+        authorization_shutdown_workers(service);
     }
-    if (!authorization_wait_for_workers(&service)) {
-        (void)fprintf(stderr, "%s worker shutdown failed\n",
+    if (!authorization_wait_for_workers(service, cli->connection_timeout_ms)) {
+        (void)fprintf(stderr, "%s worker shutdown grace period expired; forcing socket cancellation\n",
             profile->connector_name);
-        authorization_shutdown_workers(&service);
-        abort();
+        authorization_shutdown_workers(service);
+        if (!authorization_wait_for_workers(service, cli->connection_timeout_ms)) {
+            (void)fprintf(stderr, "%s worker shutdown did not complete; runtime call may be uninterruptible\n",
+                profile->connector_name);
+            if (authorization_defer_cleanup(service) != 0) {
+                /* A profile without a response companion cannot have handed a
+                 * transaction to an external observer.  Its final worker may
+                 * therefore release the service after it returns from an
+                 * uninterruptible runtime call.  Profiles with a companion
+                 * remain quarantined: its shutdown callback is only valid
+                 * after both workers and the observer have quiesced. */
+                if (profile->shutdown_response_companion == NULL &&
+                    authorization_mark_response_companion_quiesced(service) > 0) {
+                    authorization_service_release(service);
+                }
+                return 1;
+            }
+        }
     }
     if (!authorization_shutdown_response_companion(profile)) {
         (void)fprintf(stderr, "%s response companion did not quiesce; refusing runtime destruction\n",
             profile->connector_name);
-        authorization_service_destroy(&service);
-        abort();
+        /* Keep the service and runtime quarantined: the companion may still
+         * reference live transaction state, so neither teardown nor process
+         * termination is safe on this failure path. */
+        return service_status != 0 ? service_status : 1;
     }
-    authorization_service_destroy(&service);
-    msconnector_runtime_destroy(&runtime);
+    if (authorization_mark_response_companion_quiesced(service) > 0) {
+        authorization_service_release(service);
+    }
     return service_status;
 }
 
