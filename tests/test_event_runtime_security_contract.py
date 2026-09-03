@@ -88,6 +88,19 @@ class EventRuntimeSecurityContractTests(unittest.TestCase):
                       "strstr(path, \"/./\")", "strncmp(path, \"./\", 2U)"):
             self.assertIn(token, path_validation)
 
+    def test_event_parent_accepts_only_trusted_root_or_effective_user(self) -> None:
+        secure_open = self.event_jsonl_source.split(
+            "int msconnector_open_private_event_file(", 1
+        )[1]
+
+        self.assertIn(
+            "directory_status.st_uid != geteuid() &&\n"
+            "            directory_status.st_uid != 0",
+            secure_open,
+        )
+        self.assertIn("S_IWGRP | S_IWOTH", secure_open)
+        self.assertIn("file_status.st_uid != geteuid()", self.event_jsonl_source)
+
     def test_apache_uses_the_common_private_descriptor_before_apr_ownership(self) -> None:
         opener = self.apache_source.split(
             "static apr_status_t apache_open_event_file(", 1

@@ -11,7 +11,7 @@ Dies ist die vollständige aktuelle `key=value`-Parseroberfläche von `common/ru
 | [`body_limit_action`](#body-limit-action) | Common Runtime | Aufzählung | nein | reject | Common-Runtime-key=value-Datei | Steuert, ob ein Chunk über dem Limit vor der Engine-Eingabe abgewiesen oder gekürzt wird. |
 | [`default_block_status`](#default-block-status) | Common Runtime | HTTP-Status | nein | 403 | Common-Runtime-key=value-Datei | Fallback-Status für unterstützte Sperraktionen vor dem Commit. |
 | [`default_error_status`](#default-error-status) | Common Runtime | HTTP-Fehlerstatus | nein | 500 | Common-Runtime-key=value-Datei | Fallback-Status für Runtime-Fehler. |
-| [`enabled`](#enabled) | Common Runtime | Boolescher Wert | nein | off | Common-Runtime-key=value-Datei | Aktiviert die Common Runtime; eine aktivierte Runtime benötigt eine Inline- oder lokale Datei-Regelquelle. |
+| [`enabled`](#enabled) | Common Runtime | Boolescher Wert | nein | off | Common-Runtime-key=value-Datei | Aktiviert die Common Runtime; die aktivierte Runtime erfordert eine Inline- oder lokale Regeldateiquelle. |
 | [`event_path`](#event-path) | Common Runtime | Pfad | nein | none | Common-Runtime-key=value-Datei | Hängt bei Konfiguration JSONL-Ereignisse an, die nur Metadaten enthalten. |
 | [`late_intervention_timeout`](#late-intervention-timeout) | Common Runtime | nichtnegative dezimale Millisekundenanzahl | nein | 0 | Common-Runtime-key=value-Datei | Speichert ein optionales Budget für späte Interventionen; Common besitzt keine Timer-/Abbruchprimitive. |
 | [`max_event_json_bytes`](#max-event-json-bytes) | Common Runtime | positive dezimale Byteanzahl | nein | 16384 | Common-Runtime-key=value-Datei | Begrenzt die Größe serialisierter Metadatenereignisse. |
@@ -28,8 +28,8 @@ Dies ist die vollständige aktuelle `key=value`-Parseroberfläche von `common/ru
 | [`response_body_mode`](#response-body-mode) | Common Runtime | Aufzählung | nein | none | Common-Runtime-key=value-Datei | Wählt den Common-Modus zur Response-Body-Verarbeitung; ein bestimmter Host unterstützt möglicherweise nur eine Teilmenge. |
 | [`rules_file`](#rules-file) | Common Runtime | Pfad | nein | none | Common-Runtime-key=value-Datei | Lädt Regeln aus einer lokalen Datei. |
 | [`rules_inline`](#rules-inline) | Common Runtime | Zeichenkette | nein | none | Common-Runtime-key=value-Datei | Fügt eine Inline-Regelkonfiguration hinzu. |
-| [`rules_remote_key`](#rules-remote-key) | Common Runtime | abgelehnte Zeichenkette | nein | none | Common-Runtime-key=value-Datei | Legacy-Schlüssel, der nur erkannt wird, um Remote-Regelkonfiguration abzulehnen. |
-| [`rules_remote_url`](#rules-remote-url) | Common Runtime | abgelehnte URL | nein | none | Common-Runtime-key=value-Datei | Legacy-Schlüssel, der nur erkannt wird, um Remote-Regelkonfiguration abzulehnen. |
+| [`rules_remote_key`](#rules-remote-key) | Common Runtime | registrierte, aber stets abgewiesene Runtime-Einstellung | nein | kein verwendbarer Wert | Common-Runtime-key=value-Datei | Policy A weist Remote-Rule-Konfiguration ab, bevor ein Regellader- oder Netzwerkvorgang stattfindet. |
+| [`rules_remote_url`](#rules-remote-url) | Common Runtime | registrierte, aber stets abgewiesene Runtime-Einstellung | nein | kein verwendbarer Wert | Common-Runtime-key=value-Datei | Policy A weist Remote-Rule-Konfiguration ab, bevor ein Regellader- oder Netzwerkvorgang stattfindet. |
 | [`transaction_id`](#transaction-id) | Common Runtime | Zeichenkette | nein | none | Common-Runtime-key=value-Datei | Setzt eine statische Runtime-Transaktionskennung. |
 | [`transaction_id_header`](#transaction-id-header) | Common Runtime | Headername | nein | x-request-id | Common-Runtime-key=value-Datei | Wählt den Fallback-Namen des Korrelations-Headers. |
 | [`use_error_log`](#use-error-log) | Common Runtime | Boolescher Wert | nein | on | Common-Runtime-key=value-Datei | Speichert die Common-Logging-Präferenz. Ein Connector muss sie verwenden, bevor eine Logging-Wirkung beim Host behauptet werden kann. |
@@ -206,7 +206,7 @@ Limits begrenzen den Ressourcenverbrauch. Fallback-Status für Runtime-Fehler.
 
 ### Kurzbeschreibung
 
-Aktiviert die Common Runtime; eine aktivierte Runtime benötigt eine Inline- oder lokale Datei-Regelquelle.
+Aktiviert die Common Runtime; die aktivierte Runtime erfordert eine Inline- oder lokale Regeldateiquelle.
 
 ### Syntax
 
@@ -240,8 +240,7 @@ Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Ska
 
 P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
 
-Aktiviert die Common Runtime; eine aktivierte Runtime benötigt eine Inline-
-oder lokale Dateiregelquelle. Remote Rules werden technisch abgelehnt.
+Aktiviert die Common Runtime; die aktivierte Runtime erfordert eine Inline- oder lokale Regeldateiquelle.
 
 ### Validierung und Fehler
 
@@ -255,9 +254,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 ### Sicherheit und Betrieb
 
-Limits begrenzen den Ressourcenverbrauch. Eine aktivierte Common Runtime
-benötigt eine Inline- oder lokale Dateiregelquelle; Remote Rules werden
-technisch abgelehnt.
+Das Deaktivieren der Common Runtime umgeht deren Verarbeitung, auch wenn eine Inline- oder lokale Regeldateiquelle konfiguriert ist.
 
 <a id="event-path"></a>
 ## `event_path`
@@ -390,7 +387,7 @@ max_event_json_bytes=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| positive dezimale Byteanzahl | 1 bis 16384 | nein |
+| positive dezimale Byteanzahl | 1 bis 16384 Byte | nein |
 
 ### Standardwert
 
@@ -412,8 +409,7 @@ Begrenzt die Größe serialisierter Metadatenereignisse.
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und Werte über
-16384 lassen die Runtime-Konfigurationsprüfung fehlschlagen.
+Die Runtime-Konfiguration weist null, nichtdezimalen Werte und Werte oberhalb der harten Obergrenze von 16384 Byte ab.
 
 ### Beispiel
 
@@ -423,7 +419,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 ### Sicherheit und Betrieb
 
-Limits begrenzen den Ressourcenverbrauch. Begrenzt die Größe serialisierter Metadatenereignisse.
+Die harte Obergrenze von 16384 Byte begrenzt einen reinen Metadaten-Ereignisdatensatz vor der JSONL-Serialisierung.
 
 <a id="max-header-count"></a>
 ## `max_header_count`
@@ -468,8 +464,7 @@ Begrenzt die akzeptierte Headeranzahl.
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und Werte über 256
-lassen die Runtime-Konfigurationsprüfung fehlschlagen.
+Die Runtime-Konfiguration weist null, nichtdezimalen Werte und Werte oberhalb der harten Obergrenze von 256 ab.
 
 ### Beispiel
 
@@ -479,7 +474,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 ### Sicherheit und Betrieb
 
-Limits begrenzen den Ressourcenverbrauch. Begrenzt die akzeptierte Headeranzahl.
+Die harte Obergrenze von 256 Headern begrenzt Parser-Iteration und Metadatenallokation pro Transaktion.
 
 <a id="max-header-name-size"></a>
 ## `max_header_name_size`
@@ -502,7 +497,7 @@ max_header_name_size=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| positive dezimale Byteanzahl | 1 bis 256 | nein |
+| positive dezimale Byteanzahl | 1 bis 256 Byte | nein |
 
 ### Standardwert
 
@@ -524,8 +519,7 @@ Begrenzt die Größe jedes Headernamens.
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und Werte über 256
-lassen die Runtime-Konfigurationsprüfung fehlschlagen.
+Die Runtime-Konfiguration weist null, nichtdezimalen Werte und Werte oberhalb der harten Obergrenze von 256 Byte ab.
 
 ### Beispiel
 
@@ -535,7 +529,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 ### Sicherheit und Betrieb
 
-Limits begrenzen den Ressourcenverbrauch. Begrenzt die Größe jedes Headernamens.
+Die harte Obergrenze von 256 Byte begrenzt Headernamen-Speicher und Validierungsarbeit.
 
 <a id="max-header-value-size"></a>
 ## `max_header_value_size`
@@ -558,7 +552,7 @@ max_header_value_size=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| positive dezimale Byteanzahl | 1 bis 8192 | nein |
+| positive dezimale Byteanzahl | 1 bis 8192 Byte | nein |
 
 ### Standardwert
 
@@ -580,8 +574,7 @@ Begrenzt die Größe jedes Headerwerts.
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und Werte über 8192
-lassen die Runtime-Konfigurationsprüfung fehlschlagen.
+Die Runtime-Konfiguration weist null, nichtdezimalen Werte und Werte oberhalb der harten Obergrenze von 8192 Byte ab.
 
 ### Beispiel
 
@@ -591,7 +584,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 ### Sicherheit und Betrieb
 
-Limits begrenzen den Ressourcenverbrauch. Begrenzt die Größe jedes Headerwerts.
+Die harte Obergrenze von 8192 Byte begrenzt Headerwert-Speicher und Validierungsarbeit.
 
 <a id="max-total-header-bytes"></a>
 ## `max_total_header_bytes`
@@ -614,7 +607,7 @@ max_total_header_bytes=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| positive dezimale Byteanzahl | 1 bis 65536 | nein |
+| positive dezimale Byteanzahl | 1 bis 65536 Byte | nein |
 
 ### Standardwert
 
@@ -636,8 +629,7 @@ Begrenzt die gesamte Header-Byteanzahl.
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und Werte über
-65536 lassen die Runtime-Konfigurationsprüfung fehlschlagen.
+Die Runtime-Konfiguration weist null, nichtdezimalen Werte und Werte oberhalb der harten Obergrenze von 65536 Byte ab.
 
 ### Beispiel
 
@@ -647,7 +639,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 ### Sicherheit und Betrieb
 
-Limits begrenzen den Ressourcenverbrauch. Begrenzt die gesamte Header-Byteanzahl.
+Die harte Obergrenze von 65536 Byte begrenzt aggregierten Header-Speicher und überlaufsichere Bilanzierung.
 
 <a id="phase4-content-types-file"></a>
 ## `phase4_content_types_file`
@@ -835,14 +827,13 @@ request_body_limit=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| positive dezimale Byteanzahl | 1 bis 10485760 (10 MiB) | nein |
+| positive dezimale Byteanzahl | 1 bis 10485760 Byte (harte Obergrenze 10 MiB) | nein |
 
 ### Standardwert
 
 1048576
 
 Quelle: `common/include/msconnector/limits.h:MSCONNECTOR_MAX_BODY_BUFFER_SIZE`.
-Harte Konfigurationsobergrenze: `MSCONNECTOR_MAX_CONFIG_BODY_BYTES` (10485760).
 
 ### Vererbung und Zusammenführung
 
@@ -858,8 +849,7 @@ Begrenzt die der Engine angebotenen Request-Bytes.
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und Werte über
-10485760 lassen die Runtime-Konfigurationsprüfung fehlschlagen.
+Die Runtime-Konfiguration weist null, nichtdezimalen Werte und Werte oberhalb der harten Sicherheitsobergrenze von 10485760 Byte (10 MiB) ab.
 
 ### Beispiel
 
@@ -869,7 +859,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 ### Sicherheit und Betrieb
 
-Limits begrenzen den Ressourcenverbrauch. Begrenzt die der Engine angebotenen Request-Bytes.
+Die harte Obergrenze von 10 MiB begrenzt Request-Body-Allokation und Engine-Eingabe, auch wenn ein Deployment den Standardwert von 1048576 Byte anhebt.
 
 <a id="request-body-mode"></a>
 ## `request_body_mode`
@@ -947,14 +937,13 @@ response_body_limit=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| positive dezimale Byteanzahl | 1 bis 10485760 (10 MiB) | nein |
+| positive dezimale Byteanzahl | 1 bis 10485760 Byte (harte Obergrenze 10 MiB) | nein |
 
 ### Standardwert
 
 1048576
 
 Quelle: `common/include/msconnector/limits.h:MSCONNECTOR_MAX_RESPONSE_BODY_BUFFER_SIZE`.
-Harte Konfigurationsobergrenze: `MSCONNECTOR_MAX_CONFIG_BODY_BYTES` (10485760).
 
 ### Vererbung und Zusammenführung
 
@@ -970,8 +959,7 @@ Begrenzt die der Engine angebotenen Response-Bytes.
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und Werte über
-10485760 lassen die Runtime-Konfigurationsprüfung fehlschlagen.
+Die Runtime-Konfiguration weist null, nichtdezimalen Werte und Werte oberhalb der harten Sicherheitsobergrenze von 10485760 Byte (10 MiB) ab.
 
 ### Beispiel
 
@@ -981,7 +969,7 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 ### Sicherheit und Betrieb
 
-Limits begrenzen den Ressourcenverbrauch. Begrenzt die der Engine angebotenen Response-Bytes.
+Die harte Obergrenze von 10 MiB begrenzt Response-Body-Allokation und Engine-Eingabe, auch wenn ein Deployment den Standardwert von 1048576 Byte anhebt.
 
 <a id="response-body-mode"></a>
 ## `response_body_mode`
@@ -1153,8 +1141,7 @@ Limits begrenzen den Ressourcenverbrauch. Fügt eine Inline-Regelkonfiguration h
 
 ### Kurzbeschreibung
 
-Legacy-Kompatibilitätsschlüssel. Remote-Regelladen ist einheitlich deaktiviert;
-dieser Schlüssel wird nur so weit erkannt, dass ein Konfigurationsfehler entsteht.
+Policy A weist Remote-Rule-Konfiguration ab, bevor ein Regellader- oder Netzwerkvorgang stattfindet.
 
 ### Syntax
 
@@ -1170,48 +1157,46 @@ rules_remote_key=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| abgelehnte Zeichenkette | kein Wert wird akzeptiert | nein |
+| registrierte, aber stets abgewiesene Runtime-Einstellung | kein Wert wird akzeptiert | nein |
 
 ### Standardwert
 
-none
+kein verwendbarer Wert
 
-Quelle: `Runtime-Parser hat keinen Standardwert`.
+Quelle: `Sicherheitspolicy: Laden entfernter Regeln deaktiviert`.
 
 ### Vererbung und Zusammenführung
 
-Keine Vererbung auf Dateiebene; Hostintegrationen können ihre eigene Konfiguration vor dem Start der Common Runtime zusammenführen.
+Kein Remote-Wert kann geerbt oder zusammengeführt werden, weil jede Verwendung abgewiesen wird.
 
-Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Skalarkindwerte Elternwerte; Runtime-Dateien werden als eine konkrete Konfiguration geparst.
+Zusammenführung: Kein Remote-Wert kann zusammengeführt werden, weil jede Verwendung vor dem Laden von Regeln abgewiesen wird.
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
+P1–P4-Relevanz: Über diese Runtime-Einstellung ist kein Regellader- oder Netzwerkpfad erreichbar.
 
-Remote-Regelladen wird vor dem Loader, jedem Netzwerkauruf und jedem nativen
-Remote-Rule-API-Aufruf deaktiviert.
+Policy A weist Remote-Rule-Konfiguration ab, bevor ein Regellader- oder Netzwerkvorgang stattfindet.
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und schlüsselspezifisch ungültige Werte lassen die Runtime-Konfigurationsprüfung fehlschlagen. Jeder konfigurierte Remote-Regel-Schlüssel oder jede Remote-Regel-URL schlägt ebenfalls fail-closed fehl.
+Die Common Runtime weist jeden Remote-Schlüssel oder jede Remote-URL während der Konfigurationsvalidierung vor einem Regellader- oder Netzwerkvorgang ab.
 
 ### Beispiel
 
-Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
+Es gibt kein akzeptiertes Beispiel: Jeder konfigurierte Wert wird durch die Sicherheitspolicy abgewiesen.
 
-Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../../examples/lighttpd/safe/msconnector-runtime.conf).
+Quellenbasiertes Beispiel: `common/src/config.c`.
 
 ### Sicherheit und Betrieb
 
-Limits begrenzen den Ressourcenverbrauch. Remote-Regelladen ist deaktiviert; Inline-Regeln oder eine lokale Regeldatei verwenden.
+Policy A deaktiviert das Laden entfernter Regeln für jeden Connector technisch. Ein konfigurierter Remote-Wert kann keinen Netzwerkzugriff oder eine partielle Regelaktivierung verursachen.
 
 <a id="rules-remote-url"></a>
 ## `rules_remote_url`
 
 ### Kurzbeschreibung
 
-Legacy-Kompatibilitätsschlüssel. Remote-Regelladen ist einheitlich deaktiviert;
-dieser Schlüssel wird nur so weit erkannt, dass ein Konfigurationsfehler entsteht.
+Policy A weist Remote-Rule-Konfiguration ab, bevor ein Regellader- oder Netzwerkvorgang stattfindet.
 
 ### Syntax
 
@@ -1227,40 +1212,39 @@ rules_remote_url=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| abgelehnte URL | kein Wert wird akzeptiert | nein |
+| registrierte, aber stets abgewiesene Runtime-Einstellung | kein Wert wird akzeptiert | nein |
 
 ### Standardwert
 
-none
+kein verwendbarer Wert
 
-Quelle: `Runtime-Parser hat keinen Standardwert`.
+Quelle: `Sicherheitspolicy: Laden entfernter Regeln deaktiviert`.
 
 ### Vererbung und Zusammenführung
 
-Keine Vererbung auf Dateiebene; Hostintegrationen können ihre eigene Konfiguration vor dem Start der Common Runtime zusammenführen.
+Kein Remote-Wert kann geerbt oder zusammengeführt werden, weil jede Verwendung abgewiesen wird.
 
-Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Skalarkindwerte Elternwerte; Runtime-Dateien werden als eine konkrete Konfiguration geparst.
+Zusammenführung: Kein Remote-Wert kann zusammengeführt werden, weil jede Verwendung vor dem Laden von Regeln abgewiesen wird.
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
+P1–P4-Relevanz: Über diese Runtime-Einstellung ist kein Regellader- oder Netzwerkpfad erreichbar.
 
-Remote-Regelladen wird vor dem Loader, jedem Netzwerkauruf und jedem nativen
-Remote-Rule-API-Aufruf deaktiviert.
+Policy A weist Remote-Rule-Konfiguration ab, bevor ein Regellader- oder Netzwerkvorgang stattfindet.
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und schlüsselspezifisch ungültige Werte lassen die Runtime-Konfigurationsprüfung fehlschlagen. Jeder konfigurierte Remote-Regel-Schlüssel oder jede Remote-Regel-URL schlägt ebenfalls fail-closed fehl.
+Die Common Runtime weist jeden Remote-Schlüssel oder jede Remote-URL während der Konfigurationsvalidierung vor einem Regellader- oder Netzwerkvorgang ab.
 
 ### Beispiel
 
-Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
+Es gibt kein akzeptiertes Beispiel: Jeder konfigurierte Wert wird durch die Sicherheitspolicy abgewiesen.
 
-Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../../examples/lighttpd/safe/msconnector-runtime.conf).
+Quellenbasiertes Beispiel: `common/src/config.c`.
 
 ### Sicherheit und Betrieb
 
-Limits begrenzen den Ressourcenverbrauch. Remote-Regelladen ist deaktiviert; Inline-Regeln oder eine lokale Regeldatei verwenden.
+Policy A deaktiviert das Laden entfernter Regeln für jeden Connector technisch. Ein konfigurierter Remote-Wert kann keinen Netzwerkzugriff oder eine partielle Regelaktivierung verursachen.
 
 <a id="transaction-id"></a>
 ## `transaction_id`

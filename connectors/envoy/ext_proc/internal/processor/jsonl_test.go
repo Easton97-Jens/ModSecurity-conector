@@ -1,6 +1,7 @@
 package processor
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +16,13 @@ func TestJSONLObserverWritesMetadataOnlyCompletionRecord(t *testing.T) {
 	observer, err := NewJSONLObserver(path)
 	if err != nil {
 		t.Fatalf("NewJSONLObserver() error = %v", err)
+	}
+	var status unix.Stat_t
+	if err := unix.Stat(path, &status); err != nil {
+		t.Fatalf("Stat() error = %v", err)
+	}
+	if status.Uid != uint32(unix.Geteuid()) || status.Mode&0o777 != 0o600 {
+		t.Fatalf("event log ownership/mode = uid %d mode %o", status.Uid, status.Mode&0o777)
 	}
 	defer observer.Close()
 	if err := observer.Record(Summary{
@@ -122,6 +130,51 @@ func TestJSONLObserverRejectsAncestorSymlink(t *testing.T) {
 	path := filepath.Join(link, "nested", "events.jsonl")
 	if _, err := NewJSONLObserver(path); err == nil {
 		t.Fatal("NewJSONLObserver() followed ancestor symlink")
+	}
+}
+
+func TestPrivateEventLogRetainsValidatedParentDescriptor(t *testing.T) {
+	root := t.TempDir()
+	parent := filepath.Join(root, "validated-parent")
+	retainedParent := filepath.Join(root, "retained-parent")
+	attackerParent := filepath.Join(root, "replacement-parent")
+	if err := os.Mkdir(parent, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(attackerParent, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	parentFD, err := openPrivateEventParent(parent)
+	if err != nil {
+		t.Fatalf("openPrivateEventParent() error = %v", err)
+	}
+	defer func() { _ = unix.Close(parentFD) }()
+	if err := os.Rename(parent, retainedParent); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(attackerParent, parent); err != nil {
+		t.Fatal(err)
+	}
+	observer, err := openPrivateEventLog(parentFD, "events.jsonl", filepath.Join(parent, "events.jsonl"))
+	if err != nil {
+		t.Fatalf("openPrivateEventLog() error = %v", err)
+	}
+	if _, err := observer.WriteString("anchored\\n"); err != nil {
+		_ = observer.Close()
+		t.Fatal(err)
+	}
+	if err := observer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	anchored, err := os.ReadFile(filepath.Join(retainedParent, "events.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(anchored) != "anchored\\n" {
+		t.Fatalf("anchored event content = %q", anchored)
+	}
+	if _, err := os.Stat(filepath.Join(attackerParent, "events.jsonl")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("replacement parent received an event log: %v", err)
 	}
 }
 

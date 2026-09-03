@@ -2944,8 +2944,10 @@ static int send_malformed_notify_outcome(
     runtime_init_decision(&decision, 2, "deny", 400,
         "invalid SPOP NOTIFY payload");
     decision.disruptive = 1;
+    /* This is protocol admission, not a valid engine decision: detect-only
+     * must not turn malformed client-controlled framing into a pass. */
     if (build_decision_ack_payload(&ack_payload, &decision,
-            "malformed-notify", mode_enforces(&state->config), 0) != 0) {
+            "malformed-notify", 1, 0) != 0) {
         log_line(log, "malformed NOTIFY outcome encoding failed");
         return -1;
     }
@@ -3079,17 +3081,32 @@ static void build_response_from_notify(
         state->config.response_body_limit > 0U);
 }
 
+typedef enum spop_ack_decision_origin {
+    SPOP_ACK_FAILURE_DECISION = 0,
+    SPOP_ACK_ENGINE_DECISION
+} spop_ack_decision_origin;
+
+/* Detect-only applies to successful rule evaluation only. Every admission,
+ * lifecycle, queue, correlation, or transport failure keeps fail-closed ACK
+ * semantics; the configured fail_mode still controls whether it is disruptive. */
+static int production_ack_enforces(const agent_config *config,
+        spop_ack_decision_origin origin) {
+    return origin != SPOP_ACK_ENGINE_DECISION || mode_enforces(config);
+}
+
 typedef struct spop_production_task_context {
     agent_state *state;
     notify_request request;
     haproxy_modsecurity_decision decision;
     int modsec_processed;
+    spop_ack_decision_origin decision_origin;
     const char *decision_text;
     char response_handle[HAPROXY_SPOP_RESPONSE_COMPANION_HANDLE_STORAGE];
 } spop_production_task_context;
 typedef struct spop_production_result {
     haproxy_modsecurity_decision *decision;
     int *modsec_processed;
+    spop_ack_decision_origin *decision_origin;
     const char **decision_text;
     char *response_handle;
 } spop_production_result;
@@ -3204,6 +3221,7 @@ static void process_production_response_notify(
         const notify_request *request,
         haproxy_modsecurity_decision *decision,
         int *modsec_processed,
+        spop_ack_decision_origin *decision_origin,
         const char **decision_text) {
     haproxy_modsecurity_response response;
     haproxy_modsecurity_transaction *transaction;
@@ -3250,6 +3268,7 @@ static void process_production_response_notify(
         *decision_text = set_processing_failure(state, decision, phase, reason);
     } else {
         *modsec_processed = 1;
+        *decision_origin = SPOP_ACK_ENGINE_DECISION;
         if (decision->disruptive != 0) {
             *decision_text = decision->action;
         }
@@ -3258,6 +3277,7 @@ static void process_production_response_notify(
             decision->disruptive == 0) {
         if (transaction_cache_store(state, request->request_id, transaction) != 0) {
             haproxy_modsecurity_transaction_abort(transaction);
+            *decision_origin = SPOP_ACK_FAILURE_DECISION;
             *decision_text = set_processing_failure(state, decision, phase,
                 "transaction cache store failed while awaiting response EOS");
         }
@@ -3265,6 +3285,7 @@ static void process_production_response_notify(
             decision->disruptive == 0) {
         if (transaction_cache_store(state, request->request_id, transaction) != 0) {
             haproxy_modsecurity_transaction_abort(transaction);
+            *decision_origin = SPOP_ACK_FAILURE_DECISION;
             *decision_text = set_processing_failure(state, decision, phase,
                 "transaction cache store failed after response headers");
         }
@@ -3301,6 +3322,7 @@ static void finish_or_store_request_transaction(
         const notify_request *request,
         haproxy_modsecurity_transaction *transaction,
         haproxy_modsecurity_decision *decision,
+        spop_ack_decision_origin *decision_origin,
         const char **decision_text) {
     if (transaction == 0) {
         return;
@@ -3313,6 +3335,7 @@ static void finish_or_store_request_transaction(
         return;
     }
     haproxy_modsecurity_transaction_finish(transaction);
+    *decision_origin = SPOP_ACK_FAILURE_DECISION;
     *decision_text = set_processing_failure(state, decision, 2,
         "transaction cache store failed");
 }
@@ -3322,6 +3345,7 @@ static void process_production_request_notify(
         const notify_request *request,
         haproxy_modsecurity_decision *decision,
         int *modsec_processed,
+        spop_ack_decision_origin *decision_origin,
         const char **decision_text,
         char response_handle[HAPROXY_SPOP_RESPONSE_COMPANION_HANDLE_STORAGE]) {
     haproxy_modsecurity_transaction *transaction = 0;
@@ -3354,6 +3378,7 @@ static void process_production_request_notify(
         *decision_text = set_processing_failure(state, decision, 2, reason);
     } else {
         *modsec_processed = 1;
+        *decision_origin = SPOP_ACK_ENGINE_DECISION;
         if (decision->disruptive != 0) {
             *decision_text = decision->action;
         }
@@ -3368,6 +3393,7 @@ static void process_production_request_notify(
                 (uint64_t)now.tv_sec > UINT64_MAX / UINT64_C(1000)) {
             haproxy_modsecurity_transaction_abort(transaction);
             transaction = 0;
+            *decision_origin = SPOP_ACK_FAILURE_DECISION;
             *decision_text = set_processing_failure(state, decision, 2,
                 "response companion clock unavailable");
         } else {
@@ -3382,6 +3408,7 @@ static void process_production_request_notify(
                 haproxy_modsecurity_transaction_abort(transaction);
                 transaction = 0;
                 response_handle[0] = '\0';
+                *decision_origin = SPOP_ACK_FAILURE_DECISION;
                 *decision_text = set_processing_failure(state, decision, 2,
                     "response companion handoff failed closed");
             } else {
@@ -3390,7 +3417,7 @@ static void process_production_request_notify(
         }
     }
     finish_or_store_request_transaction(state, request, transaction, decision,
-        decision_text);
+        decision_origin, decision_text);
     decision_log_write(state, request, decision, *modsec_processed, *decision_text);
 }
 
@@ -3405,7 +3432,8 @@ static int process_production_notify(
     spop_buffer ack_payload = {0};
     const char *decision_text = "pass";
     int modsec_processed = 0;
-    int enforce = mode_enforces(&state->config);
+    int enforce;
+    spop_ack_decision_origin decision_origin = SPOP_ACK_FAILURE_DECISION;
     int phase = 2;
     if (request->is_response) {
         phase = request->is_response_body ? 4 : 3;
@@ -3434,6 +3462,7 @@ static int process_production_notify(
             request->body_len = 0U;
             result.decision = &decision;
             result.modsec_processed = &modsec_processed;
+            result.decision_origin = &decision_origin;
             result.decision_text = &decision_text;
             result.response_handle = response_handle;
             if (spop_owner_queue_submit(state, run_spop_production_task,
@@ -3453,6 +3482,7 @@ static int process_production_notify(
             decision_text = "owner-queue-unavailable";
         }
     }
+    enforce = production_ack_enforces(&state->config, decision_origin);
     if (build_decision_ack_payload(&ack_payload, &decision,
                         safe_decision_reason_code(
                             &decision, modsec_processed, decision_text),
@@ -3477,11 +3507,12 @@ static void run_spop_production_task(void *opaque)
     if (context->request.is_response) {
         process_production_response_notify(context->state, &context->request,
             &context->decision, &context->modsec_processed,
-            &context->decision_text);
+            &context->decision_origin, &context->decision_text);
     } else {
         process_production_request_notify(context->state, &context->request,
             &context->decision, &context->modsec_processed,
-            &context->decision_text, context->response_handle);
+            &context->decision_origin, &context->decision_text,
+            context->response_handle);
     }
 }
 
@@ -3502,11 +3533,13 @@ static void copy_spop_production_task_result(const void *opaque, void *result)
     spop_production_result *output = result;
 
     if (context == 0 || output == 0 || output->decision == 0 ||
-            output->modsec_processed == 0 || output->decision_text == 0) {
+            output->modsec_processed == 0 || output->decision_origin == 0 ||
+            output->decision_text == 0) {
         return;
     }
     *output->decision = context->decision;
     *output->modsec_processed = context->modsec_processed;
+    *output->decision_origin = context->decision_origin;
     if (context->decision_text == context->decision.action) {
         *output->decision_text = output->decision->action;
     } else {

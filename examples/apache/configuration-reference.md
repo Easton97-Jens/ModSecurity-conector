@@ -15,13 +15,13 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`ErrorLog`](#errorlog) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`LoadModule`](#loadmodule) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`modsecurity`](#modsecurity) | Host / Connector | boolean | no | off | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Gates connector transaction creation; it is not SecRuleEngine. |
-| [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive decimal byte count | no | 1048576 | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Bounds Apache response bytes offered to P4 across current normalized brigades. The configurable default is 1048576 bytes. Apache forwards the pre-EOS prefix immediately and retains only the terminal EOS fragment for the one-shot P4 decision. A limit breach fails closed before the current offending bucket is forwarded; already committed output is not rewritten. |
+| [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive decimal byte count | no | 1048576 | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Bounds Apache response bytes offered to P4 across current normalized brigades. The configurable default is 1048576 bytes; independently, a fixed non-configurable 4096-normalized-bucket ceiling spans filter calls. A limit breach fails closed before the current offending bucket is forwarded; already committed output is not rewritten. |
 | [`modsecurity_phase4_content_types_file`](#modsecurity-phase4-content-types-file) | Host / Connector | deprecated path | no | none; deprecated Apache compatibility input | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Deprecated Apache compatibility parser for a legacy MIME list. It does not narrow the universal P4 inspection path; use SecResponseBodyMimeType to select libModSecurity inspection. |
 | [`modsecurity_phase4_log`](#modsecurity-phase4-log) | Host / Connector | path | no | none | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Sets a connector event path; current Apache and NGINX paths also use it for earlier rule/intervention metadata, not only P4. |
 | [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | enum | no | safe | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Apache appends each normalized response bucket exactly once and forwards non-terminal output to the next filter without waiting for EOS. It finishes P4 exactly once at actual EOS. After the next-filter commitment boundary, minimal/safe record log_only and strict requests abort_connection instead of a late status rewrite. |
 | [`modsecurity_rules`](#modsecurity-rules) | Host / Connector | string | no | none; optional | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Loads inline content through libmodsecurity during configuration loading. |
 | [`modsecurity_rules_file`](#modsecurity-rules-file) | Host / Connector | path | no | none; optional | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Loads a local rule file through libmodsecurity during configuration loading. |
-| [`modsecurity_rules_remote`](#modsecurity-rules-remote) | Host / Connector | registered but always rejected two strings | no | no usable value | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Policy A rejects remote-rule configuration before a loader or network path is reached. |
+| [`modsecurity_rules_remote`](#modsecurity-rules-remote) | Host / Connector | registered but always rejected directive | no | no usable value | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Policy A rejects remote-rule configuration before a rule loader or network operation. |
 | [`modsecurity_transaction_id`](#modsecurity-transaction-id) | Host / Connector | string/expression | no | none; connector creates a fallback identifier | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Supplies the engine and event correlation identifier for a transaction. |
 | [`modsecurity_transaction_id_expr`](#modsecurity-transaction-id-expr) | Host / Connector | Apache string expression | no | none | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Evaluates an Apache expression per request for the transaction identifier. |
 | [`modsecurity_use_error_log`](#modsecurity-use-error-log) | Host / Connector | boolean | no | on | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Controls forwarding of libmodsecurity messages to the host error log; it does not switch rule evaluation. |
@@ -632,8 +632,7 @@ Keep the file and parent directories non-writable by untrusted identities.
 
 ### Short description
 
-The parser registration is retained for an explicit configuration error, but
-Policy A disables remote-rule loading before a loader or network path is reached.
+Policy A rejects remote-rule configuration before a rule loader or network operation.
 
 ### Syntax
 
@@ -649,36 +648,39 @@ modsecurity_rules_remote <key> <url>
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| two strings | no key/URL pair is accepted | no |
+| registered but always rejected directive | no key/URL pair is accepted | no |
 
 ### Default
 
-No usable value. Any use is rejected by Policy A.
+no usable value
 
-Source: `parser registration has no default`.
+Source: `security policy: remote rule loading disabled`.
 
 ### Inheritance and merge
 
 No remote value can be inherited or merged because every use is rejected.
 
+Merge: No remote value can be merged because every use is rejected before rule loading.
+
 ### Phases and runtime effect
 
-No remote loader, network request, origin fallback, digest bypass, or secret
-forwarding is reachable through this directive.
+No rule-loader or network path is reachable through this directive.
+
+Policy A rejects remote-rule configuration before a rule loader or network operation.
 
 ### Validation and errors
 
-msc_config_load_rules_remote returns the remote-loading security-policy error
-for every value; validate the installed configuration with apachectl -t.
+msc_config_load_rules_remote rejects every key/URL pair during apachectl -t before a rule loader or network operation.
 
 ### Example
 
-There is intentionally no accepted example value.
+There is no accepted example: every configured value is rejected by security policy.
+
+Source-backed example: `connectors/apache/src/msc_config.c`.
 
 ### Safety and operations
 
-Policy A is technically disabled for this selected path; do not treat it as a
-local-file substitute or a future remote-loading configuration.
+Remote loading is technically disabled for every connector; do not rely on a remote URL or key.
 
 <a id="modsecurity-transaction-id"></a>
 ## `modsecurity_transaction_id`

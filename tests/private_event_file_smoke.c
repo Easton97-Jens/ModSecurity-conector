@@ -7,7 +7,8 @@
  *   MSCONNECTOR_EVENT_FILE_TEST_ROOT=/var/tmp/codex/... \
  *     cc -std=c17 -Wall -Wextra -Werror -Icommon/include \
  *     tests/private_event_file_smoke.c common/src/event.c \
- *     common/src/event_jsonl.c common/src/json_escape.c -o <external-bin> && \
+ *     common/src/event_jsonl.c common/src/json_escape.c common/src/status.c \
+ *     common/src/http_status.c common/src/transaction_state.c -o <external-bin> && \
  *     MSCONNECTOR_EVENT_FILE_TEST_ROOT=/var/tmp/codex/... <external-bin>
  */
 
@@ -24,6 +25,7 @@
 
 #if !defined(_WIN32)
 #include <fcntl.h>
+#include <sys/wait.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -123,6 +125,121 @@ static int check_rejected_paths(const char *symlink_path,
         expect_rejected(unsafe_path) && expect_rejected(traversal_path) &&
         expect_rejected(private_directory);
 }
+
+static int drop_to_unprivileged_test_user(void)
+{
+    return setgid((gid_t)65534) == 0 && setuid((uid_t)65534) == 0 &&
+        geteuid() == (uid_t)65534;
+}
+
+static int wait_for_test_child(pid_t child)
+{
+    int status;
+
+    return child > 0 && waitpid(child, &status, 0) == child &&
+        WIFEXITED(status) && WEXITSTATUS(status) == 0;
+}
+
+static int create_unprivileged_event_fixture(const char *path)
+{
+    pid_t child = fork();
+
+    if (child == 0) {
+        int fd;
+        struct stat status;
+
+        if (!drop_to_unprivileged_test_user()) {
+            _exit(1);
+        }
+        fd = open(path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+        if (fd < 0 || fstat(fd, &status) != 0 ||
+            !S_ISREG(status.st_mode) || status.st_uid != geteuid() ||
+            (status.st_mode & 0777) != 0600 || close(fd) != 0) {
+            if (fd >= 0) {
+                (void)close(fd);
+            }
+            _exit(1);
+        }
+        _exit(0);
+    }
+    return wait_for_test_child(child);
+}
+
+static int check_event_file_as_unprivileged(const char *path, int expected_open)
+{
+    pid_t child = fork();
+
+    if (child == 0) {
+        if (!drop_to_unprivileged_test_user()) {
+            _exit(1);
+        }
+        if ((expected_open && check_regular_event_file(path)) ||
+            (!expected_open && expect_rejected(path))) {
+            _exit(0);
+        }
+        _exit(1);
+    }
+    return wait_for_test_child(child);
+}
+
+static int check_root_owned_parent_controls(const char *root,
+    const char *parent, const char *event_path, const char *root_owned_path)
+{
+    int fd;
+
+    if (geteuid() != 0) {
+        return 1;
+    }
+    if (chmod(root, 0755) != 0) {
+        (void)fprintf(stderr, "root-owned fixture root chmod failed: %s\n",
+            strerror(errno));
+        return 0;
+    }
+    if (mkdir(parent, 0700) != 0) {
+        (void)fprintf(stderr, "root-owned fixture mkdir failed: %s\n",
+            strerror(errno));
+        return 0;
+    }
+    if (chown(parent, (uid_t)65534, (gid_t)65534) != 0) {
+        const int saved_errno = errno;
+
+        if (saved_errno == EINVAL || saved_errno == EPERM) {
+            (void)fprintf(stderr,
+                "root-owned parent control skipped: uid mapping is unavailable\n");
+            return 1;
+        }
+        (void)fprintf(stderr, "root-owned fixture chown failed: %s\n",
+            strerror(saved_errno));
+        return 0;
+    }
+    if (!create_unprivileged_event_fixture(event_path)) {
+        (void)fprintf(stderr, "unprivileged event fixture creation failed\n");
+        return 0;
+    }
+    if (chown(parent, (uid_t)0, (gid_t)0) != 0 || chmod(parent, 0755) != 0) {
+        (void)fprintf(stderr, "root-owned parent fixture transition failed\n");
+        return 0;
+    }
+    if (!check_event_file_as_unprivileged(event_path, 1)) {
+        (void)fprintf(stderr, "root-owned secure parent was rejected\n");
+        return 0;
+    }
+    if (chmod(parent, 0777) != 0 ||
+        !check_event_file_as_unprivileged(event_path, 0) ||
+        chmod(parent, 0755) != 0) {
+        (void)fprintf(stderr, "writable root-owned parent was accepted\n");
+        return 0;
+    }
+    fd = open(root_owned_path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+    if (fd < 0) {
+        return 0;
+    }
+    if (close(fd) != 0 ||
+        !check_event_file_as_unprivileged(root_owned_path, 0)) {
+        return 0;
+    }
+    return 1;
+}
 #endif
 
 int main(void)
@@ -147,6 +264,9 @@ int main(void)
     char fifo_path[TEST_PATH_SIZE];
     char unsafe_path[TEST_PATH_SIZE];
     char traversal_path[TEST_PATH_SIZE];
+    char root_owned_directory[TEST_PATH_SIZE];
+    char root_owned_event_path[TEST_PATH_SIZE];
+    char root_owned_leaf_path[TEST_PATH_SIZE];
     int result = 1;
 
     root[0] = '\0';
@@ -159,6 +279,9 @@ int main(void)
     fifo_path[0] = '\0';
     unsafe_path[0] = '\0';
     traversal_path[0] = '\0';
+    root_owned_directory[0] = '\0';
+    root_owned_event_path[0] = '\0';
+    root_owned_leaf_path[0] = '\0';
 
     if (base == NULL || base[0] == '\0' ||
         strlen(base) + sizeof("/event-sink-XXXXXX") > sizeof(root)) {
@@ -185,7 +308,13 @@ int main(void)
         !join_path(unsafe_path, sizeof(unsafe_path), unsafe_directory,
             "events.jsonl") ||
         !join_path(traversal_path, sizeof(traversal_path), private_directory,
-            "../escape.jsonl")) {
+            "../escape.jsonl") ||
+        !join_path(root_owned_directory, sizeof(root_owned_directory), root,
+            "root-owned") ||
+        !join_path(root_owned_event_path, sizeof(root_owned_event_path),
+            root_owned_directory, "events.jsonl") ||
+        !join_path(root_owned_leaf_path, sizeof(root_owned_leaf_path),
+            root_owned_directory, "root-owned.jsonl")) {
         (void)fprintf(stderr, "private event-file test path setup failed\n");
         goto cleanup;
     }
@@ -216,10 +345,26 @@ int main(void)
         goto cleanup;
     }
 
+    if (!check_root_owned_parent_controls(root, root_owned_directory,
+            root_owned_event_path, root_owned_leaf_path)) {
+        (void)fprintf(stderr, "root-owned event parent control failed\n");
+        goto cleanup;
+    }
+
     result = 0;
     puts("private event-file descriptor controls: passed");
 
 cleanup:
+    if (root_owned_leaf_path[0] != '\0') {
+        (void)unlink(root_owned_leaf_path);
+    }
+    if (root_owned_event_path[0] != '\0') {
+        (void)unlink(root_owned_event_path);
+    }
+    if (root_owned_directory[0] != '\0') {
+        (void)chmod(root_owned_directory, 0700);
+        (void)rmdir(root_owned_directory);
+    }
     if (symlink_path[0] != '\0') {
         (void)unlink(symlink_path);
     }

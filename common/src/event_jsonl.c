@@ -131,7 +131,11 @@ int msconnector_open_private_event_file(const char *path, int *out_fd) {
         errno = saved_errno;
         return 0;
     }
-    if (directory_status.st_uid != geteuid() ||
+    /* A privilege-dropped host process may append to its own 0600 leaf in a
+     * root-owned log directory. Root remains trusted, while writable parents
+     * and non-euid final files remain rejected. */
+    if ((directory_status.st_uid != geteuid() &&
+            directory_status.st_uid != 0) ||
         (directory_status.st_mode & (S_IWGRP | S_IWOTH)) != 0) {
         (void)close(directory_fd);
         errno = EACCES;

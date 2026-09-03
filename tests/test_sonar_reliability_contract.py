@@ -570,6 +570,8 @@ int main(void)
 
 static unsigned int cached_transaction_finish_calls;
 static unsigned int transaction_begin_calls;
+static int transaction_begin_result = 1;
+static int transaction_begin_disruptive;
 
 int haproxy_modsecurity_transaction_finish(
         haproxy_modsecurity_transaction *transaction) {
@@ -591,9 +593,48 @@ int haproxy_modsecurity_transaction_begin(
     transaction_begin_calls++;
     (void)engine;
     (void)request;
+    if (transaction_begin_result == 0) {
+        decision->disruptive = transaction_begin_disruptive;
+        decision->status = transaction_begin_disruptive ? 403 : 200;
+        copy_spop_string(decision->action, sizeof(decision->action),
+            (const unsigned char *)(transaction_begin_disruptive ? "deny" : "pass"),
+            transaction_begin_disruptive ? sizeof("deny") - 1U :
+            sizeof("pass") - 1U);
+        *transaction = (haproxy_modsecurity_transaction *)(uintptr_t)1U;
+    }
+    return transaction_begin_result;
+}
+
+int haproxy_modsecurity_eval_request(
+        const haproxy_modsecurity_request *request,
+        haproxy_modsecurity_decision *decision) {
+    (void)request;
     (void)decision;
-    (void)transaction;
-    return 1;
+    return -1;
+}
+
+int haproxy_modsecurity_phase1_header_eval(
+        const char *method, const char *uri, const char *host,
+        const char *test_header_value,
+        haproxy_modsecurity_decision *decision) {
+    (void)method;
+    (void)uri;
+    (void)host;
+    (void)test_header_value;
+    (void)decision;
+    return -1;
+}
+
+int haproxy_modsecurity_crs_sqli_eval(
+        const char *method, const char *uri, const char *host,
+        const char *crs_preamble_file,
+        haproxy_modsecurity_decision *decision) {
+    (void)method;
+    (void)uri;
+    (void)host;
+    (void)crs_preamble_file;
+    (void)decision;
+    return -1;
 }
 
 int haproxy_modsecurity_transaction_handoff_response_companion(
@@ -1153,6 +1194,7 @@ static void test_spop_missing_endpoints_fail_closed_when_engine_is_open(void) {
     notify_request request;
     haproxy_modsecurity_decision decision;
     int modsec_processed = 0;
+    spop_ack_decision_origin decision_origin = SPOP_ACK_FAILURE_DECISION;
     const char *decision_text = 0;
     char response_handle[HAPROXY_SPOP_RESPONSE_COMPANION_HANDLE_STORAGE];
 
@@ -1177,7 +1219,7 @@ static void test_spop_missing_endpoints_fail_closed_when_engine_is_open(void) {
     memset(response_handle, 0, sizeof(response_handle));
 
     process_production_request_notify(&state, &request, &decision,
-        &modsec_processed, &decision_text, response_handle);
+        &modsec_processed, &decision_origin, &decision_text, response_handle);
 
     assert(modsec_processed == 0);
     assert(transaction_begin_calls == 0U);
@@ -1185,14 +1227,18 @@ static void test_spop_missing_endpoints_fail_closed_when_engine_is_open(void) {
     assert(decision.status == 503);
     assert(strcmp(decision.action, "deny") == 0);
     assert(strcmp(decision_text, "admission-failure") == 0);
+    assert(decision_origin == SPOP_ACK_FAILURE_DECISION);
     free_notify_request(&request);
 }
 
 static void test_spop_missing_endpoints_bypass_queue_and_ack_deny(void) {
     static const char *const fail_modes[] = {"open", "closed"};
+    static const char *const modes[] = {"block", "detect-only"};
 
     for (size_t index = 0U;
             index < sizeof(fail_modes) / sizeof(fail_modes[0]); ++index) {
+        for (size_t mode_index = 0U;
+                mode_index < sizeof(modes) / sizeof(modes[0]); ++mode_index) {
         int sockets[2] = {-1, -1};
         agent_state state;
         notify_request request;
@@ -1204,6 +1250,10 @@ static void test_spop_missing_endpoints_bypass_queue_and_ack_deny(void) {
         config_init(&state.config);
         copy_spop_string(state.config.fail_mode, sizeof(state.config.fail_mode),
             (const unsigned char *)fail_modes[index], strlen(fail_modes[index]));
+        copy_spop_string(state.config.mode, sizeof(state.config.mode),
+            (const unsigned char *)modes[mode_index], strlen(modes[mode_index]));
+        assert(production_ack_enforces(&state.config,
+            SPOP_ACK_FAILURE_DECISION));
         memset(&request, 0, sizeof(request));
         request.has_method = 1;
         request.has_path = 1;
@@ -1237,7 +1287,106 @@ static void test_spop_missing_endpoints_bypass_queue_and_ack_deny(void) {
         assert(close(sockets[0]) == 0);
         assert(close(sockets[1]) == 0);
         free_notify_request(&request);
+        }
     }
+}
+
+static void test_spop_valid_engine_decision_stays_detect_only(void) {
+    int sockets[2] = {-1, -1};
+    agent_state state;
+    notify_request request;
+    spop_frame frame;
+    spop_frame ack;
+    spop_buffer ack_payload;
+
+    memset(&state, 0, sizeof(state));
+    config_init(&state.config);
+    copy_spop_string(state.config.mode, sizeof(state.config.mode),
+        (const unsigned char *)"detect-only", sizeof("detect-only") - 1U);
+    state.engine = (haproxy_modsecurity_engine *)(uintptr_t)1U;
+    assert(!production_ack_enforces(&state.config,
+        SPOP_ACK_ENGINE_DECISION));
+    assert(spop_owner_queue_init(&state) == 0);
+    memset(&request, 0, sizeof(request));
+    request.has_method = 1;
+    request.has_path = 1;
+    request.has_uri = 1;
+    request.has_host = 1;
+    request.has_client_ip = 1;
+    request.has_server_ip = 1;
+    copy_spop_string(request.method, sizeof(request.method),
+        (const unsigned char *)"GET", sizeof("GET") - 1U);
+    copy_spop_string(request.path, sizeof(request.path),
+        (const unsigned char *)"/", sizeof("/") - 1U);
+    copy_spop_string(request.uri, sizeof(request.uri),
+        (const unsigned char *)"/", sizeof("/") - 1U);
+    copy_spop_string(request.host, sizeof(request.host),
+        (const unsigned char *)"example.test", sizeof("example.test") - 1U);
+    copy_spop_string(request.client_ip, sizeof(request.client_ip),
+        (const unsigned char *)"192.0.2.10", sizeof("192.0.2.10") - 1U);
+    copy_spop_string(request.server_ip, sizeof(request.server_ip),
+        (const unsigned char *)"198.51.100.10", sizeof("198.51.100.10") - 1U);
+    memset(&frame, 0, sizeof(frame));
+    frame.type = SPOP_FRM_NOTIFY;
+    frame.stream_id = 15U;
+    frame.frame_id = 17U;
+    transaction_begin_calls = 0U;
+    transaction_begin_result = 0;
+    transaction_begin_disruptive = 1;
+    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
+    assert(process_production_notify(sockets[0], &frame, &state, 0,
+        &request) == 0);
+    assert(recv_frame(sockets[1], &ack, SPOP_LEGACY_TIMEOUT_MS) == 0);
+    memset(&ack_payload, 0, sizeof(ack_payload));
+    ack_payload.len = ack.payload_len;
+    memcpy(ack_payload.data, ack.payload, ack.payload_len);
+    assert(!payload_has_set_var_blocked_true(&ack_payload));
+    assert(transaction_begin_calls == 1U);
+    assert(close(sockets[0]) == 0);
+    assert(close(sockets[1]) == 0);
+    spop_owner_queue_destroy(&state);
+    transaction_begin_result = 1;
+    transaction_begin_disruptive = 0;
+}
+
+static void test_spop_malformed_notify_ack_stays_blocking_in_detect_only(void) {
+    int sockets[2] = {-1, -1};
+    agent_state state;
+    spop_buffer payload;
+    spop_buffer ack_payload;
+    spop_frame frame;
+    spop_frame ack;
+
+    memset(&state, 0, sizeof(state));
+    config_init(&state.config);
+    copy_spop_string(state.config.mode, sizeof(state.config.mode),
+        (const unsigned char *)"detect-only", sizeof("detect-only") - 1U);
+    state.engine = (haproxy_modsecurity_engine *)(uintptr_t)1U;
+    assert(mode_enforces(&state.config) == 0);
+
+    memset(&payload, 0, sizeof(payload));
+    assert(append_notify_message_start(&payload, "check-request", 1U) == 0);
+    assert(append_string(&payload, "headers") == 0);
+    assert(append_typed_string(&payload,
+        "X-Good: yes\r\nInjected-Without-Value\r\n") == 0);
+    memset(&frame, 0, sizeof(frame));
+    frame.type = SPOP_FRM_NOTIFY;
+    frame.stream_id = 9U;
+    frame.frame_id = 13U;
+    frame.payload_len = payload.len;
+    memcpy(frame.payload, payload.data, payload.len);
+    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
+    assert(handle_notify_frame(sockets[0], &frame, &state, 0, 0, 0) == -1);
+    assert(recv_frame(sockets[1], &ack, SPOP_LEGACY_TIMEOUT_MS) == 0);
+    assert(ack.type == SPOP_FRM_ACK);
+    assert(ack.stream_id == frame.stream_id);
+    assert(ack.frame_id == frame.frame_id);
+    memset(&ack_payload, 0, sizeof(ack_payload));
+    ack_payload.len = ack.payload_len;
+    memcpy(ack_payload.data, ack.payload, ack.payload_len);
+    assert(payload_has_set_var_blocked_true(&ack_payload));
+    assert(close(sockets[0]) == 0);
+    assert(close(sockets[1]) == 0);
 }
 
 static void test_spop_notify_message_and_argument_contract(void) {
@@ -1427,6 +1576,8 @@ int main(void) {
     test_spop_typed_ip_payload_requires_exact_frame_consumption();
     test_spop_missing_endpoints_fail_closed_when_engine_is_open();
     test_spop_missing_endpoints_bypass_queue_and_ack_deny();
+    test_spop_valid_engine_decision_stays_detect_only();
+    test_spop_malformed_notify_ack_stays_blocking_in_detect_only();
     test_spop_rejects_header_injection_and_invalid_names();
     test_spop_notify_message_and_argument_contract();
     test_spop_rejects_response_arguments_on_request_messages();

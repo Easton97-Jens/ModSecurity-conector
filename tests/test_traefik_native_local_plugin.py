@@ -82,6 +82,42 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
         self.assertIn("Legacy source-only passthrough is rejected", reference)
         self.assertIn("Legacy-source-only-passthrough wird", reference_de)
 
+    def test_uds_only_contract_is_consistent_in_manifest_manual_docs_and_inventory(self) -> None:
+        manifest = (PLUGIN / ".traefik.yml").read_text(encoding="utf-8")
+        readme = (ROOT / "examples" / "traefik" / "README.md").read_text(
+            encoding="utf-8"
+        )
+        readme_de = (
+            ROOT / "examples" / "traefik" / "README.de.md"
+        ).read_text(encoding="utf-8")
+        generator = (
+            ROOT / "ci" / "checks" / "documentation" / "connector_config_reference.py"
+        ).read_text(encoding="utf-8")
+        inventory = json.loads(
+            (ROOT / "reports" / "connector-configuration-inventory.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        self.assertIn("engineMode: uds", manifest)
+        self.assertIn("engineSocketPath: /run/traefik-msconnector/engine.sock", manifest)
+        self.assertNotIn("engineMode: passthrough", manifest)
+        self.assertIn("legacy `passthrough` configuration is", readme)
+        self.assertIn("Legacy-`passthrough`-Konfiguration", readme_de)
+        self.assertIn('ALLOWED_VALUES_TRAEFIK_ENGINE_MODE = "uds"', generator)
+        engine_modes = [
+            option
+            for option in inventory["options"]
+            if option["connector"] == "traefik" and option["name"].endswith("engineMode")
+        ]
+        self.assertTrue(engine_modes)
+        self.assertTrue(
+            all(
+                option["allowed_values"] == "uds" and option["default"] == "uds"
+                for option in engine_modes
+            )
+        )
+
     def test_local_plugin_package_matches_module_suffix(self) -> None:
         module = re.search(
             r"(?m)^module\s+([^\s]+)\s*$",

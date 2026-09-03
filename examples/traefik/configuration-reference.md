@@ -26,8 +26,8 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`http.middlewares.modsecurity-native-streaming`](#http-middlewares-modsecurity-native-streaming) | Host / Connector | Traefik named middleware mapping | no | No connector-owned named middleware default is declared; the selected template sets the selected native modsecurity mapping. | The YAML object path shown in the selected example. | Binds the router-visible middleware name to its plugin or forwardAuth configuration. |
 | [`http.middlewares.modsecurity-native-streaming.plugin`](#http-middlewares-modsecurity-native-streaming-plugin) | Host / Connector | Traefik plugin middleware mapping | no | No connector-owned plugin middleware mapping default is declared; the selected template sets the modsecurityNative local plugin. | The YAML object path shown in the selected example. | Selects the local-plugin configuration for the named native middleware. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative) | Host / Connector | Traefik local-plugin configuration mapping | no | Plugin CreateConfig supplies bounded defaults; this template explicitly sets all seven selected fields. | The YAML object path shown in the selected example. | Groups limits, transaction ID, and engine connection fields passed to the repository native middleware. |
-| [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineMode`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-enginemode) | Host / Connector | native middleware engine-mode enum | no | passthrough | http.middlewares.<name>.plugin.modsecurityNative | Selects source-only passthrough or the persistent UDS engine; the selected rule-evaluating example uses uds. |
-| [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineSocketPath`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-enginesocketpath) | Host / Connector | absolute Unix-domain socket path | no | none (ignored outside uds; required and validated in uds mode) | http.middlewares.<name>.plugin.modsecurityNative | Names the private UDS path used by native middleware when engineMode is uds. |
+| [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineMode`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-enginemode) | Host / Connector | native middleware engine-mode enum | no | uds | http.middlewares.<name>.plugin.modsecurityNative | Selects the persistent UDS engine. Legacy source-only passthrough is rejected so a rule-evaluating deployment cannot silently select a non-enforcing path. |
+| [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineSocketPath`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-enginesocketpath) | Host / Connector | absolute Unix-domain socket path | no | none (required and validated in uds mode) | http.middlewares.<name>.plugin.modsecurityNative | Names the private UDS path used by native middleware when engineMode is uds. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxHeaderBytes`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxheaderbytes) | Host / Connector | integer aggregate header-byte bound | no | 65536 | http.middlewares.<name>.plugin.modsecurityNative | Caps aggregate request and response header bytes passed to native middleware engine callbacks. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxHeaderCount`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxheadercount) | Host / Connector | integer header-count bound | no | 128 | http.middlewares.<name>.plugin.modsecurityNative | Caps the number of request and response headers passed to native middleware engine callbacks. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestChunkBytes`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxrequestchunkbytes) | Host / Connector | integer request-body chunk-byte bound | no | 32768 | http.middlewares.<name>.plugin.modsecurityNative | Caps each streamed request-body chunk offered to the native middleware engine. |
@@ -975,15 +975,14 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 ### Safety and operations
 
-The UDS fields and bounds are enforcement-relevant; passthrough is not rule evaluation.
+The UDS fields and bounds are enforcement-relevant; legacy passthrough is rejected.
 
 <a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-enginemode"></a>
 ## `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineMode`
 
 ### Short description
 
-Selects the persistent UDS engine. Legacy source-only passthrough is rejected
-so a rule-evaluating deployment cannot silently select a non-enforcing path.
+Selects the persistent UDS engine. Legacy source-only passthrough is rejected so a rule-evaluating deployment cannot silently select a non-enforcing path.
 
 ### Syntax
 
@@ -1015,11 +1014,9 @@ Merge: Traefik/plugin configuration is normalized once by the plugin.
 
 ### Phases and runtime effect
 
-uds is the engine transport for native P1/P2/P3/P4 callbacks. Legacy
-passthrough is rejected rather than being a non-enforcing fallback.
+uds is the engine transport for native P1/P2/P3/P4 callbacks. Legacy passthrough is rejected rather than creating an always-allow path.
 
-Selects the persistent UDS engine; invalid or legacy non-enforcing modes are
-rejected during normalization.
+Selects the persistent UDS engine. Legacy source-only passthrough is rejected so a rule-evaluating deployment cannot silently select a non-enforcing path.
 
 ### Validation and errors
 
@@ -1033,8 +1030,7 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 ### Safety and operations
 
-Use uds for the selected rule-evaluating path. Do not rely on a passthrough
-fallback; it is not accepted by the current implementation.
+Use the private uds path for the selected rule-evaluating deployment. Do not rely on a passthrough fallback; it is rejected.
 
 <a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-enginesocketpath"></a>
 ## `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineSocketPath`
@@ -1061,7 +1057,7 @@ http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineSoc
 
 ### Default
 
-none (ignored outside uds; required and validated in uds mode)
+none (required and validated in uds mode)
 
 Source: `connectors/traefik/native_middleware/middleware.go:CreateConfig`.
 

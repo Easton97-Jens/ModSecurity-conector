@@ -28,8 +28,8 @@ This is the complete current `key=value` parser surface of `common/runtime/mscon
 | [`response_body_mode`](#response-body-mode) | Common Runtime | enum | no | none | Common Runtime key=value file | Selects the Common response-body handling mode; a particular host may support only a subset. |
 | [`rules_file`](#rules-file) | Common Runtime | path | no | none | Common Runtime key=value file | Loads rules from a local file. |
 | [`rules_inline`](#rules-inline) | Common Runtime | string | no | none | Common Runtime key=value file | Adds inline rule configuration. |
-| [`rules_remote_key`](#rules-remote-key) | Common Runtime | rejected string | no | none | Common Runtime key=value file | Legacy key recognized only to reject remote-rule configuration. |
-| [`rules_remote_url`](#rules-remote-url) | Common Runtime | rejected URL | no | none | Common Runtime key=value file | Legacy key recognized only to reject remote-rule configuration. |
+| [`rules_remote_key`](#rules-remote-key) | Common Runtime | registered but always rejected runtime setting | no | no usable value | Common Runtime key=value file | Policy A rejects remote-rule configuration before a rule loader or network operation. |
+| [`rules_remote_url`](#rules-remote-url) | Common Runtime | registered but always rejected runtime setting | no | no usable value | Common Runtime key=value file | Policy A rejects remote-rule configuration before a rule loader or network operation. |
 | [`transaction_id`](#transaction-id) | Common Runtime | string | no | none | Common Runtime key=value file | Sets a static runtime transaction identifier. |
 | [`transaction_id_header`](#transaction-id-header) | Common Runtime | header name | no | x-request-id | Common Runtime key=value file | Selects the fallback correlation-header name. |
 | [`use_error_log`](#use-error-log) | Common Runtime | boolean | no | on | Common Runtime key=value file | Stores the Common logging preference. A connector must consume it before a host logging effect can be claimed. |
@@ -254,7 +254,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 ### Safety and operations
 
-Limits bound resource use. Enables the Common Runtime; enabled runtime requires an inline or local-file rule source.
+Disabling Common Runtime bypasses Common Runtime processing even when an inline or local-file rule source is configured.
 
 <a id="event-path"></a>
 ## `event_path`
@@ -387,7 +387,7 @@ max_event_json_bytes=<value>
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| positive decimal bytes | 1 through 16384 | no |
+| positive decimal bytes | 1 through 16384 bytes | no |
 
 ### Default
 
@@ -409,8 +409,7 @@ Bounds serialized metadata event size.
 
 ### Validation and errors
 
-Unknown keys, empty values, malformed assignments, and values above 16384 fail
-the runtime configuration check.
+Runtime configuration rejects zero, non-decimal values, and values above the 16384-byte hard cap.
 
 ### Example
 
@@ -420,7 +419,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 ### Safety and operations
 
-Limits bound resource use. Bounds serialized metadata event size.
+The 16384-byte hard cap bounds a metadata-only event record before JSONL serialization.
 
 <a id="max-header-count"></a>
 ## `max_header_count`
@@ -465,8 +464,7 @@ Bounds accepted header count.
 
 ### Validation and errors
 
-Unknown keys, empty values, malformed assignments, and values above 256 fail the
-runtime configuration check.
+Runtime configuration rejects zero, non-decimal values, and values above the hard cap of 256.
 
 ### Example
 
@@ -476,7 +474,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 ### Safety and operations
 
-Limits bound resource use. Bounds accepted header count.
+The hard cap of 256 headers bounds parser iteration and per-transaction metadata allocation.
 
 <a id="max-header-name-size"></a>
 ## `max_header_name_size`
@@ -499,7 +497,7 @@ max_header_name_size=<value>
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| positive decimal bytes | 1 through 256 | no |
+| positive decimal bytes | 1 through 256 bytes | no |
 
 ### Default
 
@@ -521,8 +519,7 @@ Bounds each header-name size.
 
 ### Validation and errors
 
-Unknown keys, empty values, malformed assignments, and values above 256 fail the
-runtime configuration check.
+Runtime configuration rejects zero, non-decimal values, and values above the 256-byte hard cap.
 
 ### Example
 
@@ -532,7 +529,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 ### Safety and operations
 
-Limits bound resource use. Bounds each header-name size.
+The 256-byte hard cap bounds header-name storage and validation work.
 
 <a id="max-header-value-size"></a>
 ## `max_header_value_size`
@@ -555,7 +552,7 @@ max_header_value_size=<value>
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| positive decimal bytes | 1 through 8192 | no |
+| positive decimal bytes | 1 through 8192 bytes | no |
 
 ### Default
 
@@ -577,8 +574,7 @@ Bounds each header-value size.
 
 ### Validation and errors
 
-Unknown keys, empty values, malformed assignments, and values above 8192 fail
-the runtime configuration check.
+Runtime configuration rejects zero, non-decimal values, and values above the 8192-byte hard cap.
 
 ### Example
 
@@ -588,7 +584,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 ### Safety and operations
 
-Limits bound resource use. Bounds each header-value size.
+The 8192-byte hard cap bounds header-value storage and validation work.
 
 <a id="max-total-header-bytes"></a>
 ## `max_total_header_bytes`
@@ -611,7 +607,7 @@ max_total_header_bytes=<value>
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| positive decimal bytes | 1 through 65536 | no |
+| positive decimal bytes | 1 through 65536 bytes | no |
 
 ### Default
 
@@ -633,8 +629,7 @@ Bounds total header bytes.
 
 ### Validation and errors
 
-Unknown keys, empty values, malformed assignments, and values above 65536 fail
-the runtime configuration check.
+Runtime configuration rejects zero, non-decimal values, and values above the 65536-byte hard cap.
 
 ### Example
 
@@ -644,7 +639,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 ### Safety and operations
 
-Limits bound resource use. Bounds total header bytes.
+The 65536-byte hard cap bounds aggregate header storage and overflow-safe accounting.
 
 <a id="phase4-content-types-file"></a>
 ## `phase4_content_types_file`
@@ -832,14 +827,13 @@ request_body_limit=<value>
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| positive decimal bytes | 1 through 10485760 (10 MiB) | no |
+| positive decimal bytes | 1 through 10485760 bytes (10 MiB hard cap) | no |
 
 ### Default
 
 1048576
 
 Source: `common/include/msconnector/limits.h:MSCONNECTOR_MAX_BODY_BUFFER_SIZE`.
-Hard configuration cap: `MSCONNECTOR_MAX_CONFIG_BODY_BYTES` (10485760).
 
 ### Inheritance and merge
 
@@ -855,8 +849,7 @@ Bounds request bytes offered to the engine.
 
 ### Validation and errors
 
-Unknown keys, empty values, malformed assignments, and values above 10485760
-fail the runtime configuration check.
+Runtime configuration rejects zero, non-decimal values, and values above the 10485760-byte (10 MiB) hard security cap.
 
 ### Example
 
@@ -866,7 +859,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 ### Safety and operations
 
-Limits bound resource use. Bounds request bytes offered to the engine.
+The 10 MiB hard cap bounds request-body allocation and engine input even when a deployment raises the 1048576-byte default.
 
 <a id="request-body-mode"></a>
 ## `request_body_mode`
@@ -944,14 +937,13 @@ response_body_limit=<value>
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| positive decimal bytes | 1 through 10485760 (10 MiB) | no |
+| positive decimal bytes | 1 through 10485760 bytes (10 MiB hard cap) | no |
 
 ### Default
 
 1048576
 
 Source: `common/include/msconnector/limits.h:MSCONNECTOR_MAX_RESPONSE_BODY_BUFFER_SIZE`.
-Hard configuration cap: `MSCONNECTOR_MAX_CONFIG_BODY_BYTES` (10485760).
 
 ### Inheritance and merge
 
@@ -967,8 +959,7 @@ Bounds response bytes offered to the engine.
 
 ### Validation and errors
 
-Unknown keys, empty values, malformed assignments, and values above 10485760
-fail the runtime configuration check.
+Runtime configuration rejects zero, non-decimal values, and values above the 10485760-byte (10 MiB) hard security cap.
 
 ### Example
 
@@ -978,7 +969,7 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 ### Safety and operations
 
-Limits bound resource use. Bounds response bytes offered to the engine.
+The 10 MiB hard cap bounds response-body allocation and engine input even when a deployment raises the 1048576-byte default.
 
 <a id="response-body-mode"></a>
 ## `response_body_mode`
@@ -1150,8 +1141,7 @@ Limits bound resource use. Adds inline rule configuration.
 
 ### Short description
 
-Legacy compatibility key. Remote rule loading is disabled uniformly and this
-key is accepted only far enough to produce a configuration error.
+Policy A rejects remote-rule configuration before a rule loader or network operation.
 
 ### Syntax
 
@@ -1167,48 +1157,46 @@ rules_remote_key=<value>
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| rejected string | no value is accepted | no |
+| registered but always rejected runtime setting | no value is accepted | no |
 
 ### Default
 
-none
+no usable value
 
-Source: `runtime parser has no default`.
+Source: `security policy: remote rule loading disabled`.
 
 ### Inheritance and merge
 
-No file-level inheritance; host integrations may merge their own configuration before starting Common Runtime.
+No remote value can be inherited or merged because every use is rejected.
 
-Merge: When a host uses msconnector_config, scalar child values override parent values; runtime files are parsed as one concrete configuration.
+Merge: No remote value can be merged because every use is rejected before rule loading.
 
 ### Phases and runtime effect
 
-See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
+No rule-loader or network path is reachable through this runtime setting.
 
-Remote rule loading is disabled before the loader, any network fetch, or a
-native remote-rule API call.
+Policy A rejects remote-rule configuration before a rule loader or network operation.
 
 ### Validation and errors
 
-Unknown keys, empty values, malformed assignments, and key-specific invalid values fail the runtime configuration check. Any configured remote-rule key or URL also fails closed.
+Common Runtime rejects any remote key or URL during configuration validation before a rule loader or network operation.
 
 ### Example
 
-Selected value: use the syntax above and the source-backed file below.
+There is no accepted example: every configured value is rejected by security policy.
 
-Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../examples/lighttpd/safe/msconnector-runtime.conf).
+Source-backed example: `common/src/config.c`.
 
 ### Safety and operations
 
-Limits bound resource use. Remote rule loading is disabled; use inline rules or a local rules file.
+Policy A technically disables remote rule loading for every connector. A configured remote value cannot cause network access or partial rule activation.
 
 <a id="rules-remote-url"></a>
 ## `rules_remote_url`
 
 ### Short description
 
-Legacy compatibility key. Remote rule loading is disabled uniformly and this
-key is accepted only far enough to produce a configuration error.
+Policy A rejects remote-rule configuration before a rule loader or network operation.
 
 ### Syntax
 
@@ -1224,40 +1212,39 @@ rules_remote_url=<value>
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| rejected URL | no value is accepted | no |
+| registered but always rejected runtime setting | no value is accepted | no |
 
 ### Default
 
-none
+no usable value
 
-Source: `runtime parser has no default`.
+Source: `security policy: remote rule loading disabled`.
 
 ### Inheritance and merge
 
-No file-level inheritance; host integrations may merge their own configuration before starting Common Runtime.
+No remote value can be inherited or merged because every use is rejected.
 
-Merge: When a host uses msconnector_config, scalar child values override parent values; runtime files are parsed as one concrete configuration.
+Merge: No remote value can be merged because every use is rejected before rule loading.
 
 ### Phases and runtime effect
 
-See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
+No rule-loader or network path is reachable through this runtime setting.
 
-Remote rule loading is disabled before the loader, any network fetch, or a
-native remote-rule API call.
+Policy A rejects remote-rule configuration before a rule loader or network operation.
 
 ### Validation and errors
 
-Unknown keys, empty values, malformed assignments, and key-specific invalid values fail the runtime configuration check. Any configured remote-rule key or URL also fails closed.
+Common Runtime rejects any remote key or URL during configuration validation before a rule loader or network operation.
 
 ### Example
 
-Selected value: use the syntax above and the source-backed file below.
+There is no accepted example: every configured value is rejected by security policy.
 
-Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../examples/lighttpd/safe/msconnector-runtime.conf).
+Source-backed example: `common/src/config.c`.
 
 ### Safety and operations
 
-Limits bound resource use. Remote rule loading is disabled; use inline rules or a local rules file.
+Policy A technically disables remote rule loading for every connector. A configured remote value cannot cause network access or partial rule activation.
 
 <a id="transaction-id"></a>
 ## `transaction_id`

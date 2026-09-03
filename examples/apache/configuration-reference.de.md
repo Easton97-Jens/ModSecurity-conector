@@ -15,13 +15,13 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`ErrorLog`](#errorlog) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`LoadModule`](#loadmodule) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`modsecurity`](#modsecurity) | Host / Connector | Boolescher Wert | nein | off | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Schaltet die Erstellung von Connector-Transaktionen frei; dies ist nicht SecRuleEngine. |
-| [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive dezimale Byteanzahl | nein | 1048576 | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Begrenzt Apache-Response-Bytes, die P4 über aktuelle normalisierte Brigades angeboten werden. Der konfigurierbare Standardwert ist 1048576 Byte. Apache leitet den Prä-EOS-Präfix sofort weiter und hält nur das terminale EOS-Fragment für die einmalige P4-Entscheidung vor. Eine Limitverletzung schlägt fail-closed fehl, bevor der aktuelle fehlerhafte Bucket weitergeleitet wird; bereits committed Ausgabe wird nicht umgeschrieben. |
+| [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive dezimale Byteanzahl | nein | 1048576 | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Begrenzt Apache-Response-Bytes, die P4 über aktuelle normalisierte Brigades angeboten werden. Der konfigurierbare Standardwert ist 1048576 Byte; unabhängig davon gilt über Filter-Aufrufe hinweg eine feste, nicht konfigurierbare Obergrenze von 4096 normalisierten Buckets. Eine Limitverletzung schlägt fail-closed fehl, bevor der aktuelle fehlerhafte Bucket weitergeleitet wird; bereits committed Ausgabe wird nicht umgeschrieben. |
 | [`modsecurity_phase4_content_types_file`](#modsecurity-phase4-content-types-file) | Host / Connector | veralteter Pfad | nein | kein Wert; veraltete Apache-Kompatibilitätseingabe | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Veralteter Apache-Kompatibilitätsparser für eine Legacy-MIME-Liste. Er schränkt den universellen P4-Inspektionspfad nicht ein; SecResponseBodyMimeType wählt die libModSecurity-Inspektion. |
 | [`modsecurity_phase4_log`](#modsecurity-phase4-log) | Host / Connector | Pfad | nein | none | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Setzt einen Connector-Ereignispfad; aktuelle Apache- und NGINX-Pfade verwenden ihn auch für frühere Regel-/Interventionsmetadaten, nicht nur für P4. |
 | [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | Aufzählung | nein | safe | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Apache hängt jeden normalisierten Response-Bucket genau einmal an und leitet nichtterminale Ausgabe ohne Warten auf EOS an den nächsten Filter weiter. Es beendet P4 genau einmal am tatsächlichen EOS. Nach der Commit-Grenze des nächsten Filters zeichnen minimal/safe log_only auf und strict fordert abort_connection statt einer späten Statusumschreibung an. |
 | [`modsecurity_rules`](#modsecurity-rules) | Host / Connector | Zeichenkette | nein | kein Wert; optional | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Lädt während des Konfigurationsladens Inline-Inhalt über libmodsecurity. |
 | [`modsecurity_rules_file`](#modsecurity-rules-file) | Host / Connector | Pfad | nein | kein Wert; optional | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Lädt während des Konfigurationsladens eine lokale Regeldatei über libmodsecurity. |
-| [`modsecurity_rules_remote`](#modsecurity-rules-remote) | Host / Connector | registrierte, aber immer abgelehnte zwei Zeichenketten | nein | kein verwendbarer Wert | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Policy A weist Remote-Rule-Konfiguration ab, bevor ein Loader- oder Netzwerkpfad erreicht wird. |
+| [`modsecurity_rules_remote`](#modsecurity-rules-remote) | Host / Connector | registrierte, aber stets abgewiesene Direktive | nein | kein verwendbarer Wert | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Policy A weist Remote-Rule-Konfiguration ab, bevor ein Regellader- oder Netzwerkvorgang stattfindet. |
 | [`modsecurity_transaction_id`](#modsecurity-transaction-id) | Host / Connector | Zeichenkette/Ausdruck | nein | kein Wert; der Connector erzeugt eine Ersatzkennung | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Liefert die Engine- und Ereigniskorrelationskennung für eine Transaktion. |
 | [`modsecurity_transaction_id_expr`](#modsecurity-transaction-id-expr) | Host / Connector | Apache-Zeichenausdruck | nein | none | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Wertet pro Request einen Apache-Ausdruck für die Transaktionskennung aus. |
 | [`modsecurity_use_error_log`](#modsecurity-use-error-log) | Host / Connector | Boolescher Wert | nein | on | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Steuert die Weiterleitung von libmodsecurity-Meldungen an das Host-Fehlerlog; die Regelauswertung wird dadurch nicht umgeschaltet. |
@@ -632,8 +632,7 @@ Die Datei und ihre übergeordneten Verzeichnisse für nicht vertrauenswürdige I
 
 ### Kurzbeschreibung
 
-Die Parserregistrierung bleibt für einen expliziten Konfigurationsfehler
-erhalten, aber Policy A deaktiviert Remote-Rule-Loading vor einem Loader- oder Netzwerkpfad.
+Policy A weist Remote-Rule-Konfiguration ab, bevor ein Regellader- oder Netzwerkvorgang stattfindet.
 
 ### Syntax
 
@@ -649,36 +648,39 @@ modsecurity_rules_remote <key> <url>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| zwei Zeichenketten | kein Schlüssel-/URL-Paar wird akzeptiert | nein |
+| registrierte, aber stets abgewiesene Direktive | kein Schlüssel/URL-Paar wird akzeptiert | nein |
 
 ### Standardwert
 
-Kein verwendbarer Wert. Jede Nutzung wird von Policy A abgelehnt.
+kein verwendbarer Wert
 
-Quelle: `Parserregistrierung hat keinen Standardwert`.
+Quelle: `Sicherheitspolicy: Laden entfernter Regeln deaktiviert`.
 
 ### Vererbung und Zusammenführung
 
-Es kann kein Remote-Wert geerbt oder zusammengeführt werden, weil jede Nutzung abgelehnt wird.
+Kein Remote-Wert kann geerbt oder zusammengeführt werden, weil jede Verwendung abgewiesen wird.
+
+Zusammenführung: Kein Remote-Wert kann zusammengeführt werden, weil jede Verwendung vor dem Laden von Regeln abgewiesen wird.
 
 ### Phasen und Laufzeitwirkung
 
-Über diese Direktive sind kein Remote-Loader, keine Netzwerkanfrage, kein
-Origin-Fallback, kein Digest-Bypass und keine Secret-Weiterleitung erreichbar.
+P1–P4-Relevanz: Über diese Direktive ist kein Regellader- oder Netzwerkpfad erreichbar.
+
+Policy A weist Remote-Rule-Konfiguration ab, bevor ein Regellader- oder Netzwerkvorgang stattfindet.
 
 ### Validierung und Fehler
 
-msc_config_load_rules_remote liefert für jeden Wert den Remote-Loading-
-Security-Policy-Fehler; die installierte Konfiguration mit apachectl -t validieren.
+msc_config_load_rules_remote weist jedes Schlüssel/URL-Paar während apachectl -t vor einem Regellader- oder Netzwerkvorgang ab.
 
 ### Beispiel
 
-Es gibt absichtlich keinen akzeptierten Beispielwert.
+Es gibt kein akzeptiertes Beispiel: Jeder konfigurierte Wert wird durch die Sicherheitspolicy abgewiesen.
+
+Quellenbasiertes Beispiel: `connectors/apache/src/msc_config.c`.
 
 ### Sicherheit und Betrieb
 
-Policy A ist für diesen ausgewählten Pfad technisch deaktiviert; nicht als
-Ersatz für eine lokale Datei oder als zukünftige Remote-Loading-Konfiguration behandeln.
+Das Laden entfernter Regeln ist für jeden Connector technisch deaktiviert; nicht auf eine Remote-URL oder einen Schlüssel vertrauen.
 
 <a id="modsecurity-transaction-id"></a>
 ## `modsecurity_transaction_id`

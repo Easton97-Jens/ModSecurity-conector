@@ -26,8 +26,8 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`http.middlewares.modsecurity-native-streaming`](#http-middlewares-modsecurity-native-streaming) | Host / Connector | YAML-Konfigurationsfeld | nein | Der Connector definiert für `http.middlewares.modsecurity-native-streaming` keinen unabhängigen Standardwert; das ausgewählte Template legt den gezeigten Wert ausdrücklich fest. | Der im ausgewählten Beispiel gezeigte YAML-Objektpfad. | Das YAML-Feld `http.middlewares.modsecurity-native-streaming` konfiguriert die Middleware-Anbindung. Sie bindet die ausgewählte Middleware an den Request- und Response-Verarbeitungsweg. |
 | [`http.middlewares.modsecurity-native-streaming.plugin`](#http-middlewares-modsecurity-native-streaming-plugin) | Host / Connector | YAML-Konfigurationsfeld | nein | Der Connector definiert für `http.middlewares.modsecurity-native-streaming.plugin` keinen unabhängigen Standardwert; das ausgewählte Template legt den gezeigten Wert ausdrücklich fest. | Der im ausgewählten Beispiel gezeigte YAML-Objektpfad. | Das YAML-Feld `http.middlewares.modsecurity-native-streaming.plugin` konfiguriert die Middleware-Anbindung. Sie bindet die ausgewählte Middleware an den Request- und Response-Verarbeitungsweg. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative) | Host / Connector | YAML-Konfigurationsfeld | nein | Der Connector definiert für `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative` keinen unabhängigen Standardwert; das ausgewählte Template legt den gezeigten Wert ausdrücklich fest. | Der im ausgewählten Beispiel gezeigte YAML-Objektpfad. | Das YAML-Feld `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative` konfiguriert die Middleware-Anbindung. Sie bindet die ausgewählte Middleware an den Request- und Response-Verarbeitungsweg. |
-| [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineMode`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-enginemode) | Host / Connector | YAML-Steuerfeld | nein | passthrough | http.middlewares.<name>.plugin.modsecurityNative | Wählt source-only-passthrough oder die persistente UDS-Engine; das ausgewählte regelauswertende Beispiel verwendet uds. |
-| [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineSocketPath`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-enginesocketpath) | Host / Connector | YAML-Konfigurationsfeld | nein | Der Connector definiert für `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineSocketPath` keinen unabhängigen Standardwert; das ausgewählte Template legt den gezeigten Wert ausdrücklich fest. | http.middlewares.<name>.plugin.modsecurityNative | Benennt den privaten UDS-Pfad, den die native Middleware bei engineMode=uds verwendet. |
+| [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineMode`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-enginemode) | Host / Connector | YAML-Steuerfeld | nein | uds | http.middlewares.<name>.plugin.modsecurityNative | Wählt die persistente UDS-Engine. Legacy-source-only-passthrough wird abgelehnt, damit ein regelauswertendes Deployment nicht stillschweigend einen nicht durchsetzenden Pfad wählen kann. |
+| [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineSocketPath`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-enginesocketpath) | Host / Connector | YAML-Konfigurationsfeld | nein | keiner (im uds-Modus erforderlich und validiert) | http.middlewares.<name>.plugin.modsecurityNative | Benennt den privaten UDS-Pfad, den die native Middleware bei engineMode=uds verwendet. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxHeaderBytes`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxheaderbytes) | Host / Connector | YAML-Limitfeld | nein | 65536 | http.middlewares.<name>.plugin.modsecurityNative | Das YAML-Feld `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxHeaderBytes` konfiguriert die Middleware-Anbindung. Sie bindet die ausgewählte Middleware an den Request- und Response-Verarbeitungsweg. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxHeaderCount`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxheadercount) | Host / Connector | YAML-Limitfeld | nein | 128 | http.middlewares.<name>.plugin.modsecurityNative | Das YAML-Feld `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxHeaderCount` konfiguriert die Middleware-Anbindung. Sie bindet die ausgewählte Middleware an den Request- und Response-Verarbeitungsweg. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestChunkBytes`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxrequestchunkbytes) | Host / Connector | YAML-Limitfeld | nein | 32768 | http.middlewares.<name>.plugin.modsecurityNative | Das YAML-Feld `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestChunkBytes` konfiguriert die Middleware-Anbindung. Sie bindet die ausgewählte Middleware an den Request- und Response-Verarbeitungsweg. |
@@ -1185,7 +1185,7 @@ Quellenbasiertes Beispiel: [examples/traefik/safe/traefik-dynamic.yaml](../../ex
 
 ### Sicherheit und Betrieb
 
-Middleware-Referenzen und ihre Reihenfolge müssen erhalten bleiben, damit die geprüfte Sicherheitsverarbeitung nicht umgangen wird.
+Die UDS-Felder und Grenzen sind für die Durchsetzung relevant; Legacy-passthrough wird abgelehnt.
 
 ### Technische Quellmetadaten (unverändert)
 
@@ -1197,7 +1197,6 @@ allowed_values: the seven native middleware Config fields documented from Create
 default: Plugin CreateConfig supplies bounded defaults; this template explicitly sets all seven selected fields.
 default_source: connectors/traefik/native_middleware/middleware.go:CreateConfig/normalizedConfig
 phase_relevance: The native middleware is attached to the router; its source-defined streaming callbacks cover P1/P2/P3/P4 when the UDS engine path is running. Configuration alone is not runtime evidence.
-security_relevance: The UDS fields and bounds are enforcement-relevant; passthrough is not rule evaluation.
 runtime_effect: Groups limits, transaction ID, and engine connection fields passed to the repository native middleware.
 description: Groups limits, transaction ID, and engine connection fields passed to the repository native middleware.
 ```
@@ -1207,8 +1206,7 @@ description: Groups limits, transaction ID, and engine connection fields passed 
 
 ### Kurzbeschreibung
 
-Wählt die persistente UDS-Engine. Legacy-source-only-passthrough wird
-abgelehnt, damit ein regelauswertendes Deployment keinen nicht durchsetzenden Pfad still wählt.
+Wählt die persistente UDS-Engine. Legacy-source-only-passthrough wird abgelehnt, damit ein regelauswertendes Deployment nicht stillschweigend einen nicht durchsetzenden Pfad wählen kann.
 
 ### Syntax
 
@@ -1240,10 +1238,9 @@ Zusammenführung: Die Traefik-/Plugin-Konfiguration wird einmalig durch das Plug
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Die P1–P4-Relevanz folgt daraus, wie `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineMode` die Middleware-Anbindung konfiguriert.
+P1–P4-Relevanz: uds ist der Engine-Transport für native P1/P2/P3/P4-Callbacks. Legacy-passthrough wird abgelehnt, statt einen Always-Allow-Pfad zu erzeugen.
 
-Wählt die persistente UDS-Engine; ungültige oder Legacy-nicht-durchsetzende
-Modi werden während der Normalisierung abgelehnt.
+Wählt die persistente UDS-Engine. Legacy-source-only-passthrough wird abgelehnt, damit ein regelauswertendes Deployment nicht stillschweigend einen nicht durchsetzenden Pfad wählen kann.
 
 ### Validierung und Fehler
 
@@ -1257,8 +1254,7 @@ Quellenbasiertes Beispiel: [examples/traefik/safe/traefik-dynamic.yaml](../../ex
 
 ### Sicherheit und Betrieb
 
-Für den ausgewählten regelauswertenden Pfad uds verwenden. Nicht auf einen
-passthrough-Fallback vertrauen; die aktuelle Implementierung akzeptiert ihn nicht.
+Den privaten uds-Pfad für das ausgewählte regelauswertende Deployment verwenden. Nicht auf einen passthrough-Fallback vertrauen; er wird abgelehnt.
 
 ### Technische Quellmetadaten (unverändert)
 
@@ -1266,8 +1262,6 @@ Die folgenden Quellwerte bewahren die technische, englische Originalmetadatenang
 
 ```text
 value_type: native middleware engine-mode enum
-phase_relevance: passthrough always allows and supplies no rule evaluation; uds is the engine transport for native P1/P2/P3/P4 callbacks.
-security_relevance: Use uds for the selected rule-evaluating path; passthrough is intentionally not enforcement.
 ```
 
 <a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-enginesocketpath"></a>
@@ -1295,7 +1289,7 @@ http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineSoc
 
 ### Standardwert
 
-Der Connector definiert für `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineSocketPath` keinen unabhängigen Standardwert; das ausgewählte Template legt den gezeigten Wert ausdrücklich fest.
+keiner (im uds-Modus erforderlich und validiert)
 
 Quelle: `connectors/traefik/native_middleware/middleware.go:CreateConfig`.
 
@@ -1331,7 +1325,6 @@ Die folgenden Quellwerte bewahren die technische, englische Originalmetadatenang
 
 ```text
 value_type: absolute Unix-domain socket path
-default: none (ignored outside uds; required and validated in uds mode)
 phase_relevance: Transport endpoint for native P1/P2/P3/P4 engine callbacks when uds mode is selected.
 security_relevance: The socket directory and socket must be private to trusted processes; path traversal and NUL are rejected.
 ```
