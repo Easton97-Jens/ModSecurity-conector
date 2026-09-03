@@ -49,6 +49,7 @@ The implementation ports only the current-base-required security controls. Histo
 - Focused regressions: tests/event_json_query_redaction_test.c, tests/haproxy_spop_request_target_test.c, tests/test_haproxy_spop_request_target.py, tests/http_authorization_service_detached_worker_smoke.c, tests/test_http_authorization_service_worker_contract.py, tests/test_nginx_error_log_callback_contract.py, and tests/test_traefik_engine_service_contract.py.
 - Lighttpd runtime-redaction regression: connectors/lighttpd/harness/run_patched_full_lifecycle.sh and connectors/lighttpd/tests/test_patched_host_contract.py.
 - Source-backed documentation/inventory: ci/checks/documentation/connector_config_reference.py, examples/nginx/configuration-reference.md, examples/nginx/configuration-reference.de.md, and reports/connector-configuration-inventory.json.
+- Parent NGINX provenance alignment: ci/provisioning/components/prepare-runtime-components.py, ci/checks/evidence/check-runtime-producer-readiness.py, ci/runtime/broker/nginx_root_broker.py, ci/runtime/broker/protected_nginx_broker_caller.py, the NGINX hosted/full-smoke/broker workflows, and the paired compiler guide.
 - Operator documentation: common/docs/transaction-phase-contract.md and .de.md; connectors/haproxy, nginx, and traefik README pairs; and examples/traefik README pairs.
 - Traceability: this paired Change Record and the paired archive indexes.
 
@@ -63,7 +64,7 @@ The implementation ports only the current-base-required security controls. Histo
 | NGINX callback, phase-runner, and upstream-security contracts | Passed: 23 tests (3 skipped). |
 | NGINX generated-reference and focused contract tests | Passed: 5 tests; make check-connector-config-reference passed. |
 | NGINX C17 host compilation | Blocked: this environment lacks NGINX headers/source; no header installation or host emulation was performed. |
-| Authorization timeout, detached-worker smoke, ASan/UBSan, and TSan | Passed. The configured-companion late-quiescence branch has static contract coverage; no dynamic host-companion fixture exists. |
+| Authorization timeout, detached-worker smoke, dynamic response-companion lifecycle fixture, ASan/UBSan, and TSan | Passed. The dynamic fixture proves the configured companion's pre-quiescence hold, failed-shutdown quarantine, one post-drain release, concurrent owner/worker single-winner release, and the no-companion deferred case. |
 | Envoy module graph, Go test, and Go vet | Passed; module graph reports google.golang.org/grpc v1.83.1. |
 | Traefik contracts/native-plugin/Authorization worker contracts | Passed: 47 tests. |
 | Traefik C17 syntax and engine-service build/self-test/runtime/negative test | Passed with GCC and Clang syntax checks; normal, ASan/UBSan, and TSan engine-service runs passed. |
@@ -94,10 +95,12 @@ fixtures that are not present.
 
 ## Known limitations
 
-A configured Authorization companion has static lifecycle-contract coverage but
-no dynamic late-quiescence fixture. The local Traefik service test does not
-exercise a Traefik host process. These are evidence limits, not a claim that
-the safety controls are disabled.
+A configured Authorization companion has static lifecycle-contract coverage
+and a dynamic late-quiescence fixture; the local fixture passed the complete
+release/worker-drain matrix, but fresh exact-head hosted evidence is still
+pending. The local Traefik service test does not exercise a Traefik host
+process. These are evidence limits, not a claim that the safety controls are
+disabled.
 
 ## Remaining risks
 
@@ -187,3 +190,18 @@ its required build/download capability flags; it neither broadens the target
 nor weakens a control. The updated static gate contracts and `actionlint` pass.
 A new immutable PR head and new hosted run are still required before claiming
 NGINX compile or on/off runtime evidence.
+
+### Exact-head NGINX provenance alignment
+
+The scoped retry then reached the current Framework provenance guard and
+correctly stopped with status `77` before any download or build: the immutable
+Framework Gitlink `86451b45ae7bb7953baf9f81f2c2dad07395a808` canonically
+selects `release-1.31.4`, `nginx-1.31.4.tar.gz`, and
+`e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3`, while
+the Parent consumers still required the superseded `1.31.3` tuple. This
+successor aligns only Parent provenance consumers, exact-head/full-smoke and
+broker declarations, paired operator documentation, and their direct tests
+to that already pinned Framework tuple. The strict tag/ref/asset/digest and
+runtime-readback checks remain fail-closed; no Framework, MRTS, or Gitlink is
+changed. Fresh hosted compile and on/off evidence remains required for the
+new immutable head.

@@ -145,7 +145,7 @@ class EvidenceOutputSecurityTests(unittest.TestCase):
             root = Path(temporary)
             binary = root / "managed/nginx"
             binary.parent.mkdir(parents=True)
-            binary.write_text("#!/bin/sh\nprintf 'nginx/1.31.3\\n'\n", encoding="utf-8")
+            binary.write_text("#!/bin/sh\nprintf 'nginx/1.31.4\\n'\n", encoding="utf-8")
             binary.chmod(0o755)
             digest = SYSTEM_PROOF.hashlib.sha256(binary.read_bytes()).hexdigest()
             passed_contract = {
@@ -159,7 +159,7 @@ class EvidenceOutputSecurityTests(unittest.TestCase):
                 }
             }
             run_result = {
-                "output_excerpt": "nginx version: nginx/1.31.3",
+                "output_excerpt": "nginx version: nginx/1.31.4",
                 "return_code": 0,
                 "output_sha256": digest,
             }

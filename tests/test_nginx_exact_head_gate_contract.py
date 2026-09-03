@@ -15,8 +15,8 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
         self.assertIn('ALLOW_RUNTIME_BUILDS: "1"', workflow)
         self.assertIn('ALLOW_RUNTIME_DOWNLOADS: "1"', workflow)
         self.assertIn("RUNTIME_COMPONENT_TARGET: nginx", workflow)
-        self.assertIn("NGINX_SOURCE_GIT_REF: release-1.31.3", workflow)
-        self.assertIn("NGINX_SHA256: a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525", workflow)
+        self.assertIn("NGINX_SOURCE_GIT_REF: release-1.31.4", workflow)
+        self.assertIn("NGINX_SHA256: e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3", workflow)
         self.assertIn("run_exact_head_use_error_log.sh", workflow)
 
     def test_gate_has_two_real_runtime_cells_and_fail_closed_markers(self):

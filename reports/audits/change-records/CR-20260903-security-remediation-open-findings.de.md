@@ -50,6 +50,7 @@ Die Implementierung portiert ausschließlich die auf der aktuellen Basis benöti
 - Fokussierte Regressionen: tests/event_json_query_redaction_test.c, tests/haproxy_spop_request_target_test.c, tests/test_haproxy_spop_request_target.py, tests/http_authorization_service_detached_worker_smoke.c, tests/test_http_authorization_service_worker_contract.py, tests/test_nginx_error_log_callback_contract.py und tests/test_traefik_engine_service_contract.py.
 - Lighttpd-Runtime-Redaction-Regression: connectors/lighttpd/harness/run_patched_full_lifecycle.sh und connectors/lighttpd/tests/test_patched_host_contract.py.
 - Quellenbasierte Dokumentation/Inventar: ci/checks/documentation/connector_config_reference.py, examples/nginx/configuration-reference.md, examples/nginx/configuration-reference.de.md und reports/connector-configuration-inventory.json.
+- Parent-NGINX-Provenance-Angleichung: ci/provisioning/components/prepare-runtime-components.py, ci/checks/evidence/check-runtime-producer-readiness.py, ci/runtime/broker/nginx_root_broker.py, ci/runtime/broker/protected_nginx_broker_caller.py, die NGINX-Hosted-/Full-Smoke-/Broker-Workflows sowie die gepaarte Compiler-Anleitung.
 - Betreiber-Dokumentation: common/docs/transaction-phase-contract.md und .de.md; die README-Paare von connectors/haproxy, nginx und traefik; sowie die README-Paare von examples/traefik.
 - Traceability: dieser gepaarte Change Record und die gepaarten Archivindizes.
 
@@ -64,7 +65,7 @@ Die Implementierung portiert ausschließlich die auf der aktuellen Basis benöti
 | NGINX-Callback-, Phase-Runner- und Upstream-Security-Contracts | Bestanden: 23 Tests (3 übersprungen). |
 | NGINX-generated-reference- und fokussierte Contract-Tests | Bestanden: 5 Tests; make check-connector-config-reference bestanden. |
 | NGINX-C17-Host-Kompilierung | Blockiert: Diese Umgebung enthält keine NGINX-Header/-Quellen; keine Header-Installation und keine Host-Emulation erfolgte. |
-| Authorization-Timeout, Detached-Worker-Smoke, ASan/UBSan und TSan | Bestanden. Der konfigurierte Late-Quiescence-Companion-Zweig ist statisch abgedeckt; ein dynamisches Host-Companion-Fixture existiert nicht. |
+| Authorization-Timeout, Detached-Worker-Smoke, dynamisches Response-Companion-Lifecycle-Fixture, ASan/UBSan und TSan | Bestanden. Das dynamische Fixture beweist den Hold vor Companion-Quieszenz, Quarantäne bei fehlgeschlagenem Shutdown, genau einen Release nach Drain, den Single-Winner-Release bei konkurrierendem Owner/Worker sowie den No-Companion-Deferred-Fall. |
 | Envoy-Modulgraph, Go-Test und Go-vet | Bestanden; Modulgraph meldet google.golang.org/grpc v1.83.1. |
 | Traefik-Contracts/native-plugin/Authorization-Worker-Contracts | Bestanden: 47 Tests. |
 | Traefik-C17-Syntax und Engine-Service-Build/Selbsttest/Runtime/Negativtest | Bestanden mit GCC- und Clang-Syntaxchecks; normale, ASan/UBSan- und TSan-Engine-Service-Läufe bestanden. |
@@ -98,9 +99,11 @@ nicht vorhanden sind.
 ## Bekannte Einschränkungen
 
 Ein konfigurierter Authorization-Companion hat statische Lifecycle-Contract-
-Abdeckung, aber kein dynamisches Late-Quiescence-Fixture. Der lokale Traefik-
-Service-Test übt keinen Traefik-Hostprozess aus. Dies sind Evidence-Grenzen,
-keine Behauptung deaktivierter Sicherheitskontrollen.
+Abdeckung und ein dynamisches Late-Quiescence-Fixture; das lokale Fixture
+bestand die vollständige Release-/Worker-Drain-Matrix, frische Exact-Head-
+Hosted-Evidence steht jedoch noch aus. Der lokale Traefik-Service-Test übt
+keinen Traefik-Hostprozess aus. Dies sind Evidence-Grenzen, keine Behauptung
+deaktivierter Sicherheitskontrollen.
 
 ## Verbleibende Risiken
 
@@ -202,3 +205,20 @@ Control ab. Die aktualisierten statischen Gate-Contracts und `actionlint`
 bestehen. Ein neuer unveränderlicher PR-Head und ein neuer Hosted-Run sind
 weiterhin erforderlich, bevor NGINX-Compile- oder On/Off-Runtime-Evidenz
 behauptet wird.
+
+### Angleichung der Exact-Head-NGINX-Provenance
+
+Die begrenzte Wiederholung erreichte anschließend die aktuelle
+Framework-Provenance-Guard und endete korrekterweise mit Status `77`, bevor
+ein Download oder Build erfolgen konnte: Der unveränderliche Framework-Gitlink
+`86451b45ae7bb7953baf9f81f2c2dad07395a808` wählt kanonisch
+`release-1.31.4`, `nginx-1.31.4.tar.gz` und
+`e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3`, während
+die Parent-Consumer noch das abgelöste `1.31.3`-Tuple verlangten. Dieser
+Successor gleicht ausschließlich Parent-Provenance-Consumer,
+Exact-Head-/Full-Smoke-/Broker-Deklarationen, die gepaarte Betreiber-Doku und
+ihre direkten Tests an dieses bereits gepinnte Framework-Tuple an. Die
+strikten Tag-/Ref-/Asset-/Digest- und Runtime-Readback-Prüfungen bleiben
+fail-closed; Framework, MRTS und Gitlink bleiben unverändert. Für den neuen
+unveränderlichen Head sind weiterhin frische Hosted-Compile- und
+On/Off-Evidence erforderlich.
