@@ -271,3 +271,28 @@ Framework, Gitlink, Release-Tuple oder Runtime-Provenance-Prüfungen. Der
 statische Gate-Contract prüft jeden gelöschten Override an beiden
 Prozessgrenzen; frische Exact-Head-Hosted-Compile- und On/Off-Runtime-Evidence
 bleibt erforderlich.
+
+### Korrektur der Exact-Head-NGINX-Fehlerdiagnosegrenze
+
+Der reine Diagnose-Nachfolger `c5073a9ef3466c879cb5e352fe256ddeb8e88e75`
+führte einen getrennten CI-Trust-Boundary-Fehler ein: Nachdem
+PR-kontrollierter Provisioning-Code gelaufen war, vertraute sein
+`if: failure()`-Helper veränderbaren `GITHUB_ENV`-Wurzeln und vom Report
+ausgewählten Pfaden. Er konnte eine vom Runner lesbare Datei offenlegen, einen
+unbegrenzten Report/Log laden oder Terminal-/Workflow-Command-Text ausgeben.
+Seine gehosteten NGINX- und Complete-Runtime-Läufe wurden abgebrochen und sind
+keine Evidenz für einen späteren Head.
+
+Die eingegrenzte Parent-only-Korrektur leitet die einzige Diagnosewurzel aus
+dem unveränderlichen `${{ runner.temp }}`-Kontext ab, startet einen isolierten
+Python-Helper mit leerer Environment und erlaubt nur feste Report- und
+NGINX-Build-Log-Nachfahren, die über No-Follow-Descriptor-Walks geöffnet
+werden. Sie verwirft Symlinks, Hardlinks, Ersetzungsrennen,
+fehlerhafte/übergroße Eingaben und nicht vertrauenswürdige Log-Auswahlen;
+ausgegebene Metadaten/Tail-Zeilen sind begrenzt und terminalsanitisiert. Das
+bereits fehlgeschlagene Provisioning-Ergebnis bleibt maßgeblich. Zweiundvierzig
+fokussierte dynamische CI-/Workflow-/Helper-Tests, Python-Kompilierung,
+`actionlint` und Diff-Checks bestehen lokal. Ein neuer normaler
+Successor-Head, exakter Remote-/PR-Read-back sowie frische
+Successor-only-Sonar-, NGINX-On/Off- und Full-CRS/no-MRTS-Workflow-Evidenz
+bleiben erforderlich; kein früherer grüner Lauf wird wiederverwendet.

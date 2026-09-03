@@ -33,8 +33,14 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
         self.assertIn("run_exact_head_use_error_log.sh", workflow)
         self.assertIn("Print bounded NGINX provisioning failure diagnostics", workflow)
         self.assertIn("if: failure()", workflow)
-        self.assertIn("refusing log outside isolated run root", workflow)
-        self.assertIn("lines[-160:]", workflow)
+        diagnostic_step = workflow.split(
+            "      - name: Print bounded NGINX provisioning failure diagnostics", 1
+        )[1].split("      - name: Run isolated modsecurity_use_error_log on/off cells", 1)[0]
+        self.assertIn("run_root='${{ runner.temp }}/ModSecurity-conector-nginx-exact-head'", diagnostic_step)
+        self.assertIn("/usr/bin/env -i /usr/bin/python3 -I", diagnostic_step)
+        self.assertIn("ci/provisioning/components/nginx_exact_head_diagnostics.py", diagnostic_step)
+        self.assertNotIn("VERIFIED_RUN_ROOT", diagnostic_step)
+        self.assertNotIn("RUNTIME_REPORT_OUTPUT_ROOT", diagnostic_step)
 
     def test_gate_has_two_real_runtime_cells_and_fail_closed_markers(self):
         script = (ROOT / "connectors/nginx/harness/run_exact_head_use_error_log.sh").read_text()

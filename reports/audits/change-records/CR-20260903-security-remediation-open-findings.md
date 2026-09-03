@@ -251,3 +251,25 @@ module. This neither accepts an absent module nor changes MRTS, Framework,
 Gitlink, release tuple, or runtime provenance checks. The static gate contract
 asserts every cleared override at both process boundaries; fresh exact-head
 hosted compilation and on/off runtime evidence remains required.
+
+### Exact-head NGINX failure-diagnostic boundary correction
+
+The diagnostic-only successor `c5073a9ef3466c879cb5e352fe256ddeb8e88e75`
+introduced a separate CI trust-boundary defect: after PR-controlled
+provisioning code ran, its `if: failure()` helper trusted mutable
+`GITHUB_ENV` roots and report-selected paths. It could disclose a
+runner-readable file, load an unbounded report/log, or emit terminal/workflow
+command text. Its NGINX and complete-runtime hosted runs were cancelled and
+are not evidence for a later head.
+
+The scoped Parent-only correction derives the sole diagnostic root from the
+immutable `${{ runner.temp }}` context, invokes an empty-environment isolated
+Python helper, and permits only fixed report and NGINX build-log descendants
+opened by no-follow descriptor walks. It rejects symlinks, hardlinks,
+replacement races, malformed/oversized inputs, and untrusted log selections;
+it bounds and terminal-sanitizes emitted metadata/tail lines. The already
+failed provisioning result remains authoritative. Forty-two focused dynamic
+CI/workflow/helper tests, Python compilation, `actionlint`, and diff checks
+pass locally. A new normal successor head, exact remote/PR read-back, and
+fresh successor-only Sonar, NGINX on/off, and full CRS/no-MRTS workflow
+evidence remain required; no earlier green run is reused.
