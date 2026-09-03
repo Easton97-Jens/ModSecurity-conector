@@ -74,6 +74,42 @@ jobs:
             -u NGINX_PREFIX \
             -u NGINX_BUILD_DIR \
             make fetch-deps
+      - name: Print bounded NGINX provisioning failure diagnostics
+        if: failure()
+        run: |
+          set -eu
+          report="$RUNTIME_REPORT_OUTPUT_ROOT/reports/testing/generated/cache/runtime-component-cache.generated.json"
+          if [ ! -f "$report" ]; then
+            echo "nginx exact-head diagnostics: no runtime-component report was written" >&2
+            exit 0
+          fi
+          python3 - "$VERIFIED_RUN_ROOT" "$report" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          run_root = Path(sys.argv[1]).resolve()
+          report_path = Path(sys.argv[2]).resolve()
+          nginx = json.loads(report_path.read_text(encoding="utf-8")).get("nginx", {})
+          if not isinstance(nginx, dict):
+              raise SystemExit("nginx exact-head diagnostics: malformed nginx component record")
+          for key in ("status", "blocker_reason", "build_exit_code", "missing_files", "build_log"):
+              print(f"nginx exact-head diagnostics: {key}={nginx.get(key)!r}")
+          raw_log = nginx.get("build_log")
+          if not isinstance(raw_log, str) or not raw_log:
+              raise SystemExit(0)
+          log_path = Path(raw_log).resolve()
+          try:
+              log_path.relative_to(run_root)
+          except ValueError:
+              raise SystemExit("nginx exact-head diagnostics: refusing log outside isolated run root")
+          if log_path.is_symlink() or not log_path.is_file():
+              raise SystemExit("nginx exact-head diagnostics: bounded build log is unavailable")
+          lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+          print("nginx exact-head diagnostics: begin bounded nginx-build.log tail")
+          print("\n".join(lines[-160:]))
+          print("nginx exact-head diagnostics: end bounded nginx-build.log tail")
+          PY
       - name: Run isolated modsecurity_use_error_log on/off cells
         run: |
           set -eu

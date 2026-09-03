@@ -31,6 +31,10 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
             self.assertIn(f"-u {override}", workflow)
             self.assertEqual(workflow.count(f"-u {override}"), 2)
         self.assertIn("run_exact_head_use_error_log.sh", workflow)
+        self.assertIn("Print bounded NGINX provisioning failure diagnostics", workflow)
+        self.assertIn("if: failure()", workflow)
+        self.assertIn("refusing log outside isolated run root", workflow)
+        self.assertIn("lines[-160:]", workflow)
 
     def test_gate_has_two_real_runtime_cells_and_fail_closed_markers(self):
         script = (ROOT / "connectors/nginx/harness/run_exact_head_use_error_log.sh").read_text()
