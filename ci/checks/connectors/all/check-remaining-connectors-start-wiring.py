@@ -46,7 +46,9 @@ def check_traefik_start_contract(content: str) -> list[str]:
     output_root_mutation = 'rm -rf "$START_ROOT"'
     stderr_names = ("CONFIG_STDERR", "SERVICE_STDERR", "TRAEFIK_STDERR")
     config_stderr, service_stderr, traefik_stderr = (f"${name}" for name in stderr_names)
+    observer_build_stderr = "$START_ROOT/response-observer-build.log"
     expected_operands = (
+        observer_build_stderr,
         config_stderr,
         service_stderr,
         traefik_stderr,
@@ -89,6 +91,7 @@ def check_traefik_start_contract(content: str) -> list[str]:
             "sed \\",
             '    -e "s|__AUTH_ADDRESS__|$SERVICE_LISTEN|g" \\',
             '    -e "s|__UPSTREAM_ADDRESS__|$UPSTREAM_ADDRESS|g" \\',
+            '    -e "s|__COMPANION_SOCKET__|$COMPANION_SOCKET|g" \\',
             '    "$TRAEFIK_TEMPLATE" > "$TRAEFIK_CONFIG"',
         )
     )
@@ -116,12 +119,12 @@ def check_traefik_start_contract(content: str) -> list[str]:
          "traefik: diagnostic sed range must have one fixed declaration"),
         (re.search(rf"^[ \t]*export[ \t]+{re.escape(range_name)}(?:[ \t=]|$)", content, flags=re.MULTILINE) is None,
          "traefik: diagnostic sed range must not be exported"),
-        (content.count(range_name) == 5,
-         "traefik: diagnostic sed range must only occur in its declaration and four direct uses"),
+        (content.count(range_name) == 6,
+         "traefik: diagnostic sed range must only occur in its declaration and five direct uses"),
         (legacy_range_use not in content,
          "traefik: legacy direct diagnostic sed range remains"),
         (content.count(sed_print) == len(expected_operands),
-         "traefik: must retain exactly four diagnostic sed calls"),
+         "traefik: must retain exactly five diagnostic sed calls"),
         (actual_operands == expected_operands,
          "traefik: diagnostic sed calls must retain their exact stderr operands"),
         (all(content.find(marker) >= 0 for marker in (trap_registration, output_root_mutation, range_use)) and
@@ -139,6 +142,10 @@ def check_traefik_start_contract(content: str) -> list[str]:
         'require_loopback_address "$UPSTREAM_ADDRESS" "TRAEFIK_START_UPSTREAM"',
         'if [ ! -f "$CONFIG_PATH" ]; then',
         'if [ ! -f "$TRAEFIK_TEMPLATE" ]; then',
+        'case "$COMPANION_SOCKET" in',
+        '"$START_ROOT"/*) ;;',
+        'mkdir -p "$COMPANION_DIR"',
+        'chmod 700 "$START_ROOT" "$COMPANION_DIR"',
         template_rewrite,
         cleanup_block,
         config_block,

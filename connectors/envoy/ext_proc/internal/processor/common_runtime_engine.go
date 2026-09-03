@@ -22,6 +22,13 @@ import (
 
 const commonRuntimeErrorBufferSize = 512
 
+const (
+	commonRuntimePhase4ModeUnset   = int(C.MSC_ENVOY_EXT_PROC_PHASE4_MODE_UNSET)
+	commonRuntimePhase4ModeMinimal = int(C.MSC_ENVOY_EXT_PROC_PHASE4_MODE_MINIMAL)
+	commonRuntimePhase4ModeSafe    = int(C.MSC_ENVOY_EXT_PROC_PHASE4_MODE_SAFE)
+	commonRuntimePhase4ModeStrict  = int(C.MSC_ENVOY_EXT_PROC_PHASE4_MODE_STRICT)
+)
+
 var (
 	// ErrCommonRuntimeShutdownTimeout means a native operation kept the runtime
 	// mutex past shutdown's deadline. Native CGo calls cannot be interrupted
@@ -42,6 +49,7 @@ var (
 type CommonRuntimeEngine struct {
 	mu           sync.Mutex
 	runtime      *C.msc_envoy_ext_proc_runtime
+	phase4Mode   int
 	closed       bool
 	closing      atomic.Bool
 	transactions map[*commonRuntimeTransaction]struct{}
@@ -66,10 +74,57 @@ func NewCommonRuntimeEngine(configPath string) (*CommonRuntimeEngine, error) {
 	if runtime == nil {
 		return nil, fmt.Errorf("create Common runtime returned no runtime")
 	}
+	phase4Mode := int(C.msc_envoy_ext_proc_runtime_phase4_mode(runtime))
+	if phase4Mode == commonRuntimePhase4ModeUnset {
+		C.msc_envoy_ext_proc_runtime_destroy(&runtime)
+		return nil, fmt.Errorf("create Common runtime returned an unset phase4 policy")
+	}
 	return &CommonRuntimeEngine{
 		runtime:      runtime,
+		phase4Mode:   phase4Mode,
 		transactions: make(map[*commonRuntimeTransaction]struct{}),
 	}, nil
+}
+
+// ValidateLateActionPolicy rejects a service policy that would otherwise
+// silently disagree with the already parsed Common runtime. Strict requires a
+// strict Common mode; conversely, a strict Common mode must not be relabelled
+// as safe or minimal by the service adapter.
+func (engine *CommonRuntimeEngine) ValidateLateActionPolicy(policy LateActionPolicy) error {
+	if engine == nil {
+		return fmt.Errorf("Common runtime engine is nil")
+	}
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
+	if engine.closed || engine.runtime == nil {
+		return fmt.Errorf("Common runtime engine is closed")
+	}
+	switch policy {
+	case LateActionStrict:
+		if engine.phase4Mode != commonRuntimePhase4ModeStrict {
+			return fmt.Errorf("late_action_policy=strict requires phase4_mode=strict, got phase4_mode=%s", commonRuntimePhase4ModeName(engine.phase4Mode))
+		}
+	case LateActionMinimal, LateActionSafe:
+		if engine.phase4Mode == commonRuntimePhase4ModeStrict {
+			return fmt.Errorf("phase4_mode=strict requires late_action_policy=strict")
+		}
+	default:
+		return fmt.Errorf("unknown late_action_policy=%q", policy)
+	}
+	return nil
+}
+
+func commonRuntimePhase4ModeName(mode int) string {
+	switch mode {
+	case commonRuntimePhase4ModeMinimal:
+		return "minimal"
+	case commonRuntimePhase4ModeSafe:
+		return "safe"
+	case commonRuntimePhase4ModeStrict:
+		return "strict"
+	default:
+		return "unset"
+	}
 }
 
 // Close releases the libmodsecurity engine after every stream transaction has
@@ -459,11 +514,11 @@ func (transaction *commonRuntimeTransaction) updateTransactionIDLocked() {
 func commonDecision(native C.msc_envoy_ext_proc_decision) Decision {
 	switch int(native.action) {
 	case int(C.MSC_ENVOY_EXT_PROC_ALLOW):
-		return allowDecision()
+		return Decision{Action: ActionAllow, RuleID: C.GoString(&native.rule_id[0])}
 	case int(C.MSC_ENVOY_EXT_PROC_REDIRECT):
-		return Decision{Action: ActionRedirect, Status: int(native.status), RedirectURL: C.GoString(&native.redirect_url[0])}
+		return Decision{Action: ActionRedirect, Status: int(native.status), RuleID: C.GoString(&native.rule_id[0]), RedirectURL: C.GoString(&native.redirect_url[0])}
 	default:
-		return Decision{Action: ActionDeny, Status: int(native.status)}
+		return Decision{Action: ActionDeny, Status: int(native.status), RuleID: C.GoString(&native.rule_id[0])}
 	}
 }
 

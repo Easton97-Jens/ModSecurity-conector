@@ -54,14 +54,14 @@ und in [`SOURCE_MAP.json`](SOURCE_MAP.json) aufgezeichnet:
 
 - [PR #384](https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/384)
   bei `65de4cd8739209f22d924d85548bd012a4d94607` unterscheidet finales
-  Body-Processing von partieller Aufnahme. Im aktuellen Adapter erfordern das
-  finale `msc_process_request_body()`/`msc_process_response_body()`-Processing
-  und die Aufnahmeaufrufe `msc_append_request_body()`,
-  `msc_request_body_from_file()` sowie `msc_append_response_body()` sämtlich
-  den libmodsecurity-Erfolgswert `1`; jeder andere Rückgabewert einschließlich
-  `0` wird fail-closed behandelt. Die Upstream-Interpretation von
-  `ProcessPartial` als Limit-Trunkierung ist daher im Adapter kein nichtfataler
-  Pfad.
+  Body-Processing von partieller Aufnahme. Fehler bei finalem
+  `msc_process_request_body()`/`msc_process_response_body()` sind fail-closed,
+  während `msc_append_request_body()`, `msc_request_body_from_file()` und
+  `msc_append_response_body()` nicht fatales `ProcessPartial` beibehalten,
+  weil dieses Rückgabesignal eine Engine-seitige Limitbehandlung bezeichnen
+  kann. Diese Kompatibilität ist vom Connector-eigenen Phase-4-Body-Budget
+  getrennt: Ein über dem Limit liegender aktueller Buffer wird abgewiesen,
+  bevor er downstream weitergereicht werden kann.
 - [PR #385](https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/385)
   bei `471a2a54843bb8f560758a7e75b146db2243ab29` liefert ausgewählte
   Response-Header- und Pre-Commit-Redirect-Replacement-Behandlung. Eine
@@ -98,9 +98,13 @@ Content-Type-Aufnahme wieder her. Begrenzte Response-Bytes erreichen
 ModSecurity jetzt unabhängig vom konfigurierten Connector-Content-Type-Scope;
 erkennt diese Inspection eine außerhalb des Scopes liegende Intervention, mappt
 der Connector sie zu `log_only` mit `content_type_not_in_scope`. Das lockert
-#384 nicht: Final-Processing und Response-Body-Aufnahme bleiben bei einem
-Ergebnis ungleich `1` fail-closed. Die Aufnahme des Request-Bodys aus dem
-Speicher oder aus einer Datei verwendet denselben strikten Rückgabevertrag.
+#384 nicht: Finales `msc_process_response_body()`-Processing bleibt bei einem
+Ergebnis ungleich `1` fail-closed, während Append-/From-File-
+`ProcessPartial`-Handling für akzeptierte Engine-Chunks absichtlich nicht fatal
+bleibt. Das Connector-`modsecurity_phase4_body_limit` verwendet vor dem
+Forwarding jedes im Scope liegenden Memory- oder File-Buffers den Common-
+Reject-Plan; ein über dem Limit liegender Buffer kann daher keinen
+uninspektierten Tail freigeben.
 
 Der strikte isolierte Rebuild sowie C17, C23 und c2y bestanden, und die neu
 materialisierte Build-Source-SHA entsprach dem Task-Filter. Der ausgewählte
@@ -280,7 +284,9 @@ Der adaptereigene NGINX-Connector registriert derzeit Folgendes:
 - `modsecurity_phase4_mode minimal|safe|strict`
 - `modsecurity_phase4_content_types_file <path>`
 - `modsecurity_phase4_log <path>`
-- `modsecurity_phase4_body_limit <bytes>`
+- `modsecurity_phase4_body_limit <bytes>` (positives effektives Limit; ein
+  über dem Limit liegender aktueller Buffer wird vor dem Downstream-Forwarding
+  abgewiesen)
 
 `modsecurity_transaction_id` verwendet einen komplexen NGINX-Wert und kann ihn auswerten
 Variablen pro Anfrage. `modsecurity_transaction_id_expr` im Apache-Stil ist dies nicht
@@ -408,6 +414,15 @@ nach dem Antwort-Header-Pfad.  `response_body_buffered`, `phase4`,
 `implemented_not_asserted`, bis ein aktueller kanonischer Real-Host-Lauf das beweist
 individuelles Verhalten.
 
+Für einen file-only-NGINX-Buffer liest der Filter den sichtbaren Bereich
+`file_pos..file_last` über genau einen wiederverwendeten 32-KiB-Scratch-Buffer
+und bietet jeden begrenzten Chunk P4 genau einmal an. NGINXs speichermaßgebliche
+Buffer-Semantik verhindert, dass ein gemischter Memory-/File-Buffer doppelt
+gezählt wird. Ungültige Metadaten, ein Allokationsfehler sowie eine kurze oder
+fehlgeschlagene Dateilesung liefern einen Connector-Fehler, bevor die aktuelle
+Chain weitergeleitet wird; weder Scratch-Bytes noch Response-Payloads gelangen
+in Event-JSONL.
+
 Eine Regelübereinstimmung muss unabhängig von einem sichtbaren 403 gemeldet werden. Kanonisch
 Ereignisse behalten den ursprünglichen Hoststatus, den angeforderten WAF-Status und den sichtbaren Client bei
 Status, angeforderte Aktion, tatsächliche Aktion, Header-/Commit-Timing und Verbindung
@@ -420,10 +435,9 @@ Die kanonischen Phase-4-Fälle sind evidenzbasiert und umfassen Regelbeobachtung
 Pre-Commit-Verweigerung, sichere Protokollierung, strikter Abbruch und Status-/Aktionsmetadaten.  Nein
 Die Nutzlast des Antworttextes kann in ein Ereignis oder einen Bericht eingegeben werden.
 
-Final-Processing und Body-Ingestion verwenden denselben strikten nativen
-Erfolgsvertrag: Jeder relevante libmodsecurity-Aufruf muss exakt `1` liefern.
-Ein Aufnahmefehler einschließlich eines Rückgabewerts `0` führt zu einem
-generischen fail-closed-`500`/Interventionspfad und wird nicht als nichtfatale
-`ProcessPartial`-Limitentscheidung behandelt. So bleibt das bestehende
-Safe/Strict-Phase-4-Result-Modell erhalten, ohne einen unvollständig
-aufgenommenen Body stillschweigend an Final-Processing weiterzugeben.
+Der Final-Processing-Guard bleibt bewusst enger als die Engine-Append-
+Behandlung: `ProcessPartial` bei Append/From-File erzeugt für sich keinen
+generischen 500-Pfad. Davon getrennt verwendet das Connector-eigene
+Phase-4-Body-Limit begrenzte Ablehnung vor dem Forwarding eines übergroßen
+aktuellen Buffers. Eine Partial-Body-Limitentscheidung kann damit weder einen
+uninspektierten Downstream-Tail noch eine Late-Intervention-Behauptung erzeugen.

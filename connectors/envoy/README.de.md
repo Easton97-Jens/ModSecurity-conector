@@ -6,66 +6,82 @@
 Status: `minimal_runtime_smoke` / `connector-gap`
 
 Das implementierte Hostmodell ist ein externer HTTP-Autorisierungsdienst für
-Der `ext_authz`-Filter von Envoy. Der Connector besitzt das Envoy-Profil und Thin Common
-SDK-Mapper-Rückrufe; die Connector-neutrale Engine und der HTTP-Service-Lebenszyklus
-bleiben in `common/runtime/`.
+Envoys `ext_authz`-Filter. Der Connector besitzt das Envoy-Profil und schlanke
+Common-SDK-Mapper-Callbacks; die connector-neutrale Engine und der Lebenszyklus
+des HTTP-Dienstes bleiben in `common/runtime/`.
 
-Dies ist eine Integration in der Anfragephase. Es kann begrenzte Anforderungsheader empfangen und
-einen gepufferten Anfragetext und übersetzen eine gemeinsame Entscheidung in eine Autorisierung
-Antwort. `ext_authz` stellt keine Upstream-Antwortheader oder -Antworten bereit
-Stellen für diesen Dienst zur Verfügung, so dass die Reaktionskontrolle weiterhin nicht unterstützt wird und nein
-Es wird ein Response-Body-Anspruch erhoben.
+Das direkte `ext_authz`-Protokoll ist eine Integration in der Request-Phase.
+Es kann begrenzte Request-Header und einen gepufferten Request-Body empfangen
+und eine Common-Entscheidung in eine Autorisierungsantwort übersetzen. Allein
+stellt `ext_authz` keine Upstream-Response-Header oder Response-Bodies bereit;
+das direkte Protokoll ist daher kein P3/P4-fähiger Hostadapter.
+
+Die benannte logische Connectorlösung `envoy-ext-authz` benötigt deshalb den im
+[kanonischen Envoy-Guide](../../docs/connectors/envoy.de.md) beschriebenen
+privaten MRC1-Response-Companion. Er behält dieselbe lebende Common-/native
+Transaktion von abgeschlossenem P2 bis P3/P4, statt einen Request-Snapshot zu
+rekonstruieren. Der Observer ist verpflichtend: Sein Weglassen ist ein
+Konfigurationsfehler; Observer- oder Korrelationsfehler sind fail-closed. Dies
+ist Source-/Component-Wiring mit Status `implemented_not_asserted`, kein
+Nachweis, dass eine beliebige Envoy-Deployment die benötigten Templates geladen
+hat.
 
 ## Separater, nicht hochgestufter `ext_proc`-Hostpfad für den gesamten Lebenszyklus
 
-`ext_proc/` fügt einen separaten Go-Dienst hinzu, der vom Profil für den gesamten Lebenszyklus ausgewählt wird.
-Basierend auf der offiziell generierten Go-Protobuf/gRPC-API von Envoy. Sein eingecheckter Gesandter
-Vorlage verwendet `STREAMED`-Anfrage und
-Antwortkörpermodi mit begrenzten Zählern pro Stream und inkrementellem Rückruf
-Lieferung; Es wird niemals die `BUFFERED`-Verarbeitung ausgewählt. Das angeheftete Modul und Envoy
-Der Release-Datensatz befindet sich in `ext_proc/go.mod`, `ext_proc/go.sum` und
-`config/envoy-ext-proc-versions.env`.
+`ext_proc/` fügt einen separaten Go-Dienst hinzu, der vom Full-Lifecycle-Profil
+ausgewählt wird und auf Envoys offiziell generierter Go-Protobuf-/gRPC-API
+basiert. Die eingecheckte Envoy-Vorlage verwendet für Request- und
+Response-Bodies `STREAMED`-Modi mit begrenzten Zählern pro Stream und
+inkrementeller Callback-Auslieferung; sie wählt niemals `BUFFERED`-Verarbeitung.
+Der angeheftete Modul- und Envoy-Release-Datensatz steht in `ext_proc/go.mod`,
+`ext_proc/go.sum` und `config/envoy-ext-proc-versions.env`.
 
-Der normale `ext_proc`-Build ist eine ausführbare CGo-Datei, die einen lokalen Connector verknüpft
-ABI zu Common Runtime und libmodsecurity. Jeder echte Envoy `Process`-Stream
-Öffnet eine gemeinsame Transaktion aus den Anforderungsheadern von Envoy, vorwärts begrenzt
-inkrementelle Anforderungs- und Antwortdaten und schließt sie bei EOS, Abbruch oder
-Prozessorfehler. Common's Run-Local-Rohentscheidung JSONL ist kanonisch
-Ereignisquelle; Das nutzlastfreie Stream-Completion-JSONL ist nur eine Ergänzung.
+Der normale `ext_proc`-Build erzeugt eine CGo-Datei, die ein Connector-lokales
+ABI mit Common Runtime und libmodsecurity verbindet. Jeder echte Envoy-
+`Process`-Stream eröffnet eine Common-Transaktion aus Envoys Request-Headern,
+leitet begrenzte inkrementelle Request- und Response-Daten weiter und schließt
+sie bei EOS, Cancel oder Prozessorfehler. Commons run-lokales Rohentscheidungs-
+JSONL ist die kanonische Ereignisquelle; das payload-freie Stream-Completion-
+JSONL ist nur ergänzend.
 
-`runtime-smoke-envoy-ext-proc` validiert das materialisierte YAML, startet Envoy,
-der CGo/Common gRPC-Dienst und ein Upstream, dann Übungen P1, P2, P3 verweigern,
-P3-Umleitung und P4-sicheres Post-Commit-Nur-Protokollverhalten. Es validiert das Rohmaterial
-Allgemeine Ereignisse und die vom Host bestätigten Aktionen nach erfolgreichen gRPC-Versendungen. Dies
-ist ein echter lokaler Host-Beweis, bleibt jedoch nicht beworben und ändert sich nicht
-die kanonischen `ext_authz`-Funktionen oder den Laufzeitstatus. Eine späte P4-Entscheidung
-in `minimal`/`safe` wird als vom Host bestätigtes `log_only` aufgezeichnet; `strict` bleibt bestehen
-`strict_abort_not_attempted`. Es wird niemals eine verspätete Statusänderung behauptet,
-deterministischer Reset, Client-Reset oder Upstream-Reset.
+`runtime-smoke-envoy-ext-proc` validiert das materialisierte YAML, startet
+Envoy, den CGo/Common-gRPC-Dienst und einen Upstream und übt anschließend P1,
+P2, P3-Deny, P3-Redirect und sicheres P4-Post-Commit-Log-only-Verhalten aus.
+Es validiert die rohen Common-Ereignisse und die vom Host bestätigten Aktionen
+nach erfolgreichen gRPC-Sends. Dies ist echter lokaler Hostnachweis, bleibt
+aber nicht hochgestuft und verändert weder die kanonischen `ext_authz`-
+Fähigkeiten noch den Laufzeitstatus. Eine späte P4-Entscheidung in
+`minimal`/`safe` wird als hostbestätigtes `log_only` aufgezeichnet; `strict`
+Der Service-Decoder kann `late_action_policy: strict` darstellen, aber ein
+regelauswertender CGo-Service mit `phase4_mode=strict` weist das Profil
+`envoy-ext-proc` beim Start ab, bis eine deterministische Post-Commit-
+Hostaktion nachgewiesen ist. Es werden weder eine späte Statusänderung noch
+ein deterministischer Reset, Client-Reset oder Upstream-Reset behauptet.
 
-Die genaue ext_proc-API-Grenze, Opt-in-Client-Abbruchbeobachtung und
-Nichtförderungsbedingungen stehen im
+Die genaue ext_proc-API-Grenze, die Opt-in-Beobachtung von Client-Cancel und
+die Nichtförderungsbedingungen stehen im
 [kanonischen Envoy-Guide](../../docs/connectors/envoy.de.md).
 
 ## Quelllayout
 
-- `src/envoy_ext_authz_service_main.c` definiert das Envoy-Hostprofil, Original
-  URI-Header-Einstellungen und der Service-Einstiegspunkt.
-- `src/envoy_modsecurity_mapper.c` enthält dünne C17-Aufrufe an das Common-Generikum
-  Anfrage- und Antwort-Mapper.
+- `src/envoy_ext_authz_service_main.c` definiert das Envoy-Hostprofil,
+  Original-URI-Header-Präferenzen und den Service-Einstiegspunkt.
+- `src/envoy_modsecurity_mapper.c` enthält schlanke C17-Aufrufe an die
+  generischen Common-Request- und Response-Mapper.
 - `config/envoy-ext-authz.conf` ist die eingecheckte Konfigurationsvorlage.
-- `config/prepare_envoy_config.sh` erstellt eine konkrete Laufzeitkopie außerhalb des
-  Checkout und ersetzt Regel-/Ereignispfade.
-- `build/build_connector.sh` führt einen C17-Build nur zum Kompilieren/Linken durch.
-- `harness/start_envoy_connector.sh` validiert die Envoy-Konfiguration, startet und beobachtet
-  sowohl Envoy als auch den Dienst und stoppt beide, ohne eine Anfrage zu senden.
-- `ext_proc/` enthält den separat erstellbaren CGo/Common ext_proc-Stream
-  Service und seine fokussierten Unit-/CGo-Lebenszyklustests;
-  `config/envoy-ext-proc-streaming.yaml.in` ist der nicht beworbene Streaming-Modus
-  Vorlage.
+- `config/prepare_envoy_config.sh` erzeugt außerhalb des Checkouts eine
+  konkrete Laufzeitkopie und ersetzt Regel-/Ereignispfade.
+- `build/build_connector.sh` führt einen C17-Build nur zum Kompilieren und
+  Linken aus.
+- `harness/start_envoy_connector.sh` validiert die Envoy-Konfiguration,
+  startet und beobachtet Envoy und den Dienst und stoppt beide ohne Request.
+- `ext_proc/` enthält den separat baubaren CGo/Common-ext_proc-Streamdienst
+  und seine fokussierten Unit-/CGo-Lebenszyklustests;
+  `config/envoy-ext-proc-streaming.yaml.in` ist die nicht hochgestufte
+  Streaming-Modus-Vorlage.
 
-Die ältere `envoy_bridge`-CLI bleibt ein lokaler Entscheidungsselbsttest. Es wird nicht verwendet
-Wird vom `ext_authz`-Dienst bereitgestellt und ist kein Laufzeitbeweis.
+Die ältere `envoy_bridge`-CLI bleibt ein lokaler Entscheidungs-Selbsttest. Sie
+wird nicht vom `ext_authz`-Dienst verwendet und ist kein Laufzeitnachweis.
 
 ## Erstellen, konfigurieren und Trennung starten
 
@@ -171,23 +187,30 @@ fördert keine Fähigkeit und ersetzt keine kanonische Sammlung.
   Timeout, Zurücksetzen, erstes Byte, HTTP/2, Client-Byte-Beobachtung, kanonisch
   Sammler oder Beweismittel zur Fähigkeitsförderung.
 
-## Kanonische Phase-4-Grenze
+## Direkte `ext_authz`-Grenze und logischer Phase-4-Vertrag
 
-Das ausgewählte Hostmodell ist Envoy HTTP `ext_authz`.  Es fragt nach der Autorisierung
-Service vor der Upstream-Verarbeitung und macht niemals die spätere Upstream-Antwort verfügbar
-zu diesem Dienst.  `response_body_buffered`, `phase4`,
-`phase4_rule_evaluation`, `phase4_pre_commit_deny`, `late_intervention`,
-`late_intervention_log_only`, `late_intervention_abort` und
-`late_intervention_status_metadata` sind daher
-`unsupported_by_host_model`, nicht nur ungeprüft.
+Das direkte Envoy-HTTP-`ext_authz`-Protokoll fragt den Autorisierungsdienst vor
+der Upstream-Verarbeitung und stellt ihm die spätere Upstream-Response nie zur
+Verfügung. In der Legacy-Capability-Tabelle des direkten Protokolls sind
+`response_body_buffered`, `phase4`, `phase4_rule_evaluation`,
+`phase4_pre_commit_deny`, `late_intervention`, `late_intervention_log_only`,
+`late_intervention_abort` und `late_intervention_status_metadata` daher
+`unsupported_by_host_model`, nicht nur ungeprüft. Ein Request-Phase-Allow oder
+-Deny, auch ein realer requestseitiger 200 oder 403, ist für dieses direkte
+Protokoll kein Response-Phase-Nachweis.
 
-Jeder freigegebene Phase-4-Fall für diese Integration muss `UNSUPPORTED` sein, mit dem
-Grund dafür, dass die ausgewählte ext_authz-Integration vor dem Upstream ausgeführt wird
-Antwort und legt keine Upstream-Antworttextdaten offen.  Eine Anfragephase
-Zulassen oder verweigern, einschließlich einer echten Anfrage-Seite 200 oder 403, ist keine Antwortphase
-Beweise.  Der Dienst kann den ursprünglichen Upstream-Status (sichtbarer Client) nicht bereitstellen
-Status nach einem späten Eingriff oder einer Post-Commit-Aktion, da kein solcher Host vorhanden ist
-Ereignis erreicht es.
+Diese Grenze macht P3/P4 für die vollständige logische Connectorlösung
+`envoy-ext-authz` nicht not-applicable. Ihre verpflichtende Kette übergibt die
+lebende Common-Transaktion nach P2 von `ext_authz` über einen servererzeugten
+opaken Handle an den privaten UDS-`ext_proc`-Response-Observer. Der Observer
+claimed den Handle genau einmal, entfernt ihn vor dem Upstream-Request, sendet
+P3 vor dem Response-Commit, sendet begrenzte P4-Chunks mit genau einem EOS und
+gibt anschließend deterministisch frei oder cancelt. Fehlende, fehlerhafte,
+abgelaufene, wiederverwendete oder nicht erreichbare Korrelation ist ein
+Konfigurations- oder Protokollfehler und fail-closed vor dem Response-Commit.
 
-`UNSUPPORTED` beschreibt diese gewählte Architektur; es zählt nie als `PASS`.
-In Ereignisse oder Berichte wird keine Antworttext-Nutzlast geschrieben.
+Ein gemeinsamer P4-Fall ist damit nur für ein ungepaartes direktes `ext_authz`
+`UNSUPPORTED`. Die logische Connectorlösung muss den verpflichtenden Observer
+für P3/P4 verwenden oder als fehlkonfiguriert fehlschlagen; sie darf diese
+Phasen nie stillschweigend als unsupported bezeichnen. Event-JSONL und Berichte
+enthalten keine Response-Body-Nutzlast.

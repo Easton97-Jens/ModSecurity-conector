@@ -15,6 +15,7 @@ SMOKE_C="$OUT_DIR/common_helper_smoke.c"
 SMOKE_BIN="$OUT_DIR/common_helper_smoke"
 STARTER_C="$OUT_DIR/common_transaction_constructor_smoke.c"
 STARTER_BIN="$OUT_DIR/common_transaction_constructor_smoke"
+INTERVENTION_NORMALIZATION_BIN="$OUT_DIR/intervention_normalization_test"
 CXX_SMOKE_CPP="$OUT_DIR/common_cpp_wrapper_smoke.cpp"
 CXX_SMOKE_OBJ="$OUT_DIR/common_cpp_wrapper_smoke.o"
 
@@ -114,6 +115,7 @@ typedef struct fake_backend_state {
     int fail_create_rules;
     int new_transaction_calls;
     int request_headers_calls;
+    int response_headers_calls;
     int response_body_calls;
     int request_body_append_calls;
     int request_body_finish_calls;
@@ -200,6 +202,16 @@ static int fake_process_request_headers(void *userdata, void *transaction, const
     (void)request;
     (void)error;
     ++state->request_headers_calls;
+    if (decision != 0) { msconnector_decision_set_allow(decision); }
+    return 1;
+}
+
+static int fake_process_response_headers(void *userdata, void *transaction, const msconnector_response *response, msconnector_decision *decision, msconnector_error *error) {
+    fake_backend_state *state = (fake_backend_state *)userdata;
+    (void)transaction;
+    (void)response;
+    (void)error;
+    ++state->response_headers_calls;
     if (decision != 0) { msconnector_decision_set_allow(decision); }
     return 1;
 }
@@ -1177,8 +1189,10 @@ int main(void) {
         msconnector_modsecurity_engine_ops ops;
         msconnector_modsecurity_engine engine;
         msconnector_modsecurity_transaction tx;
+        msconnector_modsecurity_transaction direct_tx;
         msconnector_decision engine_decision;
         msconnector_error error;
+        msconnector_response response;
         memset(&ops, 0, sizeof(ops));
         ops.userdata = &state;
         ops.init = fake_engine_init;
@@ -1188,6 +1202,7 @@ int main(void) {
         ops.new_transaction = fake_new_transaction;
         ops.free_transaction = fake_free_transaction;
         ops.process_request_headers = fake_process_request_headers;
+        ops.process_response_headers = fake_process_response_headers;
         ops.process_response_body = fake_process_response_body;
         ops.append_request_body = fake_append_request_body;
         ops.finish_request_body = fake_finish_request_body;
@@ -1212,10 +1227,19 @@ int main(void) {
             assert(state.destroy_rules_calls == 1);
         }
         assert(msconnector_modsecurity_transaction_init(&tx, &engine, "tx-engine", &error));
+        memset(&response, 0, sizeof(response));
+        response.status = 200;
+        response.http_version = "HTTP/1.1";
         assert(msconnector_modsecurity_process_request_headers(&tx, 0, &engine_decision, &error));
         assert(msconnector_transaction_state_phase_processed(&tx.state, MSCONNECTOR_PHASE_REQUEST_HEADERS));
-        assert(msconnector_modsecurity_process_response_body(&tx, 0, &engine_decision, &error));
-        assert(msconnector_decision_is_connection_abort(&engine_decision));
+        assert(!msconnector_modsecurity_process_response_body(&tx, &response, &engine_decision, &error));
+        assert(error.code == MSCONNECTOR_ERROR_PHASE_SEQUENCE);
+        assert(state.response_body_calls == 0);
+        msconnector_error_init(&error);
+        assert(!msconnector_modsecurity_process_response_body(&tx, 0, &engine_decision, &error));
+        assert(error.code == MSCONNECTOR_ERROR_INTERNAL);
+        assert(state.response_body_calls == 0);
+        msconnector_error_init(&error);
         {
             const unsigned char chunk[] = {'o', 'k'};
             assert(msconnector_modsecurity_append_request_body(&tx, chunk, sizeof(chunk), &error));
@@ -1224,6 +1248,10 @@ int main(void) {
             assert(state.request_body_finish_calls == 1);
             assert(msconnector_transaction_state_phase_processed(&tx.state, MSCONNECTOR_PHASE_REQUEST_BODY));
             assert(!msconnector_modsecurity_append_request_body(&tx, 0, 1U, &error));
+            msconnector_error_init(&error);
+            assert(msconnector_modsecurity_process_response_headers(&tx, &response, &engine_decision, &error));
+            assert(state.response_headers_calls == 1);
+            assert(msconnector_transaction_state_phase_processed(&tx.state, MSCONNECTOR_PHASE_RESPONSE_HEADERS));
             assert(msconnector_modsecurity_append_response_body(&tx, chunk, sizeof(chunk), &error));
             assert(msconnector_modsecurity_finish_response_body(&tx, &engine_decision, &error));
             assert(state.response_body_append_calls == 1);
@@ -1235,6 +1263,17 @@ int main(void) {
         msconnector_modsecurity_transaction_cleanup(&tx);
         assert(tx.native_transaction == 0);
         assert(!msconnector_modsecurity_process_request_headers(&tx, 0, &engine_decision, &error));
+        assert(msconnector_modsecurity_transaction_init(&direct_tx, &engine, "tx-engine-direct", &error));
+        assert(msconnector_modsecurity_process_request_headers(&direct_tx, 0, &engine_decision, &error));
+        assert(msconnector_modsecurity_append_request_body(&direct_tx, (const unsigned char *)"ok", 2U, &error));
+        assert(msconnector_modsecurity_finish_request_body(&direct_tx, &engine_decision, &error));
+        assert(msconnector_modsecurity_process_response_headers(&direct_tx, &response, &engine_decision, &error));
+        assert(msconnector_modsecurity_process_response_body(&direct_tx, &response, &engine_decision, &error));
+        assert(msconnector_decision_is_connection_abort(&engine_decision));
+        assert(state.response_body_calls == 1);
+        assert(msconnector_modsecurity_process_logging(&direct_tx, &error));
+        msconnector_modsecurity_transaction_cleanup(&direct_tx);
+        assert(direct_tx.native_transaction == 0);
         assert(msconnector_modsecurity_transaction_init(&tx, &engine, "tx-engine-no-free", &error));
         ops.free_transaction = 0;
         engine.ops.free_transaction = 0;
@@ -1768,8 +1807,17 @@ int main(void) {
 }
 EOF
 
-"$CC_BIN" $MSCONNECTOR_CFLAGS     -I "$REPO_ROOT/common/include"     "$STARTER_C"     "$REPO_ROOT/common/src/transaction.c"     "$REPO_ROOT/common/src/intervention.c"     -o "$STARTER_BIN"
+"$CC_BIN" $MSCONNECTOR_CFLAGS     -I "$REPO_ROOT/common/include"     "$STARTER_C"     "$REPO_ROOT/common/src/transaction.c"     "$REPO_ROOT/common/src/intervention.c"     "$REPO_ROOT/common/src/block_statuses.c"     "$REPO_ROOT/common/src/http_status.c"     -o "$STARTER_BIN"
 "$STARTER_BIN"
+
+"$CC_BIN" $MSCONNECTOR_CFLAGS \
+    -I "$REPO_ROOT/common/include" \
+    "$REPO_ROOT/tests/intervention_normalization_test.c" \
+    "$REPO_ROOT/common/src/intervention.c" \
+    "$REPO_ROOT/common/src/block_statuses.c" \
+    "$REPO_ROOT/common/src/http_status.c" \
+    -o "$INTERVENTION_NORMALIZATION_BIN"
+"$INTERVENTION_NORMALIZATION_BIN"
 
 . "$REPO_ROOT/ci/runtime/common/common-harness.sh"
 msconnector_harness_require_under_root /tmp/run /tmp/run/logs/result.json

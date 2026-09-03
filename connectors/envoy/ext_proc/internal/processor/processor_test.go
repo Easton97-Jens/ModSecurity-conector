@@ -3,21 +3,14 @@ package processor
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
-	"net"
-	"sync"
+	"strings"
 	"testing"
-	"time"
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	extprocv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
+	typev3 "github.com/envoyproxy/go-control-plane/envoy/type/v3"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/status"
-	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -87,11 +80,92 @@ func TestRequestDenyUsesImmediateResponseBeforeResponseHeaders(t *testing.T) {
 	}
 }
 
-func TestResponseHeaderDenyUsesImmediateResponseBeforeCommit(t *testing.T) {
+func TestRequestBodyLimitUses413WithoutEngineBodyDispatch(t *testing.T) {
+	transaction := &recordingTransaction{}
+	config := testConfig(LateActionSafe)
+	config.MaxRequestBodyBytes = 4
+	service, err := NewService(config, recordingEngine{transaction: transaction})
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+	stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
+		{request: requestHeaders(false)},
+		{request: requestBody([]byte("12345"), true)},
+	}}
+
+	if err := service.Process(stream); err != nil {
+		t.Fatalf("Process() error = %v", err)
+	}
+	if got, want := len(stream.sent), 2; got != want {
+		t.Fatalf("sent responses = %d, want %d", got, want)
+	}
+	if response := stream.sent[1].GetImmediateResponse(); response == nil || int(response.GetStatus().GetCode()) != 413 {
+		t.Fatalf("expected a request-body immediate 413 response, got %#v", stream.sent[1])
+	}
+	if got := transaction.requestBodyLengths; len(got) != 0 {
+		t.Fatalf("over-limit request body reached engine dispatch: %v", got)
+	}
+	if len(transaction.closed) != 1 {
+		t.Fatalf("close calls = %d, want 1", len(transaction.closed))
+	}
+	summary := transaction.closed[0]
+	if summary.CloseReason != CloseImmediateResponse || summary.RequestBodyChunks != 1 || summary.RequestBodyBytes != 5 {
+		t.Fatalf("unexpected body-limit cleanup summary: %#v", summary)
+	}
+	if got, want := transaction.hostActions, []HostAction{{
+		Action: AppliedActionDeny, VisibleStatus: 413, TransportResult: "http_status",
+	}}; !sameHostActions(got, want) {
+		t.Fatalf("host actions = %#v, want %#v", got, want)
+	}
+}
+
+func TestRedirectDecisionRejectsUnsafeHeaderTargets(t *testing.T) {
+	for _, target := range []string{
+		"https://example.test/next\r\nX-Injected: yes",
+		"https://example.test/next\x1f",
+		"https://example.test/next\x7f",
+		strings.Repeat("a", maxRedirectURLBytes+1),
+	} {
+		decision := normalizeDecision(Decision{Action: ActionRedirect, Status: 302, RedirectURL: target})
+		if decision.Action != ActionDeny || decision.Status != int(typev3.StatusCode_Forbidden) {
+			t.Fatalf("unsafe redirect %q normalized to %#v, want deny/403", target, decision)
+		}
+		if response := immediateResponse(decision); response.GetImmediateResponse().GetHeaders() != nil {
+			t.Fatalf("rejected redirect retained a Location mutation: %#v", response)
+		}
+	}
+}
+
+func TestResponseHeaderDecisionsUseImmediateResponseBeforeCommit(t *testing.T) {
+	for _, test := range responseHeaderDecisionCases() {
+		t.Run(test.name, func(t *testing.T) {
+			transaction, response := processResponseHeaderDecision(t, test)
+			assertResponseHeaderDecision(t, transaction, response, test)
+		})
+	}
+}
+
+type responseHeaderDecisionCase struct {
+	name               string
+	decision           Decision
+	wantAction         AppliedAction
+	wantLocation       bool
+	wantHTTPHostAction bool
+}
+
+func responseHeaderDecisionCases() []responseHeaderDecisionCase {
+	return []responseHeaderDecisionCase{
+		{name: "deny", decision: Decision{Action: ActionDeny, Status: 403}, wantAction: AppliedActionDeny},
+		{name: "redirect", decision: Decision{Action: ActionRedirect, Status: 302, RedirectURL: "/msconnector-p3-redirect-target"}, wantAction: AppliedActionRedirect, wantLocation: true, wantHTTPHostAction: true},
+	}
+}
+
+func processResponseHeaderDecision(t *testing.T, test responseHeaderDecisionCase) (*recordingTransaction, *extprocv3.ImmediateResponse) {
+	t.Helper()
 	transaction := &recordingTransaction{
 		headerDecision: func(direction Direction) Decision {
 			if direction == DirectionResponse {
-				return Decision{Action: ActionDeny, Status: 403}
+				return test.decision
 			}
 			return allowDecision()
 		},
@@ -111,14 +185,43 @@ func TestResponseHeaderDenyUsesImmediateResponseBeforeCommit(t *testing.T) {
 	if stream.sent[0].GetRequestHeaders() == nil {
 		t.Fatalf("request headers did not receive a continue response: %#v", stream.sent[0])
 	}
-	if response := stream.sent[1].GetImmediateResponse(); response == nil || int(response.GetStatus().GetCode()) != 403 {
-		t.Fatalf("expected a response-header immediate 403 response, got %#v", stream.sent[1])
+	return transaction, stream.sent[1].GetImmediateResponse()
+}
+
+func assertResponseHeaderDecision(t *testing.T, transaction *recordingTransaction, response *extprocv3.ImmediateResponse, test responseHeaderDecisionCase) {
+	t.Helper()
+	if response == nil || int(response.GetStatus().GetCode()) != test.decision.Status {
+		t.Fatalf("expected a response-header immediate %d response, got %#v", test.decision.Status, response)
 	}
 	if len(transaction.closed) != 1 || transaction.closed[0].CloseReason != CloseImmediateResponse {
-		t.Fatalf("unexpected cleanup after response-header denial: %#v", transaction.closed)
+		t.Fatalf("unexpected cleanup after response-header decision: %#v", transaction.closed)
 	}
-	if len(transaction.hostActions) != 1 || transaction.hostActions[0].Action != AppliedActionDeny {
+	if len(transaction.hostActions) != 1 || transaction.hostActions[0].Action != test.wantAction {
 		t.Fatalf("response-header host action = %#v", transaction.hostActions)
+	}
+	if test.wantHTTPHostAction {
+		assertResponseHeaderHostAction(t, transaction, test)
+	}
+	if test.wantLocation {
+		assertResponseHeaderLocation(t, response, test.decision.RedirectURL)
+	}
+}
+
+func assertResponseHeaderHostAction(t *testing.T, transaction *recordingTransaction, test responseHeaderDecisionCase) {
+	t.Helper()
+	want := []HostAction{{
+		Action: AppliedActionRedirect, VisibleStatus: test.decision.Status, TransportResult: "http_status",
+	}}
+	if !sameHostActions(transaction.hostActions, want) {
+		t.Fatalf("response-header redirect host action = %#v", transaction.hostActions)
+	}
+}
+
+func assertResponseHeaderLocation(t *testing.T, response *extprocv3.ImmediateResponse, redirectURL string) {
+	t.Helper()
+	headers := response.GetHeaders().GetSetHeaders()
+	if len(headers) != 1 || headers[0].GetHeader().GetKey() != "location" || string(headers[0].GetHeader().GetRawValue()) != redirectURL || headers[0].GetHeader().GetValue() != "" || headers[0].GetAppendAction() != corev3.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD {
+		t.Fatalf("response-header redirect location = %#v", headers)
 	}
 }
 
@@ -207,35 +310,32 @@ func TestResponseCommitRequiresSuccessfulResponseHeaderContinue(t *testing.T) {
 	}
 }
 
-func TestLateStrictDecisionDoesNotClaimOrSendAbort(t *testing.T) {
-	transaction := &recordingTransaction{
-		bodyDecision: func(direction Direction) Decision {
-			if direction == DirectionResponse {
-				return Decision{Action: ActionDeny, Status: 403}
-			}
-			return allowDecision()
-		},
+func TestStrictPolicyIsRejectedBeforeStreamAdmission(t *testing.T) {
+	_, err := NewService(testConfig(LateActionStrict), recordingEngine{transaction: &recordingTransaction{}})
+	if err == nil || !strings.Contains(err.Error(), "proven strict post-commit host action") {
+		t.Fatalf("NewService() error = %v, want strict admission rejection", err)
 	}
-	service := newTestService(t, transaction, LateActionStrict)
-	stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
-		{request: requestHeaders(true)},
-		{request: responseHeaders(false)},
-		{request: responseBody([]byte("late"), true)},
-	}}
+}
 
-	if err := service.Process(stream); err != nil {
-		t.Fatalf("Process() error = %v", err)
+func TestLatePolicyAdmissionDelegatesToRuleEvaluatingEngine(t *testing.T) {
+	engine := &policyValidationEngine{
+		recordingEngine: recordingEngine{transaction: &recordingTransaction{}},
+		rejection:       errors.New("phase4_mode=safe cannot prove strict"),
 	}
-	last := stream.sent[len(stream.sent)-1]
-	if last.GetResponseBody() == nil || last.GetImmediateResponse() != nil {
-		t.Fatalf("late decision must continue the response body, got %#v", last)
+	_, err := NewService(testConfig(LateActionStrict), engine)
+	if err == nil || !strings.Contains(err.Error(), "phase4_mode=safe") {
+		t.Fatalf("NewService() error = %v, want runtime policy rejection", err)
 	}
-	summary := transaction.closed[0]
-	if summary.LateAction != LateActionStrictNotAttempted {
-		t.Fatalf("late action = %q, want %q", summary.LateAction, LateActionStrictNotAttempted)
+	if got, want := engine.policies, []LateActionPolicy{LateActionStrict}; !sameLateActionPolicies(got, want) {
+		t.Fatalf("validated policies = %v, want %v", got, want)
 	}
-	if len(transaction.hostActions) != 0 {
-		t.Fatalf("strict late decision recorded a fabricated host action: %#v", transaction.hostActions)
+
+	engine.rejection = nil
+	if _, err := NewService(testConfig(LateActionSafe), engine); err != nil {
+		t.Fatalf("NewService() safe policy error = %v", err)
+	}
+	if got, want := engine.policies, []LateActionPolicy{LateActionStrict, LateActionSafe}; !sameLateActionPolicies(got, want) {
+		t.Fatalf("validated policies = %v, want %v", got, want)
 	}
 }
 
@@ -394,384 +494,6 @@ func TestEnvoyEndpointAddressKeepsOnlyTheHostComponentOfSocketAttributes(t *test
 	}
 }
 
-func TestConfigRequiresNumericLoopbackListener(t *testing.T) {
-	for _, address := range []string{"0.0.0.0:18083", "192.0.2.1:18083", "localhost:18083", "[::]:18083"} {
-		config := testConfig(LateActionSafe)
-		config.ListenAddress = address
-		if err := config.Validate(); err == nil {
-			t.Errorf("Validate(%q) accepted a non-loopback or non-numeric listener", address)
-		}
-	}
-	for _, address := range []string{"127.0.0.1:18083", "127.42.0.7:18083", "[::1]:18083"} {
-		config := testConfig(LateActionSafe)
-		config.ListenAddress = address
-		if err := config.Validate(); err != nil {
-			t.Errorf("Validate(%q) rejected numeric loopback listener: %v", address, err)
-		}
-	}
-}
-
-func TestConfigRequiresBoundedIdleAndConcurrentStreamLimits(t *testing.T) {
-	for name, mutate := range map[string]func(*Config){
-		"zero idle timeout": func(config *Config) { config.StreamIdleTimeoutMS = 0 },
-		"zero stream limit": func(config *Config) { config.MaxConcurrentStreams = 0 },
-		"oversized stream limit": func(config *Config) {
-			config.MaxConcurrentStreams = MaximumConcurrentStreams + 1
-		},
-	} {
-		config := testConfig(LateActionSafe)
-		mutate(&config)
-		if err := config.Validate(); err == nil {
-			t.Errorf("Validate() accepted %s", name)
-		}
-	}
-}
-
-func TestProcessRejectsWhenProcessWideStreamAdmissionIsFull(t *testing.T) {
-	service := newTestService(t, &recordingTransaction{}, LateActionSafe)
-	for index := 0; index < service.config.MaxConcurrentStreams; index++ {
-		service.admission <- struct{}{}
-	}
-
-	stream := &fakeProcessStream{receive: []receiveResult{{request: requestHeaders(true)}}}
-	err := service.Process(stream)
-	if status.Code(err) != codes.ResourceExhausted {
-		t.Fatalf("Process() error code = %v, want %v (err=%v)", status.Code(err), codes.ResourceExhausted, err)
-	}
-	if stream.index != 0 || len(stream.sent) != 0 {
-		t.Fatalf("overload rejection touched stream: index=%d sent=%d", stream.index, len(stream.sent))
-	}
-}
-
-func TestProcessMapsEngineTimeoutToDeadlineExceededAndAllowsFollowUp(t *testing.T) {
-	transaction := &recordingTransaction{
-		headerError:     context.DeadlineExceeded,
-		headerErrorOnce: true,
-	}
-	service := newTestService(t, transaction, LateActionSafe)
-
-	failed := &fakeProcessStream{receive: []receiveResult{{request: requestHeaders(true)}}}
-	if err := service.Process(failed); status.Code(err) != codes.DeadlineExceeded {
-		t.Fatalf("timed-out Process() error code = %v, want DeadlineExceeded (err=%v)", status.Code(err), err)
-	}
-	if len(transaction.closed) != 1 || transaction.closed[0].CloseReason != CloseProcessorError {
-		t.Fatalf("timed-out cleanup = %#v, want one processor_error close", transaction.closed)
-	}
-	if got := len(service.admission); got != 0 {
-		t.Fatalf("timed-out stream retained %d admission slots", got)
-	}
-
-	control := &fakeProcessStream{receive: []receiveResult{{request: requestHeaders(true)}}}
-	if err := service.Process(control); err != nil {
-		t.Fatalf("follow-up Process() error = %v", err)
-	}
-	if len(transaction.closed) != 2 || transaction.closed[1].CloseReason != ClosePeerEOF {
-		t.Fatalf("follow-up cleanup = %#v, want peer_eof close", transaction.closed)
-	}
-}
-
-func TestStreamIdleTimeoutCleansUpAndAllowsFollowUpStream(t *testing.T) {
-	transaction := &recordingTransaction{}
-	config := testConfig(LateActionSafe)
-	config.StreamIdleTimeoutMS = 20
-	service, err := NewService(config, recordingEngine{transaction: transaction})
-	if err != nil {
-		t.Fatalf("NewService() error = %v", err)
-	}
-	contextValue, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	stream := &fakeProcessStream{
-		contextFactory: testStreamContext(contextValue),
-		receive:        []receiveResult{{request: requestHeaders(false)}},
-		receiveBlock:   make(chan struct{}),
-		recvStarted:    make(chan struct{}),
-		recvBlocking:   make(chan struct{}),
-		recvDone:       make(chan struct{}),
-	}
-
-	result := make(chan error, 1)
-	go func() { result <- service.Process(stream) }()
-	select {
-	case <-stream.recvStarted:
-	case <-time.After(time.Second):
-		t.Fatal("idle stream never entered Recv")
-	}
-	select {
-	case <-stream.recvBlocking:
-	case <-time.After(time.Second):
-		t.Fatal("idle stream never waited for its next message")
-	}
-	if err := <-result; status.Code(err) != codes.DeadlineExceeded {
-		t.Fatalf("Process() idle result = %v, want DeadlineExceeded", err)
-	}
-	if len(transaction.closed) != 1 || transaction.closed[0].CloseReason != CloseStreamIdleTimeout {
-		t.Fatalf("idle cleanup = %#v, want one stream_idle_timeout", transaction.closed)
-	}
-	if got := service.pendingReceives.Load(); got != 1 {
-		t.Fatalf("pending Recv count after fake idle return = %d, want one blocked receive", got)
-	}
-
-	// A returning gRPC handler cancels the real transport context. The fake
-	// stream needs the same explicit cancellation to release its blocked Recv
-	// goroutine before the follow-up control stream is asserted.
-	cancel()
-	select {
-	case <-stream.recvDone:
-	case <-time.After(time.Second):
-		t.Fatal("idle Recv goroutine did not observe cancellation")
-	}
-	deadline := time.Now().Add(time.Second)
-	for service.pendingReceives.Load() != 0 && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
-	}
-	if got := service.pendingReceives.Load(); got != 0 {
-		t.Fatalf("pending Recv count after cancellation = %d, want zero", got)
-	}
-	control := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{{request: requestHeaders(true)}}}
-	if err := service.Process(control); err != nil {
-		t.Fatalf("follow-up Process() error = %v", err)
-	}
-	if len(transaction.closed) != 2 {
-		t.Fatalf("follow-up cleanup count = %d, want 2", len(transaction.closed))
-	}
-}
-
-func TestGRPCServerIdleTimeoutReleasesAdmissionForFollowUpStream(t *testing.T) {
-	transaction := &recordingTransaction{}
-	config := testConfig(LateActionSafe)
-	config.StreamIdleTimeoutMS = 20
-	config.MaxConcurrentStreams = 1
-	service, err := NewService(config, recordingEngine{transaction: transaction})
-	if err != nil {
-		t.Fatalf("NewService() error = %v", err)
-	}
-	listener := bufconn.Listen(1024 * 1024)
-	server := grpc.NewServer(grpc.MaxConcurrentStreams(uint32(config.MaxConcurrentStreams)))
-	extprocv3.RegisterExternalProcessorServer(server, service)
-	defer server.Stop()
-	go func() { _ = server.Serve(listener) }()
-
-	connection, err := grpc.DialContext(context.Background(), "bufnet",
-		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
-			return listener.Dial()
-		}),
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("DialContext() error = %v", err)
-	}
-	defer connection.Close()
-	client := extprocv3.NewExternalProcessorClient(connection)
-	idle, err := client.Process(context.Background())
-	if err != nil {
-		t.Fatalf("idle Process() open error = %v", err)
-	}
-	if _, err := idle.Recv(); status.Code(err) != codes.DeadlineExceeded {
-		t.Fatalf("idle stream Recv() error = %v, want DeadlineExceeded", err)
-	}
-	deadline := time.Now().Add(time.Second)
-	for service.pendingReceives.Load() != 0 && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
-	}
-	if got := service.pendingReceives.Load(); got != 0 {
-		t.Fatalf("bufconn idle stream retained %d Recv goroutines", got)
-	}
-
-	control, err := client.Process(context.Background())
-	if err != nil {
-		t.Fatalf("follow-up Process() open error = %v", err)
-	}
-	if err := control.Send(requestHeaders(true)); err != nil {
-		t.Fatalf("follow-up Send() error = %v", err)
-	}
-	if response, err := control.Recv(); err != nil || response.GetRequestHeaders() == nil {
-		t.Fatalf("follow-up Recv() = %#v, %v; want request headers response", response, err)
-	}
-	if err := control.CloseSend(); err != nil {
-		t.Fatalf("follow-up CloseSend() error = %v", err)
-	}
-	if _, err := control.Recv(); err != io.EOF {
-		t.Fatalf("follow-up final Recv() error = %v, want EOF", err)
-	}
-}
-
-func TestGRPCServerStopCancelsIdleStreamAndReleasesAdmission(t *testing.T) {
-	transaction := &recordingTransaction{closedDone: make(chan struct{})}
-	config := testConfig(LateActionSafe)
-	config.StreamIdleTimeoutMS = 1000
-	config.MaxConcurrentStreams = 1
-	service, err := NewService(config, recordingEngine{transaction: transaction})
-	if err != nil {
-		t.Fatalf("NewService() error = %v", err)
-	}
-	listener := bufconn.Listen(1024 * 1024)
-	server := grpc.NewServer(grpc.MaxConcurrentStreams(uint32(config.MaxConcurrentStreams)))
-	extprocv3.RegisterExternalProcessorServer(server, service)
-	go func() { _ = server.Serve(listener) }()
-
-	connection, err := grpc.DialContext(context.Background(), "bufnet",
-		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
-			return listener.Dial()
-		}),
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("DialContext() error = %v", err)
-	}
-	defer connection.Close()
-	client := extprocv3.NewExternalProcessorClient(connection)
-	stream, err := client.Process(context.Background())
-	if err != nil {
-		t.Fatalf("Process() open error = %v", err)
-	}
-	if err := stream.Send(requestHeaders(false)); err != nil {
-		t.Fatalf("Send() error = %v", err)
-	}
-	if response, err := stream.Recv(); err != nil || response.GetRequestHeaders() == nil {
-		t.Fatalf("initial Recv() = %#v, %v; want request headers response", response, err)
-	}
-
-	// This exercises the forced Stop path used after a bounded graceful
-	// shutdown. The idle handler must observe its cancelled stream context,
-	// close its transaction, and return its admission slot.
-	server.Stop()
-	select {
-	case <-transaction.closedDone:
-	case <-time.After(time.Second):
-		t.Fatal("server Stop() did not cancel and clean up the idle stream")
-	}
-	if len(transaction.closed) != 1 || transaction.closed[0].CloseReason != CloseContextCanceled {
-		t.Fatalf("shutdown cleanup = %#v, want one context_canceled close", transaction.closed)
-	}
-	deadline := time.Now().Add(time.Second)
-	for len(service.admission) != 0 && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
-	}
-	if len(service.admission) != 0 {
-		t.Fatalf("server shutdown left %d admission slots occupied", len(service.admission))
-	}
-
-	control := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{{request: requestHeaders(true)}}}
-	if err := service.Process(control); err != nil {
-		t.Fatalf("follow-up Process() after shutdown cleanup error = %v", err)
-	}
-}
-
-func TestRegularStreamActivityResetsIdleDeadline(t *testing.T) {
-	transaction := &recordingTransaction{}
-	config := testConfig(LateActionSafe)
-	config.StreamIdleTimeoutMS = 30
-	service, err := NewService(config, recordingEngine{transaction: transaction})
-	if err != nil {
-		t.Fatalf("NewService() error = %v", err)
-	}
-	requests := make(chan receiveResult)
-	stream := &fakeProcessStream{
-		contextFactory: testStreamContext(context.Background()),
-		receiveChannel: requests,
-	}
-	result := make(chan error, 1)
-	go func() { result <- service.Process(stream) }()
-
-	requests <- receiveResult{request: requestHeaders(false)}
-	time.Sleep(15 * time.Millisecond)
-	requests <- receiveResult{request: requestBody([]byte("one"), false)}
-	time.Sleep(15 * time.Millisecond)
-	requests <- receiveResult{request: requestBody([]byte("two"), true)}
-	time.Sleep(15 * time.Millisecond)
-	close(requests)
-
-	if err := <-result; err != nil {
-		t.Fatalf("active stream Process() error = %v", err)
-	}
-	if len(transaction.closed) != 1 || transaction.closed[0].CloseReason != ClosePeerEOF {
-		t.Fatalf("active stream cleanup = %#v", transaction.closed)
-	}
-	if got, want := transaction.requestBodyLengths, []int{3, 3}; !sameInts(got, want) {
-		t.Fatalf("active stream body chunks = %v, want %v", got, want)
-	}
-}
-
-func TestConcurrentStreamLimitReleasesAfterCancellation(t *testing.T) {
-	transaction := &recordingTransaction{}
-	config := testConfig(LateActionSafe)
-	config.MaxConcurrentStreams = 1
-	config.StreamIdleTimeoutMS = 1000
-	service, err := NewService(config, recordingEngine{transaction: transaction})
-	if err != nil {
-		t.Fatalf("NewService() error = %v", err)
-	}
-	contextValue, cancel := context.WithCancel(context.Background())
-	first := &fakeProcessStream{
-		contextFactory: testStreamContext(contextValue),
-		receiveBlock:   make(chan struct{}),
-		recvStarted:    make(chan struct{}),
-	}
-	firstResult := make(chan error, 1)
-	go func() { firstResult <- service.Process(first) }()
-	select {
-	case <-first.recvStarted:
-	case <-time.After(time.Second):
-		t.Fatal("first stream never entered Recv")
-	}
-
-	second := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{{request: requestHeaders(true)}}}
-	if err := service.Process(second); status.Code(err) != codes.ResourceExhausted {
-		t.Fatalf("second Process() error = %v, want ResourceExhausted", err)
-	}
-	cancel()
-	if err := <-firstResult; err != nil {
-		t.Fatalf("cancelled first Process() error = %v", err)
-	}
-
-	third := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{{request: requestHeaders(true)}}}
-	if err := service.Process(third); err != nil {
-		t.Fatalf("follow-up after cancellation error = %v", err)
-	}
-}
-
-func TestCleanupFailureTriggersControlledRestartAndRejectsFollowUp(t *testing.T) {
-	cleanupErr := fmt.Errorf("native cleanup gate: %w", context.DeadlineExceeded)
-	transaction := &cleanupFailureTransaction{
-		recordingTransaction: &recordingTransaction{headerError: errors.New("engine processing failed")},
-		cleanupErr:           cleanupErr,
-	}
-	service, err := NewService(testConfig(LateActionSafe), cleanupFailureEngine{transaction: transaction})
-	if err != nil {
-		t.Fatalf("NewService() error = %v", err)
-	}
-
-	failed := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{{request: requestHeaders(true)}}}
-	if err := service.Process(failed); err == nil {
-		t.Fatal("Process() accepted a stream whose native cleanup timed out")
-	}
-	select {
-	case reported := <-service.FatalErrors():
-		if !errors.Is(reported, context.DeadlineExceeded) {
-			t.Fatalf("FatalErrors() = %v, want cleanup deadline", reported)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("cleanup failure did not notify the process owner")
-	}
-	if got := len(service.admission); got != 0 {
-		t.Fatalf("cleanup failure retained %d admission slots", got)
-	}
-	if got := len(transaction.closed); got != 1 {
-		t.Fatalf("cleanup close calls = %d, want 1", got)
-	}
-
-	control := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{{request: requestHeaders(true)}}}
-	if err := service.Process(control); status.Code(err) != codes.Unavailable {
-		t.Fatalf("follow-up Process() error = %v, want Unavailable", err)
-	}
-	if got := len(transaction.closed); got != 1 {
-		t.Fatalf("terminal follow-up opened another transaction; close calls = %d, want 1", got)
-	}
-	select {
-	case extra := <-service.FatalErrors():
-		t.Fatalf("FatalErrors() emitted more than one cleanup notification: %v", extra)
-	default:
-	}
-}
-
 func newTestService(t *testing.T, transaction *recordingTransaction, policy LateActionPolicy) *Service {
 	t.Helper()
 	service, err := NewService(testConfig(policy), recordingEngine{transaction: transaction})
@@ -794,8 +516,6 @@ func testConfig(policy LateActionPolicy) Config {
 		MaxResponseBodyBytes: 4096,
 		MaxGRPCMessageBytes:  2048,
 		EngineTimeoutMS:      100,
-		StreamIdleTimeoutMS:  100,
-		MaxConcurrentStreams: 8,
 		CleanupTimeoutMS:     100,
 		ShutdownTimeoutMS:    100,
 		LateActionPolicy:     policy,
@@ -806,48 +526,31 @@ type recordingEngine struct {
 	transaction *recordingTransaction
 }
 
-type cleanupFailureEngine struct {
-	transaction *cleanupFailureTransaction
-}
-
-func (engine cleanupFailureEngine) Open(context.Context, StreamMetadata) (Transaction, error) {
-	return engine.transaction, nil
-}
-
-type cleanupFailureTransaction struct {
-	*recordingTransaction
-	cleanupErr error
-}
-
-func (transaction *cleanupFailureTransaction) CleanupFailure() error {
-	return transaction.cleanupErr
-}
-
 func (engine recordingEngine) Open(context.Context, StreamMetadata) (Transaction, error) {
 	return engine.transaction, nil
+}
+
+type policyValidationEngine struct {
+	recordingEngine
+	rejection error
+	policies  []LateActionPolicy
+}
+
+func (engine *policyValidationEngine) ValidateLateActionPolicy(policy LateActionPolicy) error {
+	engine.policies = append(engine.policies, policy)
+	return engine.rejection
 }
 
 type recordingTransaction struct {
 	headerDecision      func(Direction) Decision
 	bodyDecision        func(Direction) Decision
-	headerError         error
-	headerErrorOnce     bool
 	requestBodyLengths  []int
 	responseBodyLengths []int
 	closed              []Summary
 	hostActions         []HostAction
-	closedDone          chan struct{}
-	closedOnce          sync.Once
 }
 
 func (transaction *recordingTransaction) ProcessHeaders(_ context.Context, direction Direction, _ []Header, _ bool) (Decision, error) {
-	if transaction.headerError != nil {
-		err := transaction.headerError
-		if transaction.headerErrorOnce {
-			transaction.headerError = nil
-		}
-		return Decision{}, err
-	}
 	if transaction.headerDecision != nil {
 		return transaction.headerDecision(direction), nil
 	}
@@ -870,9 +573,6 @@ func (transaction *recordingTransaction) ProcessBody(_ context.Context, directio
 
 func (transaction *recordingTransaction) Close(_ context.Context, summary Summary) {
 	transaction.closed = append(transaction.closed, summary)
-	if transaction.closedDone != nil {
-		transaction.closedOnce.Do(func() { close(transaction.closedDone) })
-	}
 }
 
 func (transaction *recordingTransaction) RecordHostAction(_ context.Context, action HostAction) error {
@@ -887,20 +587,12 @@ type receiveResult struct {
 }
 
 type fakeProcessStream struct {
-	contextFactory   func() context.Context
-	cancel           context.CancelFunc
-	receive          []receiveResult
-	receiveChannel   <-chan receiveResult
-	receiveBlock     <-chan struct{}
-	recvStarted      chan struct{}
-	recvBlocking     chan struct{}
-	recvDone         chan struct{}
-	sent             []*extprocv3.ProcessingResponse
-	sendErr          error
-	index            int
-	recvStartedOnce  sync.Once
-	recvBlockingOnce sync.Once
-	recvDoneOnce     sync.Once
+	contextFactory func() context.Context
+	cancel         context.CancelFunc
+	receive        []receiveResult
+	sent           []*extprocv3.ProcessingResponse
+	sendErr        error
+	index          int
 }
 
 func (stream *fakeProcessStream) Send(response *extprocv3.ProcessingResponse) error {
@@ -912,40 +604,7 @@ func (stream *fakeProcessStream) Send(response *extprocv3.ProcessingResponse) er
 }
 
 func (stream *fakeProcessStream) Recv() (*extprocv3.ProcessingRequest, error) {
-	if stream.recvStarted != nil {
-		stream.recvStartedOnce.Do(func() { close(stream.recvStarted) })
-	}
-	if stream.receiveChannel != nil {
-		select {
-		case result, ok := <-stream.receiveChannel:
-			if !ok {
-				return nil, io.EOF
-			}
-			if result.cancel && stream.cancel != nil {
-				stream.cancel()
-			}
-			return result.request, result.err
-		case <-stream.Context().Done():
-			return nil, stream.Context().Err()
-		}
-	}
 	if stream.index >= len(stream.receive) {
-		if stream.receiveBlock != nil {
-			if stream.recvBlocking != nil {
-				stream.recvBlockingOnce.Do(func() { close(stream.recvBlocking) })
-			}
-			defer func() {
-				if stream.recvDone != nil {
-					stream.recvDoneOnce.Do(func() { close(stream.recvDone) })
-				}
-			}()
-			select {
-			case <-stream.receiveBlock:
-				return nil, io.EOF
-			case <-stream.Context().Done():
-				return nil, stream.Context().Err()
-			}
-		}
 		return nil, io.EOF
 	}
 	result := stream.receive[stream.index]
@@ -1023,6 +682,18 @@ func responseTrailers() *extprocv3.ProcessingRequest {
 }
 
 func sameInts(left, right []int) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
+}
+
+func sameLateActionPolicies(left, right []LateActionPolicy) bool {
 	if len(left) != len(right) {
 		return false
 	}

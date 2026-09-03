@@ -218,7 +218,10 @@ static size_t bounded_c_string_size(const char *src, size_t maximum) {
 static void escape_field(const char *src, char *dst, size_t dst_size, int *truncated) {
     const size_t source_size = bounded_c_string_size(src, EVENT_TEXT_INPUT_SIZE);
     const size_t needed = msconnector_json_escape_n(src, source_size, dst, dst_size);
-    if ((dst_size == 0 || needed >= dst_size || source_size == EVENT_TEXT_INPUT_SIZE) && truncated != 0) {
+    if ((dst_size == 0 || needed >= dst_size) && truncated != 0) {
+        *truncated = 1;
+    }
+    if (source_size == EVENT_TEXT_INPUT_SIZE && truncated != 0) {
         *truncated = 1;
     }
 }
@@ -412,6 +415,9 @@ const char *msconnector_event_default_message(const char *message_id) {
     if (strcmp(message_id, MSCONN_EVENT_RESPONSE_BLOCKED) == 0) {
         return "Response blocked by ModSecurity rule.";
     }
+    if (strcmp(message_id, MSCONN_EVENT_BODY_LIMIT) == 0) {
+        return "Body inspection limit exceeded.";
+    }
     if (strcmp(message_id, MSCONN_EVENT_PHASE4_LATE_INTERVENTION) == 0) {
         return "Phase 4 intervention occurred after response output started.";
     }
@@ -430,6 +436,27 @@ const char *msconnector_event_default_message(const char *message_id) {
     if (strcmp(message_id, MSCONN_EVENT_RULE_PARSE_ERROR) == 0) {
         return "ModSecurity rule parsing failed.";
     }
+    if (strcmp(message_id, MSCONN_EVENT_ENGINE_TIMEOUT) == 0) {
+        return "ModSecurity engine processing timed out.";
+    }
+    if (strcmp(message_id, MSCONN_EVENT_ENGINE_UNAVAILABLE) == 0) {
+        return "ModSecurity engine is unavailable.";
+    }
+    if (strcmp(message_id, MSCONN_EVENT_INVALID_ENGINE_RESPONSE) == 0) {
+        return "ModSecurity produced an invalid decision.";
+    }
+    if (strcmp(message_id, MSCONN_EVENT_CONNECTOR_ERROR) == 0) {
+        return "Connector processing failed.";
+    }
+    if (strcmp(message_id, MSCONN_EVENT_PROTOCOL_ERROR) == 0) {
+        return "Connector protocol processing failed.";
+    }
+    if (strcmp(message_id, MSCONN_EVENT_CLIENT_CANCEL) == 0) {
+        return "Client cancelled the transaction.";
+    }
+    if (strcmp(message_id, MSCONN_EVENT_UPSTREAM_DISCONNECT) == 0) {
+        return "Upstream disconnected during the transaction.";
+    }
     return "";
 }
 
@@ -440,13 +467,21 @@ const char *msconnector_event_default_level(const char *message_id) {
     if (strcmp(message_id, MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200) == 0 ||
         strcmp(message_id, MSCONN_EVENT_INTERNAL_ERROR) == 0 ||
         strcmp(message_id, MSCONN_EVENT_CONFIG_ERROR) == 0 ||
-        strcmp(message_id, MSCONN_EVENT_RULE_PARSE_ERROR) == 0) {
+        strcmp(message_id, MSCONN_EVENT_RULE_PARSE_ERROR) == 0 ||
+        strcmp(message_id, MSCONN_EVENT_ENGINE_TIMEOUT) == 0 ||
+        strcmp(message_id, MSCONN_EVENT_ENGINE_UNAVAILABLE) == 0 ||
+        strcmp(message_id, MSCONN_EVENT_INVALID_ENGINE_RESPONSE) == 0 ||
+        strcmp(message_id, MSCONN_EVENT_CONNECTOR_ERROR) == 0 ||
+        strcmp(message_id, MSCONN_EVENT_PROTOCOL_ERROR) == 0) {
         return "error";
     }
     if (strcmp(message_id, MSCONN_EVENT_REQUEST_BLOCKED) == 0 ||
         strcmp(message_id, MSCONN_EVENT_RESPONSE_BLOCKED) == 0 ||
+        strcmp(message_id, MSCONN_EVENT_BODY_LIMIT) == 0 ||
         strcmp(message_id, MSCONN_EVENT_PHASE4_LATE_INTERVENTION) == 0 ||
-        strcmp(message_id, MSCONN_EVENT_UNSUPPORTED_CAPABILITY) == 0) {
+        strcmp(message_id, MSCONN_EVENT_UNSUPPORTED_CAPABILITY) == 0 ||
+        strcmp(message_id, MSCONN_EVENT_CLIENT_CANCEL) == 0 ||
+        strcmp(message_id, MSCONN_EVENT_UPSTREAM_DISCONNECT) == 0) {
         return "warn";
     }
     return "info";

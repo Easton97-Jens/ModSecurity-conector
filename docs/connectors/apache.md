@@ -23,7 +23,7 @@ metadata, and payload-safe event primitives; it does not own Apache objects.
 | --- | --- | --- |
 | P1/P2 | Map request metadata and process request bodies through the input path | Finalize request-body processing at EOS |
 | P3 | Map response headers before the committed response boundary | Preserve original and visible status context |
-| P4 | Append data buckets incrementally, retain the normalized response through first EOS, then finalize once | Apache-owned request-pool all-response gate; no original byte is released before the Phase-4 decision |
+| P4 | Append each bounded data bucket once and immediately pass the normalized pre-EOS prefix to the next filter | Only the terminal EOS fragment waits for one Phase-4 finish; next-filter forwarding is the source commitment boundary |
 | Logging | Emit metadata-only events and release transaction state | Event payloads do not contain response bodies |
 
 Each successfully created native <code>Transaction</code> is owned by the
@@ -65,38 +65,39 @@ same as the Apache connector enable/disable directive.
 
 The native module processes P1 through P4 on its host hooks and filters. P3 can
 act before the response is committed when the selected case and host state
-permit it. P4 is an EOS-only all-response gate: every normalized response
-brigade, including an empty response's EOS, stays in the Apache request pool
-until <code>msc_process_response_body</code> and intervention resolution are
-complete. This permits a normal Phase-4 deny to discard the saved original
-brigade and emit one terminal error before original output is released. It also
-means the selected Apache path deliberately does not provide client-visible
-progressive response streaming.
+permit it. P4 remains EOS-only for rule evaluation, but it is now a progressive
+output path: every response-data bucket is appended once, pre-EOS FLUSH and
+other Apache metadata are preserved, and the normalized pre-EOS prefix is
+passed immediately to the next filter. The filter retains no full response
+brigade; only the terminal EOS fragment waits for the single
+<code>msc_process_response_body</code> call and late-action resolution.
 
 The C API does not expose a safe answer to libModSecurity's effective
 <code>SecResponseBodyMimeType</code> selection. Apache therefore gates every
 response MIME type; the engine directive still selects inspection, but the
 deprecated <code>modsecurity_phase4_content_types_file</code> cannot open a
 pass-through route. The connector default is a 1048576-byte (1 MiB) hard limit;
-an over-limit response fails closed before its original bytes are released.
-It also has a fixed, non-configurable ceiling of 4,096 normalized buckets
-retained across filter calls; it fails closed before retaining the next bucket,
-so a highly fragmented response can be rejected below the byte limit.
-<code>r-&gt;sent_bodyct</code> and <code>eos_sent</code> are not used as commit
-proof because upstream/core paths can set them before this filter releases
-output. The gate uses its own released-EOS marker and Apache
-<code>r-&gt;bytes_sent</code> instead.
+the bound is checked before a later data bucket is appended. A failure after a
+prefix was passed cannot rewrite that prefix, so the terminal action is mapped
+through the shared post-commit policy. <code>r-&gt;sent_bodyct</code> and
+<code>eos_sent</code> are not used as commit proof because upstream/core paths
+can set them before this filter releases output. The next-filter invocation is
+the source contract's monotonic commitment boundary; the filter also keeps its
+own EOS-release guard and Apache <code>r-&gt;bytes_sent</code> metadata.
 
-Safe/minimal <code>log_only</code> and strict
-<code>abort_connection</code> remain defensive fallbacks only for an
-independently proven already-committed response. They do not change a normal
-still-gated deny into log-only. Source wiring for a strict fallback remains no
+P4 rule evaluation is not per chunk: it runs only at EOS. A progressive P4
+path therefore does not claim a reliable pre-commit P4 deny or redirect after
+a response prefix was released; P3 remains the response-header pre-commit
+decision point. Safe/minimal resolves a disruptive EOS result as
+<code>log_only</code> and preserves the already-forwarded response. Strict
+uses <code>abort_connection</code>. Source wiring for that abort remains no
 proof of a client-visible abort.
 
 | P4 question | Required observation |
 | --- | --- |
 | Rule observed | Real host phase-4 rule observation with the selected rule/profile |
-| Pre-commit deny | Requested deny, no released original EOS/bytes, matching visible terminal status, and no original body output |
+| Progressive prefix | A client-visible first byte before response EOS, preserved FLUSH/metadata, and one append per data bucket |
+| Pre-commit P4 deny | A host-specific commitment proof; this progressive Apache source does not declare one after a prefix is passed |
 | Safe late result | Requested action, actual <code>log_only</code>, unchanged visible status, and late flag |
 | Strict late result | Actual abort action and host/client evidence of the recorded abort |
 
@@ -128,9 +129,9 @@ Apache v2-style names are not automatically native Apache v3 connector
 directives. Use the registered module syntax and the complete reference rather
 than assuming a legacy directive, merge rule, or expression is portable. P4
 response-body and post-commit behavior remain evidence-gated; a rule match,
-source branch, or historical matrix is not a promotion. The Apache all-response
-gate is intentional compatibility behavior for this security boundary, not a
-generic connector buffering model.
+source branch, or historical matrix is not a promotion. The progressive Apache
+path is a bounded adapter translation, not a generic connector buffering model
+or a claim of a client-visible late abort.
 
 ## Related references
 

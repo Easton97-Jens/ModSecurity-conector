@@ -105,8 +105,8 @@
           "state": "implemented_not_asserted"
         },
         "first_byte_before_response_end": {
-          "reason": "Apache intentionally does not release an original first byte before first EOS because the all-response Phase-4 decision must complete before output release.",
-          "state": "not_implemented"
+          "reason": "The source passes a normalized pre-EOS prefix to the next filter, but no canonical client-visible first-byte-before-EOS run is attached.",
+          "state": "implemented_not_asserted"
         },
         "header_limits": {
           "reason": "No canonical Apache host-header-limit enforcement case is implemented in the full-lifecycle catalog.",
@@ -117,7 +117,7 @@
           "state": "configured_not_exercised"
         },
         "http1_content_length": {
-          "reason": "Apache can serve HTTP/1.1 responses through the all-response Phase-4 gate; the focused H1 run has not yet produced canonical run-scoped evidence.",
+          "reason": "Apache can serve HTTP/1.1 responses through the progressive Phase-4 source path; the focused H1 run has not yet produced canonical run-scoped evidence.",
           "state": "configured_not_exercised"
         },
         "http2": {
@@ -177,7 +177,7 @@
           "state": "configured_not_exercised"
         },
         "late_intervention": {
-          "reason": "Late-intervention policy remains a defensive branch for independently proven already-committed output; normal Phase-4 enforcement occurs before original response release. Behavioral evidence is pending.",
+          "reason": "The output filter resolves disruptive EOS decisions through the shared post-commit policy once a prefix may have reached the next filter; behavioral evidence is pending.",
           "state": "implemented_not_asserted"
         },
         "late_intervention_abort": {
@@ -185,7 +185,7 @@
           "state": "implemented_not_asserted"
         },
         "late_intervention_log_only": {
-          "reason": "The configured safe late-intervention branch preserves independently committed output and records a log-only result, but it is not the normal all-response-gate deny path; canonical event evidence is pending.",
+          "reason": "The configured safe late-intervention branch preserves a progressively forwarded prefix and records a log-only result; canonical event evidence is pending.",
           "state": "implemented_not_asserted"
         },
         "late_intervention_status_metadata": {
@@ -197,8 +197,8 @@
           "state": "implemented_not_asserted"
         },
         "no_full_response_buffering": {
-          "reason": "Apache intentionally retains the normalized response brigade across calls through first EOS to enforce the all-response Phase-4 decision before original output release.",
-          "state": "not_implemented"
+          "reason": "The progressive path does not retain a full response brigade across filter calls; only the terminal EOS fragment is held for finalization.",
+          "state": "implemented_not_asserted"
         },
         "parallel_requests": {
           "reason": "The full-lifecycle parallel-request evidence path is not implemented.",
@@ -217,28 +217,28 @@
           "state": "implemented_not_asserted"
         },
         "phase4": {
-          "reason": "The output filter incrementally ingests body buckets, retains the complete normalized response through first EOS, and invokes response-body processing once before releasing or discarding original output; canonical evidence is pending.",
+          "reason": "The output filter incrementally ingests body buckets, forwards the pre-EOS prefix, and invokes response-body processing exactly once on the terminal EOS fragment; canonical real-host evidence is pending.",
           "state": "implemented_not_asserted"
         },
         "phase4_end_of_stream_evaluation": {
-          "reason": "The output filter invokes response-body processing once after the first retained EOS and resolves intervention before its saved original brigade is released; canonical Phase-4 evidence is pending.",
+          "reason": "The output filter invokes response-body processing exactly once on the terminal EOS fragment after all pre-EOS prefixes have been forwarded; canonical Phase-4 evidence is pending.",
           "state": "implemented_not_asserted"
         },
         "phase4_pre_commit_deny": {
-          "reason": "The output filter retains original response bytes and EOS until msc_process_response_body and intervention resolution complete; a normal deny discards the saved brigade and enters one terminal error path before release. Current real-host evidence is pending.",
-          "state": "implemented_not_asserted"
+          "reason": "Because the progressive output filter can pass a pre-EOS prefix before the EOS-only P4 decision, it does not claim a reliable pre-commit P4 deny or redirect.",
+          "state": "not_implemented"
         },
         "phase4_rule_evaluation": {
-          "reason": "The native output-filter path is wired for incremental ingestion, retained-brigade EOS processing, and a pre-release decision, but no current canonical real-host run proves that Phase-4 rule 1100301 was evaluated.",
+          "reason": "The native output-filter path is wired for incremental ingestion and one terminal EOS evaluation, but no current canonical real-host run proves that Phase-4 rule 1100301 was evaluated.",
           "state": "implemented_not_asserted"
         },
         "protocol_first_byte_before_response_end": {
-          "reason": "The all-response Phase-4 gate intentionally prevents original first-byte release before EOS on every protocol profile; no progressive-output protocol capability is claimed.",
-          "state": "not_implemented"
+          "reason": "The source passes a pre-EOS prefix to the next filter, but no protocol-scoped client-visible first-byte result is attached.",
+          "state": "implemented_not_asserted"
         },
         "protocol_no_full_response_buffering": {
-          "reason": "The all-response Phase-4 gate intentionally retains the normalized response brigade through EOS; no no-full-buffer protocol capability is claimed.",
-          "state": "not_implemented"
+          "reason": "The source does not retain a full normalized response brigade, but no protocol-scoped runtime result is attached.",
+          "state": "implemented_not_asserted"
         },
         "protocol_transaction_isolation": {
           "reason": "Protocol-specific multiplexed transaction-isolation evidence is not implemented.",
@@ -269,24 +269,24 @@
           "state": "implemented_not_asserted"
         },
         "response_body_buffered": {
-          "reason": "The output filter appends response bytes incrementally and retains the normalized Apache response brigade through first EOS before it resolves Phase 4; canonical Phase-4 evidence is pending.",
-          "state": "implemented_not_asserted"
+          "reason": "The output filter has no active cross-callback full-response brigade; it uses bounded current buckets plus a terminal EOS fragment.",
+          "state": "not_implemented"
         },
         "response_body_decompression": {
           "reason": "The connector has no verified response-body decompression contract.",
           "state": "not_implemented"
         },
         "response_body_incremental_ingest": {
-          "reason": "The output filter appends each data bucket incrementally while retaining the normalized brigade across filter calls through first EOS; runtime evidence is pending.",
+          "reason": "The output filter appends each data bucket incrementally and passes the normalized pre-EOS prefix to the next filter; runtime evidence is pending.",
           "state": "implemented_not_asserted"
         },
         "response_body_limits": {
-          "reason": "The configurable default 1048576-byte Phase-4 gate limit and fixed non-configurable 4096-normalized-bucket cap across filter calls reject their respective excess before any original byte is released rather than forwarding an uninspected tail; canonical limit evidence is pending.",
+          "reason": "The configurable default 1048576-byte Phase-4 limit is checked before each later append and does not require a retained full response; canonical limit evidence is pending.",
           "state": "implemented_not_asserted"
         },
         "response_body_streaming": {
-          "reason": "Apache deliberately withholds original response output until first EOS and the Phase-4 decision, so it does not provide client-visible progressive response streaming.",
-          "state": "not_implemented"
+          "reason": "Each pre-EOS response-data bucket is appended once and its normalized prefix is passed to the next filter immediately; a real-host progressive-output result is pending.",
+          "state": "implemented_not_asserted"
         },
         "response_headers": {
           "reason": "The Apache output filter maps response headers and invokes the response-header phase; canonical Phase-3 evidence is pending.",
@@ -345,11 +345,11 @@
         }
       },
       "host_model_constraints": [
-        "Apache incrementally appends response data buckets but saves every normalized response brigade in the request pool through first EOS; no original response byte is released before msc_process_response_body and intervention resolution complete.",
-        "libModSecurity's C API does not expose its effective SecResponseBodyMimeType selection, so Apache gates every response MIME type. The legacy modsecurity_phase4_content_types_file parser is deprecated and cannot narrow that gate; the configurable default 1048576-byte gate limit and a fixed non-configurable 4096-normalized-bucket cap across filter calls fail closed rather than releasing an uninspected tail.",
+        "Apache incrementally appends each response-data bucket, preserves pre-EOS FLUSH and metadata, and immediately passes the normalized pre-EOS prefix to the next filter. Only the terminal EOS fragment remains until msc_process_response_body and late-action resolution complete; no full response brigade is retained across filter calls.",
+        "libModSecurity's C API does not expose its effective SecResponseBodyMimeType selection, so Apache gates every response MIME type. The legacy modsecurity_phase4_content_types_file parser is deprecated and cannot narrow that gate; the configurable default 1048576-byte bound is checked before each later append without creating a full-response buffer.",
         "Normal r->prev and pre-output ErrorDocument redirects fail closed because the connector cannot safely rebind a source transaction to a target URI/ruleset. During terminal output EMITTING, exactly one Apache-core-marked local ErrorDocument hop is allowed with no_local_copy plus matching immediate predecessor status and REDIRECT_STATUS.",
         "The connector JSONL writer is currently specific to Phase-4 interventions and does not by itself prove canonical event coverage for request-phase decisions.",
-        "A normal Phase-4 deny discards the saved original brigade and emits a terminal error before release. log_only and abort_connection remain defensive fallbacks only when independent commit proof already exists."
+        "Phase-4 rule evaluation remains EOS-only. After a pre-EOS prefix reaches the next filter, Safe records log_only and Strict uses abort_connection rather than attempting to rewrite bytes that may already be visible."
       ],
       "host_name": "apache",
       "integration_mode": "native-httpd-module",
@@ -546,8 +546,8 @@
           "state": "not_implemented"
         },
         "redirect": {
-          "reason": "The Common Runtime preserves redirect status and URL, but the repository HTTP authorization response does not emit the Location header.",
-          "state": "not_implemented"
+          "reason": "The shared authorization service emits one bounded, validated Location header for a redirect decision; the focused Common service regression covers the Envoy ext_authz profile, while fresh canonical Envoy runtime evidence remains pending.",
+          "state": "implemented_not_asserted"
         },
         "request_body_buffered": {
           "reason": "Envoy with_request_body and the connector buffered body mode are both configured at 4096 bytes, but the existing host smoke sends no body.",
@@ -646,10 +646,11 @@
         }
       },
       "host_model_constraints": [
-        "The selected Envoy HTTP ext_authz service observes a pre-upstream authorization request and cannot inspect the later upstream response headers or body.",
+        "The HTTP ext_authz service alone observes a pre-upstream authorization request; the mandatory following private-UDS ext_proc response observer receives the corresponding upstream response headers and streaming body.",
         "The checked-in ext_authz configuration buffers at most 4096 request-body bytes with partial messages disabled; the existing minimal smoke sends no request body.",
         "Only the headers allowed by the ext_authz authorization_request configuration are forwarded to the authorization service.",
-        "The authorization service currently sees the Envoy-to-service socket endpoints and does not map original downstream connection endpoints into Common connection metadata."
+        "The authorization service currently sees the Envoy-to-service socket endpoints and does not map original downstream connection endpoints into Common connection metadata.",
+        "The opaque response handle is propagated only from ext_authz to the following local ext_proc observer and is removed before routing upstream; missing observer or correlation is fail-closed."
       ],
       "host_name": "envoy",
       "integration_mode": "http-ext-authz-service",
@@ -659,6 +660,9 @@
         "connectors/envoy/config/envoy-ext-authz-smoke.yaml.in",
         "connectors/envoy/config/envoy-ext-authz.conf",
         "connectors/envoy/src/envoy_ext_authz_service_main.c",
+        "connectors/envoy/src/envoy_ext_authz_response_companion.c",
+        "connectors/envoy/ext_proc/cmd/msconnector-envoy-response-observer/main.go",
+        "connectors/envoy/ext_proc/internal/responseobserver/service.go",
         "connectors/envoy/src/envoy_modsecurity_mapper.c",
         "connectors/envoy/harness/run_envoy_connector_runtime.sh"
       ]
@@ -1252,7 +1256,7 @@
         "The stock native plugin requires both body modes to be none. The matched patched Framework-synchronized core/module pair accepts streaming request ranges and HTTP/1.1 identity response-entity ranges before transfer framing; this source/build contract has no canonical runtime promotion.",
         "The response-header mapper is called from handle_response_start, but source wiring alone is not Phase-3 behavioral verification.",
         "The legacy bridge and starter self-tests are separate from native mod_msconnector.so host-runtime evidence.",
-        "The full-lifecycle profile separately selects patched-native through full-lifecycle-lighttpd-patched: its checked-in host smoke uses both body modes as none. Identity streaming configuration is available for contract checks, while gzip/br, HTTP/2, strict abort, first-byte, and no-full-buffer client evidence remain NOT EXECUTED."
+        "The canonical logical Stock profile lighttpd-stock selects stock-lighttpd-sidecar and owns P1--P4 within its bounded HTTP/1.1 component. The current host-family full-lifecycle target separately selects patched-native through full-lifecycle-lighttpd-patched: its checked-in host smoke uses both body modes as none and does not prove Stock-sidecar or native-Stock host behavior. Identity streaming configuration is available for contract checks, while gzip/br, HTTP/2, strict abort, first-byte, and no-full-buffer client evidence remain NOT EXECUTED."
       ],
       "host_name": "lighttpd",
       "integration_mode": "native-lighttpd-plugin",
@@ -1265,7 +1269,11 @@
         "connectors/lighttpd/harness/runtime_lighttpd_smoke.sh",
         "connectors/lighttpd/patches/0001-lighttpd-msconnector-stream-hooks.patch",
         "connectors/lighttpd/build/build_patched_host.sh",
-        "connectors/lighttpd/harness/run_patched_lifecycle_smoke.sh"
+        "connectors/lighttpd/harness/run_patched_lifecycle_smoke.sh",
+        "connectors/lighttpd/stock_sidecar/stock_sidecar.c",
+        "connectors/lighttpd/stock_sidecar/README.md",
+        "connectors/lighttpd/build/build_stock_sidecar.sh",
+        "connectors/lighttpd/tests/test_stock_sidecar_contract.py"
       ]
     },
     "nginx": {
@@ -1403,7 +1411,7 @@
           "state": "implemented_not_asserted"
         },
         "no_full_response_buffering": {
-          "reason": "The response filter processes and forwards current chain buffers rather than accumulating a connector-owned full response; synchronized proof is pending.",
+          "reason": "The response filter processes and forwards current chain buffers rather than accumulating a connector-owned full response; file-only ranges use one reusable bounded scratch buffer and synchronized proof is pending.",
           "state": "implemented_not_asserted"
         },
         "parallel_requests": {
@@ -1487,12 +1495,12 @@
           "state": "implemented_not_asserted"
         },
         "response_body_limits": {
-          "reason": "The response filter bounds bytes supplied to ModSecurity with the configured Phase-4 limit, but limit-mode evidence is pending.",
+          "reason": "The response filter applies the Common reject body-limit plan before forwarding each in-scope memory or file buffer, but native-host limit-mode evidence is pending.",
           "state": "implemented_not_asserted"
         },
         "response_body_streaming": {
-          "reason": "Response chains are inspected through bounded buffering and do not expose streaming Phase-4 semantics.",
-          "state": "not_implemented"
+          "reason": "The response body filter appends NGINX's memory-authoritative current range or file-only ranges through a reusable bounded scratch buffer to the active P4 phase and forwards the current chain without retaining a connector-owned full response; current native-host evidence is pending.",
+          "state": "implemented_not_asserted"
         },
         "response_headers": {
           "reason": "The NGINX header filter invokes response-header processing; canonical Phase-3 evidence is pending.",
@@ -1551,7 +1559,7 @@
         }
       },
       "host_model_constraints": [
-        "NGINX request and response body filters feed bounded body data into a completed ModSecurity phase; they do not provide streaming phase semantics.",
+        "NGINX receives the request body after host preparation, but its response body filter incrementally feeds each current chain buffer to the active P4 phase and forwards the chain without retaining a cross-callback response body.",
         "The connector JSONL writer is currently specific to Phase-4 interventions and does not by itself prove canonical event coverage for request-phase decisions.",
         "A Phase-4 decision can be observed after NGINX has sent response headers and is then governed by the late-intervention policy."
       ],
@@ -1714,8 +1722,8 @@
           "state": "implemented_not_asserted"
         },
         "phase2": {
-          "reason": "The checked-in host middleware does not set forwardBody and the connector config disables request-body processing.",
-          "state": "not_implemented"
+          "reason": "The checked-in forwardAuth path buffers and bounds P2 at 4096 bytes, and the start harness rejects templates that omit either setting; a fresh real-host P2 result is still required.",
+          "state": "configured_not_exercised"
         },
         "phase3": {
           "reason": "The pre-upstream forwardAuth call cannot inspect upstream response headers.",
@@ -1750,20 +1758,20 @@
           "state": "not_implemented"
         },
         "redirect": {
-          "reason": "The Common Runtime preserves redirect status and URL, but the repository HTTP authorization response does not emit the Location header for Traefik to propagate.",
-          "state": "not_implemented"
+          "reason": "The shared authorization service emits one bounded, validated Location header for a redirect decision; the focused Common service regression covers the Traefik forwardAuth profile, while fresh canonical Traefik runtime evidence remains pending.",
+          "state": "implemented_not_asserted"
         },
         "request_body_buffered": {
-          "reason": "Traefik v3.7 supports forwardBody plus maxBodySize, but the checked-in middleware omits both and the connector config disables request bodies; see the versioned official reference.",
-          "state": "not_implemented"
+          "reason": "The checked-in middleware explicitly sets forwardBody=true and maxBodySize=4096, and the service requires request_body_mode=buffered; a fresh real-host P2 result is still required for runtime promotion.",
+          "state": "configured_not_exercised"
         },
         "request_body_incremental_ingest": {
-          "reason": "The selected forwardAuth path disables request bodies, and Traefik forwardBody is buffered rather than incremental when enabled.",
+          "reason": "Traefik forwardBody buffers the bounded body before authorization and does not provide incremental request-body callbacks.",
           "state": "unsupported_by_host_model"
         },
         "request_body_limits": {
-          "reason": "The checked-in forwardAuth middleware disables request-body forwarding and defines no active request-body limit behavior.",
-          "state": "not_implemented"
+          "reason": "Traefik maxBodySize=4096 and the Common request_body_limit=4096 are explicitly configured; a fresh real-host over-limit result is still required.",
+          "state": "configured_not_exercised"
         },
         "request_body_streaming": {
           "reason": "Traefik v3.7 documents that forwardBody reads and buffers the body before forwarding and therefore breaks streaming.",
@@ -1857,11 +1865,12 @@
         }
       ],
       "host_model_constraints": [
-        "The selected forwardAuth service observes the authorization request before the upstream request and cannot inspect the later upstream response headers or body.",
-        "Traefik v3.7 supports buffered forwardAuth request bodies with forwardBody and maxBodySize, but the checked-in dynamic configuration does not enable them and the service config sets request_body_mode=none.",
+        "The forwardAuth service alone observes the authorization request before upstream handling; the mandatory following response-observer plugin receives the corresponding response headers and streaming body.",
+        "Traefik v3.7 supports buffered forwardAuth request bodies with forwardBody and maxBodySize; the checked-in dynamic configuration enables both with a 4096-byte cap and the service config requires request_body_mode=buffered.",
         "Traefik documents that forwardBody buffering breaks streaming, so streaming request-body inspection is outside this host path.",
         "The authorization service currently sees the Traefik-to-service socket endpoints and does not map original client connection endpoints into Common connection metadata.",
-        "The full-lifecycle profile separately selects native-middleware through full-lifecycle-traefik-native in a pinned Traefik local-plugin host probe. Its selected UDS engine service performs Common/libmodsecurity evaluation, while this forwardAuth compatibility declaration remains separate and unpromoted."
+        "The full-lifecycle profile separately selects native-middleware through full-lifecycle-traefik-native in a pinned Traefik local-plugin host probe. Its selected UDS engine service performs Common/libmodsecurity evaluation, while this forwardAuth compatibility declaration remains separate and unpromoted.",
+        "In the checked-in profile, forwardAuth propagates the opaque response handle only to the following local response observer, which removes it before the upstream handler. The static source contract requires that chain; an operator who omits or reorders the observer is outside this profile and must validate P3/P4 separately."
       ],
       "host_name": "traefik",
       "integration_mode": "http-forwardauth-service",
@@ -1871,6 +1880,10 @@
         "connectors/traefik/config/traefik-forwardauth-dynamic.yaml",
         "connectors/traefik/config/traefik-forwardauth.conf",
         "connectors/traefik/src/traefik_forwardauth_service_main.c",
+        "connectors/traefik/src/traefik_forwardauth_response_companion.c",
+        "connectors/traefik/response_observer/observer.go",
+        "connectors/traefik/config/traefik-response-observer-static.yaml",
+        "connectors/traefik/config/traefik-response-observer-dynamic.yaml",
         "connectors/traefik/src/traefik_modsecurity_mapper.c",
         "connectors/traefik/scripts/runtime_smoke.py",
         "connectors/traefik/native_middleware/middleware.go",
@@ -1893,7 +1906,7 @@
     "crs_smoke",
     "extended_matrix"
   ],
-  "generated_at": "2026-08-15T08:38:29Z",
+  "generated_at": "2026-09-03T03:00:24Z",
   "generated_from": [
     "connectors/apache/capabilities.json",
     "connectors/nginx/capabilities.json",
@@ -1906,17 +1919,17 @@
   "metadata": {
     "category": "canonical",
     "commit_policy": "versioned-generated",
-    "connector_sha": "29a2a8bcab57e936c5274f8fe64a15c6fee879bd",
+    "connector_sha": "d50fad793a8af1fa4cf0dc83a951c041dcd940e9",
     "data_kind": "capability-catalog",
     "data_origin": "repository",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
     "framework_checkout_status": "not_checked_out",
-    "framework_gitlink_sha": "1260aaae411ecf88cf50dc480b80e2e20ac47901",
+    "framework_gitlink_sha": "86451b45ae7bb7953baf9f81f2c2dad07395a808",
     "framework_gitlink_status": "not_checked_out",
     "framework_sha": "unknown",
     "framework_working_tree_dirty": "unknown",
-    "generated_at": "2026-08-15T08:38:29Z",
+    "generated_at": "2026-09-03T03:00:24Z",
     "generated_by": "ci/evidence/collectors/connector_capabilities.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
@@ -1924,43 +1937,43 @@
       {
         "notes": "input file available",
         "path": "connectors/apache/capabilities.json",
-        "sha256": "425d709d77eb545c980e4fd5a58aad1c8a7909edf92f392ff59682880da3ee01",
-        "source_hash": "425d709d77eb545c980e4fd5a58aad1c8a7909edf92f392ff59682880da3ee01",
+        "sha256": "44d36c9ac944e89e472368decf1f23b61296b55c4ac0a4e599fcfa6a8e17b1ff",
+        "source_hash": "44d36c9ac944e89e472368decf1f23b61296b55c4ac0a4e599fcfa6a8e17b1ff",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "connectors/nginx/capabilities.json",
-        "sha256": "bbc5f0514f8de637de363ac801a7a448ed3e1ff89ae3ab98a804147a039c9216",
-        "source_hash": "bbc5f0514f8de637de363ac801a7a448ed3e1ff89ae3ab98a804147a039c9216",
+        "sha256": "2c0474e075187b692aa4ba12467b0839a895c33a9ceca4771638eab219c3a3b3",
+        "source_hash": "2c0474e075187b692aa4ba12467b0839a895c33a9ceca4771638eab219c3a3b3",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "connectors/haproxy/capabilities.json",
-        "sha256": "123ffa37f47226c398e1615a409bb3443c07310776e1041e2cc910d1e334c5b5",
-        "source_hash": "123ffa37f47226c398e1615a409bb3443c07310776e1041e2cc910d1e334c5b5",
+        "sha256": "83528048ed6d012042bf5f0ca245a07d0a4457b72d7e89925d2745d70b4bc82a",
+        "source_hash": "83528048ed6d012042bf5f0ca245a07d0a4457b72d7e89925d2745d70b4bc82a",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "connectors/envoy/capabilities.json",
-        "sha256": "b38f59423c0908064eeb9b253eafa83f3606e4d755ef78e0837ed39100e61216",
-        "source_hash": "b38f59423c0908064eeb9b253eafa83f3606e4d755ef78e0837ed39100e61216",
+        "sha256": "5e3848e27db6133eed8a7a7c4c579f722745a17e61490c2b2bad67654bf92ab4",
+        "source_hash": "5e3848e27db6133eed8a7a7c4c579f722745a17e61490c2b2bad67654bf92ab4",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "connectors/traefik/capabilities.json",
-        "sha256": "04dbf29b4ed7085f1db172619b0957e6dc740964b9741c736b70e158fe904adc",
-        "source_hash": "04dbf29b4ed7085f1db172619b0957e6dc740964b9741c736b70e158fe904adc",
+        "sha256": "f96775fa85d85bb66f739743ae154feb66d61c710ad6f9dde0be2977fef86b88",
+        "source_hash": "f96775fa85d85bb66f739743ae154feb66d61c710ad6f9dde0be2977fef86b88",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "connectors/lighttpd/capabilities.json",
-        "sha256": "e7291e93d4851aaff768e0f024f0943bbdd3ac79281c726a246bfcd408765092",
-        "source_hash": "e7291e93d4851aaff768e0f024f0943bbdd3ac79281c726a246bfcd408765092",
+        "sha256": "95c68aeba2340c6ed996c976188d6fae0c5ff1c91f1995a2cc245a33bbd47665",
+        "source_hash": "95c68aeba2340c6ed996c976188d6fae0c5ff1c91f1995a2cc245a33bbd47665",
         "status": "present"
       }
     ],
@@ -1972,7 +1985,7 @@
     "schema_version": 1,
     "severity": "informational",
     "unknown_inputs": [],
-    "verified_run_id": "2026-08-15T08-38-29Z-29a2a8bc",
+    "verified_run_id": "2026-06-16T19-12-00Z-614c8049",
     "working_tree_dirty": "dirty"
   },
   "runtime_promotion": false,

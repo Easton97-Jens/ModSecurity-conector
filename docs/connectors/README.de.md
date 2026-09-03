@@ -2,35 +2,52 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
-Der gemeinsame Vertrag für Fehler-, Verfügbarkeits- und Cleanup-Pfade steht in
-der [Runtime-Fehlerpolicy](runtime-failure-policy.de.md).
-
-Dieser Bereich navigiert die sechs ausgewählten Connector-Routen. „P1“, „P2“,
-„P3“ und „P4“ bedeuten die ModSecurity-Phasen Request Header, Request Body,
-Response Header und Response Body. Der tatsächliche Case-Status einer Route ist
-laufabhängig und stammt aus ihrer Evidence; Source-Präsenz, Capability-Manifest
-oder Build erheben nicht selbst einen PASS-Claim.
+Dieser Bereich navigiert sechs Hostintegrationen und zehn logische
+Connector-Profile. Die Hostfamilien-Zeilen unten dienen nur der Navigation: Der
+gemeinsame Vertrag bewertet jedes logische Profil getrennt, und ein Ergebnis
+eines Profils ist keine Evidence für ein anderes Profil derselben Hostfamilie.
+„P1“, „P2“, „P3“ und „P4“ bedeuten die ModSecurity-Phasen Request Header,
+Request Body, Response Header und Response Body. Der tatsächliche Case-Status
+einer Route ist laufabhängig und stammt aus ihrer Evidence; Source-Präsenz,
+Capability-Manifest oder Build erheben nicht selbst einen PASS-Claim.
 
 Die ausgewählte HTTP/1.1-Kern-Dokumentation behauptet weder Production
 Readiness noch CRS-Verifikation, vollständige HTTP/2- oder HTTP/3-Verifikation,
 vollständige Matrix oder Strict-Verhalten für alle Connectoren.
 
-## Connector-Karte
+## Navigation nach Hostfamilie
 
-| Connector | Ausgewähltes Full-Lifecycle-Profil | Aufgezeichneter Integrationsmodus | Connector-Einstiegspunkt | P1–P4-Scope und Grenze |
+| Hostintegration | Aktueller Kernrunner der Hostfamilie | Grenze des logischen Profils | Connector-Einstiegspunkt | P1–P4-Scope und Grenze |
 |---|---|---|---|---|
-| Apache | <code>native-httpd-module</code> | <code>native-httpd-module</code> | [Guide](apache.de.md) / [Quelle](../../connectors/apache/README.de.md) | Native Modulroute; P1–P4-Beobachtungen bleiben Run-/Evidence-abhängig und Response-Body-Verarbeitung kann bei EOS finalisieren |
-| NGINX | <code>native-nginx-http-module</code> | <code>native-nginx-http-module</code> | [Guide](nginx.de.md) / [Quelle](../../connectors/nginx/README.de.md) | Native HTTP-Modulroute; P1–P4 benötigen ausgewählten Host-Run und Artefakte |
-| HAProxy | <code>native-htx-filter</code> | <code>native-htx-filter</code> | [Guide](haproxy.de.md) / [Quelle](../../connectors/haproxy/README.de.md) | Native HTX-Filterroute; Body-Slices werden inkrementell weitergereicht und Phase 4 endet bei HTX-EOS |
-| Envoy | <code>ext_proc</code> | <code>ext_proc</code> | [Guide](envoy.de.md) / [Quelle](../../connectors/envoy/README.de.md) | Streamed External-Processing-Route; Strict-Post-Commit-Reset bleibt eine getrennte Evidence-gesteuerte Frage |
-| Traefik | <code>native-middleware</code> | <code>native-traefik-middleware</code> | [Guide](traefik.de.md) / [Quelle](../../connectors/traefik/README.de.md) | Native Middleware mit lokalem UDS-Service; Strict-Reset bleibt getrennt, bis Host-Evidence ihn nachweist |
-| lighttpd | <code>patched-native</code> | <code>patched-native-lighttpd</code> | [Guide](lighttpd.de.md) / [Quelle](../../connectors/lighttpd/README.de.md) | Gepatchte Native-Host-/Modulroute; Entity-Body-Ranges werden vor Transfer-Framing verarbeitet und Phase 4 endet bei Entity-EOS |
+| Apache | <code>native-httpd-module</code> | <code>apache</code> ist direkt | [Guide](apache.de.md) / [Quelle](../../connectors/apache/README.de.md) | Native Modulroute; P1–P4-Beobachtungen bleiben Run-/Evidence-abhängig und Response-Body-Verarbeitung kann bei EOS finalisieren |
+| NGINX | <code>native-nginx-http-module</code> | <code>nginx</code> ist direkt | [Guide](nginx.de.md) / [Quelle](../../connectors/nginx/README.de.md) | Native HTTP-Modulroute; P1–P4 benötigen ausgewählten Host-Run und Artefakte |
+| HAProxy | <code>native-htx-filter</code> | <code>haproxy-htx</code> ist direkt; <code>haproxy-spoe-spop</code> ist ein separates Begleitprofil | [Guide](haproxy.de.md) / [Quelle](../../connectors/haproxy/README.de.md) | Native HTX-Body-Slices sind inkrementell und P4 endet bei HTX-EOS; rohes SPOP allein ist keine Response-Phasen-Evidence |
+| Envoy | <code>ext_proc</code> | <code>envoy-ext-proc</code> ist direkt; <code>envoy-ext-authz</code> benötigt seinen Response-Observer | [Guide](envoy.de.md) / [Quelle](../../connectors/envoy/README.de.md) | Streamed External Processing; Strict-Post-Commit-Reset bleibt eine getrennte Evidence-gesteuerte Frage |
+| Traefik | <code>native-traefik-middleware</code> | <code>traefik-native-uds</code> ist direkt; <code>traefik-forwardauth</code> benötigt seinen Response-Observer | [Guide](traefik.de.md) / [Quelle](../../connectors/traefik/README.de.md) | Native Middleware mit lokalem UDS-Service; Strict-Reset bleibt getrennt, bis Host-Evidence ihn nachweist |
+| lighttpd | <code>patched-native-lighttpd</code> | Kanonisches Stock-Profil <code>lighttpd-stock</code> / <code>stock-lighttpd-sidecar</code>; separates direktes Profil <code>lighttpd-patched</code> / <code>patched-native-lighttpd</code> | [Guide](lighttpd.de.md) / [Quelle](../../connectors/lighttpd/README.de.md) | Die unveränderte native Route <code>stock-lighttpd</code> ist eine nichtkanonische P1/P3-Kompatibilitätsübersetzung; keines der logischen Profile ist ein Fallback für das andere |
 
-Der Profilwert ist die interne Target-Identität, die der Root-Lifecycle-Runner
-prüft. Der aufgezeichnete Integrationsmodus ist der beschreibende Wert, der in
-run-lokale effektive Capability-Information geschrieben wird. Tauschen Sie die
-Namen nicht aus und setzen Sie sie nicht manuell, um eine Compatibility-Route
+Der Runnerwert der Hostfamilie ist die interne Target-Identität, die der
+Root-Lifecycle-Runner prüft. Er fasst die unten aufgeführten logischen Profile
+nicht zusammen. Der aufgezeichnete Integrationsmodus ist der beschreibende Wert,
+der in run-lokale effektive Capability-Information geschrieben wird. Tauschen
+Sie die Namen nicht aus und setzen Sie sie nicht manuell, um einen
+request-only Service, Companion oder eine Kompatibilitätsübersetzung
 umzuklassifizieren.
+
+## Inventar der logischen Profile
+
+| Logische Connectorlösung | Profil-ID | Vertragsroute und Evidence-Grenze |
+|---|---|---|
+| Apache Native | <code>apache</code> | Direkte native HTTPD-Modulroute |
+| NGINX Native | <code>nginx</code> | Direkte native NGINX-HTTP-Modulroute |
+| HAProxy HTX Native | <code>haproxy-htx</code> | Direkte native HTX-Filterroute |
+| HAProxy SPOE/SPOP + HTX-Response-Companion | <code>haproxy-spoe-spop</code> | SPOP mappt P1/P2; der verpflichtende native HTX-Response-Companion mappt P3/P4 |
+| Envoy ext_authz + ext_proc-Response-Observer | <code>envoy-ext-authz</code> | Request-Autorisierungsservice plus verpflichtender Response-Observer; der direkte Service allein ist request-only |
+| Envoy ext_proc Native | <code>envoy-ext-proc</code> | Direkte gestreamte External-Processing-Route |
+| Traefik forwardAuth + Response-Observer | <code>traefik-forwardauth</code> | Request-Autorisierungsservice plus verpflichtender privater UDS-Response-Observer; der direkte Service allein ist request-only |
+| Traefik Native UDS | <code>traefik-native-uds</code> | Direkte native Middleware- und lokale UDS-Engine-Route |
+| lighttpd Stock Sidecar | <code>lighttpd-stock</code> | Kanonische logische Stock-Route: traffic-owning begrenztes HTTP/1.1-Sidecar; Component-Evidence ist keine Native-Stock-Modul-Host-Evidence |
+| lighttpd Patched Native | <code>lighttpd-patched</code> | Separate gepatchte Native-Route; kein Stock-Routen-Fallback |
 
 ## Integrationsmodi
 
@@ -41,10 +58,10 @@ umzuklassifizieren.
 | <code>native-htx-filter</code> | Nativer HAProxy-HTX-Filter | HTX-Request-/Response-Repräsentation | Ausgewählte HAProxy-Kernroute | HTX-/EOS-Semantik ist kein Claim vollständiger Transport- oder Protocol-Abdeckung |
 | <code>ext_proc</code> | Envoy External-Processing-Bridge | Streamed Host-/Processor-Austausch | Ausgewählte Envoy-Kernroute | Ein Processor-/gRPC-Event ist nicht automatisch ein Nachweis eines client-sichtbaren Strict-Resets |
 | <code>native-traefik-middleware</code> | Native Traefik-Middleware mit lokalem UDS-Service | Middleware-Request-/Response-Pfad durch lokale Engine | Aufgezeichneter ausgewählter Traefik-Modus | UDS-Lokalität und Source-Wiring beweisen nicht selbst Strict-Transport-Verhalten |
-| <code>patched-native-lighttpd</code> | Gepatchter nativer lighttpd-Core plus Modul | HTTP/1-Entity-Body-Ranges vor Transfer-Framing | Aufgezeichneter ausgewählter lighttpd-Modus | Patch-/Build-Existenz und EOS-Wiring benötigen Run-Artefakte für eine Ergebnisaussage |
-| <code>ext_authz</code> | Envoy-Service für externe Autorisierung | Normalerweise Pre-Upstream-Authorization-Sicht | Compatibility-/alternativer Begriff | Beobachtet die spätere Upstream-Response nicht wie ext_proc |
-| <code>forwardAuth</code> | Traefik-Forward-Auth-Integration | Authorization-Request-/Response-Entscheidung | Compatibility-/alternativer Begriff | Nicht als Native-Middleware-Evidence umbenennen |
-| <code>spoe-spop-agent</code> | HAProxy-Agent-/Protocol-Vokabular | Agent-vermittelter Request-/Response-Pfad | Compatibility-/alternativer Begriff | Nicht mit der ausgewählten nativen HTX-Filter-Identität gleichsetzen |
+| <code>patched-native-lighttpd</code> | Gepatchter nativer lighttpd-Core plus Modul | HTTP/1-Entity-Body-Ranges vor Transfer-Framing; ausgewähltes `mod_proxy`-P2-Gate puffert mit `body_limit_action=reject` bis EOS/Allow | Aufgezeichneter ausgewählter lighttpd-Modus | Das Gate ist kein Claim für HTTP/2/HTTP/3, andere Stream-Handler, P4 oder unbeschränktes Upstream-Streaming |
+| <code>ext_authz</code> | Envoy-Service für externe Autorisierung | Normalerweise Pre-Upstream-Authorization-Sicht | Request-Komponente des separaten logischen Profils <code>envoy-ext-authz</code> | Ohne seinen verpflichtenden Observer beobachtet er die spätere Upstream-Response nicht |
+| <code>forwardAuth</code> | Traefik-Forward-Auth-Integration | Authorization-Request-/Response-Entscheidung | Request-Komponente des separaten logischen Profils <code>traefik-forwardauth</code> | Den direkten Service nicht als Native-Middleware-Evidence umbenennen oder seinen verpflichtenden Observer auslassen |
+| <code>spoe-spop-agent</code> | HAProxy-Agent-/Protocol-Vokabular | Agent-vermittelter Request-/Response-Pfad | Request-Komponente des separaten logischen Profils <code>haproxy-spoe-spop</code> | Rohes SPOP nicht mit dem verpflichtenden nativen HTX-Response-Companion gleichsetzen |
 
 <code>EOS</code> bedeutet End of Stream, <code>HTX</code> ist die interne
 HTTP-Transaction-Repräsentation von HAProxy und <code>UDS</code> ein Unix

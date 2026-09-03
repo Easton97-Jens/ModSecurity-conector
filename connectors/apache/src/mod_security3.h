@@ -39,6 +39,7 @@
 #include "msconnector/config.h"
 #include "msconnector/phase.h"
 #include "msconnector/rule_load_stats.h"
+#include "msconnector/transaction_contract.h"
 
 #ifndef _SRC_APACHE_HTTP_MODSECURITY__
 #define _SRC_APACHE_HTTP_MODSECURITY__
@@ -66,6 +67,7 @@ typedef struct
     int body_truncated;
     int body_processed;
     int body_intervention_sent;
+    int body_eos_released;
 } msc_request_state;
 
 typedef struct
@@ -130,6 +132,8 @@ typedef struct
     const char *transaction_id;
     enum msconnector_phase native_event_phase;
     int native_event_phase_active;
+    int request_body_limit_rejection;
+    int contract_failure_event_emitted;
 } msc_intervention_state;
 
 
@@ -141,6 +145,10 @@ typedef struct
      * retain this immutable owner separately. */
     request_rec *owner_request;
     Transaction *t;
+    /* Canonical bounded transaction metadata.  Apache owns only the host
+     * translation; phase meaning and ordering remain in Common. */
+    msconnector_transaction_contract contract;
+    int contract_initialized;
     msc_request_state request;
     /* Apache normally commits visible state in HTTP_HEADER. The Phase-4 gate
      * retains the P3 state until its own EOS decision has completed. */
@@ -161,6 +169,7 @@ typedef struct
 #define request_body_truncated request.body_truncated
 #define request_body_processed request.body_processed
 #define request_body_intervention_sent request.body_intervention_sent
+#define request_body_eos_released request.body_eos_released
 #define response_headers_snapshot_taken response_headers.headers_snapshot_taken
 #define response_headers_snapshot response_headers.headers_snapshot
 #define response_err_headers_snapshot response_headers.err_headers_snapshot
@@ -208,6 +217,8 @@ typedef struct
 #define event_transaction_id intervention.transaction_id
 #define native_event_phase intervention.native_event_phase
 #define native_event_phase_active intervention.native_event_phase_active
+#define last_intervention_body_limit intervention.request_body_limit_rejection
+#define contract_failure_event_emitted intervention.contract_failure_event_emitted
 
 
 typedef struct
@@ -245,10 +256,26 @@ int process_intervention (Transaction *t, request_rec *r);
 int msc_finalize_request_body(msc_t *msr, request_rec *r);
 void apache_emit_intervention_event(msc_t *msr, request_rec *r,
     const apache_intervention_event_input *input);
+void apache_emit_contract_failure_event(msc_t *msr, request_rec *r,
+    enum msconnector_phase phase,
+    msconnector_transaction_error_class error_class, int status);
 void apache_log_rule_match_event(msc_t *msr, request_rec *r,
     enum msconnector_phase phase, const char *rule_id);
 
 int msc_apache_init(apr_pool_t *pool);
 int msc_apache_cleanup();
+int msc_apache_contract_begin(msc_t *msr, enum msconnector_phase phase);
+int msc_apache_contract_complete(msc_t *msr, enum msconnector_phase phase);
+int msc_apache_contract_record_request_metadata(msc_t *msr, request_rec *r);
+int msc_apache_contract_record_body(msc_t *msr, int response_direction,
+    size_t bytes);
+int msc_apache_contract_mark_response_committed(msc_t *msr);
+int msc_apache_contract_record_decision(msc_t *msr,
+    msconnector_transaction_decision_kind kind, const char *rule_id);
+int msc_apache_contract_record_intervention_decision(msc_t *msr);
+const char *msc_apache_contract_intervention_action(const msc_t *msr);
+int msc_apache_contract_fail(msc_t *msr,
+    msconnector_transaction_error_class error_class);
+int msc_apache_contract_finish(msc_t *msr);
 
 #endif /*  _SRC_APACHE_HTTP_MODSECURITY__ */

@@ -6,9 +6,13 @@ CONNECTOR_DIR=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
 REPO_ROOT=$(CDPATH= cd "$CONNECTOR_DIR/../.." && pwd)
 BUILD_ROOT=${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecurity-conector-build}
 CC_BIN=${CC:-cc}
+GO_BIN=${GO:-go}
 OUT_DIR="$BUILD_ROOT/envoy-connector"
 OBJ_DIR="$OUT_DIR/obj"
 SERVICE_BIN="$OUT_DIR/msconnector_envoy_ext_authz"
+RESPONSE_OBSERVER_BIN="$OUT_DIR/msconnector_envoy_response_observer"
+GO_CACHE_DIR=${GOCACHE:-$OUT_DIR/go-cache}
+GO_MODULE_CACHE_DIR=${GOMODCACHE:-$OUT_DIR/go-mod-cache}
 
 case "$BUILD_ROOT" in
     /*) ;;
@@ -25,6 +29,10 @@ esac
 
 command -v "$CC_BIN" >/dev/null 2>&1 || {
     echo "envoy_connector: missing C compiler: $CC_BIN" >&2
+    exit 77
+}
+command -v "$GO_BIN" >/dev/null 2>&1 || {
+    echo "envoy_connector: missing Go compiler for required response observer: $GO_BIN" >&2
     exit 77
 }
 
@@ -98,8 +106,10 @@ compile_source() {
 for source in \
     "$REPO_ROOT"/common/src/*.c \
     "$REPO_ROOT"/common/runtime/*.c \
+    "$REPO_ROOT"/connectors/profile_registry.c \
     "$CONNECTOR_DIR/metadata.c" \
     "$CONNECTOR_DIR/src/envoy_modsecurity_mapper.c" \
+    "$CONNECTOR_DIR/src/envoy_ext_authz_response_companion.c" \
     "$CONNECTOR_DIR/src/envoy_ext_authz_service_main.c"
 do
     compile_source "$source"
@@ -116,4 +126,13 @@ else
         -o "$SERVICE_BIN"
 fi
 
-printf 'envoy_connector: build-pass output=%s\n' "$SERVICE_BIN"
+mkdir -p "$GO_CACHE_DIR" "$GO_MODULE_CACHE_DIR"
+(
+    cd "$CONNECTOR_DIR/ext_proc"
+    GOWORK=off GOCACHE="$GO_CACHE_DIR" GOMODCACHE="$GO_MODULE_CACHE_DIR" \
+        "$GO_BIN" build -o "$RESPONSE_OBSERVER_BIN" \
+        ./cmd/msconnector-envoy-response-observer
+)
+
+printf 'envoy_connector: build-pass service=%s response_observer=%s\n' \
+    "$SERVICE_BIN" "$RESPONSE_OBSERVER_BIN"

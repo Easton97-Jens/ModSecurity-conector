@@ -30,7 +30,6 @@ STAGES = (
     ("runtime", "Real connector runtime target", "RUNTIME_OUTCOME"),
     ("upload_evidence", "Evidence publication", "UPLOAD_EVIDENCE_OUTCOME"),
 )
-SECURITY_SKIPPED_STAGE = ("haproxy", "upload_evidence")
 SUMMARY_DIRECTORY_NAME = "_runner_file_commands"
 SUMMARY_FILE_NAME = re.compile(r"^step_summary_[A-Za-z0-9_-]+$", re.ASCII)
 UNSAFE_SUMMARY_PATH = "GitHub step summary path is unsafe"
@@ -53,12 +52,11 @@ def outcomes_from_environment(environment: Mapping[str, str]) -> dict[str, str]:
 
 
 def rendered_outcome(connector: str, stage: str, outcome: str) -> str:
-    if (connector, stage) == SECURITY_SKIPPED_STAGE and outcome == "skipped":
-        return "skipped_by_security_policy"
+    del connector, stage
     return outcome
 
 
-def outcome_counts(connector: str, outcomes: Mapping[str, str]) -> dict[str, int]:
+def outcome_counts(outcomes: Mapping[str, str]) -> dict[str, int]:
     counts = {
         "passed": 0,
         "failed": 0,
@@ -68,9 +66,7 @@ def outcome_counts(connector: str, outcomes: Mapping[str, str]) -> dict[str, int
     }
     for stage, _label, _environment_name in STAGES:
         outcome = outcomes[stage]
-        if rendered_outcome(connector, stage, outcome) == "skipped_by_security_policy":
-            counts["security_skipped"] += 1
-        elif outcome == "success":
+        if outcome == "success":
             counts["passed"] += 1
         elif outcome == "failure":
             counts["failed"] += 1
@@ -84,7 +80,7 @@ def outcome_counts(connector: str, outcomes: Mapping[str, str]) -> dict[str, int
 def first_nonpassing_stage(connector: str, outcomes: Mapping[str, str]) -> str:
     for stage, label, _environment_name in STAGES:
         outcome = rendered_outcome(connector, stage, outcomes[stage])
-        if outcome != "success" and outcome != "skipped_by_security_policy":
+        if outcome != "success":
             return label
     return "none"
 
@@ -105,7 +101,7 @@ def render_summary(connector: str, outcomes: Mapping[str, str]) -> str:
         raise ValueError("summary outcomes do not match the fixed workflow stage set")
     if any(outcome not in VALID_OUTCOMES for outcome in outcomes.values()):
         raise ValueError("summary outcomes contain an invalid state")
-    counts = outcome_counts(connector, outcomes)
+    counts = outcome_counts(outcomes)
     rows = [
         f"### {connector} — CRS/no-MRTS runtime overview",
         "",
@@ -134,8 +130,8 @@ def render_summary(connector: str, outcomes: Mapping[str, str]) -> str:
             f"`{runtime_bundle_outcome(outcomes['runtime'])}` |",
             "",
             "The table reports observed GitHub step outcomes only. A missing or failed runtime "
-            "target is never promoted to a connector capability pass. HAProxy evidence publication "
-            "is shown separately when skipped by the existing same-UID artifact-security policy.",
+            "target is never promoted to a connector capability pass. Evidence publication is "
+            "reported as its actual verified upload outcome for every connector.",
             "",
         )
     )

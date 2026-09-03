@@ -20,8 +20,11 @@ does not promise a full response buffer or per-chunk rule evaluation. The
 Strict profile boundary documents the optional boundary rather than claiming a
 runnable host abort.
 
-[forwardAuth compatibility files](#forwardauth-compatibility) are request
-authorization only and must not be treated as a P3/P4 core path.
+The complete matrix is under [native-uds/](native-uds/) and
+[forwardauth/](forwardauth/), including `minimal`, `safe`, `strict`, and
+`all` bundles. `all` uses the existing strict P4 policy value and is not a
+fourth phase mode. The older [forwardAuth compatibility files](#forwardauth-compatibility)
+remain request-only examples; they must not be treated as a P3/P4 core path.
 
 ## Files
 
@@ -162,12 +165,39 @@ readiness, or CRS coverage.
 
 ## Strict profile boundary <a id="strict-profile-boundary"></a>
 
-Common Runtime accepts `phase4_mode=strict`, but the native Go middleware
-downgrades post-commit disruptive P4 decisions to log-only. Strict is optional
-and no abort profile is claimed.
+Common Runtime rejects `phase4_mode=strict` for both Traefik profiles at
+startup because neither has a proven `strict_post_commit_action`. This is a
+fail-closed configuration error, not a late log-only downgrade or an abort
+claim.
 
 Keep the Safe UDS setup, validate static/dynamic configuration and the engine
-service, and require new host evidence before making a strict transport claim.
+service, and require a deterministic host action plus client evidence before
+enabling Strict.
+
+## Complete logical-solution matrix
+
+Each logical solution has visible `minimal`, `safe`, `strict`, and `all`
+bundles. Minimal and Safe are runtime-admissible; the Strict bundles are
+parser-backed but deliberately rejected by the Common Runtime admission gate.
+The
+native UDS bundles use the repository-owned `modsecurityNative` plugin and
+cover P1/P2/P3/P4 in one streaming transaction. The forwardAuth bundles are a
+single logical solution composed of Traefik `forwardAuth` followed immediately
+by the private-UDS `modsecurityResponseObserver` plugin: forwardAuth supplies
+P1 and bounded buffered P2 (`forwardBody: true`, `maxBodySize: 4096`), while the
+observer claims the opaque handle for P3/P4. A missing handle or observer
+timeout fails closed and cleans up the correlated transaction.
+
+| Solution | Variants | P1/P2 | P3/P4 | Host boundary |
+| --- | --- | --- | --- | --- |
+| Native UDS | [minimal](native-uds/minimal/), [safe](native-uds/safe/), [strict](native-uds/strict/), [all](native-uds/all/) | Native plugin, streaming and bounded | Native plugin, streaming and bounded | Strict startup is rejected until a host abort is proven. |
+| forwardAuth + observer | [minimal](forwardauth/minimal/), [safe](forwardauth/safe/), [strict](forwardauth/strict/), [all](forwardauth/all/) | forwardAuth plus bounded buffered body | Private response observer over one opaque handle | Strict startup is rejected; no client-visible late abort is claimed. |
+
+Every runtime file shows all currently parsed Common Runtime keys. The active
+rule source is the private reviewed `rules_file`; `rules_inline`, remote rule
+source keys, static `transaction_id`, and the optional content-type file are
+shown as commented, mutually exclusive alternatives. Event JSONL contains
+metadata only and uses a bounded private path.
 
 ## Related material
 

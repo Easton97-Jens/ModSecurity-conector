@@ -39,7 +39,7 @@ class NginxInterventionUrlOwnershipTests(unittest.TestCase):
 
     def test_redirect_location_is_owned_before_the_wrapper_cleans_up(self) -> None:
         self.assertIn(
-            "if (intervention.url != NULL && intervention.url[0] != '\\0')",
+            "if (msconnector_intervention_has_redirect_url(intervention.url))",
             self.intervention,
         )
         call = self.intervention.index(
@@ -105,6 +105,18 @@ class NginxInterventionUrlOwnershipTests(unittest.TestCase):
 
         self.assertIn("ngx_http_clear_location(r);", self.redirect)
         self.assertIn("return intervention->status;", self.redirect)
+
+    def test_native_intervention_status_is_normalized_before_host_delivery(self) -> None:
+        self.assertIn('#include "msconnector/intervention.h"', MODULE.read_text(encoding="utf-8"))
+        normalize = self.intervention.index("msconnector_intervention_normalize_status(")
+        retained_status = self.intervention.index("ctx->last_intervention_status =")
+        redirect = self.intervention.index(
+            "if (msconnector_intervention_has_redirect_url(intervention.url))"
+        )
+        status = self.intervention.index("ngx_http_modsecurity_process_status_intervention")
+        self.assertLess(normalize, retained_status)
+        self.assertLess(retained_status, redirect)
+        self.assertLess(redirect, status)
 
 
 if __name__ == "__main__":

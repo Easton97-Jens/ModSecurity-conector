@@ -47,6 +47,11 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
         self.create_context = c_function(
             self.module, "static msc_t *create_tx_context(request_rec *r)"
         )
+        self.store_transaction_id = c_function(
+            self.module,
+            "static int apache_store_transaction_id(msc_t *msr, request_rec *r,\n"
+            "    const char *transaction_id)",
+        )
         self.request_headers = c_function(
             self.module,
             "static int process_request_headers(request_rec *r, msc_t *msr)",
@@ -72,6 +77,63 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
 
         self.assertLess(failure_check, publish)
         self.assertIn("return NULL;", self.create_context[failure_check:publish])
+
+    def test_contract_initialization_precedes_native_transaction_allocation(self) -> None:
+        contract_init = self.create_context.index(
+            "msconnector_transaction_contract_init("
+        )
+        native_with_id = self.create_context.index("msc_new_transaction_with_id(")
+        native_without_id = self.create_context.index("msc_new_transaction(")
+        validated_copy = self.create_context.index(
+            "modsecurity_transaction_id = apr_pstrdup(r->pool,\n"
+            "            msr->event_transaction_id);"
+        )
+        registration = self.create_context.index("apr_pool_cleanup_register(r->pool, msr,")
+
+        self.assertLess(contract_init, validated_copy)
+        self.assertLess(contract_init, native_with_id)
+        self.assertLess(contract_init, native_without_id)
+        self.assertLess(native_with_id, registration)
+        self.assertLess(native_without_id, registration)
+
+    def test_request_derived_identifier_is_bounded_before_apr_pool_copy(self) -> None:
+        bound_check = self.store_transaction_id.index(
+            "transaction_id[length] != '\\0'"
+        )
+        pool_copy = self.store_transaction_id.index(
+            "msr->event_transaction_id = apr_pstrdup(r->pool, transaction_id);"
+        )
+        contract_init = self.create_context.index(
+            "msconnector_transaction_contract_init("
+        )
+        store_helper = self.create_context.index(
+            "if (!apache_store_transaction_id(msr, r, transaction_id))"
+        )
+
+        self.assertIn(
+            "MSCONNECTOR_MAX_TRANSACTION_ID_LENGTH", self.store_transaction_id
+        )
+        self.assertIn(
+            "transaction identifier exceeds canonical limit", self.store_transaction_id
+        )
+        self.assertLess(bound_check, pool_copy)
+        self.assertLess(store_helper, contract_init)
+
+    def test_unpublished_contract_is_cleaned_when_native_allocation_cannot_continue(self) -> None:
+        native_failure = self.create_context.index("if (msr->t == NULL)")
+        contract_cleanup = self.create_context.index(
+            "msconnector_transaction_contract_cleanup(&msr->contract,", native_failure
+        )
+        initialized_clear = self.create_context.index(
+            "msr->contract_initialized = 0;", contract_cleanup
+        )
+        failure_return = self.create_context.index("return NULL;", initialized_clear)
+        registration = self.create_context.index("apr_pool_cleanup_register(r->pool, msr,")
+
+        self.assertLess(native_failure, contract_cleanup)
+        self.assertLess(contract_cleanup, initialized_clear)
+        self.assertLess(initialized_clear, failure_return)
+        self.assertLess(failure_return, registration)
 
     def test_successful_context_is_registered_once_on_owner_request_pool(self) -> None:
         publish = self.create_context.index("store_tx_context(msr, r);")
@@ -156,6 +218,14 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
             ),
             2,
         )
+
+    def test_contract_records_apache_lifecycle_timestamps_without_inferring_order(self) -> None:
+        clock = c_function(self.module, "static uint64_t apache_contract_now_ms(void)")
+        self.assertIn("apr_time_now()", clock)
+        self.assertIn("APR_USEC_PER_SEC / 1000", clock)
+        self.assertIn("if (now <= 0)", clock)
+        self.assertIn("Common FSM", clock)
+        self.assertNotIn("return 0U;\n}", clock)
 
 
 if __name__ == "__main__":

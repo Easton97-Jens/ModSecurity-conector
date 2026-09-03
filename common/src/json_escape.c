@@ -35,7 +35,8 @@ static void append_json_bytes(
     size_t dst_size,
     size_t *position) {
     if (dst != 0 && dst_size != 0 && *position < dst_size &&
-        value_size <= dst_size - 1U - *position) {
+        value_size <= dst_size - 1U - *position &&
+        *position + value_size < dst_size) {
         memcpy(dst + *position, value, value_size);
     } else {
         terminate_at_current(dst, dst_size, *position);

@@ -172,6 +172,7 @@ if test -n "$ngx_module_link"; then
             $MSCONNECTOR_COMMON_SRC/error.c \
             $MSCONNECTOR_COMMON_SRC/status.c \
             $MSCONNECTOR_COMMON_SRC/body_policy.c \
+            $MSCONNECTOR_COMMON_SRC/intervention.c \
             $MSCONNECTOR_COMMON_SRC/block_statuses.c \
             $MSCONNECTOR_COMMON_SRC/http_status.c \
             $MSCONNECTOR_COMMON_SRC/crs.c \
@@ -229,6 +230,7 @@ else
 	    $MSCONNECTOR_COMMON_SRC/error.c \
 	    $MSCONNECTOR_COMMON_SRC/status.c \
 	    $MSCONNECTOR_COMMON_SRC/body_policy.c \
+	    $MSCONNECTOR_COMMON_SRC/intervention.c \
 	    $MSCONNECTOR_COMMON_SRC/block_statuses.c \
 	    $MSCONNECTOR_COMMON_SRC/http_status.c \
 	    $MSCONNECTOR_COMMON_SRC/crs.c \

@@ -62,7 +62,8 @@ or transaction ownership.
 
 The Phase 4 directives are bounded runtime controls. In particular,
 `modsecurity_phase4_content_types_file` is a deprecated compatibility parser:
-it cannot narrow the Apache all-response pre-commit gate. Use
+it cannot narrow the response-inspection gate or create a pre-commit P4
+decision. Use
 `SecResponseBodyMimeType` to select libModSecurity inspection instead. Phase 4
 / RESPONSE_BODY remains non-promoted; source-level strict-mode wiring does not
 establish a late-abort result.
@@ -175,14 +176,13 @@ full-matrix coverage, or new runtime verification behavior.
 
 ## Canonical Phase-4 boundary
 
-Apache's output filter is an EOS-only all-response enforcement gate. It
-incrementally appends every data bucket to libModSecurity and saves the
-normalized Apache brigade in the request pool across filter calls. It forwards
-no original response byte, including a response that has no data buckets and
-only EOS, until the first EOS has arrived, `msc_process_response_body` has
-completed, and the intervention has been resolved. This deliberately trades
-client-visible progressive response streaming for a complete Phase-4 decision;
-it is not per-chunk rule evaluation.
+Apache's output filter remains EOS-only for Phase-4 rule evaluation, but it is
+now a progressive response path. It appends each data bucket exactly once to
+libModSecurity, preserves pre-EOS FLUSH and Apache metadata, splits at the
+first EOS, and immediately passes the pre-EOS prefix to the next filter. It
+does not save a complete normalized brigade across callbacks. Only the
+terminal EOS fragment waits for `msc_process_response_body` and the late-action
+resolution; this is not per-chunk rule evaluation.
 
 The connector cannot safely query libModSecurity's effective
 `SecResponseBodyMimeType` selection through the C API. It consequently gates
@@ -190,31 +190,25 @@ every response MIME type. `SecResponseBodyMimeType` still selects engine
 inspection, while the deprecated
 `modsecurity_phase4_content_types_file` cannot create an uninspected
 pass-through route. The default `modsecurity_phase4_body_limit` is 1048576
-bytes (1 MiB), and the Common configuration validator rejects values above
-10485760 bytes (10 MiB). A response that exceeds its selected limit fails
-closed before any original response byte is released; it is not processed
-partially and then streamed.
-The byte bound is not the only retained-resource bound: Apache also enforces a
-fixed, non-configurable ceiling of 4,096 normalized buckets retained across
-filter calls. It fails closed before retaining the next bucket, so a highly
-fragmented response can be rejected below the byte limit.
+bytes (1 MiB). The bound is enforced before a later data bucket is appended;
+after a prefix has reached the next filter, a later failure cannot rewrite it
+and uses the shared post-commit action instead. There is no active
+cross-callback normalized-brigade or bucket-count buffer.
 
 At the normal decision boundary, Apache's `r->sent_bodyct` and `eos_sent` are
-not commit proof: upstream modules can set them before this filter has released
-anything. The gate instead uses its own released-EOS state and Apache's
-`r->bytes_sent`. A normal Phase-4 deny discards the saved original brigade,
-preserves the relevant P3 response state, and emits exactly one terminal error
-response before original output can be released. On an allow, the retained
-brigade (including its EOS) is passed once synchronously and the terminal
-output guard is sealed, preventing a later producer from duplicating body or
-EOS output. Errors while saving, appending, or finishing the response discard
-the retained brigade and fail closed; a genuinely post-commit failure aborts
-the connection.
+not commit proof: upstream modules can set them before this filter passes its
+first prefix. The invocation of the next filter is the monotonic source
+commitment boundary, with a separate terminal-EOS guard and Apache's
+`r->bytes_sent` retained as metadata. A downstream error after progressive
+forwarding seals the Phase-4 gate because a body prefix might already be
+visible. P4 finishes exactly once on EOS; duplicate terminal output is
+rejected.
 
-`log_only` in safe/minimal mode and `abort_connection` in strict mode are
-defensive late-intervention fallbacks only when independent commit proof already
-exists. They do not reinterpret a normal, still-gated Phase-4 deny as log-only
-or remove the pre-release deny path.
+`log_only` in safe/minimal mode preserves an already-forwarded prefix. Strict
+uses `abort_connection` after a disruptive EOS result, rather than attempting
+to replace emitted bytes. Because P4 rule evaluation occurs at EOS, this
+progressive path does not claim a reliable pre-commit P4 HTTP deny or redirect;
+P3 is the response-header decision point before commitment.
 
 A normal `r->prev` internal redirect, including a pre-output ErrorDocument,
 fails closed because a transaction that processed the source URI, headers, and

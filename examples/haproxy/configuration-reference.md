@@ -16,12 +16,18 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`filter modsecurity-htx`](#filter-modsecurity-htx) | Host / Connector | HAProxy filter declaration | yes | not applicable; a filter is active only when declared | The selected and checked-in native use is a HAProxy frontend. The local parser does not assert additional host scopes. | Native HTX full-lifecycle filter declaration. |
 | [`log`](#log) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`mode`](#mode) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
+| [`option`](#option) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`phase4-mode`](#phase4-mode) | Host / Connector | enum | no | safe | The selected and checked-in native use is a HAProxy frontend. The local parser does not assert additional host scopes. | Native HTX late-P4 policy argument. |
 | [`rules-file`](#rules-file) | Host / Connector | path | yes | none; required | The selected and checked-in native use is a HAProxy frontend. The local parser does not assert additional host scopes. | Required native HTX rule-file argument. |
 | [`server`](#server) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
+| [`spoe-agent:response-companion`](#spoe-agent-response-companion) | Compatibility | enum | no | none | SPOE/SPOP compatibility agent key=value file | SPOP owner configuration for the required native-HTX MRC1 response companion. native-htx publishes one bounded opaque handle for HTX P3/P4 processing. |
+| [`spoe-agent:response-companion-gid`](#spoe-agent-response-companion-gid) | Compatibility | integer | no | unset unless configured | SPOE/SPOP compatibility agent key=value file | SPOP owner configuration for the required native-HTX MRC1 response companion. native-htx publishes one bounded opaque handle for HTX P3/P4 processing. |
+| [`spoe-agent:response-companion-socket`](#spoe-agent-response-companion-socket) | Compatibility | path | no | unset unless configured | SPOE/SPOP compatibility agent key=value file | SPOP owner configuration for the required native-HTX MRC1 response companion. native-htx publishes one bounded opaque handle for HTX P3/P4 processing. |
+| [`spoe-agent:response-companion-uid`](#spoe-agent-response-companion-uid) | Compatibility | integer | no | unset unless configured | SPOE/SPOP compatibility agent key=value file | SPOP owner configuration for the required native-HTX MRC1 response companion. native-htx publishes one bounded opaque handle for HTX P3/P4 processing. |
 | [`timeout client`](#timeout-client) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`timeout connect`](#timeout-connect) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`timeout server`](#timeout-server) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
+| [`tune.bufsize`](#tune-bufsize) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`filter spoe`](#filter-spoe) | Compatibility | compatibility filter | no | not part of the native HTX path | Compatibility frontend only | Compatibility-only SPOE filter. |
 | [`legacy-phase4-strict-abort`](#legacy-phase4-strict-abort) | Compatibility | historical configuration | no | not available | Historical compatibility documentation only | Disabled historical compatibility material. |
 | [`spoe-agent:audit-log`](#spoe-agent-audit-log) | Compatibility | string/path | no | unset unless configured | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
@@ -77,7 +83,7 @@ See [Engine reference](../common/modsecurity-directives.md).
 | --- | --- | --- |
 | Minimal | [minimal/haproxy-htx.cfg](minimal/haproxy-htx.cfg) | Active starter configuration |
 | Safe full lifecycle | [safe/haproxy-htx.cfg](safe/haproxy-htx.cfg) | Selected bounded reference |
-| Strict | [README.md#strict-profile-boundary](README.md#strict-profile-boundary) | Parser-supported or explicitly optional boundary |
+| Strict | [strict/haproxy-htx.cfg](strict/haproxy-htx.cfg) | Parser-supported or explicitly optional boundary |
 | DetectionOnly | [detection-only/haproxy-htx.cfg](detection-only/haproxy-htx.cfg) | Engine evaluates/logs without disruptive action |
 | Disabled | [disabled/haproxy-htx.cfg](disabled/haproxy-htx.cfg) | Connector or engine path disabled |
 
@@ -379,6 +385,61 @@ Source-backed example: [examples/haproxy/safe/haproxy-htx.cfg](../../examples/ha
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="option"></a>
+## `option`
+
+### Short description
+
+Host-owned setting appearing in the checked-in example; it is not a connector directive.
+
+### Syntax
+
+```text
+option <host-specific-value>
+```
+
+### Valid contexts
+
+- The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts.
+
+### Values
+
+| Type | Allowed values | Required |
+| --- | --- | --- |
+| host-owned configuration field | the explicit value in the selected checked-in example | no |
+
+### Default
+
+No connector default; this host field is explicit in the example.
+
+Source: `active example configuration`.
+
+### Inheritance and merge
+
+Host-defined; not implemented by this connector.
+
+Merge: Host-defined; not implemented by this connector.
+
+### Phases and runtime effect
+
+Host setup/routing/logging; it does not itself configure ModSecurity rule-engine phases.
+
+Provides surrounding host setup used by the selected connector example.
+
+### Validation and errors
+
+haproxy -c -f <config>
+
+### Example
+
+Selected value: use the syntax above and the source-backed file below.
+
+Source-backed example: [examples/haproxy/safe/haproxy-htx.cfg](../../examples/haproxy/safe/haproxy-htx.cfg).
+
+### Safety and operations
+
+Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
+
 <a id="phase4-mode"></a>
 ## `phase4-mode`
 
@@ -544,6 +605,226 @@ Source-backed example: [examples/haproxy/safe/haproxy-htx.cfg](../../examples/ha
 
 Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
 
+<a id="spoe-agent-response-companion"></a>
+## `spoe-agent:response-companion`
+
+### Short description
+
+SPOP owner configuration for the required native-HTX MRC1 response companion. native-htx publishes one bounded opaque handle for HTX P3/P4 processing.
+
+### Syntax
+
+```text
+response-companion=<value>
+```
+
+### Valid contexts
+
+- SPOE/SPOP compatibility agent key=value file
+
+### Values
+
+| Type | Allowed values | Required |
+| --- | --- | --- |
+| enum | none \| native-htx | no |
+
+### Default
+
+none
+
+Source: `config_init() where stated; otherwise zero/empty initialization`.
+
+### Inheritance and merge
+
+No native HTX inheritance; one compatibility-agent config file.
+
+Merge: No merge; config_set applies one parsed value.
+
+### Phases and runtime effect
+
+native-htx is the required P3/P4 companion for the logical HAProxy SPOE/SPOP profile; none rejects response-phase activation because raw SPOE/SPOP has no response EOS.
+
+SPOP owner configuration for the required native-HTX MRC1 response companion. native-htx publishes one bounded opaque handle for HTX P3/P4 processing.
+
+### Validation and errors
+
+Unknown keys fail compatibility-agent configuration parsing.
+
+### Example
+
+Selected value: use the syntax above and the source-backed file below.
+
+Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.conf](../../examples/haproxy/compatibility-spoe/modsecurity-agent.conf).
+
+### Safety and operations
+
+The companion must use an explicit private UDS socket, matching service UID/GID, bounded response-body limit, and fail-closed opaque-handle correlation.
+
+<a id="spoe-agent-response-companion-gid"></a>
+## `spoe-agent:response-companion-gid`
+
+### Short description
+
+SPOP owner configuration for the required native-HTX MRC1 response companion. native-htx publishes one bounded opaque handle for HTX P3/P4 processing.
+
+### Syntax
+
+```text
+response-companion-gid=<value>
+```
+
+### Valid contexts
+
+- SPOE/SPOP compatibility agent key=value file
+
+### Values
+
+| Type | Allowed values | Required |
+| --- | --- | --- |
+| integer | decimal integer | no |
+
+### Default
+
+unset unless configured
+
+Source: `config_init() where stated; otherwise zero/empty initialization`.
+
+### Inheritance and merge
+
+No native HTX inheritance; one compatibility-agent config file.
+
+Merge: No merge; config_set applies one parsed value.
+
+### Phases and runtime effect
+
+native-htx is the required P3/P4 companion for the logical HAProxy SPOE/SPOP profile; none rejects response-phase activation because raw SPOE/SPOP has no response EOS.
+
+SPOP owner configuration for the required native-HTX MRC1 response companion. native-htx publishes one bounded opaque handle for HTX P3/P4 processing.
+
+### Validation and errors
+
+Unknown keys fail compatibility-agent configuration parsing.
+
+### Example
+
+Selected value: use the syntax above and the source-backed file below.
+
+Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.conf](../../examples/haproxy/compatibility-spoe/modsecurity-agent.conf).
+
+### Safety and operations
+
+The companion must use an explicit private UDS socket, matching service UID/GID, bounded response-body limit, and fail-closed opaque-handle correlation.
+
+<a id="spoe-agent-response-companion-socket"></a>
+## `spoe-agent:response-companion-socket`
+
+### Short description
+
+SPOP owner configuration for the required native-HTX MRC1 response companion. native-htx publishes one bounded opaque handle for HTX P3/P4 processing.
+
+### Syntax
+
+```text
+response-companion-socket=<value>
+```
+
+### Valid contexts
+
+- SPOE/SPOP compatibility agent key=value file
+
+### Values
+
+| Type | Allowed values | Required |
+| --- | --- | --- |
+| path | private UNIX-domain socket path | no |
+
+### Default
+
+unset unless configured
+
+Source: `config_init() where stated; otherwise zero/empty initialization`.
+
+### Inheritance and merge
+
+No native HTX inheritance; one compatibility-agent config file.
+
+Merge: No merge; config_set applies one parsed value.
+
+### Phases and runtime effect
+
+native-htx is the required P3/P4 companion for the logical HAProxy SPOE/SPOP profile; none rejects response-phase activation because raw SPOE/SPOP has no response EOS.
+
+SPOP owner configuration for the required native-HTX MRC1 response companion. native-htx publishes one bounded opaque handle for HTX P3/P4 processing.
+
+### Validation and errors
+
+Unknown keys fail compatibility-agent configuration parsing.
+
+### Example
+
+Selected value: use the syntax above and the source-backed file below.
+
+Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.conf](../../examples/haproxy/compatibility-spoe/modsecurity-agent.conf).
+
+### Safety and operations
+
+The companion must use an explicit private UDS socket, matching service UID/GID, bounded response-body limit, and fail-closed opaque-handle correlation.
+
+<a id="spoe-agent-response-companion-uid"></a>
+## `spoe-agent:response-companion-uid`
+
+### Short description
+
+SPOP owner configuration for the required native-HTX MRC1 response companion. native-htx publishes one bounded opaque handle for HTX P3/P4 processing.
+
+### Syntax
+
+```text
+response-companion-uid=<value>
+```
+
+### Valid contexts
+
+- SPOE/SPOP compatibility agent key=value file
+
+### Values
+
+| Type | Allowed values | Required |
+| --- | --- | --- |
+| integer | decimal integer | no |
+
+### Default
+
+unset unless configured
+
+Source: `config_init() where stated; otherwise zero/empty initialization`.
+
+### Inheritance and merge
+
+No native HTX inheritance; one compatibility-agent config file.
+
+Merge: No merge; config_set applies one parsed value.
+
+### Phases and runtime effect
+
+native-htx is the required P3/P4 companion for the logical HAProxy SPOE/SPOP profile; none rejects response-phase activation because raw SPOE/SPOP has no response EOS.
+
+SPOP owner configuration for the required native-HTX MRC1 response companion. native-htx publishes one bounded opaque handle for HTX P3/P4 processing.
+
+### Validation and errors
+
+Unknown keys fail compatibility-agent configuration parsing.
+
+### Example
+
+Selected value: use the syntax above and the source-backed file below.
+
+Source-backed example: [examples/haproxy/compatibility-spoe/modsecurity-agent.conf](../../examples/haproxy/compatibility-spoe/modsecurity-agent.conf).
+
+### Safety and operations
+
+The companion must use an explicit private UDS socket, matching service UID/GID, bounded response-body limit, and fail-closed opaque-handle correlation.
+
 <a id="timeout-client"></a>
 ## `timeout client`
 
@@ -665,6 +946,61 @@ Host-owned setting appearing in the checked-in example; it is not a connector di
 
 ```text
 timeout server <host-specific-value>
+```
+
+### Valid contexts
+
+- The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts.
+
+### Values
+
+| Type | Allowed values | Required |
+| --- | --- | --- |
+| host-owned configuration field | the explicit value in the selected checked-in example | no |
+
+### Default
+
+No connector default; this host field is explicit in the example.
+
+Source: `active example configuration`.
+
+### Inheritance and merge
+
+Host-defined; not implemented by this connector.
+
+Merge: Host-defined; not implemented by this connector.
+
+### Phases and runtime effect
+
+Host setup/routing/logging; it does not itself configure ModSecurity rule-engine phases.
+
+Provides surrounding host setup used by the selected connector example.
+
+### Validation and errors
+
+haproxy -c -f <config>
+
+### Example
+
+Selected value: use the syntax above and the source-backed file below.
+
+Source-backed example: [examples/haproxy/safe/haproxy-htx.cfg](../../examples/haproxy/safe/haproxy-htx.cfg).
+
+### Safety and operations
+
+Network addresses, paths, and logging destinations must be selected and access-controlled by the operator.
+
+<a id="tune-bufsize"></a>
+## `tune.bufsize`
+
+### Short description
+
+Host-owned setting appearing in the checked-in example; it is not a connector directive.
+
+### Syntax
+
+```text
+tune.bufsize <host-specific-value>
 ```
 
 ### Valid contexts

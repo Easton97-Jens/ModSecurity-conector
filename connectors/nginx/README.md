@@ -52,13 +52,14 @@ selective intake is recorded per file in [the origin map](ORIGIN.md) and
 
 - [PR #384](https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/384)
   at `65de4cd8739209f22d924d85548bd012a4d94607` distinguishes final body
-  processing from partial ingestion. In the current adapter, the final
-  `msc_process_request_body()`/`msc_process_response_body()` calls and the
-  `msc_append_request_body()`, `msc_request_body_from_file()`, and
-  `msc_append_response_body()` ingestion calls all require the libmodsecurity
-  success return value `1`; any other return, including `0`, fails closed.
-  The upstream `ProcessPartial` limit-truncation interpretation is therefore
-  not a nonfatal path in this adapter.
+  processing from partial ingestion. Final
+  `msc_process_request_body()`/`msc_process_response_body()` failures fail
+  closed, while `msc_append_request_body()`,
+  `msc_request_body_from_file()`, and `msc_append_response_body()` retain
+  nonfatal `ProcessPartial` handling because that return signal also denotes
+  engine-level limit handling. That compatibility is separate from the
+  connector-owned Phase-4 body budget: an over-limit current buffer is
+  rejected before it can be forwarded downstream.
 - [PR #385](https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/385)
   at `471a2a54843bb8f560758a7e75b146db2243ab29` supplies selected
   response-header and pre-commit redirect-replacement handling. A task-local
@@ -93,9 +94,12 @@ It also restores a pre-task Parent content-type ingestion regression. Bounded
 response bytes now reach ModSecurity irrespective of configured connector
 Content-Type scope; when that inspection detects an out-of-scope intervention,
 the connector maps it to `log_only` with `content_type_not_in_scope`. This does
-not relax #384: final response processing and response-body ingestion remain
-fail-closed for a result other than `1`. Request-body memory and file ingestion
-use the same strict return contract.
+not relax #384: final `msc_process_response_body()` processing remains
+fail-closed for a result other than `1`, while append/from-file
+`ProcessPartial` handling remains intentionally nonfatal for accepted engine
+chunks. The connector's `modsecurity_phase4_body_limit` uses the Common reject
+plan before forwarding each in-scope memory or file buffer, so an over-limit
+buffer cannot release an uninspected tail.
 
 The strict isolated rebuild and C17, C23, and c2y passed, and the newly
 materialized build-source SHA matched the task filter. The selected native
@@ -263,7 +267,8 @@ The adapter-owned NGINX connector currently registers:
 - `modsecurity_phase4_mode minimal|safe|strict`
 - `modsecurity_phase4_content_types_file <path>`
 - `modsecurity_phase4_log <path>`
-- `modsecurity_phase4_body_limit <bytes>`
+- `modsecurity_phase4_body_limit <bytes>` (a positive effective limit; an
+  over-limit current buffer is rejected before downstream forwarding)
 
 `modsecurity_transaction_id` uses an NGINX complex value and may evaluate
 per-request variables. Apache-style `modsecurity_transaction_id_expr` is not
@@ -388,6 +393,13 @@ after the response-header path.  `response_body_buffered`, `phase4`,
 `implemented_not_asserted` until a current canonical real-host run proves the
 individual behavior.
 
+For a file-only NGINX buffer, the filter reads the visible `file_pos..file_last`
+range through one reusable 32 KiB scratch buffer and offers each bounded chunk
+once to P4. NGINX's memory-first buffer semantics prevent a mixed memory/file
+buffer from being counted twice. Invalid metadata, allocation failure, and a
+short or failed file read return a connector error before that current chain is
+forwarded; neither the scratch bytes nor response payloads enter event JSONL.
+
 A rule match must be reported independently from a visible 403.  Canonical
 events preserve the original host status, requested WAF status, visible client
 status, requested action, actual action, header/commit timing, and connection
@@ -400,9 +412,9 @@ The canonical Phase-4 cases are evidence-gated and include rule observation,
 pre-commit deny, safe log-only, strict abort, and status/action metadata.  No
 response-body payload may enter an event or report.
 
-The final-processing guard and body-ingestion guard use the same strict native
-success contract: every relevant libmodsecurity call must return exactly `1`.
-An ingestion failure, including a zero return, is a generic fail-closed
-`500`/intervention path; it is not treated as a nonfatal `ProcessPartial`
-limit decision. This preserves the Safe/Strict Phase-4 outcome model without
-silently passing an incompletely ingested body to final processing.
+The final-processing guard remains narrower than engine append handling:
+`ProcessPartial` append/from-file handling does not by itself create a generic
+500 path. Separately, the connector-owned Phase-4 body limit uses bounded
+rejection before forwarding an oversized current buffer, so it cannot turn a
+partial-body limit decision into an uninspected downstream tail or a late
+intervention claim.

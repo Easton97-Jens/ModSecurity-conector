@@ -20,6 +20,7 @@ EVENT_JSONL_LINE_BUFFER = 'char line[4096];'
 RETURN_NGX_OK = 'return NGX_OK;'
 CTX_NULL_GUARD = 'if (ctx == NULL)'
 CTX_INTERVENTION_GUARD = 'if (ctx->intervention_triggered)'
+CTX_BODY_MAPPER_SKIP_GUARD = 'if (ctx->intervention_triggered || ctx->phase4_processed)'
 CTX_RESPONSE_VALIDATED_GUARD = 'if (ctx->common_response_validated)'
 CTX_RESPONSE_VALIDATED_ASSIGNMENT = 'ctx->common_response_validated = 1;'
 ERR_STATUS_PRESENT = 'r->err_status != 0'
@@ -74,6 +75,14 @@ response_mapper_from_ctx = c_function(mapper_c,
     'int ngx_http_modsecurity_map_response_from_ctx')
 body_response_mapper_once = c_function(body_c,
     'static ngx_int_t\nngx_http_modsecurity_validate_response_mapper_once')
+body_filter_prepare = c_function(body_c,
+    'static ngx_int_t\nngx_http_modsecurity_prepare_response_body_filter')
+body_limited_response_plan = c_function(body_c,
+    'static ngx_int_t\nngx_http_modsecurity_plan_limited_response_body')
+body_response_chain_append = c_function(body_c,
+    'static ngx_int_t\nngx_http_modsecurity_append_response_chain_buffer')
+body_response_chain = c_function(body_c,
+    'static ngx_int_t\nngx_http_modsecurity_process_response_body_chain')
 body_filter = c_function(body_c,
     'ngx_int_t\nngx_http_modsecurity_body_filter(ngx_http_request_t *r, ngx_chain_t *in)')
 header_filter = c_function(header_c,
@@ -107,7 +116,26 @@ checks = [
 ('void\nngx_http_modsecurity_validate_response_mapper' in response_mapper_helper and 'NGX_LOG_WARN' in response_mapper_helper and 'NGX_ERROR' not in response_mapper_helper and 'NGX_HTTP_INTERNAL_SERVER_ERROR' not in response_mapper_helper, 'NGINX response mapper helper is void and warning-only'),
 (not any(marker in response_mapper_helper for marker in ('common_response_validated', 'ctx->processed', 'ctx->intervention_triggered', 'ctx->phase4_', 'ctx->response_body_', 'ctx->response_committed', 'msc_process_response_headers', 'msc_process_response_body', 'msc_add_n_response_header', 'ngx_http_next_', 'ngx_http_filter_finalize_request', 'ngx_palloc', 'ngx_pnalloc', 'ngx_pcalloc')), 'NGINX response mapper helper excludes caller lifecycle, body, enforcement, filter-chain, and allocation control'),
 (mapper_validation_call in body_response_mapper_once and mapper_validation_call in header_filter and not any(marker in caller_mapper_validation for marker in ('msconnector_response_mapper_contract contract;', 'msconnector_response mapped_response;', 'char mapper_error[128];', 'msconnector_response_mapper_contract_init(&contract);', 'ngx_http_modsecurity_map_response_from_ctx(ctx, r, &contract,')), 'NGINX filter callers delegate instead of retaining a direct mapper-tail duplicate'),
-(CTX_RESPONSE_VALIDATED_GUARD + ' {\n        return NGX_OK;\n    }' in body_response_mapper_once and body_mapper_validation_call in body_response_mapper_once and 'NGX_ERROR' not in body_response_mapper_once and body_response_mapper_once.count(RETURN_NGX_OK) == 2 and body_response_mapper_once.find(CTX_RESPONSE_VALIDATED_GUARD) < body_response_mapper_once.find(mapper_validation_call) < body_response_mapper_once.find(CTX_RESPONSE_VALIDATED_ASSIGNMENT) < body_response_mapper_once.rfind(RETURN_NGX_OK) and all(marker in body_filter for marker in (CTX_NULL_GUARD, CTX_INTERVENTION_GUARD, 'ngx_http_modsecurity_validate_response_mapper_once(r, ctx)')) and body_filter.find(CTX_NULL_GUARD) < body_filter.find(CTX_INTERVENTION_GUARD) < body_filter.find('ngx_http_modsecurity_validate_response_mapper_once(r, ctx)'), 'NGINX body mapper validation remains once-only, post-guard, and non-fatal'),
+(
+    CTX_RESPONSE_VALIDATED_GUARD + ' {\n        return NGX_OK;\n    }' in body_response_mapper_once
+    and body_mapper_validation_call in body_response_mapper_once
+    and 'NGX_ERROR' not in body_response_mapper_once
+    and body_response_mapper_once.count(RETURN_NGX_OK) == 2
+    and body_response_mapper_once.find(CTX_RESPONSE_VALIDATED_GUARD)
+    < body_response_mapper_once.find(mapper_validation_call)
+    < body_response_mapper_once.find(CTX_RESPONSE_VALIDATED_ASSIGNMENT)
+    < body_response_mapper_once.rfind(RETURN_NGX_OK)
+    and all(marker in body_filter_prepare for marker in (
+        CTX_NULL_GUARD,
+        CTX_BODY_MAPPER_SKIP_GUARD,
+        'ngx_http_modsecurity_validate_response_mapper_once(r, ctx)',
+    ))
+    and body_filter_prepare.find(CTX_NULL_GUARD)
+    < body_filter_prepare.find(CTX_BODY_MAPPER_SKIP_GUARD)
+    < body_filter_prepare.find('ngx_http_modsecurity_validate_response_mapper_once(r, ctx)')
+    and 'ngx_http_modsecurity_prepare_response_body_filter(r, in, &ctx)' in body_filter,
+    'NGINX body mapper validation remains once-only, post-guard, and non-fatal',
+),
 (header_mapper_validation_call in header_filter and header_filter.count(mapper_validation_call) == 1 and CTX_RESPONSE_VALIDATED_GUARD not in header_filter and all(marker in header_filter for marker in (CTX_NULL_GUARD, CTX_INTERVENTION_GUARD, header_mapper_validation_call, CTX_RESPONSE_VALIDATED_ASSIGNMENT, 'if (ctx && ctx->processed)')) and header_filter.find(CTX_NULL_GUARD) < header_filter.find(CTX_INTERVENTION_GUARD) < header_filter.find(header_mapper_validation_call) < header_filter.find(CTX_RESPONSE_VALIDATED_ASSIGNMENT) < header_filter.find('if (ctx && ctx->processed)'), 'NGINX header mapper validation retains its existing eligibility and ordering without a once gate'),
 ('if (diagnostic == NGX_HTTP_MODSECURITY_RESPONSE_MAPPER_DIAGNOSTIC_BODY)' in response_mapper_helper and '"modsecurity common response-body mapper validation skipped: %s"' in response_mapper_helper and '"modsecurity common response mapper validation skipped: %s"' in response_mapper_helper and 'const char *' not in response_mapper_helper and body_mapper_validation_call in body_response_mapper_once and header_mapper_validation_call in header_filter, 'NGINX response mapper helper retains fixed caller-specific warning diagnostics'),
 ('ngx_http_modsecurity_add_synthetic_response_headers(r, headers, &header_count)' in response_mapper_from_ctx and response_mapper_from_ctx.find(ERR_STATUS_PRESENT) < response_mapper_from_ctx.find('r->headers_out.status != 0') and 'out->status = (int) r->err_status' in response_mapper_from_ctx, 'NGINX response mapper retains synthetic-header and err_status contracts'),
@@ -139,7 +167,22 @@ checks = [
 ('common_response_validated' in common_h and ('if (!ctx->common_response_validated)' in body_c or CTX_RESPONSE_VALIDATED_GUARD in body_c) and 'ctx->common_response_validated = 1' in body_c, 'NGINX response mapper validation is gated once per response in body path'),
 ('response_body_bytes_inspected' in common_h and 'ngx_http_modsecurity_append_limited_response_body' in body_c and 'common_config.phase4_body_limit' in body_c and 'ctx->response_body_truncated = 1' in body_c and not re.search(r'msc_append_response_body\s*\([^;]*,\s*len\s*\)', body_c), 'NGINX enforces phase4 body limit before appending response bytes to ModSecurity'),
 ('chain->buf->last_buf ||' in body_c and 'chain->buf->last_in_chain' in body_c and 'ctx->phase4_processed' in body_c, 'NGINX finalizes Phase4 once at the actual main or subrequest end-of-stream'),
-('ngx_int_t in_scope' in body_c and 'if (in_scope == 0)' in body_c and 'ctx->response_body_bytes_seen += len' in body_c, 'NGINX records seen bytes while only ingesting in-scope response chunks'),
+(
+    'phase4_in_scope = ngx_http_modsecurity_phase4_in_scope(r)' in body_response_chain
+    and 'if (phase4_in_scope == 0)' in body_response_chain_append
+    and body_response_chain_append.find('if (phase4_in_scope == 0)')
+    < body_response_chain_append.find('ngx_http_modsecurity_append_response_body_buffer')
+    and 'return NGX_OK;' in body_response_chain_append[
+        :body_response_chain_append.find('ngx_http_modsecurity_append_response_body_buffer')
+    ]
+    and 'ngx_http_modsecurity_append_response_body_buffer(r, ctx, mcf,\n        chain->buf);'
+    in body_response_chain_append
+    and 'msconnector_body_limit_plan_chunk(ctx->response_body_bytes_seen,'
+    in body_limited_response_plan
+    and 'ctx->response_body_bytes_seen = plan.bytes_seen;' in body_limited_response_plan
+    and 'ctx->response_body_bytes_seen += len' not in body_limited_response_plan,
+    'NGINX records seen bytes through the Common plan only after the in-scope gate',
+),
 ('ngx_http_modsecurity_phase4_actual_action(action, wanted)' in body_c and '"redirect" : "deny"' in body_c, 'NGINX preserves redirect as the requested pre-commit action'),
 ('event.body.content_type' in body_c and EVENT_BODY_BYTES_SEEN in body_c and EVENT_BODY_BYTES_INSPECTED in body_c, 'NGINX Phase4 events include payload-free content-type and body-byte metadata'),
 ('ngx_str_t event_transaction_id' in common_h and 'ctx->event_transaction_id' in module_c and 'ctx->event_transaction_id' in body_c and 'event.meta.transaction_id = ctx != NULL' in body_c, 'NGINX Phase4 events retain a request-level transaction ID instead of a connection-only identifier'),

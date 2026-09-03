@@ -42,6 +42,15 @@ MSCONNECTOR_SMOKE_STAGE="${MSCONNECTOR_SMOKE_STAGE:-minimal_runtime_smoke}"
 STATUS_FILE="$LOG_DIR/status.txt"
 MODSECURITY_TEST_VARIANT="${MODSECURITY_TEST_VARIANT:-no-crs}"
 MODSECURITY_RULE_PREAMBLE_FILE="${MODSECURITY_RULE_PREAMBLE_FILE:-}"
+HAPROXY_EVIDENCE_RECEIPT="${HAPROXY_EVIDENCE_RECEIPT:-0}"
+HAPROXY_EVIDENCE_RECEIPT_PROJECTOR="${HAPROXY_EVIDENCE_RECEIPT_PROJECTOR:-}"
+BACKEND_PID=
+AGENT_PID=
+HAPROXY_PID=
+RUNTIME_CLEANUP_COMPLETE=0
+RUNTIME_SETSID_BIN=
+RUNTIME_PGREP_BIN=
+RUNTIME_PS_BIN=
 export MODSECURITY_TEST_VARIANT
 
 . "$FRAMEWORK_ROOT/ci/lib/common.sh"
@@ -235,20 +244,26 @@ write_case_result() {
     actual_status=${3:-}
     output=$4
     if [ -n "$actual_status" ]; then
-        "$PYTHON_BIN" "$CASE_CLI" case-info \
+        if ! "$PYTHON_BIN" "$CASE_CLI" case-info \
             --case "$case_path" \
             --connector haproxy \
             --status "$case_status" \
             --actual-status "$actual_status" \
-            --output "$output"
+            --output "$output"; then
+            return 1
+        fi
     else
-        "$PYTHON_BIN" "$CASE_CLI" case-info \
+        if ! "$PYTHON_BIN" "$CASE_CLI" case-info \
             --case "$case_path" \
             --connector haproxy \
             --status "$case_status" \
-            --output "$output"
+            --output "$output"; then
+            return 1
+        fi
     fi
-    enrich_case_result "$output" || true
+    [ -f "$output" ] || return 1
+    enrich_case_result "$output"
+    [ -f "$output" ] || return 1
 }
 
 enrich_case_result() {
@@ -663,29 +678,330 @@ ensure_spoa_runtime() {
     [ -n "${MODSECURITY_LIB_DIR:-}" ] || fail "ModSecurity library directory missing from paths.env"
 }
 
+configure_haproxy_evidence_receipt_process_tools() {
+    RUNTIME_SETSID_BIN=/usr/bin/setsid
+    RUNTIME_PGREP_BIN=/usr/bin/pgrep
+    RUNTIME_PS_BIN=/usr/bin/ps
+
+    for runtime_process_tool in \
+        "$RUNTIME_SETSID_BIN" \
+        "$RUNTIME_PGREP_BIN" \
+        "$RUNTIME_PS_BIN"; do
+        [ -x "$runtime_process_tool" ] || \
+            fail "HAProxy evidence receipt requires trusted runtime process tools"
+    done
+}
+
+cleanup_runtime_process() {
+    process_name=$1
+    process_pid=$2
+
+    [ -n "$process_pid" ] || return 0
+    case "$process_pid" in
+        *[!0-9]*|0)
+            printf '%s\n' "haproxy_smoke: invalid $process_name PID during cleanup" >&2
+            return 1
+            ;;
+    esac
+    if [ -n "$RUNTIME_SETSID_BIN" ]; then
+        signal_runtime_process_group_members "$process_pid" TERM || return 1
+        if wait_for_runtime_process_group_exit "$process_pid" 20; then
+            :
+        else
+            cleanup_wait_status=$?
+            if [ "$cleanup_wait_status" -ne 1 ]; then
+                return 1
+            fi
+            signal_runtime_process_group_members "$process_pid" KILL || return 1
+        fi
+        if kill -0 "$process_pid" >/dev/null 2>&1 && \
+            ! /bin/kill -TERM "$process_pid" >/dev/null 2>&1; then
+            printf '%s\n' "haproxy_smoke: cannot stop $process_name leader during cleanup" >&2
+            return 1
+        fi
+        if ! wait_for_runtime_process_leader_exit "$process_pid" 20; then
+            if /bin/kill -0 -- "-$process_pid" >/dev/null 2>&1 && \
+                ! /bin/kill -TERM -- "-$process_pid" >/dev/null 2>&1; then
+                printf '%s\n' "haproxy_smoke: cannot stop $process_name process group during cleanup" >&2
+                return 1
+            fi
+        fi
+        if ! wait_for_runtime_process_leader_exit "$process_pid" 20; then
+            if /bin/kill -0 -- "-$process_pid" >/dev/null 2>&1 && \
+                ! /bin/kill -KILL -- "-$process_pid" >/dev/null 2>&1; then
+                printf '%s\n' "haproxy_smoke: cannot kill $process_name process group during cleanup" >&2
+                return 1
+            fi
+        fi
+        if ! wait_for_runtime_process_leader_exit "$process_pid" 20; then
+            printf '%s\n' "haproxy_smoke: $process_name leader did not exit during cleanup" >&2
+            return 1
+        fi
+    elif kill -0 "$process_pid" >/dev/null 2>&1 && \
+        ! kill "$process_pid" >/dev/null 2>&1; then
+        printf '%s\n' "haproxy_smoke: cannot stop $process_name during cleanup" >&2
+        return 1
+    fi
+    if wait "$process_pid" >/dev/null 2>&1; then
+        :
+    else
+        wait_status=$?
+        # A signalled child normally has a non-zero status.  It is still
+        # wait-handled; 127 alone proves that this shell did not reap it.
+        if [ "$wait_status" -eq 127 ]; then
+            printf '%s\n' "haproxy_smoke: cannot wait for $process_name during cleanup" >&2
+            return 1
+        fi
+    fi
+    if [ -n "$RUNTIME_SETSID_BIN" ]; then
+        if runtime_process_group_running "$process_pid"; then
+            if ! /bin/kill -TERM -- "-$process_pid" >/dev/null 2>&1 && \
+                runtime_process_group_running "$process_pid"; then
+                printf '%s\n' "haproxy_smoke: cannot stop remaining $process_name process group during cleanup" >&2
+                return 1
+            fi
+            if wait_for_runtime_process_group_exit "$process_pid" 20; then
+                :
+            else
+                cleanup_wait_status=$?
+                if [ "$cleanup_wait_status" -ne 1 ]; then
+                    return 1
+                fi
+                if ! /bin/kill -KILL -- "-$process_pid" >/dev/null 2>&1 && \
+                    runtime_process_group_running "$process_pid"; then
+                    printf '%s\n' "haproxy_smoke: cannot kill remaining $process_name process group during cleanup" >&2
+                    return 1
+                fi
+            fi
+            if wait_for_runtime_process_group_exit "$process_pid" 20; then
+                :
+            else
+                cleanup_wait_status=$?
+                if [ "$cleanup_wait_status" -ne 1 ]; then
+                    return 1
+                fi
+                printf '%s\n' "haproxy_smoke: $process_name process group did not exit during cleanup" >&2
+                return 1
+            fi
+        else
+            cleanup_pgrep_status=$?
+            if [ "$cleanup_pgrep_status" -ne 1 ]; then
+                printf '%s\n' "haproxy_smoke: cannot inspect process-group members during cleanup" >&2
+                return 1
+            fi
+        fi
+    fi
+    if kill -0 "$process_pid" >/dev/null 2>&1; then
+        printf '%s\n' "haproxy_smoke: $process_name remains alive after cleanup" >&2
+        return 1
+    fi
+    if [ -n "$RUNTIME_PGREP_BIN" ]; then
+        if runtime_process_group_running "$process_pid"; then
+            printf '%s\n' "haproxy_smoke: $process_name process group remains alive after cleanup" >&2
+            return 1
+        else
+            cleanup_pgrep_status=$?
+        fi
+        if [ "$cleanup_pgrep_status" -ne 1 ]; then
+            printf '%s\n' "haproxy_smoke: cannot inspect process-group members during cleanup" >&2
+            return 1
+        fi
+    fi
+    return 0
+}
+
+signal_runtime_process_group_members() {
+    cleanup_group_pid=$1
+    cleanup_signal=$2
+
+    if cleanup_group_members=$("$RUNTIME_PGREP_BIN" -g "$cleanup_group_pid" -d ' ' 2>/dev/null); then
+        :
+    else
+        cleanup_pgrep_status=$?
+        if [ "$cleanup_pgrep_status" -ne 1 ]; then
+            printf '%s\n' "haproxy_smoke: cannot inspect process-group members during cleanup" >&2
+            return 1
+        fi
+        cleanup_group_members=
+    fi
+    for cleanup_member_pid in $cleanup_group_members; do
+        case "$cleanup_member_pid" in
+            *[!0-9]*|0|"$cleanup_group_pid") continue ;;
+        esac
+        if kill -0 "$cleanup_member_pid" >/dev/null 2>&1 && \
+            ! /bin/kill -"$cleanup_signal" "$cleanup_member_pid" >/dev/null 2>&1; then
+            printf '%s\n' "haproxy_smoke: cannot send $cleanup_signal to process-group member during cleanup" >&2
+            return 1
+        fi
+    done
+    return 0
+}
+
+runtime_process_group_running() {
+    cleanup_group_pid=$1
+
+    if [ -n "$RUNTIME_PGREP_BIN" ]; then
+        if "$RUNTIME_PGREP_BIN" -g "$cleanup_group_pid" >/dev/null 2>&1; then
+            return 0
+        else
+            cleanup_pgrep_status=$?
+        fi
+        if [ "$cleanup_pgrep_status" -eq 1 ]; then
+            return 1
+        fi
+        return 2
+    else
+        /bin/kill -0 -- "-$cleanup_group_pid" >/dev/null 2>&1
+    fi
+}
+
+wait_for_runtime_process_group_exit() {
+    cleanup_group_pid=$1
+    cleanup_wait_limit=$2
+    cleanup_wait_attempt=0
+
+    while [ "$cleanup_wait_attempt" -lt "$cleanup_wait_limit" ]; do
+        if runtime_process_group_running "$cleanup_group_pid"; then
+            sleep 0.1
+            cleanup_wait_attempt=$((cleanup_wait_attempt + 1))
+            continue
+        else
+            cleanup_pgrep_status=$?
+        fi
+        if [ "$cleanup_pgrep_status" -eq 1 ]; then
+            return 0
+        fi
+        printf '%s\n' "haproxy_smoke: cannot inspect process-group members during cleanup" >&2
+        return 2
+    done
+    return 1
+}
+
+runtime_process_leader_running() {
+    cleanup_leader_pid=$1
+
+    if ! kill -0 "$cleanup_leader_pid" >/dev/null 2>&1; then
+        return 1
+    fi
+    cleanup_leader_state=$("$RUNTIME_PS_BIN" -o stat= -p "$cleanup_leader_pid" 2>/dev/null || :)
+    case "$cleanup_leader_state" in
+        Z*) return 1 ;;
+    esac
+    return 0
+}
+
+wait_for_runtime_process_leader_exit() {
+    cleanup_leader_pid=$1
+    cleanup_wait_limit=$2
+    cleanup_wait_attempt=0
+
+    while [ "$cleanup_wait_attempt" -lt "$cleanup_wait_limit" ]; do
+        if ! runtime_process_leader_running "$cleanup_leader_pid"; then
+            return 0
+        fi
+        sleep 0.1
+        cleanup_wait_attempt=$((cleanup_wait_attempt + 1))
+    done
+    return 1
+}
+
+require_runtime_process_stopped() {
+    process_name=$1
+    process_pid=$2
+
+    [ -n "$process_pid" ] || return 1
+    case "$process_pid" in *[!0-9]*|0) return 1 ;; esac
+    ! kill -0 "$process_pid" >/dev/null 2>&1 || return 1
+    if [ -n "$RUNTIME_PGREP_BIN" ]; then
+        if runtime_process_group_running "$process_pid"; then
+            return 1
+        else
+            cleanup_pgrep_status=$?
+        fi
+        if [ "$cleanup_pgrep_status" -ne 1 ]; then
+            printf '%s\n' "haproxy_smoke: cannot inspect process-group members before evidence receipt" >&2
+            return 1
+        fi
+    fi
+    return 0
+}
+
 cleanup() {
-    if [ -n "${HAPROXY_PID:-}" ] && kill -0 "$HAPROXY_PID" >/dev/null 2>&1; then
-        kill "$HAPROXY_PID" >/dev/null 2>&1 || true
-        wait "$HAPROXY_PID" >/dev/null 2>&1 || true
+    cleanup_status=0
+    cleanup_runtime_process haproxy "$HAPROXY_PID" || cleanup_status=1
+    cleanup_runtime_process spoa "$AGENT_PID" || cleanup_status=1
+    cleanup_runtime_process backend "$BACKEND_PID" || cleanup_status=1
+    if [ -n "$RUNTIME_ROOT" ] && ! /bin/rm -f \
+        "$RUNTIME_ROOT/haproxy.pid" \
+        "$RUNTIME_ROOT/spoa.pid" \
+        "$RUNTIME_ROOT/spoa.port" \
+        "$RUNTIME_ROOT/spoa.ready"; then
+        printf '%s\n' "haproxy_smoke: cannot remove runtime PID state during cleanup" >&2
+        cleanup_status=1
     fi
-    if [ -n "${AGENT_PID:-}" ] && kill -0 "$AGENT_PID" >/dev/null 2>&1; then
-        kill "$AGENT_PID" >/dev/null 2>&1 || true
-        wait "$AGENT_PID" >/dev/null 2>&1 || true
+    if [ "$cleanup_status" -eq 0 ]; then
+        RUNTIME_CLEANUP_COMPLETE=1
+        return 0
     fi
-    if [ -n "${BACKEND_PID:-}" ] && kill -0 "$BACKEND_PID" >/dev/null 2>&1; then
-        kill "$BACKEND_PID" >/dev/null 2>&1 || true
-        wait "$BACKEND_PID" >/dev/null 2>&1 || true
+    RUNTIME_CLEANUP_COMPLETE=0
+    return 1
+}
+
+cleanup_on_exit() {
+    exit_status=$?
+    trap - EXIT INT TERM
+    if ! cleanup; then
+        printf '%s\n' "haproxy_smoke: runtime cleanup failed" >&2
+        if [ "$exit_status" -eq 0 ]; then
+            exit_status=1
+        fi
     fi
-    if [ -n "${RUNTIME_ROOT:-}" ]; then
-        # The agent writes these readiness/lifecycle markers before serving.
-        # They are run-scoped state, not retained evidence, and must not
-        # survive a completed case (including an interrupted one).
-        rm -f \
-            "$RUNTIME_ROOT/haproxy.pid" \
-            "$RUNTIME_ROOT/spoa.pid" \
-            "$RUNTIME_ROOT/spoa.port" \
-            "$RUNTIME_ROOT/spoa.ready"
-    fi
+    exit "$exit_status"
+}
+
+require_haproxy_evidence_sha() {
+    value=$1
+    case "$value" in
+        ''|*[!0-9a-f]*) return 1 ;;
+    esac
+    [ "${#value}" -eq 40 ]
+}
+
+write_haproxy_evidence_receipt() {
+    observed_status=$1
+    source_root="$LOG_DIR/haproxy-runtime-evidence-source"
+
+    [ "$HAPROXY_EVIDENCE_RECEIPT" = "1" ] || return 0
+    [ "$RUNTIME_CLEANUP_COMPLETE" = "1" ] || fail "HAProxy evidence receipt requires completed cleanup"
+    require_runtime_process_stopped haproxy "$HAPROXY_PID" || fail "HAProxy evidence receipt found a live or untracked HAProxy PID"
+    require_runtime_process_stopped spoa "$AGENT_PID" || fail "HAProxy evidence receipt found a live or untracked SPOA PID"
+    require_runtime_process_stopped backend "$BACKEND_PID" || fail "HAProxy evidence receipt found a live or untracked backend PID"
+    case "$RUN_ONE_CASE:$CASE_NAME:$MODSECURITY_TEST_VARIANT:${MODSECURITY_MRTS_VARIANT:-}:$EXPECT_STATUS:$observed_status" in
+        1:crs_sqli_anomaly_block:with-crs:no-mrts:403:403) ;;
+        *) fail "HAProxy evidence receipt is outside the fixed hosted runtime case" ;;
+    esac
+    require_haproxy_evidence_sha "${EXPECTED_PARENT_SHA:-}" || fail "HAProxy evidence receipt has an invalid Parent revision"
+    require_haproxy_evidence_sha "${EXPECTED_FRAMEWORK_SHA:-}" || fail "HAProxy evidence receipt has an invalid Framework revision"
+    require_haproxy_evidence_sha "${EXPECTED_MRTS_SHA:-}" || fail "HAProxy evidence receipt has an invalid MRTS revision"
+    case "$HAPROXY_EVIDENCE_RECEIPT_PROJECTOR" in
+        "$REPO_ROOT"/ci/runtime/lifecycle/project-haproxy-runtime-evidence.py) ;;
+        *) fail "HAProxy evidence receipt projector is outside the fixed runtime path" ;;
+    esac
+    [ -f "$HAPROXY_EVIDENCE_RECEIPT_PROJECTOR" ] || fail "HAProxy evidence receipt projector is unavailable"
+    [ ! -L "$HAPROXY_EVIDENCE_RECEIPT_PROJECTOR" ] || fail "HAProxy evidence receipt projector must not be a symlink"
+    case "$PYTHON_BIN" in
+        /*) ;;
+        *) fail "HAProxy evidence receipt Python is not absolute" ;;
+    esac
+    [ -x "$PYTHON_BIN" ] || fail "HAProxy evidence receipt Python is unavailable"
+    [ ! -e "$source_root" ] && [ ! -L "$source_root" ] || fail "HAProxy evidence receipt source already exists"
+    mkdir -m 700 "$source_root" || fail "cannot create HAProxy evidence receipt source"
+    "$PYTHON_BIN" "$HAPROXY_EVIDENCE_RECEIPT_PROJECTOR" write-source-receipt \
+        --source-root "$source_root" \
+        --observed-status "$observed_status" \
+        --expected-parent-sha "$EXPECTED_PARENT_SHA" \
+        --expected-framework-sha "$EXPECTED_FRAMEWORK_SHA" \
+        --expected-mrts-sha "$EXPECTED_MRTS_SHA"
 }
 
 write_haproxy_config() {
@@ -755,11 +1071,9 @@ write_haproxy_config() {
             echo "    groups request-check"
         fi
         echo "    option var-prefix modsec"
-        echo "    register-var-names blocked action status redirect_url rule_id phase error"
+        echo "    register-var-names blocked action status redirect_url rule_id phase error response_handle"
         echo "    max-frame-size 65532"
-        # The project harness is fail-closed.  HAProxy's continue-on-error
-        # option can turn a peer/agent failure into an Allow and is therefore
-        # incompatible with the closed failure contract.
+        echo "    option continue-on-error"
         echo "    timeout hello 1s"
         echo "    timeout idle 3s"
         echo "    timeout processing 2s"
@@ -782,7 +1096,11 @@ write_haproxy_config() {
 }
 
 start_backend() {
-    "$PYTHON_BIN" - "$BACKEND_PORT" "$DOCROOT/index.html" \
+    set -- "$PYTHON_BIN" - "$BACKEND_PORT" "$DOCROOT/index.html"
+    if [ -n "$RUNTIME_SETSID_BIN" ]; then
+        set -- "$RUNTIME_SETSID_BIN" "$@"
+    fi
+    "$@" \
         >"$LOG_DIR/backend.stdout.log" \
         2>"$LOG_DIR/backend.stderr.log" <<'PY' &
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -846,26 +1164,31 @@ start_agent() {
     if [ "${HAPROXY_ENABLE_RESPONSE_HEADERS:-0}" = "1" ]; then
         response_header_arg=--enable-response-headers
     fi
+    set -- "$SPOA_RUNTIME_BIN" \
+        --listen "127.0.0.1:$SPOA_PORT" \
+        --ready-file "$ready_file" \
+        --pid-file "$pid_file" \
+        --port-file "$port_file" \
+        --log-file "$LOG_DIR/spoa-agent.log" \
+        --decision-log "$LOG_DIR/decision.jsonl" \
+        --audit-log "$AUDIT_LOG_FILE" \
+        --rules-file "$RULES_FILE" \
+        --mode block \
+        --fail-mode closed \
+        --runtime-mode test \
+        --variant "$MODSECURITY_TEST_VARIANT" \
+        --case "$CASE_NAME" \
+        --expected-status "$EXPECT_STATUS" \
+        --request-body-limit 65532
+    if [ -n "$response_header_arg" ]; then
+        set -- "$@" "$response_header_arg"
+    fi
+    if [ -n "$RUNTIME_SETSID_BIN" ]; then
+        set -- "$RUNTIME_SETSID_BIN" "$@"
+    fi
     LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-        "$SPOA_RUNTIME_BIN" \
-            --listen "127.0.0.1:$SPOA_PORT" \
-            --ready-file "$ready_file" \
-            --pid-file "$pid_file" \
-            --port-file "$port_file" \
-            --log-file "$LOG_DIR/spoa-agent.log" \
-            --decision-log "$LOG_DIR/decision.jsonl" \
-            --audit-log "$AUDIT_LOG_FILE" \
-            --rules-file "$RULES_FILE" \
-            --mode block \
-            --fail-mode closed \
-            --runtime-mode test \
-            --variant "$MODSECURITY_TEST_VARIANT" \
-            --case "$CASE_NAME" \
-            --expected-status "$EXPECT_STATUS" \
-            --request-body-limit 65532 \
-            $response_header_arg \
-            >"$LOG_DIR/spoa-runtime.stdout.log" \
-            2>"$LOG_DIR/spoa-runtime.stderr.log" &
+        "$@" >"$LOG_DIR/spoa-runtime.stdout.log" \
+        2>"$LOG_DIR/spoa-runtime.stderr.log" &
     AGENT_PID=$!
     i=0
     while [ "$i" -lt 50 ]; do
@@ -886,7 +1209,11 @@ start_haproxy() {
     if ! "$HAPROXY_BIN" -c -f "$HAPROXY_CFG" >"$LOG_DIR/haproxy-configtest.log" 2>&1; then
         fail "HAProxy configtest failed; see $LOG_DIR/haproxy-configtest.log"
     fi
-    "$HAPROXY_BIN" -db -f "$HAPROXY_CFG" >"$LOG_DIR/haproxy.stdout.log" 2>"$LOG_DIR/haproxy.stderr.log" &
+    set -- "$HAPROXY_BIN" -db -f "$HAPROXY_CFG"
+    if [ -n "$RUNTIME_SETSID_BIN" ]; then
+        set -- "$RUNTIME_SETSID_BIN" "$@"
+    fi
+    "$@" >"$LOG_DIR/haproxy.stdout.log" 2>"$LOG_DIR/haproxy.stderr.log" &
     HAPROXY_PID=$!
     sleep 0.2
     kill -0 "$HAPROXY_PID" >/dev/null 2>&1 || fail "HAProxy exited before request; see $LOG_DIR/haproxy.stderr.log"
@@ -915,6 +1242,26 @@ from urllib.parse import quote
 
 print(quote(sys.argv[1], safe="/:?&=%+$,;@[]!'()*"))
 PY
+}
+
+cleanup_startup_artifacts() {
+    if ! /bin/rm -f "$LOG_DIR/"*.log \
+        "$LOG_DIR/"*.err \
+        "$LOG_DIR/observed-status.txt" \
+        "$LOG_DIR/response-body.txt" \
+        "$LOG_DIR/audit.log" \
+        "$LOG_DIR/decision.jsonl" \
+        "$LOG_DIR/spoa-agent.log" \
+        "$RUNTIME_ROOT/conf/"*.conf \
+        "$RUNTIME_ROOT/conf/"*.txt \
+        "$RUNTIME_ROOT/conf/"*.bin \
+        "$RUNTIME_ROOT/conf/"*.env \
+        "$RUNTIME_ROOT/"*.pid \
+        "$RUNTIME_ROOT/"*.ready \
+        "$RUNTIME_ROOT/"*.port; then
+        return 1
+    fi
+    /bin/rm -f "$LOG_DIR/audit/"*
 }
 
 if [ "$RUN_ONE_CASE" != "1" ]; then
@@ -949,21 +1296,13 @@ fi
 require_under_build_root "$RUNTIME_ROOT" RUNTIME_ROOT
 mkdir -p "$LOG_DIR" "$LOG_DIR/audit" "$RUNTIME_ROOT/conf" "$RUNTIME_ROOT/htdocs"
 : > "$STATUS_FILE"
-rm -f "$LOG_DIR/"*.log \
-    "$LOG_DIR/"*.err \
-    "$LOG_DIR/observed-status.txt" \
-    "$LOG_DIR/response-body.txt" \
-    "$LOG_DIR/audit.log" \
-    "$LOG_DIR/decision.jsonl" \
-    "$LOG_DIR/spoa-agent.log" \
-    "$RUNTIME_ROOT/conf/"*.conf \
-    "$RUNTIME_ROOT/conf/"*.txt \
-    "$RUNTIME_ROOT/conf/"*.bin \
-    "$RUNTIME_ROOT/conf/"*.env \
-    "$RUNTIME_ROOT/"*.pid \
-    "$RUNTIME_ROOT/"*.ready \
-    "$RUNTIME_ROOT/"*.port 2>/dev/null || true
-rm -f "$LOG_DIR/audit/"* 2>/dev/null || true
+if [ "$HAPROXY_EVIDENCE_RECEIPT" = "1" ]; then
+    if ! cleanup_startup_artifacts; then
+        fail "cannot clear stale HAProxy artifacts before evidence receipt"
+    fi
+else
+    cleanup_startup_artifacts 2>/dev/null || true
+fi
 
 case "$MSCONNECTOR_SMOKE_STAGE" in
     config_load|start_smoke|minimal_runtime_smoke) ;;
@@ -1013,11 +1352,22 @@ eval "$(case_runtime_shape)"
 if [ -n "${HAPROXY_NOT_EXECUTABLE_REASON:-}" ]; then
     mark_not_executable "$HAPROXY_NOT_EXECUTABLE_REASON"
 fi
+case "$HAPROXY_EVIDENCE_RECEIPT" in
+    0) ;;
+    1)
+        [ "$MSCONNECTOR_SMOKE_STAGE" = "minimal_runtime_smoke" ] || \
+            fail "HAProxy evidence receipt requires minimal_runtime_smoke"
+        configure_haproxy_evidence_receipt_process_tools
+        ;;
+    *) fail "HAPROXY_EVIDENCE_RECEIPT must be 0 or 1" ;;
+esac
 
 PORT=$(select_free_port "$PORT" "$PORT_SEARCH_LIMIT") || blocked "no free localhost port found from $PORT within $PORT_SEARCH_LIMIT attempts"
 SPOA_PORT=$(select_offset_port "$PORT" "$HAPROXY_SPOA_PORT_OFFSET" "$PORT_SEARCH_LIMIT") || blocked "no free local SPOA port found from $((PORT + HAPROXY_SPOA_PORT_OFFSET)) within $PORT_SEARCH_LIMIT attempts"
 BACKEND_PORT=$(select_offset_port "$PORT" "$HAPROXY_BACKEND_PORT_OFFSET" "$PORT_SEARCH_LIMIT") || blocked "no free local backend port found from $((PORT + HAPROXY_BACKEND_PORT_OFFSET)) within $PORT_SEARCH_LIMIT attempts"
-trap cleanup EXIT INT TERM
+trap cleanup_on_exit EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 if [ "$MSCONNECTOR_SMOKE_STAGE" = "config_load" ]; then
     write_haproxy_config
     if ! "$HAPROXY_BIN" -c -f "$HAPROXY_CFG" >"$LOG_DIR/haproxy-configtest.log" 2>&1; then
@@ -1046,7 +1396,9 @@ set -e
 printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
 
 if [ "$curl_rc" -ne 0 ]; then
-    write_case_result "$TEST_CASE" fail "$http_status" "$LOG_DIR/result.json" || true
+    if ! write_case_result "$TEST_CASE" fail "$http_status" "$LOG_DIR/result.json"; then
+        fail "failed to write HAProxy case result after request failure"
+    fi
     fail "curl attack request failed rc=$curl_rc; see $LOG_DIR/curl-attack.err"
 fi
 
@@ -1056,11 +1408,22 @@ if "$PYTHON_BIN" "$CASE_CLI" assert-status \
     --response-body-file "$RESPONSE_BODY" \
     --audit-log-file "$AUDIT_LOG_FILE" \
     --status-file "$STATUS_FILE" > "$LOG_DIR/case-assert.log" 2>&1; then
-    write_case_result "$TEST_CASE" pass "$http_status" "$LOG_DIR/result.json" || true
+    if ! write_case_result "$TEST_CASE" pass "$http_status" "$LOG_DIR/result.json"; then
+        fail "failed to write HAProxy successful case result"
+    fi
+    if [ "$HAPROXY_EVIDENCE_RECEIPT" = "1" ]; then
+        if ! cleanup; then
+            fail "HAProxy evidence receipt cleanup did not complete"
+        fi
+        trap - EXIT INT TERM
+        write_haproxy_evidence_receipt "$http_status"
+    fi
     echo "haproxy_smoke: pass case=$CASE_NAME status=$http_status"
     exit 0
 fi
 
-write_case_result "$TEST_CASE" fail "$http_status" "$LOG_DIR/result.json" || true
+if ! write_case_result "$TEST_CASE" fail "$http_status" "$LOG_DIR/result.json"; then
+    fail "failed to write HAProxy failed case result"
+fi
 echo "haproxy_smoke: fail case=$CASE_NAME observed=$http_status expected=$EXPECT_STATUS"
 exit 1

@@ -4,18 +4,24 @@
 
 ## Überblick
 
-lighttpd verwendet den ausgewählten <code>patched-native-lighttpd</code>-Pfad
+Die kanonische Stock-Lösung verwendet das ausgewählte traffic-owning
+<code>stock-lighttpd-sidecar</code>; der separat dokumentierte
+<code>patched-native-lighttpd</code>-Pfad bleibt eine eigene Lösung mit
 mit <code>mod_msconnector.so</code>. Das ausgewählte Profil ist
 HTTP/1.1-fokussiert und verwendet eine versionierte Patched-Host-Grenze für
 geliehene Body-Ranges. Es behauptet keine Produktionsreife, keine
 Sicherheitsverifikation, keine CRS-Verifikation, keine vollständige Matrix,
 keine HTTP/2-/HTTP/3-Abdeckung und keine kanonische P4-Runtime-Evidence.
 
-Die separat unterstützte native Stock-ABI erzeugt in roher Event-Evidence
-<code>native-lighttpd-plugin</code>. Sie darf niemals als
-<code>patched-native-lighttpd</code> dargestellt werden; dies ist eine
-ABI-Provenienz-Eigenschaft und keine Förderung von Stock-Body- oder
-Lifecycle-Fähigkeiten.
+Die logische Lösung <code>lighttpd-stock</code> ist das traffic-owning
+<code>stock-lighttpd-sidecar</code>: Es bindet nur an wörtliches privates
+Loopback, spricht begrenztes HTTP/1.1 und besitzt einen vollständigen
+Client/Backend-Austausch in einem Worker. Es führt P1--P4 direkt ohne
+prozessübergreifenden Korrelations-Handle und ohne TTL-Registry aus. Sein
+Event-JSONL ist metadaten-only und enthält niemals Body-Payloads. Das
+unveränderte native Stock-Modul bleibt eine ausdrückliche nichtkanonische
+P1/P3-Kompatibilitätsübersetzung und niemals ein stiller Fallback. Der
+gepatchte Pfad bleibt eine getrennte direkte P1--P4-Lösung.
 
 ## Architektur und Ownership
 
@@ -28,7 +34,7 @@ eigene Transaktion und Mapper-Storage.
 | Lifecycle-Bereich | Ausgewählte lighttpd-Verantwortung | Grenze |
 | --- | --- | --- |
 | P1 | URI-/Request-Header mappen und eine zulässige Request-Entscheidung anwenden | Der enge Smoke ist keine breite Hostgarantie |
-| P2 | Gepatchte geliehene Request-Body-Range nur im ausgewählten Modus verwenden | Buffered-Request-Modus liegt außerhalb des ausgewählten Pfads |
+| P2 | Gepatchte geliehene Request-Body-Ranges inspizieren, während das ausgewählte HTTP/1.1-`mod_proxy`-Gate bis EOS puffert | Nur ein Phase-2-Allow darf den Upstream erreichen; dies ist kein allgemeines Upstream-Streaming |
 | P3 | Response-Metadaten bei Response-Start mappen | Response-Status-/Action-Semantik bleibt hostspezifisch |
 | P4 | Identity-Entity-Ranges vor HTTP/1-Transfer-Framing empfangen und einmal bei EOS abschließen | Kein Socket-Queue-Callback und keine connector-eigene Body-Queue |
 | Cleanup | Mapper-Storage und Transaktion bei Request-Reset freigeben | Statische Lifetime-Checks sind kein Nachweis für Langzeitresilienz |
@@ -48,6 +54,31 @@ Kompatibilitätsfelder, Profile und Validierungsdetails stehen in der
 [lighttpd-Konfigurationsreferenz](../../examples/lighttpd/configuration-reference.de.md).
 Das ausgewählte native Profil ist vom beibehaltenen Sidecar-Proxy-
 Kompatibilitätsbeispiel getrennt.
+
+## HTTP/1.1-Pre-Upstream-Phase-2-Gate
+
+Für `request_body_mode=streaming` unterdrückt das ausgewählte gepatchte
+HTTP/1.1-`mod_proxy`-Profil aktives Host-Request-Streaming vor jedem
+Body-Lesen. Der Host puffert Request-Bytes deshalb bis zu terminalem EOS und
+der Phase-2-Allow-Entscheidung; erst dann darf der Proxy verbinden und den
+Request weiterleiten. Der validierte verzögerte Allow-Gegenfall wurde am
+Upstream als `Content-Length` neu gerahmt.
+
+Das Profil verlangt `mod_proxy` vor `mod_msconnector`, ein positives Common-
+Request-Body-Limit, `body_limit_action=reject` und das passende
+gepatchte Host-/Modulpaar. Es weist vorab konfigurierte
+`server.stream-request-body`, `Incremental` und ausdrücklich aktivierte
+body-tragende `Upgrade`- plus `gw.upgrade-with-request-body`-Anfragen vor
+einer Upstream-Verbindung mit `501` ab. Eine Streaming-Konfiguration mit
+`body_limit_action=process_partial` wird bereits beim Laden der Konfiguration
+vor einem Listener oder einer Upstream-Verbindung abgewiesen. Dies ist kein
+Claim für HTTP/2, HTTP/3, andere Stream-Handler, Response-Body-P4,
+unbeschränktes Upstream-Streaming oder Production-Readiness.
+
+Die Grenze für den zurückgehaltenen Body beruht auf dem positiven Common-
+`request_body_limit` (standardmäßig 1 MiB) und einem ablehnenden Lesezyklus.
+Das Modul konfiguriert `server.max-request-size` nicht; dieser Wert bleibt eine
+unabhängige Host-seitige Defense-in-Depth-Grenze.
 
 ## P1--P4-Lifecycle und Entity-Body-Grenze
 
@@ -73,30 +104,16 @@ ausgewählten Vertrags.
 <code>make check-lighttpd-config</code> prüft reales Modul-/Konfigurationsladen;
 das ausgewählte Lifecycle-Target führt eine laufbezogene Hostübung aus. Der
 enge native Smoke kann nur seine angegebene Request-Pfad-Beobachtung belegen.
+`connectors/lighttpd/harness/run_phase2_pre_upstream_gate.py` liefert zusätzlich
+einen Repository-eigenen, payload-sicheren Loopback-Nachweis: Ein verzögerter
+Phase-2-Marker endete mit `403` und null Upstream-Verbindungen vor EOS, und
+ein verzögerter benigner Chunked-Request erreichte den Upstream erst nach
+EOS/Allow.
+Der gleiche Runner belegt die profil-lokale `process_partial`-
+Konfigurationsablehnung, ohne Request-Nutzdaten aufzubewahren.
 P4- und Late-Intervention-Facets bleiben nicht ausgeführt oder
 capability-selected, bis reale Host-/Client-Artefakte Timing und sichtbares
 Ergebnis belegen. Siehe [Tests und Nachweise](../testing-and-evidence.de.md).
-
-### Begrenzte Stock-Lifecycle-Evidence
-
-Die laufbezogenen Nachweise unter
-`lighttpd-stock-lifecycle-v6-v10-20260825T100000Z` sind eine begrenzte
-HTTP/1.1-Hostübung und keine vollständige 17-Vektor-Abnahme. Die
-Fail-Safe-Grenze ist ausdrücklich:
-
-| Fall | Beobachtetes Verhalten | Evidence-Grenze |
-|---|---|---|
-| V6 Client-Close | Direkte Client-Cancel-Propagation und ein typisiertes Stock-Connector-Event wurden nicht beobachtet oder behauptet. Ein 2-Sekunden-Gateway-/Proxy-Backend-Read-Timeout begrenzte die Anfrage, erzeugte den Host-Marker `read timeout on socket`, und ein Same-Host-Follow-up lieferte `200`. | Host-Timeout-Fallback; keine direkte Stock-Abort-Event-Behauptung |
-| V7/V11 abgeschnittene Upstream-Response | Das rohe Upstream-Truncation-Fixture wurde geschlossen und der begrenzte Harness beendete sein Cleanup. | Nur Host-/Transport-Schließung; keine typisierte Connector-Event-Behauptung |
-| Begrenzte Parallelität | Acht parallele HTTP/1.1-Anfragen lieferten `200`. | Teilbeobachtung; V14 und die vollständige Matrix bleiben `NOT_EXECUTED` |
-| Host-Terminierung | Der aktive Client erhielt EOF, danach lieferten Restart-Controls `200 -> 403 -> 200`. | Begrenzte Host-Lifecycle-Beobachtung; V12--V15 bleiben `NOT_EXECUTED` |
-| Cleanup | PIDFD-/Session-/Port-/UDS-Receipts bestanden für den ersten und den Ersatz-Host. | Laufbezogener Cleanup-Receipt; kein vollständiger Leak-Audit-Claim |
-
-Der Lauf behauptet weder ein Stock-spezifisches Event für V6 noch direkte
-Cancel-Propagation, eine vollständige HTTP-/Protokollstatus-Zuordnung für den
-Client-Close-Fallback oder vollständige V12--V15-/17-Vektor-Abdeckung. Die
-historischen fünfsekündigen Frontend-Timeout-Receipts bleiben getrennte
-FND-PARENT-0311-Evidence.
 
 ## Betrieb und Fehlerbehebung
 

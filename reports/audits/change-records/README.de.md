@@ -11,6 +11,34 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260903-no-crs-doc-consistency-repair](CR-20260903-no-crs-doc-consistency-repair.de.md) —
+  der aktuelle Benutzer autorisierte diese Parent-only-Reparatur des
+  reproduzierten Traefik-No-CRS-Dokumentations-/Capability-Katalog-
+  Konsistenzfehlers in einem eigenen Worktree und einen normalen PR. Sie
+  bewahrt den begrenzten, nicht hochgestuften P2-Zustand und nicht
+  unterstütztes Request-Body-Streaming; keine Framework-/MRTS-Source,
+  Gitlink-, Workflow-Berechtigungs-, Sonar-Control- oder Merge-Änderung wird
+  behauptet.
+
+- [CR-20260902-nginx-workflow-contract-repair](CR-20260902-nginx-workflow-contract-repair.de.md) —
+  der aktuelle Benutzer autorisierte diese Parent-only-Reparatur eines
+  reproduzierten NGINX-Source-Contract-Checker-Fehlers in einem eigenen
+  Worktree und einen Draft PR. Die erforderliche Codex-Security-Arbeit
+  identifizierte und ergänzte anschließend die enge Envoy-grpc-go-High-Severity-
+  Dependency-Remediation. Der Record bewahrt die laufenden Once-only-Mapper-,
+  Phase-4-Scope- und Common-Body-Limit-Assertions; er ändert weder NGINX-
+  Runtime-Source, Workflows, Framework/MRTS, Gitlinks, Sonar-Controls noch
+  Merge-Status.
+
+- [CR-20260825-fnd-parent-0221-composite-connectors](CR-20260825-fnd-parent-0221-composite-connectors.de.md) —
+  der aktuelle Benutzer autorisierte eine Parent-only-Composite-
+  Korrelationsimplementierung, gekoppelte Nachvollziehbarkeit, scoped
+  Commit/Push und einen Draft-PR. Der Record hält aktuelle lokale und
+  Real-H1-Evidenz fest, belässt `FND-PARENT-0221` aber wahrheitsgemäß
+  release-blockierend und P4 Strict, Duplicate/Cancel, Same-Process-Traefik-
+  Follow-up, H2/H3 und Paritäts-Evidenz offen; kein Merge ist autorisiert oder
+  behauptet.
+
 - [CR-20260824-canonical-runtime-observation](CR-20260824-canonical-runtime-observation.de.md) —
   der aktuelle Benutzer autorisierte diesen Parent-only Canonical-Runtime-
   Observation-Vertrag, Safe-Evidence-Reader-Hardening, gekoppelte Traceability
@@ -18,6 +46,21 @@ angelegt werden.
   Evidence fest; keine Framework-/MRTS-Source, kein Gitlink, Workflow,
   geschützte NGINX-Grenze, Hosted-Result, Ready-Status oder Merge wird
   behauptet.
+
+- [CR-20260825-shared-transaction-phase-contract](CR-20260825-shared-transaction-phase-contract.de.md) —
+  der aktuelle Benutzer hat ausdrücklich einen Parent-Draft-PR für den
+  gemeinsamen Transaktions-Phasenvertrag autorisiert. Der Record unterscheidet
+  lokale Komponentenvalidierung von nicht ausgeführter Real-Host-/Hosted-
+  Evidence und erhält die offenen P0/P1-Findings; kein Merge, keine
+  CI-Scope-Änderung, keine Framework-/MRTS- oder Gitlink-Aktion wird
+  behauptet.
+
+- [CR-20260825-lighttpd-phase2-pre-upstream-gate](CR-20260825-lighttpd-phase2-pre-upstream-gate.de.md) —
+  das vom Benutzer autorisierte Parent-only-Phase-2-Pre-Upstream-Zulassungsgate
+  für den ausgewählten gepatchten Lighttpd-HTTP/1.1-`mod_proxy`-Pfad. Es hält
+  lokale Runtime-Evidence, den gemergten PR #339 als geerbte `master`-ABI-
+  Basis und den Draft-PR—nicht einen Merge—als erlaubten Auslieferungsstatus
+  fest.
 
 - [CR-20260823-pr309-lighttpd-config-reference-repair](CR-20260823-pr309-lighttpd-config-reference-repair.de.md) —
   die Parent-only-Nachfolgereparatur stellt den geschlossenen Lighttpd-

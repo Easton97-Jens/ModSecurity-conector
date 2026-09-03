@@ -5,9 +5,13 @@
 ## Integration und Grenze
 
 Integrationsmodus: nativer HTX-Filter. Die nativen Referenzen
-[minimal](minimal/haproxy-htx.cfg) und [Safe](safe/haproxy-htx.cfg) sind von
-dem bewahrten [SPOE/SPOP-Kompatibilitätsmaterial](#spoespop-kompatibilität)
-getrennt.
+[minimal](minimal/haproxy-htx.cfg), [Safe](safe/haproxy-htx.cfg) und
+[Strict](strict/haproxy-htx.cfg) sowie [all](all/haproxy-htx.cfg) bilden die
+native HTX-Lösung. Die [SPOE/SPOP-Lösung](#spoespop-response-companion-lösung)
+hat passende minimal-, safe-, strict- und all-Bundles und verbindet den
+Request-seitigen SPOE/SPOP-Agent mit dem nativen HTX-Response-Companion. Die
+all-Layouts verwenden den bestehenden Strict-Policy-Wert; sie führen keinen
+P4-Policy-Wert `all` ein.
 
 Die Safe-Datei wählt phase4-mode safe für den ausgewählten HTTP/1.1-P1--P4-
 Kern. Sie ist eine Konfigurationsreferenz für den gepatchten Hostfilter, keine
@@ -25,13 +29,20 @@ ohne einen nativen Host-Abbruch zu behaupten.
 | --- | --- | --- |
 | [minimal/haproxy-htx.cfg](minimal/haproxy-htx.cfg) | Host-Konfiguration | Parser-unterstützter minimaler P4-Modus des nativen HTX. |
 | [safe/haproxy-htx.cfg](safe/haproxy-htx.cfg) | Host-Konfiguration | Native HTTP/1.1-P1--P4-Safe-Referenz. |
+| [strict/haproxy-htx.cfg](strict/haproxy-htx.cfg) | Host-Konfiguration | Parser-unterstützte Strict-Policy-Grenze des nativen HTX. |
+| [all/haproxy-htx.cfg](all/haproxy-htx.cfg) | Host-Konfiguration | Umfassendes natives HTX-Layout mit allen sichtbaren quellenbasierten Filtereinstellungen. |
+| [spoe-spop/minimal/](spoe-spop/minimal/) | Logisches Bundle | SPOE/SPOP P1/P2 plus nativer HTX-Companion P3/P4, minimal. |
+| [spoe-spop/safe/](spoe-spop/safe/) | Logisches Bundle | SPOE/SPOP P1/P2 plus nativer HTX-Companion P3/P4, Safe. |
+| [spoe-spop/strict/](spoe-spop/strict/) | Logisches Bundle | SPOE/SPOP P1/P2 plus nativer HTX-Companion P3/P4, Strict-Grenze. |
+| [spoe-spop/all/](spoe-spop/all/) | Logisches Bundle | Vollständiges SPOE/SPOP-P1/P2- und privates natives-HTX-P3/P4-Companion-Layout. |
 | [detection-only/haproxy-htx.cfg](detection-only/haproxy-htx.cfg) | Host-Konfiguration | Nativer Connector mit DetectionOnly-Regeln; siehe [DetectionOnly-Profil](#detectiononly-profil). |
 | [disabled/haproxy-htx.cfg](disabled/haproxy-htx.cfg) | Host-Konfiguration | Nativer Filter fehlt; siehe [Deaktiviertes Profil](#deaktiviertes-profil). |
 | [rules/detection-only.conf](rules/detection-only.conf) | Regeln | DetectionOnly-Engine-Einstellungen. |
 | [rules/engine-off.conf](rules/engine-off.conf) | Regeln | Engine-Off-Einstellungen, getrennt vom Deaktivieren des Connectors. |
 | [No-CRS-Regeln](#no-crs-regeln) | Dokumentation | Quelle und IDs der kanonischen No-CRS-Rules-Datei. |
-| [P1--P4-Safe-Absicht](#p1-p4-safe-absicht) | Dokumentation | Konfigurationsabsicht, kein Laufergebnis. |
-| [SPOE/SPOP-Kompatibilität](#spoespop-kompatibilität) | Kompatibilität | Früherer SPOE/SPOP-Pfad, absichtlich getrennt. |
+| [P1--P4-Semantik und Topologie](#p1-p4-semantik-und-topologie) | Dokumentation | Gemeinsame Phasenbedeutung und logische Zusammensetzung. |
+| [SPOE/SPOP-Response-Companion-Lösung](#spoespop-response-companion-lösung) | Logische Lösung | Aktuelle responsefähige SPOE/SPOP-Bundles. |
+| [SPOE/SPOP-Kompatibilitätsmaterial](#spoespop-kompatibilitätsmaterial) | Kompatibilität | Historische Request/Header-Beispiele, kein P3/P4-Nachweis. |
 
 Die nativen Referenzen verwenden Hostinstallationswerte: Listener
 127.0.0.1:8080, Upstream 127.0.0.1:8081 und Rules-Datei
@@ -51,7 +62,7 @@ repository-relativer Pfad.
 
 No-CRS-Regel-IDs und ihre Phasenbedeutung stehen in
 [No-CRS-Regeln](#no-crs-regeln). Die historischen SPOE-Optionen und ihre
-getrennten Limits stehen bei der [SPOE/SPOP-Kompatibilität](#spoespop-kompatibilität).
+getrennte Limits stehen im [SPOE/SPOP-Kompatibilitätsmaterial](#spoespop-kompatibilitätsmaterial).
 
 ## Konfigurationsreferenz
 
@@ -93,7 +104,7 @@ Nach dem Anpassen der Hostpfade den untenstehenden Connector-
 Validierungsbefehl verwenden. Aus einem deaktivierten Profil kein
 P1--P4-Verhalten ableiten.
 
-## P1--P4-Safe-Absicht
+## P1--P4-Semantik und Topologie
 
 Die native HTX-Safe-Referenz wählt phase4-mode safe. Sie ist für den
 gepatchten nativen Filterpfad gedacht, nicht für den SPOE/SPOP-
@@ -101,9 +112,39 @@ Kompatibilitätsservice. Eine P4-Entscheidung nach dem Beginn einer Response
 wird als Safe-Log-only aufgezeichnet; die Konfiguration verspricht keinen
 Statuswechsel und keinen Strict-Abbruch.
 
-Die Minimal-Referenz zeigt den parser-unterstützten minimal-Modus. Es gibt kein
-Strict-Beispiel, weil eine eingecheckte Filteroption keinen
-clientbeobachteten Abbruch nach dem Commit beweist.
+Die Minimal-Referenz zeigt den parser-unterstützten minimal-Modus; die
+Strict-Referenz wählt `phase4-mode strict`. Strict ist eine Policy-Anforderung
+an der Hostgrenze. Der aktuelle Quellcode zeichnet sie als `not_attempted` auf,
+wenn ein Abbruch nach dem Commit nicht sicher möglich ist. Kein Bundle
+verspricht einen client-sichtbaren späten Abbruch.
+
+| Phase | Nativer HTX | Logische SPOE/SPOP-Lösung |
+| --- | --- | --- |
+| P1 | HTX-Request-Header -> Engine | HAProxy-SPOE-Request-Nachricht -> SPOP-Agent |
+| P2 | Begrenzter HTX-Request-Body + EOS -> Engine | Begrenztes gepuffertes `req.body`-SPOE-Argument + SPOP-Agent |
+| P3 | HTX-Response-Header -> Engine | Nativer HTX-Response-Companion beansprucht den opaken MRC1-Handle über private UDS |
+| P4 | Begrenzte HTX-Response-Chunks + EOS -> Engine | Nativer HTX-Response-Companion leitet begrenzte Chunks und genau ein EOS weiter |
+
+## SPOE/SPOP-Response-Companion-Lösung
+
+Jedes Bundle enthält `haproxy.cfg`, `spoe.cfg` und `spoa-agent.conf`. Die drei
+Varianten unterscheiden sich nur in der gewählten P4-Policy sowie privaten
+Socket-/Logpfaden. Alle anwendbaren Begrenzungsparameter sind sichtbar:
+
+| Parameter | Eingecheckter Wert | Grenze |
+| --- | ---: | --- |
+| `tune.bufsize` / `max-frame-size` | 65536 / 65532 | HAProxy- und SPOE-Request-Grenzen |
+| `request-body-limit` / `response-body-limit` | 65532 / 65532 | Request- und MRC1-Response-Grenzen |
+| `response-body-timeout` / `spoe-timeout` | 2000 / 2000 ms | Companion- und Agent-Timeout |
+| `max-transactions` / `worker-count` | 64 / 1 | Begrenzter State und deterministische Ownership |
+| `response-companion-uid/gid` | 1000 / 1000 | Muss zur Agent-Identität passen |
+
+`response-companion=native-htx`, private UDS, passende UID/GID, ein Wert
+ungleich null für `response-body-limit`, EOS und Timeout sind verpflichtende
+Startbedingungen. Fehlende Korrelation oder Companion-Fehler werden
+fail-closed behandelt und bereinigt; kein nativer Transaktionszeiger geht über
+die UDS. Der private UDS-Pfad ist ein Beispiel und muss gemeinsam mit der
+Service-Identität geändert werden.
 
 ## No-CRS-Regeln
 
@@ -119,10 +160,12 @@ relativer Pfad zum HAProxy-Prozess.
 | 1100201 | P3 | Response-Header-Deny |
 | 1100301 | P4 | Response-Body-Entscheidung für die Safe-Grenze |
 
-## SPOE/SPOP-Kompatibilität
+## SPOE/SPOP-Kompatibilitätsmaterial
 
-Die bewahrten Dateien unten sind frühere HAProxy-SPOE/SPOP-Beispiele. Sie sind
-von der nativen HTX-P1--P4-Safe-Referenz unter [safe/](safe/) getrennt.
+Die folgenden bewahrten Dateien sind historische Kompatibilitätsreferenzen.
+Sie sind nicht die P1--P4-Lösung; für einen responsefähigen logischen
+Connector die [Response-Companion-Bundles](#spoespop-response-companion-lösung)
+verwenden.
 
 | Datei | Geltungsbereich |
 | --- | --- |
@@ -171,9 +214,10 @@ SPOE/SPOP-Kompatibilitätspfads.
 
 ## Strict-Profilgrenze <a id="strict-profilgrenze"></a>
 
-Der native HTX-Parser akzeptiert `phase4-mode strict`, aber der aktuelle
-Hostpfad zeichnet den gewünschten Abbruch als `not_attempted` auf. Strict ist
-optional und hier wird kein ausführbares Profil behauptet.
+Der native HTX-Parser akzeptiert `phase4-mode strict`; die eingecheckten
+nativen und SPOE/SPOP-Bundles wählen ihn. Der aktuelle Hostpfad zeichnet den
+gewünschten Abbruch als `not_attempted` auf, wenn Response-Bytes bereits
+committed sind. Das ist keine Abbruchgarantie.
 
 Das optionale Argument am nativen Filter setzen, mit `haproxy -c -f <config>`
 validieren und es ohne neue Host-Evidenz nicht als client-sichtbaren Abbruch

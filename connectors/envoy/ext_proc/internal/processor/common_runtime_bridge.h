@@ -52,6 +52,13 @@ enum msc_envoy_ext_proc_action {
     MSC_ENVOY_EXT_PROC_LOG_ONLY = 3
 };
 
+enum msc_envoy_ext_proc_phase4_mode {
+    MSC_ENVOY_EXT_PROC_PHASE4_MODE_UNSET = -1,
+    MSC_ENVOY_EXT_PROC_PHASE4_MODE_MINIMAL = 0,
+    MSC_ENVOY_EXT_PROC_PHASE4_MODE_SAFE = 1,
+    MSC_ENVOY_EXT_PROC_PHASE4_MODE_STRICT = 2
+};
+
 /*
  * This intentionally contains only decision metadata. It never carries a
  * request/response body or a rule message, so adapter diagnostics cannot turn
@@ -74,6 +81,11 @@ int msc_envoy_ext_proc_runtime_create(
     size_t error_len);
 
 void msc_envoy_ext_proc_runtime_destroy(msc_envoy_ext_proc_runtime **runtime);
+
+/* Returns only the parsed Common policy enum; no configuration text crosses
+ * the bridge. It lets Go validate service policy before listener admission. */
+int msc_envoy_ext_proc_runtime_phase4_mode(
+    const msc_envoy_ext_proc_runtime *runtime);
 
 int msc_envoy_ext_proc_transaction_begin(
     msc_envoy_ext_proc_runtime *runtime,

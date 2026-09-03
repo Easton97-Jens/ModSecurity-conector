@@ -35,4 +35,5 @@ if sh.exists():
  script_sources=set(re.findall(r'(?:connectors/nginx|common)/[A-Za-z0-9_./-]+\.c', txt))
  check(config_sources == script_sources, 'NGINX C17 list exactly matches real NGINX config C sources')
  check('common/src/late_intervention.c' in script_sources, 'NGINX C17 list includes late_intervention.c')
+ check('common/src/intervention.c' in script_sources, 'NGINX C17 list includes intervention.c')
 sys.exit(0 if ok else 1)

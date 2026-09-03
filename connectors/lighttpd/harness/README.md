@@ -42,34 +42,33 @@ response-body, Phase-4, or capability-promotion evidence.
 Request/response body evidence, CRS, production hardening, security
 verification, and full-matrix evidence are not provided by this harness.
 
-## Response-body backend-close profile
+## HTTP/1.1 pre-upstream Phase-2 gate runner
 
-`run_lighttpd_backend_close.sh` is Patched-lighttpd-only. It deliberately
-creates `response_body_mode=streaming` so it can prove the current
-response-body upstream-EOF/abort path. A Stock host has no version-contract
-streaming hook and therefore fails closed before any runtime root, host, or
-listener is created; it must not be silently switched to a different body mode.
-Use `run_lighttpd_stock_lifecycle.sh` for the Stock transport/lifecycle profile
-instead. Its V7/V11 outcome is host/transport evidence, not a typed Stock
-response-body connector event.
+`run_phase2_pre_upstream_gate.py` is a separate repository-owned runner for
+the selected patched HTTP/1.1 `mod_proxy` request-body profile. It takes a
+fresh task-owned root, staged matching lighttpd binary/module, rules file, and
+the libmodsecurity directory; it allocates three distinct private IPv4-loopback
+ports itself. It starts only foreground task-owned processes and records
+bounded framing/counter metadata, never request payloads.
 
-## Stock lifecycle profile
+The runner proves that delayed chunked Phase-2 deny bytes do not connect to or
+reach the upstream before terminal EOS, that a delayed benign chunked allow
+is forwarded only after EOS/allow, and that the host re-frames that allowed
+request as one unchunked `Content-Length` delivery equal to the retained body
+size. It also requires `501` with no new upstream
+connection for `Incremental`, configured `server.stream-request-body`, and
+explicitly enabled body-bearing `Upgrade` plus `gw.upgrade-with-request-body`.
+It also requires configuration loading to reject streaming with
+`body_limit_action=process_partial` before a listener or upstream connection
+exists. A terminal host-side `501` uses logging finalization only: it records
+the audit phase exactly once without synthesizing request-body EOS or a
+Phase-2 decision. It is request-body P2 evidence only; it does not promote
+response-body P4, CRS, HTTP/2/HTTP/3, unrestricted streaming, or
+production-readiness claims.
 
-`run_lighttpd_stock_lifecycle.sh` runs the bounded Stock host profile and
-stores evidence outside the checkout. The current run root is
-`lighttpd-stock-lifecycle-v6-v10-20260825T100000Z`.
-
-The profile records V6 as a bounded 2-second gateway/proxy backend
-read-timeout fallback: direct client-cancel propagation and a typed Stock
-connector event are not claimed; the host `read timeout on socket` marker and
-a same-host `200` follow-up are required. Raw truncated upstream response
-fixtures for V7/V11, eight bounded parallel HTTP/1.1 `200` responses, and
-client EOF after host termination are recorded as host/transport evidence.
-Restart controls must return `200 -> 403 -> 200`. Pidfd/session/port/UDS
-cleanup receipts are required for both the first and replacement host.
-
-V12--V15 and full 17-vector acceptance remain `NOT_EXECUTED`; these bounded
-receipts do not promote them or establish a complete leak audit.
+The streaming profile's retained-body bound comes from its positive Common
+`request_body_limit` and rejecting read cycle. This runner does not configure
+or prove an independent `server.max-request-size` host limit.
 
 ## No-CRS fixture isolation and cleanup
 

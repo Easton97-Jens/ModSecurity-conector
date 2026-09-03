@@ -44,6 +44,7 @@ static pthread_cond_t test_changed = PTHREAD_COND_INITIALIZER;
 static int runtime_entered = 0;
 static int runtime_release = 0;
 static int runtime_destroyed = 0;
+static int server_done = 0;
 
 static int wait_for_flag(int *flag) {
     struct timespec deadline;
@@ -68,6 +69,16 @@ static void unblock_runtime(void) {
     }
 }
 
+static int runtime_destroyed_once(void) {
+    int destroyed_once = 0;
+
+    if (pthread_mutex_lock(&test_lock) == 0) {
+        destroyed_once = runtime_destroyed == 1;
+        (void)pthread_mutex_unlock(&test_lock);
+    }
+    return destroyed_once;
+}
+
 int msconnector_runtime_config_check(
     const char *connector_name,
     const char *config_path,
@@ -79,6 +90,23 @@ int msconnector_runtime_config_check(
         error[0] = '\0';
     }
     return 1;
+}
+
+int msconnector_runtime_set_event_integration_mode(
+    msconnector_runtime *runtime,
+    const char *integration_mode) {
+    return runtime != NULL && integration_mode != NULL && integration_mode[0] != '\0';
+}
+
+int msconnector_runtime_set_transaction_profile(
+    msconnector_runtime *runtime,
+    const msconnector_transaction_profile *profile) {
+    return runtime != NULL && profile != NULL && profile->profile_name != NULL;
+}
+
+int msconnector_runtime_error_log_enabled(const msconnector_runtime *runtime) {
+    (void)runtime;
+    return 0;
 }
 
 int msconnector_runtime_create(
@@ -232,9 +260,21 @@ static int map_request(
     return 1;
 }
 
+static const msconnector_transaction_profile smoke_transaction_profile = {
+    .profile_id = 1U,
+    .profile_name = "detached-worker-smoke",
+    .connector_id = "detached-worker-smoke",
+    .host_adapter_id = "detached-worker-smoke",
+    .direct_phase_mask = MSCONNECTOR_TRANSACTION_PHASE_MASK_ALL,
+    .companion_phase_mask = 0U,
+    .strict_post_commit_action = 0,
+    .private_default_binding = 1,
+};
+
 static const msconnector_http_authorization_profile profile = {
     .connector_name = "detached-worker-smoke",
     .integration_mode = "detached-worker-smoke",
+    .transaction_profile = &smoke_transaction_profile,
     .original_uri_headers = NULL,
     .original_uri_header_count = 0U,
     .map_request = map_request,
@@ -262,6 +302,11 @@ static void *run_service(void *argument) {
         NULL,
     };
     args->result = msconnector_http_authorization_service_main(10, argv, &profile);
+    if (pthread_mutex_lock(&test_lock) == 0) {
+        server_done = 1;
+        (void)pthread_cond_broadcast(&test_changed);
+        (void)pthread_mutex_unlock(&test_lock);
+    }
     return NULL;
 }
 
@@ -314,6 +359,8 @@ int main(void) {
     unsigned short port = 0U;
     pthread_t server;
     int client_fd = -1;
+    int server_started = 0;
+    int server_joined = 0;
     int result = 1;
 
     if (!reserve_loopback_port(&port) ||
@@ -323,17 +370,25 @@ int main(void) {
         (void)fprintf(stderr, "could not start detached-worker service\n");
         return 1;
     }
+    server_started = 1;
     client_fd = connect_loopback(port);
     if (client_fd < 0 ||
-        send(client_fd, request, sizeof(request) - 1U, 0) !=
+        send(client_fd, request, sizeof(request) - 1U,
+#ifdef MSG_NOSIGNAL
+            MSG_NOSIGNAL) !=
+#else
+            0) !=
+#endif
             (ssize_t)(sizeof(request) - 1U) ||
-        !wait_for_flag(&runtime_entered) || pthread_join(server, NULL) != 0 ||
+        !wait_for_flag(&runtime_entered) || !wait_for_flag(&server_done) ||
+        pthread_join(server, NULL) != 0 ||
         args.result != 1) {
         (void)fprintf(stderr, "service did not reach bounded deferred shutdown\n");
         goto done;
     }
+    server_joined = 1;
     unblock_runtime();
-    if (!wait_for_flag(&runtime_destroyed)) {
+    if (!wait_for_flag(&runtime_destroyed) || !runtime_destroyed_once()) {
         (void)fprintf(stderr, "deferred worker cleanup did not finish\n");
         goto done;
     }
@@ -341,6 +396,9 @@ int main(void) {
 
 done:
     unblock_runtime();
+    if (server_started && !server_joined && wait_for_flag(&server_done)) {
+        (void)pthread_join(server, NULL);
+    }
     if (client_fd >= 0) {
         (void)close(client_fd);
     }

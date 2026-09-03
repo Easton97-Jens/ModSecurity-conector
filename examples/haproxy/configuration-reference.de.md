@@ -16,12 +16,18 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`filter modsecurity-htx`](#filter-modsecurity-htx) | Host / Connector | HAProxy-Filterdeklaration | ja | nicht anwendbar; ein Filter ist nur aktiv, wenn er deklariert ist | Die ausgewählte und eingecheckte native Nutzung ist ein HAProxy-Frontend. Der lokale Parser legt keine weiteren Host-Geltungsbereiche fest. | Native HTX-Filterdeklaration für den vollständigen Lebenszyklus. |
 | [`log`](#log) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`mode`](#mode) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
+| [`option`](#option) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`phase4-mode`](#phase4-mode) | Host / Connector | Aufzählung | nein | safe | Die ausgewählte und eingecheckte native Nutzung ist ein HAProxy-Frontend. Der lokale Parser legt keine weiteren Host-Geltungsbereiche fest. | Native HTX-Argument für die späte P4-Policy. |
 | [`rules-file`](#rules-file) | Host / Connector | Pfad | ja | kein Wert; erforderlich | Die ausgewählte und eingecheckte native Nutzung ist ein HAProxy-Frontend. Der lokale Parser legt keine weiteren Host-Geltungsbereiche fest. | Erforderliches rules-file-Argument des nativen HTX. |
 | [`server`](#server) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
+| [`spoe-agent:response-companion`](#spoe-agent-response-companion) | Kompatibilität | Aufzählung | nein | none | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Owner-Konfiguration für den erforderlichen nativen-HTX-MRC1-Response-Begleiter. native-htx veröffentlicht einen begrenzten opaken Handle für die HTX-P3/P4-Verarbeitung. |
+| [`spoe-agent:response-companion-gid`](#spoe-agent-response-companion-gid) | Kompatibilität | Ganzzahl | nein | nicht gesetzt, sofern nicht konfiguriert | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Owner-Konfiguration für den erforderlichen nativen-HTX-MRC1-Response-Begleiter. native-htx veröffentlicht einen begrenzten opaken Handle für die HTX-P3/P4-Verarbeitung. |
+| [`spoe-agent:response-companion-socket`](#spoe-agent-response-companion-socket) | Kompatibilität | Pfad | nein | nicht gesetzt, sofern nicht konfiguriert | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Owner-Konfiguration für den erforderlichen nativen-HTX-MRC1-Response-Begleiter. native-htx veröffentlicht einen begrenzten opaken Handle für die HTX-P3/P4-Verarbeitung. |
+| [`spoe-agent:response-companion-uid`](#spoe-agent-response-companion-uid) | Kompatibilität | Ganzzahl | nein | nicht gesetzt, sofern nicht konfiguriert | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Owner-Konfiguration für den erforderlichen nativen-HTX-MRC1-Response-Begleiter. native-htx veröffentlicht einen begrenzten opaken Handle für die HTX-P3/P4-Verarbeitung. |
 | [`timeout client`](#timeout-client) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`timeout connect`](#timeout-connect) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`timeout server`](#timeout-server) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
+| [`tune.bufsize`](#tune-bufsize) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`filter spoe`](#filter-spoe) | Kompatibilität | Kompatibilitätsfilter | nein | nicht Teil des nativen HTX-Pfads | nur Kompatibilitäts-Frontend | SPOE-Filter nur für die Kompatibilität. |
 | [`legacy-phase4-strict-abort`](#legacy-phase4-strict-abort) | Kompatibilität | historische Konfiguration | nein | nicht verfügbar | nur historische Kompatibilitätsdokumentation | Deaktiviertes historisches Kompatibilitätsmaterial. |
 | [`spoe-agent:audit-log`](#spoe-agent-audit-log) | Kompatibilität | Zeichenkette/Pfad | nein | nicht gesetzt, sofern nicht konfiguriert | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
@@ -77,7 +83,7 @@ Siehe [Engine-Referenz](../common/modsecurity-directives.de.md).
 | --- | --- | --- |
 | Minimal | [minimal/haproxy-htx.cfg](minimal/haproxy-htx.cfg) | Aktive Startkonfiguration |
 | Sicherer vollständiger Lebenszyklus | [safe/haproxy-htx.cfg](safe/haproxy-htx.cfg) | Ausgewählte begrenzte Referenz |
-| Strikt | [README.de.md#strict-profilgrenze](README.de.md#strict-profilgrenze) | Parserunterstützte oder ausdrücklich optionale Grenze |
+| Strikt | [strict/haproxy-htx.cfg](strict/haproxy-htx.cfg) | Parserunterstützte oder ausdrücklich optionale Grenze |
 | DetectionOnly | [detection-only/haproxy-htx.cfg](detection-only/haproxy-htx.cfg) | Engine wertet aus/protokolliert ohne disruptive Aktion |
 | Deaktiviert | [disabled/haproxy-htx.cfg](disabled/haproxy-htx.cfg) | Connector- oder Engine-Pfad deaktiviert |
 
@@ -379,6 +385,61 @@ Quellenbasiertes Beispiel: [examples/haproxy/safe/haproxy-htx.cfg](../../example
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="option"></a>
+## `option`
+
+### Kurzbeschreibung
+
+Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive.
+
+### Syntax
+
+```text
+option <host-specific-value>
+```
+
+### Gültige Kontexte
+
+- Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich.
+
+### Werte
+
+| Typ | Zulässige Werte | Erforderlich |
+| --- | --- | --- |
+| hosteigenes Konfigurationsfeld | der explizite Wert im ausgewählten eingecheckten Beispiel | nein |
+
+### Standardwert
+
+Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt.
+
+Quelle: `aktive Beispielkonfiguration`.
+
+### Vererbung und Zusammenführung
+
+Hostdefiniert; nicht durch diesen Connector implementiert.
+
+Zusammenführung: Hostdefiniert; nicht durch diesen Connector implementiert.
+
+### Phasen und Laufzeitwirkung
+
+P1–P4-Relevanz: Hosteinrichtung/Routing/Logging; konfiguriert selbst keine Phasen der ModSecurity-Regel-Engine.
+
+Stellt die umgebende Hosteinrichtung bereit, die vom ausgewählten Connector-Beispiel verwendet wird.
+
+### Validierung und Fehler
+
+haproxy -c -f <config>
+
+### Beispiel
+
+Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
+
+Quellenbasiertes Beispiel: [examples/haproxy/safe/haproxy-htx.cfg](../../examples/haproxy/safe/haproxy-htx.cfg).
+
+### Sicherheit und Betrieb
+
+Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
+
 <a id="phase4-mode"></a>
 ## `phase4-mode`
 
@@ -544,6 +605,226 @@ Quellenbasiertes Beispiel: [examples/haproxy/safe/haproxy-htx.cfg](../../example
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="spoe-agent-response-companion"></a>
+## `spoe-agent:response-companion`
+
+### Kurzbeschreibung
+
+SPOP-Owner-Konfiguration für den erforderlichen nativen-HTX-MRC1-Response-Begleiter. native-htx veröffentlicht einen begrenzten opaken Handle für die HTX-P3/P4-Verarbeitung.
+
+### Syntax
+
+```text
+response-companion=<value>
+```
+
+### Gültige Kontexte
+
+- SPOE/SPOP-Kompatibilitätsagent-key=value-Datei
+
+### Werte
+
+| Typ | Zulässige Werte | Erforderlich |
+| --- | --- | --- |
+| Aufzählung | none \| native-htx | nein |
+
+### Standardwert
+
+none
+
+Quelle: `config_init(), sofern angegeben; andernfalls Initialisierung mit null/leeren Werten`.
+
+### Vererbung und Zusammenführung
+
+Keine native HTX-Vererbung; eine Konfigurationsdatei des Kompatibilitätsagenten.
+
+Zusammenführung: Kein Merge; config_set übernimmt einen geparsten Wert.
+
+### Phasen und Laufzeitwirkung
+
+P1–P4-Relevanz: native-htx ist der erforderliche P3/P4-Begleiter für das logische HAProxy-SPOE/SPOP-Profil; none weist die Aktivierung von Response-Phasen zurück, weil reines SPOE/SPOP kein Response-EOS besitzt.
+
+SPOP-Owner-Konfiguration für den erforderlichen nativen-HTX-MRC1-Response-Begleiter. native-htx veröffentlicht einen begrenzten opaken Handle für die HTX-P3/P4-Verarbeitung.
+
+### Validierung und Fehler
+
+Unbekannte Schlüssel lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
+
+### Beispiel
+
+Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
+
+Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agent.conf](../../examples/haproxy/compatibility-spoe/modsecurity-agent.conf).
+
+### Sicherheit und Betrieb
+
+Der Begleiter muss einen expliziten privaten UDS-Socket, passende Service-UID/GID, ein begrenztes Response-Body-Limit und eine fail-closed-Korrelation über einen opaken Handle verwenden.
+
+<a id="spoe-agent-response-companion-gid"></a>
+## `spoe-agent:response-companion-gid`
+
+### Kurzbeschreibung
+
+SPOP-Owner-Konfiguration für den erforderlichen nativen-HTX-MRC1-Response-Begleiter. native-htx veröffentlicht einen begrenzten opaken Handle für die HTX-P3/P4-Verarbeitung.
+
+### Syntax
+
+```text
+response-companion-gid=<value>
+```
+
+### Gültige Kontexte
+
+- SPOE/SPOP-Kompatibilitätsagent-key=value-Datei
+
+### Werte
+
+| Typ | Zulässige Werte | Erforderlich |
+| --- | --- | --- |
+| Ganzzahl | dezimale Ganzzahl | nein |
+
+### Standardwert
+
+nicht gesetzt, sofern nicht konfiguriert
+
+Quelle: `config_init(), sofern angegeben; andernfalls Initialisierung mit null/leeren Werten`.
+
+### Vererbung und Zusammenführung
+
+Keine native HTX-Vererbung; eine Konfigurationsdatei des Kompatibilitätsagenten.
+
+Zusammenführung: Kein Merge; config_set übernimmt einen geparsten Wert.
+
+### Phasen und Laufzeitwirkung
+
+P1–P4-Relevanz: native-htx ist der erforderliche P3/P4-Begleiter für das logische HAProxy-SPOE/SPOP-Profil; none weist die Aktivierung von Response-Phasen zurück, weil reines SPOE/SPOP kein Response-EOS besitzt.
+
+SPOP-Owner-Konfiguration für den erforderlichen nativen-HTX-MRC1-Response-Begleiter. native-htx veröffentlicht einen begrenzten opaken Handle für die HTX-P3/P4-Verarbeitung.
+
+### Validierung und Fehler
+
+Unbekannte Schlüssel lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
+
+### Beispiel
+
+Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
+
+Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agent.conf](../../examples/haproxy/compatibility-spoe/modsecurity-agent.conf).
+
+### Sicherheit und Betrieb
+
+Der Begleiter muss einen expliziten privaten UDS-Socket, passende Service-UID/GID, ein begrenztes Response-Body-Limit und eine fail-closed-Korrelation über einen opaken Handle verwenden.
+
+<a id="spoe-agent-response-companion-socket"></a>
+## `spoe-agent:response-companion-socket`
+
+### Kurzbeschreibung
+
+SPOP-Owner-Konfiguration für den erforderlichen nativen-HTX-MRC1-Response-Begleiter. native-htx veröffentlicht einen begrenzten opaken Handle für die HTX-P3/P4-Verarbeitung.
+
+### Syntax
+
+```text
+response-companion-socket=<value>
+```
+
+### Gültige Kontexte
+
+- SPOE/SPOP-Kompatibilitätsagent-key=value-Datei
+
+### Werte
+
+| Typ | Zulässige Werte | Erforderlich |
+| --- | --- | --- |
+| Pfad | privater UNIX-Domain-Socket-Pfad | nein |
+
+### Standardwert
+
+nicht gesetzt, sofern nicht konfiguriert
+
+Quelle: `config_init(), sofern angegeben; andernfalls Initialisierung mit null/leeren Werten`.
+
+### Vererbung und Zusammenführung
+
+Keine native HTX-Vererbung; eine Konfigurationsdatei des Kompatibilitätsagenten.
+
+Zusammenführung: Kein Merge; config_set übernimmt einen geparsten Wert.
+
+### Phasen und Laufzeitwirkung
+
+P1–P4-Relevanz: native-htx ist der erforderliche P3/P4-Begleiter für das logische HAProxy-SPOE/SPOP-Profil; none weist die Aktivierung von Response-Phasen zurück, weil reines SPOE/SPOP kein Response-EOS besitzt.
+
+SPOP-Owner-Konfiguration für den erforderlichen nativen-HTX-MRC1-Response-Begleiter. native-htx veröffentlicht einen begrenzten opaken Handle für die HTX-P3/P4-Verarbeitung.
+
+### Validierung und Fehler
+
+Unbekannte Schlüssel lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
+
+### Beispiel
+
+Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
+
+Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agent.conf](../../examples/haproxy/compatibility-spoe/modsecurity-agent.conf).
+
+### Sicherheit und Betrieb
+
+Der Begleiter muss einen expliziten privaten UDS-Socket, passende Service-UID/GID, ein begrenztes Response-Body-Limit und eine fail-closed-Korrelation über einen opaken Handle verwenden.
+
+<a id="spoe-agent-response-companion-uid"></a>
+## `spoe-agent:response-companion-uid`
+
+### Kurzbeschreibung
+
+SPOP-Owner-Konfiguration für den erforderlichen nativen-HTX-MRC1-Response-Begleiter. native-htx veröffentlicht einen begrenzten opaken Handle für die HTX-P3/P4-Verarbeitung.
+
+### Syntax
+
+```text
+response-companion-uid=<value>
+```
+
+### Gültige Kontexte
+
+- SPOE/SPOP-Kompatibilitätsagent-key=value-Datei
+
+### Werte
+
+| Typ | Zulässige Werte | Erforderlich |
+| --- | --- | --- |
+| Ganzzahl | dezimale Ganzzahl | nein |
+
+### Standardwert
+
+nicht gesetzt, sofern nicht konfiguriert
+
+Quelle: `config_init(), sofern angegeben; andernfalls Initialisierung mit null/leeren Werten`.
+
+### Vererbung und Zusammenführung
+
+Keine native HTX-Vererbung; eine Konfigurationsdatei des Kompatibilitätsagenten.
+
+Zusammenführung: Kein Merge; config_set übernimmt einen geparsten Wert.
+
+### Phasen und Laufzeitwirkung
+
+P1–P4-Relevanz: native-htx ist der erforderliche P3/P4-Begleiter für das logische HAProxy-SPOE/SPOP-Profil; none weist die Aktivierung von Response-Phasen zurück, weil reines SPOE/SPOP kein Response-EOS besitzt.
+
+SPOP-Owner-Konfiguration für den erforderlichen nativen-HTX-MRC1-Response-Begleiter. native-htx veröffentlicht einen begrenzten opaken Handle für die HTX-P3/P4-Verarbeitung.
+
+### Validierung und Fehler
+
+Unbekannte Schlüssel lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
+
+### Beispiel
+
+Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
+
+Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agent.conf](../../examples/haproxy/compatibility-spoe/modsecurity-agent.conf).
+
+### Sicherheit und Betrieb
+
+Der Begleiter muss einen expliziten privaten UDS-Socket, passende Service-UID/GID, ein begrenztes Response-Body-Limit und eine fail-closed-Korrelation über einen opaken Handle verwenden.
+
 <a id="timeout-client"></a>
 ## `timeout client`
 
@@ -665,6 +946,61 @@ Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive.
 
 ```text
 timeout server <host-specific-value>
+```
+
+### Gültige Kontexte
+
+- Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich.
+
+### Werte
+
+| Typ | Zulässige Werte | Erforderlich |
+| --- | --- | --- |
+| hosteigenes Konfigurationsfeld | der explizite Wert im ausgewählten eingecheckten Beispiel | nein |
+
+### Standardwert
+
+Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt.
+
+Quelle: `aktive Beispielkonfiguration`.
+
+### Vererbung und Zusammenführung
+
+Hostdefiniert; nicht durch diesen Connector implementiert.
+
+Zusammenführung: Hostdefiniert; nicht durch diesen Connector implementiert.
+
+### Phasen und Laufzeitwirkung
+
+P1–P4-Relevanz: Hosteinrichtung/Routing/Logging; konfiguriert selbst keine Phasen der ModSecurity-Regel-Engine.
+
+Stellt die umgebende Hosteinrichtung bereit, die vom ausgewählten Connector-Beispiel verwendet wird.
+
+### Validierung und Fehler
+
+haproxy -c -f <config>
+
+### Beispiel
+
+Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
+
+Quellenbasiertes Beispiel: [examples/haproxy/safe/haproxy-htx.cfg](../../examples/haproxy/safe/haproxy-htx.cfg).
+
+### Sicherheit und Betrieb
+
+Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
+
+<a id="tune-bufsize"></a>
+## `tune.bufsize`
+
+### Kurzbeschreibung
+
+Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive.
+
+### Syntax
+
+```text
+tune.bufsize <host-specific-value>
 ```
 
 ### Gültige Kontexte
