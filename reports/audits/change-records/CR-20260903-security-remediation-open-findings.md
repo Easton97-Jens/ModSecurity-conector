@@ -40,14 +40,14 @@ The current origin/master base still had five Parent-owned connector/runtime sec
 
 ## Implementation decision and rationale
 
-The implementation ports only the current-base-required security controls. Historical broad PRs are reference evidence, not merge sources. The Authorization port excludes unrelated duplicate-host validation and SIGPIPE strategy changes. The NGINX configuration reference is generated from a NGINX-only metadata override, so its English/German files and canonical configuration inventory remain source-backed rather than manually divergent. Hosted Lighttpd feedback then showed that its runtime harness still expected a raw query-bearing JSONL URI; the harness now expects the safe serialized URI and `redacted=true` while retaining raw curl-wire and correlated CRS-log evidence.
+The implementation ports only the current-base-required security controls. Historical broad PRs are reference evidence, not merge sources. The Authorization port excludes unrelated duplicate-host validation and SIGPIPE strategy changes. The NGINX configuration reference is generated from a NGINX-only metadata override, so its English/German files and canonical configuration inventory remain source-backed rather than manually divergent. Hosted Lighttpd feedback then showed that, although the host harness already expects the safe serialized URI and `redacted=true`, the later Parent normalizer still compared it with the raw query-bearing wire URI. Both correlation stages now require the safe JSONL representation while raw curl-wire and correlated CRS-log evidence remain intact.
 
 ## Changed files
 
 - Common runtime and event serialization: common/include/msconnector/event.h, common/src/event.c, common/src/integrity_event.c, and common/runtime/http_authorization_service.c.
 - Connector implementation: connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c, connectors/nginx/src/ngx_http_modsecurity_log.c, and connectors/traefik/src/traefik_engine_service.c.
 - Focused regressions: tests/event_json_query_redaction_test.c, tests/haproxy_spop_request_target_test.c, tests/test_haproxy_spop_request_target.py, tests/http_authorization_service_detached_worker_smoke.c, tests/test_http_authorization_service_worker_contract.py, tests/test_nginx_error_log_callback_contract.py, and tests/test_traefik_engine_service_contract.py.
-- Lighttpd runtime-redaction regression: connectors/lighttpd/harness/run_patched_full_lifecycle.sh and connectors/lighttpd/tests/test_patched_host_contract.py.
+- Lighttpd runtime-redaction regression: connectors/lighttpd/harness/run_patched_full_lifecycle.sh, ci/runtime/lifecycle/normalize-with-crs-no-mrts.py, connectors/lighttpd/tests/test_patched_host_contract.py, and tests/test_with_crs_no_mrts_runtime.py.
 - Source-backed documentation/inventory: ci/checks/documentation/connector_config_reference.py, examples/nginx/configuration-reference.md, examples/nginx/configuration-reference.de.md, and reports/connector-configuration-inventory.json.
 - Parent NGINX provenance alignment: ci/provisioning/components/prepare-runtime-components.py, ci/checks/evidence/check-runtime-producer-readiness.py, ci/runtime/broker/nginx_root_broker.py, ci/runtime/broker/protected_nginx_broker_caller.py, the NGINX hosted/full-smoke/broker workflows, and the paired compiler guide.
 - Operator documentation: common/docs/transaction-phase-contract.md and .de.md; connectors/haproxy, nginx, and traefik README pairs; and examples/traefik README pairs.
@@ -68,7 +68,7 @@ The implementation ports only the current-base-required security controls. Histo
 | Envoy module graph, Go test, and Go vet | Passed; module graph reports google.golang.org/grpc v1.83.1. |
 | Traefik contracts/native-plugin/Authorization worker contracts | Passed: 47 tests. |
 | Traefik C17 syntax and engine-service build/self-test/runtime/negative test | Passed with GCC and Clang syntax checks; normal, ASan/UBSan, and TSan engine-service runs passed. |
-| Lighttpd JSONL-redaction harness contract | Passed: 37 tests (2 skipped) and `bash -n`. A first hosted Lighttpd runtime run exposed its stale raw-URI JSONL expectation; the scoped harness correction preserves the raw wire/CRS correlation and requires `/?<redacted>` with `redacted=true`. |
+| Lighttpd JSONL-redaction host/normalizer contract | Passed: 62 focused tests and `bash -n`. The host harness requires `/?<redacted>` with `redacted=true`; the Parent normalizer now applies that same representation while binding the allow guard to its server-generated transaction ID. |
 | Directive parity | Passed. |
 | Full bilingual/link checks | Blocked solely by pre-existing missing Framework-submodule link targets; the task neither initializes nor modifies the Framework. |
 
@@ -82,8 +82,9 @@ The local Traefik engine service was built and exercised over a private Unix
 socket for normal, malformed-frame, and socket-ownership-negative controls.
 It is not a Traefik host-runtime test. No production service was contacted.
 The hosted Lighttpd CRS/no-MRTS runtime is the authoritative host validation
-for the updated JSONL harness contract; its rerun is pending on the current
-Draft-PR head.
+for the updated JSONL correlation contract. The diagnostic `fe518101` run
+completed the lower host harness but the later Parent normalizer still compared
+against the raw URI; its rerun is pending on the next immutable Draft-PR head.
 
 ## Checks not run and rationale
 
@@ -142,9 +143,11 @@ The scoped remediation and evidence work is as follows:
   release, and the no-companion deferred path. FND-PARENT-1013 remains
   `fixed, verification pending` until fresh exact-head evidence proves these
   cases.
-- The first Lighttpd hosted run exposed a stale harness expectation for raw
-  query-bearing JSONL. The scoped correction correlates the safe redacted
-  event by response transaction ID while preserving raw wire and CRS evidence.
+- The diagnostic Lighttpd hosted run showed a stale raw-URI comparison in the
+  Parent normalizer after the host harness had already accepted the safe JSONL
+  event. The scoped correction uses the same redacted representation at both
+  stages, binds the allow guard to its server-generated transaction ID, and
+  preserves raw wire and CRS evidence.
 - Local NGINX headers/source are unavailable. A clearly named
   `Exact-Head-Hosted` NGINX gate is therefore required for supported-header
   compilation and isolated `modsecurity_use_error_log` on/off runtime proof;
@@ -173,11 +176,40 @@ exclusion, threshold change, or Quality-Gate weakening was used.
 | 11 | `AaBnPLhlQISHK43ZVdji` / c:S3776 | Traefik serve orchestration | Split lifecycle setup, runtime configuration, handlers, and completion. |
 | 12 | `AaBnPLhlQISHK43ZVdjj` / c:S3776 | Traefik CLI parsing | Split switch/value parsing and retained fail-closed validation. |
 
-The successor commit, GitHub read-back, fresh Sonar analysis, complete
-exact-head runtime workflow (including the hosted NGINX gate), and final PR
-description/Change Record read-back remain pending at the time of this
-entry. No merge, force-push, Framework/MRTS/Gitlink change, or test/workflow
-weakening is authorized or claimed.
+### Exact-head successor Sonar follow-up
+
+SonarCloud check `100738129438` analysed successor
+`fe518101c7c19ee29dba8be165f9356f5acfe78f` and failed solely because its
+New-Code security rating was `D`. The twelve newly attributed reports below
+were individually reviewed. The eight `c:S5443` reports are not reachable
+public-directory operations: this parser-only fixture opens, binds, creates,
+and writes no supplied path. Its inert `/tmp` literals are nevertheless
+replaced with non-filesystem sentinel names so that the test cannot model an
+unsafe directory use. The `c:S108` retry is clarified. The three `c:S995`
+reports remain the only documented non-problems: their test stubs implement
+public runtime ABI declarations whose mutable pointer types cannot be made
+const without changing that ABI.
+
+| # | Sonar key / rule | Location/issue | Disposition |
+|---:|---|---|---|
+| 1 | `AaBoE29gD03N4v8H0Ojv` / c:S5443 | Traefik CLI valid config literal, line 214 | Replaced inert `/tmp` spelling with `engine.conf`; parser coverage is unchanged. |
+| 2 | `AaBoE29gD03N4v8H0Ojw` / c:S5443 | Traefik CLI valid socket literal, line 215 | Replaced inert `/tmp` spelling with `engine.sock`; no filesystem operation exists in this test. |
+| 3 | `AaBoE29gD03N4v8H0Ojx` / c:S5443 | Traefik CLI missing-value config literal, line 218 | Replaced with the non-filesystem config sentinel. |
+| 4 | `AaBoE29gD03N4v8H0Ojy` / c:S5443 | Traefik CLI missing-value socket literal, line 219 | Replaced with the non-filesystem socket sentinel. |
+| 5 | `AaBoE29gD03N4v8H0Ojz` / c:S5443 | Traefik CLI zero-worker config literal, line 222 | Replaced with the non-filesystem config sentinel. |
+| 6 | `AaBoE29gD03N4v8H0Oj0` / c:S5443 | Traefik CLI zero-worker socket literal, line 223 | Replaced with the non-filesystem socket sentinel. |
+| 7 | `AaBoE29gD03N4v8H0Oj1` / c:S5443 | Traefik CLI overflow config literal, line 226 | Replaced with the non-filesystem config sentinel. |
+| 8 | `AaBoE29gD03N4v8H0Oj2` / c:S5443 | Traefik CLI overflow socket literal, line 227 | Replaced with the non-filesystem socket sentinel. |
+| 9 | `AaBoE29gD03N4v8H0Oju` / c:S108 | Traefik EINTR sleep retry, line 41 | Added the nested retry-purpose comment; behavior is unchanged. |
+| 10 | `AaBnPLYKQISHK43ZVdja` / c:S995 | Authorization fixture runtime setter, line 99 | Non-problem: signature must match the public mutable-pointer ABI. |
+| 11 | `AaBnPLYKQISHK43ZVdjb` / c:S995 | Authorization fixture profile setter, line 112 | Non-problem: signature must match the public mutable-pointer ABI. |
+| 12 | `AaBnPLYKQISHK43ZVdjc` / c:S995 | Authorization fixture transaction begin, line 194 | Non-problem: signature must match the public mutable-pointer ABI. |
+
+The resulting successor commit, GitHub read-back, fresh Sonar analysis,
+complete exact-head runtime workflow (including the hosted NGINX gate), and
+final PR-description/Change Record read-back remain pending at the time of
+this entry. No merge, force-push, Framework/MRTS/Gitlink change, or
+test/workflow weakening is authorized or claimed.
 
 ### Exact-head NGINX gate retry
 
@@ -205,3 +237,17 @@ to that already pinned Framework tuple. The strict tag/ref/asset/digest and
 runtime-readback checks remain fail-closed; no Framework, MRTS, or Gitlink is
 changed. Fresh hosted compile and on/off evidence remains required for the
 new immutable head.
+
+### Exact-head NGINX native-override isolation
+
+The `fe518101` hosted retry passed its exact-head and pinned-provenance checks
+but stopped before the host build with `missing_nginx_modsecurity_module`.
+The provisioner had received an inherited native NGINX module-directory
+override, which is forbidden when pinned provenance is required and did not
+contain the managed module. The gate now clears only inherited native NGINX
+artifact overrides for both provisioning and the subsequent runtime wrapper,
+so the existing managed cache plan builds and validates the Parent NGINX
+module. This neither accepts an absent module nor changes MRTS, Framework,
+Gitlink, release tuple, or runtime provenance checks. The static gate contract
+asserts every cleared override at both process boundaries; fresh exact-head
+hosted compilation and on/off runtime evidence remains required.

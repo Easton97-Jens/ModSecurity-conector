@@ -258,7 +258,8 @@ static int start_companion_service(
 
 static int run_successful_companion_lifecycle(void)
 {
-    msconnector_http_authorization_profile companion_profile = profile;
+    msconnector_http_authorization_profile companion_profile =
+        detached_worker_profile;
     companion_server_args args = {{0}, -1, NULL};
     pthread_t server;
     int client_fd = -1;
@@ -309,7 +310,8 @@ done:
 
 static int run_failed_companion_lifecycle_child(void)
 {
-    msconnector_http_authorization_profile companion_profile = profile;
+    msconnector_http_authorization_profile companion_profile =
+        detached_worker_profile;
     companion_server_args args = {{0}, -1, NULL};
     pthread_t server;
     int client_fd = -1;
@@ -407,7 +409,8 @@ static void *race_worker_release(void *argument)
 
 static int test_concurrent_owner_worker_release(void)
 {
-    msconnector_http_authorization_profile companion_profile = profile;
+    msconnector_http_authorization_profile companion_profile =
+        detached_worker_profile;
     authorization_service *service;
     authorization_worker *worker;
     release_race race = {
@@ -463,10 +466,11 @@ static int test_no_companion_deferred_release(void)
     authorization_worker *worker;
 
     reset_fake_runtime();
-    service = new_service(&profile);
+    service = new_service(&detached_worker_profile);
     worker = install_worker(service);
     if (service == NULL || worker == NULL ||
-        authorization_defer_uninterruptible_worker(service, &profile) != 1 ||
+        authorization_defer_uninterruptible_worker(service,
+            &detached_worker_profile) != 1 ||
         runtime_destroy_count() != 0) {
         return 0;
     }

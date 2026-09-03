@@ -63,12 +63,32 @@ jobs:
         run: |
           set -eu
           make setup-dev
-          make fetch-deps
+          env \
+            -u MRTS_NATIVE_NGINX_BIN \
+            -u MRTS_NATIVE_NGINX_MODULE_DIR \
+            -u MRTS_NATIVE_NGINX_MODULE_FILE \
+            -u MRTS_NATIVE_NGINX_MODSECURITY_LIB_DIR \
+            -u NGINX_MRTS_MODSECURITY_LIB_DIR \
+            -u NGINX_BINARY \
+            -u NGINX_MODULE \
+            -u NGINX_PREFIX \
+            -u NGINX_BUILD_DIR \
+            make fetch-deps
       - name: Run isolated modsecurity_use_error_log on/off cells
         run: |
           set -eu
-          RUNTIME_COMPONENT_TARGET=nginx \
-          FRAMEWORK_ROOT="$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
-          CONNECTOR_ROOT="$GITHUB_WORKSPACE" \
-          sh ci/provisioning/cache/with-runtime-components.sh \
+          env \
+            -u MRTS_NATIVE_NGINX_BIN \
+            -u MRTS_NATIVE_NGINX_MODULE_DIR \
+            -u MRTS_NATIVE_NGINX_MODULE_FILE \
+            -u MRTS_NATIVE_NGINX_MODSECURITY_LIB_DIR \
+            -u NGINX_MRTS_MODSECURITY_LIB_DIR \
+            -u NGINX_BINARY \
+            -u NGINX_MODULE \
+            -u NGINX_PREFIX \
+            -u NGINX_BUILD_DIR \
+            RUNTIME_COMPONENT_TARGET=nginx \
+            FRAMEWORK_ROOT="$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
+            CONNECTOR_ROOT="$GITHUB_WORKSPACE" \
+            sh ci/provisioning/cache/with-runtime-components.sh \
             sh connectors/nginx/harness/run_exact_head_use_error_log.sh

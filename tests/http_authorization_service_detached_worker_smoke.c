@@ -295,7 +295,7 @@ static int map_request(
     return 1;
 }
 
-static const msconnector_http_authorization_profile profile = {
+static const msconnector_http_authorization_profile detached_worker_profile = {
     .connector_name = "detached-worker-smoke",
     .integration_mode = "detached-worker-smoke",
     .transaction_profile = &(const msconnector_transaction_profile){
@@ -334,7 +334,8 @@ static void *run_service(void *argument) {
         "25",
         NULL,
     };
-    args->result = msconnector_http_authorization_service_main(10, argv, &profile);
+    args->result = msconnector_http_authorization_service_main(10, argv,
+        &detached_worker_profile);
     return NULL;
 }
 

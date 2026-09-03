@@ -41,14 +41,14 @@ Die aktuelle origin/master-Basis enthielt weiterhin fünf Parent-eigene Connecto
 
 ## Implementierungsentscheidung und Begründung
 
-Die Implementierung portiert ausschließlich die auf der aktuellen Basis benötigten Sicherheitskontrollen. Historische breite PRs sind Referenzevidence, keine Merge-Quellen. Der Authorization-Port schließt nicht zugehörige Duplicate-Host-Validierung und SIGPIPE-Strategieänderungen aus. Die NGINX-Konfigurationsreferenz wird aus einer NGINX-spezifischen Metadata-Überschreibung erzeugt, sodass englische/deutsche Dateien und das kanonische Konfigurationsinventar quellenbasiert statt manuell divergent bleiben. Hosted-Lighttpd-Feedback zeigte anschließend, dass sein Runtime-Harness noch eine rohe Query-URI im JSONL erwartete; der Harness erwartet nun die sichere serialisierte URI und `redacted=true`, während rohe Curl-Wire- und korrelierte CRS-Log-Evidence erhalten bleiben.
+Die Implementierung portiert ausschließlich die auf der aktuellen Basis benötigten Sicherheitskontrollen. Historische breite PRs sind Referenzevidence, keine Merge-Quellen. Der Authorization-Port schließt nicht zugehörige Duplicate-Host-Validierung und SIGPIPE-Strategieänderungen aus. Die NGINX-Konfigurationsreferenz wird aus einer NGINX-spezifischen Metadata-Überschreibung erzeugt, sodass englische/deutsche Dateien und das kanonische Konfigurationsinventar quellenbasiert statt manuell divergent bleiben. Hosted-Lighttpd-Feedback zeigte anschließend, dass zwar der Host-Harness bereits die sichere serialisierte URI und `redacted=true` erwartet, der spätere Parent-Normalizer sie aber noch mit der rohen Query-URI aus dem Wire-Trace verglich. Beide Korrelationsstufen verlangen nun die sichere JSONL-Repräsentation, während rohe Curl-Wire- und korrelierte CRS-Log-Evidence erhalten bleiben.
 
 ## Geänderte Dateien
 
 - Common-Runtime und Event-Serialisierung: common/include/msconnector/event.h, common/src/event.c, common/src/integrity_event.c und common/runtime/http_authorization_service.c.
 - Connector-Implementierung: connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c, connectors/nginx/src/ngx_http_modsecurity_log.c und connectors/traefik/src/traefik_engine_service.c.
 - Fokussierte Regressionen: tests/event_json_query_redaction_test.c, tests/haproxy_spop_request_target_test.c, tests/test_haproxy_spop_request_target.py, tests/http_authorization_service_detached_worker_smoke.c, tests/test_http_authorization_service_worker_contract.py, tests/test_nginx_error_log_callback_contract.py und tests/test_traefik_engine_service_contract.py.
-- Lighttpd-Runtime-Redaction-Regression: connectors/lighttpd/harness/run_patched_full_lifecycle.sh und connectors/lighttpd/tests/test_patched_host_contract.py.
+- Lighttpd-Runtime-Redaction-Regression: connectors/lighttpd/harness/run_patched_full_lifecycle.sh, ci/runtime/lifecycle/normalize-with-crs-no-mrts.py, connectors/lighttpd/tests/test_patched_host_contract.py und tests/test_with_crs_no_mrts_runtime.py.
 - Quellenbasierte Dokumentation/Inventar: ci/checks/documentation/connector_config_reference.py, examples/nginx/configuration-reference.md, examples/nginx/configuration-reference.de.md und reports/connector-configuration-inventory.json.
 - Parent-NGINX-Provenance-Angleichung: ci/provisioning/components/prepare-runtime-components.py, ci/checks/evidence/check-runtime-producer-readiness.py, ci/runtime/broker/nginx_root_broker.py, ci/runtime/broker/protected_nginx_broker_caller.py, die NGINX-Hosted-/Full-Smoke-/Broker-Workflows sowie die gepaarte Compiler-Anleitung.
 - Betreiber-Dokumentation: common/docs/transaction-phase-contract.md und .de.md; die README-Paare von connectors/haproxy, nginx und traefik; sowie die README-Paare von examples/traefik.
@@ -69,7 +69,7 @@ Die Implementierung portiert ausschließlich die auf der aktuellen Basis benöti
 | Envoy-Modulgraph, Go-Test und Go-vet | Bestanden; Modulgraph meldet google.golang.org/grpc v1.83.1. |
 | Traefik-Contracts/native-plugin/Authorization-Worker-Contracts | Bestanden: 47 Tests. |
 | Traefik-C17-Syntax und Engine-Service-Build/Selbsttest/Runtime/Negativtest | Bestanden mit GCC- und Clang-Syntaxchecks; normale, ASan/UBSan- und TSan-Engine-Service-Läufe bestanden. |
-| Lighttpd-JSONL-Redaction-Harness-Contract | Bestanden: 37 Tests (2 übersprungen) und `bash -n`. Ein erster Hosted-Lighttpd-Runtime-Lauf deckte seine veraltete rohe-URI-JSONL-Erwartung auf; die eingegrenzte Harness-Korrektur bewahrt die rohe Wire-/CRS-Korrelation und verlangt `/?<redacted>` mit `redacted=true`. |
+| Lighttpd-JSONL-Redaction-Host-/Normalizer-Contract | Bestanden: 62 fokussierte Tests und `bash -n`. Der Host-Harness verlangt `/?<redacted>` mit `redacted=true`; der Parent-Normalizer verwendet nun dieselbe Repräsentation und bindet den Allow-Guard an seine servergenerierte Transaktions-ID. |
 | Directive Parity | Bestanden. |
 | Vollständige Bilingual-/Link-Checks | Ausschließlich durch vorbestehende fehlende Framework-Submodul-Link-Targets blockiert; die Aufgabe initialisiert oder verändert das Framework nicht. |
 
@@ -84,8 +84,10 @@ Unix-Socket für normale, fehlerhafte-Frame- und Socket-Ownership-Negativ-
 Kontrollen ausgeführt. Dies ist kein Traefik-Host-Runtime-Test. Es wurde kein
 Produktionsdienst kontaktiert.
 Die Hosted-Lighttpd-CRS/no-MRTS-Runtime ist die maßgebliche Host-Validierung
-für den aktualisierten JSONL-Harness-Contract; ihr Rerun steht auf dem
-aktuellen Draft-PR-Head noch aus.
+für den aktualisierten JSONL-Korrelations-Contract. Der diagnostische Lauf auf
+`fe518101` führte den unteren Host-Harness erfolgreich aus, aber der spätere
+Parent-Normalizer verglich noch mit der rohen URI; sein Rerun steht für den
+nächsten unveränderlichen Draft-PR-Head aus.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
@@ -152,10 +154,11 @@ Die eingegrenzte Remediation und Evidence umfasst:
   konkurrierenden Owner-/Worker-Release sowie den weiterhin funktionierenden
   No-Companion-Deferred-Pfad. FND-PARENT-1013 bleibt bis zur frischen
   Exact-Head-Evidence `fixed, verification pending`.
-- Der erste Hosted-Lighttpd-Lauf zeigte eine veraltete Harness-Erwartung für
-  JSONL mit Query in der rohen URI. Die eingegrenzte Korrektur korreliert das
-  sichere redigierte Event über die Response-Transaction-ID und bewahrt rohe
-  Wire- und CRS-Evidence.
+- Der diagnostische Hosted-Lighttpd-Lauf zeigte nach erfolgreichem
+  Host-Harness eine veraltete Roh-URI-Prüfung im Parent-Normalizer. Die
+  eingegrenzte Korrektur verwendet in beiden Stufen dieselbe redigierte
+  Repräsentation, bindet den Allow-Guard an seine servergenerierte
+  Transaktions-ID und bewahrt rohe Wire- und CRS-Evidence.
 - Lokale NGINX-Header/-Quellen sind nicht verfügbar. Deshalb ist ein klar
   benanntes `Exact-Head-Hosted`-NGINX-Gate für Kompilierung gegen unterstützte
   Header und einen isolierten `modsecurity_use_error_log`-on/off-Runtime-
@@ -185,12 +188,42 @@ Schwellenwertänderungen noch eine Quality-Gate-Abschwächung verwendet.
 | 11 | `AaBnPLhlQISHK43ZVdji` / c:S3776 | Traefik-Serve-Orchestrierung | Lifecycle-Setup, Runtime-Konfiguration, Handler und Abschluss aufgeteilt. |
 | 12 | `AaBnPLhlQISHK43ZVdjj` / c:S3776 | Traefik-CLI-Parsing | Switch-/Value-Parsing aufgeteilt und fail-closed Validierung beibehalten. |
 
-Der Nachfolge-Commit, GitHub-Read-back, die frische Sonar-Analyse, der
-vollständige Exact-Head-Runtime-Workflow einschließlich Hosted-NGINX-Gate
-sowie der abschließende Read-back von PR-Beschreibung und Change Record stehen
-zum Zeitpunkt dieses Eintrags noch aus. Es wird weder ein Merge, Force-Push,
-Framework-/MRTS-/Gitlink-Change noch eine Abschwächung von Tests oder
-Workflows autorisiert oder behauptet.
+### Sonar-Nachverfolgung für den Exact-Head-Nachfolger
+
+Der SonarCloud-Check `100738129438` analysierte den Nachfolger
+`fe518101c7c19ee29dba8be165f9356f5acfe78f` und schlug ausschließlich wegen
+der New-Code-Sicherheitsbewertung `D` fehl. Die zwölf unten neu zugeordneten
+Meldungen wurden einzeln geprüft. Die acht `c:S5443`-Meldungen sind keine
+erreichbaren Operationen in öffentlich beschreibbaren Verzeichnissen: Dieses
+reine Parser-Fixture öffnet, bindet, erzeugt oder schreibt keinen übergebenen
+Pfad. Seine inerten `/tmp`-Literale werden dennoch durch nicht-dateisystemische
+Sentinel-Namen ersetzt, damit der Test keine unsichere Verzeichnisnutzung
+modelliert. Der `c:S108`-Retry wird erläutert. Die drei `c:S995`-Meldungen
+bleiben die einzigen dokumentierten Nichtprobleme: Ihre Test-Stubs
+implementieren öffentliche Runtime-ABI-Deklarationen, deren mutable
+Pointer-Typen nicht ohne ABI-Änderung const werden können.
+
+| # | Sonar-Key / Regel | Ort/Issue | Disposition |
+|---:|---|---|---|
+| 1 | `AaBoE29gD03N4v8H0Ojv` / c:S5443 | Traefik-CLI, gültiges Config-Literal, Zeile 214 | Inerte `/tmp`-Schreibweise durch `engine.conf` ersetzt; Parser-Coverage bleibt unverändert. |
+| 2 | `AaBoE29gD03N4v8H0Ojw` / c:S5443 | Traefik-CLI, gültiges Socket-Literal, Zeile 215 | Inerte `/tmp`-Schreibweise durch `engine.sock` ersetzt; dieser Test führt keine Dateisystemoperation aus. |
+| 3 | `AaBoE29gD03N4v8H0Ojx` / c:S5443 | Traefik-CLI, Config-Literal ohne Wert, Zeile 218 | Durch das nicht-dateisystemische Config-Sentinel ersetzt. |
+| 4 | `AaBoE29gD03N4v8H0Ojy` / c:S5443 | Traefik-CLI, Socket-Literal ohne Wert, Zeile 219 | Durch das nicht-dateisystemische Socket-Sentinel ersetzt. |
+| 5 | `AaBoE29gD03N4v8H0Ojz` / c:S5443 | Traefik-CLI, Config-Literal für null Worker, Zeile 222 | Durch das nicht-dateisystemische Config-Sentinel ersetzt. |
+| 6 | `AaBoE29gD03N4v8H0Oj0` / c:S5443 | Traefik-CLI, Socket-Literal für null Worker, Zeile 223 | Durch das nicht-dateisystemische Socket-Sentinel ersetzt. |
+| 7 | `AaBoE29gD03N4v8H0Oj1` / c:S5443 | Traefik-CLI, Config-Literal für Überlauf, Zeile 226 | Durch das nicht-dateisystemische Config-Sentinel ersetzt. |
+| 8 | `AaBoE29gD03N4v8H0Oj2` / c:S5443 | Traefik-CLI, Socket-Literal für Überlauf, Zeile 227 | Durch das nicht-dateisystemische Socket-Sentinel ersetzt. |
+| 9 | `AaBoE29gD03N4v8H0Oju` / c:S108 | Traefik-EINTR-Sleep-Retry, Zeile 41 | Kommentar zum Retry-Zweck ergänzt; Verhalten bleibt unverändert. |
+| 10 | `AaBnPLYKQISHK43ZVdja` / c:S995 | Authorization-Fixture, Runtime-Setter, Zeile 99 | Nichtproblem: Signatur muss zur öffentlichen ABI mit mutable Pointer passen. |
+| 11 | `AaBnPLYKQISHK43ZVdjb` / c:S995 | Authorization-Fixture, Profil-Setter, Zeile 112 | Nichtproblem: Signatur muss zur öffentlichen ABI mit mutable Pointer passen. |
+| 12 | `AaBnPLYKQISHK43ZVdjc` / c:S995 | Authorization-Fixture, Transaction-Beginn, Zeile 194 | Nichtproblem: Signatur muss zur öffentlichen ABI mit mutable Pointer passen. |
+
+Der daraus entstehende Nachfolge-Commit, GitHub-Read-back, die frische
+Sonar-Analyse, der vollständige Exact-Head-Runtime-Workflow einschließlich
+Hosted-NGINX-Gate sowie der abschließende Read-back von PR-Beschreibung und
+Change Record stehen zum Zeitpunkt dieses Eintrags noch aus. Es wird weder ein
+Merge, Force-Push, Framework-/MRTS-/Gitlink-Change noch eine Abschwächung von
+Tests oder Workflows autorisiert oder behauptet.
 
 ### Wiederholung des Exact-Head-NGINX-Gates
 
@@ -222,3 +255,19 @@ strikten Tag-/Ref-/Asset-/Digest- und Runtime-Readback-Prüfungen bleiben
 fail-closed; Framework, MRTS und Gitlink bleiben unverändert. Für den neuen
 unveränderlichen Head sind weiterhin frische Hosted-Compile- und
 On/Off-Evidence erforderlich.
+
+### Isolation nativer NGINX-Overrides im Exact-Head-Gate
+
+Der Hosted-Retry auf `fe518101` bestand seine Exact-Head- und
+Pinned-Provenance-Prüfungen, stoppte jedoch vor dem Host-Build mit
+`missing_nginx_modsecurity_module`. Der Provisioner hatte einen geerbten
+nativen NGINX-Modulverzeichnis-Override erhalten, der bei erforderlicher
+gepinnter Provenance verboten ist und das verwaltete Modul nicht enthielt.
+Das Gate löscht nun ausschließlich geerbte native NGINX-Artefakt-Overrides
+sowohl beim Provisioning als auch beim anschließenden Runtime-Wrapper, damit
+der vorhandene verwaltete Cache-Plan das Parent-NGINX-Modul baut und
+validiert. Dies akzeptiert weder ein fehlendes Modul noch verändert es MRTS,
+Framework, Gitlink, Release-Tuple oder Runtime-Provenance-Prüfungen. Der
+statische Gate-Contract prüft jeden gelöschten Override an beiden
+Prozessgrenzen; frische Exact-Head-Hosted-Compile- und On/Off-Runtime-Evidence
+bleibt erforderlich.

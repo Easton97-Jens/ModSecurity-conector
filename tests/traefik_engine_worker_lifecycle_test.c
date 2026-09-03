@@ -39,6 +39,7 @@ static void sleep_milliseconds(long milliseconds)
     };
 
     while (nanosleep(&delay, &delay) != 0 && errno == EINTR) {
+        /* Retry only the unslept interval after an interrupt. */
     }
 }
 
@@ -211,20 +212,20 @@ static void test_cli_max_workers_boundaries(void)
 {
     traefik_engine_cli_options options;
     char *valid[] = {
-        "traefik-engine-service", "--serve", "--config", "/tmp/engine.conf",
-        "--socket", "/tmp/engine.sock", "--max-workers", "2"
+        "traefik-engine-service", "--serve", "--config", "engine.conf",
+        "--socket", "engine.sock", "--max-workers", "2"
     };
     char *missing_value[] = {
-        "traefik-engine-service", "--serve", "--config", "/tmp/engine.conf",
-        "--socket", "/tmp/engine.sock", "--max-workers"
+        "traefik-engine-service", "--serve", "--config", "engine.conf",
+        "--socket", "engine.sock", "--max-workers"
     };
     char *zero_workers[] = {
-        "traefik-engine-service", "--serve", "--config", "/tmp/engine.conf",
-        "--socket", "/tmp/engine.sock", "--max-workers", "0"
+        "traefik-engine-service", "--serve", "--config", "engine.conf",
+        "--socket", "engine.sock", "--max-workers", "0"
     };
     char *overflow_workers[] = {
-        "traefik-engine-service", "--serve", "--config", "/tmp/engine.conf",
-        "--socket", "/tmp/engine.sock", "--max-workers", "257"
+        "traefik-engine-service", "--serve", "--config", "engine.conf",
+        "--socket", "engine.sock", "--max-workers", "257"
     };
 
     assert(traefik_engine_parse_cli(8, valid, &options) == 1);

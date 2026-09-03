@@ -17,6 +17,19 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
         self.assertIn("RUNTIME_COMPONENT_TARGET: nginx", workflow)
         self.assertIn("NGINX_SOURCE_GIT_REF: release-1.31.4", workflow)
         self.assertIn("NGINX_SHA256: e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3", workflow)
+        for override in (
+            "MRTS_NATIVE_NGINX_BIN",
+            "MRTS_NATIVE_NGINX_MODULE_DIR",
+            "MRTS_NATIVE_NGINX_MODULE_FILE",
+            "MRTS_NATIVE_NGINX_MODSECURITY_LIB_DIR",
+            "NGINX_MRTS_MODSECURITY_LIB_DIR",
+            "NGINX_BINARY",
+            "NGINX_MODULE",
+            "NGINX_PREFIX",
+            "NGINX_BUILD_DIR",
+        ):
+            self.assertIn(f"-u {override}", workflow)
+            self.assertEqual(workflow.count(f"-u {override}"), 2)
         self.assertIn("run_exact_head_use_error_log.sh", workflow)
 
     def test_gate_has_two_real_runtime_cells_and_fail_closed_markers(self):
