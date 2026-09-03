@@ -76,6 +76,9 @@ Global gate definitions are consolidated in
       `maxBodySize` are present. The checked-in path enables both at 4096 bytes,
       requires `request_body_mode=buffered`, and the start harness rejects a
       template that omits either setting.
+      `request_body_mode=none` is retained only for the legacy
+      request-body-disabled compatibility path and cannot describe the selected
+      buffered path.
 - [ ] Fresh real-host P2 allow/deny and over-limit evidence promotes the
       configured P2 capability.
 - [x] Upstream response headers and bodies are recorded as

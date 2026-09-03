@@ -11,6 +11,15 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260903-no-crs-doc-consistency-repair](CR-20260903-no-crs-doc-consistency-repair.de.md) —
+  der aktuelle Benutzer autorisierte diese Parent-only-Reparatur des
+  reproduzierten Traefik-No-CRS-Dokumentations-/Capability-Katalog-
+  Konsistenzfehlers in einem eigenen Worktree und einen normalen PR. Sie
+  bewahrt den begrenzten, nicht hochgestuften P2-Zustand und nicht
+  unterstütztes Request-Body-Streaming; keine Framework-/MRTS-Source,
+  Gitlink-, Workflow-Berechtigungs-, Sonar-Control- oder Merge-Änderung wird
+  behauptet.
+
 - [CR-20260902-nginx-workflow-contract-repair](CR-20260902-nginx-workflow-contract-repair.de.md) —
   der aktuelle Benutzer autorisierte diese Parent-only-Reparatur eines
   reproduzierten NGINX-Source-Contract-Checker-Fehlers in einem eigenen
