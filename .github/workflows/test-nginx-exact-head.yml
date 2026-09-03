@@ -14,6 +14,9 @@ jobs:
     env:
       EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       MODSECURITY_REPO_URL: https://github.com/owasp-modsecurity/ModSecurity.git
+      ALLOW_RUNTIME_BUILDS: "1"
+      ALLOW_RUNTIME_DOWNLOADS: "1"
+      RUNTIME_COMPONENT_TARGET: nginx
       BUILD_NGINX_FROM_SOURCE: "1"
       NGINX_SOURCE_MODE: github-release
       NGINX_SOURCE_REPO_URL: https://github.com/nginx/nginx

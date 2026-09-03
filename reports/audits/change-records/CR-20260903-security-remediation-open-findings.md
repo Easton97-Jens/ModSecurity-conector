@@ -175,3 +175,15 @@ exact-head runtime workflow (including the hosted NGINX gate), and final PR
 description/Change Record read-back remain pending at the time of this
 entry. No merge, force-push, Framework/MRTS/Gitlink change, or test/workflow
 weakening is authorized or claimed.
+
+### Exact-head NGINX gate retry
+
+The first successor-head hosted NGINX gate reached the real provisioning step
+but exited with its framework-required status `77` before a host build. Its
+workflow had invoked the aggregate runtime-component default, which requires
+unrelated aggregate inputs. The scoped retry explicitly selects
+`RUNTIME_COMPONENT_TARGET=nginx` and grants the existing runtime preparation
+its required build/download capability flags; it neither broadens the target
+nor weakens a control. The updated static gate contracts and `actionlint` pass.
+A new immutable PR head and new hosted run are still required before claiming
+NGINX compile or on/off runtime evidence.

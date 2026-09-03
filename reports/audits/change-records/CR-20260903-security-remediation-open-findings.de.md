@@ -188,3 +188,17 @@ sowie der abschließende Read-back von PR-Beschreibung und Change Record stehen
 zum Zeitpunkt dieses Eintrags noch aus. Es wird weder ein Merge, Force-Push,
 Framework-/MRTS-/Gitlink-Change noch eine Abschwächung von Tests oder
 Workflows autorisiert oder behauptet.
+
+### Wiederholung des Exact-Head-NGINX-Gates
+
+Das erste gehostete NGINX-Gate auf dem Successor-Head erreichte den echten
+Provisioning-Schritt, endete jedoch vor einem Host-Build mit dem vom Framework
+verwendeten Status `77`. Sein Workflow hatte das aggregierte Default für
+Runtime-Komponenten aufgerufen, das nicht benötigte Aggregateingaben verlangt.
+Die begrenzte Wiederholung wählt explizit `RUNTIME_COMPONENT_TARGET=nginx` und
+erteilt der vorhandenen Runtime-Vorbereitung die erforderlichen Build-/Download-
+Capability-Flags; sie erweitert weder das Target noch schwächt sie einen
+Control ab. Die aktualisierten statischen Gate-Contracts und `actionlint`
+bestehen. Ein neuer unveränderlicher PR-Head und ein neuer Hosted-Run sind
+weiterhin erforderlich, bevor NGINX-Compile- oder On/Off-Runtime-Evidenz
+behauptet wird.
