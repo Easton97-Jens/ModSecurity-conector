@@ -88,8 +88,8 @@ typedef struct notify_request {
     char client_ip[64];
     char server_ip[64];
     char method[32];
-    char path[1024];
-    char uri[1024];
+    char path[MSCONNECTOR_MAX_PATH_LENGTH + 1U];
+    char uri[MSCONNECTOR_MAX_PATH_LENGTH + 1U];
     char host[256];
     char test_header[1024];
     unsigned int client_port;
@@ -1125,6 +1125,49 @@ static int read_typed_string_to_buffer(
     return 0;
 }
 
+/* Request targets are security-relevant length-delimited protocol data.  Do
+ * not pass them through the generic truncating string helper: ModSecurity
+ * must see the complete target, or the request must be rejected before a
+ * transaction is started. */
+static int read_typed_target_to_buffer(
+        const unsigned char *data,
+        size_t len,
+        size_t *pos,
+        char *out,
+        size_t out_len,
+        int *present) {
+    size_t value_pos = *pos;
+    unsigned int type;
+    const unsigned char *value;
+    size_t value_len;
+
+    if (*pos >= len) {
+        return -1;
+    }
+    type = data[(*pos)++] & SPOP_DATA_TYPE_MASK;
+    if (type == 0U) {
+        copy_spop_string(out, out_len, (const unsigned char *)"", 0U);
+        *present = 1;
+        return 0;
+    }
+    if (type != SPOP_DATA_STR ||
+            read_string_ref(data, len, pos, &value, &value_len) != 0 ||
+            value_len > MSCONNECTOR_MAX_PATH_LENGTH ||
+            memchr(value, '\0', value_len) != 0) {
+        *pos = value_pos;
+        return -1;
+    }
+    /* out_len is the canonical limit plus its terminator at both call sites. */
+    if (out_len < value_len + 1U) {
+        *pos = value_pos;
+        return -1;
+    }
+    memcpy(out, value, value_len);
+    out[value_len] = '\0';
+    *present = 1;
+    return 0;
+}
+
 /* Correlation identifiers are not display strings: truncating one can make
  * two independent SPOP streams address the same cache slot. Validate the
  * original length-delimited bytes before the C-string copy, so A\0X cannot
@@ -1355,8 +1398,14 @@ static int parse_notify_string_argument(
                     arguments[index].value, arguments[index].value_len,
                     arguments[index].present);
             }
-            return read_typed_string_to_buffer(data, len, pos, arguments[index].value,
-                arguments[index].value_len, arguments[index].present);
+            if (index == 4U || index == 5U) {
+                return read_typed_target_to_buffer(data, len, pos,
+                    arguments[index].value, arguments[index].value_len,
+                    arguments[index].present);
+            }
+            return read_typed_string_to_buffer(data, len, pos,
+                arguments[index].value, arguments[index].value_len,
+                arguments[index].present);
         }
     }
     return 1;
