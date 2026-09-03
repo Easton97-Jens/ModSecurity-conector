@@ -4659,10 +4659,12 @@ typedef struct client_handshake_test {
 } client_handshake_test;
 
 static void sleep_for_test_duration(struct timespec *delay) {
+    int interrupted;
+
     /* Retry only interruption; the requested delay remains the test seam. */
-    while (nanosleep(delay, delay) != 0 && errno == EINTR) {
-        ;
-    }
+    do {
+        interrupted = nanosleep(delay, delay) != 0 && errno == EINTR;
+    } while (interrupted);
 }
 
 static void close_admission_fds(const int *fds, size_t count) {
