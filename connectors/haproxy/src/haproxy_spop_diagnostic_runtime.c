@@ -2253,7 +2253,8 @@ static int config_set_string(agent_config *config, const char *key, const char *
     return 0;
 }
 
-static int config_set_scalar(agent_config *config, const char *key, const char *value) {
+static int config_set_scalar_identity(agent_config *config, const char *key,
+        const char *value) {
     if (strcmp(key, "fail-mode") == 0) {
         if (!valid_fail_mode(value)) {
             return -1;
@@ -2274,6 +2275,11 @@ static int config_set_scalar(agent_config *config, const char *key, const char *
         return parse_bounded_uint_range(value, 0UL, (unsigned long)UINT_MAX,
             &config->expected_status) == 0 ? 1 : -1;
     }
+    return 0;
+}
+
+static int config_set_scalar_limits(agent_config *config, const char *key,
+        const char *value) {
     if (strcmp(key, "request-body-limit") == 0) {
         return parse_bounded_uint(value, MSCONNECTOR_MAX_CONFIG_BODY_BYTES,
             &config->request_body_limit) == 0 ? 1 : -1;
@@ -2305,6 +2311,11 @@ static int config_set_scalar(agent_config *config, const char *key, const char *
         return parse_bounded_uint(value, SPOP_MAX_TRANSACTIONS,
             &config->max_transactions) == 0 ? 1 : -1;
     }
+    return 0;
+}
+
+static int config_set_scalar_flags(agent_config *config, const char *key,
+        const char *value) {
     if (strcmp(key, "debug") == 0) {
         config->debug = strcmp(value, "1") == 0 || strcmp(value, "true") == 0 ||
             strcmp(value, "yes") == 0 || strcmp(value, "on") == 0;
@@ -2318,6 +2329,18 @@ static int config_set_scalar(agent_config *config, const char *key, const char *
         return 1;
     }
     return 0;
+}
+
+static int config_set_scalar(agent_config *config, const char *key, const char *value) {
+    int result = config_set_scalar_identity(config, key, value);
+    if (result != 0) {
+        return result;
+    }
+    result = config_set_scalar_limits(config, key, value);
+    if (result != 0) {
+        return result;
+    }
+    return config_set_scalar_flags(config, key, value);
 }
 
 static int config_set_endpoint(agent_config *config, const char *key, const char *value) {

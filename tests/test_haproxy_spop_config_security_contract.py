@@ -19,9 +19,9 @@ SOURCE = (
 class HaproxySPOPConfigSecurityContractTests(unittest.TestCase):
     def test_fail_mode_is_exact_and_validated_before_configuration_mutation(self):
         start = SOURCE.index("static int valid_fail_mode(")
-        end = SOURCE.index("static int config_set_scalar(", start)
+        end = SOURCE.index("static int config_set_scalar_flags(", start)
         helpers = SOURCE[start:end]
-        scalar_start = SOURCE.index("static int config_set_scalar(")
+        scalar_start = SOURCE.index("static int config_set_scalar_identity(")
         scalar_end = SOURCE.index("static int config_set(", scalar_start)
         scalar = SOURCE[scalar_start:scalar_end]
         config_start = scalar_end
@@ -42,7 +42,7 @@ class HaproxySPOPConfigSecurityContractTests(unittest.TestCase):
         parser_start = SOURCE.index("static int parse_bounded_uint_range(")
         parser_end = SOURCE.index("static int parse_bounded_uint(", parser_start)
         parser = SOURCE[parser_start:parser_end]
-        scalar_start = SOURCE.index("static int config_set_scalar(")
+        scalar_start = SOURCE.index("static int config_set_scalar_identity(")
         scalar_end = SOURCE.index("static int config_set(", scalar_start)
         scalar = SOURCE[scalar_start:scalar_end]
 

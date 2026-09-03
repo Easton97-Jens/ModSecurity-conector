@@ -54,19 +54,27 @@ static int expect_rejected(const char *path)
 
 static int create_permissive_fixture(const char *path)
 {
-    mode_t previous_umask = umask(0022);
     struct stat status;
-    int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0666);
+    int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
     int valid = fd >= 0 && fstat(fd, &status) == 0 &&
         S_ISREG(status.st_mode) && status.st_uid == geteuid() &&
-        (status.st_mode & 0777) == 0644;
+        (status.st_mode & 0777) == 0600;
 
-    (void)umask(previous_umask);
     if (!valid) {
         const int saved_errno = errno;
         if (fd >= 0) {
             (void)close(fd);
         }
+        errno = saved_errno;
+        return 0;
+    }
+    /* Deliberately make the isolated fixture group-readable so the production
+     * opener's mode-repair path is exercised without process-wide umask or a
+     * permissive create mode. */
+    if (fchmod(fd, (status.st_mode & 0777) | S_IRGRP) != 0 ||
+        fstat(fd, &status) != 0 || (status.st_mode & 0777) != 0640) {
+        const int saved_errno = errno;
+        (void)close(fd);
         errno = saved_errno;
         return 0;
     }

@@ -60,7 +60,9 @@ func TestProcessRejectsExcessActiveStreamBeforeTransactionOpenAndReleasesSlot(t 
 	service := newTestServiceWithStreamLimit(t, engine, LateActionSafe, 1)
 
 	firstContext, firstCancelCause := context.WithCancelCause(context.Background())
-	defer firstCancelCause(nil)
+	t.Cleanup(func() {
+		firstCancelCause(nil)
+	})
 	held := newBlockingProcessStream(firstContext)
 	firstResult := make(chan error, 1)
 	go func() {
@@ -883,17 +885,17 @@ func testStreamContext(contextValue context.Context) func() context.Context {
 }
 
 type blockingProcessStream struct {
-	contextValue context.Context
-	delivered    bool
-	waiting      chan struct{}
-	release      chan struct{}
+	contextFactory func() context.Context
+	delivered      bool
+	waiting        chan struct{}
+	release        chan struct{}
 }
 
 func newBlockingProcessStream(contextValue context.Context) *blockingProcessStream {
 	return &blockingProcessStream{
-		contextValue: contextValue,
-		waiting:      make(chan struct{}),
-		release:      make(chan struct{}),
+		contextFactory: func() context.Context { return contextValue },
+		waiting:        make(chan struct{}),
+		release:        make(chan struct{}),
 	}
 }
 
@@ -905,18 +907,19 @@ func (stream *blockingProcessStream) Recv() (*extprocv3.ProcessingRequest, error
 		return requestHeaders(false), nil
 	}
 	close(stream.waiting)
+	contextValue := stream.Context()
 	select {
 	case <-stream.release:
 		return nil, io.EOF
-	case <-stream.contextValue.Done():
-		return nil, stream.contextValue.Err()
+	case <-contextValue.Done():
+		return nil, contextValue.Err()
 	}
 }
 
 func (stream *blockingProcessStream) SetHeader(metadata.MD) error  { return nil }
 func (stream *blockingProcessStream) SendHeader(metadata.MD) error { return nil }
 func (stream *blockingProcessStream) SetTrailer(metadata.MD)       {}
-func (stream *blockingProcessStream) Context() context.Context     { return stream.contextValue }
+func (stream *blockingProcessStream) Context() context.Context     { return stream.contextFactory() }
 func (stream *blockingProcessStream) SendMsg(any) error            { return nil }
 func (stream *blockingProcessStream) RecvMsg(any) error            { return nil }
 

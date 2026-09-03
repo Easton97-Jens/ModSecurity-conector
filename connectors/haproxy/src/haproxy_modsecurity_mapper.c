@@ -40,12 +40,10 @@ static int haproxy_header_token_char(unsigned char ch) {
 }
 
 static int haproxy_header_name_is(const char *name, const char *expected) {
-    size_t index;
-
     if (name == 0 || expected == 0 || strlen(name) != strlen(expected)) {
         return 0;
     }
-    for (index = 0U; expected[index] != '\0'; ++index) {
+    for (size_t index = 0U; expected[index] != '\0'; ++index) {
         if (haproxy_ascii_lower((unsigned char)name[index]) !=
                 haproxy_ascii_lower((unsigned char)expected[index])) {
             return 0;
@@ -55,12 +53,10 @@ static int haproxy_header_name_is(const char *name, const char *expected) {
 }
 
 static int haproxy_header_name_valid(const char *name) {
-    size_t index;
-
     if (name == 0 || name[0] == '\0') {
         return 0;
     }
-    for (index = 0U; name[index] != '\0'; ++index) {
+    for (size_t index = 0U; name[index] != '\0'; ++index) {
         if (!haproxy_header_token_char((unsigned char)name[index])) {
             return 0;
         }
@@ -69,12 +65,10 @@ static int haproxy_header_name_valid(const char *name) {
 }
 
 static int haproxy_header_value_valid(const char *value) {
-    size_t index;
-
     if (value == 0) {
         return 0;
     }
-    for (index = 0U; value[index] != '\0'; ++index) {
+    for (size_t index = 0U; value[index] != '\0'; ++index) {
         unsigned char ch = (unsigned char)value[index];
         if ((ch < 32U && ch != 9U) || ch == 127U) {
             return 0;
@@ -120,7 +114,6 @@ static int haproxy_validate_source_headers(
     unsigned int host_count = 0U;
     unsigned int content_length_count = 0U;
     unsigned int transfer_encoding_count = 0U;
-    unsigned int index;
     size_t total_bytes = 0U;
 
     if (header_count > MSCONNECTOR_MAX_HEADER_COUNT ||
@@ -128,7 +121,7 @@ static int haproxy_validate_source_headers(
         haproxy_mapper_error(error, error_len, "invalid or excessive header count");
         return 0;
     }
-    for (index = 0U; index < header_count; ++index) {
+    for (unsigned int index = 0U; index < header_count; ++index) {
         const char *name = headers[index].name;
         const char *value = headers[index].value;
         size_t name_size = haproxy_cstr_size(name);

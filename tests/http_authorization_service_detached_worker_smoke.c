@@ -146,12 +146,18 @@ void msconnector_runtime_destroy(msconnector_runtime **runtime) {
 int msconnector_runtime_set_event_integration_mode(
     msconnector_runtime *runtime,
     const char *integration_mode) {
+    if (runtime != NULL) {
+        runtime->placeholder = integration_mode == NULL ? 0 : 1;
+    }
     return runtime != NULL && integration_mode != NULL;
 }
 
 int msconnector_runtime_set_transaction_profile(
     msconnector_runtime *runtime,
     const msconnector_transaction_profile *profile) {
+    if (runtime != NULL) {
+        runtime->placeholder = profile == NULL ? 0 : 1;
+    }
     return runtime != NULL && profile != NULL;
 }
 
@@ -200,6 +206,7 @@ int msconnector_runtime_transaction_begin(
         pthread_mutex_lock(&test_lock) != 0) {
         return 0;
     }
+    runtime->placeholder = 1;
     runtime_entered = 1;
     (void)pthread_cond_broadcast(&test_changed);
     while (runtime_release == 0) {

@@ -467,7 +467,7 @@ int main(void)
         self.assertIn(
             "config->spoe_timeout_ms = SPOP_LEGACY_TIMEOUT_MS;", source
         )
-        scalar_start = source.index("static int config_set_scalar(")
+        scalar_start = source.index("static int config_set_scalar_identity(")
         scalar_end = source.index("static int config_set_endpoint(", scalar_start)
         scalar = source[scalar_start:scalar_end]
         self.assertIn(

@@ -1870,18 +1870,17 @@ static int serve_authorization(
     if (authorization_stop || service_status != 0) {
         authorization_shutdown_workers(service);
     }
-    if (!authorization_wait_for_workers(service, cli->connection_timeout_ms)) {
-        /* A socket shutdown cannot interrupt an uninterruptible call into
-         * libmodsecurity.  Give workers one bounded grace period, then close
-         * their sockets and wait once more.  If a worker still owns the
-         * runtime, leave the service/runtime allocated and return: the main
-         * process exits with a defined failure status instead of creating a
-         * use-after-free by destroying objects still referenced by a worker.
-         */
-        if (authorization_handle_worker_timeout(service, profile,
-                cli->connection_timeout_ms)) {
-            return 1;
-        }
+    /* A socket shutdown cannot interrupt an uninterruptible call into
+     * libmodsecurity.  Give workers one bounded grace period, then close
+     * their sockets and wait once more.  If a worker still owns the
+     * runtime, leave the service/runtime allocated and return: the main
+     * process exits with a defined failure status instead of creating a
+     * use-after-free by destroying objects still referenced by a worker.
+     */
+    if (!authorization_wait_for_workers(service, cli->connection_timeout_ms) &&
+        authorization_handle_worker_timeout(service, profile,
+            cli->connection_timeout_ms)) {
+        return 1;
     }
     if (!authorization_shutdown_response_companion(profile)) {
         (void)fprintf(stderr, "%s response companion did not quiesce; refusing runtime destruction\n",
