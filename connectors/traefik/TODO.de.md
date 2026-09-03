@@ -82,6 +82,9 @@ Globale Gate-Definitionen sind in `docs/connectors/README.md` und
       `maxBodySize` gesetzt sind. Der eingecheckte Pfad aktiviert beides mit
       4096 Bytes, verlangt `request_body_mode=buffered`, und das Start-Harness
       lehnt Templates ohne diese Einstellungen ab.
+      `request_body_mode=none` bleibt ausschließlich für den Legacy-
+      Kompatibilitätspfad ohne Request-Body erhalten und kann den ausgewählten
+      gepufferten Pfad nicht beschreiben.
 - [ ] Frische echte Host-Evidence für P2-Allow/Denial und Übergrößen promotet
       die konfigurierte P2-Fähigkeit.
 - [x] Upstream-Response-Headers und -Bodies für `forwardAuth` als

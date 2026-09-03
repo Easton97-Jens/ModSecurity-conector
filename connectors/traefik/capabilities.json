@@ -27,7 +27,7 @@
       "P4": "same observer maps bounded response chunks and exactly one EOS through MRC1"
     },
     "correlation": "server-generated 256-bit opaque handle; one claim; transaction and host IDs remain internal",
-    "failure_behavior": "missing observer, malformed/replayed handle, MRC1 error, deadline, or cleanup failure is fail-closed",
+    "failure_behavior": "within the checked-in forwardAuth-to-response-observer chain, malformed/replayed handle, MRC1 error, deadline, or cleanup failure is fail-closed; omitting or reordering the observer is an out-of-profile deployment change that requires separate P3/P4 validation",
     "evidence": [
       "connectors/traefik/src/traefik_forwardauth_service_main.c",
       "connectors/traefik/config/traefik-forwardauth-dynamic.yaml",
@@ -66,7 +66,7 @@
     "Traefik documents that forwardBody buffering breaks streaming, so streaming request-body inspection is outside this host path.",
     "The authorization service currently sees the Traefik-to-service socket endpoints and does not map original client connection endpoints into Common connection metadata.",
     "The full-lifecycle profile separately selects native-middleware through full-lifecycle-traefik-native in a pinned Traefik local-plugin host probe. Its selected UDS engine service performs Common/libmodsecurity evaluation, while this forwardAuth compatibility declaration remains separate and unpromoted.",
-    "The opaque response handle is propagated only from forwardAuth to the following local response observer and is removed before the upstream handler; missing observer or correlation is fail-closed."
+    "In the checked-in profile, forwardAuth propagates the opaque response handle only to the following local response observer, which removes it before the upstream handler. The static source contract requires that chain; an operator who omits or reorders the observer is outside this profile and must validate P3/P4 separately."
   ],
   "capabilities": {
     "connection_metadata": {

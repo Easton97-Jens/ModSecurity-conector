@@ -10,6 +10,14 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260903-no-crs-doc-consistency-repair](CR-20260903-no-crs-doc-consistency-repair.md)
+  | [Deutsch](CR-20260903-no-crs-doc-consistency-repair.de.md) — the current
+  user authorized this Parent-only repair of the reproduced Traefik No-CRS
+  documentation/capability-catalog consistency failure in a dedicated
+  worktree and a normal PR. It preserves the bounded, unpromoted P2 state and
+  unsupported request-body streaming; no Framework/MRTS source, Gitlink,
+  workflow-permission, Sonar control, or merge change is asserted.
+
 - [CR-20260902-nginx-workflow-contract-repair](CR-20260902-nginx-workflow-contract-repair.md)
   | [Deutsch](CR-20260902-nginx-workflow-contract-repair.de.md) — the current
   user authorized this Parent-only repair of one reproduced NGINX
