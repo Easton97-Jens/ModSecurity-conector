@@ -66,6 +66,23 @@ func serveNoContentRequest(t *testing.T, request *http.Request) (*recordingTrans
 	return transaction, response
 }
 
+func assertNoContentRequestForwardsHost(t *testing.T, request *http.Request, wantHost string) {
+	t.Helper()
+	transaction, response := serveNoContentRequest(t, request)
+	if got, want := response.Code, http.StatusNoContent; got != want {
+		t.Fatalf("status = %d, want %d", got, want)
+	}
+	var hosts []string
+	for _, header := range requestHeaderValues(transaction) {
+		if strings.EqualFold(header.Name, "Host") {
+			hosts = append(hosts, header.Value)
+		}
+	}
+	if got, want := hosts, []string{wantHost}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("forwarded Host values = %#v, want %#v", got, want)
+	}
+}
+
 func serveRejectedRequest(t *testing.T, request *http.Request) *recordingTransaction {
 	t.Helper()
 	transaction := &recordingTransaction{}
@@ -106,20 +123,7 @@ func TestMiddlewareForwardsRequestAuthorityAsHostHeader(t *testing.T) {
 		t.Fatal("httptest request unexpectedly stored authority in Header")
 	}
 
-	transaction, response := serveNoContentRequest(t, request)
-
-	if got, want := response.Code, http.StatusNoContent; got != want {
-		t.Fatalf("status = %d, want %d", got, want)
-	}
-	var hosts []string
-	for _, header := range requestHeaderValues(transaction) {
-		if strings.EqualFold(header.Name, "Host") {
-			hosts = append(hosts, header.Value)
-		}
-	}
-	if got, want := hosts, []string{"authority.example:8443"}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("forwarded Host values = %#v, want %#v", got, want)
-	}
+	assertNoContentRequestForwardsHost(t, request, "authority.example:8443")
 }
 
 func TestMiddlewareRejectsConflictingHostHeaderBeforeEngine(t *testing.T) {
@@ -146,20 +150,7 @@ func TestMiddlewareAcceptsMatchingHostHeaderWithoutAuthorityDuplicate(t *testing
 	request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
 	request.Host = "authority.example"
 	request.Header.Set("Host", "authority.example")
-	transaction, response := serveNoContentRequest(t, request)
-
-	if got, want := response.Code, http.StatusNoContent; got != want {
-		t.Fatalf("status = %d, want %d", got, want)
-	}
-	var hosts []string
-	for _, header := range requestHeaderValues(transaction) {
-		if strings.EqualFold(header.Name, "Host") {
-			hosts = append(hosts, header.Value)
-		}
-	}
-	if got, want := hosts, []string{"authority.example"}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("forwarded Host values = %#v, want %#v", got, want)
-	}
+	assertNoContentRequestForwardsHost(t, request, "authority.example")
 }
 
 func TestMiddlewareRejectsInvalidAuthorityBeforeEngineHeaders(t *testing.T) {
