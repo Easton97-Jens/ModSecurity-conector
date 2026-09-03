@@ -11,6 +11,19 @@ static uint64_t hash_bytes_continue(uint64_t hash, const unsigned char *data, si
     return hash;
 }
 static uint64_t hash_string_continue(uint64_t hash, const char *value) { return value == 0 ? hash_bytes_continue(hash, (const unsigned char *)"", 1U) : hash_bytes_continue(hash, (const unsigned char *)value, strlen(value) + 1U); }
+static uint64_t hash_safe_uri_continue(uint64_t hash, const char *uri) {
+    const char *query;
+    static const char replacement[] = MSCONNECTOR_EVENT_URI_REDACTION;
+    if (!msconnector_event_uri_query_redacted(uri)) {
+        return hash_string_continue(hash, uri);
+    }
+    query = strchr(uri, '?');
+    hash = hash_bytes_continue(hash, (const unsigned char *)uri,
+        (size_t)(query - uri) + 1U);
+    hash = hash_bytes_continue(hash, (const unsigned char *)replacement,
+        sizeof(replacement) - 1U);
+    return hash_bytes_continue(hash, (const unsigned char *)"", 1U);
+}
 static uint64_t hash_int_continue(uint64_t hash, int value) { return hash_bytes_continue(hash, (const unsigned char *)&value, sizeof(value)); }
 
 static int is_nonreversible_quic_connection_id(const char *value) {
@@ -106,7 +119,7 @@ uint64_t msconnector_integrity_event_hash(const msconnector_event *event, uint64
     hash = hash_int_continue(hash, event->protocol.fallback_used);
     hash = hash_int_continue(hash, event->protocol.stream_reset);
     hash = hash_string_continue(hash, event->request.method);
-    hash = hash_string_continue(hash, event->request.uri);
+    hash = hash_safe_uri_continue(hash, event->request.uri);
     hash = hash_string_continue(hash, event->request.client_ip);
     hash = hash_string_continue(hash, event->body.content_type);
     hash = hash_string_continue(hash, event->body.limit_outcome);
@@ -126,7 +139,8 @@ uint64_t msconnector_integrity_event_hash(const msconnector_event *event, uint64
     hash = hash_int_continue(hash, event->flags.upstream_disconnected);
     hash = hash_int_continue(hash, event->flags.cancelled);
     hash = hash_int_continue(hash, event->flags.eos_seen);
-    hash = hash_int_continue(hash, event->flags.redacted);
+    hash = hash_int_continue(hash, event->flags.redacted != 0 ||
+        msconnector_event_uri_query_redacted(event->request.uri));
     hash = hash_int_continue(hash, event->flags.truncated);
     hash = hash_string_continue(hash, event->flags.timeout_stage);
     hash = hash_string_continue(hash, event->flags.write_result);

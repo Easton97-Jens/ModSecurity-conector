@@ -213,6 +213,59 @@ static void escape_field(const char *src, char *dst, size_t dst_size, int *trunc
     }
 }
 
+int msconnector_event_uri_query_redacted(const char *uri) {
+    const char *query;
+    if (uri == NULL) {
+        return 0;
+    }
+    query = strchr(uri, '?');
+    return query != NULL && query[1] != '\0';
+}
+
+int msconnector_event_uri_redact_query(const char *uri, char *dst, size_t dst_size) {
+    static const char replacement[] = MSCONNECTOR_EVENT_URI_REDACTION;
+    const char *query;
+    size_t length;
+    size_t safe_length;
+    size_t copied;
+    int redacted;
+
+    if (dst != NULL && dst_size > 0U) {
+        dst[0] = '\0';
+    }
+    if (uri == NULL) {
+        return 0;
+    }
+    query = strchr(uri, '?');
+    redacted = query != NULL && query[1] != '\0';
+    length = strlen(uri);
+    safe_length = redacted
+        ? (size_t)(query - uri) + 1U + sizeof(replacement) - 1U
+        : length;
+    if (dst == NULL || dst_size == 0U) {
+        return redacted;
+    }
+    copied = safe_length < dst_size - 1U ? safe_length : dst_size - 1U;
+    if (redacted) {
+        const size_t prefix_length = (size_t)(query - uri) + 1U;
+        const size_t prefix_copied = prefix_length < copied ? prefix_length : copied;
+        memmove(dst, uri, prefix_copied);
+        if (prefix_copied < copied) {
+            const size_t replacement_copied = copied - prefix_copied;
+            memcpy(dst + prefix_copied, replacement, replacement_copied);
+        }
+    } else {
+        memmove(dst, uri, copied);
+    }
+    dst[copied] = '\0';
+    return redacted;
+}
+
+static int event_redacted_for_serialization(const msconnector_event *event) {
+    return event->flags.redacted != 0 ||
+        msconnector_event_uri_query_redacted(event->request.uri);
+}
+
 static int append_protocol_string(
     char *dst,
     size_t dst_size,
@@ -588,6 +641,7 @@ int msconnector_event_write_json_ex(
     char reason[EVENT_TEXT_SIZE];
     char method[64];
     char uri[EVENT_TEXT_SIZE];
+    char safe_uri[EVENT_TEXT_SIZE];
     char client_ip[64];
     char content_type[EVENT_TEXT_SIZE];
     char body_limit_outcome[EVENT_TEXT_SIZE];
@@ -666,7 +720,8 @@ int msconnector_event_write_json_ex(
     escape_field(event->decision.rule_id, rule_id, sizeof(rule_id), &was_truncated);
     escape_field(event->decision.reason, reason, sizeof(reason), &was_truncated);
     escape_field(event->request.method, method, sizeof(method), &was_truncated);
-    escape_field(event->request.uri, uri, sizeof(uri), &was_truncated);
+    (void)msconnector_event_uri_redact_query(event->request.uri, safe_uri, sizeof(safe_uri));
+    escape_field(safe_uri, uri, sizeof(uri), &was_truncated);
     escape_field(event->request.client_ip, client_ip, sizeof(client_ip), &was_truncated);
     escape_field(event->body.content_type, content_type, sizeof(content_type), &was_truncated);
     escape_field(event->body.limit_outcome, body_limit_outcome,
@@ -783,7 +838,7 @@ int msconnector_event_write_json_ex(
     parts.flags[EVENT_JSON_UPSTREAM_DISCONNECTED] = json_bool(event->flags.upstream_disconnected);
     parts.flags[EVENT_JSON_CANCELLED] = json_bool(event->flags.cancelled);
     parts.flags[EVENT_JSON_EOS_SEEN] = json_bool(event->flags.eos_seen);
-    parts.flags[EVENT_JSON_REDACTED] = json_bool(event->flags.redacted);
+    parts.flags[EVENT_JSON_REDACTED] = json_bool(event_redacted_for_serialization(event));
     parts.flags[EVENT_JSON_TRUNCATED] = json_bool(was_truncated);
     parts.flags[EVENT_JSON_CONNECTION_REUSED] = json_bool(event->protocol.connection_reused);
     parts.flags[EVENT_JSON_QUIC_CONNECTION_ID_PRESENT] = json_bool(
