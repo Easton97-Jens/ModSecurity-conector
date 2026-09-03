@@ -4,6 +4,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "common" / "runtime" / "http_authorization_service.c"
+COMPANION_FIXTURE = ROOT / "tests" / "http_authorization_service_response_companion_lifecycle_smoke.c"
 
 
 class HttpAuthorizationServiceWorkerContractTests(unittest.TestCase):
@@ -52,8 +53,9 @@ class HttpAuthorizationServiceWorkerContractTests(unittest.TestCase):
 
     def test_deferred_cleanup_releases_only_profiles_without_a_companion(self) -> None:
         deferred_path = self.source.split(
-            "if (authorization_defer_cleanup(service) != 0) {", 1
-        )[1].split("if (!authorization_shutdown_response_companion(profile)) {", 1)[0]
+            "static int authorization_defer_uninterruptible_worker(", 1
+        )[1].split("static authorization_listener_iteration", 1)[0]
+        self.assertIn("authorization_defer_cleanup(service) == 0", deferred_path)
         self.assertIn("profile->shutdown_response_companion == NULL", deferred_path)
         self.assertIn(
             "authorization_mark_response_companion_quiesced(service)", deferred_path
@@ -77,6 +79,16 @@ class HttpAuthorizationServiceWorkerContractTests(unittest.TestCase):
 
     def test_existing_sigpipe_control_remains_active(self) -> None:
         self.assertIn("signal(SIGPIPE, SIG_IGN)", self.source)
+
+    def test_response_companion_fixture_exercises_live_handoff_and_quarantine(self) -> None:
+        fixture = COMPANION_FIXTURE.read_text(encoding="utf-8")
+        self.assertIn("msconnector_http_authorization_service_main", fixture)
+        self.assertIn("companion_handoff", fixture)
+        self.assertIn("companion_shutdown", fixture)
+        self.assertIn("companion_has_retained_transaction", fixture)
+        self.assertIn("test_failed_companion_quarantines_service", fixture)
+        self.assertIn("test_concurrent_owner_worker_release", fixture)
+        self.assertIn("test_no_companion_deferred_release", fixture)
 
 
 if __name__ == "__main__":

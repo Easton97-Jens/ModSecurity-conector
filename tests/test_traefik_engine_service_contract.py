@@ -25,15 +25,18 @@ class TraefikEngineServiceContractTest(unittest.TestCase):
 
     def test_poll_terminal_events_are_errors_for_both_directions(self):
         terminal_events = "(POLLERR | POLLHUP | POLLNVAL)"
-        self.assertGreaterEqual(SOURCE.count(terminal_events), 2)
+        wait_start = SOURCE.index("static int traefik_engine_wait_for_socket_event")
         send_start = SOURCE.index("static int traefik_engine_send_deadline")
         receive_start = SOURCE.index("static int traefik_engine_receive_all")
+        wait_path = SOURCE[wait_start:send_start]
         send_path = SOURCE[send_start:receive_start]
         receive_end = SOURCE.index("static void traefik_engine_frame_reset", receive_start)
         receive_path = SOURCE[receive_start:receive_end]
-        self.assertIn(terminal_events, send_path)
+        self.assertIn(terminal_events, wait_path)
+        self.assertIn("traefik_engine_deadline_remaining_milliseconds", wait_path)
+        self.assertIn("traefik_engine_wait_for_socket_event(socket_fd, POLLOUT", send_path)
         self.assertIn("return 0;", send_path)
-        self.assertIn(terminal_events, receive_path)
+        self.assertIn("traefik_engine_wait_for_socket_event(socket_fd, POLLIN", receive_path)
         self.assertIn("return -1;", receive_path)
 
     def test_shutdown_defers_service_finalization_until_workers_are_idle(self):
@@ -41,6 +44,22 @@ class TraefikEngineServiceContractTest(unittest.TestCase):
         self.assertIn("service->cleanup_pending = 1", SOURCE)
         self.assertIn("traefik_engine_finalize_service(service)", SOURCE)
         self.assertIn("service->cleanup_pending && service->worker_count == 0U", SOURCE)
+
+    def test_worker_slot_close_and_invalidation_share_the_worker_lock(self):
+        worker_start = SOURCE.index("static void *traefik_engine_worker(")
+        worker_end = SOURCE.index("typedef enum traefik_engine_worker_start_result", worker_start)
+        worker = SOURCE[worker_start:worker_end]
+        lock = worker.index("pthread_mutex_lock(&service->worker_lock)")
+        close = worker.index("(void)close(socket_fd);")
+        invalidate_fd = worker.index("slot->socket_fd = -1;")
+        invalidate_use = worker.index("slot->in_use = 0;")
+        self.assertLess(lock, close)
+        self.assertLess(close, invalidate_fd)
+        self.assertLess(invalidate_fd, invalidate_use)
+        shutdown_start = SOURCE.index("static void traefik_engine_shutdown_active_workers_locked")
+        shutdown_end = SOURCE.index("static void traefik_engine_wait_for_workers", shutdown_start)
+        shutdown = SOURCE[shutdown_start:shutdown_end]
+        self.assertIn("socket_fd >= 0", shutdown)
 
     def test_admission_reports_capacity_without_a_racy_recheck(self):
         self.assertIn("TRAEFIK_ENGINE_WORKER_CAPACITY = 0", SOURCE)

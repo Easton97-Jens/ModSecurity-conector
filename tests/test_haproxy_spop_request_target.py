@@ -8,6 +8,10 @@ SOURCE = (
     Path(__file__).resolve().parents[1]
     / "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c"
 ).read_text(encoding="utf-8")
+HARNESS = (
+    Path(__file__).resolve().parents[1]
+    / "tests/haproxy_spop_request_target_test.c"
+).read_text(encoding="utf-8")
 
 
 def test_targets_use_canonical_storage_and_target_specific_validation() -> None:
@@ -38,13 +42,14 @@ def test_path_and_uri_route_through_target_parser_without_changing_generic_copy(
     assert "copy_len = out_len - 1U;" in generic
 
 
-def test_target_boundaries_and_embedded_nul_are_explicitly_covered() -> None:
-    # These values document the protocol boundary cases exercised by the
-    # target helper: 1023/1024 expose the old truncation edge, while the
-    # canonical maximum remains valid and the following byte is retained.
-    for length in (1023, 1024, 4096):
-        assert f"value_len > MSCONNECTOR_MAX_PATH_LENGTH" in SOURCE
-        assert length <= 4096
+def test_executable_harness_covers_1023_and_post_1023_mapper_marker() -> None:
+    assert 'assert_lossless("path", 1023)' in HARNESS
+    assert 'assert_lossless("uri", 1023)' in HARNESS
+    assert 'assert_marker_reaches_mapper("path")' in HARNESS
+    assert 'assert_marker_reaches_mapper("uri")' in HARNESS
+    assert "value[1023U] = 'Z';" in HARNESS
+    assert "build_modsecurity_request_from_notify" in HARNESS
+    assert "mapped.uri[1023U] != 'Z'" in HARNESS
     assert "memchr(value, '\\0', value_len)" in SOURCE
 
 

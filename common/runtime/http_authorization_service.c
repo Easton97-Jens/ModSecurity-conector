@@ -1461,6 +1461,24 @@ static int authorization_shutdown_response_companion(
         profile->response_companion_userdata, &error);
 }
 
+static int authorization_defer_uninterruptible_worker(
+    authorization_service *service,
+    const msconnector_http_authorization_profile *profile)
+{
+    if (authorization_defer_cleanup(service) == 0) {
+        return 0;
+    }
+    /* A profile without a response companion cannot have handed a transaction
+     * to an external observer. Its final worker may release after returning
+     * from an uninterruptible runtime call. Configured companions remain
+     * quarantined until their shutdown callback has quiesced successfully. */
+    if (profile->shutdown_response_companion == NULL &&
+        authorization_mark_response_companion_quiesced(service) > 0) {
+        authorization_service_release(service);
+    }
+    return 1;
+}
+
 static authorization_listener_iteration authorization_wait_for_listener(
     int listener,
     const char *connector_name) {
@@ -1620,17 +1638,7 @@ static int serve_authorization(
         if (!authorization_wait_for_workers(service, cli->connection_timeout_ms)) {
             (void)fprintf(stderr, "%s worker shutdown did not complete; runtime call may be uninterruptible\n",
                 profile->connector_name);
-            if (authorization_defer_cleanup(service) != 0) {
-                /* A profile without a response companion cannot have handed a
-                 * transaction to an external observer.  Its final worker may
-                 * therefore release the service after it returns from an
-                 * uninterruptible runtime call.  Profiles with a companion
-                 * remain quarantined: its shutdown callback is only valid
-                 * after both workers and the observer have quiesced. */
-                if (profile->shutdown_response_companion == NULL &&
-                    authorization_mark_response_companion_quiesced(service) > 0) {
-                    authorization_service_release(service);
-                }
+            if (authorization_defer_uninterruptible_worker(service, profile)) {
                 return 1;
             }
         }

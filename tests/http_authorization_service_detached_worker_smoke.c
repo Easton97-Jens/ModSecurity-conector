@@ -48,7 +48,7 @@ static int runtime_entered = 0;
 static int runtime_release = 0;
 static int runtime_destroyed = 0;
 
-static int wait_for_flag(int *flag) {
+static int wait_for_flag(const int *flag) {
     struct timespec deadline;
     int result = 0;
     if (clock_gettime(CLOCK_REALTIME, &deadline) != 0 ||

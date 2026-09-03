@@ -117,3 +117,74 @@ committed und aus Task-Branch und Draft PR zurückgelesen ist. Der aktuelle
 Benutzer autorisiert nur einen normalen Task-Branch-Push und Draft PR; Merge,
 Force-Push, Rebase veröffentlichten Works und Default-Branch-Writes bleiben
 nicht autorisiert.
+
+## Review-Remediation-Follow-up für Draft PR #354 vom 2026-09-03
+
+Dieses Follow-up dokumentiert den angeforderten Review-Durchlauf gegen den
+Ausgangs-HEAD
+`c44dd04a16cb698584c023e2f81521e07f5c3fb2`. Es behauptet ausdrücklich nicht,
+dass der Nachfolge-HEAD bereits gepusht wurde oder Hosted-Checks abgeschlossen
+sind.
+
+Die eingegrenzte Remediation und Evidence umfasst:
+
+- RR1 erweitert den Common-Helper zur URI-Query-Redaktion für JSONL um eine
+  explizite Truncation-Ausgabe. Der Serializer kombiniert Redaktion und
+  Kürzung im sicheren Buffer nun korrekt, einschließlich teilweise gekürzter
+  `<redacted>`-Marker, in JSON und JSONL. Tests decken lange Pfade mit und ohne
+  Query, das Fehlen von Canary-Daten, `redacted=true`, `truncated=true`,
+  unveränderte rohe WAF-URIs und konsistente Integrity-Repräsentation ab.
+- RR2/RR4 machen Traefik-Slot-Invalidierung und Descriptor-Schließen zu einer
+  gemeinsamen gesperrten Ownership-Operation, schützen Shutdown mit
+  `socket_fd >= 0` und ergänzen einen kontrollierten Descriptor-Reuse-/Shutdown-
+  Race-Test sowie dynamische `max_workers=2`-Nachweise für Aufnahme,
+  Slot-Wiederverwendung, Rollback bei Create-Fehlern und langsame/nicht lesende
+  Peers.
+- RR3 ergänzt ausführbare HAProxy-Parser-/Mapper-Fälle exakt bei 1023 Bytes
+  und setzt einen harmlosen Marker ausschließlich hinter Byte 1023. Damit wird
+  die vollständige Boundary-Erreichbarkeit oder eine ausdrückliche Ablehnung
+  nachgewiesen, statt nur eine statische Python-Längenschleife zu verwenden.
+- RR5 ergänzt ein dynamisches Live-Response-Companion-Fixture für Quieszenz,
+  fehlgeschlagenen Shutdown, exakt einmaligen Release nach Worker-Drain,
+  konkurrierenden Owner-/Worker-Release sowie den weiterhin funktionierenden
+  No-Companion-Deferred-Pfad. FND-PARENT-1013 bleibt bis zur frischen
+  Exact-Head-Evidence `fixed, verification pending`.
+- Der erste Hosted-Lighttpd-Lauf zeigte eine veraltete Harness-Erwartung für
+  JSONL mit Query in der rohen URI. Die eingegrenzte Korrektur korreliert das
+  sichere redigierte Event über die Response-Transaction-ID und bewahrt rohe
+  Wire- und CRS-Evidence.
+- Lokale NGINX-Header/-Quellen sind nicht verfügbar. Deshalb ist ein klar
+  benanntes `Exact-Head-Hosted`-NGINX-Gate für Kompilierung gegen unterstützte
+  Header und einen isolierten `modsecurity_use_error_log`-on/off-Runtime-
+  Nachweis erforderlich; ein lokales Host-Ergebnis wird nicht behauptet.
+
+### SonarQube Cloud: zwölf PR-neue Issues einzeln triagiert
+
+Die zwölf für PR #354 gemeldeten Issues wurden am Ausgangs-HEAD einzeln wie
+folgt triagiert. Neun werden durch Wartbarkeits-Refactorings oder
+Const-Korrekturen behoben; drei öffentliche Test-Stub-Befunde sind fachlich
+begründete Nichtprobleme, weil ihre Signaturen zur Produktions-Header-ABI
+passen müssen. Es wurden weder `NOSONAR`, Regel-Ausschlüsse,
+Schwellenwertänderungen noch eine Quality-Gate-Abschwächung verwendet.
+
+| # | Sonar-Key / Regel | Ort/Issue | Disposition |
+|---:|---|---|---|
+| 1 | `AaBnPLiUQISHK43ZVdjk` / c:S134 | `common/runtime/http_authorization_service.c` — verschachtelter Deferred-Worker-Ablauf | In einen fokussierten Helper refaktoriert. |
+| 2 | `AaBnPLYKQISHK43ZVdjZ` / c:S995 | `tests/http_authorization_service_detached_worker_smoke.c` — Flag-Parameter | Durch Const-Pointer für das Wait-Flag behoben. |
+| 3 | `AaBnPLYKQISHK43ZVdja` / c:S995 | Öffentlicher Authorization-Test-Runtime-Stub — Parameter-Constness | Nichtproblem: Produktions-Header-ABI erfordert die nicht-const Signatur. |
+| 4 | `AaBnPLYKQISHK43ZVdjb` / c:S995 | Öffentlicher Authorization-Test-Runtime-Stub — Parameter-Constness | Nichtproblem: Produktions-Header-ABI erfordert die nicht-const Signatur. |
+| 5 | `AaBnPLYKQISHK43ZVdjc` / c:S995 | Öffentlicher Authorization-Test-Runtime-Stub — Parameter-Constness | Nichtproblem: Produktions-Header-ABI erfordert die nicht-const Signatur. |
+| 6 | `AaBnPLhlQISHK43ZVdjd` / c:S3776 | Traefik-Send-Deadline | Deadline-/Poll-Logik in begrenzte Helper refaktoriert. |
+| 7 | `AaBnPLhlQISHK43ZVdje` / c:S134 | Traefik-Send-Pfad — verschachtelter Kontrollfluss | Durch den fokussierten Send-/Wait-Helper-Refactor entfernt. |
+| 8 | `AaBnPLhlQISHK43ZVdjf` / c:S134 | Traefik-Send-Pfad — verschachtelter Kontrollfluss | Durch denselben fokussierten Send-/Wait-Helper-Refactor entfernt. |
+| 9 | `AaBnPLhlQISHK43ZVdjg` / c:S3776 | Traefik-Receive-Schleife | In gemeinsame begrenzte Wait-/Deadline-Helper refaktoriert. |
+| 10 | `AaBnPLhlQISHK43ZVdjh` / c:S995 | Traefik-Shutdown-Helper-Service-Parameter | Durch einen const Service-Parameter behoben. |
+| 11 | `AaBnPLhlQISHK43ZVdji` / c:S3776 | Traefik-Serve-Orchestrierung | Lifecycle-Setup, Runtime-Konfiguration, Handler und Abschluss aufgeteilt. |
+| 12 | `AaBnPLhlQISHK43ZVdjj` / c:S3776 | Traefik-CLI-Parsing | Switch-/Value-Parsing aufgeteilt und fail-closed Validierung beibehalten. |
+
+Der Nachfolge-Commit, GitHub-Read-back, die frische Sonar-Analyse, der
+vollständige Exact-Head-Runtime-Workflow einschließlich Hosted-NGINX-Gate
+sowie der abschließende Read-back von PR-Beschreibung und Change Record stehen
+zum Zeitpunkt dieses Eintrags noch aus. Es wird weder ein Merge, Force-Push,
+Framework-/MRTS-/Gitlink-Change noch eine Abschwächung von Tests oder
+Workflows autorisiert oder behauptet.

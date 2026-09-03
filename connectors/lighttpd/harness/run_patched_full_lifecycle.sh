@@ -1126,6 +1126,7 @@ def observed(uri, request_id, response_transaction_id):
         and event.get("actual_action") == "deny"
         and isinstance(event.get("transaction_id"), str)
         and bool(event["transaction_id"])
+        and event.get("transaction_id") == response_transaction_id
     ]
     if len(matches) != 1:
         raise SystemExit(

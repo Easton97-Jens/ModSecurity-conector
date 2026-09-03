@@ -211,6 +211,12 @@ int msconnector_event_write_json(const msconnector_event *event, char *dst, size
 int msconnector_event_uri_query_redacted(const char *uri);
 /* Copy a URI's safe serialized representation without decoding or re-encoding it. */
 int msconnector_event_uri_redact_query(const char *uri, char *dst, size_t dst_size);
+/* As above, and report when the complete safe representation did not fit. */
+int msconnector_event_uri_redact_query_ex(
+    const char *uri,
+    char *dst,
+    size_t dst_size,
+    int *truncated);
 void msconnector_event_set_phase4_hard_abort_after_200(
     msconnector_event *event,
     const char *connector,

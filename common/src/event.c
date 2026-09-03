@@ -222,7 +222,11 @@ int msconnector_event_uri_query_redacted(const char *uri) {
     return query != NULL && query[1] != '\0';
 }
 
-int msconnector_event_uri_redact_query(const char *uri, char *dst, size_t dst_size) {
+int msconnector_event_uri_redact_query_ex(
+        const char *uri,
+        char *dst,
+        size_t dst_size,
+        int *truncated) {
     static const char replacement[] = MSCONNECTOR_EVENT_URI_REDACTION;
     const char *query;
     size_t length;
@@ -230,6 +234,9 @@ int msconnector_event_uri_redact_query(const char *uri, char *dst, size_t dst_si
     size_t copied;
     int redacted;
 
+    if (truncated != NULL) {
+        *truncated = 0;
+    }
     if (dst != NULL && dst_size > 0U) {
         dst[0] = '\0';
     }
@@ -243,9 +250,12 @@ int msconnector_event_uri_redact_query(const char *uri, char *dst, size_t dst_si
         ? (size_t)(query - uri) + 1U + sizeof(replacement) - 1U
         : length;
     if (dst == NULL || dst_size == 0U) {
+        if (safe_length > 0U && truncated != NULL) {
+            *truncated = 1;
+        }
         return redacted;
     }
-    copied = safe_length < dst_size - 1U ? safe_length : dst_size - 1U;
+    copied = safe_length < dst_size ? safe_length : dst_size - 1U;
     if (redacted) {
         const size_t prefix_length = (size_t)(query - uri) + 1U;
         const size_t prefix_copied = prefix_length < copied ? prefix_length : copied;
@@ -258,7 +268,14 @@ int msconnector_event_uri_redact_query(const char *uri, char *dst, size_t dst_si
         memmove(dst, uri, copied);
     }
     dst[copied] = '\0';
+    if (safe_length >= dst_size && truncated != NULL) {
+        *truncated = 1;
+    }
     return redacted;
+}
+
+int msconnector_event_uri_redact_query(const char *uri, char *dst, size_t dst_size) {
+    return msconnector_event_uri_redact_query_ex(uri, dst, dst_size, NULL);
 }
 
 static int event_redacted_for_serialization(const msconnector_event *event) {
@@ -720,7 +737,15 @@ int msconnector_event_write_json_ex(
     escape_field(event->decision.rule_id, rule_id, sizeof(rule_id), &was_truncated);
     escape_field(event->decision.reason, reason, sizeof(reason), &was_truncated);
     escape_field(event->request.method, method, sizeof(method), &was_truncated);
-    (void)msconnector_event_uri_redact_query(event->request.uri, safe_uri, sizeof(safe_uri));
+    {
+        int uri_truncated = 0;
+
+        (void)msconnector_event_uri_redact_query_ex(event->request.uri, safe_uri,
+            sizeof(safe_uri), &uri_truncated);
+        if (uri_truncated) {
+            was_truncated = 1;
+        }
+    }
     escape_field(safe_uri, uri, sizeof(uri), &was_truncated);
     escape_field(event->request.client_ip, client_ip, sizeof(client_ip), &was_truncated);
     escape_field(event->body.content_type, content_type, sizeof(content_type), &was_truncated);

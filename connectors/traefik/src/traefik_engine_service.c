@@ -1,5 +1,9 @@
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
+#ifndef _POSIX_C_SOURCE
 #define _POSIX_C_SOURCE 200809L
+#endif
 
 #include "traefik_engine_protocol.h"
 
@@ -202,6 +206,57 @@ static uint16_t traefik_engine_clamp_u16(size_t value)
     return value > UINT16_MAX ? UINT16_MAX : (uint16_t)value;
 }
 
+static int traefik_engine_deadline_remaining_milliseconds(
+    const struct timespec *deadline,
+    int *timeout)
+{
+    struct timespec now;
+    long milliseconds;
+
+    if (deadline == NULL || timeout == NULL ||
+        clock_gettime(CLOCK_MONOTONIC, &now) != 0 ||
+        now.tv_sec > deadline->tv_sec ||
+        (now.tv_sec == deadline->tv_sec && now.tv_nsec >= deadline->tv_nsec)) {
+        return 0;
+    }
+    milliseconds = (deadline->tv_sec - now.tv_sec) * 1000L +
+        (deadline->tv_nsec - now.tv_nsec) / 1000000L;
+    if (deadline->tv_nsec > now.tv_nsec) {
+        ++milliseconds;
+    }
+    *timeout = milliseconds > INT_MAX ? INT_MAX : (int)milliseconds;
+    return *timeout > 0;
+}
+
+static int traefik_engine_wait_for_socket_event(int socket_fd, short events,
+    const struct timespec *deadline)
+{
+    for (;;) {
+        struct pollfd descriptor;
+        int timeout;
+        int polled;
+
+        if (traefik_engine_stop_requested ||
+            !traefik_engine_deadline_remaining_milliseconds(deadline, &timeout)) {
+            return 0;
+        }
+        descriptor.fd = socket_fd;
+        descriptor.events = events;
+        descriptor.revents = 0;
+        polled = poll(&descriptor, 1U, timeout);
+        if (polled > 0) {
+            if ((descriptor.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0) {
+                return 0;
+            }
+            return (descriptor.revents & events) != 0;
+        }
+        if (polled < 0 && errno == EINTR && !traefik_engine_stop_requested) {
+            continue;
+        }
+        return 0;
+    }
+}
+
 static int traefik_engine_send_deadline(int socket_fd,
     const unsigned char *data, size_t size, const struct timespec *deadline)
 {
@@ -216,44 +271,13 @@ static int traefik_engine_send_deadline(int socket_fd,
             offset += (size_t)written;
             continue;
         }
-        if (written < 0 && (errno == EINTR || errno == EAGAIN ||
-                errno == EWOULDBLOCK)) {
-            struct timespec now;
-            struct pollfd descriptor;
-            int timeout;
-            int polled;
-            long milliseconds;
-            if (clock_gettime(CLOCK_MONOTONIC, &now) != 0 ||
-                (now.tv_sec > deadline->tv_sec ||
-                    (now.tv_sec == deadline->tv_sec &&
-                        now.tv_nsec >= deadline->tv_nsec))) {
-                return 0;
-            }
-            milliseconds = (deadline->tv_sec - now.tv_sec) * 1000L +
-                (deadline->tv_nsec - now.tv_nsec) / 1000000L;
-            if (deadline->tv_nsec > now.tv_nsec) {
-                ++milliseconds;
-            }
-            timeout = milliseconds > INT_MAX ? INT_MAX : (int)milliseconds;
-            descriptor.fd = socket_fd;
-            descriptor.events = POLLOUT;
-            descriptor.revents = 0;
-            polled = poll(&descriptor, 1U, timeout);
-            if (polled > 0) {
-                if ((descriptor.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0) {
-                    return 0;
-                }
-                if ((descriptor.revents & POLLOUT) != 0) {
-                    continue;
-                }
-                return 0;
-            }
-            if (polled < 0 && errno == EINTR && !traefik_engine_stop_requested) {
-                continue;
-            }
+        if (written >= 0 || (errno != EINTR && errno != EAGAIN &&
+                errno != EWOULDBLOCK)) {
             return 0;
         }
-        return 0;
+        if (!traefik_engine_wait_for_socket_event(socket_fd, POLLOUT, deadline)) {
+            return 0;
+        }
     }
     return 1;
 }
@@ -279,40 +303,7 @@ static int traefik_engine_receive_all(int socket_fd, unsigned char *data,
         if (errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK) {
             return -1;
         }
-        {
-            struct timespec now;
-            struct pollfd descriptor;
-            long milliseconds;
-            int timeout;
-            int polled;
-            if (clock_gettime(CLOCK_MONOTONIC, &now) != 0 ||
-                (now.tv_sec > deadline->tv_sec ||
-                    (now.tv_sec == deadline->tv_sec &&
-                        now.tv_nsec >= deadline->tv_nsec))) {
-                return -1;
-            }
-            milliseconds = (deadline->tv_sec - now.tv_sec) * 1000L +
-                (deadline->tv_nsec - now.tv_nsec) / 1000000L;
-            if (deadline->tv_nsec > now.tv_nsec) {
-                ++milliseconds;
-            }
-            timeout = milliseconds > INT_MAX ? INT_MAX : (int)milliseconds;
-            descriptor.fd = socket_fd;
-            descriptor.events = POLLIN;
-            descriptor.revents = 0;
-            polled = poll(&descriptor, 1U, timeout);
-            if (polled > 0) {
-                if ((descriptor.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0) {
-                    return -1;
-                }
-                if ((descriptor.revents & POLLIN) != 0) {
-                    continue;
-                }
-                return -1;
-            }
-            if (polled < 0 && errno == EINTR && !traefik_engine_stop_requested) {
-                continue;
-            }
+        if (!traefik_engine_wait_for_socket_event(socket_fd, POLLIN, deadline)) {
             return -1;
         }
     }
@@ -1360,13 +1351,16 @@ static void *traefik_engine_worker(void *argument)
      * descriptor again after close, avoiding fd-reuse confusion. */
     free(worker);
     traefik_engine_process_connection(service, socket_fd);
-    (void)close(socket_fd);
     if (pthread_mutex_lock(&service->worker_lock) == 0) {
+        /* Keep close and slot invalidation under the same lock as admission
+         * and shutdown. A newly reused numeric FD can never be observed via
+         * this slot after the worker releases the lock. */
+        (void)close(socket_fd);
+        slot->socket_fd = -1;
+        slot->in_use = 0;
         if (service->worker_count > 0U) {
             --service->worker_count;
         }
-        slot->in_use = 0;
-        slot->socket_fd = -1;
         if (service->worker_count == 0U) {
             (void)pthread_cond_broadcast(&service->workers_idle);
         }
@@ -1851,13 +1845,14 @@ static int traefik_engine_create_listener(const char *socket_path,
 }
 
 static void traefik_engine_shutdown_active_workers_locked(
-    traefik_engine_service *service)
+    const traefik_engine_service *service)
 {
     if (service == NULL || service->worker_slots == NULL) {
         return;
     }
     for (size_t index = 0U; index < service->max_workers; ++index) {
-        if (service->worker_slots[index].in_use) {
+        if (service->worker_slots[index].in_use &&
+            service->worker_slots[index].socket_fd >= 0) {
             (void)shutdown(service->worker_slots[index].socket_fd, SHUT_RDWR);
         }
     }
@@ -1947,108 +1942,106 @@ static int traefik_engine_serve_connections(int listener,
     return 1;
 }
 
-static int traefik_engine_serve(const char *config_path, const char *socket_path,
-    size_t max_connections, size_t max_workers)
+static traefik_engine_service *traefik_engine_create_service_state(
+    const char *config_path, const char *socket_path, size_t max_workers)
 {
-    traefik_engine_service *service;
-    char error[256];
-    int listener = -1;
-    size_t accepted_connections = 0U;
-    int status = 1;
-    traefik_engine_socket_identity listener_identity;
-    struct sigaction action;
-    const char *failure_stage = "initialization";
-    int runtime_lock_initialized = 0;
-    int worker_lock_initialized = 0;
-    int workers_idle_initialized = 0;
-    int finalize_now = 0;
+    traefik_engine_service *service = calloc(1U, sizeof(*service));
 
-    service = calloc(1U, sizeof(*service));
     if (service == NULL) {
-        return 1;
+        return NULL;
     }
-    memset(error, 0, sizeof(error));
-    memset(&listener_identity, 0, sizeof(listener_identity));
     service->max_workers = max_workers == 0U ? TRAEFIK_ENGINE_DEFAULT_MAX_WORKERS
         : max_workers;
-    if (service->max_workers > TRAEFIK_ENGINE_HARD_MAX_WORKERS) {
-        free(service);
-        return 1;
-    }
-    if (!traefik_engine_check_config(config_path) ||
+    if (service->max_workers > TRAEFIK_ENGINE_HARD_MAX_WORKERS ||
+        !traefik_engine_check_config(config_path) ||
         !traefik_engine_path_is_absolute(socket_path) ||
         pthread_mutex_init(&service->runtime_lock, NULL) != 0) {
         free(service);
-        return 1;
+        return NULL;
     }
-    runtime_lock_initialized = 1;
     if (pthread_mutex_init(&service->worker_lock, NULL) != 0) {
-        goto initialization_failure;
+        (void)pthread_mutex_destroy(&service->runtime_lock);
+        free(service);
+        return NULL;
     }
-    worker_lock_initialized = 1;
     if (pthread_cond_init(&service->workers_idle, NULL) != 0) {
-        goto initialization_failure;
+        (void)pthread_mutex_destroy(&service->worker_lock);
+        (void)pthread_mutex_destroy(&service->runtime_lock);
+        free(service);
+        return NULL;
     }
-    workers_idle_initialized = 1;
     service->worker_slots = calloc(service->max_workers,
         sizeof(*service->worker_slots));
     if (service->worker_slots == NULL) {
-        goto initialization_failure;
+        (void)pthread_cond_destroy(&service->workers_idle);
+        (void)pthread_mutex_destroy(&service->worker_lock);
+        (void)pthread_mutex_destroy(&service->runtime_lock);
+        free(service);
+        return NULL;
     }
     for (size_t index = 0U; index < service->max_workers; ++index) {
         service->worker_slots[index].socket_fd = -1;
     }
-    if (!msconnector_runtime_create("traefik", config_path, &service->runtime,
-            error, sizeof(error))) {
-        failure_stage = "runtime_create";
-        goto cleanup;
+    return service;
+}
+
+static int traefik_engine_configure_service_runtime(
+    traefik_engine_service *service,
+    const char *config_path,
+    char *error,
+    size_t error_size,
+    const char **failure_stage)
+{
+    if (service == NULL || error == NULL || failure_stage == NULL ||
+        !msconnector_runtime_create("traefik", config_path, &service->runtime,
+            error, error_size)) {
+        if (failure_stage != NULL) {
+            *failure_stage = "runtime_create";
+        }
+        return 0;
     }
     if (!msconnector_runtime_set_event_integration_mode(service->runtime,
             "native-traefik-middleware")) {
-        failure_stage = "integration_mode";
-        goto cleanup;
+        *failure_stage = "integration_mode";
+        return 0;
     }
     if (!msconnector_runtime_set_transaction_profile(service->runtime,
             msconnector_profile_registry_find("traefik-native-uds"))) {
-        failure_stage = "transaction_profile";
-        goto cleanup;
+        *failure_stage = "transaction_profile";
+        return 0;
     }
     service->request_body_mode = msconnector_runtime_request_body_mode(
         service->runtime);
     service->response_body_mode = msconnector_runtime_response_body_mode(
         service->runtime);
+    return 1;
+}
+
+static int traefik_engine_install_stop_handlers(void)
+{
+    struct sigaction action;
+
     memset(&action, 0, sizeof(action));
     action.sa_handler = traefik_engine_stop_handler;
     (void)sigemptyset(&action.sa_mask);
-    if (sigaction(SIGTERM, &action, NULL) != 0 ||
-        sigaction(SIGINT, &action, NULL) != 0) {
-        failure_stage = "signal_setup";
-        goto cleanup;
-    }
-    /* create_listener requires a private 0700 parent before bind(), so no
-     * process-global umask state is needed for the listener boundary. */
-    listener = traefik_engine_create_listener(socket_path, &listener_identity);
-    if (listener < 0) {
-        failure_stage = "socket_listener";
-        goto cleanup;
-    }
-    (void)printf("traefik_engine_service=ready\n");
-    (void)printf("socket=%s\n", socket_path);
-    (void)fflush(stdout);
-    if (!traefik_engine_serve_connections(listener, service, max_connections,
-            &accepted_connections, &failure_stage)) {
-        goto cleanup;
-    }
-    status = 0;
+    return sigaction(SIGTERM, &action, NULL) == 0 &&
+        sigaction(SIGINT, &action, NULL) == 0;
+}
 
-cleanup:
+static int traefik_engine_complete_service(traefik_engine_service *service,
+    int listener, const char *socket_path,
+    const traefik_engine_socket_identity *listener_identity, int status,
+    const char *failure_stage)
+{
+    int finalize_now = 0;
+
     if (listener >= 0) {
         (void)close(listener);
     }
     traefik_engine_wait_for_workers(service,
         traefik_engine_stop_requested || status != 0);
-    if (listener_identity.valid &&
-        !traefik_engine_remove_owned_socket(socket_path, &listener_identity)) {
+    if (listener_identity != NULL && listener_identity->valid &&
+        !traefik_engine_remove_owned_socket(socket_path, listener_identity)) {
         status = 1;
         failure_stage = "socket_cleanup";
     }
@@ -2065,20 +2058,51 @@ cleanup:
             failure_stage);
     }
     return status;
+}
 
-initialization_failure:
-    free(service->worker_slots);
-    if (workers_idle_initialized) {
-        (void)pthread_cond_destroy(&service->workers_idle);
+static int traefik_engine_serve(const char *config_path, const char *socket_path,
+    size_t max_connections, size_t max_workers)
+{
+    traefik_engine_service *service;
+    char error[256];
+    int listener = -1;
+    size_t accepted_connections = 0U;
+    int status = 1;
+    traefik_engine_socket_identity listener_identity;
+    const char *failure_stage = "initialization";
+
+    service = traefik_engine_create_service_state(config_path, socket_path,
+        max_workers);
+    if (service == NULL) {
+        return 1;
     }
-    if (worker_lock_initialized) {
-        (void)pthread_mutex_destroy(&service->worker_lock);
+    memset(error, 0, sizeof(error));
+    memset(&listener_identity, 0, sizeof(listener_identity));
+    if (!traefik_engine_configure_service_runtime(service, config_path, error,
+            sizeof(error), &failure_stage)) {
+        return traefik_engine_complete_service(service, listener, socket_path,
+            &listener_identity, status, failure_stage);
     }
-    if (runtime_lock_initialized) {
-        (void)pthread_mutex_destroy(&service->runtime_lock);
+    if (!traefik_engine_install_stop_handlers()) {
+        failure_stage = "signal_setup";
+    } else {
+        /* create_listener requires a private 0700 parent before bind(), so no
+         * process-global umask state is needed for the listener boundary. */
+        listener = traefik_engine_create_listener(socket_path, &listener_identity);
+        if (listener < 0) {
+            failure_stage = "socket_listener";
+        } else {
+            (void)printf("traefik_engine_service=ready\n");
+            (void)printf("socket=%s\n", socket_path);
+            (void)fflush(stdout);
+            if (traefik_engine_serve_connections(listener, service,
+                    max_connections, &accepted_connections, &failure_stage)) {
+                status = 0;
+            }
+        }
     }
-    free(service);
-    return 1;
+    return traefik_engine_complete_service(service, listener, socket_path,
+        &listener_identity, status, failure_stage);
 }
 
 static int traefik_engine_self_test_append_u16(unsigned char *buffer,
@@ -2354,6 +2378,56 @@ static int traefik_engine_read_option_value(int argc, char **argv,
     return 1;
 }
 
+static int traefik_engine_parse_cli_switch(const char *argument,
+    traefik_engine_cli_options *options)
+{
+    if (strcmp(argument, "--self-test") == 0) {
+        options->self_test = 1;
+        return 1;
+    }
+    if (strcmp(argument, "--serve") == 0) {
+        options->serve = 1;
+        return 1;
+    }
+    if (strcmp(argument, "--check-config") == 0) {
+        options->check_config = 1;
+        return 1;
+    }
+    return 0;
+}
+
+static int traefik_engine_parse_cli_value(int argc, char **argv, int index,
+    traefik_engine_cli_options *options, int *consumed)
+{
+    const char *argument = argv[index];
+    const char *value;
+
+    if (consumed == NULL || !traefik_engine_read_option_value(argc, argv, index,
+            &value)) {
+        return 0;
+    }
+    if (strcmp(argument, "--config") == 0) {
+        options->config_path = value;
+    } else if (strcmp(argument, "--socket") == 0) {
+        options->socket_path = value;
+    } else if (strcmp(argument, "--socket-parent") == 0) {
+        options->self_test_socket_parent = value;
+    } else if (strcmp(argument, "--max-connections") == 0) {
+        if (!traefik_engine_parse_positive_size(value, &options->max_connections)) {
+            return 0;
+        }
+    } else if (strcmp(argument, "--max-workers") == 0) {
+        if (!traefik_engine_parse_positive_size(value, &options->max_workers) ||
+            options->max_workers > TRAEFIK_ENGINE_HARD_MAX_WORKERS) {
+            return 0;
+        }
+    } else {
+        return 0;
+    }
+    *consumed = 2;
+    return 1;
+}
+
 static int traefik_engine_parse_cli(int argc, char **argv,
     traefik_engine_cli_options *options)
 {
@@ -2363,48 +2437,10 @@ static int traefik_engine_parse_cli(int argc, char **argv,
     int index = 1;
     while (index < argc) {
         int consumed = 1;
-        if (strcmp(argv[index], "--self-test") == 0) {
-            options->self_test = 1;
-        } else if (strcmp(argv[index], "--serve") == 0) {
-            options->serve = 1;
-        } else if (strcmp(argv[index], "--check-config") == 0) {
-            options->check_config = 1;
-        } else if (strcmp(argv[index], "--config") == 0) {
-            if (!traefik_engine_read_option_value(argc, argv, index,
-                    &options->config_path)) {
-                return 0;
-            }
-            consumed = 2;
-        } else if (strcmp(argv[index], "--socket") == 0) {
-            if (!traefik_engine_read_option_value(argc, argv, index,
-                    &options->socket_path)) {
-                return 0;
-            }
-            consumed = 2;
-        } else if (strcmp(argv[index], "--socket-parent") == 0) {
-            if (!traefik_engine_read_option_value(argc, argv, index,
-                    &options->self_test_socket_parent)) {
-                return 0;
-            }
-            consumed = 2;
-        } else if (strcmp(argv[index], "--max-connections") == 0) {
-            const char *value;
-            if (!traefik_engine_read_option_value(argc, argv, index,
-                    &value) || !traefik_engine_parse_positive_size(value,
-                    &options->max_connections)) {
-                return 0;
-            }
-            consumed = 2;
-        } else if (strcmp(argv[index], "--max-workers") == 0) {
-            const char *value;
-            if (!traefik_engine_read_option_value(argc, argv, index,
-                    &value) || !traefik_engine_parse_positive_size(value,
-                    &options->max_workers) || options->max_workers >
-                    TRAEFIK_ENGINE_HARD_MAX_WORKERS) {
-                return 0;
-            }
-            consumed = 2;
-        } else {
+
+        if (!traefik_engine_parse_cli_switch(argv[index], options) &&
+            !traefik_engine_parse_cli_value(argc, argv, index, options,
+                &consumed)) {
             return 0;
         }
         index += consumed;

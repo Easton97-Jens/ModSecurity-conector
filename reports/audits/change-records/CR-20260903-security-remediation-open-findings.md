@@ -112,3 +112,66 @@ In progress until the post-correction final diff is committed and read back
 from the task branch and Draft PR. The current user authorizes a normal
 task-branch push and Draft PR only; merge, force-push, rebase of published
 work, and default-branch writes remain unauthorized.
+
+## 2026-09-03 review-remediation follow-up for Draft PR #354
+
+This follow-up records the requested review pass against starting head
+`c44dd04a16cb698584c023e2f81521e07f5c3fb2`. It is intentionally not a claim
+that the successor head has been pushed or that hosted checks have completed.
+
+The scoped remediation and evidence work is as follows:
+
+- RR1 extends the Common JSONL URI-redaction helper with explicit truncation
+  output. The serializer now combines redaction and safe-buffer truncation,
+  including partial `<redacted>` markers, in both JSON and JSONL; tests cover
+  long paths with and without queries, canary absence, `redacted=true`,
+  `truncated=true`, unchanged raw WAF URIs, and consistent integrity output.
+- RR2/RR4 make Traefik slot invalidation and descriptor close one locked
+  ownership operation, guard shutdown with `socket_fd >= 0`, and add a
+  controlled descriptor-reuse/shutdown race plus dynamic `max_workers=2`
+  admission, slot-reuse, create-failure rollback, and slow/non-reading-peer
+  coverage.
+- RR3 adds executable HAProxy parser/mapper cases at exactly 1023 bytes and
+  places a harmless marker only after byte 1023, proving full boundary reach
+  or explicit rejection rather than relying on a static Python length loop.
+- RR5 adds a dynamic live response-companion fixture for quiescence, failed
+  shutdown, exactly-once release after worker drain, competing owner/worker
+  release, and the no-companion deferred path. FND-PARENT-1013 remains
+  `fixed, verification pending` until fresh exact-head evidence proves these
+  cases.
+- The first Lighttpd hosted run exposed a stale harness expectation for raw
+  query-bearing JSONL. The scoped correction correlates the safe redacted
+  event by response transaction ID while preserving raw wire and CRS evidence.
+- Local NGINX headers/source are unavailable. A clearly named
+  `Exact-Head-Hosted` NGINX gate is therefore required for supported-header
+  compilation and isolated `modsecurity_use_error_log` on/off runtime proof;
+  no local host result is claimed.
+
+### SonarQube Cloud: twelve PR-new issues triaged individually
+
+The twelve issues reported for PR #354 were triaged at the starting head as
+follows. Nine are addressed by maintainability refactors or const-correctness
+fixes; three public test-stub findings are documented non-problems because
+their signatures must match the production header ABI. No `NOSONAR`, rule
+exclusion, threshold change, or Quality-Gate weakening was used.
+
+| # | Sonar key / rule | Location/issue | Disposition |
+|---:|---|---|---|
+| 1 | `AaBnPLiUQISHK43ZVdjk` / c:S134 | `common/runtime/http_authorization_service.c` — nested deferred-worker control flow | Refactored into a focused helper. |
+| 2 | `AaBnPLYKQISHK43ZVdjZ` / c:S995 | `tests/http_authorization_service_detached_worker_smoke.c` — flag parameter | Fixed by making the wait flag pointer const. |
+| 3 | `AaBnPLYKQISHK43ZVdja` / c:S995 | Authorization test public runtime stub — parameter constness | Non-problem: production header ABI requires the non-const signature. |
+| 4 | `AaBnPLYKQISHK43ZVdjb` / c:S995 | Authorization test public runtime stub — parameter constness | Non-problem: production header ABI requires the non-const signature. |
+| 5 | `AaBnPLYKQISHK43ZVdjc` / c:S995 | Authorization test public runtime stub — parameter constness | Non-problem: production header ABI requires the non-const signature. |
+| 6 | `AaBnPLhlQISHK43ZVdjd` / c:S3776 | Traefik send deadline | Refactored deadline/poll logic into bounded helpers. |
+| 7 | `AaBnPLhlQISHK43ZVdje` / c:S134 | Traefik send path — nested control flow | Removed through the focused send/wait helper refactor. |
+| 8 | `AaBnPLhlQISHK43ZVdjf` / c:S134 | Traefik send path — nested control flow | Removed through the same focused send/wait helper refactor. |
+| 9 | `AaBnPLhlQISHK43ZVdjg` / c:S3776 | Traefik receive loop | Refactored to shared bounded wait/deadline helpers. |
+| 10 | `AaBnPLhlQISHK43ZVdjh` / c:S995 | Traefik shutdown helper service parameter | Fixed by making the service parameter const. |
+| 11 | `AaBnPLhlQISHK43ZVdji` / c:S3776 | Traefik serve orchestration | Split lifecycle setup, runtime configuration, handlers, and completion. |
+| 12 | `AaBnPLhlQISHK43ZVdjj` / c:S3776 | Traefik CLI parsing | Split switch/value parsing and retained fail-closed validation. |
+
+The successor commit, GitHub read-back, fresh Sonar analysis, complete
+exact-head runtime workflow (including the hosted NGINX gate), and final PR
+description/Change Record read-back remain pending at the time of this
+entry. No merge, force-push, Framework/MRTS/Gitlink change, or test/workflow
+weakening is authorized or claimed.

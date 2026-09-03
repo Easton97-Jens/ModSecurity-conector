@@ -1465,6 +1465,12 @@ write_nginx_protocol_directives() {
 
 render_config() {
     NGINX_PHASE4_MODE_DIRECTIVE=""
+    NGINX_USE_ERROR_LOG_DIRECTIVE="modsecurity_use_error_log on;"
+    case "${NGINX_USE_ERROR_LOG:-on}" in
+        on) NGINX_USE_ERROR_LOG_DIRECTIVE="modsecurity_use_error_log on;" ;;
+        off) NGINX_USE_ERROR_LOG_DIRECTIVE="modsecurity_use_error_log off;" ;;
+        *) fail "unsupported NGINX_USE_ERROR_LOG=${NGINX_USE_ERROR_LOG}" ;;
+    esac
     NGINX_WORKER_USER_DIRECTIVE=""
     if [ "$CURRENT_UID" = "0" ]; then
         resolve_nginx_worker_identity
@@ -1490,6 +1496,7 @@ render_config() {
         -e "s|@@LOG_DIR@@|$(escape_sed "$LOG_DIR")|g" \
         -e "s|@@PORT@@|$(escape_sed "$PORT")|g" \
         -e "s|@@NGINX_MODULE@@|$(escape_sed "$NGINX_MODULE")|g" \
+        -e "s|@@NGINX_USE_ERROR_LOG_DIRECTIVE@@|$(escape_sed "$NGINX_USE_ERROR_LOG_DIRECTIVE")|g" \
         -e "s|@@DOCROOT@@|$(escape_sed "$DOCROOT")|g" \
         -e "s|@@RULES_FILE@@|$(escape_sed "$RULES_FILE")|g" \
         -e "s|@@NGINX_PHASE4_LOG@@|$(escape_sed "$NGINX_PHASE4_LOG_FILE")|g" \

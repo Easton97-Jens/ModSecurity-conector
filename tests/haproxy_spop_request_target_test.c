@@ -73,6 +73,28 @@ static int assert_rejected(const char *key, const unsigned char *value,
     return 0;
 }
 
+static int assert_marker_reaches_mapper(const char *key) {
+    unsigned char payload[SPOP_FRAME_MAX];
+    unsigned char value[1024U];
+    notify_request request;
+    haproxy_modsecurity_request mapped;
+    size_t payload_len;
+
+    memset(value, 'a', sizeof(value));
+    value[1023U] = 'Z';
+    payload_len = build_target_payload(payload, key, value, sizeof(value));
+    if (parse_notify_payload(payload, payload_len, &request) != 0) {
+        return -1;
+    }
+    build_modsecurity_request_from_notify(&request, 0U, 0, NULL, &mapped);
+    if (mapped.uri == NULL || strlen(mapped.uri) != sizeof(value) ||
+        memcmp(mapped.uri, value, sizeof(value)) != 0 ||
+        mapped.uri[1023U] != 'Z') {
+        return -1;
+    }
+    return 0;
+}
+
 int main(void) {
     unsigned char over_limit[MSCONNECTOR_MAX_PATH_LENGTH + 1U];
     unsigned char embedded_nul[MSCONNECTOR_MAX_PATH_LENGTH];
@@ -80,10 +102,14 @@ int main(void) {
     memset(over_limit, 'y', sizeof(over_limit));
     memset(embedded_nul, 'x', sizeof(embedded_nul));
     embedded_nul[1024] = '\0';
-    if (assert_lossless("path", 1024) != 0 ||
+    if (assert_lossless("path", 1023) != 0 ||
+            assert_lossless("path", 1024) != 0 ||
             assert_lossless("path", MSCONNECTOR_MAX_PATH_LENGTH) != 0 ||
+            assert_lossless("uri", 1023) != 0 ||
             assert_lossless("uri", 1024) != 0 ||
             assert_lossless("uri", MSCONNECTOR_MAX_PATH_LENGTH) != 0 ||
+            assert_marker_reaches_mapper("path") != 0 ||
+            assert_marker_reaches_mapper("uri") != 0 ||
             assert_rejected("path", over_limit, sizeof(over_limit)) != 0 ||
             assert_rejected("uri", over_limit, sizeof(over_limit)) != 0 ||
             assert_rejected("path", embedded_nul, sizeof(embedded_nul)) != 0 ||

@@ -1,0 +1,71 @@
+name: test-nginx-exact-head-hosted
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  nginx-exact-head:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      MODSECURITY_REPO_URL: https://github.com/owasp-modsecurity/ModSecurity.git
+      BUILD_NGINX_FROM_SOURCE: "1"
+      NGINX_SOURCE_MODE: github-release
+      NGINX_SOURCE_REPO_URL: https://github.com/nginx/nginx
+      NGINX_RELEASE_TAG: release-1.31.3
+      NGINX_SOURCE_GIT_REF: release-1.31.3
+      NGINX_RELEASE_ASSET_NAME: nginx-1.31.3.tar.gz
+      NGINX_SHA256: a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525
+      NGINX_REQUIRE_PINNED_PROVENANCE: "1"
+      SMOKE_PREPARE_TIMEOUT_SECONDS: "3600"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+      - name: Verify exact PR head
+        run: |
+          set -eu
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_PARENT_SHA" || {
+            echo "exact-head gate: expected $EXPECTED_PARENT_SHA, observed $actual" >&2
+            exit 1
+          }
+      - name: Initialize isolated exact-head paths
+        run: |
+          set -eu
+          root="$RUNNER_TEMP/ModSecurity-conector-nginx-exact-head"
+          {
+            echo "VERIFIED_RUN_ROOT=$root"
+            echo "BUILD_ROOT=$root/build"
+            echo "TMP_ROOT=$root/tmp"
+            echo "LOG_ROOT=$root/logs"
+            echo "CONNECTOR_COMPONENT_CACHE=$root/component-cache"
+            echo "RUNTIME_REPORT_OUTPUT_ROOT=$root/runtime-component-reports"
+            echo "SOURCE_ROOT=$root/src"
+            echo "MODSECURITY_SOURCE_DIR=$root/src/ModSecurity_V3"
+            echo "MODSECURITY_V3_SOURCE_DIR=$root/src/ModSecurity_V3"
+          } >> "$GITHUB_ENV"
+      - name: Provision pinned NGINX and connector runtime
+        run: |
+          set -eu
+          make setup-dev
+          make fetch-deps
+      - name: Run isolated modsecurity_use_error_log on/off cells
+        run: |
+          set -eu
+          RUNTIME_COMPONENT_TARGET=nginx \
+          FRAMEWORK_ROOT="$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
+          CONNECTOR_ROOT="$GITHUB_WORKSPACE" \
+          sh ci/provisioning/cache/with-runtime-components.sh \
+            sh connectors/nginx/harness/run_exact_head_use_error_log.sh
