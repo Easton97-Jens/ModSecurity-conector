@@ -1801,6 +1801,17 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 "#pragma once\n", encoding="utf-8"
             )
             framework_root.mkdir()
+            canonical_quic_tls = {
+                "NGINX_QUIC_TLS_LIBRARY": "openssl",
+                "NGINX_QUIC_TLS_VERSION": "4.0.1",
+                "NGINX_QUIC_TLS_SOURCE_URL": (
+                    "https://github.com/openssl/openssl/releases/download/"
+                    "openssl-4.0.1/openssl-4.0.1.tar.gz"
+                ),
+                "NGINX_QUIC_TLS_SOURCE_SHA256": (
+                    "2db3f3a0d6ea4b59e1f094ace2c8cd536dffb87cdc39084c5afa1e6f7f37dd09"
+                ),
+            }
 
             def build_nginx(*args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
                 self.assertFalse(partial.exists())
@@ -1813,6 +1824,10 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                     build_env["NGINX_BUILD_OWNER_ROOT"],
                 )
                 self.assertEqual(build_env["NGINX_PROTOCOL_PROFILE"], "h1")
+                self.assertEqual(
+                    {key: build_env[key] for key in canonical_quic_tls},
+                    canonical_quic_tls,
+                )
                 binary = active_nginx_prefix / "sbin/nginx"
                 binary.parent.mkdir(parents=True, exist_ok=True)
                 binary.write_text(
@@ -1854,6 +1869,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
 
             full_smoke_env = {
                 **PINNED_NGINX_ENV,
+                **canonical_quic_tls,
                 "NGINX_REQUIRE_PINNED_PROVENANCE": "1",
             }
             with (

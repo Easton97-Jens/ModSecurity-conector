@@ -330,3 +330,36 @@ Abschwächung verwendet. Python-Kompilierung und die 42 fokussierten
 Diagnose-/Gate-/CI-Sicherheits-Tests bestehen lokal; ein neuer normaler Head,
 exakter Remote-Read-back und Successor-only-Sonar-, NGINX-On/Off- sowie Full-
 CRS/no-MRTS-Evidenz bleiben erforderlich.
+
+### Exact-Head-NGINX-Non-H3-QUIC-TLS-Übergabe
+
+Der Exact-Head-Hosted-Lauf `33803351249` für
+`79156cb550eebf76c52add7a2059379ee2d8df90` erreichte die gepinnte
+NGINX-Build-Grenze, stoppte jedoch korrekterweise vor Configure mit `BLOCKED:
+NGINX_QUIC_TLS_VERSION override is not permitted`. Der begrenzte
+Diagnose-Fallback legte diesen primären Blocker sicher offen; das spätere
+Mapping `missing_nginx_modsecurity_module` war nachgelagert, weil noch kein
+Modul-Build begonnen hatte. Der Complete-CRS/no-MRTS-Lauf `33803351191` bestand
+für denselben Head seine fünf Nicht-NGINX-Connector-Jobs, kann aber keinen
+Nachfolge-Head validieren.
+
+Die Parent-Source-Korrektur schwächt weder den Framework-Provenance-Guard noch
+sein QUIC-TLS-Tupel ab. Für H1/H1-H2 werden profilspezifische
+`not_used`-/leere Fakten nicht mehr als Environment-Pin-Overrides weitergereicht,
+sodass die aus Framework `common.sh` geladenen kanonischen Werte die nächste
+geschützte Source-Grenze überstehen. H3 ersetzt diese Felder weiterhin durch
+sein aufgelöstes geprüftes Tupel. Ein leerer oder nicht kanonischer geerbter
+Pin bleibt damit an der unveränderten Framework-Grenze fail-closed.
+
+Fokussierte dynamische Tests beweisen nun die Bewahrung der kanonischen
+H1/H1-H2-Child-Environment, den H3-Ersatz durch das geprüfte Tupel und den
+tatsächlichen gemockten NGINX-Preparation-Pfad. Python-Kompilierung, 78
+Parent-Komponenten-Tests (fünf bestehende Framework-Head-Skips), alle 45
+NGINX-Cache-Contract-Tests, die 64 Bilingual-/NGINX-Gate-/CI-Security- /
+Diagnose-Tests, `actionlint` und `git diff --check` bestehen lokal. Ein
+unabhängiges Post-Patch-Security-Review bestand und fand keinen Bypass und
+keine Regression. Ein neuer normaler Exact-Head-Successor bleibt erforderlich,
+bevor Kompilierung gegen unterstützte Header oder
+`modsecurity_use_error_log`-on/off-Runtime-Evidenz behauptet wird; exakter
+Remote-Read-back und Successor-only-Sonar-, NGINX-On/Off- sowie Full-
+CRS/no-MRTS-Evidenz bleiben ebenfalls erforderlich.

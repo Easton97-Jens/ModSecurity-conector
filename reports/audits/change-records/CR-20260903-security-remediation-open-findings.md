@@ -303,3 +303,34 @@ Quality-Gate change, or workflow/test weakening is used. Python compilation
 and the 42 focused diagnostic/gate/CI-security tests pass locally; a new normal
 head, exact remote read-back, and successor-only Sonar, NGINX on/off, and full
 CRS/no-MRTS evidence remain required.
+
+### Exact-head NGINX non-H3 QUIC TLS handoff
+
+Exact-head hosted run `33803351249` for
+`79156cb550eebf76c52add7a2059379ee2d8df90` reached the pinned NGINX build
+boundary, but correctly stopped before configure with `BLOCKED:
+NGINX_QUIC_TLS_VERSION override is not permitted`. The bounded diagnostic
+fallback safely exposed that primary blocker; the later
+`missing_nginx_modsecurity_module` mapping was secondary because no module
+build had started. The complete CRS/no-MRTS run `33803351191` passed its five
+non-NGINX connector jobs for the same head, but cannot validate a successor.
+
+The Parent source correction does not relax the Framework provenance guard or
+change its QUIC TLS tuple. For H1/H1-H2, profile-specific `not_used`/empty
+facts are no longer forwarded as environment pin overrides, so the canonical
+values loaded from Framework `common.sh` survive the next guarded source
+boundary. H3 continues to replace those fields with its resolved reviewed
+tuple. Thus an empty or noncanonical inherited pin remains fail-closed at the
+unchanged Framework boundary.
+
+Focused dynamic tests now prove canonical H1/H1-H2 child-environment
+preservation, H3 replacement with the reviewed tuple, and the actual mocked
+NGINX preparation path. Python compilation, 78 Parent component tests (five
+pre-existing Framework-head skips), all 45 NGINX cache-contract tests, the 64
+bilingual/NGINX-gate/CI-security/diagnostic tests, `actionlint`, and `git diff
+--check` pass locally. An independent post-patch security review passed and
+found no bypass or regression. A new normal exact-head successor remains
+required before claiming supported-header compile or
+`modsecurity_use_error_log` on/off runtime evidence; exact remote read-back
+and successor-only Sonar, NGINX on/off, and full CRS/no-MRTS evidence also
+remain required.

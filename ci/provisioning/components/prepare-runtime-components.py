@@ -8462,6 +8462,20 @@ def nginx_build_environment(
     common_build_source_root: Path,
     context: dict[str, Any],
 ) -> dict[str, str]:
+    # Framework common.sh owns the reviewed QUIC TLS pin tuple and validates
+    # inherited values before any source preparation.  H1/H2 metadata uses
+    # empty/not-used TLS fields, but those are output facts, not child-process
+    # pin overrides.  Passing them through would correctly fail Framework's
+    # guard as an attempted empty override.  H3 alone consumes the resolved
+    # tuple as build input, so only it receives an explicit replacement.
+    quic_tls_overrides: dict[str, str] = {}
+    if protocol_profile == "h1-h2-h3-quic":
+        quic_tls_overrides = {
+            "NGINX_QUIC_TLS_LIBRARY": str(protocol_inputs.get("tls_library", "")),
+            "NGINX_QUIC_TLS_VERSION": str(protocol_inputs.get("tls_version", "")),
+            "NGINX_QUIC_TLS_SOURCE_URL": str(protocol_inputs.get("tls_source_url", "")),
+            "NGINX_QUIC_TLS_SOURCE_SHA256": str(protocol_inputs.get("tls_source_sha256", "")),
+        }
     return build_env(
         env,
         FRAMEWORK_ROOT=str(framework_root),
@@ -8481,10 +8495,7 @@ def nginx_build_environment(
         NGINX_BINARY=str(context["local_nginx_bin"]),
         NGINX_MODULE=str(context["local_module"]),
         NGINX_PROTOCOL_PROFILE=protocol_profile,
-        NGINX_QUIC_TLS_LIBRARY=str(protocol_inputs.get("tls_library", "")),
-        NGINX_QUIC_TLS_VERSION=str(protocol_inputs.get("tls_version", "")),
-        NGINX_QUIC_TLS_SOURCE_URL=str(protocol_inputs.get("tls_source_url", "")),
-        NGINX_QUIC_TLS_SOURCE_SHA256=str(protocol_inputs.get("tls_source_sha256", "")),
+        **quic_tls_overrides,
         NGINX_QUIC_TLS_ARCHIVE=quic_tls_archive,
         NGINX_DOWNLOAD_DIR=str(archives_root / "nginx"),
         MSCONNECTOR_COMMON_SRC=str(common_build_source_root),

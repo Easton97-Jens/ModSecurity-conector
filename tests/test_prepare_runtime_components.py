@@ -78,6 +78,77 @@ components = load_parent_prepare_runtime_components()
 
 
 class PrepareRuntimeComponentsTest(unittest.TestCase):
+    def test_nginx_build_environment_preserves_canonical_non_h3_quic_pins(self) -> None:
+        canonical_quic_tls = {
+            "NGINX_QUIC_TLS_LIBRARY": "openssl",
+            "NGINX_QUIC_TLS_VERSION": "4.0.1",
+            "NGINX_QUIC_TLS_SOURCE_URL": (
+                "https://github.com/openssl/openssl/releases/download/"
+                "openssl-4.0.1/openssl-4.0.1.tar.gz"
+            ),
+            "NGINX_QUIC_TLS_SOURCE_SHA256": (
+                "2db3f3a0d6ea4b59e1f094ace2c8cd536dffb87cdc39084c5afa1e6f7f37dd09"
+            ),
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            context = {
+                "nginx_build_root": root / "nginx-build",
+                "nginx_prefix": root / "nginx",
+                "local_nginx_bin": root / "nginx/sbin/nginx",
+                "local_module": root / "nginx/modules/ngx_http_modsecurity_module.so",
+            }
+
+            def child_environment(
+                base_env: dict[str, str],
+                protocol_inputs: dict[str, object],
+            ) -> dict[str, str]:
+                return components.nginx_build_environment(
+                    base_env,
+                    root / "connector",
+                    root / "framework",
+                    root / "cache",
+                    root / "work",
+                    root / "sources",
+                    root / "archives",
+                    {"prefix": str(root / "modsecurity"), "build_id": "modsecurity"},
+                    protocol_inputs,
+                    str(protocol_inputs["profile"]),
+                    str(root / "archives/nginx/openssl-4.0.1.tar.gz"),
+                    root / "common-src",
+                    context,
+                )
+
+            for profile in ("h1", "h1-h2"):
+                with self.subTest(profile=profile):
+                    protocol_inputs = components.nginx_protocol_build_inputs(
+                        {"NGINX_PROTOCOL_PROFILE": profile}
+                    )
+                    child_env = child_environment(dict(canonical_quic_tls), protocol_inputs)
+                    self.assertFalse(protocol_inputs["quic_enabled"])
+                    self.assertEqual(
+                        {key: child_env[key] for key in canonical_quic_tls},
+                        canonical_quic_tls,
+                    )
+
+            h3_inputs = components.nginx_protocol_build_inputs(
+                {"NGINX_PROTOCOL_PROFILE": "h1-h2-h3-quic", **canonical_quic_tls}
+            )
+            h3_child_env = child_environment(
+                {
+                    "NGINX_QUIC_TLS_LIBRARY": "hostile-library",
+                    "NGINX_QUIC_TLS_VERSION": "0.0.0",
+                    "NGINX_QUIC_TLS_SOURCE_URL": "https://example.invalid/hostile.tar.gz",
+                    "NGINX_QUIC_TLS_SOURCE_SHA256": "f" * 64,
+                },
+                h3_inputs,
+            )
+            self.assertTrue(h3_inputs["quic_enabled"])
+            self.assertEqual(
+                {key: h3_child_env[key] for key in canonical_quic_tls},
+                canonical_quic_tls,
+            )
+
     def test_nginx_common_source_staging_includes_required_private_header(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             connector_root = Path(temporary) / "connector"
