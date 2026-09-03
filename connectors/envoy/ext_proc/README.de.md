@@ -69,6 +69,24 @@ Ein nativer CGo-Aufruf, der bereits einen nicht unterbrechbaren Abschnitt
 betreten hat, bleibt ein getrennter kontrollierter Restart-Fall; der Timeout
 behauptet nicht, ihn in-process abzubrechen.
 
+`stream_max_lifetime_ms` ist eine separate absolute serverseitige Lebensdauer
+für jeden zugelassenen Stream. Sie beginnt bei der Zulassung und wird durch
+Aktivität nicht verlängert. Dadurch kann ein Peer keinen
+Parallelitäts-Slot unbegrenzt halten, indem er kurz vor jedem Idle-Ablauf eine
+Nachricht sendet. Beim Ablauf liefert der Dienst gRPC `DeadlineExceeded`,
+zeichnet `grpc_stream_max_lifetime` auf, bricht Receive- und Engine-Arbeit ab,
+führt die normale begrenzte Bereinigung aus und gibt den Slot für einen
+Folgestream frei. Ein beim Ablauf bereits laufendes gRPC-`Send` erhält höchstens
+die getrennte Gnadenfrist `cleanup_timeout_ms`, um sein Ergebnis zu liefern.
+Bei einem bestätigten erfolgreichen späten `Send` schreibt der Service zunächst
+die zugehörige Response-Commit- oder Hostaktions-Evidence über einen begrenzten
+Post-Send-Context, liefert danach `DeadlineExceeded` und wechselt in den
+kontrollierten Restart-Zustand; ein nach dieser Frist weiter unaufgelöstes Send
+löst denselben Zustand aus, ohne eine Aktion zu behaupten. In beiden terminalen
+Fällen erhalten neue Streams gRPC `Unavailable`, während `main` den Listener
+stoppt. Der Wert muss für legitime gestreamte Transaktionen ausreichen; er
+ersetzt weder das Idle-Limit noch das Timeout einzelner Engine-Operationen.
+
 Der Lebenszyklus eines ausstehenden `Recv` ist durch einen echten gRPC-
 bufconn-Test abgedeckt: Ein inaktiver Stream hinterlässt genau ein begrenztes
 Receive-Warten, eine Stornierung gibt es frei und ein Folgestream wird

@@ -53,6 +53,10 @@ type Config struct {
 	// engine callback budget: normal streamed bodies may remain open longer
 	// when they keep delivering messages within this interval.
 	StreamIdleTimeoutMS int `json:"stream_idle_timeout_ms"`
+	// StreamMaxLifetimeMS bounds the total lifetime of an admitted gRPC stream,
+	// including periods with regular activity. It is distinct from both the
+	// inactivity limit above and the per-operation engine timeout.
+	StreamMaxLifetimeMS int `json:"stream_max_lifetime_ms"`
 	// MaxConcurrentStreams bounds process-wide stream/transaction admission;
 	// it is also applied to every individual HTTP/2 connection by the gRPC
 	// server configuration.
@@ -123,6 +127,7 @@ func (config Config) Validate() error {
 		"max_grpc_message_bytes": config.MaxGRPCMessageBytes,
 		"engine_timeout_ms":      config.EngineTimeoutMS,
 		"stream_idle_timeout_ms": config.StreamIdleTimeoutMS,
+		"stream_max_lifetime_ms": config.StreamMaxLifetimeMS,
 		"max_concurrent_streams": config.MaxConcurrentStreams,
 		"cleanup_timeout_ms":     config.CleanupTimeoutMS,
 		"shutdown_timeout_ms":    config.ShutdownTimeoutMS,
@@ -167,6 +172,10 @@ func (config Config) engineTimeout() time.Duration {
 
 func (config Config) streamIdleTimeout() time.Duration {
 	return time.Duration(config.StreamIdleTimeoutMS) * time.Millisecond
+}
+
+func (config Config) streamMaxLifetime() time.Duration {
+	return time.Duration(config.StreamMaxLifetimeMS) * time.Millisecond
 }
 
 func (config Config) cleanupTimeout() time.Duration {

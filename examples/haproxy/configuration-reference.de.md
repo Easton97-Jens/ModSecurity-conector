@@ -41,7 +41,7 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`spoe-agent:host`](#spoe-agent-host) | Kompatibilität | Zeichenkette/Pfad | nein | 127.0.0.1 | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
 | [`spoe-agent:listen`](#spoe-agent-listen) | Kompatibilität | Zeichenkette/Pfad | nein | nicht gesetzt, sofern nicht konfiguriert | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
 | [`spoe-agent:log-file`](#spoe-agent-log-file) | Kompatibilität | Zeichenkette/Pfad | nein | - | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
-| [`spoe-agent:max-transactions`](#spoe-agent-max-transactions) | Kompatibilität | Ganzzahl | nein | 4096 | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
+| [`spoe-agent:max-transactions`](#spoe-agent-max-transactions) | Kompatibilität | Ganzzahl | nein | 4096 | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | Begrenzt die vom SPOE/SPOP-Kompatibilitätsagenten zugelassenen Transaktionsslots einschließlich der kombinierten Worker-/Transaktionsobergrenze. |
 | [`spoe-agent:mode`](#spoe-agent-mode) | Kompatibilität | Kompatibilitäts-Policy-Zeichenkette | nein | block | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
 | [`spoe-agent:modsecurity-conf`](#spoe-agent-modsecurity-conf) | Kompatibilität | Zeichenkette/Pfad | nein | nicht gesetzt, sofern nicht konfiguriert | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
 | [`spoe-agent:pid-file`](#spoe-agent-pid-file) | Kompatibilität | Zeichenkette/Pfad | nein | nicht gesetzt, sofern nicht konfiguriert | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
@@ -50,14 +50,14 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`spoe-agent:ready-file`](#spoe-agent-ready-file) | Kompatibilität | Zeichenkette/Pfad | nein | nicht gesetzt, sofern nicht konfiguriert | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
 | [`spoe-agent:request-body-limit`](#spoe-agent-request-body-limit) | Kompatibilität | Ganzzahl | nein | 65532 | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
 | [`spoe-agent:response-body-limit`](#spoe-agent-response-body-limit) | Kompatibilität | Ganzzahl | nein | 0 | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | Kompatibilitäts-Response-Steuerung. Die ausgewählten SPOE-Nachrichten liefern keinen Response-Body; dies ist daher keine native P4-Unterstützung. |
-| [`spoe-agent:response-body-timeout`](#spoe-agent-response-body-timeout) | Kompatibilität | Ganzzahl | nein | 0 | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | Kompatibilitäts-Response-Steuerung. Die ausgewählten SPOE-Nachrichten liefern keinen Response-Body; dies ist daher keine native P4-Unterstützung. |
+| [`spoe-agent:response-body-timeout`](#spoe-agent-response-body-timeout) | Kompatibilität | Ganzzahl | nein | 0 | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | Kompatibilitäts-Timeout für die Response-Steuerung; reines SPOE/SPOP überträgt keinen Response-Body und ist daher kein natives P4-Stream-Idle-Limit. |
 | [`spoe-agent:response-phases`](#spoe-agent-response-phases) | Kompatibilität | Boolescher Wert | nein | false | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | Kompatibilitäts-Response-Steuerung. Die ausgewählten SPOE-Nachrichten liefern keinen Response-Body; dies ist daher keine native P4-Unterstützung. |
 | [`spoe-agent:rules-dir`](#spoe-agent-rules-dir) | Kompatibilität | Zeichenkette/Pfad | nein | nicht gesetzt, sofern nicht konfiguriert | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
 | [`spoe-agent:rules-file`](#spoe-agent-rules-file) | Kompatibilität | Zeichenkette/Pfad | nein | nicht gesetzt, sofern nicht konfiguriert | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
 | [`spoe-agent:runtime-mode`](#spoe-agent-runtime-mode) | Kompatibilität | Kompatibilitäts-Policy-Zeichenkette | nein | production | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
-| [`spoe-agent:spoe-timeout`](#spoe-agent-spoe-timeout) | Kompatibilität | Ganzzahl | nein | 2000 | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
+| [`spoe-agent:spoe-timeout`](#spoe-agent-spoe-timeout) | Kompatibilität | Ganzzahl | nein | 2000 | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | Begrenzt jede SPOE/SPOP-Engine-Transaktion; null, negative, fehlerhafte und über dem Limit liegende Werte lassen das Konfigurationsparsen fehlschlagen. |
 | [`spoe-agent:variant`](#spoe-agent-variant) | Kompatibilität | Zeichenkette/Pfad | nein | - | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
-| [`spoe-agent:worker-count`](#spoe-agent-worker-count) | Kompatibilität | Ganzzahl | nein | 8 | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
+| [`spoe-agent:worker-count`](#spoe-agent-worker-count) | Kompatibilität | Ganzzahl | nein | 8 | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | Begrenzt isolierte parallele SPOE/SPOP-Peer-Handler; mindestens zwei Worker verhindern, dass ein langsamer Handshake die Accept-Schleife monopolisiert. |
 
 ## Trennung der Ebenen
 
@@ -1506,7 +1506,7 @@ expected-status=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| Ganzzahl | `1..60000` Millisekunden | nein |
+| Ganzzahl | dezimale Ganzzahl | nein |
 
 ### Standardwert
 
@@ -1528,10 +1528,7 @@ SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel und Werte außerhalb von `1..60000` (einschließlich Null,
-negativer, überlaufender oder nachgestellter Textwerte) lassen das Parsen der
-Konfiguration des Kompatibilitätsagenten mit Exit `2` fehlschlagen, bevor ein
-Listener startet.
+Unbekannte Schlüssel lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
 
 ### Beispiel
 
@@ -1768,7 +1765,7 @@ Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberpr�
 
 ### Kurzbeschreibung
 
-SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption.
+Begrenzt die vom SPOE/SPOP-Kompatibilitätsagenten zugelassenen Transaktionsslots einschließlich der kombinierten Worker-/Transaktionsobergrenze.
 
 ### Syntax
 
@@ -1784,7 +1781,7 @@ max-transactions=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| Ganzzahl | `1..4096`; zusätzlich `worker-count * max-transactions <= 65536` | nein |
+| Ganzzahl | dezimale Ganzzahl, 1..4096; worker-count * max-transactions <= 65536 | nein |
 
 ### Standardwert
 
@@ -1802,14 +1799,11 @@ Zusammenführung: Kein Merge; config_set übernimmt einen geparsten Wert.
 
 P1–P4-Relevanz: Nur Kompatibilitäts-Request-/Response-Headerpfad; keine Aussage zum nativen Response-Body-Lebenszyklus.
 
-SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption.
+Begrenzt die vom SPOE/SPOP-Kompatibilitätsagenten zugelassenen Transaktionsslots einschließlich der kombinierten Worker-/Transaktionsobergrenze.
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen. Werte außerhalb von
-`1..4096`, fehlerhafte Werte und ein Worker-/Cache-Produkt oberhalb von 65536
-werden beim Start mit Exit `2` fail-closed abgewiesen, bevor ein Peer-Cache
-alloziert wird.
+spoe-timeout akzeptiert nur dezimale Millisekunden in 1..60000; worker-count akzeptiert 2..64; max-transactions akzeptiert 1..4096; worker-count * max-transactions darf 65536 nicht überschreiten; response-body-timeout akzeptiert vorzeichenlose dezimale Millisekunden und muss bei response-companion=none 0 sein; unbekannte Schlüssel und fehlerhafte Werte lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
 
 ### Beispiel
 
@@ -2266,7 +2260,7 @@ Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberpr�
 
 ### Kurzbeschreibung
 
-Kompatibilitäts-Response-Steuerung. Die ausgewählten SPOE-Nachrichten liefern keinen Response-Body; dies ist daher keine native P4-Unterstützung.
+Kompatibilitäts-Timeout für die Response-Steuerung; reines SPOE/SPOP überträgt keinen Response-Body und ist daher kein natives P4-Stream-Idle-Limit.
 
 ### Syntax
 
@@ -2282,7 +2276,7 @@ response-body-timeout=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| Ganzzahl | dezimale Ganzzahl | nein |
+| Ganzzahl | vorzeichenlose dezimale Millisekunden, 0..4294967295; müssen bei response-companion=none 0 sein | nein |
 
 ### Standardwert
 
@@ -2300,11 +2294,11 @@ Zusammenführung: Kein Merge; config_set übernimmt einen geparsten Wert.
 
 P1–P4-Relevanz: Nur Kompatibilitäts-Request-/Response-Headerpfad; keine Aussage zum nativen Response-Body-Lebenszyklus.
 
-Kompatibilitäts-Response-Steuerung. Die ausgewählten SPOE-Nachrichten liefern keinen Response-Body; dies ist daher keine native P4-Unterstützung.
+Kompatibilitäts-Timeout für die Response-Steuerung; reines SPOE/SPOP überträgt keinen Response-Body und ist daher kein natives P4-Stream-Idle-Limit.
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
+spoe-timeout akzeptiert nur dezimale Millisekunden in 1..60000; worker-count akzeptiert 2..64; max-transactions akzeptiert 1..4096; worker-count * max-transactions darf 65536 nicht überschreiten; response-body-timeout akzeptiert vorzeichenlose dezimale Millisekunden und muss bei response-companion=none 0 sein; unbekannte Schlüssel und fehlerhafte Werte lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
 
 ### Beispiel
 
@@ -2541,7 +2535,7 @@ Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberpr�
 
 ### Kurzbeschreibung
 
-SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption.
+Begrenzt jede SPOE/SPOP-Engine-Transaktion; null, negative, fehlerhafte und über dem Limit liegende Werte lassen das Konfigurationsparsen fehlschlagen.
 
 ### Syntax
 
@@ -2557,7 +2551,7 @@ spoe-timeout=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| Ganzzahl | dezimale Ganzzahl | nein |
+| Ganzzahl | positive dezimale Millisekunden, 1..60000 | nein |
 
 ### Standardwert
 
@@ -2575,11 +2569,11 @@ Zusammenführung: Kein Merge; config_set übernimmt einen geparsten Wert.
 
 P1–P4-Relevanz: Nur Kompatibilitäts-Request-/Response-Headerpfad; keine Aussage zum nativen Response-Body-Lebenszyklus.
 
-SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption.
+Begrenzt jede SPOE/SPOP-Engine-Transaktion; null, negative, fehlerhafte und über dem Limit liegende Werte lassen das Konfigurationsparsen fehlschlagen.
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
+spoe-timeout akzeptiert nur dezimale Millisekunden in 1..60000; worker-count akzeptiert 2..64; max-transactions akzeptiert 1..4096; worker-count * max-transactions darf 65536 nicht überschreiten; response-body-timeout akzeptiert vorzeichenlose dezimale Millisekunden und muss bei response-companion=none 0 sein; unbekannte Schlüssel und fehlerhafte Werte lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
 
 ### Beispiel
 
@@ -2651,7 +2645,7 @@ Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberpr�
 
 ### Kurzbeschreibung
 
-SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption.
+Begrenzt isolierte parallele SPOE/SPOP-Peer-Handler; mindestens zwei Worker verhindern, dass ein langsamer Handshake die Accept-Schleife monopolisiert.
 
 ### Syntax
 
@@ -2667,7 +2661,7 @@ worker-count=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| Ganzzahl | `1..64`; zusammen mit `max-transactions` höchstens 65536 Cache-Slots | nein |
+| Ganzzahl | dezimale Ganzzahl, 2..64; worker-count * max-transactions <= 65536 | nein |
 
 ### Standardwert
 
@@ -2685,15 +2679,11 @@ Zusammenführung: Kein Merge; config_set übernimmt einen geparsten Wert.
 
 P1–P4-Relevanz: Nur Kompatibilitäts-Request-/Response-Headerpfad; keine Aussage zum nativen Response-Body-Lebenszyklus.
 
-SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption.
+Begrenzt isolierte parallele SPOE/SPOP-Peer-Handler; mindestens zwei Worker verhindern, dass ein langsamer Handshake die Accept-Schleife monopolisiert.
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel und Werte außerhalb von `1..64` (einschließlich Null,
-negativer, überlaufender oder nachgestellter Textwerte) lassen das Parsen der
-Konfiguration des Kompatibilitätsagenten mit Exit `2` fehlschlagen. Ein
-Worker-/Cache-Produkt oberhalb von 65536 wird beim Start mit Exit `2`
-fail-closed abgewiesen, bevor eine Allokation erfolgt.
+spoe-timeout akzeptiert nur dezimale Millisekunden in 1..60000; worker-count akzeptiert 2..64; max-transactions akzeptiert 1..4096; worker-count * max-transactions darf 65536 nicht überschreiten; response-body-timeout akzeptiert vorzeichenlose dezimale Millisekunden und muss bei response-companion=none 0 sein; unbekannte Schlüssel und fehlerhafte Werte lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
 
 ### Beispiel
 

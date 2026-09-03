@@ -18,10 +18,33 @@ from typing import Final
 DECLARED_LENGTH: Final = 64
 SENT_BODY: Final = b"short"
 SCHEMA_VERSION: Final = 1
+MAX_RECEIPT_BYTES: Final = 65536
 
 
 class ProbeFailure(RuntimeError):
     """The bounded frontend/upstream exchange did not meet the contract."""
+
+
+def _safe_receipt_path(path: Path) -> Path:
+    if not path.is_absolute() or path.name in ("", ".", ".."):
+        raise ProbeFailure("receipt path must be absolute and have a filename")
+    if not path.parent.is_dir() or path.parent.is_symlink() or path.parent.stat().st_mode & 0o077:
+        raise ProbeFailure("receipt parent must be a private real directory")
+    if path.is_symlink():
+        raise ProbeFailure("receipt must not be a symbolic link")
+    return path
+
+
+def _loopback_port(value: int) -> int:
+    if type(value) is not int or not 1024 <= value <= 65535:
+        raise ProbeFailure("network port must be an unprivileged TCP port")
+    return value
+
+
+def _loopback_host(value: str) -> str:
+    if value != "127.0.0.1":
+        raise ProbeFailure("probe network host must be IPv4 loopback")
+    return value
 
 
 def _read_request(connection: socket.socket, expected_path: str, deadline: float) -> None:
@@ -51,6 +74,8 @@ def _serve_truncated_upstream(
     receipt: dict[str, object],
     ready: threading.Event,
 ) -> None:
+    host = _loopback_host(host)
+    port = _loopback_port(port)
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
         listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         listener.bind((host, port))
@@ -96,6 +121,8 @@ def _serve_truncated_upstream(
 
 
 def _read_frontend(host: str, port: int, path: str, expected_nonce: str, deadline: float, receipt: dict[str, object]) -> None:
+    host = _loopback_host(host)
+    port = _loopback_port(port)
     with socket.create_connection((host, port), timeout=max(0.01, deadline - time.monotonic())) as connection:
         connection.settimeout(max(0.01, deadline - time.monotonic()))
         connection.sendall(
@@ -186,6 +213,11 @@ def run(args: argparse.Namespace) -> dict[str, object]:
         raise ProbeFailure("timeout must be between 0 and 30 seconds")
     if not args.path.startswith("/") or any(ch in args.path for ch in "\r\n"):
         raise ProbeFailure("path must be an HTTP origin-form path")
+    args.frontend_host = _loopback_host(args.frontend_host)
+    args.upstream_host = _loopback_host(args.upstream_host)
+    args.frontend_port = _loopback_port(args.frontend_port)
+    args.upstream_port = _loopback_port(args.upstream_port)
+    args.receipt = _safe_receipt_path(args.receipt)
     deadline = time.monotonic() + args.timeout
     nonce = secrets.token_hex(24)
     receipt: dict[str, object] = {
@@ -255,12 +287,9 @@ def main() -> int:
     args = parser.parse_args()
     try:
         result = run(args)
-        receipt_parent = args.receipt.parent
-        if not receipt_parent.is_dir() or receipt_parent.is_symlink():
-            raise ProbeFailure("receipt parent must be an existing real task-owned directory")
-        if receipt_parent.stat().st_mode & 0o077:
-            raise ProbeFailure("receipt parent must not be accessible by group or other users")
         payload = (json.dumps(result, indent=2, sort_keys=True) + "\n").encode("utf-8")
+        if len(payload) > MAX_RECEIPT_BYTES:
+            raise ProbeFailure("receipt exceeds bounded size")
         descriptor = os.open(
             args.receipt,
             os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),

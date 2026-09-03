@@ -1,0 +1,184 @@
+# Change Record CR-20260903-connector-runtime-hardening-quality-remediation
+
+**Language:** English | [Deutsch](CR-20260903-connector-runtime-hardening-quality-remediation.de.md)
+
+## Identity
+
+| Field | Value |
+| --- | --- |
+| Change ID | CR-20260903-connector-runtime-hardening-quality-remediation |
+| Date (UTC) | 2026-09-03 |
+| Base revision | 95bc04203455bc74a9cd18fafc6fb5848af2bbb2 (`origin/master`) |
+| Delivery status | In progress on `codex/connector-runtime-hardening-20260824`; Draft PR [#346](https://github.com/Easton97-Jens/ModSecurity-conector/pull/346). No remediation commit, push result, exact-head hosted result, or merge is asserted. |
+
+## Motivation and problem statement
+
+This Parent-only remediation addresses the current PR's Codex review findings,
+SonarQube Cloud Quality-Gate errors, and red connector workflow evidence for
+runtime error, timeout, cancellation, protocol, and cleanup paths. The initial
+hosted state contained an Apache runtime failure, a bilingual-documentation
+heading failure, and a SonarQube Cloud gate error (`new_security_rating=3` and
+`new_duplicated_lines_density=4.5`).
+
+## Acceptance criteria
+
+- Correct the identified connector runtime and cleanup defects without
+  weakening fail-closed controls or changing CI/governance inputs.
+- Preserve legitimate allow/block behavior and add trigger and control
+  regression coverage at each changed boundary.
+- Remove the identified Sonar new-code security and duplication causes without
+  suppressions, exclusions, or Quality-Gate changes.
+- Keep English/German reader-facing documentation and the Change Record pair
+  materially equivalent.
+- Obtain fresh exact-head GitHub Actions and SonarQube Cloud evidence after a
+  normal push; delivery remains pending until those results exist.
+
+## Implementation decision and rationale
+
+The remediation corrects Apache listener-inode parsing and private artifact
+handling; Common event protocol-value double escaping plus lossless JSONL and
+integrity-chain handling; Traefik stable worker-slot cleanup; Lighttpd helper
+artifact, endpoint, executable, and zombie-session handling; Envoy ext_proc
+absolute stream lifetime, cancellation, and bounded post-send evidence after a
+confirmed response at the lifetime boundary; and the two bilingual heading
+hierarchies.
+
+For HAProxy SPOE/SPOP, the remediation uses checked `MSG_NOSIGNAL` full-write
+paths, terminal peer-local failure handling and rate-limited error evidence,
+detached bounded peer workers, immediate close on exhausted peer admission,
+strict worker/transaction limits, and fail-closed protocol outcomes. A
+response NOTIFY sent while response processing is disabled produces the
+documented 503 outcome before transaction processing; malformed NOTIFY and
+missing response correlation remain disruptive even in `mode=detect-only`.
+Valid engine Allow/Block decisions retain their configured mode semantics.
+The source-backed configuration renderer now documents that
+`response-body-timeout` must be zero only with `response-companion=none`.
+
+The scope is limited to Parent source, tests, connector documentation, example
+configuration, and this record. It includes no CI workflow, permission,
+branch-protection, ruleset, required-check, Framework, MRTS, Gitlink, direct
+`master`, or merge change. Current `master` remains the authoritative base.
+
+## Security impact
+
+The affected security boundaries include untrusted network peers,
+request/response streams, subprocess and artifact paths, Unix/TCP endpoints,
+protocol parsers, and concurrent transaction state. The implementation adds
+bounded path and endpoint checks, stable cleanup ownership, cancellation
+propagation, absolute stream lifetime, and single-pass event encoding while
+retaining existing authorization decisions. An independent post-fix review
+found an Apache `/proc/net/tcp` token-index defect; the parser and its
+actual-layout regression fixture were corrected, and focused verification
+passed. The final independent review then found three active Envoy service
+configurations missing the new mandatory stream lifetime; all were corrected.
+A later independent HAProxy boundary review found the response-phase,
+detect-only protocol-error, and saturated-admission gaps addressed above. The
+subsequent fresh combined-diff review found no concrete medium- or high-severity
+security or integrity issue; it specifically reviewed the Envoy post-send
+evidence boundary and Common lossless serialization/integrity-chain paths.
+
+## Changed files
+
+- `connectors/apache/harness/apache_process_guard.py` and
+  `tests/test_apache_process_guard.py`
+- Common event headers, runtime, JSON/JSONL/integrity implementation, and
+  `tests/event_json_utf8_smoke.c` plus
+  `tests/transaction_phase_runtime_companion_test.c`
+- `connectors/traefik/src/traefik_engine_service.c` and
+  `tests/test_traefik_engine_service_shutdown_contract.py`
+- Lighttpd backend-close and Stock lifecycle harness source, tests, and
+  English documentation
+- Envoy ext_proc processor/configuration source, tests, English/German
+  READMEs, active service configurations, and example service configurations
+- `connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c`, HAProxy example
+  configurations and English/German configuration references, and
+  `reports/connector-configuration-inventory.json`
+- HAProxy response-timeout, transaction-cache, peer-isolation, resource-limit,
+  SIGPIPE/peer-isolation, and Sonar reliability contracts
+- `ci/checks/documentation/connector_config_reference.py` and
+  `tests/test_connector_config_reference.py`
+- `connectors/traefik/native_middleware/README.de.md`
+- this English/German Change Record pair and both archive indexes
+
+## Commands executed
+
+- `rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest
+  tests.test_apache_process_guard
+  connectors.lighttpd.tests.test_backend_close_harness_contract
+  connectors.lighttpd.tests.test_stock_lifecycle_harness_contract
+  tests.test_traefik_engine_service_shutdown_contract` — passed, 81 tests.
+- `rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v
+  tests.test_haproxy_spop_response_timeout_contract
+  tests.test_haproxy_spop_transaction_cache_contract
+  tests.test_haproxy_spop_peer_isolation_contract
+  tests.test_haproxy_spop_resource_limits_contract
+  tests.test_haproxy_spop_sigpipe_peer_isolation_contract
+  tests.test_sonar_reliability_contract` — passed, 34 tests.
+- `rtk proxy make -C connectors/haproxy self-test-spoa-runtime` — passed;
+  the selected libModSecurity headers lack the optional rule-ID API and the
+  supported baseline probe was selected as designed.
+- In `connectors/envoy/ext_proc`, `rtk proxy go test -count=5
+  ./internal/processor`, `rtk proxy go test -race -count=1
+  ./internal/processor`, `rtk proxy go test -count=1 ./...`, and `rtk proxy go
+  vet ./...` — passed; deterministic controls cover successful response-CONTINUE
+  and immediate-response sends at the actual stream deadline, evidence failure,
+  terminal cleanup, and rejected follow-up admission.
+- `rtk proxy cc -std=c17 -Wall -Wextra -Werror -Icommon/include
+  tests/event_json_utf8_smoke.c common/src/*.c` followed by the smoke binary
+  and `jq` decoded-value assertion — passed. Strict C17 and ASAN/UBSAN builds
+  of that smoke and the real Common-runtime/libmodsecurity companion test —
+  including rejection of malformed UTF-8 without an event/chain advance and a
+  valid follow-up event — also passed; task-owned binaries are removed before
+  delivery.
+- `rtk proxy jq -e .` for the three active and four example Envoy service JSON
+  files — passed.
+- `rtk proxy cc -std=c17 -Wall -Wextra -Werror -fsyntax-only
+  -Icommon/include -Iconnectors/haproxy/src
+  connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c` — passed.
+- `rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v
+  tests.test_connector_config_reference` and
+  `rtk proxy python3 ci/checks/documentation/check-connector-config-reference.py
+  --repo-root .` — passed, 4 tests and current generated references.
+- `rtk proxy git diff --check` — passed at the final local validation point.
+- `rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v
+  tests.test_bilingual_docs tests.test_connector_config_reference` — passed,
+  26 tests. The combined focused connector set passed 119 tests.
+
+## Runtime evidence
+
+No complete local real-host matrix run is asserted. The Apache hosted runtime
+failure was traced to listener-inode parsing and corrected locally; exact-head
+hosted workflow evidence is still required. The real Common runtime regression
+proves a lossy event is neither written nor chained and that a legitimate
+follow-up succeeds. The HAProxy native self-test proves the connector's framed
+protocol controls but not a full HAProxy host integration or operating-system
+FD-leak audit.
+
+## Checks not run and rationale
+
+No complete local real-host matrix was run. The full bilingual documentation
+check was run but is `blocked_environment` solely because this task checkout
+lacks required Framework Gitlink targets; no Framework initialization or
+modification is authorized. PR-scoped SonarQube Cloud analysis and GitHub
+Actions have not yet run for the remediation head. No merge or direct `master`
+update is authorized.
+
+## Known limitations
+
+The ten connector solutions still need full runtime-layer failure-vector,
+parallelism, shutdown, and cleanup evidence where their real host dependencies
+are available.
+
+## Remaining risks
+
+Any remaining Sonar or hosted failure must be addressed from its exact-head
+evidence without weakening controls.
+
+## Final diff and review status
+
+The final local diff completed its required fresh independent combined
+security/bypass review with no concrete medium- or high-severity issue. A
+normal remediation commit and push, then exact-head Codex, GitHub Actions, and
+SonarQube Cloud results, remain pending. This record deliberately does not
+claim a final commit, push, Quality Gate pass, workflow pass, or merge; those
+facts are reconciled only after they occur.

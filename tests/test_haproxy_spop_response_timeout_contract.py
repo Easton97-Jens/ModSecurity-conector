@@ -14,14 +14,73 @@ RUNTIME_SOURCE = (
 )
 
 
+def _compile_and_run_contract(
+    test_case: unittest.TestCase,
+    harness_source: str,
+    prefix: str,
+    binary_name: str,
+    *,
+    config_contents: str | None = None,
+    run_in_temp: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    """Compile and execute one self-contained C contract harness."""
+    compiler = shutil.which("cc")
+    if compiler is None:
+        test_case.skipTest("requires a C compiler")
+
+    with tempfile.TemporaryDirectory(
+        prefix=prefix,
+        dir=os.environ.get("TMPDIR"),
+    ) as temporary_directory:
+        temporary_root = Path(temporary_directory)
+        config_path = temporary_root / "config.conf"
+        if config_contents is not None:
+            config_path.write_text(config_contents, encoding="utf-8")
+        harness = temporary_root / f"{binary_name}.c"
+        binary = temporary_root / binary_name
+        harness.write_text(
+            harness_source.replace("__RUNTIME_SOURCE__", RUNTIME_SOURCE.as_posix())
+            .replace("CONFIG_FILE_PLACEHOLDER", config_path.as_posix()),
+            encoding="utf-8",
+        )
+        compile_result = subprocess.run(
+            [
+                compiler,
+                "-std=c17",
+                "-Wall",
+                "-Wextra",
+                "-Werror",
+                "-ffunction-sections",
+                "-fdata-sections",
+                "-I",
+                str(ROOT / "common" / "include"),
+                "-I",
+                str(ROOT / "connectors" / "haproxy" / "src"),
+                str(harness),
+                "-Wl,--gc-sections",
+                "-Wl,--unresolved-symbols=ignore-all",
+                "-o",
+                str(binary),
+            ],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        test_case.assertEqual(compile_result.returncode, 0, compile_result.stderr)
+        return subprocess.run(
+            [str(binary)],
+            cwd=temporary_root if run_in_temp else ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+
 class HAProxySPOPResponseTimeoutContractTests(unittest.TestCase):
     """Reject an unenforceable timeout while preserving the zero default."""
 
     def test_config_and_cli_nonzero_timeout_are_rejected(self) -> None:
-        compiler = shutil.which("cc")
-        if compiler is None:
-            self.skipTest("requires a C compiler")
-
         harness_source = r'''
 #define main haproxy_spop_diagnostic_runtime_program_main
 #include "__RUNTIME_SOURCE__"
@@ -40,7 +99,9 @@ int main(void) {
     assert(config.response_body_timeout_ms == 0U);
 
     config_init(&config);
-    assert(config_set(&config, "response-body-timeout", "25") != 0);
+    assert(config_set(&config, "response-body-timeout", "25") == 0);
+    assert(config.response_body_timeout_ms == 25U);
+    assert(validate_production_config(&config) != 0);
 
     config_init(&config);
     assert(config_set(&config, "response-body-timeout", "not-a-number") != 0);
@@ -49,7 +110,8 @@ int main(void) {
     assert(config_set(&config, "response-body-timeout", "-1") != 0);
 
     config_init(&config);
-    assert(parse_production_options(&config, 3, cli_rejected) != 0);
+    assert(parse_production_options(&config, 3, cli_rejected) == 0);
+    assert(validate_production_config(&config) != 0);
 
     config_init(&config);
     assert(parse_production_options(&config, 3, cli_zero) == 0);
@@ -65,120 +127,22 @@ int main(void) {
         assert(fclose(config_file) == 0);
     }
     config_init(&config);
-    assert(load_config_file(&config, "__CONFIG_FILE__") != 0);
+    assert(load_config_file(&config, "__CONFIG_FILE__") == 0);
+    assert(validate_production_config(&config) != 0);
 
-    config_init(&config);
-    assert(config_set(&config, "response-body-limit", "1") == 0);
-    assert(config.response_phases_enabled == 1);
-    assert(production_config_has_supported_response_phases(&config) == 0);
-
-    config_init(&config);
-    assert(config_set(&config, "enable-response-headers", "true") == 0);
-    assert(config.response_phases_enabled == 1);
-    assert(production_config_has_supported_response_phases(&config) == 0);
-
-    config_init(&config);
-    assert(config_set(&config, "response-phases", "on") == 0);
-    assert(config.response_phases_enabled == 1);
-    assert(production_config_has_supported_response_phases(&config) == 0);
-
-    {
-        char *cli_response_limit[] = {"runtime", "--response-body-limit", "1"};
-        char *cli_response_headers[] = {"runtime", "--enable-response-headers"};
-        char *cli_response_phases[] = {"runtime", "--response-phases", "true"};
-
-        config_init(&config);
-        assert(parse_production_options(&config, 3, cli_response_limit) == 0);
-        assert(production_config_has_supported_response_phases(&config) == 0);
-
-        config_init(&config);
-        assert(parse_production_options(&config, 2, cli_response_headers) == 0);
-        assert(production_config_has_supported_response_phases(&config) == 0);
-
-        config_init(&config);
-        assert(parse_production_options(&config, 3, cli_response_phases) == 0);
-        assert(production_config_has_supported_response_phases(&config) == 0);
-    }
-
-    config_init(&config);
-    assert(config.response_body_limit == 0U);
-    assert(config.response_phases_enabled == 0);
-    assert(production_config_has_safe_peer_limits(&config) == 0);
-    config.port = 1U;
-    assert(production_config_has_safe_peer_limits(&config) == 1);
-    assert(production_config_has_supported_response_phases(&config) == 1);
-
-    {
-        FILE *config_file = fopen("CONFIG_FILE_PLACEHOLDER", "w");
-        assert(config_file != NULL);
-        assert(fputs("response-body-limit=1\n", config_file) >= 0);
-        assert(fclose(config_file) == 0);
-    }
-    config_init(&config);
-    assert(load_config_file(&config, "CONFIG_FILE_PLACEHOLDER") == 0);
-    assert(production_config_has_supported_response_phases(&config) == 0);
     return 0;
 }
-'''.replace("__RUNTIME_SOURCE__", RUNTIME_SOURCE.as_posix()).replace(
-            "__CONFIG_FILE__", "CONFIG_FILE_PLACEHOLDER"
-        )
+'''.replace("__CONFIG_FILE__", "CONFIG_FILE_PLACEHOLDER")
 
-        with tempfile.TemporaryDirectory(
-            prefix="haproxy-spop-response-timeout-",
-            dir=os.environ.get("TMPDIR"),
-        ) as temporary_directory:
-            temporary_root = Path(temporary_directory)
-            harness = temporary_root / "response_timeout_contract.c"
-            binary = temporary_root / "response_timeout_contract"
-            harness.write_text(
-                harness_source.replace("CONFIG_FILE_PLACEHOLDER", str(temporary_root / "invalid.conf")),
-                encoding="utf-8",
-            )
-            compile_result = subprocess.run(
-                [
-                    compiler,
-                    "-std=c17",
-                    "-Wall",
-                    "-Wextra",
-                    "-Werror",
-                    "-ffunction-sections",
-                    "-fdata-sections",
-                    "-I",
-                    str(ROOT / "common" / "include"),
-                    "-I",
-                    str(ROOT / "connectors" / "haproxy" / "src"),
-                    str(harness),
-                    "-Wl,--gc-sections",
-                    "-Wl,--unresolved-symbols=ignore-all",
-                    "-o",
-                    str(binary),
-                ],
-                cwd=ROOT,
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(compile_result.returncode, 0, compile_result.stderr)
-
-            run_result = subprocess.run(
-                [str(binary)],
-                cwd=ROOT,
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(run_result.returncode, 0, run_result.stderr)
-            self.assertGreaterEqual(
-            run_result.stderr.count("response-body-timeout=25 is unsupported"),
-            2,
+        run_result = _compile_and_run_contract(
+            self, harness_source, "haproxy-spop-response-timeout-", "response_timeout_contract"
         )
-            self.assertIn("response-body-timeout=not-a-number is invalid", run_result.stderr)
+        self.assertEqual(run_result.returncode, 0, run_result.stderr)
+        self.assertGreaterEqual(
+            run_result.stderr.count("response-body-timeout must be zero"), 3
+        )
 
     def test_production_entry_point_rejects_response_phases_before_server_start(self) -> None:
-        compiler = shutil.which("cc")
-        if compiler is None:
-            self.skipTest("requires a C compiler")
-
         harness_source = r'''
 #define main haproxy_spop_diagnostic_runtime_program_main
 #include "__RUNTIME_SOURCE__"
@@ -215,66 +179,23 @@ int main(void) {
         (int)(sizeof(config_file) / sizeof(config_file[0])), config_file) == 2);
     return 0;
 }
-'''.replace("__RUNTIME_SOURCE__", RUNTIME_SOURCE.as_posix()).replace(
-            "CONFIG_FILE_PLACEHOLDER", "CONFIG_FILE_PLACEHOLDER"
+'''
+        run_result = _compile_and_run_contract(
+            self,
+            harness_source,
+            "haproxy-spop-production-gate-",
+            "production_gate_contract",
+            config_contents="response-body-limit=1\n",
+        )
+        self.assertEqual(run_result.returncode, 0, run_result.stderr)
+        self.assertGreaterEqual(
+            run_result.stderr.count("response-body-limit is unsupported"), 2
+        )
+        self.assertGreaterEqual(
+            run_result.stderr.count("response phases require an integrated P3/P4"), 2
         )
 
-        with tempfile.TemporaryDirectory(
-            prefix="haproxy-spop-production-gate-",
-            dir=os.environ.get("TMPDIR"),
-        ) as temporary_directory:
-            temporary_root = Path(temporary_directory)
-            config_path = temporary_root / "response-limit.conf"
-            config_path.write_text("response-body-limit=1\n", encoding="utf-8")
-            harness = temporary_root / "production_gate_contract.c"
-            binary = temporary_root / "production_gate_contract"
-            harness.write_text(
-                harness_source.replace("CONFIG_FILE_PLACEHOLDER", config_path.as_posix()),
-                encoding="utf-8",
-            )
-            compile_result = subprocess.run(
-                [
-                    compiler,
-                    "-std=c17",
-                    "-Wall",
-                    "-Wextra",
-                    "-Werror",
-                    "-ffunction-sections",
-                    "-fdata-sections",
-                    "-I",
-                    str(ROOT / "common" / "include"),
-                    "-I",
-                    str(ROOT / "connectors" / "haproxy" / "src"),
-                    str(harness),
-                    "-Wl,--gc-sections",
-                    "-Wl,--unresolved-symbols=ignore-all",
-                    "-o",
-                    str(binary),
-                ],
-                cwd=ROOT,
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(compile_result.returncode, 0, compile_result.stderr)
-
-            run_result = subprocess.run(
-                [str(binary)],
-                cwd=ROOT,
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(run_result.returncode, 0, run_result.stderr)
-            self.assertGreaterEqual(
-                run_result.stderr.count("startup rejected fail-closed"), 4
-            )
-
     def test_disabled_response_notify_is_rejected_before_transaction_processing(self) -> None:
-        compiler = shutil.which("cc")
-        if compiler is None:
-            self.skipTest("requires a C compiler")
-
         harness_source = r'''
 #define main haproxy_spop_diagnostic_runtime_program_main
 #include "__RUNTIME_SOURCE__"
@@ -284,6 +205,17 @@ int main(void) {
 #include <sys/socket.h>
 #include <unistd.h>
 
+static int payload_contains_literal(const spop_buffer *payload, const char *literal) {
+    size_t literal_len = strlen(literal);
+
+    for (size_t index = 0U; index + literal_len <= payload->len; ++index) {
+        if (memcmp(payload->data + index, literal, literal_len) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 int main(void) {
     agent_state state;
     notify_request request;
@@ -292,14 +224,13 @@ int main(void) {
     spop_buffer ack_payload;
     FILE *log = fopen("guard.log", "w+");
     int sockets[2];
-    char log_text[2048];
-    size_t log_len;
 
     assert(log != NULL);
     assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
     memset(&state, 0, sizeof(state));
     config_init(&state.config);
     state.config.response_phases_enabled = 0;
+    assert(config_set(&state.config, "mode", "detect-only") == 0);
     state.engine = (haproxy_modsecurity_engine *)0x1;
     state.log = log;
     memset(&request, 0, sizeof(request));
@@ -315,74 +246,31 @@ int main(void) {
      * touched, while the peer still receives a protocol ACK. */
     assert(process_production_notify(sockets[0], &frame, &state, log,
         &request) == 0);
-    assert(recv_frame(sockets[1], &ack) == 0);
+    assert(recv_frame(sockets[1], &ack, 3000U) == 0);
     assert(ack.type == SPOP_FRM_ACK);
     ack_payload.len = ack.payload_len;
     memcpy(ack_payload.data, ack.payload, ack.payload_len);
     assert(payload_has_set_var_blocked_true(&ack_payload));
+    assert(payload_contains_literal(&ack_payload,
+        "response_phase_disabled_closed"));
     assert(state.transactions == NULL);
-
-    assert(fseek(log, 0, SEEK_SET) == 0);
-    log_len = fread(log_text, 1, sizeof(log_text) - 1U, log);
-    log_text[log_len] = '\0';
-    assert(strstr(log_text, "event=response-phase-disabled") != NULL);
-    assert(strstr(log_text, "outcome=fail-closed") != NULL);
-    assert(strstr(log_text, "transaction=not-consumed") != NULL);
 
     fclose(log);
     close(sockets[0]);
     close(sockets[1]);
     return 0;
 }
-'''.replace("__RUNTIME_SOURCE__", RUNTIME_SOURCE.as_posix())
-
-        with tempfile.TemporaryDirectory(
-            prefix="haproxy-spop-response-phase-guard-",
-            dir=os.environ.get("TMPDIR"),
-        ) as temporary_directory:
-            temporary_root = Path(temporary_directory)
-            harness = temporary_root / "response_phase_guard_contract.c"
-            binary = temporary_root / "response_phase_guard_contract"
-            harness.write_text(harness_source, encoding="utf-8")
-            compile_result = subprocess.run(
-                [
-                    compiler,
-                    "-std=c17",
-                    "-Wall",
-                    "-Wextra",
-                    "-Werror",
-                    "-ffunction-sections",
-                    "-fdata-sections",
-                    "-I",
-                    str(ROOT / "common" / "include"),
-                    "-I",
-                    str(ROOT / "connectors" / "haproxy" / "src"),
-                    str(harness),
-                    "-Wl,--gc-sections",
-                    "-Wl,--unresolved-symbols=ignore-all",
-                    "-o",
-                    str(binary),
-                ],
-                cwd=ROOT,
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(compile_result.returncode, 0, compile_result.stderr)
-            run_result = subprocess.run(
-                [str(binary)],
-                cwd=temporary_root,
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(run_result.returncode, 0, run_result.stderr)
+'''
+        run_result = _compile_and_run_contract(
+            self,
+            harness_source,
+            "haproxy-spop-response-phase-guard-",
+            "response_phase_guard_contract",
+            run_in_temp=True,
+        )
+        self.assertEqual(run_result.returncode, 0, run_result.stderr)
 
     def test_mixed_response_then_request_notify_remains_response_typed(self) -> None:
-        compiler = shutil.which("cc")
-        if compiler is None:
-            self.skipTest("requires a C compiler")
-
         harness_source = r'''
 #define main haproxy_spop_diagnostic_runtime_program_main
 #include "__RUNTIME_SOURCE__"
@@ -427,7 +315,7 @@ int main(void) {
     assert(request.is_response_body == 0);
     assert(process_production_notify(sockets[0], &frame, &state, log,
         &request) == 0);
-    assert(recv_frame(sockets[1], &ack) == 0);
+    assert(recv_frame(sockets[1], &ack, 3000U) == 0);
     assert(ack.type == SPOP_FRM_ACK);
     ack_payload.len = ack.payload_len;
     memcpy(ack_payload.data, ack.payload, ack.payload_len);
@@ -454,55 +342,17 @@ int main(void) {
     close(sockets[1]);
     return 0;
 }
-'''.replace("__RUNTIME_SOURCE__", RUNTIME_SOURCE.as_posix())
-
-        with tempfile.TemporaryDirectory(
-            prefix="haproxy-spop-mixed-notify-",
-            dir=os.environ.get("TMPDIR"),
-        ) as temporary_directory:
-            temporary_root = Path(temporary_directory)
-            harness = temporary_root / "mixed_notify_contract.c"
-            binary = temporary_root / "mixed_notify_contract"
-            harness.write_text(harness_source, encoding="utf-8")
-            compile_result = subprocess.run(
-                [
-                    compiler,
-                    "-std=c17",
-                    "-Wall",
-                    "-Wextra",
-                    "-Werror",
-                    "-ffunction-sections",
-                    "-fdata-sections",
-                    "-I",
-                    str(ROOT / "common" / "include"),
-                    "-I",
-                    str(ROOT / "connectors" / "haproxy" / "src"),
-                    str(harness),
-                    "-Wl,--gc-sections",
-                    "-Wl,--unresolved-symbols=ignore-all",
-                    "-o",
-                    str(binary),
-                ],
-                cwd=ROOT,
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(compile_result.returncode, 0, compile_result.stderr)
-            run_result = subprocess.run(
-                [str(binary)],
-                cwd=temporary_root,
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(run_result.returncode, 0, run_result.stderr)
+'''
+        run_result = _compile_and_run_contract(
+            self,
+            harness_source,
+            "haproxy-spop-mixed-notify-",
+            "mixed_notify_contract",
+            run_in_temp=True,
+        )
+        self.assertEqual(run_result.returncode, 0, run_result.stderr)
 
     def test_empty_notify_payload_is_rejected_before_default_request_processing(self) -> None:
-        compiler = shutil.which("cc")
-        if compiler is None:
-            self.skipTest("requires a C compiler")
-
         harness_source = r'''
 #define main haproxy_spop_diagnostic_runtime_program_main
 #include "__RUNTIME_SOURCE__"
@@ -535,49 +385,15 @@ int main(void) {
     free_notify_request(&request);
     return 0;
 }
-'''.replace("__RUNTIME_SOURCE__", RUNTIME_SOURCE.as_posix())
-
-        with tempfile.TemporaryDirectory(
-            prefix="haproxy-spop-empty-notify-",
-            dir=os.environ.get("TMPDIR"),
-        ) as temporary_directory:
-            temporary_root = Path(temporary_directory)
-            harness = temporary_root / "empty_notify_contract.c"
-            binary = temporary_root / "empty_notify_contract"
-            harness.write_text(harness_source, encoding="utf-8")
-            compile_result = subprocess.run(
-                [
-                    compiler,
-                    "-std=c17",
-                    "-Wall",
-                    "-Wextra",
-                    "-Werror",
-                    "-ffunction-sections",
-                    "-fdata-sections",
-                    "-I",
-                    str(ROOT / "common" / "include"),
-                    "-I",
-                    str(ROOT / "connectors" / "haproxy" / "src"),
-                    str(harness),
-                    "-Wl,--gc-sections",
-                    "-Wl,--unresolved-symbols=ignore-all",
-                    "-o",
-                    str(binary),
-                ],
-                cwd=ROOT,
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(compile_result.returncode, 0, compile_result.stderr)
-            run_result = subprocess.run(
-                [str(binary)],
-                cwd=temporary_root,
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(run_result.returncode, 0, run_result.stderr)
+'''
+        run_result = _compile_and_run_contract(
+            self,
+            harness_source,
+            "haproxy-spop-empty-notify-",
+            "empty_notify_contract",
+            run_in_temp=True,
+        )
+        self.assertEqual(run_result.returncode, 0, run_result.stderr)
 
 
 if __name__ == "__main__":

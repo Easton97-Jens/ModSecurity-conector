@@ -1180,7 +1180,7 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
 
         with (
             patch.object(GUARD_MODULE, "MAX_SESSION_ABSENCE_RESCANS", 2),
-            patch.object(GUARD_MODULE, "_scan_session_members", return_value=([1], [])),
+            patch.object(GUARD_MODULE, "_active_session_members", return_value=([1], [])),
             patch.object(GUARD_MODULE.time, "sleep", return_value=None),
         ):
             with self.assertRaisesRegex(
@@ -1188,6 +1188,21 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
                 "bounded task-session absence rescan limit exceeded",
             ):
                 GUARD_MODULE.assert_session_absent(1, 1)
+
+    def test_session_absence_ignores_zombie_members_but_not_inspection_errors(self):
+        with patch.object(GUARD_MODULE, "_active_session_members", return_value=([], [])):
+            GUARD_MODULE.assert_session_absent(123)
+        with patch.object(GUARD_MODULE, "_active_session_members", return_value=([], ["cannot inspect"])):
+            with self.assertRaisesRegex(GUARD_MODULE.GuardFailure, "cannot fully inspect"):
+                GUARD_MODULE.assert_session_absent(123)
+
+    def test_probe_rejects_non_loopback_or_privileged_network_targets(self):
+        with self.assertRaises(PROBE_MODULE.ProbeFailure):
+            PROBE_MODULE._loopback_host("198.51.100.1")
+        with self.assertRaises(PROBE_MODULE.ProbeFailure):
+            PROBE_MODULE._loopback_port(80)
+        self.assertEqual(PROBE_MODULE._loopback_host("127.0.0.1"), "127.0.0.1")
+        self.assertEqual(PROBE_MODULE._loopback_port(29852), 29852)
 
     def test_linux_guard_bounds_abort_event_rescans(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -1416,6 +1431,21 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
             self.assertEqual(json.loads(output.read_text(encoding="utf-8"))["value"], value)
             with self.assertRaises(GUARD_MODULE.GuardFailure):
                 GUARD_MODULE.write_json(output, ["value=second-write"])
+
+    def test_linux_guard_exec_session_rejects_untrusted_executable_metadata(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = pathlib.Path(temporary_directory)
+            executable = root / "helper"
+            executable.write_bytes(b"#!/bin/sh\nexit 0\n")
+            executable.chmod(0o755)
+            self.assertEqual(GUARD_MODULE._validated_executable(str(executable)), str(executable))
+            executable.chmod(0o775)
+            with self.assertRaisesRegex(GUARD_MODULE.GuardFailure, "not group/world writable"):
+                GUARD_MODULE._validated_executable(str(executable))
+            symlink = root / "helper-link"
+            symlink.symlink_to(executable)
+            with self.assertRaisesRegex(GUARD_MODULE.GuardFailure, "symbolic links"):
+                GUARD_MODULE._validated_executable(str(symlink))
 
     def test_linux_guard_exec_session_is_a_singleton_process_group(self):
         child = subprocess.Popen(

@@ -123,6 +123,10 @@ struct msconnector_runtime_transaction {
     int response_body_started;
     int host_action_event_emitted;
     int terminal_event_emitted;
+    /* A failed serializer must not be replaced by a different synthetic
+     * terminal event: that would advance the shared integrity chain without
+     * an authoritative representation of the original event. */
+    int event_write_failed;
     int response_companion_handed_off;
     int finish_attempted;
     int finished;
@@ -1763,7 +1767,14 @@ static int write_event_jsonl(
         return runtime_error(error, MSCONNECTOR_ERROR_EVENT_TOO_LARGE,
             "event buffer allocation failed", "runtime");
     }
-    (void)msconnector_event_write_jsonl_line(event, json, json_size, &truncated);
+    if (!msconnector_event_write_jsonl_line(event, json, json_size, &truncated)) {
+        msconnector_free_checked(&allocator, (void **)&json, json_size);
+        return runtime_error(error, MSCONNECTOR_ERROR_EVENT_TOO_LARGE,
+            truncated != 0
+                ? "event JSONL serialization was truncated or lossy"
+                : "event JSONL serialization failed",
+            "runtime");
+    }
     written_size = strlen(json);
     if (written_size == 0U || json[written_size - 1U] != '\n' ||
         !msconnector_dos_guard_check_event_json_size(
@@ -1798,6 +1809,10 @@ static int emit_decision_event(
         return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
             "event input is required", "runtime");
     }
+    if (transaction->event_write_failed) {
+        return runtime_error(error, MSCONNECTOR_ERROR_EVENT_TOO_LARGE,
+            "event JSONL serialization previously failed", "runtime");
+    }
     runtime = transaction->runtime;
     if (runtime->event_file == NULL ||
         !msconnector_decision_to_event(decision, &event, runtime->connector_name,
@@ -1829,6 +1844,7 @@ static int emit_decision_event(
         event.integrity.event_hash = msconnector_integrity_event_hash(
             &event, event.integrity.previous_hash);
         if (!write_event_jsonl(runtime, &event, error)) {
+            transaction->event_write_failed = 1;
             success = 0;
         } else {
             runtime->previous_event_hash = event.integrity.event_hash;
@@ -1924,6 +1940,10 @@ static int emit_contract_terminal_event(
     if (transaction->terminal_event_emitted) {
         return 1;
     }
+    if (transaction->event_write_failed) {
+        return runtime_error(error, MSCONNECTOR_ERROR_EVENT_TOO_LARGE,
+            "event JSONL serialization previously failed", "runtime");
+    }
     runtime = transaction->runtime;
     if (!msconnector_transaction_contract_decision_policy(&transaction->contract,
             transaction->contract.engine_decision, &policy)) {
@@ -1982,6 +2002,7 @@ static int emit_contract_terminal_event(
         event.integrity.event_hash = msconnector_integrity_event_hash(
             &event, event.integrity.previous_hash);
         if (!write_event_jsonl(runtime, &event, error)) {
+            transaction->event_write_failed = 1;
             success = 0;
         } else {
             runtime->previous_event_hash = event.integrity.event_hash;

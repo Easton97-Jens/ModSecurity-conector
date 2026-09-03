@@ -376,7 +376,7 @@ int main(void)
         )
         accept_loop = source[accept_loop_start:accept_loop_end]
         failed_accept_start = accept_loop.index("if (fd < 0) {")
-        success_start = accept_loop.index("handle_connection(", failed_accept_start)
+        success_start = accept_loop.index("pthread_mutex_lock(&gate.lock)", failed_accept_start)
         failed_accept = accept_loop[failed_accept_start:success_start]
         terminal_error_start = failed_accept.index("if (errno != EINTR) {")
         interrupted_stop_start = failed_accept.index("if (stop_requested) {")
@@ -389,10 +389,11 @@ int main(void)
         self.assertIn(
             'log_line(log, "accept failed errno=%d", errno);', terminal_error
         )
-        self.assertIn("return 1;", terminal_error)
+        self.assertIn("loop_rc = 1;", terminal_error)
+        self.assertIn("break;", terminal_error)
         self.assertLess(
             terminal_error.index('log_line(log, "accept failed errno=%d", errno);'),
-            terminal_error.index("return 1;"),
+            terminal_error.index("loop_rc = 1;"),
         )
         self.assertNotIn("if (stop_requested)", terminal_error)
         self.assertIn("break;", interrupted_accept)
@@ -406,12 +407,15 @@ int main(void)
         self.assertNotIn("handled++;", failed_accept)
 
         success_path = accept_loop[success_start:]
-        self.assertLess(
-            success_path.index("handle_connection("), success_path.index("close(fd);")
+        self.assertIn("if (gate.active >= gate.limit)", success_path)
+        self.assertIn(
+            '"event=spop-peer-capacity-rejected action=close reason=worker-capacity"',
+            success_path,
         )
-        self.assertLess(
-            success_path.index("close(fd);"), success_path.index("handled++;"),
-        )
+        self.assertIn("gate.active++", success_path)
+        self.assertIn("pthread_create(&thread", success_path)
+        self.assertIn("close(fd);", success_path)
+        self.assertIn("handled++;", success_path)
 
     def test_haproxy_append_string_preflights_payload_before_mutating_the_frame(self) -> None:
         source = (

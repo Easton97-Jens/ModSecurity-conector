@@ -5,12 +5,16 @@ import (
 	"errors"
 	"io"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	extprocv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
 	typev3 "github.com/envoyproxy/go-control-plane/envoy/type/v3"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -46,6 +50,362 @@ func TestProcessStreamsChunksAndCleansUpAtResponseEOS(t *testing.T) {
 	summary := transaction.closed[0]
 	if summary.CloseReason != CloseResponseEOS || summary.RequestBodyBytes != 6 || summary.ResponseBodyBytes != 6 {
 		t.Fatalf("unexpected cleanup summary: %#v", summary)
+	}
+}
+
+func TestProcessEnforcesAbsoluteStreamLifetimeAndReleasesAdmission(t *testing.T) {
+	transaction := &recordingTransaction{}
+	service := newTestService(t, transaction, LateActionSafe)
+	service.config.StreamMaxLifetimeMS = 10
+	recvRelease := make(chan struct{})
+	stream := &fakeProcessStream{
+		contextFactory: testStreamContext(context.Background()),
+		receive:        []receiveResult{{request: requestHeaders(false)}},
+		recvBlock:      recvRelease,
+	}
+	err := service.Process(stream)
+	close(recvRelease)
+	if status.Code(err) != codes.DeadlineExceeded {
+		t.Fatalf("Process() code = %s, want DeadlineExceeded (err=%v)", status.Code(err), err)
+	}
+	if len(transaction.closed) != 1 || transaction.closed[0].CloseReason != CloseStreamMaxLifetime {
+		t.Fatalf("cleanup = %#v, want one max-lifetime cleanup", transaction.closed)
+	}
+	deadline := time.Now().Add(time.Second)
+	for service.pendingReceives.Load() != 0 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if got := service.pendingReceives.Load(); got != 0 {
+		t.Fatalf("pending receives = %d, want 0 after blocked Recv release", got)
+	}
+	if err := service.Process(&fakeProcessStream{
+		contextFactory: testStreamContext(context.Background()),
+		receive:        []receiveResult{{request: requestHeaders(true)}},
+	}); err != nil {
+		t.Fatalf("follow-up Process() error = %v", err)
+	}
+}
+
+func TestProcessEnforcesAbsoluteStreamLifetimeDuringBlockedSend(t *testing.T) {
+	transaction := &recordingTransaction{}
+	service := newTestService(t, transaction, LateActionSafe)
+	service.config.StreamMaxLifetimeMS = 10
+	sendRelease := make(chan struct{})
+	sendDone := make(chan struct{})
+	stream := &fakeProcessStream{
+		contextFactory: testStreamContext(context.Background()),
+		receive:        []receiveResult{{request: requestHeaders(false)}},
+		sendBlock:      sendRelease,
+		sendDone:       sendDone,
+	}
+	err := service.Process(stream)
+	if status.Code(err) != codes.DeadlineExceeded {
+		t.Fatalf("Process() code = %s, want DeadlineExceeded (err=%v)", status.Code(err), err)
+	}
+	if len(transaction.closed) != 1 || transaction.closed[0].CloseReason != CloseStreamMaxLifetime {
+		t.Fatalf("cleanup = %#v, want one max-lifetime cleanup", transaction.closed)
+	}
+	select {
+	case fatal := <-service.FatalErrors():
+		if fatal == nil || !strings.Contains(fatal.Error(), "response send exceeded") {
+			t.Fatalf("FatalErrors() = %v, want blocked-send terminal failure", fatal)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("blocked Send did not report terminal failure")
+	}
+	if followUpErr := service.Process(&fakeProcessStream{contextFactory: testStreamContext(context.Background())}); status.Code(followUpErr) != codes.Unavailable {
+		t.Fatalf("follow-up Process() code = %s, want Unavailable (err=%v)", status.Code(followUpErr), followUpErr)
+	}
+	close(sendRelease)
+	select {
+	case <-sendDone:
+	case <-time.After(time.Second):
+		t.Fatal("blocked Send goroutine did not finish after release")
+	}
+}
+
+func TestProcessRecordsConfirmedResponseEvidenceAtStreamDeadline(t *testing.T) {
+	tests := []struct {
+		name            string
+		transaction     *recordingTransaction
+		receive         []receiveResult
+		blockOnSendCall int
+		wantCommits     int
+		wantHostActions []HostAction
+	}{
+		{
+			name:            "response continue commit",
+			transaction:     &recordingTransaction{},
+			receive:         []receiveResult{{request: requestHeaders(true)}, {request: responseHeaders(false)}},
+			blockOnSendCall: 2,
+			wantCommits:     1,
+		},
+		{
+			name: "immediate host action",
+			transaction: &recordingTransaction{headerDecision: func(direction Direction) Decision {
+				if direction == DirectionRequest {
+					return Decision{Action: ActionDeny, Status: 403}
+				}
+				return allowDecision()
+			}},
+			receive:         []receiveResult{{request: requestHeaders(false)}},
+			blockOnSendCall: 1,
+			wantHostActions: []HostAction{{
+				Action: AppliedActionDeny, VisibleStatus: 403, TransportResult: "http_status",
+			}},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service := newTestService(t, test.transaction, LateActionSafe)
+			service.config.StreamMaxLifetimeMS = 5
+			service.config.CleanupTimeoutMS = 100
+			sendRelease := make(chan struct{})
+			sendStarted := make(chan struct{})
+			stream := &fakeProcessStream{
+				contextFactory:  testStreamContext(context.Background()),
+				receive:         test.receive,
+				sendBlock:       sendRelease,
+				sendStarted:     sendStarted,
+				blockOnSendCall: test.blockOnSendCall,
+			}
+
+			processDone := make(chan error, 1)
+			go func() { processDone <- service.Process(stream) }()
+			select {
+			case <-sendStarted:
+			case <-time.After(time.Second):
+				t.Fatal("response Send did not begin")
+			}
+			// This is intentionally longer than the stream maximum but shorter
+			// than cleanup grace: Send returns successfully after the real
+			// derived deadline, not merely after a synthetic context cancel.
+			time.Sleep(25 * time.Millisecond)
+			close(sendRelease)
+			var err error
+			select {
+			case err = <-processDone:
+			case <-time.After(time.Second):
+				t.Fatal("Process did not finish after late Send completed")
+			}
+			if status.Code(err) != codes.DeadlineExceeded {
+				t.Fatalf("Process() code = %s, want DeadlineExceeded (err=%v)", status.Code(err), err)
+			}
+			if got := test.transaction.responseCommits; got != test.wantCommits {
+				t.Fatalf("response commits = %d, want %d", got, test.wantCommits)
+			}
+			if got := test.transaction.hostActions; !sameHostActions(got, test.wantHostActions) {
+				t.Fatalf("host actions = %#v, want %#v", got, test.wantHostActions)
+			}
+			if len(test.transaction.closed) != 1 || test.transaction.closed[0].CloseReason != CloseStreamMaxLifetime {
+				t.Fatalf("cleanup = %#v, want one max-lifetime cleanup", test.transaction.closed)
+			}
+			select {
+			case fatal := <-service.FatalErrors():
+				if fatal == nil || !strings.Contains(fatal.Error(), "response send exceeded") {
+					t.Fatalf("FatalErrors() = %v, want late-send terminal failure", fatal)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("late successful Send did not report terminal failure")
+			}
+			if followUpErr := service.Process(&fakeProcessStream{contextFactory: testStreamContext(context.Background())}); status.Code(followUpErr) != codes.Unavailable {
+				t.Fatalf("follow-up Process() code = %s, want Unavailable (err=%v)", status.Code(followUpErr), followUpErr)
+			}
+		})
+	}
+}
+
+func TestProcessStopsAfterSuccessfulResponseEvidenceFailure(t *testing.T) {
+	transaction := &recordingTransaction{
+		hostActionError: errors.New("Common event write rejected"),
+		headerDecision: func(direction Direction) Decision {
+			if direction == DirectionRequest {
+				return Decision{Action: ActionDeny, Status: 403}
+			}
+			return allowDecision()
+		},
+	}
+	service := newTestService(t, transaction, LateActionSafe)
+	err := service.Process(&fakeProcessStream{
+		contextFactory: testStreamContext(context.Background()),
+		receive:        []receiveResult{{request: requestHeaders(false)}},
+	})
+	if status.Code(err) != codes.Internal {
+		t.Fatalf("Process() code = %s, want Internal (err=%v)", status.Code(err), err)
+	}
+	if len(transaction.hostActions) != 0 {
+		t.Fatalf("failed evidence recorded host actions: %#v", transaction.hostActions)
+	}
+	if len(transaction.closed) != 1 || transaction.closed[0].CloseReason != CloseProcessorError {
+		t.Fatalf("cleanup = %#v, want one processor-error cleanup", transaction.closed)
+	}
+	select {
+	case fatal := <-service.FatalErrors():
+		if fatal == nil || !strings.Contains(fatal.Error(), "successful response evidence failed") {
+			t.Fatalf("FatalErrors() = %v, want evidence terminal failure", fatal)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("successful response evidence failure did not report fatal")
+	}
+	if followUpErr := service.Process(&fakeProcessStream{contextFactory: testStreamContext(context.Background())}); status.Code(followUpErr) != codes.Unavailable {
+		t.Fatalf("follow-up Process() code = %s, want Unavailable (err=%v)", status.Code(followUpErr), followUpErr)
+	}
+}
+
+func TestProcessStuckNativeEquivalentReportsFatalAfterCleanupGrace(t *testing.T) {
+	transaction := &recordingTransaction{
+		headerBlock: make(chan struct{}),
+		closeDone:   make(chan struct{}),
+	}
+	service := newTestService(t, transaction, LateActionSafe)
+	service.config.StreamMaxLifetimeMS = 10
+	service.config.CleanupTimeoutMS = 10
+	started := make(chan struct{})
+	transaction.headerStarted = started
+	stream := &fakeProcessStream{
+		contextFactory: testStreamContext(context.Background()),
+		receive:        []receiveResult{{request: requestHeaders(false)}},
+	}
+	processDone := make(chan error, 1)
+	go func() { processDone <- service.Process(stream) }()
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("native-equivalent handler did not start")
+	}
+	select {
+	case err := <-processDone:
+		if status.Code(err) != codes.DeadlineExceeded {
+			t.Fatalf("Process() code = %s, want DeadlineExceeded (err=%v)", status.Code(err), err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Process() did not return after bounded cleanup grace")
+	}
+	select {
+	case fatal := <-service.FatalErrors():
+		if fatal == nil || !strings.Contains(fatal.Error(), "native handler remained blocked") {
+			t.Fatalf("FatalErrors() = %v, want stuck-handler terminal failure", fatal)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("stuck native-equivalent handler did not report fatal")
+	}
+	if followUpErr := service.Process(&fakeProcessStream{contextFactory: testStreamContext(context.Background())}); status.Code(followUpErr) != codes.Unavailable {
+		t.Fatalf("follow-up Process() code = %s, want Unavailable (err=%v)", status.Code(followUpErr), followUpErr)
+	}
+	if len(transaction.closed) != 0 {
+		t.Fatalf("cleanup called concurrently with stuck handler: %#v", transaction.closed)
+	}
+	close(transaction.headerBlock)
+	select {
+	case <-transaction.closeDone:
+	case <-time.After(time.Second):
+		t.Fatal("deferred native handler cleanup did not run after handler release")
+	}
+	if len(transaction.closed) != 1 || transaction.closed[0].CloseReason != CloseStreamMaxLifetime {
+		t.Fatalf("deferred cleanup = %#v, want one max-lifetime cleanup", transaction.closed)
+	}
+}
+
+func TestProcessPromptNativeCancellationPreservesFollowUpAdmission(t *testing.T) {
+	transaction := &recordingTransaction{headerBlock: make(chan struct{}), headerCancel: true}
+	service := newTestService(t, transaction, LateActionSafe)
+	service.config.StreamMaxLifetimeMS = 10
+	service.config.CleanupTimeoutMS = 50
+	if err := service.Process(&fakeProcessStream{
+		contextFactory: testStreamContext(context.Background()),
+		receive:        []receiveResult{{request: requestHeaders(false)}},
+	}); status.Code(err) != codes.DeadlineExceeded {
+		t.Fatalf("Process() code = %s, want DeadlineExceeded (err=%v)", status.Code(err), err)
+	}
+	if fatal := service.terminalFailure(); fatal != nil {
+		t.Fatalf("prompt cancellation reported fatal = %v", fatal)
+	}
+	transaction.headerBlock = nil
+	transaction.headerCancel = false
+	if err := service.Process(&fakeProcessStream{
+		contextFactory: testStreamContext(context.Background()),
+		receive:        []receiveResult{{request: requestHeaders(true)}},
+	}); err != nil {
+		t.Fatalf("follow-up Process() error = %v", err)
+	}
+}
+
+func TestProcessRejectsFatalAdmissionWithoutOpeningTransaction(t *testing.T) {
+	transaction := &recordingTransaction{}
+	var openCalls atomic.Int32
+	service, err := NewService(testConfig(LateActionSafe), countingRecordingEngine{
+		transaction: transaction,
+		openCalls:   &openCalls,
+	})
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+	service.reportFatal(errors.New("terminal cleanup failure"))
+
+	err = service.Process(&fakeProcessStream{contextFactory: testStreamContext(context.Background())})
+	if status.Code(err) != codes.Unavailable {
+		t.Fatalf("Process() code = %s, want Unavailable (err=%v)", status.Code(err), err)
+	}
+	if got := openCalls.Load(); got != 0 {
+		t.Fatalf("engine Open calls = %d, want 0 after fatal admission rejection", got)
+	}
+	select {
+	case <-service.admission:
+		t.Fatal("fatal admission rejection left a reservation")
+	default:
+	}
+}
+
+func TestProcessAbsoluteLifetimeIsNotRenewedByActivity(t *testing.T) {
+	transaction := &recordingTransaction{}
+	service := newTestService(t, transaction, LateActionSafe)
+	service.config.StreamIdleTimeoutMS = 20
+	service.config.StreamMaxLifetimeMS = 25
+	recvRelease := make(chan struct{})
+	stream := &fakeProcessStream{
+		contextFactory: testStreamContext(context.Background()),
+		receive:        []receiveResult{{request: requestHeaders(false)}, {request: requestBody([]byte("a"), false)}, {request: requestBody([]byte("b"), false)}, {request: requestBody([]byte("c"), false)}},
+		receiveDelays:  []time.Duration{0, 8 * time.Millisecond, 8 * time.Millisecond, 8 * time.Millisecond},
+		recvBlock:      recvRelease,
+	}
+	err := service.Process(stream)
+	close(recvRelease)
+	if status.Code(err) != codes.DeadlineExceeded {
+		t.Fatalf("Process() = %v, want max-lifetime DeadlineExceeded", err)
+	}
+	if len(transaction.closed) != 1 || transaction.closed[0].CloseReason != CloseStreamMaxLifetime {
+		t.Fatalf("cleanup = %#v, want max-lifetime cleanup", transaction.closed)
+	}
+}
+
+func TestProcessActiveStreamCompletesBeforeAbsoluteLifetime(t *testing.T) {
+	transaction := &recordingTransaction{}
+	service := newTestService(t, transaction, LateActionSafe)
+	service.config.StreamIdleTimeoutMS = 20
+	service.config.StreamMaxLifetimeMS = 100
+	stream := &fakeProcessStream{
+		contextFactory: testStreamContext(context.Background()),
+		receive:        []receiveResult{{request: requestHeaders(true)}},
+		receiveDelays:  []time.Duration{5 * time.Millisecond},
+	}
+	if err := service.Process(stream); err != nil {
+		t.Fatalf("short active Process() error = %v", err)
+	}
+	if len(transaction.closed) != 1 || transaction.closed[0].CloseReason != ClosePeerEOF {
+		t.Fatalf("cleanup = %#v, want clean peer-EOF cleanup", transaction.closed)
+	}
+}
+
+func TestConfigRequiresPositiveStreamMaximumLifetime(t *testing.T) {
+	config := testConfig(LateActionSafe)
+	config.StreamMaxLifetimeMS = 0
+	if err := config.Validate(); err == nil || !strings.Contains(err.Error(), "stream_max_lifetime_ms") {
+		t.Fatalf("Validate() = %v, want positive stream_max_lifetime_ms error", err)
+	}
+	config.StreamMaxLifetimeMS = 1
+	if err := config.Validate(); err != nil {
+		t.Fatalf("Validate() with positive stream_max_lifetime_ms = %v", err)
 	}
 }
 
@@ -516,6 +876,9 @@ func testConfig(policy LateActionPolicy) Config {
 		MaxResponseBodyBytes: 4096,
 		MaxGRPCMessageBytes:  2048,
 		EngineTimeoutMS:      100,
+		StreamIdleTimeoutMS:  100,
+		StreamMaxLifetimeMS:  1000,
+		MaxConcurrentStreams: 4,
 		CleanupTimeoutMS:     100,
 		ShutdownTimeoutMS:    100,
 		LateActionPolicy:     policy,
@@ -527,6 +890,16 @@ type recordingEngine struct {
 }
 
 func (engine recordingEngine) Open(context.Context, StreamMetadata) (Transaction, error) {
+	return engine.transaction, nil
+}
+
+type countingRecordingEngine struct {
+	transaction *recordingTransaction
+	openCalls   *atomic.Int32
+}
+
+func (engine countingRecordingEngine) Open(context.Context, StreamMetadata) (Transaction, error) {
+	engine.openCalls.Add(1)
 	return engine.transaction, nil
 }
 
@@ -548,9 +921,27 @@ type recordingTransaction struct {
 	responseBodyLengths []int
 	closed              []Summary
 	hostActions         []HostAction
+	responseCommits     int
+	responseCommitError error
+	hostActionError     error
+	headerBlock         chan struct{}
+	headerStarted       chan<- struct{}
+	headerCancel        bool
+	closeDone           chan struct{}
 }
 
-func (transaction *recordingTransaction) ProcessHeaders(_ context.Context, direction Direction, _ []Header, _ bool) (Decision, error) {
+func (transaction *recordingTransaction) ProcessHeaders(ctx context.Context, direction Direction, _ []Header, _ bool) (Decision, error) {
+	if transaction.headerStarted != nil {
+		close(transaction.headerStarted)
+		transaction.headerStarted = nil
+	}
+	if transaction.headerBlock != nil {
+		if transaction.headerCancel {
+			<-ctx.Done()
+			return allowDecision(), ctx.Err()
+		}
+		<-transaction.headerBlock
+	}
 	if transaction.headerDecision != nil {
 		return transaction.headerDecision(direction), nil
 	}
@@ -573,9 +964,29 @@ func (transaction *recordingTransaction) ProcessBody(_ context.Context, directio
 
 func (transaction *recordingTransaction) Close(_ context.Context, summary Summary) {
 	transaction.closed = append(transaction.closed, summary)
+	if transaction.closeDone != nil {
+		close(transaction.closeDone)
+	}
 }
 
-func (transaction *recordingTransaction) RecordHostAction(_ context.Context, action HostAction) error {
+func (transaction *recordingTransaction) MarkResponseCommitted(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if transaction.responseCommitError != nil {
+		return transaction.responseCommitError
+	}
+	transaction.responseCommits++
+	return nil
+}
+
+func (transaction *recordingTransaction) RecordHostAction(ctx context.Context, action HostAction) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if transaction.hostActionError != nil {
+		return transaction.hostActionError
+	}
 	transaction.hostActions = append(transaction.hostActions, action)
 	return nil
 }
@@ -587,15 +998,32 @@ type receiveResult struct {
 }
 
 type fakeProcessStream struct {
-	contextFactory func() context.Context
-	cancel         context.CancelFunc
-	receive        []receiveResult
-	sent           []*extprocv3.ProcessingResponse
-	sendErr        error
-	index          int
+	contextFactory  func() context.Context
+	cancel          context.CancelFunc
+	receive         []receiveResult
+	sent            []*extprocv3.ProcessingResponse
+	sendErr         error
+	index           int
+	recvBlock       <-chan struct{}
+	receiveDelays   []time.Duration
+	sendBlock       <-chan struct{}
+	sendDone        chan struct{}
+	sendStarted     chan struct{}
+	sendCalls       int
+	blockOnSendCall int
 }
 
 func (stream *fakeProcessStream) Send(response *extprocv3.ProcessingResponse) error {
+	stream.sendCalls++
+	if stream.sendStarted != nil && (stream.blockOnSendCall == 0 || stream.sendCalls == stream.blockOnSendCall) {
+		close(stream.sendStarted)
+	}
+	if stream.sendBlock != nil && (stream.blockOnSendCall == 0 || stream.sendCalls == stream.blockOnSendCall) {
+		<-stream.sendBlock
+	}
+	if stream.sendDone != nil {
+		close(stream.sendDone)
+	}
 	stream.sent = append(stream.sent, response)
 	if stream.sendErr != nil {
 		return stream.sendErr
@@ -604,6 +1032,12 @@ func (stream *fakeProcessStream) Send(response *extprocv3.ProcessingResponse) er
 }
 
 func (stream *fakeProcessStream) Recv() (*extprocv3.ProcessingRequest, error) {
+	if stream.index < len(stream.receiveDelays) && stream.receiveDelays[stream.index] > 0 {
+		time.Sleep(stream.receiveDelays[stream.index])
+	}
+	if stream.index >= len(stream.receive) && stream.recvBlock != nil {
+		<-stream.recvBlock
+	}
 	if stream.index >= len(stream.receive) {
 		return nil, io.EOF
 	}

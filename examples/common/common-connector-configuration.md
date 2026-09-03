@@ -409,8 +409,7 @@ Bounds serialized metadata event size.
 
 ### Validation and errors
 
-Unknown keys, empty values, malformed assignments, and values above 16384 fail
-the runtime configuration check.
+Unknown keys, empty values, malformed assignments, and values above 16384 fail the runtime configuration check.
 
 ### Example
 
@@ -465,8 +464,7 @@ Bounds accepted header count.
 
 ### Validation and errors
 
-Unknown keys, empty values, malformed assignments, and values above 256 fail the
-runtime configuration check.
+Unknown keys, empty values, malformed assignments, and values above 256 fail the runtime configuration check.
 
 ### Example
 
@@ -521,8 +519,7 @@ Bounds each header-name size.
 
 ### Validation and errors
 
-Unknown keys, empty values, malformed assignments, and values above 256 fail the
-runtime configuration check.
+Unknown keys, empty values, malformed assignments, and values above 256 fail the runtime configuration check.
 
 ### Example
 
@@ -577,8 +574,7 @@ Bounds each header-value size.
 
 ### Validation and errors
 
-Unknown keys, empty values, malformed assignments, and values above 8192 fail the
-runtime configuration check.
+Unknown keys, empty values, malformed assignments, and values above 8192 fail the runtime configuration check.
 
 ### Example
 
@@ -633,8 +629,7 @@ Bounds total header bytes.
 
 ### Validation and errors
 
-Unknown keys, empty values, malformed assignments, and values above 65536 fail
-the runtime configuration check.
+Unknown keys, empty values, malformed assignments, and values above 65536 fail the runtime configuration check.
 
 ### Example
 
@@ -832,14 +827,13 @@ request_body_limit=<value>
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| positive decimal bytes | 1 through 10485760 (10 MiB) | no |
+| positive decimal bytes | 1 through 10485760 | no |
 
 ### Default
 
 1048576
 
 Source: `common/include/msconnector/limits.h:MSCONNECTOR_MAX_BODY_BUFFER_SIZE`.
-Hard configuration cap: `MSCONNECTOR_MAX_CONFIG_BODY_BYTES` (10485760).
 
 ### Inheritance and merge
 
@@ -855,8 +849,7 @@ Bounds request bytes offered to the engine.
 
 ### Validation and errors
 
-Unknown keys, empty values, malformed assignments, and values above 10485760
-fail the runtime configuration check.
+Unknown keys, empty values, malformed assignments, and values above 10485760 fail the runtime configuration check.
 
 ### Example
 
@@ -944,14 +937,13 @@ response_body_limit=<value>
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| positive decimal bytes | 1 through 10485760 (10 MiB) | no |
+| positive decimal bytes | 1 through 10485760 | no |
 
 ### Default
 
 1048576
 
 Source: `common/include/msconnector/limits.h:MSCONNECTOR_MAX_RESPONSE_BODY_BUFFER_SIZE`.
-Hard configuration cap: `MSCONNECTOR_MAX_CONFIG_BODY_BYTES` (10485760).
 
 ### Inheritance and merge
 
@@ -967,8 +959,7 @@ Bounds response bytes offered to the engine.
 
 ### Validation and errors
 
-Unknown keys, empty values, malformed assignments, and values above 10485760
-fail the runtime configuration check.
+Unknown keys, empty values, malformed assignments, and values above 10485760 fail the runtime configuration check.
 
 ### Example
 

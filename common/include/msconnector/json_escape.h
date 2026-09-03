@@ -15,6 +15,8 @@ size_t msconnector_json_escape_n(
     size_t src_size,
     char *dst,
     size_t dst_size);
+/* True only when src is valid UTF-8 for the supplied byte count. */
+int msconnector_json_utf8_is_valid_n(const char *src, size_t src_size);
 #ifdef __cplusplus
 }
 #endif

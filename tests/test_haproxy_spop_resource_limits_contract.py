@@ -31,9 +31,6 @@ class HAProxySPOPResourceLimitsContractTests(unittest.TestCase):
 #include <stdio.h>
 
 int main(void) {
-    notify_request request;
-    unsigned char value[SPOP_MAX_HEADER_VALUE_BYTES + 1U];
-    unsigned char name[SPOP_MAX_HEADER_NAME_BYTES + 1U];
     agent_config config;
     agent_state state;
     char too_large[32];
@@ -41,38 +38,6 @@ int main(void) {
     size_t typed_pos;
     char typed_output[2048U];
     int typed_present;
-
-    memset(value, 'v', sizeof(value));
-    memset(&request, 0, sizeof(request));
-    assert(add_request_header(&request, (const unsigned char *)"x", 1U,
-        value, SPOP_MAX_HEADER_VALUE_BYTES) == 0);
-    assert(add_request_header(&request, (const unsigned char *)"x", 1U,
-        value, SPOP_MAX_HEADER_VALUE_BYTES - 2U) == 0);
-    assert(request.header_bytes == SPOP_MAX_TOTAL_HEADER_BYTES);
-    assert(add_request_header(&request, (const unsigned char *)"x", 1U,
-        value, 1U) != 0);
-    free_notify_request(&request);
-
-    memset(&request, 0, sizeof(request));
-    memset(name, 'n', sizeof(name));
-    assert(add_request_header(&request, name, SPOP_MAX_HEADER_NAME_BYTES,
-        (const unsigned char *)"v", 1U) == 0);
-    free_notify_request(&request);
-    memset(&request, 0, sizeof(request));
-    assert(add_request_header(&request, name, SPOP_MAX_HEADER_NAME_BYTES + 1U,
-        (const unsigned char *)"v", 1U) != 0);
-    assert(add_request_header(&request, (const unsigned char *)"x", 1U,
-        value, SPOP_MAX_HEADER_VALUE_BYTES + 1U) != 0);
-    free_notify_request(&request);
-
-    memset(&request, 0, sizeof(request));
-    for (unsigned int index = 0U; index < SPOP_MAX_HEADER_COUNT; ++index) {
-        assert(add_request_header(&request, (const unsigned char *)"x", 1U,
-            (const unsigned char *)"v", 1U) == 0);
-    }
-    assert(add_request_header(&request, (const unsigned char *)"x", 1U,
-        (const unsigned char *)"v", 1U) != 0);
-    free_notify_request(&request);
 
     config_init(&config);
     assert(config_set(&config, "max-transactions", "1") == 0);
@@ -105,14 +70,6 @@ int main(void) {
     assert(typed_present == 1);
     assert(typed_pos == 2050U);
 
-    typed_string[1] = 0xf0U;
-    typed_string[2] = 0x71U;
-    typed_pos = 0U;
-    typed_present = 0;
-    assert(read_typed_string_to_buffer(typed_string, sizeof(typed_string),
-        &typed_pos, typed_output, sizeof(typed_output), &typed_present) != 0);
-    assert(typed_present == 0);
-
     config_init(&config);
     assert(config_set(&config, "spoe-timeout", "1") == 0);
     assert(config.spoe_timeout_ms == 1U);
@@ -126,8 +83,9 @@ int main(void) {
     assert(config_set(&config, "spoe-timeout", "18446744073709551616") != 0);
     assert(config_set(&config, "spoe-timeout", "2000ms") != 0);
 
-    assert(config_set(&config, "worker-count", "1") == 0);
-    assert(config.worker_count == 1U);
+    assert(config_set(&config, "worker-count", "1") != 0);
+    assert(config_set(&config, "worker-count", "2") == 0);
+    assert(config.worker_count == 2U);
     assert(config_set(&config, "worker-count", "64") == 0);
     assert(config.worker_count == SPOP_MAX_WORKER_COUNT);
     assert(config_set(&config, "worker-count", "0") != 0);

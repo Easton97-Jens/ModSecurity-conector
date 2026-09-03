@@ -128,6 +128,7 @@ const (
 	ClosePeerEOF           CloseReason = "grpc_peer_eof"
 	CloseContextCanceled   CloseReason = "grpc_context_canceled_unattributed"
 	CloseStreamIdleTimeout CloseReason = "grpc_stream_idle_timeout"
+	CloseStreamMaxLifetime CloseReason = "grpc_stream_max_lifetime"
 	CloseProcessorError    CloseReason = "processor_error"
 )
 
@@ -247,9 +248,10 @@ type Service struct {
 	// It is evidence for deterministic cleanup tests, not a second admission
 	// control: the gRPC stream context remains the cancellation mechanism.
 	pendingReceives atomic.Int64
-	// fatalErrors receives the first native-cleanup failure. It is buffered so
-	// an RPC cleanup never blocks while main is stopping the gRPC server for a
-	// controlled supervisor restart. The channel is deliberately never closed.
+	// fatalErrors receives the first terminal runtime failure. It is buffered so
+	// an RPC cleanup or post-send evidence path never blocks while main stops
+	// the gRPC server for a controlled supervisor restart. The channel is
+	// deliberately never closed.
 	fatalErrors chan error
 	fatalOnce   sync.Once
 	fatalMu     sync.RWMutex
@@ -286,9 +288,9 @@ func NewServiceWithObserver(config Config, engine TransactionOpener, observer Ob
 	}, nil
 }
 
-// FatalErrors reports the first cleanup failure that makes in-process reuse of
-// the native runtime unsafe. Its receipt is consumed by the process owner;
-// stream handlers only return a bounded gRPC failure and never call os.Exit.
+// FatalErrors reports the first terminal failure that makes in-process reuse
+// unsafe. Its receipt is consumed by the process owner; stream handlers only
+// return a bounded gRPC failure and never call os.Exit.
 func (service *Service) FatalErrors() <-chan error {
 	if service == nil {
 		return nil
@@ -317,27 +319,57 @@ func (service *Service) reportFatal(err error) {
 	})
 }
 
-// Process owns one Envoy ext_proc gRPC stream and therefore one independent
-// transaction state. No state is shared across parallel streams.
-func (service *Service) Process(stream extprocv3.ExternalProcessor_ProcessServer) (processErr error) {
-	if service.terminalFailure() != nil {
+// acquireStreamAdmission couples the terminal-state check to the admission
+// reservation. reportFatal cannot publish a fatal state while the read lock is
+// held, so a reservation is ordered either before that publication (and is
+// released by the caller) or rejected after it. The second check closes the
+// interval between releasing the lock and beginning stream setup without
+// turning a fatal state into a usable transaction.
+func (service *Service) acquireStreamAdmission() error {
+	service.fatalMu.RLock()
+	if service.fatalErr != nil {
+		service.fatalMu.RUnlock()
 		return status.Error(codes.Unavailable, "ext_proc connector is restarting after a terminal cleanup failure")
 	}
 	select {
 	case service.admission <- struct{}{}:
-		defer func() { <-service.admission }()
+		service.fatalMu.RUnlock()
+		if service.terminalFailure() != nil {
+			<-service.admission
+			return status.Error(codes.Unavailable, "ext_proc connector is restarting after a terminal cleanup failure")
+		}
+		return nil
 	default:
-		// Reject before allocating stream state or opening a Common
-		// transaction. This makes overload a clean gRPC admission failure and
-		// leaves no transaction/WaitGroup state to clean up.
+		service.fatalMu.RUnlock()
 		return status.Error(codes.ResourceExhausted, "ext_proc concurrent stream limit reached")
 	}
+}
+
+// Process owns one Envoy ext_proc gRPC stream and therefore one independent
+// transaction state. No state is shared across parallel streams.
+func (service *Service) Process(stream extprocv3.ExternalProcessor_ProcessServer) (processErr error) {
+	if err := service.acquireStreamAdmission(); err != nil {
+		// Reject before allocating stream state or opening a Common
+		// transaction. This makes overload and terminal restart a clean gRPC
+		// admission failure and leaves no transaction/WaitGroup state to clean
+		// up.
+		return err
+	}
+	defer func() { <-service.admission }()
 	service.active.Add(1)
 	defer service.active.Done()
 
 	state := newStreamState(service.config, service.engine, service.observer)
+	streamContext, cancel := context.WithTimeout(stream.Context(), service.config.streamMaxLifetime())
+	defer cancel()
 	closeReason := ClosePeerEOF
 	defer func() {
+		// A watchdog-abandoned native handler still owns every mutable stream
+		// field. Its deferred reaper closes the transaction after the handler
+		// returns, so this goroutine must not inspect or mutate state meanwhile.
+		if state.deferredCleanup.Load() {
+			return
+		}
 		if err := state.close(closeReason); state.cleanupFailure != nil {
 			// A native cleanup timeout is terminal even when the active stream
 			// already failed for another reason. Do not let that earlier gRPC
@@ -350,13 +382,13 @@ func (service *Service) Process(stream extprocv3.ExternalProcessor_ProcessServer
 			processErr = status.Errorf(codes.Internal, "ext_proc metadata evidence: %v", err)
 		}
 	}()
-	return service.processStream(stream, state, &closeReason)
+	return service.processStream(stream, streamContext, state, &closeReason)
 }
 
-func (service *Service) processStream(stream extprocv3.ExternalProcessor_ProcessServer, state *streamState, closeReason *CloseReason) error {
+func (service *Service) processStream(stream extprocv3.ExternalProcessor_ProcessServer, ctx context.Context, state *streamState, closeReason *CloseReason) error {
 	for {
 		request, receivedCloseReason, done, err := receiveProcessingRequest(
-			stream, service.config.streamIdleTimeout(), &service.pendingReceives)
+			stream, ctx, service.config.streamIdleTimeout(), &service.pendingReceives)
 		if err != nil {
 			*closeReason = receivedCloseReason
 			return err
@@ -365,7 +397,7 @@ func (service *Service) processStream(stream extprocv3.ExternalProcessor_Process
 			*closeReason = receivedCloseReason
 			return nil
 		}
-		terminal, requestCloseReason, err := service.processRequest(stream, state, request)
+		terminal, requestCloseReason, err := service.processRequest(ctx, stream, state, request)
 		if err != nil {
 			*closeReason = requestCloseReason
 			return err
@@ -390,6 +422,7 @@ type processingReceiveResult struct {
 // deadline or a server shutdown.
 func receiveProcessingRequest(
 	stream extprocv3.ExternalProcessor_ProcessServer,
+	ctx context.Context,
 	idleTimeout time.Duration,
 	pendingReceives *atomic.Int64,
 ) (*extprocv3.ProcessingRequest, CloseReason, bool, error) {
@@ -409,8 +442,20 @@ func receiveProcessingRequest(
 	defer timer.Stop()
 	select {
 	case result := <-resultChannel:
+		if err := ctx.Err(); err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return nil, CloseStreamMaxLifetime, false,
+					status.Error(codes.DeadlineExceeded, "ext_proc stream maximum lifetime exceeded")
+			}
+			return nil, CloseContextCanceled, true, nil
+		}
 		return classifyProcessingReceiveResult(stream, result.request, result.err)
-	case <-stream.Context().Done():
+	case <-ctx.Done():
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return nil, CloseStreamMaxLifetime, false,
+				status.Errorf(codes.DeadlineExceeded,
+					"ext_proc stream maximum lifetime exceeded")
+		}
 		return nil, CloseContextCanceled, true, nil
 	case <-timer.C:
 		return nil, CloseStreamIdleTimeout, false,
@@ -436,9 +481,18 @@ func classifyProcessingReceiveResult(
 	return nil, CloseProcessorError, false, status.Errorf(codes.Unknown, "ext_proc receive failed: %v", err)
 }
 
-func (service *Service) processRequest(stream extprocv3.ExternalProcessor_ProcessServer, state *streamState, request *extprocv3.ProcessingRequest) (bool, CloseReason, error) {
-	response, terminal, err := state.handle(stream.Context(), request)
+func (service *Service) processRequest(ctx context.Context, stream extprocv3.ExternalProcessor_ProcessServer, state *streamState, request *extprocv3.ProcessingRequest) (bool, CloseReason, error) {
+	if err := ctx.Err(); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return false, CloseStreamMaxLifetime, status.Error(codes.DeadlineExceeded, "ext_proc stream maximum lifetime exceeded")
+		}
+		return true, CloseContextCanceled, nil
+	}
+	response, terminal, err := service.handleWithWatchdog(ctx, state, request)
 	if err != nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return false, CloseStreamMaxLifetime, status.Error(codes.DeadlineExceeded, "ext_proc stream maximum lifetime exceeded")
+		}
 		if errors.Is(err, context.Canceled) {
 			if stream.Context().Err() != nil {
 				return true, CloseContextCanceled, nil
@@ -455,16 +509,29 @@ func (service *Service) processRequest(stream extprocv3.ExternalProcessor_Proces
 	if request.GetObservabilityMode() {
 		return false, ClosePeerEOF, nil
 	}
-	if closeReason, sent, err := sendProcessingResponse(stream, response); err != nil {
-		return false, closeReason, err
-	} else if !sent {
+	if err := ctx.Err(); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return false, CloseStreamMaxLifetime, status.Error(codes.DeadlineExceeded, "ext_proc stream maximum lifetime exceeded")
+		}
+		return true, CloseContextCanceled, nil
+	}
+	closeReason, sent, sendErr := service.sendProcessingResponse(ctx, stream, response)
+	if sent {
+		if err := state.recordSuccessfulResponseEvidence(ctx, request, response); err != nil {
+			service.reportFatal(fmt.Errorf("ext_proc successful response evidence failed; controlled restart required: %w", err))
+			evidenceCloseReason := CloseProcessorError
+			if closeReason == CloseStreamMaxLifetime {
+				evidenceCloseReason = closeReason
+			}
+			return false, evidenceCloseReason,
+				status.Errorf(codes.Internal, "ext_proc successful response evidence failed: %v", err)
+		}
+	}
+	if sendErr != nil {
+		return false, closeReason, sendErr
+	}
+	if !sent {
 		return true, closeReason, nil
-	}
-	if err := state.markResponseCommittedAfterSuccessfulContinue(stream.Context(), request, response); err != nil {
-		return false, CloseProcessorError, status.Errorf(codes.Internal, "ext_proc response commit bookkeeping failed: %v", err)
-	}
-	if err := state.recordHostActionAfterSuccessfulResponse(stream.Context()); err != nil {
-		return false, CloseProcessorError, status.Errorf(codes.Internal, "ext_proc host action evidence failed: %v", err)
 	}
 	if terminal {
 		return true, state.completionReason(), nil
@@ -472,14 +539,119 @@ func (service *Service) processRequest(stream extprocv3.ExternalProcessor_Proces
 	return false, ClosePeerEOF, nil
 }
 
-func sendProcessingResponse(stream extprocv3.ExternalProcessor_ProcessServer, response *extprocv3.ProcessingResponse) (CloseReason, bool, error) {
-	if err := stream.Send(response); err != nil {
-		if stream.Context().Err() != nil {
-			return CloseContextCanceled, false, nil
+type streamHandleResult struct {
+	response *extprocv3.ProcessingResponse
+	terminal bool
+	err      error
+}
+
+// handleWithWatchdog keeps the stream handler responsive when a native engine
+// call ignores context cancellation. Native calls cannot be force-interrupted
+// safely, so a stuck call is allowed a bounded cleanup grace period. If it
+// still does not return, the process owner is notified to stop/restart the
+// server. Cleanup ownership transfers to a reaper that waits for the handler
+// to return, so no goroutine concurrently accesses the native transaction or
+// mutable stream state.
+func (service *Service) handleWithWatchdog(ctx context.Context, state *streamState, request *extprocv3.ProcessingRequest) (*extprocv3.ProcessingResponse, bool, error) {
+	resultChannel := make(chan streamHandleResult, 1)
+	handlerDone := make(chan struct{})
+	go func() {
+		defer close(handlerDone)
+		response, terminal, err := state.handle(ctx, request)
+		resultChannel <- streamHandleResult{response: response, terminal: terminal, err: err}
+	}()
+	select {
+	case result := <-resultChannel:
+		return result.response, result.terminal, result.err
+	case <-ctx.Done():
+		graceTimer := time.NewTimer(service.config.cleanupTimeout())
+		defer graceTimer.Stop()
+		select {
+		case result := <-resultChannel:
+			return result.response, result.terminal, result.err
+		case <-graceTimer.C:
+			stuckErr := fmt.Errorf("ext_proc native handler remained blocked after stream cancellation; controlled restart required")
+			closeReason := CloseContextCanceled
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				closeReason = CloseStreamMaxLifetime
+			}
+			state.deferCleanupUntilHandlerReturns(service, handlerDone, closeReason)
+			service.reportFatal(stuckErr)
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				return nil, false, status.Error(codes.DeadlineExceeded, "ext_proc stream maximum lifetime exceeded")
+			}
+			return nil, true, nil
 		}
-		return CloseProcessorError, false, status.Errorf(codes.Unavailable, "ext_proc response send failed: %v", err)
 	}
-	return ClosePeerEOF, true, nil
+}
+
+// deferCleanupUntilHandlerReturns transfers state ownership from Process to a
+// single reaper. A native call may ignore cancellation, so calling Close while
+// handle is still mutating state would race and can free a live transaction.
+// The controlled restart is already terminal; if the call later returns before
+// process exit, the reaper still releases the transaction exactly once.
+func (state *streamState) deferCleanupUntilHandlerReturns(service *Service, handlerDone <-chan struct{}, reason CloseReason) {
+	if !state.deferredCleanup.CompareAndSwap(false, true) {
+		return
+	}
+	go func() {
+		<-handlerDone
+		if err := state.closeOwned(reason); err != nil {
+			service.reportFatal(fmt.Errorf("ext_proc deferred native handler cleanup failed: %w", err))
+		}
+	}()
+}
+
+// sendProcessingResponse cannot pass a derived deadline to gRPC's server
+// stream Send method. When the derived stream context ends, it gives a Send
+// already in flight one bounded cleanup grace to report its result. A known
+// success is an irreversible Envoy boundary and is returned as sent so its
+// Common response-commit/host-action evidence can be recorded. A late or
+// unreturned Send still reports the existing terminal controlled-restart
+// condition; the grace is cleanup, not an extension of stream lifetime.
+func (service *Service) sendProcessingResponse(ctx context.Context, stream extprocv3.ExternalProcessor_ProcessServer, response *extprocv3.ProcessingResponse) (CloseReason, bool, error) {
+	resultChannel := make(chan error, 1)
+	go func() {
+		resultChannel <- stream.Send(response)
+	}()
+	select {
+	case err := <-resultChannel:
+		return service.classifyProcessingResponseSend(ctx, stream, err)
+	case <-ctx.Done():
+		graceTimer := time.NewTimer(service.config.cleanupTimeout())
+		defer graceTimer.Stop()
+		select {
+		case err := <-resultChannel:
+			return service.classifyProcessingResponseSend(ctx, stream, err)
+		case <-graceTimer.C:
+			service.reportFatal(fmt.Errorf("ext_proc response send exceeded bounded cleanup grace after stream cancellation; controlled restart required"))
+			return service.responseSendContextFailure(ctx, false)
+		}
+	}
+}
+
+func (service *Service) classifyProcessingResponseSend(ctx context.Context, stream extprocv3.ExternalProcessor_ProcessServer, err error) (CloseReason, bool, error) {
+	if err == nil {
+		if ctx.Err() != nil {
+			return service.responseSendContextFailure(ctx, true)
+		}
+		return ClosePeerEOF, true, nil
+	}
+	if ctx.Err() != nil {
+		return service.responseSendContextFailure(ctx, false)
+	}
+	if stream.Context().Err() != nil {
+		return CloseContextCanceled, false, nil
+	}
+	return CloseProcessorError, false, status.Errorf(codes.Unavailable, "ext_proc response send failed: %v", err)
+}
+
+func (service *Service) responseSendContextFailure(ctx context.Context, sent bool) (CloseReason, bool, error) {
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		service.reportFatal(fmt.Errorf("ext_proc response send exceeded stream maximum lifetime; controlled restart required"))
+		return CloseStreamMaxLifetime, sent, status.Error(codes.DeadlineExceeded, "ext_proc stream maximum lifetime exceeded")
+	}
+	return CloseContextCanceled, sent, nil
 }
 
 type streamState struct {
@@ -504,6 +676,7 @@ type streamState struct {
 	responseCommitted bool
 	immediateResponse bool
 	closed            bool
+	deferredCleanup   atomic.Bool
 	pendingHostAction *HostAction
 	cleanupFailure    error
 
@@ -1136,6 +1309,27 @@ func (state *streamState) markResponseCommittedAfterSuccessfulContinue(ctx conte
 	return nil
 }
 
+// recordSuccessfulResponseEvidence follows a known successful gRPC Send. The
+// derived stream context can have reached its deadline in the same scheduling
+// window, but that cannot undo an action already accepted by Envoy. Preserve
+// its values while deliberately removing cancellation, then bound the Common
+// bookkeeping by the configured cleanup grace. The individual bridge calls
+// retain their tighter engine-operation limits.
+func (state *streamState) recordSuccessfulResponseEvidence(ctx context.Context, request *extprocv3.ProcessingRequest, response *extprocv3.ProcessingResponse) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	evidenceContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), state.config.cleanupTimeout())
+	defer cancel()
+	if err := state.markResponseCommittedAfterSuccessfulContinue(evidenceContext, request, response); err != nil {
+		return err
+	}
+	if err := state.recordHostActionAfterSuccessfulResponse(evidenceContext); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (state *streamState) recordHostActionAfterSuccessfulResponse(ctx context.Context) error {
 	if state == nil || state.pendingHostAction == nil {
 		return nil
@@ -1249,6 +1443,13 @@ func (state *streamState) completionReason() CloseReason {
 }
 
 func (state *streamState) close(reason CloseReason) error {
+	if state.deferredCleanup.Load() {
+		return nil
+	}
+	return state.closeOwned(reason)
+}
+
+func (state *streamState) closeOwned(reason CloseReason) error {
 	if state.closed {
 		return nil
 	}

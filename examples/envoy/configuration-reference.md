@@ -32,6 +32,7 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`late_action_policy`](#late-action-policy) | Connector service | LateActionPolicy | yes | none; JSON decoder/Config.Validate requires every selected field | ext_proc service JSON object | Selects late decision reporting; minimal and safe record late disruptive decisions as log_only, while strict records strict_abort_not_attempted rather than a fabricated status/reset. |
 | [`listen_address`](#listen-address) | Connector service | string | yes | none; JSON decoder/Config.Validate requires every selected field | ext_proc service JSON object | Sets one bounded ext_proc service control. |
 | [`max_body_chunk_bytes`](#max-body-chunk-bytes) | Connector service | int | yes | none; JSON decoder/Config.Validate requires every selected field | ext_proc service JSON object | Sets one bounded ext_proc service control. |
+| [`max_concurrent_streams`](#max-concurrent-streams) | Connector service | int | yes | none; JSON decoder/Config.Validate requires every selected field | ext_proc service JSON object | Sets one bounded ext_proc service control. |
 | [`max_grpc_message_bytes`](#max-grpc-message-bytes) | Connector service | int | yes | none; JSON decoder/Config.Validate requires every selected field | ext_proc service JSON object | Sets one bounded ext_proc service control. |
 | [`max_header_count`](#max-header-count) | Connector service | int | yes | none; JSON decoder/Config.Validate requires every selected field | ext_proc service JSON object | Sets one bounded ext_proc service control. |
 | [`max_header_name_bytes`](#max-header-name-bytes) | Connector service | int | yes | none; JSON decoder/Config.Validate requires every selected field | ext_proc service JSON object | Sets one bounded ext_proc service control. |
@@ -100,6 +101,8 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`static_resources.listeners[].filter_chains[].filters[].typed_config.route_config.virtual_hosts[].routes[].match.route.cluster`](#static-resources-listeners-filter-chains-filters-typed-config-route-config-virtual-hosts-routes-match-route-cluster) | Host / Connector | Envoy RouteAction cluster-name string | no | No connector-owned route cluster target default is declared; the selected template sets upstream_service. | The YAML object path shown in the selected example. | Routes matching downstream requests to the named upstream cluster. |
 | [`static_resources.listeners[].filter_chains[].filters[].typed_config.stat_prefix`](#static-resources-listeners-filter-chains-filters-typed-config-stat-prefix) | Host / Connector | HttpConnectionManager statistics-prefix string | no | No connector-owned HCM statistic prefix default is declared; the selected template sets msconnector_ext_proc_ingress. | The YAML object path shown in the selected example. | Prefixes HCM metrics for the selected ingress listener. |
 | [`static_resources.listeners[].name`](#static-resources-listeners-name) | Host / Connector | Envoy Listener.name string | no | No connector-owned listener-name default is declared; the selected template sets `msconnector_ext_proc_listener`. | The YAML object path shown in the selected example. | Names the downstream HTTP listener for Envoy configuration and observability. |
+| [`stream_idle_timeout_ms`](#stream-idle-timeout-ms) | Connector service | int | yes | none; JSON decoder/Config.Validate requires every selected field | ext_proc service JSON object | Sets one bounded ext_proc service control. |
+| [`stream_max_lifetime_ms`](#stream-max-lifetime-ms) | Connector service | int | yes | none; JSON decoder/Config.Validate requires every selected field | ext_proc service JSON object | Sets one bounded ext_proc service control. |
 | [`transaction_id_header`](#transaction-id-header) | Connector service | string | yes | none; JSON decoder/Config.Validate requires every selected field | ext_proc service JSON object | Sets one bounded ext_proc service control. |
 | [`compatibility.ext_authz.static_resources`](#compatibility-ext-authz-static-resources) | Compatibility | Envoy Bootstrap static_resources mapping | no | Absent from the selected native ext_proc configuration. The repository declares no connector-owned compatibility default for this field; this compatibility template configures the compatibility mapping shown in this file. | Compatibility YAML path only (ext_authz) | Declares the complete static data-plane topology used by the checked-in example. Compatibility-only host/service setup outside the selected native core path. |
 | [`compatibility.ext_authz.static_resources.clusters`](#compatibility-ext-authz-static-resources-clusters) | Compatibility | repeated Envoy Cluster mapping | no | Absent from the selected native ext_proc configuration. The repository declares no connector-owned compatibility default for this field; this compatibility template configures the compatibility mapping shown in this file. | Compatibility YAML path only (ext_authz) | Declares the static service destinations used by routing and ext_proc gRPC. Compatibility-only host/service setup outside the selected native core path. |
@@ -1370,6 +1373,61 @@ Config.Validate rejects empty, non-positive, invalid enum, invalid host:port, an
 ### Example
 
 Selected example value: `1048576`.
+
+Source-backed example: [examples/envoy/safe/envoy-ext-proc-service.json](../../examples/envoy/safe/envoy-ext-proc-service.json).
+
+### Safety and operations
+
+Bound all header, body, gRPC, and timeout values; keep service listen address private.
+
+<a id="max-concurrent-streams"></a>
+## `max_concurrent_streams`
+
+### Short description
+
+Sets one bounded ext_proc service control.
+
+### Syntax
+
+```text
+"max_concurrent_streams": <int>
+```
+
+### Valid contexts
+
+- ext_proc service JSON object
+
+### Values
+
+| Type | Allowed values | Required |
+| --- | --- | --- |
+| int | positive value | yes |
+
+### Default
+
+none; JSON decoder/Config.Validate requires every selected field
+
+Source: `processor.Config has no implicit field defaults`.
+
+### Inheritance and merge
+
+No inheritance; one JSON object is decoded with unknown fields rejected.
+
+Merge: No merge; a second JSON value is rejected after the one configuration object.
+
+### Phases and runtime effect
+
+Limits and late policy affect P1–P4 processor behavior.
+
+Sets one bounded ext_proc service control.
+
+### Validation and errors
+
+Config.Validate rejects empty, non-positive, invalid enum, invalid host:port, and inconsistent gRPC/body limits.
+
+### Example
+
+Selected example value: `64`.
 
 Source-backed example: [examples/envoy/safe/envoy-ext-proc-service.json](../../examples/envoy/safe/envoy-ext-proc-service.json).
 
@@ -5116,6 +5174,116 @@ Source-backed example: [examples/envoy/safe/envoy-ext-proc-streaming.yaml.in](..
 ### Safety and operations
 
 A name is control-plane metadata, but it should not disclose tenant or secret identifiers.
+
+<a id="stream-idle-timeout-ms"></a>
+## `stream_idle_timeout_ms`
+
+### Short description
+
+Sets one bounded ext_proc service control.
+
+### Syntax
+
+```text
+"stream_idle_timeout_ms": <int>
+```
+
+### Valid contexts
+
+- ext_proc service JSON object
+
+### Values
+
+| Type | Allowed values | Required |
+| --- | --- | --- |
+| int | positive value | yes |
+
+### Default
+
+none; JSON decoder/Config.Validate requires every selected field
+
+Source: `processor.Config has no implicit field defaults`.
+
+### Inheritance and merge
+
+No inheritance; one JSON object is decoded with unknown fields rejected.
+
+Merge: No merge; a second JSON value is rejected after the one configuration object.
+
+### Phases and runtime effect
+
+Limits and late policy affect P1–P4 processor behavior.
+
+Sets one bounded ext_proc service control.
+
+### Validation and errors
+
+Config.Validate rejects empty, non-positive, invalid enum, invalid host:port, and inconsistent gRPC/body limits.
+
+### Example
+
+Selected example value: `30000`.
+
+Source-backed example: [examples/envoy/safe/envoy-ext-proc-service.json](../../examples/envoy/safe/envoy-ext-proc-service.json).
+
+### Safety and operations
+
+Bound all header, body, gRPC, and timeout values; keep service listen address private.
+
+<a id="stream-max-lifetime-ms"></a>
+## `stream_max_lifetime_ms`
+
+### Short description
+
+Sets one bounded ext_proc service control.
+
+### Syntax
+
+```text
+"stream_max_lifetime_ms": <int>
+```
+
+### Valid contexts
+
+- ext_proc service JSON object
+
+### Values
+
+| Type | Allowed values | Required |
+| --- | --- | --- |
+| int | positive value | yes |
+
+### Default
+
+none; JSON decoder/Config.Validate requires every selected field
+
+Source: `processor.Config has no implicit field defaults`.
+
+### Inheritance and merge
+
+No inheritance; one JSON object is decoded with unknown fields rejected.
+
+Merge: No merge; a second JSON value is rejected after the one configuration object.
+
+### Phases and runtime effect
+
+Limits and late policy affect P1–P4 processor behavior.
+
+Sets one bounded ext_proc service control.
+
+### Validation and errors
+
+Config.Validate rejects empty, non-positive, invalid enum, invalid host:port, and inconsistent gRPC/body limits.
+
+### Example
+
+Selected example value: `300000`.
+
+Source-backed example: [examples/envoy/safe/envoy-ext-proc-service.json](../../examples/envoy/safe/envoy-ext-proc-service.json).
+
+### Safety and operations
+
+Bound all header, body, gRPC, and timeout values; keep service listen address private.
 
 <a id="transaction-id-header"></a>
 ## `transaction_id_header`

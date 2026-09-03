@@ -11,6 +11,7 @@
   "max_grpc_message_bytes": 1114112,
   "engine_timeout_ms": 150,
   "stream_idle_timeout_ms": 30000,
+  "stream_max_lifetime_ms": 300000,
   "max_concurrent_streams": 64,
   "cleanup_timeout_ms": 1000,
   "shutdown_timeout_ms": 5000,

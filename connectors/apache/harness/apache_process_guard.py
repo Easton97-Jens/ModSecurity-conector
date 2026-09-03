@@ -142,7 +142,10 @@ def _listener_inodes(port: int) -> set[int]:
                     if not line.strip():
                         continue
                     fields = line.split()
-                    if len(fields) < 11:
+                    # With whitespace tokenization, the kernel's listener
+                    # inode is field 9. Require that field so timeout/ref
+                    # values can never be mistaken for ownership.
+                    if len(fields) < 10:
                         raise GuardError(f"malformed listener row in {name}")
                     address = fields[1]
                     if fields[3].upper() != LISTEN or ":" not in address:
@@ -150,7 +153,7 @@ def _listener_inodes(port: int) -> set[int]:
                     if address.rsplit(":", 1)[1].upper() != wanted:
                         continue
                     try:
-                        result.add(int(fields[10]))
+                        result.add(int(fields[9]))
                     except ValueError as exc:
                         raise GuardError(f"invalid listener inode in {name}") from exc
             except (UnicodeError, StopIteration) as exc:
@@ -168,10 +171,49 @@ def _bounded_net_header(name: str) -> None:
         raise GuardError(f"invalid or oversized header in {name}")
 
 
+def _validated_artifact_path(path: Path) -> Path:
+    """Return an absolute task artifact path with a trusted parent chain.
+
+    Evidence is both security-sensitive input and a cleanup capability.  Do
+    not follow links in any directory component, and require every existing
+    directory in the chain to be owned by this process without group/world
+    access.  The final file is protected separately with O_NOFOLLOW.
+    """
+    if not path.is_absolute():
+        raise GuardError("Apache artifact path must be absolute")
+    current = path.parent
+    chain: list[Path] = []
+    while True:
+        chain.append(current)
+        if current == current.parent:
+            break
+        current = current.parent
+    private_directory_seen = False
+    for directory in chain:
+        try:
+            info = directory.lstat()
+        except OSError as exc:
+            raise GuardError(f"cannot inspect Apache artifact directory {directory}: {exc}") from exc
+        if not directory.is_dir() or directory.is_symlink():
+            raise GuardError(f"Apache artifact directory is not a private directory: {directory}")
+        if info.st_uid != os.getuid() or info.st_mode & 0o077:
+            if not private_directory_seen:
+                raise GuardError(f"Apache artifact directory is not private to the task: {directory}")
+            break
+        private_directory_seen = True
+    return path
+
+
 def _load(path: Path) -> dict[str, Any]:
+    path = _validated_artifact_path(path)
+    flags = os.O_RDONLY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        fd = os.open(path, flags)
+        with os.fdopen(fd, encoding="utf-8") as stream:
+            value = json.load(stream)
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise GuardError(f"cannot read guard evidence {path}: {exc}") from exc
     if not isinstance(value, dict):
         raise GuardError("guard evidence is not an object")
@@ -280,10 +322,7 @@ def record(pid: int, executable: str, port: int, output: Path) -> None:
         "task_socket_inodes": sorted(fds),
         "pidfd_supported": _pidfd_available(),
     }
-    output.parent.mkdir(parents=True, exist_ok=True)
-    parent_stat = output.parent.lstat()
-    if output.parent.is_symlink() or parent_stat.st_uid != os.getuid() or parent_stat.st_mode & 0o077:
-        raise GuardError("Apache evidence directory is not private to the task")
+    output = _validated_artifact_path(output)
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW

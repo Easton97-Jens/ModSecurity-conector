@@ -69,6 +69,35 @@ MIN_BACKEND_READ_TIMEOUT_SECONDS = 1
 MAX_BACKEND_READ_TIMEOUT_SECONDS = 30
 
 
+def _private_artifact_path(path: Path) -> Path:
+    """Validate a task-owned artifact path before any filesystem operation."""
+
+    if not path.is_absolute() or path.name in ("", ".", ".."):
+        raise GuardFailure("task artifact path must be absolute and have a filename")
+    try:
+        parent_mode = os.lstat(path.parent).st_mode
+        target_mode = os.lstat(path).st_mode
+    except FileNotFoundError:
+        target_mode = None
+        try:
+            parent_mode = os.lstat(path.parent).st_mode
+        except OSError as exc:
+            raise GuardFailure("task artifact parent cannot be inspected") from exc
+    except OSError as exc:
+        raise GuardFailure("task artifact path cannot be inspected") from exc
+    if not stat.S_ISDIR(parent_mode) or stat.S_ISLNK(parent_mode) or parent_mode & 0o077:
+        raise GuardFailure("task artifact parent must be a private real directory")
+    if target_mode is not None and stat.S_ISLNK(target_mode):
+        raise GuardFailure("task artifact must not be a symbolic link")
+    return path
+
+
+def _proc_stat_path(pid: int) -> Path:
+    if type(pid) is not int or not 1 <= pid <= 4_000_000_000:
+        raise GuardFailure("process ID is outside the bounded Linux range")
+    return Path("/proc") / str(pid) / "stat"
+
+
 def _bounded_error_text(value: object) -> str:
     message = str(value)
     if len(message) > MAX_GUARD_ERROR_TEXT:
@@ -141,6 +170,7 @@ def _require_pidfd() -> None:
 
 
 def _write_new(path: Path, payload: bytes) -> None:
+    path = _private_artifact_path(path)
     try:
         parent_mode = os.lstat(path.parent).st_mode
         if not stat.S_ISDIR(parent_mode) or stat.S_ISLNK(parent_mode) or parent_mode & 0o077:
@@ -251,7 +281,7 @@ def write_config(
 
 def _session_fields(pid: int) -> tuple[int, int]:
     try:
-        stat_data = Path(f"/proc/{pid}/stat").read_text(encoding="ascii")
+        stat_data = _proc_stat_path(pid).read_text(encoding="ascii")
         after_comm = stat_data.rsplit(")", 1)[1].split()
         return int(after_comm[2]), int(after_comm[3])
     except (OSError, IndexError, ValueError) as exc:
@@ -316,7 +346,7 @@ def _session_members(session_id: int, strict: bool = False) -> list[int]:
 
 def _process_state(pid: int) -> str | None:
     try:
-        stat_data = Path(f"/proc/{pid}/stat").read_text(encoding="ascii")
+        stat_data = _proc_stat_path(pid).read_text(encoding="ascii")
     except OSError as exc:
         # Enumeration and the state read are separate operations.  ENOENT is
         # the expected process-exit race; all other read failures remain
@@ -381,7 +411,7 @@ def assert_session_absent(session_id: int, wait_seconds: float = 0.0) -> None:
         raise GuardFailure("session-absence wait bound is invalid")
     deadline = time.monotonic() + wait_seconds
     for _rescan_number in range(MAX_SESSION_ABSENCE_RESCANS):
-        members, errors = _scan_session_members(session_id)
+        members, errors = _active_session_members(session_id)
         if errors:
             raise GuardFailure("cannot fully inspect task session membership: " + _error_summary(errors))
         if not members:
@@ -403,6 +433,7 @@ def assert_no_unix_sockets(root: Path) -> None:
 
 
 def _receipt_abort_evidence(receipt_path: Path) -> tuple[str, int]:
+    receipt_path = _private_artifact_path(receipt_path)
     try:
         receipt_mode = os.lstat(receipt_path).st_mode
         if stat.S_ISLNK(receipt_mode) or not stat.S_ISREG(receipt_mode) or receipt_mode & 0o077:
@@ -549,9 +580,30 @@ def write_json(path: Path, fields: list[str]) -> None:
     _write_new(path, (json.dumps(value, sort_keys=True) + "\n").encode("utf-8"))
 
 
+def _validated_executable(value: str) -> str:
+    """Accept only an owner-controlled executable with stable path identity."""
+
+    executable = Path(value)
+    if not executable.is_absolute() or executable.name in ("", ".", ".."):
+        raise GuardFailure("session executable must be an absolute path")
+    try:
+        resolved = executable.resolve(strict=True)
+        metadata = os.lstat(executable)
+    except OSError as exc:
+        raise GuardFailure("session executable cannot be inspected") from exc
+    if resolved != executable or stat.S_ISLNK(metadata.st_mode):
+        raise GuardFailure("session executable path must not contain symbolic links")
+    if not stat.S_ISREG(metadata.st_mode) or not os.access(executable, os.X_OK):
+        raise GuardFailure("session executable must be an executable regular file")
+    if metadata.st_uid != os.geteuid() or metadata.st_mode & 0o022:
+        raise GuardFailure("session executable must be owned by the runner and not group/world writable")
+    return str(executable)
+
+
 def exec_session(file_limit_blocks: int, command: list[str], session_record: Path | None = None) -> None:
     if not command or not 1 <= file_limit_blocks <= 2048:
         raise GuardFailure("session command or file limit is invalid")
+    command = [_validated_executable(command[0]), *command[1:]]
     try:
         resource.setrlimit(resource.RLIMIT_FSIZE, (file_limit_blocks * 512, file_limit_blocks * 512))
         os.setsid()
@@ -564,7 +616,7 @@ def exec_session(file_limit_blocks: int, command: list[str], session_record: Pat
 
 def _start_time(pid: int) -> str:
     try:
-        stat = Path(f"/proc/{pid}/stat").read_text(encoding="ascii")
+        stat = _proc_stat_path(pid).read_text(encoding="ascii")
     except OSError as exc:
         raise GuardFailure(f"cannot read /proc/{pid}/stat") from exc
     try:

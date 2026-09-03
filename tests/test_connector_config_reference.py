@@ -14,6 +14,27 @@ import connector_config_reference as REFERENCE
 
 
 class ConnectorConfigReferenceTests(unittest.TestCase):
+    def test_common_runtime_limits_are_extracted_from_enforced_header_caps(self) -> None:
+        limits = REFERENCE.common_runtime_limits(ROOT)
+        self.assertEqual(
+            limits,
+            {
+                "request_body_limit": 10485760,
+                "response_body_limit": 10485760,
+                "max_header_count": 256,
+                "max_header_name_size": 256,
+                "max_header_value_size": 8192,
+                "max_total_header_bytes": 65536,
+                "max_event_json_bytes": 16384,
+            },
+        )
+        options = {
+            option["name"]: option
+            for option in REFERENCE.extract_common_runtime(ROOT)
+        }
+        self.assertEqual(options["max_header_count"]["allowed_values"], "1 through 256")
+        self.assertIn("values above 256", options["max_header_count"]["validation"])
+
     def test_lighttpd_native_directive_inventory_is_closed_and_documents_opt_in_evidence(self) -> None:
         directives = {
             option["name"]: option
@@ -75,3 +96,29 @@ class ConnectorConfigReferenceTests(unittest.TestCase):
         self.assertTrue(
             all(example_by_directive[directive] == safe_example for directive in safe_directives)
         )
+
+    def test_haproxy_spop_limits_match_runtime_contract(self) -> None:
+        options = {
+            option["name"].split(":", 1)[1]: option
+            for option in REFERENCE.extract_haproxy(ROOT)
+            if option["name"].startswith("spoe-agent:")
+        }
+        self.assertEqual(options["worker-count"]["default"], "8")
+        self.assertEqual(
+            options["worker-count"]["allowed_values"],
+            "decimal integer, 2..64; worker-count * max-transactions <= 65536",
+        )
+        self.assertEqual(
+            options["max-transactions"]["allowed_values"],
+            "decimal integer, 1..4096; worker-count * max-transactions <= 65536",
+        )
+        self.assertEqual(options["spoe-timeout"]["allowed_values"], "positive decimal milliseconds, 1..60000")
+        self.assertIn(
+            "must be 0 with response-companion=none",
+            options["response-body-timeout"]["validation"],
+        )
+        self.assertIn("unknown keys and malformed values", options["max-transactions"]["validation"])
+
+        german = REFERENCE._german_option(options["worker-count"])
+        self.assertIn("dezimale Ganzzahl", german["allowed_values"])
+        self.assertIn("worker-count akzeptiert 2..64", REFERENCE._german_option(options["worker-count"])["validation"])

@@ -67,6 +67,22 @@ native CGo call that had already entered an uninterruptible section remains a
 separate controlled-restart case; the timeout never claims to cancel it in
 place.
 
+`stream_max_lifetime_ms` is a separate server-side absolute lifetime for every
+admitted stream. It starts at admission and is not extended by activity; it
+prevents a peer from retaining a concurrency slot indefinitely by sending
+messages just before each idle deadline. Expiry returns gRPC `DeadlineExceeded`,
+records `grpc_stream_max_lifetime`, cancels receive and engine work, runs the
+normal bounded cleanup, and releases the slot for a following stream. A gRPC
+`Send` that was already in flight at expiry receives at most the separate
+`cleanup_timeout_ms` grace to return. A confirmed successful late `Send` first
+records the matching response-commit or host-action evidence through a bounded
+post-send context, then returns `DeadlineExceeded` and puts the service into
+the controlled-restart state; a Send that remains unresolved after that grace
+does the same without claiming an action. In both terminal cases new streams
+receive gRPC `Unavailable` while `main` stops the listener. Set the lifetime
+long enough for legitimate streamed transactions; it is not a replacement for
+the idle or per-operation engine timeout.
+
 The pending-`Recv` lifecycle is covered by an actual gRPC bufconn test: an idle
 stream leaves exactly one bounded receive wait, cancellation releases it, and a
 follow-up stream is admitted successfully. Server shutdown cancels active

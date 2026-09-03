@@ -29,8 +29,16 @@ class ProbeBlocked(RuntimeError):
     pass
 
 
+def _loopback_port(value: int) -> int:
+    if type(value) is not int or not 1024 <= value <= 65535:
+        raise ProbeFailure("network port must be an unprivileged TCP port")
+    return value
+
+
 def _safe_write(path: Path, payload: dict[str, object]) -> None:
-    if not path.parent.is_dir() or path.parent.is_symlink() or path.parent.stat().st_mode & 0o077:
+    if not path.is_absolute() or path.name in ("", ".", ".."):
+        raise ProbeFailure("receipt path must be absolute and have a filename")
+    if not path.parent.is_dir() or path.parent.is_symlink() or path.parent.stat().st_mode & 0o077 or path.is_symlink():
         raise ProbeFailure("receipt parent must be a private real directory")
     data = (json.dumps(payload, sort_keys=True) + "\n").encode()
     if len(data) > MAX_RECEIPT_BYTES:
@@ -44,6 +52,7 @@ def _safe_write(path: Path, payload: dict[str, object]) -> None:
 
 
 def _request(port: int, block: bool = False) -> int:
+    port = _loopback_port(port)
     extra = b"X-Modsec-Smoke: block\r\n" if block else b""
     with socket.create_connection(("127.0.0.1", port), timeout=3) as sock:
         sock.settimeout(3)
@@ -55,6 +64,8 @@ def _request(port: int, block: bool = False) -> int:
 
 
 def client_abort(port: int, upstream_port: int, receipt: Path, timeout: float, backend_read_timeout: float) -> None:
+    port = _loopback_port(port)
+    upstream_port = _loopback_port(upstream_port)
     if not 1 <= backend_read_timeout <= 30 or backend_read_timeout >= timeout:
         raise ProbeFailure("backend read timeout must be below the overall probe timeout")
     started = time.monotonic()
@@ -98,6 +109,7 @@ def client_abort(port: int, upstream_port: int, receipt: Path, timeout: float, b
 
 
 def parallel(port: int, receipt: Path) -> None:
+    port = _loopback_port(port)
     with ThreadPoolExecutor(max_workers=MAX_PARALLEL) as pool:
         statuses = list(pool.map(lambda _: _request(port), range(MAX_PARALLEL)))
     if statuses != [200] * MAX_PARALLEL:
@@ -106,6 +118,8 @@ def parallel(port: int, receipt: Path) -> None:
 
 
 def hold(port: int, upstream_port: int, ready: Path, release: Path, receipt: Path, timeout: float) -> None:
+    port = _loopback_port(port)
+    upstream_port = _loopback_port(upstream_port)
     deadline = time.monotonic() + timeout
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
         listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

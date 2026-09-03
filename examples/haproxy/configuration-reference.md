@@ -41,7 +41,7 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`spoe-agent:host`](#spoe-agent-host) | Compatibility | string/path | no | 127.0.0.1 | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
 | [`spoe-agent:listen`](#spoe-agent-listen) | Compatibility | string/path | no | unset unless configured | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
 | [`spoe-agent:log-file`](#spoe-agent-log-file) | Compatibility | string/path | no | - | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
-| [`spoe-agent:max-transactions`](#spoe-agent-max-transactions) | Compatibility | integer | no | 4096 | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
+| [`spoe-agent:max-transactions`](#spoe-agent-max-transactions) | Compatibility | integer | no | 4096 | SPOE/SPOP compatibility agent key=value file | Bounds transaction slots admitted by the SPOE/SPOP compatibility agent, including the combined worker/transaction cap. |
 | [`spoe-agent:mode`](#spoe-agent-mode) | Compatibility | compatibility policy string | no | block | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
 | [`spoe-agent:modsecurity-conf`](#spoe-agent-modsecurity-conf) | Compatibility | string/path | no | unset unless configured | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
 | [`spoe-agent:pid-file`](#spoe-agent-pid-file) | Compatibility | string/path | no | unset unless configured | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
@@ -50,14 +50,14 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`spoe-agent:ready-file`](#spoe-agent-ready-file) | Compatibility | string/path | no | unset unless configured | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
 | [`spoe-agent:request-body-limit`](#spoe-agent-request-body-limit) | Compatibility | integer | no | 65532 | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
 | [`spoe-agent:response-body-limit`](#spoe-agent-response-body-limit) | Compatibility | integer | no | 0 | SPOE/SPOP compatibility agent key=value file | Compatibility response control. The selected SPOE messages do not supply a response body, so this is not native P4 support. |
-| [`spoe-agent:response-body-timeout`](#spoe-agent-response-body-timeout) | Compatibility | integer | no | 0 | SPOE/SPOP compatibility agent key=value file | Compatibility response control. The selected SPOE messages do not supply a response body, so this is not native P4 support. |
+| [`spoe-agent:response-body-timeout`](#spoe-agent-response-body-timeout) | Compatibility | integer | no | 0 | SPOE/SPOP compatibility agent key=value file | Compatibility response control timeout; raw SPOE/SPOP does not carry a response body, so it is not a native P4 stream-idle limit. |
 | [`spoe-agent:response-phases`](#spoe-agent-response-phases) | Compatibility | boolean | no | false | SPOE/SPOP compatibility agent key=value file | Compatibility response control. The selected SPOE messages do not supply a response body, so this is not native P4 support. |
 | [`spoe-agent:rules-dir`](#spoe-agent-rules-dir) | Compatibility | string/path | no | unset unless configured | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
 | [`spoe-agent:rules-file`](#spoe-agent-rules-file) | Compatibility | string/path | no | unset unless configured | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
 | [`spoe-agent:runtime-mode`](#spoe-agent-runtime-mode) | Compatibility | compatibility policy string | no | production | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
-| [`spoe-agent:spoe-timeout`](#spoe-agent-spoe-timeout) | Compatibility | integer | no | 2000 | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
+| [`spoe-agent:spoe-timeout`](#spoe-agent-spoe-timeout) | Compatibility | integer | no | 2000 | SPOE/SPOP compatibility agent key=value file | Bounds each SPOE/SPOP engine transaction; zero, negative, malformed, and over-limit values fail configuration parsing. |
 | [`spoe-agent:variant`](#spoe-agent-variant) | Compatibility | string/path | no | - | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
-| [`spoe-agent:worker-count`](#spoe-agent-worker-count) | Compatibility | integer | no | 8 | SPOE/SPOP compatibility agent key=value file | SPOP compatibility-agent configuration; it is not a native HTX filter option. |
+| [`spoe-agent:worker-count`](#spoe-agent-worker-count) | Compatibility | integer | no | 8 | SPOE/SPOP compatibility agent key=value file | Bounds isolated concurrent SPOE/SPOP peer handlers; at least two workers keep a slow handshake from monopolising the accept loop. |
 
 ## Layer separation
 
@@ -1506,7 +1506,7 @@ expected-status=<value>
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| integer | `1..60000` milliseconds | no |
+| integer | decimal integer | no |
 
 ### Default
 
@@ -1528,9 +1528,7 @@ SPOP compatibility-agent configuration; it is not a native HTX filter option.
 
 ### Validation and errors
 
-Unknown keys and values outside `1..60000` (including zero, negative,
-overflowing, or trailing-text values) fail compatibility-agent configuration
-parsing with exit `2` before a listener starts.
+Unknown keys fail compatibility-agent configuration parsing.
 
 ### Example
 
@@ -1767,7 +1765,7 @@ Compatibility logs, ports, rules, and fail policy require operator review; do no
 
 ### Short description
 
-SPOP compatibility-agent configuration; it is not a native HTX filter option.
+Bounds transaction slots admitted by the SPOE/SPOP compatibility agent, including the combined worker/transaction cap.
 
 ### Syntax
 
@@ -1783,7 +1781,7 @@ max-transactions=<value>
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| integer | `1..4096`; additionally `worker-count * max-transactions <= 65536` | no |
+| integer | decimal integer, 1..4096; worker-count * max-transactions <= 65536 | no |
 
 ### Default
 
@@ -1801,13 +1799,11 @@ Merge: No merge; config_set applies one parsed value.
 
 Compatibility request/response-header path only; no native response-body lifecycle claim.
 
-SPOP compatibility-agent configuration; it is not a native HTX filter option.
+Bounds transaction slots admitted by the SPOE/SPOP compatibility agent, including the combined worker/transaction cap.
 
 ### Validation and errors
 
-Unknown keys fail compatibility-agent configuration parsing. Values outside
-`1..4096`, malformed values, and a worker/cache product above 65536 fail
-closed at startup with exit `2` before a peer cache is allocated.
+spoe-timeout accepts only decimal milliseconds in 1..60000; worker-count accepts 2..64; max-transactions accepts 1..4096; worker-count * max-transactions must not exceed 65536; response-body-timeout accepts unsigned decimal milliseconds and must be 0 with response-companion=none; unknown keys and malformed values fail compatibility-agent configuration parsing.
 
 ### Example
 
@@ -2264,7 +2260,7 @@ Compatibility logs, ports, rules, and fail policy require operator review; do no
 
 ### Short description
 
-Compatibility response control. The selected SPOE messages do not supply a response body, so this is not native P4 support.
+Compatibility response control timeout; raw SPOE/SPOP does not carry a response body, so it is not a native P4 stream-idle limit.
 
 ### Syntax
 
@@ -2280,7 +2276,7 @@ response-body-timeout=<value>
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| integer | decimal integer | no |
+| integer | unsigned decimal milliseconds, 0..4294967295; must be 0 with response-companion=none | no |
 
 ### Default
 
@@ -2298,11 +2294,11 @@ Merge: No merge; config_set applies one parsed value.
 
 Compatibility request/response-header path only; no native response-body lifecycle claim.
 
-Compatibility response control. The selected SPOE messages do not supply a response body, so this is not native P4 support.
+Compatibility response control timeout; raw SPOE/SPOP does not carry a response body, so it is not a native P4 stream-idle limit.
 
 ### Validation and errors
 
-Unknown keys fail compatibility-agent configuration parsing.
+spoe-timeout accepts only decimal milliseconds in 1..60000; worker-count accepts 2..64; max-transactions accepts 1..4096; worker-count * max-transactions must not exceed 65536; response-body-timeout accepts unsigned decimal milliseconds and must be 0 with response-companion=none; unknown keys and malformed values fail compatibility-agent configuration parsing.
 
 ### Example
 
@@ -2539,7 +2535,7 @@ Compatibility logs, ports, rules, and fail policy require operator review; do no
 
 ### Short description
 
-SPOP compatibility-agent configuration; it is not a native HTX filter option.
+Bounds each SPOE/SPOP engine transaction; zero, negative, malformed, and over-limit values fail configuration parsing.
 
 ### Syntax
 
@@ -2555,7 +2551,7 @@ spoe-timeout=<value>
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| integer | decimal integer | no |
+| integer | positive decimal milliseconds, 1..60000 | no |
 
 ### Default
 
@@ -2573,11 +2569,11 @@ Merge: No merge; config_set applies one parsed value.
 
 Compatibility request/response-header path only; no native response-body lifecycle claim.
 
-SPOP compatibility-agent configuration; it is not a native HTX filter option.
+Bounds each SPOE/SPOP engine transaction; zero, negative, malformed, and over-limit values fail configuration parsing.
 
 ### Validation and errors
 
-Unknown keys fail compatibility-agent configuration parsing.
+spoe-timeout accepts only decimal milliseconds in 1..60000; worker-count accepts 2..64; max-transactions accepts 1..4096; worker-count * max-transactions must not exceed 65536; response-body-timeout accepts unsigned decimal milliseconds and must be 0 with response-companion=none; unknown keys and malformed values fail compatibility-agent configuration parsing.
 
 ### Example
 
@@ -2649,7 +2645,7 @@ Compatibility logs, ports, rules, and fail policy require operator review; do no
 
 ### Short description
 
-SPOP compatibility-agent configuration; it is not a native HTX filter option.
+Bounds isolated concurrent SPOE/SPOP peer handlers; at least two workers keep a slow handshake from monopolising the accept loop.
 
 ### Syntax
 
@@ -2665,7 +2661,7 @@ worker-count=<value>
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| integer | `1..64`; together with `max-transactions`, at most 65536 cache slots | no |
+| integer | decimal integer, 2..64; worker-count * max-transactions <= 65536 | no |
 
 ### Default
 
@@ -2683,14 +2679,11 @@ Merge: No merge; config_set applies one parsed value.
 
 Compatibility request/response-header path only; no native response-body lifecycle claim.
 
-SPOP compatibility-agent configuration; it is not a native HTX filter option.
+Bounds isolated concurrent SPOE/SPOP peer handlers; at least two workers keep a slow handshake from monopolising the accept loop.
 
 ### Validation and errors
 
-Unknown keys and values outside `1..64` (including zero, negative,
-overflowing, or trailing-text values) fail compatibility-agent configuration
-parsing with exit `2`. A worker/cache product above 65536 fails closed at
-startup with exit `2` before allocation.
+spoe-timeout accepts only decimal milliseconds in 1..60000; worker-count accepts 2..64; max-transactions accepts 1..4096; worker-count * max-transactions must not exceed 65536; response-body-timeout accepts unsigned decimal milliseconds and must be 0 with response-companion=none; unknown keys and malformed values fail compatibility-agent configuration parsing.
 
 ### Example
 

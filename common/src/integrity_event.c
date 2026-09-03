@@ -62,10 +62,28 @@ uint64_t msconnector_integrity_event_hash(const msconnector_event *event, uint64
     uint64_t hash = hash_bytes_continue(FNV_OFFSET, (const unsigned char *)&previous_hash, sizeof(previous_hash));
     const char *connection_id;
     const char *transport_case_id;
+    const char *stream_reset_code;
+    const char *reset_by;
+    const char *reset_code;
+    const char *timeout_stage;
+    const char *write_result;
+    const char *cleanup_reason;
+    int transport_provenance_valid;
+    int effective_truncated;
     if (event == 0) { return hash; }
     connection_id = safe_connection_id_for_event_hash(event);
     transport_case_id = is_bounded_transport_case_id(event->meta.transport_case_id)
         ? event->meta.transport_case_id : NULL;
+    transport_provenance_valid =
+        msconnector_event_transport_provenance_is_valid(event);
+    stream_reset_code = transport_provenance_valid
+        ? event->protocol.stream_reset_code : NULL;
+    reset_by = transport_provenance_valid ? event->protocol.reset_by : NULL;
+    reset_code = transport_provenance_valid ? event->protocol.reset_code : NULL;
+    timeout_stage = transport_provenance_valid ? event->flags.timeout_stage : NULL;
+    write_result = transport_provenance_valid ? event->flags.write_result : NULL;
+    cleanup_reason = transport_provenance_valid ? event->flags.cleanup_reason : NULL;
+    effective_truncated = event->flags.truncated != 0 || !transport_provenance_valid;
     hash = hash_string_continue(hash, event->meta.timestamp);
     hash = hash_string_continue(hash, event->meta.level);
     hash = hash_string_continue(hash, event->meta.message_id);
@@ -98,9 +116,9 @@ uint64_t msconnector_integrity_event_hash(const msconnector_event *event, uint64
     hash = hash_string_continue(hash, event->protocol.stream_id);
     hash = hash_string_continue(hash, connection_id);
     hash = hash_string_continue(hash, event->protocol.quic_version);
-    hash = hash_string_continue(hash, event->protocol.stream_reset_code);
-    hash = hash_string_continue(hash, event->protocol.reset_by);
-    hash = hash_string_continue(hash, event->protocol.reset_code);
+    hash = hash_string_continue(hash, stream_reset_code);
+    hash = hash_string_continue(hash, reset_by);
+    hash = hash_string_continue(hash, reset_code);
     hash = hash_int_continue(hash, event->protocol.connection_reused);
     hash = hash_int_continue(hash, event->protocol.quic_connection_id_present);
     hash = hash_int_continue(hash, event->protocol.fallback_used);
@@ -127,10 +145,10 @@ uint64_t msconnector_integrity_event_hash(const msconnector_event *event, uint64
     hash = hash_int_continue(hash, event->flags.cancelled);
     hash = hash_int_continue(hash, event->flags.eos_seen);
     hash = hash_int_continue(hash, event->flags.redacted);
-    hash = hash_int_continue(hash, event->flags.truncated);
-    hash = hash_string_continue(hash, event->flags.timeout_stage);
-    hash = hash_string_continue(hash, event->flags.write_result);
-    hash = hash_string_continue(hash, event->flags.cleanup_reason);
+    hash = hash_int_continue(hash, effective_truncated);
+    hash = hash_string_continue(hash, timeout_stage);
+    hash = hash_string_continue(hash, write_result);
+    hash = hash_string_continue(hash, cleanup_reason);
     return hash;
 }
 

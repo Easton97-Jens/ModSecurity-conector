@@ -11,6 +11,13 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260903-connector-runtime-hardening-quality-remediation](CR-20260903-connector-runtime-hardening-quality-remediation.de.md) —
+  aktuelle Parent-only-Remediation der Codex-Review-Findings, SonarQube-Cloud-
+  Quality-Gate-Fehler und roten Connector-Workflow-Evidence für Draft PR #346.
+  Sie weist lokale Evidence und ausstehende Exact-Head-Hosted-Ergebnisse aus;
+  keine CI-, Framework-/MRTS-, Gitlink-, `master`- oder Merge-Änderung wird
+  behauptet.
+
 - [CR-20260903-no-crs-doc-consistency-repair](CR-20260903-no-crs-doc-consistency-repair.de.md) —
   der aktuelle Benutzer autorisierte diese Parent-only-Reparatur des
   reproduzierten Traefik-No-CRS-Dokumentations-/Capability-Katalog-

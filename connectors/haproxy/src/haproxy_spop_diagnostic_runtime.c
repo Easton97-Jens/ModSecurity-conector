@@ -51,6 +51,10 @@
 #define SPOP_SCOPE_TXN 2U
 #define RUNTIME_PATH_LIMIT 4096U
 #define RUNTIME_TEXT_LIMIT 65536U
+#define SPOP_MIN_WORKER_COUNT 2U
+#define SPOP_MAX_WORKER_COUNT 64U
+#define SPOP_MAX_TRANSACTIONS 4096U
+#define SPOP_MAX_TRANSACTION_SLOTS_TOTAL 65536U
 
 typedef struct spop_buffer {
     unsigned char data[SPOP_FRAME_MAX];
@@ -238,6 +242,13 @@ typedef struct agent_state {
 
 static volatile sig_atomic_t stop_requested = 0;
 static const unsigned char empty_value[1] = {0};
+/* Multiple peer workers can produce runtime evidence concurrently. Keep every
+ * timestamp/message/newline/flush sequence one complete operator-visible line.
+ * The legacy evaluator uses its own lock because its compatibility binding has
+ * no documented concurrent-engine ownership contract. */
+static pthread_mutex_t runtime_log_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t legacy_evaluation_lock = PTHREAD_MUTEX_INITIALIZER;
+static uint64_t last_peer_failure_log_ms = 0U;
 
 static void on_signal(int signum) {
     (void)signum;
@@ -277,9 +288,13 @@ static void end_log_line(FILE *log) {
 
 #define log_line(log, ...) \
     do { \
-        if (begin_log_line(log)) { \
-            (void)fprintf((log), __VA_ARGS__); \
-            end_log_line(log); \
+        if ((log) != 0) { \
+            (void)pthread_mutex_lock(&runtime_log_lock); \
+            if (begin_log_line(log)) { \
+                (void)fprintf((log), __VA_ARGS__); \
+                end_log_line(log); \
+            } \
+            (void)pthread_mutex_unlock(&runtime_log_lock); \
         } \
     } while (0)
 
@@ -447,6 +462,29 @@ static uint64_t monotonic_milliseconds(void) {
         (uint64_t)value.tv_nsec / 1000000U;
 }
 
+/* A peer-local protocol or write failure must be observable, but a hostile
+ * peer must not turn the runtime log into an unbounded resource consumer. */
+static void log_peer_failure_rate_limited(FILE *log) {
+    uint64_t now;
+
+    if (log == 0) {
+        return;
+    }
+    now = monotonic_milliseconds();
+    (void)pthread_mutex_lock(&runtime_log_lock);
+    if (last_peer_failure_log_ms == 0U ||
+        now - last_peer_failure_log_ms >= 1000U) {
+        if (begin_log_line(log)) {
+            (void)fprintf(log,
+                "event=spop-peer-session-failed action=close "
+                "reason=protocol-or-write-error");
+            end_log_line(log);
+        }
+        last_peer_failure_log_ms = now;
+    }
+    (void)pthread_mutex_unlock(&runtime_log_lock);
+}
+
 static int read_full_until(int fd, void *buf, size_t len, uint64_t deadline) {
     unsigned char *p = (unsigned char *)buf;
     while (len > 0) {
@@ -511,8 +549,11 @@ static int write_full_until(int fd, const void *buf, size_t len, uint64_t deadli
             return -1;
         }
 
+        /* This is a protocol socket. MSG_NOSIGNAL turns a peer-close race
+         * into the normal observable EPIPE/ECONNRESET failure path without
+         * changing SIGPIPE handling for unrelated process users. */
         do {
-            rc = write(fd, p, len);
+            rc = send(fd, p, len, MSG_NOSIGNAL);
         } while (rc < 0 && errno == EINTR);
         if (rc <= 0) {
             return -1;
@@ -1487,7 +1528,13 @@ static int parse_notify_argument(
 static int parse_notify_payload(const unsigned char *data, size_t len, notify_request *request) {
     size_t pos = 0;
 
+    if (request == 0) {
+        return -1;
+    }
     memset(request, 0, sizeof(*request));
+    if (data == 0 || len == 0U) {
+        return -1;
+    }
     while (pos < len) {
         const unsigned char *message_name;
         size_t message_name_len;
@@ -1499,10 +1546,10 @@ static int parse_notify_payload(const unsigned char *data, size_t len, notify_re
         }
         copy_spop_string(request->message_name, sizeof(request->message_name),
             message_name, message_name_len);
-        request->is_response =
+        request->is_response |=
             KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response") ||
             KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response-body");
-        request->is_response_body =
+        request->is_response_body |=
             KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response-body");
         nb_args = data[pos++];
         request->has_notify = 1;
@@ -1518,7 +1565,7 @@ static int parse_notify_payload(const unsigned char *data, size_t len, notify_re
             }
         }
     }
-    return 0;
+    return request->has_notify ? 0 : -1;
 }
 
 static int build_notify_request_payload(
@@ -1900,7 +1947,8 @@ static void config_init(agent_config *config) {
     config->response_body_limit = 0U;
     config->response_body_timeout_ms = 0U;
     config->spoe_timeout_ms = 2000U;
-    config->worker_count = 1U;
+    /* A slow or incomplete HELLO consumes one bounded peer worker only. */
+    config->worker_count = 8U;
     config->max_transactions = 4096U;
 }
 
@@ -1927,6 +1975,37 @@ static int parse_listen(agent_config *config, const char *listen_value) {
         return -1;
     }
     config->port = (unsigned int)port;
+    return 0;
+}
+
+static int parse_uint_config_value(const char *value, unsigned int *output) {
+    char *end = 0;
+    unsigned long parsed;
+
+    if (value == 0 || output == 0 || value[0] < '0' || value[0] > '9') {
+        return -1;
+    }
+    errno = 0;
+    parsed = strtoul(value, &end, 10);
+    if (errno == ERANGE || end == value || *end != '\0' ||
+            parsed > UINT_MAX) {
+        return -1;
+    }
+    *output = (unsigned int)parsed;
+    return 0;
+}
+
+static int parse_positive_uint_config_value(
+        const char *value,
+        unsigned int maximum,
+        unsigned int *output) {
+    unsigned int parsed;
+
+    if (parse_uint_config_value(value, &parsed) != 0 || parsed == 0U ||
+            parsed > maximum) {
+        return -1;
+    }
+    *output = parsed;
     return 0;
 }
 
@@ -1991,29 +2070,23 @@ static int config_set(agent_config *config, const char *key, const char *value) 
         return 0;
     }
     if (strcmp(key, "response-body-timeout") == 0) {
-        config->response_body_timeout_ms = (unsigned int)strtoul(value, 0, 10);
-        return 0;
+        return parse_uint_config_value(value, &config->response_body_timeout_ms);
     }
     if (strcmp(key, "spoe-timeout") == 0) {
-        char *end = 0;
-        unsigned long parsed;
-
-        errno = 0;
-        parsed = strtoul(value, &end, 10);
-        if (errno == ERANGE || end == value || *end != '\0' ||
-                parsed > UINT_MAX) {
-            return -1;
-        }
-        config->spoe_timeout_ms = (unsigned int)parsed;
-        return 0;
+        return parse_positive_uint_config_value(value, 60000U,
+            &config->spoe_timeout_ms);
     }
     if (strcmp(key, "worker-count") == 0) {
-        config->worker_count = (unsigned int)strtoul(value, 0, 10);
+        if (parse_positive_uint_config_value(value, SPOP_MAX_WORKER_COUNT,
+                &config->worker_count) != 0 ||
+                config->worker_count < SPOP_MIN_WORKER_COUNT) {
+            return -1;
+        }
         return 0;
     }
     if (strcmp(key, "max-transactions") == 0) {
-        config->max_transactions = (unsigned int)strtoul(value, 0, 10);
-        return 0;
+        return parse_positive_uint_config_value(value, SPOP_MAX_TRANSACTIONS,
+            &config->max_transactions);
     }
     if (strcmp(key, "debug") == 0) {
         config->debug = strcmp(value, "1") == 0 || strcmp(value, "true") == 0 ||
@@ -2252,6 +2325,17 @@ static const char *safe_decision_reason_code(
         const haproxy_modsecurity_decision *decision,
         int modsecurity_processed,
         const char *decision_text) {
+    if (decision_text != 0 &&
+            strcmp(decision_text, "response-phase-disabled") == 0) {
+        return "response_phase_disabled_closed";
+    }
+    if (decision_text != 0 &&
+            strcmp(decision_text, "correlation-failure") == 0) {
+        return "response_transaction_correlation_missing_closed";
+    }
+    if (decision_text != 0 && strcmp(decision_text, "malformed-notify") == 0) {
+        return "malformed_notify_closed";
+    }
     const char *safe_decision = safe_decision_name(decision_text, decision);
 
     if (strcmp(safe_decision, "fail-closed") == 0) {
@@ -2300,7 +2384,7 @@ static void decision_log_write(
     file = state->decision_log;
     decision_name = safe_decision_name(decision_text, decision);
     reason_code = safe_decision_reason_code(
-        decision, modsecurity_processed, decision_name);
+        decision, modsecurity_processed, decision_text);
     phase4_disruptive = request->is_response_body && decision->phase == 4 &&
         decision->disruptive != 0;
     original_status = request->has_response_status ?
@@ -2377,9 +2461,24 @@ static void decision_log_write(
     fflush(file);
 }
 
+static int production_config_has_safe_peer_limits(const agent_config *config) {
+    if (config == 0 || config->worker_count < SPOP_MIN_WORKER_COUNT ||
+            config->worker_count > SPOP_MAX_WORKER_COUNT ||
+            config->max_transactions == 0U ||
+            config->max_transactions > SPOP_MAX_TRANSACTIONS ||
+            config->max_transactions >
+                SPOP_MAX_TRANSACTION_SLOTS_TOTAL / config->worker_count) {
+        return 0;
+    }
+    return 1;
+}
+
 static int transaction_cache_init(agent_state *state) {
     size_t capacity;
 
+    if (state == 0 || !production_config_has_safe_peer_limits(&state->config)) {
+        return -1;
+    }
     capacity = state->config.max_transactions > 0U ?
         state->config.max_transactions : 4096U;
     state->transactions = (transaction_slot *)calloc(capacity, sizeof(*state->transactions));
@@ -2571,6 +2670,57 @@ static const char *set_response_correlation_failure(
         "canonical response transaction correlation is missing or expired");
     decision->disruptive = 1;
     return "correlation-failure";
+}
+
+static const char *set_response_phase_disabled_failure(
+        haproxy_modsecurity_decision *decision,
+        int phase) {
+    runtime_init_decision(decision, phase, "deny", 503,
+        "response phase is disabled for this SPOP agent");
+    decision->disruptive = 1;
+    return "response-phase-disabled";
+}
+
+/* Engine decisions intentionally follow the selected detect-only policy.
+ * These named outcomes instead describe malformed or impossible connector
+ * protocol state, so their ACK must remain fail-closed in every engine mode. */
+static int protocol_failure_requires_enforcement(const char *decision_text) {
+    return decision_text != 0 &&
+        (strcmp(decision_text, "response-phase-disabled") == 0 ||
+         strcmp(decision_text, "correlation-failure") == 0);
+}
+
+static int send_malformed_notify_outcome(
+        int fd,
+        const spop_frame *frame,
+        const agent_state *state,
+        FILE *log) {
+    haproxy_modsecurity_decision decision;
+    spop_buffer ack_payload;
+    const char *decision_text = "malformed-notify";
+
+    if (state == 0 || state->engine == 0) {
+        log_line(log,
+            "malformed NOTIFY rejected without ACK because no production fail policy is active");
+        return -1;
+    }
+    /* A malformed peer frame is a protocol failure, not an engine failure.
+     * Never let an engine fail-open policy turn it into a permissive ACK. */
+    runtime_init_decision(&decision, 2, "deny", 400,
+        "invalid SPOP NOTIFY payload");
+    decision.disruptive = 1;
+    if (build_decision_ack_payload(&ack_payload, &decision,
+            safe_decision_reason_code(&decision, 0, decision_text),
+            1, 0) != 0) {
+        log_line(log, "malformed NOTIFY outcome encoding failed");
+        return -1;
+    }
+    log_line(log,
+        "malformed NOTIFY outcome=%s disruptive=%d status=%d enforce=%d",
+        decision_text, decision.disruptive, decision.status,
+        1);
+    return send_frame(fd, SPOP_FRM_ACK, frame->stream_id, frame->frame_id,
+        &ack_payload);
 }
 
 static unsigned int bounded_body_length(
@@ -2773,6 +2923,11 @@ static void process_production_response_notify(
     int modsec_rc;
     int phase = request->is_response_body ? 4 : 3;
 
+    if (!state->config.response_phases_enabled) {
+        *decision_text = set_response_phase_disabled_failure(decision, phase);
+        decision_log_write(state, request, decision, 0, *decision_text);
+        return;
+    }
     if (strcmp(state->config.response_companion, "native-htx") == 0) {
         *decision_text = set_processing_failure(state, decision, phase,
             "legacy SPOP response notification rejected in native-htx companion mode");
@@ -2972,36 +3127,46 @@ static int process_production_notify(
 
     ensure_notify_request_id(request, frame);
     response_handle[0] = '\0';
-    task_context = (spop_production_task_context *)calloc(1U, sizeof(*task_context));
-    if (task_context != 0) {
-        task_context->state = state;
-        /* Transfer ownership of parser allocations to the heap task.  The
-         * caller still owns the scalar request fields used for the ACK, but
-         * cannot free the payload while a timed-out owner task is running. */
-        task_context->request = *request;
-        request->headers = 0;
-        request->header_count = 0U;
-        request->body = 0;
-        request->body_len = 0U;
-        result.decision = &decision;
-        result.modsec_processed = &modsec_processed;
-        result.decision_text = &decision_text;
-        result.response_handle = response_handle;
-        if (spop_owner_queue_submit(state, run_spop_production_task,
-                task_context, destroy_spop_production_task_context,
-                copy_spop_production_task_result, &result,
-                state->config.spoe_timeout_ms) != 0) {
-            task_context = 0; /* submit owns cleanup on every failure path */
-            set_processing_failure(state, &decision, phase,
-                "SPOP owner queue is unavailable");
-            decision_text = "owner-queue-unavailable";
-        } else {
-            task_context = 0; /* owner queue released the task reference */
-        }
+    if (request->is_response && !state->config.response_phases_enabled) {
+        /* Reject before owner-queue admission: this agent cannot legitimately
+         * own a response transaction, even if the queue is unavailable. */
+        decision_text = set_response_phase_disabled_failure(&decision, phase);
+        decision_log_write(state, request, &decision, 0, decision_text);
     } else {
-        set_processing_failure(state, &decision, phase,
-            "SPOP owner queue allocation failed");
-        decision_text = "owner-queue-unavailable";
+        task_context = (spop_production_task_context *)calloc(1U, sizeof(*task_context));
+        if (task_context != 0) {
+            task_context->state = state;
+            /* Transfer ownership of parser allocations to the heap task.  The
+             * caller still owns the scalar request fields used for the ACK, but
+             * cannot free the payload while a timed-out owner task is running. */
+            task_context->request = *request;
+            request->headers = 0;
+            request->header_count = 0U;
+            request->body = 0;
+            request->body_len = 0U;
+            result.decision = &decision;
+            result.modsec_processed = &modsec_processed;
+            result.decision_text = &decision_text;
+            result.response_handle = response_handle;
+            if (spop_owner_queue_submit(state, run_spop_production_task,
+                    task_context, destroy_spop_production_task_context,
+                    copy_spop_production_task_result, &result,
+                    state->config.spoe_timeout_ms) != 0) {
+                task_context = 0; /* submit owns cleanup on every failure path */
+                set_processing_failure(state, &decision, phase,
+                    "SPOP owner queue is unavailable");
+                decision_text = "owner-queue-unavailable";
+            } else {
+                task_context = 0; /* owner queue released the task reference */
+            }
+        } else {
+            set_processing_failure(state, &decision, phase,
+                "SPOP owner queue allocation failed");
+            decision_text = "owner-queue-unavailable";
+        }
+    }
+    if (protocol_failure_requires_enforcement(decision_text)) {
+        enforce = 1;
     }
     if (build_decision_ack_payload(&ack_payload, &decision,
                         safe_decision_reason_code(
@@ -3976,6 +4141,21 @@ static int run_spop_request_id_validation_self_test(void)
     return 0;
 }
 
+static int run_spop_notify_failure_self_test(void)
+{
+    static const unsigned char truncated[] = {5U, 'c', 'h', 'e', 'c'};
+    notify_request request;
+
+    memset(&request, 0, sizeof(request));
+    if (parse_notify_payload(0, 0U, &request) == 0 ||
+            parse_notify_payload(truncated, sizeof(truncated), &request) == 0) {
+        free_notify_request(&request);
+        return -1;
+    }
+    free_notify_request(&request);
+    return 0;
+}
+
 static int run_spop_write_deadline_self_test(void)
 {
     int sockets[2];
@@ -3997,7 +4177,7 @@ static int run_spop_write_deadline_self_test(void)
         return -1;
     }
     do {
-        written = write(sockets[0], filler, sizeof(filler));
+        written = send(sockets[0], filler, sizeof(filler), MSG_NOSIGNAL);
     } while (written > 0);
     if (errno == EAGAIN || errno == EWOULDBLOCK) {
         rc = send_frame_timeout(sockets[0], SPOP_FRM_ACK, 1U, 1U,
@@ -4006,6 +4186,39 @@ static int run_spop_write_deadline_self_test(void)
     close(sockets[0]);
     close(sockets[1]);
     return rc;
+}
+
+static int run_spop_peer_close_write_self_test(void)
+{
+    int sockets[2] = {-1, -1};
+    pid_t child;
+    int status;
+    spop_buffer payload = {0};
+
+    child = fork();
+    if (child < 0) {
+        return -1;
+    }
+    if (child == 0) {
+        if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) != 0 ||
+                shutdown(sockets[1], SHUT_RD) != 0) {
+            _exit(1);
+        }
+        /* A raw socket write can terminate this child with SIGPIPE. The
+         * protocol helper must instead return a per-peer error. */
+        if (send_frame_timeout(sockets[0], SPOP_FRM_AGENT_HELLO, 0U, 0U,
+                &payload, 100U) == 0) {
+            _exit(1);
+        }
+        close(sockets[0]);
+        close(sockets[1]);
+        _exit(0);
+    }
+    if (waitpid(child, &status, 0) < 0 || !WIFEXITED(status) ||
+            WEXITSTATUS(status) != 0) {
+        return -1;
+    }
+    return 0;
 }
 
 static int evaluate_legacy_notify(
@@ -4068,8 +4281,12 @@ static int process_legacy_notify(
     haproxy_modsecurity_decision decision;
     int modsec_rc;
 
+    if (pthread_mutex_lock(&legacy_evaluation_lock) != 0) {
+        return -1;
+    }
     modsec_rc = evaluate_legacy_notify(request, rules_file, crs_preamble_file,
         log, &decision);
+    (void)pthread_mutex_unlock(&legacy_evaluation_lock);
     if (modsec_rc != 0) {
         log_line(log, "MODSECURITY live binding failed status=%d rule_id=%d",
             decision.status, decision.rule_id);
@@ -4094,11 +4311,17 @@ static int handle_notify_frame(
         (unsigned long long)frame->stream_id, (unsigned long long)frame->frame_id);
     if (parse_notify_payload(frame->payload, frame->payload_len, &request) != 0) {
         log_line(log, "NOTIFY request argument extraction failed");
-        rc = send_empty_ack(fd, frame,
-            state != 0 && state->engine != 0 ? state->config.spoe_timeout_ms :
-            2000U);
+        if (state != 0 && state->engine != 0) {
+            if (send_malformed_notify_outcome(fd, frame, state, log) != 0) {
+                log_line(log, "malformed NOTIFY deny outcome write failed; closing peer");
+            }
+        } else {
+            log_line(log, "malformed NOTIFY rejected without ACK in legacy mode");
+        }
         free_notify_request(&request);
-        return rc;
+        /* The peer must not continue after malformed input, even if production
+         * emitted a bounded deny/400 outcome before closing the connection. */
+        return -1;
     }
     log_line(log,
         "NOTIFY request metadata method_present=%d path_present=%d uri_present=%d host_present=%d test_header_present=%d headers=%u body_len=%lu",
@@ -4213,12 +4436,81 @@ static int connect_localhost(unsigned int port) {
     return fd;
 }
 
-static int accept_loop(int listen_fd, agent_state *state, FILE *log, int max_connections, const char *rules_file, const char *crs_preamble_file, unsigned int timeout_ms) {
+typedef struct spop_connection_gate {
+    pthread_mutex_t lock;
+    pthread_cond_t changed;
+    unsigned int active;
+    unsigned int limit;
+} spop_connection_gate;
+
+typedef struct spop_connection_task {
+    int fd;
+    agent_state *state;
+    FILE *log;
+    const char *rules_file;
+    const char *crs_preamble_file;
+    unsigned int timeout_ms;
+    spop_connection_gate *gate;
+} spop_connection_task;
+
+static void *spop_connection_thread(void *opaque) {
+    spop_connection_task *task = (spop_connection_task *)opaque;
+    int connection_rc;
+
+    connection_rc = handle_connection(task->fd, task->state, task->log,
+        task->rules_file, task->crs_preamble_file, task->timeout_ms);
+    if (connection_rc != 0) {
+        log_peer_failure_rate_limited(task->log);
+    }
+    close(task->fd);
+    pthread_mutex_lock(&task->gate->lock);
+    if (task->gate->active > 0U) {
+        task->gate->active--;
+    }
+    pthread_cond_broadcast(&task->gate->changed);
+    pthread_mutex_unlock(&task->gate->lock);
+    free(task);
+    return 0;
+}
+
+static int accept_loop(int listen_fd, agent_state *state, FILE *log,
+        int max_connections, const char *rules_file,
+        const char *crs_preamble_file, unsigned int timeout_ms,
+        unsigned int worker_limit) {
     int handled = 0;
+    int loop_rc = 0;
+    uint64_t last_capacity_rejection_log_ms = 0U;
+    spop_connection_gate gate;
+    pthread_attr_t detached_attributes;
+
+    memset(&gate, 0, sizeof(gate));
+    gate.limit = worker_limit >= SPOP_MIN_WORKER_COUNT ? worker_limit : 8U;
+    if (pthread_mutex_init(&gate.lock, 0) != 0) {
+        return 1;
+    }
+    if (pthread_cond_init(&gate.changed, 0) != 0) {
+        pthread_mutex_destroy(&gate.lock);
+        return 1;
+    }
+    if (pthread_attr_init(&detached_attributes) != 0) {
+        pthread_cond_destroy(&gate.changed);
+        pthread_mutex_destroy(&gate.lock);
+        return 1;
+    }
+    if (pthread_attr_setdetachstate(&detached_attributes,
+            PTHREAD_CREATE_DETACHED) != 0) {
+        pthread_attr_destroy(&detached_attributes);
+        pthread_cond_destroy(&gate.changed);
+        pthread_mutex_destroy(&gate.lock);
+        return 1;
+    }
 
     stop_requested = 0;
     if (install_signal_handlers() != 0) {
         log_line(log, "failed to install signal handlers errno=%d", errno);
+        pthread_attr_destroy(&detached_attributes);
+        pthread_cond_destroy(&gate.changed);
+        pthread_mutex_destroy(&gate.lock);
         return 1;
     }
     while (!stop_requested && (max_connections <= 0 || handled < max_connections)) {
@@ -4226,18 +4518,85 @@ static int accept_loop(int listen_fd, agent_state *state, FILE *log, int max_con
         if (fd < 0) {
             if (errno != EINTR) {
                 log_line(log, "accept failed errno=%d", errno);
-                return 1;
+                loop_rc = 1;
+                break;
             }
             if (stop_requested) {
                 break;
             }
             continue;
         }
-        handle_connection(fd, state, log, rules_file, crs_preamble_file, timeout_ms);
-        close(fd);
+        pthread_mutex_lock(&gate.lock);
+        if (stop_requested) {
+            pthread_mutex_unlock(&gate.lock);
+            close(fd);
+            break;
+        }
+        if (gate.active >= gate.limit) {
+            uint64_t now = monotonic_milliseconds();
+
+            pthread_mutex_unlock(&gate.lock);
+            close(fd);
+            /* A peer flood must not turn its own rejection evidence into an
+             * unbounded log-file allocation. The accept loop is the only
+             * writer of this counter, so one bounded event per second is
+             * sufficient for operators without a shared lock. */
+            if (now == 0U || last_capacity_rejection_log_ms == 0U ||
+                    now < last_capacity_rejection_log_ms ||
+                    now - last_capacity_rejection_log_ms >= 1000U) {
+                log_line(log,
+                    "event=spop-peer-capacity-rejected action=close reason=worker-capacity");
+                last_capacity_rejection_log_ms = now;
+            }
+            continue;
+        }
+        gate.active++;
+        pthread_mutex_unlock(&gate.lock);
+        {
+            spop_connection_task *task = calloc(1U, sizeof(*task));
+            pthread_t thread;
+
+            if (task == 0) {
+                pthread_mutex_lock(&gate.lock);
+                gate.active--;
+                pthread_cond_broadcast(&gate.changed);
+                pthread_mutex_unlock(&gate.lock);
+                close(fd);
+                log_line(log, "peer task allocation failed; closing peer");
+                loop_rc = 1;
+                break;
+            }
+            task->fd = fd;
+            task->state = state;
+            task->log = log;
+            task->rules_file = rules_file;
+            task->crs_preamble_file = crs_preamble_file;
+            task->timeout_ms = timeout_ms;
+            task->gate = &gate;
+            if (pthread_create(&thread, &detached_attributes,
+                    spop_connection_thread, task) != 0) {
+                free(task);
+                pthread_mutex_lock(&gate.lock);
+                gate.active--;
+                pthread_cond_broadcast(&gate.changed);
+                pthread_mutex_unlock(&gate.lock);
+                close(fd);
+                log_line(log, "peer worker creation failed; closing peer");
+                loop_rc = 1;
+                break;
+            }
+        }
         handled++;
     }
-    return 0;
+    pthread_mutex_lock(&gate.lock);
+    while (gate.active != 0U) {
+        pthread_cond_wait(&gate.changed, &gate.lock);
+    }
+    pthread_mutex_unlock(&gate.lock);
+    pthread_attr_destroy(&detached_attributes);
+    pthread_cond_destroy(&gate.changed);
+    pthread_mutex_destroy(&gate.lock);
+    return loop_rc;
 }
 
 static int client_expect_frame(int fd, unsigned int type, uint64_t stream_id, uint64_t frame_id) {
@@ -4263,31 +4622,146 @@ static int client_expect_ack_set_var(int fd, uint64_t stream_id, uint64_t frame_
     return payload_has_set_var_blocked_true(&payload) ? 0 : -1;
 }
 
+static int client_expect_malformed_ack(int fd, uint64_t stream_id, uint64_t frame_id)
+{
+    haproxy_modsecurity_decision decision;
+    spop_buffer expected;
+    spop_frame frame;
+
+    runtime_init_decision(&decision, 2, "deny", 400,
+        "invalid SPOP NOTIFY payload");
+    decision.disruptive = 1;
+    if (build_decision_ack_payload(&expected, &decision,
+            safe_decision_reason_code(&decision, 0, "malformed-notify"), 1, 0) != 0 ||
+            recv_frame(fd, &frame, 3000U) != 0 || frame.type != SPOP_FRM_ACK ||
+            frame.stream_id != stream_id || frame.frame_id != frame_id ||
+            frame.payload_len != expected.len ||
+            memcmp(frame.payload, expected.data, expected.len) != 0) {
+        return -1;
+    }
+    return 0;
+}
+
+static int run_spop_malformed_notify_socket_self_test(void)
+{
+    int sockets[2] = {-1, -1};
+    int rc;
+    unsigned char byte;
+    spop_buffer empty;
+    spop_buffer notify_payload;
+    agent_state production_state;
+
+    empty.len = 0U;
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) != 0 ||
+            send_haproxy_hello(sockets[1], 0) != 0 ||
+            send_frame(sockets[1], SPOP_FRM_NOTIFY, 1U, 1U, &empty) != 0) {
+        close(sockets[0]);
+        close(sockets[1]);
+        return -1;
+    }
+    rc = handle_connection(sockets[0], 0, stderr, 0, 0, 2000U);
+    if (rc == 0 || client_expect_frame(sockets[1], SPOP_FRM_AGENT_HELLO, 0, 0) != 0) {
+        close(sockets[0]);
+        close(sockets[1]);
+        return -1;
+    }
+    close(sockets[0]);
+    if (recv(sockets[1], &byte, sizeof(byte), 0) != 0) {
+        close(sockets[1]);
+        return -1;
+    }
+    close(sockets[1]);
+    sockets[0] = -1;
+    sockets[1] = -1;
+
+    memset(&production_state, 0, sizeof(production_state));
+    config_init(&production_state.config);
+    if (config_set(&production_state.config, "mode", "detect-only") != 0) {
+        return -1;
+    }
+    production_state.engine = (haproxy_modsecurity_engine *)(uintptr_t)1U;
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) != 0 ||
+            send_haproxy_hello(sockets[1], 0) != 0 ||
+            send_frame(sockets[1], SPOP_FRM_NOTIFY, 1U, 1U, &empty) != 0) {
+        close(sockets[0]);
+        close(sockets[1]);
+        return -1;
+    }
+    rc = handle_connection(sockets[0], &production_state, stderr, 0, 0, 2000U);
+    if (rc == 0 || client_expect_frame(sockets[1], SPOP_FRM_AGENT_HELLO, 0, 0) != 0 ||
+            client_expect_malformed_ack(sockets[1], 1U, 1U) != 0) {
+        close(sockets[0]);
+        close(sockets[1]);
+        return -1;
+    }
+    close(sockets[0]);
+    if (recv(sockets[1], &byte, sizeof(byte), 0) != 0) {
+        close(sockets[1]);
+        return -1;
+    }
+    close(sockets[1]);
+    sockets[0] = -1;
+    sockets[1] = -1;
+
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) != 0 ||
+            build_notify_request_payload(&notify_payload, "GET", "/", "/",
+                "localhost", "block") != 0 ||
+            send_haproxy_hello(sockets[1], 0) != 0 ||
+            send_frame(sockets[1], SPOP_FRM_NOTIFY, 1U, 1U, &notify_payload) != 0 ||
+            send_frame(sockets[1], SPOP_FRM_HAPROXY_DISCONNECT, 0U, 0U, &empty) != 0) {
+        close(sockets[0]);
+        close(sockets[1]);
+        return -1;
+    }
+    rc = handle_connection(sockets[0], 0, stderr, 0, 0, 2000U);
+    if (rc != 0 || client_expect_frame(sockets[1], SPOP_FRM_AGENT_HELLO, 0, 0) != 0 ||
+            client_expect_ack_set_var(sockets[1], 1U, 1U) != 0 ||
+            client_expect_frame(sockets[1], SPOP_FRM_AGENT_DISCONNECT, 0, 0) != 0) {
+        close(sockets[0]);
+        close(sockets[1]);
+        return -1;
+    }
+    close(sockets[0]);
+    close(sockets[1]);
+    return 0;
+}
+
 static int run_client_self_test(unsigned int port, FILE *log) {
     int fd;
+    int slow_fd;
+    uint64_t start_ms;
+    uint64_t finish_ms;
     spop_buffer empty;
     spop_buffer notify_payload;
 
-    /* A peer that sends only part of a frame must not monopolize the
-     * sequential accept loop.  The following connection intentionally
-     * expires its two-second frame deadline before the valid connections. */
-    fd = connect_localhost(port);
-    if (fd < 0 || write(fd, "\0", 1U) != 1) {
-        if (fd >= 0) {
-            close(fd);
+    /* Keep one incomplete HELLO open while a following peer completes a
+     * valid health-check. The latter must not wait for the former's two-second
+     * frame deadline; this proves per-peer admission instead of one global
+     * accept/HELLO loop. */
+    slow_fd = connect_localhost(port);
+    if (slow_fd < 0 || send(slow_fd, "\0", 1U, MSG_NOSIGNAL) != 1) {
+        if (slow_fd >= 0) {
+            close(slow_fd);
         }
         return -1;
     }
-    sleep(3U);
-    close(fd);
-
+    start_ms = monotonic_milliseconds();
     fd = connect_localhost(port);
     if (fd < 0) {
+        close(slow_fd);
         return -1;
     }
     if (send_haproxy_hello(fd, 1) != 0 ||
         client_expect_frame(fd, SPOP_FRM_AGENT_HELLO, 0, 0) != 0) {
         close(fd);
+        close(slow_fd);
+        return -1;
+    }
+    finish_ms = monotonic_milliseconds();
+    if (start_ms == 0U || finish_ms == 0U || finish_ms < start_ms ||
+            finish_ms - start_ms > 1000U) {
+        close(fd);
+        close(slow_fd);
         return -1;
     }
     log_line(log, "client healthcheck handshake PASS");
@@ -4295,6 +4769,7 @@ static int run_client_self_test(unsigned int port, FILE *log) {
 
     fd = connect_localhost(port);
     if (fd < 0) {
+        close(slow_fd);
         return -1;
     }
     empty.len = 0;
@@ -4302,6 +4777,7 @@ static int run_client_self_test(unsigned int port, FILE *log) {
             "/haproxy-binding-self-test", "/haproxy-binding-self-test",
             "localhost", "block") != 0) {
         close(fd);
+        close(slow_fd);
         return -1;
     }
     if (send_haproxy_hello(fd, 0) != 0 ||
@@ -4311,10 +4787,12 @@ static int run_client_self_test(unsigned int port, FILE *log) {
         send_frame(fd, SPOP_FRM_HAPROXY_DISCONNECT, 0, 0, &empty) != 0 ||
         client_expect_frame(fd, SPOP_FRM_AGENT_DISCONNECT, 0, 0) != 0) {
         close(fd);
+        close(slow_fd);
         return -1;
     }
     log_line(log, "client notify set-var ack disconnect PASS");
     close(fd);
+    close(slow_fd);
     return 0;
 }
 
@@ -4341,8 +4819,20 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
         fprintf(stderr, "SPOP request-id validation self-test failed\n");
         return 1;
     }
+    if (run_spop_notify_failure_self_test() != 0) {
+        fprintf(stderr, "SPOP NOTIFY failure self-test failed\n");
+        return 1;
+    }
+    if (run_spop_malformed_notify_socket_self_test() != 0) {
+        fprintf(stderr, "SPOP malformed NOTIFY socket self-test failed\n");
+        return 1;
+    }
     if (run_spop_write_deadline_self_test() != 0) {
         fprintf(stderr, "SPOP write-deadline self-test failed\n");
+        return 1;
+    }
+    if (run_spop_peer_close_write_self_test() != 0) {
+        fprintf(stderr, "SPOP peer-close write self-test failed\n");
         return 1;
     }
 
@@ -4381,7 +4871,7 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
                 write_text_contents(ready_path, "ready\n") != 0) {
             exit(77);
         }
-        exit(accept_loop(listen_fd, 0, log, 3, 0, 0, 2000U));
+        exit(accept_loop(listen_fd, 0, log, 3, 0, 0, 2000U, 8U));
     }
     close(listen_fd);
     if (run_client_self_test(port, log) != 0) {
@@ -4439,6 +4929,7 @@ static int run_server(const legacy_server_config *config) {
     int listen_fd;
     unsigned int bound_port;
     FILE *log;
+    int accept_rc;
 
     log = open_private_file(config->log_file, 1);
     if (log == 0) {
@@ -4460,11 +4951,11 @@ static int run_server(const legacy_server_config *config) {
     log_line(log, "legacy SPOP compatibility server listening on %s:%u rules_file=%s",
         config->host, bound_port,
         config->rules_file != 0 ? config->rules_file : "");
-    (void)accept_loop(listen_fd, 0, log, 0, config->rules_file,
-        config->crs_preamble_file, 2000U);
+    accept_rc = accept_loop(listen_fd, 0, log, 0, config->rules_file,
+        config->crs_preamble_file, 2000U, 8U);
     close(listen_fd);
     fclose(log);
-    return 0;
+    return accept_rc == 0 ? 0 : 1;
 }
 
 static FILE *open_append_file_or_standard(const char *path, FILE *standard_file) {
@@ -4696,7 +5187,7 @@ static int run_agent_server(const agent_config *config) {
         config->fail_mode, config->response_phases_enabled,
         config->response_body_limit);
     rc = accept_loop(listen_fd, &state, log, 0, 0, 0,
-        state.config.spoe_timeout_ms);
+        state.config.spoe_timeout_ms, state.config.worker_count);
 cleanup:
     destroy_agent_runtime(&state, listen_fd, &log, log_owned, &decision_log,
         decision_log_owned);
@@ -4809,6 +5300,11 @@ static int has_production_rules(const agent_config *config) {
 
 static int validate_production_config(const agent_config *config) {
     if (config == 0) {
+        return -1;
+    }
+    if (!production_config_has_safe_peer_limits(config)) {
+        fprintf(stderr,
+            "worker-count/max-transactions must stay within the bounded peer-cache limits\n");
         return -1;
     }
     if (strcmp(config->response_companion, "none") != 0 &&

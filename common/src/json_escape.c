@@ -138,6 +138,32 @@ static size_t valid_utf8_sequence_size(
     return 0U;
 }
 
+int msconnector_json_utf8_is_valid_n(const char *src, size_t src_size) {
+    const unsigned char *bytes;
+    size_t index = 0U;
+
+    if (src == NULL) {
+        return src_size == 0U;
+    }
+    bytes = (const unsigned char *)src;
+    while (index < src_size) {
+        const unsigned char value = bytes[index];
+        size_t sequence_size;
+
+        if (value < 0x80U) {
+            ++index;
+            continue;
+        }
+        sequence_size = valid_utf8_sequence_size(bytes + index,
+            src_size - index);
+        if (sequence_size == 0U) {
+            return 0;
+        }
+        index += sequence_size;
+    }
+    return 1;
+}
+
 size_t msconnector_json_escape_n(
     const char *src,
     size_t src_size,

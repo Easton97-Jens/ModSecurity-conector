@@ -9,6 +9,9 @@
 
 #define EVENT_TEXT_SIZE 256U
 #define EVENT_TEXT_INPUT_SIZE MSCONNECTOR_MAX_JSON_FIELD_LENGTH
+#define EVENT_TRANSPORT_PROVENANCE_FIELD_SIZE 64U
+#define EVENT_TRANSPORT_PROVENANCE_MAX_LENGTH \
+    (EVENT_TRANSPORT_PROVENANCE_FIELD_SIZE - 1U)
 #define EVENT_JSON_TRUE "true"
 #define EVENT_JSON_FALSE "false"
 
@@ -226,14 +229,79 @@ static void escape_field(const char *src, char *dst, size_t dst_size, int *trunc
     }
 }
 
+typedef struct msconnector_event_field_bound {
+    const char *value;
+    size_t destination_size;
+} msconnector_event_field_bound;
+
+static int event_field_is_lossless(const char *value, size_t destination_size) {
+    const size_t source_size = bounded_c_string_size(value, EVENT_TEXT_INPUT_SIZE);
+    const size_t escaped_size = msconnector_json_escape_n(value, source_size,
+        NULL, 0U);
+
+    return source_size < EVENT_TEXT_INPUT_SIZE &&
+        msconnector_json_utf8_is_valid_n(value, source_size) &&
+        destination_size > 0U && escaped_size < destination_size;
+}
+
+static int event_fields_are_lossless(const msconnector_event *event) {
+    const msconnector_event_field_bound fields[] = {
+        {event->meta.timestamp, EVENT_TEXT_SIZE},
+        {event->meta.level, 32U},
+        {event->meta.message_id, EVENT_TEXT_SIZE},
+        {event->meta.message, EVENT_TEXT_SIZE},
+        {event->meta.event, EVENT_TEXT_SIZE},
+        {event->meta.connector, EVENT_TEXT_SIZE},
+        {event->meta.integration_mode, EVENT_TEXT_SIZE},
+        {event->meta.run_id, EVENT_TEXT_SIZE},
+        {event->meta.transport_case_id, EVENT_TEXT_SIZE},
+        {event->meta.transaction_id, EVENT_TEXT_SIZE},
+        {event->decision.action, 64U},
+        {event->decision.requested_action, 64U},
+        {event->decision.actual_action, 64U},
+        {event->http.transport_result, 64U},
+        {event->protocol.requested_protocol, 32U},
+        {event->protocol.downstream_protocol, 32U},
+        {event->protocol.upstream_protocol, 32U},
+        {event->protocol.negotiated_protocol, 32U},
+        {event->protocol.transport, 32U},
+        {event->protocol.alpn, 32U},
+        {event->protocol.stream_id, EVENT_TEXT_SIZE},
+        {event->protocol.connection_id, EVENT_TEXT_SIZE},
+        {event->protocol.quic_version, 64U},
+        {event->protocol.stream_reset_code, EVENT_TRANSPORT_PROVENANCE_FIELD_SIZE},
+        {event->protocol.reset_by, EVENT_TRANSPORT_PROVENANCE_FIELD_SIZE},
+        {event->protocol.reset_code, EVENT_TRANSPORT_PROVENANCE_FIELD_SIZE},
+        {event->http.http_reason_phrase, EVENT_TEXT_SIZE},
+        {event->http.http_default_message, EVENT_TEXT_SIZE},
+        {event->decision.rule_id, EVENT_TEXT_SIZE},
+        {event->decision.reason, EVENT_TEXT_SIZE},
+        {event->request.method, 64U},
+        {event->request.uri, EVENT_TEXT_SIZE},
+        {event->request.client_ip, 64U},
+        {event->body.content_type, EVENT_TEXT_SIZE},
+        {event->body.limit_outcome, EVENT_TEXT_SIZE},
+        {event->flags.late_intervention_mode, 32U},
+        {event->flags.timeout_stage, EVENT_TRANSPORT_PROVENANCE_FIELD_SIZE},
+        {event->flags.write_result, EVENT_TRANSPORT_PROVENANCE_FIELD_SIZE},
+        {event->flags.cleanup_reason, EVENT_TRANSPORT_PROVENANCE_FIELD_SIZE}
+    };
+
+    for (size_t index = 0U; index < sizeof(fields) / sizeof(fields[0]); ++index) {
+        if (!event_field_is_lossless(fields[index].value,
+                fields[index].destination_size)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 static int append_protocol_string(
     char *dst,
     size_t dst_size,
     size_t *offset,
     const char *name,
     const char *value) {
-    char escaped_value[EVENT_TEXT_SIZE * 2U];
-    size_t escaped_size;
     int written;
     if (dst == NULL || offset == NULL || name == NULL || value == NULL || value[0] == '\0') {
         return 1;
@@ -241,9 +309,8 @@ static int append_protocol_string(
     if (*offset >= dst_size) {
         return 0;
     }
-    escaped_size = msconnector_json_escape(value, escaped_value, sizeof(escaped_value));
-    if (escaped_size >= sizeof(escaped_value)) return 0;
-    written = snprintf(dst + *offset, dst_size - *offset, ",\"%s\":\"%s\"", name, escaped_value);
+    /* Values are escaped once at the event serialization boundary. */
+    written = snprintf(dst + *offset, dst_size - *offset, ",\"%s\":\"%s\"", name, value);
     if (written < 0 || (size_t)written >= dst_size - *offset) {
         return 0;
     }
@@ -375,17 +442,20 @@ static int is_nonreversible_quic_connection_id(const char *value) {
     return 1;
 }
 
-static int is_bounded_transport_token(const char *value, int allow_empty) {
-    size_t length;
+static int is_bounded_transport_token(
+    const char *value,
+    int allow_empty,
+    size_t maximum_length) {
+    size_t length = 0U;
     if (value == NULL || value[0] == '\0') {
         return allow_empty != 0;
     }
-    length = strlen(value);
-    if (length > 128U) {
-        return 0;
-    }
-    for (size_t index = 0U; index < length; ++index) {
-        const char character = value[index];
+    while (value[length] != '\0') {
+        char character;
+        if (length >= maximum_length) {
+            return 0;
+        }
+        character = value[length];
         if (!((character >= 'a' && character <= 'z') ||
                 (character >= 'A' && character <= 'Z') ||
                 (character >= '0' && character <= '9') ||
@@ -393,16 +463,28 @@ static int is_bounded_transport_token(const char *value, int allow_empty) {
                 character == '-')) {
             return 0;
         }
+        ++length;
     }
     return 1;
 }
 
 static int is_bounded_transport_case_id(const char *value) {
-    return is_bounded_transport_token(value, 0);
+    return is_bounded_transport_token(value, 0, 128U);
 }
 
 static int is_bounded_transport_value(const char *value) {
-    return is_bounded_transport_token(value, 1);
+    return is_bounded_transport_token(value, 1,
+        EVENT_TRANSPORT_PROVENANCE_MAX_LENGTH);
+}
+
+int msconnector_event_transport_provenance_is_valid(const msconnector_event *event) {
+    return event != NULL &&
+        is_bounded_transport_value(event->protocol.stream_reset_code) &&
+        is_bounded_transport_value(event->protocol.reset_by) &&
+        is_bounded_transport_value(event->protocol.reset_code) &&
+        is_bounded_transport_value(event->flags.timeout_stage) &&
+        is_bounded_transport_value(event->flags.write_result) &&
+        is_bounded_transport_value(event->flags.cleanup_reason);
 }
 
 const char *msconnector_event_default_message(const char *message_id) {
@@ -596,9 +678,9 @@ int msconnector_event_write_json_ex(
     char stream_id[EVENT_TEXT_SIZE];
     char connection_id[EVENT_TEXT_SIZE];
     char quic_version[64];
-    char stream_reset_code[64];
-    char reset_by[64];
-    char reset_code[64];
+    char stream_reset_code[EVENT_TRANSPORT_PROVENANCE_FIELD_SIZE];
+    char reset_by[EVENT_TRANSPORT_PROVENANCE_FIELD_SIZE];
+    char reset_code[EVENT_TRANSPORT_PROVENANCE_FIELD_SIZE];
     char http_reason_phrase[EVENT_TEXT_SIZE];
     char http_default_message[EVENT_TEXT_SIZE];
     char rule_id[EVENT_TEXT_SIZE];
@@ -610,12 +692,19 @@ int msconnector_event_write_json_ex(
     char body_limit_outcome[EVENT_TEXT_SIZE];
     char body_limit_outcome_json[EVENT_TEXT_SIZE * 2U];
     char late_intervention_mode[32];
-    char timeout_stage[64];
-    char write_result[64];
-    char cleanup_reason[64];
+    char timeout_stage[EVENT_TRANSPORT_PROVENANCE_FIELD_SIZE];
+    char write_result[EVENT_TRANSPORT_PROVENANCE_FIELD_SIZE];
+    char cleanup_reason[EVENT_TRANSPORT_PROVENANCE_FIELD_SIZE];
     char late_intervention_mode_json[64];
     char provenance_json[EVENT_TEXT_SIZE * 12U];
     msconnector_event_json_parts parts;
+    const char *stream_reset_code_source;
+    const char *reset_by_source;
+    const char *reset_code_source;
+    const char *timeout_stage_source;
+    const char *write_result_source;
+    const char *cleanup_reason_source;
+    int transport_provenance_valid;
     int was_truncated;
     int written;
 
@@ -628,8 +717,31 @@ int msconnector_event_write_json_ex(
     if (event == 0 || dst == 0 || dst_size == 0) {
         return 0;
     }
+    if (!event_fields_are_lossless(event) ||
+        !msconnector_event_transport_provenance_is_valid(event) ||
+        (event->meta.transport_case_id != NULL &&
+            event->meta.transport_case_id[0] != '\0' &&
+            !is_bounded_transport_case_id(event->meta.transport_case_id))) {
+        if (truncated != 0) {
+            *truncated = 1;
+        }
+        return 0;
+    }
 
     was_truncated = event->flags.truncated != 0;
+    transport_provenance_valid =
+        msconnector_event_transport_provenance_is_valid(event);
+    stream_reset_code_source = transport_provenance_valid
+        ? event->protocol.stream_reset_code : NULL;
+    reset_by_source = transport_provenance_valid ? event->protocol.reset_by : NULL;
+    reset_code_source = transport_provenance_valid ? event->protocol.reset_code : NULL;
+    timeout_stage_source = transport_provenance_valid ? event->flags.timeout_stage : NULL;
+    write_result_source = transport_provenance_valid ? event->flags.write_result : NULL;
+    cleanup_reason_source = transport_provenance_valid
+        ? event->flags.cleanup_reason : NULL;
+    if (!transport_provenance_valid) {
+        was_truncated = 1;
+    }
     escape_field(event->meta.timestamp, timestamp, sizeof(timestamp), &was_truncated);
     escape_field(event->meta.level, level, sizeof(level), &was_truncated);
     escape_field(event->meta.message_id, message_id, sizeof(message_id), &was_truncated);
@@ -665,11 +777,11 @@ int msconnector_event_write_json_ex(
     escape_field(event->protocol.stream_id, stream_id, sizeof(stream_id), &was_truncated);
     escape_field(event->protocol.connection_id, connection_id, sizeof(connection_id), &was_truncated);
     escape_field(event->protocol.quic_version, quic_version, sizeof(quic_version), &was_truncated);
-    escape_field(event->protocol.stream_reset_code, stream_reset_code,
+    escape_field(stream_reset_code_source, stream_reset_code,
         sizeof(stream_reset_code), &was_truncated);
-    escape_field(event->protocol.reset_by, reset_by, sizeof(reset_by),
+    escape_field(reset_by_source, reset_by, sizeof(reset_by),
         &was_truncated);
-    escape_field(event->protocol.reset_code, reset_code, sizeof(reset_code),
+    escape_field(reset_code_source, reset_code, sizeof(reset_code),
         &was_truncated);
     if ((strcmp(negotiated_protocol, "h3") == 0 ||
             strcmp(downstream_protocol, "h3") == 0 ||
@@ -690,24 +802,12 @@ int msconnector_event_write_json_ex(
         sizeof(body_limit_outcome), &was_truncated);
     escape_field(event->flags.late_intervention_mode, late_intervention_mode,
         sizeof(late_intervention_mode), &was_truncated);
-    escape_field(event->flags.timeout_stage, timeout_stage, sizeof(timeout_stage),
+    escape_field(timeout_stage_source, timeout_stage, sizeof(timeout_stage),
         &was_truncated);
-    escape_field(event->flags.write_result, write_result, sizeof(write_result),
+    escape_field(write_result_source, write_result, sizeof(write_result),
         &was_truncated);
-    escape_field(event->flags.cleanup_reason, cleanup_reason,
+    escape_field(cleanup_reason_source, cleanup_reason,
         sizeof(cleanup_reason), &was_truncated);
-    if (!is_bounded_transport_value(reset_by) ||
-        !is_bounded_transport_value(reset_code) ||
-        !is_bounded_transport_value(timeout_stage) ||
-        !is_bounded_transport_value(write_result) ||
-        !is_bounded_transport_value(cleanup_reason)) {
-        reset_by[0] = '\0';
-        reset_code[0] = '\0';
-        timeout_stage[0] = '\0';
-        write_result[0] = '\0';
-        cleanup_reason[0] = '\0';
-        was_truncated = 1;
-    }
 
     {
         const char *const protocol_values[EVENT_PROTOCOL_TEXT_COUNT] = {
@@ -814,19 +914,27 @@ int msconnector_event_write_json_ex(
     written = format_event_json(0, 0, &parts);
 
     if (written < 0 || (size_t)written >= dst_size) {
-        was_truncated = 1;
+        dst[0] = '\0';
+        if (truncated != 0) {
+            *truncated = 1;
+        }
+        return 0;
     }
 
     parts.flags[EVENT_JSON_TRUNCATED] = json_bool(was_truncated);
     written = format_event_json(dst, dst_size, &parts);
 
     if (written < 0 || (size_t)written >= dst_size) {
-        was_truncated = 1;
+        dst[0] = '\0';
+        if (truncated != 0) {
+            *truncated = 1;
+        }
+        return 0;
     }
     if (truncated != 0) {
         *truncated = was_truncated;
     }
-    return was_truncated ? 0 : 1;
+    return 1;
 }
 
 int msconnector_event_write_json(const msconnector_event *event, char *dst, size_t dst_size) {

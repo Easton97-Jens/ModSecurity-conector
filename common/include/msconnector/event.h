@@ -199,6 +199,13 @@ void msconnector_event_init(msconnector_event *event);
 const char *msconnector_event_status_name(const msconnector_event *event);
 const char *msconnector_event_default_message(const char *message_id);
 const char *msconnector_event_default_level(const char *message_id);
+/* True when every bounded transport provenance value is losslessly serializable. */
+int msconnector_event_transport_provenance_is_valid(const msconnector_event *event);
+/*
+ * A true return means the current serialization is lossless. `truncated`
+ * reports already-authenticated source truncation; it does not make a
+ * lossless current serialization fail.
+ */
 int msconnector_event_write_json_ex(
     const msconnector_event *event,
     char *dst,

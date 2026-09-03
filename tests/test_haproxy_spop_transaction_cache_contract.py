@@ -23,12 +23,14 @@ class HAProxySPOPTransactionCacheContractTests(unittest.TestCase):
 
         self.assertIn("transaction = transaction_cache_take(state, request->request_id)", response)
         self.assertIn(
-            "set_missing_response_transaction_failure(decision, phase)", response
+            "set_response_correlation_failure(decision, phase)", response
         )
-        self.assertIn('"stateful response transaction missing"', SOURCE)
-        self.assertIn('"stateful_response_transaction_missing_closed"', SOURCE)
-        self.assertIn('"deny", 503', SOURCE)
-        self.assertIn('return "fail-closed";', SOURCE)
+        self.assertIn('"canonical response transaction correlation is missing or expired"', SOURCE)
+        self.assertIn('"correlation-failure"', SOURCE)
+        self.assertIn('runtime_init_decision(decision, phase, "error", 502', SOURCE)
+        self.assertIn("protocol_failure_requires_enforcement(decision_text)", SOURCE)
+        self.assertIn('"response_transaction_correlation_missing_closed"', SOURCE)
+        self.assertIn("decision_log_write(state, request, decision, 0, *decision_text)", response)
         self.assertNotIn('"pass", 200, "transaction_resumed=false"', response)
 
     def test_response_processing_remains_bound_to_a_live_cache_entry(self) -> None:
@@ -42,14 +44,16 @@ class HAProxySPOPTransactionCacheContractTests(unittest.TestCase):
             "haproxy_modsecurity_transaction_process_response_headers(", response
         )
         self.assertIn(
-            "haproxy_modsecurity_transaction_process_response_body(", response
+            "haproxy_modsecurity_transaction_append_response_body_chunk(", response
         )
         self.assertIn("transaction_cache_store(state, request->request_id, transaction)", response)
         self.assertIn("haproxy_modsecurity_transaction_finish(transaction)", response)
 
     def test_request_only_harness_exercises_peer_local_response_guard(self) -> None:
-        self.assertIn("response NOTIFY rejected event=response-phase-disabled", SOURCE)
+        self.assertIn("set_response_phase_disabled_failure(decision, phase)", SOURCE)
+        self.assertIn('runtime_init_decision(decision, phase, "deny", 503', SOURCE)
         self.assertIn('"response_phase_disabled_closed"', SOURCE)
+        self.assertIn('"malformed_notify_closed"', SOURCE)
         self.assertIn('"--max-transactions", "1"', HARNESS)
         self.assertNotIn('"--enable-response-headers"', HARNESS)
         self.assertIn('"response-disabled-phase"', HARNESS)

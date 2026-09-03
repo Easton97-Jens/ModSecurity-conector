@@ -597,6 +597,18 @@ def _haproxy_spop_option_details(
     if key in companion_keys:
         phase_relevance = "native-htx is the required P3/P4 companion for the logical HAProxy SPOE/SPOP profile; none rejects response-phase activation because raw SPOE/SPOP has no response EOS."
         security_relevance = "The companion must use an explicit private UDS socket, matching service UID/GID, bounded response-body limit, and fail-closed opaque-handle correlation."
+    if key == "spoe-timeout":
+        allowed = "positive decimal milliseconds, 1..60000"
+        effect = "Bounds each SPOE/SPOP engine transaction; zero, negative, malformed, and over-limit values fail configuration parsing."
+    elif key == "worker-count":
+        allowed = "decimal integer, 2..64; worker-count * max-transactions <= 65536"
+        effect = "Bounds isolated concurrent SPOE/SPOP peer handlers; at least two workers keep a slow handshake from monopolising the accept loop."
+    elif key == "max-transactions":
+        allowed = "decimal integer, 1..4096; worker-count * max-transactions <= 65536"
+        effect = "Bounds transaction slots admitted by the SPOE/SPOP compatibility agent, including the combined worker/transaction cap."
+    elif key == "response-body-timeout":
+        allowed = "unsigned decimal milliseconds, 0..4294967295; must be 0 with response-companion=none"
+        effect = "Compatibility response control timeout; raw SPOE/SPOP does not carry a response body, so it is not a native P4 stream-idle limit."
     return value_type, allowed, effect, phase_relevance, security_relevance
 
 
@@ -663,7 +675,7 @@ def extract_haproxy(root: Path) -> list[dict[str, Any]]:
         raise ValueError(f"HAProxy SPOP parser/schema drift: missing={sorted(expected_compatibility_keys - set(compatibility_keys))}, unexpected={sorted(unexpected)}")
     defaults = {
         "host": "127.0.0.1", "mode": "block", "fail-mode": "closed", "runtime-mode": "production", "variant": "-", "log-file": "-",
-        "request-body-limit": "65532", "response-companion": "none", "response-body-limit": "0", "response-body-timeout": "0", "spoe-timeout": "2000", "worker-count": "1", "max-transactions": "4096", "response-phases": "false",
+        "request-body-limit": "65532", "response-companion": "none", "response-body-limit": "0", "response-body-timeout": "0", "spoe-timeout": "2000", "worker-count": "8", "max-transactions": "4096", "response-phases": "false",
     }
     for key in compatibility_keys:
         companion_keys = {
@@ -678,7 +690,14 @@ def extract_haproxy(root: Path) -> list[dict[str, Any]]:
             syntax=f"{key}=<value>", value_type=value_type, allowed_values=allowed,
             default=defaults.get(key, "unset unless configured"), default_source="config_init() where stated; otherwise zero/empty initialization",
             required=False, contexts="SPOE/SPOP compatibility agent key=value file", inheritance="No native HTX inheritance; one compatibility-agent config file.",
-            merge_behavior="No merge; config_set applies one parsed value.", validation="Unknown keys fail compatibility-agent configuration parsing.",
+            merge_behavior="No merge; config_set applies one parsed value.", validation=(
+                "spoe-timeout accepts only decimal milliseconds in 1..60000; worker-count accepts 2..64; "
+                "max-transactions accepts 1..4096; worker-count * max-transactions must not exceed 65536; "
+                "response-body-timeout accepts unsigned decimal milliseconds and must be 0 with response-companion=none; "
+                "unknown keys and malformed values fail compatibility-agent configuration parsing."
+                if key in {"spoe-timeout", "worker-count", "max-transactions", "response-body-timeout"}
+                else "Unknown keys fail compatibility-agent configuration parsing."
+            ),
             phase_relevance=phase_relevance,
             security_relevance=security_relevance,
             runtime_effect=effect, example_file="examples/haproxy/compatibility-spoe/modsecurity-agent.conf", description=effect,
@@ -823,6 +842,32 @@ COMMON_DETAILS: dict[str, dict[str, str]] = {
 }
 
 
+COMMON_LIMIT_MACROS = {
+    # These are configuration caps, not the smaller default in-memory body
+    # buffers. The Common Runtime validates both fields against this shared
+    # hard security limit in msconnector_config_validate().
+    "request_body_limit": "MSCONNECTOR_MAX_CONFIG_BODY_BYTES",
+    "response_body_limit": "MSCONNECTOR_MAX_CONFIG_BODY_BYTES",
+    "max_header_count": "MSCONNECTOR_MAX_HEADER_COUNT",
+    "max_header_name_size": "MSCONNECTOR_MAX_HEADER_NAME_LENGTH",
+    "max_header_value_size": "MSCONNECTOR_MAX_HEADER_VALUE_LENGTH",
+    "max_total_header_bytes": "MSCONNECTOR_MAX_TOTAL_HEADER_BYTES",
+    "max_event_json_bytes": "MSCONNECTOR_MAX_EVENT_JSON_BYTES",
+}
+
+
+def common_runtime_limits(root: Path) -> dict[str, int]:
+    """Extract the enforced Common Runtime caps from the owning C header."""
+    text = _read(root, "common/include/msconnector/limits.h")
+    values: dict[str, int] = {}
+    for key, macro in COMMON_LIMIT_MACROS.items():
+        match = re.search(rf"#define\s+{macro}\s+(\d+)U?\b", text)
+        if not match:
+            raise ValueError(f"Common Runtime limit extractor missing {macro}")
+        values[key] = int(match.group(1))
+    return values
+
+
 def common_runtime_parser_keys(text: str) -> list[str]:
     """Extract and validate the exact keys accepted by the runtime parser."""
     keys = re.findall(r'strcmp\(key, "([a-z0-9_]+)"\)', text)
@@ -870,7 +915,19 @@ def extract_common_runtime(root: Path) -> list[dict[str, Any]]:
     undocumented_profile_keys = profile_keys - set(COMMON_DETAILS)
     if undocumented_profile_keys:
         raise ValueError(f"Common Runtime profile uses undocumented parser keys: {sorted(undocumented_profile_keys)}")
-    return [common_runtime_option(name, source) for name in keys]
+    limits = common_runtime_limits(root)
+    options = []
+    for name in keys:
+        option = common_runtime_option(name, source)
+        if name in limits:
+            cap = limits[name]
+            option["allowed_values"] = f"1 through {cap}"
+            option["validation"] = (
+                f"Unknown keys, empty values, malformed assignments, and values above {cap} "
+                "fail the runtime configuration check."
+            )
+        options.append(option)
+    return options
 
 
 ENGINE_DETAILS: dict[str, tuple[str, str, str, str]] = {
@@ -2527,8 +2584,33 @@ def envoy_processor_options(root: Path) -> list[dict[str, Any]]:
     config_source = "connectors/envoy/ext_proc/internal/processor/config.go"
     struct = _read(root, config_source)
     fields = re.findall(r'^\s*([A-Za-z][A-Za-z0-9]+)\s+((?>[^`\s]+(?:[ \t]+[^`\s]+)*))\s+`json:"([a-z0-9_]+)"`', struct, flags=re.M)
-    if len(fields) != 14:
-        raise ValueError(f"Envoy Config struct extractor found {len(fields)}, expected 14")
+    expected_json_fields = frozenset({
+        "listen_address",
+        "transaction_id_header",
+        "max_header_count",
+        "max_header_name_bytes",
+        "max_header_value_bytes",
+        "max_total_header_bytes",
+        "max_body_chunk_bytes",
+        "max_request_body_bytes",
+        "max_response_body_bytes",
+        "max_grpc_message_bytes",
+        "engine_timeout_ms",
+        "stream_idle_timeout_ms",
+        "stream_max_lifetime_ms",
+        "max_concurrent_streams",
+        "cleanup_timeout_ms",
+        "shutdown_timeout_ms",
+        "late_action_policy",
+    })
+    actual_json_fields = frozenset(json_name for _, _, json_name in fields)
+    if actual_json_fields != expected_json_fields:
+        missing = sorted(expected_json_fields - actual_json_fields)
+        unexpected = sorted(actual_json_fields - expected_json_fields)
+        raise ValueError(
+            "Envoy Config struct extractor found unexpected JSON fields; "
+            f"missing={missing}, unexpected={unexpected}"
+        )
     service_values = json.loads(_read(root, "examples/envoy/safe/envoy-ext-proc-service.json"))
     minimal_service_values = json.loads(_read(root, "examples/envoy/minimal/envoy-ext-proc-service.json"))
     if set(minimal_service_values) != set(service_values):
@@ -2957,6 +3039,10 @@ GERMAN_TEXT: dict[str, str] = {
     "positive; uds maximum 128": "positiv; UDS-Maximum 128",
     ALLOWED_VALUES_TRAEFIK_UDS_CHUNK: "positiv; UDS-Maximum 32768",
     "positive; uds maximum 65536": "positiv; UDS-Maximum 65536",
+    "positive decimal milliseconds, 1..60000": "positive dezimale Millisekunden, 1..60000",
+    "decimal integer, 2..64; worker-count * max-transactions <= 65536": "dezimale Ganzzahl, 2..64; worker-count * max-transactions <= 65536",
+    "decimal integer, 1..4096; worker-count * max-transactions <= 65536": "dezimale Ganzzahl, 1..4096; worker-count * max-transactions <= 65536",
+    "unsigned decimal milliseconds, 0..4294967295; must be 0 with response-companion=none": "vorzeichenlose dezimale Millisekunden, 0..4294967295; müssen bei response-companion=none 0 sein",
     "readable ModSecurity configuration/rules file path": "lesbarer ModSecurity-Konfigurations-/Regeldateipfad",
     "reject | process_partial (accepted spelling variants are parser-specific)": "reject | process_partial (akzeptierte Schreibvarianten sind parserspezifisch)",
     "remote URL paired with rules_remote_key": "Remote-URL, die mit rules_remote_key gepaart wird",
@@ -3089,6 +3175,7 @@ GERMAN_TEXT: dict[str, str] = {
     "65532": "65532",
     "65536": "65536",
     "8192": "8192",
+    "8": "8",
     "X-Request-Id": "X-Request-Id",
     "block": "block",
     "buffered": "buffered",
@@ -3156,6 +3243,7 @@ GERMAN_TEXT: dict[str, str] = {
     "The materializer rejects unresolved placeholders and invalid ports; output must be outside the checkout.": "Der Materializer weist unaufgelöste Platzhalter und ungültige Ports ab; die Ausgabe muss außerhalb des Checkouts liegen.",
     "The patched HAProxy parser rejects missing/unknown arguments; validate with haproxy -c -f <config>.": "Der gepatchte HAProxy-Parser weist fehlende/unbekannte Argumente ab; mit haproxy -c -f <config> validieren.",
     "Unknown keys fail compatibility-agent configuration parsing.": "Unbekannte Schlüssel lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.",
+    "spoe-timeout accepts only decimal milliseconds in 1..60000; worker-count accepts 2..64; max-transactions accepts 1..4096; worker-count * max-transactions must not exceed 65536; response-body-timeout accepts unsigned decimal milliseconds and must be 0 with response-companion=none; unknown keys and malformed values fail compatibility-agent configuration parsing.": "spoe-timeout akzeptiert nur dezimale Millisekunden in 1..60000; worker-count akzeptiert 2..64; max-transactions akzeptiert 1..4096; worker-count * max-transactions darf 65536 nicht überschreiten; response-body-timeout akzeptiert vorzeichenlose dezimale Millisekunden und muss bei response-companion=none 0 sein; unbekannte Schlüssel und fehlerhafte Werte lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.",
     "Unknown keys, empty values, malformed assignments, and key-specific invalid values fail the runtime configuration check.": "Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und schlüsselspezifisch ungültige Werte lassen die Runtime-Konfigurationsprüfung fehlschlagen.",
     "Unknown mode fails parsing. The selected host uses haproxy -c -f <config>.": "Ein unbekannter Modus lässt das Parsen fehlschlagen. Der ausgewählte Host verwendet haproxy -c -f <config>.",
     TRAEFIK_FORWARDAUTH_VALIDATION: "Als Traefik-forwardAuth-Kompatibilitätskonfiguration validieren.",
@@ -3251,6 +3339,10 @@ GERMAN_TEXT: dict[str, str] = {
     "Routes to separate authorization service.": "Leitet an den separaten Autorisierungsservice weiter.",
     "Routes to the separate SPOE/SPOP compatibility service.": "Leitet an den separaten SPOE/SPOP-Kompatibilitätsservice weiter.",
     "SPOP compatibility-agent configuration; it is not a native HTX filter option.": "SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption.",
+    "Bounds each SPOE/SPOP engine transaction; zero, negative, malformed, and over-limit values fail configuration parsing.": "Begrenzt jede SPOE/SPOP-Engine-Transaktion; null, negative, fehlerhafte und über dem Limit liegende Werte lassen das Konfigurationsparsen fehlschlagen.",
+    "Bounds isolated concurrent SPOE/SPOP peer handlers; at least two workers keep a slow handshake from monopolising the accept loop.": "Begrenzt isolierte parallele SPOE/SPOP-Peer-Handler; mindestens zwei Worker verhindern, dass ein langsamer Handshake die Accept-Schleife monopolisiert.",
+    "Bounds transaction slots admitted by the SPOE/SPOP compatibility agent, including the combined worker/transaction cap.": "Begrenzt die vom SPOE/SPOP-Kompatibilitätsagenten zugelassenen Transaktionsslots einschließlich der kombinierten Worker-/Transaktionsobergrenze.",
+    "Compatibility response control timeout; raw SPOE/SPOP does not carry a response body, so it is not a native P4 stream-idle limit.": "Kompatibilitäts-Timeout für die Response-Steuerung; reines SPOE/SPOP überträgt keinen Response-Body und ist daher kein natives P4-Stream-Idle-Limit.",
     "Scopes P4 response-body inspection to configured MIME types.": "Beschränkt die P4-Response-Body-Inspektion auf konfigurierte MIME-Typen.",
     "Scopes engine response-body inspection by MIME type.": "Beschränkt die Engine-Response-Body-Inspektion nach MIME-Typ.",
     "Selects audit-log parts.": "Wählt Audit-Log-Teile aus.",
@@ -3609,6 +3701,18 @@ def _yaml_german_fallback(option: dict[str, Any], field: str) -> str:
 def _german_option_text(option: dict[str, Any], field: str) -> str:
     """Localize one field, using the structured YAML fallback when needed."""
     value = option[field]
+    if option.get("connector") == "common" and option.get("configuration_layer") == "common_runtime":
+        if field == "allowed_values":
+            match = re.fullmatch(r"1 through (\d+)", value)
+            if match:
+                return f"1 bis {match.group(1)}"
+        if field == "validation":
+            match = re.fullmatch(
+                r"Unknown keys, empty values, malformed assignments, and values above (\d+) fail the runtime configuration check\.",
+                value,
+            )
+            if match:
+                return f"Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und Werte über {match.group(1)} weisen die Runtime-Konfigurationsprüfung zurück."
     if _has_german_rendering(value):
         return _german_text(value)
     if _is_yaml_backed_option(option):
@@ -3618,6 +3722,15 @@ def _german_option_text(option: dict[str, Any], field: str) -> str:
 
 def _has_german_option_rendering(option: dict[str, Any], field: str) -> bool:
     """Check explicit translations and the fully German YAML fallback path."""
+    if option.get("connector") == "common" and option.get("configuration_layer") == "common_runtime":
+        value = option[field]
+        if field == "allowed_values" and re.fullmatch(r"1 through \d+", value):
+            return True
+        if field == "validation" and re.fullmatch(
+            r"Unknown keys, empty values, malformed assignments, and values above \d+ fail the runtime configuration check\.",
+            value,
+        ):
+            return True
     return _has_german_rendering(option[field]) or _is_yaml_backed_option(option)
 
 

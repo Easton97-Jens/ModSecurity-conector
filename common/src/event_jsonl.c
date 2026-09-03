@@ -9,9 +9,18 @@ int msconnector_event_write_jsonl_line(const msconnector_event *event, char *dst
     if (dst != 0 && dst_size > 0) { dst[0] = '\0'; }
     if (dst == 0 || dst_size == 0) { if (truncated != 0) { *truncated = 1; } return 0; }
     ok = msconnector_event_write_json_ex(event, dst, dst_size, &local_truncated);
+    if (!ok) {
+        dst[0] = '\0';
+        if (truncated != 0) { *truncated = local_truncated != 0; }
+        return 0;
+    }
     len = strlen(dst);
-    if (len + 1U >= dst_size) { if (truncated != 0) { *truncated = 1; } return 0; }
+    if (len + 1U >= dst_size) {
+        dst[0] = '\0';
+        if (truncated != 0) { *truncated = 1; }
+        return 0;
+    }
     dst[len] = '\n'; dst[len + 1U] = '\0';
     if (truncated != 0) { *truncated = local_truncated; }
-    return ok && !local_truncated;
+    return 1;
 }

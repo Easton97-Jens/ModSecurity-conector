@@ -26,7 +26,7 @@ class ApacheProcessGuardTest(unittest.TestCase):
         )
         (self.proc / "123" / "fd" / "7").symlink_to("socket:[4242]")
         header = "sl local_address rem_address st tx_queue tr tm->when retrnsmt uid timeout inode\n"
-        line = "0: 0100007F:1F90 00000000:0000 0A 0 0 0 0 0 0 4242\n"
+        line = "0: 0100007F:1F90 00000000:0000 0A 0 0 0 0 0 4242\n"
         (self.proc / "net" / "tcp").write_text(header + line, encoding="ascii")
         (self.proc / "net" / "tcp6").write_text(header, encoding="ascii")
         self.old_proc = guard.PROC
@@ -77,7 +77,7 @@ class ApacheProcessGuardTest(unittest.TestCase):
         (self.proc / "123" / "stat").unlink()
         (self.proc / "net" / "tcp").write_text(
             "sl local_address rem_address st tx_queue tr tm->when retrnsmt uid timeout inode\n"
-            "0: 0100007F:1F90 00000000:0000 0A 0 0 0 0 0 0 9999\n",
+            "0: 0100007F:1F90 00000000:0000 0A 0 0 0 0 0 9999\n",
             encoding="ascii",
         )
         with self.assertRaises(guard.GuardError):
@@ -134,6 +134,16 @@ class ApacheProcessGuardTest(unittest.TestCase):
         with self.assertRaises(guard.GuardError):
             guard._listener_inodes(8080)
 
+    def test_listener_inode_is_not_the_timeout_field(self) -> None:
+        self.proc.joinpath("net", "tcp").write_text(
+            "sl local_address rem_address st tx_queue tr tm->when retrnsmt uid timeout inode\n"
+            "0: 0100007F:1F90 00000000:0000 0A 0 0 0 0 4242 7777\n",
+            encoding="ascii",
+        )
+        listeners = guard._listener_inodes(8080)
+        self.assertEqual(listeners, {7777})
+        self.assertNotIn(4242, listeners)
+
     def test_preflight_checks_self_pidfd_binding_and_signal_zero(self) -> None:
         calls: list[tuple[str, int]] = []
         with mock.patch.object(guard.os, "pidfd_open", return_value=9), \
@@ -164,6 +174,32 @@ class ApacheProcessGuardTest(unittest.TestCase):
         guard.record(123, str(self.executable), 8080, output)
         with self.assertRaises(guard.GuardError):
             guard.record(123, str(self.executable), 8080, output)
+
+    def test_artifact_paths_must_be_absolute_and_private(self) -> None:
+        with self.assertRaises(guard.GuardError):
+            guard._validated_artifact_path(Path("relative/evidence.json"))
+        public = Path(self.tmp.name) / "public"
+        public.mkdir()
+        public.chmod(0o755)
+        with self.assertRaises(guard.GuardError):
+            guard._validated_artifact_path(public / "evidence.json")
+
+    def test_artifact_paths_reject_symlinked_parent(self) -> None:
+        real = Path(self.tmp.name) / "real"
+        real.mkdir()
+        link = Path(self.tmp.name) / "link"
+        link.symlink_to(real, target_is_directory=True)
+        with self.assertRaises(guard.GuardError):
+            guard._validated_artifact_path(link / "evidence.json")
+
+    def test_evidence_loader_rejects_symlinked_file(self) -> None:
+        evidence = self._record()
+        target = Path(self.tmp.name) / "target.json"
+        target.write_text(json.dumps(evidence), encoding="utf-8")
+        link = Path(self.tmp.name) / "link.json"
+        link.symlink_to(target)
+        with self.assertRaises(guard.GuardError):
+            guard._load(link)
 
     def test_cleanup_requires_absent_process_and_listener_and_is_idempotent(self) -> None:
         evidence = self._record()

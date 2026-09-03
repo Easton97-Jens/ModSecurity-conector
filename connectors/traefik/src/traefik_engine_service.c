@@ -107,6 +107,7 @@ typedef struct traefik_engine_session {
 typedef struct traefik_engine_worker_arg {
     traefik_engine_service *service;
     int socket_fd;
+    size_t slot;
 } traefik_engine_worker_arg;
 
 typedef struct traefik_engine_socket_identity {
@@ -1298,21 +1299,21 @@ static void *traefik_engine_worker(void *argument)
     traefik_engine_worker_arg *worker = argument;
     traefik_engine_service *service;
     int socket_fd;
+    size_t slot;
 
     if (worker == NULL) {
         return NULL;
     }
     service = worker->service;
     socket_fd = worker->socket_fd;
+    slot = worker->slot;
     free(worker);
     traefik_engine_process_connection(service, socket_fd);
     (void)close(socket_fd);
     if (pthread_mutex_lock(&service->worker_lock) == 0) {
-        for (size_t index = 0U; index < TRAEFIK_ENGINE_MAX_WORKERS; ++index) {
-            if (service->worker_sockets[index] == socket_fd) {
-                service->worker_sockets[index] = -1;
-                break;
-            }
+        if (slot < TRAEFIK_ENGINE_MAX_WORKERS &&
+            service->worker_sockets[slot] == socket_fd) {
+            service->worker_sockets[slot] = -1;
         }
         if (service->worker_count > 0U) {
             --service->worker_count;
@@ -1366,6 +1367,7 @@ static int traefik_engine_start_worker(traefik_engine_service *service,
         free(worker);
         return 0;
     }
+    worker->slot = slot;
     service->worker_sockets[slot] = socket_fd;
     ++service->worker_count;
     (void)pthread_mutex_unlock(&service->worker_lock);
