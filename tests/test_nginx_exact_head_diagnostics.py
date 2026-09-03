@@ -61,6 +61,63 @@ class NginxExactHeadDiagnosticsTest(unittest.TestCase):
         self.assertIn("compiler failure: missing module", output)
         self.assertNotIn(str(root), output)
 
+    def test_public_bounded_log_tail_rejects_path_escape_and_sanitizes_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "run"
+            root.mkdir()
+            nested = root / "inner/logs"
+            nested.mkdir(parents=True)
+            make_log = nested / "make.log"
+            make_log.write_text("::warning:: \x1b[31mcompiler failure\n", encoding="utf-8")
+
+            lines, truncated = DIAGNOSTICS.bounded_fixed_log_tail(
+                root,
+                Path("inner/logs/make.log"),
+                "inner_make_log",
+                output_prefix="",
+            )
+            with self.assertRaises(DIAGNOSTICS.DiagnosticInputError):
+                DIAGNOSTICS.bounded_fixed_log_tail(
+                    root,
+                    Path("../outside"),
+                    "inner_make_log",
+                    output_prefix="",
+                )
+
+        self.assertFalse(truncated)
+        self.assertEqual(lines, [": :warning: : ?[31mcompiler failure"])
+
+    def test_public_bounded_log_tail_rejects_replaced_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "run"
+            root.mkdir()
+            nested = root / "inner/logs"
+            nested.mkdir(parents=True)
+            make_log = nested / "make.log"
+            make_log.write_text("original\n", encoding="utf-8")
+            replacement = nested / "replacement"
+            original_open = DIAGNOSTICS.os.open
+            replaced = False
+
+            def replace_before_open(path, flags, mode=0o777, *, dir_fd=None):
+                nonlocal replaced
+                if path == "make.log" and dir_fd is not None and not replaced:
+                    replacement.write_text("replacement-canary\n", encoding="utf-8")
+                    os.replace(replacement, make_log)
+                    replaced = True
+                return original_open(path, flags, mode, dir_fd=dir_fd)
+
+            with mock.patch.object(DIAGNOSTICS.os, "open", side_effect=replace_before_open):
+                with self.assertRaises(DIAGNOSTICS.DiagnosticInputError) as captured:
+                    DIAGNOSTICS.bounded_fixed_log_tail(
+                        root,
+                        Path("inner/logs/make.log"),
+                        "inner_make_log",
+                        output_prefix="",
+                    )
+
+        self.assertEqual(captured.exception.reason, "inner_make_log_changed")
+
     def test_environment_poisoning_cannot_change_the_explicit_root(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "run"

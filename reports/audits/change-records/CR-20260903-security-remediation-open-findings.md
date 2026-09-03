@@ -334,3 +334,37 @@ required before claiming supported-header compile or
 `modsecurity_use_error_log` on/off runtime evidence; exact remote read-back
 and successor-only Sonar, NGINX on/off, and full CRS/no-MRTS evidence also
 remain required.
+
+### Exact-head NGINX make-log evidence handoff
+
+Exact-head hosted run `33807403800` for
+`810b0df3c1a83af2cedc6a2b3a84a4fe60df2c5b` passed exact-head and pinned
+provenance checks and reached the real `make -j4` step. The build failed, but
+the prior bounded outer diagnostic retained only the command-level failure and
+not the compiler/linker line needed to classify it. That run does not claim a
+successful compile or `modsecurity_use_error_log` on/off runtime evidence.
+
+The scoped Parent-only follow-up keeps the failed build authoritative and,
+before transactional staging cleanup, derives only the fixed managed path
+`build/logs/nginx/nginx-make.log`. It requires the current `connector:nginx`
+marker, cache key, cache root, and exact `staging_root/build` identity; it does
+not consume a report-selected path or mutable environment root. The fixed
+descendant is opened through no-follow descriptors with directory/file
+identity checks. Path escape, symlink, hardlink, and replacement-race inputs
+are rejected; oversized content is bounded to a 64-KiB tail; and the retained
+representation is terminal- and Actions-command-sanitized before it is
+appended to the existing fixed outer log. The longer staged line prefix is
+included in the 512-character line budget. A staging-root resolution error is
+fail-soft and cannot replace the primary failed-build result. Framework, MRTS,
+Gitlink, provenance, test, and workflow controls are unchanged.
+
+Focused local validation covers managed-identity mismatch, a missing inner log,
+path escape, symlink/hardlink rejection, a replacement race, bounded tails,
+the complete staged-line limit, terminal/Actions-command sanitization, and
+symlink-loop resolution.
+It also proves that the append leaves the primary failed-build exit code,
+failed status, and blocker mapping authoritative. Python compilation, 81 Parent component tests with five pre-existing
+Framework-head skips, 11 NGINX-diagnostic tests, `git diff --check`, and an
+independent post-patch security review pass. A fresh normal successor head and
+exact-head hosted rerun remain required before supported-header compilation or
+isolated `modsecurity_use_error_log` on/off runtime evidence is claimed.

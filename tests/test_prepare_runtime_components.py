@@ -149,6 +149,217 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                 canonical_quic_tls,
             )
 
+    def test_nginx_staged_make_log_diagnostics_requires_current_managed_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            cache_root = root / "cache"
+            components.ensure_managed_cache_root(cache_root)
+            staging_root = cache_root / "builds/connectors/nginx/.capture"
+            cache_key = "nginx-make-log-capture"
+            components.mark_managed_cache_entry(
+                staging_root,
+                cache_root,
+                component="connector:nginx",
+                cache_key=cache_key,
+            )
+            staging_root.mkdir(parents=True)
+            make_log = staging_root / components.NGINX_STAGED_MAKE_LOG_RELATIVE_PATH
+            make_log.parent.mkdir(parents=True)
+            make_log.write_text("compiler failure: missing symbol\n", encoding="utf-8")
+            outer_log = root / "build/logs/runtime-components/nginx-build.log"
+            outer_log.parent.mkdir(parents=True)
+            outer_log.write_text("wrapper output\n", encoding="utf-8")
+            plan = {
+                "root": str(staging_root),
+                "cache_key": cache_key,
+                "build_root": str(staging_root / "build"),
+            }
+            context = {"nginx_build_root": staging_root / "build"}
+
+            components.append_nginx_staged_make_log_diagnostics(
+                outer_log,
+                plan,
+                cache_root,
+                context,
+            )
+            captured = outer_log.read_text(encoding="utf-8")
+            self.assertIn("inner_make_log_tail_truncated=false", captured)
+            self.assertIn("compiler failure: missing symbol", captured)
+
+            outer_log.write_text("", encoding="utf-8")
+            make_log.unlink()
+            components.append_nginx_staged_make_log_diagnostics(
+                outer_log,
+                plan,
+                cache_root,
+                context,
+            )
+            missing = outer_log.read_text(encoding="utf-8")
+            self.assertIn("inner_make_log_unavailable=inner_make_log_missing", missing)
+
+            outer_log.write_text("", encoding="utf-8")
+            context["nginx_build_root"] = root / "outside"
+            make_log.write_text("outside-build-root-canary\n", encoding="utf-8")
+            components.append_nginx_staged_make_log_diagnostics(
+                outer_log,
+                plan,
+                cache_root,
+                context,
+            )
+            rejected = outer_log.read_text(encoding="utf-8")
+            self.assertIn("inner_make_log_unavailable=staging_identity", rejected)
+            self.assertNotIn("outside-build-root-canary", rejected)
+
+            loop = root / "nginx-build-loop"
+            loop.symlink_to(loop.name)
+            context["nginx_build_root"] = loop
+            outer_log.write_text("", encoding="utf-8")
+            components.append_nginx_staged_make_log_diagnostics(
+                outer_log,
+                plan,
+                cache_root,
+                context,
+            )
+            loop_rejected = outer_log.read_text(encoding="utf-8")
+            self.assertIn("inner_make_log_unavailable=staging_identity", loop_rejected)
+            self.assertNotIn("outside-build-root-canary", loop_rejected)
+
+    def test_nginx_staged_make_log_diagnostics_bounds_and_rejects_links(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            cache_root = root / "cache"
+            components.ensure_managed_cache_root(cache_root)
+            staging_root = cache_root / "builds/connectors/nginx/.capture"
+            cache_key = "nginx-make-log-adversarial"
+            components.mark_managed_cache_entry(
+                staging_root,
+                cache_root,
+                component="connector:nginx",
+                cache_key=cache_key,
+            )
+            staging_root.mkdir(parents=True)
+            make_log = staging_root / components.NGINX_STAGED_MAKE_LOG_RELATIVE_PATH
+            make_log.parent.mkdir(parents=True)
+            make_log.write_bytes(
+                b"discarded-line\n"
+                + b"x" * (70 * 1024)
+                + b"\n::warning:: \x1b[31mcompiler failure "
+                + b"z" * 1024
+                + b"\n"
+            )
+            outer_log = root / "build/logs/runtime-components/nginx-build.log"
+            outer_log.parent.mkdir(parents=True)
+            outer_log.write_text("wrapper output\n", encoding="utf-8")
+            plan = {
+                "root": str(staging_root),
+                "cache_key": cache_key,
+                "build_root": str(staging_root / "build"),
+            }
+            context = {"nginx_build_root": staging_root / "build"}
+
+            components.append_nginx_staged_make_log_diagnostics(
+                outer_log,
+                plan,
+                cache_root,
+                context,
+            )
+            bounded = outer_log.read_text(encoding="utf-8")
+            self.assertIn("inner_make_log_tail_truncated=true", bounded)
+            self.assertIn(": :warning: : ?[31mcompiler failure", bounded)
+            self.assertNotIn("\x1b", bounded)
+            staged_log_lines = [
+                line
+                for line in bounded.splitlines()
+                if line.startswith(components.NGINX_STAGED_MAKE_LOG_LINE_PREFIX)
+            ]
+            self.assertEqual(len(staged_log_lines), 1)
+            self.assertEqual(len(staged_log_lines[0]), 512)
+
+            outside = root / "outside"
+            outside.write_text("outside-canary\n", encoding="utf-8")
+            make_log.unlink()
+            make_log.symlink_to(outside)
+            outer_log.write_text("", encoding="utf-8")
+            components.append_nginx_staged_make_log_diagnostics(
+                outer_log,
+                plan,
+                cache_root,
+                context,
+            )
+            symlink_rejected = outer_log.read_text(encoding="utf-8")
+            self.assertIn("inner_make_log_unavailable=inner_make_log_symlink", symlink_rejected)
+            self.assertNotIn("outside-canary", symlink_rejected)
+
+            make_log.unlink()
+            os.link(outside, make_log)
+            outer_log.write_text("", encoding="utf-8")
+            components.append_nginx_staged_make_log_diagnostics(
+                outer_log,
+                plan,
+                cache_root,
+                context,
+            )
+            hardlink_rejected = outer_log.read_text(encoding="utf-8")
+            self.assertIn("inner_make_log_unavailable=inner_make_log_hardlink", hardlink_rejected)
+            self.assertNotIn("outside-canary", hardlink_rejected)
+
+    def test_nginx_failed_build_preserves_primary_result_after_diagnostic_append(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            build_root = root / "build"
+            cache_root = root / "cache"
+            plan = {"cache_key": "nginx-primary-failure"}
+            context = {"local_artifacts": {}}
+            record: dict[str, object] = {}
+            failed = subprocess.CompletedProcess(
+                args=["prepare-nginx-build.sh"],
+                returncode=2,
+                stdout="src/module.c:1: error: missing symbol\n",
+                stderr="",
+            )
+
+            with (
+                mock.patch.object(components, "copy_nginx_common_sources", return_value=root / "common"),
+                mock.patch.object(components, "nginx_build_environment", return_value={}),
+                mock.patch.object(components, "run_build", return_value=failed),
+                mock.patch.object(components, "append_nginx_staged_make_log_diagnostics") as append,
+                mock.patch.object(components, "nginx_refresh_build_artifacts"),
+                mock.patch.object(
+                    components,
+                    "artifact_status",
+                    return_value=(False, ["nginx_bin"]),
+                ),
+            ):
+                ready, missing, built = components.build_nginx_source(
+                    {},
+                    root / "connector",
+                    root / "framework",
+                    cache_root,
+                    build_root,
+                    root / "sources",
+                    root / "archives",
+                    {},
+                    plan,
+                    {"profile": "h1"},
+                    "",
+                    context,
+                    record,
+                )
+
+        self.assertFalse(ready)
+        self.assertEqual(missing, ["nginx_bin"])
+        self.assertFalse(built)
+        self.assertEqual(record["build_exit_code"], 2)
+        self.assertEqual(record["status"], "failed")
+        self.assertEqual(record["blocker_reason"], "nginx_connector_build_failed")
+        self.assertEqual(record["build_log"], str(build_root / "logs/runtime-components/nginx-build.log"))
+        append.assert_called_once_with(
+            build_root / "logs/runtime-components/nginx-build.log",
+            plan,
+            cache_root,
+            context,
+        )
+
     def test_nginx_common_source_staging_includes_required_private_header(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             connector_root = Path(temporary) / "connector"

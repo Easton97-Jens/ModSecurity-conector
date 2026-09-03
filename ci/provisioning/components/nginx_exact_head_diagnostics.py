@@ -325,6 +325,27 @@ def _safe_missing_file_count(value: object) -> str:
 def _render_log_lines(data: bytes, *, truncated: bool) -> list[str]:
     """Make terminal-safe, line- and byte-bounded output from an untrusted log."""
 
+    return [
+        LOG_LINE_PREFIX + line
+        for line in _render_safe_log_payload(
+            data,
+            truncated=truncated,
+            output_prefix=LOG_LINE_PREFIX,
+        )
+    ]
+
+
+def _render_safe_log_payload(
+    data: bytes,
+    *,
+    truncated: bool,
+    output_prefix: str,
+) -> list[str]:
+    """Return payloads that fit the caller's trusted complete-line prefix."""
+
+    if len(output_prefix) > MAX_LOG_LINE_CHARS:
+        raise ValueError("diagnostic output prefix exceeds line bound")
+
     text = data.decode("utf-8", errors="replace")
     lines = text.splitlines()
     if truncated and lines:
@@ -336,8 +357,43 @@ def _render_log_lines(data: bytes, *, truncated: bool) -> list[str]:
         # remove command delimiters as a second, representation-independent
         # guard for untrusted compiler output.
         safe = safe.replace("::", ": :")
-        rendered.append(LOG_LINE_PREFIX + safe[: MAX_LOG_LINE_CHARS - len(LOG_LINE_PREFIX)])
+        rendered.append(safe[: MAX_LOG_LINE_CHARS - len(output_prefix)])
     return rendered
+
+
+def bounded_fixed_log_tail(
+    root: Path | str,
+    relative_path: Path,
+    reason: str,
+    *,
+    output_prefix: str,
+) -> tuple[list[str], bool]:
+    """Read and sanitize a fixed descendant for another trusted coordinator.
+
+    The caller must select both the root and relative path from its own
+    validated state. ``output_prefix`` must be the trusted exact prefix the
+    caller will prepend to each returned payload; it preserves the complete
+    line bound. This helper never accepts a report-provided path and applies
+    the same descriptor, identity, size, and terminal controls as the
+    workflow-facing diagnostic.
+    """
+
+    normalized_root = _absolute_nonroot_path(root)
+    data, truncated = _read_fixed_regular_file(
+        normalized_root,
+        relative_path,
+        reason,
+        maximum_bytes=MAX_LOG_TAIL_BYTES,
+        tail=True,
+    )
+    return (
+        _render_safe_log_payload(
+            data,
+            truncated=truncated,
+            output_prefix=output_prefix,
+        ),
+        truncated,
+    )
 
 
 def _append_bounded_build_log_tail(lines: list[str], root: Path) -> list[str]:

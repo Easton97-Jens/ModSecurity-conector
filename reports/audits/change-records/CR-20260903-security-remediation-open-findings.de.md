@@ -363,3 +363,43 @@ bevor Kompilierung gegen unterstützte Header oder
 `modsecurity_use_error_log`-on/off-Runtime-Evidenz behauptet wird; exakter
 Remote-Read-back und Successor-only-Sonar-, NGINX-On/Off- sowie Full-
 CRS/no-MRTS-Evidenz bleiben ebenfalls erforderlich.
+
+### Exact-Head-NGINX-Make-Log-Evidence-Handoff
+
+Der Exact-Head-Hosted-Lauf `33807403800` für
+`810b0df3c1a83af2cedc6a2b3a84a4fe60df2c5b` bestand Exact-Head- und
+Pinned-Provenance-Prüfungen und erreichte den echten Schritt `make -j4`. Der
+Build schlug fehl, aber die vorherige begrenzte äußere Diagnose bewahrte nur
+den Fehler auf Kommandoebene und nicht die zur Klassifizierung benötigte
+Compiler-/Linker-Zeile. Aus diesem Lauf werden weder ein erfolgreicher Compile
+noch `modsecurity_use_error_log`-on/off-Runtime-Evidence behauptet.
+
+Die eingegrenzte Parent-only-Nachbesserung lässt den fehlgeschlagenen Build
+maßgeblich und leitet vor dem transaktionalen Staging-Cleanup ausschließlich
+den festen verwalteten Pfad `build/logs/nginx/nginx-make.log` ab. Sie verlangt
+den aktuellen `connector:nginx`-Marker, Cache-Key, Cache-Root und die exakte
+`staging_root/build`-Identität; sie verwendet weder einen report-ausgewählten
+Pfad noch eine veränderliche Environment-Root. Der feste Nachfahre wird über
+No-Follow-Deskriptoren mit Directory-/File-Identitätsprüfungen geöffnet.
+Path-Escape-, Symlink-, Hardlink- und Ersetzungsrennen-Eingaben werden
+verworfen; übergroße Inhalte werden auf einen 64-KiB-Tail begrenzt; und die
+erhaltene Repräsentation wird terminal- und Actions-Command-sanitisiert, bevor
+sie an das bestehende feste äußere Log angehängt wird. Der längere Staging-
+Zeilenpräfix ist im 512-Zeichen-Zeilenbudget enthalten. Framework, MRTS,
+Gitlink, Provenance-, Test- und Workflow-Kontrollen bleiben unverändert. Ein
+Fehler bei der Staging-Root-Auflösung ist fail-soft und kann das primäre
+fehlgeschlagene Build-Ergebnis nicht ersetzen.
+
+Die fokussierte lokale Validierung deckt Managed-Identity-Abweichung, einen
+fehlenden Inner-Log, Path-Escape, Symlink-/Hardlink-Verwerfung,
+Ersetzungsrennen, begrenzte Tails, das vollständige Staging-Zeilenlimit und
+Terminal-/Actions-Command-Sanitisierung sowie Symlink-Schleifen-Auflösung ab.
+Sie beweist außerdem, dass das
+Anhängen den primären fehlgeschlagenen Build-Exit-Code, Failed-Status und das
+Blocker-Mapping maßgeblich lässt. Python-Kompilierung, 81
+Parent-Komponenten-Tests mit fünf bestehenden Framework-Head-Skips, 11
+NGINX-Diagnose-Tests, `git diff --check` und ein unabhängiges
+Post-Patch-Security-Review bestehen. Ein frischer normaler Successor-Head und
+ein Exact-Head-Hosted-Rerun bleiben erforderlich, bevor Kompilierung gegen
+unterstützte Header oder isolierte `modsecurity_use_error_log`-on/off-Runtime-
+Evidence behauptet wird.

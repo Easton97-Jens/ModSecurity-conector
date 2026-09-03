@@ -29,6 +29,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from generated_report_utils import GENERATED_ROOT, build_metadata, generated_json_text, generated_markdown_text, report_path_from_root
+from nginx_exact_head_diagnostics import DiagnosticInputError, bounded_fixed_log_tail
 from runtime_path_utils import is_system_write_path
 
 
@@ -97,6 +98,9 @@ NGINX_RUNTIME_COMPONENT_TARGETS = frozenset({"all", "nginx"})
 
 
 NGINX_PROTOCOL_PROFILES = ("h1", "h1-h2", "h1-h2-h3-quic")
+NGINX_STAGED_MAKE_LOG_RELATIVE_PATH = Path("build/logs/nginx/nginx-make.log")
+NGINX_STAGED_MAKE_LOG_PREFIX = "nginx staged make diagnostics:"
+NGINX_STAGED_MAKE_LOG_LINE_PREFIX = f"{NGINX_STAGED_MAKE_LOG_PREFIX} log: "
 DEFAULT_NGINX_QUIC_TLS_LIBRARY = "openssl"
 DEFAULT_NGINX_QUIC_TLS_VERSION = "4.0.1"
 DEFAULT_NGINX_QUIC_TLS_SOURCE_URL = "https://github.com/openssl/openssl/releases/download/openssl-4.0.1/openssl-4.0.1.tar.gz"
@@ -8530,6 +8534,83 @@ def nginx_refresh_build_artifacts(record: dict[str, Any], context: dict[str, Any
         record["artifacts_readback_error"] = str(exc)
 
 
+def nginx_staged_build_log_root(
+    plan: dict[str, Any],
+    cache_root: Path,
+    context: dict[str, Any],
+) -> Path | None:
+    """Return only the current marked staging root that owns the make log."""
+
+    root_value = plan.get("root")
+    build_root_value = plan.get("build_root")
+    cache_key = plan.get("cache_key", plan.get("connector_build_id", ""))
+    context_build_root = context.get("nginx_build_root")
+    if not all(isinstance(value, str) and value for value in (root_value, build_root_value, cache_key)):
+        return None
+    if not isinstance(context_build_root, Path):
+        return None
+    try:
+        staging_root, managed_root = validate_managed_cache_child(Path(root_value), cache_root)
+    except RuntimeError:
+        return None
+    marker = read_json(cache_entry_marker_path(staging_root, managed_root))
+    if (
+        marker.get("component") != "connector:nginx"
+        or marker.get("cache_key") != cache_key
+        or not cache_entry_marker_valid(staging_root, managed_root)
+    ):
+        return None
+    expected_build_root = staging_root / "build"
+    if (
+        Path(build_root_value).resolve(strict=False) != expected_build_root
+        or context_build_root.resolve(strict=False) != expected_build_root
+    ):
+        return None
+    return staging_root
+
+
+def append_nginx_staged_make_log_diagnostics(
+    log_path: Path,
+    plan: dict[str, Any],
+    cache_root: Path,
+    context: dict[str, Any],
+) -> None:
+    """Persist only a bounded sanitized inner make-log tail before cleanup."""
+
+    try:
+        staging_root = nginx_staged_build_log_root(plan, cache_root, context)
+    except (OSError, RuntimeError, ValueError):
+        # This is diagnostic-only after the primary build already failed.
+        staging_root = None
+    if staging_root is None:
+        lines = [f"{NGINX_STAGED_MAKE_LOG_PREFIX} inner_make_log_unavailable=staging_identity"]
+    else:
+        try:
+            rendered, truncated = bounded_fixed_log_tail(
+                staging_root,
+                NGINX_STAGED_MAKE_LOG_RELATIVE_PATH,
+                "inner_make_log",
+                output_prefix=NGINX_STAGED_MAKE_LOG_LINE_PREFIX,
+            )
+        except DiagnosticInputError as exc:
+            lines = [f"{NGINX_STAGED_MAKE_LOG_PREFIX} inner_make_log_unavailable={exc.reason}"]
+        except OSError:
+            lines = [f"{NGINX_STAGED_MAKE_LOG_PREFIX} inner_make_log_unavailable=unavailable"]
+        else:
+            lines = [
+                f"{NGINX_STAGED_MAKE_LOG_PREFIX} inner_make_log_tail_truncated={'true' if truncated else 'false'}",
+                f"{NGINX_STAGED_MAKE_LOG_PREFIX} begin bounded nginx-make.log tail",
+                *(NGINX_STAGED_MAKE_LOG_LINE_PREFIX + line for line in rendered),
+                f"{NGINX_STAGED_MAKE_LOG_PREFIX} end bounded nginx-make.log tail",
+            ]
+    try:
+        with log_path.open("a", encoding="utf-8", errors="replace") as log_file:
+            log_file.write("\n" + "\n".join(lines) + "\n")
+    except OSError:
+        # This is diagnostic-only after the primary build already failed.
+        return
+
+
 def build_nginx_source(
     env: dict[str, str],
     connector_root: Path,
@@ -8567,6 +8648,8 @@ def build_nginx_source(
         connector_root,
         log_path,
     )
+    if proc.returncode != 0:
+        append_nginx_staged_make_log_diagnostics(log_path, plan, cache_root, context)
     record["build_log"] = str(log_path)
     record["build_exit_code"] = proc.returncode
     nginx_refresh_build_artifacts(record, context)
