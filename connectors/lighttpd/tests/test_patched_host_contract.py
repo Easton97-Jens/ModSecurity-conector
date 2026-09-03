@@ -766,6 +766,12 @@ class PatchedHostContractTest(unittest.TestCase):
         self.assertIn('"$CRS_RESPONSE_TRANSACTION_HEADER"', crs_branch)
         self.assertIn("response_transaction_header_origin=server_generated_lighttpd_host", crs_branch)
         self.assertIn("Common transaction id does not match", crs_branch)
+        self.assertIn("def serialized_event_uri(uri):", crs_branch)
+        self.assertIn('event.get("uri") == expected_event_uri', crs_branch)
+        self.assertIn('event.get("redacted") is (expected_event_uri != uri)', crs_branch)
+        self.assertIn('secret in event["uri"].lower()', crs_branch)
+        self.assertIn('"password", "union", "select"', crs_branch)
+        self.assertIn('require_exactly_one_raw_crs_record(raw_log, transaction_id, request_id)', crs_branch)
         self.assertIn("require_exactly_one_raw_crs_record", crs_branch)
         self.assertIn("len(correlated_raw_lines) != 1", crs_branch)
 
@@ -882,6 +888,23 @@ class PatchedHostContractTest(unittest.TestCase):
         )
         with self.assertRaises(SystemExit):
             require_record(f"{line}\n{line}", transaction_id, "block")
+
+    def test_crs_event_uri_redaction_preserves_raw_wire_uri_expectation(self) -> None:
+        runner = (CONNECTOR / "harness" / "run_patched_full_lifecycle.sh").read_text(
+            encoding="utf-8"
+        )
+        helper_source = "def serialized_event_uri" + runner.split(
+            "def serialized_event_uri", 1
+        )[1].split("def observed", 1)[0]
+        namespace: dict[str, object] = {}
+        exec(helper_source, namespace)
+        serialized_uri = namespace["serialized_event_uri"]
+        self.assertEqual(serialized_uri("/?id=1%20UNION%20SELECT"), "/?<redacted>")
+        self.assertEqual(serialized_uri("/?id=1%20uNiOn%20SeLeCt"), "/?<redacted>")
+        self.assertEqual(serialized_uri("/?id=42"), "/?<redacted>")
+        self.assertNotIn("UNION", serialized_uri("/?id=1%20UNION%20SELECT"))
+        self.assertNotIn("password", serialized_uri("/?id=1%20UNION%20SELECT"))
+        self.assertEqual(serialized_uri("/"), "/")
 
     def test_crs_mode_never_materializes_the_no_crs_entity_fixture(self) -> None:
         runner = (CONNECTOR / "harness" / "run_patched_full_lifecycle.sh").read_text(

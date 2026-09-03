@@ -1106,13 +1106,19 @@ def require_exactly_one_raw_crs_record(raw_log, transaction_id, request_id):
         )
     return correlated_raw_lines[0]
 
+def serialized_event_uri(uri):
+    path, separator, query = uri.partition("?")
+    return f"{path}?<redacted>" if separator and query else uri
+
 def observed(uri, request_id, response_transaction_id):
+    expected_event_uri = serialized_event_uri(uri)
     matches = [
         event for event in events
         if event.get("connector") == "lighttpd"
         and event.get("integration_mode") == "patched-native-lighttpd"
         and event.get("method") == "GET"
-        and event.get("uri") == uri
+        and event.get("uri") == expected_event_uri
+        and event.get("redacted") is (expected_event_uri != uri)
         and event.get("rule_id") == "949110"
         and event.get("http_status") == 403
         and event.get("visible_http_status") == 403
@@ -1123,9 +1129,13 @@ def observed(uri, request_id, response_transaction_id):
     ]
     if len(matches) != 1:
         raise SystemExit(
-            f"expected exactly one observed Lighttpd intervention rule-949110 event for {uri!r}; found {len(matches)}"
+            f"expected exactly one observed Lighttpd intervention rule-949110 event for {expected_event_uri!r}; found {len(matches)}"
         )
     event = matches[0]
+    if expected_event_uri != uri and any(
+        secret in event["uri"].lower() for secret in ("password", "union", "select")
+    ):
+        raise SystemExit(f"{request_id} serialized Common URI leaked query content")
     transaction_id = event["transaction_id"]
     if transaction_id != response_transaction_id:
         raise SystemExit(
