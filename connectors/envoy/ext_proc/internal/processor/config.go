@@ -25,6 +25,14 @@ const (
 	LateActionStrict  LateActionPolicy = "strict"
 )
 
+// LateActionPolicyAdmissionValidator is implemented by a rule-evaluating
+// engine that can prove whether its Common runtime and host adapter support a
+// requested post-commit policy. A connector must not infer that capability
+// from the service JSON alone.
+type LateActionPolicyAdmissionValidator interface {
+	ValidateLateActionPolicy(LateActionPolicy) error
+}
+
 // Config is kept in connector-local JSON so its limits can be inspected without
 // importing Envoy or Common configuration types. Duration values are expressed
 // in milliseconds in the JSON file to avoid ambiguous Go duration encodings.
@@ -125,6 +133,19 @@ func isLoopbackListenHost(host string) bool {
 	// (whose resolution can change the trust boundary after validation).
 	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback()
+}
+
+func validateLateActionPolicyAdmission(policy LateActionPolicy, engine TransactionOpener) error {
+	if validator, ok := engine.(LateActionPolicyAdmissionValidator); ok {
+		if err := validator.ValidateLateActionPolicy(policy); err != nil {
+			return fmt.Errorf("config: late_action_policy=%q is not admissible: %w", policy, err)
+		}
+		return nil
+	}
+	if policy == LateActionStrict {
+		return fmt.Errorf("config: late_action_policy=strict requires a rule-evaluating runtime with a proven strict post-commit host action")
+	}
+	return nil
 }
 
 func (config Config) engineTimeout() time.Duration {

@@ -123,9 +123,9 @@ Siehe [Engine-Referenz](../common/modsecurity-directives.de.md).
 
 | Profil | Datei | Status |
 | --- | --- | --- |
-| Minimal | [minimal/traefik-static.yaml](minimal/traefik-static.yaml) | Aktive Startkonfiguration |
-| Sicherer vollständiger Lebenszyklus | [safe/traefik-dynamic.yaml](safe/traefik-dynamic.yaml) | Ausgewählte begrenzte Referenz |
-| Strikt | [README.de.md#strict-profilgrenze](README.de.md#strict-profilgrenze) | Parserunterstützte oder ausdrücklich optionale Grenze |
+| Minimal | [native-uds/minimal/traefik-static.yaml](native-uds/minimal/traefik-static.yaml) | Aktive Startkonfiguration |
+| Sicherer vollständiger Lebenszyklus | [native-uds/safe/traefik-static.yaml](native-uds/safe/traefik-static.yaml) | Ausgewählte begrenzte Referenz |
+| Strikt | [native-uds/strict/traefik-static.yaml](native-uds/strict/traefik-static.yaml) | Parserunterstützte oder ausdrücklich optionale Grenze |
 | DetectionOnly | [detection-only/traefik-engine-service.conf](detection-only/traefik-engine-service.conf) | Engine wertet aus/protokolliert ohne disruptive Aktion |
 | Deaktiviert | [disabled/traefik-engine-service.conf](disabled/traefik-engine-service.conf) | Connector- oder Engine-Pfad deaktiviert |
 

@@ -12,6 +12,7 @@ a free-text grep check.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import re
 import sys
@@ -29,6 +30,15 @@ from connector_config_reference import (  # noqa: E402
     inventory_json,
     rendered_files,
 )
+_MATRIX_SPEC = importlib.util.spec_from_file_location(
+    "logical_connector_example_matrix",
+    Path(__file__).resolve().parent / "check-logical-connector-example-matrix.py",
+)
+if _MATRIX_SPEC is None or _MATRIX_SPEC.loader is None:  # pragma: no cover - packaging failure
+    raise ImportError("logical connector example matrix checker is unavailable")
+_MATRIX_MODULE = importlib.util.module_from_spec(_MATRIX_SPEC)
+_MATRIX_SPEC.loader.exec_module(_MATRIX_MODULE)
+logical_connector_example_errors = _MATRIX_MODULE.logical_connector_example_errors
 
 
 REQUIRED_INVENTORY_FIELDS = frozenset({
@@ -270,6 +280,7 @@ def main(argv: list[str] | None = None) -> int:
     expected_json = inventory_json(root)
     inventory_path = root / "reports/connector-configuration-inventory.json"
     errors = profile_layout_errors(root)
+    errors.extend(logical_connector_example_errors(root))
     errors.extend(german_translation_errors(inventory))
     inventory_errors, names_by_doc = inventory_validation_errors(inventory)
     errors.extend(inventory_errors)

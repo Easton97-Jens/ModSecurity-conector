@@ -1,0 +1,6 @@
+# Register the local response observer plugin. The private UDS is deliberately
+# explicit; there is no TCP or native-middleware fallback.
+experimental:
+  localPlugins:
+    modsecurityResponseObserver:
+      moduleName: github.com/Easton97-Jens/ModSecurity-conector/connectors/traefik/response_observer

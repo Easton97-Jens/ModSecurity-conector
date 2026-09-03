@@ -35,7 +35,10 @@ from runtime_path_utils import (
 )
 
 
-PHASE4_MARKER_PATH = "/phase4-marker"
+P2_BODY_LIMIT_PATH = "/vector/p2-body-limit"
+P2_BODY_LIMIT_UPSTREAM_MARKER = "upstream-p2-body-limit.reached"
+P3_REDIRECT_PATH = "/vector/p3-redirect"
+PHASE4_MARKER_PATH = "/vector/p4-safe"
 TEXT_PLAIN_CONTENT_TYPE = "text/plain"
 LOOPBACK_HOST = "127.0.0.1"
 COMMON_EVENT_LOG_LABEL = "Common event log"
@@ -242,38 +245,51 @@ class UpstreamHandler(http.server.BaseHTTPRequestHandler):
         content_length = int(self.headers.get("content-length") or "0")
         if content_length > 0:
             self.rfile.read(content_length)
+        if self.path == P2_BODY_LIMIT_PATH and self.runtime_root is not None:
+            # The native runner requires this marker to remain absent.  Its
+            # presence proves that an over-limit request reached the upstream,
+            # while the marker itself contains no client bytes or identity.
+            create_runtime_marker(
+                self.runtime_root,
+                self.runtime_root / P2_BODY_LIMIT_UPSTREAM_MARKER,
+                "P2 body-limit upstream marker",
+            )
         if self.path == PHASE4_MARKER_PATH and self.phase4_barrier_dir is not None:
             self._answer_phase4_barrier()
             return
         if self.path == "/client-cancel":
-            # This fixture sends one real response byte and deliberately holds
-            # the final bytes open.  The opt-in runtime probe closes the
-            # downstream client socket after that first byte.  It is not used
-            # to infer a reset code or to promote strict behavior.
-            first_chunk = b"envoy-client-cancel-first-byte\n"
-            final_chunk = b"envoy-client-cancel-final-byte\n"
-            self.send_response(200)
-            self.send_header("content-type", TEXT_PLAIN_CONTENT_TYPE)
-            self.send_header("content-length", str(len(first_chunk) + len(final_chunk)))
-            self.end_headers()
-            try:
-                self.wfile.write(first_chunk)
-                self.wfile.flush()
-                time.sleep(self.client_cancel_delay_seconds)
-                self.wfile.write(final_chunk)
-                self.wfile.flush()
-            except (BrokenPipeError, ConnectionResetError):
-                return
+            self._answer_client_cancel()
             return
+        self._answer_standard()
+
+    def _answer_client_cancel(self) -> None:
+        """Send the delayed two-part response used by the cancel probe."""
+        # This fixture sends one real response byte and deliberately holds
+        # the final bytes open.  The opt-in runtime probe closes the
+        # downstream client socket after that first byte.  It is not used
+        # to infer a reset code or to promote strict behavior.
+        first_chunk = b"envoy-client-cancel-first-byte\n"
+        final_chunk = b"envoy-client-cancel-final-byte\n"
+        self.send_response(200)
+        self.send_header("content-type", TEXT_PLAIN_CONTENT_TYPE)
+        self.send_header("content-length", str(len(first_chunk) + len(final_chunk)))
+        self.end_headers()
+        try:
+            self.wfile.write(first_chunk)
+            self.wfile.flush()
+            time.sleep(self.client_cancel_delay_seconds)
+            self.wfile.write(final_chunk)
+            self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError):
+            return
+
+    def _answer_standard(self) -> None:
         response_headers: list[tuple[str, str]] = []
-        if self.path == "/phase3-block":
-            response_headers.append(("X-Modsec-Upstream", "block"))
-        elif self.path == "/phase3-redirect":
-            response_headers.append(("X-Modsec-Upstream", "redirect"))
-        if self.path == PHASE4_MARKER_PATH:
-            body = b"no-crs-response-body-marker\n"
-        else:
-            body = b"envoy connector upstream ok\n"
+        if self.path == "/vector/p3":
+            response_headers.append(("X-Msconnector-Vector", "msconnector-p3-only"))
+        elif self.path == P3_REDIRECT_PATH:
+            response_headers.append(("X-Msconnector-Vector", "msconnector-p3-redirect"))
+        body = self._standard_body()
         self.send_response(200)
         self.send_header("content-type", TEXT_PLAIN_CONTENT_TYPE)
         for name, value in response_headers:
@@ -282,6 +298,13 @@ class UpstreamHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(body)
+
+    def _standard_body(self) -> bytes:
+        if self.path == "/vector/p4":
+            return b"p4-response-msconnector-p4-only"
+        if self.path == "/vector/p4-safe":
+            return b"p4-safe-response-msconnector-p4-safe"
+        return b"envoy connector upstream ok\n"
 
     def _answer_phase4_barrier(self) -> None:
         """Serve a controlled P4 body without persisting either body chunk.
@@ -296,7 +319,7 @@ class UpstreamHandler(http.server.BaseHTTPRequestHandler):
         assert self.runtime_root is not None
         paths = phase4_barrier_paths(self.runtime_root, self.phase4_barrier_dir)
         first_chunk = b"envoy-first-byte-prefix\n"
-        later_chunk = b"no-crs-response-body-marker\n"
+        later_chunk = b"p4-safe-response-msconnector-p4-safe"
         self.send_response(200)
         self.send_header("content-type", TEXT_PLAIN_CONTENT_TYPE)
         self.send_header("transfer-encoding", "chunked")
@@ -439,10 +462,50 @@ def parse_headers(header: list[str]) -> dict[str, str]:
     headers: dict[str, str] = {}
     for item in header:
         name, separator, value = item.partition(":")
-        if not separator or not name.strip() or "\r" in name or "\n" in name or "\r" in value or "\n" in value:
+        if (
+            not separator
+            or not name.strip()
+            or any(control in name or control in value for control in "\r\n\x00")
+        ):
             raise ValueError(f"invalid header: {item!r}")
         headers[name.strip()] = value.strip()
     return headers
+
+
+def parse_header_names(header: list[str]) -> set[str]:
+    """Normalize response-header assertions without retaining their values."""
+
+    names: set[str] = set()
+    for value in header:
+        name = value.strip().lower()
+        if not name or any(character in name for character in "\r\n:"):
+            raise ValueError(f"invalid header name: {value!r}")
+        names.add(name)
+    return names
+
+
+def parse_required_response_headers(header: list[str]) -> dict[str, str]:
+    """Normalize exact response-header assertions without retaining them."""
+
+    required: dict[str, str] = {}
+    for item in header:
+        parsed = parse_headers([item])
+        name, value = next(iter(parsed.items()))
+        normalized_name = name.lower()
+        if normalized_name in required:
+            raise ValueError("duplicate required response header")
+        required[normalized_name] = value
+    return required
+
+
+def _response_header_values(headers: Any, name: str) -> list[str]:
+    """Return every response field value so duplicates cannot satisfy an exact assertion."""
+
+    get_all = getattr(headers, "get_all", None)
+    if not callable(get_all):
+        raise RuntimeError("response headers do not support complete field inspection")
+    values = get_all(name)
+    return [] if values is None else list(values)
 
 
 def probe(
@@ -454,9 +517,13 @@ def probe(
     data: str | None,
     no_redirect: bool,
     evidence_path: str | None = None,
+    forbid_response_header: list[str] | None = None,
+    require_response_header: list[str] | None = None,
 ) -> int:
     root = verified_runtime_root(runtime_root)
     headers = parse_headers(header)
+    forbidden_headers = parse_header_names(forbid_response_header or [])
+    required_headers = parse_required_response_headers(require_response_header or [])
     body = None if data is None else data.encode("utf-8")
     request = urllib.request.Request(checked_loopback_https_url(url), data=body, headers=headers, method=method)
     handlers: list[object] = [
@@ -469,9 +536,25 @@ def probe(
         with opener.open(request, timeout=2) as response:
             response_body = response.read()
             status = int(response.status)
+            response_headers = response.headers
     except urllib.error.HTTPError as exc:
-        response_body = exc.read()
-        status = int(exc.code)
+        try:
+            response_body = exc.read()
+            status = int(exc.code)
+            response_headers = exc.headers
+        finally:
+            exc.close()
+    if any(_response_header_values(response_headers, name) for name in forbidden_headers):
+        # Never retain or print a response header value; this checks only the
+        # host boundary's public-header absence.
+        raise RuntimeError("forbidden response header observed")
+    if any(
+        _response_header_values(response_headers, name) != [value]
+        for name, value in required_headers.items()
+    ):
+        # The value is deliberately neither persisted nor included in an error
+        # message: this is an exact client-boundary assertion only.
+        raise RuntimeError("required response header missing or mismatched")
     if evidence_path:
         write_json_atomic(root, evidence_path, {
             "schema_version": 1,
@@ -479,6 +562,14 @@ def probe(
             "http_status": status,
             "response_bytes": len(response_body),
             "body_payload_persisted": False,
+            # An exact Location assertion is evaluated at the client boundary;
+            # retain only that boolean, never the target value or any header.
+            "redirect_location_verified": "location" in required_headers,
+            # Retain only whether the private correlation header crossed the
+            # public client boundary; never retain its value.
+            "composite_lease_header_present": bool(
+                _response_header_values(response_headers, "x-msconnector-composite-lease")
+            ),
         }, "probe evidence output")
     print(status)
     return 0
@@ -787,7 +878,7 @@ def _is_phase4_safe_event(record: dict[str, Any], transaction_id: str) -> bool:
     identity_matches = (
         record.get("event") != "phase4_first_byte_barrier"
         and not isinstance(rule_id, bool)
-        and str(rule_id) == "1100301"
+        and str(rule_id) == "1104002"
         and record.get("connector") == "envoy"
         and record.get("integration_mode") == "ext_proc"
         and record.get("transaction_id") == transaction_id
@@ -829,6 +920,71 @@ def _load_jsonl(root: Path, path: Path) -> list[dict[str, Any]]:
             raise ValueError(f"Common event log line {number} is not an object")
         records.append({str(key): item for key, item in value.items()})
     return records
+
+
+def verify_response_phase_events(
+    *,
+    runtime_root: str,
+    event_log: str,
+    p3_rule_id: str,
+    p3_transaction_id: str,
+    p4_rule_id: str,
+    p4_transaction_id: str,
+) -> None:
+    """Require the ext_authz companion's P3 deny and P4 Safe records.
+
+    The event JSONL field order is deliberately not part of the contract.  In
+    particular, do not use a line-oriented regular expression that can accept
+    a rule ID, transaction ID, and action from different records or reject a
+    harmless serializer field-order change.
+    """
+
+    root = verified_runtime_root(runtime_root)
+    p3_rule = _bounded_token(p3_rule_id, field="p3_rule_id", maximum=256)
+    p3_transaction = _bounded_token(
+        p3_transaction_id, field="p3_transaction_id", maximum=256
+    )
+    p4_rule = _bounded_token(p4_rule_id, field="p4_rule_id", maximum=256)
+    p4_transaction = _bounded_token(
+        p4_transaction_id, field="p4_transaction_id", maximum=256
+    )
+    records = _load_jsonl(
+        root, runtime_artifact(root, event_log, COMMON_EVENT_LOG_LABEL)
+    )
+    forbidden_body_fields = {
+        "request_body",
+        "response_body",
+        "body_payload",
+        "body_snippet",
+    }
+    p3 = [
+        record
+        for record in records
+        if record.get("connector") == "envoy"
+        and record.get("integration_mode") == "ext_authz"
+        and record.get("transaction_id") == p3_transaction
+        and str(record.get("rule_id")) == p3_rule
+        and record.get("phase") == "response_headers"
+        and record.get("status") == "blocked"
+        and record.get("actual_action") == "deny"
+        and record.get("response_committed") is False
+    ]
+    p4 = [
+        record
+        for record in records
+        if record.get("connector") == "envoy"
+        and record.get("integration_mode") == "ext_authz"
+        and record.get("transaction_id") == p4_transaction
+        and str(record.get("rule_id")) == p4_rule
+        and record.get("phase") == "response_body"
+        and record.get("status") == "blocked"
+        and record.get("actual_action") == "log_only"
+        and record.get("response_committed") is True
+    ]
+    if not p3 or not p4:
+        raise ValueError("Common event log lacks P3 deny or P4 Safe evidence")
+    if any(forbidden_body_fields.intersection(record) for record in [*p3, *p4]):
+        raise ValueError("Common event log contains a forbidden body payload field")
 
 
 def write_allow_event(
@@ -1010,7 +1166,7 @@ def write_phase4_first_byte_evidence(
     visible_http_status = _http_status(
         source.get("visible_http_status"), field="visible_http_status"
     )
-    if source_http_status != 403 or original_http_status != 200 or visible_http_status != 200:
+    if source_http_status != 451 or original_http_status != 200 or visible_http_status != 200:
         raise ValueError("Common P4 safe event has unexpected status metadata")
     normalized_run_id = (
         _bounded_token(run_id, field="run_id", maximum=256) if run_id else None
@@ -1041,7 +1197,7 @@ def write_phase4_first_byte_evidence(
         "event": "phase4_first_byte_barrier",
         "message_id": "MSCONN_EVENT_P4_FIRST_BYTE_BARRIER",
         "transaction_id": transaction,
-        "rule_id": "1100301",
+        "rule_id": "1104002",
         "phase": 4,
         "status": "observed",
         "http_status": source_http_status,
@@ -1113,6 +1269,8 @@ def parse_args() -> argparse.Namespace:
     request.add_argument("--data")
     request.add_argument("--no-redirect", action="store_true")
     request.add_argument("--evidence-path")
+    request.add_argument("--forbid-response-header", action="append", default=[])
+    request.add_argument("--require-response-header", action="append", default=[])
     cancel = subparsers.add_parser("client-cancel")
     cancel.add_argument("--runtime-root", required=True)
     cancel.add_argument("--tls-certificate", required=True)
@@ -1143,6 +1301,13 @@ def parse_args() -> argparse.Namespace:
     allow_event.add_argument("--probe-evidence", required=True)
     allow_event.add_argument("--completion-log", required=True)
     allow_event.add_argument("--transaction-id", required=True)
+    response_events = subparsers.add_parser("verify-response-phase-events")
+    response_events.add_argument("--runtime-root", required=True)
+    response_events.add_argument("--event-log", required=True)
+    response_events.add_argument("--p3-rule-id", required=True)
+    response_events.add_argument("--p3-transaction-id", required=True)
+    response_events.add_argument("--p4-rule-id", required=True)
+    response_events.add_argument("--p4-transaction-id", required=True)
     return parser.parse_args()
 
 
@@ -1180,6 +1345,8 @@ def _probe_command(args: argparse.Namespace) -> int:
         args.data,
         args.no_redirect,
         args.evidence_path,
+        args.forbid_response_header,
+        args.require_response_header,
     )
 
 
@@ -1238,6 +1405,18 @@ def _allow_event_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def _verify_response_phase_events_command(args: argparse.Namespace) -> int:
+    verify_response_phase_events(
+        runtime_root=args.runtime_root,
+        event_log=args.event_log,
+        p3_rule_id=args.p3_rule_id,
+        p3_transaction_id=args.p3_transaction_id,
+        p4_rule_id=args.p4_rule_id,
+        p4_transaction_id=args.p4_transaction_id,
+    )
+    return 0
+
+
 def main() -> int:
     args = parse_args()
     handlers = {
@@ -1250,6 +1429,7 @@ def main() -> int:
         "phase4-first-byte": lambda: _phase4_first_byte_command(args),
         "write-phase4-first-byte-evidence": lambda: _phase4_evidence_command(args),
         "write-allow-event": lambda: _allow_event_command(args),
+        "verify-response-phase-events": lambda: _verify_response_phase_events_command(args),
     }
     result = handlers[args.command]()
     return int(result or 0)

@@ -21,6 +21,11 @@ PINNED_NGINX_ENV = {
     "NGINX_RELEASE_ASSET_NAME": "nginx-1.31.3.tar.gz",
     "NGINX_SHA256": "a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525",
 }
+MODSECURITY_PUBLIC_HEADERS = (
+    "modsecurity.h",
+    "rules_set.h",
+    "transaction.h",
+)
 sys.path.insert(0, str(ROOT / "ci" / "provisioning" / "components"))
 SPEC = importlib.util.spec_from_file_location(
     "prepare_runtime_components", ROOT / "ci/provisioning/components/prepare-runtime-components.py"
@@ -41,6 +46,12 @@ READINESS_SPEC.loader.exec_module(runtime_producer_readiness)
 
 
 class RuntimeComponentCacheContractTest(unittest.TestCase):
+    @staticmethod
+    def write_modsecurity_public_headers(headers: Path) -> None:
+        headers.mkdir(parents=True, exist_ok=True)
+        for header_name in MODSECURITY_PUBLIC_HEADERS:
+            (headers / header_name).write_text("header\n", encoding="utf-8")
+
     def identity(
         self,
         *,
@@ -919,8 +930,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             source = root / "source"
             libs = source / "src/.libs"
             headers = source / "headers/modsecurity"
-            headers.mkdir(parents=True)
-            headers.joinpath("modsecurity.h").write_text("header\n", encoding="utf-8")
+            self.write_modsecurity_public_headers(headers)
             libs.mkdir(parents=True)
             terminal = libs / "libmodsecurity.so.3.0.15"
             terminal.write_text("library\n", encoding="utf-8")
@@ -937,14 +947,27 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             self.assertEqual(runtime.read_text(encoding="utf-8"), "library\n")
             self.assertTrue((prefix / "lib" / components.MODSECURITY_LIBRARY_FILENAME).is_symlink())
 
+    def test_modsecurity_outputs_require_all_public_headers(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            headers = source / "headers/modsecurity"
+            self.write_modsecurity_public_headers(headers)
+
+            for header_name in MODSECURITY_PUBLIC_HEADERS:
+                with self.subTest(header_name=header_name):
+                    (headers / header_name).unlink()
+                    with self.assertRaisesRegex(RuntimeError, "modsecurity_headers_missing_after_build"):
+                        components.copy_modsecurity_outputs(source, root / "prefix")
+                    (headers / header_name).write_text("header\n", encoding="utf-8")
+
     def test_modsecurity_outputs_reject_unsafe_or_ambiguous_libtool_chains(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
             root = Path(temporary)
             source = root / "source"
             libs = source / "src/.libs"
             headers = source / "headers/modsecurity"
-            headers.mkdir(parents=True)
-            headers.joinpath("modsecurity.h").write_text("header\n", encoding="utf-8")
+            self.write_modsecurity_public_headers(headers)
             libs.mkdir(parents=True)
             (libs / "libmodsecurity.so").symlink_to("../outside")
             (libs / "libmodsecurity.so.3").symlink_to("libmodsecurity.so.3.0.15")
@@ -978,8 +1001,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             libs = source / "src/.libs"
             headers = source / "headers/modsecurity"
             outside = root / "outside"
-            headers.mkdir(parents=True)
-            headers.joinpath("modsecurity.h").write_text("header\n", encoding="utf-8")
+            self.write_modsecurity_public_headers(headers)
             libs.mkdir(parents=True)
             outside.mkdir()
             outside.joinpath("libmodsecurity.so.3.0.15").write_text(
@@ -1003,8 +1025,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             source = root / "source"
             libs = source / "src/.libs"
             headers = source / "headers/modsecurity"
-            headers.mkdir(parents=True)
-            headers.joinpath("modsecurity.h").write_text("header\n", encoding="utf-8")
+            self.write_modsecurity_public_headers(headers)
             libs.mkdir(parents=True)
             (libs / "libmodsecurity.so").symlink_to("libmodsecurity.so.3")
             (libs / "libmodsecurity.so.3").symlink_to("libmodsecurity.so")
@@ -1024,8 +1045,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             source = root / "source"
             libs = source / "src/.libs"
             headers = source / "headers/modsecurity"
-            headers.mkdir(parents=True)
-            headers.joinpath("modsecurity.h").write_text("header\n", encoding="utf-8")
+            self.write_modsecurity_public_headers(headers)
             libs.mkdir(parents=True)
             terminal = libs / "libmodsecurity.so.3.0.15"
             terminal.write_text("verified\n", encoding="utf-8")
@@ -1088,9 +1108,8 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                     assert cwd is not None
                     headers = cwd / "headers/modsecurity"
                     libs = cwd / "src/.libs"
-                    headers.mkdir(parents=True, exist_ok=True)
+                    self.write_modsecurity_public_headers(headers)
                     libs.mkdir(parents=True, exist_ok=True)
-                    (headers / "modsecurity.h").write_text("header\n", encoding="utf-8")
                     terminal = libs / "libmodsecurity.so.3.0.15"
                     terminal.write_text("library\n", encoding="utf-8")
                     (libs / "libmodsecurity.so.3").symlink_to(terminal.name)
@@ -1109,7 +1128,8 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             build_entry = cache_root / "builds/modsecurity" / record["cache_key"]
             prefix = cache_root / "prefix/modsecurity" / record["cache_key"]
             self.assertEqual(record["status"], "built")
-            self.assertTrue((prefix / "include/modsecurity/modsecurity.h").is_file())
+            for header_name in MODSECURITY_PUBLIC_HEADERS:
+                self.assertTrue((prefix / "include/modsecurity" / header_name).is_file())
             self.assertTrue(components.cache_manifest_complete(build_entry / "manifest.json", record["cache_identity"]))
             self.assertTrue(
                 components.cache_entry_complete(
@@ -1131,6 +1151,37 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             )
             self.assertFalse(any(path.name.startswith(f".{build_entry.name}.tmp-") for path in build_entry.parent.iterdir()))
 
+            with mock.patch.object(components, "toolchain_identity", return_value=toolchain), mock.patch.object(
+                components.shutil, "which", side_effect=lambda _name: "/usr/bin/tool"
+            ), mock.patch.object(components, "run_env", side_effect=fake_run_env), mock.patch.object(
+                components,
+                "verify_framework_approved_modsecurity_v3_checkout",
+                return_value={"status": "passed"},
+            ):
+                reused = components.prepare_shared_modsecurity({}, cache_root, root / "work", git_record, {})
+            self.assertEqual(reused["status"], "reused")
+            self.assertEqual(make_calls, 1)
+
+            for expected_make_calls, missing_header in enumerate(
+                ("rules_set.h", "transaction.h"), start=2
+            ):
+                with self.subTest(missing_header=missing_header):
+                    (prefix / "include/modsecurity" / missing_header).unlink()
+                    with mock.patch.object(components, "toolchain_identity", return_value=toolchain), mock.patch.object(
+                        components.shutil, "which", side_effect=lambda _name: "/usr/bin/tool"
+                    ), mock.patch.object(components, "run_env", side_effect=fake_run_env), mock.patch.object(
+                        components,
+                        "verify_framework_approved_modsecurity_v3_checkout",
+                        return_value={"status": "passed"},
+                    ):
+                        rebuilt_headers = components.prepare_shared_modsecurity(
+                            {}, cache_root, root / "work", git_record, {}
+                        )
+                    self.assertEqual(rebuilt_headers["status"], "built")
+                    self.assertEqual(make_calls, expected_make_calls)
+                    for header_name in MODSECURITY_PUBLIC_HEADERS:
+                        self.assertTrue((prefix / "include/modsecurity" / header_name).is_file())
+
             # Artifacts and the local manifest remain valid, but an incomplete
             # registry marker must force a fresh staged build instead of a
             # cache hit.
@@ -1147,7 +1198,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             ):
                 rebuilt = components.prepare_shared_modsecurity({}, cache_root, root / "work", git_record, {})
             self.assertEqual(rebuilt["status"], "built")
-            self.assertEqual(make_calls, 2)
+            self.assertEqual(make_calls, 4)
 
             # A lost prefix sidecar can be recovered only because the complete
             # build manifest binds this exact prefix.  It authorizes deletion
@@ -1163,7 +1214,26 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 rebuilt_prefix = components.prepare_shared_modsecurity({}, cache_root, root / "work", git_record, {})
             self.assertEqual(rebuilt_prefix["status"], "built")
             self.assertEqual(rebuilt_prefix["invalidation_reason"], "missing_modsecurity_prefix_registry_marker")
-            self.assertEqual(make_calls, 3)
+            self.assertEqual(make_calls, 5)
+
+    def test_modsecurity_ready_requires_all_public_headers(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            prefix = Path(temporary) / "prefix"
+            headers = prefix / "include/modsecurity"
+            self.write_modsecurity_public_headers(headers)
+            library = prefix / "lib" / components.MODSECURITY_LIBRARY_FILENAME
+            library.parent.mkdir(parents=True)
+            library.write_text("library\n", encoding="utf-8")
+            self.assertTrue(components.modsecurity_ready(prefix))
+
+            for header_name in MODSECURITY_PUBLIC_HEADERS:
+                with self.subTest(header_name=header_name):
+                    (headers / header_name).unlink()
+                    self.assertFalse(components.modsecurity_ready(prefix))
+                    (headers / header_name).write_text("header\n", encoding="utf-8")
+
+            library.unlink()
+            self.assertFalse(components.modsecurity_ready(prefix))
 
     def test_default_expat_builds_in_a_keyed_staging_entry(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:

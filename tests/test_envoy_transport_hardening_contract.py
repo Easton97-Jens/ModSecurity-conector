@@ -63,6 +63,66 @@ def configure_loopback_tls(server: http.server.ThreadingHTTPServer, root: Path) 
 
 
 class EnvoyTransportHardeningContractTest(unittest.TestCase):
+    def test_ext_proc_runtime_uses_canonical_p1_p4_traffic_vectors(self) -> None:
+        source = RUNTIME_PATH.read_text(encoding="utf-8")
+
+        for marker in (
+            "/vector/p1",
+            'X-Msconnector-Vector: msconnector-p1-only',
+            "/vector/p2",
+            'P2_REQUEST_BODY_MARKER=msconnector-p2-only',
+            "/vector/p2-body-limit",
+            "P2_BODY_LIMIT_BODY=",
+            "phase2_body_limit_status=",
+            "phase2_body_limit_upstream_reached=false",
+            "/vector/p3",
+            "/vector/p3-redirect",
+            "P3_REDIRECT_TARGET=/msconnector-p3-redirect-target",
+            "phase3_redirect_status=",
+            "/vector/p4",
+            "/vector/p4-safe",
+            "PHASE4_ONLY_TRANSACTION_ID=envoy-ext-proc-phase4-only",
+            "phase4_only_status=",
+            "phase4_only_completion=PASS",
+            "missing bounded P4-only completion evidence",
+            '"rule_id":"1101001"',
+            '"rule_id":"1102001"',
+            '"rule_id":"1103001"',
+            '"rule_id":"1103002"',
+            '"rule_id":"1104002"',
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, source)
+
+        for obsolete in (
+            "/phase1-deny",
+            "/phase2-deny",
+            "/phase3-block",
+            "/phase3-redirect",
+            "/phase4-marker",
+            "X-Modsec-Smoke: block",
+            "no-crs-request-body-marker",
+            "no-crs-response-body-marker",
+            '"rule_id":"1100001"',
+            '"rule_id":"1100101"',
+            '"rule_id":"1100201"',
+            '"rule_id":"1100202"',
+            '"rule_id":"1100301"',
+        ):
+            with self.subTest(obsolete=obsolete):
+                self.assertNotIn(obsolete, source)
+
+        raw_gate = source[source.index("raw_event_ready=0"):source.index('if [ "$raw_event_ready" -ne 1 ]')]
+        self.assertNotIn('"rule_id":"1104001"', raw_gate)
+        self.assertIn('"rule_id":"1104002"', raw_gate)
+
+    def test_ext_authz_runtime_does_not_claim_host_owned_response_body_verification(self) -> None:
+        source = EXT_AUTHZ_RUNTIME_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("printf 'response_body_verified=false\\n'", source)
+        self.assertNotIn("printf 'response_body_verified=true\\n'", source)
+        self.assertIn("printf 'response_phase_events_verified=true\\n'", source)
+
     def test_runtime_harness_cleanup_is_bounded_and_pid_identity_bound(self) -> None:
         source = RUNTIME_PATH.read_text(encoding="utf-8")
 
@@ -203,7 +263,10 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
                 server.server_close()
                 thread.join(timeout=2)
 
-            self.assertEqual(json.loads(evidence.read_text(encoding="utf-8"))["http_status"], 200)
+            observation = json.loads(evidence.read_text(encoding="utf-8"))
+            self.assertEqual(observation["http_status"], 200)
+            self.assertFalse(observation["composite_lease_header_present"])
+            self.assertFalse(observation["redirect_location_verified"])
             for unsafe_url in (
                 f"http://127.0.0.1:{server.server_port}/allowed",
                 f"https://example.invalid:{server.server_port}/allowed",
@@ -219,6 +282,150 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
             escaped_parent.symlink_to(root.parent, target_is_directory=True)
             with self.assertRaises(ValueError):
                 helper.runtime_artifact(root, escaped_parent / "probe.json", "probe evidence output")
+
+    def test_probe_rejects_a_forbidden_response_header_without_retaining_its_value(self) -> None:
+        helper = load_helper()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+
+            class MarkerHandler(helper.UpstreamHandler):
+                def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+                    body = b"ok\n"
+                    self.send_response(403)
+                    self.send_header("X-Msconnector-Terminal-Authz", "1")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+
+            server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), MarkerHandler)
+            certificate = configure_loopback_tls(server, root)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                with self.assertRaisesRegex(RuntimeError, "forbidden response header"):
+                    helper.probe(
+                        str(root), str(certificate),
+                        f"https://127.0.0.1:{server.server_port}/blocked",
+                        [], "GET", None, False, None,
+                        ["x-msconnector-terminal-authz"],
+                    )
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+    def test_probe_requires_exact_response_header_without_retaining_its_value(self) -> None:
+        helper = load_helper()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+
+            class RedirectHandler(helper.UpstreamHandler):
+                def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+                    self.send_response(302)
+                    self.send_header("Location", "/msconnector-p3-redirect-target")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+
+            server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), RedirectHandler)
+            certificate = configure_loopback_tls(server, root)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            evidence = root / "probe.json"
+            try:
+                self.assertEqual(
+                    helper.probe(
+                        str(root), str(certificate),
+                        f"https://127.0.0.1:{server.server_port}/redirect",
+                        [], "GET", None, True, str(evidence), [],
+                        ["Location: /msconnector-p3-redirect-target"],
+                    ),
+                    0,
+                )
+                with self.assertRaisesRegex(RuntimeError, "required response header"):
+                    helper.probe(
+                        str(root), str(certificate),
+                        f"https://127.0.0.1:{server.server_port}/redirect",
+                        [], "GET", None, True, None, [],
+                        ["Location: /incorrect-target"],
+                    )
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+            observation = json.loads(evidence.read_text(encoding="utf-8"))
+            serialized = json.dumps(observation, sort_keys=True)
+            self.assertTrue(observation["redirect_location_verified"])
+            self.assertNotIn("msconnector-p3-redirect-target", serialized)
+            with self.assertRaises(ValueError):
+                helper.parse_headers(["X-Test: safe\x00unsafe"])
+
+    def test_probe_rejects_duplicate_required_response_header_without_retaining_values(self) -> None:
+        helper = load_helper()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+
+            class DuplicateRedirectHandler(helper.UpstreamHandler):
+                def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+                    self.send_response(302)
+                    self.send_header("Location", "/msconnector-p3-redirect-target")
+                    self.send_header("Location", "/other-target")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+
+            server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), DuplicateRedirectHandler)
+            certificate = configure_loopback_tls(server, root)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                with self.assertRaisesRegex(RuntimeError, "required response header"):
+                    helper.probe(
+                        str(root), str(certificate),
+                        f"https://127.0.0.1:{server.server_port}/redirect",
+                        [], "GET", None, True, None, [],
+                        ["Location: /msconnector-p3-redirect-target"],
+                    )
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+    def test_probe_records_only_a_boolean_when_a_composite_lease_header_reaches_the_client(self) -> None:
+        helper = load_helper()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+
+            class LeaseHeaderHandler(helper.UpstreamHandler):
+                def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+                    body = b"ok\n"
+                    self.send_response(200)
+                    self.send_header("X-Msconnector-Composite-Lease", "opaque-test-marker")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+
+            server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), LeaseHeaderHandler)
+            certificate = configure_loopback_tls(server, root)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            evidence = root / "probe.json"
+            try:
+                self.assertEqual(
+                    helper.probe(
+                        str(root), str(certificate),
+                        f"https://127.0.0.1:{server.server_port}/lease-header",
+                        [], "GET", None, False, str(evidence),
+                    ),
+                    0,
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+            observation = json.loads(evidence.read_text(encoding="utf-8"))
+            self.assertTrue(observation["composite_lease_header_present"])
+            self.assertNotIn("opaque-test-marker", json.dumps(observation, sort_keys=True))
 
     def test_upstream_fixture_requires_runtime_confined_tls_files(self) -> None:
         helper = load_helper()
@@ -263,8 +470,8 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
         ]):
             arguments = helper.parse_args()
 
-        self.assertEqual(helper.PHASE4_MARKER_PATH, "/phase4-marker")
-        self.assertEqual(arguments.path, "/phase4-marker")
+        self.assertEqual(helper.PHASE4_MARKER_PATH, "/vector/p4-safe")
+        self.assertEqual(arguments.path, "/vector/p4-safe")
         self.assertEqual(helper.TEXT_PLAIN_CONTENT_TYPE, "text/plain")
 
         server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), helper.UpstreamHandler)
@@ -276,7 +483,7 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
             response = connection.getresponse()
             self.assertEqual(response.status, 200)
             self.assertEqual(response.getheader("content-type"), "text/plain")
-            self.assertEqual(response.read(), b"no-crs-response-body-marker\n")
+            self.assertEqual(response.read(), b"p4-safe-response-msconnector-p4-safe")
         finally:
             connection.close()
             server.shutdown()
@@ -284,6 +491,8 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
             thread.join(timeout=2)
 
         source = HELPER_PATH.read_text(encoding="utf-8")
+        self.assertIn('later_chunk = b"p4-safe-response-msconnector-p4-safe"', source)
+        self.assertNotIn('later_chunk = b"no-crs-response-body-marker\\n"', source)
         self.assertEqual(
             source.count('self.send_header("content-type", TEXT_PLAIN_CONTENT_TYPE)'), 3,
         )
@@ -309,7 +518,7 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
                     str(certificate),
                     "127.0.0.1",
                     server.server_port,
-                    "/phase4-marker",
+                    "/vector/p4-safe",
                     ["X-Request-Id: phase4-first-byte-test"],
                     str(barrier_dir),
                     2.0,
@@ -394,10 +603,10 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
                 "event": "MSCONN_EVENT_RULE",
                 "message_id": "MSCONN_EVENT_RULE",
                 "transaction_id": "envoy-ext-proc-phase4-safe",
-                "rule_id": "1100301",
+                "rule_id": "1104002",
                 "phase": "response_body",
                 "status": "blocked",
-                "http_status": 403,
+                "http_status": 451,
                 "original_http_status": 200,
                 "visible_http_status": 200,
                 "requested_action": "deny",
@@ -438,7 +647,7 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
             barrier_event = records[-1]
             self.assertEqual(barrier_event["event"], "phase4_first_byte_barrier")
             self.assertEqual(barrier_event["transaction_id"], "envoy-ext-proc-phase4-safe")
-            self.assertEqual(barrier_event["rule_id"], "1100301")
+            self.assertEqual(barrier_event["rule_id"], "1104002")
             self.assertEqual(barrier_event["phase"], 4)
             self.assertEqual(barrier_event["late_intervention_mode"], "safe")
             self.assertEqual(barrier_event["actual_action"], "log_only")
@@ -462,6 +671,73 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
             self.assertFalse(repeated["event_appended"])
             self.assertEqual(len(event_path.read_text(encoding="utf-8").splitlines()), 2)
 
+            unexpected_status = dict(common_safe_event)
+            unexpected_status["http_status"] = 403
+            event_path.write_text(json.dumps(unexpected_status) + "\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "unexpected status metadata"):
+                helper.write_phase4_first_byte_evidence(
+                    runtime_root=str(root),
+                    event_log=str(event_path),
+                    observation_path=str(observation_path),
+                    transaction_id="envoy-ext-proc-phase4-safe",
+                )
+
+    def test_ext_authz_response_phase_validator_binds_p3_and_p4_records_without_payloads(self) -> None:
+        helper = load_helper()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            event_path = root / "events.jsonl"
+            records = [
+                {
+                    "connector": "envoy",
+                    "integration_mode": "ext_authz",
+                    "transaction_id": "envoy-p3-block-1",
+                    "rule_id": "1000003",
+                    "phase": "response_headers",
+                    "status": "blocked",
+                    "actual_action": "deny",
+                    "response_committed": False,
+                },
+                {
+                    "connector": "envoy",
+                    "integration_mode": "ext_authz",
+                    "transaction_id": "envoy-p4-safe-1",
+                    "rule_id": "1000004",
+                    "phase": "response_body",
+                    "status": "blocked",
+                    "actual_action": "log_only",
+                    "response_committed": True,
+                    "body_bytes_seen": 28,
+                },
+            ]
+            event_path.write_text(
+                "\n".join(json.dumps(record) for record in records) + "\n",
+                encoding="utf-8",
+            )
+            helper.verify_response_phase_events(
+                runtime_root=str(root),
+                event_log=str(event_path),
+                p3_rule_id="1000003",
+                p3_transaction_id="envoy-p3-block-1",
+                p4_rule_id="1000004",
+                p4_transaction_id="envoy-p4-safe-1",
+            )
+
+            records[1]["response_body"] = "must-not-appear"
+            event_path.write_text(
+                "\n".join(json.dumps(record) for record in records) + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "forbidden body payload"):
+                helper.verify_response_phase_events(
+                    runtime_root=str(root),
+                    event_log=str(event_path),
+                    p3_rule_id="1000003",
+                    p3_transaction_id="envoy-p3-block-1",
+                    p4_rule_id="1000004",
+                    p4_transaction_id="envoy-p4-safe-1",
+                )
+
     def test_allow_event_binds_client_http200_to_one_normal_ext_proc_completion(self) -> None:
         helper = load_helper()
         with tempfile.TemporaryDirectory() as temporary:
@@ -476,7 +752,7 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
                     "event": "phase4_first_byte_barrier",
                     "message_id": "MSCONN_EVENT_P4_FIRST_BYTE_BARRIER",
                     "transaction_id": "envoy-ext-proc-phase4-safe",
-                    "rule_id": "1100301",
+                    "rule_id": "1104002",
                     "phase": 4,
                     "status": "observed",
                     "http_status": 403,
@@ -661,10 +937,14 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
         self.assertIn("--tls-private-key \"$TLS_PRIVATE_KEY\"", source)
         self.assertEqual(
             source.count("--runtime-root \"$RUNTIME_ROOT\" --tls-certificate \"$TLS_CERTIFICATE\""),
-            2,
+            4,
         )
-        self.assertEqual(source.count("https://127.0.0.1:$listen_port"), 2)
+        self.assertEqual(source.count("https://127.0.0.1:$listen_port"), 4)
         self.assertNotIn("http://127.0.0.1:$listen_port", source)
+        self.assertIn('RESPONSE_PHASE_SMOKE=${MSCONNECTOR_RESPONSE_PHASE_SMOKE:-0}', source)
+        self.assertIn('P3_TRANSACTION_ID=envoy-p3-block-1', source)
+        self.assertIn('P4_TRANSACTION_ID=envoy-p4-safe-1', source)
+        self.assertIn('--forbid-response-header x-msconnector-terminal-authz', source)
         self.assertIn('rm -f "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY"', source)
         self.assertIn("prepare-runtime-root --runtime-root \"$START_ROOT\"", start_source)
         self.assertIn("create_private_loopback_tls", start_source)
@@ -678,6 +958,15 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
         self.assertNotIn("access_log_path:", template)
         self.assertIn("failure_mode_allow: false\n              allowed_headers:", template)
         self.assertNotIn("authorization_request:", template)
+        self.assertIn("authorization_response:", template)
+        self.assertIn("allowed_upstream_headers:", template)
+        self.assertIn("- exact: x-msconnector-response-handle", template)
+        self.assertIn("name: envoy.filters.http.ext_proc", template)
+        self.assertIn("cluster_name: msconnector_ext_authz_response_observer", template)
+        self.assertIn("request_body_mode: NONE", template)
+        self.assertIn("response_body_mode: STREAMED", template)
+        self.assertIn("response_trailer_mode: SEND", template)
+        self.assertIn('path: "@RESPONSE_OBSERVER_SOCKET@"', template)
 
     def test_envoy_smokes_reject_unsafe_root_without_tls_cleanup(self) -> None:
         true_binary = shutil.which("true")
@@ -690,6 +979,7 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
                 {
                     "ENVOY_BIN": true_binary,
                     "SERVICE_BIN": true_binary,
+                    "RESPONSE_OBSERVER_BIN": true_binary,
                 },
                 "START_ROOT is unsafe for private runtime artifacts",
             ),
@@ -699,6 +989,7 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
                 {
                     "ENVOY_BIN": true_binary,
                     "SERVICE_BIN": true_binary,
+                    "RESPONSE_OBSERVER_BIN": true_binary,
                 },
                 "RUNTIME_ROOT is unsafe for private runtime artifacts",
             ),

@@ -2,6 +2,7 @@ BUILD_ROOT ?= $(if $(XDG_STATE_HOME),$(XDG_STATE_HOME),$(HOME)/.local/state)/Mod
 BRIDGE_BIN := $(BUILD_ROOT)/envoy-bridge-starter/envoy_bridge
 SERVICE_BIN := $(BUILD_ROOT)/envoy-connector/msconnector_envoy_ext_authz
 EXT_PROC_BIN := $(BUILD_ROOT)/envoy-ext-proc/msconnector_envoy_ext_proc
+COMPOSITE_BIN := $(BUILD_ROOT)/envoy-composite/msconnector_composite
 EXT_PROC_CONFIG ?= $(CURDIR)/config/envoy-ext-proc-service.json
 EXT_PROC_ENVOY_CONFIG ?= $(BUILD_ROOT)/envoy-ext-proc/config/envoy-ext-proc.streaming.yaml
 EXT_PROC_RUNTIME_ROOT ?= $(BUILD_ROOT)/envoy-ext-proc/runtime-smoke
@@ -61,7 +62,7 @@ unexport ENVOY_HOSTRUNTIME_PROFILE ENVOY_HOSTRUNTIME_LOCK \
 	ENVOY_HOSTRUNTIME_BINARY_ROOT ENVOY_HOSTRUNTIME_PREFLIGHT_OUTPUT_DIR
 
 .PHONY: build-starter self-test self-test-envoy-bridge build-envoy-connector \
-	build-envoy-ext-proc test-envoy-ext-proc check-envoy-ext-proc-config \
+	build-envoy-ext-proc build-envoy-composite test-envoy-ext-proc check-envoy-ext-proc-config \
 	prepare-envoy-ext-proc-config prepare-envoy-ext-proc-runtime-config \
 	build-modsecurity-bridge check-envoy-config start-smoke-envoy \
 	serve-envoy-connector runtime-smoke-envoy no-crs-baseline-envoy \
@@ -124,6 +125,18 @@ build-envoy-ext-proc:
 	CC="$(CC)" CFLAGS="$(CFLAGS)" AR="$(AR)" \
 	sh build/build_ext_proc.sh
 
+# The composite command retains a single Common/libmodsecurity transaction
+# across ext_authz/forwardAuth and its response companion. It is intentionally
+# a separate executable, not a replacement for the standalone ext_proc path.
+build-envoy-composite:
+	BUILD_ROOT="$(BUILD_ROOT)" \
+	MODSECURITY_INCLUDE_DIR="$(MODSECURITY_INCLUDE_DIR)" \
+	MODSECURITY_LIB_DIR="$(MODSECURITY_LIB_DIR)" \
+	MODSECURITY_LIB_FILE="$(MODSECURITY_LIB_FILE)" \
+	MODSECURITY_PREFIX="$(MODSECURITY_PREFIX)" \
+	CC="$(CC)" CFLAGS="$(CFLAGS)" AR="$(AR)" \
+	sh build/build_composite.sh
+
 test-envoy-ext-proc:
 	BUILD_ROOT="$(BUILD_ROOT)" \
 	MODSECURITY_INCLUDE_DIR="$(MODSECURITY_INCLUDE_DIR)" \
@@ -133,8 +146,8 @@ test-envoy-ext-proc:
 	CC="$(CC)" CFLAGS="$(CFLAGS)" AR="$(AR)" \
 	sh build/test_ext_proc.sh
 
-check-envoy-ext-proc-config: build-envoy-ext-proc
-	"$(EXT_PROC_BIN)" --check-config --config "$(EXT_PROC_CONFIG)"
+check-envoy-ext-proc-config: build-envoy-ext-proc prepare-envoy-ext-proc-runtime-config
+	"$(EXT_PROC_BIN)" --check-config --config "$(EXT_PROC_CONFIG)" --runtime-config "$(EXT_PROC_RUNTIME_CONFIG)"
 
 prepare-envoy-ext-proc-config:
 	OUTPUT_CONFIG="$(EXT_PROC_ENVOY_CONFIG)" \

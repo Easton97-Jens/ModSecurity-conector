@@ -11,13 +11,15 @@ static const msconnector_traefik_adapter_metadata traefik_metadata = {
     },
     {
         MSCONNECTOR_CAPABILITY_REQUEST_HEADERS |
+            MSCONNECTOR_CAPABILITY_REQUEST_BODY_BUFFERED |
             MSCONNECTOR_CAPABILITY_CUSTOM_TRANSACTION_ID,
         "traefik",
         "minimal-runtime-smoke",
         "traefik",
-        "The forwardAuth request-header path is implemented. Traefik supports "
-        "buffered body forwarding, but the checked-in path does not enable it; "
-        "upstream response phases remain outside this host model."
+        "The forwardAuth request path maps headers and the checked-in middleware "
+        "enables bounded buffered P2 forwarding. The required private-UDS "
+        "response observer supplies the logical connector's P3/P4; direct "
+        "forwardAuth alone does not observe upstream responses."
     },
     "traefik",
     "Traefik",

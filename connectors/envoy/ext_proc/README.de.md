@@ -50,7 +50,7 @@ nur `STREAMED` Körpermodi, niemals `BUFFERED`.
 Das Modul hält für die aktuell triagierten Dependency-Advisories mindestens
 folgende stabile Auswahlen ein:
 
-- `google.golang.org/grpc` `v1.82.1` oder höher;
+- `google.golang.org/grpc` `v1.83.1` oder höher;
 - `golang.org/x/net` `v0.56.0` oder höher;
 - `golang.org/x/sys` `v0.46.0` oder höher; und
 - `golang.org/x/text` `v0.39.0` oder höher.
@@ -74,14 +74,20 @@ Der Dienst verwendet die konservative Antwort-Commit-Grenze: nur eine erfolgreic
 Antwortheader `CONTINUE` send markiert eine Antwort als festgeschrieben. Für eine disruptive
 Entscheidung später gefunden:
 
-- `minimal` und `safe` zeichnen ein echtes Common-Host-Ergebnis auf. `log_only` und
-  mit dem ursprünglich sichtbaren Antwortstatus fortfahren;
-- `strict` zeichnet `strict_abort_not_attempted` auf und fährt fort.`strict` wird absichtlich nicht zu einem gRPC-Fehler, `ImmediateResponse`, oder
-ein behaupteter Reset. Diese Mechanismen beweisen nicht unabhängig voneinander, dass sie deterministisch sind
-Für den Kunden sichtbarer Abbruch in Envoy. Ein abgebrochener gRPC-Kontext und ein beobachteter gRPC
-Peer-EOF werden jeweils als `grpc_context_canceled_unattributed` und aufgezeichnet
-`grpc_peer_eof`; Keines der Labels kann ernsthaft als Downstream-Kunde behandelt werden
-Reset oder ein Upstream-Reset.
+- `minimal` und `safe` zeichnen ein echtes Common-Host-Ergebnis `log_only` auf
+  und setzen die Antwort mit ihrem ursprünglichen sichtbaren Status fort;
+- `strict` wird beim Start der Common Runtime für das Profil
+  `envoy-ext-proc` abgewiesen. Dessen unveränderliche Capability
+  `strict_post_commit_action` ist null, bis eine deterministische
+  Post-Commit-Hostaktion bewiesen ist; es wird kein Traffic bedient und keine
+  späte Entscheidung stillschweigend herabgestuft.
+
+Der Adapter verwendet nach dem Response-Commit absichtlich weder
+`ImmediateResponse` noch einen gRPC-Fehler als HTTP-Reset-Ersatz. Ein
+abgebrochener gRPC-Kontext und ein beobachteter gRPC-Peer-EOF werden als
+`grpc_context_canceled_unattributed` beziehungsweise `grpc_peer_eof` erfasst;
+keines dieser Labels darf als Downstream- oder Upstream-Reset interpretiert
+werden.
 
 Die Grenze aktiver Streams begrenzt aggregierte Ressourcen, ist aber keine
 Idle-Deadline: Ein gültiger, anschließend stiller zugelassener Stream belegt
@@ -110,8 +116,9 @@ rohe Wirtsbeweise.
 
 ## Verbleibende Promotion-Grenze
 
-Der Dienst beansprucht keinen deterministischen Post-Commit-Reset oder ein Client-Byte
-Beobachtung. Eine verspätete P4-Regel wird bewusst als vom Gastgeber bestätigt erfasst
-`log_only`; `strict` bleibt `strict_abort_not_attempted`. Diese Grenzen und
-Die unabhängige Validierung des rohen Common JSONL durch den kanonischen Sammler sind
-die verbleibende Promotion-Grenze.
+Der Dienst behauptet keinen deterministischen Post-Commit-Reset und keine
+Beobachtung der Client-Bytes. Eine späte P4-Regel wird im Safe-Modus als vom
+Host bestätigtes `log_only` erfasst. Strict wird absichtlich beim Start
+abgewiesen, bis eine deterministische Envoy-Hostaktion nachgewiesen ist; es ist
+weder `ImmediateResponse` noch ein gRPC-Fehler oder behaupteter Reset. Die
+kanonische Validierung des rohen Common-JSONL bleibt eine Promotionsgrenze.

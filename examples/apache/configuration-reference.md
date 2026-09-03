@@ -15,10 +15,10 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`ErrorLog`](#errorlog) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`LoadModule`](#loadmodule) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`modsecurity`](#modsecurity) | Host / Connector | boolean | no | off | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Gates connector transaction creation; it is not SecRuleEngine. |
-| [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive decimal byte count | no | 1048576 | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Bounds Apache's saved all-response brigade before Phase-4 completion. The configurable default is 1048576 bytes; independently, a fixed non-configurable 4096-normalized-bucket ceiling applies across filter calls. An over-byte-limit or over-bucket-limit response fails closed before any original response byte is released. |
-| [`modsecurity_phase4_content_types_file`](#modsecurity-phase4-content-types-file) | Host / Connector | deprecated path | no | none; deprecated Apache compatibility input | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Deprecated Apache compatibility parser for a legacy MIME list. It does not narrow the all-response Phase-4 gate; use SecResponseBodyMimeType to select libModSecurity inspection. |
+| [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive decimal byte count | no | 1048576 | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Bounds Apache response bytes offered to P4 across current normalized brigades. The configurable default is 1048576 bytes. Apache forwards the pre-EOS prefix immediately and retains only the terminal EOS fragment for the one-shot P4 decision. A limit breach fails closed before the current offending bucket is forwarded; already committed output is not rewritten. |
+| [`modsecurity_phase4_content_types_file`](#modsecurity-phase4-content-types-file) | Host / Connector | deprecated path | no | none; deprecated Apache compatibility input | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Deprecated Apache compatibility parser for a legacy MIME list. It does not narrow the universal P4 inspection path; use SecResponseBodyMimeType to select libModSecurity inspection. |
 | [`modsecurity_phase4_log`](#modsecurity-phase4-log) | Host / Connector | path | no | none | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Sets a connector event path; current Apache and NGINX paths also use it for earlier rule/intervention metadata, not only P4. |
-| [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | enum | no | safe | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Apache retains every normalized response brigade through first EOS and resolves the normal P4 decision before original output release. This mode selects only the defensive fallback for independently proven already-committed output: minimal/safe record log_only and strict requests abort_connection. |
+| [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | enum | no | safe | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Apache appends each normalized response bucket exactly once and forwards non-terminal output to the next filter without waiting for EOS. It finishes P4 exactly once at actual EOS. After the next-filter commitment boundary, minimal/safe record log_only and strict requests abort_connection instead of a late status rewrite. |
 | [`modsecurity_rules`](#modsecurity-rules) | Host / Connector | string | no | none; optional | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Loads inline content through libmodsecurity during configuration loading. |
 | [`modsecurity_rules_file`](#modsecurity-rules-file) | Host / Connector | path | no | none; optional | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Loads a local rule file through libmodsecurity during configuration loading. |
 | [`modsecurity_rules_remote`](#modsecurity-rules-remote) | Host / Connector | registered but always rejected two strings | no | no usable value | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Policy A rejects remote-rule configuration before a loader or network path is reached. |
@@ -50,7 +50,7 @@ See [Engine reference](../common/modsecurity-directives.md).
 | --- | --- | --- |
 | Minimal | [minimal/httpd.conf](minimal/httpd.conf) | Active starter configuration |
 | Safe full lifecycle | [safe/httpd.conf](safe/httpd.conf) | Selected bounded reference |
-| Strict | [README.md#strict-profile-boundary](README.md#strict-profile-boundary) | Parser-supported or explicitly optional boundary |
+| Strict | [strict/httpd.conf](strict/httpd.conf) | Parser-supported or explicitly optional boundary |
 | DetectionOnly | [detection-only/httpd.conf](detection-only/httpd.conf) | Engine evaluates/logs without disruptive action |
 | Disabled | [disabled/httpd.conf](disabled/httpd.conf) | Connector or engine path disabled |
 
@@ -302,7 +302,7 @@ off bypasses connector P1–P4 processing even if a rule file is configured.
 
 ### Short description
 
-Bounds Apache's saved all-response brigade before Phase-4 completion. The configurable default is 1048576 bytes; independently, a fixed non-configurable 4096-normalized-bucket ceiling applies across filter calls. An over-byte-limit or over-bucket-limit response fails closed before any original response byte is released.
+Bounds Apache response bytes offered to P4 across current normalized brigades. The configurable default is 1048576 bytes; independently, a fixed non-configurable 4096-normalized-bucket ceiling spans filter calls. A limit breach fails closed before the current offending bucket is forwarded; already committed output is not rewritten.
 
 ### Syntax
 
@@ -334,9 +334,9 @@ Merge: Common scalar values use child-over-parent merge; rule sets are merged th
 
 ### Phases and runtime effect
 
-P4 only. The byte limit and the fixed bucket ceiling apply while normalized brigades are retained through first EOS for the all-response enforcement decision; the bucket count spans filter calls and resets on release or discard.
+P4 only. The byte limit and fixed bucket ceiling span filter calls. The adapter retains only the terminal EOS fragment for the one-shot finish; the bucket count resets on release or discard.
 
-Bounds Apache's saved all-response brigade before Phase-4 completion. The configurable default is 1048576 bytes; independently, a fixed non-configurable 4096-normalized-bucket ceiling applies across filter calls. An over-byte-limit or over-bucket-limit response fails closed before any original response byte is released.
+Bounds Apache response bytes offered to P4 across current normalized brigades. The configurable default is 1048576 bytes; independently, a fixed non-configurable 4096-normalized-bucket ceiling spans filter calls. A limit breach fails closed before the current offending bucket is forwarded; already committed output is not rewritten.
 
 ### Validation and errors
 
@@ -350,14 +350,14 @@ Source-backed example: [examples/apache/safe/httpd.conf](../../examples/apache/s
 
 ### Safety and operations
 
-The byte and fixed bucket ceilings bound payload and retained APR-object/setaside memory/CPU exposure. Do not process a prefix and release an uninspected tail: exceeding either connector limit must fail closed.
+The byte and fixed bucket ceilings bound payload and per-transaction APR-object/setaside memory/CPU exposure. Each accepted current bucket is appended once before direct forwarding; do not retain a full response or forward an uninspected tail.
 
 <a id="modsecurity-phase4-content-types-file"></a>
 ## `modsecurity_phase4_content_types_file`
 
 ### Short description
 
-Deprecated Apache compatibility parser for a legacy MIME list. It does not narrow the all-response Phase-4 gate; use SecResponseBodyMimeType to select libModSecurity inspection.
+Deprecated Apache compatibility parser for a legacy MIME list. It does not narrow the universal P4 inspection path; use SecResponseBodyMimeType to select libModSecurity inspection.
 
 ### Syntax
 
@@ -389,9 +389,9 @@ Merge: Common scalar values use child-over-parent merge; rule sets are merged th
 
 ### Phases and runtime effect
 
-P4 only. The parser is retained for compatibility but cannot select which Apache responses bypass the EOS-only enforcement gate.
+P4 only. The parser is retained for compatibility but cannot select which Apache responses bypass the bounded inspection path.
 
-Deprecated Apache compatibility parser for a legacy MIME list. It does not narrow the all-response Phase-4 gate; use SecResponseBodyMimeType to select libModSecurity inspection.
+Deprecated Apache compatibility parser for a legacy MIME list. It does not narrow the universal P4 inspection path; use SecResponseBodyMimeType to select libModSecurity inspection.
 
 ### Validation and errors
 
@@ -405,7 +405,7 @@ Source-backed example: `connectors/apache/src/msc_config.c`.
 
 ### Safety and operations
 
-Do not use this legacy list to permit a pass-through route. The connector cannot safely query libModSecurity's effective MIME selection, so every response remains gated through EOS.
+Do not use this legacy list to permit an uninspected pass-through route. The connector cannot safely query libModSecurity's effective MIME selection, so every response passes through the bounded P4 path.
 
 <a id="modsecurity-phase4-log"></a>
 ## `modsecurity_phase4_log`
@@ -467,7 +467,7 @@ Treat JSONL metadata as sensitive operational data and set safe ownership/rotati
 
 ### Short description
 
-Apache retains every normalized response brigade through first EOS and resolves the normal P4 decision before original output release. This mode selects only the defensive fallback for independently proven already-committed output: minimal/safe record log_only and strict requests abort_connection.
+Apache appends each normalized response bucket exactly once and forwards non-terminal output to the next filter without waiting for EOS. It finishes P4 exactly once at actual EOS. After the next-filter commitment boundary, minimal/safe record log_only and strict requests abort_connection instead of a late status rewrite.
 
 ### Syntax
 
@@ -499,9 +499,9 @@ Merge: Common scalar values use child-over-parent merge; rule sets are merged th
 
 ### Phases and runtime effect
 
-P4 only. Apache's EOS-only all-response gate resolves intervention before original output release; this setting applies only if independent commit proof already exists.
+P4 only. Apache commits at the next-filter boundary before it forwards a current non-terminal brigade; this setting controls the canonical pre- and post-commit decision mapping.
 
-Apache retains every normalized response brigade through first EOS and resolves the normal P4 decision before original output release. This mode selects only the defensive fallback for independently proven already-committed output: minimal/safe record log_only and strict requests abort_connection.
+Apache appends each normalized response bucket exactly once and forwards non-terminal output to the next filter without waiting for EOS. It finishes P4 exactly once at actual EOS. After the next-filter commitment boundary, minimal/safe record log_only and strict requests abort_connection instead of a late status rewrite.
 
 ### Validation and errors
 
@@ -515,7 +515,7 @@ Source-backed example: [examples/apache/safe/httpd.conf](../../examples/apache/s
 
 ### Safety and operations
 
-A normal Phase-4 deny must not be reinterpreted as log_only: Apache discards the saved original brigade and emits one terminal error before release. strict is not a guaranteed later 403; host-specific abort evidence is still required.
+Already forwarded response bytes cannot be rewritten. Safe records a post-commit disruptive decision as log_only; strict requests the configured host abort action rather than synthesizing a later 403.
 
 <a id="modsecurity-rules"></a>
 ## `modsecurity_rules`

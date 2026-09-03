@@ -69,6 +69,7 @@ uint64_t msconnector_integrity_event_hash(const msconnector_event *event, uint64
     hash = hash_string_continue(hash, event->meta.timestamp);
     hash = hash_string_continue(hash, event->meta.level);
     hash = hash_string_continue(hash, event->meta.message_id);
+    hash = hash_string_continue(hash, event->meta.message);
     hash = hash_string_continue(hash, event->meta.event);
     hash = hash_string_continue(hash, event->meta.connector);
     hash = hash_string_continue(hash, event->meta.integration_mode);
@@ -78,12 +79,16 @@ uint64_t msconnector_integrity_event_hash(const msconnector_event *event, uint64
     hash = hash_int_continue(hash, (int)event->decision.phase);
     hash = hash_int_continue(hash, (int)event->decision.status);
     hash = hash_string_continue(hash, event->decision.action);
+    hash = hash_string_continue(hash, event->decision.requested_action);
+    hash = hash_string_continue(hash, event->decision.actual_action);
     hash = hash_string_continue(hash, event->decision.rule_id);
     hash = hash_string_continue(hash, event->decision.reason);
     hash = hash_int_continue(hash, event->http.http_status);
     hash = hash_int_continue(hash, event->http.original_http_status);
     hash = hash_int_continue(hash, event->http.visible_http_status);
     hash = hash_string_continue(hash, event->http.transport_result);
+    hash = hash_string_continue(hash, event->http.http_reason_phrase);
+    hash = hash_string_continue(hash, event->http.http_default_message);
     hash = hash_string_continue(hash, event->protocol.requested_protocol);
     hash = hash_string_continue(hash, event->protocol.downstream_protocol);
     hash = hash_string_continue(hash, event->protocol.upstream_protocol);
@@ -121,6 +126,8 @@ uint64_t msconnector_integrity_event_hash(const msconnector_event *event, uint64
     hash = hash_int_continue(hash, event->flags.upstream_disconnected);
     hash = hash_int_continue(hash, event->flags.cancelled);
     hash = hash_int_continue(hash, event->flags.eos_seen);
+    hash = hash_int_continue(hash, event->flags.redacted);
+    hash = hash_int_continue(hash, event->flags.truncated);
     hash = hash_string_continue(hash, event->flags.timeout_stage);
     hash = hash_string_continue(hash, event->flags.write_result);
     hash = hash_string_continue(hash, event->flags.cleanup_reason);

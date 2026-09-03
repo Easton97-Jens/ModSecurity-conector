@@ -1,0 +1,7 @@
+# Launch arguments for the repository-owned traffic owner.
+# The sidecar accepts CLI arguments; this file is an operator-readable argv
+# record, not a key=value file parsed by the binary.
+--config /etc/lighttpd/msconnector-stock-minimal.conf
+--listen 127.0.0.1:8080
+--upstream 127.0.0.1:8081
+--timeout-ms 10000

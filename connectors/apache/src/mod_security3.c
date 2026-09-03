@@ -3,12 +3,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <apr_time.h>
+
 #include "mod_security3.h"
 #include "msc_utils.h"
 #include "msc_config.h"
+#include "msconnector/intervention.h"
 #include "msconnector/limits.h"
 #include "msconnector/options.h"
 #include "msconnector/rule_id.h"
+#include "connectors/profile_registry.h"
 
 /*
  *
@@ -32,6 +36,206 @@ static int hook_request_early(request_rec *r);
 static int hook_log_transaction(request_rec *r);
 static void hook_insert_filter(request_rec *r);
 static int process_request_headers(request_rec *r, msc_t *msr);
+
+static uint64_t apache_contract_now_ms(void)
+{
+    apr_time_t now = apr_time_now();
+
+    /* APR exposes a wall-clock timestamp here, not a monotonic one.  It is
+     * therefore retained only as bounded lifecycle evidence; the Common FSM
+     * still owns ordering and never infers phase validity from this value. */
+    if (now <= 0) {
+        return 0U;
+    }
+    return (uint64_t)(now / (APR_USEC_PER_SEC / 1000));
+}
+
+int msc_apache_contract_begin(msc_t *msr, enum msconnector_phase phase)
+{
+    if (msr == NULL || !msr->contract_initialized)
+        return 0;
+    return msconnector_transaction_contract_begin_phase(&msr->contract,
+        phase, apache_contract_now_ms()) ==
+        MSCONNECTOR_TRANSACTION_TRANSITION_OK;
+}
+
+int msc_apache_contract_complete(msc_t *msr, enum msconnector_phase phase)
+{
+    if (msr == NULL || !msr->contract_initialized)
+        return 0;
+    return msconnector_transaction_contract_complete_phase(&msr->contract,
+        phase, apache_contract_now_ms()) ==
+        MSCONNECTOR_TRANSACTION_TRANSITION_OK;
+}
+
+static int apache_header_table_metrics(const apr_table_t *headers,
+    size_t *count, size_t *bytes)
+{
+    const apr_array_header_t *entries;
+    const apr_table_entry_t *header;
+    int index;
+
+    if (headers == NULL || count == NULL || bytes == NULL) {
+        return headers == NULL;
+    }
+    entries = apr_table_elts(headers);
+    if (entries == NULL || entries->elts == NULL) {
+        return 1;
+    }
+    header = (const apr_table_entry_t *)entries->elts;
+    for (index = 0; index < entries->nelts; ++index) {
+        size_t name_size = header[index].key == NULL ? 0U : strlen(header[index].key);
+        size_t value_size = header[index].val == NULL ? 0U : strlen(header[index].val);
+
+        if (name_size == 0U || name_size > MSCONNECTOR_MAX_HEADER_NAME_LENGTH ||
+            value_size > MSCONNECTOR_MAX_HEADER_VALUE_LENGTH ||
+            *count >= MSCONNECTOR_MAX_HEADER_COUNT ||
+            name_size > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES - *bytes ||
+            value_size > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES - *bytes - name_size) {
+            return 0;
+        }
+        ++*count;
+        *bytes += name_size + value_size;
+    }
+    return 1;
+}
+
+int msc_apache_contract_record_request_metadata(msc_t *msr, request_rec *r)
+{
+    msc_conf_t *conf;
+    size_t header_count = 0U;
+    size_t header_bytes = 0U;
+    const char *content_type;
+    size_t body_limit;
+
+    if (msr == NULL || r == NULL || !msr->contract_initialized ||
+        r->per_dir_config == NULL) {
+        return 0;
+    }
+    conf = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
+        &security3_module);
+    if (conf == NULL) {
+        return 0;
+    }
+    if (!apache_header_table_metrics(r->headers_in, &header_count, &header_bytes)) {
+        return 0;
+    }
+    content_type = r->headers_in == NULL ? NULL :
+        apr_table_get(r->headers_in, "Content-Type");
+    body_limit = conf->common_config.request_body_limit > 0U ?
+        conf->common_config.request_body_limit : MSCONNECTOR_MAX_BODY_BUFFER_SIZE;
+    return msconnector_transaction_contract_record_request_metadata(&msr->contract,
+        r->method == NULL ? "GET" : r->method,
+        r->unparsed_uri == NULL || r->unparsed_uri[0] == '\0' ? "/" : r->unparsed_uri,
+        content_type, header_count, header_bytes, body_limit) ==
+        MSCONNECTOR_TRANSACTION_TRANSITION_OK;
+}
+
+int msc_apache_contract_record_body(msc_t *msr, int response_direction,
+    size_t bytes)
+{
+    if (msr == NULL || !msr->contract_initialized) {
+        return 0;
+    }
+    return msconnector_transaction_contract_record_body(&msr->contract,
+        response_direction, bytes) == MSCONNECTOR_TRANSACTION_TRANSITION_OK;
+}
+
+int msc_apache_contract_mark_response_committed(msc_t *msr)
+{
+    if (msr == NULL || !msr->contract_initialized) {
+        return 0;
+    }
+    return msconnector_transaction_contract_set_response_committed(&msr->contract, 1) ==
+        MSCONNECTOR_TRANSACTION_TRANSITION_OK;
+}
+
+int msc_apache_contract_record_decision(msc_t *msr,
+    msconnector_transaction_decision_kind kind, const char *rule_id)
+{
+    if (msr == NULL || !msr->contract_initialized) {
+        return 0;
+    }
+    return msconnector_transaction_contract_record_decision(&msr->contract,
+        kind, rule_id, apache_contract_now_ms()) ==
+        MSCONNECTOR_TRANSACTION_TRANSITION_OK;
+}
+
+/* process_intervention() normalizes native status before retaining it, so
+ * status alone now carries the canonical host action at this boundary. */
+static msconnector_transaction_decision_kind apache_intervention_decision_kind(
+    int status)
+{
+    if (status >= HTTP_MULTIPLE_CHOICES && status < HTTP_BAD_REQUEST) {
+        return MSCONNECTOR_TRANSACTION_DECISION_REDIRECT;
+    }
+    if (status == HTTP_TOO_MANY_REQUESTS) {
+        return MSCONNECTOR_TRANSACTION_DECISION_RATE_LIMIT;
+    }
+    return MSCONNECTOR_TRANSACTION_DECISION_BLOCK;
+}
+
+/* process_intervention() retains the native log in request-pool storage
+ * before it releases libModSecurity-owned buffers.  All business-phase
+ * callers use this one mapper while that bounded rule correlation remains
+ * available, so a disruptive native result cannot silently leave the Common
+ * contract at its initial Allow decision. */
+int msc_apache_contract_record_intervention_decision(msc_t *msr)
+{
+    char rule_id[MSCONNECTOR_MAX_RULE_ID_LENGTH];
+    msconnector_transaction_decision_kind kind;
+
+    if (msr == NULL || !msr->contract_initialized) {
+        return 0;
+    }
+    if (msr->last_intervention_body_limit) {
+        return msc_apache_contract_fail(msr,
+            MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT);
+    }
+    rule_id[0] = '\0';
+    if (msconnector_rule_id_extract_from_message(msr->last_intervention_log,
+            rule_id, sizeof(rule_id)) <= 0) {
+        return 0;
+    }
+    kind = apache_intervention_decision_kind(msr->last_intervention_status);
+    return msc_apache_contract_record_decision(msr, kind, rule_id);
+}
+
+const char *msc_apache_contract_intervention_action(const msc_t *msr)
+{
+    if (msr == NULL) {
+        return "deny";
+    }
+    switch (apache_intervention_decision_kind(msr->last_intervention_status))
+    {
+        case MSCONNECTOR_TRANSACTION_DECISION_REDIRECT:
+            return "redirect";
+        case MSCONNECTOR_TRANSACTION_DECISION_RATE_LIMIT:
+            return "rate_limit";
+        case MSCONNECTOR_TRANSACTION_DECISION_BLOCK:
+        default:
+            return "deny";
+    }
+}
+
+int msc_apache_contract_fail(msc_t *msr,
+    msconnector_transaction_error_class error_class)
+{
+    if (msr == NULL || !msr->contract_initialized) {
+        return 0;
+    }
+    return msconnector_transaction_contract_fail(&msr->contract, error_class,
+        apache_contract_now_ms()) == MSCONNECTOR_TRANSACTION_TRANSITION_OK;
+}
+
+int msc_apache_contract_finish(msc_t *msr)
+{
+    if (msr == NULL || !msr->contract_initialized) {
+        return 0;
+    }
+    return msconnector_transaction_contract_finish(&msr->contract,
+        apache_contract_now_ms()) == MSCONNECTOR_TRANSACTION_TRANSITION_OK;
+}
 
 
 static int apache_phase4_redirect_has_local_error_document_proof(
@@ -182,9 +386,12 @@ static void msc_release_intervention_buffers(ModSecurityIntervention *interventi
 int process_intervention (Transaction *t, request_rec *r)
 {
     ModSecurityIntervention intervention;
+    msconnector_intervention common_intervention;
+    msc_conf_t *config = NULL;
     msc_t *msr = NULL;
     const char *log;
     const char *location;
+    int default_block_status;
     int z;
     int result = N_INTERVENTION_STATUS;
 
@@ -201,13 +408,34 @@ int process_intervention (Transaction *t, request_rec *r)
         return N_INTERVENTION_STATUS;
     }
 
+    if (r->per_dir_config != NULL) {
+        config = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
+            &security3_module);
+    }
+    default_block_status = config == NULL ? MSCONNECTOR_DEFAULT_BLOCK_STATUS
+        : config->common_config.default_block_status;
+    msr = (msc_t *)apr_table_get(r->notes, NOTE_MSR);
+    common_intervention = msconnector_intervention_make(
+        intervention.disruptive, intervention.status, intervention.url,
+        intervention.log);
+    if (msr != NULL) {
+        msr->last_intervention_body_limit =
+            msconnector_intervention_is_request_body_limit_rejection(
+                msr->native_event_phase, &common_intervention);
+    }
+    if (msr != NULL && msr->last_intervention_body_limit) {
+        intervention.status = HTTP_REQUEST_ENTITY_TOO_LARGE;
+    } else {
+        intervention.status = msconnector_intervention_normalize_status(
+            intervention.url, intervention.status, default_block_status);
+    }
+
     log = intervention.log;
     if (log == NULL)
     {
         log = "(no log message was specified)";
     }
 
-    msr = (msc_t *)apr_table_get(r->notes, NOTE_MSR);
     if (msr != NULL)
     {
         msr->last_intervention_status = intervention.status;
@@ -215,16 +443,14 @@ int process_intervention (Transaction *t, request_rec *r)
         msr->phase4_intervention = intervention.disruptive ? 1 : msr->phase4_intervention;
     }
 
-    if (intervention.status == 301 || intervention.status == 302
-        ||intervention.status == 303 || intervention.status == 307)
+    if (msconnector_intervention_has_redirect_url(intervention.url) &&
+        intervention.status >= HTTP_MULTIPLE_CHOICES &&
+        intervention.status < HTTP_BAD_REQUEST)
     {
-        if (intervention.url != NULL)
-        {
-            location = apr_pstrdup(r->pool, intervention.url);
-            apr_table_setn(r->headers_out, "Location", location);
-            result = HTTP_MOVED_TEMPORARILY;
-            goto cleanup;
-        }
+        location = apr_pstrdup(r->pool, intervention.url);
+        apr_table_setn(r->headers_out, "Location", location);
+        result = intervention.status;
+        goto cleanup;
     }
 
     if (intervention.status != N_INTERVENTION_STATUS)
@@ -298,14 +524,69 @@ static void store_tx_context(msc_t *msr, request_rec *r)
     apr_table_setn(r->notes, NOTE_MSR, (void *)msr);
 }
 
+static const char *apache_transaction_id_from_expression(request_rec *r,
+    msc_conf_t *config)
+{
+    const char *transaction_id = NULL;
+    const char *expr_error = NULL;
+
+    transaction_id = ap_expr_str_exec(r, config->transaction_id_expr,
+        &expr_error);
+    if (expr_error != NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+            "ModSecurity: Failed to evaluate "
+            "modsecurity_transaction_id_expr: %s", expr_error);
+        return NULL;
+    }
+    return transaction_id;
+}
+
+static const char *apache_resolve_transaction_id(request_rec *r,
+    msc_conf_t *config)
+{
+    const char *transaction_id = NULL;
+
+    if (config->transaction_id_expr != NULL) {
+        transaction_id = apache_transaction_id_from_expression(r, config);
+    } else if (config->common_config.transaction_id != NULL &&
+        config->common_config.transaction_id[0] != '\0') {
+        transaction_id = config->common_config.transaction_id;
+    }
+    if (transaction_id == NULL || transaction_id[0] == '\0') {
+        transaction_id = getenv("UNIQUE_ID");
+    }
+    return transaction_id;
+}
+
+static int apache_store_transaction_id(msc_t *msr, request_rec *r,
+    const char *transaction_id)
+{
+    size_t length = 0U;
+
+    if (transaction_id != NULL && transaction_id[0] != '\0') {
+        while (length + 1U < MSCONNECTOR_MAX_TRANSACTION_ID_LENGTH &&
+            transaction_id[length] != '\0') {
+            ++length;
+        }
+        if (transaction_id[length] != '\0') {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+                "ModSecurity: transaction identifier exceeds canonical limit");
+            return 0;
+        }
+        msr->event_transaction_id = apr_pstrdup(r->pool, transaction_id);
+    } else {
+        msr->event_transaction_id = apr_psprintf(r->pool, "%ld-%ld",
+            (long)r->request_time, (long)r->connection->id);
+    }
+    return msr->event_transaction_id != NULL;
+}
+
 
 static msc_t *create_tx_context(request_rec *r) {
     msc_t *msr = NULL;
     msc_conf_t *z = NULL;
     char *modsecurity_transaction_id = NULL;
-    char *unique_id = NULL;
     const char *transaction_id = NULL;
-    const char *expr_error = NULL;
 
     z = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
             &security3_module);
@@ -320,33 +601,42 @@ static msc_t *create_tx_context(request_rec *r) {
     }
 
     msr->r = r;
-    if (z->transaction_id_expr != NULL) {
-        transaction_id = ap_expr_str_exec(r, z->transaction_id_expr,
-            &expr_error);
-        if (expr_error != NULL) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-                "ModSecurity: Failed to evaluate "
-                "modsecurity_transaction_id_expr: %s", expr_error);
-            transaction_id = NULL;
-        }
-    } else if (z->common_config.transaction_id != NULL
-        && z->common_config.transaction_id[0] != '\0') {
-        transaction_id = z->common_config.transaction_id;
+    transaction_id = apache_resolve_transaction_id(r, z);
+    if (!apache_store_transaction_id(msr, r, transaction_id)) {
+        return NULL;
     }
 
-    if (transaction_id == NULL || transaction_id[0] == '\0') {
-        unique_id = getenv("UNIQUE_ID");
-        if (unique_id != NULL && unique_id[0] != '\0') {
-            transaction_id = unique_id;
+    {
+        const msconnector_transaction_profile *profile =
+            msconnector_profile_registry_find("apache");
+        const char *host_id = r->server != NULL &&
+            r->server->server_hostname != NULL
+            ? r->server->server_hostname : "apache";
+        if (profile == NULL || msconnector_transaction_contract_init(
+                &msr->contract, profile, msr->event_transaction_id,
+                "apache", host_id,
+                z->common_config.phase4_mode == MSCONNECTOR_PHASE4_MODE_STRICT
+                    ? MSCONNECTOR_TRANSACTION_MODE_STRICT
+                    : MSCONNECTOR_TRANSACTION_MODE_SAFE,
+                apache_contract_now_ms()) != MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+                "ModSecurity: failed to initialize canonical transaction contract");
+            return NULL;
         }
+        msr->contract_initialized = 1;
     }
 
     if (transaction_id != NULL && transaction_id[0] != '\0') {
-        /* libModSecurity 3.0 declares this argument as mutable even though the
-         * transaction ID is an input.  Give it request-owned writable storage
-         * instead of discarding the const qualifier at the API boundary. */
-        modsecurity_transaction_id = apr_pstrdup(r->pool, transaction_id);
+        /* Validate and copy the request-derived ID through the bounded
+         * canonical contract before libModSecurity receives it.  This keeps
+         * malformed or oversized request IDs from reaching the native engine
+         * and avoids an unregistered native allocation on contract failure. */
+        modsecurity_transaction_id = apr_pstrdup(r->pool,
+            msr->event_transaction_id);
         if (modsecurity_transaction_id == NULL) {
+            (void)msconnector_transaction_contract_cleanup(&msr->contract,
+                apache_contract_now_ms());
+            msr->contract_initialized = 0;
             return NULL;
         }
         msr->t = msc_new_transaction_with_id(msc_apache->modsec,
@@ -357,13 +647,10 @@ static msc_t *create_tx_context(request_rec *r) {
     }
     if (msr->t == NULL)
     {
+        (void)msconnector_transaction_contract_cleanup(&msr->contract,
+            apache_contract_now_ms());
+        msr->contract_initialized = 0;
         return NULL;
-    }
-    if (transaction_id != NULL && transaction_id[0] != '\0') {
-        msr->event_transaction_id = apr_pstrdup(r->pool, transaction_id);
-    } else {
-        msr->event_transaction_id = apr_psprintf(r->pool, "%ld-%ld",
-            (long)r->request_time, (long)r->connection->id);
     }
 
     msr->owner_request = r;
@@ -760,6 +1047,11 @@ static int hook_log_transaction(request_rec *r)
         return DECLINED;
     }
 
+    if (msr->contract_initialized && !msc_apache_contract_finish(msr))
+    {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+            "ModSecurity: canonical transaction did not reach P1-P4 completion");
+    }
     msc_update_status_code(msr->t, r->status);
     msc_process_logging(msr->t);
     it = process_intervention(msr->t, r);
@@ -788,11 +1080,6 @@ static void hook_insert_filter(request_rec *r)
         return;
     }
 
-#if 1
-    /* Add the input filter, but only if we need it to run. */
-    ap_add_input_filter("MODSECURITY_IN", msr, r, r->connection);
-#endif
-
     /* A subrequest must not share the primary response lifecycle. */
     if (r->main != NULL)
     {
@@ -817,6 +1104,13 @@ static void hook_insert_filter(request_rec *r)
         }
         return;
     }
+
+#if 1
+    /* An internal redirect, including a local ErrorDocument, inherits the
+     * primary transaction but must never re-enter its already terminal P2
+     * input filter. Attach MODSECURITY_IN only after redirect exclusion. */
+    ap_add_input_filter("MODSECURITY_IN", msr, r, r->connection);
+#endif
 
 
     /* Keep a terminal Phase-4 guard in the protocol chain as well as the
@@ -853,8 +1147,7 @@ static int apache_emit_phase1_intervention_event(msc_t *msr, request_rec *r,
     int intervention_status, const char *reason)
 {
     apache_intervention_event_input event_input;
-    const char *action = msr->last_intervention_status >= 300 &&
-        msr->last_intervention_status < 400 ? "redirect" : "deny";
+    const char *action = msc_apache_contract_intervention_action(msr);
 
     event_input.event_name = "phase1_intervention";
     event_input.phase = MSCONNECTOR_PHASE_REQUEST_HEADERS;
@@ -869,6 +1162,32 @@ static int apache_emit_phase1_intervention_event(msc_t *msr, request_rec *r,
 
 
 static int process_request_headers(request_rec *r, msc_t *msr) {
+    /* P1 begins before URI processing because URI interventions are part of
+     * the request-header phase.  This binds a terminal URI intervention to
+     * bounded request metadata rather than leaving a partial transaction. */
+    if (!msc_apache_contract_record_request_metadata(msr, r)) {
+        (void)msc_apache_contract_fail(msr,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
+        apache_emit_contract_failure_event(msr, r,
+            MSCONNECTOR_PHASE_REQUEST_HEADERS,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR,
+            HTTP_INTERNAL_SERVER_ERROR);
+        ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+            "ModSecurity: invalid canonical P1 request metadata");
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    if (!msc_apache_contract_begin(msr, MSCONNECTOR_PHASE_REQUEST_HEADERS)) {
+        (void)msc_apache_contract_fail(msr,
+            MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE);
+        apache_emit_contract_failure_event(msr, r,
+            MSCONNECTOR_PHASE_REQUEST_HEADERS,
+            MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE,
+            HTTP_INTERNAL_SERVER_ERROR);
+        ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+            "ModSecurity: invalid canonical P1 transition");
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
     /* process uri */
     {
         int it;
@@ -894,6 +1213,17 @@ static int process_request_headers(request_rec *r, msc_t *msr) {
         it = process_intervention(msr->t, r);
         if (it != N_INTERVENTION_STATUS)
         {
+            if (!msc_apache_contract_record_intervention_decision(msr)) {
+                (void)msc_apache_contract_fail(msr,
+                    MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE);
+                apache_emit_contract_failure_event(msr, r,
+                    MSCONNECTOR_PHASE_REQUEST_HEADERS,
+                    MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE,
+                    HTTP_INTERNAL_SERVER_ERROR);
+                ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+                    "ModSecurity: could not record canonical URI intervention decision");
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
             return apache_emit_phase1_intervention_event(msr, r, it,
                 "request_uri_before_request_headers");
         }
@@ -942,9 +1272,35 @@ static int process_request_headers(request_rec *r, msc_t *msr) {
             /* The native request-header hook has not handed control to a
              * handler yet.  Write this bounded event in the same real host
              * path that returns the HTTP intervention to Apache. */
+            (void)msc_apache_contract_complete(msr,
+                MSCONNECTOR_PHASE_REQUEST_HEADERS);
+            if (!msc_apache_contract_record_intervention_decision(msr)) {
+                (void)msc_apache_contract_fail(msr,
+                    MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE);
+                apache_emit_contract_failure_event(msr, r,
+                    MSCONNECTOR_PHASE_REQUEST_HEADERS,
+                    MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE,
+                    HTTP_INTERNAL_SERVER_ERROR);
+                ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+                    "ModSecurity: could not record canonical P1 intervention decision");
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
             return apache_emit_phase1_intervention_event(msr, r, it,
                 "request_headers_before_handler");
         }
+    }
+
+    if (!msc_apache_contract_complete(msr,
+            MSCONNECTOR_PHASE_REQUEST_HEADERS)) {
+        (void)msc_apache_contract_fail(msr,
+            MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE);
+        apache_emit_contract_failure_event(msr, r,
+            MSCONNECTOR_PHASE_REQUEST_HEADERS,
+            MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE,
+            HTTP_INTERNAL_SERVER_ERROR);
+        ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+            "ModSecurity: invalid canonical P1 completion");
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
 
     return N_INTERVENTION_STATUS;

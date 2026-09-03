@@ -7,9 +7,11 @@
 #include "msconnector/headers.h"
 #include "msconnector/http_status.h"
 #include "msconnector/limits.h"
+#include "msconnector/memory.h"
 #include "msconnector/request_helpers.h"
 
 #include <arpa/inet.h>
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -32,6 +34,7 @@
 #define AUTH_HOSTNAME_SIZE 1024U
 #define AUTH_HTTP_VERSION_SIZE 32U
 #define AUTH_RESPONSE_SIZE 2048U
+#define AUTH_REDIRECT_LOCATION_SIZE 1024U
 #define AUTH_ERROR_SIZE 512U
 #define AUTH_REQUEST_LINE_OVERHEAD 16384U
 #define AUTH_CONNECTION_TIMEOUT_DEFAULT_MS 5000UL
@@ -102,6 +105,8 @@ typedef struct authorization_service {
     unsigned long max_connections;
     unsigned long active_workers;
     int deferred_cleanup;
+    int response_companion_quiesced;
+    int release_claimed;
     struct authorization_worker *workers;
     pthread_mutex_t runtime_lock;
     pthread_mutex_t worker_lock;
@@ -120,9 +125,12 @@ typedef struct authorization_worker {
 typedef struct authorization_response_state {
     int status;
     int success;
+    int terminal_response_marker;
     const char *decision_name;
-    const char *transaction_id;
-    char copied_transaction_id[MSCONNECTOR_MAX_TRANSACTION_ID_LENGTH];
+    const char *response_handle;
+    const char *redirect_location;
+    char copied_response_handle[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE];
+    char copied_redirect_location[AUTH_REDIRECT_LOCATION_SIZE];
 } authorization_response_state;
 
 typedef enum authorization_listener_iteration {
@@ -132,6 +140,9 @@ typedef enum authorization_listener_iteration {
     AUTHORIZATION_LISTENER_STOP,
     AUTHORIZATION_LISTENER_ERROR,
 } authorization_listener_iteration;
+
+static int valid_header_name(const char *name);
+static int valid_header_value(const char *value);
 
 static volatile sig_atomic_t authorization_stop = 0;
 
@@ -264,7 +275,8 @@ static int validate_profile(const msconnector_http_authorization_profile *profil
     size_t integration_mode_size;
     if (profile == NULL || profile->connector_name == NULL ||
         profile->connector_name[0] == '\0' || profile->integration_mode == NULL ||
-        profile->integration_mode[0] == '\0' || profile->map_request == NULL) {
+        profile->integration_mode[0] == '\0' || profile->transaction_profile == NULL ||
+        profile->map_request == NULL) {
         return 0;
     }
     connector_name_size = bounded_profile_text_size(
@@ -278,6 +290,19 @@ static int validate_profile(const msconnector_http_authorization_profile *profil
         profile->original_uri_header_count > MSCONNECTOR_MAX_HEADER_COUNT ||
         (profile->original_uri_header_count > 0U &&
             profile->original_uri_headers == NULL)) {
+        return 0;
+    }
+    if ((profile->handoff_response_companion == NULL) !=
+        (profile->shutdown_response_companion == NULL)) {
+        return 0;
+    }
+    if ((profile->terminal_response_marker_header == NULL) !=
+        (profile->terminal_response_marker_value == NULL)) {
+        return 0;
+    }
+    if (profile->terminal_response_marker_header != NULL &&
+        (!valid_header_name(profile->terminal_response_marker_header) ||
+         !valid_header_value(profile->terminal_response_marker_value))) {
         return 0;
     }
     for (size_t index = 0U; index < profile->original_uri_header_count; ++index) {
@@ -860,21 +885,136 @@ static int send_all(
     return 1;
 }
 
+static int optional_header_pair_is_valid(const char *name, const char *value);
+
+static int write_response_handle_header(
+    char *output,
+    size_t output_size,
+    const char *response_handle) {
+    if (response_handle == NULL) {
+        output[0] = '\0';
+        return 1;
+    }
+    if (strlen(response_handle) !=
+        MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE - 1U) {
+        return 0;
+    }
+    for (size_t index = 0U;
+         index < MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE - 1U;
+         ++index) {
+        const unsigned char character = (unsigned char)response_handle[index];
+        if (!((character >= (unsigned char)'0' && character <= (unsigned char)'9') ||
+              (character >= (unsigned char)'a' && character <= (unsigned char)'f'))) {
+            return 0;
+        }
+    }
+    return snprintf(output, output_size,
+        "x-msconnector-response-handle: %s\r\n", response_handle) >= 0 &&
+        strlen(output) < output_size;
+}
+
+/* A redirect target crosses from a native decision into the HTTP response
+ * serializer.  Retain a bounded response-owned copy and reject control bytes,
+ * empty values, overlong values, and leading/trailing whitespace rather than
+ * truncating or emitting an ambiguous Location field. */
+static int copy_redirect_location(
+    char *destination,
+    size_t destination_size,
+    const char *source) {
+    if (destination == NULL || destination_size < 2U || source == NULL) {
+        return 0;
+    }
+    for (size_t index = 0U; index < destination_size - 1U; ++index) {
+        const unsigned char character = (unsigned char)source[index];
+
+        if (character == '\0') {
+            if (index == 0U || destination[0] == ' ' ||
+                destination[index - 1U] == ' ') {
+                destination[0] = '\0';
+                return 0;
+            }
+            destination[index] = '\0';
+            return 1;
+        }
+        if (character < 0x20U || character == 0x7fU) {
+            destination[0] = '\0';
+            return 0;
+        }
+        destination[index] = (char)character;
+    }
+    destination[0] = '\0';
+    return 0;
+}
+
 static int send_response(
     int socket_fd,
-    int status,
-    const char *transaction_id,
-    const char *decision_name,
+    const authorization_response_state *response_state,
+    const char *terminal_marker_header,
+    const char *terminal_marker_value,
     unsigned long timeout_ms) {
     char response[AUTH_RESPONSE_SIZE];
+    char companion_header[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE + 48U];
+    char location_header[AUTH_REDIRECT_LOCATION_SIZE + 16U];
+    char copied_location[AUTH_REDIRECT_LOCATION_SIZE];
+    char terminal_marker[AUTH_RESPONSE_SIZE / 4U];
     connection_deadline deadline;
-    const char *reason = msconnector_http_status_reason_phrase(status);
-    const char *body = status >= 400 ? "request denied\n" : "request allowed\n";
+    int status;
+    const char *response_handle;
+    const char *redirect_location;
+    const char *decision_name;
+    const char *reason;
+    const char *body;
     int written;
+
+    if (response_state == NULL) {
+        return 0;
+    }
+    status = response_state->status;
+    response_handle = response_state->response_handle;
+    redirect_location = response_state->redirect_location;
+    decision_name = response_state->decision_name;
+    reason = msconnector_http_status_reason_phrase(status);
+    body = status >= 400 ? "request denied\n" : "request allowed\n";
     if (!msconnector_http_status_is_valid(status)) {
         status = 500;
         reason = msconnector_http_status_reason_phrase(status);
         body = "authorization service error\n";
+        decision_name = "runtime_error";
+    }
+    location_header[0] = '\0';
+    if (status >= 300 && status < 400) {
+        if (!copy_redirect_location(copied_location, sizeof(copied_location),
+                redirect_location)) {
+            status = 500;
+            reason = msconnector_http_status_reason_phrase(status);
+            body = "authorization service error\n";
+            decision_name = "runtime_error";
+        } else if (snprintf(location_header, sizeof(location_header),
+                "location: %s\r\n", copied_location) < 0 ||
+            strlen(location_header) >= sizeof(location_header)) {
+            return 0;
+        }
+    } else if (redirect_location != NULL) {
+        status = 500;
+        reason = msconnector_http_status_reason_phrase(status);
+        body = "authorization service error\n";
+        decision_name = "runtime_error";
+    }
+    companion_header[0] = '\0';
+    terminal_marker[0] = '\0';
+    if (!write_response_handle_header(companion_header, sizeof(companion_header),
+            response_handle)) {
+        return 0;
+    }
+    if (!optional_header_pair_is_valid(terminal_marker_header,
+            terminal_marker_value)) {
+        return 0;
+    }
+    if (terminal_marker_header != NULL &&
+        (snprintf(terminal_marker, sizeof(terminal_marker), "%s: %s\r\n",
+             terminal_marker_header, terminal_marker_value) < 0 ||
+         strlen(terminal_marker) >= sizeof(terminal_marker))) {
+        return 0;
     }
     written = snprintf(response, sizeof(response),
         "HTTP/1.1 %d %s\r\n"
@@ -882,19 +1022,34 @@ static int send_response(
         "content-length: %zu\r\n"
         "connection: close\r\n"
         "x-msconnector-decision: %s\r\n"
-        "x-msconnector-transaction-id: %s\r\n"
+        "%s"
+        "%s"
+        "%s"
         "\r\n%s",
         status,
         reason,
         strlen(body),
         decision_name == NULL ? "error" : decision_name,
-        transaction_id == NULL ? "unavailable" : transaction_id,
+        companion_header,
+        location_header,
+        terminal_marker,
         body);
     if (written < 0 || (size_t)written >= sizeof(response)) {
         return 0;
     }
     return connection_deadline_init(&deadline, timeout_ms) &&
         send_all(socket_fd, response, (size_t)written, &deadline);
+}
+
+static int optional_header_pair_is_valid(const char *name, const char *value)
+{
+    if ((name == NULL) != (value == NULL)) {
+        return 0;
+    }
+    if (name == NULL) {
+        return 1;
+    }
+    return valid_header_name(name) && valid_header_value(value);
 }
 
 static int error_status_from_message(const char *message) {
@@ -922,31 +1077,48 @@ static void authorization_response_set_runtime_error(
     const authorization_service *service,
     const msconnector_error *common_error,
     authorization_response_state *response) {
-    response->status = msconnector_runtime_error_http_status(
-        service->runtime,
-        common_error->code == MSCONNECTOR_ERROR_NONE
-            ? MSCONNECTOR_ERROR_INTERNAL : common_error->code);
+    const msconnector_error_code code = common_error == NULL ||
+        common_error->code == MSCONNECTOR_ERROR_NONE ?
+        MSCONNECTOR_ERROR_INTERNAL : common_error->code;
+
+    if (response == NULL) {
+        return;
+    }
+
+    /* `use_error_log` is deliberately limited to classification and the
+     * fixed source component.  Request IDs, header values, and body data must
+     * not reach this diagnostic channel. */
+    if (service != NULL && service->runtime != NULL && service->profile != NULL &&
+        msconnector_runtime_error_log_enabled(service->runtime)) {
+        (void)fprintf(stderr,
+            "connector=%s integration_mode=%s runtime_error=%s source=%s\n",
+            service->profile->connector_name,
+            service->profile->integration_mode,
+            msconnector_error_code_name(code),
+            common_error != NULL && common_error->source != NULL ?
+                common_error->source : "runtime");
+    }
+    response->status = service != NULL && service->runtime != NULL ?
+        msconnector_runtime_error_http_status(service->runtime, code) : 500;
     response->decision_name = "runtime_error";
+    response->response_handle = NULL;
+    response->redirect_location = NULL;
+    msconnector_secure_zero(response->copied_redirect_location,
+        sizeof(response->copied_redirect_location));
     response->success = 0;
 }
 
 static void authorization_response_set_decision(
-    const msconnector_runtime_transaction *transaction,
+    const authorization_service *service,
     const msconnector_decision *decision,
     authorization_response_state *response) {
     const msconnector_decision_action action =
         msconnector_decision_action_from_decision(decision);
-    const char *runtime_transaction_id =
-        msconnector_runtime_transaction_id(transaction);
+
+    response->redirect_location = NULL;
+    msconnector_secure_zero(response->copied_redirect_location,
+        sizeof(response->copied_redirect_location));
     response->decision_name = msconnector_decision_action_name(action);
-    response->transaction_id = NULL;
-    if (runtime_transaction_id != NULL) {
-        const int copied = snprintf(response->copied_transaction_id,
-            sizeof(response->copied_transaction_id), "%s", runtime_transaction_id);
-        if (copied >= 0 && (size_t)copied < sizeof(response->copied_transaction_id)) {
-            response->transaction_id = response->copied_transaction_id;
-        }
-    }
     if (action == MSCONNECTOR_DECISION_ACTION_ALLOW ||
         action == MSCONNECTOR_DECISION_ACTION_LOG_ONLY) {
         response->status = 200;
@@ -955,6 +1127,14 @@ static void authorization_response_set_decision(
         if (!msconnector_http_status_is_valid(response->status)) {
             response->status = action == MSCONNECTOR_DECISION_ACTION_ERROR ? 500 : 403;
         }
+    }
+    if (action == MSCONNECTOR_DECISION_ACTION_REDIRECT) {
+        if (!copy_redirect_location(response->copied_redirect_location,
+                sizeof(response->copied_redirect_location), decision->redirect_url)) {
+            authorization_response_set_runtime_error(service, NULL, response);
+            return;
+        }
+        response->redirect_location = response->copied_redirect_location;
     }
     response->success = 1;
 }
@@ -969,10 +1149,13 @@ static void authorization_process_runtime_request(
     msconnector_runtime_transaction *transaction = NULL;
     msconnector_decision decision;
     msconnector_error common_error;
+    char response_handle[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE];
+    int response_companion_owns_transaction = 0;
     memset(&request, 0, sizeof(request));
     msconnector_error_init(&common_error);
     msconnector_decision_set_allow(&decision);
-    response->transaction_id = NULL;
+    msconnector_secure_zero(response_handle, sizeof(response_handle));
+    response->response_handle = NULL;
     if (!service->profile->map_request(source, &service->request_limits.mapper_contract,
             &request, error, error_len)) {
         response->status = 400;
@@ -982,13 +1165,38 @@ static void authorization_process_runtime_request(
             &transaction, &decision, &common_error)) {
         authorization_response_set_runtime_error(service, &common_error, response);
     } else {
-        authorization_response_set_decision(transaction, &decision, response);
+        authorization_response_set_decision(service, &decision, response);
+        if (service->profile->handoff_response_companion != NULL &&
+            (msconnector_decision_action_from_decision(&decision) ==
+                MSCONNECTOR_DECISION_ACTION_ALLOW ||
+             msconnector_decision_action_from_decision(&decision) ==
+                MSCONNECTOR_DECISION_ACTION_LOG_ONLY)) {
+            if (!service->profile->handoff_response_companion(service->runtime,
+                    transaction, service->profile->response_companion_userdata,
+                    response_handle, &common_error)) {
+                authorization_response_set_runtime_error(service, &common_error, response);
+            } else {
+                /* The companion owns this live Common/native transaction until
+                 * P3/P4 EOS or TTL cleanup. It is not safe for the
+                 * request-only authorization service to finish or destroy it. */
+                response_companion_owns_transaction = 1;
+                memmove(response->copied_response_handle, response_handle,
+                    sizeof(response->copied_response_handle));
+                response->response_handle = response->copied_response_handle;
+            }
+        }
     }
-    if (transaction != NULL &&
+    if (!response_companion_owns_transaction && transaction != NULL &&
         !msconnector_runtime_transaction_finish(transaction, &common_error)) {
         authorization_response_set_runtime_error(service, &common_error, response);
     }
-    msconnector_runtime_transaction_destroy(&transaction);
+    if (!response_companion_owns_transaction) {
+        response->terminal_response_marker =
+            service->profile->terminal_response_marker_header != NULL &&
+            service->profile->terminal_response_marker_value != NULL;
+        msconnector_runtime_transaction_destroy(&transaction);
+    }
+    msconnector_secure_zero(response_handle, sizeof(response_handle));
 }
 
 static int handle_authorization_request(
@@ -1005,27 +1213,33 @@ static int handle_authorization_request(
     }
     memset(&parsed, 0, sizeof(parsed));
     memset(&source, 0, sizeof(source));
+    memset(&response, 0, sizeof(response));
     error[0] = '\0';
     if (!read_http_request(connection, &service->request_limits,
             &parsed, error, sizeof(error))) {
-        const int status = error_status_from_message(error);
+        response.status = error_status_from_message(error);
+        response.decision_name = "invalid_request";
         (void)send_response(
-            connection->socket_fd, status, NULL, "invalid_request",
+            connection->socket_fd, &response, NULL, NULL,
             service->connection_timeout_ms);
         parsed_request_destroy(&parsed);
         return 0;
     }
     if (!security_header_duplicates_are_rejected(
             &parsed, service->profile, error, sizeof(error))) {
+        response.status = 400;
+        response.decision_name = "invalid_request";
         (void)send_response(
-            connection->socket_fd, 400, NULL, "invalid_request",
+            connection->socket_fd, &response, NULL, NULL,
             service->connection_timeout_ms);
         parsed_request_destroy(&parsed);
         return 0;
     }
     if (!request_hostname(&parsed, error, sizeof(error))) {
+        response.status = 400;
+        response.decision_name = "invalid_request";
         (void)send_response(
-            connection->socket_fd, 400, NULL, "invalid_request",
+            connection->socket_fd, &response, NULL, NULL,
             service->connection_timeout_ms);
         parsed_request_destroy(&parsed);
         return 0;
@@ -1043,7 +1257,9 @@ static int handle_authorization_request(
     source.body.data = parsed.body;
     source.body.size = parsed.body_size;
     if (pthread_mutex_lock(&service->runtime_lock) != 0) {
-        (void)send_response(connection->socket_fd, 500, NULL, "runtime_error",
+        response.status = 500;
+        response.decision_name = "runtime_error";
+        (void)send_response(connection->socket_fd, &response, NULL, NULL,
             service->connection_timeout_ms);
         parsed_request_destroy(&parsed);
         return 0;
@@ -1054,9 +1270,20 @@ static int handle_authorization_request(
         return 0;
     }
     if (!send_response(
-            connection->socket_fd, response.status, response.transaction_id,
-            response.decision_name,
+            connection->socket_fd, &response,
+            response.terminal_response_marker ?
+                service->profile->terminal_response_marker_header : NULL,
+            response.terminal_response_marker ?
+                service->profile->terminal_response_marker_value : NULL,
             service->connection_timeout_ms)) {
+        if (response.response_handle != NULL &&
+            service->profile->revoke_response_companion != NULL) {
+            msconnector_error revoke_error;
+            msconnector_error_init(&revoke_error);
+            (void)service->profile->revoke_response_companion(
+                service->profile->response_companion_userdata,
+                response.response_handle, &revoke_error);
+        }
         response.success = 0;
     }
     parsed_request_destroy(&parsed);
@@ -1241,8 +1468,10 @@ static void authorization_worker_release(authorization_worker *worker) {
             if (service->active_workers > 0UL) {
                 --service->active_workers;
             }
-            if (service->active_workers == 0UL && service->deferred_cleanup) {
+            if (service->active_workers == 0UL && service->deferred_cleanup &&
+                service->response_companion_quiesced && !service->release_claimed) {
                 service->deferred_cleanup = 0;
+                service->release_claimed = 1;
                 release_service = 1;
             }
             (void)pthread_cond_broadcast(&service->workers_idle);
@@ -1422,6 +1651,42 @@ static int authorization_defer_cleanup(authorization_service *service) {
     return deferred;
 }
 
+static int authorization_mark_response_companion_quiesced(
+    authorization_service *service) {
+    int release_service = 0;
+
+    if (service == NULL || pthread_mutex_lock(&service->worker_lock) != 0) {
+        return -1;
+    }
+    service->response_companion_quiesced = 1;
+    if (service->active_workers == 0UL) {
+        if (service->deferred_cleanup && !service->release_claimed) {
+            service->deferred_cleanup = 0;
+            service->release_claimed = 1;
+            release_service = 1;
+        } else if (!service->deferred_cleanup && !service->release_claimed) {
+            service->release_claimed = 1;
+            release_service = 1;
+        }
+    } else {
+        service->deferred_cleanup = 1;
+    }
+    (void)pthread_mutex_unlock(&service->worker_lock);
+    return release_service;
+}
+
+static int authorization_shutdown_response_companion(
+    const msconnector_http_authorization_profile *profile) {
+    msconnector_error error;
+
+    if (profile == NULL || profile->shutdown_response_companion == NULL) {
+        return 1;
+    }
+    msconnector_error_init(&error);
+    return profile->shutdown_response_companion(
+        profile->response_companion_userdata, &error);
+}
+
 static authorization_listener_iteration authorization_wait_for_listener(
     int listener,
     const char *connector_name) {
@@ -1536,6 +1801,20 @@ static int serve_authorization(
             profile->connector_name, error);
         return 1;
     }
+    if (!msconnector_runtime_set_event_integration_mode(runtime,
+            profile->integration_mode)) {
+        (void)fprintf(stderr, "%s integration-mode setup failed\n",
+            profile->connector_name);
+        msconnector_runtime_destroy(&runtime);
+        return 1;
+    }
+    if (!msconnector_runtime_set_transaction_profile(runtime,
+            profile->transaction_profile)) {
+        (void)fprintf(stderr, "%s transaction-profile setup failed\n",
+            profile->connector_name);
+        msconnector_runtime_destroy(&runtime);
+        return 1;
+    }
     service = calloc(1U, sizeof(*service));
     if (service == NULL ||
         !authorization_service_init(service, runtime, profile, cli)) {
@@ -1583,11 +1862,31 @@ static int serve_authorization(
             (void)fprintf(stderr, "%s worker shutdown did not complete; "
                 "runtime call may be uninterruptible\n", profile->connector_name);
             if (authorization_defer_cleanup(service) != 0) {
+                /* A profile without a response companion cannot have handed a
+                 * transaction to an external observer. Its final worker may
+                 * therefore release the service after it returns from an
+                 * uninterruptible runtime call. Profiles with a companion
+                 * remain quarantined until their shutdown callback can run
+                 * after both workers and the observer have quiesced. */
+                if (profile->shutdown_response_companion == NULL &&
+                    authorization_mark_response_companion_quiesced(service) > 0) {
+                    authorization_service_release(service);
+                }
                 return 1;
             }
         }
     }
-    authorization_service_release(service);
+    if (!authorization_shutdown_response_companion(profile)) {
+        (void)fprintf(stderr, "%s response companion did not quiesce; refusing runtime destruction\n",
+            profile->connector_name);
+        /* Keep the service and runtime quarantined: the companion may still
+         * reference live transaction state, so neither teardown nor process
+         * termination is safe on this failure path. */
+        return service_status != 0 ? service_status : 1;
+    }
+    if (authorization_mark_response_companion_quiesced(service) > 0) {
+        authorization_service_release(service);
+    }
     return service_status;
 }
 

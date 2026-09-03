@@ -4,6 +4,7 @@
 #include "traefik_engine_protocol.h"
 
 #include "common/runtime/msconnector_runtime.h"
+#include "connectors/profile_registry.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -1926,6 +1927,11 @@ static int traefik_engine_serve(const char *config_path, const char *socket_path
     if (!msconnector_runtime_set_event_integration_mode(service.runtime,
             "native-traefik-middleware")) {
         failure_stage = "integration_mode";
+        goto cleanup;
+    }
+    if (!msconnector_runtime_set_transaction_profile(service.runtime,
+            msconnector_profile_registry_find("traefik-native-uds"))) {
+        failure_stage = "transaction_profile";
         goto cleanup;
     }
     service.request_body_mode = msconnector_runtime_request_body_mode(

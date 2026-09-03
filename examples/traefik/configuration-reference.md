@@ -123,9 +123,9 @@ See [Engine reference](../common/modsecurity-directives.md).
 
 | Profile | File | Status |
 | --- | --- | --- |
-| Minimal | [minimal/traefik-static.yaml](minimal/traefik-static.yaml) | Active starter configuration |
-| Safe full lifecycle | [safe/traefik-dynamic.yaml](safe/traefik-dynamic.yaml) | Selected bounded reference |
-| Strict | [README.md#strict-profile-boundary](README.md#strict-profile-boundary) | Parser-supported or explicitly optional boundary |
+| Minimal | [native-uds/minimal/traefik-static.yaml](native-uds/minimal/traefik-static.yaml) | Active starter configuration |
+| Safe full lifecycle | [native-uds/safe/traefik-static.yaml](native-uds/safe/traefik-static.yaml) | Selected bounded reference |
+| Strict | [native-uds/strict/traefik-static.yaml](native-uds/strict/traefik-static.yaml) | Parser-supported or explicitly optional boundary |
 | DetectionOnly | [detection-only/traefik-engine-service.conf](detection-only/traefik-engine-service.conf) | Engine evaluates/logs without disruptive action |
 | Disabled | [disabled/traefik-engine-service.conf](disabled/traefik-engine-service.conf) | Connector or engine path disabled |
 

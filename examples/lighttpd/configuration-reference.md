@@ -14,6 +14,7 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`msconnector.config-file`](#msconnector-config-file) | Host / Connector | path | yes | none | T_CONFIG_SCOPE_SERVER | Path to the Common Runtime configuration used by the native plugin. |
 | [`msconnector.enabled`](#msconnector-enabled) | Host / Connector | lighttpd boolean | no | off | T_CONFIG_SCOPE_SERVER | Enables the native lighttpd plugin. |
 | [`msconnector.expose-host-transaction-id`](#msconnector-expose-host-transaction-id) | Host / Connector | lighttpd boolean | no | off | T_CONFIG_SCOPE_SERVER | Opt-in response-header evidence for the server-generated host transaction ID. |
+| [`msconnector.request-body-gate`](#msconnector-request-body-gate) | Host / Connector | enum | no | none | T_CONFIG_SCOPE_SERVER | Patched-host P2 gate that retains a bounded request body before upstream release. |
 | [`proxy.server`](#proxy-server) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`server.bind`](#server-bind) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`server.compat-module-load`](#server-compat-module-load) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
@@ -80,9 +81,9 @@ See [Engine reference](../common/modsecurity-directives.md).
 
 | Profile | File | Status |
 | --- | --- | --- |
-| Minimal | [minimal/lighttpd.conf](minimal/lighttpd.conf) | Active starter configuration |
-| Safe full lifecycle | [safe/lighttpd-http1-identity.conf](safe/lighttpd-http1-identity.conf) | Selected bounded reference |
-| Strict | [README.md#strict-profile-boundary](README.md#strict-profile-boundary) | Parser-supported or explicitly optional boundary |
+| Minimal | [patched/minimal/lighttpd.conf](patched/minimal/lighttpd.conf) | Active starter configuration |
+| Safe full lifecycle | [patched/safe/lighttpd.conf](patched/safe/lighttpd.conf) | Selected bounded reference |
+| Strict | [patched/strict/lighttpd.conf](patched/strict/lighttpd.conf) | Parser-supported or explicitly optional boundary |
 | DetectionOnly | [detection-only/msconnector-runtime.conf](detection-only/msconnector-runtime.conf) | Engine evaluates/logs without disruptive action |
 | Disabled | [disabled/lighttpd.conf](disabled/lighttpd.conf) | Connector or engine path disabled |
 
@@ -273,6 +274,61 @@ Source-backed example: `connectors/lighttpd/harness/prepare_native_smoke.sh`.
 ### Safety and operations
 
 When enabled, a server-generated correlation identifier is exposed in a response header. It never reflects a request header; enable it only for trusted runtime evidence.
+
+<a id="msconnector-request-body-gate"></a>
+## `msconnector.request-body-gate`
+
+### Short description
+
+Patched-host P2 gate that retains a bounded request body before upstream release.
+
+### Syntax
+
+```text
+msconnector.request-body-gate = "pre-upstream"
+```
+
+### Valid contexts
+
+- T_CONFIG_SCOPE_SERVER
+
+### Values
+
+| Type | Allowed values | Required |
+| --- | --- | --- |
+| enum | pre-upstream when request_body_mode=streaming; absent otherwise | no |
+
+### Default
+
+none
+
+Source: `plugin request_body_gate defaults to NULL`.
+
+### Inheritance and merge
+
+Only defaults are loaded; the module has no request-time conditional patch path.
+
+Merge: config_plugin_values_init populates defaults; no documented per-request merge.
+
+### Phases and runtime effect
+
+P2 only. The gate keeps the bounded request body from reaching an upstream before the Phase-2 decision completes.
+
+Enables the patched-host pre-upstream request-body gate; stock lighttpd does not select it.
+
+### Validation and errors
+
+The patched module rejects a missing/other gate value when request_body_mode=streaming and rejects a configured gate for non-streaming request bodies.
+
+### Example
+
+Selected example value: `msconnector.request-body-gate = "pre-upstream"`.
+
+Source-backed example: [examples/lighttpd/safe/lighttpd-http1-identity.conf](../../examples/lighttpd/safe/lighttpd-http1-identity.conf).
+
+### Safety and operations
+
+pre-upstream is required for patched streaming P2 so body-bearing requests cannot bypass Common Runtime enforcement before the bounded EOS decision.
 
 <a id="proxy-server"></a>
 ## `proxy.server`

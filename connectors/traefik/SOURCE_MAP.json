@@ -108,7 +108,7 @@
     },
     {
       "path": "connectors/traefik/config/traefik-forwardauth-dynamic.yaml",
-      "purpose": "temporary Traefik forwardAuth File Provider configuration template"
+      "purpose": "temporary Traefik forwardAuth File Provider configuration template with explicit bounded buffered P2 (forwardBody=true, maxBodySize=4096)"
     },
     {
       "path": "connectors/traefik/native_middleware/go.mod",
@@ -165,6 +165,54 @@
     {
       "path": "docs/connectors/traefik.de.md",
       "purpose": "German canonical protocol, lifecycle, outcome-boundary, and non-promotion documentation for the local engine service"
+    },
+    {
+      "path": "connectors/traefik/src/traefik_forwardauth_response_companion.h",
+      "purpose": "thin Traefik forwardAuth wrapper for the shared opaque-handle response companion"
+    },
+    {
+      "path": "connectors/traefik/src/traefik_forwardauth_response_companion.c",
+      "purpose": "bounded forwardAuth companion wrapper delegating lifecycle logic to Common Runtime"
+    },
+    {
+      "path": "connectors/traefik/src/traefik_forwardauth_response_companion_test.c",
+      "purpose": "focused forwardAuth companion initialization and limit test"
+    },
+    {
+      "path": "connectors/traefik/response_observer/go.mod",
+      "purpose": "pinned local Traefik response-observer plugin module"
+    },
+    {
+      "path": "connectors/traefik/response_observer/.traefik.yml",
+      "purpose": "local response-observer plugin manifest"
+    },
+    {
+      "path": "connectors/traefik/response_observer/observer.go",
+      "purpose": "private-UDS MRC1 Traefik P3/P4 response-observer middleware"
+    },
+    {
+      "path": "connectors/traefik/response_observer/observer_test.go",
+      "purpose": "response-observer protocol, ordering, limit, cleanup, and writer behavior unit coverage"
+    },
+    {
+      "path": "connectors/traefik/response_observer/README.md",
+      "purpose": "English response-observer boundary and non-promotion documentation"
+    },
+    {
+      "path": "connectors/traefik/response_observer/README.de.md",
+      "purpose": "German response-observer boundary and non-promotion documentation"
+    },
+    {
+      "path": "connectors/traefik/build/build-response-observer.sh",
+      "purpose": "local Go response-observer test, vet, and build helper"
+    },
+    {
+      "path": "connectors/traefik/config/traefik-response-observer-static.yaml",
+      "purpose": "Traefik local response-observer plugin registration reference"
+    },
+    {
+      "path": "connectors/traefik/config/traefik-response-observer-dynamic.yaml",
+      "purpose": "Traefik response-observer dynamic middleware reference"
     }
   ],
   "shared_dependencies": [
@@ -181,7 +229,7 @@
     "common/rules/modsecurity_targeted_smoke.conf"
   ],
   "verification_status": "connector-gap",
-  "runtime_evidence_scope": "the standard compatibility path is local Traefik forwardAuth request-header allow 200/block 403; separately, full-lifecycle-traefik-native selects native-middleware plus a persistent local UDS Common/libmodsecurity engine in a pinned host. With MSCONNECTOR_RULES_FILE it records targeted host P1 allow/deny, P2 deny, P3 pre-commit deny, and P4 safe log-only evidence without capability promotion",
+  "runtime_evidence_scope": "the standard compatibility path is local Traefik forwardAuth request-header allow 200/block 403; its checked-in configuration explicitly forwards a buffered request body up to 4096 bytes, but fresh real-host P2 evidence remains pending. Separately, full-lifecycle-traefik-native selects native-middleware plus a persistent local UDS Common/libmodsecurity engine in a pinned host. With MSCONNECTOR_RULES_FILE it records targeted host P1 allow/deny, P2 deny, P3 pre-commit deny, and P4 safe log-only evidence without capability promotion",
   "claims_not_verified": [
     "request_body",
     "upstream_response_headers",

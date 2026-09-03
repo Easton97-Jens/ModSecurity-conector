@@ -4,9 +4,11 @@
 
 ## Integration and boundary
 
-Integration mode: native NGINX HTTP module. [minimal/nginx.conf](minimal/nginx.conf)
-is request-only. [safe/nginx.conf](safe/nginx.conf) is the bounded HTTP/1.1
-P1--P4 Safe reference. [strict/nginx.conf](strict/nginx.conf) records a
+Integration mode: native NGINX HTTP module. [minimal/nginx.conf](minimal/nginx.conf),
+[safe/nginx.conf](safe/nginx.conf), [strict/nginx.conf](strict/nginx.conf), and
+[all/nginx.conf](all/nginx.conf) cover the bounded HTTP/1.1 P1--P4 contract.
+`all` is a comprehensive configuration layout with a real strict P4 policy,
+not a fourth P4 policy value. Strict records a
 parser-supported configuration shape, not a claim that a late abort or status
 rewrite was observed.
 
@@ -20,9 +22,10 @@ connector response buffer.
 
 | Path | Type | Purpose |
 | --- | --- | --- |
-| [minimal/nginx.conf](minimal/nginx.conf) | Host configuration | Request-only native module reference. |
+| [minimal/nginx.conf](minimal/nginx.conf) | Host configuration | Minimal bounded native P1--P4 reference. |
 | [safe/nginx.conf](safe/nginx.conf) | Host configuration | Bounded P1--P4 Safe reference. |
 | [strict/nginx.conf](strict/nginx.conf) | Host configuration | Explicitly limited Strict configuration shape. |
+| [all/nginx.conf](all/nginx.conf) | Host configuration | Comprehensive native configuration with all source-backed directives visible and `modsecurity_phase4_mode strict`. |
 | [detection-only/nginx.conf](detection-only/nginx.conf) | Host configuration | Native connector with DetectionOnly engine rules; see [DetectionOnly profile](#detectiononly-profile). |
 | [disabled/nginx.conf](disabled/nginx.conf) | Host configuration | Connector disabled at the NGINX layer; see [Disabled profile](#disabled-profile). |
 | [rules/request-only.conf](rules/request-only.conf) | Rules | Request-only settings. |
@@ -41,11 +44,15 @@ logs, listener, and upstream values inside them are host examples.
 | --- | --- | --- | --- |
 | load_module path | Installed NGINX dynamic module | Required; no repository default; operator; main scope | modules/ngx_http_modsecurity_module.so. Use a module built for the exact NGINX ABI. |
 | modsecurity_rules_file | Readable libmodsecurity rules file | Required; no repository default; host config; http scope | /etc/modsecurity/modsecurity-phase4.conf. A reviewed ruleset can block traffic. |
-| modsecurity_phase4_mode | P4 policy: minimal, safe, or strict | Required in Safe or Strict file; host config; http scope | safe in safe/nginx.conf. Strict is configuration-only here. |
+| modsecurity_phase4_mode | P4 policy: minimal, safe, or strict | Required in Safe, Strict, or all file; host config; http scope | safe in safe/nginx.conf; all selects strict. Strict is configuration-only here. |
 | modsecurity_phase4_content_types_file | Explicit response MIME-type list | Optional; host config; http scope | /etc/modsecurity/phase4-content-types.conf. A missing file fails validation. |
 | modsecurity_phase4_log | Registered but rejected native event-file directive | Not usable; host config rejects every value | Native NGINX cannot establish the Common runtime's no-follow, regular-file, private-`0600` descriptor contract. Use the Common runtime event lifecycle instead. |
+| modsecurity_phase4_body_limit | Positive connector P4 byte bound | Optional; host config; http scope | 1048576 in all lifecycle profiles; over-limit handling is fail-closed. |
+| modsecurity_use_error_log | Forward engine messages to NGINX error log | Optional; host config; http/server/location scope | on in all lifecycle profiles. |
+| modsecurity_transaction_id | Per-request transaction expression | Optional; host config; http/server/location scope | Commented by default because `$request_id` requires a host request-id variable. Enable only a unique, server-generated value; URI- or header-derived values are not suitable for correlation. |
+| modsecurity_rules_remote | Remote rules key and URL | Optional; host config; http/server/location scope | Commented by default because credentials and endpoint ownership are operator-specific. |
 | app_backend and 127.0.0.1:8081 | Upstream group and local TCP endpoint | Required in these proxy references; host config; http scope | Replace with the intended upstream. Loopback avoids accidental exposure during a local test. |
-| listen 8080 and server_name example.test | Listener and virtual-host selector | Required in these files; host config; server scope | Replace for the installed host; a public bind changes exposure. |
+| listen 127.0.0.1:8080 and server_name example.test | Listener and virtual-host selector | Required in these files; host config; server scope | Replace for the installed host; a public bind changes exposure. |
 | SecResponseBodyLimit | Positive P4 byte bound | Required in bounded P4 rules; rules file; rule-engine scope | 1048576 bytes. Do not infer unbounded behavior from this reference. |
 
 Rule ID 9001801 is illustrative only, not an OWASP CRS or No-CRS baseline ID;

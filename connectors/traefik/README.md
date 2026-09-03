@@ -21,19 +21,68 @@ Common helpers:
 - `connectors/traefik/src/traefik_decision_service.*`
 - `connectors/traefik/src/traefik_modsecurity_mapper.*`
 - `connectors/traefik/src/traefik_forwardauth_service_main.c`
+- `connectors/traefik/response_observer/` (mandatory `forwardAuth` P3/P4
+  local-plugin companion)
 - `connectors/traefik/native_middleware/` (native local-plugin host source)
 - shared helpers from `common/src/` and `common/include/msconnector/`
 - shared runtime implementation from `common/runtime/`
 
-The `forwardAuth` path remains the request-only compatibility path. The
-repository-owned Go middleware under `native_middleware/` is selected by
+The direct `forwardAuth` protocol remains the request-only compatibility path;
+by itself it cannot map P3/P4. The named `traefik-forwardauth` logical
+connector instead requires the repository-owned private-UDS response observer:
+it retains the same live Common/native transaction from P2, claims a
+server-generated opaque handle exactly once, and supplies P3/P4 through MRC1.
+Omitting the observer is a configuration error, and observer or correlation
+failure is fail-closed. This source/component wiring is
+`implemented_not_asserted`, not a live-host claim.
+
+The checked-in forwardAuth configuration explicitly enables request-side P2
+with `forwardBody: true` and `maxBodySize: 4096`. The C service configuration
+must use `request_body_mode=buffered` with the same 4096-byte Common limit; the
+start-smoke harness rejects a template that omits either setting or changes
+the service mode. This is bounded buffered host semantics, not incremental
+request-body streaming, and remains `configured_not_exercised` until fresh
+real-host P2 evidence is retained.
+
+The repository-owned Go middleware under `native_middleware/` is selected by
 `full-lifecycle-traefik-native` through Traefik's local-plugin workspace. Its
 isolated host probe chooses `engineMode: uds`, so one persistent local
 Common/libmodsecurity service is reused across one UDS session per host
 request. It has targeted real-host P1--P4 evidence but does not change the
 checked-in capability declaration, CRS state, Safe/Strict status, or production
 readiness. Upstream response headers and bodies remain unsupported in the
-separate `forwardAuth` compatibility protocol.
+separate direct `forwardAuth` protocol, not in the complete logical connector
+that includes its mandatory response observer.
+
+## Bounded forwardAuth response composite (experimental)
+
+The opt-in composite is separate from the compatibility path. Its outer
+`composite_middleware/` local plugin strips client-supplied composite headers
+and trailers, sends a versioned and bounded P1 header snapshot only over its
+owner-only private UDS connection, and receives an opaque server-generated
+lease. The immediate inner ForwardAuth call receives only that lease and the
+Traefik-generated forwarded metadata; it never receives raw P1 headers or a
+request-context capsule over HTTP. The lease is removed again before the real
+upstream request and before the client response.
+
+The same retained UDS state then carries the response companion's P3/P4
+observation. The coordinator has bounded capacity and TTL cleanup; missing
+metadata, expiry, or a pre-commit companion failure fail closed rather than
+forwarding the request. The response path is configured by
+[`config/traefik-forwardauth-composite-static.yaml`](config/traefik-forwardauth-composite-static.yaml)
+and
+[`config/traefik-forwardauth-composite-dynamic.yaml`](config/traefik-forwardauth-composite-dynamic.yaml),
+with the local runner at
+[`harness/run_traefik_composite_matrix.sh`](harness/run_traefik_composite_matrix.sh).
+
+P4 Safe is log-only and preserves the original response. P4 Strict is not a
+passing result unless a real client-visible abort or reset is independently
+observed; this composite currently makes no such claim. The normal sanitized
+HTTP response path deliberately does not support downstream `Hijack` or
+`Unwrap`: those escape hatches are outside the composite contract and cannot
+be used as evidence for no-egress or P3/P4 guarantees. This experimental
+evidence does not promote production readiness or the existing capability
+declarations.
 
 ## Persistent native UDS engine service
 
@@ -215,8 +264,10 @@ See the canonical [connector contract](../../docs/connectors/README.md) and
 - Targeted native No-CRS runtime: real local P1--P4-safe evidence; full matrix
   and capability promotion not run
 - With-CRS runtime: not run
-- RESPONSE_BODY blocking: `unsupported_by_host_model` for `forwardAuth`; the
-  separate native UDS probe has only non-promoted P4 safe/log-only evidence
+- Direct `forwardAuth` protocol: RESPONSE_BODY is
+  `unsupported_by_host_model`; the complete logical `traefik-forwardauth`
+  profile instead requires its private-UDS response observer for P3/P4 and is
+  `implemented_not_asserted` pending live-host evidence
 
 ## Build and Self-Test
 
@@ -400,24 +451,40 @@ This connector is prepared for the Common SDK but remains `not_verified` / `conn
   `native-traefik-middleware`, sends host outcomes only after ResponseWriter
   confirmation, and retains separate raw decision and host-outcome events.
 - Connector-specific code remains responsible for the host profile, build glue, example configuration, and process entry point.
-- Response mapping is linked for contract checking only; upstream response inspection is unsupported by `forwardAuth`.
+- The complete logical `traefik-forwardauth` connector requires the private
+  response observer. It claims and strips the opaque handle, maps P3 before
+  writer commitment, maps bounded P4 chunks plus one EOS through MRC1, and
+  releases or cancels deterministically; the direct `forwardAuth` protocol
+  alone remains response-blind.
 - No production, CRS-complete, full-matrix, broad runtime, or RESPONSE_BODY verification is claimed.
 
-## Compatibility and native Phase-4 boundary
+## Direct `forwardAuth` boundary and logical Phase-4 contract
 
-The compatibility host model is Traefik `forwardAuth`. It executes before
-upstream handling and cannot inspect the later upstream response body.
-Consequently, for that compatibility path,
-`response_body_buffered`, `phase4`, `phase4_rule_evaluation`,
-`phase4_pre_commit_deny`, `late_intervention`,
+The direct Traefik `forwardAuth` protocol executes before upstream handling and
+cannot inspect the later upstream response body. Consequently, in its legacy
+direct capability table, `response_body_buffered`, `phase4`,
+`phase4_rule_evaluation`, `phase4_pre_commit_deny`, `late_intervention`,
 `late_intervention_log_only`, `late_intervention_abort`, and
-`late_intervention_status_metadata` are
-`unsupported_by_host_model`, not merely absent from a local run.
+`late_intervention_status_metadata` are `unsupported_by_host_model`, not merely
+absent from a local run.
 
-The separate selected native UDS probe does observe the upstream response. It
+That boundary does not make P3/P4 not-applicable for the complete
+`traefik-forwardauth` logical connector. Its required chain is
+`forwardAuth -> private response observer -> upstream`: after P2, the
+authorization service transfers the same live Common/native transaction by a
+server-generated opaque handle. The observer claims and strips that handle
+before upstream handling, sends P3 before writer commitment, sends bounded P4
+chunks plus exactly one EOS, and then releases or cancels deterministically.
+Missing, malformed, expired, replayed, or unavailable correlation is a
+configuration or protocol failure and fails closed before response commitment.
+
+The separate selected native UDS probe also observes the upstream response. It
 has targeted evidence for a P3 pre-commit denial and a P4 post-commit
 `log_only` outcome with original and visible status metadata. It cannot prove
 a late abort; strict P4 is `NOT EXECUTED`. Neither path changes a capability
 state without the separate canonical evidence/promotion process.
 
-No response-body payload belongs in an event or report.
+Accordingly, a shared P4 case is `UNSUPPORTED` only for unpaired direct
+`forwardAuth`. The logical connector must use its required observer or fail as
+misconfigured; it must never silently relabel P3/P4 as unsupported. No
+response-body payload belongs in an event or report.

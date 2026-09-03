@@ -17,6 +17,55 @@ reports without an explicit repository-policy decision or user decision.
   Gitlink, CI/governance, and mixed concurrent edits; remote delivery awaits
   explicit current-user authorization, and hosted checks and a merge are not
   asserted.
+- [CR-20260903-no-crs-doc-consistency-repair](CR-20260903-no-crs-doc-consistency-repair.md)
+  | [Deutsch](CR-20260903-no-crs-doc-consistency-repair.de.md) — the current
+  user authorized this Parent-only repair of the reproduced Traefik No-CRS
+  documentation/capability-catalog consistency failure in a dedicated
+  worktree and a normal PR. It preserves the bounded, unpromoted P2 state and
+  unsupported request-body streaming; no Framework/MRTS source, Gitlink,
+  workflow-permission, Sonar control, or merge change is asserted.
+
+- [CR-20260902-nginx-workflow-contract-repair](CR-20260902-nginx-workflow-contract-repair.md)
+  | [Deutsch](CR-20260902-nginx-workflow-contract-repair.de.md) — the current
+  user authorized this Parent-only repair of one reproduced NGINX
+  source-contract checker failure in a dedicated worktree and one Draft PR.
+  Required Codex Security work then identified and added the narrow Envoy
+  grpc-go high-severity dependency remediation. The record preserves the live
+  once-only mapper, Phase-4 scope, and Common body-limit assertions; it does
+  not change NGINX runtime source, workflows, Framework/MRTS, Gitlinks, Sonar
+  controls, or merge state.
+
+- [CR-20260825-fnd-parent-0221-composite-connectors](CR-20260825-fnd-parent-0221-composite-connectors.md)
+  | [Deutsch](CR-20260825-fnd-parent-0221-composite-connectors.de.md) — the
+  current user authorized a Parent-only composite-correlation implementation,
+  paired traceability, scoped commit/push, and one Draft PR. The record
+  retains current local and real-H1 evidence while truthfully keeping
+  `FND-PARENT-0221` release-blocking and P4 Strict, duplicate/cancel,
+  same-process Traefik follow-up, H2/H3, and parity evidence open; no merge is
+  authorized or asserted.
+
+- [CR-20260824-canonical-runtime-observation](CR-20260824-canonical-runtime-observation.md)
+  | [Deutsch](CR-20260824-canonical-runtime-observation.de.md) — the current
+  user authorized this Parent-only canonical runtime-observation contract,
+  safe evidence-reader hardening, paired traceability, and one independent
+  Draft PR. It records observed local evidence only; no Framework/MRTS source,
+  Gitlink, workflow, protected NGINX boundary, hosted result, ready state, or
+  merge is asserted.
+
+- [CR-20260825-shared-transaction-phase-contract](CR-20260825-shared-transaction-phase-contract.md)
+  | [Deutsch](CR-20260825-shared-transaction-phase-contract.de.md) — the
+  current user explicitly authorized a Parent Draft PR for the shared
+  transaction-phase contract. The record distinguishes local component
+  validation from unrun real-host/hosted evidence and retains the open P0/P1
+  findings; no merge, CI-scope change, Framework/MRTS, or Gitlink action is
+  asserted.
+
+- [CR-20260825-lighttpd-phase2-pre-upstream-gate](CR-20260825-lighttpd-phase2-pre-upstream-gate.md)
+  | [Deutsch](CR-20260825-lighttpd-phase2-pre-upstream-gate.de.md) — the
+  user-authorized Parent-only Phase-2 pre-upstream admission gate for the
+  selected patched Lighttpd HTTP/1.1 `mod_proxy` path. It records local runtime
+  proof, merged PR #339 as the inherited `master` ABI baseline, and that a
+  Draft PR—not a merge—is the permitted delivery state.
 
 - [CR-20260823-pr309-lighttpd-config-reference-repair](CR-20260823-pr309-lighttpd-config-reference-repair.md)
   | [Deutsch](CR-20260823-pr309-lighttpd-config-reference-repair.de.md) — the

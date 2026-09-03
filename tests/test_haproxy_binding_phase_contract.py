@@ -99,10 +99,10 @@ class HaproxyBindingPhaseContractTests(unittest.TestCase):
         )
         self.assertIsNotNone(helper)
         body = helper.group(0)
-        self.assertIn("phase->body_limit == 0U", body)
-        self.assertIn("body_len > phase->body_limit - *phase->body_bytes_seen", body)
+        self.assertIn("body_limit == 0U", body)
+        self.assertIn("(size_t)body_len > body_limit - *phase->body_bytes_seen", body)
         self.assertLess(
-            body.index("body_len > phase->body_limit - *phase->body_bytes_seen"),
+            body.index("(size_t)body_len > body_limit - *phase->body_bytes_seen"),
             body.index("phase->append_body("),
         )
 

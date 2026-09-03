@@ -3,6 +3,7 @@
   "connector": "apache",
   "host_name": "apache",
   "integration_mode": "native-httpd-module",
+  "transaction_contract_profile": "apache",
   "metadata_source": "connectors/apache/metadata.c",
   "source_contract": [
     "connectors/apache/metadata.c",
@@ -13,11 +14,11 @@
     "ci/runtime/lifecycle/run-apache-phase4-response-regression.sh"
   ],
   "host_model_constraints": [
-    "Apache incrementally appends response data buckets but saves every normalized response brigade in the request pool through first EOS; no original response byte is released before msc_process_response_body and intervention resolution complete.",
-    "libModSecurity's C API does not expose its effective SecResponseBodyMimeType selection, so Apache gates every response MIME type. The legacy modsecurity_phase4_content_types_file parser is deprecated and cannot narrow that gate; the configurable default 1048576-byte gate limit and a fixed non-configurable 4096-normalized-bucket cap across filter calls fail closed rather than releasing an uninspected tail.",
+    "Apache incrementally appends each response-data bucket, preserves pre-EOS FLUSH and metadata, and immediately passes the normalized pre-EOS prefix to the next filter. Only the terminal EOS fragment remains until msc_process_response_body and late-action resolution complete; no full response brigade is retained across filter calls.",
+    "libModSecurity's C API does not expose its effective SecResponseBodyMimeType selection, so Apache gates every response MIME type. The legacy modsecurity_phase4_content_types_file parser is deprecated and cannot narrow that gate; the configurable default 1048576-byte bound is checked before each later append without creating a full-response buffer.",
     "Normal r->prev and pre-output ErrorDocument redirects fail closed because the connector cannot safely rebind a source transaction to a target URI/ruleset. During terminal output EMITTING, exactly one Apache-core-marked local ErrorDocument hop is allowed with no_local_copy plus matching immediate predecessor status and REDIRECT_STATUS.",
     "The connector JSONL writer is currently specific to Phase-4 interventions and does not by itself prove canonical event coverage for request-phase decisions.",
-    "A normal Phase-4 deny discards the saved original brigade and emits a terminal error before release. log_only and abort_connection remain defensive fallbacks only when independent commit proof already exists."
+    "Phase-4 rule evaluation remains EOS-only. After a pre-EOS prefix reaches the next filter, Safe records log_only and Strict uses abort_connection rather than attempting to rewrite bytes that may already be visible."
   ],
   "capabilities": {
     "connection_metadata": {
@@ -41,12 +42,12 @@
       "reason": "The Apache output filter maps response headers and invokes the response-header phase; canonical Phase-3 evidence is pending."
     },
     "response_body_buffered": {
-      "state": "implemented_not_asserted",
-      "reason": "The output filter appends response bytes incrementally and retains the normalized Apache response brigade through first EOS before it resolves Phase 4; canonical Phase-4 evidence is pending."
+      "state": "not_implemented",
+      "reason": "The output filter has no active cross-callback full-response brigade; it uses bounded current buckets plus a terminal EOS fragment."
     },
     "response_body_streaming": {
-      "state": "not_implemented",
-      "reason": "Apache deliberately withholds original response output until first EOS and the Phase-4 decision, so it does not provide client-visible progressive response streaming."
+      "state": "implemented_not_asserted",
+      "reason": "Each pre-EOS response-data bucket is appended once and its normalized prefix is passed to the next filter immediately; a real-host progressive-output result is pending."
     },
     "phase1": {
       "state": "implemented_not_asserted",
@@ -62,23 +63,23 @@
     },
     "phase4": {
       "state": "implemented_not_asserted",
-      "reason": "The output filter incrementally ingests body buckets, retains the complete normalized response through first EOS, and invokes response-body processing once before releasing or discarding original output; canonical evidence is pending."
+      "reason": "The output filter incrementally ingests body buckets, forwards the pre-EOS prefix, and invokes response-body processing exactly once on the terminal EOS fragment; canonical real-host evidence is pending."
     },
     "phase4_rule_evaluation": {
       "state": "implemented_not_asserted",
-      "reason": "The native output-filter path is wired for incremental ingestion, retained-brigade EOS processing, and a pre-release decision, but no current canonical real-host run proves that Phase-4 rule 1100301 was evaluated."
+      "reason": "The native output-filter path is wired for incremental ingestion and one terminal EOS evaluation, but no current canonical real-host run proves that Phase-4 rule 1100301 was evaluated."
     },
     "phase4_pre_commit_deny": {
-      "state": "implemented_not_asserted",
-      "reason": "The output filter retains original response bytes and EOS until msc_process_response_body and intervention resolution complete; a normal deny discards the saved brigade and enters one terminal error path before release. Current real-host evidence is pending."
+      "state": "not_implemented",
+      "reason": "Because the progressive output filter can pass a pre-EOS prefix before the EOS-only P4 decision, it does not claim a reliable pre-commit P4 deny or redirect."
     },
     "late_intervention": {
       "state": "implemented_not_asserted",
-      "reason": "Late-intervention policy remains a defensive branch for independently proven already-committed output; normal Phase-4 enforcement occurs before original response release. Behavioral evidence is pending."
+      "reason": "The output filter resolves disruptive EOS decisions through the shared post-commit policy once a prefix may have reached the next filter; behavioral evidence is pending."
     },
     "late_intervention_log_only": {
       "state": "implemented_not_asserted",
-      "reason": "The configured safe late-intervention branch preserves independently committed output and records a log-only result, but it is not the normal all-response-gate deny path; canonical event evidence is pending."
+      "reason": "The configured safe late-intervention branch preserves a progressively forwarded prefix and records a log-only result; canonical event evidence is pending."
     },
     "late_intervention_abort": {
       "state": "implemented_not_asserted",
@@ -138,11 +139,11 @@
     },
     "response_body_incremental_ingest": {
       "state": "implemented_not_asserted",
-      "reason": "The output filter appends each data bucket incrementally while retaining the normalized brigade across filter calls through first EOS; runtime evidence is pending."
+      "reason": "The output filter appends each data bucket incrementally and passes the normalized pre-EOS prefix to the next filter; runtime evidence is pending."
     },
     "phase4_end_of_stream_evaluation": {
       "state": "implemented_not_asserted",
-      "reason": "The output filter invokes response-body processing once after the first retained EOS and resolves intervention before its saved original brigade is released; canonical Phase-4 evidence is pending."
+      "reason": "The output filter invokes response-body processing exactly once on the terminal EOS fragment after all pre-EOS prefixes have been forwarded; canonical Phase-4 evidence is pending."
     },
     "content_type_scope": {
       "state": "implemented_not_asserted",
@@ -158,19 +159,19 @@
     },
     "response_body_limits": {
       "state": "implemented_not_asserted",
-      "reason": "The configurable default 1048576-byte Phase-4 gate limit and fixed non-configurable 4096-normalized-bucket cap across filter calls reject their respective excess before any original byte is released rather than forwarding an uninspected tail; canonical limit evidence is pending."
+      "reason": "The configurable default 1048576-byte Phase-4 limit is checked before each later append and does not require a retained full response; canonical limit evidence is pending."
     },
     "no_full_response_buffering": {
-      "state": "not_implemented",
-      "reason": "Apache intentionally retains the normalized response brigade across calls through first EOS to enforce the all-response Phase-4 decision before original output release."
+      "state": "implemented_not_asserted",
+      "reason": "The progressive path does not retain a full response brigade across filter calls; only the terminal EOS fragment is held for finalization."
     },
     "first_byte_before_response_end": {
-      "state": "not_implemented",
-      "reason": "Apache intentionally does not release an original first byte before first EOS because the all-response Phase-4 decision must complete before output release."
+      "state": "implemented_not_asserted",
+      "reason": "The source passes a normalized pre-EOS prefix to the next filter, but no canonical client-visible first-byte-before-EOS run is attached."
     },
     "http1_content_length": {
       "state": "configured_not_exercised",
-      "reason": "Apache can serve HTTP/1.1 responses through the all-response Phase-4 gate; the focused H1 run has not yet produced canonical run-scoped evidence."
+      "reason": "Apache can serve HTTP/1.1 responses through the progressive Phase-4 source path; the focused H1 run has not yet produced canonical run-scoped evidence."
     },
     "http1_chunked": {
       "state": "configured_not_exercised",
@@ -241,12 +242,12 @@
       "reason": "Protocol-specific multiplexed transaction-isolation evidence is not implemented."
     },
     "protocol_first_byte_before_response_end": {
-      "state": "not_implemented",
-      "reason": "The all-response Phase-4 gate intentionally prevents original first-byte release before EOS on every protocol profile; no progressive-output protocol capability is claimed."
+      "state": "implemented_not_asserted",
+      "reason": "The source passes a pre-EOS prefix to the next filter, but no protocol-scoped client-visible first-byte result is attached."
     },
     "protocol_no_full_response_buffering": {
-      "state": "not_implemented",
-      "reason": "The all-response Phase-4 gate intentionally retains the normalized response brigade through EOS; no no-full-buffer protocol capability is claimed."
+      "state": "implemented_not_asserted",
+      "reason": "The source does not retain a full normalized response brigade, but no protocol-scoped runtime result is attached."
     },
     "client_abort": {
       "state": "not_implemented",

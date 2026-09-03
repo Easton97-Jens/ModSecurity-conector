@@ -101,8 +101,12 @@ const maxRedirectURLBytes = 2048
 // Decision is supplied by the connector-local evaluation seam. The production
 // CGo build maps a real Common/libmodsecurity decision into this small form.
 type Decision struct {
-	Action      Action
-	Status      int
+	Action Action
+	Status int
+	// RuleID is bounded Common rule metadata. It is emitted only as an
+	// identifier in lifecycle evidence; request/response payloads never cross
+	// this seam.
+	RuleID      string
 	RedirectURL string
 }
 
@@ -264,6 +268,9 @@ func newServiceWithStreamLimit(config Config, engine TransactionOpener, observer
 	}
 	if streamLimit <= 0 {
 		return nil, fmt.Errorf("ext_proc active stream limit must be positive")
+	}
+	if err := validateLateActionPolicyAdmission(config.LateActionPolicy, engine); err != nil {
+		return nil, err
 	}
 	if observer == nil {
 		observer = discardObserver{}
@@ -1028,6 +1035,9 @@ func normalizeDecision(decision Decision) Decision {
 		}
 		return decision
 	case ActionRedirect:
+		// HeaderMutation writes this value directly into Location. Reject
+		// controls before constructing the protobuf so an engine-provided
+		// redirect can never create an additional response header or line.
 		if !validRedirectURL(decision.RedirectURL) {
 			return Decision{Action: ActionDeny, Status: int(typev3.StatusCode_Forbidden)}
 		}
@@ -1212,7 +1222,8 @@ func immediateResponse(decision Decision) *extprocv3.ProcessingResponse {
 	}
 	if decision.Action == ActionRedirect {
 		response.Headers = &extprocv3.HeaderMutation{SetHeaders: []*corev3.HeaderValueOption{{
-			Header: &corev3.HeaderValue{Key: "location", Value: decision.RedirectURL},
+			Header:       &corev3.HeaderValue{Key: "location", RawValue: []byte(decision.RedirectURL)},
+			AppendAction: corev3.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD,
 		}}}
 	}
 	return &extprocv3.ProcessingResponse{Response: &extprocv3.ProcessingResponse_ImmediateResponse{ImmediateResponse: response}}

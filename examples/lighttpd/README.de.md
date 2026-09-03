@@ -4,13 +4,11 @@
 
 ## Integration und Grenze
 
-Integrationsmodus: natives lighttpd-Modul namens mod_msconnector. Die
-[Minimalreferenz](minimal/lighttpd.conf) ist für die Stock-Host-/Modulform und
-lässt beide Body-Modi auf none. Die
-[Safe-Referenz](safe/lighttpd-http1-identity.conf) und ihre passende
-[Runtime-Datei](safe/msconnector-runtime.conf) benötigen den passenden
-Framework-synchronisierten gepatchten lighttpd-Host und das passende Modul. Ihr Scope ist auf
-geproxyte HTTP/1.1-Identity-Entity-Daten begrenzt.
+Es gibt zwei logische Lösungen. [Stock](stock/) ist der traffic-owning
+Repository-Sidecar und führt den vollständigen Client-zu-privatem-Backend-
+Austausch für P1--P4 aus. [Patched](patched/) ist das native
+`mod_msconnector`-Modul mit dem Framework-synchronisierten gepatchten
+lighttpd-Host und seinen HTTP/1.1-Identity-Entity-Hooks.
 
 Die Safe-Referenz konfiguriert die P1--P4-Form mit phase4_mode safe. P1 sind
 Request-Header, P2 Request-Body, P3 Response-Header und P4 Response-Body. Sie
@@ -19,24 +17,25 @@ Response-Buffering, HTTP/2, HTTP/3, Kompression, File-/Zero-Copy-Verarbeitung
 oder Strict-Abbruch. Die [Strict-Profilgrenze](#strict-profilgrenze)
 dokumentiert die optionale Grenze ohne implementierten Host-Abbruch.
 
-Der bewahrte [Sidecar-Proxy](#sidecar-kompatibilität) ist keine native
-Modulkonfiguration und hat keinen nativen Lifecycle-Claim.
+Der Stock-Sidecar erhält `--config`, `--listen`, `--upstream` und
+`--timeout-ms` als Kommandozeilenargumente. `stock-sidecar.args` sind lesbare
+ARGV-Aufzeichnungen und kein zweiter Konfigurationsparser. Beide Endpunkte
+sind literale Loopback-Adressen; der Sidecar besitzt Cleanup und benötigt
+keine prozessübergreifende Transaktionsregistry.
 
 ## Dateien
 
 | Pfad | Typ | Zweck |
 | --- | --- | --- |
-| [minimal/lighttpd.conf](minimal/lighttpd.conf) | Host-Konfiguration | Stock-natives Modul mit deaktivierten Bodies. |
-| [minimal/msconnector-runtime.conf](minimal/msconnector-runtime.conf) | Runtime-Konfiguration | Regeln und begrenzte Header-Metadaten für Minimalmodus. |
-| [safe/lighttpd-http1-identity.conf](safe/lighttpd-http1-identity.conf) | Host-Konfiguration | Gepatchte native HTTP/1.1-Identity-Entity-Referenz. |
-| [safe/msconnector-runtime.conf](safe/msconnector-runtime.conf) | Runtime-Konfiguration | Gestreamte Body-Modi und Safe-P4-Policy. |
+| [stock/](stock/) | Stock-Lösung | `minimal`, `safe`, `strict` und `all`; Sidecar-ARGV, privates Backend und vollständige Runtime-Dateien. |
+| [patched/](patched/) | Patched-Lösung | `minimal`, `safe`, `strict` und `all`; nativer Host und vollständige Runtime-Dateien. |
 | [detection-only/msconnector-runtime.conf](detection-only/msconnector-runtime.conf) | Runtime-Konfiguration | Stock-Body-Modi mit DetectionOnly-Regeln; siehe [DetectionOnly-Profil](#detectiononly-profil). |
 | [disabled/lighttpd.conf](disabled/lighttpd.conf) | Host-Konfiguration | Natives Plugin deaktiviert; siehe [Deaktiviertes Profil](#deaktiviertes-profil). |
 | [rules/detection-only.conf](rules/detection-only.conf) | Regeln | DetectionOnly-Engine-Einstellungen. |
 | [rules/engine-off.conf](rules/engine-off.conf) | Regeln | Engine-Off-Einstellungen, getrennt vom Deaktivieren des Connectors. |
 | [No-CRS-Regeln](#no-crs-regeln) | Dokumentation | No-CRS-Quelle und Phasen-IDs. |
 | [P1--P4-Safe-Absicht](#p1-p4-safe-absicht) | Dokumentation | Konfigurationsabsicht, keine Run-Evidence. |
-| [Sidecar-Kompatibilität](#sidecar-kompatibilität) | Kompatibilität | Illustrativer nicht-nativer Proxyaufbau. |
+| [P1--P4-Vertrag](#p1-p4-vertrag) | Architektur | Gleiche Phasenbedeutung für beide logischen Lösungen. |
 
 Alle genannten Pfade sind ab examples/lighttpd repository-relativ. Pfade in
 den Konfigurationen sind Beispiele für Hostinstallation oder Hostruntime.
@@ -51,10 +50,10 @@ den Konfigurationen sind Beispiele für Hostinstallation oder Hostruntime.
 | msconnector.config-file | Absoluter Pfad zur Runtime-Key=value-Datei | Pflicht; Host-Konfiguration; Modul-Scope | /etc/lighttpd/msconnector-runtime.conf. Die Datei muss für den Hostprozess lesbar sein. |
 | rules_file | Installierte geprüfte Regeldatei | Pflicht; Runtime-Konfiguration; Engine-Scope | /etc/modsecurity/no-crs-baseline.conf. Regeln können Traffic blockieren. |
 | transaction_id_header | HTTP-Korrelationsheadername | Pflicht; Runtime-Konfiguration; Transaction-Scope | x-modsec-transaction-id. Nur Metadaten, keine Secrets verwenden. |
-| request_body_mode und response_body_mode | none, buffered oder streaming gemäß Hostfähigkeit | Pflicht; Runtime-Konfiguration; Engine-Scope | none für Stock-Minimal; streaming für passendes gepatchtes Safe. Streaming nie auf Stock-Host aktivieren. |
+| request_body_mode und response_body_mode | none, buffered oder streaming gemäß Hostfähigkeit | Pflicht; Runtime-Konfiguration; Engine-Scope | streaming für den Stock-Sidecar und den passenden Patched-Host; nie auf einem ungepatchten nativen Stock-Modul aktivieren. |
 | request_body_limit, response_body_limit, body_limit_action | Positive Byte-Limits und reject- oder process_partial-Policy | Bei aktivierten Bodies Pflicht; Runtime-Konfiguration; Engine-Scope | 1048576 und reject. Grenzen bedeuten kein vollständiges Connector-Buffering. |
-| phase4_mode | P4-Policy: minimal, safe oder strict | In diesen Runtime-Dateien Pflicht; Runtime-Konfiguration; Engine-Scope | safe für gepatchtes Safe. Beweist weder Statuswechsel noch Abbruch. |
-| server.stream-response-body und proxy.server | Gepatchte Delivery-Einstellung und lokale Upstream-Route | Nur in Safe-Hostdatei Pflicht; Host-Konfiguration; Server-Scope | 1 und 127.0.0.1:8081. Nur Identity-HTTP/1.1; kein gzip/br- oder HTTP/2-Verhalten ableiten. |
+| phase4_mode | P4-Policy: minimal, safe oder strict | In diesen Runtime-Dateien Pflicht; Runtime-Konfiguration; Engine-Scope | safe für gepatchtes Safe; all wählt strict. Beweist weder Statuswechsel noch Abbruch. |
+| server.stream-response-body und proxy.server | Gepatchte Delivery-Einstellung und lokale Upstream-Route | In Patched-Bündeln Pflicht; Host-Konfiguration; Server-Scope | 1 und 127.0.0.1:8081. Nur Identity-HTTP/1.1; kein gzip/br- oder HTTP/2-Verhalten ableiten. |
 | event_path | Beschreibbares JSONL-Metadatenziel | In diesen Referenzen Pflicht; Runtime-Konfiguration; Engine-Scope | /var/log/lighttpd/msconnector-events.jsonl. Schützen und rotieren; keine Bodies oder Secrets schreiben. |
 
 ## Konfigurationsreferenz
@@ -78,11 +77,39 @@ Lifecycle-Anspruch.
 
 ## Profile
 
+### Logische Lösungsbündel
+
+Jedes Bündel enthält die Topologie-Artefakte, die Common-Runtime-`key=value`-
+Datei und für Stock die Sidecar-ARGV-Aufzeichnung. Jede Runtime-Datei nutzt
+dieselben begrenzten Header-/Body-/Event-Limits und zeigt quellenvalide
+inaktive Regelquellen- und Transaktions-ID-Alternativen als Kommentare. Nie
+mehr als eine Regelquelle aktivieren und die statische Transaktions-ID nicht
+produktiv verwenden.
+
+| Lösung | Varianten | P1/P2/P3/P4-Besitzer |
+| --- | --- | --- |
+| Stock | `stock/{minimal,safe,strict,all}/` | `stock-lighttpd-sidecar`; begrenzt gestreamte Request- und Response-Bodies. |
+| Patched | `patched/{minimal,safe,strict,all}/` | `mod_msconnector`-Hooks; Pre-upstream-Request-Gate und Identity-HTTP/1.1-Response-Scope. |
+
+Stock-Backends binden nur an `127.0.0.1:8081`; der Sidecar lauscht an
+`127.0.0.1:8080` und leitet nur an dieses private Backend weiter. Patched-
+Konfigurationen setzen ausdrücklich `msconnector.request-body-gate = "pre-upstream"`.
+
+### P1-P4-Vertrag
+
+P1 bedeutet Request-Header, P2 Request-Body, P3 Response-Header und P4
+Response-Body. Allow, Block, Redirect, Rate-Limit/Hostaktion, Safe/log-only,
+Strict/Enforce, Timeout, nicht erreichbare Engine, ungültige Engineantwort,
+Connector-/Protokollfehler, Client-Cancel, Upstream-Disconnect und Cleanup
+sind gemeinsame Common-Runtime-Entscheidungskategorien. Der Hostadapter
+übersetzt nur die resultierende Aktion. Strict nach Response-Commit verspricht
+keinen Abbruch.
+
 ### DetectionOnly-Profil
 
-`detection-only/msconnector-runtime.conf` behält Stock-Body-Modi `none` bei
-und wählt DetectionOnly-Regeln. DetectionOnly lädt und bewertet Engine-Regeln
-und zeichnet Treffer auf, führt aber keine disruptiven Engine-Aktionen aus.
+`detection-only/msconnector-runtime.conf` ist ein altes natives
+Kompatibilitätsprofil. Die kanonischen Stock- und Patched-Lösungen sind die
+sechs obigen Variantenbündel, die jeweils P1--P4 abdecken.
 
 Nach dem Anpassen der Hostpfade den untenstehenden Connector-
 Validierungsbefehl verwenden. Dieses Profil ist Konfigurationsanleitung und
@@ -100,7 +127,7 @@ P1--P4-Verhalten ableiten.
 
 ## P1--P4-Safe-Absicht
 
-Die Safe-Referenz ist auf den passenden gepatchten nativen
+Die Patched-Safe-Referenz ist auf den passenden gepatchten nativen
 Framework-synchronisierten lighttpd-Host und Identity-HTTP/1.1-Entity-Daten
 über mod_proxy begrenzt. Sie wählt
 gestreamte Body-Modi und phase4_mode safe. Sie aktiviert weder komprimierte
@@ -108,8 +135,8 @@ Entities noch behauptet sie HTTP/2-, HTTP/3-, File- oder Zero-Copy-
 Response-Prüfung.
 
 Eine späte P4-Entscheidung ist eine Safe-Log-only-Grenze, kein behaupteter
-sichtbarer 403 oder Strict-Abbruch. Die minimale Stock-Referenz lässt Bodies
-deaktiviert. Es gibt kein Strict-Beispiel.
+sichtbarer 403 oder Strict-Abbruch. Alle acht kanonischen Bündel enthalten
+eine Strict-Konfiguration.
 
 ## No-CRS-Regeln
 
@@ -127,10 +154,9 @@ No-CRS-Profil ist
 
 ## Sidecar-Kompatibilität
 
-Die bewahrte Konfiguration ist ein illustrativer lighttpd-Proxyaufbau. Sie
-lädt kein mod_msconnector.so und ist daher keine native lighttpd-
-Kernreferenz. Für die Stock-Form des nativen Moduls [minimal/](minimal/)
-verwenden, für die gepatchte HTTP/1.1-Identity-Entity-Referenz [safe/](safe/).
+Die bewahrte Datei ist eine alte host-only Proxyillustration. Sie ist kein
+logisches Profil und ersetzt weder das traffic-owning [Stock-Bündel](stock/)
+noch das native [Patched-Bündel](patched/).
 
 ### Anzupassende Werte
 
@@ -162,13 +188,16 @@ Actions, Strict-Verhalten, Produktionsreife oder CRS-Abdeckung.
 
 ## Strict-Profilgrenze <a id="strict-profilgrenze"></a>
 
-Common Runtime akzeptiert `phase4_mode=strict`, aber das native lighttpd-Modul
-implementiert keinen strikten Transportabbruch. Strict ist optional und es
-wird kein ausführbares striktes Hostprofil geliefert.
+Alle acht kanonischen Bündel enthalten sichtbare Strict-Konfigurationen. Common
+Runtime lässt `phase4_mode=strict` nur für das traffic-owning Stock-Sidecar zu,
+dessen Profil einen getesteten Socket-Shutdown nach Commit besitzt. Das
+gepatchte native Profil wird beim Start abgewiesen, weil diese Hostaktion noch
+nicht nachgewiesen ist. Keiner der Fälle behauptet ein ungetestetes
+Client-Ergebnis für den gepatchten Host.
 
 Das passende Host-/Modulpaar und die Common-Runtime-Konfiguration validieren,
-bevor ein strikter Wert getestet wird; ihn nicht als implementierten
-Client-Abbruch beschreiben.
+bevor ein strikter Wert getestet wird; das gepatchte Profil nicht als
+ausführbaren Client-Abbruch beschreiben.
 
 ## Verwandtes Material
 

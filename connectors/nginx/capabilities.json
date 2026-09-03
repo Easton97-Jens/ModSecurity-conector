@@ -3,6 +3,7 @@
   "connector": "nginx",
   "host_name": "nginx",
   "integration_mode": "native-nginx-http-module",
+  "transaction_contract_profile": "nginx",
   "metadata_source": "connectors/nginx/metadata.c",
   "source_contract": [
     "connectors/nginx/metadata.c",
@@ -13,7 +14,7 @@
     "connectors/nginx/harness/run_nginx_smoke.sh"
   ],
   "host_model_constraints": [
-    "NGINX request and response body filters feed bounded body data into a completed ModSecurity phase; they do not provide streaming phase semantics.",
+    "NGINX receives the request body after host preparation, but its response body filter incrementally feeds each current chain buffer to the active P4 phase and forwards the chain without retaining a cross-callback response body.",
     "The connector JSONL writer is currently specific to Phase-4 interventions and does not by itself prove canonical event coverage for request-phase decisions.",
     "A Phase-4 decision can be observed after NGINX has sent response headers and is then governed by the late-intervention policy."
   ],
@@ -43,8 +44,8 @@
       "reason": "The bounded body filter invokes response-body processing and applies the configured Phase-4 policy; canonical evidence is pending."
     },
     "response_body_streaming": {
-      "state": "not_implemented",
-      "reason": "Response chains are inspected through bounded buffering and do not expose streaming Phase-4 semantics."
+      "state": "implemented_not_asserted",
+    "reason": "The response body filter appends NGINX's memory-authoritative current range or file-only ranges through a reusable bounded scratch buffer to the active P4 phase and forwards the current chain without retaining a connector-owned full response; current native-host evidence is pending."
     },
     "phase1": {
       "state": "implemented_not_asserted",
@@ -156,11 +157,11 @@
     },
     "response_body_limits": {
       "state": "implemented_not_asserted",
-      "reason": "The response filter bounds bytes supplied to ModSecurity with the configured Phase-4 limit, but limit-mode evidence is pending."
+      "reason": "The response filter applies the Common reject body-limit plan before forwarding each in-scope memory or file buffer, but native-host limit-mode evidence is pending."
     },
     "no_full_response_buffering": {
       "state": "implemented_not_asserted",
-      "reason": "The response filter processes and forwards current chain buffers rather than accumulating a connector-owned full response; synchronized proof is pending."
+    "reason": "The response filter processes and forwards current chain buffers rather than accumulating a connector-owned full response; file-only ranges use one reusable bounded scratch buffer and synchronized proof is pending."
     },
     "first_byte_before_response_end": {
       "state": "implemented_not_asserted",

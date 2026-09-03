@@ -29,6 +29,7 @@ static void decision_constructor_init(msconnector_decision *decision)
     decision->reason = 0;
     decision->log_message = 0;
     decision->disruptive = 0;
+    decision->body_limit = 0;
     decision->late_intervention = 0;
     decision->intervention = msconnector_intervention_none();
 }

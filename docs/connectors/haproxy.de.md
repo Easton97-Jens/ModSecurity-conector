@@ -82,15 +82,51 @@ Host-/Client-Evidence liefert.
 | Strict Late Result | Explizite Hostaktion und Client-/Transportnachweis, kein Legacy-Sample |
 | Streaming-/First-Byte-Eigenschaft | Dedizierte Quell- und Transportartefakte für diese Eigenschaft |
 
+## Logische Grenze der SPOE/SPOP-Response-Begleitkomponente
+
+Der getrennte SPOE/SPOP-Prozess kann die Request-seitige P1/P2-Transaktion
+besitzen; sein Request-Protokoll überträgt jedoch weder den HTX-Response-Body-
+Stream noch Response-EOS. Deshalb modelliert das Repository die
+Response-Verarbeitung als eine logische Transaktion über zwei Hostkomponenten:
+SPOP erzeugt nach P2 ein begrenztes opakes `response_handle`, und der native
+HTX-Filter verwendet die private Response-Begleitkomponente, um dieses Handle
+zu übernehmen, P3 zu verarbeiten, begrenzte P4-Chunks weiterzugeben und P4 bei
+HTX-EOS abzuschließen. Fehlende, abgelaufene, fehlerhafte oder nicht
+übernommene Korrelation muss fail-closed behandelt und bereinigt werden; sie
+darf nicht stillschweigend zu einem reinen Request-Ergebnis werden.
+
+Der repository-native kombinierte Harness baut den aktuellen MRC1-v2-SPOP-
+Agenten und das HTX-Overlay und hat geordnete P1/P2-Bestätigung, P3-Claim,
+P4-DATA/EOS, Cancel, TTL, fehlende Korrelation und Cleanup lokal beobachtet.
+Dies ist qualifizierte lokale Runtime-Evidenz, keine Behauptung allgemeiner
+Produktionsreife oder breiter Deployment-Eignung. Die Produktivaktivierung
+bleibt ausdrücklich: privater Companion-Socket, passende UID/GID und ein
+begrenztes Response-Body-Limit größer null sind verpflichtend. Der Standardpfad
+`response-companion=none` weist Response-Body-Aktivierung weiterhin zurück,
+weil er kein Response-EOS transportieren kann. Der oben ausgewählte native
+HTX-Pfad bleibt davon unabhängig verfügbar.
+
+### Byte-Grenze für die SPOP-Request-ID
+
+Die SPOP-`request_id` ist ein Korrelationsschlüssel, kein Display-String. Die
+Runtime validiert ihre ursprünglichen längenbegrenzten Bytes, bevor sie in
+einen C-String kopiert werden. Leere, eingebettete-NUL-, Control-Byte-, Nicht-
+ASCII- und zu lange Werte werden abgewiesen; zum Beispiel kann `A\0X` niemals
+zu `A` kollabieren und denselben Transaktions-Cache-Slot adressieren. Eine
+nichtleere druckbare ASCII-ID, einschließlich der normalen UUID-Form, bleibt
+zulässig. Eine fehlerhafte `request_id` lässt die Notification-Extraktion
+fehlschlagen und erzeugt, ersetzt oder claimt keine Transaktion.
+
 ## Historische SPOE/SPOP-Kompatibilität
 
-Das frühere SPOE/SPOP-Material ist **nur Dokumentation**:
-<code>implementation_status: not_started</code> und
-<code>runtime_verified: false</code>. Es ist nicht der ausgewählte native
-HTX-Pfad. Seine historischen Beispieldateien bleiben getrennt unter
-<code>examples/haproxy/compatibility-spoe/</code>; sie dürfen nicht für Claims
-zu nativem HTX-Verhalten, P4-Response-Body, Safe-/Strict-Late-Verhalten,
-First-Byte-Verhalten oder No-Full-Response-Buffering verwendet werden.
+Die Dateien unter <code>examples/haproxy/compatibility-spoe/</code> sind
+historische Request-/Header-Kompatibilitätsbeispiele. Sie sind weder die oben
+beschriebene logische Response-Companion-Bridge noch der ausgewählte native
+HTX-Pfad. Insbesondere übertragen ihre `http-response send-spoe-group`-
+Beispiele keine Response-Body-Chunks und kein Response-EOS. Sie dürfen daher
+nicht als Nachweis für natives HTX-Verhalten, P4-Response-Body,
+Safe-/Strict-Late-Verhalten, First-Byte-Verhalten oder No-Full-Response-
+Buffering verwendet werden.
 
 ## Tests und Nachweise
 

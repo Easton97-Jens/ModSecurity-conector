@@ -50,7 +50,7 @@ only `STREAMED` body modes, never `BUFFERED`.
 The module keeps the following minimum stable selections for the currently
 triaged dependency advisories:
 
-- `google.golang.org/grpc` `v1.82.1` or later;
+- `google.golang.org/grpc` `v1.83.1` or later;
 - `golang.org/x/net` `v0.56.0` or later;
 - `golang.org/x/sys` `v0.46.0` or later; and
 - `golang.org/x/text` `v0.39.0` or later.
@@ -74,14 +74,16 @@ decision found later:
 
 - `minimal` and `safe` record a real Common host outcome `log_only` and
   continue with the original visible response status;
-- `strict` records `strict_abort_not_attempted` and continues.
+- `strict` is rejected at Common Runtime startup for the `envoy-ext-proc`
+  profile. Its immutable `strict_post_commit_action` capability is zero until
+  a deterministic post-commit host action is proven; no traffic is served and
+  no late decision is silently downgraded.
 
-`strict` intentionally does not turn into a gRPC error, `ImmediateResponse`, or
-a claimed reset. Those mechanisms do not independently prove a deterministic
-client-visible abort in Envoy. A canceled gRPC context and an observed gRPC
-peer EOF are recorded respectively as `grpc_context_canceled_unattributed` and
-`grpc_peer_eof`; neither label can honestly be treated as a downstream client
-reset or an upstream reset.
+The adapter intentionally does not use `ImmediateResponse` or a gRPC error as
+an HTTP-reset surrogate after response commitment. A canceled gRPC context and
+an observed gRPC peer EOF are recorded respectively as
+`grpc_context_canceled_unattributed` and `grpc_peer_eof`; neither label can be
+treated as a downstream client reset or an upstream reset.
 
 The active-stream cap is aggregate resource containment, not an idle deadline:
 a valid but silent admitted stream retains one bounded slot until Envoy sends a
@@ -110,7 +112,8 @@ raw host evidence.
 ## Remaining promotion boundary
 
 The service does not claim a deterministic post-commit reset or a client-byte
-observation. A late P4 rule is deliberately recorded as host-confirmed
-`log_only`; `strict` remains `strict_abort_not_attempted`. Those limits, and
-the canonical collector's independent validation of the raw Common JSONL, are
-the remaining promotion boundary.
+observation. A late P4 rule is recorded as host-confirmed `log_only` in Safe.
+Strict is a deliberate startup rejection until a deterministic Envoy host
+action is demonstrated; it is not an `ImmediateResponse`, a gRPC error, or a
+claimed reset. Canonical collector validation of the raw Common JSONL remains
+a promotion boundary.

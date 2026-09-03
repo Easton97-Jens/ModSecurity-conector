@@ -5,7 +5,10 @@
 ## Scope
 
 This is the current architecture source of truth for the connector repository.
-It describes the selected six HTTP/1.1 core routes and their shared boundaries.
+It describes the selected host routes and their shared boundaries. The
+[shared transaction and phase contract](../common/docs/transaction-phase-contract.md)
+maps all ten logical connector solutions without promoting a source route to a
+runtime-evidence claim.
 It does not claim production readiness, production hardening, CRS verification,
 complete HTTP/2 or HTTP/3 coverage, a complete matrix, or strict behavior for
 every connector.
@@ -22,16 +25,21 @@ every connector.
 The checked-in source and build scripts define implementation details. This
 document records the intended ownership and safety boundary around them.
 
-## Selected host routes
+## Host-family navigation and logical profiles
 
-| Connector | Selected integration mode | Response-body boundary |
+The following six rows are host-family navigation, not a statement that each
+family has only one logical profile. The shared transaction and phase contract
+defines the ten logical profile identities and keeps companion/composite
+profiles separate from direct host routes.
+
+| Host integration | Current host-family core route | Response-body boundary |
 | --- | --- | --- |
 | Apache | Native HTTPD module | EOS-only all-response output gate; normalized brigades are retained through first EOS before release |
 | NGINX | Native HTTP module | Response filter and request/subrequest end-of-stream |
 | HAProxy | Native HTX filter | HTX end-of-stream |
 | Envoy | Streamed <code>ext_proc</code> service | Stream completion in the selected service protocol |
 | Traefik | Native middleware with local UDS engine service | Response-writer commit boundary |
-| lighttpd | Patched native module | Decoded entity-body end-of-stream |
+| lighttpd | Canonical Stock logical route <code>stock-lighttpd-sidecar</code>; separate patched-native route <code>patched-native-lighttpd</code> | The Stock sidecar owns bounded HTTP/1.1 P1--P4; the patched route has decoded entity-body EOS semantics |
 
 Each connector guide documents its host-specific route, lifecycle, build path,
 limitations, compatibility paths, operations, and validation:
@@ -43,7 +51,7 @@ limitations, compatibility paths, operations, and validation:
 
 | Phase | Neutral operation | Host responsibility | Evidence boundary |
 | --- | --- | --- | --- |
-| P1 | Connection, URI, and request-header processing | Map connection/request metadata and apply an eligible pre-commit intervention | A request result is not proof of other phases |
+| P1 | Request-header processing after Connection/URI prerequisites | Map request metadata and apply an eligible pre-commit intervention | Connection and URI are prerequisites, not P1 itself |
 | P2 | Request-body append and finalization | Stream or buffer only as the selected host route permits; finalize once at request EOS | Body support is profile-specific |
 | P3 | Response-header processing | Preserve original status and determine whether headers are still mutable | A P3 result does not establish P4 behavior |
 | P4 | Response-body append and finalization | Process bounded chunks, honor the selected host release boundary, and resolve late intervention safely; Apache retains all normalized output through first EOS before release | Post-commit action remains host- and evidence-dependent |
@@ -53,6 +61,13 @@ The engine-facing public sequence is based on libmodsecurity v3 calls for
 connection, URI, request headers/body, response headers/body, intervention,
 logging, and cleanup. A connector must not advertise a phase merely because a
 neutral type or source branch exists.
+
+The [shared transaction and phase contract](../common/docs/transaction-phase-contract.md)
+is the authoritative Common mapping for P1--P4, bounded state, decisions,
+response companions, and the ten solution identities. This architecture guide
+continues to distinguish source configuration from observed host behavior.
+Its durable decision rationale is
+[ADR-003](decisions/ADR-003-shared-p1-p4-lifecycle-semantics.md).
 
 ## Common boundary and C-first contract
 

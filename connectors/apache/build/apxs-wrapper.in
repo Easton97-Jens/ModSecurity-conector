@@ -29,6 +29,38 @@ if test -z "$MSCONNECTOR_COMMON_SRC" && test -d "../../common/src"; then
     MSCONNECTOR_COMMON_SRC="../../common/src"
 fi
 
+MSCONNECTOR_PROFILE_REGISTRY_SRC=
+if test -n "$CONNECTOR_ROOT" && test -f "$CONNECTOR_ROOT/connectors/profile_registry.c"; then
+    MSCONNECTOR_PROFILE_REGISTRY_SRC="$CONNECTOR_ROOT/connectors/profile_registry.c"
+fi
+
+if test -z "$MSCONNECTOR_PROFILE_REGISTRY_SRC" && test -f "../../profile_registry.c"; then
+    MSCONNECTOR_PROFILE_REGISTRY_SRC="../../profile_registry.c"
+fi
+
+if test -z "$MSCONNECTOR_PROFILE_REGISTRY_SRC"; then
+    echo "missing connector-owned profile registry source" >&2
+    exit 1
+fi
+
+# The generated Apache source tree is deliberately materialized outside the
+# checkout, while the canonical profile registry remains Parent-owned.  Give
+# the module its repository-root include path explicitly instead of relying on
+# a relative traversal from the generated tree.
+MSCONNECTOR_PROFILE_REGISTRY_INC=
+if test -n "$CONNECTOR_ROOT" && test -f "$CONNECTOR_ROOT/connectors/profile_registry.h"; then
+    MSCONNECTOR_PROFILE_REGISTRY_INC="$CONNECTOR_ROOT"
+fi
+
+if test -z "$MSCONNECTOR_PROFILE_REGISTRY_INC" && test -f "../../profile_registry.h"; then
+    MSCONNECTOR_PROFILE_REGISTRY_INC="../.."
+fi
+
+if test -z "$MSCONNECTOR_PROFILE_REGISTRY_INC"; then
+    echo "missing connector-owned profile registry header" >&2
+    exit 1
+fi
+
 MSCONNECTOR_COMMON_SOURCES=
 if test -n "$MSCONNECTOR_COMMON_SRC"; then
     MSCONNECTOR_COMMON_SOURCE_ROOT=$(CDPATH= cd "$MSCONNECTOR_COMMON_SRC" && pwd)
@@ -40,7 +72,7 @@ if test -n "$MSCONNECTOR_COMMON_SRC"; then
         response_mapper_contract.c headers.c event.c event_jsonl.c \
         json_escape.c rule_id.c log_sanitize.c redaction.c \
         resource_limits.c dos_guard.c error.c status.c body_policy.c \
-        block_statuses.c http_status.c transaction_state.c late_intervention.c limits.c crs.c \
+        intervention.c block_statuses.c http_status.c transaction_state.c late_intervention.c limits.c crs.c \
         header_validation_internal.h
     do
         cp "$MSCONNECTOR_COMMON_SOURCE_ROOT/$common_source" \
@@ -68,6 +100,7 @@ $MSCONNECTOR_COMMON_SRC/dos_guard.c
 $MSCONNECTOR_COMMON_SRC/error.c
 $MSCONNECTOR_COMMON_SRC/status.c
 $MSCONNECTOR_COMMON_SRC/body_policy.c
+$MSCONNECTOR_COMMON_SRC/intervention.c
 $MSCONNECTOR_COMMON_SRC/block_statuses.c
 $MSCONNECTOR_COMMON_SRC/http_status.c
 $MSCONNECTOR_COMMON_SRC/transaction_state.c
@@ -81,4 +114,4 @@ if test -n "$MSCONNECTOR_COMMON_INC"; then
     MSCONNECTOR_COMMON_OPT_I="-I $MSCONNECTOR_COMMON_INC"
 fi
 
-exec @APXS@ -Wc,-fPIC -Wc,-O0 -a -c -I @V3INCLUDE@ $MSCONNECTOR_COMMON_OPT_I -L @V3LIB@ -lmodsecurity src/mod_security3.c src/msc_config.c src/msc_filters.c src/msc_utils.c src/msc_apache_mapper.c $MSCONNECTOR_COMMON_SOURCES
+exec @APXS@ -Wc,-fPIC -Wc,-O0 -a -c -I @V3INCLUDE@ -I "$MSCONNECTOR_PROFILE_REGISTRY_INC" $MSCONNECTOR_COMMON_OPT_I -L @V3LIB@ -lmodsecurity src/mod_security3.c src/msc_config.c src/msc_filters.c src/msc_utils.c src/msc_apache_mapper.c $MSCONNECTOR_PROFILE_REGISTRY_SRC $MSCONNECTOR_COMMON_SOURCES

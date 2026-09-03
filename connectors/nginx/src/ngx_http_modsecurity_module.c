@@ -25,6 +25,7 @@
 #define MSCONNECTOR_NGINX_PHASE4_CONTENT_TYPES_FILE_MAX_BYTES (64U * 1024U)
 
 #include "ddebug.h"
+#include "connectors/profile_registry.h"
 
 #include "ngx_http_modsecurity_common.h"
 #include "msconnector/config.h"
@@ -32,6 +33,7 @@
 #include "msconnector/directive_adapter.h"
 #include "msconnector/directive_spec.h"
 #include "msconnector/directives.h"
+#include "msconnector/intervention.h"
 #include "msconnector/options.h"
 #include "msconnector/rule_id.h"
 #include "stdio.h"
@@ -66,6 +68,72 @@ static ngx_int_t ngx_http_modsecurity_process_redirect_intervention(
 static ngx_int_t ngx_http_modsecurity_process_status_intervention(
     ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
     ModSecurityIntervention *intervention, ngx_int_t early_log);
+static ngx_int_t ngx_http_modsecurity_contract_record_intervention(
+    ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
+    const ModSecurityIntervention *intervention);
+
+int ngx_http_modsecurity_contract_begin(ngx_http_modsecurity_ctx_t *ctx,
+    enum msconnector_phase phase)
+{
+    if (ctx == NULL || !ctx->contract_initialized)
+        return NGX_ERROR;
+    return msconnector_transaction_contract_begin_phase(&ctx->contract,
+        phase, 0U) == MSCONNECTOR_TRANSACTION_TRANSITION_OK
+        ? NGX_OK : NGX_ERROR;
+}
+
+int ngx_http_modsecurity_contract_complete(ngx_http_modsecurity_ctx_t *ctx,
+    enum msconnector_phase phase)
+{
+    if (ctx == NULL || !ctx->contract_initialized)
+        return NGX_ERROR;
+    return msconnector_transaction_contract_complete_phase(&ctx->contract,
+        phase, 0U) == MSCONNECTOR_TRANSACTION_TRANSITION_OK
+        ? NGX_OK : NGX_ERROR;
+}
+
+/* Keep native redirect/status delivery as a small host translation. The
+ * shared contract owns the canonical terminal meaning and rejects a missing
+ * required rule correlation before NGINX emits a host-visible decision. */
+static ngx_int_t
+ngx_http_modsecurity_contract_record_intervention(ngx_http_request_t *r,
+    ngx_http_modsecurity_ctx_t *ctx,
+    const ModSecurityIntervention *intervention)
+{
+    msconnector_transaction_decision_kind kind;
+
+    if (r == NULL || ctx == NULL || intervention == NULL) {
+        return NGX_ERROR;
+    }
+    if (!ctx->contract_initialized) {
+        return NGX_OK;
+    }
+    if (ctx->native_request_body_limit_rejection) {
+        if (msconnector_transaction_contract_fail(&ctx->contract,
+                MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, 0U) !=
+            MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                "ModSecurity: canonical request body limit decision is invalid");
+            return NGX_ERROR;
+        }
+        return NGX_OK;
+    }
+    if (msconnector_intervention_has_redirect_url(intervention->url)) {
+        kind = MSCONNECTOR_TRANSACTION_DECISION_REDIRECT;
+    } else if (intervention->status == NGX_HTTP_TOO_MANY_REQUESTS) {
+        kind = MSCONNECTOR_TRANSACTION_DECISION_RATE_LIMIT;
+    } else {
+        kind = MSCONNECTOR_TRANSACTION_DECISION_BLOCK;
+    }
+    if (msconnector_transaction_contract_record_decision(&ctx->contract, kind,
+            ctx->last_intervention_rule_id, 0U) !=
+        MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: canonical intervention decision is invalid");
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
 
 /*
  * PCRE malloc/free workaround, based on
@@ -269,9 +337,11 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
 {
     const char *log = NULL;
     ModSecurityIntervention intervention;
+    msconnector_intervention common_intervention;
     ngx_int_t result = 0;
     ngx_http_modsecurity_ctx_t *ctx = NULL;
     ngx_http_modsecurity_conf_t  *mcf;
+    int request_body_limit_rejection;
 
     ngx_memzero(&intervention, sizeof(intervention));
     intervention.status = 200;
@@ -284,26 +354,45 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
         result = NGX_HTTP_INTERNAL_SERVER_ERROR;
         goto cleanup;
     }
+    ctx->native_request_body_limit_rejection = 0;
 
     if (msc_intervention(transaction, &intervention) == 0) {
         dd("nothing to do");
         goto cleanup;
     }
-    ctx->last_intervention_status = intervention.status;
-    ctx->last_intervention_rule_id[0] = '\0';
     mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
     if (mcf == NULL) {
         result = NGX_HTTP_INTERNAL_SERVER_ERROR;
         goto cleanup;
     }
+    common_intervention = msconnector_intervention_make(
+        intervention.disruptive, intervention.status, intervention.url,
+        intervention.log);
+    request_body_limit_rejection =
+        msconnector_intervention_is_request_body_limit_rejection(
+            ctx->native_event_phase, &common_intervention);
+    ctx->native_request_body_limit_rejection =
+        request_body_limit_rejection != 0;
+    intervention.status = request_body_limit_rejection
+        ? NGX_HTTP_REQUEST_ENTITY_TOO_LARGE
+        : msconnector_intervention_normalize_status(intervention.url,
+            intervention.status, mcf->common_config.default_block_status);
+    ctx->last_intervention_status = intervention.status;
+    ctx->last_intervention_rule_id[0] = '\0';
 
     /* Extract only the bounded rule ID before libmodsecurity's message is
      * released.  Phase-4 evidence is metadata-only, so retaining a complete
      * intervention message in the request pool is unnecessary. */
-    if (mcf->phase4_log_file != NULL && intervention.log != NULL) {
+    if (intervention.log != NULL) {
         (void)msconnector_rule_id_extract_from_message(intervention.log,
             ctx->last_intervention_rule_id,
             sizeof(ctx->last_intervention_rule_id));
+    }
+
+    if (ngx_http_modsecurity_contract_record_intervention(r, ctx, &intervention)
+        != NGX_OK) {
+        result = NGX_ERROR;
+        goto cleanup;
     }
 
     // logging to nginx error log can be disable by setting `modsecurity_use_error_log` to off
@@ -315,7 +404,7 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
         ngx_log_error(NGX_LOG_ERR, (ngx_log_t *)r->connection->log, 0, "%s", log);
     }
 
-    if (intervention.url != NULL && intervention.url[0] != '\0')
+    if (msconnector_intervention_has_redirect_url(intervention.url))
     {
         result = ngx_http_modsecurity_process_redirect_intervention(r, ctx,
             &intervention);
@@ -345,6 +434,11 @@ ngx_http_modsecurity_cleanup(void *data)
         return;
     }
 
+    if (ctx->contract_initialized) {
+        (void)msconnector_transaction_contract_cleanup(&ctx->contract, 0U);
+        ctx->contract_initialized = 0;
+    }
+
     if (ctx->modsec_transaction != NULL) {
         msc_transaction_cleanup(ctx->modsec_transaction);
         ctx->modsec_transaction = NULL;
@@ -372,6 +466,7 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
     ngx_http_modsecurity_ctx_t        *ctx;
     ngx_http_modsecurity_conf_t       *mcf;
     ngx_http_modsecurity_main_conf_t  *mmcf;
+    const msconnector_transaction_profile *profile;
 
     ctx = ngx_pcalloc(r->pool, sizeof(ngx_http_modsecurity_ctx_t));
     if (ctx == NULL)
@@ -394,7 +489,18 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
         s.data = NULL;
     }
 
-    if (s.len > 0U && s.data != NULL) {
+    if (s.len > 0U) {
+        /* A complex value may be request-derived. Validate its exact NGINX
+         * length before request-pool retention or native ModSecurity use so
+         * the engine and event correlation can never see a value that the
+         * shared transaction contract would later reject. */
+        if (s.data == NULL ||
+            !msconnector_transaction_contract_validate_transaction_id_bytes(
+                (const char *) s.data, s.len)) {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                "ModSecurity: invalid canonical transaction identifier");
+            return NULL;
+        }
         transaction_id = ngx_pnalloc(r->pool, s.len + 1U);
         if (transaction_id == NULL) {
             return NULL;
@@ -416,6 +522,24 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
         ctx->event_transaction_id.len = (size_t) (transaction_id_end - transaction_id);
     }
 
+    /* Establish the bounded Common owner before the native transaction is
+     * created. A native allocation failure below can then deterministically
+     * clean the unpublished contract instead of leaving a divergent ID path. */
+    profile = msconnector_profile_registry_find("nginx");
+    if (profile == NULL || msconnector_transaction_contract_init(
+            &ctx->contract, profile,
+            (const char *)ctx->event_transaction_id.data,
+            "nginx", "nginx",
+            mcf->common_config.phase4_mode == MSCONNECTOR_PHASE4_MODE_STRICT
+                ? MSCONNECTOR_TRANSACTION_MODE_STRICT
+                : MSCONNECTOR_TRANSACTION_MODE_SAFE,
+            0U) != MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: failed to initialize canonical transaction contract");
+        return NULL;
+    }
+    ctx->contract_initialized = 1;
+
     if (ctx->event_transaction_id.len > 0U) {
         ctx->modsec_transaction = msc_new_transaction_with_id(mmcf->modsec,
             mcf->rules_set, (char *) ctx->event_transaction_id.data,
@@ -428,6 +552,8 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
     if (ctx->modsec_transaction == NULL) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
             "ModSecurity: failed to create transaction");
+        (void)msconnector_transaction_contract_cleanup(&ctx->contract, 0U);
+        ctx->contract_initialized = 0;
         return NULL;
     }
 

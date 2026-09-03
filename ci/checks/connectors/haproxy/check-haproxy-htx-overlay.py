@@ -40,9 +40,9 @@ def function_body(text: str, signature: str) -> str:
 def overlay_function_bodies(source: str) -> dict[str, str]:
     return {
         "headers": function_body(source, "static int haproxy_modsecurity_htx_filter_http_headers("),
-        "request_payload": function_body(source, "static int haproxy_modsecurity_htx_filter_http_payload("),
+        "request_callback": function_body(source, "static int haproxy_modsecurity_htx_filter_request_payload("),
         "request_append": function_body(source, "static int haproxy_modsecurity_htx_append_request_payload("),
-        "response_payload": function_body(source, "static int haproxy_modsecurity_htx_filter_http_payload("),
+        "response_callback": function_body(source, "static int haproxy_modsecurity_htx_filter_response_payload("),
         "response_append": function_body(source, "static int haproxy_modsecurity_htx_append_response_payload("),
         "response_end": function_body(source, "static int haproxy_modsecurity_htx_finish_response("),
         "precommit_deny": function_body(source, "static int haproxy_modsecurity_htx_apply_precommit_deny("),
@@ -75,7 +75,7 @@ def runtime_selection_checks(source: str, helper: str, runtime: str, bodies: dic
     request_begin = bodies["request_begin"]
     response_headers = bodies["response_headers"]
     response_append = bodies["response_append"]
-    response_payload = bodies["response_payload"]
+    response_callback = bodies["response_callback"]
     return [
         ("haproxy_modsecurity_htx_filter_http_payload" in source and "haproxy_modsecurity_htx_filter_http_end" in source, "HAProxy HTX filter exposes http_payload and http_end hooks"),
         ("CANONICAL_RULES_PATH" in helper and all(f"id:{rule_id}" in helper for rule_id in (1100001, 1100002, 1100201)) and all(f"id:{rule_id}" not in helper and f"id:{rule_id}" not in runtime for rule_id in (910001, 910002, 910003, 910004)), "HTX runtime selects canonical No-CRS rule IDs instead of temporary 91000x probes"),
@@ -87,20 +87,20 @@ def runtime_selection_checks(source: str, helper: str, runtime: str, bodies: dic
         ("s->txn->status = (short)status;" in precommit_deny and "http_set_term_flags(s);" in precommit_deny and "http_reply_and_close(s, (short)status, http_error_message(s));" in precommit_deny and "http_reply_and_close(s, (short)status, NULL)" not in precommit_deny, "precommit deny uses HAProxy's concrete error-reply path, never the NULL-reply truncation path"),
         ("haproxy_modsecurity_htx_apply_precommit_deny(s, ctx, &decision)" in request_begin and "haproxy_modsecurity_htx_apply_precommit_deny(s, ctx, &decision)" in response_headers, "both Phase 1 and pre-forward Phase 3 route deny through the native host action"),
         ("HTX_BLK_DATA" in source and "htx_find_offset" in source and "htx_get_blk_value" in source, "response hook walks current HTX DATA slices instead of materializing a body"),
-        ("haproxy_modsecurity_transaction_append_response_body_chunk" in response_append and "return (int)len;" in response_payload, "response payload forwards borrowed chunks and never holds HAProxy output"),
+        ("haproxy_modsecurity_transaction_append_response_body_chunk" in response_append and "return (int)len;" in response_callback, "response payload forwards borrowed chunks and never holds HAProxy output"),
     ]
 
 
 def lifecycle_checks(source: str, binding: str, binding_header: str, bodies: dict[str, str]) -> list[tuple[bool, str]]:
     headers = bodies["headers"]
-    request_payload = bodies["request_payload"]
+    request_callback = bodies["request_callback"]
     request_append = bodies["request_append"]
     request_end = bodies["request_end"]
     response_end = bodies["response_end"]
     return [
         ("haproxy_modsecurity_transaction_begin_request" in binding_header and "haproxy_modsecurity_transaction_append_request_body_chunk" in binding_header and "haproxy_modsecurity_transaction_finish_request_body" in binding_header and "int haproxy_modsecurity_transaction_begin_request(" in binding and "int haproxy_modsecurity_transaction_append_request_body_chunk(" in binding and "int haproxy_modsecurity_transaction_finish_request_body(" in binding, "binding exposes an explicit Phase-1/request-chunk/request-EOS lifecycle"),
         ("haproxy_modsecurity_htx_begin_request(s, filter)" in headers and headers.index("haproxy_modsecurity_htx_begin_request(s, filter)") < headers.rindex("register_data_filter(s, msg->chn, filter)"), "request headers start the per-stream transaction before payload forwarding"),
-        ("haproxy_modsecurity_transaction_append_request_body_chunk" in request_append and "return (int)len;" in request_payload, "request payload forwards borrowed chunks without a connector-owned body buffer"),
+        ("haproxy_modsecurity_transaction_append_request_body_chunk" in request_append and "return (int)len;" in request_callback, "request payload forwards borrowed chunks without a connector-owned body buffer"),
         ("ctx->request_finished = 1;" in request_end and "haproxy_modsecurity_transaction_finish_request_body" in request_end and request_end.index("ctx->request_finished = 1;") < request_end.index("haproxy_modsecurity_transaction_finish_request_body"), "request Phase 2 finalization is guarded before the sole request EOS call"),
         (source.count("haproxy_modsecurity_transaction_finish_request_body(") == 1, "source has one binding finish_request_body callsite"),
         ("haproxy_modsecurity_htx_report_decision(\"request-body\"" in request_end and "!ctx->response_headers_seen" in request_end and "haproxy_modsecurity_htx_apply_precommit_deny(" in request_end and "return 1;" in request_end, "request EOS can use the native reply path only before this filter sees response headers"),
@@ -125,7 +125,8 @@ def build_contract_checks(makefile_patch: str, build: str, version: str) -> list
         ),
         ("canonical_path()" in build and "HAPROXY_HTX_BUILD_DIR must be outside the verified source tree" in build and '"$SOURCE_DIR"/*' in build and "patch --dry-run -p1" in build, "build script rejects source-tree output and validates the disposable patch"),
         ("common/src/header_validation_internal.h" in build and '"$WORKTREE/src/header_validation_internal.h"' in build, "build script stages the Common private header required by copied request/response helpers"),
-        ("haproxy_modsecurity_htx_filter.o" in makefile_patch and "haproxy_modsecurity_binding.o" in makefile_patch, "source-linked Makefile patch includes the HTX filter and binding"),
+        ("connectors/profile_registry.c" in build and "connectors/profile_registry.h" in build and '"$WORKTREE/src/msconnector_profile_registry.c"' in build and '"$WORKTREE/src/connectors/profile_registry.h"' in build and "-I$WORKTREE/src/connectors" in build, "build script stages the connector profile registry with the include path required by the copied binding"),
+        ("haproxy_modsecurity_htx_filter.o" in makefile_patch and "haproxy_modsecurity_binding.o" in makefile_patch and "msconnector_profile_registry.o" in makefile_patch, "source-linked Makefile patch includes the HTX filter, binding, and profile registry"),
     ]
 
 

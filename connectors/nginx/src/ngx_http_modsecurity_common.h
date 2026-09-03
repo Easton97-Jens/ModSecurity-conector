@@ -30,6 +30,7 @@
 #include "msconnector/limits.h"
 #include "msconnector/phase.h"
 #include "msconnector/rule_load_stats.h"
+#include "msconnector/transaction_contract.h"
 
 
 /* #define MSC_USE_RULES_SET 1 */
@@ -83,9 +84,79 @@ typedef struct {
 } ngx_http_modsecurity_header_t;
 
 
+/* Iterate one NGINX list header at a time, including headers in chained
+ * parts. Keeping this traversal in one helper prevents request and response
+ * paths from drifting while leaving their phase-specific inspection actions
+ * in their respective callers. */
+static ngx_inline ngx_table_elt_t *
+ngx_http_modsecurity_next_header(ngx_list_part_t **part,
+    ngx_table_elt_t **data, ngx_uint_t *index)
+{
+    for (;;) {
+        if (*index < (*part)->nelts) {
+            return &(*data)[(*index)++];
+        }
+
+        if ((*part)->next == NULL) {
+            return NULL;
+        }
+
+        *part = (*part)->next;
+        *data = (*part)->elts;
+        *index = 0U;
+    }
+}
+
+
+/* Validate and measure one bounded NGINX header list.  Request and response
+ * phases use the same limits; only the owning list differs. */
+static ngx_inline ngx_int_t
+ngx_http_modsecurity_header_metrics(ngx_list_t *headers,
+    size_t *count, size_t *bytes)
+{
+    ngx_list_part_t *part;
+    ngx_table_elt_t *data;
+    ngx_uint_t index;
+
+    if (headers == NULL || count == NULL || bytes == NULL) {
+        return NGX_ERROR;
+    }
+    *count = 0U;
+    *bytes = 0U;
+    part = &headers->part;
+    data = part->elts;
+    index = 0U;
+    for (;;) {
+        if (index >= part->nelts) {
+            if (part->next == NULL) {
+                return NGX_OK;
+            }
+            part = part->next;
+            data = part->elts;
+            index = 0U;
+            continue;
+        }
+        if (data[index].key.len == 0U ||
+            data[index].key.len > MSCONNECTOR_MAX_HEADER_NAME_LENGTH ||
+            data[index].value.len > MSCONNECTOR_MAX_HEADER_VALUE_LENGTH ||
+            *count >= MSCONNECTOR_MAX_HEADER_COUNT ||
+            data[index].key.len > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES - *bytes ||
+            data[index].value.len > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES - *bytes -
+                data[index].key.len) {
+            return NGX_ERROR;
+        }
+        ++*count;
+        *bytes += data[index].key.len + data[index].value.len;
+        ++index;
+    }
+}
+
+
 typedef struct {
     ngx_http_request_t *r;
     Transaction *modsec_transaction;
+    msconnector_transaction_contract contract;
+    unsigned contract_initialized:1;
     ModSecurityIntervention *delayed_intervention;
 
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
@@ -127,6 +198,10 @@ typedef struct {
      * its native log callback can emit bounded non-disruptive rule metadata
      * with the actual host phase. */
     unsigned native_event_phase_active:1;
+    /* Exact P2 SecRequestBodyLimitAction Reject marker.  It is distinct from
+     * ordinary rule-ID-bearing denies and permits the canonical rule-ID-free
+     * BODY_LIMIT/413 translation only at this native boundary. */
+    unsigned native_request_body_limit_rejection:1;
     size_t request_body_bytes_seen;
     size_t response_body_bytes_seen;
     size_t response_body_bytes_inspected;
@@ -134,6 +209,11 @@ typedef struct {
     size_t request_header_bytes;
     size_t response_header_count;
     size_t response_header_bytes;
+    /* A file-only response buffer cannot be passed directly to
+     * libModSecurity. The body filter allocates this fixed-size scratch
+     * buffer once per request and reuses it for bounded file reads; it never
+     * retains a response payload in the Common transaction or event path. */
+    u_char *phase4_file_scratch;
     ngx_str_t event_transaction_id;
     enum msconnector_phase native_event_phase;
     /* Keep only the bounded rule identifier needed for a metadata-only
@@ -154,7 +234,7 @@ ngx_http_modsecurity_validate_header(ngx_http_modsecurity_ctx_t *ctx,
     size_t current_bytes;
 
     if (ctx == NULL || ctx->modsec_transaction == NULL ||
-        name == NULL || value == NULL ||
+        name == NULL || value == NULL || name_len == 0U ||
         name_len > MSCONNECTOR_MAX_HEADER_NAME_LENGTH ||
         value_len > MSCONNECTOR_MAX_HEADER_VALUE_LENGTH ||
         name_len > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES - value_len) {
@@ -204,6 +284,30 @@ ngx_http_modsecurity_add_n_response_header(ngx_http_modsecurity_ctx_t *ctx,
 
     return msc_add_n_response_header(ctx->modsec_transaction, name, name_len,
         value, value_len) == 1 ? 1 : NGX_ERROR;
+}
+
+typedef enum {
+    MSCONNECTOR_NGINX_INTERVENTION_FAILURE,
+    MSCONNECTOR_NGINX_INTERVENTION_BYPASS,
+    MSCONNECTOR_NGINX_INTERVENTION_ALLOW,
+    MSCONNECTOR_NGINX_INTERVENTION_ACTIVE
+} msconnector_nginx_intervention_disposition;
+
+/* Classify libmodsecurity's common intervention result.  Callers retain
+ * their phase-specific status and filter-chain actions. */
+static ngx_inline msconnector_nginx_intervention_disposition
+ngx_http_modsecurity_intervention_disposition(int ret, ngx_flag_t error_page)
+{
+    if (ret < 0) {
+        return MSCONNECTOR_NGINX_INTERVENTION_FAILURE;
+    }
+    if (error_page) {
+        return MSCONNECTOR_NGINX_INTERVENTION_BYPASS;
+    }
+    if (ret == 0) {
+        return MSCONNECTOR_NGINX_INTERVENTION_ALLOW;
+    }
+    return MSCONNECTOR_NGINX_INTERVENTION_ACTIVE;
 }
 
 
@@ -273,6 +377,10 @@ int ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_htt
 ngx_http_modsecurity_ctx_t *ngx_http_modsecurity_create_ctx(ngx_http_request_t *r);
 ngx_http_modsecurity_ctx_t *ngx_http_modsecurity_get_module_ctx(ngx_http_request_t *r);
 char *ngx_str_to_char(ngx_str_t a, ngx_pool_t *p);
+int ngx_http_modsecurity_contract_begin(ngx_http_modsecurity_ctx_t *ctx,
+    enum msconnector_phase phase);
+int ngx_http_modsecurity_contract_complete(ngx_http_modsecurity_ctx_t *ctx,
+    enum msconnector_phase phase);
 
 typedef struct {
     const char *method;

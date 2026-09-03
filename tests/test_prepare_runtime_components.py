@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -710,6 +711,179 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             components.map_apache_blocker(compiler_error, []),
             "missing_expat_headers",
         )
+
+    def test_apache_blocker_keeps_profile_registry_compile_failure_distinct_from_libmodsecurity(self) -> None:
+        compiler_error = (
+            "gcc -L/cache/modsecurity/lib -lmodsecurity -c src/mod_security3.c\n"
+            "src/mod_security3.c:14:10: fatal error: connectors/profile_registry.h: "
+            "No such file or directory\n"
+        )
+
+        self.assertEqual(
+            components.map_apache_blocker(compiler_error, []),
+            "apache_connector_build_failed",
+        )
+
+    def test_apache_blocker_detects_a_real_missing_libmodsecurity_linker_error(self) -> None:
+        compiler_error = "/usr/bin/ld: cannot find -lmodsecurity\n"
+
+        self.assertEqual(
+            components.map_apache_blocker(compiler_error, []),
+            "missing_libmodsecurity_build",
+        )
+
+    def test_apache_build_environment_disables_archive_owner_restoration(self) -> None:
+        environment = components.apache_build_environment(
+            {"TAR_OPTIONS": "--same-owner"},
+            Path("/connector"),
+            Path("/framework"),
+            Path("/cache"),
+            Path("/build"),
+            Path("/sources"),
+            Path("/archives"),
+            {"prefix": "/modsecurity-prefix", "build_id": "modsecurity-build"},
+            {
+                "expat_lib_dir": "/expat/lib",
+                "expat_pkg_config_path": "/expat/lib/pkgconfig",
+                "apache_build_root": Path("/apache-build"),
+                "httpd_prefix": Path("/httpd-prefix"),
+                "expat_cppflags": "-I/expat/include",
+                "expat_ldflags": "-L/expat/lib",
+                "apache_libs": "-lexpat",
+                "crypt_link_arg": "-lcrypt",
+            },
+        )
+
+        self.assertEqual(environment["TAR_OPTIONS"], "--no-same-owner")
+
+    def assert_modsecurity_preflight_statuses(self, preflight, *args) -> None:
+        non_ready_statuses = (
+            ("blocked", "shared_modsecurity_blocked"),
+            ("failed", "shared_modsecurity_failed"),
+            ("unknown", "shared_modsecurity_unknown"),
+            ("corrupt", "shared_modsecurity_corrupt"),
+            ("blocked_optional", "shared_modsecurity_optional"),
+            ("not_selected", ""),
+            (None, ""),
+        )
+        for status, blocker_reason in non_ready_statuses:
+            with self.subTest(status=status):
+                modsecurity: dict[str, object] = {
+                    "build_id": "modsecurity-build",
+                    "blocker_reason": blocker_reason,
+                }
+                if status is not None:
+                    modsecurity["status"] = status
+                record: dict[str, object] = {}
+
+                self.assertTrue(preflight(record, modsecurity, *args))
+                self.assertEqual(record["status"], "blocked")
+                self.assertEqual(
+                    record["blocker_reason"],
+                    blocker_reason or "modsecurity_build_failed",
+                )
+        for status in components.READY_COMPONENT_STATUSES:
+            with self.subTest(status=status):
+                self.assertFalse(preflight({}, {"status": status}, *args))
+
+    def test_apache_preflight_blocks_non_ready_modsecurity_statuses(self) -> None:
+        self.assert_modsecurity_preflight_statuses(components.apache_preflight_blocked, "")
+
+    def test_nginx_preflight_blocks_non_ready_modsecurity_statuses(self) -> None:
+        context = {
+            "require_pinned_provenance": False,
+            "override_bin": "",
+            "override_module_dir": "",
+            "managed_local_artifacts_match_plan": True,
+        }
+        self.assert_modsecurity_preflight_statuses(components.nginx_preflight_blocked, context)
+
+    def test_apache_failed_modsecurity_stops_before_host_build(self) -> None:
+        record: dict[str, object] = {}
+        modsecurity = {
+            "status": "failed",
+            "build_id": "modsecurity-build",
+            "blocker_reason": "modsecurity_build_failed",
+        }
+        with tempfile.TemporaryDirectory(prefix="apache-failed-modsecurity-") as temporary:
+            root = Path(temporary)
+            with mock.patch.object(
+                components,
+                "apache_runtime_context",
+                return_value={"override_apachectl": ""},
+            ), mock.patch.object(
+                components,
+                "apache_runtime_record",
+                return_value=record,
+            ), mock.patch.object(components, "build_apache_source") as build:
+                result = components._prepare_apache_httpd_for_plan(
+                    {},
+                    ROOT,
+                    ROOT,
+                    root / "cache",
+                    root / "build",
+                    root / "sources",
+                    root / "archives",
+                    {},
+                    modsecurity,
+                    {},
+                )
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["blocker_reason"], "modsecurity_build_failed")
+        build.assert_not_called()
+
+    def test_nginx_failed_modsecurity_stops_before_host_build(self) -> None:
+        record: dict[str, object] = {}
+        modsecurity = {
+            "status": "failed",
+            "build_id": "modsecurity-build",
+            "blocker_reason": "modsecurity_build_failed",
+        }
+        context = {
+            "require_pinned_provenance": False,
+            "override_bin": "",
+            "override_module_dir": "",
+            "managed_local_artifacts_match_plan": True,
+        }
+        with tempfile.TemporaryDirectory(prefix="nginx-failed-modsecurity-") as temporary:
+            root = Path(temporary)
+            with mock.patch.object(components, "nginx_pinned_provenance"), mock.patch.object(
+                components,
+                "nginx_pinned_provenance_required",
+                return_value=False,
+            ), mock.patch.object(
+                components,
+                "nginx_protocol_context",
+                return_value=({}, "h1", "", ""),
+            ), mock.patch.object(
+                components,
+                "nginx_runtime_context",
+                return_value=context,
+            ), mock.patch.object(
+                components,
+                "nginx_runtime_record",
+                return_value=record,
+            ), mock.patch.object(
+                components,
+                "nginx_archive_preflight_blocked",
+                return_value=False,
+            ), mock.patch.object(components, "nginx_prepare_or_reuse_runtime") as prepare:
+                result = components._prepare_nginx_runtime_for_plan(
+                    {},
+                    ROOT,
+                    ROOT,
+                    root / "cache",
+                    root / "build",
+                    root / "sources",
+                    root / "archives",
+                    modsecurity,
+                    {},
+                )
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["blocker_reason"], "modsecurity_build_failed")
+        prepare.assert_not_called()
 
     def test_expat_autotools_stops_when_autoreconf_fails(self) -> None:
         with tempfile.TemporaryDirectory(prefix="expat-autoreconf-") as temporary:
@@ -1476,6 +1650,64 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             self.assertFalse(any(path.name.startswith(f".{cache_key}.tmp-") for path in connector_build.parent.iterdir()))
             return record
 
+    def prepare_haproxy_binding_failure_with(
+        self,
+        returncode: int,
+        output: str,
+    ) -> tuple[dict[str, object], str, tuple[tuple[Path, bool], ...]]:
+        with tempfile.TemporaryDirectory(prefix="haproxy-binding-failure-") as temporary:
+            root = Path(temporary)
+            cache = root / "cache"
+            components.ensure_managed_cache_root(cache)
+            plan = self.haproxy_runtime_plan(cache)
+            prep = subprocess.CompletedProcess(
+                args=["prepare-haproxy-runtime.sh"],
+                returncode=0,
+                stdout="haproxy_prepare: ready\n",
+                stderr="",
+            )
+            binding = subprocess.CompletedProcess(
+                args=["make"],
+                returncode=returncode,
+                stdout="",
+                stderr=output,
+            )
+
+            def prepare_with_runtime_binary(
+                _script: Path,
+                environment: dict[str, str],
+                _cwd: Path,
+                _log_path: Path,
+            ) -> subprocess.CompletedProcess[str]:
+                binary = Path(environment["HAPROXY_BIN"])
+                binary.parent.mkdir(parents=True, exist_ok=True)
+                binary.write_text("#!/bin/sh\n", encoding="utf-8")
+                binary.chmod(0o700)
+                return prep
+
+            with mock.patch.object(components, "run_build", side_effect=prepare_with_runtime_binary), mock.patch.object(
+                components, "run_haproxy_binding_build", return_value=binding
+            ), mock.patch.object(components, "safe_remove_dir", wraps=components.safe_remove_dir) as cleanup, mock.patch(
+                "sys.stderr", new_callable=io.StringIO
+            ) as stderr:
+                record = components.prepare_haproxy_runtime(
+                    {},
+                    ROOT,
+                    ROOT / "modules/ModSecurity-test-Framework",
+                    cache,
+                    root / "build",
+                    cache / "sources",
+                    cache / "archives",
+                    {"status": "built", "build_id": "modsecurity-build"},
+                    plan,
+                )
+                diagnostic = stderr.getvalue()
+                cleanup_observations = tuple(
+                    (Path(call.args[0]), Path(call.args[0]).exists())
+                    for call in cleanup.call_args_list
+                )
+        return record, diagnostic, cleanup_observations
+
     def haproxy_runtime_plan(
         self,
         cache_root: Path,
@@ -1532,6 +1764,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             ).resolve()
             self.assertEqual(context["root"], expected_root)
             self.assertEqual(prep_env["BUILD_ROOT"], str(build_root.resolve()))
+            self.assertEqual(prep_env["LOG_DIR"], str(context["framework_log_dir"]))
             self.assertEqual(
                 components.connector_output_layout(
                     "haproxy",
@@ -1550,6 +1783,8 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                 context["spoa_bin"],
                 context["paths_env"],
                 context["log_path"],
+                context["framework_log_dir"],
+                context["framework_build_log"],
             )
             for path in mutable_paths:
                 with self.subTest(path=path):
@@ -1671,6 +1906,645 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         )
         self.assertEqual(record["status"], "failed")
         self.assertEqual(record["build_exit_code"], 77)
+
+    def test_haproxy_preflight_blocks_non_ready_modsecurity_statuses(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="haproxy-non-ready-modsecurity-") as temporary:
+            root = Path(temporary)
+            cache = root / "cache"
+            components.ensure_managed_cache_root(cache)
+            plan = self.haproxy_runtime_plan(cache)
+            context = components.haproxy_runtime_context(plan, root / "build")
+            non_ready_statuses = (
+                ("blocked", "shared_modsecurity_blocked"),
+                ("failed", "shared_modsecurity_failed"),
+                ("unknown", "shared_modsecurity_unknown"),
+                ("corrupt", "shared_modsecurity_corrupt"),
+                ("blocked_optional", "shared_modsecurity_optional"),
+                ("not_selected", ""),
+                (None, ""),
+            )
+            for status, blocker_reason in non_ready_statuses:
+                with self.subTest(status=status):
+                    modsecurity: dict[str, object] = {
+                        "build_id": "modsecurity-build",
+                        "blocker_reason": blocker_reason,
+                    }
+                    if status is not None:
+                        modsecurity["status"] = status
+                    record = components.haproxy_runtime_record(plan, modsecurity, context)
+
+                    self.assertTrue(
+                        components.haproxy_preflight_blocked(record, modsecurity, cache, context)
+                    )
+                    self.assertEqual(record["status"], "blocked")
+                    self.assertEqual(
+                        record["blocker_reason"],
+                        blocker_reason or "modsecurity_build_failed",
+                    )
+            for status in components.READY_COMPONENT_STATUSES:
+                with self.subTest(status=status):
+                    modsecurity = {"status": status, "build_id": "modsecurity-build"}
+                    record = components.haproxy_runtime_record(plan, modsecurity, context)
+
+                    self.assertFalse(
+                        components.haproxy_preflight_blocked(record, modsecurity, cache, context)
+                    )
+
+    def test_haproxy_failed_modsecurity_stops_before_host_build(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="haproxy-failed-modsecurity-") as temporary:
+            root = Path(temporary)
+            cache = root / "cache"
+            components.ensure_managed_cache_root(cache)
+            plan = self.haproxy_runtime_plan(cache)
+            modsecurity = {
+                "status": "failed",
+                "build_id": "modsecurity-build",
+                "blocker_reason": "modsecurity_build_failed",
+            }
+            with mock.patch.object(components, "run_build") as prepare, mock.patch.object(
+                components, "run_haproxy_binding_build"
+            ) as binding, mock.patch.object(
+                components,
+                "write_haproxy_record",
+                side_effect=lambda _plan, record: record,
+            ):
+                record = components.prepare_haproxy_runtime(
+                    {},
+                    ROOT,
+                    ROOT / "modules/ModSecurity-test-Framework",
+                    cache,
+                    root / "build",
+                    cache / "sources",
+                    cache / "archives",
+                    modsecurity,
+                    plan,
+                    _transactional=True,
+                )
+
+            self.assertEqual(record["status"], "blocked")
+            self.assertEqual(record["blocker_reason"], "modsecurity_build_failed")
+            prepare.assert_not_called()
+            binding.assert_not_called()
+
+    def test_haproxy_binding_failure_diagnostic_is_bounded_and_opaque(self) -> None:
+        proc = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout=(
+                "cc1: fatal error: modsecurity/transaction.h: No such file or directory "
+                "Authorization: Bearer hidden\x1b[31m\N{RIGHT-TO-LEFT OVERRIDE}\n"
+                "FAIL: binding compile failed error: -DAPI_SECRET=super-secret-token "
+                "body=must-not-appear https://example.invalid/private\x00\n"
+            ),
+            stderr="FAIL: HAProxy ModSecurity binding source did not compile\n",
+        )
+
+        diagnostics = components.haproxy_failure_diagnostic_lines(proc)
+        rendered = "\n".join(diagnostics)
+
+        self.assertIn("classification=compiler_fatal_error", rendered)
+        self.assertIn("missing_header=transaction.h", rendered)
+        self.assertIn("classification=compiler_error", rendered)
+        self.assertIn("build_step=modsecurity_binding_source_compile", rendered)
+        self.assertNotIn("super-secret-token", rendered)
+        self.assertNotIn("must-not-appear", rendered)
+        self.assertNotIn("https://example.invalid/private", rendered)
+        self.assertNotIn("hidden", rendered)
+        self.assertNotIn("\x1b", rendered)
+        self.assertNotIn("\N{RIGHT-TO-LEFT OVERRIDE}", rendered)
+        self.assertNotIn("\x00", rendered)
+        self.assertLessEqual(len(diagnostics), components.HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINES)
+
+    def test_haproxy_binding_failure_preserves_status_and_emits_safe_summary(self) -> None:
+        record, diagnostic, _ = self.prepare_haproxy_binding_failure_with(
+            23,
+            "FAIL: HAProxy ModSecurity binding self-test source did not compile\n"
+            "Authorization: Bearer hidden \x1b[31mhttps://example.invalid/private"
+            "\N{RIGHT-TO-LEFT OVERRIDE}\n",
+        )
+        self.assertEqual(record["status"], "failed")
+        self.assertEqual(record["blocker_reason"], "haproxy_connector_build_failed")
+        self.assertEqual(record["build_exit_code"], 23)
+        self.assertIn("target=build-modsecurity-binding build-spoa-runtime", diagnostic)
+        self.assertIn("build_log=private_task_owned_haproxy-build.log", diagnostic)
+        self.assertIn("build_step=modsecurity_binding_self_test_source_compile", diagnostic)
+        self.assertNotIn("hidden", diagnostic)
+        self.assertNotIn("https://example.invalid/private", diagnostic)
+        self.assertNotIn("\x1b", diagnostic)
+        self.assertNotIn("\N{RIGHT-TO-LEFT OVERRIDE}", diagnostic)
+
+    def test_haproxy_binding_missing_artifacts_remain_failure(self) -> None:
+        record, diagnostic, _ = self.prepare_haproxy_binding_failure_with(0, "unclassified output\n")
+
+        self.assertEqual(record["status"], "failed")
+        self.assertEqual(record["blocker_reason"], "haproxy_connector_build_failed")
+        self.assertEqual(record["build_exit_code"], 0)
+        self.assertIn("missing_artifact=spoa_runtime_binary", diagnostic)
+        self.assertIn("missing_artifact=modsecurity_binding_paths", diagnostic)
+        self.assertNotIn("unclassified output", diagnostic)
+
+    def test_haproxy_binding_failure_cleans_transactional_staging(self) -> None:
+        record, _, cleanup_observations = self.prepare_haproxy_binding_failure_with(
+            2,
+            "fatal error: required-header.h: No such file or directory\n",
+        )
+
+        self.assertEqual(record["status"], "failed")
+        self.assertEqual(len(cleanup_observations), 1)
+        cleanup_path, exists_after_cleanup = cleanup_observations[0]
+        self.assertIn(".tmp-", cleanup_path.name)
+        self.assertFalse(exists_after_cleanup)
+
+    def test_haproxy_binding_failure_diagnostic_limits_classifications_and_handles_empty_output(self) -> None:
+        proc = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout=(
+                "fatal error: modsecurity/modsecurity.h: No such file or directory\n"
+                "fatal error: modsecurity/rules_set.h: No such file or directory\n"
+                "fatal error: modsecurity/transaction.h: No such file or directory\n"
+                "FAIL: HAProxy ModSecurity binding source did not compile\n"
+                "FAIL: HAProxy ModSecurity binding self-test source did not compile\n"
+                "FAIL: HAProxy ModSecurity binding self-test did not link\n"
+            ),
+            stderr=None,
+        )
+
+        diagnostics = components.haproxy_failure_diagnostic_lines(proc)
+
+        self.assertEqual(len(diagnostics), components.HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINES)
+        self.assertEqual(diagnostics[-1], "[classification list truncated]")
+        self.assertEqual(
+            components.haproxy_failure_diagnostic_lines(
+                subprocess.CompletedProcess(args=["make"], returncode=2, stdout=None, stderr=None)
+            ),
+            [],
+        )
+
+    def test_haproxy_binding_failure_diagnostic_keeps_order_at_exact_limit(self) -> None:
+        proc = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout=(
+                "fatal error: modsecurity/modsecurity.h: No such file or directory\n"
+                "fatal error: modsecurity/rules_set.h: No such file or directory\n"
+                "fatal error: modsecurity/transaction.h: No such file or directory\n"
+                "FAIL: HAProxy ModSecurity binding source did not compile for diagnostic SPOP runtime\n"
+                "FAIL: HAProxy ModSecurity SPOA runtime source did not compile\n"
+                "FAIL: HAProxy ModSecurity binding source did not compile\n"
+            ),
+            stderr=None,
+        )
+
+        self.assertEqual(
+            components.haproxy_failure_diagnostic_lines(proc),
+            [
+                components.HAPROXY_DIAGNOSTIC_COMPILER_FATAL_ERROR,
+                "missing_header=modsecurity.h",
+                "missing_header=rules_set.h",
+                "missing_header=transaction.h",
+                components.HAPROXY_DIAGNOSTIC_COMPILER_ERROR,
+                "build_step=spoa_binding_source_compile",
+                "build_step=spoa_runtime_source_compile",
+                "build_step=modsecurity_binding_source_compile",
+            ],
+        )
+
+    def test_haproxy_binding_failure_diagnostic_accepts_known_stdout_or_stderr_only(self) -> None:
+        known_message = "FAIL: HAProxy ModSecurity SPOA runtime source did not compile\n"
+        expected = {"classification=compiler_error", "build_step=spoa_runtime_source_compile"}
+
+        for output_name in ("stdout", "stderr"):
+            with self.subTest(output_name=output_name):
+                proc = subprocess.CompletedProcess(
+                    args=["make"],
+                    returncode=2,
+                    stdout=known_message if output_name == "stdout" else "",
+                    stderr=known_message if output_name == "stderr" else "",
+                )
+                self.assertEqual(set(components.haproxy_failure_diagnostic_lines(proc)), expected)
+
+        rejected = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout=(
+                "FAIL: build https://example.invalid/Authorization: Bearer hidden\n"
+                "error: body=must-not-appear API_SECRET=super-secret-token\n"
+            ),
+            stderr=None,
+        )
+        self.assertEqual(components.haproxy_failure_diagnostic_lines(rejected), [])
+
+    def test_haproxy_binding_build_replaces_invalid_tool_output_without_broadening_run_env(self) -> None:
+        command = [
+            sys.executable,
+            "-c",
+            "import sys; sys.stderr.buffer.write(bytes([255]) + b'\\nFAIL: HAProxy Common SDK source did not compile: /private/source.c\\n'); raise SystemExit(2)",
+        ]
+
+        with self.assertRaises(UnicodeDecodeError):
+            components.run_env(command)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tools = root / "tools"
+            tools.mkdir()
+            fake_make = tools / "make"
+            fake_make.write_text(
+                "#!" + sys.executable + "\n" + command[2] + "\n",
+                encoding="utf-8",
+            )
+            fake_make.chmod(0o700)
+            log_path = root / "private-build.log"
+
+            proc = components.run_haproxy_binding_build(
+                root / "connector",
+                {"PATH": str(tools)},
+                log_path,
+            )
+            logged_output = log_path.read_text(encoding="utf-8")
+
+        self.assertEqual(proc.returncode, 2)
+        self.assertEqual(proc.stdout, "")
+        self.assertEqual(proc.stderr, "\ufffd\nFAIL: HAProxy Common SDK source did not compile: /private/source.c\n")
+        self.assertIn("\ufffd", logged_output)
+        self.assertEqual(
+            components.haproxy_failure_diagnostic_lines(proc),
+            [
+                components.HAPROXY_DIAGNOSTIC_COMPILER_ERROR,
+                "build_step=modsecurity_common_sdk_source_compile",
+            ],
+        )
+
+    def test_haproxy_binding_failure_diagnostic_scans_stderr_before_stdout_with_fixed_values(self) -> None:
+        proc = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout=(
+                "FAIL: HAProxy ModSecurity SPOA runtime did not link with libmodsecurity\n"
+                "Authorization: Bearer hidden\n"
+            ),
+            stderr=(
+                "BLOCKED: HAProxy libModSecurity resolver: /private/resolver-token\n"
+                "FAIL: HAProxy Common SDK source did not compile: /private/source.c\n"
+            ),
+        )
+
+        diagnostics = components.haproxy_failure_diagnostic_lines(proc)
+
+        self.assertEqual(
+            diagnostics,
+            [
+                components.HAPROXY_DIAGNOSTIC_RESOLVER_ERROR,
+                "build_step=modsecurity_resolver",
+                components.HAPROXY_DIAGNOSTIC_COMPILER_ERROR,
+                "build_step=modsecurity_common_sdk_source_compile",
+                components.HAPROXY_DIAGNOSTIC_LINKER_ERROR,
+                "build_step=spoa_runtime_link",
+            ],
+        )
+        rendered = "\n".join(diagnostics)
+        self.assertNotIn("/private", rendered)
+        self.assertNotIn("hidden", rendered)
+
+    def test_haproxy_binding_failure_diagnostic_maps_only_exact_resolver_sentinel_on_stderr(self) -> None:
+        generic_resolver_diagnostics = [
+            components.HAPROXY_DIAGNOSTIC_RESOLVER_ERROR,
+            "build_step=modsecurity_resolver",
+        ]
+
+        for exact_sentinel, exact_diagnostics in (
+            components.HAPROXY_RESOLVER_SENTINEL_DIAGNOSTICS.items()
+        ):
+            expected_exact_diagnostics = list(exact_diagnostics)
+            cases = (
+                ("exact_stderr", "", exact_sentinel, expected_exact_diagnostics),
+                ("crlf_stderr", "", exact_sentinel + "\r\n", expected_exact_diagnostics),
+                (
+                    "double_cr_suffix",
+                    "",
+                    exact_sentinel + "\r\r\n",
+                    generic_resolver_diagnostics,
+                ),
+                (
+                    "untrusted_suffix",
+                    "",
+                    exact_sentinel + " Authorization: Bearer hidden body=private",
+                    generic_resolver_diagnostics,
+                ),
+                ("exact_stdout", exact_sentinel, "", generic_resolver_diagnostics),
+                (
+                    "unknown_stderr",
+                    "",
+                    "BLOCKED: HAProxy libModSecurity resolver: /private/resolver-token",
+                    generic_resolver_diagnostics,
+                ),
+            )
+
+            for name, stdout, stderr, expected in cases:
+                with self.subTest(sentinel=exact_sentinel, name=name):
+                    diagnostics = components.haproxy_failure_diagnostic_lines(
+                        subprocess.CompletedProcess(
+                            args=["make"], returncode=77, stdout=stdout, stderr=stderr
+                        )
+                    )
+
+                    self.assertEqual(diagnostics, expected)
+                    rendered = "\n".join(diagnostics)
+                    self.assertNotIn("hidden", rendered)
+                    self.assertNotIn("private", rendered)
+
+    def test_haproxy_resolver_cause_diagnostics_rejects_unknown_cause(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unknown HAProxy resolver diagnostic cause"):
+            components.haproxy_resolver_cause_diagnostics("untrusted-cause")
+
+    def test_haproxy_multi_header_resolver_sentinels_are_exact_and_fixed(self) -> None:
+        causes = (
+            "headers_modsecurity_h_and_rules_set_h_missing",
+            "headers_modsecurity_h_and_transaction_h_missing",
+            "headers_rules_set_h_and_transaction_h_missing",
+            "headers_modsecurity_h_and_rules_set_h_and_transaction_h_missing",
+        )
+        for cause in causes:
+            with self.subTest(cause=cause):
+                sentinel = components.HAPROXY_RESOLVER_SENTINEL_PREFIX + cause
+                self.assertEqual(
+                    components.HAPROXY_RESOLVER_SENTINEL_DIAGNOSTICS[sentinel],
+                    (
+                        components.HAPROXY_DIAGNOSTIC_RESOLVER_ERROR,
+                        "build_step=modsecurity_resolver",
+                        f"resolver_cause={cause}",
+                    ),
+                )
+
+    def test_haproxy_binding_failure_diagnostic_emits_only_safe_resolver_annotation(self) -> None:
+        exact_sentinel, exact_diagnostics = next(
+            iter(components.HAPROXY_RESOLVER_SENTINEL_DIAGNOSTICS.items())
+        )
+        expected_annotation = (
+            "::error title=HAProxy resolver diagnostic::" f"{exact_diagnostics[-1]}"
+        )
+        cases = (
+            (
+                "exact_stderr",
+                "",
+                exact_sentinel + "\nBLOCKED: HAProxy libModSecurity resolver: /private/detail",
+                True,
+            ),
+            (
+                "suffix_stderr",
+                "",
+                exact_sentinel + " Authorization: Bearer hidden body=private",
+                False,
+            ),
+            ("stdout_only", exact_sentinel, "", False),
+            (
+                "unknown_stderr",
+                "",
+                "BLOCKED: HAProxy libModSecurity resolver: /private/resolver-token",
+                False,
+            ),
+            (
+                "overlong_stderr",
+                "",
+                exact_sentinel + "x" * components.HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINE_CHARS,
+                False,
+            ),
+        )
+
+        for name, stdout, stderr, expect_annotation in cases:
+            with self.subTest(name=name):
+                proc = subprocess.CompletedProcess(
+                    args=["make"], returncode=77, stdout=stdout, stderr=stderr
+                )
+                with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
+                    with mock.patch.object(components.sys, "stderr", new_callable=io.StringIO) as output:
+                        components.emit_haproxy_binding_failure_diagnostic(proc, ())
+                rendered = output.getvalue()
+
+                if expect_annotation:
+                    self.assertIn(expected_annotation, rendered)
+                    self.assertEqual(rendered.count("::error title=HAProxy resolver diagnostic::"), 1)
+                else:
+                    self.assertNotIn("::error title=HAProxy resolver diagnostic::", rendered)
+                self.assertNotIn("hidden", rendered)
+                self.assertNotIn("/private", rendered)
+                self.assertNotIn("resolver-token", rendered)
+
+    def test_haproxy_binding_failure_diagnostic_stops_after_bounded_untrusted_output(self) -> None:
+        proc = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout="FAIL: HAProxy Common SDK source did not compile: /private/stdout-source.c\n",
+            stderr=(
+                "Authorization: Bearer hidden\n"
+                * components.HAPROXY_FAILURE_DIAGNOSTIC_SCAN_MAX_LINES
+                + "FAIL: HAProxy Common SDK source did not compile: /private/source.c\n"
+            ),
+        )
+
+        diagnostics = components.haproxy_failure_diagnostic_lines(proc)
+
+        self.assertEqual(
+            diagnostics,
+            [
+                components.HAPROXY_DIAGNOSTIC_COMPILER_ERROR,
+                "build_step=modsecurity_common_sdk_source_compile",
+            ],
+        )
+        self.assertNotIn("hidden", "\n".join(diagnostics))
+
+    def test_haproxy_binding_failure_diagnostic_accepts_maximum_line_and_stops_on_overlong_line(self) -> None:
+        marker = "FAIL: HAProxy Common SDK source did not compile: /private/source.c\n"
+        maximum_line = "x" * components.HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINE_CHARS
+        expected = [
+            components.HAPROXY_DIAGNOSTIC_COMPILER_ERROR,
+            "build_step=modsecurity_common_sdk_source_compile",
+        ]
+
+        accepted = subprocess.CompletedProcess(
+            args=["make"], returncode=2, stdout="", stderr=f"{maximum_line}\n{marker}"
+        )
+        rejected = subprocess.CompletedProcess(
+            args=["make"], returncode=2, stdout="", stderr=f"{maximum_line}x\n{marker}"
+        )
+
+        self.assertEqual(components.haproxy_failure_diagnostic_lines(accepted), expected)
+        self.assertEqual(components.haproxy_failure_diagnostic_lines(rejected), [])
+
+    def test_haproxy_binding_failure_footer_emits_first_allowlisted_target(self) -> None:
+        proc = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout=(
+                "make: *** [Makefile:12: build-spoa-runtime] Error 2\n"
+            ),
+            stderr=(
+                "make[1]: *** [build-modsecurity-binding] Error 2\n"
+                "make: *** [Makefile:13: build-spoa-runtime] Error 2\n"
+            ),
+        )
+
+        self.assertEqual(
+            components.haproxy_failure_target_from_footers(proc),
+            "build-modsecurity-binding",
+        )
+        self.assertIn(
+            "target_failure=build-modsecurity-binding",
+            components.haproxy_failure_diagnostic_lines(proc),
+        )
+
+    def test_haproxy_binding_failure_footer_accepts_exact_make_grammar(self) -> None:
+        expected_target_paths = {
+            "build-modsecurity-binding": "/task/haproxy-modsecurity-binding-self-test",
+            "build-spoa-runtime": "/task/haproxy-modsecurity-spoa",
+        }
+        cases = (
+            ("make: *** [build-modsecurity-binding] Error 2", "build-modsecurity-binding"),
+            ("make[001]: *** [Makefile:7:\tbuild-spoa-runtime] Error 12", "build-spoa-runtime"),
+            (
+                "make[0]: *** [Makefile:224:/task/haproxy-modsecurity-binding-self-test] Error 2",
+                "build-modsecurity-binding",
+            ),
+            ("make: *** [Makefile:198:/task/haproxy-modsecurity-spoa] Error 2", "build-spoa-runtime"),
+        )
+
+        for footer, expected_target in cases:
+            with self.subTest(footer=footer):
+                proc = subprocess.CompletedProcess(
+                    args=["make"], returncode=2, stdout="", stderr=f"{footer}\n"
+                )
+                self.assertEqual(
+                    components.haproxy_failure_target_from_footers(proc, expected_target_paths),
+                    expected_target,
+                )
+
+    def test_haproxy_binding_failure_footer_rejects_malformed_or_adversarial_grammar(self) -> None:
+        adversarial_prefix = "location:1:" * 2048
+        footers = (
+            "make[one]: *** [build-modsecurity-binding] Error 2",
+            "make[１２]: *** [build-modsecurity-binding] Error 2",
+            "make: *** [build-modsecurity-binding] Error ٢",
+            "make: *** [build-modsecurity-binding] Error",
+            "make: *** [build-modsecurity-binding] Error 2 unexpected",
+            f"make: *** [{adversarial_prefix}build-modsecurity-binding Error 2",
+        )
+
+        for footer in footers:
+            with self.subTest(footer=footer[:80]):
+                proc = subprocess.CompletedProcess(
+                    args=["make"], returncode=2, stdout="", stderr=f"{footer}\n"
+                )
+                self.assertIsNone(components.haproxy_failure_target_from_footers(proc))
+                self.assertNotIn("target_failure=", components.haproxy_failure_diagnostic_lines(proc))
+
+    def test_haproxy_binding_failure_footer_maps_only_the_expected_output_path(self) -> None:
+        expected_target_paths = {
+            "build-modsecurity-binding": "/task/build/haproxy-modsecurity-binding/"
+            "haproxy-modsecurity-binding-self-test",
+            "build-spoa-runtime": "/task/build/haproxy-spoa-runtime/haproxy-modsecurity-spoa",
+        }
+        proc = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout="",
+            stderr=(
+                "make: *** [Makefile:224: /task/build/haproxy-modsecurity-binding/"
+                "haproxy-modsecurity-binding-self-test] Error 2\n"
+            ),
+        )
+        spoa = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout="",
+            stderr=(
+                "make: *** [Makefile:198: /task/build/haproxy-spoa-runtime/"
+                "haproxy-modsecurity-spoa] Error 2\n"
+            ),
+        )
+        ordered = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout="",
+            stderr=proc.stderr + spoa.stderr,
+        )
+        rejected = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout="",
+            stderr=(
+                "make: *** [Makefile:224: /other/build/haproxy-modsecurity-binding/"
+                "haproxy-modsecurity-binding-self-test] Error 2\n"
+            ),
+        )
+
+        self.assertEqual(
+            components.haproxy_failure_target_from_footers(proc, expected_target_paths),
+            "build-modsecurity-binding",
+        )
+        self.assertIn(
+            "target_failure=build-modsecurity-binding",
+            components.haproxy_failure_diagnostic_lines(proc, expected_target_paths),
+        )
+        self.assertIsNone(
+            components.haproxy_failure_target_from_footers(rejected, expected_target_paths)
+        )
+        self.assertNotIn(
+            "target_failure=",
+            components.haproxy_failure_diagnostic_lines(rejected, expected_target_paths),
+        )
+        self.assertEqual(
+            components.haproxy_failure_target_from_footers(spoa, expected_target_paths),
+            "build-spoa-runtime",
+        )
+        self.assertEqual(
+            components.haproxy_failure_target_from_footers(ordered, expected_target_paths),
+            "build-modsecurity-binding",
+        )
+
+    def test_haproxy_binding_failure_footer_ignores_stdout_target_like_text(self) -> None:
+        proc = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout="make: *** [Makefile:12: build-modsecurity-binding] Error 2\n",
+            stderr="compiler output only\n",
+        )
+
+        self.assertIsNone(components.haproxy_failure_target_from_footers(proc))
+        self.assertNotIn(
+            "target_failure=",
+            components.haproxy_failure_diagnostic_lines(proc),
+        )
+
+    def test_haproxy_binding_failure_footer_rejects_unallowlisted_or_hostile_target(self) -> None:
+        proc = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout="make: *** [Makefile:11: build-spoa-runtime] Error 2\n",
+            stderr=(
+                "make: *** [Makefile:12: not-allowlisted] Error 2\n"
+                "make: *** [Makefile:13: build-modsecurity-binding; touch /tmp/pwned] Error 2\n"
+            ),
+        )
+
+        self.assertIsNone(components.haproxy_failure_target_from_footers(proc))
+        self.assertNotIn(
+            "target_failure=",
+            components.haproxy_failure_diagnostic_lines(proc),
+        )
+
+    def test_haproxy_binding_failure_footer_keeps_failed_status_exit_and_safe_summary(self) -> None:
+        record, diagnostic, _ = self.prepare_haproxy_binding_failure_with(
+            17,
+            "make: *** [Makefile:24: build-modsecurity-binding] Error 2\n"
+            "Authorization: Bearer hidden\n",
+        )
+
+        self.assertEqual(record["status"], "failed")
+        self.assertEqual(record["build_exit_code"], 17)
+        self.assertIn("target_failure=build-modsecurity-binding", diagnostic)
+        self.assertNotIn("Makefile:24", diagnostic)
+        self.assertNotIn("hidden", diagnostic)
 
     def test_haproxy_missing_prerequisite_remains_blocked(self) -> None:
         record = self.prepare_haproxy_with(
