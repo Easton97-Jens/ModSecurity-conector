@@ -9,7 +9,7 @@
 | Change-ID | CR-20260902-nginx-workflow-contract-repair |
 | Datum (UTC) | 2026-09-02 |
 | Basis-Revision | 8743fceeb708c06329c14ac00a1f333945edf1d7 |
-| Delivery-Status | Der erste Reparatur-Commit wurde normal gepusht und erstellte Draft PR #351; dessen erster exakter Head bestand alle gemeldeten Hosted-Checks und SonarClouds PR-Quality-Gate mit null PR-Issues. Eine während dieser Delivery entdeckte High-Severity-Runtime-Dependency-Remediation wird nun demselben Draft PR hinzugefügt und benötigt frische Exact-Successor-Evidence. Kein Merge, direkter master-Write, Force-Aktion, Bypass oder Auto-Merge ist autorisiert. |
+| Delivery-Status | Die Reparatur und High-Severity-gRPC-Remediation sind normal auf Draft PR #351 gepusht. Dessen vorheriger Code-Successor-Head b951a3f53548da9a039b0e634a494d6918f3d54f bestand alle gemeldeten Hosted-Checks und SonarClouds PR-Quality-Gate mit null PR-Issues. Der aktuelle User hat die geschützte Integration dieses PR nach erneuter Validierung des dann aktuellen exakten Heads ausdrücklich autorisiert. Diese Autorisierung erlaubt nur einen normalen Squash-Merge; direkte master-Writes, Force-Aktionen, Bypässe und Auto-Merge bleiben verboten. Dieser Pre-Merge-Record behauptet keinen unbeobachteten Merge oder resultierenden master-Status. |
 
 ## Motivation und Problemstellung
 
@@ -54,8 +54,10 @@ deshalb ist das enge Sicherheitsupdate für eine sichere Delivery erforderlich.
 - Readonly-Modulverifikation, Tests, Build und Vet bestehen mit task-eigenen
   Caches; bestehende Listener-, Nachrichtengrößen-, Stream- und UDS-
   Schutzmaßnahmen bleiben unverändert.
-- Ein Task-Branch und Draft PR werden erst nach Exact-Head-Review geliefert;
-  diese Aufgabe führt keinen Merge aus.
+- PR #351 wird erst nach frischem Exact-Head-Review unter der ausdrücklichen
+  Autorisierung des aktuellen Users per normalem Squash-Merge in geschütztes
+  master gebracht; es erfolgt kein direkter master-Write, keine Force-Aktion,
+  kein Bypass und kein Auto-Merge.
 
 ## Implementierungsentscheidung und Begründung
 
@@ -129,14 +131,15 @@ die UDS-Autorisierung des Response Observers den Upstream-Transportfix ersetzen.
 | make check-bilingual-docs | Nur durch 20 vorbestehende fehlende Framework-Gitlink-Targets blockiert; kein aktueller Change-Record-Pfad wurde gemeldet. |
 | make check-doc-links / Repository-Path-Reference-Check | Nur durch denselben fehlenden Framework-Checkout und seine vorbestehenden Targets blockiert. |
 | make lint | Erreichte Host-Runtime-Preflight und stoppte dann am fehlenden Framework-No-CRS-Baseline-Katalog; keine Framework-Initialisierung oder -Änderung war autorisiert. |
-| First-Draft-PR-#351-Exact-Head-Hosted-Checks und SonarCloud-PR-Analyse | Vor der gRPC-Remediation bestanden; Successor-Head-Evidence bleibt erforderlich. |
+| PR-#351-Code-Successor-Head b951a3f53548da9a039b0e634a494d6918f3d54f Hosted-Checks und SonarCloud-PR-Analyse | Bestanden: alle gemeldeten Checks, Quality Gate und die Query für ungelöste PR-Issues. Die Dokumentationskorrektur benötigt vor der geschützten Integration einen separaten frischen Exact-Head-Review. |
 
 ## Runtime-Evidence
 
 Die Reparatur ist eine Source-Contract-Ausrichtung. Es wurde keine NGINX-
 Runtime gestartet, kein Request- oder Response-Payload aufbewahrt und kein
-privilegierter, geschützter oder Maintenance-Workflow dispatcht. Frische
-Exact-Head-Hosted-Evidence bleibt nach PR-Lieferung nötig.
+privilegierter, geschützter oder Maintenance-Workflow dispatcht. Vor der
+geschützten Integration benötigt die eingereichte Dokumentationskorrektur
+frische Exact-Head-Hosted-Evidence.
 
 Die Dependency-Remediation startet ebenfalls keinen Connector-Listener und
 behält keinen Traffic. Sie belegt Modulintegrität und Source-Level-
@@ -171,9 +174,9 @@ Authority. Literales projektweites Zero benötigt daher eine User-Scope-
 Entscheidung; kein Issue wird durch diese Änderung verborgen, unterdrückt oder
 als False Positive markiert.
 
-Der Dependabot-Alert des Default-Branches bleibt bis zu einem autorisierten
-Merge offen. Dieser Task kann den PR-Successor-Head validieren, aber weder eine
-Default-Branch-Remediation behaupten noch den Merge durchführen.
+Dependabot-Alert #3 war vor der geschützten Integration auf dem Default-Branch
+noch offen. Er muss nach dem beobachteten Merge erneut geprüft werden; dieser
+Pre-Merge-Record kann keine Default-Branch-Remediation behaupten.
 
 ## Verbleibende Risiken
 
@@ -181,19 +184,24 @@ Der Checker wird absichtlich fehlschlagen, wenn ein künftiger Refactor die
 extrahierten Helper-Beziehungen oder die erforderlichen Guards und Common-Plan-
 Zuweisung entfernt. Hosted CI kann nach PR-Erstellung einen unabhängigen
 Environment- oder Integrationsfehler zeigen. Diese Aufgabe behauptet nicht,
-dass die sieben historischen SonarQube-Cloud-Issues gelöst sind. Das direkt
-remedierte gRPC-Transportrisiko bleibt auf master vorhanden, bis der Draft PR
-reviewt ist und ein autorisierter Akteur ihn merget; ein solcher Merge liegt
-außerhalb der aktuellen Delivery-Autorisierung.
+dass die sieben historischen SonarQube-Cloud-Issues gelöst sind. Zum Zeitpunkt
+dieser Dokumentationskorrektur bleibt das direkt remedierte gRPC-Transportrisiko
+auf master vorhanden, bis PR #351 gemergt ist. Der aktuelle User hat die
+normale geschützte Integration nach Exact-Head-Validierung autorisiert; dieser
+Pre-Merge-Record behauptet kein Merge-Ergebnis und keine Default-Branch-
+Remediation.
 
 ## Finaler Diff- und Review-Status
 
-Die ursprüngliche Workflow-Reparatur ist committed, gepusht und als Draft PR
-#351 eröffnet; deren erster exakter Head bestand die Hosted-Checks und das
-SonarCloud-PR-Quality-Gate mit null Issues. Der kombinierte Successor-Diff
-bestand fokussierte NGINX-Controls, 44 Python-Security-Contract-Tests,
-Readonly-Go-Modulvalidierung/Tests/Build/Vet und den tidy-Diff-Control.
-Dokumentations-Controls bleiben nur durch den fehlenden Framework-Checkout
-blockiert. Das unabhängige Codex-Security-Bypass-/Regression-Review bestand;
-Immutable-Commit-Diff-Scan, normaler Push und Exact-Successor-Hosted-/SonarCloud-
-Evidence bleiben erforderlich. Kein Merge ist autorisiert.
+Die ursprüngliche Workflow-Reparatur und die gRPC-Remediation sind committed,
+gepusht und als Draft PR #351 eröffnet. Der Code-Successor-Diff
+b951a3f53548da9a039b0e634a494d6918f3d54f bestand fokussierte NGINX-Controls,
+44 Python-Security-Contract-Tests, Readonly-Go-Modulvalidierung/Tests/Build/Vet,
+den tidy-Diff-Control, alle gemeldeten Hosted-Checks und das SonarCloud-PR-
+Quality-Gate mit null ungelösten PR-Issues. Dokumentations-Controls bleiben nur
+durch den fehlenden Framework-Checkout blockiert. Das unabhängige Codex-
+Security-Bypass-/Regression-Review bestand. Der aktuelle User hat die normale
+geschützte Integration ausdrücklich autorisiert; diese Dokumentationskorrektur
+muss vor dem autorisierten Squash-Merge gepusht werden und frische Exact-Head-
+Hosted-/SonarCloud-Evidence erhalten. Dieser Record behauptet keinen Merge oder
+master-Status, der noch nicht beobachtet wurde.

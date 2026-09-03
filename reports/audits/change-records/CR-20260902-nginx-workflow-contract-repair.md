@@ -9,7 +9,7 @@
 | Change ID | CR-20260902-nginx-workflow-contract-repair |
 | Date (UTC) | 2026-09-02 |
 | Base revision | 8743fceeb708c06329c14ac00a1f333945edf1d7 |
-| Delivery status | The first repair commit was normally pushed and created Draft PR #351; its exact first head passed all reported hosted checks and SonarCloud’s PR Quality Gate with zero PR issues. A High-severity runtime dependency remediation discovered during that delivery is now being added to the same Draft PR and requires fresh exact-successor evidence. No merge, direct master write, force action, bypass, or auto-merge is authorized. |
+| Delivery status | The repair and High-severity gRPC remediation are normally pushed on Draft PR #351. Its prior code successor head b951a3f53548da9a039b0e634a494d6918f3d54f passed all reported hosted checks and SonarCloud’s PR Quality Gate with zero PR issues. The current user explicitly authorized protected integration of this PR after the then-current exact head is revalidated. That authorization permits only a normal squash merge; direct master writes, force actions, bypasses, and auto-merge remain prohibited. This pre-merge record does not claim an unobserved merge or resulting master state. |
 
 ## Motivation and problem statement
 
@@ -50,8 +50,9 @@ required for a safe delivery.
 - Readonly module verification, tests, build, and vet succeed using task-owned
   caches; existing listener, message-size, stream, and UDS safeguards remain
   unchanged.
-- A task branch and Draft PR are delivered only after exact-head review; no
-  merge is performed by this task.
+- PR #351 is brought to protected master only after a fresh exact-head review
+  under the current user's explicit authorization, using normal squash merge;
+  no direct master write, force action, bypass, or auto-merge is performed.
 
 ## Implementation decision and rationale
 
@@ -122,14 +123,14 @@ UDS authorization substitute for the upstream transport fix.
 | make check-bilingual-docs | Blocked only by 20 pre-existing missing Framework Gitlink targets; no current change-record path was reported. |
 | make check-doc-links / repository-path reference check | Blocked only by the same absent Framework checkout and its pre-existing targets. |
 | make lint | Reached host-runtime preflight, then stopped at the absent Framework no-CRS baseline catalog; no Framework initialization or change was authorized. |
-| First Draft-PR #351 exact head hosted checks and SonarCloud PR analysis | Passed before the gRPC remediation; successor-head evidence remains required. |
+| PR #351 code successor head b951a3f53548da9a039b0e634a494d6918f3d54f hosted checks and SonarCloud PR analysis | Passed: all reported checks, Quality Gate, and unresolved PR issue query. The documentation correction requires a separate fresh exact-head review before protected integration. |
 
 ## Runtime evidence
 
 The repair is a source-contract alignment. No NGINX runtime was started, no
 request or response payload was retained, and no privileged, protected, or
-maintenance workflow was dispatched. Fresh exact-head hosted evidence remains
-required after PR delivery.
+maintenance workflow was dispatched. Before protected integration, the
+submitted documentation correction requires fresh exact-head hosted evidence.
 
 The dependency remediation likewise starts no connector listener and retains no
 traffic. It proves module integrity and source-level compatibility through the
@@ -161,9 +162,9 @@ Framework-owned issue outside this Parent-only authority. Literal project-wide
 zero therefore requires a user scope decision; no issue is hidden, suppressed,
 or marked false-positive by this change.
 
-The default-branch Dependabot alert will remain open until an authorized merge.
-This task can validate the PR successor head but cannot claim default-branch
-remediation or perform the merge.
+Dependabot alert #3 was still open on the default branch before protected
+integration. It must be checked again after the observed merge; this pre-merge
+record cannot claim default-branch remediation.
 
 ## Remaining risks
 
@@ -171,17 +172,23 @@ The checker will deliberately fail if a future refactor removes the extracted
 helper relationships or the required guards and Common-plan assignment. Hosted
 CI may expose an independent environment or integration failure after PR
 creation. This task does not claim that the seven historical SonarQube Cloud
-issues are resolved. The directly remediated gRPC transport risk remains present
-on master until the draft PR is reviewed and an authorized actor merges it; no
-such merge is within the current delivery authorization.
+issues are resolved. At the time of this documentation correction, the directly
+remediated gRPC transport risk remains present on master until PR #351 is
+merged. The current user authorized normal protected integration after
+exact-head validation; no merge result or default-branch remediation is claimed
+in this pre-merge record.
 
 ## Final diff and review status
 
-The original workflow repair is committed, pushed, and opened as Draft PR #351;
-its first exact head passed the hosted checks and SonarCloud PR Quality Gate
-with zero issues. The combined successor diff has passed focused NGINX controls,
-44 Python security-contract tests, readonly Go module validation/tests/build/vet,
-and the tidy-diff control. Documentation controls remain blocked only by the
-absent Framework checkout. The independent Codex Security bypass/regression
-review passed; immutable-commit diff scan, normal push, and exact-successor
-hosted/SonarCloud evidence remain required. No merge is authorized.
+The original workflow repair and gRPC remediation are committed, pushed, and
+opened as Draft PR #351. The code successor diff
+b951a3f53548da9a039b0e634a494d6918f3d54f passed focused NGINX controls, 44
+Python security-contract tests, readonly Go module validation/tests/build/vet,
+the tidy-diff control, all reported hosted checks, and the SonarCloud PR Quality
+Gate with zero unresolved PR issues. Documentation controls remain blocked only
+by the absent Framework checkout. The independent Codex Security
+bypass/regression review passed. The current user has explicitly authorized
+normal protected integration; this documentation correction must be pushed and
+receive fresh exact-head hosted/SonarCloud evidence before the authorized squash
+merge. This record does not claim a merge or master state that has not yet been
+observed.
