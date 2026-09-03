@@ -403,3 +403,43 @@ Post-Patch-Security-Review bestehen. Ein frischer normaler Successor-Head und
 ein Exact-Head-Hosted-Rerun bleiben erforderlich, bevor Kompilierung gegen
 unterstützte Header oder isolierte `modsecurity_use_error_log`-on/off-Runtime-
 Evidence behauptet wird.
+
+### NGINX-Profile-Registry-Materialisierungsbehebung
+
+Der Exact-Head-NGINX-Lauf `33813265768` auf
+`896a7dd94421bd47d1078cf4360c463be3fa1a14` verifizierte die begrenzte
+Make-Log-Übergabe, indem er den frühesten Compilerfehler bewahrte. Er legte
+zugleich einen getrennten fail-closed Parent-Builddefekt offen: Der
+materialisierte NGINX-Tree ließ die kanonische Eingabe
+`connectors/profile_registry.h` aus, und beide dynamischen/statischen
+Source-Listen ließen `connectors/profile_registry.c` aus. Dieses getrennte
+Problem wird als `FND-PARENT-1030` verfolgt; `FND-PARENT-1028` ist nur für
+seine Diagnoseübergabe verifiziert, nicht als NGINX-Host-Build-Nachweis.
+
+Die lokale Behebung bindet beide Registry-Dateien an den NGINX-Cache-Source-
+Hash, stagt sie unter der verwalteten Build-Root, übergibt nur diese gestagte
+Root an die Child-Environment und deklariert Quelle, Header und Include-Root
+in beiden NGINX-Konfigurationszweigen. Das Staging verwendet descriptor-
+relative `O_NOFOLLOW`-Directory-/File-Opens, reguläre Single-Link-Source-
+Prüfungen vor und nach dem Öffnen, größenexaktes Kopieren,
+descriptor-relative temporäre Dateien und atomaren Ersatz. Damit können eine
+beliebig geerbte Registry-Root, Source-Ersetzung, Hardlink-Eingabe und
+Destination-Symlink/-Ersetzung den verwalteten Build nicht unbemerkt
+beeinflussen. Der Direct-Checkout-Fallback bleibt ausdrücklich dokumentiert
+und gilt nicht für einen kopierten Adapter-Tree.
+
+Frische lokale Validierung bestand mit 88 Preparation-Cases mit fünf
+bestehenden Framework-Head-Skips, 45 Cache-Contract-Cases, 7 Cache-Identity-
+Cases und 51 Diagnostics-/Compiler-Guide-/Bilingual-Cases. Sie enthält
+deterministische Controls für Source-Ersetzung, Source-Hardlink,
+Destination-Directory-Symlink/-Ersetzung und einen Destination-File-Symlink-
+Canary. Der NGINX-Source-/C17-Wiring-Contract, Shell-Syntaxprüfungen,
+Python-Kompilierung und Diff-Check bestanden. Ein begrenzter lokaler
+`make check-nginx-c17`-Versuch lieferte korrekt den nativen Blocked-Status,
+weil unterstützte NGINX-Header/-Quellen hier fehlen; dies ist kein Host-
+Compile-Nachweis. Der nächste normale unveränderliche Head muss von GitHub
+zurückgelesen werden und frisches Sonar, den Exact-Head-NGINX-Build plus beide
+`modsecurity_use_error_log`-Zellen sowie den vollständigen CRS/no-MRTS-
+Runtime-Workflow ausführen. Kein früherer Lauf wird wiederverwendet und es
+erfolgen kein Merge, Force-Push, Framework-/MRTS-/Gitlink-, Workflow-, Test-
+oder Quality-Gate-Änderung.

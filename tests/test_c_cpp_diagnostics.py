@@ -26,14 +26,16 @@ ANALYSIS_TOOLS_CHECK = ROOT / "ci/checks/analysis/check-analysis-tools.sh"
 
 def nginx_config_sources() -> set[Path]:
     sources: set[Path] = set()
-    for connector_source, common_source in re.findall(
-        r"\$ngx_addon_dir/(src/[A-Za-z0-9_./-]+\.c)|\$MSCONNECTOR_COMMON_SRC/([A-Za-z0-9_./-]+\.c)",
+    for connector_source, common_source, registry_source in re.findall(
+        r"\$ngx_addon_dir/(src/[A-Za-z0-9_./-]+\.c)|\$MSCONNECTOR_COMMON_SRC/([A-Za-z0-9_./-]+\.c)|\$MSCONNECTOR_PROFILE_REGISTRY_ROOT/([A-Za-z0-9_./-]+\.c)",
         NGINX_CONFIG.read_text(encoding="utf-8"),
     ):
         if connector_source:
             sources.add((ROOT / "connectors/nginx" / connector_source).resolve())
-        else:
+        elif common_source:
             sources.add((ROOT / "common/src" / common_source).resolve())
+        else:
+            sources.add((ROOT / registry_source).resolve())
     return sources
 
 
@@ -88,11 +90,52 @@ class CAndCppDiagnosticsContractTests(unittest.TestCase):
         )
 
     def test_nginx_config_and_c17_check_cover_the_same_real_sources(self) -> None:
+        config_text = NGINX_CONFIG.read_text(encoding="utf-8")
+        self.assertIn(
+            "$MSCONNECTOR_PROFILE_REGISTRY_ROOT/connectors/profile_registry.c",
+            config_text,
+        )
+        dynamic_branch, static_branch = config_text.split(
+            'if test -n "$ngx_module_link"; then', 1
+        )[1].split("\nelse\n", 1)
+        self.assertIn(
+            "$MSCONNECTOR_PROFILE_REGISTRY_ROOT/connectors/profile_registry.c",
+            dynamic_branch,
+        )
+        self.assertEqual(
+            dynamic_branch.count("$MSCONNECTOR_PROFILE_REGISTRY_ROOT/connectors/profile_registry.c"),
+            1,
+        )
+        self.assertEqual(
+            dynamic_branch.count("$MSCONNECTOR_PROFILE_REGISTRY_ROOT/connectors/profile_registry.h"),
+            1,
+        )
+        self.assertIn(
+            "$MSCONNECTOR_PROFILE_REGISTRY_ROOT/connectors/profile_registry.c",
+            static_branch,
+        )
+        self.assertEqual(
+            static_branch.count("$MSCONNECTOR_PROFILE_REGISTRY_ROOT/connectors/profile_registry.c"),
+            1,
+        )
+        self.assertEqual(
+            static_branch.count("$MSCONNECTOR_PROFILE_REGISTRY_ROOT/connectors/profile_registry.h"),
+            1,
+        )
+        self.assertIn(
+            'ngx_module_incs="$ngx_feature_path $MSCONNECTOR_COMMON_INC $MSCONNECTOR_PROFILE_REGISTRY_ROOT"',
+            config_text,
+        )
+        self.assertIn(
+            'CORE_INCS="$CORE_INCS $ngx_feature_path $MSCONNECTOR_COMMON_INC $MSCONNECTOR_PROFILE_REGISTRY_ROOT"',
+            config_text,
+        )
+        self.assertIn("ngx_msconnector_profile_registry_opt_I", config_text)
         configured = nginx_config_sources()
         checked = {
             (ROOT / source).resolve()
             for source in re.findall(
-                r"(?:connectors/nginx|common)/[A-Za-z0-9_./-]+\.c",
+                r"(?:connectors/nginx|connectors|common)/[A-Za-z0-9_./-]+\.c",
                 NGINX_CHECK.read_text(encoding="utf-8"),
             )
         }
@@ -101,6 +144,8 @@ class CAndCppDiagnosticsContractTests(unittest.TestCase):
         self.assertSetEqual(configured, checked)
         self.assertTrue(all(source.is_file() for source in configured))
         self.assertIn(ROOT / "common/src/late_intervention.c", checked)
+        self.assertIn(ROOT / "connectors/profile_registry.c", checked)
+        self.assertIn("-I$ROOT", NGINX_CHECK.read_text(encoding="utf-8"))
 
     def test_make_targets_keep_analysis_opt_in_and_clangd_non_mutating(self) -> None:
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")

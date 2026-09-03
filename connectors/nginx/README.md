@@ -325,14 +325,17 @@ directory; binary path, SHA-256, and version readback; configure arguments;
 build, Framework, and Parent identifiers; and generated time. This is the
 required evidence schema, not a claim that a current runtime record exists.
 
-The current NGINX common-header build contract passes:
+The current NGINX Common and profile-registry build contract passes:
 
 ```sh
 MSCONNECTOR_COMMON_INC=$CONNECTOR_ROOT/common/include
+MSCONNECTOR_PROFILE_REGISTRY_ROOT=$CONNECTOR_ROOT
 ```
 
-`connectors/nginx/config` consumes this value when constructing NGINX include
-paths.
+`connectors/nginx/config` consumes these values when constructing NGINX include
+paths. The managed exact-head build replaces `MSCONNECTOR_PROFILE_REGISTRY_ROOT`
+with its cache-identity-bound staged root; direct source builds use the
+canonical checkout root shown above.
 
 Observed historically on 2026-05-15: `NGINX_RELEASE_TAG=latest` resolved to
 `release-1.31.0`, built `nginx/1.31.0`, built
@@ -382,7 +385,7 @@ when NGINX or libmodsecurity headers are unavailable; optional C23/future-C
 checks depend on compiler support. No production, CRS, full-matrix, or runtime
 verification is claimed here.
 
-NGINX Common SDK module builds that use a copied connector source tree must set `MSCONNECTOR_COMMON_SRC` (or `CONNECTOR_COMMON_SRC` / `COMMON_SRC_ROOT`) to the repository Common source root; `MSCONNECTOR_COMMON_INC` remains the Common include root. If unset, the config only falls back to `$ngx_addon_dir/../../common/src` when that path exists.
+NGINX Common SDK module builds that use a copied connector source tree must set `MSCONNECTOR_COMMON_SRC` (or `CONNECTOR_COMMON_SRC` / `COMMON_SRC_ROOT`) to the repository Common source root; `MSCONNECTOR_COMMON_INC` remains the Common include root. They must also set `MSCONNECTOR_PROFILE_REGISTRY_ROOT` to a root containing `connectors/profile_registry.c` and `connectors/profile_registry.h`. The managed exact-head coordinator supplies a cache-identity-bound staged root. If unset, the config only falls back to `$ngx_addon_dir/../..` when both registry files exist there; that fallback is for direct checkout builds, not copied trees.
 
 ## Canonical Phase-4 boundary
 

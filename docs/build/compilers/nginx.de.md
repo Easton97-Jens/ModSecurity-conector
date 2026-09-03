@@ -119,6 +119,7 @@ MODSECURITY_INC="$MODSECURITY_INCLUDE_DIR"
 MODSECURITY_LIB="$MODSECURITY_LIB_DIR"
 MSCONNECTOR_COMMON_INC="$CONNECTOR_ROOT/common/include" \
 MSCONNECTOR_COMMON_SRC="$CONNECTOR_ROOT/common/src" \
+MSCONNECTOR_PROFILE_REGISTRY_ROOT="$CONNECTOR_ROOT" \
 MODSECURITY_INC="$MODSECURITY_INC" \
 MODSECURITY_LIB="$MODSECURITY_LIB" \
 ./configure \
@@ -280,6 +281,7 @@ Ein Start- oder Direktivenfehler bedeutet normalerweise, dass NGINX-Binary, Conf
 | NO_CRS_RUN_ID | Exportierte Full-Lifecycle-Kennung für den nachfolgenden Make-Aufruf; sie hält Evidence und Laufzeitdaten getrennt. |
 | MSCONNECTOR_COMMON_INC | An die NGINX-Modulkonfiguration übergebenes Repository-Common-Headerverzeichnis. |
 | MSCONNECTOR_COMMON_SRC | In das NGINX-Modul kompilierte Repository-Common-Quelldateien. |
+| MSCONNECTOR_PROFILE_REGISTRY_ROOT | Root mit den kanonischen Build-Eingaben connectors/profile_registry.c und connectors/profile_registry.h. |
 | MODSECURITY_INC | Aus dem gemeinsamen Build ausgewähltes libmodsecurity-Headerverzeichnis. |
 | MODSECURITY_LIB | Aus dem gemeinsamen Build ausgewähltes libmodsecurity-Bibliotheksverzeichnis. |
 | NGINX_CONFIG | Lokale NGINX-Konfiguration für den Loopback-Test. |

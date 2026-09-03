@@ -368,3 +368,39 @@ Framework-head skips, 11 NGINX-diagnostic tests, `git diff --check`, and an
 independent post-patch security review pass. A fresh normal successor head and
 exact-head hosted rerun remain required before supported-header compilation or
 isolated `modsecurity_use_error_log` on/off runtime evidence is claimed.
+
+### NGINX profile-registry materialization repair
+
+Exact-head NGINX run `33813265768` on
+`896a7dd94421bd47d1078cf4360c463be3fa1a14` verified the bounded make-log
+handoff by retaining the earliest compiler error. It also exposed a distinct,
+fail-closed Parent build defect: the materialized NGINX tree omitted the
+canonical `connectors/profile_registry.h` input and both dynamic/static source
+lists omitted `connectors/profile_registry.c`. That separate issue is tracked
+as `FND-PARENT-1030`; `FND-PARENT-1028` is verified only for its diagnostic
+handoff, not as NGINX host-build proof.
+
+The local repair binds both registry files into the NGINX cache-source hash,
+stages them beneath the managed build root, supplies only that staged root to
+the child environment, and declares the source, header, and include root in
+both NGINX configuration branches. Staging uses descriptor-relative
+`O_NOFOLLOW` directory/file opens, regular single-link source checks before
+and after open, exact-size copying, descriptor-relative temporary files, and
+atomic replacement. This prevents an arbitrary inherited registry root,
+source replacement, hardlink input, and destination symlink/replacement from
+silently affecting the managed build. The direct-checkout fallback remains
+explicitly documented and does not apply to a copied adapter tree.
+
+Fresh local validation passed 88 preparation cases with five pre-existing
+Framework-head skips, 45 cache-contract cases, 7 cache-identity cases, and 51
+diagnostics/compiler-guide/bilingual cases. It includes deterministic
+source-replacement, source-hardlink, destination-directory symlink/replacement
+and destination-file-symlink-canary controls. The NGINX source/C17 wiring
+contract, shell syntax checks, Python compilation, and diff check passed. A
+capped local `make check-nginx-c17` attempt correctly returned the native
+blocked status because supported NGINX headers/source are unavailable here;
+that is not host-compile evidence. The next normal immutable head must be read
+back from GitHub and run fresh Sonar, exact-head NGINX build plus both
+`modsecurity_use_error_log` cells, and the complete CRS/no-MRTS runtime
+workflow. No earlier run is reused, and no merge, force-push,
+Framework/MRTS/Gitlink, workflow, test, or quality-gate change is made.

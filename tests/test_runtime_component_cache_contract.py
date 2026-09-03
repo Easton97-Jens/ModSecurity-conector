@@ -1800,6 +1800,16 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             (common_source_root / "header_validation_internal.h").write_text(
                 "#pragma once\n", encoding="utf-8"
             )
+            profile_registry_source_root = connector_root / "connectors"
+            profile_registry_source_root.mkdir(parents=True)
+            (profile_registry_source_root / "profile_registry.c").write_text(
+                "const char *profile_registry(void) { return \"nginx\"; }\n",
+                encoding="utf-8",
+            )
+            (profile_registry_source_root / "profile_registry.h").write_text(
+                "#pragma once\n",
+                encoding="utf-8",
+            )
             framework_root.mkdir()
             canonical_quic_tls = {
                 "NGINX_QUIC_TLS_LIBRARY": "openssl",
@@ -1819,6 +1829,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 assert isinstance(build_env, dict)
                 active_build_path = Path(build_env["NGINX_BUILD_DIR"])
                 active_nginx_prefix = Path(build_env["NGINX_PREFIX"])
+                profile_registry_root = Path(build_env["MSCONNECTOR_PROFILE_REGISTRY_ROOT"])
                 self.assertEqual(
                     str(cache_root / "builds" / "connectors"),
                     build_env["NGINX_BUILD_OWNER_ROOT"],
@@ -1827,6 +1838,15 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 self.assertEqual(
                     {key: build_env[key] for key in canonical_quic_tls},
                     canonical_quic_tls,
+                )
+                self.assertEqual(profile_registry_root, active_build_path.parent / "profile-registry")
+                self.assertEqual(
+                    (profile_registry_root / "connectors/profile_registry.c").read_text(encoding="utf-8"),
+                    "const char *profile_registry(void) { return \"nginx\"; }\n",
+                )
+                self.assertEqual(
+                    (profile_registry_root / "connectors/profile_registry.h").read_text(encoding="utf-8"),
+                    "#pragma once\n",
                 )
                 binary = active_nginx_prefix / "sbin/nginx"
                 binary.parent.mkdir(parents=True, exist_ok=True)
