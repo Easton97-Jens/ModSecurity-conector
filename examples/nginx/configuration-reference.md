@@ -25,7 +25,7 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`modsecurity_rules_file`](#modsecurity-rules-file) | Host / Connector | path | no | none; optional | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | During NGINX configuration loading, ngx_conf_set_rules_file passes the supplied path to libmodsecurity's msc_rules_add_file. The NGINX setter neither canonicalizes nor requires an absolute path; use an absolute path to avoid a process-working-directory dependency. A missing, unreadable, or invalid top-level rule file returns the libmodsecurity loader error and fails the configuration check/reload. Include and IncludeOptional inside that file are then interpreted by libmodsecurity, not expanded by the NGINX parser. Unlike modsecurity_rules, which sends one inline configuration string to msc_rules_add, this directive sends a file path to msc_rules_add_file; both contribute to the configured rule set and its normal parent/child merge. |
 | [`modsecurity_rules_remote`](#modsecurity-rules-remote) | Host / Connector | two strings | no | none; optional | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Passes the key/URL pair to libmodsecurity's remote-rule loader. |
 | [`modsecurity_transaction_id`](#modsecurity-transaction-id) | Host / Connector | string/expression | no | none; connector creates a fallback identifier | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Supplies the engine and event correlation identifier for a transaction. |
-| [`modsecurity_use_error_log`](#modsecurity-use-error-log) | Host / Connector | boolean | no | on | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Controls forwarding of libmodsecurity messages to the host error log; it does not switch rule evaluation. |
+| [`modsecurity_use_error_log`](#modsecurity-use-error-log) | Host / Connector | boolean | no | on | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | `off` suppresses regular and native libModSecurity callback messages in the NGINX error log. It does not disable WAF evaluation or alter Event JSONL emission. |
 | [`proxy_pass`](#proxy-pass) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`server`](#server) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`server_name`](#server-name) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
@@ -856,7 +856,7 @@ Do not put credentials or sensitive request data in a correlation identifier.
 
 ### Short description
 
-Controls forwarding of libmodsecurity messages to the host error log; it does not switch rule evaluation.
+`off` suppresses regular and native libModSecurity callback messages in the NGINX error log. It does not disable WAF evaluation or alter Event JSONL emission.
 
 ### Syntax
 
@@ -890,7 +890,7 @@ Merge: ngx_conf_merge_* combines scalar/pointer configuration, while msc_rules_m
 
 P1 controls integration; rules and P4 controls affect the stated phase only.
 
-Controls forwarding of libmodsecurity messages to the host error log; it does not switch rule evaluation.
+`off` suppresses regular and native libModSecurity callback messages in the NGINX error log. It does not disable WAF evaluation or alter Event JSONL emission.
 
 ### Validation and errors
 

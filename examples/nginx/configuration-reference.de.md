@@ -25,7 +25,7 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`modsecurity_rules_file`](#modsecurity-rules-file) | Host / Connector | Pfad | nein | kein Wert; optional | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Beim Laden der NGINX-Konfiguration übergibt ngx_conf_set_rules_file den bereitgestellten Pfad an msc_rules_add_file von libmodsecurity. Der NGINX-Setter kanonisiert den Pfad nicht und verlangt keinen absoluten Pfad; ein absoluter Pfad vermeidet eine Abhängigkeit vom Arbeitsverzeichnis des Prozesses. Eine fehlende, unlesbare oder ungültige Regeldatei der obersten Ebene liefert den Loader-Fehler von libmodsecurity und lässt Konfigurationsprüfung/Reload fehlschlagen. Include und IncludeOptional in dieser Datei werden anschließend von libmodsecurity interpretiert, nicht durch den NGINX-Parser expandiert. Anders als modsecurity_rules, das eine Inline-Konfigurationszeichenkette an msc_rules_add sendet, übergibt diese Direktive einen Dateipfad an msc_rules_add_file; beide tragen zum konfigurierten Regelsatz und seinem normalen Eltern-/Kind-Merge bei. |
 | [`modsecurity_rules_remote`](#modsecurity-rules-remote) | Host / Connector | zwei Zeichenketten | nein | kein Wert; optional | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Übergibt das Schlüssel-/URL-Paar an den Remote-Regel-Loader von libmodsecurity. |
 | [`modsecurity_transaction_id`](#modsecurity-transaction-id) | Host / Connector | Zeichenkette/Ausdruck | nein | kein Wert; der Connector erzeugt eine Ersatzkennung | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Liefert die Engine- und Ereigniskorrelationskennung für eine Transaktion. |
-| [`modsecurity_use_error_log`](#modsecurity-use-error-log) | Host / Connector | Boolescher Wert | nein | on | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Steuert die Weiterleitung von libmodsecurity-Meldungen an das Host-Fehlerlog; die Regelauswertung wird dadurch nicht umgeschaltet. |
+| [`modsecurity_use_error_log`](#modsecurity-use-error-log) | Host / Connector | Boolescher Wert | nein | on | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | `off` unterdrückt reguläre und native libModSecurity-Callback-Meldungen im NGINX-Fehlerlog. WAF-Auswertung und Event-JSONL-Ausgabe werden dadurch nicht deaktiviert oder verändert. |
 | [`proxy_pass`](#proxy-pass) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`server`](#server) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`server_name`](#server-name) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
@@ -856,7 +856,7 @@ Keine Zugangsdaten oder sensiblen Request-Daten in eine Korrelationskennung aufn
 
 ### Kurzbeschreibung
 
-Steuert die Weiterleitung von libmodsecurity-Meldungen an das Host-Fehlerlog; die Regelauswertung wird dadurch nicht umgeschaltet.
+`off` unterdrückt reguläre und native libModSecurity-Callback-Meldungen im NGINX-Fehlerlog. WAF-Auswertung und Event-JSONL-Ausgabe werden dadurch nicht deaktiviert oder verändert.
 
 ### Syntax
 
@@ -890,7 +890,7 @@ Zusammenführung: ngx_conf_merge_* führt Skalar-/Zeigerkonfiguration zusammen, 
 
 P1–P4-Relevanz: P1 steuert die Integration; Regeln und P4-Steuerungen betreffen nur die genannte Phase.
 
-Steuert die Weiterleitung von libmodsecurity-Meldungen an das Host-Fehlerlog; die Regelauswertung wird dadurch nicht umgeschaltet.
+`off` unterdrückt reguläre und native libModSecurity-Callback-Meldungen im NGINX-Fehlerlog. WAF-Auswertung und Event-JSONL-Ausgabe werden dadurch nicht deaktiviert oder verändert.
 
 ### Validierung und Fehler
 

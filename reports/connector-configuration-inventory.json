@@ -7969,12 +7969,12 @@
       "validation": "ngx_conf_set_common_flag_slot rejects invalid values during nginx -t; NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_FLAG is the registered context mask.",
       "phase_relevance": "P1 controls integration; rules and P4 controls affect the stated phase only.",
       "security_relevance": "Error logs can contain security metadata; protect and rotate them.",
-      "runtime_effect": "Controls forwarding of libmodsecurity messages to the host error log; it does not switch rule evaluation.",
+      "runtime_effect": "`off` suppresses regular and native libModSecurity callback messages in the NGINX error log. It does not disable WAF evaluation or alter Event JSONL emission.",
       "example_file": "examples/nginx/safe/nginx.conf",
       "example_value": "",
       "compatibility_only": false,
       "deprecated": false,
-      "description": "Controls forwarding of libmodsecurity messages to the host error log; it does not switch rule evaluation."
+      "description": "`off` suppresses regular and native libModSecurity callback messages in the NGINX error log. It does not disable WAF evaluation or alter Event JSONL emission."
     },
     {
       "connector": "nginx",

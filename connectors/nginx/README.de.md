@@ -19,6 +19,9 @@ Jetzt implementiert:
 - Gemeinsam genutzte Direktivennamen-Metadaten von `common/include/msconnector/directives.h`.
 - Gemeinsame Options-/Standardmetadaten für die Aktivierung, Fehlerprotokollweiterleitung usw
   Phase-4-Modus von `common/include/msconnector/options.h`.
+- `modsecurity_use_error_log off` unterdrückt auch native libModSecurity-
+  Callback-Meldungen im NGINX-Fehlerlog; WAF-Auswertung und Event-JSONL-Ausgabe
+  bleiben getrennte Funktionen.
 - Ausgewählte Quelländerungen von ModSecurity-nginx PR #377
   (https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/377) angewendet auf
   Adaptereigene Quelle für die Handhabung von Phase 4/späten Interventionen.

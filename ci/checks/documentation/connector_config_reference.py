@@ -529,6 +529,12 @@ def extract_nginx(root: Path) -> list[dict[str, Any]]:
                     "working directory cannot select unintended policy."
                 ),
             )
+        elif name == "modsecurity_use_error_log":
+            effect = (
+                "`off` suppresses regular and native libModSecurity callback messages in the "
+                "NGINX error log. It does not disable WAF evaluation or alter Event JSONL emission."
+            )
+            option.update(runtime_effect=effect, description=effect)
         elif name == "modsecurity_phase4_mode":
             # Both non-strict enum values deliberately resolve through the
             # common log-only branch.  Strict is a transport action, never a
@@ -3202,6 +3208,7 @@ GERMAN_TEXT: dict[str, str] = {
     "Adds inline rule configuration.": "Fügt eine Inline-Regelkonfiguration hinzu.",
     "Alias for event_path.": "Alias für event_path.",
     "Appends metadata-only JSONL events when configured.": "Hängt bei Konfiguration JSONL-Ereignisse an, die nur Metadaten enthalten.",
+    "`off` suppresses regular and native libModSecurity callback messages in the NGINX error log. It does not disable WAF evaluation or alter Event JSONL emission.": "`off` unterdrückt reguläre und native libModSecurity-Callback-Meldungen im NGINX-Fehlerlog. WAF-Auswertung und Event-JSONL-Ausgabe werden dadurch nicht deaktiviert oder verändert.",
     "Before response headers/body are committed, minimal, safe, and strict all resolve a P4 intervention as deny_if_possible, so NGINX can still return the requested engine status (or 403 fallback). Once headers are committed or the body started, minimal and safe both use the common log_only action; they record the late decision without a later status rewrite. Strict instead resolves to abort_connection: the native body filter marks the connection as errored, records connection_aborted, and returns NGX_ERROR. The known host boundary is that NGINX invokes the P4 engine finish only at last_buf/last_in_chain after bounded in-scope body accumulation, so a response may already be visible. Strict can therefore terminate a connection, but cannot guarantee a later 403 or replace an already-sent status line.": "Bevor Response-Header/-Body committet sind, lösen minimal, safe und strict eine P4-Intervention jeweils als deny_if_possible auf; NGINX kann daher noch den angeforderten Engine-Status (oder den Fallback 403) zurückgeben. Sobald Header committet sind oder der Body begonnen hat, verwenden minimal und safe beide die gemeinsame Aktion log_only; sie protokollieren die späte Entscheidung ohne nachträgliche Statusumschreibung. Strict löst dagegen zu abort_connection auf: Der native Body-Filter markiert die Verbindung als fehlerhaft, protokolliert connection_aborted und gibt NGX_ERROR zurück. Die bekannte Hostgrenze ist, dass NGINX das P4-Engine-Finish erst bei last_buf/last_in_chain nach der begrenzten Sammlung von Body-Bytes im Geltungsbereich aufruft; eine Antwort kann deshalb bereits sichtbar sein. Strict kann somit eine Verbindung beenden, aber keine spätere 403 garantieren oder eine bereits gesendete Statuszeile ersetzen.",
     "Binds or targets one local TCP endpoint in the checked-in host template.": "Bindet oder adressiert einen lokalen TCP-Endpunkt im eingecheckten Host-Template.",
     "Bounds accepted header count.": "Begrenzt die akzeptierte Headeranzahl.",
