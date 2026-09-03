@@ -11,7 +11,7 @@
 | Basis-Revision | 95bc04203455bc74a9cd18fafc6fb5848af2bbb2 |
 | Branch | codex/security-remediation-open-findings-20260903 |
 | Finaler HEAD_SHA | Dieser Record ist Teil des Delivery-HEAD und kann sein eigenes finales Git-Objekt daher nicht wahrheitsgemäß selbst referenzieren. Der exakte unveränderliche SHA wird nach dem Commit dieses Records in Draft-PR-Metadaten und Delivery-Evidence erfasst. |
-| Delivery-Status | Lokale Remediation und fokussierte Validierung sind abgeschlossen. Dieser Record behauptet keinen Commit, Push, Draft-PR, Hosted-Check oder Merge. |
+| Delivery-Status | Draft PR [#354](https://github.com/Easton97-Jens/ModSecurity-conector/pull/354) ist offen und nicht gemergt. Lokale Remediation und fokussierte Validierung sind abgeschlossen; der Hosted-Runtime-Rerun nach der Korrektur steht noch aus. |
 
 ## Motivation und Problemstellung
 
@@ -41,13 +41,14 @@ Die aktuelle origin/master-Basis enthielt weiterhin fünf Parent-eigene Connecto
 
 ## Implementierungsentscheidung und Begründung
 
-Die Implementierung portiert ausschließlich die auf der aktuellen Basis benötigten Sicherheitskontrollen. Historische breite PRs sind Referenzevidence, keine Merge-Quellen. Der Authorization-Port schließt nicht zugehörige Duplicate-Host-Validierung und SIGPIPE-Strategieänderungen aus. Die NGINX-Konfigurationsreferenz wird aus einer NGINX-spezifischen Metadata-Überschreibung erzeugt, sodass englische/deutsche Dateien und das kanonische Konfigurationsinventar quellenbasiert statt manuell divergent bleiben.
+Die Implementierung portiert ausschließlich die auf der aktuellen Basis benötigten Sicherheitskontrollen. Historische breite PRs sind Referenzevidence, keine Merge-Quellen. Der Authorization-Port schließt nicht zugehörige Duplicate-Host-Validierung und SIGPIPE-Strategieänderungen aus. Die NGINX-Konfigurationsreferenz wird aus einer NGINX-spezifischen Metadata-Überschreibung erzeugt, sodass englische/deutsche Dateien und das kanonische Konfigurationsinventar quellenbasiert statt manuell divergent bleiben. Hosted-Lighttpd-Feedback zeigte anschließend, dass sein Runtime-Harness noch eine rohe Query-URI im JSONL erwartete; der Harness erwartet nun die sichere serialisierte URI und `redacted=true`, während rohe Curl-Wire- und korrelierte CRS-Log-Evidence erhalten bleiben.
 
 ## Geänderte Dateien
 
 - Common-Runtime und Event-Serialisierung: common/include/msconnector/event.h, common/src/event.c, common/src/integrity_event.c und common/runtime/http_authorization_service.c.
 - Connector-Implementierung: connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c, connectors/nginx/src/ngx_http_modsecurity_log.c und connectors/traefik/src/traefik_engine_service.c.
 - Fokussierte Regressionen: tests/event_json_query_redaction_test.c, tests/haproxy_spop_request_target_test.c, tests/test_haproxy_spop_request_target.py, tests/http_authorization_service_detached_worker_smoke.c, tests/test_http_authorization_service_worker_contract.py, tests/test_nginx_error_log_callback_contract.py und tests/test_traefik_engine_service_contract.py.
+- Lighttpd-Runtime-Redaction-Regression: connectors/lighttpd/harness/run_patched_full_lifecycle.sh und connectors/lighttpd/tests/test_patched_host_contract.py.
 - Quellenbasierte Dokumentation/Inventar: ci/checks/documentation/connector_config_reference.py, examples/nginx/configuration-reference.md, examples/nginx/configuration-reference.de.md und reports/connector-configuration-inventory.json.
 - Betreiber-Dokumentation: common/docs/transaction-phase-contract.md und .de.md; die README-Paare von connectors/haproxy, nginx und traefik; sowie die README-Paare von examples/traefik.
 - Traceability: dieser gepaarte Change Record und die gepaarten Archivindizes.
@@ -67,6 +68,7 @@ Die Implementierung portiert ausschließlich die auf der aktuellen Basis benöti
 | Envoy-Modulgraph, Go-Test und Go-vet | Bestanden; Modulgraph meldet google.golang.org/grpc v1.83.1. |
 | Traefik-Contracts/native-plugin/Authorization-Worker-Contracts | Bestanden: 47 Tests. |
 | Traefik-C17-Syntax und Engine-Service-Build/Selbsttest/Runtime/Negativtest | Bestanden mit GCC- und Clang-Syntaxchecks; normale, ASan/UBSan- und TSan-Engine-Service-Läufe bestanden. |
+| Lighttpd-JSONL-Redaction-Harness-Contract | Bestanden: 37 Tests (2 übersprungen) und `bash -n`. Ein erster Hosted-Lighttpd-Runtime-Lauf deckte seine veraltete rohe-URI-JSONL-Erwartung auf; die eingegrenzte Harness-Korrektur bewahrt die rohe Wire-/CRS-Korrelation und verlangt `/?<redacted>` mit `redacted=true`. |
 | Directive Parity | Bestanden. |
 | Vollständige Bilingual-/Link-Checks | Ausschließlich durch vorbestehende fehlende Framework-Submodul-Link-Targets blockiert; die Aufgabe initialisiert oder verändert das Framework nicht. |
 
@@ -80,6 +82,9 @@ Der lokale Traefik-Engine-Service wurde gebaut und über einen privaten
 Unix-Socket für normale, fehlerhafte-Frame- und Socket-Ownership-Negativ-
 Kontrollen ausgeführt. Dies ist kein Traefik-Host-Runtime-Test. Es wurde kein
 Produktionsdienst kontaktiert.
+Die Hosted-Lighttpd-CRS/no-MRTS-Runtime ist die maßgebliche Host-Validierung
+für den aktualisierten JSONL-Harness-Contract; ihr Rerun steht auf dem
+aktuellen Draft-PR-Head noch aus.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
@@ -100,14 +105,15 @@ keine Behauptung deaktivierter Sicherheitskontrollen.
 ## Verbleibende Risiken
 
 Historische JSONL- und Audit-Records können weiterhin Daten enthalten, die vor
-dieser Redaktionsänderung ausgegeben wurden. Exact-Head-Hosted-CI, SonarCloud,
-Review und jede Merge-Entscheidung sind separate zukünftige Evidence. Es wird
-kein Merge angefragt oder durchgeführt.
+dieser Redaktionsänderung ausgegeben wurden. Der korrigierte Exact-Head-
+Lighttpd-Runtime-Rerun, weitere Hosted-CI, Review und jede Merge-Entscheidung
+sind separate zukünftige Evidence. Es wird kein Merge angefragt oder
+durchgeführt.
 
 ## Finaler Diff- und Review-Status
 
-In Bearbeitung, bis der dokumentierte finale Diff auf dem Task-Branch committed
-und aus Task-Branch und Draft PR zurückgelesen ist. Der aktuelle Benutzer
-autorisiert nur einen normalen Task-Branch-Push und Draft PR; Merge, Force-
-Push, Rebase veröffentlichten Works und Default-Branch-Writes bleiben nicht
-autorisiert.
+In Bearbeitung, bis der finale Diff nach der Korrektur auf dem Task-Branch
+committed und aus Task-Branch und Draft PR zurückgelesen ist. Der aktuelle
+Benutzer autorisiert nur einen normalen Task-Branch-Push und Draft PR; Merge,
+Force-Push, Rebase veröffentlichten Works und Default-Branch-Writes bleiben
+nicht autorisiert.

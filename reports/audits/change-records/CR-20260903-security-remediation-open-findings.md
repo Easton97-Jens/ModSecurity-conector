@@ -11,7 +11,7 @@
 | Base revision | 95bc04203455bc74a9cd18fafc6fb5848af2bbb2 |
 | Branch | codex/security-remediation-open-findings-20260903 |
 | Final HEAD_SHA | This record is part of the delivery head and therefore cannot truthfully self-reference its own final Git object. The exact immutable final SHA is recorded in the Draft PR metadata and task delivery evidence after this record is committed. |
-| Delivery status | Local remediation and focused validation are complete. Commit, push, Draft-PR creation, hosted checks, and merge are not asserted by this record. |
+| Delivery status | Draft PR [#354](https://github.com/Easton97-Jens/ModSecurity-conector/pull/354) is open and unmerged. Local remediation and focused validation are complete; the post-correction hosted runtime rerun remains pending. |
 
 ## Motivation and problem statement
 
@@ -40,13 +40,14 @@ The current origin/master base still had five Parent-owned connector/runtime sec
 
 ## Implementation decision and rationale
 
-The implementation ports only the current-base-required security controls. Historical broad PRs are reference evidence, not merge sources. The Authorization port excludes unrelated duplicate-host validation and SIGPIPE strategy changes. The NGINX configuration reference is generated from a NGINX-only metadata override, so its English/German files and canonical configuration inventory remain source-backed rather than manually divergent.
+The implementation ports only the current-base-required security controls. Historical broad PRs are reference evidence, not merge sources. The Authorization port excludes unrelated duplicate-host validation and SIGPIPE strategy changes. The NGINX configuration reference is generated from a NGINX-only metadata override, so its English/German files and canonical configuration inventory remain source-backed rather than manually divergent. Hosted Lighttpd feedback then showed that its runtime harness still expected a raw query-bearing JSONL URI; the harness now expects the safe serialized URI and `redacted=true` while retaining raw curl-wire and correlated CRS-log evidence.
 
 ## Changed files
 
 - Common runtime and event serialization: common/include/msconnector/event.h, common/src/event.c, common/src/integrity_event.c, and common/runtime/http_authorization_service.c.
 - Connector implementation: connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c, connectors/nginx/src/ngx_http_modsecurity_log.c, and connectors/traefik/src/traefik_engine_service.c.
 - Focused regressions: tests/event_json_query_redaction_test.c, tests/haproxy_spop_request_target_test.c, tests/test_haproxy_spop_request_target.py, tests/http_authorization_service_detached_worker_smoke.c, tests/test_http_authorization_service_worker_contract.py, tests/test_nginx_error_log_callback_contract.py, and tests/test_traefik_engine_service_contract.py.
+- Lighttpd runtime-redaction regression: connectors/lighttpd/harness/run_patched_full_lifecycle.sh and connectors/lighttpd/tests/test_patched_host_contract.py.
 - Source-backed documentation/inventory: ci/checks/documentation/connector_config_reference.py, examples/nginx/configuration-reference.md, examples/nginx/configuration-reference.de.md, and reports/connector-configuration-inventory.json.
 - Operator documentation: common/docs/transaction-phase-contract.md and .de.md; connectors/haproxy, nginx, and traefik README pairs; and examples/traefik README pairs.
 - Traceability: this paired Change Record and the paired archive indexes.
@@ -66,6 +67,7 @@ The implementation ports only the current-base-required security controls. Histo
 | Envoy module graph, Go test, and Go vet | Passed; module graph reports google.golang.org/grpc v1.83.1. |
 | Traefik contracts/native-plugin/Authorization worker contracts | Passed: 47 tests. |
 | Traefik C17 syntax and engine-service build/self-test/runtime/negative test | Passed with GCC and Clang syntax checks; normal, ASan/UBSan, and TSan engine-service runs passed. |
+| Lighttpd JSONL-redaction harness contract | Passed: 37 tests (2 skipped) and `bash -n`. A first hosted Lighttpd runtime run exposed its stale raw-URI JSONL expectation; the scoped harness correction preserves the raw wire/CRS correlation and requires `/?<redacted>` with `redacted=true`. |
 | Directive parity | Passed. |
 | Full bilingual/link checks | Blocked solely by pre-existing missing Framework-submodule link targets; the task neither initializes nor modifies the Framework. |
 
@@ -78,6 +80,9 @@ The changes reduce request-target ambiguity, query-value disclosure, logging-con
 The local Traefik engine service was built and exercised over a private Unix
 socket for normal, malformed-frame, and socket-ownership-negative controls.
 It is not a Traefik host-runtime test. No production service was contacted.
+The hosted Lighttpd CRS/no-MRTS runtime is the authoritative host validation
+for the updated JSONL harness contract; its rerun is pending on the current
+Draft-PR head.
 
 ## Checks not run and rationale
 
@@ -97,12 +102,13 @@ the safety controls are disabled.
 ## Remaining risks
 
 Historical JSONL and audit records can still contain data emitted before this
-redaction change. Exact-head hosted CI, SonarCloud, review, and any merge
-decision remain separate future evidence. No merge is requested or performed.
+redaction change. The corrected exact-head Lighttpd runtime rerun, other
+hosted CI, review, and any merge decision remain separate future evidence. No
+merge is requested or performed.
 
 ## Final diff and review status
 
-In progress until the documented final diff is committed and read back from the
-task branch and Draft PR. The current user authorizes a normal task-branch push
-and Draft PR only; merge, force-push, rebase of published work, and default-
-branch writes remain unauthorized.
+In progress until the post-correction final diff is committed and read back
+from the task branch and Draft PR. The current user authorizes a normal
+task-branch push and Draft PR only; merge, force-push, rebase of published
+work, and default-branch writes remain unauthorized.
