@@ -18,6 +18,7 @@ RUNTIME_SOURCE = ROOT / "common" / "runtime" / "msconnector_runtime.c"
 APACHE_SOURCE = ROOT / "connectors" / "apache" / "src" / "msc_filters.c"
 EVENT_HEADER = ROOT / "common" / "include" / "msconnector" / "event.h"
 INTEGRITY_HEADER = ROOT / "common" / "include" / "msconnector" / "integrity_event.h"
+PRIVATE_EVENT_SMOKE = ROOT / "tests" / "private_event_file_smoke.c"
 
 
 class EventRuntimeSecurityContractTests(unittest.TestCase):
@@ -27,6 +28,7 @@ class EventRuntimeSecurityContractTests(unittest.TestCase):
         cls.event_jsonl_source = EVENT_JSONL_SOURCE.read_text(encoding="utf-8")
         cls.runtime_source = RUNTIME_SOURCE.read_text(encoding="utf-8")
         cls.apache_source = APACHE_SOURCE.read_text(encoding="utf-8")
+        cls.private_event_smoke = PRIVATE_EVENT_SMOKE.read_text(encoding="utf-8")
 
     def test_protocol_metadata_is_json_escaped_and_null_safe(self) -> None:
         escaping_writer = self.event_source.split(
@@ -100,6 +102,31 @@ class EventRuntimeSecurityContractTests(unittest.TestCase):
         )
         self.assertIn("S_IWGRP | S_IWOTH", secure_open)
         self.assertIn("file_status.st_uid != geteuid()", self.event_jsonl_source)
+
+    def test_root_owned_smoke_fixture_preserves_descriptor_bound_controls(self) -> None:
+        root_parent_control = self.private_event_smoke.split(
+            "static int check_root_owned_parent_controls(", 1
+        )[1].split("static int initialize_test_paths", 1)[0]
+
+        for token in (
+            "TEST_ROOT_DIRECTORY_MODE ((mode_t)0750)",
+            "TEST_ROOT_PARENT_SAFE_MODE ((mode_t)0750)",
+            "TEST_ROOT_PARENT_WRITABLE_MODE ((mode_t)0770)",
+            "mkdirat(*root_fd, \"root-owned\", 0700)",
+            "open_test_directory_at(*root_fd, \"root-owned\")",
+            "fchown(*parent_fd, TEST_UNPRIVILEGED_UID,",
+            "fchmod(parent_fd, TEST_ROOT_PARENT_WRITABLE_MODE)",
+            "openat(parent_fd, \"root-owned.jsonl\"",
+        ):
+            self.assertIn(token, self.private_event_smoke)
+        for unsafe_path_operation in (
+            "\n    if (chmod(",
+            "\n    if (chown(",
+            "\n    if (mkdir(",
+        ):
+            self.assertNotIn(unsafe_path_operation, self.private_event_smoke)
+        self.assertNotIn("if (chmod(parent", root_parent_control)
+        self.assertNotIn("if (chown(parent", root_parent_control)
 
     def test_apache_uses_the_common_private_descriptor_before_apr_ownership(self) -> None:
         opener = self.apache_source.split(

@@ -36,6 +36,14 @@ ALLOWED_VALUES_PHASE4_MODE = "minimal | safe | strict"
 DEFAULT_SOURCE_PHASE4_MODE = "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_MODE"
 ALLOWED_VALUES_POSITIVE_INTEGER = "positive integer"
 DEFAULT_SOURCE_PHASE4_BODY_LIMIT = "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_BODY_LIMIT"
+REMOTE_RULE_VALUE_TYPE = "registered but always rejected runtime setting"
+REMOTE_RULE_ALLOWED_VALUES = "no value is accepted"
+REMOTE_RULE_DEFAULT = "no usable value"
+REMOTE_RULE_DEFAULT_SOURCE = "security policy: remote rule loading disabled"
+REMOTE_RULE_EFFECT = "Policy A rejects remote-rule configuration before a rule loader or network operation."
+REMOTE_RULE_INHERITANCE = "No remote value can be inherited or merged because every use is rejected."
+REMOTE_RULE_MERGE_BEHAVIOR = "No remote value can be merged because every use is rejected before rule loading."
+COMMON_BODY_LIMIT_ALLOWED_VALUES = "1 through 10485760 bytes (10 MiB hard cap)"
 NGINX_CONFIGURATION_CONTEXTS = "NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location)"
 DEFAULT_SOURCE_COMPATIBILITY_EXAMPLE = "compatibility example"
 NOT_APPLICABLE = "not applicable"
@@ -107,6 +115,13 @@ HAPROXY_FILTER_NAME = "modsecurity-htx"
 VALUE_TYPE_BOOLEAN = "boolean"
 VALUE_TYPE_ENUM = "enum"
 VALUE_TYPE_PATH = "path"
+NGINX_DIRECTIVE_SYNTAX = {
+    "modsecurity": "modsecurity on | off;",
+    "modsecurity_use_error_log": "modsecurity_use_error_log on | off;",
+    "modsecurity_phase4_mode": "modsecurity_phase4_mode minimal | safe | strict;",
+    "modsecurity_phase4_body_limit": "modsecurity_phase4_body_limit <positive-bytes>;",
+    "modsecurity_rules_remote": "modsecurity_rules_remote <key> <url>;",
+}
 
 
 @dataclass(frozen=True)
@@ -252,9 +267,9 @@ DIRECTIVE_DETAILS: dict[str, dict[str, str]] = {
     "modsecurity_rules_remote": {
         "type": "registered but always rejected directive",
         "values": "no key/URL pair is accepted",
-        "default": "no usable value",
-        "default_source": "security policy: remote rule loading disabled",
-        "effect": "Policy A rejects remote-rule configuration before a rule loader or network operation.",
+        "default": REMOTE_RULE_DEFAULT,
+        "default_source": REMOTE_RULE_DEFAULT_SOURCE,
+        "effect": REMOTE_RULE_EFFECT,
         "phase_relevance": "No rule-loader or network path is reachable through this directive.",
         "security": "Remote loading is technically disabled for every connector; do not rely on a remote URL or key.",
     },
@@ -463,8 +478,8 @@ def extract_apache(root: Path) -> list[dict[str, Any]]:
         )
         if name == "modsecurity_rules_remote":
             option.update(
-                inheritance="No remote value can be inherited or merged because every use is rejected.",
-                merge_behavior="No remote value can be merged because every use is rejected before rule loading.",
+                inheritance=REMOTE_RULE_INHERITANCE,
+                merge_behavior=REMOTE_RULE_MERGE_BEHAVIOR,
                 validation=(
                     f"{handler} rejects every key/URL pair during apachectl -t before a rule loader or network operation."
                 ),
@@ -493,15 +508,7 @@ def extract_nginx(root: Path) -> list[dict[str, Any]]:
         name = macros[macro]
         if name not in DIRECTIVE_DETAILS:
             raise ValueError(f"NGINX directive lacks reference metadata: {name}")
-        syntax = f"{name} <value>;"
-        if name in {"modsecurity", "modsecurity_use_error_log"}:
-            syntax = f"{name} on | off;"
-        elif name == "modsecurity_phase4_mode":
-            syntax = "modsecurity_phase4_mode minimal | safe | strict;"
-        elif name == "modsecurity_phase4_body_limit":
-            syntax = "modsecurity_phase4_body_limit <positive-bytes>;"
-        elif name == "modsecurity_rules_remote":
-            syntax = "modsecurity_rules_remote <key> <url>;"
+        syntax = NGINX_DIRECTIVE_SYNTAX.get(name, f"{name} <value>;")
         option = _directive_option(
             "nginx", name, source, f"ngx_http_modsecurity_commands[] / {handler}", syntax,
             NGINX_CONFIGURATION_CONTEXTS,
@@ -618,7 +625,7 @@ def extract_nginx(root: Path) -> list[dict[str, Any]]:
             option.update(
                 value_type="registered but always rejected path",
                 allowed_values="no path is accepted",
-                default="no usable value",
+                default=REMOTE_RULE_DEFAULT,
                 default_source="security policy: native NGINX event-file logging disabled",
                 inheritance="No event-file value can be inherited or merged because every use is rejected.",
                 merge_behavior="No event-file value can be merged because every use is rejected before descriptor creation.",
@@ -641,8 +648,8 @@ def extract_nginx(root: Path) -> list[dict[str, Any]]:
             )
         elif name == "modsecurity_rules_remote":
             option.update(
-                inheritance="No remote value can be inherited or merged because every use is rejected.",
-                merge_behavior="No remote value can be merged because every use is rejected before rule loading.",
+                inheritance=REMOTE_RULE_INHERITANCE,
+                merge_behavior=REMOTE_RULE_MERGE_BEHAVIOR,
                 validation=(
                     "ngx_conf_set_rules_remote rejects every key/URL pair during nginx -t before a rule loader "
                     "or network operation."
@@ -881,8 +888,8 @@ COMMON_DETAILS: dict[str, dict[str, str]] = {
     "use_error_log": ("boolean", ALLOWED_VALUES_COMMON_BOOLEAN, "on", DEFAULT_SOURCE_USE_ERROR_LOG, "Stores the Common logging preference. A connector must consume it before a host logging effect can be claimed."),
     "rules_inline": ("string", "one inline rule/configuration string", "none", DEFAULT_SOURCE_RUNTIME_PARSER, "Adds inline rule configuration."),
     "rules_file": ("path", "one readable rule/configuration file", "none", DEFAULT_SOURCE_RUNTIME_PARSER, "Loads rules from a local file."),
-    "rules_remote_key": ("registered but always rejected runtime setting", "no value is accepted", "no usable value", "security policy: remote rule loading disabled", "Policy A rejects remote-rule configuration before a rule loader or network operation."),
-    "rules_remote_url": ("registered but always rejected runtime setting", "no value is accepted", "no usable value", "security policy: remote rule loading disabled", "Policy A rejects remote-rule configuration before a rule loader or network operation."),
+    "rules_remote_key": (REMOTE_RULE_VALUE_TYPE, REMOTE_RULE_ALLOWED_VALUES, REMOTE_RULE_DEFAULT, REMOTE_RULE_DEFAULT_SOURCE, REMOTE_RULE_EFFECT),
+    "rules_remote_url": (REMOTE_RULE_VALUE_TYPE, REMOTE_RULE_ALLOWED_VALUES, REMOTE_RULE_DEFAULT, REMOTE_RULE_DEFAULT_SOURCE, REMOTE_RULE_EFFECT),
     "transaction_id": ("string", "non-empty text", "none", DEFAULT_SOURCE_RUNTIME_PARSER, "Sets a static runtime transaction identifier."),
     "transaction_id_header": ("header name", ALLOWED_VALUES_HEADER_NAME, "x-request-id", DEFAULT_SOURCE_RUNTIME_DEFAULTS, "Selects the fallback correlation-header name."),
     "phase4_mode": ("enum", ALLOWED_VALUES_PHASE4_MODE, "safe", DEFAULT_SOURCE_PHASE4_MODE, "Stores the late P4 policy. Common alone owns no host abort primitive."),
@@ -906,8 +913,8 @@ COMMON_DETAILS: dict[str, dict[str, str]] = {
 
 
 COMMON_REMOTE_OPTION_OVERRIDE: dict[str, Any] = {
-    "inheritance": "No remote value can be inherited or merged because every use is rejected.",
-    "merge_behavior": "No remote value can be merged because every use is rejected before rule loading.",
+    "inheritance": REMOTE_RULE_INHERITANCE,
+    "merge_behavior": REMOTE_RULE_MERGE_BEHAVIOR,
     "validation": (
         "Common Runtime rejects any remote key or URL during configuration validation before a rule "
         "loader or network operation."
@@ -932,7 +939,7 @@ COMMON_OPTION_OVERRIDES: dict[str, dict[str, Any]] = {
     "rules_remote_key": COMMON_REMOTE_OPTION_OVERRIDE,
     "rules_remote_url": COMMON_REMOTE_OPTION_OVERRIDE,
     "request_body_limit": {
-        "allowed_values": "1 through 10485760 bytes (10 MiB hard cap)",
+        "allowed_values": COMMON_BODY_LIMIT_ALLOWED_VALUES,
         "validation": (
             "Runtime configuration rejects zero, non-decimal values, and values above the 10485760-byte "
             "(10 MiB) hard security cap."
@@ -943,7 +950,7 @@ COMMON_OPTION_OVERRIDES: dict[str, dict[str, Any]] = {
         ),
     },
     "response_body_limit": {
-        "allowed_values": "1 through 10485760 bytes (10 MiB hard cap)",
+        "allowed_values": COMMON_BODY_LIMIT_ALLOWED_VALUES,
         "validation": (
             "Runtime configuration rejects zero, non-decimal values, and values above the 10485760-byte "
             "(10 MiB) hard security cap."
@@ -3040,7 +3047,7 @@ GERMAN_TEXT: dict[str, str] = {
     "two strings": "zwei Zeichenketten",
     "registered but always rejected directive": "registrierte, aber stets abgewiesene Direktive",
     "registered but always rejected path": "registrierter, aber immer abgelehnter Pfad",
-    "registered but always rejected runtime setting": "registrierte, aber stets abgewiesene Runtime-Einstellung",
+    REMOTE_RULE_VALUE_TYPE: "registrierte, aber stets abgewiesene Runtime-Einstellung",
     "Apache string expression": "Apache-Zeichenausdruck",
     "path": "Pfad",
     "path alias": "Pfad-Alias",
@@ -3092,8 +3099,8 @@ GERMAN_TEXT: dict[str, str] = {
     "key and URL": "Schlüssel und URL",
     "no key/URL pair is accepted": "kein Schlüssel/URL-Paar wird akzeptiert",
     "no path is accepted": "kein Pfad wird akzeptiert",
-    "no value is accepted": "kein Wert wird akzeptiert",
-    "no usable value": "kein verwendbarer Wert",
+    REMOTE_RULE_ALLOWED_VALUES: "kein Wert wird akzeptiert",
+    REMOTE_RULE_DEFAULT: "kein verwendbarer Wert",
     ALLOWED_VALUES_LIGHTTPD_BOOLEAN: "lighttpd-Boolean-Werte; die Beispiele verwenden enable/disable",
     "materializer placeholder resolved to decimal 1..65535": "vom Materializer auf dezimal 1..65535 aufgelöster Platzhalter",
     "materializer-provided, validated value": "vom Materializer bereitgestellter und validierter Wert",
@@ -3114,7 +3121,7 @@ GERMAN_TEXT: dict[str, str] = {
     "one readable file with MIME tokens": "eine lesbare Datei mit MIME-Token",
     "on POSIX, one readable regular MIME-token file no larger than 64 KiB; rejected on Win32": "unter POSIX eine lesbare reguläre MIME-Token-Datei mit höchstens 64 KiB; unter Win32 abgewiesen",
     "one readable rule/configuration file": "eine lesbare Regel-/Konfigurationsdatei",
-    "1 through 10485760 bytes (10 MiB hard cap)": "1 bis 10485760 Byte (harte Obergrenze 10 MiB)",
+    COMMON_BODY_LIMIT_ALLOWED_VALUES: "1 bis 10485760 Byte (harte Obergrenze 10 MiB)",
     "1 through 256": "1 bis 256",
     "1 through 256 bytes": "1 bis 256 Byte",
     "1 through 8192 bytes": "1 bis 8192 Byte",
@@ -3158,7 +3165,7 @@ GERMAN_TEXT: dict[str, str] = {
     "none; must be materialized": "kein Wert; muss materialisiert werden",
     DEFAULT_NONE_OPTIONAL: "kein Wert; optional",
     "none; required": "kein Wert; erforderlich",
-    "security policy: remote rule loading disabled": "Sicherheitspolicy: Laden entfernter Regeln deaktiviert",
+    REMOTE_RULE_DEFAULT_SOURCE: "Sicherheitspolicy: Laden entfernter Regeln deaktiviert",
     "security policy: native NGINX event-file logging disabled": "Sicherheitspolicy: natives NGINX-Ereignisdatei-Logging deaktiviert",
     "not a native connector option": "keine native Connector-Option",
     "not applicable; a filter is active only when declared": "nicht anwendbar; ein Filter ist nur aktiv, wenn er deklariert ist",
@@ -3200,7 +3207,7 @@ GERMAN_TEXT: dict[str, str] = {
     "Only defaults are loaded; no documented conditional request-time override.": "Es werden nur Standardwerte geladen; keine dokumentierte bedingte Überschreibung zur Request-Zeit.",
     LIGHTTPD_DEFAULTS_ONLY_INHERITANCE: "Es werden nur Standardwerte geladen; das Modul besitzt keinen bedingten Patch-Pfad zur Request-Zeit.",
     "Parent value is available to the child unless a child value is set; see the Apache directory-config merge function.": "Der Elternwert steht dem Kind zur Verfügung, sofern kein Kindwert gesetzt ist; siehe die Apache-Merge-Funktion für Verzeichniskonfigurationen.",
-    "No remote value can be inherited or merged because every use is rejected.": "Kein Remote-Wert kann geerbt oder zusammengeführt werden, weil jede Verwendung abgewiesen wird.",
+    REMOTE_RULE_INHERITANCE: "Kein Remote-Wert kann geerbt oder zusammengeführt werden, weil jede Verwendung abgewiesen wird.",
     "No event-file value can be inherited or merged because every use is rejected.": "Kein Ereignisdatei-Wert kann geerbt oder zusammengeführt werden, weil jede Verwendung abgewiesen wird.",
     "Traefik dynamic configuration object; no Common Runtime merge.": "Dynamisches Traefik-Konfigurationsobjekt; kein Common-Runtime-Merge.",
     "http → server → location; a child inherits if it does not set a value.": "http → server → location; ein Kind erbt, wenn es keinen Wert setzt.",
@@ -3212,7 +3219,7 @@ GERMAN_TEXT: dict[str, str] = {
 
     "--listen overrides listen_address after JSON decoding; other flags are direct process inputs.": "--listen überschreibt listen_address nach dem JSON-Dekodieren; andere Optionen sind direkte Prozesseingaben.",
     "Common scalar values use child-over-parent merge; rule sets are merged through msc_rules_merge. Transaction-id expression/static-id are mutually exclusive.": "Common-Skalarwerte verwenden einen Kind-vor-Eltern-Merge; Regelsätze werden über msc_rules_merge zusammengeführt. Transaktions-ID-Ausdruck und statische ID schließen sich gegenseitig aus.",
-    "No remote value can be merged because every use is rejected before rule loading.": "Kein Remote-Wert kann zusammengeführt werden, weil jede Verwendung vor dem Laden von Regeln abgewiesen wird.",
+    REMOTE_RULE_MERGE_BEHAVIOR: "Kein Remote-Wert kann zusammengeführt werden, weil jede Verwendung vor dem Laden von Regeln abgewiesen wird.",
     "No event-file value can be merged because every use is rejected before descriptor creation.": "Kein Ereignisdatei-Wert kann zusammengeführt werden, weil jede Verwendung vor der Deskriptorerzeugung abgewiesen wird.",
     "Compatibility-host API behavior; not selected native configuration merge.": "Verhalten der Kompatibilitäts-Host-API; kein Merge der ausgewählten nativen Konfiguration.",
     "Engine-specific; include order and rule configuration determine effective behavior.": "Engine-spezifisch; Include-Reihenfolge und Regelkonfiguration bestimmen das wirksame Verhalten.",
@@ -3477,7 +3484,7 @@ GERMAN_TEXT: dict[str, str] = {
     "Supplies the remote-rule endpoint; the selected examples do not exercise it.": "Liefert den Remote-Regelendpunkt; die ausgewählten Beispiele verwenden ihn nicht.",
 
     # Security and operational guidance.
-    "Policy A rejects remote-rule configuration before a rule loader or network operation.": "Policy A weist Remote-Rule-Konfiguration ab, bevor ein Regellader- oder Netzwerkvorgang stattfindet.",
+    REMOTE_RULE_EFFECT: "Policy A weist Remote-Rule-Konfiguration ab, bevor ein Regellader- oder Netzwerkvorgang stattfindet.",
     "Enables the Common Runtime; enabled runtime requires an inline or local-file rule source.": "Aktiviert die Common Runtime; die aktivierte Runtime erfordert eine Inline- oder lokale Regeldateiquelle.",
     "Disabling Common Runtime bypasses Common Runtime processing even when an inline or local-file rule source is configured.": "Das Deaktivieren der Common Runtime umgeht deren Verarbeitung, auch wenn eine Inline- oder lokale Regeldateiquelle konfiguriert ist.",
     "No rule-loader or network path is reachable through this directive.": "Über diese Direktive ist kein Regellader- oder Netzwerkpfad erreichbar.",
