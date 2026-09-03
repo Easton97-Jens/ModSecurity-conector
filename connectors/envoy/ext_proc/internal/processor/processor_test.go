@@ -60,9 +60,7 @@ func TestProcessRejectsExcessActiveStreamBeforeTransactionOpenAndReleasesSlot(t 
 	service := newTestServiceWithStreamLimit(t, engine, LateActionSafe, 1)
 
 	firstContext, firstCancelCause := context.WithCancelCause(context.Background())
-	t.Cleanup(func() {
-		firstCancelCause(nil)
-	})
+	defer firstCancelCause(nil)
 	held := newBlockingProcessStream(firstContext)
 	firstResult := make(chan error, 1)
 	go func() {
@@ -559,6 +557,7 @@ func TestCancellationCleansUpWithoutAttributingTheHTTPReset(t *testing.T) {
 	transaction := &recordingTransaction{}
 	service := newTestService(t, transaction, LateActionSafe)
 	contextValue, cancelCause := context.WithCancelCause(context.Background())
+	defer cancelCause(nil)
 	stream := &fakeProcessStream{contextFactory: testStreamContext(contextValue), cancel: func() { cancelCause(context.Canceled) }, receive: []receiveResult{
 		{request: requestHeaders(false)},
 		{cancel: true, err: context.Canceled},
