@@ -273,3 +273,33 @@ CI/workflow/helper tests, Python compilation, `actionlint`, and diff checks
 pass locally. A new normal successor head, exact remote/PR read-back, and
 fresh successor-only Sonar, NGINX on/off, and full CRS/no-MRTS workflow
 evidence remain required; no earlier green run is reused.
+
+### Exact-head NGINX diagnostic compatibility and Sonar correction
+
+Exact-head hosted run `33800744562` for
+`4350a8a77c61630025ba436cda12dfac6b3751e2` correctly kept the failed
+provisioning result (`missing_nginx_modsecurity_module`) authoritative and
+ran the bounded diagnostic step. That step reported `report_too_large`: the
+normal complete generated component report is about 120,601 bytes and exceeds
+the intentionally retained 64-KiB metadata cap, so the separately produced
+fixed NGINX build-log tail was not reached.
+
+The scoped successor candidate keeps that report cap and does not parse a
+truncated report or trust its `build_log` value. Only for the explicit
+`report_too_large` result it emits that status and then reads the independently
+fixed `build/logs/runtime-components/nginx-build.log` path through the same
+no-follow, identity-checked, bounded reader. The regression fixture places a
+forged log path and canaries in the oversized report and proves that only the
+fixed canonical tail is rendered. It retains symlink/hardlink/race rejection,
+64-KiB tail bounds, line limits, and terminal/Actions-command sanitization.
+
+The current SonarQube Cloud PR result has four open records: the new
+`python:S3776` diagnostic-reader complexity report is a real maintainability
+issue and the candidate splits the descriptor traversal, regular-file open,
+and bounded-read responsibilities without changing their security invariants.
+The three remaining `c:S995` Authorization fixture rows remain the
+already-documented public-ABI non-problems above. No suppression, `NOSONAR`,
+Quality-Gate change, or workflow/test weakening is used. Python compilation
+and the 42 focused diagnostic/gate/CI-security tests pass locally; a new normal
+head, exact remote read-back, and successor-only Sonar, NGINX on/off, and full
+CRS/no-MRTS evidence remain required.

@@ -137,70 +137,114 @@ def _open_run_root(run_root: Path) -> tuple[int, Path]:
     return descriptor, root
 
 
-def _read_fixed_regular_file(
-    run_root: Path,
-    relative_path: Path,
+def _validate_relative_path(relative_path: Path, reason: str) -> None:
+    if relative_path.is_absolute() or not relative_path.parts or ".." in relative_path.parts:
+        raise DiagnosticInputError(f"{reason}_path_invalid")
+
+
+def _stat_no_follow(directory_fd: int, component: str, reason: str) -> os.stat_result:
+    try:
+        return os.stat(component, dir_fd=directory_fd, follow_symlinks=False)
+    except FileNotFoundError as exc:
+        raise DiagnosticInputError(f"{reason}_missing") from exc
+    except OSError as exc:
+        raise DiagnosticInputError(f"{reason}_unavailable") from exc
+
+
+def _open_directory_component(
+    directory_fd: int,
+    component: str,
+    reason: str,
+    *,
+    no_follow: int,
+    directory: int,
+) -> int:
+    before = _stat_no_follow(directory_fd, component, reason)
+    _require_directory(before, reason)
+    try:
+        next_fd = os.open(
+            component,
+            os.O_RDONLY | directory | no_follow | os.O_CLOEXEC,
+            dir_fd=directory_fd,
+        )
+    except OSError as exc:
+        raise DiagnosticInputError(f"{reason}_unavailable") from exc
+    try:
+        opened = os.fstat(next_fd)
+        _require_directory(opened, reason)
+        if _identity(before) != _identity(opened):
+            raise DiagnosticInputError(f"{reason}_changed")
+    except OSError as exc:
+        os.close(next_fd)
+        raise DiagnosticInputError(f"{reason}_unavailable") from exc
+    except Exception:
+        os.close(next_fd)
+        raise
+    return next_fd
+
+
+def _open_relative_directory(run_root: Path, components: tuple[str, ...], reason: str) -> tuple[int, int]:
+    no_follow, directory = _no_follow_flags()
+    directory_fd, _ = _open_run_root(run_root)
+    try:
+        for component in components:
+            next_fd = _open_directory_component(
+                directory_fd,
+                component,
+                reason,
+                no_follow=no_follow,
+                directory=directory,
+            )
+            os.close(directory_fd)
+            directory_fd = next_fd
+    except Exception:
+        os.close(directory_fd)
+        raise
+    return directory_fd, no_follow
+
+
+def _open_regular_file(
+    directory_fd: int,
+    filename: str,
+    reason: str,
+    *,
+    maximum_bytes: int | None,
+    tail: bool,
+    no_follow: int,
+) -> tuple[int, os.stat_result]:
+    before = _stat_no_follow(directory_fd, filename, reason)
+    _require_regular(before, reason, None if tail else maximum_bytes)
+    try:
+        file_fd = os.open(
+            filename,
+            os.O_RDONLY | os.O_NONBLOCK | no_follow | os.O_CLOEXEC,
+            dir_fd=directory_fd,
+        )
+    except OSError as exc:
+        raise DiagnosticInputError(f"{reason}_unavailable") from exc
+    try:
+        opened = os.fstat(file_fd)
+        _require_regular(opened, reason, None if tail else maximum_bytes)
+        if _identity(before) != _identity(opened):
+            raise DiagnosticInputError(f"{reason}_changed")
+    except OSError as exc:
+        os.close(file_fd)
+        raise DiagnosticInputError(f"{reason}_unavailable") from exc
+    except Exception:
+        os.close(file_fd)
+        raise
+    return file_fd, opened
+
+
+def _read_open_regular_file(
+    file_fd: int,
+    opened: os.stat_result,
     reason: str,
     *,
     maximum_bytes: int | None,
     tail: bool,
 ) -> tuple[bytes, bool]:
-    """Read one fixed descendant through no-follow directory descriptors."""
-
-    if relative_path.is_absolute() or not relative_path.parts or ".." in relative_path.parts:
-        raise DiagnosticInputError(f"{reason}_path_invalid")
-    no_follow, directory = _no_follow_flags()
-    directory_fd, _ = _open_run_root(run_root)
-    file_fd = -1
     try:
-        for component in relative_path.parts[:-1]:
-            try:
-                before = os.stat(component, dir_fd=directory_fd, follow_symlinks=False)
-            except FileNotFoundError as exc:
-                raise DiagnosticInputError(f"{reason}_missing") from exc
-            except OSError as exc:
-                raise DiagnosticInputError(f"{reason}_unavailable") from exc
-            _require_directory(before, reason)
-            try:
-                next_fd = os.open(
-                    component,
-                    os.O_RDONLY | directory | no_follow | os.O_CLOEXEC,
-                    dir_fd=directory_fd,
-                )
-            except OSError as exc:
-                raise DiagnosticInputError(f"{reason}_unavailable") from exc
-            try:
-                opened = os.fstat(next_fd)
-                _require_directory(opened, reason)
-                if _identity(before) != _identity(opened):
-                    raise DiagnosticInputError(f"{reason}_changed")
-            except Exception:
-                os.close(next_fd)
-                raise
-            os.close(directory_fd)
-            directory_fd = next_fd
-
-        filename = relative_path.parts[-1]
-        try:
-            before = os.stat(filename, dir_fd=directory_fd, follow_symlinks=False)
-        except FileNotFoundError as exc:
-            raise DiagnosticInputError(f"{reason}_missing") from exc
-        except OSError as exc:
-            raise DiagnosticInputError(f"{reason}_unavailable") from exc
-        _require_regular(before, reason, None if tail else maximum_bytes)
-        try:
-            file_fd = os.open(
-                filename,
-                os.O_RDONLY | os.O_NONBLOCK | no_follow | os.O_CLOEXEC,
-                dir_fd=directory_fd,
-            )
-        except OSError as exc:
-            raise DiagnosticInputError(f"{reason}_unavailable") from exc
-        opened = os.fstat(file_fd)
-        _require_regular(opened, reason, None if tail else maximum_bytes)
-        if _identity(before) != _identity(opened):
-            raise DiagnosticInputError(f"{reason}_changed")
-
         truncated = maximum_bytes is not None and opened.st_size > maximum_bytes
         if tail and maximum_bytes is not None and truncated:
             os.lseek(file_fd, -maximum_bytes, os.SEEK_END)
@@ -215,16 +259,45 @@ def _read_fixed_regular_file(
             remaining -= len(chunk)
         data = b"".join(chunks)
         after = os.fstat(file_fd)
-        _require_regular(after, reason, None if tail else maximum_bytes)
-        if _identity(opened) != _identity(after):
-            raise DiagnosticInputError(f"{reason}_changed")
-        if maximum_bytes is not None and not tail and len(data) > maximum_bytes:
-            raise DiagnosticInputError(f"{reason}_too_large")
-        return data, truncated
-    except DiagnosticInputError:
-        raise
     except OSError as exc:
         raise DiagnosticInputError(f"{reason}_unavailable") from exc
+    _require_regular(after, reason, None if tail else maximum_bytes)
+    if _identity(opened) != _identity(after):
+        raise DiagnosticInputError(f"{reason}_changed")
+    if maximum_bytes is not None and not tail and len(data) > maximum_bytes:
+        raise DiagnosticInputError(f"{reason}_too_large")
+    return data, truncated
+
+
+def _read_fixed_regular_file(
+    run_root: Path,
+    relative_path: Path,
+    reason: str,
+    *,
+    maximum_bytes: int | None,
+    tail: bool,
+) -> tuple[bytes, bool]:
+    """Read one fixed descendant through no-follow directory descriptors."""
+
+    _validate_relative_path(relative_path, reason)
+    directory_fd, no_follow = _open_relative_directory(run_root, relative_path.parts[:-1], reason)
+    file_fd = -1
+    try:
+        file_fd, opened = _open_regular_file(
+            directory_fd,
+            relative_path.parts[-1],
+            reason,
+            maximum_bytes=maximum_bytes,
+            tail=tail,
+            no_follow=no_follow,
+        )
+        return _read_open_regular_file(
+            file_fd,
+            opened,
+            reason,
+            maximum_bytes=maximum_bytes,
+            tail=tail,
+        )
     finally:
         if file_fd >= 0:
             os.close(file_fd)
@@ -267,37 +340,8 @@ def _render_log_lines(data: bytes, *, truncated: bool) -> list[str]:
     return rendered
 
 
-def diagnostic_lines(run_root: Path | str) -> list[str]:
-    """Return payload-safe lines while preserving the already-failed primary step."""
-
-    try:
-        root = _absolute_nonroot_path(run_root)
-        report_bytes, _ = _read_fixed_regular_file(
-            root,
-            REPORT_RELATIVE_PATH,
-            "report",
-            maximum_bytes=MAX_REPORT_BYTES,
-            tail=False,
-        )
-        payload: Any = json.loads(report_bytes.decode("utf-8", errors="strict"))
-    except (DiagnosticInputError, UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
-        reason = exc.reason if isinstance(exc, DiagnosticInputError) else "report_malformed"
-        return [f"{PREFIX} unavailable={reason}"]
-
-    nginx = payload.get("nginx") if isinstance(payload, dict) else None
-    if not isinstance(nginx, dict):
-        return [f"{PREFIX} unavailable=nginx_record_invalid"]
-
-    lines = [
-        f"{PREFIX} status={_safe_metadata_token(nginx.get('status'))}",
-        f"{PREFIX} blocker_reason={_safe_metadata_token(nginx.get('blocker_reason'))}",
-        f"{PREFIX} build_exit_code={_safe_exit_code(nginx.get('build_exit_code'))}",
-        f"{PREFIX} missing_files_count={_safe_missing_file_count(nginx.get('missing_files'))}",
-    ]
-    expected_log = root / BUILD_LOG_RELATIVE_PATH
-    if nginx.get("build_log") != str(expected_log):
-        lines.append(f"{PREFIX} build_log=untrusted_path")
-        return lines
+def _append_bounded_build_log_tail(lines: list[str], root: Path) -> list[str]:
+    """Append only the fixed canonical NGINX log tail to diagnostic lines."""
 
     try:
         log_bytes, truncated = _read_fixed_regular_file(
@@ -317,6 +361,47 @@ def diagnostic_lines(run_root: Path | str) -> list[str]:
     lines.extend(_render_log_lines(log_bytes, truncated=truncated))
     lines.append(f"{PREFIX} end bounded nginx-build.log tail")
     return lines
+
+
+def diagnostic_lines(run_root: Path | str) -> list[str]:
+    """Return payload-safe lines while preserving the already-failed primary step."""
+
+    try:
+        root = _absolute_nonroot_path(run_root)
+        report_bytes, _ = _read_fixed_regular_file(
+            root,
+            REPORT_RELATIVE_PATH,
+            "report",
+            maximum_bytes=MAX_REPORT_BYTES,
+            tail=False,
+        )
+        payload: Any = json.loads(report_bytes.decode("utf-8", errors="strict"))
+    except (DiagnosticInputError, UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
+        reason = exc.reason if isinstance(exc, DiagnosticInputError) else "report_malformed"
+        lines = [f"{PREFIX} unavailable={reason}"]
+        # The complete generated report normally exceeds the metadata limit.
+        # It must not select the log path, but the independently produced,
+        # fixed descendant remains useful evidence for the failed build.
+        if reason == "report_too_large":
+            return _append_bounded_build_log_tail(lines, root)
+        return lines
+
+    nginx = payload.get("nginx") if isinstance(payload, dict) else None
+    if not isinstance(nginx, dict):
+        return [f"{PREFIX} unavailable=nginx_record_invalid"]
+
+    lines = [
+        f"{PREFIX} status={_safe_metadata_token(nginx.get('status'))}",
+        f"{PREFIX} blocker_reason={_safe_metadata_token(nginx.get('blocker_reason'))}",
+        f"{PREFIX} build_exit_code={_safe_exit_code(nginx.get('build_exit_code'))}",
+        f"{PREFIX} missing_files_count={_safe_missing_file_count(nginx.get('missing_files'))}",
+    ]
+    expected_log = root / BUILD_LOG_RELATIVE_PATH
+    if nginx.get("build_log") != str(expected_log):
+        lines.append(f"{PREFIX} build_log=untrusted_path")
+        return lines
+
+    return _append_bounded_build_log_tail(lines, root)
 
 
 def main(argv: list[str] | None = None) -> int:

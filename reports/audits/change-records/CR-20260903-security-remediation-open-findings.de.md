@@ -296,3 +296,37 @@ fokussierte dynamische CI-/Workflow-/Helper-Tests, Python-Kompilierung,
 Successor-Head, exakter Remote-/PR-Read-back sowie frische
 Successor-only-Sonar-, NGINX-On/Off- und Full-CRS/no-MRTS-Workflow-Evidenz
 bleiben erforderlich; kein früherer grüner Lauf wird wiederverwendet.
+
+### Exact-Head-NGINX-Diagnose-Kompatibilität und Sonar-Korrektur
+
+Der Exact-Head-Hosted-Lauf `33800744562` für
+`4350a8a77c61630025ba436cda12dfac6b3751e2` beließ das fehlgeschlagene
+Provisioning-Ergebnis (`missing_nginx_modsecurity_module`) korrekterweise als
+maßgeblich und führte den begrenzten Diagnoseschritt aus. Dieser Schritt
+meldete `report_too_large`: Der normale vollständige generierte Komponenten-
+Report ist ungefähr 120,601 Byte groß und überschreitet die absichtlich
+beibehaltene 64-KiB-Metadaten-Grenze, sodass der separat erzeugte feste
+NGINX-Build-Log-Tail nicht erreicht wurde.
+
+Der eingegrenzte Successor-Kandidat behält diese Report-Grenze bei, parst
+keinen abgeschnittenen Report und vertraut dessen `build_log`-Wert nicht. Nur
+für das explizite Ergebnis `report_too_large` gibt er diesen Status aus und
+liest anschließend den unabhängig festen Pfad
+`build/logs/runtime-components/nginx-build.log` über denselben no-follow-,
+identitätsgeprüften und begrenzten Reader. Das Regression-Fixture platziert
+einen gefälschten Log-Pfad und Canaries im übergroßen Report und beweist, dass
+nur der feste kanonische Tail gerendert wird. Symlink-/Hardlink-/Race-
+Verwerfung, 64-KiB-Tail-Grenzen, Zeilenlimits und Terminal-/Actions-Command-
+Sanitisierung bleiben erhalten.
+
+Das aktuelle SonarQube-Cloud-PR-Ergebnis hat vier offene Records: Der neue
+`python:S3776`-Komplexitätsbefund des Diagnose-Readers ist ein echtes
+Wartbarkeitsproblem; der Kandidat trennt Descriptor-Traversierung, Öffnen
+regulärer Dateien und begrenztes Lesen, ohne deren Sicherheitsinvarianten zu
+ändern. Die drei verbleibenden `c:S995`-Authorization-Fixture-Zeilen bleiben
+die oben bereits dokumentierten Nichtprobleme der öffentlichen ABI. Es werden
+weder Suppression, `NOSONAR`, Quality-Gate-Änderung noch Workflow-/Test-
+Abschwächung verwendet. Python-Kompilierung und die 42 fokussierten
+Diagnose-/Gate-/CI-Sicherheits-Tests bestehen lokal; ein neuer normaler Head,
+exakter Remote-Read-back und Successor-only-Sonar-, NGINX-On/Off- sowie Full-
+CRS/no-MRTS-Evidenz bleiben erforderlich.

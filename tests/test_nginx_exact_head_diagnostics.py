@@ -158,12 +158,20 @@ class NginxExactHeadDiagnosticsTest(unittest.TestCase):
         self.assertEqual(malformed_output, "nginx exact-head diagnostics: unavailable=report_malformed")
         self.assertEqual(mapping_output, "nginx exact-head diagnostics: unavailable=nginx_record_invalid")
 
-    def test_oversized_report_is_rejected_and_oversized_log_has_a_bounded_tail(self) -> None:
+    def test_oversized_report_keeps_fixed_log_diagnostics_bounded(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "run"
             root.mkdir()
             report, log = self.make_fixture(root)
-            report.write_bytes(b"{" + b"x" * DIAGNOSTICS.MAX_REPORT_BYTES)
+            forged_log = Path(temporary) / "forged-log"
+            forged_log.write_text("forged-log-canary", encoding="utf-8")
+            report.write_bytes(
+                (
+                    f'{{"nginx":{{"build_log":"{forged_log}"}},'
+                    '"marker":"forged-report-canary",'
+                ).encode("utf-8")
+                + b"x" * DIAGNOSTICS.MAX_REPORT_BYTES
+            )
             report_output = "\n".join(DIAGNOSTICS.diagnostic_lines(root))
             self.make_fixture(root)
             log.write_text(
@@ -175,6 +183,9 @@ class NginxExactHeadDiagnosticsTest(unittest.TestCase):
             log_output = "\n".join(DIAGNOSTICS.diagnostic_lines(root))
 
         self.assertIn("unavailable=report_too_large", report_output)
+        self.assertIn("compiler failure: missing module", report_output)
+        self.assertNotIn("forged-log-canary", report_output)
+        self.assertNotIn("forged-report-canary", report_output)
         self.assertIn("build_log_tail_truncated=true", log_output)
         self.assertIn("final-compiler-error", log_output)
         self.assertNotIn("older-canary", log_output)
