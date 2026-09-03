@@ -1380,7 +1380,7 @@ jobs:
             (ROOT / "connectors" / "envoy" / "ext_proc" / "go.mod").read_text(encoding="utf-8")
         )
         security_floors = {
-            "google.golang.org/grpc": (1, 82, 1),
+            "google.golang.org/grpc": (1, 83, 1),
             "golang.org/x/net": (0, 56, 0),
             "golang.org/x/sys": (0, 46, 0),
             "golang.org/x/text": (0, 39, 0),

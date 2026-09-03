@@ -46,7 +46,7 @@ only `STREAMED` body modes, never `BUFFERED`.
 The module keeps the following minimum stable selections for the currently
 triaged dependency advisories:
 
-- `google.golang.org/grpc` `v1.82.1` or later;
+- `google.golang.org/grpc` `v1.83.1` or later;
 - `golang.org/x/net` `v0.56.0` or later;
 - `golang.org/x/sys` `v0.46.0` or later; and
 - `golang.org/x/text` `v0.39.0` or later.
