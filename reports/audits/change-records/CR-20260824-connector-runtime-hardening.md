@@ -53,7 +53,7 @@ The changes harden trust-boundary transitions between hosts, clients, peers, eng
 - Envoy: `connectors/envoy/ext_proc/cmd/msconnector-envoy-ext-proc/main.go`, `connectors/envoy/ext_proc/internal/processor/config.go`, `processor.go`, `processor_test.go`, `connectors/envoy/config/envoy-ext-proc-service.json`, `examples/envoy/minimal/envoy-ext-proc-service.json`, `examples/envoy/safe/envoy-ext-proc-service.json` — idle/admission/cancellation/shutdown controls and config.
 - Traefik: `connectors/traefik/src/traefik_engine_service.c` — bounded Native UDS drain and controlled restart.
 - lighttpd: `connectors/lighttpd/module/mod_msconnector.c`, `connectors/lighttpd/tests/test_patched_host_contract.py` — Stock/Patched helper scope and regression.
-- Regression tests: `tests/test_apache_fail_closed.py`, `connectors/nginx/tests/test_fail_closed_contract.py`, `tests/test_native_api_fail_closed_contract.py`, `tests/test_haproxy_spop_peer_isolation_contract.py`, `tests/test_haproxy_spop_transaction_cache_contract.py`, `tests/test_http_authorization_service_worker_contract.py`, `tests/test_http_authorization_service_runtime.py`, `tests/test_traefik_engine_service_shutdown_contract.py`.
+- Regression tests: `tests/test_apache_fail_closed.py`, `tests/test_nginx_fail_closed_contract.py`, `tests/test_native_api_fail_closed_contract.py`, `tests/test_haproxy_spop_peer_isolation_contract.py`, `tests/test_haproxy_spop_transaction_cache_contract.py`, `tests/test_http_authorization_service_worker_contract.py`, `tests/test_http_authorization_service_runtime.py`, `tests/test_traefik_engine_service_shutdown_contract.py`.
 - No CI, Framework/MRTS, Gitlink, dependency, branch-rule, ruleset, or required-check file is part of this record.
 
 ## Tests and actual results
@@ -102,3 +102,36 @@ Operators still need to validate connector-specific limits, timeouts, TLS/UDS pe
 ## Final diff and review status
 
 Implementation evidence is retained, scoped to Parent, and paired with this bilingual Change Record. The NGINX zero-return, HAProxy SPOP saturated-admission, and Envoy `ext_proc` native-shutdown remediations are locally fixed and verified, with residual native-host limits documented. This record performs no commit, push, PR, merge, or finding closure. Final delivery and any Draft PR require the parent agent's separate scoped diff review and delivery-policy checks.
+
+## 2026-09-03 PR #352 quality and workflow remediation addendum
+
+This bounded Parent-only follow-up resolves the current PR #352 SonarQube Cloud
+maintainability findings without a suppression, rule change, exclusion, Quality
+Gate change, Coverage change, or workflow weakening. It preserves the existing
+fail-closed behavior while extracting small helpers in
+`common/runtime/http_authorization_service.c`, `common/src/json_escape.c`,
+`connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c`, and the directly
+affected Envoy/Traefik test fixtures. `tests/test_nginx_fail_closed_contract.py`
+is the same NGINX contract relocated from `connectors/nginx/tests/` to the
+repository-owned top-level test area; this satisfies the unchanged
+`test ! -d connectors/nginx/tests` structure invariant in both failing
+workflows.
+
+The scoped local evidence is: the authorization timeout smoke, C17
+`-Wall -Wextra -Werror` JSON and HAProxy syntax checks, 29 focused Python
+contracts (one environment-dependent runtime case skipped), Envoy and Traefik
+`go test ./...`, shell syntax, both NGINX structure guards, and
+`git diff --check`. An independent security review found no newly introduced
+fail-open, lifetime, input-validation, timeout, path, or protocol regression.
+The full HAProxy runtime self-test remains not run because the selected local
+ModSecurity headers have an existing `msc_get_rules_messages_rule_ids` API
+mismatch; no dependency or source outside this Parent scope was changed.
+Repository-wide `make check-bilingual-docs` and `make check-doc-links` were
+attempted but are locally blocked only by the absent Framework Gitlink content
+referenced by pre-existing documentation; neither reports a changed PR #352
+path. The hosted workflow checkout materialized that Gitlink successfully.
+
+Before this follow-up, the exact PR #352 SonarQube Cloud readback was 17 new
+open/confirmed issues and 24 new duplicated lines (`0.5612722170252572 %`).
+The normal successor commit, its exact-head SonarQube zero readback, and the
+fresh required workflow cycle remain pending at this record revision.

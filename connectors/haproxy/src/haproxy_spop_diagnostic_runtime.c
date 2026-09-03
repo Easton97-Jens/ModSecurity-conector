@@ -4460,6 +4460,24 @@ static int peer_workers_wait(peer_worker_set *workers, FILE *log,
     workers->initialized = 0; return 0;
 }
 
+static void process_accepted_peer(peer_worker_set *workers, int fd, int listen_fd, agent_state *state,
+        FILE *log, const char *rules_file, const char *crs_preamble_file) {
+    if (set_peer_socket_timeouts(fd, peer_timeout_ms(state)) != 0) {
+        log_line(log, "peer socket timeout/signal setup failed errno=%d", errno);
+        close(fd);
+        return;
+    }
+    if (peer_workers_start(workers, listen_fd, fd, state, log, rules_file,
+            crs_preamble_file) != 0) {
+        log_line(log,
+            "peer worker admission failed; closing peer without protocol processing mode=%s errno=%d",
+            state != NULL && fail_mode_closed(&state->config) ?
+                "fail-closed" : "fail-open", errno);
+        (void)shutdown(fd, SHUT_RDWR);
+        close(fd);
+    }
+}
+
 static int accept_loop(int listen_fd, agent_state *state, FILE *log, int max_connections, const char *rules_file, const char *crs_preamble_file, unsigned int timeout_ms) {
     int handled = 0;
     int result = 0;
@@ -4478,7 +4496,8 @@ static int accept_loop(int listen_fd, agent_state *state, FILE *log, int max_con
         log_line(log, "failed to initialize peer worker set errno=%d", errno);
         free(workers); return 1;
     }
-    while (!stop_requested && (max_connections <= 0 || handled < max_connections)) {
+    while (!stop_requested && result == 0 &&
+            (max_connections <= 0 || handled < max_connections)) {
         int fd = accept(listen_fd, 0, 0);
         if (fd < 0) {
             if (errno != EINTR) {
@@ -4487,29 +4506,12 @@ static int accept_loop(int listen_fd, agent_state *state, FILE *log, int max_con
                  * detached worker remains, callers must retain every object
                  * it can still reference until process exit. */
                 result = 1;
-                break;
             }
-            if (stop_requested) {
-                break;
-            }
-            continue;
-        }
-        if (set_peer_socket_timeouts(fd, peer_timeout_ms(state)) != 0) {
-            log_line(log, "peer socket timeout/signal setup failed errno=%d", errno);
-            close(fd);
+        } else {
+            process_accepted_peer(workers, fd, listen_fd, state, log,
+                rules_file, crs_preamble_file);
             handled++;
-            continue;
         }
-        if (peer_workers_start(workers, listen_fd, fd, state, log,
-                rules_file, crs_preamble_file) != 0) {
-            log_line(log,
-                "peer worker admission failed; closing peer without protocol processing mode=%s errno=%d",
-                state != NULL && fail_mode_closed(&state->config) ?
-                    "fail-closed" : "fail-open", errno);
-            (void)shutdown(fd, SHUT_RDWR);
-            close(fd);
-        }
-        handled++;
     }
     {
         const int wait_result = peer_workers_wait(workers, log,
@@ -4656,6 +4658,21 @@ typedef struct client_handshake_test {
     int result;
 } client_handshake_test;
 
+static void sleep_for_test_duration(struct timespec *delay) {
+    /* Retry only interruption; the requested delay remains the test seam. */
+    while (nanosleep(delay, delay) != 0 && errno == EINTR) {
+        ;
+    }
+}
+
+static void close_admission_fds(const int *fds, size_t count) {
+    for (size_t i = 0U; i < count; ++i) {
+        if (fds[i] >= 0) {
+            close(fds[i]);
+        }
+    }
+}
+
 static void *run_client_handshake_test(void *opaque) {
     client_handshake_test *test = (client_handshake_test *)opaque;
     int fd;
@@ -4673,14 +4690,89 @@ static void *run_client_handshake_test(void *opaque) {
     return NULL;
 }
 
+static int run_client_admission_test(unsigned int port, FILE *log) {
+    int fd;
+    int admission_fds[SPOP_DEFAULT_WORKER_COUNT];
+    size_t admission_count = 0U;
+    struct timespec delay = {0, 100000000L};
+
+    for (; admission_count < SPOP_DEFAULT_WORKER_COUNT; ++admission_count) {
+        admission_fds[admission_count] = connect_localhost(port);
+        if (admission_fds[admission_count] < 0 ||
+                write(admission_fds[admission_count], "\0", 1U) != 1) {
+            close_admission_fds(admission_fds, admission_count + 1U);
+            return -1;
+        }
+    }
+    sleep_for_test_duration(&delay);
+    fd = connect_localhost(port);
+    if (fd < 0) {
+        close_admission_fds(admission_fds, admission_count);
+        return -1;
+    }
+    {
+        unsigned char byte;
+        const ssize_t received = recv(fd, &byte, sizeof(byte), 0);
+        if (received != 0) {
+            close(fd);
+            close_admission_fds(admission_fds, admission_count);
+            return -1;
+        }
+    }
+    close(fd);
+    close_admission_fds(admission_fds, admission_count);
+    log_line(log, "client worker admission close isolation PASS");
+    return 0;
+}
+
+static int run_client_slow_peer_test(unsigned int port, FILE *log) {
+    int fd;
+    int slow_fd = connect_localhost(port);
+    struct timespec delay = {2, 300000000L};
+
+    if (slow_fd < 0 || write(slow_fd, "\0", 1U) != 1) {
+        if (slow_fd >= 0) close(slow_fd);
+        return -1;
+    }
+    sleep_for_test_duration(&delay);
+    {
+        unsigned char byte;
+        ssize_t received;
+        spop_frame disconnect_frame;
+        if (recv_frame(slow_fd, &disconnect_frame, 100U) == 0) {
+            if (disconnect_frame.type != SPOP_FRM_AGENT_DISCONNECT ||
+                    disconnect_frame.stream_id != 0U ||
+                    disconnect_frame.frame_id != 0U) {
+                close(slow_fd);
+                return -1;
+            }
+        } else {
+            do {
+                received = recv(slow_fd, &byte, sizeof(byte), MSG_DONTWAIT);
+            } while (received < 0 && errno == EINTR);
+            if (received != 0 && !(received < 0 && errno == ECONNRESET)) {
+                close(slow_fd);
+                return -1;
+            }
+        }
+    }
+    close(slow_fd);
+    fd = connect_localhost(port);
+    if (fd < 0 || send_haproxy_hello(fd, 1) != 0 ||
+            client_expect_frame(fd, SPOP_FRM_AGENT_HELLO, 0, 0) != 0) {
+        if (fd >= 0) close(fd);
+        return -1;
+    }
+    log_line(log, "server enforced slow HELLO deadline recovery PASS");
+    close(fd);
+    return 0;
+}
+
 static int run_client_self_test(unsigned int port, FILE *log) {
     int fd;
     int slow_fd;
-    int admission_fds[SPOP_DEFAULT_WORKER_COUNT];
-    size_t admission_count = 0U;
     pthread_t handshake_threads[2];
     client_handshake_test handshake_tests[2];
-    struct timespec delay;
     spop_buffer empty;
     spop_buffer notify_payload;
 
@@ -4731,58 +4823,7 @@ static int run_client_self_test(unsigned int port, FILE *log) {
     }
     log_line(log, "client parallel healthcheck handshake PASS");
 
-    /* A second slow HELLO must be closed by its per-peer deadline; only
-     * after that deadline do we verify a fresh peer can still handshake. */
-    slow_fd = connect_localhost(port);
-    if (slow_fd < 0 || write(slow_fd, "\0", 1U) != 1) {
-        if (slow_fd >= 0) {
-            close(slow_fd);
-        }
-        return -1;
-    }
-    delay.tv_sec = 2;
-    delay.tv_nsec = 300000000L;
-    while (nanosleep(&delay, &delay) != 0 && errno == EINTR) {
-    }
-    {
-        unsigned char byte;
-        ssize_t received;
-        spop_frame disconnect_frame;
-
-        /* A deadline failure is allowed to send the protocol-level
-         * AGENT-DISCONNECT before closing the peer.  Accept that valid
-         * terminal frame; otherwise prove that the socket reached EOF or
-         * was reset instead of treating its first frame byte as a failure. */
-        if (recv_frame(slow_fd, &disconnect_frame, 100U) == 0) {
-            if (disconnect_frame.type != SPOP_FRM_AGENT_DISCONNECT ||
-                    disconnect_frame.stream_id != 0U ||
-                    disconnect_frame.frame_id != 0U) {
-                close(slow_fd);
-                return -1;
-            }
-        } else {
-            do {
-                received = recv(slow_fd, &byte, sizeof(byte), MSG_DONTWAIT);
-            } while (received < 0 && errno == EINTR);
-            if (received != 0 && !(received < 0 && errno == ECONNRESET)) {
-                close(slow_fd);
-                return -1;
-            }
-        }
-    }
-    close(slow_fd);
-
-    fd = connect_localhost(port);
-    if (fd < 0) {
-        return -1;
-    }
-    if (send_haproxy_hello(fd, 1) != 0 ||
-        client_expect_frame(fd, SPOP_FRM_AGENT_HELLO, 0, 0) != 0) {
-        close(fd);
-        return -1;
-    }
-    log_line(log, "server enforced slow HELLO deadline recovery PASS");
-    close(fd);
+    if (run_client_slow_peer_test(port, log) != 0) return -1;
 
     fd = connect_localhost(port);
     if (fd < 0) {
@@ -4807,49 +4848,7 @@ static int run_client_self_test(unsigned int port, FILE *log) {
     log_line(log, "client notify set-var ack disconnect PASS");
     close(fd);
 
-    /* Fill every worker slot with an incomplete peer.  The next connection
-     * must be rejected and closed without entering protocol processing. */
-    for (admission_count = 0U; admission_count < SPOP_DEFAULT_WORKER_COUNT;
-            ++admission_count) {
-        admission_fds[admission_count] = connect_localhost(port);
-        if (admission_fds[admission_count] < 0 ||
-                write(admission_fds[admission_count], "\0", 1U) != 1) {
-            for (size_t i = 0U; i <= admission_count; ++i) {
-                if (admission_fds[i] >= 0) {
-                    close(admission_fds[i]);
-                }
-            }
-            return -1;
-        }
-    }
-    delay.tv_sec = 0;
-    delay.tv_nsec = 100000000L;
-    while (nanosleep(&delay, &delay) != 0 && errno == EINTR) {
-    }
-    fd = connect_localhost(port);
-    if (fd < 0) {
-        for (size_t i = 0U; i < admission_count; ++i) {
-            close(admission_fds[i]);
-        }
-        return -1;
-    }
-    {
-        unsigned char byte;
-        const ssize_t received = recv(fd, &byte, sizeof(byte), 0);
-        if (received != 0) {
-            close(fd);
-            for (size_t i = 0U; i < admission_count; ++i) {
-                close(admission_fds[i]);
-            }
-            return -1;
-        }
-    }
-    close(fd);
-    for (size_t i = 0U; i < admission_count; ++i) {
-        close(admission_fds[i]);
-    }
-    log_line(log, "client worker admission close isolation PASS");
-    return 0;
+    return run_client_admission_test(port, log);
 }
 
 static int run_self_test(const char *tmp_root, const char *log_root) {

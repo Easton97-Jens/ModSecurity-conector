@@ -80,6 +80,68 @@ static int utf8_continuation(unsigned char value) {
     return value >= 0x80U && value <= 0xbfU;
 }
 
+static size_t valid_utf8_two_byte_sequence(
+    const unsigned char *value,
+    size_t remaining) {
+    return value[0] >= 0xc2U && value[0] <= 0xdfU && remaining >= 2U &&
+                   utf8_continuation(value[1])
+               ? 2U
+               : 0U;
+}
+
+static size_t valid_utf8_three_byte_sequence(
+    const unsigned char *value,
+    size_t remaining) {
+    if (remaining < 3U ||
+        (value[0] < 0xe0U || value[0] > 0xefU)) {
+        return 0U;
+    }
+
+    if (value[0] == 0xe0U) {
+        return value[1] >= 0xa0U && value[1] <= 0xbfU &&
+                       utf8_continuation(value[2])
+                   ? 3U
+                   : 0U;
+    }
+
+    if (value[0] == 0xedU) {
+        return value[1] >= 0x80U && value[1] <= 0x9fU &&
+                       utf8_continuation(value[2])
+                   ? 3U
+                   : 0U;
+    }
+
+    return utf8_continuation(value[1]) && utf8_continuation(value[2]) ? 3U
+                                                                        : 0U;
+}
+
+static size_t valid_utf8_four_byte_sequence(
+    const unsigned char *value,
+    size_t remaining) {
+    if (remaining < 4U || value[0] < 0xf0U || value[0] > 0xf4U) {
+        return 0U;
+    }
+
+    if (value[0] == 0xf0U) {
+        return value[1] >= 0x90U && value[1] <= 0xbfU &&
+                       utf8_continuation(value[2]) && utf8_continuation(value[3])
+                   ? 4U
+                   : 0U;
+    }
+
+    if (value[0] == 0xf4U) {
+        return value[1] >= 0x80U && value[1] <= 0x8fU &&
+                       utf8_continuation(value[2]) && utf8_continuation(value[3])
+                   ? 4U
+                   : 0U;
+    }
+
+    return utf8_continuation(value[1]) && utf8_continuation(value[2]) &&
+                   utf8_continuation(value[3])
+               ? 4U
+               : 0U;
+}
+
 static size_t valid_utf8_sequence_size(
     const unsigned char *value,
     size_t remaining) {
@@ -87,54 +149,70 @@ static size_t valid_utf8_sequence_size(
         return 0U;
     }
 
-    if (value[0] >= 0xc2U && value[0] <= 0xdfU) {
-        return remaining >= 2U && utf8_continuation(value[1]) ? 2U : 0U;
+    if (value[0] < 0xe0U) {
+        return valid_utf8_two_byte_sequence(value, remaining);
     }
 
-    if (value[0] == 0xe0U) {
-        return remaining >= 3U && value[1] >= 0xa0U && value[1] <= 0xbfU &&
-                       utf8_continuation(value[2])
-                   ? 3U
-                   : 0U;
+    if (value[0] < 0xf0U) {
+        return valid_utf8_three_byte_sequence(value, remaining);
     }
 
-    if ((value[0] >= 0xe1U && value[0] <= 0xecU) ||
-        (value[0] >= 0xeeU && value[0] <= 0xefU)) {
-        return remaining >= 3U && utf8_continuation(value[1]) &&
-                       utf8_continuation(value[2])
-                   ? 3U
-                   : 0U;
-    }
+    return valid_utf8_four_byte_sequence(value, remaining);
+}
 
-    if (value[0] == 0xedU) {
-        return remaining >= 3U && value[1] >= 0x80U && value[1] <= 0x9fU &&
-                       utf8_continuation(value[2])
-                   ? 3U
-                   : 0U;
-    }
+static size_t append_json_input_value(
+    const unsigned char *bytes,
+    size_t index,
+    size_t source_size,
+    char *dst,
+    size_t dst_size,
+    size_t *position) {
+    const unsigned char value = bytes[index];
+    size_t sequence_size;
 
-    if (value[0] == 0xf0U) {
-        return remaining >= 4U && value[1] >= 0x90U && value[1] <= 0xbfU &&
-                       utf8_continuation(value[2]) && utf8_continuation(value[3])
-                   ? 4U
-                   : 0U;
-    }
+    switch (value) {
+    case '"':
+        append_json_escape_sequence('"', dst, dst_size, position);
+        return 1U;
+    case '\\':
+        append_json_escape_sequence('\\', dst, dst_size, position);
+        return 1U;
+    case '\n':
+        append_json_escape_sequence('n', dst, dst_size, position);
+        return 1U;
+    case '\r':
+        append_json_escape_sequence('r', dst, dst_size, position);
+        return 1U;
+    case '\t':
+        append_json_escape_sequence('t', dst, dst_size, position);
+        return 1U;
+    default:
+        if (value < 0x20U) {
+            append_json_byte_escape(value, dst, dst_size, position);
+            return 1U;
+        }
 
-    if (value[0] >= 0xf1U && value[0] <= 0xf3U) {
-        return remaining >= 4U && utf8_continuation(value[1]) &&
-                       utf8_continuation(value[2]) && utf8_continuation(value[3])
-                   ? 4U
-                   : 0U;
-    }
+        if (value < 0x80U) {
+            append_json_char((char)value, dst, dst_size, position);
+            return 1U;
+        }
 
-    if (value[0] == 0xf4U) {
-        return remaining >= 4U && value[1] >= 0x80U && value[1] <= 0x8fU &&
-                       utf8_continuation(value[2]) && utf8_continuation(value[3])
-                   ? 4U
-                   : 0U;
-    }
+        sequence_size = valid_utf8_sequence_size(
+            bytes + index,
+            source_size - index);
+        if (sequence_size == 0U) {
+            append_json_byte_escape(value, dst, dst_size, position);
+            return 1U;
+        }
 
-    return 0U;
+        append_json_bytes(
+            (const char *)(bytes + index),
+            sequence_size,
+            dst,
+            dst_size,
+            position);
+        return sequence_size;
+    }
 }
 
 size_t msconnector_json_escape_n(
@@ -153,50 +231,13 @@ size_t msconnector_json_escape_n(
     bytes = (const unsigned char *)(src == NULL ? "" : src);
 
     while (index < src_size) {
-        const unsigned char value = bytes[index];
-        size_t sequence_size;
-
-        switch (value) {
-        case '"':
-            append_json_escape_sequence('"', dst, dst_size, &position);
-            break;
-        case '\\':
-            append_json_escape_sequence('\\', dst, dst_size, &position);
-            break;
-        case '\n':
-            append_json_escape_sequence('n', dst, dst_size, &position);
-            break;
-        case '\r':
-            append_json_escape_sequence('r', dst, dst_size, &position);
-            break;
-        case '\t':
-            append_json_escape_sequence('t', dst, dst_size, &position);
-            break;
-        default:
-            if (value < 0x20U) {
-                append_json_byte_escape(value, dst, dst_size, &position);
-            } else if (value < 0x80U) {
-                append_json_char((char)value, dst, dst_size, &position);
-            } else {
-                sequence_size = valid_utf8_sequence_size(
-                    bytes + index,
-                    src_size - index);
-                if (sequence_size == 0U) {
-                    append_json_byte_escape(value, dst, dst_size, &position);
-                } else {
-                    append_json_bytes(
-                        (const char *)(bytes + index),
-                        sequence_size,
-                        dst,
-                        dst_size,
-                        &position);
-                    index += sequence_size - 1U;
-                }
-            }
-            break;
-        }
-
-        ++index;
+        index += append_json_input_value(
+            bytes,
+            index,
+            src_size,
+            dst,
+            dst_size,
+            &position);
     }
 
     if (dst != 0 && dst_size != 0) {

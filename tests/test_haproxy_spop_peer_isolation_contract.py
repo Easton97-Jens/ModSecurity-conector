@@ -39,16 +39,19 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
         accept_loop = SOURCE.split("static int accept_loop", 1)[1].split(
             "static int client_expect_frame", 1
         )[0]
+        accepted_peer = SOURCE.split("static void process_accepted_peer", 1)[1].split(
+            "static int accept_loop", 1
+        )[0]
         self.assertNotIn("handle_admission_failure_connection(fd, state, log)", accept_loop)
-        self.assertIn("closing peer without protocol processing", accept_loop)
-        self.assertIn("shutdown(fd, SHUT_RDWR)", accept_loop)
+        self.assertIn("closing peer without protocol processing", accepted_peer)
+        self.assertIn("shutdown(fd, SHUT_RDWR)", accepted_peer)
 
     def test_runtime_self_test_covers_reset_slow_peer_and_follow_up_hello(self) -> None:
         self.assertIn("client incomplete peer recovery PASS", SOURCE)
         self.assertIn("client parallel healthcheck handshake PASS", SOURCE)
         self.assertIn("server enforced slow HELLO deadline recovery PASS", SOURCE)
-        slow_hello = SOURCE.split("/* A second slow HELLO", 1)[1].split(
-            "\n    fd = connect_localhost(port);", 1
+        slow_hello = SOURCE.split("static int run_client_slow_peer_test", 1)[1].split(
+            "static int run_client_self_test", 1
         )[0]
         self.assertIn(
             "received = recv(slow_fd, &byte, sizeof(byte), MSG_DONTWAIT)",
@@ -75,7 +78,8 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
         accept_loop = SOURCE.split("static int accept_loop", 1)[1].split(
             "static int client_expect_frame", 1
         )[0]
-        self.assertIn('result = 1;\n                break;', accept_loop)
+        self.assertIn("result = 1;", accept_loop)
+        self.assertIn("result == 0", accept_loop)
         self.assertIn("const int wait_result = peer_workers_wait", accept_loop)
         self.assertIn("if (workers->initialized)", accept_loop)
 

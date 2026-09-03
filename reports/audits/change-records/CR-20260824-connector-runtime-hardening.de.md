@@ -53,7 +53,7 @@ Die Änderungen härten Trust-Boundary-Übergänge zwischen Hosts, Clients, Peer
 - Envoy: `connectors/envoy/ext_proc/cmd/msconnector-envoy-ext-proc/main.go`, `connectors/envoy/ext_proc/internal/processor/config.go`, `processor.go`, `processor_test.go`, `connectors/envoy/config/envoy-ext-proc-service.json`, `examples/envoy/minimal/envoy-ext-proc-service.json`, `examples/envoy/safe/envoy-ext-proc-service.json` — Idle-/Admission-/Cancel-/Shutdown-Kontrollen und Config.
 - Traefik: `connectors/traefik/src/traefik_engine_service.c`, `connectors/traefik/build/test-engine-service-runtime.sh` — begrenztes Native-UDS-Drain, kontrollierter Restart und Runtime-Regression für nicht lesende Peer-Write-Deadline.
 - lighttpd: `connectors/lighttpd/module/mod_msconnector.c`, `connectors/lighttpd/tests/test_patched_host_contract.py` — Stock-/Patched-Helper-Scope und Regression.
-- Regressionstests: `tests/test_apache_fail_closed.py`, `connectors/nginx/tests/test_fail_closed_contract.py`, `tests/test_native_api_fail_closed_contract.py`, `tests/test_haproxy_spop_peer_isolation_contract.py`, `tests/test_haproxy_spop_transaction_cache_contract.py`, `tests/test_http_authorization_service_worker_contract.py`, `tests/test_http_authorization_service_runtime.py`, `tests/test_traefik_engine_service_shutdown_contract.py`.
+- Regressionstests: `tests/test_apache_fail_closed.py`, `tests/test_nginx_fail_closed_contract.py`, `tests/test_native_api_fail_closed_contract.py`, `tests/test_haproxy_spop_peer_isolation_contract.py`, `tests/test_haproxy_spop_transaction_cache_contract.py`, `tests/test_http_authorization_service_worker_contract.py`, `tests/test_http_authorization_service_runtime.py`, `tests/test_traefik_engine_service_shutdown_contract.py`.
 - Keine CI-, Framework-/MRTS-, Gitlink-, Dependency-, Branch-Regel-, Ruleset- oder Required-Check-Datei gehört zu diesem Record.
 
 ## Tests und tatsächliche Ergebnisse
@@ -103,3 +103,40 @@ Betreiber müssen weiterhin connector-spezifische Limits, Timeouts, TLS-/UDS-Ber
 ## Finaler Diff- und Review-Status
 
 Die Implementierungs-Evidence ist aufbewahrt, auf Parent begrenzt und mit diesem bilingualen Change Record gepaart. Die Remediations für NGINX-Zero-Return, gesättigte HAProxy-SPOP-Aufnahme und Response-Cache, nicht lesende Traefik-Native-UDS-Peers sowie nativen Envoy-`ext_proc`-Shutdown sind lokal behoben; ihre Findings bleiben offen oder `fixed` statt geschlossen, wo Native-Host-/FD-Vektor-Evidence noch fehlt. Dieser Record führt keinen Commit, Push, PR, Merge oder Finding-Abschluss aus. Die finale Auslieferung und ein etwaiger Draft-PR benötigen die separate scoped Diff-Prüfung und Delivery-Policy-Checks des Parent-Agents.
+
+## Addendum zur PR-#352-Qualitäts- und Workflow-Remediation vom 2026-09-03
+
+Dieser begrenzte, nur Parent betreffende Follow-up behebt die aktuellen
+SonarQube-Cloud-Wartbarkeitsbefunde von PR #352 ohne Suppression,
+Regeländerung, Exclusion, Quality-Gate-Änderung, Coverage-Änderung oder
+Workflow-Abschwächung. Er erhält das bestehende Fail-Closed-Verhalten und
+extrahiert kleine Helper in `common/runtime/http_authorization_service.c`,
+`common/src/json_escape.c`,
+`connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c` sowie in den
+direkt betroffenen Envoy-/Traefik-Test-Fixtures.
+`tests/test_nginx_fail_closed_contract.py` ist derselbe NGINX-Contract, der
+aus `connectors/nginx/tests/` in den Repository-eigenen Top-Level-Testbereich
+verschoben wurde; dies erfüllt die unveränderte Struktur-Invariante
+`test ! -d connectors/nginx/tests` in beiden fehlgeschlagenen Workflows.
+
+Die begrenzte lokale Evidence umfasst: den Authorization-Timeout-Smoke,
+C17-`-Wall -Wextra -Werror`-JSON- und HAProxy-Syntaxprüfungen, 29 fokussierte
+Python-Contracts (ein umgebungsabhängiger Runtime-Fall übersprungen), Envoy-
+und Traefik-`go test ./...`, Shell-Syntax, beide NGINX-Struktur-Guards und
+`git diff --check`. Ein unabhängiger Security-Review fand keine neu eingeführte
+Fail-Open-, Lifetime-, Eingabevalidierungs-, Timeout-, Pfad- oder
+Protokoll-Regression. Der vollständige HAProxy-Runtime-Self-Test bleibt
+nicht ausgeführt, weil die ausgewählten lokalen ModSecurity-Header einen
+bestehenden `msc_get_rules_messages_rule_ids`-API-Mismatch aufweisen; keine
+Dependency oder Quelle außerhalb dieses Parent-Scopes wurde geändert.
+Repository-weite `make check-bilingual-docs` und `make check-doc-links` wurden
+versucht, sind lokal jedoch ausschließlich durch den fehlenden, in bestehender
+Dokumentation referenzierten Framework-Gitlink-Inhalt blockiert; keines meldet
+einen geänderten PR-#352-Pfad. Der Hosted-Workflow-Checkout materialisierte
+diesen Gitlink erfolgreich.
+
+Vor diesem Follow-up lautete der exakte SonarQube-Cloud-Readback für PR #352
+17 neue offene/bestätigte Issues und 24 neue Duplikationszeilen
+(`0.5612722170252572 %`). Der normale Successor-Commit, sein exakter
+SonarQube-Null-Readback und der frische Zyklus der erforderlichen Workflows
+sind bei dieser Record-Revision noch ausstehend.

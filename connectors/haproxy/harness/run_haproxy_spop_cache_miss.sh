@@ -22,9 +22,11 @@ case "$RUNTIME_ROOT" in
 esac
 case "$BUILD_ROOT" in
   /|/root|/root/*) echo "blocked: BUILD_ROOT is not task-owned: $BUILD_ROOT" >&2; exit 77 ;;
+  *) ;;
 esac
 case "$RUNTIME_ROOT" in
   /|/root|/root/*|/tmp|/tmp/*) echo "blocked: RUNTIME_ROOT is not task-owned: $RUNTIME_ROOT" >&2; exit 77 ;;
+  *) ;;
 esac
 [ -x "$SPOA_BIN" ] || {
   echo "blocked: SPOA_BIN is missing or not executable: $SPOA_BIN" >&2

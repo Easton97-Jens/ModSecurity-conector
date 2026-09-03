@@ -192,7 +192,19 @@ func (*trackingRequestBody) Close() error { return nil }
 
 func TestMiddlewareStreamsRequestAndResponseInBoundedChunks(t *testing.T) {
 	transaction := &recordingTransaction{}
-	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+	middleware := newTestMiddleware(t, boundedChunksHandler(t), transaction)
+
+	request := httptest.NewRequest(http.MethodPost, "http://example.test/stream", strings.NewReader("request"))
+	request.Header.Set("X-Request-Id", "transaction-1")
+	response := httptest.NewRecorder()
+	middleware.ServeHTTP(response, request)
+
+	assertBoundedChunkResponse(t, response, transaction)
+}
+
+func boundedChunksHandler(t *testing.T) http.Handler {
+	t.Helper()
+	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		body, err := io.ReadAll(request.Body)
 		if err != nil {
 			t.Errorf("ReadAll(request.Body) error = %v", err)
@@ -204,13 +216,11 @@ func TestMiddlewareStreamsRequestAndResponseInBoundedChunks(t *testing.T) {
 		if _, err := writer.Write([]byte("result")); err != nil {
 			t.Errorf("Write() error = %v", err)
 		}
-	}), transaction)
+	})
+}
 
-	request := httptest.NewRequest(http.MethodPost, "http://example.test/stream", strings.NewReader("request"))
-	request.Header.Set("X-Request-Id", "transaction-1")
-	response := httptest.NewRecorder()
-	middleware.ServeHTTP(response, request)
-
+func assertBoundedChunkResponse(t *testing.T, response *httptest.ResponseRecorder, transaction *recordingTransaction) {
+	t.Helper()
 	if got, want := response.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d", got, want)
 	}
@@ -229,6 +239,11 @@ func TestMiddlewareStreamsRequestAndResponseInBoundedChunks(t *testing.T) {
 	if !summary.RequestEOS || !summary.ResponseEOS || !summary.ResponseCommitted {
 		t.Fatalf("expected complete committed summary, got %#v", summary)
 	}
+	assertRequestBodyCallbacks(t, transaction)
+}
+
+func assertRequestBodyCallbacks(t *testing.T, transaction *recordingTransaction) {
+	t.Helper()
 	requestBodyEvents := 0
 	requestBodyEndEvents := 0
 	requestBodyBytes := 0
@@ -238,11 +253,12 @@ func TestMiddlewareStreamsRequestAndResponseInBoundedChunks(t *testing.T) {
 		}
 	}
 	for _, call := range transaction.bodyCalls {
-		if call.direction == DirectionRequest {
-			requestBodyBytes += call.length
-			if call.end {
-				requestBodyEndEvents++
-			}
+		if call.direction != DirectionRequest {
+			continue
+		}
+		requestBodyBytes += call.length
+		if call.end {
+			requestBodyEndEvents++
 		}
 	}
 	if requestBodyEvents == 0 || requestBodyBytes != len("request") || requestBodyEndEvents != 1 {

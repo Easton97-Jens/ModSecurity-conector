@@ -49,7 +49,7 @@ static int runtime_entered = 0;
 static int runtime_release = 0;
 static int runtime_destroyed = 0;
 
-static int wait_for_flag(int *flag) {
+static int wait_for_flag(const int *flag) {
     struct timespec deadline;
     int result = 0;
     if (clock_gettime(CLOCK_REALTIME, &deadline) != 0 ||
@@ -109,6 +109,7 @@ static int reset_runtime_lifecycle(void) {
     runtime_entered = 0;
     runtime_release = 0;
     runtime_destroyed = 0;
+    fake_runtime.placeholder = 0;
     (void)pthread_mutex_unlock(&test_lock);
     return 1;
 }
@@ -136,6 +137,7 @@ int msconnector_runtime_set_event_integration_mode(
         pthread_mutex_lock(&test_lock) != 0) {
         return 0;
     }
+    runtime->placeholder |= 1;
     runtime_event_mode_configured = 1;
     (void)pthread_mutex_unlock(&test_lock);
     return 1;
@@ -158,6 +160,7 @@ int msconnector_runtime_set_transaction_profile(
         pthread_mutex_lock(&test_lock) != 0) {
         return 0;
     }
+    runtime->placeholder |= 2;
     runtime_transaction_profile_configured = 1;
     (void)pthread_mutex_unlock(&test_lock);
     return 1;
@@ -239,6 +242,7 @@ int msconnector_runtime_transaction_begin(
         pthread_mutex_lock(&test_lock) != 0) {
         return 0;
     }
+    runtime->placeholder |= 4;
     runtime_entered = 1;
     (void)pthread_cond_broadcast(&test_changed);
     while (runtime_release == 0) {

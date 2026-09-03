@@ -5,9 +5,9 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ACCESS = (ROOT / "src" / "ngx_http_modsecurity_access.c").read_text()
-HEADERS = (ROOT / "src" / "ngx_http_modsecurity_header_filter.c").read_text()
-BODY = (ROOT / "src" / "ngx_http_modsecurity_body_filter.c").read_text()
+ACCESS = (ROOT / "connectors/nginx/src/ngx_http_modsecurity_access.c").read_text()
+HEADERS = (ROOT / "connectors/nginx/src/ngx_http_modsecurity_header_filter.c").read_text()
+BODY = (ROOT / "connectors/nginx/src/ngx_http_modsecurity_body_filter.c").read_text()
 
 
 class NginxFailClosedContractTest(unittest.TestCase):
@@ -19,7 +19,8 @@ class NginxFailClosedContractTest(unittest.TestCase):
 
     def test_request_header_mapping_and_processing_fail_closed(self):
         self.assertIn('"ModSecurity: request hostname mapping failed"', ACCESS)
-        self.assertIn('return NGX_ERROR;\n        }\n        index++;', ACCESS)
+        self.assertIn('"ModSecurity: failed to add request header for inspection"', ACCESS)
+        self.assertIn('return NGX_ERROR;', ACCESS)
         self.assertIn('if (ngx_http_modsecurity_add_request_headers(r, ctx) != NGX_OK)', ACCESS)
         self.assertIn('ret = msc_process_request_headers(ctx->modsec_transaction);', ACCESS)
         self.assertIn('"ModSecurity: request headers phase processing failed"', ACCESS)

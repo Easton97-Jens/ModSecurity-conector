@@ -626,22 +626,9 @@ func TestGRPCServerIdleTimeoutReleasesAdmissionForFollowUpStream(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
 	}
-	listener := bufconn.Listen(1024 * 1024)
-	server := grpc.NewServer(grpc.MaxConcurrentStreams(uint32(config.MaxConcurrentStreams)))
-	extprocv3.RegisterExternalProcessorServer(server, service)
+	server, connection, client := newTestGRPCClient(t, service, config.MaxConcurrentStreams)
 	defer server.Stop()
-	go func() { _ = server.Serve(listener) }()
-
-	connection, err := grpc.DialContext(context.Background(), "bufnet",
-		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
-			return listener.Dial()
-		}),
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("DialContext() error = %v", err)
-	}
 	defer connection.Close()
-	client := extprocv3.NewExternalProcessorClient(connection)
 	idle, err := client.Process(context.Background())
 	if err != nil {
 		t.Fatalf("idle Process() open error = %v", err)
@@ -684,21 +671,8 @@ func TestGRPCServerStopCancelsIdleStreamAndReleasesAdmission(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
 	}
-	listener := bufconn.Listen(1024 * 1024)
-	server := grpc.NewServer(grpc.MaxConcurrentStreams(uint32(config.MaxConcurrentStreams)))
-	extprocv3.RegisterExternalProcessorServer(server, service)
-	go func() { _ = server.Serve(listener) }()
-
-	connection, err := grpc.DialContext(context.Background(), "bufnet",
-		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
-			return listener.Dial()
-		}),
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("DialContext() error = %v", err)
-	}
+	server, connection, client := newTestGRPCClient(t, service, config.MaxConcurrentStreams)
 	defer connection.Close()
-	client := extprocv3.NewExternalProcessorClient(connection)
 	stream, err := client.Process(context.Background())
 	if err != nil {
 		t.Fatalf("Process() open error = %v", err)
@@ -734,6 +708,24 @@ func TestGRPCServerStopCancelsIdleStreamAndReleasesAdmission(t *testing.T) {
 	if err := service.Process(control); err != nil {
 		t.Fatalf("follow-up Process() after shutdown cleanup error = %v", err)
 	}
+}
+
+func newTestGRPCClient(t *testing.T, service *Service, maxConcurrentStreams int) (*grpc.Server, *grpc.ClientConn, extprocv3.ExternalProcessorClient) {
+	t.Helper()
+	listener := bufconn.Listen(1024 * 1024)
+	server := grpc.NewServer(grpc.MaxConcurrentStreams(uint32(maxConcurrentStreams)))
+	extprocv3.RegisterExternalProcessorServer(server, service)
+	go func() { _ = server.Serve(listener) }()
+
+	connection, err := grpc.DialContext(context.Background(), "bufnet",
+		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+			return listener.Dial()
+		}),
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatalf("DialContext() error = %v", err)
+	}
+	return server, connection, extprocv3.NewExternalProcessorClient(connection)
 }
 
 func TestRegularStreamActivityResetsIdleDeadline(t *testing.T) {
@@ -938,40 +930,49 @@ func (stream *fakeProcessStream) Recv() (*extprocv3.ProcessingRequest, error) {
 		stream.recvStartedOnce.Do(func() { close(stream.recvStarted) })
 	}
 	if stream.receiveChannel != nil {
-		select {
-		case result, ok := <-stream.receiveChannel:
-			if !ok {
-				return nil, io.EOF
-			}
-			if result.cancel && stream.cancel != nil {
-				stream.cancel()
-			}
-			return result.request, result.err
-		case <-stream.Context().Done():
-			return nil, stream.Context().Err()
-		}
+		return stream.recvFromChannel()
 	}
 	if stream.index >= len(stream.receive) {
-		if stream.receiveBlock != nil {
-			if stream.recvBlocking != nil {
-				stream.recvBlockingOnce.Do(func() { close(stream.recvBlocking) })
-			}
-			defer func() {
-				if stream.recvDone != nil {
-					stream.recvDoneOnce.Do(func() { close(stream.recvDone) })
-				}
-			}()
-			select {
-			case <-stream.receiveBlock:
-				return nil, io.EOF
-			case <-stream.Context().Done():
-				return nil, stream.Context().Err()
-			}
-		}
-		return nil, io.EOF
+		return stream.recvAfterQueue()
 	}
 	result := stream.receive[stream.index]
 	stream.index++
+	return stream.applyReceiveResult(result)
+}
+
+func (stream *fakeProcessStream) recvFromChannel() (*extprocv3.ProcessingRequest, error) {
+	select {
+	case result, ok := <-stream.receiveChannel:
+		if !ok {
+			return nil, io.EOF
+		}
+		return stream.applyReceiveResult(result)
+	case <-stream.Context().Done():
+		return nil, stream.Context().Err()
+	}
+}
+
+func (stream *fakeProcessStream) recvAfterQueue() (*extprocv3.ProcessingRequest, error) {
+	if stream.receiveBlock == nil {
+		return nil, io.EOF
+	}
+	if stream.recvBlocking != nil {
+		stream.recvBlockingOnce.Do(func() { close(stream.recvBlocking) })
+	}
+	defer func() {
+		if stream.recvDone != nil {
+			stream.recvDoneOnce.Do(func() { close(stream.recvDone) })
+		}
+	}()
+	select {
+	case <-stream.receiveBlock:
+		return nil, io.EOF
+	case <-stream.Context().Done():
+		return nil, stream.Context().Err()
+	}
+}
+
+func (stream *fakeProcessStream) applyReceiveResult(result receiveResult) (*extprocv3.ProcessingRequest, error) {
 	if result.cancel && stream.cancel != nil {
 		stream.cancel()
 	}

@@ -1627,6 +1627,37 @@ static int authorization_serve_requests(
     return 0;
 }
 
+static int authorization_wait_for_shutdown(
+    authorization_service *service,
+    const msconnector_http_authorization_profile *profile,
+    unsigned long timeout_ms) {
+    if (authorization_wait_for_workers(service, timeout_ms)) {
+        return 0;
+    }
+    (void)fprintf(stderr, "%s worker shutdown grace period expired; forcing socket cancellation\n",
+        profile->connector_name);
+    authorization_shutdown_workers(service);
+    if (authorization_wait_for_workers(service, timeout_ms)) {
+        return 0;
+    }
+    (void)fprintf(stderr, "%s worker shutdown did not complete; runtime call may be uninterruptible\n",
+        profile->connector_name);
+    if (authorization_defer_cleanup(service) != 0) {
+        /* A profile without a response companion cannot have handed a
+         * transaction to an external observer. Its final worker may
+         * therefore release the service after it returns from an
+         * uninterruptible runtime call. Profiles with a companion remain
+         * quarantined: its shutdown callback is only valid after both
+         * workers and the observer quiesce. */
+        if (profile->shutdown_response_companion == NULL &&
+            authorization_mark_response_companion_quiesced(service) > 0) {
+            authorization_service_release(service);
+        }
+        return 1;
+    }
+    return 0;
+}
+
 static int serve_authorization(
     const authorization_cli *cli,
     const msconnector_http_authorization_profile *profile) {
@@ -1689,27 +1720,9 @@ static int serve_authorization(
     if (authorization_stop || service_status != 0) {
         authorization_shutdown_workers(service);
     }
-    if (!authorization_wait_for_workers(service, cli->connection_timeout_ms)) {
-        (void)fprintf(stderr, "%s worker shutdown grace period expired; forcing socket cancellation\n",
-            profile->connector_name);
-        authorization_shutdown_workers(service);
-        if (!authorization_wait_for_workers(service, cli->connection_timeout_ms)) {
-            (void)fprintf(stderr, "%s worker shutdown did not complete; runtime call may be uninterruptible\n",
-                profile->connector_name);
-            if (authorization_defer_cleanup(service) != 0) {
-                /* A profile without a response companion cannot have handed a
-                 * transaction to an external observer.  Its final worker may
-                 * therefore release the service after it returns from an
-                 * uninterruptible runtime call.  Profiles with a companion
-                 * remain quarantined: its shutdown callback is only valid
-                 * after both workers and the observer have quiesced. */
-                if (profile->shutdown_response_companion == NULL &&
-                    authorization_mark_response_companion_quiesced(service) > 0) {
-                    authorization_service_release(service);
-                }
-                return 1;
-            }
-        }
+    if (authorization_wait_for_shutdown(service, profile,
+            cli->connection_timeout_ms) != 0) {
+        return 1;
     }
     if (!authorization_shutdown_response_companion(profile)) {
         (void)fprintf(stderr, "%s response companion did not quiesce; refusing runtime destruction\n",
