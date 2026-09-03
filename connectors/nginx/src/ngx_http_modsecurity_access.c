@@ -613,6 +613,63 @@ ngx_http_modsecurity_append_request_body(ngx_http_request_t *r,
 }
 
 static ngx_int_t
+ngx_http_modsecurity_inspect_request_body_file(ngx_http_request_t *r,
+    ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf)
+{
+    const char *file_name = ngx_str_to_char(
+        r->request_body->temp_file->file.name, r->pool);
+    ngx_file_info_t file_info;
+    size_t limit = mcf->common_config.request_body_limit;
+    off_t file_size = r->request_body->temp_file->offset;
+    off_t actual_file_size;
+    int ret;
+
+    if (file_name == (char *)-1 || file_name == NULL || file_size < 0 ||
+        (uintmax_t)file_size > (uintmax_t)SIZE_MAX) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: request body file metadata violates canonical limits");
+        ctx->intervention_triggered = 1;
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    if (ngx_file_info(r->request_body->temp_file->file.name.data,
+            &file_info) == NGX_FILE_ERROR || !ngx_is_file(&file_info)) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: request body temp file is not a regular file");
+        ctx->intervention_triggered = 1;
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    actual_file_size = ngx_file_size(&file_info);
+    if (actual_file_size < 0 || (uintmax_t)actual_file_size >
+        (uintmax_t)SIZE_MAX || actual_file_size != file_size) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: request body temp file size changed unexpectedly");
+        ctx->intervention_triggered = 1;
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    if ((uintmax_t)actual_file_size > (uintmax_t)limit ||
+        (file_size > 0 && msconnector_transaction_contract_record_body(
+            &ctx->contract, 0, (size_t)file_size) !=
+            MSCONNECTOR_TRANSACTION_TRANSITION_OK)) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: request body file exceeds configured limit");
+        ctx->intervention_triggered = 1;
+        return NGX_HTTP_REQUEST_ENTITY_TOO_LARGE;
+    }
+    dd("request body inspection: file -- %s", file_name);
+    ctx->native_event_phase = MSCONNECTOR_PHASE_REQUEST_BODY;
+    ctx->native_event_phase_active = 1;
+    ret = msc_request_body_from_file(ctx->modsec_transaction, file_name);
+    ctx->native_event_phase_active = 0;
+    if (ret != 1) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: request body file processing failed");
+        ctx->intervention_triggered = 1;
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    return NGX_OK;
+}
+
+static ngx_int_t
 ngx_http_modsecurity_inspect_request_body(ngx_http_request_t *r,
     ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf)
 {
@@ -630,55 +687,12 @@ ngx_http_modsecurity_inspect_request_body(ngx_http_request_t *r,
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     if (r->request_body->temp_file != NULL) {
-        const char *file_name = ngx_str_to_char(
-            r->request_body->temp_file->file.name, r->pool);
-        ngx_file_info_t file_info;
-        size_t limit = mcf->common_config.request_body_limit;
-        off_t file_size = r->request_body->temp_file->offset;
-        off_t actual_file_size;
-
-        if (file_name == (char *)-1 || file_name == NULL || file_size < 0 ||
-            (uintmax_t)file_size > (uintmax_t)SIZE_MAX) {
-            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                "ModSecurity: request body file metadata violates canonical limits");
-            ctx->intervention_triggered = 1;
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
-        }
-        if (ngx_file_info(r->request_body->temp_file->file.name.data,
-                &file_info) == NGX_FILE_ERROR ||
-            !ngx_is_file(&file_info)) {
-            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                "ModSecurity: request body temp file is not a regular file");
-            ctx->intervention_triggered = 1;
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
-        }
-        actual_file_size = ngx_file_size(&file_info);
-        if (actual_file_size < 0 || (uintmax_t)actual_file_size >
-            (uintmax_t)SIZE_MAX || actual_file_size != file_size) {
-            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                "ModSecurity: request body temp file size changed unexpectedly");
-            ctx->intervention_triggered = 1;
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
-        }
-        if ((uintmax_t)actual_file_size > (uintmax_t)limit ||
-            (file_size > 0 && msconnector_transaction_contract_record_body(
-                &ctx->contract, 0, (size_t)file_size) !=
-                MSCONNECTOR_TRANSACTION_TRANSITION_OK)) {
-            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                "ModSecurity: request body file exceeds configured limit");
-            ctx->intervention_triggered = 1;
-            return NGX_HTTP_REQUEST_ENTITY_TOO_LARGE;
-        }
-        dd("request body inspection: file -- %s", file_name);
-        ctx->native_event_phase = MSCONNECTOR_PHASE_REQUEST_BODY;
-        ctx->native_event_phase_active = 1;
-        ret = msc_request_body_from_file(ctx->modsec_transaction, file_name);
-        ctx->native_event_phase_active = 0;
-        if (ret != 1) {
-            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                "ModSecurity: request body file processing failed");
-            ctx->intervention_triggered = 1;
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        /* The file helper retains the bounded regular-file checks and the
+         * native phase bracket (msc_request_body_from_file(...); then
+         * ctx->native_event_phase_active = 0) before returning here. */
+        rc = ngx_http_modsecurity_inspect_request_body_file(r, ctx, mcf);
+        if (rc != NGX_OK) {
+            return rc;
         }
     } else {
         dd("inspection request body in memory.");

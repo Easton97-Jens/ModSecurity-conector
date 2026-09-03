@@ -803,12 +803,11 @@ static int validate_runtime_event_path(
     const char *path = runtime->config.phase4_log_path;
     if (!string_is_empty(path)) {
         const size_t path_length = strlen(path);
-        size_t index;
         if (path_length >= RUNTIME_PATH_SIZE || path[path_length - 1U] == '/') {
             set_text_error(error, error_len, "event_path must be a normalized path");
             return 0;
         }
-        for (index = 0U; index < path_length; ++index) {
+        for (size_t index = 0U; index < path_length; ++index) {
             if (iscntrl((unsigned char)path[index]) || path[index] == '\\' ||
                 (path[index] == '/' && (index + 1U == path_length || path[index + 1U] == '/'))) {
                 set_text_error(error, error_len, "event_path contains an unsafe path character");

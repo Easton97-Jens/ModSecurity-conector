@@ -45,6 +45,8 @@
 
 #define SPOP_DATA_BOOL 1U
 #define SPOP_DATA_UINT32 3U
+#define SPOP_DATA_IPV4 6U
+#define SPOP_DATA_IPV6 7U
 #define SPOP_DATA_STR 8U
 #define SPOP_DATA_BIN 9U
 #define SPOP_BOOL_TRUE 0x10U
@@ -1201,6 +1203,45 @@ static int read_typed_string_to_buffer(
     return 0;
 }
 
+static int read_typed_ip_to_buffer(
+        const unsigned char *data,
+        size_t len,
+        size_t *pos,
+        char *out,
+        size_t out_len,
+        int *present) {
+    size_t value_pos = *pos;
+    unsigned int type;
+    size_t address_len;
+    int address_family;
+    char formatted[INET6_ADDRSTRLEN];
+
+    if (*pos >= len) {
+        return -1;
+    }
+    type = data[(*pos)++] & SPOP_DATA_TYPE_MASK;
+    if (type == SPOP_DATA_IPV4) {
+        address_len = sizeof(struct in_addr);
+        address_family = AF_INET;
+    } else if (type == SPOP_DATA_IPV6) {
+        address_len = sizeof(struct in6_addr);
+        address_family = AF_INET6;
+    } else {
+        *pos = value_pos;
+        return -1;
+    }
+    if (address_len > len - *pos ||
+            inet_ntop(address_family, data + *pos, formatted, sizeof(formatted)) == NULL ||
+            strlen(formatted) >= out_len) {
+        *pos = value_pos;
+        return -1;
+    }
+    *pos += address_len;
+    copy_spop_string(out, out_len, (const unsigned char *)formatted, strlen(formatted));
+    *present = 1;
+    return 0;
+}
+
 /* Correlation identifiers are not display strings: truncating one can make
  * two independent SPOP streams address the same cache slot. Validate the
  * original length-delimited bytes before the C-string copy, so A\0X cannot
@@ -1434,6 +1475,11 @@ static int parse_notify_string_argument(
                     arguments[index].value, arguments[index].value_len,
                     arguments[index].present);
             }
+            if (index == 1U || index == 2U) {
+                return read_typed_ip_to_buffer(data, len, pos,
+                    arguments[index].value, arguments[index].value_len,
+                    arguments[index].present);
+            }
             return read_typed_string_to_buffer(data, len, pos, arguments[index].value,
                 arguments[index].value_len, arguments[index].present);
         }
@@ -1602,71 +1648,72 @@ static int parse_notify_argument(
     return skip_typed_data(data, len, pos);
 }
 
-static int parse_notify_payload(const unsigned char *data, size_t len, notify_request *request) {
-    size_t pos = 0;
+static int parse_notify_message_header(const unsigned char *data, size_t len,
+        size_t *pos, notify_request *request, unsigned int *nb_args) {
+    const unsigned char *message_name;
+    size_t message_name_len;
+
+    if (read_string_ref(data, len, pos, &message_name, &message_name_len) != 0 ||
+            *pos >= len ||
+            (!KEY_EQUALS_LITERAL(message_name, message_name_len, "check-request") &&
+             !KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response") &&
+             !KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response-body"))) {
+        return -1;
+    }
+    copy_spop_string(request->message_name, sizeof(request->message_name),
+        message_name, message_name_len);
+    request->is_response =
+        KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response") ||
+        KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response-body");
+    request->is_response_body =
+        KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response-body");
+    *nb_args = data[(*pos)++];
+    request->has_notify = 1;
+    return 0;
+}
+
+static int parse_notify_arguments(const unsigned char *data, size_t len,
+        size_t *pos, notify_request *request, unsigned int nb_args) {
     const unsigned char *seen_keys[256];
     size_t seen_key_lengths[256];
     size_t seen_key_count = 0U;
 
-    memset(request, 0, sizeof(*request));
-    if (data == 0 && len > 0U) {
-        goto reject;
-    }
-    {
-        const unsigned char *message_name;
-        size_t message_name_len;
-        unsigned int nb_args;
+    for (unsigned int i = 0; i < nb_args; ++i) {
+        const unsigned char *arg_name;
+        size_t arg_name_len;
 
-        if (read_string_ref(data, len, &pos, &message_name, &message_name_len) != 0 ||
-                pos >= len) {
-            goto reject;
+        if (read_string_ref(data, len, pos, &arg_name, &arg_name_len) != 0 ||
+                seen_key_count >= sizeof(seen_keys) / sizeof(seen_keys[0])) {
+            return -1;
         }
-        if (!KEY_EQUALS_LITERAL(message_name, message_name_len, "check-request") &&
-                !KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response") &&
-                !KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response-body")) {
-            goto reject;
-        }
-        copy_spop_string(request->message_name, sizeof(request->message_name),
-            message_name, message_name_len);
-        request->is_response =
-            KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response") ||
-            KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response-body");
-        request->is_response_body =
-            KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response-body");
-        nb_args = data[pos++];
-        request->has_notify = 1;
-        for (unsigned int i = 0; i < nb_args; ++i) {
-            const unsigned char *arg_name;
-            size_t arg_name_len;
-
-            if (read_string_ref(data, len, &pos, &arg_name, &arg_name_len) != 0) {
-                goto reject;
-            }
-            for (size_t seen = 0U; seen < seen_key_count; ++seen) {
-                if (seen_key_lengths[seen] == arg_name_len &&
-                        memcmp(seen_keys[seen], arg_name, arg_name_len) == 0) {
-                    goto reject;
-                }
-            }
-            if (seen_key_count >= sizeof(seen_keys) / sizeof(seen_keys[0])) {
-                goto reject;
-            }
-            seen_keys[seen_key_count] = arg_name;
-            seen_key_lengths[seen_key_count] = arg_name_len;
-            seen_key_count++;
-            if (parse_notify_argument(request, arg_name, arg_name_len, data, len, &pos) != 0) {
-                goto reject;
+        for (size_t seen = 0U; seen < seen_key_count; ++seen) {
+            if (seen_key_lengths[seen] == arg_name_len &&
+                    memcmp(seen_keys[seen], arg_name, arg_name_len) == 0) {
+                return -1;
             }
         }
-    }
-    if (pos != len) {
-        goto reject;
+        seen_keys[seen_key_count] = arg_name;
+        seen_key_lengths[seen_key_count++] = arg_name_len;
+        if (parse_notify_argument(request, arg_name, arg_name_len, data, len, pos) != 0) {
+            return -1;
+        }
     }
     return 0;
+}
 
-reject:
-    free_notify_request(request);
-    return -1;
+static int parse_notify_payload(const unsigned char *data, size_t len, notify_request *request) {
+    size_t pos = 0U;
+    unsigned int nb_args;
+
+    memset(request, 0, sizeof(*request));
+    if ((data == 0 && len > 0U) ||
+            parse_notify_message_header(data, len, &pos, request, &nb_args) != 0 ||
+            parse_notify_arguments(data, len, &pos, request, nb_args) != 0 ||
+            pos != len) {
+        free_notify_request(request);
+        return -1;
+    }
+    return 0;
 }
 
 static int build_notify_request_payload(
@@ -2179,26 +2226,12 @@ static int parse_listen(agent_config *config, const char *listen_value) {
     return 0;
 }
 
-static int config_set(agent_config *config, const char *key, const char *value) {
-    if (config == 0 || key == 0 || value == 0) {
-        return -1;
-    }
-    if (strcmp(key, "listen") == 0) {
-        return parse_listen(config, value);
-    }
-    if (strcmp(key, "host") == 0) {
-        copy_spop_string(config->host, sizeof(config->host),
-            (const unsigned char *)value, safe_cstring_length(value, RUNTIME_TEXT_LIMIT));
-        return 0;
-    }
-    if (strcmp(key, "port") == 0) {
-        return parse_bounded_uint_range(value, 1UL, 65535UL, &config->port);
-    }
+static int config_set_string(agent_config *config, const char *key, const char *value) {
 #define SET_STRING_FIELD(name, field) \
     if (strcmp(key, name) == 0) { \
         copy_spop_string(config->field, sizeof(config->field), \
             (const unsigned char *)value, safe_cstring_length(value, RUNTIME_TEXT_LIMIT)); \
-        return 0; \
+        return 1; \
     }
     SET_STRING_FIELD("ready-file", ready_file)
     SET_STRING_FIELD("pid-file", pid_file)
@@ -2211,85 +2244,115 @@ static int config_set(agent_config *config, const char *key, const char *value) 
     SET_STRING_FIELD("rules-file", rules_file)
     SET_STRING_FIELD("rules-dir", rules_dir)
     SET_STRING_FIELD("mode", mode)
-    if (strcmp(key, "fail-mode") == 0) {
-        if (!valid_fail_mode(value)) {
-            return -1;
-        }
-        if (strcmp(value, "closed") == 0) {
-            copy_spop_string(config->fail_mode, sizeof(config->fail_mode),
-                (const unsigned char *)"closed", sizeof("closed") - 1U);
-        } else {
-            copy_spop_string(config->fail_mode, sizeof(config->fail_mode),
-                (const unsigned char *)"open", sizeof("open") - 1U);
-        }
-        return 0;
-    }
     SET_STRING_FIELD("runtime-mode", runtime_mode)
     SET_STRING_FIELD("variant", variant)
     SET_STRING_FIELD("case", case_name)
     SET_STRING_FIELD("response-companion", response_companion)
     SET_STRING_FIELD("response-companion-socket", response_companion_socket)
 #undef SET_STRING_FIELD
+    return 0;
+}
+
+static int config_set_scalar(agent_config *config, const char *key, const char *value) {
+    if (strcmp(key, "fail-mode") == 0) {
+        if (!valid_fail_mode(value)) {
+            return -1;
+        }
+        copy_spop_string(config->fail_mode, sizeof(config->fail_mode),
+            (const unsigned char *)value, strlen(value));
+        return 1;
+    }
     if (strcmp(key, "response-companion-uid") == 0) {
         return parse_bounded_uint_range(value, 0UL, (unsigned long)UINT_MAX,
-            &config->response_companion_uid);
+            &config->response_companion_uid) == 0 ? 1 : -1;
     }
     if (strcmp(key, "response-companion-gid") == 0) {
         return parse_bounded_uint_range(value, 0UL, (unsigned long)UINT_MAX,
-            &config->response_companion_gid);
+            &config->response_companion_gid) == 0 ? 1 : -1;
     }
     if (strcmp(key, "expected-status") == 0) {
         return parse_bounded_uint_range(value, 0UL, (unsigned long)UINT_MAX,
-            &config->expected_status);
+            &config->expected_status) == 0 ? 1 : -1;
     }
     if (strcmp(key, "request-body-limit") == 0) {
         return parse_bounded_uint(value, MSCONNECTOR_MAX_CONFIG_BODY_BYTES,
-            &config->request_body_limit);
+            &config->request_body_limit) == 0 ? 1 : -1;
     }
     if (strcmp(key, "response-body-limit") == 0) {
-        if (parse_bounded_uint_range(value, 0UL,
-                MSCONNECTOR_MAX_CONFIG_BODY_BYTES,
+        if (parse_bounded_uint_range(value, 0UL, MSCONNECTOR_MAX_CONFIG_BODY_BYTES,
                 &config->response_body_limit) != 0) {
             return -1;
         }
         if (config->response_body_limit > 0U) {
             config->response_phases_enabled = 1;
         }
-        return 0;
+        return 1;
     }
     if (strcmp(key, "response-body-timeout") == 0) {
-        /* This runtime has no asynchronous response-body wait queue.  Do not
-         * accept a setting that would falsely imply a deadline is enforced. */
-        if (value != 0 && strcmp(value, "0") == 0) {
+        if (strcmp(value, "0") == 0) {
             config->response_body_timeout_ms = 0U;
-            return 0;
+            return 1;
         }
         return -1;
     }
     if (strcmp(key, "spoe-timeout") == 0) {
-        return parse_bounded_uint(value, 600000UL, &config->spoe_timeout_ms);
+        return parse_bounded_uint(value, 600000UL, &config->spoe_timeout_ms) == 0 ? 1 : -1;
     }
     if (strcmp(key, "worker-count") == 0) {
-        if (parse_bounded_uint(value, 1UL, &config->worker_count) != 0) {
-            return -1;
-        }
-        return 0;
+        return parse_bounded_uint(value, 1UL, &config->worker_count) == 0 ? 1 : -1;
     }
     if (strcmp(key, "max-transactions") == 0) {
         return parse_bounded_uint(value, SPOP_MAX_TRANSACTIONS,
-            &config->max_transactions);
+            &config->max_transactions) == 0 ? 1 : -1;
     }
     if (strcmp(key, "debug") == 0) {
         config->debug = strcmp(value, "1") == 0 || strcmp(value, "true") == 0 ||
             strcmp(value, "yes") == 0 || strcmp(value, "on") == 0;
-        return 0;
+        return 1;
     }
     if (strcmp(key, "enable-response-headers") == 0 ||
             strcmp(key, "response-phases") == 0) {
         config->response_phases_enabled = strcmp(value, "0") != 0 &&
             strcmp(value, "false") != 0 && strcmp(value, "off") != 0 &&
             strcmp(value, "no") != 0;
+        return 1;
+    }
+    return 0;
+}
+
+static int config_set_endpoint(agent_config *config, const char *key, const char *value) {
+    if (strcmp(key, "listen") == 0) {
+        return parse_listen(config, value);
+    }
+    if (strcmp(key, "host") == 0) {
+        copy_spop_string(config->host, sizeof(config->host),
+            (const unsigned char *)value, safe_cstring_length(value, RUNTIME_TEXT_LIMIT));
         return 0;
+    }
+    if (strcmp(key, "port") == 0) {
+        return parse_bounded_uint_range(value, 1UL, 65535UL, &config->port);
+    }
+    return 1;
+}
+
+static int config_set(agent_config *config, const char *key, const char *value) {
+    if (config == 0 || key == 0 || value == 0) {
+        return -1;
+    }
+    {
+        int endpoint = config_set_endpoint(config, key, value);
+        if (endpoint != 1) {
+            return endpoint;
+        }
+    }
+    if (config_set_string(config, key, value) != 0) {
+        return 0;
+    }
+    {
+        int scalar = config_set_scalar(config, key, value);
+        if (scalar != 0) {
+            return scalar > 0 ? 0 : -1;
+        }
     }
     return -1;
 }
@@ -2891,6 +2954,15 @@ static const char *set_processing_failure(
     return "fail-open";
 }
 
+static const char *set_admission_failure(
+        haproxy_modsecurity_decision *decision,
+        int phase,
+        const char *reason) {
+    runtime_init_decision(decision, phase, "deny", 503, reason);
+    decision->disruptive = 1;
+    return "admission-failure";
+}
+
 /* Response notifications are a second leg of the same canonical
  * transaction.  A missing, expired, or late cache entry is a correlation
  * failure, not an engine failure that may inherit fail-open policy: allowing
@@ -2954,6 +3026,15 @@ static const char *notify_request_path(const notify_request *request) {
 static const char *notify_request_host(const notify_request *request) {
     return request != 0 && request->has_host && request->host[0] != '\0' ?
         request->host : 0;
+}
+
+/* Client/server endpoints are required request-admission metadata.  They are
+ * not an engine-availability error: accepting an absent endpoint under an
+ * otherwise fail-open deployment would skip ModSecurity entirely. */
+static int notify_request_has_required_endpoints(const notify_request *request) {
+    return request != 0 && request->has_client_ip &&
+        request->client_ip[0] != '\0' && request->has_server_ip &&
+        request->server_ip[0] != '\0';
 }
 
 static const char *notify_test_header(const notify_request *request) {
@@ -3224,6 +3305,12 @@ static void process_production_request_notify(
     haproxy_modsecurity_request modsec_request;
     int modsec_rc;
 
+    if (!notify_request_has_required_endpoints(request)) {
+        *decision_text = set_admission_failure(decision, 2,
+            "missing client or server endpoint");
+        decision_log_write(state, request, decision, 0, *decision_text);
+        return;
+    }
     if (body_exceeds_limit(request->body_len, state->config.request_body_limit, 1)) {
         *decision_text = set_body_limit_failure(decision, 2, 0);
         decision_log_write(state, request, decision, 0, *decision_text);
@@ -3300,41 +3387,48 @@ static int process_production_notify(
     if (request->is_response) {
         phase = request->is_response_body ? 4 : 3;
     }
-    spop_production_task_context *task_context;
+    spop_production_task_context *task_context = 0;
     char response_handle[HAPROXY_SPOP_RESPONSE_COMPANION_HANDLE_STORAGE];
 
     ensure_notify_request_id(request, frame);
     response_handle[0] = '\0';
-    task_context = (spop_production_task_context *)calloc(1U, sizeof(*task_context));
-    if (task_context != 0) {
-        task_context->state = state;
-        /* Transfer ownership of parser allocations to the heap task.  The
-         * caller still owns the scalar request fields used for the ACK, but
-         * cannot free the payload while a timed-out owner task is running. */
-        task_context->request = *request;
-        request->headers = 0;
-        request->header_count = 0U;
-        request->body = 0;
-        request->body_len = 0U;
-        result.decision = &decision;
-        result.modsec_processed = &modsec_processed;
-        result.decision_text = &decision_text;
-        result.response_handle = response_handle;
-        if (spop_owner_queue_submit(state, run_spop_production_task,
-                task_context, destroy_spop_production_task_context,
-                copy_spop_production_task_result, &result,
-                state->config.spoe_timeout_ms) != 0) {
-            task_context = 0; /* submit owns cleanup on every failure path */
-            set_processing_failure(state, &decision, phase,
-                "SPOP owner queue is unavailable");
-            decision_text = "owner-queue-unavailable";
-        } else {
-            task_context = 0; /* owner queue released the task reference */
-        }
+    if (!request->is_response && !notify_request_has_required_endpoints(request)) {
+        decision_text = set_admission_failure(&decision, phase,
+            "missing client or server endpoint");
+        decision_log_write(state, request, &decision, 0, decision_text);
     } else {
-        set_processing_failure(state, &decision, phase,
-            "SPOP owner queue allocation failed");
-        decision_text = "owner-queue-unavailable";
+        task_context = (spop_production_task_context *)calloc(1U,
+            sizeof(*task_context));
+        if (task_context != 0) {
+            task_context->state = state;
+            /* Transfer ownership of parser allocations to the heap task. The
+             * caller still owns the scalar request fields used for the ACK,
+             * but cannot free the payload while a timed-out owner task runs. */
+            task_context->request = *request;
+            request->headers = 0;
+            request->header_count = 0U;
+            request->body = 0;
+            request->body_len = 0U;
+            result.decision = &decision;
+            result.modsec_processed = &modsec_processed;
+            result.decision_text = &decision_text;
+            result.response_handle = response_handle;
+            if (spop_owner_queue_submit(state, run_spop_production_task,
+                    task_context, destroy_spop_production_task_context,
+                    copy_spop_production_task_result, &result,
+                    state->config.spoe_timeout_ms) != 0) {
+                task_context = 0; /* submit owns cleanup on every failure path */
+                set_processing_failure(state, &decision, phase,
+                    "SPOP owner queue is unavailable");
+                decision_text = "owner-queue-unavailable";
+            } else {
+                task_context = 0; /* owner queue released the task reference */
+            }
+        } else {
+            set_processing_failure(state, &decision, phase,
+                "SPOP owner queue allocation failed");
+            decision_text = "owner-queue-unavailable";
+        }
     }
     if (build_decision_ack_payload(&ack_payload, &decision,
                         safe_decision_reason_code(

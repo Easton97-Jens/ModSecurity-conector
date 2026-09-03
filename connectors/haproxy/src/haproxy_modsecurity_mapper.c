@@ -20,6 +20,25 @@ static size_t haproxy_cstr_size(const char *value) {
     return value != 0 ? strlen(value) : 0U;
 }
 
+static unsigned char haproxy_ascii_lower(unsigned char value) {
+    return value >= (unsigned char)'A' && value <= (unsigned char)'Z' ?
+        (unsigned char)(value - (unsigned char)'A' + (unsigned char)'a') : value;
+}
+
+static int haproxy_header_token_char(unsigned char ch) {
+    return (ch >= (unsigned char)'A' && ch <= (unsigned char)'Z') ||
+        (ch >= (unsigned char)'a' && ch <= (unsigned char)'z') ||
+        (ch >= (unsigned char)'0' && ch <= (unsigned char)'9') ||
+        ch == (unsigned char)'!' || ch == (unsigned char)'#' ||
+        ch == (unsigned char)'$' || ch == (unsigned char)'%' ||
+        ch == (unsigned char)'&' || ch == (unsigned char) '\'' ||
+        ch == (unsigned char)'*' || ch == (unsigned char)'+' ||
+        ch == (unsigned char)'-' || ch == (unsigned char)'.' ||
+        ch == (unsigned char)'^' || ch == (unsigned char)'_' ||
+        ch == (unsigned char)'`' || ch == (unsigned char)'|' ||
+        ch == (unsigned char)'~';
+}
+
 static int haproxy_header_name_is(const char *name, const char *expected) {
     size_t index;
 
@@ -27,15 +46,8 @@ static int haproxy_header_name_is(const char *name, const char *expected) {
         return 0;
     }
     for (index = 0U; expected[index] != '\0'; ++index) {
-        unsigned char left = (unsigned char)name[index];
-        unsigned char right = (unsigned char)expected[index];
-        if (left >= (unsigned char)'A' && left <= (unsigned char)'Z') {
-            left = (unsigned char)(left - (unsigned char)'A' + (unsigned char)'a');
-        }
-        if (right >= (unsigned char)'A' && right <= (unsigned char)'Z') {
-            right = (unsigned char)(right - (unsigned char)'A' + (unsigned char)'a');
-        }
-        if (left != right) {
+        if (haproxy_ascii_lower((unsigned char)name[index]) !=
+                haproxy_ascii_lower((unsigned char)expected[index])) {
             return 0;
         }
     }
@@ -49,19 +61,7 @@ static int haproxy_header_name_valid(const char *name) {
         return 0;
     }
     for (index = 0U; name[index] != '\0'; ++index) {
-        unsigned char ch = (unsigned char)name[index];
-        int alpha = (ch >= (unsigned char)'A' && ch <= (unsigned char)'Z') ||
-            (ch >= (unsigned char)'a' && ch <= (unsigned char)'z');
-        int digit = ch >= (unsigned char)'0' && ch <= (unsigned char)'9';
-        int punctuation = ch == (unsigned char)'!' || ch == (unsigned char)'#' ||
-            ch == (unsigned char)'$' || ch == (unsigned char)'%' ||
-            ch == (unsigned char)'&' || ch == (unsigned char) '\'' ||
-            ch == (unsigned char)'*' || ch == (unsigned char)'+' ||
-            ch == (unsigned char)'-' || ch == (unsigned char)'.' ||
-            ch == (unsigned char)'^' || ch == (unsigned char)'_' ||
-            ch == (unsigned char)'`' || ch == (unsigned char)'|' ||
-            ch == (unsigned char)'~';
-        if (!alpha && !digit && !punctuation) {
+        if (!haproxy_header_token_char((unsigned char)name[index])) {
             return 0;
         }
     }

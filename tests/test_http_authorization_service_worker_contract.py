@@ -47,14 +47,20 @@ class HttpAuthorizationServiceWorkerContractTests(unittest.TestCase):
         self.assertIn("service->deferred_cleanup = 1;", self.source)
 
     def test_deferred_cleanup_releases_only_profiles_without_a_companion(self) -> None:
-        deferred_path = self.source.split(
-            "if (authorization_defer_cleanup(service) != 0) {", 1
-        )[1].split("if (!authorization_shutdown_response_companion(profile)) {", 1)[0]
-        self.assertIn("profile->shutdown_response_companion == NULL", deferred_path)
+        timeout_handler = self.source.split(
+            "static int authorization_handle_worker_timeout(", 1
+        )[1].split("static int serve_authorization(", 1)[0]
+        serve = self.source.split("static int serve_authorization(", 1)[1]
+        self.assertIn("authorization_defer_cleanup(service) == 0", timeout_handler)
+        self.assertIn("profile->shutdown_response_companion == NULL", timeout_handler)
         self.assertIn(
-            "authorization_mark_response_companion_quiesced(service)", deferred_path
+            "authorization_mark_response_companion_quiesced(service)", timeout_handler
         )
-        self.assertIn("return 1;", deferred_path)
+        self.assertIn("return 1;", timeout_handler)
+        self.assertLess(
+            serve.index("authorization_handle_worker_timeout(service, profile,"),
+            serve.index("if (!authorization_shutdown_response_companion(profile)) {"),
+        )
 
     def test_http_writes_are_sigpipe_safe_without_global_signal_suppression(self) -> None:
         self.assertIn("MSG_NOSIGNAL", self.source)

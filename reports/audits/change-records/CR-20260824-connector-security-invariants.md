@@ -827,3 +827,46 @@ the verified `origin` destination, exact-SHA readback, and ordinary GitHub
 checks. Actual PR number, URL, branch SHA, check states, and review status are
 recorded only after observation in the PR and the task delivery evidence; this
 Change Record does not preclaim them.
+
+## PR #345 Sonar and workflow remediation — 2026-09-03
+
+The task branch was forward-merged with the then-current `origin/master`
+before this remediation; it retains that master integration and does not
+rewrite history. This extension remediates current task-owned Sonar and
+workflow feedback through source, test, and documentation changes only. It
+does not modify `.github/workflows/`, branch protection, rulesets, required
+checks, Sonar rules, Quality Gate configuration, exclusions, suppressions, or
+coverage thresholds.
+
+Two independently reproduced HAProxy SPOE/SPOP paths are corrected. First,
+legitimate typed IPv4/IPv6 `src`/`dst` metadata is bounded, type-checked, and
+canonically formatted before Common mapping; unsupported, truncated, and
+trailing forms remain rejected. Second, missing required endpoints are now a
+synchronous admission failure before owner-task allocation or queueing. It
+therefore returns a disruptive `deny`/503 and `blocked=true` ACK for both
+`fail-mode=open` and `closed`; the equivalent worker-side check remains as
+defense in depth. No loopback, Host, or endpoint fallback was added. These are
+tracked separately as FND-PARENT-1020 and FND-PARENT-1021 rather than as
+duplicate findings.
+
+The Common remote-rule helper now tests the existing uniform Policy A
+correctly: any nonempty remote configuration is rejected before mutation or a
+network-capable sink. Common event JSONL/event-file code, Apache, NGINX,
+HAProxy binding/mapper/HTX, Envoy ext_proc, and Traefik Native changes reduce
+Sonar complexity or duplication without changing their security contracts.
+Refactor-sensitive HAProxy and HTTP-worker contract tests were moved to the
+new helper boundaries only after source-to-sink review confirmed that mapper,
+FIN, Host, allocation, body, and fail-closed ordering controls remained in
+place. The German Traefik Native README duplicate was removed; its content
+remains aligned with the English README.
+
+Local validation passed: Common C17 helper, security/flow/adapter, and HTTP
+timeout/admission/cancel checks; the detached-worker C17, ASan/UBSan with leak
+detection, and TSan smoke; private-event C17, ASan/UBSan, GCC analyzer, and
+Valgrind checks; Apache C17; Apache/NGINX/HTX and HAProxy contracts; HAProxy
+SPOP protocol self-test; and Envoy ext_proc plus Traefik Native formatting,
+vet, tests, and Go race checks. The exact hosted HAProxy CRS/no-MRTS control,
+native NGINX host build/runtime, and full H1/H2/H3/reload matrix remain
+blocked by unavailable Framework/host artifacts and are not represented as
+passing. The PR's exact-SHA GitHub Actions and SonarQube Cloud result are
+verified separately after delivery; this record does not preclaim them.

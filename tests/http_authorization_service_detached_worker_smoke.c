@@ -46,8 +46,24 @@ static int mapper_entered = 0;
 static int runtime_entered = 0;
 static int runtime_release = 0;
 static int runtime_destroyed = 0;
+static const msconnector_transaction_profile test_transaction_profile = {
+    1U,
+    "detached-worker-smoke",
+    "detached-worker-smoke",
+    "test-adapter",
+    0U,
+    0U,
+    0,
+    1,
+};
 
-static int wait_for_flag(int *flag) {
+static void clear_error(char *error, size_t error_len) {
+    if (error != NULL && error_len > 0U) {
+        error[0] = '\0';
+    }
+}
+
+static int wait_for_flag(const int *flag) {
     struct timespec deadline;
     int result = 0;
     if (clock_gettime(CLOCK_REALTIME, &deadline) != 0 ||
@@ -96,9 +112,7 @@ int msconnector_runtime_config_check(
     size_t error_len) {
     (void)connector_name;
     (void)config_path;
-    if (error != NULL && error_len > 0U) {
-        error[0] = '\0';
-    }
+    clear_error(error, error_len);
     return 1;
 }
 
@@ -113,9 +127,7 @@ int msconnector_runtime_create(
     if (out == NULL) {
         return 0;
     }
-    if (error != NULL && error_len > 0U) {
-        error[0] = '\0';
-    }
+    clear_error(error, error_len);
     *out = &fake_runtime;
     return 1;
 }
@@ -129,6 +141,23 @@ void msconnector_runtime_destroy(msconnector_runtime **runtime) {
     if (runtime != NULL) {
         *runtime = NULL;
     }
+}
+
+int msconnector_runtime_set_event_integration_mode(
+    msconnector_runtime *runtime,
+    const char *integration_mode) {
+    return runtime != NULL && integration_mode != NULL;
+}
+
+int msconnector_runtime_set_transaction_profile(
+    msconnector_runtime *runtime,
+    const msconnector_transaction_profile *profile) {
+    return runtime != NULL && profile != NULL;
+}
+
+int msconnector_runtime_error_log_enabled(const msconnector_runtime *runtime) {
+    (void)runtime;
+    return 0;
 }
 
 void msconnector_runtime_request_contract(
@@ -365,7 +394,7 @@ int main(void) {
     char *integration_mode = strdup("detached-worker-smoke");
     char *original_uri_header = strdup("X-Original-Uri");
     const char **original_uri_headers = calloc(1U, sizeof(*original_uri_headers));
-    msconnector_http_authorization_profile profile;
+    msconnector_http_authorization_profile profile = {0};
     server_thread_args args = {{0}, -1, NULL};
     unsigned short port = 0U;
     pthread_t server;
@@ -380,6 +409,7 @@ int main(void) {
     original_uri_headers[0] = original_uri_header;
     profile.connector_name = connector_name;
     profile.integration_mode = integration_mode;
+    profile.transaction_profile = &test_transaction_profile;
     profile.original_uri_headers = original_uri_headers;
     profile.original_uri_header_count = 1U;
     profile.map_request = map_request;

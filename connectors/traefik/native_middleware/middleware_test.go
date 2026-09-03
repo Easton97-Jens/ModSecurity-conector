@@ -55,18 +55,58 @@ func requestHeaderValues(transaction *recordingTransaction) []Header {
 	return nil
 }
 
-func TestMiddlewareForwardsRequestAuthorityAsHostHeader(t *testing.T) {
+func serveNoContentRequest(t *testing.T, request *http.Request) (*recordingTransaction, *httptest.ResponseRecorder) {
+	t.Helper()
 	transaction := &recordingTransaction{}
 	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.WriteHeader(http.StatusNoContent)
 	}), transaction)
+	response := httptest.NewRecorder()
+	middleware.ServeHTTP(response, request)
+	return transaction, response
+}
+
+func serveRejectedRequest(t *testing.T, request *http.Request) *recordingTransaction {
+	t.Helper()
+	transaction := &recordingTransaction{}
+	nextCalled := false
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		nextCalled = true
+	}), transaction)
+	response := httptest.NewRecorder()
+	middleware.ServeHTTP(response, request)
+	if nextCalled {
+		t.Fatal("next handler ran for rejected request")
+	}
+	if got, want := response.Code, http.StatusRequestHeaderFieldsTooLarge; got != want {
+		t.Fatalf("status = %d, want %d", got, want)
+	}
+	return transaction
+}
+
+func metadataForRequest(t *testing.T, request *http.Request) []Metadata {
+	t.Helper()
+	transaction := &recordingTransaction{}
+	engine := &recordingEngine{transaction: transaction}
+	config := CreateConfig()
+	config.EngineSocketPath = "/run/msconnector-test.sock"
+	middleware, err := newWithEngine(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	}), config, "test", engine)
+	if err != nil {
+		t.Fatalf("newWithEngine() error = %v", err)
+	}
+	middleware.ServeHTTP(httptest.NewRecorder(), request)
+	return engine.metadata
+}
+
+func TestMiddlewareForwardsRequestAuthorityAsHostHeader(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "http://authority.example:8443/resource", nil)
 	if request.Header.Get("Host") != "" {
 		t.Fatal("httptest request unexpectedly stored authority in Header")
 	}
 
-	response := httptest.NewRecorder()
-	middleware.ServeHTTP(response, request)
+	transaction, response := serveNoContentRequest(t, request)
 
 	if got, want := response.Code, http.StatusNoContent; got != want {
 		t.Fatalf("status = %d, want %d", got, want)
@@ -83,64 +123,30 @@ func TestMiddlewareForwardsRequestAuthorityAsHostHeader(t *testing.T) {
 }
 
 func TestMiddlewareRejectsConflictingHostHeaderBeforeEngine(t *testing.T) {
-	transaction := &recordingTransaction{}
-	nextCalled := false
-	middleware := newTestMiddleware(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		nextCalled = true
-	}), transaction)
 	request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
 	request.Host = "authority.example"
 	request.Header.Set("Host", "header.example")
-	response := httptest.NewRecorder()
-
-	middleware.ServeHTTP(response, request)
-
-	if nextCalled {
-		t.Fatal("next handler ran for conflicting Host header")
-	}
-	if got, want := response.Code, http.StatusRequestHeaderFieldsTooLarge; got != want {
-		t.Fatalf("status = %d, want %d", got, want)
-	}
+	transaction := serveRejectedRequest(t, request)
 	if got := transaction.opens; got != 0 {
 		t.Fatalf("engine opens = %d, want 0", got)
 	}
 }
 
 func TestMiddlewareRejectsInvalidHostHeaderBeforeEngine(t *testing.T) {
-	transaction := &recordingTransaction{}
-	nextCalled := false
-	middleware := newTestMiddleware(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		nextCalled = true
-	}), transaction)
 	request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
 	request.Host = "authority.example"
 	request.Header.Set("Host", "authority.example\r\nInjected: yes")
-	response := httptest.NewRecorder()
-
-	middleware.ServeHTTP(response, request)
-
-	if nextCalled {
-		t.Fatal("next handler ran for invalid Host header")
-	}
-	if got, want := response.Code, http.StatusRequestHeaderFieldsTooLarge; got != want {
-		t.Fatalf("status = %d, want %d", got, want)
-	}
+	transaction := serveRejectedRequest(t, request)
 	if got := transaction.opens; got != 0 {
 		t.Fatalf("engine opens = %d, want 0", got)
 	}
 }
 
 func TestMiddlewareAcceptsMatchingHostHeaderWithoutAuthorityDuplicate(t *testing.T) {
-	transaction := &recordingTransaction{}
-	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-		writer.WriteHeader(http.StatusNoContent)
-	}), transaction)
 	request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
 	request.Host = "authority.example"
 	request.Header.Set("Host", "authority.example")
-	response := httptest.NewRecorder()
-
-	middleware.ServeHTTP(response, request)
+	transaction, response := serveNoContentRequest(t, request)
 
 	if got, want := response.Code, http.StatusNoContent; got != want {
 		t.Fatalf("status = %d, want %d", got, want)
@@ -157,46 +163,18 @@ func TestMiddlewareAcceptsMatchingHostHeaderWithoutAuthorityDuplicate(t *testing
 }
 
 func TestMiddlewareRejectsInvalidAuthorityBeforeEngineHeaders(t *testing.T) {
-	transaction := &recordingTransaction{}
-	nextCalled := false
-	middleware := newTestMiddleware(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		nextCalled = true
-	}), transaction)
 	request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
 	request.Host = "authority.example\r\nInjected: yes"
-	response := httptest.NewRecorder()
-
-	middleware.ServeHTTP(response, request)
-
-	if nextCalled {
-		t.Fatal("next handler ran for invalid authority")
-	}
-	if got, want := response.Code, http.StatusRequestHeaderFieldsTooLarge; got != want {
-		t.Fatalf("status = %d, want %d", got, want)
-	}
+	transaction := serveRejectedRequest(t, request)
 	if got := transaction.opens; got != 0 {
 		t.Fatalf("engine opens = %d, want 0", got)
 	}
 }
 
 func TestMiddlewareRejectsMissingAuthorityBeforeEngineOpen(t *testing.T) {
-	transaction := &recordingTransaction{}
-	nextCalled := false
-	middleware := newTestMiddleware(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		nextCalled = true
-	}), transaction)
 	request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
 	request.Host = ""
-	response := httptest.NewRecorder()
-
-	middleware.ServeHTTP(response, request)
-
-	if nextCalled {
-		t.Fatal("next handler ran for missing authority")
-	}
-	if got, want := response.Code, http.StatusRequestHeaderFieldsTooLarge; got != want {
-		t.Fatalf("status = %d, want %d", got, want)
-	}
+	transaction := serveRejectedRequest(t, request)
 	if got := transaction.opens; got != 0 {
 		t.Fatalf("engine opens = %d, want 0", got)
 	}
@@ -228,54 +206,34 @@ func (engine *recordingEngine) Open(_ context.Context, metadata Metadata) (Trans
 }
 
 func TestMiddlewarePreservesRawAuthorityInMetadata(t *testing.T) {
-	transaction := &recordingTransaction{}
-	engine := &recordingEngine{transaction: transaction}
-	config := CreateConfig()
-	config.EngineSocketPath = "/run/msconnector-test.sock"
-	middleware, err := newWithEngine(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-		writer.WriteHeader(http.StatusNoContent)
-	}), config, "test", engine)
-	if err != nil {
-		t.Fatalf("newWithEngine() error = %v", err)
-	}
 	request := httptest.NewRequest(http.MethodGet, "http://authority.example:8443/resource", nil)
-	middleware.ServeHTTP(httptest.NewRecorder(), request)
-	if got, want := len(engine.metadata), 1; got != want {
+	metadata := metadataForRequest(t, request)
+	if got, want := len(metadata), 1; got != want {
 		t.Fatalf("metadata records = %d, want %d", got, want)
 	}
-	metadata := engine.metadata[0]
-	if got, want := metadata.Hostname, "authority.example:8443"; got != want {
+	value := metadata[0]
+	if got, want := value.Hostname, "authority.example:8443"; got != want {
 		t.Fatalf("metadata Hostname = %q, want raw authority %q", got, want)
 	}
-	if got, want := metadata.ServerAddress, "authority.example"; got != want {
+	if got, want := value.ServerAddress, "authority.example"; got != want {
 		t.Fatalf("metadata ServerAddress = %q, want parsed host %q", got, want)
 	}
-	if got, want := metadata.ServerPort, 8443; got != want {
+	if got, want := value.ServerPort, 8443; got != want {
 		t.Fatalf("metadata ServerPort = %d, want %d", got, want)
 	}
 }
 
 func TestMiddlewarePreservesBracketedIPv6AuthorityInMetadata(t *testing.T) {
-	transaction := &recordingTransaction{}
-	engine := &recordingEngine{transaction: transaction}
-	config := CreateConfig()
-	config.EngineSocketPath = "/run/msconnector-test.sock"
-	middleware, err := newWithEngine(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-		writer.WriteHeader(http.StatusNoContent)
-	}), config, "test", engine)
-	if err != nil {
-		t.Fatalf("newWithEngine() error = %v", err)
-	}
 	request := httptest.NewRequest(http.MethodGet, "http://[2001:db8::1]:8443/resource", nil)
-	middleware.ServeHTTP(httptest.NewRecorder(), request)
-	if got, want := len(engine.metadata), 1; got != want {
+	metadata := metadataForRequest(t, request)
+	if got, want := len(metadata), 1; got != want {
 		t.Fatalf("metadata records = %d, want %d", got, want)
 	}
-	metadata := engine.metadata[0]
-	if got, want := metadata.ServerAddress, "2001:db8::1"; got != want {
+	value := metadata[0]
+	if got, want := value.ServerAddress, "2001:db8::1"; got != want {
 		t.Fatalf("metadata ServerAddress = %q, want parsed IPv6 address %q", got, want)
 	}
-	if got, want := metadata.ServerPort, 8443; got != want {
+	if got, want := value.ServerPort, 8443; got != want {
 		t.Fatalf("metadata ServerPort = %d, want %d", got, want)
 	}
 }
@@ -291,23 +249,9 @@ func TestMiddlewareRejectsInvalidAuthorityPortBeforeEngineOpen(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			transaction := &recordingTransaction{}
-			nextCalled := false
-			middleware := newTestMiddleware(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-				nextCalled = true
-			}), transaction)
 			request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
 			request.Host = test.authority
-			response := httptest.NewRecorder()
-
-			middleware.ServeHTTP(response, request)
-
-			if nextCalled {
-				t.Fatal("next handler ran for an invalid authority port")
-			}
-			if got, want := response.Code, http.StatusRequestHeaderFieldsTooLarge; got != want {
-				t.Fatalf("status = %d, want %d", got, want)
-			}
+			transaction := serveRejectedRequest(t, request)
 			if got := transaction.opens; got != 0 {
 				t.Fatalf("engine opens = %d, want 0", got)
 			}
@@ -352,23 +296,9 @@ func TestMiddlewareRejectsMalformedHeaderBeforeEngineOpen(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			transaction := &recordingTransaction{}
-			nextCalled := false
-			middleware := newTestMiddleware(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-				nextCalled = true
-			}), transaction)
 			request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
 			request.Header[test.header] = []string{test.value}
-
-			response := httptest.NewRecorder()
-			middleware.ServeHTTP(response, request)
-
-			if nextCalled {
-				t.Fatal("next handler ran for malformed header")
-			}
-			if got, want := response.Code, http.StatusRequestHeaderFieldsTooLarge; got != want {
-				t.Fatalf("status = %d, want %d", got, want)
-			}
+			transaction := serveRejectedRequest(t, request)
 			if got := transaction.opens; got != 0 {
 				t.Fatalf("engine opens = %d, want 0", got)
 			}

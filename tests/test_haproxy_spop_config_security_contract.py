@@ -19,29 +19,32 @@ SOURCE = (
 class HaproxySPOPConfigSecurityContractTests(unittest.TestCase):
     def test_fail_mode_is_exact_and_validated_before_configuration_mutation(self):
         start = SOURCE.index("static int valid_fail_mode(")
-        end = SOURCE.index("static int config_set(", start)
+        end = SOURCE.index("static int config_set_scalar(", start)
         helpers = SOURCE[start:end]
-        config_start = SOURCE.index("static int config_set(")
+        scalar_start = SOURCE.index("static int config_set_scalar(")
+        scalar_end = SOURCE.index("static int config_set(", scalar_start)
+        scalar = SOURCE[scalar_start:scalar_end]
+        config_start = scalar_end
         config_end = SOURCE.index("static char *trim_in_place(", config_start)
         config_path = SOURCE[config_start:config_end]
 
         self.assertIn('strcmp(value, "closed") == 0', helpers)
         self.assertIn('strcmp(value, "open") == 0', helpers)
-        self.assertIn("if (!valid_fail_mode(value))", config_path)
-        self.assertIn("copy_spop_string(config->fail_mode", config_path)
+        self.assertIn("if (!valid_fail_mode(value))", scalar)
+        self.assertIn("copy_spop_string(config->fail_mode", scalar)
         self.assertNotIn('SET_STRING_FIELD("fail-mode", fail_mode)', config_path)
         self.assertLess(
-            config_path.index("if (!valid_fail_mode(value))"),
-            config_path.index("copy_spop_string(config->fail_mode"),
+            scalar.index("if (!valid_fail_mode(value))"),
+            scalar.index("copy_spop_string(config->fail_mode"),
         )
 
     def test_response_companion_identity_uses_strict_bounded_decimal_parser(self):
         parser_start = SOURCE.index("static int parse_bounded_uint_range(")
         parser_end = SOURCE.index("static int parse_bounded_uint(", parser_start)
         parser = SOURCE[parser_start:parser_end]
-        config_start = SOURCE.index("static int config_set(")
-        config_end = SOURCE.index("static char *trim_in_place(", config_start)
-        config_path = SOURCE[config_start:config_end]
+        scalar_start = SOURCE.index("static int config_set_scalar(")
+        scalar_end = SOURCE.index("static int config_set(", scalar_start)
+        scalar = SOURCE[scalar_start:scalar_end]
 
         self.assertIn("value[0] < '0' || value[0] > '9'", parser)
         self.assertIn("*end != '\\0'", parser)
@@ -49,10 +52,10 @@ class HaproxySPOPConfigSecurityContractTests(unittest.TestCase):
         self.assertIn("parsed > maximum", parser)
         self.assertIn(
             "parse_bounded_uint_range(value, 0UL, (unsigned long)UINT_MAX",
-            config_path,
+            scalar,
         )
-        self.assertNotIn("response_companion_uid = (unsigned int)strtoul", config_path)
-        self.assertNotIn("response_companion_gid = (unsigned int)strtoul", config_path)
+        self.assertNotIn("response_companion_uid = (unsigned int)strtoul", scalar)
+        self.assertNotIn("response_companion_gid = (unsigned int)strtoul", scalar)
 
     def test_production_validation_rechecks_fail_mode_defensively(self):
         validation_start = SOURCE.index("static int validate_production_config(")

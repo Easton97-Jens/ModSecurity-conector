@@ -415,7 +415,7 @@ def test_htx_companion_registers_request_data_filter_for_p2_and_eos() -> None:
     companion_start = source.index(
         "static int haproxy_modsecurity_htx_filter_http_headers("
     )
-    companion_start = source.index("if (ctx->response_companion_mode) {", companion_start)
+    companion_start = source.index("if (ctx->companion.mode) {", companion_start)
     companion_end = source.index(
         "    if (haproxy_modsecurity_htx_capture_request_headers",
         companion_start,

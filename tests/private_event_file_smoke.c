@@ -51,6 +51,70 @@ static int expect_rejected(const char *path)
     }
     return fd == -1;
 }
+
+static int create_permissive_fixture(const char *path)
+{
+    mode_t previous_umask = umask(0022);
+    struct stat status;
+    int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0666);
+    int valid = fd >= 0 && fstat(fd, &status) == 0 &&
+        S_ISREG(status.st_mode) && status.st_uid == geteuid() &&
+        (status.st_mode & 0777) == 0644;
+
+    (void)umask(previous_umask);
+    if (!valid) {
+        const int saved_errno = errno;
+        if (fd >= 0) {
+            (void)close(fd);
+        }
+        errno = saved_errno;
+        return 0;
+    }
+    if (close(fd) != 0) {
+        return 0;
+    }
+    return 1;
+}
+
+static int check_regular_event_file(const char *path)
+{
+    struct stat status;
+    int fd = -1;
+    int valid = msconnector_open_private_event_file(path, &fd) &&
+        fstat(fd, &status) == 0 && S_ISREG(status.st_mode) &&
+        status.st_uid == geteuid() && (status.st_mode & 0777) == 0600 &&
+        (fcntl(fd, F_GETFD) & FD_CLOEXEC) != 0 && write(fd, "{}\n", 3) == 3;
+
+    if (fd >= 0 && close(fd) != 0) {
+        valid = 0;
+    }
+    return valid;
+}
+
+static int check_repaired_event_file(const char *path)
+{
+    struct stat status;
+    int fd = -1;
+    int valid = msconnector_open_private_event_file(path, &fd) &&
+        fstat(fd, &status) == 0 && (status.st_mode & 0777) == 0600 &&
+        (fcntl(fd, F_GETFD) & FD_CLOEXEC) != 0;
+
+    if (fd >= 0 && close(fd) != 0) {
+        valid = 0;
+    }
+    return valid;
+}
+
+static int check_rejected_paths(const char *symlink_path,
+    const char *ancestor_event_path, const char *fifo_path,
+    const char *unsafe_path, const char *traversal_path,
+    const char *private_directory)
+{
+    return expect_rejected(symlink_path) &&
+        expect_rejected(ancestor_event_path) && expect_rejected(fifo_path) &&
+        expect_rejected(unsafe_path) && expect_rejected(traversal_path) &&
+        expect_rejected(private_directory);
+}
 #endif
 
 int main(void)
@@ -75,8 +139,6 @@ int main(void)
     char fifo_path[TEST_PATH_SIZE];
     char unsafe_path[TEST_PATH_SIZE];
     char traversal_path[TEST_PATH_SIZE];
-    struct stat status;
-    int fd = -1;
     int result = 1;
 
     root[0] = '\0';
@@ -126,44 +188,22 @@ int main(void)
         goto cleanup;
     }
 
-    if (!msconnector_open_private_event_file(event_path, &fd) ||
-        fstat(fd, &status) != 0 || !S_ISREG(status.st_mode) ||
-        status.st_uid != geteuid() || (status.st_mode & 0777) != 0600 ||
-        (fcntl(fd, F_GETFD) & FD_CLOEXEC) == 0 ||
-        write(fd, "{}\n", 3) != 3) {
+    if (!check_regular_event_file(event_path)) {
         (void)fprintf(stderr, "private regular event-file control failed\n");
         goto cleanup;
     }
-    if (close(fd) != 0) {
-        fd = -1;
-        (void)fprintf(stderr, "private regular event-file close failed\n");
-        goto cleanup;
-    }
-    fd = -1;
 
-    if (chmod(event_path, 0644) != 0 ||
-        !msconnector_open_private_event_file(event_path, &fd) ||
-        fstat(fd, &status) != 0 || (status.st_mode & 0777) != 0600 ||
-        (fcntl(fd, F_GETFD) & FD_CLOEXEC) == 0) {
+    if (unlink(event_path) != 0 || !create_permissive_fixture(event_path) ||
+        !check_repaired_event_file(event_path)) {
         (void)fprintf(stderr, "existing event-file permission repair failed\n");
         goto cleanup;
     }
-    if (close(fd) != 0) {
-        fd = -1;
-        (void)fprintf(stderr, "existing event-file close failed\n");
-        goto cleanup;
-    }
-    fd = -1;
 
     if (symlink("events.jsonl", symlink_path) != 0 ||
         symlink(private_directory, ancestor_symlink) != 0 ||
-        mkfifo(fifo_path, 0600) != 0 ||
-        !expect_rejected(symlink_path) ||
-        !expect_rejected(ancestor_event_path) ||
-        !expect_rejected(fifo_path) ||
-        !expect_rejected(unsafe_path) ||
-        !expect_rejected(traversal_path) ||
-        !expect_rejected(private_directory)) {
+        mkfifo(fifo_path, 0600) != 0 || !check_rejected_paths(symlink_path,
+            ancestor_event_path, fifo_path, unsafe_path, traversal_path,
+            private_directory)) {
         (void)fprintf(stderr, "unsafe event-file path was accepted\n");
         goto cleanup;
     }
@@ -172,9 +212,6 @@ int main(void)
     puts("private event-file descriptor controls: passed");
 
 cleanup:
-    if (fd >= 0) {
-        (void)close(fd);
-    }
     if (symlink_path[0] != '\0') {
         (void)unlink(symlink_path);
     }

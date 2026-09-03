@@ -236,7 +236,9 @@ int main(void) {
     def test_legacy_request_validation_precedes_engine_creation(self) -> None:
         eval_start = BINDING.index("static int eval_request_internal(")
         init = BINDING.index("modsec = msc_init();", eval_start)
-        validate = BINDING.index("validate_common_mapped_request(request, decision)", eval_start)
+        validate = BINDING.index(
+            "validate_common_mapped_request(0, request, decision)", eval_start
+        )
         self.assertLess(validate, init)
 
     def test_endpoint_metadata_is_rejected_before_connection_processing(self) -> None:
@@ -275,8 +277,10 @@ int main(void) {
         )
 
     def test_spop_requires_fin_before_payload_parsing(self) -> None:
-        parser_start = SPOP_RUNTIME.index("static int recv_frame_timeout(")
-        parser_end = SPOP_RUNTIME.index("static int recv_frame(", parser_start)
+        parser_start = SPOP_RUNTIME.index("static int recv_frame(")
+        parser_end = SPOP_RUNTIME.index(
+            "static int self_test_rejects_fin_unset_frame(", parser_start
+        )
         parser = SPOP_RUNTIME[parser_start:parser_end]
         self.assertIn("if ((frame->flags & SPOP_FIN_FLAG) == 0U)", parser)
         self.assertLess(
@@ -293,15 +297,21 @@ int main(void) {
         )
 
     def test_response_mapper_failure_precedes_raw_response_header_loop(self) -> None:
+        mapper_start = BINDING.index("static int map_response_for_transaction(")
+        mapper_end = BINDING.index("static int add_response_headers(", mapper_start)
+        mapper = BINDING[mapper_start:mapper_end]
         start = BINDING.index("int haproxy_modsecurity_transaction_process_response_headers(")
-        end = BINDING.index("int haproxy_modsecurity_transaction_append_response_body_chunk(", start)
+        end = BINDING.index(
+            "int haproxy_modsecurity_transaction_append_response_body_chunk(", start
+        )
         function = BINDING[start:end]
-        self.assertIn("normalized_response.status", function)
-        self.assertIn('"common response mapper validation failed"', function)
-        self.assertIn("return 1;", function)
+        self.assertIn("normalized_response.status", mapper)
+        self.assertIn("haproxy_modsecurity_map_owned_response", mapper)
+        self.assertIn('"common response mapper validation failed"', mapper)
+        self.assertIn("return 0;", mapper)
         self.assertLess(
-            function.index("haproxy_modsecurity_map_owned_response"),
-            function.index("msc_add_response_header"),
+            function.index("map_response_for_transaction"),
+            function.index("add_response_headers"),
         )
 
 

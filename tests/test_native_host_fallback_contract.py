@@ -78,12 +78,12 @@ class NativeHostFallbackContractTests(unittest.TestCase):
         )
         transaction_begin = source_between(
             HAPROXY_BINDING,
+            "int haproxy_modsecurity_transaction_begin_request_with_profile(",
             "int haproxy_modsecurity_transaction_begin_request(",
-            "int haproxy_modsecurity_transaction_append_request_body_chunk(",
         )
         self.assertIn("return 1;", validator)
         self.assertIn(
-            "if (validate_common_mapped_request(request, decision) != 0) {\n"
+            "if (!validate_common_mapped_request(engine, request, decision)) {\n"
             "        return 1;\n"
             "    }",
             transaction_begin,
@@ -115,7 +115,7 @@ class NativeHostFallbackContractTests(unittest.TestCase):
             "            request.host[0] == '\\0'))",
             handler,
         )
-        self.assertIn('send_agent_disconnect(fd, 4, "missing request host")', handler)
+        self.assertIn('send_agent_disconnect(fd, 4, "missing request host",', handler)
         self.assertLess(
             handler.index("missing request host"),
             handler.index("process_production_notify"),

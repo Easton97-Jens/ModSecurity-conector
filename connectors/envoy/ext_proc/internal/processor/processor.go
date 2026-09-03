@@ -834,6 +834,17 @@ func responseStatusFromHeaders(headers []Header) int {
 // remain absent for a transport-only engine. It never silently substitutes the
 // gRPC peer endpoint for the request authority.
 func requestMetadataFromEnvoy(headers []Header, attributes map[string]*structpb.Struct) (RequestMetadata, error) {
+	metadata, err := requestMetadataHeaders(headers)
+	if err != nil {
+		return RequestMetadata{}, err
+	}
+	if err := applyEnvoyMetadataAttributes(&metadata, attributes); err != nil {
+		return RequestMetadata{}, err
+	}
+	return metadata, nil
+}
+
+func requestMetadataHeaders(headers []Header) (RequestMetadata, error) {
 	metadata := RequestMetadata{}
 	authority := ""
 	host := ""
@@ -875,6 +886,10 @@ func requestMetadataFromEnvoy(headers []Header, attributes map[string]*structpb.
 	if strings.TrimSpace(metadata.Hostname) == "" {
 		return RequestMetadata{}, fmt.Errorf("Envoy request is missing :authority or Host")
 	}
+	return metadata, nil
+}
+
+func applyEnvoyMetadataAttributes(metadata *RequestMetadata, attributes map[string]*structpb.Struct) error {
 	textAssignments := []struct {
 		attribute string
 		assign    func(string)
@@ -885,7 +900,7 @@ func requestMetadataFromEnvoy(headers []Header, attributes map[string]*structpb.
 	}
 	for _, assignment := range textAssignments {
 		if err := assignEnvoyTextAttribute(attributes, assignment.attribute, assignment.assign); err != nil {
-			return RequestMetadata{}, err
+			return err
 		}
 	}
 
@@ -898,10 +913,10 @@ func requestMetadataFromEnvoy(headers []Header, attributes map[string]*structpb.
 	}
 	for _, assignment := range portAssignments {
 		if err := assignEnvoyPortAttribute(attributes, assignment.attribute, assignment.assign); err != nil {
-			return RequestMetadata{}, err
+			return err
 		}
 	}
-	return metadata, nil
+	return nil
 }
 
 func assignEnvoyTextAttribute(

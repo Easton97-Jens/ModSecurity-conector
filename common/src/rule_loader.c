@@ -23,7 +23,7 @@ int msconnector_rule_loader_add_file(msconnector_rule_loader *loader, const char
     if (!loader->backend.add_file(loader->backend.userdata, loader->rules_set, path, error)) { return 0; }
     msconnector_rule_load_stats_add_file(&loader->stats, 1); return 1;
 }
-int msconnector_rule_loader_add_remote(msconnector_rule_loader *loader, const char *key, const char *url, msconnector_error *error) {
+int msconnector_rule_loader_add_remote(const msconnector_rule_loader *loader, const char *key, const char *url, msconnector_error *error) {
     if (loader == 0) { return fail_error(error, MSCONNECTOR_ERROR_INTERNAL, "rule loader is required"); }
     if (empty(key) || empty(url)) { return fail_error(error, MSCONNECTOR_ERROR_INVALID_CONFIG, "remote rule key and url are required"); }
     (void)key;

@@ -546,6 +546,38 @@ static int finish_body(
     return 0;
 }
 
+static haproxy_modsecurity_body_phase request_body_phase(
+        haproxy_modsecurity_transaction *transaction) {
+    return (haproxy_modsecurity_body_phase){
+        2, &transaction->request_headers_processed, &transaction->request_body.processed,
+        &transaction->request_body.started, &transaction->request_body.bytes_seen,
+        &transaction->request_body.bytes_inspected,
+        transaction->engine->common_config.request_body_limit,
+        "missing transaction or request body",
+        "request headers must be processed before request body chunks",
+        "request body append after end-of-stream",
+        "request body pointer is required when length is nonzero", "msc_append_request_body failed",
+        "request body may only be finalized once", "msc_process_request_body failed",
+        msc_append_request_body, msc_process_request_body
+    };
+}
+
+static haproxy_modsecurity_body_phase response_body_phase(
+        haproxy_modsecurity_transaction *transaction) {
+    return (haproxy_modsecurity_body_phase){
+        4, &transaction->response_headers_processed, &transaction->response_body.processed,
+        &transaction->response_body.started, &transaction->response_body.bytes_seen,
+        &transaction->response_body.bytes_inspected,
+        transaction->engine->common_config.response_body_limit,
+        "missing transaction or response body",
+        "response headers must be processed before response body chunks",
+        "response body append after end-of-stream",
+        "response body pointer is required when length is nonzero", "msc_append_response_body failed",
+        "response body may only be finalized once", "msc_process_response_body failed",
+        msc_append_response_body, msc_process_response_body
+    };
+}
+
 static int load_rules_file(
         RulesSet *rules,
         const char *rules_file,
@@ -1245,18 +1277,7 @@ int haproxy_modsecurity_transaction_append_request_body_chunk(
             "missing transaction or request body");
         return 1;
     }
-    const haproxy_modsecurity_body_phase phase = {
-        2, &transaction->request_headers_processed, &transaction->request_body.processed,
-        &transaction->request_body.started, &transaction->request_body.bytes_seen,
-        &transaction->request_body.bytes_inspected,
-        transaction->engine->common_config.request_body_limit,
-        "missing transaction or request body",
-        "request headers must be processed before request body chunks",
-        "request body append after end-of-stream",
-        "request body pointer is required when length is nonzero", "msc_append_request_body failed",
-        "request body may only be finalized once", "msc_process_request_body failed",
-        msc_append_request_body, msc_process_request_body
-    };
+    const haproxy_modsecurity_body_phase phase = request_body_phase(transaction);
     return append_body_chunk(transaction, body, body_len, decision, &phase);
 }
 
@@ -1269,18 +1290,8 @@ int haproxy_modsecurity_transaction_finish_request_body(
             "missing transaction or request body");
         return 1;
     }
-    const haproxy_modsecurity_body_phase phase = {
-        2, &transaction->request_headers_processed, &transaction->request_body.processed,
-        &transaction->request_body.started, &transaction->request_body.bytes_seen,
-        &transaction->request_body.bytes_inspected,
-        transaction->engine->common_config.request_body_limit,
-        "missing transaction or request body",
-        "request headers must be processed before request body finalization",
-        "request body append after end-of-stream",
-        "request body pointer is required when length is nonzero", "msc_append_request_body failed",
-        "request body may only be finalized once", "msc_process_request_body failed",
-        msc_append_request_body, msc_process_request_body
-    };
+    haproxy_modsecurity_body_phase phase = request_body_phase(transaction);
+    phase.headers_required_message = "request headers must be processed before request body finalization";
     return finish_body(transaction, decision, &phase);
 }
 
@@ -1533,18 +1544,7 @@ int haproxy_modsecurity_transaction_append_response_body_chunk(
             "missing transaction or response body");
         return 1;
     }
-    const haproxy_modsecurity_body_phase phase = {
-        4, &transaction->response_headers_processed, &transaction->response_body.processed,
-        &transaction->response_body.started, &transaction->response_body.bytes_seen,
-        &transaction->response_body.bytes_inspected,
-        transaction->engine->common_config.response_body_limit,
-        "missing transaction or response body",
-        "response headers must be processed before response body chunks",
-        "response body append after end-of-stream",
-        "response body pointer is required when length is nonzero", "msc_append_response_body failed",
-        "response body may only be finalized once", "msc_process_response_body failed",
-        msc_append_response_body, msc_process_response_body
-    };
+    const haproxy_modsecurity_body_phase phase = response_body_phase(transaction);
     return append_body_chunk(transaction, body, body_len, decision, &phase);
 }
 
@@ -1557,18 +1557,8 @@ int haproxy_modsecurity_transaction_finish_response_body(
             "missing transaction or response body");
         return 1;
     }
-    const haproxy_modsecurity_body_phase phase = {
-        4, &transaction->response_headers_processed, &transaction->response_body.processed,
-        &transaction->response_body.started, &transaction->response_body.bytes_seen,
-        &transaction->response_body.bytes_inspected,
-        transaction->engine->common_config.response_body_limit,
-        "missing transaction or response body",
-        "response headers must be processed before response body finalization",
-        "response body append after end-of-stream",
-        "response body pointer is required when length is nonzero", "msc_append_response_body failed",
-        "response body may only be finalized once", "msc_process_response_body failed",
-        msc_append_response_body, msc_process_response_body
-    };
+    haproxy_modsecurity_body_phase phase = response_body_phase(transaction);
+    phase.headers_required_message = "response headers must be processed before response body finalization";
     return finish_body(transaction, decision, &phase);
 }
 

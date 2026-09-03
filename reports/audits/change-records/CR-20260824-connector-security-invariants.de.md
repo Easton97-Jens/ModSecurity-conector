@@ -902,3 +902,49 @@ verifizierte `origin`-Ziel, den exakten SHA-Readback und die regulären
 GitHub-Checks gebunden. Tatsächliche PR-Nummer, URL, Branch-SHA, Check-Status
 und Review-Status werden erst nach Beobachtung im PR und in der
 Task-Delivery-Evidenz erfasst; dieser Change Record behauptet sie nicht vorab.
+
+## PR-#345-Sonar- und Workflow-Remediation — 2026-09-03
+
+Der Task-Branch wurde vor dieser Remediation mit dem damaligen aktuellen
+`origin/master` forward-gemergt; er erhält diese Master-Integration und
+schreibt keine Historie um. Diese Erweiterung behebt aktuelle task-eigene
+Sonar- und Workflow-Rückmeldungen ausschließlich durch Source-, Test- und
+Dokumentationsänderungen. Sie verändert weder `.github/workflows`,
+Branch-Protection, Rulesets, Required Checks, Sonar-Regeln, Quality-Gate-
+Konfiguration, Exclusions, Suppressions noch Coverage-Schwellen.
+
+Zwei unabhängig reproduzierte HAProxy-SPOE/SPOP-Pfade sind korrigiert.
+Erstens werden legitime typisierte IPv4-/IPv6-`src`-/`dst`-Metadaten vor dem
+Common-Mapping begrenzt, typgeprüft und kanonisch formatiert; nicht
+unterstützte, verkürzte und nachlaufende Formen bleiben abgewiesen. Zweitens
+sind fehlende erforderliche Endpunkte jetzt ein synchroner Zulassungsfehler
+vor Owner-Task-Allokation oder Queueing. Er liefert daher bei
+`fail-mode=open` und `closed` ein disruptives `deny`/503- und
+`blocked=true`-ACK; die entsprechende Worker-Prüfung bleibt als Defense in
+Depth erhalten. Es wurde kein Loopback-, Host- oder Endpoint-Fallback ergänzt.
+Diese Befunde sind als FND-PARENT-1020 und FND-PARENT-1021 getrennt statt als
+doppelte Findings erfasst.
+
+Der Common-Remote-Rule-Helper prüft nun die bestehende einheitliche Policy A
+korrekt: Jede nichtleere Remote-Konfiguration wird vor Mutation oder einem
+netzwerkfähigen Sink abgewiesen. Änderungen an Common-Event-JSONL/Event-Datei,
+Apache, NGINX, HAProxy-Binding/Mapper/HTX, Envoy ext_proc und Traefik Native
+reduzieren Sonar-Komplexität oder Duplikate, ohne ihre Sicherheitsverträge zu
+verändern. Refactor-sensitive HAProxy- und HTTP-Worker-Vertragstests wurden
+erst nach Source-to-Sink-Review, der Mapper-, FIN-, Host-, Allokations-, Body-
+und Fail-Closed-Reihenfolgen bestätigte, auf die neuen Helfergrenzen verlegt.
+Das doppelte deutsche Traefik-Native-README wurde entfernt; sein Inhalt bleibt
+mit dem englischen README abgestimmt.
+
+Lokale Validierung bestanden: Common-C17-Helper, Security-/Flow-/Adapter- und
+HTTP-Timeout-/Admission-/Cancel-Checks; der Detached-Worker-C17-,
+ASan/UBSan-mit-Leak-Erkennung- und TSan-Smoke; Private-Event-C17-,
+ASan/UBSan-, GCC-Analyzer- und Valgrind-Checks; Apache-C17;
+Apache-/NGINX-/HTX- und HAProxy-Verträge; der HAProxy-SPOP-Protokoll-Self-Test;
+sowie Envoy-ext_proc- und Traefik-Native-Format-, Vet-, Test- und Go-Race-
+Checks. Die exakte gehostete HAProxy-CRS/no-MRTS-Kontrolle, der native
+NGINX-Hostbuild/-Runtime und die vollständige H1/H2/H3-/Reload-Matrix bleiben
+wegen nicht verfügbarer Framework-/Host-Artefakte blockiert und werden nicht
+als bestanden dargestellt. Das Ergebnis der exakten PR-SHA-GitHub-Actions und
+von SonarQube Cloud wird erst nach Delivery separat verifiziert; dieser Record
+behauptet es nicht vorab.

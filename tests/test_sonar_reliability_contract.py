@@ -467,9 +467,12 @@ int main(void)
         self.assertIn(
             "config->spoe_timeout_ms = SPOP_LEGACY_TIMEOUT_MS;", source
         )
+        scalar_start = source.index("static int config_set_scalar(")
+        scalar_end = source.index("static int config_set_endpoint(", scalar_start)
+        scalar = source[scalar_start:scalar_end]
         self.assertIn(
-            "return parse_bounded_uint(value, 600000UL, &config->spoe_timeout_ms);",
-            source,
+            "return parse_bounded_uint(value, 600000UL, &config->spoe_timeout_ms) == 0 ? 1 : -1;",
+            scalar,
         )
 
     def test_haproxy_transaction_cache_config_is_bounded_before_calloc(self) -> None:
@@ -560,21 +563,146 @@ int main(void)
         harness_source = r'''
 #define main haproxy_spop_diagnostic_runtime_program_main
 #include "__RUNTIME_SOURCE__"
+#include "__TRANSACTION_STATE_SOURCE__"
 #undef main
 
 #include <assert.h>
 
 static unsigned int cached_transaction_finish_calls;
+static unsigned int transaction_begin_calls;
 
-void haproxy_modsecurity_transaction_finish(
+int haproxy_modsecurity_transaction_finish(
         haproxy_modsecurity_transaction *transaction) {
     (void)transaction;
     cached_transaction_finish_calls++;
+    return 0;
 }
 
 void haproxy_modsecurity_transaction_abort(
         haproxy_modsecurity_transaction *transaction) {
     (void)transaction;
+}
+
+int haproxy_modsecurity_transaction_begin(
+        haproxy_modsecurity_engine *engine,
+        const haproxy_modsecurity_request *request,
+        haproxy_modsecurity_decision *decision,
+        haproxy_modsecurity_transaction **transaction) {
+    transaction_begin_calls++;
+    (void)engine;
+    (void)request;
+    (void)decision;
+    (void)transaction;
+    return 1;
+}
+
+int haproxy_modsecurity_transaction_handoff_response_companion(
+        haproxy_modsecurity_transaction *transaction) {
+    (void)transaction;
+    return -1;
+}
+
+int haproxy_modsecurity_transaction_process_response_headers(
+        haproxy_modsecurity_transaction *transaction,
+        const haproxy_modsecurity_response *response,
+        haproxy_modsecurity_decision *decision) {
+    (void)transaction;
+    (void)response;
+    (void)decision;
+    return 1;
+}
+
+int haproxy_modsecurity_transaction_append_response_body_chunk(
+        haproxy_modsecurity_transaction *transaction,
+        const unsigned char *body,
+        unsigned int body_len,
+        haproxy_modsecurity_decision *decision) {
+    (void)transaction;
+    (void)body;
+    (void)body_len;
+    (void)decision;
+    return 1;
+}
+
+int haproxy_spop_response_companion_handoff(
+        haproxy_spop_response_companion_backend *backend,
+        haproxy_modsecurity_transaction *transaction, uint64_t now_ms,
+        char handle[HAPROXY_SPOP_RESPONSE_COMPANION_HANDLE_STORAGE],
+        msconnector_error *error) {
+    (void)backend;
+    (void)transaction;
+    (void)now_ms;
+    (void)handle;
+    (void)error;
+    return 0;
+}
+
+int msconnector_response_companion_transport_ensure_running(
+        msconnector_response_companion_transport *transport,
+        msconnector_error *error) {
+    (void)transport;
+    (void)error;
+    return 0;
+}
+
+void msconnector_error_init(msconnector_error *error) {
+    if (error != 0) {
+        memset(error, 0, sizeof(*error));
+    }
+}
+
+void msconnector_late_intervention_policy_init(
+        msconnector_late_intervention_policy *policy) {
+    if (policy != 0) {
+        policy->default_action = MSCONNECTOR_LATE_INTERVENTION_LOG_ONLY;
+        policy->strict_action = MSCONNECTOR_LATE_INTERVENTION_LOG_ONLY;
+    }
+}
+
+const char *msconnector_late_intervention_action_name(
+        msconnector_late_intervention_action action) {
+    (void)action;
+    return "log-only";
+}
+
+msconnector_late_intervention_action msconnector_late_intervention_resolve(
+        const msconnector_late_intervention_policy *policy,
+        int response_headers_committed, int response_body_started,
+        int strict_mode) {
+    (void)policy;
+    (void)response_headers_committed;
+    (void)response_body_started;
+    (void)strict_mode;
+    return MSCONNECTOR_LATE_INTERVENTION_LOG_ONLY;
+}
+
+void msconnector_event_init(msconnector_event *event) {
+    if (event != 0) {
+        memset(event, 0, sizeof(*event));
+    }
+}
+
+const char *msconnector_event_default_level(const char *message_id) {
+    (void)message_id;
+    return "error";
+}
+
+const char *msconnector_event_default_message(const char *message_id) {
+    (void)message_id;
+    return "test event";
+}
+
+int msconnector_event_write_jsonl_line(const msconnector_event *event,
+        char *dst, size_t dst_size, int *truncated) {
+    (void)event;
+    if (dst == 0 || dst_size < 4U) {
+        return 0;
+    }
+    memcpy(dst, "{}\n", 4U);
+    if (truncated != 0) {
+        *truncated = 0;
+    }
+    return 1;
 }
 
 static void fill_string(char *value, size_t len, char byte) {
@@ -671,6 +799,7 @@ static void test_spop_duplicate_request_id_preserves_active_transaction(void) {
         (haproxy_modsecurity_transaction *)(uintptr_t)2U;
 
     memset(&state, 0, sizeof(state));
+    transaction_begin_calls = 0U;
     state.transaction_capacity = 2U;
     state.transactions = (transaction_slot *)calloc(state.transaction_capacity,
         sizeof(*state.transactions));
@@ -920,6 +1049,60 @@ static void test_spop_rejects_overflow_and_truncated_protocol_values(void) {
     free_notify_request(&request);
 }
 
+static void test_spop_typed_ip_arguments_are_canonical_and_bounded(void) {
+    static const unsigned char ipv4[] = {192U, 0U, 2U, 10U};
+    static const unsigned char ipv6[] = {0x20U, 0x01U, 0x0dU, 0xb8U,
+        0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 1U};
+    spop_buffer argument;
+    notify_request request;
+    size_t pos;
+
+    memset(&argument, 0, sizeof(argument));
+    assert(append_byte(&argument, SPOP_DATA_IPV4) == 0);
+    assert(append_bytes(&argument, ipv4, sizeof(ipv4), sizeof(ipv4)) == 0);
+    memset(&request, 0, sizeof(request));
+    pos = 0U;
+    assert(parse_notify_string_argument(&request,
+        (const unsigned char *)"client_ip", sizeof("client_ip") - 1U,
+        argument.data, argument.len, &pos) == 0);
+    assert(request.has_client_ip == 1);
+    assert(strcmp(request.client_ip, "192.0.2.10") == 0);
+    free_notify_request(&request);
+
+    memset(&argument, 0, sizeof(argument));
+    assert(append_byte(&argument, SPOP_DATA_IPV6) == 0);
+    assert(append_bytes(&argument, ipv6, sizeof(ipv6), sizeof(ipv6)) == 0);
+    memset(&request, 0, sizeof(request));
+    pos = 0U;
+    assert(parse_notify_string_argument(&request,
+        (const unsigned char *)"server_ip", sizeof("server_ip") - 1U,
+        argument.data, argument.len, &pos) == 0);
+    assert(request.has_server_ip == 1);
+    assert(strcmp(request.server_ip, "2001:db8::1") == 0);
+    free_notify_request(&request);
+
+    memset(&argument, 0, sizeof(argument));
+    assert(append_byte(&argument, SPOP_DATA_IPV4) == 0);
+    assert(append_bytes(&argument, ipv4, sizeof(ipv4), sizeof(ipv4) - 1U) == 0);
+    memset(&request, 0, sizeof(request));
+    pos = 0U;
+    assert(parse_notify_string_argument(&request,
+        (const unsigned char *)"client_ip", sizeof("client_ip") - 1U,
+        argument.data, argument.len, &pos) == -1);
+    assert(request.has_client_ip == 0);
+    free_notify_request(&request);
+
+    memset(&argument, 0, sizeof(argument));
+    assert(append_typed_string(&argument, "192.0.2.10") == 0);
+    memset(&request, 0, sizeof(request));
+    pos = 0U;
+    assert(parse_notify_string_argument(&request,
+        (const unsigned char *)"client_ip", sizeof("client_ip") - 1U,
+        argument.data, argument.len, &pos) == -1);
+    assert(request.has_client_ip == 0);
+    free_notify_request(&request);
+}
+
 static void test_spop_rejects_header_injection_and_invalid_names(void) {
     notify_request request;
 
@@ -941,6 +1124,120 @@ static int append_notify_message_start(spop_buffer *payload,
         const char *message_name, unsigned int argument_count) {
     return append_string(payload, message_name) != 0 ||
         append_byte(payload, argument_count) != 0 ? -1 : 0;
+}
+
+static void test_spop_typed_ip_payload_requires_exact_frame_consumption(void) {
+    static const unsigned char ipv4[] = {192U, 0U, 2U, 10U};
+    spop_buffer payload;
+    notify_request request;
+
+    memset(&payload, 0, sizeof(payload));
+    assert(append_notify_message_start(&payload, "check-request", 1U) == 0);
+    assert(append_string(&payload, "client_ip") == 0);
+    assert(append_byte(&payload, SPOP_DATA_IPV4) == 0);
+    assert(append_bytes(&payload, ipv4, sizeof(ipv4), sizeof(ipv4)) == 0);
+    memset(&request, 0, sizeof(request));
+    assert(parse_notify_payload(payload.data, payload.len, &request) == 0);
+    assert(request.has_client_ip == 1);
+    assert(strcmp(request.client_ip, "192.0.2.10") == 0);
+    free_notify_request(&request);
+
+    assert(append_byte(&payload, 0U) == 0);
+    memset(&request, 0, sizeof(request));
+    assert(parse_notify_payload(payload.data, payload.len, &request) == -1);
+    free_notify_request(&request);
+}
+
+static void test_spop_missing_endpoints_fail_closed_when_engine_is_open(void) {
+    agent_state state;
+    notify_request request;
+    haproxy_modsecurity_decision decision;
+    int modsec_processed = 0;
+    const char *decision_text = 0;
+    char response_handle[HAPROXY_SPOP_RESPONSE_COMPANION_HANDLE_STORAGE];
+
+    memset(&state, 0, sizeof(state));
+    config_init(&state.config);
+    copy_spop_string(state.config.fail_mode, sizeof(state.config.fail_mode),
+        (const unsigned char *)"open", sizeof("open") - 1U);
+    memset(&request, 0, sizeof(request));
+    request.has_method = 1;
+    request.has_path = 1;
+    request.has_uri = 1;
+    request.has_host = 1;
+    copy_spop_string(request.method, sizeof(request.method),
+        (const unsigned char *)"GET", sizeof("GET") - 1U);
+    copy_spop_string(request.path, sizeof(request.path),
+        (const unsigned char *)"/", sizeof("/") - 1U);
+    copy_spop_string(request.uri, sizeof(request.uri),
+        (const unsigned char *)"/", sizeof("/") - 1U);
+    copy_spop_string(request.host, sizeof(request.host),
+        (const unsigned char *)"example.test", sizeof("example.test") - 1U);
+    memset(&decision, 0, sizeof(decision));
+    memset(response_handle, 0, sizeof(response_handle));
+
+    process_production_request_notify(&state, &request, &decision,
+        &modsec_processed, &decision_text, response_handle);
+
+    assert(modsec_processed == 0);
+    assert(transaction_begin_calls == 0U);
+    assert(decision.disruptive == 1);
+    assert(decision.status == 503);
+    assert(strcmp(decision.action, "deny") == 0);
+    assert(strcmp(decision_text, "admission-failure") == 0);
+    free_notify_request(&request);
+}
+
+static void test_spop_missing_endpoints_bypass_queue_and_ack_deny(void) {
+    static const char *const fail_modes[] = {"open", "closed"};
+
+    for (size_t index = 0U;
+            index < sizeof(fail_modes) / sizeof(fail_modes[0]); ++index) {
+        int sockets[2] = {-1, -1};
+        agent_state state;
+        notify_request request;
+        spop_frame frame;
+        spop_frame ack;
+        spop_buffer ack_payload;
+
+        memset(&state, 0, sizeof(state));
+        config_init(&state.config);
+        copy_spop_string(state.config.fail_mode, sizeof(state.config.fail_mode),
+            (const unsigned char *)fail_modes[index], strlen(fail_modes[index]));
+        memset(&request, 0, sizeof(request));
+        request.has_method = 1;
+        request.has_path = 1;
+        request.has_uri = 1;
+        request.has_host = 1;
+        copy_spop_string(request.method, sizeof(request.method),
+            (const unsigned char *)"GET", sizeof("GET") - 1U);
+        copy_spop_string(request.path, sizeof(request.path),
+            (const unsigned char *)"/", sizeof("/") - 1U);
+        copy_spop_string(request.uri, sizeof(request.uri),
+            (const unsigned char *)"/", sizeof("/") - 1U);
+        copy_spop_string(request.host, sizeof(request.host),
+            (const unsigned char *)"example.test", sizeof("example.test") - 1U);
+        memset(&frame, 0, sizeof(frame));
+        frame.type = SPOP_FRM_NOTIFY;
+        frame.stream_id = 7U;
+        frame.frame_id = 11U;
+        transaction_begin_calls = 0U;
+        assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
+        assert(process_production_notify(sockets[0], &frame, &state, 0,
+            &request) == 0);
+        assert(recv_frame(sockets[1], &ack, SPOP_LEGACY_TIMEOUT_MS) == 0);
+        assert(ack.type == SPOP_FRM_ACK);
+        assert(ack.stream_id == frame.stream_id);
+        assert(ack.frame_id == frame.frame_id);
+        memset(&ack_payload, 0, sizeof(ack_payload));
+        ack_payload.len = ack.payload_len;
+        memcpy(ack_payload.data, ack.payload, ack.payload_len);
+        assert(payload_has_set_var_blocked_true(&ack_payload));
+        assert(transaction_begin_calls == 0U);
+        assert(close(sockets[0]) == 0);
+        assert(close(sockets[1]) == 0);
+        free_notify_request(&request);
+    }
 }
 
 static void test_spop_notify_message_and_argument_contract(void) {
@@ -1075,9 +1372,12 @@ static void test_spop_rejects_malformed_text_headers_and_bounds_count(void) {
 static void test_spop_frame_read_has_a_bounded_liveness_deadline(void) {
     int descriptors[2];
     unsigned char byte = 0U;
+    uint64_t deadline;
 
     assert(pipe(descriptors) == 0);
-    assert(read_full_timeout(descriptors[0], &byte, 1U, 20U) == -1);
+    deadline = monotonic_milliseconds();
+    assert(deadline > 0U);
+    assert(read_full_until(descriptors[0], &byte, 1U, deadline + 20U) == -1);
     close(descriptors[0]);
     close(descriptors[1]);
 }
@@ -1123,6 +1423,10 @@ int main(void) {
     test_notify_body_arguments_preserve_type_and_response_role();
     test_unknown_body_key_does_not_consume_or_mutate();
     test_spop_rejects_overflow_and_truncated_protocol_values();
+    test_spop_typed_ip_arguments_are_canonical_and_bounded();
+    test_spop_typed_ip_payload_requires_exact_frame_consumption();
+    test_spop_missing_endpoints_fail_closed_when_engine_is_open();
+    test_spop_missing_endpoints_bypass_queue_and_ack_deny();
     test_spop_rejects_header_injection_and_invalid_names();
     test_spop_notify_message_and_argument_contract();
     test_spop_rejects_response_arguments_on_request_messages();
@@ -1131,7 +1435,10 @@ int main(void) {
     test_spop_rejects_unenforced_timeout_and_worker_settings();
     return 0;
 }
-'''.replace("__RUNTIME_SOURCE__", runtime_source.as_posix())
+'''.replace("__RUNTIME_SOURCE__", runtime_source.as_posix()).replace(
+            "__TRANSACTION_STATE_SOURCE__",
+            (ROOT / "common" / "src" / "transaction_state.c").as_posix(),
+        )
         temporary_parent = os.environ.get("TMPDIR")
         with tempfile.TemporaryDirectory(
             prefix="haproxy-append-string-boundary-", dir=temporary_parent

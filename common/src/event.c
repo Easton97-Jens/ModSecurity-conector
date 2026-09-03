@@ -229,6 +229,31 @@ static void escape_field(const char *src, char *dst, size_t dst_size, int *trunc
     }
 }
 
+static int is_nonreversible_quic_connection_id(const char *value);
+static int is_bounded_transport_value(const char *value);
+
+static void sanitize_event_protocol_fields(
+    char *connection_id, const char *negotiated_protocol,
+    const char *downstream_protocol, const char *transport,
+    char *reset_by, char *reset_code, char *timeout_stage,
+    char *write_result, char *cleanup_reason, int *was_truncated) {
+    if ((strcmp(negotiated_protocol, "h3") == 0 ||
+            strcmp(downstream_protocol, "h3") == 0 ||
+            strcmp(transport, "quic_udp") == 0) &&
+        connection_id[0] != '\0' && !is_nonreversible_quic_connection_id(connection_id)) {
+        connection_id[0] = '\0';
+    }
+    if (!is_bounded_transport_value(reset_by) ||
+        !is_bounded_transport_value(reset_code) ||
+        !is_bounded_transport_value(timeout_stage) ||
+        !is_bounded_transport_value(write_result) ||
+        !is_bounded_transport_value(cleanup_reason)) {
+        reset_by[0] = '\0'; reset_code[0] = '\0'; timeout_stage[0] = '\0';
+        write_result[0] = '\0'; cleanup_reason[0] = '\0';
+        *was_truncated = 1;
+    }
+}
+
 /* Callers supply bounded JSON-escaped text produced by escape_field(). */
 static int append_escaped_protocol_string(
     char *dst,
@@ -673,13 +698,6 @@ int msconnector_event_write_json_ex(
         &was_truncated);
     escape_field(event->protocol.reset_code, reset_code, sizeof(reset_code),
         &was_truncated);
-    if ((strcmp(negotiated_protocol, "h3") == 0 ||
-            strcmp(downstream_protocol, "h3") == 0 ||
-            strcmp(transport, "quic_udp") == 0) &&
-        connection_id[0] != '\0' && !is_nonreversible_quic_connection_id(connection_id)) {
-        /* A raw QUIC CID is linkable transport data, not event metadata. */
-        connection_id[0] = '\0';
-    }
     escape_field(event->http.http_reason_phrase, http_reason_phrase, sizeof(http_reason_phrase), &was_truncated);
     escape_field(event->http.http_default_message, http_default_message, sizeof(http_default_message), &was_truncated);
     escape_field(event->decision.rule_id, rule_id, sizeof(rule_id), &was_truncated);
@@ -698,18 +716,9 @@ int msconnector_event_write_json_ex(
         &was_truncated);
     escape_field(event->flags.cleanup_reason, cleanup_reason,
         sizeof(cleanup_reason), &was_truncated);
-    if (!is_bounded_transport_value(reset_by) ||
-        !is_bounded_transport_value(reset_code) ||
-        !is_bounded_transport_value(timeout_stage) ||
-        !is_bounded_transport_value(write_result) ||
-        !is_bounded_transport_value(cleanup_reason)) {
-        reset_by[0] = '\0';
-        reset_code[0] = '\0';
-        timeout_stage[0] = '\0';
-        write_result[0] = '\0';
-        cleanup_reason[0] = '\0';
-        was_truncated = 1;
-    }
+    sanitize_event_protocol_fields(connection_id, negotiated_protocol,
+        downstream_protocol, transport, reset_by, reset_code, timeout_stage,
+        write_result, cleanup_reason, &was_truncated);
 
     {
         const char *safe_connection_id = connection_id;
