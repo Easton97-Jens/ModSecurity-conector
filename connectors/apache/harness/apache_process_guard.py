@@ -27,10 +27,26 @@ MAX_NET_LINE = 4096
 MAX_EVIDENCE_BYTES = 1024 * 1024
 TERM_TIMEOUT = 2.0
 KILL_TIMEOUT = 2.0
+RUNNER_DIRECTORY_ENV = "MSCONNECTOR_APACHE_GUARD_DIRECTORY"
+RUNNER_ARTIFACT_ROOT_ENV = "MSCONNECTOR_APACHE_GUARD_ARTIFACT_ROOT"
 
 
 class GuardError(RuntimeError):
     pass
+
+
+def _runner_configured_path(variable: str, capability: str) -> Path:
+    """Read a path capability selected by the Apache smoke runner.
+
+    The guard deliberately has no generic CLI root flag. Its root values are
+    trusted smoke-runner configuration, not an authentication mechanism for a
+    same-identity local caller; the guard still validates every resulting path
+    before runtime creation or guard-evidence access.
+    """
+    raw_path = os.environ.get(variable)
+    if not raw_path or "\x00" in raw_path:
+        raise GuardError(f"{capability} must be supplied by the Apache smoke runner")
+    return Path(raw_path)
 
 
 def _directory_open_flags() -> int:
@@ -587,7 +603,6 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="command", required=True)
     prepare = sub.add_parser("prepare-directory")
-    prepare.add_argument("--directory", type=Path, required=True)
     prepare.add_argument("--label", required=True)
     prepare.add_argument("--private", action="store_true")
     rec = sub.add_parser("record")
@@ -595,12 +610,10 @@ def main() -> int:
     rec.add_argument("--executable", required=True)
     rec.add_argument("--port", type=int, required=True)
     rec.add_argument("--output", type=Path, required=True)
-    rec.add_argument("--artifact-root", type=Path, required=True)
     for name in ("verify-running", "signal", "terminate", "verify-stopped", "verify-pid", "preflight"):
         command = sub.add_parser(name)
         if name not in ("preflight",):
             command.add_argument("--evidence", type=Path, required=True)
-            command.add_argument("--artifact-root", type=Path, required=True)
         command.add_argument("--pidfile")
         if name in ("signal", "terminate"):
             command.add_argument("--signal", type=int, default=int(signal.SIGTERM))
@@ -609,21 +622,63 @@ def main() -> int:
     args = parser.parse_args()
     try:
         if args.command == "prepare-directory":
-            prepare_runtime_directory(args.directory, args.label, args.private)
+            prepare_runtime_directory(
+                _runner_configured_path(RUNNER_DIRECTORY_ENV, "Apache runtime directory"),
+                args.label,
+                args.private,
+            )
         elif args.command == "record":
-            record(args.pid, args.executable, args.port, args.output, args.artifact_root)
+            record(
+                args.pid,
+                args.executable,
+                args.port,
+                args.output,
+                _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"),
+            )
         elif args.command == "verify-running":
-            verify_running(_load(args.evidence, args.artifact_root))
+            verify_running(
+                _load(
+                    args.evidence,
+                    _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"),
+                )
+            )
         elif args.command == "signal":
-            print(signal_verified(_load(args.evidence, args.artifact_root), args.signal))
+            print(
+                signal_verified(
+                    _load(
+                        args.evidence,
+                        _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"),
+                    ),
+                    args.signal,
+                )
+            )
         elif args.command == "terminate":
-            print(terminate_verified(_load(args.evidence, args.artifact_root)))
+            print(
+                terminate_verified(
+                    _load(
+                        args.evidence,
+                        _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"),
+                    )
+                )
+            )
         elif args.command == "verify-pid":
-            verify_pidfile(_load(args.evidence, args.artifact_root), args.pid)
+            verify_pidfile(
+                _load(
+                    args.evidence,
+                    _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"),
+                ),
+                args.pid,
+            )
         elif args.command == "preflight":
             preflight()
         else:
-            verify_stopped(_load(args.evidence, args.artifact_root), args.pidfile)
+            verify_stopped(
+                _load(
+                    args.evidence,
+                    _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"),
+                ),
+                args.pidfile,
+            )
     except GuardError as exc:
         print(f"apache_process_guard: blocked {exc}")
         return 77

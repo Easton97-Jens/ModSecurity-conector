@@ -109,7 +109,10 @@ class StockLifecycleHarnessContractTest(unittest.TestCase):
         self.assertIn('V6_RESULT=bounded-timeout-fallback', text)
         self.assertIn('v6_result=%s', text)
         self.assertIn('PYTHON_BINARY=$(readlink -f -- "$(command -v python3)")', text)
-        self.assertIn('"$PYTHON_BINARY" "$LIFECYCLE_PROBE" hold', text)
+        self.assertIn('MSCONNECTOR_LIGHTTPD_SESSION_PROFILE=stock-lifecycle-hold', text)
+        self.assertIn('MSCONNECTOR_LIGHTTPD_SESSION_EXECUTABLE="$PYTHON_BINARY"', text)
+        self.assertIn('MSCONNECTOR_LIGHTTPD_SESSION_RUNTIME_ROOT="$RUNTIME_ROOT"', text)
+        self.assertNotIn('"$PYTHON_BINARY" "$LIFECYCLE_PROBE" hold', text)
         self.assertIn('--backend-read-timeout "$BACKEND_READ_TIMEOUT"', text)
         self.assertIn('backend read timeout must be below the overall probe timeout', text)
         self.assertIn('read timeout on socket:', text)
@@ -197,7 +200,10 @@ class StockLifecycleHarnessContractTest(unittest.TestCase):
         text = HARNESS.read_text(encoding="utf-8")
         self.assertIn("SERVER_START_ATTEMPTED=0", text)
         cleanup_start = text.index("cleanup() {")
-        server_exec = text.index('"$HOST_BINARY" -D', cleanup_start)
+        server_exec = text.index(
+            "MSCONNECTOR_LIGHTTPD_SESSION_PROFILE=lighttpd-server",
+            cleanup_start,
+        )
         attempted = text.index("SERVER_START_ATTEMPTED=1", cleanup_start)
         self.assertLess(attempted, server_exec)
         self.assertGreater(attempted, cleanup_start)

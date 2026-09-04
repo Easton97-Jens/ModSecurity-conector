@@ -30,7 +30,11 @@ class ApacheSmokeCaseOutputRootTest(unittest.TestCase):
         source = HARNESS.read_text(encoding="utf-8")
         self.assertIn("prepare_runtime_directory() {", source)
         self.assertIn('"$PYTHON_BIN" "$APACHE_PROCESS_GUARD" prepare-directory', source)
+        self.assertIn('MSCONNECTOR_APACHE_GUARD_DIRECTORY="$directory"', source)
+        self.assertIn('export MSCONNECTOR_APACHE_GUARD_ARTIFACT_ROOT="$RUNTIME_ROOT"', source)
         self.assertIn("--private", source)
+        self.assertNotIn("--directory", source)
+        self.assertNotIn("--artifact-root", source)
         self.assertNotIn("mkdir -p", source)
         for invocation in (
             'prepare_runtime_directory "$RUNTIME_ROOT" "RUNTIME_ROOT" 1',

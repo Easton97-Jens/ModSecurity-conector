@@ -197,9 +197,12 @@ trap 'cleanup_on_signal HUP' HUP
 trap 'cleanup_on_signal INT' INT
 trap 'cleanup_on_signal TERM' TERM
 
+MSCONNECTOR_LIGHTTPD_SESSION_PROFILE=lighttpd-config-check \
+MSCONNECTOR_LIGHTTPD_SESSION_EXECUTABLE="$HOST_BINARY" \
+MSCONNECTOR_LIGHTTPD_SESSION_MODULE_DIR="$MODULE_DIR" \
+MSCONNECTOR_LIGHTTPD_SESSION_CONFIG="$RUNTIME_ROOT/lighttpd.conf" \
 python3 "$LINUX_GUARD" exec-session --file-limit-blocks 128 \
-    --session-record "$CONFIG_SESSION_RECORD" -- \
-    "$HOST_BINARY" -m "$MODULE_DIR" -tt -f "$RUNTIME_ROOT/lighttpd.conf" \
+    --session-record "$CONFIG_SESSION_RECORD" \
     >"$RUNTIME_ROOT/config-check.stdout" 2>"$RUNTIME_ROOT/config-check.stderr" &
 CONFIG_PID=$!
 CONFIG_SESSION=$CONFIG_PID
@@ -210,9 +213,12 @@ python3 "$LINUX_GUARD" assert-session-absent --session "$CONFIG_SESSION" \
     --wait-seconds "$CLEANUP_TIMEOUT" >/dev/null || fail "config-check session remained"
 
 SERVER_START_ATTEMPTED=1
+MSCONNECTOR_LIGHTTPD_SESSION_PROFILE=lighttpd-server \
+MSCONNECTOR_LIGHTTPD_SESSION_EXECUTABLE="$HOST_BINARY" \
+MSCONNECTOR_LIGHTTPD_SESSION_MODULE_DIR="$MODULE_DIR" \
+MSCONNECTOR_LIGHTTPD_SESSION_CONFIG="$RUNTIME_ROOT/lighttpd.conf" \
 python3 "$LINUX_GUARD" exec-session --file-limit-blocks 128 \
-    --session-record "$SERVER_SESSION_RECORD" -- \
-    "$HOST_BINARY" -D -m "$MODULE_DIR" -f "$RUNTIME_ROOT/lighttpd.conf" \
+    --session-record "$SERVER_SESSION_RECORD" \
     >"$RUNTIME_ROOT/host.stdout" 2>"$RUNTIME_ROOT/host.stderr" &
 SERVER_PID=$!
 SERVER_SESSION=$SERVER_PID
@@ -304,11 +310,17 @@ python3 "$BACKEND_PROBE" --frontend-port "$FRONTEND_PORT" --upstream-port "$UPST
 python3 "$LIFECYCLE_PROBE" parallel --frontend-port "$FRONTEND_PORT" \
     --runtime-root "$RUNTIME_ROOT" --receipt "$V9_RECEIPT" || fail "Stock bounded parallel probe failed"
 
+MSCONNECTOR_LIGHTTPD_SESSION_PROFILE=stock-lifecycle-hold \
+MSCONNECTOR_LIGHTTPD_SESSION_EXECUTABLE="$PYTHON_BINARY" \
+MSCONNECTOR_LIGHTTPD_SESSION_FRONTEND_PORT="$FRONTEND_PORT" \
+MSCONNECTOR_LIGHTTPD_SESSION_UPSTREAM_PORT="$UPSTREAM_PORT" \
+MSCONNECTOR_LIGHTTPD_SESSION_READY="$V10_READY" \
+MSCONNECTOR_LIGHTTPD_SESSION_RELEASE="$V10_RELEASE" \
+MSCONNECTOR_LIGHTTPD_SESSION_RUNTIME_ROOT="$RUNTIME_ROOT" \
+MSCONNECTOR_LIGHTTPD_SESSION_RECEIPT="$V10_RECEIPT" \
+MSCONNECTOR_LIGHTTPD_SESSION_TIMEOUT="$TIMEOUT" \
 python3 "$LINUX_GUARD" exec-session --file-limit-blocks 128 \
-    --session-record "$V10_PROBE_SESSION_RECORD" -- \
-    "$PYTHON_BINARY" "$LIFECYCLE_PROBE" hold --frontend-port "$FRONTEND_PORT" \
-    --upstream-port "$UPSTREAM_PORT" --ready "$V10_READY" --release "$V10_RELEASE" \
-    --runtime-root "$RUNTIME_ROOT" --receipt "$V10_RECEIPT" --timeout "$TIMEOUT" >"$RUNTIME_ROOT/v10-probe.stdout" 2>"$RUNTIME_ROOT/v10-probe.stderr" &
+    --session-record "$V10_PROBE_SESSION_RECORD" >"$RUNTIME_ROOT/v10-probe.stdout" 2>"$RUNTIME_ROOT/v10-probe.stderr" &
 V10_PROBE_PID=$!
 V10_PROBE_SESSION=$V10_PROBE_PID
 end=$(( $(date +%s) + CLEANUP_TIMEOUT ))
@@ -352,9 +364,12 @@ SERVER_SESSION=
 SERVER_START_TIME=
 SERVER_SESSION_RECORD=$RUNTIME_ROOT/server-session-restart.json
 SERVER_CLEANUP_RECEIPT=$RUNTIME_ROOT/server-cleanup-restart.json
+MSCONNECTOR_LIGHTTPD_SESSION_PROFILE=lighttpd-server \
+MSCONNECTOR_LIGHTTPD_SESSION_EXECUTABLE="$HOST_BINARY" \
+MSCONNECTOR_LIGHTTPD_SESSION_MODULE_DIR="$MODULE_DIR" \
+MSCONNECTOR_LIGHTTPD_SESSION_CONFIG="$RUNTIME_ROOT/lighttpd.conf" \
 python3 "$LINUX_GUARD" exec-session --file-limit-blocks 128 \
-    --session-record "$SERVER_SESSION_RECORD" -- \
-    "$HOST_BINARY" -D -m "$MODULE_DIR" -f "$RUNTIME_ROOT/lighttpd.conf" \
+    --session-record "$SERVER_SESSION_RECORD" \
     >"$RUNTIME_ROOT/host-restart.stdout" 2>"$RUNTIME_ROOT/host-restart.stderr" &
 SERVER_PID=$!
 SERVER_SESSION=$SERVER_PID

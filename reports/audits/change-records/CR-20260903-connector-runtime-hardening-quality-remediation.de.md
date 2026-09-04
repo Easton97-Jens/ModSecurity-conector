@@ -9,7 +9,7 @@
 | Change-ID | CR-20260903-connector-runtime-hardening-quality-remediation |
 | Datum (UTC) | 2026-09-03 |
 | Basis-Revision | 95bc04203455bc74a9cd18fafc6fb5848af2bbb2 (`origin/master`) |
-| Auslieferungsstatus | In Arbeit auf `codex/connector-runtime-hardening-20260824`; Draft PR [#346](https://github.com/Easton97-Jens/ModSecurity-conector/pull/346). Kein Remediation-Commit, Push-Ergebnis, Exact-Head-Hosted-Ergebnis oder Merge wird behauptet. |
+| Auslieferungsstatus | Der Remediation-Commit `d4f5674e8438d398696b1e92965d6e246618306f` ist auf `codex/connector-runtime-hardening-20260824` gepusht; Draft PR [#346](https://github.com/Easton97-Jens/ModSecurity-conector/pull/346) bleibt offen. Die GitHub-Actions-Prüfungen des Exact-Heads bestanden mit Ausnahme von SonarQube Cloud; die aktuelle Authority-Boundary-Folgekorrektur ist lokal validiert, aber noch nicht committet oder gepusht. Ein Merge wird nicht behauptet. |
 
 ## Motivation und Problemstellung
 
@@ -151,7 +151,8 @@ Bypass in der korrigierten Grenze.
   bestanden.
 - `rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v
   tests.test_bilingual_docs tests.test_connector_config_reference` — bestanden,
-  26 Tests. Das kombinierte fokussierte Connector-Set bestand 119 Tests.
+  26 Tests. Zum damaligen historischen Validierungszeitpunkt bestand das
+  kombinierte fokussierte Connector-Set 119 Tests.
 
 ## Runtime-Evidence
 
@@ -249,3 +250,80 @@ Gate den neuen Peer schließt und die Accept-Schleife fortsetzt; alle Slots
 können bis zu ihren begrenzten Peer-Deadlines weiterhin belegt sein, ein
 dokumentiertes deployment-abhängiges Restrisiko, das vor einer weiteren
 Klassifikation einen Real-Agent-Sättigungslauf benötigt.
+
+## Exact-Head-Sonar-Authority-Boundary-Follow-up — 2026-09-04
+
+Dieser Abschnitt ersetzt die früheren Aussagen zum noch ausstehenden
+Hosted-Status; diese früheren Aussagen bleiben historische Momentaufnahmen und
+sind kein aktueller Auslieferungsstatus. Für den exakten PR-Head
+`d4f5674e8438d398696b1e92965d6e246618306f` bestanden alle zurückgemeldeten
+GitHub-Actions-Prüfungen, einschließlich `bounded-c-cpp` und der fünf
+Connector-Runtime-Matrixzellen. Ausschließlich SonarQube Cloud schlug am
+Quality Gate mit `new_security_rating=3` (erforderlich `<=1`) und fünf offenen
+Vulnerabilities fehl: vier `pythonsecurity:S8707`-Findings im Apache-
+Process-Guard und ein `pythonsecurity:S8705`-Finding im lighttpd-Session-Guard.
+Der Duplikationswert betrug `2.3` und lag innerhalb seines konfigurierten
+Schwellwerts. Es wurden keine CI-Workflows, Rulesets, Branch-Regeln oder
+Required Checks geändert.
+
+Der Apache-Guard akzeptiert von einer direkten Ausführung keine generischen
+`--directory`- oder `--artifact-root`-Flags mehr. Der Smoke-Runner liefert
+diese Capabilities durch verpflichtende vertrauenswürdige runner-spezifische
+Konfiguration; die bestehenden descriptor-relativen, Ownership-, Mode-,
+Größen- und Cleanup-Kontrollen bleiben erhalten. Der lighttpd-Guard akzeptiert
+keinen `argparse.REMAINDER`-Befehl mehr. Er konstruiert nur vier typisierte
+Runner-Profile: `lighttpd-config-check`, `lighttpd-server`,
+`stock-lifecycle-hold` und begrenztes `sleep-duration`. Fehlende, unbekannte,
+zusätzliche oder widersprüchliche Profile-Werte schlagen vor `execv` fehl; das
+Stock-Profil verwendet den festen Lifecycle-Probe und seine feste Argumentform.
+
+Der finale lokale Kandidat bestand das folgende fokussierte
+Apache/lighttpd/HAProxy-Aggregat mit `116` Tests und die
+bilinguale/config-reference-Suite mit `26` Tests:
+
+```text
+rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v \
+  tests.test_apache_process_guard tests.test_apache_smoke_case_output_root \
+  connectors.lighttpd.tests.test_backend_close_harness_contract \
+  connectors.lighttpd.tests.test_stock_lifecycle_harness_contract \
+  tests.test_haproxy_spop_peer_isolation_contract \
+  tests.test_haproxy_spop_sigpipe_peer_isolation_contract
+```
+
+Auch Python-Kompilierung für die betroffenen Guards/Probes, `sh -n` für alle
+betroffenen Runner, `make check-common-helpers-c17` und `git diff --check`
+bestanden. Zwei unabhängige Post-Patch-Reviews der Authority-Boundary fanden
+weder einen direkten CLI-Bypass noch eine Runner-Contract-Regression. Die
+verbleibende Vertrauensgrenze sind Runner-Prozesskonfiguration und gewählte
+Host-Executables: Dies sind vertrauenswürdige Orchestrierungsinputs, kein
+Authentifizierungsmechanismus gegen einen gleichberechtigten lokalen Principal.
+Ein solcher Principal liegt außerhalb dieser lokalen Harness-Grenze.
+`FND-SONAR-0074` bleibt `in_progress`, bis ein normaler Follow-up-Push ein
+bestehendes SonarQube-Cloud-Ergebnis für seinen exakten PR-Head erzeugt.
+
+### lighttpd-Zombie-Cleanup-Follow-up
+
+Ein ursprüngliches Codex-Review-Finding blieb nach der früheren
+Zombie-State-Korrektur reproduzierbar: `terminate_registered_session()` behielt
+die rohe initiale Session-Mitgliedschaft für Audit-Zwecke und leitete danach
+`unexpected_members` fälschlich aus dieser rohen Liste ab. Ein bereits
+existierender Zombie ließ deshalb
+`cleanup-session --reject-unexpected-members` nach erfolgreicher aktiver
+Containment fehlschlagen. Der Guard behält rohe `initial_members` nun als
+Evidence, leitet unerwartete Mitglieder aber nur aus aktiven initialen
+Non-Leadern und verifizierten Non-Leader-TERM/KILL-Signalen ab. Nicht
+inspizierbarer State bleibt fail-closed; lebende initiale und spät geforkte
+Mitglieder bleiben unerwartet und erhalten die Reject-Kontrolle.
+
+Die Regression startet eine Task-Session mit einem bereits existierenden
+Zombie-Child, verlangt erfolgreiche Rückkehr von
+`cleanup-session --reject-unexpected-members` und beweist, dass der Zombie in
+`initial_members`, nicht aber in `unexpected_members` erhalten bleibt. Der Test
+wartet auf einen vollständigen Child-PID-Record und gibt dem Leader vor jeder
+Eskalation einen TERM-Reaping-Pfad. Ein Prozess, der zwischen
+Membership-Scan und `/proc`-State-Read verschwindet, ist nur bei `ENOENT` oder
+`ESRCH` benign; alle anderen Inspektionsfehler bleiben fail-closed. Die
+bestehenden Live-Child- und Late-Fork-Kontrollen bestanden ebenfalls. Die zwei
+lighttpd-Harness-Contract-Suites bestanden mit `65` Tests; Python-Kompilierung
+und `git diff --check` bestanden. Es wurden keine CI-Workflows, Rulesets,
+Branch-Regeln oder Required Checks geändert.

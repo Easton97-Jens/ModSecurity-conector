@@ -73,8 +73,20 @@ _ERROR_OVERFLOW = "additional task-guard errors suppressed"
 MIN_BACKEND_READ_TIMEOUT_SECONDS = 1
 MAX_BACKEND_READ_TIMEOUT_SECONDS = 30
 TRUSTED_RUNTIME_ROOT_ENV = "MSCONNECTOR_TRUSTED_RUNTIME_ROOT"
-MAX_EXECUTABLE_ARGUMENTS = 32
-MAX_EXECUTABLE_ARGUMENT_BYTES = 8192
+SESSION_ENV_PREFIX = "MSCONNECTOR_LIGHTTPD_SESSION_"
+SESSION_PROFILE_ENV = f"{SESSION_ENV_PREFIX}PROFILE"
+SESSION_EXECUTABLE_ENV = f"{SESSION_ENV_PREFIX}EXECUTABLE"
+SESSION_MODULE_DIR_ENV = f"{SESSION_ENV_PREFIX}MODULE_DIR"
+SESSION_CONFIG_ENV = f"{SESSION_ENV_PREFIX}CONFIG"
+SESSION_DURATION_ENV = f"{SESSION_ENV_PREFIX}DURATION"
+SESSION_FRONTEND_PORT_ENV = f"{SESSION_ENV_PREFIX}FRONTEND_PORT"
+SESSION_UPSTREAM_PORT_ENV = f"{SESSION_ENV_PREFIX}UPSTREAM_PORT"
+SESSION_READY_ENV = f"{SESSION_ENV_PREFIX}READY"
+SESSION_RELEASE_ENV = f"{SESSION_ENV_PREFIX}RELEASE"
+SESSION_RUNTIME_ROOT_ENV = f"{SESSION_ENV_PREFIX}RUNTIME_ROOT"
+SESSION_RECEIPT_ENV = f"{SESSION_ENV_PREFIX}RECEIPT"
+SESSION_TIMEOUT_ENV = f"{SESSION_ENV_PREFIX}TIMEOUT"
+MAX_SESSION_VALUE_BYTES = 8192
 
 
 def _trusted_runtime_root() -> Path:
@@ -534,10 +546,10 @@ def _process_state(pid: int) -> str | None:
     try:
         stat_data = _proc_stat_path(pid).read_text(encoding="ascii")
     except OSError as exc:
-        # Enumeration and the state read are separate operations.  ENOENT is
-        # the expected process-exit race; all other read failures remain
-        # fail-closed and are reported to the caller.
-        if exc.errno == errno.ENOENT:
+        # Enumeration and the state read are separate operations. ENOENT and
+        # ESRCH are the expected process-exit races; all other read failures
+        # remain fail-closed and are reported to the caller.
+        if exc.errno in (errno.ENOENT, errno.ESRCH):
             return None
         raise GuardFailure(
             f"cannot read /proc/{pid}/stat process state (errno={exc.errno} {exc.strerror})"
@@ -548,10 +560,12 @@ def _process_state(pid: int) -> str | None:
         raise GuardFailure(f"cannot parse /proc/{pid}/stat process state") from exc
 
 
-def _active_session_members(session_id: int) -> tuple[list[int], list[str]]:
-    members, errors = _scan_session_members(session_id)
+def _active_member_ids(member_pids: list[int]) -> tuple[list[int], list[str]]:
+    """Filter one membership snapshot to active PIDs without hiding errors."""
+
     active: list[int] = []
-    for member_pid in members:
+    errors: list[str] = []
+    for member_pid in member_pids:
         try:
             state = _process_state(member_pid)
         except GuardFailure as exc:
@@ -562,6 +576,29 @@ def _active_session_members(session_id: int) -> tuple[list[int], list[str]]:
         if state not in (None, "Z"):
             active.append(member_pid)
     return active, errors
+
+
+def _active_session_members(session_id: int) -> tuple[list[int], list[str]]:
+    members, errors = _scan_session_members(session_id)
+    active, state_errors = _active_member_ids(members)
+    _add_errors(errors, state_errors)
+    return active, errors
+
+
+def _append_unexpected_members(
+    destination: list[int],
+    additions: list[int],
+    leader_pid: int,
+    errors: list[str],
+) -> None:
+    """Record only active non-leader session members as cleanup surprises."""
+
+    _append_member_ids(
+        destination,
+        [member_pid for member_pid in additions if member_pid != leader_pid],
+        errors,
+        "bounded unexpected task-session member inventory limit exceeded",
+    )
 
 
 def _task_fd_entries(pid: int) -> list[Path]:
@@ -872,89 +909,148 @@ def _validated_executable(value: str) -> str:
     return str(executable)
 
 
-def _validated_command(executable: str, arguments: list[str]) -> list[str]:
-    """Allow only bounded, non-shell argument profiles for trusted hosts."""
+def _runner_session_value(variable: str) -> str:
+    """Read one bounded value from the harness-owned session profile."""
 
-    if len(arguments) > MAX_EXECUTABLE_ARGUMENTS:
-        raise GuardFailure("session command has too many arguments")
-    if any(
-        not isinstance(argument, str)
-        or not argument
-        or len(argument.encode("utf-8")) > MAX_EXECUTABLE_ARGUMENT_BYTES
-        or "\x00" in argument
-        for argument in arguments
+    value = os.environ.get(variable)
+    if not value or "\x00" in value:
+        raise GuardFailure(f"runner session configuration {variable} is required")
+    try:
+        encoded = value.encode("utf-8", errors="strict")
+    except UnicodeError as exc:
+        raise GuardFailure("runner session configuration is not valid UTF-8") from exc
+    if len(encoded) > MAX_SESSION_VALUE_BYTES:
+        raise GuardFailure("runner session configuration exceeds its bounded byte limit")
+    return value
+
+
+def _validated_module_directory(value: str) -> str:
+    directory = Path(value)
+    if not directory.is_absolute() or ".." in directory.parts or "." in directory.parts:
+        raise GuardFailure("lighttpd module directory is outside the trusted task boundary")
+    try:
+        resolved_directory = directory.resolve(strict=True)
+        metadata = os.lstat(directory)
+    except OSError as exc:
+        raise GuardFailure("lighttpd module directory cannot be inspected") from exc
+    if (
+        resolved_directory != directory
+        or stat.S_ISLNK(metadata.st_mode)
+        or not stat.S_ISDIR(metadata.st_mode)
+        or metadata.st_mode & 0o022
+        or metadata.st_uid != os.geteuid()
     ):
-        raise GuardFailure("session command contains an invalid argument")
-    basename = Path(executable).name
-    if basename.startswith("lighttpd"):
-        index = 0
-        while index < len(arguments):
-            option = arguments[index]
-            if option == "-D" or option == "-tt":
-                index += 1
-                continue
-            if option in ("-m", "-f") and index + 1 < len(arguments):
-                argument = Path(arguments[index + 1])
-                if not argument.is_absolute() or ".." in argument.parts:
-                    raise GuardFailure("lighttpd path argument is outside the trusted task boundary")
-                if option == "-f":
-                    _private_artifact_path(argument)
-                else:
-                    try:
-                        resolved_module_dir = argument.resolve(strict=True)
-                        module_mode = os.lstat(resolved_module_dir).st_mode
-                    except OSError as exc:
-                        raise GuardFailure("lighttpd module directory cannot be inspected") from exc
-                    if (
-                        resolved_module_dir != argument
-                        or not stat.S_ISDIR(module_mode)
-                        or module_mode & 0o022
-                        or os.stat(resolved_module_dir).st_uid != os.geteuid()
-                    ):
-                        raise GuardFailure("lighttpd module directory is not trusted")
-                index += 2
-                continue
-            raise GuardFailure("lighttpd command contains an unsupported argument")
-    elif basename.startswith("sleep"):
-        if len(arguments) != 1 or not arguments[0].isdigit() or int(arguments[0]) > 86400:
-            raise GuardFailure("sleep command requires one bounded duration")
-    elif basename.startswith("python"):
-        expected_probe = Path(__file__).resolve().with_name("lighttpd_stock_lifecycle_probe.py")
-        if len(arguments) < 2 or Path(arguments[0]).resolve() != expected_probe or arguments[1] != "hold":
-            raise GuardFailure("python session requires the trusted Stock lifecycle hold profile")
-        allowed = (
-            "--frontend-port",
-            "--upstream-port",
-            "--ready",
-            "--release",
-            "--runtime-root",
-            "--receipt",
-            "--timeout",
+        raise GuardFailure("lighttpd module directory is not trusted")
+    return str(directory)
+
+
+def _session_profile_environment(profile: str, required: tuple[str, ...]) -> None:
+    allowed = {SESSION_PROFILE_ENV, *required}
+    unexpected = sorted(
+        variable
+        for variable in os.environ
+        if variable.startswith(SESSION_ENV_PREFIX) and variable not in allowed
+    )
+    if unexpected:
+        raise GuardFailure(f"session profile {profile} has unsupported runner configuration")
+
+
+def _profile_executable(profile: str, expected_prefix: str) -> str:
+    executable = _validated_executable(_runner_session_value(SESSION_EXECUTABLE_ENV))
+    if not Path(executable).name.startswith(expected_prefix):
+        raise GuardFailure(f"session profile {profile} has an unexpected executable")
+    return executable
+
+
+def _profile_private_artifact(variable: str) -> str:
+    return str(_private_artifact_path(Path(_runner_session_value(variable))))
+
+
+def _profile_port(variable: str) -> str:
+    value = _runner_session_value(variable)
+    if not value.isdigit() or not 1024 <= int(value) <= 65535:
+        raise GuardFailure("python lifecycle port is outside the bounded range")
+    return value
+
+
+def _profile_timeout() -> str:
+    value = _runner_session_value(SESSION_TIMEOUT_ENV)
+    if not value.isdigit() or not 1 <= int(value) <= 30:
+        raise GuardFailure("python lifecycle timeout is outside the bounded range")
+    return value
+
+
+def _runner_session_command() -> list[str]:
+    """Construct the only argv forms a runner-owned session may execute.
+
+    `exec-session` intentionally has no positional command vector. A caller
+    must select one of these complete profiles and every profile value is
+    checked before the process boundary is reached.
+    """
+    profile = _runner_session_value(SESSION_PROFILE_ENV)
+    if profile == "lighttpd-config-check":
+        _session_profile_environment(profile, (SESSION_EXECUTABLE_ENV, SESSION_MODULE_DIR_ENV, SESSION_CONFIG_ENV))
+        executable = _profile_executable(profile, "lighttpd")
+        module_directory = _validated_module_directory(_runner_session_value(SESSION_MODULE_DIR_ENV))
+        config = _profile_private_artifact(SESSION_CONFIG_ENV)
+        return [executable, "-m", module_directory, "-tt", "-f", config]
+    if profile == "lighttpd-server":
+        _session_profile_environment(profile, (SESSION_EXECUTABLE_ENV, SESSION_MODULE_DIR_ENV, SESSION_CONFIG_ENV))
+        executable = _profile_executable(profile, "lighttpd")
+        module_directory = _validated_module_directory(_runner_session_value(SESSION_MODULE_DIR_ENV))
+        config = _profile_private_artifact(SESSION_CONFIG_ENV)
+        return [executable, "-D", "-m", module_directory, "-f", config]
+    if profile == "sleep-duration":
+        _session_profile_environment(profile, (SESSION_EXECUTABLE_ENV, SESSION_DURATION_ENV))
+        executable = _profile_executable(profile, "sleep")
+        duration = _runner_session_value(SESSION_DURATION_ENV)
+        if not duration.isdigit() or int(duration) > 86400:
+            raise GuardFailure("sleep session requires one bounded duration")
+        return [executable, duration]
+    if profile == "stock-lifecycle-hold":
+        required = (
+            SESSION_EXECUTABLE_ENV,
+            SESSION_FRONTEND_PORT_ENV,
+            SESSION_UPSTREAM_PORT_ENV,
+            SESSION_READY_ENV,
+            SESSION_RELEASE_ENV,
+            SESSION_RUNTIME_ROOT_ENV,
+            SESSION_RECEIPT_ENV,
+            SESSION_TIMEOUT_ENV,
         )
-        if len(arguments[2:]) != len(allowed) * 2 or tuple(arguments[2::2]) != allowed:
-            raise GuardFailure("python lifecycle profile contains unsupported arguments")
-        for option, value in zip(arguments[2::2], arguments[3::2]):
-            if option in ("--frontend-port", "--upstream-port"):
-                if not value.isdigit() or not 1024 <= int(value) <= 65535:
-                    raise GuardFailure("python lifecycle port is outside the bounded range")
-            elif option == "--timeout":
-                if not value.isdigit() or not 1 <= int(value) <= 30:
-                    raise GuardFailure("python lifecycle timeout is outside the bounded range")
-            elif option == "--runtime-root":
-                configured_root = os.environ.get(TRUSTED_RUNTIME_ROOT_ENV)
-                if not configured_root or Path(value) != Path(configured_root):
-                    raise GuardFailure("python lifecycle runtime root does not match the trusted root")
-            else:
-                _private_artifact_path(Path(value))
-    else:
-        raise GuardFailure("session executable is not in the approved command profile")
-    return [executable, *arguments]
+        _session_profile_environment(profile, required)
+        executable = _profile_executable(profile, "python")
+        runtime_root = _trusted_runtime_root()
+        configured_root = Path(_runner_session_value(SESSION_RUNTIME_ROOT_ENV))
+        if configured_root != runtime_root:
+            raise GuardFailure("python lifecycle runtime root does not match the trusted root")
+        expected_probe = Path(__file__).resolve().with_name("lighttpd_stock_lifecycle_probe.py")
+        return [
+            executable,
+            str(expected_probe),
+            "hold",
+            "--frontend-port",
+            _profile_port(SESSION_FRONTEND_PORT_ENV),
+            "--upstream-port",
+            _profile_port(SESSION_UPSTREAM_PORT_ENV),
+            "--ready",
+            _profile_private_artifact(SESSION_READY_ENV),
+            "--release",
+            _profile_private_artifact(SESSION_RELEASE_ENV),
+            "--runtime-root",
+            str(runtime_root),
+            "--receipt",
+            _profile_private_artifact(SESSION_RECEIPT_ENV),
+            "--timeout",
+            _profile_timeout(),
+        ]
+    raise GuardFailure("session profile is not approved")
 
 
-def exec_session(file_limit_blocks: int, command: list[str], session_record: Path | None = None) -> None:
-    if not command or not 1 <= file_limit_blocks <= 2048:
-        raise GuardFailure("session command or file limit is invalid")
-    command = _validated_command(_validated_executable(command[0]), command[1:])
+def exec_session(file_limit_blocks: int, session_record: Path | None = None) -> None:
+    if not 1 <= file_limit_blocks <= 2048:
+        raise GuardFailure("session file limit is invalid")
+    command = _runner_session_command()
     try:
         resource.setrlimit(resource.RLIMIT_FSIZE, (file_limit_blocks * 512, file_limit_blocks * 512))
         os.setsid()
@@ -1299,7 +1395,9 @@ def terminate_registered_session(
         raise GuardFailure("session cleanup timeout is outside the bounded range")
     session = _registered_session(session_record)
     initial_members, initial_errors = _scan_session_members(session.session_id)
+    initial_active_members, initial_state_errors = _active_member_ids(initial_members)
     observed_members: list[int] = []
+    unexpected_members: list[int] = []
     cleanup_errors: list[str] = []
     _append_member_ids(
         observed_members,
@@ -1308,6 +1406,13 @@ def terminate_registered_session(
         "bounded recorded task-member inventory limit exceeded",
     )
     _add_errors(cleanup_errors, initial_errors)
+    _add_errors(cleanup_errors, initial_state_errors)
+    _append_unexpected_members(
+        unexpected_members,
+        initial_active_members,
+        session.leader_pid,
+        cleanup_errors,
+    )
     excluded_pids: frozenset[int] = frozenset()
     leader_signal_allowed = True
     try:
@@ -1350,6 +1455,12 @@ def terminate_registered_session(
         cleanup_errors,
         "bounded recorded task-member inventory limit exceeded",
     )
+    _append_unexpected_members(
+        unexpected_members,
+        term_signaled,
+        session.leader_pid,
+        cleanup_errors,
+    )
     if leader_signal_allowed and session.leader_pid not in term_signaled:
         leader_signaled, leader_signal_errors = _signal_registered_leader_if_live(
             session,
@@ -1367,6 +1478,12 @@ def terminate_registered_session(
             leader_signaled,
             cleanup_errors,
             "bounded recorded task-member inventory limit exceeded",
+        )
+        _append_unexpected_members(
+            unexpected_members,
+            leader_signaled,
+            session.leader_pid,
+            cleanup_errors,
         )
         _add_errors(cleanup_errors, leader_signal_errors)
     term_stopped, term_wait_errors = _wait_for_no_active_session_members(
@@ -1391,6 +1508,12 @@ def terminate_registered_session(
             cleanup_errors,
             "bounded recorded task-member inventory limit exceeded",
         )
+        _append_unexpected_members(
+            unexpected_members,
+            kill_signaled,
+            session.leader_pid,
+            cleanup_errors,
+        )
         if leader_signal_allowed and session.leader_pid not in kill_signaled:
             leader_signaled, leader_signal_errors = _signal_registered_leader_if_live(
                 session,
@@ -1409,6 +1532,12 @@ def terminate_registered_session(
                 cleanup_errors,
                 "bounded recorded task-member inventory limit exceeded",
             )
+            _append_unexpected_members(
+                unexpected_members,
+                leader_signaled,
+                session.leader_pid,
+                cleanup_errors,
+            )
             _add_errors(cleanup_errors, leader_signal_errors)
     else:
         kill_stopped = True
@@ -1425,9 +1554,7 @@ def terminate_registered_session(
         "process_group": session.process_group,
         "session_id": session.session_id,
         "term_signaled": term_signaled,
-        "unexpected_members": sorted(
-            member_pid for member_pid in observed_members if member_pid != session.leader_pid
-        ),
+        "unexpected_members": sorted(unexpected_members),
     }
 
 
@@ -1600,7 +1727,6 @@ def main() -> int:
     executor = command.add_parser("exec-session")
     executor.add_argument("--file-limit-blocks", type=int, required=True)
     executor.add_argument("--session-record", type=Path)
-    executor.add_argument("exec_argv", nargs=argparse.REMAINDER)
     session = command.add_parser("assert-session")
     session.add_argument("--pid", type=int, required=True)
     session.add_argument("--start-time", required=True)
@@ -1659,9 +1785,7 @@ def main() -> int:
         elif args.command == "write-json":
             write_json(args.output, args.field)
         elif args.command == "exec-session":
-            if args.exec_argv and args.exec_argv[0] == "--":
-                args.exec_argv = args.exec_argv[1:]
-            exec_session(args.file_limit_blocks, args.exec_argv, args.session_record)
+            exec_session(args.file_limit_blocks, args.session_record)
         elif args.command == "assert-session":
             inventory = assert_singleton_session(args.pid, args.start_time, args.exe)
             if args.output is not None:

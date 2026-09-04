@@ -9,7 +9,7 @@
 | Change ID | CR-20260903-connector-runtime-hardening-quality-remediation |
 | Date (UTC) | 2026-09-03 |
 | Base revision | 95bc04203455bc74a9cd18fafc6fb5848af2bbb2 (`origin/master`) |
-| Delivery status | In progress on `codex/connector-runtime-hardening-20260824`; Draft PR [#346](https://github.com/Easton97-Jens/ModSecurity-conector/pull/346). No remediation commit, push result, exact-head hosted result, or merge is asserted. |
+| Delivery status | Remediation commit `d4f5674e8438d398696b1e92965d6e246618306f` is pushed on `codex/connector-runtime-hardening-20260824`; Draft PR [#346](https://github.com/Easton97-Jens/ModSecurity-conector/pull/346) remains open. The exact-head GitHub Actions checks succeeded except SonarQube Cloud; the current authority-boundary follow-up is locally validated but not yet committed or pushed. No merge is asserted. |
 
 ## Motivation and problem statement
 
@@ -145,7 +145,8 @@ re-review found no concrete remaining bypass in the corrected boundary.
 - `rtk proxy git diff --check` — passed at the final local validation point.
 - `rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v
   tests.test_bilingual_docs tests.test_connector_config_reference` — passed,
-  26 tests. The combined focused connector set passed 119 tests.
+  26 tests. At that historical validation point, the combined focused connector
+  set passed 119 tests.
 
 ## Runtime evidence
 
@@ -235,3 +236,75 @@ with `26` tests. The HAProxy revalidation confirms that a saturated gate closes 
 new peer and continues the accept loop; all slots can still be occupied until
 their bounded peer deadlines, a documented deployment-dependent residual that
 requires a real-agent saturation run before it can be classified further.
+
+## Exact-head Sonar authority-boundary follow-up — 2026-09-04
+
+This section supersedes the earlier pending-hosted-status statements above;
+those earlier statements remain historical snapshots rather than current
+delivery status.
+For exact PR head `d4f5674e8438d398696b1e92965d6e246618306f`, all returned
+GitHub Actions checks, including `bounded-c-cpp` and the five connector runtime
+matrix cells, succeeded. SonarQube Cloud alone failed the Quality Gate with
+`new_security_rating=3` (required `<=1`) and five open vulnerabilities: four
+`pythonsecurity:S8707` findings in the Apache process guard and one
+`pythonsecurity:S8705` finding in the lighttpd session guard. The duplication
+measure was `2.3`, within its configured threshold. No CI workflow, ruleset,
+branch rule, or required check was modified.
+
+The Apache guard no longer accepts generic `--directory` or `--artifact-root`
+flags from a direct invocation. The smoke runner supplies those capabilities
+through required trusted runner-scoped configuration; the existing
+descriptor-relative, ownership, mode, size-bound, and cleanup controls remain
+in force. The lighttpd guard no longer accepts an `argparse.REMAINDER` command.
+It constructs only four typed runner profiles: `lighttpd-config-check`,
+`lighttpd-server`, `stock-lifecycle-hold`, and bounded `sleep-duration`.
+Missing, unknown, additional, or conflicting profile values fail before
+`execv`; the Stock profile uses the fixed lifecycle probe and its fixed
+argument shape.
+
+The final local candidate passed the focused Apache/lighttpd/HAProxy aggregate
+below with `116` tests and the bilingual/config-reference suite with `26`
+tests:
+
+```text
+rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v \
+  tests.test_apache_process_guard tests.test_apache_smoke_case_output_root \
+  connectors.lighttpd.tests.test_backend_close_harness_contract \
+  connectors.lighttpd.tests.test_stock_lifecycle_harness_contract \
+  tests.test_haproxy_spop_peer_isolation_contract \
+  tests.test_haproxy_spop_sigpipe_peer_isolation_contract
+```
+
+Python compilation for the affected guards/probes, `sh -n` for all affected
+runners, `make check-common-helpers-c17`, and `git diff --check` also passed.
+Two independent post-patch authority-boundary reviews found no direct CLI
+bypass or runner-contract regression. The residual trust boundary is the
+runner process configuration and selected host executables: this is trusted
+orchestration input, not an authentication mechanism against a same-identity
+local principal. Such a principal is outside this local harness boundary.
+`FND-SONAR-0074` remains `in_progress` until a normal follow-up push produces
+a passing SonarQube Cloud result for its exact PR head.
+
+### lighttpd zombie-cleanup follow-up
+
+An original Codex review finding remained reproducible after the earlier
+zombie-state correction: `terminate_registered_session()` preserved raw initial
+session membership for audit, then incorrectly derived `unexpected_members`
+from that raw list. A pre-existing zombie therefore made
+`cleanup-session --reject-unexpected-members` fail after successful active
+containment. The guard now retains raw `initial_members` as evidence, but
+derives unexpected members from active initial non-leaders and verified
+non-leader TERM/KILL signals only. Uninspectable state remains fail-closed;
+live initial and late-forked members remain unexpected and keep the reject
+control effective.
+
+The regression launches a task session with a pre-existing zombie child,
+requires `cleanup-session --reject-unexpected-members` to return success, and
+proves that the zombie remains in `initial_members` but not in
+`unexpected_members`. The test waits for a complete child-PID record and gives
+the leader a TERM reaping path before any escalation. A process that disappears
+between membership scan and `/proc` state read is benign only for `ENOENT` or
+`ESRCH`; all other inspection failures remain fail-closed. The existing
+live-child and late-fork controls also passed. The two lighttpd harness contract
+suites passed with `65` tests; Python compilation and `git diff --check`
+passed. No CI workflow, ruleset, branch rule, or required check was changed.

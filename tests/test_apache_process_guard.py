@@ -6,6 +6,8 @@ import json
 import os
 from pathlib import Path
 import stat
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -258,6 +260,78 @@ class ApacheProcessGuardTest(unittest.TestCase):
         target.chmod(0o755)
         guard.prepare_runtime_directory(target, "test output root", False)
         self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o755)
+
+    def test_guard_cli_requires_runner_configuration_and_rejects_generic_path_flags(self) -> None:
+        script = str(Path(guard.__file__).resolve())
+        target = self.artifact_root / "runner-created"
+        environment = os.environ.copy()
+        environment.pop(guard.RUNNER_DIRECTORY_ENV, None)
+        environment.pop(guard.RUNNER_ARTIFACT_ROOT_ENV, None)
+
+        missing = subprocess.run(
+            [
+                sys.executable,
+                script,
+                "prepare-directory",
+                "--label",
+                "test runtime directory",
+                "--private",
+            ],
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(missing.returncode, 77)
+        self.assertIn("must be supplied by the Apache smoke runner", missing.stdout)
+        self.assertFalse(target.exists())
+
+        legacy = subprocess.run(
+            [
+                sys.executable,
+                script,
+                "prepare-directory",
+                "--directory",
+                str(target),
+                "--label",
+                "test runtime directory",
+                "--private",
+            ],
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(legacy.returncode, 2)
+        self.assertFalse(target.exists())
+
+        configured = environment.copy()
+        configured[guard.RUNNER_DIRECTORY_ENV] = str(target)
+        accepted = subprocess.run(
+            [
+                sys.executable,
+                script,
+                "prepare-directory",
+                "--label",
+                "test runtime directory",
+                "--private",
+            ],
+            env=configured,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(accepted.returncode, 0, accepted.stderr)
+        self.assertTrue(target.is_dir())
+
+        legacy_artifact_root = subprocess.run(
+            [sys.executable, script, "preflight", "--artifact-root", str(self.artifact_root)],
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(legacy_artifact_root.returncode, 2)
 
     def test_runtime_directory_rejects_foreign_owned_ancestor_metadata(self) -> None:
         metadata = mock.Mock(

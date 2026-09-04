@@ -86,8 +86,9 @@ prepare_runtime_directory() {
             return 77
             ;;
     esac
-    "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" prepare-directory \
-        --directory "$directory" --label "$label" "$@"
+    MSCONNECTOR_APACHE_GUARD_DIRECTORY="$directory" \
+        "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" prepare-directory \
+        --label "$label" "$@"
 }
 
 prepare_runtime_directory "$LOG_DIR" "LOG_DIR" 1
@@ -524,21 +525,21 @@ cleanup() {
     if [ -n "${HTTPD_GUARD_EVIDENCE:-}" ] && [ -f "$HTTPD_GUARD_EVIDENCE" ]; then
         if [ -n "${HTTPD_PID:-}" ] && kill -0 "$HTTPD_PID" >/dev/null 2>&1; then
             "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" verify-running \
-                --artifact-root "$APACHE_GUARD_ARTIFACT_ROOT" --evidence "$HTTPD_GUARD_EVIDENCE" >/dev/null 2>&1 || cleanup_rc=77
+                --evidence "$HTTPD_GUARD_EVIDENCE" >/dev/null 2>&1 || cleanup_rc=77
             if [ "$cleanup_rc" -eq 0 ]; then
                 "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" terminate \
-                    --artifact-root "$APACHE_GUARD_ARTIFACT_ROOT" --evidence "$HTTPD_GUARD_EVIDENCE" >/dev/null 2>&1 || cleanup_rc=77
+                    --evidence "$HTTPD_GUARD_EVIDENCE" >/dev/null 2>&1 || cleanup_rc=77
             fi
         fi
         if [ -n "${HTTPD_PID:-}" ]; then
             wait "$HTTPD_PID" >/dev/null 2>&1 || true
         fi
         "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" verify-stopped \
-            --artifact-root "$APACHE_GUARD_ARTIFACT_ROOT" --evidence "$HTTPD_GUARD_EVIDENCE" >/dev/null 2>&1 || cleanup_rc=77
+            --evidence "$HTTPD_GUARD_EVIDENCE" >/dev/null 2>&1 || cleanup_rc=77
         if [ "$cleanup_rc" -eq 0 ] && [ -n "${RUNTIME_PID_FILE:-}" ]; then
             rm -f "$RUNTIME_PID_FILE"
             "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" verify-stopped \
-                --artifact-root "$APACHE_GUARD_ARTIFACT_ROOT" --evidence "$HTTPD_GUARD_EVIDENCE" --pidfile "$RUNTIME_PID_FILE" \
+                --evidence "$HTTPD_GUARD_EVIDENCE" --pidfile "$RUNTIME_PID_FILE" \
                 >/dev/null 2>&1 || cleanup_rc=77
         fi
     elif [ -n "${HTTPD_PID:-}" ]; then
@@ -940,18 +941,18 @@ stop_stale_runtime_pid() {
     stale_guard="$RUNTIME_ROOT/run/httpd-ownership.json"
     [ -f "$stale_guard" ] || blocked "runtime pid file has no verified Apache ownership evidence"
     "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" verify-pid \
-        --artifact-root "$APACHE_GUARD_ARTIFACT_ROOT" --evidence "$stale_guard" --pid "$stale_pid" >/dev/null || \
+        --evidence "$stale_guard" --pid "$stale_pid" >/dev/null || \
         blocked "runtime pid file PID does not match verified Apache evidence"
     echo "apache_smoke: stopping stale verified runtime process pid=$stale_pid"
     if ! "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" terminate \
-        --artifact-root "$APACHE_GUARD_ARTIFACT_ROOT" --evidence "$stale_guard" >/dev/null; then
+        --evidence "$stale_guard" >/dev/null; then
         "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" verify-stopped \
-            --artifact-root "$APACHE_GUARD_ARTIFACT_ROOT" --evidence "$stale_guard" >/dev/null || \
+            --evidence "$stale_guard" >/dev/null || \
             blocked "stale runtime process identity or listener ownership changed"
     fi
     rm -f "$pid_file"
     "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" verify-stopped \
-        --artifact-root "$APACHE_GUARD_ARTIFACT_ROOT" --evidence "$stale_guard" --pidfile "$pid_file" >/dev/null || \
+        --evidence "$stale_guard" --pidfile "$pid_file" >/dev/null || \
         blocked "stale Apache listener cleanup could not be proven"
 }
 
@@ -959,7 +960,7 @@ retire_stale_guard_evidence() {
     stale_guard="$RUNTIME_ROOT/run/httpd-ownership.json"
     [ -f "$stale_guard" ] || return 0
     "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" verify-stopped \
-        --artifact-root "$APACHE_GUARD_ARTIFACT_ROOT" --evidence "$stale_guard" >/dev/null || \
+        --evidence "$stale_guard" >/dev/null || \
         blocked "stale Apache ownership evidence cannot be retired safely"
     rm -f "$stale_guard"
 }
@@ -1003,7 +1004,7 @@ start_server() {
                 HTTPD_GUARD_EVIDENCE="$RUNTIME_ROOT/run/httpd-ownership.json"
                 "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" record \
                     --pid "$HTTPD_PID" --executable "$APACHE_HTTPD_BIN" \
-                    --port "$PORT" --artifact-root "$APACHE_GUARD_ARTIFACT_ROOT" --output "$HTTPD_GUARD_EVIDENCE" >/dev/null || \
+                    --port "$PORT" --output "$HTTPD_GUARD_EVIDENCE" >/dev/null || \
                     blocked "Apache listener ownership could not be proven"
                 return 0
             fi
@@ -1043,7 +1044,7 @@ start_server() {
             HTTPD_GUARD_EVIDENCE="$RUNTIME_ROOT/run/httpd-ownership.json"
             "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" record \
                 --pid "$HTTPD_PID" --executable "$APACHE_HTTPD_BIN" \
-                --port "$PORT" --artifact-root "$APACHE_GUARD_ARTIFACT_ROOT" --output "$HTTPD_GUARD_EVIDENCE" >/dev/null || \
+                --port "$PORT" --output "$HTTPD_GUARD_EVIDENCE" >/dev/null || \
                 blocked "Apache listener ownership could not be proven"
             return 0
         fi
@@ -2330,7 +2331,7 @@ case_name=$(basename "$TEST_CASE" .yaml)
 if [ -z "$RUNTIME_ROOT" ]; then
     RUNTIME_ROOT="$RUNTIME_BASE/$case_name"
 fi
-APACHE_GUARD_ARTIFACT_ROOT="$RUNTIME_ROOT"
+export MSCONNECTOR_APACHE_GUARD_ARTIFACT_ROOT="$RUNTIME_ROOT"
 STATUS_FILE="$LOG_DIR/status.txt"
 
 echo "apache_smoke: BUILD_ROOT=$BUILD_ROOT"

@@ -58,6 +58,8 @@ done
 HOST_BINARY=$(readlink -f -- "$HOST_BINARY")
 MODULE_PATH=$(readlink -f -- "$MODULE_PATH")
 RULES_FILE=$(readlink -f -- "$RULES_FILE")
+MODULE_DIR=$(CDPATH='' cd "$(dirname "$MODULE_PATH")" && pwd -P) || \
+    blocked "resolved module directory is unavailable"
 [ -f "$HOST_BINARY" ] && [ -x "$HOST_BINARY" ] || blocked "resolved host binary must be an executable regular file: $HOST_BINARY"
 [ "$(basename "$MODULE_PATH")" = mod_msconnector.so ] || blocked "module basename must be mod_msconnector.so"
 [ -f "$MODULE_PATH" ] && [ -f "$RULES_FILE" ] || blocked "resolved module/rules is not a regular file"
@@ -296,9 +298,12 @@ trap 'cleanup_on_signal INT' INT
 trap 'cleanup_on_signal TERM' TERM
 
 assert_static_provenance "before config check"
+MSCONNECTOR_LIGHTTPD_SESSION_PROFILE=lighttpd-config-check \
+MSCONNECTOR_LIGHTTPD_SESSION_EXECUTABLE="$HOST_BINARY" \
+MSCONNECTOR_LIGHTTPD_SESSION_MODULE_DIR="$MODULE_DIR" \
+MSCONNECTOR_LIGHTTPD_SESSION_CONFIG="$LIGHTTPD_CONFIG" \
 python3 "$LINUX_GUARD" exec-session --file-limit-blocks "$LOG_FILE_BLOCKS" \
-    --session-record "$CONFIG_SESSION_RECORD" -- \
-    "$HOST_BINARY" -m "$(dirname "$MODULE_PATH")" -tt -f "$LIGHTTPD_CONFIG" \
+    --session-record "$CONFIG_SESSION_RECORD" \
     >"$RUNTIME_ROOT/config-check.stdout" 2>"$RUNTIME_ROOT/config-check.stderr" &
 CONFIG_PID=$!
 CONFIG_START_TIME=$(proc_start_time "$CONFIG_PID" 2>/dev/null || true)
@@ -318,9 +323,12 @@ assert_static_provenance "after config check"
 write_provenance "$PROVENANCE_CONFIGCHECK_AFTER" after-configcheck
 
 assert_static_provenance "before host startup"
+MSCONNECTOR_LIGHTTPD_SESSION_PROFILE=lighttpd-server \
+MSCONNECTOR_LIGHTTPD_SESSION_EXECUTABLE="$HOST_BINARY" \
+MSCONNECTOR_LIGHTTPD_SESSION_MODULE_DIR="$MODULE_DIR" \
+MSCONNECTOR_LIGHTTPD_SESSION_CONFIG="$LIGHTTPD_CONFIG" \
 python3 "$LINUX_GUARD" exec-session --file-limit-blocks "$LOG_FILE_BLOCKS" \
-    --session-record "$SERVER_SESSION_RECORD" -- \
-    "$HOST_BINARY" -D -m "$(dirname "$MODULE_PATH")" -f "$LIGHTTPD_CONFIG" \
+    --session-record "$SERVER_SESSION_RECORD" \
     >"$RUNTIME_ROOT/host.stdout" 2>"$RUNTIME_ROOT/host.stderr" &
 SERVER_PID=$!
 SERVER_START_TIME=$(proc_start_time "$SERVER_PID" 2>/dev/null || true)

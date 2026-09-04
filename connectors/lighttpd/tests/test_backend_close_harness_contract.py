@@ -36,6 +36,22 @@ HOST_TRANSACTION_ID = "lighttpd-60-3"
 PROC_TCP_HEADER = "sl local_address rem_address st tx_queue rx_queue tr tm->when retrnsmt uid timeout inode\n"
 
 
+def _sleep_session_environment(duration: str = "30") -> dict[str, str]:
+    environment = {
+        name: value
+        for name, value in os.environ.items()
+        if not name.startswith(GUARD_MODULE.SESSION_ENV_PREFIX)
+    }
+    environment.update(
+        {
+            GUARD_MODULE.SESSION_PROFILE_ENV: "sleep-duration",
+            GUARD_MODULE.SESSION_EXECUTABLE_ENV: os.path.realpath("/usr/bin/sleep"),
+            GUARD_MODULE.SESSION_DURATION_ENV: duration,
+        }
+    )
+    return environment
+
+
 class BackendCloseHarnessContractTest(unittest.TestCase):
     def test_receipt_write_is_confined_to_private_root_and_rejects_symlinks(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -213,6 +229,10 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
             text.index('assert_host_identity "$SESSION_PRE_CLEANUP"'),
         )
         self.assertEqual(text.count("exec-session --file-limit-blocks"), 2)
+        self.assertIn("MSCONNECTOR_LIGHTTPD_SESSION_PROFILE=lighttpd-config-check", text)
+        self.assertIn("MSCONNECTOR_LIGHTTPD_SESSION_PROFILE=lighttpd-server", text)
+        self.assertNotIn("exec_argv", guard_text)
+        self.assertNotIn("argparse.REMAINDER", guard_text)
         pidfd_preflight_index = text.index('python3 "$LINUX_GUARD" check-pidfd')
         first_exec_session_index = text.index('python3 "$LINUX_GUARD" exec-session')
         self.assertLess(pidfd_preflight_index, first_exec_session_index)
@@ -857,12 +877,13 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
                 GUARD_MODULE._listen_table_inodes(tcp_table, "753B", None, "synthetic /proc/net/tcp")
 
     def test_linux_guard_process_state_classifies_only_disappearance_as_benign(self):
-        with patch.object(
-            GUARD_MODULE.Path,
-            "read_text",
-            side_effect=OSError(errno.ENOENT, "synthetic disappeared"),
-        ):
-            self.assertIsNone(GUARD_MODULE._process_state(42))
+        for disappearance_errno in (errno.ENOENT, errno.ESRCH):
+            with self.subTest(disappearance_errno=disappearance_errno), patch.object(
+                GUARD_MODULE.Path,
+                "read_text",
+                side_effect=OSError(disappearance_errno, "synthetic disappeared"),
+            ):
+                self.assertIsNone(GUARD_MODULE._process_state(42))
         with patch.object(
             GUARD_MODULE.Path,
             "read_text",
@@ -1623,17 +1644,82 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
                 with self.assertRaises(GUARD_MODULE.GuardFailure):
                     GUARD_MODULE.assert_no_unix_sockets(outside)
 
-    def test_linux_guard_exec_session_rejects_unapproved_argument_profiles(self):
-        executable = os.path.realpath("/usr/bin/sleep")
-        with self.assertRaisesRegex(GUARD_MODULE.GuardFailure, "one bounded duration"):
-            GUARD_MODULE._validated_command(executable, ["30", "--help"])
-        with self.assertRaisesRegex(GUARD_MODULE.GuardFailure, "approved command profile"):
-            GUARD_MODULE._validated_command(os.path.realpath("/bin/true"), [])
-        with self.assertRaisesRegex(GUARD_MODULE.GuardFailure, "unsupported argument"):
-            GUARD_MODULE._validated_command(os.path.realpath("/usr/sbin/lighttpd"), ["--config"])
+    def test_linux_guard_exec_session_uses_fixed_runner_profiles(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = pathlib.Path(temporary_directory) / "runtime"
+            root.mkdir(mode=0o700)
+            module_directory = root / "modules"
+            module_directory.mkdir(mode=0o700)
+            config = root / "lighttpd.conf"
+            config.write_text("server.modules = ()\n", encoding="utf-8")
+            config.chmod(0o600)
+            lighttpd = root / "lighttpd-test"
+            lighttpd.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            lighttpd.chmod(0o700)
+            python = root / "python-test"
+            python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            python.chmod(0o700)
 
-    def test_linux_guard_exec_session_is_a_singleton_process_group(self):
-        child = subprocess.Popen(
+            config_check_environment = {
+                GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV: str(root),
+                GUARD_MODULE.SESSION_PROFILE_ENV: "lighttpd-config-check",
+                GUARD_MODULE.SESSION_EXECUTABLE_ENV: str(lighttpd),
+                GUARD_MODULE.SESSION_MODULE_DIR_ENV: str(module_directory),
+                GUARD_MODULE.SESSION_CONFIG_ENV: str(config),
+            }
+            with patch.dict(os.environ, config_check_environment, clear=True):
+                self.assertEqual(
+                    GUARD_MODULE._runner_session_command(),
+                    [str(lighttpd), "-m", str(module_directory), "-tt", "-f", str(config)],
+                )
+
+            server_environment = dict(config_check_environment)
+            server_environment[GUARD_MODULE.SESSION_PROFILE_ENV] = "lighttpd-server"
+            with patch.dict(os.environ, server_environment, clear=True):
+                self.assertEqual(
+                    GUARD_MODULE._runner_session_command(),
+                    [str(lighttpd), "-D", "-m", str(module_directory), "-f", str(config)],
+                )
+
+            ready = root / "ready"
+            release = root / "release"
+            receipt = root / "receipt.json"
+            stock_environment = {
+                GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV: str(root),
+                GUARD_MODULE.SESSION_PROFILE_ENV: "stock-lifecycle-hold",
+                GUARD_MODULE.SESSION_EXECUTABLE_ENV: str(python),
+                GUARD_MODULE.SESSION_FRONTEND_PORT_ENV: "18080",
+                GUARD_MODULE.SESSION_UPSTREAM_PORT_ENV: "18081",
+                GUARD_MODULE.SESSION_READY_ENV: str(ready),
+                GUARD_MODULE.SESSION_RELEASE_ENV: str(release),
+                GUARD_MODULE.SESSION_RUNTIME_ROOT_ENV: str(root),
+                GUARD_MODULE.SESSION_RECEIPT_ENV: str(receipt),
+                GUARD_MODULE.SESSION_TIMEOUT_ENV: "5",
+            }
+            with patch.dict(os.environ, stock_environment, clear=True):
+                command = GUARD_MODULE._runner_session_command()
+            self.assertEqual(command[0], str(python))
+            self.assertEqual(command[1:3], [str(GUARD.resolve().with_name("lighttpd_stock_lifecycle_probe.py")), "hold"])
+            self.assertEqual(command[3::2], ["--frontend-port", "--upstream-port", "--ready", "--release", "--runtime-root", "--receipt", "--timeout"])
+
+            invalid = dict(config_check_environment)
+            invalid[GUARD_MODULE.SESSION_DURATION_ENV] = "30"
+            with patch.dict(os.environ, invalid, clear=True), self.assertRaisesRegex(
+                GUARD_MODULE.GuardFailure, "unsupported runner configuration"
+            ):
+                GUARD_MODULE._runner_session_command()
+            with patch.dict(
+                os.environ,
+                {GUARD_MODULE.SESSION_PROFILE_ENV: "unapproved"},
+                clear=True,
+            ), self.assertRaisesRegex(GUARD_MODULE.GuardFailure, "not approved"):
+                GUARD_MODULE._runner_session_command()
+            with patch.dict(os.environ, {}, clear=True), self.assertRaisesRegex(
+                GUARD_MODULE.GuardFailure, "is required"
+            ):
+                GUARD_MODULE._runner_session_command()
+
+        legacy = subprocess.run(
             [
                 sys.executable,
                 str(GUARD),
@@ -1643,7 +1729,24 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
                 "--",
                 os.path.realpath("/usr/bin/sleep"),
                 "30",
-            ]
+            ],
+            env=_sleep_session_environment(),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(legacy.returncode, 2)
+
+    def test_linux_guard_exec_session_is_a_singleton_process_group(self):
+        child = subprocess.Popen(
+            [
+                sys.executable,
+                str(GUARD),
+                "exec-session",
+                "--file-limit-blocks",
+                "16",
+            ],
+            env=_sleep_session_environment(),
         )
         try:
             deadline = time.monotonic() + 2
@@ -1690,6 +1793,8 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
             self.addCleanup(os.environ.pop, GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV, None)
             record = root / "session-registration.json"
             executable = os.path.realpath("/usr/bin/sleep")
+            environment = _sleep_session_environment()
+            environment[GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV] = str(root)
             child = subprocess.Popen(
                 [
                     sys.executable,
@@ -1699,10 +1804,8 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
                     "16",
                     "--session-record",
                     str(record),
-                    "--",
-                    executable,
-                    "30",
-                ]
+                ],
+                env=environment,
             )
             original_registration = None
             try:
@@ -1990,6 +2093,116 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
                         pass
                 if leader.stdout is not None:
                     leader.stdout.close()
+                if leader.stderr is not None:
+                    leader.stderr.close()
+
+    def test_linux_guard_cleanup_ignores_preexisting_zombie_member(self):
+        """A zombie is retained as evidence but cannot fail active cleanup."""
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = pathlib.Path(temporary_directory) / "runtime"
+            root.mkdir(mode=0o700)
+            record = root / "session-registration.json"
+            child_file = root / "zombie-child.pid"
+            zombie_program = (
+                "import json, os, pathlib, signal, sys, time\n"
+                "record = pathlib.Path(sys.argv[1])\n"
+                "child_file = pathlib.Path(sys.argv[2])\n"
+                "stat_data = pathlib.Path(f'/proc/{os.getpid()}/stat').read_text()\n"
+                "start_time = stat_data.rsplit(')', 1)[1].split()[19]\n"
+                "record.write_text(json.dumps({'leader_pid': os.getpid(), 'leader_start_time': start_time, 'process_group': os.getpid(), 'session_id': os.getpid()}) + '\\n')\n"
+                "os.chmod(record, 0o600)\n"
+                "child = -1\n"
+                "def reap_and_exit(_signal, _frame):\n"
+                "    if child > 0:\n"
+                "        while True:\n"
+                "            try:\n"
+                "                os.waitpid(child, 0)\n"
+                "                break\n"
+                "            except InterruptedError:\n"
+                "                continue\n"
+                "            except ChildProcessError:\n"
+                "                break\n"
+                "    os._exit(0)\n"
+                "signal.signal(signal.SIGTERM, reap_and_exit)\n"
+                "child = os.fork()\n"
+                "if child:\n"
+                "    child_file.write_text(str(child), encoding='ascii')\n"
+                "    while True:\n"
+                "        time.sleep(1)\n"
+                "os._exit(0)\n"
+            )
+            leader = subprocess.Popen(
+                [sys.executable, "-c", zombie_program, str(record), str(child_file)],
+                start_new_session=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            child_pid = None
+            session_id = None
+            try:
+                deadline = time.monotonic() + 2
+                child_pid_text = ""
+                while time.monotonic() < deadline:
+                    if record.is_file() and child_file.is_file():
+                        try:
+                            child_pid_text = child_file.read_text(encoding="ascii").strip()
+                        except OSError:
+                            child_pid_text = ""
+                        if child_pid_text.isdigit():
+                            break
+                    time.sleep(0.01)
+                self.assertTrue(record.is_file(), "zombie leader did not register its session")
+                self.assertTrue(child_file.is_file(), "zombie leader did not report its child")
+                self.assertTrue(child_pid_text.isdigit(), "zombie child PID was not written completely")
+                child_pid = int(child_pid_text)
+                registration = json.loads(record.read_text(encoding="utf-8"))
+                session_id = registration["session_id"]
+                deadline = time.monotonic() + 2
+                while time.monotonic() < deadline:
+                    if GUARD_MODULE._process_state(child_pid) == "Z":
+                        break
+                    time.sleep(0.01)
+                self.assertEqual(GUARD_MODULE._process_state(child_pid), "Z")
+
+                cleanup_receipt = root / "cleanup-receipt.json"
+                cleanup_environment = os.environ.copy()
+                cleanup_environment[GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV] = str(root)
+                cleanup = subprocess.run(
+                    [
+                        sys.executable,
+                        str(GUARD),
+                        "cleanup-session",
+                        "--session-record",
+                        str(record),
+                        "--leader-exe",
+                        os.path.realpath(sys.executable),
+                        "--timeout-seconds",
+                        "0.5",
+                        "--output",
+                        str(cleanup_receipt),
+                        "--reject-unexpected-members",
+                    ],
+                    env=cleanup_environment,
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
+                )
+                self.assertEqual(cleanup.returncode, 0, cleanup.stderr)
+                inventory = json.loads(cleanup_receipt.read_text(encoding="utf-8"))
+                self.assertIn(child_pid, inventory["initial_members"])
+                self.assertEqual(inventory["unexpected_members"], [])
+                self.assertEqual(leader.wait(timeout=2), 0)
+                GUARD_MODULE.assert_session_absent(session_id, 2)
+            finally:
+                if leader.poll() is None:
+                    leader.terminate()
+                    try:
+                        leader.wait(timeout=2)
+                    except subprocess.TimeoutExpired:
+                        leader.kill()
+                        leader.wait(timeout=2)
                 if leader.stderr is not None:
                     leader.stderr.close()
 
