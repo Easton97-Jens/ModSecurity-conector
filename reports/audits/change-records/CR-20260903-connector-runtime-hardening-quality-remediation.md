@@ -73,14 +73,16 @@ passed. The final independent review then found three active Envoy service
 configurations missing the new mandatory stream lifetime; all were corrected.
 A later independent HAProxy boundary review found the response-phase,
 detect-only protocol-error, and saturated-admission gaps addressed above. The
-subsequent fresh combined-diff review found no concrete medium- or high-severity
-security or integrity issue; it specifically reviewed the Envoy post-send
-evidence boundary and Common lossless serialization/integrity-chain paths.
+earlier combined-diff review is retained as historical evidence. A later
+two-stage Apache/lighttpd boundary review found, then verified the correction
+of, FIFO-before-type-check, directory-creation and artifact-parent TOCTOU,
+bounded cleanup-tree, and JSON-receipt resource-limit defects. Its final
+re-review found no concrete remaining bypass in the corrected boundary.
 
 ## Changed files
 
-- `connectors/apache/harness/apache_process_guard.py` and
-  `tests/test_apache_process_guard.py`
+- `connectors/apache/harness/apache_process_guard.py`,
+  `connectors/apache/harness/run_apache_smoke.sh`, and their focused tests
 - Common event headers, runtime, JSON/JSONL/integrity implementation, and
   `tests/event_json_utf8_smoke.c` plus
   `tests/transaction_phase_runtime_companion_test.c`
@@ -88,6 +90,7 @@ evidence boundary and Common lossless serialization/integrity-chain paths.
   `tests/test_traefik_engine_service_shutdown_contract.py`
 - Lighttpd backend-close and Stock lifecycle harness source, tests, and
   English documentation
+- `ci/checks/common/check-common-helpers.sh`
 - Envoy ext_proc processor/configuration source, tests, English/German
   READMEs, active service configurations, and example service configurations
 - `connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c`, HAProxy example
@@ -176,9 +179,59 @@ evidence without weakening controls.
 
 ## Final diff and review status
 
-The final local diff completed its required fresh independent combined
-security/bypass review with no concrete medium- or high-severity issue. A
-normal remediation commit and push, then exact-head Codex, GitHub Actions, and
-SonarQube Cloud results, remain pending. This record deliberately does not
-claim a final commit, push, Quality Gate pass, workflow pass, or merge; those
-facts are reconciled only after they occur.
+An earlier local combined review is retained as historical evidence. The fresh
+independent Apache/lighttpd bypass review completed in two correction rounds:
+it first found the FIFO and creation race, then pathname-after-validation
+paths, and finally an unbounded `write-json --field` sink. The final narrow
+re-review found no concrete remaining bypass after the descriptor-relative and
+size-bound corrections. A normal remediation commit and push, then exact-head
+Codex, GitHub Actions, and SonarQube Cloud results, remain pending. This
+record deliberately does not claim a final commit, push, Quality Gate pass,
+workflow pass, or merge; those facts are reconciled only after they occur.
+
+## Follow-up trust-boundary correction
+
+The Apache smoke runner now prepares generated runtime, log, audit, module,
+configuration, document-root, and case-output directories through a
+descriptor-relative `mkdirat`/`O_DIRECTORY|O_NOFOLLOW` walk. It rejects a
+symlinked nested path without creating the target outside the runtime area,
+requires trusted ancestor ownership, and preserves both private `0700` and
+non-private-output-root legitimate controls. Apache evidence is opened
+descriptor-relatively below the private artifact root, accepts only a regular
+file, and is bounded to `1048576` bytes; FIFO and oversized evidence fail
+closed without blocking.
+
+The lighttpd Linux guard now opens the trusted root, artifact parent, and
+cleanup-tree descendants through verified directory descriptors. It opens
+candidate artifacts with `O_NONBLOCK|O_NOFOLLOW`, requires a private regular
+file before parsing, preserves retryable absent-log polling, and bounds the
+cleanup tree by entry count and depth. JSON receipts accept at most 32 fields,
+4096 bytes per field, and 65536 serialized bytes; an oversized receipt creates
+no artifact, while the fixed-provenance control remains accepted.
+
+The narrow Common helper test correction retains the lossless event contract:
+when serialization cannot produce a lossless event, the output buffer is empty
+rather than a synthetic `"truncated":true` record. This changes neither a
+workflow nor a ruleset, required check, Quality Gate, or production fail mode.
+
+The newest focused aggregate was:
+
+```text
+rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v \
+  tests.test_apache_process_guard tests.test_apache_smoke_case_output_root \
+  connectors.lighttpd.tests.test_backend_close_harness_contract \
+  connectors.lighttpd.tests.test_stock_lifecycle_harness_contract \
+  tests.test_haproxy_spop_peer_isolation_contract \
+  tests.test_haproxy_spop_sigpipe_peer_isolation_contract
+```
+
+It passed `114` tests. `rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -m
+py_compile` for the affected Apache/lighttpd Python guards and probes,
+`rtk proxy sh -n` for the affected Apache/lighttpd runners,
+`rtk proxy make check-common-helpers-c17`, and `rtk proxy git diff --check`
+also passed. `rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v
+tests.test_bilingual_docs tests.test_connector_config_reference` also passed
+with `26` tests. The HAProxy revalidation confirms that a saturated gate closes the
+new peer and continues the accept loop; all slots can still be occupied until
+their bounded peer deadlines, a documented deployment-dependent residual that
+requires a real-agent saturation run before it can be classified further.

@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import secrets
 import socket
+import stat
 import threading
 import time
 from typing import Final
@@ -25,14 +26,48 @@ class ProbeFailure(RuntimeError):
     """The bounded frontend/upstream exchange did not meet the contract."""
 
 
-def _safe_receipt_path(path: Path) -> Path:
+def _safe_receipt_path(runtime_root: Path, path: Path) -> Path:
+    runtime_root = Path(os.path.abspath(runtime_root))
     if not path.is_absolute() or path.name in ("", ".", ".."):
         raise ProbeFailure("receipt path must be absolute and have a filename")
-    if not path.parent.is_dir() or path.parent.is_symlink() or path.parent.stat().st_mode & 0o077:
-        raise ProbeFailure("receipt parent must be a private real directory")
+    if runtime_root != runtime_root.resolve(strict=True) or path != Path(os.path.abspath(path)):
+        raise ProbeFailure("runtime root and receipt path must be normalized and have no symlink")
+    try:
+        root_details = runtime_root.stat()
+    except OSError as exc:
+        raise ProbeFailure("trusted runtime root cannot be inspected") from exc
+    if not stat.S_ISDIR(root_details.st_mode) or root_details.st_uid != os.geteuid() or stat.S_IMODE(root_details.st_mode) != 0o700:
+        raise ProbeFailure("trusted runtime root must be an owned private 0700 directory")
+    if path.parent != runtime_root:
+        raise ProbeFailure("receipt must be a direct child of the trusted runtime root")
     if path.is_symlink():
         raise ProbeFailure("receipt must not be a symbolic link")
     return path
+
+
+def _write_receipt(runtime_root: Path, path: Path, payload: bytes) -> None:
+    """Create a fresh receipt through a held private runtime-root descriptor."""
+    path = _safe_receipt_path(runtime_root, path)
+    directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    no_follow = getattr(os, "O_NOFOLLOW", 0)
+    if not getattr(os, "O_DIRECTORY", 0) or not no_follow:
+        raise ProbeFailure("private receipt writes require directory and no-follow support")
+    try:
+        parent_fd = os.open(path.parent, directory_flags)
+    except OSError as exc:
+        raise ProbeFailure("receipt parent could not be opened as a private runtime root") from exc
+    try:
+        parent = os.fstat(parent_fd)
+        if not stat.S_ISDIR(parent.st_mode) or parent.st_uid != os.geteuid() or stat.S_IMODE(parent.st_mode) != 0o700:
+            raise ProbeFailure("receipt parent changed or is not a private runtime root")
+        try:
+            descriptor = os.open(path.name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow, 0o600, dir_fd=parent_fd)
+        except OSError as exc:
+            raise ProbeFailure("receipt must be a fresh non-symlink file") from exc
+        with os.fdopen(descriptor, "wb") as output:
+            output.write(payload)
+    finally:
+        os.close(parent_fd)
 
 
 def _loopback_port(value: int) -> int:
@@ -217,7 +252,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     args.upstream_host = _loopback_host(args.upstream_host)
     args.frontend_port = _loopback_port(args.frontend_port)
     args.upstream_port = _loopback_port(args.upstream_port)
-    args.receipt = _safe_receipt_path(args.receipt)
+    args.receipt = _safe_receipt_path(args.runtime_root, args.receipt)
     deadline = time.monotonic() + args.timeout
     nonce = secrets.token_hex(24)
     receipt: dict[str, object] = {
@@ -283,6 +318,7 @@ def main() -> int:
     parser.add_argument("--upstream-port", type=int, required=True)
     parser.add_argument("--path", default="/p4/close/")
     parser.add_argument("--timeout", type=float, default=5.0)
+    parser.add_argument("--runtime-root", type=Path, required=True)
     parser.add_argument("--receipt", type=Path, required=True)
     args = parser.parse_args()
     try:
@@ -290,13 +326,7 @@ def main() -> int:
         payload = (json.dumps(result, indent=2, sort_keys=True) + "\n").encode("utf-8")
         if len(payload) > MAX_RECEIPT_BYTES:
             raise ProbeFailure("receipt exceeds bounded size")
-        descriptor = os.open(
-            args.receipt,
-            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
-            0o600,
-        )
-        with os.fdopen(descriptor, "wb") as output:
-            output.write(payload)
+        _write_receipt(args.runtime_root, args.receipt, payload)
         print("lighttpd_backend_close_probe: PASS receipt=%s" % args.receipt)
         return 0
     except (ProbeFailure, OSError, ValueError) as exc:

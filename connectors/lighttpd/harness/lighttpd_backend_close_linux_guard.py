@@ -62,34 +62,209 @@ MAX_KILL_RESCANS = 64
 MAX_SESSION_WAIT_RESCANS = 1024
 MAX_SESSION_ABSENCE_RESCANS = 1024
 MAX_ABORT_EVENT_RESCANS = 1024
+MAX_RUNTIME_TREE_ENTRIES = 4096
+MAX_RUNTIME_TREE_DEPTH = 32
+MAX_JSON_FIELDS = 32
+MAX_JSON_FIELD_BYTES = 4096
+MAX_JSON_OUTPUT_BYTES = 65536
 MAX_TCP_LISTENER_LINES = 4096
 MAX_TCP_LISTENER_LINE_BYTES = 4096
 _ERROR_OVERFLOW = "additional task-guard errors suppressed"
 MIN_BACKEND_READ_TIMEOUT_SECONDS = 1
 MAX_BACKEND_READ_TIMEOUT_SECONDS = 30
+TRUSTED_RUNTIME_ROOT_ENV = "MSCONNECTOR_TRUSTED_RUNTIME_ROOT"
+MAX_EXECUTABLE_ARGUMENTS = 32
+MAX_EXECUTABLE_ARGUMENT_BYTES = 8192
+
+
+def _trusted_runtime_root() -> Path:
+    """Return the mandatory, private runtime root established by the harness."""
+
+    configured_root = os.environ.get(TRUSTED_RUNTIME_ROOT_ENV)
+    if not configured_root:
+        raise GuardFailure("trusted runtime root is required for artifact access")
+    trusted_root = Path(configured_root)
+    if not trusted_root.is_absolute() or ".." in trusted_root.parts or "." in trusted_root.parts:
+        raise GuardFailure("trusted runtime root must be absolute and traversal-free")
+    try:
+        resolved_root = trusted_root.resolve(strict=True)
+        root_info = os.lstat(resolved_root)
+    except OSError as exc:
+        raise GuardFailure("trusted runtime root cannot be inspected") from exc
+    if trusted_root != resolved_root:
+        raise GuardFailure("trusted runtime root must not contain symbolic links")
+    if (
+        not stat.S_ISDIR(root_info.st_mode)
+        or stat.S_ISLNK(root_info.st_mode)
+        or root_info.st_mode & 0o077
+        or root_info.st_uid != os.geteuid()
+    ):
+        raise GuardFailure("trusted runtime root must be a private runner-owned directory")
+    return trusted_root
 
 
 def _private_artifact_path(path: Path) -> Path:
-    """Validate a task-owned artifact path before any filesystem operation."""
+    """Validate a task-owned artifact path before any filesystem operation.
 
-    if not path.is_absolute() or path.name in ("", ".", ".."):
+    Callers establish the immediate parent as the trusted, private task root.
+    Traversal and symlinks are rejected before descriptor-relative access.
+    """
+
+    if (
+        not path.is_absolute()
+        or path.name in ("", ".", "..")
+        or ".." in path.parts
+        or any(part in ("", ".") for part in path.parts[1:])
+    ):
         raise GuardFailure("task artifact path must be absolute and have a filename")
     try:
-        parent_mode = os.lstat(path.parent).st_mode
-        target_mode = os.lstat(path).st_mode
+        resolved_parent = path.parent.resolve(strict=True)
+        resolved_path = path.resolve(strict=False)
+        parent_info = os.lstat(resolved_parent)
+        parent_mode = parent_info.st_mode
+        target_mode = os.lstat(resolved_path)
     except FileNotFoundError:
         target_mode = None
         try:
-            parent_mode = os.lstat(path.parent).st_mode
+            resolved_parent = path.parent.resolve(strict=True)
+            parent_info = os.lstat(resolved_parent)
+            parent_mode = parent_info.st_mode
         except OSError as exc:
             raise GuardFailure("task artifact parent cannot be inspected") from exc
     except OSError as exc:
         raise GuardFailure("task artifact path cannot be inspected") from exc
-    if not stat.S_ISDIR(parent_mode) or stat.S_ISLNK(parent_mode) or parent_mode & 0o077:
-        raise GuardFailure("task artifact parent must be a private real directory")
-    if target_mode is not None and stat.S_ISLNK(target_mode):
+    if resolved_path != path:
+        raise GuardFailure("task artifact path must remain inside its trusted real directory")
+    trusted_root = _trusted_runtime_root()
+    try:
+        resolved_path.relative_to(trusted_root)
+    except ValueError as exc:
+        raise GuardFailure("artifact path is outside the trusted runtime root") from exc
+    if (
+        not stat.S_ISDIR(parent_mode)
+        or stat.S_ISLNK(parent_mode)
+        or parent_mode & 0o077
+        or parent_info.st_uid != os.geteuid()
+    ):
+        raise GuardFailure("task artifact parent must be a private runner-owned directory")
+    if target_mode is not None and stat.S_ISLNK(target_mode.st_mode):
         raise GuardFailure("task artifact must not be a symbolic link")
     return path
+
+
+def _nofollow_open_flag() -> int:
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    if not isinstance(nofollow, int):
+        raise GuardFailure("safe artifact opens are unavailable")
+    return nofollow
+
+
+def _directory_open_flags() -> int:
+    directory = getattr(os, "O_DIRECTORY", None)
+    if not isinstance(directory, int):
+        raise GuardFailure("safe directory traversal flags are unavailable")
+    return os.O_RDONLY | directory | _nofollow_open_flag()
+
+
+def _open_directory_chain(directory: Path, *, final_private: bool = True) -> int:
+    """Open an absolute directory path without pathname-based ancestor races."""
+
+    if not directory.is_absolute() or ".." in directory.parts or any(
+        part in ("", ".") for part in directory.parts[1:]
+    ):
+        raise GuardFailure("task directory path must be absolute and traversal-free")
+    flags = _directory_open_flags()
+    current_fd = os.open("/", flags)
+    try:
+        components = directory.parts[1:]
+        for index, component in enumerate(components):
+            child_fd = os.open(component, flags, dir_fd=current_fd)
+            try:
+                metadata = os.fstat(child_fd)
+                mode = metadata.st_mode
+                is_final = index == len(components) - 1
+                shared_anchor = (
+                    not is_final
+                    and metadata.st_uid == 0
+                    and stat.S_ISDIR(mode)
+                    and bool(mode & stat.S_ISVTX)
+                    and bool(mode & 0o022)
+                )
+                if (
+                    not stat.S_ISDIR(mode)
+                    or metadata.st_uid not in (0, os.geteuid())
+                    or (mode & 0o022 and not shared_anchor)
+                    or final_private and is_final and (
+                        metadata.st_uid != os.geteuid() or mode & 0o077
+                    )
+                ):
+                    raise GuardFailure("task directory must be a private runner-owned directory")
+            except Exception:
+                os.close(child_fd)
+                raise
+            os.close(current_fd)
+            current_fd = child_fd
+        return current_fd
+    except Exception:
+        os.close(current_fd)
+        raise
+
+
+def _open_trusted_root() -> int:
+    trusted_root = _trusted_runtime_root()
+    try:
+        return _open_directory_chain(trusted_root, final_private=True)
+    except FileNotFoundError as exc:
+        raise GuardFailure("trusted runtime root cannot be opened safely") from exc
+
+
+def _read_private_artifact(path: Path, maximum_bytes: int, description: str) -> bytes:
+    """Read a bounded artifact through a validated, symlink-free directory fd."""
+
+    if not 1 <= maximum_bytes <= 65536:
+        raise GuardFailure("artifact inspection limit is invalid")
+    safe_path = _private_artifact_path(path)
+    nonblocking = getattr(os, "O_NONBLOCK", None)
+    if nonblocking is None:
+        raise GuardFailure("nonblocking artifact reads are unavailable")
+    parent_fd = -1
+    descriptor = -1
+    try:
+        parent_fd = _open_directory_chain(safe_path.parent, final_private=True)
+        descriptor = os.open(
+            safe_path.name,
+            os.O_RDONLY
+            | _nofollow_open_flag()
+            | nonblocking,
+            dir_fd=parent_fd,
+        )
+        metadata = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_uid != os.geteuid()
+            or metadata.st_mode & 0o077
+        ):
+            raise GuardFailure(f"{description} is not a private regular task artifact")
+        if metadata.st_size > maximum_bytes:
+            raise GuardFailure(f"{description} exceeds its bounded inspection limit")
+        with os.fdopen(descriptor, "rb") as input_file:
+            descriptor = -1
+            payload = input_file.read(maximum_bytes + 1)
+            if len(payload) > maximum_bytes:
+                raise GuardFailure(f"{description} exceeds its bounded inspection limit")
+            return payload
+    except FileNotFoundError:
+        # assert_abort_event deliberately polls for an asynchronously-created
+        # error log. Preserve this signal instead of converting it to a
+        # generic guard failure.
+        raise
+    except OSError as exc:
+        raise GuardFailure(f"cannot safely read {description}") from exc
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        if parent_fd >= 0:
+            os.close(parent_fd)
 
 
 def _proc_stat_path(pid: int) -> Path:
@@ -171,15 +346,28 @@ def _require_pidfd() -> None:
 
 def _write_new(path: Path, payload: bytes) -> None:
     path = _private_artifact_path(path)
+    if not hasattr(os, "O_NOFOLLOW"):
+        raise GuardFailure("safe artifact opens are unavailable")
+    parent_fd = -1
+    descriptor = -1
     try:
-        parent_mode = os.lstat(path.parent).st_mode
-        if not stat.S_ISDIR(parent_mode) or stat.S_ISLNK(parent_mode) or parent_mode & 0o077:
-            raise GuardFailure("refusing to write outside a private real task directory")
-        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        parent_fd = _open_directory_chain(path.parent, final_private=True)
+        descriptor = os.open(
+            path.name,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            0o600,
+            dir_fd=parent_fd,
+        )
         with os.fdopen(descriptor, "wb") as output:
+            descriptor = -1
             output.write(payload)
     except OSError as exc:
         raise GuardFailure("cannot safely create a no-overwrite task artifact") from exc
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        if parent_fd >= 0:
+            os.close(parent_fd)
 
 
 def _lighttpd_string(path: str) -> str:
@@ -201,12 +389,10 @@ def write_config(
     upstream_port: int,
     backend_read_timeout: int | None = None,
 ) -> None:
-    try:
-        root_mode = os.lstat(root).st_mode
-    except OSError as exc:
-        raise GuardFailure("runtime root cannot be inspected") from exc
-    if not root.is_absolute() or not stat.S_ISDIR(root_mode) or stat.S_ISLNK(root_mode) or root_mode & 0o077:
-        raise GuardFailure("runtime root must be a private real directory")
+    trusted_root = _trusted_runtime_root()
+    if root != trusted_root:
+        raise GuardFailure("runtime config root must be the trusted runtime root")
+    root = trusted_root
     if not 1024 <= frontend_port <= 65535 or not 1024 <= upstream_port <= 65535:
         raise GuardFailure("ports must be unprivileged")
     if backend_read_timeout is not None and (
@@ -423,24 +609,103 @@ def assert_session_absent(session_id: int, wait_seconds: float = 0.0) -> None:
 
 
 def assert_no_unix_sockets(root: Path) -> None:
-    if not root.is_dir() or root.is_symlink():
-        raise GuardFailure("runtime root is not a real directory")
-    for parent, directories, files in os.walk(root, followlinks=False):
-        for name in [*directories, *files]:
-            candidate = Path(parent) / name
-            if stat.S_ISSOCK(os.lstat(candidate).st_mode):
-                raise GuardFailure("task runtime root retains a unix-domain socket")
+    trusted_root = _trusted_runtime_root()
+    if root != trusted_root:
+        raise GuardFailure("unix-socket root must be the trusted runtime root")
+    root = trusted_root
+    root_fd = _open_trusted_root()
+    pending: list[tuple[int, int]] = [(root_fd, 0)]
+    inspected = 0
+    try:
+        while pending:
+            parent_fd, depth = pending.pop()
+            child_fds: list[int] = []
+            entries = None
+            try:
+                entries = os.scandir(parent_fd)
+                for entry in entries:
+                    inspected += 1
+                    if inspected > MAX_RUNTIME_TREE_ENTRIES:
+                        raise GuardFailure("task runtime tree exceeds its bounded entry limit")
+                    try:
+                        metadata = entry.stat(follow_symlinks=False)
+                    except OSError as exc:
+                        raise GuardFailure("cannot inspect task runtime tree entry") from exc
+                    if stat.S_ISSOCK(metadata.st_mode):
+                        raise GuardFailure("task runtime root retains a unix-domain socket")
+                    if stat.S_ISDIR(metadata.st_mode) and not stat.S_ISLNK(metadata.st_mode):
+                        if depth >= MAX_RUNTIME_TREE_DEPTH:
+                            raise GuardFailure("task runtime tree exceeds its bounded depth limit")
+                        child_fd = _open_directory_chain_from_fd(parent_fd, entry.name)
+                        child_fds.append(child_fd)
+                        pending.append((child_fd, depth + 1))
+                entries.close()
+                entries = None
+            except Exception:
+                if entries is not None:
+                    try:
+                        entries.close()
+                    except OSError:
+                        pass
+                for child_fd in child_fds:
+                    if child_fd not in {item[0] for item in pending}:
+                        os.close(child_fd)
+                try:
+                    os.close(parent_fd)
+                except OSError:
+                    pass
+                raise
+            os.close(parent_fd)
+    finally:
+        for descriptor, _depth in pending:
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+
+
+def _open_directory_chain_from_fd(parent_fd: int, name: str) -> int:
+    """Open a discovered child relative to its already-open parent."""
+
+    if not name or name in (".", "..") or "/" in name or "\x00" in name:
+        raise GuardFailure("runtime tree entry name is unsafe")
+    flags = _directory_open_flags()
+    child_fd = -1
+    try:
+        child_fd = os.open(name, flags, dir_fd=parent_fd)
+        metadata = os.fstat(child_fd)
+    except OSError as exc:
+        if child_fd >= 0:
+            os.close(child_fd)
+        raise GuardFailure("cannot safely open runtime tree directory") from exc
+    if (
+        not stat.S_ISDIR(metadata.st_mode)
+        or metadata.st_uid not in (0, os.geteuid())
+        or metadata.st_uid != os.geteuid()
+        or metadata.st_mode & 0o077
+    ):
+        os.close(child_fd)
+        raise GuardFailure("runtime tree directory is not private")
+    return child_fd
+
+
+def assert_private_artifact_contains(path: Path, marker: str, maximum_bytes: int) -> None:
+    if not isinstance(marker, str) or not 1 <= len(marker) <= 256 or "\x00" in marker:
+        raise GuardFailure("artifact marker is invalid")
+    try:
+        encoded_marker = marker.encode("utf-8", errors="strict")
+    except UnicodeError as exc:
+        raise GuardFailure("artifact marker is not valid UTF-8") from exc
+    payload = _read_private_artifact(path, maximum_bytes, "task artifact")
+    if encoded_marker not in payload:
+        raise GuardFailure("task artifact marker is missing")
 
 
 def _receipt_abort_evidence(receipt_path: Path) -> tuple[str, int]:
-    receipt_path = _private_artifact_path(receipt_path)
     try:
-        receipt_mode = os.lstat(receipt_path).st_mode
-        if stat.S_ISLNK(receipt_mode) or not stat.S_ISREG(receipt_mode) or receipt_mode & 0o077:
-            raise GuardFailure("raw receipt is not a private regular task artifact")
-        if os.stat(receipt_path).st_size > 65536:
-            raise GuardFailure("raw receipt exceeds its bounded inspection limit")
-        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipt = json.loads(
+            _read_private_artifact(receipt_path, 65536, "raw receipt").decode("utf-8")
+        )
         transaction_id = receipt["host_transaction_id"]
         status = receipt["frontend_status"]
         content_length = receipt["frontend_content_length"]
@@ -481,12 +746,7 @@ def assert_abort_event(receipt_path: Path, error_log: Path, max_bytes: int, wait
     last_error = "matching upstream_eof response-body-abort event is missing"
     for _rescan_number in range(MAX_ABORT_EVENT_RESCANS):
         try:
-            error_mode = os.lstat(error_log).st_mode
-            if stat.S_ISLNK(error_mode) or not stat.S_ISREG(error_mode) or error_mode & 0o077:
-                raise GuardFailure("host error log is not a private regular task artifact")
-            if os.stat(error_log).st_size > max_bytes:
-                raise GuardFailure("host error log exceeds its bounded inspection limit")
-            log_text = error_log.read_text(encoding="utf-8", errors="strict")
+            log_text = _read_private_artifact(error_log, max_bytes, "host error log").decode("utf-8")
             event_lines = [
                 line
                 for line in log_text.splitlines()
@@ -542,12 +802,7 @@ def _register_session(path: Path) -> None:
 
 def _registered_session(path: Path) -> RegisteredSession:
     try:
-        record_mode = os.lstat(path).st_mode
-        if stat.S_ISLNK(record_mode) or not stat.S_ISREG(record_mode) or record_mode & 0o077:
-            raise GuardFailure("session registration is not a private regular task artifact")
-        if os.stat(path).st_size > 16384:
-            raise GuardFailure("session registration exceeds its bounded inspection limit")
-        value = json.loads(path.read_text(encoding="utf-8"))
+        value = json.loads(_read_private_artifact(path, 16384, "session registration").decode("utf-8"))
         record = RegisteredSession(
             leader_pid=value["leader_pid"],
             leader_start_time=value["leader_start_time"],
@@ -571,13 +826,30 @@ def _registered_session(path: Path) -> RegisteredSession:
 
 
 def write_json(path: Path, fields: list[str]) -> None:
+    if not isinstance(fields, list) or len(fields) > MAX_JSON_FIELDS:
+        raise GuardFailure("JSON field count exceeds its bounded limit")
     value: dict[str, str] = {}
     for field in fields:
+        if not isinstance(field, str) or "\x00" in field:
+            raise GuardFailure("JSON field is invalid")
+        try:
+            field_bytes = field.encode("utf-8", errors="strict")
+        except UnicodeError as exc:
+            raise GuardFailure("JSON field is not valid UTF-8") from exc
+        if len(field_bytes) > MAX_JSON_FIELD_BYTES:
+            raise GuardFailure("JSON field exceeds its bounded byte limit")
         key, separator, item = field.partition("=")
-        if not separator or not key or key in value:
+        if (
+            not separator
+            or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,63}", key)
+            or key in value
+        ):
             raise GuardFailure("JSON fields must be unique key=value pairs")
         value[key] = item
-    _write_new(path, (json.dumps(value, sort_keys=True) + "\n").encode("utf-8"))
+    payload = (json.dumps(value, sort_keys=True) + "\n").encode("utf-8")
+    if len(payload) > MAX_JSON_OUTPUT_BYTES:
+        raise GuardFailure("JSON output exceeds its bounded byte limit")
+    _write_new(path, payload)
 
 
 def _validated_executable(value: str) -> str:
@@ -600,10 +872,89 @@ def _validated_executable(value: str) -> str:
     return str(executable)
 
 
+def _validated_command(executable: str, arguments: list[str]) -> list[str]:
+    """Allow only bounded, non-shell argument profiles for trusted hosts."""
+
+    if len(arguments) > MAX_EXECUTABLE_ARGUMENTS:
+        raise GuardFailure("session command has too many arguments")
+    if any(
+        not isinstance(argument, str)
+        or not argument
+        or len(argument.encode("utf-8")) > MAX_EXECUTABLE_ARGUMENT_BYTES
+        or "\x00" in argument
+        for argument in arguments
+    ):
+        raise GuardFailure("session command contains an invalid argument")
+    basename = Path(executable).name
+    if basename.startswith("lighttpd"):
+        index = 0
+        while index < len(arguments):
+            option = arguments[index]
+            if option == "-D" or option == "-tt":
+                index += 1
+                continue
+            if option in ("-m", "-f") and index + 1 < len(arguments):
+                argument = Path(arguments[index + 1])
+                if not argument.is_absolute() or ".." in argument.parts:
+                    raise GuardFailure("lighttpd path argument is outside the trusted task boundary")
+                if option == "-f":
+                    _private_artifact_path(argument)
+                else:
+                    try:
+                        resolved_module_dir = argument.resolve(strict=True)
+                        module_mode = os.lstat(resolved_module_dir).st_mode
+                    except OSError as exc:
+                        raise GuardFailure("lighttpd module directory cannot be inspected") from exc
+                    if (
+                        resolved_module_dir != argument
+                        or not stat.S_ISDIR(module_mode)
+                        or module_mode & 0o022
+                        or os.stat(resolved_module_dir).st_uid != os.geteuid()
+                    ):
+                        raise GuardFailure("lighttpd module directory is not trusted")
+                index += 2
+                continue
+            raise GuardFailure("lighttpd command contains an unsupported argument")
+    elif basename.startswith("sleep"):
+        if len(arguments) != 1 or not arguments[0].isdigit() or int(arguments[0]) > 86400:
+            raise GuardFailure("sleep command requires one bounded duration")
+    elif basename.startswith("python"):
+        expected_probe = Path(__file__).resolve().with_name("lighttpd_stock_lifecycle_probe.py")
+        if len(arguments) < 2 or Path(arguments[0]).resolve() != expected_probe or arguments[1] != "hold":
+            raise GuardFailure("python session requires the trusted Stock lifecycle hold profile")
+        allowed = (
+            "--frontend-port",
+            "--upstream-port",
+            "--ready",
+            "--release",
+            "--runtime-root",
+            "--receipt",
+            "--timeout",
+        )
+        if len(arguments[2:]) != len(allowed) * 2 or tuple(arguments[2::2]) != allowed:
+            raise GuardFailure("python lifecycle profile contains unsupported arguments")
+        for option, value in zip(arguments[2::2], arguments[3::2]):
+            if option in ("--frontend-port", "--upstream-port"):
+                if not value.isdigit() or not 1024 <= int(value) <= 65535:
+                    raise GuardFailure("python lifecycle port is outside the bounded range")
+            elif option == "--timeout":
+                if not value.isdigit() or not 1 <= int(value) <= 30:
+                    raise GuardFailure("python lifecycle timeout is outside the bounded range")
+            elif option == "--runtime-root":
+                configured_root = os.environ.get(TRUSTED_RUNTIME_ROOT_ENV)
+                if not configured_root or Path(value) != Path(configured_root):
+                    raise GuardFailure("python lifecycle runtime root does not match the trusted root")
+            else:
+                _private_artifact_path(Path(value))
+    else:
+        raise GuardFailure("session executable is not in the approved command profile")
+    return [executable, *arguments]
+
+
 def exec_session(file_limit_blocks: int, command: list[str], session_record: Path | None = None) -> None:
     if not command or not 1 <= file_limit_blocks <= 2048:
         raise GuardFailure("session command or file limit is invalid")
-    command = [_validated_executable(command[0]), *command[1:]]
+    command = _validated_command(_validated_executable(command[0]), command[1:])
     try:
         resource.setrlimit(resource.RLIMIT_FSIZE, (file_limit_blocks * 512, file_limit_blocks * 512))
         os.setsid()
@@ -1276,6 +1627,10 @@ def main() -> int:
     abort.add_argument("--error-log", type=Path, required=True)
     abort.add_argument("--max-bytes", type=int, required=True)
     abort.add_argument("--wait-seconds", type=float, default=0.0)
+    marker = command.add_parser("assert-file-marker")
+    marker.add_argument("--path", type=Path, required=True)
+    marker.add_argument("--marker", required=True)
+    marker.add_argument("--max-bytes", type=int, required=True)
     for name in ("signal", "assert-listener"):
         subparser = command.add_parser(name)
         subparser.add_argument("--pid", type=int, required=True)
@@ -1327,6 +1682,8 @@ def main() -> int:
             assert_no_unix_sockets(args.root)
         elif args.command == "assert-abort-event":
             assert_abort_event(args.receipt, args.error_log, args.max_bytes, args.wait_seconds)
+        elif args.command == "assert-file-marker":
+            assert_private_artifact_contains(args.path, args.marker, args.max_bytes)
         elif args.command == "signal-session":
             signal_singleton_session(args.pid, args.start_time, args.exe, getattr(signal, f"SIG{args.signal}"))
         elif args.command == "signal":

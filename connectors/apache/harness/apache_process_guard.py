@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import select
 import signal
+import stat
 from typing import Any
 
 
@@ -23,12 +24,140 @@ MAX_FD_ENTRIES = 4096
 MAX_NET_ROWS = 4096
 MAX_NET_BYTES = 4 * 1024 * 1024
 MAX_NET_LINE = 4096
+MAX_EVIDENCE_BYTES = 1024 * 1024
 TERM_TIMEOUT = 2.0
 KILL_TIMEOUT = 2.0
 
 
 class GuardError(RuntimeError):
     pass
+
+
+def _directory_open_flags() -> int:
+    """Return the descriptor flags required for race-safe directory walking."""
+    directory = getattr(os, "O_DIRECTORY", None)
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    if directory is None or nofollow is None:
+        raise GuardError("Apache runtime directory hardening is unavailable on this platform")
+    flags = os.O_RDONLY | directory | nofollow
+    if hasattr(os, "O_CLOEXEC"):
+        flags |= os.O_CLOEXEC
+    return flags
+
+
+def _safe_runtime_ancestor(metadata: os.stat_result, path: Path) -> None:
+    """Accept only stable ancestors for a later pathname-based harness use.
+
+    A descriptor-relative create prevents a symlink insertion during setup.
+    Once the descriptor is closed, however, the shell uses the resulting path
+    again. Writable shared ancestors are therefore allowed only when the
+    sticky-bit rule protects the task-owned child from another user renaming
+    it (the normal /tmp and /var/tmp case).
+    """
+    if not stat.S_ISDIR(metadata.st_mode):
+        raise GuardError(f"Apache runtime path must contain directories only: {path}")
+    if metadata.st_uid not in (0, os.geteuid()):
+        raise GuardError(
+            f"Apache runtime path has an untrusted ancestor owner: {path}"
+        )
+    if metadata.st_mode & 0o022 and not (
+        metadata.st_uid == 0 and metadata.st_mode & stat.S_ISVTX
+    ):
+        raise GuardError(
+            f"Apache runtime path has an unsafe writable shared ancestor: {path}"
+        )
+
+
+def prepare_runtime_directory(path: Path, label: str, private_mode: bool) -> None:
+    """Create and validate a harness directory without pathname races.
+
+    Every component is opened relative to an already verified descriptor with
+    ``O_DIRECTORY|O_NOFOLLOW``. Missing components are created with
+    ``mkdirat`` semantics, then reopened through that same parent descriptor.
+    This rejects a symlink inserted between existence checking and creation.
+    """
+    raw_path = os.fspath(path)
+    if not os.path.isabs(raw_path) or "\x00" in raw_path:
+        raise GuardError(f"{label} must be an absolute path")
+    components = Path(raw_path).parts
+    if len(components) < 2 or components[0] != os.sep or any(
+        component in ("", ".", "..") for component in components[1:]
+    ):
+        raise GuardError(f"{label} must not contain empty, dot, or parent components")
+
+    flags = _directory_open_flags()
+    try:
+        current_fd = os.open(os.sep, flags)
+    except OSError as exc:
+        raise GuardError(f"cannot open Apache runtime filesystem root: {exc}") from exc
+
+    current_path = Path(os.sep)
+    try:
+        for index, component in enumerate(components[1:], start=1):
+            is_leaf = index == len(components) - 1
+            child_path = current_path / component
+            child_fd: int | None = None
+            try:
+                child_fd = os.open(component, flags, dir_fd=current_fd)
+            except FileNotFoundError:
+                # Newly created intermediate components stay private. A
+                # non-private leaf preserves the previous output-root mode
+                # contract while still denying group/world writes.
+                mode = 0o700 if private_mode or not is_leaf else 0o755
+                try:
+                    os.mkdir(component, mode, dir_fd=current_fd)
+                except FileExistsError:
+                    pass
+                except OSError as exc:
+                    raise GuardError(
+                        f"cannot create Apache runtime directory {child_path}: {exc}"
+                    ) from exc
+                try:
+                    child_fd = os.open(component, flags, dir_fd=current_fd)
+                except OSError as exc:
+                    raise GuardError(
+                        f"cannot reopen Apache runtime directory {child_path}: {exc}"
+                    ) from exc
+            except OSError as exc:
+                raise GuardError(
+                    f"cannot open Apache runtime directory {child_path}: {exc}"
+                ) from exc
+
+            try:
+                metadata = os.fstat(child_fd)
+                if is_leaf:
+                    if not stat.S_ISDIR(metadata.st_mode):
+                        raise GuardError(f"{label} must be a directory: {child_path}")
+                    if metadata.st_uid != os.geteuid() or metadata.st_mode & 0o022:
+                        raise GuardError(
+                            f"{label} must be owned and not group/world writable: {child_path}"
+                        )
+                    if private_mode:
+                        os.fchmod(child_fd, 0o700)
+                        metadata = os.fstat(child_fd)
+                        if stat.S_IMODE(metadata.st_mode) != 0o700:
+                            raise GuardError(f"{label} must have private mode 0700: {child_path}")
+                else:
+                    _safe_runtime_ancestor(metadata, child_path)
+            except OSError as exc:
+                os.close(child_fd)
+                raise GuardError(
+                    f"cannot validate Apache runtime directory {child_path}: {exc}"
+                ) from exc
+            except GuardError:
+                os.close(child_fd)
+                raise
+            try:
+                os.close(current_fd)
+            except OSError as exc:
+                os.close(child_fd)
+                raise GuardError(
+                    f"cannot close Apache runtime directory {current_path}: {exc}"
+                ) from exc
+            current_fd = child_fd
+            current_path = child_path
+    finally:
+        os.close(current_fd)
 
 
 def _pidfd_available() -> bool:
@@ -171,7 +300,7 @@ def _bounded_net_header(name: str) -> None:
         raise GuardError(f"invalid or oversized header in {name}")
 
 
-def _validated_artifact_path(path: Path) -> Path:
+def _validated_artifact_path(path: Path, artifact_root: Path) -> Path:
     """Return an absolute task artifact path with a trusted parent chain.
 
     Evidence is both security-sensitive input and a cleanup capability.  Do
@@ -179,41 +308,100 @@ def _validated_artifact_path(path: Path) -> Path:
     directory in the chain to be owned by this process without group/world
     access.  The final file is protected separately with O_NOFOLLOW.
     """
-    if not path.is_absolute():
+    if not path.is_absolute() or not artifact_root.is_absolute():
         raise GuardError("Apache artifact path must be absolute")
-    current = path.parent
-    chain: list[Path] = []
-    while True:
-        chain.append(current)
-        if current == current.parent:
-            break
-        current = current.parent
-    private_directory_seen = False
-    for directory in chain:
+    if ".." in path.parts or "." in path.parts or ".." in artifact_root.parts or "." in artifact_root.parts:
+        raise GuardError("Apache artifact path must not contain parent traversal")
+    root = artifact_root
+    try:
+        if root.resolve(strict=True) != root:
+            raise GuardError("trusted Apache artifact root must not contain symlinks")
+    except OSError as exc:
+        raise GuardError(f"cannot resolve trusted Apache artifact root {root}: {exc}") from exc
+    try:
+        relative = path.relative_to(root)
+    except ValueError as exc:
+        raise GuardError("Apache artifact path is outside the trusted artifact root") from exc
+    if not relative.parts or relative.name in ("", ".", ".."):
+        raise GuardError("Apache artifact path is not a file below the trusted artifact root")
+    try:
+        root_info = root.lstat()
+    except OSError as exc:
+        raise GuardError(f"cannot inspect trusted Apache artifact root {root}: {exc}") from exc
+    if not root.is_dir() or root.is_symlink() or root_info.st_uid != os.getuid() or root_info.st_mode & 0o077:
+        raise GuardError("trusted Apache artifact root is not a private directory")
+    current = root
+    for component in relative.parts[:-1]:
+        current = current / component
         try:
-            info = directory.lstat()
+            info = current.lstat()
         except OSError as exc:
-            raise GuardError(f"cannot inspect Apache artifact directory {directory}: {exc}") from exc
-        if not directory.is_dir() or directory.is_symlink():
-            raise GuardError(f"Apache artifact directory is not a private directory: {directory}")
-        if info.st_uid != os.getuid() or info.st_mode & 0o077:
-            if not private_directory_seen:
-                raise GuardError(f"Apache artifact directory is not private to the task: {directory}")
-            break
-        private_directory_seen = True
+            raise GuardError(f"cannot inspect Apache artifact directory {current}: {exc}") from exc
+        if not current.is_dir() or current.is_symlink() or info.st_uid != os.getuid() or info.st_mode & 0o077:
+            raise GuardError(f"Apache artifact directory is not a private directory: {current}")
     return path
 
 
-def _load(path: Path) -> dict[str, Any]:
-    path = _validated_artifact_path(path)
+def _open_artifact(path: Path, artifact_root: Path, flags: int, mode: int = 0) -> int:
+    """Open an already validated artifact relative to its private parent.
+
+    Keeping the untrusted CLI value out of the final ``open`` call prevents
+    path injection after the parent boundary has been checked.  ``O_NOFOLLOW``
+    protects the artifact itself; the parent validation protects the directory
+    namespace used by the guard.
+    """
+    path = _validated_artifact_path(path, artifact_root)
+    parent_flags = os.O_RDONLY
+    if hasattr(os, "O_DIRECTORY"):
+        parent_flags |= os.O_DIRECTORY
+    if hasattr(os, "O_NOFOLLOW"):
+        parent_flags |= os.O_NOFOLLOW
+    try:
+        parent_fd = os.open(artifact_root, parent_flags)
+    except OSError as exc:
+        raise GuardError(f"cannot open Apache artifact directory {path.parent}: {exc}") from exc
+    try:
+        relative = path.relative_to(artifact_root)
+        for component in relative.parts[:-1]:
+            next_fd = os.open(component, parent_flags, dir_fd=parent_fd)
+            os.close(parent_fd)
+            parent_fd = next_fd
+        return os.open(relative.name, flags, mode, dir_fd=parent_fd)
+    except OSError as exc:
+        raise GuardError(f"cannot open Apache artifact {path}: {exc}") from exc
+    finally:
+        os.close(parent_fd)
+
+
+def _load(path: Path, artifact_root: Path) -> dict[str, Any]:
     flags = os.O_RDONLY
+    # O_NONBLOCK makes opening a FIFO or other special file non-blocking so
+    # that the descriptor can be rejected after fstat().  It is harmless for
+    # regular files and avoids trusting the path type before opening it.
+    if hasattr(os, "O_NONBLOCK"):
+        flags |= os.O_NONBLOCK
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
     try:
-        fd = os.open(path, flags)
-        with os.fdopen(fd, encoding="utf-8") as stream:
-            value = json.load(stream)
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        fd = _open_artifact(path, artifact_root, flags)
+        try:
+            metadata = os.fstat(fd)
+            if not stat.S_ISREG(metadata.st_mode):
+                raise GuardError("Apache guard evidence must be a regular file")
+            if metadata.st_size > MAX_EVIDENCE_BYTES:
+                raise GuardError("Apache guard evidence exceeds bounded size")
+            payload = bytearray()
+            while len(payload) <= MAX_EVIDENCE_BYTES:
+                chunk = os.read(fd, min(65536, MAX_EVIDENCE_BYTES + 1 - len(payload)))
+                if not chunk:
+                    break
+                payload.extend(chunk)
+            if len(payload) > MAX_EVIDENCE_BYTES:
+                raise GuardError("Apache guard evidence exceeds bounded size")
+        finally:
+            os.close(fd)
+        value = json.loads(bytes(payload).decode("utf-8"))
+    except (GuardError, OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise GuardError(f"cannot read guard evidence {path}: {exc}") from exc
     if not isinstance(value, dict):
         raise GuardError("guard evidence is not an object")
@@ -297,7 +485,7 @@ def verify_stopped(evidence: dict[str, Any], pidfile: str | None = None) -> None
         raise GuardError(f"Apache pidfile remains after cleanup: {pidfile}")
 
 
-def record(pid: int, executable: str, port: int, output: Path) -> None:
+def record(pid: int, executable: str, port: int, output: Path, artifact_root: Path) -> None:
     expected_exe = os.path.realpath(executable)
     try:
         stat = _stat(pid)
@@ -322,13 +510,12 @@ def record(pid: int, executable: str, port: int, output: Path) -> None:
         "task_socket_inodes": sorted(fds),
         "pidfd_supported": _pidfd_available(),
     }
-    output = _validated_artifact_path(output)
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
     try:
-        fd = os.open(output, flags, 0o600)
-    except OSError as exc:
+        fd = _open_artifact(output, artifact_root, flags, 0o600)
+    except (GuardError, OSError) as exc:
         raise GuardError(f"cannot create non-overwriting Apache evidence: {exc}") from exc
     try:
         os.write(fd, (json.dumps(payload, sort_keys=True) + "\n").encode("utf-8"))
@@ -399,15 +586,21 @@ def preflight() -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="command", required=True)
+    prepare = sub.add_parser("prepare-directory")
+    prepare.add_argument("--directory", type=Path, required=True)
+    prepare.add_argument("--label", required=True)
+    prepare.add_argument("--private", action="store_true")
     rec = sub.add_parser("record")
     rec.add_argument("--pid", type=int, required=True)
     rec.add_argument("--executable", required=True)
     rec.add_argument("--port", type=int, required=True)
     rec.add_argument("--output", type=Path, required=True)
+    rec.add_argument("--artifact-root", type=Path, required=True)
     for name in ("verify-running", "signal", "terminate", "verify-stopped", "verify-pid", "preflight"):
         command = sub.add_parser(name)
         if name not in ("preflight",):
             command.add_argument("--evidence", type=Path, required=True)
+            command.add_argument("--artifact-root", type=Path, required=True)
         command.add_argument("--pidfile")
         if name in ("signal", "terminate"):
             command.add_argument("--signal", type=int, default=int(signal.SIGTERM))
@@ -415,20 +608,22 @@ def main() -> int:
             command.add_argument("--pid", type=int, required=True)
     args = parser.parse_args()
     try:
-        if args.command == "record":
-            record(args.pid, args.executable, args.port, args.output)
+        if args.command == "prepare-directory":
+            prepare_runtime_directory(args.directory, args.label, args.private)
+        elif args.command == "record":
+            record(args.pid, args.executable, args.port, args.output, args.artifact_root)
         elif args.command == "verify-running":
-            verify_running(_load(args.evidence))
+            verify_running(_load(args.evidence, args.artifact_root))
         elif args.command == "signal":
-            print(signal_verified(_load(args.evidence), args.signal))
+            print(signal_verified(_load(args.evidence, args.artifact_root), args.signal))
         elif args.command == "terminate":
-            print(terminate_verified(_load(args.evidence)))
+            print(terminate_verified(_load(args.evidence, args.artifact_root)))
         elif args.command == "verify-pid":
-            verify_pidfile(_load(args.evidence), args.pid)
+            verify_pidfile(_load(args.evidence, args.artifact_root), args.pid)
         elif args.command == "preflight":
             preflight()
         else:
-            verify_stopped(_load(args.evidence), args.pidfile)
+            verify_stopped(_load(args.evidence, args.artifact_root), args.pidfile)
     except GuardError as exc:
         print(f"apache_process_guard: blocked {exc}")
         return 77

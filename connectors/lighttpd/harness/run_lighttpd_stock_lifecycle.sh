@@ -66,6 +66,7 @@ RUNTIME_ROOT=$RUNTIME_PARENT/$(basename "$RUNTIME_ROOT")
 umask 077
 mkdir "$RUNTIME_ROOT" || blocked "could not create private runtime root"
 [ "$(stat -c '%a' "$RUNTIME_ROOT")" = 700 ] || chmod 700 "$RUNTIME_ROOT"
+export MSCONNECTOR_TRUSTED_RUNTIME_ROOT="$RUNTIME_ROOT"
 
 python3 - "$FRONTEND_PORT" "$UPSTREAM_PORT" <<'PY'
 import socket
@@ -239,7 +240,8 @@ V6_RESULT=direct-close
 v6_status=0
 python3 "$LIFECYCLE_PROBE" client-abort --frontend-port "$FRONTEND_PORT" \
     --upstream-port "$UPSTREAM_PORT" --timeout "$TIMEOUT" \
-    --backend-read-timeout "$BACKEND_READ_TIMEOUT" --receipt "$V6_RECEIPT" || v6_status=$?
+    --backend-read-timeout "$BACKEND_READ_TIMEOUT" --runtime-root "$RUNTIME_ROOT" \
+    --receipt "$V6_RECEIPT" || v6_status=$?
 if [ "$v6_status" -eq 77 ]; then
     V6_RESULT=bounded-timeout-fallback
 elif [ "$v6_status" -ne 0 ]; then
@@ -251,23 +253,10 @@ if [ "$V6_RESULT" = bounded-timeout-fallback ]; then
     backend_timeout_log_evidence=0
     end=$(( $(date +%s) + TIMEOUT ))
     while [ "$(date +%s)" -lt "$end" ]; do
-        python3 - "$RUNTIME_ROOT/lighttpd-error.log" <<'PY' && backend_timeout_log_evidence=1 && break
-from pathlib import Path
-import stat
-import sys
-path = Path(sys.argv[1])
-try:
-    metadata = path.lstat()
-except FileNotFoundError:
-    raise SystemExit(1)
-if not stat.S_ISREG(metadata.st_mode) or path.is_symlink() or metadata.st_size > 65536:
-    raise SystemExit(1)
-with path.open("rb") as stream:
-    data = stream.read(65537)
-if len(data) > 65536:
-    raise SystemExit(1)
-raise SystemExit(0 if b"read timeout on socket:" in data else 1)
-PY
+        python3 "$LINUX_GUARD" assert-file-marker \
+            --path "$RUNTIME_ROOT/lighttpd-error.log" \
+            --marker "read timeout on socket:" --max-bytes 65536 \
+            >/dev/null 2>&1 && backend_timeout_log_evidence=1 && break
         sleep 0.05
     done
     [ "$backend_timeout_log_evidence" -eq 1 ] || fail "Stock V6 fallback lacked bounded host read-timeout log evidence"
@@ -308,17 +297,18 @@ python3 "$LINUX_GUARD" write-json --output "$V6_CONTROL_RECEIPT" \
 # Stock proxy transaction in its terminal cleanup path until the host loop
 # advances; V6 must not depend on that prior state.
 python3 "$BACKEND_PROBE" --frontend-port "$FRONTEND_PORT" --upstream-port "$UPSTREAM_PORT" \
-    --path /p4/close/ --timeout "$TIMEOUT" --receipt "$RECEIPT" || \
+    --path /p4/close/ --timeout "$TIMEOUT" --runtime-root "$RUNTIME_ROOT" \
+    --receipt "$RECEIPT" || \
     fail "Stock backend-close probe failed"
 
 python3 "$LIFECYCLE_PROBE" parallel --frontend-port "$FRONTEND_PORT" \
-    --receipt "$V9_RECEIPT" || fail "Stock bounded parallel probe failed"
+    --runtime-root "$RUNTIME_ROOT" --receipt "$V9_RECEIPT" || fail "Stock bounded parallel probe failed"
 
 python3 "$LINUX_GUARD" exec-session --file-limit-blocks 128 \
     --session-record "$V10_PROBE_SESSION_RECORD" -- \
     "$PYTHON_BINARY" "$LIFECYCLE_PROBE" hold --frontend-port "$FRONTEND_PORT" \
     --upstream-port "$UPSTREAM_PORT" --ready "$V10_READY" --release "$V10_RELEASE" \
-    --receipt "$V10_RECEIPT" --timeout "$TIMEOUT" >"$RUNTIME_ROOT/v10-probe.stdout" 2>"$RUNTIME_ROOT/v10-probe.stderr" &
+    --runtime-root "$RUNTIME_ROOT" --receipt "$V10_RECEIPT" --timeout "$TIMEOUT" >"$RUNTIME_ROOT/v10-probe.stdout" 2>"$RUNTIME_ROOT/v10-probe.stderr" &
 V10_PROBE_PID=$!
 V10_PROBE_SESSION=$V10_PROBE_PID
 end=$(( $(date +%s) + CLEANUP_TIMEOUT ))
@@ -339,7 +329,7 @@ python3 "$LINUX_GUARD" assert-session-absent --session "$SERVER_SESSION" \
 cleanup_process "$SERVER_SESSION_RECORD" "$SERVER_CLEANUP_RECEIPT" || \
     fail "terminated Stock host cleanup receipt failed"
 [ -s "$SERVER_CLEANUP_RECEIPT" ] || fail "terminated Stock host cleanup receipt is missing"
-python3 "$LIFECYCLE_PROBE" release --release "$V10_RELEASE" || fail "Stock V10 release marker failed"
+python3 "$LIFECYCLE_PROBE" release --runtime-root "$RUNTIME_ROOT" --release "$V10_RELEASE" || fail "Stock V10 release marker failed"
 end=$(( $(date +%s) + CLEANUP_TIMEOUT ))
 while [ ! -s "$V10_RECEIPT" ] && [ "$(date +%s)" -lt "$end" ]; do
     pid_alive "$V10_PROBE_PID" || fail "Stock V10 probe exited before client-close evidence"

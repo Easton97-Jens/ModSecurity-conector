@@ -14,11 +14,13 @@ import json
 import os
 from pathlib import Path
 import socket
+import stat
 import time
 
 
 MAX_PARALLEL = 8
 MAX_RECEIPT_BYTES = 65536
+TRUSTED_RUNTIME_ROOT: Path | None = None
 
 
 class ProbeFailure(RuntimeError):
@@ -36,19 +38,43 @@ def _loopback_port(value: int) -> int:
 
 
 def _safe_write(path: Path, payload: dict[str, object]) -> None:
+    runtime_root = TRUSTED_RUNTIME_ROOT
+    if runtime_root is None:
+        raise ProbeFailure("trusted runtime root is required")
+    runtime_root = Path(os.path.abspath(runtime_root))
     if not path.is_absolute() or path.name in ("", ".", ".."):
         raise ProbeFailure("receipt path must be absolute and have a filename")
-    if not path.parent.is_dir() or path.parent.is_symlink() or path.parent.stat().st_mode & 0o077 or path.is_symlink():
-        raise ProbeFailure("receipt parent must be a private real directory")
+    if runtime_root != runtime_root.resolve(strict=True) or path != Path(os.path.abspath(path)):
+        raise ProbeFailure("runtime root and receipt path must be normalized and have no symlink")
+    try:
+        details = runtime_root.stat()
+    except OSError as exc:
+        raise ProbeFailure("trusted runtime root cannot be inspected") from exc
+    if not stat.S_ISDIR(details.st_mode) or details.st_uid != os.geteuid() or stat.S_IMODE(details.st_mode) != 0o700 or path.parent != runtime_root or path.is_symlink():
+        raise ProbeFailure("receipt must be a direct child of the trusted runtime root")
     data = (json.dumps(payload, sort_keys=True) + "\n").encode()
     if len(data) > MAX_RECEIPT_BYTES:
         raise ProbeFailure("receipt exceeds bounded size")
+    directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    no_follow = getattr(os, "O_NOFOLLOW", 0)
+    if not getattr(os, "O_DIRECTORY", 0) or not no_follow:
+        raise ProbeFailure("private receipt writes require directory and no-follow support")
     try:
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        parent_fd = os.open(path.parent, directory_flags)
     except OSError as exc:
-        raise ProbeFailure("receipt must be a fresh non-symlink file") from exc
-    with os.fdopen(fd, "wb") as stream:
-        stream.write(data)
+        raise ProbeFailure("receipt parent could not be opened as a private runtime root") from exc
+    try:
+        current = os.fstat(parent_fd)
+        if not stat.S_ISDIR(current.st_mode) or current.st_uid != os.geteuid() or stat.S_IMODE(current.st_mode) != 0o700:
+            raise ProbeFailure("receipt parent changed or is not a private runtime root")
+        try:
+            fd = os.open(path.name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow, 0o600, dir_fd=parent_fd)
+        except OSError as exc:
+            raise ProbeFailure("receipt must be a fresh non-symlink file") from exc
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(data)
+    finally:
+        os.close(parent_fd)
 
 
 def _request(port: int, block: bool = False) -> int:
@@ -158,6 +184,7 @@ def release(path: Path) -> None:
 
 
 def main() -> int:
+    global TRUSTED_RUNTIME_ROOT
     parser = argparse.ArgumentParser()
     parser.add_argument("mode", choices=("client-abort", "parallel", "hold", "release"))
     parser.add_argument("--frontend-port", type=int)
@@ -167,8 +194,10 @@ def main() -> int:
     parser.add_argument("--receipt", type=Path)
     parser.add_argument("--timeout", type=float, default=10.0)
     parser.add_argument("--backend-read-timeout", type=float, default=2.0)
+    parser.add_argument("--runtime-root", type=Path, required=True)
     args = parser.parse_args()
     try:
+        TRUSTED_RUNTIME_ROOT = Path(args.runtime_root)
         if args.mode == "release":
             release(args.release_path)
         elif args.mode == "client-abort":

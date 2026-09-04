@@ -37,6 +37,24 @@ PROC_TCP_HEADER = "sl local_address rem_address st tx_queue rx_queue tr tm->when
 
 
 class BackendCloseHarnessContractTest(unittest.TestCase):
+    def test_receipt_write_is_confined_to_private_root_and_rejects_symlinks(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            receipt = root / "receipt.json"
+            PROBE_MODULE._write_receipt(root, receipt, b"{}\n")
+            self.assertEqual(receipt.read_bytes(), b"{}\n")
+            with self.assertRaises(PROBE_MODULE.ProbeFailure):
+                PROBE_MODULE._write_receipt(root, root / "nested" / "receipt.json", b"{}\n")
+            outside_root = root.parent / "outside-root-receipt.json"
+            with self.assertRaises(PROBE_MODULE.ProbeFailure):
+                PROBE_MODULE._write_receipt(root, outside_root, b"{}\n")
+            outside = root / "outside"
+            outside.mkdir()
+            link = root / "linked"
+            link.symlink_to(outside, target_is_directory=True)
+            with self.assertRaises(PROBE_MODULE.ProbeFailure):
+                PROBE_MODULE._write_receipt(root, link / "receipt.json", b"{}\n")
+
     def test_probe_is_raw_bounded_and_requires_eof_or_read_error(self):
         text = PROBE.read_text(encoding="utf-8")
         self.assertIn('b"Content-Length: 64\\r\\n"', text)
@@ -45,6 +63,8 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
         self.assertIn("connection.close()", text)
         self.assertIn("O_EXCL", text)
         self.assertIn("O_NOFOLLOW", text)
+        self.assertIn("--runtime-root", text)
+        self.assertIn("trusted runtime root", text)
         self.assertIn("expected_path", text)
         self.assertIn("except (socket.timeout, TimeoutError) as exc", text)
         self.assertIn("(socket.timeout, TimeoutError)", text)
@@ -1208,6 +1228,8 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = pathlib.Path(temporary_directory) / "runtime"
             root.mkdir(mode=0o700)
+            os.environ[GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV] = str(root)
+            self.addCleanup(os.environ.pop, GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV, None)
             receipt = root / "raw-receipt.json"
             receipt.write_text(
                 '{"host_transaction_id":"lighttpd-60-3","frontend_status":200,'
@@ -1228,10 +1250,74 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
                 ):
                     GUARD_MODULE.assert_abort_event(receipt, error_log, 4096, 1)
 
+    def test_linux_guard_reads_artifacts_nonblocking_and_preserves_missing_log_polling(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = pathlib.Path(temporary_directory) / "runtime"
+            root.mkdir(mode=0o700)
+            os.environ[GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV] = str(root)
+            self.addCleanup(os.environ.pop, GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV, None)
+            fifo = root / "artifact.fifo"
+            os.mkfifo(fifo, 0o600)
+            with self.assertRaisesRegex(GUARD_MODULE.GuardFailure, "not a private regular"):
+                GUARD_MODULE._read_private_artifact(fifo, 4096, "fixture")
+            receipt = root / "raw-receipt.json"
+            receipt.write_text(
+                '{"host_transaction_id":"lighttpd-60-3","frontend_status":200,'
+                '"frontend_content_length":64,"frontend_body_bytes":5}\n',
+                encoding="utf-8",
+            )
+            receipt.chmod(0o600)
+            with self.assertRaisesRegex(GUARD_MODULE.GuardFailure, "error log is missing"):
+                GUARD_MODULE.assert_abort_event(receipt, root / "missing.log", 4096)
+
+    def test_linux_guard_shared_marker_reader_is_bounded(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = pathlib.Path(temporary_directory) / "runtime"
+            root.mkdir(mode=0o700)
+            os.environ[GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV] = str(root)
+            self.addCleanup(os.environ.pop, GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV, None)
+            log = root / "lighttpd-error.log"
+            log.write_text("read timeout on socket: fixture\n", encoding="utf-8")
+            log.chmod(0o600)
+            GUARD_MODULE.assert_private_artifact_contains(log, "read timeout on socket:", 4096)
+            with self.assertRaisesRegex(GUARD_MODULE.GuardFailure, "marker is missing"):
+                GUARD_MODULE.assert_private_artifact_contains(log, "absent", 4096)
+            with self.assertRaisesRegex(GUARD_MODULE.GuardFailure, "bounded inspection limit"):
+                GUARD_MODULE.assert_private_artifact_contains(log, "fixture", 1)
+
+    def test_linux_guard_bounds_runtime_tree_scan(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = pathlib.Path(temporary_directory) / "runtime"
+            root.mkdir(mode=0o700)
+            os.environ[GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV] = str(root)
+            self.addCleanup(os.environ.pop, GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV, None)
+            (root / "one").write_text("", encoding="utf-8")
+            (root / "two").write_text("", encoding="utf-8")
+            with patch.object(GUARD_MODULE, "MAX_RUNTIME_TREE_ENTRIES", 1):
+                with self.assertRaisesRegex(GUARD_MODULE.GuardFailure, "bounded entry limit"):
+                    GUARD_MODULE.assert_no_unix_sockets(root)
+
+    def test_linux_guard_tree_child_open_failure_closes_its_descriptor(self):
+        with (
+            patch.object(GUARD_MODULE.os, "open", return_value=91),
+            patch.object(GUARD_MODULE.os, "fstat", side_effect=OSError("synthetic")),
+            patch.object(GUARD_MODULE.os, "close") as close,
+        ):
+            with self.assertRaisesRegex(GUARD_MODULE.GuardFailure, "cannot safely open"):
+                GUARD_MODULE._open_directory_chain_from_fd(17, "child")
+        close.assert_called_once_with(91)
+
+    def test_linux_guard_fails_closed_without_nofollow_flag(self):
+        with patch.object(GUARD_MODULE.os, "O_NOFOLLOW", None):
+            with self.assertRaisesRegex(GUARD_MODULE.GuardFailure, "safe artifact opens"):
+                GUARD_MODULE._nofollow_open_flag()
+
     def test_linux_guard_creates_task_owned_config_and_matches_abort_event(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = pathlib.Path(temporary_directory) / "runtime"
             root.mkdir(mode=0o700)
+            os.environ[GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV] = str(root)
+            self.addCleanup(os.environ.pop, GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV, None)
             rules = pathlib.Path(temporary_directory) / 'rules-"quoted"\\path.conf'
             rules.write_text("SecRuleEngine On\n", encoding="utf-8")
             GUARD_MODULE.write_config(root, str(rules), 28184, 28185)
@@ -1285,6 +1371,8 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
 
             default_root = base / "default"
             default_root.mkdir(mode=0o700)
+            os.environ[GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV] = str(default_root)
+            self.addCleanup(os.environ.pop, GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV, None)
             GUARD_MODULE.write_config(default_root, str(rules), 28184, 28185)
             default_config = (default_root / "lighttpd.conf").read_text(encoding="utf-8")
             self.assertNotIn('"read-timeout"', default_config)
@@ -1295,6 +1383,8 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
 
             timed_root = base / "timed"
             timed_root.mkdir(mode=0o700)
+            os.environ[GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV] = str(timed_root)
+            self.addCleanup(os.environ.pop, GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV, None)
             GUARD_MODULE.write_config(timed_root, str(rules), 28184, 28185, backend_read_timeout=7)
             timed_config = (timed_root / "lighttpd.conf").read_text(encoding="utf-8")
             self.assertEqual(timed_config.count('"read-timeout"'), 1)
@@ -1322,6 +1412,7 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 timeout=2,
+                env={**os.environ, GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV: str(omitted_cli_root)},
             )
             self.assertEqual(omitted_cli.returncode, 0, omitted_cli.stderr)
             self.assertNotIn('"read-timeout"', (omitted_cli_root / "lighttpd.conf").read_text(encoding="utf-8"))
@@ -1347,6 +1438,7 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 timeout=2,
+                env={**os.environ, GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV: str(valid_cli_root)},
             )
             self.assertEqual(valid_cli.returncode, 0, valid_cli.stderr)
             self.assertIn(
@@ -1357,17 +1449,21 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
             for invalid in (0, 31, -1, True, "7", 1.5):
                 invalid_root = base / f"invalid-{str(invalid).replace('.', '_')}"
                 invalid_root.mkdir(mode=0o700)
-                with self.assertRaisesRegex(
-                    GUARD_MODULE.GuardFailure,
-                    "backend read timeout must be an integer between 1 and 30 seconds",
+                with patch.dict(
+                    os.environ,
+                    {GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV: str(invalid_root)},
                 ):
-                    GUARD_MODULE.write_config(
-                        invalid_root,
-                        str(rules),
-                        28184,
-                        28185,
-                        backend_read_timeout=invalid,
-                    )
+                    with self.assertRaisesRegex(
+                        GUARD_MODULE.GuardFailure,
+                        "backend read timeout must be an integer between 1 and 30 seconds",
+                    ):
+                        GUARD_MODULE.write_config(
+                            invalid_root,
+                            str(rules),
+                            28184,
+                            28185,
+                            backend_read_timeout=invalid,
+                        )
                 self.assertFalse((invalid_root / "document-root").exists())
                 self.assertFalse((invalid_root / "lighttpd.conf").exists())
 
@@ -1391,6 +1487,7 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 timeout=2,
+                env={**os.environ, GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV: str(missing_root)},
             )
             self.assertEqual(missing_argument.returncode, 2, missing_argument.stderr)
             self.assertFalse((missing_root / "lighttpd.conf").exists())
@@ -1416,6 +1513,7 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 timeout=2,
+                env={**os.environ, GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV: str(invalid_cli_root)},
             )
             self.assertEqual(invalid_argument.returncode, 1, invalid_argument.stderr)
             self.assertIn("backend read timeout must be an integer between 1 and 30 seconds", invalid_argument.stderr)
@@ -1425,12 +1523,30 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = pathlib.Path(temporary_directory) / "runtime"
             root.mkdir(mode=0o700)
+            os.environ[GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV] = str(root)
+            self.addCleanup(os.environ.pop, GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV, None)
             output = root / "provenance.json"
             value = 'path-with-quote=" and newline=\\n'
             GUARD_MODULE.write_json(output, [f"value={value}"])
             self.assertEqual(json.loads(output.read_text(encoding="utf-8"))["value"], value)
             with self.assertRaises(GUARD_MODULE.GuardFailure):
                 GUARD_MODULE.write_json(output, ["value=second-write"])
+            with self.assertRaisesRegex(GUARD_MODULE.GuardFailure, "field count"):
+                GUARD_MODULE.write_json(
+                    root / "too-many-fields.json",
+                    [f"field{index}=value" for index in range(GUARD_MODULE.MAX_JSON_FIELDS + 1)],
+                )
+            with self.assertRaisesRegex(GUARD_MODULE.GuardFailure, "field exceeds"):
+                GUARD_MODULE.write_json(
+                    root / "oversized-field.json",
+                    ["value=" + "x" * GUARD_MODULE.MAX_JSON_FIELD_BYTES],
+                )
+            with patch.object(GUARD_MODULE, "MAX_JSON_OUTPUT_BYTES", 1):
+                with self.assertRaisesRegex(GUARD_MODULE.GuardFailure, "output exceeds"):
+                    GUARD_MODULE.write_json(root / "oversized-output.json", ["value=control"])
+            self.assertFalse((root / "too-many-fields.json").exists())
+            self.assertFalse((root / "oversized-field.json").exists())
+            self.assertFalse((root / "oversized-output.json").exists())
 
     def test_linux_guard_exec_session_rejects_untrusted_executable_metadata(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -1446,6 +1562,75 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
             symlink.symlink_to(executable)
             with self.assertRaisesRegex(GUARD_MODULE.GuardFailure, "symbolic links"):
                 GUARD_MODULE._validated_executable(str(symlink))
+
+    def test_linux_guard_confines_artifacts_to_configured_runtime_root(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = pathlib.Path(temporary_directory) / "runtime"
+            root.mkdir(mode=0o700)
+            outside = pathlib.Path(temporary_directory) / "outside"
+            outside.mkdir(mode=0o700)
+            nested = root / "nested"
+            nested.mkdir(mode=0o700)
+            with patch.dict(
+                os.environ,
+                {GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV: str(root)},
+            ):
+                GUARD_MODULE.write_json(root / "control.json", ["status=ok"])
+                GUARD_MODULE.write_json(nested / "control.json", ["status=nested-ok"])
+                self.assertEqual(
+                    (nested / "control.json").read_text(encoding="utf-8"),
+                    '{"status": "nested-ok"}\n',
+                )
+                nested.chmod(0o755)
+                with self.assertRaisesRegex(
+                    GUARD_MODULE.GuardFailure, "private runner-owned directory"
+                ):
+                    GUARD_MODULE.write_json(nested / "non-private.json", ["status=bad"])
+                nested.chmod(0o700)
+                if os.geteuid() == 0:
+                    real_lstat = os.lstat
+                    foreign_parent_values = list(real_lstat(nested))
+                    foreign_parent_values[4] = os.geteuid() + 1
+                    foreign_parent_info = os.stat_result(foreign_parent_values)
+                    with patch.object(
+                        GUARD_MODULE.os,
+                        "lstat",
+                        side_effect=lambda candidate: (
+                            foreign_parent_info
+                            if pathlib.Path(candidate) == nested
+                            else real_lstat(candidate)
+                        ),
+                    ):
+                        with self.assertRaisesRegex(
+                            GUARD_MODULE.GuardFailure, "private runner-owned directory"
+                        ):
+                            GUARD_MODULE.write_json(
+                                nested / "foreign-owned.json", ["status=bad"]
+                            )
+                with self.assertRaises(GUARD_MODULE.GuardFailure):
+                    GUARD_MODULE.write_json(outside / "control.json", ["status=bad"])
+                with self.assertRaises(GUARD_MODULE.GuardFailure):
+                    GUARD_MODULE.write_json(root / ".." / "outside" / "escape.json", ["status=bad"])
+                link = root / "link"
+                link.symlink_to(outside, target_is_directory=True)
+                with self.assertRaises(GUARD_MODULE.GuardFailure):
+                    GUARD_MODULE.write_json(link / "escape.json", ["status=bad"])
+                rules = pathlib.Path(temporary_directory) / "rules.conf"
+                rules.write_text("SecRuleEngine On\n", encoding="utf-8")
+                with self.assertRaises(GUARD_MODULE.GuardFailure):
+                    GUARD_MODULE.write_config(outside, str(rules), 28184, 28185)
+                self.assertFalse((outside / "document-root").exists())
+                with self.assertRaises(GUARD_MODULE.GuardFailure):
+                    GUARD_MODULE.assert_no_unix_sockets(outside)
+
+    def test_linux_guard_exec_session_rejects_unapproved_argument_profiles(self):
+        executable = os.path.realpath("/usr/bin/sleep")
+        with self.assertRaisesRegex(GUARD_MODULE.GuardFailure, "one bounded duration"):
+            GUARD_MODULE._validated_command(executable, ["30", "--help"])
+        with self.assertRaisesRegex(GUARD_MODULE.GuardFailure, "approved command profile"):
+            GUARD_MODULE._validated_command(os.path.realpath("/bin/true"), [])
+        with self.assertRaisesRegex(GUARD_MODULE.GuardFailure, "unsupported argument"):
+            GUARD_MODULE._validated_command(os.path.realpath("/usr/sbin/lighttpd"), ["--config"])
 
     def test_linux_guard_exec_session_is_a_singleton_process_group(self):
         child = subprocess.Popen(
@@ -1501,6 +1686,8 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = pathlib.Path(temporary_directory) / "runtime"
             root.mkdir(mode=0o700)
+            os.environ[GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV] = str(root)
+            self.addCleanup(os.environ.pop, GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV, None)
             record = root / "session-registration.json"
             executable = os.path.realpath("/usr/bin/sleep")
             child = subprocess.Popen(
@@ -1560,9 +1747,17 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = pathlib.Path(temporary_directory) / "runtime"
             root.mkdir(mode=0o700)
+            os.environ[GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV] = str(root)
+            self.addCleanup(os.environ.pop, GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV, None)
             record = root / "session-registration.json"
             fork_program = (
-                "import os, signal, time\n"
+                "import json, os, pathlib, signal, sys, time\n"
+                "record = pathlib.Path(sys.argv[1])\n"
+                "stat_data = pathlib.Path(f'/proc/{os.getpid()}/stat').read_text()\n"
+                "start_time = stat_data.rsplit(')', 1)[1].split()[19]\n"
+                "record.write_text(json.dumps({'leader_pid': os.getpid(), 'leader_start_time': start_time, 'process_group': os.getpid(), 'session_id': os.getpid()}) + '\\n')\n"
+                "os.chmod(record, 0o600)\n"
+                "sys.argv = [sys.argv[0], *sys.argv[2:]]\n"
                 "child = os.fork()\n"
                 "if child:\n"
                 "    print(child, flush=True)\n"
@@ -1572,19 +1767,8 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
                 "    time.sleep(1)\n"
             )
             leader = subprocess.Popen(
-                [
-                    sys.executable,
-                    str(GUARD),
-                    "exec-session",
-                    "--file-limit-blocks",
-                    "16",
-                    "--session-record",
-                    str(record),
-                    "--",
-                    os.path.realpath(sys.executable),
-                    "-c",
-                    fork_program,
-                ],
+                [sys.executable, "-c", fork_program, str(record)],
+                start_new_session=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -1695,9 +1879,17 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = pathlib.Path(temporary_directory) / "runtime"
             root.mkdir(mode=0o700)
+            os.environ[GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV] = str(root)
+            self.addCleanup(os.environ.pop, GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV, None)
             record = root / "session-registration.json"
             fork_program = (
-                "import os, signal, time\n"
+                "import json, os, pathlib, signal, sys, time\n"
+                "record = pathlib.Path(sys.argv[1])\n"
+                "stat_data = pathlib.Path(f'/proc/{os.getpid()}/stat').read_text()\n"
+                "start_time = stat_data.rsplit(')', 1)[1].split()[19]\n"
+                "record.write_text(json.dumps({'leader_pid': os.getpid(), 'leader_start_time': start_time, 'process_group': os.getpid(), 'session_id': os.getpid()}) + '\\n')\n"
+                "os.chmod(record, 0o600)\n"
+                "sys.argv = [sys.argv[0], *sys.argv[2:]]\n"
                 "child = os.fork()\n"
                 "if child:\n"
                 "    print(child, flush=True)\n"
@@ -1707,19 +1899,8 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
                 "    time.sleep(1)\n"
             )
             leader = subprocess.Popen(
-                [
-                    sys.executable,
-                    str(GUARD),
-                    "exec-session",
-                    "--file-limit-blocks",
-                    "16",
-                    "--session-record",
-                    str(record),
-                    "--",
-                    os.path.realpath(sys.executable),
-                    "-c",
-                    fork_program,
-                ],
+                [sys.executable, "-c", fork_program, str(record)],
+                start_new_session=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -1818,17 +1999,24 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = pathlib.Path(temporary_directory) / "runtime"
             root.mkdir(mode=0o700)
+            os.environ[GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV] = str(root)
+            self.addCleanup(os.environ.pop, GUARD_MODULE.TRUSTED_RUNTIME_ROOT_ENV, None)
             record = root / "session-registration.json"
             late_child_file = root / "late-child.pid"
             ready_file = root / "term-handler-ready"
             term_entered_file = root / "term-handler-entered"
             term_release_file = root / "term-handler-release"
             fork_program = (
-                "import os, pathlib, signal, sys, time\n"
-                "child_path = pathlib.Path(sys.argv[1])\n"
-                "ready_path = pathlib.Path(sys.argv[2])\n"
-                "entered_path = pathlib.Path(sys.argv[3])\n"
-                "release_path = pathlib.Path(sys.argv[4])\n"
+                "import json, os, pathlib, signal, sys, time\n"
+                "record = pathlib.Path(sys.argv[1])\n"
+                "stat_data = pathlib.Path(f'/proc/{os.getpid()}/stat').read_text()\n"
+                "start_time = stat_data.rsplit(')', 1)[1].split()[19]\n"
+                "record.write_text(json.dumps({'leader_pid': os.getpid(), 'leader_start_time': start_time, 'process_group': os.getpid(), 'session_id': os.getpid()}) + '\\n')\n"
+                "os.chmod(record, 0o600)\n"
+                "child_path = pathlib.Path(sys.argv[2])\n"
+                "ready_path = pathlib.Path(sys.argv[3])\n"
+                "entered_path = pathlib.Path(sys.argv[4])\n"
+                "release_path = pathlib.Path(sys.argv[5])\n"
                 "def on_term(_signal, _frame):\n"
                 "    entered_path.write_text('entered', encoding='ascii')\n"
                 "    while not release_path.exists():\n"
@@ -1851,22 +2039,14 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
             )
             leader = subprocess.Popen(
                 [
-                    sys.executable,
-                    str(GUARD),
-                    "exec-session",
-                    "--file-limit-blocks",
-                    "16",
-                    "--session-record",
+                    sys.executable, "-c", fork_program,
                     str(record),
-                    "--",
-                    os.path.realpath(sys.executable),
-                    "-c",
-                    fork_program,
                     str(late_child_file),
                     str(ready_file),
                     str(term_entered_file),
                     str(term_release_file),
                 ],
+                start_new_session=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,
                 text=True,

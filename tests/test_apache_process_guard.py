@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import stat
 import tempfile
 import unittest
 from unittest import mock
@@ -31,14 +33,17 @@ class ApacheProcessGuardTest(unittest.TestCase):
         (self.proc / "net" / "tcp6").write_text(header, encoding="ascii")
         self.old_proc = guard.PROC
         guard.PROC = self.proc
+        self.artifact_root = Path(self.tmp.name) / "artifacts"
+        self.artifact_root.mkdir(mode=0o700)
+        (self.artifact_root / "run").mkdir(mode=0o700)
 
     def tearDown(self) -> None:
         guard.PROC = self.old_proc
         self.tmp.cleanup()
 
     def _record(self) -> dict[str, object]:
-        output = Path(self.tmp.name) / "evidence.json"
-        guard.record(123, str(self.executable), 8080, output)
+        output = self.artifact_root / "run" / "evidence.json"
+        guard.record(123, str(self.executable), 8080, output, self.artifact_root)
         return json.loads(output.read_text(encoding="utf-8"))
 
     def test_normal_ownership_records_identity_and_listener(self) -> None:
@@ -170,19 +175,19 @@ class ApacheProcessGuardTest(unittest.TestCase):
                 guard.preflight()
 
     def test_evidence_is_non_overwriting_and_symlink_safe(self) -> None:
-        output = Path(self.tmp.name) / "evidence.json"
-        guard.record(123, str(self.executable), 8080, output)
+        output = self.artifact_root / "evidence.json"
+        guard.record(123, str(self.executable), 8080, output, self.artifact_root)
         with self.assertRaises(guard.GuardError):
-            guard.record(123, str(self.executable), 8080, output)
+            guard.record(123, str(self.executable), 8080, output, self.artifact_root)
 
     def test_artifact_paths_must_be_absolute_and_private(self) -> None:
         with self.assertRaises(guard.GuardError):
-            guard._validated_artifact_path(Path("relative/evidence.json"))
+            guard._validated_artifact_path(Path("relative/evidence.json"), self.artifact_root)
         public = Path(self.tmp.name) / "public"
         public.mkdir()
         public.chmod(0o755)
         with self.assertRaises(guard.GuardError):
-            guard._validated_artifact_path(public / "evidence.json")
+            guard._validated_artifact_path(public / "evidence.json", self.artifact_root)
 
     def test_artifact_paths_reject_symlinked_parent(self) -> None:
         real = Path(self.tmp.name) / "real"
@@ -190,7 +195,29 @@ class ApacheProcessGuardTest(unittest.TestCase):
         link = Path(self.tmp.name) / "link"
         link.symlink_to(real, target_is_directory=True)
         with self.assertRaises(guard.GuardError):
-            guard._validated_artifact_path(link / "evidence.json")
+            guard._validated_artifact_path(link / "evidence.json", self.artifact_root)
+
+    def test_artifact_paths_reject_parent_traversal(self) -> None:
+        private = Path(self.tmp.name) / "private"
+        private.mkdir(mode=0o700)
+        with self.assertRaises(guard.GuardError):
+            guard._validated_artifact_path(private / "nested" / ".." / "evidence.json", self.artifact_root)
+
+    def test_artifact_paths_reject_nested_symlink(self) -> None:
+        outside = Path(self.tmp.name) / "outside"
+        outside.mkdir(mode=0o700)
+        nested = self.artifact_root / "nested"
+        nested.mkdir(mode=0o700)
+        link = nested / "linked"
+        link.symlink_to(outside, target_is_directory=True)
+        with self.assertRaises(guard.GuardError):
+            guard._validated_artifact_path(link / "evidence.json", self.artifact_root)
+
+    def test_artifact_root_rejects_symlink_alias(self) -> None:
+        root_link = Path(self.tmp.name) / "artifact-root-link"
+        root_link.symlink_to(self.artifact_root, target_is_directory=True)
+        with self.assertRaises(guard.GuardError):
+            guard._validated_artifact_path(root_link / "evidence.json", root_link)
 
     def test_evidence_loader_rejects_symlinked_file(self) -> None:
         evidence = self._record()
@@ -199,7 +226,77 @@ class ApacheProcessGuardTest(unittest.TestCase):
         link = Path(self.tmp.name) / "link.json"
         link.symlink_to(target)
         with self.assertRaises(guard.GuardError):
-            guard._load(link)
+            guard._load(link, self.artifact_root)
+
+    def test_evidence_loader_rejects_nonregular_fifo_without_blocking(self) -> None:
+        fifo = self.artifact_root / "evidence.pipe"
+        os.mkfifo(fifo, mode=0o600)
+        with self.assertRaises(guard.GuardError):
+            guard._load(fifo, self.artifact_root)
+
+    def test_evidence_loader_rejects_oversized_regular_file(self) -> None:
+        evidence = self.artifact_root / "oversized.json"
+        evidence.write_bytes(b"{" + b"a" * guard.MAX_EVIDENCE_BYTES + b"}")
+        with self.assertRaises(guard.GuardError):
+            guard._load(evidence, self.artifact_root)
+
+    def test_evidence_loader_accepts_valid_regular_file(self) -> None:
+        evidence = self._record()
+        loaded = guard._load(self.artifact_root / "run" / "evidence.json", self.artifact_root)
+        self.assertEqual(loaded, evidence)
+
+    def test_runtime_directory_creation_is_descriptor_relative_and_private(self) -> None:
+        target = self.artifact_root / "created" / "nested"
+        guard.prepare_runtime_directory(target, "test runtime directory", True)
+        self.assertTrue(target.is_dir())
+        self.assertFalse(target.is_symlink())
+        self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o700)
+
+    def test_runtime_directory_preserves_nonprivate_output_root_contract(self) -> None:
+        target = self.artifact_root / "output-root"
+        target.mkdir(mode=0o755)
+        target.chmod(0o755)
+        guard.prepare_runtime_directory(target, "test output root", False)
+        self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o755)
+
+    def test_runtime_directory_rejects_foreign_owned_ancestor_metadata(self) -> None:
+        metadata = mock.Mock(
+            st_mode=stat.S_IFDIR | 0o755,
+            st_uid=os.geteuid() + 1,
+        )
+        with self.assertRaises(guard.GuardError):
+            guard._safe_runtime_ancestor(metadata, Path("/trusted/ancestor"))
+
+    def test_runtime_directory_rejects_symlink_inserted_during_create(self) -> None:
+        root = self.artifact_root / "race-root"
+        root.mkdir(mode=0o700)
+        outside = Path(self.tmp.name) / "outside"
+        outside.mkdir(mode=0o700)
+        target = root / "inserted" / "nested"
+        real_mkdir = os.mkdir
+        injected = False
+
+        def insert_symlink(
+            component: str | bytes,
+            mode: int = 0o777,
+            *,
+            dir_fd: int | None = None,
+        ) -> None:
+            nonlocal injected
+            descriptor_path = (
+                Path(os.readlink(f"/proc/self/fd/{dir_fd}")) if dir_fd is not None else None
+            )
+            if component == "inserted" and descriptor_path == root:
+                injected = True
+                (root / "inserted").symlink_to(outside, target_is_directory=True)
+                raise FileExistsError("simulated concurrent directory replacement")
+            real_mkdir(component, mode, dir_fd=dir_fd)
+
+        with mock.patch.object(guard.os, "mkdir", side_effect=insert_symlink):
+            with self.assertRaises(guard.GuardError):
+                guard.prepare_runtime_directory(target, "test runtime directory", True)
+        self.assertTrue(injected)
+        self.assertFalse((outside / "nested").exists())
 
     def test_cleanup_requires_absent_process_and_listener_and_is_idempotent(self) -> None:
         evidence = self._record()
@@ -241,6 +338,8 @@ class ApacheProcessGuardTest(unittest.TestCase):
         self.assertNotIn("kill \"$HTTPD_PID\"", source)
         self.assertIn('"$PYTHON_BIN" "$APACHE_PROCESS_GUARD" terminate', source)
         self.assertIn('"$PYTHON_BIN" "$APACHE_PROCESS_GUARD" verify-pid', source)
+        self.assertIn('APACHE_GUARD_ARTIFACT_ROOT="$RUNTIME_ROOT"', source)
+        self.assertNotIn('APACHE_GUARD_ARTIFACT_ROOT="${APACHE_GUARD_ARTIFACT_ROOT:-', source)
         self.assertNotIn('while kill -0 "$stale_pid"', source)
 
 

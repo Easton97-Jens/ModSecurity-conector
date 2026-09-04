@@ -7,13 +7,42 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from importlib.util import module_from_spec, spec_from_file_location
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 HARNESS = REPO_ROOT / "connectors/lighttpd/harness/run_lighttpd_stock_lifecycle.sh"
+PROBE = REPO_ROOT / "connectors/lighttpd/harness/lighttpd_stock_lifecycle_probe.py"
+SPEC = spec_from_file_location("lighttpd_stock_lifecycle_probe", PROBE)
+PROBE_MODULE = module_from_spec(SPEC)
+assert SPEC.loader is not None
+SPEC.loader.exec_module(PROBE_MODULE)
 
 
 class StockLifecycleHarnessContractTest(unittest.TestCase):
+    def test_receipt_write_is_confined_to_private_root_and_rejects_symlinks(self):
+        previous_root = PROBE_MODULE.TRUSTED_RUNTIME_ROOT
+        with tempfile.TemporaryDirectory() as temporary:
+            try:
+                root = Path(temporary)
+                PROBE_MODULE.TRUSTED_RUNTIME_ROOT = root
+                receipt = root / "receipt.json"
+                PROBE_MODULE._safe_write(receipt, {"status": "pass"})
+                self.assertEqual(receipt.read_text(encoding="utf-8").count("status"), 1)
+                with self.assertRaises(PROBE_MODULE.ProbeFailure):
+                    PROBE_MODULE._safe_write(root / "nested" / "receipt.json", {"status": "fail"})
+                outside_root = root.parent / "outside-root-receipt.json"
+                with self.assertRaises(PROBE_MODULE.ProbeFailure):
+                    PROBE_MODULE._safe_write(outside_root, {"status": "fail"})
+                outside = root / "outside"
+                outside.mkdir()
+                link = root / "linked"
+                link.symlink_to(outside, target_is_directory=True)
+                with self.assertRaises(PROBE_MODULE.ProbeFailure):
+                    PROBE_MODULE._safe_write(link / "receipt.json", {"status": "fail"})
+            finally:
+                PROBE_MODULE.TRUSTED_RUNTIME_ROOT = previous_root
+
     def test_entrypoint_is_executable_and_shell_clean(self) -> None:
         self.assertTrue(os.access(HARNESS, os.X_OK))
         text = HARNESS.read_text(encoding="utf-8")
@@ -73,7 +102,8 @@ class StockLifecycleHarnessContractTest(unittest.TestCase):
         self.assertIn('SERVER_CLEANUP_RECEIPT=$RUNTIME_ROOT/server-cleanup-restart.json', text)
         self.assertIn("server-session-restart.json", text)
         self.assertIn('--upstream-port "$UPSTREAM_PORT" --timeout "$TIMEOUT"', text)
-        self.assertIn('--backend-read-timeout "$BACKEND_READ_TIMEOUT" --receipt "$V6_RECEIPT"', text)
+        self.assertIn('--backend-read-timeout "$BACKEND_READ_TIMEOUT" --runtime-root "$RUNTIME_ROOT"', text)
+        self.assertIn('--receipt "$V6_RECEIPT"', text)
         self.assertIn('Stock V10 client-close evidence did not arrive', text)
         self.assertIn('V6_RESULT=direct-close', text)
         self.assertIn('V6_RESULT=bounded-timeout-fallback', text)
@@ -91,7 +121,9 @@ class StockLifecycleHarnessContractTest(unittest.TestCase):
         self.assertIn('evidence_type=stock_v6_follow_up_control', text)
         self.assertIn('http_status=200', text)
         self.assertIn('V6 follow-up receipt is missing', text)
-        self.assertIn('metadata.st_size > 65536', text)
+        self.assertIn('assert-file-marker', text)
+        self.assertIn('--marker "read timeout on socket:"', text)
+        self.assertNotIn('with path.open("rb") as stream:', text)
         self.assertNotIn('path.read_bytes()', text)
         self.assertLess(text.index('Stock V10 client-close evidence did not arrive'), text.index('cleanup-session --session-record "$V10_PROBE_SESSION_RECORD"'))
         self.assertNotIn("V9-parallel=pass", text)
@@ -101,6 +133,8 @@ class StockLifecycleHarnessContractTest(unittest.TestCase):
         probe = (REPO_ROOT / "connectors/lighttpd/harness/lighttpd_stock_lifecycle_probe.py").read_text(encoding="utf-8")
         self.assertIn("O_EXCL", probe)
         self.assertIn("O_NOFOLLOW", probe)
+        self.assertIn("--runtime-root", probe)
+        self.assertIn("trusted runtime root", probe)
         self.assertIn("MAX_RECEIPT_BYTES = 65536", probe)
         self.assertIn("ThreadPoolExecutor(max_workers=MAX_PARALLEL)", probe)
         self.assertIn('choices=("client-abort", "parallel", "hold", "release")', probe)

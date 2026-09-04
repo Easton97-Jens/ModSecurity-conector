@@ -51,6 +51,7 @@ RUNTIME_ROOT=$RUNTIME_PARENT/$(basename "$RUNTIME_ROOT")
 umask 077
 mkdir "$RUNTIME_ROOT" || blocked "could not create fresh private runtime root"
 [ "$(stat -c '%a' "$RUNTIME_ROOT")" = 700 ] || chmod 700 "$RUNTIME_ROOT"
+export MSCONNECTOR_TRUSTED_RUNTIME_ROOT="$RUNTIME_ROOT"
 for item in "$HOST_BINARY" "$MODULE_PATH" "$RULES_FILE"; do
     [ -e "$item" ] || blocked "provenance path disappeared: $item"
 done
@@ -332,7 +333,8 @@ write_provenance "$PROVENANCE_START" after-host-start
 
 python3 "$SCRIPT_DIR/lighttpd_backend_close_probe.py" \
     --frontend-port "$FRONTEND_PORT" --upstream-port "$UPSTREAM_PORT" \
-    --path "$PATH_TO_PROBE" --timeout "$TIMEOUT" --receipt "$RECEIPT" || fail "raw-socket truncation proof failed"
+    --path "$PATH_TO_PROBE" --timeout "$TIMEOUT" --runtime-root "$RUNTIME_ROOT" \
+    --receipt "$RECEIPT" || fail "raw-socket truncation proof failed"
 [ -s "$RECEIPT" ] || fail "raw-socket receipt missing before host stop"
 assert_host_identity
 python3 "$LINUX_GUARD" assert-abort-event --receipt "$RECEIPT" --error-log "$ERROR_LOG" \
