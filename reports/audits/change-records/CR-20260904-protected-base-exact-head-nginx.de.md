@@ -6,9 +6,9 @@
 | --- | --- |
 | Change-ID | CR-20260904-protected-base-exact-head-nginx |
 | Datum (UTC) | 2026-09-04 |
-| Basis-Revision | 95bc04203455bc74a9cd18fafc6fb5848af2bbb2 |
+| Basis-Revision | 2b3d7f7f0bec006b236b5998d011069c9125033f |
 | Umfang | Parent-only-Vorbereitung für unabhängige NGINX-Exact-Head-Evidence über geschützte Base |
-| Auslieferungsstatus | Draft-PR-#355-Successor-Remediation in Vorbereitung; keine Merge-Autorisierung |
+| Auslieferungsstatus | Draft-PR-#355-Branch-only-Base-Merge-Checkpoint `5368569351e968e8ea641fc485590654df6a4336`; keine Merge-Autorisierung |
 | Candidate | PR #354; exakter Head muss beim Dispatch aufgelöst und zurückgelesen werden |
 
 ## Zweck
@@ -20,6 +20,13 @@ bindet den kanonischen offenen PR und die vollständige Head-SHA; der
 unprivilegierte Build paketiert feste Artefakte; ein geschützter Base-Launcher
 führt die beiden nativen On/Off-Zellen aus; und ein unabhängiger Collector
 erzeugt begrenzte hostseitige Evidence.
+
+Der Branch-only-Checkpoint ist ein normaler Merge von aktuellem
+`origin/master` `2b3d7f7f0bec006b236b5998d011069c9125033f` in den Draft-PR-
+Branch; sein anderer Parent ist der frühere PR-Head
+`de1c3c05b53a00e077aca1c08a2fcdc552b0344e`. Er mergt weder PR #355 noch PR
+#354 in `master`. Der historische gemeinsame Base bleibt
+`95bc04203455bc74a9cd18fafc6fb5848af2bbb2`.
 
 ## Akzeptanzkriterien
 
@@ -85,6 +92,14 @@ Grenzwert `1`. Das authentifizierte PR-Inventar enthielt 26 Vulnerabilities und
 Validator laufen konnte. Der Successor übergibt diesen Wert ausschließlich
 über eine quotierte Step-Environment-Variable.
 
+Diese SonarCloud-Werte sind ein aufbewahrter historischer Readback für
+`78163d65dc19ee2cf1500dafa4d0f5d5cc36893b`, keine Current-Head-Evidence.
+Dieser Record enthält weder ein unveränderliches lokales Sonar-Artefakt noch
+eine aktuelle Check-Run-URL für diese historische Abfrage; ihre Provenienz ist
+daher für die aktuell geprüfte Source `not_verified`. Nach dem finalen
+normalen Branch-Push sind ein neues authentifiziertes PR-#355-Inventar und eine
+Quality-Gate-Abfrage erforderlich.
+
 Der Successor stärkt außerdem Dispatcher- und Collector-Dateigrenzen durch
 Full-Chain-, descriptor-relative, no-follow-Operationen; bindet das
 Collector-Manifest an seinen festen privaten Task-Root-Ort; lehnt beschreibbare
@@ -106,6 +121,17 @@ Scanner-Exclusion, Quality-Gate-/Regeländerung, Coverage-Reduktion noch
 Workflow-Abschwächung verwendet. Eine frische Exact-Successor-Sonar-Analyse ist
 weiterhin erforderlich; das Ergebnis des Initial-Heads ist kein Nachweis für
 einen Successor.
+
+Der Source-Review nach dem Merge fand zusätzlich, dass der Candidate-Builder
+sein Candidate-gesteuertes `Makefile` auf einem als root konfigurierten Runner
+erreichen konnte, weil reale, effektive oder gespeicherte root-Identitäten nicht
+abgelehnt wurden. Der Builder lehnt jetzt jede root-UID/GID vor jedem
+Candidate-Pfadzugriff oder festen `make`-Vektor ab und gibt das zugelassene
+`nginx`-Binary mit festem Modus `0500` aus; die reinen Datenartefakte Modul und
+Library bleiben `0400`. Regressionstests prüfen Root-Ablehnung, Nicht-root-
+Kontrollen, Ablehnung eines nicht ausführbaren Binary und feste Output-Modi.
+Dies ist die Source-Korrektur für `FND-PARENT-1032`; sie bleibt ausstehend,
+bis finale Exact-Head-Validierung und Readback abgeschlossen sind.
 
 Der Source-Review des Successors fand zusätzlich ein geerbtes Root-Control-
 File-Rennen in derselben Launcher-Grenze. Ein Candidate kann in das
@@ -137,7 +163,8 @@ Branch-Schutz-, Merge-, Force-Push-, Secret-, privilegierte PR-Workflow- oder
 Sonar-Suppression-Änderung gehört zu diesem Record. `FND-PARENT-1013` bleibt
 `fixed, verification pending`. `FND-GITHUB-0009` bleibt offen, bis eine
 frische geschützte Runtime die Akzeptanzkriterien und Host-Gate-/Lifetime-
-Kontrollen validiert.
+Kontrollen validiert. `FND-PARENT-1032` ist eine Parent-only-Source-Korrektur
+und reduziert nicht die getrennte Host-Gate- oder Runner-Isolationsvoraussetzung.
 
 ## Erforderliche nächste Evidence
 
@@ -167,20 +194,45 @@ bleiben Beobachtungen.
 
 ## Geänderte Dateien
 
-Siehe geschützte Dispatcher-, Builder-, Preflight-, Launcher-, Collector-,
-Helper-, Workflow-, fokussierte Test- und bilingualen Dokumentationsdateien
-dieses Draft-PRs.
+Der Protected-Base-Diff gegenüber aktueller Base enthält genau diese 23 Pfade:
 
-## Ausgeführte Befehle
+- `.github/actionlint.yaml`
+- `.github/workflows/run-protected-nginx-exact-head.yml`
+- `ci/runtime/broker/nginx_exact_head_result_collector.py`
+- `ci/runtime/broker/nginx_exact_head_root_launcher.py`
+- `ci/runtime/broker/protected_nginx_exact_head_builder.py`
+- `ci/runtime/broker/protected_nginx_exact_head_dispatcher.py`
+- `ci/runtime/broker/protected_nginx_exact_head_runner_preflight.py`
+- `ci/runtime/broker/run_nginx_exact_head_cells.sh`
+- `docs/security/protected-exact-head-host-gate.de.md`
+- `docs/security/protected-exact-head-host-gate.md`
+- `docs/security/protected-exact-head-nginx.de.md`
+- `docs/security/protected-exact-head-nginx.md`
+- `reports/audits/change-records/CR-20260904-protected-base-exact-head-nginx.de.md`
+- `reports/audits/change-records/CR-20260904-protected-base-exact-head-nginx.md`
+- `reports/audits/change-records/README.de.md`
+- `reports/audits/change-records/README.md`
+- `tests/test_nginx_exact_head_base_helper.py`
+- `tests/test_nginx_exact_head_result_collector.py`
+- `tests/test_nginx_exact_head_root_launcher.py`
+- `tests/test_protected_nginx_exact_head_builder.py`
+- `tests/test_protected_nginx_exact_head_dispatcher.py`
+- `tests/test_protected_nginx_exact_head_runner_preflight.py`
+- `tests/test_protected_nginx_exact_head_workflow.py`
 
-Fokussierte Python-`unittest`: bestanden, 93 Tests. Python-Kompilierung,
-`/bin/sh -n` und `actionlint` für den geschützten Workflow bestanden.
-Descriptor-verankerte Evidence-Root-/Leaf-Lesezugriffe sowie Dispatcher- und
-Collector-Path-Substitution-Regressionen bestanden ebenfalls. JSON-Schema-
-Versionen verlangen einen tatsächlichen JSON-Integer; `true` kann daher nicht
-als Version `1` auftreten. Dies sind ausschließlich lokale Ergebnisse vor dem
-Successor-Commit; Hosted- und Sonar-Evidence müssen für dessen exakte SHA neu
-zurückgelesen werden.
+## Tests und tatsächliche Ergebnisse
+
+Die folgenden lokalen Ergebnisse wurden für den Source-Checkpoint
+`53aee10ddeb448ed7506e645709d2162aeab091f` beobachtet; finaler Branch-
+Readback und Hosted-Checks bleiben getrennt erforderlich.
+
+- `python -B -m unittest -q tests.test_protected_nginx_exact_head_dispatcher tests.test_protected_nginx_exact_head_builder tests.test_protected_nginx_exact_head_runner_preflight tests.test_nginx_exact_head_root_launcher tests.test_nginx_exact_head_result_collector tests.test_nginx_exact_head_base_helper tests.test_protected_nginx_exact_head_workflow` — bestanden, 98 Tests.
+- `python -B -m unittest -q tests.test_bilingual_docs` — bestanden, 22 Tests.
+- `python -B -m unittest -q tests.test_event_runtime_security_contract tests.test_nginx_native_security_contract tests.test_nginx_upstream_security_contract tests.test_connector_config_reference tests.test_sonar_reliability_contract` — bestanden, 48 Tests.
+- `python -B -m py_compile` für die fünf geschützten Broker-Python-Dateien — bestanden; `sh -n` und `bash -n` für `run_nginx_exact_head_cells.sh` — bestanden; `actionlint .github/workflows/*.yml` — bestanden.
+- `make check-variable-documentation` — bestanden, 101 dokumentierte Variablenreferenzen; Parent-Lokalpolicy-Validierung — konsistent; `git diff --check` — vor dem Staging bestanden.
+- `make check-nginx-c17` — blockiert: unterstützte NGINX-Header/-Quellen fehlen, und das zugrunde liegende Target gab Exit 77 zurück. Dies ist kein erfolgreiches natives NGINX-Ergebnis.
+- `make check-bilingual-docs` und `make check-doc-links` — ausschließlich durch bereits vorhandene fehlende Links innerhalb des nicht initialisierten Framework-Gitlinks blockiert; der Change-Record-spezifische deutsche Linkfehler wurde korrigiert.
 
 ## Security-Auswirkung
 
@@ -224,29 +276,5 @@ PR-#354-/Sonar-Remediation-Prüfungen liegen außerhalb dieses Base-Umfangs.
 Lokale Prüfungen bestanden wie oben vermerkt. Hosted-Verifikation bleibt
 blockiert; dies ist ausschließlich Vorbereitung ohne Merge-Autorisierung.
 
-## Beobachtete lokale Validierung
-
-Die fokussierte Python-Unit-Suite für Protected-Dispatcher, Builder,
-Preflight, Launcher, Collector, Helper und Workflow-Contracts bestand mit 93
-Tests. Descriptor-verankerte Evidence-Root-/Leaf-Lesezugriffe, Dispatcher- und
-Collector-Path-Substitution-Regressionen, die strikte Ablehnung boolescher
-Schema-Versionen sowie Environment-Variable-only-Handling der übergebenen
-PR-Nummer und erwarteten SHA bestanden. Candidate-Task-/Build-/Output-
-Directory-Swap-Regressionen bestanden ebenfalls: Ersatzverzeichnisse werden
-nicht verwendet und ersetzte Task-/Output-Identitäten vor der Rückgabe eines
-Package-Pfads fail-closed abgelehnt. Python-Kompilierung und Shell-
-Syntaxprüfungen bestanden.
-Der Root-Control-Publisher lehnt kontrollierte temporäre Symlink-Substitution
-für Release und Completion ab, ohne den task-eigenen Opferpfad zu verändern;
-der normale Completion-Control veröffentlicht seine feste JSON-Repräsentation.
-Der Base-Helper verwendet für diese Marker ausschließlich das getrennte und
-für den Candidate nicht schreibbare Control-Verzeichnis unterhalb der
-root-eigenen Cell-Hierarchie.
-`actionlint` bestand für `.github/workflows/run-protected-nginx-exact-head.yml`.
-Eine lokale Bubblewrap-Mount-Layout-Probe wird durch die Namespace-Policy dieses
-Containers blockiert und nicht als Host-Runtime-Ergebnis behauptet. Ein
-gehosteter NGINX-Runtime-Lauf, geschützte Environment, dedizierter Runner und
-unabhängige Attestierung waren lokal nicht verfügbar und bleiben blockierte
-externe Evidence.
 
 Ausschließlich Vorbereitung — keine Merge-Autorisierung.
