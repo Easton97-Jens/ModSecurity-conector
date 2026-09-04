@@ -11,7 +11,7 @@
 | Base revision | 95bc04203455bc74a9cd18fafc6fb5848af2bbb2 |
 | Branch | codex/security-remediation-open-findings-20260903 |
 | Final HEAD_SHA | This record is part of the delivery head and therefore cannot truthfully self-reference its own final Git object. The exact immutable final SHA is recorded in the Draft PR metadata and task delivery evidence after this record is committed. |
-| Delivery status | Draft PR [#354](https://github.com/Easton97-Jens/ModSecurity-conector/pull/354) is open and unmerged. Local remediation and focused validation are complete; the post-correction hosted runtime rerun remains pending. |
+| Delivery status | Draft PR [#354](https://github.com/Easton97-Jens/ModSecurity-conector/pull/354) is open and unmerged. Exact-head `f38f239a8d0e73408a049583f5fcdb01d8b7be9b` completed the full hosted runtime workflow and SonarCloud Quality Gate; its NGINX provision/compile passed, while its on/off runtime cells remain deliberately blocked by the required worker-identity control. This documentation successor requires its own fresh exact-head rerun. |
 
 ## Motivation and problem statement
 
@@ -64,6 +64,7 @@ The implementation ports only the current-base-required security controls. Histo
 | NGINX callback, phase-runner, and upstream-security contracts | Passed: 23 tests (3 skipped). |
 | NGINX generated-reference and focused contract tests | Passed: 5 tests; make check-connector-config-reference passed. |
 | NGINX C17 host compilation | Blocked: this environment lacks NGINX headers/source; no header installation or host emulation was performed. |
+| Exact f38 NGINX supported-source provision/compile | Passed: the pinned `nginx-1.31.4` archive was SHA-256 verified and produced the managed `ngx_http_modsecurity_module.so`; the task-local `--no-same-owner` setting only avoids unsupported archive-owner restoration. It is not an on/off runtime result. |
 | Authorization timeout, detached-worker smoke, dynamic response-companion lifecycle fixture, ASan/UBSan, and TSan | Passed. The dynamic fixture proves the configured companion's pre-quiescence hold, failed-shutdown quarantine, one post-drain release, concurrent owner/worker single-winner release, and the no-companion deferred case. |
 | Envoy module graph, Go test, and Go vet | Passed; module graph reports google.golang.org/grpc v1.83.1. |
 | Traefik contracts/native-plugin/Authorization worker contracts | Passed: 47 tests. |
@@ -440,3 +441,30 @@ not execute these cells. Therefore this result is compile evidence only, not
 provision/run is the remaining authorized alternative to investigate after the
 next normal successor head; no workflow change, merge, force-push,
 Framework/MRTS/Gitlink change, or test/control weakening is made.
+
+### Exact-head f38 validation follow-up
+
+Successor head `f38f239a8d0e73408a049583f5fcdb01d8b7be9b` was pushed
+normally and read back from GitHub. The complete runtime workflow `33820766693`
+passed all five connector jobs at this exact head. NGINX workflow `33820766701`
+also passed exact checkout, pinned provenance, and runtime-component
+provisioning.
+
+Its isolated `modsecurity_use_error_log` on/off cells stopped with the
+intentional status `77` because the unprivileged hosted runner cannot establish
+the required distinct verified worker identity. No same-identity bypass or
+workflow weakening was used, so this workflow is not on/off runtime evidence.
+A separate local pinned-source retry first confirmed that the release archive
+is valid but cannot restore uid `502`/gid `50` in this capability-restricted
+root namespace. With only the safe `--no-same-owner` host-compatibility setting,
+the real provisioner produced the managed NGINX connector module. The local
+runtime still cannot supply the required evidence: `runuser` cannot set groups,
+and the existing Framework containment control correctly rejects its
+non-contained materialization geometry before worker startup. Neither outcome
+justifies relaxing the identity or containment controls.
+
+The exact-head SonarCloud result passed the Quality Gate. The two newly
+surfaced registry-staging issues (`python:S3776` and `python:S107`) were fixed
+in f38. The three remaining `c:S995` Authorization fixture findings are
+individually documented public-ABI non-problems. No `NOSONAR`, exclusion, issue
+transition, or Quality-Gate weakening was used.

@@ -11,7 +11,7 @@
 | Basis-Revision | 95bc04203455bc74a9cd18fafc6fb5848af2bbb2 |
 | Branch | codex/security-remediation-open-findings-20260903 |
 | Finaler HEAD_SHA | Dieser Record ist Teil des Delivery-HEAD und kann sein eigenes finales Git-Objekt daher nicht wahrheitsgemäß selbst referenzieren. Der exakte unveränderliche SHA wird nach dem Commit dieses Records in Draft-PR-Metadaten und Delivery-Evidence erfasst. |
-| Delivery-Status | Draft PR [#354](https://github.com/Easton97-Jens/ModSecurity-conector/pull/354) ist offen und nicht gemergt. Lokale Remediation und fokussierte Validierung sind abgeschlossen; der Hosted-Runtime-Rerun nach der Korrektur steht noch aus. |
+| Delivery-Status | Draft PR [#354](https://github.com/Easton97-Jens/ModSecurity-conector/pull/354) ist offen und nicht gemergt. Der Exact-Head `f38f239a8d0e73408a049583f5fcdb01d8b7be9b` bestand den vollständigen Hosted-Runtime-Workflow und das SonarCloud-Quality-Gate; sein NGINX-Provisioning/-Compile bestand, während seine On/Off-Runtime-Zellen wegen der erforderlichen Worker-Identitätskontrolle absichtlich blockiert bleiben. Dieser Dokumentations-Successor benötigt seinen eigenen frischen Exact-Head-Rerun. |
 
 ## Motivation und Problemstellung
 
@@ -65,6 +65,7 @@ Die Implementierung portiert ausschließlich die auf der aktuellen Basis benöti
 | NGINX-Callback-, Phase-Runner- und Upstream-Security-Contracts | Bestanden: 23 Tests (3 übersprungen). |
 | NGINX-generated-reference- und fokussierte Contract-Tests | Bestanden: 5 Tests; make check-connector-config-reference bestanden. |
 | NGINX-C17-Host-Kompilierung | Blockiert: Diese Umgebung enthält keine NGINX-Header/-Quellen; keine Header-Installation und keine Host-Emulation erfolgte. |
+| Exact-f38-NGINX-Provisioning/-Compile gegen unterstützte Quellen | Bestanden: Das gepinnte Archiv `nginx-1.31.4` wurde per SHA-256 geprüft und erzeugte das verwaltete `ngx_http_modsecurity_module.so`; die task-lokale Einstellung `--no-same-owner` vermeidet nur die nicht unterstützte Archiv-Eigentümerwiederherstellung. Dies ist kein On/Off-Runtime-Ergebnis. |
 | Authorization-Timeout, Detached-Worker-Smoke, dynamisches Response-Companion-Lifecycle-Fixture, ASan/UBSan und TSan | Bestanden. Das dynamische Fixture beweist den Hold vor Companion-Quieszenz, Quarantäne bei fehlgeschlagenem Shutdown, genau einen Release nach Drain, den Single-Winner-Release bei konkurrierendem Owner/Worker sowie den No-Companion-Deferred-Fall. |
 | Envoy-Modulgraph, Go-Test und Go-vet | Bestanden; Modulgraph meldet google.golang.org/grpc v1.83.1. |
 | Traefik-Contracts/native-plugin/Authorization-Worker-Contracts | Bestanden: 47 Tests. |
@@ -484,3 +485,34 @@ lokaler Provision/Run bleibt die autorisierte Alternative, die nach dem
 nächsten normalen Successor-Head zu prüfen ist; es erfolgen keine Workflow-
 Änderung, kein Merge, Force-Push, Framework-/MRTS-/Gitlink-Change und keine
 Abschwächung von Test oder Kontrolle.
+
+### Exact-Head-f38-Validierungsnachtrag
+
+Der Successor-Head `f38f239a8d0e73408a049583f5fcdb01d8b7be9b` wurde normal
+gepusht und von GitHub zurückgelesen. Der vollständige Runtime-Workflow
+`33820766693` bestand alle fünf Connector-Jobs an genau diesem Head. Der
+NGINX-Workflow `33820766701` bestand außerdem Exact Checkout, gepinnte
+Provenance und Runtime-Component-Provisioning.
+
+Seine isolierten `modsecurity_use_error_log`-On/Off-Zellen endeten mit dem
+beabsichtigten Status `77`, weil der unprivilegierte Hosted-Runner die
+erforderliche unterschiedliche verifizierte Worker-Identität nicht einrichten
+kann. Es wurde kein Same-Identity-Bypass und keine Workflow-Abschwächung
+verwendet; dieser Workflow ist daher kein On/Off-Runtime-Nachweis. Ein
+separater lokaler Pinned-Source-Retry bestätigte zunächst, dass das
+Release-Archiv gültig ist, aber uid `502`/gid `50` in diesem
+capability-restringierten Root-Namespace nicht wiederherstellen kann. Mit nur
+der sicheren Host-Kompatibilitäts-Einstellung `--no-same-owner` erzeugte der
+echte Provisioner das verwaltete NGINX-Connector-Modul. Die lokale Runtime kann
+die geforderte Evidence dennoch nicht liefern: `runuser` kann keine Gruppen
+setzen, und die bestehende Framework-Containment-Kontrolle lehnt ihre nicht
+enthaltene Materialisierungsgeometrie vor dem Worker-Start korrekt ab. Keines
+dieser Ergebnisse rechtfertigt eine Abschwächung der Identity- oder
+Containment-Controls.
+
+Das Exact-Head-SonarCloud-Ergebnis bestand das Quality Gate. Die zwei neu
+aufgetretenen Registry-Staging-Issues (`python:S3776` und `python:S107`) wurden
+in f38 behoben. Die drei verbleibenden `c:S995`-Authorization-Fixture-Befunde
+sind einzeln als fachliche Nichtprobleme der öffentlichen ABI dokumentiert. Es
+wurden weder `NOSONAR`, Ausschlüsse, Issue-Transitions noch eine
+Quality-Gate-Abschwächung verwendet.
