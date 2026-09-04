@@ -42,13 +42,16 @@ Build, das root-eigene Host-Gate und alle späteren Privileggrenzen bleiben
 unverändert. Dies ist die eng begrenzte Behebung für `FND-PARENT-1034`, keine
 Workflow-Suppression und keine Quality-Gate-Änderung.
 
-Am Source-Checkpoint `fa9064a5` bestand der exakte Sieben-Module-Befehl
+Am Documentation-Successor-Checkpoint `90735926` bestand der exakte
+Sieben-Module-Befehl
 `python -B -m unittest -q tests.test_nginx_exact_head_base_helper tests.test_nginx_exact_head_result_collector tests.test_nginx_exact_head_root_launcher tests.test_protected_nginx_exact_head_builder tests.test_protected_nginx_exact_head_dispatcher tests.test_protected_nginx_exact_head_runner_preflight tests.test_protected_nginx_exact_head_workflow`
-mit 99 fokussierten Protected-Base-Tests; 22 bilinguale Tests und der getrennt
-abgegrenzte Workflow-plus-Dispatcher-Control mit 29 Tests bestanden ebenfalls.
-Python-Kompilierung, POSIX-Shell-Syntax, `actionlint`, Offline-`zizmor`,
-Policy-Audit, Variable-Documentation-Check und `git diff --check` bestanden.
-Der dedizierte Zwei-Dateien-Successor-Scan ist unter
+mit 99 fokussierten Protected-Base-Tests; auch 22 bilinguale Tests bestanden an
+diesem Successor-Checkpoint. Die getrennt abgegrenzte Workflow-plus-Dispatcher-
+Control mit 29 Tests bestand am Source-Checkpoint `fa9064a5`. Python-
+Kompilierung, POSIX-Shell-Syntax, `actionlint`, Offline-`zizmor`, Policy-Audit,
+Variable-Documentation-Check und `git diff --check` bestanden in der
+zugehörigen Successor-Validierung. Der dedizierte Zwei-Dateien-Source-
+Successor-Scan ist unter
 `security-diff-final-fa9064a5/report.md` versiegelt und gültig; er meldet
 keinen verbleibenden Source-Fund und explizit partielle Hosted-/Runtime-
 Abdeckung. `make check-nginx-c17` ist **blockiert**, nicht bestanden:

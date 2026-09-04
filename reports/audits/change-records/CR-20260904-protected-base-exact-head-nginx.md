@@ -41,13 +41,14 @@ Framework Gitlink comparison, unprivileged build, root-owned host gate, and
 all later privilege boundaries are unchanged.  This is the scoped remediation
 for `FND-PARENT-1034`, not a workflow suppression or Quality-Gate change.
 
-At source checkpoint `fa9064a5`, the exact seven-module command
+At documentation-successor checkpoint `90735926`, the exact seven-module command
 `python -B -m unittest -q tests.test_nginx_exact_head_base_helper tests.test_nginx_exact_head_result_collector tests.test_nginx_exact_head_root_launcher tests.test_protected_nginx_exact_head_builder tests.test_protected_nginx_exact_head_dispatcher tests.test_protected_nginx_exact_head_runner_preflight tests.test_protected_nginx_exact_head_workflow`
-passed 99 focused protected-base tests; 22 bilingual tests and the separately
-scoped workflow-plus-dispatcher 29-test control also passed. Python
-compilation, POSIX shell syntax, `actionlint`, offline `zizmor`, policy audit,
-variable-documentation checking, and `git diff --check` passed.  The dedicated
-two-file successor scan is sealed and valid at
+passed 99 focused protected-base tests; 22 bilingual tests also passed at that
+successor checkpoint.  The separately scoped workflow-plus-dispatcher 29-test
+control passed at source checkpoint `fa9064a5`. Python compilation, POSIX shell
+syntax, `actionlint`, offline `zizmor`, policy audit, variable-documentation
+checking, and `git diff --check` passed in the corresponding successor
+validation. The dedicated two-file source-successor scan is sealed and valid at
 `security-diff-final-fa9064a5/report.md`; it reports no surviving source
 finding and explicitly partial hosted/runtime coverage.  `make check-nginx-c17`
 is **blocked**, not passed: supported NGINX headers/source are unavailable and
