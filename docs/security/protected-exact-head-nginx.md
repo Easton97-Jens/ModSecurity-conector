@@ -11,11 +11,14 @@ preparation only — no merge authorization.
 The dispatcher and privileged launcher are sourced from the protected base
 branch. They resolve an open canonical pull request through the GitHub API,
 admit one full immutable candidate SHA as data, and check out only that SHA.
-The candidate build is unprivileged. The protected launcher owns the runtime
-cells and the collector records host-side process identity, artifact
-provenance, callback/JSONL observations, WAF decisions, and the final exit
-code. Candidate-controlled workflows, launchers, collectors, evidence paths,
-secrets, and host sockets are not trusted inputs to the privileged cell.
+Before it executes a candidate Makefile, the candidate-build helper rejects any
+root real, effective, or saved UID/GID. A correctly provisioned non-root,
+isolated candidate runner remains an external host prerequisite. The protected
+launcher owns the runtime cells and the collector records host-side process
+identity, artifact provenance, callback/JSONL observations, WAF decisions, and
+the final exit code. Candidate-controlled workflows, launchers, collectors,
+evidence paths, secrets, and host sockets are not trusted inputs to the
+privileged cell.
 
 The privileged launcher is admissible only through a mandatory host gate. On a
 dedicated protected runner, an administrator must preinstall a root-owned,
@@ -57,12 +60,12 @@ passing result.
 ## Current readiness
 
 The source contracts and local negative-control tests are being prepared on a
-separate branch. The repository currently has no configured protected GitHub
-Environment or dedicated labelled runner for this control plane. Therefore no
-hosted exact-head result, independent attestation, or merge readiness is
-claimed. An administrator must configure the environment reviewers, runner
-labels, package/tool prerequisites, access policy, and the root-owned exact-blob
-host gate before a manual protected-base dispatch can provide runtime evidence.
+separate branch. This checkout cannot verify a protected GitHub Environment or
+dedicated labelled runner for this control plane. Therefore no hosted exact-head
+result, independent attestation, or merge readiness is claimed. An
+administrator must configure the environment reviewers, runner labels,
+package/tool prerequisites, access policy, and the root-owned exact-blob host
+gate before a manual protected-base dispatch can provide runtime evidence.
 
 The candidate PR remains a separate delivery. This preparation does not alter
 its product remediation, Framework/MRTS source, Gitlink, dependencies, branch
