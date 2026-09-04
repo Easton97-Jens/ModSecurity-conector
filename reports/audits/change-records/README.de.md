@@ -205,6 +205,13 @@ angelegt werden.
   Traceability und einen Draft PR. Sie initialisiert oder verändert weder
   Framework/MRTS noch einen Gitlink, CI-Berechtigungen oder Dependencies und
   autorisiert keinen Merge.
+- [CR-20260904-protected-base-exact-head-nginx](CR-20260904-protected-base-exact-head-nginx.de.md) |
+  [English](CR-20260904-protected-base-exact-head-nginx.md) — Vorbereitung
+  eines geschützten Base-Dispatchers, privilegierten Launchers und unabhängigen
+  Collectors für NGINX-Exact-Head-Evidence. Geschützte Environment und
+  dedizierter Runner fehlen weiterhin; kein Hosted-Ergebnis und kein Merge
+  werden behauptet. Ausschließlich Vorbereitung — keine Merge-Autorisierung.
+
 - [CR-20260903-no-crs-doc-consistency-repair](CR-20260903-no-crs-doc-consistency-repair.de.md) —
   der aktuelle Benutzer autorisierte diese Parent-only-Reparatur des
   reproduzierten Traefik-No-CRS-Dokumentations-/Capability-Katalog-

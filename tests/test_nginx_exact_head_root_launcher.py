@@ -1,0 +1,669 @@
+"""Unit contracts for the protected exact-head NGINX root launcher."""
+
+from __future__ import annotations
+
+import hashlib
+import importlib.util
+import json
+from pathlib import Path
+import stat
+import sys
+import tempfile
+import types
+import unittest
+from unittest import mock
+
+
+ROOT = Path(__file__).parents[1]
+MODULE_PATH = ROOT / "ci/runtime/broker/nginx_exact_head_root_launcher.py"
+SPEC = importlib.util.spec_from_file_location("nginx_exact_head_root_launcher", MODULE_PATH)
+assert SPEC and SPEC.loader
+LAUNCHER = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = LAUNCHER
+SPEC.loader.exec_module(LAUNCHER)
+
+
+HEAD = "a" * 40
+BASE = "b" * 40
+
+
+def write_json(path: Path, value: object) -> None:
+    path.write_text(json.dumps(value, sort_keys=True), encoding="utf-8")
+
+
+def dispatcher_payload() -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "trusted_dispatcher_base_sha": BASE,
+        "run_id": "run-20260904-01",
+        "pr_number": 354,
+        "tested_pr_head": HEAD,
+        "tested_pr_head_ref": "review/exact-head",
+        "tested_pr_head_repository": "Easton97-Jens/ModSecurity-conector",
+        "tested_pr_base": BASE,
+        "tested_pr_base_ref": "master",
+        "tested_pr_base_repository": "Easton97-Jens/ModSecurity-conector",
+        "draft": True,
+        "state": "open",
+        "merged": False,
+    }
+
+
+def artifact_record(name: str, content: bytes) -> dict[str, object]:
+    return {
+        "filename": name,
+        "sha256": hashlib.sha256(content).hexdigest(),
+        "size": len(content),
+    }
+
+
+def candidate_payload(artifacts: dict[str, bytes]) -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "run_id": "run-20260904-01",
+        "tested_pr_head": HEAD,
+        "trusted_dispatcher_base_sha": BASE,
+        "nginx_version": LAUNCHER.EXPECTED_NGINX_VERSION,
+        "nginx_source_digest": LAUNCHER.EXPECTED_NGINX_SOURCE_DIGEST,
+        "artifacts": {
+            "nginx": artifact_record("nginx", artifacts["nginx"]),
+            "module": artifact_record(
+                "ngx_http_modsecurity_module.so", artifacts["module"]
+            ),
+            "library": artifact_record("libmodsecurity.so.3", artifacts["library"]),
+        },
+        "producer": {
+            "kind": "unprivileged-exact-head-build",
+            "runner_uid": 1001,
+            "runner_gid": 1001,
+        },
+    }
+
+
+def event(transaction_id: str) -> str:
+    return json.dumps(
+        {
+            "event": "request_rule_match",
+            "connector": "nginx",
+            "integration_mode": "native-nginx-http-module",
+            "rule_id": "1000001",
+            "transaction_id": transaction_id,
+            "sequence": 1,
+            "previous_event_hash": 2,
+            "event_hash": 3,
+        },
+        separators=(",", ":"),
+    ) + "\n"
+
+
+def write_mode_evidence(cell: Path, mode: str, transaction_id: str) -> None:
+    runtime = cell / mode / "runtime"
+    logs = cell / mode / "logs"
+    runtime.mkdir(parents=True)
+    logs.mkdir(parents=True)
+    (logs / "events.jsonl").write_text(event(transaction_id), encoding="utf-8")
+    (runtime / "http-status.txt").write_text("403\n", encoding="ascii")
+    callback = (
+        f"modsecurity_transaction_id={transaction_id} rule 1000001\n"
+        if mode == "on"
+        else "unrelated diagnostic\n"
+    )
+    (logs / "error.log").write_text(callback, encoding="utf-8")
+
+
+class RootLauncherContractTests(unittest.TestCase):
+    def test_path_containment_rejects_symlink_escape_and_parent_traversal(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            root = base / "cell"
+            outside = base / "outside"
+            root.mkdir()
+            outside.mkdir()
+            (root / "escape").symlink_to(outside, target_is_directory=True)
+            with self.assertRaises(LAUNCHER.LauncherError):
+                LAUNCHER.contained(root / "escape" / "file", root, "test path")
+            with self.assertRaises(LAUNCHER.LauncherError):
+                LAUNCHER.contained(root / ".." / "outside" / "file", root, "test path")
+
+    def test_dispatcher_and_candidate_manifest_bind_the_same_exact_head(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            dispatcher_path = root / "dispatcher.json"
+            candidate_path = root / "candidate.json"
+            artifacts = {"nginx": b"nginx", "module": b"module", "library": b"library"}
+            write_json(dispatcher_path, dispatcher_payload())
+            dispatcher = LAUNCHER.dispatcher_manifest(dispatcher_path, BASE)
+            write_json(candidate_path, candidate_payload(artifacts))
+            self.assertEqual(
+                LAUNCHER.candidate_manifest(candidate_path, dispatcher)["tested_pr_head"],
+                HEAD,
+            )
+            bad = candidate_payload(artifacts)
+            bad["tested_pr_head"] = "c" * 40
+            write_json(candidate_path, bad)
+            with self.assertRaisesRegex(LAUNCHER.LauncherError, "head"):
+                LAUNCHER.candidate_manifest(candidate_path, dispatcher)
+            bad_dispatcher = dispatcher_payload()
+            bad_dispatcher["draft"] = False
+            write_json(dispatcher_path, bad_dispatcher)
+            with self.assertRaisesRegex(LAUNCHER.LauncherError, "eligible canonical draft"):
+                LAUNCHER.dispatcher_manifest(dispatcher_path, BASE)
+            bad_dispatcher = dispatcher_payload()
+            bad_dispatcher["schema_version"] = True
+            write_json(dispatcher_path, bad_dispatcher)
+            with self.assertRaisesRegex(LAUNCHER.LauncherError, "schema is unsupported"):
+                LAUNCHER.dispatcher_manifest(dispatcher_path, BASE)
+            bad_candidate = candidate_payload(artifacts)
+            bad_candidate["schema_version"] = True
+            write_json(candidate_path, bad_candidate)
+            with self.assertRaisesRegex(LAUNCHER.LauncherError, "schema is unsupported"):
+                LAUNCHER.candidate_manifest(candidate_path, dispatcher_payload())
+
+    def test_admission_requires_only_manifested_single_link_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            artifacts = {
+                "nginx": b"native nginx image",
+                "module": b"connector module",
+                "library": b"modsecurity library",
+            }
+            names = {
+                "nginx": "nginx",
+                "module": "ngx_http_modsecurity_module.so",
+                "library": "libmodsecurity.so.3",
+            }
+            for key, name in names.items():
+                (root / name).write_bytes(artifacts[key])
+            manifest = candidate_payload(artifacts)
+            manifest_path = root / "artifact-manifest.json"
+            write_json(manifest_path, manifest)
+            validated = LAUNCHER.candidate_manifest(manifest_path, dispatcher_payload())
+            identities, descriptors = LAUNCHER.admit_candidate_bundle(root, validated)
+            try:
+                self.assertEqual(
+                    identities["module"]["sha256"],
+                    manifest["artifacts"]["module"]["sha256"],
+                )
+                (root / "nginx").write_bytes(b"replacement")
+                self.assertNotEqual(
+                    identities["nginx"],
+                    LAUNCHER.admitted_artifact_identity(descriptors["nginx"], "nginx"),
+                )
+            finally:
+                for descriptor in descriptors.values():
+                    LAUNCHER.os.close(descriptor)
+            (root / "nginx_exact_head_result_collector.py").write_text(
+                "candidate replacement attempt\n", encoding="utf-8"
+            )
+            with self.assertRaisesRegex(LAUNCHER.LauncherError, "exactly"):
+                LAUNCHER.admit_candidate_bundle(root, validated)
+
+    def test_admitted_artifact_rejects_symlink_and_hardlink(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            artifact = root / "library"
+            artifact.write_bytes(b"library")
+            linked = root / "library-link"
+            linked.symlink_to(artifact)
+            with self.assertRaises(LAUNCHER.LauncherError):
+                LAUNCHER.admitted_artifact(linked, "library")
+            hardlinked = root / "library-hardlink"
+            hardlinked.hardlink_to(artifact)
+            with self.assertRaises(LAUNCHER.LauncherError):
+                LAUNCHER.admitted_artifact(artifact, "library")
+
+    def test_replacement_and_metadata_race_of_each_native_artifact_are_detected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for name in ("nginx", "ngx_http_modsecurity_module.so", "libmodsecurity.so.3"):
+                with self.subTest(name=name):
+                    artifact = root / name
+                    artifact.write_bytes(f"first-{name}".encode("ascii"))
+                    descriptor, original = LAUNCHER.admitted_artifact_descriptor(artifact, name)
+                    try:
+                        artifact.write_bytes(f"second-{name}".encode("ascii"))
+                        self.assertNotEqual(
+                            original,
+                            LAUNCHER.admitted_artifact_identity(descriptor, name),
+                        )
+                    finally:
+                        LAUNCHER.os.close(descriptor)
+            raced = root / "raced"
+            raced.write_bytes(b"stable")
+            original_stat = raced.stat()
+            changed_stat = types.SimpleNamespace(
+                st_mode=original_stat.st_mode,
+                st_nlink=original_stat.st_nlink,
+                st_size=original_stat.st_size,
+                st_dev=original_stat.st_dev,
+                st_ino=original_stat.st_ino,
+                st_mtime_ns=original_stat.st_mtime_ns + 1,
+            )
+            descriptor = LAUNCHER.open_regular_no_follow(raced, "raced artifact")
+            try:
+                with mock.patch.object(
+                    LAUNCHER.os, "fstat", side_effect=(original_stat, changed_stat)
+                ):
+                    with self.assertRaisesRegex(LAUNCHER.LauncherError, "changed"):
+                        LAUNCHER.admitted_artifact_identity(descriptor, "raced artifact")
+            finally:
+                LAUNCHER.os.close(descriptor)
+
+    def test_generated_configuration_has_no_include_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            cell = Path(temporary)
+            mode = cell / "on"
+            config_root = mode / "config"
+            runtime_root = mode / "runtime"
+            logs_root = mode / "logs"
+            docroot = config_root / "docroot"
+            docroot.mkdir(parents=True)
+            runtime_root.mkdir()
+            logs_root.mkdir()
+            binary = Path("/candidate/nginx")
+            module = Path("/candidate/ngx_http_modsecurity_module.so")
+            config = config_root / "nginx.conf"
+            rules = config_root / "modsecurity.conf"
+            pid_path = runtime_root / "nginx.pid"
+            pid_path.write_text("55\n", encoding="ascii")
+            rules.write_text(
+                'SecRuleEngine On\nSecRule REQUEST_URI "@streq /exact-head" '
+                '"id:1000001,phase:1,deny,status:403,log"\n',
+                encoding="utf-8",
+            )
+            (docroot / "index.html").write_text("exact-head-ok\n", encoding="utf-8")
+            config.write_text(
+                "\n".join(
+                    (
+                        f'load_module "{module}";',
+                        "daemon off;",
+                        "worker_processes 1;",
+                        "user worker worker-group;",
+                        f'pid "{pid_path}";',
+                        f'error_log "{logs_root / "error.log"}" notice;',
+                        "events { worker_connections 32; }",
+                        "http { server {",
+                        f'access_log "{logs_root / "access.log"}";',
+                        "listen 127.0.0.1:18081;",
+                        "server_name exact-head.local;",
+                        "modsecurity on;",
+                        "modsecurity_use_error_log on;",
+                        f'modsecurity_rules_file "{rules}";',
+                        f'modsecurity_phase4_log "{logs_root / "events.jsonl"}";',
+                        'modsecurity_transaction_id "nginx-exact-head-$pid-$connection-$connection_requests";',
+                        f'root "{docroot}";',
+                        "return 200 exact-head-ok;",
+                        "} }",
+                    )
+                ) + "\n",
+                encoding="utf-8",
+            )
+            ready = {
+                "schema_version": 1,
+                "binary_path": str(binary),
+                "config_path": str(config),
+                "pid_path": str(pid_path),
+                "master_pid": 55,
+            }
+            valid_config = config.read_text(encoding="utf-8")
+            with mock.patch.object(LAUNCHER, "require_root_owned_directory"), mock.patch.object(
+                LAUNCHER, "require_root_owned_file"
+            ):
+                LAUNCHER.validate_generated_config(
+                    ready, cell, "on", binary, module, "worker", "worker-group"
+                )
+                wrong_version = dict(ready, schema_version=True)
+                with self.assertRaisesRegex(LAUNCHER.LauncherError, "readiness"):
+                    LAUNCHER.validate_generated_config(
+                        wrong_version, cell, "on", binary, module, "worker", "worker-group"
+                    )
+                config.write_text(
+                    config.read_text(encoding="utf-8")
+                    + 'include "/etc/nginx/conf.d/*.conf";\n',
+                    encoding="utf-8",
+                )
+                with self.assertRaisesRegex(LAUNCHER.LauncherError, "unsafe runtime directive"):
+                    LAUNCHER.validate_generated_config(
+                        ready, cell, "on", binary, module, "worker", "worker-group"
+                    )
+                config.write_text(
+                    config.read_text(encoding="utf-8").replace(
+                        'include "/etc/nginx/conf.d/*.conf";',
+                        'include "../../candidate.conf";',
+                    ),
+                    encoding="utf-8",
+                )
+                with self.assertRaisesRegex(LAUNCHER.LauncherError, "unsafe runtime directive"):
+                    LAUNCHER.validate_generated_config(
+                        ready, cell, "on", binary, module, "worker", "worker-group"
+                    )
+                config.write_text(valid_config, encoding="utf-8")
+                escaped = dict(ready, config_path=str(cell / "outside.conf"))
+                with self.assertRaisesRegex(LAUNCHER.LauncherError, "component is missing"):
+                    LAUNCHER.validate_generated_config(
+                        escaped, cell, "on", binary, module, "worker", "worker-group"
+                    )
+                other_pid = mode / "other.pid"
+                other_pid.write_text("55\n", encoding="ascii")
+                wrong_pid = dict(ready, pid_path=str(other_pid))
+                with self.assertRaisesRegex(LAUNCHER.LauncherError, "fixed runtime PID path"):
+                    LAUNCHER.validate_generated_config(
+                        wrong_pid, cell, "on", binary, module, "worker", "worker-group"
+                    )
+
+    def test_trusted_cell_generation_uses_real_newlines_and_rejects_nginx_metacharacters(self) -> None:
+        writes: dict[str, bytes] = {}
+        with mock.patch.object(LAUNCHER, "root_owned_directory"), mock.patch.object(
+            LAUNCHER, "create_runner_owned_directory"
+        ), mock.patch.object(
+            LAUNCHER,
+            "root_owned_file",
+            side_effect=lambda path, content, mode=0o444: writes.__setitem__(
+                str(path), content
+            ),
+        ):
+            LAUNCHER.prepare_trusted_cells(
+                Path("/task/cell"),
+                Path("/candidate/ngx_http_modsecurity_module.so"),
+                "mscnxw_abc",
+                "mscnxg_abc",
+                1000,
+                1000,
+            )
+        on_config = writes["/task/cell/on/config/nginx.conf"]
+        self.assertIn(b"modsecurity_use_error_log on;\n", on_config)
+        self.assertIn(
+            b'nginx-exact-head-$pid-$connection-$connection_requests',
+            on_config,
+        )
+        self.assertNotIn(b"\\n", on_config)
+        self.assertEqual(
+            writes["/task/cell/on/config/modsecurity.conf"],
+            b"SecRuleEngine On\n"
+            b'SecRule REQUEST_URI "@streq /exact-head" '
+            b'"id:1000001,phase:1,deny,status:403,log"\n',
+        )
+        for unsafe in ('/task/has\\slash', '/task/has\nnewline', '/task/has;directive'):
+            with self.subTest(unsafe=unsafe), self.assertRaises(LAUNCHER.LauncherError):
+                LAUNCHER.nginx_literal(unsafe, "unsafe test path")
+
+    def test_wait_mode_validates_before_root_release(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            cell = Path(temporary)
+            mode = cell / "on"
+            (mode / "runtime").mkdir(parents=True)
+            write_json(
+                mode / "runtime" / "ready.json",
+                {"schema_version": 1, "mode": "on", "master_pid": 55, "worker_pid": 56},
+            )
+            process = mock.Mock()
+            process.poll.return_value = None
+            expected = LAUNCHER.IdentityExpectations(1000, 1000, 2000, 2000)
+            identity = {
+                "master_pid": 100,
+                "worker_pid": 101,
+                "master_uid": 1000,
+                "master_gid": 1000,
+                "worker_uid": 2000,
+                "worker_gid": 2000,
+            }
+            with mock.patch.object(LAUNCHER, "validate_generated_config"), mock.patch.object(
+                LAUNCHER, "validate_identity", return_value=identity
+            ):
+                result = LAUNCHER.wait_mode(
+                    cell,
+                    "on",
+                    expected,
+                    Path("/candidate/nginx"),
+                    {"device": 1, "inode": 2, "sha256": "a" * 64, "size": 1},
+                    Path("/candidate/module"),
+                    "worker",
+                    "worker-group",
+                    process,
+                )
+            self.assertEqual(result["worker_uid"], 2000)
+            self.assertEqual((mode / "runtime" / "release").stat().st_mode & 0o777, 0o400)
+
+    def test_identity_parser_checks_roles_and_admitted_inode(self) -> None:
+        expected = LAUNCHER.IdentityExpectations(1000, 1000, 2000, 2000)
+        master = {
+            "ppid": 1,
+            "uid_real": 1000,
+            "uid_effective": 1000,
+            "gid_real": 1000,
+            "gid_effective": 1000,
+        }
+        worker = {
+            "ppid": 100,
+            "uid_real": 2000,
+            "uid_effective": 2000,
+            "gid_real": 2000,
+            "gid_effective": 2000,
+        }
+        artifact = mock.Mock(st_dev=7, st_ino=9)
+        admitted = {"device": 7, "inode": 9, "sha256": "a" * 64, "size": 1}
+        with mock.patch.object(
+            LAUNCHER, "host_pid_for_namespace_pid", side_effect=(100, 101)
+        ), mock.patch.object(LAUNCHER, "status", side_effect=(master, worker)), mock.patch.object(
+            LAUNCHER.os, "stat", return_value=artifact
+        ), mock.patch.object(
+            LAUNCHER.os, "pidfd_open", return_value=77
+        ), mock.patch.object(
+            LAUNCHER, "namespace_link", side_effect=lambda pid, namespace: f"{pid}-{namespace}"
+        ), mock.patch.object(
+            LAUNCHER, "apparmor_label", return_value=LAUNCHER.APPARMOR_PROFILE_NAME + " (enforce)"
+        ), mock.patch.object(LAUNCHER, "require_sandbox_security_state"), mock.patch.object(
+            LAUNCHER, "pidfd_exited", return_value=False
+        ):
+            evidence = LAUNCHER.validate_identity(
+                {"master_pid": 100, "worker_pid": 101}, expected, admitted, 42
+            )
+        self.assertEqual(evidence["worker_uid"], 2000)
+        self.assertEqual(evidence["master_pidfd"], 77)
+        with mock.patch.object(
+            LAUNCHER, "host_pid_for_namespace_pid", side_effect=(100, 101)
+        ), mock.patch.object(LAUNCHER, "status", side_effect=(master, dict(worker, ppid=999))):
+            with self.assertRaisesRegex(LAUNCHER.LauncherError, "direct child"):
+                LAUNCHER.validate_identity(
+                    {"master_pid": 100, "worker_pid": 101}, expected, admitted, 42
+                )
+
+    def test_mode_evidence_requires_fresh_jsonl_and_callback_separation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            cell = Path(temporary)
+            on_tx = "nginx-exact-head-700-7-1"
+            off_tx = "nginx-exact-head-800-8-1"
+            write_mode_evidence(cell, "on", on_tx)
+            write_mode_evidence(cell, "off", off_tx)
+            on = LAUNCHER.mode_evidence(cell, "on", 403)
+            off = LAUNCHER.mode_evidence(cell, "off", 403)
+            self.assertTrue(on["callback_observed"])
+            self.assertFalse(off["callback_observed"])
+            self.assertTrue(on["jsonl_observed"])
+            self.assertEqual(
+                on["callback_observation_source"], "candidate_scratch_untrusted"
+            )
+            self.assertEqual(
+                on["jsonl_observation_source"], "candidate_scratch_untrusted"
+            )
+            self.assertEqual(
+                on["http_status_observation_source"],
+                "root_pidfd_network_namespace",
+            )
+            self.assertEqual(on["waf_decision"], off["waf_decision"])
+            self.assertNotEqual(on["transaction_id"], off["transaction_id"])
+            (cell / "off" / "logs" / "error.log").write_text(
+                f"modsecurity_transaction_id={off_tx} rule 1000001\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(LAUNCHER.LauncherError, "off mode"):
+                LAUNCHER.mode_evidence(cell, "off", 403)
+            (cell / "off" / "logs" / "error.log").write_text(
+                "::set-output::bad\n", encoding="utf-8"
+            )
+            with self.assertRaisesRegex(LAUNCHER.LauncherError, "control text"):
+                LAUNCHER.mode_evidence(cell, "off", 403)
+
+    def test_mode_evidence_rejects_boolean_integrity_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            cell = Path(temporary)
+            write_mode_evidence(cell, "off", "nginx-exact-head-900-9-1")
+            logs = cell / "off" / "logs"
+            logs.joinpath("events.jsonl").write_text(
+                event("nginx-exact-head-900-9-1").replace('"sequence":1', '"sequence":true'),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(LAUNCHER.LauncherError, "integrity"):
+                LAUNCHER.mode_evidence(cell, "off", 403)
+
+    def test_publish_evidence_contains_only_root_derived_allowlist(self) -> None:
+        class Entry:
+            def __init__(self, name: str) -> None:
+                self.name = name
+
+        class EvidenceRoot:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def lstat(self) -> object:
+                return type(
+                    "Stat",
+                    (),
+                    {"st_mode": stat.S_IFDIR | 0o700, "st_uid": 0, "st_gid": 0},
+                )()
+
+            def iterdir(self) -> list[Entry]:
+                self.calls += 1
+                if self.calls == 1:
+                    return []
+                return [Entry(name) for name in LAUNCHER.ROOT_EVIDENCE_FILES]
+
+            def __truediv__(self, name: str) -> Path:
+                return Path("/root-evidence") / name
+
+        identities = [
+            {"mode": "on", "master_pid": 11, "worker_pid": 12, "master_uid": 1000, "master_gid": 1000, "worker_uid": 2000, "worker_gid": 2000},
+            {"mode": "off", "master_pid": 21, "worker_pid": 22, "master_uid": 1000, "master_gid": 1000, "worker_uid": 2000, "worker_gid": 2000},
+        ]
+        modes = [
+            {"mode": "on", "callback_observed": True, "jsonl_observed": True, "http_status": 403, "waf_decision": "deny", "transaction_id": "nginx-exact-head-1100-11-1"},
+            {"mode": "off", "callback_observed": False, "jsonl_observed": True, "http_status": 403, "waf_decision": "deny", "transaction_id": "nginx-exact-head-2100-21-1"},
+        ]
+        writes: dict[str, tuple[dict[str, object], bool]] = {}
+        with mock.patch.object(
+            LAUNCHER,
+            "write_root_owned_json",
+            side_effect=lambda path, value, line_delimited=False: writes.__setitem__(
+                path.name, (value, line_delimited)
+            ),
+        ):
+            LAUNCHER.publish_evidence(
+                EvidenceRoot(),
+                dispatcher_payload(),
+                LAUNCHER.IdentityExpectations(1000, 1000, 2000, 2000),
+                identities,
+                {"module": {"sha256": "d" * 64, "size": 7}},
+                modes,
+            )
+        self.assertEqual(set(writes), LAUNCHER.ROOT_EVIDENCE_FILES)
+        self.assertTrue(writes["on.jsonl"][1])
+        self.assertFalse(writes["off.jsonl"][0]["callback_observed"])
+        self.assertEqual(writes["runtime.json"][0]["tested_pr_head"], HEAD)
+
+    def test_exit_77_is_a_fatal_runtime_failure(self) -> None:
+        with self.assertRaisesRegex(LAUNCHER.LauncherError, "Exit 77"):
+            LAUNCHER.validate_exit_status(77)
+
+    def test_only_fixed_root_client_can_report_the_http_status(self) -> None:
+        completed = mock.Mock(stdout="403", returncode=0)
+        with mock.patch.object(
+            LAUNCHER, "pidfd_exited", return_value=False
+        ), mock.patch.object(
+            LAUNCHER, "run_checked", return_value=completed
+        ) as run_checked:
+            self.assertEqual(LAUNCHER.trusted_http_status(1234), 403)
+        argv = run_checked.call_args.args[0]
+        self.assertEqual(argv[0], LAUNCHER.HELPERS["curl"])
+        self.assertIn(LAUNCHER.HELPERS["curl"], argv)
+        self.assertNotIn("candidate", " ".join(argv))
+        self.assertEqual(run_checked.call_args.kwargs["pass_fds"], (1234,))
+        self.assertIsNotNone(run_checked.call_args.kwargs["preexec_fn"])
+        with mock.patch.object(
+            LAUNCHER, "pidfd_exited", return_value=False
+        ), mock.patch.object(
+            LAUNCHER, "run_checked", return_value=mock.Mock(stdout="200", returncode=0)
+        ):
+            with self.assertRaisesRegex(LAUNCHER.LauncherError, "expected 403"):
+                LAUNCHER.trusted_http_status(1234)
+
+    def test_pidfd_bound_namespace_client_rejects_exit_and_never_resolves_a_pid(self) -> None:
+        completed = mock.Mock(stdout="403", returncode=0)
+        with mock.patch.object(
+            LAUNCHER, "pidfd_exited", side_effect=(False, True)
+        ), mock.patch.object(LAUNCHER, "run_checked", return_value=completed):
+            with self.assertRaisesRegex(LAUNCHER.LauncherError, "exited during"):
+                LAUNCHER.trusted_http_status(1234)
+        source = MODULE_PATH.read_text(encoding="utf-8")
+        trusted_client = source[source.index("def trusted_http_status"):source.index("def mark_request_complete")]
+        self.assertNotIn("--target", trusted_client)
+        self.assertNotIn("nsenter", trusted_client)
+        self.assertIn("join_network_namespace_from_pidfd", trusted_client)
+
+    def test_pidfd_namespace_preexec_and_cleanup_are_descriptor_bound(self) -> None:
+        setns = mock.Mock(return_value=0)
+        libc = mock.Mock(setns=setns)
+        with mock.patch.object(LAUNCHER.ctypes, "CDLL", return_value=libc):
+            LAUNCHER.join_network_namespace_from_pidfd(71)
+        setns.assert_called_once_with(71, 0x40000000)
+        identity: dict[str, object] = {"master_pidfd": 71}
+        with mock.patch.object(LAUNCHER.os, "close") as close:
+            LAUNCHER.close_identity_pidfd(identity)
+        close.assert_called_once_with(71)
+        self.assertNotIn("master_pidfd", identity)
+
+    def test_launcher_only_executes_the_base_driver_and_fd_bound_artifacts(self) -> None:
+        source = MODULE_PATH.read_text(encoding="utf-8")
+        self.assertNotIn("shell=True", source)
+        self.assertNotIn("|| true", source)
+        self.assertIn("BASE_DRIVER_RELATIVE", source)
+        self.assertIn("run_nginx_exact_head_cells.sh", source)
+        self.assertIn('"--ro-bind-fd", str(artifact_descriptors["nginx"])', source)
+        self.assertIn('"--ro-bind-fd", str(artifact_descriptors["module"])', source)
+        self.assertIn('"--ro-bind-fd", str(artifact_descriptors["library"])', source)
+        self.assertIn('"--ro-bind-fd", str(artifact_descriptors["manifest"])', source)
+        self.assertIn('"--disable-userns", "--assert-userns-disabled"', source)
+        self.assertIn('"--unshare-net"', source)
+        self.assertIn('"--clearenv"', source)
+        self.assertIn("require_sandbox_security_state", source)
+        self.assertIn("host_pid_for_namespace_pid", source)
+        self.assertIn("trusted_base_file_descriptor", source)
+        self.assertIn("SANDBOX_BASE_HELPER", source)
+        self.assertIn('"--ro-bind-fd", str(trusted_base_descriptors["helper"])', source)
+        self.assertIn("env=outer_env", source)
+        self.assertIn("sandbox_env", source)
+        self.assertIn("trusted_http_status", source)
+        self.assertIn("mark_request_complete", source)
+        self.assertNotIn("connectors/nginx/harness", source)
+
+    def test_partial_subordinate_mapping_rolls_back_and_unbound_worker_is_not_signalled(self) -> None:
+        mapping = LAUNCHER.SubordinateMapping("runner", 1000, 2000, 2001)
+        with mock.patch.object(LAUNCHER, "require_no_subordinate_mapping"), mock.patch.object(
+            LAUNCHER, "require_exact_subordinate_mapping"
+        ), mock.patch.object(
+            LAUNCHER, "run_checked", side_effect=(None, RuntimeError("gid update failed"), None)
+        ) as run_checked:
+            with self.assertRaisesRegex(RuntimeError, "gid update failed"):
+                LAUNCHER.establish_subordinate_mapping(mapping)
+        self.assertFalse(mapping.uid_added)
+        self.assertFalse(mapping.gid_added)
+        self.assertEqual(run_checked.call_count, 3)
+        with mock.patch.object(
+            LAUNCHER, "dedicated_worker_process_ids", return_value=[4321]
+        ), mock.patch.object(LAUNCHER.os, "kill") as kill:
+            with self.assertRaisesRegex(LAUNCHER.LauncherError, "unbound host process"):
+                LAUNCHER.require_no_dedicated_worker_processes(2000)
+        kill.assert_not_called()
+
+
+if __name__ == "__main__":
+    unittest.main()
