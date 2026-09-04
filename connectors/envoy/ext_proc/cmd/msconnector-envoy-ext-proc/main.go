@@ -7,12 +7,18 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/Easton97-Jens/ModSecurity-conector/connectors/envoy/ext_proc/internal/processor"
 	extprocv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
 	"google.golang.org/grpc"
+)
+
+const (
+	maxConcurrentConnections = 128
+	maxConcurrentStreams     = processor.DefaultMaxActiveStreams
 )
 
 type engineRuntime struct {
@@ -147,14 +153,61 @@ func serve(config processor.Config, runtime engineRuntime, eventLogPath string) 
 	if err != nil {
 		return 1, fmt.Errorf("listen %s: %w", config.ListenAddress, err)
 	}
+	listener = newLimitedListener(listener, maxConcurrentConnections)
 	defer listener.Close()
 	grpcServer := grpc.NewServer(
 		grpc.MaxRecvMsgSize(config.MaxGRPCMessageBytes),
 		grpc.MaxSendMsgSize(config.MaxGRPCMessageBytes),
+		grpc.MaxConcurrentStreams(maxConcurrentStreams),
 	)
 	extprocv3.RegisterExternalProcessorServer(grpcServer, service)
 	fmt.Printf("envoy_ext_proc: serving integration_mode=ext_proc evaluation_mode=%s rule_evaluation=%s engine=%s listen=%s\n", runtime.evaluationMode, runtime.ruleEvaluation, runtime.description, config.ListenAddress)
 	return waitForServerTermination(grpcServer, listener, config.ShutdownTimeoutMS)
+}
+
+type limitedListener struct {
+	net.Listener
+	slots chan struct{}
+	done  chan struct{}
+}
+
+func newLimitedListener(listener net.Listener, maximum int) net.Listener {
+	return &limitedListener{Listener: listener, slots: make(chan struct{}, maximum), done: make(chan struct{})}
+}
+
+func (listener *limitedListener) Accept() (net.Conn, error) {
+	select {
+	case listener.slots <- struct{}{}:
+	case <-listener.done:
+		return nil, net.ErrClosed
+	}
+	connection, err := listener.Listener.Accept()
+	if err != nil {
+		<-listener.slots
+		return nil, err
+	}
+	return &limitedConn{Conn: connection, release: func() { <-listener.slots }}, nil
+}
+
+func (listener *limitedListener) Close() error {
+	select {
+	case <-listener.done:
+	default:
+		close(listener.done)
+	}
+	return listener.Listener.Close()
+}
+
+type limitedConn struct {
+	net.Conn
+	releaseOnce sync.Once
+	release     func()
+}
+
+func (connection *limitedConn) Close() error {
+	err := connection.Conn.Close()
+	connection.releaseOnce.Do(connection.release)
+	return err
 }
 
 func newObserver(eventLogPath string, runtime engineRuntime) (processor.Observer, *processor.JSONLObserver, error) {

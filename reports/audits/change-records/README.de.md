@@ -11,6 +11,13 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260824-connector-security-invariants](CR-20260824-connector-security-invariants.de.md)
+  | English companion: `CR-20260824-connector-security-invariants.md` — das
+  Parent-only-Connector-Security-Hardening hält lokale Remote-Rule-, HTTP-
+  Grenz- und Event-Runtime-Evidence fest. Es schließt Framework/MRTS, Gitlink,
+  CI/Governance und gemischte gleichzeitige Edits aus; Remote-Delivery wartet
+  auf eine explizite Autorisierung des aktuellen Benutzers, und Hosted-Checks
+  sowie ein Merge werden nicht behauptet.
 - [CR-20260903-no-crs-doc-consistency-repair](CR-20260903-no-crs-doc-consistency-repair.de.md) —
   der aktuelle Benutzer autorisierte diese Parent-only-Reparatur des
   reproduzierten Traefik-No-CRS-Dokumentations-/Capability-Katalog-

@@ -1,4 +1,8 @@
 
+#if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include "msc_filters.h"
 #include "msc_utils.h"
 #include "http_protocol.h"
@@ -8,11 +12,46 @@
 #include "msconnector/limits.h"
 #include "msconnector/options.h"
 #include "msconnector/rule_id.h"
+#include "msconnector/body_policy.h"
 
 #include <apr_file_io.h>
+#include <apr_portable.h>
+#include <errno.h>
 #include <string.h>
 
+#if !defined(_WIN32)
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
 
+
+/* APR does not expose a no-follow open flag.  It takes ownership only after
+ * the Common descriptor helper has established the private regular-file
+ * contract shared with the other native hosts. */
+static apr_status_t apache_open_event_file(apr_file_t **file,
+    const char *path, apr_pool_t *pool)
+{
+    int fd = -1;
+    apr_os_file_t os_file;
+    apr_status_t rc;
+
+    if (file == NULL || pool == NULL) {
+        errno = EINVAL;
+        return APR_FROM_OS_ERROR(errno);
+    }
+    *file = NULL;
+    if (!msconnector_open_private_event_file(path, &fd)) {
+        return APR_FROM_OS_ERROR(errno);
+    }
+
+    os_file = (apr_os_file_t)fd;
+    rc = apr_os_file_put(file, &os_file, APR_WRITE | APR_APPEND, pool);
+    if (rc != APR_SUCCESS) {
+        (void)close(fd);
+    }
+    return rc;
+}
 /* Kept private to this translation unit; Phase 2 reaches it before the
  * implementation below because input-filter EOS is handled near the start
  * of this file. */
@@ -53,7 +92,7 @@ int msc_finalize_request_body(msc_t *msr, request_rec *r)
     }
     msr->native_event_phase = MSCONNECTOR_PHASE_REQUEST_BODY;
     msr->native_event_phase_active = 1;
-    if (msc_process_request_body(msr->t) < 0)
+    if (msc_process_request_body(msr->t) != 1)
     {
         msr->native_event_phase_active = 0;
         (void)msc_apache_contract_fail(msr,
@@ -220,6 +259,83 @@ static apr_status_t apache_input_filter_handle_eos(msc_t *msr, request_rec *r,
     return APR_SUCCESS;
 }
 
+static apr_status_t apache_input_filter_process_bucket(msc_t *msr,
+    request_rec *r, ap_filter_t *f, msc_conf_t *conf,
+    apr_bucket_brigade *output, apr_bucket *bucket, apr_read_type_e block)
+{
+    const char *data;
+    apr_size_t len;
+    msconnector_body_limit_plan plan;
+    int ret;
+
+    ret = apr_bucket_read(bucket, &data, &len, block);
+    if (ret != APR_SUCCESS)
+        return ret;
+    if (msr->contract.active_phase != MSCONNECTOR_PHASE_REQUEST_BODY &&
+        !msc_apache_contract_begin(msr, MSCONNECTOR_PHASE_REQUEST_BODY)) {
+        (void)msc_apache_contract_fail(msr,
+            MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE);
+        apache_emit_contract_failure_event(msr, r,
+            MSCONNECTOR_PHASE_REQUEST_BODY,
+            MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE,
+            HTTP_INTERNAL_SERVER_ERROR);
+        ap_remove_input_filter(f);
+        return apache_input_filter_terminal_error(msr, r,
+            HTTP_INTERNAL_SERVER_ERROR);
+    }
+    if (!msconnector_body_limit_plan_chunk(msr->request_body_bytes_seen,
+            msr->request_body_bytes_inspected,
+            conf->common_config.request_body_limit,
+            conf->common_config.body_limit_action, len, &plan)) {
+        msr->request_body_bytes_seen = plan.bytes_seen;
+        msr->request_body_truncated = 1;
+        (void)msc_apache_contract_fail(msr,
+            MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT);
+        apache_emit_contract_failure_event(msr, r,
+            MSCONNECTOR_PHASE_REQUEST_BODY,
+            MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT,
+            HTTP_REQUEST_ENTITY_TOO_LARGE);
+        ap_remove_input_filter(f);
+        return apache_input_filter_terminal_error(msr, r,
+            HTTP_REQUEST_ENTITY_TOO_LARGE);
+    }
+    if (plan.append_size > 0 &&
+        !msc_apache_contract_record_body(msr, 0, plan.append_size)) {
+        msconnector_transaction_error_class error_class =
+            msr->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT
+            ? MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT
+            : MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE;
+        int status = error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT
+            ? HTTP_REQUEST_ENTITY_TOO_LARGE : HTTP_INTERNAL_SERVER_ERROR;
+
+        msr->request_body_bytes_seen = msr->contract.request_body_bytes;
+        (void)msc_apache_contract_fail(msr, error_class);
+        apache_emit_contract_failure_event(msr, r,
+            MSCONNECTOR_PHASE_REQUEST_BODY, error_class, status);
+        ap_remove_input_filter(f);
+        return apache_input_filter_terminal_error(msr, r, status);
+    }
+    if (plan.append_size > 0 && msc_append_request_body(msr->t,
+            (const unsigned char *)data, plan.append_size) != 1) {
+        (void)msc_apache_contract_fail(msr,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
+        apache_emit_contract_failure_event(msr, r,
+            MSCONNECTOR_PHASE_REQUEST_BODY,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR,
+            HTTP_INTERNAL_SERVER_ERROR);
+        ap_remove_input_filter(f);
+        return apache_input_filter_terminal_error(msr, r,
+            HTTP_INTERNAL_SERVER_ERROR);
+    }
+    msr->request_body_bytes_seen = plan.bytes_seen;
+    msr->request_body_bytes_inspected += plan.append_size;
+    if (plan.truncated)
+        msr->request_body_truncated = 1;
+    APR_BUCKET_REMOVE(bucket);
+    APR_BRIGADE_INSERT_TAIL(output, bucket);
+    return APR_SUCCESS;
+}
+
 
 apr_status_t input_filter(ap_filter_t *f, apr_bucket_brigade *pbbOut,
         ap_input_mode_t mode, apr_read_type_e block, apr_off_t nbytes)
@@ -231,12 +347,25 @@ apr_status_t input_filter(ap_filter_t *f, apr_bucket_brigade *pbbOut,
     int ret;
 
     msc_t *msr = (msc_t *)f->ctx;
+    msc_conf_t *conf = NULL;
 
     /* Do we have the context? */
     if (msr == NULL)
     {
         ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, f->r->server,
                 "ModSecurity: Internal Error: msr is null in input filter.");
+        ap_remove_input_filter(f);
+        return apache_input_filter_terminal_error(msr, r,
+            HTTP_INTERNAL_SERVER_ERROR);
+    }
+
+    if (r->per_dir_config != NULL)
+    {
+        conf = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
+            &security3_module);
+    }
+    if (conf == NULL)
+    {
         ap_remove_input_filter(f);
         return apache_input_filter_terminal_error(msr, r,
             HTTP_INTERNAL_SERVER_ERROR);
@@ -254,69 +383,14 @@ apr_status_t input_filter(ap_filter_t *f, apr_bucket_brigade *pbbOut,
     while (!APR_BRIGADE_EMPTY(pbbTmp))
     {
         apr_bucket *pbktIn = APR_BRIGADE_FIRST(pbbTmp);
-        const char *data;
-        apr_size_t len;
         if (APR_BUCKET_IS_EOS(pbktIn))
         {
             return apache_input_filter_handle_eos(msr, r, f, pbbOut, pbktIn);
         }
-
-        ret=apr_bucket_read(pbktIn, &data, &len, block);
+        ret = apache_input_filter_process_bucket(msr, r, f, conf, pbbOut,
+            pbktIn, block);
         if (ret != APR_SUCCESS)
-        {
             return ret;
-        }
-
-        if (msr->contract.active_phase != MSCONNECTOR_PHASE_REQUEST_BODY &&
-            !msc_apache_contract_begin(msr, MSCONNECTOR_PHASE_REQUEST_BODY))
-        {
-            (void)msc_apache_contract_fail(msr,
-                MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE);
-            apache_emit_contract_failure_event(msr, r,
-                MSCONNECTOR_PHASE_REQUEST_BODY,
-                MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE,
-                HTTP_INTERNAL_SERVER_ERROR);
-            ap_remove_input_filter(f);
-            return apache_input_filter_terminal_error(msr, r,
-                HTTP_INTERNAL_SERVER_ERROR);
-        }
-        if (!msc_apache_contract_record_body(msr, 0, (size_t)len))
-        {
-            msconnector_transaction_error_class error_class =
-                msr->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT
-                ? MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT
-                : MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE;
-            int status = error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT
-                ? HTTP_REQUEST_ENTITY_TOO_LARGE : HTTP_INTERNAL_SERVER_ERROR;
-
-            msr->request_body_bytes_seen = msr->contract.request_body_bytes;
-            (void)msc_apache_contract_fail(msr, error_class);
-            apache_emit_contract_failure_event(msr, r,
-                MSCONNECTOR_PHASE_REQUEST_BODY, error_class, status);
-            ap_remove_input_filter(f);
-            return apache_input_filter_terminal_error(msr, r,
-                status);
-        }
-        if (msc_append_request_body(msr->t,
-                (const unsigned char *)data, len) < 0)
-        {
-            (void)msc_apache_contract_fail(msr,
-                MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
-            apache_emit_contract_failure_event(msr, r,
-                MSCONNECTOR_PHASE_REQUEST_BODY,
-                MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR,
-                HTTP_INTERNAL_SERVER_ERROR);
-            ap_remove_input_filter(f);
-            return apache_input_filter_terminal_error(msr, r,
-                HTTP_INTERNAL_SERVER_ERROR);
-        }
-        msr->request_body_bytes_seen += len;
-        msr->request_body_bytes_inspected += len;
-
-        /* The host owns this bucket. Move it through unchanged rather than
-         * materializing a second request-body copy in the connector. */
-        APR_BUCKET_REMOVE(pbktIn);
-        APR_BRIGADE_INSERT_TAIL(pbbOut, pbktIn);
     }
     return APR_SUCCESS;
 }
@@ -575,8 +649,8 @@ static void apache_log_intervention_event(msc_t *msr, request_rec *r,
         return;
     }
 
-    rc = apr_file_open(&file, conf->common_config.phase4_log_path,
-        APR_WRITE | APR_CREATE | APR_APPEND, APR_OS_DEFAULT, r->pool);
+    rc = apache_open_event_file(&file, conf->common_config.phase4_log_path,
+        r->pool);
     if (rc != APR_SUCCESS)
     {
         ap_log_rerror(APLOG_MARK, APLOG_WARNING, rc, r,
@@ -754,8 +828,8 @@ void apache_log_rule_match_event(msc_t *msr, request_rec *r,
         return;
     }
 
-    rc = apr_file_open(&file, conf->common_config.phase4_log_path,
-        APR_WRITE | APR_CREATE | APR_APPEND, APR_OS_DEFAULT, r->pool);
+    rc = apache_open_event_file(&file, conf->common_config.phase4_log_path,
+        r->pool);
     if (rc != APR_SUCCESS)
     {
         ap_log_rerror(APLOG_MARK, APLOG_WARNING, rc, r,
@@ -1600,7 +1674,7 @@ static apr_status_t apache_output_filter_terminal_result(msc_t *msr,
     return APR_SUCCESS;
 }
 
-static void apache_add_response_headers(msc_t *msr, apr_table_t *headers)
+static int apache_add_response_headers(msc_t *msr, apr_table_t *headers)
 {
     const apr_array_header_t *entries = apr_table_elts(headers);
     const apr_table_entry_t *header = (apr_table_entry_t *)entries->elts;
@@ -1608,10 +1682,14 @@ static void apache_add_response_headers(msc_t *msr, apr_table_t *headers)
 
     for (index = 0; index < entries->nelts; index++)
     {
-        msc_add_response_header(msr->t,
-            (const unsigned char *)header[index].key,
-            (const unsigned char *)header[index].val);
+        if (msc_add_response_header(msr->t,
+                (const unsigned char *)header[index].key,
+                (const unsigned char *)header[index].val) != 1)
+        {
+            return 0;
+        }
     }
+    return 1;
 }
 
 static int apache_response_header_metrics(const apr_table_t *headers,
@@ -1722,13 +1800,29 @@ static apr_status_t apache_output_filter_process_headers(msc_t *msr,
         return apache_send_precommit_terminal_error(msr, filter, brigade,
             HTTP_INTERNAL_SERVER_ERROR);
     }
-    apache_add_response_headers(msr, r->err_headers_out);
-    apache_add_response_headers(msr, r->headers_out);
+    if (!apache_add_response_headers(msr, r->err_headers_out) ||
+        !apache_add_response_headers(msr, r->headers_out))
+    {
+        (void)msc_apache_contract_fail(msr,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
+        apache_emit_contract_failure_event(msr, r,
+            MSCONNECTOR_PHASE_RESPONSE_HEADERS,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR,
+            HTTP_INTERNAL_SERVER_ERROR);
+        ap_remove_output_filter(filter);
+        return apache_send_precommit_terminal_error(msr, filter, brigade,
+            HTTP_INTERNAL_SERVER_ERROR);
+    }
     if (content_type != NULL && content_type[0] != '\0')
     {
-        msc_add_response_header(msr->t,
-            (const unsigned char *)"Content-Type",
-            (const unsigned char *)content_type);
+        if (msc_add_response_header(msr->t,
+                (const unsigned char *)"Content-Type",
+                (const unsigned char *)content_type) != 1)
+        {
+            ap_remove_output_filter(filter);
+            return apache_send_precommit_terminal_error(msr, filter, brigade,
+                HTTP_INTERNAL_SERVER_ERROR);
+        }
     }
     original_status = r->status;
     if (!apache_phase3_snapshot_response_state(msr, r))

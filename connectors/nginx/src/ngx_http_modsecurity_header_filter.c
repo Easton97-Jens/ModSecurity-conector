@@ -179,7 +179,7 @@ ngx_http_modsecurity_resolv_header_server(ngx_http_request_t *r, ngx_str_t name,
     ngx_http_modsecurity_store_ctx_header(r, &name, &value);
 #endif
 
-    return msc_add_n_response_header(ctx->modsec_transaction,
+    return ngx_http_modsecurity_add_n_response_header(ctx,
         (const unsigned char *) name.data,
         name.len,
         (const unsigned char *) value.data,
@@ -209,7 +209,7 @@ ngx_http_modsecurity_resolv_header_date(ngx_http_request_t *r, ngx_str_t name, o
     ngx_http_modsecurity_store_ctx_header(r, &name, &date);
 #endif
 
-    return msc_add_n_response_header(ctx->modsec_transaction,
+    return ngx_http_modsecurity_add_n_response_header(ctx,
         (const unsigned char *) name.data,
         name.len,
         (const unsigned char *) date.data,
@@ -236,7 +236,7 @@ ngx_http_modsecurity_resolv_header_content_length(ngx_http_request_t *r, ngx_str
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
         ngx_http_modsecurity_store_ctx_header(r, &name, &value);
 #endif
-        return msc_add_n_response_header(ctx->modsec_transaction,
+        return ngx_http_modsecurity_add_n_response_header(ctx,
             (const unsigned char *) name.data,
             name.len,
             (const unsigned char *) value.data,
@@ -262,7 +262,7 @@ ngx_http_modsecurity_resolv_header_content_type(ngx_http_request_t *r, ngx_str_t
         ngx_http_modsecurity_store_ctx_header(r, &name, &r->headers_out.content_type);
 #endif
 
-        return msc_add_n_response_header(ctx->modsec_transaction,
+        return ngx_http_modsecurity_add_n_response_header(ctx,
             (const unsigned char *) name.data,
             name.len,
             (const unsigned char *) r->headers_out.content_type.data,
@@ -297,7 +297,7 @@ ngx_http_modsecurity_resolv_header_last_modified(ngx_http_request_t *r, ngx_str_
     ngx_http_modsecurity_store_ctx_header(r, &name, &value);
 #endif
 
-    return msc_add_n_response_header(ctx->modsec_transaction,
+    return ngx_http_modsecurity_add_n_response_header(ctx,
         (const unsigned char *) name.data,
         name.len,
         (const unsigned char *) value.data,
@@ -351,13 +351,14 @@ ngx_http_modsecurity_resolv_header_connection(ngx_http_request_t *r, ngx_str_t n
             ngx_http_modsecurity_store_ctx_header(r, &name2, &value);
 #endif
 
-            if (msc_add_n_response_header(ctx->modsec_transaction,
+            if (ngx_http_modsecurity_add_n_response_header(ctx,
                     (const unsigned char *) name2.data,
                     name2.len,
                     (const unsigned char *) value.data,
                     value.len) != 1) {
                 ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
                     "ModSecurity: failed to add synthetic response header for inspection");
+                return NGX_ERROR;
             }
         }
     } else {
@@ -371,7 +372,7 @@ ngx_http_modsecurity_resolv_header_connection(ngx_http_request_t *r, ngx_str_t n
     ngx_http_modsecurity_store_ctx_header(r, &name, &value);
 #endif
 
-    return msc_add_n_response_header(ctx->modsec_transaction,
+    return ngx_http_modsecurity_add_n_response_header(ctx,
         (const unsigned char *) name.data,
         name.len,
         (const unsigned char *) value.data,
@@ -393,7 +394,7 @@ ngx_http_modsecurity_resolv_header_transfer_encoding(ngx_http_request_t *r, ngx_
         ngx_http_modsecurity_store_ctx_header(r, &name, &value);
 #endif
 
-        return msc_add_n_response_header(ctx->modsec_transaction,
+        return ngx_http_modsecurity_add_n_response_header(ctx,
             (const unsigned char *) name.data,
             name.len,
             (const unsigned char *) value.data,
@@ -421,7 +422,7 @@ ngx_http_modsecurity_resolv_header_vary(ngx_http_request_t *r, ngx_str_t name, o
         ngx_http_modsecurity_store_ctx_header(r, &name, &value);
 #endif
 
-        return msc_add_n_response_header(ctx->modsec_transaction,
+        return ngx_http_modsecurity_add_n_response_header(ctx,
             (const unsigned char *) name.data,
             name.len,
             (const unsigned char *) value.data,
@@ -484,7 +485,7 @@ ngx_http_modsecurity_phase3_log_event(ngx_http_request_t *r,
         "phase3");
 }
 
-static void
+static ngx_int_t
 ngx_http_modsecurity_add_response_headers(ngx_http_request_t *r,
     ngx_http_modsecurity_ctx_t *ctx)
 {
@@ -503,6 +504,7 @@ ngx_http_modsecurity_add_response_headers(ngx_http_request_t *r,
                 ngx_http_modsecurity_headers_out[i].offset) != 1) {
             ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
                 "ModSecurity: failed to add synthetic response header for inspection");
+            return NGX_ERROR;
         }
     }
 
@@ -515,15 +517,18 @@ ngx_http_modsecurity_add_response_headers(ngx_http_request_t *r,
 #endif
 
         /* Doing this ugly cast here, explanation on the request header. */
-        if (msc_add_n_response_header(ctx->modsec_transaction,
-                (const unsigned char *) header->key.data,
+        if (ngx_http_modsecurity_add_n_response_header(ctx,
+                (const unsigned char *)header->key.data,
                 header->key.len,
-                (const unsigned char *) header->value.data,
+                (const unsigned char *)header->value.data,
                 header->value.len) != 1) {
             ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
                 "ModSecurity: failed to add response header for inspection");
+            return NGX_ERROR;
         }
     }
+
+    return NGX_OK;
 }
 
 static ngx_int_t
@@ -655,7 +660,10 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
      * checked. Other module(s) in the chain may added some content to it.
      *
      */
-    ngx_http_modsecurity_add_response_headers(r, ctx);
+    if (ngx_http_modsecurity_add_response_headers(r, ctx) != NGX_OK) {
+        ctx->intervention_triggered = 1;
+        return NGX_ERROR;
+    }
 
     /* prepare extra paramters for msc_process_response_headers() */
     if (r->err_status) {

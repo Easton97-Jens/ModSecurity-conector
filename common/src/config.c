@@ -1,5 +1,6 @@
 #include "msconnector/config.h"
 #include "msconnector/block_statuses.h"
+#include "msconnector/limits.h"
 #include <stdio.h>
 
 static void set_error(char *error, size_t error_len, const char *message) {
@@ -44,10 +45,6 @@ static int string_empty(const char *value) {
 
 static int remote_pair_requested(const msconnector_config *config) {
     return !string_empty(config->rules_remote_key) || !string_empty(config->rules_remote_url);
-}
-
-static int remote_pair_complete(const msconnector_config *config) {
-    return !string_empty(config->rules_remote_key) && !string_empty(config->rules_remote_url);
 }
 
 static const char *merge_string(const char *parent, const char *child) {
@@ -309,8 +306,17 @@ int msconnector_config_validate(const msconnector_config *config, char *error, s
         return 0;
     }
 
-    if (remote_pair_requested(config) && !remote_pair_complete(config)) {
-        set_error(error, error_len, "incomplete remote rules pair");
+    if (config->phase4_body_limit > MSCONNECTOR_MAX_CONFIG_BODY_BYTES ||
+        config->request_body_limit > MSCONNECTOR_MAX_CONFIG_BODY_BYTES ||
+        config->response_body_limit > MSCONNECTOR_MAX_CONFIG_BODY_BYTES) {
+        set_error(error, error_len,
+            "configured body limit exceeds the hard security cap");
+        return 0;
+    }
+
+    if (remote_pair_requested(config)) {
+        set_error(error, error_len,
+            "remote rule loading is disabled by security policy");
         return 0;
     }
 

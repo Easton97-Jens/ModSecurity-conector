@@ -18,12 +18,12 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`load_module`](#load-module) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`modsecurity`](#modsecurity) | Host / Connector | Boolescher Wert | nein | off | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Schaltet die Erstellung von Connector-Transaktionen frei; dies ist nicht SecRuleEngine. |
 | [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive dezimale Byteanzahl | nein | 1048576 | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Begrenzt die vom nativen Connector der P4-Verarbeitung angebotenen Response-Bytes. |
-| [`modsecurity_phase4_content_types_file`](#modsecurity-phase4-content-types-file) | Host / Connector | Pfad | nein | Host-Standardwerte bei Auslassung | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Beschränkt die P4-Response-Body-Inspektion auf konfigurierte MIME-Typen. |
-| [`modsecurity_phase4_log`](#modsecurity-phase4-log) | Host / Connector | Pfad | nein | none | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Setzt einen Connector-Ereignispfad; aktuelle Apache- und NGINX-Pfade verwenden ihn auch für frühere Regel-/Interventionsmetadaten, nicht nur für P4. |
+| [`modsecurity_phase4_content_types_file`](#modsecurity-phase4-content-types-file) | Host / Connector | Pfad | nein | Host-Standardwerte bei Auslassung | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Lädt die MIME-Token-Allowlist aus einer begrenzten regulären POSIX-Datei, um die P4-Response-Body-Inspektion einzugrenzen. |
+| [`modsecurity_phase4_log`](#modsecurity-phase4-log) | Host / Connector | registrierter, aber immer abgelehnter Pfad | nein | kein verwendbarer Wert | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Weist natives NGINX-Ereignisdatei-Logging vor der Deskriptorerzeugung ab, weil die Host-Dateiregistrierung den Sicherheitsvertrag der Common Runtime nicht bereitstellen kann. |
 | [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | Aufzählung | nein | safe | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Bevor Response-Header/-Body committet sind, lösen minimal, safe und strict eine P4-Intervention jeweils als deny_if_possible auf; NGINX kann daher noch den angeforderten Engine-Status (oder den Fallback 403) zurückgeben. Sobald Header committet sind oder der Body begonnen hat, verwenden minimal und safe beide die gemeinsame Aktion log_only; sie protokollieren die späte Entscheidung ohne nachträgliche Statusumschreibung. Strict löst dagegen zu abort_connection auf: Der native Body-Filter markiert die Verbindung als fehlerhaft, protokolliert connection_aborted und gibt NGX_ERROR zurück. Die bekannte Hostgrenze ist, dass NGINX das P4-Engine-Finish erst bei last_buf/last_in_chain nach der begrenzten Sammlung von Body-Bytes im Geltungsbereich aufruft; eine Antwort kann deshalb bereits sichtbar sein. Strict kann somit eine Verbindung beenden, aber keine spätere 403 garantieren oder eine bereits gesendete Statuszeile ersetzen. |
 | [`modsecurity_rules`](#modsecurity-rules) | Host / Connector | Zeichenkette | nein | kein Wert; optional | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Lädt während des Konfigurationsladens Inline-Inhalt über libmodsecurity. |
 | [`modsecurity_rules_file`](#modsecurity-rules-file) | Host / Connector | Pfad | nein | kein Wert; optional | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Beim Laden der NGINX-Konfiguration übergibt ngx_conf_set_rules_file den bereitgestellten Pfad an msc_rules_add_file von libmodsecurity. Der NGINX-Setter kanonisiert den Pfad nicht und verlangt keinen absoluten Pfad; ein absoluter Pfad vermeidet eine Abhängigkeit vom Arbeitsverzeichnis des Prozesses. Eine fehlende, unlesbare oder ungültige Regeldatei der obersten Ebene liefert den Loader-Fehler von libmodsecurity und lässt Konfigurationsprüfung/Reload fehlschlagen. Include und IncludeOptional in dieser Datei werden anschließend von libmodsecurity interpretiert, nicht durch den NGINX-Parser expandiert. Anders als modsecurity_rules, das eine Inline-Konfigurationszeichenkette an msc_rules_add sendet, übergibt diese Direktive einen Dateipfad an msc_rules_add_file; beide tragen zum konfigurierten Regelsatz und seinem normalen Eltern-/Kind-Merge bei. |
-| [`modsecurity_rules_remote`](#modsecurity-rules-remote) | Host / Connector | zwei Zeichenketten | nein | kein Wert; optional | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Übergibt das Schlüssel-/URL-Paar an den Remote-Regel-Loader von libmodsecurity. |
+| [`modsecurity_rules_remote`](#modsecurity-rules-remote) | Host / Connector | registrierte, aber stets abgewiesene Direktive | nein | kein verwendbarer Wert | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Policy A weist Remote-Rule-Konfiguration ab, bevor ein Regellader- oder Netzwerkvorgang stattfindet. |
 | [`modsecurity_transaction_id`](#modsecurity-transaction-id) | Host / Connector | Zeichenkette/Ausdruck | nein | kein Wert; der Connector erzeugt eine Ersatzkennung | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Liefert die Engine- und Ereigniskorrelationskennung für eine Transaktion. |
 | [`modsecurity_use_error_log`](#modsecurity-use-error-log) | Host / Connector | Boolescher Wert | nein | on | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Steuert die Weiterleitung von libmodsecurity-Meldungen an das Host-Fehlerlog; die Regelauswertung wird dadurch nicht umgeschaltet. |
 | [`proxy_pass`](#proxy-pass) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
@@ -471,7 +471,7 @@ Ein größeres Limit erhöht die Speicher-/CPU-Exposition; null ist in den nativ
 
 ### Kurzbeschreibung
 
-Beschränkt die P4-Response-Body-Inspektion auf konfigurierte MIME-Typen.
+Lädt die MIME-Token-Allowlist aus einer begrenzten regulären POSIX-Datei, um die P4-Response-Body-Inspektion einzugrenzen.
 
 ### Syntax
 
@@ -487,7 +487,7 @@ modsecurity_phase4_content_types_file <value>;
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| Pfad | eine lesbare Datei mit MIME-Token | nein |
+| Pfad | unter POSIX eine lesbare reguläre MIME-Token-Datei mit höchstens 64 KiB; unter Win32 abgewiesen | nein |
 
 ### Standardwert
 
@@ -503,13 +503,13 @@ Zusammenführung: ngx_conf_merge_* führt Skalar-/Zeigerkonfiguration zusammen, 
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: P1 steuert die Integration; Regeln und P4-Steuerungen betreffen nur die genannte Phase.
+P1–P4-Relevanz: Nur P4. Die MIME-Token-Allowlist bestimmt, welche Response-Bodys den begrenzten nativen P4-Pfad durchlaufen.
 
-Beschränkt die P4-Response-Body-Inspektion auf konfigurierte MIME-Typen.
+Lädt die MIME-Token-Allowlist aus einer begrenzten regulären POSIX-Datei, um die P4-Response-Body-Inspektion einzugrenzen.
 
 ### Validierung und Fehler
 
-ngx_conf_set_phase4_content_types_file weist ungültige Werte während nginx -t ab; NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1 ist die registrierte Kontextmaske.
+ngx_conf_set_phase4_content_types_file weist ungültige Werte während nginx -t ab. Unter POSIX öffnet es den Pfad nichtblockierend, prüft den geöffneten Deskriptor auf regulären Dateityp, begrenzt ihn auf 64 KiB, verlangt einen exakten Lesevorgang und weist ungültige MIME-Token ab. Unter Win32 schlägt es fail-closed fehl.
 
 ### Beispiel
 
@@ -519,14 +519,14 @@ Quellenbasiertes Beispiel: [examples/nginx/safe/nginx.conf](../../examples/nginx
 
 ### Sicherheit und Betrieb
 
-Den Geltungsbereich eng halten und validieren, dass der Host die beabsichtigte Repräsentation der Response-Bytes bereitstellt.
+Eine atomar ersetzte reguläre Konfigurationsdatei in einem vertrauenswürdigen Verzeichnis verwenden. FIFOs, Geräte, Sockets, Verzeichnisse, übergroße Dateien, partielle Lesevorgänge und ungültige MIME-Token werden abgewiesen.
 
 <a id="modsecurity-phase4-log"></a>
 ## `modsecurity_phase4_log`
 
 ### Kurzbeschreibung
 
-Setzt einen Connector-Ereignispfad; aktuelle Apache- und NGINX-Pfade verwenden ihn auch für frühere Regel-/Interventionsmetadaten, nicht nur für P4.
+Weist natives NGINX-Ereignisdatei-Logging vor der Deskriptorerzeugung ab, weil die Host-Dateiregistrierung den Sicherheitsvertrag der Common Runtime nicht bereitstellen kann.
 
 ### Syntax
 
@@ -542,39 +542,39 @@ modsecurity_phase4_log <value>;
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| Pfad | ein Pfad für das Connector-JSONL-Ereignis-/Interventionslog | nein |
+| registrierter, aber immer abgelehnter Pfad | kein Pfad wird akzeptiert | nein |
 
 ### Standardwert
 
-none
+kein verwendbarer Wert
 
-Quelle: `Parserregistrierung hat keinen Standardwert`.
+Quelle: `Sicherheitspolicy: natives NGINX-Ereignisdatei-Logging deaktiviert`.
 
 ### Vererbung und Zusammenführung
 
-http → server → location; ein Kind erbt, wenn es keinen Wert setzt.
+Kein Ereignisdatei-Wert kann geerbt oder zusammengeführt werden, weil jede Verwendung abgewiesen wird.
 
-Zusammenführung: ngx_conf_merge_* führt Skalar-/Zeigerkonfiguration zusammen, während msc_rules_merge Eltern- und Kindregeln zusammenführt.
+Zusammenführung: Kein Ereignisdatei-Wert kann zusammengeführt werden, weil jede Verwendung vor der Deskriptorerzeugung abgewiesen wird.
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: P1 steuert die Integration; Regeln und P4-Steuerungen betreffen nur die genannte Phase.
+P1–P4-Relevanz: Über diese Direktive ist kein Ereignisdatei-Sink erreichbar. Der Ereignislebenszyklus der Common Runtime bleibt der unterstützte sichere Ereignispfad.
 
-Setzt einen Connector-Ereignispfad; aktuelle Apache- und NGINX-Pfade verwenden ihn auch für frühere Regel-/Interventionsmetadaten, nicht nur für P4.
+Weist natives NGINX-Ereignisdatei-Logging vor der Deskriptorerzeugung ab, weil die Host-Dateiregistrierung den Sicherheitsvertrag der Common Runtime nicht bereitstellen kann.
 
 ### Validierung und Fehler
 
-ngx_conf_set_phase4_log weist ungültige Werte während nginx -t ab; NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1 ist die registrierte Kontextmaske.
+ngx_conf_set_phase4_log weist jeden Pfad während nginx -t mit dem nativen Ereignisdatei-Sicherheitspolicy-Fehler ab.
 
 ### Beispiel
 
-Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
+Es gibt kein akzeptiertes Beispiel: Jeder konfigurierte Wert wird durch die Sicherheitspolicy abgewiesen.
 
-Quellenbasiertes Beispiel: [examples/nginx/safe/nginx.conf](../../examples/nginx/safe/nginx.conf).
+Quellenbasiertes Beispiel: `connectors/nginx/src/ngx_http_modsecurity_module.c`.
 
 ### Sicherheit und Betrieb
 
-JSONL-Metadaten als sensible Betriebsdaten behandeln und sichere Eigentümerschaft/Rotation festlegen.
+Diesen nativen Host-Writer nicht ohne einen no-follow-, reguläre-Datei-, Eigentümer- und Private-Mode-Deskriptorvertrag wieder aktivieren. Stattdessen den Ereignislebenszyklus der Common Runtime verwenden.
 
 <a id="modsecurity-phase4-mode"></a>
 ## `modsecurity_phase4_mode`
@@ -746,7 +746,7 @@ Die Datei, ihre übergeordneten Verzeichnisse und alle von der Engine eingebunde
 
 ### Kurzbeschreibung
 
-Übergibt das Schlüssel-/URL-Paar an den Remote-Regel-Loader von libmodsecurity.
+Policy A weist Remote-Rule-Konfiguration ab, bevor ein Regellader- oder Netzwerkvorgang stattfindet.
 
 ### Syntax
 
@@ -762,39 +762,39 @@ modsecurity_rules_remote <key> <url>;
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| zwei Zeichenketten | Schlüssel und URL | nein |
+| registrierte, aber stets abgewiesene Direktive | kein Schlüssel/URL-Paar wird akzeptiert | nein |
 
 ### Standardwert
 
-kein Wert; optional
+kein verwendbarer Wert
 
-Quelle: `Parserregistrierung hat keinen Standardwert`.
+Quelle: `Sicherheitspolicy: Laden entfernter Regeln deaktiviert`.
 
 ### Vererbung und Zusammenführung
 
-http → server → location; ein Kind erbt, wenn es keinen Wert setzt.
+Kein Remote-Wert kann geerbt oder zusammengeführt werden, weil jede Verwendung abgewiesen wird.
 
-Zusammenführung: ngx_conf_merge_* führt Skalar-/Zeigerkonfiguration zusammen, während msc_rules_merge Eltern- und Kindregeln zusammenführt.
+Zusammenführung: Kein Remote-Wert kann zusammengeführt werden, weil jede Verwendung vor dem Laden von Regeln abgewiesen wird.
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: P1 steuert die Integration; Regeln und P4-Steuerungen betreffen nur die genannte Phase.
+P1–P4-Relevanz: Über diese Direktive ist kein Regellader- oder Netzwerkpfad erreichbar.
 
-Übergibt das Schlüssel-/URL-Paar an den Remote-Regel-Loader von libmodsecurity.
+Policy A weist Remote-Rule-Konfiguration ab, bevor ein Regellader- oder Netzwerkvorgang stattfindet.
 
 ### Validierung und Fehler
 
-ngx_conf_set_rules_remote weist ungültige Werte während nginx -t ab; NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE2 ist die registrierte Kontextmaske.
+ngx_conf_set_rules_remote weist jedes Schlüssel/URL-Paar während nginx -t vor einem Regellader- oder Netzwerkvorgang ab.
 
 ### Beispiel
 
-Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
+Es gibt kein akzeptiertes Beispiel: Jeder konfigurierte Wert wird durch die Sicherheitspolicy abgewiesen.
 
-Quellenbasiertes Beispiel: [examples/nginx/safe/nginx.conf](../../examples/nginx/safe/nginx.conf).
+Quellenbasiertes Beispiel: `connectors/nginx/src/ngx_http_modsecurity_module.c`.
 
 ### Sicherheit und Betrieb
 
-Remote-Policy wird von den ausgewählten no-CRS-Beispielen nicht verwendet; nicht als Ersatz für eine lokale Datei behandeln.
+Das Laden entfernter Regeln ist für jeden Connector technisch deaktiviert; nicht auf eine Remote-URL oder einen Schlüssel vertrauen.
 
 <a id="modsecurity-transaction-id"></a>
 ## `modsecurity_transaction_id`

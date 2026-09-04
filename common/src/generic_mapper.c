@@ -39,16 +39,15 @@ int msconnector_generic_map_request(
     out->method = src->method;
     out->uri = src->uri;
     out->http_version = src->http_version;
+    /* A server endpoint is not a client-supplied authority. Preserve a
+     * missing hostname so the connector contract can reject or represent it
+     * explicitly instead of silently changing host-based rule semantics. */
     out->hostname = src->hostname;
     out->client = src->client;
     out->server = src->server;
     out->headers = src->headers;
     out->header_count = src->header_count;
     out->body = src->body;
-
-    if (out->hostname == 0) {
-        out->hostname = src->server.address;
-    }
 
     return msconnector_request_mapper_validate_output(contract, out, error, error_len);
 }

@@ -25,6 +25,7 @@
 #include "msconnector/flow_guard.h"
 #include "msconnector/headers.h"
 #include "msconnector/integrity_event.h"
+#include "msconnector/limits.h"
 #include "msconnector/intervention.h"
 #include "msconnector/json_escape.h"
 #include "msconnector/late_intervention.h"
@@ -151,6 +152,7 @@ typedef struct haproxy_modsecurity_body_phase {
     int *body_started;
     size_t *body_bytes_seen;
     size_t *body_bytes_inspected;
+    size_t body_limit;
     const char *missing_message;
     const char *headers_required_message;
     const char *append_after_eos_message;
@@ -421,12 +423,19 @@ static int append_body_chunk(
         copy_message(decision->log_message, sizeof(decision->log_message), phase->pointer_required_message);
         return 1;
     }
+    /* The host delivers borrowed chunks, so the cumulative budget must be
+     * checked before any libmodsecurity sink is called.  The subtraction
+     * form also makes the size_t boundary explicit and prevents wrapping
+     * body_bytes_seen on a hostile or malformed host length. */
     {
-        size_t body_limit = phase->phase == 2 ?
+        const size_t contract_body_limit = phase->phase == 2 ?
             transaction->contract.request_body_limit :
             transaction->contract.response_body_limit;
+        const size_t body_limit = phase->body_limit < contract_body_limit ?
+            phase->body_limit : contract_body_limit;
         const int over_limit =
             *phase->body_bytes_seen > SIZE_MAX - (size_t)body_len ||
+            body_limit == 0U ||
             *phase->body_bytes_seen > body_limit ||
             (size_t)body_len > body_limit - *phase->body_bytes_seen;
         if (over_limit) {
@@ -434,9 +443,7 @@ static int append_body_chunk(
                 phase->phase == 2 ? "request body exceeds Common limit" :
                     "response body exceeds Common limit");
             decision->disruptive = 1;
-            decision->status = transaction->engine != 0 &&
-                    transaction->engine->common_config.default_block_status > 0 ?
-                transaction->engine->common_config.default_block_status : 413;
+            decision->status = 413;
             copy_message(decision->action, sizeof(decision->action), "deny");
             (void)msconnector_transaction_contract_fail(&transaction->contract,
                 MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, 0U);
@@ -469,8 +476,16 @@ static int append_body_chunk(
             MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE, 0U);
         return 1;
     }
-    *phase->body_bytes_seen += body_len;
-    if (body_len > 0U && phase->append_body(transaction->transaction, body, (size_t)body_len) < 0) {
+    if (*phase->body_bytes_inspected > SIZE_MAX - (size_t)body_len) {
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "body accounting overflow");
+        (void)msconnector_transaction_contract_fail(&transaction->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, 0U);
+        return 1;
+    }
+    *phase->body_bytes_seen += (size_t)body_len;
+    if (body_len > 0U && phase->append_body(transaction->transaction, body,
+            (size_t)body_len) != 1) {
         copy_message(decision->log_message, sizeof(decision->log_message), phase->append_failed_message);
         (void)msconnector_transaction_contract_fail(&transaction->contract,
             MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
@@ -507,7 +522,7 @@ static int finish_body(
             MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE, 0U);
         return 1;
     }
-    if (phase->finish_body(transaction->transaction) < 0) {
+    if (phase->finish_body(transaction->transaction) != 1) {
         copy_message(decision->log_message, sizeof(decision->log_message), phase->finish_failed_message);
         (void)msconnector_transaction_contract_fail(&transaction->contract,
             MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
@@ -529,6 +544,38 @@ static int finish_body(
         return 1;
     }
     return 0;
+}
+
+static haproxy_modsecurity_body_phase request_body_phase(
+        haproxy_modsecurity_transaction *transaction) {
+    return (haproxy_modsecurity_body_phase){
+        2, &transaction->request_headers_processed, &transaction->request_body.processed,
+        &transaction->request_body.started, &transaction->request_body.bytes_seen,
+        &transaction->request_body.bytes_inspected,
+        transaction->engine->common_config.request_body_limit,
+        "missing transaction or request body",
+        "request headers must be processed before request body chunks",
+        "request body append after end-of-stream",
+        "request body pointer is required when length is nonzero", "msc_append_request_body failed",
+        "request body may only be finalized once", "msc_process_request_body failed",
+        msc_append_request_body, msc_process_request_body
+    };
+}
+
+static haproxy_modsecurity_body_phase response_body_phase(
+        haproxy_modsecurity_transaction *transaction) {
+    return (haproxy_modsecurity_body_phase){
+        4, &transaction->response_headers_processed, &transaction->response_body.processed,
+        &transaction->response_body.started, &transaction->response_body.bytes_seen,
+        &transaction->response_body.bytes_inspected,
+        transaction->engine->common_config.response_body_limit,
+        "missing transaction or response body",
+        "response headers must be processed before response body chunks",
+        "response body append after end-of-stream",
+        "response body pointer is required when length is nonzero", "msc_append_response_body failed",
+        "response body may only be finalized once", "msc_process_response_body failed",
+        msc_append_response_body, msc_process_response_body
+    };
 }
 
 static int load_rules_file(
@@ -754,12 +801,21 @@ static int process_request_connection(
         Transaction *transaction,
         const haproxy_modsecurity_request *request,
         haproxy_modsecurity_decision *decision) {
-    const char *client_ip = request_text_or_default(request->client_ip, "127.0.0.1");
-    const char *server_ip = request_text_or_default(request->server_ip, "127.0.0.1");
-    int client_port = request->client_port > 0 ? request->client_port : 49152;
-    int server_port = request->server_port > 0 ? request->server_port : 80;
+    if (request == 0 || request->client_ip == 0 || request->client_ip[0] == '\0' ||
+            request->server_ip == 0 || request->server_ip[0] == '\0') {
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "missing client or server endpoint");
+        return -1;
+    }
+    if (request->client_port < 0 || request->client_port > 65535 ||
+            request->server_port < 0 || request->server_port > 65535) {
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "client or server endpoint port is outside the valid range");
+        return -1;
+    }
 
-    if (msc_process_connection(transaction, client_ip, client_port, server_ip, server_port) < 0) {
+    if (msc_process_connection(transaction, request->client_ip, request->client_port,
+            request->server_ip, request->server_port) != 1) {
         copy_message(decision->log_message, sizeof(decision->log_message),
             "msc_process_connection failed");
         return -1;
@@ -784,13 +840,13 @@ static int process_request_headers(
             value = "";
         }
         if (msc_add_request_header(transaction, (const unsigned char *)name,
-                (const unsigned char *)value) < 0) {
+                (const unsigned char *)value) != 1) {
             copy_message(decision->log_message, sizeof(decision->log_message),
                 "msc_add_request_header failed");
             return -1;
         }
     }
-    if (msc_process_request_headers(transaction) < 0) {
+    if (msc_process_request_headers(transaction) != 1) {
         copy_message(decision->log_message, sizeof(decision->log_message),
             "msc_process_request_headers failed");
         return -1;
@@ -805,10 +861,11 @@ static int process_request_body(
     msconnector_resource_limits limits;
 
     msconnector_resource_limits_init(&limits);
-    if (request == 0 || !msconnector_resource_limits_body_ok(
-            request->body_len, limits.max_request_body_bytes)) {
+    if (request == 0 || request->body_len > MSCONNECTOR_DEFAULT_PHASE4_BODY_LIMIT ||
+            !msconnector_resource_limits_body_ok(
+                request->body_len, limits.max_request_body_bytes)) {
         copy_message(decision->log_message, sizeof(decision->log_message),
-            "request body exceeds Common limit");
+            "request body exceeds configured HAProxy/Common limit");
         decision->disruptive = 1;
         decision->status = 413;
         copy_message(decision->action, sizeof(decision->action), "deny");
@@ -816,18 +873,23 @@ static int process_request_body(
     }
     if (request->body != 0 && request->body_len > 0 &&
             msc_append_request_body(transaction, request->body,
-                (size_t)request->body_len) < 0) {
+                (size_t)request->body_len) != 1) {
         copy_message(decision->log_message, sizeof(decision->log_message),
             "msc_append_request_body failed");
         return -1;
     }
-    if (msc_process_request_body(transaction) < 0) {
+    if (msc_process_request_body(transaction) != 1) {
         copy_message(decision->log_message, sizeof(decision->log_message),
             "msc_process_request_body failed");
         return -1;
     }
     return 0;
 }
+
+static int validate_common_mapped_request(
+        const haproxy_modsecurity_engine *engine,
+        const haproxy_modsecurity_request *request,
+        haproxy_modsecurity_decision *decision);
 
 static int eval_request_internal(
         const haproxy_modsecurity_request *request,
@@ -846,6 +908,9 @@ static int eval_request_internal(
     init_decision(decision, 0);
     safe_method = request_text_or_default(request->method, "GET");
     safe_uri = request_text_or_default(request->uri, "/");
+    if (!validate_common_mapped_request(0, request, decision)) {
+        return 1;
+    }
 
     modsec = msc_init();
     if (modsec == 0) {
@@ -874,7 +939,7 @@ static int eval_request_internal(
     if (process_request_connection(transaction, request, decision) != 0) {
         goto cleanup;
     }
-    if (msc_process_uri(transaction, safe_uri, safe_method, "1.1") < 0) {
+    if (msc_process_uri(transaction, safe_uri, safe_method, "1.1") != 1) {
         copy_message(decision->log_message, sizeof(decision->log_message),
             "msc_process_uri failed");
         goto cleanup;
@@ -1049,7 +1114,7 @@ static int begin_transaction_protocol(
     if (process_request_connection(transaction->transaction, request, decision) != 0) {
         return -1;
     }
-    if (msc_process_uri(transaction->transaction, safe_uri, safe_method, "1.1") < 0) {
+    if (msc_process_uri(transaction->transaction, safe_uri, safe_method, "1.1") != 1) {
         copy_message(decision->log_message, sizeof(decision->log_message),
             "msc_process_uri failed");
         return -1;
@@ -1212,16 +1277,7 @@ int haproxy_modsecurity_transaction_append_request_body_chunk(
             "missing transaction or request body");
         return 1;
     }
-    const haproxy_modsecurity_body_phase phase = {
-        2, &transaction->request_headers_processed, &transaction->request_body.processed,
-        &transaction->request_body.started, &transaction->request_body.bytes_seen,
-        &transaction->request_body.bytes_inspected, "missing transaction or request body",
-        "request headers must be processed before request body chunks",
-        "request body append after end-of-stream",
-        "request body pointer is required when length is nonzero", "msc_append_request_body failed",
-        "request body may only be finalized once", "msc_process_request_body failed",
-        msc_append_request_body, msc_process_request_body
-    };
+    const haproxy_modsecurity_body_phase phase = request_body_phase(transaction);
     return append_body_chunk(transaction, body, body_len, decision, &phase);
 }
 
@@ -1234,16 +1290,8 @@ int haproxy_modsecurity_transaction_finish_request_body(
             "missing transaction or request body");
         return 1;
     }
-    const haproxy_modsecurity_body_phase phase = {
-        2, &transaction->request_headers_processed, &transaction->request_body.processed,
-        &transaction->request_body.started, &transaction->request_body.bytes_seen,
-        &transaction->request_body.bytes_inspected, "missing transaction or request body",
-        "request headers must be processed before request body finalization",
-        "request body append after end-of-stream",
-        "request body pointer is required when length is nonzero", "msc_append_request_body failed",
-        "request body may only be finalized once", "msc_process_request_body failed",
-        msc_append_request_body, msc_process_request_body
-    };
+    haproxy_modsecurity_body_phase phase = request_body_phase(transaction);
+    phase.headers_required_message = "request headers must be processed before request body finalization";
     return finish_body(transaction, decision, &phase);
 }
 
@@ -1365,13 +1413,25 @@ static int map_response_for_transaction(
     msconnector_response_mapper_contract contract;
     char mapper_error[256];
 
+    haproxy_modsecurity_response normalized_response;
+
+    init_decision(decision, 3);
+    if (transaction == 0 || transaction->transaction == 0 || response == 0) {
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "missing transaction or response");
+        return 0;
+    }
+    normalized_response = *response;
+    normalized_response.status = response->status > 0 ? response->status : 200;
+    normalized_response.protocol = response->protocol != 0 && response->protocol[0] != '\0' ?
+        response->protocol : "HTTP/1.1";
     haproxy_modsecurity_mapped_response_init(&mapped_response);
     mapper_error[0] = '\0';
     msconnector_response_mapper_contract_init(&contract);
     contract.max_header_count = MSCONNECTOR_MAX_HEADER_COUNT;
     contract.max_body_bytes = 0U;
     if ((response->body_len > 0U && response->body == 0) ||
-            haproxy_modsecurity_map_owned_response(response, &contract,
+            haproxy_modsecurity_map_owned_response(&normalized_response, &contract,
                 &mapped_response, mapper_error, sizeof(mapper_error)) != 1) {
         if (response->body_len > 0U && response->body == 0) {
             copy_message(mapper_error, sizeof(mapper_error),
@@ -1409,7 +1469,7 @@ static int add_response_headers(
         }
         if (msc_add_response_header(transaction->transaction,
                 (const unsigned char *)name,
-                (const unsigned char *)value) < 0) {
+                (const unsigned char *)value) != 1) {
             copy_message(decision->log_message, sizeof(decision->log_message),
                 "msc_add_response_header failed");
             return 0;
@@ -1446,7 +1506,7 @@ int haproxy_modsecurity_transaction_process_response_headers(
     status = response->status > 0 ? response->status : 200;
     protocol = response->protocol != 0 && response->protocol[0] != '\0' ?
         response->protocol : "HTTP/1.1";
-    if (msc_process_response_headers(transaction->transaction, status, protocol) < 0) {
+    if (msc_process_response_headers(transaction->transaction, status, protocol) != 1) {
         copy_message(decision->log_message, sizeof(decision->log_message),
             "msc_process_response_headers failed");
         return 1;
@@ -1484,16 +1544,7 @@ int haproxy_modsecurity_transaction_append_response_body_chunk(
             "missing transaction or response body");
         return 1;
     }
-    const haproxy_modsecurity_body_phase phase = {
-        4, &transaction->response_headers_processed, &transaction->response_body.processed,
-        &transaction->response_body.started, &transaction->response_body.bytes_seen,
-        &transaction->response_body.bytes_inspected, "missing transaction or response body",
-        "response headers must be processed before response body chunks",
-        "response body append after end-of-stream",
-        "response body pointer is required when length is nonzero", "msc_append_response_body failed",
-        "response body may only be finalized once", "msc_process_response_body failed",
-        msc_append_response_body, msc_process_response_body
-    };
+    const haproxy_modsecurity_body_phase phase = response_body_phase(transaction);
     return append_body_chunk(transaction, body, body_len, decision, &phase);
 }
 
@@ -1506,16 +1557,8 @@ int haproxy_modsecurity_transaction_finish_response_body(
             "missing transaction or response body");
         return 1;
     }
-    const haproxy_modsecurity_body_phase phase = {
-        4, &transaction->response_headers_processed, &transaction->response_body.processed,
-        &transaction->response_body.started, &transaction->response_body.bytes_seen,
-        &transaction->response_body.bytes_inspected, "missing transaction or response body",
-        "response headers must be processed before response body finalization",
-        "response body append after end-of-stream",
-        "response body pointer is required when length is nonzero", "msc_append_response_body failed",
-        "response body may only be finalized once", "msc_process_response_body failed",
-        msc_append_response_body, msc_process_response_body
-    };
+    haproxy_modsecurity_body_phase phase = response_body_phase(transaction);
+    phase.headers_required_message = "response headers must be processed before response body finalization";
     return finish_body(transaction, decision, &phase);
 }
 
@@ -1579,6 +1622,7 @@ int haproxy_modsecurity_eval_request(
 int haproxy_modsecurity_phase1_header_eval(
         const char *method,
         const char *uri,
+        const char *host,
         const char *test_header_value,
         haproxy_modsecurity_decision *decision) {
     static const char rules_text[] =
@@ -1588,16 +1632,28 @@ int haproxy_modsecurity_phase1_header_eval(
         "\"@streq block\" "
         "\"id:1000001,phase:1,deny,status:403,"
         "msg:'HAProxy ModSecurity binding self-test block'\"\n";
-    haproxy_modsecurity_header headers[1];
+    haproxy_modsecurity_header headers[2];
     haproxy_modsecurity_request request;
 
-    headers[0].name = "X-Haproxy-ModSecurity-Test";
-    headers[0].value = test_header_value != 0 ? test_header_value : "";
+    if (host == 0 || host[0] == '\0') {
+        init_decision(decision, 1);
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "missing or invalid Host header");
+        return 1;
+    }
+    headers[0].name = "Host";
+    headers[0].value = host;
+    headers[1].name = "X-Haproxy-ModSecurity-Test";
+    headers[1].value = test_header_value != 0 ? test_header_value : "";
     memset(&request, 0, sizeof(request));
     request.method = method;
     request.uri = uri;
+    request.client_ip = "192.0.2.10";
+    request.client_port = 12345;
+    request.server_ip = "198.51.100.20";
+    request.server_port = 8080;
     request.headers = headers;
-    request.header_count = test_header_value != 0 && test_header_value[0] != '\0' ? 1U : 0U;
+    request.header_count = test_header_value != 0 && test_header_value[0] != '\0' ? 2U : 1U;
     return eval_request_internal(&request, rules_text, decision);
 }
 
@@ -1606,7 +1662,7 @@ int haproxy_modsecurity_phase1_header_self_test(
     int rc;
 
     rc = haproxy_modsecurity_phase1_header_eval("GET",
-        "/haproxy-binding-self-test", "block", decision);
+        "/haproxy-binding-self-test", "localhost", "block", decision);
     if (rc != 0) {
         return rc;
     }
@@ -1629,18 +1685,24 @@ static int haproxy_modsecurity_request_body_eval(
         const char *rules_text,
         haproxy_modsecurity_decision *decision) {
     static const unsigned char body[] = "token=block";
-    haproxy_modsecurity_header headers[2];
+    haproxy_modsecurity_header headers[3];
     haproxy_modsecurity_request request;
 
-    headers[0].name = "Content-Type";
-    headers[0].value = "application/x-www-form-urlencoded";
-    headers[1].name = "Content-Length";
-    headers[1].value = "11";
+    headers[0].name = "Host";
+    headers[0].value = "localhost";
+    headers[1].name = "Content-Type";
+    headers[1].value = "application/x-www-form-urlencoded";
+    headers[2].name = "Content-Length";
+    headers[2].value = "11";
     memset(&request, 0, sizeof(request));
     request.method = "POST";
     request.uri = uri;
+    request.client_ip = "192.0.2.10";
+    request.client_port = 12345;
+    request.server_ip = "198.51.100.20";
+    request.server_port = 8080;
     request.headers = headers;
-    request.header_count = 2U;
+    request.header_count = 3U;
     request.body = body;
     request.body_len = (unsigned int)(sizeof(body) - 1U);
     return eval_request_internal(&request, rules_text, decision);
@@ -1684,10 +1746,29 @@ int haproxy_modsecurity_request_body_self_test(
         "SecRule ARGS:token \"@streq block\" "
         "\"id:1000002,phase:2,deny,status:403,"
         "msg:'HAProxy ModSecurity binding request-body self-test block'\"\n";
+    static const unsigned char body[] = "token=block";
+    haproxy_modsecurity_header headers[3];
+    haproxy_modsecurity_request request;
     int rc;
 
-    rc = haproxy_modsecurity_request_body_eval(
-        "/haproxy-binding-body-self-test", rules_text, decision);
+    headers[0].name = "Host";
+    headers[0].value = "localhost";
+    headers[1].name = "Content-Type";
+    headers[1].value = "application/x-www-form-urlencoded";
+    headers[2].name = "Content-Length";
+    headers[2].value = "11";
+    memset(&request, 0, sizeof(request));
+    request.method = "POST";
+    request.uri = "/haproxy-binding-body-self-test";
+    request.client_ip = "192.0.2.10";
+    request.client_port = 12345;
+    request.server_ip = "198.51.100.20";
+    request.server_port = 8080;
+    request.headers = headers;
+    request.header_count = 3U;
+    request.body = body;
+    request.body_len = (unsigned int)(sizeof(body) - 1U);
+    rc = eval_request_internal(&request, rules_text, decision);
     if (rc != 0) {
         return rc;
     }
@@ -1717,11 +1798,21 @@ int haproxy_modsecurity_crs_sqli_eval(
     haproxy_modsecurity_header headers[1];
     haproxy_modsecurity_request request;
 
+    if (host == 0 || host[0] == '\0') {
+        init_decision(decision, 1);
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "missing or invalid Host header");
+        return 1;
+    }
     headers[0].name = "Host";
-    headers[0].value = host != 0 && host[0] != '\0' ? host : "localhost";
+    headers[0].value = host;
     memset(&request, 0, sizeof(request));
     request.method = method;
     request.uri = uri;
+    request.client_ip = "192.0.2.10";
+    request.client_port = 12345;
+    request.server_ip = "198.51.100.20";
+    request.server_port = 8080;
     request.headers = headers;
     request.header_count = 1U;
     request.rules_file = crs_preamble_file;

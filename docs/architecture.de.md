@@ -116,10 +116,12 @@ Phasendokumentation gespeichert.
 
 ## Rule-Load-Metadaten
 
-Die Common-Rule-Load-Struktur zeichnet nur erfolgreiche Inline-, File- und
-Remote-Regelzugänge auf. Sie zählt Regeln statt Direktivenaufrufe oder
-Dateianzahl. Fehlgeschlagene Ladevorgänge behalten ihren bestehenden Fehlerpfad
-und erhöhen keinen Zähler. Die Metadaten beeinflussen weder RulesSet-Ownership,
+Die Common-Rule-Load-Struktur zeichnet nur erfolgreiche Inline- und lokale
+Datei-Regelzugänge auf. Sie zählt Regeln statt Direktivenaufrufe oder
+Dateianzahl. Remote-Regelinputs werden vor dem Loader, einem Netzwerkauruf oder
+einem nativen Remote-Rule-API-Aufruf abgelehnt; sie besitzen keinen Zähler für
+erfolgreiche Loads und keine exponierten Metadaten. Fehlgeschlagene Ladevorgänge
+behalten ihren bestehenden Fehlerpfad und erhöhen keinen Zähler. Die Metadaten beeinflussen weder RulesSet-Ownership,
 Merge-Verhalten, Request-/Response-Verarbeitung, Body-Handling, Interventionen
 noch Phasenverhalten.
 
@@ -127,7 +129,6 @@ noch Phasenverhalten.
 | --- | --- | --- |
 | <code>inline_rules</code> | Aus Inline-Regelcontent geladene Regeln | Connector-Konfigurationsmetadaten |
 | <code>file_rules</code> | Aus Regelfiles geladene Regeln | NGINX-Startup-Logging; Apache-interne Metadaten |
-| <code>remote_rules</code> | Aus Remote-Regelinputs geladene Regeln | Connector-Konfigurationsmetadaten |
 
 Common hat keine Reporting-API für diese Werte. Ein geteilter Report oder eine
 Apache-Post-Config-Anzeige bleibt getrennte Arbeit und kann nicht aus einem

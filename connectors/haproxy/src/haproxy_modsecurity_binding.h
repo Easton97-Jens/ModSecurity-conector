@@ -152,6 +152,7 @@ int haproxy_modsecurity_eval_request(
 int haproxy_modsecurity_phase1_header_eval(
     const char *method,
     const char *uri,
+    const char *host,
     const char *test_header_value,
     haproxy_modsecurity_decision *decision);
 int haproxy_modsecurity_phase1_header_self_test(
