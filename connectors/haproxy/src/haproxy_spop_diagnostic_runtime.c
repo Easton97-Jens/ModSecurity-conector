@@ -675,11 +675,17 @@ static int append_varint(spop_buffer *buf, uint64_t value) {
 
 static int read_byte(const unsigned char *data, size_t len, size_t *pos,
         unsigned char *value) {
-    if (data == 0 || pos == 0 || value == 0 || *pos >= len) {
+    size_t cursor;
+
+    if (data == 0 || pos == 0 || value == 0) {
         return -1;
     }
-    *value = data[*pos];
-    ++(*pos);
+    cursor = *pos;
+    if (cursor >= len) {
+        return -1;
+    }
+    *value = data[cursor++];
+    *pos = cursor;
     return 0;
 }
 
