@@ -673,6 +673,16 @@ static int append_varint(spop_buffer *buf, uint64_t value) {
     return append_byte(buf, (unsigned int)value);
 }
 
+static int read_byte(const unsigned char *data, size_t len, size_t *pos,
+        unsigned char *value) {
+    if (data == 0 || pos == 0 || value == 0 || *pos >= len) {
+        return -1;
+    }
+    *value = data[*pos];
+    ++(*pos);
+    return 0;
+}
+
 static int read_varint(const unsigned char *data, size_t len, size_t *pos, uint64_t *value) {
     size_t cursor;
     uint64_t decoded;
@@ -1735,16 +1745,21 @@ static int parse_notify_message_header(const unsigned char *data, size_t len,
         size_t *pos, notify_request *request, unsigned int *nb_args) {
     const unsigned char *message_name;
     size_t message_name_len;
+    unsigned char argument_count;
 
     if (data == 0 || pos == 0 || request == 0 || nb_args == 0 ||
             *pos > len) {
         return -1;
     }
-    if (read_string_ref(data, len, pos, &message_name, &message_name_len) != 0 ||
-            *pos >= len ||
-            (!KEY_EQUALS_LITERAL(message_name, message_name_len, "check-request") &&
-             !KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response") &&
-             !KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response-body"))) {
+    if (read_string_ref(data, len, pos, &message_name, &message_name_len) != 0) {
+        return -1;
+    }
+    if (!KEY_EQUALS_LITERAL(message_name, message_name_len, "check-request") &&
+            !KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response") &&
+            !KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response-body")) {
+        return -1;
+    }
+    if (read_byte(data, len, pos, &argument_count) != 0) {
         return -1;
     }
     copy_spop_string(request->message_name, sizeof(request->message_name),
@@ -1754,7 +1769,7 @@ static int parse_notify_message_header(const unsigned char *data, size_t len,
         KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response-body");
     request->is_response_body =
         KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response-body");
-    *nb_args = data[(*pos)++];
+    *nb_args = argument_count;
     request->has_notify = 1;
     return 0;
 }

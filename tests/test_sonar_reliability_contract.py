@@ -1046,8 +1046,10 @@ static void test_spop_rejects_overflow_and_truncated_protocol_values(void) {
         0x80U, 0x80U, 0x80U, 0x80U, 0x80U};
     unsigned char too_wide[] = {240U, 0x80U, 0x80U, 0x80U, 0x80U,
         0x80U, 0x80U, 0x80U, 0x80U, 0x10U};
+    static const unsigned char truncated_notify[] = {5U, 'c', 'h', 'e', 'c'};
     char oversized_uri[1025];
     spop_buffer argument;
+    spop_buffer notify;
     notify_request request;
     size_t pos;
     uint64_t decoded;
@@ -1059,6 +1061,27 @@ static void test_spop_rejects_overflow_and_truncated_protocol_values(void) {
     assert(read_varint(unterminated, sizeof(unterminated), &pos, &decoded) == -1);
     pos = 0U;
     assert(read_varint(too_wide, sizeof(too_wide), &pos, &decoded) == -1);
+
+    /* A declared message-name length cannot consume the absent count byte. */
+    memset(&request, 0, sizeof(request));
+    assert(parse_notify_payload(truncated_notify, sizeof(truncated_notify),
+        &request) == -1);
+    assert(request.has_notify == 0);
+    free_notify_request(&request);
+
+    /* A complete zero-argument control still parses through the same header. */
+    memset(&notify, 0, sizeof(notify));
+    assert(append_string(&notify, "check-request") == 0);
+    memset(&request, 0, sizeof(request));
+    assert(parse_notify_payload(notify.data, notify.len, &request) == -1);
+    assert(request.has_notify == 0);
+    free_notify_request(&request);
+    assert(append_byte(&notify, 0U) == 0);
+    memset(&request, 0, sizeof(request));
+    assert(parse_notify_payload(notify.data, notify.len, &request) == 0);
+    assert(request.has_notify == 1);
+    assert(strcmp(request.message_name, "check-request") == 0);
+    free_notify_request(&request);
 
     memset(&argument, 0, sizeof(argument));
     assert(append_byte(&argument, SPOP_DATA_UINT32) == 0);
