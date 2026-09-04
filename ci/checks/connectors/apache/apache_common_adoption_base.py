@@ -42,6 +42,154 @@ def source_section(text: str, start: str, end: str) -> str:
     return text[begin:finish]
 
 
+def _mask_c_comments_and_literals(text: str) -> str:
+    """Mask C comments and literals while retaining source offsets and lines."""
+    masked = list(text)
+    index = 0
+    while index < len(text):
+        if text.startswith("//", index):
+            end = text.find("\n", index)
+            if end < 0:
+                end = len(text)
+            for offset in range(index, end):
+                masked[offset] = " "
+            index = end
+            continue
+        if text.startswith("/*", index):
+            end = text.find("*/", index + 2)
+            end = len(text) if end < 0 else end + 2
+            for offset in range(index, end):
+                if masked[offset] != "\n":
+                    masked[offset] = " "
+            index = end
+            continue
+        if text[index] in {'"', "'"}:
+            quote = text[index]
+            masked[index] = " "
+            index += 1
+            while index < len(text):
+                character = text[index]
+                if character != "\n":
+                    masked[index] = " "
+                if character == "\\" and index + 1 < len(text):
+                    index += 1
+                    if text[index] != "\n":
+                        masked[index] = " "
+                elif character == quote:
+                    index += 1
+                    break
+                index += 1
+            continue
+        index += 1
+    return "".join(masked)
+
+
+def _matching_delimiter(text: str, opening: int, start: str, end: str) -> int:
+    """Return the matching delimiter index, or -1 for incomplete source."""
+    depth = 0
+    for offset in range(opening, len(text)):
+        if text[offset] == start:
+            depth += 1
+        elif text[offset] == end:
+            depth -= 1
+            if depth == 0:
+                return offset
+    return -1
+
+
+def function_section(text: str, name: str) -> str:
+    """Return one top-level C function definition with non-code masked.
+
+    This is deliberately narrower than a C parser: it locates a named,
+    top-level definition and balances its braces after comments and literals
+    have been masked.  Returning an empty section for a missing, duplicate, or
+    incomplete definition keeps the static contract fail-closed and prevents
+    comments or unrelated functions from satisfying a helper-specific check.
+    """
+    masked = _mask_c_comments_and_literals(text)
+    definitions: list[tuple[int, int]] = []
+    for match in re.finditer(rf"\b{re.escape(name)}\s*\(", masked):
+        if masked[:match.start()].count("{") != masked[:match.start()].count("}"):
+            continue
+        opening_parenthesis = match.end() - 1
+        closing_parenthesis = _matching_delimiter(
+            masked, opening_parenthesis, "(", ")"
+        )
+        if closing_parenthesis < 0:
+            continue
+        cursor = closing_parenthesis + 1
+        while cursor < len(masked) and masked[cursor] not in "{;":
+            cursor += 1
+        if cursor >= len(masked) or masked[cursor] != "{":
+            continue
+        closing_brace = _matching_delimiter(masked, cursor, "{", "}")
+        if closing_brace >= 0:
+            definitions.append((match.start(), closing_brace + 1))
+    if len(definitions) != 1:
+        return ""
+    start, end = definitions[0]
+    return masked[start:end]
+
+
+def function_call_count(text: str, name: str) -> int:
+    """Count calls to a named helper inside a previously scoped section."""
+    return len(re.findall(rf"\b{re.escape(name)}\s*\(", text))
+
+
+def function_direct_body(text: str) -> str:
+    """Return direct function-body code, masking nested compound blocks.
+
+    Apache's P2 pipeline deliberately keeps its read, planning, Common record,
+    bounded append, accounting, and forwarding tail in the direct function
+    body. Keeping only brace-depth-one code distinguishes that live pipeline
+    from a similarly shaped nested decoy without claiming to be a general C
+    control-flow parser.
+    """
+    masked = _mask_c_comments_and_literals(text)
+    opening = masked.find("{")
+    if opening < 0:
+        return ""
+    closing = _matching_delimiter(masked, opening, "{", "}")
+    if closing < 0 or masked[closing + 1:].strip():
+        return ""
+
+    direct = ["\n" if character == "\n" else " " for character in masked]
+    depth = 0
+    for offset, character in enumerate(masked):
+        if character == "{":
+            depth += 1
+            continue
+        if character == "}":
+            depth -= 1
+            if depth < 0:
+                return ""
+            continue
+        if depth == 1:
+            direct[offset] = character
+    return "".join(direct)
+
+
+def has_forbidden_contract_control_flow(text: str) -> bool:
+    """Reject controls that make a helper-only contract ambiguous.
+
+    The guard is deliberately narrow and fail-closed for critical Apache P2
+    helpers: it catches preprocessor branches, labels/goto, and obvious
+    constant-false controls. Arbitrary C reachability is outside this
+    lightweight source-contract checker's stated scope.
+    """
+    masked = _mask_c_comments_and_literals(text)
+    forbidden_patterns = (
+        r"(?m)^\s*#\s*(?:if|ifdef|ifndef|elif|else|endif)\b",
+        r"\bgoto\s+[A-Za-z_]\w*\s*;",
+        r"(?m)^\s*(?!case\b|default\b)[A-Za-z_]\w*\s*:",
+        r"\b(?:if|while)\s*\(\s*(?:\(\s*)*(?:0|false|NULL|"
+        r"0\s*==\s*1|1\s*==\s*0|!\s*(?:1|true))(?:\s*\))*\s*\)",
+        r"\bfor\s*\(\s*[^;]*;\s*(?:\(\s*)*(?:0|false|NULL)"
+        r"(?:\s*\))*\s*;",
+    )
+    return any(re.search(pattern, masked) is not None for pattern in forbidden_patterns)
+
+
 def tokens_in_order(text: str, *tokens: str) -> bool:
     """Return whether the required source tokens occur in this order."""
     position = -1
@@ -72,16 +220,17 @@ phase3_event_wrapper = source_section(
     "static void apache_phase3_log_event",
     "static apr_status_t apache_phase4_append_bucket",
 )
-input_filter_terminal_error = source_section(
-    filters_c,
-    "static apr_status_t apache_input_filter_terminal_error",
-    "static apr_status_t apache_input_filter_handle_eos",
+request_body_finalizer = function_section(filters_c, "msc_finalize_request_body")
+input_filter_terminal_error = function_section(
+    filters_c, "apache_input_filter_terminal_error"
 )
-input_filter_eos_handler = source_section(
-    filters_c,
-    "static apr_status_t apache_input_filter_handle_eos",
-    "apr_status_t input_filter",
+input_filter_eos_handler = function_section(
+    filters_c, "apache_input_filter_handle_eos"
 )
+input_filter_process_bucket = function_section(
+    filters_c, "apache_input_filter_process_bucket"
+)
+input_filter_handler = function_section(filters_c, "input_filter")
 phase4_release_helper = source_section(
     filters_c,
     "static apr_status_t apache_phase4_release_response_brigade",
@@ -207,22 +356,45 @@ checks.append((
     and "ap_flush_conn(r->connection)" not in filters_c,
     "Apache Phase4 splits at EOS, releases pre-EOS buckets progressively, fails closed at the native boundary, and seals terminal output",
 ))
-checks.append(("msc_finalize_request_body" in filters_c and "request_body_processed" in filters_c and "APR_BUCKET_REMOVE(pbktIn)" in filters_c, "Apache request chunks are borrowed and phase 2 finalizes once at EOS"))
-input_filter_c = filters_c.split("apr_status_t input_filter", 1)[1].split("static const char *apache_response_content_type", 1)[0]
 checks.append((
-    input_filter_c.count("return apache_input_filter_terminal_error") >= 4
-    and "msc_apache_contract_begin" in input_filter_c
-    and "msc_apache_contract_record_body" in input_filter_c
-    and "HTTP_REQUEST_ENTITY_TOO_LARGE" in input_filter_c
-    and "apache_input_filter_handle_eos" in input_filter_c
-    and "ap_remove_input_filter(f);" in input_filter_c
+    "if (msr->request_body_processed)" in request_body_finalizer
+    and function_call_count(input_filter_eos_handler, "msc_finalize_request_body") == 1
+    and "msc_finalize_request_body" not in input_filter_process_bucket
+    and "msc_finalize_request_body" not in input_filter_handler
+    and "APR_BUCKET_REMOVE(bucket);" in input_filter_process_bucket
+    and tokens_in_order(
+        input_filter_eos_handler,
+        "if (msr->request_body_eos_released)",
+        "return apache_input_filter_terminal_error(msr, r,",
+        "if (!msr->request_body_processed)",
+        "intervention = msc_finalize_request_body(msr, r);",
+        "if (intervention != N_INTERVENTION_STATUS)",
+        "msr->request_body_eos_released = 1;",
+        "APR_BUCKET_REMOVE(bucket);",
+        "APR_BRIGADE_INSERT_TAIL(output, bucket);",
+        "ap_remove_input_filter(filter);",
+        "return APR_SUCCESS;",
+    ),
+    "Apache request chunks are borrowed and phase 2 finalizes once at EOS",
+))
+checks.append((
+    function_call_count(input_filter_handler, "apache_input_filter_terminal_error") >= 2
+    and function_call_count(input_filter_process_bucket, "apache_input_filter_terminal_error") >= 4
+    and function_call_count(input_filter_eos_handler, "apache_input_filter_terminal_error") >= 2
+    and "msc_apache_contract_begin" in input_filter_process_bucket
+    and "msc_apache_contract_record_body" in input_filter_process_bucket
+    and "HTTP_REQUEST_ENTITY_TOO_LARGE" in input_filter_process_bucket
+    and "apache_input_filter_handle_eos" in input_filter_handler
+    and "apache_input_filter_process_bucket" in input_filter_handler
+    and "if (msr == NULL)" in input_filter_handler
+    and "if (conf == NULL)" in input_filter_handler
+    and "ap_remove_input_filter(f);" in input_filter_handler
     and "ap_die(status, r);" in input_filter_terminal_error
     and "return AP_FILTER_ERROR;" in input_filter_terminal_error
     and "r->status = HTTP_OK;" in input_filter_terminal_error
     and "send_input_error_bucket" not in filters_c
-    and input_filter_eos_handler.count("return apache_input_filter_terminal_error") >= 2
-    and "send_error_bucket(msr, f" not in input_filter_c
-    and "pass_error_bucket(" not in input_filter_c
+    and "send_error_bucket(msr, f" not in input_filter_handler
+    and "pass_error_bucket(" not in input_filter_handler
     and "pass_error_bucket(" not in input_filter_eos_handler,
     "Apache input-filter errors enter Apache core through the input-side terminal bridge",
 ))

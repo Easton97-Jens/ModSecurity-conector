@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Run the Apache/Common adoption suite plus review-hardened scoped guards."""
+import re
 import sys
 
 import apache_common_adoption_base as base
@@ -27,15 +28,30 @@ RECORD_INTERVENTION = "!msc_apache_contract_record_intervention_decision(msr)"
 REQUEST_BODY_PHASE = "MSCONNECTOR_PHASE_REQUEST_BODY"
 RESPONSE_HEADERS_PHASE = "MSCONNECTOR_PHASE_RESPONSE_HEADERS"
 RESPONSE_BODY_PHASE = "MSCONNECTOR_PHASE_RESPONSE_BODY"
-P2_PROCESS = "if (msc_process_request_body(msr->t) < 0)"
+P2_PROCESS = "if (msc_process_request_body(msr->t) != 1)"
 P3_PROCESS = 'if (msc_process_response_headers(msr->t, original_status, "HTTP 1.1") != 1)'
 P4_PROCESS = "if (msc_process_response_body(msr->t) != 1)"
 BUCKET_NEXT_LOOP = "bucket = APR_BUCKET_NEXT(bucket))"
 
-request_body_finalizer = base.source_section(
-    base.filters_c,
-    "int msc_finalize_request_body(msc_t *msr, request_rec *r)",
-    "static apr_status_t apache_input_filter_terminal_error",
+def patterns_in_order(text: str, *patterns: str) -> bool:
+    """Return whether regular-expression patterns occur in order."""
+    position = 0
+    for pattern in patterns:
+        match = re.search(pattern, text[position:], re.DOTALL)
+        if match is None:
+            return False
+        position += match.end()
+    return True
+
+
+def direct_body_ends_with(text: str, pattern: str) -> bool:
+    """Require a direct helper-body terminal sequence through its final brace."""
+    direct_body = base.function_direct_body(text)
+    return re.search(pattern + r"\s*\Z", direct_body, re.DOTALL) is not None
+
+
+request_body_finalizer = base.function_section(
+    base.filters_c, "msc_finalize_request_body"
 )
 phase4_normalize_helper = base.source_section(
     base.filters_c,
@@ -73,16 +89,14 @@ finish_unread_request_body = base.source_section(
     "static apr_status_t apache_finish_unread_request_body",
     "static apr_status_t apache_output_filter_terminal_result",
 )
-input_eos_handler = base.source_section(
-    base.filters_c,
-    "static apr_status_t apache_input_filter_handle_eos",
-    "apr_status_t input_filter",
+input_eos_handler = base.function_section(
+    base.filters_c, "apache_input_filter_handle_eos"
 )
-input_filter_handler = base.source_section(
-    base.filters_c,
-    "apr_status_t input_filter",
-    "static const char *apache_response_content_type",
+input_bucket_processor = base.function_section(
+    base.filters_c, "apache_input_filter_process_bucket"
 )
+input_filter_handler = base.function_section(base.filters_c, "input_filter")
+input_bucket_processor_direct = base.function_direct_body(input_bucket_processor)
 prepare_response_brigade = base.source_section(
     base.filters_c,
     "static apr_status_t apache_output_filter_prepare_response_brigade",
@@ -144,7 +158,10 @@ review_guards: list[tuple[bool, str]] = [
             "msr->request_body_processed = 1;",
             "intervention = process_intervention(msr->t, r);",
             "return intervention;",
-        ),
+        )
+        # This helper is part of the P2 call graph. A known-unreachable
+        # lexical decoy must not satisfy its completion/intervention contract.
+        and not base.has_forbidden_contract_control_flow(request_body_finalizer),
         "Apache Phase2 one-shot gate precedes processing, completion, intervention collection, and the collected result return",
     ),
     (
@@ -257,54 +274,199 @@ review_guards: list[tuple[bool, str]] = [
         "Apache Phase4 first-EOS gate finalizes before intervention dispatch and terminal release",
     ),
     (
-        base.tokens_in_order(
+        patterns_in_order(
             input_eos_handler,
-            "intervention = msc_finalize_request_body(msr, r);",
-            f"if (intervention != {INTERVENTION_SENTINEL})",
-            "msr->request_body_intervention_sent = 1;",
-            "ap_remove_input_filter(filter);",
-            "return apache_input_filter_terminal_error(msr, r, intervention);",
-            "msr->request_body_eos_released = 1;",
-        ),
-        "Apache Phase2 routes every EOS intervention to the terminal error path before successful EOS release",
+            r"\bif\s*\(\s*msr->request_body_eos_released\s*\)",
+            r"\breturn\s+apache_input_filter_terminal_error\s*\(",
+            r"\bif\s*\(\s*!\s*msr->request_body_processed\s*\)",
+            r"\bintervention\s*=\s*msc_finalize_request_body\s*\(\s*msr\s*,\s*r\s*\)",
+            r"\bif\s*\(\s*intervention\s*!=\s*N_INTERVENTION_STATUS\s*\)",
+            r"\bap_remove_input_filter\s*\(\s*filter\s*\)",
+            r"\breturn\s+apache_input_filter_terminal_error\s*\(\s*msr\s*,\s*r\s*,\s*intervention\s*\)",
+            r"\bmsr->request_body_eos_released\s*=\s*1\s*;",
+            r"\bAPR_BUCKET_REMOVE\s*\(\s*bucket\s*\)",
+            r"\bAPR_BRIGADE_INSERT_TAIL\s*\(\s*output\s*,\s*bucket\s*\)",
+            r"\bap_remove_input_filter\s*\(\s*filter\s*\)",
+            r"\breturn\s+APR_SUCCESS\s*;",
+        )
+        and base.function_call_count(
+            input_eos_handler, "msc_finalize_request_body"
+        ) == 1
+        and base.function_call_count(
+            input_eos_handler, "apache_input_filter_terminal_error"
+        ) >= 2,
+        "Apache Phase2 EOS helper rejects duplicate EOS, finalizes once, bridges intervention before forwarding, and detaches after canonical release",
     ),
     (
-        base.tokens_in_order(
+        not base.has_forbidden_contract_control_flow(input_eos_handler)
+        and len(re.findall(r"\breturn\s+APR_SUCCESS\s*;", input_eos_handler)) == 1
+        and re.search(r"\breturn\s+0\s*;", input_eos_handler) is None
+        and direct_body_ends_with(
+            input_eos_handler,
+            r"\bmsr->request_body_eos_released\s*=\s*1\s*;\s*"
+            r"\bAPR_BUCKET_REMOVE\s*\(\s*bucket\s*\)\s*;\s*"
+            r"\bAPR_BRIGADE_INSERT_TAIL\s*\(\s*output\s*,\s*bucket\s*\)\s*;\s*"
+            r"\bap_remove_input_filter\s*\(\s*filter\s*\)\s*;\s*"
+            r"\breturn\s+APR_SUCCESS\s*;",
+        ),
+        "Apache Phase2 EOS helper has one direct canonical success tail and no dead-code control transfer",
+    ),
+    (
+        patterns_in_order(
+            input_bucket_processor,
+            r"\bret\s*=\s*apr_bucket_read\s*\(\s*bucket\s*,\s*&data\s*,\s*&len\s*,\s*block\s*\)",
+            r"\bif\s*\(\s*ret\s*!=\s*APR_SUCCESS\s*\)\s*return\s+ret\s*;",
+            r"\bmsconnector_body_limit_plan_chunk\s*\(\s*msr->request_body_bytes_seen\s*,\s*msr->request_body_bytes_inspected\s*,",
+            r"\bmsc_apache_contract_record_body\s*\(\s*msr\s*,\s*0\s*,\s*plan\.append_size\s*\)",
+            r"\bmsc_append_request_body\s*\(\s*msr->t\s*,\s*\(\s*const\s+unsigned\s+char\s*\*\s*\)\s*data\s*,\s*plan\.append_size\s*\)\s*!=\s*1",
+            r"\bmsr->request_body_bytes_seen\s*=\s*plan\.bytes_seen\s*;",
+            r"\bmsr->request_body_bytes_inspected\s*\+=\s*plan\.append_size\s*;",
+            r"\bAPR_BUCKET_REMOVE\s*\(\s*bucket\s*\)",
+            r"\bAPR_BRIGADE_INSERT_TAIL\s*\(\s*output\s*,\s*bucket\s*\)",
+            r"\breturn\s+APR_SUCCESS\s*;",
+        )
+        and base.function_call_count(input_bucket_processor, "APR_BUCKET_REMOVE") == 1
+        and base.function_call_count(
+            input_bucket_processor, "APR_BRIGADE_INSERT_TAIL"
+        ) == 1
+        and re.search(
+            r"\bmsc_append_request_body\s*\(\s*msr->t\s*,\s*"
+            r"\(\s*const\s+unsigned\s+char\s*\*\s*\)\s*data\s*,\s*len\s*\)",
+            input_bucket_processor,
+            re.DOTALL,
+        ) is None,
+        "Apache Phase2 bounded bucket helper reads, plans, records, appends, accounts, removes, and forwards only after success",
+    ),
+    (
+        patterns_in_order(
+            input_bucket_processor_direct,
+            r"\bret\s*=\s*apr_bucket_read\s*\(\s*bucket\s*,\s*&data\s*,\s*&len\s*,\s*block\s*\)",
+            r"\bif\s*\(\s*ret\s*!=\s*APR_SUCCESS\s*\)\s*return\s+ret\s*;",
+            r"\bmsconnector_body_limit_plan_chunk\s*\(\s*msr->request_body_bytes_seen\s*,\s*msr->request_body_bytes_inspected\s*,",
+            r"\bmsc_apache_contract_record_body\s*\(\s*msr\s*,\s*0\s*,\s*plan\.append_size\s*\)",
+            r"\bmsc_append_request_body\s*\(\s*msr->t\s*,\s*\(\s*const\s+unsigned\s+char\s*\*\s*\)\s*data\s*,\s*plan\.append_size\s*\)\s*!=\s*1",
+            r"\bmsr->request_body_bytes_seen\s*=\s*plan\.bytes_seen\s*;",
+            r"\bmsr->request_body_bytes_inspected\s*\+=\s*plan\.append_size\s*;",
+        )
+        and not base.has_forbidden_contract_control_flow(input_bucket_processor)
+        and all(
+            base.function_call_count(input_bucket_processor_direct, name) == 1
+            for name in (
+                "apr_bucket_read",
+                "msconnector_body_limit_plan_chunk",
+                "msc_apache_contract_record_body",
+                "msc_append_request_body",
+                "APR_BUCKET_REMOVE",
+                "APR_BRIGADE_INSERT_TAIL",
+            )
+        )
+        and len(re.findall(r"\breturn\s+APR_SUCCESS\s*;", input_bucket_processor)) == 1
+        and re.search(r"\breturn\s+0\s*;", input_bucket_processor) is None
+        and direct_body_ends_with(
+            input_bucket_processor,
+            r"\bmsr->request_body_bytes_seen\s*=\s*plan\.bytes_seen\s*;\s*"
+            r"\bmsr->request_body_bytes_inspected\s*\+=\s*plan\.append_size\s*;\s*"
+            r"(?:\bif\s*\(\s*plan\.truncated\s*\)\s*"
+            r"\bmsr->request_body_truncated\s*=\s*1\s*;\s*)?"
+            r"\bAPR_BUCKET_REMOVE\s*\(\s*bucket\s*\)\s*;\s*"
+            r"\bAPR_BRIGADE_INSERT_TAIL\s*\(\s*output\s*,\s*bucket\s*\)\s*;\s*"
+            r"\breturn\s+APR_SUCCESS\s*;",
+        ),
+        "Apache Phase2 direct bucket pipeline cannot satisfy its bounded-forwarding contract from a dead-code decoy",
+    ),
+    (
+        patterns_in_order(
             input_filter_handler,
-            "while (!APR_BRIGADE_EMPTY(pbbTmp))",
-            "ret=apr_bucket_read(pbktIn, &data, &len, block);",
-            "if (ret != APR_SUCCESS)",
-            "if (!msc_apache_contract_record_body(msr, 0, (size_t)len))",
-            "if (msc_append_request_body(msr->t,",
-            "(const unsigned char *)data, len) < 0)",
-            "msr->request_body_bytes_seen += len;",
-            "msr->request_body_bytes_inspected += len;",
-            "APR_BUCKET_REMOVE(pbktIn);",
-            "APR_BRIGADE_INSERT_TAIL(pbbOut, pbktIn);",
+            r"\bif\s*\(\s*msr\s*==\s*NULL\s*\)",
+            r"\breturn\s+apache_input_filter_terminal_error\s*\(",
+            r"\bif\s*\(\s*conf\s*==\s*NULL\s*\)",
+            r"\breturn\s+apache_input_filter_terminal_error\s*\(",
+            r"\bif\s*\(\s*APR_BUCKET_IS_EOS\s*\(\s*pbktIn\s*\)\s*\)",
+            r"\breturn\s+apache_input_filter_handle_eos\s*\(",
+            r"\bret\s*=\s*apache_input_filter_process_bucket\s*\(",
+            r"\bif\s*\(\s*ret\s*!=\s*APR_SUCCESS\s*\)",
+            r"\breturn\s+ret\s*;",
+        )
+        and base.function_call_count(
+            input_filter_handler, "apache_input_filter_handle_eos"
+        ) == 1
+        and base.function_call_count(
+            input_filter_handler, "apache_input_filter_process_bucket"
+        ) == 1
+        and base.function_call_count(
+            input_filter_handler, "apache_input_filter_terminal_error"
+        ) >= 2
+        and not base.has_forbidden_contract_control_flow(input_filter_handler)
+        and re.search(
+            r"\bif\s*\(\s*APR_BUCKET_IS_EOS\s*\(\s*pbktIn\s*\)\s*\)\s*"
+            r"\{\s*\breturn\s+apache_input_filter_handle_eos\s*\(\s*"
+            r"msr\s*,\s*r\s*,\s*f\s*,\s*pbbOut\s*,\s*pbktIn\s*\)\s*;\s*\}\s*"
+            r"\bret\s*=\s*apache_input_filter_process_bucket\s*\(",
+            input_filter_handler,
+            re.DOTALL,
+        ) is not None
+        and not any(
+            token in input_filter_handler
+            for token in (
+                "apr_bucket_read(",
+                "msconnector_body_limit_plan_chunk(",
+                "msc_apache_contract_record_body(",
+                "msc_append_request_body(",
+                "msc_finalize_request_body(",
+            )
         ),
-        "Apache Phase2 reads, accounts, and appends every request-body bucket before forwarding the unchanged host bucket",
+        "Apache input filter delegates EOS and bounded non-EOS processing without a competing body path",
     ),
     (
-        base.tokens_in_order(
+        base.function_call_count(
+            input_bucket_processor, "apache_input_filter_terminal_error"
+        ) >= 4
+        and base.function_call_count(
+            input_bucket_processor, "ap_remove_input_filter"
+        ) >= 4
+        and all(
+            token in input_bucket_processor
+            for token in (
+                "MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE",
+                "msconnector_body_limit_plan_chunk",
+                "msc_apache_contract_record_body",
+                "msc_append_request_body",
+            )
+        )
+        and base.function_call_count(
+            input_eos_handler, "apache_input_filter_terminal_error"
+        ) >= 2
+        and "if (msr->request_body_eos_released)" in input_eos_handler
+        and base.function_call_count(
+            input_filter_handler, "apache_input_filter_terminal_error"
+        ) >= 2
+        and "if (msr == NULL)" in input_filter_handler
+        and "if (conf == NULL)" in input_filter_handler,
+        "Apache input helper errors remove the filter and enter the shared terminal bridge for sequence, limit, contract, append, context, and EOS failures",
+    ),
+    (
+        patterns_in_order(
             phase3_headers_handler,
-            "apache_add_response_headers(msr, r->err_headers_out);",
-            "apache_add_response_headers(msr, r->headers_out);",
-            P3_PROCESS,
-            "ap_remove_output_filter(filter);",
-            "return apache_send_precommit_terminal_error(msr, filter, brigade,",
-            "HTTP_INTERNAL_SERVER_ERROR);",
-            f"msc_apache_contract_complete(msr,\n            {RESPONSE_HEADERS_PHASE})",
-            "msr->response_headers_processed = 1;",
-            "intervention = process_intervention(msr->t, r);",
-            f"if (intervention == {INTERVENTION_SENTINEL})",
-            RETURN_APR_SUCCESS,
-            f"if ({RECORD_INTERVENTION})",
-            "wanted = msc_apache_contract_intervention_action(msr);",
-            "apache_phase3_log_event(msr, r, wanted, wanted, original_status);",
-            "return apache_send_precommit_terminal_error(msr, filter, brigade,",
-            "intervention);",
-        ),
-        "Apache Phase3 populates both response-header tables, fails closed on engine error, completes, and then collects and enforces intervention",
+            r"\bif\s*\(\s*!\s*apache_add_response_headers\s*\(\s*msr\s*,\s*r->err_headers_out\s*\)\s*\|\|\s*!\s*apache_add_response_headers\s*\(\s*msr\s*,\s*r->headers_out\s*\)\s*\)",
+            r"\bap_remove_output_filter\s*\(\s*filter\s*\)",
+            r"\breturn\s+apache_send_precommit_terminal_error\s*\(\s*msr\s*,\s*filter\s*,\s*brigade\s*,\s*HTTP_INTERNAL_SERVER_ERROR\s*\)",
+            re.escape(P3_PROCESS),
+            r"\bap_remove_output_filter\s*\(\s*filter\s*\)",
+            r"\breturn\s+apache_send_precommit_terminal_error\s*\(\s*msr\s*,\s*filter\s*,\s*brigade\s*,\s*HTTP_INTERNAL_SERVER_ERROR\s*\)",
+            r"\bmsc_apache_contract_complete\s*\(\s*msr\s*,\s*MSCONNECTOR_PHASE_RESPONSE_HEADERS\s*\)",
+            r"\bmsr->response_headers_processed\s*=\s*1\s*;",
+            r"\bintervention\s*=\s*process_intervention\s*\(\s*msr->t\s*,\s*r\s*\)",
+            r"\bif\s*\(\s*intervention\s*==\s*N_INTERVENTION_STATUS\s*\)",
+            r"\breturn\s+APR_SUCCESS\s*;",
+            r"\bif\s*\(\s*!\s*msc_apache_contract_record_intervention_decision\s*\(\s*msr\s*\)\s*\)",
+            r"\bwanted\s*=\s*msc_apache_contract_intervention_action\s*\(\s*msr\s*\)",
+            r"\bapache_phase3_log_event\s*\(\s*msr\s*,\s*r\s*,\s*wanted\s*,\s*wanted\s*,\s*original_status\s*\)",
+            r"\breturn\s+apache_send_precommit_terminal_error\s*\(\s*msr\s*,\s*filter\s*,\s*brigade\s*,\s*intervention\s*\)",
+        )
+        and base.function_call_count(
+            phase3_headers_handler, "apache_add_response_headers"
+        ) == 2,
+        "Apache Phase3 checks both response-header tables, fails closed on helper or engine error, completes, and then collects and enforces intervention",
     ),
     (
         base.tokens_in_order(
