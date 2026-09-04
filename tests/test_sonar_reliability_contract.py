@@ -1121,6 +1121,31 @@ static void test_spop_rejects_overflow_and_truncated_protocol_values(void) {
     free_notify_request(&request);
 }
 
+static void test_spop_read_byte_requires_a_remaining_byte(void) {
+    static const unsigned char input[] = {0xa5U};
+    unsigned char value = 0x5aU;
+    size_t pos = 0U;
+
+    assert(read_byte(input, sizeof(input), &pos, &value) == 0);
+    assert(value == 0xa5U);
+    assert(pos == sizeof(input));
+
+    value = 0x5aU;
+    assert(read_byte(input, sizeof(input), &pos, &value) == -1);
+    assert(value == 0x5aU);
+    assert(pos == sizeof(input));
+
+    pos = 0U;
+    assert(read_byte(input, 0U, &pos, &value) == -1);
+    assert(pos == 0U);
+    assert(value == 0x5aU);
+
+    pos = SIZE_MAX;
+    assert(read_byte(input, sizeof(input), &pos, &value) == -1);
+    assert(pos == SIZE_MAX);
+    assert(value == 0x5aU);
+}
+
 static void test_spop_typed_ip_arguments_are_canonical_and_bounded(void) {
     static const unsigned char ipv4[] = {192U, 0U, 2U, 10U};
     static const unsigned char ipv6[] = {0x20U, 0x01U, 0x0dU, 0xb8U,
@@ -1692,6 +1717,7 @@ int main(void) {
     test_notify_body_arguments_preserve_type_and_response_role();
     test_unknown_body_key_does_not_consume_or_mutate();
     test_spop_rejects_overflow_and_truncated_protocol_values();
+    test_spop_read_byte_requires_a_remaining_byte();
     test_spop_typed_ip_arguments_are_canonical_and_bounded();
     test_spop_typed_ip_payload_requires_exact_frame_consumption();
     test_spop_missing_endpoints_fail_closed_when_engine_is_open();

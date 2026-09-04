@@ -681,10 +681,11 @@ static int read_byte(const unsigned char *data, size_t len, size_t *pos,
         return -1;
     }
     cursor = *pos;
-    if (cursor >= len) {
+    if (cursor > len || len - cursor < sizeof(*value)) {
         return -1;
     }
-    *value = data[cursor++];
+    *value = data[cursor];
+    cursor += sizeof(*value);
     *pos = cursor;
     return 0;
 }
@@ -4678,11 +4679,25 @@ static int run_spop_request_id_validation_self_test(void)
 static int run_spop_notify_failure_self_test(void)
 {
     static const unsigned char truncated[] = {5U, 'c', 'h', 'e', 'c'};
+    static const unsigned char missing_count[] = {
+        13U, 'c', 'h', 'e', 'c', 'k', '-', 'r', 'e', 'q', 'u', 'e', 's', 't'
+    };
+    static const unsigned char zero_count[] = {
+        13U, 'c', 'h', 'e', 'c', 'k', '-', 'r', 'e', 'q', 'u', 'e', 's', 't', 0U
+    };
     notify_request request;
 
     memset(&request, 0, sizeof(request));
     if (parse_notify_payload(0, 0U, &request) == 0 ||
-            parse_notify_payload(truncated, sizeof(truncated), &request) == 0) {
+            parse_notify_payload(truncated, sizeof(truncated), &request) == 0 ||
+            parse_notify_payload(missing_count, sizeof(missing_count), &request) == 0) {
+        free_notify_request(&request);
+        return -1;
+    }
+    free_notify_request(&request);
+    memset(&request, 0, sizeof(request));
+    if (parse_notify_payload(zero_count, sizeof(zero_count), &request) != 0 ||
+            !request.has_notify || strcmp(request.message_name, "check-request") != 0) {
         free_notify_request(&request);
         return -1;
     }
