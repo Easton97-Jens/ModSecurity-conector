@@ -107,6 +107,29 @@ Workflow-Abschwächung verwendet. Eine frische Exact-Successor-Sonar-Analyse ist
 weiterhin erforderlich; das Ergebnis des Initial-Heads ist kein Nachweis für
 einen Successor.
 
+Der Source-Review des Successors fand zusätzlich ein geerbtes Root-Control-
+File-Rennen in derselben Launcher-Grenze. Ein Candidate kann in das
+runner-eigene Runtime-Verzeichnis der Zelle schreiben. Der frühere Publisher
+schloss einen vorhersagbaren temporären Pfad vor der pfadbasierten Ersetzung;
+die Release- und Completion-Caller führten danach pfadbasierte Root-
+Metadatenoperationen aus. Ein ersetzter Symlink konnte deshalb Root-`chmod`
+oder `chown` umleiten; außerdem lehnte der normale Completion-Pfad sein
+absichtlich fehlendes Leaf ab. Der korrigierte zentrale Publisher hält einen
+No-Follow-Parent-Descriptor, schreibt, prüft den Modus und identifiziert die
+temporäre Datei über ihren Descriptor vor der descriptor-relativen Ersetzung;
+anschließend öffnet und vergleicht er das veröffentlichte Leaf ohne Follow.
+Caller führen keine pfadbasierten Metadatenänderungen nach der Veröffentlichung
+mehr aus. Kontrollierte Pre-Fix-Tests zeigten, dass das Release-Rennen nicht
+fail-closed abbrach und einen task-eigenen Opfermodus von `0644` nach `0400`
+änderte; die Post-Fix-Regressionen lehnen sowohl Release- als auch Completion-
+Substitution ab und der normale Completion-Control wird korrekt veröffentlicht.
+Release- und Completion-Marker liegen jetzt unterhalb einer root-eigenen
+Cell-Hierarchie in einem getrennt angelegten und für den Candidate nicht
+schreibbaren Control-Verzeichnis; der Base-Helper prüft dieses Verzeichnis,
+bevor er einem der festen Marker vertraut, sodass ein Candidate sie nach der
+Veröffentlichung nicht neu erzeugen kann. Ein frischer Exact-Successor-Source-
+und Hosted-Review bleibt erforderlich.
+
 ## Ausgeschlossener Umfang
 
 Keine Produktreparatur, Framework-/MRTS-Source, Gitlink-, Dependency-,
@@ -150,7 +173,7 @@ dieses Draft-PRs.
 
 ## Ausgeführte Befehle
 
-Fokussierte Python-`unittest`: bestanden, 86 Tests. Python-Kompilierung,
+Fokussierte Python-`unittest`: bestanden, 93 Tests. Python-Kompilierung,
 `/bin/sh -n` und `actionlint` für den geschützten Workflow bestanden.
 Descriptor-verankerte Evidence-Root-/Leaf-Lesezugriffe sowie Dispatcher- und
 Collector-Path-Substitution-Regressionen bestanden ebenfalls. JSON-Schema-
@@ -204,7 +227,7 @@ blockiert; dies ist ausschließlich Vorbereitung ohne Merge-Autorisierung.
 ## Beobachtete lokale Validierung
 
 Die fokussierte Python-Unit-Suite für Protected-Dispatcher, Builder,
-Preflight, Launcher, Collector, Helper und Workflow-Contracts bestand mit 86
+Preflight, Launcher, Collector, Helper und Workflow-Contracts bestand mit 93
 Tests. Descriptor-verankerte Evidence-Root-/Leaf-Lesezugriffe, Dispatcher- und
 Collector-Path-Substitution-Regressionen, die strikte Ablehnung boolescher
 Schema-Versionen sowie Environment-Variable-only-Handling der übergebenen
@@ -213,6 +236,12 @@ Directory-Swap-Regressionen bestanden ebenfalls: Ersatzverzeichnisse werden
 nicht verwendet und ersetzte Task-/Output-Identitäten vor der Rückgabe eines
 Package-Pfads fail-closed abgelehnt. Python-Kompilierung und Shell-
 Syntaxprüfungen bestanden.
+Der Root-Control-Publisher lehnt kontrollierte temporäre Symlink-Substitution
+für Release und Completion ab, ohne den task-eigenen Opferpfad zu verändern;
+der normale Completion-Control veröffentlicht seine feste JSON-Repräsentation.
+Der Base-Helper verwendet für diese Marker ausschließlich das getrennte und
+für den Candidate nicht schreibbare Control-Verzeichnis unterhalb der
+root-eigenen Cell-Hierarchie.
 `actionlint` bestand für `.github/workflows/run-protected-nginx-exact-head.yml`.
 Eine lokale Bubblewrap-Mount-Layout-Probe wird durch die Namespace-Policy dieses
 Containers blockiert und nicht als Host-Runtime-Ergebnis behauptet. Ein

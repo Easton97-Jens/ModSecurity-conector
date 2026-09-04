@@ -69,6 +69,7 @@ write_mode() {
     case "$mode" in on|off) : ;; *) die ;; esac
     cell="$SCRATCH_ROOT/$mode"
     config_root="$cell/config"
+    control="$cell/control"
     runtime="$cell/runtime"
     logs="$cell/logs"
     config="$config_root/nginx.conf"
@@ -76,11 +77,11 @@ write_mode() {
     docroot="$config_root/docroot"
     pid_path="$runtime/nginx.pid"
     ready_path="$runtime/ready.json"
-    release_path="$runtime/release"
-    completion_path="$runtime/request-complete.json"
-    [ -d "$config_root" ] && [ -d "$runtime" ] && [ -d "$logs" ] && [ -d "$docroot" ] || die
+    release_path="$control/release"
+    completion_path="$control/request-complete.json"
+    [ -d "$config_root" ] && [ -d "$control" ] && [ -d "$runtime" ] && [ -d "$logs" ] && [ -d "$docroot" ] || die
     [ -f "$config" ] && [ -f "$rules" ] && [ -f "$docroot/index.html" ] || die
-    [ ! -w "$config_root" ] && [ ! -w "$config" ] && [ ! -w "$rules" ] || die
+    [ ! -w "$config_root" ] && [ ! -w "$control" ] && [ ! -w "$config" ] && [ ! -w "$rules" ] || die
     [ ! -e "$ready_path" ] && [ ! -e "$release_path" ] && [ ! -e "$completion_path" ] || die
 
     # Validation and execution use only the fixed config path and the
@@ -124,11 +125,11 @@ write_mode() {
     release_attempt=0
     while [ "$release_attempt" -lt 40 ]; do
         if [ -f "$release_path" ]; then
-            # The root launcher has already atomically validated and created
-            # this marker. Host-root ownership is intentionally not evaluated
+            # This marker sits in the Base-created, host-root-owned control
+            # directory. Host-root ownership is intentionally not evaluated
             # inside the user namespace, where an unmapped host UID appears
-            # as overflow. A forged early marker makes the root-side create
-            # fail closed before it records the HTTP observation.
+            # as overflow; the candidate cannot create or replace entries in
+            # this directory.
             released=1
             [ "$released" -eq 1 ] && break
         fi
@@ -139,7 +140,8 @@ write_mode() {
 
     # The root launcher issues the HTTP request through a fixed host-side
     # client in this network namespace. This helper waits for that root-owned
-    # completion record rather than writing a candidate-writable status file.
+    # completion record in the separate candidate-non-writable control
+    # directory rather than writing a candidate-writable status file.
     completed=0
     completion_attempt=0
     while [ "$completion_attempt" -lt 40 ]; do

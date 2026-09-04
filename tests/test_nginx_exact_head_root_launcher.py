@@ -353,7 +353,7 @@ class RootLauncherContractTests(unittest.TestCase):
 
     def test_trusted_cell_generation_uses_real_newlines_and_rejects_nginx_metacharacters(self) -> None:
         writes: dict[str, bytes] = {}
-        with mock.patch.object(LAUNCHER, "root_owned_directory"), mock.patch.object(
+        with mock.patch.object(LAUNCHER, "root_owned_directory") as root_owned_directory, mock.patch.object(
             LAUNCHER, "create_runner_owned_directory"
         ), mock.patch.object(
             LAUNCHER,
@@ -370,6 +370,13 @@ class RootLauncherContractTests(unittest.TestCase):
                 1000,
                 1000,
             )
+        root_owned_directory.assert_has_calls(
+            [
+                mock.call(Path("/task/cell/on/control"), 0o755),
+                mock.call(Path("/task/cell/off/control"), 0o755),
+            ],
+            any_order=True,
+        )
         on_config = writes["/task/cell/on/config/nginx.conf"]
         self.assertIn(b"modsecurity_use_error_log on;\n", on_config)
         self.assertIn(
@@ -392,6 +399,9 @@ class RootLauncherContractTests(unittest.TestCase):
             cell = Path(temporary)
             mode = cell / "on"
             (mode / "runtime").mkdir(parents=True)
+            control = mode / "control"
+            control.mkdir()
+            control.chmod(0o755)
             write_json(
                 mode / "runtime" / "ready.json",
                 {"schema_version": 1, "mode": "on", "master_pid": 55, "worker_pid": 56},
@@ -422,7 +432,178 @@ class RootLauncherContractTests(unittest.TestCase):
                     process,
                 )
             self.assertEqual(result["worker_uid"], 2000)
-            self.assertEqual((mode / "runtime" / "release").stat().st_mode & 0o777, 0o400)
+            self.assertEqual((control / "release").stat().st_mode & 0o777, 0o400)
+
+    def test_wait_mode_requires_the_root_control_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            cell = Path(temporary)
+            mode = cell / "on"
+            (mode / "runtime").mkdir(parents=True)
+            write_json(
+                mode / "runtime" / "ready.json",
+                {"schema_version": 1, "mode": "on", "master_pid": 55, "worker_pid": 56},
+            )
+            process = mock.Mock()
+            process.poll.return_value = None
+            expected = LAUNCHER.IdentityExpectations(1000, 1000, 2000, 2000)
+            with self.assertRaises(LAUNCHER.LauncherError):
+                LAUNCHER.wait_mode(
+                    cell,
+                    "on",
+                    expected,
+                    Path("/candidate/nginx"),
+                    {"device": 1, "inode": 2, "sha256": "a" * 64, "size": 1},
+                    Path("/candidate/module"),
+                    "worker",
+                    "worker-group",
+                    process,
+                )
+
+    def test_wait_mode_rejects_a_writable_root_control_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            cell = Path(temporary)
+            mode = cell / "on"
+            (mode / "runtime").mkdir(parents=True)
+            control = mode / "control"
+            control.mkdir()
+            control.chmod(0o777)
+            process = mock.Mock()
+            process.poll.return_value = None
+            expected = LAUNCHER.IdentityExpectations(1000, 1000, 2000, 2000)
+            with self.assertRaises(LAUNCHER.LauncherError):
+                LAUNCHER.wait_mode(
+                    cell,
+                    "on",
+                    expected,
+                    Path("/candidate/nginx"),
+                    {"device": 1, "inode": 2, "sha256": "a" * 64, "size": 1},
+                    Path("/candidate/module"),
+                    "worker",
+                    "worker-group",
+                    process,
+                )
+
+    def test_wait_mode_rejects_temporary_release_symlink_substitution(self) -> None:
+        """A candidate must not redirect root metadata changes through release."""
+        with tempfile.TemporaryDirectory() as temporary:
+            cell = Path(temporary)
+            mode = cell / "on"
+            runtime = mode / "runtime"
+            runtime.mkdir(parents=True)
+            control = mode / "control"
+            control.mkdir()
+            write_json(
+                runtime / "ready.json",
+                {"schema_version": 1, "mode": "on", "master_pid": 55, "worker_pid": 56},
+            )
+            victim = cell / "host-victim"
+            victim.write_text("safe", encoding="ascii")
+            victim.chmod(0o644)
+            process = mock.Mock()
+            process.poll.return_value = None
+            expected = LAUNCHER.IdentityExpectations(1000, 1000, 2000, 2000)
+            identity = {
+                "master_pid": 100,
+                "worker_pid": 101,
+                "master_uid": 1000,
+                "master_gid": 1000,
+                "worker_uid": 2000,
+                "worker_gid": 2000,
+            }
+            original_replace = LAUNCHER.os.replace
+
+            def swap_temporary(
+                source: str | Path, destination: str | Path, *args: object, **kwargs: object
+            ) -> None:
+                temporary_path = control / Path(source).name
+                if temporary_path.name.startswith(".release.tmp"):
+                    temporary_path.unlink()
+                    temporary_path.symlink_to(victim)
+                original_replace(source, destination, *args, **kwargs)
+
+            with mock.patch.object(LAUNCHER, "_require_root_control_directory"), mock.patch.object(
+                LAUNCHER, "validate_generated_config"
+            ), mock.patch.object(
+                LAUNCHER, "validate_identity", return_value=identity
+            ), mock.patch.object(LAUNCHER, "close_identity_pidfd"), mock.patch.object(
+                LAUNCHER.os, "replace", side_effect=swap_temporary
+            ):
+                with self.assertRaises(LAUNCHER.LauncherError):
+                    LAUNCHER.wait_mode(
+                        cell,
+                        "on",
+                        expected,
+                        Path("/candidate/nginx"),
+                        {"device": 1, "inode": 2, "sha256": "a" * 64, "size": 1},
+                        Path("/candidate/module"),
+                        "worker",
+                        "worker-group",
+                        process,
+                    )
+            self.assertEqual(victim.stat().st_mode & 0o777, 0o644)
+            self.assertFalse((control / "release").exists())
+            self.assertFalse((control / "release").is_symlink())
+
+    def test_mark_request_complete_publishes_a_fresh_fixed_control_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            cell = Path(temporary)
+            control = cell / "on" / "control"
+            control.mkdir(parents=True)
+            control.chmod(0o755)
+            LAUNCHER.mark_request_complete(cell, "on", 403)
+            completion = control / "request-complete.json"
+            self.assertTrue(completion.is_file())
+            self.assertFalse(completion.is_symlink())
+            self.assertEqual(completion.stat().st_mode & 0o777, 0o400)
+            self.assertEqual(
+                json.loads(completion.read_text(encoding="ascii")),
+                {"http_status": 403, "mode": "on"},
+            )
+
+    def test_mark_request_complete_requires_the_root_control_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            cell = Path(temporary)
+            (cell / "on" / "runtime").mkdir(parents=True)
+            with self.assertRaises(LAUNCHER.LauncherError):
+                LAUNCHER.mark_request_complete(cell, "on", 403)
+
+    def test_mark_request_complete_rejects_a_writable_root_control_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            cell = Path(temporary)
+            control = cell / "on" / "control"
+            control.mkdir(parents=True)
+            control.chmod(0o777)
+            with self.assertRaises(LAUNCHER.LauncherError):
+                LAUNCHER.mark_request_complete(cell, "on", 403)
+
+    def test_mark_request_complete_rejects_temporary_symlink_substitution(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            cell = Path(temporary)
+            control = cell / "on" / "control"
+            control.mkdir(parents=True)
+            completion = control / "request-complete.json"
+            victim = cell / "host-victim"
+            victim.write_text("safe", encoding="ascii")
+            victim.chmod(0o644)
+            original_replace = LAUNCHER.os.replace
+
+            def swap_temporary(
+                source: str | Path, destination: str | Path, *args: object, **kwargs: object
+            ) -> None:
+                temporary_path = control / Path(source).name
+                if temporary_path.name.startswith(".request-complete.json.tmp"):
+                    temporary_path.unlink()
+                    temporary_path.symlink_to(victim)
+                original_replace(source, destination, *args, **kwargs)
+
+            with mock.patch.object(LAUNCHER, "_require_root_control_directory"), mock.patch.object(
+                LAUNCHER.os, "replace", side_effect=swap_temporary
+            ):
+                with self.assertRaises(LAUNCHER.LauncherError):
+                    LAUNCHER.mark_request_complete(cell, "on", 403)
+            self.assertEqual(victim.stat().st_mode & 0o777, 0o644)
+            self.assertFalse(completion.exists())
+            self.assertFalse(completion.is_symlink())
 
     def test_identity_parser_checks_roles_and_admitted_inode(self) -> None:
         expected = LAUNCHER.IdentityExpectations(1000, 1000, 2000, 2000)
@@ -652,6 +833,8 @@ class RootLauncherContractTests(unittest.TestCase):
         self.assertIn("trusted_base_file_descriptor", source)
         self.assertIn("SANDBOX_BASE_HELPER", source)
         self.assertIn('"--ro-bind-fd", str(trusted_base_descriptors["helper"])', source)
+        self.assertIn("root_owned_directory(cell)", source)
+        self.assertNotIn("create_runner_owned_directory(cell", source)
         self.assertIn("env=outer_env", source)
         self.assertIn("sandbox_env", source)
         self.assertIn("SANDBOX_TMPDIR", source)
