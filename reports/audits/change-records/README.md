@@ -17,6 +17,13 @@ reports without an explicit repository-policy decision or user decision.
   It records local evidence and pending exact-head hosted results; no CI,
   Framework/MRTS, Gitlink, `master`, or merge change is asserted.
 
+- [CR-20260824-connector-security-invariants](CR-20260824-connector-security-invariants.md)
+  | [Deutsch](CR-20260824-connector-security-invariants.de.md) — the
+  Parent-only connector security hardening records local remote-rule,
+  HTTP-boundary, and event-runtime evidence. It excludes Framework/MRTS,
+  Gitlink, CI/governance, and mixed concurrent edits; remote delivery awaits
+  explicit current-user authorization, and hosted checks and a merge are not
+  asserted.
 - [CR-20260903-no-crs-doc-consistency-repair](CR-20260903-no-crs-doc-consistency-repair.md)
   | [Deutsch](CR-20260903-no-crs-doc-consistency-repair.de.md) — the current
   user authorized this Parent-only repair of the reproduced Traefik No-CRS

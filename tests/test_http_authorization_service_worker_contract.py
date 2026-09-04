@@ -23,6 +23,45 @@ class HttpAuthorizationServiceWorkerContractTests(unittest.TestCase):
         self.assertIn("runtime call may be uninterruptible", self.source)
         self.assertNotIn("abort();", self.source)
 
+    def test_response_companion_failure_quarantines_service_and_returns_failure(self) -> None:
+        failure = self.source.split(
+            "if (!authorization_shutdown_response_companion(profile)) {", 1
+        )[1].split("authorization_service_release(service);", 1)[0]
+        self.assertIn("refusing runtime destruction", failure)
+        self.assertIn("return service_status != 0 ? service_status : 1;", failure)
+        self.assertNotIn("authorization_service_destroy(service);", failure)
+        self.assertNotIn("authorization_service_release(service);", failure)
+
+    def test_deferred_cleanup_waits_for_companion_quiescence(self) -> None:
+        self.assertIn("int response_companion_quiesced;", self.source)
+        self.assertIn("int release_claimed;", self.source)
+        self.assertIn(
+            "service->deferred_cleanup &&\n                service->response_companion_quiesced",
+            self.source,
+        )
+        self.assertIn(
+            "authorization_mark_response_companion_quiesced(service)", self.source
+        )
+        self.assertIn("&& !service->release_claimed", self.source)
+        self.assertIn("service->release_claimed = 1;", self.source)
+        self.assertIn("service->deferred_cleanup = 1;", self.source)
+
+    def test_deferred_cleanup_releases_only_profiles_without_a_companion(self) -> None:
+        timeout_handler = self.source.split(
+            "static int authorization_handle_worker_timeout(", 1
+        )[1].split("static int serve_authorization(", 1)[0]
+        serve = self.source.split("static int serve_authorization(", 1)[1]
+        self.assertIn("authorization_defer_cleanup(service) == 0", timeout_handler)
+        self.assertIn("profile->shutdown_response_companion == NULL", timeout_handler)
+        self.assertIn(
+            "authorization_mark_response_companion_quiesced(service)", timeout_handler
+        )
+        self.assertIn("return 1;", timeout_handler)
+        self.assertLess(
+            serve.index("authorization_handle_worker_timeout(service, profile,"),
+            serve.index("if (!authorization_shutdown_response_companion(profile)) {"),
+        )
+
     def test_http_writes_are_sigpipe_safe_without_global_signal_suppression(self) -> None:
         self.assertIn("MSG_NOSIGNAL", self.source)
         self.assertIn("SO_NOSIGPIPE", self.source)

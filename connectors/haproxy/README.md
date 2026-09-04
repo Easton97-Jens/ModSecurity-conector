@@ -16,6 +16,8 @@ production agent loads ModSecurity rules once, creates transactions with the
 HAProxy `unique-id`, keeps bounded transaction state for its request and
 optional response-header phases, emits
 decision JSONL, and returns typed SPOE ACK variables for HAProxy enforcement.
+The SPOP listener has no authenticated transport and is intentionally restricted
+to `127.0.0.1`; remote or wildcard binds are unsupported and fail closed.
 `make smoke-haproxy` lists shared framework YAML cases with `case_cli.py`,
 materializes each case, starts HAProxy plus the production SPOA agent plus a
 backend, sends the case request with curl, asserts the observed status, and

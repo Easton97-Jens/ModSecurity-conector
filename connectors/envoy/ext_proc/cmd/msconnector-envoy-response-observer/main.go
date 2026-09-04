@@ -22,6 +22,7 @@ import (
 const (
 	responseObserverMaxRecvMessageBytes = (1 << 20) + (64 << 10)
 	responseObserverMaxSendMessageBytes = 64 << 10
+	responseObserverMaxConnections      = 128
 )
 
 var (
@@ -41,6 +42,7 @@ func newResponseObserverGRPCServer(service extprocv3.ExternalProcessorServer) *g
 	server := grpc.NewServer(
 		grpc.MaxRecvMsgSize(responseObserverMaxRecvMessageBytes),
 		grpc.MaxSendMsgSize(responseObserverMaxSendMessageBytes),
+		grpc.MaxConcurrentStreams(responseobserver.DefaultMaxActiveStreams),
 	)
 	extprocv3.RegisterExternalProcessorServer(server, service)
 	return server
@@ -135,18 +137,36 @@ type trackedResponseObserverListener struct {
 	closing     bool
 	accepted    chan struct{}
 	acceptOnce  sync.Once
+	closeOnce   sync.Once
+	slots       chan struct{}
+	closed      chan struct{}
 }
 
 func newTrackedResponseObserverListener(listener net.Listener) *trackedResponseObserverListener {
+	return newTrackedResponseObserverListenerWithLimit(listener, responseObserverMaxConnections)
+}
+
+func newTrackedResponseObserverListenerWithLimit(listener net.Listener, limit int) *trackedResponseObserverListener {
+	if limit < 1 {
+		panic("response observer connection limit must be positive")
+	}
 	return &trackedResponseObserverListener{
 		Listener:    listener,
 		connections: make(map[*trackedResponseObserverConn]struct{}),
+		slots:       make(chan struct{}, limit),
+		closed:      make(chan struct{}),
 	}
 }
 
 func (listener *trackedResponseObserverListener) Accept() (net.Conn, error) {
+	select {
+	case listener.slots <- struct{}{}:
+	case <-listener.closed:
+		return nil, net.ErrClosed
+	}
 	conn, err := listener.Listener.Accept()
 	if err != nil {
+		listener.releaseSlot()
 		return nil, err
 	}
 	tracked := &trackedResponseObserverConn{Conn: conn, listener: listener}
@@ -154,6 +174,7 @@ func (listener *trackedResponseObserverListener) Accept() (net.Conn, error) {
 	if listener.closing {
 		listener.mu.Unlock()
 		_ = conn.Close()
+		listener.releaseSlot()
 		return nil, net.ErrClosed
 	}
 	listener.connections[tracked] = struct{}{}
@@ -164,7 +185,13 @@ func (listener *trackedResponseObserverListener) Accept() (net.Conn, error) {
 	return tracked, nil
 }
 
+func (listener *trackedResponseObserverListener) Close() error {
+	listener.closeActiveConnections()
+	return listener.Listener.Close()
+}
+
 func (listener *trackedResponseObserverListener) closeActiveConnections() {
+	listener.closeOnce.Do(func() { close(listener.closed) })
 	listener.mu.Lock()
 	listener.closing = true
 	connections := make([]*trackedResponseObserverConn, 0, len(listener.connections))
@@ -179,8 +206,22 @@ func (listener *trackedResponseObserverListener) closeActiveConnections() {
 
 func (listener *trackedResponseObserverListener) removeConnection(connection *trackedResponseObserverConn) {
 	listener.mu.Lock()
-	delete(listener.connections, connection)
+	_, tracked := listener.connections[connection]
+	if tracked {
+		delete(listener.connections, connection)
+	}
 	listener.mu.Unlock()
+	if tracked {
+		listener.releaseSlot()
+	}
+}
+
+func (listener *trackedResponseObserverListener) releaseSlot() {
+	select {
+	case <-listener.slots:
+	default:
+		panic("response observer connection slot underflow")
+	}
 }
 
 type trackedResponseObserverConn struct {

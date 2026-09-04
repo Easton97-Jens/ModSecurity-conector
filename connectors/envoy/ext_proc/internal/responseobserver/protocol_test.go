@@ -16,7 +16,12 @@ import (
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	extprocv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
+	"google.golang.org/grpc/test/bufconn"
 )
 
 func testSocketDir(t *testing.T) string {
@@ -411,6 +416,119 @@ func TestProcessStopsAfterUncommittedHandleError(t *testing.T) {
 	}
 	if got := stream.sent[0].GetImmediateResponse().GetStatus().GetCode(); got != failClosedStatus {
 		t.Fatalf("immediate response status=%d, want %d", got, failClosedStatus)
+	}
+}
+
+func TestProcessEnforcesAndReleasesActiveStreamCapacity(t *testing.T) {
+	service, err := newServiceWithStreamLimit(Config{SocketPath: "/unused"}, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.streamSlots <- struct{}{}
+	if err := service.Process(&processTestStream{}); status.Code(err) != codes.ResourceExhausted {
+		t.Fatalf("over-capacity Process() error = %v, want ResourceExhausted", err)
+	}
+	<-service.streamSlots
+
+	for attempt := 0; attempt < 2; attempt++ {
+		if err := service.Process(&processTestStream{}); err != io.EOF {
+			t.Fatalf("released-capacity Process() error = %v, want EOF", err)
+		}
+		if got := len(service.streamSlots); got != 0 {
+			t.Fatalf("stream slots after Process() = %d, want 0", got)
+		}
+	}
+}
+
+func TestProcessCapacityIsGlobalAcrossGRPCTransports(t *testing.T) {
+	service, err := newServiceWithStreamLimit(Config{SocketPath: "/unused"}, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	listener := bufconn.Listen(1024 * 1024)
+	server := grpc.NewServer(grpc.MaxConcurrentStreams(DefaultMaxActiveStreams))
+	extprocv3.RegisterExternalProcessorServer(server, service)
+	go func() { _ = server.Serve(listener) }()
+	defer server.Stop()
+	defer listener.Close()
+
+	dial := func(t *testing.T) *grpc.ClientConn {
+		t.Helper()
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		connection, dialErr := grpc.DialContext(
+			ctx,
+			"bufnet",
+			grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+				return listener.Dial()
+			}),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		)
+		if dialErr != nil {
+			t.Fatal(dialErr)
+		}
+		return connection
+	}
+	request := func() *extprocv3.ProcessingRequest {
+		return &extprocv3.ProcessingRequest{
+			Request: &extprocv3.ProcessingRequest_ResponseHeaders{
+				ResponseHeaders: &extprocv3.HttpHeaders{
+					Headers: &corev3.HeaderMap{Headers: []*corev3.HeaderValue{{
+						Key: terminalAuthzMarkerHeader, Value: terminalAuthzMarkerValue,
+					}}},
+					EndOfStream: false,
+				},
+			},
+		}
+	}
+
+	firstConnection := dial(t)
+	defer firstConnection.Close()
+	secondConnection := dial(t)
+	defer secondConnection.Close()
+	first, err := extprocv3.NewExternalProcessorClient(firstConnection).Process(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := first.Send(request()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := first.Recv(); err != nil {
+		t.Fatalf("first stream did not reach the held response-only state: %v", err)
+	}
+
+	excess, err := extprocv3.NewExternalProcessorClient(secondConnection).Process(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := excess.Send(request()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := excess.Recv(); status.Code(err) != codes.ResourceExhausted {
+		t.Fatalf("cross-transport excess stream error = %v, want ResourceExhausted", err)
+	}
+
+	if err := first.CloseSend(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := first.Recv(); err == nil {
+		t.Fatal("first stream remained active after CloseSend")
+	}
+	next, err := extprocv3.NewExternalProcessorClient(secondConnection).Process(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := next.Send(request()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := next.Recv(); err != nil {
+		t.Fatalf("stream after cross-transport slot release error = %v", err)
+	}
+	if err := next.CloseSend(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := next.Recv(); err == nil {
+		t.Fatal("stream after release remained active after CloseSend")
 	}
 }
 

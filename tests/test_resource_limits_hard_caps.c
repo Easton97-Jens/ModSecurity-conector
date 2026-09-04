@@ -44,6 +44,7 @@ static void test_resource_limits(void) {
 
 #undef ASSERT_LIMIT_REJECTED
 }
+
 static void test_config_body_limits(void) {
     msconnector_config config;
 

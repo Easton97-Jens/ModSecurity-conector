@@ -159,8 +159,8 @@
       "reason": "The checked-in service path loads a local rules file through Common Runtime; canonical config evidence is pending."
     },
     "config_remote_rules": {
-      "state": "implemented_not_asserted",
-      "reason": "Common Runtime exposes remote rule key and URL configuration, but the no-CRS baseline does not exercise external networking."
+      "state": "not_implemented",
+      "reason": "Remote rule loading is disabled by the common security policy; only inline and local file rules are supported."
     },
     "transport_metadata": {
       "state": "not_implemented",

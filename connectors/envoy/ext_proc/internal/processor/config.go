@@ -72,6 +72,10 @@ type Config struct {
 // limit below it.
 const MaximumConcurrentStreams = 1024
 
+// maxTimeoutMS is the largest millisecond value that can be converted to a
+// time.Duration without overflowing its nanosecond representation.
+const maxTimeoutMS = int64((1<<63)-1) / int64(time.Millisecond)
+
 // LoadConfig decodes and validates a service config without changing it.
 func LoadConfig(path string) (Config, error) {
 	file, err := os.Open(path)
@@ -135,6 +139,9 @@ func (config Config) Validate() error {
 		if value <= 0 {
 			return fmt.Errorf("config: %s must be positive", name)
 		}
+		if int64(value) > maxTimeoutMS && strings.HasSuffix(name, "_timeout_ms") {
+			return fmt.Errorf("config: %s exceeds maximum of %d milliseconds", name, maxTimeoutMS)
+		}
 	}
 	if config.MaxRequestBodyBytes <= 0 || config.MaxResponseBodyBytes <= 0 {
 		return fmt.Errorf("config: request and response body limits must be positive")
@@ -151,6 +158,13 @@ func (config Config) Validate() error {
 		return fmt.Errorf("config: late_action_policy must be minimal, safe, or strict")
 	}
 	return nil
+}
+
+func isLoopbackListenHost(host string) bool {
+	// Reject empty hosts (which make net.Listen bind all interfaces) and names
+	// (whose resolution can change the trust boundary after validation).
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func validateLateActionPolicyAdmission(policy LateActionPolicy, engine TransactionOpener) error {

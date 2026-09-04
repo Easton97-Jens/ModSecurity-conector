@@ -31,13 +31,24 @@ declaration.
 - treats a disruptive result after response commitment as `log_only`; it does
   not synthesize a changed status, reset, or client-abort claim.
 
-The optional-engine shape is intentional. `New` defaults to
-`PassthroughEngine` for a source-only configuration, while `engineMode: uds`
-opens one private Unix-domain-socket session per `ServeHTTP` to the persistent
-Common/libmodsecurity engine service. The selected host runner supplies its
-own private socket and run-local event path; it does not reuse a checked-in
-socket path. It proves targeted P1--P4 host behavior without promoting a
-capability, CRS completeness, Safe/Strict, or production readiness.
+The engine shape is fail-closed by default: an omitted `engineMode` selects
+`uds`, and `New` requires a valid private Unix-domain-socket path before it can
+reach the persistent Common/libmodsecurity engine service. The selected host
+runner supplies a private socket and run-local event path. The checked-in
+dynamic example names an expected private runtime path but does not materialize
+or reuse a socket object. The production plugin constructor accepts only
+`engineMode: uds`; it rejects an always-allow passthrough selection before a
+handler is created. The injected engine seam is package-private test code, not
+an operator-facing configuration path. The package proves targeted P1--P4 host
+behavior without promoting a capability, CRS completeness, Safe/Strict, or
+production readiness.
+
+The Go client validates the socket path lexically and bounds every frame, but
+does not claim portable peer-credential authentication. On platforms where
+the host requires a distinct service identity, the runtime must enforce that
+identity through the private socket parent and deployment permissions; adding
+an OS-specific `SO_PEERCRED` check requires an explicit supported-platform
+contract and is not implied by this package.
 
 The UDS protocol rejects unknown engine actions instead of relabelling them as
 an HTTP denial. It reports a disruptive outcome only after the actual

@@ -95,11 +95,18 @@ typedef struct authorization_service {
     msconnector_runtime *runtime;
     const msconnector_http_authorization_profile *profile;
     msconnector_http_authorization_profile profile_copy;
+    char copied_connector_name[MSCONNECTOR_MAX_JSON_FIELD_LENGTH + 1U];
+    char copied_integration_mode[MSCONNECTOR_MAX_JSON_FIELD_LENGTH + 1U];
+    char copied_original_uri_header_names[MSCONNECTOR_MAX_HEADER_COUNT]
+        [MSCONNECTOR_MAX_HEADER_NAME_LENGTH + 1U];
+    const char *copied_original_uri_headers[MSCONNECTOR_MAX_HEADER_COUNT];
     authorization_request_limits request_limits;
     unsigned long connection_timeout_ms;
     unsigned long max_connections;
     unsigned long active_workers;
     int deferred_cleanup;
+    int response_companion_quiesced;
+    int release_claimed;
     struct authorization_worker *workers;
     pthread_mutex_t runtime_lock;
     pthread_mutex_t worker_lock;
@@ -140,6 +147,33 @@ static int authorization_shutdown_response_companion(
     const msconnector_http_authorization_profile *profile);
 
 static volatile sig_atomic_t authorization_stop = 0;
+
+static int authorization_block_termination_signals(sigset_t *previous_mask) {
+    sigset_t termination_signals;
+    if (previous_mask == NULL || sigemptyset(&termination_signals) != 0 ||
+        sigaddset(&termination_signals, SIGTERM) != 0 ||
+        sigaddset(&termination_signals, SIGINT) != 0) {
+        return 0;
+    }
+    return pthread_sigmask(SIG_BLOCK, &termination_signals, previous_mask) == 0;
+}
+
+static int authorization_unblock_termination_signals(void) {
+    sigset_t termination_signals;
+    if (sigemptyset(&termination_signals) != 0 ||
+        sigaddset(&termination_signals, SIGTERM) != 0 ||
+        sigaddset(&termination_signals, SIGINT) != 0) {
+        return 0;
+    }
+    return pthread_sigmask(SIG_UNBLOCK, &termination_signals, NULL) == 0;
+}
+
+static int authorization_restore_signal_mask(const sigset_t *previous_mask) {
+    if (previous_mask == NULL) {
+        return 0;
+    }
+    return pthread_sigmask(SIG_SETMASK, previous_mask, NULL) == 0;
+}
 
 static void stop_service(int signal_number) {
     (void)signal_number;
@@ -227,14 +261,37 @@ static int parse_cli(int argc, char **argv, authorization_cli *cli) {
     return 1;
 }
 
+static size_t bounded_profile_text_size(const char *value, size_t maximum) {
+    size_t size = 0U;
+    if (value == NULL) {
+        return 0U;
+    }
+    while (size < maximum && value[size] != '\0') {
+        ++size;
+    }
+    return size;
+}
+
 static int validate_profile(const msconnector_http_authorization_profile *profile) {
+    size_t connector_name_size;
+    size_t integration_mode_size;
     if (profile == NULL || profile->connector_name == NULL ||
         profile->connector_name[0] == '\0' || profile->integration_mode == NULL ||
         profile->integration_mode[0] == '\0' || profile->transaction_profile == NULL ||
         profile->map_request == NULL) {
         return 0;
     }
-    if (profile->original_uri_header_count > 0U && profile->original_uri_headers == NULL) {
+    connector_name_size = bounded_profile_text_size(
+        profile->connector_name, MSCONNECTOR_MAX_JSON_FIELD_LENGTH + 1U);
+    integration_mode_size = bounded_profile_text_size(
+        profile->integration_mode, MSCONNECTOR_MAX_JSON_FIELD_LENGTH + 1U);
+    if (connector_name_size == 0U ||
+        connector_name_size > MSCONNECTOR_MAX_JSON_FIELD_LENGTH ||
+        integration_mode_size == 0U ||
+        integration_mode_size > MSCONNECTOR_MAX_JSON_FIELD_LENGTH ||
+        profile->original_uri_header_count > MSCONNECTOR_MAX_HEADER_COUNT ||
+        (profile->original_uri_header_count > 0U &&
+            profile->original_uri_headers == NULL)) {
         return 0;
     }
     if ((profile->handoff_response_companion == NULL) !=
@@ -251,8 +308,11 @@ static int validate_profile(const msconnector_http_authorization_profile *profil
         return 0;
     }
     for (size_t index = 0U; index < profile->original_uri_header_count; ++index) {
-        if (profile->original_uri_headers[index] == NULL ||
-            profile->original_uri_headers[index][0] == '\0') {
+        const size_t header_name_size = bounded_profile_text_size(
+            profile->original_uri_headers[index],
+            MSCONNECTOR_MAX_HEADER_NAME_LENGTH + 1U);
+        if (header_name_size == 0U ||
+            header_name_size > MSCONNECTOR_MAX_HEADER_NAME_LENGTH) {
             return 0;
         }
     }
@@ -285,7 +345,9 @@ static int parse_listen_spec(
     if (strcmp(host, "localhost") == 0) {
         (void)snprintf(host, host_size, "%s", "127.0.0.1");
     }
-    if (strcmp(host, "127.0.0.1") != 0 && strcmp(host, "0.0.0.0") != 0) {
+    /* This endpoint has no authenticated transport.  Keep it loopback-only;
+     * a wildcard bind would expose authorization decisions to the network. */
+    if (strcmp(host, "127.0.0.1") != 0) {
         return 0;
     }
     *port = (int)parsed_port;
@@ -376,7 +438,7 @@ static int wait_for_socket(
         descriptor.fd = socket_fd;
         descriptor.events = events;
         result = poll(&descriptor, 1U, timeout_ms);
-        if (result < 0 && errno == EINTR && !authorization_stop) {
+        if (result < 0 && errno == EINTR) {
             continue;
         }
         if (result == 0) {
@@ -411,7 +473,7 @@ static int recv_more(
         }
         do {
             received = recv(socket_fd, (char *)buffer + *used, capacity - *used, 0);
-        } while (received < 0 && errno == EINTR && !authorization_stop);
+        } while (received < 0 && errno == EINTR);
         if (received < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
             continue;
         }
@@ -753,15 +815,46 @@ static const char *request_uri(
     return request->uri;
 }
 
-static const char *request_hostname(parsed_http_request *request) {
+static int security_header_duplicates_are_rejected(
+    const parsed_http_request *request,
+    const msconnector_http_authorization_profile *profile,
+    char *error,
+    size_t error_len) {
+    if (request == NULL || profile == NULL || error == NULL || error_len == 0U) {
+        return 0;
+    }
+    if (msconnector_headers_count_name(
+            request->headers, request->header_count, "host") > 1U) {
+        (void)snprintf(error, error_len, "%s", "duplicate Host header");
+        return 0;
+    }
+    for (size_t index = 0U; index < profile->original_uri_header_count; ++index) {
+        const char *name = profile->original_uri_headers[index];
+        if (msconnector_headers_count_name(
+                request->headers, request->header_count, name) > 1U) {
+            (void)snprintf(error, error_len,
+                "duplicate security-sensitive header: %s", name);
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int request_hostname(
+    parsed_http_request *request,
+    char *error,
+    size_t error_len) {
     const msconnector_header *host = msconnector_headers_find_first(
         request->headers, request->header_count, "host");
     if (host != NULL && host->value_size > 0U &&
         copy_slice(host->value, host->value_size,
             request->hostname, sizeof(request->hostname))) {
-        return request->hostname;
+        return 1;
     }
-    return request->server_address;
+    if (error != NULL && error_len > 0U) {
+        (void)snprintf(error, error_len, "%s", "missing or invalid Host header");
+    }
+    return 0;
 }
 
 static int send_all(
@@ -782,7 +875,7 @@ static int send_all(
 #else
             result = send(socket_fd, data + sent, size - sent, 0);
 #endif
-        } while (result < 0 && errno == EINTR && !authorization_stop);
+        } while (result < 0 && errno == EINTR);
         if (result < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
             continue;
         }
@@ -1134,10 +1227,29 @@ static int handle_authorization_request(
         parsed_request_destroy(&parsed);
         return 0;
     }
+    if (!security_header_duplicates_are_rejected(
+            &parsed, service->profile, error, sizeof(error))) {
+        response.status = 400;
+        response.decision_name = "invalid_request";
+        (void)send_response(
+            connection->socket_fd, &response, NULL, NULL,
+            service->connection_timeout_ms);
+        parsed_request_destroy(&parsed);
+        return 0;
+    }
+    if (!request_hostname(&parsed, error, sizeof(error))) {
+        response.status = 400;
+        response.decision_name = "invalid_request";
+        (void)send_response(
+            connection->socket_fd, &response, NULL, NULL,
+            service->connection_timeout_ms);
+        parsed_request_destroy(&parsed);
+        return 0;
+    }
     source.method = parsed.method;
     source.uri = request_uri(&parsed, service->profile);
     source.http_version = parsed.http_version;
-    source.hostname = request_hostname(&parsed);
+    source.hostname = parsed.hostname;
     source.client.address = parsed.client_address;
     source.client.port = parsed.client_port;
     source.server.address = parsed.server_address;
@@ -1232,12 +1344,51 @@ static int configure_client_socket(int socket_fd) {
         }
     }
 #else
+    /* Never expose send(..., 0) to an unprotected client socket. */
     errno = ENOTSUP;
     return 0;
 #endif
 #endif
     flags = fcntl(socket_fd, F_GETFL, 0);
     return flags >= 0 && fcntl(socket_fd, F_SETFL, flags | O_NONBLOCK) == 0;
+}
+
+static int authorization_copy_profile(
+    authorization_service *service,
+    const msconnector_http_authorization_profile *profile) {
+    size_t connector_name_size;
+    size_t integration_mode_size;
+
+    if (service == NULL || !validate_profile(profile)) {
+        return 0;
+    }
+    connector_name_size = bounded_profile_text_size(
+        profile->connector_name, sizeof(service->copied_connector_name));
+    integration_mode_size = bounded_profile_text_size(
+        profile->integration_mode, sizeof(service->copied_integration_mode));
+    memcpy(service->copied_connector_name, profile->connector_name,
+        connector_name_size + 1U);
+    memcpy(service->copied_integration_mode, profile->integration_mode,
+        integration_mode_size + 1U);
+    service->profile_copy = *profile;
+    service->profile_copy.connector_name = service->copied_connector_name;
+    service->profile_copy.integration_mode = service->copied_integration_mode;
+    service->profile_copy.original_uri_headers = NULL;
+    for (size_t index = 0U; index < profile->original_uri_header_count; ++index) {
+        const size_t header_name_size = bounded_profile_text_size(
+            profile->original_uri_headers[index],
+            sizeof(service->copied_original_uri_header_names[index]));
+        memcpy(service->copied_original_uri_header_names[index],
+            profile->original_uri_headers[index], header_name_size + 1U);
+        service->copied_original_uri_headers[index] =
+            service->copied_original_uri_header_names[index];
+    }
+    if (profile->original_uri_header_count > 0U) {
+        service->profile_copy.original_uri_headers =
+            service->copied_original_uri_headers;
+    }
+    service->profile = &service->profile_copy;
+    return 1;
 }
 
 static int authorization_service_init(
@@ -1252,8 +1403,13 @@ static int authorization_service_init(
     }
     memset(service, 0, sizeof(*service));
     service->runtime = runtime;
-    service->profile_copy = *profile;
-    service->profile = &service->profile_copy;
+    /* Workers can outlive the entry-point stack during bounded shutdown.
+     * Keep a bounded, fully-owned profile copy with the heap-owned service.
+     * Mapping callbacks are code pointers; all textual and header data is
+     * copied before a worker can outlive the entry-point stack. */
+    if (!authorization_copy_profile(service, profile)) {
+        return 0;
+    }
     service->connection_timeout_ms = cli->connection_timeout_ms;
     service->max_connections = cli->max_connections;
     msconnector_runtime_request_contract(runtime, &service->request_limits.mapper_contract);
@@ -1321,8 +1477,10 @@ static void authorization_worker_release(authorization_worker *worker) {
             if (service->active_workers > 0UL) {
                 --service->active_workers;
             }
-            if (service->active_workers == 0UL && service->deferred_cleanup) {
+            if (service->active_workers == 0UL && service->deferred_cleanup &&
+                service->response_companion_quiesced && !service->release_claimed) {
                 service->deferred_cleanup = 0;
+                service->release_claimed = 1;
                 release_service = 1;
             }
             (void)pthread_cond_broadcast(&service->workers_idle);
@@ -1341,6 +1499,7 @@ static void authorization_worker_release(authorization_worker *worker) {
 static void *authorization_worker_main(void *argument) {
     authorization_worker *worker = argument;
     authorization_connection connection;
+    int request_result;
     if (worker == NULL) {
         return NULL;
     }
@@ -1348,7 +1507,11 @@ static void *authorization_worker_main(void *argument) {
     connection.peer = &worker->peer;
     connection.local = &worker->local;
     connection.read_deadline = &worker->read_deadline;
-    (void)handle_authorization_request(&connection, worker->service);
+    request_result = handle_authorization_request(&connection, worker->service);
+    if (!request_result) {
+        (void)fprintf(stderr, "%s authorization request terminated without "
+            "a response\n", worker->service->profile->connector_name);
+    }
     authorization_worker_release(worker);
     return NULL;
 }
@@ -1362,6 +1525,8 @@ static int authorization_start_worker(
     authorization_worker *worker;
     pthread_attr_t attributes;
     pthread_t thread;
+    sigset_t previous_signal_mask;
+    int worker_created = 0;
     int result;
     if (service == NULL || socket_fd < 0 || peer == NULL || local == NULL ||
         read_deadline == NULL) {
@@ -1380,13 +1545,24 @@ static int authorization_start_worker(
     worker->peer = *peer;
     worker->local = *local;
     worker->read_deadline = *read_deadline;
+    /* Signals are blocked while creating the worker so it inherits a mask
+     * that excludes SIGTERM/SIGINT.  The handler therefore has one owner:
+     * the serving thread.  This also prevents the signal handler and a
+     * worker read of authorization_stop from racing. */
+    if (!authorization_block_termination_signals(&previous_signal_mask)) {
+        (void)close(socket_fd);
+        free(worker);
+        return -1;
+    }
     if (pthread_mutex_lock(&service->worker_lock) != 0) {
+        (void)authorization_restore_signal_mask(&previous_signal_mask);
         (void)close(socket_fd);
         free(worker);
         return -1;
     }
     if (service->active_workers >= service->max_connections) {
         (void)pthread_mutex_unlock(&service->worker_lock);
+        (void)authorization_restore_signal_mask(&previous_signal_mask);
         (void)close(socket_fd);
         free(worker);
         return 0;
@@ -1396,14 +1572,26 @@ static int authorization_start_worker(
     ++service->active_workers;
     (void)pthread_mutex_unlock(&service->worker_lock);
     if (pthread_attr_init(&attributes) != 0) {
+        (void)authorization_restore_signal_mask(&previous_signal_mask);
         authorization_worker_release(worker);
         return -1;
     }
     result = pthread_attr_setdetachstate(&attributes, PTHREAD_CREATE_DETACHED);
     if (result == 0) {
         result = pthread_create(&thread, &attributes, authorization_worker_main, worker);
+        worker_created = result == 0;
     }
     (void)pthread_attr_destroy(&attributes);
+    if (!authorization_restore_signal_mask(&previous_signal_mask)) {
+        if (worker_created) {
+            /* pthread_sigmask() with a previously valid mask should not fail.
+             * If it does, keep the worker alive and make the serving thread
+             * explicitly unblocked so shutdown remains signal-driven. */
+            (void)authorization_unblock_termination_signals();
+            return 1;
+        }
+        (void)authorization_unblock_termination_signals();
+    }
     if (result != 0) {
         authorization_worker_release(worker);
         return -1;
@@ -1441,19 +1629,27 @@ static int authorization_wait_for_workers(
     }
     result = 0;
     while (service->active_workers > 0UL && result == 0) {
-        result = pthread_cond_timedwait(&service->workers_idle,
-            &service->worker_lock, &deadline);
+        result = pthread_cond_timedwait(
+            &service->workers_idle, &service->worker_lock, &deadline);
     }
-    workers_finished = service->active_workers == 0UL;
+    workers_finished = result == 0 && service->active_workers == 0UL;
     if (pthread_mutex_unlock(&service->worker_lock) != 0) {
         return 0;
     }
     return workers_finished;
 }
 
+/*
+ * After both bounded shutdown waits expire, the service must remain alive for
+ * its detached workers. The final worker performs the release; if it won the
+ * race before this function acquired the lock, the caller retains ownership
+ * and releases the service synchronously instead.
+ */
 static int authorization_defer_cleanup(authorization_service *service) {
     int deferred = 0;
     if (service == NULL || pthread_mutex_lock(&service->worker_lock) != 0) {
+        /* Ownership is uncertain: leaking this process-local service is safer
+         * than destroying state a detached worker may still reference. */
         return -1;
     }
     if (service->active_workers > 0UL) {
@@ -1462,6 +1658,30 @@ static int authorization_defer_cleanup(authorization_service *service) {
     }
     (void)pthread_mutex_unlock(&service->worker_lock);
     return deferred;
+}
+
+static int authorization_mark_response_companion_quiesced(
+    authorization_service *service) {
+    int release_service = 0;
+
+    if (service == NULL || pthread_mutex_lock(&service->worker_lock) != 0) {
+        return -1;
+    }
+    service->response_companion_quiesced = 1;
+    if (service->active_workers == 0UL) {
+        if (service->deferred_cleanup && !service->release_claimed) {
+            service->deferred_cleanup = 0;
+            service->release_claimed = 1;
+            release_service = 1;
+        } else if (!service->deferred_cleanup && !service->release_claimed) {
+            service->release_claimed = 1;
+            release_service = 1;
+        }
+    } else {
+        service->deferred_cleanup = 1;
+    }
+    (void)pthread_mutex_unlock(&service->worker_lock);
+    return release_service;
 }
 
 static int authorization_shutdown_response_companion(
@@ -1535,10 +1755,17 @@ static authorization_listener_iteration authorization_serve_next_connection(
         (void)close(client_fd);
         return AUTHORIZATION_LISTENER_HANDLED;
     }
-    if (authorization_start_worker(
-            service, client_fd, &peer, local, &read_deadline) < 0) {
-        (void)fprintf(stderr, "%s worker start failed\n",
-            service->profile->connector_name);
+    {
+        const int worker_result = authorization_start_worker(
+            service, client_fd, &peer, local, &read_deadline);
+        if (worker_result < 0) {
+            (void)fprintf(stderr, "%s worker start failed\n",
+                service->profile->connector_name);
+        } else if (worker_result == 0) {
+            (void)fprintf(stderr, "%s worker admission limit reached; "
+                "connection closed fail-closed\n",
+                service->profile->connector_name);
+        }
     }
     return AUTHORIZATION_LISTENER_HANDLED;
 }
@@ -1563,6 +1790,30 @@ static int authorization_serve_requests(
         }
     }
     return 0;
+}
+
+static int authorization_handle_worker_timeout(
+    authorization_service *service,
+    const msconnector_http_authorization_profile *profile,
+    unsigned long timeout_ms) {
+    (void)fprintf(stderr, "%s worker shutdown grace period expired; "
+        "forcing socket cancellation\n", profile->connector_name);
+    authorization_shutdown_workers(service);
+    if (authorization_wait_for_workers(service, timeout_ms)) {
+        return 0;
+    }
+    (void)fprintf(stderr, "%s worker shutdown did not complete; "
+        "runtime call may be uninterruptible\n", profile->connector_name);
+    if (authorization_defer_cleanup(service) == 0) {
+        return 0;
+    }
+    /* Profiles without a response companion can release after the final
+     * worker returns. Companion-backed profiles remain quarantined. */
+    if (profile->shutdown_response_companion == NULL &&
+        authorization_mark_response_companion_quiesced(service) > 0) {
+        authorization_service_release(service);
+    }
+    return 1;
 }
 
 static int serve_authorization(
@@ -1598,7 +1849,8 @@ static int serve_authorization(
         return 1;
     }
     service = calloc(1U, sizeof(*service));
-    if (service == NULL || !authorization_service_init(service, runtime, profile, cli)) {
+    if (service == NULL ||
+        !authorization_service_init(service, runtime, profile, cli)) {
         (void)fprintf(stderr, "%s service synchronization setup failed\n",
             profile->connector_name);
         free(service);
@@ -1627,23 +1879,28 @@ static int serve_authorization(
     if (authorization_stop || service_status != 0) {
         authorization_shutdown_workers(service);
     }
-    if (!authorization_wait_for_workers(service, cli->connection_timeout_ms)) {
-        (void)fprintf(stderr,
-            "%s worker shutdown grace period expired; forcing socket cancellation\n",
-            profile->connector_name);
-        authorization_shutdown_workers(service);
-        if (!authorization_wait_for_workers(service, cli->connection_timeout_ms)) {
-            const int deferred = authorization_defer_cleanup(service);
-            (void)fprintf(stderr,
-                "%s worker shutdown did not complete; runtime call may be uninterruptible\n",
-                profile->connector_name);
-            if (deferred != 0) {
-                return 1;
-            }
-        }
-    }
-    if (!authorization_service_release(service)) {
+    /* A socket shutdown cannot interrupt an uninterruptible call into
+     * libmodsecurity.  Give workers one bounded grace period, then close
+     * their sockets and wait once more.  If a worker still owns the
+     * runtime, leave the service/runtime allocated and return: the main
+     * process exits with a defined failure status instead of creating a
+     * use-after-free by destroying objects still referenced by a worker.
+     */
+    if (!authorization_wait_for_workers(service, cli->connection_timeout_ms) &&
+        authorization_handle_worker_timeout(service, profile,
+            cli->connection_timeout_ms)) {
         return 1;
+    }
+    if (!authorization_shutdown_response_companion(profile)) {
+        (void)fprintf(stderr, "%s response companion did not quiesce; refusing runtime destruction\n",
+            profile->connector_name);
+        /* Keep the service and runtime quarantined: the companion may still
+         * reference live transaction state, so neither teardown nor process
+         * termination is safe on this failure path. */
+        return service_status != 0 ? service_status : 1;
+    }
+    if (authorization_mark_response_companion_quiesced(service) > 0) {
+        authorization_service_release(service);
     }
     return service_status;
 }

@@ -197,22 +197,11 @@ static const char *msc_config_load_rules_file(cmd_parms *cmd, void *_cnf,
 static const char *msc_config_load_rules_remote(cmd_parms *cmd, void *_cnf,
     const char *p1, const char *p2)
 {
-    msc_conf_t *cnf = (msc_conf_t *) _cnf;
     (void)cmd;
-    const char *error = NULL;
-    int ret;
-
-    ret = msc_rules_add_remote(cnf->rules_set, p1, p2, &error);
-
-    if (ret < 0)
-    {
-        return error;
-    }
-
-    msconnector_rule_load_stats_add_remote(&cnf->rule_load_stats,
-        (unsigned) ret);
-
-    return NULL;
+    (void)_cnf;
+    (void)p1;
+    (void)p2;
+    return "remote rule loading is disabled by security policy";
 }
 
 

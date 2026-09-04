@@ -1,5 +1,4 @@
 #include "msconnector/json_escape.h"
-
 #include <stdint.h>
 #include <string.h>
 
@@ -41,7 +40,6 @@ static void append_json_bytes(
     } else {
         terminate_at_current(dst, dst_size, *position);
     }
-
     if (value_size > SIZE_MAX - *position) {
         *position = SIZE_MAX;
     } else {
@@ -80,6 +78,32 @@ static void append_json_byte_escape(
 static int utf8_continuation(unsigned char value) {
     return value >= 0x80U && value <= 0xbfU;
 }
+static int valid_utf8_three_byte_sequence(const unsigned char *value, size_t remaining) {
+    if (remaining < 3U || !utf8_continuation(value[2])) {
+        return 0;
+    }
+    if (value[0] == 0xe0U) {
+        return value[1] >= 0xa0U && value[1] <= 0xbfU;
+    }
+    if (value[0] == 0xedU) {
+        return value[1] >= 0x80U && value[1] <= 0x9fU;
+    }
+    return value[0] >= 0xe1U && value[0] <= 0xefU &&
+        utf8_continuation(value[1]);
+}
+
+static int valid_utf8_four_byte_sequence(const unsigned char *value, size_t remaining) {
+    if (remaining < 4U || !utf8_continuation(value[2]) || !utf8_continuation(value[3])) {
+        return 0;
+    }
+    if (value[0] == 0xf0U) {
+        return value[1] >= 0x90U && value[1] <= 0xbfU;
+    }
+    if (value[0] == 0xf4U) {
+        return value[1] >= 0x80U && value[1] <= 0x8fU;
+    }
+    return value[0] >= 0xf1U && value[0] <= 0xf3U && utf8_continuation(value[1]);
+}
 
 static size_t valid_utf8_sequence_size(
     const unsigned char *value,
@@ -87,61 +111,21 @@ static size_t valid_utf8_sequence_size(
     if (value == NULL || remaining == 0U) {
         return 0U;
     }
-
     if (value[0] >= 0xc2U && value[0] <= 0xdfU) {
         return remaining >= 2U && utf8_continuation(value[1]) ? 2U : 0U;
     }
-
-    if (value[0] == 0xe0U) {
-        return remaining >= 3U && value[1] >= 0xa0U && value[1] <= 0xbfU &&
-                       utf8_continuation(value[2])
-                   ? 3U
-                   : 0U;
+    if (value[0] >= 0xe0U && value[0] <= 0xefU) {
+        return valid_utf8_three_byte_sequence(value, remaining) ? 3U : 0U;
     }
-
-    if ((value[0] >= 0xe1U && value[0] <= 0xecU) ||
-        (value[0] >= 0xeeU && value[0] <= 0xefU)) {
-        return remaining >= 3U && utf8_continuation(value[1]) &&
-                       utf8_continuation(value[2])
-                   ? 3U
-                   : 0U;
+    if (value[0] >= 0xf0U && value[0] <= 0xf4U) {
+        return valid_utf8_four_byte_sequence(value, remaining) ? 4U : 0U;
     }
-
-    if (value[0] == 0xedU) {
-        return remaining >= 3U && value[1] >= 0x80U && value[1] <= 0x9fU &&
-                       utf8_continuation(value[2])
-                   ? 3U
-                   : 0U;
-    }
-
-    if (value[0] == 0xf0U) {
-        return remaining >= 4U && value[1] >= 0x90U && value[1] <= 0xbfU &&
-                       utf8_continuation(value[2]) && utf8_continuation(value[3])
-                   ? 4U
-                   : 0U;
-    }
-
-    if (value[0] >= 0xf1U && value[0] <= 0xf3U) {
-        return remaining >= 4U && utf8_continuation(value[1]) &&
-                       utf8_continuation(value[2]) && utf8_continuation(value[3])
-                   ? 4U
-                   : 0U;
-    }
-
-    if (value[0] == 0xf4U) {
-        return remaining >= 4U && value[1] >= 0x80U && value[1] <= 0x8fU &&
-                       utf8_continuation(value[2]) && utf8_continuation(value[3])
-                   ? 4U
-                   : 0U;
-    }
-
     return 0U;
 }
 
 int msconnector_json_utf8_is_valid_n(const char *src, size_t src_size) {
     const unsigned char *bytes;
     size_t index = 0U;
-
     if (src == NULL) {
         return src_size == 0U;
     }
@@ -149,7 +133,6 @@ int msconnector_json_utf8_is_valid_n(const char *src, size_t src_size) {
     while (index < src_size) {
         const unsigned char value = bytes[index];
         size_t sequence_size;
-
         if (value < 0x80U) {
             ++index;
             continue;
@@ -169,14 +152,13 @@ size_t msconnector_json_escape_n(
     size_t src_size,
     char *dst,
     size_t dst_size) {
-    size_t position = 0U;
+    size_t position = 0;
     size_t index = 0U;
     const unsigned char *bytes;
 
     if (src == 0) {
         src_size = 0U;
     }
-
     bytes = (const unsigned char *)(src == NULL ? "" : src);
 
     while (index < src_size) {

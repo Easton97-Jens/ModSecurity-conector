@@ -112,8 +112,10 @@ credentials, cookies, or authorization values merely to document a phase.
 
 ## Rule-load metadata
 
-The Common rule-load structure records only successful inline, file, and remote
+The Common rule-load structure records only successful inline and local-file
 rule additions. It counts rules rather than directive calls or file count.
+Remote rule inputs are rejected before the loader, a network fetch, or a native
+remote-rule API call; they have no successful-load counter or exposed metadata.
 Failed loads keep their existing error path and do not increment a counter.
 The metadata does not affect RulesSet ownership, merge behavior, request or
 response processing, body handling, interventions, or phase behavior.
@@ -122,7 +124,6 @@ response processing, body handling, interventions, or phase behavior.
 | --- | --- | --- |
 | <code>inline_rules</code> | Rules loaded from inline rule content | Connector configuration metadata |
 | <code>file_rules</code> | Rules loaded from rule files | NGINX startup logging; Apache internal metadata |
-| <code>remote_rules</code> | Rules loaded from remote rule inputs | Connector configuration metadata |
 
 Common has no reporting API for these values. Any shared report or Apache
 post-config display remains separate work and cannot be inferred from a counter.

@@ -11,6 +11,7 @@ from pathlib import Path
 import socket
 import ssl
 import sys
+import threading
 import time
 from typing import Any
 import urllib.error
@@ -44,6 +45,77 @@ COMMON_EVENT_LOG_LABEL = "Common event log"
 NOFOLLOW_WRITE_ERROR = "safe runtime artifact writes require O_NOFOLLOW"
 LOOPBACK_TLS_CERTIFICATE_LABEL = "loopback TLS certificate"
 LOOPBACK_TLS_PRIVATE_KEY_LABEL = "loopback TLS private key"
+
+
+class Phase4HandlerLifecycle:
+    """Track accepted request threads until their final path exits."""
+
+    def __init__(self) -> None:
+        self._condition = threading.Condition()
+        self._active = 0
+
+    def begin(self) -> None:
+        with self._condition:
+            self._active += 1
+
+    def end(self) -> None:
+        with self._condition:
+            if self._active < 1:
+                raise RuntimeError("phase-4 handler lifecycle underflow")
+            self._active -= 1
+            if self._active == 0:
+                self._condition.notify_all()
+
+    def wait_idle(self, timeout: float) -> None:
+        if timeout <= 0:
+            raise ValueError("phase-4 handler lifecycle timeout must be positive")
+        deadline = time.monotonic() + timeout
+        with self._condition:
+            while self._active:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError("timed out waiting for active phase-4 handlers")
+                self._condition.wait(timeout=remaining)
+
+
+class _Phase4TrackingServer:
+    """Mix in request-thread tracking without changing the transport type."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.phase4_handler_lifecycle = Phase4HandlerLifecycle()
+
+    def process_request(self, request: Any, client_address: Any) -> None:
+        self.phase4_handler_lifecycle.begin()
+        try:
+            super().process_request(request, client_address)
+        except BaseException:
+            self.phase4_handler_lifecycle.end()
+            raise
+
+    def process_request_thread(self, request: Any, client_address: Any) -> None:
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self.phase4_handler_lifecycle.end()
+
+
+class Phase4TrackingHTTPServer(_Phase4TrackingServer, http.server.ThreadingHTTPServer):
+    """Plain HTTP fixture server with request-thread lifecycle tracking."""
+
+
+class Phase4TrackingHTTPSServer(_Phase4TrackingServer, http.server.ThreadingHTTPSServer):
+    """TLS fixture server with request-thread lifecycle tracking."""
+
+
+def wait_for_phase4_handlers(server: object, timeout: float) -> None:
+    """Prove configured phase-4 handlers have left all write/error paths."""
+
+    lifecycle = getattr(server, "phase4_handler_lifecycle", None)
+    if lifecycle is not None:
+        if not isinstance(lifecycle, Phase4HandlerLifecycle):
+            raise TypeError("server phase-4 handler lifecycle has an invalid type")
+        lifecycle.wait_idle(timeout)
 
 
 def verified_runtime_root(value: str) -> Path:
@@ -358,7 +430,7 @@ def serve_upstream(
         phase4_barrier_timeout_seconds = phase4_barrier_timeout
         runtime_root = root
 
-    server = http.server.ThreadingHTTPSServer(
+    server = Phase4TrackingHTTPSServer(
         (LOOPBACK_HOST, port),
         DelayedUpstreamHandler,
         certfile=str(certificate),

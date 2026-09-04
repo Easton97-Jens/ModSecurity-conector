@@ -412,10 +412,13 @@ def test_htx_companion_registers_request_data_filter_for_p2_and_eos() -> None:
         / "htx-overlay"
         / "haproxy_modsecurity_htx_filter.c"
     ).read_text(encoding="utf-8")
+    # Request P2/EOS registration is authoritative in the request-header
+    # handler.  The generic HTTP-header dispatcher only selects request versus
+    # response and must not be treated as the companion implementation.
     companion_start = source.index(
-        "static int haproxy_modsecurity_htx_filter_http_headers("
+        "static int haproxy_modsecurity_htx_handle_request_headers("
     )
-    companion_start = source.index("if (ctx->response_companion_mode) {", companion_start)
+    companion_start = source.index("if (ctx->companion.mode) {", companion_start)
     companion_end = source.index(
         "    if (haproxy_modsecurity_htx_capture_request_headers",
         companion_start,
@@ -667,9 +670,11 @@ def test_htx_early_response_uses_common_phase_error_path() -> None:
         / "haproxy_modsecurity_htx_filter.c"
     ).read_text(encoding="utf-8")
     assert "response_started_before_request_eos" not in htx_source
+    # Response processing is owned by the response-header handler; the generic
+    # dispatcher only routes the callback and is not the phase implementation.
     response_headers = htx_source[htx_source.index(
-        "static int haproxy_modsecurity_htx_filter_http_headers") :
-        htx_source.index("static int haproxy_modsecurity_htx_filter_http_payload")]
+        "static int haproxy_modsecurity_htx_handle_response_headers") :
+        htx_source.index("static int haproxy_modsecurity_htx_handle_request_headers")]
     assert "haproxy_modsecurity_htx_process_response_headers(s, filter, msg)" in response_headers
     assert "leave this response uninspected" not in response_headers
 

@@ -42,6 +42,12 @@
 #include <sys/random.h>
 #endif
 
+#if !defined(_WIN32)
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
+
 #define RUNTIME_NAME_SIZE 64U
 #define RUNTIME_PATH_SIZE 4096U
 #define RUNTIME_INLINE_RULE_SIZE 8192U
@@ -152,6 +158,25 @@ static int runtime_error(
     const char *source) {
     msconnector_error_set(error, code, message, source);
     return 0;
+}
+
+/* The final event-file descriptor policy is shared with native hosts.  Keep
+ * FILE ownership local to the runtime after the Common helper establishes the
+ * no-follow, regular-file, owner, and private-mode invariant. */
+static FILE *open_event_file_secure(const char *path) {
+    int fd = -1;
+    FILE *file;
+
+    if (!msconnector_open_private_event_file(path, &fd)) {
+        return NULL;
+    }
+    file = fdopen(fd, "a");
+    if (file == NULL) {
+        const int saved_errno = errno;
+        (void)close(fd);
+        errno = saved_errno;
+    }
+    return file;
 }
 
 static uint64_t transaction_now_ms(void) {
@@ -295,8 +320,8 @@ static int validate_request_input(
         !bounded_c_string(request->uri, RUNTIME_URI_SIZE, 1) ||
         !bounded_c_string(request->http_version, RUNTIME_HTTP_VERSION_SIZE, 0) ||
         !bounded_c_string(request->hostname, RUNTIME_ADDRESS_SIZE, 0) ||
-        !bounded_c_string(request->client.address, RUNTIME_ADDRESS_SIZE, 0) ||
-        !bounded_c_string(request->server.address, RUNTIME_ADDRESS_SIZE, 0)) {
+        !bounded_c_string(request->client.address, RUNTIME_ADDRESS_SIZE, 1) ||
+        !bounded_c_string(request->server.address, RUNTIME_ADDRESS_SIZE, 1)) {
         return runtime_error(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
             "request string metadata is missing or not bounded", "runtime");
     }
@@ -760,11 +785,16 @@ static int validate_runtime_rule_source(
     const msconnector_runtime *runtime,
     char *error,
     size_t error_len) {
+    if (!string_is_empty(runtime->config.rules_remote_key) ||
+        !string_is_empty(runtime->config.rules_remote_url)) {
+        set_text_error(error, error_len,
+            "remote rule loading is disabled by security policy");
+        return 0;
+    }
     if (runtime->config.enable == MSCONNECTOR_BOOL_ON &&
         string_is_empty(runtime->config.rules_inline) &&
-        string_is_empty(runtime->config.rules_file) &&
-        string_is_empty(runtime->config.rules_remote_url)) {
-        set_text_error(error, error_len, "enabled connector requires inline, file or remote rules");
+        string_is_empty(runtime->config.rules_file)) {
+        set_text_error(error, error_len, "enabled connector requires inline or file rules");
         return 0;
     }
     return 1;
@@ -774,10 +804,27 @@ static int validate_runtime_event_path(
     const msconnector_runtime *runtime,
     char *error,
     size_t error_len) {
-    if (!string_is_empty(runtime->config.phase4_log_path) &&
-        msconnector_path_has_parent_reference(runtime->config.phase4_log_path)) {
-        set_text_error(error, error_len, "event_path must not contain a parent-directory segment");
-        return 0;
+    const char *path = runtime->config.phase4_log_path;
+    if (!string_is_empty(path)) {
+        const size_t path_length = strlen(path);
+        if (path_length >= RUNTIME_PATH_SIZE || path[path_length - 1U] == '/') {
+            set_text_error(error, error_len, "event_path must be a normalized path");
+            return 0;
+        }
+        for (size_t index = 0U; index < path_length; ++index) {
+            if (iscntrl((unsigned char)path[index]) || path[index] == '\\' ||
+                (path[index] == '/' && (index + 1U == path_length || path[index + 1U] == '/'))) {
+                set_text_error(error, error_len, "event_path contains an unsafe path character");
+                return 0;
+            }
+        }
+        if (msconnector_path_has_parent_reference(path) ||
+            strstr(path, "/./") != NULL || strncmp(path, "./", 2U) == 0 ||
+            (path_length >= 2U && strcmp(path + path_length - 2U, "/.") == 0) ||
+            strcmp(path, ".") == 0 || strcmp(path, "..") == 0) {
+            set_text_error(error, error_len, "event_path must not contain a parent or dot segment");
+            return 0;
+        }
     }
     return 1;
 }
@@ -1082,16 +1129,10 @@ static int native_process_connection(
     msconnector_decision *decision,
     msconnector_error *error) {
     msconnector_native_transaction *native = native_transaction;
-    const char *client;
-    const char *server;
-    int client_port;
-    int server_port;
     msconnector_runtime *runtime = userdata;
-    client = string_is_empty(request->client.address) ? "127.0.0.1" : request->client.address;
-    server = string_is_empty(request->server.address) ? "127.0.0.1" : request->server.address;
-    client_port = request->client.port > 0 ? request->client.port : 0;
-    server_port = request->server.port > 0 ? request->server.port : 0;
-    if (msc_process_connection(native->transaction, client, client_port, server, server_port) != 1 ||
+    if (msc_process_connection(native->transaction,
+            request->client.address, request->client.port,
+            request->server.address, request->server.port) != 1 ||
         msc_process_uri(native->transaction, request->uri, request->method,
             http_version_without_prefix(request->http_version)) != 1) {
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
@@ -1299,29 +1340,6 @@ static int rules_add_file(
     return 1;
 }
 
-static int rules_add_remote(
-    void *userdata,
-    void *rules_set,
-    const char *key,
-    const char *url,
-    msconnector_error *error) {
-    const char *native_error = NULL;
-    int result;
-    (void)userdata;
-    result = msc_rules_add_remote((RulesSet *)rules_set, key, url, &native_error);
-    if (result < 0) {
-        if (native_error != NULL) {
-            msc_rules_error_cleanup(native_error);
-        }
-        return runtime_error(error, MSCONNECTOR_ERROR_RULE_LOAD_FAILED,
-            "libmodsecurity rejected remote rules", "libmodsecurity");
-    }
-    if (native_error != NULL) {
-        msc_rules_error_cleanup(native_error);
-    }
-    return 1;
-}
-
 static int start_runtime(msconnector_runtime *runtime, char *error, size_t error_len) {
     msconnector_modsecurity_engine_ops ops;
     msconnector_rule_loader_backend rule_backend;
@@ -1360,14 +1378,13 @@ static int start_runtime(msconnector_runtime *runtime, char *error, size_t error
     rule_backend.userdata = runtime;
     rule_backend.add_inline = rules_add_inline;
     rule_backend.add_file = rules_add_file;
-    rule_backend.add_remote = rules_add_remote;
     msconnector_rule_loader_init(&loader, runtime->engine.rules_set, &rule_backend);
     if (!msconnector_rule_loader_load_config(&loader, &runtime->config, &common_error)) {
         set_text_error(error, error_len, common_error.message);
         return 0;
     }
     if (!string_is_empty(runtime->config.phase4_log_path)) {
-        runtime->event_file = fopen(runtime->config.phase4_log_path, "a");
+        runtime->event_file = open_event_file_secure(runtime->config.phase4_log_path);
         if (runtime->event_file == NULL) {
             if (error != NULL && error_len > 0U) {
                 (void)snprintf(error, error_len, "cannot open event_path %s: %s",

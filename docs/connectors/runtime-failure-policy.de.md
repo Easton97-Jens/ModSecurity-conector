@@ -240,12 +240,13 @@ SPOP-Schreibvorgänge verwenden pro Send `MSG_NOSIGNAL` (und, wenn verfügbar,
 begrenzten Worker isoliert; fehlerhafte Eingaben verwenden standardmäßig
 closed. `fail-mode=open` ist nur ein sichtbarer Betreiber-Override.
 
-Der ausgewählte SPOP-Pfad hat keinen Response-Body-Stream. Deshalb wird ein
-positiver `response-body-timeout` bei der Konfigurationsverarbeitung mit Exit
-`2` abgewiesen; Zero/Default bleibt akzeptiert und `spoe-timeout` bleibt eine
-per-Frame-Peer-Deadline. Das ist ein expliziter fail-closed-
-Konfigurationsfehler, kein behauptetes Stream-Idle-Limit. Selftest-PID-,
-Ready- und Port-Pfade werden mit `O_CREAT|O_EXCL` (und `O_NOFOLLOW`, falls
+Der ausgewählte SPOP-Pfad hat keinen Response-Body-Stream. Bei
+`response-companion=none` wird ein positiver `response-body-timeout` durch die
+Konfigurationsvalidierung vor dem Serverstart mit Exit `2` abgewiesen;
+Zero/Default bleibt akzeptiert und `spoe-timeout` bleibt eine per-Frame-
+Peer-Deadline. Das ist ein expliziter fail-closed-Konfigurationsfehler, kein
+behauptetes Stream-Idle-Limit. Selftest-PID-, Ready- und Port-Pfade werden mit
+`O_CREAT|O_EXCL` (und `O_NOFOLLOW`, falls
 verfügbar) geclaimt; eine Kollision wird abgewiesen, ohne einen aufrufer-
 eigenen Pfad zu ändern, und Cleanup entfernt nur eigene Pfade.
 
@@ -275,12 +276,15 @@ Verbindungen können weiterhin den begrenzten Worker-Pool belegen, während
 jeder Worker seine Engine initialisiert; Live-Load-Charakterisierung und ein
 früheres Protokoll-Admission-Budget bleiben dokumentierte Restrisiken.
 
-Bis eine begrenzte Ownership-erhaltende P3/P4-Brücke existiert, weist der
-Produktionsagent außerdem jede Response-Phasen-Aktivierung
-(`response-body-limit > 0`, `enable-response-headers` oder `response-phases`)
-mit Exit `2` ab, bevor er einen Produktions-Listener oder Worker erzeugt. Das
-ist fail-closed-Konfigurationsablehnung, kein partielles Response-Enforcement;
-ein gültiger request-side-only-Start ist die legitime Folgekontrolle.
+Das Default-Profil `response-companion=none` weist jede
+Response-Phasen-Aktivierung (`response-body-limit > 0`,
+`enable-response-headers` oder `response-phases`) mit Exit `2` ab, bevor es
+einen Produktions-Listener oder Worker erzeugt. Das ist fail-closed-
+Konfigurationsablehnung, kein partielles Response-Enforcement; ein gültiger
+request-side-only-Start ist die legitime Folgekontrolle. Das Profil
+`response-companion=native-htx` ist die begrenzte Ownership-erhaltende
+P3/P4-Brücke: Es erlaubt Response-Phasen nur, nachdem seine private Socket-,
+Identitäts- und Body-Limit-Validierung erfolgreich war.
 
 Der aktuelle direkte Protokolllauf startet request-only mit
 `max-transactions=1`. Ein Response-NOTIFY des Peers wird vor der

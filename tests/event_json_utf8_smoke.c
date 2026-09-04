@@ -101,7 +101,11 @@ int main(void) {
     msconnector_event event;
     int truncated = 0;
 
-    if (!expect_string(
+    if (msconnector_json_utf8_is_valid_n(invalid_utf8,
+            sizeof(invalid_utf8) - 1U) ||
+        !msconnector_json_utf8_is_valid_n(valid_utf8,
+            sizeof(valid_utf8) - 1U) ||
+        !expect_string(
             (msconnector_json_escape(invalid_utf8, escaped, sizeof(escaped)), escaped),
             "ok\\u0080\\u00c0\\u00af") ||
         !expect_string(
@@ -125,27 +129,44 @@ int main(void) {
     event.meta.message_id = "MSCONN_EVENT_INTERNAL_ERROR";
     event.meta.event = event.meta.message_id;
     event.meta.connector = "event-json-smoke";
-    event.request.uri = "/event-json-smoke";
-    event.protocol.requested_protocol = "h2\"\\test";
+    event.meta.run_id = "run\"id";
+    event.request.uri = invalid_utf8;
+    event.protocol.requested_protocol = invalid_utf8;
     if (!msconnector_event_write_jsonl_line(&event, json, sizeof(json),
             &truncated) || truncated != 0 ||
-        strstr(json, "\"requested_protocol\":\"h2\\\"\\\\test\"") == NULL) {
+        strstr(json, "\\u0080\\u00c0\\u00af") == NULL ||
+        strstr(json, "\"run_id\":\"run\\\"id\"") == NULL ||
+        strstr(json, "\"uri\":\"ok\\u0080\\u00c0\\u00af\"") == NULL ||
+        strstr(json,
+            "\"requested_protocol\":\"ok\\u0080\\u00c0\\u00af\"") == NULL) {
         (void)fprintf(stderr, "event JSONL UTF-8 serialization control failed\n");
         return 1;
     }
 
+    event.protocol.requested_protocol = "h2\"\\test";
+    if (!msconnector_event_write_jsonl_line(&event, json, sizeof(json),
+            &truncated) || truncated != 0 ||
+        strstr(json, "\"requested_protocol\":\"h2\\\"\\\\test\"") == NULL) {
+        (void)fprintf(stderr, "event JSONL decoded-value control failed\n");
+        return 1;
+    }
+
     event.request.uri = invalid_utf8;
-    if (msconnector_event_write_jsonl_line(&event, json, sizeof(json),
-            &truncated) != 0 || truncated != 1 || json[0] != '\0') {
-        (void)fprintf(stderr, "event JSONL invalid URI rejection failed\n");
+    event.protocol.requested_protocol = "h2";
+    if (!msconnector_event_write_jsonl_line(&event, json, sizeof(json),
+            &truncated) || truncated != 0 ||
+        strstr(json, "\"uri\":\"ok\\u0080\\u00c0\\u00af\"") == NULL) {
+        (void)fprintf(stderr, "event JSONL invalid URI escaping failed\n");
         return 1;
     }
 
     event.request.uri = "/event-json-smoke";
     event.protocol.requested_protocol = invalid_utf8;
-    if (msconnector_event_write_jsonl_line(&event, json, sizeof(json),
-            &truncated) != 0 || truncated != 1 || json[0] != '\0') {
-        (void)fprintf(stderr, "event JSONL invalid protocol rejection failed\n");
+    if (!msconnector_event_write_jsonl_line(&event, json, sizeof(json),
+            &truncated) || truncated != 0 ||
+        strstr(json,
+            "\"requested_protocol\":\"ok\\u0080\\u00c0\\u00af\"") == NULL) {
+        (void)fprintf(stderr, "event JSONL invalid protocol escaping failed\n");
         return 1;
     }
 

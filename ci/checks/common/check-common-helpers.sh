@@ -749,36 +749,30 @@ int main(void) {
         assert(!msconnector_config_validate(&merged_config, error, sizeof(error)));
         merged_config.rules_remote_key = "key";
         merged_config.rules_remote_url = "https://example.test/rules.conf";
-        assert(msconnector_config_validate(&merged_config, error, sizeof(error)));
+        error[0] = '\0';
+        assert(!msconnector_config_validate(&merged_config, error, sizeof(error)));
+        assert(strcmp(error, "remote rule loading is disabled by security policy") == 0);
 
         msconnector_config_init(&parent_config);
         msconnector_config_init(&child_config);
         parent_config.rules_remote_key = "parent-key";
         parent_config.rules_remote_url = "https://example.test/parent-rules.conf";
         child_config.rules_remote_key = "";
-        assert(msconnector_config_merge(&merged_config, &parent_config, &child_config));
-        assert(strcmp(merged_config.rules_remote_key, "parent-key") == 0);
-        assert(strcmp(merged_config.rules_remote_url, "https://example.test/parent-rules.conf") == 0);
+        assert(!msconnector_config_merge(&merged_config, &parent_config, &child_config));
 
         msconnector_config_init(&child_config);
         child_config.rules_remote_url = "";
-        assert(msconnector_config_merge(&merged_config, &parent_config, &child_config));
-        assert(strcmp(merged_config.rules_remote_key, "parent-key") == 0);
-        assert(strcmp(merged_config.rules_remote_url, "https://example.test/parent-rules.conf") == 0);
+        assert(!msconnector_config_merge(&merged_config, &parent_config, &child_config));
 
         msconnector_config_init(&child_config);
         child_config.rules_remote_key = "";
         child_config.rules_remote_url = "";
-        assert(msconnector_config_merge(&merged_config, &parent_config, &child_config));
-        assert(strcmp(merged_config.rules_remote_key, "parent-key") == 0);
-        assert(strcmp(merged_config.rules_remote_url, "https://example.test/parent-rules.conf") == 0);
+        assert(!msconnector_config_merge(&merged_config, &parent_config, &child_config));
 
         msconnector_config_init(&child_config);
         child_config.rules_remote_key = "";
         child_config.rules_remote_url = "https://example.invalid/rules.conf";
         assert(!msconnector_config_merge(&merged_config, &parent_config, &child_config));
-        assert(strcmp(merged_config.rules_remote_key, "") == 0);
-        assert(strcmp(merged_config.rules_remote_url, "https://example.invalid/rules.conf") == 0);
 
         msconnector_config_init(&child_config);
         child_config.rules_remote_key = "child-key";
@@ -819,6 +813,8 @@ int main(void) {
         assert(msconnector_request_mapper_contract_validate(&request_contract, mapper_error, sizeof(mapper_error)));
         mapped_request.method = "GET";
         mapped_request.uri = "/";
+        mapped_request.client.address = "127.0.0.1";
+        mapped_request.server.address = "127.0.0.1";
         assert(msconnector_request_mapper_validate_output(&request_contract, &mapped_request, mapper_error, sizeof(mapper_error)));
         msconnector_response_mapper_contract_init(&response_contract);
         assert(msconnector_response_mapper_contract_validate(&response_contract, mapper_error, sizeof(mapper_error)));
@@ -976,11 +972,14 @@ int main(void) {
     {
         const msconnector_header headers[] = {
             {"Content-Length", 14, " 42 ", 4},
-            {"content-length", 14, "42", 2},
             {"Set-Cookie", 10, "a=b", 3},
             {"Host", 4, "example.test", 12},
             {"X-Test", 6, "first", 5},
             {"x-test", 6, "last", 4}
+        };
+        const msconnector_header duplicate[] = {
+            {"Content-Length", 14, "42", 2},
+            {"content-length", 14, "42", 2}
         };
         const msconnector_header conflicting[] = {
             {"Content-Length", 14, "42", 2},
@@ -990,17 +989,18 @@ int main(void) {
         size_t content_length = 0;
         char sanitized[8];
         int truncated = 0;
-        assert(msconnector_headers_count_name(headers, 6, "x-test") == 2U);
-        assert(msconnector_headers_find_first(headers, 6, "x-test") == &headers[4]);
-        assert(msconnector_headers_find_last(headers, 6, "x-test") == &headers[5]);
+        assert(msconnector_headers_count_name(headers, 5, "x-test") == 2U);
+        assert(msconnector_headers_find_first(headers, 5, "x-test") == &headers[3]);
+        assert(msconnector_headers_find_last(headers, 5, "x-test") == &headers[4]);
         assert(!msconnector_header_value_can_be_combined("Set-Cookie", 10));
         assert(!msconnector_header_value_can_be_combined("Content-Length", 14));
         assert(msconnector_header_value_can_be_combined("Accept", 6));
-        assert(msconnector_headers_parse_content_length(headers, 6, &content_length) == 1);
+        assert(msconnector_headers_parse_content_length(headers, 5, &content_length) == 1);
         assert(content_length == 42U);
+        assert(msconnector_headers_parse_content_length(duplicate, 2, &content_length) == -1);
         assert(msconnector_headers_parse_content_length(conflicting, 2, &content_length) == -1);
         assert(msconnector_headers_parse_content_length(invalid_cl, 1, &content_length) == -1);
-        assert(!msconnector_headers_copy_value(headers, 6, "host", sanitized, sizeof(sanitized), &truncated));
+        assert(!msconnector_headers_copy_value(headers, 5, "host", sanitized, sizeof(sanitized), &truncated));
         assert(strcmp(sanitized, "example") == 0);
         assert(truncated);
         assert(msconnector_header_sanitize_value_for_log("a\r\nb", 4, sanitized, sizeof(sanitized), &truncated) == 4U);
@@ -1130,11 +1130,12 @@ int main(void) {
         msconnector_rule_loader_init(&loader, &state, &backend);
         assert(msconnector_rule_loader_add_inline(&loader, "SecRule ARGS x", &error));
         assert(msconnector_rule_loader_add_file(&loader, "rules.conf", &error));
-        assert(msconnector_rule_loader_add_remote(&loader, "key", "https://example.test/rules", &error));
+        assert(!msconnector_rule_loader_add_remote(&loader, "key", "https://example.test/rules", &error));
+        assert(error.code == MSCONNECTOR_ERROR_UNSUPPORTED_CAPABILITY);
         stats = msconnector_rule_loader_stats(&loader);
         assert(stats->inline_rules == 1);
         assert(stats->file_rules == 1);
-        assert(stats->remote_rules == 1);
+        assert(stats->remote_rules == 0);
         assert(!msconnector_rule_loader_add_remote(&loader, 0, "url", &error));
         assert(!msconnector_rule_loader_add_file(&loader, "../rules.conf", &error));
         state.fail_next = 1;
@@ -1143,12 +1144,11 @@ int main(void) {
         msconnector_config_init(&config);
         config.rules_inline = "inline";
         config.rules_file = "rules.conf";
-        config.rules_remote_key = "key";
-        config.rules_remote_url = "url";
         assert(msconnector_rule_loader_load_config(&loader, &config, &error));
         assert(state.inline_calls >= 2);
         assert(state.file_calls >= 2);
-        assert(state.remote_calls >= 2);
+        assert(state.remote_calls == 0);
+
         msconnector_rule_loader_init(&loader, &state, &backend);
         state.inline_calls = 0;
         state.file_calls = 0;
@@ -1157,8 +1157,9 @@ int main(void) {
         config.rules_inline = "inline";
         config.rules_file = "rules.conf";
         config.rules_remote_key = "key";
-        config.rules_remote_url = 0;
+        config.rules_remote_url = "url";
         assert(!msconnector_rule_loader_load_config(&loader, &config, &error));
+        assert(error.code == MSCONNECTOR_ERROR_UNSUPPORTED_CAPABILITY);
         stats = msconnector_rule_loader_stats(&loader);
         assert(stats->inline_rules == 0);
         assert(stats->file_rules == 0);
@@ -1674,25 +1675,31 @@ int main(void) {
         char json[1024];
         int truncated = 0;
         msconnector_rule_collection_init(&parent_rules);
-        parent_rules.inline_rules = "parent"; parent_rules.rules_remote_key = "key"; parent_rules.rules_remote_url = "url";
+        parent_rules.inline_rules = "parent";
         msconnector_rule_collection_init(&child_rules);
         child_rules.rules_file = "child.conf";
         assert(msconnector_rule_collection_merge(&merged_rules, &parent_rules, &child_rules));
         assert(strcmp(merged_rules.inline_rules, "parent") == 0);
         assert(strcmp(merged_rules.rules_file, "child.conf") == 0);
+        assert(merged_rules.rules_remote_key == 0);
+        assert(merged_rules.rules_remote_url == 0);
+
+        parent_rules.rules_remote_key = "key";
+        parent_rules.rules_remote_url = "url";
+        assert(!msconnector_rule_collection_merge(&merged_rules, &parent_rules, &child_rules));
+
+        msconnector_rule_collection_init(&parent_rules);
+        parent_rules.inline_rules = "parent";
+        msconnector_rule_collection_init(&child_rules);
         child_rules.rules_remote_key = "";
         assert(msconnector_rule_collection_merge(&merged_rules, &parent_rules, &child_rules));
-        assert(strcmp(merged_rules.rules_remote_key, "key") == 0);
-        assert(strcmp(merged_rules.rules_remote_url, "url") == 0);
+        assert(merged_rules.rules_remote_key == 0);
+        assert(merged_rules.rules_remote_url == 0);
         msconnector_rule_collection_init(&child_rules);
         child_rules.rules_remote_url = "";
         assert(msconnector_rule_collection_merge(&merged_rules, &parent_rules, &child_rules));
-        assert(strcmp(merged_rules.rules_remote_key, "key") == 0);
-        assert(strcmp(merged_rules.rules_remote_url, "url") == 0);
         child_rules.rules_remote_key = "";
         assert(msconnector_rule_collection_merge(&merged_rules, &parent_rules, &child_rules));
-        assert(strcmp(merged_rules.rules_remote_key, "key") == 0);
-        assert(strcmp(merged_rules.rules_remote_url, "url") == 0);
         child_rules.rules_remote_url = "child-url";
         assert(!msconnector_rule_collection_merge(&merged_rules, &parent_rules, &child_rules));
         msconnector_rule_collection_init(&child_rules);

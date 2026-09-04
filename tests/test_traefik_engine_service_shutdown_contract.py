@@ -20,7 +20,7 @@ class TraefikEngineServiceShutdownContractTests(unittest.TestCase):
         self.assertIn("errno == EAGAIN ||", SOURCE)
         self.assertNotIn("SIGPIPE", SOURCE)
         self.assertIn("if (worker_status == 0)", SOURCE)
-        self.assertIn("(void)close(client);\n                continue;", SOURCE)
+        self.assertIn("(void)close(client);\n            continue;", SOURCE)
 
     def test_worker_cleanup_uses_stable_admission_slot(self) -> None:
         self.assertIn("size_t slot;", SOURCE)

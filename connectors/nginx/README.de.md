@@ -54,6 +54,14 @@ und in [`SOURCE_MAP.json`](SOURCE_MAP.json) aufgezeichnet:
 
 - [PR #384](https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/384)
   bei `65de4cd8739209f22d924d85548bd012a4d94607` unterscheidet finales
+  Body-Processing von partieller Aufnahme. Im aktuellen Adapter erfordern das
+  finale `msc_process_request_body()`/`msc_process_response_body()`-Processing
+  und die Aufnahmeaufrufe `msc_append_request_body()`,
+  `msc_request_body_from_file()` sowie `msc_append_response_body()` sämtlich
+  den libmodsecurity-Erfolgswert `1`; jeder andere Rückgabewert einschließlich
+  `0` wird fail-closed behandelt. Die Upstream-Interpretation von
+  `ProcessPartial` als Limit-Trunkierung ist daher im Adapter kein nichtfataler
+  Pfad.
   Body-Processing von partieller Aufnahme. Fehler bei finalem
   `msc_process_request_body()`/`msc_process_response_body()` sind fail-closed,
   während `msc_append_request_body()`, `msc_request_body_from_file()` und
@@ -98,6 +106,9 @@ Content-Type-Aufnahme wieder her. Begrenzte Response-Bytes erreichen
 ModSecurity jetzt unabhängig vom konfigurierten Connector-Content-Type-Scope;
 erkennt diese Inspection eine außerhalb des Scopes liegende Intervention, mappt
 der Connector sie zu `log_only` mit `content_type_not_in_scope`. Das lockert
+#384 nicht: Final-Processing und Response-Body-Aufnahme bleiben bei einem
+Ergebnis ungleich `1` fail-closed. Die Aufnahme des Request-Bodys aus dem
+Speicher oder aus einer Datei verwendet denselben strikten Rückgabevertrag.
 #384 nicht: Finales `msc_process_response_body()`-Processing bleibt bei einem
 Ergebnis ungleich `1` fail-closed, während Append-/From-File-
 `ProcessPartial`-Handling für akzeptierte Engine-Chunks absichtlich nicht fatal
@@ -278,15 +289,36 @@ Der adaptereigene NGINX-Connector registriert derzeit Folgendes:
 - `modsecurity on|off`
 - `modsecurity_rules`
 - `modsecurity_rules_file`
-- `modsecurity_rules_remote`
+- `modsecurity_rules_remote` (abgelehnt: Remote-Regelladen ist durch die gemeinsame Sicherheitsrichtlinie deaktiviert)
 - `modsecurity_transaction_id`
 - `modsecurity_use_error_log on|off`
 - `modsecurity_phase4_mode minimal|safe|strict`
 - `modsecurity_phase4_content_types_file <path>`
+- `modsecurity_phase4_log <path>` (abgelehnt: native NGINX-Event-Dateien sind
+  deaktiviert, weil `ngx_conf_open_file()` den erforderlichen No-Follow-,
+  Regular-File- und privaten `0600`-Descriptorvertrag nicht gewährleisten kann)
+- `modsecurity_phase4_body_limit <bytes>`
 - `modsecurity_phase4_log <path>`
 - `modsecurity_phase4_body_limit <bytes>` (positives effektives Limit; ein
   über dem Limit liegender aktueller Buffer wird vor dem Downstream-Forwarding
   abgewiesen)
+
+`modsecurity_phase4_body_limit` hat standardmäßig 1048576 Byte (1 MiB). Der
+Common-Konfigurationsvalidator lehnt einen gewählten Wert über 10485760 Byte
+(10 MiB) ab, sodass ein nativer Response-Filter kein unbeschränktes
+Phase-4-Bytebudget erhalten kann.
+
+Wenn `modsecurity_phase4_content_types_file` konfiguriert ist, öffnet und
+prüft das native Modul den Deskriptor, akzeptiert nur eine reguläre Datei,
+begrenzt sie auf 64 KiB und weist verkürzte Reads ab. FIFOs, Geräte, Sockets,
+Verzeichnisse und übergroße Dateien können `nginx -t` daher nicht in einen
+unbeschränkten oder blockierenden Konfigurations-Read unter POSIX führen. Die
+Direktive schlägt unter Win32 fail-closed fehl, weil dessen Datei-API nicht
+denselben Regular-File-/Nichtblockierungs-Vertrag herstellen kann.
+
+Native NGINX-Phase-4-Event-Dateien sind bewusst nicht verfügbar. Der Event-Pfad
+der Common-Runtime bleibt durch seine eigene sichere Descriptor-Policy geregelt;
+die NGINX-Direktive fällt nicht still auf diesen Pfad zurück.
 
 `modsecurity_transaction_id` verwendet einen komplexen NGINX-Wert und kann ihn auswerten
 Variablen pro Anfrage. `modsecurity_transaction_id_expr` im Apache-Stil ist dies nicht
@@ -435,6 +467,13 @@ Die kanonischen Phase-4-Fälle sind evidenzbasiert und umfassen Regelbeobachtung
 Pre-Commit-Verweigerung, sichere Protokollierung, strikter Abbruch und Status-/Aktionsmetadaten.  Nein
 Die Nutzlast des Antworttextes kann in ein Ereignis oder einen Bericht eingegeben werden.
 
+Final-Processing und Body-Ingestion verwenden denselben strikten nativen
+Erfolgsvertrag: Jeder relevante libmodsecurity-Aufruf muss exakt `1` liefern.
+Ein Aufnahmefehler einschließlich eines Rückgabewerts `0` führt zu einem
+generischen fail-closed-`500`/Interventionspfad und wird nicht als nichtfatale
+`ProcessPartial`-Limitentscheidung behandelt. So bleibt das bestehende
+Safe/Strict-Phase-4-Result-Modell erhalten, ohne einen unvollständig
+aufgenommenen Body stillschweigend an Final-Processing weiterzugeben.
 Der Final-Processing-Guard bleibt bewusst enger als die Engine-Append-
 Behandlung: `ProcessPartial` bei Append/From-File erzeugt für sich keinen
 generischen 500-Pfad. Davon getrennt verwendet das Connector-eigene

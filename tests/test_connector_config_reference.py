@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import sys
 import unittest
 from pathlib import Path
@@ -33,7 +34,10 @@ class ConnectorConfigReferenceTests(unittest.TestCase):
             for option in REFERENCE.extract_common_runtime(ROOT)
         }
         self.assertEqual(options["max_header_count"]["allowed_values"], "1 through 256")
-        self.assertIn("values above 256", options["max_header_count"]["validation"])
+        self.assertIn(
+            "values above the hard cap of 256",
+            options["max_header_count"]["validation"],
+        )
 
     def test_lighttpd_native_directive_inventory_is_closed_and_documents_opt_in_evidence(self) -> None:
         directives = {
@@ -72,7 +76,10 @@ class ConnectorConfigReferenceTests(unittest.TestCase):
             item["name"]: item["example_file"]
             for item in REFERENCE.extract_apache(ROOT)
         }
-        source_directive = "modsecurity_phase4_content_types_file"
+        source_directives = {
+            "modsecurity_phase4_content_types_file",
+            "modsecurity_rules_remote",
+        }
         source_example = "connectors/apache/src/msc_config.c"
         minimal_example = "examples/apache/minimal/httpd.conf"
         safe_example = "examples/apache/safe/httpd.conf"
@@ -82,7 +89,9 @@ class ConnectorConfigReferenceTests(unittest.TestCase):
             "modsecurity_use_error_log",
         }
 
-        self.assertEqual(example_by_directive[source_directive], source_example)
+        self.assertTrue(
+            all(example_by_directive[directive] == source_example for directive in source_directives)
+        )
         self.assertSetEqual(
             {
                 directive
@@ -91,7 +100,7 @@ class ConnectorConfigReferenceTests(unittest.TestCase):
             },
             minimal_directives,
         )
-        safe_directives = set(example_by_directive) - minimal_directives - {source_directive}
+        safe_directives = set(example_by_directive) - minimal_directives - source_directives
         self.assertTrue(safe_directives)
         self.assertTrue(
             all(example_by_directive[directive] == safe_example for directive in safe_directives)
@@ -122,3 +131,51 @@ class ConnectorConfigReferenceTests(unittest.TestCase):
         german = REFERENCE._german_option(options["worker-count"])
         self.assertIn("dezimale Ganzzahl", german["allowed_values"])
         self.assertIn("worker-count akzeptiert 2..64", REFERENCE._german_option(options["worker-count"])["validation"])
+    def test_generator_preserves_disabled_remote_and_nginx_file_security_contracts(self) -> None:
+        # The generated 10 MiB body-cap wording is source-backed rather than
+        # a standalone documentation promise.
+        self.assertIsNone(REFERENCE._assert_common_source_defaults(ROOT))
+        apache = {item["name"]: item for item in REFERENCE.extract_apache(ROOT)}
+        nginx = {item["name"]: item for item in REFERENCE.extract_nginx(ROOT)}
+        common = {
+            item["name"]: item
+            for item in REFERENCE.extract_common_runtime(ROOT)
+        }
+
+        for option in (
+            apache["modsecurity_rules_remote"],
+            nginx["modsecurity_rules_remote"],
+            nginx["modsecurity_phase4_log"],
+            common["rules_remote_key"],
+            common["rules_remote_url"],
+        ):
+            self.assertTrue(option["example_unavailable"])
+            self.assertIn("no", option["allowed_values"])
+            self.assertIn("reject", option["validation"])
+
+        mime_file = nginx["modsecurity_phase4_content_types_file"]
+        self.assertIn("64 KiB", mime_file["allowed_values"])
+        self.assertIn("opened descriptor is regular", mime_file["validation"])
+        self.assertIn("Win32", mime_file["validation"])
+
+        self.assertEqual(common["max_event_json_bytes"]["allowed_values"], "1 through 16384 bytes")
+        self.assertIn("10 MiB", common["request_body_limit"]["allowed_values"])
+        self.assertIn("65536", common["max_total_header_bytes"]["allowed_values"])
+
+    def test_german_translation_literal_keys_are_unique(self) -> None:
+        source = DOCUMENTATION_CHECKS / "connector_config_reference.py"
+        tree = ast.parse(source.read_text(encoding="utf-8"))
+        assignment = next(
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.target.id == "GERMAN_TEXT"
+        )
+        self.assertIsInstance(assignment.value, ast.Dict)
+        literal_keys = [
+            key.value
+            for key in assignment.value.keys
+            if isinstance(key, ast.Constant) and isinstance(key.value, str)
+        ]
+        self.assertCountEqual(literal_keys, set(literal_keys))

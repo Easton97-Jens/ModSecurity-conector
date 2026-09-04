@@ -126,8 +126,8 @@
       "reason": "The modsecurity_rules_file directive loads local rules files; canonical positive and negative config evidence is pending."
     },
     "config_remote_rules": {
-      "state": "implemented_not_asserted",
-      "reason": "The modsecurity_rules_remote directive is wired to libmodsecurity; no remote-network capability is asserted by the no-CRS baseline."
+      "state": "not_implemented",
+      "reason": "Remote rule loading is disabled by the common security policy; only inline and local file rules are supported."
     },
     "transport_metadata": {
       "state": "implemented_not_asserted",

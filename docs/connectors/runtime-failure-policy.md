@@ -231,11 +231,12 @@ there is no global `SIGPIPE` ignore. Each peer is isolated in a bounded worker,
 and the default malformed/failure mode is closed. The explicit open mode is an
 operator choice and must be visible in configuration and evidence.
 
-The selected SPOP path has no response-body stream. Consequently a positive
-`response-body-timeout` is rejected during configuration parsing with exit
-`2`; zero/default remains accepted and `spoe-timeout` remains a per-frame peer
-deadline. This is an explicit fail-closed configuration error, not a claimed
-stream-idle limit. Self-test PID, ready, and port paths are claimed with
+The selected SPOP path has no response-body stream. With
+`response-companion=none`, a positive `response-body-timeout` is rejected by
+configuration validation before server start with exit `2`; zero/default
+remains accepted and `spoe-timeout` remains a per-frame peer deadline. This is
+an explicit fail-closed configuration error, not a claimed stream-idle limit.
+Self-test PID, ready, and port paths are claimed with
 `O_CREAT|O_EXCL` (and `O_NOFOLLOW` where available); a collision is rejected
 without altering a caller-owned path, and cleanup unlinks only owned paths.
 
@@ -263,12 +264,14 @@ can still consume the bounded worker pool while each worker initializes its
 engine; live load characterization and an earlier protocol-admission budget
 remain a documented residual risk.
 
-Until a bounded, owner-preserving P3/P4 bridge exists, the production agent
-also rejects every response-phase activation (`response-body-limit > 0`,
-`enable-response-headers`, or `response-phases`) with exit `2` before it
-creates a production listener or worker. This is fail-closed configuration
-rejection, not partial response enforcement; a valid request-only startup is
-the legitimate follow-up control.
+The default `response-companion=none` profile rejects every response-phase
+activation (`response-body-limit > 0`, `enable-response-headers`, or
+`response-phases`) with exit `2` before it creates a production listener or
+worker. This is fail-closed configuration rejection, not partial response
+enforcement; a valid request-only startup is the legitimate follow-up control.
+The `response-companion=native-htx` profile is the bounded,
+owner-preserving P3/P4 bridge: it permits response phases only after its
+private socket, identity, and body-limit validation succeeds.
 
 The current direct protocol run starts request-only with `max-transactions=1`.
 A peer response NOTIFY is rejected before transaction-cache processing and

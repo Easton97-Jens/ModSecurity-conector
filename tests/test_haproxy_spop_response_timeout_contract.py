@@ -270,7 +270,7 @@ int main(void) {
         )
         self.assertEqual(run_result.returncode, 0, run_result.stderr)
 
-    def test_mixed_response_then_request_notify_remains_response_typed(self) -> None:
+    def test_concatenated_response_then_request_notify_is_rejected_fail_closed(self) -> None:
         harness_source = r'''
 #define main haproxy_spop_diagnostic_runtime_program_main
 #include "__RUNTIME_SOURCE__"
@@ -298,7 +298,8 @@ int main(void) {
     state.engine = (haproxy_modsecurity_engine *)0x1;
     state.log = log;
 
-    /* A response message followed by a request message is one payload. */
+    /* A SPOP NOTIFY contains exactly one message.  A concatenated response
+     * and request message must not be reclassified or partially accepted. */
     payload.len = 0;
     assert(append_string(&payload, "check-response") == 0);
     assert(append_byte(&payload, 0U) == 0);
@@ -310,18 +311,13 @@ int main(void) {
     frame.payload_len = payload.len;
     memcpy(frame.payload, payload.data, payload.len);
 
-    assert(parse_notify_payload(frame.payload, frame.payload_len, &request) == 0);
-    assert(request.is_response == 1);
-    assert(request.is_response_body == 0);
-    assert(process_production_notify(sockets[0], &frame, &state, log,
-        &request) == 0);
+    assert(handle_notify_frame(sockets[0], &frame, &state, log, NULL, NULL) != 0);
     assert(recv_frame(sockets[1], &ack, 3000U) == 0);
     assert(ack.type == SPOP_FRM_ACK);
     ack_payload.len = ack.payload_len;
     memcpy(ack_payload.data, ack.payload, ack.payload_len);
     assert(payload_has_set_var_blocked_true(&ack_payload));
     assert(state.transactions == NULL);
-    free_notify_request(&request);
 
     /* A normal request-only payload still reaches the ordinary request path. */
     payload.len = 0;
