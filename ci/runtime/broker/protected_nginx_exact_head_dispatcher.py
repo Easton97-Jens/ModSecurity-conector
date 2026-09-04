@@ -25,6 +25,7 @@ MAX_RESPONSE_BYTES = 64 * 1024
 MAX_RUN_ID_BYTES = 128
 SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+PATH_COMPONENT_RE = re.compile(r"^[A-Za-z0-9._-]{1,255}$")
 SCHEMA_VERSION = 1
 MANIFEST_FIELDS = frozenset({
     "schema_version", "trusted_dispatcher_base_sha", "run_id", "pr_number",
@@ -169,50 +170,75 @@ def make_manifest(pr_number: int, expected_head: str, dispatcher_base_sha: str,
             "run_id": validate_run_id(run_id), **identity}
 
 
-def write_manifest(path: Path, payload: dict[str, Any]) -> None:
+def _open_private_parent(path: Path) -> tuple[int, str]:
+    """Open every ancestor without following symlinks; return parent FD/name."""
     if not path.is_absolute() or path.name in {"", ".", ".."}:
-        fail("manifest path must be absolute")
-    parent = path.parent
+        fail("path must be absolute and have a filename")
+    if PATH_COMPONENT_RE.fullmatch(path.name) is None:
+        fail("path filename is invalid")
+    fd = os.open(path.parts[0], os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) |
+                 getattr(os, "O_NOFOLLOW", 0))
     try:
-        metadata = parent.lstat()
-        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
-            fail("manifest parent must be a directory")
-        if stat.S_IMODE(metadata.st_mode) & 0o077:
-            fail("manifest parent must not be accessible by group or other users")
-        fd = os.open(parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0))
-        try:
-            temp = path.with_name(f".{path.name}.tmp-{os.getpid()}")
-            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
-            out = os.open(temp, flags, 0o600)
-            try:
-                data = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
-                offset = 0
-                while offset < len(data):
-                    written = os.write(out, data[offset:])
-                    if written <= 0:
-                        fail("could not write complete manifest")
-                    offset += written
-                os.fsync(out)
-            finally:
-                os.close(out)
-            os.replace(temp, path)
-            os.chmod(path, 0o600)
-            os.fsync(fd)
-        finally:
+        for component in path.parts[1:-1]:
+            if component in {"", ".", ".."} or PATH_COMPONENT_RE.fullmatch(component) is None:
+                fail("path contains an unsafe component")
+            child = os.open(component, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) |
+                            getattr(os, "O_NOFOLLOW", 0), dir_fd=fd)
             os.close(fd)
+            fd = child
+        metadata = os.fstat(fd)
+        if not stat.S_ISDIR(metadata.st_mode) or stat.S_IMODE(metadata.st_mode) & 0o022:
+            fail("path ancestors must not be group/world writable")
+        return fd, path.name
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def write_manifest(path: Path, payload: dict[str, Any]) -> None:
+    parent_fd = -1
+    try:
+        parent_fd, name = _open_private_parent(path)
+        temp_name = f".{name}.tmp-{os.getpid()}"
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+        out = os.open(temp_name, flags, 0o600, dir_fd=parent_fd)
+        try:
+            data = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            offset = 0
+            while offset < len(data):
+                written = os.write(out, data[offset:])
+                if written <= 0:
+                    fail("could not write complete manifest")
+                offset += written
+            os.fsync(out)
+        finally:
+            os.close(out)
+        os.replace(temp_name, name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+        out = os.open(name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=parent_fd)
+        try:
+            os.fchmod(out, 0o600)
+        finally:
+            os.close(out)
+        os.fsync(parent_fd)
     except ContractError:
         raise
     except OSError as exc:
         fail(f"could not write private manifest: {exc}")
+    finally:
+        if parent_fd >= 0:
+            os.close(parent_fd)
 
 
 def read_manifest(path: Path) -> dict[str, Any]:
     fd = -1
+    parent_fd = -1
     try:
-        fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        parent_fd, name = _open_private_parent(path)
+        fd = os.open(name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=parent_fd)
         before = os.fstat(fd)
-        if not stat.S_ISREG(before.st_mode) or stat.S_IMODE(before.st_mode) != 0o600 or before.st_nlink != 1:
-            fail("manifest permissions must be 0600")
+        if (not stat.S_ISREG(before.st_mode) or stat.S_IMODE(before.st_mode) & 0o022
+                or before.st_nlink != 1):
+            fail("manifest must be a non-writable regular file")
         chunks: list[bytes] = []
         total = 0
         while True:
@@ -233,6 +259,8 @@ def read_manifest(path: Path) -> dict[str, Any]:
     finally:
         if fd >= 0:
             os.close(fd)
+        if parent_fd >= 0:
+            os.close(parent_fd)
     payload = decode_json(raw, "manifest")
     if not isinstance(payload, dict):
         fail("manifest must be an object")
@@ -277,22 +305,30 @@ def emit_outputs(path: Path, output_path: Path) -> None:
             manifest["trusted_dispatcher_base_sha"], "manifest dispatcher base SHA"
         ),
     }
-    if not output_path.is_absolute():
-        fail("output path must be absolute")
     data = "".join(f"{key}={value}\n" for key, value in values.items()).encode("ascii")
+    parent_fd = -1
+    fd = -1
     try:
-        fd = os.open(output_path, os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW)
+        parent_fd, name = _open_private_parent(output_path)
+        fd = os.open(name, os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW, dir_fd=parent_fd)
         try:
             metadata = os.fstat(fd)
-            if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
-                fail("output path must be a regular non-hardlinked file")
+            if (not stat.S_ISREG(metadata.st_mode) or stat.S_IMODE(metadata.st_mode) & 0o022
+                    or metadata.st_nlink != 1):
+                fail("output path must be a non-writable regular file")
             offset = 0
             while offset < len(data):
                 offset += os.write(fd, data[offset:])
         finally:
             os.close(fd)
+            fd = -1
     except OSError as exc:
         fail(f"could not write job outputs: {exc}")
+    finally:
+        if fd >= 0:
+            os.close(fd)
+        if parent_fd >= 0:
+            os.close(parent_fd)
 
 
 def main(argv: list[str] | None = None) -> int:

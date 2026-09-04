@@ -574,6 +574,19 @@ class RootLauncherContractTests(unittest.TestCase):
         with self.assertRaisesRegex(LAUNCHER.LauncherError, "Exit 77"):
             LAUNCHER.validate_exit_status(77)
 
+    def test_checked_commands_reject_shell_syntax_and_relative_executables(self) -> None:
+        self.assertEqual(
+            LAUNCHER.validated_command([LAUNCHER.HELPERS["curl"], "--fail"]),
+            [LAUNCHER.HELPERS["curl"], "--fail"],
+        )
+        for unsafe in (
+            ["curl", "--fail"],
+            [LAUNCHER.HELPERS["curl"], "--url", "https://example.invalid/;id"],
+            [LAUNCHER.HELPERS["curl"], "--url", "https://example.invalid/$HOME"],
+        ):
+            with self.subTest(unsafe=unsafe), self.assertRaises(LAUNCHER.LauncherError):
+                LAUNCHER.validated_command(unsafe)
+
     def test_only_fixed_root_client_can_report_the_http_status(self) -> None:
         completed = mock.Mock(stdout="403", returncode=0)
         with mock.patch.object(
@@ -641,6 +654,12 @@ class RootLauncherContractTests(unittest.TestCase):
         self.assertIn('"--ro-bind-fd", str(trusted_base_descriptors["helper"])', source)
         self.assertIn("env=outer_env", source)
         self.assertIn("sandbox_env", source)
+        self.assertIn("SANDBOX_TMPDIR", source)
+        self.assertIn('"TMPDIR": str(SANDBOX_TMPDIR)', source)
+        self.assertIn('"--dir", "/run"', source)
+        self.assertIn('"--tmpfs", str(SANDBOX_TMPDIR)', source)
+        self.assertNotIn('"--dir", "/tmp"', source)
+        self.assertNotIn('"--tmpfs", "/tmp"', source)
         self.assertIn("trusted_http_status", source)
         self.assertIn("mark_request_complete", source)
         self.assertNotIn("connectors/nginx/harness", source)

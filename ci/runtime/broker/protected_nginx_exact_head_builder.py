@@ -37,6 +37,13 @@ ARTIFACTS = {
     "module": "ngx_http_modsecurity_module.so",
     "library": "libmodsecurity.so.3",
 }
+TASK_ROOT_LABEL = "task root"
+CANDIDATE_ROOT_LABEL = "candidate root"
+RUNTIME_SNAPSHOT_LABEL = "runtime snapshot"
+BUILD_ROOT_LABEL = "candidate build root"
+OUTPUT_ROOT_LABEL = "candidate artifact root"
+LIBRARY_DIRECTORY_LABEL = "ModSecurity library directory"
+PINNED_ARCHIVE_LABEL = "pinned NGINX source archive"
 
 
 class BuilderError(RuntimeError):
@@ -74,6 +81,120 @@ def absolute_normalized(path: Path, label: str) -> Path:
     return normalized
 
 
+def _directory_identity(metadata: os.stat_result) -> tuple[int, int]:
+    return metadata.st_dev, metadata.st_ino
+
+
+def _regular_identity(metadata: os.stat_result) -> tuple[int, int, int, int, int]:
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_nlink,
+    )
+
+
+def _relative_components(path: Path, root: Path, label: str, *, allow_empty: bool = False) -> tuple[str, ...]:
+    root = absolute_normalized(root, f"{label} root")
+    path = absolute_normalized(path, label)
+    try:
+        relative = path.relative_to(root)
+    except ValueError:
+        fail(f"{label} escapes its approved root")
+    components = relative.parts
+    if not allow_empty and not components:
+        fail(f"{label} must not be its approved root")
+    if any(component in {"", ".", ".."} for component in components):
+        fail(f"{label} has an unsafe relative component")
+    return components
+
+
+def _require_private_directory_metadata(
+    metadata: os.stat_result, label: str, *, owner: int | None = None
+) -> None:
+    if not stat.S_ISDIR(metadata.st_mode):
+        fail(f"{label} must be a directory")
+    if metadata.st_mode & 0o022:
+        fail(f"{label} must not be group- or other-writable")
+    if owner is not None and metadata.st_uid != owner:
+        fail(f"{label} has an unexpected owner")
+
+
+def _open_relative_directory(root_descriptor: int, components: tuple[str, ...], label: str) -> int:
+    """Walk directory components below an admitted descriptor without links."""
+    descriptor = os.dup(root_descriptor)
+    try:
+        for component in components:
+            before = os.stat(component, dir_fd=descriptor, follow_symlinks=False)
+            if not stat.S_ISDIR(before.st_mode) or stat.S_ISLNK(before.st_mode):
+                fail(f"{label} contains an unsafe directory component")
+            child = os.open(
+                component,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                dir_fd=descriptor,
+            )
+            opened = os.fstat(child)
+            if _directory_identity(opened) != _directory_identity(before):
+                os.close(child)
+                fail(f"{label} changed while opening")
+            os.close(descriptor)
+            descriptor = child
+        return descriptor
+    except OSError as exc:
+        os.close(descriptor)
+        fail(f"could not open {label}: {exc}")
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def _open_private_directory(path: Path, label: str, *, owner: int | None = None) -> int:
+    path = absolute_normalized(path, label)
+    root_descriptor = -1
+    try:
+        root_descriptor = os.open(
+            path.root, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW
+        )
+        descriptor = _open_relative_directory(root_descriptor, path.parts[1:], label)
+    except OSError as exc:
+        fail(f"could not open {label}: {exc}")
+    finally:
+        if root_descriptor >= 0:
+            os.close(root_descriptor)
+    try:
+        _require_private_directory_metadata(os.fstat(descriptor), label, owner=owner)
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def _verify_relative_directory_identity(
+    root_descriptor: int,
+    components: tuple[str, ...],
+    expected: tuple[int, int],
+    label: str,
+) -> None:
+    descriptor = _open_relative_directory(root_descriptor, components, label)
+    try:
+        if _directory_identity(os.fstat(descriptor)) != expected:
+            fail(f"{label} changed while packaging")
+    finally:
+        os.close(descriptor)
+
+
+def _verify_absolute_directory_identity(
+    path: Path, expected: tuple[int, int], label: str
+) -> None:
+    descriptor = _open_private_directory(path, label, owner=os.geteuid())
+    try:
+        if _directory_identity(os.fstat(descriptor)) != expected:
+            fail(f"{label} changed while packaging")
+    finally:
+        os.close(descriptor)
+
+
 def require_no_symlink_chain(path: Path, label: str, *, allow_missing_leaf: bool = False) -> Path:
     path = absolute_normalized(path, label)
     current = Path(path.root)
@@ -84,7 +205,7 @@ def require_no_symlink_chain(path: Path, label: str, *, allow_missing_leaf: bool
             metadata = current.lstat()
         except FileNotFoundError:
             if allow_missing_leaf and index == len(parts) - 1:
-                return path
+                break
             fail(f"{label} component is missing")
         if stat.S_ISLNK(metadata.st_mode):
             fail(f"{label} contains a symbolic link")
@@ -102,55 +223,130 @@ def contained(path: Path, root: Path, label: str, *, allow_missing_leaf: bool = 
 
 
 def require_private_directory(path: Path, label: str, *, owner: int | None = None) -> None:
-    path = require_no_symlink_chain(path, label)
-    metadata = path.lstat()
-    if not stat.S_ISDIR(metadata.st_mode):
-        fail(f"{label} must be a directory")
+    descriptor = _open_private_directory(path, label, owner=owner)
+    os.close(descriptor)
+
+
+def _create_private_relative_directory(
+    task_descriptor: int, components: tuple[str, ...], label: str
+) -> int:
+    if not components:
+        fail(f"{label} must not be its approved root")
+    parent_descriptor = _open_relative_directory(
+        task_descriptor, components[:-1], f"{label} parent"
+    )
+    descriptor = -1
+    try:
+        name = components[-1]
+        try:
+            os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        else:
+            fail(f"{label} must be fresh")
+        try:
+            os.mkdir(name, 0o700, dir_fd=parent_descriptor)
+        except OSError as exc:
+            fail(f"could not create {label}: {exc}")
+        descriptor = _open_relative_directory(parent_descriptor, (name,), label)
+        _require_private_directory_metadata(
+            os.fstat(descriptor), label, owner=os.geteuid()
+        )
+        return descriptor
+    except BaseException:
+        if descriptor >= 0:
+            os.close(descriptor)
+        raise
+    finally:
+        os.close(parent_descriptor)
+
+
+def create_private_directory(
+    path: Path, task_root: Path, label: str, *, task_descriptor: int | None = None
+) -> None:
+    own_descriptor = task_descriptor is None
+    descriptor = task_descriptor
+    if descriptor is None:
+        descriptor = _open_private_directory(task_root, TASK_ROOT_LABEL, owner=os.geteuid())
+    try:
+        components = _relative_components(path, task_root, label)
+        created = _create_private_relative_directory(descriptor, components, label)
+        os.close(created)
+    finally:
+        if own_descriptor:
+            os.close(descriptor)
+
+
+def _require_regular_metadata(
+    metadata: os.stat_result, label: str, *, owner: int | None, maximum: int
+) -> None:
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+        fail(f"{label} must be a single-link regular file")
+    if metadata.st_size < 1 or metadata.st_size > maximum:
+        fail(f"{label} has an invalid size")
     if metadata.st_mode & 0o022:
         fail(f"{label} must not be group- or other-writable")
     if owner is not None and metadata.st_uid != owner:
         fail(f"{label} has an unexpected owner")
 
 
-def create_private_directory(path: Path, task_root: Path, label: str) -> None:
-    path = contained(path, task_root, label, allow_missing_leaf=True)
-    if path.exists() or path.is_symlink():
-        fail(f"{label} must be fresh")
+def _open_regular_at(
+    root_descriptor: int,
+    components: tuple[str, ...],
+    label: str,
+    *,
+    owner: int | None = None,
+    maximum: int = MAX_ARTIFACT_BYTES,
+) -> tuple[int, os.stat_result]:
+    if not components:
+        fail(f"{label} must name a file")
+    parent_descriptor = _open_relative_directory(
+        root_descriptor, components[:-1], f"{label} parent"
+    )
+    descriptor = -1
     try:
-        path.mkdir(mode=0o700)
+        name = components[-1]
+        before = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+        if stat.S_ISLNK(before.st_mode):
+            fail(f"{label} contains a symbolic link")
+        _require_regular_metadata(before, label, owner=owner, maximum=maximum)
+        descriptor = os.open(
+            name, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW, dir_fd=parent_descriptor
+        )
+        opened = os.fstat(descriptor)
+        if _regular_identity(opened) != _regular_identity(before):
+            os.close(descriptor)
+            descriptor = -1
+            fail(f"{label} changed while opening")
+        _require_regular_metadata(opened, label, owner=owner, maximum=maximum)
+        return descriptor, opened
     except OSError as exc:
-        fail(f"could not create {label}: {exc}")
-    require_private_directory(path, label, owner=os.geteuid())
+        if descriptor >= 0:
+            os.close(descriptor)
+        fail(f"could not open {label}: {exc}")
+    except BaseException:
+        if descriptor >= 0:
+            os.close(descriptor)
+        raise
+    finally:
+        os.close(parent_descriptor)
 
 
 def open_regular_no_follow(path: Path, label: str, *, owner: int | None = None) -> tuple[int, os.stat_result]:
-    path = require_no_symlink_chain(path, label)
+    path = absolute_normalized(path, label)
+    root_descriptor = -1
     try:
-        before = path.lstat()
-    except OSError as exc:
-        fail(f"{label} is unavailable: {exc}")
-    if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:
-        fail(f"{label} must be a single-link regular file")
-    if before.st_size < 1 or before.st_size > MAX_ARTIFACT_BYTES:
-        fail(f"{label} has an invalid size")
-    if before.st_mode & 0o022:
-        fail(f"{label} must not be group- or other-writable")
-    if owner is not None and before.st_uid != owner:
-        fail(f"{label} has an unexpected owner")
-    try:
-        descriptor = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        root_descriptor = os.open(
+            path.root, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW
+        )
+        return _open_regular_at(
+            root_descriptor, path.parts[1:], label, owner=owner
+        )
     except OSError as exc:
         fail(f"could not open {label}: {exc}")
-    opened = os.fstat(descriptor)
-    if (
-        not stat.S_ISREG(opened.st_mode)
-        or opened.st_nlink != 1
-        or (opened.st_dev, opened.st_ino, opened.st_size, opened.st_mtime_ns)
-        != (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
-    ):
-        os.close(descriptor)
-        fail(f"{label} changed while opening")
-    return descriptor, opened
+    finally:
+        if root_descriptor >= 0:
+            os.close(root_descriptor)
 
 
 def read_bounded_fd(descriptor: int, maximum: int, label: str) -> bytes:
@@ -178,27 +374,40 @@ def sha256_fd(descriptor: int) -> str:
     return digest.hexdigest()
 
 
-def strict_snapshot(path: Path, task_root: Path) -> dict[str, str]:
-    path = contained(path, task_root, "runtime snapshot")
-    descriptor, metadata = open_regular_no_follow(path, "runtime snapshot", owner=os.geteuid())
+def strict_snapshot(
+    path: Path, task_root: Path, *, task_descriptor: int | None = None
+) -> dict[str, str]:
+    if task_descriptor is None:
+        path = contained(path, task_root, RUNTIME_SNAPSHOT_LABEL)
+        descriptor, metadata = open_regular_no_follow(
+            path, RUNTIME_SNAPSHOT_LABEL, owner=os.geteuid()
+        )
+    else:
+        descriptor, metadata = _open_regular_at(
+            task_descriptor,
+            _relative_components(path, task_root, RUNTIME_SNAPSHOT_LABEL),
+            RUNTIME_SNAPSHOT_LABEL,
+            owner=os.geteuid(),
+            maximum=MAX_MANIFEST_BYTES,
+        )
     try:
         if metadata.st_size > MAX_MANIFEST_BYTES:
-            fail("runtime snapshot exceeds the size limit")
-        raw = read_bounded_fd(descriptor, MAX_MANIFEST_BYTES, "runtime snapshot")
+            fail(f"{RUNTIME_SNAPSHOT_LABEL} exceeds the size limit")
+        raw = read_bounded_fd(descriptor, MAX_MANIFEST_BYTES, RUNTIME_SNAPSHOT_LABEL)
     finally:
         os.close(descriptor)
     try:
         text = raw.decode("utf-8")
     except UnicodeDecodeError as exc:
-        fail(f"runtime snapshot is not UTF-8: {exc}")
+        fail(f"{RUNTIME_SNAPSHOT_LABEL} is not UTF-8: {exc}")
     values: dict[str, str] = {}
     for line in text.splitlines():
         match = SNAPSHOT_RE.fullmatch(line)
         if match is None:
-            fail("runtime snapshot is not a declarative export list")
+            fail(f"{RUNTIME_SNAPSHOT_LABEL} is not a declarative export list")
         key, value = match.groups()
         if key in values:
-            fail("runtime snapshot has a duplicate key")
+            fail(f"{RUNTIME_SNAPSHOT_LABEL} has a duplicate key")
         values[key] = value
     required = {
         "MRTS_NATIVE_NGINX_BIN",
@@ -208,9 +417,9 @@ def strict_snapshot(path: Path, task_root: Path) -> dict[str, str]:
         "NGINX_PREFIX",
     }
     if not required.issubset(values):
-        fail("runtime snapshot lacks required NGINX artifact fields")
+        fail(f"{RUNTIME_SNAPSHOT_LABEL} lacks required NGINX artifact fields")
     if values.get("RUNTIME_COMPONENT_ENV_SNAPSHOT_TARGET") != "nginx":
-        fail("runtime snapshot target is not nginx")
+        fail(f"{RUNTIME_SNAPSHOT_LABEL} target is not nginx")
     return values
 
 
@@ -235,47 +444,70 @@ def copy_fd(source: int, destination: int, expected_size: int, label: str) -> st
     return digest.hexdigest()
 
 
-def package_file(source: Path, destination: Path, build_root: Path, label: str) -> dict[str, Any]:
-    source = contained(source, build_root, label)
-    descriptor, metadata = open_regular_no_follow(source, label, owner=os.geteuid())
+def package_file(
+    source: Path,
+    destination_name: str,
+    build_root: Path,
+    build_descriptor: int,
+    output_descriptor: int,
+    label: str,
+) -> dict[str, Any]:
+    if destination_name not in ARTIFACTS.values():
+        fail(f"{label} destination is not allowlisted")
+    descriptor, metadata = _open_regular_at(
+        build_descriptor,
+        _relative_components(source, build_root, label),
+        label,
+        owner=os.geteuid(),
+    )
     try:
-        if destination.exists() or destination.is_symlink():
+        try:
+            os.stat(destination_name, dir_fd=output_descriptor, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        else:
             fail(f"{label} destination is not fresh")
         try:
             target = os.open(
-                destination,
+                destination_name,
                 os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW,
                 0o600,
+                dir_fd=output_descriptor,
             )
         except OSError as exc:
             fail(f"could not create {label} destination: {exc}")
         try:
             digest = copy_fd(descriptor, target, metadata.st_size, label)
             final = os.fstat(target)
-            if not stat.S_ISREG(final.st_mode) or final.st_nlink != 1 or final.st_size != metadata.st_size:
+            if (not stat.S_ISREG(final.st_mode) or final.st_nlink != 1
+                    or final.st_size != metadata.st_size):
                 fail(f"{label} destination changed while packaging")
         finally:
             os.close(target)
     finally:
         os.close(descriptor)
-    final_metadata = destination.lstat()
-    if not stat.S_ISREG(final_metadata.st_mode) or final_metadata.st_nlink != 1:
-        fail(f"{label} packaged output is unsafe")
-    return {"filename": destination.name, "sha256": digest, "size": final_metadata.st_size}
+    return {"filename": destination_name, "sha256": digest, "size": metadata.st_size}
 
 
-def write_private_json(path: Path, payload: dict[str, Any]) -> None:
+def write_private_json(payload: dict[str, Any], output_descriptor: int) -> None:
     raw = (json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
     if len(raw) > MAX_MANIFEST_BYTES:
         fail("artifact manifest exceeds the size limit")
-    if path.exists() or path.is_symlink():
+    name = "artifact-manifest.json"
+    temporary_name = f".{name}.tmp-{os.getpid()}"
+    try:
+        os.stat(name, dir_fd=output_descriptor, follow_symlinks=False)
+    except FileNotFoundError:
+        pass
+    else:
         fail("artifact manifest destination is not fresh")
-    temporary = path.with_name(f".{path.name}.tmp")
+    descriptor = -1
     try:
         descriptor = os.open(
-            temporary,
+            temporary_name,
             os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW,
             0o600,
+            dir_fd=output_descriptor,
         )
     except OSError as exc:
         fail(f"could not create artifact manifest: {exc}")
@@ -286,73 +518,170 @@ def write_private_json(path: Path, payload: dict[str, Any]) -> None:
         os.fsync(descriptor)
     finally:
         os.close(descriptor)
-    os.replace(temporary, path)
-    metadata = path.lstat()
-    if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1 or stat.S_IMODE(metadata.st_mode) != 0o600:
-        fail("artifact manifest has unsafe output metadata")
+    try:
+        os.replace(
+            temporary_name,
+            name,
+            src_dir_fd=output_descriptor,
+            dst_dir_fd=output_descriptor,
+        )
+        descriptor = os.open(
+            name, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW, dir_fd=output_descriptor
+        )
+        try:
+            metadata = os.fstat(descriptor)
+            if (not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1
+                    or stat.S_IMODE(metadata.st_mode) != 0o600):
+                fail("artifact manifest has unsafe output metadata")
+        finally:
+            os.close(descriptor)
+    except OSError as exc:
+        fail(f"could not atomically publish artifact manifest: {exc}")
+    finally:
+        try:
+            os.unlink(temporary_name, dir_fd=output_descriptor)
+        except FileNotFoundError:
+            pass
 
 
-def package(arguments: argparse.Namespace) -> Path:
+def package(arguments: argparse.Namespace, *, task_descriptor: int | None = None) -> Path:
     expected_head = require_sha40(arguments.expected_pr_head, "expected PR head")
     base_sha = require_sha40(arguments.trusted_dispatcher_base_sha, "trusted dispatcher base SHA")
     run_id = require_run_id(arguments.run_id)
-    task_root = require_no_symlink_chain(Path(arguments.task_root), "task root")
-    build_root = contained(Path(arguments.build_root), task_root, "candidate build root")
-    require_private_directory(task_root, "task root", owner=os.geteuid())
-    require_private_directory(build_root, "candidate build root", owner=os.geteuid())
-    output_root = Path(arguments.output_root)
-    create_private_directory(output_root, task_root, "candidate artifact root")
-    values = strict_snapshot(Path(arguments.runtime_snapshot), task_root)
-    binary = Path(values["MRTS_NATIVE_NGINX_BIN"])
-    module = Path(values["MRTS_NATIVE_NGINX_MODULE_FILE"])
-    library_dir = Path(values["MRTS_NATIVE_NGINX_MODSECURITY_LIB_DIR"])
-    nginx_build_dir = Path(values["NGINX_BUILD_DIR"])
-    for path, label in ((binary, "NGINX binary"), (module, "NGINX module"), (library_dir, "ModSecurity library directory"), (nginx_build_dir, "NGINX build directory")):
-        contained(path, build_root, label)
-    require_private_directory(library_dir, "ModSecurity library directory", owner=os.geteuid())
-    archive = contained(
-        nginx_build_dir / "verified-archives" / f"nginx-{EXPECTED_NGINX_VERSION}.tar.gz",
-        build_root,
-        "pinned NGINX source archive",
-    )
-    archive_fd, _ = open_regular_no_follow(archive, "pinned NGINX source archive", owner=os.geteuid())
+    task_root = absolute_normalized(Path(arguments.task_root), TASK_ROOT_LABEL)
+    build_root = absolute_normalized(Path(arguments.build_root), BUILD_ROOT_LABEL)
+    output_root = absolute_normalized(Path(arguments.output_root), OUTPUT_ROOT_LABEL)
+    own_task_descriptor = task_descriptor is None
+    descriptor = task_descriptor
+    if descriptor is None:
+        descriptor = _open_private_directory(task_root, TASK_ROOT_LABEL, owner=os.geteuid())
     try:
-        if sha256_fd(archive_fd) != EXPECTED_NGINX_SOURCE_SHA256:
-            fail("pinned NGINX source archive digest does not match 1.31.4")
+        _require_private_directory_metadata(
+            os.fstat(descriptor), TASK_ROOT_LABEL, owner=os.geteuid()
+        )
+        task_identity = _directory_identity(os.fstat(descriptor))
+        output_components = _relative_components(
+            output_root, task_root, OUTPUT_ROOT_LABEL
+        )
+        build_descriptor = _open_relative_directory(
+            descriptor,
+            _relative_components(build_root, task_root, BUILD_ROOT_LABEL),
+            BUILD_ROOT_LABEL,
+        )
+        try:
+            _require_private_directory_metadata(
+                os.fstat(build_descriptor), BUILD_ROOT_LABEL, owner=os.geteuid()
+            )
+            output_descriptor = _create_private_relative_directory(
+                descriptor, output_components, OUTPUT_ROOT_LABEL
+            )
+            try:
+                _require_private_directory_metadata(
+                    os.fstat(output_descriptor),
+                    OUTPUT_ROOT_LABEL,
+                    owner=os.geteuid(),
+                )
+                output_identity = _directory_identity(os.fstat(output_descriptor))
+                values = strict_snapshot(
+                    Path(arguments.runtime_snapshot), task_root, task_descriptor=descriptor
+                )
+                binary = Path(values["MRTS_NATIVE_NGINX_BIN"])
+                module = Path(values["MRTS_NATIVE_NGINX_MODULE_FILE"])
+                library_dir = Path(values["MRTS_NATIVE_NGINX_MODSECURITY_LIB_DIR"])
+                nginx_build_dir = Path(values["NGINX_BUILD_DIR"])
+                library_descriptor = _open_relative_directory(
+                    build_descriptor,
+                    _relative_components(
+                        library_dir, build_root, LIBRARY_DIRECTORY_LABEL
+                    ),
+                    LIBRARY_DIRECTORY_LABEL,
+                )
+                try:
+                    _require_private_directory_metadata(
+                        os.fstat(library_descriptor),
+                        LIBRARY_DIRECTORY_LABEL,
+                        owner=os.geteuid(),
+                    )
+                finally:
+                    os.close(library_descriptor)
+                archive = nginx_build_dir / "verified-archives" / f"nginx-{EXPECTED_NGINX_VERSION}.tar.gz"
+                archive_fd, _ = _open_regular_at(
+                    build_descriptor,
+                    _relative_components(
+                        archive, build_root, PINNED_ARCHIVE_LABEL
+                    ),
+                    PINNED_ARCHIVE_LABEL,
+                    owner=os.geteuid(),
+                )
+                try:
+                    if sha256_fd(archive_fd) != EXPECTED_NGINX_SOURCE_SHA256:
+                        fail("pinned NGINX source archive digest does not match 1.31.4")
+                finally:
+                    os.close(archive_fd)
+                artifacts = {
+                    "nginx": package_file(
+                        binary,
+                        ARTIFACTS["nginx"],
+                        build_root,
+                        build_descriptor,
+                        output_descriptor,
+                        "NGINX binary",
+                    ),
+                    "module": package_file(
+                        module,
+                        ARTIFACTS["module"],
+                        build_root,
+                        build_descriptor,
+                        output_descriptor,
+                        "NGINX module",
+                    ),
+                    "library": package_file(
+                        library_dir / ARTIFACTS["library"],
+                        ARTIFACTS["library"],
+                        build_root,
+                        build_descriptor,
+                        output_descriptor,
+                        "ModSecurity library",
+                    ),
+                }
+                manifest = {
+                    "schema_version": 1,
+                    "run_id": run_id,
+                    "tested_pr_head": expected_head,
+                    "trusted_dispatcher_base_sha": base_sha,
+                    "nginx_version": EXPECTED_NGINX_VERSION,
+                    "nginx_source_digest": EXPECTED_NGINX_SOURCE_SHA256,
+                    "artifacts": artifacts,
+                    "producer": {
+                        "kind": "unprivileged-exact-head-build",
+                        "runner_uid": os.geteuid(),
+                        "runner_gid": os.getegid(),
+                    },
+                }
+                write_private_json(manifest, output_descriptor)
+            finally:
+                os.close(output_descriptor)
+            _verify_relative_directory_identity(
+                descriptor,
+                output_components,
+                output_identity,
+                "candidate artifact root",
+            )
+            _verify_absolute_directory_identity(
+                task_root, task_identity, TASK_ROOT_LABEL
+            )
+        finally:
+            os.close(build_descriptor)
     finally:
-        os.close(archive_fd)
-    artifacts = {
-        "nginx": package_file(binary, output_root / ARTIFACTS["nginx"], build_root, "NGINX binary"),
-        "module": package_file(module, output_root / ARTIFACTS["module"], build_root, "NGINX module"),
-        "library": package_file(
-            library_dir / ARTIFACTS["library"],
-            output_root / ARTIFACTS["library"],
-            build_root,
-            "ModSecurity library",
-        ),
-    }
-    manifest = {
-        "schema_version": 1,
-        "run_id": run_id,
-        "tested_pr_head": expected_head,
-        "trusted_dispatcher_base_sha": base_sha,
-        "nginx_version": EXPECTED_NGINX_VERSION,
-        "nginx_source_digest": EXPECTED_NGINX_SOURCE_SHA256,
-        "artifacts": artifacts,
-        "producer": {
-            "kind": "unprivileged-exact-head-build",
-            "runner_uid": os.geteuid(),
-            "runner_gid": os.getegid(),
-        },
-    }
+        if own_task_descriptor:
+            os.close(descriptor)
     manifest_path = output_root / "artifact-manifest.json"
-    write_private_json(manifest_path, manifest)
     return manifest_path
 
 
 def build_environment(arguments: argparse.Namespace) -> dict[str, str]:
-    task_root = absolute_normalized(Path(arguments.task_root), "task root")
-    candidate_root = absolute_normalized(Path(arguments.candidate_root), "candidate root")
+    task_root = absolute_normalized(Path(arguments.task_root), TASK_ROOT_LABEL)
+    candidate_root = absolute_normalized(Path(arguments.candidate_root), CANDIDATE_ROOT_LABEL)
     framework_root = candidate_root / "modules" / "ModSecurity-test-Framework"
     return {
         "PATH": "/usr/bin:/bin",
@@ -390,32 +719,39 @@ def run_candidate_build(arguments: argparse.Namespace) -> Path:
     expected_head = require_sha40(arguments.expected_pr_head, "expected PR head")
     base_sha = require_sha40(arguments.trusted_dispatcher_base_sha, "trusted dispatcher base SHA")
     require_run_id(arguments.run_id)
-    task_root = require_no_symlink_chain(Path(arguments.task_root), "task root")
-    candidate_root = require_no_symlink_chain(Path(arguments.candidate_root), "candidate root")
-    require_private_directory(task_root, "task root", owner=os.geteuid())
-    require_private_directory(candidate_root, "candidate root", owner=os.geteuid())
-    environment = build_environment(arguments)
-    # The target is a fixed Makefile entry point.  It is candidate-controlled
-    # code, but this process has no root, no inherited environment, no secret,
-    # and no credential helper.  A failure (including 77) propagates unchanged.
-    command = ["/usr/bin/make", "-C", str(candidate_root), "fetch-deps"]
-    try:
-        subprocess.run(command, check=True, env=environment, stdin=subprocess.DEVNULL)
-    except (OSError, subprocess.CalledProcessError) as exc:
-        fail(f"unprivileged candidate build failed: {exc}")
-    snapshots = sorted((task_root / "runtime-component-reports").glob("runtime-env-snapshot.*.sh"))
-    if len(snapshots) != 1:
-        fail("candidate build did not produce exactly one runtime snapshot")
-    package_arguments = argparse.Namespace(
-        expected_pr_head=expected_head,
-        trusted_dispatcher_base_sha=base_sha,
-        run_id=arguments.run_id,
-        task_root=str(task_root),
-        build_root=str(task_root / "build"),
-        runtime_snapshot=str(snapshots[0]),
-        output_root=arguments.output_root,
+    task_root = absolute_normalized(Path(arguments.task_root), TASK_ROOT_LABEL)
+    candidate_root = require_no_symlink_chain(Path(arguments.candidate_root), CANDIDATE_ROOT_LABEL)
+    require_private_directory(candidate_root, CANDIDATE_ROOT_LABEL, owner=os.geteuid())
+    task_descriptor = _open_private_directory(
+        task_root, TASK_ROOT_LABEL, owner=os.geteuid()
     )
-    return package(package_arguments)
+    try:
+        environment = build_environment(arguments)
+        # The target is a fixed Makefile entry point.  It is candidate-controlled
+        # code, but this process has no root, no inherited environment, no secret,
+        # and no credential helper.  A failure (including 77) propagates unchanged.
+        command = ["/usr/bin/make", "-C", str(candidate_root), "fetch-deps"]
+        try:
+            subprocess.run(command, check=True, env=environment, stdin=subprocess.DEVNULL)
+        except (OSError, subprocess.CalledProcessError) as exc:
+            fail(f"unprivileged candidate build failed: {exc}")
+        snapshots = sorted(
+            (task_root / "runtime-component-reports").glob("runtime-env-snapshot.*.sh")
+        )
+        if len(snapshots) != 1:
+            fail("candidate build did not produce exactly one runtime snapshot")
+        package_arguments = argparse.Namespace(
+            expected_pr_head=expected_head,
+            trusted_dispatcher_base_sha=base_sha,
+            run_id=arguments.run_id,
+            task_root=str(task_root),
+            build_root=str(task_root / "build"),
+            runtime_snapshot=str(snapshots[0]),
+            output_root=arguments.output_root,
+        )
+        return package(package_arguments, task_descriptor=task_descriptor)
+    finally:
+        os.close(task_descriptor)
 
 
 def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:

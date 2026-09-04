@@ -34,7 +34,10 @@ class CollectorTests(unittest.TestCase):
             self.worker_uid = 65533
         if self.worker_gid == self.runner_gid:
             self.worker_gid = 65533
-        self.manifest = self.root / "manifest.json"
+        self.manifest = self.root / "inputs" / "dispatcher" / "dispatcher-manifest.json"
+        self.manifest.parent.mkdir(mode=0o700, parents=True)
+        self.manifest.parent.parent.chmod(0o700)
+        self.manifest.parent.chmod(0o700)
         self.evidence = self.root / "launcher-evidence"
         self.evidence.mkdir(mode=0o700)
         self.evidence.chmod(0o700)
@@ -334,7 +337,8 @@ class CollectorTests(unittest.TestCase):
     def test_stable_read_detects_metadata_mutation_and_output_escape(self) -> None:
         source = self.root / "source.json"
         source.write_text('{"value":1}', encoding="utf-8")
-        before = source.stat()
+        descriptor = os.open(source, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        before = os.fstat(descriptor)
         after = types.SimpleNamespace(
             st_dev=before.st_dev,
             st_ino=before.st_ino,
@@ -346,9 +350,14 @@ class CollectorTests(unittest.TestCase):
             st_uid=before.st_uid,
             st_gid=before.st_gid,
         )
-        with mock.patch.object(collector.os, "fstat", side_effect=(before, after)):
-            with self.assertRaisesRegex(collector.CollectorError, "changed"):
-                collector._stable_read(source, "source", 1024)
+        try:
+            with mock.patch.object(collector.os, "fstat", side_effect=(before, after)):
+                with self.assertRaisesRegex(collector.CollectorError, "changed"):
+                    collector._stable_read_descriptor(
+                        descriptor, "source", 1024, collector._require_bounded_regular
+                    )
+        finally:
+            os.close(descriptor)
         with self.assertRaisesRegex(collector.CollectorError, "fixed task-root"):
             collector.collect(
                 self.manifest,
@@ -420,6 +429,77 @@ class CollectorTests(unittest.TestCase):
         finally:
             os.close(root_descriptor)
         self.assertTrue(replaced)
+
+    def test_manifest_must_be_the_fixed_task_root_input(self) -> None:
+        with self.assertRaisesRegex(collector.CollectorError, "fixed task-root input"):
+            collector.collect(
+                self.root / "manifest.json",
+                self.evidence,
+                self.output,
+                self.root,
+                self.runner_uid,
+                self.runner_gid,
+            )
+
+    def test_manifest_intermediate_symlink_is_rejected(self) -> None:
+        dispatcher = self.manifest.parent
+        moved = self.root / "dispatcher-real"
+        dispatcher.rename(moved)
+        dispatcher.symlink_to(moved, target_is_directory=True)
+        with self.assertRaisesRegex(collector.CollectorError, "dispatcher input"):
+            self._collect()
+
+    def test_closes_task_descriptor_when_evidence_root_open_fails(self) -> None:
+        task_descriptor = 1234
+        with mock.patch.object(
+            collector, "_open_task_root", return_value=task_descriptor
+        ), mock.patch.object(
+            collector, "_manifest_from_task_root", return_value={}
+        ), mock.patch.object(
+            collector,
+            "_open_root_owned_evidence",
+            side_effect=collector.CollectorError("evidence unavailable"),
+        ), mock.patch.object(collector.os, "close") as close:
+            with self.assertRaisesRegex(collector.CollectorError, "evidence unavailable"):
+                self._collect()
+        close.assert_called_once_with(task_descriptor)
+
+    def test_manifest_replacement_between_stat_and_open_is_rejected(self) -> None:
+        replacement = self.root / "replacement-manifest.json"
+        replacement.write_bytes(self.manifest.read_bytes())
+        os.chown(replacement, self.runner_uid, self.runner_gid)
+        replacement.chmod(0o600)
+        original = self.manifest
+        moved = self.root / "original-manifest.json"
+        open_file = os.open
+        replaced = False
+
+        def replace_before_open(name: str | Path, flags: int, *args: object,
+                                **kwargs: object) -> int:
+            nonlocal replaced
+            if name == "dispatcher-manifest.json":
+                replaced = True
+                original.rename(moved)
+                replacement.rename(original)
+            return open_file(name, flags, *args, **kwargs)
+
+        try:
+            task_descriptor = collector._open_task_root(
+                self.root, self.runner_uid, self.runner_gid
+            )
+            with mock.patch.object(collector.os, "open", side_effect=replace_before_open):
+                with self.assertRaisesRegex(collector.CollectorError, "changed while being opened"):
+                    collector._open_task_input_manifest(
+                        task_descriptor,
+                        self.manifest,
+                        self.root,
+                        self.runner_uid,
+                        self.runner_gid,
+                    )
+        finally:
+            os.close(task_descriptor)
+        self.assertTrue(replaced)
+        self.assertNotEqual(original.stat().st_ino, moved.stat().st_ino)
 
 
 if __name__ == "__main__":

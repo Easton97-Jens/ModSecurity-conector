@@ -109,15 +109,146 @@ class CandidateBuilderTests(unittest.TestCase):
         with self.assertRaisesRegex(B.BuilderError, "source archive digest"):
             B.package(self.package_args())
 
+    def test_output_creation_does_not_follow_a_swapped_task_root(self) -> None:
+        output_root = self.task_root / "artifacts"
+        outside = self.root / "outside"
+        outside.mkdir(mode=0o700)
+        moved_task_root = self.root / "moved-task"
+        original_mkdir = os.mkdir
+        swapped = False
+
+        def swap_before_mkdir(path: str | Path, mode: int = 0o777, *,
+                              dir_fd: int | None = None) -> None:
+            nonlocal swapped
+            if not swapped:
+                swapped = True
+                self.task_root.rename(moved_task_root)
+                self.task_root.symlink_to(outside, target_is_directory=True)
+            if dir_fd is None:
+                original_mkdir(path, mode)
+            else:
+                original_mkdir(path, mode, dir_fd=dir_fd)
+
+        with mock.patch.object(B.os, "mkdir", side_effect=swap_before_mkdir):
+            try:
+                B.create_private_directory(
+                    output_root, self.task_root, "candidate artifact root"
+                )
+            except B.BuilderError:
+                pass
+        self.assertTrue(swapped)
+        self.assertFalse((outside / "artifacts").exists())
+
+    def test_package_output_and_manifest_stay_on_the_admitted_descriptor(self) -> None:
+        outside = self.root / "outside"
+        outside.mkdir(mode=0o700)
+        moved_task_root = self.root / "moved-task"
+        original_open = os.open
+        swapped = False
+
+        def swap_before_output_open(path: str | Path, flags: int, mode: int = 0o777, *,
+                                    dir_fd: int | None = None) -> int:
+            nonlocal swapped
+            if Path(path).name == B.ARTIFACTS["nginx"] and not swapped:
+                swapped = True
+                self.task_root.rename(moved_task_root)
+                self.task_root.symlink_to(outside, target_is_directory=True)
+            if dir_fd is None:
+                return original_open(path, flags, mode)
+            return original_open(path, flags, mode, dir_fd=dir_fd)
+
+        archive_digest = hashlib.sha256(self.archive.read_bytes()).hexdigest()
+        with mock.patch.object(B.os, "open", side_effect=swap_before_output_open), mock.patch.object(
+            B, "EXPECTED_NGINX_SOURCE_SHA256", archive_digest
+        ):
+            with self.assertRaisesRegex(B.BuilderError, "task root"):
+                B.package(self.package_args())
+        self.assertTrue(swapped)
+        self.assertFalse((outside / "artifacts").exists())
+        self.assertEqual(
+            {child.name for child in (moved_task_root / "artifacts").iterdir()},
+            {"nginx", "ngx_http_modsecurity_module.so", "libmodsecurity.so.3", "artifact-manifest.json"},
+        )
+
+    def test_package_rejects_output_directory_replacement_after_creation(self) -> None:
+        replacement_parent = self.root / "outside"
+        replacement_parent.mkdir(mode=0o700)
+        replacement = replacement_parent / "replacement"
+        replacement.mkdir(mode=0o700)
+        moved_output = self.root / "moved-artifacts"
+        original_create = B._create_private_relative_directory
+        swapped = False
+
+        def create_then_replace(task_descriptor: int, components: tuple[str, ...],
+                                label: str) -> int:
+            nonlocal swapped
+            descriptor = original_create(task_descriptor, components, label)
+            (self.task_root / "artifacts").rename(moved_output)
+            replacement.rename(self.task_root / "artifacts")
+            swapped = True
+            return descriptor
+
+        archive_digest = hashlib.sha256(self.archive.read_bytes()).hexdigest()
+        with mock.patch.object(
+            B, "_create_private_relative_directory", side_effect=create_then_replace
+        ), mock.patch.object(B, "EXPECTED_NGINX_SOURCE_SHA256", archive_digest):
+            with self.assertRaisesRegex(B.BuilderError, "candidate artifact root"):
+                B.package(self.package_args())
+        self.assertTrue(swapped)
+        self.assertEqual(list((self.task_root / "artifacts").iterdir()), [])
+        self.assertEqual(
+            {child.name for child in moved_output.iterdir()},
+            {"nginx", "ngx_http_modsecurity_module.so", "libmodsecurity.so.3", "artifact-manifest.json"},
+        )
+
+    def test_packaging_reads_sources_from_the_admitted_build_descriptor(self) -> None:
+        outside = self.root / "outside"
+        outside.mkdir(mode=0o700)
+        (outside / "lib").mkdir(mode=0o700)
+        (outside / "nginx-bin").write_bytes(b"outside binary")
+        (outside / "module.so").write_bytes(b"outside module")
+        (outside / "lib" / "libmodsecurity.so.3").write_bytes(b"outside library")
+        moved_build_root = self.task_root / "moved-build"
+        original_open = os.open
+        swapped = False
+
+        def swap_before_source_open(path: str | Path, flags: int, mode: int = 0o777, *,
+                                    dir_fd: int | None = None) -> int:
+            nonlocal swapped
+            if Path(path).name == "nginx-bin" and not swapped:
+                swapped = True
+                self.build_root.rename(moved_build_root)
+                self.build_root.symlink_to(outside, target_is_directory=True)
+            if dir_fd is None:
+                return original_open(path, flags, mode)
+            return original_open(path, flags, mode, dir_fd=dir_fd)
+
+        archive_digest = hashlib.sha256(self.archive.read_bytes()).hexdigest()
+        with mock.patch.object(B.os, "open", side_effect=swap_before_source_open), mock.patch.object(
+            B, "EXPECTED_NGINX_SOURCE_SHA256", archive_digest
+        ):
+            manifest_path = B.package(self.package_args())
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        self.assertTrue(swapped)
+        self.assertEqual(
+            payload["artifacts"]["nginx"]["sha256"],
+            hashlib.sha256(b"binary").hexdigest(),
+        )
+        self.assertNotEqual(
+            payload["artifacts"]["nginx"]["sha256"],
+            hashlib.sha256(b"outside binary").hexdigest(),
+        )
+
     def test_rejects_hardlink_and_symlink_candidate_artifacts(self) -> None:
         linked = self.build_root / "hard-linked-module.so"
         os.link(self.module, linked)
         text = self.snapshot.read_text(encoding="utf-8").replace(str(self.module), str(linked))
         self.snapshot.write_text(text, encoding="utf-8")
         archive_digest = hashlib.sha256(self.archive.read_bytes()).hexdigest()
+        package_arguments = self.package_args()
         with mock.patch.object(B, "EXPECTED_NGINX_SOURCE_SHA256", archive_digest):
             with self.assertRaisesRegex(B.BuilderError, "single-link"):
-                B.package(self.package_args())
+                B.package(package_arguments)
         linked.unlink()
         self.snapshot.write_text(
             self.snapshot.read_text(encoding="utf-8").replace(str(linked), str(self.module)),
@@ -138,15 +269,17 @@ class CandidateBuilderTests(unittest.TestCase):
         archive_digest = hashlib.sha256(self.archive.read_bytes()).hexdigest()
         self.snapshot.write_text("export MRTS_NATIVE_NGINX_BIN='$(id)'\n", encoding="utf-8")
         self.snapshot.chmod(0o600)
+        package_arguments = self.package_args()
         with mock.patch.object(B, "EXPECTED_NGINX_SOURCE_SHA256", archive_digest):
             with self.assertRaises(B.BuilderError):
-                B.package(self.package_args())
+                B.package(package_arguments)
         self.snapshot.write_text(
             self.snapshot.read_text(encoding="utf-8") + "echo unsafe\n", encoding="utf-8"
         )
+        package_arguments = self.package_args()
         with mock.patch.object(B, "EXPECTED_NGINX_SOURCE_SHA256", archive_digest):
             with self.assertRaises(B.BuilderError):
-                B.package(self.package_args())
+                B.package(package_arguments)
 
     def test_clean_build_environment_has_no_inherited_token_or_loader_input(self) -> None:
         arguments = argparse.Namespace(task_root=str(self.task_root), candidate_root=str(self.root / "candidate"))
@@ -184,6 +317,7 @@ class CandidateBuilderTests(unittest.TestCase):
         self.assertEqual(environment["PATH"], "/usr/bin:/bin")
         self.assertNotIn("GITHUB_TOKEN", environment)
         package.assert_called_once()
+        self.assertIsInstance(package.call_args.kwargs["task_descriptor"], int)
 
 
 if __name__ == "__main__":

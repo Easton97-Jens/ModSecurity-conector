@@ -84,6 +84,12 @@ class NginxExactHeadBaseHelperTests(unittest.TestCase):
         self.assertIn('[ -z "${PYTHONPATH:-}" ] || die', self.source)
         self.assertIn('/usr/bin/find "$SCRATCH_ROOT" -mindepth 1 -maxdepth 1', self.source)
 
+    def test_shell_cases_validate_parameters_and_have_default_pid_case(self) -> None:
+        self.assertIn("path=$1", self.source)
+        self.assertIn('case "$path" in', self.source)
+        self.assertIn("''|*[!0-9]*) kill", self.source)
+        self.assertIn('*) : ;;', self.source)
+
 
 if __name__ == "__main__":
     unittest.main()

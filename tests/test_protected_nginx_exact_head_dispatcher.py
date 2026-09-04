@@ -142,6 +142,52 @@ class DispatcherTest(unittest.TestCase):
                              f"tested_pr_base={BASE}\n"
                              f"trusted_dispatcher_base_sha={BASE}\n")
 
+    def test_rejects_symlinked_ancestor_for_manifest_and_outputs(self) -> None:
+        identity = D.make_manifest(354, SHA, BASE, "run-1", pr_payload())
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            private = root / "private"
+            private.mkdir(mode=0o700)
+            target = root / "target"
+            target.mkdir(mode=0o700)
+            (root / "alias").symlink_to(target, target_is_directory=True)
+            with self.assertRaises(D.ContractError):
+                D.write_manifest(root / "alias" / "manifest.json", identity)
+            manifest = private / "manifest.json"
+            D.write_manifest(manifest, identity)
+            output = private / "github-output"
+            output.write_bytes(b"")
+            output.chmod(0o600)
+            with self.assertRaises(D.ContractError):
+                D.emit_outputs(manifest, root / "alias" / "github-output")
+
+    def test_rejects_shared_ancestor_permissions(self) -> None:
+        identity = D.make_manifest(354, SHA, BASE, "run-1", pr_payload())
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            private = root / "private"
+            private.mkdir(mode=0o733)
+            private.chmod(0o733)
+            with self.assertRaisesRegex(D.ContractError, "not be group/world writable"):
+                D.write_manifest(private / "manifest.json", identity)
+
+    def test_accepts_runner_owned_nonwritable_directory_and_manifest(self) -> None:
+        identity = D.make_manifest(354, SHA, BASE, "run-1", pr_payload())
+        with tempfile.TemporaryDirectory() as directory:
+            private = Path(directory) / "runner-owned"
+            private.mkdir(mode=0o755)
+            manifest = private / "manifest.json"
+            D.write_manifest(manifest, identity)
+            manifest.chmod(0o644)
+            self.assertEqual(D.read_manifest(manifest), identity)
+            output = private / "github-output"
+            output.write_bytes(b"")
+            output.chmod(0o644)
+            D.emit_outputs(manifest, output)
+            output.chmod(0o622)
+            with self.assertRaisesRegex(D.ContractError, "non-writable regular file"):
+                D.emit_outputs(manifest, output)
+
     def test_merged_field_must_be_false_boolean(self) -> None:
         with self.assertRaises(D.ContractError):
             D.validate_identity(pr_payload(merged=True), 354, SHA)

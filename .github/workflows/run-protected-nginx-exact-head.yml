@@ -113,13 +113,16 @@ jobs:
           name: protected-exact-head-dispatch-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/protected-exact-head-build/dispatcher
       - name: Revalidate dispatcher identity before candidate checkout
+        env:
+          REQUESTED_PR_NUMBER: ${{ inputs.pr_number }}
+          VALIDATED_PR_HEAD: ${{ needs.resolve.outputs.tested_pr_head }}
         run: |
           set -euo pipefail
           /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C LC_ALL=C \
             /usr/bin/python3 -I ci/runtime/broker/protected_nginx_exact_head_dispatcher.py verify \
             --manifest "$RUNNER_TEMP/protected-exact-head-build/dispatcher/dispatcher-manifest.json" \
-            --pr-number "${{ inputs.pr_number }}" \
-            --expected-head-sha "${{ needs.resolve.outputs.tested_pr_head }}" \
+            --pr-number "$REQUESTED_PR_NUMBER" \
+            --expected-head-sha "$VALIDATED_PR_HEAD" \
             --dispatcher-base-sha "$GITHUB_SHA"
       - name: Check out the exact validated PR head as unprivileged data
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -202,13 +205,16 @@ jobs:
           name: protected-exact-head-candidate-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/protected-exact-head-runtime/inputs/candidate
       - name: Revalidate the PR identity at the privilege boundary
+        env:
+          REQUESTED_PR_NUMBER: ${{ inputs.pr_number }}
+          VALIDATED_PR_HEAD: ${{ needs.resolve.outputs.tested_pr_head }}
         run: |
           set -euo pipefail
           /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C LC_ALL=C \
             /usr/bin/python3 -I ci/runtime/broker/protected_nginx_exact_head_dispatcher.py verify \
             --manifest "$RUNNER_TEMP/protected-exact-head-runtime/inputs/dispatcher/dispatcher-manifest.json" \
-            --pr-number "${{ inputs.pr_number }}" \
-            --expected-head-sha "${{ needs.resolve.outputs.tested_pr_head }}" \
+            --pr-number "$REQUESTED_PR_NUMBER" \
+            --expected-head-sha "$VALIDATED_PR_HEAD" \
             --dispatcher-base-sha "$GITHUB_SHA"
       - name: Run the preinstalled protected host gate for both fresh cells
         run: |

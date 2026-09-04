@@ -78,7 +78,7 @@ def no_symlink_chain(path: Path, label: str, *, missing_leaf: bool = False) -> P
             metadata = current.lstat()
         except FileNotFoundError:
             if missing_leaf and index == len(path.parts) - 2:
-                return path
+                break
             fail(f"{label} component is missing")
         if stat.S_ISLNK(metadata.st_mode):
             fail(f"{label} contains a symbolic link")
@@ -120,30 +120,38 @@ def require_private_task_root(value: str) -> Path:
     except ValueError:
         fail("task root must be below RUNNER_TEMP")
     if root.exists():
-        metadata = root.lstat()
-        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
-            fail("task root is not a non-symlink directory")
-        if (
-            metadata.st_uid != os.geteuid()
-            or metadata.st_gid != os.getegid()
-            or metadata.st_mode & 0o077
-        ):
-            fail("task root is not private to the invoking runner identity")
-        if any(root.iterdir()):
-            fail("task root must be fresh")
+        require_existing_task_root(root)
     else:
-        try:
-            root.mkdir(mode=0o700)
-        except OSError as exc:
-            fail(f"cannot create private task root: {exc}")
-        metadata = root.lstat()
-        if (
-            stat.S_IMODE(metadata.st_mode) != 0o700
-            or metadata.st_uid != os.geteuid()
-            or metadata.st_gid != os.getegid()
-        ):
-            fail("new task root does not have private ownership or mode")
+        create_private_task_root(root)
     return root
+
+
+def require_existing_task_root(root: Path) -> None:
+    metadata = root.lstat()
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        fail("task root is not a non-symlink directory")
+    if (
+        metadata.st_uid != os.geteuid()
+        or metadata.st_gid != os.getegid()
+        or metadata.st_mode & 0o077
+    ):
+        fail("task root is not private to the invoking runner identity")
+    if any(root.iterdir()):
+        fail("task root must be fresh")
+
+
+def create_private_task_root(root: Path) -> None:
+    try:
+        root.mkdir(mode=0o700)
+    except OSError as exc:
+        fail(f"cannot create private task root: {exc}")
+    metadata = root.lstat()
+    if (
+        stat.S_IMODE(metadata.st_mode) != 0o700
+        or metadata.st_uid != os.geteuid()
+        or metadata.st_gid != os.getegid()
+    ):
+        fail("new task root does not have private ownership or mode")
 
 
 def require_base_checkout(value: str, expected_sha: str) -> Path:
