@@ -66,6 +66,22 @@ class ProtectedExactHeadWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("--pr-number \"${{ inputs.pr_number }}\"", self.text)
         self.assertNotIn("--expected-head-sha \"${{ inputs.expected_head_sha }}\"", self.text)
 
+    def test_candidate_sha_comparison_uses_quoted_environment_data(self) -> None:
+        candidate = self.text.split("  candidate-build:", 1)[1].split("  privileged-runtime:", 1)[0]
+        verification = candidate.split(
+            "      - name: Verify candidate SHA and protected Framework gitlink", 1
+        )[1].split("      - name: Build and package the exact head without privilege", 1)[0]
+        self.assertIn(
+            "VALIDATED_PR_HEAD: ${{ needs.resolve.outputs.tested_pr_head }}", verification
+        )
+        self.assertIn(
+            'test "$(git -C candidate rev-parse HEAD)" = "$VALIDATED_PR_HEAD"', verification
+        )
+        self.assertNotIn(
+            "${{ needs.resolve.outputs.tested_pr_head }}", verification.split("run: |", 1)[1]
+        )
+        self.assertIn("ref: ${{ needs.resolve.outputs.tested_pr_head }}", candidate)
+
     def test_privilege_is_narrow_and_not_candidate_orchestration(self) -> None:
         privileged = self.text.split("  privileged-runtime:", 1)[1]
         self.assertIn("sudo -n -- /usr/local/libexec/modsecurity-protected-exact-head/run-exact-base-launcher", privileged)

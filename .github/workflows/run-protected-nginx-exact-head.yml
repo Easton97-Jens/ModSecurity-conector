@@ -135,9 +135,11 @@ jobs:
           persist-credentials: false
           submodules: false
       - name: Verify candidate SHA and protected Framework gitlink
+        env:
+          VALIDATED_PR_HEAD: ${{ needs.resolve.outputs.tested_pr_head }}
         run: |
           set -euo pipefail
-          test "$(git -C candidate rev-parse HEAD)" = "${{ needs.resolve.outputs.tested_pr_head }}"
+          test "$(git -C candidate rev-parse HEAD)" = "$VALIDATED_PR_HEAD"
           test "$(git ls-tree HEAD modules/ModSecurity-test-Framework | awk '{print $3}')" = \
             "$(git -C candidate ls-tree HEAD modules/ModSecurity-test-Framework | awk '{print $3}')"
           /usr/bin/git -C "$GITHUB_WORKSPACE" -c protocol.file.allow=never \
