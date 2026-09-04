@@ -220,7 +220,9 @@ Der Protected-Base-Diff gegenüber aktueller Base enthält genau diese 23 Pfade:
 - `tests/test_protected_nginx_exact_head_runner_preflight.py`
 - `tests/test_protected_nginx_exact_head_workflow.py`
 
-## Tests und tatsächliche Ergebnisse
+## Ausgeführte Befehle
+
+### Tests und tatsächliche Ergebnisse
 
 Die folgenden lokalen Ergebnisse wurden für den Source-Checkpoint
 `53aee10ddeb448ed7506e645709d2162aeab091f` beobachtet; finaler Branch-

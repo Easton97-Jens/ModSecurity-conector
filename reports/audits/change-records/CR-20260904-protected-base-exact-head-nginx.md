@@ -206,7 +206,9 @@ The protected-base diff from current Base contains exactly these 23 paths:
 - `tests/test_protected_nginx_exact_head_runner_preflight.py`
 - `tests/test_protected_nginx_exact_head_workflow.py`
 
-## Tests and actual results
+## Commands executed
+
+### Tests and actual results
 
 The following local results were observed for source checkpoint
 `53aee10ddeb448ed7506e645709d2162aeab091f`; the final branch read-back and
