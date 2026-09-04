@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -12,9 +13,12 @@ import (
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	extprocv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
 	typev3 "github.com/envoyproxy/go-control-plane/envoy/type/v3"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -83,6 +87,163 @@ func TestProcessEnforcesAbsoluteStreamLifetimeAndReleasesAdmission(t *testing.T)
 		receive:        []receiveResult{{request: requestHeaders(true)}},
 	}); err != nil {
 		t.Fatalf("follow-up Process() error = %v", err)
+	}
+}
+
+func TestProcessIdleTimeoutCancelsTransportReceiveAndAllowsFollowUp(t *testing.T) {
+	transaction := &recordingTransaction{}
+	service := newTestService(t, transaction, LateActionSafe)
+	service.config.StreamIdleTimeoutMS = 25
+	service.config.StreamMaxLifetimeMS = 1000
+	client, _, closeServer := startBufconnProcessorServer(t, service)
+	defer closeServer()
+
+	idleCtx, cancelIdle := context.WithTimeout(context.Background(), time.Second)
+	defer cancelIdle()
+	idleStream, err := client.Process(idleCtx)
+	if err != nil {
+		t.Fatalf("Process() idle stream error = %v", err)
+	}
+	if err := idleStream.Send(requestHeaders(false)); err != nil {
+		t.Fatalf("idle stream Send(request headers) error = %v", err)
+	}
+	if response, err := idleStream.Recv(); err != nil || response.GetRequestHeaders() == nil {
+		t.Fatalf("idle stream initial Recv() = (%#v, %v), want request-headers continue", response, err)
+	}
+	if _, err := idleStream.Recv(); status.Code(err) != codes.DeadlineExceeded {
+		t.Fatalf("idle stream Recv() code = %s, want DeadlineExceeded (err=%v)", status.Code(err), err)
+	}
+	waitForPendingReceives(t, service, 0)
+	if got, want := len(transaction.closed), 1; got != want {
+		t.Fatalf("idle stream cleanup calls = %d, want %d", got, want)
+	}
+	if got, want := transaction.closed[0].CloseReason, CloseStreamIdleTimeout; got != want {
+		t.Fatalf("idle stream cleanup reason = %q, want %q", got, want)
+	}
+
+	followUpCtx, cancelFollowUp := context.WithTimeout(context.Background(), time.Second)
+	defer cancelFollowUp()
+	followUp, err := client.Process(followUpCtx)
+	if err != nil {
+		t.Fatalf("Process() follow-up stream error = %v", err)
+	}
+	if err := followUp.Send(requestHeaders(true)); err != nil {
+		t.Fatalf("follow-up Send(request headers) error = %v", err)
+	}
+	if response, err := followUp.Recv(); err != nil || response.GetRequestHeaders() == nil {
+		t.Fatalf("follow-up initial Recv() = (%#v, %v), want request-headers continue", response, err)
+	}
+	if err := followUp.CloseSend(); err != nil {
+		t.Fatalf("follow-up CloseSend() error = %v", err)
+	}
+	if _, err := followUp.Recv(); !errors.Is(err, io.EOF) {
+		t.Fatalf("follow-up final Recv() = %v, want EOF", err)
+	}
+	waitForPendingReceives(t, service, 0)
+	if got, want := len(transaction.closed), 2; got != want {
+		t.Fatalf("follow-up cleanup calls = %d, want %d", got, want)
+	}
+	if got, want := transaction.closed[1].CloseReason, ClosePeerEOF; got != want {
+		t.Fatalf("follow-up cleanup reason = %q, want %q", got, want)
+	}
+}
+
+func TestProcessConcurrentAdmissionRejectsBeforeOpeningAndReleasesSlot(t *testing.T) {
+	transaction := &recordingTransaction{}
+	var openCalls atomic.Int32
+	config := testConfig(LateActionSafe)
+	config.MaxConcurrentStreams = 1
+	config.StreamIdleTimeoutMS = 1000
+	config.StreamMaxLifetimeMS = 2000
+	service, err := NewService(config, countingRecordingEngine{transaction: transaction, openCalls: &openCalls})
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+
+	releaseFirst := make(chan struct{})
+	firstDone := make(chan error, 1)
+	go func() {
+		firstDone <- service.Process(&fakeProcessStream{
+			contextFactory: testStreamContext(context.Background()),
+			receive:        []receiveResult{{request: requestHeaders(false)}},
+			recvBlock:      releaseFirst,
+		})
+	}()
+	waitForAtomicInt32(t, &openCalls, 1)
+
+	secondDone := make(chan error, 1)
+	go func() {
+		secondDone <- service.Process(&fakeProcessStream{contextFactory: testStreamContext(context.Background())})
+	}()
+	select {
+	case secondErr := <-secondDone:
+		if got := status.Code(secondErr); got != codes.ResourceExhausted {
+			t.Fatalf("concurrent Process() code = %s, want ResourceExhausted (err=%v)", got, secondErr)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("concurrent Process() blocked instead of rejecting admission")
+	}
+	if got, want := openCalls.Load(), int32(1); got != want {
+		t.Fatalf("engine Open calls after rejected admission = %d, want %d", got, want)
+	}
+
+	close(releaseFirst)
+	select {
+	case firstErr := <-firstDone:
+		if firstErr != nil {
+			t.Fatalf("first Process() error = %v", firstErr)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("first Process() did not release its admission slot")
+	}
+	if err := service.Process(&fakeProcessStream{
+		contextFactory: testStreamContext(context.Background()),
+		receive:        []receiveResult{{request: requestHeaders(true)}},
+	}); err != nil {
+		t.Fatalf("follow-up Process() error = %v", err)
+	}
+	if got, want := openCalls.Load(), int32(2); got != want {
+		t.Fatalf("engine Open calls after released admission = %d, want %d", got, want)
+	}
+}
+
+func TestProcessServerStopCancelsActiveStreamAndReleasesAdmission(t *testing.T) {
+	transaction := &recordingTransaction{closeDone: make(chan struct{})}
+	service := newTestService(t, transaction, LateActionSafe)
+	service.config.StreamIdleTimeoutMS = 1000
+	service.config.StreamMaxLifetimeMS = 2000
+	client, server, closeServer := startBufconnProcessorServer(t, service)
+	defer closeServer()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	stream, err := client.Process(ctx)
+	if err != nil {
+		t.Fatalf("Process() stream error = %v", err)
+	}
+	if err := stream.Send(requestHeaders(false)); err != nil {
+		t.Fatalf("server-stop stream Send(request headers) error = %v", err)
+	}
+	if response, err := stream.Recv(); err != nil || response.GetRequestHeaders() == nil {
+		t.Fatalf("server-stop stream initial Recv() = (%#v, %v), want request-headers continue", response, err)
+	}
+
+	server.Stop()
+	if _, err := stream.Recv(); err == nil {
+		t.Fatal("server-stop stream Recv() succeeded after server Stop")
+	}
+	select {
+	case <-transaction.closeDone:
+	case <-time.After(time.Second):
+		t.Fatal("server Stop did not close the active transaction")
+	}
+	waitForPendingReceives(t, service, 0)
+	waitForAdmission(t, service, 0)
+	if got, want := len(transaction.closed), 1; got != want {
+		t.Fatalf("server-stop cleanup calls = %d, want %d", got, want)
+	}
+	if got, want := transaction.closed[0].CloseReason, CloseContextCanceled; got != want {
+		t.Fatalf("server-stop cleanup reason = %q, want %q", got, want)
 	}
 }
 
@@ -995,6 +1156,98 @@ type receiveResult struct {
 	request *extprocv3.ProcessingRequest
 	err     error
 	cancel  bool
+}
+
+func startBufconnProcessorServer(t *testing.T, service *Service) (extprocv3.ExternalProcessorClient, *grpc.Server, func()) {
+	t.Helper()
+	listener := bufconn.Listen(1024 * 1024)
+	server := grpc.NewServer()
+	extprocv3.RegisterExternalProcessorServer(server, service)
+	serveDone := make(chan error, 1)
+	go func() {
+		serveDone <- server.Serve(listener)
+	}()
+
+	dialContext, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	connection, err := grpc.DialContext(
+		dialContext,
+		"bufnet",
+		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+			return listener.Dial()
+		}),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		server.Stop()
+		_ = listener.Close()
+		t.Fatalf("dial buffered ext_proc server: %v", err)
+	}
+	cleanup := func() {
+		_ = connection.Close()
+		server.Stop()
+		_ = listener.Close()
+		select {
+		case <-serveDone:
+		case <-time.After(time.Second):
+			t.Error("buffered ext_proc server did not stop")
+		}
+	}
+	return extprocv3.NewExternalProcessorClient(connection), server, cleanup
+}
+
+func waitForPendingReceives(t *testing.T, service *Service, want int64) {
+	t.Helper()
+	timeout := time.NewTimer(time.Second)
+	defer timeout.Stop()
+	tick := time.NewTicker(time.Millisecond)
+	defer tick.Stop()
+	for {
+		if got := service.pendingReceives.Load(); got == want {
+			return
+		}
+		select {
+		case <-timeout.C:
+			t.Fatalf("pending receives = %d, want %d", service.pendingReceives.Load(), want)
+		case <-tick.C:
+		}
+	}
+}
+
+func waitForAdmission(t *testing.T, service *Service, want int) {
+	t.Helper()
+	timeout := time.NewTimer(time.Second)
+	defer timeout.Stop()
+	tick := time.NewTicker(time.Millisecond)
+	defer tick.Stop()
+	for {
+		if got := len(service.admission); got == want {
+			return
+		}
+		select {
+		case <-timeout.C:
+			t.Fatalf("admission reservations = %d, want %d", len(service.admission), want)
+		case <-tick.C:
+		}
+	}
+}
+
+func waitForAtomicInt32(t *testing.T, counter *atomic.Int32, want int32) {
+	t.Helper()
+	timeout := time.NewTimer(time.Second)
+	defer timeout.Stop()
+	tick := time.NewTicker(time.Millisecond)
+	defer tick.Stop()
+	for {
+		if got := counter.Load(); got == want {
+			return
+		}
+		select {
+		case <-timeout.C:
+			t.Fatalf("atomic counter = %d, want %d", counter.Load(), want)
+		case <-tick.C:
+		}
+	}
 }
 
 type fakeProcessStream struct {
