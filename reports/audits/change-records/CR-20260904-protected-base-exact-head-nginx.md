@@ -8,7 +8,7 @@
 | Date (UTC) | 2026-09-04 |
 | Base revision | 2b3d7f7f0bec006b236b5998d011069c9125033f |
 | Scope | Parent-only protected-base preparation for independent NGINX exact-head evidence |
-| Delivery status | Draft PR #355 branch-only Base merge checkpoint `5368569351e968e8ea641fc485590654df6a4336`; no merge authorization |
+| Delivery status | Draft PR #355 branch-only Base merge `5368569351e968e8ea641fc485590654df6a4336` plus protected-workflow remediation checkpoint `fa9064a560b31b377dc1dea3a9b8b99e6867809c`; no merge authorization |
 | Candidate | PR #354, exact head must be resolved and read back at dispatch time |
 
 ## Purpose
@@ -28,6 +28,50 @@ other parent is the prior PR head
 `de1c3c05b53a00e077aca1c08a2fcdc552b0344e`. It does not merge PR #355 or PR
 #354 into `master`. The historical common base remains
 `95bc04203455bc74a9cd18fafc6fb5848af2bbb2`.
+
+## Final successor update — source checkpoint `fa9064a5`
+
+GitHub's fresh `zizmor` result for the prior successor `737c9674…` identified
+a direct expansion of `needs.resolve.outputs.tested_pr_head` into the candidate
+SHA comparison's Bash `run:` body.  The normal follow-up commit
+`fa9064a560b31b377dc1dea3a9b8b99e6867809c` binds that dispatcher-admitted
+value only as step-local `VALIDATED_PR_HEAD` data and compares the quoted shell
+variable.  The exact checkout `ref` remains an Action input; the protected
+Framework Gitlink comparison, unprivileged build, root-owned host gate, and
+all later privilege boundaries are unchanged.  This is the scoped remediation
+for `FND-PARENT-1034`, not a workflow suppression or Quality-Gate change.
+
+At source checkpoint `fa9064a5`, the exact seven-module command
+`python -B -m unittest -q tests.test_nginx_exact_head_base_helper tests.test_nginx_exact_head_result_collector tests.test_nginx_exact_head_root_launcher tests.test_protected_nginx_exact_head_builder tests.test_protected_nginx_exact_head_dispatcher tests.test_protected_nginx_exact_head_runner_preflight tests.test_protected_nginx_exact_head_workflow`
+passed 99 focused protected-base tests; 22 bilingual tests and the separately
+scoped workflow-plus-dispatcher 29-test control also passed. Python
+compilation, POSIX shell syntax, `actionlint`, offline `zizmor`, policy audit,
+variable-documentation checking, and `git diff --check` passed.  The dedicated
+two-file successor scan is sealed and valid at
+`security-diff-final-fa9064a5/report.md`; it reports no surviving source
+finding and explicitly partial hosted/runtime coverage.  `make check-nginx-c17`
+is **blocked**, not passed: supported NGINX headers/source are unavailable and
+the underlying target returns exit 77.  Broad documentation-link checks remain
+blocked only by the inherited uninitialized Framework Gitlink; it was neither
+initialized nor changed.
+
+SonarCloud analyzed exactly `fa9064a5` at `2026-09-04T19:44:32+0000`.
+GitHub check `101153230682` completed with `failure` at `19:46:39Z`; the gate
+is `ERROR` because `new_security_rating=3` exceeds required `1`.  The other
+gate conditions are OK.  The authenticated current inventory contains the
+same 80 open keys as the preceding exact head (15 Vulnerabilities and 65 Code
+Smells); every key has a retained individual source/sink/privilege/ownership
+triage.  The aggregate result is `A=0`, `B=26`, `C=35`, `D=19`; no issue is
+silently called a false positive, and unsafe cosmetic changes remain
+`blocked_by_security_invariant`.  The fresh GitHub `zizmor` check for
+`fa9064a5` succeeded.  These are checkpoint facts only: the final normal
+documentation-successor push, its exact remote read-back, and its fresh checks
+are separately required and may not reuse an earlier green run as proof.
+
+`FND-PARENT-1013` remains `fixed, verification pending`.  `FND-PARENT-1034`
+is `fixed, verification pending` until the successor delivery evidence is
+reconciled.  No eligible independent GitHub collaborator exists for the
+required reviewer request; no access, invitation, or invented review was made.
 
 ## Acceptance criteria
 

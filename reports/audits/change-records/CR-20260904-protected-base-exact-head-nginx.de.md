@@ -8,7 +8,7 @@
 | Datum (UTC) | 2026-09-04 |
 | Basis-Revision | 2b3d7f7f0bec006b236b5998d011069c9125033f |
 | Umfang | Parent-only-Vorbereitung für unabhängige NGINX-Exact-Head-Evidence über geschützte Base |
-| Auslieferungsstatus | Draft-PR-#355-Branch-only-Base-Merge-Checkpoint `5368569351e968e8ea641fc485590654df6a4336`; keine Merge-Autorisierung |
+| Auslieferungsstatus | Draft-PR-#355-Branch-only-Base-Merge `5368569351e968e8ea641fc485590654df6a4336` plus Protected-Workflow-Remediation-Checkpoint `fa9064a560b31b377dc1dea3a9b8b99e6867809c`; keine Merge-Autorisierung |
 | Candidate | PR #354; exakter Head muss beim Dispatch aufgelöst und zurückgelesen werden |
 
 ## Zweck
@@ -27,6 +27,56 @@ Branch; sein anderer Parent ist der frühere PR-Head
 `de1c3c05b53a00e077aca1c08a2fcdc552b0344e`. Er mergt weder PR #355 noch PR
 #354 in `master`. Der historische gemeinsame Base bleibt
 `95bc04203455bc74a9cd18fafc6fb5848af2bbb2`.
+
+## Finales Successor-Update — Source-Checkpoint `fa9064a5`
+
+Das frische GitHub-`zizmor`-Ergebnis für den vorherigen Successor
+`737c9674…` identifizierte eine direkte Expansion von
+`needs.resolve.outputs.tested_pr_head` in den Bash-`run:`-Body des
+Candidate-SHA-Vergleichs. Der normale Folgecommit
+`fa9064a560b31b377dc1dea3a9b8b99e6867809c` bindet diesen vom Dispatcher
+zugelassenen Wert nur als Step-lokale `VALIDATED_PR_HEAD`-Daten und vergleicht
+die quotierte Shell-Variable. Das exakte Checkout-`ref` bleibt ein
+Action-Input; der geschützte Framework-Gitlink-Vergleich, der unprivilegierte
+Build, das root-eigene Host-Gate und alle späteren Privileggrenzen bleiben
+unverändert. Dies ist die eng begrenzte Behebung für `FND-PARENT-1034`, keine
+Workflow-Suppression und keine Quality-Gate-Änderung.
+
+Am Source-Checkpoint `fa9064a5` bestand der exakte Sieben-Module-Befehl
+`python -B -m unittest -q tests.test_nginx_exact_head_base_helper tests.test_nginx_exact_head_result_collector tests.test_nginx_exact_head_root_launcher tests.test_protected_nginx_exact_head_builder tests.test_protected_nginx_exact_head_dispatcher tests.test_protected_nginx_exact_head_runner_preflight tests.test_protected_nginx_exact_head_workflow`
+mit 99 fokussierten Protected-Base-Tests; 22 bilinguale Tests und der getrennt
+abgegrenzte Workflow-plus-Dispatcher-Control mit 29 Tests bestanden ebenfalls.
+Python-Kompilierung, POSIX-Shell-Syntax, `actionlint`, Offline-`zizmor`,
+Policy-Audit, Variable-Documentation-Check und `git diff --check` bestanden.
+Der dedizierte Zwei-Dateien-Successor-Scan ist unter
+`security-diff-final-fa9064a5/report.md` versiegelt und gültig; er meldet
+keinen verbleibenden Source-Fund und explizit partielle Hosted-/Runtime-
+Abdeckung. `make check-nginx-c17` ist **blockiert**, nicht bestanden:
+unterstützte NGINX-Header/-Quellen fehlen und das zugrunde liegende Target gibt
+Exit 77 zurück. Breite Documentation-Link-Checks sind ausschließlich durch den
+geerbten, nicht initialisierten Framework-Gitlink blockiert; er wurde weder
+initialisiert noch geändert.
+
+SonarCloud analysierte exakt `fa9064a5` um `2026-09-04T19:44:32+0000`.
+GitHub-Check `101153230682` endete um `19:46:39Z` mit `failure`; das Gate ist
+`ERROR`, weil `new_security_rating=3` den geforderten Wert `1` überschreitet.
+Die übrigen Gate-Bedingungen sind OK. Das authentifizierte aktuelle Inventar
+enthält dieselben 80 offenen Schlüssel wie der vorherige Exact-Head (15
+Vulnerabilities und 65 Code Smells); jeder Schlüssel besitzt eine aufbewahrte
+individuelle Source-/Sink-/Privileg-/Ownership-Triage. Das Gesamtergebnis ist
+`A=0`, `B=26`, `C=35`, `D=19`; kein Issue wird stillschweigend als False
+Positive bezeichnet und unsichere kosmetische Änderungen bleiben
+`blocked_by_security_invariant`. Der frische GitHub-`zizmor`-Check für
+`fa9064a5` war erfolgreich. Dies sind ausschließlich Checkpoint-Fakten: der
+normale Push des finalen Documentation-Successors, dessen exakter Remote-
+Readback und frische Checks bleiben getrennt erforderlich und dürfen keinen
+früheren grünen Lauf als Nachweis wiederverwenden.
+
+`FND-PARENT-1013` bleibt `fixed, verification pending`. `FND-PARENT-1034` ist
+`fixed, verification pending`, bis die Successor-Delivery-Evidenz abgeglichen
+ist. Für die erforderliche Review-Anfrage existiert kein berechtigter
+unabhängiger GitHub-Collaborator; es wurden weder Zugang, Einladung noch
+erfundene Review vorgenommen.
 
 ## Akzeptanzkriterien
 
