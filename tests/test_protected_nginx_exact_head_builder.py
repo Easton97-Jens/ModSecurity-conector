@@ -8,6 +8,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import stat
 import sys
 import tempfile
 import unittest
@@ -56,6 +57,7 @@ class CandidateBuilderTests(unittest.TestCase):
         ):
             path.write_bytes(content)
             path.chmod(0o600)
+        self.binary.chmod(0o500)
         self.snapshot = self.task_root / "runtime.env"
         self.snapshot.write_text(
             "\n".join(
@@ -104,6 +106,18 @@ class CandidateBuilderTests(unittest.TestCase):
             copied = manifest_path.parent / record["filename"]
             self.assertEqual(record["sha256"], hashlib.sha256(copied.read_bytes()).hexdigest())
             self.assertEqual(copied.stat().st_nlink, 1)
+            self.assertEqual(
+                stat.S_IMODE(copied.stat().st_mode),
+                B.ARTIFACT_MODES[record["filename"]],
+            )
+
+    def test_package_rejects_non_executable_nginx_binary(self) -> None:
+        self.binary.chmod(0o400)
+        archive_digest = hashlib.sha256(self.archive.read_bytes()).hexdigest()
+        with mock.patch.object(B, "EXPECTED_NGINX_SOURCE_SHA256", archive_digest), self.assertRaisesRegex(
+            B.BuilderError, "NGINX binary must be owner-executable"
+        ):
+            B.package(self.package_args())
 
     def test_rejects_source_archive_digest_mismatch(self) -> None:
         with self.assertRaisesRegex(B.BuilderError, "source archive digest"):
@@ -307,9 +321,14 @@ class CandidateBuilderTests(unittest.TestCase):
         snapshot = reports / "runtime-env-snapshot.one.sh"
         snapshot.write_text("export RUNTIME_COMPONENT_ENV_SNAPSHOT_TARGET='nginx'\n", encoding="utf-8")
         snapshot.chmod(0o600)
-        with mock.patch.object(B.subprocess, "run") as run, mock.patch.object(B, "package", return_value=Path("/safe/artifact-manifest.json")) as package:
+        with mock.patch.object(
+            B, "require_unprivileged_identity", return_value=(os.geteuid(), os.getegid())
+        ) as identity, mock.patch.object(B.subprocess, "run") as run, mock.patch.object(
+            B, "package", return_value=Path("/safe/artifact-manifest.json")
+        ) as package:
             output = B.run_candidate_build(arguments)
         self.assertEqual(output, Path("/safe/artifact-manifest.json"))
+        identity.assert_called_once_with()
         command = run.call_args.args[0]
         self.assertEqual(command, ["/usr/bin/make", "-C", str(candidate), "fetch-deps"])
         self.assertNotIn("sudo", command)
@@ -318,6 +337,41 @@ class CandidateBuilderTests(unittest.TestCase):
         self.assertNotIn("GITHUB_TOKEN", environment)
         package.assert_called_once()
         self.assertIsInstance(package.call_args.kwargs["task_descriptor"], int)
+
+    def test_candidate_build_rejects_root_identity_before_make(self) -> None:
+        arguments = argparse.Namespace(
+            expected_pr_head=SHA,
+            trusted_dispatcher_base_sha=BASE,
+            run_id="run-1",
+            task_root=str(self.task_root),
+            candidate_root=str(self.root / "candidate"),
+            output_root=str(self.task_root / "artifacts"),
+        )
+        with mock.patch.object(B.os, "getresuid", return_value=(0, 0, 0)), mock.patch.object(
+            B.os, "getresgid", return_value=(0, 0, 0)
+        ), mock.patch.object(B.subprocess, "run") as run, self.assertRaisesRegex(
+            B.BuilderError, "must not run with a root UID or GID"
+        ):
+            B.run_candidate_build(arguments)
+        run.assert_not_called()
+
+    def test_unprivileged_identity_accepts_non_root_real_effective_and_saved_ids(self) -> None:
+        with mock.patch.object(B.os, "getresuid", return_value=(1001, 1002, 1003)), mock.patch.object(
+            B.os, "getresgid", return_value=(1004, 1005, 1006)
+        ):
+            self.assertEqual(B.require_unprivileged_identity(), (1002, 1005))
+
+    def test_unprivileged_identity_rejects_saved_root_uid_or_gid(self) -> None:
+        for user_ids, group_ids in (
+            ((1001, 1002, 0), (1003, 1004, 1005)),
+            ((1001, 1002, 1003), (1004, 1005, 0)),
+        ):
+            with self.subTest(user_ids=user_ids, group_ids=group_ids), mock.patch.object(
+                B.os, "getresuid", return_value=user_ids
+            ), mock.patch.object(B.os, "getresgid", return_value=group_ids), self.assertRaisesRegex(
+                B.BuilderError, "must not run with a root UID or GID"
+            ):
+                B.require_unprivileged_identity()
 
 
 if __name__ == "__main__":

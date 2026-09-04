@@ -1,12 +1,14 @@
 """Contracts for the trusted-base NGINX exact-head cell driver."""
 
 from pathlib import Path
+import re
 import subprocess
 import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DRIVER = ROOT / "ci/runtime/broker/run_nginx_exact_head_cells.sh"
+CANDIDATE_SCRIPT_REFERENCE = re.compile(r"\$CANDIDATE_ROOT/[^\" ]+\.(?:sh|py)\b")
 
 
 class NginxExactHeadBaseHelperTests(unittest.TestCase):
@@ -45,10 +47,14 @@ class NginxExactHeadBaseHelperTests(unittest.TestCase):
 
     def test_candidate_checkout_is_not_executed_or_sourced(self) -> None:
         self.assertNotIn('source "$CANDIDATE', self.source)
-        self.assertNotRegex(self.source, r"$CANDIDATE_ROOT/[^\" ]+\\.(?:sh|py)\\b")
+        self.assertNotRegex(self.source, CANDIDATE_SCRIPT_REFERENCE)
         self.assertIn('"$NGINX_BINARY" -p "$cell" -c "$config"', self.source)
         self.assertIn('actual_tx=$(/usr/bin/sed -n', self.source)
         self.assertNotIn('result.json', self.source)
+
+    def test_candidate_script_reference_pattern_detects_shell_and_python_paths(self) -> None:
+        self.assertRegex("$CANDIDATE_ROOT/evil.sh", CANDIDATE_SCRIPT_REFERENCE)
+        self.assertRegex("echo $CANDIDATE_ROOT/evil.py", CANDIDATE_SCRIPT_REFERENCE)
 
     def test_root_side_http_completion_and_fail_closed_shutdown_are_required(self) -> None:
         self.assertIn('[ "$completed" -eq 1 ] ||', self.source)

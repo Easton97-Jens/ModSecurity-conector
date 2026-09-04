@@ -11,9 +11,12 @@ ausschließlich Vorbereitung — keine Merge-Autorisierung.
 Dispatcher und privilegierter Launcher stammen aus dem geschützten Base-
 Branch. Sie lösen einen offenen Pull Request über die GitHub-API auf, lassen
 genau eine vollständige unveränderliche Candidate-SHA als Daten zu und
-checken ausschließlich diese SHA aus. Der Candidate-Build läuft unprivilegiert.
-Der geschützte Launcher besitzt die Runtime-Zellen; der Collector erfasst
-hostseitige Prozessidentität, Artefaktprovenienz, Callback-/JSONL-Beobachtungen,
+checken ausschließlich diese SHA aus. Vor der Ausführung eines Candidate-
+Makefiles lehnt der Candidate-Build-Helper jede reale, effektive oder gespeicherte
+root-UID/GID ab. Ein korrekt provisionierter nicht-rootiger, isolierter
+Candidate-Runner bleibt eine externe Host-Voraussetzung. Der geschützte
+Launcher besitzt die Runtime-Zellen; der Collector erfasst hostseitige
+Prozessidentität, Artefaktprovenienz, Callback-/JSONL-Beobachtungen,
 WAF-Entscheidungen und den finalen Exit-Code. PR-gesteuerte Workflows,
 Launcher, Collector, Evidence-Pfade, Secrets und Host-Sockets sind keine
 vertrauenswürdigen Eingaben der privilegierten Zelle.
@@ -34,10 +37,11 @@ Callback- und JSONL-Records sind von Candidate-Code ausgegebene
 Beobachtungen. Sie werden auf Schema und Korrelation geprüft, sind aber keine
 kryptografisch oder provenance-authentifizierten semantischen Attestierungen:
 Ein bösartiger Candidate könnte ihre Inhalte nachahmen. Die unabhängig root-
-seitig beobachtete Prozessidentität, der transportseitige HTTP-403 und der
-Exit-Status bilden die vertrauenswürdige Grenze; die semantische Candidate-WAF-
-Entscheidung und Callback/JSONL bleiben begrenzte, nicht vertrauenswürdige
-Beobachtungen. Der Collector-Status lautet `validated_observations`; seine
+seitig beobachtete Prozessidentität, der Network-Namespace, der transportseitige
+HTTP-403 und der Exit-Status bilden die vertrauenswürdige Grenze; die
+semantische Candidate-WAF-Entscheidung und Callback/JSONL bleiben begrenzte,
+nicht vertrauenswürdige Beobachtungen. Der Collector-Status lautet
+`validated_observations`; seine
 strukturierte Evidence markiert Callback/JSONL als
 `candidate_scratch_untrusted` und die root-seitige HTTP-Beobachtung als
 `root_pidfd_network_namespace`. Linux-`pidfd` plus `setns(CLONE_NEWNET)` bindet
@@ -61,9 +65,9 @@ ein externer Blocker, kein Erfolg.
 ## Aktueller Bereitschaftsstand
 
 Source-Contracts und lokale Negativkontrolltests werden auf einem separaten
-Branch vorbereitet. Im Repository sind derzeit weder eine geschützte GitHub-
-Environment noch ein dedizierter gelabelter Runner für diese Steuerung
-konfiguriert. Daher wird kein gehostetes Exact-Head-Ergebnis, keine
+Branch vorbereitet. Dieser Checkout kann weder eine geschützte GitHub-
+Environment noch einen dedizierten gelabelten Runner für diese Steuerung
+verifizieren. Daher wird kein gehostetes Exact-Head-Ergebnis, keine
 unabhängige Attestierung und keine Merge-Bereitschaft behauptet. Vor einem
 manuellen geschützten Base-Dispatch müssen Administratoren Environment-
 Reviewer, Runner-Labels, Paket-/Tool-Voraussetzungen, Zugriffsregeln und das

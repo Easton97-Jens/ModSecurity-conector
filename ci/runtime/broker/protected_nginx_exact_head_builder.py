@@ -37,6 +37,11 @@ ARTIFACTS = {
     "module": "ngx_http_modsecurity_module.so",
     "library": "libmodsecurity.so.3",
 }
+ARTIFACT_MODES = {
+    ARTIFACTS["nginx"]: 0o500,
+    ARTIFACTS["module"]: 0o400,
+    ARTIFACTS["library"]: 0o400,
+}
 TASK_ROOT_LABEL = "task root"
 CANDIDATE_ROOT_LABEL = "candidate root"
 RUNTIME_SNAPSHOT_LABEL = "runtime snapshot"
@@ -70,6 +75,18 @@ def require_run_id(value: str) -> str:
     if SAFE_RUN_ID_RE.fullmatch(value) is None:
         fail("run ID is unsafe")
     return value
+
+
+def require_unprivileged_identity() -> tuple[int, int]:
+    """Return the effective non-root build identity or fail before Makefile code."""
+    try:
+        user_ids = os.getresuid()
+        group_ids = os.getresgid()
+    except AttributeError:
+        fail("candidate build platform cannot verify complete UID/GID identities")
+    if any(identity == 0 for identity in (*user_ids, *group_ids)):
+        fail("candidate build must not run with a root UID or GID")
+    return user_ids[1], group_ids[1]
 
 
 def absolute_normalized(path: Path, label: str) -> Path:
@@ -454,6 +471,7 @@ def package_file(
 ) -> dict[str, Any]:
     if destination_name not in ARTIFACTS.values():
         fail(f"{label} destination is not allowlisted")
+    destination_mode = ARTIFACT_MODES[destination_name]
     descriptor, metadata = _open_regular_at(
         build_descriptor,
         _relative_components(source, build_root, label),
@@ -461,6 +479,11 @@ def package_file(
         owner=os.geteuid(),
     )
     try:
+        if (
+            destination_name == ARTIFACTS["nginx"]
+            and not metadata.st_mode & stat.S_IXUSR
+        ):
+            fail("candidate NGINX binary must be owner-executable")
         try:
             os.stat(destination_name, dir_fd=output_descriptor, follow_symlinks=False)
         except FileNotFoundError:
@@ -478,9 +501,11 @@ def package_file(
             fail(f"could not create {label} destination: {exc}")
         try:
             digest = copy_fd(descriptor, target, metadata.st_size, label)
+            os.fchmod(target, destination_mode)
             final = os.fstat(target)
             if (not stat.S_ISREG(final.st_mode) or final.st_nlink != 1
-                    or final.st_size != metadata.st_size):
+                    or final.st_size != metadata.st_size
+                    or stat.S_IMODE(final.st_mode) != destination_mode):
                 fail(f"{label} destination changed while packaging")
         finally:
             os.close(target)
@@ -719,11 +744,12 @@ def run_candidate_build(arguments: argparse.Namespace) -> Path:
     expected_head = require_sha40(arguments.expected_pr_head, "expected PR head")
     base_sha = require_sha40(arguments.trusted_dispatcher_base_sha, "trusted dispatcher base SHA")
     require_run_id(arguments.run_id)
+    runner_uid, _ = require_unprivileged_identity()
     task_root = absolute_normalized(Path(arguments.task_root), TASK_ROOT_LABEL)
     candidate_root = require_no_symlink_chain(Path(arguments.candidate_root), CANDIDATE_ROOT_LABEL)
-    require_private_directory(candidate_root, CANDIDATE_ROOT_LABEL, owner=os.geteuid())
+    require_private_directory(candidate_root, CANDIDATE_ROOT_LABEL, owner=runner_uid)
     task_descriptor = _open_private_directory(
-        task_root, TASK_ROOT_LABEL, owner=os.geteuid()
+        task_root, TASK_ROOT_LABEL, owner=runner_uid
     )
     try:
         environment = build_environment(arguments)
