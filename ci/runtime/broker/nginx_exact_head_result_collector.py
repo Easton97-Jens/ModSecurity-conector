@@ -112,28 +112,6 @@ def _stable_read_descriptor(
     return bytes(data)
 
 
-def _stable_read(path: Path, label: str, limit: int) -> bytes:
-    descriptor = -1
-    try:
-        descriptor = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
-        return _stable_read_descriptor(
-            descriptor, label, limit, _require_bounded_regular
-        )
-    except OSError as exc:
-        raise CollectorError(f"{label} unavailable") from exc
-    finally:
-        if descriptor >= 0:
-            os.close(descriptor)
-
-def _json(path: Path, label: str, limit: int = MAX_JSON) -> Any:
-    try:
-        return json.loads(
-            _stable_read(path, label, limit).decode("utf-8"),
-            object_pairs_hook=_dupes,
-        )
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise CollectorError(f"{label} invalid JSON") from exc
-
 def _obj(value: Any, fields: frozenset[str], label: str) -> dict[str, Any]:
     if not isinstance(value, dict) or frozenset(value) != fields:
         raise CollectorError(f"{label} schema mismatch")
@@ -242,18 +220,6 @@ def _json_root_evidence(
 ) -> Any:
     return _json_bytes(_read_root_evidence(root_descriptor, name, label, limit), label)
 
-def _input(path: Path, label: str) -> Path:
-    if not path.is_absolute() or any(p in {".", ".."} for p in path.parts):
-        raise CollectorError(f"{label} path is unsafe")
-    try:
-        st = path.lstat()
-    except OSError as exc:
-        raise CollectorError(f"{label} unavailable") from exc
-    if stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode) or st.st_nlink != 1:
-        raise CollectorError(f"{label} is unsafe")
-    return path
-
-
 def _open_task_root(path: Path, runner_uid: int, runner_gid: int) -> int:
     if (
         not path.is_absolute()
@@ -270,11 +236,18 @@ def _open_task_root(path: Path, runner_uid: int, runner_gid: int) -> int:
             os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
         )
         for part in path.parts[1:]:
+            before = os.stat(part, dir_fd=descriptor, follow_symlinks=False)
+            if not stat.S_ISDIR(before.st_mode) or stat.S_ISLNK(before.st_mode):
+                raise CollectorError("task root contains an unsafe component")
             next_descriptor = os.open(
                 part,
                 os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
                 dir_fd=descriptor,
             )
+            opened = os.fstat(next_descriptor)
+            if (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino):
+                os.close(next_descriptor)
+                raise CollectorError("task root changed while being opened")
             os.close(descriptor)
             descriptor = next_descriptor
         metadata = os.fstat(descriptor)
@@ -299,14 +272,107 @@ def _sha(value: Any, label: str, pattern: re.Pattern[str]) -> str:
         raise CollectorError(f"{label} has invalid digest")
     return value
 
-def _manifest(path: Path) -> dict[str, Any]:
+def _require_runner_input_file(
+    metadata: os.stat_result, label: str, limit: int, runner_uid: int, runner_gid: int
+) -> None:
+    _require_bounded_regular(metadata, label, limit)
+    if (
+        metadata.st_uid != runner_uid
+        or metadata.st_gid != runner_gid
+        or stat.S_IMODE(metadata.st_mode) & 0o022
+    ):
+        raise CollectorError(f"unsafe task input file: {label}")
+
+
+def _open_task_input_manifest(
+    task_descriptor: int,
+    manifest_path: Path,
+    task_root: Path,
+    runner_uid: int,
+    runner_gid: int,
+) -> int:
+    """Open only the dispatcher manifest at the fixed task-root location."""
+    expected = task_root / "inputs" / "dispatcher" / "dispatcher-manifest.json"
+    if manifest_path != expected:
+        raise CollectorError("dispatcher manifest is outside the fixed task-root input")
+    descriptors: list[int] = []
+    current = task_descriptor
+    try:
+        for component in ("inputs", "dispatcher"):
+            before = os.stat(component, dir_fd=current, follow_symlinks=False)
+            if not stat.S_ISDIR(before.st_mode) or stat.S_ISLNK(before.st_mode):
+                raise CollectorError("unsafe dispatcher input directory")
+            child = os.open(
+                component,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                dir_fd=current,
+            )
+            opened = os.fstat(child)
+            if (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino):
+                os.close(child)
+                raise CollectorError("dispatcher input directory changed while opening")
+            descriptors.append(child)
+            current = child
+        before = os.stat(
+            "dispatcher-manifest.json", dir_fd=current, follow_symlinks=False
+        )
+        _require_runner_input_file(
+            before, "dispatcher manifest", MAX_JSON, runner_uid, runner_gid
+        )
+        result = os.open(
+            "dispatcher-manifest.json",
+            os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW,
+            dir_fd=current,
+        )
+        opened = os.fstat(result)
+        if _metadata_key(opened) != _metadata_key(before):
+            os.close(result)
+            raise CollectorError("dispatcher manifest changed while being opened")
+        _require_runner_input_file(
+            opened, "dispatcher manifest", MAX_JSON, runner_uid, runner_gid
+        )
+        return result
+    except FileNotFoundError as exc:
+        raise CollectorError("dispatcher manifest input is unavailable") from exc
+    except OSError as exc:
+        raise CollectorError("dispatcher manifest input is unavailable") from exc
+    finally:
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
+
+
+def _manifest_from_task_root(
+    task_descriptor: int,
+    manifest_path: Path,
+    task_root: Path,
+    runner_uid: int,
+    runner_gid: int,
+) -> dict[str, Any]:
+    descriptor = _open_task_input_manifest(
+        task_descriptor, manifest_path, task_root, runner_uid, runner_gid
+    )
+    try:
+        raw = _stable_read_descriptor(
+            descriptor,
+            "dispatcher manifest",
+            MAX_JSON,
+            lambda metadata, label, limit: _require_runner_input_file(
+                metadata, label, limit, runner_uid, runner_gid
+            ),
+        )
+    finally:
+        os.close(descriptor)
+    return _manifest_value(_json_bytes(raw, "dispatcher manifest"))
+
+
+def _manifest_value(value: Any) -> dict[str, Any]:
     fields = frozenset({
         "schema_version", "trusted_dispatcher_base_sha", "run_id", "pr_number",
         "tested_pr_head", "tested_pr_head_ref", "tested_pr_head_repository",
         "tested_pr_base", "tested_pr_base_ref", "tested_pr_base_repository",
         "draft", "state", "merged",
     })
-    value = _obj(_json(path, "dispatcher manifest"), fields, "dispatcher manifest")
+    value = _obj(value, fields, "dispatcher manifest")
     if (not _version_one(value["schema_version"])
             or type(value["pr_number"]) is not int
             or value["pr_number"] <= 0):
@@ -376,8 +442,19 @@ def collect(
         or output_path.name != "exact-head-result.json"
     ):
         raise CollectorError("output path is outside the fixed task-root allowlist")
-    manifest = _manifest(_input(manifest_path, "dispatcher manifest"))
-    evidence_descriptor = _open_root_owned_evidence(evidence_root)
+    task_descriptor = _open_task_root(task_root, runner_uid, runner_gid)
+    try:
+        manifest = _manifest_from_task_root(
+            task_descriptor, manifest_path, task_root, runner_uid, runner_gid
+        )
+    except BaseException:
+        os.close(task_descriptor)
+        raise
+    try:
+        evidence_descriptor = _open_root_owned_evidence(evidence_root)
+    except BaseException:
+        os.close(task_descriptor)
+        raise
     try:
         try:
             names = set(os.listdir(evidence_descriptor))
@@ -438,6 +515,9 @@ def collect(
                 or exit_value["on_exit"] != 0
                 or exit_value["off_exit"] != 0):
             raise CollectorError("cell exit status is not successful")
+    except BaseException:
+        os.close(task_descriptor)
+        raise
     finally:
         if evidence_descriptor >= 0:
             os.close(evidence_descriptor)
@@ -468,7 +548,6 @@ def collect(
         "final_exit_code": 0,
     }
     data = (json.dumps(result, sort_keys=True, separators=(",", ":")) + "\n").encode()
-    task_descriptor = _open_task_root(task_root, runner_uid, runner_gid)
     temporary_name = f".{output_path.name}.tmp-{os.getpid()}"
     result_descriptor = -1
     try:

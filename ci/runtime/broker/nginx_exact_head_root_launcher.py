@@ -69,6 +69,7 @@ RULE_1000001_RE = re.compile(r"(?<![0-9])1000001(?![0-9])")
 FORBIDDEN_MARKERS = re.compile(r"canary|query[-_ ]?secret|password|token", re.IGNORECASE)
 BASE_DRIVER_RELATIVE = Path("ci/runtime/broker/run_nginx_exact_head_cells.sh")
 SANDBOX_BASE_HELPER = Path("/run/nginx-exact-head-base-helper.sh")
+SANDBOX_TMPDIR = Path("/run/nginx-exact-head-tmp")
 EXPECTED_NGINX_VERSION = "1.31.4"
 EXPECTED_NGINX_SOURCE_DIGEST = "e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3"
 DISPATCHER_FIELDS = frozenset({
@@ -133,8 +134,27 @@ class ProcessHandle:
     pidfd: int
 
 
+# Commands are always executed without a shell.  Keep a second, explicit
+# boundary here because several arguments are derived from filesystem metadata
+# and are later forwarded through the namespace helper and its shell script.
+COMMAND_FORBIDDEN_CHARS = frozenset("\x00\n\r;&|$`<>()")
+
+
 def fail(message: str) -> None:
     raise LauncherError(message)
+
+
+def validated_command(argv: list[str]) -> list[str]:
+    """Return an argv list safe for the fixed no-shell execution boundary."""
+    if not argv or any(type(argument) is not str or not argument for argument in argv):
+        fail("checked command contains an invalid argument")
+    if not os.path.isabs(argv[0]) or any(
+        character in COMMAND_FORBIDDEN_CHARS
+        for argument in argv
+        for character in argument
+    ):
+        fail("checked command contains an unsafe executable or argument")
+    return list(argv)
 
 
 def open_regular_no_follow(path: Path, label: str) -> int:
@@ -441,7 +461,7 @@ def run_checked(
     pass_fds: tuple[int, ...] = (),
     preexec_fn: Callable[[], None] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(argv, check=True, env=env, text=True,
+    return subprocess.run(validated_command(argv), check=True, env=env, text=True,
                           stdout=subprocess.PIPE if capture else None,
                           stderr=subprocess.PIPE if capture else None,
                           timeout=timeout, pass_fds=pass_fds,
@@ -482,7 +502,7 @@ def runner_checked_bytes(
         *argv,
     ]
     return subprocess.run(
-        command,
+        validated_command(command),
         check=True,
         env=env,
         stdin=subprocess.DEVNULL,
@@ -1926,6 +1946,11 @@ def main(argv: list[str] | None = None) -> int:
             "LD_LIBRARY_PATH": str(candidate_root),
             "NGINX_WORKER_USER": worker_name,
             "NGINX_WORKER_GROUP": worker_group,
+            # Do not expose a conventional public temporary directory inside
+            # the candidate sandbox.  The mount is fresh and private to this
+            # one cell, while standard temporary-file consumers still receive
+            # an explicit writable location.
+            "TMPDIR": str(SANDBOX_TMPDIR),
         }
         # The outer transition intentionally does not set no_new_privs: the
         # trusted util-linux mapper must invoke the setuid uidmap helpers to
@@ -1942,8 +1967,8 @@ def main(argv: list[str] | None = None) -> int:
                    "--bounding-set=-all,+chown,+setgid,+setuid,+sys_admin", "--", HELPERS["bwrap"],
                    "--die-with-parent", "--new-session", "--unshare-pid", "--unshare-net", "--unshare-ipc", "--unshare-uts",
                    "--disable-userns", "--assert-userns-disabled", "--tmpfs", "/", "--dir", "/proc", "--dir", "/dev",
-                   "--dir", "/tmp", "--dir", "/usr", "--dir", "/bin", "--dir", "/lib", "--dir", "/lib64",
-                   "--dir", "/etc", "--dir", "/run", "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
+                   "--dir", "/usr", "--dir", "/bin", "--dir", "/lib", "--dir", "/lib64",
+                   "--dir", "/etc", "--dir", "/run", "--proc", "/proc", "--dev", "/dev", "--tmpfs", str(SANDBOX_TMPDIR),
                    "--ro-bind", "/usr", "/usr", "--ro-bind", "/bin", "/bin",
                    "--ro-bind", "/lib", "/lib", "--ro-bind", "/lib64", "/lib64", "--ro-bind", "/etc", "/etc",
                    "--ro-bind", str(scratch_root), str(scratch_root),
@@ -1964,7 +1989,7 @@ def main(argv: list[str] | None = None) -> int:
                         str(candidate_root), str(candidate_path), str(cell)))
         enable_child_subreaper()
         process = subprocess.Popen(
-            command,
+            validated_command(command),
             env=outer_env,
             pass_fds=tuple(artifact_descriptors.values()) + tuple(trusted_base_descriptors.values()),
             preexec_fn=apply_sandbox_limits,

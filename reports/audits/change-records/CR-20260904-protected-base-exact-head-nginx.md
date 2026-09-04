@@ -8,7 +8,7 @@
 | Date (UTC) | 2026-09-04 |
 | Base revision | 95bc04203455bc74a9cd18fafc6fb5848af2bbb2 |
 | Scope | Parent-only protected-base preparation for independent NGINX exact-head evidence |
-| Delivery status | Separate Draft PR preparation; no merge authorization |
+| Delivery status | Draft PR #355 successor remediation in preparation; no merge authorization |
 | Candidate | PR #354, exact head must be resolved and read back at dispatch time |
 
 ## Purpose
@@ -68,6 +68,36 @@ host user-namespace admission and profile-label validation only; it is not a
 MAC-confinement claim. Namespace isolation, capability bounding, and
 `no_new_privs` remain separate controls requiring independent validation.
 
+## SonarCloud read-back and source remediation
+
+The first published Draft-PR head
+`78163d65dc19ee2cf1500dafa4d0f5d5cc36893b` received a fresh SonarCloud
+Quality Gate `ERROR`: `new_security_rating=5` exceeds the configured threshold
+of `1`. The authenticated PR inventory contained 26 Vulnerabilities and 72
+Code Smells. Two `githubactions:S7630` rows were confirmed: the manually
+dispatched PR number was rendered directly into shell source before the Python
+validator could run. The successor passes that value only through a quoted
+step environment variable.
+
+The successor also strengthens dispatcher and collector file boundaries with
+full-chain, descriptor-relative, no-follow operations; binds the collector
+manifest to its fixed private task-root location; rejects writable input
+artifacts; and moves sandbox temporary storage to a fresh private
+`/run/nginx-exact-head-tmp` mount. The unprivileged candidate builder retains
+the admitted task descriptor across candidate `make`; during packaging it
+opens and retains the admitted build and package descriptors. It reads the
+selected snapshot and fixed artifacts and publishes the fixed artifact names
+and manifest only relative to those descriptors. Snapshot enumeration is
+lexical only to select a candidate name; packaging opens its components below
+the retained task descriptor. Controlled task-root, build-root, and
+output-directory swap regressions prove that a replacement directory is not
+used and that an identity change rejects the package result before return.
+Focused source refactors preserve the existing fail-closed behavior. No
+`NOSONAR`, issue or risk acceptance, scanner exclusion,
+Quality-Gate/rule change, coverage reduction, or workflow weakening is used.
+A fresh exact-successor Sonar analysis is still required; the initial head's
+result is not evidence for a successor.
+
 ## Scope exclusions
 
 No product remediation, Framework/MRTS source, Gitlink, dependency, branch
@@ -108,11 +138,12 @@ workflow, focused tests, and bilingual documentation files in this Draft PR.
 
 ## Commands executed
 
-Focused Python `unittest`: passed, 72 tests. Python compilation, `/bin/sh -n`,
+Focused Python `unittest`: passed, 86 tests. Python compilation, `/bin/sh -n`,
 and `actionlint` for the protected workflow passed. Evidence-root and leaf
-reads are descriptor-anchored, and path-substitution regression coverage
-passed. JSON schema versions require an actual JSON integer, so `true` cannot
-masquerade as version `1`.
+reads are descriptor-anchored, dispatcher/collector path-substitution
+regressions pass, and JSON schema versions require an actual JSON integer, so
+`true` cannot masquerade as version `1`. These are pre-successor-commit local
+results only; hosted and Sonar evidence must be re-read for its exact SHA.
 
 ## Security impact
 
@@ -136,6 +167,12 @@ attestation are external prerequisites unavailable in this checkout.
 
 Candidate code can imitate callback/JSONL and WAF semantic values. PID/namespace
 lifetime and host-gate behavior still require exact-head hosted validation.
+After the builder's final descriptor-identity checks, a same-UID candidate
+background process could still race the lexical upload path returned to its
+unprivileged caller. This is outside the builder's retained-descriptor
+packaging window; the returned bundle is treated as untrusted by the root
+launcher and re-admitted through fixed-name descriptor/digest checks. Exact
+hosted-runner evidence is still required for that handoff.
 
 ## Checks not run and rationale
 
@@ -151,10 +188,16 @@ is preparation only and has no merge authorization.
 ## Local validation observed
 
 The focused Python unit suite for the protected dispatcher, builder, preflight,
-launcher, collector, helper, and workflow contracts passed with 72 tests.
-Descriptor-anchored evidence-root/leaf reads and path-substitution regression
-coverage also passed, as did strict rejection of boolean schema versions.
+launcher, collector, helper, and workflow contracts passed with 86 tests.
+Descriptor-anchored evidence-root/leaf reads, dispatcher/collector
+path-substitution regressions, strict rejection of boolean schema versions,
+and environment-variable-only handling of the dispatched PR number and expected
+SHA passed. Candidate task/build/output-directory swap regressions also passed:
+replacement directories are not used, and replaced task/output identities fail
+closed before a package path is returned.
 Python compilation and shell syntax checks passed. `actionlint` passed for
-`.github/workflows/run-protected-nginx-exact-head.yml`. A hosted NGINX runtime,
-protected Environment, dedicated runner, and independent attestation were not
-available locally and remain blocked external evidence.
+`.github/workflows/run-protected-nginx-exact-head.yml`. A local Bubblewrap
+mount-layout probe is blocked by this container's namespace policy and is not
+claimed as a host-runtime result. A hosted NGINX runtime, protected Environment,
+dedicated runner, and independent attestation were not available locally and
+remain blocked external evidence.

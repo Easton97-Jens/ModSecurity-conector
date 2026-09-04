@@ -20,7 +20,10 @@ SHA = "a" * 40
 
 def load_module() -> object:
     spec = importlib.util.spec_from_file_location("exact_head_preflight", MODULE_PATH)
-    assert spec is not None and spec.loader is not None
+    if spec is None:
+        raise AssertionError("module spec is unavailable")
+    if spec.loader is None:
+        raise AssertionError("module loader is unavailable")
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)

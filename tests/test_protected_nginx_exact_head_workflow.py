@@ -50,6 +50,22 @@ class ProtectedExactHeadWorkflowContractTests(unittest.TestCase):
         self.assertIn("protected_nginx_exact_head_runner_preflight.py", self.text)
         self.assertIn("actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c", self.text)
 
+    def test_dispatch_input_is_not_interpolated_into_shell_code(self) -> None:
+        resolve = self.text.split("  resolve:", 1)[1].split("  candidate-build:", 1)[0]
+        candidate = self.text.split("  candidate-build:", 1)[1].split("  privileged-runtime:", 1)[0]
+        privileged = self.text.split("  privileged-runtime:", 1)[1]
+        self.assertIn("PR_NUMBER: ${{ inputs.pr_number }}", resolve)
+        self.assertIn("EXPECTED_HEAD_SHA: ${{ inputs.expected_head_sha }}", resolve)
+        self.assertIn("--pr-number \"$PR_NUMBER\"", resolve)
+        self.assertIn("--expected-head-sha \"$EXPECTED_HEAD_SHA\"", resolve)
+        for job in (candidate, privileged):
+            self.assertIn("REQUESTED_PR_NUMBER: ${{ inputs.pr_number }}", job)
+            self.assertIn("--pr-number \"$REQUESTED_PR_NUMBER\"", job)
+            self.assertIn("VALIDATED_PR_HEAD: ${{ needs.resolve.outputs.tested_pr_head }}", job)
+            self.assertIn("--expected-head-sha \"$VALIDATED_PR_HEAD\"", job)
+        self.assertNotIn("--pr-number \"${{ inputs.pr_number }}\"", self.text)
+        self.assertNotIn("--expected-head-sha \"${{ inputs.expected_head_sha }}\"", self.text)
+
     def test_privilege_is_narrow_and_not_candidate_orchestration(self) -> None:
         privileged = self.text.split("  privileged-runtime:", 1)[1]
         self.assertIn("sudo -n -- /usr/local/libexec/modsecurity-protected-exact-head/run-exact-base-launcher", privileged)

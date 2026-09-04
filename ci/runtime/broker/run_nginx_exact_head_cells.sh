@@ -20,11 +20,12 @@ die() {
 }
 
 is_abs_clean() {
-    case "$1" in
+    path=$1
+    case "$path" in
         /*) : ;;
         *) return 1 ;;
     esac
-    case "$1" in
+    case "$path" in
         *"/../"*|*"/./"*|*/..|*/.) return 1 ;;
     esac
 }
@@ -99,7 +100,10 @@ write_mode() {
     [ "$ready" -eq 1 ] || { kill "$master_pid" 2>/dev/null; wait "$master_pid"; die; }
     worker_pid=''
     if worker_pid=$(/usr/bin/ps -eo pid=,ppid= | /usr/bin/awk -v parent="$master_pid" '$2 == parent {print $1; exit}' 2>/dev/null); then :; else die; fi
-    case "$worker_pid" in ''|*[!0-9]*) kill "$master_pid"; wait "$master_pid"; die ;; esac
+    case "$worker_pid" in
+        ''|*[!0-9]*) kill "$master_pid"; wait "$master_pid"; die ;;
+        *) : ;;
+    esac
     worker_uid=''
     worker_gid=''
     master_uid=''
