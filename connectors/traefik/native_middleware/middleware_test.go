@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -30,6 +31,7 @@ type recordingTransaction struct {
 	headerCalls    []headerCall
 	headerValues   [][]Header
 	bodyCalls      []bodyCall
+	events         []string
 	contexts       []context.Context
 	closed         []Summary
 	headerDecision func(Direction, []Header, bool) Decision
@@ -40,6 +42,7 @@ func (transaction *recordingTransaction) ProcessHeaders(value context.Context, d
 	transaction.contexts = append(transaction.contexts, value)
 	transaction.headerCalls = append(transaction.headerCalls, headerCall{direction: direction, end: end, count: len(headers)})
 	transaction.headerValues = append(transaction.headerValues, append([]Header(nil), headers...))
+	transaction.events = append(transaction.events, string(direction)+"-headers")
 	if transaction.headerDecision != nil {
 		return transaction.headerDecision(direction, headers, end), nil
 	}
@@ -174,6 +177,7 @@ func TestMiddlewareRejectsMissingAuthorityBeforeEngineOpen(t *testing.T) {
 func (transaction *recordingTransaction) ProcessBody(value context.Context, direction Direction, body []byte, end bool) (Decision, error) {
 	transaction.contexts = append(transaction.contexts, value)
 	transaction.bodyCalls = append(transaction.bodyCalls, bodyCall{direction: direction, end: end, length: len(body)})
+	transaction.events = append(transaction.events, string(direction)+"-body")
 	if transaction.bodyDecision != nil {
 		return transaction.bodyDecision(direction, body, end), nil
 	}
@@ -305,10 +309,15 @@ func TestTraefikMiddlewareEntryPointSignature(t *testing.T) {
 }
 
 func newTestMiddleware(t *testing.T, next http.Handler, transaction *recordingTransaction) *Middleware {
+	return newTestMiddlewareWithRequestBodyLimit(t, next, transaction, defaultMaxRequestBodyBytes)
+}
+
+func newTestMiddlewareWithRequestBodyLimit(t *testing.T, next http.Handler, transaction *recordingTransaction, requestBodyLimit int64) *Middleware {
 	t.Helper()
 	config := CreateConfig()
 	config.EngineSocketPath = "/run/msconnector-test.sock"
 	config.MaxRequestChunkBytes = 3
+	config.MaxRequestBodyBytes = requestBodyLimit
 	config.MaxResponseChunkBytes = 2
 	middleware, err := newWithEngine(next, config, "test", &recordingEngine{transaction: transaction})
 	if err != nil {
@@ -316,6 +325,23 @@ func newTestMiddleware(t *testing.T, next http.Handler, transaction *recordingTr
 	}
 	return middleware
 }
+
+type trackingRequestBody struct {
+	reader    *strings.Reader
+	readBytes int
+}
+
+func newTrackingRequestBody(payload string) *trackingRequestBody {
+	return &trackingRequestBody{reader: strings.NewReader(payload)}
+}
+
+func (body *trackingRequestBody) Read(buffer []byte) (int, error) {
+	count, err := body.reader.Read(buffer)
+	body.readBytes += count
+	return count, err
+}
+
+func (*trackingRequestBody) Close() error { return nil }
 
 func TestMiddlewareStreamsRequestAndResponseInBoundedChunks(t *testing.T) {
 	transaction := &recordingTransaction{}
@@ -355,6 +381,267 @@ func TestMiddlewareStreamsRequestAndResponseInBoundedChunks(t *testing.T) {
 	}
 	if !summary.RequestEOS || !summary.ResponseEOS || !summary.ResponseCommitted {
 		t.Fatalf("expected complete committed summary, got %#v", summary)
+	}
+	requestBodyEvents := 0
+	requestBodyEndEvents := 0
+	requestBodyBytes := 0
+	for _, event := range transaction.events {
+		if event == "request-body" {
+			requestBodyEvents++
+		}
+	}
+	for _, call := range transaction.bodyCalls {
+		if call.direction == DirectionRequest {
+			requestBodyBytes += call.length
+			if call.end {
+				requestBodyEndEvents++
+			}
+		}
+	}
+	if requestBodyEvents == 0 || requestBodyBytes != len("request") || requestBodyEndEvents != 1 {
+		t.Fatalf("request body callbacks did not reach one EOS without duplication: events=%d bytes=%d eos=%d", requestBodyEvents, requestBodyBytes, requestBodyEndEvents)
+	}
+}
+
+func TestMiddlewareDrainsRequestBeforeResponseHeadersWhenHandlerSkipsBody(t *testing.T) {
+	transaction := &recordingTransaction{}
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	}), transaction)
+	request := httptest.NewRequest(http.MethodPost, "http://example.test/ordering", strings.NewReader("request"))
+	middleware.ServeHTTP(httptest.NewRecorder(), request)
+
+	lastRequestBody := -1
+	firstResponseHeaders := -1
+	for index, event := range transaction.events {
+		if event == "request-body" {
+			lastRequestBody = index
+		}
+		if event == "response-headers" && firstResponseHeaders < 0 {
+			firstResponseHeaders = index
+		}
+	}
+	if lastRequestBody < 0 || firstResponseHeaders < 0 || lastRequestBody >= firstResponseHeaders {
+		t.Fatalf("request body was not drained before response headers: events=%v", transaction.events)
+	}
+	if len(transaction.closed) != 1 || !transaction.closed[0].RequestEOS {
+		t.Fatalf("request EOS was not recorded after pre-commit drain: %#v", transaction.closed)
+	}
+}
+
+func TestMiddlewareAllowsInLimitRequestBodyBeforeResponseHeaders(t *testing.T) {
+	transaction := &recordingTransaction{}
+	middleware := newTestMiddlewareWithRequestBodyLimit(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if _, err := io.ReadAll(request.Body); err != nil {
+			t.Errorf("ReadAll(request.Body) error = %v", err)
+			return
+		}
+		writer.WriteHeader(http.StatusNoContent)
+	}), transaction, int64(len("request")))
+	source := newTrackingRequestBody("request")
+	request := httptest.NewRequest(http.MethodPost, "http://example.test/in-limit", nil)
+	request.ContentLength = int64(len("request"))
+	request.Body = source
+	response := httptest.NewRecorder()
+	middleware.ServeHTTP(response, request)
+
+	if got, want := response.Code, http.StatusNoContent; got != want {
+		t.Fatalf("status = %d, want %d", got, want)
+	}
+	if got, want := source.readBytes, len("request"); got != want {
+		t.Fatalf("source bytes = %d, want %d", got, want)
+	}
+	if len(transaction.closed) != 1 || !transaction.closed[0].RequestEOS {
+		t.Fatalf("in-limit request did not complete at EOS: %#v", transaction.closed)
+	}
+}
+
+func TestMiddlewareRejectsOverLimitBodyDuringSkippedHandlerDrain(t *testing.T) {
+	transaction := &recordingTransaction{}
+	middleware := newTestMiddlewareWithRequestBodyLimit(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	}), transaction, 5)
+	source := newTrackingRequestBody("request")
+	request := httptest.NewRequest(http.MethodPost, "http://example.test/over-limit-drain", nil)
+	request.ContentLength = int64(len("request"))
+	request.Body = source
+	response := httptest.NewRecorder()
+	middleware.ServeHTTP(response, request)
+
+	assertOverLimitRequestRejectedBeforeP3(t, transaction, response, source, len("request"))
+}
+
+func TestMiddlewareRejectsOverLimitBodyReadByHandlerWithoutFurtherDrain(t *testing.T) {
+	transaction := &recordingTransaction{}
+	middleware := newTestMiddlewareWithRequestBodyLimit(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if _, err := io.ReadAll(request.Body); !errors.Is(err, ErrRequestRejected) {
+			t.Errorf("ReadAll(request.Body) error = %v, want ErrRequestRejected", err)
+		}
+		writer.WriteHeader(http.StatusNoContent)
+	}), transaction, 5)
+	source := newTrackingRequestBody("request")
+	request := httptest.NewRequest(http.MethodPost, "http://example.test/over-limit-handler", nil)
+	request.ContentLength = int64(len("request"))
+	request.Body = source
+	response := httptest.NewRecorder()
+	middleware.ServeHTTP(response, request)
+
+	assertOverLimitRequestRejectedBeforeP3(t, transaction, response, source, len("request"))
+}
+
+func assertOverLimitRequestRejectedBeforeP3(t *testing.T, transaction *recordingTransaction, response *httptest.ResponseRecorder, source *trackingRequestBody, inputBytes int) {
+	t.Helper()
+	if got, want := response.Code, http.StatusRequestEntityTooLarge; got != want {
+		t.Fatalf("status = %d, want body-limit status %d", got, want)
+	}
+	if source.readBytes >= inputBytes {
+		t.Fatalf("over-limit source was fully drained: read=%d input=%d", source.readBytes, inputBytes)
+	}
+	for _, event := range transaction.events {
+		if event == "response-headers" {
+			t.Fatalf("P3 ran after request body limit rejection: events=%v", transaction.events)
+		}
+	}
+	if len(transaction.closed) != 1 || transaction.closed[0].RequestEOS {
+		t.Fatalf("over-limit request incorrectly reached EOS: %#v", transaction.closed)
+	}
+	engineRequestBytes := 0
+	for _, call := range transaction.bodyCalls {
+		if call.direction == DirectionRequest {
+			engineRequestBytes += call.length
+		}
+	}
+	if got, want := engineRequestBytes, 3; got != want {
+		t.Fatalf("over-limit chunk reached engine: engine request bytes=%d, want only first bounded chunk=%d", got, want)
+	}
+}
+
+func TestMiddlewareConfigRejectsOutOfRangeRequestBodyLimit(t *testing.T) {
+	config := CreateConfig()
+	if config.MaxRequestBodyBytes != defaultMaxRequestBodyBytes {
+		t.Fatalf("default max request body bytes = %d, want %d", config.MaxRequestBodyBytes, defaultMaxRequestBodyBytes)
+	}
+	config.MaxRequestBodyBytes = maximumMaxRequestBodyBytes + 1
+	if _, err := normalizedConfig(config); err == nil {
+		t.Fatal("normalizedConfig accepted a request body limit above the finite cap")
+	}
+	config = CreateConfig()
+	config.MaxRequestBodyBytes = -1
+	if _, err := normalizedConfig(config); err == nil {
+		t.Fatal("normalizedConfig accepted a non-positive request body limit")
+	}
+	config = CreateConfig()
+	config.MaxRequestBodyBytes = 2
+	if _, err := normalizedConfig(config); err == nil {
+		t.Fatal("normalizedConfig accepted a request chunk larger than the aggregate request body limit")
+	}
+}
+
+type failingRequestBody struct{}
+
+func (failingRequestBody) Read([]byte) (int, error) {
+	return 0, errors.New("synthetic request-body read failure")
+}
+
+func (failingRequestBody) Close() error { return nil }
+
+func TestMiddlewareFailsClosedWhenPreCommitRequestDrainFails(t *testing.T) {
+	transaction := &recordingTransaction{}
+	nextCalled := false
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		nextCalled = true
+		writer.WriteHeader(http.StatusNoContent)
+	}), transaction)
+	request := httptest.NewRequest(http.MethodPost, "http://example.test/drain-error", nil)
+	request.ContentLength = -1
+	request.Body = failingRequestBody{}
+	response := httptest.NewRecorder()
+	middleware.ServeHTTP(response, request)
+
+	if !nextCalled {
+		t.Fatal("next handler was not reached before its response triggered the drain")
+	}
+	if got, want := response.Code, http.StatusInternalServerError; got != want {
+		t.Fatalf("status = %d, want fail-closed status %d", got, want)
+	}
+	for _, event := range transaction.events {
+		if event == "response-headers" {
+			t.Fatalf("response headers evaluated after request drain failure: events=%v", transaction.events)
+		}
+	}
+}
+
+func TestMiddlewareKeepsBodyDecisionWhenPreCommitDrainFindsP2Deny(t *testing.T) {
+	transaction := &recordingTransaction{
+		bodyDecision: func(direction Direction, _ []byte, _ bool) Decision {
+			if direction == DirectionRequest {
+				return Decision{Action: ActionDeny, Status: http.StatusForbidden}
+			}
+			return allowDecision()
+		},
+	}
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	}), transaction)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "http://example.test/p2-deny", strings.NewReader("request"))
+	middleware.ServeHTTP(response, request)
+
+	if got, want := response.Code, http.StatusForbidden; got != want {
+		t.Fatalf("status = %d, want preserved P2 denial %d", got, want)
+	}
+	if len(transaction.events) == 0 {
+		t.Fatal("body decision produced no engine event")
+	}
+	for _, event := range transaction.events {
+		if event == "response-headers" {
+			t.Fatalf("response headers evaluated after P2 denial: events=%v", transaction.events)
+		}
+	}
+}
+
+func TestMiddlewareMarksEmptyRequestEOSWithoutBodyCallback(t *testing.T) {
+	transaction := &recordingTransaction{}
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	}), transaction)
+	middleware.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "http://example.test/empty", nil))
+
+	if len(transaction.closed) != 1 || !transaction.closed[0].RequestEOS {
+		t.Fatalf("empty request was not closed at request EOS: %#v", transaction.closed)
+	}
+	for _, call := range transaction.bodyCalls {
+		if call.direction == DirectionRequest {
+			t.Fatalf("empty request unexpectedly produced request-body callback: %#v", transaction.bodyCalls)
+		}
+	}
+}
+
+func TestMiddlewareInspectsReadableZeroLengthBodyBeforeP3(t *testing.T) {
+	transaction := &recordingTransaction{}
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	}), transaction)
+	request := httptest.NewRequest(http.MethodPost, "http://example.test/zero-length-body", nil)
+	request.ContentLength = 0
+	request.Body = io.NopCloser(strings.NewReader(""))
+	middleware.ServeHTTP(httptest.NewRecorder(), request)
+
+	if len(transaction.closed) != 1 || !transaction.closed[0].RequestEOS {
+		t.Fatalf("readable zero-length body did not reach request EOS: %#v", transaction.closed)
+	}
+	lastRequestBody := -1
+	firstResponseHeaders := -1
+	for index, event := range transaction.events {
+		if event == "request-body" {
+			lastRequestBody = index
+		}
+		if event == "response-headers" && firstResponseHeaders < 0 {
+			firstResponseHeaders = index
+		}
+	}
+	if lastRequestBody < 0 || firstResponseHeaders < 0 || lastRequestBody >= firstResponseHeaders {
+		t.Fatalf("readable zero-length body bypassed P2 before P3: events=%v", transaction.events)
 	}
 }
 

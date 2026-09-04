@@ -32,25 +32,25 @@ class ApacheNativeSecurityContractTests(unittest.TestCase):
         self.assertIn("if (msc_process_request_body(msr->t) != 1)", self.source)
 
     def test_response_header_append_failure_enters_precommit_terminal_path(self) -> None:
-        self.assertRegex(
-            self.source,
-            re.compile(
-                r"static int apache_add_response_headers.*?"
-                r"if \(msc_add_response_header\(msr->t,.*?\) != 1\).*?"
-                r"return 0;.*?"
-                r"if \(!apache_add_response_headers\(msr, r->err_headers_out\) \|\|"
-                r"\s*!apache_add_response_headers\(msr, r->headers_out\)\).*?"
-                r"return apache_send_precommit_terminal_error\(msr, filter, brigade,\s*"
-                r"HTTP_INTERNAL_SERVER_ERROR\);",
-                re.DOTALL,
-            ),
-        )
+        helper = self.source[self.source.index("static int apache_add_response_headers"):]
+        self.assertIn("msc_add_response_header(msr->t,", helper)
+        self.assertIn("!= 1)", helper[:helper.index("static int apache_response_header_metrics")])
+        self.assertIn("return 0;", helper[:helper.index("static int apache_response_header_metrics")])
+        response_path = self.source[self.source.index(
+            "error_headers_added = apache_add_response_headers"):]
+        response_path = response_path[:response_path.index(
+            "original_status = r->status")]
+        self.assertIn("apache_add_response_headers(msr, r->err_headers_out)", response_path)
+        self.assertIn("apache_add_response_headers(msr, r->headers_out)", response_path)
+        self.assertIn("return apache_send_precommit_terminal_error(msr, filter, brigade,", response_path)
+        self.assertIn("HTTP_INTERNAL_SERVER_ERROR);", response_path)
 
     def test_response_content_type_append_failure_enters_precommit_terminal_path(self) -> None:
         self.assertRegex(
             self.source,
             re.compile(
-                r"if \(msc_add_response_header\(msr->t,\s*"
+                r"content_type != NULL && content_type\[0\] != '\\0'.*?"
+                r"msc_add_response_header\(msr->t,\s*"
                 r"\(const unsigned char \*\)\"Content-Type\",\s*"
                 r"\(const unsigned char \*\)content_type\) != 1\).*?"
                 r"return apache_send_precommit_terminal_error\(msr, filter, brigade,\s*"

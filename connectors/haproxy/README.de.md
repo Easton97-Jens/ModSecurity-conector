@@ -17,6 +17,9 @@ Der Produktionsagent lädt ModSecurity-Regeln einmal und erstellt Transaktionen 
 HAProxy `unique-id` behält den begrenzten Transaktionsstatus für seine Anfrage bei und
 optionale Antwort-Header-Phasen, gibt aus
 Entscheidungs-JSONL und gibt typisierte SPOE-ACK-Variablen für die HAProxy-Durchsetzung zurück.
+Der SPOP-Listener besitzt keinen authentifizierten Transport und ist absichtlich
+auf `127.0.0.1` beschränkt; Remote- oder Wildcard-Binds werden nicht unterstützt
+und fail-closed abgewiesen.
 `make smoke-haproxy` listet gemeinsam genutzte Framework-YAML-Fälle mit `case_cli.py` auf.
 In jedem Fall werden HAProxy und der Produktions-SPOA-Agent gestartet
 Backend, sendet die Fallanfrage mit Curl, bestätigt den beobachteten Status und

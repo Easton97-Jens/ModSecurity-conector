@@ -409,7 +409,7 @@ Begrenzt die Größe serialisierter Metadatenereignisse.
 
 ### Validierung und Fehler
 
-Die Runtime-Konfiguration weist null, nichtdezimalen Werte und Werte oberhalb der harten Obergrenze von 16384 Byte ab.
+Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen, null, nichtdezimalen Werte und Werte oberhalb der harten Obergrenze von 16384 Byte weist die Runtime-Konfigurationsprüfung zurück.
 
 ### Beispiel
 
@@ -464,7 +464,7 @@ Begrenzt die akzeptierte Headeranzahl.
 
 ### Validierung und Fehler
 
-Die Runtime-Konfiguration weist null, nichtdezimalen Werte und Werte oberhalb der harten Obergrenze von 256 ab.
+Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen, null, nichtdezimalen Werte und Werte oberhalb der harten Obergrenze von 256 weist die Runtime-Konfigurationsprüfung zurück.
 
 ### Beispiel
 
@@ -519,7 +519,7 @@ Begrenzt die Größe jedes Headernamens.
 
 ### Validierung und Fehler
 
-Die Runtime-Konfiguration weist null, nichtdezimalen Werte und Werte oberhalb der harten Obergrenze von 256 Byte ab.
+Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen, null, nichtdezimalen Werte und Werte oberhalb der harten Obergrenze von 256 Byte weist die Runtime-Konfigurationsprüfung zurück.
 
 ### Beispiel
 
@@ -574,7 +574,7 @@ Begrenzt die Größe jedes Headerwerts.
 
 ### Validierung und Fehler
 
-Die Runtime-Konfiguration weist null, nichtdezimalen Werte und Werte oberhalb der harten Obergrenze von 8192 Byte ab.
+Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen, null, nichtdezimalen Werte und Werte oberhalb der harten Obergrenze von 8192 Byte weist die Runtime-Konfigurationsprüfung zurück.
 
 ### Beispiel
 
@@ -629,7 +629,7 @@ Begrenzt die gesamte Header-Byteanzahl.
 
 ### Validierung und Fehler
 
-Die Runtime-Konfiguration weist null, nichtdezimalen Werte und Werte oberhalb der harten Obergrenze von 65536 Byte ab.
+Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen, null, nichtdezimalen Werte und Werte oberhalb der harten Obergrenze von 65536 Byte weist die Runtime-Konfigurationsprüfung zurück.
 
 ### Beispiel
 
@@ -849,7 +849,7 @@ Begrenzt die der Engine angebotenen Request-Bytes.
 
 ### Validierung und Fehler
 
-Die Runtime-Konfiguration weist null, nichtdezimalen Werte und Werte oberhalb der harten Sicherheitsobergrenze von 10485760 Byte (10 MiB) ab.
+Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen, null, nichtdezimalen Werte und Werte oberhalb der harten Obergrenze von 10485760 Byte (harte Sicherheitsobergrenze 10 MiB) weist die Runtime-Konfigurationsprüfung zurück.
 
 ### Beispiel
 
@@ -959,7 +959,7 @@ Begrenzt die der Engine angebotenen Response-Bytes.
 
 ### Validierung und Fehler
 
-Die Runtime-Konfiguration weist null, nichtdezimalen Werte und Werte oberhalb der harten Sicherheitsobergrenze von 10485760 Byte (10 MiB) ab.
+Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen, null, nichtdezimalen Werte und Werte oberhalb der harten Obergrenze von 10485760 Byte (harte Sicherheitsobergrenze 10 MiB) weist die Runtime-Konfigurationsprüfung zurück.
 
 ### Beispiel
 

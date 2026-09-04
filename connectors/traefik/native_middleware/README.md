@@ -14,7 +14,12 @@ declaration.
 ## What the source does
 
 - wraps the request body so reads are capped to `maxRequestChunkBytes` and sent
-  synchronously to a per-request `Transaction` seam;
+  synchronously to a per-request `Transaction` seam; before response-header
+  evaluation it drains any unread body through that same path to request EOS;
+- applies the finite `maxRequestBodyBytes` aggregate limit (default and hard
+  cap: 1 MiB) before an over-limit chunk reaches the engine. The deterministic
+  pre-commit action is HTTP 413; after that decision it does not drain the
+  remaining source body;
 - wraps the response writer, evaluates response headers before commitment, and
   slices every `Write` into `maxResponseChunkBytes` callbacks before forwarding
   each slice;
@@ -50,6 +55,25 @@ an HTTP denial. It reports a disruptive outcome only after the actual
 `ResponseWriter` write succeeds. After response commitment a disruptive Phase
 4 result is deliberately `log_only`; it does not synthesize a changed status,
 reset, or client-abort claim.
+
+## UDS cancellation, timeout, and cleanup boundary
+
+Each `ServeHTTP` transaction owns one private UDS connection; it is never
+reused by a following request. Every exchange applies the smaller of the
+configured engine timeout and the request-context deadline. A context
+cancellation shortens the connection deadline immediately, unblocks a pending
+read or write, and joins its watcher before the call returns. A timeout,
+cancellation, peer reset, invalid result, or incomplete result discards the
+connection, closes its FD, and marks only that transaction terminal so no
+partial frame can be reused. `Close` is idempotent even when an earlier
+exchange already discarded the connection.
+
+Before a response is committed, the middleware turns an engine-exchange error
+into its closed HTTP 500 path. A canceled host request may already have lost
+its response channel, so the connector does not invent a client-visible
+status or an upstream-reset event. After commitment it retains the documented
+log-only/unchanged-response limit rather than claiming a retroactive rewrite.
+A fresh request opens a new UDS session and keeps normal allow/block semantics.
 
 ## Local source checks
 

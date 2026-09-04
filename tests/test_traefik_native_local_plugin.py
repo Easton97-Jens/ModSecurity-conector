@@ -766,7 +766,7 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
         self.assertNotIn("umask(", source)
         listener_source = source[
             source.index("static int traefik_engine_create_listener") : source.index(
-                "static void traefik_engine_wait_for_workers"
+                "static int traefik_engine_wait_for_workers"
             )
         ]
         serve_source = source[

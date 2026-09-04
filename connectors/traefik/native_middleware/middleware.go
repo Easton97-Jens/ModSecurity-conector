@@ -37,6 +37,12 @@ const (
 	defaultMaxHeaderBytes        = 64 << 10
 	defaultMaxRequestChunkBytes  = 32 << 10
 	defaultMaxResponseChunkBytes = 32 << 10
+	// Keep the native middleware's aggregate request-body ceiling aligned with
+	// the Common Runtime default hard body-buffer bound. A lower deployment
+	// value is supported; a higher one would make the pre-engine guard weaker
+	// than the repository-wide resource contract.
+	defaultMaxRequestBodyBytes int64 = 1 << 20
+	maximumMaxRequestBodyBytes int64 = 1 << 20
 )
 
 var (
@@ -63,6 +69,7 @@ type Config struct {
 	MaxHeaderCount        int    `json:"maxHeaderCount,omitempty"`
 	MaxHeaderBytes        int    `json:"maxHeaderBytes,omitempty"`
 	MaxRequestChunkBytes  int    `json:"maxRequestChunkBytes,omitempty"`
+	MaxRequestBodyBytes   int64  `json:"maxRequestBodyBytes,omitempty"`
 	MaxResponseChunkBytes int    `json:"maxResponseChunkBytes,omitempty"`
 	TransactionIDHeader   string `json:"transactionIDHeader,omitempty"`
 	EngineMode            string `json:"engineMode,omitempty"`
@@ -76,6 +83,7 @@ func CreateConfig() *Config {
 		MaxHeaderCount:        defaultMaxHeaderCount,
 		MaxHeaderBytes:        defaultMaxHeaderBytes,
 		MaxRequestChunkBytes:  defaultMaxRequestChunkBytes,
+		MaxRequestBodyBytes:   defaultMaxRequestBodyBytes,
 		MaxResponseChunkBytes: defaultMaxResponseChunkBytes,
 		TransactionIDHeader:   "X-Request-Id",
 		EngineMode:            "uds",
@@ -110,6 +118,9 @@ func applyConfigDefaults(value *Config) {
 	if value.MaxRequestChunkBytes == 0 {
 		value.MaxRequestChunkBytes = defaultMaxRequestChunkBytes
 	}
+	if value.MaxRequestBodyBytes == 0 {
+		value.MaxRequestBodyBytes = defaultMaxRequestBodyBytes
+	}
 	if value.MaxResponseChunkBytes == 0 {
 		value.MaxResponseChunkBytes = defaultMaxResponseChunkBytes
 	}
@@ -124,8 +135,15 @@ func applyConfigDefaults(value *Config) {
 
 func validateConfigLimits(value Config) error {
 	if value.MaxHeaderCount <= 0 || value.MaxHeaderBytes <= 0 ||
-		value.MaxRequestChunkBytes <= 0 || value.MaxResponseChunkBytes <= 0 {
+		value.MaxRequestChunkBytes <= 0 || value.MaxRequestBodyBytes <= 0 ||
+		value.MaxResponseChunkBytes <= 0 {
 		return errors.New("modsecurity native middleware: all limits must be positive")
+	}
+	if value.MaxRequestBodyBytes > maximumMaxRequestBodyBytes {
+		return fmt.Errorf("modsecurity native middleware: maxRequestBodyBytes must not exceed %d", maximumMaxRequestBodyBytes)
+	}
+	if int64(value.MaxRequestChunkBytes) > value.MaxRequestBodyBytes {
+		return errors.New("modsecurity native middleware: maxRequestChunkBytes must not exceed maxRequestBodyBytes")
 	}
 	if strings.TrimSpace(value.TransactionIDHeader) == "" {
 		return errors.New("modsecurity native middleware: transactionIDHeader is required")
@@ -358,7 +376,11 @@ func (middleware *Middleware) ServeHTTP(writer http.ResponseWriter, request *htt
 	}
 	defer state.close(requestContext)
 
-	requestEnd := request.Body == nil || request.ContentLength == 0
+	// A zero Content-Length is not by itself proof that Body cannot yield
+	// bytes: test adapters and nonstandard middleware can still provide a
+	// readable body. Only nil or the canonical NoBody sentinel can skip the
+	// bounded P2 reader without leaving a body-bearing bypass.
+	requestEnd := request.Body == nil || request.Body == http.NoBody
 	decision, err := state.processHeaders(requestContext, DirectionRequest, requestHeaders, requestEnd)
 	if err != nil {
 		http.Error(writer, "modsecurity middleware request-header evaluation failed", http.StatusInternalServerError)
@@ -375,7 +397,9 @@ func (middleware *Middleware) ServeHTTP(writer http.ResponseWriter, request *htt
 	response := newResponseWriter(request, writer, state)
 	originalBody := request.Body
 	if originalBody != nil {
-		request.Body = &inspectingRequestBody{request: request, source: originalBody, state: state}
+		inspectingBody := &inspectingRequestBody{request: request, source: originalBody, state: state}
+		state.requestBody = inspectingBody
+		request.Body = inspectingBody
 		defer func() { request.Body = originalBody }()
 	}
 
@@ -410,6 +434,7 @@ type streamState struct {
 	responseBodyChunks  uint64
 	requestBodyBytes    int64
 	responseBodyBytes   int64
+	requestBody         *inspectingRequestBody
 	requestEOS          bool
 	responseEOS         bool
 	responseCommitted   bool
@@ -453,6 +478,13 @@ func (state *streamState) processRequestBody(contextValue context.Context, chunk
 	}
 	state.requestBodyChunks++
 	state.requestBodyBytes += int64(len(chunk))
+	// The aggregate body guard is intentionally applied before the engine
+	// callback. Passing an over-limit chunk to the engine would let a P2 body
+	// bypass the repository's reject-before-engine resource policy.
+	if state.requestBodyBytes > state.config.MaxRequestBodyBytes {
+		state.pendingRequestDecision = Decision{Action: ActionDeny, Status: http.StatusRequestEntityTooLarge}
+		return ErrRequestRejected
+	}
 	decision, err := state.engine.ProcessBody(contextValue, DirectionRequest, chunk, end)
 	if end {
 		state.requestEOS = true
@@ -500,6 +532,64 @@ func (state *streamState) pendingRequestResult() (Decision, error) {
 	state.mu.Lock()
 	defer state.mu.Unlock()
 	return state.pendingRequestDecision, state.pendingRequestError
+}
+
+// ensureRequestEOS drains a body that the downstream handler did not consume.
+// It is called immediately before response-header evaluation, so P3 and host
+// response commitment cannot run ahead of the request-body phase. The drain
+// uses the same bounded inspecting reader as normal handler reads and fails
+// closed on source errors or a source that makes no progress.
+func (state *streamState) ensureRequestEOS() error {
+	state.mu.Lock()
+	if state.requestEOS {
+		state.mu.Unlock()
+		return nil
+	}
+	body := state.requestBody
+	state.mu.Unlock()
+	if err := state.pendingRequestBlocker(); err != nil {
+		return err
+	}
+	if body == nil {
+		state.markRequestEOS()
+		return nil
+	}
+
+	buffer := make([]byte, state.config.MaxRequestChunkBytes)
+	for {
+		count, readErr := body.Read(buffer)
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
+			state.recordRequestError(readErr)
+			return readErr
+		}
+		if errors.Is(readErr, io.EOF) {
+			return nil
+		}
+		if count == 0 {
+			err := errors.New("modsecurity native middleware: request body made no progress")
+			state.recordRequestError(err)
+			return err
+		}
+	}
+}
+
+// pendingRequestBlocker stops all further source reads after a disruptive P2
+// result or request inspection error. In particular, a request that exceeds
+// MaxRequestBodyBytes is not subsequently drained merely because its handler
+// tries to send a response.
+func (state *streamState) pendingRequestBlocker() error {
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	if state.pendingRequestDecision.disruptive() {
+		return ErrRequestRejected
+	}
+	return state.pendingRequestError
+}
+
+func (state *streamState) recordRequestError(err error) {
+	state.mu.Lock()
+	state.pendingRequestError = err
+	state.mu.Unlock()
 }
 
 func (state *streamState) markResponseCommit(contextValue context.Context, status int, headersSent bool, bodyStarted bool) {
@@ -577,6 +667,9 @@ type inspectingRequestBody struct {
 }
 
 func (body *inspectingRequestBody) Read(buffer []byte) (int, error) {
+	if err := body.state.pendingRequestBlocker(); err != nil {
+		return 0, err
+	}
 	if len(buffer) > body.state.config.MaxRequestChunkBytes {
 		buffer = buffer[:body.state.config.MaxRequestChunkBytes]
 	}
@@ -591,6 +684,9 @@ func (body *inspectingRequestBody) Read(buffer []byte) (int, error) {
 		if err := body.state.processRequestBody(body.request.Context(), nil, true); err != nil {
 			return 0, err
 		}
+	}
+	if readErr != nil && !errors.Is(readErr, io.EOF) {
+		body.state.recordRequestError(readErr)
 	}
 	return count, readErr
 }
@@ -728,6 +824,14 @@ func (writer *responseWriter) writeResponseChunk(chunk []byte) (int, bool, error
 func (writer *responseWriter) prepareResponseHeaders(status int) bool {
 	if writer.committed || writer.rejected || writer.responseHeadersEvaluated {
 		return !writer.rejected
+	}
+	if err := writer.state.ensureRequestEOS(); err != nil {
+		if decision, _ := writer.state.pendingRequestResult(); decision.disruptive() {
+			writer.writeDecision(decision)
+		} else {
+			writer.writeFailure()
+		}
+		return false
 	}
 	if decision, err := writer.state.pendingRequestResult(); err != nil {
 		writer.writeFailure()

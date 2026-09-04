@@ -27,7 +27,7 @@ RECORD_INTERVENTION = "!msc_apache_contract_record_intervention_decision(msr)"
 REQUEST_BODY_PHASE = "MSCONNECTOR_PHASE_REQUEST_BODY"
 RESPONSE_HEADERS_PHASE = "MSCONNECTOR_PHASE_RESPONSE_HEADERS"
 RESPONSE_BODY_PHASE = "MSCONNECTOR_PHASE_RESPONSE_BODY"
-P2_PROCESS = "if (msc_process_request_body(msr->t) < 0)"
+P2_PROCESS = "if (msc_process_request_body(msr->t) != 1)"
 P3_PROCESS = 'if (msc_process_response_headers(msr->t, original_status, "HTTP 1.1") != 1)'
 P4_PROCESS = "if (msc_process_response_body(msr->t) != 1)"
 BUCKET_NEXT_LOOP = "bucket = APR_BUCKET_NEXT(bucket))"
@@ -276,7 +276,7 @@ review_guards: list[tuple[bool, str]] = [
             "if (ret != APR_SUCCESS)",
             "if (!msc_apache_contract_record_body(msr, 0, (size_t)len))",
             "if (msc_append_request_body(msr->t,",
-            "(const unsigned char *)data, len) < 0)",
+            "(const unsigned char *)data, len) != 1)",
             "msr->request_body_bytes_seen += len;",
             "msr->request_body_bytes_inspected += len;",
             "APR_BUCKET_REMOVE(pbktIn);",

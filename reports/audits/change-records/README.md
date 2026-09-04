@@ -10,6 +10,13 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260903-connector-runtime-hardening-quality-remediation](CR-20260903-connector-runtime-hardening-quality-remediation.md)
+  | [Deutsch](CR-20260903-connector-runtime-hardening-quality-remediation.de.md) —
+  current Parent-only remediation of Codex review findings, SonarQube Cloud
+  Quality-Gate errors, and red connector workflow evidence for Draft PR #346.
+  It records local evidence and pending exact-head hosted results; no CI,
+  Framework/MRTS, Gitlink, `master`, or merge change is asserted.
+
 - [CR-20260824-connector-security-invariants](CR-20260824-connector-security-invariants.md)
   | [Deutsch](CR-20260824-connector-security-invariants.de.md) — the
   Parent-only connector security hardening records local remote-rule,

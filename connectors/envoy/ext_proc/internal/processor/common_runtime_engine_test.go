@@ -5,12 +5,14 @@ package processor
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestCommonRuntimeEngineEvaluatesIncrementalLifecycle(t *testing.T) {
@@ -213,6 +215,142 @@ func TestCommonRuntimeEngineSerializesParallelStreams(t *testing.T) {
 	}
 }
 
+func TestCommonRuntimeEngineCloseHonorsShutdownContext(t *testing.T) {
+	engine := &CommonRuntimeEngine{transactions: make(map[*commonRuntimeTransaction]struct{})}
+	engine.mu.Lock()
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+
+	started := time.Now()
+	err := engine.Close(ctx)
+	elapsed := time.Since(started)
+	engine.mu.Unlock()
+
+	if !errors.Is(err, ErrCommonRuntimeShutdownTimeout) {
+		t.Fatalf("Close() error = %v, want ErrCommonRuntimeShutdownTimeout", err)
+	}
+	if elapsed > 500*time.Millisecond {
+		t.Fatalf("Close() blocked for %s", elapsed)
+	}
+}
+
+func TestCommonRuntimeEngineCloseRejectsCanceledContextBeforeDestroy(t *testing.T) {
+	engine := &CommonRuntimeEngine{transactions: make(map[*commonRuntimeTransaction]struct{})}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := engine.Close(ctx)
+
+	if !errors.Is(err, ErrCommonRuntimeShutdownTimeout) {
+		t.Fatalf("Close() error = %v, want ErrCommonRuntimeShutdownTimeout", err)
+	}
+	if engine.closed {
+		t.Fatal("Close() destroyed the Common runtime after the shutdown context was canceled")
+	}
+	if !engine.closing.Load() {
+		t.Fatal("Close() did not retain the controlled shutting-down state")
+	}
+}
+
+func TestCommonRuntimeTransactionCleanupHonorsContext(t *testing.T) {
+	engine := &CommonRuntimeEngine{transactions: make(map[*commonRuntimeTransaction]struct{})}
+	transaction := &commonRuntimeTransaction{engine: engine}
+	engine.transactions[transaction] = struct{}{}
+	engine.mu.Lock()
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	started := time.Now()
+	transaction.Close(ctx, Summary{CloseReason: CloseContextCanceled})
+	elapsed := time.Since(started)
+	engine.mu.Unlock()
+
+	if elapsed > 500*time.Millisecond {
+		t.Fatalf("transaction Close() blocked for %s", elapsed)
+	}
+	if err := transaction.CleanupFailure(); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("CleanupFailure() = %v, want context deadline", err)
+	}
+	if !errors.Is(transaction.CleanupFailure(), ErrCommonRuntimeTransactionCleanupTimeout) {
+		t.Fatalf("CleanupFailure() = %v, want ErrCommonRuntimeTransactionCleanupTimeout", transaction.CleanupFailure())
+	}
+	if transaction.closed {
+		t.Fatal("transaction marked closed after bounded mutex cleanup failure")
+	}
+	if !engine.closing.Load() {
+		t.Fatal("transaction cleanup timeout did not prevent further native runtime reuse")
+	}
+	if err := engine.terminalFailure(); !errors.Is(err, ErrCommonRuntimeTransactionCleanupTimeout) {
+		t.Fatalf("terminalFailure() = %v, want ErrCommonRuntimeTransactionCleanupTimeout", err)
+	}
+}
+
+func TestCommonRuntimeEngineOperationsHonorMutexContext(t *testing.T) {
+	engine := &CommonRuntimeEngine{transactions: make(map[*commonRuntimeTransaction]struct{})}
+	transaction := &commonRuntimeTransaction{engine: engine}
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
+
+	testCases := []struct {
+		name string
+		run  func(context.Context) error
+	}{
+		{
+			name: "open",
+			run: func(ctx context.Context) error {
+				_, err := engine.Open(ctx, commonTestStreamMetadata("mutex-timeout"))
+				return err
+			},
+		},
+		{
+			name: "process_headers",
+			run: func(ctx context.Context) error {
+				_, err := transaction.ProcessHeaders(ctx, DirectionRequest, nil, true)
+				return err
+			},
+		},
+		{
+			name: "process_body",
+			run: func(ctx context.Context) error {
+				_, err := transaction.ProcessBody(ctx, DirectionRequest, nil, true)
+				return err
+			},
+		},
+		{
+			name: "mark_response_committed",
+			run:  transaction.MarkResponseCommitted,
+		},
+		{
+			name: "record_host_action",
+			run: func(ctx context.Context) error {
+				return transaction.RecordHostAction(ctx, HostAction{
+					Action:          AppliedActionDeny,
+					VisibleStatus:   403,
+					TransportResult: "http_status",
+				})
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+			defer cancel()
+			started := time.Now()
+			err := testCase.run(ctx)
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("operation error = %v, want context deadline", err)
+			}
+			if elapsed := time.Since(started); elapsed > 500*time.Millisecond {
+				t.Fatalf("operation blocked for %s", elapsed)
+			}
+		})
+	}
+
+	if got := len(engine.transactions); got != 0 {
+		t.Fatalf("transaction count = %d, want 0 after cancelled mutex waits", got)
+	}
+}
+
 func TestCommonRuntimeEngineUsesCanonicalEnvoyEventIdentity(t *testing.T) {
 	engine, eventPath := newCommonRuntimeEngineForTest(t)
 	contextValue := context.Background()
@@ -404,7 +542,7 @@ event_path=%s
 		t.Fatalf("NewCommonRuntimeEngine() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := engine.Close(); err != nil {
+		if err := engine.Close(context.Background()); err != nil {
 			t.Errorf("Common runtime close: %v", err)
 		}
 	})

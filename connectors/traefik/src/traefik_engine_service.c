@@ -28,9 +28,11 @@
 #define TRAEFIK_ENGINE_SOCKET_TIMEOUT_SECONDS 30
 #define TRAEFIK_ENGINE_SEND_TIMEOUT_MILLISECONDS \
     (TRAEFIK_ENGINE_SOCKET_TIMEOUT_SECONDS * 1000)
+#define TRAEFIK_ENGINE_WORKER_SHUTDOWN_TIMEOUT_SECONDS 30
 #define TRAEFIK_ENGINE_ACCEPT_POLL_MILLISECONDS 250
 #define TRAEFIK_ENGINE_LISTEN_BACKLOG 32
 #define TRAEFIK_ENGINE_MAX_ACTIVE_WORKERS 64U
+#define TRAEFIK_ENGINE_MAX_WORKERS 64U
 
 typedef struct traefik_engine_frame {
     uint8_t opcode;
@@ -75,6 +77,7 @@ typedef struct traefik_engine_service {
     pthread_mutex_t worker_lock;
     pthread_cond_t workers_idle;
     size_t worker_count;
+    int worker_sockets[TRAEFIK_ENGINE_MAX_WORKERS];
     msconnector_body_mode request_body_mode;
     msconnector_body_mode response_body_mode;
 } traefik_engine_service;
@@ -105,6 +108,7 @@ typedef struct traefik_engine_session {
 typedef struct traefik_engine_worker_arg {
     traefik_engine_service *service;
     int socket_fd;
+    size_t slot;
 } traefik_engine_worker_arg;
 
 typedef struct traefik_engine_socket_identity {
@@ -1343,16 +1347,22 @@ static void *traefik_engine_worker(void *argument)
     traefik_engine_worker_arg *worker = argument;
     traefik_engine_service *service;
     int socket_fd;
+    size_t slot;
 
     if (worker == NULL) {
         return NULL;
     }
     service = worker->service;
     socket_fd = worker->socket_fd;
+    slot = worker->slot;
     free(worker);
     traefik_engine_process_connection(service, socket_fd);
     (void)close(socket_fd);
     if (pthread_mutex_lock(&service->worker_lock) == 0) {
+        if (slot < TRAEFIK_ENGINE_MAX_WORKERS &&
+            service->worker_sockets[slot] == socket_fd) {
+            service->worker_sockets[slot] = -1;
+        }
         if (service->worker_count > 0U) {
             --service->worker_count;
         }
@@ -1379,13 +1389,11 @@ static int traefik_engine_start_worker(traefik_engine_service *service,
     traefik_engine_worker_arg *worker;
     pthread_t thread;
     int thread_created;
+    size_t slot = TRAEFIK_ENGINE_MAX_WORKERS;
 
-    if (service == NULL) {
+    if (service == NULL || !traefik_engine_socket_timeout(socket_fd)) {
         return 0;
     }
-    /* Reserve admission before allocating a worker.  The persistent service
-     * deliberately has no lifetime request quota, so this active-worker cap
-     * (plus the finite listen backlog) is the resource boundary. */
     if (pthread_mutex_lock(&service->worker_lock) != 0) {
         return 0;
     }
@@ -1396,32 +1404,42 @@ static int traefik_engine_start_worker(traefik_engine_service *service,
          * active worker exits. */
         return 2;
     }
+    for (size_t index = 0U; index < TRAEFIK_ENGINE_MAX_ACTIVE_WORKERS; ++index) {
+        if (service->worker_sockets[index] < 0) {
+            slot = index;
+            break;
+        }
+    }
+    if (slot == TRAEFIK_ENGINE_MAX_ACTIVE_WORKERS) {
+        (void)pthread_mutex_unlock(&service->worker_lock);
+        return 2;
+    }
+    worker = calloc(1U, sizeof(*worker));
+    if (worker == NULL) {
+        (void)pthread_mutex_unlock(&service->worker_lock);
+        return 0;
+    }
+    worker->service = service;
+    worker->socket_fd = socket_fd;
+    worker->slot = slot;
+    service->worker_sockets[slot] = socket_fd;
     ++service->worker_count;
     (void)pthread_mutex_unlock(&service->worker_lock);
-    if (traefik_engine_socket_timeout(socket_fd)) {
-        worker = calloc(1U, sizeof(*worker));
-        if (worker != NULL) {
-            worker->service = service;
-            worker->socket_fd = socket_fd;
-            thread_created = pthread_create(&thread, NULL, traefik_engine_worker,
-                worker);
-            if (thread_created == 0) {
-                (void)pthread_detach(thread);
-                return 1;
-            }
-            free(worker);
-        }
-    }
-    if (pthread_mutex_lock(&service->worker_lock) == 0) {
-        if (service->worker_count > 0U) {
+    thread_created = pthread_create(&thread, NULL, traefik_engine_worker, worker);
+    if (thread_created != 0) {
+        if (pthread_mutex_lock(&service->worker_lock) == 0) {
+            service->worker_sockets[slot] = -1;
             --service->worker_count;
+            if (service->worker_count == 0U) {
+                (void)pthread_cond_broadcast(&service->workers_idle);
+            }
+            (void)pthread_mutex_unlock(&service->worker_lock);
         }
-        if (service->worker_count == 0U) {
-            (void)pthread_cond_broadcast(&service->workers_idle);
-        }
-        (void)pthread_mutex_unlock(&service->worker_lock);
+        free(worker);
+        return 0;
     }
-    return 0;
+    (void)pthread_detach(thread);
+    return 1;
 }
 
 static char *traefik_engine_trim(char *text)
@@ -1826,13 +1844,51 @@ static int traefik_engine_create_listener(const char *socket_path,
     return socket_fd;
 }
 
-static void traefik_engine_wait_for_workers(traefik_engine_service *service)
+/* A native runtime call may be uninterruptible even after its peer socket has
+ * been shut down.  Do not wait forever and then destroy stack-owned service
+ * state that a detached worker can still reference.  The caller performs a
+ * controlled process exit on expiry, allowing the OS to reclaim that worker
+ * and its descriptors without a use-after-free. */
+static int traefik_engine_wait_for_workers(traefik_engine_service *service,
+    unsigned int timeout_seconds)
+{
+    struct timespec deadline;
+    int result = 0;
+    int drained;
+
+    if (service == NULL || timeout_seconds == 0U ||
+        clock_gettime(CLOCK_REALTIME, &deadline) != 0 ||
+        pthread_mutex_lock(&service->worker_lock) != 0) {
+        return 0;
+    }
+    deadline.tv_sec += (time_t)timeout_seconds;
+    while (service->worker_count > 0U) {
+        result = pthread_cond_timedwait(&service->workers_idle,
+            &service->worker_lock, &deadline);
+        if (result != 0) {
+            break;
+        }
+    }
+    drained = result == 0 && service->worker_count == 0U;
+    if (pthread_mutex_unlock(&service->worker_lock) != 0) {
+        return 0;
+    }
+    return drained;
+}
+
+/* shutdown(2) is the cancellation boundary for active workers.  Closing a
+ * descriptor from another thread would make fd reuse racy; shutdown wakes
+ * the worker's receive/send path while the worker retains ownership until it
+ * performs its normal close and slot release. */
+static void traefik_engine_abort_workers(traefik_engine_service *service)
 {
     if (service == NULL || pthread_mutex_lock(&service->worker_lock) != 0) {
         return;
     }
-    while (service->worker_count > 0U) {
-        (void)pthread_cond_wait(&service->workers_idle, &service->worker_lock);
+    for (size_t index = 0U; index < TRAEFIK_ENGINE_MAX_WORKERS; ++index) {
+        if (service->worker_sockets[index] >= 0) {
+            (void)shutdown(service->worker_sockets[index], SHUT_RDWR);
+        }
     }
     (void)pthread_mutex_unlock(&service->worker_lock);
 }
@@ -1905,11 +1961,15 @@ static int traefik_engine_serve(const char *config_path, const char *socket_path
     int listener = -1;
     size_t accepted_connections = 0U;
     int status = 1;
+    int workers_drained = 1;
     traefik_engine_socket_identity listener_identity;
     struct sigaction action;
     const char *failure_stage = "initialization";
 
     memset(&service, 0, sizeof(service));
+    for (size_t index = 0U; index < TRAEFIK_ENGINE_MAX_WORKERS; ++index) {
+        service.worker_sockets[index] = -1;
+    }
     memset(error, 0, sizeof(error));
     memset(&listener_identity, 0, sizeof(listener_identity));
     if (!traefik_engine_check_config(config_path) ||
@@ -1966,11 +2026,26 @@ cleanup:
     if (listener >= 0) {
         (void)close(listener);
     }
-    traefik_engine_wait_for_workers(&service);
+    if (status != 0 || traefik_engine_stop_requested) {
+        traefik_engine_abort_workers(&service);
+    }
+    workers_drained = traefik_engine_wait_for_workers(&service,
+        TRAEFIK_ENGINE_WORKER_SHUTDOWN_TIMEOUT_SECONDS);
+    if (!workers_drained) {
+        status = 1;
+        failure_stage = "worker_shutdown_timeout";
+    }
     if (listener_identity.valid &&
         !traefik_engine_remove_owned_socket(socket_path, &listener_identity)) {
         status = 1;
         failure_stage = "socket_cleanup";
+    }
+    if (!workers_drained) {
+        (void)fprintf(stderr,
+            "traefik_engine_service_failure_stage=worker_shutdown_timeout; "
+            "controlled restart required\n");
+        (void)fflush(stderr);
+        _exit(1);
     }
     msconnector_runtime_destroy(&service.runtime);
     (void)pthread_cond_destroy(&service.workers_idle);

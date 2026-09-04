@@ -143,6 +143,8 @@ typedef enum authorization_listener_iteration {
 
 static int valid_header_name(const char *name);
 static int valid_header_value(const char *value);
+static int authorization_shutdown_response_companion(
+    const msconnector_http_authorization_profile *profile);
 
 static volatile sig_atomic_t authorization_stop = 0;
 
@@ -1442,13 +1444,20 @@ static void authorization_service_destroy(authorization_service *service) {
     memset(service, 0, sizeof(*service));
 }
 
-static void authorization_service_release(authorization_service *service) {
+static int authorization_service_release(authorization_service *service) {
     if (service == NULL) {
-        return;
+        return 1;
+    }
+    if (!authorization_shutdown_response_companion(service->profile)) {
+        (void)fprintf(stderr,
+            "%s response companion did not quiesce; refusing runtime destruction\n",
+            service->profile->connector_name);
+        return 0;
     }
     msconnector_runtime_destroy(&service->runtime);
     authorization_service_destroy(service);
     free(service);
+    return 1;
 }
 
 static void authorization_worker_release(authorization_worker *worker) {
@@ -1483,7 +1492,7 @@ static void authorization_worker_release(authorization_worker *worker) {
     }
     free(worker);
     if (release_service) {
-        authorization_service_release(service);
+        (void)authorization_service_release(service);
     }
 }
 
@@ -1851,7 +1860,7 @@ static int serve_authorization(
     if (!create_listener(cli->listen_spec, &listener, &local, error, sizeof(error))) {
         (void)fprintf(stderr, "%s service start failed: %s\n",
             profile->connector_name, error);
-        authorization_service_release(service);
+        (void)authorization_service_release(service);
         return 1;
     }
     memset(&action, 0, sizeof(action));

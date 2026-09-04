@@ -221,12 +221,16 @@ func (transaction *unixSocketTransaction) Close(ctx context.Context, _ Summary) 
 	if transaction.connection == nil {
 		return
 	}
+	connection := transaction.connection
 	if transaction.begun {
 		if _, err := transaction.exchangeLocked(ctx, udsOpcodeFinish, nil); err == nil {
 			_, _ = transaction.exchangeLocked(ctx, udsOpcodeDestroy, nil)
 		}
 	}
-	_ = transaction.connection.Close()
+	// exchangeLocked may discard a canceled or failed connection. Retain the
+	// local reference so Close remains panic-free and deterministic after that
+	// terminal transition.
+	_ = connection.Close()
 	transaction.connection = nil
 }
 
@@ -234,27 +238,72 @@ func (transaction *unixSocketTransaction) exchangeLocked(ctx context.Context, op
 	if transaction.connection == nil || len(payload) > udsMaxPayload {
 		return udsResult{}, errUDSEngineProtocol
 	}
-	if err := ctx.Err(); err != nil {
-		return udsResult{}, err
+	if ctx == nil {
+		ctx = context.Background()
 	}
+	if err := ctx.Err(); err != nil {
+		return transaction.discardConnectionLocked(transaction.connection, ctx, err)
+	}
+	connection := transaction.connection
 	deadline := time.Now().Add(transaction.timeout)
 	if contextDeadline, ok := ctx.Deadline(); ok && contextDeadline.Before(deadline) {
 		deadline = contextDeadline
 	}
-	if err := transaction.connection.SetDeadline(deadline); err != nil {
-		return udsResult{}, err
+	if err := connection.SetDeadline(deadline); err != nil {
+		return transaction.discardConnectionLocked(connection, ctx, err)
 	}
-	if err := writeUDSConnectionFrame(transaction.connection, opcode, payload); err != nil {
-		return udsResult{}, err
+
+	// net.Conn has no context-aware Read/Write methods. Watch cancellation and
+	// shorten the socket deadline so a blocked local-engine operation cannot
+	// hold the transaction mutex until the default engine timeout. The watcher
+	// is joined before returning, so it cannot outlive the operation or race a
+	// later transaction using the same connection.
+	watchDone := make(chan struct{})
+	watchExited := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = connection.SetDeadline(time.Now())
+		case <-watchDone:
+		}
+		close(watchExited)
+	}()
+	defer func() {
+		close(watchDone)
+		<-watchExited
+	}()
+
+	if err := writeUDSConnectionFrame(connection, opcode, payload); err != nil {
+		return transaction.discardConnectionLocked(connection, ctx, err)
 	}
-	responseOpcode, response, err := readUDSFrame(transaction.connection)
+	responseOpcode, response, err := readUDSFrame(connection)
 	if err != nil {
-		return udsResult{}, err
+		return transaction.discardConnectionLocked(connection, ctx, err)
 	}
 	if responseOpcode != udsOpcodeResult {
-		return udsResult{}, errUDSEngineProtocol
+		return transaction.discardConnectionLocked(connection, ctx, errUDSEngineProtocol)
 	}
-	return parseUDSResult(response, opcode)
+	result, err := parseUDSResult(response, opcode)
+	if err != nil {
+		return transaction.discardConnectionLocked(connection, ctx, err)
+	}
+	return result, nil
+}
+
+// discardConnectionLocked makes a failed exchange terminal for this
+// transaction. A partially written or read frame cannot safely be followed by
+// another opcode, and retaining that connection would make a later request
+// inherit an unknown protocol state.
+func (transaction *unixSocketTransaction) discardConnectionLocked(connection net.Conn, ctx context.Context, exchangeErr error) (udsResult, error) {
+	if transaction.connection == connection {
+		transaction.connection = nil
+		transaction.closed = true
+	}
+	_ = connection.Close()
+	if contextErr := ctx.Err(); contextErr != nil {
+		return udsResult{}, contextErr
+	}
+	return udsResult{}, exchangeErr
 }
 
 func (result udsResult) decision() Decision {
