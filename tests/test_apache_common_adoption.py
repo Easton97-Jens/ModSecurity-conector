@@ -15,6 +15,9 @@ ROOT = Path(__file__).resolve().parents[1]
 CHECKER_DIRECTORY = ROOT / "ci" / "checks" / "connectors" / "apache"
 APACHE_DIRECTORY = ROOT / "connectors" / "apache"
 FILTERS_RELATIVE_PATH = Path("connectors/apache/src/msc_filters.c")
+sys.path.insert(0, str(CHECKER_DIRECTORY))
+
+import apache_common_adoption_base as checker_base
 
 
 def replace_once(path: Path, old: str, new: str) -> None:
@@ -89,6 +92,27 @@ class ApacheCommonAdoptionCheckerTests(unittest.TestCase):
             "apache-common-adoption: scoped review guards passed",
             result.stdout,
         )
+
+    def test_masking_keeps_code_offsets_while_hiding_decoy_tokens(self) -> None:
+        source = (
+            "int active = 1; // append decoy\n"
+            "/* block\ncomment */ int tail = 2;\n"
+            'const char *literal = "// not a comment";\n'
+            "const char quote = '\\''; // after literal\n"
+            '"unterminated literal\n'
+        )
+
+        masked = checker_base._mask_c_comments_and_literals(source)
+
+        self.assertEqual(len(masked), len(source))
+        self.assertEqual(masked.count("\n"), source.count("\n"))
+        self.assertIn("int active = 1;", masked)
+        self.assertIn("int tail = 2;", masked)
+        self.assertNotIn("append decoy", masked)
+        self.assertNotIn("block", masked)
+        self.assertNotIn("not a comment", masked)
+        self.assertNotIn("after literal", masked)
+        self.assertNotIn("unterminated literal", masked)
 
     def test_missing_eos_helper_call_is_rejected(self) -> None:
         def mutate(filters: Path) -> None:

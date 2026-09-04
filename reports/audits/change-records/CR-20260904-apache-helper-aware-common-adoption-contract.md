@@ -64,6 +64,18 @@ arbitrary runtime reachability proof. A future legitimate helper-shape change
 must update the checker and its negative controls deliberately rather than
 silently broadening a token search.
 
+The first exact Draft PR #356 head, `5d4ad2b51c00cc9a511ef7ae7ac088062f62bfa8`,
+received Quality Gate `OK`, but its SonarQube Cloud issue inventory listed four
+task-owned open Code Smells: `AaBt7mnTOEl4G0YgI-3t`,
+`AaBt7mnTOEl4G0YgI-3u`, `AaBt7mh6OEl4G0YgI-3r`, and
+`AaBt7mh6OEl4G0YgI-3s`. This follow-up keeps the contract predicates and
+fail-closed checks intact while splitting comment/literal masking into small
+offset-preserving helpers, making multiline pattern assembly explicit, and
+reusing named return-pattern regular expressions. A focused masker regression
+test proves unchanged input length and line layout while hiding comment and
+literal decoys. This is checker maintainability work, not a product-runtime
+semantic change; fresh exact-head SonarQube Cloud analysis remains required.
+
 ## Source-to-contract trace
 
 | Security invariant | Current product function | Delegating call site | Stale checker assumption | New checker proof | Regression control |
@@ -109,14 +121,15 @@ product runtime source is changed.
 | Pre-patch direct Apache checker and `make check-apache-common-adoption` | Reproduced the two stated stale Apache assertions against base `2b3d7f7f0bec006b236b5998d011069c9125033f`. |
 | Python compilation of changed checker/test files | Passed. |
 | Direct Apache checker | Passed, including the helper-aware P2, EOS, terminal-bridge, bounded append, and P3 guards. |
-| `tests.test_apache_common_adoption` | Passed: 10 tests, including the positive architecture and nine negative mutations. |
+| `tests.test_apache_common_adoption` | Passed: 11 tests, including the positive architecture, the masker semantic control, and nine negative mutations. |
 | `make check-apache-common-adoption` | Passed. |
-| `python3 -m unittest discover -s tests -p 'test_apache*.py' -v` | Passed: 69 tests. |
+| `python3 -m unittest discover -s tests -p 'test_apache*.py' -v` | Passed: 70 tests. |
 | Apache C17 lint | Passed outside the sandbox because the project check uses a fixed temporary probe root. |
 | `make check-no-crs-source-normalization` | Passed: 145 tests after initializing the already-pinned Framework checkout in the isolated worktree. |
 | `make generate-test-matrix` and `make check-test-matrix` | Completed; generated report drift was task-external and the nine generated files were restored to `HEAD`. |
 | Apache/NGINX harness shell syntax and `make -n` smoke/runtime targets | Passed. |
-| `make lint` and `make quick-check` | Reached and passed all preceding Apache checks, then stopped at two unchanged NGINX common-adoption assertions tracked by existing `FND-PARENT-1010`. Candidate-to-base diff for NGINX source and checker is empty; no NGINX change is made here. |
+| Refreshed `make lint` | Reached and passed the host-runtime, shell-syntax, Python compilation, Common, Apache checker, Apache C17, cleanup, and optional-prerequisite controls, then stopped at the same two unchanged NGINX common-adoption assertions tracked by existing `FND-PARENT-1010`. Candidate-to-base diff for NGINX source and checker is empty; no NGINX change is made here. |
+| SonarQube Cloud on first Draft PR #356 head | Quality Gate `OK`; the authenticated inventory nevertheless listed the four task-owned open Code Smells named above. No suppression, exclusion, Quality-Gate, workflow, or governance action was taken; this follow-up requires fresh exact-head analysis. |
 | Final `git diff --check` and documentation checks | Passed after the paired records were added. |
 
 ## Runtime evidence
@@ -132,9 +145,10 @@ for native P2 runtime validation.
 No native Apache P2 runtime replay, complete P1–P4 acceptance, full native
 17×10 host matrix, sanitizer matrix, or resulting-master workflow rerun is
 claimed. They are not necessary to prove a checker-only repair and remain
-separate evidence obligations. Exact pushed-head GitHub Actions, SonarQube
-Cloud, and review evidence are also pending until the authorized Draft PR
-exists.
+separate evidence obligations. Exact pushed-head GitHub Actions, review
+evidence, and SonarQube Cloud analysis for this follow-up commit remain
+pending; the first Draft PR head's Sonar result is documented above and is not
+evidence for its successor.
 
 ## Known limitations
 
@@ -153,14 +167,16 @@ aggregate `make lint` and `make quick-check` from reaching later controls.
 ## Final diff and review status
 
 The delivery diff contains no Apache runtime source, workflow, governance, or
-generated-report change. This pre-delivery static record does not claim a
-commit, push, Draft PR, exact-head hosted check, SonarQube Cloud result,
+generated-report change. The first normal commit was pushed and opened as
+Draft PR #356; the recorded first-head Sonar result above prompted this narrow
+follow-up. This record does not claim a resulting exact-head hosted pass,
 Ready-for-Review status, or merge; those delivery facts require independent
 exact-head evidence.
 
 An independent final read-only security diff review reran the two
-constant-false decoys, the ten-test mutation suite, the direct Apache checker,
-and `git diff --check`. It found no additional validated security finding and
-confirmed that the product runtime source is unchanged. Its residual note is
-the same declared checker boundary: arbitrary nonconstant C control flow and
-macro semantics are not proven by this static contract.
+constant-false decoys, while the current local validation ran the 11-test
+mutation suite, the direct Apache checker, and `git diff --check`. No
+additional validated security finding was identified, and the product runtime
+source remains unchanged. The residual note is the same declared checker
+boundary: arbitrary nonconstant C control flow and macro semantics are not
+proven by this static contract.

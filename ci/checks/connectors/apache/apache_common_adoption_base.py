@@ -42,45 +42,62 @@ def source_section(text: str, start: str, end: str) -> str:
     return text[begin:finish]
 
 
+def _mask_non_newline(
+    text: str, masked: list[str], start: int, end: int
+) -> None:
+    """Replace a source span with spaces while retaining its line layout."""
+    for offset in range(start, end):
+        if text[offset] != "\n":
+            masked[offset] = " "
+
+
+def _mask_line_comment(text: str, masked: list[str], index: int) -> int:
+    """Mask a C++-style comment and return the first byte after it."""
+    end = text.find("\n", index)
+    end = len(text) if end < 0 else end
+    _mask_non_newline(text, masked, index, end)
+    return end
+
+
+def _mask_block_comment(text: str, masked: list[str], index: int) -> int:
+    """Mask a C-style comment, including an unterminated one, without moving LF."""
+    end = text.find("*/", index + 2)
+    end = len(text) if end < 0 else end + 2
+    _mask_non_newline(text, masked, index, end)
+    return end
+
+
+def _mask_c_literal(text: str, masked: list[str], index: int) -> int:
+    """Mask one C string or character literal and return the next source index."""
+    quote = text[index]
+    _mask_non_newline(text, masked, index, index + 1)
+    index += 1
+    while index < len(text):
+        character = text[index]
+        _mask_non_newline(text, masked, index, index + 1)
+        if character == "\\" and index + 1 < len(text):
+            index += 1
+            _mask_non_newline(text, masked, index, index + 1)
+        elif character == quote:
+            return index + 1
+        index += 1
+    return index
+
+
 def _mask_c_comments_and_literals(text: str) -> str:
     """Mask C comments and literals while retaining source offsets and lines."""
     masked = list(text)
     index = 0
     while index < len(text):
-        if text.startswith("//", index):
-            end = text.find("\n", index)
-            if end < 0:
-                end = len(text)
-            for offset in range(index, end):
-                masked[offset] = " "
-            index = end
-            continue
-        if text.startswith("/*", index):
-            end = text.find("*/", index + 2)
-            end = len(text) if end < 0 else end + 2
-            for offset in range(index, end):
-                if masked[offset] != "\n":
-                    masked[offset] = " "
-            index = end
-            continue
-        if text[index] in {'"', "'"}:
-            quote = text[index]
-            masked[index] = " "
+        marker = text[index:index + 2]
+        if marker == "//":
+            index = _mask_line_comment(text, masked, index)
+        elif marker == "/*":
+            index = _mask_block_comment(text, masked, index)
+        elif text[index] in {'"', "'"}:
+            index = _mask_c_literal(text, masked, index)
+        else:
             index += 1
-            while index < len(text):
-                character = text[index]
-                if character != "\n":
-                    masked[index] = " "
-                if character == "\\" and index + 1 < len(text):
-                    index += 1
-                    if text[index] != "\n":
-                        masked[index] = " "
-                elif character == quote:
-                    index += 1
-                    break
-                index += 1
-            continue
-        index += 1
     return "".join(masked)
 
 
@@ -183,9 +200,9 @@ def has_forbidden_contract_control_flow(text: str) -> bool:
         r"\bgoto\s+[A-Za-z_]\w*\s*;",
         r"(?m)^\s*(?!case\b|default\b)[A-Za-z_]\w*\s*:",
         r"\b(?:if|while)\s*\(\s*(?:\(\s*)*(?:0|false|NULL|"
-        r"0\s*==\s*1|1\s*==\s*0|!\s*(?:1|true))(?:\s*\))*\s*\)",
+        + r"0\s*==\s*1|1\s*==\s*0|!\s*(?:1|true))(?:\s*\))*\s*\)",
         r"\bfor\s*\(\s*[^;]*;\s*(?:\(\s*)*(?:0|false|NULL)"
-        r"(?:\s*\))*\s*;",
+        + r"(?:\s*\))*\s*;",
     )
     return any(re.search(pattern, masked) is not None for pattern in forbidden_patterns)
 

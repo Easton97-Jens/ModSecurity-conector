@@ -32,6 +32,10 @@ P2_PROCESS = "if (msc_process_request_body(msr->t) != 1)"
 P3_PROCESS = 'if (msc_process_response_headers(msr->t, original_status, "HTTP 1.1") != 1)'
 P4_PROCESS = "if (msc_process_response_body(msr->t) != 1)"
 BUCKET_NEXT_LOOP = "bucket = APR_BUCKET_NEXT(bucket))"
+RETURN_APR_SUCCESS_PATTERN = r"\breturn\s+APR_SUCCESS\s*;"
+RETURN_INPUT_TERMINAL_ERROR_PATTERN = (
+    r"\breturn\s+apache_input_filter_terminal_error\s*\("
+)
 
 def patterns_in_order(text: str, *patterns: str) -> bool:
     """Return whether regular-expression patterns occur in order."""
@@ -277,17 +281,17 @@ review_guards: list[tuple[bool, str]] = [
         patterns_in_order(
             input_eos_handler,
             r"\bif\s*\(\s*msr->request_body_eos_released\s*\)",
-            r"\breturn\s+apache_input_filter_terminal_error\s*\(",
+            RETURN_INPUT_TERMINAL_ERROR_PATTERN,
             r"\bif\s*\(\s*!\s*msr->request_body_processed\s*\)",
             r"\bintervention\s*=\s*msc_finalize_request_body\s*\(\s*msr\s*,\s*r\s*\)",
             r"\bif\s*\(\s*intervention\s*!=\s*N_INTERVENTION_STATUS\s*\)",
             r"\bap_remove_input_filter\s*\(\s*filter\s*\)",
-            r"\breturn\s+apache_input_filter_terminal_error\s*\(\s*msr\s*,\s*r\s*,\s*intervention\s*\)",
+            rf"{RETURN_INPUT_TERMINAL_ERROR_PATTERN}\s*msr\s*,\s*r\s*,\s*intervention\s*\)",
             r"\bmsr->request_body_eos_released\s*=\s*1\s*;",
             r"\bAPR_BUCKET_REMOVE\s*\(\s*bucket\s*\)",
             r"\bAPR_BRIGADE_INSERT_TAIL\s*\(\s*output\s*,\s*bucket\s*\)",
             r"\bap_remove_input_filter\s*\(\s*filter\s*\)",
-            r"\breturn\s+APR_SUCCESS\s*;",
+            RETURN_APR_SUCCESS_PATTERN,
         )
         and base.function_call_count(
             input_eos_handler, "msc_finalize_request_body"
@@ -299,7 +303,7 @@ review_guards: list[tuple[bool, str]] = [
     ),
     (
         not base.has_forbidden_contract_control_flow(input_eos_handler)
-        and len(re.findall(r"\breturn\s+APR_SUCCESS\s*;", input_eos_handler)) == 1
+        and len(re.findall(RETURN_APR_SUCCESS_PATTERN, input_eos_handler)) == 1
         and re.search(r"\breturn\s+0\s*;", input_eos_handler) is None
         and direct_body_ends_with(
             input_eos_handler,
@@ -307,7 +311,7 @@ review_guards: list[tuple[bool, str]] = [
             r"\bAPR_BUCKET_REMOVE\s*\(\s*bucket\s*\)\s*;\s*"
             r"\bAPR_BRIGADE_INSERT_TAIL\s*\(\s*output\s*,\s*bucket\s*\)\s*;\s*"
             r"\bap_remove_input_filter\s*\(\s*filter\s*\)\s*;\s*"
-            r"\breturn\s+APR_SUCCESS\s*;",
+            + RETURN_APR_SUCCESS_PATTERN,
         ),
         "Apache Phase2 EOS helper has one direct canonical success tail and no dead-code control transfer",
     ),
@@ -323,7 +327,7 @@ review_guards: list[tuple[bool, str]] = [
             r"\bmsr->request_body_bytes_inspected\s*\+=\s*plan\.append_size\s*;",
             r"\bAPR_BUCKET_REMOVE\s*\(\s*bucket\s*\)",
             r"\bAPR_BRIGADE_INSERT_TAIL\s*\(\s*output\s*,\s*bucket\s*\)",
-            r"\breturn\s+APR_SUCCESS\s*;",
+            RETURN_APR_SUCCESS_PATTERN,
         )
         and base.function_call_count(input_bucket_processor, "APR_BUCKET_REMOVE") == 1
         and base.function_call_count(
@@ -360,7 +364,7 @@ review_guards: list[tuple[bool, str]] = [
                 "APR_BRIGADE_INSERT_TAIL",
             )
         )
-        and len(re.findall(r"\breturn\s+APR_SUCCESS\s*;", input_bucket_processor)) == 1
+        and len(re.findall(RETURN_APR_SUCCESS_PATTERN, input_bucket_processor)) == 1
         and re.search(r"\breturn\s+0\s*;", input_bucket_processor) is None
         and direct_body_ends_with(
             input_bucket_processor,
@@ -370,7 +374,7 @@ review_guards: list[tuple[bool, str]] = [
             r"\bmsr->request_body_truncated\s*=\s*1\s*;\s*)?"
             r"\bAPR_BUCKET_REMOVE\s*\(\s*bucket\s*\)\s*;\s*"
             r"\bAPR_BRIGADE_INSERT_TAIL\s*\(\s*output\s*,\s*bucket\s*\)\s*;\s*"
-            r"\breturn\s+APR_SUCCESS\s*;",
+            + RETURN_APR_SUCCESS_PATTERN,
         ),
         "Apache Phase2 direct bucket pipeline cannot satisfy its bounded-forwarding contract from a dead-code decoy",
     ),
@@ -378,9 +382,9 @@ review_guards: list[tuple[bool, str]] = [
         patterns_in_order(
             input_filter_handler,
             r"\bif\s*\(\s*msr\s*==\s*NULL\s*\)",
-            r"\breturn\s+apache_input_filter_terminal_error\s*\(",
+            RETURN_INPUT_TERMINAL_ERROR_PATTERN,
             r"\bif\s*\(\s*conf\s*==\s*NULL\s*\)",
-            r"\breturn\s+apache_input_filter_terminal_error\s*\(",
+            RETURN_INPUT_TERMINAL_ERROR_PATTERN,
             r"\bif\s*\(\s*APR_BUCKET_IS_EOS\s*\(\s*pbktIn\s*\)\s*\)",
             r"\breturn\s+apache_input_filter_handle_eos\s*\(",
             r"\bret\s*=\s*apache_input_filter_process_bucket\s*\(",
@@ -457,7 +461,7 @@ review_guards: list[tuple[bool, str]] = [
             r"\bmsr->response_headers_processed\s*=\s*1\s*;",
             r"\bintervention\s*=\s*process_intervention\s*\(\s*msr->t\s*,\s*r\s*\)",
             r"\bif\s*\(\s*intervention\s*==\s*N_INTERVENTION_STATUS\s*\)",
-            r"\breturn\s+APR_SUCCESS\s*;",
+            RETURN_APR_SUCCESS_PATTERN,
             r"\bif\s*\(\s*!\s*msc_apache_contract_record_intervention_decision\s*\(\s*msr\s*\)\s*\)",
             r"\bwanted\s*=\s*msc_apache_contract_intervention_action\s*\(\s*msr\s*\)",
             r"\bapache_phase3_log_event\s*\(\s*msr\s*,\s*r\s*,\s*wanted\s*,\s*wanted\s*,\s*original_status\s*\)",

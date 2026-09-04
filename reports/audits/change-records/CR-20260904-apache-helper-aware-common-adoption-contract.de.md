@@ -65,6 +65,20 @@ vollständigen C-AST- oder beliebigen Runtime-Reachability-Beweises. Ein
 zukünftiger legitimer Helper-Shape-Wechsel muss Checker und Negativ-Controls
 bewusst anpassen, statt eine Tokensuche still zu verbreitern.
 
+Der erste Exact-Head des Draft-PR #356,
+`5d4ad2b51c00cc9a511ef7ae7ac088062f62bfa8`, erhielt Quality Gate `OK`, aber
+sein SonarQube-Cloud-Issue-Inventar enthielt vier aufgabenbezogene offene Code
+Smells: `AaBt7mnTOEl4G0YgI-3t`, `AaBt7mnTOEl4G0YgI-3u`,
+`AaBt7mh6OEl4G0YgI-3r` und `AaBt7mh6OEl4G0YgI-3s`. Dieser Follow-up erhält
+Contract-Prädikate und Fail-closed-Checks, teilt jedoch Kommentar-/Literal-
+Maskierung in kleine offset-erhaltende Helper auf, macht mehrzeilige Pattern-
+Konkatenation explizit und verwendet benannte Return-Pattern-Regular-
+Expressions wieder. Ein fokussierter Masker-Regressionstest beweist
+unveränderte Eingabelänge und Zeilenstruktur bei unterdrückten Kommentar- und
+Literal-Dekoys. Dies ist Checker-Maintainability-Arbeit, keine Änderung der
+Produkt-Runtime-Semantik; eine frische Exact-Head-SonarQube-Cloud-Analyse bleibt
+erforderlich.
+
 ## Source-to-Contract-Nachweis
 
 | Sicherheitsinvariante | Aktuelle Produktfunktion | Delegierende Call-Site | Veraltete Checker-Annahme | Neuer Checker-Nachweis | Regression-Control |
@@ -111,14 +125,15 @@ Filesystem-, Archiv- noch Runtime-Enforcement-Verhalten.
 | Pre-Patch direkter Apache-Checker und `make check-apache-common-adoption` | Die zwei genannten veralteten Apache-Assertions gegen Basis `2b3d7f7f0bec006b236b5998d011069c9125033f` reproduziert. |
 | Python-Kompilierung der geänderten Checker-/Testdateien | Bestanden. |
 | Direkter Apache-Checker | Bestanden, einschließlich Helper-aware-P2-, EOS-, Terminal-Bridge-, Bounded-Append- und P3-Guards. |
-| `tests.test_apache_common_adoption` | Bestanden: 10 Tests, einschließlich positiver Architektur und neun Negativmutationen. |
+| `tests.test_apache_common_adoption` | Bestanden: 11 Tests, einschließlich positiver Architektur, Masker-Semantik-Control und neun Negativmutationen. |
 | `make check-apache-common-adoption` | Bestanden. |
-| `python3 -m unittest discover -s tests -p 'test_apache*.py' -v` | Bestanden: 69 Tests. |
+| `python3 -m unittest discover -s tests -p 'test_apache*.py' -v` | Bestanden: 70 Tests. |
 | Apache-C17-Lint | Außerhalb der Sandbox bestanden, weil der Projektcheck einen festen temporären Probe-Root nutzt. |
 | `make check-no-crs-source-normalization` | Nach Initialisierung des bereits gepinnten Framework-Checkouts im isolierten Worktree bestanden: 145 Tests. |
 | `make generate-test-matrix` und `make check-test-matrix` | Abgeschlossen; generierte Report-Drift lag außerhalb der Aufgabe und die neun generierten Dateien wurden auf `HEAD` zurückgestellt. |
 | Apache-/NGINX-Harness-Shell-Syntax und `make -n`-Smoke-/Runtime-Targets | Bestanden. |
-| `make lint` und `make quick-check` | Erreichten und bestanden alle vorherigen Apache-Checks, stoppten danach an zwei unveränderten NGINX-Common-Adoption-Assertions aus bestehendem `FND-PARENT-1010`. Der Candidate-to-Base-Diff für NGINX-Source und -Checker ist leer; hier wird keine NGINX-Änderung vorgenommen. |
+| Erneutes `make lint` | Erreichte und bestand Host-Runtime-, Shell-Syntax-, Python-Kompilierungs-, Common-, Apache-Checker-, Apache-C17-, Cleanup- und Optional-Prerequisite-Controls und stoppte danach an denselben zwei unveränderten NGINX-Common-Adoption-Assertions aus bestehendem `FND-PARENT-1010`. Der Candidate-to-Base-Diff für NGINX-Source und -Checker ist leer; hier wird keine NGINX-Änderung vorgenommen. |
+| SonarQube Cloud am ersten Draft-PR-#356-Head | Quality Gate `OK`; das authentifizierte Inventar enthielt dennoch die vier oben genannten aufgabenbezogenen offenen Code Smells. Es erfolgte keine Suppression-, Exclusion-, Quality-Gate-, Workflow- oder Governance-Aktion; dieser Follow-up erfordert eine frische Exact-Head-Analyse. |
 | Finaler `git diff --check` und Dokumentationschecks | Nach Hinzufügen des Paars bestanden. |
 
 ## Runtime-Evidence
@@ -135,8 +150,10 @@ Es werden kein nativer Apache-P2-Runtime-Replay, keine vollständige P1–P4-
 Abnahme, keine vollständige native 17×10-Hostmatrix, keine Sanitizer-Matrix
 und kein resultierender-master-Workflow-Rerun behauptet. Sie sind nicht nötig,
 um eine Checker-only-Reparatur zu belegen, und bleiben separate
-Evidenzpflichten. Exact-Pushed-Head-GitHub-Actions, SonarQube-Cloud- und
-Review-Evidenz stehen ebenfalls aus, bis der autorisierte Draft-PR existiert.
+Evidenzpflichten. Exact-Pushed-Head-GitHub-Actions, Review-Evidenz und die
+SonarQube-Cloud-Analyse für diesen Follow-up-Commit stehen aus; das oben
+dokumentierte Sonar-Ergebnis des ersten Draft-PR-Heads ist keine Evidenz für
+seinen Nachfolger.
 
 ## Bekannte Einschränkungen
 
@@ -156,15 +173,16 @@ Die Aufgabe löst weder die native HTTP-500/HTTP-403-Übersetzungsfrage aus
 ## Finaler Diff- und Review-Status
 
 Der Delivery-Diff enthält keine Apache-Runtime-Source-, Workflow-, Governance-
-oder Generated-Report-Änderung. Dieser Pre-Delivery-Static-Record behauptet
-keinen Commit, Push, Draft-PR, Exact-Head-Hosted-Check, SonarQube-Cloud-
-Ergebnis, Ready-for-Review-Status oder Merge; diese Delivery-Fakten erfordern
-unabhängige Exact-Head-Evidenz.
+oder Generated-Report-Änderung. Der erste normale Commit wurde gepusht und als
+Draft-PR #356 geöffnet; das dokumentierte Sonar-Ergebnis seines ersten Heads
+veranlasste diesen engen Follow-up. Dieser Record behauptet keinen
+resultierenden Exact-Head-Hosted-Pass, Ready-for-Review-Status oder Merge;
+diese Delivery-Fakten erfordern unabhängige Exact-Head-Evidenz.
 
 Ein unabhängiges finales Read-only-Security-Diff-Review führte die zwei
-Constant-false-Dekoys, die Zehn-Test-Mutationssuite, den direkten Apache-
-Checker und `git diff --check` erneut aus. Es fand keinen weiteren bestätigten
-Security-Befund und bestätigte, dass die Produkt-Runtime-Source unverändert
-ist. Seine verbleibende Notiz ist dieselbe deklarierte Checker-Grenze:
-Beliebiger nichtkonstanter C-Control-Flow und Makrosemantik werden durch diesen
-Static-Contract nicht bewiesen.
+Constant-false-Dekoys erneut aus; die aktuelle lokale Validierung führte die
+11-Test-Mutationssuite, den direkten Apache-Checker und `git diff --check`
+aus. Es wurde kein weiterer bestätigter Security-Befund identifiziert, und die
+Produkt-Runtime-Source bleibt unverändert. Die verbleibende Notiz ist dieselbe
+deklarierte Checker-Grenze: Beliebiger nichtkonstanter C-Control-Flow und
+Makrosemantik werden durch diesen Static-Contract nicht bewiesen.
