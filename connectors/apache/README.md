@@ -37,7 +37,7 @@ The adapter-owned Apache connector currently registers:
 - `modsecurity on|off`
 - `modsecurity_rules`
 - `modsecurity_rules_file`
-- `modsecurity_rules_remote`
+- `modsecurity_rules_remote` (rejected: remote rule loading is disabled by the common security policy)
 - `modsecurity_use_error_log on|off`
 - `modsecurity_transaction_id <string>`
 - `modsecurity_transaction_id_expr <apache-expression>`
@@ -191,9 +191,12 @@ inspection, while the deprecated
 `modsecurity_phase4_content_types_file` cannot create an uninspected
 pass-through route. The default `modsecurity_phase4_body_limit` is 1048576
 bytes (1 MiB). The bound is enforced before a later data bucket is appended;
+the Common configuration validator rejects values above 10485760 bytes (10 MiB).
 after a prefix has reached the next filter, a later failure cannot rewrite it
 and uses the shared post-commit action instead. There is no active
 cross-callback normalized-brigade or bucket-count buffer.
+The selected limit is enforced before any original response byte is released;
+the response is not processed partially and then streamed.
 
 At the normal decision boundary, Apache's `r->sent_bodyct` and `eos_sent` are
 not commit proof: upstream modules can set them before this filter passes its

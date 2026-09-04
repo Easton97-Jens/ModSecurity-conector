@@ -95,6 +95,14 @@ event path; it records a host outcome only after the actual ResponseWriter
 action succeeds. After response commitment, a P4 disruptive decision is
 accepted only as `LOG_ONLY` with the actual visible status.
 
+The service admits at most 64 active detached workers. When that bound is
+full, it closes a newly accepted socket instead of allocating another worker or
+queueing it. Omitting `--max-connections` keeps the service persistent: its
+worker count does not grow without bound, and the listen backlog remains 32.
+`--max-connections N` is a positive, explicit one-shot boundary for controlled
+tests; after N successfully started worker connections it performs its normal
+listener/worker cleanup and exits.
+
 ```sh
 TRAEFIK_ENGINE_SOCKET_TEST_PARENT=/absolute/private/short-socket-parent \
 MODSECURITY_INCLUDE_DIR=/local/include \
@@ -119,9 +127,10 @@ fallback.
 `ServeHTTP` entry points using the Go `net/http` interfaces. Its response
 writer preserves `Flush`, `Hijack`, `Push`, `ReadFrom`, and `Unwrap`; it sends
 bounded request and response body slices to an explicit engine seam and never
-collects a whole response. The source default is deliberately pass-through;
-the isolated host probe selects the separately built persistent UDS
-Common/libmodsecurity engine.
+collects a whole response. The only accepted production engine mode is UDS;
+configuration fails without a valid private engine socket path, and rejects
+`passthrough` rather than selecting an allow-all path. The isolated host probe
+selects the separately built persistent UDS Common/libmodsecurity engine.
 
 Run only the local source checks with:
 

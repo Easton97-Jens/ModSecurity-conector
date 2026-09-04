@@ -15,7 +15,7 @@ class ResponseHandleContractTest(unittest.TestCase):
         self.assertIn('txn.modsec.response_handle', source)
         self.assertIn("length != HAPROXY_MODSECURITY_HTX_RESPONSE_HANDLE_LENGTH", source)
         self.assertIn("character >= 'a' && character <= 'f'", source)
-        self.assertIn("ctx->response_handle_present", source)
+        self.assertIn("ctx->response.handle_present", source)
 
 
     def test_companion_path_uses_the_typed_mrc1_client(self) -> None:
@@ -86,7 +86,7 @@ class ResponseHandleContractTest(unittest.TestCase):
         source = SOURCE.read_text(encoding="utf-8")
         self.assertIn("SPOP owns P1/P2 in companion mode", source)
         self.assertIn("would split one logical transaction across two engines", source)
-        self.assertIn("if (ctx->response_companion_mode) {\n        /* SPOP owns P1/P2", source)
+        self.assertIn("if (ctx->companion.mode) {\n        /* SPOP owns P1/P2", source)
 
     def test_header_and_body_failures_have_host_actions(self) -> None:
         source = SOURCE.read_text(encoding="utf-8")
@@ -150,7 +150,7 @@ class ResponseHandleContractTest(unittest.TestCase):
 
     def test_companion_request_callbacks_require_one_local_p1_then_p2(self) -> None:
         source = SOURCE.read_text(encoding="utf-8")
-        self.assertIn("!ctx->request_headers_seen || ctx->request_finished", source)
+        self.assertIn("!ctx->request.headers_seen || ctx->request.finished", source)
         self.assertIn(
             "response-companion request payload outside active request phase",
             source,
@@ -176,7 +176,7 @@ class ResponseHandleContractTest(unittest.TestCase):
         )
         self.assertIn('haproxy_modsecurity_htx_fail_closed_postcommit(s, ctx, ', source)
         self.assertIn('"response body");', source)
-        self.assertGreaterEqual(source.count("if (ctx->disabled)"), 4)
+        self.assertGreaterEqual(source.count("if (ctx->lifecycle.disabled)"), 4)
 
     def test_normal_terminal_path_releases_without_a_host_outcome(self) -> None:
         source = SOURCE.read_text(encoding="utf-8")

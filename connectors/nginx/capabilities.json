@@ -112,8 +112,8 @@
       "reason": "NGINX complex-value transaction IDs are used when creating transactions; canonical event correlation evidence is pending."
     },
     "event_jsonl": {
-      "state": "implemented_not_asserted",
-      "reason": "The Phase-4 filter serializes bounded common JSONL events, but request-phase canonical event coverage is not yet asserted."
+      "state": "not_implemented",
+      "reason": "Native NGINX event-file logging is disabled because ngx_conf_open_file cannot provide the required no-follow, regular-file, and private 0600 descriptor contract; the separate Common runtime event path is not a native NGINX capability."
     },
     "config_inline_rules": {
       "state": "implemented_not_asserted",
@@ -124,8 +124,8 @@
       "reason": "The modsecurity_rules_file directive loads local rules files; canonical positive and negative evidence is pending."
     },
     "config_remote_rules": {
-      "state": "implemented_not_asserted",
-      "reason": "The modsecurity_rules_remote directive is wired to libmodsecurity; the no-CRS baseline does not exercise external networking."
+      "state": "not_implemented",
+      "reason": "Remote rule loading is disabled by the common security policy; only inline and local file rules are supported."
     },
     "transport_metadata": {
       "state": "implemented_not_asserted",

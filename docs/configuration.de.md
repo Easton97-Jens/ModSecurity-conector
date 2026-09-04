@@ -82,7 +82,8 @@ angegebene Grenze.
 
 | Oberfläche | Apache | NGINX | Grenze |
 | --- | --- | --- |
-| <code>modsecurity</code>, Regeln, Regelfiles, Remote-Regeln | Registrierte Hostdirektiven | Registrierte Hostdirektiven | Rule-Load bleibt connector-eigen |
+| <code>modsecurity</code>, Regeln, Regelfiles | Registrierte Hostdirektiven | Registrierte Hostdirektiven | Lokales Rule-Loading bleibt connector-eigen |
+| <code>modsecurity_rules_remote</code> | Registriert, aber durch die gemeinsame Sicherheitsrichtlinie abgelehnt | Registriert, aber durch die gemeinsame Sicherheitsrichtlinie abgelehnt | Remote-Regelladen ist vor Fetch oder nativem Remote-API-Aufruf deaktiviert |
 | <code>modsecurity_transaction_id</code> | Statische-String-Semantik | Per-Request-Complex-Value-Semantik | Gleicher Name bedeutet nicht gleiche Auswertung |
 | <code>modsecurity_transaction_id_expr</code> | Registrierte Apache-Ausdrucksdirektive | Nicht registriert | Apache-Ausdruckssyntax nicht nach NGINX kopieren |
 | Begrenzte P4-Kontrollen | Registrierte Hostdirektiven | Registrierte Hostdirektiven | Body-Limit/Scope befördert keine vollständige Response-Body-Unterstützung |
