@@ -443,3 +443,44 @@ zurückgelesen werden und frisches Sonar, den Exact-Head-NGINX-Build plus beide
 Runtime-Workflow ausführen. Kein früherer Lauf wird wiederverwendet und es
 erfolgen kein Merge, Force-Push, Framework-/MRTS-/Gitlink-, Workflow-, Test-
 oder Quality-Gate-Änderung.
+
+### NGINX-Registry-Sonar-Nachverfolgung und Hosted-Runtime-Grenze
+
+Das Exact-Head-SonarCloud-Ergebnis für
+`ac78937ace73fbc27a7c8a9b9ab0297c1d94de16` ließ das Quality Gate `OK`, doch
+das PR-Inventar enthielt zwei echte neue Issues in der Registry-Staging-
+Behebung: `python:S3776` für die kognitive Komplexität der Descriptor-Copy und
+`python:S107` für den NGINX-Build-Environment-Helper mit vierzehn Parametern.
+Die drei verbleibenden `c:S995`-Authorization-Fixture-Zeilen bleiben die
+dokumentierten Nichtprobleme der öffentlichen ABI. Es werden weder ein
+Issue-Übergang, `NOSONAR`, Regel-Ausschluss noch eine Quality-Gate-Änderung
+verwendet.
+
+Die Nachbesserung teilt die Descriptor-Copy in begrenzte Allokations-,
+Read/Write-, Sync/Identity-, Publishing- und Cleanup-Helper auf und behält
+No-Follow-Opens, Single-Link-Source-Prüfungen, größenexaktes Kopieren,
+atomaren Ersatz und descriptor-relatives Cleanup bei. Sie ersetzt die große
+interne Argumentliste durch eine immutable typisierte Eingabegrenze und behält
+das Überschreiben einer feindlich geerbten
+`MSCONNECTOR_PROFILE_REGISTRY_ROOT` bei. Ein unabhängiges Review fand während
+dieser Aufteilung einen Close-Failure-Ownership-Pfad; der Descriptor bleibt
+jetzt bis zum erfolgreichen Close gehalten, und eine negative Regression
+prüft das Cleanup der temporären Datei bei diesem Fehler. Die fokussierte
+Preparation-Suite besteht mit 89 Cases und fünf bestehenden Framework-Head-
+Skips; die breitere Cache-/Diagnostics-Suite, Python-Kompilierung und
+Diff-Check bestehen. Ein lokaler Single-File-Sonar-Analyzer ist wegen der CPU-
+Inkompatibilität des Hosts mit seinem signierten Analyzer-Binary blockiert;
+das nächste frische SonarCloud-Ergebnis ist daher die maßgebliche Verifikation.
+
+Der Hosted-NGINX-Lauf `33818517134` auf `ac78937` provisionierte gepinntes
+NGINX erfolgreich und schloss den Connector-Build-Schritt ab, aber die
+isolierte On/Off-Harness brach korrekt mit ihrem beabsichtigten Status `77`
+ab: Ein unprivilegierter GitHub-Runner kann die erforderliche unterschiedliche
+verifizierte Worker-Identität nicht einrichten. Die Harness hat keinen sicheren
+Same-Identity-Bypass, und der geschützte Root-Broker führt diese Zellen nicht
+aus. Dieses Ergebnis ist daher nur Compile-Evidenz, keine
+`modsecurity_use_error_log`-Runtime-Evidenz. Ein task-eigener Root-fähiger
+lokaler Provision/Run bleibt die autorisierte Alternative, die nach dem
+nächsten normalen Successor-Head zu prüfen ist; es erfolgen keine Workflow-
+Änderung, kein Merge, Force-Push, Framework-/MRTS-/Gitlink-Change und keine
+Abschwächung von Test oder Kontrolle.

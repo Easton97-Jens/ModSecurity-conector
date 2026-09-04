@@ -404,3 +404,39 @@ back from GitHub and run fresh Sonar, exact-head NGINX build plus both
 `modsecurity_use_error_log` cells, and the complete CRS/no-MRTS runtime
 workflow. No earlier run is reused, and no merge, force-push,
 Framework/MRTS/Gitlink, workflow, test, or quality-gate change is made.
+
+### NGINX registry Sonar follow-up and hosted runtime limitation
+
+The exact-head SonarCloud result for
+`ac78937ace73fbc27a7c8a9b9ab0297c1d94de16` kept the Quality Gate `OK`, but
+the PR inventory contained two genuine new issues in the registry staging
+repair: `python:S3776` on descriptor-copy cognitive complexity and
+`python:S107` on the fourteen-argument NGINX build-environment helper. The
+three remaining `c:S995` Authorization fixture rows remain the documented
+public-ABI non-problems. No issue transition, `NOSONAR`, rule exclusion, or
+Quality-Gate change is used.
+
+The follow-up splits the descriptor copy into bounded allocation, read/write,
+sync/identity, publication, and cleanup helpers while retaining no-follow
+opens, single-link source checks, exact-size copying, atomic replacement, and
+descriptor-relative cleanup. It replaces the large internal argument list with
+one immutable typed input boundary and preserves the hostile inherited
+`MSCONNECTOR_PROFILE_REGISTRY_ROOT` override. Independent review found one
+close-failure ownership path during that split; the descriptor is now retained
+until a successful close, and a negative regression verifies temporary-file
+cleanup on that failure. The focused preparation suite passes 89 cases with
+five pre-existing Framework-head skips; the broader cache/diagnostics suite,
+Python compilation, and diff check pass. A local single-file Sonar analyzer is
+blocked by the host CPU's incompatibility with its signed analyzer binary, so
+the next fresh SonarCloud result is the authoritative verification.
+
+Hosted NGINX run `33818517134` on `ac78937` successfully provisioned pinned
+NGINX and completed the connector build step, but the isolated on/off harness
+correctly stopped with its intentional status `77`: an unprivileged GitHub
+runner cannot establish the required distinct verified worker identity. The
+harness has no safe same-identity bypass, and the protected root broker does
+not execute these cells. Therefore this result is compile evidence only, not
+`modsecurity_use_error_log` runtime evidence. A task-owned root-capable local
+provision/run is the remaining authorized alternative to investigate after the
+next normal successor head; no workflow change, merge, force-push,
+Framework/MRTS/Gitlink change, or test/control weakening is made.

@@ -105,19 +105,24 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             ) -> dict[str, str]:
                 return components.nginx_build_environment(
                     base_env,
-                    root / "connector",
-                    root / "framework",
-                    root / "cache",
-                    root / "work",
-                    root / "sources",
-                    root / "archives",
-                    {"prefix": str(root / "modsecurity"), "build_id": "modsecurity"},
-                    protocol_inputs,
-                    str(protocol_inputs["profile"]),
-                    str(root / "archives/nginx/openssl-4.0.1.tar.gz"),
-                    root / "common-src",
-                    root / "profile-registry",
-                    context,
+                    components.NginxBuildEnvironmentInputs(
+                        connector_root=root / "connector",
+                        framework_root=root / "framework",
+                        cache_root=root / "cache",
+                        build_root=root / "work",
+                        sources_root=root / "sources",
+                        archives_root=root / "archives",
+                        modsecurity={
+                            "prefix": str(root / "modsecurity"),
+                            "build_id": "modsecurity",
+                        },
+                        protocol_inputs=protocol_inputs,
+                        protocol_profile=str(protocol_inputs["profile"]),
+                        quic_tls_archive=str(root / "archives/nginx/openssl-4.0.1.tar.gz"),
+                        common_build_source_root=root / "common-src",
+                        profile_registry_build_root=root / "profile-registry",
+                        context=context,
+                    ),
                 )
 
             for profile in ("h1", "h1-h2"):
@@ -558,6 +563,40 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             self.assertFalse(destination.is_symlink())
             self.assertEqual(destination.read_text(encoding="utf-8"), expected_source)
             self.assertEqual(outside.read_text(encoding="utf-8"), "outside\n")
+            self.assertFalse(any(path.name.endswith(".tmp") for path in staged_connectors.iterdir()))
+
+    def test_nginx_profile_registry_staging_keeps_temporary_descriptor_for_close_failure_cleanup(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root = Path(temporary) / "connector"
+            registry_source_root = connector_root / "connectors"
+            registry_source_root.mkdir(parents=True)
+            (registry_source_root / "profile_registry.c").write_text(
+                "const char *profile = \"nginx\";\n",
+                encoding="utf-8",
+            )
+            (registry_source_root / "profile_registry.h").write_text(
+                "#pragma once\n",
+                encoding="utf-8",
+            )
+            plan_root = Path(temporary) / "build"
+            plan_root.mkdir()
+            staged_connectors = plan_root / "profile-registry/connectors"
+
+            with mock.patch.object(
+                components,
+                "_close_nginx_profile_registry_temporary_descriptor",
+                side_effect=RuntimeError("nginx_profile_registry_destination_write_failed"),
+            ):
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "nginx_profile_registry_destination_write_failed",
+                ):
+                    components.copy_nginx_profile_registry_sources(
+                        connector_root,
+                        {"root": str(plan_root)},
+                    )
+
+            self.assertTrue(staged_connectors.is_dir())
             self.assertFalse(any(path.name.endswith(".tmp") for path in staged_connectors.iterdir()))
 
     def test_nginx_profile_registry_staging_rejects_destination_directory_replacement_race(self) -> None:
