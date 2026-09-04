@@ -1,0 +1,7 @@
+# These are the intentionally dedicated labels used by the protected
+# exact-head workflow.  This declares them to actionlint without suppressing
+# any workflow or shell rule.
+self-hosted-runner:
+  labels:
+    - protected-exact-head-candidate-build
+    - protected-exact-head-nginx
