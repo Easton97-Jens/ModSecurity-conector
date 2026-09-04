@@ -966,24 +966,160 @@ def validate_identity(ready: dict[str, object], expected: IdentityExpectations,
     }
 
 
-def atomic_json(path: Path, value: dict[str, object]) -> None:
-    if path.exists() or path.is_symlink():
-        fail("supervisor control file already exists")
-    temporary = path.with_name("." + path.name + ".tmp")
-    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+def _control_file_identity(metadata: os.stat_result) -> tuple[int, int, int, int, int, int, int, int]:
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_nlink,
+        metadata.st_uid,
+        metadata.st_gid,
+        stat.S_IMODE(metadata.st_mode),
+    )
+
+
+def _open_control_parent(path: Path) -> tuple[int, str]:
+    """Bind a control-file parent before accepting its fixed leaf name."""
+    if not path.is_absolute() or any(part in {".", ".."} for part in path.parts):
+        fail("root control file path must be absolute and normalized")
+    path = Path(os.path.normpath(os.fspath(path)))
+    if path.name in {"", ".", ".."}:
+        fail("root control file path has no fixed leaf")
+    parent = path.parent
+    descriptor = -1
     try:
-        with os.fdopen(descriptor, "w", encoding="ascii") as stream:
-            json.dump(value, stream, sort_keys=True, separators=(",", ":"))
-            stream.write("\n")
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temporary, path)
-    except BaseException:
+        descriptor = os.open(
+            parent.root,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+        )
+        for component in parent.parts[1:]:
+            before = os.stat(component, dir_fd=descriptor, follow_symlinks=False)
+            if not stat.S_ISDIR(before.st_mode) or stat.S_ISLNK(before.st_mode):
+                fail("root control file parent has an unsafe component")
+            child = os.open(
+                component,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                dir_fd=descriptor,
+            )
+            opened = os.fstat(child)
+            if (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino):
+                os.close(child)
+                fail("root control file parent changed while opening")
+            os.close(descriptor)
+            descriptor = child
+        result = descriptor
+        descriptor = -1
+        return result, path.name
+    except OSError as exc:
+        fail(f"could not open root control file parent: {exc}")
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+
+def _require_root_control_file(metadata: os.stat_result) -> None:
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_nlink != 1
+        or metadata.st_uid != os.geteuid()
+        or metadata.st_gid != os.getegid()
+        or stat.S_IMODE(metadata.st_mode) != 0o400
+    ):
+        fail("root control file metadata is unsafe")
+
+
+def _require_root_control_directory(path: Path) -> None:
+    try:
+        metadata = path.lstat()
+    except OSError as exc:
+        fail(f"root control directory is unavailable: {exc}")
+    if (
+        stat.S_ISLNK(metadata.st_mode)
+        or not stat.S_ISDIR(metadata.st_mode)
+        or metadata.st_uid != os.geteuid()
+        or metadata.st_gid != os.getegid()
+        or stat.S_IMODE(metadata.st_mode) != 0o755
+    ):
+        fail("root control directory metadata is unsafe")
+
+
+def atomic_json(path: Path, value: dict[str, object]) -> None:
+    """Publish one root control file without following candidate path swaps."""
+    parent_descriptor, name = _open_control_parent(path)
+    temporary_name = f".{name}.tmp-{os.getpid()}"
+    descriptor = -1
+    published_descriptor = -1
+    published = False
+    success = False
+    try:
         try:
-            temporary.unlink()
+            os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
         except FileNotFoundError:
             pass
-        raise
+        else:
+            fail("supervisor control file already exists")
+        descriptor = os.open(
+            temporary_name,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW,
+            0o600,
+            dir_fd=parent_descriptor,
+        )
+        raw = (
+            json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n"
+        ).encode("ascii")
+        offset = 0
+        while offset < len(raw):
+            written = os.write(descriptor, raw[offset:])
+            if written <= 0:
+                fail("could not write complete root control file")
+            offset += written
+        os.fsync(descriptor)
+        os.fchmod(descriptor, 0o400)
+        expected = os.fstat(descriptor)
+        _require_root_control_file(expected)
+        expected_identity = _control_file_identity(expected)
+        os.close(descriptor)
+        descriptor = -1
+        os.replace(
+            temporary_name,
+            name,
+            src_dir_fd=parent_descriptor,
+            dst_dir_fd=parent_descriptor,
+        )
+        published = True
+        os.fsync(parent_descriptor)
+        published_descriptor = os.open(
+            name,
+            os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW,
+            dir_fd=parent_descriptor,
+        )
+        observed = os.fstat(published_descriptor)
+        _require_root_control_file(observed)
+        if _control_file_identity(observed) != expected_identity:
+            fail("root control file changed while publishing")
+        success = True
+    except OSError as exc:
+        fail(f"could not publish root control file: {exc}")
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        if published_descriptor >= 0:
+            os.close(published_descriptor)
+        if not success:
+            for candidate_name in (
+                temporary_name,
+                name if published else None,
+            ):
+                if candidate_name is None:
+                    continue
+                try:
+                    os.unlink(candidate_name, dir_fd=parent_descriptor)
+                except FileNotFoundError:
+                    pass
+                except OSError:
+                    pass
+        os.close(parent_descriptor)
 
 
 def root_owned_directory(path: Path, mode: int = 0o755) -> None:
@@ -1067,8 +1203,9 @@ def prepare_trusted_cells(
 
     The candidate namespace can write only runtime and log subdirectories.
     Its NGINX process has no write permission to the parent cell, the
-    configuration directory, the rule file, or the document root. There are
-    intentionally no NGINX include directives in this cell.
+    configuration directory, the root-controlled synchronization directory,
+    the rule file, or the document root. There are intentionally no NGINX
+    include directives in this cell.
     """
     if not re.fullmatch(r"mscnxw_[0-9a-f]+", worker_name) or not re.fullmatch(
         r"mscnxg_[0-9a-f]+", worker_group
@@ -1079,12 +1216,14 @@ def prepare_trusted_cells(
     for mode in ("on", "off"):
         mode_root = cell / mode
         config_root = mode_root / "config"
+        control_root = mode_root / "control"
         runtime_root = mode_root / "runtime"
         logs_root = mode_root / "logs"
         docroot = config_root / "docroot"
         root_owned_directory(mode_root)
         root_owned_directory(config_root)
         root_owned_directory(docroot)
+        root_owned_directory(control_root, 0o755)
         create_runner_owned_directory(runtime_root, runner_uid, runner_gid)
         create_runner_owned_directory(logs_root, runner_uid, runner_gid)
         root_owned_file(docroot / "index.html", b"exact-head-ok\n")
@@ -1321,9 +1460,14 @@ def wait_mode(
     supervisor: subprocess.Popen[bytes],
 ) -> dict[str, object]:
     mode_dir = contained(cell / mode, cell, "supervisor control directory")
+    control_dir = contained(
+        mode_dir / "control", mode_dir, "supervisor root control directory"
+    )
+    _require_root_control_directory(control_dir)
     runtime_dir = contained(mode_dir / "runtime", mode_dir, "supervisor runtime directory")
-    ready_path, release_path = runtime_dir / "ready.json", runtime_dir / "release"
-    completion_path = runtime_dir / "request-complete.json"
+    ready_path = runtime_dir / "ready.json"
+    release_path = control_dir / "release"
+    completion_path = control_dir / "request-complete.json"
     if (
         release_path.exists()
         or release_path.is_symlink()
@@ -1336,6 +1480,7 @@ def wait_mode(
         if supervisor.poll() is not None:
             fail(f"exact-head NGINX harness exited before {mode} readiness")
         contained(mode_dir, cell, "supervisor control directory")
+        contained(control_dir, mode_dir, "supervisor root control directory")
         if ready_path.is_symlink():
             fail("supervisor readiness record is a symbolic link")
         if ready_path.exists():
@@ -1351,7 +1496,6 @@ def wait_mode(
             identity = validate_identity(ready, expected, binary_identity, supervisor.pid)
             try:
                 atomic_json(release_path, {"mode": mode, "allow": True})
-                os.chmod(release_path, 0o400)
             except BaseException:
                 close_identity_pidfd(identity)
                 raise
@@ -1421,27 +1565,13 @@ def mark_request_complete(cell: Path, mode: str, status_code: int) -> None:
     """Release the Base helper only after the root-side HTTP observation."""
     if status_code != 403:
         fail("root-side HTTP observation cannot release a non-403 cell")
-    path = contained(
-        cell / mode / "runtime" / "request-complete.json",
-        cell / mode,
-        "root request-completion control file",
+    mode_root = contained(cell / mode, cell, "root request-completion mode root")
+    control_root = contained(
+        mode_root / "control", mode_root, "root request-completion control root"
     )
+    _require_root_control_directory(control_root)
+    path = control_root / "request-complete.json"
     atomic_json(path, {"mode": mode, "http_status": status_code})
-    try:
-        os.chown(path, 0, 0)
-        os.chmod(path, 0o400)
-        metadata = path.lstat()
-    except OSError as exc:
-        fail(f"could not publish root request-completion control file: {exc}")
-    if (
-        stat.S_ISLNK(metadata.st_mode)
-        or not stat.S_ISREG(metadata.st_mode)
-        or metadata.st_nlink != 1
-        or metadata.st_uid != 0
-        or metadata.st_gid != 0
-        or stat.S_IMODE(metadata.st_mode) != 0o400
-    ):
-        fail("root request-completion control file metadata is unsafe")
 
 
 def mode_evidence(cell: Path, mode: str, status_code: int) -> dict[str, object]:
@@ -1879,7 +2009,7 @@ def main(argv: list[str] | None = None) -> int:
             fail("exact-head scratch root must be fresh")
         create_runner_owned_directory(scratch_root, args.runner_uid, args.runner_gid)
         cell = scratch_root / CELL_NAME
-        create_runner_owned_directory(cell, args.runner_uid, args.runner_gid)
+        root_owned_directory(cell)
         dispatcher_path = no_symlink_path(Path(args.dispatcher_manifest), "dispatcher manifest")
         candidate_root = no_symlink_path(Path(args.candidate_artifact_root), "candidate artifact root")
         candidate_path = contained(

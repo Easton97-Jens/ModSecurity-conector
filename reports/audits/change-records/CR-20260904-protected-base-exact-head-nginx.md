@@ -98,6 +98,26 @@ Quality-Gate/rule change, coverage reduction, or workflow weakening is used.
 A fresh exact-successor Sonar analysis is still required; the initial head's
 result is not evidence for a successor.
 
+The successor source review also found an inherited root-control-file race in
+the same launcher boundary. A candidate can write the runner-owned cell runtime
+directory. The former publisher closed a predictable temporary pathname before
+path-based replacement, after which the release and completion callers applied
+path-based root metadata operations. A substituted symlink could therefore
+redirect root `chmod` or `chown`; moreover the ordinary completion path rejected
+its intentionally missing leaf. The corrected central publisher retains a
+no-follow parent descriptor, writes, mode-checks, and identifies the temporary
+file by descriptor before descriptor-relative replacement, then reopens and
+compares the published leaf without following it. Callers no longer apply
+post-publication path-based metadata changes. Controlled pre-fix tests showed
+the release race did not fail closed and a task-owned victim mode changed from
+`0644` to `0400`; the post-fix regressions reject both release and completion
+substitution and the ordinary completion control publishes correctly. Release
+and completion markers now live below a root-owned cell hierarchy in a
+separately created candidate-non-writable control directory; the Base helper
+verifies that directory before it trusts either fixed marker, so a candidate
+cannot recreate one after publication. A fresh exact-successor source and
+hosted review remains required.
+
 ## Scope exclusions
 
 No product remediation, Framework/MRTS source, Gitlink, dependency, branch
@@ -138,7 +158,7 @@ workflow, focused tests, and bilingual documentation files in this Draft PR.
 
 ## Commands executed
 
-Focused Python `unittest`: passed, 86 tests. Python compilation, `/bin/sh -n`,
+Focused Python `unittest`: passed, 93 tests. Python compilation, `/bin/sh -n`,
 and `actionlint` for the protected workflow passed. Evidence-root and leaf
 reads are descriptor-anchored, dispatcher/collector path-substitution
 regressions pass, and JSON schema versions require an actual JSON integer, so
@@ -188,13 +208,18 @@ is preparation only and has no merge authorization.
 ## Local validation observed
 
 The focused Python unit suite for the protected dispatcher, builder, preflight,
-launcher, collector, helper, and workflow contracts passed with 86 tests.
+launcher, collector, helper, and workflow contracts passed with 93 tests.
 Descriptor-anchored evidence-root/leaf reads, dispatcher/collector
 path-substitution regressions, strict rejection of boolean schema versions,
 and environment-variable-only handling of the dispatched PR number and expected
 SHA passed. Candidate task/build/output-directory swap regressions also passed:
 replacement directories are not used, and replaced task/output identities fail
 closed before a package path is returned.
+The root-control publisher rejects controlled release and completion temporary
+symlink substitution without altering the task-owned victim, while the ordinary
+completion control publishes its fixed JSON representation. The Base helper
+uses only the separately root-owned, candidate-non-writable control directory
+below the root-owned cell hierarchy for these markers.
 Python compilation and shell syntax checks passed. `actionlint` passed for
 `.github/workflows/run-protected-nginx-exact-head.yml`. A local Bubblewrap
 mount-layout probe is blocked by this container's namespace policy and is not
