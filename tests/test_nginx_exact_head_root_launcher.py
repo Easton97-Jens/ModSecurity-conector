@@ -186,13 +186,49 @@ class RootLauncherContractTests(unittest.TestCase):
                 os.close(descriptor)
                 os.close(parent_descriptor)
 
-    def test_cleanup_uses_root_container_and_preserves_runner_parent_replacement(self) -> None:
+    def test_cleanup_parent_requires_a_private_root_container(self) -> None:
+        private = types.SimpleNamespace(
+            st_mode=stat.S_IFDIR | 0o700, st_uid=0, st_gid=0
+        )
+        with mock.patch.object(LAUNCHER.os, "fstat", return_value=private):
+            self.assertIsNone(LAUNCHER._require_private_root_cleanup_parent(71))
+        for unsafe in (
+            types.SimpleNamespace(st_mode=stat.S_IFDIR | 0o755, st_uid=0, st_gid=0),
+            types.SimpleNamespace(st_mode=stat.S_IFDIR | 0o700, st_uid=1000, st_gid=0),
+            types.SimpleNamespace(st_mode=stat.S_IFREG | 0o700, st_uid=0, st_gid=0),
+        ):
+            with self.subTest(unsafe=unsafe), mock.patch.object(
+                LAUNCHER.os, "fstat", return_value=unsafe
+            ):
+                with self.assertRaisesRegex(
+                    LAUNCHER.LauncherError,
+                    "private root-owned",
+                ):
+                    LAUNCHER._require_private_root_cleanup_parent(71)
+
+    def test_cleanup_retains_scratch_when_parent_is_not_private(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            parent = Path(temporary) / "replaceable-parent"
+            scratch = parent / LAUNCHER.ROOT_RUN_NAME
+            scratch.mkdir(parents=True)
+            parent.chmod(0o755)
+            state = LAUNCHER.LauncherState(
+                scratch_fd=os.open(scratch, os.O_RDONLY | os.O_DIRECTORY),
+                scratch_parent_fd=os.open(parent, os.O_RDONLY | os.O_DIRECTORY),
+            )
+            errors = LAUNCHER._cleanup_launcher(state)
+            self.assertEqual(len(errors), 1)
+            self.assertIn("private root-owned", errors[0])
+            self.assertTrue(scratch.is_dir())
+
+    def test_cleanup_uses_private_container_at_final_sink_and_preserves_runner_replacement(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             runner_parent = Path(temporary) / "runner-parent"
             container = runner_parent / "root-container"
             scratch = container / LAUNCHER.ROOT_RUN_NAME
             replacement = runner_parent / LAUNCHER.ROOT_RUN_NAME
             scratch.mkdir(parents=True)
+            container.chmod(0o700)
             replacement.mkdir()
             (replacement / "attacker.txt").write_text("keep", encoding="ascii")
             container_fd = os.open(container, os.O_RDONLY | os.O_DIRECTORY)
@@ -204,7 +240,33 @@ class RootLauncherContractTests(unittest.TestCase):
                     runner_parent, os.O_RDONLY | os.O_DIRECTORY
                 ),
             )
-            self.assertEqual(LAUNCHER._cleanup_launcher(state), [])
+            real_rmdir = os.rmdir
+            attack_triggered = False
+
+            def replace_runner_entry_before_final_rmdir(
+                name: str, *, dir_fd: int
+            ) -> None:
+                nonlocal attack_triggered
+                if name == LAUNCHER.ROOT_RUN_NAME:
+                    self.assertEqual(dir_fd, state.scratch_parent_fd)
+                    replacement.rename(runner_parent / "replaced-runner-entry")
+                    replacement.mkdir()
+                    (replacement / "attacker.txt").write_text(
+                        "keep", encoding="ascii"
+                    )
+                    attack_triggered = True
+                real_rmdir(name, dir_fd=dir_fd)
+
+            with mock.patch.object(
+                LAUNCHER, "_require_private_root_cleanup_parent"
+            ) as require_private_parent, mock.patch.object(
+                LAUNCHER.os,
+                "rmdir",
+                side_effect=replace_runner_entry_before_final_rmdir,
+            ):
+                self.assertEqual(LAUNCHER._cleanup_launcher(state), [])
+            require_private_parent.assert_called_once_with(state.scratch_parent_fd)
+            self.assertTrue(attack_triggered)
             self.assertFalse(scratch.exists())
             self.assertTrue((replacement / "attacker.txt").exists())
 

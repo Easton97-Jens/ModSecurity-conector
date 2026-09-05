@@ -68,6 +68,28 @@ recorded in a post-push PR comment after they are observed. The external archive
 `blocked_external_dependency` (FND-PARENT-1036); no old run is migrated or
 finalized.
 
+### 2026-09-05 FND-PARENT-1038 final-cleanup checkpoint
+
+The historical same-name cleanup harness applied to a replaceable parent. The
+current production path already routes scratch cleanup through a retained,
+root-owned private container after runtime and dedicated-worker quiescence.
+This successor makes that precondition explicit: the descriptor passed to the
+final named removal must be a directory owned by root with exact mode `0700`.
+An invalid parent records a cleanup error and retains the scratch tree; it is
+not treated as successful cleanup.
+
+The focused runner-parent containment regression replaces and recreates the
+runner-visible entry immediately before the final `rmdir`, proves the retained
+private-container descriptor is the removal parent, removes only the admitted
+scratch tree, and preserves the replacement marker. Separate positive and
+negative unit controls cover the private-parent metadata rule and fail-closed
+retention.
+The full protected-base focused command ran 129 tests with 129 passes, zero
+failures/errors/skips. A fresh separate source-diff review found no blocker;
+that review and local tests do not replace the required exact remote-head,
+Sonar, GitHub, or protected-host evidence. FND-PARENT-1038 therefore remains
+in progress pending normal delivery and exact-head verification.
+
 ## Current exact-head Sonar remediation
 
 The exact `c8f1a00a5d45cbc5c4a7e52e1da17e8611e767db` PR analysis at
