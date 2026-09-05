@@ -701,3 +701,54 @@ SonarCloud-Ergebnis mit null aktiven Issues und bestandenem Quality Gate.
 Functional A bleibt ausschließlich ein GitHub-hosted-nativer
 Integrationsnachweis, nicht Protected B oder eine Auflösung von
 FND-PARENT-1038; FND-PARENT-1036 bleibt `blocked_external_dependency`.
+
+### 2026-09-05 Zweiter Hosted-Follow-up (Successor-Kandidat ausstehend)
+
+Für den exakten Draft-PR-#354-Head
+`d2abf5dc9fc287d5e8d233ec725c23ab1f14a97a` bestand der frische hosted
+NGINX-Lauf `33989150637` den Exact-Head-Checkout, das
+sudo-/root-gegen-Worker-Preflight, die Initialisierung isolierter Pfade und
+die unprivilegierte Komponenten-Provisionierung. Er schlug danach vor beiden
+nativen On/Off-Zellen fail-closed mit Exit `77` fehl: Die absichtlich
+bereinigte `/usr/bin/env -i`-Allowlist ließ sowohl
+`NGINX_FUNCTIONAL_WORKER_USER` als auch `NGINX_FUNCTIONAL_WORKER_GROUP` weg,
+obwohl beide zuvor geprüft worden waren. Der Root-Launcher erhielt dadurch
+eine leere Worker-Identität und wies sie zurück. Dies ist eine
+Workflow-Allowlist-Auslassung, keine Lockerung der Worker-Prüfung und kein
+erfolgreiches Functional-A-Ergebnis.
+
+Dieselbe Exact-Head-SonarCloud-Analyse bereinigte die vorherigen sechs Issues,
+meldete aber zwei neue aktive `pythonsecurity:S8707`-Flüsse von der
+pfadwertigen Reader-CLI-Option `--runtime-root` nach `os.open`; das Quality
+Gate blieb daher `ERROR` (`new_security_rating=3`, Schwelle `1`). Die
+Kandidatenbehebung entfernt sämtliche pfadwertigen CLI-/Environment-Eingaben
+des Readers. Der Functional-A-Harness öffnet seinen bereits pfadautorisierten,
+frisch privaten Runtime-Root nur als geerbten Descriptor `3`; der Reader
+dupliziert und validiert diese Capability und öffnet dann ausschließlich feste
+`conf/case.env`-Komponenten mit No-follow-Prüfungen. Owner-/Mode-/Typ-/Link-
+Count-/Größen- und Mutation-Prüfungen bleiben erhalten. Header-, Body- und
+Audit-Pfade aus dem generierten Record werden außerdem vor ihrer späteren
+Nutzung durch Root-seitige Verbraucher mit den bereits konstruierten
+vertrauenswürdigen Pfaden verglichen; sie können diese Pfade nicht ersetzen.
+
+Der Kandidat reicht außerdem beide begrenzten Worker-Namen explizit durch die
+bestehende bereinigte Umgebung. Der Root-Launcher validiert und mappt sie
+weiter auf die NGINX-Worker-Identität; weder eine Ambient-Umgebung noch eine
+breite sudo-Kette oder ein Identity-Bypass wird eingeführt. Die lokale
+Kandidatenvalidierung bestand 46 fokussierte
+NGINX/Common/Event/Lifecycle/Reader/Launcher/Reference-Tests, die drei
+anwendbaren Phase-4-Runner-Tests (drei Framework-Pin-abhängige Tests bleiben
+übersprungen), Python-Kompilierung, Shell-Syntax, `actionlint`,
+C-Standard-Wiring und Whitespace-Prüfungen. Der lokale Sonar-Vortex-Precheck
+ist für diese Organisation nicht verfügbar und wird nicht als
+SonarCloud-Ergebnis ausgegeben. Die bestehenden zwei
+FND-PARENT-1010-Basis-Assertions lassen
+`check-nginx-common-adoption` weiterhin fehlschlagen; sie wurden weder
+geändert noch maskiert.
+
+Dieser Kandidat ist noch nicht gepusht. Ein normaler Successor-Push, GitHub-
+Head-Readback, frische hosted On/Off-Runtime, alle fünf CRS/no-MRTS-Läufe und
+ein frisches SonarCloud-Ergebnis mit null aktiven Issues/bestandenem Quality
+Gate bleiben erforderlich. Functional A bleibt nur ein Integrationsnachweis,
+FND-PARENT-1038 bleibt unverändert offen und FND-PARENT-1036 bleibt
+`blocked_external_dependency`.

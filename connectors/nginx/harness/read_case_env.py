@@ -3,8 +3,9 @@
 
 The ordinary harness keeps compatibility with the Framework's shell fragment.
 The GitHub-hosted functional-A root path instead reads each bounded value through
-this parser so generated content is never sourced or passed to ``eval`` while
-the NGINX master is being exercised as root.
+this parser through an inherited directory capability.  Generated content is
+therefore never sourced or passed to ``eval`` while the NGINX master is being
+exercised as root.
 """
 
 from __future__ import annotations
@@ -14,12 +15,16 @@ import os
 import shlex
 import stat
 import sys
-from pathlib import Path
 
 
 _MAX_ENV_BYTES = 16 * 1024
 _MAX_VALUE_BYTES = 4096
 _CASE_ENVIRONMENT_PARTS = ("conf", "case.env")
+# The root Functional-A harness opens only its already validated, freshly
+# private runtime directory on this descriptor.  The reader deliberately has
+# no path-valued CLI or environment input: possession of this descriptor is
+# the capability to read the fixed generated record below it.
+_FUNCTIONAL_RUNTIME_ROOT_DESCRIPTOR = 3
 _ALLOWED_KEYS = frozenset(
     {
         "CASE_NAME",
@@ -58,32 +63,6 @@ def _directory_flags() -> int:
     if no_follow is None:
         raise CaseEnvironmentError("case environment requires no-follow directory support")
     return os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | no_follow
-
-
-def _require_absolute_normalized_directory(path: Path) -> None:
-    rendered = os.fspath(path)
-    if (
-        not path.is_absolute()
-        or os.path.normpath(rendered) != rendered
-        or any(component in {".", ".."} for component in path.parts[1:])
-    ):
-        raise CaseEnvironmentError("runtime root is not an absolute normalized directory")
-
-
-def _open_directory_without_symlinks(path: Path) -> int:
-    _require_absolute_normalized_directory(path)
-    descriptor = -1
-    try:
-        descriptor = os.open(path.anchor, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
-        for component in path.parts[1:]:
-            next_descriptor = os.open(component, _directory_flags(), dir_fd=descriptor)
-            os.close(descriptor)
-            descriptor = next_descriptor
-        return descriptor
-    except OSError as error:
-        if descriptor >= 0:
-            os.close(descriptor)
-        raise CaseEnvironmentError(f"cannot open private runtime root: {error}") from error
 
 
 def _require_private_owned_directory(descriptor: int, *, name: str) -> None:
@@ -128,11 +107,12 @@ def _read_bounded_regular_file(descriptor: int) -> bytes:
     return bytes(content)
 
 
-def _read_private_case_environment(runtime_root: Path) -> bytes:
-    root_descriptor = _open_directory_without_symlinks(runtime_root)
+def _read_private_case_environment(runtime_root_descriptor: int) -> bytes:
+    root_descriptor = -1
     conf_descriptor = -1
     environment_descriptor = -1
     try:
+        root_descriptor = os.dup(runtime_root_descriptor)
         _require_private_owned_directory(root_descriptor, name="runtime root")
         conf_descriptor = os.open(_CASE_ENVIRONMENT_PARTS[0], _directory_flags(), dir_fd=root_descriptor)
         _require_private_owned_directory(conf_descriptor, name="runtime configuration directory")
@@ -186,10 +166,10 @@ def _parse_case_environment_line(
     return saw_header
 
 
-def read_case_environment(runtime_root: Path) -> dict[str, str]:
-    """Return one fixed, no-follow ``runtime_root/conf/case.env`` record."""
+def read_case_environment_from_descriptor(runtime_root_descriptor: int) -> dict[str, str]:
+    """Return the fixed no-follow ``conf/case.env`` below one open root descriptor."""
 
-    raw = _read_private_case_environment(runtime_root)
+    raw = _read_private_case_environment(runtime_root_descriptor)
     try:
         content = raw.decode("utf-8")
     except UnicodeDecodeError as error:
@@ -211,7 +191,6 @@ def read_case_environment(runtime_root: Path) -> dict[str, str]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--runtime-root", required=True, type=Path)
     parser.add_argument("--key", required=True, choices=sorted(_ALLOWED_KEYS))
     return parser.parse_args()
 
@@ -219,7 +198,9 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     try:
-        value = read_case_environment(args.runtime_root)[args.key]
+        value = read_case_environment_from_descriptor(
+            _FUNCTIONAL_RUNTIME_ROOT_DESCRIPTOR
+        )[args.key]
     except CaseEnvironmentError as error:
         print(f"nginx case environment rejected: {error}", file=sys.stderr)
         return 2

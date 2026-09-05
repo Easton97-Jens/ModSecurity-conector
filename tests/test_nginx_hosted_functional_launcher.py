@@ -79,6 +79,12 @@ class HostedFunctionalLauncherTest(unittest.TestCase):
         self.assertEqual(
             assignments["NGINX_FUNCTIONAL_A_PARENT_ROOT"], str(self.verified)
         )
+        self.assertEqual(
+            assignments["NGINX_WORKER_USER"], self.env["NGINX_FUNCTIONAL_WORKER_USER"]
+        )
+        self.assertEqual(
+            assignments["NGINX_WORKER_GROUP"], self.env["NGINX_FUNCTIONAL_WORKER_GROUP"]
+        )
         self.assertEqual(assignments["NGINX_HOSTED_FUNCTIONAL_A"], "1")
         self.assertEqual(
             assignments["NGINX_FUNCTIONAL_A_RUNTIME_LIBRARY"],
@@ -111,6 +117,8 @@ class HostedFunctionalLauncherTest(unittest.TestCase):
         cases = [
             {"NGINX_FUNCTIONAL_WORKER_USER": "bad user"},
             {"NGINX_FUNCTIONAL_WORKER_GROUP": "-leading-dash"},
+            {"NGINX_FUNCTIONAL_WORKER_USER": ""},
+            {"NGINX_FUNCTIONAL_WORKER_GROUP": ""},
             {"NGINX_FUNCTIONAL_WORKER_USER": "x" * 65},
             {"NGINX_PROTOCOL_PROFILE": "h2"},
         ]

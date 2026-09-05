@@ -51,6 +51,17 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
         self.assertIn("run_github_hosted_functional_a.py", workflow)
         self.assertIn("NGINX_HOSTED_FUNCTIONAL_A=1", workflow)
         self.assertIn("with-runtime-components.sh", workflow)
+        runtime_step = workflow.split(
+            "      - name: Run isolated modsecurity_use_error_log on/off cells", 1
+        )[1]
+        self.assertIn(
+            'NGINX_FUNCTIONAL_WORKER_USER="$NGINX_FUNCTIONAL_WORKER_USER"',
+            runtime_step,
+        )
+        self.assertIn(
+            'NGINX_FUNCTIONAL_WORKER_GROUP="$NGINX_FUNCTIONAL_WORKER_GROUP"',
+            runtime_step,
+        )
         provision_step = workflow.split(
             "      - name: Provision pinned NGINX and connector runtime", 1
         )[1].split("      - name: Print bounded NGINX provisioning failure diagnostics", 1)[0]

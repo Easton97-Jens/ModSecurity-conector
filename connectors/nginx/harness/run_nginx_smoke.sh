@@ -214,7 +214,19 @@ fi
 
 read_functional_case_value() {
     case_key=$1
-    "$PYTHON_BIN" "$NGINX_CASE_ENV_READER" --runtime-root "$RUNTIME_ROOT" --key "$case_key"
+    (
+        exec 3< "$RUNTIME_ROOT" || exit 2
+        exec "$PYTHON_BIN" "$NGINX_CASE_ENV_READER" --key "$case_key"
+    )
+}
+
+assert_functional_case_path_match() {
+    case_key=$1
+    expected_path=$2
+    actual_path=$(read_functional_case_value "$case_key") || \
+        blocked "generated case environment failed the hosted functional-A data parser"
+    [ "$actual_path" = "$expected_path" ] || \
+        blocked "generated case environment changed the trusted $case_key path"
 }
 
 load_functional_case_environment() {
@@ -224,10 +236,6 @@ load_functional_case_environment() {
        ! REQUEST_METHOD=$(read_functional_case_value REQUEST_METHOD) || \
        ! REQUEST_PATH=$(read_functional_case_value REQUEST_PATH) || \
        ! REQUEST_HAS_BODY=$(read_functional_case_value REQUEST_HAS_BODY) || \
-       ! REQUEST_HEADERS_FILE=$(read_functional_case_value REQUEST_HEADERS_FILE) || \
-       ! REQUEST_BODY_FILE=$(read_functional_case_value REQUEST_BODY_FILE) || \
-       ! AUDIT_LOG_FILE=$(read_functional_case_value AUDIT_LOG_FILE) || \
-       ! AUDIT_LOG_DIR=$(read_functional_case_value AUDIT_LOG_DIR) || \
        ! EXPECT_STATUS=$(read_functional_case_value EXPECT_STATUS) || \
        ! EXPECT_INTERVENTION=$(read_functional_case_value EXPECT_INTERVENTION) || \
        ! EXPECT_RULE_ID=$(read_functional_case_value EXPECT_RULE_ID) || \
@@ -237,6 +245,10 @@ load_functional_case_environment() {
        ! NGINX_PHASE4_MODE=$(read_functional_case_value NGINX_PHASE4_MODE); then
         blocked "generated case environment failed the hosted functional-A data parser"
     fi
+    assert_functional_case_path_match REQUEST_HEADERS_FILE "$REQUEST_HEADERS_FILE"
+    assert_functional_case_path_match REQUEST_BODY_FILE "$REQUEST_BODY_FILE"
+    assert_functional_case_path_match AUDIT_LOG_FILE "$AUDIT_LOG_FILE"
+    assert_functional_case_path_match AUDIT_LOG_DIR "$AUDIT_LOG_DIR"
     export CASE_NAME REQUEST_METHOD REQUEST_PATH REQUEST_HAS_BODY \
         REQUEST_HEADERS_FILE REQUEST_BODY_FILE AUDIT_LOG_FILE AUDIT_LOG_DIR \
         EXPECT_STATUS EXPECT_INTERVENTION EXPECT_RULE_ID EXPECT_RESPONSE_CONTAINS \

@@ -640,3 +640,47 @@ on/off runtime, fresh CRS/no-MRTS checks, and a fresh SonarCloud zero-active-
 issue/Quality-Gate result.  Functional A remains a GitHub-hosted native
 integration test only, not Protected B or a resolution of FND-PARENT-1038;
 FND-PARENT-1036 remains `blocked_external_dependency`.
+
+### 2026-09-05 second hosted follow-up (successor candidate pending)
+
+For exact Draft PR #354 head `d2abf5dc9fc287d5e8d233ec725c23ab1f14a97a`,
+the fresh hosted NGINX run `33989150637` passed exact-head checkout, the
+sudo/root-versus-worker preflight, isolated-path initialization, and
+unprivileged component provisioning. It then failed closed with exit `77`
+before either native on/off cell: the deliberately scrubbed `/usr/bin/env -i`
+allowlist omitted both already preflighted
+`NGINX_FUNCTIONAL_WORKER_USER` and `NGINX_FUNCTIONAL_WORKER_GROUP`, so the
+root launcher received an empty worker identity and rejected it. This is a
+workflow allowlist omission, not a relaxation of the worker check and not a
+successful Functional-A result.
+
+The same exact-head SonarCloud analysis cleared the preceding six issues but
+reported two new active `pythonsecurity:S8707` flows from the reader's
+path-valued `--runtime-root` CLI option into `os.open`; the Quality Gate
+therefore remained `ERROR` (`new_security_rating=3`, threshold `1`). The
+candidate remediation removes all path-valued reader CLI/environment input.
+The Functional-A harness opens its already path-authorized, freshly private
+runtime root only as inherited descriptor `3`; the reader duplicates and
+validates that capability, then opens only fixed `conf/case.env` components
+with no-follow checks. Owner/mode/type/link-count/size and mutation checks
+remain enforced. Header, body, and audit paths from the generated record are
+also compared against the already constructed trusted paths before later
+root-side consumers use them; they cannot replace those paths.
+
+The candidate also forwards both bounded worker names explicitly through the
+existing clean environment. The root launcher continues to validate and map
+them to the NGINX worker identity; no ambient environment, broad sudo chain,
+or identity bypass is introduced. Local candidate validation passed 46
+focused NGINX/Common/event/lifecycle/reader/launcher/reference tests, the
+Phase-4 runner's three applicable tests (three Framework-pin-dependent tests
+remain skipped), Python compilation, shell syntax, `actionlint`, C-standard
+wiring, and whitespace checks. The local Sonar Vortex precheck is unavailable
+for this organization and is not treated as a SonarCloud result. The existing
+two FND-PARENT-1010 baseline assertions still make
+`check-nginx-common-adoption` fail; they were neither changed nor masked.
+
+This candidate is not yet pushed. A normal successor push, GitHub head
+readback, fresh hosted on/off runtime, all five CRS/no-MRTS runs, and a fresh
+SonarCloud zero-active-issue/Quality-Gate result remain required. Functional
+A remains an integration test only, FND-PARENT-1038 is unchanged and open,
+and FND-PARENT-1036 remains `blocked_external_dependency`.
