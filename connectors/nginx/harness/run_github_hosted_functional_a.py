@@ -26,6 +26,12 @@ _CURL = "/usr/bin/curl"
 _WORKER_NAME_MAX = 64
 _WORKER_NAME_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789-_")
 _MODSECURITY_RUNTIME_LIBRARY = "libmodsecurity.so.3"
+_TRUSTED_FUNCTIONAL_TMP_ROOT = Path("/tmp")
+_FUNCTIONAL_JOB_ROOT_PREFIX = "ModSecurity-conector-nginx-functional-root."
+_FUNCTIONAL_JOB_ROOT_SUFFIX_CHARS = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
+)
+_VERIFIED_RUN_ROOT_NAME = "ModSecurity-conector-nginx-exact-head"
 _FUNCTIONAL_PARENT_NAME = "ModSecurity-conector-nginx-functional-parent"
 _FUNCTIONAL_ROOT_NAME = "nginx-hosted-functional-a"
 
@@ -113,12 +119,70 @@ def _require_regular_file(path: Path, name: str) -> Path:
     return path
 
 
+def _require_trusted_functional_tmp_root() -> Path:
+    """Require the fixed sticky parent that protects the fresh job-root name."""
+
+    path = _require_directory(_TRUSTED_FUNCTIONAL_TMP_ROOT, "Functional-A temporary root")
+    filesystem_root = _require_directory(Path(path.anchor), "Functional-A filesystem root")
+    if not filesystem_root.lstat().st_mode & stat.S_IXOTH:
+        raise FunctionalALaunchError(
+            "Functional-A temporary root has a worker-non-traversable ancestor"
+        )
+    metadata = path.lstat()
+    if metadata.st_uid != 0 or stat.S_IMODE(metadata.st_mode) != 0o1777:
+        raise FunctionalALaunchError(
+            "Functional-A temporary root must be root-owned sticky mode 01777"
+        )
+    return path
+
+
+def _require_private_verified_run_root(verified_root: Path) -> Path:
+    """Bind provisioning artifacts to the fresh job root, not a broad temp tree."""
+
+    temporary_root = _require_trusted_functional_tmp_root()
+    job_root = verified_root.parent
+    suffix = job_root.name[len(_FUNCTIONAL_JOB_ROOT_PREFIX) :]
+    if (
+        job_root.parent != temporary_root
+        or not job_root.name.startswith(_FUNCTIONAL_JOB_ROOT_PREFIX)
+        or not suffix
+        or any(character not in _FUNCTIONAL_JOB_ROOT_SUFFIX_CHARS for character in suffix)
+    ):
+        raise FunctionalALaunchError(
+            "VERIFIED_RUN_ROOT must be below the designated fresh /tmp job root"
+        )
+    _require_directory(job_root, "Functional-A job root")
+    job_metadata = job_root.lstat()
+    if job_metadata.st_uid != os.geteuid():
+        raise FunctionalALaunchError(
+            "Functional-A job root must be owned by the workflow runner"
+        )
+    if stat.S_IMODE(job_metadata.st_mode) != 0o711:
+        raise FunctionalALaunchError(
+            "Functional-A job root must be exactly non-enumerable mode 0711"
+        )
+    if verified_root.name != _VERIFIED_RUN_ROOT_NAME or verified_root.parent != job_root:
+        raise FunctionalALaunchError(
+            "VERIFIED_RUN_ROOT must be the designated private child of the Functional-A job root"
+        )
+    _require_directory(verified_root, "VERIFIED_RUN_ROOT")
+    verified_metadata = verified_root.lstat()
+    if verified_metadata.st_uid != os.geteuid():
+        raise FunctionalALaunchError(
+            "VERIFIED_RUN_ROOT must be owned by the workflow runner"
+        )
+    if stat.S_IMODE(verified_metadata.st_mode) != 0o700:
+        raise FunctionalALaunchError("VERIFIED_RUN_ROOT must be exactly private mode 0700")
+    return job_root
+
+
 def _require_worker_traversable_functional_parent(
     path: Path, verified_root: Path
 ) -> Path:
     """Accept only the workflow-created sibling for worker-visible runtime paths."""
 
-    if path.name != _FUNCTIONAL_PARENT_NAME or path.parent != verified_root.parent:
+    job_root = _require_private_verified_run_root(verified_root)
+    if path.name != _FUNCTIONAL_PARENT_NAME or path.parent != job_root:
         raise FunctionalALaunchError(
             "NGINX_FUNCTIONAL_A_PARENT_ROOT must be the designated sibling of VERIFIED_RUN_ROOT"
         )
@@ -132,9 +196,10 @@ def _require_worker_traversable_functional_parent(
         raise FunctionalALaunchError(
             "NGINX_FUNCTIONAL_A_PARENT_ROOT must be exactly non-enumerable mode 0711"
         )
-    current = Path(path.anchor)
-    for component in path.parts[1:]:
-        current /= component
+    # The private-root helper has already bound this direct child to the fixed
+    # root-owned sticky /tmp parent.  Only the two newly-created descendants
+    # remain to be checked here; both must carry other-execute access.
+    for current in (job_root, path):
         if not current.lstat().st_mode & stat.S_IXOTH:
             raise FunctionalALaunchError(
                 "NGINX_FUNCTIONAL_A_PARENT_ROOT has a worker-non-traversable ancestor"

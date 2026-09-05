@@ -74,17 +74,58 @@ jobs:
       - name: Initialize isolated exact-head paths
         run: |
           set -eu
-          RUN_ROOT="${RUNNER_TEMP:?missing runner temporary root}/ModSecurity-conector-nginx-exact-head"
-          FUNCTIONAL_PARENT_ROOT="${RUNNER_TEMP:?missing runner temporary root}/ModSecurity-conector-nginx-functional-parent"
-          /bin/mkdir -p "$RUN_ROOT"
+          # Do not widen a shared RUNNER_TEMP ancestor merely to let the
+          # unprivileged NGINX worker reach its deliberately separate tree.
+          [ -d /tmp ] && [ ! -L /tmp ] || {
+            echo "exact-head gate: /tmp is unavailable or a symlink" >&2
+            exit 1
+          }
+          [ "$(/usr/bin/stat -c '%u:%a' /tmp)" = "0:1777" ] || {
+            echo "exact-head gate: /tmp is not the expected root-owned sticky directory" >&2
+            exit 1
+          }
+          FUNCTIONAL_JOB_ROOT=$(/usr/bin/mktemp -d /tmp/ModSecurity-conector-nginx-functional-root.XXXXXX)
+          [ -d "$FUNCTIONAL_JOB_ROOT" ] && [ ! -L "$FUNCTIONAL_JOB_ROOT" ] || {
+            echo "exact-head gate: functional job root is unavailable or a symlink" >&2
+            exit 1
+          }
+          RUNNER_UID=$(/usr/bin/id -u)
+          [ "$(/usr/bin/stat -c '%u:%a' "$FUNCTIONAL_JOB_ROOT")" = "$RUNNER_UID:700" ] || {
+            echo "exact-head gate: functional job root is not a fresh private runner directory" >&2
+            exit 1
+          }
+          /bin/chmod 711 "$FUNCTIONAL_JOB_ROOT"
+          [ "$(/usr/bin/stat -c '%u:%a' "$FUNCTIONAL_JOB_ROOT")" = "$RUNNER_UID:711" ] || {
+            echo "exact-head gate: functional job root did not become non-enumerable" >&2
+            exit 1
+          }
+          RUN_ROOT="$FUNCTIONAL_JOB_ROOT/ModSecurity-conector-nginx-exact-head"
+          FUNCTIONAL_PARENT_ROOT="$FUNCTIONAL_JOB_ROOT/ModSecurity-conector-nginx-functional-parent"
+          /bin/mkdir "$RUN_ROOT"
           /bin/chmod 700 "$RUN_ROOT"
+          [ "$(/usr/bin/stat -c '%u:%a' "$RUN_ROOT")" = "$RUNNER_UID:700" ] || {
+            echo "exact-head gate: private run root has an unexpected identity or mode" >&2
+            exit 1
+          }
           if [ -e "$FUNCTIONAL_PARENT_ROOT" ] || [ -L "$FUNCTIONAL_PARENT_ROOT" ]; then
             echo "exact-head gate: functional parent is unexpectedly occupied" >&2
             exit 1
           fi
           /bin/mkdir "$FUNCTIONAL_PARENT_ROOT"
           /bin/chmod 711 "$FUNCTIONAL_PARENT_ROOT"
-          test "$(/usr/bin/stat -c '%a' "$FUNCTIONAL_PARENT_ROOT")" = 711
+          [ "$(/usr/bin/stat -c '%u:%a' "$FUNCTIONAL_PARENT_ROOT")" = "$RUNNER_UID:711" ] || {
+            echo "exact-head gate: functional parent has an unexpected identity or mode" >&2
+            exit 1
+          }
+          /usr/bin/sudo -n /usr/sbin/runuser -u "$NGINX_FUNCTIONAL_WORKER_USER" -- \
+            /usr/bin/test -x "$FUNCTIONAL_JOB_ROOT"
+          /usr/bin/sudo -n /usr/sbin/runuser -u "$NGINX_FUNCTIONAL_WORKER_USER" -- \
+            /usr/bin/test -x "$FUNCTIONAL_PARENT_ROOT"
+          if /usr/bin/sudo -n /usr/sbin/runuser -u "$NGINX_FUNCTIONAL_WORKER_USER" -- \
+            /usr/bin/test -x "$RUN_ROOT"; then
+            echo "exact-head gate: worker can traverse the private provisioning root" >&2
+            exit 1
+          fi
           {
             echo "RUN_ROOT=$RUN_ROOT"
             echo "VERIFIED_RUN_ROOT=$RUN_ROOT"

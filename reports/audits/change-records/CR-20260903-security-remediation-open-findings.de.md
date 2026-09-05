@@ -921,3 +921,52 @@ Attestierung gegen einen bösartigen Runner oder VM-root. FND-PARENT-1038 bleibt
 fixed, aber unverified und nicht geschlossen sowie durch diesen Kandidaten
 unverändert; FND-PARENT-1036 bleibt `blocked_external_dependency`; PR #354
 bleibt Draft, offen und ungemergt.
+
+### 2026-09-05 Siebter Hosted-Follow-up (Phase-4-Request-Metadata und `/tmp`-Traversal-Successor ausstehend)
+
+Der exakte Draft-PR-#354-Predecessor
+`a4666abf3b6585c80abc68f84ab9ebef10f054aa` erreichte in GitHub-hosted
+Functional-A-Run `33996313979` die erfolgreiche Provisionierung und schlug
+dann mit Exit `77` fail-closed fehl:
+`NGINX_FUNCTIONAL_A_PARENT_ROOT has a worker-non-traversable ancestor`. Das
+begrenzte Log benannte diesen Vorfahren nicht. NGINX startete nie; daher beweist
+der Run weder natives Callback-Verhalten noch Phase-4-JSONL-, WAF- oder Allow-
+Verhalten und darf nicht für den Successor wiederverwendet werden.
+
+Der enge Traversal-Successor weitet `RUNNER_TEMP` nicht auf. Er verifiziert den
+root-eigenen sticky-`/tmp`-Vertrag, erzeugt darunter einen atomaren
+runner-eigenen Job-Root, belässt den Provisioning-`RUN_ROOT` privat bei `0700`
+und macht nur den festen Functional-A-Sibling bei `0711` sichtbar. Der Launcher
+bindet exakte direkte Topologie, Ownership, Modes und no-symlink-Komponenten;
+der Workflow verwendet die reale konfigurierte `runuser`-Identität, um Worker-
+Traversal der Job-/Functional-A-Vorfahren zu beweisen und zugleich
+Nicht-Traversierbarkeit von `RUN_ROOT` zu belegen. Dies ist nur ein
+GitHub-hosted-Functional-A-Integrationsnachweis, keine Attestierung gegen einen
+bösartigen Runner oder VM-root und nicht Protected B.
+
+Ein unabhängiger Source-to-Sink-Review fand außerdem einen getrennten
+Phase-4-Defekt: `ngx_http_modsecurity_phase4_log_event` initialisierte sein
+Event, ließ aber Request-Methode/-URI aus, sodass der Common-Serializer eine
+leere URI erhielt. Die enge NGINX-C-Korrektur verwendet den bestehenden
+pool-owned Helper `ngx_http_modsecurity_event_request_metadata(r)` und weist
+Methode/URI vor der Common-Serialisierung zu. Common bleibt alleiniger Owner
+von Query-Redaction, Truncation-Signalisierung und passender Integrity-Sicht;
+die rohe `r->unparsed_uri` läuft weiter unabhängig durch den NGINX-/WAF-
+Requestpfad. Es wurde kein connector-spezifischer Redactor oder Common-Runtime-
+Refactor hinzugefügt.
+
+Der Predecessor-Source-Contract wurde vor der Zuweisung als fehlschlagend
+beobachtet und besteht für den aktuellen Kandidaten. Aktuelle lokale Evidence
+umfasst 28 fokussierte Native-/Launcher-/Topology-/Exact-Gate-Tests, einen
+C17-Compile mit Warnings als Errors, den direkten Common-Long-URI-/
+Query-Redaction-/Integrity-Control, Shell-Syntax, `actionlint`, C-Standard-
+Wiring und Whitespace-Checks. Dies ist nur Source-/Contract-Evidence: der
+erforderliche frische Exact-Successor-Hosted-ON/OFF-/JSONL-/WAF-/Allow-Nachweis,
+alle fünf CRS/no-MRTS-Zellen, Required Checks und SonarCloud müssen nach einem
+normalen Successor-Push laufen. Exit `77` bleibt fehlgeschlagene Evidence.
+
+`FND-PARENT-1046` hält die getrennt behebbare Phase-4-Request-Metadata-Grenze
+fest und bleibt `in_progress`; `FND-PARENT-0078` behält die Traversal-Grenze
+und bleibt ebenfalls `in_progress`. `FND-PARENT-1038` ist unverändert und
+nicht geschlossen; `FND-PARENT-1036` bleibt `blocked_external_dependency`. PR
+#354 bleibt Draft, offen und ungemergt.

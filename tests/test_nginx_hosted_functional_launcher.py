@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import importlib.util
+import os
+import stat
 import tempfile
 import unittest
 from pathlib import Path
@@ -29,7 +31,6 @@ class HostedFunctionalLauncherTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory()
         self.root = Path(self.tempdir.name)
-        self.root.chmod(0o711)
         connector = self.root / "connectors" / "nginx" / "harness"
         framework_rules = self.root / "modules" / "ModSecurity-test-Framework" / "tests" / "rules"
         connector.mkdir(parents=True)
@@ -38,9 +39,18 @@ class HostedFunctionalLauncherTest(unittest.TestCase):
         exact = connector / "run_exact_head_use_error_log.sh"
         exact.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         exact.chmod(0o700)
-        self.verified = self.root / "verified"
-        self.verified.mkdir()
-        self.functional_parent = self.root / "ModSecurity-conector-nginx-functional-parent"
+        self.trusted_tmp = self.root / "trusted-tmp"
+        self.trusted_tmp.mkdir()
+        self.trusted_tmp.chmod(0o1777)
+        self.job_root = self.trusted_tmp / (
+            LAUNCHER_MODULE._FUNCTIONAL_JOB_ROOT_PREFIX + "fixture123"
+        )
+        self.job_root.mkdir(mode=0o700)
+        self.job_root.chmod(0o711)
+        self.verified = self.job_root / LAUNCHER_MODULE._VERIFIED_RUN_ROOT_NAME
+        self.verified.mkdir(mode=0o700)
+        self.verified.chmod(0o700)
+        self.functional_parent = self.job_root / "ModSecurity-conector-nginx-functional-parent"
         self.functional_parent.mkdir(mode=0o711)
         self.functional_parent.chmod(0o711)
         self.prefix = self.verified / "nginx-prefix"
@@ -67,9 +77,16 @@ class HostedFunctionalLauncherTest(unittest.TestCase):
             "NGINX_PROTOCOL_PROFILE": "h1",
         }
         self.repo_patch = mock.patch.object(LAUNCHER_MODULE, "repository_root", return_value=self.root)
+        self.tmp_root_patch = mock.patch.object(
+            LAUNCHER_MODULE,
+            "_require_trusted_functional_tmp_root",
+            return_value=self.trusted_tmp,
+        )
         self.repo_patch.start()
+        self.tmp_root_patch.start()
 
     def tearDown(self) -> None:
+        self.tmp_root_patch.stop()
         self.repo_patch.stop()
         self.tempdir.cleanup()
 
@@ -123,23 +140,106 @@ class HostedFunctionalLauncherTest(unittest.TestCase):
             LAUNCHER_MODULE.build_root_command(self.env)
         self.functional_parent.chmod(0o711)
 
-        foreign_owner_parent = self.root / "unexpected-functional-parent"
-        foreign_owner_parent.mkdir(mode=0o711)
-        foreign_owner_parent.chmod(0o711)
-        with self.assertRaisesRegex(LAUNCHER_MODULE.FunctionalALaunchError, "designated sibling"):
-            LAUNCHER_MODULE.build_root_command(
-                dict(self.env, NGINX_FUNCTIONAL_A_PARENT_ROOT=str(foreign_owner_parent))
-            )
-
-        self.root.chmod(0o700)
+        self.job_root.chmod(0o700)
         try:
             with self.assertRaisesRegex(
                 LAUNCHER_MODULE.FunctionalALaunchError,
-                "worker-non-traversable ancestor",
+                "job root must be exactly non-enumerable mode 0711",
             ):
                 LAUNCHER_MODULE.build_root_command(self.env)
         finally:
-            self.root.chmod(0o711)
+            self.job_root.chmod(0o711)
+
+    def test_rejects_correctly_bound_functional_parent_owned_by_another_user(self) -> None:
+        original_lstat = Path.lstat
+
+        def wrong_owner_lstat(path: Path) -> os.stat_result:
+            metadata = original_lstat(path)
+            if path == self.functional_parent:
+                fields = list(metadata)
+                fields[4] = os.geteuid() + 1
+                return os.stat_result(fields)
+            return metadata
+
+        with mock.patch.object(Path, "lstat", new=wrong_owner_lstat):
+            with self.assertRaisesRegex(
+                LAUNCHER_MODULE.FunctionalALaunchError,
+                "NGINX_FUNCTIONAL_A_PARENT_ROOT must be owned by the workflow runner",
+            ):
+                LAUNCHER_MODULE.build_root_command(self.env)
+
+    def test_trusted_temporary_root_and_job_owner_contracts(self) -> None:
+        self.tmp_root_patch.stop()
+        try:
+            self.assertEqual(LAUNCHER_MODULE._TRUSTED_FUNCTIONAL_TMP_ROOT, Path("/tmp"))
+            sticky_root = os.stat_result(
+                (stat.S_IFDIR | 0o1777, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+            )
+            with (
+                mock.patch.object(
+                    LAUNCHER_MODULE, "_require_directory", return_value=Path("/tmp")
+                ),
+                mock.patch.object(Path, "lstat", return_value=sticky_root),
+            ):
+                self.assertEqual(
+                    LAUNCHER_MODULE._require_trusted_functional_tmp_root(), Path("/tmp")
+                )
+
+            unsafe_root = os.stat_result(
+                (stat.S_IFDIR | 0o777, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+            )
+            with (
+                mock.patch.object(
+                    LAUNCHER_MODULE, "_require_directory", return_value=Path("/tmp")
+                ),
+                mock.patch.object(Path, "lstat", return_value=unsafe_root),
+                self.assertRaisesRegex(
+                    LAUNCHER_MODULE.FunctionalALaunchError, "root-owned sticky mode 01777"
+                ),
+            ):
+                LAUNCHER_MODULE._require_trusted_functional_tmp_root()
+        finally:
+            self.tmp_root_patch.start()
+
+        runner_uid = self.job_root.lstat().st_uid
+        with mock.patch.object(LAUNCHER_MODULE.os, "geteuid", return_value=runner_uid + 1):
+            with self.assertRaisesRegex(
+                LAUNCHER_MODULE.FunctionalALaunchError, "job root must be owned"
+            ):
+                LAUNCHER_MODULE.build_root_command(self.env)
+
+    def test_rejects_a_symlinked_functional_parent(self) -> None:
+        self.functional_parent.rmdir()
+        self.functional_parent.symlink_to("replacement", target_is_directory=True)
+        with self.assertRaisesRegex(LAUNCHER_MODULE.FunctionalALaunchError, "symbolic link"):
+            LAUNCHER_MODULE.build_root_command(self.env)
+
+    def test_rejects_misbound_or_symlinked_functional_job_roots(self) -> None:
+        misplaced_root = self.root / "misplaced-functional-job"
+        misplaced_root.mkdir()
+        misplaced_verified = misplaced_root / LAUNCHER_MODULE._VERIFIED_RUN_ROOT_NAME
+        misplaced_verified.mkdir(mode=0o700)
+        misplaced_verified.chmod(0o700)
+        with self.assertRaisesRegex(
+            LAUNCHER_MODULE.FunctionalALaunchError, "designated fresh /tmp job root"
+        ):
+            LAUNCHER_MODULE._require_private_verified_run_root(misplaced_verified)
+
+        unexpected_verified = self.job_root / "unexpected-verified-root"
+        unexpected_verified.mkdir(mode=0o700)
+        unexpected_verified.chmod(0o700)
+        with self.assertRaisesRegex(
+            LAUNCHER_MODULE.FunctionalALaunchError, "designated private child"
+        ):
+            LAUNCHER_MODULE._require_private_verified_run_root(unexpected_verified)
+
+        symlinked_root = self.trusted_tmp / (
+            LAUNCHER_MODULE._FUNCTIONAL_JOB_ROOT_PREFIX + "symlink"
+        )
+        symlinked_root.symlink_to("replacement", target_is_directory=True)
+        symlinked_verified = symlinked_root / LAUNCHER_MODULE._VERIFIED_RUN_ROOT_NAME
+        with self.assertRaisesRegex(LAUNCHER_MODULE.FunctionalALaunchError, "symbolic link"):
+            LAUNCHER_MODULE._require_private_verified_run_root(symlinked_verified)
 
     def test_rejects_symlinked_artifact_path(self) -> None:
         real = self.verified / "real-prefix"

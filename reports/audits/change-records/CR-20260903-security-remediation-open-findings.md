@@ -838,3 +838,49 @@ integration test only, not Protected B or hostile-runner/VM-root attestation.
 FND-PARENT-1038 remains fixed but unverified and not closed, unchanged by this
 candidate; FND-PARENT-1036 remains `blocked_external_dependency`; PR #354
 remains Draft, open, and unmerged.
+
+### 2026-09-05 seventh hosted follow-up (Phase-4 request metadata and `/tmp` traversal successor pending)
+
+Exact Draft PR #354 predecessor
+`a4666abf3b6585c80abc68f84ab9ebef10f054aa` reached successful provisioning in
+GitHub-hosted Functional-A run `33996313979`, then failed closed with exit
+`77`: `NGINX_FUNCTIONAL_A_PARENT_ROOT has a worker-non-traversable ancestor`.
+The bounded log did not identify that ancestor. NGINX never started, so this
+run proves neither native callback behavior nor Phase-4 JSONL, WAF, or allow
+behavior and cannot be reused for the successor.
+
+The narrow traversal successor does not widen `RUNNER_TEMP`. It verifies the
+root-owned sticky `/tmp` contract, creates an atomic runner-owned job root
+below it, keeps the provisioning `RUN_ROOT` private at `0700`, and exposes only
+the fixed Functional-A sibling at `0711`. The launcher binds exact direct
+topology, ownership, modes, and no-symlink components; the workflow uses the
+real configured `runuser` identity to prove worker traversal of the job and
+Functional-A ancestors while proving that `RUN_ROOT` remains non-traversable.
+This is a GitHub-hosted Functional-A integration test only, not hostile-runner
+or hostile-VM-root attestation and not Protected B.
+
+Independent source-to-sink review also found a distinct Phase-4 defect:
+`ngx_http_modsecurity_phase4_log_event` initialized its event but omitted
+request method/URI, causing the Common serializer to receive an empty URI. The
+narrow NGINX C repair uses the existing pool-owned
+`ngx_http_modsecurity_event_request_metadata(r)` helper and assigns method/URI
+before Common serialization. Common remains the sole owner of query redaction,
+truncation signaling, and the matching integrity view; raw `r->unparsed_uri`
+continues independently through the NGINX/WAF request path. No connector-
+specific redactor or Common-runtime refactor was added.
+
+The predecessor source contract was observed failing before the assignment and
+passes for the current candidate. Current local evidence includes 28 focused
+native/launcher/topology/exact-gate tests, a C17 compile with warnings as
+errors, the direct Common long-URI/query-redaction/integrity control, shell
+syntax, `actionlint`, C-standard wiring, and whitespace checks. These are
+source/contract evidence only: the required fresh exact-successor hosted
+ON/OFF/JSONL/WAF/allow proof, all five CRS/no-MRTS cells, required checks, and
+SonarCloud must run after a normal successor push. Exit `77` remains failed
+evidence.
+
+`FND-PARENT-1046` records the separately remediable Phase-4 request-metadata
+boundary and remains `in_progress`; `FND-PARENT-0078` retains the traversal
+boundary and likewise remains `in_progress`. `FND-PARENT-1038` is unchanged
+and not closed; `FND-PARENT-1036` remains `blocked_external_dependency`. PR
+#354 remains Draft, open, and unmerged.

@@ -864,6 +864,7 @@ ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurit
     char content_type[256];
     int original_status;
     ngx_http_modsecurity_ctx_t *ctx = ngx_http_modsecurity_get_module_ctx(r);
+    ngx_http_modsecurity_event_request_metadata_t request_metadata;
 
     if (mcf->phase4_log_file == NULL ||
         mcf->phase4_log_file->fd == NGX_INVALID_FILE) {
@@ -875,6 +876,7 @@ ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurit
         sizeof(content_type));
     ngx_http_modsecurity_phase4_copy_intervention_identifier(ctx, rule_id,
         sizeof(rule_id));
+    request_metadata = ngx_http_modsecurity_event_request_metadata(r);
 
     msconnector_event_init(&event);
     event.meta.message_id = ngx_http_modsecurity_phase4_message_id(actual);
@@ -899,6 +901,10 @@ ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurit
         actual, event.http.http_status, original_status);
     event.http.transport_result =
         ngx_http_modsecurity_phase4_transport_result(actual);
+    /* The serializer owns query redaction and its matching integrity view.
+     * Supply only the existing pool-owned, NUL-terminated request metadata. */
+    event.request.method = request_metadata.method;
+    event.request.uri = request_metadata.uri;
     event.flags.late_intervention = ctx != NULL && ctx->response_committed;
     if (event.flags.late_intervention) {
         event.flags.late_intervention_mode =

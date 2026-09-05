@@ -3,6 +3,8 @@
 from pathlib import Path
 import unittest
 
+from tests.c_source_contract import function_definition
+
 
 ROOT = Path(__file__).resolve().parents[1]
 ACCESS = (ROOT / "connectors/nginx/src/ngx_http_modsecurity_access.c").read_text(
@@ -14,6 +16,9 @@ MAPPER = (ROOT / "connectors/nginx/src/ngx_http_modsecurity_mapper.c").read_text
 MODULE = (ROOT / "connectors/nginx/src/ngx_http_modsecurity_module.c").read_text(
     encoding="utf-8"
 )
+BODY_FILTER = (
+    ROOT / "connectors/nginx/src/ngx_http_modsecurity_body_filter.c"
+).read_text(encoding="utf-8")
 COMMON = (ROOT / "connectors/nginx/src/ngx_http_modsecurity_common.h").read_text(
     encoding="utf-8"
 )
@@ -143,6 +148,28 @@ class NginxNativeSecurityContractTest(unittest.TestCase):
         self.assertIn("c->phase4_log_path = p->phase4_log_path", merge)
         self.assertIn("c->phase4_log_file = NULL", merge)
         self.assertNotIn("ngx_conf_merge_ptr_value(c->phase4_log_file", merge)
+
+    def test_phase4_event_uses_the_safe_request_metadata_helper(self) -> None:
+        phase4_event = function_definition(
+            BODY_FILTER, "ngx_http_modsecurity_phase4_log_event"
+        )
+
+        self.assertIn(
+            "ngx_http_modsecurity_event_request_metadata_t request_metadata;",
+            phase4_event,
+        )
+        self.assertIn(
+            "request_metadata = ngx_http_modsecurity_event_request_metadata(r);",
+            phase4_event,
+        )
+        self.assertIn("event.request.method = request_metadata.method;", phase4_event)
+        self.assertIn("event.request.uri = request_metadata.uri;", phase4_event)
+        self.assertLess(
+            phase4_event.index(
+                "request_metadata = ngx_http_modsecurity_event_request_metadata(r);"
+            ),
+            phase4_event.index("event.request.uri = request_metadata.uri;"),
+        )
 
     def test_hosted_phase4_lifecycle_keeps_generic_reopen_outside_the_sink(self) -> None:
         for target_mode in (

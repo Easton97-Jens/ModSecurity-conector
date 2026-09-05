@@ -14,7 +14,13 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
         self.assertIn("ref: ${{ github.event.pull_request.head.sha || github.sha }}", workflow)
         self.assertIn("actual=\"$(git rev-parse --verify 'HEAD^{commit}')\"", workflow)
         self.assertNotIn("${{ runner.temp }}", workflow)
-        self.assertIn('RUN_ROOT="${RUNNER_TEMP:?missing runner temporary root}/ModSecurity-conector-nginx-exact-head"', workflow)
+        self.assertNotIn('RUN_ROOT="${RUNNER_TEMP:?missing runner temporary root}', workflow)
+        self.assertIn(
+            "FUNCTIONAL_JOB_ROOT=$(/usr/bin/mktemp -d /tmp/ModSecurity-conector-nginx-functional-root.XXXXXX)",
+            workflow,
+        )
+        self.assertIn("[ \"$(/usr/bin/stat -c '%u:%a' /tmp)\" = \"0:1777\" ]", workflow)
+        self.assertIn('RUN_ROOT="$FUNCTIONAL_JOB_ROOT/ModSecurity-conector-nginx-exact-head"', workflow)
         self.assertIn("^[0-9a-f]{40}$", workflow)
         self.assertIn('test "$actual" = "$EXPECTED_PARENT_SHA"', workflow)
         self.assertIn("Preflight root and isolated NGINX worker", workflow)
@@ -132,7 +138,7 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
 
         self.assertIn('/bin/chmod 700 "$RUN_ROOT"', workflow)
         self.assertIn(
-            'FUNCTIONAL_PARENT_ROOT="${RUNNER_TEMP:?missing runner temporary root}/ModSecurity-conector-nginx-functional-parent"',
+            'FUNCTIONAL_PARENT_ROOT="$FUNCTIONAL_JOB_ROOT/ModSecurity-conector-nginx-functional-parent"',
             workflow,
         )
         self.assertIn(
@@ -144,7 +150,19 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
             workflow,
         )
         self.assertIn('/bin/chmod 711 "$FUNCTIONAL_PARENT_ROOT"', workflow)
+        self.assertIn('/bin/chmod 711 "$FUNCTIONAL_JOB_ROOT"', workflow)
+        self.assertIn('"$RUNNER_UID:700"', workflow)
+        self.assertIn('"$RUNNER_UID:711"', workflow)
+        self.assertIn('/usr/bin/test -x "$FUNCTIONAL_JOB_ROOT"', workflow)
+        self.assertIn('/usr/bin/test -x "$FUNCTIONAL_PARENT_ROOT"', workflow)
+        self.assertIn('/usr/bin/test -x "$RUN_ROOT"', workflow)
+        self.assertIn("worker can traverse the private provisioning root", workflow)
         self.assertIn('NGINX_FUNCTIONAL_A_PARENT_ROOT="$NGINX_FUNCTIONAL_A_PARENT_ROOT"', workflow)
+        self.assertIn('_TRUSTED_FUNCTIONAL_TMP_ROOT = Path("/tmp")', launcher)
+        self.assertIn("_FUNCTIONAL_JOB_ROOT_PREFIX", launcher)
+        self.assertIn("must be root-owned sticky mode 01777", launcher)
+        self.assertIn("must be below the designated fresh /tmp job root", launcher)
+        self.assertIn("must be the designated private child of the Functional-A job root", launcher)
         self.assertIn("_require_worker_traversable_functional_parent", launcher)
         self.assertIn("must be the designated sibling of VERIFIED_RUN_ROOT", launcher)
         self.assertIn("must be exactly non-enumerable mode 0711", launcher)

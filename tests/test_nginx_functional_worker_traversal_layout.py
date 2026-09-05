@@ -23,8 +23,9 @@ class NginxFunctionalWorkerTraversalLayoutTest(unittest.TestCase):
     def test_dedicated_functional_tree_exposes_only_required_ancestor_traversal(self) -> None:
         with tempfile.TemporaryDirectory(prefix="nginx-functional-worker-layout-") as temporary:
             root = Path(temporary)
-            run_root = root / "provisioning-private"
-            functional_parent = root / "ModSecurity-conector-nginx-functional-parent"
+            job_root = root / "ModSecurity-conector-nginx-functional-root.fixture123"
+            run_root = job_root / "ModSecurity-conector-nginx-exact-head"
+            functional_parent = job_root / "ModSecurity-conector-nginx-functional-parent"
             functional_root = functional_parent / "nginx-hosted-functional-a"
             mode_root = functional_root / "on"
             case_root = mode_root / "phase4"
@@ -35,6 +36,7 @@ class NginxFunctionalWorkerTraversalLayoutTest(unittest.TestCase):
             worker_state = harness_root / "worker-state"
             server_logs = harness_root / "server-logs"
 
+            self.make_directory(job_root, 0o711)
             self.make_directory(run_root, 0o700)
             self.make_directory(functional_parent, 0o711)
             self.make_directory(functional_root, 0o711)
@@ -48,9 +50,18 @@ class NginxFunctionalWorkerTraversalLayoutTest(unittest.TestCase):
             self.make_directory(server_logs, 0o700)
 
             self.assert_private_leaf(run_root)
-            self.assertEqual(functional_parent.parent, run_root.parent)
+            self.assertEqual(run_root.parent, job_root)
+            self.assertEqual(functional_parent.parent, job_root)
             self.assertNotEqual(functional_parent, run_root)
-            for ancestor in (functional_parent, functional_root, mode_root, case_root, runtime_root, harness_root):
+            for ancestor in (
+                job_root,
+                functional_parent,
+                functional_root,
+                mode_root,
+                case_root,
+                runtime_root,
+                harness_root,
+            ):
                 self.assert_non_enumerable_worker_ancestor(ancestor)
             for private_leaf in (config_root, log_root, worker_state, server_logs):
                 self.assert_private_leaf(private_leaf)
