@@ -157,8 +157,8 @@ not a false-positive or a scanner exception.
 | `AaBw2LTiwSzpTW4LCOTS` (`S3776`) | Retained-FD parsing, descriptor walking, flag selection, final type checking, and cleanup were combined in one helper. | Split parsing, flag selection, descriptor walking, and final metadata validation while retaining `O_NOFOLLOW`, descriptor transfer, and fail-closed errors; the existing retained-FD regular/directory/traversal controls plus the full launcher suite cover the boundary. |
 
 No `NOSONAR`, exclusion, issue acceptance, rule change, or Quality-Gate change
-is used. Only the next exact-head analysis may establish that all 23 observed
-successor-era keys are absent.
+is used. Only the next exact-head analysis may establish that all previously
+observed successor-era keys are absent.
 
 ## Exact-head successor feedback — `74581e8d30c27cf4f5d90c695b7cbc1c0b44a986`
 

@@ -162,7 +162,7 @@ Remediation-Checkpoint, keine False-Positive- oder Scanner-Ausnahme.
 
 Kein `NOSONAR`, keine Exclusion, keine Issue-Akzeptanz, Regel- oder
 Quality-Gate-Änderung wird verwendet. Erst die Analyse des nächsten Exact Head
-kann zeigen, dass alle 23 beobachteten Successor-Keys nicht mehr vorhanden sind.
+kann zeigen, dass alle zuvor beobachteten Successor-Keys nicht mehr vorhanden sind.
 
 ## Exact-Head-Successor-Feedback — `74581e8d30c27cf4f5d90c695b7cbc1c0b44a986`
 
