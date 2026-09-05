@@ -11,6 +11,15 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260905-nginx-current-master-common-adoption-repair](CR-20260905-nginx-current-master-common-adoption-repair.de.md)
+  | English companion: `CR-20260905-nginx-current-master-common-adoption-repair.md` —
+  die vom Benutzer autorisierte Parent-only-NGINX-Static-Contract-Reparatur
+  richtet den Resulting-Master-Checker am aktuellen fail-closed-Request-Mapper-
+  und begrenzten Explicit-Length-Server-Header-Pfad aus. Sie ändert weder
+  NGINX-Runtime-Source, Framework, MRTS, Gitlink, Workflow, Governance noch
+  PR-#346-Status; Exact-Head-Hosted-Evidence und jeder Merge stehen aus und
+  werden nicht behauptet.
+
 - [CR-20260904-apache-helper-aware-common-adoption-contract](CR-20260904-apache-helper-aware-common-adoption-contract.de.md)
   | English companion: `CR-20260904-apache-helper-aware-common-adoption-contract.md` —
   die vom Benutzer autorisierte Parent-only-Apache-Static-Contract-Reparatur
