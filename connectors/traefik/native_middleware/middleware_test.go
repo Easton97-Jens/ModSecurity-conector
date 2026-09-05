@@ -26,6 +26,7 @@ type bodyCall struct {
 }
 
 type recordingTransaction struct {
+	opens          int
 	headerCalls    []headerCall
 	headerValues   [][]Header
 	bodyCalls      []bodyCall
@@ -54,19 +55,20 @@ func requestHeaderValues(transaction *recordingTransaction) []Header {
 	return nil
 }
 
-func TestMiddlewareForwardsRequestAuthorityAsHostHeader(t *testing.T) {
+func serveNoContentRequest(t *testing.T, request *http.Request) (*recordingTransaction, *httptest.ResponseRecorder) {
+	t.Helper()
 	transaction := &recordingTransaction{}
 	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.WriteHeader(http.StatusNoContent)
 	}), transaction)
-	request := httptest.NewRequest(http.MethodGet, "http://authority.example:8443/resource", nil)
-	if request.Header.Get("Host") != "" {
-		t.Fatal("httptest request unexpectedly stored authority in Header")
-	}
-
 	response := httptest.NewRecorder()
 	middleware.ServeHTTP(response, request)
+	return transaction, response
+}
 
+func assertNoContentRequestForwardsHost(t *testing.T, request *http.Request, wantHost string) {
+	t.Helper()
+	transaction, response := serveNoContentRequest(t, request)
 	if got, want := response.Code, http.StatusNoContent; got != want {
 		t.Fatalf("status = %d, want %d", got, want)
 	}
@@ -76,50 +78,96 @@ func TestMiddlewareForwardsRequestAuthorityAsHostHeader(t *testing.T) {
 			hosts = append(hosts, header.Value)
 		}
 	}
-	if got, want := hosts, []string{"authority.example:8443"}; !reflect.DeepEqual(got, want) {
+	if got, want := hosts, []string{wantHost}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("forwarded Host values = %#v, want %#v", got, want)
 	}
 }
 
-func TestMiddlewarePreservesExistingHostHeaderWithoutAuthorityDuplicate(t *testing.T) {
-	transaction := &recordingTransaction{}
-	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-		writer.WriteHeader(http.StatusNoContent)
-	}), transaction)
-	request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
-	request.Host = "authority.example"
-	request.Header.Set("Host", "header.example")
-
-	middleware.ServeHTTP(httptest.NewRecorder(), request)
-
-	var hosts []string
-	for _, header := range requestHeaderValues(transaction) {
-		if strings.EqualFold(header.Name, "Host") {
-			hosts = append(hosts, header.Value)
-		}
-	}
-	if got, want := hosts, []string{"header.example"}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("preserved Host values = %#v, want %#v", got, want)
-	}
-}
-
-func TestMiddlewareRejectsInvalidAuthorityBeforeEngineHeaders(t *testing.T) {
+func serveRejectedRequest(t *testing.T, request *http.Request) *recordingTransaction {
+	t.Helper()
 	transaction := &recordingTransaction{}
 	nextCalled := false
 	middleware := newTestMiddleware(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		nextCalled = true
 	}), transaction)
-	request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
-	request.Host = "authority.example\r\nInjected: yes"
 	response := httptest.NewRecorder()
-
 	middleware.ServeHTTP(response, request)
-
 	if nextCalled {
-		t.Fatal("next handler ran for invalid authority")
+		t.Fatal("next handler ran for rejected request")
 	}
 	if got, want := response.Code, http.StatusRequestHeaderFieldsTooLarge; got != want {
 		t.Fatalf("status = %d, want %d", got, want)
+	}
+	return transaction
+}
+
+func metadataForRequest(t *testing.T, request *http.Request) []Metadata {
+	t.Helper()
+	transaction := &recordingTransaction{}
+	engine := &recordingEngine{transaction: transaction}
+	config := CreateConfig()
+	config.EngineSocketPath = "/run/msconnector-test.sock"
+	middleware, err := newWithEngine(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	}), config, "test", engine)
+	if err != nil {
+		t.Fatalf("newWithEngine() error = %v", err)
+	}
+	middleware.ServeHTTP(httptest.NewRecorder(), request)
+	return engine.metadata
+}
+
+func TestMiddlewareForwardsRequestAuthorityAsHostHeader(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "http://authority.example:8443/resource", nil)
+	if request.Header.Get("Host") != "" {
+		t.Fatal("httptest request unexpectedly stored authority in Header")
+	}
+
+	assertNoContentRequestForwardsHost(t, request, "authority.example:8443")
+}
+
+func TestMiddlewareRejectsConflictingHostHeaderBeforeEngine(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
+	request.Host = "authority.example"
+	request.Header.Set("Host", "header.example")
+	transaction := serveRejectedRequest(t, request)
+	if got := transaction.opens; got != 0 {
+		t.Fatalf("engine opens = %d, want 0", got)
+	}
+}
+
+func TestMiddlewareRejectsInvalidHostHeaderBeforeEngine(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
+	request.Host = "authority.example"
+	request.Header.Set("Host", "authority.example\r\nInjected: yes")
+	transaction := serveRejectedRequest(t, request)
+	if got := transaction.opens; got != 0 {
+		t.Fatalf("engine opens = %d, want 0", got)
+	}
+}
+
+func TestMiddlewareAcceptsMatchingHostHeaderWithoutAuthorityDuplicate(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
+	request.Host = "authority.example"
+	request.Header.Set("Host", "authority.example")
+	assertNoContentRequestForwardsHost(t, request, "authority.example")
+}
+
+func TestMiddlewareRejectsInvalidAuthorityBeforeEngineHeaders(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
+	request.Host = "authority.example\r\nInjected: yes"
+	transaction := serveRejectedRequest(t, request)
+	if got := transaction.opens; got != 0 {
+		t.Fatalf("engine opens = %d, want 0", got)
+	}
+}
+
+func TestMiddlewareRejectsMissingAuthorityBeforeEngineOpen(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
+	request.Host = ""
+	transaction := serveRejectedRequest(t, request)
+	if got := transaction.opens; got != 0 {
+		t.Fatalf("engine opens = %d, want 0", got)
 	}
 }
 
@@ -139,10 +187,114 @@ func (transaction *recordingTransaction) Close(value context.Context, summary Su
 
 type recordingEngine struct {
 	transaction *recordingTransaction
+	metadata    []Metadata
 }
 
-func (engine recordingEngine) Open(_ context.Context, _ Metadata) (Transaction, error) {
+func (engine *recordingEngine) Open(_ context.Context, metadata Metadata) (Transaction, error) {
+	engine.transaction.opens++
+	engine.metadata = append(engine.metadata, metadata)
 	return engine.transaction, nil
+}
+
+func TestMiddlewarePreservesRawAuthorityInMetadata(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "http://authority.example:8443/resource", nil)
+	metadata := metadataForRequest(t, request)
+	if got, want := len(metadata), 1; got != want {
+		t.Fatalf("metadata records = %d, want %d", got, want)
+	}
+	value := metadata[0]
+	if got, want := value.Hostname, "authority.example:8443"; got != want {
+		t.Fatalf("metadata Hostname = %q, want raw authority %q", got, want)
+	}
+	if got, want := value.ServerAddress, "authority.example"; got != want {
+		t.Fatalf("metadata ServerAddress = %q, want parsed host %q", got, want)
+	}
+	if got, want := value.ServerPort, 8443; got != want {
+		t.Fatalf("metadata ServerPort = %d, want %d", got, want)
+	}
+}
+
+func TestMiddlewarePreservesBracketedIPv6AuthorityInMetadata(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "http://[2001:db8::1]:8443/resource", nil)
+	metadata := metadataForRequest(t, request)
+	if got, want := len(metadata), 1; got != want {
+		t.Fatalf("metadata records = %d, want %d", got, want)
+	}
+	value := metadata[0]
+	if got, want := value.ServerAddress, "2001:db8::1"; got != want {
+		t.Fatalf("metadata ServerAddress = %q, want parsed IPv6 address %q", got, want)
+	}
+	if got, want := value.ServerPort, 8443; got != want {
+		t.Fatalf("metadata ServerPort = %d, want %d", got, want)
+	}
+}
+
+func TestMiddlewareRejectsInvalidAuthorityPortBeforeEngineOpen(t *testing.T) {
+	tests := []struct {
+		name      string
+		authority string
+	}{
+		{name: "non-numeric port", authority: "authority.example:not-a-port"},
+		{name: "out-of-range port", authority: "authority.example:65536"},
+		{name: "invalid IPv6 port", authority: "[2001:db8::1]:not-a-port"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
+			request.Host = test.authority
+			transaction := serveRejectedRequest(t, request)
+			if got := transaction.opens; got != 0 {
+				t.Fatalf("engine opens = %d, want 0", got)
+			}
+		})
+	}
+}
+
+func TestMiddlewareForwardsMixedCaseHostMapKeyExactlyOnce(t *testing.T) {
+	transaction := &recordingTransaction{}
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	}), transaction)
+	request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
+	request.Host = "authority.example"
+	request.Header["hOsT"] = []string{"authority.example"}
+
+	middleware.ServeHTTP(httptest.NewRecorder(), request)
+
+	var hosts []Header
+	for _, header := range requestHeaderValues(transaction) {
+		if strings.EqualFold(header.Name, "Host") {
+			hosts = append(hosts, header)
+		}
+	}
+	if got, want := len(hosts), 1; got != want {
+		t.Fatalf("forwarded Host headers = %d, want %d", got, want)
+	}
+	if got, want := hosts[0], (Header{Name: "hOsT", Value: "authority.example"}); got != want {
+		t.Fatalf("forwarded mixed-case Host header = %#v, want %#v", got, want)
+	}
+}
+
+func TestMiddlewareRejectsMalformedHeaderBeforeEngineOpen(t *testing.T) {
+	tests := []struct {
+		name   string
+		header string
+		value  string
+	}{
+		{name: "invalid name", header: "Bad Name", value: "value"},
+		{name: "nul value", header: "X-Test", value: "bad\x00value"},
+		{name: "invalid utf8 value", header: "X-Test", value: string([]byte{'b', 0xff})},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
+			request.Header[test.header] = []string{test.value}
+			transaction := serveRejectedRequest(t, request)
+			if got := transaction.opens; got != 0 {
+				t.Fatalf("engine opens = %d, want 0", got)
+			}
+		})
+	}
 }
 
 func TestTraefikMiddlewareEntryPointSignature(t *testing.T) {
@@ -155,11 +307,12 @@ func TestTraefikMiddlewareEntryPointSignature(t *testing.T) {
 func newTestMiddleware(t *testing.T, next http.Handler, transaction *recordingTransaction) *Middleware {
 	t.Helper()
 	config := CreateConfig()
+	config.EngineSocketPath = "/run/msconnector-test.sock"
 	config.MaxRequestChunkBytes = 3
 	config.MaxResponseChunkBytes = 2
-	middleware, err := NewWithEngine(next, config, "test", recordingEngine{transaction: transaction})
+	middleware, err := newWithEngine(next, config, "test", &recordingEngine{transaction: transaction})
 	if err != nil {
-		t.Fatalf("NewWithEngine() error = %v", err)
+		t.Fatalf("newWithEngine() error = %v", err)
 	}
 	return middleware
 }
@@ -520,11 +673,38 @@ func assertBoundedBodies(t *testing.T, calls []bodyCall, direction Direction, ma
 
 func mustTestConfig(t *testing.T) Config {
 	t.Helper()
-	config, err := normalizedConfig(CreateConfig())
+	config := CreateConfig()
+	config.EngineSocketPath = "/run/msconnector-test.sock"
+	normalized, err := normalizedConfig(config)
 	if err != nil {
 		t.Fatalf("normalizedConfig() error = %v", err)
 	}
-	return config
+	return normalized
+}
+
+func TestCreateConfigFailsClosedUntilUDSEngineIsConfigured(t *testing.T) {
+	config := CreateConfig()
+	if config.EngineMode != "uds" {
+		t.Fatalf("CreateConfig() EngineMode = %q, want secure uds default", config.EngineMode)
+	}
+	if _, err := New(context.Background(), http.NotFoundHandler(), config, "missing-uds"); err == nil {
+		t.Fatal("New() accepted the secure default without an engineSocketPath")
+	}
+
+	config.EngineMode = "passthrough"
+	if _, err := New(context.Background(), http.NotFoundHandler(), config, "explicit-passthrough"); err == nil {
+		t.Fatal("New() accepted an always-allow passthrough mode")
+	}
+
+	config.EngineMode = "uds"
+	config.EngineSocketPath = "/run/msconnector-test.sock"
+	handler, err := New(context.Background(), http.NotFoundHandler(), config, "configured-uds")
+	if handler == nil {
+		t.Fatal("New() returned a nil handler for configured UDS mode")
+	}
+	if err != nil {
+		t.Fatalf("New() rejected configured UDS mode: %v", err)
+	}
 }
 
 type plainReader struct {

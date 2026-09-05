@@ -29,6 +29,7 @@ import (
 	"strings"
 	"sync"
 	"unicode"
+	"unicode/utf8"
 )
 
 const (
@@ -55,9 +56,9 @@ var (
 // config object Traefik supplies to CreateConfig/New when this package is used
 // as a Go middleware plugin.
 //
-// EngineMode is either "passthrough" or "uds". The latter speaks only to the
-// separately built persistent local engine service; it does not itself promote
-// host-action or capability claims.
+// EngineMode selects the persistent local UDS engine service. The only
+// accepted value is "uds" so an operator-provided configuration cannot turn a
+// loaded security middleware into an always-allow side path.
 type Config struct {
 	MaxHeaderCount        int    `json:"maxHeaderCount,omitempty"`
 	MaxHeaderBytes        int    `json:"maxHeaderBytes,omitempty"`
@@ -77,7 +78,7 @@ func CreateConfig() *Config {
 		MaxRequestChunkBytes:  defaultMaxRequestChunkBytes,
 		MaxResponseChunkBytes: defaultMaxResponseChunkBytes,
 		TransactionIDHeader:   "X-Request-Id",
-		EngineMode:            "passthrough",
+		EngineMode:            "uds",
 	}
 }
 
@@ -116,7 +117,7 @@ func applyConfigDefaults(value *Config) {
 		value.TransactionIDHeader = "X-Request-Id"
 	}
 	if value.EngineMode == "" {
-		value.EngineMode = "passthrough"
+		value.EngineMode = "uds"
 	}
 
 }
@@ -133,17 +134,16 @@ func validateConfigLimits(value Config) error {
 }
 
 func validateEngineConfig(value Config) error {
-	if value.EngineMode != "passthrough" && value.EngineMode != "uds" {
+	if value.EngineMode != "uds" {
 		return fmt.Errorf("modsecurity native middleware: unsupported engineMode %q", value.EngineMode)
 	}
-	if value.EngineMode == "uds" && !safeUnixSocketPath(value.EngineSocketPath) {
+	if !safeUnixSocketPath(value.EngineSocketPath) {
 		return errors.New("modsecurity native middleware: engineSocketPath must be an absolute private path without parent segments")
 	}
-	if value.EngineMode == "uds" &&
-		(value.MaxHeaderCount > udsMaxHeaders ||
-			value.MaxHeaderBytes > udsMaxPayload ||
-			value.MaxRequestChunkBytes > udsMaxChunk ||
-			value.MaxResponseChunkBytes > udsMaxChunk) {
+	if value.MaxHeaderCount > udsMaxHeaders ||
+		value.MaxHeaderBytes > udsMaxPayload ||
+		value.MaxRequestChunkBytes > udsMaxChunk ||
+		value.MaxResponseChunkBytes > udsMaxChunk {
 		return errors.New("modsecurity native middleware: uds limits exceed the local engine wire contract")
 	}
 	return nil
@@ -233,10 +233,9 @@ type Summary struct {
 	LateAction          string
 }
 
-// TransactionOpener is the explicit bridge seam to Common/libmodsecurity.
-// `uds` selects the persistent local service; PassthroughEngine remains the
-// intentional source-only default. An opener receives bounded, incremental
-// callbacks only and must never retain borrowed body slices.
+// TransactionOpener is the package-local test seam around the UDS bridge. An
+// opener receives bounded, incremental callbacks only and must never retain
+// borrowed body slices.
 type TransactionOpener interface {
 	Open(context.Context, Metadata) (Transaction, error)
 }
@@ -273,31 +272,9 @@ type outcomeAcknowledger interface {
 	AcknowledgeLateLogOnly(context.Context, int) error
 }
 
-// PassthroughEngine is the intentional source-only default. It proves no
-// Common/libmodsecurity integration and always allows traffic.
-type PassthroughEngine struct{}
-
-func (PassthroughEngine) Open(_ context.Context, _ Metadata) (Transaction, error) {
-	return passthroughTransaction{}, nil
-}
-
-type passthroughTransaction struct{}
-
-func (passthroughTransaction) ProcessHeaders(_ context.Context, _ Direction, _ []Header, _ bool) (Decision, error) {
-	return allowDecision(), nil
-}
-
-func (passthroughTransaction) ProcessBody(_ context.Context, _ Direction, _ []byte, _ bool) (Decision, error) {
-	return allowDecision(), nil
-}
-
-func (passthroughTransaction) Close(_ context.Context, _ Summary) {
-	// Intentional no-op: this source-only engine owns no request resources.
-}
-
 // Middleware is an http.Handler suitable for Traefik's Go middleware API.
-// New creates either PassthroughEngine or the configured UDS bridge. Tests may
-// use NewWithEngine to supply an explicit engine implementation.
+// New always creates the configured UDS bridge. Package tests use
+// newWithEngine to supply a recording engine.
 type Middleware struct {
 	next   http.Handler
 	config Config
@@ -316,16 +293,14 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 	if err != nil {
 		return nil, err
 	}
-	var engine TransactionOpener = PassthroughEngine{}
-	if normalized.EngineMode == "uds" {
-		engine = newUnixSocketEngine(normalized.EngineSocketPath)
-	}
-	return newMiddleware(next, normalized, name, engine)
+	return newMiddleware(next, normalized, name,
+		newUnixSocketEngine(normalized.EngineSocketPath))
 }
 
-// NewWithEngine is an explicit test/future-bridge seam. A nil TransactionOpener is never
-// silently replaced because doing so would hide a missing security integration.
-func NewWithEngine(next http.Handler, config *Config, name string, engine TransactionOpener) (*Middleware, error) {
+// newWithEngine is a package-private test seam. It is deliberately not a
+// Traefik constructor so deployed configurations cannot substitute the UDS
+// Common/libmodsecurity engine with an always-allow implementation.
+func newWithEngine(next http.Handler, config *Config, name string, engine TransactionOpener) (*Middleware, error) {
 	normalized, err := normalizedConfig(config)
 	if err != nil {
 		return nil, err
@@ -349,6 +324,11 @@ func newMiddleware(next http.Handler, config Config, name string, engine Transac
 // chunk before delegating the remaining stream.
 func (middleware *Middleware) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	requestContext := request.Context()
+	requestHeaders, err := boundedRequestHeaders(request.Header, request.Host, middleware.config)
+	if err != nil {
+		http.Error(writer, "request headers exceed middleware limits", http.StatusRequestHeaderFieldsTooLarge)
+		return
+	}
 	metadata := Metadata{
 		TransactionID: request.Header.Get(middleware.config.TransactionIDHeader),
 		Method:        request.Method,
@@ -364,8 +344,6 @@ func (middleware *Middleware) ServeHTTP(writer http.ResponseWriter, request *htt
 	metadata.ServerAddress, metadata.ServerPort = endpointFromAddress(request.Host, defaultServerPort)
 	if metadata.ServerAddress == "" {
 		metadata.ServerAddress = request.Host
-	} else {
-		metadata.Hostname = metadata.ServerAddress
 	}
 	transaction, err := middleware.engine.Open(requestContext, metadata)
 	if err != nil {
@@ -380,11 +358,6 @@ func (middleware *Middleware) ServeHTTP(writer http.ResponseWriter, request *htt
 	}
 	defer state.close(requestContext)
 
-	requestHeaders, err := boundedRequestHeaders(request.Header, request.Host, middleware.config)
-	if err != nil {
-		http.Error(writer, "request headers exceed middleware limits", http.StatusRequestHeaderFieldsTooLarge)
-		return
-	}
 	requestEnd := request.Body == nil || request.ContentLength == 0
 	decision, err := state.processHeaders(requestContext, DirectionRequest, requestHeaders, requestEnd)
 	if err != nil {
@@ -1060,7 +1033,13 @@ func boundedHeaders(header http.Header, config Config) ([]Header, error) {
 	values := make([]Header, 0, len(header))
 	totalBytes := 0
 	for _, name := range names {
-		for _, value := range header.Values(name) {
+		if !validHeaderName(name) {
+			return nil, errors.New("invalid header name")
+		}
+		for _, value := range header[name] {
+			if !validHeaderValue(value) {
+				return nil, errors.New("invalid header value")
+			}
 			if len(values) >= config.MaxHeaderCount {
 				return nil, errors.New("header count exceeds middleware limit")
 			}
@@ -1077,25 +1056,35 @@ func boundedHeaders(header http.Header, config Config) ([]Header, error) {
 // boundedRequestHeaders includes the authority from net/http's separate Host
 // field when the incoming Header map does not contain an ordinary Host entry.
 // Server requests normally omit Host from Header, but ModSecurity evaluates
-// it as REQUEST_HEADERS:Host. The authority is copied only after validating
-// it as a bounded header value; an existing Host entry always wins and is
-// never duplicated.
+// it as REQUEST_HEADERS:Host. An ordinary Host entry must exactly match the
+// parsed authority; accepting disagreeing representations would let metadata
+// and rule input describe different request authorities.
 func boundedRequestHeaders(header http.Header, authority string, config Config) ([]Header, error) {
+	if authority == "" {
+		return nil, errors.New("missing Host authority")
+	}
+	if invalidHostAuthority(authority) {
+		return nil, errors.New("invalid Host authority")
+	}
 	hostEntries := 0
+	hostValue := ""
 	for name, values := range header {
 		if !strings.EqualFold(name, "Host") {
 			continue
 		}
 		hostEntries += len(values)
+		if len(values) == 1 {
+			hostValue = values[0]
+		}
 	}
 	if hostEntries > 1 {
 		return nil, errors.New("ambiguous Host header")
 	}
-	if hostEntries == 1 || authority == "" {
+	if hostEntries == 1 {
+		if invalidHostAuthority(hostValue) || hostValue != authority {
+			return nil, errors.New("conflicting Host header")
+		}
 		return boundedHeaders(header, config)
-	}
-	if invalidHostAuthority(authority) {
-		return nil, errors.New("invalid Host authority")
 	}
 	withHost := make(http.Header, len(header)+1)
 	for name, values := range header {
@@ -1106,12 +1095,62 @@ func boundedRequestHeaders(header http.Header, authority string, config Config) 
 }
 
 func invalidHostAuthority(value string) bool {
+	if !utf8.ValidString(value) {
+		return true
+	}
 	if strings.TrimSpace(value) != value {
 		return true
 	}
-	return strings.IndexFunc(value, func(r rune) bool {
+	if strings.IndexFunc(value, func(r rune) bool {
 		return r < 0x20 || r == 0x7f || unicode.IsSpace(r)
-	}) >= 0
+	}) >= 0 {
+		return true
+	}
+	if !strings.Contains(value, ":") {
+		return false
+	}
+	if strings.HasPrefix(value, "[") && strings.HasSuffix(value, "]") {
+		return net.ParseIP(strings.TrimSuffix(strings.TrimPrefix(value, "["), "]")) == nil
+	}
+	host, portText, err := net.SplitHostPort(value)
+	if err != nil || host == "" || portText == "" {
+		return true
+	}
+	_, err = strconv.ParseUint(portText, 10, 16)
+	return err != nil
+}
+
+func validHeaderName(value string) bool {
+	if value == "" {
+		return false
+	}
+	for index := 0; index < len(value); index++ {
+		character := value[index]
+		if (character >= 'a' && character <= 'z') ||
+			(character >= 'A' && character <= 'Z') ||
+			(character >= '0' && character <= '9') {
+			continue
+		}
+		switch character {
+		case '!', '#', '$', '%', '&', '\'', '*', '+', '-', '.', '^', '_', '`', '|', '~':
+			continue
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func validHeaderValue(value string) bool {
+	if !utf8.ValidString(value) {
+		return false
+	}
+	for index := 0; index < len(value); index++ {
+		if value[index] < 0x20 || value[index] == 0x7f {
+			return false
+		}
+	}
+	return true
 }
 
 var (

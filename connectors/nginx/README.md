@@ -264,14 +264,32 @@ The adapter-owned NGINX connector currently registers:
 - `modsecurity on|off`
 - `modsecurity_rules`
 - `modsecurity_rules_file`
-- `modsecurity_rules_remote`
+- `modsecurity_rules_remote` (rejected: remote rule loading is disabled by the common security policy)
 - `modsecurity_transaction_id`
 - `modsecurity_use_error_log on|off`
 - `modsecurity_phase4_mode minimal|safe|strict`
 - `modsecurity_phase4_content_types_file <path>`
-- `modsecurity_phase4_log <path>`
+- `modsecurity_phase4_log <path>` (rejected: native NGINX event-file logging is
+  disabled because `ngx_conf_open_file()` cannot provide the required
+  no-follow, regular-file, and private `0600` descriptor contract)
 - `modsecurity_phase4_body_limit <bytes>` (a positive effective limit; an
   over-limit current buffer is rejected before downstream forwarding)
+
+`modsecurity_phase4_body_limit` defaults to 1048576 bytes (1 MiB). The
+Common configuration validator rejects a selected value above 10485760 bytes
+(10 MiB), so a native response filter cannot be configured with an unbounded
+Phase-4 byte budget.
+
+When `modsecurity_phase4_content_types_file` is configured, the native module
+opens and inspects the descriptor, accepts only a regular file, limits it to
+64 KiB, and rejects short reads. FIFOs, devices, sockets, directories, and
+oversized files therefore cannot turn `nginx -t` into an unbounded or blocking
+configuration read on POSIX. The directive fails closed on Win32 because its
+file API cannot establish the same regular-file/nonblocking contract.
+
+Native NGINX Phase-4 event-file logging is deliberately unavailable. The
+Common runtime event path remains separately governed by its secure descriptor
+policy; this NGINX directive does not silently fall back to that path.
 
 `modsecurity_transaction_id` uses an NGINX complex value and may evaluate
 per-request variables. Apache-style `modsecurity_transaction_id_expr` is not
@@ -418,6 +436,12 @@ The canonical Phase-4 cases are evidence-gated and include rule observation,
 pre-commit deny, safe log-only, strict abort, and status/action metadata.  No
 response-body payload may enter an event or report.
 
+The final-processing guard and body-ingestion guard use the same strict native
+success contract: every relevant libmodsecurity call must return exactly `1`.
+An ingestion failure, including a zero return, is a generic fail-closed
+`500`/intervention path; it is not treated as a nonfatal `ProcessPartial`
+limit decision. This preserves the Safe/Strict Phase-4 outcome model without
+silently passing an incompletely ingested body to final processing.
 The final-processing guard remains narrower than engine append handling:
 `ProcessPartial` append/from-file handling does not by itself create a generic
 500 path. Separately, the connector-owned Phase-4 body limit uses bounded

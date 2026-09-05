@@ -5,7 +5,17 @@
 #include "msconnector/resource_limits.h"
 #include "msconnector/response_helpers.h"
 
+#include <stdio.h>
 #include <string.h>
+
+static void apache_mapper_error(char *error, size_t error_len,
+    const char *message)
+{
+    if (error != NULL && error_len > 0U)
+    {
+        (void)snprintf(error, error_len, "%s", message);
+    }
+}
 
 static size_t apr_header_count(const apr_table_t *table)
 {
@@ -137,7 +147,13 @@ int msc_apache_map_request(request_rec *r,
     out->uri = r->unparsed_uri;
     out->http_version = r->protocol;
     host_header = msconnector_headers_find(headers, header_count, "Host");
-    out->hostname = host_header != NULL ? host_header->value : r->hostname;
+    if (host_header == NULL || host_header->value == NULL ||
+        host_header->value_size == 0U)
+    {
+        apache_mapper_error(error, error_len, "missing or invalid Host header");
+        return 0;
+    }
+    out->hostname = host_header->value;
     out->headers = headers;
     out->header_count = header_count;
     out->body.size = 0U;

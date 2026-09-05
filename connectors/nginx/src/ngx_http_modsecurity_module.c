@@ -18,6 +18,12 @@
 #ifndef MODSECURITY_DDEBUG
 #define MODSECURITY_DDEBUG 0
 #endif
+
+/* This is a host-configured MIME allowlist, not a rule payload.  Keep it
+ * deliberately small so nginx -t cannot be driven into an unbounded pool
+ * allocation by a mistaken or hostile path. */
+#define MSCONNECTOR_NGINX_PHASE4_CONTENT_TYPES_FILE_MAX_BYTES (64U * 1024U)
+
 #include "ddebug.h"
 #include "connectors/profile_registry.h"
 
@@ -676,41 +682,10 @@ ngx_conf_set_rules_file(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 char *
 ngx_conf_set_rules_remote(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
+    (void)cf;
     (void)cmd;
-    int                                res;
-    ngx_str_t                         *value;
-    const char                        *error;
-    const char                        *rules_remote_key;
-    const char                        *rules_remote_server;
-    ngx_pool_t                        *old_pool;
-    ngx_http_modsecurity_conf_t       *mcf = conf;
-    ngx_http_modsecurity_main_conf_t  *mmcf;
-
-    value = cf->args->elts;
-    rules_remote_key = ngx_str_to_char(value[1], cf->pool);
-    rules_remote_server = ngx_str_to_char(value[2], cf->pool);
-
-    if (rules_remote_server == (char *)-1) {
-        return NGX_CONF_ERROR;
-    }
-
-    if (rules_remote_key == (char *)-1) {
-        return NGX_CONF_ERROR;
-    }
-
-    old_pool = ngx_http_modsecurity_pcre_malloc_init(cf->pool);
-    res = msc_rules_add_remote(mcf->rules_set, rules_remote_key, rules_remote_server, &error);
-    ngx_http_modsecurity_pcre_malloc_done(old_pool);
-
-    if (res < 0) {
-        dd("Failed to load the rules from: '%s'  - reason: '%s'", rules_remote_server, error);
-        return strdup(error);
-    }
-
-    mmcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_modsecurity_module);
-    mmcf->rules_remote += res;
-
-    return NGX_CONF_OK;
+    (void)conf;
+    return "remote rule loading is disabled by security policy";
 }
 
 
@@ -785,18 +760,14 @@ static char *
 ngx_conf_set_phase4_log(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     (void)cmd;
-    ngx_http_modsecurity_conf_t *mcf = conf;
-    ngx_str_t *value = cf->args->elts;
-    mcf->phase4_log_path = value[1];
-    mcf->common_config.phase4_log_path = ngx_str_to_char(value[1], cf->pool);
-    if (mcf->common_config.phase4_log_path == (char *)-1) {
-        return NGX_CONF_ERROR;
-    }
-    mcf->phase4_log_file = ngx_conf_open_file(cf->cycle, &mcf->phase4_log_path);
-    if (mcf->phase4_log_file == NULL) {
-        return NGX_CONF_ERROR;
-    }
-    return NGX_CONF_OK;
+    (void)conf;
+    /* The native NGINX file registry cannot establish the Common runtime's
+     * no-follow, regular-file, and private-mode descriptor contract. Reject
+     * this path before descriptor creation so no unsafe writer is reachable.
+     * Common-runtime event files remain available through their own secure
+     * descriptor lifecycle. */
+    (void)cf;
+    return "native NGINX phase4 event-file logging is disabled by security policy";
 }
 
 static ngx_int_t
@@ -929,6 +900,16 @@ ngx_http_modsecurity_phase4_strip_inline_comment(u_char *line)
 static char *
 ngx_http_modsecurity_phase4_load_content_types_file(ngx_conf_t *cf, ngx_http_modsecurity_conf_t *mcf, ngx_str_t *path)
 {
+#if (NGX_WIN32)
+    /* ngx_is_file() on the Win32 file API distinguishes directories but not
+     * the full POSIX regular-file set, and NGX_FILE_NONBLOCK is a no-op.
+     * Reject this optional local-file feature rather than silently providing
+     * a weaker special-file contract on that platform. */
+    (void)mcf;
+    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        "modsecurity_phase4_content_types_file is unavailable on Win32 by security policy: \"%V\"", path);
+    return NGX_CONF_ERROR;
+#else
     ngx_file_t file;
     ngx_file_info_t fi;
     u_char *buf;
@@ -936,23 +917,53 @@ ngx_http_modsecurity_phase4_load_content_types_file(ngx_conf_t *cf, ngx_http_mod
     u_char *line;
     u_char *end;
     ssize_t n;
-    if (ngx_file_info(path->data, &fi) == NGX_FILE_ERROR) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno, "modsecurity_phase4_content_types_file \"%V\" stat() failed", path);
-        return NGX_CONF_ERROR;
-    }
-    buf = ngx_pnalloc(cf->pool, ngx_file_size(&fi) + 1);
-    if (buf == NULL) return NGX_CONF_ERROR;
+    off_t file_size;
+
     ngx_memzero(&file, sizeof(file));
     file.name = *path;
     file.log = cf->log;
-    file.fd = ngx_open_file(path->data, NGX_FILE_RDONLY, NGX_FILE_OPEN, 0);
+    file.fd = ngx_open_file(path->data, NGX_FILE_RDONLY|NGX_FILE_NONBLOCK,
+                            NGX_FILE_OPEN, 0);
     if (file.fd == NGX_INVALID_FILE) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno, "modsecurity_phase4_content_types_file \"%V\" open() failed", path);
         return NGX_CONF_ERROR;
     }
-    n = ngx_read_file(&file, buf, ngx_file_size(&fi), 0);
+
+    /* Open nonblocking and inspect the opened descriptor, rather than a
+     * pathname that can change between stat() and open().  This rejects
+     * FIFOs, devices, sockets and directories before any read can block or
+     * grow an allocation. */
+    if (ngx_fd_info(file.fd, &fi) == NGX_FILE_ERROR) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno, "modsecurity_phase4_content_types_file \"%V\" fstat() failed", path);
+        ngx_close_file(file.fd);
+        return NGX_CONF_ERROR;
+    }
+    if (!ngx_is_file(&fi)) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "modsecurity_phase4_content_types_file \"%V\" must resolve to a regular file", path);
+        ngx_close_file(file.fd);
+        return NGX_CONF_ERROR;
+    }
+
+    file_size = ngx_file_size(&fi);
+    if (file_size < 0 || file_size > MSCONNECTOR_NGINX_PHASE4_CONTENT_TYPES_FILE_MAX_BYTES) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "modsecurity_phase4_content_types_file \"%V\" exceeds the %uz byte limit", path,
+            (size_t) MSCONNECTOR_NGINX_PHASE4_CONTENT_TYPES_FILE_MAX_BYTES);
+        ngx_close_file(file.fd);
+        return NGX_CONF_ERROR;
+    }
+
+    buf = ngx_pnalloc(cf->pool, (size_t) file_size + 1);
+    if (buf == NULL) {
+        ngx_close_file(file.fd);
+        return NGX_CONF_ERROR;
+    }
+
+    n = ngx_read_file(&file, buf, (size_t) file_size, 0);
     ngx_close_file(file.fd);
-    if (n < 0) return NGX_CONF_ERROR;
+    if (n < 0 || n != (ssize_t) file_size) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "modsecurity_phase4_content_types_file \"%V\" changed during read", path);
+        return NGX_CONF_ERROR;
+    }
     buf[n] = '\0';
     mcf->phase4_content_types = ngx_array_create(cf->pool, 8, sizeof(ngx_str_t));
     if (mcf->phase4_content_types == NULL) return NGX_CONF_ERROR;
@@ -982,6 +993,7 @@ ngx_http_modsecurity_phase4_load_content_types_file(ngx_conf_t *cf, ngx_http_mod
         }
     }
     return NGX_CONF_OK;
+#endif
 }
 
 

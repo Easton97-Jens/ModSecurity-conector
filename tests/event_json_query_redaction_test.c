@@ -1,6 +1,7 @@
 #include "msconnector/event.h"
 #include "msconnector/event_jsonl.h"
 #include "msconnector/integrity_event.h"
+#include "msconnector/limits.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -68,6 +69,12 @@ static void check_long_uri_serialization(void) {
     assert(strstr(json, "\"redacted\":false") != NULL);
     assert(strstr(json, "\"truncated\":true") != NULL);
     assert(strcmp(event.request.uri, long_path) == 0);
+    hash = msconnector_integrity_event_hash(&event, 0U);
+    event.request.uri = safe;
+    event.flags.truncated = 1;
+    assert(msconnector_integrity_event_hash(&event, 0U) == hash);
+    event.flags.truncated = 0;
+    event.request.uri = long_path;
 
     memset(long_query, 'q', sizeof(long_query));
     long_query[0] = '/';
@@ -86,6 +93,9 @@ static void check_long_uri_serialization(void) {
     hash = msconnector_integrity_event_hash(&event, 0U);
     event.integrity.event_hash = hash;
     assert(msconnector_integrity_event_chain_verify(0U, hash, &event));
+    event.request.uri = safe;
+    assert(msconnector_integrity_event_hash(&event, 0U) == hash);
+    event.request.uri = long_query;
     truncated = 0;
     assert(msconnector_event_write_json_ex(&event, json, sizeof(json),
         &truncated) == 0);
@@ -107,6 +117,56 @@ static void check_long_uri_serialization(void) {
     assert(msconnector_integrity_event_hash(&event, 0U) == hash);
 }
 
+static void check_unterminated_uri_is_bounded(void) {
+    char input[MSCONNECTOR_MAX_JSON_FIELD_LENGTH];
+    char safe[MSCONNECTOR_EVENT_URI_SAFE_BUFFER_SIZE];
+    char json[4096];
+    msconnector_event event;
+    int truncated = 0;
+
+    memset(input, 'u', sizeof(input));
+    input[0] = '/';
+    input[sizeof(input) - 1U] = '?';
+    assert(msconnector_event_uri_redact_query_ex(input, safe, sizeof(safe),
+        &truncated) == 1);
+    assert(truncated == 1);
+
+    msconnector_event_init(&event);
+    event.request.method = "GET";
+    event.request.uri = input;
+    assert(msconnector_event_write_json_ex(&event, json, sizeof(json),
+        &truncated) == 0);
+    assert(strstr(json, "\"redacted\":true") != NULL);
+    assert(strstr(json, "\"truncated\":true") != NULL);
+    assert(msconnector_integrity_event_chain_verify(0U,
+        msconnector_integrity_event_hash(&event, 0U), &event));
+}
+
+static void check_bounded_redacted_query_is_not_truncated(void) {
+    char input[MSCONNECTOR_MAX_JSON_FIELD_LENGTH];
+    char safe[MSCONNECTOR_EVENT_URI_SAFE_BUFFER_SIZE];
+    char json[4096];
+    msconnector_event event;
+    int truncated = 0;
+
+    memset(input, 'u', sizeof(input));
+    input[0] = '?';
+    assert(msconnector_event_uri_redact_query_ex(input, safe, sizeof(safe),
+        &truncated) == 1);
+    assert(truncated == 0);
+    assert(strcmp(safe, "?<redacted>") == 0);
+
+    msconnector_event_init(&event);
+    event.request.method = "GET";
+    event.request.uri = input;
+    assert(msconnector_event_write_json_ex(&event, json, sizeof(json),
+        &truncated) == 1);
+    assert(truncated == 0);
+    assert(strstr(json, "\"redacted\":true") != NULL);
+    assert(strstr(json, "\"truncated\":false") != NULL);
+    assert(strstr(json, "uuuu") == NULL);
+}
+
 int main(void) {
     msconnector_event event;
     uint64_t safe_hash;
@@ -126,6 +186,8 @@ int main(void) {
     assert(truncated == 0);
     assert(strcmp(exact, "/path?<redacted>") == 0);
     check_long_uri_serialization();
+    check_unterminated_uri_is_bounded();
+    check_bounded_redacted_query_is_not_truncated();
 
     msconnector_event_init(&event);
     event.request.uri = "/path?x=CANARY";

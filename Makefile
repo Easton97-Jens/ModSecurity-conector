@@ -1172,7 +1172,8 @@ check-apache-autotools-bootstrap:
 	sh ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh
 
 check-apache-common-adoption:
-	$(PYTHON) ci/checks/connectors/apache/check-apache-common-adoption.py
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) ci/checks/connectors/apache/check-apache-common-adoption.py
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest -v tests.test_apache_common_adoption
 
 check-apache-c-standard-wiring:
 	$(PYTHON) ci/checks/connectors/apache/check-apache-c-standard-wiring.py

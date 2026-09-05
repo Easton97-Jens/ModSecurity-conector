@@ -43,6 +43,7 @@ def test_path_and_uri_route_through_target_parser_without_changing_generic_copy(
 
 
 def test_executable_harness_covers_1023_and_post_1023_mapper_marker() -> None:
+    assert 'const unsigned char message[] = "check-request";' in HARNESS
     assert 'assert_lossless("path", 1023)' in HARNESS
     assert 'assert_lossless("uri", 1023)' in HARNESS
     assert 'assert_marker_reaches_mapper("path")' in HARNESS

@@ -21,7 +21,7 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | enum | no | safe | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Apache appends each normalized response bucket exactly once and forwards non-terminal output to the next filter without waiting for EOS. It finishes P4 exactly once at actual EOS. After the next-filter commitment boundary, minimal/safe record log_only and strict requests abort_connection instead of a late status rewrite. |
 | [`modsecurity_rules`](#modsecurity-rules) | Host / Connector | string | no | none; optional | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Loads inline content through libmodsecurity during configuration loading. |
 | [`modsecurity_rules_file`](#modsecurity-rules-file) | Host / Connector | path | no | none; optional | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Loads a local rule file through libmodsecurity during configuration loading. |
-| [`modsecurity_rules_remote`](#modsecurity-rules-remote) | Host / Connector | two strings | no | none; optional | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Passes the key/URL pair to libmodsecurity's remote-rule loader. |
+| [`modsecurity_rules_remote`](#modsecurity-rules-remote) | Host / Connector | registered but always rejected directive | no | no usable value | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Policy A rejects remote-rule configuration before a rule loader or network operation. |
 | [`modsecurity_transaction_id`](#modsecurity-transaction-id) | Host / Connector | string/expression | no | none; connector creates a fallback identifier | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Supplies the engine and event correlation identifier for a transaction. |
 | [`modsecurity_transaction_id_expr`](#modsecurity-transaction-id-expr) | Host / Connector | Apache string expression | no | none | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Evaluates an Apache expression per request for the transaction identifier. |
 | [`modsecurity_use_error_log`](#modsecurity-use-error-log) | Host / Connector | boolean | no | on | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Controls forwarding of libmodsecurity messages to the host error log; it does not switch rule evaluation. |
@@ -632,7 +632,7 @@ Keep the file and parent directories non-writable by untrusted identities.
 
 ### Short description
 
-Passes the key/URL pair to libmodsecurity's remote-rule loader.
+Policy A rejects remote-rule configuration before a rule loader or network operation.
 
 ### Syntax
 
@@ -648,39 +648,39 @@ modsecurity_rules_remote <key> <url>
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| two strings | key and URL | no |
+| registered but always rejected directive | no key/URL pair is accepted | no |
 
 ### Default
 
-none; optional
+no usable value
 
-Source: `parser registration has no default`.
+Source: `security policy: remote rule loading disabled`.
 
 ### Inheritance and merge
 
-Parent value is available to the child unless a child value is set; see the Apache directory-config merge function.
+No remote value can be inherited or merged because every use is rejected.
 
-Merge: Common scalar values use child-over-parent merge; rule sets are merged through msc_rules_merge. Transaction-id expression/static-id are mutually exclusive.
+Merge: No remote value can be merged because every use is rejected before rule loading.
 
 ### Phases and runtime effect
 
-P1 controls integration; rules and P4 controls affect the stated phase only.
+No rule-loader or network path is reachable through this directive.
 
-Passes the key/URL pair to libmodsecurity's remote-rule loader.
+Policy A rejects remote-rule configuration before a rule loader or network operation.
 
 ### Validation and errors
 
-msc_config_load_rules_remote returns an Apache configuration error for its documented invalid input; validate the installed configuration with apachectl -t.
+msc_config_load_rules_remote rejects every key/URL pair during apachectl -t before a rule loader or network operation.
 
 ### Example
 
-Selected value: use the syntax above and the source-backed file below.
+There is no accepted example: every configured value is rejected by security policy.
 
-Source-backed example: [examples/apache/safe/httpd.conf](../../examples/apache/safe/httpd.conf).
+Source-backed example: `connectors/apache/src/msc_config.c`.
 
 ### Safety and operations
 
-Remote policy is not exercised by the selected no-CRS examples; do not treat it as a local-file substitute.
+Remote loading is technically disabled for every connector; do not rely on a remote URL or key.
 
 <a id="modsecurity-transaction-id"></a>
 ## `modsecurity_transaction_id`

@@ -125,6 +125,97 @@ func TestForceStopResponseObserverClosesPeerAcceptedAfterShutdownBegins(t *testi
 	}
 }
 
+func TestTrackedResponseObserverListenerBoundsConnectionsAndReleasesSlots(t *testing.T) {
+	baseListener := bufconn.Listen(1024)
+	defer baseListener.Close()
+	listener := newTrackedResponseObserverListenerWithLimit(baseListener, 1)
+
+	firstAccepted := make(chan struct {
+		conn net.Conn
+		err  error
+	}, 1)
+	go func() {
+		conn, acceptErr := listener.Accept()
+		firstAccepted <- struct {
+			conn net.Conn
+			err  error
+		}{conn: conn, err: acceptErr}
+	}()
+	firstClient, err := baseListener.Dial()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer firstClient.Close()
+	first := <-firstAccepted
+	if first.err != nil {
+		t.Fatalf("first Accept() error = %v", first.err)
+	}
+
+	secondDialed := make(chan struct {
+		conn net.Conn
+		err  error
+	}, 1)
+	go func() {
+		conn, dialErr := baseListener.Dial()
+		secondDialed <- struct {
+			conn net.Conn
+			err  error
+		}{conn: conn, err: dialErr}
+	}()
+	secondAccepted := make(chan struct {
+		conn net.Conn
+		err  error
+	}, 1)
+	go func() {
+		conn, acceptErr := listener.Accept()
+		secondAccepted <- struct {
+			conn net.Conn
+			err  error
+		}{conn: conn, err: acceptErr}
+	}()
+	select {
+	case result := <-secondAccepted:
+		if result.conn != nil {
+			_ = result.conn.Close()
+		}
+		t.Fatalf("second Accept() bypassed connection limit: %v", result.err)
+	case <-time.After(25 * time.Millisecond):
+	}
+
+	if err := first.conn.Close(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case second := <-secondAccepted:
+		if second.err != nil {
+			t.Fatalf("second Accept() after slot release error = %v", second.err)
+		}
+		dialed := <-secondDialed
+		if dialed.err != nil {
+			t.Fatalf("second Dial() error = %v", dialed.err)
+		}
+		defer dialed.conn.Close()
+		if err := second.conn.Close(); err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("connection slot was not released after Close")
+	}
+	if got := len(listener.slots); got != 0 {
+		t.Fatalf("connection slots after close = %d, want 0", got)
+	}
+}
+
+func TestTrackedResponseObserverListenerReleasesSlotAfterAcceptError(t *testing.T) {
+	listener := newTrackedResponseObserverListenerWithLimit(failingResponseObserverListener{}, 1)
+	if _, err := listener.Accept(); err == nil {
+		t.Fatal("Accept() unexpectedly succeeded")
+	}
+	if got := len(listener.slots); got != 0 {
+		t.Fatalf("connection slots after failed Accept() = %d, want 0", got)
+	}
+}
+
 func TestOwnedListenerDoesNotRemoveReplacedSocket(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "observer.sock")
 	if err := os.WriteFile(path, []byte("owned"), 0600); err != nil {

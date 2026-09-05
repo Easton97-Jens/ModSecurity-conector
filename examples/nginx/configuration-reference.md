@@ -18,12 +18,12 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`load_module`](#load-module) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`modsecurity`](#modsecurity) | Host / Connector | boolean | no | off | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Gates connector transaction creation; it is not SecRuleEngine. |
 | [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive decimal byte count | no | 1048576 | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Bounds response bytes offered to P4 processing by the native connector. |
-| [`modsecurity_phase4_content_types_file`](#modsecurity-phase4-content-types-file) | Host / Connector | path | no | host defaults when omitted | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Scopes P4 response-body inspection to configured MIME types. |
-| [`modsecurity_phase4_log`](#modsecurity-phase4-log) | Host / Connector | path | no | none | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Sets a connector event path; current Apache and NGINX paths also use it for earlier rule/intervention metadata, not only P4. |
+| [`modsecurity_phase4_content_types_file`](#modsecurity-phase4-content-types-file) | Host / Connector | path | no | host defaults when omitted | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Loads the MIME-token allowlist from a bounded POSIX regular file to scope P4 response-body inspection. |
+| [`modsecurity_phase4_log`](#modsecurity-phase4-log) | Host / Connector | registered but always rejected path | no | no usable value | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Rejects native NGINX event-file logging before descriptor creation because the host file registry cannot provide the Common Runtime security contract. |
 | [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | enum | no | safe | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Before response headers/body are committed, minimal, safe, and strict all resolve a P4 intervention as deny_if_possible, so NGINX can still return the requested engine status (or 403 fallback). Once headers are committed or the body started, minimal and safe both use the common log_only action; they record the late decision without a later status rewrite. Strict instead resolves to abort_connection: the native body filter marks the connection as errored, records connection_aborted, and returns NGX_ERROR. The known host boundary is that NGINX invokes the P4 engine finish only at last_buf/last_in_chain after bounded in-scope body accumulation, so a response may already be visible. Strict can therefore terminate a connection, but cannot guarantee a later 403 or replace an already-sent status line. |
 | [`modsecurity_rules`](#modsecurity-rules) | Host / Connector | string | no | none; optional | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Loads inline content through libmodsecurity during configuration loading. |
 | [`modsecurity_rules_file`](#modsecurity-rules-file) | Host / Connector | path | no | none; optional | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | During NGINX configuration loading, ngx_conf_set_rules_file passes the supplied path to libmodsecurity's msc_rules_add_file. The NGINX setter neither canonicalizes nor requires an absolute path; use an absolute path to avoid a process-working-directory dependency. A missing, unreadable, or invalid top-level rule file returns the libmodsecurity loader error and fails the configuration check/reload. Include and IncludeOptional inside that file are then interpreted by libmodsecurity, not expanded by the NGINX parser. Unlike modsecurity_rules, which sends one inline configuration string to msc_rules_add, this directive sends a file path to msc_rules_add_file; both contribute to the configured rule set and its normal parent/child merge. |
-| [`modsecurity_rules_remote`](#modsecurity-rules-remote) | Host / Connector | two strings | no | none; optional | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Passes the key/URL pair to libmodsecurity's remote-rule loader. |
+| [`modsecurity_rules_remote`](#modsecurity-rules-remote) | Host / Connector | registered but always rejected directive | no | no usable value | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Policy A rejects remote-rule configuration before a rule loader or network operation. |
 | [`modsecurity_transaction_id`](#modsecurity-transaction-id) | Host / Connector | string/expression | no | none; connector creates a fallback identifier | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Supplies the engine and event correlation identifier for a transaction. |
 | [`modsecurity_use_error_log`](#modsecurity-use-error-log) | Host / Connector | boolean | no | on | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | `off` suppresses regular and native libModSecurity callback messages in the NGINX error log. It does not disable WAF evaluation or alter Event JSONL emission. |
 | [`proxy_pass`](#proxy-pass) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
@@ -471,7 +471,7 @@ A larger limit raises memory/CPU exposure; zero is invalid in the native setters
 
 ### Short description
 
-Scopes P4 response-body inspection to configured MIME types.
+Loads the MIME-token allowlist from a bounded POSIX regular file to scope P4 response-body inspection.
 
 ### Syntax
 
@@ -487,7 +487,7 @@ modsecurity_phase4_content_types_file <value>;
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| path | one readable file with MIME tokens | no |
+| path | on POSIX, one readable regular MIME-token file no larger than 64 KiB; rejected on Win32 | no |
 
 ### Default
 
@@ -503,13 +503,13 @@ Merge: ngx_conf_merge_* combines scalar/pointer configuration, while msc_rules_m
 
 ### Phases and runtime effect
 
-P1 controls integration; rules and P4 controls affect the stated phase only.
+P4 only. The MIME-token allowlist determines which response bodies enter the bounded native P4 path.
 
-Scopes P4 response-body inspection to configured MIME types.
+Loads the MIME-token allowlist from a bounded POSIX regular file to scope P4 response-body inspection.
 
 ### Validation and errors
 
-ngx_conf_set_phase4_content_types_file rejects invalid values during nginx -t; NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1 is the registered context mask.
+ngx_conf_set_phase4_content_types_file rejects invalid values during nginx -t. On POSIX it opens the path nonblocking, checks that the opened descriptor is regular, caps it at 64 KiB, requires an exact read, and rejects invalid MIME tokens. On Win32 it fails closed.
 
 ### Example
 
@@ -519,14 +519,14 @@ Source-backed example: [examples/nginx/safe/nginx.conf](../../examples/nginx/saf
 
 ### Safety and operations
 
-Keep the scope narrow and validate that the host exposes the intended representation of response bytes.
+Use an atomically replaced regular configuration file in a trusted directory. FIFOs, devices, sockets, directories, oversized files, partial reads, and invalid MIME tokens are rejected.
 
 <a id="modsecurity-phase4-log"></a>
 ## `modsecurity_phase4_log`
 
 ### Short description
 
-Sets a connector event path; current Apache and NGINX paths also use it for earlier rule/intervention metadata, not only P4.
+Rejects native NGINX event-file logging before descriptor creation because the host file registry cannot provide the Common Runtime security contract.
 
 ### Syntax
 
@@ -542,39 +542,39 @@ modsecurity_phase4_log <value>;
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| path | one connector JSONL event/intervention-log path | no |
+| registered but always rejected path | no path is accepted | no |
 
 ### Default
 
-none
+no usable value
 
-Source: `parser registration has no default`.
+Source: `security policy: native NGINX event-file logging disabled`.
 
 ### Inheritance and merge
 
-http → server → location; a child inherits if it does not set a value.
+No event-file value can be inherited or merged because every use is rejected.
 
-Merge: ngx_conf_merge_* combines scalar/pointer configuration, while msc_rules_merge combines parent and child rules.
+Merge: No event-file value can be merged because every use is rejected before descriptor creation.
 
 ### Phases and runtime effect
 
-P1 controls integration; rules and P4 controls affect the stated phase only.
+No event-file sink is reachable through this directive. The Common Runtime event lifecycle remains the supported secure event path.
 
-Sets a connector event path; current Apache and NGINX paths also use it for earlier rule/intervention metadata, not only P4.
+Rejects native NGINX event-file logging before descriptor creation because the host file registry cannot provide the Common Runtime security contract.
 
 ### Validation and errors
 
-ngx_conf_set_phase4_log rejects invalid values during nginx -t; NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1 is the registered context mask.
+ngx_conf_set_phase4_log rejects every path during nginx -t with the native event-file security-policy error.
 
 ### Example
 
-Selected value: use the syntax above and the source-backed file below.
+There is no accepted example: every configured value is rejected by security policy.
 
-Source-backed example: [examples/nginx/safe/nginx.conf](../../examples/nginx/safe/nginx.conf).
+Source-backed example: `connectors/nginx/src/ngx_http_modsecurity_module.c`.
 
 ### Safety and operations
 
-Treat JSONL metadata as sensitive operational data and set safe ownership/rotation.
+Do not re-enable this native host writer without a no-follow, regular-file, owner, and private-mode descriptor contract. Use the Common Runtime event lifecycle instead.
 
 <a id="modsecurity-phase4-mode"></a>
 ## `modsecurity_phase4_mode`
@@ -746,7 +746,7 @@ Keep the file, its parent directories, and any engine-included files non-writabl
 
 ### Short description
 
-Passes the key/URL pair to libmodsecurity's remote-rule loader.
+Policy A rejects remote-rule configuration before a rule loader or network operation.
 
 ### Syntax
 
@@ -762,39 +762,39 @@ modsecurity_rules_remote <key> <url>;
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| two strings | key and URL | no |
+| registered but always rejected directive | no key/URL pair is accepted | no |
 
 ### Default
 
-none; optional
+no usable value
 
-Source: `parser registration has no default`.
+Source: `security policy: remote rule loading disabled`.
 
 ### Inheritance and merge
 
-http → server → location; a child inherits if it does not set a value.
+No remote value can be inherited or merged because every use is rejected.
 
-Merge: ngx_conf_merge_* combines scalar/pointer configuration, while msc_rules_merge combines parent and child rules.
+Merge: No remote value can be merged because every use is rejected before rule loading.
 
 ### Phases and runtime effect
 
-P1 controls integration; rules and P4 controls affect the stated phase only.
+No rule-loader or network path is reachable through this directive.
 
-Passes the key/URL pair to libmodsecurity's remote-rule loader.
+Policy A rejects remote-rule configuration before a rule loader or network operation.
 
 ### Validation and errors
 
-ngx_conf_set_rules_remote rejects invalid values during nginx -t; NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE2 is the registered context mask.
+ngx_conf_set_rules_remote rejects every key/URL pair during nginx -t before a rule loader or network operation.
 
 ### Example
 
-Selected value: use the syntax above and the source-backed file below.
+There is no accepted example: every configured value is rejected by security policy.
 
-Source-backed example: [examples/nginx/safe/nginx.conf](../../examples/nginx/safe/nginx.conf).
+Source-backed example: `connectors/nginx/src/ngx_http_modsecurity_module.c`.
 
 ### Safety and operations
 
-Remote policy is not exercised by the selected no-CRS examples; do not treat it as a local-file substitute.
+Remote loading is technically disabled for every connector; do not rely on a remote URL or key.
 
 <a id="modsecurity-transaction-id"></a>
 ## `modsecurity_transaction_id`

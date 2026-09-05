@@ -468,3 +468,32 @@ surfaced registry-staging issues (`python:S3776` and `python:S107`) were fixed
 in f38. The three remaining `c:S995` Authorization fixture findings are
 individually documented public-ABI non-problems. No `NOSONAR`, exclusion, issue
 transition, or Quality-Gate weakening was used.
+
+### 2026-09-05 current-base reconciliation
+
+This PR was reconciled against the exact current `origin/master` comparison
+revision `b779167ff979aa73cdd9321a829f9c693d943760` by a normal merge into the
+existing PR branch. PR #355 remains unmerged: its requested exact-head
+integration is blocked by the independent, still-open FND-PARENT-1038. The
+external codex-security dependency blocker FND-PARENT-1036 remains unchanged
+and is not reported as fixed.
+
+The five requested boundary areas were retained or minimally reconciled with
+the current base: HAProxy lossless path/uri boundary handling, Common JSONL
+query redaction with explicit truncation and integrity flags, NGINX effective
+`modsecurity_use_error_log` callback handling, Traefik deadline/cap/FD
+ownership controls, and Authorization companion quiescence with exactly-once
+release. Focused local evidence currently passes for the linked JSONL test,
+the executable HAProxy parser test and C17 check, the Authorization native
+companion smoke test and seven worker-contract tests, and the targeted Traefik
+worker/FD and service-contract tests. The complete 37-test Traefik native
+local-plugin suite also passed when run with a private short AF_UNIX temporary
+root. These are fresh working-tree results, not claims about a future pushed
+head.
+
+The local NGINX native check remains blocked because supported NGINX
+headers/source are unavailable. The named
+`NGINX-Use-Error-Log-Exact-Head-Hosted-Gate` is still required for
+supported-source compilation and isolated
+`modsecurity_use_error_log` on/off runtime evidence; no exit-77 result is
+treated as success and no host runtime evidence is claimed here.

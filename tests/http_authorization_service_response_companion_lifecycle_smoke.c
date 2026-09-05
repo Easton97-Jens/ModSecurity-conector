@@ -159,6 +159,24 @@ static int companion_shutdown(void *userdata, msconnector_error *error)
     return 1;
 }
 
+static const char *const companion_original_uri_headers[] = {
+    "X-Original-Uri"
+};
+
+static msconnector_http_authorization_profile companion_fixture_profile(void)
+{
+    return (msconnector_http_authorization_profile){
+        .connector_name = "detached-worker-smoke",
+        .integration_mode = "detached-worker-smoke",
+        .transaction_profile = &test_transaction_profile,
+        .original_uri_headers = companion_original_uri_headers,
+        .original_uri_header_count = sizeof(companion_original_uri_headers) /
+            sizeof(companion_original_uri_headers[0]),
+        .map_request = map_request,
+        .map_response = NULL,
+    };
+}
+
 static authorization_service *new_service(
     const msconnector_http_authorization_profile *service_profile)
 {
@@ -259,7 +277,7 @@ static int start_companion_service(
 static int run_successful_companion_lifecycle(void)
 {
     msconnector_http_authorization_profile companion_profile =
-        detached_worker_profile;
+        companion_fixture_profile();
     companion_server_args args = {{0}, -1, NULL};
     pthread_t server;
     int client_fd = -1;
@@ -311,7 +329,7 @@ done:
 static int run_failed_companion_lifecycle_child(void)
 {
     msconnector_http_authorization_profile companion_profile =
-        detached_worker_profile;
+        companion_fixture_profile();
     companion_server_args args = {{0}, -1, NULL};
     pthread_t server;
     int client_fd = -1;
@@ -410,7 +428,7 @@ static void *race_worker_release(void *argument)
 static int test_concurrent_owner_worker_release(void)
 {
     msconnector_http_authorization_profile companion_profile =
-        detached_worker_profile;
+        companion_fixture_profile();
     authorization_service *service;
     authorization_worker *worker;
     release_race race = {
@@ -462,15 +480,17 @@ static int test_concurrent_owner_worker_release(void)
 
 static int test_no_companion_deferred_release(void)
 {
+    msconnector_http_authorization_profile no_companion_profile =
+        companion_fixture_profile();
     authorization_service *service;
     authorization_worker *worker;
 
     reset_fake_runtime();
-    service = new_service(&detached_worker_profile);
+    service = new_service(&no_companion_profile);
     worker = install_worker(service);
     if (service == NULL || worker == NULL ||
         authorization_defer_uninterruptible_worker(service,
-            &detached_worker_profile) != 1 ||
+            &no_companion_profile) != 1 ||
         runtime_destroy_count() != 0) {
         return 0;
     }

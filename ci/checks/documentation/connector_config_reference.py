@@ -36,6 +36,14 @@ ALLOWED_VALUES_PHASE4_MODE = "minimal | safe | strict"
 DEFAULT_SOURCE_PHASE4_MODE = "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_MODE"
 ALLOWED_VALUES_POSITIVE_INTEGER = "positive integer"
 DEFAULT_SOURCE_PHASE4_BODY_LIMIT = "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_BODY_LIMIT"
+REMOTE_RULE_VALUE_TYPE = "registered but always rejected runtime setting"
+REMOTE_RULE_ALLOWED_VALUES = "no value is accepted"
+REMOTE_RULE_DEFAULT = "no usable value"
+REMOTE_RULE_DEFAULT_SOURCE = "security policy: remote rule loading disabled"
+REMOTE_RULE_EFFECT = "Policy A rejects remote-rule configuration before a rule loader or network operation."
+REMOTE_RULE_INHERITANCE = "No remote value can be inherited or merged because every use is rejected."
+REMOTE_RULE_MERGE_BEHAVIOR = "No remote value can be merged because every use is rejected before rule loading."
+COMMON_BODY_LIMIT_ALLOWED_VALUES = "1 through 10485760 bytes (10 MiB hard cap)"
 NGINX_CONFIGURATION_CONTEXTS = "NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location)"
 DEFAULT_SOURCE_COMPATIBILITY_EXAMPLE = "compatibility example"
 NOT_APPLICABLE = "not applicable"
@@ -88,7 +96,7 @@ DEFAULT_SOURCE_COMPATIBILITY_TEMPLATE = "compatibility template"
 MANAGEMENT_PLANE_PHASE = "Management-plane only; independent of P1–P4 transaction processing."
 ENVOY_EXT_AUTHZ_CONFIGURATION = "examples/envoy/compatibility-ext-authz/envoy-ext-authz.yaml"
 ALLOWED_VALUES_TRAEFIK_UDS_CHUNK = "positive; uds maximum 32768"
-ALLOWED_VALUES_TRAEFIK_ENGINE_MODE = "passthrough | uds"
+ALLOWED_VALUES_TRAEFIK_ENGINE_MODE = "uds"
 DEFAULT_SOURCE_TRAEFIK_CREATE_CONFIG = "connectors/traefik/native_middleware/middleware.go:CreateConfig"
 TRAEFIK_PLUGIN_CONFIGURATION_PATH = "http.middlewares.<name>.plugin.modsecurityNative"
 TRAEFIK_FORWARDAUTH_VALIDATION = "Validate as a Traefik forwardAuth compatibility configuration."
@@ -107,6 +115,13 @@ HAPROXY_FILTER_NAME = "modsecurity-htx"
 VALUE_TYPE_BOOLEAN = "boolean"
 VALUE_TYPE_ENUM = "enum"
 VALUE_TYPE_PATH = "path"
+NGINX_DIRECTIVE_SYNTAX = {
+    "modsecurity": "modsecurity on | off;",
+    "modsecurity_use_error_log": "modsecurity_use_error_log on | off;",
+    "modsecurity_phase4_mode": "modsecurity_phase4_mode minimal | safe | strict;",
+    "modsecurity_phase4_body_limit": "modsecurity_phase4_body_limit <positive-bytes>;",
+    "modsecurity_rules_remote": "modsecurity_rules_remote <key> <url>;",
+}
 
 
 @dataclass(frozen=True)
@@ -157,12 +172,13 @@ def _option(*identity: str, **details: Any) -> dict[str, Any]:
     connector, name, layer, source_file, source_symbol = _option_identity(identity)
     defaults = {
         "example_value": "",
+        "example_unavailable": False,
         "implemented": True,
         "compatibility_only": False,
         "deprecated": False,
     }
     values = {**defaults, **details}
-    return {
+    option = {
         "connector": connector,
         "name": name,
         "configuration_layer": layer,
@@ -191,6 +207,9 @@ def _option(*identity: str, **details: Any) -> dict[str, Any]:
         "deprecated": values["deprecated"],
         "description": values["description"],
     }
+    if values["example_unavailable"]:
+        option["example_unavailable"] = True
+    return option
 
 
 def integration_mode(connector: str) -> str:
@@ -246,12 +265,13 @@ DIRECTIVE_DETAILS: dict[str, dict[str, str]] = {
         "security": "Keep the file and parent directories non-writable by untrusted identities.",
     },
     "modsecurity_rules_remote": {
-        "type": "two strings",
-        "values": "key and URL",
-        "default": DEFAULT_NONE_OPTIONAL,
-        "default_source": DEFAULT_SOURCE_PARSER_REGISTRATION,
-        "effect": "Passes the key/URL pair to libmodsecurity's remote-rule loader.",
-        "security": "Remote policy is not exercised by the selected no-CRS examples; do not treat it as a local-file substitute.",
+        "type": "registered but always rejected directive",
+        "values": "no key/URL pair is accepted",
+        "default": REMOTE_RULE_DEFAULT,
+        "default_source": REMOTE_RULE_DEFAULT_SOURCE,
+        "effect": REMOTE_RULE_EFFECT,
+        "phase_relevance": "No rule-loader or network path is reachable through this directive.",
+        "security": "Remote loading is technically disabled for every connector; do not rely on a remote URL or key.",
     },
     "modsecurity_transaction_id": {
         "type": "string/expression",
@@ -448,14 +468,25 @@ def extract_apache(root: Path) -> list[dict[str, Any]]:
             example = "connectors/apache/src/msc_config.c"
         elif name in {"modsecurity", "modsecurity_rules_file", "modsecurity_use_error_log"}:
             example = "examples/apache/minimal/httpd.conf"
-        result.append(_directive_option(
+        option = _directive_option(
             "apache", name, source, f"module_directives[] / {handler}", syntax,
             "Apache RSRC_CONF | ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules)",
             "Parent value is available to the child unless a child value is set; see the Apache directory-config merge function.",
             "Common scalar values use child-over-parent merge; rule sets are merged through msc_rules_merge. Transaction-id expression/static-id are mutually exclusive.",
             f"{handler} returns an Apache configuration error for its documented invalid input; validate the installed configuration with apachectl -t.",
             example,
-        ))
+        )
+        if name == "modsecurity_rules_remote":
+            option.update(
+                inheritance=REMOTE_RULE_INHERITANCE,
+                merge_behavior=REMOTE_RULE_MERGE_BEHAVIOR,
+                validation=(
+                    f"{handler} rejects every key/URL pair during apachectl -t before a rule loader or network operation."
+                ),
+                example_file=source,
+                example_unavailable=True,
+            )
+        result.append(option)
     return result
 
 
@@ -477,15 +508,7 @@ def extract_nginx(root: Path) -> list[dict[str, Any]]:
         name = macros[macro]
         if name not in DIRECTIVE_DETAILS:
             raise ValueError(f"NGINX directive lacks reference metadata: {name}")
-        syntax = f"{name} <value>;"
-        if name in {"modsecurity", "modsecurity_use_error_log"}:
-            syntax = f"{name} on | off;"
-        elif name == "modsecurity_phase4_mode":
-            syntax = "modsecurity_phase4_mode minimal | safe | strict;"
-        elif name == "modsecurity_phase4_body_limit":
-            syntax = "modsecurity_phase4_body_limit <positive-bytes>;"
-        elif name == "modsecurity_rules_remote":
-            syntax = "modsecurity_rules_remote <key> <url>;"
+        syntax = NGINX_DIRECTIVE_SYNTAX.get(name, f"{name} <value>;")
         option = _directive_option(
             "nginx", name, source, f"ngx_http_modsecurity_commands[] / {handler}", syntax,
             NGINX_CONFIGURATION_CONTEXTS,
@@ -573,6 +596,72 @@ def extract_nginx(root: Path) -> list[dict[str, Any]]:
                     "response. strict requests a connection abort after commit, which can expose clients "
                     "to a partial response; it is not a reliable post-commit HTTP-status enforcement mode."
                 ),
+            )
+        elif name == "modsecurity_phase4_content_types_file":
+            effect = (
+                "Loads the MIME-token allowlist from a bounded POSIX regular file to scope P4 "
+                "response-body inspection."
+            )
+            option.update(
+                allowed_values=(
+                    "on POSIX, one readable regular MIME-token file no larger than 64 KiB; rejected on Win32"
+                ),
+                phase_relevance=(
+                    "P4 only. The MIME-token allowlist determines which response bodies enter the "
+                    "bounded native P4 path."
+                ),
+                runtime_effect=effect,
+                description=effect,
+                validation=(
+                    "ngx_conf_set_phase4_content_types_file rejects invalid values during nginx -t. On POSIX "
+                    "it opens the path nonblocking, checks that the opened descriptor is regular, caps it at "
+                    "64 KiB, requires an exact read, and rejects invalid MIME tokens. On Win32 it fails closed."
+                ),
+                security_relevance=(
+                    "Use an atomically replaced regular configuration file in a trusted directory. FIFOs, "
+                    "devices, sockets, directories, oversized files, partial reads, and invalid MIME tokens "
+                    "are rejected."
+                ),
+            )
+        elif name == "modsecurity_phase4_log":
+            effect = (
+                "Rejects native NGINX event-file logging before descriptor creation because the host file "
+                "registry cannot provide the Common Runtime security contract."
+            )
+            option.update(
+                value_type="registered but always rejected path",
+                allowed_values="no path is accepted",
+                default=REMOTE_RULE_DEFAULT,
+                default_source="security policy: native NGINX event-file logging disabled",
+                inheritance="No event-file value can be inherited or merged because every use is rejected.",
+                merge_behavior="No event-file value can be merged because every use is rejected before descriptor creation.",
+                phase_relevance=(
+                    "No event-file sink is reachable through this directive. The Common Runtime event lifecycle "
+                    "remains the supported secure event path."
+                ),
+                runtime_effect=effect,
+                description=effect,
+                validation=(
+                    "ngx_conf_set_phase4_log rejects every path during nginx -t with the native event-file "
+                    "security-policy error."
+                ),
+                security_relevance=(
+                    "Do not re-enable this native host writer without a no-follow, regular-file, owner, and "
+                    "private-mode descriptor contract. Use the Common Runtime event lifecycle instead."
+                ),
+                example_file=source,
+                example_unavailable=True,
+            )
+        elif name == "modsecurity_rules_remote":
+            option.update(
+                inheritance=REMOTE_RULE_INHERITANCE,
+                merge_behavior=REMOTE_RULE_MERGE_BEHAVIOR,
+                validation=(
+                    "ngx_conf_set_rules_remote rejects every key/URL pair during nginx -t before a rule loader "
+                    "or network operation."
+                ),
+                example_file=source,
+                example_unavailable=True,
             )
         result.append(option)
     return result
@@ -801,12 +890,12 @@ def extract_lighttpd(root: Path) -> list[dict[str, Any]]:
 
 
 COMMON_DETAILS: dict[str, dict[str, str]] = {
-    "enabled": ("boolean", ALLOWED_VALUES_COMMON_BOOLEAN, "off", DEFAULT_SOURCE_COMMON_APPLY_DEFAULTS, "Enables the Common Runtime; enabled runtime requires an inline, file, or remote rule source."),
+    "enabled": ("boolean", ALLOWED_VALUES_COMMON_BOOLEAN, "off", DEFAULT_SOURCE_COMMON_APPLY_DEFAULTS, "Enables the Common Runtime; enabled runtime requires an inline or local-file rule source."),
     "use_error_log": ("boolean", ALLOWED_VALUES_COMMON_BOOLEAN, "on", DEFAULT_SOURCE_USE_ERROR_LOG, "Stores the Common logging preference. A connector must consume it before a host logging effect can be claimed."),
     "rules_inline": ("string", "one inline rule/configuration string", "none", DEFAULT_SOURCE_RUNTIME_PARSER, "Adds inline rule configuration."),
     "rules_file": ("path", "one readable rule/configuration file", "none", DEFAULT_SOURCE_RUNTIME_PARSER, "Loads rules from a local file."),
-    "rules_remote_key": ("string", "remote key paired with rules_remote_url", "none", DEFAULT_SOURCE_RUNTIME_PARSER, "Supplies one half of a remote-rule pair."),
-    "rules_remote_url": ("URL", "remote URL paired with rules_remote_key", "none", DEFAULT_SOURCE_RUNTIME_PARSER, "Supplies the remote-rule endpoint; the selected examples do not exercise it."),
+    "rules_remote_key": (REMOTE_RULE_VALUE_TYPE, REMOTE_RULE_ALLOWED_VALUES, REMOTE_RULE_DEFAULT, REMOTE_RULE_DEFAULT_SOURCE, REMOTE_RULE_EFFECT),
+    "rules_remote_url": (REMOTE_RULE_VALUE_TYPE, REMOTE_RULE_ALLOWED_VALUES, REMOTE_RULE_DEFAULT, REMOTE_RULE_DEFAULT_SOURCE, REMOTE_RULE_EFFECT),
     "transaction_id": ("string", "non-empty text", "none", DEFAULT_SOURCE_RUNTIME_PARSER, "Sets a static runtime transaction identifier."),
     "transaction_id_header": ("header name", ALLOWED_VALUES_HEADER_NAME, "x-request-id", DEFAULT_SOURCE_RUNTIME_DEFAULTS, "Selects the fallback correlation-header name."),
     "phase4_mode": ("enum", ALLOWED_VALUES_PHASE4_MODE, "safe", DEFAULT_SOURCE_PHASE4_MODE, "Stores the late P4 policy. Common alone owns no host abort primitive."),
@@ -826,6 +915,82 @@ COMMON_DETAILS: dict[str, dict[str, str]] = {
     "max_header_value_size": (VALUE_TYPE_POSITIVE_DECIMAL_BYTES, ALLOWED_VALUES_POSITIVE_INTEGER, "8192", DEFAULT_SOURCE_MAX_HEADER_VALUE_LENGTH, "Bounds each header-value size."),
     "max_total_header_bytes": (VALUE_TYPE_POSITIVE_DECIMAL_BYTES, ALLOWED_VALUES_POSITIVE_INTEGER, "65536", DEFAULT_SOURCE_MAX_TOTAL_HEADER_BYTES, "Bounds total header bytes."),
     "max_event_json_bytes": (VALUE_TYPE_POSITIVE_DECIMAL_BYTES, ALLOWED_VALUES_POSITIVE_INTEGER, "16384", DEFAULT_SOURCE_MAX_EVENT_JSON_BYTES, "Bounds serialized metadata event size."),
+}
+
+
+COMMON_REMOTE_OPTION_OVERRIDE: dict[str, Any] = {
+    "inheritance": REMOTE_RULE_INHERITANCE,
+    "merge_behavior": REMOTE_RULE_MERGE_BEHAVIOR,
+    "validation": (
+        "Common Runtime rejects any remote key or URL during configuration validation before a rule "
+        "loader or network operation."
+    ),
+    "phase_relevance": "No rule-loader or network path is reachable through this runtime setting.",
+    "security_relevance": (
+        "Policy A technically disables remote rule loading for every connector. A configured remote value "
+        "cannot cause network access or partial rule activation."
+    ),
+    "example_file": "common/src/config.c",
+    "example_unavailable": True,
+}
+
+
+COMMON_OPTION_OVERRIDES: dict[str, dict[str, Any]] = {
+    "enabled": {
+        "security_relevance": (
+            "Disabling Common Runtime bypasses Common Runtime processing even when an inline or local-file "
+            "rule source is configured."
+        ),
+    },
+    "rules_remote_key": COMMON_REMOTE_OPTION_OVERRIDE,
+    "rules_remote_url": COMMON_REMOTE_OPTION_OVERRIDE,
+    "request_body_limit": {
+        "allowed_values": COMMON_BODY_LIMIT_ALLOWED_VALUES,
+        "validation": (
+            "Runtime configuration rejects zero, non-decimal values, and values above the 10485760-byte "
+            "(10 MiB) hard security cap."
+        ),
+        "security_relevance": (
+            "The 10 MiB hard cap bounds request-body allocation and engine input even when a deployment "
+            "raises the 1048576-byte default."
+        ),
+    },
+    "response_body_limit": {
+        "allowed_values": COMMON_BODY_LIMIT_ALLOWED_VALUES,
+        "validation": (
+            "Runtime configuration rejects zero, non-decimal values, and values above the 10485760-byte "
+            "(10 MiB) hard security cap."
+        ),
+        "security_relevance": (
+            "The 10 MiB hard cap bounds response-body allocation and engine input even when a deployment "
+            "raises the 1048576-byte default."
+        ),
+    },
+    "max_header_count": {
+        "allowed_values": "1 through 256",
+        "validation": "Runtime configuration rejects zero, non-decimal values, and values above the hard cap of 256.",
+        "security_relevance": "The hard cap of 256 headers bounds parser iteration and per-transaction metadata allocation.",
+    },
+    "max_header_name_size": {
+        "allowed_values": "1 through 256 bytes",
+        "validation": "Runtime configuration rejects zero, non-decimal values, and values above the 256-byte hard cap.",
+        "security_relevance": "The 256-byte hard cap bounds header-name storage and validation work.",
+    },
+    "max_header_value_size": {
+        "allowed_values": "1 through 8192 bytes",
+        "validation": "Runtime configuration rejects zero, non-decimal values, and values above the 8192-byte hard cap.",
+        "security_relevance": "The 8192-byte hard cap bounds header-value storage and validation work.",
+    },
+    "max_total_header_bytes": {
+        "allowed_values": "1 through 65536 bytes",
+        "validation": "Runtime configuration rejects zero, non-decimal values, and values above the 65536-byte hard cap.",
+        "security_relevance": "The 65536-byte hard cap bounds aggregate header storage and overflow-safe accounting.",
+    },
+    "max_event_json_bytes": {
+        "allowed_values": "1 through 16384 bytes",
+        "validation": "Runtime configuration rejects zero, non-decimal values, and values above the 16384-byte hard cap.",
+        "security_relevance": "The 16384-byte hard cap bounds a metadata-only event record before JSONL serialization.",
+    },
 }
 
 
@@ -855,7 +1020,7 @@ def common_runtime_profile_keys(root: Path) -> set[str]:
 
 def common_runtime_option(name: str, source: str) -> dict[str, Any]:
     value_type, allowed, default, default_source, effect = COMMON_DETAILS[name]
-    return _option(
+    option = _option(
         "common", name, "common_runtime", source, f"assign_config_value(key={name})",
         syntax=f"{name}=<value>", value_type=value_type, allowed_values=allowed,
         default=default, default_source=default_source, required=False,
@@ -866,6 +1031,8 @@ def common_runtime_option(name: str, source: str) -> dict[str, Any]:
         security_relevance=("Limits bound resource use. " + effect), runtime_effect=effect,
         example_file="examples/lighttpd/safe/msconnector-runtime.conf", description=effect,
     )
+    option.update(COMMON_OPTION_OVERRIDES.get(name, {}))
+    return option
 
 
 def extract_common_runtime(root: Path) -> list[dict[str, Any]]:
@@ -2083,7 +2250,7 @@ def _traefik_middleware_yaml_detail(
             "the seven native middleware Config fields documented from CreateConfig/normalizedConfig",
             "Plugin CreateConfig supplies bounded defaults; this template explicitly sets all seven selected fields.",
             "Groups limits, transaction ID, and engine connection fields passed to the repository native middleware.",
-            "The UDS fields and bounds are enforcement-relevant; passthrough is not rule evaluation.",
+            "The UDS fields and bounds are enforcement-relevant; legacy passthrough is rejected.",
             native_lifecycle,
             default_source="connectors/traefik/native_middleware/middleware.go:CreateConfig/normalizedConfig",
         )
@@ -2664,15 +2831,15 @@ def _traefik_plugin_option(path: str, source_file: str, example_file: str) -> di
         "engineMode": {
             "type": "native middleware engine-mode enum",
             "values": ALLOWED_VALUES_TRAEFIK_ENGINE_MODE,
-            "default": "passthrough",
-            "effect": "Selects source-only passthrough or the persistent UDS engine; the selected rule-evaluating example uses uds.",
-            "phase": "passthrough always allows and supplies no rule evaluation; uds is the engine transport for native P1/P2/P3/P4 callbacks.",
-            "security": "Use uds for the selected rule-evaluating path; passthrough is intentionally not enforcement.",
+            "default": "uds",
+            "effect": "Selects the persistent UDS engine. Legacy source-only passthrough is rejected so a rule-evaluating deployment cannot silently select a non-enforcing path.",
+            "phase": "uds is the engine transport for native P1/P2/P3/P4 callbacks. Legacy passthrough is rejected rather than creating an always-allow path.",
+            "security": "Use the private uds path for the selected rule-evaluating deployment. Do not rely on a passthrough fallback; it is rejected.",
         },
         "engineSocketPath": {
             "type": "absolute Unix-domain socket path",
             "values": "required for uds; absolute with no NUL or '..' segment",
-            "default": "none (ignored outside uds; required and validated in uds mode)",
+            "default": "none (required and validated in uds mode)",
             "effect": "Names the private UDS path used by native middleware when engineMode is uds.",
             "phase": "Transport endpoint for native P1/P2/P3/P4 engine callbacks when uds mode is selected.",
             "security": "The socket directory and socket must be private to trusted processes; path traversal and NUL are rejected.",
@@ -2765,6 +2932,7 @@ def _assert_common_source_defaults(root: Path) -> None:
         "MSCONNECTOR_MAX_HEADER_COUNT 256U", "MSCONNECTOR_MAX_HEADER_NAME_LENGTH 256U",
         "MSCONNECTOR_MAX_HEADER_VALUE_LENGTH 8192U", "MSCONNECTOR_MAX_TOTAL_HEADER_BYTES 65536U",
         "MSCONNECTOR_MAX_BODY_BUFFER_SIZE 1048576U", "MSCONNECTOR_MAX_RESPONSE_BODY_BUFFER_SIZE 1048576U",
+        "MSCONNECTOR_MAX_CONFIG_BODY_BYTES 10485760U",
         "MSCONNECTOR_MAX_EVENT_JSON_BYTES 16384U",
     ):
         if token not in limits_header:
@@ -2801,7 +2969,7 @@ def _assert_traefik_defaults(root: Path, by_key: dict[tuple[str, str], str]) -> 
             raise ValueError(f"Traefik plugin default source changed: expected {token!r}")
     for suffix, expected in {
         "maxHeaderCount": "128", "maxHeaderBytes": "65536", "maxRequestChunkBytes": "32768",
-        "maxResponseChunkBytes": "32768", "transactionIDHeader": "X-Request-Id", "engineMode": "passthrough",
+        "maxResponseChunkBytes": "32768", "transactionIDHeader": "X-Request-Id", "engineMode": "uds",
     }.items():
         matches = [value for (connector, name), value in by_key.items() if connector == "traefik" and name.endswith(suffix)]
         if not matches or any(value != expected for value in matches):
@@ -2883,6 +3051,9 @@ GERMAN_TEXT: dict[str, str] = {
     "string": "Zeichenkette",
     "string/expression": "Zeichenkette/Ausdruck",
     "two strings": "zwei Zeichenketten",
+    "registered but always rejected directive": "registrierte, aber stets abgewiesene Direktive",
+    "registered but always rejected path": "registrierter, aber immer abgelehnter Pfad",
+    REMOTE_RULE_VALUE_TYPE: "registrierte, aber stets abgewiesene Runtime-Einstellung",
     "Apache string expression": "Apache-Zeichenausdruck",
     "path": "Pfad",
     "path alias": "Pfad-Alias",
@@ -2932,6 +3103,10 @@ GERMAN_TEXT: dict[str, str] = {
     "ext_authz v3 configuration": "ext_authz-v3-Konfiguration",
     "forwardAuth fields in the compatibility example": "forwardAuth-Felder im Kompatibilitätsbeispiel",
     "key and URL": "Schlüssel und URL",
+    "no key/URL pair is accepted": "kein Schlüssel/URL-Paar wird akzeptiert",
+    "no path is accepted": "kein Pfad wird akzeptiert",
+    REMOTE_RULE_ALLOWED_VALUES: "kein Wert wird akzeptiert",
+    REMOTE_RULE_DEFAULT: "kein verwendbarer Wert",
     ALLOWED_VALUES_LIGHTTPD_BOOLEAN: "lighttpd-Boolean-Werte; die Beispiele verwenden enable/disable",
     "materializer placeholder resolved to decimal 1..65535": "vom Materializer auf dezimal 1..65535 aufgelöster Platzhalter",
     "materializer-provided, validated value": "vom Materializer bereitgestellter und validierter Wert",
@@ -2950,7 +3125,14 @@ GERMAN_TEXT: dict[str, str] = {
     "one non-empty Apache expression": "ein nichtleerer Apache-Ausdruck",
     "one or more MIME types": "ein oder mehrere MIME-Typen",
     "one readable file with MIME tokens": "eine lesbare Datei mit MIME-Token",
+    "on POSIX, one readable regular MIME-token file no larger than 64 KiB; rejected on Win32": "unter POSIX eine lesbare reguläre MIME-Token-Datei mit höchstens 64 KiB; unter Win32 abgewiesen",
     "one readable rule/configuration file": "eine lesbare Regel-/Konfigurationsdatei",
+    COMMON_BODY_LIMIT_ALLOWED_VALUES: "1 bis 10485760 Byte (harte Obergrenze 10 MiB)",
+    "1 through 256": "1 bis 256",
+    "1 through 256 bytes": "1 bis 256 Byte",
+    "1 through 8192 bytes": "1 bis 8192 Byte",
+    "1 through 65536 bytes": "1 bis 65536 Byte",
+    "1 through 16384 bytes": "1 bis 16384 Byte",
     "one readable rules/configuration path": "ein lesbarer Regel-/Konfigurationspfad",
     "one required rules-file argument; optional phase4-mode": "ein erforderliches rules-file-Argument; phase4-mode ist optional",
     "ordinary lighttpd proxy fields": "normale lighttpd-Proxy-Felder",
@@ -2989,6 +3171,8 @@ GERMAN_TEXT: dict[str, str] = {
     "none; must be materialized": "kein Wert; muss materialisiert werden",
     DEFAULT_NONE_OPTIONAL: "kein Wert; optional",
     "none; required": "kein Wert; erforderlich",
+    REMOTE_RULE_DEFAULT_SOURCE: "Sicherheitspolicy: Laden entfernter Regeln deaktiviert",
+    "security policy: native NGINX event-file logging disabled": "Sicherheitspolicy: natives NGINX-Ereignisdatei-Logging deaktiviert",
     "not a native connector option": "keine native Connector-Option",
     "not applicable; a filter is active only when declared": "nicht anwendbar; ein Filter ist nur aktiv, wenn er deklariert ist",
     "not available": "nicht verfügbar",
@@ -3029,6 +3213,8 @@ GERMAN_TEXT: dict[str, str] = {
     "Only defaults are loaded; no documented conditional request-time override.": "Es werden nur Standardwerte geladen; keine dokumentierte bedingte Überschreibung zur Request-Zeit.",
     LIGHTTPD_DEFAULTS_ONLY_INHERITANCE: "Es werden nur Standardwerte geladen; das Modul besitzt keinen bedingten Patch-Pfad zur Request-Zeit.",
     "Parent value is available to the child unless a child value is set; see the Apache directory-config merge function.": "Der Elternwert steht dem Kind zur Verfügung, sofern kein Kindwert gesetzt ist; siehe die Apache-Merge-Funktion für Verzeichniskonfigurationen.",
+    REMOTE_RULE_INHERITANCE: "Kein Remote-Wert kann geerbt oder zusammengeführt werden, weil jede Verwendung abgewiesen wird.",
+    "No event-file value can be inherited or merged because every use is rejected.": "Kein Ereignisdatei-Wert kann geerbt oder zusammengeführt werden, weil jede Verwendung abgewiesen wird.",
     "Traefik dynamic configuration object; no Common Runtime merge.": "Dynamisches Traefik-Konfigurationsobjekt; kein Common-Runtime-Merge.",
     "http → server → location; a child inherits if it does not set a value.": "http → server → location; ein Kind erbt, wenn es keinen Wert setzt.",
     NOT_APPLICABLE: "nicht anwendbar",
@@ -3039,6 +3225,8 @@ GERMAN_TEXT: dict[str, str] = {
 
     "--listen overrides listen_address after JSON decoding; other flags are direct process inputs.": "--listen überschreibt listen_address nach dem JSON-Dekodieren; andere Optionen sind direkte Prozesseingaben.",
     "Common scalar values use child-over-parent merge; rule sets are merged through msc_rules_merge. Transaction-id expression/static-id are mutually exclusive.": "Common-Skalarwerte verwenden einen Kind-vor-Eltern-Merge; Regelsätze werden über msc_rules_merge zusammengeführt. Transaktions-ID-Ausdruck und statische ID schließen sich gegenseitig aus.",
+    REMOTE_RULE_MERGE_BEHAVIOR: "Kein Remote-Wert kann zusammengeführt werden, weil jede Verwendung vor dem Laden von Regeln abgewiesen wird.",
+    "No event-file value can be merged because every use is rejected before descriptor creation.": "Kein Ereignisdatei-Wert kann zusammengeführt werden, weil jede Verwendung vor der Deskriptorerzeugung abgewiesen wird.",
     "Compatibility-host API behavior; not selected native configuration merge.": "Verhalten der Kompatibilitäts-Host-API; kein Merge der ausgewählten nativen Konfiguration.",
     "Engine-specific; include order and rule configuration determine effective behavior.": "Engine-spezifisch; Include-Reihenfolge und Regelkonfiguration bestimmen das wirksame Verhalten.",
     "Host YAML/API defined; checked-in static and dynamic configurations are separate layers.": "Durch Host-YAML/API bestimmt; eingecheckte statische und dynamische Konfigurationen sind getrennte Ebenen.",
@@ -3150,6 +3338,17 @@ GERMAN_TEXT: dict[str, str] = {
     DEFAULT_SOURCE_TRAEFIK_CREATE_CONFIG: DEFAULT_SOURCE_TRAEFIK_CREATE_CONFIG,
 
     # Validation descriptions.  The command itself stays unchanged.
+    "msc_config_load_rules_remote rejects every key/URL pair during apachectl -t before a rule loader or network operation.": "msc_config_load_rules_remote weist jedes Schlüssel/URL-Paar während apachectl -t vor einem Regellader- oder Netzwerkvorgang ab.",
+    "ngx_conf_set_phase4_content_types_file rejects invalid values during nginx -t. On POSIX it opens the path nonblocking, checks that the opened descriptor is regular, caps it at 64 KiB, requires an exact read, and rejects invalid MIME tokens. On Win32 it fails closed.": "ngx_conf_set_phase4_content_types_file weist ungültige Werte während nginx -t ab. Unter POSIX öffnet es den Pfad nichtblockierend, prüft den geöffneten Deskriptor auf regulären Dateityp, begrenzt ihn auf 64 KiB, verlangt einen exakten Lesevorgang und weist ungültige MIME-Token ab. Unter Win32 schlägt es fail-closed fehl.",
+    "ngx_conf_set_phase4_log rejects every path during nginx -t with the native event-file security-policy error.": "ngx_conf_set_phase4_log weist jeden Pfad während nginx -t mit dem nativen Ereignisdatei-Sicherheitspolicy-Fehler ab.",
+    "ngx_conf_set_rules_remote rejects every key/URL pair during nginx -t before a rule loader or network operation.": "ngx_conf_set_rules_remote weist jedes Schlüssel/URL-Paar während nginx -t vor einem Regellader- oder Netzwerkvorgang ab.",
+    "Common Runtime rejects any remote key or URL during configuration validation before a rule loader or network operation.": "Die Common Runtime weist jeden Remote-Schlüssel oder jede Remote-URL während der Konfigurationsvalidierung vor einem Regellader- oder Netzwerkvorgang ab.",
+    "Runtime configuration rejects zero, non-decimal values, and values above the 10485760-byte (10 MiB) hard security cap.": "Die Runtime-Konfiguration weist null, nichtdezimalen Werte und Werte oberhalb der harten Sicherheitsobergrenze von 10485760 Byte (10 MiB) ab.",
+    "Runtime configuration rejects zero, non-decimal values, and values above the hard cap of 256.": "Die Runtime-Konfiguration weist null, nichtdezimalen Werte und Werte oberhalb der harten Obergrenze von 256 ab.",
+    "Runtime configuration rejects zero, non-decimal values, and values above the 256-byte hard cap.": "Die Runtime-Konfiguration weist null, nichtdezimalen Werte und Werte oberhalb der harten Obergrenze von 256 Byte ab.",
+    "Runtime configuration rejects zero, non-decimal values, and values above the 8192-byte hard cap.": "Die Runtime-Konfiguration weist null, nichtdezimalen Werte und Werte oberhalb der harten Obergrenze von 8192 Byte ab.",
+    "Runtime configuration rejects zero, non-decimal values, and values above the 65536-byte hard cap.": "Die Runtime-Konfiguration weist null, nichtdezimalen Werte und Werte oberhalb der harten Obergrenze von 65536 Byte ab.",
+    "Runtime configuration rejects zero, non-decimal values, and values above the 16384-byte hard cap.": "Die Runtime-Konfiguration weist null, nichtdezimalen Werte und Werte oberhalb der harten Obergrenze von 16384 Byte ab.",
     "Config.Validate rejects empty, non-positive, invalid enum, invalid host:port, and inconsistent gRPC/body limits.": "Config.Validate weist leere, nichtpositive, ungültige Enum- und host:port-Werte sowie widersprüchliche gRPC-/Body-Limits ab.",
     "Do not use for native validation.": "Nicht für die native Validierung verwenden.",
     "Materialize outside the checkout, then run envoy --mode validate -c <generated-config>.": "Außerhalb des Checkouts materialisieren und anschließend envoy --mode validate -c <generated-config> ausführen.",
@@ -3264,7 +3463,11 @@ GERMAN_TEXT: dict[str, str] = {
     "Selects body visibility for ext_proc. The repository Common bridge requires STREAMED for both directions in the selected full-lifecycle path.": "Wählt die Body-Sichtbarkeit für ext_proc. Die Common-Bridge des Repositorys verlangt im ausgewählten Full-Lifecycle-Pfad STREAMED für beide Richtungen.",
     "Selects host listener, routing, filter, service, or logging setup from the checked-in example.": "Wählt Listener-, Routing-, Filter-, Service- oder Logging-Einrichtung des eingecheckten Beispiels.",
     "Selects late decision reporting; minimal and safe record late disruptive decisions as log_only, while strict records strict_abort_not_attempted rather than a fabricated status/reset.": "Wählt die Protokollierung später Entscheidungen; minimal und safe erfassen späte disruptive Entscheidungen als log_only, während strict strict_abort_not_attempted statt eines erfundenen Status/Resets erfasst.",
-    "Selects source-only passthrough or the persistent UDS engine; the selected rule-evaluating example uses uds.": "Wählt source-only-passthrough oder die persistente UDS-Engine; das ausgewählte regelauswertende Beispiel verwendet uds.",
+    "Selects the persistent UDS engine. Legacy source-only passthrough is rejected so a rule-evaluating deployment cannot silently select a non-enforcing path.": "Wählt die persistente UDS-Engine. Legacy-source-only-passthrough wird abgelehnt, damit ein regelauswertendes Deployment nicht stillschweigend einen nicht durchsetzenden Pfad wählen kann.",
+    "uds is the engine transport for native P1/P2/P3/P4 callbacks. Legacy passthrough is rejected rather than creating an always-allow path.": "uds ist der Engine-Transport für native P1/P2/P3/P4-Callbacks. Legacy-passthrough wird abgelehnt, statt einen Always-Allow-Pfad zu erzeugen.",
+    "Use the private uds path for the selected rule-evaluating deployment. Do not rely on a passthrough fallback; it is rejected.": "Den privaten uds-Pfad für das ausgewählte regelauswertende Deployment verwenden. Nicht auf einen passthrough-Fallback vertrauen; er wird abgelehnt.",
+    "The UDS fields and bounds are enforcement-relevant; legacy passthrough is rejected.": "Die UDS-Felder und Grenzen sind für die Durchsetzung relevant; Legacy-passthrough wird abgelehnt.",
+    "none (required and validated in uds mode)": "keiner (im uds-Modus erforderlich und validiert)",
     "Selects the Common request-body handling mode; a particular host may support only a subset.": "Wählt den Common-Modus zur Request-Body-Verarbeitung; ein bestimmter Host unterstützt möglicherweise nur eine Teilmenge.",
     "Selects the Common response-body handling mode; a particular host may support only a subset.": "Wählt den Common-Modus zur Response-Body-Verarbeitung; ein bestimmter Host unterstützt möglicherweise nur eine Teilmenge.",
     "Selects the fallback correlation-header name.": "Wählt den Fallback-Namen des Korrelations-Headers.",
@@ -3288,6 +3491,26 @@ GERMAN_TEXT: dict[str, str] = {
     "Supplies the remote-rule endpoint; the selected examples do not exercise it.": "Liefert den Remote-Regelendpunkt; die ausgewählten Beispiele verwenden ihn nicht.",
 
     # Security and operational guidance.
+    REMOTE_RULE_EFFECT: "Policy A weist Remote-Rule-Konfiguration ab, bevor ein Regellader- oder Netzwerkvorgang stattfindet.",
+    "Enables the Common Runtime; enabled runtime requires an inline or local-file rule source.": "Aktiviert die Common Runtime; die aktivierte Runtime erfordert eine Inline- oder lokale Regeldateiquelle.",
+    "Disabling Common Runtime bypasses Common Runtime processing even when an inline or local-file rule source is configured.": "Das Deaktivieren der Common Runtime umgeht deren Verarbeitung, auch wenn eine Inline- oder lokale Regeldateiquelle konfiguriert ist.",
+    "No rule-loader or network path is reachable through this directive.": "Über diese Direktive ist kein Regellader- oder Netzwerkpfad erreichbar.",
+    "Remote loading is technically disabled for every connector; do not rely on a remote URL or key.": "Das Laden entfernter Regeln ist für jeden Connector technisch deaktiviert; nicht auf eine Remote-URL oder einen Schlüssel vertrauen.",
+    "No rule-loader or network path is reachable through this runtime setting.": "Über diese Runtime-Einstellung ist kein Regellader- oder Netzwerkpfad erreichbar.",
+    "Policy A technically disables remote rule loading for every connector. A configured remote value cannot cause network access or partial rule activation.": "Policy A deaktiviert das Laden entfernter Regeln für jeden Connector technisch. Ein konfigurierter Remote-Wert kann keinen Netzwerkzugriff oder eine partielle Regelaktivierung verursachen.",
+    "P4 only. The MIME-token allowlist determines which response bodies enter the bounded native P4 path.": "Nur P4. Die MIME-Token-Allowlist bestimmt, welche Response-Bodys den begrenzten nativen P4-Pfad durchlaufen.",
+    "Loads the MIME-token allowlist from a bounded POSIX regular file to scope P4 response-body inspection.": "Lädt die MIME-Token-Allowlist aus einer begrenzten regulären POSIX-Datei, um die P4-Response-Body-Inspektion einzugrenzen.",
+    "Use an atomically replaced regular configuration file in a trusted directory. FIFOs, devices, sockets, directories, oversized files, partial reads, and invalid MIME tokens are rejected.": "Eine atomar ersetzte reguläre Konfigurationsdatei in einem vertrauenswürdigen Verzeichnis verwenden. FIFOs, Geräte, Sockets, Verzeichnisse, übergroße Dateien, partielle Lesevorgänge und ungültige MIME-Token werden abgewiesen.",
+    "No event-file sink is reachable through this directive. The Common Runtime event lifecycle remains the supported secure event path.": "Über diese Direktive ist kein Ereignisdatei-Sink erreichbar. Der Ereignislebenszyklus der Common Runtime bleibt der unterstützte sichere Ereignispfad.",
+    "Rejects native NGINX event-file logging before descriptor creation because the host file registry cannot provide the Common Runtime security contract.": "Weist natives NGINX-Ereignisdatei-Logging vor der Deskriptorerzeugung ab, weil die Host-Dateiregistrierung den Sicherheitsvertrag der Common Runtime nicht bereitstellen kann.",
+    "Do not re-enable this native host writer without a no-follow, regular-file, owner, and private-mode descriptor contract. Use the Common Runtime event lifecycle instead.": "Diesen nativen Host-Writer nicht ohne einen no-follow-, reguläre-Datei-, Eigentümer- und Private-Mode-Deskriptorvertrag wieder aktivieren. Stattdessen den Ereignislebenszyklus der Common Runtime verwenden.",
+    "The 10 MiB hard cap bounds request-body allocation and engine input even when a deployment raises the 1048576-byte default.": "Die harte Obergrenze von 10 MiB begrenzt Request-Body-Allokation und Engine-Eingabe, auch wenn ein Deployment den Standardwert von 1048576 Byte anhebt.",
+    "The 10 MiB hard cap bounds response-body allocation and engine input even when a deployment raises the 1048576-byte default.": "Die harte Obergrenze von 10 MiB begrenzt Response-Body-Allokation und Engine-Eingabe, auch wenn ein Deployment den Standardwert von 1048576 Byte anhebt.",
+    "The hard cap of 256 headers bounds parser iteration and per-transaction metadata allocation.": "Die harte Obergrenze von 256 Headern begrenzt Parser-Iteration und Metadatenallokation pro Transaktion.",
+    "The 256-byte hard cap bounds header-name storage and validation work.": "Die harte Obergrenze von 256 Byte begrenzt Headernamen-Speicher und Validierungsarbeit.",
+    "The 8192-byte hard cap bounds header-value storage and validation work.": "Die harte Obergrenze von 8192 Byte begrenzt Headerwert-Speicher und Validierungsarbeit.",
+    "The 65536-byte hard cap bounds aggregate header storage and overflow-safe accounting.": "Die harte Obergrenze von 65536 Byte begrenzt aggregierten Header-Speicher und überlaufsichere Bilanzierung.",
+    "The 16384-byte hard cap bounds a metadata-only event record before JSONL serialization.": "Die harte Obergrenze von 16384 Byte begrenzt einen reinen Metadaten-Ereignisdatensatz vor der JSONL-Serialisierung.",
     "A larger limit raises memory/CPU exposure; zero is invalid in the native setters.": "Ein größeres Limit erhöht die Speicher-/CPU-Exposition; null ist in den nativen Settern ungültig.",
     "A stock HAProxy binary does not provide this keyword; do not silently substitute SPOE.": "Ein ungepatchtes HAProxy-Binärprogramm bietet dieses Schlüsselwort nicht; SPOE nicht stillschweigend ersetzen.",
     "Body visibility increases resource and data-handling exposure; retain explicit limits.": "Body-Sichtbarkeit erhöht die Ressourcen- und Datenverarbeitungs-Exposition; explizite Limits beibehalten.",
@@ -3717,6 +3940,12 @@ def rendered_phase(option: dict[str, Any], german: bool) -> str:
 
 
 def selected_example_line(option: dict[str, Any], german: bool) -> str:
+    if option.get("example_unavailable"):
+        return (
+            "Es gibt kein akzeptiertes Beispiel: Jeder konfigurierte Wert wird durch die Sicherheitspolicy abgewiesen."
+            if german
+            else "There is no accepted example: every configured value is rejected by security policy."
+        )
     if not option.get("example_value"):
         return "Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden." if german else "Selected value: use the syntax above and the source-backed file below."
     literal = _inline_literal(option["example_value"])

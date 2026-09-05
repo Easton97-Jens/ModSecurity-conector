@@ -10,13 +10,28 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260904-apache-helper-aware-common-adoption-contract](CR-20260904-apache-helper-aware-common-adoption-contract.md)
+  | [Deutsch](CR-20260904-apache-helper-aware-common-adoption-contract.de.md) —
+  the user-authorized Parent-only Apache static-contract repair aligns the
+  checker with the bounded P2 helper architecture and rejects a reproduced
+  dead-code checker bypass. It changes no Apache runtime source, Framework,
+  MRTS, Gitlink, workflow, governance, or PR #346 state; native P2 and
+  exact-head hosted evidence remain pending, and no merge is asserted.
+
+- [CR-20260824-connector-security-invariants](CR-20260824-connector-security-invariants.md)
+  | [Deutsch](CR-20260824-connector-security-invariants.de.md) — the
+  Parent-only connector security hardening records local remote-rule,
+  HTTP-boundary, and event-runtime evidence. It excludes Framework/MRTS,
+  Gitlink, CI/governance, and mixed concurrent edits; remote delivery awaits
+  explicit current-user authorization, and hosted checks and a merge are not
+  asserted.
+
 - [CR-20260903-security-remediation-open-findings](CR-20260903-security-remediation-open-findings.md)
   | [Deutsch](CR-20260903-security-remediation-open-findings.de.md) — the
   current user explicitly authorized this Parent-only security remediation,
   focused regression evidence, paired traceability, and a Draft PR. It does
   not initialize or modify Framework/MRTS, change a Gitlink, alter CI
   permissions or dependencies, or authorize a merge.
-
 - [CR-20260903-no-crs-doc-consistency-repair](CR-20260903-no-crs-doc-consistency-repair.md)
   | [Deutsch](CR-20260903-no-crs-doc-consistency-repair.de.md) — the current
   user authorized this Parent-only repair of the reproduced Traefik No-CRS

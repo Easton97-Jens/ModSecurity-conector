@@ -32,6 +32,9 @@
 #define SPOP_FRAME_MAX 65536U
 #define SPOP_MIN_FRAME_SIZE 256U
 #define SPOP_FIN_FLAG 0x00000001U
+#define SPOP_LEGACY_TIMEOUT_MS 2000U
+#define SPOP_DEFAULT_MAX_TRANSACTIONS 4096U
+#define SPOP_MAX_TRANSACTIONS 65536U
 
 #define SPOP_FRM_HAPROXY_HELLO 1U
 #define SPOP_FRM_HAPROXY_DISCONNECT 2U
@@ -42,6 +45,8 @@
 
 #define SPOP_DATA_BOOL 1U
 #define SPOP_DATA_UINT32 3U
+#define SPOP_DATA_IPV4 6U
+#define SPOP_DATA_IPV6 7U
 #define SPOP_DATA_STR 8U
 #define SPOP_DATA_BIN 9U
 #define SPOP_BOOL_TRUE 0x10U
@@ -586,29 +591,50 @@ static int append_varint(spop_buffer *buf, uint64_t value) {
 }
 
 static int read_varint(const unsigned char *data, size_t len, size_t *pos, uint64_t *value) {
+    size_t cursor;
+    uint64_t decoded;
     unsigned int shift;
 
-    if (*pos >= len) {
+    if (data == 0 || pos == 0 || value == 0 || *pos >= len) {
         return -1;
     }
-    *value = data[(*pos)++];
-    if (*value < 240U) {
+    cursor = *pos;
+    decoded = data[cursor++];
+    if (decoded < 240U) {
+        *pos = cursor;
+        *value = decoded;
         return 0;
     }
     shift = 4U;
-    do {
+    for (unsigned int group = 0U; group < 9U; ++group) {
         unsigned int byte;
-        if (*pos >= len) {
+        uint64_t contribution;
+
+        if (cursor >= len || shift >= 64U) {
             return -1;
         }
-        byte = data[(*pos)++];
-        *value += (uint64_t)byte << shift;
-        shift += 7U;
-        if (byte < 128U) {
-            break;
+        byte = data[cursor++];
+        if ((uint64_t)byte > (UINT64_MAX >> shift)) {
+            return -1;
         }
-    } while (shift < 64U);
-    return 0;
+        contribution = (uint64_t)byte << shift;
+        if (decoded > UINT64_MAX - contribution) {
+            return -1;
+        }
+        decoded += contribution;
+        if (byte < 128U) {
+            *pos = cursor;
+            *value = decoded;
+            return 0;
+        }
+        /* A continuation at shift 60 would require an eleventh byte and
+         * cannot represent a value in the 64-bit SPOP form. */
+        if (shift > 57U) {
+            return -1;
+        }
+        shift += 7U;
+    }
+    return -1;
 }
 
 static int append_string(spop_buffer *buf, const char *value) {
@@ -797,7 +823,12 @@ static void copy_cstring(char *out, size_t out_len, const char *value) {
 }
 
 static char *dup_bytes_as_cstring(const unsigned char *value, size_t value_len) {
-    char *out = (char *)calloc(value_len + 1U, 1U);
+    char *out;
+
+    if (value_len == SIZE_MAX || (value == 0 && value_len > 0U)) {
+        return 0;
+    }
+    out = (char *)calloc(value_len + 1U, 1U);
     if (out == 0) {
         return 0;
     }
@@ -887,22 +918,53 @@ static int add_request_header(
         const unsigned char *value,
         size_t value_len) {
     runtime_header *headers;
+    char *header_name;
+    char *header_value;
 
-    if (name_len == 0) {
-        return 0;
+    if (name_len == 0 || (name == 0 && name_len > 0U) ||
+            (value == 0 && value_len > 0U)) {
+        return -1;
+    }
+    if (name_len > MSCONNECTOR_MAX_HEADER_NAME_LENGTH ||
+            value_len > MSCONNECTOR_MAX_HEADER_VALUE_LENGTH ||
+            request->header_count >= MSCONNECTOR_MAX_HEADER_COUNT ||
+            request->header_count == UINT_MAX ||
+            sizeof(*request->headers) >
+                SIZE_MAX / (size_t)(request->header_count + 1U)) {
+        return -1;
+    }
+    for (size_t index = 0U; index < name_len; ++index) {
+        unsigned char ch = name[index];
+        int token = (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') ||
+            (ch >= '0' && ch <= '9') || strchr("!#$%&'*+-.^_`|~", ch) != 0;
+        if (!token) {
+            return -1;
+        }
+    }
+    for (size_t index = 0U; index < value_len; ++index) {
+        unsigned char ch = value[index];
+        if (ch == '\0' || ch == '\r' || ch == '\n' ||
+                (ch < 0x20U && ch != '\t') || ch == 0x7fU) {
+            return -1;
+        }
+    }
+    header_name = dup_header_name(name, name_len);
+    header_value = dup_bytes_as_cstring(value, value_len);
+    if (header_name == 0 || header_value == 0) {
+        free(header_name);
+        free(header_value);
+        return -1;
     }
     headers = (runtime_header *)realloc(request->headers,
         sizeof(*request->headers) * (request->header_count + 1U));
     if (headers == 0) {
+        free(header_name);
+        free(header_value);
         return -1;
     }
     request->headers = headers;
-    request->headers[request->header_count].name = dup_header_name(name, name_len);
-    request->headers[request->header_count].value = dup_bytes_as_cstring(value, value_len);
-    if (request->headers[request->header_count].name == 0 ||
-            request->headers[request->header_count].value == 0) {
-        return -1;
-    }
+    request->headers[request->header_count].name = header_name;
+    request->headers[request->header_count].value = header_value;
     request->header_count++;
     return 0;
 }
@@ -921,6 +983,9 @@ static int parse_headers_bin(notify_request *request, const unsigned char *value
             return -1;
         }
         if (name_len == 0 && header_value_len == 0) {
+            if (pos != value_len) {
+                return -1;
+            }
             request->has_headers_bin = 1;
             return 0;
         }
@@ -937,6 +1002,7 @@ static int parse_headers_text(notify_request *request, const unsigned char *valu
 
     while (start < value_len) {
         size_t end = start;
+        size_t next_start;
         size_t colon;
         size_t name_len;
         size_t header_value_start;
@@ -944,29 +1010,38 @@ static int parse_headers_text(notify_request *request, const unsigned char *valu
         while (end < value_len && value[end] != '\n') {
             end++;
         }
+        next_start = end < value_len ? end + 1U : end;
         if (end > start && value[end - 1U] == '\r') {
             end--;
         }
         if (end == start) {
+            /* A blank line terminates the textual header block.  Do not
+             * silently discard bytes after that delimiter: accepting them
+             * would leave two possible interpretations of the same SPOP
+             * argument for downstream consumers. */
+            if (next_start < value_len) {
+                return -1;
+            }
             break;
         }
         colon = start;
         while (colon < end && value[colon] != ':') {
             colon++;
         }
-        if (colon < end) {
-            name_len = colon - start;
-            header_value_start = colon + 1U;
-            while (header_value_start < end &&
-                    (value[header_value_start] == ' ' || value[header_value_start] == '\t')) {
-                header_value_start++;
-            }
-            if (add_request_header(request, value + start, name_len,
-                    value + header_value_start, end - header_value_start) != 0) {
-                return -1;
-            }
+        if (colon == end) {
+            return -1;
         }
-        start = end + 1U;
+        name_len = colon - start;
+        header_value_start = colon + 1U;
+        while (header_value_start < end &&
+                (value[header_value_start] == ' ' || value[header_value_start] == '\t')) {
+            header_value_start++;
+        }
+        if (add_request_header(request, value + start, name_len,
+                value + header_value_start, end - header_value_start) != 0) {
+            return -1;
+        }
+        start = next_start;
     }
     request->has_headers_text = 1;
     return 0;
@@ -1120,6 +1195,9 @@ static int read_typed_string_to_buffer(
     if (read_string_ref(data, len, pos, &value, &value_len) != 0) {
         return -1;
     }
+    if (value_len >= out_len) {
+        return -1;
+    }
     copy_spop_string(out, out_len, value, value_len);
     *present = 1;
     return 0;
@@ -1164,6 +1242,45 @@ static int read_typed_target_to_buffer(
     }
     memcpy(out, value, value_len);
     out[value_len] = '\0';
+    *present = 1;
+    return 0;
+}
+
+static int read_typed_ip_to_buffer(
+        const unsigned char *data,
+        size_t len,
+        size_t *pos,
+        char *out,
+        size_t out_len,
+        int *present) {
+    size_t value_pos = *pos;
+    unsigned int type;
+    size_t address_len;
+    int address_family;
+    char formatted[INET6_ADDRSTRLEN];
+
+    if (*pos >= len) {
+        return -1;
+    }
+    type = data[(*pos)++] & SPOP_DATA_TYPE_MASK;
+    if (type == SPOP_DATA_IPV4) {
+        address_len = sizeof(struct in_addr);
+        address_family = AF_INET;
+    } else if (type == SPOP_DATA_IPV6) {
+        address_len = sizeof(struct in6_addr);
+        address_family = AF_INET6;
+    } else {
+        *pos = value_pos;
+        return -1;
+    }
+    if (address_len > len - *pos ||
+            inet_ntop(address_family, data + *pos, formatted, sizeof(formatted)) == NULL ||
+            strlen(formatted) >= out_len) {
+        *pos = value_pos;
+        return -1;
+    }
+    *pos += address_len;
+    copy_spop_string(out, out_len, (const unsigned char *)formatted, strlen(formatted));
     *present = 1;
     return 0;
 }
@@ -1219,6 +1336,9 @@ static int read_typed_uint32_value(
         return -1;
     }
     if (read_varint(data, len, pos, &value) != 0) {
+        return -1;
+    }
+    if (value > UINT32_MAX) {
         return -1;
     }
     *out = (unsigned int)value;
@@ -1398,6 +1518,11 @@ static int parse_notify_string_argument(
                     arguments[index].value, arguments[index].value_len,
                     arguments[index].present);
             }
+            if (index == 1U || index == 2U) {
+                return read_typed_ip_to_buffer(data, len, pos,
+                    arguments[index].value, arguments[index].value_len,
+                    arguments[index].present);
+            }
             if (index == 4U || index == 5U) {
                 return read_typed_target_to_buffer(data, len, pos,
                     arguments[index].value, arguments[index].value_len,
@@ -1427,8 +1552,21 @@ static int parse_notify_uint_argument(
     for (size_t index = 0U; index < sizeof(arguments) / sizeof(arguments[0]); ++index) {
         if (key_equals_literal(arg_name, arg_name_len, arguments[index].key,
                 arguments[index].key_len)) {
-            return read_typed_uint32_loose(data, len, pos, arguments[index].value,
-                arguments[index].present);
+            int result = read_typed_uint32_loose(data, len, pos,
+                arguments[index].value, arguments[index].present);
+
+            if (result != 0) {
+                return result;
+            }
+            /* Endpoint ports are later passed to a C API that takes int.
+             * Reject before the unsigned-to-signed conversion so a hostile
+             * uint32 value cannot acquire implementation-defined semantics. */
+            if ((KEY_EQUALS_LITERAL(arg_name, arg_name_len, "client_port") ||
+                    KEY_EQUALS_LITERAL(arg_name, arg_name_len, "server_port")) &&
+                    *arguments[index].present && *arguments[index].value > 65535U) {
+                return -1;
+            }
+            return 0;
         }
     }
     return 1;
@@ -1495,6 +1633,27 @@ static int parse_notify_body_length_argument(
         &request->has_body_len_arg);
 }
 
+/* Response-bearing arguments are valid only on response notifications.  Do
+ * not let one reclassify a check-request after request-host validation. */
+static int notify_argument_is_response_bearing(
+        const unsigned char *arg_name,
+        size_t arg_name_len) {
+    return KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_headers_bin") ||
+        KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_headers") ||
+        KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_body") ||
+        KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_body_len") ||
+        KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_status") ||
+        KEY_EQUALS_LITERAL(arg_name, arg_name_len,
+            "response_header_last_modified") ||
+        KEY_EQUALS_LITERAL(arg_name, arg_name_len,
+            "response_header_content_type") ||
+        KEY_EQUALS_LITERAL(arg_name, arg_name_len,
+            "response_header_location") ||
+        KEY_EQUALS_LITERAL(arg_name, arg_name_len,
+            "response_header_set_cookie") ||
+        KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_header_server");
+}
+
 static int parse_notify_argument(
         notify_request *request,
         const unsigned char *arg_name,
@@ -1503,6 +1662,11 @@ static int parse_notify_argument(
         size_t len,
         size_t *pos) {
     int result;
+
+    if (!request->is_response &&
+            notify_argument_is_response_bearing(arg_name, arg_name_len)) {
+        return -1;
+    }
 
     result = parse_notify_header_argument(request, arg_name, arg_name_len, data, len, pos);
     if (result != 1) {
@@ -1533,39 +1697,70 @@ static int parse_notify_argument(
     return skip_typed_data(data, len, pos);
 }
 
-static int parse_notify_payload(const unsigned char *data, size_t len, notify_request *request) {
-    size_t pos = 0;
+static int parse_notify_message_header(const unsigned char *data, size_t len,
+        size_t *pos, notify_request *request, unsigned int *nb_args) {
+    const unsigned char *message_name;
+    size_t message_name_len;
 
-    memset(request, 0, sizeof(*request));
-    while (pos < len) {
-        const unsigned char *message_name;
-        size_t message_name_len;
-        unsigned int nb_args;
+    if (read_string_ref(data, len, pos, &message_name, &message_name_len) != 0 ||
+            *pos >= len ||
+            (!KEY_EQUALS_LITERAL(message_name, message_name_len, "check-request") &&
+             !KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response") &&
+             !KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response-body"))) {
+        return -1;
+    }
+    copy_spop_string(request->message_name, sizeof(request->message_name),
+        message_name, message_name_len);
+    request->is_response =
+        KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response") ||
+        KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response-body");
+    request->is_response_body =
+        KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response-body");
+    *nb_args = data[(*pos)++];
+    request->has_notify = 1;
+    return 0;
+}
 
-        if (read_string_ref(data, len, &pos, &message_name, &message_name_len) != 0 ||
-                pos >= len) {
+static int parse_notify_arguments(const unsigned char *data, size_t len,
+        size_t *pos, notify_request *request, unsigned int nb_args) {
+    const unsigned char *seen_keys[256];
+    size_t seen_key_lengths[256];
+    size_t seen_key_count = 0U;
+
+    for (unsigned int i = 0; i < nb_args; ++i) {
+        const unsigned char *arg_name;
+        size_t arg_name_len;
+
+        if (read_string_ref(data, len, pos, &arg_name, &arg_name_len) != 0 ||
+                seen_key_count >= sizeof(seen_keys) / sizeof(seen_keys[0])) {
             return -1;
         }
-        copy_spop_string(request->message_name, sizeof(request->message_name),
-            message_name, message_name_len);
-        request->is_response =
-            KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response") ||
-            KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response-body");
-        request->is_response_body =
-            KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response-body");
-        nb_args = data[pos++];
-        request->has_notify = 1;
-        for (unsigned int i = 0; i < nb_args; ++i) {
-            const unsigned char *arg_name;
-            size_t arg_name_len;
-
-            if (read_string_ref(data, len, &pos, &arg_name, &arg_name_len) != 0) {
-                return -1;
-            }
-            if (parse_notify_argument(request, arg_name, arg_name_len, data, len, &pos) != 0) {
+        for (size_t seen = 0U; seen < seen_key_count; ++seen) {
+            if (seen_key_lengths[seen] == arg_name_len &&
+                    memcmp(seen_keys[seen], arg_name, arg_name_len) == 0) {
                 return -1;
             }
         }
+        seen_keys[seen_key_count] = arg_name;
+        seen_key_lengths[seen_key_count++] = arg_name_len;
+        if (parse_notify_argument(request, arg_name, arg_name_len, data, len, pos) != 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static int parse_notify_payload(const unsigned char *data, size_t len, notify_request *request) {
+    size_t pos = 0U;
+    unsigned int nb_args;
+
+    memset(request, 0, sizeof(*request));
+    if ((data == 0 && len > 0U) ||
+            parse_notify_message_header(data, len, &pos, request, &nb_args) != 0 ||
+            parse_notify_arguments(data, len, &pos, request, nb_args) != 0 ||
+            pos != len) {
+        free_notify_request(request);
+        return -1;
     }
     return 0;
 }
@@ -1590,6 +1785,24 @@ static int build_notify_request_payload(
             append_typed_string(payload, host) != 0 ||
             append_string(payload, "test_header") != 0 ||
             append_typed_string(payload, test_header) != 0) {
+        return -1;
+    }
+    return 0;
+}
+
+static int self_test_rejects_oversized_endpoint_port(void) {
+    spop_buffer payload;
+    notify_request request;
+
+    payload.len = 0U;
+    if (append_string(&payload, "check-request") != 0 ||
+            append_byte(&payload, 1U) != 0 ||
+            append_string(&payload, "client_port") != 0 ||
+            append_typed_uint32(&payload, 65536U) != 0) {
+        return -1;
+    }
+    if (parse_notify_payload(payload.data, payload.len, &request) == 0) {
+        free_notify_request(&request);
         return -1;
     }
     return 0;
@@ -1802,10 +2015,12 @@ static int parse_hello_payload(const unsigned char *data, size_t len, hello_info
     return 0;
 }
 
-static int build_frame(unsigned int type, uint64_t stream_id, uint64_t frame_id, const spop_buffer *payload, spop_buffer *frame) {
+static int build_frame_with_flags(unsigned int type, uint32_t flags,
+        uint64_t stream_id, uint64_t frame_id, const spop_buffer *payload,
+        spop_buffer *frame) {
     frame->len = 0;
     if (append_byte(frame, type) != 0 ||
-        append_uint32(frame, SPOP_FIN_FLAG) != 0 ||
+        append_uint32(frame, flags) != 0 ||
         append_varint(frame, stream_id) != 0 ||
         append_varint(frame, frame_id) != 0) {
         return -1;
@@ -1816,6 +2031,36 @@ static int build_frame(unsigned int type, uint64_t stream_id, uint64_t frame_id,
     return 0;
 }
 
+static int send_frame_with_flags(int fd, unsigned int type, uint32_t flags,
+        uint64_t stream_id, uint64_t frame_id, const spop_buffer *payload) {
+    spop_buffer frame;
+    uint32_t net_len;
+    uint64_t now;
+    uint64_t deadline;
+
+    if (build_frame_with_flags(type, flags, stream_id, frame_id, payload,
+            &frame) != 0) {
+        return -1;
+    }
+    net_len = htonl((uint32_t)frame.len);
+    now = monotonic_milliseconds();
+    if (now == 0U) {
+        return -1;
+    }
+    deadline = now + 2000U;
+    if (deadline < now) {
+        deadline = UINT64_MAX;
+    }
+    return write_full_until(fd, &net_len, sizeof(net_len), deadline) == 0 &&
+        write_full_until(fd, frame.data, frame.len, deadline) == 0 ? 0 : -1;
+}
+
+static int send_frame(int fd, unsigned int type, uint64_t stream_id,
+        uint64_t frame_id, const spop_buffer *payload) {
+    return send_frame_with_flags(fd, type, SPOP_FIN_FLAG, stream_id, frame_id,
+        payload);
+}
+
 static int send_frame_timeout(int fd, unsigned int type, uint64_t stream_id,
         uint64_t frame_id, const spop_buffer *payload, unsigned int timeout_ms) {
     spop_buffer frame;
@@ -1823,7 +2068,8 @@ static int send_frame_timeout(int fd, unsigned int type, uint64_t stream_id,
     uint64_t now;
     uint64_t deadline;
 
-    if (build_frame(type, stream_id, frame_id, payload, &frame) != 0) {
+    if (build_frame_with_flags(type, SPOP_FIN_FLAG, stream_id, frame_id,
+            payload, &frame) != 0) {
         return -1;
     }
     net_len = htonl((uint32_t)frame.len);
@@ -1837,11 +2083,6 @@ static int send_frame_timeout(int fd, unsigned int type, uint64_t stream_id,
     }
     return write_full_until(fd, &net_len, sizeof(net_len), deadline) == 0 &&
         write_full_until(fd, frame.data, frame.len, deadline) == 0 ? 0 : -1;
-}
-
-static int send_frame(int fd, unsigned int type, uint64_t stream_id,
-        uint64_t frame_id, const spop_buffer *payload) {
-    return send_frame_timeout(fd, type, stream_id, frame_id, payload, 2000U);
 }
 
 static int recv_frame(int fd, spop_frame *frame, unsigned int timeout_ms) {
@@ -1877,6 +2118,12 @@ static int recv_frame(int fd, spop_frame *frame, unsigned int timeout_ms) {
     }
     frame->flags = ((uint32_t)data[pos] << 24) | ((uint32_t)data[pos + 1] << 16) | ((uint32_t)data[pos + 2] << 8) | data[pos + 3];
     pos += 4U;
+    /* SPOP 2.0 deprecated payload fragmentation, so every complete frame
+     * received by this synchronous agent must carry FIN. Do not pass an
+     * incomplete payload to HELLO, NOTIFY, or ModSecurity sinks. */
+    if ((frame->flags & SPOP_FIN_FLAG) == 0U) {
+        return -1;
+    }
     if (read_varint(data, len, &pos, &frame->stream_id) != 0 ||
         read_varint(data, len, &pos, &frame->frame_id) != 0 ||
         len - pos > sizeof(frame->payload)) {
@@ -1885,6 +2132,26 @@ static int recv_frame(int fd, spop_frame *frame, unsigned int timeout_ms) {
     frame->payload_len = len - pos;
     memcpy(frame->payload, data + pos, frame->payload_len);
     return 0;
+}
+
+static int self_test_rejects_fin_unset_frame(void) {
+    int sockets[2] = {-1, -1};
+    spop_buffer empty;
+    spop_frame frame;
+    int result = -1;
+
+    empty.len = 0U;
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) != 0) {
+        return -1;
+    }
+    if (send_frame_with_flags(sockets[0], SPOP_FRM_NOTIFY, 0U, 1U, 1U,
+            &empty) == 0 &&
+        recv_frame(sockets[1], &frame, SPOP_LEGACY_TIMEOUT_MS) != 0) {
+        result = 0;
+    }
+    close(sockets[0]);
+    close(sockets[1]);
+    return result;
 }
 
 static int send_agent_hello(int fd, unsigned int max_frame_size,
@@ -1948,15 +2215,45 @@ static void config_init(agent_config *config) {
     config->request_body_limit = 65532U;
     config->response_body_limit = 0U;
     config->response_body_timeout_ms = 0U;
-    config->spoe_timeout_ms = 2000U;
+    config->spoe_timeout_ms = SPOP_LEGACY_TIMEOUT_MS;
     config->worker_count = 1U;
-    config->max_transactions = 4096U;
+    config->max_transactions = SPOP_DEFAULT_MAX_TRANSACTIONS;
+}
+
+static int parse_bounded_uint_range(const char *value, unsigned long minimum,
+        unsigned long maximum, unsigned int *out) {
+    char *end = 0;
+    unsigned long parsed;
+
+    if (value == 0 || out == 0 || value[0] < '0' || value[0] > '9' ||
+            minimum > maximum ||
+            maximum > (unsigned long)UINT_MAX) {
+        return -1;
+    }
+    errno = 0;
+    parsed = strtoul(value, &end, 10);
+    if (errno != 0 || end == value || *end != '\0' ||
+            parsed < minimum || parsed > maximum) {
+        return -1;
+    }
+    *out = (unsigned int)parsed;
+    return 0;
+}
+
+static int parse_bounded_uint(const char *value, unsigned long maximum,
+        unsigned int *out) {
+    return parse_bounded_uint_range(value, 1UL, maximum, out);
+}
+
+static int valid_fail_mode(const char *value) {
+    return value != 0 && (strcmp(value, "closed") == 0 ||
+        strcmp(value, "open") == 0);
 }
 
 static int parse_listen(agent_config *config, const char *listen_value) {
     const char *colon;
     size_t host_len;
-    unsigned long port;
+    unsigned int port;
 
     if (listen_value == 0 || listen_value[0] == '\0') {
         return -1;
@@ -1971,32 +2268,19 @@ static int parse_listen(agent_config *config, const char *listen_value) {
     }
     memcpy(config->host, listen_value, host_len);
     config->host[host_len] = '\0';
-    port = strtoul(colon + 1, 0, 10);
-    if (port > 65535UL) {
+    if (parse_bounded_uint_range(colon + 1, 1UL, 65535UL, &port) != 0) {
         return -1;
     }
-    config->port = (unsigned int)port;
+    config->port = port;
     return 0;
 }
 
-static int config_set(agent_config *config, const char *key, const char *value) {
-    if (strcmp(key, "listen") == 0) {
-        return parse_listen(config, value);
-    }
-    if (strcmp(key, "host") == 0) {
-        copy_spop_string(config->host, sizeof(config->host),
-            (const unsigned char *)value, safe_cstring_length(value, RUNTIME_TEXT_LIMIT));
-        return 0;
-    }
-    if (strcmp(key, "port") == 0) {
-        config->port = (unsigned int)strtoul(value, 0, 10);
-        return 0;
-    }
+static int config_set_string(agent_config *config, const char *key, const char *value) {
 #define SET_STRING_FIELD(name, field) \
     if (strcmp(key, name) == 0) { \
         copy_spop_string(config->field, sizeof(config->field), \
             (const unsigned char *)value, safe_cstring_length(value, RUNTIME_TEXT_LIMIT)); \
-        return 0; \
+        return 1; \
     }
     SET_STRING_FIELD("ready-file", ready_file)
     SET_STRING_FIELD("pid-file", pid_file)
@@ -2009,72 +2293,138 @@ static int config_set(agent_config *config, const char *key, const char *value) 
     SET_STRING_FIELD("rules-file", rules_file)
     SET_STRING_FIELD("rules-dir", rules_dir)
     SET_STRING_FIELD("mode", mode)
-    SET_STRING_FIELD("fail-mode", fail_mode)
     SET_STRING_FIELD("runtime-mode", runtime_mode)
     SET_STRING_FIELD("variant", variant)
     SET_STRING_FIELD("case", case_name)
     SET_STRING_FIELD("response-companion", response_companion)
     SET_STRING_FIELD("response-companion-socket", response_companion_socket)
 #undef SET_STRING_FIELD
+    return 0;
+}
+
+static int config_set_scalar_identity(agent_config *config, const char *key,
+        const char *value) {
+    if (strcmp(key, "fail-mode") == 0) {
+        if (!valid_fail_mode(value)) {
+            return -1;
+        }
+        copy_spop_string(config->fail_mode, sizeof(config->fail_mode),
+            (const unsigned char *)value, strlen(value));
+        return 1;
+    }
     if (strcmp(key, "response-companion-uid") == 0) {
-        config->response_companion_uid = (unsigned int)strtoul(value, 0, 10);
-        return 0;
+        return parse_bounded_uint_range(value, 0UL, (unsigned long)UINT_MAX,
+            &config->response_companion_uid) == 0 ? 1 : -1;
     }
     if (strcmp(key, "response-companion-gid") == 0) {
-        config->response_companion_gid = (unsigned int)strtoul(value, 0, 10);
-        return 0;
+        return parse_bounded_uint_range(value, 0UL, (unsigned long)UINT_MAX,
+            &config->response_companion_gid) == 0 ? 1 : -1;
     }
     if (strcmp(key, "expected-status") == 0) {
-        config->expected_status = (unsigned int)strtoul(value, 0, 10);
-        return 0;
+        return parse_bounded_uint_range(value, 0UL, (unsigned long)UINT_MAX,
+            &config->expected_status) == 0 ? 1 : -1;
     }
+    return 0;
+}
+
+static int config_set_scalar_limits(agent_config *config, const char *key,
+        const char *value) {
     if (strcmp(key, "request-body-limit") == 0) {
-        config->request_body_limit = (unsigned int)strtoul(value, 0, 10);
-        return 0;
+        return parse_bounded_uint(value, MSCONNECTOR_MAX_CONFIG_BODY_BYTES,
+            &config->request_body_limit) == 0 ? 1 : -1;
     }
     if (strcmp(key, "response-body-limit") == 0) {
-        config->response_body_limit = (unsigned int)strtoul(value, 0, 10);
+        if (parse_bounded_uint_range(value, 0UL, MSCONNECTOR_MAX_CONFIG_BODY_BYTES,
+                &config->response_body_limit) != 0) {
+            return -1;
+        }
         if (config->response_body_limit > 0U) {
             config->response_phases_enabled = 1;
         }
-        return 0;
+        return 1;
     }
     if (strcmp(key, "response-body-timeout") == 0) {
-        config->response_body_timeout_ms = (unsigned int)strtoul(value, 0, 10);
-        return 0;
+        if (strcmp(value, "0") == 0) {
+            config->response_body_timeout_ms = 0U;
+            return 1;
+        }
+        return -1;
     }
     if (strcmp(key, "spoe-timeout") == 0) {
-        char *end = 0;
-        unsigned long parsed;
-
-        errno = 0;
-        parsed = strtoul(value, &end, 10);
-        if (errno == ERANGE || end == value || *end != '\0' ||
-                parsed > UINT_MAX) {
-            return -1;
-        }
-        config->spoe_timeout_ms = (unsigned int)parsed;
-        return 0;
+        return parse_bounded_uint(value, 600000UL, &config->spoe_timeout_ms) == 0 ? 1 : -1;
     }
     if (strcmp(key, "worker-count") == 0) {
-        config->worker_count = (unsigned int)strtoul(value, 0, 10);
-        return 0;
+        return parse_bounded_uint(value, 1UL, &config->worker_count) == 0 ? 1 : -1;
     }
     if (strcmp(key, "max-transactions") == 0) {
-        config->max_transactions = (unsigned int)strtoul(value, 0, 10);
-        return 0;
+        return parse_bounded_uint(value, SPOP_MAX_TRANSACTIONS,
+            &config->max_transactions) == 0 ? 1 : -1;
     }
+    return 0;
+}
+
+static int config_set_scalar_flags(agent_config *config, const char *key,
+        const char *value) {
     if (strcmp(key, "debug") == 0) {
         config->debug = strcmp(value, "1") == 0 || strcmp(value, "true") == 0 ||
             strcmp(value, "yes") == 0 || strcmp(value, "on") == 0;
-        return 0;
+        return 1;
     }
     if (strcmp(key, "enable-response-headers") == 0 ||
             strcmp(key, "response-phases") == 0) {
         config->response_phases_enabled = strcmp(value, "0") != 0 &&
             strcmp(value, "false") != 0 && strcmp(value, "off") != 0 &&
             strcmp(value, "no") != 0;
+        return 1;
+    }
+    return 0;
+}
+
+static int config_set_scalar(agent_config *config, const char *key, const char *value) {
+    int result = config_set_scalar_identity(config, key, value);
+    if (result != 0) {
+        return result;
+    }
+    result = config_set_scalar_limits(config, key, value);
+    if (result != 0) {
+        return result;
+    }
+    return config_set_scalar_flags(config, key, value);
+}
+
+static int config_set_endpoint(agent_config *config, const char *key, const char *value) {
+    if (strcmp(key, "listen") == 0) {
+        return parse_listen(config, value);
+    }
+    if (strcmp(key, "host") == 0) {
+        copy_spop_string(config->host, sizeof(config->host),
+            (const unsigned char *)value, safe_cstring_length(value, RUNTIME_TEXT_LIMIT));
         return 0;
+    }
+    if (strcmp(key, "port") == 0) {
+        return parse_bounded_uint_range(value, 1UL, 65535UL, &config->port);
+    }
+    return 1;
+}
+
+static int config_set(agent_config *config, const char *key, const char *value) {
+    if (config == 0 || key == 0 || value == 0) {
+        return -1;
+    }
+    {
+        int endpoint = config_set_endpoint(config, key, value);
+        if (endpoint != 1) {
+            return endpoint;
+        }
+    }
+    if (config_set_string(config, key, value) != 0) {
+        return 0;
+    }
+    {
+        int scalar = config_set_scalar(config, key, value);
+        if (scalar != 0) {
+            return scalar > 0 ? 0 : -1;
+        }
     }
     return -1;
 }
@@ -2097,9 +2447,43 @@ static char *trim_in_place(char *value) {
     return value;
 }
 
+/* Read one physical configuration line without treating a NUL byte as a
+ * string terminator.  `fgets()` would otherwise hide a malicious suffix after
+ * an embedded NUL from all subsequent C-string validation. */
+static int read_config_line(FILE *file, char *line, size_t line_capacity) {
+    size_t length = 0U;
+    int character;
+
+    if (file == 0 || line == 0 || line_capacity < 2U) {
+        return -1;
+    }
+    for (;;) {
+        character = fgetc(file);
+        if (character == EOF) {
+            if (ferror(file)) {
+                return -1;
+            }
+            if (length == 0U) {
+                return 0;
+            }
+            line[length] = '\0';
+            return 1;
+        }
+        if (character == '\0' || length + 1U >= line_capacity) {
+            return -1;
+        }
+        if (character == '\n') {
+            line[length] = '\0';
+            return 1;
+        }
+        line[length++] = (char)character;
+    }
+}
+
 static int load_config_file(agent_config *config, const char *path) {
     char line[8192];
     FILE *file;
+    int line_result;
 
     if (path == 0 || path[0] == '\0') {
         return 0;
@@ -2108,7 +2492,7 @@ static int load_config_file(agent_config *config, const char *path) {
     if (file == 0) {
         return -1;
     }
-    while (fgets(line, sizeof(line), file) != 0) {
+    while ((line_result = read_config_line(file, line, sizeof(line))) > 0) {
         char *key;
         const char *value;
         char *equals;
@@ -2128,6 +2512,10 @@ static int load_config_file(agent_config *config, const char *path) {
             fclose(file);
             return -1;
         }
+    }
+    if (line_result < 0) {
+        fclose(file);
+        return -1;
     }
     fclose(file);
     return 0;
@@ -2429,8 +2817,14 @@ static void decision_log_write(
 static int transaction_cache_init(agent_state *state) {
     size_t capacity;
 
+    if (state == 0) {
+        return -1;
+    }
     capacity = state->config.max_transactions > 0U ?
-        state->config.max_transactions : 4096U;
+        state->config.max_transactions : SPOP_DEFAULT_MAX_TRANSACTIONS;
+    if (capacity > SIZE_MAX / sizeof(*state->transactions)) {
+        return -1;
+    }
     state->transactions = (transaction_slot *)calloc(capacity, sizeof(*state->transactions));
     if (state->transactions == 0) {
         return -1;
@@ -2517,12 +2911,13 @@ static int transaction_cache_store(
     transaction_cache_expire(state);
     slot = transaction_slot_find(state, request_id);
     if (slot != 0) {
-        /* A request-ID collision is not evidence of response EOS.  Abort the
-         * previous pending transaction before replacing its cache ownership. */
-        transaction_slot_clear(slot, 0);
-    } else {
-        slot = transaction_slot_for_store(state);
+        /* A duplicate request ID must not finish and replace an active
+         * transaction: its response phase still belongs to the original
+         * request.  The caller owns (and will finish) the newly created
+         * transaction on this failure path. */
+        return -1;
     }
+    slot = transaction_slot_for_store(state);
     copy_spop_string(slot->request_id, sizeof(slot->request_id),
         (const unsigned char *)request_id,
         safe_cstring_length(request_id, RUNTIME_TEXT_LIMIT));
@@ -2584,6 +2979,31 @@ static int send_empty_ack(int fd, const spop_frame *frame, unsigned int timeout_
         frame->frame_id, &ack_payload, timeout_ms);
 }
 
+static int send_malformed_notify_outcome(
+        int fd, const spop_frame *frame, const agent_state *state, FILE *log) {
+    haproxy_modsecurity_decision decision;
+    spop_buffer ack_payload;
+
+    if (state == 0 || state->engine == 0) {
+        log_line(log, "malformed NOTIFY rejected without ACK because no production fail policy is active");
+        return -1;
+    }
+    /* Protocol-invalid input is terminal and fail-closed, independent of the
+     * configured engine-error fail-open policy. */
+    runtime_init_decision(&decision, 2, "deny", 400,
+        "invalid SPOP NOTIFY payload");
+    decision.disruptive = 1;
+    /* This is protocol admission, not a valid engine decision: detect-only
+     * must not turn malformed client-controlled framing into a pass. */
+    if (build_decision_ack_payload(&ack_payload, &decision,
+            "malformed-notify", 1, 0) != 0) {
+        log_line(log, "malformed NOTIFY outcome encoding failed");
+        return -1;
+    }
+    return send_frame(fd, SPOP_FRM_ACK, frame->stream_id, frame->frame_id,
+        &ack_payload);
+}
+
 static void ensure_notify_request_id(notify_request *request, const spop_frame *frame) {
     if (request->has_request_id && request->request_id[0] != '\0') {
         return;
@@ -2606,6 +3026,15 @@ static const char *set_processing_failure(
     }
     runtime_init_decision(decision, phase, "pass", 200, reason);
     return "fail-open";
+}
+
+static const char *set_admission_failure(
+        haproxy_modsecurity_decision *decision,
+        int phase,
+        const char *reason) {
+    runtime_init_decision(decision, phase, "deny", 503, reason);
+    decision->disruptive = 1;
+    return "admission-failure";
 }
 
 /* Response notifications are a second leg of the same canonical
@@ -2669,7 +3098,17 @@ static const char *notify_request_path(const notify_request *request) {
 }
 
 static const char *notify_request_host(const notify_request *request) {
-    return request->has_host ? request->host : "localhost";
+    return request != 0 && request->has_host && request->host[0] != '\0' ?
+        request->host : 0;
+}
+
+/* Client/server endpoints are required request-admission metadata.  They are
+ * not an engine-availability error: accepting an absent endpoint under an
+ * otherwise fail-open deployment would skip ModSecurity entirely. */
+static int notify_request_has_required_endpoints(const notify_request *request) {
+    return request != 0 && request->has_client_ip &&
+        request->client_ip[0] != '\0' && request->has_server_ip &&
+        request->server_ip[0] != '\0';
 }
 
 static const char *notify_test_header(const notify_request *request) {
@@ -2691,17 +3130,32 @@ static void build_response_from_notify(
         state->config.response_body_limit > 0U);
 }
 
+typedef enum spop_ack_decision_origin {
+    SPOP_ACK_FAILURE_DECISION = 0,
+    SPOP_ACK_ENGINE_DECISION
+} spop_ack_decision_origin;
+
+/* Detect-only applies to successful rule evaluation only. Every admission,
+ * lifecycle, queue, correlation, or transport failure keeps fail-closed ACK
+ * semantics; the configured fail_mode still controls whether it is disruptive. */
+static int production_ack_enforces(const agent_config *config,
+        spop_ack_decision_origin origin) {
+    return origin != SPOP_ACK_ENGINE_DECISION || mode_enforces(config);
+}
+
 typedef struct spop_production_task_context {
     agent_state *state;
     notify_request request;
     haproxy_modsecurity_decision decision;
     int modsec_processed;
+    spop_ack_decision_origin decision_origin;
     const char *decision_text;
     char response_handle[HAPROXY_SPOP_RESPONSE_COMPANION_HANDLE_STORAGE];
 } spop_production_task_context;
 typedef struct spop_production_result {
     haproxy_modsecurity_decision *decision;
     int *modsec_processed;
+    spop_ack_decision_origin *decision_origin;
     const char **decision_text;
     char *response_handle;
 } spop_production_result;
@@ -2816,6 +3270,7 @@ static void process_production_response_notify(
         const notify_request *request,
         haproxy_modsecurity_decision *decision,
         int *modsec_processed,
+        spop_ack_decision_origin *decision_origin,
         const char **decision_text) {
     haproxy_modsecurity_response response;
     haproxy_modsecurity_transaction *transaction;
@@ -2862,6 +3317,7 @@ static void process_production_response_notify(
         *decision_text = set_processing_failure(state, decision, phase, reason);
     } else {
         *modsec_processed = 1;
+        *decision_origin = SPOP_ACK_ENGINE_DECISION;
         if (decision->disruptive != 0) {
             *decision_text = decision->action;
         }
@@ -2870,6 +3326,7 @@ static void process_production_response_notify(
             decision->disruptive == 0) {
         if (transaction_cache_store(state, request->request_id, transaction) != 0) {
             haproxy_modsecurity_transaction_abort(transaction);
+            *decision_origin = SPOP_ACK_FAILURE_DECISION;
             *decision_text = set_processing_failure(state, decision, phase,
                 "transaction cache store failed while awaiting response EOS");
         }
@@ -2877,6 +3334,7 @@ static void process_production_response_notify(
             decision->disruptive == 0) {
         if (transaction_cache_store(state, request->request_id, transaction) != 0) {
             haproxy_modsecurity_transaction_abort(transaction);
+            *decision_origin = SPOP_ACK_FAILURE_DECISION;
             *decision_text = set_processing_failure(state, decision, phase,
                 "transaction cache store failed after response headers");
         }
@@ -2894,10 +3352,10 @@ static void build_modsecurity_request_from_notify(
         haproxy_modsecurity_request *modsec_request) {
     memset(modsec_request, 0, sizeof(*modsec_request));
     modsec_request->request_id = request->request_id;
-    modsec_request->client_ip = request->has_client_ip ? request->client_ip : "127.0.0.1";
-    modsec_request->client_port = request->has_client_port ? (int)request->client_port : 49152;
-    modsec_request->server_ip = request->has_server_ip ? request->server_ip : "127.0.0.1";
-    modsec_request->server_port = request->has_server_port ? (int)request->server_port : 80;
+    modsec_request->client_ip = request->has_client_ip ? request->client_ip : NULL;
+    modsec_request->client_port = request->has_client_port ? (int)request->client_port : 0;
+    modsec_request->server_ip = request->has_server_ip ? request->server_ip : NULL;
+    modsec_request->server_port = request->has_server_port ? (int)request->server_port : 0;
     modsec_request->method = notify_request_method(request);
     modsec_request->uri = notify_request_uri(request);
     modsec_request->headers = (const haproxy_modsecurity_header *)request->headers;
@@ -2913,6 +3371,7 @@ static void finish_or_store_request_transaction(
         const notify_request *request,
         haproxy_modsecurity_transaction *transaction,
         haproxy_modsecurity_decision *decision,
+        spop_ack_decision_origin *decision_origin,
         const char **decision_text) {
     if (transaction == 0) {
         return;
@@ -2925,6 +3384,7 @@ static void finish_or_store_request_transaction(
         return;
     }
     haproxy_modsecurity_transaction_finish(transaction);
+    *decision_origin = SPOP_ACK_FAILURE_DECISION;
     *decision_text = set_processing_failure(state, decision, 2,
         "transaction cache store failed");
 }
@@ -2934,12 +3394,19 @@ static void process_production_request_notify(
         const notify_request *request,
         haproxy_modsecurity_decision *decision,
         int *modsec_processed,
+        spop_ack_decision_origin *decision_origin,
         const char **decision_text,
         char response_handle[HAPROXY_SPOP_RESPONSE_COMPANION_HANDLE_STORAGE]) {
     haproxy_modsecurity_transaction *transaction = 0;
     haproxy_modsecurity_request modsec_request;
     int modsec_rc;
 
+    if (!notify_request_has_required_endpoints(request)) {
+        *decision_text = set_admission_failure(decision, 2,
+            "missing client or server endpoint");
+        decision_log_write(state, request, decision, 0, *decision_text);
+        return;
+    }
     if (body_exceeds_limit(request->body_len, state->config.request_body_limit, 1)) {
         *decision_text = set_body_limit_failure(decision, 2, 0);
         decision_log_write(state, request, decision, 0, *decision_text);
@@ -2960,6 +3427,7 @@ static void process_production_request_notify(
         *decision_text = set_processing_failure(state, decision, 2, reason);
     } else {
         *modsec_processed = 1;
+        *decision_origin = SPOP_ACK_ENGINE_DECISION;
         if (decision->disruptive != 0) {
             *decision_text = decision->action;
         }
@@ -2974,6 +3442,7 @@ static void process_production_request_notify(
                 (uint64_t)now.tv_sec > UINT64_MAX / UINT64_C(1000)) {
             haproxy_modsecurity_transaction_abort(transaction);
             transaction = 0;
+            *decision_origin = SPOP_ACK_FAILURE_DECISION;
             *decision_text = set_processing_failure(state, decision, 2,
                 "response companion clock unavailable");
         } else {
@@ -2988,6 +3457,7 @@ static void process_production_request_notify(
                 haproxy_modsecurity_transaction_abort(transaction);
                 transaction = 0;
                 response_handle[0] = '\0';
+                *decision_origin = SPOP_ACK_FAILURE_DECISION;
                 *decision_text = set_processing_failure(state, decision, 2,
                     "response companion handoff failed closed");
             } else {
@@ -2996,7 +3466,7 @@ static void process_production_request_notify(
         }
     }
     finish_or_store_request_transaction(state, request, transaction, decision,
-        decision_text);
+        decision_origin, decision_text);
     decision_log_write(state, request, decision, *modsec_processed, *decision_text);
 }
 
@@ -3011,47 +3481,57 @@ static int process_production_notify(
     spop_buffer ack_payload = {0};
     const char *decision_text = "pass";
     int modsec_processed = 0;
-    int enforce = mode_enforces(&state->config);
+    int enforce;
+    spop_ack_decision_origin decision_origin = SPOP_ACK_FAILURE_DECISION;
     int phase = 2;
     if (request->is_response) {
         phase = request->is_response_body ? 4 : 3;
     }
-    spop_production_task_context *task_context;
+    spop_production_task_context *task_context = 0;
     char response_handle[HAPROXY_SPOP_RESPONSE_COMPANION_HANDLE_STORAGE];
 
     ensure_notify_request_id(request, frame);
     response_handle[0] = '\0';
-    task_context = (spop_production_task_context *)calloc(1U, sizeof(*task_context));
-    if (task_context != 0) {
-        task_context->state = state;
-        /* Transfer ownership of parser allocations to the heap task.  The
-         * caller still owns the scalar request fields used for the ACK, but
-         * cannot free the payload while a timed-out owner task is running. */
-        task_context->request = *request;
-        request->headers = 0;
-        request->header_count = 0U;
-        request->body = 0;
-        request->body_len = 0U;
-        result.decision = &decision;
-        result.modsec_processed = &modsec_processed;
-        result.decision_text = &decision_text;
-        result.response_handle = response_handle;
-        if (spop_owner_queue_submit(state, run_spop_production_task,
-                task_context, destroy_spop_production_task_context,
-                copy_spop_production_task_result, &result,
-                state->config.spoe_timeout_ms) != 0) {
-            task_context = 0; /* submit owns cleanup on every failure path */
-            set_processing_failure(state, &decision, phase,
-                "SPOP owner queue is unavailable");
-            decision_text = "owner-queue-unavailable";
-        } else {
-            task_context = 0; /* owner queue released the task reference */
-        }
+    if (!request->is_response && !notify_request_has_required_endpoints(request)) {
+        decision_text = set_admission_failure(&decision, phase,
+            "missing client or server endpoint");
+        decision_log_write(state, request, &decision, 0, decision_text);
     } else {
-        set_processing_failure(state, &decision, phase,
-            "SPOP owner queue allocation failed");
-        decision_text = "owner-queue-unavailable";
+        task_context = (spop_production_task_context *)calloc(1U,
+            sizeof(*task_context));
+        if (task_context != 0) {
+            task_context->state = state;
+            /* Transfer ownership of parser allocations to the heap task. The
+             * caller still owns the scalar request fields used for the ACK,
+             * but cannot free the payload while a timed-out owner task runs. */
+            task_context->request = *request;
+            request->headers = 0;
+            request->header_count = 0U;
+            request->body = 0;
+            request->body_len = 0U;
+            result.decision = &decision;
+            result.modsec_processed = &modsec_processed;
+            result.decision_origin = &decision_origin;
+            result.decision_text = &decision_text;
+            result.response_handle = response_handle;
+            if (spop_owner_queue_submit(state, run_spop_production_task,
+                    task_context, destroy_spop_production_task_context,
+                    copy_spop_production_task_result, &result,
+                    state->config.spoe_timeout_ms) != 0) {
+                task_context = 0; /* submit owns cleanup on every failure path */
+                set_processing_failure(state, &decision, phase,
+                    "SPOP owner queue is unavailable");
+                decision_text = "owner-queue-unavailable";
+            } else {
+                task_context = 0; /* owner queue released the task reference */
+            }
+        } else {
+            set_processing_failure(state, &decision, phase,
+                "SPOP owner queue allocation failed");
+            decision_text = "owner-queue-unavailable";
+        }
     }
+    enforce = production_ack_enforces(&state->config, decision_origin);
     if (build_decision_ack_payload(&ack_payload, &decision,
                         safe_decision_reason_code(
                             &decision, modsec_processed, decision_text),
@@ -3076,11 +3556,12 @@ static void run_spop_production_task(void *opaque)
     if (context->request.is_response) {
         process_production_response_notify(context->state, &context->request,
             &context->decision, &context->modsec_processed,
-            &context->decision_text);
+            &context->decision_origin, &context->decision_text);
     } else {
         process_production_request_notify(context->state, &context->request,
             &context->decision, &context->modsec_processed,
-            &context->decision_text, context->response_handle);
+            &context->decision_origin, &context->decision_text,
+            context->response_handle);
     }
 }
 
@@ -3101,11 +3582,13 @@ static void copy_spop_production_task_result(const void *opaque, void *result)
     spop_production_result *output = result;
 
     if (context == 0 || output == 0 || output->decision == 0 ||
-            output->modsec_processed == 0 || output->decision_text == 0) {
+            output->modsec_processed == 0 || output->decision_origin == 0 ||
+            output->decision_text == 0) {
         return;
     }
     *output->decision = context->decision;
     *output->modsec_processed = context->modsec_processed;
+    *output->decision_origin = context->decision_origin;
     if (context->decision_text == context->decision.action) {
         *output->decision_text = output->decision->action;
     } else {
@@ -4081,7 +4564,7 @@ static int evaluate_legacy_notify(
     }
     return haproxy_modsecurity_phase1_header_eval(
         notify_request_method(request), notify_request_path(request),
-        notify_test_header(request), decision);
+        notify_request_host(request), notify_test_header(request), decision);
 }
 
 static int send_legacy_decision_ack(
@@ -4143,16 +4626,27 @@ static int handle_notify_frame(
         (unsigned long long)frame->stream_id, (unsigned long long)frame->frame_id);
     if (parse_notify_payload(frame->payload, frame->payload_len, &request) != 0) {
         log_line(log, "NOTIFY request argument extraction failed");
-        rc = send_empty_ack(fd, frame,
-            state != 0 && state->engine != 0 ? state->config.spoe_timeout_ms :
-            2000U);
+        if (state != 0 && state->engine != 0) {
+            (void)send_malformed_notify_outcome(fd, frame, state, log);
+        } else {
+            log_line(log, "malformed NOTIFY rejected without ACK in legacy mode");
+        }
         free_notify_request(&request);
-        return rc;
+        return -1;
     }
     log_line(log,
         "NOTIFY request metadata method_present=%d path_present=%d uri_present=%d host_present=%d test_header_present=%d headers=%u body_len=%lu",
         request.has_method, request.has_path, request.has_uri, request.has_host,
         request.has_test_header, request.header_count, (unsigned long)request.body_len);
+    if (!request.is_response && (!request.has_host ||
+            request.host[0] == '\0')) {
+        log_line(log, "NOTIFY rejected: missing request host");
+        free_notify_request(&request);
+        send_agent_disconnect(fd, 4, "missing request host",
+            state != 0 && state->engine != 0 ? state->config.spoe_timeout_ms :
+            SPOP_LEGACY_TIMEOUT_MS);
+        return -1;
+    }
     if (state != 0 && state->engine != 0) {
         rc = process_production_notify(fd, frame, state, log, &request);
     } else {
@@ -4163,9 +4657,11 @@ static int handle_notify_frame(
     return rc;
 }
 
-static int handle_connection(int fd, agent_state *state, FILE *log, const char *rules_file, const char *crs_preamble_file, unsigned int timeout_ms) {
+static int handle_connection(int fd, agent_state *state, FILE *log, const char *rules_file, const char *crs_preamble_file) {
     spop_frame frame;
     hello_info hello;
+    unsigned int timeout_ms = state != 0 ? state->config.spoe_timeout_ms :
+        SPOP_LEGACY_TIMEOUT_MS;
 
     if (recv_frame(fd, &frame, timeout_ms) != 0 || frame.type != SPOP_FRM_HAPROXY_HELLO ||
         parse_hello_payload(frame.payload, frame.payload_len, &hello) != 0) {
@@ -4262,7 +4758,7 @@ static int connect_localhost(unsigned int port) {
     return fd;
 }
 
-static int accept_loop(int listen_fd, agent_state *state, FILE *log, int max_connections, const char *rules_file, const char *crs_preamble_file, unsigned int timeout_ms) {
+static int accept_loop(int listen_fd, agent_state *state, FILE *log, int max_connections, const char *rules_file, const char *crs_preamble_file) {
     int handled = 0;
 
     stop_requested = 0;
@@ -4282,7 +4778,7 @@ static int accept_loop(int listen_fd, agent_state *state, FILE *log, int max_con
             }
             continue;
         }
-        handle_connection(fd, state, log, rules_file, crs_preamble_file, timeout_ms);
+        handle_connection(fd, state, log, rules_file, crs_preamble_file);
         close(fd);
         handled++;
     }
@@ -4378,6 +4874,14 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
     int status;
     FILE *log;
 
+    if (self_test_rejects_oversized_endpoint_port() != 0) {
+        fprintf(stderr, "SPOP oversized endpoint-port rejection self-test failed\n");
+        return 1;
+    }
+    if (self_test_rejects_fin_unset_frame() != 0) {
+        fprintf(stderr, "SPOP FIN-unset frame rejection self-test failed\n");
+        return 1;
+    }
     if (run_spop_owner_queue_self_test() != 0) {
         fprintf(stderr, "SPOP owner queue self-test failed\n");
         return 1;
@@ -4394,7 +4898,6 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
         fprintf(stderr, "SPOP write-deadline self-test failed\n");
         return 1;
     }
-
     if (mkdir_p(tmp_root) != 0 || mkdir_p(log_root) != 0) {
         fprintf(stderr, "failed to create tmp/log roots\n");
         return 77;
@@ -4430,7 +4933,7 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
                 write_text_contents(ready_path, "ready\n") != 0) {
             exit(77);
         }
-        exit(accept_loop(listen_fd, 0, log, 3, 0, 0, 2000U));
+        exit(accept_loop(listen_fd, 0, log, 3, 0, 0));
     }
     close(listen_fd);
     if (run_client_self_test(port, log) != 0) {
@@ -4510,7 +5013,7 @@ static int run_server(const legacy_server_config *config) {
         config->host, bound_port,
         config->rules_file != 0 ? config->rules_file : "");
     (void)accept_loop(listen_fd, 0, log, 0, config->rules_file,
-        config->crs_preamble_file, 2000U);
+        config->crs_preamble_file);
     close(listen_fd);
     fclose(log);
     return 0;
@@ -4744,8 +5247,7 @@ static int run_agent_server(const agent_config *config) {
         config->modsecurity_conf, config->crs_root, config->mode,
         config->fail_mode, config->response_phases_enabled,
         config->response_body_limit);
-    rc = accept_loop(listen_fd, &state, log, 0, 0, 0,
-        state.config.spoe_timeout_ms);
+    rc = accept_loop(listen_fd, &state, log, 0, 0, 0);
 cleanup:
     destroy_agent_runtime(&state, listen_fd, &log, log_owned, &decision_log,
         decision_log_owned);
@@ -4860,6 +5362,10 @@ static int validate_production_config(const agent_config *config) {
     if (config == 0) {
         return -1;
     }
+    if (!valid_fail_mode(config->fail_mode)) {
+        fprintf(stderr, "fail-mode must be exactly open or closed; invalid value rejected\n");
+        return -1;
+    }
     if (strcmp(config->response_companion, "none") != 0 &&
             strcmp(config->response_companion, "native-htx") != 0) {
         fprintf(stderr,
@@ -4936,7 +5442,11 @@ static int assign_legacy_option(
     if (strcmp(option, "--host") == 0) {
         config->host = value;
     } else if (strcmp(option, "--port") == 0) {
-        config->port = (unsigned int)strtoul(value, 0, 10);
+        unsigned int port;
+        if (parse_bounded_uint_range(value, 1UL, 65535UL, &port) != 0) {
+            return -1;
+        }
+        config->port = port;
     } else if (strcmp(option, "--ready-file") == 0) {
         config->ready_file = value;
     } else if (strcmp(option, "--pid-file") == 0) {

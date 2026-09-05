@@ -27,6 +27,10 @@ extern "C" {
 #define MSCONN_EVENT_CLIENT_CANCEL "MSCONN_EVENT_CLIENT_CANCEL"
 #define MSCONN_EVENT_UPSTREAM_DISCONNECT "MSCONN_EVENT_UPSTREAM_DISCONNECT"
 #define MSCONNECTOR_EVENT_URI_REDACTION "<redacted>"
+/* Shared raw-text limit for the URI representation used by JSONL and the
+ * non-cryptographic integrity chain. The serializer escapes that bounded
+ * representation separately. */
+#define MSCONNECTOR_EVENT_URI_SAFE_BUFFER_SIZE 256U
 
 /*
  * Connector-neutral event metadata.
@@ -133,6 +137,8 @@ typedef struct msconnector_event_request {
  */
 typedef struct msconnector_event_integrity {
     unsigned long sequence;
+    /* FNV-derived, process-local correlation values. These are not
+     * cryptographic signatures and must not be treated as tamper evidence. */
     uint64_t previous_hash;
     uint64_t event_hash;
 } msconnector_event_integrity;

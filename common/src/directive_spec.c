@@ -6,7 +6,7 @@ static const msconnector_directive_spec specs[] = {
     {MSCONNECTOR_DIRECTIVE_MODSECURITY, MSCONNECTOR_DIRECTIVE_VALUE_BOOL, "off", "on|off", "Enable or disable connector processing."},
     {MSCONNECTOR_DIRECTIVE_RULES, MSCONNECTOR_DIRECTIVE_VALUE_STRING, 0, 0, "Inline rules text."},
     {MSCONNECTOR_DIRECTIVE_RULES_FILE, MSCONNECTOR_DIRECTIVE_VALUE_PATH, 0, 0, "Rules file path."},
-    {MSCONNECTOR_DIRECTIVE_RULES_REMOTE, MSCONNECTOR_DIRECTIVE_VALUE_STRING, 0, "key url", "Remote rules key and URL."},
+    {MSCONNECTOR_DIRECTIVE_RULES_REMOTE, MSCONNECTOR_DIRECTIVE_VALUE_STRING, 0, "key url", "Rejected: remote rule loading is disabled by the common security policy."},
     {MSCONNECTOR_DIRECTIVE_TRANSACTION_ID, MSCONNECTOR_DIRECTIVE_VALUE_STRING, 0, 0, "Static transaction ID."},
     {MSCONNECTOR_DIRECTIVE_TRANSACTION_ID_EXPR, MSCONNECTOR_DIRECTIVE_VALUE_STRING, 0, 0, "Connector-parsed transaction ID expression."},
     {MSCONNECTOR_DIRECTIVE_PHASE4_MODE, MSCONNECTOR_DIRECTIVE_VALUE_ENUM, "safe", "minimal|safe|strict", "Response-body handling mode model."},

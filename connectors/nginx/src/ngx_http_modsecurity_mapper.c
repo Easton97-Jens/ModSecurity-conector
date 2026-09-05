@@ -141,12 +141,11 @@ static char *ngx_http_modsecurity_request_hostname(ngx_pool_t *pool, ngx_http_re
 {
     const msconnector_header *host;
 
+    (void)r;
+
     host = msconnector_headers_find_first(headers, header_count, "host");
     if (host != NULL && host->value != NULL) {
         return ngx_http_modsecurity_pool_strndup(pool, (const u_char *)host->value, host->value_size);
-    }
-    if (r->headers_in.server.len > 0U) {
-        return ngx_http_modsecurity_pool_strndup(pool, r->headers_in.server.data, r->headers_in.server.len);
     }
     return NULL;
 }

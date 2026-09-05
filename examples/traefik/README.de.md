@@ -65,8 +65,8 @@ angepasst werden.
 | Router-Regel und Service-URL | Request-Matcher und Upstream-URL | Pflicht; dynamische Konfiguration; Router/Service-Scope | PathPrefix für alle Pfade und http://127.0.0.1:8081. Routen begrenzen und Endpunkt für Deployment ersetzen. |
 | maxHeaderCount, maxHeaderBytes, maxRequestChunkBytes, maxResponseChunkBytes | Positive Plugin-Limits | Pflicht; dynamische Konfiguration; Middleware-Scope | 128, 65536, 32768, 32768. Kleinere Werte lehnen mehr Input ab; Grenzen nicht entfernen. |
 | transactionIDHeader | HTTP-Korrelationsheadername | Pflicht; dynamische Konfiguration; Middleware-Scope | X-Request-Id. Metadaten, kein Geheimnis. |
-| engineMode | Native Engine-Modus: passthrough oder uds | Für Safe-Referenz Pflicht; dynamische Konfiguration; Middleware-Scope | uds. Benötigt einen gültigen privaten engineSocketPath. |
-| engineSocketPath | Absoluter privater Unix-Socket-Pfad | Bei engineMode uds Pflicht; dynamische Konfiguration; Middleware-Scope | /run/traefik-msconnector/engine.sock. Parent-Verzeichnis muss zugriffsgeschützt sein und dem vertrauenswürdigen Service gehören. |
+| engineMode | Nativer Engine-Modus: nur uds | Pflicht; dynamische Konfiguration; Middleware-Scope | uds. Jeder Legacy-passthrough-Wert wird abgelehnt. |
+| engineSocketPath | Absoluter privater Unix-Socket-Pfad | Pflicht; dynamische Konfiguration; Middleware-Scope | /run/traefik-msconnector/engine.sock. Parent-Verzeichnis muss zugriffsgeschützt sein und dem vertrauenswürdigen Service gehören. |
 | rules_file | Installierter geprüfter Rules-Dateipfad | Pflicht; Engine-Konfiguration; Engine-Scope | /etc/modsecurity/no-crs-baseline.conf. Regeln können Traffic blockieren. |
 | request_body_mode und response_body_mode | Engine-Body-Modi | Für Safe-Referenz Pflicht; Engine-Konfiguration; Engine-Scope | streaming. Beweist weder vollständiges Buffering noch späte Client-Action. |
 | phase4_mode | Name der Late-P4-Policy | Für Safe-Referenz Pflicht; Engine-Konfiguration; Engine-Scope | safe. Erlaubt weder erfundenen Status noch Strict-Abbruch. |
@@ -85,9 +85,10 @@ Common-Runtime-Datei und den getrennt markierten forwardAuth-Kompatibilitätsweg
 | `response_body_mode` | Common Runtime | Wählt die native Engine-P4-Body-Verarbeitung. |
 | `phase4_mode` | Common Runtime | Zeichnet die gewünschte Late-P4-Policy auf; Go-Middleware bleibt nach Commit log-only. |
 
-`engineMode: passthrough` ist eine Source-only-Allow-Engine und kein
-Rule-Enforcement. `SecRuleEngine Off` lässt die UDS-Route bestehen, deaktiviert
-aber Engine-Regeln. forwardAuth ist ein getrennter Request-only-Kompatibilitätsweg.
+Nur `engineMode: uds` wird akzeptiert. Eine Legacy-`passthrough`-Konfiguration
+wird bei der Plugin-Konstruktion abgelehnt; sie kann nicht als Allow-Fallback
+dienen. `SecRuleEngine Off` lässt die UDS-Route bestehen, deaktiviert aber
+Engine-Regeln. forwardAuth ist ein getrennter Request-only-Kompatibilitätsweg.
 
 ## Profile
 

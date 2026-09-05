@@ -13,10 +13,17 @@ import (
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	extprocv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
 	typev3 "github.com/envoyproxy/go-control-plane/envoy/type/v3"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
-	DefaultHandleHeader       = "x-msconnector-response-handle"
+	DefaultHandleHeader = "x-msconnector-response-handle"
+	// DefaultMaxActiveStreams is the process-wide cap for active response
+	// observer Process RPCs. gRPC's per-transport bound cannot prevent a
+	// same-identity local peer from multiplying retained stream state through
+	// several private UDS connections.
+	DefaultMaxActiveStreams   = 128
 	terminalAuthzMarkerHeader = "x-msconnector-terminal-authz"
 	terminalAuthzMarkerValue  = "1"
 	failClosedStatus          = 503
@@ -33,7 +40,8 @@ type Config struct {
 
 type Service struct {
 	extprocv3.UnimplementedExternalProcessorServer
-	config Config
+	config      Config
+	streamSlots chan struct{}
 }
 
 type stream struct {
@@ -50,6 +58,15 @@ type stream struct {
 }
 
 func New(config Config) (*Service, error) {
+	return newServiceWithStreamLimit(config, DefaultMaxActiveStreams)
+}
+
+// newServiceWithStreamLimit keeps the shipped aggregate capacity fixed while
+// making the admission and exact release invariant directly testable.
+func newServiceWithStreamLimit(config Config, streamLimit int) (*Service, error) {
+	if streamLimit < 1 {
+		return nil, fmt.Errorf("response observer: stream limit must be positive")
+	}
 	if strings.TrimSpace(config.SocketPath) == "" {
 		return nil, fmt.Errorf("response observer: socket_path is required")
 	}
@@ -68,10 +85,16 @@ func New(config Config) (*Service, error) {
 	if config.MaxResponseBodyBytes <= 0 {
 		config.MaxResponseBodyBytes = 1 << 20
 	}
-	return &Service{config: config}, nil
+	return &Service{config: config, streamSlots: make(chan struct{}, streamLimit)}, nil
 }
 
 func (s *Service) Process(server extprocv3.ExternalProcessor_ProcessServer) error {
+	select {
+	case s.streamSlots <- struct{}{}:
+		defer func() { <-s.streamSlots }()
+	default:
+		return status.Error(codes.ResourceExhausted, "response observer active stream capacity reached")
+	}
 	state := &stream{}
 	defer func() {
 		if state.c != nil && !state.terminal && !state.released {

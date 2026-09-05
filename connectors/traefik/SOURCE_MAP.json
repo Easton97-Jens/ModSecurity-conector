@@ -120,7 +120,7 @@
     },
     {
       "path": "connectors/traefik/native_middleware/middleware.go",
-      "purpose": "Traefik-shaped bounded streaming middleware with passthrough source default and selected private UDS Common/libmodsecurity host mode"
+      "purpose": "Traefik-shaped bounded streaming middleware with the only accepted production engine mode set to private UDS Common/libmodsecurity; injected engines are package-private test seams"
     },
     {
       "path": "connectors/traefik/native_middleware/engine_uds.go",

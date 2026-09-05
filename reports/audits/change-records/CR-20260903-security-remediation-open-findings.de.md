@@ -516,3 +516,35 @@ in f38 behoben. Die drei verbleibenden `c:S995`-Authorization-Fixture-Befunde
 sind einzeln als fachliche Nichtprobleme der öffentlichen ABI dokumentiert. Es
 wurden weder `NOSONAR`, Ausschlüsse, Issue-Transitions noch eine
 Quality-Gate-Abschwächung verwendet.
+
+### 2026-09-05 Abgleich mit der aktuellen Basis
+
+Dieser PR wurde über einen normalen Merge in den bestehenden PR-Branch mit
+der exakten Vergleichsrevision von `origin/master`,
+`b779167ff979aa73cdd9321a829f9c693d943760`, abgeglichen. PR #355 bleibt
+ungemergt: Seine beantragte Integration am exakten Head ist durch den
+unabhängigen, weiterhin offenen Befund FND-PARENT-1038 blockiert. Der externe
+codex-security-Abhängigkeitsblocker FND-PARENT-1036 bleibt unverändert und
+wird nicht als behoben ausgegeben.
+
+Die fünf angeforderten Grenzbereiche wurden erhalten oder minimal an die
+aktuelle Basis angepasst: verlustfreie HAProxy-path/uri-Grenzbehandlung,
+Common-JSONL-Query-Redaction mit expliziten Truncation- und Integrity-Flags,
+effektive `modsecurity_use_error_log`-Behandlung im nativen NGINX-Callback,
+Traefik-Deadlines, Worker-Cap und FD-Ownership sowie Companion-Quieszenz und
+Exactly-once-Release bei Authorization. Die fokussierte lokale Evidenz ist
+für den gelinkten JSONL-Test, den ausführbaren HAProxy-Parser-Test und den
+C17-Check, den nativen Authorization-Companion-Smoke-Test und sieben
+Worker-Contract-Tests sowie die gezielten Traefik-Worker/FD- und
+Service-Contract-Tests erfolgreich. Die vollständige Traefik-Native-Local-
+Plugin-Suite mit 37 Tests lief außerdem mit einem privaten kurzen AF_UNIX-
+Temporärpfad erfolgreich. Dies sind frische Ergebnisse des Arbeitsbaums und
+keine Aussage über einen künftig gepushten Head.
+
+Der lokale native NGINX-Check bleibt blockiert, weil unterstützte
+NGINX-Header/-Quellen fehlen. Für die Kompilierung gegen unterstützte Quellen
+und die isolierte `modsecurity_use_error_log`-On/Off-Runtime-Evidenz ist
+weiterhin das benannte `NGINX-Use-Error-Log-Exact-Head-Hosted-Gate`
+erforderlich; kein
+Exit-77-Ergebnis wird als Erfolg gewertet und hier wird keine Host-Runtime-
+Evidenz behauptet.

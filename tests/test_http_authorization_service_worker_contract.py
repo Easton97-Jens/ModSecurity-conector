@@ -51,35 +51,6 @@ class HttpAuthorizationServiceWorkerContractTests(unittest.TestCase):
             self.source,
         )
 
-    def test_deferred_cleanup_releases_only_profiles_without_a_companion(self) -> None:
-        deferred_path = self.source.split(
-            "static int authorization_defer_uninterruptible_worker(", 1
-        )[1].split("static authorization_listener_iteration", 1)[0]
-        self.assertIn("authorization_defer_cleanup(service) == 0", deferred_path)
-        self.assertIn("profile->shutdown_response_companion == NULL", deferred_path)
-        self.assertIn(
-            "authorization_mark_response_companion_quiesced(service)", deferred_path
-        )
-        self.assertIn("return 1;", deferred_path)
-
-    def test_companion_failure_keeps_runtime_quarantined(self) -> None:
-        failure = self.source.split(
-            "if (!authorization_shutdown_response_companion(profile)) {", 1
-        )[1].split("return service_status != 0 ? service_status : 1;", 1)[0]
-        self.assertIn("refusing runtime destruction", failure)
-        self.assertIn("Keep the service and runtime quarantined", failure)
-
-    def test_release_claim_is_made_under_worker_lock(self) -> None:
-        release_path = self.source.split(
-            "static int authorization_mark_response_companion_quiesced(", 1
-        )[1].split("static int authorization_shutdown_response_companion(", 1)[0]
-        self.assertIn("pthread_mutex_lock(&service->worker_lock)", release_path)
-        self.assertIn("service->release_claimed = 1;", release_path)
-        self.assertIn("pthread_mutex_unlock(&service->worker_lock)", release_path)
-
-    def test_existing_sigpipe_control_remains_active(self) -> None:
-        self.assertIn("signal(SIGPIPE, SIG_IGN)", self.source)
-
     def test_response_companion_fixture_exercises_live_handoff_and_quarantine(self) -> None:
         fixture = COMPANION_FIXTURE.read_text(encoding="utf-8")
         self.assertIn("msconnector_http_authorization_service_main", fixture)
@@ -89,6 +60,39 @@ class HttpAuthorizationServiceWorkerContractTests(unittest.TestCase):
         self.assertIn("test_failed_companion_quarantines_service", fixture)
         self.assertIn("test_concurrent_owner_worker_release", fixture)
         self.assertIn("test_no_companion_deferred_release", fixture)
+
+    def test_deferred_cleanup_releases_only_profiles_without_a_companion(self) -> None:
+        timeout_handler = self.source.split(
+            "static int authorization_handle_worker_timeout(", 1
+        )[1].split("static int serve_authorization(", 1)[0]
+        deferred_worker = self.source.split(
+            "static int authorization_defer_uninterruptible_worker(", 1
+        )[1].split("static authorization_listener_iteration", 1)[0]
+        serve = self.source.split("static int serve_authorization(", 1)[1]
+        self.assertIn(
+            "return authorization_defer_uninterruptible_worker(service, profile);",
+            timeout_handler,
+        )
+        self.assertIn("authorization_defer_cleanup(service) == 0", deferred_worker)
+        self.assertIn(
+            "profile->shutdown_response_companion == NULL", deferred_worker
+        )
+        self.assertIn(
+            "authorization_mark_response_companion_quiesced(service)", deferred_worker
+        )
+        self.assertIn("return 1;", deferred_worker)
+        self.assertLess(
+            serve.index("authorization_handle_worker_timeout(service, profile,"),
+            serve.index("if (!authorization_shutdown_response_companion(profile)) {"),
+        )
+
+    def test_http_writes_are_sigpipe_safe_without_global_signal_suppression(self) -> None:
+        self.assertIn("MSG_NOSIGNAL", self.source)
+        self.assertIn("SO_NOSIGPIPE", self.source)
+        self.assertIn("setsockopt(socket_fd, SOL_SOCKET, SO_NOSIGPIPE", self.source)
+        self.assertIn("errno = ENOTSUP", self.source)
+        self.assertIn("!configure_client_socket(client_fd)", self.source)
+        self.assertNotIn("signal(SIGPIPE, SIG_IGN)", self.source)
 
 
 if __name__ == "__main__":

@@ -44,9 +44,26 @@ static pthread_mutex_t test_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t test_changed = PTHREAD_COND_INITIALIZER;
 static int runtime_event_mode_configured = 0;
 static int runtime_transaction_profile_configured = 0;
+static int mapper_entered = 0;
 static int runtime_entered = 0;
 static int runtime_release = 0;
 static int runtime_destroyed = 0;
+static const msconnector_transaction_profile test_transaction_profile = {
+    1U,
+    "detached-worker-smoke",
+    "detached-worker-smoke",
+    "detached-worker-smoke",
+    1U,
+    1U,
+    1,
+    1,
+};
+
+static void clear_error(char *error, size_t error_len) {
+    if (error != NULL && error_len > 0U) {
+        error[0] = '\0';
+    }
+}
 
 static int wait_for_flag(const int *flag) {
     struct timespec deadline;
@@ -75,6 +92,24 @@ static int runtime_setup_was_configured(void) {
     int result = 0;
     if (pthread_mutex_lock(&test_lock) == 0) {
         result = runtime_event_mode_configured && runtime_transaction_profile_configured;
+        (void)pthread_mutex_unlock(&test_lock);
+    }
+    return result;
+}
+
+static int runtime_has_not_entered(void) {
+    int result = 0;
+    if (pthread_mutex_lock(&test_lock) == 0) {
+        result = runtime_entered == 0;
+        (void)pthread_mutex_unlock(&test_lock);
+    }
+    return result;
+}
+
+static int mapper_has_not_entered(void) {
+    int result = 0;
+    if (pthread_mutex_lock(&test_lock) == 0) {
+        result = mapper_entered == 0;
         (void)pthread_mutex_unlock(&test_lock);
     }
     return result;
@@ -151,6 +186,7 @@ int msconnector_runtime_create(
     if (error != NULL && error_len > 0U) {
         error[0] = '\0';
     }
+    clear_error(error, error_len);
     *out = &fake_runtime;
     return 1;
 }
@@ -206,6 +242,7 @@ int msconnector_runtime_transaction_begin(
         pthread_mutex_lock(&test_lock) != 0) {
         return 0;
     }
+    runtime->placeholder = 1;
     runtime_entered = 1;
     (void)pthread_cond_broadcast(&test_changed);
     while (runtime_release == 0) {
@@ -281,6 +318,8 @@ static int map_request(
         }
         return 0;
     }
+    ++mapper_entered;
+    (void)pthread_cond_broadcast(&test_changed);
     (void)pthread_mutex_unlock(&test_lock);
     memset(request, 0, sizeof(*request));
     request->method = source->method;
@@ -295,28 +334,10 @@ static int map_request(
     return 1;
 }
 
-static const msconnector_http_authorization_profile detached_worker_profile = {
-    .connector_name = "detached-worker-smoke",
-    .integration_mode = "detached-worker-smoke",
-    .transaction_profile = &(const msconnector_transaction_profile){
-        .profile_id = 1U,
-        .profile_name = "detached-worker-smoke",
-        .connector_id = "detached-worker-smoke",
-        .host_adapter_id = "detached-worker-smoke",
-        .direct_phase_mask = 1U,
-        .strict_post_commit_action = 1,
-        .private_default_binding = 1,
-    },
-    .original_uri_headers = NULL,
-    .original_uri_header_count = 0U,
-    .map_request = map_request,
-    .map_response = NULL,
-};
-
 typedef struct server_thread_args {
     char listen_spec[64];
-    char max_requests[4];
     int result;
+    const msconnector_http_authorization_profile *profile;
 } server_thread_args;
 
 static void *run_service(void *argument) {
@@ -329,13 +350,13 @@ static void *run_service(void *argument) {
         "--listen",
         args->listen_spec,
         "--max-requests",
-        args->max_requests,
+        "3",
         "--connection-timeout-ms",
         "25",
         NULL,
     };
     args->result = msconnector_http_authorization_service_main(10, argv,
-        &detached_worker_profile);
+        args->profile);
     return NULL;
 }
 
@@ -381,23 +402,95 @@ static int connect_loopback(unsigned short port) {
     return -1;
 }
 
+static int response_starts_with(int socket_fd, const char *expected) {
+    struct timeval timeout = {.tv_sec = TEST_WAIT_SECONDS, .tv_usec = 0};
+    char response[64];
+    const size_t expected_size = expected == NULL ? 0U : strlen(expected);
+    size_t used = 0U;
+
+    if (expected_size == 0U || expected_size > sizeof(response) ||
+        setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) != 0) {
+        return 0;
+    }
+    while (used < expected_size) {
+        const ssize_t received = recv(socket_fd, response + used,
+            expected_size - used, 0);
+        if (received <= 0) {
+            return 0;
+        }
+        used += (size_t)received;
+    }
+    return memcmp(response, expected, expected_size) == 0;
+}
+
 int main(void) {
     static const char request[] = "GET /ok HTTP/1.1\r\nHost: smoke.test\r\n"
         "Connection: close\r\n\r\n";
-    server_thread_args args = {{0}, {0}, -1};
+    static const char missing_host_request[] = "GET /ok HTTP/1.1\r\n"
+        "Connection: close\r\n\r\n";
+    static const char oversized_host_prefix[] = "GET /ok HTTP/1.1\r\nHost: ";
+    static const char oversized_host_suffix[] = "\r\nConnection: close\r\n\r\n";
+    char oversized_host_request[sizeof(oversized_host_prefix) - 1U + 1024U +
+        sizeof(oversized_host_suffix) - 1U];
+    const size_t oversized_host_request_size = sizeof(oversized_host_request);
+    char *connector_name = strdup("detached-worker-smoke");
+    char *integration_mode = strdup("detached-worker-smoke");
+    char *original_uri_header = strdup("X-Original-Uri");
+    const char **original_uri_headers = calloc(1U, sizeof(*original_uri_headers));
+    msconnector_http_authorization_profile profile = {0};
+    server_thread_args args = {{0}, -1, NULL};
     unsigned short port = 0U;
     pthread_t server;
     int client_fd = -1;
     int result = 1;
 
+    if (connector_name == NULL || integration_mode == NULL ||
+        original_uri_header == NULL || original_uri_headers == NULL) {
+        (void)fprintf(stderr, "could not allocate detached-worker profile\n");
+        goto done;
+    }
+    original_uri_headers[0] = original_uri_header;
+    profile.connector_name = connector_name;
+    profile.integration_mode = integration_mode;
+    profile.transaction_profile = &test_transaction_profile;
+    profile.original_uri_headers = original_uri_headers;
+    profile.original_uri_header_count = 1U;
+    profile.map_request = map_request;
+    profile.map_response = NULL;
+    args.profile = &profile;
+    memcpy(oversized_host_request, oversized_host_prefix,
+        sizeof(oversized_host_prefix) - 1U);
+    memset(oversized_host_request + sizeof(oversized_host_prefix) - 1U,
+        'a', 1024U);
+    memcpy(oversized_host_request + sizeof(oversized_host_prefix) - 1U + 1024U,
+        oversized_host_suffix, sizeof(oversized_host_suffix) - 1U);
     if (!reserve_loopback_port(&port) ||
         snprintf(args.listen_spec, sizeof(args.listen_spec), "127.0.0.1:%u",
             (unsigned int)port) < 0 ||
-        snprintf(args.max_requests, sizeof(args.max_requests), "%s", "1") < 0 ||
         pthread_create(&server, NULL, run_service, &args) != 0) {
         (void)fprintf(stderr, "could not start detached-worker service\n");
-        return 1;
+        goto done;
     }
+    client_fd = connect_loopback(port);
+    if (client_fd < 0 ||
+        send(client_fd, missing_host_request, sizeof(missing_host_request) - 1U, 0) !=
+            (ssize_t)(sizeof(missing_host_request) - 1U) ||
+        !response_starts_with(client_fd, "HTTP/1.1 400") ||
+        !mapper_has_not_entered() || !runtime_has_not_entered()) {
+        (void)fprintf(stderr, "missing Host was not rejected before mapping\n");
+        goto done;
+    }
+    (void)close(client_fd);
+    client_fd = connect_loopback(port);
+    if (client_fd < 0 ||
+        send(client_fd, oversized_host_request, oversized_host_request_size, 0) !=
+            (ssize_t)oversized_host_request_size ||
+        !response_starts_with(client_fd, "HTTP/1.1 400") ||
+        !mapper_has_not_entered() || !runtime_has_not_entered()) {
+        (void)fprintf(stderr, "oversized Host was not rejected before mapping\n");
+        goto done;
+    }
+    (void)close(client_fd);
     client_fd = connect_loopback(port);
     if (!runtime_setup_was_configured()) {
         (void)fprintf(stderr, "runtime profile setup was not enforced\n");
@@ -413,6 +506,16 @@ int main(void) {
     }
     (void)close(client_fd);
     client_fd = -1;
+    /* The entry point has returned. A detached worker must not retain caller-
+     * owned profile strings or the original-header pointer array. */
+    free(connector_name);
+    connector_name = NULL;
+    free(integration_mode);
+    integration_mode = NULL;
+    free(original_uri_header);
+    original_uri_header = NULL;
+    free(original_uri_headers);
+    original_uri_headers = NULL;
     unblock_runtime();
     if (!wait_for_flag(&runtime_destroyed)) {
         (void)fprintf(stderr, "deferred worker cleanup did not finish\n");
@@ -433,6 +536,10 @@ int main(void) {
 
 done:
     unblock_runtime();
+    free(connector_name);
+    free(integration_mode);
+    free(original_uri_header);
+    free(original_uri_headers);
     if (client_fd >= 0) {
         (void)close(client_fd);
     }

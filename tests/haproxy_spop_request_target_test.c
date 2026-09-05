@@ -28,7 +28,7 @@ static size_t append_test_bytes(unsigned char *out, size_t pos,
 static size_t build_target_payload(unsigned char *out, const char *key,
         const unsigned char *value, size_t value_len) {
     size_t pos = 0U;
-    const unsigned char message[] = "notify";
+    const unsigned char message[] = "check-request";
 
     pos = append_test_bytes(out, pos, message, sizeof(message) - 1U);
     out[pos++] = 1U;

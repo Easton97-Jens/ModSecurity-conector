@@ -26,6 +26,10 @@ separate evidence-review decision.
 - downstream protocol and endpoints mapped from requested Envoy attributes,
   never inferred from the Envoy-to-service gRPC socket;
 - matching `HeadersResponse` / `BodyResponse` messages for `STREAMED` mode;
+- a process-wide cap of 128 active `Process` streams, enforced before stream
+  state or a Common transaction is allocated; excess streams receive gRPC
+  `ResourceExhausted` rather than expanding native transaction capacity across
+  multiple transports;
 - EOS cleanup, gRPC-context cancellation cleanup, and bounded graceful stop;
 - pre-commit request and response decisions mapped to `ImmediateResponse`,
   with Common host-action metadata recorded only after the matching gRPC send
@@ -80,6 +84,12 @@ an HTTP-reset surrogate after response commitment. A canceled gRPC context and
 an observed gRPC peer EOF are recorded respectively as
 `grpc_context_canceled_unattributed` and `grpc_peer_eof`; neither label can be
 treated as a downstream client reset or an upstream reset.
+
+The active-stream cap is aggregate resource containment, not an idle deadline:
+a valid but silent admitted stream retains one bounded slot until Envoy sends a
+message/EOF or cancels its gRPC context. A separate per-stream idle policy must
+not be added without proving that it preserves legitimate streaming and leaves
+no blocked receive goroutine or native transaction behind.
 
 ## Local source/build commands
 
