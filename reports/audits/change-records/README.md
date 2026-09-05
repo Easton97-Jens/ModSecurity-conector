@@ -10,6 +10,14 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260905-nginx-current-master-common-adoption-repair](CR-20260905-nginx-current-master-common-adoption-repair.md)
+  | [Deutsch](CR-20260905-nginx-current-master-common-adoption-repair.de.md) —
+  the user-authorized Parent-only NGINX static-contract repair aligns the
+  resulting-master checker with the current fail-closed request-mapper and
+  bounded explicit-length Server-header paths. It changes no NGINX runtime
+  source, Framework, MRTS, Gitlink, workflow, governance, or PR #346 state;
+  exact-head hosted evidence and any merge remain pending and are not asserted.
+
 - [CR-20260904-apache-helper-aware-common-adoption-contract](CR-20260904-apache-helper-aware-common-adoption-contract.md)
   | [Deutsch](CR-20260904-apache-helper-aware-common-adoption-contract.de.md) —
   the user-authorized Parent-only Apache static-contract repair aligns the
