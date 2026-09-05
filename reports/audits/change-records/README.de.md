@@ -27,6 +27,13 @@ angelegt werden.
   CI/Governance und gemischte gleichzeitige Edits aus; Remote-Delivery wartet
   auf eine explizite Autorisierung des aktuellen Benutzers, und Hosted-Checks
   sowie ein Merge werden nicht behauptet.
+
+- [CR-20260903-security-remediation-open-findings](CR-20260903-security-remediation-open-findings.de.md) —
+  der aktuelle Benutzer autorisierte ausdrücklich diese Parent-only-
+  Security-Remediation, fokussierte Regressionsevidence, gepaarte
+  Traceability und einen Draft PR. Sie initialisiert oder verändert weder
+  Framework/MRTS noch einen Gitlink, CI-Berechtigungen oder Dependencies und
+  autorisiert keinen Merge.
 - [CR-20260903-no-crs-doc-consistency-repair](CR-20260903-no-crs-doc-consistency-repair.de.md) —
   der aktuelle Benutzer autorisierte diese Parent-only-Reparatur des
   reproduzierten Traefik-No-CRS-Dokumentations-/Capability-Katalog-

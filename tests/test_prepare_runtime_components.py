@@ -21,13 +21,13 @@ PINNED_EXPAT_COMMIT = "c61098da494eea1cbd091118118dcee417faacea"
 PINNED_NGINX_RELEASE_TUPLE = {
     "NGINX_SOURCE_MODE": "github-release",
     "NGINX_SOURCE_REPO_URL": "https://github.com/nginx/nginx",
-    "NGINX_RELEASE_TAG": "release-1.31.3",
-    "NGINX_SOURCE_GIT_REF": "release-1.31.3",
-    "NGINX_RELEASE_ASSET_NAME": "nginx-1.31.3.tar.gz",
-    "NGINX_SHA256": "a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525",
+    "NGINX_RELEASE_TAG": "release-1.31.4",
+    "NGINX_SOURCE_GIT_REF": "release-1.31.4",
+    "NGINX_RELEASE_ASSET_NAME": "nginx-1.31.4.tar.gz",
+    "NGINX_SHA256": "e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3",
 }
 PINNED_NGINX_RELEASE_ASSET_URL = (
-    "https://github.com/nginx/nginx/releases/download/release-1.31.3/nginx-1.31.3.tar.gz"
+    "https://github.com/nginx/nginx/releases/download/release-1.31.4/nginx-1.31.4.tar.gz"
 )
 TEST_HAPROXY_LOCKED_VERSION = "3.2.22"
 TEST_HAPROXY_LOCKED_SOURCE_URL = "https://www.haproxy.org/download/3.2/src/haproxy-3.2.22.tar.gz"
@@ -78,6 +78,314 @@ components = load_parent_prepare_runtime_components()
 
 
 class PrepareRuntimeComponentsTest(unittest.TestCase):
+    def test_nginx_build_environment_preserves_canonical_non_h3_quic_pins(self) -> None:
+        canonical_quic_tls = {
+            "NGINX_QUIC_TLS_LIBRARY": "openssl",
+            "NGINX_QUIC_TLS_VERSION": "4.0.1",
+            "NGINX_QUIC_TLS_SOURCE_URL": (
+                "https://github.com/openssl/openssl/releases/download/"
+                "openssl-4.0.1/openssl-4.0.1.tar.gz"
+            ),
+            "NGINX_QUIC_TLS_SOURCE_SHA256": (
+                "2db3f3a0d6ea4b59e1f094ace2c8cd536dffb87cdc39084c5afa1e6f7f37dd09"
+            ),
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            context = {
+                "nginx_build_root": root / "nginx-build",
+                "nginx_prefix": root / "nginx",
+                "local_nginx_bin": root / "nginx/sbin/nginx",
+                "local_module": root / "nginx/modules/ngx_http_modsecurity_module.so",
+            }
+
+            def child_environment(
+                base_env: dict[str, str],
+                protocol_inputs: dict[str, object],
+            ) -> dict[str, str]:
+                return components.nginx_build_environment(
+                    base_env,
+                    components.NginxBuildEnvironmentInputs(
+                        connector_root=root / "connector",
+                        framework_root=root / "framework",
+                        cache_root=root / "cache",
+                        build_root=root / "work",
+                        sources_root=root / "sources",
+                        archives_root=root / "archives",
+                        modsecurity={
+                            "prefix": str(root / "modsecurity"),
+                            "build_id": "modsecurity",
+                        },
+                        protocol_inputs=protocol_inputs,
+                        protocol_profile=str(protocol_inputs["profile"]),
+                        quic_tls_archive=str(root / "archives/nginx/openssl-4.0.1.tar.gz"),
+                        common_build_source_root=root / "common-src",
+                        profile_registry_build_root=root / "profile-registry",
+                        context=context,
+                    ),
+                )
+
+            for profile in ("h1", "h1-h2"):
+                with self.subTest(profile=profile):
+                    protocol_inputs = components.nginx_protocol_build_inputs(
+                        {"NGINX_PROTOCOL_PROFILE": profile}
+                    )
+                    child_env = child_environment(
+                        {
+                            **canonical_quic_tls,
+                            "MSCONNECTOR_PROFILE_REGISTRY_ROOT": "/untrusted/profile-registry",
+                        },
+                        protocol_inputs,
+                    )
+                    self.assertFalse(protocol_inputs["quic_enabled"])
+                    self.assertEqual(
+                        {key: child_env[key] for key in canonical_quic_tls},
+                        canonical_quic_tls,
+                    )
+                    self.assertEqual(
+                        child_env["MSCONNECTOR_PROFILE_REGISTRY_ROOT"],
+                        str(root / "profile-registry"),
+                    )
+
+            h3_inputs = components.nginx_protocol_build_inputs(
+                {"NGINX_PROTOCOL_PROFILE": "h1-h2-h3-quic", **canonical_quic_tls}
+            )
+            h3_child_env = child_environment(
+                {
+                    "NGINX_QUIC_TLS_LIBRARY": "hostile-library",
+                    "NGINX_QUIC_TLS_VERSION": "0.0.0",
+                    "NGINX_QUIC_TLS_SOURCE_URL": "https://example.invalid/hostile.tar.gz",
+                    "NGINX_QUIC_TLS_SOURCE_SHA256": "f" * 64,
+                    "MSCONNECTOR_PROFILE_REGISTRY_ROOT": "/untrusted/profile-registry",
+                },
+                h3_inputs,
+            )
+            self.assertTrue(h3_inputs["quic_enabled"])
+            self.assertEqual(
+                {key: h3_child_env[key] for key in canonical_quic_tls},
+                canonical_quic_tls,
+            )
+            self.assertEqual(
+                h3_child_env["MSCONNECTOR_PROFILE_REGISTRY_ROOT"],
+                str(root / "profile-registry"),
+            )
+
+    def test_nginx_staged_make_log_diagnostics_requires_current_managed_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            cache_root = root / "cache"
+            components.ensure_managed_cache_root(cache_root)
+            staging_root = cache_root / "builds/connectors/nginx/.capture"
+            cache_key = "nginx-make-log-capture"
+            components.mark_managed_cache_entry(
+                staging_root,
+                cache_root,
+                component="connector:nginx",
+                cache_key=cache_key,
+            )
+            staging_root.mkdir(parents=True)
+            make_log = staging_root / components.NGINX_STAGED_MAKE_LOG_RELATIVE_PATH
+            make_log.parent.mkdir(parents=True)
+            make_log.write_text("compiler failure: missing symbol\n", encoding="utf-8")
+            outer_log = root / "build/logs/runtime-components/nginx-build.log"
+            outer_log.parent.mkdir(parents=True)
+            outer_log.write_text("wrapper output\n", encoding="utf-8")
+            plan = {
+                "root": str(staging_root),
+                "cache_key": cache_key,
+                "build_root": str(staging_root / "build"),
+            }
+            context = {"nginx_build_root": staging_root / "build"}
+
+            components.append_nginx_staged_make_log_diagnostics(
+                outer_log,
+                plan,
+                cache_root,
+                context,
+            )
+            captured = outer_log.read_text(encoding="utf-8")
+            self.assertIn("inner_make_log_tail_truncated=false", captured)
+            self.assertIn("compiler failure: missing symbol", captured)
+
+            outer_log.write_text("", encoding="utf-8")
+            make_log.unlink()
+            components.append_nginx_staged_make_log_diagnostics(
+                outer_log,
+                plan,
+                cache_root,
+                context,
+            )
+            missing = outer_log.read_text(encoding="utf-8")
+            self.assertIn("inner_make_log_unavailable=inner_make_log_missing", missing)
+
+            outer_log.write_text("", encoding="utf-8")
+            context["nginx_build_root"] = root / "outside"
+            make_log.write_text("outside-build-root-canary\n", encoding="utf-8")
+            components.append_nginx_staged_make_log_diagnostics(
+                outer_log,
+                plan,
+                cache_root,
+                context,
+            )
+            rejected = outer_log.read_text(encoding="utf-8")
+            self.assertIn("inner_make_log_unavailable=staging_identity", rejected)
+            self.assertNotIn("outside-build-root-canary", rejected)
+
+            loop = root / "nginx-build-loop"
+            loop.symlink_to(loop.name)
+            context["nginx_build_root"] = loop
+            outer_log.write_text("", encoding="utf-8")
+            components.append_nginx_staged_make_log_diagnostics(
+                outer_log,
+                plan,
+                cache_root,
+                context,
+            )
+            loop_rejected = outer_log.read_text(encoding="utf-8")
+            self.assertIn("inner_make_log_unavailable=staging_identity", loop_rejected)
+            self.assertNotIn("outside-build-root-canary", loop_rejected)
+
+    def test_nginx_staged_make_log_diagnostics_bounds_and_rejects_links(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            cache_root = root / "cache"
+            components.ensure_managed_cache_root(cache_root)
+            staging_root = cache_root / "builds/connectors/nginx/.capture"
+            cache_key = "nginx-make-log-adversarial"
+            components.mark_managed_cache_entry(
+                staging_root,
+                cache_root,
+                component="connector:nginx",
+                cache_key=cache_key,
+            )
+            staging_root.mkdir(parents=True)
+            make_log = staging_root / components.NGINX_STAGED_MAKE_LOG_RELATIVE_PATH
+            make_log.parent.mkdir(parents=True)
+            make_log.write_bytes(
+                b"discarded-line\n"
+                + b"x" * (70 * 1024)
+                + b"\n::warning:: \x1b[31mcompiler failure "
+                + b"z" * 1024
+                + b"\n"
+            )
+            outer_log = root / "build/logs/runtime-components/nginx-build.log"
+            outer_log.parent.mkdir(parents=True)
+            outer_log.write_text("wrapper output\n", encoding="utf-8")
+            plan = {
+                "root": str(staging_root),
+                "cache_key": cache_key,
+                "build_root": str(staging_root / "build"),
+            }
+            context = {"nginx_build_root": staging_root / "build"}
+
+            components.append_nginx_staged_make_log_diagnostics(
+                outer_log,
+                plan,
+                cache_root,
+                context,
+            )
+            bounded = outer_log.read_text(encoding="utf-8")
+            self.assertIn("inner_make_log_tail_truncated=true", bounded)
+            self.assertIn(": :warning: : ?[31mcompiler failure", bounded)
+            self.assertNotIn("\x1b", bounded)
+            staged_log_lines = [
+                line
+                for line in bounded.splitlines()
+                if line.startswith(components.NGINX_STAGED_MAKE_LOG_LINE_PREFIX)
+            ]
+            self.assertEqual(len(staged_log_lines), 1)
+            self.assertEqual(len(staged_log_lines[0]), 512)
+
+            outside = root / "outside"
+            outside.write_text("outside-canary\n", encoding="utf-8")
+            make_log.unlink()
+            make_log.symlink_to(outside)
+            outer_log.write_text("", encoding="utf-8")
+            components.append_nginx_staged_make_log_diagnostics(
+                outer_log,
+                plan,
+                cache_root,
+                context,
+            )
+            symlink_rejected = outer_log.read_text(encoding="utf-8")
+            self.assertIn("inner_make_log_unavailable=inner_make_log_symlink", symlink_rejected)
+            self.assertNotIn("outside-canary", symlink_rejected)
+
+            make_log.unlink()
+            os.link(outside, make_log)
+            outer_log.write_text("", encoding="utf-8")
+            components.append_nginx_staged_make_log_diagnostics(
+                outer_log,
+                plan,
+                cache_root,
+                context,
+            )
+            hardlink_rejected = outer_log.read_text(encoding="utf-8")
+            self.assertIn("inner_make_log_unavailable=inner_make_log_hardlink", hardlink_rejected)
+            self.assertNotIn("outside-canary", hardlink_rejected)
+
+    def test_nginx_failed_build_preserves_primary_result_after_diagnostic_append(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            build_root = root / "build"
+            cache_root = root / "cache"
+            plan = {"cache_key": "nginx-primary-failure"}
+            context = {"local_artifacts": {}}
+            record: dict[str, object] = {}
+            failed = subprocess.CompletedProcess(
+                args=["prepare-nginx-build.sh"],
+                returncode=2,
+                stdout="src/module.c:1: error: missing symbol\n",
+                stderr="",
+            )
+
+            with (
+                mock.patch.object(components, "copy_nginx_common_sources", return_value=root / "common"),
+                mock.patch.object(
+                    components,
+                    "copy_nginx_profile_registry_sources",
+                    return_value=root / "profile-registry",
+                ),
+                mock.patch.object(components, "nginx_build_environment", return_value={}),
+                mock.patch.object(components, "run_build", return_value=failed),
+                mock.patch.object(components, "append_nginx_staged_make_log_diagnostics") as append,
+                mock.patch.object(components, "nginx_refresh_build_artifacts"),
+                mock.patch.object(
+                    components,
+                    "artifact_status",
+                    return_value=(False, ["nginx_bin"]),
+                ),
+            ):
+                ready, missing, built = components.build_nginx_source(
+                    {},
+                    root / "connector",
+                    root / "framework",
+                    cache_root,
+                    build_root,
+                    root / "sources",
+                    root / "archives",
+                    {},
+                    plan,
+                    {"profile": "h1"},
+                    "",
+                    context,
+                    record,
+                )
+
+        self.assertFalse(ready)
+        self.assertEqual(missing, ["nginx_bin"])
+        self.assertFalse(built)
+        self.assertEqual(record["build_exit_code"], 2)
+        self.assertEqual(record["status"], "failed")
+        self.assertEqual(record["blocker_reason"], "nginx_connector_build_failed")
+        self.assertEqual(record["build_log"], str(build_root / "logs/runtime-components/nginx-build.log"))
+        append.assert_called_once_with(
+            build_root / "logs/runtime-components/nginx-build.log",
+            plan,
+            cache_root,
+            context,
+        )
+
     def test_nginx_common_source_staging_includes_required_private_header(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             connector_root = Path(temporary) / "connector"
@@ -110,6 +418,263 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                 "#pragma once\n",
             )
             self.assertFalse((staged / "not-a-build-input.txt").exists())
+
+    def test_nginx_profile_registry_staging_is_regular_and_scoped(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root = Path(temporary) / "connector"
+            registry_source_root = connector_root / "connectors"
+            registry_source_root.mkdir(parents=True)
+            (registry_source_root / "profile_registry.c").write_text(
+                "const char *profile_registry(void) { return \"nginx\"; }\n",
+                encoding="utf-8",
+            )
+            (registry_source_root / "profile_registry.h").write_text(
+                "#pragma once\n",
+                encoding="utf-8",
+            )
+            (registry_source_root / "unrelated.c").write_text("int unrelated;\n", encoding="utf-8")
+            plan_root = Path(temporary) / "build"
+            plan_root.mkdir()
+            plan = {"root": str(plan_root)}
+
+            staged = components.copy_nginx_profile_registry_sources(connector_root, plan)
+
+            self.assertEqual(
+                (staged / "connectors/profile_registry.c").read_text(encoding="utf-8"),
+                "const char *profile_registry(void) { return \"nginx\"; }\n",
+            )
+            self.assertEqual(
+                (staged / "connectors/profile_registry.h").read_text(encoding="utf-8"),
+                "#pragma once\n",
+            )
+            self.assertFalse((staged / "connectors/unrelated.c").exists())
+
+            (registry_source_root / "profile_registry.c").unlink()
+            (registry_source_root / "profile_registry.c").symlink_to("profile_registry.h")
+            with self.assertRaisesRegex(RuntimeError, "nginx_profile_registry_source_unsafe"):
+                components.copy_nginx_profile_registry_sources(connector_root, plan)
+
+    def test_nginx_profile_registry_staging_rejects_source_replacement_race(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root = Path(temporary) / "connector"
+            registry_source_root = connector_root / "connectors"
+            registry_source_root.mkdir(parents=True)
+            source = registry_source_root / "profile_registry.c"
+            source.write_text("const char *profile = \"trusted\";\n", encoding="utf-8")
+            (registry_source_root / "profile_registry.h").write_text("#pragma once\n", encoding="utf-8")
+            replacement = registry_source_root / "replacement.c"
+            replacement.write_text("const char *profile = \"replacement\";\n", encoding="utf-8")
+            plan_root = Path(temporary) / "build"
+            plan_root.mkdir()
+            original_open = components.os.open
+            replaced = False
+
+            def replace_source_before_open(
+                path: object,
+                flags: int,
+                mode: int = 0o777,
+                *,
+                dir_fd: int | None = None,
+            ) -> int:
+                nonlocal replaced
+                if not replaced and path == "profile_registry.c" and dir_fd is not None:
+                    os.replace(replacement, source)
+                    replaced = True
+                return original_open(path, flags, mode, dir_fd=dir_fd)
+
+            with mock.patch.object(components.os, "open", side_effect=replace_source_before_open):
+                with self.assertRaisesRegex(RuntimeError, "nginx_profile_registry_source_changed"):
+                    components.copy_nginx_profile_registry_sources(
+                        connector_root,
+                        {"root": str(plan_root)},
+                    )
+
+            self.assertTrue(replaced)
+            self.assertEqual(source.read_text(encoding="utf-8"), "const char *profile = \"replacement\";\n")
+
+    def test_nginx_profile_registry_staging_rejects_hardlinked_source(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root = Path(temporary) / "connector"
+            registry_source_root = connector_root / "connectors"
+            registry_source_root.mkdir(parents=True)
+            source = registry_source_root / "profile_registry.c"
+            source.write_text("const char *profile = \"nginx\";\n", encoding="utf-8")
+            os.link(source, registry_source_root / "profile_registry.alias.c")
+            (registry_source_root / "profile_registry.h").write_text("#pragma once\n", encoding="utf-8")
+            plan_root = Path(temporary) / "build"
+            plan_root.mkdir()
+
+            with self.assertRaisesRegex(RuntimeError, "nginx_profile_registry_source_unsafe"):
+                components.copy_nginx_profile_registry_sources(
+                    connector_root,
+                    {"root": str(plan_root)},
+                )
+
+            self.assertFalse((plan_root / "profile-registry/connectors/profile_registry.c").exists())
+
+    def test_nginx_profile_registry_staging_rejects_destination_directory_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root = Path(temporary) / "connector"
+            registry_source_root = connector_root / "connectors"
+            registry_source_root.mkdir(parents=True)
+            (registry_source_root / "profile_registry.c").write_text("const char *profile;\n", encoding="utf-8")
+            (registry_source_root / "profile_registry.h").write_text("#pragma once\n", encoding="utf-8")
+            plan_root = Path(temporary) / "build"
+            plan_root.mkdir()
+            outside = Path(temporary) / "outside"
+            outside.mkdir()
+            sentinel = outside / "sentinel"
+            sentinel.write_text("outside\n", encoding="utf-8")
+            (plan_root / "profile-registry").symlink_to(outside, target_is_directory=True)
+
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "nginx_profile_registry_destination_directory_unsafe",
+            ):
+                components.copy_nginx_profile_registry_sources(
+                    connector_root,
+                    {"root": str(plan_root)},
+                )
+
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), "outside\n")
+            self.assertFalse((outside / "connectors").exists())
+
+    def test_nginx_profile_registry_staging_replaces_destination_file_symlink_atomically(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root = Path(temporary) / "connector"
+            registry_source_root = connector_root / "connectors"
+            registry_source_root.mkdir(parents=True)
+            expected_source = "const char *profile = \"nginx\";\n"
+            (registry_source_root / "profile_registry.c").write_text(expected_source, encoding="utf-8")
+            (registry_source_root / "profile_registry.h").write_text("#pragma once\n", encoding="utf-8")
+            plan_root = Path(temporary) / "build"
+            staged_connectors = plan_root / "profile-registry/connectors"
+            staged_connectors.mkdir(parents=True)
+            outside = Path(temporary) / "outside-canary.c"
+            outside.write_text("outside\n", encoding="utf-8")
+            destination = staged_connectors / "profile_registry.c"
+            destination.symlink_to(outside)
+
+            components.copy_nginx_profile_registry_sources(
+                connector_root,
+                {"root": str(plan_root)},
+            )
+
+            self.assertFalse(destination.is_symlink())
+            self.assertEqual(destination.read_text(encoding="utf-8"), expected_source)
+            self.assertEqual(outside.read_text(encoding="utf-8"), "outside\n")
+            self.assertFalse(any(path.name.endswith(".tmp") for path in staged_connectors.iterdir()))
+
+    def test_nginx_profile_registry_staging_keeps_temporary_descriptor_for_close_failure_cleanup(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root = Path(temporary) / "connector"
+            registry_source_root = connector_root / "connectors"
+            registry_source_root.mkdir(parents=True)
+            (registry_source_root / "profile_registry.c").write_text(
+                "const char *profile = \"nginx\";\n",
+                encoding="utf-8",
+            )
+            (registry_source_root / "profile_registry.h").write_text(
+                "#pragma once\n",
+                encoding="utf-8",
+            )
+            plan_root = Path(temporary) / "build"
+            plan_root.mkdir()
+            staged_connectors = plan_root / "profile-registry/connectors"
+
+            with mock.patch.object(
+                components,
+                "_close_nginx_profile_registry_temporary_descriptor",
+                side_effect=RuntimeError("nginx_profile_registry_destination_write_failed"),
+            ):
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "nginx_profile_registry_destination_write_failed",
+                ):
+                    components.copy_nginx_profile_registry_sources(
+                        connector_root,
+                        {"root": str(plan_root)},
+                    )
+
+            self.assertTrue(staged_connectors.is_dir())
+            self.assertFalse(any(path.name.endswith(".tmp") for path in staged_connectors.iterdir()))
+
+    def test_nginx_profile_registry_staging_rejects_destination_directory_replacement_race(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root = Path(temporary) / "connector"
+            registry_source_root = connector_root / "connectors"
+            registry_source_root.mkdir(parents=True)
+            (registry_source_root / "profile_registry.c").write_text("const char *profile;\n", encoding="utf-8")
+            (registry_source_root / "profile_registry.h").write_text("#pragma once\n", encoding="utf-8")
+            plan_root = Path(temporary) / "build"
+            plan_root.mkdir()
+            outside = Path(temporary) / "outside"
+            outside.mkdir()
+            sentinel = outside / "sentinel"
+            sentinel.write_text("outside\n", encoding="utf-8")
+            original_open = components.os.open
+            replaced = False
+
+            def replace_destination_before_open(
+                path: object,
+                flags: int,
+                mode: int = 0o777,
+                *,
+                dir_fd: int | None = None,
+            ) -> int:
+                nonlocal replaced
+                staged_registry = plan_root / "profile-registry"
+                if (
+                    not replaced
+                    and path == "connectors"
+                    and dir_fd is not None
+                    and staged_registry.is_dir()
+                    and os.fstat(dir_fd).st_ino == staged_registry.stat().st_ino
+                ):
+                    staged_connectors = staged_registry / "connectors"
+                    os.rmdir(staged_connectors)
+                    staged_connectors.symlink_to(outside, target_is_directory=True)
+                    replaced = True
+                return original_open(path, flags, mode, dir_fd=dir_fd)
+
+            with mock.patch.object(
+                components.os,
+                "open",
+                side_effect=replace_destination_before_open,
+            ):
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "nginx_profile_registry_destination_directory_unsafe",
+                ):
+                    components.copy_nginx_profile_registry_sources(
+                        connector_root,
+                        {"root": str(plan_root)},
+                    )
+
+            self.assertTrue(replaced)
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), "outside\n")
+            self.assertFalse((outside / "profile_registry.c").exists())
+
+    def test_nginx_profile_registry_inputs_change_source_hash(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root = Path(temporary) / "connector"
+            framework_root = Path(temporary) / "framework"
+            (connector_root / "connectors/nginx").mkdir(parents=True)
+            (connector_root / "common/include").mkdir(parents=True)
+            (connector_root / "common/src").mkdir(parents=True)
+            registry_root = connector_root / "connectors"
+            (registry_root / "profile_registry.c").write_text("const char *profile = \"one\";\n", encoding="utf-8")
+            (registry_root / "profile_registry.h").write_text("#pragma once\n", encoding="utf-8")
+
+            source_paths = components.connector_input_paths(connector_root, framework_root, "nginx")
+            baseline = components.hash_input_paths(source_paths)
+            (registry_root / "profile_registry.c").write_text("const char *profile = \"two\";\n", encoding="utf-8")
+            after_source_change = components.hash_input_paths(source_paths)
+            (registry_root / "profile_registry.h").write_text("#define PROFILE_REGISTRY 1\n", encoding="utf-8")
+            after_header_change = components.hash_input_paths(source_paths)
+
+            self.assertNotEqual(baseline, after_source_change)
+            self.assertNotEqual(after_source_change, after_header_change)
 
     def test_require_staging_path_rejects_absence_and_preserves_path(self) -> None:
         staging_path = Path("staging")
@@ -175,8 +740,8 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             "EXPAT_SOURCE_URL": "https://github.com/libexpat/libexpat",
             "EXPAT_GIT_REF": PINNED_EXPAT_COMMIT,
             **PINNED_NGINX_RELEASE_TUPLE,
-            "NGINX_RELEASE_TAG": "release-1.31.4",
-            "NGINX_SOURCE_GIT_REF": "release-1.31.4",
+            "NGINX_RELEASE_TAG": "release-1.31.3",
+            "NGINX_SOURCE_GIT_REF": "release-1.31.3",
         }
         all_env = {
             **non_nginx_env,
@@ -279,9 +844,9 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         self.assertEqual(len(records), 1)
         self.assertEqual(records[0]["status"], "present")
         self.assertEqual(records[0]["url"], PINNED_NGINX_RELEASE_ASSET_URL)
-        self.assertEqual(records[0]["release_tag"], "release-1.31.3")
-        self.assertEqual(records[0]["source_ref"], "release-1.31.3")
-        self.assertEqual(records[0]["release_asset_name"], "nginx-1.31.3.tar.gz")
+        self.assertEqual(records[0]["release_tag"], "release-1.31.4")
+        self.assertEqual(records[0]["source_ref"], "release-1.31.4")
+        self.assertEqual(records[0]["release_asset_name"], "nginx-1.31.4.tar.gz")
         self.assertEqual(
             records[0]["expected_sha256"],
             PINNED_NGINX_RELEASE_TUPLE["NGINX_SHA256"],
@@ -346,8 +911,8 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         mismatched_nginx = dict(PINNED_NGINX_RELEASE_TUPLE)
         mismatched_nginx.update(
             {
-                "NGINX_RELEASE_TAG": "release-1.31.4",
-                "NGINX_SOURCE_GIT_REF": "release-1.31.4",
+                "NGINX_RELEASE_TAG": "release-1.31.3",
+                "NGINX_SOURCE_GIT_REF": "release-1.31.3",
             }
         )
         with self.assertRaisesRegex(RuntimeError, "unsupported_runtime_component_target:unknown"):

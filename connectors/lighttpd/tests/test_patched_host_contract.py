@@ -766,6 +766,15 @@ class PatchedHostContractTest(unittest.TestCase):
         self.assertIn('"$CRS_RESPONSE_TRANSACTION_HEADER"', crs_branch)
         self.assertIn("response_transaction_header_origin=server_generated_lighttpd_host", crs_branch)
         self.assertIn("Common transaction id does not match", crs_branch)
+        self.assertIn("def serialized_event_uri(uri):", crs_branch)
+        self.assertIn('event.get("uri") == expected_event_uri', crs_branch)
+        self.assertIn('event.get("redacted") is (expected_event_uri != uri)', crs_branch)
+        self.assertIn(
+            'event.get("transaction_id") == response_transaction_id', crs_branch
+        )
+        self.assertIn('secret in event["uri"].lower()', crs_branch)
+        self.assertIn('"password", "union", "select"', crs_branch)
+        self.assertIn('require_exactly_one_raw_crs_record(raw_log, transaction_id, request_id)', crs_branch)
         self.assertIn("require_exactly_one_raw_crs_record", crs_branch)
         self.assertIn("len(correlated_raw_lines) != 1", crs_branch)
 
@@ -882,6 +891,59 @@ class PatchedHostContractTest(unittest.TestCase):
         )
         with self.assertRaises(SystemExit):
             require_record(f"{line}\n{line}", transaction_id, "block")
+
+    def test_crs_event_uri_redaction_preserves_raw_wire_uri_expectation(self) -> None:
+        runner = (CONNECTOR / "harness" / "run_patched_full_lifecycle.sh").read_text(
+            encoding="utf-8"
+        )
+        helper_source = "def serialized_event_uri" + runner.split(
+            "def serialized_event_uri", 1
+        )[1].split("def observed", 1)[0]
+        namespace: dict[str, object] = {}
+        exec(helper_source, namespace)
+        serialized_uri = namespace["serialized_event_uri"]
+        self.assertEqual(serialized_uri("/?id=1%20UNION%20SELECT"), "/?<redacted>")
+        self.assertEqual(serialized_uri("/?id=1%20uNiOn%20SeLeCt"), "/?<redacted>")
+        self.assertEqual(serialized_uri("/?id=42"), "/?<redacted>")
+        self.assertNotIn("UNION", serialized_uri("/?id=1%20UNION%20SELECT"))
+        self.assertNotIn("password", serialized_uri("/?id=1%20UNION%20SELECT"))
+        self.assertEqual(serialized_uri("/"), "/")
+
+    def test_crs_observation_correlates_same_redacted_uri_by_transaction_id(self) -> None:
+        runner = (CONNECTOR / "harness" / "run_patched_full_lifecycle.sh").read_text(
+            encoding="utf-8"
+        )
+        helper_source = "def require_exactly_one_raw_crs_record" + runner.split(
+            "def require_exactly_one_raw_crs_record", 1
+        )[1].split("block_transaction_id, block_intervention_rule_id", 1)[0]
+        matching_event = {
+            "connector": "lighttpd",
+            "integration_mode": "patched-native-lighttpd",
+            "method": "GET",
+            "uri": "/?<redacted>",
+            "redacted": True,
+            "rule_id": "949110",
+            "http_status": 403,
+            "visible_http_status": 403,
+            "transport_result": "http_status",
+            "actual_action": "deny",
+        }
+        namespace: dict[str, object] = {
+            "events": [
+                {**matching_event, "transaction_id": "block-transaction"},
+                {**matching_event, "transaction_id": "bypass-transaction"},
+            ],
+            "raw_log": (
+                '[id "942270"] [unique_id "block-transaction"]\n'
+                '[id "942270"] [unique_id "bypass-transaction"]'
+            ),
+        }
+        exec(helper_source, namespace)
+        observed = namespace["observed"]
+        self.assertEqual(
+            observed("/?id=CANARY", "block", "block-transaction"),
+            ("block-transaction", "949110"),
+        )
 
     def test_crs_mode_never_materializes_the_no_crs_entity_fixture(self) -> None:
         runner = (CONNECTOR / "harness" / "run_patched_full_lifecycle.sh").read_text(

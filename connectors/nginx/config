@@ -17,6 +17,7 @@ ngx_feature_test='msc_init();'
 ngx_modsecurity_opt_I=
 ngx_modsecurity_opt_L=
 ngx_msconnector_common_opt_I=
+ngx_msconnector_profile_registry_opt_I=
 
 if test -z "$MSCONNECTOR_COMMON_INC" -a -d "$ngx_addon_dir/../../common/include"; then
     MSCONNECTOR_COMMON_INC="$ngx_addon_dir/../../common/include"
@@ -42,6 +43,25 @@ if test -z "$MSCONNECTOR_COMMON_SRC"; then
         fi
     fi
 fi
+
+if test -z "$MSCONNECTOR_PROFILE_REGISTRY_ROOT"; then
+    ngx_msconnector_profile_registry_candidate="$ngx_addon_dir/../.."
+    if test -f "$ngx_msconnector_profile_registry_candidate/connectors/profile_registry.c" -a \
+       -f "$ngx_msconnector_profile_registry_candidate/connectors/profile_registry.h"; then
+        MSCONNECTOR_PROFILE_REGISTRY_ROOT="$ngx_msconnector_profile_registry_candidate"
+    else
+        echo "ngx_http_modsecurity: missing profile registry root; set MSCONNECTOR_PROFILE_REGISTRY_ROOT" >&2
+        exit 1
+    fi
+fi
+
+if test ! -f "$MSCONNECTOR_PROFILE_REGISTRY_ROOT/connectors/profile_registry.c" -o \
+   ! -f "$MSCONNECTOR_PROFILE_REGISTRY_ROOT/connectors/profile_registry.h"; then
+    echo "ngx_http_modsecurity: invalid profile registry root: $MSCONNECTOR_PROFILE_REGISTRY_ROOT" >&2
+    exit 1
+fi
+
+ngx_msconnector_profile_registry_opt_I="-I$MSCONNECTOR_PROFILE_REGISTRY_ROOT"
 
 YAJL_EXTRA=
 if test -n "$YAJL_LIB"; then
@@ -176,13 +196,15 @@ if test -n "$ngx_module_link"; then
             $MSCONNECTOR_COMMON_SRC/block_statuses.c \
             $MSCONNECTOR_COMMON_SRC/http_status.c \
             $MSCONNECTOR_COMMON_SRC/crs.c \
+            $MSCONNECTOR_PROFILE_REGISTRY_ROOT/connectors/profile_registry.c \
             "
 	ngx_module_deps="$ngx_addon_dir/src/ddebug.h \
             $ngx_addon_dir/src/ngx_http_modsecurity_common.h \
             $ngx_addon_dir/src/ngx_http_modsecurity_mapper.h \
+            $MSCONNECTOR_PROFILE_REGISTRY_ROOT/connectors/profile_registry.h \
             "
         ngx_module_libs="$ngx_feature_libs"
-        ngx_module_incs="$ngx_feature_path $MSCONNECTOR_COMMON_INC"
+        ngx_module_incs="$ngx_feature_path $MSCONNECTOR_COMMON_INC $MSCONNECTOR_PROFILE_REGISTRY_ROOT"
 
         ngx_module_order="ngx_http_chunked_filter_module \
                           ngx_http_v2_filter_module \
@@ -193,10 +215,10 @@ if test -n "$ngx_module_link"; then
 
 	. auto/module
 else
-	CFLAGS="$ngx_modsecurity_opt_I $ngx_msconnector_common_opt_I $CFLAGS"
+	CFLAGS="$ngx_modsecurity_opt_I $ngx_msconnector_common_opt_I $ngx_msconnector_profile_registry_opt_I $CFLAGS"
 	NGX_LD_OPT="$ngx_modsecurity_opt_L $NGX_LD_OPT"
 
-	CORE_INCS="$CORE_INCS $ngx_feature_path $MSCONNECTOR_COMMON_INC"
+	CORE_INCS="$CORE_INCS $ngx_feature_path $MSCONNECTOR_COMMON_INC $MSCONNECTOR_PROFILE_REGISTRY_ROOT"
 	CORE_LIBS="$CORE_LIBS $ngx_feature_libs"
 
 	HTTP_FILTER_MODULES="$HTTP_FILTER_MODULES ngx_http_modsecurity_module"
@@ -234,6 +256,7 @@ else
 	    $MSCONNECTOR_COMMON_SRC/block_statuses.c \
 	    $MSCONNECTOR_COMMON_SRC/http_status.c \
 	    $MSCONNECTOR_COMMON_SRC/crs.c \
+	    $MSCONNECTOR_PROFILE_REGISTRY_ROOT/connectors/profile_registry.c \
 	    "
 
 	NGX_ADDON_DEPS="\
@@ -241,6 +264,7 @@ else
 	    $ngx_addon_dir/src/ddebug.h \
 	    $ngx_addon_dir/src/ngx_http_modsecurity_common.h \
 	    $ngx_addon_dir/src/ngx_http_modsecurity_mapper.h \
+	    $MSCONNECTOR_PROFILE_REGISTRY_ROOT/connectors/profile_registry.h \
 	    "
 fi
 

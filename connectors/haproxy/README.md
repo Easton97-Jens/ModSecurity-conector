@@ -84,6 +84,12 @@ nonempty printable-ASCII ID, including the normal UUID form, remains accepted.
 A malformed `request_id` fails notification extraction and cannot create,
 replace, or claim a transaction.
 
+### SPOP request-target boundary
+
+The SPOP `path` and `uri` request-target fields use a canonical 4096-byte
+limit. A value longer than 4096 bytes, or containing an embedded NUL, is
+rejected before WAF transaction creation; it is never silently truncated.
+
 ## Build Starter
 
 For the complete repository-supported HAProxy compile and local verification

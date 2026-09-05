@@ -113,6 +113,11 @@ make -C connectors/traefik test-engine-service
 The focused test starts only the local engine service and is not a Traefik
 host-runtime test. See the [canonical Traefik guide](../../docs/connectors/traefik.md)
 for lifecycle, configuration, canonical-rule selection, and outcome boundaries.
+The service uses one monotonic deadline for each complete UDS frame and closes
+an expired client. Concurrent workers are bounded to 64 by default and 256 at
+most. Set this with the service CLI option `--max-workers N`; it is not a
+Traefik YAML field. During shutdown, active sockets are signalled and internal
+finalization is deferred until workers exit safely.
 For a sandboxed local test only, `TRAEFIK_ENGINE_SOCKET_TEST_PARENT` is
 required and must name an existing canonical, symlink-free,
 current-user-owned `0700` parent whose complete ancestor chain cannot be

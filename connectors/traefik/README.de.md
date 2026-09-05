@@ -150,6 +150,12 @@ Host-Laufzeittest. Siehe den [kanonischen Traefik-Guide](../../docs/connectors/t
 Der fokussierte Test startet nur den lokalen Engine-Service und ist kein
 Traefik-Host-Laufzeittest. Siehe den [kanonischen Traefik-Guide](../../docs/connectors/traefik.de.md)
 für Lebenszyklus, Konfiguration, kanonische Regelauswahl und Ergebnisgrenzen.
+Der Dienst verwendet für jeden vollständigen UDS-Frame eine einzige monotone
+Deadline und schließt einen abgelaufenen Client. Die Zahl gleichzeitiger Worker
+ist standardmäßig auf 64 und höchstens auf 256 begrenzt. Dies wird über die
+Service-CLI-Option `--max-workers N` gesetzt, nicht über ein Traefik-YAML-Feld.
+Beim Herunterfahren werden aktive Sockets signalisiert; die interne
+Finalisierung wird sicher bis zum Ende der Worker aufgeschoben.
 Nur für einen lokalen Sandbox-Test ist `TRAEFIK_ENGINE_SOCKET_TEST_PARENT`
 erforderlich und muss einen bestehenden kanonischen, symlinkfreien, dem
 aktuellen Benutzer gehörenden `0700`-Elternpfad benennen, dessen vollständige

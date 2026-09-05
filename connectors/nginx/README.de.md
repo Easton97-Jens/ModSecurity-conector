@@ -19,6 +19,9 @@ Jetzt implementiert:
 - Gemeinsam genutzte Direktivennamen-Metadaten von `common/include/msconnector/directives.h`.
 - Gemeinsame Options-/Standardmetadaten für die Aktivierung, Fehlerprotokollweiterleitung usw
   Phase-4-Modus von `common/include/msconnector/options.h`.
+- `modsecurity_use_error_log off` unterdrückt auch native libModSecurity-
+  Callback-Meldungen im NGINX-Fehlerlog; WAF-Auswertung und Event-JSONL-Ausgabe
+  bleiben getrennte Funktionen.
 - Ausgewählte Quelländerungen von ModSecurity-nginx PR #377
   (https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/377) angewendet auf
   Adaptereigene Quelle für die Handhabung von Phase 4/späten Interventionen.
@@ -375,14 +378,18 @@ Build-, Framework- und Parent-IDs; sowie die Erstellungszeit identifizieren.
 Dies ist das erforderliche Evidence-Schema und keine Behauptung, dass ein
 aktueller Runtime-Record existiert.
 
-Der aktuelle NGINX-Common-Header-Build-Vertrag besteht aus:
+Der aktuelle NGINX-Common- und Profile-Registry-Build-Vertrag besteht aus:
 
 ```sh
 MSCONNECTOR_COMMON_INC=$CONNECTOR_ROOT/common/include
+MSCONNECTOR_PROFILE_REGISTRY_ROOT=$CONNECTOR_ROOT
 ```
 
-`connectors/nginx/config` verwendet diesen Wert beim Erstellen der
-NGINX-Include-Pfade.
+`connectors/nginx/config` verwendet diese Werte beim Erstellen der
+NGINX-Include-Pfade. Der verwaltete Exact-Head-Build ersetzt
+`MSCONNECTOR_PROFILE_REGISTRY_ROOT` durch seine an die Cache-Identität gebundene
+gestagte Root; direkte Source-Builds verwenden die oben gezeigte kanonische
+Checkout-Root.
 
 Historisch beobachtet am 15.05.2026: `NGINX_RELEASE_TAG=latest` gelöst zu
 `release-1.31.0`, gebaut `nginx/1.31.0`, gebaut
@@ -432,7 +439,7 @@ wenn NGINX- oder libmodsecurity-Header nicht verfügbar sind; optional C23/Futur
 Überprüfungen hängen von der Compiler-Unterstützung ab. Keine Produktion, CRS, Vollmatrix oder Laufzeit
 Hier wird eine Verifizierung beansprucht.
 
-NGINX Common SDK-Modul-Builds, die einen kopierten Connector-Quellbaum verwenden, müssen `MSCONNECTOR_COMMON_SRC` (oder `CONNECTOR_COMMON_SRC` / `COMMON_SRC_ROOT`) auf das Stammverzeichnis der gemeinsamen Quelle des Repositorys setzen; `MSCONNECTOR_COMMON_INC` bleibt der Common-Include-Root. Wenn diese Option nicht festgelegt ist, greift die Konfiguration nur dann auf `$ngx_addon_dir/../../common/src` zurück, wenn dieser Pfad vorhanden ist.
+NGINX-Common-SDK-Modul-Builds, die einen kopierten Connector-Quellbaum verwenden, müssen `MSCONNECTOR_COMMON_SRC` (oder `CONNECTOR_COMMON_SRC` / `COMMON_SRC_ROOT`) auf das Stammverzeichnis der gemeinsamen Quelle des Repositorys setzen; `MSCONNECTOR_COMMON_INC` bleibt der Common-Include-Root. Sie müssen außerdem `MSCONNECTOR_PROFILE_REGISTRY_ROOT` auf eine Root setzen, die `connectors/profile_registry.c` und `connectors/profile_registry.h` enthält. Der verwaltete Exact-Head-Koordinator stellt eine an die Cache-Identität gebundene gestagte Root bereit. Wenn die Variable nicht gesetzt ist, greift die Konfiguration nur dann auf `$ngx_addon_dir/../..` zurück, wenn dort beide Registry-Dateien existieren; dieser Fallback gilt für direkte Checkout-Builds, nicht für kopierte Trees.
 
 ## Kanonische Phase-4-Grenze
 

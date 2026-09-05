@@ -11,6 +11,24 @@ static uint64_t hash_bytes_continue(uint64_t hash, const unsigned char *data, si
     return hash;
 }
 static uint64_t hash_string_continue(uint64_t hash, const char *value) { return value == 0 ? hash_bytes_continue(hash, (const unsigned char *)"", 1U) : hash_bytes_continue(hash, (const unsigned char *)value, strlen(value) + 1U); }
+static uint64_t hash_safe_uri_continue(
+    uint64_t hash,
+    const char *uri,
+    int *uri_redacted,
+    int *uri_truncated) {
+    char safe_uri[MSCONNECTOR_EVENT_URI_SAFE_BUFFER_SIZE];
+    int truncated = 0;
+    int redacted = msconnector_event_uri_redact_query_ex(uri, safe_uri,
+        sizeof(safe_uri), &truncated);
+
+    if (uri_redacted != NULL) {
+        *uri_redacted = redacted;
+    }
+    if (uri_truncated != NULL) {
+        *uri_truncated = truncated;
+    }
+    return hash_string_continue(hash, safe_uri);
+}
 static uint64_t hash_int_continue(uint64_t hash, int value) { return hash_bytes_continue(hash, (const unsigned char *)&value, sizeof(value)); }
 
 static int is_nonreversible_quic_connection_id(const char *value) {
@@ -62,6 +80,8 @@ uint64_t msconnector_integrity_event_hash(const msconnector_event *event, uint64
     uint64_t hash = hash_bytes_continue(FNV_OFFSET, (const unsigned char *)&previous_hash, sizeof(previous_hash));
     const char *connection_id;
     const char *transport_case_id;
+    int uri_redacted = 0;
+    int uri_truncated = 0;
     if (event == 0) { return hash; }
     connection_id = safe_connection_id_for_event_hash(event);
     transport_case_id = is_bounded_transport_case_id(event->meta.transport_case_id)
@@ -106,7 +126,8 @@ uint64_t msconnector_integrity_event_hash(const msconnector_event *event, uint64
     hash = hash_int_continue(hash, event->protocol.fallback_used);
     hash = hash_int_continue(hash, event->protocol.stream_reset);
     hash = hash_string_continue(hash, event->request.method);
-    hash = hash_string_continue(hash, event->request.uri);
+    hash = hash_safe_uri_continue(hash, event->request.uri, &uri_redacted,
+        &uri_truncated);
     hash = hash_string_continue(hash, event->request.client_ip);
     hash = hash_string_continue(hash, event->body.content_type);
     hash = hash_string_continue(hash, event->body.limit_outcome);
@@ -126,8 +147,9 @@ uint64_t msconnector_integrity_event_hash(const msconnector_event *event, uint64
     hash = hash_int_continue(hash, event->flags.upstream_disconnected);
     hash = hash_int_continue(hash, event->flags.cancelled);
     hash = hash_int_continue(hash, event->flags.eos_seen);
-    hash = hash_int_continue(hash, event->flags.redacted);
-    hash = hash_int_continue(hash, event->flags.truncated);
+    hash = hash_int_continue(hash, event->flags.redacted != 0 || uri_redacted != 0);
+    hash = hash_int_continue(hash,
+        event->flags.truncated != 0 || uri_truncated != 0);
     hash = hash_string_continue(hash, event->flags.timeout_stage);
     hash = hash_string_continue(hash, event->flags.write_result);
     hash = hash_string_continue(hash, event->flags.cleanup_reason);

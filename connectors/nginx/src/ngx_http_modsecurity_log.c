@@ -88,12 +88,20 @@ ngx_http_modsecurity_log(void *log, const void* data)
     const char *msg;
     ngx_http_request_t *r;
     ngx_http_modsecurity_ctx_t *ctx;
+    ngx_http_modsecurity_conf_t *mcf;
 
     if (log == NULL || data == NULL) {
         return;
     }
     msg = (const char *) data;
     r = (ngx_http_request_t *)log;
+    if (r == NULL || r->connection == NULL || r->connection->log == NULL) {
+        return;
+    }
+    mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
+    if (mcf == NULL) {
+        return;
+    }
     ctx = ngx_http_modsecurity_get_module_ctx(r);
     rule_id[0] = '\0';
     if (ctx != NULL && ctx->native_event_phase_active &&
@@ -105,6 +113,9 @@ ngx_http_modsecurity_log(void *log, const void* data)
             ctx->native_event_phase, rule_id);
     }
 
+    if (mcf->common_config.use_error_log != MSCONNECTOR_BOOL_ON) {
+        return;
+    }
     ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "%s", msg);
 }
 

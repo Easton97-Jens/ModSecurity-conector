@@ -14,6 +14,13 @@ wählt engineMode uds. Die passende
 [Engine-Service-Konfiguration](safe/traefik-engine-service.conf) wählt
 gestreamte Bodies und phase4_mode safe.
 
+Der native UDS-Dienst verwendet für jeden vollständigen Frame eine einzige
+monotone Deadline, schließt Clients bei Überschreitung und begrenzt parallele
+Worker standardmäßig auf 64, höchstens auf 256. Die Grenze wird über die
+Service-CLI-Option `--max-workers N` gesetzt, nicht über eine Traefik-YAML-
+Einstellung. Beim Herunterfahren werden aktive Sockets signalisiert und die
+interne Finalisierung bis zum Ende der Worker aufgeschoben.
+
 Dies ist die native HTTP/1.1-P1--P4-Safe-Referenz. P1, P2, P3 und P4 sind
 Request-Header, Request-Body, Response-Header und Response-Body. Safe behauptet
 weder einen späten Statuswechsel noch einen Strict-Verbindungsabbruch. Die

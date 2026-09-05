@@ -25,6 +25,13 @@ reports without an explicit repository-policy decision or user decision.
   Gitlink, CI/governance, and mixed concurrent edits; remote delivery awaits
   explicit current-user authorization, and hosted checks and a merge are not
   asserted.
+
+- [CR-20260903-security-remediation-open-findings](CR-20260903-security-remediation-open-findings.md)
+  | [Deutsch](CR-20260903-security-remediation-open-findings.de.md) — the
+  current user explicitly authorized this Parent-only security remediation,
+  focused regression evidence, paired traceability, and a Draft PR. It does
+  not initialize or modify Framework/MRTS, change a Gitlink, alter CI
+  permissions or dependencies, or authorize a merge.
 - [CR-20260903-no-crs-doc-consistency-repair](CR-20260903-no-crs-doc-consistency-repair.md)
   | [Deutsch](CR-20260903-no-crs-doc-consistency-repair.de.md) — the current
   user authorized this Parent-only repair of the reproduced Traefik No-CRS

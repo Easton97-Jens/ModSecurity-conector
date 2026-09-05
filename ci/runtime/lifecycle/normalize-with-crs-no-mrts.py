@@ -869,7 +869,22 @@ def lighttpd_wire_for(
     return response_transaction_id, trace_path, headers_path
 
 
+def lighttpd_serialized_event_uri(uri: str) -> tuple[str, bool]:
+    """Return the Common JSONL URI representation expected for one request.
+
+    Wire evidence deliberately keeps the original target for request/CRS
+    correlation.  Common event JSONL must instead replace a non-empty query
+    without decoding or otherwise rewriting the path, matching
+    ``msconnector_event_uri_redact_query_ex``.
+    """
+    path, separator, query = uri.partition("?")
+    if separator and query:
+        return f"{path}?<redacted>", True
+    return uri, False
+
+
 def lighttpd_deny_event(event: dict[str, Any], transaction_id: str, uri: str) -> bool:
+    expected_uri, expected_redaction = lighttpd_serialized_event_uri(uri)
     return (
         event.get("connector") == "lighttpd"
         and event.get("integration_mode") == "patched-native-lighttpd"
@@ -879,7 +894,8 @@ def lighttpd_deny_event(event: dict[str, Any], transaction_id: str, uri: str) ->
         and int(event.get("http_status", 0)) == 403
         and int(event.get("visible_http_status", 0)) == 403
         and event.get("transport_result") == "http_status"
-        and str(event.get("uri")) == uri
+        and str(event.get("uri")) == expected_uri
+        and event.get("redacted") is expected_redaction
         and str(event.get("rule_id")) == "949110"
     )
 
@@ -916,11 +932,13 @@ def observed_lighttpd(runtime_root: Path, run_id: str) -> dict[str, Any]:
         fail("Lighttpd requests reused a server-generated host transaction id")
     block = lighttpd_intervention_event(events, "block", block_id, uris["block"])
     bypass = lighttpd_intervention_event(events, "bypass", bypass_id, uris["bypass"])
+    allow_event_uri, _allow_redacted = lighttpd_serialized_event_uri(uris["allow"])
     if any(
         event.get("connector") == "lighttpd"
         and event.get("integration_mode") == "patched-native-lighttpd"
         and event.get("actual_action") == "deny"
-        and str(event.get("uri")) == uris["allow"]
+        and str(event.get("transaction_id")) == allow_id
+        and str(event.get("uri")) in {uris["allow"], allow_event_uri}
         for event in events
     ):
         fail("Lighttpd allow URI has a correlated deny event")

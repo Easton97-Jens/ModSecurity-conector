@@ -4,6 +4,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "common" / "runtime" / "http_authorization_service.c"
+COMPANION_FIXTURE = ROOT / "tests" / "http_authorization_service_response_companion_lifecycle_smoke.c"
 
 
 class HttpAuthorizationServiceWorkerContractTests(unittest.TestCase):
@@ -40,23 +41,46 @@ class HttpAuthorizationServiceWorkerContractTests(unittest.TestCase):
             self.source,
         )
         self.assertIn(
-            "authorization_mark_response_companion_quiesced(service)", self.source
+            "authorization_mark_response_companion_quiesced(service)",
+            self.source,
         )
         self.assertIn("&& !service->release_claimed", self.source)
         self.assertIn("service->release_claimed = 1;", self.source)
-        self.assertIn("service->deferred_cleanup = 1;", self.source)
+        self.assertIn(
+            "service->deferred_cleanup = 1;",
+            self.source,
+        )
+
+    def test_response_companion_fixture_exercises_live_handoff_and_quarantine(self) -> None:
+        fixture = COMPANION_FIXTURE.read_text(encoding="utf-8")
+        self.assertIn("msconnector_http_authorization_service_main", fixture)
+        self.assertIn("companion_handoff", fixture)
+        self.assertIn("companion_shutdown", fixture)
+        self.assertIn("companion_has_retained_transaction", fixture)
+        self.assertIn("test_failed_companion_quarantines_service", fixture)
+        self.assertIn("test_concurrent_owner_worker_release", fixture)
+        self.assertIn("test_no_companion_deferred_release", fixture)
 
     def test_deferred_cleanup_releases_only_profiles_without_a_companion(self) -> None:
         timeout_handler = self.source.split(
             "static int authorization_handle_worker_timeout(", 1
         )[1].split("static int serve_authorization(", 1)[0]
+        deferred_worker = self.source.split(
+            "static int authorization_defer_uninterruptible_worker(", 1
+        )[1].split("static authorization_listener_iteration", 1)[0]
         serve = self.source.split("static int serve_authorization(", 1)[1]
-        self.assertIn("authorization_defer_cleanup(service) == 0", timeout_handler)
-        self.assertIn("profile->shutdown_response_companion == NULL", timeout_handler)
         self.assertIn(
-            "authorization_mark_response_companion_quiesced(service)", timeout_handler
+            "return authorization_defer_uninterruptible_worker(service, profile);",
+            timeout_handler,
         )
-        self.assertIn("return 1;", timeout_handler)
+        self.assertIn("authorization_defer_cleanup(service) == 0", deferred_worker)
+        self.assertIn(
+            "profile->shutdown_response_companion == NULL", deferred_worker
+        )
+        self.assertIn(
+            "authorization_mark_response_companion_quiesced(service)", deferred_worker
+        )
+        self.assertIn("return 1;", deferred_worker)
         self.assertLess(
             serve.index("authorization_handle_worker_timeout(service, profile,"),
             serve.index("if (!authorization_shutdown_response_companion(profile)) {"),

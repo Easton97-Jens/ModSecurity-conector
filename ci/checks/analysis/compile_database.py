@@ -262,14 +262,16 @@ def nginx_config_sources(repository_root: Path) -> set[Path]:
         raise CompilationDatabaseError(f"cannot read NGINX config source list: {error}") from error
 
     sources: set[Path] = set()
-    for connector_source, common_source in re.findall(
-        r"\$ngx_addon_dir/(src/[A-Za-z0-9_./-]+\.c)|\$MSCONNECTOR_COMMON_SRC/([A-Za-z0-9_./-]+\.c)",
+    for connector_source, common_source, registry_source in re.findall(
+        r"\$ngx_addon_dir/(src/[A-Za-z0-9_./-]+\.c)|\$MSCONNECTOR_COMMON_SRC/([A-Za-z0-9_./-]+\.c)|\$MSCONNECTOR_PROFILE_REGISTRY_ROOT/([A-Za-z0-9_./-]+\.c)",
         text,
     ):
         if connector_source:
             sources.add((repository_root / "connectors/nginx" / connector_source).resolve(strict=False))
-        else:
+        elif common_source:
             sources.add((repository_root / "common/src" / common_source).resolve(strict=False))
+        else:
+            sources.add((repository_root / registry_source).resolve(strict=False))
     if not sources:
         raise CompilationDatabaseError("NGINX config does not declare any C translation units")
     return sources

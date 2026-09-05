@@ -524,7 +524,8 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                     "http_status": 403,
                     "visible_http_status": 403,
                     "transport_result": "http_status",
-                    "uri": "/?id=1%20UNION%20SELECT",
+                    "uri": "/?<redacted>",
+                    "redacted": True,
                 }
             )
             + "\n"
@@ -541,7 +542,8 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                     "http_status": 403,
                     "visible_http_status": 403,
                     "transport_result": "http_status",
-                    "uri": "/?id=1%20uNiOn%20SeLeCt",
+                    "uri": "/?<redacted>",
+                    "redacted": True,
                 }
             )
             + "\n",
@@ -1802,10 +1804,25 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
             self.make_lighttpd_host_evidence(runtime)
             events_path = runtime / "events.jsonl"
             events = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines()]
-            events[0]["uri"] = "/?id=benign"
+            events[0]["uri"] = "/?id=1%20UNION%20SELECT"
+            events[0]["redacted"] = False
             private_file(events_path, "".join(json.dumps(event) + "\n" for event in events))
             with self.assertRaisesRegex(RuntimeError, "correlated 949110 intervention"):
                 self.normalize("lighttpd", root, runtime)
+
+    def test_lighttpd_uses_the_common_query_redaction_representation(self) -> None:
+        self.assertEqual(
+            NORMALIZER.lighttpd_serialized_event_uri("/path?canary=secret"),
+            ("/path?<redacted>", True),
+        )
+        self.assertEqual(
+            NORMALIZER.lighttpd_serialized_event_uri("/path"),
+            ("/path", False),
+        )
+        self.assertEqual(
+            NORMALIZER.lighttpd_serialized_event_uri("/path?"),
+            ("/path?", False),
+        )
 
     def test_framework_compatibility_is_reported_but_not_promoted_to_parent_runtime(self) -> None:
         arguments = SimpleNamespace(
