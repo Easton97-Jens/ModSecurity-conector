@@ -18,8 +18,10 @@ synthetic fixtures are failure evidence only. The first exact read-back for
 `c8f1a00a5d45cbc5c4a7e52e1da17e8611e767db` is historical remediation input,
 not final acceptance: it found 20 open code smells despite a green gate. Its
 first source/test successor `0524be2f…` then exposed three different open
-issues; the next normal successor is being remediated rather than accepted.
-Hosted runtime and post-push Sonar result remain pending exact-head validation.
+issues. Exact successor `74581e8d…` still exposed two S8707 vulnerabilities
+and a new test S5778 smell; the next normal successor is being remediated
+rather than accepted. Hosted runtime and post-push Sonar result remain pending
+exact-head validation.
 
 ## Threat model and trust boundaries
 
@@ -42,6 +44,11 @@ not accept arbitrary path CLI options. FD ownership is descriptor-relative and
 no-follow at private boundaries. The collector validates process identity,
 namespace, artifact manifest, exit status, and result publication before
 emitting a runner-owned terminal result.
+
+The evidence root has one protocol-defined leaf, `launcher-evidence`. The CLI
+value must be absolute and normalized, match that leaf exactly, and then has
+only its runner-owned parent admitted; privileged creation uses the fixed leaf
+relative to the retained parent descriptor.
 
 Cleanup and publication remain under review for FND-PARENT-1038. The current
 NGINX control retains root-owned directory, cell, scratch, artifact, helper,
@@ -152,6 +159,23 @@ not a false-positive or a scanner exception.
 No `NOSONAR`, exclusion, issue acceptance, rule change, or Quality-Gate change
 is used. Only the next exact-head analysis may establish that all 23 observed
 successor-era keys are absent.
+
+## Exact-head successor feedback — `74581e8d30c27cf4f5d90c695b7cbc1c0b44a986`
+
+SonarCloud analyzed this exact successor at `2026-09-05T09:36:02Z`. The
+Quality Gate remained `ERROR`: reliability and maintainability were `A`,
+security was `C` (`new_security_rating=3`), and it returned two `OPEN`
+vulnerabilities and one `OPEN` code smell, with zero `CONFIRMED`, `ACCEPTED`,
+and hotspot issues. The earlier S3776 key was absent. The remaining and new
+keys are real remediation input, not accepted scanner results.
+
+| Exact key(s) | Root cause | Secure successor remedy and regression evidence |
+| --- | --- | --- |
+| `AaBw2LTiwSzpTW4LCOTU`, `AaBw2LTiwSzpTW4LCOTT` (`S8707`) | A CLI-derived evidence-root leaf still reached privileged `mkdir`/`open` sinks through a generic child helper; the strict leaf regex is retained but is not the analyzer-recognized trust boundary. | Require the evidence-root leaf to equal the protocol literal `launcher-evidence`, then pass that literal—not the CLI-derived name—to the admitted-parent-FD helper. Regression covers the accepted literal and an alternate-leaf rejection; `O_NOFOLLOW`, descriptor-relative creation, and replacement controls remain. |
+| `AaBw7h6jwtYwlDuGRnBh` (`S5778`) | The unsafe-leaf assertion computed UID/GID within the exception context. | Precompute the identity values and nest `subTest` outside `assertRaises`, retaining all eight unsafe inputs, the expected exception, and the no-creation assertion. |
+
+No `NOSONAR`, exclusion, issue acceptance, rule change, or Quality-Gate change
+is used. A new exact-head analysis must show these three current keys absent.
 
 ## Historical-issue remediation matrix
 

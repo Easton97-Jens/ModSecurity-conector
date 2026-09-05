@@ -20,9 +20,10 @@ die synthetischen Fixtures sind nur Fehler-Evidence. Der erste Exact-Read-back
 für `c8f1a00a5d45cbc5c4a7e52e1da17e8611e767db` ist historischer
 Remediation-Input, keine finale Abnahme: Er fand trotz grünem Gate 20 offene
 Code Smells. Sein erster Source-/Test-Successor `0524be2f…` zeigte danach drei
-andere offene Issues; der nächste normale Successor wird behoben, nicht
-akzeptiert. Gehostete Runtime und Sonar-Ergebnis nach dem Push bleiben
-ausstehende Exact-Head-Validierung.
+andere offene Issues. Der exakte Successor `74581e8d…` zeigte weiterhin zwei
+S8707-Vulnerabilities und einen neuen Test-S5778-Smell; der nächste normale
+Successor wird behoben, nicht akzeptiert. Gehostete Runtime und Sonar-Ergebnis
+nach dem Push bleiben ausstehende Exact-Head-Validierung.
 
 ## Bedrohungsmodell und Vertrauensgrenzen
 
@@ -46,6 +47,12 @@ rollenbezogene private Verzeichnisse; der Runner übergibt feste
 Pfad-CLI-Optionen. FD-Ownership ist descriptor-relativ und an privaten Grenzen
 no-follow. Der Collector prüft Prozessidentität, Namespace, Artefaktmanifest,
 Exit-Status und Ergebnis-Publikation vor einem runner-eigenen Terminalresultat.
+
+Der Evidence-Root hat genau ein protocol-definiertes Leaf,
+`launcher-evidence`. Der CLI-Wert muss absolut und normalisiert sein, diesem
+Leaf exakt entsprechen und lässt dann nur seinen runner-eigenen Parent zu;
+privilegierte Erstellung verwendet das feste Leaf relativ zum gehaltenen
+Parent-Deskriptor.
 
 Cleanup und Publikation bleiben Gegenstand der Prüfung zu FND-PARENT-1038. Die
 aktuelle NGINX-Steuerung hält root-eigene Deskriptoren für Verzeichnis, Zelle,
@@ -156,6 +163,25 @@ Remediation-Checkpoint, keine False-Positive- oder Scanner-Ausnahme.
 Kein `NOSONAR`, keine Exclusion, keine Issue-Akzeptanz, Regel- oder
 Quality-Gate-Änderung wird verwendet. Erst die Analyse des nächsten Exact Head
 kann zeigen, dass alle 23 beobachteten Successor-Keys nicht mehr vorhanden sind.
+
+## Exact-Head-Successor-Feedback — `74581e8d30c27cf4f5d90c695b7cbc1c0b44a986`
+
+SonarCloud analysierte diesen exakten Successor um `2026-09-05T09:36:02Z`.
+Das Quality Gate blieb `ERROR`: Reliability und Maintainability waren `A`,
+Security war `C` (`new_security_rating=3`), und es lieferte zwei `OPEN`
+Vulnerabilities und einen `OPEN` Code Smell, bei null `CONFIRMED`, `ACCEPTED`
+und Hotspot-Issues. Der frühere S3776-Key war nicht mehr vorhanden. Die
+verbleibenden und neuen Keys sind echter Remediation-Input, keine akzeptierten
+Scanner-Ergebnisse.
+
+| Exakte Key(s) | Root Cause | Sicherer Successor-Remedy und Regression-Evidence |
+| --- | --- | --- |
+| `AaBw2LTiwSzpTW4LCOTU`, `AaBw2LTiwSzpTW4LCOTT` (`S8707`) | Ein CLI-abgeleitetes Evidence-Root-Leaf erreichte weiterhin privilegierte `mkdir`-/`open`-Sinks durch einen generischen Child-Helper; die strikte Leaf-Regex bleibt erhalten, ist aber nicht die vom Analyzer erkannte Vertrauensgrenze. | Evidence-Root-Leaf muss dem Protocol-Literal `launcher-evidence` entsprechen; dann wird dieses Literal—nicht der CLI-abgeleitete Name—an den admittierten-Parent-FD-Helper übergeben. Die Regression deckt akzeptiertes Literal und abgewiesenes alternatives Leaf ab; `O_NOFOLLOW`, descriptor-relative Erstellung und Replacement-Kontrollen bleiben erhalten. |
+| `AaBw7h6jwtYwlDuGRnBh` (`S5778`) | Die Unsafe-Leaf-Assertion ermittelte UID/GID innerhalb des Exception-Kontexts. | Identity-Werte vorab binden und `subTest` außerhalb von `assertRaises` verschachteln; alle acht unsicheren Eingaben, die erwartete Exception und die No-Creation-Assertion bleiben erhalten. |
+
+Kein `NOSONAR`, keine Exclusion, keine Issue-Akzeptanz, Regel- oder
+Quality-Gate-Änderung wird verwendet. Eine neue Exact-Head-Analyse muss diese
+drei aktuellen Keys als nicht mehr vorhanden ausweisen.
 
 ## Matrix zur Behebung historischer Issues
 

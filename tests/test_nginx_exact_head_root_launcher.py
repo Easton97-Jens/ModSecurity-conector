@@ -332,15 +332,27 @@ class RootLauncherContractTests(unittest.TestCase):
             parent = Path(temporary)
             descriptor = os.open(parent, os.O_RDONLY | os.O_DIRECTORY)
             try:
+                user_id = os.getuid()
+                group_id = os.getgid()
                 for unsafe in ("", ".", "..", "escape/child", "line\nfeed", "\x00", "ä", "a" * 256):
-                    with self.subTest(unsafe=repr(unsafe)), self.assertRaises(LAUNCHER.LauncherError):
-                        LAUNCHER.create_owned_child_directory(
-                            parent, unsafe, os.getuid(), os.getgid(), 0o700,
-                            "unsafe child", os.getuid(), os.getgid(), parent_descriptor=descriptor
-                        )
-                    self.assertEqual(list(parent.iterdir()), [])
+                    with self.subTest(unsafe=repr(unsafe)):
+                        with self.assertRaises(LAUNCHER.LauncherError):
+                            LAUNCHER.create_owned_child_directory(
+                                parent, unsafe, user_id, group_id, 0o700,
+                                "unsafe child", user_id, group_id, parent_descriptor=descriptor
+                            )
+                        self.assertEqual(list(parent.iterdir()), [])
             finally:
                 os.close(descriptor)
+
+    def test_root_evidence_path_requires_fixed_protocol_leaf(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            parent = Path(temporary)
+            expected = parent / LAUNCHER.ROOT_EVIDENCE_DIRECTORY_NAME
+            alternate = str(parent / "other-evidence")
+            self.assertEqual(LAUNCHER.root_evidence_path(str(expected)), expected)
+            with self.assertRaises(LAUNCHER.LauncherError):
+                LAUNCHER.root_evidence_path(alternate)
 
     def test_owned_child_directory_uses_retained_parent_after_path_replacement(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
