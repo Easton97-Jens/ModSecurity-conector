@@ -497,3 +497,19 @@ headers/source are unavailable. The named
 supported-source compilation and isolated
 `modsecurity_use_error_log` on/off runtime evidence; no exit-77 result is
 treated as success and no host runtime evidence is claimed here.
+
+The additional `check-nginx-common-adoption` control is currently red on this
+head only because it is already red on the exact comparison base, with the two
+known FND-PARENT-1010 assertions. The relevant current-base NGINX paths are
+unchanged here except for the native log callback; the separate checker-only
+successor is Draft PR #357. This PR neither absorbs that independent repair
+nor weakens the check, and its fresh hosted result must report the baseline
+failure as such.
+
+`check-haproxy-common-adoption` likewise reproduces a pre-existing
+current-base assertion (`request mapper prefers Host header and keeps server_ip
+fallback`) on both revisions. It conflicts with the current mapper's validated
+Host assignment and separate server-endpoint field, not with this PR's target
+parser change. FND-PARENT-1041 tracks the checker-only discrepancy for a
+separate narrow remediation; no fallback, runtime source, or check was changed
+here.

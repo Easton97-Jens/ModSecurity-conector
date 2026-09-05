@@ -548,3 +548,19 @@ weiterhin das benannte `NGINX-Use-Error-Log-Exact-Head-Hosted-Gate`
 erforderlich; kein
 Exit-77-Ergebnis wird als Erfolg gewertet und hier wird keine Host-Runtime-
 Evidenz behauptet.
+
+Der zusätzliche Control-Check `check-nginx-common-adoption` ist auf diesem
+Head nur deshalb rot, weil er bereits auf der exakten Vergleichsbasis mit den
+zwei bekannten FND-PARENT-1010-Assertions rot ist. Die einschlägigen NGINX-
+Pfade der aktuellen Basis sind hier bis auf den nativen Log-Callback
+unverändert; der separate reine Checker-Successor ist Draft-PR #357. Dieser PR
+übernimmt weder diese unabhängige Reparatur noch schwächt er den Check ab; sein
+frisches Hosted-Ergebnis muss den Basisfehler entsprechend ausweisen.
+
+Auch `check-haproxy-common-adoption` reproduziert auf beiden Revisionen eine
+bereits in der aktuellen Basis vorhandene Assertion (`request mapper prefers
+Host header and keeps server_ip fallback`). Sie steht im Widerspruch zur
+validierten Host-Zuweisung und zum separaten Server-Endpoint-Feld des aktuellen
+Mappers, nicht zur Target-Parser-Änderung dieses PRs. FND-PARENT-1041 verfolgt
+die reine Checker-Diskrepanz für eine separate enge Reparatur; Fallback,
+Runtime-Source und Check wurden hier nicht geändert.
