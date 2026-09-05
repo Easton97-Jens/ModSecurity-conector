@@ -307,21 +307,59 @@ class RootLauncherContractTests(unittest.TestCase):
     def test_owned_child_directory_is_created_descriptor_relative_and_verified(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             parent = Path(temporary)
-            child = LAUNCHER.create_owned_child_directory(
-                parent, "fresh", os.getuid(), os.getgid(), 0o700,
-                "test child", os.getuid(), os.getgid()
-            )
-            self.assertEqual(child, parent / "fresh")
-            metadata = child.lstat()
-            self.assertTrue(stat.S_ISDIR(metadata.st_mode))
-            self.assertEqual(stat.S_IMODE(metadata.st_mode), 0o700)
-            user_id = os.getuid()
-            group_id = os.getgid()
-            with self.assertRaises(LAUNCHER.LauncherError):
-                LAUNCHER.create_owned_child_directory(
-                    parent, "fresh", user_id, group_id, 0o700,
-                    "duplicate child", user_id, group_id
+            descriptor = os.open(parent, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                child = LAUNCHER.create_owned_child_directory(
+                    parent, "fresh", os.getuid(), os.getgid(), 0o700,
+                    "test child", os.getuid(), os.getgid(), parent_descriptor=descriptor
                 )
+                self.assertEqual(child, parent / "fresh")
+                metadata = child.lstat()
+                self.assertTrue(stat.S_ISDIR(metadata.st_mode))
+                self.assertEqual(stat.S_IMODE(metadata.st_mode), 0o700)
+                user_id = os.getuid()
+                group_id = os.getgid()
+                with self.assertRaises(LAUNCHER.LauncherError):
+                    LAUNCHER.create_owned_child_directory(
+                        parent, "fresh", user_id, group_id, 0o700,
+                        "duplicate child", user_id, group_id, parent_descriptor=descriptor
+                    )
+            finally:
+                os.close(descriptor)
+
+    def test_owned_child_directory_rejects_unsafe_leaf_before_creation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            parent = Path(temporary)
+            descriptor = os.open(parent, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                for unsafe in ("", ".", "..", "escape/child", "line\nfeed", "\x00", "ä", "a" * 256):
+                    with self.subTest(unsafe=repr(unsafe)), self.assertRaises(LAUNCHER.LauncherError):
+                        LAUNCHER.create_owned_child_directory(
+                            parent, unsafe, os.getuid(), os.getgid(), 0o700,
+                            "unsafe child", os.getuid(), os.getgid(), parent_descriptor=descriptor
+                        )
+                    self.assertEqual(list(parent.iterdir()), [])
+            finally:
+                os.close(descriptor)
+
+    def test_owned_child_directory_uses_retained_parent_after_path_replacement(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            parent = root / "parent"
+            parent.mkdir()
+            descriptor = os.open(parent, os.O_RDONLY | os.O_DIRECTORY)
+            moved = root / "moved"
+            try:
+                parent.rename(moved)
+                parent.mkdir()
+                LAUNCHER.create_owned_child_directory(
+                    parent, "fresh", os.getuid(), os.getgid(), 0o700,
+                    "retained child", os.getuid(), os.getgid(), parent_descriptor=descriptor
+                )
+                self.assertTrue((moved / "fresh").is_dir())
+                self.assertFalse((parent / "fresh").exists())
+            finally:
+                os.close(descriptor)
 
     def test_path_containment_rejects_symlink_escape_and_parent_traversal(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

@@ -37,6 +37,7 @@ from typing import Any, Callable
 SHA_RE = re.compile(r"^[a-f\d]{40}$", re.ASCII)
 SHA256_RE = re.compile(r"^[a-f\d]{64}$", re.ASCII)
 RETAINED_FD_PATH_RE = re.compile(r"/proc/self/fd/(\d+)(/.*)?")
+CHILD_LEAF_RE = re.compile(r"^(?!\.{1,2}$)[A-Za-z0-9._-]{1,255}$", re.ASCII)
 ROOT_RUN_NAME = "ModSecurity-conector-nginx-exact-head"
 CELL_NAME = "root-launcher-cell"
 APPARMOR_PROFILE_NAME = "msconnector-nginx-exact-head-userns"
@@ -199,30 +200,55 @@ def validated_command(argv: list[str]) -> list[str]:
     return list(argv)
 
 
-def _open_proc_relative(path: Path, label: str, *, directory: bool = False) -> int | None:
+def _retained_fd_path_parts(path: Path, label: str) -> tuple[int, list[str]] | None:
+    """Parse the only accepted retained-descriptor suffix form."""
     match = RETAINED_FD_PATH_RE.fullmatch(os.fspath(path))
     if match is None or match.group(2) is None:
         return None
     raw_parts = match.group(2).split("/")[1:]
     if not raw_parts or any(part in {"", ".", ".."} for part in raw_parts):
         fail(f"{label} has an unsafe retained descriptor-relative path")
+    try:
+        return int(match.group(1)), raw_parts
+    except ValueError as exc:
+        fail(f"unable to safely open {label}: {exc}")
+
+
+def _retained_open_flags(directory: bool, index: int, part_count: int) -> int:
+    flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW
+    if directory or index != part_count - 1:
+        flags |= os.O_DIRECTORY
+    return flags
+
+
+def _require_retained_fd_type(
+    descriptor: int, path: Path, label: str, directory: bool
+) -> None:
+    metadata = os.fstat(descriptor)
+    if directory:
+        if not stat.S_ISDIR(metadata.st_mode):
+            fail(f"{label} is not a directory")
+        return
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+        fail(f"unsafe regular-file requirement: {path.name}")
+
+
+def _walk_retained_fd_path(
+    base_descriptor: int, raw_parts: list[str], path: Path, label: str, directory: bool
+) -> int:
+    """Walk one retained descriptor without resolving an ordinary pathname."""
     descriptor = -1
     try:
-        descriptor = os.dup(int(match.group(1)))
+        descriptor = os.dup(base_descriptor)
         if not stat.S_ISDIR(os.fstat(descriptor).st_mode):
             fail(f"{label} retained descriptor is not a directory")
         for index, part in enumerate(raw_parts):
-            flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW
-            if directory or index != len(raw_parts) - 1:
-                flags |= os.O_DIRECTORY
-            next_descriptor = os.open(part, flags, dir_fd=descriptor)
+            next_descriptor = os.open(
+                part, _retained_open_flags(directory, index, len(raw_parts)), dir_fd=descriptor
+            )
             os.close(descriptor)
             descriptor = next_descriptor
-        metadata = os.fstat(descriptor)
-        if directory and not stat.S_ISDIR(metadata.st_mode):
-            fail(f"{label} is not a directory")
-        if not directory and (not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1):
-            fail(f"unsafe regular-file requirement: {path.name}")
+        _require_retained_fd_type(descriptor, path, label, directory)
         result, descriptor = descriptor, -1
         return result
     except (OSError, ValueError) as exc:
@@ -230,6 +256,14 @@ def _open_proc_relative(path: Path, label: str, *, directory: bool = False) -> i
     finally:
         if descriptor >= 0:
             os.close(descriptor)
+
+
+def _open_proc_relative(path: Path, label: str, *, directory: bool = False) -> int | None:
+    """Open a constrained retained-FD path, or report that it is ordinary."""
+    retained = _retained_fd_path_parts(path, label)
+    if retained is None:
+        return None
+    return _walk_retained_fd_path(*retained, path, label, directory)
 
 
 def open_regular_no_follow(path: Path, label: str) -> int:
@@ -800,38 +834,6 @@ def private_scratch_container_name() -> str:
     return f"{ROOT_RUN_NAME}-container-{secrets.token_hex(16)}"
 
 
-def _require_child_leaf(name: str, label: str) -> None:
-    if not name or name in {".", ".."} or "/" in name:
-        fail(f"{label} has an invalid leaf name")
-
-
-def _open_child_parent(
-    parent: Path, label: str, parent_descriptor: int | None
-) -> tuple[Path, int]:
-    """Open the child parent once, retaining its descriptor for the caller."""
-    descriptor = -1
-    try:
-        if parent_descriptor is not None:
-            return parent, os.dup(parent_descriptor)
-        parent = no_symlink_path(parent, f"{label} parent")
-        descriptor = os.open(
-            parent.root, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW
-        )
-        for component in parent.parts[1:]:
-            child = os.open(
-                component,
-                os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
-                dir_fd=descriptor,
-            )
-            os.close(descriptor)
-            descriptor = child
-        result, descriptor = descriptor, -1
-        return parent, result
-    finally:
-        if descriptor >= 0:
-            os.close(descriptor)
-
-
 def _require_child_parent(
     descriptor: int, uid: int, gid: int, label: str
 ) -> os.stat_result:
@@ -855,6 +857,8 @@ def _create_verified_child_descriptor(
     label: str,
 ) -> int:
     """Create a child and prove that neither child nor parent was swapped."""
+    if not isinstance(name, str) or CHILD_LEAF_RE.fullmatch(name) is None:
+        fail(f"{label} has an invalid leaf name")
     descriptor = -1
     try:
         os.mkdir(name, mode=mode, dir_fd=parent_descriptor)
@@ -886,16 +890,15 @@ def _create_verified_child_descriptor(
 def create_owned_child_directory(parent: Path, name: str, uid: int, gid: int,
                                  mode: int, label: str,
                                  parent_uid: int, parent_gid: int,
-                                 *, parent_descriptor: int | None = None,
+                                 *, parent_descriptor: int,
                                  return_descriptors: bool = False) -> Path | tuple[Path, int, int]:
-    """Create and verify a fresh child while holding its parent directory FD."""
-    _require_child_leaf(name, label)
+    """Create one admitted leaf beneath the supplied retained parent FD."""
+    if type(parent_descriptor) is not int or parent_descriptor < 0:
+        fail(f"{label} requires an admitted parent descriptor")
     owned_parent_descriptor = -1
     child_descriptor = -1
     try:
-        parent, owned_parent_descriptor = _open_child_parent(
-            parent, label, parent_descriptor
-        )
+        owned_parent_descriptor = os.dup(parent_descriptor)
         parent_before = _require_child_parent(
             owned_parent_descriptor, parent_uid, parent_gid, label
         )

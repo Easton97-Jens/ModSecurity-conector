@@ -16,9 +16,10 @@ The external codex-security archive receipt remains
 `blocked_external_dependency` (FND-PARENT-1036). The retained old run and
 synthetic fixtures are failure evidence only. The first exact read-back for
 `c8f1a00a5d45cbc5c4a7e52e1da17e8611e767db` is historical remediation input,
-not final acceptance: it found 20 open code smells despite a green gate. The
-normal source/test successor, its GitHub read-back, hosted runtime, and
-post-push Sonar result remain pending exact-head validation.
+not final acceptance: it found 20 open code smells despite a green gate. Its
+first source/test successor `0524be2f…` then exposed three different open
+issues; the next normal successor is being remediated rather than accepted.
+Hosted runtime and post-push Sonar result remain pending exact-head validation.
 
 ## Threat model and trust boundaries
 
@@ -133,6 +134,24 @@ keys are resolved.
 | Launcher `AaBwrYH-wqJS101QKLQk`, `AaBwrYH-wqJS101QKLQm`, `AaBwrYH-wqJS101QKLQn`, `AaBwrYH-wqJS101QKLQo`, `AaBwrYH-wqJS101QKLQl`, `AaBwrYH-wqJS101QKLQq`, `AaBwrYH-wqJS101QKLQr`, `AaBwrYH-wqJS101QKLQs`, `AaBwrYH-wqJS101QKLQi`, `AaBwrYH-wqJS101QKLQj`, `AaBwrYH-wqJS101QKLQt`, `AaBwrYH-wqJS101QKLQu`, `AaBwrYH-wqJS101QKLQv`, `AaBs7c4JmWRUlaV2mVXd`, `AaBwrYH-wqJS101QKLQw`, `AaBwrYH-wqJS101QKLQp`, `AaBsRF5SmWRUlaV2f7fu` (`S1192`, `S3776`, `S5713`, `S1481`, `S1172`, `S2589`) | Extract descriptor admission, control/evidence atomic publication, lexer, evidence parsing, and cleanup phases; centralize fixed literals; retain no-follow, pre/post identity, fsync, PIDFD, and quiescence behavior. Launcher regressions cover retained-FD, symlink, cleanup, JSONL, and callback boundaries. |
 | Dispatcher `AaBwrYOpwqJS101QKLQx` (`S1192`) | Centralize the fixed dispatcher-manifest leaf; dispatcher regression suite covers the fixed location mapping. |
 | Launcher test `AaBwrYQAwqJS101QKLQz` (`S5778`) | Bind UID/GID test inputs before the exception assertion so exactly one operation is under test; the focused launcher suite preserves the duplicate-child negative control. |
+
+## Exact-head successor feedback — `0524be2f95a9281a948e8f94e3c1c31690775662`
+
+SonarCloud analyzed this exact successor at `2026-09-05T09:12:16Z`. The
+Quality Gate was `ERROR`: reliability and maintainability remained `A`, but
+security was `C` (`new_security_rating=3`). The API returned two `OPEN`
+vulnerabilities and one `OPEN` code smell, with zero `CONFIRMED`, `ACCEPTED`,
+and hotspot issues. This is a real repository-owned remediation checkpoint,
+not a false-positive or a scanner exception.
+
+| Exact key(s) | Root cause | Secure successor remedy and regression evidence |
+| --- | --- | --- |
+| `AaBw2LTiwSzpTW4LCOTU`, `AaBw2LTiwSzpTW4LCOTT` (`S8707`) | The root launcher accepted a CLI-derived evidence leaf with only separator checks before descriptor-relative `mkdir`/`open`. Its fallback could also reopen a parent pathname. | Require an ASCII allowlisted single leaf immediately before creation and make an already-admitted parent FD mandatory. New negative controls reject traversal, controls, Unicode, and overlong leaves before creation and prove a replaced parent pathname cannot redirect the retained-FD operation. |
+| `AaBw2LTiwSzpTW4LCOTS` (`S3776`) | Retained-FD parsing, descriptor walking, flag selection, final type checking, and cleanup were combined in one helper. | Split parsing, flag selection, descriptor walking, and final metadata validation while retaining `O_NOFOLLOW`, descriptor transfer, and fail-closed errors; the existing retained-FD regular/directory/traversal controls plus the full launcher suite cover the boundary. |
+
+No `NOSONAR`, exclusion, issue acceptance, rule change, or Quality-Gate change
+is used. Only the next exact-head analysis may establish that all 23 observed
+successor-era keys are absent.
 
 ## Historical-issue remediation matrix
 
