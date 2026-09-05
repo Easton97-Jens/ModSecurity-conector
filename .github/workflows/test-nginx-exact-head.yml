@@ -78,10 +78,10 @@ jobs:
           FUNCTIONAL_PARENT_ROOT="${RUNNER_TEMP:?missing runner temporary root}/ModSecurity-conector-nginx-functional-parent"
           /bin/mkdir -p "$RUN_ROOT"
           /bin/chmod 700 "$RUN_ROOT"
-          [ ! -e "$FUNCTIONAL_PARENT_ROOT" ] && [ ! -L "$FUNCTIONAL_PARENT_ROOT" ] || {
+          if [ -e "$FUNCTIONAL_PARENT_ROOT" ] || [ -L "$FUNCTIONAL_PARENT_ROOT" ]; then
             echo "exact-head gate: functional parent is unexpectedly occupied" >&2
             exit 1
-          }
+          fi
           /bin/mkdir "$FUNCTIONAL_PARENT_ROOT"
           /bin/chmod 711 "$FUNCTIONAL_PARENT_ROOT"
           test "$(/usr/bin/stat -c '%a' "$FUNCTIONAL_PARENT_ROOT")" = 711

@@ -889,3 +889,35 @@ abgewiesen werden; daher wird kein lokaler Worker-Runtime-Erfolg behauptet.
 getrackten FND-PARENT-1010-Basisassertions rot. Dieser Kandidat ist noch nicht
 gepusht; ein normaler Successor-Push und sämtliche frische Exact-Head-Hosted-,
 CRS/no-MRTS-, Required-Check- und Sonar-Evidence bleiben verpflichtend.
+
+### 2026-09-05 Sechster Hosted-Follow-up (ShellCheck-Successor ausstehend)
+
+Der Worker-Traversal-Commit
+`25a3eea84185ebcb1d121e84d267e53610cf4118` wurde normal auf den bestehenden
+Draft-PR-#354-Branch gepusht und sowohl aus Git als auch aus GitHub
+zurückgelesen. Sein Exact-Head-Security-Workflow-Lint schlug danach mit Exit
+`1` in `.github/workflows/test-nginx-exact-head.yml` fehl: ShellCheck `SC2015`
+beanstandete korrekt die Fresh-Parent-Prüfung als `&&`/`||`-Kette. Dies ist ein
+echter Workflow-Quality-Defekt, kein Grund, ShellCheck, actionlint oder die
+Ablehnung belegter Pfade zu deaktivieren. Die Exact-Head-Hosted-NGINX- und
+CRS/no-MRTS-Läufe waren gestartet, werden aber nicht als Erfolgsevidence
+verwendet, weil der nächste normale Successor diesen Head ersetzt. Der initiale
+Exact-Head-Sonar-Erfolg ist nach diesem Successor-Push ebenfalls nur
+Vorgänger-Evidence.
+
+Der enge Successor schreibt ausschließlich diese Bedingung als explizites
+`if`: Ein existierender oder symlinked Functional-A-Parent schlägt weiterhin
+vor jedem privilegierten Handoff fehl, während ein frischer Parent unverändert
+weiterläuft. Sein Contract-Test weist eine erneute Einführung der mehrdeutigen
+Kette ab. Dreizehn fokussierte Launcher-/Layout-/Gate-Tests, lokales
+`actionlint` und Whitespace-Checks bestehen. Das vollständige relevante
+Regressionsset, der C17-Build, Sonar, Required Checks, alle fünf CRS/no-MRTS-
+Zellen und der GitHub-hosted-native On/Off-/JSONL-/WAF-/Allow-Nachweis müssen
+auf dem neuen exakten Head erneut laufen.
+
+Dieser Successor ist noch nicht gepusht. Functional A bleibt ausschließlich
+ein GitHub-hosted-nativer Integrationsnachweis, nicht Protected B und keine
+Attestierung gegen einen bösartigen Runner oder VM-root. FND-PARENT-1038 bleibt
+fixed, aber unverified und nicht geschlossen sowie durch diesen Kandidaten
+unverändert; FND-PARENT-1036 bleibt `blocked_external_dependency`; PR #354
+bleibt Draft, offen und ungemergt.

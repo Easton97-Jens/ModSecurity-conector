@@ -135,7 +135,14 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
             'FUNCTIONAL_PARENT_ROOT="${RUNNER_TEMP:?missing runner temporary root}/ModSecurity-conector-nginx-functional-parent"',
             workflow,
         )
-        self.assertIn('[ ! -e "$FUNCTIONAL_PARENT_ROOT" ] && [ ! -L "$FUNCTIONAL_PARENT_ROOT" ]', workflow)
+        self.assertIn(
+            'if [ -e "$FUNCTIONAL_PARENT_ROOT" ] || [ -L "$FUNCTIONAL_PARENT_ROOT" ]; then',
+            workflow,
+        )
+        self.assertNotIn(
+            '[ ! -e "$FUNCTIONAL_PARENT_ROOT" ] && [ ! -L "$FUNCTIONAL_PARENT_ROOT" ] ||',
+            workflow,
+        )
         self.assertIn('/bin/chmod 711 "$FUNCTIONAL_PARENT_ROOT"', workflow)
         self.assertIn('NGINX_FUNCTIONAL_A_PARENT_ROOT="$NGINX_FUNCTIONAL_A_PARENT_ROOT"', workflow)
         self.assertIn("_require_worker_traversable_functional_parent", launcher)

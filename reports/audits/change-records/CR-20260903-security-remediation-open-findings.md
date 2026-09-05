@@ -809,3 +809,32 @@ claimed. `check-nginx-common-adoption` remains red only for the two unchanged
 tracked FND-PARENT-1010 baseline assertions. This candidate is not yet pushed;
 a normal successor push and all fresh exact-head hosted, CRS/no-MRTS,
 required-check, and Sonar evidence remain mandatory.
+
+### 2026-09-05 sixth hosted follow-up (ShellCheck successor pending)
+
+The worker-traversal commit
+`25a3eea84185ebcb1d121e84d267e53610cf4118` was pushed normally to the
+existing Draft PR #354 branch and read back from both Git and GitHub.  Its
+exact-head Security workflow lint then failed with exit `1` at
+`.github/workflows/test-nginx-exact-head.yml`: ShellCheck `SC2015` correctly
+flagged the fresh-parent test written as an `&&`/`||` chain.  This is a real
+workflow-quality defect, not a reason to disable ShellCheck, actionlint, or
+the occupied-path rejection.  The exact-head hosted NGINX and CRS/no-MRTS runs
+had started, but are not used as success evidence because the next normal
+successor will supersede that head.  The initial exact-head Sonar success is
+likewise predecessor-only after that successor push.
+
+The narrow successor rewrites only that condition as an explicit `if`:
+an existing or symlinked Functional-A parent still fails the step before any
+privileged handoff, while a fresh parent continues unchanged.  Its contract
+test now rejects reintroduction of the ambiguous chain.  Thirteen focused
+launcher/layout/gate tests, local `actionlint`, and whitespace checks pass.
+The full relevant regression set, C17 build, Sonar, required checks, all five
+CRS/no-MRTS cells, and GitHub-hosted native On/Off/JSONL/WAF/allow proof must
+be rerun on the new exact head.
+
+This successor is not yet pushed.  Functional A remains a GitHub-hosted native
+integration test only, not Protected B or hostile-runner/VM-root attestation.
+FND-PARENT-1038 remains fixed but unverified and not closed, unchanged by this
+candidate; FND-PARENT-1036 remains `blocked_external_dependency`; PR #354
+remains Draft, open, and unmerged.
