@@ -50,7 +50,8 @@ class HostedFunctionalLauncherTest(unittest.TestCase):
         self.build.mkdir()
         self.lib = self.verified / "modsecurity-lib"
         self.lib.mkdir()
-        (self.lib / "libmodsecurity.so").write_bytes(b"library")
+        (self.lib / "libmodsecurity.so.3").write_bytes(b"runtime library")
+        (self.lib / "libmodsecurity.so").symlink_to("libmodsecurity.so.3")
         self.env = {
             "VERIFIED_RUN_ROOT": str(self.verified),
             "NGINX_PREFIX": str(self.prefix),
@@ -79,6 +80,10 @@ class HostedFunctionalLauncherTest(unittest.TestCase):
             assignments["NGINX_FUNCTIONAL_A_PARENT_ROOT"], str(self.verified)
         )
         self.assertEqual(assignments["NGINX_HOSTED_FUNCTIONAL_A"], "1")
+        self.assertEqual(
+            assignments["NGINX_FUNCTIONAL_A_RUNTIME_LIBRARY"],
+            str(self.lib / "libmodsecurity.so.3"),
+        )
         for forbidden in ("LD_PRELOAD", "LD_LIBRARY_PATH", "PYTHONPATH", "BASH_ENV", "ENV"):
             self.assertNotIn(forbidden, assignments)
         self.assertEqual(command, LAUNCHER_MODULE.build_root_command(dict(self.env)))
@@ -122,6 +127,13 @@ class HostedFunctionalLauncherTest(unittest.TestCase):
         module_path.unlink()
         module_path.mkdir()
         with self.assertRaisesRegex(LAUNCHER_MODULE.FunctionalALaunchError, "regular file"):
+            LAUNCHER_MODULE.build_root_command(self.env)
+
+    def test_rejects_a_symlinked_runtime_library_even_when_the_generic_alias_exists(self) -> None:
+        runtime_library = self.lib / "libmodsecurity.so.3"
+        runtime_library.unlink()
+        runtime_library.symlink_to("libmodsecurity.so")
+        with self.assertRaisesRegex(LAUNCHER_MODULE.FunctionalALaunchError, "symbolic link"):
             LAUNCHER_MODULE.build_root_command(self.env)
 
 

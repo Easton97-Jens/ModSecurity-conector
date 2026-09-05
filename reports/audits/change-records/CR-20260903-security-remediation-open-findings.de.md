@@ -656,3 +656,48 @@ Exact-Head-GitHub-hosted-Build-/Runtime-Evidence, SonarCloud-Analyse und die
 erforderlichen PR-Checks bleiben `not_run`, bis der normale Nachfolge-Commit
 gepusht und zurückgelesen wurde. Draft PR #354 bleibt offen und ungemergt;
 FND-PARENT-1036 bleibt `blocked_external_dependency`.
+
+### 2026-09-05 Hosted-Functional-A- und Sonar-Follow-up (Successor ausstehend)
+
+Der normale Push von `dcb499b04239f55c6faf7a3abf709b6cc9622fb6` wurde als
+Head von Draft PR #354 zurückgelesen. Seine fünf frischen CRS/no-MRTS-
+Runtime-Zellen bestanden, aber diese Vorgänger-Ergebnisse sind kein Nachweis
+für einen Successor. Der frische hosted NGINX-Workflow schloss das
+sudo-/root-gegen-Worker-Preflight und die unprivilegierte Provisionierung ab
+und schlug anschließend fail-closed mit Exit `77` fehl: Sein Launcher lehnte
+den generischen Libtool-Alias `libmodsecurity.so` zu Recht ab, weil dieser
+Alias ein symbolischer Link ist. Dies ist ein fehlgeschlagenes Functional-A-
+Runtime-Ergebnis, kein bestandenes On/Off-Ergebnis.
+
+Der freigegebene Komponenten-Provisioner bewahrt diesen generischen Alias
+absichtlich für gewöhnliche Verbraucher und publiziert daneben
+`libmodsecurity.so.3` als geschütztes reguläres Runtime-Artefakt. Die enge
+Successor-Behebung bindet nur Functional A an diese bereits vorhandene
+reguläre Datei: Der root-Launcher validiert sie ohne Symlink-Traversal,
+übergibt ihren exakten begrenzten Pfad, und das Exact-Head-Gate hasht diese
+Datei vor/nach beiden On/Off-Zellen. Der generische Smoke-Harness behält
+außerhalb von Functional A seinen bestehenden Default
+`libmodsecurity.so`. Ein Functional-A-Aufruf weist ein fehlendes,
+substituiertes oder symlinktes Runtime-Artefakt zurück, statt auf den
+generischen Alias zurückzufallen. Provisioner, Framework, MRTS, Dependency,
+Policy, Workflow-Berechtigung oder Attestierungsgrenze werden nicht geändert.
+
+Der SonarCloud-Readback für den Vorgänger meldete Quality Gate `ERROR` und
+sechs aktive PR-Issues: Reader-Komplexität und File-Open-Hardening, zwei
+fehlende Shell-`case`-Defaults und zwei Assertion-Expression-Prüfungen. Der
+Successor teilt den begrenzten Parser auf, öffnet ausschließlich die feste
+`runtime_root/conf/case.env` über descriptor-relative no-follow-Operationen
+und weist unsichere Directories, Substitutionen, Special Files, Hard Links,
+zu große Inhalte und veränderte Datei-Identität zurück. Die Shell-Cases
+schlagen jetzt fail-closed fehl und die Tests verwenden pro Exception-
+Assertion genau einen ausgewerteten Ausdruck. Kein Issue wird ignoriert,
+unterdrückt oder risikoakzeptiert. Fokussierte Reader-, Launcher-, Exact-Gate-
+und Phase-Runner-Tests bestanden lokal; die drei Phase-Runner-Skips sind die
+bestehende Bedingung eines fehlenden/nicht passenden Framework-Pins.
+
+Der Successor benötigt weiterhin normalen Push, GitHub-Readback, frische
+hosted On/Off-Runtime, frische CRS/no-MRTS-Checks sowie ein frisches
+SonarCloud-Ergebnis mit null aktiven Issues und bestandenem Quality Gate.
+Functional A bleibt ausschließlich ein GitHub-hosted-nativer
+Integrationsnachweis, nicht Protected B oder eine Auflösung von
+FND-PARENT-1038; FND-PARENT-1036 bleibt `blocked_external_dependency`.

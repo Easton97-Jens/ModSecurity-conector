@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import shlex
 import tempfile
 import unittest
@@ -53,9 +54,11 @@ def valid_environment(**overrides: str) -> str:
 class NginxCaseEnvironmentReaderTest(unittest.TestCase):
     def read(self, content: str) -> dict[str, str]:
         with tempfile.TemporaryDirectory() as temporary:
-            path = Path(temporary) / "case.env"
+            root = Path(temporary) / "runtime"
+            path = root / "conf" / "case.env"
+            path.parent.mkdir(parents=True)
             path.write_text(content, encoding="utf-8")
-            return READER.read_case_environment(path)
+            return READER.read_case_environment(root)
 
     def test_reads_the_framework_data_fragment_without_shell_evaluation(self) -> None:
         values = self.read(valid_environment(REQUEST_PATH="/a path?query=literal;$(not-run)"))
@@ -71,8 +74,9 @@ class NginxCaseEnvironmentReaderTest(unittest.TestCase):
         with self.assertRaisesRegex(READER.CaseEnvironmentError, "exactly one quoted value"):
             self.read(content)
 
+        unknown_assignment = valid_environment() + "UNSAFE=1\n"
         with self.assertRaisesRegex(READER.CaseEnvironmentError, "unexpected key"):
-            self.read(valid_environment() + "UNSAFE=1\n")
+            self.read(unknown_assignment)
 
     def test_rejects_duplicate_missing_and_control_character_values(self) -> None:
         duplicate = valid_environment() + "CASE_NAME=second\n"
@@ -83,8 +87,31 @@ class NginxCaseEnvironmentReaderTest(unittest.TestCase):
         with self.assertRaisesRegex(READER.CaseEnvironmentError, "missing required keys"):
             self.read(missing)
 
+        control_character = valid_environment(REQUEST_PATH="/ok\x00not-ok")
         with self.assertRaisesRegex(READER.CaseEnvironmentError, "forbidden control character"):
-            self.read(valid_environment(REQUEST_PATH="/ok\x00not-ok"))
+            self.read(control_character)
+
+    def test_rejects_unsafe_runtime_roots_and_case_file_substitution(self) -> None:
+        with self.assertRaisesRegex(READER.CaseEnvironmentError, "absolute normalized"):
+            READER.read_case_environment(Path("relative-runtime-root"))
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "runtime"
+            conf = root / "conf"
+            conf.mkdir(parents=True)
+            target = Path(temporary) / "outside-case.env"
+            target.write_text(valid_environment(), encoding="utf-8")
+            (conf / "case.env").symlink_to(target)
+            with self.assertRaises(READER.CaseEnvironmentError):
+                READER.read_case_environment(root)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "runtime"
+            conf = root / "conf"
+            conf.mkdir(parents=True)
+            os.mkfifo(conf / "case.env")
+            with self.assertRaisesRegex(READER.CaseEnvironmentError, "bounded private regular"):
+                READER.read_case_environment(root)
 
     def test_harness_uses_reader_only_for_the_root_functional_path(self) -> None:
         harness = (
@@ -94,6 +121,11 @@ class NginxCaseEnvironmentReaderTest(unittest.TestCase):
         self.assertIn("load_functional_case_environment", harness)
         self.assertIn('if [ "$NGINX_HOSTED_FUNCTIONAL_A" = "1" ]; then\n    load_functional_case_environment', harness)
         self.assertIn('else\n    . "$CASE_ENV_FILE"', harness)
+        reader_invocation = harness.split("read_functional_case_value()", 1)[1].split(
+            "load_functional_case_environment()", 1
+        )[0]
+        self.assertIn('--runtime-root "$RUNTIME_ROOT"', reader_invocation)
+        self.assertNotIn('--env-file "$CASE_ENV_FILE"', reader_invocation)
         functional_section = harness.split("load_functional_case_environment()", 1)[1].split(
             "write_harness_status()", 1
         )[0]

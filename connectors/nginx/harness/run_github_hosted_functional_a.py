@@ -25,6 +25,7 @@ _PYTHON = "/usr/bin/python3"
 _CURL = "/usr/bin/curl"
 _WORKER_NAME_MAX = 64
 _WORKER_NAME_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789-_")
+_MODSECURITY_RUNTIME_LIBRARY = "libmodsecurity.so.3"
 
 
 class FunctionalALaunchError(ValueError):
@@ -158,7 +159,10 @@ def build_root_command(env: Mapping[str, str]) -> list[str]:
     nginx_module = _require_regular_file(
         nginx_prefix / "modules/ngx_http_modsecurity_module.so", "NGINX module"
     )
-    _require_regular_file(modsecurity_lib / "libmodsecurity.so", "libmodsecurity")
+    modsecurity_runtime_library = _require_regular_file(
+        modsecurity_lib / _MODSECURITY_RUNTIME_LIBRARY,
+        "libmodsecurity runtime library",
+    )
 
     worker_user = _require_worker_name(env, "NGINX_FUNCTIONAL_WORKER_USER")
     worker_group = _require_worker_name(env, "NGINX_FUNCTIONAL_WORKER_GROUP")
@@ -181,6 +185,7 @@ def build_root_command(env: Mapping[str, str]) -> list[str]:
         "NGINX_BINARY": str(nginx_binary),
         "NGINX_MODULE": str(nginx_module),
         "MODSECURITY_LIB_DIR": str(modsecurity_lib),
+        "NGINX_FUNCTIONAL_A_RUNTIME_LIBRARY": str(modsecurity_runtime_library),
         "MODSECURITY_RULE_PREAMBLE_FILE": str(rule_preamble),
         "MODSECURITY_TEST_VARIANT": "no-crs",
         "NO_CRS_BASELINE": "1",

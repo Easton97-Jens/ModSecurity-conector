@@ -10,13 +10,16 @@ the NGINX master is being exercised as root.
 from __future__ import annotations
 
 import argparse
+import os
 import shlex
+import stat
 import sys
 from pathlib import Path
 
 
 _MAX_ENV_BYTES = 16 * 1024
 _MAX_VALUE_BYTES = 4096
+_CASE_ENVIRONMENT_PARTS = ("conf", "case.env")
 _ALLOWED_KEYS = frozenset(
     {
         "CASE_NAME",
@@ -50,20 +53,143 @@ def _reject_control_characters(value: str, *, key: str) -> None:
         raise CaseEnvironmentError(f"{key} exceeds the bounded value size")
 
 
-def read_case_environment(path: Path) -> dict[str, str]:
-    """Return every expected value from one Framework ``case.env`` fragment.
+def _directory_flags() -> int:
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    if no_follow is None:
+        raise CaseEnvironmentError("case environment requires no-follow directory support")
+    return os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | no_follow
 
-    Framework writes one shell-quoted word per selected key.  ``shlex`` parses
-    precisely that one word as data; callers receive its raw value and never
-    ask a shell to re-interpret it.
-    """
 
+def _require_absolute_normalized_directory(path: Path) -> None:
+    rendered = os.fspath(path)
+    if (
+        not path.is_absolute()
+        or os.path.normpath(rendered) != rendered
+        or any(component in {".", ".."} for component in path.parts[1:])
+    ):
+        raise CaseEnvironmentError("runtime root is not an absolute normalized directory")
+
+
+def _open_directory_without_symlinks(path: Path) -> int:
+    _require_absolute_normalized_directory(path)
+    descriptor = -1
     try:
-        raw = path.read_bytes()
+        descriptor = os.open(path.anchor, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+        for component in path.parts[1:]:
+            next_descriptor = os.open(component, _directory_flags(), dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = next_descriptor
+        return descriptor
     except OSError as error:
-        raise CaseEnvironmentError(f"cannot read case environment: {error}") from error
-    if len(raw) > _MAX_ENV_BYTES:
-        raise CaseEnvironmentError("case environment exceeds the bounded file size")
+        if descriptor >= 0:
+            os.close(descriptor)
+        raise CaseEnvironmentError(f"cannot open private runtime root: {error}") from error
+
+
+def _require_private_owned_directory(descriptor: int, *, name: str) -> None:
+    metadata = os.fstat(descriptor)
+    if (
+        not stat.S_ISDIR(metadata.st_mode)
+        or metadata.st_uid != os.geteuid()
+        or metadata.st_mode & 0o022
+    ):
+        raise CaseEnvironmentError(f"{name} is not a private owner-controlled directory")
+
+
+def _read_bounded_regular_file(descriptor: int) -> bytes:
+    before = os.fstat(descriptor)
+    if (
+        not stat.S_ISREG(before.st_mode)
+        or before.st_uid != os.geteuid()
+        or before.st_mode & 0o022
+        or before.st_nlink != 1
+        or before.st_size > _MAX_ENV_BYTES
+    ):
+        raise CaseEnvironmentError("case environment is not a bounded private regular file")
+
+    content = bytearray()
+    while True:
+        remaining = _MAX_ENV_BYTES + 1 - len(content)
+        block = os.read(descriptor, min(4096, remaining))
+        if not block:
+            break
+        content.extend(block)
+        if len(content) > _MAX_ENV_BYTES:
+            raise CaseEnvironmentError("case environment exceeds the bounded file size")
+
+    after = os.fstat(descriptor)
+    if (
+        before.st_dev != after.st_dev
+        or before.st_ino != after.st_ino
+        or before.st_size != after.st_size
+        or before.st_mtime_ns != after.st_mtime_ns
+    ):
+        raise CaseEnvironmentError("case environment changed while being read")
+    return bytes(content)
+
+
+def _read_private_case_environment(runtime_root: Path) -> bytes:
+    root_descriptor = _open_directory_without_symlinks(runtime_root)
+    conf_descriptor = -1
+    environment_descriptor = -1
+    try:
+        _require_private_owned_directory(root_descriptor, name="runtime root")
+        conf_descriptor = os.open(_CASE_ENVIRONMENT_PARTS[0], _directory_flags(), dir_fd=root_descriptor)
+        _require_private_owned_directory(conf_descriptor, name="runtime configuration directory")
+        environment_descriptor = os.open(
+            _CASE_ENVIRONMENT_PARTS[1],
+            os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC | os.O_NOFOLLOW,
+            dir_fd=conf_descriptor,
+        )
+        return _read_bounded_regular_file(environment_descriptor)
+    except OSError as error:
+        raise CaseEnvironmentError(f"cannot open private case environment: {error}") from error
+    finally:
+        for descriptor in (environment_descriptor, conf_descriptor, root_descriptor):
+            if descriptor >= 0:
+                os.close(descriptor)
+
+
+def _parse_case_environment_value(rendered: str, *, key: str, line_number: int) -> str:
+    try:
+        tokens = shlex.split(rendered, posix=True, comments=False)
+    except ValueError as error:
+        raise CaseEnvironmentError(
+            f"invalid shell quoting for {key} at {line_number}"
+        ) from error
+    if len(tokens) != 1:
+        raise CaseEnvironmentError(
+            f"{key} at {line_number} must contain exactly one quoted value"
+        )
+    value = tokens[0]
+    _reject_control_characters(value, key=key)
+    return value
+
+
+def _parse_case_environment_line(
+    line: str, *, line_number: int, values: dict[str, str], saw_header: bool
+) -> bool:
+    if not line:
+        raise CaseEnvironmentError(f"blank line at {line_number} is not permitted")
+    if line.startswith("#"):
+        if saw_header or line != _HEADER or line_number != 1:
+            raise CaseEnvironmentError(f"unexpected comment at {line_number}")
+        return True
+    if "=" not in line:
+        raise CaseEnvironmentError(f"missing assignment at {line_number}")
+    key, rendered = line.split("=", 1)
+    if key not in _ALLOWED_KEYS:
+        raise CaseEnvironmentError(f"unexpected key at {line_number}: {key!r}")
+    if key in values:
+        raise CaseEnvironmentError(f"duplicate key at {line_number}: {key}")
+    values[key] = _parse_case_environment_value(rendered, key=key, line_number=line_number)
+    return saw_header
+
+
+def read_case_environment(runtime_root: Path) -> dict[str, str]:
+    """Return one fixed, no-follow ``runtime_root/conf/case.env`` record."""
+
+    raw = _read_private_case_environment(runtime_root)
     try:
         content = raw.decode("utf-8")
     except UnicodeDecodeError as error:
@@ -72,34 +198,9 @@ def read_case_environment(path: Path) -> dict[str, str]:
     values: dict[str, str] = {}
     saw_header = False
     for line_number, line in enumerate(content.splitlines(), start=1):
-        if not line:
-            raise CaseEnvironmentError(f"blank line at {line_number} is not permitted")
-        if line.startswith("#"):
-            if saw_header or line != _HEADER or line_number != 1:
-                raise CaseEnvironmentError(f"unexpected comment at {line_number}")
-            saw_header = True
-            continue
-        if "=" not in line:
-            raise CaseEnvironmentError(f"missing assignment at {line_number}")
-        key, rendered = line.split("=", 1)
-        if key not in _ALLOWED_KEYS:
-            raise CaseEnvironmentError(f"unexpected key at {line_number}: {key!r}")
-        if key in values:
-            raise CaseEnvironmentError(f"duplicate key at {line_number}: {key}")
-        try:
-            tokens = shlex.split(rendered, posix=True, comments=False)
-        except ValueError as error:
-            raise CaseEnvironmentError(
-                f"invalid shell quoting for {key} at {line_number}"
-            ) from error
-        if len(tokens) != 1:
-            raise CaseEnvironmentError(
-                f"{key} at {line_number} must contain exactly one quoted value"
-            )
-        value = tokens[0]
-        _reject_control_characters(value, key=key)
-        values[key] = value
-
+        saw_header = _parse_case_environment_line(
+            line, line_number=line_number, values=values, saw_header=saw_header
+        )
     if not saw_header:
         raise CaseEnvironmentError("case environment lacks the generated-file header")
     missing = sorted(_ALLOWED_KEYS.difference(values))
@@ -110,7 +211,7 @@ def read_case_environment(path: Path) -> dict[str, str]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--env-file", required=True, type=Path)
+    parser.add_argument("--runtime-root", required=True, type=Path)
     parser.add_argument("--key", required=True, choices=sorted(_ALLOWED_KEYS))
     return parser.parse_args()
 
@@ -118,7 +219,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     try:
-        value = read_case_environment(args.env_file)[args.key]
+        value = read_case_environment(args.runtime_root)[args.key]
     except CaseEnvironmentError as error:
         print(f"nginx case environment rejected: {error}", file=sys.stderr)
         return 2

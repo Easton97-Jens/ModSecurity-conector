@@ -599,3 +599,44 @@ build/runtime evidence, SonarCloud analysis, and the required PR checks remain
 `not_run` until the normal successor commit is pushed and read back.  Draft PR
 #354 remains open and unmerged; FND-PARENT-1036 remains
 `blocked_external_dependency`.
+
+### 2026-09-05 hosted Functional-A and Sonar follow-up (successor pending)
+
+The normal push of `dcb499b04239f55c6faf7a3abf709b6cc9622fb6` was read back
+as the Draft PR #354 head.  Its five fresh CRS/no-MRTS runtime cells passed,
+but those predecessor results are not evidence for a successor.  The fresh
+hosted NGINX workflow completed the sudo/root-versus-worker preflight and
+unprivileged provisioning, then failed closed with exit `77`: its launcher
+correctly rejected the generic Libtool `libmodsecurity.so` alias because that
+alias is a symbolic link.  This is a failed Functional-A runtime result, not a
+passing on/off result.
+
+The approved component provisioner intentionally preserves that generic alias
+for ordinary consumers and separately publishes
+`libmodsecurity.so.3` as the protected regular runtime artifact.  The narrow
+successor repair binds Functional A only to that existing regular file: the
+root launcher validates it without symlink traversal, passes its exact bounded
+path, and the exact-head gate hashes that file before/after both on/off cells.
+The generic smoke harness retains its existing `libmodsecurity.so` default
+outside Functional A.  A Functional-A invocation rejects a missing, substituted
+or symlinked runtime artifact rather than falling back to the generic alias.
+No provisioner, Framework, MRTS, dependency, policy, workflow permission, or
+attestation boundary is changed.
+
+SonarCloud readback for the predecessor reported Quality Gate `ERROR` and six
+active PR issues: reader complexity and file-open hardening, two missing shell
+`case` defaults, and two assertion-expression checks.  The successor splits
+the bounded parser, opens only the fixed
+`runtime_root/conf/case.env` by descriptor-relative no-follow operations, and
+rejects unsafe directories, substitutions, special files, hard links,
+oversized content, and changed file identity.  The shell cases now fail
+closed, and the tests use one evaluated expression per exception assertion.
+No issue is ignored, suppressed, or risk-accepted.  Focused reader,
+launcher, exact-gate, and phase-runner tests passed locally; the three
+phase-runner skips are the existing absent/mismatched Framework-pin condition.
+
+The successor still requires a normal push, GitHub readback, fresh hosted
+on/off runtime, fresh CRS/no-MRTS checks, and a fresh SonarCloud zero-active-
+issue/Quality-Gate result.  Functional A remains a GitHub-hosted native
+integration test only, not Protected B or a resolution of FND-PARENT-1038;
+FND-PARENT-1036 remains `blocked_external_dependency`.

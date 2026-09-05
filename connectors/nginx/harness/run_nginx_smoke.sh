@@ -51,6 +51,8 @@ fi
 NGINX_BINARY="${NGINX_BINARY:-$NGINX_PREFIX/sbin/nginx}"
 NGINX_MODULE="${NGINX_MODULE:-$NGINX_PREFIX/modules/ngx_http_modsecurity_module.so}"
 MODSECURITY_LIB_DIR="${MODSECURITY_LIB_DIR:-$NGINX_BUILD_DIR/output/modsecurity/lib}"
+NGINX_FUNCTIONAL_A_RUNTIME_LIBRARY="${NGINX_FUNCTIONAL_A_RUNTIME_LIBRARY:-}"
+MODSECURITY_RUNTIME_LIBRARY="$MODSECURITY_LIB_DIR/libmodsecurity.so"
 LOG_DIR="${LOG_DIR:-}"
 RESULTS_DIR="${RESULTS_DIR:-$BUILD_ROOT/results}"
 if [ -n "${FORCE_ALL_CASES:-}" ] && [ "$RESULTS_DIR" = "$BUILD_ROOT/results" ]; then
@@ -197,13 +199,22 @@ if [ "$NGINX_HOSTED_FUNCTIONAL_A" = "1" ]; then
         echo "nginx_smoke: blocked hosted functional A requires RUN_ONE_CASE=1"
         exit 77
     }
+    case "$NGINX_FUNCTIONAL_A_RUNTIME_LIBRARY" in
+        "$MODSECURITY_LIB_DIR/libmodsecurity.so.3")
+            MODSECURITY_RUNTIME_LIBRARY="$NGINX_FUNCTIONAL_A_RUNTIME_LIBRARY"
+            ;;
+        *)
+            echo "nginx_smoke: blocked hosted functional A requires the validated libmodsecurity.so.3 artifact" >&2
+            exit 77
+            ;;
+    esac
 else
     load_connector_adapter_metadata
 fi
 
 read_functional_case_value() {
     case_key=$1
-    "$PYTHON_BIN" "$NGINX_CASE_ENV_READER" --env-file "$CASE_ENV_FILE" --key "$case_key"
+    "$PYTHON_BIN" "$NGINX_CASE_ENV_READER" --runtime-root "$RUNTIME_ROOT" --key "$case_key"
 }
 
 load_functional_case_environment() {
@@ -1194,7 +1205,7 @@ run_all_cases() {
         --server nginx \
         --server-binary "$NGINX_BINARY" \
         --module "$NGINX_MODULE" \
-        --libmodsecurity "$MODSECURITY_LIB_DIR/libmodsecurity.so" \
+        --libmodsecurity "$MODSECURITY_RUNTIME_LIBRARY" \
         --origin-source "$CONNECTOR_ORIGIN_SOURCE" \
         --origin-source-repo "$CONNECTOR_ORIGIN_SOURCE_REPO" \
         --origin-source-url "$CONNECTOR_ORIGIN_SOURCE_URL" \
@@ -1588,6 +1599,9 @@ prepare_phase4_log_target() {
                 fail "could not create wrong-owner phase4 rejection target"
             chmod 600 "$NGINX_PHASE4_LOG_FILE"
             ;;
+        *)
+            blocked "unsupported NGINX_PHASE4_LOG_TARGET_MODE=$NGINX_PHASE4_LOG_TARGET_MODE"
+            ;;
     esac
 }
 
@@ -1642,6 +1656,9 @@ render_config() {
         server_with_location_override)
             NGINX_PHASE4_LOG_SERVER_DIRECTIVE="modsecurity_phase4_log \"$NGINX_PHASE4_LOG_SERVER_FILE\";"
             NGINX_PHASE4_LOG_LOCATION_DIRECTIVE="modsecurity_phase4_log \"$NGINX_PHASE4_LOG_FILE\";"
+            ;;
+        *)
+            blocked "unsupported NGINX_PHASE4_LOG_SCOPE=$NGINX_PHASE4_LOG_SCOPE"
             ;;
     esac
     sed \
@@ -3134,7 +3151,11 @@ if [ "$MSCONNECTOR_SMOKE_STAGE" = "minimal_runtime_smoke" ] || \
     [ -n "$CURL_BIN" ] || blocked "missing curl; set CURL=/path/to/curl"
     [ -x "$CURL_BIN" ] || blocked "curl is not executable: $CURL_BIN"
 fi
-[ -f "$MODSECURITY_LIB_DIR/libmodsecurity.so" ] || blocked "missing staged libmodsecurity.so: $MODSECURITY_LIB_DIR/libmodsecurity.so"
+[ -f "$MODSECURITY_RUNTIME_LIBRARY" ] || \
+    blocked "missing staged libmodsecurity runtime library: $MODSECURITY_RUNTIME_LIBRARY"
+if [ "$NGINX_HOSTED_FUNCTIONAL_A" = "1" ] && [ -L "$MODSECURITY_RUNTIME_LIBRARY" ]; then
+    blocked "hosted functional-A runtime library must not be a symlink: $MODSECURITY_RUNTIME_LIBRARY"
+fi
 
 CONFIG_FILE="$RUNTIME_ROOT/conf/nginx.conf"
 RULES_FILE="$RUNTIME_ROOT/conf/modsecurity-smoke.conf"

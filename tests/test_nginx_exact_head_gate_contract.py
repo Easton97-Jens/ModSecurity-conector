@@ -79,6 +79,11 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
         self.assertIn("native callback marker leaked with error-log off", script)
         self.assertIn("NGINX_HOSTED_FUNCTIONAL_A", script)
         self.assertIn("NGINX_FUNCTIONAL_A_PARENT_ROOT", script)
+        self.assertIn("NGINX_FUNCTIONAL_A_RUNTIME_LIBRARY", script)
+        self.assertIn("libmodsecurity.so.3", script)
+        self.assertIn("require_existing_non_symlink_regular_file", script)
+        self.assertIn('"$FUNCTIONAL_RUNTIME_LIBRARY"', script)
+        self.assertNotIn('"$MODSECURITY_LIB_DIR/libmodsecurity.so"', script)
         self.assertIn("require_existing_non_symlink_directory", script)
         self.assertIn("functional-A root must be the designated fresh child", script)
         self.assertIn("artifact-identity.start.sha256", script)
@@ -91,6 +96,9 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
         harness = (ROOT / "connectors/nginx/harness/run_nginx_smoke.sh").read_text()
         self.assertIn("@@NGINX_USE_ERROR_LOG_DIRECTIVE@@", template)
         self.assertIn("modsecurity_use_error_log off;", harness)
+        self.assertIn('MODSECURITY_RUNTIME_LIBRARY="$MODSECURITY_LIB_DIR/libmodsecurity.so"', harness)
+        self.assertIn('MODSECURITY_RUNTIME_LIBRARY="$NGINX_FUNCTIONAL_A_RUNTIME_LIBRARY"', harness)
+        self.assertIn("hosted functional-A runtime library must not be a symlink", harness)
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ FRAMEWORK_ROOT=${FRAMEWORK_ROOT:-$REPO_ROOT/modules/ModSecurity-test-Framework}
 FUNCTIONAL_ROOT=${NGINX_FUNCTIONAL_A_ROOT:-}
 FUNCTIONAL_PARENT_ROOT=${NGINX_FUNCTIONAL_A_PARENT_ROOT:-}
 RULE_PREAMBLE=${MODSECURITY_RULE_PREAMBLE_FILE:-$FRAMEWORK_ROOT/tests/rules/no-crs-baseline.conf}
+FUNCTIONAL_RUNTIME_LIBRARY=${NGINX_FUNCTIONAL_A_RUNTIME_LIBRARY:-}
 PHASE4_CASE=nginx_phase4_deny_after_commit_log_only
 INHERITANCE_CASE=phase1_header_block
 ALLOW_CASE=allow_without_marker
@@ -53,12 +54,27 @@ require_existing_non_symlink_directory() {
         blocked "existing directory resolves through a symlink: $directory"
 }
 
+require_existing_non_symlink_regular_file() {
+    file=$1
+    [ -n "$file" ] || blocked "empty existing regular file"
+    case "$file" in
+        /*) ;;
+        *) blocked "existing regular file is not absolute: $file" ;;
+    esac
+    [ -f "$file" ] && [ ! -L "$file" ] || \
+        blocked "existing regular file is unavailable or a symlink: $file"
+    resolved_file=$(/usr/bin/readlink -f -- "$file") || \
+        blocked "could not canonicalize existing regular file: $file"
+    [ "$resolved_file" = "$file" ] || \
+        blocked "existing regular file resolves through a symlink: $file"
+}
+
 write_artifact_identity() {
     identity_output=$1
     /usr/bin/sha256sum -- \
         "$NGINX_BINARY" \
         "$NGINX_MODULE" \
-        "$MODSECURITY_LIB_DIR/libmodsecurity.so" \
+        "$FUNCTIONAL_RUNTIME_LIBRARY" \
         "$RULE_PREAMBLE" \
         "$FRAMEWORK_ROOT/tests/cases/connector-specific/nginx/nginx_phase4_deny_after_commit_log_only.yaml" \
         "$FRAMEWORK_ROOT/tests/cases/request/headers/phase1_header_block.yaml" \
@@ -106,6 +122,7 @@ run_harness_case() {
     NGINX_PHASE4_LOG_SCOPE="$log_scope" \
     NGINX_PHASE4_LOG_LIFECYCLE_PROBE="$lifecycle_probe" \
     NGINX_FUNCTIONAL_A_QUERY_CANARY="$query_canary" \
+    NGINX_FUNCTIONAL_A_RUNTIME_LIBRARY="$FUNCTIONAL_RUNTIME_LIBRARY" \
     /bin/sh "$SCRIPT_DIR/run_nginx_smoke.sh"
 }
 
@@ -253,11 +270,16 @@ assert_mode_repair() {
 [ "$FUNCTIONAL_ROOT" = "$FUNCTIONAL_PARENT_ROOT/nginx-hosted-functional-a" ] || \
     blocked "functional-A root must be the designated fresh child"
 require_existing_non_symlink_directory "$FUNCTIONAL_PARENT_ROOT"
+require_existing_non_symlink_directory "$MODSECURITY_LIB_DIR"
 [ -d "$FRAMEWORK_ROOT" ] || blocked "missing Framework"
 [ -f "$RULE_PREAMBLE" ] || blocked "missing pinned no-CRS rules"
 [ -x "$NGINX_BINARY" ] || blocked "missing exact NGINX binary"
 [ -f "$NGINX_MODULE" ] || blocked "missing exact NGINX module"
-[ -f "$MODSECURITY_LIB_DIR/libmodsecurity.so" ] || blocked "missing exact libmodsecurity"
+case "$FUNCTIONAL_RUNTIME_LIBRARY" in
+    "$MODSECURITY_LIB_DIR/libmodsecurity.so.3") ;;
+    *) blocked "missing bounded exact libmodsecurity runtime library" ;;
+esac
+require_existing_non_symlink_regular_file "$FUNCTIONAL_RUNTIME_LIBRARY"
 
 require_fresh_private_directory "$FUNCTIONAL_ROOT"
 write_artifact_identity "$FUNCTIONAL_ROOT/artifact-identity.start.sha256"
