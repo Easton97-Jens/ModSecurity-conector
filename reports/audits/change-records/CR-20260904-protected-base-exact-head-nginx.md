@@ -6,10 +6,10 @@
 | --- | --- |
 | Change ID | CR-20260904-protected-base-exact-head-nginx |
 | Date (UTC) | 2026-09-04 |
-| Base revision | 2b3d7f7f0bec006b236b5998d011069c9125033f |
+| Base revision | `origin/master` currently `b779167ff979aa73cdd9321a829f9c693d943760` (normal merge required before final delivery) |
 | Scope | Parent-only protected-base preparation for independent NGINX exact-head evidence |
-| Delivery status | Draft PR #355 branch-only Base merge `5368569351e968e8ea641fc485590654df6a4336` plus protected-workflow remediation checkpoint `fa9064a560b31b377dc1dea3a9b8b99e6867809c`; no merge authorization |
-| Candidate | PR #354, exact head must be resolved and read back at dispatch time |
+| Delivery status | Draft PR #355; local remediation and documentation are pending final commit, normal base merge, push, and exact-head read-back; no merge authorization |
+| Candidate | PR #355, exact final head must be resolved and read back at dispatch time |
 
 ## Purpose
 
@@ -22,6 +22,18 @@ an independent collector emits bounded host-side evidence.
 
 Preparation only — no merge authorization.
 
+## Current review checkpoint
+
+This record contains historical checkpoint evidence below; those SHAs and
+results are not evidence for the final head. The current source changes add
+descriptor-safe path/FD ownership, role-specific private task directories,
+root/candidate separation, and narrow cleanup handling, with focused negative
+tests and the bilingual review package. Final local tests, the required normal
+merge of current `origin/master`, pushed-head read-back, fresh Sonar analysis,
+and hosted exact-head runtime evidence are pending and must be recorded only
+after they are observed. The external Security-Diff archive remains
+`blocked_external_dependency` under FND-PARENT-1036.
+
 The branch-only checkpoint is a normal merge of current `origin/master`
 `2b3d7f7f0bec006b236b5998d011069c9125033f` into the Draft PR branch; its
 other parent is the prior PR head
@@ -29,7 +41,29 @@ other parent is the prior PR head
 #354 into `master`. The historical common base remains
 `95bc04203455bc74a9cd18fafc6fb5848af2bbb2`.
 
-## Final successor update — source checkpoint `fa9064a5`
+## Current source checkpoint (in progress)
+
+The current working tree extends the protected launcher with root-owned
+retained descriptors for its task, cells, scratch container, artifacts,
+helpers, and evidence. Evidence publication is descriptor-safe and runtime
+root evidence remains bound to `tested_pr_head` and `tested_pr_base`. Scratch
+cleanup uses a random root-selected container leaf and is confined to that
+container, avoiding stale fixed-name reuse. Focused source-contract tests cover
+FD authority, replacement races, identity-gated cleanup, bounded process
+supervision, and evidence binding. FND-PARENT-1038 remains `in_progress`; these controls are
+not claimed fixed until the required exact-head review evidence exists.
+
+No hosted protected runtime or independent host attestation is available in
+this checkout. Final commit SHA, GitHub read-back, hosted runtime, and fresh
+Sonar results are pending and must be recorded in a post-push PR comment after
+they are observed. The external archive remains
+`blocked_external_dependency` (FND-PARENT-1036); no old run is migrated or
+finalized.
+
+## Historical successor checkpoint — `fa9064a5`
+
+The following section is retained historical evidence and is not evidence for
+the current working tree or eventual PR head.
 
 GitHub's fresh `zizmor` result for the prior successor `737c9674…` identified
 a direct expansion of `needs.resolve.outputs.tested_pr_head` into the candidate

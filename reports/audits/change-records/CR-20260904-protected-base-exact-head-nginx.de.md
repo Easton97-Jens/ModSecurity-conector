@@ -6,10 +6,10 @@
 | --- | --- |
 | Change-ID | CR-20260904-protected-base-exact-head-nginx |
 | Datum (UTC) | 2026-09-04 |
-| Basis-Revision | 2b3d7f7f0bec006b236b5998d011069c9125033f |
+| Basis-Revision | `origin/master` derzeit `b779167ff979aa73cdd9321a829f9c693d943760` (normaler Merge vor finaler Auslieferung erforderlich) |
 | Umfang | Parent-only-Vorbereitung für unabhängige NGINX-Exact-Head-Evidence über geschützte Base |
-| Auslieferungsstatus | Draft-PR-#355-Branch-only-Base-Merge `5368569351e968e8ea641fc485590654df6a4336` plus Protected-Workflow-Remediation-Checkpoint `fa9064a560b31b377dc1dea3a9b8b99e6867809c`; keine Merge-Autorisierung |
-| Candidate | PR #354; exakter Head muss beim Dispatch aufgelöst und zurückgelesen werden |
+| Auslieferungsstatus | Draft-PR #355; lokale Reparatur und Dokumentation warten auf finalen Commit, normalen Base-Merge, Push und Exact-Head-Read-back; keine Merge-Autorisierung |
+| Candidate | PR #355; finaler exakter Head muss beim Dispatch aufgelöst und zurückgelesen werden |
 
 ## Zweck
 
@@ -21,6 +21,19 @@ unprivilegierte Build paketiert feste Artefakte; ein geschützter Base-Launcher
 führt die beiden nativen On/Off-Zellen aus; und ein unabhängiger Collector
 erzeugt begrenzte hostseitige Evidence.
 
+## Aktueller Review-Checkpoint
+
+Dieser Datensatz enthält weiter unten historische Checkpoint-Evidence; diese
+SHAs und Ergebnisse sind kein Nachweis für den finalen Head. Die aktuellen
+Source-Änderungen ergänzen descriptor-sichere Pfad-/FD-Ownership,
+rollenbezogene private Task-Verzeichnisse, Root/Candidate-Trennung und enge
+Cleanup-Behandlung samt fokussierten Negativtests und zweisprachigem
+Review-Paket. Finale lokale Tests, der erforderliche normale Merge des
+aktuellen `origin/master`, Read-back des gepushten Heads, frische Sonar-
+Analyse und gehostete Exact-Head-Runtime-Evidence stehen aus und dürfen erst
+nach Beobachtung eingetragen werden. Das externe Security-Diff-Archiv bleibt
+unter FND-PARENT-1036 `blocked_external_dependency`.
+
 Der Branch-only-Checkpoint ist ein normaler Merge von aktuellem
 `origin/master` `2b3d7f7f0bec006b236b5998d011069c9125033f` in den Draft-PR-
 Branch; sein anderer Parent ist der frühere PR-Head
@@ -28,7 +41,31 @@ Branch; sein anderer Parent ist der frühere PR-Head
 #354 in `master`. Der historische gemeinsame Base bleibt
 `95bc04203455bc74a9cd18fafc6fb5848af2bbb2`.
 
-## Finales Successor-Update — Source-Checkpoint `fa9064a5`
+## Aktueller Source-Checkpoint (in Bearbeitung)
+
+Der aktuelle Arbeitsbaum erweitert den geschützten Launcher um gehaltene
+root-eigene Deskriptoren für Task, Zellen, Scratch-Container, Artefakte,
+Helper und Evidence. Die Evidence-Publikation ist descriptor-sicher; Root-
+Runtime-Evidence bleibt an `tested_pr_head` und `tested_pr_base` gebunden.
+Scratch-Cleanup verwendet ein zufällig gewähltes root-seitiges Container-Leaf
+und bleibt auf diesen Container begrenzt, sodass keine veraltete Ressource mit
+festem Namen wiederverwendet wird. Fokussierte Source-Contract-Tests decken
+FD-Autorität, Replacement-Races, identitätsgebundenes Cleanup, begrenzte
+Prozessaufsicht und Evidence-Bindung ab. FND-PARENT-1038 bleibt `in_progress`; diese
+Kontrollen werden bis zur erforderlichen Exact-Head-Review-Evidence nicht als
+behoben behauptet.
+
+Ein geschützter Hosted-Runtime-Lauf und eine unabhängige Host-Attestierung sind
+in diesem Checkout nicht verfügbar. Finaler Commit-SHA, GitHub-Read-back,
+Hosted-Runtime und frische Sonar-Ergebnisse stehen aus und müssen nach ihrer
+Beobachtung in einem PR-Kommentar nach dem Push festgehalten werden. Das
+externe Archiv bleibt `blocked_external_dependency` (FND-PARENT-1036); kein
+alter Run wird migriert oder finalisiert.
+
+## Historischer Successor-Checkpoint — `fa9064a5`
+
+Der folgende Abschnitt bleibt historische Evidence und ist kein Nachweis für
+den aktuellen Arbeitsbaum oder den späteren PR-Head.
 
 Das frische GitHub-`zizmor`-Ergebnis für den vorherigen Successor
 `737c9674…` identifizierte eine direkte Expansion von
