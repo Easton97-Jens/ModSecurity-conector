@@ -130,8 +130,8 @@ post-push PR analysis can determine their final resolution.
 
 ## Evidence checklist
 
-- [ ] final local source/test/doc diff reviewed and checks passed;
-- [ ] normal base merge, if required, completed without rebase or force-push;
+- [x] final local source/test/doc diff reviewed and checks passed;
+- [x] normal base merge `acc0ca1d22fd8a452453e66f51115ce026517b52` completed without rebase or force-push;
 - [ ] pushed head read back from GitHub and matched exactly;
 - [ ] all relevant checks and the full exact-head runtime workflow rerun;
 - [ ] Sonar issues triaged individually with zero new issues;

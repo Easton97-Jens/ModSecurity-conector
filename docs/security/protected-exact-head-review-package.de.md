@@ -106,7 +106,9 @@ alle Einträge erfordern eine frische Exact-Head-Neuanalyse.
 | S5778 Dispatcher-Test | `AaBsRF6pmWRUlaV2f7gp`, `AaBsRF6pmWRUlaV2f7gq`, `AaBsRF6pmWRUlaV2f7gr`, `AaBsRF6pmWRUlaV2f7gs` |
 | S6353 Collector | `AaBsRF5-mWRUlaV2f7gX`, `AaBsRF5-mWRUlaV2f7gY`, `AaBsRF5-mWRUlaV2f7gZ` |
 | S6353 Root | `AaBsRF5SmWRUlaV2f7fc`, `AaBsRF5SmWRUlaV2f7fd`, `AaBsRF5SmWRUlaV2f7fe`, `AaBsRF5SmWRUlaV2f7ff`, `AaBsRF5SmWRUlaV2f7fg`, `AaBsRF5SmWRUlaV2f7fh`, `AaBsRF5SmWRUlaV2f7fi`, `AaBsRF5SmWRUlaV2f7fj`, `AaBsRF5SmWRUlaV2f7fs` |
-| S9073 Root-/Builder-/Dispatcher-Test | `AaBsRF65mWRUlaV2f7gt`, `AaBsRF6ImWRUlaV2f7gi`, `AaBsRF6pmWRUlaV2f7go` |
+| S9073 Root-Test | `AaBsRF65mWRUlaV2f7gt` |
+| S9073 Builder-Test | `AaBsRF6ImWRUlaV2f7gi` |
+| S9073 Dispatcher-Test | `AaBsRF6pmWRUlaV2f7go` |
 | S8705 Builder/Runner | `AaBsRF51mWRUlaV2f7gR`, `AaBsRF5dmWRUlaV2f7gD` |
 | S8707 Dispatcher | `AaBs7c_AmWRUlaV2mVXf`, `AaBs7c_AmWRUlaV2mVXg`, `AaBs7c_AmWRUlaV2mVXj`, `AaBs7c_AmWRUlaV2mVXi`, `AaBs7c_AmWRUlaV2mVXh`, `AaBs7c_AmWRUlaV2mVXe` |
 | S8707 Collector | `AaBsRF5-mWRUlaV2f7gd`, `AaBsRF5-mWRUlaV2f7gf`, `AaBsRF5-mWRUlaV2f7ge`, `AaBsRF5-mWRUlaV2f7gc`, `AaBsRF5-mWRUlaV2f7gg` |
@@ -132,8 +134,8 @@ erst die PR-Analyse nach dem Push kann die endgültige Behebung feststellen.
 
 ## Evidence-Checkliste
 
-- [ ] finaler lokaler Source-/Test-/Dokumentations-Diff geprüft und Checks bestanden;
-- [ ] erforderlicher normaler Base-Merge ohne Rebase oder Force-Push erfolgt;
+- [x] finaler lokaler Source-/Test-/Dokumentations-Diff geprüft und Checks bestanden;
+- [x] normaler Base-Merge `acc0ca1d22fd8a452453e66f51115ce026517b52` ohne Rebase oder Force-Push erfolgt;
 - [ ] gepushter Head aus GitHub zurückgelesen und exakt abgeglichen;
 - [ ] alle relevanten Checks und der vollständige Exact-Head-Runtime-Workflow erneut ausgeführt;
 - [ ] Sonar-Issues einzeln triagiert, null neue Issues;

@@ -6,9 +6,9 @@
 | --- | --- |
 | Change-ID | CR-20260904-protected-base-exact-head-nginx |
 | Datum (UTC) | 2026-09-04 |
-| Basis-Revision | `origin/master` derzeit `b779167ff979aa73cdd9321a829f9c693d943760` (normaler Merge vor finaler Auslieferung erforderlich) |
+| Basis-Revision | `b779167ff979aa73cdd9321a829f9c693d943760` |
 | Umfang | Parent-only-Vorbereitung für unabhängige NGINX-Exact-Head-Evidence über geschützte Base |
-| Auslieferungsstatus | Draft-PR #355; lokale Reparatur und Dokumentation warten auf finalen Commit, normalen Base-Merge, Push und Exact-Head-Read-back; keine Merge-Autorisierung |
+| Auslieferungsstatus | Draft-PR #355; normaler `origin/master`-Merge `acc0ca1d22fd8a452453e66f51115ce026517b52` ist abgeschlossen; Push und Exact-Head-Read-back stehen aus; keine Merge-Autorisierung |
 | Candidate | PR #355; finaler exakter Head muss beim Dispatch aufgelöst und zurückgelesen werden |
 
 ## Zweck
@@ -28,10 +28,10 @@ SHAs und Ergebnisse sind kein Nachweis für den finalen Head. Die aktuellen
 Source-Änderungen ergänzen descriptor-sichere Pfad-/FD-Ownership,
 rollenbezogene private Task-Verzeichnisse, Root/Candidate-Trennung und enge
 Cleanup-Behandlung samt fokussierten Negativtests und zweisprachigem
-Review-Paket. Finale lokale Tests, der erforderliche normale Merge des
-aktuellen `origin/master`, Read-back des gepushten Heads, frische Sonar-
-Analyse und gehostete Exact-Head-Runtime-Evidence stehen aus und dürfen erst
-nach Beobachtung eingetragen werden. Das externe Security-Diff-Archiv bleibt
+Review-Paket. Der normale Merge des aktuellen `origin/master` wurde als
+`acc0ca1d22fd8a452453e66f51115ce026517b52` abgeschlossen. Read-back des
+gepushten Heads, frische Sonar-Analyse und gehostete Exact-Head-Runtime-
+Evidence stehen aus und dürfen erst nach Beobachtung eingetragen werden. Das externe Security-Diff-Archiv bleibt
 unter FND-PARENT-1036 `blocked_external_dependency`.
 
 Der Branch-only-Checkpoint ist ein normaler Merge von aktuellem
