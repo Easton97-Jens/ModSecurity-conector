@@ -2713,6 +2713,23 @@ def _remove_tree_at(parent_fd: int, name: str,
         os.close(descriptor)
 
 
+def _require_private_root_cleanup_parent(parent_fd: int) -> None:
+    """Require the retained private root container before named removal."""
+    if type(parent_fd) is not int or parent_fd < 0:
+        fail("cleanup parent descriptor is invalid")
+    try:
+        metadata = os.fstat(parent_fd)
+    except OSError as exc:
+        fail(f"cleanup parent is unavailable: {exc}")
+    if (
+        not stat.S_ISDIR(metadata.st_mode)
+        or metadata.st_uid != 0
+        or metadata.st_gid != 0
+        or stat.S_IMODE(metadata.st_mode) != 0o700
+    ):
+        fail("cleanup parent is not a private root-owned directory")
+
+
 def _terminate_and_drain_runtime(state: LauncherState, errors: list[str]) -> bool:
     if state.process is None:
         return True
@@ -2782,6 +2799,7 @@ def _cleanup_quiesced_scratch(
     if state.scratch_fd < 0 or state.scratch_parent_fd < 0:
         return
     try:
+        _require_private_root_cleanup_parent(state.scratch_parent_fd)
         scratch_identity = os.fstat(state.scratch_fd)
         # The retained parent is the root-owned private container, not the
         # runner-owned evidence parent. Nested scratch entries remain confined

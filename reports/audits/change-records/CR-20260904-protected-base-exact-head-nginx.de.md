@@ -71,6 +71,29 @@ nach dem Push festgehalten werden. Das externe Archiv bleibt
 `blocked_external_dependency` (FND-PARENT-1036); kein alter Run wird migriert
 oder finalisiert.
 
+### 2026-09-05 FND-PARENT-1038-Final-Cleanup-Checkpoint
+
+Der historische Same-Name-Cleanup-Harness bezog sich auf einen ersetzbaren
+Parent. Der aktuelle Produktionspfad führt Scratch-Cleanup bereits nach
+Runtime- und Dedicated-Worker-Quieszenz über einen gehaltenen, root-eigenen
+privaten Container aus. Dieser Successor macht die Voraussetzung explizit: Der
+an die finale namensbasierte Entfernung übergebene Descriptor muss ein
+root-eigenes Verzeichnis mit exakt Modus `0700` sein. Ein ungültiger Parent
+zeichnet einen Cleanup-Fehler auf und behält den Scratch-Baum; er gilt nicht
+als erfolgreiches Cleanup.
+
+Die fokussierte Runner-Parent-Containment-Regression ersetzt und erzeugt den
+Runner-sichtbaren Eintrag unmittelbar vor dem finalen `rmdir` neu, beweist den
+gehaltenen Private-Container-Descriptor als Removal-Parent, entfernt nur den
+zugelassenen Scratch-Baum und erhält den Replacement-Marker. Getrennte positive
+und negative Unit-Controls decken die Private-Parent-Metadatenregel und
+fail-closed Retention ab. Der vollständige fokussierte Protected-Base-Befehl
+führte 129 Tests mit 129 Passes, null Failures/Errors/Skips aus. Ein frischer
+separater Source-Diff-Review fand keinen Blocker; dieser Review und lokale Tests
+ersetzen weder Exact-Remote-Head-, Sonar-, GitHub- noch Protected-Host-Evidence.
+FND-PARENT-1038 bleibt daher bis zur normalen Auslieferung und
+Exact-Head-Verifikation in Bearbeitung.
+
 ## Aktuelle Exact-Head-Sonar-Remediation
 
 Die exakte PR-Analyse für
