@@ -18,6 +18,13 @@ reference turns gzip off until the byte representation seen by the installed
 module is validated. It does not promise per-chunk P4 evaluation or a full
 connector response buffer.
 
+The native event-sink lifecycle is validated in the separately controlled
+Functional-A hosted path when that gate is available. Protected-B attestation
+is a distinct trust boundary and is not implied by these examples; no current
+runtime claim is made here. `modsecurity_use_error_log on|off` controls only
+forwarding of libmodsecurity messages to NGINX's error log and does not alter
+rule evaluation.
+
 ## Files
 
 | Path | Type | Purpose |
@@ -46,7 +53,7 @@ logs, listener, and upstream values inside them are host examples.
 | modsecurity_rules_file | Readable libmodsecurity rules file | Required; no repository default; host config; http scope | /etc/modsecurity/modsecurity-phase4.conf. A reviewed ruleset can block traffic. |
 | modsecurity_phase4_mode | P4 policy: minimal, safe, or strict | Required in Safe, Strict, or all file; host config; http scope | safe in safe/nginx.conf; all selects strict. Strict is configuration-only here. |
 | modsecurity_phase4_content_types_file | Explicit response MIME-type list | Optional; host config; http scope | /etc/modsecurity/phase4-content-types.conf. A missing file fails validation. |
-| modsecurity_phase4_log | Registered but rejected native event-file directive | Not usable; host config rejects every value | Native NGINX cannot establish the Common runtime's no-follow, regular-file, private-`0600` descriptor contract. Use the Common runtime event lifecycle instead. |
+| modsecurity_phase4_log | Native connector-owned P4 JSONL event sink | Optional; http/server/location; inherited when unset | Common no-follow helper requires a safe parent, regular leaf, suitable ownership, and private-`0600` descriptor. Use a validated configuration reload for rotation; generic NGINX `USR1` reopening is not supported. |
 | modsecurity_phase4_body_limit | Positive connector P4 byte bound | Optional; host config; http scope | 1048576 in all lifecycle profiles; over-limit handling is fail-closed. |
 | modsecurity_use_error_log | Forward engine messages to NGINX error log | Optional; host config; http/server/location scope | on in all lifecycle profiles. |
 | modsecurity_transaction_id | Per-request transaction expression | Optional; host config; http/server/location scope | Commented by default because `$request_id` requires a host request-id variable. Enable only a unique, server-generated value; URI- or header-derived values are not suitable for correlation. |

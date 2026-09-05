@@ -17,6 +17,12 @@ MODULE = (ROOT / "connectors/nginx/src/ngx_http_modsecurity_module.c").read_text
 COMMON = (ROOT / "connectors/nginx/src/ngx_http_modsecurity_common.h").read_text(
     encoding="utf-8"
 )
+HARNESS = (ROOT / "connectors/nginx/harness/run_nginx_smoke.sh").read_text(
+    encoding="utf-8"
+)
+EXACT_GATE = (ROOT / "connectors/nginx/harness/run_exact_head_use_error_log.sh").read_text(
+    encoding="utf-8"
+)
 
 
 class NginxNativeSecurityContractTest(unittest.TestCase):
@@ -81,13 +87,84 @@ class NginxNativeSecurityContractTest(unittest.TestCase):
             request_header_sink.index("msc_add_n_request_header"),
         )
 
-    def test_native_event_file_configuration_is_disabled_before_open(self) -> None:
+    def test_native_event_file_configuration_uses_common_private_descriptor(self) -> None:
         setter = MODULE.split("static char *\nngx_conf_set_phase4_log", 1)[1].split(
             "static ngx_int_t", 1
         )[0]
-        self.assertIn("native NGINX phase4 event-file logging is disabled", setter)
+
+        self.assertIn('return "is duplicate";', setter)
+        self.assertIn("ngx_strlchr", setter)
+        self.assertIn("msconnector_open_private_event_file(path, &fd)", setter)
         self.assertNotIn("ngx_conf_open_file(", setter)
-        self.assertNotIn("ngx_write_fd", setter)
+        self.assertNotIn("ngx_list_push(", setter)
+        self.assertIn("generic reopen routine", setter)
+        self.assertIn("event_file->fd = NGX_INVALID_FILE", setter)
+        self.assertIn("ngx_pool_cleanup_add(cf->pool, 0)", setter)
+        self.assertIn(
+            "cleanup->handler = ngx_http_modsecurity_cleanup_phase4_log", setter
+        )
+        self.assertIn("cleanup->handler = NULL", setter)
+        self.assertIn("cleanup->data = NULL", setter)
+        self.assertIn("ngx_conf_log_error(NGX_LOG_EMERG", setter)
+        self.assertIn("event_file->fd = (ngx_fd_t)fd", setter)
+        self.assertIn("event_file->name = value[1]", setter)
+        self.assertIn("mcf->phase4_log_path = value[1]", setter)
+        self.assertIn("mcf->common_config.phase4_log_path = path", setter)
+        self.assertLess(
+            setter.index("ngx_pool_cleanup_add(cf->pool, 0)"),
+            setter.index("msconnector_open_private_event_file(path, &fd)"),
+        )
+        self.assertLess(
+            setter.index("msconnector_open_private_event_file(path, &fd)"),
+            setter.index("event_file->fd = (ngx_fd_t)fd"),
+        )
+
+    def test_native_event_file_cleanup_invalidates_before_close(self) -> None:
+        cleanup = MODULE.split(
+            "static void\nngx_http_modsecurity_cleanup_phase4_log", 1
+        )[1].split("\n\n\n/* vi:set", 1)[0]
+
+        self.assertIn("event_file->fd == NGX_INVALID_FILE", cleanup)
+        self.assertIn("fd = event_file->fd", cleanup)
+        self.assertIn("event_file->fd = NGX_INVALID_FILE", cleanup)
+        self.assertIn("(void)ngx_close_file(fd)", cleanup)
+        self.assertLess(
+            cleanup.index("event_file->fd = NGX_INVALID_FILE"),
+            cleanup.index("(void)ngx_close_file(fd)"),
+        )
+
+    def test_native_event_file_inheritance_borrows_without_new_cleanup(self) -> None:
+        merge = MODULE.split("static char *\nngx_http_modsecurity_merge_conf", 1)[1].split(
+            "\n\nstatic void\nngx_http_modsecurity_cleanup_instance", 1
+        )[0]
+
+        self.assertIn("if (c->phase4_log_file == NGX_CONF_UNSET_PTR)", merge)
+        self.assertIn("c->phase4_log_file = p->phase4_log_file", merge)
+        self.assertIn("c->phase4_log_path = p->phase4_log_path", merge)
+        self.assertIn("c->phase4_log_file = NULL", merge)
+        self.assertNotIn("ngx_conf_merge_ptr_value(c->phase4_log_file", merge)
+
+    def test_hosted_phase4_lifecycle_keeps_generic_reopen_outside_the_sink(self) -> None:
+        for target_mode in (
+            "unsafe_symlink",
+            "unsafe_fifo",
+            "unsafe_directory",
+            "unsafe_writable_parent",
+            "unsafe_wrong_owner",
+        ):
+            self.assertIn(target_mode, HARNESS)
+        self.assertIn('"$NGINX_BINARY" -t -p "$RUNTIME_ROOT" -c "$CONFIG_FILE"', HARNESS)
+        self.assertIn("nginx-reload-unsafe-phase4-configtest.log", HARNESS)
+        self.assertIn('/bin/kill -USR1 "$NGINX_PID"', HARNESS)
+        self.assertIn("phase4_fd_count_for_target()", HARNESS)
+        self.assertIn("assert_phase4_fd_absent", HARNESS)
+        self.assertIn("start_phase4_reload_overlap_client", HARNESS)
+        self.assertIn("phase=phase4_reload_overlap", HARNESS)
+        self.assertIn("phase=phase4_fd_shutdown result=closed_after_master_exit", HARNESS)
+        self.assertIn("phase4_reload_unsafe result=failed_old_cycle_preserved", EXACT_GATE)
+        self.assertIn("phase4_reload_secure result=new_validated_fd", EXACT_GATE)
+        self.assertIn("phase=phase4_reload_overlap", EXACT_GATE)
+        self.assertIn("phase=phase4_fd_shutdown result=closed_after_master_exit", EXACT_GATE)
 
     def test_content_type_file_is_descriptor_pinned_regular_and_bounded(self) -> None:
         loader = MODULE.split(
@@ -110,7 +187,7 @@ class NginxNativeSecurityContractTest(unittest.TestCase):
         self.assertLess(loader.index("ngx_open_file("), loader.index("ngx_fd_info("))
         self.assertLess(loader.index("ngx_fd_info("), loader.index("ngx_pnalloc("))
 
-    def test_rejected_native_event_and_remote_paths_have_no_active_examples(self) -> None:
+    def test_native_event_file_examples_remain_bounded_and_remote_rules_stay_disabled(self) -> None:
         safe = (ROOT / "examples/nginx/safe/nginx.conf").read_text(
             encoding="utf-8"
         )
@@ -127,10 +204,15 @@ class NginxNativeSecurityContractTest(unittest.TestCase):
             ROOT / "examples/nginx/configuration-reference.de.md"
         ).read_text(encoding="utf-8")
 
-        for configuration in (safe, strict, smoke):
+        for configuration in (safe, strict):
             self.assertNotIn("modsecurity_phase4_log ", configuration)
-        self.assertIn("registered but always rejected path", reference)
-        self.assertIn("registrierter, aber immer abgelehnter Pfad", reference_de)
+        # The pinned Framework fixture supplies the directive through the one
+        # location include.  The Parent template must not add a second copy:
+        # duplicate directives would open a second owned descriptor.
+        self.assertIn('include "@@NGINX_LOCATION_DIRECTIVES@@";', smoke)
+        self.assertNotIn("modsecurity_phase4_log", smoke)
+        self.assertNotIn("registered but always rejected path", reference)
+        self.assertNotIn("registrierter, aber immer abgelehnter Pfad", reference_de)
         self.assertIn("Policy A rejects remote-rule configuration", reference)
         self.assertIn("Policy A weist Remote-Rule-Konfiguration ab", reference_de)
         self.assertNotIn("Passes the key/URL pair to libmodsecurity", reference)

@@ -102,7 +102,17 @@ checks = [
 ('"msconnector/phase.h"' in common_h and 'enum msconnector_phase native_event_phase;' in common_h, 'NGINX native event phase has its complete Common enum declaration'),
 ('#if (NGX_PCRE) && !(NGX_PCRE2)' in module_c and '#if !(NGX_PCRE) || (NGX_PCRE2)' in common_h, 'NGINX PCRE allocation shim is disabled for PCRE2 and no-PCRE builds'),
 ('msconnector_config_init' in module_c and 'msconnector_config_merge' in module_c and 'msconnector_config_validate' in module_c, 'NGINX config init/merge/validate uses Common'),
-('conf->phase4_log_file = NGX_CONF_UNSET_PTR;' in module_c and 'conf->phase4_content_types = NGX_CONF_UNSET_PTR;' in module_c and 'ngx_conf_merge_ptr_value(c->phase4_log_file, p->phase4_log_file, NULL);' in module_c, 'NGINX inherits server-level Phase4 log and content-type settings into locations'),
+(
+    'conf->phase4_log_file = NGX_CONF_UNSET_PTR;' in module_c
+    and 'conf->phase4_content_types = NGX_CONF_UNSET_PTR;' in module_c
+    and 'if (c->phase4_log_file == NGX_CONF_UNSET_PTR)' in module_c
+    and 'if (p->phase4_log_file == NGX_CONF_UNSET_PTR)' in module_c
+    and 'c->phase4_log_file = p->phase4_log_file;' in module_c
+    and 'c->phase4_log_path = p->phase4_log_path;' in module_c
+    and 'ngx_conf_merge_ptr_value(c->phase4_log_file, p->phase4_log_file, NULL);' not in module_c
+    and 'ngx_conf_merge_ptr_value(c->phase4_content_types, p->phase4_content_types, NULL);' in module_c,
+    'NGINX inherits server-level Phase4 log settings by borrowing the parent-owned descriptor and preserves content-type inheritance',
+),
 ('msconnector_parse_bool' in module_c, 'NGINX bool parsing uses Common parser'),
 ('msconnector_parse_phase4_mode' in module_c, 'NGINX phase4 parsing uses Common parser'),
 ('msconnector_parse_size' in module_c or 'config_parser.h' in module_c, 'NGINX size parser is available through Common config surface'),

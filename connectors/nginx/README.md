@@ -269,9 +269,9 @@ The adapter-owned NGINX connector currently registers:
 - `modsecurity_use_error_log on|off`
 - `modsecurity_phase4_mode minimal|safe|strict`
 - `modsecurity_phase4_content_types_file <path>`
-- `modsecurity_phase4_log <path>` (rejected: native NGINX event-file logging is
-  disabled because `ngx_conf_open_file()` cannot provide the required
-  no-follow, regular-file, and private `0600` descriptor contract)
+- `modsecurity_phase4_log <path>` (native P4 JSONL sink; the connector-owned
+  descriptor is opened through the Common no-follow helper and requires a safe
+  parent, regular leaf, suitable ownership, and private `0600` mode)
 - `modsecurity_phase4_body_limit <bytes>` (a positive effective limit; an
   over-limit current buffer is rejected before downstream forwarding)
 
@@ -287,9 +287,15 @@ oversized files therefore cannot turn `nginx -t` into an unbounded or blocking
 configuration read on POSIX. The directive fails closed on Win32 because its
 file API cannot establish the same regular-file/nonblocking contract.
 
-Native NGINX Phase-4 event-file logging is deliberately unavailable. The
-Common runtime event path remains separately governed by its secure descriptor
-policy; this NGINX directive does not silently fall back to that path.
+Native NGINX Phase-4 event-file logging is available only through the
+connector-owned descriptor established during configuration. It does not use
+NGINX's generic `cycle->open_files` registry: unsafe symlink/non-regular-file
+targets, unsafe parents/ownership, and insecure modes fail closed. A normal
+configuration reload opens a safe descriptor for the new cycle and is the
+supported rotation mechanism. Generic NGINX `USR1` reopening is deliberately
+not supported for rotation, because it cannot preserve this no-follow contract.
+Runtime proof for the Functional-A path is tracked separately; protected-B
+attestation and the external FND-PARENT-1036 dependency are not claimed here.
 
 `modsecurity_transaction_id` uses an NGINX complex value and may evaluate
 per-request variables. Apache-style `modsecurity_transaction_id_expr` is not

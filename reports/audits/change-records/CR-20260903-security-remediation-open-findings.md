@@ -553,3 +553,49 @@ worktrees with `rtk 0.47.0` and `Python 3.14.7`:
 Both worktrees were clean before and after. These shared base/checker failures
 remain separate remediation work; this PR neither changes their checker nor
 claims a green result for them.
+
+### 2026-09-05 native NGINX Phase-4 event-sink remediation (pre-push)
+
+Starting from Draft PR #354 head
+`bf4666883463e066aad82db6ea27716b5e9d13e7`, the native
+`modsecurity_phase4_log` setter rejected every configured target before it
+could transfer a descriptor to the JSONL callbacks.  A valid secure target
+could therefore never produce native NGINX JSONL evidence.
+
+The scoped fix opens the configured target only through
+`msconnector_open_private_event_file`, installs one NGINX pool cleanup before
+descriptor ownership transfers, and writes through that connector-owned file
+descriptor.  The descriptor is deliberately not registered in
+`cycle->open_files`: generic NGINX `USR1` reopening would otherwise reopen the
+pathname outside Common's no-follow, regular-file, trusted-parent/owner, and
+`0600` contract.  `USR1` therefore retains the validated descriptor; a secure
+configuration reload parses and opens a new descriptor while old workers
+drain.  Inherited locations borrow the parent descriptor without a second
+cleanup, explicitly configured children own their own descriptor, and cleanup
+invalidates the descriptor before closing it.
+
+The accompanying Functional-A gate creates separate `on` and `off` cells from
+the same hashed binary/module/rule set.  It requires a real root master and a
+distinct non-root worker, tests valid targets, unconfigured logging, existing
+mode repair, inheritance/override, five unsafe target forms, redacted JSONL,
+raw-URI/WAF continuity, callback separation, `USR1` retention, failed unsafe
+reload preservation, secure reload overlap/drain, and shutdown FD/process
+cleanup.  The gate is a GitHub-hosted native integration test, not an
+independent hostile-candidate attestation. It deliberately exercises
+candidate-controlled code only for Functional A on a disposable GitHub-hosted
+VM; it is neither source-independent nor an adversarial trust boundary and
+cannot validate Protected B or FND-PARENT-1038.
+
+Local verification on this candidate passed the 43 focused NGINX/Common/
+launcher/reference Python tests, shell syntax checks, Python compilation,
+`actionlint`, generated-reference checks, `git diff --check`, and supported
+source C17/C23/C2y compilation.  `check-nginx-common-adoption` still reports
+only the two documented current-base FND-PARENT-1010 assertions; no checker,
+test, workflow, or Quality-Gate control was weakened.  A local Functional-A
+run is not valid in this container: it is already root, cannot establish the
+required sudo/non-root-worker chain, has no initialized task-worktree
+Framework, and has no fresh current-head artifacts.  Exact-head GitHub-hosted
+build/runtime evidence, SonarCloud analysis, and the required PR checks remain
+`not_run` until the normal successor commit is pushed and read back.  Draft PR
+#354 remains open and unmerged; FND-PARENT-1036 remains
+`blocked_external_dependency`.

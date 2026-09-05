@@ -606,3 +606,53 @@ Worktrees mit `rtk 0.47.0` und `Python 3.14.7` erneut ausgeführt:
 Beide Worktrees waren vorher und nachher sauber. Diese gemeinsamen
 Basis-/Checker-Fehler bleiben separate Remediation-Arbeit; dieser PR ändert
 ihren Checker nicht und behauptet kein grünes Ergebnis dafür.
+
+### 2026-09-05 Native-NGINX-Phase-4-Event-Sink-Remediation (vor dem Push)
+
+Ausgehend vom Draft-PR-#354-Head
+`bf4666883463e066aad82db6ea27716b5e9d13e7` lehnte der native Setter
+`modsecurity_phase4_log` jedes konfigurierte Ziel ab, bevor er einen
+Descriptor an die JSONL-Callbacks übergeben konnte. Ein gültiges sicheres Ziel
+konnte daher keine native NGINX-JSONL-Evidence erzeugen.
+
+Die eingegrenzte Behebung öffnet das konfigurierte Ziel ausschließlich über
+`msconnector_open_private_event_file`, installiert genau ein NGINX-Pool-Cleanup
+vor dem Ownership-Transfer des Descriptors und schreibt über diesen
+connector-eigenen File-Descriptor. Der Descriptor wird bewusst nicht in
+`cycle->open_files` registriert: Ein generisches NGINX-`USR1`-Reopen würde den
+Pfad sonst außerhalb des Common-Vertrags für no-follow, reguläre Datei,
+vertrauenswürdiges Parent/Owner und `0600` erneut öffnen. `USR1` behält daher
+den validierten Descriptor; ein sicherer Konfigurations-Reload parst und
+öffnet einen neuen Descriptor, während alte Worker drainen. Geerbte Locations
+leihen den Parent-Descriptor ohne zweites Cleanup, explizit konfigurierte
+Children besitzen ihren eigenen Descriptor, und das Cleanup invalidiert den
+Descriptor vor dem Schließen.
+
+Das zugehörige Functional-A-Gate erstellt getrennte `on`- und `off`-Zellen aus
+demselben gehashten Binary-/Module-/Rule-Set. Es verlangt einen echten
+root-Master und einen unterschiedlichen Non-root-Worker und prüft gültige
+Ziele, nicht konfiguriertes Logging, die Reparatur bestehender Modi,
+Vererbung/Override, fünf unsichere Zielformen, redigiertes JSONL,
+Raw-URI-/WAF-Kontinuität, Callback-Trennung, `USR1`-Beibehaltung, Erhalt nach
+fehlgeschlagenem unsicherem Reload, sicheren Reload-Overlap/Drain sowie
+Shutdown-FD-/Prozess-Cleanup. Das Gate ist ein GitHub-hosted-nativer
+Integrationsnachweis, keine unabhängige Attestierung gegen einen bösartigen
+Kandidaten. Es führt kandidatenkontrollierten Code nur für Functional A auf
+einer flüchtigen GitHub-hosted-VM aus; es ist weder source-unabhängig noch eine
+adversariale Vertrauensgrenze und kann Protected B oder FND-PARENT-1038 nicht
+validieren.
+
+Die lokale Verifikation dieses Kandidaten bestand die 43 fokussierten
+NGINX/Common-/Launcher-/Reference-Python-Tests, Shell-Syntaxprüfungen,
+Python-Kompilierung, `actionlint`, Generated-Reference-Prüfungen,
+`git diff --check` und die Supported-Source-C17/C23/C2y-Kompilierung.
+`check-nginx-common-adoption` meldet weiterhin nur die zwei dokumentierten
+Current-Base-FND-PARENT-1010-Assertions; weder Checker, Test, Workflow noch
+Quality-Gate-Control wurden abgeschwächt. Ein lokaler Functional-A-Lauf ist in
+diesem Container nicht gültig: Er ist bereits root, kann die erforderliche
+sudo-/Non-root-Worker-Kette nicht herstellen, hat kein initialisiertes
+Framework des Task-Worktrees und keine frischen Current-Head-Artefakte.
+Exact-Head-GitHub-hosted-Build-/Runtime-Evidence, SonarCloud-Analyse und die
+erforderlichen PR-Checks bleiben `not_run`, bis der normale Nachfolge-Commit
+gepusht und zurückgelesen wurde. Draft PR #354 bleibt offen und ungemergt;
+FND-PARENT-1036 bleibt `blocked_external_dependency`.

@@ -52,6 +52,7 @@ static void *ngx_http_modsecurity_create_conf(ngx_conf_t *cf);
 static char *ngx_http_modsecurity_merge_conf(ngx_conf_t *cf, void *parent, void *child);
 static void ngx_http_modsecurity_cleanup_instance(void *data);
 static void ngx_http_modsecurity_cleanup_rules(void *data);
+static void ngx_http_modsecurity_cleanup_phase4_log(void *data);
 static char *ngx_conf_set_phase4_mode(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static char *ngx_conf_set_phase4_content_types_file(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static char *ngx_conf_set_phase4_log(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
@@ -759,15 +760,62 @@ ngx_conf_set_phase4_content_types_file(ngx_conf_t *cf, ngx_command_t *cmd, void 
 static char *
 ngx_conf_set_phase4_log(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
+    ngx_http_modsecurity_conf_t *mcf = conf;
+    ngx_str_t *value = cf->args->elts;
+    ngx_open_file_t *event_file;
+    ngx_pool_cleanup_t *cleanup;
+    char *path;
+    int fd = -1;
+
     (void)cmd;
-    (void)conf;
-    /* The native NGINX file registry cannot establish the Common runtime's
-     * no-follow, regular-file, and private-mode descriptor contract. Reject
-     * this path before descriptor creation so no unsafe writer is reachable.
-     * Common-runtime event files remain available through their own secure
-     * descriptor lifecycle. */
-    (void)cf;
-    return "native NGINX phase4 event-file logging is disabled by security policy";
+
+    if (mcf->phase4_log_file != NGX_CONF_UNSET_PTR) {
+        return "is duplicate";
+    }
+    if (value[1].len == 0U || value[1].data == NULL ||
+        ngx_strlchr(value[1].data, value[1].data + value[1].len, '\0') != NULL) {
+        return "invalid modsecurity_phase4_log path";
+    }
+
+    path = ngx_str_to_char(value[1], cf->pool);
+    if (path == (char *)-1 || path == NULL) {
+        return NGX_CONF_ERROR;
+    }
+
+    event_file = ngx_pcalloc(cf->pool, sizeof(*event_file));
+    if (event_file == NULL) {
+        return NGX_CONF_ERROR;
+    }
+    event_file->fd = NGX_INVALID_FILE;
+
+    /* The cleanup is installed before ownership can transfer from Common, so
+     * every successful open has exactly one owning cleanup in this cycle.
+     * It is deliberately not registered in cycle->open_files: NGINX's
+     * generic reopen routine would re-open the pathname without Common's
+     * no-follow, regular-file, ownership, and 0600 checks. */
+    cleanup = ngx_pool_cleanup_add(cf->pool, 0);
+    if (cleanup == NULL) {
+        return NGX_CONF_ERROR;
+    }
+    cleanup->handler = ngx_http_modsecurity_cleanup_phase4_log;
+    cleanup->data = event_file;
+
+    if (!msconnector_open_private_event_file(path, &fd)) {
+        cleanup->handler = NULL;
+        cleanup->data = NULL;
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+            "modsecurity_phase4_log \"%V\" is not a secure private event file",
+            &value[1]);
+        return NGX_CONF_ERROR;
+    }
+
+    event_file->fd = (ngx_fd_t)fd;
+    event_file->name = value[1];
+    mcf->phase4_log_path = value[1];
+    mcf->phase4_log_file = event_file;
+    mcf->common_config.phase4_log_path = path;
+
+    return NGX_CONF_OK;
 }
 
 static ngx_int_t
@@ -1362,7 +1410,20 @@ ngx_http_modsecurity_merge_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_ptr_value(c->transaction_id, p->transaction_id, NULL);
     ngx_conf_merge_value(c->use_error_log, p->use_error_log, c->common_config.use_error_log);
     ngx_conf_merge_uint_value(c->phase4_mode, p->phase4_mode, (ngx_uint_t) c->common_config.phase4_mode);
-    ngx_conf_merge_ptr_value(c->phase4_log_file, p->phase4_log_file, NULL);
+    if (c->phase4_log_file == NGX_CONF_UNSET_PTR) {
+        if (p->phase4_log_file == NGX_CONF_UNSET_PTR) {
+            c->phase4_log_file = NULL;
+            c->phase4_log_path.len = 0U;
+            c->phase4_log_path.data = NULL;
+        } else {
+            /* Inherited children borrow the one descriptor owned by the
+             * parent-cycle cleanup. A child directive owns a separate
+             * descriptor and cleanup, so no child cleanup can close a parent
+             * descriptor during overlapping reload lifetimes. */
+            c->phase4_log_file = p->phase4_log_file;
+            c->phase4_log_path = p->phase4_log_path;
+        }
+    }
     ngx_conf_merge_ptr_value(c->phase4_content_types, p->phase4_content_types, NULL);
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
     ngx_conf_merge_value(c->sanity_checks_enabled, p->sanity_checks_enabled, 0);
@@ -1420,6 +1481,26 @@ ngx_http_modsecurity_cleanup_rules(void *data)
     old_pool = ngx_http_modsecurity_pcre_malloc_init(mcf->pool);
     msc_rules_cleanup(mcf->rules_set);
     ngx_http_modsecurity_pcre_malloc_done(old_pool);
+}
+
+
+static void
+ngx_http_modsecurity_cleanup_phase4_log(void *data)
+{
+    ngx_open_file_t *event_file = data;
+    ngx_fd_t fd;
+
+    if (event_file == NULL || event_file->fd == NGX_INVALID_FILE) {
+        return;
+    }
+
+    /* Set the state invalid before close so repeated pool cleanup or an
+     * error-path invocation cannot close a recycled descriptor. Each process
+     * has its own inherited copy after fork; closing this copy cannot revoke a
+     * draining worker's still-valid copy. */
+    fd = event_file->fd;
+    event_file->fd = NGX_INVALID_FILE;
+    (void)ngx_close_file(fd);
 }
 
 

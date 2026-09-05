@@ -19,7 +19,7 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`modsecurity`](#modsecurity) | Host / Connector | boolean | no | off | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Gates connector transaction creation; it is not SecRuleEngine. |
 | [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive decimal byte count | no | 1048576 | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Bounds response bytes offered to P4 processing by the native connector. |
 | [`modsecurity_phase4_content_types_file`](#modsecurity-phase4-content-types-file) | Host / Connector | path | no | host defaults when omitted | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Loads the MIME-token allowlist from a bounded POSIX regular file to scope P4 response-body inspection. |
-| [`modsecurity_phase4_log`](#modsecurity-phase4-log) | Host / Connector | registered but always rejected path | no | no usable value | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Rejects native NGINX event-file logging before descriptor creation because the host file registry cannot provide the Common Runtime security contract. |
+| [`modsecurity_phase4_log`](#modsecurity-phase4-log) | Host / Connector | path | no | not configured | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Opens a connector-owned native NGINX event sink through the Common Runtime's secure no-follow descriptor helper. |
 | [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | enum | no | safe | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Before response headers/body are committed, minimal, safe, and strict all resolve a P4 intervention as deny_if_possible, so NGINX can still return the requested engine status (or 403 fallback). Once headers are committed or the body started, minimal and safe both use the common log_only action; they record the late decision without a later status rewrite. Strict instead resolves to abort_connection: the native body filter marks the connection as errored, records connection_aborted, and returns NGX_ERROR. The known host boundary is that NGINX invokes the P4 engine finish only at last_buf/last_in_chain after bounded in-scope body accumulation, so a response may already be visible. Strict can therefore terminate a connection, but cannot guarantee a later 403 or replace an already-sent status line. |
 | [`modsecurity_rules`](#modsecurity-rules) | Host / Connector | string | no | none; optional | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Loads inline content through libmodsecurity during configuration loading. |
 | [`modsecurity_rules_file`](#modsecurity-rules-file) | Host / Connector | path | no | none; optional | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | During NGINX configuration loading, ngx_conf_set_rules_file passes the supplied path to libmodsecurity's msc_rules_add_file. The NGINX setter neither canonicalizes nor requires an absolute path; use an absolute path to avoid a process-working-directory dependency. A missing, unreadable, or invalid top-level rule file returns the libmodsecurity loader error and fails the configuration check/reload. Include and IncludeOptional inside that file are then interpreted by libmodsecurity, not expanded by the NGINX parser. Unlike modsecurity_rules, which sends one inline configuration string to msc_rules_add, this directive sends a file path to msc_rules_add_file; both contribute to the configured rule set and its normal parent/child merge. |
@@ -526,7 +526,7 @@ Use an atomically replaced regular configuration file in a trusted directory. FI
 
 ### Short description
 
-Rejects native NGINX event-file logging before descriptor creation because the host file registry cannot provide the Common Runtime security contract.
+Opens a connector-owned native NGINX event sink through the Common Runtime's secure no-follow descriptor helper.
 
 ### Syntax
 
@@ -542,39 +542,39 @@ modsecurity_phase4_log <value>;
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| registered but always rejected path | no path is accepted | no |
+| path | one absolute or relative path to a safe regular file | no |
 
 ### Default
 
-no usable value
+not configured
 
-Source: `security policy: native NGINX event-file logging disabled`.
+Source: `connector configuration`.
 
 ### Inheritance and merge
 
-No event-file value can be inherited or merged because every use is rejected.
+http → server → location; a child inherits the parent sink when unset.
 
-Merge: No event-file value can be merged because every use is rejected before descriptor creation.
+Merge: The effective context owns one connector descriptor; inherited configuration is not reopened by the generic NGINX file registry.
 
 ### Phases and runtime effect
 
-No event-file sink is reachable through this directive. The Common Runtime event lifecycle remains the supported secure event path.
+P4 event records are appended to the configured connector-owned descriptor.
 
-Rejects native NGINX event-file logging before descriptor creation because the host file registry cannot provide the Common Runtime security contract.
+Opens a connector-owned native NGINX event sink through the Common Runtime's secure no-follow descriptor helper.
 
 ### Validation and errors
 
-ngx_conf_set_phase4_log rejects every path during nginx -t with the native event-file security-policy error.
+ngx_conf_set_phase4_log opens the path with the Common no-follow helper and fails closed unless the resolved leaf is a regular file below a safe parent. The descriptor is connector-owned and opened private (0600); configuration reload creates a new safe descriptor for the new cycle.
 
 ### Example
 
-There is no accepted example: every configured value is rejected by security policy.
+Selected value: use the syntax above and the source-backed file below.
 
 Source-backed example: `connectors/nginx/src/ngx_http_modsecurity_module.c`.
 
 ### Safety and operations
 
-Do not re-enable this native host writer without a no-follow, regular-file, owner, and private-mode descriptor contract. Use the Common Runtime event lifecycle instead.
+The helper rejects symlink traversal, non-regular leaves, unsafe ownership or writable parents, and insecure modes. Generic NGINX USR1 file reopening is not a supported rotation mechanism; use a validated configuration reload.
 
 <a id="modsecurity-phase4-mode"></a>
 ## `modsecurity_phase4_mode`

@@ -74,6 +74,12 @@ NO_CRS_SELECTED_CASE_IDS="${NO_CRS_SELECTED_CASE_IDS:-}"
 CASE_SCOPE="${CASE_SCOPE:-all}"
 CASE_CLI="$FRAMEWORK_ROOT/tests/runners/case_cli.py"
 RUN_ONE_CASE="${RUN_ONE_CASE:-0}"
+NGINX_HOSTED_FUNCTIONAL_A="${NGINX_HOSTED_FUNCTIONAL_A:-0}"
+NGINX_CASE_ENV_READER="$REPO_ROOT/connectors/nginx/harness/read_case_env.py"
+NGINX_PHASE4_LOG_TARGET_MODE="${NGINX_PHASE4_LOG_TARGET_MODE:-regular}"
+NGINX_PHASE4_LOG_SCOPE="${NGINX_PHASE4_LOG_SCOPE:-location}"
+NGINX_PHASE4_LOG_LIFECYCLE_PROBE="${NGINX_PHASE4_LOG_LIFECYCLE_PROBE:-0}"
+NGINX_FUNCTIONAL_A_QUERY_CANARY="${NGINX_FUNCTIONAL_A_QUERY_CANARY:-0}"
 MSCONNECTOR_SMOKE_STAGE="${MSCONNECTOR_SMOKE_STAGE:-minimal_runtime_smoke}"
 MSCONNECTOR_SMOKE_STAGE_BOUNDED_SOAK=bounded_soak
 NGINX_TR_DELETE_WHITESPACE='[:space:]'
@@ -141,6 +147,36 @@ NGINX_LIFECYCLE_RELOAD=not_attempted
 NGINX_LIFECYCLE_INITIAL_WORKER=""
 NGINX_LIFECYCLE_RELOADED_WORKER=""
 
+case "$NGINX_HOSTED_FUNCTIONAL_A" in
+    0|1) ;;
+    *)
+        echo "nginx_smoke: blocked NGINX_HOSTED_FUNCTIONAL_A must be 0 or 1"
+        exit 77
+        ;;
+esac
+
+case "$NGINX_PHASE4_LOG_TARGET_MODE" in
+    regular|existing_regular_0644|unsafe_symlink|unsafe_fifo|unsafe_directory|unsafe_writable_parent|unsafe_wrong_owner) ;;
+    *)
+        echo "nginx_smoke: blocked unsupported NGINX_PHASE4_LOG_TARGET_MODE"
+        exit 77
+        ;;
+esac
+case "$NGINX_PHASE4_LOG_SCOPE" in
+    location|server|server_with_location_override) ;;
+    *)
+        echo "nginx_smoke: blocked unsupported NGINX_PHASE4_LOG_SCOPE"
+        exit 77
+        ;;
+esac
+case "$NGINX_PHASE4_LOG_LIFECYCLE_PROBE:$NGINX_FUNCTIONAL_A_QUERY_CANARY" in
+    0:0|0:1|1:0|1:1) ;;
+    *)
+        echo "nginx_smoke: blocked functional-A phase4 probe flags must be 0 or 1"
+        exit 77
+        ;;
+esac
+
 load_connector_adapter_metadata() {
     eval "$(CONNECTOR_ROOT="$REPO_ROOT" "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/lib/adapter_metadata.py" shell nginx --prefix CONNECTOR_ADAPTER)"
     CONNECTOR_ORIGIN_SOURCE="${CONNECTOR_ORIGIN_SOURCE:-$CONNECTOR_ADAPTER_SOURCE}"
@@ -152,7 +188,49 @@ load_connector_adapter_metadata() {
     CONNECTOR_ORIGIN_IMPORTED_PATH="${CONNECTOR_ORIGIN_IMPORTED_PATH:-$CONNECTOR_ADAPTER_IMPORTED_PATH}"
 }
 
-load_connector_adapter_metadata
+if [ "$NGINX_HOSTED_FUNCTIONAL_A" = "1" ]; then
+    # Functional A intentionally does not evaluate the Framework metadata
+    # shell fragment while this selected native harness runs as root.  The
+    # mode is bounded to one case, so aggregate origin-summary metadata is
+    # neither needed nor silently replaced.
+    [ "$RUN_ONE_CASE" = "1" ] || {
+        echo "nginx_smoke: blocked hosted functional A requires RUN_ONE_CASE=1"
+        exit 77
+    }
+else
+    load_connector_adapter_metadata
+fi
+
+read_functional_case_value() {
+    case_key=$1
+    "$PYTHON_BIN" "$NGINX_CASE_ENV_READER" --env-file "$CASE_ENV_FILE" --key "$case_key"
+}
+
+load_functional_case_environment() {
+    [ -f "$NGINX_CASE_ENV_READER" ] || \
+        blocked "missing hosted functional-A case environment reader: $NGINX_CASE_ENV_READER"
+    if ! CASE_NAME=$(read_functional_case_value CASE_NAME) || \
+       ! REQUEST_METHOD=$(read_functional_case_value REQUEST_METHOD) || \
+       ! REQUEST_PATH=$(read_functional_case_value REQUEST_PATH) || \
+       ! REQUEST_HAS_BODY=$(read_functional_case_value REQUEST_HAS_BODY) || \
+       ! REQUEST_HEADERS_FILE=$(read_functional_case_value REQUEST_HEADERS_FILE) || \
+       ! REQUEST_BODY_FILE=$(read_functional_case_value REQUEST_BODY_FILE) || \
+       ! AUDIT_LOG_FILE=$(read_functional_case_value AUDIT_LOG_FILE) || \
+       ! AUDIT_LOG_DIR=$(read_functional_case_value AUDIT_LOG_DIR) || \
+       ! EXPECT_STATUS=$(read_functional_case_value EXPECT_STATUS) || \
+       ! EXPECT_INTERVENTION=$(read_functional_case_value EXPECT_INTERVENTION) || \
+       ! EXPECT_RULE_ID=$(read_functional_case_value EXPECT_RULE_ID) || \
+       ! EXPECT_RESPONSE_CONTAINS=$(read_functional_case_value EXPECT_RESPONSE_CONTAINS) || \
+       ! EXPECT_TRANSPORT=$(read_functional_case_value EXPECT_TRANSPORT) || \
+       ! EXPECT_AUDIT_LOG_REQUIRED=$(read_functional_case_value EXPECT_AUDIT_LOG_REQUIRED) || \
+       ! NGINX_PHASE4_MODE=$(read_functional_case_value NGINX_PHASE4_MODE); then
+        blocked "generated case environment failed the hosted functional-A data parser"
+    fi
+    export CASE_NAME REQUEST_METHOD REQUEST_PATH REQUEST_HAS_BODY \
+        REQUEST_HEADERS_FILE REQUEST_BODY_FILE AUDIT_LOG_FILE AUDIT_LOG_DIR \
+        EXPECT_STATUS EXPECT_INTERVENTION EXPECT_RULE_ID EXPECT_RESPONSE_CONTAINS \
+        EXPECT_TRANSPORT EXPECT_AUDIT_LOG_REQUIRED NGINX_PHASE4_MODE
+}
 
 write_harness_status() {
     status_kind=$1
@@ -1463,8 +1541,72 @@ write_nginx_protocol_directives() {
     esac
 }
 
+create_fresh_phase4_regular_file() {
+    phase4_target=$1
+    if ! (set -C; : > "$phase4_target"); then
+        fail "phase4 test target must be a fresh regular file: $phase4_target"
+    fi
+}
+
+prepare_phase4_log_target() {
+    NGINX_PHASE4_LOG_FILE="$LOG_DIR/phase4.log"
+    NGINX_PHASE4_LOG_SERVER_FILE="$LOG_DIR/phase4-server.log"
+    case "$NGINX_PHASE4_LOG_TARGET_MODE" in
+        regular)
+            ;;
+        existing_regular_0644)
+            create_fresh_phase4_regular_file "$NGINX_PHASE4_LOG_FILE"
+            chmod 644 "$NGINX_PHASE4_LOG_FILE"
+            ;;
+        unsafe_symlink)
+            phase4_symlink_target="$LOG_DIR/phase4-symlink-target.log"
+            create_fresh_phase4_regular_file "$phase4_symlink_target"
+            chmod 600 "$phase4_symlink_target"
+            ln -s "$phase4_symlink_target" "$NGINX_PHASE4_LOG_FILE" || \
+                fail "could not create phase4 symlink rejection target"
+            ;;
+        unsafe_fifo)
+            mkfifo "$NGINX_PHASE4_LOG_FILE" || \
+                fail "could not create phase4 FIFO rejection target"
+            ;;
+        unsafe_directory)
+            mkdir "$NGINX_PHASE4_LOG_FILE" || \
+                fail "could not create phase4 directory rejection target"
+            ;;
+        unsafe_writable_parent)
+            phase4_writable_parent="$LOG_DIR/phase4-writable-parent"
+            mkdir "$phase4_writable_parent" || \
+                fail "could not create writable-parent rejection directory"
+            chmod 770 "$phase4_writable_parent"
+            NGINX_PHASE4_LOG_FILE="$phase4_writable_parent/phase4.log"
+            ;;
+        unsafe_wrong_owner)
+            [ "$CURRENT_UID" = "0" ] || \
+                blocked "unsafe_wrong_owner phase4 fixture requires root"
+            create_fresh_phase4_regular_file "$NGINX_PHASE4_LOG_FILE"
+            chown "$NGINX_WORKER_USER" "$NGINX_PHASE4_LOG_FILE" || \
+                fail "could not create wrong-owner phase4 rejection target"
+            chmod 600 "$NGINX_PHASE4_LOG_FILE"
+            ;;
+    esac
+}
+
+prepare_functional_a_slow_stream() {
+    [ "$NGINX_HOSTED_FUNCTIONAL_A" = "1" ] || return 0
+    [ "$NGINX_PHASE4_LOG_LIFECYCLE_PROBE" = "1" ] || return 0
+    nginx_slow_stream_file="$PRIVATE_DOCROOT/__modsec_slow_stream"
+    [ ! -e "$nginx_slow_stream_file" ] && [ ! -L "$nginx_slow_stream_file" ] || \
+        fail "functional-A slow-stream target is unexpectedly occupied"
+    /usr/bin/dd if=/dev/zero of="$nginx_slow_stream_file" bs=1024 count=64 status=none || \
+        fail "could not create the bounded functional-A slow stream"
+    /bin/chmod 644 "$nginx_slow_stream_file" || \
+        fail "could not set bounded functional-A slow-stream mode"
+}
+
 render_config() {
     NGINX_PHASE4_MODE_DIRECTIVE=""
+    NGINX_PHASE4_LOG_SERVER_DIRECTIVE=""
+    NGINX_PHASE4_LOG_LOCATION_DIRECTIVE=""
     NGINX_USE_ERROR_LOG_DIRECTIVE="modsecurity_use_error_log on;"
     case "${NGINX_USE_ERROR_LOG:-on}" in
         on) NGINX_USE_ERROR_LOG_DIRECTIVE="modsecurity_use_error_log on;" ;;
@@ -1489,6 +1631,19 @@ render_config() {
             fail "unsupported generated NGINX_PHASE4_MODE=$NGINX_PHASE4_MODE"
             ;;
     esac
+    case "$NGINX_PHASE4_LOG_SCOPE" in
+        location)
+            # Connector-specific Framework cases own their one location
+            # directive through the generated include below.
+            ;;
+        server)
+            NGINX_PHASE4_LOG_SERVER_DIRECTIVE="modsecurity_phase4_log \"$NGINX_PHASE4_LOG_SERVER_FILE\";"
+            ;;
+        server_with_location_override)
+            NGINX_PHASE4_LOG_SERVER_DIRECTIVE="modsecurity_phase4_log \"$NGINX_PHASE4_LOG_SERVER_FILE\";"
+            NGINX_PHASE4_LOG_LOCATION_DIRECTIVE="modsecurity_phase4_log \"$NGINX_PHASE4_LOG_FILE\";"
+            ;;
+    esac
     sed \
         -e "s|@@RUNTIME_ROOT@@|$(escape_sed "$RUNTIME_ROOT")|g" \
         -e "s|@@NGINX_WORKER_STATE_ROOT@@|$(escape_sed "$NGINX_WORKER_STATE_ROOT")|g" \
@@ -1500,6 +1655,8 @@ render_config() {
         -e "s|@@DOCROOT@@|$(escape_sed "$DOCROOT")|g" \
         -e "s|@@RULES_FILE@@|$(escape_sed "$RULES_FILE")|g" \
         -e "s|@@NGINX_PHASE4_LOG@@|$(escape_sed "$NGINX_PHASE4_LOG_FILE")|g" \
+        -e "s|@@NGINX_PHASE4_LOG_SERVER_DIRECTIVE@@|$(escape_sed "$NGINX_PHASE4_LOG_SERVER_DIRECTIVE")|g" \
+        -e "s|@@NGINX_PHASE4_LOG_LOCATION_DIRECTIVE@@|$(escape_sed "$NGINX_PHASE4_LOG_LOCATION_DIRECTIVE")|g" \
         -e "s|@@NGINX_WORKER_USER_DIRECTIVE@@|$(escape_sed "$NGINX_WORKER_USER_DIRECTIVE")|g" \
         -e "s|@@NGINX_TRANSACTION_ID_DIRECTIVE@@|$(escape_sed "$NGINX_TRANSACTION_ID_DIRECTIVE")|g" \
         -e "s|@@NGINX_PHASE4_MODE_DIRECTIVE@@|$(escape_sed "$NGINX_PHASE4_MODE_DIRECTIVE")|g" \
@@ -1881,6 +2038,16 @@ record_nginx_cleanup_state() {
     else
         write_nginx_lifecycle_event "phase=cleanup uds=none result=passed"
     fi
+    if [ "$NGINX_HOSTED_FUNCTIONAL_A" = "1" ] && \
+       [ "$NGINX_PHASE4_LOG_LIFECYCLE_PROBE" = "1" ] && \
+       [ -n "${NGINX_PID:-}" ]; then
+        if [ -d "/proc/$NGINX_PID/fd" ]; then
+            nginx_cleanup_check_status=1
+            write_nginx_lifecycle_event "phase=phase4_fd_shutdown result=master_fd_table_present"
+        else
+            write_nginx_lifecycle_event "phase=phase4_fd_shutdown result=closed_after_master_exit"
+        fi
+    fi
     return "$nginx_cleanup_check_status"
 }
 
@@ -1924,6 +2091,13 @@ start_nginx_process() {
 
 cleanup() {
     nginx_cleanup_return=0
+    if [ -n "${PHASE4_SLOW_STREAM_PID:-}" ]; then
+        if /bin/kill -0 "$PHASE4_SLOW_STREAM_PID" >/dev/null 2>&1; then
+            /bin/kill -TERM "$PHASE4_SLOW_STREAM_PID" >/dev/null 2>&1 || true
+        fi
+        wait "$PHASE4_SLOW_STREAM_PID" >/dev/null 2>&1 || true
+        PHASE4_SLOW_STREAM_PID=""
+    fi
     if [ -n "${NGINX_SOAK_WORKER_PIDS:-}" ]; then
         for soak_worker_pid in $NGINX_SOAK_WORKER_PIDS; do
             if kill -0 "$soak_worker_pid" >/dev/null 2>&1; then
@@ -2392,6 +2566,221 @@ send_case_request() {
     "$@" 2>"$curl_error_output"
 }
 
+phase4_file_size() {
+    phase4_size_path=$1
+    [ -f "$phase4_size_path" ] && [ ! -L "$phase4_size_path" ] || return 1
+    /usr/bin/wc -c < "$phase4_size_path" | /usr/bin/tr -d '[:space:]'
+}
+
+phase4_fd_count_for_target() {
+    phase4_fd_target=$1
+    phase4_fd_count=0
+    for phase4_fd_pid in "$NGINX_PID" $(nginx_process_children "$NGINX_PID"); do
+        case "$phase4_fd_pid" in
+            ''|*[!0-9]*) continue ;;
+            *) ;;
+        esac
+        [ -d "/proc/$phase4_fd_pid/fd" ] || continue
+        for phase4_fd_entry in "/proc/$phase4_fd_pid/fd/"*; do
+            [ -L "$phase4_fd_entry" ] || continue
+            phase4_fd_link=$(/usr/bin/readlink -- "$phase4_fd_entry" 2>/dev/null || true)
+            [ "$phase4_fd_link" = "$phase4_fd_target" ] || continue
+            phase4_fd_count=$((phase4_fd_count + 1))
+            write_nginx_lifecycle_event "phase=phase4_fd pid=$phase4_fd_pid fd=${phase4_fd_entry##*/} target=$phase4_fd_target"
+        done
+    done
+    printf '%s\n' "$phase4_fd_count"
+}
+
+assert_phase4_fd_holders() {
+    phase4_expected_target=$1
+    phase4_minimum_holders=$2
+    phase4_fd_label=$3
+    phase4_observed_holders=$(phase4_fd_count_for_target "$phase4_expected_target") || \
+        fail "phase4 FD scan failed for $phase4_fd_label"
+    [ "$phase4_observed_holders" -ge "$phase4_minimum_holders" ] || \
+        fail "phase4 $phase4_fd_label has $phase4_observed_holders descriptor holders, expected at least $phase4_minimum_holders"
+    write_nginx_lifecycle_event "phase=phase4_fd_check label=$phase4_fd_label holders=$phase4_observed_holders result=passed"
+}
+
+assert_phase4_fd_absent() {
+    phase4_absent_target=$1
+    phase4_absent_label=$2
+    phase4_remaining_holders=$(phase4_fd_count_for_target "$phase4_absent_target") || \
+        fail "phase4 FD absence scan failed for $phase4_absent_label"
+    [ "$phase4_remaining_holders" -eq 0 ] || \
+        fail "phase4 $phase4_absent_label still has $phase4_remaining_holders descriptor holders"
+    write_nginx_lifecycle_event "phase=phase4_fd_check label=$phase4_absent_label holders=0 result=passed"
+}
+
+start_phase4_reload_overlap_client() {
+    phase4_slow_stream_output="$LOG_DIR/phase4-slow-stream.response"
+    phase4_slow_stream_error="$LOG_DIR/phase4-slow-stream.err"
+    "$CURL_BIN" -sS --max-time 30 -o "$phase4_slow_stream_output" \
+        "http://127.0.0.1:$PORT/__modsec_slow_stream" \
+        > /dev/null 2> "$phase4_slow_stream_error" &
+    PHASE4_SLOW_STREAM_PID=$!
+    /bin/sleep 1
+    /bin/kill -0 "$PHASE4_SLOW_STREAM_PID" >/dev/null 2>&1 || \
+        fail "functional-A slow stream ended before reload overlap"
+}
+
+stop_phase4_reload_overlap_client() {
+    [ -n "${PHASE4_SLOW_STREAM_PID:-}" ] || return 0
+    if /bin/kill -0 "$PHASE4_SLOW_STREAM_PID" >/dev/null 2>&1; then
+        /bin/kill -TERM "$PHASE4_SLOW_STREAM_PID" >/dev/null 2>&1 || true
+    fi
+    set +e
+    wait "$PHASE4_SLOW_STREAM_PID"
+    phase4_slow_stream_wait_status=$?
+    set -e
+    PHASE4_SLOW_STREAM_PID=""
+    case "$phase4_slow_stream_wait_status" in
+        0|143) ;;
+        *) fail "functional-A slow stream exited unexpectedly: $phase4_slow_stream_wait_status" ;;
+    esac
+}
+
+observe_phase4_reload_overlap() {
+    phase4_old_worker=$1
+    phase4_overlap_attempt=0
+    while [ "$phase4_overlap_attempt" -lt 10 ]; do
+        phase4_overlap_workers=$(nginx_process_children "$NGINX_PID")
+        phase4_overlap_count=$(printf '%s\n' "$phase4_overlap_workers" | /usr/bin/awk 'NF { count += 1 } END { print count + 0 }')
+        case " $phase4_overlap_workers " in
+            *" $phase4_old_worker "*) phase4_old_worker_present=1 ;;
+            *) phase4_old_worker_present=0 ;;
+        esac
+        if [ "$phase4_overlap_count" -ge 2 ] && [ "$phase4_old_worker_present" = "1" ]; then
+            write_nginx_lifecycle_event "phase=phase4_reload_overlap old_worker=$phase4_old_worker worker_count=$phase4_overlap_count result=observed"
+            return 0
+        fi
+        phase4_overlap_attempt=$((phase4_overlap_attempt + 1))
+        /bin/sleep 1
+    done
+    fail "phase4 reload never showed old and replacement workers concurrently"
+}
+
+send_expected_phase4_lifecycle_request() {
+    phase4_request_label=$1
+    phase4_response="$LOG_DIR/phase4-lifecycle-$phase4_request_label.response"
+    phase4_error="$LOG_DIR/phase4-lifecycle-$phase4_request_label.err"
+    set +e
+    phase4_status=$(SEND_CASE_RESPONSE_BODY="$phase4_response" \
+        SEND_CASE_CURL_ERROR_LOG="$phase4_error" send_case_request)
+    phase4_rc=$?
+    set -e
+    [ "$phase4_rc" -eq 0 ] || \
+        fail "phase4 lifecycle $phase4_request_label request failed rc=$phase4_rc"
+    [ "$phase4_status" = "$EXPECT_STATUS" ] || \
+        fail "phase4 lifecycle $phase4_request_label expected HTTP $EXPECT_STATUS, observed $phase4_status"
+}
+
+exercise_phase4_log_lifecycle() {
+    [ "$NGINX_HOSTED_FUNCTIONAL_A" = "1" ] || \
+        fail "phase4 lifecycle probe is restricted to hosted functional A"
+    [ "$CURRENT_UID" = "0" ] || \
+        blocked "phase4 lifecycle probe requires a root NGINX master"
+    [ "$NGINX_PHASE4_LOG_TARGET_MODE" = "regular" ] || \
+        fail "phase4 lifecycle probe requires a regular secure event target"
+    [ "$NGINX_PHASE4_LOG_SCOPE" = "location" ] || \
+        fail "phase4 lifecycle probe requires the fixture-owned location directive"
+    [ -f "$NGINX_PHASE4_LOG_FILE" ] && [ ! -L "$NGINX_PHASE4_LOG_FILE" ] || \
+        fail "phase4 lifecycle initial event file is missing or unsafe"
+    [ "$(/usr/bin/stat -c '%a' "$NGINX_PHASE4_LOG_FILE")" = "600" ] || \
+        fail "phase4 lifecycle initial event file does not have mode 0600"
+    assert_phase4_fd_holders "$NGINX_PHASE4_LOG_FILE" 2 initial_secure_descriptor
+
+    phase4_old_file="$LOG_DIR/phase4-before-usr1.log"
+    phase4_canary_file="$LOG_DIR/phase4-usr1-canary.log"
+    [ ! -e "$phase4_old_file" ] && [ ! -L "$phase4_old_file" ] || \
+        fail "phase4 lifecycle old-target evidence path is unexpectedly occupied"
+    [ ! -e "$phase4_canary_file" ] && [ ! -L "$phase4_canary_file" ] || \
+        fail "phase4 lifecycle canary evidence path is unexpectedly occupied"
+    /bin/mv "$NGINX_PHASE4_LOG_FILE" "$phase4_old_file"
+    if ! (set -C; : > "$phase4_canary_file"); then
+        fail "phase4 lifecycle could not create fresh canary file"
+    fi
+    /bin/chmod 600 "$phase4_canary_file"
+    /bin/ln -s "$phase4_canary_file" "$NGINX_PHASE4_LOG_FILE" || \
+        fail "phase4 lifecycle could not install the controlled symlink substitution"
+    phase4_old_before_usr1=$(phase4_file_size "$phase4_old_file") || \
+        fail "phase4 lifecycle cannot measure the pre-USR1 event file"
+
+    # The module deliberately does not register its descriptor with
+    # cycle->open_files.  This ordinary NGINX reopen signal must therefore
+    # retain the validated FD rather than following the substituted pathname.
+    /bin/kill -USR1 "$NGINX_PID" || fail "phase4 lifecycle USR1 signal failed"
+    /bin/sleep 1
+    send_expected_phase4_lifecycle_request after_usr1
+    phase4_old_after_usr1=$(phase4_file_size "$phase4_old_file") || \
+        fail "phase4 lifecycle cannot measure the post-USR1 event file"
+    [ "$phase4_old_after_usr1" -gt "$phase4_old_before_usr1" ] || \
+        fail "phase4 lifecycle USR1 did not retain the secure inherited descriptor"
+    [ ! -s "$phase4_canary_file" ] || \
+        fail "phase4 lifecycle USR1 followed the substituted unsafe pathname"
+    assert_phase4_fd_holders "$phase4_old_file" 2 usr1_retained_descriptor
+    write_nginx_lifecycle_event "phase=phase4_usr1 result=retained_secure_fd old_file=$phase4_old_file"
+
+    # A reload parses a new cycle.  While the configured target is a symlink,
+    # Common must fail closed and the still-active old cycle must continue to
+    # service the case through its inherited descriptor.
+    if "$NGINX_BINARY" -t -p "$RUNTIME_ROOT" -c "$CONFIG_FILE" \
+        > "$LOG_DIR/nginx-reload-unsafe-phase4-configtest.log" 2>&1; then
+        fail "phase4 lifecycle unsafe target unexpectedly passed config validation"
+    fi
+    if ! "$NGINX_BINARY" -p "$RUNTIME_ROOT" -c "$CONFIG_FILE" -s reload \
+        > "$LOG_DIR/nginx-reload-unsafe-phase4-signal.log" 2>&1; then
+        fail "phase4 lifecycle unsafe reload signal could not reach the active master"
+    fi
+    /bin/sleep 1
+    /bin/kill -0 "$NGINX_PID" >/dev/null 2>&1 || \
+        fail "phase4 lifecycle unsafe reload damaged the active master"
+    phase4_old_before_failed_reload_request=$(phase4_file_size "$phase4_old_file") || \
+        fail "phase4 lifecycle cannot measure old event file after failed reload"
+    send_expected_phase4_lifecycle_request after_failed_reload
+    phase4_old_after_failed_reload_request=$(phase4_file_size "$phase4_old_file") || \
+        fail "phase4 lifecycle cannot measure retained event file after failed reload"
+    [ "$phase4_old_after_failed_reload_request" -gt "$phase4_old_before_failed_reload_request" ] || \
+        fail "phase4 lifecycle failed reload did not preserve the active descriptor"
+    [ ! -s "$phase4_canary_file" ] || \
+        fail "phase4 lifecycle failed reload wrote to the unsafe substituted pathname"
+    assert_phase4_fd_holders "$phase4_old_file" 2 failed_reload_retained_descriptor
+    write_nginx_lifecycle_event "phase=phase4_reload_unsafe result=failed_old_cycle_preserved"
+
+    /bin/rm -f "$NGINX_PHASE4_LOG_FILE"
+    phase4_old_worker=$(record_nginx_master_worker_roles)
+    start_phase4_reload_overlap_client
+    if ! "$NGINX_BINARY" -p "$RUNTIME_ROOT" -c "$CONFIG_FILE" -s reload \
+        > "$LOG_DIR/nginx-reload-secure-phase4.log" 2>&1; then
+        stop_phase4_reload_overlap_client
+        fail "phase4 lifecycle secure reload command failed"
+    fi
+    observe_phase4_reload_overlap "$phase4_old_worker"
+    stop_phase4_reload_overlap_client
+    NGINX_LIFECYCLE_RELOADED_WORKER=$(wait_for_nginx_worker_replacement "$phase4_old_worker") || \
+        fail "phase4 lifecycle secure reload did not drain the old worker"
+    /bin/kill -0 "$phase4_old_worker" >/dev/null 2>&1 && \
+        fail "phase4 lifecycle old worker remained after the controlled drain"
+    NGINX_LIFECYCLE_RELOAD=passed
+    record_nginx_master_worker_roles >/dev/null
+    write_nginx_lifecycle_event "phase=after_reload master_pid=$NGINX_PID old_worker_pid=$phase4_old_worker new_worker_pid=$NGINX_LIFECYCLE_RELOADED_WORKER result=passed"
+    [ -f "$NGINX_PHASE4_LOG_FILE" ] && [ ! -L "$NGINX_PHASE4_LOG_FILE" ] || \
+        fail "phase4 lifecycle secure reload did not create a replacement event file"
+    [ "$(/usr/bin/stat -c '%a' "$NGINX_PHASE4_LOG_FILE")" = "600" ] || \
+        fail "phase4 lifecycle replacement event file does not have mode 0600"
+    phase4_new_before_reload_request=$(phase4_file_size "$NGINX_PHASE4_LOG_FILE") || \
+        fail "phase4 lifecycle cannot measure replacement event file"
+    send_expected_phase4_lifecycle_request after_secure_reload
+    phase4_new_after_reload_request=$(phase4_file_size "$NGINX_PHASE4_LOG_FILE") || \
+        fail "phase4 lifecycle cannot measure replacement event file after reload"
+    [ "$phase4_new_after_reload_request" -gt "$phase4_new_before_reload_request" ] || \
+        fail "phase4 lifecycle secure reload did not activate the replacement descriptor"
+    assert_phase4_fd_holders "$NGINX_PHASE4_LOG_FILE" 2 secure_reload_new_descriptor
+    assert_phase4_fd_absent "$phase4_old_file" old_cycle_descriptor_after_drain
+    write_nginx_lifecycle_event "phase=phase4_reload_secure result=new_validated_fd"
+}
+
 soak_request_matches_case() {
     soak_http_status=$1
     soak_curl_rc=$2
@@ -2700,6 +3089,7 @@ rm -f "$LOG_DIR/configtest.log" \
 	    "$LOG_DIR/nginx.log" \
 	    "$LOG_DIR/nginx-stdout.log" \
 	    "$LOG_DIR/phase4.log" \
+	    "$LOG_DIR/phase4-server.log" \
 	    "$LOG_DIR/response-body.txt" \
 	    "$LOG_DIR/nginx-bounded-soak-summary.txt" \
 	    "$LOG_DIR/nginx-bounded-soak-categories.txt" \
@@ -2759,6 +3149,7 @@ AUDIT_LOG_DIR="$NGINX_SERVER_LOG_ROOT/audit"
 NGINX_LOCATION_DIRECTIVES_FILE="$RUNTIME_ROOT/conf/nginx-location-directives.conf"
 NGINX_LOCATION_HANDLER_DIRECTIVES_FILE="$RUNTIME_ROOT/conf/nginx-location-handler-directives.conf"
 NGINX_PHASE4_LOG_FILE="$LOG_DIR/phase4.log"
+NGINX_PHASE4_LOG_SERVER_FILE="$LOG_DIR/phase4-server.log"
 RESPONSE_HEADER_FIXTURE_FILE="$RUNTIME_ROOT/conf/response-header-fixture.json"
 NGINX_PROTOCOL_LISTEN_DIRECTIVES_FILE="$RUNTIME_ROOT/conf/nginx-protocol-listen.conf"
 NGINX_PROTOCOL_SERVER_DIRECTIVES_FILE="$RUNTIME_ROOT/conf/nginx-protocol-server.conf"
@@ -2772,6 +3163,8 @@ NGINX_MEMCHECK_ROLE_FILE="$NGINX_MEMCHECK_EVIDENCE_DIR/nginx-memcheck-roles.txt"
 NGINX_MEMCHECK_LIFECYCLE_FILE="$NGINX_MEMCHECK_EVIDENCE_DIR/nginx-memcheck-lifecycle.txt"
 NGINX_MEMCHECK_SUMMARY_JSON="$NGINX_MEMCHECK_EVIDENCE_DIR/nginx-memcheck-summary.json"
 NGINX_MEMCHECK_SUMMARY_TEXT="$NGINX_MEMCHECK_EVIDENCE_DIR/nginx-memcheck-summary.txt"
+
+prepare_phase4_log_target
 
 if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     --case "$TEST_CASE" \
@@ -2795,7 +3188,19 @@ if [ "$NGINX_DOCROOT_PROJECTION" = "1" ]; then
     echo "nginx_smoke: NGINX_DOCROOT_PROJECTION_ROOT=$NGINX_DOCROOT_PROJECTION_ROOT"
     echo "nginx_smoke: NGINX_DOCROOT_PROJECTION_PARENT=$NGINX_DOCROOT_PROJECTION_PARENT"
 fi
-. "$CASE_ENV_FILE"
+if [ "$NGINX_HOSTED_FUNCTIONAL_A" = "1" ]; then
+    load_functional_case_environment
+else
+    . "$CASE_ENV_FILE"
+fi
+if [ "$NGINX_HOSTED_FUNCTIONAL_A" = "1" ] && \
+   [ "$NGINX_FUNCTIONAL_A_QUERY_CANARY" = "1" ]; then
+    case "$REQUEST_PATH" in
+        *\?*) blocked "functional-A query canary requires a query-free case path" ;;
+        *) REQUEST_PATH="${REQUEST_PATH}?nginx-functional-a-canary=must-redact" ;;
+    esac
+    export REQUEST_PATH
+fi
 if ! "$PYTHON_BIN" "$REPO_ROOT/ci/runtime/common/harness-case-metadata.py" response-header-fixture \
     --case "$TEST_CASE" \
     --framework-root "$FRAMEWORK_ROOT" \
@@ -2806,6 +3211,7 @@ start_response_header_backend
 write_location_handler_directives "$NGINX_LOCATION_HANDLER_DIRECTIVES_FILE"
 lock_private_runtime_paths
 prepare_nginx_worker_paths
+prepare_functional_a_slow_stream
 preflight_nginx_worker_docroot
 
 LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR:$NGINX_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
@@ -2876,6 +3282,9 @@ if "$PYTHON_BIN" "$CASE_CLI" assert-status \
 	    --audit-log-file "$AUDIT_LOG_FILE" \
 	    --phase4-log-file "$NGINX_PHASE4_LOG_FILE" \
 	    --status-file "$STATUS_FILE" > "$LOG_DIR/case-assert.log" 2>&1; then
+    if [ "$NGINX_PHASE4_LOG_LIFECYCLE_PROBE" = "1" ]; then
+        exercise_phase4_log_lifecycle
+    fi
     write_case_result "$TEST_CASE" pass "$http_status" "$LOG_DIR/result.json" "$observed_transport_result" || true
     echo "nginx_smoke: pass case=$CASE_NAME status=$http_status"
     exit 0

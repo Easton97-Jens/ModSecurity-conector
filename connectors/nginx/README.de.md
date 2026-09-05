@@ -5,10 +5,10 @@
 
 Status: Adaptereigene Quellmigration
 
-Dieses Verzeichnis enthält den NGINX-Proof-of-Concept-Harness, den adaptereigenen NGINX
-Connector-Quelle und Upstream-Attributionsdateien für ModSecurity-nginx
-Connector. Es wird immer noch durch Smoke-Test aus der realen Welt und nicht durch eine Produktion bestätigt
-Unterhaltsanspruch.
+Dieses Verzeichnis enthält den NGINX-Proof-of-Concept-Harness, die adaptereigene
+NGINX-Connector-Quelle und Upstream-Attributionsdateien für den
+ModSecurity-nginx-Connector. Es wird weiterhin durch reale Smoke-Tests
+validiert und erhebt keinen Anspruch auf Produktionssupport.
 
 Jetzt implementiert:
 
@@ -297,11 +297,10 @@ Der adaptereigene NGINX-Connector registriert derzeit Folgendes:
 - `modsecurity_use_error_log on|off`
 - `modsecurity_phase4_mode minimal|safe|strict`
 - `modsecurity_phase4_content_types_file <path>`
-- `modsecurity_phase4_log <path>` (abgelehnt: native NGINX-Event-Dateien sind
-  deaktiviert, weil `ngx_conf_open_file()` den erforderlichen No-Follow-,
-  Regular-File- und privaten `0600`-Descriptorvertrag nicht gewährleisten kann)
-- `modsecurity_phase4_body_limit <bytes>`
-- `modsecurity_phase4_log <path>`
+- `modsecurity_phase4_log <path>` (nativer P4-JSONL-Sink; der dem Connector
+  gehörende Deskriptor wird über den Common-No-Follow-Helper geöffnet und
+  verlangt ein sicheres Elternverzeichnis, ein reguläres Blatt, geeignete
+  Eigentümer und den privaten Modus `0600`)
 - `modsecurity_phase4_body_limit <bytes>` (positives effektives Limit; ein
   über dem Limit liegender aktueller Buffer wird vor dem Downstream-Forwarding
   abgewiesen)
@@ -319,14 +318,24 @@ unbeschränkten oder blockierenden Konfigurations-Read unter POSIX führen. Die
 Direktive schlägt unter Win32 fail-closed fehl, weil dessen Datei-API nicht
 denselben Regular-File-/Nichtblockierungs-Vertrag herstellen kann.
 
-Native NGINX-Phase-4-Event-Dateien sind bewusst nicht verfügbar. Der Event-Pfad
+Native NGINX-Phase-4-Event-Dateien sind nur über den beim Konfigurationsladen
+erzeugten, dem Connector gehörenden Deskriptor verfügbar. Die generische
+`cycle->open_files`-Registrierung wird nicht verwendet: unsichere Symlink- oder
+nicht reguläre Ziele, unsichere Eltern/Eigentümer und unsichere Modi schlagen
+fail-closed fehl. Ein normales Konfigurations-Reload öffnet für den neuen Zyklus
+einen sicheren Deskriptor und ist der unterstützte Rotationsweg. Das generische
+NGINX-`USR1`-Erneutöffnen wird für Rotation bewusst nicht unterstützt, weil es
+diesen No-Follow-Vertrag nicht erhalten kann. Der Laufzeitnachweis für den
+Functional-A-Pfad wird separat geführt; Protected-B-Attestierung und die externe
+Abhängigkeit FND-PARENT-1036 werden hier nicht behauptet. Der Event-Pfad
 der Common-Runtime bleibt durch seine eigene sichere Descriptor-Policy geregelt;
 die NGINX-Direktive fällt nicht still auf diesen Pfad zurück.
 
-`modsecurity_transaction_id` verwendet einen komplexen NGINX-Wert und kann ihn auswerten
-Variablen pro Anfrage. `modsecurity_transaction_id_expr` im Apache-Stil ist dies nicht
-registriert für NGINX; Verwenden Sie `modsecurity_transaction_id` mit NGINX-Variablen
-stattdessen. Die Anweisungen der Phase 4 sind begrenzte Laufzeitsteuerungen.
+`modsecurity_transaction_id` verwendet einen komplexen NGINX-Wert und kann
+Variablen pro Anfrage auswerten. Das Apache-artige
+`modsecurity_transaction_id_expr` ist für NGINX nicht registriert; verwenden
+Sie stattdessen `modsecurity_transaction_id` mit NGINX-Variablen. Die
+Phase-4-Direktiven sind begrenzte Laufzeitsteuerungen.
 Phase 4 / RESPONSE_BODY bleibt nicht hochgestuft. Die obigen fokussierten H1-
 Beobachtungen belegen kein breites Late-Abort- oder kanonisches Lifecycle-
 Ergebnis.
@@ -334,21 +343,23 @@ Ergebnis.
 Primäre lokale Referenz: `<external-source-root>/ModSecurity-nginx`.
 Upstream-Quelle: https://github.com/owasp-modsecurity/ModSecurity-nginx.
 
-Das Adapter-eigene Build-Layout befindet sich unter `connectors/nginx/`: Modul `config`
-ist bei `connectors/nginx/config`, produktive Quellen sind unter
-`connectors/nginx/src/` und Support-Metadaten befinden sich im Connector-Stammverzeichnis. Die
-Das frühere Verzeichnis `connectors/nginx/upstream/` wurde danach entfernt
-Materialized-Source-NGINX-Builds und Smokes bestanden. Die dauerhafte Zuschreibung bleibt erhalten
-`licenses/nginx/`, `connectors/nginx/ORIGIN.md` und
+Das adaptereigene Build-Layout befindet sich unter `connectors/nginx/`: Das
+Modul `config` liegt unter `connectors/nginx/config`, produktive Quellen unter
+`connectors/nginx/src/`, und Support-Metadaten liegen im Connector-Stammverzeichnis.
+Das frühere Verzeichnis `connectors/nginx/upstream/` wurde entfernt, nachdem
+materialisierte NGINX-Builds und Smokes bestanden hatten. Die dauerhafte
+Attribution bleibt in `licenses/nginx/`, `connectors/nginx/ORIGIN.md` und
 `connectors/nginx/SOURCE_MAP.json`.
 
-Der Build-Helfer ist `modules/ModSecurity-test-Framework/ci/provisioning/prepare-nginx-build.sh`. Für das Monorepo ist es die Standardeinstellung
-materialisiert `$BUILD_ROOT/nginx-build/connector-src` aus dem Besitz des Adapters
-Nur die Dateien `connectors/nginx/config` und `connectors/nginx/src` werden dann erstellt
-Connector als dynamisches NGINX-Modul gegen einen offiziellen `nginx/nginx` GitHub
-Release-Archiv. Explizit
-`MODSECURITY_NGINX_SOURCE_DIR`-Überschreibungen verwenden weiterhin eine bereinigte externe Quelle
-kopieren.
+Der Build-Helfer ist
+`modules/ModSecurity-test-Framework/ci/provisioning/prepare-nginx-build.sh`.
+Im Monorepo-Standard materialisiert er
+`$BUILD_ROOT/nginx-build/connector-src` ausschließlich aus den adaptereigenen
+Dateien `connectors/nginx/config` und `connectors/nginx/src` und baut den
+Connector dann als dynamisches NGINX-Modul gegen ein offizielles
+`nginx/nginx`-GitHub-Release-Archiv. Explizite
+`MODSECURITY_NGINX_SOURCE_DIR`-Overrides verwenden weiterhin eine bereinigte
+externe Source-Kopie.
 
 ## Gepinnte Release-Provenance für Full-Smoke
 
@@ -420,38 +431,40 @@ Historisch generierte Beweise halten NGINX `partial` fest:
 Siehe den [kanonischen NGINX-Guide](../../docs/connectors/nginx.de.md) für die
 Evidence-Grenze und die aktuelle Konfigurationsreferenz.
 
-NGINX bleibt derzeit `partial`: Standardrauch ist sauber, erzwingt alle Beweise
-Zeichnet weiterhin FAIL- und NOT_EXECUTABLE-Zeilen auf, generierte Abdeckungsberichte jedoch nicht
-automatische Laufzeithochstufung und RESPONSE_BODY bleibt nicht hochgestuft.
+NGINX bleibt derzeit `partial`: Der Standard-Smoke ist sauber, die
+Force-all-Evidence zeichnet weiterhin FAIL- und NOT_EXECUTABLE-Zeilen auf,
+die generierte Abdeckungsberichterstattung bewirkt keine automatische
+Runtime-Hochstufung, und RESPONSE_BODY bleibt nicht hochgestuft.
 
 Siehe [Konfiguration](../../docs/configuration.de.md) für die aktuelle
 Apache/NGINX-Direktivenmatrix.
 
 ## Allgemeiner SDK-Einführungsbereich
 
-NGINX bildet jetzt konnektorneutrale Semantik über `common/` für die Konfiguration ab,
-Direktivennamen/Spezifikationen/Adapter, Request/Response-Mapper-Verträge, Header
-Hilfsprogramme, ereignis-/grenzwertbezogene Verträge und C-Standard-Prüfungen wurden implementiert.
-Der Besitz der NGINX-spezifischen API bleibt in `ngx_command_t`, `ngx_http_request_t`,
-`ngx_chain_t`/`ngx_buf_t`, Zugriffs-/Header-/Body-Filter, Pools, Rückgabecodes und
-Modulbaukleber. Die C17-Prüfung ist nur kompilierbar und meldet `BLOCKED`/exit 77
-wenn NGINX- oder libmodsecurity-Header nicht verfügbar sind; optional C23/Future-C
-Überprüfungen hängen von der Compiler-Unterstützung ab. Keine Produktion, CRS, Vollmatrix oder Laufzeit
-Hier wird eine Verifizierung beansprucht.
+NGINX bildet, soweit implementiert, connectorneutrale Semantik über `common/`
+ab: Konfiguration, Direktivennamen/Spezifikationen/Adapter,
+Request/Response-Mapper-Verträge, Header-Helper, ereignis- und limitbezogene
+Verträge sowie C-Standard-Prüfungen. Die NGINX-spezifische API bleibt in
+`ngx_command_t`, `ngx_http_request_t`, `ngx_chain_t`/`ngx_buf_t`,
+Access-/Header-/Body-Filtern, Pools, Rückgabecodes und Modulbaukleber
+verantwortet. Die C17-Prüfung ist compile-only und meldet `BLOCKED`/exit 77,
+wenn NGINX- oder libmodsecurity-Header nicht verfügbar sind; optionale
+C23/Future-C-Prüfungen hängen von der Compiler-Unterstützung ab. Hier wird
+keine Produktions-, CRS-, Vollmatrix- oder Runtime-Verifikation behauptet.
 
 NGINX-Common-SDK-Modul-Builds, die einen kopierten Connector-Quellbaum verwenden, müssen `MSCONNECTOR_COMMON_SRC` (oder `CONNECTOR_COMMON_SRC` / `COMMON_SRC_ROOT`) auf das Stammverzeichnis der gemeinsamen Quelle des Repositorys setzen; `MSCONNECTOR_COMMON_INC` bleibt der Common-Include-Root. Sie müssen außerdem `MSCONNECTOR_PROFILE_REGISTRY_ROOT` auf eine Root setzen, die `connectors/profile_registry.c` und `connectors/profile_registry.h` enthält. Der verwaltete Exact-Head-Koordinator stellt eine an die Cache-Identität gebundene gestagte Root bereit. Wenn die Variable nicht gesetzt ist, greift die Konfiguration nur dann auf `$ngx_addon_dir/../..` zurück, wenn dort beide Registry-Dateien existieren; dieser Fallback gilt für direkte Checkout-Builds, nicht für kopierte Trees.
 
 ## Kanonische Phase-4-Grenze
 
-NGINX verwendet einen begrenzten nativen Antworttextfilter.  Seine Anwesenheit beweist nicht
-entweder eine echte Phase-4-Regelauswertung oder ein veränderlicher Antwortstatus am
-Moment des Eingreifens.  `phase4_pre_commit_deny` ist also
-`not_implemented`: Die native Phase-4-Entscheidung wird im Körperfilter getroffen.
-nach dem Antwort-Header-Pfad.  `response_body_buffered`, `phase4`,
-`phase4_rule_evaluation`, `late_intervention`, `late_intervention_log_only`,
-`late_intervention_abort` und `late_intervention_status_metadata` bleiben bestehen
-`implemented_not_asserted`, bis ein aktueller kanonischer Real-Host-Lauf das beweist
-individuelles Verhalten.
+NGINX verwendet einen begrenzten nativen Response-Body-Filter. Seine
+Anwesenheit beweist weder eine tatsächliche Phase-4-Regelauswertung noch einen
+veränderlichen Response-Status zum Zeitpunkt der Intervention.
+`phase4_pre_commit_deny` ist daher `not_implemented`: Die native
+Phase-4-Entscheidung wird im Body-Filter nach dem Response-Header-Pfad
+getroffen. `response_body_buffered`, `phase4`, `phase4_rule_evaluation`,
+`late_intervention`, `late_intervention_log_only`, `late_intervention_abort`
+und `late_intervention_status_metadata` bleiben `implemented_not_asserted`,
+bis ein aktueller kanonischer Real-Host-Lauf das jeweilige Verhalten beweist.
 
 Für einen file-only-NGINX-Buffer liest der Filter den sichtbaren Bereich
 `file_pos..file_last` über genau einen wiederverwendeten 32-KiB-Scratch-Buffer
@@ -462,17 +475,21 @@ fehlgeschlagene Dateilesung liefern einen Connector-Fehler, bevor die aktuelle
 Chain weitergeleitet wird; weder Scratch-Bytes noch Response-Payloads gelangen
 in Event-JSONL.
 
-Eine Regelübereinstimmung muss unabhängig von einem sichtbaren 403 gemeldet werden. Kanonisch
-Ereignisse behalten den ursprünglichen Hoststatus, den angeforderten WAF-Status und den sichtbaren Client bei
-Status, angeforderte Aktion, tatsächliche Aktion, Header-/Commit-Timing und Verbindung
-Ergebnis abbrechen.  Dieser NGINX-Body-Filter-Pfad beansprucht keine Pre-Commit-Deny. A
-Das sichere Ergebnis nach dem Commit ist `log_only` mit einem unveränderten sichtbaren Status. a
-Das strikte Ergebnis ist `abort_connection` mit einem bereits sichtbaren Status und einem
-bestätigter Verbindungsabbruch.  Es handelt sich auch nicht um einen getarnten erfolgreichen 403-Fall.
+Eine Regelübereinstimmung muss unabhängig von einem sichtbaren 403 gemeldet
+werden. Kanonische Ereignisse bewahren den ursprünglichen Host-Status, den
+angeforderten WAF-Status, den sichtbaren Client-Status, die angeforderte und
+die tatsächliche Aktion, Header-/Commit-Timing und das Ergebnis eines
+Verbindungsabbruchs. Dieser NGINX-Body-Filter-Pfad beansprucht keine
+Pre-Commit-Deny. Ein sicheres Post-Commit-Ergebnis ist `log_only` mit
+unverändertem sichtbarem Status; ein striktes Ergebnis ist
+`abort_connection` mit bereits sichtbarem Status und einem bestätigten
+Verbindungsabbruch. Keines von beiden ist ein getarnter erfolgreicher
+403-Fall.
 
-Die kanonischen Phase-4-Fälle sind evidenzbasiert und umfassen Regelbeobachtung,
-Pre-Commit-Verweigerung, sichere Protokollierung, strikter Abbruch und Status-/Aktionsmetadaten.  Nein
-Die Nutzlast des Antworttextes kann in ein Ereignis oder einen Bericht eingegeben werden.
+Die kanonischen Phase-4-Fälle sind evidenzgebunden und umfassen
+Regelbeobachtung, Pre-Commit-Deny, sicheres Log-only, strikten Abbruch sowie
+Status-/Aktionsmetadaten. Keine Response-Body-Nutzlast darf in ein Ereignis
+oder einen Bericht gelangen.
 
 Final-Processing und Body-Ingestion verwenden denselben strikten nativen
 Erfolgsvertrag: Jeder relevante libmodsecurity-Aufruf muss exakt `1` liefern.

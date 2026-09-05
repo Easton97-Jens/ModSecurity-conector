@@ -19,7 +19,7 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`modsecurity`](#modsecurity) | Host / Connector | Boolescher Wert | nein | off | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Schaltet die Erstellung von Connector-Transaktionen frei; dies ist nicht SecRuleEngine. |
 | [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive dezimale Byteanzahl | nein | 1048576 | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Begrenzt die vom nativen Connector der P4-Verarbeitung angebotenen Response-Bytes. |
 | [`modsecurity_phase4_content_types_file`](#modsecurity-phase4-content-types-file) | Host / Connector | Pfad | nein | Host-Standardwerte bei Auslassung | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Lädt die MIME-Token-Allowlist aus einer begrenzten regulären POSIX-Datei, um die P4-Response-Body-Inspektion einzugrenzen. |
-| [`modsecurity_phase4_log`](#modsecurity-phase4-log) | Host / Connector | registrierter, aber immer abgelehnter Pfad | nein | kein verwendbarer Wert | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Weist natives NGINX-Ereignisdatei-Logging vor der Deskriptorerzeugung ab, weil die Host-Dateiregistrierung den Sicherheitsvertrag der Common Runtime nicht bereitstellen kann. |
+| [`modsecurity_phase4_log`](#modsecurity-phase4-log) | Host / Connector | Pfad | nein | nicht konfiguriert | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Öffnet über den sicheren No-Follow-Deskriptor-Helper der Common Runtime einen nativen NGINX-Ereignis-Sink im Besitz des Connectors. |
 | [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | Aufzählung | nein | safe | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Bevor Response-Header/-Body committet sind, lösen minimal, safe und strict eine P4-Intervention jeweils als deny_if_possible auf; NGINX kann daher noch den angeforderten Engine-Status (oder den Fallback 403) zurückgeben. Sobald Header committet sind oder der Body begonnen hat, verwenden minimal und safe beide die gemeinsame Aktion log_only; sie protokollieren die späte Entscheidung ohne nachträgliche Statusumschreibung. Strict löst dagegen zu abort_connection auf: Der native Body-Filter markiert die Verbindung als fehlerhaft, protokolliert connection_aborted und gibt NGX_ERROR zurück. Die bekannte Hostgrenze ist, dass NGINX das P4-Engine-Finish erst bei last_buf/last_in_chain nach der begrenzten Sammlung von Body-Bytes im Geltungsbereich aufruft; eine Antwort kann deshalb bereits sichtbar sein. Strict kann somit eine Verbindung beenden, aber keine spätere 403 garantieren oder eine bereits gesendete Statuszeile ersetzen. |
 | [`modsecurity_rules`](#modsecurity-rules) | Host / Connector | Zeichenkette | nein | kein Wert; optional | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Lädt während des Konfigurationsladens Inline-Inhalt über libmodsecurity. |
 | [`modsecurity_rules_file`](#modsecurity-rules-file) | Host / Connector | Pfad | nein | kein Wert; optional | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Beim Laden der NGINX-Konfiguration übergibt ngx_conf_set_rules_file den bereitgestellten Pfad an msc_rules_add_file von libmodsecurity. Der NGINX-Setter kanonisiert den Pfad nicht und verlangt keinen absoluten Pfad; ein absoluter Pfad vermeidet eine Abhängigkeit vom Arbeitsverzeichnis des Prozesses. Eine fehlende, unlesbare oder ungültige Regeldatei der obersten Ebene liefert den Loader-Fehler von libmodsecurity und lässt Konfigurationsprüfung/Reload fehlschlagen. Include und IncludeOptional in dieser Datei werden anschließend von libmodsecurity interpretiert, nicht durch den NGINX-Parser expandiert. Anders als modsecurity_rules, das eine Inline-Konfigurationszeichenkette an msc_rules_add sendet, übergibt diese Direktive einen Dateipfad an msc_rules_add_file; beide tragen zum konfigurierten Regelsatz und seinem normalen Eltern-/Kind-Merge bei. |
@@ -526,7 +526,7 @@ Eine atomar ersetzte reguläre Konfigurationsdatei in einem vertrauenswürdigen 
 
 ### Kurzbeschreibung
 
-Weist natives NGINX-Ereignisdatei-Logging vor der Deskriptorerzeugung ab, weil die Host-Dateiregistrierung den Sicherheitsvertrag der Common Runtime nicht bereitstellen kann.
+Öffnet über den sicheren No-Follow-Deskriptor-Helper der Common Runtime einen nativen NGINX-Ereignis-Sink im Besitz des Connectors.
 
 ### Syntax
 
@@ -542,39 +542,39 @@ modsecurity_phase4_log <value>;
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| registrierter, aber immer abgelehnter Pfad | kein Pfad wird akzeptiert | nein |
+| Pfad | ein absoluter oder relativer Pfad zu einer sicheren regulären Datei | nein |
 
 ### Standardwert
 
-kein verwendbarer Wert
+nicht konfiguriert
 
-Quelle: `Sicherheitspolicy: natives NGINX-Ereignisdatei-Logging deaktiviert`.
+Quelle: `Connector-Konfiguration`.
 
 ### Vererbung und Zusammenführung
 
-Kein Ereignisdatei-Wert kann geerbt oder zusammengeführt werden, weil jede Verwendung abgewiesen wird.
+http → server → location; ein Kind erbt den Eltern-Sink, wenn es nicht gesetzt ist.
 
-Zusammenführung: Kein Ereignisdatei-Wert kann zusammengeführt werden, weil jede Verwendung vor der Deskriptorerzeugung abgewiesen wird.
+Zusammenführung: Der wirksame Kontext besitzt einen Connector-Deskriptor; geerbte Konfiguration wird nicht durch die generische NGINX-Dateiregistrierung erneut geöffnet.
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Über diese Direktive ist kein Ereignisdatei-Sink erreichbar. Der Ereignislebenszyklus der Common Runtime bleibt der unterstützte sichere Ereignispfad.
+P1–P4-Relevanz: P4-Ereignisdatensätze werden an den konfigurierten, dem Connector gehörenden Deskriptor angehängt.
 
-Weist natives NGINX-Ereignisdatei-Logging vor der Deskriptorerzeugung ab, weil die Host-Dateiregistrierung den Sicherheitsvertrag der Common Runtime nicht bereitstellen kann.
+Öffnet über den sicheren No-Follow-Deskriptor-Helper der Common Runtime einen nativen NGINX-Ereignis-Sink im Besitz des Connectors.
 
 ### Validierung und Fehler
 
-ngx_conf_set_phase4_log weist jeden Pfad während nginx -t mit dem nativen Ereignisdatei-Sicherheitspolicy-Fehler ab.
+ngx_conf_set_phase4_log öffnet den Pfad mit dem Common-No-Follow-Helper und schlägt fail-closed fehl, sofern das aufgelöste Blatt keine reguläre Datei unter einem sicheren Elternverzeichnis ist. Der Deskriptor gehört dem Connector und wird privat (0600) geöffnet; ein Konfigurations-Reload erzeugt für den neuen Zyklus einen neuen sicheren Deskriptor.
 
 ### Beispiel
 
-Es gibt kein akzeptiertes Beispiel: Jeder konfigurierte Wert wird durch die Sicherheitspolicy abgewiesen.
+Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
 
 Quellenbasiertes Beispiel: `connectors/nginx/src/ngx_http_modsecurity_module.c`.
 
 ### Sicherheit und Betrieb
 
-Diesen nativen Host-Writer nicht ohne einen no-follow-, reguläre-Datei-, Eigentümer- und Private-Mode-Deskriptorvertrag wieder aktivieren. Stattdessen den Ereignislebenszyklus der Common Runtime verwenden.
+Der Helper weist Symlink-Durchquerung, nicht reguläre Blätter, unsichere Eigentümer oder beschreibbare Elternverzeichnisse sowie unsichere Modi ab. Das generische NGINX-USR1-Erneutöffnen ist kein unterstützter Rotationsmechanismus; ein validiertes Konfigurations-Reload verwenden.
 
 <a id="modsecurity-phase4-mode"></a>
 ## `modsecurity_phase4_mode`

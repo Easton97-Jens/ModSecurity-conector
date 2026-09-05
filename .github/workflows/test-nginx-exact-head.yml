@@ -9,10 +9,12 @@ permissions:
 
 jobs:
   nginx-exact-head:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
       EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      NGINX_FUNCTIONAL_WORKER_USER: msconnector-nginx-functional
+      NGINX_FUNCTIONAL_WORKER_GROUP: msconnector-nginx-functional
       MODSECURITY_REPO_URL: https://github.com/owasp-modsecurity/ModSecurity.git
       ALLOW_RUNTIME_BUILDS: "1"
       ALLOW_RUNTIME_DOWNLOADS: "1"
@@ -39,25 +41,55 @@ jobs:
       - name: Verify exact PR head
         run: |
           set -eu
-          actual="$(git rev-parse HEAD)"
+          actual="$(git rev-parse --verify 'HEAD^{commit}')"
+          printf '%s\n' "$EXPECTED_PARENT_SHA" | /usr/bin/grep -Eq '^[0-9a-f]{40}$' || {
+            echo "exact-head gate: expected value is not a complete commit SHA" >&2
+            exit 1
+          }
           test "$actual" = "$EXPECTED_PARENT_SHA" || {
             echo "exact-head gate: expected $EXPECTED_PARENT_SHA, observed $actual" >&2
             exit 1
           }
+      - name: Preflight root and isolated NGINX worker
+        run: |
+          set -eu
+          test "$(/usr/bin/id -u)" -ne 0
+          /usr/bin/sudo -n /usr/bin/id -u | /usr/bin/grep -qx 0
+          /usr/bin/sudo -n /usr/bin/id -g | /usr/bin/grep -qx 0
+          /usr/bin/getent group "$NGINX_FUNCTIONAL_WORKER_GROUP" >/dev/null 2>&1 || \
+            /usr/bin/sudo -n /usr/sbin/groupadd --system "$NGINX_FUNCTIONAL_WORKER_GROUP"
+          /usr/bin/getent passwd "$NGINX_FUNCTIONAL_WORKER_USER" >/dev/null 2>&1 || \
+            /usr/bin/sudo -n /usr/sbin/useradd --system --no-create-home --no-user-group \
+              --gid "$NGINX_FUNCTIONAL_WORKER_GROUP" --shell /usr/sbin/nologin \
+              "$NGINX_FUNCTIONAL_WORKER_USER"
+          worker_shell="$(/usr/bin/getent passwd "$NGINX_FUNCTIONAL_WORKER_USER" | /usr/bin/cut -d: -f7)"
+          worker_group_gid="$(/usr/bin/getent group "$NGINX_FUNCTIONAL_WORKER_GROUP" | /usr/bin/cut -d: -f3)"
+          test "$worker_shell" = /usr/sbin/nologin
+          worker_uid="$(/usr/bin/sudo -n /usr/sbin/runuser -u "$NGINX_FUNCTIONAL_WORKER_USER" -- /usr/bin/id -u)"
+          worker_gid="$(/usr/bin/sudo -n /usr/sbin/runuser -u "$NGINX_FUNCTIONAL_WORKER_USER" -- /usr/bin/id -g)"
+          test "$worker_uid" -ne 0
+          test "$worker_gid" -ne 0
+          test "$worker_gid" = "$worker_group_gid"
+          /usr/bin/uname -a
       - name: Initialize isolated exact-head paths
         run: |
           set -eu
-          root="$RUNNER_TEMP/ModSecurity-conector-nginx-exact-head"
+          RUN_ROOT="${RUNNER_TEMP:?missing runner temporary root}/ModSecurity-conector-nginx-exact-head"
+          /bin/mkdir -p "$RUN_ROOT"
+          /bin/chmod 700 "$RUN_ROOT"
           {
-            echo "VERIFIED_RUN_ROOT=$root"
-            echo "BUILD_ROOT=$root/build"
-            echo "TMP_ROOT=$root/tmp"
-            echo "LOG_ROOT=$root/logs"
-            echo "CONNECTOR_COMPONENT_CACHE=$root/component-cache"
-            echo "RUNTIME_REPORT_OUTPUT_ROOT=$root/runtime-component-reports"
-            echo "SOURCE_ROOT=$root/src"
-            echo "MODSECURITY_SOURCE_DIR=$root/src/ModSecurity_V3"
-            echo "MODSECURITY_V3_SOURCE_DIR=$root/src/ModSecurity_V3"
+            echo "RUN_ROOT=$RUN_ROOT"
+            echo "VERIFIED_RUN_ROOT=$RUN_ROOT"
+            echo "BUILD_ROOT=$RUN_ROOT/build"
+            echo "TMP_ROOT=$RUN_ROOT/tmp"
+            echo "LOG_ROOT=$RUN_ROOT/logs"
+            echo "CONNECTOR_COMPONENT_CACHE=$RUN_ROOT/component-cache"
+            echo "RUNTIME_REPORT_OUTPUT_ROOT=$RUN_ROOT/runtime-component-reports"
+            echo "SOURCE_ROOT=$RUN_ROOT/src"
+            echo "MODSECURITY_SOURCE_DIR=$RUN_ROOT/src/ModSecurity_V3"
+            echo "MODSECURITY_V3_SOURCE_DIR=$RUN_ROOT/src/ModSecurity_V3"
+            echo "NGINX_FUNCTIONAL_WORKER_USER=$NGINX_FUNCTIONAL_WORKER_USER"
+            echo "NGINX_FUNCTIONAL_WORKER_GROUP=$NGINX_FUNCTIONAL_WORKER_GROUP"
           } >> "$GITHUB_ENV"
       - name: Provision pinned NGINX and connector runtime
         run: |
@@ -78,25 +110,34 @@ jobs:
         if: failure()
         run: |
           set -eu
-          run_root='${{ runner.temp }}/ModSecurity-conector-nginx-exact-head'
-          /usr/bin/env -i /usr/bin/python3 -I \
+          /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LC_ALL=C \
+            /usr/bin/python3 -I \
             ci/provisioning/components/nginx_exact_head_diagnostics.py \
-            --run-root "$run_root"
+            --run-root "$RUN_ROOT"
       - name: Run isolated modsecurity_use_error_log on/off cells
         run: |
           set -eu
-          env \
-            -u MRTS_NATIVE_NGINX_BIN \
-            -u MRTS_NATIVE_NGINX_MODULE_DIR \
-            -u MRTS_NATIVE_NGINX_MODULE_FILE \
-            -u MRTS_NATIVE_NGINX_MODSECURITY_LIB_DIR \
-            -u NGINX_MRTS_MODSECURITY_LIB_DIR \
-            -u NGINX_BINARY \
-            -u NGINX_MODULE \
-            -u NGINX_PREFIX \
-            -u NGINX_BUILD_DIR \
-            RUNTIME_COMPONENT_TARGET=nginx \
+          /usr/bin/env -i \
+            PATH=/usr/bin:/bin HOME=/nonexistent LC_ALL=C \
+            EXPECTED_PARENT_SHA="$EXPECTED_PARENT_SHA" \
+            VERIFIED_RUN_ROOT="$VERIFIED_RUN_ROOT" \
+            BUILD_ROOT="$BUILD_ROOT" TMP_ROOT="$TMP_ROOT" LOG_ROOT="$LOG_ROOT" \
+            CONNECTOR_COMPONENT_CACHE="$CONNECTOR_COMPONENT_CACHE" \
+            RUNTIME_REPORT_OUTPUT_ROOT="$RUNTIME_REPORT_OUTPUT_ROOT" \
+            SOURCE_ROOT="$SOURCE_ROOT" MODSECURITY_SOURCE_DIR="$MODSECURITY_SOURCE_DIR" \
+            MODSECURITY_V3_SOURCE_DIR="$MODSECURITY_V3_SOURCE_DIR" \
+            ALLOW_RUNTIME_BUILDS="$ALLOW_RUNTIME_BUILDS" \
+            ALLOW_RUNTIME_DOWNLOADS="$ALLOW_RUNTIME_DOWNLOADS" \
+            RUNTIME_COMPONENT_TARGET="$RUNTIME_COMPONENT_TARGET" \
+            BUILD_NGINX_FROM_SOURCE="$BUILD_NGINX_FROM_SOURCE" \
+            NGINX_SOURCE_MODE="$NGINX_SOURCE_MODE" NGINX_SOURCE_REPO_URL="$NGINX_SOURCE_REPO_URL" \
+            NGINX_RELEASE_TAG="$NGINX_RELEASE_TAG" NGINX_SOURCE_GIT_REF="$NGINX_SOURCE_GIT_REF" \
+            NGINX_RELEASE_ASSET_NAME="$NGINX_RELEASE_ASSET_NAME" NGINX_SHA256="$NGINX_SHA256" \
+            NGINX_REQUIRE_PINNED_PROVENANCE="$NGINX_REQUIRE_PINNED_PROVENANCE" \
+            SMOKE_PREPARE_TIMEOUT_SECONDS="$SMOKE_PREPARE_TIMEOUT_SECONDS" \
+            MODSECURITY_REPO_URL="$MODSECURITY_REPO_URL" \
             FRAMEWORK_ROOT="$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
             CONNECTOR_ROOT="$GITHUB_WORKSPACE" \
-            sh ci/provisioning/cache/with-runtime-components.sh \
-            sh connectors/nginx/harness/run_exact_head_use_error_log.sh
+            NGINX_HOSTED_FUNCTIONAL_A=1 \
+            /bin/sh ci/provisioning/cache/with-runtime-components.sh \
+            /usr/bin/python3 -I connectors/nginx/harness/run_github_hosted_functional_a.py
