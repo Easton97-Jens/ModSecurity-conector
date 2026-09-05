@@ -169,6 +169,7 @@ class CollectorTests(unittest.TestCase):
         result = self._collect()
         required = {
             "tested_pr_head",
+            "tested_pr_base",
             "trusted_dispatcher_base_sha",
             "nginx_version",
             "nginx_source_digest",
@@ -193,6 +194,7 @@ class CollectorTests(unittest.TestCase):
         }
         self.assertEqual(result["status"], "validated_observations")
         self.assertTrue(required.issubset(result))
+        self.assertEqual(result["tested_pr_base"], SHA)
         self.assertTrue(result["trusted_http_status_observed"])
         self.assertTrue(result["candidate_sandbox_observations_untrusted"])
         self.assertNotIn("transaction_id", result)

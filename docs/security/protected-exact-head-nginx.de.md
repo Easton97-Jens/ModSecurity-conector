@@ -64,7 +64,7 @@ ein externer Blocker, kein Erfolg.
 
 ## Review-Paket und aktueller Bereitschaftsstand
 
-Das ausführliche zweisprachige [Review-Paket](protected-exact-head-review-package.md)
+Das ausführliche zweisprachige [Review-Paket](protected-exact-head-review-package.de.md)
 dokumentiert Bedrohungsmodell, Vertrauensgrenzen, TCB-Inventar, Prozess-/FD-
 und Artefaktübergaben, Cleanup-Zustandsmaschine, Workflow-Berechtigungen,
 Negativtest-Matrix und das historische Sonar-Issue-Inventar.

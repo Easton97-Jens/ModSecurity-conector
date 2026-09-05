@@ -6,9 +6,9 @@
 | --- | --- |
 | Change ID | CR-20260904-protected-base-exact-head-nginx |
 | Date (UTC) | 2026-09-04 |
-| Base revision | `origin/master` currently `b779167ff979aa73cdd9321a829f9c693d943760` (normal merge required before final delivery) |
+| Base revision | `b779167ff979aa73cdd9321a829f9c693d943760` |
 | Scope | Parent-only protected-base preparation for independent NGINX exact-head evidence |
-| Delivery status | Draft PR #355; local remediation and documentation are pending final commit, normal base merge, push, and exact-head read-back; no merge authorization |
+| Delivery status | Draft PR #355; normal `origin/master` merge `acc0ca1d22fd8a452453e66f51115ce026517b52` is complete; push and exact-head read-back remain pending; no merge authorization |
 | Candidate | PR #355, exact final head must be resolved and read back at dispatch time |
 
 ## Purpose
@@ -28,10 +28,10 @@ This record contains historical checkpoint evidence below; those SHAs and
 results are not evidence for the final head. The current source changes add
 descriptor-safe path/FD ownership, role-specific private task directories,
 root/candidate separation, and narrow cleanup handling, with focused negative
-tests and the bilingual review package. Final local tests, the required normal
-merge of current `origin/master`, pushed-head read-back, fresh Sonar analysis,
-and hosted exact-head runtime evidence are pending and must be recorded only
-after they are observed. The external Security-Diff archive remains
+tests and the bilingual review package. The normal merge of current
+`origin/master` completed as `acc0ca1d22fd8a452453e66f51115ce026517b52`.
+Pushed-head read-back, fresh Sonar analysis, and hosted exact-head runtime
+evidence are pending and must be recorded only after they are observed. The external Security-Diff archive remains
 `blocked_external_dependency` under FND-PARENT-1036.
 
 The branch-only checkpoint is a normal merge of current `origin/master`
