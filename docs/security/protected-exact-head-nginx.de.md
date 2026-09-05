@@ -62,16 +62,32 @@ Candidate-WAF-Entscheidungen und den erwarteten Callback-/JSONL-Unterschied
 zeigen. Jede fehlende Voraussetzung oder Exit 77 ist ein Fehler beziehungsweise
 ein externer Blocker, kein Erfolg.
 
-## Aktueller Bereitschaftsstand
+## Review-Paket und aktueller Bereitschaftsstand
 
-Source-Contracts und lokale Negativkontrolltests werden auf einem separaten
-Branch vorbereitet. Dieser Checkout kann weder eine geschützte GitHub-
+Das ausführliche zweisprachige [Review-Paket](protected-exact-head-review-package.md)
+dokumentiert Bedrohungsmodell, Vertrauensgrenzen, TCB-Inventar, Prozess-/FD-
+und Artefaktübergaben, Cleanup-Zustandsmaschine, Workflow-Berechtigungen,
+Negativtest-Matrix und das historische Sonar-Issue-Inventar.
+
+Der aktuelle Source-Checkpoint ergänzt root-eigene gehaltene Deskriptoren für
+Verzeichnisse, Zellen, Scratch, Artefakte, Helper und Evidence. Evidence wird
+descriptor-relativ veröffentlicht; der private Scratch-Baum wird unter einem
+zufällig gewählten root-eigenen Container angelegt und Cleanup bleibt auf
+diesen Container begrenzt. Runtime-Evidence ist an `tested_pr_head` und
+`tested_pr_base` gebunden. Dies sind repository-eigene Source-Contracts und
+lokale Negativkontrollen, keine Hosted-Attestierung. FND-PARENT-1038 bleibt in
+Bearbeitung, bis die vollständige Race-Evidence unabhängig verifiziert ist.
+
+Dieser Checkout kann weder eine geschützte GitHub-
 Environment noch einen dedizierten gelabelten Runner für diese Steuerung
 verifizieren. Daher wird kein gehostetes Exact-Head-Ergebnis, keine
 unabhängige Attestierung und keine Merge-Bereitschaft behauptet. Vor einem
 manuellen geschützten Base-Dispatch müssen Administratoren Environment-
 Reviewer, Runner-Labels, Paket-/Tool-Voraussetzungen, Zugriffsregeln und das
 root-eigene Exact-Blob-Host-Gate einrichten.
+Finaler Head, GitHub-Read-back, gehostete Runtime und Sonar-Ergebnisse nach dem
+Push bleiben bis zur Exact-Head-Validierung ausstehend und müssen im
+PR-Kommentar nach dem Push festgehalten werden.
 
 Der Candidate-PR bleibt eine getrennte Auslieferung. Diese Vorbereitung ändert
 weder seine Produktreparatur noch Framework/MRTS-Source, Gitlink,

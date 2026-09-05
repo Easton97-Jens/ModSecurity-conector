@@ -57,15 +57,30 @@ WAF decisions, and the expected callback/JSONL difference. Any missing
 prerequisite or exit 77 is a failure or an external blocked run; it is not a
 passing result.
 
-## Current readiness
+## Review package and current readiness
 
-The source contracts and local negative-control tests are being prepared on a
-separate branch. This checkout cannot verify a protected GitHub Environment or
+The detailed bilingual [review package](protected-exact-head-review-package.md)
+records the threat model, trust boundaries, TCB inventory, process/FD and
+artifact handoffs, cleanup state machine, workflow permissions, negative-test
+matrix, and historic Sonar issue inventory.
+
+The current source checkpoint adds root-owned retained directory, cell,
+scratch, artifact, helper, and evidence descriptors. Evidence is published
+descriptor-relatively; the private scratch tree is selected below a random
+root-owned container and cleanup is confined to that container. Runtime
+evidence is bound to both `tested_pr_head` and `tested_pr_base`. These are
+repository-owned source contracts and local negative-control tests, not hosted
+attestation. FND-PARENT-1038 remains in progress until its complete race
+evidence is independently verified.
+
+This checkout cannot verify a protected GitHub Environment or
 dedicated labelled runner for this control plane. Therefore no hosted exact-head
 result, independent attestation, or merge readiness is claimed. An
 administrator must configure the environment reviewers, runner labels,
 package/tool prerequisites, access policy, and the root-owned exact-blob host
 gate before a manual protected-base dispatch can provide runtime evidence.
+Final head, GitHub read-back, hosted runtime, and post-push Sonar results remain
+pending exact-head validation and must be recorded in the post-push PR comment.
 
 The candidate PR remains a separate delivery. This preparation does not alter
 its product remediation, Framework/MRTS source, Gitlink, dependencies, branch
