@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import importlib.util
 import json
+import os
 from pathlib import Path
 import stat
+import subprocess
 import sys
 import tempfile
 import types
@@ -17,7 +20,8 @@ from unittest import mock
 ROOT = Path(__file__).parents[1]
 MODULE_PATH = ROOT / "ci/runtime/broker/nginx_exact_head_root_launcher.py"
 SPEC = importlib.util.spec_from_file_location("nginx_exact_head_root_launcher", MODULE_PATH)
-assert SPEC and SPEC.loader
+assert SPEC is not None
+assert SPEC.loader is not None
 LAUNCHER = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = LAUNCHER
 SPEC.loader.exec_module(LAUNCHER)
@@ -112,6 +116,195 @@ def write_mode_evidence(cell: Path, mode: str, transaction_id: str) -> None:
 
 
 class RootLauncherContractTests(unittest.TestCase):
+    def test_retained_proc_cell_fd_is_a_working_root_side_read_authority(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            cell = Path(temporary) / "cell"
+            cell.mkdir()
+            (cell / "proof.txt").write_bytes(b"original\n")
+            descriptor = os.open(cell, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                proc_cell = Path(f"/proc/self/fd/{descriptor}")
+                self.assertEqual(LAUNCHER.bounded_file(proc_cell / "proof.txt", 64), b"original\n")
+                self.assertEqual(
+                    LAUNCHER.contained(proc_cell / "proof.txt", proc_cell, "retained cell"),
+                    proc_cell / "proof.txt",
+                )
+                nested_root = proc_cell / "nested"
+                (cell / "nested").mkdir()
+                self.assertEqual(
+                    LAUNCHER.contained(nested_root / "proof.txt", proc_cell, "nested retained cell"),
+                    nested_root / "proof.txt",
+                )
+                with self.assertRaises(LAUNCHER.LauncherError):
+                    LAUNCHER.contained(proc_cell / "nested" / ".." / "proof.txt", proc_cell, "escape")
+                LAUNCHER.require_root_owned_directory(proc_cell, 0o755, "retained cell")
+                LAUNCHER.atomic_json(proc_cell / "control.json", {"safe": True})
+                self.assertEqual(json.loads((cell / "control.json").read_text()), {"safe": True})
+                for malformed in (Path(f"/proc/self/fd/{descriptor}/../proof.txt"), Path("/proc/self/fd/999999/proof.txt")):
+                    with self.subTest(malformed=malformed), self.assertRaises(LAUNCHER.LauncherError):
+                        LAUNCHER.bounded_file(malformed, 64)
+            finally:
+                os.close(descriptor)
+
+    def test_cleanup_replacement_is_rejected_without_deleting_replacement(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            parent = Path(temporary)
+            original = parent / "owned"
+            original.mkdir()
+            (original / "safe.txt").write_text("safe", encoding="ascii")
+            descriptor = os.open(original, os.O_RDONLY | os.O_DIRECTORY)
+            parent_descriptor = os.open(parent, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                identity = os.fstat(descriptor)
+                original.rename(parent / "moved")
+                replacement = parent / "owned"
+                replacement.mkdir()
+                (replacement / "attacker.txt").write_text("keep", encoding="ascii")
+                with self.assertRaisesRegex(LAUNCHER.LauncherError, "replaced"):
+                    LAUNCHER._remove_tree_at(
+                        parent_descriptor, "owned",
+                        (identity.st_dev, identity.st_ino),
+                    )
+                self.assertTrue((replacement / "attacker.txt").exists())
+            finally:
+                os.close(descriptor)
+                os.close(parent_descriptor)
+
+    def test_cleanup_uses_root_container_and_preserves_runner_parent_replacement(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            runner_parent = Path(temporary) / "runner-parent"
+            container = runner_parent / "root-container"
+            scratch = container / LAUNCHER.ROOT_RUN_NAME
+            replacement = runner_parent / LAUNCHER.ROOT_RUN_NAME
+            scratch.mkdir(parents=True)
+            replacement.mkdir()
+            (replacement / "attacker.txt").write_text("keep", encoding="ascii")
+            container_fd = os.open(container, os.O_RDONLY | os.O_DIRECTORY)
+            state = LAUNCHER.LauncherState(
+                scratch_fd=os.open(scratch, os.O_RDONLY | os.O_DIRECTORY),
+                scratch_parent_fd=os.dup(container_fd),
+                scratch_container_fd=container_fd,
+                scratch_container_parent_fd=os.open(
+                    runner_parent, os.O_RDONLY | os.O_DIRECTORY
+                ),
+            )
+            self.assertEqual(LAUNCHER._cleanup_launcher(state), [])
+            self.assertFalse(scratch.exists())
+            self.assertTrue((replacement / "attacker.txt").exists())
+
+    def test_scratch_container_name_is_root_selected_and_fresh(self) -> None:
+        with mock.patch.object(LAUNCHER.secrets, "token_hex", return_value="a" * 32):
+            self.assertEqual(
+                LAUNCHER.private_scratch_container_name(),
+                LAUNCHER.ROOT_RUN_NAME + "-container-" + "a" * 32,
+            )
+
+    def test_identity_cleanup_requires_exact_captured_uid_gid_and_primary_group(self) -> None:
+        user = types.SimpleNamespace(pw_uid=2000, pw_gid=2001)
+        group = types.SimpleNamespace(gr_gid=2001)
+        with mock.patch.object(LAUNCHER.pwd, "getpwnam", return_value=user), mock.patch.object(
+            LAUNCHER.grp, "getgrnam", return_value=group
+        ), mock.patch.object(LAUNCHER, "run_checked") as run_checked:
+            LAUNCHER.cleanup_identity("mscnxw_x", "mscnxg_x", 2000, 2001)
+            self.assertEqual(run_checked.call_count, 2)
+        for uid, gid in ((None, 2001), (2000, None)):
+            with self.subTest(uid=uid, gid=gid), mock.patch.object(LAUNCHER, "run_checked") as run_checked:
+                with self.assertRaises(LAUNCHER.LauncherError):
+                    LAUNCHER.cleanup_identity("mscnxw_x", "mscnxg_x", uid, gid)
+                run_checked.assert_not_called()
+        cases = (
+            (types.SimpleNamespace(pw_uid=3000, pw_gid=2001), group, "uid"),
+            (types.SimpleNamespace(pw_uid=2000, pw_gid=3001), group, "primary gid"),
+            (user, types.SimpleNamespace(gr_gid=3001), "group gid"),
+        )
+        for current_user, current_group, label in cases:
+            with self.subTest(label=label), mock.patch.object(
+                LAUNCHER.pwd, "getpwnam", return_value=current_user
+            ), mock.patch.object(
+                LAUNCHER.grp, "getgrnam", return_value=current_group
+            ), mock.patch.object(LAUNCHER, "run_checked") as run_checked:
+                with self.assertRaisesRegex(LAUNCHER.LauncherError, "replaced"):
+                    LAUNCHER.cleanup_identity("mscnxw_x", "mscnxg_x", 2000, 2001)
+                run_checked.assert_not_called()
+
+    def test_identity_creation_refuses_group_replacement_during_rollback(self) -> None:
+        created = types.SimpleNamespace(gr_gid=2001)
+        replacement = types.SimpleNamespace(gr_gid=3001)
+        with mock.patch.object(LAUNCHER.pwd, "getpwall", return_value=[]), mock.patch.object(
+            LAUNCHER.grp, "getgrall", return_value=[]
+        ), mock.patch.object(
+            LAUNCHER.grp, "getgrnam", side_effect=(created, replacement)
+        ), mock.patch.object(
+            LAUNCHER, "run_checked", side_effect=(None, OSError("useradd failed"))
+        ) as run_checked:
+            with self.assertRaisesRegex(LAUNCHER.LauncherError, "group rollback failed"):
+                LAUNCHER.create_identity("abc")
+        self.assertEqual(run_checked.call_count, 2)
+
+    def test_subordinate_cleanup_refuses_replaced_runner_identity(self) -> None:
+        mapping = LAUNCHER.SubordinateMapping("runner", 1000, 2000, 2001, True, True)
+        replacement = types.SimpleNamespace(pw_uid=3000)
+        with mock.patch.object(LAUNCHER.pwd, "getpwnam", return_value=replacement), mock.patch.object(
+            LAUNCHER, "run_checked"
+        ) as run_checked:
+            with self.assertRaises(LAUNCHER.LauncherError):
+                LAUNCHER.cleanup_subordinate_mapping(mapping)
+            run_checked.assert_not_called()
+
+    def test_main_converts_subprocess_timeouts_to_controlled_failure(self) -> None:
+        with mock.patch.object(LAUNCHER.os, "geteuid", return_value=0), mock.patch.object(
+            LAUNCHER, "parse_args", return_value=mock.Mock()
+        ), mock.patch.object(
+            LAUNCHER, "_prepare_launcher", side_effect=subprocess.TimeoutExpired("helper", 1)
+        ), mock.patch.object(LAUNCHER, "_cleanup_launcher", return_value=[]) as cleanup, mock.patch.object(
+            LAUNCHER.sys, "stderr", new_callable=io.StringIO
+        ):
+            self.assertEqual(LAUNCHER.main(["ignored"]), 1)
+        cleanup.assert_called_once()
+
+    def test_wait_mode_uses_nested_retained_fd_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            cell = Path(temporary) / "cell"
+            (cell / "on" / "control").mkdir(parents=True)
+            (cell / "on" / "runtime").mkdir()
+            descriptor = os.open(cell, os.O_RDONLY | os.O_DIRECTORY)
+            process = mock.Mock()
+            process.poll.return_value = None
+            (cell / "on" / "runtime" / "ready.json").write_text(
+                json.dumps({"mode": "on"}), encoding="ascii"
+            )
+            try:
+                with mock.patch.object(LAUNCHER, "validate_generated_config"), mock.patch.object(
+                    LAUNCHER, "validate_identity", return_value={"master_pidfd": 9}
+                ), mock.patch.object(LAUNCHER, "atomic_json") as publish:
+                    result = LAUNCHER.wait_mode(
+                        Path(f"/proc/self/fd/{descriptor}"), "on",
+                        LAUNCHER.IdentityExpectations(1, 1, 2, 2),
+                        Path("/candidate/nginx"), {}, Path("/candidate/module"),
+                        "worker", "group", process,
+                    )
+                self.assertEqual(result["master_pidfd"], 9)
+                publish.assert_called_once()
+            finally:
+                os.close(descriptor)
+
+    def test_owned_child_directory_is_created_descriptor_relative_and_verified(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            parent = Path(temporary)
+            child = LAUNCHER.create_owned_child_directory(
+                parent, "fresh", os.getuid(), os.getgid(), 0o700,
+                "test child", os.getuid(), os.getgid()
+            )
+            self.assertEqual(child, parent / "fresh")
+            metadata = child.lstat()
+            self.assertTrue(stat.S_ISDIR(metadata.st_mode))
+            self.assertEqual(stat.S_IMODE(metadata.st_mode), 0o700)
+            with self.assertRaises(LAUNCHER.LauncherError):
+                LAUNCHER.create_owned_child_directory(
+                    parent, "fresh", os.getuid(), os.getgid(), 0o700,
+                    "duplicate child", os.getuid(), os.getgid()
+                )
+
     def test_path_containment_rejects_symlink_escape_and_parent_traversal(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
@@ -155,9 +348,19 @@ class RootLauncherContractTests(unittest.TestCase):
                 LAUNCHER.dispatcher_manifest(dispatcher_path, BASE)
             bad_candidate = candidate_payload(artifacts)
             bad_candidate["schema_version"] = True
+            dispatcher = dispatcher_payload()
             write_json(candidate_path, bad_candidate)
             with self.assertRaisesRegex(LAUNCHER.LauncherError, "schema is unsupported"):
-                LAUNCHER.candidate_manifest(candidate_path, dispatcher_payload())
+                LAUNCHER.candidate_manifest(candidate_path, dispatcher)
+
+    def test_security_identifiers_accept_ascii_digits_only(self) -> None:
+        with self.assertRaisesRegex(LAUNCHER.LauncherError, "40-character SHA"):
+            LAUNCHER.require_sha40("a" * 39 + "١", "test SHA")
+        self.assertIsNone(LAUNCHER.TX_RE.fullmatch("nginx-exact-head-١-1-1"))
+
+    def test_launcher_does_not_catch_process_control_exceptions_broadly(self) -> None:
+        source = MODULE_PATH.read_text(encoding="utf-8")
+        self.assertNotIn("BaseException", source)
 
     def test_admission_requires_only_manifested_single_link_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -391,8 +594,27 @@ class RootLauncherContractTests(unittest.TestCase):
             b'"id:1000001,phase:1,deny,status:403,log"\n',
         )
         for unsafe in ('/task/has\\slash', '/task/has\nnewline', '/task/has;directive'):
-            with self.subTest(unsafe=unsafe), self.assertRaises(LAUNCHER.LauncherError):
-                LAUNCHER.nginx_literal(unsafe, "unsafe test path")
+            with self.subTest(unsafe=unsafe):
+                with self.assertRaises(LAUNCHER.LauncherError):
+                    LAUNCHER.nginx_literal(unsafe, "unsafe test path")
+
+    def test_sandbox_config_uses_fixed_paths_not_host_candidate_or_cell(self) -> None:
+        writes: dict[str, bytes] = {}
+        with mock.patch.object(LAUNCHER, "root_owned_directory"), mock.patch.object(
+            LAUNCHER, "create_runner_owned_directory"
+        ), mock.patch.object(
+            LAUNCHER, "root_owned_file",
+            side_effect=lambda path, content, mode=0o444: writes.__setitem__(str(path), content),
+        ):
+            LAUNCHER.prepare_trusted_cells(
+                Path("/host/cell"), Path("/candidate/ngx_http_modsecurity_module.so"),
+                "mscnxw_abc", "mscnxg_abc", 1000, 1000,
+                sandbox_cell=LAUNCHER.SANDBOX_CELL_ROOT,
+            )
+        config = writes["/host/cell/on/config/nginx.conf"].decode("utf-8")
+        self.assertIn('load_module "/candidate/ngx_http_modsecurity_module.so";', config)
+        self.assertIn('pid "/cell/on/runtime/nginx.pid";', config)
+        self.assertNotIn("/host/cell", config)
 
     def test_wait_mode_validates_before_root_release(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -625,7 +847,7 @@ class RootLauncherContractTests(unittest.TestCase):
         admitted = {"device": 7, "inode": 9, "sha256": "a" * 64, "size": 1}
         with mock.patch.object(
             LAUNCHER, "host_pid_for_namespace_pid", side_effect=(100, 101)
-        ), mock.patch.object(LAUNCHER, "status", side_effect=(master, worker)), mock.patch.object(
+        ), mock.patch.object(LAUNCHER, "status", side_effect=(master, worker, master, worker)), mock.patch.object(
             LAUNCHER.os, "stat", return_value=artifact
         ), mock.patch.object(
             LAUNCHER.os, "pidfd_open", return_value=77
@@ -634,7 +856,7 @@ class RootLauncherContractTests(unittest.TestCase):
         ), mock.patch.object(
             LAUNCHER, "apparmor_label", return_value=LAUNCHER.APPARMOR_PROFILE_NAME + " (enforce)"
         ), mock.patch.object(LAUNCHER, "require_sandbox_security_state"), mock.patch.object(
-            LAUNCHER, "pidfd_exited", return_value=False
+            LAUNCHER, "pidfd_exited", side_effect=(False, False)
         ):
             evidence = LAUNCHER.validate_identity(
                 {"master_pid": 100, "worker_pid": 101}, expected, admitted, 42
@@ -643,7 +865,9 @@ class RootLauncherContractTests(unittest.TestCase):
         self.assertEqual(evidence["master_pidfd"], 77)
         with mock.patch.object(
             LAUNCHER, "host_pid_for_namespace_pid", side_effect=(100, 101)
-        ), mock.patch.object(LAUNCHER, "status", side_effect=(master, dict(worker, ppid=999))):
+        ), mock.patch.object(LAUNCHER, "status", side_effect=(master, dict(worker, ppid=999))), mock.patch.object(
+            LAUNCHER.os, "pidfd_open", return_value=77
+        ), mock.patch.object(LAUNCHER, "pidfd_exited", return_value=False), mock.patch.object(LAUNCHER.os, "close"):
             with self.assertRaisesRegex(LAUNCHER.LauncherError, "direct child"):
                 LAUNCHER.validate_identity(
                     {"master_pid": 100, "worker_pid": 101}, expected, admitted, 42
@@ -734,7 +958,7 @@ class RootLauncherContractTests(unittest.TestCase):
         with mock.patch.object(
             LAUNCHER,
             "write_root_owned_json",
-            side_effect=lambda path, value, line_delimited=False: writes.__setitem__(
+            side_effect=lambda path, value, line_delimited=False, **kwargs: writes.__setitem__(
                 path.name, (value, line_delimited)
             ),
         ):
@@ -750,6 +974,27 @@ class RootLauncherContractTests(unittest.TestCase):
         self.assertTrue(writes["on.jsonl"][1])
         self.assertFalse(writes["off.jsonl"][0]["callback_observed"])
         self.assertEqual(writes["runtime.json"][0]["tested_pr_head"], HEAD)
+        self.assertEqual(writes["runtime.json"][0]["tested_pr_base"], BASE)
+
+    def test_root_evidence_write_survives_runner_directory_replacement(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            parent = Path(temporary)
+            evidence = parent / "evidence"
+            outside = parent / "outside"
+            evidence.mkdir()
+            outside.mkdir()
+            evidence_fd = os.open(evidence, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                moved = parent / "moved"
+                evidence.rename(moved)
+                evidence.symlink_to(outside, target_is_directory=True)
+                LAUNCHER.write_root_owned_json(
+                    evidence / "identity.json", {"safe": True}, directory_fd=evidence_fd
+                )
+                self.assertTrue((moved / "identity.json").is_file())
+                self.assertFalse((outside / "identity.json").exists())
+            finally:
+                os.close(evidence_fd)
 
     def test_exit_77_is_a_fatal_runtime_failure(self) -> None:
         with self.assertRaisesRegex(LAUNCHER.LauncherError, "Exit 77"):
@@ -821,10 +1066,10 @@ class RootLauncherContractTests(unittest.TestCase):
         self.assertNotIn("|| true", source)
         self.assertIn("BASE_DRIVER_RELATIVE", source)
         self.assertIn("run_nginx_exact_head_cells.sh", source)
-        self.assertIn('"--ro-bind-fd", str(artifact_descriptors["nginx"])', source)
-        self.assertIn('"--ro-bind-fd", str(artifact_descriptors["module"])', source)
-        self.assertIn('"--ro-bind-fd", str(artifact_descriptors["library"])', source)
-        self.assertIn('"--ro-bind-fd", str(artifact_descriptors["manifest"])', source)
+        self.assertIn('"--ro-bind-fd", str(state.artifact_descriptors["nginx"])', source)
+        self.assertIn('"--ro-bind-fd", str(state.artifact_descriptors["module"])', source)
+        self.assertIn('"--ro-bind-fd", str(state.artifact_descriptors["library"])', source)
+        self.assertIn('"--ro-bind-fd", str(state.artifact_descriptors["manifest"])', source)
         self.assertIn('"--disable-userns", "--assert-userns-disabled"', source)
         self.assertIn('"--unshare-net"', source)
         self.assertIn('"--clearenv"', source)
@@ -832,10 +1077,11 @@ class RootLauncherContractTests(unittest.TestCase):
         self.assertIn("host_pid_for_namespace_pid", source)
         self.assertIn("trusted_base_file_descriptor", source)
         self.assertIn("SANDBOX_BASE_HELPER", source)
-        self.assertIn('"--ro-bind-fd", str(trusted_base_descriptors["helper"])', source)
-        self.assertIn("root_owned_directory(cell)", source)
-        self.assertNotIn("create_runner_owned_directory(cell", source)
-        self.assertIn("env=outer_env", source)
+        self.assertIn('"--ro-bind-fd", str(state.trusted_base_descriptors["helper"])', source)
+        self.assertIn('pass_fds=(state.scratch_fd, state.cell_fd)', source)
+        self.assertIn('"root launcher cell"', source)
+        self.assertNotIn("create_runner_owned_directory(state.cell", source)
+        self.assertIn('env=context["outer_env"]', source)
         self.assertIn("sandbox_env", source)
         self.assertIn("SANDBOX_TMPDIR", source)
         self.assertIn('"TMPDIR": str(SANDBOX_TMPDIR)', source)
@@ -851,9 +1097,7 @@ class RootLauncherContractTests(unittest.TestCase):
         mapping = LAUNCHER.SubordinateMapping("runner", 1000, 2000, 2001)
         with mock.patch.object(LAUNCHER, "require_no_subordinate_mapping"), mock.patch.object(
             LAUNCHER, "require_exact_subordinate_mapping"
-        ), mock.patch.object(
-            LAUNCHER, "run_checked", side_effect=(None, RuntimeError("gid update failed"), None)
-        ) as run_checked:
+        ), mock.patch.object(LAUNCHER.pwd, "getpwnam", return_value=types.SimpleNamespace(pw_uid=1000)), mock.patch.object(LAUNCHER, "run_checked", side_effect=(None, RuntimeError("gid update failed"), None)) as run_checked:
             with self.assertRaisesRegex(RuntimeError, "gid update failed"):
                 LAUNCHER.establish_subordinate_mapping(mapping)
         self.assertFalse(mapping.uid_added)

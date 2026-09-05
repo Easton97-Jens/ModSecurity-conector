@@ -2,6 +2,7 @@
 """Validate root-owned evidence from the protected exact-head NGINX run."""
 from __future__ import annotations
 import argparse
+from dataclasses import dataclass
 import json
 import os
 import re
@@ -9,10 +10,16 @@ import stat
 from pathlib import Path
 from typing import Any, Callable
 
-SHA40 = re.compile(r"^[0-9a-f]{40}$")
-SHA256 = re.compile(r"^[0-9a-f]{64}$")
-TX = re.compile(r"^nginx-exact-head-[0-9]+-[0-9]+-[0-9]+$")
+SHA40 = re.compile(r"^(?a:[\da-f]{40})$")
+SHA256 = re.compile(r"^(?a:[\da-f]{64})$")
+TX = re.compile(r"^nginx-exact-head-(?a:\d+)-(?a:\d+)-(?a:\d+)$")
 FILES = frozenset({"identity.json", "runtime.json", "on.jsonl", "off.jsonl", "exit.json"})
+EVIDENCE_ROOT_NAME = "launcher-evidence"
+RESULT_OUTPUT_NAME = "exact-head-result.json"
+RESULT_TEMPORARY_PREFIX = f".{RESULT_OUTPUT_NAME}.tmp-"
+DISPATCHER_MANIFEST_NAME = "dispatcher-manifest.json"
+DISPATCHER_MANIFEST_LABEL = "dispatcher manifest"
+TASK_INPUT_COMPONENTS = ("inputs", "dispatcher")
 REPO = "Easton97-Jens/ModSecurity-conector"
 NGINX_VERSION = "1.31.4"
 NGINX_SOURCE_DIGEST = "e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3"
@@ -28,7 +35,8 @@ CELL_FIELDS = frozenset({
     "worker_gid",
 })
 RUNTIME_FIELDS = frozenset({
-    "schema_version", "tested_pr_head", "trusted_dispatcher_base_sha",
+    "schema_version", "tested_pr_head", "tested_pr_base",
+    "trusted_dispatcher_base_sha",
     "candidate_run_id", "nginx_version", "nginx_source_digest",
     "connector_module_digest",
 })
@@ -41,6 +49,17 @@ EXIT_FIELDS = frozenset({"schema_version", "on_exit", "off_exit"})
 
 class CollectorError(ValueError):
     """Evidence failed the authenticity contract."""
+
+
+@dataclass(frozen=True)
+class EvidenceObservations:
+    """Validated, root-published facts used for the sanitized terminal result."""
+
+    cells: dict[str, dict[str, Any]]
+    tested_pr_base: str
+    connector_module_digest: str
+    on: dict[str, Any]
+    off: dict[str, Any]
 
 def _dupes(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     out: dict[str, Any] = {}
@@ -123,35 +142,25 @@ def _version_one(value: Any) -> bool:
     return type(value) is int and value == 1
 
 
-def _open_root_owned_evidence(path: Path) -> int:
-    """Anchor evidence to a validated root-owned directory descriptor."""
-    if (
-        not path.is_absolute()
-        or any(part in {".", ".."} for part in path.parts)
-        or path == Path("/")
-    ):
-        raise CollectorError("evidence root path is unsafe")
+def _open_root_owned_evidence(task_descriptor: int) -> int:
+    """Open the single root-owned evidence leaf below the admitted task FD."""
     descriptor = -1
     try:
-        descriptor = os.open(
-            path.root,
-            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+        before = os.stat(
+            EVIDENCE_ROOT_NAME,
+            dir_fd=task_descriptor,
+            follow_symlinks=False,
         )
-        for part in path.parts[1:]:
-            before = os.stat(part, dir_fd=descriptor, follow_symlinks=False)
-            if not stat.S_ISDIR(before.st_mode) or stat.S_ISLNK(before.st_mode):
-                raise CollectorError("unsafe evidence root")
-            child = os.open(
-                part,
-                os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
-                dir_fd=descriptor,
-            )
-            opened = os.fstat(child)
-            if (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino):
-                os.close(child)
-                raise CollectorError("evidence root changed while being opened")
-            os.close(descriptor)
-            descriptor = child
+        if not stat.S_ISDIR(before.st_mode) or stat.S_ISLNK(before.st_mode):
+            raise CollectorError("unsafe evidence root")
+        descriptor = os.open(
+            EVIDENCE_ROOT_NAME,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+            dir_fd=task_descriptor,
+        )
+        opened = os.fstat(descriptor)
+        if (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino):
+            raise CollectorError("evidence root changed while being opened")
         metadata = os.fstat(descriptor)
         if (
             not stat.S_ISDIR(metadata.st_mode)
@@ -258,13 +267,14 @@ def _open_task_root(path: Path, runner_uid: int, runner_gid: int) -> int:
             or stat.S_IMODE(metadata.st_mode) != 0o700
         ):
             raise CollectorError("task root ownership or mode is unsafe")
-        return descriptor
+        result = descriptor
+        descriptor = -1
+        return result
     except OSError as exc:
         raise CollectorError("task root is unavailable") from exc
-    except BaseException:
+    finally:
         if descriptor >= 0:
             os.close(descriptor)
-        raise
 
 
 def _sha(value: Any, label: str, pattern: re.Pattern[str]) -> str:
@@ -284,6 +294,31 @@ def _require_runner_input_file(
         raise CollectorError(f"unsafe task input file: {label}")
 
 
+def _open_task_input_directory(parent: int, component: str) -> int:
+    """Open one fixed input directory and verify the descriptor identity."""
+    descriptor = -1
+    try:
+        before = os.stat(component, dir_fd=parent, follow_symlinks=False)
+        if not stat.S_ISDIR(before.st_mode) or stat.S_ISLNK(before.st_mode):
+            raise CollectorError("unsafe dispatcher input directory")
+        descriptor = os.open(
+            component,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+            dir_fd=parent,
+        )
+        opened = os.fstat(descriptor)
+        if (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino):
+            raise CollectorError("dispatcher input directory changed while opening")
+        result = descriptor
+        descriptor = -1
+        return result
+    except OSError as exc:
+        raise CollectorError("dispatcher input directory unavailable") from exc
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+
 def _open_task_input_manifest(
     task_descriptor: int,
     manifest_path: Path,
@@ -292,51 +327,54 @@ def _open_task_input_manifest(
     runner_gid: int,
 ) -> int:
     """Open only the dispatcher manifest at the fixed task-root location."""
-    expected = task_root / "inputs" / "dispatcher" / "dispatcher-manifest.json"
+    expected = task_root / "inputs" / "dispatcher" / DISPATCHER_MANIFEST_NAME
     if manifest_path != expected:
-        raise CollectorError("dispatcher manifest is outside the fixed task-root input")
+        raise CollectorError(
+            f"{DISPATCHER_MANIFEST_LABEL} is outside the fixed task-root input"
+        )
     descriptors: list[int] = []
+    result = -1
     current = task_descriptor
     try:
-        for component in ("inputs", "dispatcher"):
-            before = os.stat(component, dir_fd=current, follow_symlinks=False)
-            if not stat.S_ISDIR(before.st_mode) or stat.S_ISLNK(before.st_mode):
-                raise CollectorError("unsafe dispatcher input directory")
-            child = os.open(
-                component,
-                os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
-                dir_fd=current,
-            )
-            opened = os.fstat(child)
-            if (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino):
-                os.close(child)
-                raise CollectorError("dispatcher input directory changed while opening")
+        for component in TASK_INPUT_COMPONENTS:
+            child = _open_task_input_directory(current, component)
             descriptors.append(child)
             current = child
         before = os.stat(
-            "dispatcher-manifest.json", dir_fd=current, follow_symlinks=False
+            DISPATCHER_MANIFEST_NAME, dir_fd=current, follow_symlinks=False
         )
         _require_runner_input_file(
-            before, "dispatcher manifest", MAX_JSON, runner_uid, runner_gid
+            before, DISPATCHER_MANIFEST_LABEL, MAX_JSON, runner_uid, runner_gid
         )
         result = os.open(
-            "dispatcher-manifest.json",
+            DISPATCHER_MANIFEST_NAME,
             os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW,
             dir_fd=current,
         )
         opened = os.fstat(result)
         if _metadata_key(opened) != _metadata_key(before):
             os.close(result)
-            raise CollectorError("dispatcher manifest changed while being opened")
+            result = -1
+            raise CollectorError(
+                f"{DISPATCHER_MANIFEST_LABEL} changed while being opened"
+            )
         _require_runner_input_file(
-            opened, "dispatcher manifest", MAX_JSON, runner_uid, runner_gid
+            opened, DISPATCHER_MANIFEST_LABEL, MAX_JSON, runner_uid, runner_gid
         )
-        return result
+        admitted = result
+        result = -1
+        return admitted
     except FileNotFoundError as exc:
-        raise CollectorError("dispatcher manifest input is unavailable") from exc
+        raise CollectorError(
+            f"{DISPATCHER_MANIFEST_LABEL} input is unavailable"
+        ) from exc
     except OSError as exc:
-        raise CollectorError("dispatcher manifest input is unavailable") from exc
+        raise CollectorError(
+            f"{DISPATCHER_MANIFEST_LABEL} input is unavailable"
+        ) from exc
     finally:
+        if result >= 0:
+            os.close(result)
         for descriptor in reversed(descriptors):
             os.close(descriptor)
 
@@ -354,7 +392,7 @@ def _manifest_from_task_root(
     try:
         raw = _stable_read_descriptor(
             descriptor,
-            "dispatcher manifest",
+            DISPATCHER_MANIFEST_LABEL,
             MAX_JSON,
             lambda metadata, label, limit: _require_runner_input_file(
                 metadata, label, limit, runner_uid, runner_gid
@@ -362,7 +400,7 @@ def _manifest_from_task_root(
         )
     finally:
         os.close(descriptor)
-    return _manifest_value(_json_bytes(raw, "dispatcher manifest"))
+    return _manifest_value(_json_bytes(raw, DISPATCHER_MANIFEST_LABEL))
 
 
 def _manifest_value(value: Any) -> dict[str, Any]:
@@ -372,7 +410,7 @@ def _manifest_value(value: Any) -> dict[str, Any]:
         "tested_pr_base", "tested_pr_base_ref", "tested_pr_base_repository",
         "draft", "state", "merged",
     })
-    value = _obj(value, fields, "dispatcher manifest")
+    value = _obj(value, fields, DISPATCHER_MANIFEST_LABEL)
     if (not _version_one(value["schema_version"])
             or type(value["pr_number"]) is not int
             or value["pr_number"] <= 0):
@@ -427,114 +465,160 @@ def _json_bytes(raw: bytes, label: str) -> Any:
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise CollectorError(f"{label} invalid JSON") from exc
 
-def collect(
-    manifest_path: Path,
-    evidence_root: Path,
-    output_path: Path,
-    task_root: Path,
-    runner_uid: int,
-    runner_gid: int,
-) -> dict[str, Any]:
+
+def _validate_collection_paths(
+    manifest_path: Path, evidence_root: Path, output_path: Path, task_root: Path
+) -> None:
     if (
         not output_path.is_absolute()
         or any(part in {".", ".."} for part in output_path.parts)
-        or output_path.parent != task_root
-        or output_path.name != "exact-head-result.json"
+        or output_path != task_root / RESULT_OUTPUT_NAME
     ):
         raise CollectorError("output path is outside the fixed task-root allowlist")
-    task_descriptor = _open_task_root(task_root, runner_uid, runner_gid)
-    try:
-        manifest = _manifest_from_task_root(
-            task_descriptor, manifest_path, task_root, runner_uid, runner_gid
+    if evidence_root != task_root / EVIDENCE_ROOT_NAME:
+        raise CollectorError("evidence root is outside the fixed task-root allowlist")
+    expected_manifest = task_root / "inputs" / "dispatcher" / DISPATCHER_MANIFEST_NAME
+    if manifest_path != expected_manifest:
+        raise CollectorError(
+            f"{DISPATCHER_MANIFEST_LABEL} is outside the fixed task-root input"
         )
-    except BaseException:
-        os.close(task_descriptor)
-        raise
+
+
+def _evidence_names(root_descriptor: int) -> None:
     try:
-        evidence_descriptor = _open_root_owned_evidence(evidence_root)
-    except BaseException:
-        os.close(task_descriptor)
-        raise
+        names = set(os.listdir(root_descriptor))
+    except OSError as exc:
+        raise CollectorError("cannot enumerate evidence root") from exc
+    if names != FILES:
+        raise CollectorError("evidence root allowlist mismatch")
+
+
+def _identity_evidence(
+    root_descriptor: int, runner_uid: int, runner_gid: int
+) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+    identity = _obj(
+        _json_root_evidence(root_descriptor, "identity.json", "identity"),
+        IDENTITY_FIELDS,
+        "identity",
+    )
+    numeric_keys = (
+        "runner_uid",
+        "runner_gid",
+        "expected_worker_uid",
+        "expected_worker_gid",
+    )
+    if (
+        not _version_one(identity["schema_version"])
+        or any(type(identity[key]) is not int or identity[key] < 0 for key in numeric_keys)
+        or identity["runner_uid"] != runner_uid
+        or identity["runner_gid"] != runner_gid
+    ):
+        raise CollectorError("identity metadata invalid")
+    cells = {
+        mode: _identity_cell(identity[mode], f"{mode} identity")
+        for mode in ("on", "off")
+    }
+    return identity, cells
+
+
+def _validate_worker_cells(
+    identity: dict[str, Any], cells: dict[str, dict[str, Any]]
+) -> None:
+    for cell in cells.values():
+        if (
+            cell["worker_uid"] != identity["expected_worker_uid"]
+            or cell["worker_gid"] != identity["expected_worker_gid"]
+            or cell["worker_uid"] == identity["runner_uid"]
+            or cell["worker_gid"] == identity["runner_gid"]
+            or cell["master_uid"] != identity["runner_uid"]
+            or cell["master_gid"] != identity["runner_gid"]
+        ):
+            raise CollectorError("worker identity does not match root proof")
+
+
+def _runtime_module_digest(
+    root_descriptor: int, manifest: dict[str, Any]
+) -> tuple[str, str]:
+    runtime = _obj(
+        _json_root_evidence(root_descriptor, "runtime.json", "runtime"),
+        RUNTIME_FIELDS,
+        "runtime",
+    )
+    if (
+        not _version_one(runtime["schema_version"])
+        or runtime["tested_pr_head"] != manifest["tested_pr_head"]
+        or runtime["tested_pr_base"] != manifest["tested_pr_base"]
+        or runtime["trusted_dispatcher_base_sha"]
+        != manifest["trusted_dispatcher_base_sha"]
+        or runtime["candidate_run_id"] != manifest["run_id"]
+        or runtime["nginx_version"] != NGINX_VERSION
+        or runtime["nginx_source_digest"] != NGINX_SOURCE_DIGEST
+    ):
+        raise CollectorError("runtime identity mismatch")
+    return (
+        _sha(runtime["connector_module_digest"], "connector_module_digest", SHA256),
+        _sha(runtime["tested_pr_base"], "tested_pr_base", SHA40),
+    )
+
+
+def _validate_exit_evidence(root_descriptor: int) -> None:
+    exit_value = _obj(
+        _json_root_evidence(root_descriptor, "exit.json", "exit"),
+        EXIT_FIELDS,
+        "exit",
+    )
+    if (
+        not _version_one(exit_value["schema_version"])
+        or exit_value["on_exit"] != 0
+        or exit_value["off_exit"] != 0
+    ):
+        raise CollectorError("cell exit status is not successful")
+
+
+def _validated_evidence(
+    task_descriptor: int, manifest: dict[str, Any], runner_uid: int, runner_gid: int
+) -> EvidenceObservations:
+    evidence_descriptor = _open_root_owned_evidence(task_descriptor)
     try:
-        try:
-            names = set(os.listdir(evidence_descriptor))
-        except OSError as exc:
-            raise CollectorError("cannot enumerate evidence root") from exc
-        if names != FILES:
-            raise CollectorError("evidence root allowlist mismatch")
-        identity = _obj(
-            _json_root_evidence(evidence_descriptor, "identity.json", "identity"),
-            IDENTITY_FIELDS,
-            "identity",
+        _evidence_names(evidence_descriptor)
+        identity, cells = _identity_evidence(
+            evidence_descriptor, runner_uid, runner_gid
         )
-        if (not _version_one(identity["schema_version"]) or any(
-                type(identity[key]) is not int or identity[key] < 0
-                for key in ("runner_uid", "runner_gid", "expected_worker_uid",
-                            "expected_worker_gid"))
-                or identity["runner_uid"] != runner_uid
-                or identity["runner_gid"] != runner_gid):
-            raise CollectorError("identity metadata invalid")
-        cells = {
-            mode: _identity_cell(identity[mode], f"{mode} identity")
-            for mode in ("on", "off")
-        }
-        for cell in cells.values():
-            if (cell["worker_uid"] != identity["expected_worker_uid"]
-                    or cell["worker_gid"] != identity["expected_worker_gid"]
-                    or cell["worker_uid"] == identity["runner_uid"]
-                    or cell["worker_gid"] == identity["runner_gid"]
-                    or cell["master_uid"] != identity["runner_uid"]
-                    or cell["master_gid"] != identity["runner_gid"]):
-                raise CollectorError("worker identity does not match root proof")
-        runtime = _obj(
-            _json_root_evidence(evidence_descriptor, "runtime.json", "runtime"),
-            RUNTIME_FIELDS,
-            "runtime",
-        )
-        if (not _version_one(runtime["schema_version"])
-                or runtime["tested_pr_head"] != manifest["tested_pr_head"]
-                or runtime["trusted_dispatcher_base_sha"] != manifest[
-                    "trusted_dispatcher_base_sha"]
-                or runtime["candidate_run_id"] != manifest["run_id"]
-                or runtime["nginx_version"] != NGINX_VERSION
-                or runtime["nginx_source_digest"] != NGINX_SOURCE_DIGEST):
-            raise CollectorError("runtime identity mismatch")
-        module_digest = _sha(
-            runtime["connector_module_digest"], "connector_module_digest", SHA256
+        _validate_worker_cells(identity, cells)
+        module_digest, tested_pr_base = _runtime_module_digest(
+            evidence_descriptor, manifest
         )
         on = _jsonl(evidence_descriptor, "on")
         off = _jsonl(evidence_descriptor, "off")
         if on["transaction_id"] == off["transaction_id"]:
             raise CollectorError("on/off cells reused transaction ID")
-        exit_value = _obj(
-            _json_root_evidence(evidence_descriptor, "exit.json", "exit"),
-            EXIT_FIELDS,
-            "exit",
-        )
-        if (not _version_one(exit_value["schema_version"])
-                or exit_value["on_exit"] != 0
-                or exit_value["off_exit"] != 0):
-            raise CollectorError("cell exit status is not successful")
-    except BaseException:
-        os.close(task_descriptor)
-        raise
+        _validate_exit_evidence(evidence_descriptor)
+        return EvidenceObservations(cells, tested_pr_base, module_digest, on, off)
     finally:
-        if evidence_descriptor >= 0:
-            os.close(evidence_descriptor)
-    result = {
-        "schema_version": 1, "status": "validated_observations",
+        os.close(evidence_descriptor)
+
+
+def _terminal_result(
+    manifest: dict[str, Any], observations: EvidenceObservations
+) -> dict[str, Any]:
+    on = observations.on
+    off = observations.off
+    cell = observations.cells["on"]
+    return {
+        "schema_version": 1,
+        "status": "validated_observations",
         "tested_pr_head": manifest["tested_pr_head"],
-        "tested_pr_base": manifest["tested_pr_base"],
+        "tested_pr_base": observations.tested_pr_base,
         "trusted_dispatcher_base_sha": manifest["trusted_dispatcher_base_sha"],
         "nginx_version": NGINX_VERSION,
         "nginx_source_digest": NGINX_SOURCE_DIGEST,
-        "connector_module_digest": module_digest,
-        "master_pid": cells["on"]["master_pid"],
-        "worker_pid": cells["on"]["worker_pid"],
-        "master_uid": cells["on"]["master_uid"],
-        "master_gid": cells["on"]["master_gid"],
-        "worker_uid": cells["on"]["worker_uid"],
-        "worker_gid": cells["on"]["worker_gid"],
+        "connector_module_digest": observations.connector_module_digest,
+        "master_pid": cell["master_pid"],
+        "worker_pid": cell["worker_pid"],
+        "master_uid": cell["master_uid"],
+        "master_gid": cell["master_gid"],
+        "worker_uid": cell["worker_uid"],
+        "worker_gid": cell["worker_gid"],
         "distinct_identity_verified": True,
         "on_callback_observed": on["callback_observed"],
         "off_callback_observed": off["callback_observed"],
@@ -547,54 +631,107 @@ def collect(
         "candidate_sandbox_observations_untrusted": True,
         "final_exit_code": 0,
     }
-    data = (json.dumps(result, sort_keys=True, separators=(",", ":")) + "\n").encode()
-    temporary_name = f".{output_path.name}.tmp-{os.getpid()}"
-    result_descriptor = -1
+
+
+def _assert_fresh_result_destination(task_descriptor: int) -> None:
     try:
-        try:
-            os.stat(output_path.name, dir_fd=task_descriptor, follow_symlinks=False)
-        except FileNotFoundError:
-            pass
-        else:
-            raise CollectorError("fixed result destination is not fresh")
-        result_descriptor = os.open(
+        os.stat(RESULT_OUTPUT_NAME, dir_fd=task_descriptor, follow_symlinks=False)
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        raise CollectorError("cannot inspect fixed result destination") from exc
+    raise CollectorError("fixed result destination is not fresh")
+
+
+def _write_complete_descriptor(descriptor: int, data: bytes) -> None:
+    offset = 0
+    while offset < len(data):
+        written = os.write(descriptor, data[offset:])
+        if written <= 0:
+            raise CollectorError("could not write complete result")
+        offset += written
+
+
+def _write_result_temporary(
+    task_descriptor: int, data: bytes, runner_uid: int, runner_gid: int
+) -> str:
+    temporary_name = f"{RESULT_TEMPORARY_PREFIX}{os.getpid()}"
+    descriptor = -1
+    temporary_created = False
+    completed = False
+    try:
+        descriptor = os.open(
             temporary_name,
             os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW,
             0o600,
             dir_fd=task_descriptor,
         )
-        offset = 0
-        while offset < len(data):
-            written = os.write(result_descriptor, data[offset:])
-            if written <= 0:
-                raise CollectorError("could not write complete result")
-            offset += written
-        os.fsync(result_descriptor)
-        os.fchown(result_descriptor, 0, 0)
-        # The result is a fixed, sanitized schema under a runner-private task
-        # directory.  Making this root-owned file readable avoids a separate
-        # privileged path-based chown before artifact upload.
-        os.fchmod(result_descriptor, 0o644)
-        os.close(result_descriptor)
-        result_descriptor = -1
+        temporary_created = True
+        _write_complete_descriptor(descriptor, data)
+        os.fsync(descriptor)
+        os.fchown(descriptor, runner_uid, runner_gid)
+        os.fchmod(descriptor, 0o600)
+        os.close(descriptor)
+        descriptor = -1
+        completed = True
+        return temporary_name
+    except OSError as exc:
+        raise CollectorError("could not atomically write result") from exc
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        if temporary_created and not completed:
+            try:
+                os.unlink(temporary_name, dir_fd=task_descriptor)
+            except FileNotFoundError:
+                pass
+
+
+def _publish_terminal_result(
+    task_descriptor: int, result: dict[str, Any], runner_uid: int, runner_gid: int
+) -> None:
+    _assert_fresh_result_destination(task_descriptor)
+    data = (json.dumps(result, sort_keys=True, separators=(",", ":")) + "\n").encode()
+    temporary_name = _write_result_temporary(
+        task_descriptor, data, runner_uid, runner_gid
+    )
+    try:
         os.replace(
             temporary_name,
-            output_path.name,
+            RESULT_OUTPUT_NAME,
             src_dir_fd=task_descriptor,
             dst_dir_fd=task_descriptor,
         )
     except OSError as exc:
-        raise CollectorError("could not atomically write result") from exc
-    finally:
-        if result_descriptor >= 0:
-            os.close(result_descriptor)
         try:
             os.unlink(temporary_name, dir_fd=task_descriptor)
-        except FileNotFoundError:
+        except (FileNotFoundError, OSError):
             pass
-        finally:
-            os.close(task_descriptor)
-    return result
+        raise CollectorError("could not atomically write result") from exc
+
+
+def collect(
+    manifest_path: Path,
+    evidence_root: Path,
+    output_path: Path,
+    task_root: Path,
+    runner_uid: int,
+    runner_gid: int,
+) -> dict[str, Any]:
+    _validate_collection_paths(manifest_path, evidence_root, output_path, task_root)
+    task_descriptor = _open_task_root(task_root, runner_uid, runner_gid)
+    try:
+        manifest = _manifest_from_task_root(
+            task_descriptor, manifest_path, task_root, runner_uid, runner_gid
+        )
+        observations = _validated_evidence(
+            task_descriptor, manifest, runner_uid, runner_gid
+        )
+        result = _terminal_result(manifest, observations)
+        _publish_terminal_result(task_descriptor, result, runner_uid, runner_gid)
+        return result
+    finally:
+        os.close(task_descriptor)
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()

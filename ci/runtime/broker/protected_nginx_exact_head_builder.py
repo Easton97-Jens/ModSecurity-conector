@@ -28,8 +28,8 @@ EXPECTED_NGINX_VERSION = "1.31.4"
 EXPECTED_NGINX_SOURCE_SHA256 = "e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3"
 MAX_MANIFEST_BYTES = 64 * 1024
 MAX_ARTIFACT_BYTES = 256 * 1024 * 1024
-SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
-SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+SHA40_RE = re.compile(r"^(?a:[\da-f]{40})$")
+SHA256_RE = re.compile(r"^(?a:[\da-f]{64})$")
 SAFE_RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 SNAPSHOT_RE = re.compile(r"^export ([A-Z][A-Z0-9_]*)='([^'\r\n]+)'$")
 ARTIFACTS = {
@@ -155,20 +155,23 @@ def _open_relative_directory(root_descriptor: int, components: tuple[str, ...], 
             if _directory_identity(opened) != _directory_identity(before):
                 os.close(child)
                 fail(f"{label} changed while opening")
-            os.close(descriptor)
+            previous = descriptor
             descriptor = child
-        return descriptor
+            os.close(previous)
+        result = descriptor
+        descriptor = -1
+        return result
     except OSError as exc:
-        os.close(descriptor)
         fail(f"could not open {label}: {exc}")
-    except BaseException:
-        os.close(descriptor)
-        raise
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
 
 
 def _open_private_directory(path: Path, label: str, *, owner: int | None = None) -> int:
     path = absolute_normalized(path, label)
     root_descriptor = -1
+    descriptor = -1
     try:
         root_descriptor = os.open(
             path.root, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW
@@ -181,10 +184,12 @@ def _open_private_directory(path: Path, label: str, *, owner: int | None = None)
             os.close(root_descriptor)
     try:
         _require_private_directory_metadata(os.fstat(descriptor), label, owner=owner)
-        return descriptor
-    except BaseException:
-        os.close(descriptor)
-        raise
+        result = descriptor
+        descriptor = -1
+        return result
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
 
 
 def _verify_relative_directory_identity(
@@ -269,12 +274,12 @@ def _create_private_relative_directory(
         _require_private_directory_metadata(
             os.fstat(descriptor), label, owner=os.geteuid()
         )
-        return descriptor
-    except BaseException:
+        result = descriptor
+        descriptor = -1
+        return result
+    finally:
         if descriptor >= 0:
             os.close(descriptor)
-        raise
-    finally:
         os.close(parent_descriptor)
 
 
@@ -336,16 +341,14 @@ def _open_regular_at(
             descriptor = -1
             fail(f"{label} changed while opening")
         _require_regular_metadata(opened, label, owner=owner, maximum=maximum)
-        return descriptor, opened
+        result = descriptor
+        descriptor = -1
+        return result, opened
     except OSError as exc:
-        if descriptor >= 0:
-            os.close(descriptor)
         fail(f"could not open {label}: {exc}")
-    except BaseException:
+    finally:
         if descriptor >= 0:
             os.close(descriptor)
-        raise
-    finally:
         os.close(parent_descriptor)
 
 
@@ -747,18 +750,33 @@ def run_candidate_build(arguments: argparse.Namespace) -> Path:
     runner_uid, _ = require_unprivileged_identity()
     task_root = absolute_normalized(Path(arguments.task_root), TASK_ROOT_LABEL)
     candidate_root = require_no_symlink_chain(Path(arguments.candidate_root), CANDIDATE_ROOT_LABEL)
-    require_private_directory(candidate_root, CANDIDATE_ROOT_LABEL, owner=runner_uid)
-    task_descriptor = _open_private_directory(
-        task_root, TASK_ROOT_LABEL, owner=runner_uid
+    candidate_descriptor = _open_private_directory(
+        candidate_root, CANDIDATE_ROOT_LABEL, owner=runner_uid
     )
+    task_descriptor = -1
     try:
+        task_descriptor = _open_private_directory(
+            task_root, TASK_ROOT_LABEL, owner=runner_uid
+        )
         environment = build_environment(arguments)
         # The target is a fixed Makefile entry point.  It is candidate-controlled
         # code, but this process has no root, no inherited environment, no secret,
         # and no credential helper.  A failure (including 77) propagates unchanged.
-        command = ["/usr/bin/make", "-C", str(candidate_root), "fetch-deps"]
+        command = ["/usr/bin/make", "fetch-deps"]
         try:
-            subprocess.run(command, check=True, env=environment, stdin=subprocess.DEVNULL)
+            subprocess.run(
+                command,
+                check=True,
+                # Keep the admitted directory open through process creation.  A
+                # same-UID writer cannot swap the validated path between the
+                # admission checks and the child chdir; the child receives only
+                # this directory descriptor, not an attacker-controlled path.
+                cwd=f"/proc/self/fd/{candidate_descriptor}",
+                env=environment,
+                stdin=subprocess.DEVNULL,
+                shell=False,
+                pass_fds=(candidate_descriptor,),
+            )
         except (OSError, subprocess.CalledProcessError) as exc:
             fail(f"unprivileged candidate build failed: {exc}")
         snapshots = sorted(
@@ -777,7 +795,9 @@ def run_candidate_build(arguments: argparse.Namespace) -> Path:
         )
         return package(package_arguments, task_descriptor=task_descriptor)
     finally:
-        os.close(task_descriptor)
+        if task_descriptor >= 0:
+            os.close(task_descriptor)
+        os.close(candidate_descriptor)
 
 
 def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:

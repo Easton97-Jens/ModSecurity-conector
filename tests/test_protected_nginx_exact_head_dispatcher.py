@@ -18,7 +18,8 @@ BASE = "b" * 40
 
 def load_module() -> object:
     spec = importlib.util.spec_from_file_location("protected_exact_dispatcher", MODULE_PATH)
-    assert spec and spec.loader
+    assert spec is not None
+    assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
@@ -142,6 +143,59 @@ class DispatcherTest(unittest.TestCase):
                              f"tested_pr_base={BASE}\n"
                              f"trusted_dispatcher_base_sha={BASE}\n")
 
+    def test_cli_locations_are_derived_from_runner_owned_environment_only(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "github-output"
+            output.write_bytes(b"")
+            with mock.patch.dict(
+                D.os.environ,
+                {D.RUNNER_TEMP_ENV: str(root), D.GITHUB_OUTPUT_ENV: str(output)},
+                clear=True,
+            ):
+                self.assertEqual(
+                    D._runner_manifest_path("resolve"),
+                    root.joinpath(*D.RESOLVE_MANIFEST_COMPONENTS),
+                )
+                self.assertEqual(
+                    D._runner_manifest_path("candidate"),
+                    root.joinpath(*D.CANDIDATE_MANIFEST_COMPONENTS),
+                )
+                self.assertEqual(
+                    D._runner_manifest_path("privileged"),
+                    root.joinpath(*D.PRIVILEGED_MANIFEST_COMPONENTS),
+                )
+                self.assertEqual(D._github_output_path(), output)
+                with self.assertRaises(D.ContractError):
+                    D._runner_manifest_path("attacker-selected")
+            with mock.patch.dict(
+                D.os.environ,
+                {D.RUNNER_TEMP_ENV: str(root), D.GITHUB_OUTPUT_ENV: str(root.parent / "output")},
+                clear=True,
+            ):
+                with self.assertRaisesRegex(D.ContractError, "outside"):
+                    D._github_output_path()
+
+    def test_sha_and_runner_output_path_require_ascii_normalized_values(self) -> None:
+        self.assertEqual(D.sha40(SHA, "SHA"), SHA)
+        with self.assertRaises(D.ContractError):
+            D.sha40("١" * 40, "SHA")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with mock.patch.dict(
+                D.os.environ,
+                {
+                    D.RUNNER_TEMP_ENV: str(root),
+                    D.GITHUB_OUTPUT_ENV: str(root / ".." / "output"),
+                },
+                clear=True,
+            ):
+                with self.assertRaisesRegex(D.ContractError, "unsafe"):
+                    D._github_output_path()
+
+    def test_dispatcher_source_has_no_base_exception_cleanup_handler(self) -> None:
+        self.assertNotIn("BaseException", MODULE_PATH.read_text(encoding="utf-8"))
+
     def test_rejects_symlinked_ancestor_for_manifest_and_outputs(self) -> None:
         identity = D.make_manifest(354, SHA, BASE, "run-1", pr_payload())
         with tempfile.TemporaryDirectory() as directory:
@@ -189,10 +243,12 @@ class DispatcherTest(unittest.TestCase):
                 D.emit_outputs(manifest, output)
 
     def test_merged_field_must_be_false_boolean(self) -> None:
+        merged = pr_payload(merged=True)
         with self.assertRaises(D.ContractError):
-            D.validate_identity(pr_payload(merged=True), 354, SHA)
+            D.validate_identity(merged, 354, SHA)
+        non_boolean = pr_payload(merged="false")
         with self.assertRaises(D.ContractError):
-            D.validate_identity(pr_payload(merged="false"), 354, SHA)
+            D.validate_identity(non_boolean, 354, SHA)
 
     def test_rejects_changed_final_url(self) -> None:
         opener = Opener(Response(json.dumps(pr_payload()).encode(),
@@ -254,8 +310,9 @@ class DispatcherTest(unittest.TestCase):
                 D.fetch_pr(354)
         for update in ({"state": "closed"}, {"merged_at": "2026-01-01T00:00:00Z"},
                        {"draft": "true"}):
+            payload = pr_payload(**update)
             with self.assertRaises(D.ContractError):
-                D.validate_identity(pr_payload(**update), 354, SHA)
+                D.validate_identity(payload, 354, SHA)
 
     def test_rejects_short_sha_foreign_head_and_wrong_base(self) -> None:
         cases = [
@@ -265,8 +322,10 @@ class DispatcherTest(unittest.TestCase):
             {"head": {"ref": "refs/heads/review", "sha": SHA, "repo": {"full_name": D.CANONICAL_REPOSITORY}}},
         ]
         for update in cases:
-            with self.subTest(update=update), self.assertRaises(D.ContractError):
-                D.validate_identity(pr_payload(**update), 354, SHA)
+            payload = pr_payload(**update)
+            with self.subTest(update=update):
+                with self.assertRaises(D.ContractError):
+                    D.validate_identity(payload, 354, SHA)
 
 
 if __name__ == "__main__":

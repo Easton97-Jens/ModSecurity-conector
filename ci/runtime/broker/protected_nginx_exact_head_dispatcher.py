@@ -15,7 +15,6 @@ import re
 import stat
 import sys
 from typing import Any
-from urllib.error import HTTPError, URLError
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 CANONICAL_REPOSITORY = "Easton97-Jens/ModSecurity-conector"
@@ -23,10 +22,19 @@ API_ROOT = "https://api.github.com/repos/Easton97-Jens/ModSecurity-conector/pull
 USER_AGENT = "ModSecurity-conector-protected-exact-head-dispatcher"
 MAX_RESPONSE_BYTES = 64 * 1024
 MAX_RUN_ID_BYTES = 128
-SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
+SHA40_RE = re.compile(r"^(?a:[\da-f]{40})$")
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 PATH_COMPONENT_RE = re.compile(r"^[A-Za-z0-9._-]{1,255}$")
 SCHEMA_VERSION = 1
+RUNNER_TEMP_ENV = "RUNNER_TEMP"
+GITHUB_OUTPUT_ENV = "GITHUB_OUTPUT"
+RESOLVE_MANIFEST_COMPONENTS = ("protected-exact-head-resolve", "dispatcher-manifest.json")
+CANDIDATE_MANIFEST_COMPONENTS = (
+    "protected-exact-head-build", "dispatcher", "dispatcher-manifest.json"
+)
+PRIVILEGED_MANIFEST_COMPONENTS = (
+    "protected-exact-head-runtime", "inputs", "dispatcher", "dispatcher-manifest.json"
+)
 MANIFEST_FIELDS = frozenset({
     "schema_version", "trusted_dispatcher_base_sha", "run_id", "pr_number",
     "tested_pr_head", "tested_pr_head_ref", "tested_pr_head_repository",
@@ -90,7 +98,7 @@ def fetch_pr(pr_number: int) -> dict[str, Any]:
             raw = response.read(MAX_RESPONSE_BYTES + 1)
     except ContractError:
         raise
-    except (HTTPError, URLError, TimeoutError, OSError) as exc:
+    except OSError as exc:
         fail(f"GitHub API request failed: {exc}")
     payload = decode_json(raw, "GitHub PR response")
     if not isinstance(payload, dict):
@@ -184,15 +192,60 @@ def _open_private_parent(path: Path) -> tuple[int, str]:
                 fail("path contains an unsafe component")
             child = os.open(component, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) |
                             getattr(os, "O_NOFOLLOW", 0), dir_fd=fd)
-            os.close(fd)
+            previous = fd
             fd = child
+            os.close(previous)
         metadata = os.fstat(fd)
         if not stat.S_ISDIR(metadata.st_mode) or stat.S_IMODE(metadata.st_mode) & 0o022:
             fail("path ancestors must not be group/world writable")
-        return fd, path.name
-    except BaseException:
-        os.close(fd)
-        raise
+        parent_fd = fd
+        fd = -1
+        return parent_fd, path.name
+    finally:
+        if fd >= 0:
+            os.close(fd)
+
+
+def _runner_temp_path() -> Path:
+    value = os.environ.get(RUNNER_TEMP_ENV)
+    if not value:
+        fail("runner temporary root is unavailable")
+    path = Path(value)
+    if not path.is_absolute() or path == Path("/"):
+        fail("runner temporary root is unsafe")
+    if any(component in {"", ".", ".."} for component in path.parts[1:]):
+        fail("runner temporary root is unsafe")
+    return path
+
+
+def _runner_manifest_path(location: str) -> Path:
+    runner_temp = _runner_temp_path()
+    if location == "resolve":
+        return runner_temp.joinpath(*RESOLVE_MANIFEST_COMPONENTS)
+    if location == "candidate":
+        return runner_temp.joinpath(*CANDIDATE_MANIFEST_COMPONENTS)
+    if location == "privileged":
+        return runner_temp.joinpath(*PRIVILEGED_MANIFEST_COMPONENTS)
+    fail("dispatcher manifest location is unsupported")
+
+
+def _github_output_path() -> Path:
+    value = os.environ.get(GITHUB_OUTPUT_ENV)
+    if not value:
+        fail("GitHub output path is unavailable")
+    output = Path(value)
+    runner_temp = _runner_temp_path()
+    if (
+        not output.is_absolute()
+        or output.name in {"", ".", ".."}
+        or any(component in {"", ".", ".."} for component in output.parts[1:])
+    ):
+        fail("GitHub output path is unsafe")
+    try:
+        output.relative_to(runner_temp)
+    except ValueError:
+        fail("GitHub output path is outside the runner temporary root")
+    return output
 
 
 def write_manifest(path: Path, payload: dict[str, Any]) -> None:
@@ -339,28 +392,25 @@ def main(argv: list[str] | None = None) -> int:
     dispatch.add_argument("--expected-head-sha", required=True)
     dispatch.add_argument("--dispatcher-base-sha", required=True)
     dispatch.add_argument("--run-id", required=True)
-    dispatch.add_argument("--output", type=Path, required=True)
     verify = sub.add_parser("verify")
-    verify.add_argument("--manifest", type=Path, required=True)
+    verify.add_argument("--location", choices=("resolve", "candidate", "privileged"), required=True)
     verify.add_argument("--pr-number", type=int)
     verify.add_argument("--expected-head-sha")
     verify.add_argument("--dispatcher-base-sha")
-    emit = sub.add_parser("emit-outputs")
-    emit.add_argument("--manifest", type=Path, required=True)
-    emit.add_argument("--output", type=Path, required=True)
+    sub.add_parser("emit-outputs")
     args = parser.parse_args(argv)
     try:
         if args.command == "dispatch":
             payload = make_manifest(args.pr_number, args.expected_head_sha, args.dispatcher_base_sha,
                                     args.run_id, fetch_pr(args.pr_number))
-            write_manifest(args.output, payload)
+            write_manifest(_runner_manifest_path("resolve"), payload)
         else:
             if args.command == "verify":
-                verify_manifest(args.manifest, pr_number=args.pr_number,
+                verify_manifest(_runner_manifest_path(args.location), pr_number=args.pr_number,
                                 expected_head_sha=args.expected_head_sha,
                                 dispatcher_base_sha=args.dispatcher_base_sha)
             else:
-                emit_outputs(args.manifest, args.output)
+                emit_outputs(_runner_manifest_path("resolve"), _github_output_path())
         return 0
     except ContractError as exc:
         print(f"protected exact-head dispatcher: {exc}", file=sys.stderr)

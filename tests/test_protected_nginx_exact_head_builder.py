@@ -23,7 +23,8 @@ BASE = "b" * 40
 
 def load_module() -> object:
     spec = importlib.util.spec_from_file_location("protected_exact_head_builder", MODULE_PATH)
-    assert spec is not None and spec.loader is not None
+    assert spec is not None
+    assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
@@ -114,14 +115,17 @@ class CandidateBuilderTests(unittest.TestCase):
     def test_package_rejects_non_executable_nginx_binary(self) -> None:
         self.binary.chmod(0o400)
         archive_digest = hashlib.sha256(self.archive.read_bytes()).hexdigest()
-        with mock.patch.object(B, "EXPECTED_NGINX_SOURCE_SHA256", archive_digest), self.assertRaisesRegex(
-            B.BuilderError, "NGINX binary must be owner-executable"
-        ):
-            B.package(self.package_args())
+        arguments = self.package_args()
+        with mock.patch.object(B, "EXPECTED_NGINX_SOURCE_SHA256", archive_digest):
+            with self.assertRaisesRegex(
+                B.BuilderError, "NGINX binary must be owner-executable"
+            ):
+                B.package(arguments)
 
     def test_rejects_source_archive_digest_mismatch(self) -> None:
+        arguments = self.package_args()
         with self.assertRaisesRegex(B.BuilderError, "source archive digest"):
-            B.package(self.package_args())
+            B.package(arguments)
 
     def test_output_creation_does_not_follow_a_swapped_task_root(self) -> None:
         output_root = self.task_root / "artifacts"
@@ -172,11 +176,12 @@ class CandidateBuilderTests(unittest.TestCase):
             return original_open(path, flags, mode, dir_fd=dir_fd)
 
         archive_digest = hashlib.sha256(self.archive.read_bytes()).hexdigest()
+        arguments = self.package_args()
         with mock.patch.object(B.os, "open", side_effect=swap_before_output_open), mock.patch.object(
             B, "EXPECTED_NGINX_SOURCE_SHA256", archive_digest
         ):
             with self.assertRaisesRegex(B.BuilderError, "task root"):
-                B.package(self.package_args())
+                B.package(arguments)
         self.assertTrue(swapped)
         self.assertFalse((outside / "artifacts").exists())
         self.assertEqual(
@@ -203,11 +208,12 @@ class CandidateBuilderTests(unittest.TestCase):
             return descriptor
 
         archive_digest = hashlib.sha256(self.archive.read_bytes()).hexdigest()
+        arguments = self.package_args()
         with mock.patch.object(
             B, "_create_private_relative_directory", side_effect=create_then_replace
         ), mock.patch.object(B, "EXPECTED_NGINX_SOURCE_SHA256", archive_digest):
             with self.assertRaisesRegex(B.BuilderError, "candidate artifact root"):
-                B.package(self.package_args())
+                B.package(arguments)
         self.assertTrue(swapped)
         self.assertEqual(list((self.task_root / "artifacts").iterdir()), [])
         self.assertEqual(
@@ -304,8 +310,17 @@ class CandidateBuilderTests(unittest.TestCase):
         self.assertNotIn("PYTHONPATH", environment)
         self.assertEqual(environment["NGINX_RELEASE_TAG"], "release-1.31.4")
 
+    def test_digest_patterns_are_ascii_and_cleanup_uses_no_base_exception(self) -> None:
+        self.assertEqual(B.require_sha40(SHA, "SHA"), SHA)
+        self.assertEqual(B.require_sha256("b" * 64, "digest"), "b" * 64)
+        with self.assertRaises(B.BuilderError):
+            B.require_sha40("١" * 40, "SHA")
+        with self.assertRaises(B.BuilderError):
+            B.require_sha256("١" * 64, "digest")
+        self.assertNotIn("BaseException", MODULE_PATH.read_text(encoding="utf-8"))
+
     def test_build_invokes_only_fixed_unprivileged_make_vector(self) -> None:
-        candidate = self.root / "candidate"
+        candidate = self.root / "candidate;literal"
         candidate.mkdir(mode=0o700)
         (candidate / "modules" / "ModSecurity-test-Framework").mkdir(parents=True, mode=0o700)
         arguments = argparse.Namespace(
@@ -330,13 +345,59 @@ class CandidateBuilderTests(unittest.TestCase):
         self.assertEqual(output, Path("/safe/artifact-manifest.json"))
         identity.assert_called_once_with()
         command = run.call_args.args[0]
-        self.assertEqual(command, ["/usr/bin/make", "-C", str(candidate), "fetch-deps"])
+        self.assertEqual(command, ["/usr/bin/make", "fetch-deps"])
         self.assertNotIn("sudo", command)
+        self.assertNotIn(str(candidate), command)
+        cwd = run.call_args.kwargs["cwd"]
+        self.assertRegex(cwd, r"^/proc/self/fd/[0-9]+$")
+        candidate_fd = int(cwd.rsplit("/", 1)[-1])
+        self.assertEqual(run.call_args.kwargs["pass_fds"], (candidate_fd,))
+        self.assertNotEqual(candidate_fd, -1)
+        self.assertFalse(run.call_args.kwargs["shell"])
         environment = run.call_args.kwargs["env"]
         self.assertEqual(environment["PATH"], "/usr/bin:/bin")
         self.assertNotIn("GITHUB_TOKEN", environment)
         package.assert_called_once()
         self.assertIsInstance(package.call_args.kwargs["task_descriptor"], int)
+
+    def test_build_cwd_remains_admitted_when_candidate_path_is_replaced(self) -> None:
+        candidate = self.root / "candidate"
+        candidate.mkdir(mode=0o700)
+        outside = self.root / "outside"
+        outside.mkdir(mode=0o700)
+        (candidate / "marker").write_text("admitted", encoding="utf-8")
+        arguments = argparse.Namespace(
+            expected_pr_head=SHA,
+            trusted_dispatcher_base_sha=BASE,
+            run_id="run-1",
+            task_root=str(self.task_root),
+            candidate_root=str(candidate),
+            output_root=str(self.task_root / "artifacts"),
+        )
+        reports = self.task_root / "runtime-component-reports"
+        reports.mkdir(mode=0o700)
+        (reports / "runtime-env-snapshot.one.sh").write_text(
+            "export RUNTIME_COMPONENT_ENV_SNAPSHOT_TARGET='nginx'\n",
+            encoding="utf-8",
+        )
+        observed: dict[str, str] = {}
+
+        def replace_candidate_path(*_args: object, **kwargs: object) -> None:
+            cwd = str(kwargs["cwd"])
+            observed["cwd"] = cwd
+            moved = self.root / "moved-candidate"
+            candidate.rename(moved)
+            candidate.symlink_to(outside, target_is_directory=True)
+            observed["marker"] = Path(cwd, "marker").read_text(encoding="utf-8")
+
+        with mock.patch.object(
+            B, "require_unprivileged_identity", return_value=(os.geteuid(), os.getegid())
+        ), mock.patch.object(B.subprocess, "run", side_effect=replace_candidate_path), mock.patch.object(
+            B, "package", return_value=Path("/safe/artifact-manifest.json")
+        ):
+            B.run_candidate_build(arguments)
+        self.assertRegex(observed["cwd"], r"^/proc/self/fd/[0-9]+$")
+        self.assertEqual(observed["marker"], "admitted")
 
     def test_candidate_build_rejects_root_identity_before_make(self) -> None:
         arguments = argparse.Namespace(

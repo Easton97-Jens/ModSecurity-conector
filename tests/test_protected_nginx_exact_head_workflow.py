@@ -94,7 +94,7 @@ class ProtectedExactHeadWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("sudo", self.text.split("  candidate-build:", 1)[1].split("  privileged-runtime:", 1)[0])
         self.assertNotIn("candidate/", privileged.split("Run the preinstalled protected host gate", 1)[0])
         self.assertNotIn("GITHUB_WORKSPACE/candidate", privileged)
-        self.assertIn("--base-repo-root \"$GITHUB_WORKSPACE\"", privileged)
+        self.assertIn("GITHUB_WORKSPACE=\"$GITHUB_WORKSPACE\"", privileged)
         self.assertIn("--evidence-root", privileged)
         self.assertIn("--task-root \"$task_root\"", privileged)
         self.assertIn("--runner-uid \"$runner_uid\" --runner-gid \"$runner_gid\"", privileged)
@@ -135,7 +135,7 @@ class ProtectedExactHeadWorkflowContractTests(unittest.TestCase):
             privileged,
             r"sudo[^\n]*python3[^\n]*nginx_exact_head_root_launcher\.py",
         )
-        self.assertIn("--base-repo-root \"$GITHUB_WORKSPACE\"", privileged)
+        self.assertIn("GITHUB_WORKSPACE=\"$GITHUB_WORKSPACE\"", privileged)
         self.assertIn("--trusted-base-sha \"$GITHUB_SHA\"", privileged)
 
     def test_preflight_contract_and_artifact_paths_are_explicit(self) -> None:

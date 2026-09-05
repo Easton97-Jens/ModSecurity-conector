@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import argparse
 import ctypes
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import functools
 import hashlib
 import json
@@ -24,8 +24,8 @@ import pwd
 import grp
 import re
 import resource
+import secrets
 import select
-import shutil
 import signal
 import stat
 import subprocess
@@ -34,8 +34,8 @@ import time
 from typing import Any, Callable
 
 
-SHA_RE = re.compile(r"^[0-9a-f]{40}$")
-SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+SHA_RE = re.compile(r"^[a-f\d]{40}$", re.ASCII)
+SHA256_RE = re.compile(r"^[a-f\d]{64}$", re.ASCII)
 ROOT_RUN_NAME = "ModSecurity-conector-nginx-exact-head"
 CELL_NAME = "root-launcher-cell"
 APPARMOR_PROFILE_NAME = "msconnector-nginx-exact-head-userns"
@@ -61,17 +61,31 @@ MAX_SANDBOX_PROCESSES = 128
 MAX_SANDBOX_OPEN_FILES = 256
 MAX_ADMITTED_ARTIFACT_BYTES = 256 * 1024 * 1024
 PR_SET_CHILD_SUBREAPER = 36
-TX_RE = re.compile(r"^nginx-exact-head-[0-9]+-[0-9]+-[0-9]+$")
+TX_RE = re.compile(r"^nginx-exact-head-(?a:\d+)-(?a:\d+)-(?a:\d+)$")
 CALLBACK_TX_RE = re.compile(
-    r"\bmodsecurity_transaction_id=(nginx-exact-head-[0-9]+-[0-9]+-[0-9]+)\b"
+    r"\bmodsecurity_transaction_id=(nginx-exact-head-(?a:\d+)-(?a:\d+)-(?a:\d+))\b"
 )
-RULE_1000001_RE = re.compile(r"(?<![0-9])1000001(?![0-9])")
+RULE_1000001_RE = re.compile(r"(?<!\d)1000001(?!\d)", re.ASCII)
 FORBIDDEN_MARKERS = re.compile(r"canary|query[-_ ]?secret|password|token", re.IGNORECASE)
 BASE_DRIVER_RELATIVE = Path("ci/runtime/broker/run_nginx_exact_head_cells.sh")
 SANDBOX_BASE_HELPER = Path("/run/nginx-exact-head-base-helper.sh")
 SANDBOX_TMPDIR = Path("/run/nginx-exact-head-tmp")
+SANDBOX_CANDIDATE_ROOT = Path("/candidate")
+SANDBOX_CELL_ROOT = Path("/cell")
+SANDBOX_SCRATCH_ROOT = Path("/scratch")
 EXPECTED_NGINX_VERSION = "1.31.4"
 EXPECTED_NGINX_SOURCE_DIGEST = "e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3"
+RULE_ID = "1000001"
+NONEXISTENT_HOME = "/nonexistent"
+PROC_ROOT = Path("/proc")
+LIB64_ROOT = "/lib64"
+NO_INHERITABLE_CAPS = "--inh-caps=-all"
+NO_AMBIENT_CAPS = "--ambient-caps=-all"
+NGINX_ARTIFACT_NAME = "nginx"
+MODULE_ARTIFACT_NAME = "ngx_http_modsecurity_module.so"
+LIBRARY_ARTIFACT_NAME = "libmodsecurity.so.3"
+DISPATCHER_MANIFEST_LABEL = "dispatcher manifest"
+CANDIDATE_MANIFEST_LABEL = "candidate artifact manifest"
 DISPATCHER_FIELDS = frozenset({
     "schema_version", "trusted_dispatcher_base_sha", "run_id", "pr_number",
     "tested_pr_head", "tested_pr_head_ref", "tested_pr_head_repository",
@@ -134,6 +148,30 @@ class ProcessHandle:
     pidfd: int
 
 
+@dataclass
+class LauncherState:
+    """Owned resources and observations for one root-launcher invocation."""
+
+    identity: tuple[str, str] | None = None
+    mapping: SubordinateMapping | None = None
+    worker_uid: int | None = None
+    scratch_root: Path | None = None
+    cell: Path | None = None
+    evidence_root: Path | None = None
+    evidence_fd: int = -1
+    evidence_parent_fd: int = -1
+    scratch_fd: int = -1
+    scratch_parent_fd: int = -1
+    cell_fd: int = -1
+    cell_parent_fd: int = -1
+    scratch_container_fd: int = -1
+    scratch_container_parent_fd: int = -1
+    process: subprocess.Popen[bytes] | None = None
+    artifact_descriptors: dict[str, int] = field(default_factory=dict)
+    trusted_base_descriptors: dict[str, int] = field(default_factory=dict)
+    evidence_published: bool = False
+
+
 # Commands are always executed without a shell.  Keep a second, explicit
 # boundary here because several arguments are derived from filesystem metadata
 # and are later forwarded through the namespace helper and its shell script.
@@ -157,8 +195,44 @@ def validated_command(argv: list[str]) -> list[str]:
     return list(argv)
 
 
+def _open_proc_relative(path: Path, label: str, *, directory: bool = False) -> int | None:
+    match = re.fullmatch(r"/proc/self/fd/(\d+)(/.*)", os.fspath(path))
+    if not match:
+        return None
+    raw_parts = match.group(2).split("/")[1:]
+    if not raw_parts or any(part in {"", ".", ".."} for part in raw_parts):
+        fail(f"{label} has an unsafe retained descriptor-relative path")
+    descriptor = -1
+    try:
+        descriptor = os.dup(int(match.group(1)))
+        if not stat.S_ISDIR(os.fstat(descriptor).st_mode):
+            fail(f"{label} retained descriptor is not a directory")
+        for index, part in enumerate(raw_parts):
+            flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW
+            if directory or index != len(raw_parts) - 1:
+                flags |= os.O_DIRECTORY
+            next_descriptor = os.open(part, flags, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = next_descriptor
+        metadata = os.fstat(descriptor)
+        if directory and not stat.S_ISDIR(metadata.st_mode):
+            fail(f"{label} is not a directory")
+        if not directory and (not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1):
+            fail(f"unsafe regular-file requirement: {path.name}")
+        result, descriptor = descriptor, -1
+        return result
+    except (OSError, ValueError) as exc:
+        fail(f"unable to safely open {label}: {exc}")
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+
 def open_regular_no_follow(path: Path, label: str) -> int:
     """Open a regular file by descriptor-walking from the trusted root."""
+    proc_descriptor = _open_proc_relative(path, label)
+    if proc_descriptor is not None:
+        return proc_descriptor
     path = no_symlink_path(path, label)
     try:
         descriptor = os.open(
@@ -191,11 +265,26 @@ def open_regular_no_follow(path: Path, label: str) -> int:
             os.close(descriptor)
 
 
-def bounded_file(path: Path, limit: int) -> bytes:
+def open_directory_no_follow(path: Path, label: str) -> int:
+    """Open and retain a directory using no-follow component walking."""
+    proc_descriptor = _open_proc_relative(path, label, directory=True)
+    if proc_descriptor is not None:
+        return proc_descriptor
+    path = no_symlink_path(path, label)
+    descriptor = os.open(path.root, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW)
     try:
-        descriptor = open_regular_no_follow(path, "bounded input")
-    except LauncherError:
-        raise
+        for component in path.parts[1:]:
+            child = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+        return descriptor
+    except OSError as exc:
+        os.close(descriptor)
+        fail(f"unable to safely open {label}: {exc}")
+
+
+def bounded_file(path: Path, limit: int) -> bytes:
+    descriptor = open_regular_no_follow(path, "bounded input")
     try:
         initial = os.fstat(descriptor)
         if initial.st_nlink != 1 or initial.st_size > limit:
@@ -282,7 +371,7 @@ def admitted_artifact_descriptor(path: Path, label: str) -> tuple[int, dict[str,
     descriptor = open_regular_no_follow(path, f"admitted {label}")
     try:
         return descriptor, admitted_artifact_identity(descriptor, label)
-    except BaseException:
+    except (LauncherError, OSError):
         os.close(descriptor)
         raise
 
@@ -317,7 +406,54 @@ def no_symlink_path(path: Path, label: str) -> Path:
     return path
 
 
+def safe_metadata(path: Path, label: str, *, directory: bool = False) -> os.stat_result:
+    """Stat ordinary paths or the constrained retained-cell FD view."""
+    proc = re.fullmatch(r"/proc/self/fd/(\d+)(/.*)?", os.fspath(path))
+    if proc:
+        base_fd = int(proc.group(1))
+        try:
+            base = os.fstat(base_fd)
+            if not stat.S_ISDIR(base.st_mode):
+                fail(f"{label} retained descriptor is not a directory")
+            if proc.group(2) is None:
+                return base
+            descriptor = _open_proc_relative(path, label, directory=directory)
+            if descriptor is None:
+                fail(f"{label} has an invalid retained descriptor path")
+            try:
+                return os.fstat(descriptor)
+            finally:
+                os.close(descriptor)
+        except OSError as exc:
+            fail(f"{label} is unavailable: {exc}")
+    try:
+        return path.lstat()
+    except OSError as exc:
+        fail(f"{label} is unavailable: {exc}")
+
+
 def contained(path: Path, root: Path, label: str) -> Path:
+    # A retained directory FD is the authority for the root-side cell.  Its
+    # proc representation is a kernel-generated symlink, so path validation
+    # must not reject it or (worse) resolve an arbitrary proc pathname.  Only
+    # the exact self-fd form, with a live directory FD and descriptor-relative
+    # suffix, is admitted here.
+    proc_match = re.fullmatch(r"/proc/self/fd/(\d+)(/.*)?", os.fspath(path))
+    root_match = re.fullmatch(r"/proc/self/fd/(\d+)(/.*)?", os.fspath(root))
+    if proc_match and root_match and proc_match.group(1) == root_match.group(1):
+        try:
+            metadata = os.fstat(int(root_match.group(1)))
+        except (OSError, ValueError) as exc:
+            fail(f"{label} retained cell descriptor is unavailable: {exc}")
+        if not stat.S_ISDIR(metadata.st_mode):
+            fail(f"{label} retained cell descriptor is not a directory")
+        path_suffix = (proc_match.group(2) or "").split("/")[1:]
+        root_suffix = (root_match.group(2) or "").split("/")[1:]
+        if not path_suffix or any(part in {"", ".", ".."} for part in path_suffix + root_suffix):
+            fail(f"{label} has an unsafe descriptor-relative path")
+        if path_suffix[:len(root_suffix)] != root_suffix:
+            fail(f"{label} escapes retained descriptor root")
+        return path
     path = no_symlink_path(path, label)
     root = no_symlink_path(root, "runner temporary root")
     try:
@@ -367,8 +503,8 @@ def require_exact_fields(value: dict[str, Any], expected: frozenset[str], label:
 
 def dispatcher_manifest(path: Path, trusted_base_sha: str) -> dict[str, Any]:
     """Validate the immutable PR decision again at the privilege boundary."""
-    value = json_object(path, "dispatcher manifest")
-    require_exact_fields(value, DISPATCHER_FIELDS, "dispatcher manifest")
+    value = json_object(path, DISPATCHER_MANIFEST_LABEL)
+    require_exact_fields(value, DISPATCHER_FIELDS, DISPATCHER_MANIFEST_LABEL)
     if type(value.get("schema_version")) is not int or value["schema_version"] != 1:
         fail("dispatcher manifest schema is unsupported")
     if type(value.get("pr_number")) is not int or value["pr_number"] <= 0:
@@ -395,10 +531,7 @@ def dispatcher_manifest(path: Path, trusted_base_sha: str) -> dict[str, Any]:
     return value
 
 
-def candidate_manifest(path: Path, dispatcher: dict[str, Any]) -> dict[str, Any]:
-    """Bind untrusted artifacts to the previously admitted PR decision."""
-    value = json_object(path, "candidate artifact manifest")
-    require_exact_fields(value, CANDIDATE_MANIFEST_FIELDS, "candidate artifact manifest")
+def _validate_candidate_header(value: dict[str, Any], dispatcher: dict[str, Any]) -> None:
     if type(value.get("schema_version")) is not int or value["schema_version"] != 1:
         fail("candidate artifact manifest schema is unsupported")
     if value.get("run_id") != dispatcher["run_id"]:
@@ -412,13 +545,13 @@ def candidate_manifest(path: Path, dispatcher: dict[str, Any]) -> dict[str, Any]
         or value.get("nginx_source_digest") != EXPECTED_NGINX_SOURCE_DIGEST
     ):
         fail("candidate artifact manifest does not bind pinned NGINX 1.31.4")
-    artifacts = value.get("artifacts")
+def _validate_candidate_artifacts(artifacts: object) -> None:
     if not isinstance(artifacts, dict) or frozenset(artifacts) != {"nginx", "module", "library"}:
         fail("candidate artifact manifest has an invalid artifact set")
     expected_names = {
         "nginx": "nginx",
-        "module": "ngx_http_modsecurity_module.so",
-        "library": "libmodsecurity.so.3",
+        "module": MODULE_ARTIFACT_NAME,
+        "library": LIBRARY_ARTIFACT_NAME,
     }
     for key, name in expected_names.items():
         record = artifacts[key]
@@ -430,13 +563,20 @@ def candidate_manifest(path: Path, dispatcher: dict[str, Any]) -> dict[str, Any]
         if record["size"] <= 0 or record["size"] > MAX_ADMITTED_ARTIFACT_BYTES:
             fail("candidate artifact record size is outside the allowed bound")
         require_sha256(record.get("sha256"), "candidate artifact digest")
-    producer = value.get("producer")
+def _validate_candidate_producer(producer: object) -> None:
     if not isinstance(producer, dict) or frozenset(producer) != {"kind", "runner_uid", "runner_gid"}:
         fail("candidate producer record is invalid")
     if producer.get("kind") != "unprivileged-exact-head-build":
         fail("candidate producer kind is invalid")
     if type(producer.get("runner_uid")) is not int or type(producer.get("runner_gid")) is not int:
         fail("candidate producer identity is invalid")
+def candidate_manifest(path: Path, dispatcher: dict[str, Any]) -> dict[str, Any]:
+    """Bind untrusted artifacts to the previously admitted PR decision."""
+    value = json_object(path, CANDIDATE_MANIFEST_LABEL)
+    require_exact_fields(value, CANDIDATE_MANIFEST_FIELDS, CANDIDATE_MANIFEST_LABEL)
+    _validate_candidate_header(value, dispatcher)
+    _validate_candidate_artifacts(value.get("artifacts"))
+    _validate_candidate_producer(value.get("producer"))
     return value
 
 
@@ -479,8 +619,8 @@ def runner_checked(argv: list[str], runner_uid: int, runner_gid: int,
                    *, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
     command = [
         HELPERS["setpriv"], f"--reuid={runner_uid}", f"--regid={runner_gid}",
-        "--clear-groups", "--no-new-privs", "--inh-caps=-all",
-        "--ambient-caps=-all", "--bounding-set=-all", "--", *argv,
+        "--clear-groups", "--no-new-privs", NO_INHERITABLE_CAPS,
+        NO_AMBIENT_CAPS, "--bounding-set=-all", "--", *argv,
     ]
     return run_checked(command, env=env)
 
@@ -495,8 +635,8 @@ def runner_checked_bytes(
         f"--regid={runner_gid}",
         "--clear-groups",
         "--no-new-privs",
-        "--inh-caps=-all",
-        "--ambient-caps=-all",
+        NO_INHERITABLE_CAPS,
+        NO_AMBIENT_CAPS,
         "--bounding-set=-all",
         "--",
         *argv,
@@ -518,7 +658,7 @@ def base_git_environment() -> dict[str, str]:
         "LC_ALL": "C",
         "GIT_CONFIG_NOSYSTEM": "1",
         "GIT_TERMINAL_PROMPT": "0",
-        "HOME": "/nonexistent",
+        "HOME": NONEXISTENT_HOME,
     }
 
 
@@ -537,7 +677,7 @@ def trusted_base_file_descriptor(
     fixed = [
         HELPERS["git"],
         "-c",
-        "core.hooksPath=/nonexistent",
+        f"core.hooksPath={NONEXISTENT_HOME}",
         "-c",
         "core.fsmonitor=false",
         "-c",
@@ -569,7 +709,7 @@ def verify_checkout(repo: Path, expected: str, runner_uid: int, runner_gid: int)
     """Bind the runner-owned worktree to one clean exact Git checkout."""
     env = base_git_environment()
     fixed = [
-        HELPERS["git"], "-c", "core.hooksPath=/nonexistent", "-c",
+        HELPERS["git"], "-c", f"core.hooksPath={NONEXISTENT_HOME}", "-c",
         "core.fsmonitor=false", "-c", "diff.external=false", "-C", str(repo),
     ]
     top_level = runner_checked(
@@ -625,7 +765,7 @@ def verify_apparmor_profile() -> None:
 def apparmor_label(pid: int) -> str:
     try:
         return bounded_proc_file(
-            Path(f"/proc/{pid}/attr/current"), 4096
+            PROC_ROOT / str(pid) / "attr" / "current", 4096
         ).decode("ascii").strip()
     except OSError as exc:
         fail(f"unable to read AppArmor kernel evidence: {exc}")
@@ -633,7 +773,7 @@ def apparmor_label(pid: int) -> str:
 
 def verify_runner_owned_directory(path: Path, expected_uid: int, expected_gid: int,
                                   label: str) -> None:
-    st = path.lstat()
+    st = safe_metadata(path, label, directory=True)
     if (stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode)
             or st.st_uid != expected_uid or st.st_gid != expected_gid
             or st.st_mode & 0o022):
@@ -644,6 +784,70 @@ def create_runner_owned_directory(path: Path, uid: int, gid: int) -> None:
     path.mkdir(mode=0o700)
     os.chown(path, uid, gid)
     os.chmod(path, 0o700)
+
+
+def private_scratch_container_name() -> str:
+    """Return a fresh root-selected leaf for safely retained scratch state."""
+    return f"{ROOT_RUN_NAME}-container-{secrets.token_hex(16)}"
+
+
+def create_owned_child_directory(parent: Path, name: str, uid: int, gid: int,
+                                 mode: int, label: str,
+                                 parent_uid: int, parent_gid: int,
+                                 *, parent_descriptor: int | None = None,
+                                 return_descriptors: bool = False) -> Path | tuple[Path, int, int]:
+    """Create and verify a fresh child while holding its parent directory FD."""
+    if not name or name in {".", ".."} or "/" in name:
+        fail(f"{label} has an invalid leaf name")
+    owned_parent_descriptor = -1
+    child_descriptor = -1
+    try:
+        parent = no_symlink_path(parent, f"{label} parent") if parent_descriptor is None else parent
+        owned_parent_descriptor = os.dup(parent_descriptor) if parent_descriptor is not None else os.open(
+            parent.root,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+        )
+        if parent_descriptor is None:
+            for component in parent.parts[1:]:
+                next_descriptor = os.open(
+                    component,
+                    os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                    dir_fd=owned_parent_descriptor,
+                )
+                os.close(owned_parent_descriptor)
+                owned_parent_descriptor = next_descriptor
+        parent_before = os.fstat(owned_parent_descriptor)
+        if (not stat.S_ISDIR(parent_before.st_mode)
+                or parent_before.st_uid != parent_uid
+                or parent_before.st_gid != parent_gid):
+            fail(f"{label} parent is not stable for descriptor-relative creation")
+        os.mkdir(name, mode=mode, dir_fd=owned_parent_descriptor)
+        child_descriptor = os.open(
+            name, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+            dir_fd=owned_parent_descriptor,
+        )
+        os.fchown(child_descriptor, uid, gid)
+        os.fchmod(child_descriptor, mode)
+        child = os.fstat(child_descriptor)
+        parent_after = os.fstat(owned_parent_descriptor)
+        if ((not stat.S_ISDIR(child.st_mode) or child.st_uid != uid
+             or child.st_gid != gid or stat.S_IMODE(child.st_mode) != mode)
+                or (parent_before.st_dev, parent_before.st_ino)
+                != (parent_after.st_dev, parent_after.st_ino)):
+            fail(f"{label} metadata changed during descriptor-relative creation")
+        result = parent / name
+        if return_descriptors:
+            retained_child, retained_parent = child_descriptor, owned_parent_descriptor
+            child_descriptor, owned_parent_descriptor = -1, -1
+            return result, retained_child, retained_parent
+        return result
+    except OSError as exc:
+        fail(f"could not create {label}: {exc}")
+    finally:
+        if child_descriptor >= 0:
+            os.close(child_descriptor)
+        if owned_parent_descriptor >= 0:
+            os.close(owned_parent_descriptor)
 
 
 def apply_sandbox_limits() -> None:
@@ -664,7 +868,7 @@ def proc_status_text(pid: int) -> str:
         fail("invalid process identifier for kernel evidence")
     try:
         return bounded_proc_file(
-            Path(f"/proc/{pid}/status"), MAX_PROC_STATUS_BYTES
+            PROC_ROOT / str(pid) / "status", MAX_PROC_STATUS_BYTES
         ).decode("ascii")
     except OSError as exc:
         fail(f"unable to read /proc identity evidence: {exc}")
@@ -720,7 +924,7 @@ def enable_child_subreaper() -> None:
 def snapshot_supervisor_descendants(supervisor_pid: int) -> list[ProcessHandle]:
     """Capture stable handles for every currently live supervisor descendant."""
     handles: list[ProcessHandle] = []
-    for entry in Path("/proc").iterdir():
+    for entry in PROC_ROOT.iterdir():
         if not entry.name.isdecimal():
             continue
         candidate = int(entry.name)
@@ -765,6 +969,48 @@ def join_network_namespace_from_pidfd(pidfd: int) -> None:
         raise OSError(error_number, os.strerror(error_number))
 
 
+def _merge_process_handles(handles: dict[int, ProcessHandle], process_handles: list[ProcessHandle]) -> None:
+    for handle in process_handles:
+        if handle.pid in handles:
+            os.close(handle.pidfd)
+        else:
+            handles[handle.pid] = handle
+
+
+def _kill_runtime_process(process: subprocess.Popen[bytes], errors: list[str]) -> None:
+    if process.poll() is None:
+        try:
+            process.kill()
+        except ProcessLookupError:
+            pass
+        except OSError as exc:
+            errors.append(f"supervisor: {exc}")
+
+
+def _kill_process_handles(handles: dict[int, ProcessHandle], errors: list[str]) -> None:
+    for handle in handles.values():
+        if pidfd_exited(handle.pidfd):
+            continue
+        try:
+            signal.pidfd_send_signal(handle.pidfd, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except OSError as exc:
+            errors.append(f"descendant {handle.pid}: {exc}")
+
+
+def _reap_process_handles(handles: dict[int, ProcessHandle], process: subprocess.Popen[bytes], errors: list[str]) -> None:
+    for handle in handles.values():
+        if handle.pid == process.pid or not pidfd_exited(handle.pidfd):
+            continue
+        try:
+            os.waitpid(handle.pid, os.WNOHANG)
+        except ChildProcessError:
+            pass
+        except OSError as exc:
+            errors.append(f"descendant {handle.pid} reap: {exc}")
+
+
 def terminate_runtime_process(process: subprocess.Popen[bytes]) -> None:
     """Terminate and reap every descendant through the subreaper boundary."""
     handles: dict[int, ProcessHandle] = {}
@@ -776,42 +1022,13 @@ def terminate_runtime_process(process: subprocess.Popen[bytes]) -> None:
             # The launcher is a child subreaper, so this finds both live
             # supervisor children and any descendants reparented after the
             # outer process exits. Repeating the capture closes a fork race.
-            for handle in snapshot_supervisor_descendants(os.getpid()):
-                if handle.pid in handles:
-                    os.close(handle.pidfd)
-                else:
-                    handles[handle.pid] = handle
-            if process.poll() is None:
-                try:
-                    process.kill()
-                except ProcessLookupError:
-                    pass
-                except BaseException as exc:
-                    errors.append(f"supervisor: {exc}")
-            for handle in handles.values():
-                if not pidfd_exited(handle.pidfd):
-                    try:
-                        signal.pidfd_send_signal(handle.pidfd, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
-                    except BaseException as exc:
-                        errors.append(f"descendant {handle.pid}: {exc}")
-            for handle in handles.values():
-                if handle.pid == process.pid or not pidfd_exited(handle.pidfd):
-                    continue
-                try:
-                    os.waitpid(handle.pid, os.WNOHANG)
-                except ChildProcessError:
-                    pass
-                except OSError as exc:
-                    errors.append(f"descendant {handle.pid} reap: {exc}")
+            _merge_process_handles(handles, snapshot_supervisor_descendants(os.getpid()))
+            _kill_runtime_process(process, errors)
+            _kill_process_handles(handles, errors)
+            _reap_process_handles(handles, process, errors)
             process.poll()
             current = snapshot_supervisor_descendants(os.getpid())
-            for handle in current:
-                if handle.pid in handles:
-                    os.close(handle.pidfd)
-                else:
-                    handles[handle.pid] = handle
+            _merge_process_handles(handles, current)
             if not current and all(pidfd_exited(handle.pidfd) for handle in handles.values()):
                 empty_scans += 1
                 if empty_scans >= 2:
@@ -832,7 +1049,7 @@ def terminate_runtime_process(process: subprocess.Popen[bytes]) -> None:
 
 def dedicated_worker_process_ids(worker_uid: int) -> list[int]:
     pids: list[int] = []
-    for entry in Path("/proc").iterdir():
+    for entry in PROC_ROOT.iterdir():
         if not entry.name.isdecimal():
             continue
         pid = int(entry.name)
@@ -859,7 +1076,7 @@ def require_no_dedicated_worker_processes(worker_uid: int) -> None:
 
 def host_pid_for_namespace_pid(namespace_pid: int, supervisor_pid: int) -> int:
     candidates: list[int] = []
-    for entry in Path("/proc").iterdir():
+    for entry in PROC_ROOT.iterdir():
         if not entry.name.isdecimal():
             continue
         host_pid = int(entry.name)
@@ -879,7 +1096,7 @@ def host_pid_for_namespace_pid(namespace_pid: int, supervisor_pid: int) -> int:
 
 def namespace_link(pid: int, namespace: str) -> str:
     try:
-        return os.readlink(f"/proc/{pid}/ns/{namespace}")
+        return os.readlink(os.fspath(PROC_ROOT / str(pid) / "ns" / namespace))
     except OSError as exc:
         fail(f"unable to read {namespace} namespace evidence: {exc}")
 
@@ -909,9 +1126,7 @@ def require_sandbox_security_state(pid: int) -> None:
             fail(f"master retained a capability outside the runtime minimum: {field}")
 
 
-def validate_identity(ready: dict[str, object], expected: IdentityExpectations,
-                      binary_identity: dict[str, int | str],
-                      supervisor_pid: int) -> dict[str, int]:
+def _identity_namespace_pids(ready: dict[str, object]) -> tuple[int, int]:
     try:
         master_namespace_pid = int(ready["master_pid"])
         worker_namespace_pid = int(ready["worker_pid"])
@@ -920,8 +1135,13 @@ def validate_identity(ready: dict[str, object], expected: IdentityExpectations,
     if (master_namespace_pid <= 1 or worker_namespace_pid <= 1
             or master_namespace_pid == worker_namespace_pid):
         fail("invalid distinct master/worker PIDs")
-    master = host_pid_for_namespace_pid(master_namespace_pid, supervisor_pid)
-    worker = host_pid_for_namespace_pid(worker_namespace_pid, supervisor_pid)
+    return master_namespace_pid, worker_namespace_pid
+
+
+def _validate_identity_processes(
+    master: int, worker: int, expected: IdentityExpectations,
+    binary_identity: dict[str, int | str],
+) -> dict[str, int]:
     m, w = status(master), status(worker)
     if w["ppid"] != master:
         fail("worker is not a direct child of master")
@@ -929,7 +1149,7 @@ def validate_identity(ready: dict[str, object], expected: IdentityExpectations,
         fail("master identity is not the namespace-root identity")
     if (w["uid_real"], w["uid_effective"]) != (expected.worker_uid, expected.worker_uid) or (w["gid_real"], w["gid_effective"]) != (expected.worker_gid, expected.worker_gid):
         fail("worker identity does not match the dedicated account")
-    master_stat = os.stat(f"/proc/{master}/exe")
+    master_stat = os.stat(PROC_ROOT / str(master) / "exe")
     try:
         admitted_binary = (int(binary_identity["device"]), int(binary_identity["inode"]))
     except (KeyError, TypeError, ValueError) as exc:
@@ -942,28 +1162,49 @@ def validate_identity(ready: dict[str, object], expected: IdentityExpectations,
     if not apparmor_label(master).startswith(APPARMOR_PROFILE_NAME + " "):
         fail("master did not retain the approved AppArmor profile")
     require_sandbox_security_state(master)
+    return {"master_pid": master, "worker_pid": worker,
+            "master_uid": m["uid_real"], "master_gid": m["gid_real"],
+            "worker_uid": expected.worker_uid, "worker_gid": expected.worker_gid}
+
+
+def _admit_master_pidfd(master: int) -> int:
     master_pidfd = -1
     try:
         master_pidfd = os.pidfd_open(master)
         if pidfd_exited(master_pidfd):
             fail("validated master exited before pidfd admission completed")
-    except (AttributeError, OSError) as exc:
-        fail(f"could not admit a stable master pidfd: {exc}")
-    except BaseException:
+    except (AttributeError, OSError, LauncherError) as exc:
         if master_pidfd >= 0:
             os.close(master_pidfd)
+        if isinstance(exc, LauncherError):
+            raise
+        fail(f"could not admit a stable master pidfd: {exc}")
+    return master_pidfd
+
+
+def validate_identity(ready: dict[str, object], expected: IdentityExpectations,
+                      binary_identity: dict[str, int | str],
+                      supervisor_pid: int) -> dict[str, int]:
+    master_namespace_pid, worker_namespace_pid = _identity_namespace_pids(ready)
+    master = host_pid_for_namespace_pid(master_namespace_pid, supervisor_pid)
+    worker = host_pid_for_namespace_pid(worker_namespace_pid, supervisor_pid)
+    master_pidfd = _admit_master_pidfd(master)
+    try:
+        identity = _validate_identity_processes(master, worker, expected, binary_identity)
+        # Re-check the numeric identity after pidfd admission.  This closes
+        # the PID-enumeration-to-pidfd window before the descriptor is used for
+        # namespace entry and HTTP probing.
+        _validate_identity_processes(master, worker, expected, binary_identity)
+    except (LauncherError, OSError):
+        os.close(master_pidfd)
         raise
-    return {
-        "master_pid": master,
-        "master_pidfd": master_pidfd,
-        "worker_pid": worker,
-        "master_namespace_pid": master_namespace_pid,
-        "worker_namespace_pid": worker_namespace_pid,
-        "master_uid": m["uid_real"],
-        "master_gid": m["gid_real"],
-        "worker_uid": expected.worker_uid,
-        "worker_gid": expected.worker_gid,
-    }
+    if pidfd_exited(master_pidfd):
+        os.close(master_pidfd)
+        fail("validated master exited after pidfd identity recheck")
+    identity.update({"master_pidfd": master_pidfd,
+                     "master_namespace_pid": master_namespace_pid,
+                     "worker_namespace_pid": worker_namespace_pid})
+    return identity
 
 
 def _control_file_identity(metadata: os.stat_result) -> tuple[int, int, int, int, int, int, int, int]:
@@ -981,6 +1222,30 @@ def _control_file_identity(metadata: os.stat_result) -> tuple[int, int, int, int
 
 def _open_control_parent(path: Path) -> tuple[int, str]:
     """Bind a control-file parent before accepting its fixed leaf name."""
+    proc = re.fullmatch(r"/proc/self/fd/(\d+)(/.*)", os.fspath(path))
+    if proc:
+        base_fd = int(proc.group(1))
+        parts = proc.group(2).split("/")[1:]
+        if any(part in {"", ".", ".."} for part in parts):
+            fail("root control file path has an unsafe descriptor-relative component")
+        if not parts:
+            fail("root control file path has no fixed leaf")
+        descriptor = os.dup(base_fd)
+        try:
+            if not stat.S_ISDIR(os.fstat(descriptor).st_mode):
+                fail("root control file retained descriptor is not a directory")
+            for component in parts[:-1]:
+                child = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW, dir_fd=descriptor)
+                os.close(descriptor)
+                descriptor = child
+            result = descriptor
+            descriptor = -1
+            return result, parts[-1]
+        except OSError as exc:
+            fail(f"could not open root control file parent: {exc}")
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
     if not path.is_absolute() or any(part in {".", ".."} for part in path.parts):
         fail("root control file path must be absolute and normalized")
     path = Path(os.path.normpath(os.fspath(path)))
@@ -1031,7 +1296,7 @@ def _require_root_control_file(metadata: os.stat_result) -> None:
 
 def _require_root_control_directory(path: Path) -> None:
     try:
-        metadata = path.lstat()
+        metadata = safe_metadata(path, "root control directory", directory=True)
     except OSError as exc:
         fail(f"root control directory is unavailable: {exc}")
     if (
@@ -1042,6 +1307,34 @@ def _require_root_control_directory(path: Path) -> None:
         or stat.S_IMODE(metadata.st_mode) != 0o755
     ):
         fail("root control directory metadata is unsafe")
+
+
+def _write_control_payload(descriptor: int, value: dict[str, object]) -> tuple[int, int, int, int, int, int, int, int]:
+    raw = (json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n").encode("ascii")
+    offset = 0
+    while offset < len(raw):
+        written = os.write(descriptor, raw[offset:])
+        if written <= 0:
+            fail("could not write complete root control file")
+        offset += written
+    os.fsync(descriptor)
+    os.fchmod(descriptor, 0o400)
+    metadata = os.fstat(descriptor)
+    _require_root_control_file(metadata)
+    return _control_file_identity(metadata)
+
+
+def _verify_published_control(parent_descriptor: int, name: str, expected_identity: tuple[int, int, int, int, int, int, int, int]) -> int:
+    descriptor = os.open(name, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW, dir_fd=parent_descriptor)
+    try:
+        observed = os.fstat(descriptor)
+        _require_root_control_file(observed)
+        if _control_file_identity(observed) != expected_identity:
+            fail("root control file changed while publishing")
+        return descriptor
+    except (LauncherError, OSError):
+        os.close(descriptor)
+        raise
 
 
 def atomic_json(path: Path, value: dict[str, object]) -> None:
@@ -1065,20 +1358,7 @@ def atomic_json(path: Path, value: dict[str, object]) -> None:
             0o600,
             dir_fd=parent_descriptor,
         )
-        raw = (
-            json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n"
-        ).encode("ascii")
-        offset = 0
-        while offset < len(raw):
-            written = os.write(descriptor, raw[offset:])
-            if written <= 0:
-                fail("could not write complete root control file")
-            offset += written
-        os.fsync(descriptor)
-        os.fchmod(descriptor, 0o400)
-        expected = os.fstat(descriptor)
-        _require_root_control_file(expected)
-        expected_identity = _control_file_identity(expected)
+        expected_identity = _write_control_payload(descriptor, value)
         os.close(descriptor)
         descriptor = -1
         os.replace(
@@ -1089,15 +1369,7 @@ def atomic_json(path: Path, value: dict[str, object]) -> None:
         )
         published = True
         os.fsync(parent_descriptor)
-        published_descriptor = os.open(
-            name,
-            os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW,
-            dir_fd=parent_descriptor,
-        )
-        observed = os.fstat(published_descriptor)
-        _require_root_control_file(observed)
-        if _control_file_identity(observed) != expected_identity:
-            fail("root control file changed while publishing")
+        published_descriptor = _verify_published_control(parent_descriptor, name, expected_identity)
         success = True
     except OSError as exc:
         fail(f"could not publish root control file: {exc}")
@@ -1198,6 +1470,8 @@ def prepare_trusted_cells(
     worker_group: str,
     runner_uid: int,
     runner_gid: int,
+    *,
+    sandbox_cell: Path | None = None,
 ) -> None:
     """Construct immutable Base-owned config/rule inputs for both fresh cells.
 
@@ -1211,10 +1485,12 @@ def prepare_trusted_cells(
         r"mscnxg_[0-9a-f]+", worker_group
     ):
         fail("dedicated worker identity is not a launcher-generated value")
-    nginx_literal(cell, "runtime cell path")
+    config_cell = sandbox_cell if sandbox_cell is not None else cell
+    nginx_literal(config_cell, "runtime cell path")
     module_literal = nginx_literal(module, "admitted module path")
     for mode in ("on", "off"):
         mode_root = cell / mode
+        config_mode_root = config_cell / mode
         config_root = mode_root / "config"
         control_root = mode_root / "control"
         runtime_root = mode_root / "runtime"
@@ -1230,7 +1506,7 @@ def prepare_trusted_cells(
         rules = (
             "SecRuleEngine On\n"
             'SecRule REQUEST_URI "@streq /exact-head" '
-            '"id:1000001,phase:1,deny,status:403,log"\n'
+            f'"id:{RULE_ID},phase:1,deny,status:403,log"\n'
         ).encode("utf-8")
         root_owned_file(config_root / "modsecurity.conf", rules)
         config = (
@@ -1238,21 +1514,21 @@ def prepare_trusted_cells(
             "daemon off;\n"
             "worker_processes 1;\n"
             f"user {worker_name} {worker_group};\n"
-            f"pid {nginx_literal(runtime_root / 'nginx.pid', 'PID path')};\n"
-            f"error_log {nginx_literal(logs_root / 'error.log', 'error-log path')} notice;\n"
+            f"pid {nginx_literal(config_mode_root / 'runtime' / 'nginx.pid', 'PID path')};\n"
+            f"error_log {nginx_literal(config_mode_root / 'logs' / 'error.log', 'error-log path')} notice;\n"
             "events { worker_connections 32; }\n"
             "http {\n"
-            f"access_log {nginx_literal(logs_root / 'access.log', 'access-log path')};\n"
+            f"access_log {nginx_literal(config_mode_root / 'logs' / 'access.log', 'access-log path')};\n"
             "server {\n"
             "listen 127.0.0.1:18081;\n"
             "server_name exact-head.local;\n"
             "modsecurity on;\n"
             f"modsecurity_use_error_log {mode};\n"
-            f"modsecurity_rules_file {nginx_literal(config_root / 'modsecurity.conf', 'rule path')};\n"
-            f"modsecurity_phase4_log {nginx_literal(logs_root / 'events.jsonl', 'Phase-4 path')};\n"
+            f"modsecurity_rules_file {nginx_literal(config_mode_root / 'config' / 'modsecurity.conf', 'rule path')};\n"
+            f"modsecurity_phase4_log {nginx_literal(config_mode_root / 'logs' / 'events.jsonl', 'Phase-4 path')};\n"
             'modsecurity_transaction_id "nginx-exact-head-$pid-$connection-$connection_requests";\n'
             "location / {\n"
-            f"root {nginx_literal(docroot, 'document-root path')};\n"
+            f"root {nginx_literal(config_mode_root / 'config' / 'docroot', 'document-root path')};\n"
             "return 200 exact-head-ok;\n"
             "}\n"
             "}\n"
@@ -1263,7 +1539,7 @@ def prepare_trusted_cells(
 
 def require_root_owned_file(path: Path, mode: int, label: str) -> None:
     try:
-        metadata = path.lstat()
+        metadata = safe_metadata(path, label)
     except OSError as exc:
         fail(f"{label} is unavailable: {exc}")
     if (
@@ -1279,7 +1555,7 @@ def require_root_owned_file(path: Path, mode: int, label: str) -> None:
 
 def require_root_owned_directory(path: Path, mode: int, label: str) -> None:
     try:
-        metadata = path.lstat()
+        metadata = safe_metadata(path, label, directory=True)
     except OSError as exc:
         fail(f"{label} is unavailable: {exc}")
     if (
@@ -1292,6 +1568,38 @@ def require_root_owned_directory(path: Path, mode: int, label: str) -> None:
         fail(f"{label} is not an immutable root-owned directory")
 
 
+def _lexer_step(character: str, current: list[str], quote: str | None,
+                 escaped: bool, comment: bool, nesting: int, label: str) -> tuple[str | None, bool, bool, int, str | None]:
+    if comment:
+        return quote, escaped, character != "\n", nesting, None
+    if quote is not None:
+        current.append(character)
+        if escaped:
+            return quote, False, False, nesting, None
+        if character == "\\":
+            return quote, True, False, nesting, None
+        return (None if character == quote else quote), False, False, nesting, None
+    if character in {"'", '"'}:
+        current.append(character)
+        return character, False, False, nesting, None
+    if character == "#":
+        return quote, escaped, True, nesting, None
+    if character in {";", "{"}:
+        statement = "".join(current).strip()
+        if not statement:
+            fail(f"{label} contains an empty NGINX statement")
+        current.clear()
+        return quote, escaped, False, nesting + (character == "{"), statement + character
+    if character == "}":
+        if "".join(current).strip():
+            fail(f"{label} has an unterminated directive before a block close")
+        if nesting <= 0:
+            fail(f"{label} has an unmatched NGINX block close")
+        return quote, escaped, False, nesting - 1, "}"
+    current.append(character)
+    return quote, escaped, False, nesting, None
+
+
 def nginx_statements(text: str, label: str) -> list[str]:
     """Lex complete NGINX statements without confusing quoted semicolons."""
     statements: list[str] = []
@@ -1301,41 +1609,11 @@ def nginx_statements(text: str, label: str) -> list[str]:
     comment = False
     nesting = 0
     for character in text:
-        if comment:
-            if character == "\n":
-                comment = False
-            continue
-        if quote is not None:
-            current.append(character)
-            if escaped:
-                escaped = False
-            elif character == "\\":
-                escaped = True
-            elif character == quote:
-                quote = None
-            continue
-        if character in {"'", '"'}:
-            quote = character
-            current.append(character)
-        elif character == "#":
-            comment = True
-        elif character in {";", "{"}:
-            statement = "".join(current).strip()
-            if not statement:
-                fail(f"{label} contains an empty NGINX statement")
-            statements.append(statement + character)
-            current.clear()
-            if character == "{":
-                nesting += 1
-        elif character == "}":
-            if "".join(current).strip():
-                fail(f"{label} has an unterminated directive before a block close")
-            if nesting <= 0:
-                fail(f"{label} has an unmatched NGINX block close")
-            statements.append("}")
-            nesting -= 1
-        else:
-            current.append(character)
+        quote, escaped, comment, nesting, statement = _lexer_step(
+            character, current, quote, escaped, comment, nesting, label
+        )
+        if statement is not None:
+            statements.append(statement)
     if quote is not None:
         fail(f"{label} has an unterminated quoted value")
     if "".join(current).strip():
@@ -1355,6 +1633,21 @@ def nginx_directive(statement: str) -> str:
     return content.split(None, 1)[0]
 
 
+def _validate_config_directives(statements: list[str], expected: dict[str, str]) -> None:
+    forbidden = {"env", "master_process", "stream", "mail", "proxy_pass",
+                 "fastcgi_pass", "uwsgi_pass", "scgi_pass", "resolver",
+                 "ssl_certificate_key", "include"}
+    for statement in statements:
+        if nginx_directive(statement) in forbidden:
+            fail("generated NGINX configuration has an unsafe runtime directive")
+    for directive, required in expected.items():
+        if [line for line in statements if nginx_directive(line) == directive] != [required]:
+            fail("generated NGINX configuration does not match the fixed runtime cell")
+    listens = [line for line in statements if nginx_directive(line) == "listen"]
+    if len(listens) != 1 or not re.fullmatch(r"listen 127\.0\.0\.1:(?a:\d+);", listens[0]):
+        fail("generated NGINX configuration does not bind exactly one loopback listener")
+
+
 def validate_generated_config(
     ready: dict[str, object],
     cell: Path,
@@ -1363,13 +1656,17 @@ def validate_generated_config(
     module: Path,
     worker_name: str,
     worker_group: str,
+    *,
+    sandbox_cell: Path | None = None,
+    sandbox_module: Path | None = None,
+    sandbox_binary: Path | None = None,
 ) -> None:
     raw_path = ready.get("config_path")
     raw_pid_path = ready.get("pid_path")
     if (type(ready.get("schema_version")) is not int
             or ready["schema_version"] != 1 or not isinstance(raw_path, str)
             or not isinstance(raw_pid_path, str)
-            or ready.get("binary_path") != str(binary)):
+            or ready.get("binary_path") != str(sandbox_binary if sandbox_binary is not None else binary)):
         fail("supervisor readiness does not bind the admitted configuration")
     mode_root = cell / mode
     config_root = mode_root / "config"
@@ -1378,11 +1675,23 @@ def validate_generated_config(
     expected_config = config_root / "nginx.conf"
     expected_rules = config_root / "modsecurity.conf"
     expected_docroot = config_root / "docroot"
-    config = contained(Path(raw_path), mode_root, "generated NGINX configuration")
+    config_cell = sandbox_cell if sandbox_cell is not None else cell
+    config_mode_root = config_cell / mode
+    config_module = sandbox_module if sandbox_module is not None else module
+    def host_path(raw: str, label: str) -> Path:
+        if sandbox_cell is None:
+            return Path(raw)
+        prefix = str(sandbox_cell)
+        try:
+            relative = Path(raw).relative_to(prefix)
+        except ValueError:
+            fail(f"{label} is outside the fixed sandbox cell")
+        return cell / relative
+    config = contained(host_path(raw_path, "generated NGINX configuration"), mode_root, "generated NGINX configuration")
     if config != expected_config:
         fail("supervisor readiness does not name the fixed root-owned configuration")
     text = bounded_file(config, MAX_GENERATED_CONFIG_BYTES).decode("utf-8")
-    pid_path = contained(Path(raw_pid_path), mode_root, "generated NGINX PID file")
+    pid_path = contained(host_path(raw_pid_path, "generated NGINX PID file"), mode_root, "generated NGINX PID file")
     if pid_path != runtime_root / "nginx.pid":
         fail("supervisor readiness does not name the fixed runtime PID path")
     require_root_owned_directory(mode_root, 0o755, "mode root")
@@ -1391,11 +1700,12 @@ def validate_generated_config(
     require_root_owned_file(config, 0o444, "NGINX configuration")
     require_root_owned_file(expected_rules, 0o444, "ModSecurity rule file")
     require_root_owned_file(expected_docroot / "index.html", 0o444, "document")
-    if bounded_file(expected_rules, 4096) != (
-        b"SecRuleEngine On\n"
-        b'SecRule REQUEST_URI "@streq /exact-head" '
-        b'"id:1000001,phase:1,deny,status:403,log"\n'
-    ):
+    expected_rules_content = (
+        "SecRuleEngine On\n"
+        'SecRule REQUEST_URI "@streq /exact-head" '
+        f'"id:{RULE_ID},phase:1,deny,status:403,log"\n'
+    ).encode("ascii")
+    if bounded_file(expected_rules, 4096) != expected_rules_content:
         fail("root-owned ModSecurity rule file does not match the fixed cell")
     try:
         expected_namespace_pid = str(int(ready["master_pid"]))
@@ -1405,47 +1715,39 @@ def validate_generated_config(
         fail("generated NGINX PID file is not bound to the readiness master")
     statements = nginx_statements(text, "generated NGINX configuration")
     expected = {
-        "load_module": f'load_module "{module}";',
+        "load_module": f'load_module "{config_module}";',
         "user": f"user {worker_name} {worker_group};",
         "modsecurity_use_error_log": f"modsecurity_use_error_log {mode};",
         "daemon": "daemon off;",
         "worker_processes": "worker_processes 1;",
-        "pid": f'pid "{pid_path}";',
-        "error_log": f'error_log "{logs_root / "error.log"}" notice;',
-        "access_log": f'access_log "{logs_root / "access.log"}";',
+        "pid": f'pid "{config_mode_root / "runtime" / "nginx.pid"}";',
+        "error_log": f'error_log "{config_mode_root / "logs" / "error.log"}" notice;',
+        "access_log": f'access_log "{config_mode_root / "logs" / "access.log"}";',
         "server_name": "server_name exact-head.local;",
         "modsecurity": "modsecurity on;",
-        "modsecurity_rules_file": f'modsecurity_rules_file "{expected_rules}";',
-        "modsecurity_phase4_log": f'modsecurity_phase4_log "{logs_root / "events.jsonl"}";',
+        "modsecurity_rules_file": f'modsecurity_rules_file "{config_mode_root / "config" / "modsecurity.conf"}";',
+        "modsecurity_phase4_log": f'modsecurity_phase4_log "{config_mode_root / "logs" / "events.jsonl"}";',
         "modsecurity_transaction_id": (
             'modsecurity_transaction_id '
             '"nginx-exact-head-$pid-$connection-$connection_requests";'
         ),
-        "root": f'root "{expected_docroot}";',
+        "root": f'root "{config_mode_root / "config" / "docroot"}";',
         "return": "return 200 exact-head-ok;",
     }
-    forbidden_anywhere = {
-        "env", "master_process", "stream", "mail", "proxy_pass",
-        "fastcgi_pass", "uwsgi_pass", "scgi_pass", "resolver",
-        "ssl_certificate_key", "include",
-    }
-    for statement in statements:
-        directive = nginx_directive(statement)
-        if directive in forbidden_anywhere:
-            fail("generated NGINX configuration has an unsafe runtime directive")
     # The protected exact-head cell deliberately has no NGINX include
     # boundary at all.  Rejecting every include is stronger than admitting a
     # candidate-selected nested, absolute, or escaping include path.
-    effective_lines = statements
-    for directive, required in expected.items():
-        matched = [line for line in effective_lines if nginx_directive(line) == directive]
-        if matched != [required]:
-            fail("generated NGINX configuration does not match the fixed runtime cell")
-    listens = [line for line in effective_lines if nginx_directive(line) == "listen"]
-    if len(listens) != 1 or not re.fullmatch(r"listen 127\.0\.0\.1:[0-9]+;", listens[0]):
-        fail("generated NGINX configuration does not bind exactly one loopback listener")
-    if any(nginx_directive(line) == "env" for line in effective_lines):
-        fail("generated NGINX configuration does not match the fixed runtime cell")
+    _validate_config_directives(statements, expected)
+
+
+def _load_ready(path: Path, mode: str) -> dict[str, object]:
+    try:
+        ready = json.loads(bounded_file(path, MAX_READY_BYTES))
+    except json.JSONDecodeError as exc:
+        fail(f"supervisor readiness is not valid JSON: {exc}")
+    if not isinstance(ready, dict) or ready.get("mode") != mode:
+        fail("invalid supervisor readiness record")
+    return ready
 
 
 def wait_mode(
@@ -1458,6 +1760,10 @@ def wait_mode(
     worker_name: str,
     worker_group: str,
     supervisor: subprocess.Popen[bytes],
+    *,
+    sandbox_cell: Path | None = None,
+    sandbox_module: Path | None = None,
+    sandbox_binary: Path | None = None,
 ) -> dict[str, object]:
     mode_dir = contained(cell / mode, cell, "supervisor control directory")
     control_dir = contained(
@@ -1484,19 +1790,16 @@ def wait_mode(
         if ready_path.is_symlink():
             fail("supervisor readiness record is a symbolic link")
         if ready_path.exists():
-            try:
-                ready = json.loads(bounded_file(ready_path, MAX_READY_BYTES))
-            except json.JSONDecodeError as exc:
-                fail(f"supervisor readiness is not valid JSON: {exc}")
-            if not isinstance(ready, dict) or ready.get("mode") != mode:
-                fail("invalid supervisor readiness record")
+            ready = _load_ready(ready_path, mode)
             validate_generated_config(
-                ready, cell, mode, binary, module, worker_name, worker_group
+                ready, cell, mode, binary, module, worker_name, worker_group,
+                sandbox_cell=sandbox_cell, sandbox_module=sandbox_module,
+                sandbox_binary=sandbox_binary,
             )
             identity = validate_identity(ready, expected, binary_identity, supervisor.pid)
             try:
                 atomic_json(release_path, {"mode": mode, "allow": True})
-            except BaseException:
+            except (LauncherError, OSError):
                 close_identity_pidfd(identity)
                 raise
             return {"mode": mode, **identity}
@@ -1506,13 +1809,14 @@ def wait_mode(
 
 def close_identity_pidfd(identity: dict[str, object]) -> None:
     """Close and remove the internal master handle before evidence publication."""
-    descriptor = identity.pop("master_pidfd", None)
+    descriptor = identity.get("master_pidfd")
     if type(descriptor) is not int or descriptor < 0:
         fail("validated identity lacks a safe master pidfd")
     try:
         os.close(descriptor)
     except OSError as exc:
         fail(f"could not close validated master pidfd: {exc}")
+    identity.pop("master_pidfd", None)
 
 
 def trusted_http_status(master_pidfd: int) -> int:
@@ -1528,7 +1832,7 @@ def trusted_http_status(master_pidfd: int) -> int:
         fail("trusted HTTP client has no valid master pidfd")
     if pidfd_exited(master_pidfd):
         fail("validated master exited before the trusted HTTP request")
-    env = {"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", "LANG": "C", "LC_ALL": "C"}
+    env = {"PATH": "/usr/bin:/bin", "HOME": NONEXISTENT_HOME, "LANG": "C", "LC_ALL": "C"}
     try:
         result = run_checked(
             [
@@ -1574,6 +1878,37 @@ def mark_request_complete(cell: Path, mode: str, status_code: int) -> None:
     atomic_json(path, {"mode": mode, "http_status": status_code})
 
 
+def _event_transaction(record: object, mode: str) -> str | None:
+    if not isinstance(record, dict) or not (
+        record.get("event") == "request_rule_match"
+        and record.get("connector") == "nginx"
+        and record.get("integration_mode") == "native-nginx-http-module"
+        and record.get("rule_id") == RULE_ID
+    ):
+        return None
+    transaction_id = record.get("transaction_id")
+    if not isinstance(transaction_id, str) or not TX_RE.fullmatch(transaction_id):
+        fail(f"{mode} event has an invalid deterministic transaction id")
+    integrity = [record.get(field) for field in ("sequence", "previous_event_hash", "event_hash")]
+    if not all(type(value) is int and value >= 0 for value in integrity):
+        fail(f"{mode} event has invalid integrity representation")
+    return transaction_id
+
+
+def _callback_transactions(error: str, mode: str) -> list[str]:
+    transactions: list[str] = []
+    for line in error.splitlines():
+        if "\x1b" in line or "::" in line:
+            fail(f"{mode} native error-log evidence contains terminal or workflow control text")
+        if not RULE_1000001_RE.search(line):
+            continue
+        callback = CALLBACK_TX_RE.search(line)
+        if callback is None:
+            fail(f"{mode} native rule callback lacks an exact transaction id")
+        transactions.append(callback.group(1))
+    return transactions
+
+
 def mode_evidence(cell: Path, mode: str, status_code: int) -> dict[str, object]:
     """Derive one bounded cell decision from raw scratch evidence.
 
@@ -1604,23 +1939,9 @@ def mode_evidence(cell: Path, mode: str, status_code: int) -> dict[str, object]:
             record = json.loads(line, object_pairs_hook=duplicate_safe)
         except json.JSONDecodeError as exc:
             fail(f"{mode} Phase-4 evidence is not JSONL: {exc}")
-        if isinstance(record, dict):
-            if (
-                record.get("event") == "request_rule_match"
-                and record.get("connector") == "nginx"
-                and record.get("integration_mode") == "native-nginx-http-module"
-                and record.get("rule_id") == "1000001"
-            ):
-                transaction_id = record.get("transaction_id")
-                if not isinstance(transaction_id, str) or not TX_RE.fullmatch(transaction_id):
-                    fail(f"{mode} event has an invalid deterministic transaction id")
-                integrity = [
-                    record.get(field)
-                    for field in ("sequence", "previous_event_hash", "event_hash")
-                ]
-                if not all(type(value) is int and value >= 0 for value in integrity):
-                    fail(f"{mode} event has invalid integrity representation")
-                events.append(transaction_id)
+        transaction_id = _event_transaction(record, mode)
+        if transaction_id is not None:
+            events.append(transaction_id)
     if status_code != 403:
         fail(f"{mode} trusted HTTP status was not 403")
     error = bounded_file(error_log, MAX_RUNTIME_LOG_BYTES).decode("utf-8")
@@ -1628,22 +1949,12 @@ def mode_evidence(cell: Path, mode: str, status_code: int) -> dict[str, object]:
         fail(f"{mode} native error-log evidence contains a forbidden marker")
     if len(events) != 1:
         fail(f"{mode} mode lacks exactly one correlated JSONL rule-match event")
-    callback_transactions: list[str] = []
-    for line in error.splitlines():
-        if "\x1b" in line or "::" in line:
-            fail(f"{mode} native error-log evidence contains terminal or workflow control text")
-        if not RULE_1000001_RE.search(line):
-            continue
-        callback = CALLBACK_TX_RE.search(line)
-        if callback is None:
-            fail(f"{mode} native rule callback lacks an exact transaction id")
-        callback_transactions.append(callback.group(1))
-    if mode == "on":
-        if callback_transactions != [events[0]]:
-            fail("on mode lacks exactly one correlated native callback")
-    elif callback_transactions or RULE_1000001_RE.search(error) or CALLBACK_TX_RE.search(error):
-        fail("off mode contains native callback evidence")
-    else:
+    callback_transactions = _callback_transactions(error, mode)
+    if mode == "on" and callback_transactions != [events[0]]:
+        fail("on mode lacks exactly one correlated native callback")
+    if mode != "on":
+        if callback_transactions or RULE_1000001_RE.search(error) or CALLBACK_TX_RE.search(error):
+            fail("off mode contains native callback evidence")
         return {
             "callback_observed": False,
             "callback_observation_source": "candidate_scratch_untrusted",
@@ -1668,19 +1979,24 @@ def mode_evidence(cell: Path, mode: str, status_code: int) -> dict[str, object]:
     }
 
 
-def write_root_owned_json(path: Path, value: dict[str, Any], *, line_delimited: bool = False) -> None:
+def write_root_owned_json(path: Path, value: dict[str, Any], *, line_delimited: bool = False,
+                          directory_fd: int | None = None) -> None:
     """Atomically publish Base-derived data without copying raw candidate text."""
-    if path.exists() or path.is_symlink():
+    if directory_fd is None and (path.exists() or path.is_symlink()):
         fail("root evidence destination is not fresh")
     raw = json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
     if line_delimited:
         raw += b"\n"
     temporary = path.with_name("." + path.name + ".tmp")
+    leaf = path.name
+    temporary_leaf = "." + leaf + ".tmp"
     descriptor = -1
     try:
+        open_target: str | Path = temporary_leaf if directory_fd is not None else temporary
+        open_kwargs = {"dir_fd": directory_fd} if directory_fd is not None else {}
         descriptor = os.open(
-            temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW,
-            0o600,
+            open_target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW,
+            0o600, **open_kwargs,
         )
         offset = 0
         while offset < len(raw):
@@ -1691,9 +2007,20 @@ def write_root_owned_json(path: Path, value: dict[str, Any], *, line_delimited: 
         os.fsync(descriptor)
         os.close(descriptor)
         descriptor = -1
-        os.replace(temporary, path)
-        os.chmod(path, 0o600)
-        final = path.lstat()
+        if directory_fd is not None:
+            os.replace(temporary_leaf, leaf, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
+            os.fsync(directory_fd)
+            final = os.stat(leaf, dir_fd=directory_fd, follow_symlinks=False)
+            final_descriptor = os.open(leaf, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                                       dir_fd=directory_fd)
+            try:
+                os.fchmod(final_descriptor, 0o600)
+            finally:
+                os.close(final_descriptor)
+        else:
+            os.replace(temporary, path)
+            os.chmod(path, 0o600)
+            final = path.lstat()
         if (
             stat.S_ISLNK(final.st_mode)
             or not stat.S_ISREG(final.st_mode)
@@ -1709,7 +2036,12 @@ def write_root_owned_json(path: Path, value: dict[str, Any], *, line_delimited: 
         if descriptor >= 0:
             os.close(descriptor)
         try:
-            if temporary.exists() or temporary.is_symlink():
+            if directory_fd is not None:
+                try:
+                    os.unlink(temporary_leaf, dir_fd=directory_fd)
+                except FileNotFoundError:
+                    pass
+            elif temporary.exists() or temporary.is_symlink():
                 temporary.unlink()
         except OSError:
             pass
@@ -1722,16 +2054,17 @@ def publish_evidence(
     identities: list[dict[str, object]],
     artifacts: dict[str, dict[str, int | str]],
     modes: list[dict[str, object]],
+    *, evidence_fd: int | None = None,
 ) -> None:
     """Publish the exact fixed collector allowlist after the namespace drains."""
-    metadata = evidence_root.lstat()
+    metadata = (os.fstat(evidence_fd) if evidence_fd is not None else evidence_root.lstat())
     if (
         stat.S_ISLNK(metadata.st_mode)
         or not stat.S_ISDIR(metadata.st_mode)
         or metadata.st_uid != 0
         or metadata.st_gid != 0
         or stat.S_IMODE(metadata.st_mode) != 0o700
-        or any(evidence_root.iterdir())
+        or (any(os.listdir(evidence_fd)) if evidence_fd is not None else any(evidence_root.iterdir()))
     ):
         fail("root evidence directory is not a fresh private root-owned directory")
     indexed_identity = {str(item["mode"]): item for item in identities}
@@ -1770,6 +2103,10 @@ def publish_evidence(
     runtime = {
         "schema_version": 1,
         "tested_pr_head": dispatcher["tested_pr_head"],
+        # The collector must source the reported PR base from this root-owned
+        # record, rather than from a runner-owned dispatcher handoff that can
+        # be replaced after the protected runtime has finished.
+        "tested_pr_base": dispatcher["tested_pr_base"],
         "trusted_dispatcher_base_sha": dispatcher["trusted_dispatcher_base_sha"],
         "candidate_run_id": dispatcher["run_id"],
         "nginx_version": EXPECTED_NGINX_VERSION,
@@ -1784,8 +2121,12 @@ def publish_evidence(
         ("off.jsonl", indexed_mode["off"], True),
         ("exit.json", exit_status, False),
     ):
-        write_root_owned_json(evidence_root / name, value, line_delimited=jsonl)
-    if {entry.name for entry in evidence_root.iterdir()} != ROOT_EVIDENCE_FILES:
+        write_root_owned_json(evidence_root / name, value, line_delimited=jsonl,
+                              directory_fd=evidence_fd)
+    entries = set(os.listdir(evidence_fd)) if evidence_fd is not None else {
+        entry.name for entry in evidence_root.iterdir()
+    }
+    if entries != ROOT_EVIDENCE_FILES:
         fail("root evidence allowlist publication is incomplete")
 
 
@@ -1796,17 +2137,38 @@ def create_identity(suffix: str) -> tuple[str, str]:
         fail("dedicated NGINX identity already exists")
     run_checked([HELPERS["groupadd"], "--system", group], capture=False)
     try:
+        created_gid = grp.getgrnam(group).gr_gid
+    except KeyError:
+        fail("dedicated group disappeared after creation")
+    try:
         run_checked([HELPERS["useradd"], "--system", "--no-create-home", "--shell", "/usr/sbin/nologin", "--gid", group, name], capture=False)
-    except BaseException as primary:
+    except (OSError, subprocess.SubprocessError) as primary:
         try:
+            current_gid = grp.getgrnam(group).gr_gid
+            if current_gid != created_gid:
+                fail("dedicated group was replaced during rollback")
             run_checked([HELPERS["groupdel"], group], capture=False)
-        except BaseException as cleanup:
+        except (OSError, subprocess.SubprocessError, LauncherError) as cleanup:
             fail(f"dedicated user creation failed: {primary}; group rollback failed: {cleanup}")
         raise
     return name, group
 
 
-def cleanup_identity(name: str, group: str) -> None:
+def cleanup_identity(name: str, group: str, expected_uid: int | None = None,
+                     expected_gid: int | None = None) -> None:
+    if expected_uid is None or expected_gid is None:
+        fail("dedicated identity cleanup requires captured UID and GID")
+    try:
+        user = pwd.getpwnam(name)
+        grp_record = grp.getgrnam(group)
+    except KeyError as exc:
+        fail(f"dedicated identity disappeared before cleanup: {exc}")
+    if (
+        user.pw_uid != expected_uid
+        or user.pw_gid != expected_gid
+        or grp_record.gr_gid != expected_gid
+    ):
+        fail("dedicated identity was replaced before cleanup")
     errors: list[str] = []
     for label, command in (
         ("user", [HELPERS["userdel"], name]),
@@ -1814,7 +2176,7 @@ def cleanup_identity(name: str, group: str) -> None:
     ):
         try:
             run_checked(command, capture=False)
-        except BaseException as exc:
+        except (OSError, subprocess.SubprocessError) as exc:
             errors.append(f"{label}: {exc}")
     if errors:
         fail("dedicated identity cleanup failed: " + "; ".join(errors))
@@ -1860,29 +2222,37 @@ def require_exact_subordinate_mapping(mapping: SubordinateMapping) -> None:
 
 def cleanup_subordinate_mapping(mapping: SubordinateMapping) -> None:
     errors: list[str] = []
+    def verify_runner_identity() -> None:
+        try:
+            if pwd.getpwnam(mapping.runner_name).pw_uid != mapping.runner_uid:
+                fail("runner identity was replaced before subordinate cleanup")
+        except KeyError as exc:
+            fail(f"runner identity disappeared before subordinate cleanup: {exc}")
     if mapping.gid_added:
         try:
+            verify_runner_identity()
             run_checked(
                 [HELPERS["usermod"], "--del-subgids",
                  f"{mapping.worker_gid}-{mapping.worker_gid}", mapping.runner_name],
                 capture=False,
             )
             mapping.gid_added = False
-        except BaseException as exc:
+        except (OSError, subprocess.SubprocessError, LauncherError) as exc:
             errors.append(f"gid mapping: {exc}")
     if mapping.uid_added:
         try:
+            verify_runner_identity()
             run_checked(
                 [HELPERS["usermod"], "--del-subuids",
                  f"{mapping.worker_uid}-{mapping.worker_uid}", mapping.runner_name],
                 capture=False,
             )
             mapping.uid_added = False
-        except BaseException as exc:
+        except (OSError, subprocess.SubprocessError, LauncherError) as exc:
             errors.append(f"uid mapping: {exc}")
     try:
         require_no_subordinate_mapping(mapping.runner_name, mapping.runner_uid)
-    except BaseException as exc:
+    except LauncherError as exc:
         errors.append(f"mapping state: {exc}")
     if errors:
         fail("subordinate mapping cleanup failed: " + "; ".join(errors))
@@ -1904,10 +2274,10 @@ def establish_subordinate_mapping(mapping: SubordinateMapping) -> None:
         )
         mapping.gid_added = True
         require_exact_subordinate_mapping(mapping)
-    except BaseException as primary:
+    except (OSError, subprocess.SubprocessError, LauncherError, RuntimeError) as primary:
         try:
             cleanup_subordinate_mapping(mapping)
-        except BaseException as rollback:
+        except (OSError, subprocess.SubprocessError, LauncherError, RuntimeError) as rollback:
             fail(f"subordinate mapping setup failed: {primary}; rollback failed: {rollback}")
         raise
 
@@ -1925,9 +2295,9 @@ def admit_candidate_bundle(
     if not root.is_dir():
         fail("candidate artifact root is not a directory")
     fixed = {
-        "nginx": "nginx",
-        "module": "ngx_http_modsecurity_module.so",
-        "library": "libmodsecurity.so.3",
+        "nginx": NGINX_ARTIFACT_NAME,
+        "module": MODULE_ARTIFACT_NAME,
+        "library": LIBRARY_ARTIFACT_NAME,
     }
     expected_entries = set(fixed.values()) | {"artifact-manifest.json"}
     if {entry.name for entry in root.iterdir()} != expected_entries:
@@ -1944,12 +2314,12 @@ def admit_candidate_bundle(
             descriptors[key] = descriptor
         validate_admitted_artifacts(manifest, identities)
         descriptor = open_regular_no_follow(
-            contained(root / "artifact-manifest.json", root, "candidate artifact manifest"),
-            "candidate artifact manifest",
+            contained(root / "artifact-manifest.json", root, CANDIDATE_MANIFEST_LABEL),
+            CANDIDATE_MANIFEST_LABEL,
         )
         descriptors["manifest"] = descriptor
         return identities, descriptors
-    except BaseException:
+    except (LauncherError, OSError):
         for descriptor in descriptors.values():
             os.close(descriptor)
         raise
@@ -1968,274 +2338,285 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _prepare_launcher(args: argparse.Namespace, state: LauncherState) -> tuple[
+    dict[str, dict[str, int | str]], IdentityExpectations, dict[str, int], dict[str, int], dict[str, object]
+]:
+    """Validate inputs and establish all root-owned resources for one run."""
+    trusted_base_sha = require_sha40(args.trusted_dispatcher_base_sha, "trusted dispatcher Base SHA")
+    if args.runner_uid <= 0 or args.runner_gid <= 0:
+        fail("runner identity must be nonroot")
+    repo = no_symlink_path(Path(args.base_repo_root), "trusted Base repository root")
+    if not repo.is_dir():
+        fail("trusted Base repository root is not a directory")
+    verify_runner_owned_directory(repo, args.runner_uid, args.runner_gid, "trusted Base repository root")
+    raw_evidence = Path(args.evidence_root)
+    if not raw_evidence.is_absolute() or any(part in {".", ".."} for part in raw_evidence.parts):
+        fail("root evidence path must be an absolute normalized path")
+    evidence_parent = no_symlink_path(raw_evidence.parent, "root evidence parent")
+    verify_runner_owned_directory(evidence_parent, args.runner_uid, args.runner_gid, "root evidence parent")
+    parent_admission = open_directory_no_follow(evidence_parent, "root evidence parent")
+    try:
+        parent_metadata = os.fstat(parent_admission)
+        if (parent_metadata.st_uid != args.runner_uid or parent_metadata.st_gid != args.runner_gid
+                or stat.S_IMODE(parent_metadata.st_mode) & 0o022):
+            fail("root evidence parent changed during admission")
+        state.evidence_root, state.evidence_fd, state.evidence_parent_fd = create_owned_child_directory(
+            evidence_parent, raw_evidence.name, 0, 0, 0o700, "root evidence path",
+            args.runner_uid, args.runner_gid, parent_descriptor=parent_admission,
+            return_descriptors=True
+        )
+        container_path, state.scratch_container_fd, state.scratch_container_parent_fd = create_owned_child_directory(
+            evidence_parent, private_scratch_container_name(), 0, 0, 0o700,
+            "exact-head scratch container", args.runner_uid, args.runner_gid,
+            parent_descriptor=parent_admission, return_descriptors=True
+        )
+        state.scratch_root, state.scratch_fd, state.scratch_parent_fd = create_owned_child_directory(
+            container_path, ROOT_RUN_NAME, args.runner_uid, args.runner_gid, 0o700,
+            "exact-head scratch root", 0, 0,
+            parent_descriptor=state.scratch_container_fd, return_descriptors=True
+        )
+    finally:
+        os.close(parent_admission)
+    state.cell, state.cell_fd, state.cell_parent_fd = create_owned_child_directory(
+        state.scratch_root, CELL_NAME, 0, 0, 0o755, "root launcher cell",
+        args.runner_uid, args.runner_gid, parent_descriptor=state.scratch_fd,
+        return_descriptors=True
+    )
+    dispatcher_path = no_symlink_path(Path(args.dispatcher_manifest), DISPATCHER_MANIFEST_LABEL)
+    candidate_root = no_symlink_path(Path(args.candidate_artifact_root), "candidate artifact root")
+    candidate_path = contained(Path(args.candidate_manifest), candidate_root, CANDIDATE_MANIFEST_LABEL)
+    verify_helpers()
+    verify_apparmor_profile()
+    verify_checkout(repo, trusted_base_sha, args.runner_uid, args.runner_gid)
+    helper_descriptor, _ = trusted_base_file_descriptor(
+        repo, trusted_base_sha, BASE_DRIVER_RELATIVE, args.runner_uid, args.runner_gid,
+        "trusted Base NGINX helper",
+    )
+    state.trusted_base_descriptors["helper"] = helper_descriptor
+    dispatcher = dispatcher_manifest(dispatcher_path, trusted_base_sha)
+    candidate = candidate_manifest(candidate_path, dispatcher)
+    artifacts, state.artifact_descriptors = admit_candidate_bundle(candidate_root, candidate)
+    suffix = f"{os.getpid():x}"
+    state.identity = create_identity(suffix)
+    worker_name, worker_group = state.identity
+    worker = pwd.getpwnam(worker_name)
+    state.worker_uid = worker.pw_uid
+    runner = pwd.getpwuid(args.runner_uid)
+    group = grp.getgrnam(worker_group)
+    if worker.pw_uid in {0, args.runner_uid} or group.gr_gid in {0, args.runner_gid}:
+        fail("dedicated identity collides with runner or root")
+    state.mapping = SubordinateMapping(runner.pw_name, args.runner_uid, worker.pw_uid, group.gr_gid)
+    establish_subordinate_mapping(state.mapping)
+    binary = candidate_root / NGINX_ARTIFACT_NAME
+    module = candidate_root / MODULE_ARTIFACT_NAME
+    library = candidate_root / LIBRARY_ARTIFACT_NAME
+    sandbox_binary = SANDBOX_CANDIDATE_ROOT / NGINX_ARTIFACT_NAME
+    sandbox_module = SANDBOX_CANDIDATE_ROOT / MODULE_ARTIFACT_NAME
+    sandbox_library = SANDBOX_CANDIDATE_ROOT / LIBRARY_ARTIFACT_NAME
+    sandbox_manifest = SANDBOX_CANDIDATE_ROOT / "artifact-manifest.json"
+    stable_cell = Path(f"/proc/self/fd/{state.cell_fd}")
+    prepare_trusted_cells(
+        stable_cell, sandbox_module, worker_name, worker_group,
+        args.runner_uid, args.runner_gid, sandbox_cell=SANDBOX_CELL_ROOT,
+    )
+    outer_env = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C", "LANG": "C", "HOME": NONEXISTENT_HOME}
+    sandbox_env = {
+        **outer_env,
+        "NGINX_EXACT_HEAD_IN_ROOT_LAUNCHER": "1",
+        "NGINX_EXACT_HEAD_TRUSTED_BASE_ROOT": "/trusted-base",
+        "NGINX_EXACT_HEAD_SCRATCH_ROOT": str(SANDBOX_CELL_ROOT),
+        "NGINX_BINARY": str(sandbox_binary), "NGINX_MODULE": str(sandbox_module),
+        "MODSECURITY_LIB_DIR": str(SANDBOX_CANDIDATE_ROOT),
+        "LD_LIBRARY_PATH": str(SANDBOX_CANDIDATE_ROOT),
+        "NGINX_WORKER_USER": worker_name, "NGINX_WORKER_GROUP": worker_group,
+        "TMPDIR": str(SANDBOX_TMPDIR),
+    }
+    command = [HELPERS["aa-exec"], "-p", APPARMOR_PROFILE_NAME, "--", HELPERS["setpriv"],
+               f"--reuid={args.runner_uid}", f"--regid={args.runner_gid}", "--clear-groups", NO_INHERITABLE_CAPS, NO_AMBIENT_CAPS,
+               "--", HELPERS["unshare"], "--user", "--map-user", "0", "--map-group", "0", "--map-users", f"{worker.pw_uid}:{worker.pw_uid}:1",
+               "--map-groups", f"{group.gr_gid}:{group.gr_gid}:1", "--setgroups", "allow", "--keep-caps", "--mount", "--pid", "--fork",
+               "--kill-child=SIGKILL", "--mount-proc=" + PROC_ROOT.as_posix(), "--propagation", "private", HELPERS["setpriv"],
+               "--clear-groups", "--no-new-privs", NO_INHERITABLE_CAPS, NO_AMBIENT_CAPS,
+               "--bounding-set=-all,+chown,+setgid,+setuid,+sys_admin", "--", HELPERS["bwrap"], "--die-with-parent", "--new-session",
+               "--unshare-pid", "--unshare-net", "--unshare-ipc", "--unshare-uts", "--disable-userns", "--assert-userns-disabled",
+               "--tmpfs", "/", "--dir", PROC_ROOT.as_posix(), "--dir", "/dev", "--dir", "/usr", "--dir", "/bin", "--dir", "/lib",
+               "--dir", LIB64_ROOT, "--dir", "/etc", "--dir", "/run", "--proc", PROC_ROOT.as_posix(), "--dev", "/dev",
+               "--tmpfs", str(SANDBOX_TMPDIR), "--dir", str(SANDBOX_SCRATCH_ROOT), "--dir", str(SANDBOX_CELL_ROOT), "--ro-bind", "/usr", "/usr", "--ro-bind", "/bin", "/bin", "--ro-bind", "/lib", "/lib",
+               "--ro-bind", LIB64_ROOT, LIB64_ROOT, "--ro-bind", "/etc", "/etc",
+               "--dir", str(SANDBOX_CANDIDATE_ROOT), "--ro-bind-fd", str(state.trusted_base_descriptors["helper"]), str(SANDBOX_BASE_HELPER),
+               "--ro-bind-fd", str(state.artifact_descriptors["nginx"]), str(sandbox_binary), "--ro-bind-fd", str(state.artifact_descriptors["module"]), str(sandbox_module),
+               "--ro-bind-fd", str(state.artifact_descriptors["library"]), str(sandbox_library), "--ro-bind-fd", str(state.artifact_descriptors["manifest"]), str(sandbox_manifest),
+               "--bind-fd", str(state.scratch_fd), str(SANDBOX_SCRATCH_ROOT), "--bind-fd", str(state.cell_fd), str(SANDBOX_CELL_ROOT), "--chdir", "/", "--clearenv", "--cap-drop", "ALL",
+               "--cap-add", "CAP_CHOWN", "--cap-add", "CAP_SETGID", "--cap-add", "CAP_SETUID"]
+    for key, value in sorted(sandbox_env.items()):
+        command.extend(("--setenv", key, value))
+    command.extend(("--", HELPERS["sh"], str(SANDBOX_BASE_HELPER), str(SANDBOX_CANDIDATE_ROOT), str(sandbox_manifest), str(SANDBOX_CELL_ROOT)))
+    expected = IdentityExpectations(args.runner_uid, args.runner_gid, worker.pw_uid, group.gr_gid)
+    return artifacts, expected, state.artifact_descriptors, state.trusted_base_descriptors, {
+        "binary": binary, "module": module,
+        "sandbox_binary": sandbox_binary, "sandbox_module": sandbox_module,
+        "worker_name": worker_name, "worker_group": worker_group,
+        "outer_env": outer_env, "command": command, "dispatcher": dispatcher,
+    }
+
+
+def _execute_launcher(args: argparse.Namespace, state: LauncherState, artifacts: dict[str, dict[str, int | str]],
+                      expected: IdentityExpectations, context: dict[str, object]) -> None:
+    """Run both mode cells, validate evidence, and publish the terminal record."""
+    enable_child_subreaper()
+    state.process = subprocess.Popen(
+        validated_command(context["command"]), env=context["outer_env"],
+        pass_fds=(state.scratch_fd, state.cell_fd) + tuple(state.artifact_descriptors.values()) + tuple(state.trusted_base_descriptors.values()),
+        preexec_fn=apply_sandbox_limits, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    stable_cell = Path(f"/proc/self/fd/{state.cell_fd}")
+    observed_status: dict[str, int] = {}
+    identity_evidence: list[dict[str, object]] = []
+    for mode in ("on", "off"):
+        observed_identity = wait_mode(stable_cell, mode, expected, context["binary"], artifacts["nginx"],
+                                      context["module"], context["worker_name"], context["worker_group"], state.process,
+                                      sandbox_cell=SANDBOX_CELL_ROOT,
+                                      sandbox_module=context["sandbox_module"],
+                                      sandbox_binary=context["sandbox_binary"])
+        try:
+            master_pidfd = observed_identity.get("master_pidfd")
+            if type(master_pidfd) is not int:
+                fail("validated identity lacks a master pidfd")
+            observed_status[mode] = trusted_http_status(master_pidfd)
+        finally:
+            close_identity_pidfd(observed_identity)
+        identity_evidence.append(observed_identity)
+        mark_request_complete(stable_cell, mode, observed_status[mode])
+    validate_exit_status(state.process.wait(timeout=SUPERVISOR_TIMEOUT))
+    for key, descriptor in state.artifact_descriptors.items():
+        if key != "manifest" and admitted_artifact_identity(descriptor, f"candidate {key} artifact") != artifacts[key]:
+            fail(f"admitted candidate {key} artifact changed during isolated runtime")
+    runtime_evidence = [mode_evidence(stable_cell, mode, observed_status[mode]) for mode in ("on", "off")]
+    publish_evidence(state.evidence_root, context["dispatcher"], expected, identity_evidence,
+                     artifacts, runtime_evidence, evidence_fd=state.evidence_fd)
+    state.evidence_published = True
+
+
+def _close_owned_descriptors(state: LauncherState) -> list[str]:
+    errors: list[str] = []
+    for label, descriptors in (("", state.artifact_descriptors), ("trusted Base ", state.trusted_base_descriptors)):
+        for key, descriptor in tuple(descriptors.items()):
+            try:
+                os.close(descriptor)
+            except OSError as exc:
+                errors.append(f"{label}{key} descriptor: {exc}")
+    return errors
+
+
+def _remove_tree_at(parent_fd: int, name: str,
+                    expected_identity: tuple[int, int] | None = None) -> None:
+    """Remove a task-owned tree without resolving a runner-controlled path."""
+    descriptor = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                         dir_fd=parent_fd)
+    try:
+        if expected_identity is not None:
+            observed = os.fstat(descriptor)
+            if (observed.st_dev, observed.st_ino) != expected_identity:
+                fail("owned cleanup target was replaced")
+        for entry in os.scandir(descriptor):
+            if entry.is_dir(follow_symlinks=False):
+                _remove_tree_at(descriptor, entry.name)
+            else:
+                os.unlink(entry.name, dir_fd=descriptor)
+        if expected_identity is not None:
+            current = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+            if (current.st_dev, current.st_ino) != expected_identity:
+                fail("owned cleanup target was replaced")
+        os.rmdir(name, dir_fd=parent_fd)
+    finally:
+        os.close(descriptor)
+
+
+def _cleanup_launcher(state: LauncherState) -> list[str]:
+    """Stop runtime first, then release identities, mappings, cells, evidence."""
+    errors: list[str] = []
+    runtime_quiescent = state.process is None
+    if state.process is not None:
+        try:
+            terminate_runtime_process(state.process)
+        except (LauncherError, OSError) as exc:
+            errors.append(f"runtime process: {exc}")
+        else:
+            runtime_quiescent = True
+    if runtime_quiescent and state.worker_uid is not None:
+        try:
+            require_no_dedicated_worker_processes(state.worker_uid)
+        except (LauncherError, OSError) as exc:
+            errors.append(f"dedicated worker processes: {exc}")
+            runtime_quiescent = False
+    identity_cleaned = state.identity is None
+    if runtime_quiescent and state.identity is not None:
+        try:
+            cleanup_identity(
+                *state.identity,
+                state.worker_uid,
+                state.mapping.worker_gid if state.mapping is not None else None,
+            )
+        except (LauncherError, OSError) as exc:
+            errors.append(f"dedicated identity: {exc}")
+        else:
+            identity_cleaned = True
+    if runtime_quiescent and state.mapping is not None and identity_cleaned:
+        try:
+            cleanup_subordinate_mapping(state.mapping)
+        except (LauncherError, OSError) as exc:
+            errors.append(f"subordinate mapping: {exc}")
+    elif runtime_quiescent and state.mapping is not None:
+        errors.append("subordinate mapping retained because identity cleanup failed")
+    if runtime_quiescent and state.scratch_fd >= 0 and state.scratch_parent_fd >= 0:
+        try:
+            scratch_identity = os.fstat(state.scratch_fd)
+            # The retained parent is the root-owned private container, not
+            # the runner-owned evidence parent.  Nested scratch entries may
+            # be candidate-mutated, but after process quiescence they remain
+            # confined to this invocation-owned container.
+            _remove_tree_at(
+                state.scratch_parent_fd, ROOT_RUN_NAME,
+                (scratch_identity.st_dev, scratch_identity.st_ino),
+            )
+        except (LauncherError, OSError) as exc:
+            errors.append(f"runtime cell: {exc}")
+    elif not runtime_quiescent:
+        errors.append("runtime ownership was not quiescent; retained identity, mapping, and cell")
+    if not state.evidence_published and state.evidence_fd >= 0 and state.evidence_parent_fd >= 0:
+        errors.append("failed-run evidence retained under runner parent")
+    errors.extend(_close_owned_descriptors(state))
+    for label in ("cell", "cell parent", "scratch", "scratch parent", "scratch container", "scratch container parent", "evidence", "evidence parent"):
+        descriptor = {
+            "cell": state.cell_fd, "cell parent": state.cell_parent_fd,
+            "scratch": state.scratch_fd,
+            "scratch parent": state.scratch_parent_fd, "evidence": state.evidence_fd,
+            "evidence parent": state.evidence_parent_fd,
+            "scratch container": state.scratch_container_fd,
+            "scratch container parent": state.scratch_container_parent_fd,
+        }[label]
+        if descriptor >= 0:
+            try:
+                os.close(descriptor)
+            except OSError as exc:
+                errors.append(f"{label} descriptor: {exc}")
+    return errors
+
+
 def main(argv: list[str] | None = None) -> int:
-    primary: BaseException | None = None
-    identity: tuple[str, str] | None = None
-    mapping: SubordinateMapping | None = None
-    worker_uid: int | None = None
-    scratch_root: Path | None = None
-    cell: Path | None = None
-    evidence_root: Path | None = None
-    process: subprocess.Popen[bytes] | None = None
-    artifact_descriptors: dict[str, int] = {}
-    trusted_base_descriptors: dict[str, int] = {}
-    evidence_published = False
+    """Run the root-owned launcher through explicit prepare/execute/cleanup phases."""
+    primary: Exception | None = None
+    state = LauncherState()
     try:
         if os.geteuid() != 0:
             fail("root launcher requires euid 0")
         args = parse_args(argv or sys.argv[1:])
-        trusted_base_sha = require_sha40(
-            args.trusted_dispatcher_base_sha, "trusted dispatcher Base SHA"
-        )
-        if args.runner_uid <= 0 or args.runner_gid <= 0:
-            fail("runner identity must be nonroot")
-        repo = no_symlink_path(Path(args.base_repo_root), "trusted Base repository root")
-        if not repo.is_dir():
-            fail("trusted Base repository root is not a directory")
-        verify_runner_owned_directory(repo, args.runner_uid, args.runner_gid, "trusted Base repository root")
-        raw_evidence = Path(args.evidence_root)
-        if not raw_evidence.is_absolute() or any(part in {".", ".."} for part in raw_evidence.parts):
-            fail("root evidence path must be an absolute normalized path")
-        evidence_parent = no_symlink_path(raw_evidence.parent, "root evidence parent")
-        verify_runner_owned_directory(evidence_parent, args.runner_uid, args.runner_gid, "root evidence parent")
-        evidence_root = evidence_parent / raw_evidence.name
-        if evidence_root.exists() or evidence_root.is_symlink():
-            fail("root evidence path must be fresh")
-        evidence_root.mkdir(mode=0o700)
-        os.chown(evidence_root, 0, 0)
-        os.chmod(evidence_root, 0o700)
-        scratch_root = evidence_parent / ROOT_RUN_NAME
-        if scratch_root.exists() or scratch_root.is_symlink():
-            fail("exact-head scratch root must be fresh")
-        create_runner_owned_directory(scratch_root, args.runner_uid, args.runner_gid)
-        cell = scratch_root / CELL_NAME
-        root_owned_directory(cell)
-        dispatcher_path = no_symlink_path(Path(args.dispatcher_manifest), "dispatcher manifest")
-        candidate_root = no_symlink_path(Path(args.candidate_artifact_root), "candidate artifact root")
-        candidate_path = contained(
-            Path(args.candidate_manifest), candidate_root, "candidate artifact manifest"
-        )
-        verify_helpers()
-        verify_apparmor_profile()
-        verify_checkout(repo, trusted_base_sha, args.runner_uid, args.runner_gid)
-        helper_descriptor, _ = trusted_base_file_descriptor(
-            repo,
-            trusted_base_sha,
-            BASE_DRIVER_RELATIVE,
-            args.runner_uid,
-            args.runner_gid,
-            "trusted Base NGINX helper",
-        )
-        trusted_base_descriptors["helper"] = helper_descriptor
-        dispatcher = dispatcher_manifest(dispatcher_path, trusted_base_sha)
-        candidate = candidate_manifest(candidate_path, dispatcher)
-        artifacts, artifact_descriptors = admit_candidate_bundle(candidate_root, candidate)
-        suffix = f"{os.getpid():x}"
-        identity = create_identity(suffix)
-        worker_name, worker_group = identity
-        worker = pwd.getpwnam(worker_name)
-        worker_uid = worker.pw_uid
-        runner = pwd.getpwuid(args.runner_uid)
-        group = grp.getgrnam(worker_group)
-        if worker.pw_uid in {0, args.runner_uid} or group.gr_gid in {0, args.runner_gid}:
-            fail("dedicated identity collides with runner or root")
-        mapping = SubordinateMapping(
-            runner_name=runner.pw_name,
-            runner_uid=args.runner_uid,
-            worker_uid=worker.pw_uid,
-            worker_gid=group.gr_gid,
-        )
-        establish_subordinate_mapping(mapping)
-        binary = candidate_root / "nginx"
-        module = candidate_root / "ngx_http_modsecurity_module.so"
-        library = candidate_root / "libmodsecurity.so.3"
-        prepare_trusted_cells(
-            cell,
-            module,
-            worker_name,
-            worker_group,
-            args.runner_uid,
-            args.runner_gid,
-        )
-        outer_env = {
-            "PATH": "/usr/sbin:/usr/bin:/sbin:/bin",
-            "LC_ALL": "C",
-            "LANG": "C",
-            "HOME": "/nonexistent",
-        }
-        sandbox_env = {
-            **outer_env,
-            "NGINX_EXACT_HEAD_IN_ROOT_LAUNCHER": "1",
-            "NGINX_EXACT_HEAD_TRUSTED_BASE_ROOT": "/trusted-base",
-            "NGINX_EXACT_HEAD_SCRATCH_ROOT": str(cell),
-            "NGINX_BINARY": str(binary),
-            "NGINX_MODULE": str(module),
-            "MODSECURITY_LIB_DIR": str(candidate_root),
-            # This path is entirely Base-selected and FD-backed below; it is
-            # not inherited from the job or accepted from candidate metadata.
-            "LD_LIBRARY_PATH": str(candidate_root),
-            "NGINX_WORKER_USER": worker_name,
-            "NGINX_WORKER_GROUP": worker_group,
-            # Do not expose a conventional public temporary directory inside
-            # the candidate sandbox.  The mount is fresh and private to this
-            # one cell, while standard temporary-file consumers still receive
-            # an explicit writable location.
-            "TMPDIR": str(SANDBOX_TMPDIR),
-        }
-        # The outer transition intentionally does not set no_new_privs: the
-        # trusted util-linux mapper must invoke the setuid uidmap helpers to
-        # create the one explicit secondary identity map.  It changes to a
-        # nonzero host UID without keep-caps and clears inheritable/ambient
-        # sets before any checked-out command is reachable.  The inner
-        # transition, after mapping, enables no_new_privs and narrows the
-        # namespace capability set before bubblewrap can execute the harness.
-        command = [HELPERS["aa-exec"], "-p", APPARMOR_PROFILE_NAME, "--", HELPERS["setpriv"], f"--reuid={args.runner_uid}", f"--regid={args.runner_gid}", "--clear-groups", "--inh-caps=-all", "--ambient-caps=-all",
-                   "--", HELPERS["unshare"], "--user", "--map-user", "0", "--map-group", "0", "--map-users", f"{worker.pw_uid}:{worker.pw_uid}:1",
-                   "--map-groups", f"{group.gr_gid}:{group.gr_gid}:1", "--setgroups", "allow", "--keep-caps", "--mount", "--pid", "--fork",
-                   "--kill-child=SIGKILL", "--mount-proc=/proc", "--propagation", "private", HELPERS["setpriv"],
-                   "--clear-groups", "--no-new-privs", "--inh-caps=-all", "--ambient-caps=-all",
-                   "--bounding-set=-all,+chown,+setgid,+setuid,+sys_admin", "--", HELPERS["bwrap"],
-                   "--die-with-parent", "--new-session", "--unshare-pid", "--unshare-net", "--unshare-ipc", "--unshare-uts",
-                   "--disable-userns", "--assert-userns-disabled", "--tmpfs", "/", "--dir", "/proc", "--dir", "/dev",
-                   "--dir", "/usr", "--dir", "/bin", "--dir", "/lib", "--dir", "/lib64",
-                   "--dir", "/etc", "--dir", "/run", "--proc", "/proc", "--dev", "/dev", "--tmpfs", str(SANDBOX_TMPDIR),
-                   "--ro-bind", "/usr", "/usr", "--ro-bind", "/bin", "/bin",
-                   "--ro-bind", "/lib", "/lib", "--ro-bind", "/lib64", "/lib64", "--ro-bind", "/etc", "/etc",
-                   "--ro-bind", str(scratch_root), str(scratch_root),
-                   "--ro-bind", str(candidate_root), str(candidate_root),
-                   "--ro-bind-fd", str(trusted_base_descriptors["helper"]), str(SANDBOX_BASE_HELPER),
-                   "--ro-bind-fd", str(artifact_descriptors["nginx"]), str(binary),
-                   "--ro-bind-fd", str(artifact_descriptors["module"]), str(module),
-                   "--ro-bind-fd", str(artifact_descriptors["library"]), str(library),
-                   "--ro-bind-fd", str(artifact_descriptors["manifest"]), str(candidate_path),
-                   "--bind", str(cell), str(cell),
-                   "--ro-bind", str(cell / "on" / "config"), str(cell / "on" / "config"),
-                   "--ro-bind", str(cell / "off" / "config"), str(cell / "off" / "config"),
-                   "--chdir", "/", "--clearenv", "--cap-drop", "ALL", "--cap-add", "CAP_CHOWN",
-                   "--cap-add", "CAP_SETGID", "--cap-add", "CAP_SETUID"]
-        for key, value in sorted(sandbox_env.items()):
-            command.extend(("--setenv", key, value))
-        command.extend(("--", HELPERS["sh"], str(SANDBOX_BASE_HELPER),
-                        str(candidate_root), str(candidate_path), str(cell)))
-        enable_child_subreaper()
-        process = subprocess.Popen(
-            validated_command(command),
-            env=outer_env,
-            pass_fds=tuple(artifact_descriptors.values()) + tuple(trusted_base_descriptors.values()),
-            preexec_fn=apply_sandbox_limits,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        expected_identity = IdentityExpectations(args.runner_uid, args.runner_gid, worker.pw_uid, group.gr_gid)
-        identity_evidence: list[dict[str, object]] = []
-        observed_status: dict[str, int] = {}
-        for mode in ("on", "off"):
-            observed_identity = wait_mode(
-                cell,
-                mode,
-                expected_identity,
-                binary,
-                artifacts["nginx"],
-                module,
-                worker_name,
-                worker_group,
-                process,
-            )
-            try:
-                master_pidfd = observed_identity.get("master_pidfd")
-                if type(master_pidfd) is not int:
-                    fail("validated identity lacks a master pidfd")
-                observed_status[mode] = trusted_http_status(master_pidfd)
-            finally:
-                close_identity_pidfd(observed_identity)
-            identity_evidence.append(observed_identity)
-            mark_request_complete(cell, mode, observed_status[mode])
-        validate_exit_status(process.wait(timeout=SUPERVISOR_TIMEOUT))
-        for key, descriptor in artifact_descriptors.items():
-            if key == "manifest":
-                continue
-            if admitted_artifact_identity(descriptor, f"candidate {key} artifact") != artifacts[key]:
-                fail(f"admitted candidate {key} artifact changed during isolated runtime")
-        runtime_evidence = [
-            mode_evidence(cell, mode, observed_status[mode]) for mode in ("on", "off")
-        ]
-        publish_evidence(evidence_root, dispatcher, expected_identity, identity_evidence,
-                         artifacts, runtime_evidence)
-        evidence_published = True
-    except BaseException as exc:
+        artifacts, expected, _, _, context = _prepare_launcher(args, state)
+        _execute_launcher(args, state, artifacts, expected, context)
+    except (LauncherError, OSError, KeyError, ValueError, subprocess.SubprocessError) as exc:
         primary = exc
     finally:
-        cleanup_errors: list[str] = []
-        for key, descriptor in tuple(artifact_descriptors.items()):
-            try:
-                os.close(descriptor)
-            except OSError as exc:
-                cleanup_errors.append(f"{key} descriptor: {exc}")
-        for key, descriptor in tuple(trusted_base_descriptors.items()):
-            try:
-                os.close(descriptor)
-            except OSError as exc:
-                cleanup_errors.append(f"trusted Base {key} descriptor: {exc}")
-        runtime_quiescent = process is None
-        if process is not None:
-            try:
-                terminate_runtime_process(process)
-            except BaseException as exc:
-                cleanup_errors.append(f"runtime process: {exc}")
-            else:
-                runtime_quiescent = True
-        if runtime_quiescent and worker_uid is not None:
-            try:
-                require_no_dedicated_worker_processes(worker_uid)
-            except BaseException as exc:
-                cleanup_errors.append(f"dedicated worker processes: {exc}")
-                runtime_quiescent = False
-        identity_cleaned = identity is None
-        if runtime_quiescent and identity is not None:
-            try:
-                cleanup_identity(*identity)
-            except BaseException as exc:
-                cleanup_errors.append(f"dedicated identity: {exc}")
-            else:
-                identity_cleaned = True
-        if runtime_quiescent and mapping is not None and identity_cleaned:
-            try:
-                cleanup_subordinate_mapping(mapping)
-            except BaseException as exc:
-                cleanup_errors.append(f"subordinate mapping: {exc}")
-        elif runtime_quiescent and mapping is not None:
-            cleanup_errors.append("subordinate mapping retained because identity cleanup failed")
-        if runtime_quiescent and scratch_root is not None and (scratch_root.exists() or scratch_root.is_symlink()):
-            try:
-                if scratch_root.is_symlink():
-                    scratch_root.unlink()
-                elif scratch_root.is_dir():
-                    shutil.rmtree(scratch_root)
-                else:
-                    fail("root launcher scratch changed into an unsafe file")
-            except BaseException as exc:
-                cleanup_errors.append(f"runtime cell: {exc}")
-        elif not runtime_quiescent:
-            cleanup_errors.append(
-                "runtime ownership was not quiescent; retained identity, mapping, and cell"
-            )
-        if (
-            not evidence_published
-            and evidence_root is not None
-            and (evidence_root.exists() or evidence_root.is_symlink())
-        ):
-            try:
-                metadata = evidence_root.lstat()
-                if (
-                    stat.S_ISLNK(metadata.st_mode)
-                    or not stat.S_ISDIR(metadata.st_mode)
-                    or metadata.st_uid != 0
-                    or metadata.st_gid != 0
-                ):
-                    fail("failed-run evidence root changed into an unsafe path")
-                shutil.rmtree(evidence_root)
-            except BaseException as exc:
-                cleanup_errors.append(f"failed-run evidence: {exc}")
+        cleanup_errors = _cleanup_launcher(state)
         if cleanup_errors:
             cleanup_message = "; ".join(cleanup_errors)
             if primary is None:

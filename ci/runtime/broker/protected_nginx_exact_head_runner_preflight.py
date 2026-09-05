@@ -21,15 +21,21 @@ import subprocess
 import sys
 
 
-SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
+SHA40_RE = re.compile(r"^(?a:[\da-f]{40})$")
 ROLES = frozenset({"candidate-build", "privileged"})
+_CANDIDATE_TASK_ROOT_NAME = "protected-exact-head-build"
+_PRIVILEGED_TASK_ROOT_NAME = "protected-exact-head-runtime"
+_ROLE_TASK_DIRECTORIES = {
+    "candidate-build": (("dispatcher",),),
+    "privileged": (("inputs", "dispatcher"), ("inputs", "candidate")),
+}
 REQUIRED_ENV = {
     "PATH": "/usr/bin:/bin",
     "HOME": "/nonexistent",
     "LANG": "C",
     "LC_ALL": "C",
 }
-OPTIONAL_ENV = frozenset({"RUNNER_TEMP"})
+OPTIONAL_ENV = frozenset({"RUNNER_TEMP", "GITHUB_WORKSPACE"})
 HOST_CONTROL_PATHS = (
     Path("/var/run/docker.sock"),
     Path("/run/docker.sock"),
@@ -85,6 +91,138 @@ def no_symlink_chain(path: Path, label: str, *, missing_leaf: bool = False) -> P
     return path
 
 
+def _task_root_name(role: str) -> str:
+    if role == "candidate-build":
+        return _CANDIDATE_TASK_ROOT_NAME
+    if role == "privileged":
+        return _PRIVILEGED_TASK_ROOT_NAME
+    fail("runner role is unsupported")
+
+
+def _runner_temp_path() -> Path:
+    return no_symlink_chain(Path(os.environ["RUNNER_TEMP"]), "RUNNER_TEMP")
+
+
+def _open_private_runner_temp() -> tuple[Path, int]:
+    runner_temp = _runner_temp_path()
+    descriptor = -1
+    try:
+        descriptor = os.open(
+            runner_temp,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+        )
+        metadata = os.fstat(descriptor)
+        if (
+            not stat.S_ISDIR(metadata.st_mode)
+            or metadata.st_uid != os.geteuid()
+            or metadata.st_gid != os.getegid()
+            or metadata.st_mode & 0o022
+        ):
+            fail("RUNNER_TEMP is not a private runner-owned directory")
+        result = descriptor
+        descriptor = -1
+        return runner_temp, result
+    except OSError as exc:
+        fail(f"cannot open RUNNER_TEMP: {exc}")
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+
+def _require_fresh_private_task_root(descriptor: int) -> None:
+    metadata = os.fstat(descriptor)
+    if (
+        not stat.S_ISDIR(metadata.st_mode)
+        or metadata.st_uid != os.geteuid()
+        or metadata.st_gid != os.getegid()
+        or stat.S_IMODE(metadata.st_mode) != 0o700
+    ):
+        fail("task root is not private to the invoking runner identity")
+    if os.listdir(descriptor):
+        fail("task root must be fresh")
+
+
+def _open_or_create_private_task_root(role: str) -> tuple[Path, int]:
+    runner_temp, parent_descriptor = _open_private_runner_temp()
+    name = _task_root_name(role)
+    descriptor = -1
+    try:
+        try:
+            before = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+        except FileNotFoundError:
+            try:
+                os.mkdir(name, mode=0o700, dir_fd=parent_descriptor)
+            except OSError as exc:
+                fail(f"cannot create private task root: {exc}")
+            before = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+        if stat.S_ISLNK(before.st_mode):
+            fail("task root is not a non-symlink directory")
+        descriptor = os.open(
+            name,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+            dir_fd=parent_descriptor,
+        )
+        opened = os.fstat(descriptor)
+        if (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino):
+            fail("task root changed while being opened")
+        _require_fresh_private_task_root(descriptor)
+        result = descriptor
+        descriptor = -1
+        return runner_temp / name, result
+    except OSError as exc:
+        fail(f"cannot open private task root: {exc}")
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        os.close(parent_descriptor)
+
+
+def _require_private_task_directory(descriptor: int) -> None:
+    metadata = os.fstat(descriptor)
+    if (
+        not stat.S_ISDIR(metadata.st_mode)
+        or metadata.st_uid != os.geteuid()
+        or metadata.st_gid != os.getegid()
+        or stat.S_IMODE(metadata.st_mode) != 0o700
+    ):
+        fail("protected run directory has unsafe ownership or mode")
+
+
+def _create_private_task_directory(
+    task_descriptor: int, components: tuple[str, ...]
+) -> None:
+    descriptor = os.dup(task_descriptor)
+    try:
+        for index, name in enumerate(components):
+            try:
+                before = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+            except FileNotFoundError:
+                os.mkdir(name, mode=0o700, dir_fd=descriptor)
+                before = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+            else:
+                if index == len(components) - 1:
+                    fail("protected run directory is not fresh")
+            if not stat.S_ISDIR(before.st_mode) or stat.S_ISLNK(before.st_mode):
+                fail("protected run directory is not a non-symlink directory")
+            child = os.open(
+                name,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                dir_fd=descriptor,
+            )
+            opened = os.fstat(child)
+            if (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino):
+                os.close(child)
+                fail("protected run directory changed while being opened")
+            _require_private_task_directory(child)
+            previous = descriptor
+            descriptor = child
+            os.close(previous)
+    except OSError as exc:
+        fail(f"cannot create protected run directory: {exc}")
+    finally:
+        os.close(descriptor)
+
+
 def require_scrubbed_environment() -> None:
     allowed = set(REQUIRED_ENV) | set(OPTIONAL_ENV)
     unexpected = set(os.environ) - allowed
@@ -96,6 +234,8 @@ def require_scrubbed_environment() -> None:
     runner_temp = os.environ.get("RUNNER_TEMP")
     if not runner_temp:
         fail("runner environment lacks RUNNER_TEMP")
+    if not os.environ.get("GITHUB_WORKSPACE"):
+        fail("runner environment lacks GITHUB_WORKSPACE")
     no_symlink_chain(Path(runner_temp), "RUNNER_TEMP")
 
 
@@ -112,73 +252,60 @@ def reject_host_control_sockets() -> None:
         fail("runner exposes a host-control socket path")
 
 
-def require_private_task_root(value: str) -> Path:
-    root = no_symlink_chain(Path(value), "task root", missing_leaf=True)
-    runner_temp = no_symlink_chain(Path(os.environ["RUNNER_TEMP"]), "RUNNER_TEMP")
+def require_private_task_root(role: str = "candidate-build") -> Path:
+    root, descriptor = _open_or_create_private_task_root(role)
     try:
-        root.relative_to(runner_temp)
-    except ValueError:
-        fail("task root must be below RUNNER_TEMP")
-    if root.exists():
-        require_existing_task_root(root)
-    else:
-        create_private_task_root(root)
-    return root
+        return root
+    finally:
+        os.close(descriptor)
 
 
-def require_existing_task_root(root: Path) -> None:
-    metadata = root.lstat()
-    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
-        fail("task root is not a non-symlink directory")
-    if (
-        metadata.st_uid != os.geteuid()
-        or metadata.st_gid != os.getegid()
-        or metadata.st_mode & 0o077
-    ):
-        fail("task root is not private to the invoking runner identity")
-    if any(root.iterdir()):
-        fail("task root must be fresh")
+def _base_repo_path() -> Path:
+    value = os.environ.get("GITHUB_WORKSPACE")
+    if not value:
+        fail("trusted Base checkout is unavailable")
+    return no_symlink_chain(Path(value), "trusted Base checkout")
 
 
-def create_private_task_root(root: Path) -> None:
+def require_base_checkout(expected_sha: str) -> Path:
+    root = _base_repo_path()
+    descriptor = -1
     try:
-        root.mkdir(mode=0o700)
-    except OSError as exc:
-        fail(f"cannot create private task root: {exc}")
-    metadata = root.lstat()
-    if (
-        stat.S_IMODE(metadata.st_mode) != 0o700
-        or metadata.st_uid != os.geteuid()
-        or metadata.st_gid != os.getegid()
-    ):
-        fail("new task root does not have private ownership or mode")
-
-
-def require_base_checkout(value: str, expected_sha: str) -> Path:
-    root = no_symlink_chain(Path(value), "trusted Base checkout")
-    metadata = root.lstat()
-    if not stat.S_ISDIR(metadata.st_mode) or metadata.st_mode & 0o022:
-        fail("trusted Base checkout is not a safe directory")
-    git = Path("/usr/bin/git")
-    try:
-        git_stat = git.lstat()
-    except OSError as exc:
-        fail(f"fixed git is unavailable: {exc}")
-    if not stat.S_ISREG(git_stat.st_mode) or git_stat.st_mode & 0o022:
-        fail("fixed git executable is unsafe")
-    try:
-        completed = subprocess.run(
-            [os.fspath(git), "-C", os.fspath(root), "rev-parse", "HEAD^{commit}"],
-            check=False,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True,
-            env=dict(REQUIRED_ENV),
-            timeout=15,
+        descriptor = os.open(
+            root,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
         )
-    except (OSError, subprocess.SubprocessError) as exc:
-        fail(f"cannot verify trusted Base checkout: {exc}")
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISDIR(metadata.st_mode) or metadata.st_mode & 0o022:
+            fail("trusted Base checkout is not a safe directory")
+        git = Path("/usr/bin/git")
+        try:
+            git_stat = git.lstat()
+        except OSError as exc:
+            fail(f"fixed git is unavailable: {exc}")
+        if not stat.S_ISREG(git_stat.st_mode) or git_stat.st_mode & 0o022:
+            fail("fixed git executable is unsafe")
+        try:
+            completed = subprocess.run(
+                [os.fspath(git), "rev-parse", "HEAD^{commit}"],
+                check=False,
+                cwd=f"/proc/self/fd/{descriptor}",
+                pass_fds=(descriptor,),
+                shell=False,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                env=dict(REQUIRED_ENV),
+                timeout=15,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            fail(f"cannot verify trusted Base checkout: {exc}")
+    except OSError as exc:
+        fail(f"cannot open trusted Base checkout: {exc}")
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
     observed = completed.stdout.strip()
     if completed.returncode != 0 or observed != require_sha40(expected_sha, "trusted Base SHA"):
         fail("trusted Base checkout is not at the expected immutable revision")
@@ -202,32 +329,29 @@ def require_host_gate() -> Path:
     return gate
 
 
-def prepare(role: str, task_root: str, base_repo_root: str, trusted_base_sha: str) -> Path:
+def prepare(role: str, trusted_base_sha: str) -> Path:
     if role not in ROLES:
         fail("runner role is unsupported")
     trusted_base_sha = require_sha40(trusted_base_sha, "trusted Base SHA")
     require_scrubbed_environment()
     reject_host_control_sockets()
-    require_base_checkout(base_repo_root, trusted_base_sha)
+    require_base_checkout(trusted_base_sha)
     if role == "privileged":
         require_host_gate()
-    root = require_private_task_root(task_root)
-    # These paths are prepared before any candidate checkout/build and are
-    # deliberately direct, private children of the fresh run root.
-    for name in ("candidate", "artifacts", "evidence", "logs"):
-        child = root / name
-        try:
-            child.mkdir(mode=0o700)
-        except OSError as exc:
-            fail(f"cannot create protected run directory: {exc}")
-    return root
+    root, descriptor = _open_or_create_private_task_root(role)
+    try:
+        # The fixed children are created through the retained task-root FD,
+        # before candidate checkout or build code can execute.
+        for components in _ROLE_TASK_DIRECTORIES[role]:
+            _create_private_task_directory(descriptor, components)
+        return root
+    finally:
+        os.close(descriptor)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--role", choices=sorted(ROLES), required=True)
-    parser.add_argument("--task-root", required=True)
-    parser.add_argument("--base-repo-root", required=True)
     parser.add_argument("--trusted-base-sha", required=True)
     return parser.parse_args(argv)
 
@@ -235,8 +359,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     try:
         arguments = parse_args(argv)
-        prepare(arguments.role, arguments.task_root, arguments.base_repo_root,
-                arguments.trusted_base_sha)
+        prepare(arguments.role, arguments.trusted_base_sha)
     except PreflightError as exc:
         print(f"protected exact-head runner preflight: {exc}", file=sys.stderr)
         return 1
