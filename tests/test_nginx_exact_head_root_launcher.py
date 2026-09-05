@@ -146,6 +146,22 @@ class RootLauncherContractTests(unittest.TestCase):
             finally:
                 os.close(descriptor)
 
+    def test_retained_control_parent_rejects_a_symlink_component(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            cell = Path(temporary) / "cell"
+            outside = Path(temporary) / "outside"
+            cell.mkdir()
+            outside.mkdir()
+            (cell / "escape").symlink_to(outside, target_is_directory=True)
+            descriptor = os.open(cell, os.O_RDONLY | os.O_DIRECTORY)
+            target = Path(f"/proc/self/fd/{descriptor}") / "escape" / "release.json"
+            try:
+                with self.assertRaises(LAUNCHER.LauncherError):
+                    LAUNCHER.atomic_json(target, {"safe": True})
+                self.assertFalse((outside / "release.json").exists())
+            finally:
+                os.close(descriptor)
+
     def test_cleanup_replacement_is_rejected_without_deleting_replacement(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             parent = Path(temporary)
@@ -299,10 +315,12 @@ class RootLauncherContractTests(unittest.TestCase):
             metadata = child.lstat()
             self.assertTrue(stat.S_ISDIR(metadata.st_mode))
             self.assertEqual(stat.S_IMODE(metadata.st_mode), 0o700)
+            user_id = os.getuid()
+            group_id = os.getgid()
             with self.assertRaises(LAUNCHER.LauncherError):
                 LAUNCHER.create_owned_child_directory(
-                    parent, "fresh", os.getuid(), os.getgid(), 0o700,
-                    "duplicate child", os.getuid(), os.getgid()
+                    parent, "fresh", user_id, group_id, 0o700,
+                    "duplicate child", user_id, group_id
                 )
 
     def test_path_containment_rejects_symlink_escape_and_parent_traversal(self) -> None:

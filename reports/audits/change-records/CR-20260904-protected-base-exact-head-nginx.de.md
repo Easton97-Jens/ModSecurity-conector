@@ -8,7 +8,7 @@
 | Datum (UTC) | 2026-09-04 |
 | Basis-Revision | `b779167ff979aa73cdd9321a829f9c693d943760` |
 | Umfang | Parent-only-Vorbereitung für unabhängige NGINX-Exact-Head-Evidence über geschützte Base |
-| Auslieferungsstatus | Draft-PR #355; normaler `origin/master`-Merge `acc0ca1d22fd8a452453e66f51115ce026517b52` ist abgeschlossen; Push und Exact-Head-Read-back stehen aus; keine Merge-Autorisierung |
+| Auslieferungsstatus | Draft-PR #355; normaler `origin/master`-Merge `acc0ca1d22fd8a452453e66f51115ce026517b52` ist abgeschlossen; der `c8f1…`-Read-back hat 20 verbleibende Sonar-Code-Smells gezeigt, und Push/Read-back des normalen Remediation-Successors stehen noch aus; keine Merge-Autorisierung |
 | Candidate | PR #355; finaler exakter Head muss beim Dispatch aufgelöst und zurückgelesen werden |
 
 ## Zweck
@@ -29,10 +29,13 @@ Source-Änderungen ergänzen descriptor-sichere Pfad-/FD-Ownership,
 rollenbezogene private Task-Verzeichnisse, Root/Candidate-Trennung und enge
 Cleanup-Behandlung samt fokussierten Negativtests und zweisprachigem
 Review-Paket. Der normale Merge des aktuellen `origin/master` wurde als
-`acc0ca1d22fd8a452453e66f51115ce026517b52` abgeschlossen. Read-back des
-gepushten Heads, frische Sonar-Analyse und gehostete Exact-Head-Runtime-
-Evidence stehen aus und dürfen erst nach Beobachtung eingetragen werden. Das externe Security-Diff-Archiv bleibt
-unter FND-PARENT-1036 `blocked_external_dependency`.
+`acc0ca1d22fd8a452453e66f51115ce026517b52` abgeschlossen. Der gepushte
+Head-Read-back für `c8f1a00a5d45cbc5c4a7e52e1da17e8611e767db` wurde
+beobachtet, seine frische Sonar-Analyse zeigte jedoch 20 offene Code Smells und
+gilt nicht als finale Evidence. Read-back des normalen Remediation-Successors,
+frische Sonar-Analyse und gehostete Exact-Head-Runtime-Evidence stehen weiter
+aus und dürfen erst nach Beobachtung eingetragen werden. Das externe Security-
+Diff-Archiv bleibt unter FND-PARENT-1036 `blocked_external_dependency`.
 
 Der Branch-only-Checkpoint ist ein normaler Merge von aktuellem
 `origin/master` `2b3d7f7f0bec006b236b5998d011069c9125033f` in den Draft-PR-
@@ -57,10 +60,33 @@ behoben behauptet.
 
 Ein geschützter Hosted-Runtime-Lauf und eine unabhängige Host-Attestierung sind
 in diesem Checkout nicht verfügbar. Finaler Commit-SHA, GitHub-Read-back,
-Hosted-Runtime und frische Sonar-Ergebnisse stehen aus und müssen nach ihrer
-Beobachtung in einem PR-Kommentar nach dem Push festgehalten werden. Das
-externe Archiv bleibt `blocked_external_dependency` (FND-PARENT-1036); kein
-alter Run wird migriert oder finalisiert.
+Hosted-Runtime und frische Sonar-Ergebnisse des aktuellen Remediation-
+Successors stehen aus und müssen nach ihrer Beobachtung in einem PR-Kommentar
+nach dem Push festgehalten werden. Das externe Archiv bleibt
+`blocked_external_dependency` (FND-PARENT-1036); kein alter Run wird migriert
+oder finalisiert.
+
+## Aktuelle Exact-Head-Sonar-Remediation
+
+Die exakte PR-Analyse für
+`c8f1a00a5d45cbc5c4a7e52e1da17e8611e767db` um `2026-09-05T08:25:15Z` hatte
+Quality Gate `OK`, New-Code-Ratings `A` sowie null Bugs, Vulnerabilities und
+Hotspots, lieferte jedoch weiterhin 20 `OPEN` Code Smells. Das Gate ist daher
+kein Abschlussnachweis. Der aktuelle Source-/Test-Successor behebt jeden Key
+durch Code-/Test-Remediation, nicht durch Scanner-Disposition: Collector
+`AaBwrYPNwqJS101QKLQy`; Launcher `AaBwrYH-wqJS101QKLQk`,
+`AaBwrYH-wqJS101QKLQm`, `AaBwrYH-wqJS101QKLQn`,
+`AaBwrYH-wqJS101QKLQo`, `AaBwrYH-wqJS101QKLQl`,
+`AaBwrYH-wqJS101QKLQq`, `AaBwrYH-wqJS101QKLQr`,
+`AaBwrYH-wqJS101QKLQs`, `AaBwrYH-wqJS101QKLQi`,
+`AaBwrYH-wqJS101QKLQj`, `AaBwrYH-wqJS101QKLQt`,
+`AaBwrYH-wqJS101QKLQu`, `AaBwrYH-wqJS101QKLQv`,
+`AaBs7c4JmWRUlaV2mVXd`, `AaBwrYH-wqJS101QKLQw`,
+`AaBwrYH-wqJS101QKLQp` und `AaBsRF5SmWRUlaV2f7fu`; Dispatcher
+`AaBwrYOpwqJS101QKLQx`; sowie Launcher-Test `AaBwrYQAwqJS101QKLQz`. Das
+zweisprachige Review-Paket enthält die Source-/Regression-Matrix. Eine neue
+Exact-Head-Analyse muss alle Keys als nicht mehr vorhanden ausweisen, bevor
+dieser Record oder der PR ein Null-Issue-Ergebnis behaupten kann.
 
 ## Historischer Successor-Checkpoint — `fa9064a5`
 

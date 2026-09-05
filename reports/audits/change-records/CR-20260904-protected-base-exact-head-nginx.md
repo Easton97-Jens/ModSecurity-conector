@@ -8,7 +8,7 @@
 | Date (UTC) | 2026-09-04 |
 | Base revision | `b779167ff979aa73cdd9321a829f9c693d943760` |
 | Scope | Parent-only protected-base preparation for independent NGINX exact-head evidence |
-| Delivery status | Draft PR #355; normal `origin/master` merge `acc0ca1d22fd8a452453e66f51115ce026517b52` is complete; push and exact-head read-back remain pending; no merge authorization |
+| Delivery status | Draft PR #355; normal `origin/master` merge `acc0ca1d22fd8a452453e66f51115ce026517b52` is complete; the `c8f1…` read-back exposed 20 remaining Sonar code smells, and the normal remediation-successor push/read-back remains pending; no merge authorization |
 | Candidate | PR #355, exact final head must be resolved and read back at dispatch time |
 
 ## Purpose
@@ -30,8 +30,12 @@ descriptor-safe path/FD ownership, role-specific private task directories,
 root/candidate separation, and narrow cleanup handling, with focused negative
 tests and the bilingual review package. The normal merge of current
 `origin/master` completed as `acc0ca1d22fd8a452453e66f51115ce026517b52`.
-Pushed-head read-back, fresh Sonar analysis, and hosted exact-head runtime
-evidence are pending and must be recorded only after they are observed. The external Security-Diff archive remains
+The pushed-head read-back for
+`c8f1a00a5d45cbc5c4a7e52e1da17e8611e767db` was observed, but its fresh
+Sonar analysis exposed 20 open code smells and is not accepted as final
+evidence. The normal remediation-successor read-back, fresh Sonar analysis,
+and hosted exact-head runtime evidence remain pending and must be recorded
+only after they are observed. The external Security-Diff archive remains
 `blocked_external_dependency` under FND-PARENT-1036.
 
 The branch-only checkpoint is a normal merge of current `origin/master`
@@ -54,11 +58,32 @@ supervision, and evidence binding. FND-PARENT-1038 remains `in_progress`; these 
 not claimed fixed until the required exact-head review evidence exists.
 
 No hosted protected runtime or independent host attestation is available in
-this checkout. Final commit SHA, GitHub read-back, hosted runtime, and fresh
-Sonar results are pending and must be recorded in a post-push PR comment after
-they are observed. The external archive remains
+this checkout. The current remediation successor's final commit SHA, GitHub
+read-back, hosted runtime, and fresh Sonar results are pending and must be
+recorded in a post-push PR comment after they are observed. The external archive remains
 `blocked_external_dependency` (FND-PARENT-1036); no old run is migrated or
 finalized.
+
+## Current exact-head Sonar remediation
+
+The exact `c8f1a00a5d45cbc5c4a7e52e1da17e8611e767db` PR analysis at
+`2026-09-05T08:25:15Z` had Quality Gate `OK`, new-code `A` ratings, and zero
+bugs, vulnerabilities, and hotspots, but it still returned 20 `OPEN` code
+smells. The gate is therefore not completion evidence. The current source/test
+successor addresses every key through code/test remediation, not a scanner
+disposition: collector `AaBwrYPNwqJS101QKLQy`; launcher
+`AaBwrYH-wqJS101QKLQk`, `AaBwrYH-wqJS101QKLQm`,
+`AaBwrYH-wqJS101QKLQn`, `AaBwrYH-wqJS101QKLQo`,
+`AaBwrYH-wqJS101QKLQl`, `AaBwrYH-wqJS101QKLQq`,
+`AaBwrYH-wqJS101QKLQr`, `AaBwrYH-wqJS101QKLQs`,
+`AaBwrYH-wqJS101QKLQi`, `AaBwrYH-wqJS101QKLQj`,
+`AaBwrYH-wqJS101QKLQt`, `AaBwrYH-wqJS101QKLQu`,
+`AaBwrYH-wqJS101QKLQv`, `AaBs7c4JmWRUlaV2mVXd`,
+`AaBwrYH-wqJS101QKLQw`, `AaBwrYH-wqJS101QKLQp`, and
+`AaBsRF5SmWRUlaV2f7fu`; dispatcher `AaBwrYOpwqJS101QKLQx`; and launcher test
+`AaBwrYQAwqJS101QKLQz`. The bilingual review package contains the source/
+regression matrix. A new exact-head analysis must show all of them absent
+before this record or the PR can claim a zero-issue result.
 
 ## Historical successor checkpoint — `fa9064a5`
 

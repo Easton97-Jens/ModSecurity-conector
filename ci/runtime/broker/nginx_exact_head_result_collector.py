@@ -705,7 +705,7 @@ def _publish_terminal_result(
     except OSError as exc:
         try:
             os.unlink(temporary_name, dir_fd=task_descriptor)
-        except (FileNotFoundError, OSError):
+        except OSError:
             pass
         raise CollectorError("could not atomically write result") from exc
 
