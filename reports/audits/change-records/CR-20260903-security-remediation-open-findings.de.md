@@ -794,3 +794,98 @@ Functional A bleibt ausschließlich ein GitHub-hosted-nativer
 Integrationsnachweis, nicht Protected B und keine Auflösung von
 FND-PARENT-1038. FND-PARENT-1036 bleibt `blocked_external_dependency`; PR #354
 bleibt Draft, offen und ungemergt.
+
+### 2026-09-05 Vierter Hosted-Follow-up (Contained-Materialization-Successor ausstehend)
+
+Für den exakten Draft-PR-#354-Head
+`f29fe20fd556b75b96a5fbdcef140bbeb66f5a61` meldet der frische
+SonarCloud-Readback Quality Gate `OK`, null aktive `OPEN`/`CONFIRMED`-
+PR-Issues, null `TO_REVIEW`-Hotspots sowie einen erfolgreichen
+SonarCloud-Check für den exakten Commit.  Der frische fünfzellige
+CRS/no-MRTS-Workflow `33992317099` bestand außerdem für Apache, Envoy,
+HAProxy, Lighttpd und Traefik.  Diese Ergebnisse machen den separaten nativen
+NGINX-Runtime-Nachweis für sich allein nicht erfolgreich.
+
+Der Hosted-Workflow `33992317013` checkte genau diesen Head aus und schloss
+das sudo-/root-gegen-Worker-Preflight, die Initialisierung isolierter Pfade und
+die gepinnte unprivilegierte Provisionierung ab.  Seine erste `on`-Zelle schlug
+dann vor NGINX-Konfigurationsparsing oder Worker-Start fail-closed mit Exit
+`78` fehl: Das Exact-Gate setzte `BUILD_ROOT` auf das Child
+`case_root/build`, während seine generierten Runtime-, Log- und Audit-Pfade
+Sibling-Children des frischen privaten `case_root` waren.  Framework
+`case_cli materialize` wies diese Ziele außerhalb des Output-Roots korrekt
+über seinen unveränderten Containment-Guard ab.  Es gab keinen Out-of-root-
+Write, die `off`-Zelle lief nicht, und es wird kein f29-Erfolg für nativen
+Callback, JSONL, WAF oder die Allow-Kontrolle behauptet.
+
+Der enge Parent-Successor-Kandidat bindet sowohl `VERIFIED_BUILD_ROOT` als
+auch `BUILD_ROOT` an den bereits frischen privaten Root jeder Case, so dass
+alle generierten Runtime-, Log-, Audit-, Harness- und Result-Pfade Children
+desselben vertrauenswürdigen Roots bleiben.  Er ändert weder Framework-Code
+noch lockert er Path-Containment, den äußeren Path-Validator, die bereinigte
+Root-Umgebung oder die Anforderung eines unterschiedlichen Workers.  Eine
+dynamische Regression belegt, dass der Framework-Materializer das
+Common-Root-Layout akzeptiert und das frühere Sibling-Layout weiter abweist;
+sie prüft auch generierte Header-/Body-/Audit-Referenzen.  Das vollständige
+fokussierte Set für NGINX/Common/Event/Lifecycle/Reader/Launcher/Path-Authority/
+Reference bestand 60 Tests, zusammen mit Shell-Syntax, Python-Kompilierung,
+`actionlint`, C-Standard-Wiring und Whitespace-Prüfungen.  Dies sind lokale
+Kandidaten-Ergebnisse, keine Behauptung eines Hosted-Erfolgs.
+
+Der Kandidat benötigt weiterhin einen normalen Successor-Commit und -Push,
+GitHub-Head-Readback, frische C17- und verfügbare Sanitizer-Bewertung, frisches
+SonarCloud, erforderliche Checks, alle fünf CRS/no-MRTS-Runtimes sowie einen
+neuen GitHub-hosted-nativen On/Off-/JSONL-/WAF-/Allow-Lauf auf diesem neuen
+exakten Head.  Functional A bleibt ausschließlich ein GitHub-hosted-nativer
+Integrationsnachweis, nicht Protected B oder eine Auflösung von FND-PARENT-1038;
+FND-PARENT-1036 bleibt `blocked_external_dependency`, und PR #354 bleibt Draft,
+offen und ungemergt.
+
+### 2026-09-05 Fünfter Hosted-Follow-up (worker-traversierbarer Successor ausstehend)
+
+Vor dem Commit des Kandidaten mit enthaltener Materialisierung identifizierte
+ein unabhängiger Source-Review einen weiteren deterministischen Blocker vor
+NGINX. Wenn der Provisioning-`RUN_ROOT` und jede Functional-A-Vorfahre bei
+`0700` blieben, könnte der separate NGINX-Worker korrekterweise nicht zum
+benötigten Docroot sowie zu Worker-State- und Server-Log-Leaves traversieren.
+Den `RUN_ROOT` traversierbar zu machen wäre unsicher, weil er die
+unprivilegierten Build-, Provisioning- und Evidence-Pfade enthält. Dies ist
+zusätzliche aktuelle Evidence für das bestehende Lifecycle-Finding
+`FND-PARENT-0078`, das `in_progress` bleibt; es ist weder ein neues Finding
+noch der Abschluss eines bestehenden Findings.
+
+Der enge Parent-Successor belässt `RUN_ROOT` bei `0700`. Der Workflow erzeugt
+stattdessen unter dem GitHub-Temporary-Root einen frischen Functional-A-Parent
+mit festem Namen als direkten Sibling bei exakt `0711`. Vor dem bereinigten
+Root-Handoff verlangt der Launcher einen absoluten, symlinkfreien,
+vorgesehenen Sibling im Eigentum des Runners, exakt nicht-auflistbaren Modus
+`0711` und eine für den Worker traversierbare Vorfahrenkette. Das ausschließlich
+rootseitige Exact-Gate erstellt anschließend nur die Functional-A-, Mode- und
+Case-Vorfahren als neue root-eigene `0711`-Verzeichnisse. Runtime-Konfiguration,
+Rules, Logs, Audit/Evidence und andere private Leaves behalten ihren bisherigen
+privaten Vertrag; der Harness behält seine vorhandenen engen
+worker-lesbaren Docroot-/State-/Server-Log-Kontrollen. Framework-
+Materialisierung bleibt unter dem gemeinsamen Case-Root, ihr Containment-Guard
+ist unverändert.
+
+Der dedizierte Parent ist ein runner-eigener Bootstrap für den ausdrücklich
+begrenzten Functional-A-GitHub-hosted-Integrationsnachweis. Er ist keine
+Attestierungsgrenze gegen einen bösartigen Runner oder VM-root und wird nicht
+als Protected B ausgegeben. `FND-PARENT-1038` bleibt fixed, aber unverified
+und nicht geschlossen sowie durch diesen Kandidaten unverändert;
+`FND-PARENT-1036` bleibt `blocked_external_dependency`. Es werden keine
+Framework-, MRTS-, Gitlink-, Dependency-, Permission-Policy-, Test-, Sonar-
+oder generischen Path-Authority-Kontrollen geändert.
+
+Die lokale Kandidatenvalidierung bestand 63 fokussierte NGINX/Common/Event/
+Lifecycle/Reader/Launcher/Path-Authority/Reference-Tests, einschließlich einer
+dynamischen Framework-Materialization-Kontrolle gegen den read-only Checkout
+am exakten Framework-Gitlink, der neuen Mode-/Layout-Regression, Shell-Syntax
+für beide NGINX-Harness-Skripte, Python-Kompilierung, `actionlint`,
+C-Standard-Wiring und Whitespace-Checks. Der lokale Container kann die reale
+separate-Worker-`runuser`-Kontrolle nicht ausführen, weil Gruppenwechsel
+abgewiesen werden; daher wird kein lokaler Worker-Runtime-Erfolg behauptet.
+`check-nginx-common-adoption` bleibt nur wegen der zwei unveränderten,
+getrackten FND-PARENT-1010-Basisassertions rot. Dieser Kandidat ist noch nicht
+gepusht; ein normaler Successor-Push und sämtliche frische Exact-Head-Hosted-,
+CRS/no-MRTS-, Required-Check- und Sonar-Evidence bleiben verpflichtend.

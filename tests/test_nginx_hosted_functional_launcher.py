@@ -29,6 +29,7 @@ class HostedFunctionalLauncherTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory()
         self.root = Path(self.tempdir.name)
+        self.root.chmod(0o711)
         connector = self.root / "connectors" / "nginx" / "harness"
         framework_rules = self.root / "modules" / "ModSecurity-test-Framework" / "tests" / "rules"
         connector.mkdir(parents=True)
@@ -39,6 +40,9 @@ class HostedFunctionalLauncherTest(unittest.TestCase):
         exact.chmod(0o700)
         self.verified = self.root / "verified"
         self.verified.mkdir()
+        self.functional_parent = self.root / "ModSecurity-conector-nginx-functional-parent"
+        self.functional_parent.mkdir(mode=0o711)
+        self.functional_parent.chmod(0o711)
         self.prefix = self.verified / "nginx-prefix"
         (self.prefix / "sbin").mkdir(parents=True)
         (self.prefix / "modules").mkdir()
@@ -54,6 +58,7 @@ class HostedFunctionalLauncherTest(unittest.TestCase):
         (self.lib / "libmodsecurity.so").symlink_to("libmodsecurity.so.3")
         self.env = {
             "VERIFIED_RUN_ROOT": str(self.verified),
+            "NGINX_FUNCTIONAL_A_PARENT_ROOT": str(self.functional_parent),
             "NGINX_PREFIX": str(self.prefix),
             "NGINX_BUILD_DIR": str(self.build),
             "MODSECURITY_LIB_DIR": str(self.lib),
@@ -77,7 +82,11 @@ class HostedFunctionalLauncherTest(unittest.TestCase):
         self.assertEqual(assignments["PATH"], "/usr/bin:/bin")
         self.assertEqual(assignments["HOME"], "/nonexistent")
         self.assertEqual(
-            assignments["NGINX_FUNCTIONAL_A_PARENT_ROOT"], str(self.verified)
+            assignments["NGINX_FUNCTIONAL_A_PARENT_ROOT"], str(self.functional_parent)
+        )
+        self.assertEqual(
+            assignments["VERIFIED_RUN_ROOT"],
+            str(self.functional_parent / "nginx-hosted-functional-a"),
         )
         self.assertEqual(
             assignments["NGINX_WORKER_USER"], self.env["NGINX_FUNCTIONAL_WORKER_USER"]
@@ -100,6 +109,37 @@ class HostedFunctionalLauncherTest(unittest.TestCase):
         invalid = dict(self.env, NGINX_PREFIX=str(outside))
         with self.assertRaisesRegex(LAUNCHER_MODULE.FunctionalALaunchError, "below VERIFIED_RUN_ROOT"):
             LAUNCHER_MODULE.build_root_command(invalid)
+
+    def test_rejects_unsafe_or_non_sibling_functional_parent(self) -> None:
+        with self.assertRaisesRegex(
+            LAUNCHER_MODULE.FunctionalALaunchError, "designated sibling"
+        ):
+            LAUNCHER_MODULE.build_root_command(
+                dict(self.env, NGINX_FUNCTIONAL_A_PARENT_ROOT=str(self.verified / "nested"))
+            )
+
+        self.functional_parent.chmod(0o700)
+        with self.assertRaisesRegex(LAUNCHER_MODULE.FunctionalALaunchError, "exactly non-enumerable mode 0711"):
+            LAUNCHER_MODULE.build_root_command(self.env)
+        self.functional_parent.chmod(0o711)
+
+        foreign_owner_parent = self.root / "unexpected-functional-parent"
+        foreign_owner_parent.mkdir(mode=0o711)
+        foreign_owner_parent.chmod(0o711)
+        with self.assertRaisesRegex(LAUNCHER_MODULE.FunctionalALaunchError, "designated sibling"):
+            LAUNCHER_MODULE.build_root_command(
+                dict(self.env, NGINX_FUNCTIONAL_A_PARENT_ROOT=str(foreign_owner_parent))
+            )
+
+        self.root.chmod(0o700)
+        try:
+            with self.assertRaisesRegex(
+                LAUNCHER_MODULE.FunctionalALaunchError,
+                "worker-non-traversable ancestor",
+            ):
+                LAUNCHER_MODULE.build_root_command(self.env)
+        finally:
+            self.root.chmod(0o711)
 
     def test_rejects_symlinked_artifact_path(self) -> None:
         real = self.verified / "real-prefix"

@@ -75,11 +75,20 @@ jobs:
         run: |
           set -eu
           RUN_ROOT="${RUNNER_TEMP:?missing runner temporary root}/ModSecurity-conector-nginx-exact-head"
+          FUNCTIONAL_PARENT_ROOT="${RUNNER_TEMP:?missing runner temporary root}/ModSecurity-conector-nginx-functional-parent"
           /bin/mkdir -p "$RUN_ROOT"
           /bin/chmod 700 "$RUN_ROOT"
+          [ ! -e "$FUNCTIONAL_PARENT_ROOT" ] && [ ! -L "$FUNCTIONAL_PARENT_ROOT" ] || {
+            echo "exact-head gate: functional parent is unexpectedly occupied" >&2
+            exit 1
+          }
+          /bin/mkdir "$FUNCTIONAL_PARENT_ROOT"
+          /bin/chmod 711 "$FUNCTIONAL_PARENT_ROOT"
+          test "$(/usr/bin/stat -c '%a' "$FUNCTIONAL_PARENT_ROOT")" = 711
           {
             echo "RUN_ROOT=$RUN_ROOT"
             echo "VERIFIED_RUN_ROOT=$RUN_ROOT"
+            echo "NGINX_FUNCTIONAL_A_PARENT_ROOT=$FUNCTIONAL_PARENT_ROOT"
             echo "BUILD_ROOT=$RUN_ROOT/build"
             echo "TMP_ROOT=$RUN_ROOT/tmp"
             echo "LOG_ROOT=$RUN_ROOT/logs"
@@ -122,6 +131,7 @@ jobs:
             EXPECTED_PARENT_SHA="$EXPECTED_PARENT_SHA" \
             NGINX_FUNCTIONAL_WORKER_USER="$NGINX_FUNCTIONAL_WORKER_USER" \
             NGINX_FUNCTIONAL_WORKER_GROUP="$NGINX_FUNCTIONAL_WORKER_GROUP" \
+            NGINX_FUNCTIONAL_A_PARENT_ROOT="$NGINX_FUNCTIONAL_A_PARENT_ROOT" \
             VERIFIED_RUN_ROOT="$VERIFIED_RUN_ROOT" \
             BUILD_ROOT="$BUILD_ROOT" TMP_ROOT="$TMP_ROOT" LOG_ROOT="$LOG_ROOT" \
             CONNECTOR_COMPONENT_CACHE="$CONNECTOR_COMPONENT_CACHE" \

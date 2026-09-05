@@ -723,3 +723,89 @@ must be rerun on the next normal successor head.
 Functional A remains a GitHub-hosted native integration test only, not
 Protected B and not a resolution of FND-PARENT-1038.  FND-PARENT-1036 remains
 `blocked_external_dependency`; PR #354 remains Draft, open, and unmerged.
+
+### 2026-09-05 fourth hosted follow-up (contained-materialization successor pending)
+
+For exact Draft PR #354 head
+`f29fe20fd556b75b96a5fbdcef140bbeb66f5a61`, fresh SonarCloud readback reports
+Quality Gate `OK`, zero active `OPEN`/`CONFIRMED` PR issues, zero `TO_REVIEW`
+hotspots, and a successful exact-commit SonarCloud check.  The fresh five-cell
+CRS/no-MRTS workflow `33992317099` also passed Apache, Envoy, HAProxy,
+Lighttpd, and Traefik.  These results do not make the separate native NGINX
+runtime successful by themselves.
+
+Hosted workflow `33992317013` checked out that exact head, completed the
+sudo/root-versus-worker preflight, isolated-path initialization, and pinned
+unprivileged provisioning.  Its first `on` cell then failed closed with exit
+`78` before NGINX configuration parsing or worker startup: the exact gate set
+`BUILD_ROOT` to a `case_root/build` child while its generated runtime, log,
+and audit paths were sibling children of the fresh private `case_root`.
+Framework `case_cli materialize` correctly rejected those out-of-root targets
+through its unchanged containment guard.  No out-of-root write occurred, the
+`off` cell did not run, and there is no f29 native callback, JSONL, WAF, or
+allow-control success claim.
+
+The narrow Parent successor candidate binds both `VERIFIED_BUILD_ROOT` and
+`BUILD_ROOT` to the already fresh private per-case root, so all generated
+runtime, log, audit, harness, and result paths remain descendants of the same
+trusted root.  It neither changes Framework code nor weakens path containment,
+the outer path validator, the scrubbed root environment, or the distinct
+worker requirement.  A dynamic regression proves that the Framework
+materializer accepts the common-root layout and continues to reject the former
+sibling layout; it also checks generated header/body/audit references.  The
+full focused NGINX/Common/event/lifecycle/reader/launcher/path-authority/
+reference set passed 60 tests, together with shell syntax, Python compilation,
+`actionlint`, C-standard wiring, and whitespace checks.  These are local
+candidate results, not a hosted success claim.
+
+The candidate still requires a normal successor commit and push, GitHub head
+readback, fresh C17 and available-sanitizer assessment, fresh SonarCloud,
+required checks, all five CRS/no-MRTS runtimes, and a new GitHub-hosted native
+on/off/JSONL/WAF/allow run on that new exact head.  Functional A remains a
+GitHub-hosted native integration test only, not Protected B or a resolution of
+FND-PARENT-1038; FND-PARENT-1036 remains `blocked_external_dependency`, and
+PR #354 remains Draft, open, and unmerged.
+
+### 2026-09-05 fifth hosted follow-up (worker-traversable successor pending)
+
+Before committing the contained-materialization candidate, an independent
+source review identified another deterministic pre-NGINX blocker. Keeping the
+provisioning `RUN_ROOT` and each Functional-A ancestor private at `0700` would
+correctly prevent the distinct NGINX worker from traversing the path to its
+required docroot, worker-state, and server-log leaves. Making `RUN_ROOT`
+traversable would be unsafe because it contains the unprivileged build,
+provisioning, and evidence paths. This is additional current evidence for the
+existing lifecycle finding `FND-PARENT-0078`, which remains `in_progress`; it
+is neither a new finding nor a closure of any existing finding.
+
+The narrow Parent successor keeps `RUN_ROOT` at `0700`. The workflow instead
+creates one fresh, fixed-name Functional-A parent as a direct sibling under the
+GitHub temporary root at exact mode `0711`. Before the scrubbed root handoff,
+the launcher requires an absolute, symlink-free designated sibling owned by
+the runner, exact non-enumerable `0711` mode, and a worker-traversable ancestor
+chain. The root-only exact gate then creates only the Functional-A, mode, and
+case ancestors as newly root-owned `0711` directories. Runtime configuration,
+rules, logs, audit/evidence, and other private leaves keep their existing
+private contract; the harness retains its existing narrow worker-readable
+docroot/state/server-log controls. Framework materialization remains under the
+common case root and its containment guard is unchanged.
+
+The dedicated parent is a runner-owned bootstrap for the explicitly bounded
+Functional-A GitHub-hosted integration test. It is not a hostile-runner or
+hostile-VM-root attestation boundary and is not represented as Protected B.
+`FND-PARENT-1038` remains fixed but unverified and not closed, unchanged by
+this candidate; `FND-PARENT-1036` remains `blocked_external_dependency`. No
+Framework, MRTS, Gitlink, dependency,
+permission-policy, test, Sonar, or generic path-authority control is changed.
+
+Local candidate validation passed 63 focused NGINX/Common/event/lifecycle/
+reader/launcher/path-authority/reference tests, including a dynamic Framework
+materialization control against the read-only exact Framework gitlink checkout,
+the new mode/layout regression, shell syntax for both NGINX harness scripts,
+Python compilation, `actionlint`, C-standard wiring, and whitespace checks.
+The local container cannot execute the real distinct-worker `runuser` control
+because group changes are denied, so no local worker-runtime success is
+claimed. `check-nginx-common-adoption` remains red only for the two unchanged
+tracked FND-PARENT-1010 baseline assertions. This candidate is not yet pushed;
+a normal successor push and all fresh exact-head hosted, CRS/no-MRTS,
+required-check, and Sonar evidence remain mandatory.

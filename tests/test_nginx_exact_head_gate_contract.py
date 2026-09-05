@@ -102,6 +102,51 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
         self.assertIn("phase4_reload_unsafe", script)
         self.assertNotIn("find ", script)
 
+    def test_each_hosted_case_uses_one_private_materialization_root(self):
+        script = (ROOT / "connectors/nginx/harness/run_exact_head_use_error_log.sh").read_text()
+        case_function = script.split("run_harness_case() {", 1)[1].split(
+            "expect_config_rejection() {", 1
+        )[0]
+
+        self.assertIn('VERIFIED_RUN_ROOT="$mode_root"', case_function)
+        self.assertIn('VERIFIED_BUILD_ROOT="$case_root"', case_function)
+        self.assertIn('BUILD_ROOT="$case_root"', case_function)
+        self.assertNotIn('BUILD_ROOT="$case_root/build"', case_function)
+        for generated_path in (
+            'LOG_ROOT="$case_root/logs"',
+            'RESULTS_DIR="$case_root/results"',
+            'NGINX_HARNESS_PARENT="$case_root/harness-parent"',
+            'NGINX_HARNESS_WORK_ROOT="$case_root/harness"',
+            'RUNTIME_BASE="$case_root/runtime-base"',
+            'RUNTIME_ROOT="$case_root/runtime"',
+            'LOG_DIR="$case_root/logs"',
+        ):
+            self.assertIn(generated_path, case_function)
+
+    def test_hosted_worker_uses_a_dedicated_non_enumerable_functional_parent(self):
+        workflow = (ROOT / ".github/workflows/test-nginx-exact-head.yml").read_text()
+        launcher = (
+            ROOT / "connectors/nginx/harness/run_github_hosted_functional_a.py"
+        ).read_text()
+        script = (ROOT / "connectors/nginx/harness/run_exact_head_use_error_log.sh").read_text()
+
+        self.assertIn('/bin/chmod 700 "$RUN_ROOT"', workflow)
+        self.assertIn(
+            'FUNCTIONAL_PARENT_ROOT="${RUNNER_TEMP:?missing runner temporary root}/ModSecurity-conector-nginx-functional-parent"',
+            workflow,
+        )
+        self.assertIn('[ ! -e "$FUNCTIONAL_PARENT_ROOT" ] && [ ! -L "$FUNCTIONAL_PARENT_ROOT" ]', workflow)
+        self.assertIn('/bin/chmod 711 "$FUNCTIONAL_PARENT_ROOT"', workflow)
+        self.assertIn('NGINX_FUNCTIONAL_A_PARENT_ROOT="$NGINX_FUNCTIONAL_A_PARENT_ROOT"', workflow)
+        self.assertIn("_require_worker_traversable_functional_parent", launcher)
+        self.assertIn("must be the designated sibling of VERIFIED_RUN_ROOT", launcher)
+        self.assertIn("must be exactly non-enumerable mode 0711", launcher)
+        self.assertIn("require_fresh_worker_traversable_directory()", script)
+        self.assertIn('require_fresh_worker_traversable_directory "$FUNCTIONAL_ROOT"', script)
+        self.assertIn('require_fresh_worker_traversable_directory "$mode_root"', script)
+        self.assertIn('require_fresh_worker_traversable_directory "$case_root"', script)
+        self.assertIn("0:711", script)
+
     def test_existing_template_renders_directive(self):
         template = (ROOT / "connectors/nginx/harness/nginx_smoke.conf").read_text()
         harness = (ROOT / "connectors/nginx/harness/run_nginx_smoke.sh").read_text()

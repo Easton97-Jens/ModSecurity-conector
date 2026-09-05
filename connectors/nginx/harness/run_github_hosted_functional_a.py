@@ -26,6 +26,8 @@ _CURL = "/usr/bin/curl"
 _WORKER_NAME_MAX = 64
 _WORKER_NAME_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789-_")
 _MODSECURITY_RUNTIME_LIBRARY = "libmodsecurity.so.3"
+_FUNCTIONAL_PARENT_NAME = "ModSecurity-conector-nginx-functional-parent"
+_FUNCTIONAL_ROOT_NAME = "nginx-hosted-functional-a"
 
 
 class FunctionalALaunchError(ValueError):
@@ -111,6 +113,35 @@ def _require_regular_file(path: Path, name: str) -> Path:
     return path
 
 
+def _require_worker_traversable_functional_parent(
+    path: Path, verified_root: Path
+) -> Path:
+    """Accept only the workflow-created sibling for worker-visible runtime paths."""
+
+    if path.name != _FUNCTIONAL_PARENT_NAME or path.parent != verified_root.parent:
+        raise FunctionalALaunchError(
+            "NGINX_FUNCTIONAL_A_PARENT_ROOT must be the designated sibling of VERIFIED_RUN_ROOT"
+        )
+    _require_directory(path, "NGINX_FUNCTIONAL_A_PARENT_ROOT")
+    metadata = path.lstat()
+    if metadata.st_uid != os.geteuid():
+        raise FunctionalALaunchError(
+            "NGINX_FUNCTIONAL_A_PARENT_ROOT must be owned by the workflow runner"
+        )
+    if stat.S_IMODE(metadata.st_mode) != 0o711:
+        raise FunctionalALaunchError(
+            "NGINX_FUNCTIONAL_A_PARENT_ROOT must be exactly non-enumerable mode 0711"
+        )
+    current = Path(path.anchor)
+    for component in path.parts[1:]:
+        current /= component
+        if not current.lstat().st_mode & stat.S_IXOTH:
+            raise FunctionalALaunchError(
+                "NGINX_FUNCTIONAL_A_PARENT_ROOT has a worker-non-traversable ancestor"
+            )
+    return path
+
+
 def repository_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
@@ -134,8 +165,14 @@ def build_root_command(env: Mapping[str, str]) -> list[str]:
         _absolute_path(str(env.get("VERIFIED_RUN_ROOT", "")), "VERIFIED_RUN_ROOT"),
         "VERIFIED_RUN_ROOT",
     )
-    functional_root = verified_root / "nginx-hosted-functional-a"
-    _require_under(functional_root, verified_root, "functional-A root")
+    functional_parent = _require_worker_traversable_functional_parent(
+        _absolute_path(
+            str(env.get("NGINX_FUNCTIONAL_A_PARENT_ROOT", "")),
+            "NGINX_FUNCTIONAL_A_PARENT_ROOT",
+        ),
+        verified_root,
+    )
+    functional_root = functional_parent / _FUNCTIONAL_ROOT_NAME
 
     nginx_prefix = _require_under(
         _absolute_path(str(env.get("NGINX_PREFIX", "")), "NGINX_PREFIX"),
@@ -177,7 +214,7 @@ def build_root_command(env: Mapping[str, str]) -> list[str]:
         "PYTHONDONTWRITEBYTECODE": "1",
         "CONNECTOR_ROOT": str(connector_root),
         "FRAMEWORK_ROOT": str(framework_root),
-        "NGINX_FUNCTIONAL_A_PARENT_ROOT": str(verified_root),
+        "NGINX_FUNCTIONAL_A_PARENT_ROOT": str(functional_parent),
         "VERIFIED_RUN_ROOT": str(functional_root),
         "NGINX_FUNCTIONAL_A_ROOT": str(functional_root),
         "NGINX_PREFIX": str(nginx_prefix),

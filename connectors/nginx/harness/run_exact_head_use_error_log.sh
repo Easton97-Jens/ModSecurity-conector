@@ -39,6 +39,17 @@ require_fresh_private_directory() {
     /bin/chmod 700 "$directory" || fail "could not lock private directory: $directory"
 }
 
+require_fresh_worker_traversable_directory() {
+    directory=$1
+    require_fresh_private_directory "$directory"
+    [ "$(/usr/bin/stat -c '%u:%a' -- "$directory")" = "0:700" ] || \
+        fail "fresh worker ancestor did not retain root-owned private setup: $directory"
+    /bin/chmod 711 "$directory" || \
+        fail "could not make worker ancestor non-enumerably traversable: $directory"
+    [ "$(/usr/bin/stat -c '%u:%a' -- "$directory")" = "0:711" ] || \
+        fail "worker ancestor does not have exact root-owned mode 0711: $directory"
+}
+
 require_existing_non_symlink_directory() {
     directory=$1
     [ -n "$directory" ] || blocked "empty existing directory"
@@ -99,11 +110,12 @@ run_harness_case() {
     lifecycle_probe=$6
     query_canary=$7
     case_root="$mode_root/$case_label"
-    require_fresh_private_directory "$case_root"
+    require_fresh_worker_traversable_directory "$case_root"
 
     NGINX_USE_ERROR_LOG="$CURRENT_MODE" \
     VERIFIED_RUN_ROOT="$mode_root" \
-    BUILD_ROOT="$case_root/build" \
+    VERIFIED_BUILD_ROOT="$case_root" \
+    BUILD_ROOT="$case_root" \
     LOG_ROOT="$case_root/logs" \
     RESULTS_DIR="$case_root/results" \
     NGINX_HARNESS_PARENT="$case_root/harness-parent" \
@@ -281,12 +293,12 @@ case "$FUNCTIONAL_RUNTIME_LIBRARY" in
 esac
 require_existing_non_symlink_regular_file "$FUNCTIONAL_RUNTIME_LIBRARY"
 
-require_fresh_private_directory "$FUNCTIONAL_ROOT"
+require_fresh_worker_traversable_directory "$FUNCTIONAL_ROOT"
 write_artifact_identity "$FUNCTIONAL_ROOT/artifact-identity.start.sha256"
 
 for CURRENT_MODE in on off; do
     mode_root="$FUNCTIONAL_ROOT/$CURRENT_MODE"
-    require_fresh_private_directory "$mode_root"
+    require_fresh_worker_traversable_directory "$mode_root"
     write_artifact_identity "$mode_root/artifact-identity.before.sha256"
     assert_same_artifact_identity "$FUNCTIONAL_ROOT/artifact-identity.start.sha256" \
         "$mode_root/artifact-identity.before.sha256"
