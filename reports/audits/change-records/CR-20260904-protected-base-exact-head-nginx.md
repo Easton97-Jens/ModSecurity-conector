@@ -8,7 +8,7 @@
 | Date (UTC) | 2026-09-04 |
 | Base revision | `b779167ff979aa73cdd9321a829f9c693d943760` |
 | Scope | Parent-only protected-base preparation for independent NGINX exact-head evidence |
-| Delivery status | Draft PR #355; normal `origin/master` merge `acc0ca1d22fd8a452453e66f51115ce026517b52` is complete; the `c8f1…` read-back exposed 20 remaining Sonar code smells, and the normal remediation-successor push/read-back remains pending; no merge authorization |
+| Delivery status | Draft PR #355; normal `origin/master` merge `acc0ca1d22fd8a452453e66f51115ce026517b52` is complete; `c8f1…` exposed 20 code smells and successor `0524be2f…` exposed three further Sonar issues; the next normal remediation-successor push/read-back remains pending; no merge authorization |
 | Candidate | PR #355, exact final head must be resolved and read back at dispatch time |
 
 ## Purpose
@@ -33,9 +33,11 @@ tests and the bilingual review package. The normal merge of current
 The pushed-head read-back for
 `c8f1a00a5d45cbc5c4a7e52e1da17e8611e767db` was observed, but its fresh
 Sonar analysis exposed 20 open code smells and is not accepted as final
-evidence. The normal remediation-successor read-back, fresh Sonar analysis,
-and hosted exact-head runtime evidence remain pending and must be recorded
-only after they are observed. The external Security-Diff archive remains
+evidence. Its exact `0524be2f…` successor then exposed three open issues and
+an `ERROR` quality gate, so it too is remediation input rather than final
+evidence. The next normal remediation-successor read-back, fresh Sonar
+analysis, and hosted exact-head runtime evidence remain pending and must be
+recorded only after they are observed. The external Security-Diff archive remains
 `blocked_external_dependency` under FND-PARENT-1036.
 
 The branch-only checkpoint is a normal merge of current `origin/master`
@@ -84,6 +86,17 @@ disposition: collector `AaBwrYPNwqJS101QKLQy`; launcher
 `AaBwrYQAwqJS101QKLQz`. The bilingual review package contains the source/
 regression matrix. A new exact-head analysis must show all of them absent
 before this record or the PR can claim a zero-issue result.
+
+The exact `0524be2f95a9281a948e8f94e3c1c31690775662` analysis at
+`2026-09-05T09:12:16Z` added three repository-owned keys: `S8707`
+vulnerabilities `AaBw2LTiwSzpTW4LCOTU` and `AaBw2LTiwSzpTW4LCOTT`, plus
+`S3776` code smell `AaBw2LTiwSzpTW4LCOTS`. Its Quality Gate is `ERROR` only
+because new security rating is `C`; bugs, confirmed issues, accepted issues,
+and hotspots are zero. The successor restricts child creation to an
+ASCII-allowlisted leaf below an already-admitted parent FD and decomposes the
+retained-FD walker; its targeted regression controls cover unsafe leaf rejection
+and parent-path replacement. This is code/test remediation, not a scanner
+disposition, and a new exact-head analysis must show all three absent.
 
 ## Historical successor checkpoint — `fa9064a5`
 

@@ -19,9 +19,10 @@ Der externe codex-security-Archiv-Receipt bleibt
 die synthetischen Fixtures sind nur Fehler-Evidence. Der erste Exact-Read-back
 für `c8f1a00a5d45cbc5c4a7e52e1da17e8611e767db` ist historischer
 Remediation-Input, keine finale Abnahme: Er fand trotz grünem Gate 20 offene
-Code Smells. Der normale Source-/Test-Successor, sein GitHub-Read-back, die
-gehostete Runtime und das Sonar-Ergebnis nach dem Push bleiben ausstehende
-Exact-Head-Validierung.
+Code Smells. Sein erster Source-/Test-Successor `0524be2f…` zeigte danach drei
+andere offene Issues; der nächste normale Successor wird behoben, nicht
+akzeptiert. Gehostete Runtime und Sonar-Ergebnis nach dem Push bleiben
+ausstehende Exact-Head-Validierung.
 
 ## Bedrohungsmodell und Vertrauensgrenzen
 
@@ -137,6 +138,24 @@ verwendet. Erst die Analyse nach dem Push kann die Behebung der Keys beweisen.
 | Launcher `AaBwrYH-wqJS101QKLQk`, `AaBwrYH-wqJS101QKLQm`, `AaBwrYH-wqJS101QKLQn`, `AaBwrYH-wqJS101QKLQo`, `AaBwrYH-wqJS101QKLQl`, `AaBwrYH-wqJS101QKLQq`, `AaBwrYH-wqJS101QKLQr`, `AaBwrYH-wqJS101QKLQs`, `AaBwrYH-wqJS101QKLQi`, `AaBwrYH-wqJS101QKLQj`, `AaBwrYH-wqJS101QKLQt`, `AaBwrYH-wqJS101QKLQu`, `AaBwrYH-wqJS101QKLQv`, `AaBs7c4JmWRUlaV2mVXd`, `AaBwrYH-wqJS101QKLQw`, `AaBwrYH-wqJS101QKLQp`, `AaBsRF5SmWRUlaV2f7fu` (`S1192`, `S3776`, `S5713`, `S1481`, `S1172`, `S2589`) | Descriptor-Admission, atomare Control-/Evidence-Publikation, Lexer, Evidence-Parsing und Cleanup-Phasen werden extrahiert; feste Literale werden zentralisiert; No-follow, Pre-/Post-Identity, fsync, PIDFD und Quieszenz bleiben erhalten. Launcher-Regressionen decken Retained-FD-, Symlink-, Cleanup-, JSONL- und Callback-Grenzen ab. |
 | Dispatcher `AaBwrYOpwqJS101QKLQx` (`S1192`) | Das feste Dispatcher-Manifest-Leaf wird zentralisiert; die Dispatcher-Regression-Suite deckt das feste Location-Mapping ab. |
 | Launcher-Test `AaBwrYQAwqJS101QKLQz` (`S5778`) | UID/GID-Testwerte werden vor der Exception-Assertion gebunden, sodass genau eine Operation getestet wird; die fokussierte Launcher-Suite erhält die Duplicate-Child-Negativkontrolle. |
+
+## Exact-Head-Successor-Feedback — `0524be2f95a9281a948e8f94e3c1c31690775662`
+
+SonarCloud analysierte diesen exakten Successor um `2026-09-05T09:12:16Z`.
+Das Quality Gate war `ERROR`: Reliability und Maintainability blieben `A`,
+Security war jedoch `C` (`new_security_rating=3`). Die API lieferte zwei
+`OPEN` Vulnerabilities und einen `OPEN` Code Smell, aber null `CONFIRMED`,
+`ACCEPTED` und Hotspot-Issues. Dies ist ein echter repository-eigener
+Remediation-Checkpoint, keine False-Positive- oder Scanner-Ausnahme.
+
+| Exakte Key(s) | Root Cause | Sicherer Successor-Remedy und Regression-Evidence |
+| --- | --- | --- |
+| `AaBw2LTiwSzpTW4LCOTU`, `AaBw2LTiwSzpTW4LCOTT` (`S8707`) | Der Root-Launcher ließ ein CLI-abgeleitetes Evidence-Leaf nur mit Separator-Prüfungen vor descriptor-relativem `mkdir`/`open` zu. Sein Fallback konnte außerdem einen Parent-Pfad erneut öffnen. | Ein ASCII-allowlistiertes Einzel-Leaf direkt vor der Erstellung verlangen und einen bereits admittierten Parent-FD verpflichtend machen. Neue Negativkontrollen verwerfen Traversal, Control-Zeichen, Unicode und überlange Leafs vor der Erstellung und beweisen, dass ein ersetzter Parent-Pfad die Retained-FD-Operation nicht umleiten kann. |
+| `AaBw2LTiwSzpTW4LCOTS` (`S3776`) | Retained-FD-Parsing, Descriptor-Walk, Flag-Auswahl, finale Typ-Prüfung und Cleanup waren in einem Helper kombiniert. | Parsing, Flag-Auswahl, Descriptor-Walk und finale Metadata-Validierung trennen; `O_NOFOLLOW`, Descriptor-Transfer und Fail-closed-Fehler bleiben erhalten. Die bestehenden Retained-FD-Regular-/Directory-/Traversal-Kontrollen und die vollständige Launcher-Suite decken die Grenze ab. |
+
+Kein `NOSONAR`, keine Exclusion, keine Issue-Akzeptanz, Regel- oder
+Quality-Gate-Änderung wird verwendet. Erst die Analyse des nächsten Exact Head
+kann zeigen, dass alle 23 beobachteten Successor-Keys nicht mehr vorhanden sind.
 
 ## Matrix zur Behebung historischer Issues
 
