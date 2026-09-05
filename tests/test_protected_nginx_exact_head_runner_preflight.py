@@ -47,6 +47,7 @@ class RunnerPreflightTests(unittest.TestCase):
             "LANG": "C",
             "LC_ALL": "C",
             "RUNNER_TEMP": str(self.runner_temp),
+            "GITHUB_WORKSPACE": str(self.base),
         }
 
     def tearDown(self) -> None:
@@ -73,17 +74,25 @@ class RunnerPreflightTests(unittest.TestCase):
             with self.assertRaisesRegex(P.PreflightError, "fixed PATH"):
                 P.require_scrubbed_environment()
         with mock.patch.dict(os.environ, self.environment, clear=True):
-            with self.assertRaisesRegex(P.PreflightError, "below RUNNER_TEMP"):
-                P.require_private_task_root(str(self.root / "outside"))
+            with mock.patch.object(
+                P.argparse.ArgumentParser, "error", side_effect=SystemExit(2)
+            ):
+                with self.assertRaises(SystemExit):
+                    P.parse_args(
+                        [
+                            "--role", "candidate-build", "--trusted-base-sha", SHA,
+                            "--task-root", str(self.root / "outside"),
+                        ]
+                    )
 
     def test_rejects_symlinked_task_root_and_host_control_entry(self) -> None:
         target = self.root / "target"
         target.mkdir(mode=0o700)
-        linked = self.runner_temp / "linked"
+        linked = self.runner_temp / P._CANDIDATE_TASK_ROOT_NAME
         linked.symlink_to(target, target_is_directory=True)
         with mock.patch.dict(os.environ, self.environment, clear=True):
-            with self.assertRaisesRegex(P.PreflightError, "symbolic link"):
-                P.require_private_task_root(str(linked))
+            with self.assertRaisesRegex(P.PreflightError, "non-symlink"):
+                P.require_private_task_root()
         with mock.patch.object(P, "HOST_CONTROL_PATHS", (self.root / "docker.sock",)):
             (self.root / "docker.sock").write_text("not a socket", encoding="utf-8")
             with self.assertRaisesRegex(P.PreflightError, "host-control"):
@@ -99,23 +108,37 @@ class RunnerPreflightTests(unittest.TestCase):
                         P.reject_host_control_sockets()
 
     def test_prepare_creates_only_private_directories_after_base_verification(self) -> None:
-        task = self.runner_temp / "task"
+        task = self.runner_temp / P._CANDIDATE_TASK_ROOT_NAME
         with mock.patch.dict(os.environ, self.environment, clear=True), \
              mock.patch.object(P, "reject_host_control_sockets"), \
              mock.patch.object(P, "require_base_checkout", return_value=self.base) as base_check:
-            result = P.prepare("candidate-build", str(task), str(self.base), SHA)
+            result = P.prepare("candidate-build", SHA)
         self.assertEqual(result, task)
-        self.assertEqual({entry.name for entry in task.iterdir()}, {"candidate", "artifacts", "evidence", "logs"})
-        base_check.assert_called_once_with(str(self.base), SHA)
+        self.assertEqual({entry.name for entry in task.iterdir()}, {"dispatcher"})
+        base_check.assert_called_once_with(SHA)
         for child in task.iterdir():
             self.assertEqual(child.stat().st_mode & 0o777, 0o700)
+
+    def test_prepare_precreates_the_privileged_artifact_parents(self) -> None:
+        with mock.patch.dict(os.environ, self.environment, clear=True), \
+             mock.patch.object(P, "reject_host_control_sockets"), \
+             mock.patch.object(P, "require_base_checkout", return_value=self.base), \
+             mock.patch.object(P, "require_host_gate"):
+            task = P.prepare("privileged", SHA)
+        self.assertEqual(
+            {path.relative_to(task) for path in task.rglob("*") if path.is_dir()},
+            {Path("inputs"), Path("inputs/dispatcher"), Path("inputs/candidate")},
+        )
+        for directory in task.rglob("*"):
+            if directory.is_dir():
+                self.assertEqual(directory.stat().st_mode & 0o777, 0o700)
 
     def test_rejects_invalid_sha_before_checkout_is_accepted(self) -> None:
         with mock.patch.dict(os.environ, self.environment, clear=True), \
              mock.patch.object(P, "reject_host_control_sockets"), \
-             mock.patch.object(P, "require_base_checkout") as base_check:
+            mock.patch.object(P, "require_base_checkout") as base_check:
             with self.assertRaisesRegex(P.PreflightError, "lowercase 40-character"):
-                P.prepare("privileged", str(self.runner_temp / "task"), str(self.base), "main")
+                P.prepare("privileged", "main")
         base_check.assert_not_called()
 
     def test_privileged_role_requires_root_owned_mode_755_host_gate(self) -> None:
@@ -127,13 +150,30 @@ class RunnerPreflightTests(unittest.TestCase):
             self.assertIs(P.require_host_gate(), gate)
         with mock.patch.dict(os.environ, self.environment, clear=True), \
              mock.patch.object(P, "reject_host_control_sockets"), \
-             mock.patch.object(P, "require_base_checkout", return_value=self.base), \
-             mock.patch.object(P, "require_host_gate") as require_gate:
+            mock.patch.object(P, "require_base_checkout", return_value=self.base), \
+            mock.patch.object(P, "require_host_gate") as require_gate:
             self.assertEqual(
-                P.prepare("privileged", str(self.runner_temp / "task"), str(self.base), SHA),
-                self.runner_temp / "task",
+                P.prepare("privileged", SHA),
+                self.runner_temp / P._PRIVILEGED_TASK_ROOT_NAME,
             )
         require_gate.assert_called_once_with()
+
+    def test_uses_only_fixed_task_leaf_and_descriptor_bound_git_cwd(self) -> None:
+        with mock.patch.dict(os.environ, self.environment, clear=True):
+            root = P.require_private_task_root()
+        self.assertEqual(root, self.runner_temp / P._CANDIDATE_TASK_ROOT_NAME)
+
+        completed = types.SimpleNamespace(returncode=0, stdout=SHA + "\n")
+        with mock.patch.dict(os.environ, self.environment, clear=True), mock.patch.object(
+            P.subprocess, "run", return_value=completed
+        ) as run:
+            self.assertEqual(P.require_base_checkout(SHA), self.base)
+        self.assertEqual(run.call_args.args[0], ["/usr/bin/git", "rev-parse", "HEAD^{commit}"])
+        self.assertFalse(run.call_args.kwargs["shell"])
+        cwd = run.call_args.kwargs["cwd"]
+        self.assertRegex(cwd, r"^/proc/self/fd/(?a:\d+)$")
+        descriptor = int(cwd.rsplit("/", 1)[1])
+        self.assertEqual(run.call_args.kwargs["pass_fds"], (descriptor,))
 
     def test_privileged_role_fails_closed_when_host_gate_is_missing_or_writable(self) -> None:
         missing = mock.Mock()

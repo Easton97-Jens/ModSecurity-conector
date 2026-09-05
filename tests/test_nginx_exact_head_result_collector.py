@@ -115,6 +115,7 @@ class CollectorTests(unittest.TestCase):
             {
                 "schema_version": 1,
                 "tested_pr_head": SHA,
+                "tested_pr_base": SHA,
                 "trusted_dispatcher_base_sha": SHA,
                 "candidate_run_id": "run-1",
                 "nginx_version": "1.31.4",
@@ -196,8 +197,8 @@ class CollectorTests(unittest.TestCase):
         self.assertTrue(result["candidate_sandbox_observations_untrusted"])
         self.assertNotIn("transaction_id", result)
         output = self.output.lstat()
-        self.assertEqual((output.st_uid, output.st_gid), (0, 0))
-        self.assertEqual(stat.S_IMODE(output.st_mode), 0o644)
+        self.assertEqual((output.st_uid, output.st_gid), (self.runner_uid, self.runner_gid))
+        self.assertEqual(stat.S_IMODE(output.st_mode), 0o600)
 
     def test_rejects_missing_cells_and_invalid_master_or_worker_identity(self) -> None:
         (self.evidence / "off.jsonl").unlink()
@@ -399,8 +400,28 @@ class CollectorTests(unittest.TestCase):
         self.assertTrue(substituted)
         self.assertEqual(result["connector_module_digest"], DIGEST)
 
+    def test_rejects_root_owned_evidence_outside_the_fixed_task_leaf(self) -> None:
+        outside = self.root.parent / "outside-root-evidence"
+        shutil.copytree(self.evidence, outside)
+        outside.chmod(0o700)
+        try:
+            with self.assertRaisesRegex(collector.CollectorError, "fixed task-root"):
+                collector.collect(
+                    self.manifest,
+                    outside,
+                    self.output,
+                    self.root,
+                    self.runner_uid,
+                    self.runner_gid,
+                )
+        finally:
+            shutil.rmtree(outside)
+
     def test_evidence_leaf_replacement_between_stat_and_open_is_rejected(self) -> None:
-        root_descriptor = collector._open_root_owned_evidence(self.evidence)
+        task_descriptor = collector._open_task_root(
+            self.root, self.runner_uid, self.runner_gid
+        )
+        root_descriptor = collector._open_root_owned_evidence(task_descriptor)
         replacement = self.root / "replacement-identity.json"
         replacement.write_text(json.dumps(self._identity()), encoding="utf-8")
         os.chown(replacement, 0, 0)
@@ -428,7 +449,16 @@ class CollectorTests(unittest.TestCase):
                     )
         finally:
             os.close(root_descriptor)
+            os.close(task_descriptor)
         self.assertTrue(replaced)
+
+    def test_preseeded_result_temporary_file_fails_closed_without_deletion(self) -> None:
+        temporary = self.root / f"{collector.RESULT_TEMPORARY_PREFIX}{os.getpid()}"
+        temporary.write_text("attacker-owned", encoding="utf-8")
+        temporary.chmod(0o600)
+        with self.assertRaisesRegex(collector.CollectorError, "atomically write"):
+            self._collect()
+        self.assertEqual(temporary.read_text(encoding="utf-8"), "attacker-owned")
 
     def test_manifest_must_be_the_fixed_task_root_input(self) -> None:
         with self.assertRaisesRegex(collector.CollectorError, "fixed task-root input"):
@@ -500,6 +530,16 @@ class CollectorTests(unittest.TestCase):
             os.close(task_descriptor)
         self.assertTrue(replaced)
         self.assertNotEqual(original.stat().st_ino, moved.stat().st_ino)
+
+    def test_rejects_dispatcher_base_replacement_after_root_attestation(self) -> None:
+        """A runner-owned manifest cannot forge the root-attested base SHA."""
+        manifest = json.loads(self.manifest.read_text(encoding="utf-8"))
+        manifest["tested_pr_base"] = "c" * 40
+        self.manifest.write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
+        self.manifest.chmod(0o600)
+        with self.assertRaisesRegex(collector.CollectorError, "runtime identity mismatch"):
+            self._collect()
+        self.assertFalse(self.output.exists())
 
 
 if __name__ == "__main__":
