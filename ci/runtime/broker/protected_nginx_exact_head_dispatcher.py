@@ -28,12 +28,13 @@ PATH_COMPONENT_RE = re.compile(r"^[A-Za-z0-9._-]{1,255}$")
 SCHEMA_VERSION = 1
 RUNNER_TEMP_ENV = "RUNNER_TEMP"
 GITHUB_OUTPUT_ENV = "GITHUB_OUTPUT"
-RESOLVE_MANIFEST_COMPONENTS = ("protected-exact-head-resolve", "dispatcher-manifest.json")
+DISPATCHER_MANIFEST_NAME = "dispatcher-manifest.json"
+RESOLVE_MANIFEST_COMPONENTS = ("protected-exact-head-resolve", DISPATCHER_MANIFEST_NAME)
 CANDIDATE_MANIFEST_COMPONENTS = (
-    "protected-exact-head-build", "dispatcher", "dispatcher-manifest.json"
+    "protected-exact-head-build", "dispatcher", DISPATCHER_MANIFEST_NAME
 )
 PRIVILEGED_MANIFEST_COMPONENTS = (
-    "protected-exact-head-runtime", "inputs", "dispatcher", "dispatcher-manifest.json"
+    "protected-exact-head-runtime", "inputs", "dispatcher", DISPATCHER_MANIFEST_NAME
 )
 MANIFEST_FIELDS = frozenset({
     "schema_version", "trusted_dispatcher_base_sha", "run_id", "pr_number",

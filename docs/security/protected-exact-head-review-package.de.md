@@ -16,9 +16,12 @@ behauptet.
 
 Der externe codex-security-Archiv-Receipt bleibt
 `blocked_external_dependency` (FND-PARENT-1036). Der aufbewahrte alte Run und
-die synthetischen Fixtures sind nur Fehler-Evidence. Finaler Head, GitHub-
-Read-back, gehostete Runtime und Sonar-Ergebnis nach dem Push werden nicht
-erfunden, sondern bleiben bis zur Exact-Head-Validierung ausstehend.
+die synthetischen Fixtures sind nur Fehler-Evidence. Der erste Exact-Read-back
+für `c8f1a00a5d45cbc5c4a7e52e1da17e8611e767db` ist historischer
+Remediation-Input, keine finale Abnahme: Er fand trotz grünem Gate 20 offene
+Code Smells. Der normale Source-/Test-Successor, sein GitHub-Read-back, die
+gehostete Runtime und das Sonar-Ergebnis nach dem Push bleiben ausstehende
+Exact-Head-Validierung.
 
 ## Bedrohungsmodell und Vertrauensgrenzen
 
@@ -117,6 +120,24 @@ alle Einträge erfordern eine frische Exact-Head-Neuanalyse.
 Diese historische Baseline ist kein Nachweis für den finalen Head; Issues werden nicht über `NOSONAR`, Exclusions oder ein abgeschwächtes
 Gate verworfen.
 
+## Aktuelles Exact-Head-Sonar-Feedback — `c8f1a00a5d45cbc5c4a7e52e1da17e8611e767db`
+
+SonarCloud analysierte diesen exakten PR-Head um `2026-09-05T08:25:15Z`. Das
+Quality Gate war `OK`, die New-Code-Ratings für Reliability, Security und
+Maintainability waren `A`, und Bugs, Vulnerabilities sowie Hotspots waren null.
+Dieses Gate gilt nicht als Abschluss: Die API lieferte weiterhin 20 `OPEN`
+Code Smells und null `CONFIRMED` Issues. Die folgende vollständige Matrix
+bindet jeden Key an eine reale Source-/Test-Änderung dieses Successors; weder
+Suppression noch Akzeptanz, Exclusion oder Quality-Gate-Änderung werden
+verwendet. Erst die Analyse nach dem Push kann die Behebung der Keys beweisen.
+
+| Aktuelle Key-Gruppe | Reale Remediation und Regression-Evidence |
+| --- | --- |
+| Collector `AaBwrYPNwqJS101QKLQy` (`S5713`) | Die redundante `FileNotFoundError`-Subklasse wird aus dem atomaren Result-Cleanup entfernt; die Collector-Regression-Suite deckt atomare Publikation ab. |
+| Launcher `AaBwrYH-wqJS101QKLQk`, `AaBwrYH-wqJS101QKLQm`, `AaBwrYH-wqJS101QKLQn`, `AaBwrYH-wqJS101QKLQo`, `AaBwrYH-wqJS101QKLQl`, `AaBwrYH-wqJS101QKLQq`, `AaBwrYH-wqJS101QKLQr`, `AaBwrYH-wqJS101QKLQs`, `AaBwrYH-wqJS101QKLQi`, `AaBwrYH-wqJS101QKLQj`, `AaBwrYH-wqJS101QKLQt`, `AaBwrYH-wqJS101QKLQu`, `AaBwrYH-wqJS101QKLQv`, `AaBs7c4JmWRUlaV2mVXd`, `AaBwrYH-wqJS101QKLQw`, `AaBwrYH-wqJS101QKLQp`, `AaBsRF5SmWRUlaV2f7fu` (`S1192`, `S3776`, `S5713`, `S1481`, `S1172`, `S2589`) | Descriptor-Admission, atomare Control-/Evidence-Publikation, Lexer, Evidence-Parsing und Cleanup-Phasen werden extrahiert; feste Literale werden zentralisiert; No-follow, Pre-/Post-Identity, fsync, PIDFD und Quieszenz bleiben erhalten. Launcher-Regressionen decken Retained-FD-, Symlink-, Cleanup-, JSONL- und Callback-Grenzen ab. |
+| Dispatcher `AaBwrYOpwqJS101QKLQx` (`S1192`) | Das feste Dispatcher-Manifest-Leaf wird zentralisiert; die Dispatcher-Regression-Suite deckt das feste Location-Mapping ab. |
+| Launcher-Test `AaBwrYQAwqJS101QKLQz` (`S5778`) | UID/GID-Testwerte werden vor der Exception-Assertion gebunden, sodass genau eine Operation getestet wird; die fokussierte Launcher-Suite erhält die Duplicate-Child-Negativkontrolle. |
+
 ## Matrix zur Behebung historischer Issues
 
 Die obigen Key-Gruppen bleiben für die Traceability einzeln erhalten. Diese
@@ -136,7 +157,8 @@ erst die PR-Analyse nach dem Push kann die endgültige Behebung feststellen.
 
 - [x] finaler lokaler Source-/Test-/Dokumentations-Diff geprüft und Checks bestanden;
 - [x] normaler Base-Merge `acc0ca1d22fd8a452453e66f51115ce026517b52` ohne Rebase oder Force-Push erfolgt;
-- [ ] gepushter Head aus GitHub zurückgelesen und exakt abgeglichen;
+- [x] der Exact-Head-Read-back von `c8f1…` hat alle 20 verbleibenden Sonar-Issues einzeln offengelegt und zugeordnet;
+- [ ] normaler Remediation-Successor gepusht, aus GitHub zurückgelesen und exakt abgeglichen;
 - [ ] alle relevanten Checks und der vollständige Exact-Head-Runtime-Workflow erneut ausgeführt;
 - [ ] Sonar-Issues einzeln triagiert, null neue Issues;
 - [ ] externer Archivstatus bleibt `blocked_external_dependency`, bis der

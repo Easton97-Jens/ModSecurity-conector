@@ -36,6 +36,7 @@ from typing import Any, Callable
 
 SHA_RE = re.compile(r"^[a-f\d]{40}$", re.ASCII)
 SHA256_RE = re.compile(r"^[a-f\d]{64}$", re.ASCII)
+RETAINED_FD_PATH_RE = re.compile(r"/proc/self/fd/(\d+)(/.*)?")
 ROOT_RUN_NAME = "ModSecurity-conector-nginx-exact-head"
 CELL_NAME = "root-launcher-cell"
 APPARMOR_PROFILE_NAME = "msconnector-nginx-exact-head-userns"
@@ -84,8 +85,11 @@ NO_AMBIENT_CAPS = "--ambient-caps=-all"
 NGINX_ARTIFACT_NAME = "nginx"
 MODULE_ARTIFACT_NAME = "ngx_http_modsecurity_module.so"
 LIBRARY_ARTIFACT_NAME = "libmodsecurity.so.3"
+ARTIFACT_MANIFEST_NAME = "artifact-manifest.json"
 DISPATCHER_MANIFEST_LABEL = "dispatcher manifest"
 CANDIDATE_MANIFEST_LABEL = "candidate artifact manifest"
+ROOT_EVIDENCE_PARENT_LABEL = "root evidence parent"
+GENERATED_CONFIG_LABEL = "generated NGINX configuration"
 DISPATCHER_FIELDS = frozenset({
     "schema_version", "trusted_dispatcher_base_sha", "run_id", "pr_number",
     "tested_pr_head", "tested_pr_head_ref", "tested_pr_head_repository",
@@ -196,8 +200,8 @@ def validated_command(argv: list[str]) -> list[str]:
 
 
 def _open_proc_relative(path: Path, label: str, *, directory: bool = False) -> int | None:
-    match = re.fullmatch(r"/proc/self/fd/(\d+)(/.*)", os.fspath(path))
-    if not match:
+    match = RETAINED_FD_PATH_RE.fullmatch(os.fspath(path))
+    if match is None or match.group(2) is None:
         return None
     raw_parts = match.group(2).split("/")[1:]
     if not raw_parts or any(part in {"", ".", ".."} for part in raw_parts):
@@ -408,7 +412,7 @@ def no_symlink_path(path: Path, label: str) -> Path:
 
 def safe_metadata(path: Path, label: str, *, directory: bool = False) -> os.stat_result:
     """Stat ordinary paths or the constrained retained-cell FD view."""
-    proc = re.fullmatch(r"/proc/self/fd/(\d+)(/.*)?", os.fspath(path))
+    proc = RETAINED_FD_PATH_RE.fullmatch(os.fspath(path))
     if proc:
         base_fd = int(proc.group(1))
         try:
@@ -438,8 +442,8 @@ def contained(path: Path, root: Path, label: str) -> Path:
     # must not reject it or (worse) resolve an arbitrary proc pathname.  Only
     # the exact self-fd form, with a live directory FD and descriptor-relative
     # suffix, is admitted here.
-    proc_match = re.fullmatch(r"/proc/self/fd/(\d+)(/.*)?", os.fspath(path))
-    root_match = re.fullmatch(r"/proc/self/fd/(\d+)(/.*)?", os.fspath(root))
+    proc_match = RETAINED_FD_PATH_RE.fullmatch(os.fspath(path))
+    root_match = RETAINED_FD_PATH_RE.fullmatch(os.fspath(root))
     if proc_match and root_match and proc_match.group(1) == root_match.group(1):
         try:
             metadata = os.fstat(int(root_match.group(1)))
@@ -564,8 +568,13 @@ def _validate_candidate_artifacts(artifacts: object) -> None:
             fail("candidate artifact record size is outside the allowed bound")
         require_sha256(record.get("sha256"), "candidate artifact digest")
 def _validate_candidate_producer(producer: object) -> None:
-    if not isinstance(producer, dict) or frozenset(producer) != {"kind", "runner_uid", "runner_gid"}:
+    if not isinstance(producer, dict):
         fail("candidate producer record is invalid")
+    require_exact_fields(
+        producer,
+        frozenset({"kind", "runner_uid", "runner_gid"}),
+        "candidate producer record",
+    )
     if producer.get("kind") != "unprivileged-exact-head-build":
         fail("candidate producer kind is invalid")
     if type(producer.get("runner_uid")) is not int or type(producer.get("runner_gid")) is not int:
@@ -791,50 +800,108 @@ def private_scratch_container_name() -> str:
     return f"{ROOT_RUN_NAME}-container-{secrets.token_hex(16)}"
 
 
+def _require_child_leaf(name: str, label: str) -> None:
+    if not name or name in {".", ".."} or "/" in name:
+        fail(f"{label} has an invalid leaf name")
+
+
+def _open_child_parent(
+    parent: Path, label: str, parent_descriptor: int | None
+) -> tuple[Path, int]:
+    """Open the child parent once, retaining its descriptor for the caller."""
+    descriptor = -1
+    try:
+        if parent_descriptor is not None:
+            return parent, os.dup(parent_descriptor)
+        parent = no_symlink_path(parent, f"{label} parent")
+        descriptor = os.open(
+            parent.root, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW
+        )
+        for component in parent.parts[1:]:
+            child = os.open(
+                component,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                dir_fd=descriptor,
+            )
+            os.close(descriptor)
+            descriptor = child
+        result, descriptor = descriptor, -1
+        return parent, result
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+
+def _require_child_parent(
+    descriptor: int, uid: int, gid: int, label: str
+) -> os.stat_result:
+    metadata = os.fstat(descriptor)
+    if (
+        not stat.S_ISDIR(metadata.st_mode)
+        or metadata.st_uid != uid
+        or metadata.st_gid != gid
+    ):
+        fail(f"{label} parent is not stable for descriptor-relative creation")
+    return metadata
+
+
+def _create_verified_child_descriptor(
+    parent_descriptor: int,
+    name: str,
+    uid: int,
+    gid: int,
+    mode: int,
+    parent_before: os.stat_result,
+    label: str,
+) -> int:
+    """Create a child and prove that neither child nor parent was swapped."""
+    descriptor = -1
+    try:
+        os.mkdir(name, mode=mode, dir_fd=parent_descriptor)
+        descriptor = os.open(
+            name,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+            dir_fd=parent_descriptor,
+        )
+        os.fchown(descriptor, uid, gid)
+        os.fchmod(descriptor, mode)
+        child = os.fstat(descriptor)
+        parent_after = os.fstat(parent_descriptor)
+        if (
+            not stat.S_ISDIR(child.st_mode)
+            or child.st_uid != uid
+            or child.st_gid != gid
+            or stat.S_IMODE(child.st_mode) != mode
+            or (parent_before.st_dev, parent_before.st_ino)
+            != (parent_after.st_dev, parent_after.st_ino)
+        ):
+            fail(f"{label} metadata changed during descriptor-relative creation")
+        result, descriptor = descriptor, -1
+        return result
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+
 def create_owned_child_directory(parent: Path, name: str, uid: int, gid: int,
                                  mode: int, label: str,
                                  parent_uid: int, parent_gid: int,
                                  *, parent_descriptor: int | None = None,
                                  return_descriptors: bool = False) -> Path | tuple[Path, int, int]:
     """Create and verify a fresh child while holding its parent directory FD."""
-    if not name or name in {".", ".."} or "/" in name:
-        fail(f"{label} has an invalid leaf name")
+    _require_child_leaf(name, label)
     owned_parent_descriptor = -1
     child_descriptor = -1
     try:
-        parent = no_symlink_path(parent, f"{label} parent") if parent_descriptor is None else parent
-        owned_parent_descriptor = os.dup(parent_descriptor) if parent_descriptor is not None else os.open(
-            parent.root,
-            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+        parent, owned_parent_descriptor = _open_child_parent(
+            parent, label, parent_descriptor
         )
-        if parent_descriptor is None:
-            for component in parent.parts[1:]:
-                next_descriptor = os.open(
-                    component,
-                    os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
-                    dir_fd=owned_parent_descriptor,
-                )
-                os.close(owned_parent_descriptor)
-                owned_parent_descriptor = next_descriptor
-        parent_before = os.fstat(owned_parent_descriptor)
-        if (not stat.S_ISDIR(parent_before.st_mode)
-                or parent_before.st_uid != parent_uid
-                or parent_before.st_gid != parent_gid):
-            fail(f"{label} parent is not stable for descriptor-relative creation")
-        os.mkdir(name, mode=mode, dir_fd=owned_parent_descriptor)
-        child_descriptor = os.open(
-            name, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
-            dir_fd=owned_parent_descriptor,
+        parent_before = _require_child_parent(
+            owned_parent_descriptor, parent_uid, parent_gid, label
         )
-        os.fchown(child_descriptor, uid, gid)
-        os.fchmod(child_descriptor, mode)
-        child = os.fstat(child_descriptor)
-        parent_after = os.fstat(owned_parent_descriptor)
-        if ((not stat.S_ISDIR(child.st_mode) or child.st_uid != uid
-             or child.st_gid != gid or stat.S_IMODE(child.st_mode) != mode)
-                or (parent_before.st_dev, parent_before.st_ino)
-                != (parent_after.st_dev, parent_after.st_ino)):
-            fail(f"{label} metadata changed during descriptor-relative creation")
+        child_descriptor = _create_verified_child_descriptor(
+            owned_parent_descriptor, name, uid, gid, mode, parent_before, label
+        )
         result = parent / name
         if return_descriptors:
             retained_child, retained_parent = child_descriptor, owned_parent_descriptor
@@ -1220,67 +1287,91 @@ def _control_file_identity(metadata: os.stat_result) -> tuple[int, int, int, int
     )
 
 
-def _open_control_parent(path: Path) -> tuple[int, str]:
-    """Bind a control-file parent before accepting its fixed leaf name."""
-    proc = re.fullmatch(r"/proc/self/fd/(\d+)(/.*)", os.fspath(path))
-    if proc:
-        base_fd = int(proc.group(1))
-        parts = proc.group(2).split("/")[1:]
-        if any(part in {"", ".", ".."} for part in parts):
-            fail("root control file path has an unsafe descriptor-relative component")
-        if not parts:
-            fail("root control file path has no fixed leaf")
+def _control_path_parts(path: Path) -> tuple[int, list[str]] | None:
+    """Parse only the constrained retained-descriptor control-file form."""
+    match = RETAINED_FD_PATH_RE.fullmatch(os.fspath(path))
+    if match is None or match.group(2) is None:
+        return None
+    parts = match.group(2).split("/")[1:]
+    if not parts:
+        fail("root control file path has no fixed leaf")
+    if any(part in {"", ".", ".."} for part in parts):
+        fail("root control file path has an unsafe descriptor-relative component")
+    return int(match.group(1)), parts
+
+
+def _open_control_child(parent_descriptor: int, component: str) -> int:
+    """Advance one no-follow directory component with a pre/post identity check."""
+    before = os.stat(component, dir_fd=parent_descriptor, follow_symlinks=False)
+    if not stat.S_ISDIR(before.st_mode) or stat.S_ISLNK(before.st_mode):
+        fail("root control file parent has an unsafe component")
+    descriptor = os.open(
+        component,
+        os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+        dir_fd=parent_descriptor,
+    )
+    try:
+        opened = os.fstat(descriptor)
+        if (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino):
+            fail("root control file parent changed while opening")
+        return descriptor
+    except (LauncherError, OSError):
+        os.close(descriptor)
+        raise
+
+
+def _open_control_parent_from_descriptor(base_fd: int, parts: list[str]) -> tuple[int, str]:
+    """Retain a validated parent below an already-admitted cell descriptor."""
+    descriptor = -1
+    try:
         descriptor = os.dup(base_fd)
-        try:
-            if not stat.S_ISDIR(os.fstat(descriptor).st_mode):
-                fail("root control file retained descriptor is not a directory")
-            for component in parts[:-1]:
-                child = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW, dir_fd=descriptor)
-                os.close(descriptor)
-                descriptor = child
-            result = descriptor
-            descriptor = -1
-            return result, parts[-1]
-        except OSError as exc:
-            fail(f"could not open root control file parent: {exc}")
-        finally:
-            if descriptor >= 0:
-                os.close(descriptor)
+        if not stat.S_ISDIR(os.fstat(descriptor).st_mode):
+            fail("root control file retained descriptor is not a directory")
+        for component in parts[:-1]:
+            child = _open_control_child(descriptor, component)
+            os.close(descriptor)
+            descriptor = child
+        result, descriptor = descriptor, -1
+        return result, parts[-1]
+    except OSError as exc:
+        fail(f"could not open root control file parent: {exc}")
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+
+def _open_control_parent_from_path(path: Path) -> tuple[int, str]:
+    """Descriptor-walk an ordinary absolute control-file parent."""
     if not path.is_absolute() or any(part in {".", ".."} for part in path.parts):
         fail("root control file path must be absolute and normalized")
     path = Path(os.path.normpath(os.fspath(path)))
     if path.name in {"", ".", ".."}:
         fail("root control file path has no fixed leaf")
-    parent = path.parent
     descriptor = -1
     try:
         descriptor = os.open(
-            parent.root,
+            path.parent.root,
             os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
         )
-        for component in parent.parts[1:]:
-            before = os.stat(component, dir_fd=descriptor, follow_symlinks=False)
-            if not stat.S_ISDIR(before.st_mode) or stat.S_ISLNK(before.st_mode):
-                fail("root control file parent has an unsafe component")
-            child = os.open(
-                component,
-                os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
-                dir_fd=descriptor,
-            )
-            opened = os.fstat(child)
-            if (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino):
-                os.close(child)
-                fail("root control file parent changed while opening")
+        for component in path.parent.parts[1:]:
+            child = _open_control_child(descriptor, component)
             os.close(descriptor)
             descriptor = child
-        result = descriptor
-        descriptor = -1
+        result, descriptor = descriptor, -1
         return result, path.name
     except OSError as exc:
         fail(f"could not open root control file parent: {exc}")
     finally:
         if descriptor >= 0:
             os.close(descriptor)
+
+
+def _open_control_parent(path: Path) -> tuple[int, str]:
+    """Bind a control-file parent before accepting its fixed leaf name."""
+    retained = _control_path_parts(path)
+    if retained is not None:
+        return _open_control_parent_from_descriptor(*retained)
+    return _open_control_parent_from_path(path)
 
 
 def _require_root_control_file(metadata: os.stat_result) -> None:
@@ -1337,30 +1428,64 @@ def _verify_published_control(parent_descriptor: int, name: str, expected_identi
         raise
 
 
-def atomic_json(path: Path, value: dict[str, object]) -> None:
-    """Publish one root control file without following candidate path swaps."""
-    parent_descriptor, name = _open_control_parent(path)
+def _require_absent_control_file(parent_descriptor: int, name: str) -> None:
+    try:
+        os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+    except FileNotFoundError:
+        return
+    fail("supervisor control file already exists")
+
+
+def _write_control_temporary(
+    parent_descriptor: int, name: str, value: dict[str, object]
+) -> tuple[str, tuple[int, int, int, int, int, int, int, int]]:
     temporary_name = f".{name}.tmp-{os.getpid()}"
     descriptor = -1
-    published_descriptor = -1
-    published = False
-    success = False
     try:
-        try:
-            os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
-        except FileNotFoundError:
-            pass
-        else:
-            fail("supervisor control file already exists")
         descriptor = os.open(
             temporary_name,
             os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW,
             0o600,
             dir_fd=parent_descriptor,
         )
-        expected_identity = _write_control_payload(descriptor, value)
-        os.close(descriptor)
-        descriptor = -1
+        return temporary_name, _write_control_payload(descriptor, value)
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+
+def _discard_control_files(
+    parent_descriptor: int, temporary_name: str, name: str | None
+) -> None:
+    for candidate_name in (temporary_name, name):
+        if candidate_name is None:
+            continue
+        try:
+            os.unlink(candidate_name, dir_fd=parent_descriptor)
+        except OSError:
+            pass
+
+
+def _verify_control_publication(
+    parent_descriptor: int,
+    name: str,
+    expected_identity: tuple[int, int, int, int, int, int, int, int],
+) -> None:
+    descriptor = _verify_published_control(parent_descriptor, name, expected_identity)
+    os.close(descriptor)
+
+
+def atomic_json(path: Path, value: dict[str, object]) -> None:
+    """Publish one root control file without following candidate path swaps."""
+    parent_descriptor, name = _open_control_parent(path)
+    temporary_name = f".{name}.tmp-{os.getpid()}"
+    published = False
+    success = False
+    try:
+        _require_absent_control_file(parent_descriptor, name)
+        temporary_name, expected_identity = _write_control_temporary(
+            parent_descriptor, name, value
+        )
         os.replace(
             temporary_name,
             name,
@@ -1369,28 +1494,15 @@ def atomic_json(path: Path, value: dict[str, object]) -> None:
         )
         published = True
         os.fsync(parent_descriptor)
-        published_descriptor = _verify_published_control(parent_descriptor, name, expected_identity)
+        _verify_control_publication(parent_descriptor, name, expected_identity)
         success = True
     except OSError as exc:
         fail(f"could not publish root control file: {exc}")
     finally:
-        if descriptor >= 0:
-            os.close(descriptor)
-        if published_descriptor >= 0:
-            os.close(published_descriptor)
         if not success:
-            for candidate_name in (
-                temporary_name,
-                name if published else None,
-            ):
-                if candidate_name is None:
-                    continue
-                try:
-                    os.unlink(candidate_name, dir_fd=parent_descriptor)
-                except FileNotFoundError:
-                    pass
-                except OSError:
-                    pass
+            _discard_control_files(
+                parent_descriptor, temporary_name, name if published else None
+            )
         os.close(parent_descriptor)
 
 
@@ -1568,36 +1680,48 @@ def require_root_owned_directory(path: Path, mode: int, label: str) -> None:
         fail(f"{label} is not an immutable root-owned directory")
 
 
-def _lexer_step(character: str, current: list[str], quote: str | None,
-                 escaped: bool, comment: bool, nesting: int, label: str) -> tuple[str | None, bool, bool, int, str | None]:
-    if comment:
-        return quote, escaped, character != "\n", nesting, None
-    if quote is not None:
-        current.append(character)
-        if escaped:
-            return quote, False, False, nesting, None
-        if character == "\\":
-            return quote, True, False, nesting, None
-        return (None if character == quote else quote), False, False, nesting, None
+def _lexer_quoted_step(
+    character: str, current: list[str], quote: str, escaped: bool, nesting: int
+) -> tuple[str | None, bool, bool, int, str | None]:
+    current.append(character)
+    if escaped:
+        return quote, False, False, nesting, None
+    if character == "\\":
+        return quote, True, False, nesting, None
+    return (None if character == quote else quote), False, False, nesting, None
+
+
+def _lexer_unquoted_step(
+    character: str, current: list[str], nesting: int, label: str
+) -> tuple[str | None, bool, bool, int, str | None]:
     if character in {"'", '"'}:
         current.append(character)
         return character, False, False, nesting, None
     if character == "#":
-        return quote, escaped, True, nesting, None
+        return None, False, True, nesting, None
     if character in {";", "{"}:
         statement = "".join(current).strip()
         if not statement:
             fail(f"{label} contains an empty NGINX statement")
         current.clear()
-        return quote, escaped, False, nesting + (character == "{"), statement + character
+        return None, False, False, nesting + (character == "{"), statement + character
     if character == "}":
         if "".join(current).strip():
             fail(f"{label} has an unterminated directive before a block close")
         if nesting <= 0:
             fail(f"{label} has an unmatched NGINX block close")
-        return quote, escaped, False, nesting - 1, "}"
+        return None, False, False, nesting - 1, "}"
     current.append(character)
-    return quote, escaped, False, nesting, None
+    return None, False, False, nesting, None
+
+
+def _lexer_step(character: str, current: list[str], quote: str | None,
+                 escaped: bool, comment: bool, nesting: int, label: str) -> tuple[str | None, bool, bool, int, str | None]:
+    if comment:
+        return quote, escaped, character != "\n", nesting, None
+    if quote is not None:
+        return _lexer_quoted_step(character, current, quote, escaped, nesting)
+    return _lexer_unquoted_step(character, current, nesting, label)
 
 
 def nginx_statements(text: str, label: str) -> list[str]:
@@ -1639,13 +1763,13 @@ def _validate_config_directives(statements: list[str], expected: dict[str, str])
                  "ssl_certificate_key", "include"}
     for statement in statements:
         if nginx_directive(statement) in forbidden:
-            fail("generated NGINX configuration has an unsafe runtime directive")
+            fail(f"{GENERATED_CONFIG_LABEL} has an unsafe runtime directive")
     for directive, required in expected.items():
         if [line for line in statements if nginx_directive(line) == directive] != [required]:
-            fail("generated NGINX configuration does not match the fixed runtime cell")
+            fail(f"{GENERATED_CONFIG_LABEL} does not match the fixed runtime cell")
     listens = [line for line in statements if nginx_directive(line) == "listen"]
     if len(listens) != 1 or not re.fullmatch(r"listen 127\.0\.0\.1:(?a:\d+);", listens[0]):
-        fail("generated NGINX configuration does not bind exactly one loopback listener")
+        fail(f"{GENERATED_CONFIG_LABEL} does not bind exactly one loopback listener")
 
 
 def validate_generated_config(
@@ -1671,7 +1795,6 @@ def validate_generated_config(
     mode_root = cell / mode
     config_root = mode_root / "config"
     runtime_root = mode_root / "runtime"
-    logs_root = mode_root / "logs"
     expected_config = config_root / "nginx.conf"
     expected_rules = config_root / "modsecurity.conf"
     expected_docroot = config_root / "docroot"
@@ -1687,7 +1810,9 @@ def validate_generated_config(
         except ValueError:
             fail(f"{label} is outside the fixed sandbox cell")
         return cell / relative
-    config = contained(host_path(raw_path, "generated NGINX configuration"), mode_root, "generated NGINX configuration")
+    config = contained(
+        host_path(raw_path, GENERATED_CONFIG_LABEL), mode_root, GENERATED_CONFIG_LABEL
+    )
     if config != expected_config:
         fail("supervisor readiness does not name the fixed root-owned configuration")
     text = bounded_file(config, MAX_GENERATED_CONFIG_BYTES).decode("utf-8")
@@ -1713,7 +1838,7 @@ def validate_generated_config(
         fail(f"supervisor readiness lacks the master namespace PID: {exc}")
     if bounded_file(pid_path, 128).decode("ascii").strip() != expected_namespace_pid:
         fail("generated NGINX PID file is not bound to the readiness master")
-    statements = nginx_statements(text, "generated NGINX configuration")
+    statements = nginx_statements(text, GENERATED_CONFIG_LABEL)
     expected = {
         "load_module": f'load_module "{config_module}";',
         "user": f"user {worker_name} {worker_group};",
@@ -1909,6 +2034,52 @@ def _callback_transactions(error: str, mode: str) -> list[str]:
     return transactions
 
 
+def _phase4_transactions(path: Path, mode: str) -> list[str]:
+    """Extract only valid rule-match transactions from bounded JSONL evidence."""
+    events: list[str] = []
+    for line in bounded_file(path, MAX_RUNTIME_LOG_BYTES).decode("utf-8").splitlines():
+        if "\x1b" in line or "::" in line:
+            fail(f"{mode} Phase-4 evidence contains terminal or workflow control text")
+        if FORBIDDEN_MARKERS.search(line):
+            fail(f"{mode} Phase-4 evidence contains a forbidden marker")
+        try:
+            record = json.loads(line, object_pairs_hook=duplicate_safe)
+        except json.JSONDecodeError as exc:
+            fail(f"{mode} Phase-4 evidence is not JSONL: {exc}")
+        transaction_id = _event_transaction(record, mode)
+        if transaction_id is not None:
+            events.append(transaction_id)
+    return events
+
+
+def _callback_observed(mode: str, error: str, transaction_id: str) -> bool:
+    """Require the mode-specific callback contract for one JSONL transaction."""
+    callbacks = _callback_transactions(error, mode)
+    if mode == "on":
+        if callbacks != [transaction_id]:
+            fail("on mode lacks exactly one correlated native callback")
+        return True
+    if callbacks or RULE_1000001_RE.search(error) or CALLBACK_TX_RE.search(error):
+        fail("off mode contains native callback evidence")
+    return False
+
+
+def _mode_evidence_record(
+    mode: str, status_code: int, transaction_id: str, callback_observed: bool
+) -> dict[str, object]:
+    return {
+        "callback_observed": callback_observed,
+        "callback_observation_source": "candidate_scratch_untrusted",
+        "http_status_observation_source": "root_pidfd_network_namespace",
+        "mode": mode,
+        "http_status": status_code,
+        "jsonl_observed": True,
+        "jsonl_observation_source": "candidate_scratch_untrusted",
+        "waf_decision": "deny",
+        "transaction_id": transaction_id,
+    }
+
+
 def mode_evidence(cell: Path, mode: str, status_code: int) -> dict[str, object]:
     """Derive one bounded cell decision from raw scratch evidence.
 
@@ -1929,19 +2100,7 @@ def mode_evidence(cell: Path, mode: str, status_code: int) -> dict[str, object]:
         mode_root,
         "native error-log evidence",
     )
-    events: list[str] = []
-    for line in bounded_file(phase4, MAX_RUNTIME_LOG_BYTES).decode("utf-8").splitlines():
-        if "\x1b" in line or "::" in line:
-            fail(f"{mode} Phase-4 evidence contains terminal or workflow control text")
-        if FORBIDDEN_MARKERS.search(line):
-            fail(f"{mode} Phase-4 evidence contains a forbidden marker")
-        try:
-            record = json.loads(line, object_pairs_hook=duplicate_safe)
-        except json.JSONDecodeError as exc:
-            fail(f"{mode} Phase-4 evidence is not JSONL: {exc}")
-        transaction_id = _event_transaction(record, mode)
-        if transaction_id is not None:
-            events.append(transaction_id)
+    events = _phase4_transactions(phase4, mode)
     if status_code != 403:
         fail(f"{mode} trusted HTTP status was not 403")
     error = bounded_file(error_log, MAX_RUNTIME_LOG_BYTES).decode("utf-8")
@@ -1949,34 +2108,83 @@ def mode_evidence(cell: Path, mode: str, status_code: int) -> dict[str, object]:
         fail(f"{mode} native error-log evidence contains a forbidden marker")
     if len(events) != 1:
         fail(f"{mode} mode lacks exactly one correlated JSONL rule-match event")
-    callback_transactions = _callback_transactions(error, mode)
-    if mode == "on" and callback_transactions != [events[0]]:
-        fail("on mode lacks exactly one correlated native callback")
-    if mode != "on":
-        if callback_transactions or RULE_1000001_RE.search(error) or CALLBACK_TX_RE.search(error):
-            fail("off mode contains native callback evidence")
-        return {
-            "callback_observed": False,
-            "callback_observation_source": "candidate_scratch_untrusted",
-            "http_status_observation_source": "root_pidfd_network_namespace",
-            "mode": mode,
-            "http_status": status_code,
-            "jsonl_observed": True,
-            "jsonl_observation_source": "candidate_scratch_untrusted",
-            "waf_decision": "deny",
-            "transaction_id": events[0],
-        }
-    return {
-        "callback_observed": True,
-        "callback_observation_source": "candidate_scratch_untrusted",
-        "http_status_observation_source": "root_pidfd_network_namespace",
-        "mode": mode,
-        "http_status": status_code,
-        "jsonl_observed": True,
-        "jsonl_observation_source": "candidate_scratch_untrusted",
-        "waf_decision": "deny",
-        "transaction_id": events[0],
-    }
+    callback_observed = _callback_observed(mode, error, events[0])
+    return _mode_evidence_record(mode, status_code, events[0], callback_observed)
+
+
+def _root_evidence_payload(value: dict[str, Any], line_delimited: bool) -> bytes:
+    raw = json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return raw + b"\n" if line_delimited else raw
+
+
+def _open_evidence_temporary(
+    temporary: Path, temporary_leaf: str, directory_fd: int | None
+) -> int:
+    target: str | Path = temporary_leaf if directory_fd is not None else temporary
+    kwargs = {"dir_fd": directory_fd} if directory_fd is not None else {}
+    return os.open(
+        target,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW,
+        0o600,
+        **kwargs,
+    )
+
+
+def _write_root_evidence_payload(descriptor: int, raw: bytes) -> None:
+    offset = 0
+    while offset < len(raw):
+        written = os.write(descriptor, raw[offset:])
+        if written <= 0:
+            fail("could not write complete root evidence")
+        offset += written
+    os.fsync(descriptor)
+
+
+def _publish_evidence_file(
+    path: Path,
+    temporary: Path,
+    leaf: str,
+    temporary_leaf: str,
+    directory_fd: int | None,
+) -> os.stat_result:
+    if directory_fd is None:
+        os.replace(temporary, path)
+        os.chmod(path, 0o600)
+        return path.lstat()
+    os.replace(temporary_leaf, leaf, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
+    os.fsync(directory_fd)
+    descriptor = os.open(
+        leaf, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW, dir_fd=directory_fd
+    )
+    try:
+        os.fchmod(descriptor, 0o600)
+    finally:
+        os.close(descriptor)
+    return os.stat(leaf, dir_fd=directory_fd, follow_symlinks=False)
+
+
+def _require_root_evidence_file(metadata: os.stat_result) -> None:
+    if (
+        stat.S_ISLNK(metadata.st_mode)
+        or not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_nlink != 1
+        or metadata.st_uid != 0
+        or metadata.st_gid != 0
+        or stat.S_IMODE(metadata.st_mode) != 0o600
+    ):
+        fail("published root evidence metadata is unsafe")
+
+
+def _discard_evidence_temporary(
+    temporary: Path, temporary_leaf: str, directory_fd: int | None
+) -> None:
+    try:
+        if directory_fd is not None:
+            os.unlink(temporary_leaf, dir_fd=directory_fd)
+        elif temporary.exists() or temporary.is_symlink():
+            temporary.unlink()
+    except OSError:
+        pass
 
 
 def write_root_owned_json(path: Path, value: dict[str, Any], *, line_delimited: bool = False,
@@ -1984,67 +2192,27 @@ def write_root_owned_json(path: Path, value: dict[str, Any], *, line_delimited: 
     """Atomically publish Base-derived data without copying raw candidate text."""
     if directory_fd is None and (path.exists() or path.is_symlink()):
         fail("root evidence destination is not fresh")
-    raw = json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    if line_delimited:
-        raw += b"\n"
     temporary = path.with_name("." + path.name + ".tmp")
     leaf = path.name
     temporary_leaf = "." + leaf + ".tmp"
     descriptor = -1
     try:
-        open_target: str | Path = temporary_leaf if directory_fd is not None else temporary
-        open_kwargs = {"dir_fd": directory_fd} if directory_fd is not None else {}
-        descriptor = os.open(
-            open_target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW,
-            0o600, **open_kwargs,
+        descriptor = _open_evidence_temporary(temporary, temporary_leaf, directory_fd)
+        _write_root_evidence_payload(
+            descriptor, _root_evidence_payload(value, line_delimited)
         )
-        offset = 0
-        while offset < len(raw):
-            written = os.write(descriptor, raw[offset:])
-            if written <= 0:
-                fail("could not write complete root evidence")
-            offset += written
-        os.fsync(descriptor)
         os.close(descriptor)
         descriptor = -1
-        if directory_fd is not None:
-            os.replace(temporary_leaf, leaf, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
-            os.fsync(directory_fd)
-            final = os.stat(leaf, dir_fd=directory_fd, follow_symlinks=False)
-            final_descriptor = os.open(leaf, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW,
-                                       dir_fd=directory_fd)
-            try:
-                os.fchmod(final_descriptor, 0o600)
-            finally:
-                os.close(final_descriptor)
-        else:
-            os.replace(temporary, path)
-            os.chmod(path, 0o600)
-            final = path.lstat()
-        if (
-            stat.S_ISLNK(final.st_mode)
-            or not stat.S_ISREG(final.st_mode)
-            or final.st_nlink != 1
-            or final.st_uid != 0
-            or final.st_gid != 0
-            or stat.S_IMODE(final.st_mode) != 0o600
-        ):
-            fail("published root evidence metadata is unsafe")
+        final = _publish_evidence_file(
+            path, temporary, leaf, temporary_leaf, directory_fd
+        )
+        _require_root_evidence_file(final)
     except OSError as exc:
         fail(f"could not publish root evidence: {exc}")
     finally:
         if descriptor >= 0:
             os.close(descriptor)
-        try:
-            if directory_fd is not None:
-                try:
-                    os.unlink(temporary_leaf, dir_fd=directory_fd)
-                except FileNotFoundError:
-                    pass
-            elif temporary.exists() or temporary.is_symlink():
-                temporary.unlink()
-        except OSError:
-            pass
+        _discard_evidence_temporary(temporary, temporary_leaf, directory_fd)
 
 
 def publish_evidence(
@@ -2274,10 +2442,10 @@ def establish_subordinate_mapping(mapping: SubordinateMapping) -> None:
         )
         mapping.gid_added = True
         require_exact_subordinate_mapping(mapping)
-    except (OSError, subprocess.SubprocessError, LauncherError, RuntimeError) as primary:
+    except (OSError, subprocess.SubprocessError, RuntimeError) as primary:
         try:
             cleanup_subordinate_mapping(mapping)
-        except (OSError, subprocess.SubprocessError, LauncherError, RuntimeError) as rollback:
+        except (OSError, subprocess.SubprocessError, RuntimeError) as rollback:
             fail(f"subordinate mapping setup failed: {primary}; rollback failed: {rollback}")
         raise
 
@@ -2299,7 +2467,7 @@ def admit_candidate_bundle(
         "module": MODULE_ARTIFACT_NAME,
         "library": LIBRARY_ARTIFACT_NAME,
     }
-    expected_entries = set(fixed.values()) | {"artifact-manifest.json"}
+    expected_entries = set(fixed.values()) | {ARTIFACT_MANIFEST_NAME}
     if {entry.name for entry in root.iterdir()} != expected_entries:
         fail("candidate artifact root does not contain exactly the approved payload")
     identities: dict[str, dict[str, int | str]] = {}
@@ -2314,7 +2482,7 @@ def admit_candidate_bundle(
             descriptors[key] = descriptor
         validate_admitted_artifacts(manifest, identities)
         descriptor = open_regular_no_follow(
-            contained(root / "artifact-manifest.json", root, CANDIDATE_MANIFEST_LABEL),
+            contained(root / ARTIFACT_MANIFEST_NAME, root, CANDIDATE_MANIFEST_LABEL),
             CANDIDATE_MANIFEST_LABEL,
         )
         descriptors["manifest"] = descriptor
@@ -2352,14 +2520,16 @@ def _prepare_launcher(args: argparse.Namespace, state: LauncherState) -> tuple[
     raw_evidence = Path(args.evidence_root)
     if not raw_evidence.is_absolute() or any(part in {".", ".."} for part in raw_evidence.parts):
         fail("root evidence path must be an absolute normalized path")
-    evidence_parent = no_symlink_path(raw_evidence.parent, "root evidence parent")
-    verify_runner_owned_directory(evidence_parent, args.runner_uid, args.runner_gid, "root evidence parent")
-    parent_admission = open_directory_no_follow(evidence_parent, "root evidence parent")
+    evidence_parent = no_symlink_path(raw_evidence.parent, ROOT_EVIDENCE_PARENT_LABEL)
+    verify_runner_owned_directory(
+        evidence_parent, args.runner_uid, args.runner_gid, ROOT_EVIDENCE_PARENT_LABEL
+    )
+    parent_admission = open_directory_no_follow(evidence_parent, ROOT_EVIDENCE_PARENT_LABEL)
     try:
         parent_metadata = os.fstat(parent_admission)
         if (parent_metadata.st_uid != args.runner_uid or parent_metadata.st_gid != args.runner_gid
                 or stat.S_IMODE(parent_metadata.st_mode) & 0o022):
-            fail("root evidence parent changed during admission")
+            fail(f"{ROOT_EVIDENCE_PARENT_LABEL} changed during admission")
         state.evidence_root, state.evidence_fd, state.evidence_parent_fd = create_owned_child_directory(
             evidence_parent, raw_evidence.name, 0, 0, 0o700, "root evidence path",
             args.runner_uid, args.runner_gid, parent_descriptor=parent_admission,
@@ -2409,11 +2579,10 @@ def _prepare_launcher(args: argparse.Namespace, state: LauncherState) -> tuple[
     establish_subordinate_mapping(state.mapping)
     binary = candidate_root / NGINX_ARTIFACT_NAME
     module = candidate_root / MODULE_ARTIFACT_NAME
-    library = candidate_root / LIBRARY_ARTIFACT_NAME
     sandbox_binary = SANDBOX_CANDIDATE_ROOT / NGINX_ARTIFACT_NAME
     sandbox_module = SANDBOX_CANDIDATE_ROOT / MODULE_ARTIFACT_NAME
     sandbox_library = SANDBOX_CANDIDATE_ROOT / LIBRARY_ARTIFACT_NAME
-    sandbox_manifest = SANDBOX_CANDIDATE_ROOT / "artifact-manifest.json"
+    sandbox_manifest = SANDBOX_CANDIDATE_ROOT / ARTIFACT_MANIFEST_NAME
     stable_cell = Path(f"/proc/self/fd/{state.cell_fd}")
     prepare_trusted_cells(
         stable_cell, sandbox_module, worker_name, worker_group,
@@ -2460,7 +2629,7 @@ def _prepare_launcher(args: argparse.Namespace, state: LauncherState) -> tuple[
     }
 
 
-def _execute_launcher(args: argparse.Namespace, state: LauncherState, artifacts: dict[str, dict[str, int | str]],
+def _execute_launcher(state: LauncherState, artifacts: dict[str, dict[str, int | str]],
                       expected: IdentityExpectations, context: dict[str, object]) -> None:
     """Run both mode cells, validate evidence, and publish the terminal record."""
     enable_child_subreaper()
@@ -2532,74 +2701,126 @@ def _remove_tree_at(parent_fd: int, name: str,
         os.close(descriptor)
 
 
+def _terminate_and_drain_runtime(state: LauncherState, errors: list[str]) -> bool:
+    if state.process is None:
+        return True
+    try:
+        terminate_runtime_process(state.process)
+    except (LauncherError, OSError) as exc:
+        errors.append(f"runtime process: {exc}")
+        return False
+    return True
+
+
+def _require_worker_drain(
+    state: LauncherState, runtime_quiescent: bool, errors: list[str]
+) -> bool:
+    if not runtime_quiescent or state.worker_uid is None:
+        return runtime_quiescent
+    try:
+        require_no_dedicated_worker_processes(state.worker_uid)
+    except (LauncherError, OSError) as exc:
+        errors.append(f"dedicated worker processes: {exc}")
+        return False
+    return True
+
+
+def _cleanup_runtime_identity(
+    state: LauncherState, runtime_quiescent: bool, errors: list[str]
+) -> bool:
+    if state.identity is None:
+        return True
+    if not runtime_quiescent:
+        return False
+    try:
+        cleanup_identity(
+            *state.identity,
+            state.worker_uid,
+            state.mapping.worker_gid if state.mapping is not None else None,
+        )
+    except (LauncherError, OSError) as exc:
+        errors.append(f"dedicated identity: {exc}")
+        return False
+    return True
+
+
+def _cleanup_runtime_mapping(
+    state: LauncherState,
+    runtime_quiescent: bool,
+    identity_cleaned: bool,
+    errors: list[str],
+) -> None:
+    if not runtime_quiescent or state.mapping is None:
+        return
+    if not identity_cleaned:
+        errors.append("subordinate mapping retained because identity cleanup failed")
+        return
+    try:
+        cleanup_subordinate_mapping(state.mapping)
+    except (LauncherError, OSError) as exc:
+        errors.append(f"subordinate mapping: {exc}")
+
+
+def _cleanup_quiesced_scratch(
+    state: LauncherState, runtime_quiescent: bool, errors: list[str]
+) -> None:
+    if not runtime_quiescent:
+        errors.append("runtime ownership was not quiescent; retained identity, mapping, and cell")
+        return
+    if state.scratch_fd < 0 or state.scratch_parent_fd < 0:
+        return
+    try:
+        scratch_identity = os.fstat(state.scratch_fd)
+        # The retained parent is the root-owned private container, not the
+        # runner-owned evidence parent. Nested scratch entries remain confined
+        # to this invocation-owned container after the runtime has drained.
+        _remove_tree_at(
+            state.scratch_parent_fd,
+            ROOT_RUN_NAME,
+            (scratch_identity.st_dev, scratch_identity.st_ino),
+        )
+    except (LauncherError, OSError) as exc:
+        errors.append(f"runtime cell: {exc}")
+
+
+def _close_launcher_directory_descriptors(
+    state: LauncherState, errors: list[str]
+) -> None:
+    descriptors = (
+        ("cell", state.cell_fd),
+        ("cell parent", state.cell_parent_fd),
+        ("scratch", state.scratch_fd),
+        ("scratch parent", state.scratch_parent_fd),
+        ("scratch container", state.scratch_container_fd),
+        ("scratch container parent", state.scratch_container_parent_fd),
+        ("evidence", state.evidence_fd),
+        ("evidence parent", state.evidence_parent_fd),
+    )
+    for label, descriptor in descriptors:
+        if descriptor < 0:
+            continue
+        try:
+            os.close(descriptor)
+        except OSError as exc:
+            errors.append(f"{label} descriptor: {exc}")
+
+
 def _cleanup_launcher(state: LauncherState) -> list[str]:
     """Stop runtime first, then release identities, mappings, cells, evidence."""
     errors: list[str] = []
-    runtime_quiescent = state.process is None
-    if state.process is not None:
-        try:
-            terminate_runtime_process(state.process)
-        except (LauncherError, OSError) as exc:
-            errors.append(f"runtime process: {exc}")
-        else:
-            runtime_quiescent = True
-    if runtime_quiescent and state.worker_uid is not None:
-        try:
-            require_no_dedicated_worker_processes(state.worker_uid)
-        except (LauncherError, OSError) as exc:
-            errors.append(f"dedicated worker processes: {exc}")
-            runtime_quiescent = False
-    identity_cleaned = state.identity is None
-    if runtime_quiescent and state.identity is not None:
-        try:
-            cleanup_identity(
-                *state.identity,
-                state.worker_uid,
-                state.mapping.worker_gid if state.mapping is not None else None,
-            )
-        except (LauncherError, OSError) as exc:
-            errors.append(f"dedicated identity: {exc}")
-        else:
-            identity_cleaned = True
-    if runtime_quiescent and state.mapping is not None and identity_cleaned:
-        try:
-            cleanup_subordinate_mapping(state.mapping)
-        except (LauncherError, OSError) as exc:
-            errors.append(f"subordinate mapping: {exc}")
-    elif runtime_quiescent and state.mapping is not None:
-        errors.append("subordinate mapping retained because identity cleanup failed")
-    if runtime_quiescent and state.scratch_fd >= 0 and state.scratch_parent_fd >= 0:
-        try:
-            scratch_identity = os.fstat(state.scratch_fd)
-            # The retained parent is the root-owned private container, not
-            # the runner-owned evidence parent.  Nested scratch entries may
-            # be candidate-mutated, but after process quiescence they remain
-            # confined to this invocation-owned container.
-            _remove_tree_at(
-                state.scratch_parent_fd, ROOT_RUN_NAME,
-                (scratch_identity.st_dev, scratch_identity.st_ino),
-            )
-        except (LauncherError, OSError) as exc:
-            errors.append(f"runtime cell: {exc}")
-    elif not runtime_quiescent:
-        errors.append("runtime ownership was not quiescent; retained identity, mapping, and cell")
+    runtime_quiescent = _terminate_and_drain_runtime(state, errors)
+    runtime_quiescent = _require_worker_drain(
+        state, runtime_quiescent, errors
+    )
+    identity_cleaned = _cleanup_runtime_identity(
+        state, runtime_quiescent, errors
+    )
+    _cleanup_runtime_mapping(state, runtime_quiescent, identity_cleaned, errors)
+    _cleanup_quiesced_scratch(state, runtime_quiescent, errors)
     if not state.evidence_published and state.evidence_fd >= 0 and state.evidence_parent_fd >= 0:
         errors.append("failed-run evidence retained under runner parent")
     errors.extend(_close_owned_descriptors(state))
-    for label in ("cell", "cell parent", "scratch", "scratch parent", "scratch container", "scratch container parent", "evidence", "evidence parent"):
-        descriptor = {
-            "cell": state.cell_fd, "cell parent": state.cell_parent_fd,
-            "scratch": state.scratch_fd,
-            "scratch parent": state.scratch_parent_fd, "evidence": state.evidence_fd,
-            "evidence parent": state.evidence_parent_fd,
-            "scratch container": state.scratch_container_fd,
-            "scratch container parent": state.scratch_container_parent_fd,
-        }[label]
-        if descriptor >= 0:
-            try:
-                os.close(descriptor)
-            except OSError as exc:
-                errors.append(f"{label} descriptor: {exc}")
+    _close_launcher_directory_descriptors(state, errors)
     return errors
 
 
@@ -2612,7 +2833,7 @@ def main(argv: list[str] | None = None) -> int:
             fail("root launcher requires euid 0")
         args = parse_args(argv or sys.argv[1:])
         artifacts, expected, _, _, context = _prepare_launcher(args, state)
-        _execute_launcher(args, state, artifacts, expected, context)
+        _execute_launcher(state, artifacts, expected, context)
     except (LauncherError, OSError, KeyError, ValueError, subprocess.SubprocessError) as exc:
         primary = exc
     finally:

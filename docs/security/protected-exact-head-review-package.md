@@ -14,8 +14,11 @@ the control-plane TCB. `independent_review_requested=false` and
 
 The external codex-security archive receipt remains
 `blocked_external_dependency` (FND-PARENT-1036). The retained old run and
-synthetic fixtures are failure evidence only. Final head, GitHub read-back,
-hosted runtime, and post-push Sonar results are pending exact-head validation.
+synthetic fixtures are failure evidence only. The first exact read-back for
+`c8f1a00a5d45cbc5c4a7e52e1da17e8611e767db` is historical remediation input,
+not final acceptance: it found 20 open code smells despite a green gate. The
+normal source/test successor, its GitHub read-back, hosted runtime, and
+post-push Sonar result remain pending exact-head validation.
 
 ## Threat model and trust boundaries
 
@@ -113,6 +116,24 @@ fresh exact-head reanalysis.
 This historic baseline is not evidence about the final head, and no issue is dismissed through
 `NOSONAR`, exclusions, or a weakened gate.
 
+## Current exact-head Sonar feedback — `c8f1a00a5d45cbc5c4a7e52e1da17e8611e767db`
+
+SonarCloud analyzed this exact PR head at `2026-09-05T08:25:15Z`. The Quality
+Gate was `OK`, new-code Reliability/Security/Maintainability ratings were `A`,
+and bugs, vulnerabilities, and hotspots were zero. That gate result is not
+accepted as completion: the API still returned 20 `OPEN` code smells and zero
+`CONFIRMED` issues. The following complete matrix binds each key to a real
+source/test change in this successor; no suppression, acceptance, exclusion,
+or quality-gate change is used. Only the post-push analysis can prove that the
+keys are resolved.
+
+| Current key group | Real remediation and regression evidence |
+| --- | --- |
+| Collector `AaBwrYPNwqJS101QKLQy` (`S5713`) | Remove the redundant `FileNotFoundError` subclass from the atomic-result cleanup handler; collector regression suite covers atomic publication. |
+| Launcher `AaBwrYH-wqJS101QKLQk`, `AaBwrYH-wqJS101QKLQm`, `AaBwrYH-wqJS101QKLQn`, `AaBwrYH-wqJS101QKLQo`, `AaBwrYH-wqJS101QKLQl`, `AaBwrYH-wqJS101QKLQq`, `AaBwrYH-wqJS101QKLQr`, `AaBwrYH-wqJS101QKLQs`, `AaBwrYH-wqJS101QKLQi`, `AaBwrYH-wqJS101QKLQj`, `AaBwrYH-wqJS101QKLQt`, `AaBwrYH-wqJS101QKLQu`, `AaBwrYH-wqJS101QKLQv`, `AaBs7c4JmWRUlaV2mVXd`, `AaBwrYH-wqJS101QKLQw`, `AaBwrYH-wqJS101QKLQp`, `AaBsRF5SmWRUlaV2f7fu` (`S1192`, `S3776`, `S5713`, `S1481`, `S1172`, `S2589`) | Extract descriptor admission, control/evidence atomic publication, lexer, evidence parsing, and cleanup phases; centralize fixed literals; retain no-follow, pre/post identity, fsync, PIDFD, and quiescence behavior. Launcher regressions cover retained-FD, symlink, cleanup, JSONL, and callback boundaries. |
+| Dispatcher `AaBwrYOpwqJS101QKLQx` (`S1192`) | Centralize the fixed dispatcher-manifest leaf; dispatcher regression suite covers the fixed location mapping. |
+| Launcher test `AaBwrYQAwqJS101QKLQz` (`S5778`) | Bind UID/GID test inputs before the exception assertion so exactly one operation is under test; the focused launcher suite preserves the duplicate-child negative control. |
+
 ## Historical-issue remediation matrix
 
 The key groups above are retained individually for traceability.  This matrix
@@ -132,7 +153,8 @@ post-push PR analysis can determine their final resolution.
 
 - [x] final local source/test/doc diff reviewed and checks passed;
 - [x] normal base merge `acc0ca1d22fd8a452453e66f51115ce026517b52` completed without rebase or force-push;
-- [ ] pushed head read back from GitHub and matched exactly;
+- [x] the `c8f1…` exact-head read-back exposed and individually mapped all 20 remaining Sonar issues;
+- [ ] normal remediation successor pushed, read back from GitHub, and matched exactly;
 - [ ] all relevant checks and the full exact-head runtime workflow rerun;
 - [ ] Sonar issues triaged individually with zero new issues;
 - [ ] external archive status remains `blocked_external_dependency` until the
