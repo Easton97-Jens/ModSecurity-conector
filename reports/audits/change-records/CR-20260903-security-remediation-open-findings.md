@@ -884,3 +884,30 @@ boundary and remains `in_progress`; `FND-PARENT-0078` retains the traversal
 boundary and likewise remains `in_progress`. `FND-PARENT-1038` is unchanged
 and not closed; `FND-PARENT-1036` remains `blocked_external_dependency`. PR
 #354 remains Draft, open, and unmerged.
+
+### 2026-09-05 eighth hosted follow-up (ShellCheck guard successor pending)
+
+The normal successor `d88b47abb598eb410ebddca7d3016ca526d06447` was pushed
+to the existing Draft PR #354 branch and read back from Git and GitHub. Its
+exact-head Security workflow lint run `33999439753` then failed at the two new
+Functional-A `/tmp` and fresh-job-root guards with ShellCheck `SC2015`. The
+guards fail closed, but their `A && B || { ...; }` form is ambiguous and must
+not remain in a passing workflow.
+
+The bounded follow-up rewrites only those two conditions as explicit `if`
+guards with the same truth table: a missing/non-directory or symbolic-link
+`/tmp`/job root is rejected before any privileged handoff. The focused contract
+test rejects reintroduction of either ambiguous form, and local
+`actionlint -shellcheck=/usr/bin/shellcheck` passes. No ownership, mode,
+traversal, Common serialization, descriptor-lifecycle, or root-command
+boundary is weakened.
+
+This successor is not yet pushed. The in-progress `d88b47ab...` Hosted
+Functional-A and five-cell CRS/no-MRTS runs, plus its remaining checks and
+Sonar analysis, are predecessor-only after the next normal push. The next
+exact head still requires fresh native ON/OFF/JSONL/WAF/allow evidence,
+worker/reload/shutdown lifecycle evidence, relevant checks, all five runtime
+cells, and SonarCloud. `FND-PARENT-1046` and `FND-PARENT-0078` remain in
+progress; `FND-PARENT-1038` is unchanged and not closed; `FND-PARENT-1036`
+remains `blocked_external_dependency`. PR #354 remains Draft, open, and
+unmerged.

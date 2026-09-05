@@ -19,6 +19,16 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
             "FUNCTIONAL_JOB_ROOT=$(/usr/bin/mktemp -d /tmp/ModSecurity-conector-nginx-functional-root.XXXXXX)",
             workflow,
         )
+        self.assertIn('if [ ! -d /tmp ] || [ -L /tmp ]; then', workflow)
+        self.assertNotIn('[ -d /tmp ] && [ ! -L /tmp ] ||', workflow)
+        self.assertIn(
+            'if [ ! -d "$FUNCTIONAL_JOB_ROOT" ] || [ -L "$FUNCTIONAL_JOB_ROOT" ]; then',
+            workflow,
+        )
+        self.assertNotIn(
+            '[ -d "$FUNCTIONAL_JOB_ROOT" ] && [ ! -L "$FUNCTIONAL_JOB_ROOT" ] ||',
+            workflow,
+        )
         self.assertIn("[ \"$(/usr/bin/stat -c '%u:%a' /tmp)\" = \"0:1777\" ]", workflow)
         self.assertIn('RUN_ROOT="$FUNCTIONAL_JOB_ROOT/ModSecurity-conector-nginx-exact-head"', workflow)
         self.assertIn("^[0-9a-f]{40}$", workflow)

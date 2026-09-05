@@ -970,3 +970,33 @@ fest und bleibt `in_progress`; `FND-PARENT-0078` behält die Traversal-Grenze
 und bleibt ebenfalls `in_progress`. `FND-PARENT-1038` ist unverändert und
 nicht geschlossen; `FND-PARENT-1036` bleibt `blocked_external_dependency`. PR
 #354 bleibt Draft, offen und ungemergt.
+
+### 2026-09-05 Achter Hosted-Follow-up (ShellCheck-Guard-Successor ausstehend)
+
+Der normale Successor `d88b47abb598eb410ebddca7d3016ca526d06447` wurde auf
+den bestehenden Draft-PR-#354-Branch gepusht und aus Git sowie GitHub
+zurückgelesen. Sein Exact-Head-Security-Workflow-Lint-Run `33999439753` schlug
+anschließend an den zwei neuen Functional-A-Guards für `/tmp` und den frischen
+Job-Root mit ShellCheck `SC2015` fehl. Die Guards schlagen fail-closed fehl,
+aber ihre Form `A && B || { ...; }` ist mehrdeutig und darf nicht in einem
+grünen Workflow verbleiben.
+
+Der begrenzte Follow-up schreibt nur diese zwei Bedingungen als explizite
+`if`-Guards mit derselben Wahrheitstabelle um: ein fehlendes/nicht als
+Verzeichnis vorliegendes oder symlinked `/tmp`/Job-Root wird vor jedem
+privilegierten Handoff abgewiesen. Der fokussierte Contract-Test weist die
+Wiedereinführung beider mehrdeutigen Formen ab, und lokales
+`actionlint -shellcheck=/usr/bin/shellcheck` besteht. Keine Ownership-, Mode-,
+Traversal-, Common-Serialisierungs-, Descriptor-Lifecycle- oder
+Root-Command-Grenze wird abgeschwächt.
+
+Dieser Successor ist noch nicht gepusht. Der laufende Hosted-Functional-A-Lauf
+und die fünf CRS/no-MRTS-Zellen von `d88b47ab...` sowie dessen übrige Checks
+und Sonar-Analyse sind nach dem nächsten normalen Push nur Vorgänger-Evidence.
+Der nächste exakte Head benötigt weiterhin frische native
+ON/OFF-/JSONL-/WAF-/Allow-Evidence, Worker-/Reload-/Shutdown-Lifecycle-
+Evidence, relevante Checks, alle fünf Runtime-Zellen und SonarCloud.
+`FND-PARENT-1046` und `FND-PARENT-0078` bleiben in progress;
+`FND-PARENT-1038` ist unverändert und nicht geschlossen;
+`FND-PARENT-1036` bleibt `blocked_external_dependency`. PR #354 bleibt Draft,
+offen und ungemergt.
