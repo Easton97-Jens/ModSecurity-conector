@@ -18,6 +18,15 @@ angelegt werden.
   dedizierter Runner fehlen weiterhin; kein Hosted-Ergebnis und kein Merge
   werden behauptet. Ausschließlich Vorbereitung — keine Merge-Autorisierung.
 
+- [CR-20260904-apache-helper-aware-common-adoption-contract](CR-20260904-apache-helper-aware-common-adoption-contract.de.md)
+  | English companion: `CR-20260904-apache-helper-aware-common-adoption-contract.md` —
+  die vom Benutzer autorisierte Parent-only-Apache-Static-Contract-Reparatur
+  richtet den Checker an der begrenzten P2-Helper-Architektur aus und verwirft
+  einen reproduzierten Dead-Code-Checker-Bypass. Sie ändert weder Apache-
+  Runtime-Source, Framework, MRTS, Gitlink, Workflow, Governance noch den
+  Status von PR #346; native P2- und Exact-Head-Hosted-Evidenz stehen aus und
+  es wird kein Merge behauptet.
+
 - [CR-20260824-connector-security-invariants](CR-20260824-connector-security-invariants.de.md)
   | English companion: `CR-20260824-connector-security-invariants.md` — das
   Parent-only-Connector-Security-Hardening hält lokale Remote-Rule-, HTTP-

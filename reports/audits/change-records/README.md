@@ -17,6 +17,14 @@ reports without an explicit repository-policy decision or user decision.
   and dedicated runner remain unavailable; no hosted result or merge is
   asserted. Preparation only — no merge authorization.
 
+- [CR-20260904-apache-helper-aware-common-adoption-contract](CR-20260904-apache-helper-aware-common-adoption-contract.md)
+  | [Deutsch](CR-20260904-apache-helper-aware-common-adoption-contract.de.md) —
+  the user-authorized Parent-only Apache static-contract repair aligns the
+  checker with the bounded P2 helper architecture and rejects a reproduced
+  dead-code checker bypass. It changes no Apache runtime source, Framework,
+  MRTS, Gitlink, workflow, governance, or PR #346 state; native P2 and
+  exact-head hosted evidence remain pending, and no merge is asserted.
+
 - [CR-20260824-connector-security-invariants](CR-20260824-connector-security-invariants.md)
   | [Deutsch](CR-20260824-connector-security-invariants.de.md) — the
   Parent-only connector security hardening records local remote-rule,
