@@ -30,8 +30,11 @@
 
 #define TEST_TIMEOUT_MS 25UL
 #define TEST_WAIT_SECONDS 3L
+#define TEST_INTEGRATION_MODE "detached-worker-smoke"
 
 struct msconnector_runtime {
+    char integration_mode[sizeof(TEST_INTEGRATION_MODE)];
+    const msconnector_transaction_profile *transaction_profile;
     int placeholder;
 };
 
@@ -42,8 +45,6 @@ struct msconnector_runtime_transaction {
 static msconnector_runtime fake_runtime = {0};
 static pthread_mutex_t test_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t test_changed = PTHREAD_COND_INITIALIZER;
-static int runtime_event_mode_configured = 0;
-static int runtime_transaction_profile_configured = 0;
 static int mapper_entered = 0;
 static int runtime_entered = 0;
 static int runtime_release = 0;
@@ -91,7 +92,8 @@ static void unblock_runtime(void) {
 static int runtime_setup_was_configured(void) {
     int result = 0;
     if (pthread_mutex_lock(&test_lock) == 0) {
-        result = runtime_event_mode_configured && runtime_transaction_profile_configured;
+        result = strcmp(fake_runtime.integration_mode, TEST_INTEGRATION_MODE) == 0 &&
+            fake_runtime.transaction_profile == &test_transaction_profile;
         (void)pthread_mutex_unlock(&test_lock);
     }
     return result;
@@ -134,11 +136,12 @@ int msconnector_runtime_set_event_integration_mode(
     msconnector_runtime *runtime,
     const char *integration_mode) {
     if (runtime != &fake_runtime || integration_mode == NULL ||
-        strcmp(integration_mode, "detached-worker-smoke") != 0 ||
+        strcmp(integration_mode, TEST_INTEGRATION_MODE) != 0 ||
         pthread_mutex_lock(&test_lock) != 0) {
         return 0;
     }
-    runtime_event_mode_configured = 1;
+    memcpy(runtime->integration_mode, integration_mode,
+        sizeof(runtime->integration_mode));
     (void)pthread_mutex_unlock(&test_lock);
     return 1;
 }
@@ -160,7 +163,7 @@ int msconnector_runtime_set_transaction_profile(
         pthread_mutex_lock(&test_lock) != 0) {
         return 0;
     }
-    runtime_transaction_profile_configured = 1;
+    runtime->transaction_profile = transaction_profile;
     (void)pthread_mutex_unlock(&test_lock);
     return 1;
 }
@@ -187,6 +190,11 @@ int msconnector_runtime_create(
         error[0] = '\0';
     }
     clear_error(error, error_len);
+    if (pthread_mutex_lock(&test_lock) != 0) {
+        return 0;
+    }
+    memset(&fake_runtime, 0, sizeof(fake_runtime));
+    (void)pthread_mutex_unlock(&test_lock);
     *out = &fake_runtime;
     return 1;
 }
@@ -434,7 +442,7 @@ int main(void) {
         sizeof(oversized_host_suffix) - 1U];
     const size_t oversized_host_request_size = sizeof(oversized_host_request);
     char *connector_name = strdup("detached-worker-smoke");
-    char *integration_mode = strdup("detached-worker-smoke");
+    char *integration_mode = strdup(TEST_INTEGRATION_MODE);
     char *original_uri_header = strdup("X-Original-Uri");
     const char **original_uri_headers = calloc(1U, sizeof(*original_uri_headers));
     msconnector_http_authorization_profile profile = {0};
@@ -464,6 +472,10 @@ int main(void) {
         'a', 1024U);
     memcpy(oversized_host_request + sizeof(oversized_host_prefix) - 1U + 1024U,
         oversized_host_suffix, sizeof(oversized_host_suffix) - 1U);
+    if (runtime_setup_was_configured()) {
+        (void)fprintf(stderr, "runtime fixture was configured before service startup\n");
+        goto done;
+    }
     if (!reserve_loopback_port(&port) ||
         snprintf(args.listen_spec, sizeof(args.listen_spec), "127.0.0.1:%u",
             (unsigned int)port) < 0 ||

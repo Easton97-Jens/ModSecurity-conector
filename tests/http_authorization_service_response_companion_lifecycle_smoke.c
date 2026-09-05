@@ -39,8 +39,7 @@ static void reset_fake_runtime(void)
 {
     assert(pthread_mutex_lock(&test_lock) == 0);
     authorization_stop = 0;
-    runtime_event_mode_configured = 0;
-    runtime_transaction_profile_configured = 0;
+    memset(&fake_runtime, 0, sizeof(fake_runtime));
     runtime_entered = 0;
     runtime_release = 1;
     runtime_destroyed = 0;

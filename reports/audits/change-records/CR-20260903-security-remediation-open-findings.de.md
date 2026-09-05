@@ -564,3 +564,45 @@ validierten Host-Zuweisung und zum separaten Server-Endpoint-Feld des aktuellen
 Mappers, nicht zur Target-Parser-Änderung dieses PRs. FND-PARENT-1041 verfolgt
 die reine Checker-Diskrepanz für eine separate enge Reparatur; Fallback,
 Runtime-Source und Check wurden hier nicht geändert.
+
+### 2026-09-05 Mutable-Runtime-Fixture-Remediation (vor dem Push)
+
+Am Ausgangs-PR-Head `1208ca9b5bfbf8851ec4d9fe0772cfa3313092d8` waren die zwei
+aktiven SonarCloud-`c:S995`-Records
+`AaBnPLYKQISHK43ZVdja` (Event-Integration-Setter) und
+`AaBnPLYKQISHK43ZVdjb` (Transaction-Profile-Setter). Produktionsdeklarationen
+und -definitionen verwenden absichtlich veränderbare
+`msconnector_runtime *`: der erste kopiert den Integration-Mode in
+Runtime-Speicher, der zweite speichert das ausgewählte Profil. Eine Umstellung
+dieser ABI auf `const` wäre fachlich falsch.
+
+Die Detached-Worker-Fixture bildet diese beiden Wirkungen jetzt unter ihrem
+bestehenden Lock in einem eigenen gültigen Runtime-Objekt ab: Sie kopiert den
+akzeptierten Integration-Mode in begrenzten Fixture-Speicher und speichert den
+akzeptierten Profil-Pointer. Die Fixture prüft den unkonfigurierten Zustand vor
+Service-Start und den durch die echten Service-Setter konfigurierten Zustand.
+Die Response-Companion-Fixture setzt dasselbe Test-Runtime-Objekt zurück statt
+veralteter globaler Flags. Dies ist eine verhaltensgetreue Fixture-Korrektur,
+kein Cast, Dummy-Write, Suppression oder Produktions-ABI-Change; alle Controls
+für Companion-Quieszenz, Quarantäne bei fehlgeschlagenem Shutdown,
+Exactly-once-Release, konkurrierenden Claim und No-Companion-Deferred-Release
+bleiben erhalten.
+
+Das C17-Timeout-/Companion-Lifecycle-Skript bestand sowohl normal als auch mit
+AddressSanitizer und UndefinedBehaviorSanitizer. Die Worker- und
+Security-Contract-Suiten bestanden 14 Tests mit 14 Passes, null
+Failures/Errors/Skips. Eine frische SonarCloud-Analyse des normal gepushten
+Successors muss weiterhin belegen, dass beide aktiven Keys fehlen; kein lokales
+Ergebnis wird als SonarCloud-Evidence ausgegeben.
+
+Der angeforderte Equal-Environment-Adoption-Vergleich wurde in sauberen
+Worktrees mit `rtk 0.47.0` und `Python 3.14.7` erneut ausgeführt:
+
+| Finding | Befehl in jedem sauberen Worktree | Basis `b779167…` | PR-Start `1208ca9…` | Ursache | PR-Regression? |
+| --- | --- | --- | --- | --- | --- |
+| FND-PARENT-1010 | `python3 -B ci/checks/connectors/nginx/check-nginx-common-adoption.py` | Exit 1; dieselben zwei Assertions | Exit 1; dieselben zwei Assertions | veraltete Annahmen zu nichtfatalem Mapper und explizitem Length-Sink | Nein |
+| FND-PARENT-1041 | `python3 -B ci/checks/connectors/haproxy/check-haproxy-common-adoption.py` | Exit 1; dieselbe Host/server-IP-Assertion | Exit 1; dieselbe Host/server-IP-Assertion | veraltete Checker-Annahme zu Host-Priorität und Server-Endpoint | Nein |
+
+Beide Worktrees waren vorher und nachher sauber. Diese gemeinsamen
+Basis-/Checker-Fehler bleiben separate Remediation-Arbeit; dieser PR ändert
+ihren Checker nicht und behauptet kein grünes Ergebnis dafür.

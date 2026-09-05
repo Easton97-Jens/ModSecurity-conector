@@ -513,3 +513,43 @@ Host assignment and separate server-endpoint field, not with this PR's target
 parser change. FND-PARENT-1041 tracks the checker-only discrepancy for a
 separate narrow remediation; no fallback, runtime source, or check was changed
 here.
+
+### 2026-09-05 mutable-runtime fixture remediation (pre-push)
+
+At the starting PR head `1208ca9b5bfbf8851ec4d9fe0772cfa3313092d8`, the two
+active SonarCloud `c:S995` records were
+`AaBnPLYKQISHK43ZVdja` (event-integration setter) and
+`AaBnPLYKQISHK43ZVdjb` (transaction-profile setter). Production declarations
+and definitions intentionally use mutable `msconnector_runtime *`: the former
+copies the integration mode into runtime storage and the latter stores the
+selected profile. Changing that ABI to `const` would be incorrect.
+
+The detached-worker fixture now models those two effects in its own valid
+runtime object under its existing lock: it copies the accepted integration
+mode into bounded fixture storage and records the accepted profile pointer.
+The fixture asserts the state is unconfigured before service startup and
+configured through the service's real setter calls. The response-companion
+fixture resets this same test runtime object, rather than obsolete global
+flags. This is a behavioral fixture correction, not a cast, dummy write,
+suppression, or production-ABI change; all Companion quiescence, failed-shutdown
+quarantine, exactly-once release, concurrent claim, and no-companion deferred
+release controls remain intact.
+
+The C17 timeout/companion lifecycle script passed both normally and with
+AddressSanitizer plus UndefinedBehaviorSanitizer. The worker and security
+contract suites passed 14 tests with 14 passes, zero failures/errors/skips.
+A fresh SonarCloud analysis of the normally pushed successor is still required
+to demonstrate that both active keys are absent; no local result is presented
+as SonarCloud evidence.
+
+The requested equal-environment adoption comparison was rerun in clean
+worktrees with `rtk 0.47.0` and `Python 3.14.7`:
+
+| Finding | Command in each clean worktree | Base `b779167…` | PR start `1208ca9…` | Cause | PR regression? |
+| --- | --- | --- | --- | --- | --- |
+| FND-PARENT-1010 | `python3 -B ci/checks/connectors/nginx/check-nginx-common-adoption.py` | exit 1; same two assertions | exit 1; same two assertions | stale non-fatal-mapper and explicit-length sink assumptions | No |
+| FND-PARENT-1041 | `python3 -B ci/checks/connectors/haproxy/check-haproxy-common-adoption.py` | exit 1; same Host/server-IP assertion | exit 1; same Host/server-IP assertion | stale Host-preference/server-endpoint checker assumption | No |
+
+Both worktrees were clean before and after. These shared base/checker failures
+remain separate remediation work; this PR neither changes their checker nor
+claims a green result for them.
