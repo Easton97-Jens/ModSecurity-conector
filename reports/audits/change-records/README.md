@@ -10,6 +10,13 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260904-protected-base-exact-head-nginx](CR-20260904-protected-base-exact-head-nginx.md)
+  | [Deutsch](CR-20260904-protected-base-exact-head-nginx.de.md) — preparation
+  of a protected-base dispatcher, privileged launcher, and independent
+  collector for candidate NGINX exact-head evidence. The protected Environment
+  and dedicated runner remain unavailable; no hosted result or merge is
+  asserted. Preparation only — no merge authorization.
+
 - [CR-20260904-apache-helper-aware-common-adoption-contract](CR-20260904-apache-helper-aware-common-adoption-contract.md)
   | [Deutsch](CR-20260904-apache-helper-aware-common-adoption-contract.de.md) —
   the user-authorized Parent-only Apache static-contract repair aligns the

@@ -11,6 +11,13 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260904-protected-base-exact-head-nginx](CR-20260904-protected-base-exact-head-nginx.de.md)
+  | English companion: `CR-20260904-protected-base-exact-head-nginx.md` — Vorbereitung
+  eines geschützten Base-Dispatchers, privilegierten Launchers und unabhängigen
+  Collectors für NGINX-Exact-Head-Evidence. Geschützte Environment und
+  dedizierter Runner fehlen weiterhin; kein Hosted-Ergebnis und kein Merge
+  werden behauptet. Ausschließlich Vorbereitung — keine Merge-Autorisierung.
+
 - [CR-20260904-apache-helper-aware-common-adoption-contract](CR-20260904-apache-helper-aware-common-adoption-contract.de.md)
   | English companion: `CR-20260904-apache-helper-aware-common-adoption-contract.md` —
   die vom Benutzer autorisierte Parent-only-Apache-Static-Contract-Reparatur
