@@ -8,7 +8,7 @@
 | Datum (UTC) | 2026-09-04 |
 | Basis-Revision | `b779167ff979aa73cdd9321a829f9c693d943760` |
 | Umfang | Parent-only-Vorbereitung für unabhängige NGINX-Exact-Head-Evidence über geschützte Base |
-| Auslieferungsstatus | Draft-PR #355; normaler `origin/master`-Merge `acc0ca1d22fd8a452453e66f51115ce026517b52` ist abgeschlossen; `c8f1…` zeigte 20 Code Smells und Successor `0524be2f…` drei weitere Sonar-Issues; Push/Read-back des nächsten normalen Remediation-Successors stehen noch aus; keine Merge-Autorisierung |
+| Auslieferungsstatus | Draft-PR #355; normaler `origin/master`-Merge `acc0ca1d22fd8a452453e66f51115ce026517b52` ist abgeschlossen; `c8f1…`, `0524be2f…` und `74581e8d…` zeigten jeweils repository-eigene Sonar-Remediation; Push/Read-back des nächsten normalen Remediation-Successors stehen noch aus; keine Merge-Autorisierung |
 | Candidate | PR #355; finaler exakter Head muss beim Dispatch aufgelöst und zurückgelesen werden |
 
 ## Zweck
@@ -34,10 +34,12 @@ Head-Read-back für `c8f1a00a5d45cbc5c4a7e52e1da17e8611e767db` wurde
 beobachtet, seine frische Sonar-Analyse zeigte jedoch 20 offene Code Smells und
 gilt nicht als finale Evidence. Sein exakter Successor `0524be2f…` zeigte
 anschließend drei offene Issues und ein Quality Gate `ERROR` und ist damit
-ebenfalls Remediation-Input statt finaler Evidence. Read-back des nächsten
-normalen Remediation-Successors, frische Sonar-Analyse und gehostete Exact-
-Head-Runtime-Evidence stehen weiter aus und dürfen erst nach Beobachtung
-eingetragen werden. Das externe Security-Diff-Archiv bleibt unter
+ebenfalls Remediation-Input statt finaler Evidence. Der exakte `74581e8d…`-
+Head lieferte weiterhin zwei S8707-Vulnerabilities und einen neuen Test-
+S5778-Smell und ist damit ebenfalls Remediation-Input statt finaler Evidence.
+Read-back des nächsten normalen Remediation-Successors, frische Sonar-Analyse
+und gehostete Exact-Head-Runtime-Evidence stehen weiter aus und dürfen erst
+nach Beobachtung eingetragen werden. Das externe Security-Diff-Archiv bleibt unter
 FND-PARENT-1036 `blocked_external_dependency`.
 
 Der Branch-only-Checkpoint ist ein normaler Merge von aktuellem
@@ -103,6 +105,19 @@ seine gezielten Regressionen decken das Verwerfen unsicherer Leafs und
 Parent-Pfad-Replacement ab. Dies ist Code-/Test-Remediation, keine Scanner-
 Disposition; eine neue Exact-Head-Analyse muss alle drei Keys als nicht mehr
 vorhanden ausweisen.
+
+Die exakte Analyse für `74581e8d30c27cf4f5d90c695b7cbc1c0b44a986` um
+`2026-09-05T09:36:02Z` blieb `ERROR`: Sie enthielt weiterhin die beiden
+`S8707`-Keys `AaBw2LTiwSzpTW4LCOTU` und `AaBw2LTiwSzpTW4LCOTT`, während der
+vorherige S3776-Key nicht mehr vorhanden war und ein neuer Test-only-
+`S5778`-Key `AaBw7h6jwtYwlDuGRnBh` hinzukam. Dies ist keine Scanner-
+Disposition: Der nächste Source-Successor macht `launcher-evidence` zum festen
+Protocol-Leaf am privilegierten Sink, verwirft ein abweichendes CLI-Leaf vor
+der Parent-Admission und nutzt weiterhin den admittierten Parent-FD mit
+`O_NOFOLLOW`. Sein Test bindet Identity-Werte vorab, damit die Exception-
+Assertion nur die absichtlich fehlschlagende Child-Operation enthält. Eine
+neue Exact-Head-Analyse muss alle drei aktuellen Keys als nicht mehr vorhanden
+ausweisen.
 
 ## Historischer Successor-Checkpoint — `fa9064a5`
 

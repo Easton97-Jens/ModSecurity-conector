@@ -8,7 +8,7 @@
 | Date (UTC) | 2026-09-04 |
 | Base revision | `b779167ff979aa73cdd9321a829f9c693d943760` |
 | Scope | Parent-only protected-base preparation for independent NGINX exact-head evidence |
-| Delivery status | Draft PR #355; normal `origin/master` merge `acc0ca1d22fd8a452453e66f51115ce026517b52` is complete; `c8f1…` exposed 20 code smells and successor `0524be2f…` exposed three further Sonar issues; the next normal remediation-successor push/read-back remains pending; no merge authorization |
+| Delivery status | Draft PR #355; normal `origin/master` merge `acc0ca1d22fd8a452453e66f51115ce026517b52` is complete; `c8f1…`, `0524be2f…`, and `74581e8d…` each exposed repository-owned Sonar remediation work; the next normal remediation-successor push/read-back remains pending; no merge authorization |
 | Candidate | PR #355, exact final head must be resolved and read back at dispatch time |
 
 ## Purpose
@@ -35,9 +35,11 @@ The pushed-head read-back for
 Sonar analysis exposed 20 open code smells and is not accepted as final
 evidence. Its exact `0524be2f…` successor then exposed three open issues and
 an `ERROR` quality gate, so it too is remediation input rather than final
-evidence. The next normal remediation-successor read-back, fresh Sonar
-analysis, and hosted exact-head runtime evidence remain pending and must be
-recorded only after they are observed. The external Security-Diff archive remains
+evidence. Exact `74581e8d…` still returned two S8707 vulnerabilities and a new
+test S5778 smell, so it too is remediation input rather than final evidence.
+The next normal remediation-successor read-back, fresh Sonar analysis, and
+hosted exact-head runtime evidence remain pending and must be recorded only
+after they are observed. The external Security-Diff archive remains
 `blocked_external_dependency` under FND-PARENT-1036.
 
 The branch-only checkpoint is a normal merge of current `origin/master`
@@ -97,6 +99,17 @@ ASCII-allowlisted leaf below an already-admitted parent FD and decomposes the
 retained-FD walker; its targeted regression controls cover unsafe leaf rejection
 and parent-path replacement. This is code/test remediation, not a scanner
 disposition, and a new exact-head analysis must show all three absent.
+
+The exact `74581e8d30c27cf4f5d90c695b7cbc1c0b44a986` analysis at
+`2026-09-05T09:36:02Z` remained `ERROR`: it retained the two `S8707` keys
+`AaBw2LTiwSzpTW4LCOTU` and `AaBw2LTiwSzpTW4LCOTT`, while the prior S3776 key
+was absent and a new test-only `S5778` key `AaBw7h6jwtYwlDuGRnBh` appeared.
+This is not a scanner disposition: the next source successor makes
+`launcher-evidence` the fixed protocol leaf at the privileged sink, rejects an
+alternate CLI leaf before parent admission, and continues to use the admitted
+parent FD with `O_NOFOLLOW`. Its test precomputes identity values so the
+exception assertion contains only the intentionally throwing child operation.
+A new exact-head analysis must show all three current keys absent.
 
 ## Historical successor checkpoint — `fa9064a5`
 

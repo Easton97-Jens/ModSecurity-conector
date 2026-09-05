@@ -90,6 +90,7 @@ ARTIFACT_MANIFEST_NAME = "artifact-manifest.json"
 DISPATCHER_MANIFEST_LABEL = "dispatcher manifest"
 CANDIDATE_MANIFEST_LABEL = "candidate artifact manifest"
 ROOT_EVIDENCE_PARENT_LABEL = "root evidence parent"
+ROOT_EVIDENCE_DIRECTORY_NAME = "launcher-evidence"
 GENERATED_CONFIG_LABEL = "generated NGINX configuration"
 DISPATCHER_FIELDS = frozenset({
     "schema_version", "trusted_dispatcher_base_sha", "run_id", "pr_number",
@@ -827,6 +828,16 @@ def create_runner_owned_directory(path: Path, uid: int, gid: int) -> None:
     path.mkdir(mode=0o700)
     os.chown(path, uid, gid)
     os.chmod(path, 0o700)
+
+
+def root_evidence_path(value: str) -> Path:
+    """Admit the one protocol-defined leaf used for root evidence."""
+    path = Path(value)
+    if not path.is_absolute() or any(part in {".", ".."} for part in path.parts):
+        fail("root evidence path must be an absolute normalized path")
+    if path.name != ROOT_EVIDENCE_DIRECTORY_NAME:
+        fail(f"root evidence path must end in {ROOT_EVIDENCE_DIRECTORY_NAME}")
+    return path
 
 
 def private_scratch_container_name() -> str:
@@ -2520,9 +2531,7 @@ def _prepare_launcher(args: argparse.Namespace, state: LauncherState) -> tuple[
     if not repo.is_dir():
         fail("trusted Base repository root is not a directory")
     verify_runner_owned_directory(repo, args.runner_uid, args.runner_gid, "trusted Base repository root")
-    raw_evidence = Path(args.evidence_root)
-    if not raw_evidence.is_absolute() or any(part in {".", ".."} for part in raw_evidence.parts):
-        fail("root evidence path must be an absolute normalized path")
+    raw_evidence = root_evidence_path(args.evidence_root)
     evidence_parent = no_symlink_path(raw_evidence.parent, ROOT_EVIDENCE_PARENT_LABEL)
     verify_runner_owned_directory(
         evidence_parent, args.runner_uid, args.runner_gid, ROOT_EVIDENCE_PARENT_LABEL
@@ -2534,7 +2543,7 @@ def _prepare_launcher(args: argparse.Namespace, state: LauncherState) -> tuple[
                 or stat.S_IMODE(parent_metadata.st_mode) & 0o022):
             fail(f"{ROOT_EVIDENCE_PARENT_LABEL} changed during admission")
         state.evidence_root, state.evidence_fd, state.evidence_parent_fd = create_owned_child_directory(
-            evidence_parent, raw_evidence.name, 0, 0, 0o700, "root evidence path",
+            evidence_parent, ROOT_EVIDENCE_DIRECTORY_NAME, 0, 0, 0o700, "root evidence path",
             args.runner_uid, args.runner_gid, parent_descriptor=parent_admission,
             return_descriptors=True
         )
