@@ -459,11 +459,25 @@ with path.open("a", encoding="utf-8") as handle:
 PY
 }
 
+nginx_worker_runuser_is_available() {
+    [ -x /usr/sbin/runuser ] || [ -x /usr/bin/runuser ]
+}
+
+nginx_worker_runuser() {
+    if [ -x /usr/sbin/runuser ]; then
+        /usr/sbin/runuser "$@"
+    elif [ -x /usr/bin/runuser ]; then
+        /usr/bin/runuser "$@"
+    else
+        return 127
+    fi
+}
+
 nginx_worker_can_access() {
     access_mode=$1
     access_path=$2
-    if command -v runuser >/dev/null 2>&1 && [ "$CURRENT_UID" = "0" ] && id "$NGINX_WORKER_USER" >/dev/null 2>&1; then
-        runuser -u "$NGINX_WORKER_USER" -g "$NGINX_WORKER_RESOLVED_GROUP" -- \
+    if nginx_worker_runuser_is_available && [ "$CURRENT_UID" = "0" ] && id "$NGINX_WORKER_USER" >/dev/null 2>&1; then
+        nginx_worker_runuser -u "$NGINX_WORKER_USER" -g "$NGINX_WORKER_RESOLVED_GROUP" -- \
             test "$access_mode" "$access_path"
         return $?
     fi
@@ -472,7 +486,7 @@ nginx_worker_can_access() {
 
 nginx_worker_identity_is_verifiable() {
     [ "$CURRENT_UID" = "0" ] || return 1
-    command -v runuser >/dev/null 2>&1 || return 1
+    nginx_worker_runuser_is_available || return 1
     nginx_worker_uid=$(id -u "$NGINX_WORKER_USER" 2>/dev/null) || return 1
     [ "$nginx_worker_uid" != "$CURRENT_UID" ]
 }

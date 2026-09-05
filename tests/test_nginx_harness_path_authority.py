@@ -444,13 +444,34 @@ class NginxHarnessPathAuthorityTests(unittest.TestCase):
         ]
 
         self.assertIn(
-            'runuser -u "$NGINX_WORKER_USER" -g "$NGINX_WORKER_RESOLVED_GROUP" --',
+            'nginx_worker_runuser -u "$NGINX_WORKER_USER" -g "$NGINX_WORKER_RESOLVED_GROUP" --',
             worker_access,
         )
         self.assertIn(
             'user $NGINX_WORKER_RESOLVED_USER $NGINX_WORKER_RESOLVED_GROUP;',
             render_config,
         )
+
+    def test_worker_helpers_use_only_fixed_runuser_capabilities(self) -> None:
+        harness = HARNESS.read_text(encoding="utf-8")
+        availability = harness[
+            harness.index("nginx_worker_runuser_is_available() {") : harness.index(
+                "\n}\n\nnginx_worker_runuser()"
+            )
+        ]
+        invocation = harness[
+            harness.index("nginx_worker_runuser() {") : harness.index(
+                "\n}\n\nnginx_worker_can_access()"
+            )
+        ]
+
+        self.assertIn("[ -x /usr/sbin/runuser ] || [ -x /usr/bin/runuser ]", availability)
+        self.assertIn('/usr/sbin/runuser "$@"', invocation)
+        self.assertIn('/usr/bin/runuser "$@"', invocation)
+        worker_helpers = availability + invocation
+        self.assertNotIn("command -v runuser", worker_helpers)
+        self.assertNotIn("PATH=", worker_helpers)
+        self.assertNotIn("RUNUSER_BIN", worker_helpers)
 
 
 if __name__ == "__main__":

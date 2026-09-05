@@ -752,3 +752,45 @@ ein frisches SonarCloud-Ergebnis mit null aktiven Issues/bestandenem Quality
 Gate bleiben erforderlich. Functional A bleibt nur ein Integrationsnachweis,
 FND-PARENT-1038 bleibt unverändert offen und FND-PARENT-1036 bleibt
 `blocked_external_dependency`.
+
+### 2026-09-05 Dritter Hosted-Follow-up (Runuser-Capability-Successor ausstehend)
+
+Für den exakten Draft-PR-#354-Head
+`1f267564b35086eda8fed80895eb0cb7f6fb35ab` meldet der frische
+SonarCloud-Readback Quality Gate `OK`, null aktive `OPEN`/`CONFIRMED`-
+PR-Issues und null `TO_REVIEW`-Hotspots. Auch die frische lokale
+Exact-Head-C17-Kompilierung bestand. Diese Ergebnisse machen den nativen
+Runtime-Nachweis für sich allein nicht erfolgreich.
+
+Der Hosted-Workflow `33990967266` checkte genau diesen Head aus, bestand das
+sudo-/root-gegen-Worker-Preflight, initialisierte den isolierten Root und
+schloss die unprivilegierte gepinnte Provisionierung ab. Seine erste `on`-Zelle
+schlug danach korrekterweise fail-closed mit Exit `77` fehl: Die bereinigte
+Root-Umgebung verwendet absichtlich `PATH=/usr/bin:/bin`, das Preflight nutzt
+bereits das verifizierte absolute `/usr/sbin/runuser`, der Harness suchte und
+rief `runuser` später aber über `PATH` auf. Diese deterministische Abweichung
+ist weder ein Runner-Flake noch ein erfolgreiches On/Off-Ergebnis.
+
+Der enge Successor-Kandidat entfernt diese Pfadsuche. Seine Worker-Identity-
+und Access-Prüfungen wählen ausschließlich die ausführbaren festen
+System-Capabilities `/usr/sbin/runuser` oder `/usr/bin/runuser`; sie weiten
+weder `PATH` aus noch akzeptieren sie einen vom Aufrufer wählbaren Helper-Pfad
+oder lockern die Anforderung eines unterschiedlichen Workers. Die direkte
+Path-Authority-Suite bestand 11 Tests, die relevanten NGINX-Security-,
+Launcher-, Exact-Gate- und Lifecycle-Suiten bestanden 26 Tests; Shell-Syntax-
+und Whitespace-Prüfungen bestanden. Der Successor ist noch nicht gepusht;
+diese lokalen Ergebnisse behaupten daher keinen Hosted-Erfolg.
+
+Die erste fünfzellige CRS/no-MRTS-Matrix für `1f267...` bestand für Apache,
+Envoy, Traefik und Lighttpd. HAProxy stoppte vor der Produktausführung, weil
+der GitHub-hosted Komponenten-Provisioner beim Abruf von expat `HTTP Error
+403: rate limit exceeded` erhielt; Exact-Head-Checkout, Runtime-Preflight,
+CRS-Vorbereitung und Cleanup bestanden. Ein normaler Retry ausschließlich des
+fehlgeschlagenen Jobs auf demselben Head läuft. Unabhängig von seinem Ergebnis
+ist die gesamte finale Runtime-Evidence auf dem nächsten normalen
+Successor-Head erneut auszuführen.
+
+Functional A bleibt ausschließlich ein GitHub-hosted-nativer
+Integrationsnachweis, nicht Protected B und keine Auflösung von
+FND-PARENT-1038. FND-PARENT-1036 bleibt `blocked_external_dependency`; PR #354
+bleibt Draft, offen und ungemergt.

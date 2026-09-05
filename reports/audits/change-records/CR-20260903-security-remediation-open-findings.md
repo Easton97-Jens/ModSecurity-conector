@@ -684,3 +684,42 @@ readback, fresh hosted on/off runtime, all five CRS/no-MRTS runs, and a fresh
 SonarCloud zero-active-issue/Quality-Gate result remain required. Functional
 A remains an integration test only, FND-PARENT-1038 is unchanged and open,
 and FND-PARENT-1036 remains `blocked_external_dependency`.
+
+### 2026-09-05 third hosted follow-up (runuser-capability successor pending)
+
+For exact Draft PR #354 head
+`1f267564b35086eda8fed80895eb0cb7f6fb35ab`, fresh SonarCloud readback reports
+Quality Gate `OK`, zero active `OPEN`/`CONFIRMED` PR issues, and zero
+`TO_REVIEW` hotspots.  The fresh local exact-head C17 compilation also passed.
+These results do not turn the native runtime into a passing result by
+themselves.
+
+Hosted workflow `33990967266` checked out that exact head, completed the
+sudo/root-versus-worker preflight, initialized the isolated root, and completed
+the unprivileged pinned provisioning.  Its first `on` cell then correctly
+failed closed with exit `77`: the clean root environment intentionally has
+`PATH=/usr/bin:/bin`, the preflight already uses the verified absolute
+`/usr/sbin/runuser`, but the harness later looked up and invoked `runuser`
+through `PATH`.  This deterministic mismatch is neither a runner flake nor a
+successful on/off result.
+
+The narrow successor candidate removes that path lookup.  Its worker identity
+and access checks select only executable fixed system capabilities
+`/usr/sbin/runuser` or `/usr/bin/runuser`; they do not widen `PATH`, accept a
+caller-selected helper path, or relax the distinct-worker requirement.  The
+direct path-authority suite passed 11 tests, the relevant NGINX security,
+launcher, exact-gate, and lifecycle suites passed 26 tests, shell syntax and
+whitespace checks passed.  The successor is not yet pushed, so these local
+results are not a hosted success claim.
+
+The first five-cell CRS/no-MRTS matrix for `1f267...` passed Apache, Envoy,
+Traefik, and Lighttpd.  HAProxy stopped before product execution because the
+GitHub-hosted component provisioner received `HTTP Error 403: rate limit
+exceeded` while obtaining expat; exact-head checkout, runtime preflight, CRS
+preparation, and cleanup passed.  A normal failed-job-only retry on the same
+head is in progress.  Regardless of its result, all final runtime evidence
+must be rerun on the next normal successor head.
+
+Functional A remains a GitHub-hosted native integration test only, not
+Protected B and not a resolution of FND-PARENT-1038.  FND-PARENT-1036 remains
+`blocked_external_dependency`; PR #354 remains Draft, open, and unmerged.
