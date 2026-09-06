@@ -1147,3 +1147,28 @@ treats a partial five-row result as an aggregate pass. The fresh successor will
 retain the required five row-level results and a complete 24-row assessment;
 until the independent blocker is resolved under separate authority, PR #354
 remains Draft and must not be merged.
+
+### 2026-09-06 fifteenth follow-up (HAProxy security-contract alignment)
+
+Current-successor validation found five stale lexical assertions in two
+repository-owned HAProxy static checkers, not a product regression. The source
+had already been hardened in `2b3d7f7f`: a request requires one valid,
+non-empty received `Host`, maps `hostname` only from that Host, and rejects and
+cleans up an absent or invalid Host before transaction allocation. A legacy
+checker still required an obsolete `server_ip` hostname fallback. Its updated
+contract now forbids that fallback and requires the validated-Host rejection
+and cleanup path. Its executable C17 mapper fixture now also rejects a
+zero-header request and an empty `Host`, while retaining the valid-Host
+control.
+
+The HTX-overlay checker had likewise retained four pre-hardening field and
+function-boundary spellings. It now follows the dispatcher into the real
+request-header helper and the nested lifecycle fields, preserving the exact
+invariants: P1 begins before request-payload registration, P2 and P4 mark EOS
+before their sole binding finish calls, and a P2 native reply is possible only
+before response headers. No production C, host behavior, workflow, gate,
+Framework, MRTS, Gitlink, dependency, or test strictness was weakened. Two
+independent security reviews found no surviving bypass or valid-Host
+regression. The focused checker/HTX/C17 suite and 34 direct HAProxy contracts
+passed; the final successor still requires a normal push, exact readback, and
+fresh hosted evidence rather than promoting this predecessor result.

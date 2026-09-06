@@ -37,7 +37,13 @@ check('haproxy_modsecurity_mapped_request_cleanup' in mapper and 'haproxy_modsec
 check('free(mapped->owned_headers)' in mapper and 'free((void *)' not in mapper, 'cleanup frees non-const owned_headers without const casts')
 check('(void *)request->headers' not in mapper and '(void *)response->headers' not in mapper, 'mapper does not cast const request/response headers for free')
 check('msconnector_headers_find_first(out->request.headers' in mapper, 'request mapper looks up Host header explicitly')
-check('out->request.hostname = host_header->value' in mapper and 'out->request.hostname = src->server_ip' in mapper, 'request mapper prefers Host header and keeps server_ip fallback')
+check(
+    'out->request.hostname = host_header->value' in mapper and
+    'out->request.hostname = src->server_ip' not in mapper and
+    '"missing or invalid Host header"' in mapper and
+    'haproxy_modsecurity_mapped_request_cleanup(out);' in mapper,
+    'request mapper assigns only a validated Host and rejects invalid Host without a server_ip fallback'
+)
 check('msconnector_request_mapper_validate_output(contract, &out->request, error, error_len)' in mapper and 'if (rc != 1)' in mapper, 'request mapper validation success is not inverted')
 check('msconnector_response_mapper_validate_output(contract, &out->response, error, error_len)' in mapper and mapper.count('if (rc != 1)') >= 2, 'response mapper validation success is not inverted')
 check('return 1;' in mapper, 'request/response mappers return 1 on success')

@@ -1259,3 +1259,31 @@ Successor bewahrt die erforderlichen fünf Row-Level-Ergebnisse und eine
 vollständige 24-zeilige Bewertung auf; bis der unabhängige Blocker unter
 separater Autorisierung behoben ist, bleibt PR #354 Draft und darf nicht
 gemergt werden.
+
+### 2026-09-06 Fünfzehnter Follow-up (HAProxy-Sicherheitsvertragsabgleich)
+
+Die Validierung des aktuellen Successors fand fünf veraltete lexikalische
+Assertions in zwei repositoryeigenen statischen HAProxy-Checkern, keinen
+Produktregressionsfehler. Der Source war bereits in `2b3d7f7f` gehärtet:
+Eine Anfrage verlangt genau einen gültigen, nichtleeren empfangenen `Host`,
+mappt `hostname` ausschließlich aus diesem Host und verwirft beziehungsweise
+bereinigt einen fehlenden oder ungültigen Host vor der Transaktionsallokation.
+Ein älterer Checker verlangte weiterhin einen überholten `server_ip`-Fallback
+für `hostname`. Sein aktualisierter Vertrag verbietet nun diesen Fallback und
+fordert den validierten Host-Reject- und Cleanup-Pfad. Die ausführbare
+C17-Mapper-Fixture verwirft nun zusätzlich eine Anfrage ohne Header und einen
+leeren `Host`, während der gültige Host-Kontrollfall erhalten bleibt.
+
+Der HTX-Overlay-Checker behielt ebenfalls vier Schreibweisen für Felder und
+Funktionsgrenzen vor dem Hardening. Er folgt nun dem Dispatcher in den echten
+Request-Header-Helper und den verschachtelten Lifecycle-Feldern und bewahrt
+damit die exakten Invarianten: P1 beginnt vor der Registrierung des
+Request-Payloads, P2 und P4 markieren EOS vor ihrem jeweils einzigen
+Binding-Finish-Aufruf, und eine P2-Native-Reply ist nur vor Response-Headern
+möglich. Weder Produktions-C noch Host-Verhalten, Workflow, Gate, Framework,
+MRTS, Gitlink, Dependency oder Teststrenge wurden abgeschwächt. Zwei
+unabhängige Security-Reviews fanden keinen verbliebenen Bypass oder Regression
+des gültigen Host-Pfads. Die fokussierte Checker-/HTX-/C17-Suite und 34 direkte
+HAProxy-Contracts bestanden; der finale Successor erfordert dennoch normalen
+Push, exaktes Readback und frische Hosted-Evidence, statt dieses
+Vorgängerergebnis zu promoten.
