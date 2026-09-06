@@ -36,7 +36,9 @@ class NginxBodyBufferFixtureContractTest(unittest.TestCase):
         config = (FIXTURE / "config").read_text(encoding="utf-8")
         self.assertIn("ngx_http_body_buffer_fixture_module", config)
         self.assertIn("ngx_http_body_buffer_fixture_module.c", config)
-        self.assertIn("ngx_module_type=HTTP", config)
+        self.assertIn("ngx_module_type=HTTP_FILTER", config)
+        self.assertIn("HTTP_FILTER_MODULES", config)
+        self.assertIn("ngx_http_modsecurity_module", config)
         self.assertNotIn("connectors/nginx/src", config)
 
     def test_native_module_emits_each_required_real_buffer_state(self) -> None:
@@ -60,6 +62,9 @@ class NginxBodyBufferFixtureContractTest(unittest.TestCase):
         self.assertIn("buffer->last_buf = 1", source)
         self.assertIn("buffer->last_in_chain = 1", source)
         self.assertIn("ngx_http_output_filter(r, &output)", source)
+        self.assertIn("ngx_http_body_buffer_fixture_body_filter", source)
+        self.assertIn("ngx_http_body_buffer_fixture_next_body_filter", source)
+        self.assertIn("ngx_http_body_buffer_fixture_init", source)
         self.assertIn("body-buffer-fixture mode=%V", source)
         self.assertIn("body_buffer_fixture_short_file", source)
         self.assertIn("body_buffer_fixture_mixed_file", source)
@@ -86,6 +91,8 @@ class NginxBodyBufferFixtureContractTest(unittest.TestCase):
         self.assertIn('row.get("body_bytes_seen")', source)
         self.assertIn('row.get("eos_seen") is not True', source)
         self.assertIn("phase4_event_log_sha256", source)
+        self.assertIn("require_static_fixture_filter_order", source)
+        self.assertIn("connector_then_fixture_then_postpone", source)
         self.assertIn("not_representable_on_this_64_bit_off_t_size_t_runtime", source)
 
     def test_allocation_fault_is_static_fixture_only(self) -> None:

@@ -307,6 +307,26 @@ def require_fixture_log(error_log: str, mode: str, *, memory: bool, in_file: boo
         fail(f"native buffer-state log missing: {expected}")
 
 
+def require_static_fixture_filter_order(module_registration: Path) -> str:
+    """Verify that the test-only fault filter directly surrounds the connector."""
+    registration = read_bounded(module_registration)
+    try:
+        modules = registration.split("ngx_module_t *ngx_modules[] = {", 1)[1].split(
+            "    NULL", 1
+        )[0]
+    except IndexError as exc:
+        raise FixtureFailure("NGINX static module registration has an unexpected form") from exc
+    ordered = (
+        "ngx_http_modsecurity_module",
+        "ngx_http_body_buffer_fixture_module",
+        "ngx_http_postpone_filter_module",
+    )
+    positions = [modules.find(f"&{name}") for name in ordered]
+    if any(position < 0 for position in positions) or positions != sorted(positions):
+        fail("static fixture filter does not follow connector before postpone filter")
+    return sha256_file(module_registration)
+
+
 def parse_events(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         fail("phase4 event log was not produced for legitimate controls")
@@ -492,14 +512,17 @@ def main(argv: list[str]) -> int:
     run(["make", f"-j{jobs}"], cwd=nginx_source, environment=environment, log=logs_root / "make.log")
 
     nginx = nginx_source / "objs" / "nginx"
+    module_registration = nginx_source / "objs" / "ngx_modules.c"
     connector_body_filter_object = (
         nginx_source / "objs" / "addon" / "src" / "ngx_http_modsecurity_body_filter.o"
     )
     for path, label in (
         (nginx, "NGINX test binary"),
+        (module_registration, "NGINX static module registration"),
         (connector_body_filter_object, "static connector body-filter object"),
     ):
         require_regular_file(path, label)
+    module_registration_digest = require_static_fixture_filter_order(module_registration)
 
     body_file = runtime_root / "fixture-body.bin"
     short_body_file = runtime_root / "fixture-short-body.bin"
@@ -583,9 +606,9 @@ def main(argv: list[str]) -> int:
     allocation_error = read_bounded(allocation_prefix / "logs" / "error.log")
     if "cannot allocate file-backed response body scratch" not in allocation_error:
         fail("allocation-failure case did not reach the connector scratch allocation")
-    if re.search(
+    if len(re.findall(
         r"body-buffer-fixture allocation-wrapper-hits=1(?:\D|$)", allocation_error
-    ) is None:
+    )) != 1:
         fail("allocation-failure case did not record exactly one fixture wrapper hit")
     normal_error = read_bounded(normal_prefix / "logs" / "error.log")
     for expected_error, label in (
@@ -605,6 +628,8 @@ def main(argv: list[str]) -> int:
             "archive_sha256": archive_digest,
             "binary_sha256": sha256_file(nginx),
             "connector_linkage": "static_test_binary",
+            "module_registration_sha256": module_registration_digest,
+            "allocation_filter_order": "connector_then_fixture_then_postpone",
             "connector_body_filter_object_sha256": sha256_file(connector_body_filter_object),
             "connector_body_filter_source_sha256": sha256_file(
                 connector_root / "connectors" / "nginx" / "src" / "ngx_http_modsecurity_body_filter.c"

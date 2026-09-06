@@ -437,11 +437,12 @@ source, then emits real memory, file-only, and mixed `ngx_buf_t` values through
 the installed filter chain. Its test configuration selects the existing limit
 solely to exercise within-limit and reject-before-forwarding cases; it does not
 change a product default. Its allocation-error case changes only the test
-binary: a statically linked fixture wrapper rejects the known 32 KiB
-`ngx_pnalloc` scratch request and records one wrapper hit. It neither changes
-connector code nor enables a production fault-injection switch. The retained
-result records only the exact head, build identities, buffer flags, lengths,
-and bounded accounting—not response payloads.
+binary: a test-only filter directly upstream of the statically linked
+connector enables a fixture wrapper for the known 32 KiB `ngx_pnalloc` scratch
+request and records one wrapper hit. It neither changes connector code nor
+enables a production fault-injection switch. The retained result records only
+the exact head, build identities, verified filter ordering, buffer flags,
+lengths, and bounded accounting—not response payloads.
 
 A rule match must be reported independently from a visible 403.  Canonical
 events preserve the original host status, requested WAF status, visible client

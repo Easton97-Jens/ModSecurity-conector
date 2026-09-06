@@ -2,7 +2,7 @@
  * Native-only regression fixture for the NGINX P4 response-buffer boundary.
  *
  * This module is never linked into the connector.  The test runner builds it
- * as a separate dynamic HTTP module next to the exact-head connector and
+ * as a separate static HTTP filter alongside the exact-head connector and
  * drives its handler over loopback.  Its sole purpose is to create real
  * ngx_buf_t representations that ordinary HTTP upstream responses cannot
  * select deterministically.
@@ -27,6 +27,9 @@ typedef struct {
 } ngx_http_body_buffer_fixture_loc_conf_t;
 
 static ngx_int_t ngx_http_body_buffer_fixture_handler(ngx_http_request_t *r);
+static ngx_int_t ngx_http_body_buffer_fixture_body_filter(ngx_http_request_t *r,
+    ngx_chain_t *in);
+static ngx_int_t ngx_http_body_buffer_fixture_init(ngx_conf_t *cf);
 static void *ngx_http_body_buffer_fixture_create_loc_conf(ngx_conf_t *cf);
 static char *ngx_http_body_buffer_fixture_merge_loc_conf(ngx_conf_t *cf,
     void *parent, void *child);
@@ -52,6 +55,7 @@ extern void *__real_ngx_pnalloc(ngx_pool_t *pool, size_t size);
  * while keeping allocation injection out of the connector. */
 static volatile sig_atomic_t ngx_http_body_buffer_fixture_fail_allocation;
 static volatile sig_atomic_t ngx_http_body_buffer_fixture_allocation_wrapper_hits;
+static ngx_http_output_body_filter_pt ngx_http_body_buffer_fixture_next_body_filter;
 
 void *
 __wrap_ngx_pnalloc(ngx_pool_t *pool, size_t size)
@@ -102,7 +106,7 @@ static ngx_command_t ngx_http_body_buffer_fixture_commands[] = {
 
 static ngx_http_module_t ngx_http_body_buffer_fixture_module_ctx = {
     NULL,
-    NULL,
+    ngx_http_body_buffer_fixture_init,
     NULL,
     NULL,
     NULL,
@@ -110,6 +114,50 @@ static ngx_http_module_t ngx_http_body_buffer_fixture_module_ctx = {
     ngx_http_body_buffer_fixture_create_loc_conf,
     ngx_http_body_buffer_fixture_merge_loc_conf
 };
+
+/* NGINX copy/postpone filters may defer a content handler's output until after
+ * ngx_http_output_filter() returns. The fixture is therefore positioned
+ * immediately upstream of the static connector and enables the test-only
+ * wrapper only while it calls that real connector filter. */
+static ngx_int_t
+ngx_http_body_buffer_fixture_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
+{
+    ngx_http_body_buffer_fixture_loc_conf_t *conf;
+    ngx_int_t result;
+
+    if (ngx_http_body_buffer_fixture_next_body_filter == NULL) {
+        return NGX_ERROR;
+    }
+
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_body_buffer_fixture_module);
+    if (in == NULL || conf == NULL ||
+        !ngx_http_body_buffer_fixture_mode_is(&conf->mode,
+            "allocation-failure")) {
+        return ngx_http_body_buffer_fixture_next_body_filter(r, in);
+    }
+
+    ngx_http_body_buffer_fixture_fail_allocation = 1;
+    ngx_http_body_buffer_fixture_allocation_wrapper_hits = 0;
+    result = ngx_http_body_buffer_fixture_next_body_filter(r, in);
+    ngx_http_body_buffer_fixture_fail_allocation = 0;
+
+    ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
+        "body-buffer-fixture allocation-wrapper-hits=%i",
+        (ngx_int_t) ngx_http_body_buffer_fixture_allocation_wrapper_hits);
+
+    return result;
+}
+
+static ngx_int_t
+ngx_http_body_buffer_fixture_init(ngx_conf_t *cf)
+{
+    (void) cf;
+
+    ngx_http_body_buffer_fixture_next_body_filter = ngx_http_top_body_filter;
+    ngx_http_top_body_filter = ngx_http_body_buffer_fixture_body_filter;
+
+    return NGX_OK;
+}
 
 ngx_module_t ngx_http_body_buffer_fixture_module = {
     NGX_MODULE_V1,
@@ -216,7 +264,6 @@ ngx_http_body_buffer_fixture_handler(ngx_http_request_t *r)
     size_t memory_length = 0U;
     off_t file_length = 0;
     ngx_int_t result;
-    ngx_uint_t allocation_failure;
 
     if (r->method != NGX_HTTP_GET && r->method != NGX_HTTP_HEAD) {
         return NGX_HTTP_NOT_ALLOWED;
@@ -225,8 +272,6 @@ ngx_http_body_buffer_fixture_handler(ngx_http_request_t *r)
     if (conf == NULL || conf->mode.len == 0U || conf->mode.data == NULL) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-    allocation_failure = ngx_http_body_buffer_fixture_mode_is(&conf->mode,
-        "allocation-failure");
     ngx_http_body_buffer_fixture_fail_allocation = 0;
     ngx_http_body_buffer_fixture_allocation_wrapper_hits = 0;
 
@@ -346,16 +391,7 @@ ngx_http_body_buffer_fixture_handler(ngx_http_request_t *r)
         &conf->mode, (ngx_uint_t) ngx_buf_in_memory(buffer),
         (ngx_uint_t) buffer->in_file, buffer->file_pos, buffer->file_last,
         memory_length);
-    if (allocation_failure != 0U) {
-        ngx_http_body_buffer_fixture_fail_allocation = 1;
-    }
     result = ngx_http_output_filter(r, &output);
-    ngx_http_body_buffer_fixture_fail_allocation = 0;
-    if (allocation_failure != 0U) {
-        ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
-            "body-buffer-fixture allocation-wrapper-hits=%i",
-            (ngx_int_t) ngx_http_body_buffer_fixture_allocation_wrapper_hits);
-    }
     return result;
 }
 
