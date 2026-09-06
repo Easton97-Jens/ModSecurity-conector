@@ -1133,7 +1133,7 @@ bleibt unverändert.
 
 ### 2026-09-06 Zwölfter Follow-up (eingegrenzter Pre-Merge-Gate-Kandidat)
 
-Dieser Kandidat ergänzt eine separat gebaute, reine NGINX-Test-Fixture für die
+Dieser Kandidat ergänzt eine separat gebaute, statisch gelinkte reine NGINX-Test-Fixture für die
 bestehende P4-Body-Limit-Grenze. Sie gibt echte Memory-, file-only- und
 gemischte `ngx_buf_t`-Zustände durch den installierten Connector-Filter aus,
 deckt die Kontrollen innerhalb des Limits und Reject-before-forwarding ab und
@@ -1156,6 +1156,19 @@ Audit zu FND-PARENT-1046 führt den historischen Kandidatenlauf `ad193b...` nur
 als partielle funktionale Evidence: Er behielt kein JSONL-Artefakt auf
 Feldebene und ist weder Nachweis für diesen Successor noch die von
 FND-GITHUB-0009 verlangte unabhängige Protected-Host-Evidence.
+
+Der NGINX-Functional-A-Workflow des Successors bereitet jetzt vor der
+begrenzten Root-Übergabe genau ein frisches, Runner-eigenes privates
+Staging-Verzeichnis vor. Erst nachdem beide echten On-/Off-Zellen sowie ihre
+JSONL-, Raw-WAF-, Callback-, Lifecycle-, Artifact-Identity- und Allow-Control-
+Assertions bestanden haben, erzeugt ein no-follow-basierter One-shot-Writer
+ein begrenztes kanonisches `result.json`. Es enthält den exakten Parent-Head,
+den gepinnten NGINX-Archiv-Digest/die Version, rollenbezeichnete
+Build-Identitäten und die erforderlichen Boolean-/Count-Fakten, schließt aber
+Raw-Logs, Request-Targets, Canary-Daten, Nutzlasten, Transaktionskennungen,
+Zeitstempel und absolute Pfade aus. Dies bleibt kandidaten-eigene
+Integrations-Evidence für FND-PARENT-1046 und ist keine unabhängige
+Protected-Host-Attestation für FND-GITHUB-0009.
 
 Zum Commit-Zeitpunkt dieses Records sind die fokussierten lokalen Contracts,
 der C-Fixture-Compile, Workflow-Lint und Whitespace-Checks nur aktuelle

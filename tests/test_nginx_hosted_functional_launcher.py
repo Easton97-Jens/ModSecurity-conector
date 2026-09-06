@@ -50,6 +50,9 @@ class HostedFunctionalLauncherTest(unittest.TestCase):
         self.verified = self.job_root / LAUNCHER_MODULE._VERIFIED_RUN_ROOT_NAME
         self.verified.mkdir(mode=0o700)
         self.verified.chmod(0o700)
+        self.evidence = self.verified / LAUNCHER_MODULE._FUNCTIONAL_EVIDENCE_DIRECTORY_NAME
+        self.evidence.mkdir(mode=0o700)
+        self.evidence.chmod(0o700)
         self.functional_parent = self.job_root / "ModSecurity-conector-nginx-functional-parent"
         self.functional_parent.mkdir(mode=0o711)
         self.functional_parent.chmod(0o711)
@@ -69,6 +72,9 @@ class HostedFunctionalLauncherTest(unittest.TestCase):
         self.env = {
             "VERIFIED_RUN_ROOT": str(self.verified),
             "NGINX_FUNCTIONAL_A_PARENT_ROOT": str(self.functional_parent),
+            "NGINX_FUNCTIONAL_A_EVIDENCE_ROOT": str(self.evidence),
+            "EXPECTED_PARENT_SHA": "a" * 40,
+            "NGINX_SHA256": "b" * 64,
             "NGINX_PREFIX": str(self.prefix),
             "NGINX_BUILD_DIR": str(self.build),
             "MODSECURITY_LIB_DIR": str(self.lib),
@@ -85,7 +91,7 @@ class HostedFunctionalLauncherTest(unittest.TestCase):
                 fields = list(metadata)
                 fields[4] = 0
                 return os.stat_result(fields)
-            if path == self.verified:
+            if path in (self.verified, self.evidence):
                 fields = list(metadata)
                 fields[4] = self.runner_uid
                 return os.stat_result(fields)
@@ -145,6 +151,9 @@ class HostedFunctionalLauncherTest(unittest.TestCase):
             assignments["NGINX_FUNCTIONAL_A_RUNTIME_LIBRARY"],
             str(self.lib / "libmodsecurity.so.3"),
         )
+        self.assertEqual(assignments["NGINX_FUNCTIONAL_A_EVIDENCE_ROOT"], str(self.evidence))
+        self.assertEqual(assignments["EXPECTED_PARENT_SHA"], "a" * 40)
+        self.assertEqual(assignments["NGINX_SHA256"], "b" * 64)
         for forbidden in ("LD_PRELOAD", "LD_LIBRARY_PATH", "PYTHONPATH", "BASH_ENV", "ENV"):
             self.assertNotIn(forbidden, assignments)
         self.assertEqual(command, LAUNCHER_MODULE.build_root_command(dict(self.env)))
@@ -321,6 +330,45 @@ class HostedFunctionalLauncherTest(unittest.TestCase):
             with self.subTest(override=override):
                 with self.assertRaises(LAUNCHER_MODULE.FunctionalALaunchError):
                     LAUNCHER_MODULE.build_root_command(dict(self.env, **override))
+
+    def test_rejects_misbound_or_nonempty_functional_evidence_root(self) -> None:
+        outside = self.root / "outside-evidence"
+        outside.mkdir(mode=0o700)
+        outside.chmod(0o700)
+        with self.assertRaisesRegex(
+            LAUNCHER_MODULE.FunctionalALaunchError, "designated verified-root child"
+        ):
+            LAUNCHER_MODULE.build_root_command(
+                dict(self.env, NGINX_FUNCTIONAL_A_EVIDENCE_ROOT=str(outside))
+            )
+
+        self.evidence.chmod(0o755)
+        try:
+            with self.assertRaisesRegex(
+                LAUNCHER_MODULE.FunctionalALaunchError, "runner-owned private mode 0700"
+            ):
+                LAUNCHER_MODULE.build_root_command(self.env)
+        finally:
+            self.evidence.chmod(0o700)
+
+        (self.evidence / "result.json").write_text("stale\n", encoding="utf-8")
+        with self.assertRaisesRegex(
+            LAUNCHER_MODULE.FunctionalALaunchError, "fresh and empty"
+        ):
+            LAUNCHER_MODULE.build_root_command(self.env)
+
+    def test_rejects_non_exact_expected_parent_sha(self) -> None:
+        for value in ("", "A" * 40, "a" * 39, "g" * 40):
+            with self.subTest(value=value), self.assertRaisesRegex(
+                LAUNCHER_MODULE.FunctionalALaunchError, "exact lowercase commit SHA"
+            ):
+                LAUNCHER_MODULE.build_root_command(dict(self.env, EXPECTED_PARENT_SHA=value))
+
+        for value in ("", "B" * 64, "b" * 63, "g" * 64):
+            with self.subTest(value=value), self.assertRaisesRegex(
+                LAUNCHER_MODULE.FunctionalALaunchError, "exact lowercase SHA-256"
+            ):
+                LAUNCHER_MODULE.build_root_command(dict(self.env, NGINX_SHA256=value))
 
     def test_rejects_missing_or_non_regular_artifacts(self) -> None:
         missing = dict(self.env, MODSECURITY_LIB_DIR=str(self.verified / "missing"))

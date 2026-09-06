@@ -490,6 +490,15 @@ verändert. Das zurückgehaltene Ergebnis enthält nur exakten Head,
 Build-Identitäten, verifizierte Filterreihenfolge, Buffer-Flags, Längen,
 begrenzte Forwarding-Hashes und Accounting-Werte—keine Response-Nutzlasten.
 
+Das GitHub-hosted-Functional-A-Gate veröffentlicht zusätzlich genau ein
+begrenztes, payload-sicheres `result.json` erst nachdem beide echten
+`modsecurity_use_error_log`-On-/Off-Zellen bestanden haben. Es enthält den
+exakten Head, NGINX-Archiv-/Build-Identitäten, Redaction-/Truncation-/
+Integrity-/Transaktionsfakten, die Raw-WAF-Canary-Beobachtung, Callback-Status
+und Lifecycle-Fakten, aber keinen Raw-Log, Target, Canary, Nutzlast,
+Transaktionskennung, Zeitstempel oder absoluten Pfad. Dies ist kandidaten-
+eigene Integrations-Evidence und keine unabhängige Protected-Host-Attestation.
+
 Eine Regelübereinstimmung muss unabhängig von einem sichtbaren 403 gemeldet
 werden. Kanonische Ereignisse bewahren den ursprünglichen Host-Status, den
 angeforderten WAF-Status, den sichtbaren Client-Status, die angeforderte und

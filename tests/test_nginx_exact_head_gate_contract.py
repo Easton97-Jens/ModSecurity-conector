@@ -110,6 +110,23 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
             fixture_upload,
         )
         self.assertIn("if-no-files-found: error", fixture_upload)
+        functional_upload = workflow.split(
+            "      - name: Upload bounded NGINX Functional-A evidence", 1
+        )[1].split("      - name: Upload native NGINX body-buffer fixture evidence", 1)[0]
+        self.assertIn("if: success()", functional_upload)
+        self.assertIn(
+            "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1",
+            functional_upload,
+        )
+        self.assertIn(
+            "${{ env.RUN_ROOT }}/nginx-functional-a-evidence/result.json",
+            functional_upload,
+        )
+        self.assertNotIn("nginx-hosted-functional-a/**", functional_upload)
+        self.assertIn("if-no-files-found: error", functional_upload)
+        self.assertIn("overwrite: false", functional_upload)
+        self.assertIn('FUNCTIONAL_EVIDENCE_ROOT="$RUN_ROOT/nginx-functional-a-evidence"', runtime_step)
+        self.assertIn('NGINX_FUNCTIONAL_A_EVIDENCE_ROOT="$FUNCTIONAL_EVIDENCE_ROOT"', runtime_step)
         provision_step = workflow.split(
             "      - name: Provision pinned NGINX and connector runtime", 1
         )[1].split("      - name: Print bounded NGINX provisioning failure diagnostics", 1)[0]
@@ -146,6 +163,10 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
         self.assertIn("require_existing_non_symlink_directory", script)
         self.assertIn("functional-A root must be the designated fresh child", script)
         self.assertIn("artifact-identity.start.sha256", script)
+        self.assertIn("publish_functional_evidence", script)
+        self.assertIn("write-nginx-functional-a-evidence.py", script)
+        self.assertIn("NGINX_FUNCTIONAL_A_EVIDENCE_ROOT", script)
+        self.assertIn("EXPECTED_PARENT_SHA", script)
         self.assertIn("unsafe_symlink", script)
         self.assertIn("phase4_reload_unsafe", script)
         self.assertNotIn("find ", script)

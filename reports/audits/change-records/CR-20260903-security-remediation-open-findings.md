@@ -1033,7 +1033,7 @@ open, and unmerged; FND-PARENT-1036 remains
 
 ### 2026-09-06 twelfth follow-up (targeted pre-merge gate candidate)
 
-This candidate adds a separately built, test-only NGINX dynamic fixture for
+This candidate adds a separately built, statically linked, test-only NGINX fixture for
 the existing P4 body-limit boundary. It emits actual memory, file-only, and
 mixed `ngx_buf_t` states through the installed connector filter, covers the
 within-limit and reject-before-forwarding controls, and exercises file
@@ -1055,6 +1055,17 @@ the historical `ad193b...` candidate run as partial functional evidence only:
 it retained no field-level JSONL artifact and is neither proof for this
 successor nor the independent protected-host evidence required by
 FND-GITHUB-0009.
+
+The successor's NGINX Functional-A workflow now prepares one fresh,
+runner-owned private staging directory before the bounded root handoff. Only
+after both real On/Off cells and their JSONL, raw-WAF, callback, lifecycle,
+artifact-identity, and allow-control assertions pass, a no-follow, one-shot
+writer emits a bounded canonical `result.json`. It records the exact Parent
+head, pinned NGINX archive digest/version, role-labelled build identities and
+the required boolean/count facts, but excludes raw logs, request targets,
+Canaries, payloads, transaction identifiers, timestamps, and absolute paths.
+This remains candidate-owned integration evidence for FND-PARENT-1046, not an
+independent protected-host attestation for FND-GITHUB-0009.
 
 At this record's commit time, the focused local contracts, C fixture compile,
 workflow lint, and whitespace checks are current candidate evidence only. The

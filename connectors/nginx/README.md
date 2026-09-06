@@ -452,6 +452,14 @@ The retained result records only the exact head, build identities, verified
 filter ordering, buffer flags, lengths, bounded forwarding hashes, and
 accounting—not response payloads.
 
+The GitHub-hosted Functional-A gate separately publishes one bounded,
+payload-safe `result.json` only after both real `modsecurity_use_error_log`
+On/Off cells pass. It carries the exact head, NGINX archive/build identities,
+redaction/truncation/integrity/transaction facts, raw-WAF-canary observation,
+callback state, and lifecycle facts, but no raw log, target, Canary, payload,
+transaction identifier, timestamp, or absolute path. This is candidate-owned
+integration evidence; it is not the independent protected-host attestation.
+
 A rule match must be reported independently from a visible 403.  Canonical
 events preserve the original host status, requested WAF status, visible client
 status, requested action, actual action, header/commit timing, and connection

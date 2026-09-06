@@ -11,6 +11,11 @@ FUNCTIONAL_ROOT=${NGINX_FUNCTIONAL_A_ROOT:-}
 FUNCTIONAL_PARENT_ROOT=${NGINX_FUNCTIONAL_A_PARENT_ROOT:-}
 RULE_PREAMBLE=${MODSECURITY_RULE_PREAMBLE_FILE:-$FRAMEWORK_ROOT/tests/rules/no-crs-baseline.conf}
 FUNCTIONAL_RUNTIME_LIBRARY=${NGINX_FUNCTIONAL_A_RUNTIME_LIBRARY:-}
+FUNCTIONAL_EVIDENCE_ROOT=${NGINX_FUNCTIONAL_A_EVIDENCE_ROOT:-}
+FUNCTIONAL_EVIDENCE_OWNER_UID=${NGINX_FUNCTIONAL_A_EVIDENCE_OWNER_UID:-}
+FUNCTIONAL_EVIDENCE_OWNER_GID=${NGINX_FUNCTIONAL_A_EVIDENCE_OWNER_GID:-}
+EXPECTED_PARENT_SHA=${EXPECTED_PARENT_SHA:-}
+NGINX_ARCHIVE_SHA256=${NGINX_SHA256:-}
 PHASE4_CASE=nginx_phase4_deny_after_commit_log_only
 INHERITANCE_CASE=phase1_header_block
 ALLOW_CASE=allow_without_marker
@@ -99,6 +104,42 @@ assert_same_artifact_identity() {
     observed=$2
     /usr/bin/cmp -s "$expected" "$observed" || \
         fail "candidate binary/module/rules artifact identity changed: $observed"
+}
+
+require_functional_evidence_stage() {
+    case "$FUNCTIONAL_EVIDENCE_OWNER_UID:$FUNCTIONAL_EVIDENCE_OWNER_GID" in
+        *[!0-9:]*|:*) fail "invalid Functional-A evidence owner" ;;
+    esac
+    case "$EXPECTED_PARENT_SHA" in
+        ''|*[!0123456789abcdef]*) fail "invalid expected Parent head for Functional-A evidence" ;;
+    esac
+    case "$NGINX_ARCHIVE_SHA256" in
+        ''|*[!0123456789abcdef]*) fail "invalid NGINX archive SHA-256 for Functional-A evidence" ;;
+    esac
+    [ "${#EXPECTED_PARENT_SHA}" -eq 40 ] || \
+        fail "expected Parent head is not an exact commit SHA for Functional-A evidence"
+    [ "${#NGINX_ARCHIVE_SHA256}" -eq 64 ] || \
+        fail "NGINX archive digest is not an exact SHA-256 for Functional-A evidence"
+    require_existing_non_symlink_directory "$FUNCTIONAL_EVIDENCE_ROOT"
+    [ "$(/usr/bin/stat -c '%u:%g:%a' -- "$FUNCTIONAL_EVIDENCE_ROOT")" = \
+        "$FUNCTIONAL_EVIDENCE_OWNER_UID:$FUNCTIONAL_EVIDENCE_OWNER_GID:700" ] || \
+        fail "Functional-A evidence stage is not the private runner-owned directory"
+}
+
+publish_functional_evidence() {
+    require_functional_evidence_stage
+    functional_evidence_writer="$CONNECTOR_ROOT/ci/runtime/lifecycle/write-nginx-functional-a-evidence.py"
+    [ -f "$functional_evidence_writer" ] && [ ! -L "$functional_evidence_writer" ] || \
+        fail "missing bounded Functional-A evidence writer"
+    /usr/bin/python3 -I "$functional_evidence_writer" \
+        --connector-root "$CONNECTOR_ROOT" \
+        --functional-root "$FUNCTIONAL_ROOT" \
+        --evidence-root "$FUNCTIONAL_EVIDENCE_ROOT" \
+        --owner-uid "$FUNCTIONAL_EVIDENCE_OWNER_UID" \
+        --owner-gid "$FUNCTIONAL_EVIDENCE_OWNER_GID" \
+        --parent-sha "$EXPECTED_PARENT_SHA" \
+        --nginx-archive-sha256 "$NGINX_ARCHIVE_SHA256" || \
+        fail "could not publish bounded Functional-A evidence"
 }
 
 run_harness_case() {
@@ -330,4 +371,5 @@ done
 /usr/bin/cmp -s "$FUNCTIONAL_ROOT/on/artifact-identity.after.sha256" \
     "$FUNCTIONAL_ROOT/off/artifact-identity.after.sha256" || \
     fail "on/off cells did not use the same candidate artifact set"
+publish_functional_evidence
 echo "nginx_exact_head: functional-A runtime=passed"

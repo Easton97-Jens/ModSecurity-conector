@@ -169,12 +169,24 @@ jobs:
       - name: Run isolated modsecurity_use_error_log on/off cells
         run: |
           set -eu
+          FUNCTIONAL_EVIDENCE_ROOT="$RUN_ROOT/nginx-functional-a-evidence"
+          if [ -e "$FUNCTIONAL_EVIDENCE_ROOT" ] || [ -L "$FUNCTIONAL_EVIDENCE_ROOT" ]; then
+            echo "exact-head gate: Functional-A evidence root is unexpectedly occupied" >&2
+            exit 1
+          fi
+          /bin/mkdir -m 700 "$FUNCTIONAL_EVIDENCE_ROOT"
+          [ "$(/usr/bin/stat -c '%u:%g:%a' "$FUNCTIONAL_EVIDENCE_ROOT")" = \
+            "$(/usr/bin/id -u):$(/usr/bin/id -g):700" ] || {
+            echo "exact-head gate: Functional-A evidence root has an unexpected identity or mode" >&2
+            exit 1
+          }
           /usr/bin/env -i \
             PATH=/usr/bin:/bin HOME=/nonexistent LC_ALL=C \
             EXPECTED_PARENT_SHA="$EXPECTED_PARENT_SHA" \
             NGINX_FUNCTIONAL_WORKER_USER="$NGINX_FUNCTIONAL_WORKER_USER" \
             NGINX_FUNCTIONAL_WORKER_GROUP="$NGINX_FUNCTIONAL_WORKER_GROUP" \
             NGINX_FUNCTIONAL_A_PARENT_ROOT="$NGINX_FUNCTIONAL_A_PARENT_ROOT" \
+            NGINX_FUNCTIONAL_A_EVIDENCE_ROOT="$FUNCTIONAL_EVIDENCE_ROOT" \
             RUN_ROOT="$RUN_ROOT" \
             VERIFIED_RUN_ROOT="$VERIFIED_RUN_ROOT" \
             BUILD_ROOT="$BUILD_ROOT" TMP_ROOT="$TMP_ROOT" LOG_ROOT="$LOG_ROOT" \
@@ -207,6 +219,15 @@ jobs:
             --modsecurity-lib "$MODSECURITY_LIB_DIR" \
             --output-root "$RUN_ROOT/native-nginx-body-buffer-fixture"
           RUNTIME_FIXTURE
+      - name: Upload bounded NGINX Functional-A evidence
+        if: success()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: nginx-functional-a-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.RUN_ROOT }}/nginx-functional-a-evidence/result.json
+          if-no-files-found: error
+          retention-days: 10
+          overwrite: false
       - name: Upload native NGINX body-buffer fixture evidence
         if: success()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

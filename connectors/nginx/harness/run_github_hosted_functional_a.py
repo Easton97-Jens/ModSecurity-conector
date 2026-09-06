@@ -39,6 +39,8 @@ _FUNCTIONAL_JOB_ROOT_SUFFIX_CHARS = frozenset(
 _VERIFIED_RUN_ROOT_NAME = "ModSecurity-conector-nginx-exact-head"
 _FUNCTIONAL_PARENT_NAME = "ModSecurity-conector-nginx-functional-parent"
 _FUNCTIONAL_ROOT_NAME = "nginx-hosted-functional-a"
+_FUNCTIONAL_EVIDENCE_DIRECTORY_NAME = "nginx-functional-a-evidence"
+_COMMIT_SHA_CHARS = frozenset("0123456789abcdef")
 
 
 class FunctionalALaunchError(ValueError):
@@ -58,6 +60,20 @@ def _require_worker_name(env: Mapping[str, str], name: str) -> str:
         or any(character not in _WORKER_NAME_CHARS for character in value)
     ):
         raise FunctionalALaunchError(f"{name} is not a bounded local account name")
+    return value
+
+
+def _require_commit_sha(env: Mapping[str, str], name: str) -> str:
+    value = str(env.get(name, ""))
+    if len(value) != 40 or any(character not in _COMMIT_SHA_CHARS for character in value):
+        raise FunctionalALaunchError(f"{name} must be an exact lowercase commit SHA")
+    return value
+
+
+def _require_sha256(env: Mapping[str, str], name: str) -> str:
+    value = str(env.get(name, ""))
+    if len(value) != 64 or any(character not in _COMMIT_SHA_CHARS for character in value):
+        raise FunctionalALaunchError(f"{name} must be an exact lowercase SHA-256")
     return value
 
 
@@ -217,6 +233,33 @@ def _require_worker_traversable_functional_parent(
     return path
 
 
+def _require_functional_evidence_directory(path: Path, verified_root: Path) -> Path:
+    """Bind the only runner-readable Functional-A evidence staging directory."""
+
+    expected = verified_root / _FUNCTIONAL_EVIDENCE_DIRECTORY_NAME
+    if path != expected:
+        raise FunctionalALaunchError(
+            "NGINX_FUNCTIONAL_A_EVIDENCE_ROOT must be the designated verified-root child"
+        )
+    _require_directory(path, "NGINX_FUNCTIONAL_A_EVIDENCE_ROOT")
+    metadata = path.lstat()
+    if metadata.st_uid != os.geteuid() or stat.S_IMODE(metadata.st_mode) != 0o700:
+        raise FunctionalALaunchError(
+            "NGINX_FUNCTIONAL_A_EVIDENCE_ROOT must be runner-owned private mode 0700"
+        )
+    try:
+        with os.scandir(path) as entries:
+            if next(entries, None) is not None:
+                raise FunctionalALaunchError(
+                    "NGINX_FUNCTIONAL_A_EVIDENCE_ROOT must be fresh and empty"
+                )
+    except OSError as error:
+        raise FunctionalALaunchError(
+            f"NGINX_FUNCTIONAL_A_EVIDENCE_ROOT cannot be inspected: {error}"
+        ) from error
+    return path
+
+
 def repository_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
@@ -248,6 +291,15 @@ def build_root_command(env: Mapping[str, str]) -> list[str]:
         verified_root,
     )
     functional_root = functional_parent / _FUNCTIONAL_ROOT_NAME
+    evidence_root = _require_functional_evidence_directory(
+        _absolute_path(
+            str(env.get("NGINX_FUNCTIONAL_A_EVIDENCE_ROOT", "")),
+            "NGINX_FUNCTIONAL_A_EVIDENCE_ROOT",
+        ),
+        verified_root,
+    )
+    expected_parent_sha = _require_commit_sha(env, "EXPECTED_PARENT_SHA")
+    nginx_archive_sha256 = _require_sha256(env, "NGINX_SHA256")
 
     nginx_prefix = _require_under(
         _absolute_path(str(env.get("NGINX_PREFIX", "")), "NGINX_PREFIX"),
@@ -292,6 +344,11 @@ def build_root_command(env: Mapping[str, str]) -> list[str]:
         "NGINX_FUNCTIONAL_A_PARENT_ROOT": str(functional_parent),
         "VERIFIED_RUN_ROOT": str(functional_root),
         "NGINX_FUNCTIONAL_A_ROOT": str(functional_root),
+        "NGINX_FUNCTIONAL_A_EVIDENCE_ROOT": str(evidence_root),
+        "NGINX_FUNCTIONAL_A_EVIDENCE_OWNER_UID": str(os.geteuid()),
+        "NGINX_FUNCTIONAL_A_EVIDENCE_OWNER_GID": str(os.getegid()),
+        "EXPECTED_PARENT_SHA": expected_parent_sha,
+        "NGINX_SHA256": nginx_archive_sha256,
         "NGINX_PREFIX": str(nginx_prefix),
         "NGINX_BUILD_DIR": str(nginx_build),
         "NGINX_BINARY": str(nginx_binary),
