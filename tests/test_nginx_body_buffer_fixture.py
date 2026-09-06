@@ -15,7 +15,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "nginx_body_buffer_fixture"
 MODULE = FIXTURE / "ngx_http_body_buffer_fixture_module.c"
-ALLOCATOR = FIXTURE / "fixture_alloc_fail.c"
 RUNNER = ROOT / "tests" / "run_nginx_body_buffer_fixture.py"
 
 
@@ -32,7 +31,7 @@ RUNNER_MODULE = load_runner()
 
 
 class NginxBodyBufferFixtureContractTest(unittest.TestCase):
-    def test_dynamic_module_configuration_keeps_fixture_separate(self) -> None:
+    def test_fixture_configuration_keeps_the_test_module_separate(self) -> None:
         config = (FIXTURE / "config").read_text(encoding="utf-8")
         self.assertIn("ngx_http_body_buffer_fixture_module", config)
         self.assertIn("ngx_http_body_buffer_fixture_module.c", config)
@@ -73,6 +72,8 @@ class NginxBodyBufferFixtureContractTest(unittest.TestCase):
         self.assertIn("pwd.getpwuid(os.geteuid())", source)
         self.assertIn('f"user {nginx_user} {nginx_group};"', source)
         self.assertIn("--add-dynamic-module=", source)
+        self.assertIn("--add-module=", source)
+        self.assertIn("--with-ld-opt=-Wl,--wrap=malloc", source)
         self.assertIn("connectors' / 'nginx", source)
         self.assertIn("nginx_body_buffer_fixture", source)
         self.assertIn("ngx_http_modsecurity_module.so", source)
@@ -86,14 +87,15 @@ class NginxBodyBufferFixtureContractTest(unittest.TestCase):
         self.assertIn("phase4_event_log_sha256", source)
         self.assertIn("not_representable_on_this_64_bit_off_t_size_t_runtime", source)
 
-    def test_allocation_fault_is_external_to_product_modules(self) -> None:
-        source = ALLOCATOR.read_text(encoding="utf-8")
+    def test_allocation_fault_is_static_fixture_only(self) -> None:
+        source = MODULE.read_text(encoding="utf-8")
         self.assertIn("MSCONNECTOR_NGINX_BODY_FIXTURE_FAIL_ALLOC", source)
         self.assertIn("size == 32768U", source)
-        self.assertIn("__libc_malloc", source)
+        self.assertIn("__wrap_malloc", source)
+        self.assertIn("__real_malloc", source)
         runner = RUNNER.read_text(encoding="utf-8")
-        self.assertIn('"LD_PRELOAD": str(preloader)', runner)
-        self.assertIn("test_only_ld_preload_32768_byte_request_pool_scratch", runner)
+        self.assertNotIn("LD_PRELOAD", runner)
+        self.assertIn("test_only_static_linker_wrap_32768_byte_request_pool_scratch", runner)
         product = (ROOT / "connectors" / "nginx" / "src" / "ngx_http_modsecurity_body_filter.c").read_text(
             encoding="utf-8"
         )

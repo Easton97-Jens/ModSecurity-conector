@@ -469,7 +469,7 @@ in Event-JSONL.
 
 `tests/run_nginx_body_buffer_fixture.py` ist eine reine Test-Fixture für die
 native Grenzprüfung. Sie baut den ausgewählten sauberen Connector-Checkout und
-ein separates dynamisches Fixture-Modul gegen die gepinnte NGINX-Quelle neu
+ein separates reines Fixture-Modul gegen die gepinnte NGINX-Quelle neu
 und gibt echte Memory-, file-only- und gemischte `ngx_buf_t`-Werte durch die
 installierte Filterkette aus. Ihre Testkonfiguration wählt das bestehende Limit
 nur für Fälle innerhalb des Limits und für Reject-before-forwarding; sie ändert

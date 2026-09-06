@@ -12,7 +12,9 @@
 #include <ngx_core.h>
 #include <ngx_http.h>
 
+#include <errno.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define FIXTURE_BODY "P4-FIXTURE-BODY!"
 #define FIXTURE_BODY_LENGTH (sizeof(FIXTURE_BODY) - 1U)
@@ -39,6 +41,23 @@ static ngx_int_t ngx_http_body_buffer_fixture_open_file(ngx_http_request_t *r,
     const ngx_str_t *path, ngx_file_t **file);
 static ngx_int_t ngx_http_body_buffer_fixture_add_header(ngx_http_request_t *r,
     const ngx_str_t *mode);
+
+/* This symbol is linked only into the runner's separately built NGINX test
+ * binary with --wrap=malloc.  The production connector and its dynamic module
+ * neither compile nor link it. */
+extern void *__real_malloc(size_t size);
+
+void *
+__wrap_malloc(size_t size)
+{
+    const char *enabled = getenv("MSCONNECTOR_NGINX_BODY_FIXTURE_FAIL_ALLOC");
+
+    if (enabled != NULL && strcmp(enabled, "1") == 0 && size == 32768U) {
+        errno = ENOMEM;
+        return NULL;
+    }
+    return __real_malloc(size);
+}
 
 static ngx_command_t ngx_http_body_buffer_fixture_commands[] = {
     {

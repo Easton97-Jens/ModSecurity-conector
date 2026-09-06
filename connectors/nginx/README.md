@@ -432,7 +432,7 @@ forwarded; neither the scratch bytes nor response payloads enter event JSONL.
 
 `tests/run_nginx_body_buffer_fixture.py` is a test-only native boundary
 fixture. It rebuilds the selected clean connector checkout and a separate
-dynamic fixture module against the pinned NGINX source, then emits real
+test-only fixture module against the pinned NGINX source, then emits real
 memory, file-only, and mixed `ngx_buf_t` values through the installed filter
 chain. Its test configuration selects the existing limit solely to exercise
 within-limit and reject-before-forwarding cases; it does not change a product

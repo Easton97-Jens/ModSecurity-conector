@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build and exercise the native NGINX P4 response-buffer fixture.
 
-The runner deliberately rebuilds NGINX and both dynamic modules from the
+The runner deliberately rebuilds NGINX, the connector module, and the
 specified exact checkout.  It never reuses a previously built connector module
 as evidence.  Its retained JSON report contains only lengths, hashes, flags,
 and process results; raw loopback responses and NGINX logs stay in the private
@@ -175,7 +175,6 @@ def write_config(
     path: Path,
     *,
     connector_module: Path,
-    fixture_module: Path,
     prefix: Path,
     port: int,
     body_file: Path,
@@ -229,7 +228,6 @@ def write_config(
     config = "\n".join(
         (
             f"load_module {connector_module};",
-            f"load_module {fixture_module};",
             f"user {nginx_user} {nginx_group};",
             "worker_processes 1;",
             f"error_log {prefix / 'logs' / 'error.log'} notice;",
@@ -487,8 +485,9 @@ def main(argv: list[str]) -> int:
         "./configure",
         f"--prefix={build_root / 'prefix'}",
         "--with-compat",
+        "--with-ld-opt=-Wl,--wrap=malloc",
         f"--add-dynamic-module={connector_root / 'connectors' / 'nginx'}",
-        f"--add-dynamic-module={connector_root / 'tests' / 'nginx_body_buffer_fixture'}",
+        f"--add-module={connector_root / 'tests' / 'nginx_body_buffer_fixture'}",
     ]
     run(configure, cwd=nginx_source, environment=environment, log=logs_root / "configure.log")
     jobs = str(min(2, max(1, os.cpu_count() or 1)))
@@ -497,29 +496,8 @@ def main(argv: list[str]) -> int:
 
     nginx = nginx_source / "objs" / "nginx"
     connector_module = nginx_source / "objs" / "ngx_http_modsecurity_module.so"
-    fixture_module = nginx_source / "objs" / "ngx_http_body_buffer_fixture_module.so"
-    for path, label in ((nginx, "NGINX binary"), (connector_module, "connector module"), (fixture_module, "fixture module")):
+    for path, label in ((nginx, "NGINX binary"), (connector_module, "connector module")):
         require_regular_file(path, label)
-
-    preloader = build_root / "fixture_alloc_fail.so"
-    run(
-        [
-            "cc",
-            "-std=c17",
-            "-Wall",
-            "-Wextra",
-            "-Werror",
-            "-fPIC",
-            "-shared",
-            "-o",
-            str(preloader),
-            str(connector_root / "tests" / "nginx_body_buffer_fixture" / "fixture_alloc_fail.c"),
-        ],
-        cwd=connector_root,
-        environment=environment,
-        log=logs_root / "fixture-alloc-fail-build.log",
-    )
-    require_regular_file(preloader, "allocation-failure test library")
 
     body_file = runtime_root / "fixture-body.bin"
     short_body_file = runtime_root / "fixture-short-body.bin"
@@ -535,7 +513,6 @@ def main(argv: list[str]) -> int:
     write_config(
         normal_config,
         connector_module=connector_module,
-        fixture_module=fixture_module,
         prefix=normal_prefix,
         port=normal_port,
         body_file=body_file,
@@ -579,7 +556,6 @@ def main(argv: list[str]) -> int:
     write_config(
         allocation_config,
         connector_module=connector_module,
-        fixture_module=fixture_module,
         prefix=allocation_prefix,
         port=allocation_port,
         body_file=body_file,
@@ -587,10 +563,7 @@ def main(argv: list[str]) -> int:
         mixed_body_file=mixed_body_file,
         phase4_log=phase4_log,
     )
-    allocation_environment = {
-        **normal_environment,
-        "LD_PRELOAD": str(preloader),
-    }
+    allocation_environment = normal_environment
     run(
         [str(nginx), "-p", str(allocation_prefix), "-c", str(allocation_config), "-t"],
         cwd=allocation_prefix,
@@ -628,7 +601,12 @@ def main(argv: list[str]) -> int:
             "archive_sha256": archive_digest,
             "binary_sha256": sha256_file(nginx),
             "connector_module_sha256": sha256_file(connector_module),
-            "fixture_module_sha256": sha256_file(fixture_module),
+            "fixture_source_sha256": sha256_file(
+                connector_root
+                / "tests"
+                / "nginx_body_buffer_fixture"
+                / "ngx_http_body_buffer_fixture_module.c"
+            ),
         },
         "modsecurity": {
             "library_target": library_target.name,
@@ -640,7 +618,7 @@ def main(argv: list[str]) -> int:
             "file_payload_sha256": hashlib.sha256(FIXTURE_FILE_PAYLOAD).hexdigest(),
             "short_file_payload_sha256": hashlib.sha256(FIXTURE_SHORT_FILE_PAYLOAD).hexdigest(),
             "mixed_file_payload_sha256": hashlib.sha256(FIXTURE_MIXED_FILE_PAYLOAD).hexdigest(),
-            "allocation_failure": "test_only_ld_preload_32768_byte_request_pool_scratch",
+            "allocation_failure": "test_only_static_linker_wrap_32768_byte_request_pool_scratch",
             "overflow": "not_representable_on_this_64_bit_off_t_size_t_runtime",
         },
         "cases": observations,
