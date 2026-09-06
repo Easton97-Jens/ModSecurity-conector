@@ -9,7 +9,7 @@
 | Change ID | CR-20260905-nginx-current-master-common-adoption-repair |
 | Date (UTC) | 2026-09-05 |
 | Base revision | b779167ff979aa73cdd9321a829f9c693d943760 |
-| Delivery status | Draft PR #357 exists on the authorized focused branch at initial exact head `e9ceb86723383c31914f179638f1b7043ea79609`, based on `b779167ff979aa73cdd9321a829f9c693d943760`. A local uncommitted successor remediation is under verification. No Ready-for-Review action, merge, direct `master` push, PR #346 action, or governance change is asserted. Initial-head Sonar Quality Gate was `OK`, but five open checker-local issues block delivery until the successor receives fresh exact-head evidence. |
+| Delivery status | Draft PR #357's first delivered successor is exact head `8af044dd9d801f4edf163971088fd25795dc578f`, based on `b779167ff979aa73cdd9321a829f9c693d943760`. Its hosted analysis had 36 terminal checks (30 successful and six skipped) and a Sonar Quality Gate of `OK`, but six open task-owned checker code smells remain associated with that delivered head. The uncommitted four-file H14/H15 successor contains their semantic remediation and has current local evidence below; it has no successor-head hosted-result claim. No Ready-for-Review action, merge, direct `master` push, PR #346 action, or governance change is asserted. |
 
 ## Motivation and problem statement
 
@@ -23,6 +23,42 @@ defect. The live request mapper is fail-closed, while the Server response
 header resolver now delegates to a bounded Common wrapper instead of calling
 the raw response-header sink directly. `FND-PARENT-1010` remains in progress
 pending this successor's exact-head delivery evidence.
+
+The exact-head hosted analysis of `8af044dd9d801f4edf163971088fd25795dc578f`
+reported no bugs, vulnerabilities, or security hotspots, but six task-owned
+open code smells in the checker: three `python:S6353` character-class
+observations, one `python:S8786` regex-resource observation, and two
+`python:S1192` duplicate-signature observations. They are checker quality
+findings, not established NGINX runtime vulnerabilities. H13 preserves the
+ASCII C-identifier grammar without changing the surrounding Unicode-aware word
+boundaries, replaces the broad fallback-definition regex with a bounded
+non-regex fallback proof, and shares the repeated function-selector literals.
+The proof rejects a normalized `ddebug.h` source view longer than 4,096
+characters, requires exactly two exact inert fallback definitions, masks only
+those definitions, and then rejects remaining active `dd` identifiers except
+in separately validated macro directives. It also rejects nonallowlisted
+directives and active `_Pragma`, `asm`, `__asm`, or `__asm__` operators. Fresh
+hosted evidence remains required for that successor.
+
+The H13 follow-up reproduced macro-alias, empty trailing-macro-suffix,
+parenthesized-declarator, function-pointer, GNU `#pragma weak`, and C
+`_Pragma` weak-alias false passes in bounded copied checker sources. Each is a
+PR-controlled static-checker-integrity class: the pre-fix checker could accept
+a non-inert `dd` callable while literal inert decoys remained. No mutated NGINX
+runtime was built or executed, so these are not asserted as deployed NGINX
+runtime vulnerabilities. `FND-PARENT-1051`, `FND-PARENT-1052`, and
+`FND-PARENT-1053` retain their separate evidence and delivery status.
+
+`FND-PARENT-1054` then reproduced a related checker-integrity false pass in
+four owned diagnostic format literals. In bounded copied sources, replacing
+the header diagnostic `%p`, the `dd(...)` prefix, or either event-handler
+diagnostic `%s` literal with `%n` retained the relevant checker `PASS` before
+the H14 repair. H14 also binds and regresses the existing `dd(...)` suffix
+format, so five exact visible literals now have current mutation coverage. The
+active checker view masks C string literals, so its former structural forms
+alone could not bind the visible format text. This is a static-contract defect
+under PR-controlled source changes, not a demonstrated NGINX runtime or remote
+exploit; no mutated native runtime was built or run.
 
 During the successor's Sonar remediation, `FND-PARENT-1039` reproduced a
 separate static-checker control bypass: raw function extraction could stop at
@@ -139,9 +175,8 @@ runtime vulnerability or execute a mutated runtime path.
   control-flow token in its replacement list. The only control-flow exception
   is an exact current diagnostic macro form with its exact function-like
   parameter list: empty or the three-`fprintf` variadic `dd(...)` body, or a
-  reviewed `dd_check_*(r)` ternary or `(void)(r)` body. Exactly two total
-  non-directive `dd` function definitions must match the inert nonvariadic
-  fallback form. A PCRE shim is allowed only as the exact
+  reviewed `dd_check_*(r)` ternary or `(void)(r)` body. A PCRE shim is allowed
+  only as the exact
   `ngx_http_modsecurity_pcre_malloc_init(x)`/`NULL` or
   `ngx_http_modsecurity_pcre_malloc_done(x)`/`(void)x` function-like form. A
   quoted local include is rejected when dynamic, path-unsafe, or outside the
@@ -150,6 +185,14 @@ runtime vulnerability or execute a mutated runtime path.
   shadow it. An angle-bracket include must use the fixed current external-
   header allowlist and satisfy the same local-shadow check; nonstandard
   `#include_next` and `#import` are rejected.
+- The `ddebug.h` fallback proof applies to a translation-normalized source
+  view of at most 4,096 characters. It requires exactly two exact inert
+  nonvariadic `dd` definitions, masks those ranges, and then rejects each
+  remaining active `dd` token unless it is on a separately validated macro
+  directive. Only the current `define`, `if`, `ifndef`, `else`, `endif`, and
+  `include` directive forms are admitted; `_Pragma`, `asm`, `__asm`, and
+  `__asm__` are rejected. This is a narrow callable/fallback source contract,
+  not a general C-source allowlist.
 - The response-mapper all-branch forbidden-marker set and all five reachable
   pre-gate chain-buffer response-body routes are one source of truth for the
   permitted macro-replacement matcher. Every allowlisted object-like
@@ -201,6 +244,11 @@ runtime vulnerability or execute a mutated runtime path.
   mapping-and-warning form. `map_response_from_ctx` must retain exactly its
   one `(void)ctx` use; direct, nested-cast, indexed, member, macro, or other
   indirect invocation syntax cannot extend either boundary.
+- The checker uses inline-ASCII `\w` only for the three C-identifier suffix
+  fragments while retaining the surrounding default word boundaries. Its
+  non-directive `dd` definition count is a bounded linear scan: an oversized
+  or unclassifiable declaration fails closed, and exactly two inert static
+  fallback definitions remain required.
 - No NGINX C runtime source, Framework, MRTS, Gitlink, workflow, ruleset,
   branch protection, required check, Quality Gate, exclusion, suppression,
   source-lock, provenance, PR #346, or `master` change is included.
@@ -311,6 +359,18 @@ smuggled through the allowlisted debug/allocator boundary. This is a
 conservative lexical source contract, not a full C parser or
 compiler-preprocessor proof.
 
+For H13, the `phase4_`, `response_body_`, and `ngx_http_next_` suffixes use an
+inline-ASCII `\w` fragment rather than a broad Unicode character class, while
+their original outer word boundaries remain unchanged. The diagnostic fallback
+definition check no longer relies on overlapping unbounded regex classes. Its
+4,096-character normalized source view must contain exactly two exact inert
+fallbacks; after masking them, remaining active `dd` tokens, nonallowlisted
+directives, and `_Pragma`/assembly operators fail closed. This closes the
+reproduced macro, declarator, pointer, pragma, and operator representations
+without claiming to interpret arbitrary external compiler state. Shared
+signature constants preserve a single selector for each checked mapper and
+header-filter source boundary.
+
 This preserves the current restrictive C behavior rather than restoring the
 obsolete warning-only mapper expectation or a direct raw Server sink. The
 successive independent read-only source-to-sink reviews identified
@@ -318,6 +378,43 @@ checker-control false-pass opportunities and drove the direct, corridor,
 immutable-helper, and diagnostic-form controls. No native runtime was
 executed; final independent post-patch review and security-scan evidence remain
 separate delivery gates.
+
+## H15 Sonar remediation and current local evidence
+
+Immediately before the H15 validation, the read-only PR #357 preflight found
+`master` at `b779167ff979aa73cdd9321a829f9c693d943760` and the local,
+remote-branch, and PR heads all at
+`8af044dd9d801f4edf163971088fd25795dc578f`. The PR is open, Draft,
+mergeable and `clean`, has two known commits and exactly six allowlisted remote
+files; the local successor has exactly the four changed allowlisted paths,
+nothing staged, and no untracked file. The predecessor exact-head rollup is
+terminal: 36 checks, 30 `SUCCESS`, six documented `SKIPPED`, and none failed,
+cancelled, queued, or active. Review threads are zero. PR #346 was inspected
+read-only only and remains an independent Draft.
+
+The six `OPEN` SonarQube Cloud issues all target the checker and share PR #357
+analysis `2b24d50c-731e-495d-8c61-2e931df61f5f`: `python:S6353` three times,
+`python:S8786` once, and `python:S1192` twice. The local successor uses a
+scoped ASCII `(?a:\w*)` fragment instead of three `[A-Za-z0-9_]*` suffixes so
+that raw Unicode-aware `\w` semantics do not broaden the C-identifier boundary;
+replaces the potentially super-linear fallback-definition regex with a bounded
+4,096-character exact-fallback and line-scan proof; and reuses one constant only for
+each semantically identical response-mapper and header-filter source selector.
+It adds no `NOSONAR`, suppression, exclusion, acceptance, rule, Quality Gate,
+or workflow change. These are checker-quality remediations, not an assertion of
+a native NGINX runtime vulnerability.
+
+On the current local source/test tree, Python compilation passed; the direct
+checker and `make check-nginx-common-adoption` each passed all 74 assertions;
+the scoped ASCII-equivalence control passed; the bounded fallback mutation
+method passed in `21.057s`; the five-visible-literal H14 mutation method passed
+in `10.115s`; all 92 isolated mutation and legitimate-control tests passed in
+`362.428s`; and the repository virtualenv ran all 54 companion tests in
+`2.144s`. A system-Python companion attempt was environment-blocked solely by
+its missing `yaml` module and was not treated as a product failure or replaced
+by an installation. Exact successor-head hosted checks, SonarQube Cloud
+analysis, and review evidence remain required after normal delivery; this
+record intentionally makes no successor-head hosted-success claim.
 
 ## Changed files
 
@@ -366,7 +463,7 @@ Current uncommitted successor delta (four modified paths):
 | Historical final macro-and-include-control receipt with directive boundary | Passed: 32 isolated checker cases—one legitimate helper-aware positive and 31 negative controls, including macro redefinition/undefinition, unapproved macro names, token pasting, alternate-extension, traversal, out-of-root, macro-expanded, local-shadow, unknown-angle, and `#include_next` include controls. Receipt SHA-256: `d8d298beb742f7d00ddd3cc4a73e0d3dd8b5cdd1a8965d755987f5d01a4f296f`. |
 | Historical final macro-alias and terminal-return control receipt | Passed: 35 isolated checker cases—one legitimate helper-aware positive and 34 negative controls, including `#import`, a permitted Common-header raw-sink alias, and an early permitted-macro return followed by an unreachable raw-sink decoy. Receipt SHA-256: `2c945c7e01d9c69d8ae0ad8daf17559226859dee13dd491f4ae96e2daecb4192`. |
 | Initial successor function-macro control receipt | Passed: 44 isolated checker cases—one legitimate helper-aware positive and 43 negative controls, including macro early-return, control-flow capture, UCN macro-name, parameterized raw-sink-return, and parameterized prevalidation raw-sink controls. Receipt SHA-256: `43cef8d34b51febb4eb5286a4ff3ba5d899bb33e44f4f0bdacc8623efa4767dc`. |
-| `make check-bilingual-docs` and `make check-doc-links` | Blocked by the uninitialized `modules/ModSecurity-test-Framework` gitlink: existing repository links to Framework files are absent. Neither command reported a task-owned Change Record link failure at that historical checkpoint. The pair has 13 required headings in each language and identical backtick-delimited technical literals. |
+| `make check-bilingual-docs` and `make check-doc-links` | Blocked by the uninitialized `modules/ModSecurity-test-Framework` gitlink: existing repository links to Framework files are absent. Neither command reported a task-owned Change Record link failure at that historical checkpoint. The pair had 13 required headings in each language; that historical checkpoint did not establish equality of every backtick-delimited literal. |
 | `git diff --check` | Passed. |
 | Initial security diff scan | Completed for the preceding comment-decoy revision: no reportable finding remained in that snapshot. It is retained as historical evidence only. |
 | Final function-macro security diff scan | Completed at `2026-09-05T10:22:18.683709Z`: the preceding six-path snapshot had complete coverage and zero reportable findings. Its sealed report SHA-256 is `7ff57a88702a922644dc0d3ebca96d3bbbf19e3a0ca9031b656cdf7b9e00d9ae`; it does not cover the current FND-PARENT-1040/-1042 successor scope, for which a fresh final scan is a delivery gate. |
@@ -396,6 +493,23 @@ Current uncommitted successor delta (four modified paths):
 | Current companion suite | Passed: 54 companion NGINX contract tests in `2.126s`; 144 selected static-contract tests passed in aggregate with the current full suite. |
 | Current `make check-nginx-common-adoption` and `py_compile` | Passed: all 74 current NGINX Common-adoption assertions and Python syntax validation for the checker and focused test module. |
 | H12 post-patch scoped security diff scan | Completed at `2026-09-05T19:43:13Z`: all four reconciled local changed paths were reviewed with complete static coverage. Ten retained copied-source checker-integrity candidates were rejected by the current exact contracts; zero reportable current product findings survived. Sealed report SHA-256: `7c86a8a875c6636a22ba5c1b2b080eb6a89ca39190d345585e84a160b693e04b`. This is static checker/test/traceability evidence only; the current Vortex/Sonar request remains HTTP-403-blocked and no native runtime or delivery result is claimed. |
+| Earlier H13 pre-representation controls | Historical only: five focused methods and the preceding 90-test/54-companion/74-assertion snapshot passed before the later macro, declarator, pointer, pragma, and `_Pragma` false-pass classes were discovered. They are not final-tree evidence. |
+| H13 ddebug representation pre-fix controls | Each bounded copied-source class caused checker exit `0` before its corresponding repair: macro alias, empty macro suffix, parenthesized declarator, function-pointer binding, `#pragma weak`, and `_Pragma` weak alias. No mutated NGINX runtime was built or executed. |
+| H13 current ddebug regression method | Passed: `test_additional_conditional_diagnostic_fallback_is_rejected` completed in `20.232s`; it rejects multiline, oversized, alias, suffix, declarator, pointer, direct pragma, direct `_Pragma`, and macro-wrapped `_Pragma` controls. |
+| H13 current full checker mutation suite | Passed: 90 isolated checker mutation tests in `322.007s`; the bounded task-owned process exited `0`. |
+| H13 current companion suite | Passed: 54 companion NGINX contract tests in `1.912s`. |
+| H13 current checker target and syntax | Passed: all 74 `make check-nginx-common-adoption` assertions and `python3 -m py_compile ci/checks/connectors/nginx/check-nginx-common-adoption.py tests/test_nginx_common_adoption.py`. No native NGINX runtime was built or executed. |
+| H13 independent post-fix fallback review | No concrete source-valid `dd` alias or fallback bypass remained in the scoped local source. The review retains external compiler definitions, toolchain predefined macros, and transitive system headers as explicit unmodeled limits. |
+| H13 terminal scoped security diff scan | Completed at `2026-09-06T09:41:20Z`: the exact four-path local patch had complete coverage, four candidate rows (three rejected and one not applicable), and zero reportable findings. Sealed report SHA-256: `36f8f21464a56842cd9b60507fc4050fc2c08a9dab2a2fe817ea5866bb3b9346`. This is static checker/test/traceability evidence only; no native-runtime, hosted, or Sonar result is claimed. |
+| H14 diagnostic-format pre-fix controls | In four bounded copied-source cases, changing the header diagnostic `%p`, the `dd(...)` prefix, the read-event diagnostic, or the write-event diagnostic to `%n` made the pre-fix checker retain the relevant `PASS`. This confirms a checker-integrity false pass only; no mutated NGINX runtime was built or executed. |
+| Earlier H14 targeted diagnostic-format regression | Historical before suffix coverage: `test_diagnostic_format_literal_side_effect_is_rejected` completed one test in `8.371s`, rejecting the four pre-fix `%n` mutations in isolated copied sources. |
+| Earlier H14 combined focused regression group | Historical before suffix coverage: the current positive control, pre-guard bypasses, existing macro-side-effect control, and the diagnostic-format regression completed four tests in `32.648s`. |
+| H14 current targeted diagnostic and source-path regressions | Passed: `test_diagnostic_format_literal_side_effect_is_rejected` rejects all five current `%n` literal mutations, including the suffix that was not a pre-fix reproduction; paired with `test_critical_macro_source_symlink_is_rejected`, the two tests completed in `11.969s`. The latter confirms that the critical macro-source input rejects a symbolic `ddebug.h` rather than silently treating its target as the scanned source. |
+| H14 current full checker mutation suite | Passed: 92 isolated checker mutation tests in `336.194s`; the bounded task-owned process exited `0`. |
+| H14 current companion suite | Passed: 54 companion NGINX contract tests in `2.039s`. |
+| H14 current checker target, syntax, and diff hygiene | Passed: all 74 `make check-nginx-common-adoption` assertions, `python -m py_compile` for the checker and focused test module, and `git diff --check`. No native NGINX runtime was built or executed. |
+| H14 independent post-fix diagnostic review | The four pre-fix `%n` mutations, the fifth `dd(...)` suffix control, escaped-percent spelling, and literal-concatenation variants were rejected. The copied-source symlink regression independently covers the checker input type. A `%n` in an otherwise uncontracted `dd()` call remains outside this five-literal contract and is a residual candidate for separately scoped general format-string analysis, not a demonstrated bypass of the H14 controls. |
+| H14 terminal scoped security diff scan | Completed at `2026-09-06T11:25:34Z`: the then-current exact four-path local snapshot had complete coverage, four candidate rows (two rejected and two not applicable), and zero reportable findings. Sealed report SHA-256: `35dfd937600e3f2a6f47b72ff5c919e168bb47aca8d8adf0d827685eec4e8a5d`. This is static checker/test/traceability evidence only; no native-runtime, hosted, or Sonar result is claimed. |
 
 ## Security impact
 
@@ -457,6 +571,27 @@ contract rejects those local forms before it emits a trusted `PASS`. The
 isolated syntax harnesses establish C syntax only; no mutated runtime path was
 executed.
 
+For H13, the diagnostic-fallback control now binds the `dd` callable rather
+than merely counting familiar declaration text. Macro aliases, trailing macro
+suffixes, parenthesized declarators, function-pointer bindings, direct or
+macro-wrapped `_Pragma` aliases, and GNU pragma aliases cannot leave a hidden
+non-inert callable behind two literal decoys. The scan remains deliberately
+source-local: it does not claim to model external compiler definitions,
+toolchain-predefined macros, transitive system headers, or arbitrary code added
+elsewhere in `ddebug.h`. An arbitrary unrelated constructor is not a `dd`
+fallback bypass and is not promoted into a general C-source allowlist by this
+checker.
+
+For H14, the checker keeps its masked structural views but separately requires
+the exact visible current format literal at the header diagnostic and the four
+owned `ddebug.h` macro sites: five literals in total. This closes the pre-fix
+`%n` false pass before a trusted checker `PASS`. Under the optional variadic
+debug macro, the literal is forwarded to `fprintf(stderr, __VA_ARGS__)`; the
+source-to-sink observation motivates the static control, but does not establish
+debug-enabled native runtime reachability or a remote exploit. Its critical
+macro source inputs also reject symlinks, so the checked `ddebug.h` path cannot
+silently redirect to an unscanned target in the copied-source contract.
+
 No C runtime behavior, body/event payload handling, remote-rule policy,
 filesystem behavior, network endpoint, or secret flow changes. The reviewed
 source is already fail-closed; this is a static-contract repair, not a claimed
@@ -490,6 +625,21 @@ behavior, compiler configuration, or external-header expansion. The minimal
 C harnesses prove only syntax. A future legitimate refactor can require a
 deliberate checker and negative-control update.
 
+The H13 `ddebug.h` proof has a 4,096-character normalized-view bound and is
+intentionally limited to the fallback callable, approved local directives, and
+compiler/linkage operators that can alter that callable. It does not police
+arbitrary unrelated C definitions in the header; such an edit is ordinary
+source-code integrity risk outside this checker contract and would need a
+different repository-wide control.
+
+The H14 visible-literal control deliberately protects only the five current
+owned diagnostic sites; it is not a general C format-string analyzer. A `%n`
+introduced in a different uncontracted `dd()` call is outside the H14
+invariant and needs separate scope and evidence before it is treated as an
+actionable product issue. The checker models the repository's C17 source
+surface; a hypothetical C23 `#embed` extension is not part of this contract or
+evidence and is not classified as a current bypass.
+
 The reviewed body/header caller and raw-sink counts are intentionally exact
 for the current scanned local source surface. They do not prove behavior in
 unscanned generated code, external compiler definitions, third-party headers,
@@ -499,12 +649,16 @@ the contract and its isolated controls rather than rely on a stale count.
 ## Remaining risks
 
 `FND-PARENT-1010`, `FND-PARENT-1039`, `FND-PARENT-1040`, `FND-PARENT-1042`,
-`FND-PARENT-1043`, `FND-PARENT-1044`, and `FND-PARENT-1045` are not closed by
-local evidence. Exact successor-head hosted checks, SonarQube Cloud analysis,
-reviews, and any resulting-master evidence remain separate delivery
-obligations. This task does not claim complete P1–P4 acceptance or a complete
-native 17×10 host matrix. PR #346 remains an independent, untouched Draft and
-must be integrated separately against the new `master`.
+`FND-PARENT-1043`, `FND-PARENT-1044`, `FND-PARENT-1045`, `FND-PARENT-1051`,
+`FND-PARENT-1052`, `FND-PARENT-1053`, `FND-PARENT-1054`, and the local
+documentation-drift record `FND-PARENT-1055` are not closed by local evidence.
+The H13 terminal scan is historical for the changed H14 tree. The H14 full
+current mutation and companion runs, independent post-fix review, and terminal
+scoped static scan passed locally, but an exact successor commit, hosted checks,
+SonarQube Cloud analysis, reviews, and later resulting-master evidence remain.
+This task does not claim complete P1–P4 acceptance or a complete native 17×10
+host matrix. PR #346 remains an independent, untouched Draft and must be
+integrated separately against the new `master`.
 
 ## Checks not run and rationale
 
@@ -512,54 +666,30 @@ No native NGINX runtime replay, full P1–P4 acceptance, full native 17×10 host
 matrix, ASan, UBSan, TSan, leak check, or native NGINX C compilation was run
 because the delivery diff contains no NGINX C runtime change. Two isolated
 minimal C syntax harnesses were compiled with `-fsyntax-only`; they do not
-exercise NGINX or a mutated runtime call. No hosted workflow or SonarQube Cloud
-analysis exists yet for the local uncommitted successor head. The one fresh
-local post-patch source-to-sink review and its scoped static security diff scan
-are complete. Initial Draft PR #357 evidence exists only for
-`e9ceb86723383c31914f179638f1b7043ea79609` and does not verify this successor.
-The unavailable local `ruff` executable was not installed or replaced.
+exercise NGINX or a mutated runtime call. Hosted workflow and SonarQube Cloud
+evidence exists for first delivered PR head
+`8af044dd9d801f4edf163971088fd25795dc578f`, not for this local uncommitted H14
+successor. The H12 and H13 post-patch scans are historical evidence only. The
+H14 full mutation and companion suites, independent post-fix review, terminal
+scoped security-diff scan, direct paired-document suite, and diff hygiene have
+completed locally. The repository-wide bilingual and path-reference make targets
+are environment-blocked solely by absent Framework Gitlink targets; they are not
+reported as passes. The unavailable local `ruff` executable was not installed
+or replaced.
 
 ## Final diff and review status
 
-At this record revision, initial Draft PR #357 at
-`e9ceb86723383c31914f179638f1b7043ea79609` contains the six-file initial
-checker/test/traceability change. Its local uncommitted successor changes only
-the checker, its focused tests, and this paired Change Record; it does not
-change NGINX runtime C, `.github/**`, PR #346, or `master`. Independent
-read-only reviews confirmed the current C source-to-sink controls, then found
-branch-binding, inactive-preprocessor, translation-phase, raw-sink-spelling,
-control-flow, macro replacement-list, macro-mediated early-return,
-UCN macro-name, function-macro parameter substitution, quoted-local-include,
-angle-include, and nonstandard-include-directive checker bypasses in successive
-candidate revisions. The newest completed reviews reproduced object-like macro aliases
-of forbidden mapper and direct body-append controls (`FND-PARENT-1042`) and a
-newly named ordinary pre-gate helper (`FND-PARENT-1040`). The subsequent
-independent H10 review found no source-valid bypass of the exact direct
-gate-only function contract. H11 then reproduced literal-only executable
-controls, unreachable mapper callers, and whitespace/member or macro-component
-variants (`FND-PARENT-1043`, `FND-PARENT-1044`, and `FND-PARENT-1045`). The
-H12 then reproduced header-prefix/corridor, immutable-mapper, diagnostic-body,
-object-like diagnostic redirect, conditional static-fallback, and object-like
-PCRE-shim call-target variants. A later H12 source-to-sink review reproduced
-body-loop, raw-body, outer-collection, raw-header, generic-wrapper, and
-synthetic-loop checker false passes, all in isolated copies only. The one fresh
-post-patch review then reproduced an intermediate body-filter caller,
-memory-buffer raw-chunk route, unconditional scope predicate, synthetic `Date`
-resolver/table route, and early chained-header iterator return; direct
-follow-up testing also reproduced an `allowed`-to-`len` limited-helper
-substitution. The current focused suite passed 90 tests and the four companion
-modules passed 54 tests in the repository virtual environment, for 144
-selected passing tests in aggregate; the native checker target passed all 74
-assertions. The retained payload-free syntax harnesses compile only; no mutated
-runtime call was made.
-`git diff --check` passed before this record update and is a required delivery
-check after it is finalized. The repository-wide documentation commands are
-environment-blocked by the absent Framework checkout, while the paired
-required heading and table counts match in the current local review.
-The preceding function-macro scan is historical only; the current H12
-post-patch scoped scan completed with four reconciled paths, ten rejected
-checker-integrity candidates, and zero reportable current product findings.
-Any later source or traceability change requires a new scoped review. A second
-normal commit remains contingent on fresh delivery preflight, normal push,
-refreshed Draft-PR exact-head checks, SonarQube Cloud, and hosted review
-evidence.
+At this record revision, Draft PR #357's first delivered successor remains
+`8af044dd9d801f4edf163971088fd25795dc578f`. Its local uncommitted H14
+successor changes only the checker, its focused tests, and this paired Change
+Record; it does not change NGINX runtime C, `.github/**`, PR #346, or `master`.
+H13's six `ddebug.h` representation repairs and terminal scan remain
+historical evidence, not final-tree H14 evidence. H14 requires the exact five
+visible diagnostic literals alongside their existing masked structural forms;
+the targeted literal and source-symlink regressions, full current suites,
+independent post-fix review, direct bilingual document suite, diff hygiene, and
+terminal scan passed. Repository-wide documentation commands are
+environment-blocked by absent Framework targets and are not represented as
+passes. Delivery preflight remains required. Any normal successor commit remains
+contingent on that fresh preflight, normal push, refreshed Draft-PR exact-head
+checks, SonarQube Cloud, and hosted-review evidence.

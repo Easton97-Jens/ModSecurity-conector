@@ -190,6 +190,12 @@ HEADER_CTX_DECLARATION_PREFIX_PATTERN = re.compile(
 HEADER_CTX_DIAGNOSTIC_CALL_PATTERN = re.compile(
     r'\bdd\s*\(\s*,\s*ctx\s*\)\s*;'
 )
+HEADER_CTX_DIAGNOSTIC_FORMAT_LITERAL = '"header filter, recovering ctx: %p"'
+HEADER_CTX_DIAGNOSTIC_VISIBLE_CALL_PATTERN = re.compile(
+    r'\bdd\s*\(\s*'
+    + re.escape(HEADER_CTX_DIAGNOSTIC_FORMAT_LITERAL)
+    + r'\s*,\s*ctx\s*\)\s*;'
+)
 HEADER_INTERVENTION_GUARD_PATTERN = re.compile(
     r'if\s*\(\s*ctx\s*->\s*intervention_triggered\s*\)\s*\{'
     r'\s*return\s+ngx_http_next_header_filter\s*\(\s*r\s*\)\s*;\s*\}'
@@ -642,12 +648,20 @@ def c_matches_at_brace_depth(source, pattern, depth):
 def c_only_whitespace_between(source, start, end):
     return source[start:end].strip() == ''
 
-def c_only_header_ctx_diagnostic_or_whitespace(source, start, end):
-    gap = source[start:end]
-    calls = list(HEADER_CTX_DIAGNOSTIC_CALL_PATTERN.finditer(gap))
+def c_only_header_ctx_diagnostic_or_whitespace(active, visible, start, end):
+    active_gap = active[start:end]
+    visible_gap = visible[start:end]
+    calls = list(HEADER_CTX_DIAGNOSTIC_CALL_PATTERN.finditer(active_gap))
+    visible_calls = list(
+        HEADER_CTX_DIAGNOSTIC_VISIBLE_CALL_PATTERN.finditer(visible_gap)
+    )
     return (
         len(calls) == 1
-        and HEADER_CTX_DIAGNOSTIC_CALL_PATTERN.sub('', gap).strip() == ''
+        and HEADER_CTX_DIAGNOSTIC_CALL_PATTERN.sub('', active_gap).strip() == ''
+        and len(visible_calls) == 1
+        and HEADER_CTX_DIAGNOSTIC_VISIBLE_CALL_PATTERN.sub(
+            '', visible_gap
+        ).strip() == ''
     )
 
 def c_direct_visible_matches(active, visible, pattern):
@@ -816,17 +830,24 @@ SECURITY_CRITICAL_MACRO_SYMBOLS = frozenset((
     'ngx_http_modsecurity_validate_header',
     'ngx_http_modsecurity_validate_response_mapper',
 ))
+C_ASCII_IDENTIFIER_SUFFIX = r'(?a:\w*)'
+RESPONSE_MAPPER_HELPER_SIGNATURE = (
+    'void\nngx_http_modsecurity_validate_response_mapper'
+)
+HEADER_FILTER_SIGNATURE = (
+    'ngx_int_t\nngx_http_modsecurity_header_filter(ngx_http_request_t *r)'
+)
 C_RESPONSE_MAPPER_FORBIDDEN_ALL_BRANCH_PATTERNS = (
     re.compile(r'\bcommon_response_validated\b'),
     re.compile(r'\bprocessed\b'),
     re.compile(r'\bintervention_triggered\b'),
-    re.compile(r'\bphase4_[A-Za-z0-9_]*\b'),
-    re.compile(r'\bresponse_body_[A-Za-z0-9_]*\b'),
+    re.compile(r'\bphase4_' + C_ASCII_IDENTIFIER_SUFFIX + r'\b'),
+    re.compile(r'\bresponse_body_' + C_ASCII_IDENTIFIER_SUFFIX + r'\b'),
     re.compile(r'\bresponse_committed\b'),
     re.compile(r'\bmsc_process_response_headers\b'),
     re.compile(r'\bmsc_process_response_body\b'),
     re.compile(r'\bmsc_add_n_response_header\b'),
-    re.compile(r'\bngx_http_next_[A-Za-z0-9_]*\b'),
+    re.compile(r'\bngx_http_next_' + C_ASCII_IDENTIFIER_SUFFIX + r'\b'),
     re.compile(r'\bngx_http_filter_finalize_request\b'),
     re.compile(r'\bngx_palloc\b'),
     re.compile(r'\bngx_pnalloc\b'),
@@ -850,13 +871,20 @@ C_FORBIDDEN_MACRO_REPLACEMENT_PATTERN = re.compile(
 )
 C_FORBIDDEN_MACRO_REPLACEMENT_COMPONENT_PATTERN = re.compile(
     r'(?:->|\b(?:ctx|common_response_validated|processed|'
-    r'intervention_triggered|phase4_[A-Za-z0-9_]*|'
-    r'response_body_[A-Za-z0-9_]*|response_committed)\b)'
+    r'intervention_triggered|phase4_' + C_ASCII_IDENTIFIER_SUFFIX + r'|'
+    r'response_body_' + C_ASCII_IDENTIFIER_SUFFIX + r'|response_committed)\b)'
 )
 C_SECURITY_CRITICAL_MACRO_TOKEN = re.compile(
     r'\b(?:' + '|'.join(
         re.escape(symbol) for symbol in sorted(SECURITY_CRITICAL_MACRO_SYMBOLS)
     ) + r')\b'
+)
+C_DDEBUG_FALLBACK_IDENTIFIER = re.compile(r'\bdd\b')
+C_DDEBUG_FORBIDDEN_OPERATOR = re.compile(
+    r'\b(?:_Pragma|asm|__asm|__asm__)\b'
+)
+C_DDEBUG_ALLOWED_DIRECTIVE = re.compile(
+    r'^[ \t\f\v]*#\s*(?:define|else|endif|if|ifndef|include)\b'
 )
 C_MACRO_DIRECTIVE = re.compile(
     r'^[ \t\f\v]*#\s*(define|undef)\s+([A-Za-z_]\w*)\b'
@@ -888,11 +916,34 @@ C_SAFE_DIAGNOSTIC_STATEMENT_MACRO_PARAMETERS = {
 C_SAFE_DIAGNOSTIC_STATEMENT_MACRO = re.compile(
     r'\s*do\s*\{(?P<body>.*)\}\s*while\s*\(\s*0\s*\)\s*\Z'
 )
+C_DDEBUG_PREFIX_FORMAT_LITERAL = '"modsec *** %s: "'
+C_DDEBUG_SUFFIX_FORMAT_LITERAL = r'" at %s line %d.\n"'
+C_DDEBUG_CHECK_READ_FORMAT_LITERAL = '"r->read_event_handler = %s"'
+C_DDEBUG_CHECK_WRITE_FORMAT_LITERAL = '"r->write_event_handler = %s"'
 C_SAFE_DDEBUG_FPRINTF_BODY = re.compile(
     r'\s*fprintf\s*\(\s*stderr\s*,\s*,\s*__func__\s*\)\s*;\s*'
     r'fprintf\s*\(\s*stderr\s*,\s*__VA_ARGS__\s*\)\s*;\s*'
     r'fprintf\s*\(\s*stderr\s*,\s*,\s*__FILE__\s*,\s*'
     r'__LINE__\s*\)\s*;\s*\Z'
+)
+C_SAFE_DDEBUG_FPRINTF_VISIBLE_BODY = re.compile(
+    r'\s*fprintf\s*\(\s*stderr\s*,\s*'
+    + re.escape(C_DDEBUG_PREFIX_FORMAT_LITERAL)
+    + r'\s*,\s*__func__\s*\)\s*;\s*'
+    r'fprintf\s*\(\s*stderr\s*,\s*__VA_ARGS__\s*\)\s*;\s*'
+    r'fprintf\s*\(\s*stderr\s*,\s*'
+    + re.escape(C_DDEBUG_SUFFIX_FORMAT_LITERAL)
+    + r'\s*,\s*__FILE__\s*,\s*__LINE__\s*\)\s*;\s*\Z'
+)
+C_SAFE_DDEBUG_CHECK_READ_VISIBLE_FORMAT = re.compile(
+    r'\s*dd\s*\(\s*'
+    + re.escape(C_DDEBUG_CHECK_READ_FORMAT_LITERAL)
+    + r'\s*,'
+)
+C_SAFE_DDEBUG_CHECK_WRITE_VISIBLE_FORMAT = re.compile(
+    r'\s*dd\s*\(\s*'
+    + re.escape(C_DDEBUG_CHECK_WRITE_FORMAT_LITERAL)
+    + r'\s*,'
 )
 C_SAFE_DDEBUG_CHECK_READ_BODY = re.compile(
     r'\s*dd\s*\(\s*,\s*'
@@ -926,9 +977,7 @@ C_STATIC_DDEBUG_FALLBACK_PATTERN = re.compile(
     r'static\s+void\s+dd\s*\(\s*const\s+char\s*\*\s*fmt\s*,\s*'
     r'\.\.\.\s*\)\s*\{\s*\(\s*void\s*\)\s*fmt\s*;\s*\}'
 )
-C_DDEBUG_FALLBACK_DEFINITION_PATTERN = re.compile(
-    r'(?m)^[ \t]*(?!#)[^;{}]*\bdd\s*\([^;{}]*\)\s*\{'
-)
+C_DDEBUG_FALLBACK_MAX_SOURCE_CHARACTERS = 4096
 RESPONSE_MAPPER_HELPER_IMMUTABLE_CONTRACT_PATTERN = re.compile(
     r'void\s+ngx_http_modsecurity_validate_response_mapper\s*\(\s*'
     r'const\s+ngx_http_modsecurity_ctx_t\s*\*\s*ctx\s*,\s*'
@@ -960,20 +1009,57 @@ def c_function_body(source):
         return ''
     return source[opening + 1:closing]
 
-def c_is_safe_diagnostic_body(name, body):
+def c_ddebug_static_fallbacks_are_inert(source):
+    """Allow only the two exact inert non-directive dd fallback definitions."""
+    if len(source) > C_DDEBUG_FALLBACK_MAX_SOURCE_CHARACTERS:
+        return False
+    inert_matches = list(C_STATIC_DDEBUG_FALLBACK_PATTERN.finditer(source))
+    if len(inert_matches) != 2:
+        return False
+
+    remaining = list(source)
+    for match in inert_matches:
+        c_mask_non_newline(remaining, match.start(), match.end())
+    return all(
+        C_DDEBUG_FORBIDDEN_OPERATOR.search(line) is None
+        and (
+            not line.lstrip(' \t\f\v').startswith('#')
+            or C_DDEBUG_ALLOWED_DIRECTIVE.match(line) is not None
+        )
+        and (
+            C_DDEBUG_FALLBACK_IDENTIFIER.search(line) is None
+            or C_MACRO_DIRECTIVE.match(line) is not None
+        )
+        for line in ''.join(remaining).splitlines()
+    )
+
+def c_is_safe_diagnostic_body(name, body, visible_body):
     if name == 'dd':
-        return C_SAFE_DDEBUG_FPRINTF_BODY.fullmatch(body) is not None
+        return (
+            C_SAFE_DDEBUG_FPRINTF_BODY.fullmatch(body) is not None
+            and C_SAFE_DDEBUG_FPRINTF_VISIBLE_BODY.fullmatch(visible_body)
+            is not None
+        )
     if name == 'dd_check_read_event_handler':
         return (
-            C_SAFE_DDEBUG_CHECK_READ_BODY.fullmatch(body) is not None
+            (
+                C_SAFE_DDEBUG_CHECK_READ_BODY.fullmatch(body) is not None
+                and C_SAFE_DDEBUG_CHECK_READ_VISIBLE_FORMAT.match(visible_body)
+                is not None
+            )
             or C_SAFE_DDEBUG_VOID_CHECK_BODY.fullmatch(body) is not None
         )
     return (
-        C_SAFE_DDEBUG_CHECK_WRITE_BODY.fullmatch(body) is not None
+        (
+            C_SAFE_DDEBUG_CHECK_WRITE_BODY.fullmatch(body) is not None
+            and C_SAFE_DDEBUG_CHECK_WRITE_VISIBLE_FORMAT.match(visible_body)
+            is not None
+        )
         or C_SAFE_DDEBUG_VOID_CHECK_BODY.fullmatch(body) is not None
     )
 
-def c_is_safe_diagnostic_statement_macro(directive, replacement):
+def c_is_safe_diagnostic_statement_macro(
+        directive, replacement, visible_replacement=None):
     """Permit only the existing bounded do/while(0) diagnostic macro form."""
     name = directive.group(2)
     if (
@@ -984,17 +1070,28 @@ def c_is_safe_diagnostic_statement_macro(directive, replacement):
         return False
     if name == 'dd' and not replacement.strip():
         return True
+    if visible_replacement is None:
+        visible_replacement = replacement
     match = C_SAFE_DIAGNOSTIC_STATEMENT_MACRO.fullmatch(replacement)
+    visible_match = C_SAFE_DIAGNOSTIC_STATEMENT_MACRO.fullmatch(
+        visible_replacement
+    )
     return (
         match is not None
+        and visible_match is not None
         and C_MACRO_CONTROL_FLOW_TOKEN.search(match.group('body')) is None
-        and c_is_safe_diagnostic_body(name, match.group('body'))
+        and c_is_safe_diagnostic_body(
+            name, match.group('body'), visible_match.group('body')
+        )
     )
 
-def c_is_safe_function_like_macro(directive, replacement):
+def c_is_safe_function_like_macro(
+        directive, replacement, visible_replacement=None):
     """Accept only existing bounded function-like macro semantics."""
     return (
-        c_is_safe_diagnostic_statement_macro(directive, replacement)
+        c_is_safe_diagnostic_statement_macro(
+            directive, replacement, visible_replacement
+        )
         or (
             directive.group(2), directive.group('parameters'), replacement.strip()
         ) in C_SAFE_FUNCTION_LIKE_MACRO_REPLACEMENTS
@@ -1007,6 +1104,7 @@ def c_is_safe_macro_replacement(directive, replacement):
     if (
         '##' in replacement
         or C_SECURITY_CRITICAL_MACRO_TOKEN.search(replacement)
+        or C_DDEBUG_FALLBACK_IDENTIFIER.search(replacement)
         or C_FORBIDDEN_MACRO_REPLACEMENT_PATTERN.search(replacement)
         or (
             C_FORBIDDEN_MACRO_REPLACEMENT_COMPONENT_PATTERN.search(replacement)
@@ -1024,7 +1122,7 @@ def c_is_safe_macro_replacement(directive, replacement):
         or c_is_safe_function_like_macro(directive, replacement)
     )
 
-def c_is_safe_macro_directive(line, directive):
+def c_is_safe_macro_directive(line, visible_line, directive):
     name = directive.group(2)
     if directive.group(1) != 'define':
         return False
@@ -1035,20 +1133,26 @@ def c_is_safe_macro_directive(line, directive):
     ):
         return False
     replacement = line[directive.end():]
+    visible_replacement = visible_line[directive.end():]
     if C_DIAGNOSTIC_STATEMENT_MACRO_NAME.fullmatch(name) is not None:
-        return c_is_safe_diagnostic_statement_macro(directive, replacement)
+        return c_is_safe_diagnostic_statement_macro(
+            directive, replacement, visible_replacement
+        )
     if name in C_SAFE_FUNCTION_LIKE_MACRO_NAMES:
-        return c_is_safe_function_like_macro(directive, replacement)
+        return c_is_safe_function_like_macro(
+            directive, replacement, visible_replacement
+        )
     return c_is_safe_macro_replacement(directive, replacement)
 
 def c_has_security_critical_macro_mutation(source):
     """Reject macro forms that can change or indirectly supply a checked token."""
-    active, _ = c_noncode_views(source)
+    active, visible = c_noncode_views(source)
     if C_UNIVERSAL_CHARACTER_NAME.search(active) is not None:
         return True
-    for line in active.splitlines():
+    for line, visible_line in zip(active.splitlines(), visible.splitlines()):
         directive = C_MACRO_DIRECTIVE.match(line)
-        if directive is not None and not c_is_safe_macro_directive(line, directive):
+        if directive is not None and not c_is_safe_macro_directive(
+                line, visible_line, directive):
             return True
     return False
 
@@ -1083,10 +1187,10 @@ request_initializer_unmasked, _ = c_unmasked_function(access_c,
     'static ngx_int_t\nngx_http_modsecurity_initialize_request')
 request_initializer, _ = c_checked_function(access_c,
     'static ngx_int_t\nngx_http_modsecurity_initialize_request')
-response_mapper_helper, response_mapper_helper_visible = c_checked_function(mapper_c,
-    'void\nngx_http_modsecurity_validate_response_mapper')
-response_mapper_helper_all_branches = c_all_branch_function(mapper_c,
-    'void\nngx_http_modsecurity_validate_response_mapper')
+response_mapper_helper, response_mapper_helper_visible = c_checked_function(
+    mapper_c, RESPONSE_MAPPER_HELPER_SIGNATURE)
+response_mapper_helper_all_branches = c_all_branch_function(
+    mapper_c, RESPONSE_MAPPER_HELPER_SIGNATURE)
 response_mapper_from_ctx, _ = c_checked_function(mapper_c,
     'int ngx_http_modsecurity_map_response_from_ctx')
 response_mapper_from_ctx_all_branches = c_all_branch_function(mapper_c,
@@ -1123,12 +1227,13 @@ body_filter, _ = c_checked_function(body_c,
     'ngx_int_t\nngx_http_modsecurity_body_filter(ngx_http_request_t *r, ngx_chain_t *in)')
 phase4_in_scope, phase4_in_scope_visible = c_checked_function(body_c,
     'static ngx_int_t\nngx_http_modsecurity_phase4_in_scope')
-header_filter, _ = c_checked_function(header_c,
-    'ngx_int_t\nngx_http_modsecurity_header_filter(ngx_http_request_t *r)')
-header_filter_unmasked, _ = c_unmasked_function(header_c,
-    'ngx_int_t\nngx_http_modsecurity_header_filter(ngx_http_request_t *r)')
-header_filter_all_branches = c_all_branch_function(header_c,
-    'ngx_int_t\nngx_http_modsecurity_header_filter(ngx_http_request_t *r)')
+header_filter, header_filter_visible = c_checked_function(
+    header_c, HEADER_FILTER_SIGNATURE
+)
+header_filter_unmasked, _ = c_unmasked_function(
+    header_c, HEADER_FILTER_SIGNATURE)
+header_filter_all_branches = c_all_branch_function(
+    header_c, HEADER_FILTER_SIGNATURE)
 response_header_collection, _ = c_checked_function(header_c,
     'static ngx_int_t\nngx_http_modsecurity_add_response_headers')
 response_header_collection_unmasked, _ = c_unmasked_function(header_c,
@@ -1365,11 +1470,9 @@ body_limit_plan_chunk_calls = c_direct_matches(
 body_limit_bytes_seen_assignments = c_direct_matches(
     body_limited_response_plan, BODY_LIMIT_BYTES_SEEN_ASSIGNMENT_PATTERN)
 ddebug_active, _ = c_noncode_views(ddebug_h)
-ddebug_static_fallback_definitions = list(
-    C_DDEBUG_FALLBACK_DEFINITION_PATTERN.finditer(ddebug_active))
-ddebug_static_fallbacks_are_inert = len(
-    list(C_STATIC_DDEBUG_FALLBACK_PATTERN.finditer(ddebug_active))
-) == 2 and len(ddebug_static_fallback_definitions) == 2
+ddebug_static_fallbacks_are_inert = c_ddebug_static_fallbacks_are_inert(
+    ddebug_active
+)
 response_mapper_helper_is_immutable = (
     RESPONSE_MAPPER_HELPER_IMMUTABLE_CONTRACT_PATTERN.fullmatch(
         response_mapper_helper_all_branches) is not None
@@ -1504,6 +1607,7 @@ header_response_mapper_contract_is_direct = (
     < header_processed_assignments[0].start()
     and c_only_header_ctx_diagnostic_or_whitespace(
         header_filter,
+        header_filter_visible,
         header_ctx_acquisitions[0].end(),
         header_ctx_null_guards[0].start(),
     )
@@ -1626,7 +1730,7 @@ checks = [
 ('msconnector_response' in mapper_h and 'msconnector_response_mapper_contract' in mapper_h and 'msconnector_response_mapper_validate_output' in mapper_c, 'NGINX response mapper contract is present'),
 ('typedef enum {' in mapper_h and 'NGX_HTTP_MODSECURITY_RESPONSE_MAPPER_DIAGNOSTIC_HEADER' in mapper_h and 'NGX_HTTP_MODSECURITY_RESPONSE_MAPPER_DIAGNOSTIC_BODY' in mapper_h and 'void ngx_http_modsecurity_validate_response_mapper(' in mapper_h, 'NGINX mapper owns an internal compile-time response diagnostic discriminator'),
 ('msconnector_response_mapper_contract contract;' in response_mapper_helper and 'msconnector_response mapped_response;' in response_mapper_helper and 'char mapper_error[128];' in response_mapper_helper and 'msconnector_response_mapper_contract_init(&contract);' in response_mapper_helper and response_mapper_helper.count('ngx_http_modsecurity_map_response_from_ctx') == 1, 'NGINX mapper helper exclusively owns the common response mapper contract/map tail'),
-('void\nngx_http_modsecurity_validate_response_mapper' in response_mapper_helper and 'NGX_LOG_WARN' in response_mapper_helper and 'NGX_ERROR' not in response_mapper_helper and 'NGX_HTTP_INTERNAL_SERVER_ERROR' not in response_mapper_helper, 'NGINX response mapper helper is void and warning-only'),
+(RESPONSE_MAPPER_HELPER_SIGNATURE in response_mapper_helper and 'NGX_LOG_WARN' in response_mapper_helper and 'NGX_ERROR' not in response_mapper_helper and 'NGX_HTTP_INTERNAL_SERVER_ERROR' not in response_mapper_helper, 'NGINX response mapper helper is void and warning-only'),
 (not c_has_forbidden_pattern(
     response_mapper_helper_all_branches,
     C_RESPONSE_MAPPER_FORBIDDEN_ALL_BRANCH_PATTERNS,

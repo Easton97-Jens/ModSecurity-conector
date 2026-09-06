@@ -1706,6 +1706,103 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
                     "NGINX header mapper validation retains its existing eligibility and ordering without a once gate",
                 )
 
+    def test_diagnostic_format_literal_side_effect_is_rejected(self) -> None:
+        header_path = (
+            "connectors/nginx/src/ngx_http_modsecurity_header_filter.c"
+        )
+        header_signature = (
+            "ngx_int_t\n"
+            "ngx_http_modsecurity_header_filter(ngx_http_request_t *r)\n{"
+        )
+        header_call = "    dd(\"header filter, recovering ctx: %p\", ctx);"
+        header_message = (
+            "NGINX header mapper validation retains its existing eligibility "
+            "and ordering without a once gate"
+        )
+        macro_message = (
+            "NGINX critical macro inputs reject aliases of checked lifecycle "
+            "and response-body controls"
+        )
+        cases = (
+            (
+                "header diagnostic format",
+                header_path,
+                header_signature,
+                header_call,
+                "    dd(\"%n\", ctx);",
+                header_message,
+            ),
+            (
+                "dd prefix format",
+                "connectors/nginx/src/ddebug.h",
+                None,
+                "\"modsec *** %s: \"",
+                "\"%n\"",
+                macro_message,
+            ),
+            (
+                "dd suffix format",
+                "connectors/nginx/src/ddebug.h",
+                None,
+                "\" at %s line %d.\\n\"",
+                "\"%n\"",
+                macro_message,
+            ),
+            (
+                "read-handler diagnostic format",
+                "connectors/nginx/src/ddebug.h",
+                None,
+                "\"r->read_event_handler = %s\"",
+                "\"%n\"",
+                macro_message,
+            ),
+            (
+                "write-handler diagnostic format",
+                "connectors/nginx/src/ddebug.h",
+                None,
+                "\"r->write_event_handler = %s\"",
+                "\"%n\"",
+                macro_message,
+            ),
+        )
+
+        for name, path_name, signature, old, new, message in cases:
+            with self.subTest(format=name):
+                def mutate(
+                    repository: Path,
+                    path_name: str = path_name,
+                    signature=signature,
+                    old: str = old,
+                    new: str = new,
+                ) -> None:
+                    path = repository / path_name
+                    if signature is not None:
+                        replace_in_function(path, signature, old, new)
+                        return
+                    source = path.read_text(encoding="utf-8")
+                    if source.count(old) != 1:
+                        raise AssertionError(
+                            f"expected one mutable format literal in {path}"
+                        )
+                    path.write_text(
+                        source.replace(old, new, 1), encoding="utf-8"
+                    )
+
+                self._assert_rejected(mutate, message)
+
+    def test_critical_macro_source_symlink_is_rejected(self) -> None:
+        def mutate(repository: Path) -> None:
+            source = repository / "connectors" / "nginx" / "src" / "ddebug.h"
+            target = source.with_name("ddebug-regular-target.h")
+            source.rename(target)
+            source.symlink_to(target.name)
+
+        self._assert_rejected(
+            mutate,
+            "NGINX critical macro inputs reject aliases of checked lifecycle "
+            "and response-body controls",
+        )
+
     def test_diagnostic_macro_side_effect_is_rejected(self) -> None:
         macro_path_name = "ddebug.h"
         original_macro = (
@@ -1834,7 +1931,10 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
             "#if (NGX_HAVE_VARIADIC_MACROS)\n"
             "#define dd(...)\n"
             "#elif 1\n"
-            "static void dd(const char *fmt, ...) {\n"
+            "static void dd(\n"
+            "    const char *fmt,\n"
+            "    ...\n"
+            ") {\n"
             "    (void)fmt;\n"
             "    *((volatile unsigned char *)0) = 1U;\n"
             "}\n"
@@ -1859,6 +1959,246 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
 
         self._assert_rejected(
             mutate,
+            "NGINX nonvariadic diagnostic fallbacks remain inert and bounded",
+        )
+
+        def mutate_oversized_candidate(repository: Path) -> None:
+            path = repository / "connectors" / "nginx" / "src" / "ddebug.h"
+            source = path.read_text(encoding="utf-8")
+            terminal_endif = source.rfind("#endif")
+            if terminal_endif == -1:
+                raise AssertionError("expected terminal ddebug include guard")
+            path.write_text(
+                source[:terminal_endif]
+                + "\nstatic void "
+                + "dd(" * 2048
+                + "\n"
+                + source[terminal_endif:],
+                encoding="utf-8",
+            )
+
+        self._assert_rejected(
+            mutate_oversized_candidate,
+            "NGINX nonvariadic diagnostic fallbacks remain inert and bounded",
+        )
+
+        original_fallback = (
+            "static void dd(const char *fmt, ...) {\n"
+            "    (void)fmt;\n"
+            "}"
+        )
+        aliased_noninert_fallback = (
+            "#define MSCONNECTOR_DDEBUG_NAME dd\n"
+            "static void MSCONNECTOR_DDEBUG_NAME(const char *fmt, ...) {\n"
+            "    *((volatile unsigned char *)0) = 1U;\n"
+            "}"
+        )
+        inert_decoy = (
+            "#if 0\n"
+            "static void dd(const char *fmt, ...) {\n"
+            "    (void)fmt;\n"
+            "}\n"
+            "#endif\n"
+        )
+
+        def mutate_macro_alias(repository: Path) -> None:
+            path = repository / "connectors" / "nginx" / "src" / "ddebug.h"
+            source = path.read_text(encoding="utf-8")
+            if source.count(original_fallback) != 2:
+                raise AssertionError("expected two inert static dd fallbacks")
+            mutated = source.replace(original_fallback, aliased_noninert_fallback, 1)
+            terminal_endif = mutated.rfind("#endif")
+            if terminal_endif == -1:
+                raise AssertionError("expected terminal ddebug include guard")
+            path.write_text(
+                mutated[:terminal_endif]
+                + inert_decoy
+                + mutated[terminal_endif:],
+                encoding="utf-8",
+            )
+
+        self._assert_rejected(
+            mutate_macro_alias,
+            "NGINX critical macro inputs reject aliases of checked lifecycle and response-body controls",
+        )
+
+        trailing_macro_noninert_fallback = (
+            "#define MSCONNECTOR_DDEBUG_ATTRIBUTE\n"
+            "static void dd(const char *fmt, ...) MSCONNECTOR_DDEBUG_ATTRIBUTE {\n"
+            "    *((volatile unsigned char *)0) = 1U;\n"
+            "}"
+        )
+
+        def mutate_trailing_macro_suffix(repository: Path) -> None:
+            path = repository / "connectors" / "nginx" / "src" / "ddebug.h"
+            source = path.read_text(encoding="utf-8")
+            if source.count(original_fallback) != 2:
+                raise AssertionError("expected two inert static dd fallbacks")
+            mutated = source.replace(
+                original_fallback, trailing_macro_noninert_fallback, 1
+            )
+            terminal_endif = mutated.rfind("#endif")
+            if terminal_endif == -1:
+                raise AssertionError("expected terminal ddebug include guard")
+            path.write_text(
+                mutated[:terminal_endif]
+                + inert_decoy
+                + mutated[terminal_endif:],
+                encoding="utf-8",
+            )
+
+        self._assert_rejected(
+            mutate_trailing_macro_suffix,
+            "NGINX nonvariadic diagnostic fallbacks remain inert and bounded",
+        )
+
+        parenthesized_noninert_fallback = (
+            "static void (dd)(const char *fmt, ...) {\n"
+            "    *((volatile unsigned char *)0) = 1U;\n"
+            "}"
+        )
+
+        def mutate_parenthesized_declarator(repository: Path) -> None:
+            path = repository / "connectors" / "nginx" / "src" / "ddebug.h"
+            source = path.read_text(encoding="utf-8")
+            if source.count(original_fallback) != 2:
+                raise AssertionError("expected two inert static dd fallbacks")
+            mutated = source.replace(
+                original_fallback, parenthesized_noninert_fallback, 1
+            )
+            terminal_endif = mutated.rfind("#endif")
+            if terminal_endif == -1:
+                raise AssertionError("expected terminal ddebug include guard")
+            path.write_text(
+                mutated[:terminal_endif]
+                + inert_decoy
+                + mutated[terminal_endif:],
+                encoding="utf-8",
+            )
+
+        self._assert_rejected(
+            mutate_parenthesized_declarator,
+            "NGINX nonvariadic diagnostic fallbacks remain inert and bounded",
+        )
+
+        indirect_noninert_fallback = (
+            "static void dd_side_effect(const char *fmt, ...) {\n"
+            "    *((volatile unsigned char *)0) = 1U;\n"
+            "}\n"
+            "static void (*dd)(const char *fmt, ...) = dd_side_effect;"
+        )
+
+        def mutate_indirect_fallback(repository: Path) -> None:
+            path = repository / "connectors" / "nginx" / "src" / "ddebug.h"
+            source = path.read_text(encoding="utf-8")
+            if source.count(original_fallback) != 2:
+                raise AssertionError("expected two inert static dd fallbacks")
+            mutated = source.replace(original_fallback, indirect_noninert_fallback, 1)
+            terminal_endif = mutated.rfind("#endif")
+            if terminal_endif == -1:
+                raise AssertionError("expected terminal ddebug include guard")
+            path.write_text(
+                mutated[:terminal_endif]
+                + inert_decoy
+                + mutated[terminal_endif:],
+                encoding="utf-8",
+            )
+
+        self._assert_rejected(
+            mutate_indirect_fallback,
+            "NGINX nonvariadic diagnostic fallbacks remain inert and bounded",
+        )
+
+        pragma_alias_noninert_fallback = (
+            "static void msconnector_ddebug_side_effect(const char *fmt, ...) {\n"
+            "    *((volatile unsigned char *)0) = 1U;\n"
+            "}\n"
+            "#pragma GCC diagnostic ignored \"-Wimplicit-function-declaration\"\n"
+            "#pragma weak dd = msconnector_ddebug_side_effect"
+        )
+
+        def mutate_pragma_alias(repository: Path) -> None:
+            path = repository / "connectors" / "nginx" / "src" / "ddebug.h"
+            source = path.read_text(encoding="utf-8")
+            if source.count(original_fallback) != 2:
+                raise AssertionError("expected two inert static dd fallbacks")
+            mutated = source.replace(
+                original_fallback, pragma_alias_noninert_fallback, 1
+            )
+            terminal_endif = mutated.rfind("#endif")
+            if terminal_endif == -1:
+                raise AssertionError("expected terminal ddebug include guard")
+            path.write_text(
+                mutated[:terminal_endif]
+                + inert_decoy
+                + mutated[terminal_endif:],
+                encoding="utf-8",
+            )
+
+        self._assert_rejected(
+            mutate_pragma_alias,
+            "NGINX nonvariadic diagnostic fallbacks remain inert and bounded",
+        )
+
+        pragma_operator_noninert_fallback = (
+            "static void msconnector_ddebug_side_effect(const char *fmt, ...) {\n"
+            "    *((volatile unsigned char *)0) = 1U;\n"
+            "}\n"
+            "_Pragma(\"weak dd = msconnector_ddebug_side_effect\")"
+        )
+
+        def mutate_pragma_operator_alias(repository: Path) -> None:
+            path = repository / "connectors" / "nginx" / "src" / "ddebug.h"
+            source = path.read_text(encoding="utf-8")
+            if source.count(original_fallback) != 2:
+                raise AssertionError("expected two inert static dd fallbacks")
+            mutated = source.replace(
+                original_fallback, pragma_operator_noninert_fallback, 1
+            )
+            terminal_endif = mutated.rfind("#endif")
+            if terminal_endif == -1:
+                raise AssertionError("expected terminal ddebug include guard")
+            path.write_text(
+                mutated[:terminal_endif]
+                + inert_decoy
+                + mutated[terminal_endif:],
+                encoding="utf-8",
+            )
+
+        self._assert_rejected(
+            mutate_pragma_operator_alias,
+            "NGINX nonvariadic diagnostic fallbacks remain inert and bounded",
+        )
+
+        pragma_operator_macro_noninert_fallback = (
+            "#define MSCONNECTOR_DDEBUG_PRAGMA "
+            "_Pragma(\"weak dd = msconnector_ddebug_side_effect\")\n"
+            "static void msconnector_ddebug_side_effect(const char *fmt, ...) {\n"
+            "    *((volatile unsigned char *)0) = 1U;\n"
+            "}\n"
+            "MSCONNECTOR_DDEBUG_PRAGMA"
+        )
+
+        def mutate_pragma_operator_macro_alias(repository: Path) -> None:
+            path = repository / "connectors" / "nginx" / "src" / "ddebug.h"
+            source = path.read_text(encoding="utf-8")
+            if source.count(original_fallback) != 2:
+                raise AssertionError("expected two inert static dd fallbacks")
+            mutated = source.replace(
+                original_fallback, pragma_operator_macro_noninert_fallback, 1
+            )
+            terminal_endif = mutated.rfind("#endif")
+            if terminal_endif == -1:
+                raise AssertionError("expected terminal ddebug include guard")
+            path.write_text(
+                mutated[:terminal_endif]
+                + inert_decoy
+                + mutated[terminal_endif:],
+                encoding="utf-8",
+            )
+
+        self._assert_rejected(
+            mutate_pragma_operator_macro_alias,
             "NGINX nonvariadic diagnostic fallbacks remain inert and bounded",
         )
 
