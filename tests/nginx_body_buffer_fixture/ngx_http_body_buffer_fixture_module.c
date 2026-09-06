@@ -49,6 +49,10 @@ static ngx_int_t ngx_http_body_buffer_fixture_add_header(ngx_http_request_t *r,
     const ngx_str_t *mode);
 static ngx_int_t ngx_http_body_buffer_fixture_plan_lengths(
     const ngx_str_t *mode, size_t *memory_length, off_t *file_length);
+static ngx_int_t ngx_http_body_buffer_fixture_prepare_files(
+    ngx_http_request_t *r,
+    ngx_http_body_buffer_fixture_loc_conf_t *conf,
+    ngx_file_t **file);
 extern ngx_module_t ngx_http_body_buffer_fixture_module;
 
 /* This symbol is linked only into the runner's separately built NGINX test
@@ -389,15 +393,46 @@ ngx_http_body_buffer_fixture_plan_lengths(const ngx_str_t *mode,
 }
 
 static ngx_int_t
+ngx_http_body_buffer_fixture_prepare_files(ngx_http_request_t *r,
+    ngx_http_body_buffer_fixture_loc_conf_t *conf, ngx_file_t **file)
+{
+    ngx_file_t *short_file = NULL;
+    ngx_http_body_buffer_fixture_request_ctx_t *fixture_ctx;
+    const ngx_str_t *file_path;
+
+    if (ngx_http_body_buffer_fixture_mode_is(&conf->mode, "mixed-within") ||
+        ngx_http_body_buffer_fixture_mode_is(&conf->mode, "mixed-over-limit")) {
+        file_path = &conf->mixed_file;
+    } else {
+        file_path = &conf->file;
+    }
+    if (ngx_http_body_buffer_fixture_needs_file(&conf->mode) &&
+        ngx_http_body_buffer_fixture_open_file(r, file_path, file) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    if (ngx_http_body_buffer_fixture_mode_is(&conf->mode, "short-read")) {
+        if (ngx_http_body_buffer_fixture_open_file(r, &conf->short_file,
+                &short_file) != NGX_OK) {
+            return NGX_ERROR;
+        }
+        fixture_ctx = ngx_pcalloc(r->pool, sizeof(*fixture_ctx));
+        if (fixture_ctx == NULL) {
+            return NGX_ERROR;
+        }
+        fixture_ctx->short_file = short_file;
+        ngx_http_set_ctx(r, fixture_ctx, ngx_http_body_buffer_fixture_module);
+    }
+
+    return NGX_OK;
+}
+
+static ngx_int_t
 ngx_http_body_buffer_fixture_handler(ngx_http_request_t *r)
 {
     ngx_http_body_buffer_fixture_loc_conf_t *conf;
     ngx_buf_t *buffer;
     ngx_chain_t output;
     ngx_file_t *file = NULL;
-    ngx_file_t *short_file = NULL;
-    ngx_http_body_buffer_fixture_request_ctx_t *fixture_ctx;
-    const ngx_str_t *file_path;
     u_char *memory;
     size_t memory_length = 0U;
     off_t file_length = 0;
@@ -418,28 +453,8 @@ ngx_http_body_buffer_fixture_handler(ngx_http_request_t *r)
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    if (ngx_http_body_buffer_fixture_mode_is(&conf->mode, "mixed-within") ||
-        ngx_http_body_buffer_fixture_mode_is(&conf->mode, "mixed-over-limit")) {
-        file_path = &conf->mixed_file;
-    } else {
-        file_path = &conf->file;
-    }
-    if (ngx_http_body_buffer_fixture_needs_file(&conf->mode)) {
-        if (ngx_http_body_buffer_fixture_open_file(r, file_path, &file) != NGX_OK) {
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
-        }
-    }
-    if (ngx_http_body_buffer_fixture_mode_is(&conf->mode, "short-read")) {
-        if (ngx_http_body_buffer_fixture_open_file(r, &conf->short_file,
-                &short_file) != NGX_OK) {
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
-        }
-        fixture_ctx = ngx_pcalloc(r->pool, sizeof(*fixture_ctx));
-        if (fixture_ctx == NULL) {
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
-        }
-        fixture_ctx->short_file = short_file;
-        ngx_http_set_ctx(r, fixture_ctx, ngx_http_body_buffer_fixture_module);
+    if (ngx_http_body_buffer_fixture_prepare_files(r, conf, &file) != NGX_OK) {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
     r->headers_out.status = NGX_HTTP_OK;
