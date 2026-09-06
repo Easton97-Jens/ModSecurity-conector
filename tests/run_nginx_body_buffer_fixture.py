@@ -234,7 +234,7 @@ def write_config(
             "http {",
             "  access_log off;",
             "  default_type text/plain;",
-            "  sendfile off;",
+            "  sendfile on;",
             "  server {",
             f"    listen 127.0.0.1:{port};",
             "    modsecurity on;",
@@ -301,10 +301,24 @@ def read_bounded(path: Path, limit: int = MAX_LOG_BYTES) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
 
 
-def require_fixture_log(error_log: str, mode: str, *, memory: bool, in_file: bool) -> None:
-    expected = f"body-buffer-fixture mode={mode} memory={int(memory)} in_file={int(in_file)}"
+def require_fixture_log(
+    error_log: str, mode: str, *, memory: bool, in_file: bool, injection: str
+) -> None:
+    expected = (
+        "body-buffer-fixture connector-boundary "
+        f"mode={mode} memory={int(memory)} in_file={int(in_file)}"
+    )
     if expected not in error_log:
-        fail(f"native buffer-state log missing: {expected}")
+        fail(f"connector-boundary buffer-state log missing: {expected}")
+    if f"injection={injection}" not in error_log:
+        fail(f"connector-boundary injection log missing for {mode}: {injection}")
+
+
+def require_healthy_worker(process: subprocess.Popen[str], error_log: str, mode: str) -> None:
+    if process.poll() is not None:
+        fail(f"NGINX master exited while serving {mode}")
+    if re.search(r"worker process [0-9]+ exited on signal", error_log) is not None:
+        fail(f"NGINX worker crashed while serving {mode}")
 
 
 def require_static_fixture_filter_order(module_registration: Path) -> str:
@@ -385,7 +399,7 @@ def run_server_cases(
     prefix: Path,
     port: int,
     environment: dict[str, str],
-    cases: tuple[tuple[str, bool, bool, bool], ...],
+    cases: tuple[tuple[str, bool, bool, bool, str], ...],
 ) -> list[dict[str, Any]]:
     log_path = prefix / "logs" / "nginx.stdout.log"
     with log_path.open("w", encoding="utf-8") as output:
@@ -400,21 +414,29 @@ def run_server_cases(
     try:
         wait_for_listener(port, process, log_path)
         observations: list[dict[str, Any]] = []
-        for mode, expect_success, memory, in_file in cases:
+        for mode, expect_success, memory, in_file, injection in cases:
             response = raw_request(port, f"/{mode}")
             body = response_body(response)
+            time.sleep(0.05)
             error_log = read_bounded(prefix / "logs" / "error.log")
-            require_fixture_log(error_log, mode, memory=memory, in_file=in_file)
+            require_fixture_log(
+                error_log, mode, memory=memory, in_file=in_file, injection=injection
+            )
+            require_healthy_worker(process, error_log, mode)
             if expect_success:
                 if body != FIXTURE_PAYLOAD:
                     fail(f"{mode} did not forward the expected legitimate body")
-            elif body != b"":
-                fail(f"{mode} emitted {len(body)} body bytes after a required rejection")
+            else:
+                if b"\r\n\r\n" not in response:
+                    fail(f"{mode} did not produce a complete HTTP response before rejection")
+                if body != b"":
+                    fail(f"{mode} emitted {len(body)} body bytes after a required rejection")
             observations.append(
                 {
                     "mode": mode,
                     "expected": "forwarded" if expect_success else "rejected_before_forwarding",
                     "buffer": {"memory": memory, "in_file": in_file},
+                    "connector_boundary_injection": injection,
                     "response_bytes": len(response),
                     "response_body_bytes": len(body),
                     "rejected_before_forwarding": not expect_success and body == b"",
@@ -552,16 +574,16 @@ def main(argv: list[str]) -> int:
         log=logs_root / "nginx-configtest.log",
     )
     normal_cases = (
-        ("memory-within", True, True, False),
-        ("memory-over-limit", False, True, False),
-        ("file-within", True, False, True),
-        ("file-over-limit", False, False, True),
-        ("mixed-within", True, True, True),
-        ("mixed-over-limit", False, True, True),
-        ("invalid-metadata", False, False, True),
-        ("missing-source", False, False, True),
-        ("read-error", False, False, True),
-        ("short-read", False, False, True),
+        ("memory-within", True, True, False, "none"),
+        ("memory-over-limit", False, True, False, "none"),
+        ("file-within", True, False, True, "none"),
+        ("file-over-limit", False, False, True, "none"),
+        ("mixed-within", True, True, True, "none"),
+        ("mixed-over-limit", False, True, True, "none"),
+        ("invalid-metadata", False, False, True, "invalid-metadata"),
+        ("missing-source", False, False, True, "missing-source"),
+        ("read-error", False, False, True, "read-error"),
+        ("short-read", False, False, True, "short-read"),
     )
     observations = run_server_cases(
         nginx=nginx,
@@ -600,7 +622,7 @@ def main(argv: list[str]) -> int:
             prefix=allocation_prefix,
             port=allocation_port,
             environment=allocation_environment,
-            cases=(("allocation-failure", False, False, True),),
+            cases=(("allocation-failure", False, False, True, "allocation-failure"),),
         )
     )
     allocation_error = read_bounded(allocation_prefix / "logs" / "error.log")

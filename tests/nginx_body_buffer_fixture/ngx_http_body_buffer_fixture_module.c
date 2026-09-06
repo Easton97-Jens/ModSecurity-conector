@@ -26,6 +26,10 @@ typedef struct {
     ngx_str_t mixed_file;
 } ngx_http_body_buffer_fixture_loc_conf_t;
 
+typedef struct {
+    ngx_file_t *short_file;
+} ngx_http_body_buffer_fixture_request_ctx_t;
+
 static ngx_int_t ngx_http_body_buffer_fixture_handler(ngx_http_request_t *r);
 static ngx_int_t ngx_http_body_buffer_fixture_body_filter(ngx_http_request_t *r,
     ngx_chain_t *in);
@@ -123,6 +127,13 @@ static ngx_int_t
 ngx_http_body_buffer_fixture_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
 {
     ngx_http_body_buffer_fixture_loc_conf_t *conf;
+    ngx_http_body_buffer_fixture_request_ctx_t *fixture_ctx;
+    ngx_buf_t *buffer;
+    ngx_file_t *original_file;
+    ngx_fd_t original_fd;
+    off_t original_file_pos;
+    off_t original_file_last;
+    const char *injection = "none";
     ngx_int_t result;
 
     if (ngx_http_body_buffer_fixture_next_body_filter == NULL) {
@@ -130,20 +141,71 @@ ngx_http_body_buffer_fixture_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
     }
 
     conf = ngx_http_get_module_loc_conf(r, ngx_http_body_buffer_fixture_module);
-    if (in == NULL || conf == NULL ||
-        !ngx_http_body_buffer_fixture_mode_is(&conf->mode,
-            "allocation-failure")) {
+    if (in == NULL || conf == NULL) {
         return ngx_http_body_buffer_fixture_next_body_filter(r, in);
     }
 
-    ngx_http_body_buffer_fixture_fail_allocation = 1;
-    ngx_http_body_buffer_fixture_allocation_wrapper_hits = 0;
-    result = ngx_http_body_buffer_fixture_next_body_filter(r, in);
-    ngx_http_body_buffer_fixture_fail_allocation = 0;
+    buffer = in->buf;
+    if (buffer == NULL) {
+        return NGX_ERROR;
+    }
+    original_file = buffer->file;
+    original_file_pos = buffer->file_pos;
+    original_file_last = buffer->file_last;
+    original_fd = original_file != NULL ? original_file->fd : NGX_INVALID_FILE;
+
+    if (ngx_http_body_buffer_fixture_mode_is(&conf->mode,
+            "allocation-failure")) {
+        injection = "allocation-failure";
+        ngx_http_body_buffer_fixture_fail_allocation = 1;
+        ngx_http_body_buffer_fixture_allocation_wrapper_hits = 0;
+    } else if (ngx_http_body_buffer_fixture_mode_is(&conf->mode,
+                   "invalid-metadata")) {
+        injection = "invalid-metadata";
+        buffer->file_pos = 1;
+        buffer->file_last = 0;
+    } else if (ngx_http_body_buffer_fixture_mode_is(&conf->mode,
+                   "missing-source")) {
+        injection = "missing-source";
+        buffer->file = NULL;
+    } else if (ngx_http_body_buffer_fixture_mode_is(&conf->mode,
+                   "read-error")) {
+        if (original_file == NULL) {
+            return NGX_ERROR;
+        }
+        injection = "read-error";
+        original_file->fd = NGX_INVALID_FILE;
+    } else if (ngx_http_body_buffer_fixture_mode_is(&conf->mode,
+                   "short-read")) {
+        fixture_ctx = ngx_http_get_module_ctx(r,
+            ngx_http_body_buffer_fixture_module);
+        if (fixture_ctx == NULL || fixture_ctx->short_file == NULL) {
+            return NGX_ERROR;
+        }
+        injection = "short-read";
+        buffer->file = fixture_ctx->short_file;
+    }
 
     ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
-        "body-buffer-fixture allocation-wrapper-hits=%i",
-        (ngx_int_t) ngx_http_body_buffer_fixture_allocation_wrapper_hits);
+        "body-buffer-fixture connector-boundary mode=%V memory=%ui in_file=%ui file_pos=%O file_last=%O injection=%s",
+        &conf->mode, (ngx_uint_t) ngx_buf_in_memory(buffer),
+        (ngx_uint_t) buffer->in_file, buffer->file_pos, buffer->file_last,
+        injection);
+    result = ngx_http_body_buffer_fixture_next_body_filter(r, in);
+
+    ngx_http_body_buffer_fixture_fail_allocation = 0;
+    if (original_file != NULL) {
+        original_file->fd = original_fd;
+    }
+    buffer->file = original_file;
+    buffer->file_pos = original_file_pos;
+    buffer->file_last = original_file_last;
+    if (ngx_http_body_buffer_fixture_mode_is(&conf->mode,
+            "allocation-failure")) {
+        ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
+            "body-buffer-fixture allocation-wrapper-hits=%i",
+            (ngx_int_t) ngx_http_body_buffer_fixture_allocation_wrapper_hits);
+    }
 
     return result;
 }
@@ -259,6 +321,8 @@ ngx_http_body_buffer_fixture_handler(ngx_http_request_t *r)
     ngx_buf_t *buffer;
     ngx_chain_t output;
     ngx_file_t *file = NULL;
+    ngx_file_t *short_file = NULL;
+    ngx_http_body_buffer_fixture_request_ctx_t *fixture_ctx;
     const ngx_str_t *file_path;
     u_char *memory;
     size_t memory_length = 0U;
@@ -318,25 +382,25 @@ ngx_http_body_buffer_fixture_handler(ngx_http_request_t *r)
     if (ngx_http_body_buffer_fixture_mode_is(&conf->mode, "mixed-within") ||
         ngx_http_body_buffer_fixture_mode_is(&conf->mode, "mixed-over-limit")) {
         file_path = &conf->mixed_file;
-    } else if (ngx_http_body_buffer_fixture_mode_is(&conf->mode, "short-read")) {
-        file_path = &conf->short_file;
     } else {
         file_path = &conf->file;
     }
-    if (ngx_http_body_buffer_fixture_needs_file(&conf->mode) &&
-        !ngx_http_body_buffer_fixture_mode_is(&conf->mode, "read-error")) {
+    if (ngx_http_body_buffer_fixture_needs_file(&conf->mode)) {
         if (ngx_http_body_buffer_fixture_open_file(r, file_path, &file) != NGX_OK) {
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
     }
-    if (ngx_http_body_buffer_fixture_mode_is(&conf->mode, "read-error")) {
-        file = ngx_pcalloc(r->pool, sizeof(*file));
-        if (file == NULL) {
+    if (ngx_http_body_buffer_fixture_mode_is(&conf->mode, "short-read")) {
+        if (ngx_http_body_buffer_fixture_open_file(r, &conf->short_file,
+                &short_file) != NGX_OK) {
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
-        file->fd = NGX_INVALID_FILE;
-        file->name = conf->file;
-        file->log = r->connection->log;
+        fixture_ctx = ngx_pcalloc(r->pool, sizeof(*fixture_ctx));
+        if (fixture_ctx == NULL) {
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+        fixture_ctx->short_file = short_file;
+        ngx_http_set_ctx(r, fixture_ctx, ngx_http_body_buffer_fixture_module);
     }
 
     r->headers_out.status = NGX_HTTP_OK;
@@ -373,13 +437,6 @@ ngx_http_body_buffer_fixture_handler(ngx_http_request_t *r)
         buffer->file_pos = 0;
         buffer->file_last = file_length;
         buffer->file = file;
-    }
-    if (ngx_http_body_buffer_fixture_mode_is(&conf->mode, "invalid-metadata")) {
-        buffer->file_pos = 1;
-        buffer->file_last = 0;
-    }
-    if (ngx_http_body_buffer_fixture_mode_is(&conf->mode, "missing-source")) {
-        buffer->file = NULL;
     }
     buffer->last_buf = 1;
     buffer->last_in_chain = 1;
