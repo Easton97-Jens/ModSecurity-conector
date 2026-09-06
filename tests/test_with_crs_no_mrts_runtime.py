@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RUNNER_PATH = ROOT / "ci/runtime/lifecycle/run-with-crs-no-mrts.sh"
 NORMALIZER_PATH = ROOT / "ci/runtime/lifecycle/normalize-with-crs-no-mrts.py"
 SUMMARY_PATH = ROOT / "ci/runtime/lifecycle/summarize-with-crs-no-mrts-workflow.py"
+UPLOAD_PREPARER_PATH = ROOT / "ci/runtime/lifecycle/prepare-with-crs-no-mrts-upload.py"
 
 
 def load_normalizer():
@@ -79,6 +80,125 @@ def read_json(path: Path) -> dict[str, object]:
 
 
 class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
+    def run_upload_preparer(
+        self, root: Path, connector: str, run_id: str, parent_sha: str, outcome: str
+    ) -> subprocess.CompletedProcess[str]:
+        receipt = root / "failure-receipt.json"
+        return subprocess.run(
+            [
+                sys.executable,
+                "-I",
+                str(UPLOAD_PREPARER_PATH),
+                "--connector",
+                connector,
+                "--run-id",
+                run_id,
+                "--parent-sha",
+                parent_sha,
+                "--verified-root",
+                str(root),
+                "--receipt",
+                str(receipt),
+                "--runtime-outcome",
+                outcome,
+            ],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    def make_generic_pass_evidence(
+        self, root: Path, connector: str, run_id: str, parent_sha: str
+    ) -> None:
+        evidence = root / "evidence"
+        normalized = evidence / "normalized" / connector / run_id
+        observation_path = normalized / "runtime-observation.json"
+        private_json(observation_path, {"schema_version": 1, "status": "PASS"})
+        observation_sha256 = hashlib.sha256(observation_path.read_bytes()).hexdigest()
+        private_json(
+            evidence / "runtime" / connector / run_id / "runtime.json",
+            {
+                "record_type": "parent_runtime_attestation",
+                "connector": connector,
+                "run_id": run_id,
+                "runtime_status": "PASS",
+                "canonical_observation": {
+                    "validation_status": "CONTRACT_VALIDATED",
+                    "evidence_path": f"normalized/{connector}/{run_id}/runtime-observation.json",
+                    "evidence_sha256": observation_sha256,
+                },
+            },
+        )
+        private_json(
+            normalized / "event.json",
+            {
+                "connector": connector,
+                "run_id": run_id,
+                "connector_commit": parent_sha,
+                "status": "PASS",
+            },
+        )
+
+    def test_failed_generic_runtime_retains_bounded_payload_free_receipt(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crs-upload-failure-") as temporary:
+            root = Path(temporary)
+            result = self.run_upload_preparer(root, "lighttpd", "run-1", "a" * 40, "failure")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            receipt = read_json(root / "failure-receipt.json")
+            self.assertEqual(receipt["record_type"], "crs_no_mrts_runtime_failure_receipt")
+            self.assertEqual(receipt["connector"], "lighttpd")
+            self.assertEqual(receipt["run_id"], "run-1")
+            self.assertEqual(receipt["connector_commit"], "a" * 40)
+            self.assertEqual(receipt["evidence_status"], "not_available")
+            self.assertLess((root / "failure-receipt.json").stat().st_size, 4096)
+            self.assertNotIn("payload", receipt)
+
+    def test_failed_generic_runtime_rejects_a_stale_failure_receipt(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crs-upload-stale-receipt-") as temporary:
+            root = Path(temporary)
+            first = self.run_upload_preparer(root, "lighttpd", "run-1", "a" * 40, "failure")
+            self.assertEqual(first.returncode, 0, first.stderr)
+            second = self.run_upload_preparer(root, "lighttpd", "run-1", "a" * 40, "failure")
+            self.assertEqual(second.returncode, 1)
+            self.assertIn("unable to retain", second.stderr)
+
+    def test_generic_upload_accepts_current_bound_pass_evidence(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crs-upload-pass-") as temporary:
+            root = Path(temporary)
+            self.make_generic_pass_evidence(root, "lighttpd", "run-1", "a" * 40)
+            result = self.run_upload_preparer(root, "lighttpd", "run-1", "a" * 40, "success")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse((root / "failure-receipt.json").exists())
+
+    def test_non_successful_generic_runtime_retains_only_a_failure_receipt(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crs-upload-late-failure-") as temporary:
+            root = Path(temporary)
+            self.make_generic_pass_evidence(root, "traefik", "run-1", "a" * 40)
+            result = self.run_upload_preparer(root, "traefik", "run-1", "a" * 40, "failure")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            receipt = read_json(root / "failure-receipt.json")
+            self.assertEqual(receipt["connector"], "traefik")
+            self.assertEqual(receipt["runtime_outcome"], "failure")
+
+    def test_non_successful_apache_runtime_retains_a_failure_receipt(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crs-upload-apache-failure-") as temporary:
+            root = Path(temporary)
+            result = self.run_upload_preparer(root, "apache", "run-1", "a" * 40, "failure")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            receipt = read_json(root / "failure-receipt.json")
+            self.assertEqual(receipt["connector"], "apache")
+            self.assertEqual(receipt["runtime_outcome"], "failure")
+
+    def test_generic_upload_rejects_mismatched_pass_evidence(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crs-upload-mismatch-") as temporary:
+            root = Path(temporary)
+            self.make_generic_pass_evidence(root, "envoy", "run-1", "b" * 40)
+            result = self.run_upload_preparer(root, "envoy", "run-1", "a" * 40, "success")
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("binding", result.stderr)
+            self.assertFalse((root / "failure-receipt.json").exists())
+
     def workflow_outcomes(self, **overrides: str) -> dict[str, str]:
         outcomes = {stage: "success" for stage, _label, _environment_name in SUMMARY.STAGES}
         outcomes.update(overrides)

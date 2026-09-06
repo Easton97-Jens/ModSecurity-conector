@@ -175,6 +175,7 @@ jobs:
             NGINX_FUNCTIONAL_WORKER_USER="$NGINX_FUNCTIONAL_WORKER_USER" \
             NGINX_FUNCTIONAL_WORKER_GROUP="$NGINX_FUNCTIONAL_WORKER_GROUP" \
             NGINX_FUNCTIONAL_A_PARENT_ROOT="$NGINX_FUNCTIONAL_A_PARENT_ROOT" \
+            RUN_ROOT="$RUN_ROOT" \
             VERIFIED_RUN_ROOT="$VERIFIED_RUN_ROOT" \
             BUILD_ROOT="$BUILD_ROOT" TMP_ROOT="$TMP_ROOT" LOG_ROOT="$LOG_ROOT" \
             CONNECTOR_COMPONENT_CACHE="$CONNECTOR_COMPONENT_CACHE" \
@@ -195,4 +196,23 @@ jobs:
             CONNECTOR_ROOT="$GITHUB_WORKSPACE" \
             NGINX_HOSTED_FUNCTIONAL_A=1 \
             /bin/sh ci/provisioning/cache/with-runtime-components.sh \
-            /usr/bin/python3 -I connectors/nginx/harness/run_github_hosted_functional_a.py
+            /bin/sh -eu -s <<'RUNTIME_FIXTURE'
+          /usr/bin/python3 -I connectors/nginx/harness/run_github_hosted_functional_a.py
+          /usr/bin/python3 -I tests/run_nginx_body_buffer_fixture.py \
+            --connector-root "$CONNECTOR_ROOT" \
+            --expected-head "$EXPECTED_PARENT_SHA" \
+            --nginx-archive "$NGINX_DOWNLOAD_DIR/nginx-1.31.4.tar.gz" \
+            --nginx-sha256 "$NGINX_SHA256" \
+            --modsecurity-include "$MODSECURITY_INCLUDE_DIR" \
+            --modsecurity-lib "$MODSECURITY_LIB_DIR" \
+            --output-root "$RUN_ROOT/native-nginx-body-buffer-fixture"
+          RUNTIME_FIXTURE
+      - name: Upload native NGINX body-buffer fixture evidence
+        if: success()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: nginx-native-body-buffer-fixture-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.RUN_ROOT }}/native-nginx-body-buffer-fixture/**/evidence/result.json
+          if-no-files-found: error
+          retention-days: 10
+          overwrite: false

@@ -57,14 +57,6 @@ und in [`SOURCE_MAP.json`](SOURCE_MAP.json) aufgezeichnet:
 
 - [PR #384](https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/384)
   bei `65de4cd8739209f22d924d85548bd012a4d94607` unterscheidet finales
-  Body-Processing von partieller Aufnahme. Im aktuellen Adapter erfordern das
-  finale `msc_process_request_body()`/`msc_process_response_body()`-Processing
-  und die Aufnahmeaufrufe `msc_append_request_body()`,
-  `msc_request_body_from_file()` sowie `msc_append_response_body()` sämtlich
-  den libmodsecurity-Erfolgswert `1`; jeder andere Rückgabewert einschließlich
-  `0` wird fail-closed behandelt. Die Upstream-Interpretation von
-  `ProcessPartial` als Limit-Trunkierung ist daher im Adapter kein nichtfataler
-  Pfad.
   Body-Processing von partieller Aufnahme. Fehler bei finalem
   `msc_process_request_body()`/`msc_process_response_body()` sind fail-closed,
   während `msc_append_request_body()`, `msc_request_body_from_file()` und
@@ -474,6 +466,16 @@ gezählt wird. Ungültige Metadaten, ein Allokationsfehler sowie eine kurze oder
 fehlgeschlagene Dateilesung liefern einen Connector-Fehler, bevor die aktuelle
 Chain weitergeleitet wird; weder Scratch-Bytes noch Response-Payloads gelangen
 in Event-JSONL.
+
+`tests/run_nginx_body_buffer_fixture.py` ist eine reine Test-Fixture für die
+native Grenzprüfung. Sie baut den ausgewählten sauberen Connector-Checkout und
+ein separates dynamisches Fixture-Modul gegen die gepinnte NGINX-Quelle neu
+und gibt echte Memory-, file-only- und gemischte `ngx_buf_t`-Werte durch die
+installierte Filterkette aus. Ihre Testkonfiguration wählt das bestehende Limit
+nur für Fälle innerhalb des Limits und für Reject-before-forwarding; sie ändert
+keinen Produkt-Default. Das zurückgehaltene Ergebnis enthält nur exakten Head,
+Build-Identitäten, Buffer-Flags, Längen und begrenzte Accounting-Werte—keine
+Response-Nutzlasten.
 
 Eine Regelübereinstimmung muss unabhängig von einem sichtbaren 403 gemeldet
 werden. Kanonische Ereignisse bewahren den ursprünglichen Host-Status, den

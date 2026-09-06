@@ -1130,3 +1130,38 @@ die an seinen eigenen exakten Head gebunden sind, die verbleibenden
 Akzeptanzkriterien erfüllen. PR #354 bleibt Draft, offen und ungemergt;
 FND-PARENT-1036 bleibt `blocked_external_dependency` und FND-PARENT-1038
 bleibt unverändert.
+
+### 2026-09-06 Zwölfter Follow-up (eingegrenzter Pre-Merge-Gate-Kandidat)
+
+Dieser Kandidat ergänzt eine separat gebaute, reine NGINX-Test-Fixture für die
+bestehende P4-Body-Limit-Grenze. Sie gibt echte Memory-, file-only- und
+gemischte `ngx_buf_t`-Zustände durch den installierten Connector-Filter aus,
+deckt die Kontrollen innerhalb des Limits und Reject-before-forwarding ab und
+übt Fehlerpfade für Datei-Metadaten, fehlende Quelle, Read, Short-Read und
+Request-Pool-Allokation aus. Die Fixture wird nicht in das Produkt gelinkt. Es
+war keine Produkt-C-Korrektur nötig: Der aktuelle Source nutzt den Common-
+Reject-Plan vor dem nativen Forwarding und kehrt bei jedem getesteten Fehlerpfad
+vor dem Downstream-Filter zurück. Die ausgewählte 64-Bit-Laufzeit kann den
+separaten `file_length > SIZE_MAX`-Zweig nicht darstellen; der Runner zeichnet
+diese Grenze auf, statt eine künstliche Overflow-Ausführung zu behaupten.
+
+Für FND-PARENT-1047 validieren erfolgreiche Envoy-, Lighttpd- und Traefik-
+Zellen jetzt ihre jeweils eigene normalisierte Evidence, bevor sie nur diese
+Evidence hochladen. Eine nicht erfolgreiche generische oder Apache-Zelle
+veröffentlicht ausschließlich eine begrenzte, no-follow-geschützte One-shot-
+Fehlerquittung, sodass kein veraltetes oder partielles PASS-Bundle als ihr
+Failure-Artefakt hochgeladen werden kann. Apache behält seinen echten Apache-
+Result-Pfad; HAProxys separater Projektorpfad bleibt unverändert. Das aktuelle
+Audit zu FND-PARENT-1046 führt den historischen Kandidatenlauf `ad193b...` nur
+als partielle funktionale Evidence: Er behielt kein JSONL-Artefakt auf
+Feldebene und ist weder Nachweis für diesen Successor noch die von
+FND-GITHUB-0009 verlangte unabhängige Protected-Host-Evidence.
+
+Zum Commit-Zeitpunkt dieses Records sind die fokussierten lokalen Contracts,
+der C-Fixture-Compile, Workflow-Lint und Whitespace-Checks nur aktuelle
+Kandidaten-Evidence. Der neue saubere Exact-Head-Native-Lauf, normaler Push,
+GitHub-hosted-Successor-Checks, Sonar-Readback, Five-Cell-CRS/no-MRTS-
+Artifact-Readback sowie die getrennte Protected-Base-/Host-Owner-Entscheidung
+bleiben erforderlich. Es wird kein Merge, kein Draft-Wechsel, Rebase,
+Force-Push, Risk Acceptance, Framework-/MRTS-/Gitlink-/Dependency-Change und
+keine Abschwächung von Tests, Sonar oder Quality Gates behauptet.

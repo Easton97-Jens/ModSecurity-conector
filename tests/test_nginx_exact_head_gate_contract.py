@@ -85,6 +85,31 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
             'NGINX_FUNCTIONAL_WORKER_GROUP="$NGINX_FUNCTIONAL_WORKER_GROUP"',
             runtime_step,
         )
+        self.assertIn('RUN_ROOT="$RUN_ROOT"', runtime_step)
+        for fixture_argument in (
+            "tests/run_nginx_body_buffer_fixture.py",
+            '--connector-root "$CONNECTOR_ROOT"',
+            '--expected-head "$EXPECTED_PARENT_SHA"',
+            '--nginx-archive "$NGINX_DOWNLOAD_DIR/nginx-1.31.4.tar.gz"',
+            '--nginx-sha256 "$NGINX_SHA256"',
+            '--modsecurity-include "$MODSECURITY_INCLUDE_DIR"',
+            '--modsecurity-lib "$MODSECURITY_LIB_DIR"',
+            '--output-root "$RUN_ROOT/native-nginx-body-buffer-fixture"',
+        ):
+            self.assertIn(fixture_argument, runtime_step)
+        fixture_upload = workflow.split(
+            "      - name: Upload native NGINX body-buffer fixture evidence", 1
+        )[1]
+        self.assertIn("if: success()", fixture_upload)
+        self.assertIn(
+            "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1",
+            fixture_upload,
+        )
+        self.assertIn(
+            "${{ env.RUN_ROOT }}/native-nginx-body-buffer-fixture/**/evidence/result.json",
+            fixture_upload,
+        )
+        self.assertIn("if-no-files-found: error", fixture_upload)
         provision_step = workflow.split(
             "      - name: Provision pinned NGINX and connector runtime", 1
         )[1].split("      - name: Print bounded NGINX provisioning failure diagnostics", 1)[0]

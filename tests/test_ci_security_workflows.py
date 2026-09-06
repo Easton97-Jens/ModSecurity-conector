@@ -1797,13 +1797,18 @@ jobs:
             "runtime",
             "project-haproxy-runtime-evidence",
             "verify-haproxy-runtime-evidence",
+            "validate-apache-runtime-evidence",
+            "prepare-non-haproxy-runtime-evidence",
+            "upload-apache-runtime-evidence",
+            "upload-apache-runtime-failure-receipt",
             "upload-non-haproxy-runtime-evidence",
+            "upload-non-haproxy-runtime-failure-receipt",
             "upload-runtime-evidence",
         ):
             self.assertIn(f"id: {step_id}", job)
         self.assertEqual(
             job.count("actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1"),
-            2,
+            5,
         )
         boundary = job.split("      - name: Prepare HAProxy runtime evidence boundary\n", 1)[1].split(
             "      - name: Run selected real with-CRS no-MRTS runtime\n", 1
@@ -1952,10 +1957,35 @@ jobs:
             constrained_projector.index("exec(compile(source"),
         )
         non_haproxy_upload = job.split("      - name: Upload non-HAProxy runtime evidence\n", 1)[1].split(
-            "      - name: Upload real runtime evidence\n", 1
+            "      - name: Upload non-HAProxy runtime failure receipt\n", 1
         )[0]
-        self.assertIn("if: always() && matrix.connector != 'haproxy'", non_haproxy_upload)
+        self.assertIn(
+            "if: always() && matrix.connector != 'haproxy' && matrix.connector != 'apache' && steps.runtime.outcome == 'success' && steps.prepare-non-haproxy-runtime-evidence.outcome == 'success'",
+            non_haproxy_upload,
+        )
         self.assertNotIn("verified-haproxy-case", non_haproxy_upload)
+        self.assertNotIn("verified-apache-case", non_haproxy_upload)
+        self.assertIn("${{ env.VERIFIED_RUN_ROOT }}/evidence", non_haproxy_upload)
+        self.assertNotIn("${{ env.VERIFIED_RUN_ROOT }}/failure-receipt.json", non_haproxy_upload)
+        non_haproxy_failure_upload = job.split(
+            "      - name: Upload non-HAProxy runtime failure receipt\n", 1
+        )[1].split("      - name: Upload real runtime evidence\n", 1)[0]
+        self.assertIn("steps.runtime.outcome != 'success'", non_haproxy_failure_upload)
+        self.assertIn("${{ env.VERIFIED_RUN_ROOT }}/failure-receipt.json", non_haproxy_failure_upload)
+        self.assertNotIn("${{ env.VERIFIED_RUN_ROOT }}/evidence", non_haproxy_failure_upload)
+        apache_upload = job.split("      - name: Upload Apache runtime evidence\n", 1)[1].split(
+            "      - name: Upload Apache runtime failure receipt\n", 1
+        )[0]
+        self.assertIn("matrix.connector == 'apache'", apache_upload)
+        self.assertIn("steps.runtime.outcome == 'success'", apache_upload)
+        self.assertIn("verified-apache-case/with-crs/no-mrts/results", apache_upload)
+        self.assertIn("if-no-files-found: error", apache_upload)
+        apache_failure_upload = job.split(
+            "      - name: Upload Apache runtime failure receipt\n", 1
+        )[1].split("      - name: Validate generic runtime evidence or retain failure receipt\n", 1)[0]
+        self.assertIn("steps.runtime.outcome != 'success'", apache_failure_upload)
+        self.assertIn("${{ env.VERIFIED_RUN_ROOT }}/failure-receipt.json", apache_failure_upload)
+        self.assertNotIn("verified-apache-case", apache_failure_upload)
         upload = job.split("      - name: Upload real runtime evidence\n", 1)[1].split(
             "      - name: Write connector runtime overview\n", 1
         )[0]
@@ -2014,10 +2044,9 @@ jobs:
             ("RUNTIME_OUTCOME", "runtime"),
         ):
             self.assertIn(f"{environment_name}: ${{{{ steps.{step_id}.outcome }}}}", summary)
-        self.assertIn(
-            "UPLOAD_EVIDENCE_OUTCOME: ${{ matrix.connector == 'haproxy' && steps.upload-runtime-evidence.outcome || steps.upload-non-haproxy-runtime-evidence.outcome }}",
-            summary,
-        )
+        self.assertIn("UPLOAD_EVIDENCE_OUTCOME: ${{ matrix.connector == 'haproxy'", summary)
+        self.assertIn("steps.upload-apache-runtime-failure-receipt.outcome", summary)
+        self.assertIn("steps.upload-non-haproxy-runtime-failure-receipt.outcome", summary)
         self.assertLess(
             job.index("      - name: Prepare HAProxy runtime evidence boundary\n"),
             job.index("      - name: Run selected real with-CRS no-MRTS runtime\n"),
@@ -2046,9 +2075,28 @@ jobs:
             job,
         )
         self.assertIn(
-            "${{ env.BUILD_ROOT }}/verified-apache-case/with-crs/no-mrts/results",
+            "${{ env.VERIFIED_RUN_ROOT }}/failure-receipt.json",
             job,
         )
+        self.assertNotIn(
+            "${{ env.BUILD_ROOT }}/verified-apache-case/with-crs/no-mrts/results",
+            non_haproxy_upload,
+        )
+        helper = (ROOT / "ci/runtime/lifecycle/prepare-with-crs-no-mrts-upload.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("parent_runtime_attestation", helper)
+        self.assertIn("connector_commit", helper)
+        self.assertIn("failure receipt", helper)
+        validation = job.split(
+            "      - name: Validate generic runtime evidence or retain failure receipt\n", 1
+        )[1].split("      - name: Write connector runtime overview\n", 1)[0]
+        self.assertIn(
+            "if: always() && matrix.connector != 'haproxy' && matrix.connector != 'apache'",
+            validation,
+        )
+        self.assertIn("steps.runtime.outcome", validation)
+        self.assertIn("prepare-with-crs-no-mrts-upload.py", validation)
 
     def test_pr_apr_util_provenance_job_is_unconditional_and_read_only(self) -> None:
         workflow = self.workflow("ci-security-workflow-lint.yml")

@@ -1017,15 +1017,91 @@ jobs:
           test ! -e "$digest_report"
           test ! -L "$digest_report"
 
-      - name: Upload non-HAProxy runtime evidence
-        id: upload-non-haproxy-runtime-evidence
-        if: always() && matrix.connector != 'haproxy'
+      - name: Validate Apache runtime evidence
+        id: validate-apache-runtime-evidence
+        if: always() && matrix.connector == 'apache'
+        env:
+          RESULTS_ROOT: ${{ env.BUILD_ROOT }}/verified-apache-case/with-crs/no-mrts/results
+          RUN_ID: ${{ env.CRS_RUNTIME_RUN_ID }}
+          PARENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          RUNTIME_OUTCOME: ${{ steps.runtime.outcome }}
+          VERIFIED_ROOT: ${{ env.VERIFIED_RUN_ROOT }}
+        run: |
+          set -euo pipefail
+          if test "$RUNTIME_OUTCOME" = success; then
+            test -d "$RESULTS_ROOT"
+            test ! -L "$RESULTS_ROOT"
+          else
+            case "$VERIFIED_ROOT" in /*) ;; *) echo "FAIL: unsafe Apache runtime evidence root" >&2; exit 2 ;; esac
+            case "$PARENT_SHA" in ''|*[!0-9a-f]*) echo "FAIL: unsafe Parent head" >&2; exit 2 ;; esac
+            test "${#PARENT_SHA}" -eq 40
+            test "$RUN_ID" = "crs-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-apache"
+            python3 -I ci/runtime/lifecycle/prepare-with-crs-no-mrts-upload.py \
+              --connector apache --run-id "$RUN_ID" --parent-sha "$PARENT_SHA" \
+              --verified-root "$VERIFIED_ROOT" --receipt "$VERIFIED_ROOT/failure-receipt.json" \
+              --runtime-outcome "$RUNTIME_OUTCOME"
+          fi
+
+      - name: Upload Apache runtime evidence
+        id: upload-apache-runtime-evidence
+        if: always() && matrix.connector == 'apache' && steps.runtime.outcome == 'success' && steps.validate-apache-runtime-evidence.outcome == 'success'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: with-crs-no-mrts-${{ matrix.connector }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            ${{ env.VERIFIED_RUN_ROOT }}/evidence
-            ${{ env.BUILD_ROOT }}/verified-apache-case/with-crs/no-mrts/results
+          path: ${{ env.BUILD_ROOT }}/verified-apache-case/with-crs/no-mrts/results
+          if-no-files-found: error
+          retention-days: 10
+          overwrite: false
+
+      - name: Upload Apache runtime failure receipt
+        id: upload-apache-runtime-failure-receipt
+        if: always() && matrix.connector == 'apache' && steps.runtime.outcome != 'success' && steps.validate-apache-runtime-evidence.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: with-crs-no-mrts-${{ matrix.connector }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.VERIFIED_RUN_ROOT }}/failure-receipt.json
+          if-no-files-found: error
+          retention-days: 10
+          overwrite: false
+
+      - name: Validate generic runtime evidence or retain failure receipt
+        id: prepare-non-haproxy-runtime-evidence
+        if: always() && matrix.connector != 'haproxy' && matrix.connector != 'apache'
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+          RUN_ID: ${{ env.CRS_RUNTIME_RUN_ID }}
+          PARENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          RUNTIME_OUTCOME: ${{ steps.runtime.outcome }}
+          VERIFIED_ROOT: ${{ env.VERIFIED_RUN_ROOT }}
+        run: |
+          set -euo pipefail
+          case "$VERIFIED_ROOT" in /*) ;; *) echo "FAIL: unsafe generic runtime evidence root" >&2; exit 2 ;; esac
+          case "$PARENT_SHA" in ''|*[!0-9a-f]*) echo "FAIL: unsafe Parent head" >&2; exit 2 ;; esac
+          test "${#PARENT_SHA}" -eq 40
+          test "$RUN_ID" = "crs-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${CONNECTOR}"
+          python3 -I ci/runtime/lifecycle/prepare-with-crs-no-mrts-upload.py \
+            --connector "$CONNECTOR" --run-id "$RUN_ID" --parent-sha "$PARENT_SHA" \
+            --verified-root "$VERIFIED_ROOT" --receipt "$VERIFIED_ROOT/failure-receipt.json" \
+            --runtime-outcome "$RUNTIME_OUTCOME"
+
+      - name: Upload non-HAProxy runtime evidence
+        id: upload-non-haproxy-runtime-evidence
+        if: always() && matrix.connector != 'haproxy' && matrix.connector != 'apache' && steps.runtime.outcome == 'success' && steps.prepare-non-haproxy-runtime-evidence.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: with-crs-no-mrts-${{ matrix.connector }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.VERIFIED_RUN_ROOT }}/evidence
+          if-no-files-found: error
+          retention-days: 10
+          overwrite: false
+
+      - name: Upload non-HAProxy runtime failure receipt
+        id: upload-non-haproxy-runtime-failure-receipt
+        if: always() && matrix.connector != 'haproxy' && matrix.connector != 'apache' && steps.runtime.outcome != 'success' && steps.prepare-non-haproxy-runtime-evidence.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: with-crs-no-mrts-${{ matrix.connector }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.VERIFIED_RUN_ROOT }}/failure-receipt.json
           if-no-files-found: error
           retention-days: 10
           overwrite: false
@@ -1082,7 +1158,7 @@ jobs:
           INITIALIZE_ROOTS_OUTCOME: ${{ steps.initialize-runtime-roots.outcome }}
           PREPARE_CRS_OUTCOME: ${{ steps.prepare-crs-source.outcome }}
           RUNTIME_OUTCOME: ${{ steps.runtime.outcome }}
-          UPLOAD_EVIDENCE_OUTCOME: ${{ matrix.connector == 'haproxy' && steps.upload-runtime-evidence.outcome || steps.upload-non-haproxy-runtime-evidence.outcome }}
+          UPLOAD_EVIDENCE_OUTCOME: ${{ matrix.connector == 'haproxy' && steps.upload-runtime-evidence.outcome || matrix.connector == 'apache' && steps.runtime.outcome == 'success' && steps.upload-apache-runtime-evidence.outcome || matrix.connector == 'apache' && steps.upload-apache-runtime-failure-receipt.outcome || steps.runtime.outcome == 'success' && steps.upload-non-haproxy-runtime-evidence.outcome || steps.upload-non-haproxy-runtime-failure-receipt.outcome }}
         run: |
           set -euo pipefail
           require_sha() {

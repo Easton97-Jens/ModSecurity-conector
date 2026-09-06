@@ -1030,3 +1030,36 @@ CRS/no-MRTS cells, and NGINX On/Off runtime evidence bound to its own exact
 head may satisfy the remaining acceptance criteria. PR #354 remains Draft,
 open, and unmerged; FND-PARENT-1036 remains
 `blocked_external_dependency` and FND-PARENT-1038 remains unchanged.
+
+### 2026-09-06 twelfth follow-up (targeted pre-merge gate candidate)
+
+This candidate adds a separately built, test-only NGINX dynamic fixture for
+the existing P4 body-limit boundary. It emits actual memory, file-only, and
+mixed `ngx_buf_t` states through the installed connector filter, covers the
+within-limit and reject-before-forwarding controls, and exercises file
+metadata, missing-source, read, short-read, and request-pool-allocation error
+paths. The fixture is not linked into the product. No product C correction was
+made: current source uses the Common reject plan before native forwarding and
+returns before the downstream filter on each tested error path. The 64-bit
+selected runtime cannot represent the separate `file_length > SIZE_MAX` branch;
+the runner records that limitation rather than claiming an artificial overflow
+execution.
+
+For FND-PARENT-1047, successful Envoy, Lighttpd, and Traefik cells now validate
+their own normalized evidence before uploading only that evidence. A
+non-successful generic or Apache cell publishes only a bounded, no-follow,
+one-shot failure receipt, so a stale or partial PASS bundle cannot be uploaded
+as its failure artifact. Apache retains its real Apache result path; HAProxy's
+separate projector path is unchanged. The current FND-PARENT-1046 audit keeps
+the historical `ad193b...` candidate run as partial functional evidence only:
+it retained no field-level JSONL artifact and is neither proof for this
+successor nor the independent protected-host evidence required by
+FND-GITHUB-0009.
+
+At this record's commit time, the focused local contracts, C fixture compile,
+workflow lint, and whitespace checks are current candidate evidence only. The
+new clean exact-head native run, normal push, GitHub-hosted successor checks,
+Sonar readback, five-cell CRS/no-MRTS artifact readback, and the separate
+protected-base/host owner decision remain required. No merge, Draft transition,
+rebase, force-push, risk acceptance, Framework/MRTS/Gitlink/dependency change,
+or test, Sonar, or quality-gate weakening is asserted.
