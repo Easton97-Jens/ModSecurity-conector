@@ -76,16 +76,45 @@ class HostedFunctionalLauncherTest(unittest.TestCase):
             "NGINX_FUNCTIONAL_WORKER_GROUP": "msconnector-nginx",
             "NGINX_PROTOCOL_PROFILE": "h1",
         }
+        self.runner_uid = 4242
+        original_lstat = Path.lstat
+
+        def runner_owned_verified_root_lstat(path: Path) -> os.stat_result:
+            metadata = original_lstat(path)
+            if path in (self.job_root, self.functional_parent):
+                fields = list(metadata)
+                fields[4] = 0
+                return os.stat_result(fields)
+            if path == self.verified:
+                fields = list(metadata)
+                fields[4] = self.runner_uid
+                return os.stat_result(fields)
+            return metadata
+
         self.repo_patch = mock.patch.object(LAUNCHER_MODULE, "repository_root", return_value=self.root)
         self.tmp_root_patch = mock.patch.object(
             LAUNCHER_MODULE,
             "_require_trusted_functional_tmp_root",
             return_value=self.trusted_tmp,
         )
+        self.lstat_patch = mock.patch.object(
+            Path,
+            "lstat",
+            new=runner_owned_verified_root_lstat,
+        )
+        self.euid_patch = mock.patch.object(
+            LAUNCHER_MODULE.os,
+            "geteuid",
+            return_value=self.runner_uid,
+        )
         self.repo_patch.start()
         self.tmp_root_patch.start()
+        self.lstat_patch.start()
+        self.euid_patch.start()
 
     def tearDown(self) -> None:
+        self.euid_patch.stop()
+        self.lstat_patch.stop()
         self.tmp_root_patch.stop()
         self.repo_patch.stop()
         self.tempdir.cleanup()
@@ -157,54 +186,80 @@ class HostedFunctionalLauncherTest(unittest.TestCase):
             metadata = original_lstat(path)
             if path == self.functional_parent:
                 fields = list(metadata)
-                fields[4] = os.geteuid() + 1
+                fields[4] = self.runner_uid
                 return os.stat_result(fields)
             return metadata
 
         with mock.patch.object(Path, "lstat", new=wrong_owner_lstat):
             with self.assertRaisesRegex(
                 LAUNCHER_MODULE.FunctionalALaunchError,
-                "NGINX_FUNCTIONAL_A_PARENT_ROOT must be owned by the workflow runner",
+                "NGINX_FUNCTIONAL_A_PARENT_ROOT must be owned by root",
+            ):
+                LAUNCHER_MODULE.build_root_command(self.env)
+
+    def test_rejects_a_runner_owned_functional_job_root(self) -> None:
+        original_lstat = Path.lstat
+
+        def runner_owned_job_root_lstat(path: Path) -> os.stat_result:
+            metadata = original_lstat(path)
+            if path == self.job_root:
+                fields = list(metadata)
+                fields[4] = self.runner_uid
+                return os.stat_result(fields)
+            return metadata
+
+        with mock.patch.object(Path, "lstat", new=runner_owned_job_root_lstat):
+            with self.assertRaisesRegex(
+                LAUNCHER_MODULE.FunctionalALaunchError,
+                "Functional-A job root must be owned by root",
             ):
                 LAUNCHER_MODULE.build_root_command(self.env)
 
     def test_trusted_temporary_root_and_job_owner_contracts(self) -> None:
         self.tmp_root_patch.stop()
         try:
-            self.assertEqual(LAUNCHER_MODULE._TRUSTED_FUNCTIONAL_TMP_ROOT, Path("/tmp"))
+            expected_root = LAUNCHER_MODULE._EXPECTED_FUNCTIONAL_TMP_ROOT
+            self.assertEqual(expected_root, Path(os.sep) / "tmp")
             sticky_root = os.stat_result(
                 (stat.S_IFDIR | 0o1777, 0, 0, 0, 0, 0, 0, 0, 0, 0)
             )
             with (
-                mock.patch.object(
-                    LAUNCHER_MODULE, "_require_directory", return_value=Path("/tmp")
-                ),
+                mock.patch.object(LAUNCHER_MODULE.tempfile, "gettempdir", return_value=str(expected_root)),
+                mock.patch.object(LAUNCHER_MODULE, "_require_directory", return_value=expected_root),
                 mock.patch.object(Path, "lstat", return_value=sticky_root),
             ):
                 self.assertEqual(
-                    LAUNCHER_MODULE._require_trusted_functional_tmp_root(), Path("/tmp")
+                    LAUNCHER_MODULE._require_trusted_functional_tmp_root(), expected_root
                 )
 
             unsafe_root = os.stat_result(
                 (stat.S_IFDIR | 0o777, 0, 0, 0, 0, 0, 0, 0, 0, 0)
             )
             with (
-                mock.patch.object(
-                    LAUNCHER_MODULE, "_require_directory", return_value=Path("/tmp")
-                ),
+                mock.patch.object(LAUNCHER_MODULE.tempfile, "gettempdir", return_value=str(expected_root)),
+                mock.patch.object(LAUNCHER_MODULE, "_require_directory", return_value=expected_root),
                 mock.patch.object(Path, "lstat", return_value=unsafe_root),
                 self.assertRaisesRegex(
                     LAUNCHER_MODULE.FunctionalALaunchError, "root-owned sticky mode 01777"
                 ),
             ):
                 LAUNCHER_MODULE._require_trusted_functional_tmp_root()
+
+            with (
+                mock.patch.object(LAUNCHER_MODULE.tempfile, "gettempdir", return_value="/var/tmp"),
+                self.assertRaisesRegex(
+                    LAUNCHER_MODULE.FunctionalALaunchError,
+                    "must resolve to the fixed /tmp namespace",
+                ),
+            ):
+                LAUNCHER_MODULE._require_trusted_functional_tmp_root()
         finally:
             self.tmp_root_patch.start()
 
-        runner_uid = self.job_root.lstat().st_uid
-        with mock.patch.object(LAUNCHER_MODULE.os, "geteuid", return_value=runner_uid + 1):
+        with mock.patch.object(LAUNCHER_MODULE.os, "geteuid", return_value=self.runner_uid + 1):
             with self.assertRaisesRegex(
-                LAUNCHER_MODULE.FunctionalALaunchError, "job root must be owned"
+                LAUNCHER_MODULE.FunctionalALaunchError,
+                "VERIFIED_RUN_ROOT must be owned by the workflow runner",
             ):
                 LAUNCHER_MODULE.build_root_command(self.env)
 

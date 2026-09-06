@@ -1000,3 +1000,57 @@ Evidence, relevante Checks, alle fünf Runtime-Zellen und SonarCloud.
 `FND-PARENT-1038` ist unverändert und nicht geschlossen;
 `FND-PARENT-1036` bleibt `blocked_external_dependency`. PR #354 bleibt Draft,
 offen und ungemergt.
+
+### 2026-09-06 Neunter Hosted-Follow-up (root-eigene Functional-A-Vorfahren und Fixed-Temporary-Root-Successor ausstehend)
+
+Der normale Successor `c98dbac165d1d2dcee81fafab4a670bd90a82f53` bestand seinen
+Exact-Head-Security-Workflow-Lint, aber sein GitHub-hosted-Functional-A-Workflow
+`33999740011` schlug anschließend im ersten Runtime-Schritt fail-closed mit
+Exit `77` fehl. Checkout, Exact-HEAD-Verifikation, das Root-/Worker-Preflight,
+die Initialisierung isolierter Pfade und die unprivilegierte gepinnte
+Provisionierung waren abgeschlossen. Der unveränderte Runtime-Path-Authority-
+Validator wies den runner-eigenen Job-Root-Vorfahren bei der Ausführung als
+Root korrekt zurück: `runtime directory has an untrusted owner below shared
+temporary root /tmp`. Es liefen kein NGINX-Server und keine Assertion für
+nativen On-/Off-Callback, JSONL, WAF, Allow, Reload oder Shutdown. Exit `77`
+ist fehlgeschlagene Evidence, kein erfolgreicher Hosted-Nachweis.
+
+Dieselbe exakte c98-SonarQube-Cloud-Analyse meldete ein aktives task-eigenes
+`python:S5443`-Issue an der Public-Temporary-Root-Zeile des Functional-A-
+Launchers und Quality Gate `ERROR`. Es wurden weder `NOSONAR`, Rule-Exclusion,
+False-Positive-Status, Quality-Gate-Änderung noch Risk Acceptance verwendet.
+Der eng begrenzte Successor löst das Standard-Temporary-Directory nur auf, um
+fail-closed abzulehnen, wenn es nicht exakt der feste `/tmp`-Namespace ist;
+danach behält er die bestehenden No-symlink-, root-owned-sticky-`01777`-,
+Owner-, Mode- und Traversal-Prüfungen vor dem bereinigten `sudo`-Handoff bei.
+Er akzeptiert keinen durch `TMPDIR` umgeleiteten Root.
+
+Vor der unprivilegierten Provisionierung erzeugt der Workflow jetzt den
+frischen Functional-A-Job-Root und dessen festen Functional-Parent-Sibling als
+root-eigene Verzeichnisse, validiert den anfänglichen `0700`-Zustand des
+Job-Roots und setzt dann beide auf nicht-auflistbares `0711`. Er erzeugt,
+chown't und hält
+nur den separaten Provisioning-`RUN_ROOT` runner-owned bei exakt `0700`. Der
+Launcher verlangt deshalb root-Eigentum für beide sichtbaren Vorfahren und
+Runner-Eigentum nur für diesen privaten Root. Das erhält den bestehenden
+Runtime-Path-Authority-Validator, belässt die unprivilegierte Provisionierung
+unprivilegiert und fügt weder ein generisches Path-Reopen hinzu noch erweitert
+es die privilegierte Command-Surface.
+
+Die Non-root-Fixture-Suite des Successors für Launcher, Exact-Gate,
+Worker-Traversal, Path-Authority und Runtime-Path-Security bestand 50
+fokussierte Tests; `actionlint` mit ShellCheck, Shell-Syntax,
+Python-Kompilierung und Whitespace-Checks bestanden ebenfalls. Diese lokalen
+Source-/Contract-Ergebnisse sind keine Behauptung eines Sonar- oder
+GitHub-hosted-Runtime-Erfolgs. Nach seinem normalen Successor-Push benötigt
+der neue exakte Head weiterhin eine frische C17- und verfügbare-Sanitizer-
+Bewertung, SonarQube-Cloud-Quality-Gate samt Active-Issue-/Hotspot-Readback,
+relevante Checks, alle fünf CRS/no-MRTS-Zellen sowie den nativen
+GitHub-hosted-On-/Off-/JSONL-/WAF-/Allow-Lauf.
+
+`FND-PARENT-0078` bleibt `in_progress`; `FND-PARENT-1046` bleibt
+`in_progress`; `FND-PARENT-1038` ist unverändert und nicht geschlossen; und
+`FND-PARENT-1036` bleibt `blocked_external_dependency`. Functional A bleibt
+ein GitHub-hosted-nativer Integrationsnachweis, nicht Protected B oder eine
+Attestierung gegen bösartigen Runner- oder VM-root-Code. PR #354 bleibt Draft,
+offen und ungemergt.

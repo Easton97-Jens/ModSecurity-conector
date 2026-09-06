@@ -13,6 +13,7 @@ import json
 import os
 import stat
 import sys
+import tempfile
 from pathlib import Path
 from typing import Mapping
 
@@ -26,7 +27,11 @@ _CURL = "/usr/bin/curl"
 _WORKER_NAME_MAX = 64
 _WORKER_NAME_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789-_")
 _MODSECURITY_RUNTIME_LIBRARY = "libmodsecurity.so.3"
-_TRUSTED_FUNCTIONAL_TMP_ROOT = Path("/tmp")
+# Resolve the standard temporary root, then bind it back to the one fixed
+# workflow-owned shared namespace.  A candidate-controlled TMPDIR cannot
+# redirect the later privileged handoff: a value other than this exact path
+# fails closed before any sudo invocation.
+_EXPECTED_FUNCTIONAL_TMP_ROOT = Path(os.sep) / "tmp"
 _FUNCTIONAL_JOB_ROOT_PREFIX = "ModSecurity-conector-nginx-functional-root."
 _FUNCTIONAL_JOB_ROOT_SUFFIX_CHARS = frozenset(
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
@@ -122,7 +127,12 @@ def _require_regular_file(path: Path, name: str) -> Path:
 def _require_trusted_functional_tmp_root() -> Path:
     """Require the fixed sticky parent that protects the fresh job-root name."""
 
-    path = _require_directory(_TRUSTED_FUNCTIONAL_TMP_ROOT, "Functional-A temporary root")
+    path = _absolute_path(tempfile.gettempdir(), "Functional-A temporary root")
+    if path != _EXPECTED_FUNCTIONAL_TMP_ROOT:
+        raise FunctionalALaunchError(
+            "Functional-A temporary root must resolve to the fixed /tmp namespace"
+        )
+    path = _require_directory(path, "Functional-A temporary root")
     filesystem_root = _require_directory(Path(path.anchor), "Functional-A filesystem root")
     if not filesystem_root.lstat().st_mode & stat.S_IXOTH:
         raise FunctionalALaunchError(
@@ -153,9 +163,9 @@ def _require_private_verified_run_root(verified_root: Path) -> Path:
         )
     _require_directory(job_root, "Functional-A job root")
     job_metadata = job_root.lstat()
-    if job_metadata.st_uid != os.geteuid():
+    if job_metadata.st_uid != 0:
         raise FunctionalALaunchError(
-            "Functional-A job root must be owned by the workflow runner"
+            "Functional-A job root must be owned by root"
         )
     if stat.S_IMODE(job_metadata.st_mode) != 0o711:
         raise FunctionalALaunchError(
@@ -188,9 +198,9 @@ def _require_worker_traversable_functional_parent(
         )
     _require_directory(path, "NGINX_FUNCTIONAL_A_PARENT_ROOT")
     metadata = path.lstat()
-    if metadata.st_uid != os.geteuid():
+    if metadata.st_uid != 0:
         raise FunctionalALaunchError(
-            "NGINX_FUNCTIONAL_A_PARENT_ROOT must be owned by the workflow runner"
+            "NGINX_FUNCTIONAL_A_PARENT_ROOT must be owned by root"
         )
     if stat.S_IMODE(metadata.st_mode) != 0o711:
         raise FunctionalALaunchError(

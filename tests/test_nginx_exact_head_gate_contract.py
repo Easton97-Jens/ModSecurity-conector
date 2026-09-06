@@ -16,6 +16,10 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
         self.assertNotIn("${{ runner.temp }}", workflow)
         self.assertNotIn('RUN_ROOT="${RUNNER_TEMP:?missing runner temporary root}', workflow)
         self.assertIn(
+            "FUNCTIONAL_JOB_ROOT=$(/usr/bin/sudo -n /usr/bin/mktemp -d /tmp/ModSecurity-conector-nginx-functional-root.XXXXXX)",
+            workflow,
+        )
+        self.assertNotIn(
             "FUNCTIONAL_JOB_ROOT=$(/usr/bin/mktemp -d /tmp/ModSecurity-conector-nginx-functional-root.XXXXXX)",
             workflow,
         )
@@ -30,6 +34,9 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
             workflow,
         )
         self.assertIn("[ \"$(/usr/bin/stat -c '%u:%a' /tmp)\" = \"0:1777\" ]", workflow)
+        self.assertIn("RUNNER_GID=$(/usr/bin/id -g)", workflow)
+        self.assertIn('"0:700"', workflow)
+        self.assertIn('"0:711"', workflow)
         self.assertIn('RUN_ROOT="$FUNCTIONAL_JOB_ROOT/ModSecurity-conector-nginx-exact-head"', workflow)
         self.assertIn("^[0-9a-f]{40}$", workflow)
         self.assertIn('test "$actual" = "$EXPECTED_PARENT_SHA"', workflow)
@@ -147,6 +154,9 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
         script = (ROOT / "connectors/nginx/harness/run_exact_head_use_error_log.sh").read_text()
 
         self.assertIn('/bin/chmod 700 "$RUN_ROOT"', workflow)
+        self.assertIn('/usr/bin/sudo -n /bin/mkdir "$RUN_ROOT"', workflow)
+        self.assertIn('/usr/bin/sudo -n /bin/chown "$RUNNER_UID:$RUNNER_GID" "$RUN_ROOT"', workflow)
+        self.assertIn('/usr/bin/sudo -n /bin/chmod 700 "$RUN_ROOT"', workflow)
         self.assertIn(
             'FUNCTIONAL_PARENT_ROOT="$FUNCTIONAL_JOB_ROOT/ModSecurity-conector-nginx-functional-parent"',
             workflow,
@@ -159,16 +169,24 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
             '[ ! -e "$FUNCTIONAL_PARENT_ROOT" ] && [ ! -L "$FUNCTIONAL_PARENT_ROOT" ] ||',
             workflow,
         )
-        self.assertIn('/bin/chmod 711 "$FUNCTIONAL_PARENT_ROOT"', workflow)
-        self.assertIn('/bin/chmod 711 "$FUNCTIONAL_JOB_ROOT"', workflow)
+        self.assertIn('/usr/bin/sudo -n /bin/mkdir "$FUNCTIONAL_PARENT_ROOT"', workflow)
+        self.assertIn('/usr/bin/sudo -n /bin/chmod 711 "$FUNCTIONAL_PARENT_ROOT"', workflow)
+        self.assertIn('/usr/bin/sudo -n /bin/chmod 711 "$FUNCTIONAL_JOB_ROOT"', workflow)
         self.assertIn('"$RUNNER_UID:700"', workflow)
-        self.assertIn('"$RUNNER_UID:711"', workflow)
+        self.assertIn('"0:711"', workflow)
+        self.assertNotIn('"$RUNNER_UID:711"', workflow)
         self.assertIn('/usr/bin/test -x "$FUNCTIONAL_JOB_ROOT"', workflow)
         self.assertIn('/usr/bin/test -x "$FUNCTIONAL_PARENT_ROOT"', workflow)
         self.assertIn('/usr/bin/test -x "$RUN_ROOT"', workflow)
         self.assertIn("worker can traverse the private provisioning root", workflow)
         self.assertIn('NGINX_FUNCTIONAL_A_PARENT_ROOT="$NGINX_FUNCTIONAL_A_PARENT_ROOT"', workflow)
-        self.assertIn('_TRUSTED_FUNCTIONAL_TMP_ROOT = Path("/tmp")', launcher)
+        self.assertIn("import tempfile", launcher)
+        self.assertIn('_EXPECTED_FUNCTIONAL_TMP_ROOT = Path(os.sep) / "tmp"', launcher)
+        self.assertIn('path = _absolute_path(tempfile.gettempdir(), "Functional-A temporary root")', launcher)
+        self.assertIn("if path != _EXPECTED_FUNCTIONAL_TMP_ROOT:", launcher)
+        self.assertNotIn('_TRUSTED_FUNCTIONAL_TMP_ROOT = Path("/tmp")', launcher)
+        self.assertIn("Functional-A job root must be owned by root", launcher)
+        self.assertIn("NGINX_FUNCTIONAL_A_PARENT_ROOT must be owned by root", launcher)
         self.assertIn("_FUNCTIONAL_JOB_ROOT_PREFIX", launcher)
         self.assertIn("must be root-owned sticky mode 01777", launcher)
         self.assertIn("must be below the designated fresh /tmp job root", launcher)

@@ -84,25 +84,27 @@ jobs:
             echo "exact-head gate: /tmp is not the expected root-owned sticky directory" >&2
             exit 1
           }
-          FUNCTIONAL_JOB_ROOT=$(/usr/bin/mktemp -d /tmp/ModSecurity-conector-nginx-functional-root.XXXXXX)
+          RUNNER_UID=$(/usr/bin/id -u)
+          RUNNER_GID=$(/usr/bin/id -g)
+          FUNCTIONAL_JOB_ROOT=$(/usr/bin/sudo -n /usr/bin/mktemp -d /tmp/ModSecurity-conector-nginx-functional-root.XXXXXX)
           if [ ! -d "$FUNCTIONAL_JOB_ROOT" ] || [ -L "$FUNCTIONAL_JOB_ROOT" ]; then
             echo "exact-head gate: functional job root is unavailable or a symlink" >&2
             exit 1
           fi
-          RUNNER_UID=$(/usr/bin/id -u)
-          [ "$(/usr/bin/stat -c '%u:%a' "$FUNCTIONAL_JOB_ROOT")" = "$RUNNER_UID:700" ] || {
-            echo "exact-head gate: functional job root is not a fresh private runner directory" >&2
+          [ "$(/usr/bin/stat -c '%u:%a' "$FUNCTIONAL_JOB_ROOT")" = "0:700" ] || {
+            echo "exact-head gate: functional job root is not a fresh private root directory" >&2
             exit 1
           }
-          /bin/chmod 711 "$FUNCTIONAL_JOB_ROOT"
-          [ "$(/usr/bin/stat -c '%u:%a' "$FUNCTIONAL_JOB_ROOT")" = "$RUNNER_UID:711" ] || {
-            echo "exact-head gate: functional job root did not become non-enumerable" >&2
+          /usr/bin/sudo -n /bin/chmod 711 "$FUNCTIONAL_JOB_ROOT"
+          [ "$(/usr/bin/stat -c '%u:%a' "$FUNCTIONAL_JOB_ROOT")" = "0:711" ] || {
+            echo "exact-head gate: functional job root did not become root-owned non-enumerable" >&2
             exit 1
           }
           RUN_ROOT="$FUNCTIONAL_JOB_ROOT/ModSecurity-conector-nginx-exact-head"
           FUNCTIONAL_PARENT_ROOT="$FUNCTIONAL_JOB_ROOT/ModSecurity-conector-nginx-functional-parent"
-          /bin/mkdir "$RUN_ROOT"
-          /bin/chmod 700 "$RUN_ROOT"
+          /usr/bin/sudo -n /bin/mkdir "$RUN_ROOT"
+          /usr/bin/sudo -n /bin/chown "$RUNNER_UID:$RUNNER_GID" "$RUN_ROOT"
+          /usr/bin/sudo -n /bin/chmod 700 "$RUN_ROOT"
           [ "$(/usr/bin/stat -c '%u:%a' "$RUN_ROOT")" = "$RUNNER_UID:700" ] || {
             echo "exact-head gate: private run root has an unexpected identity or mode" >&2
             exit 1
@@ -111,9 +113,9 @@ jobs:
             echo "exact-head gate: functional parent is unexpectedly occupied" >&2
             exit 1
           fi
-          /bin/mkdir "$FUNCTIONAL_PARENT_ROOT"
-          /bin/chmod 711 "$FUNCTIONAL_PARENT_ROOT"
-          [ "$(/usr/bin/stat -c '%u:%a' "$FUNCTIONAL_PARENT_ROOT")" = "$RUNNER_UID:711" ] || {
+          /usr/bin/sudo -n /bin/mkdir "$FUNCTIONAL_PARENT_ROOT"
+          /usr/bin/sudo -n /bin/chmod 711 "$FUNCTIONAL_PARENT_ROOT"
+          [ "$(/usr/bin/stat -c '%u:%a' "$FUNCTIONAL_PARENT_ROOT")" = "0:711" ] || {
             echo "exact-head gate: functional parent has an unexpected identity or mode" >&2
             exit 1
           }

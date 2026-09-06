@@ -911,3 +911,52 @@ cells, and SonarCloud. `FND-PARENT-1046` and `FND-PARENT-0078` remain in
 progress; `FND-PARENT-1038` is unchanged and not closed; `FND-PARENT-1036`
 remains `blocked_external_dependency`. PR #354 remains Draft, open, and
 unmerged.
+
+### 2026-09-06 ninth hosted follow-up (root-owned Functional-A ancestry and fixed-temporary-root successor pending)
+
+The normal successor `c98dbac165d1d2dcee81fafab4a670bd90a82f53` passed its
+exact-head Security workflow lint, but its GitHub-hosted Functional-A workflow
+`33999740011` then failed closed with exit `77` in the first runtime step. It
+had completed checkout, exact-HEAD verification, the root/worker preflight,
+isolated-path initialization, and unprivileged pinned provisioning. The
+unchanged runtime path-authority validator correctly rejected the runner-owned
+job-root ancestor while executing as root: `runtime directory has an untrusted
+owner below shared temporary root /tmp`. No NGINX server, native on/off
+callback, JSONL, WAF, allow, reload, or shutdown assertion ran. Exit `77` is
+failed evidence, not a successful hosted result.
+
+The same exact c98 SonarQube Cloud analysis reported one active task-owned
+`python:S5443` issue at the Functional-A launcher public-temporary-root line
+and Quality Gate `ERROR`. No `NOSONAR`, rule exclusion, false-positive state,
+Quality-Gate change, or risk acceptance was used. The narrowly scoped
+successor resolves the standard temporary-directory result only to fail closed
+unless it is the exact fixed `/tmp` namespace, then retains the existing
+no-symlink, root-owned sticky `01777`, owner, mode, and traversal checks before
+the scrubbed `sudo` handoff. It does not accept a `TMPDIR`-redirected root.
+
+Before unprivileged provisioning, the workflow now creates the fresh
+Functional-A job root and its fixed functional-parent sibling as root-owned
+directories, validates the job root's initial `0700` state, and sets each to
+non-enumerable `0711`. It creates, chowns, and keeps only the separate
+provisioning `RUN_ROOT` runner-owned at exact `0700`. The launcher therefore
+requires root ownership for both visible ancestors and runner ownership only
+for that private root. This preserves the existing runtime path-authority
+validator, leaves unprivileged provisioning unprivileged, and does not add a
+generic path reopen or broaden the privileged command surface.
+
+The successor's non-root-fixture launcher, exact-gate, worker-traversal,
+path-authority, and runtime-path security suite passed 50 focused tests;
+`actionlint` with ShellCheck, shell syntax, Python compilation, and whitespace
+checks also passed. These local source/contract results are not a Sonar or
+GitHub-hosted runtime success claim. After its normal successor push, the new
+exact head still requires fresh C17 and available-sanitizer assessment,
+SonarQube Cloud Quality Gate plus active-issue/hotspot readback, relevant
+checks, all five CRS/no-MRTS cells, and the native GitHub-hosted
+on/off/JSONL/WAF/allow run.
+
+`FND-PARENT-0078` remains `in_progress`; `FND-PARENT-1046` remains
+`in_progress`; `FND-PARENT-1038` is unchanged and not closed; and
+`FND-PARENT-1036` remains `blocked_external_dependency`. Functional A remains
+a GitHub-hosted native integration test, not Protected B or an attestation
+against malicious runner or VM-root code. PR #354 remains Draft, open, and
+unmerged.
