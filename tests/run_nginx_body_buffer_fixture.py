@@ -90,6 +90,30 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def classify_configtest_failure(output: str) -> str:
+    """Return a bounded category without publishing private NGINX output."""
+    normalized = output.lower()
+    if "bind() to" in normalized and "address already in use" in normalized:
+        return "listener_address_in_use"
+    if "chown(" in normalized and "client_body_temp" in normalized:
+        return "client_body_temp_ownership"
+    if "permission denied" in normalized:
+        return "permission_denied"
+    if "unknown directive" in normalized:
+        return "unknown_directive"
+    return "unclassified"
+
+
+def configtest_failure_summary(output: str) -> str:
+    encoded = output.encode("utf-8", errors="replace")
+    return (
+        "configtest_output_sha256="
+        + hashlib.sha256(encoded).hexdigest()
+        + " configtest_failure_class="
+        + classify_configtest_failure(output)
+    )
+
+
 def run(
     arguments: list[str], *, cwd: Path, environment: dict[str, str], log: Path
 ) -> subprocess.CompletedProcess[str]:
@@ -104,7 +128,10 @@ def run(
     )
     log.write_text(result.stdout, encoding="utf-8", errors="replace")
     if result.returncode != 0:
-        fail(f"command failed ({result.returncode}): {' '.join(arguments)}; see {log}")
+        summary = ""
+        if "-t" in arguments:
+            summary = "; " + configtest_failure_summary(result.stdout)
+        fail(f"command failed ({result.returncode}): {' '.join(arguments)}; see {log}{summary}")
     return result
 
 

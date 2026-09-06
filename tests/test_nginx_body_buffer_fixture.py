@@ -162,6 +162,43 @@ class NginxBodyBufferFixtureContractTest(unittest.TestCase):
         with self.assertRaises(RUNNER_MODULE.FixtureFailure):
             RUNNER_MODULE.validate_positive_events(events)
 
+    def test_configtest_failure_summary_is_bounded_and_classified(self) -> None:
+        output = (
+            "nginx: [emerg] bind() to 127.0.0.1:45823 failed "
+            "(98: Address already in use)\nprivate-fixture-content\n"
+        )
+        summary = RUNNER_MODULE.configtest_failure_summary(output)
+        self.assertRegex(
+            summary,
+            r"^configtest_output_sha256=[0-9a-f]{64} "
+            r"configtest_failure_class=listener_address_in_use$",
+        )
+        self.assertNotIn("private-fixture-content", summary)
+
+    def test_configtest_failure_classification_handles_known_setup_errors(self) -> None:
+        self.assertEqual(
+            RUNNER_MODULE.classify_configtest_failure(
+                "nginx: [emerg] chown(/tmp/client_body_temp, 65534) failed"
+            ),
+            "client_body_temp_ownership",
+        )
+        self.assertEqual(
+            RUNNER_MODULE.classify_configtest_failure(
+                "nginx: [emerg] open() failed (13: Permission denied)"
+            ),
+            "permission_denied",
+        )
+        self.assertEqual(
+            RUNNER_MODULE.classify_configtest_failure(
+                "nginx: [emerg] unknown directive \"modsecurity\""
+            ),
+            "unknown_directive",
+        )
+        self.assertEqual(
+            RUNNER_MODULE.classify_configtest_failure("opaque fixture failure"),
+            "unclassified",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
