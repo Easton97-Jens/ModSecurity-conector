@@ -89,10 +89,13 @@ class NginxBodyBufferFixtureContractTest(unittest.TestCase):
 
     def test_allocation_fault_is_static_fixture_only(self) -> None:
         source = MODULE.read_text(encoding="utf-8")
-        self.assertIn("MSCONNECTOR_NGINX_BODY_FIXTURE_FAIL_ALLOC", source)
+        self.assertIn("ngx_http_body_buffer_fixture_fail_allocation", source)
+        self.assertIn("volatile sig_atomic_t", source)
         self.assertIn("size == 32768U", source)
         self.assertIn("__wrap_malloc", source)
         self.assertIn("__real_malloc", source)
+        self.assertNotIn("setenv(", source)
+        self.assertNotIn("getenv(", source)
         runner = RUNNER.read_text(encoding="utf-8")
         self.assertNotIn("LD_PRELOAD", runner)
         self.assertIn("test_only_static_linker_wrap_32768_byte_request_pool_scratch", runner)

@@ -13,8 +13,7 @@
 #include <ngx_http.h>
 
 #include <errno.h>
-#include <stdlib.h>
-#include <string.h>
+#include <signal.h>
 
 #define FIXTURE_BODY "P4-FIXTURE-BODY!"
 #define FIXTURE_BODY_LENGTH (sizeof(FIXTURE_BODY) - 1U)
@@ -47,12 +46,15 @@ static ngx_int_t ngx_http_body_buffer_fixture_add_header(ngx_http_request_t *r,
  * neither compile nor link it. */
 extern void *__real_malloc(size_t size);
 
+/* The test-only content handler and this link-time wrapper run in the same
+ * NGINX worker.  A process-local flag avoids relying on a mutable environment
+ * from the worker while keeping allocation injection out of the connector. */
+static volatile sig_atomic_t ngx_http_body_buffer_fixture_fail_allocation;
+
 void *
 __wrap_malloc(size_t size)
 {
-    const char *enabled = getenv("MSCONNECTOR_NGINX_BODY_FIXTURE_FAIL_ALLOC");
-
-    if (enabled != NULL && strcmp(enabled, "1") == 0 && size == 32768U) {
+    if (ngx_http_body_buffer_fixture_fail_allocation != 0 && size == 32768U) {
         errno = ENOMEM;
         return NULL;
     }
@@ -211,6 +213,7 @@ ngx_http_body_buffer_fixture_handler(ngx_http_request_t *r)
     size_t memory_length = 0U;
     off_t file_length = 0;
     ngx_int_t result;
+    ngx_uint_t allocation_failure;
 
     if (r->method != NGX_HTTP_GET && r->method != NGX_HTTP_HEAD) {
         return NGX_HTTP_NOT_ALLOWED;
@@ -219,6 +222,9 @@ ngx_http_body_buffer_fixture_handler(ngx_http_request_t *r)
     if (conf == NULL || conf->mode.len == 0U || conf->mode.data == NULL) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
+    allocation_failure = ngx_http_body_buffer_fixture_mode_is(&conf->mode,
+        "allocation-failure");
+    ngx_http_body_buffer_fixture_fail_allocation = 0;
 
     if (ngx_http_body_buffer_fixture_mode_is(&conf->mode, "memory-within") ||
         ngx_http_body_buffer_fixture_mode_is(&conf->mode, "mixed-within")) {
@@ -326,11 +332,6 @@ ngx_http_body_buffer_fixture_handler(ngx_http_request_t *r)
     if (ngx_http_body_buffer_fixture_mode_is(&conf->mode, "missing-source")) {
         buffer->file = NULL;
     }
-    if (ngx_http_body_buffer_fixture_mode_is(&conf->mode, "allocation-failure")) {
-        if (setenv("MSCONNECTOR_NGINX_BODY_FIXTURE_FAIL_ALLOC", "1", 1) != 0) {
-            return NGX_ERROR;
-        }
-    }
     buffer->last_buf = 1;
     buffer->last_in_chain = 1;
     output.buf = buffer;
@@ -341,7 +342,12 @@ ngx_http_body_buffer_fixture_handler(ngx_http_request_t *r)
         &conf->mode, (ngx_uint_t) ngx_buf_in_memory(buffer),
         (ngx_uint_t) buffer->in_file, buffer->file_pos, buffer->file_last,
         memory_length);
-    return ngx_http_output_filter(r, &output);
+    if (allocation_failure != 0U) {
+        ngx_http_body_buffer_fixture_fail_allocation = 1;
+    }
+    result = ngx_http_output_filter(r, &output);
+    ngx_http_body_buffer_fixture_fail_allocation = 0;
+    return result;
 }
 
 static void *
