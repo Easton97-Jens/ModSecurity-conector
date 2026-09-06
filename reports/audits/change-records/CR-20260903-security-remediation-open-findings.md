@@ -1010,3 +1010,23 @@ available supported sanitizer path. `FND-PARENT-1048`, `FND-PARENT-1049`, and
 `FND-PARENT-1050` are `fixed` locally with verification pending; `FND-PARENT-
 1038` is unchanged and not closed; `FND-PARENT-1036` remains
 `blocked_external_dependency`. PR #354 remains Draft, open, and unmerged.
+
+### 2026-09-06 eleventh follow-up (task-owned Sonar successor)
+
+The normal successor push of
+`63487793c62c3407114482f748d6e808cc303f12` correctly created fresh exact-head
+checks. SonarQube Cloud evaluated its Quality Gate as `OK`, but reported one
+active task-owned `shelldre:S7679` issue at
+`connectors/nginx/harness/run_nginx_smoke.sh`: the small
+`nginx_process_children()` wrapper forwarded positional `$1` directly. The
+next narrow successor assigns that value to the named POSIX shell variable
+`nginx_children_parent_pid` before passing it to the already validated
+snapshot helper. It changes no process, FD, path, request, or logging
+semantics and has a focused source-contract regression.
+
+The new commit necessarily invalidates all in-progress `63487793` hosted
+results as successor proof. After its normal push, only checks, Sonar analysis,
+CRS/no-MRTS cells, and NGINX On/Off runtime evidence bound to its own exact
+head may satisfy the remaining acceptance criteria. PR #354 remains Draft,
+open, and unmerged; FND-PARENT-1036 remains
+`blocked_external_dependency` and FND-PARENT-1038 remains unchanged.

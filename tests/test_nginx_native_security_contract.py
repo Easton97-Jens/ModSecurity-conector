@@ -234,6 +234,14 @@ class NginxNativeSecurityContractTest(unittest.TestCase):
         self.assertIn('-v expected_parent="$nginx_snapshot_parent_pid"', process_snapshot)
         self.assertIn('$2 == expected_parent', process_snapshot)
         self.assertIn('$3 !~ /^Z/', process_snapshot)
+        process_children = HARNESS.split("nginx_process_children() {", 1)[1].split(
+            "nginx_process_record()", 1
+        )[0]
+        self.assertIn("nginx_children_parent_pid=$1", process_children)
+        self.assertIn(
+            'nginx_process_child_snapshot "$nginx_children_parent_pid"',
+            process_children,
+        )
         overlap_observation = HARNESS.split("observe_phase4_reload_overlap() {", 1)[
             1
         ].split("send_expected_phase4_lifecycle_request()", 1)[0]

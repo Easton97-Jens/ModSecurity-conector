@@ -1913,7 +1913,8 @@ nginx_process_child_snapshot() {
 }
 
 nginx_process_children() {
-    nginx_process_child_snapshot "$1" | awk '{ print $1 }' || true
+    nginx_children_parent_pid=$1
+    nginx_process_child_snapshot "$nginx_children_parent_pid" | awk '{ print $1 }' || true
 }
 
 nginx_process_record() {

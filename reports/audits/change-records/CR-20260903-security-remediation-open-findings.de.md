@@ -1108,3 +1108,25 @@ null Hotspots sowie jeden verfügbaren unterstützten Sanitizer-Pfad.
 mit ausstehender Verifikation; `FND-PARENT-1038` ist unverändert und nicht
 geschlossen; `FND-PARENT-1036` bleibt `blocked_external_dependency`. PR #354
 bleibt Draft, offen und ungemergt.
+
+### 2026-09-06 Elfter Follow-up (task-eigener Sonar-Successor)
+
+Der normale Successor-Push von
+`63487793c62c3407114482f748d6e808cc303f12` erzeugte korrekt frische
+Exact-Head-Checks. SonarQube Cloud bewertete sein Quality Gate als `OK`,
+meldete aber ein aktives task-eigenes `shelldre:S7679`-Issue in
+`connectors/nginx/harness/run_nginx_smoke.sh`: Der kleine Wrapper
+`nginx_process_children()` leitete das Positionsargument `$1` direkt weiter.
+Der nächste enge Successor weist diesen Wert vor der Übergabe an den bereits
+validierten Snapshot-Helper der benannten POSIX-Shell-Variablen
+`nginx_children_parent_pid` zu. Das ändert keine Prozess-, FD-, Pfad-,
+Request- oder Logging-Semantik und besitzt eine fokussierte
+Source-Contract-Regression.
+
+Der neue Commit entwertet notwendigerweise alle noch laufenden Hosted-Ergebnisse
+von `63487793` als Successor-Nachweis. Nach seinem normalen Push dürfen nur
+Checks, Sonar-Analyse, CRS/no-MRTS-Zellen und NGINX-On-/Off-Runtime-Evidence,
+die an seinen eigenen exakten Head gebunden sind, die verbleibenden
+Akzeptanzkriterien erfüllen. PR #354 bleibt Draft, offen und ungemergt;
+FND-PARENT-1036 bleibt `blocked_external_dependency` und FND-PARENT-1038
+bleibt unverändert.
