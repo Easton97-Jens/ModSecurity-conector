@@ -471,16 +471,24 @@ in Event-JSONL.
 native Grenzprüfung. Sie baut den ausgewählten sauberen Connector-Checkout und
 eine separate reine Fixture in ein dediziertes NGINX-Test-Binary gegen die
 gepinnte NGINX-Quelle neu und gibt echte Memory-, file-only- und gemischte
-`ngx_buf_t`-Werte durch die installierte Filterkette aus. Ihre Testkonfiguration
-wählt das bestehende Limit nur für Fälle innerhalb des Limits und für
-Reject-before-forwarding; sie ändert keinen Produkt-Default. Ihr
-Allokationsfehlerfall verändert nur das Test-Binary: Ein test-only Filter
-unmittelbar vor dem statisch gelinkten Connector aktiviert einen Fixture-Wrapper
-für die bekannte 32-KiB-`ngx_pnalloc`-Scratch-Anfrage und zeichnet genau einen
-Wrapper-Treffer auf. Weder Connector-Code noch ein Produktions-Fault-Injection-
-Schalter werden verändert. Das zurückgehaltene Ergebnis enthält nur exakten
-Head, Build-Identitäten, verifizierte Filterreihenfolge, Buffer-Flags, Längen
-und begrenzte Accounting-Werte—keine Response-Nutzlasten.
+`ngx_buf_t`-Werte durch die installierte Filterkette aus. Ihr test-only Filter
+steht unmittelbar vor dem statisch gelinkten Connector und zeichnet die echten
+Flags an dieser Grenze auf. Für file-only- und injizierte File-Fehlerkontrollen
+wählt er die file-only-Repräsentation dieses echten Buffers nur für den direkten
+Connector-Aufruf und stellt die Upstream-Repräsentation vor der Rückkehr wieder
+her; dies ist eine ausdrückliche Fixture-Grenze und keine Behauptung über jeden
+Upstream-Output-Filter. Die Mixed-Kontrolle behält beide Repräsentationen und
+verwendet unterschiedliches File-Backing: Die P4-Regel belegt die
+memory-first-Inspektion, während der separat aufgezeichnete weitergeleitete Body
+das NGINX-File-Backing bleibt. Ihre Testkonfiguration wählt das bestehende Limit
+nur für Fälle innerhalb des Limits und für Reject-before-forwarding; sie ändert
+keinen Produkt-Default. Ihr Allokationsfehlerfall verändert nur das Test-Binary:
+Dieselbe test-only Grenze aktiviert einen Fixture-Wrapper für die bekannte
+32-KiB-`ngx_pnalloc`-Scratch-Anfrage und zeichnet genau einen Wrapper-Treffer
+auf. Weder Connector-Code noch ein Produktions-Fault-Injection-Schalter werden
+verändert. Das zurückgehaltene Ergebnis enthält nur exakten Head,
+Build-Identitäten, verifizierte Filterreihenfolge, Buffer-Flags, Längen,
+begrenzte Forwarding-Hashes und Accounting-Werte—keine Response-Nutzlasten.
 
 Eine Regelübereinstimmung muss unabhängig von einem sichtbaren 403 gemeldet
 werden. Kanonische Ereignisse bewahren den ursprünglichen Host-Status, den

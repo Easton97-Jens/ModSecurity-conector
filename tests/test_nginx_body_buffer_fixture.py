@@ -92,6 +92,8 @@ class NginxBodyBufferFixtureContractTest(unittest.TestCase):
         self.assertIn('if body != b""', source)
         self.assertIn("require_healthy_worker", source)
         self.assertIn("connector_boundary_representation", source)
+        self.assertIn("FIXTURE_MIXED_FORWARDED_PAYLOAD", source)
+        self.assertIn("forwarding_representation", source)
         self.assertIn('"  sendfile on;"', source)
         self.assertIn("short_body_file", source)
         self.assertIn("mixed_body_file", source)

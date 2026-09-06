@@ -33,6 +33,7 @@ FIXTURE_LIMIT = len(FIXTURE_PAYLOAD)
 FIXTURE_FILE_PAYLOAD = FIXTURE_PAYLOAD + b"X"
 FIXTURE_SHORT_FILE_PAYLOAD = FIXTURE_PAYLOAD[:-1]
 FIXTURE_MIXED_FILE_PAYLOAD = b"FILE-BACKING-XXXX"
+FIXTURE_MIXED_FORWARDED_PAYLOAD = FIXTURE_MIXED_FILE_PAYLOAD[: len(FIXTURE_PAYLOAD)]
 EXPECTED_NGINX_ROOT = "nginx-1.31.4"
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
@@ -407,7 +408,7 @@ def run_server_cases(
     prefix: Path,
     port: int,
     environment: dict[str, str],
-    cases: tuple[tuple[str, bool, bool, bool, str, str], ...],
+    cases: tuple[tuple[str, bool, bool, bool, str, str, bytes, str], ...],
 ) -> list[dict[str, Any]]:
     log_path = prefix / "logs" / "nginx.stdout.log"
     with log_path.open("w", encoding="utf-8") as output:
@@ -422,7 +423,16 @@ def run_server_cases(
     try:
         wait_for_listener(port, process, log_path)
         observations: list[dict[str, Any]] = []
-        for mode, expect_success, memory, in_file, representation, injection in cases:
+        for (
+            mode,
+            expect_success,
+            memory,
+            in_file,
+            representation,
+            injection,
+            expected_body,
+            forwarding_representation,
+        ) in cases:
             response = raw_request(port, f"/{mode}")
             body = response_body(response)
             time.sleep(0.05)
@@ -437,7 +447,7 @@ def run_server_cases(
             )
             require_healthy_worker(process, error_log, mode)
             if expect_success:
-                if body != FIXTURE_PAYLOAD:
+                if body != expected_body:
                     fail(
                         f"{mode} did not forward the expected legitimate body "
                         f"(observed {len(body)} bytes: {body.hex()})"
@@ -452,6 +462,8 @@ def run_server_cases(
                     "buffer": {"memory": memory, "in_file": in_file},
                     "connector_boundary_representation": representation,
                     "connector_boundary_injection": injection,
+                    "forwarding_representation": forwarding_representation,
+                    "expected_forwarded_body_sha256": hashlib.sha256(expected_body).hexdigest(),
                     "response_bytes": len(response),
                     "response_body_bytes": len(body),
                     "rejected_before_forwarding": not expect_success and body == b"",
@@ -589,16 +601,43 @@ def main(argv: list[str]) -> int:
         log=logs_root / "nginx-configtest.log",
     )
     normal_cases = (
-        ("memory-within", True, True, False, "preserved", "none"),
-        ("memory-over-limit", False, True, False, "preserved", "none"),
-        ("file-within", True, False, True, "file-only", "none"),
-        ("file-over-limit", False, False, True, "file-only", "none"),
-        ("mixed-within", True, True, True, "preserved", "none"),
-        ("mixed-over-limit", False, True, True, "preserved", "none"),
-        ("invalid-metadata", False, False, True, "file-only", "invalid-metadata"),
-        ("missing-source", False, False, True, "file-only", "missing-source"),
-        ("read-error", False, False, True, "file-only", "read-error"),
-        ("short-read", False, False, True, "file-only", "short-read"),
+        ("memory-within", True, True, False, "preserved", "none", FIXTURE_PAYLOAD, "memory"),
+        ("memory-over-limit", False, True, False, "preserved", "none", b"", "none"),
+        ("file-within", True, False, True, "file-only", "none", FIXTURE_PAYLOAD, "file"),
+        ("file-over-limit", False, False, True, "file-only", "none", b"", "none"),
+        (
+            "mixed-within",
+            True,
+            True,
+            True,
+            "preserved",
+            "none",
+            FIXTURE_MIXED_FORWARDED_PAYLOAD,
+            "file",
+        ),
+        ("mixed-over-limit", False, True, True, "preserved", "none", b"", "none"),
+        (
+            "invalid-metadata",
+            False,
+            False,
+            True,
+            "file-only",
+            "invalid-metadata",
+            b"",
+            "none",
+        ),
+        (
+            "missing-source",
+            False,
+            False,
+            True,
+            "file-only",
+            "missing-source",
+            b"",
+            "none",
+        ),
+        ("read-error", False, False, True, "file-only", "read-error", b"", "none"),
+        ("short-read", False, False, True, "file-only", "short-read", b"", "none"),
     )
     observations = run_server_cases(
         nginx=nginx,
@@ -637,7 +676,18 @@ def main(argv: list[str]) -> int:
             prefix=allocation_prefix,
             port=allocation_port,
             environment=allocation_environment,
-            cases=(("allocation-failure", False, False, True, "file-only", "allocation-failure"),),
+            cases=(
+                (
+                    "allocation-failure",
+                    False,
+                    False,
+                    True,
+                    "file-only",
+                    "allocation-failure",
+                    b"",
+                    "none",
+                ),
+            ),
         )
     )
     allocation_error = read_bounded(allocation_prefix / "logs" / "error.log")
