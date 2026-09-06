@@ -35,6 +35,28 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
         )
         self.assertIn("[ \"$(/usr/bin/stat -c '%u:%a' /tmp)\" = \"0:1777\" ]", workflow)
         self.assertIn("RUNNER_GID=$(/usr/bin/id -g)", workflow)
+        self.assertIn(
+            "NATIVE_FIXTURE_ROOT=$(/usr/bin/mktemp -d /tmp/ModSecurity-conector-nginx-native-fixture.XXXXXX)",
+            workflow,
+        )
+        self.assertNotIn(
+            "NATIVE_FIXTURE_ROOT=$(/usr/bin/sudo -n /usr/bin/mktemp",
+            workflow,
+        )
+        self.assertIn('case "$NATIVE_FIXTURE_ROOT" in', workflow)
+        self.assertIn(
+            "/tmp/ModSecurity-conector-nginx-native-fixture.*) ;;",
+            workflow,
+        )
+        self.assertIn(
+            'if [ ! -d "$NATIVE_FIXTURE_ROOT" ] || [ -L "$NATIVE_FIXTURE_ROOT" ]; then',
+            workflow,
+        )
+        self.assertIn(
+            '"$RUNNER_UID:$RUNNER_GID:700"',
+            workflow,
+        )
+        self.assertIn('echo "NATIVE_FIXTURE_ROOT=$NATIVE_FIXTURE_ROOT"', workflow)
         self.assertIn('"0:700"', workflow)
         self.assertIn('"0:711"', workflow)
         self.assertIn('RUN_ROOT="$FUNCTIONAL_JOB_ROOT/ModSecurity-conector-nginx-exact-head"', workflow)
@@ -86,6 +108,7 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
             runtime_step,
         )
         self.assertIn('RUN_ROOT="$RUN_ROOT"', runtime_step)
+        self.assertIn('NATIVE_FIXTURE_ROOT="$NATIVE_FIXTURE_ROOT"', runtime_step)
         for fixture_argument in (
             "tests/run_nginx_body_buffer_fixture.py",
             '--connector-root "$CONNECTOR_ROOT"',
@@ -94,9 +117,10 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
             '--nginx-sha256 "$NGINX_SHA256"',
             '--modsecurity-include "$MODSECURITY_INCLUDE_DIR"',
             '--modsecurity-lib "$MODSECURITY_LIB_DIR"',
-            '--output-root "$RUN_ROOT/native-nginx-body-buffer-fixture"',
+            '--output-root "$NATIVE_FIXTURE_ROOT"',
         ):
             self.assertIn(fixture_argument, runtime_step)
+        self.assertNotIn('$RUN_ROOT/native-nginx-body-buffer-fixture', workflow)
         fixture_upload = workflow.split(
             "      - name: Upload native NGINX body-buffer fixture evidence", 1
         )[1]
@@ -106,7 +130,7 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
             fixture_upload,
         )
         self.assertIn(
-            "${{ env.RUN_ROOT }}/native-nginx-body-buffer-fixture/**/evidence/result.json",
+            "${{ env.NATIVE_FIXTURE_ROOT }}/**/evidence/result.json",
             fixture_upload,
         )
         self.assertIn("if-no-files-found: error", fixture_upload)

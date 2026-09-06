@@ -1074,3 +1074,40 @@ Sonar readback, five-cell CRS/no-MRTS artifact readback, and the separate
 protected-base/host owner decision remain required. No merge, Draft transition,
 rebase, force-push, risk acceptance, Framework/MRTS/Gitlink/dependency change,
 or test, Sonar, or quality-gate weakening is asserted.
+
+### 2026-09-06 thirteenth follow-up (native fixture's isolated runner root)
+
+The exact-head NGINX workflow `34037807569` for
+`2dba14da707216652227709e79bf73d58a6c8ba6` passed checkout, head verification,
+preflight, provisioning, and the real Functional-A On/Off controls. It then
+failed closed in the native body-buffer fixture's private `nginx -t` test with
+the bounded class `permission_denied` and configuration-output SHA-256
+`cf980554148465c1143c6be9dc8043b7543c4093d49d5b6518bb30d8f54d3486`. Both
+uploads were correctly skipped, so this run supplies neither a native-fixture
+nor a Functional-A artifact. The concurrently exact-head CRS/no-MRTS run
+`34037807658` passed all five cells, including the strictly read-back Lighttpd
+artifact, but becomes predecessor evidence after this successor change.
+
+A controlled non-root reproduction identified no product defect. Common's
+secure event-file parent walk opens every component with
+`O_RDONLY|O_DIRECTORY|O_NOFOLLOW`; it correctly cannot read-open the
+root-owned, non-enumerable `0711` Functional-A ancestor even though ordinary
+path traversal is possible. The same fixture configuration test succeeds with
+an output root that is a direct runner-owned `0700` child of the verified,
+root-owned sticky `/tmp`. Common's no-follow, owner, and private-leaf checks
+are unchanged.
+
+The narrowly scoped successor creates that native-fixture root with an
+unprivileged `mktemp` directly below the already checked `/tmp`, validates its
+fixed namespace, non-symlink type, runner UID:GID ownership, and `0700` mode,
+and passes it only to the native fixture. It leaves `FUNCTIONAL_JOB_ROOT`, its
+root-owned `0711` ancestry, `RUN_ROOT`, the Functional-A evidence root, Common,
+and product C unchanged. The artifact upload still admits only the existing
+bounded `result.json` and fails when it is absent. This adds no runner,
+privilege, dependency, or permission-policy change.
+
+The successor requires fresh local and GitHub-hosted exact-head evidence,
+including SonarCloud readback, all required repository checks, both NGINX
+artifacts, and all five CRS/no-MRTS cells. PR #354 remains Draft, open, and
+unmerged; this candidate-owned evidence remains distinct from the protected
+host/collector decision required for `FND-GITHUB-0009`.

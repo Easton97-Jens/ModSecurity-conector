@@ -86,6 +86,22 @@ jobs:
           }
           RUNNER_UID=$(/usr/bin/id -u)
           RUNNER_GID=$(/usr/bin/id -g)
+          NATIVE_FIXTURE_ROOT=$(/usr/bin/mktemp -d /tmp/ModSecurity-conector-nginx-native-fixture.XXXXXX)
+          case "$NATIVE_FIXTURE_ROOT" in
+            /tmp/ModSecurity-conector-nginx-native-fixture.*) ;;
+            *)
+              echo "exact-head gate: native fixture root is outside its designated /tmp namespace" >&2
+              exit 1
+              ;;
+          esac
+          if [ ! -d "$NATIVE_FIXTURE_ROOT" ] || [ -L "$NATIVE_FIXTURE_ROOT" ]; then
+            echo "exact-head gate: native fixture root is unavailable or a symlink" >&2
+            exit 1
+          fi
+          [ "$(/usr/bin/stat -c '%u:%g:%a' "$NATIVE_FIXTURE_ROOT")" = "$RUNNER_UID:$RUNNER_GID:700" ] || {
+            echo "exact-head gate: native fixture root has an unexpected identity or mode" >&2
+            exit 1
+          }
           FUNCTIONAL_JOB_ROOT=$(/usr/bin/sudo -n /usr/bin/mktemp -d /tmp/ModSecurity-conector-nginx-functional-root.XXXXXX)
           if [ ! -d "$FUNCTIONAL_JOB_ROOT" ] || [ -L "$FUNCTIONAL_JOB_ROOT" ]; then
             echo "exact-head gate: functional job root is unavailable or a symlink" >&2
@@ -129,6 +145,7 @@ jobs:
             exit 1
           fi
           {
+            echo "NATIVE_FIXTURE_ROOT=$NATIVE_FIXTURE_ROOT"
             echo "RUN_ROOT=$RUN_ROOT"
             echo "VERIFIED_RUN_ROOT=$RUN_ROOT"
             echo "NGINX_FUNCTIONAL_A_PARENT_ROOT=$FUNCTIONAL_PARENT_ROOT"
@@ -187,6 +204,7 @@ jobs:
             NGINX_FUNCTIONAL_WORKER_GROUP="$NGINX_FUNCTIONAL_WORKER_GROUP" \
             NGINX_FUNCTIONAL_A_PARENT_ROOT="$NGINX_FUNCTIONAL_A_PARENT_ROOT" \
             NGINX_FUNCTIONAL_A_EVIDENCE_ROOT="$FUNCTIONAL_EVIDENCE_ROOT" \
+            NATIVE_FIXTURE_ROOT="$NATIVE_FIXTURE_ROOT" \
             RUN_ROOT="$RUN_ROOT" \
             VERIFIED_RUN_ROOT="$VERIFIED_RUN_ROOT" \
             BUILD_ROOT="$BUILD_ROOT" TMP_ROOT="$TMP_ROOT" LOG_ROOT="$LOG_ROOT" \
@@ -217,7 +235,7 @@ jobs:
             --nginx-sha256 "$NGINX_SHA256" \
             --modsecurity-include "$MODSECURITY_INCLUDE_DIR" \
             --modsecurity-lib "$MODSECURITY_LIB_DIR" \
-            --output-root "$RUN_ROOT/native-nginx-body-buffer-fixture"
+            --output-root "$NATIVE_FIXTURE_ROOT"
           RUNTIME_FIXTURE
       - name: Upload bounded NGINX Functional-A evidence
         if: success()
@@ -233,7 +251,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: nginx-native-body-buffer-fixture-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ env.RUN_ROOT }}/native-nginx-body-buffer-fixture/**/evidence/result.json
+          path: ${{ env.NATIVE_FIXTURE_ROOT }}/**/evidence/result.json
           if-no-files-found: error
           retention-days: 10
           overwrite: false

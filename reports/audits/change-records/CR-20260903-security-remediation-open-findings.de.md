@@ -1178,3 +1178,43 @@ Artifact-Readback sowie die getrennte Protected-Base-/Host-Owner-Entscheidung
 bleiben erforderlich. Es wird kein Merge, kein Draft-Wechsel, Rebase,
 Force-Push, Risk Acceptance, Framework-/MRTS-/Gitlink-/Dependency-Change und
 keine Abschwächung von Tests, Sonar oder Quality Gates behauptet.
+
+### 2026-09-06 Dreizehnter Follow-up (isolierter Runner-Root der nativen Fixture)
+
+Der Exact-Head-NGINX-Workflow `34037807569` für
+`2dba14da707216652227709e79bf73d58a6c8ba6` bestand Checkout,
+Head-Verifikation, Preflight, Provisionierung und die echten Functional-A-
+On-/Off-Kontrollen. Anschließend schlug sein privater `nginx -t`-Test der
+nativen Body-Buffer-Fixture fail-closed mit der begrenzten Klasse
+`permission_denied` und dem SHA-256 des Konfigurationsoutputs
+`cf980554148465c1143c6be9dc8043b7543c4093d49d5b6518bb30d8f54d3486` fehl.
+Beide Uploads wurden korrekt übersprungen; dieser Lauf liefert daher weder ein
+Native-Fixture- noch ein Functional-A-Artefakt. Der gleichzeitig exakte
+CRS/no-MRTS-Lauf `34037807658` bestand alle fünf Zellen einschließlich des
+streng zurückgelesenen Lighttpd-Artefakts, ist nach dieser Successor-Änderung
+aber Predecessor-Evidence.
+
+Eine kontrollierte Non-root-Reproduktion zeigt keinen Produktdefekt. Common
+sicherer Event-File-Parent-Walk öffnet jede Komponente mit
+`O_RDONLY|O_DIRECTORY|O_NOFOLLOW`; er kann den root-eigenen, nicht
+auflistbaren Functional-A-Vorfahren mit `0711` korrekt nicht lesend öffnen,
+obwohl gewöhnliche Pfadtraversierung möglich ist. Derselbe Fixture-
+Konfigurationstest gelingt mit einem Output-Root als direktem runner-eigenem
+`0700`-Kind des verifizierten root-eigenen sticky `/tmp`. Common-No-follow-,
+Owner- und Private-Leaf-Prüfungen bleiben unverändert.
+
+Der eng begrenzte Successor erzeugt diesen Native-Fixture-Root mit einem
+unprivilegierten `mktemp` direkt unter dem bereits geprüften `/tmp`, validiert
+festen Namespace, Nicht-Symlink-Typ, Runner-UID:GID-Eigentum und Modus `0700`
+und übergibt ihn ausschließlich an die native Fixture. `FUNCTIONAL_JOB_ROOT`,
+seine root-eigene `0711`-Vorfahrenschaft, `RUN_ROOT`, der Functional-A-
+Evidence-Root, Common und Produkt-C bleiben unverändert. Der Artefakt-Upload
+akzeptiert weiterhin nur das vorhandene begrenzte `result.json` und schlägt bei
+seinem Fehlen fehl. Dies fügt keine Runner-, Privileg-, Dependency- oder
+Permission-Policy-Änderung hinzu.
+
+Der Successor verlangt frische lokale und GitHub-hosted-Exact-Head-Evidence,
+einschließlich SonarCloud-Readback, aller erforderlichen Repository-Checks,
+beider NGINX-Artefakte und aller fünf CRS/no-MRTS-Zellen. PR #354 bleibt Draft,
+offen und ungemergt; diese kandidaten-eigene Evidence bleibt von der für
+`FND-GITHUB-0009` nötigen Protected-Host-/Collector-Entscheidung getrennt.
