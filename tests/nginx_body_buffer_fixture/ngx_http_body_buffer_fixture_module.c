@@ -134,7 +134,11 @@ ngx_http_body_buffer_fixture_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
     ngx_fd_t original_fd;
     off_t original_file_pos;
     off_t original_file_last;
+    ngx_uint_t original_temporary;
+    ngx_uint_t original_memory;
+    ngx_uint_t original_mmap;
     const char *injection = "none";
+    const char *representation = "preserved";
     ngx_int_t result;
 
     if (ngx_http_body_buffer_fixture_next_body_filter == NULL) {
@@ -154,6 +158,25 @@ ngx_http_body_buffer_fixture_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
     original_file_pos = buffer->file_pos;
     original_file_last = buffer->file_last;
     original_fd = original_file != NULL ? original_file->fd : NGX_INVALID_FILE;
+    original_temporary = buffer->temporary;
+    original_memory = buffer->memory;
+    original_mmap = buffer->mmap;
+
+    if (ngx_http_body_buffer_fixture_mode_is(&conf->mode, "file-within") ||
+        ngx_http_body_buffer_fixture_mode_is(&conf->mode, "file-over-limit") ||
+        ngx_http_body_buffer_fixture_mode_is(&conf->mode, "invalid-metadata") ||
+        ngx_http_body_buffer_fixture_mode_is(&conf->mode, "missing-source") ||
+        ngx_http_body_buffer_fixture_mode_is(&conf->mode, "read-error") ||
+        ngx_http_body_buffer_fixture_mode_is(&conf->mode, "short-read") ||
+        ngx_http_body_buffer_fixture_mode_is(&conf->mode, "allocation-failure")) {
+        if (buffer->in_file == 0 || original_file == NULL) {
+            return NGX_ERROR;
+        }
+        representation = "file-only";
+        buffer->temporary = 0;
+        buffer->memory = 0;
+        buffer->mmap = 0;
+    }
 
     if (ngx_http_body_buffer_fixture_mode_is(&conf->mode,
             "allocation-failure")) {
@@ -188,10 +211,10 @@ ngx_http_body_buffer_fixture_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
     }
 
     ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
-        "body-buffer-fixture connector-boundary mode=%V memory=%ui in_file=%ui file_pos=%O file_last=%O injection=%s",
+        "body-buffer-fixture connector-boundary mode=%V memory=%ui in_file=%ui file_pos=%O file_last=%O representation=%s injection=%s",
         &conf->mode, (ngx_uint_t) ngx_buf_in_memory(buffer),
         (ngx_uint_t) buffer->in_file, buffer->file_pos, buffer->file_last,
-        injection);
+        representation, injection);
     result = ngx_http_body_buffer_fixture_next_body_filter(r, in);
 
     ngx_http_body_buffer_fixture_fail_allocation = 0;
@@ -201,6 +224,9 @@ ngx_http_body_buffer_fixture_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
     buffer->file = original_file;
     buffer->file_pos = original_file_pos;
     buffer->file_last = original_file_last;
+    buffer->temporary = original_temporary;
+    buffer->memory = original_memory;
+    buffer->mmap = original_mmap;
     if (ngx_http_body_buffer_fixture_mode_is(&conf->mode,
             "allocation-failure")) {
         ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
@@ -254,6 +280,8 @@ ngx_http_body_buffer_fixture_needs_file(const ngx_str_t *mode)
         ngx_http_body_buffer_fixture_mode_is(mode, "file-over-limit") ||
         ngx_http_body_buffer_fixture_mode_is(mode, "mixed-within") ||
         ngx_http_body_buffer_fixture_mode_is(mode, "mixed-over-limit") ||
+        ngx_http_body_buffer_fixture_mode_is(mode, "invalid-metadata") ||
+        ngx_http_body_buffer_fixture_mode_is(mode, "missing-source") ||
         ngx_http_body_buffer_fixture_mode_is(mode, "read-error") ||
         ngx_http_body_buffer_fixture_mode_is(mode, "short-read") ||
         ngx_http_body_buffer_fixture_mode_is(mode, "allocation-failure");
