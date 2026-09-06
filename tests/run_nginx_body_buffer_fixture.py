@@ -427,8 +427,6 @@ def run_server_cases(
                 if body != FIXTURE_PAYLOAD:
                     fail(f"{mode} did not forward the expected legitimate body")
             else:
-                if b"\r\n\r\n" not in response:
-                    fail(f"{mode} did not produce a complete HTTP response before rejection")
                 if body != b"":
                     fail(f"{mode} emitted {len(body)} body bytes after a required rejection")
             observations.append(

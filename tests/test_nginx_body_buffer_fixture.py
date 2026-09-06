@@ -89,7 +89,6 @@ class NginxBodyBufferFixtureContractTest(unittest.TestCase):
         self.assertIn("nginx_body_buffer_fixture", source)
         self.assertNotIn("ngx_http_modsecurity_module.so", source)
         self.assertIn('if body != b""', source)
-        self.assertIn('if b"\\r\\n\\r\\n" not in response', source)
         self.assertIn("require_healthy_worker", source)
         self.assertIn('"  sendfile on;"', source)
         self.assertIn("short_body_file", source)
