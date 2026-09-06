@@ -11,9 +11,11 @@ task log directory.
 from __future__ import annotations
 
 import argparse
+import grp
 import hashlib
 import json
 import os
+import pwd
 import re
 import shutil
 import socket
@@ -181,6 +183,16 @@ def write_config(
     mixed_body_file: Path,
     phase4_log: Path,
 ) -> None:
+    try:
+        nginx_user = pwd.getpwuid(os.geteuid()).pw_name
+        nginx_group = grp.getgrgid(os.getegid()).gr_name
+    except KeyError as exc:
+        raise FixtureFailure("fixture runner cannot resolve its current NGINX identity") from exc
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", nginx_user) or not re.fullmatch(
+        r"[A-Za-z0-9_-]+", nginx_group
+    ):
+        fail("fixture runner has an unsafe NGINX user or group name")
+
     def location(mode: str) -> str:
         return "\n".join(
             (
@@ -218,6 +230,7 @@ def write_config(
         (
             f"load_module {connector_module};",
             f"load_module {fixture_module};",
+            f"user {nginx_user} {nginx_group};",
             "worker_processes 1;",
             f"error_log {prefix / 'logs' / 'error.log'} notice;",
             f"pid {prefix / 'logs' / 'nginx.pid'};",

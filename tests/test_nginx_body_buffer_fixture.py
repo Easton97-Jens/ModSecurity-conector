@@ -70,6 +70,8 @@ class NginxBodyBufferFixtureContractTest(unittest.TestCase):
         ast.parse(source, filename=str(RUNNER))
         self.assertIn("assert_exact_checkout", source)
         self.assertIn("fixture requires a clean exact checkout", source)
+        self.assertIn("pwd.getpwuid(os.geteuid())", source)
+        self.assertIn('f"user {nginx_user} {nginx_group};"', source)
         self.assertIn("--add-dynamic-module=", source)
         self.assertIn("connectors' / 'nginx", source)
         self.assertIn("nginx_body_buffer_fixture", source)
