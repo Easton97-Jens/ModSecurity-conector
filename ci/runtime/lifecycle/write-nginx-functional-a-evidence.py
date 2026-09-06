@@ -196,6 +196,33 @@ def _parse_identity(data: bytes) -> dict[str, str]:
     return dict(zip(IDENTITY_LABELS, values, strict=True))
 
 
+def _validate_phase4_record(record: Any, mode: str) -> bool:
+    if not isinstance(record, dict):
+        raise EvidenceError(f"{mode} JSONL record is not an object")
+    if str(record.get("rule_id")) != PHASE4_RULE_ID:
+        return False
+    if record.get("redacted") is not True or record.get("truncated") is not False:
+        raise EvidenceError(f"{mode} JSONL redaction/truncation facts are invalid")
+    if record.get("uri") != EXPECTED_URI:
+        raise EvidenceError(f"{mode} JSONL URI is not the expected redacted form")
+    transaction_id = record.get("transaction_id")
+    if not isinstance(transaction_id, str) or not transaction_id:
+        raise EvidenceError(f"{mode} JSONL transaction correlation is absent")
+    for key in ("sequence", "previous_event_hash", "event_hash"):
+        value = record.get(key)
+        if type(value) is not int or value < 0:
+            raise EvidenceError(f"{mode} JSONL integrity field is invalid")
+    return True
+
+
+def _parse_phase4_line(line: str, mode: str) -> bool:
+    try:
+        record = json.loads(line)
+    except json.JSONDecodeError as error:
+        raise EvidenceError(f"{mode} JSONL is malformed") from error
+    return _validate_phase4_record(record, mode)
+
+
 def _parse_phase4_jsonl(data: bytes, mode: str) -> int:
     if QUERY_CANARY in data:
         raise EvidenceError(f"{mode} JSONL contains the query canary")
@@ -203,29 +230,7 @@ def _parse_phase4_jsonl(data: bytes, mode: str) -> int:
         lines = data.decode("utf-8").splitlines()
     except UnicodeDecodeError as error:
         raise EvidenceError(f"{mode} JSONL is not UTF-8") from error
-    records = 0
-    for line in lines:
-        if not line:
-            continue
-        try:
-            record = json.loads(line)
-        except json.JSONDecodeError as error:
-            raise EvidenceError(f"{mode} JSONL is malformed") from error
-        if not isinstance(record, dict):
-            raise EvidenceError(f"{mode} JSONL record is not an object")
-        if str(record.get("rule_id")) != PHASE4_RULE_ID:
-            continue
-        if record.get("redacted") is not True or record.get("truncated") is not False:
-            raise EvidenceError(f"{mode} JSONL redaction/truncation facts are invalid")
-        if record.get("uri") != EXPECTED_URI:
-            raise EvidenceError(f"{mode} JSONL URI is not the expected redacted form")
-        if not isinstance(record.get("transaction_id"), str) or not record["transaction_id"]:
-            raise EvidenceError(f"{mode} JSONL transaction correlation is absent")
-        for key in ("sequence", "previous_event_hash", "event_hash"):
-            value = record.get(key)
-            if type(value) is not int or value < 0:
-                raise EvidenceError(f"{mode} JSONL integrity field is invalid")
-        records += 1
+    records = sum(_parse_phase4_line(line, mode) for line in lines if line)
     if not records:
         raise EvidenceError(f"{mode} JSONL has no Phase-4 record")
     return records

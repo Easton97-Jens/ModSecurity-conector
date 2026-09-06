@@ -168,12 +168,13 @@ class NginxFunctionalEvidenceTest(unittest.TestCase):
         result = self.evidence_root / "result.json"
         result.write_text("stale\n", encoding="utf-8")
         result.chmod(0o600)
+        document = self.collect()
         with self.assertRaisesRegex(WRITER_MODULE.EvidenceError, "already exists"):
             WRITER_MODULE.publish_one_shot(
                 self.evidence_root,
                 self.owner_uid,
                 self.owner_gid,
-                self.collect(),
+                document,
             )
         self.assertEqual(result.read_text(encoding="utf-8"), "stale\n")
 

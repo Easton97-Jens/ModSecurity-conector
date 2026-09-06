@@ -163,6 +163,33 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
             self.assertEqual(second.returncode, 1)
             self.assertIn("unable to retain", second.stderr)
 
+    def test_failed_generic_runtime_rejects_a_symlinked_root(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crs-upload-root-symlink-") as temporary:
+            parent = Path(temporary)
+            target = parent / "target"
+            target.mkdir(mode=0o700)
+            root = parent / "root-alias"
+            root.symlink_to(target, target_is_directory=True)
+            result = self.run_upload_preparer(root, "lighttpd", "run-1", "a" * 40, "failure")
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("unsafe runtime evidence root", result.stderr)
+            self.assertFalse((target / "failure-receipt.json").exists())
+
+    def test_failed_generic_runtime_rejects_a_symlinked_root_ancestor(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crs-upload-ancestor-symlink-") as temporary:
+            parent = Path(temporary)
+            outside = parent / "outside"
+            target = outside / "verified"
+            target.mkdir(parents=True, mode=0o700)
+            alias = parent / "outside-alias"
+            alias.symlink_to(outside, target_is_directory=True)
+            result = self.run_upload_preparer(
+                alias / "verified", "lighttpd", "run-1", "a" * 40, "failure"
+            )
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("unsafe runtime evidence root", result.stderr)
+            self.assertFalse((target / "failure-receipt.json").exists())
+
     def test_generic_upload_accepts_current_bound_pass_evidence(self) -> None:
         with tempfile.TemporaryDirectory(prefix="crs-upload-pass-") as temporary:
             root = Path(temporary)

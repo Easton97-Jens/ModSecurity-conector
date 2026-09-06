@@ -21,6 +21,8 @@ FAILURE_RECEIPT_CONNECTORS = GENERIC_CONNECTORS | frozenset(("apache",))
 OUTCOMES = frozenset(("success", "failure", "cancelled", "skipped"))
 MAX_RECORD_BYTES = 65536
 RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,47}$")
+VERIFIED_ROOT_LABEL = "verified root"
+FAILURE_RECEIPT_NAME = "failure-receipt.json"
 
 
 def sha(value: str) -> bool:
@@ -60,31 +62,64 @@ def require_safe_regular(details: os.stat_result, label: str) -> None:
 
 
 def require_verified_root(path: Path) -> Path:
-    root = Path(os.path.abspath(path))
-    if not root.is_absolute() or root == Path("/"):
+    root = Path(path)
+    if not root.is_absolute() or root == Path("/") or ".." in root.parts:
         raise ValueError("verified root is not an absolute non-root path")
-    before = root.lstat()
-    if stat.S_ISLNK(before.st_mode):
-        raise ValueError("verified root is a symlink")
-    require_safe_directory(before, "verified root")
+    descriptor = open_private_directory(root, VERIFIED_ROOT_LABEL)
+    os.close(descriptor)
     return root
 
 
-def open_private_directory(path: Path, label: str) -> int:
-    before = path.lstat()
+def open_directory_component(
+    parent: int, component: str, label: str, *, require_private: bool = False
+) -> int:
+    if not component or component in (".", "..") or "/" in component:
+        raise ValueError(f"{label} has an unsafe path component")
+    before = os.stat(component, dir_fd=parent, follow_symlinks=False)
     if stat.S_ISLNK(before.st_mode):
-        raise ValueError(f"{label} is a symlink")
-    require_safe_directory(before, label)
+        raise ValueError(f"{label} contains a symbolic link")
+    if not stat.S_ISDIR(before.st_mode):
+        raise ValueError(f"{label} contains a non-directory component")
     no_follow = getattr(os, "O_NOFOLLOW", None)
     directory = getattr(os, "O_DIRECTORY", None)
     if no_follow is None or directory is None:
         raise ValueError("safe evidence access requires no-follow directory support")
-    descriptor = os.open(path, os.O_RDONLY | directory | no_follow)
+    descriptor = os.open(component, os.O_RDONLY | directory | no_follow, dir_fd=parent)
     try:
         opened = os.fstat(descriptor)
         if identity(opened) != identity(before):
             raise ValueError(f"{label} changed between validation and open")
-        require_safe_directory(opened, label)
+        if not stat.S_ISDIR(opened.st_mode):
+            raise ValueError(f"{label} component is not a directory")
+        if require_private:
+            require_safe_directory(opened, label)
+    except BaseException:
+        os.close(descriptor)
+        raise
+    return descriptor
+
+
+def open_private_directory(path: Path, label: str) -> int:
+    """Open every absolute component without trusting a symlinked ancestor.
+
+    ``O_NOFOLLOW`` applies only to the terminal component of one ``open``;
+    the descriptor-relative walk keeps an untrusted CLI root from redirecting
+    receipt or evidence access through an ancestor symbolic link.
+    """
+    root = Path(path)
+    if not root.is_absolute() or root == Path("/") or ".." in root.parts:
+        raise ValueError(f"{label} is not an absolute non-root non-traversing path")
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    directory = getattr(os, "O_DIRECTORY", None)
+    if no_follow is None or directory is None:
+        raise ValueError("safe evidence access requires no-follow directory support")
+    descriptor = os.open("/", os.O_RDONLY | directory | no_follow)
+    try:
+        for component in root.parts[1:]:
+            child = open_directory_component(descriptor, component, label)
+            os.close(descriptor)
+            descriptor = child
+        require_safe_directory(os.fstat(descriptor), label)
     except BaseException:
         os.close(descriptor)
         raise
@@ -95,28 +130,15 @@ def read_evidence(root: Path, components: tuple[str, ...], label: str) -> bytes:
     if not components:
         raise ValueError("evidence path is empty")
     no_follow = getattr(os, "O_NOFOLLOW", None)
-    directory = getattr(os, "O_DIRECTORY", None)
     nonblock = getattr(os, "O_NONBLOCK", None)
-    if no_follow is None or directory is None or nonblock is None:
+    if no_follow is None or nonblock is None:
         raise ValueError("safe evidence access requires no-follow non-blocking support")
-    directory_descriptor = open_private_directory(root, "verified root")
+    directory_descriptor = open_private_directory(root, VERIFIED_ROOT_LABEL)
     try:
         for component in components[:-1]:
-            before = os.stat(component, dir_fd=directory_descriptor, follow_symlinks=False)
-            require_safe_directory(before, label)
-            next_descriptor = os.open(
-                component,
-                os.O_RDONLY | directory | no_follow,
-                dir_fd=directory_descriptor,
+            next_descriptor = open_directory_component(
+                directory_descriptor, component, label, require_private=True
             )
-            try:
-                opened = os.fstat(next_descriptor)
-                if identity(opened) != identity(before):
-                    raise ValueError(f"{label} directory changed between validation and open")
-                require_safe_directory(opened, label)
-            except BaseException:
-                os.close(next_descriptor)
-                raise
             os.close(directory_descriptor)
             directory_descriptor = next_descriptor
         before = os.stat(
@@ -229,10 +251,10 @@ def write_receipt(
     no_follow = getattr(os, "O_NOFOLLOW", None)
     if no_follow is None:
         raise ValueError("safe receipt publication requires no-follow support")
-    root_descriptor = open_private_directory(root, "verified root")
+    root_descriptor = open_private_directory(root, VERIFIED_ROOT_LABEL)
     try:
         flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow
-        descriptor = os.open("failure-receipt.json", flags, 0o600, dir_fd=root_descriptor)
+        descriptor = os.open(FAILURE_RECEIPT_NAME, flags, 0o600, dir_fd=root_descriptor)
         try:
             remaining = memoryview(data)
             while remaining:
@@ -250,10 +272,10 @@ def write_receipt(
 
 
 def receipt_exists(root: Path) -> bool:
-    descriptor = open_private_directory(root, "verified root")
+    descriptor = open_private_directory(root, VERIFIED_ROOT_LABEL)
     try:
         try:
-            os.stat("failure-receipt.json", dir_fd=descriptor, follow_symlinks=False)
+            os.stat(FAILURE_RECEIPT_NAME, dir_fd=descriptor, follow_symlinks=False)
         except FileNotFoundError:
             return False
         return True
@@ -280,8 +302,13 @@ def main() -> int:
         return 2
     try:
         verified_root = require_verified_root(args.verified_root)
-        expected_receipt = verified_root / "failure-receipt.json"
-        if Path(os.path.abspath(args.receipt)) != expected_receipt:
+        receipt = Path(args.receipt)
+        expected_receipt = verified_root / FAILURE_RECEIPT_NAME
+        if (
+            not receipt.is_absolute()
+            or ".." in receipt.parts
+            or receipt != expected_receipt
+        ):
             raise ValueError("failure receipt escapes the verified runtime root")
     except (OSError, ValueError) as exc:
         print(f"FAIL: unsafe runtime evidence root: {exc}", file=os.sys.stderr)
@@ -296,7 +323,7 @@ def main() -> int:
                 args.runtime_outcome,
                 "runtime did not complete successfully",
             )
-        except (FileExistsError, OSError, ValueError) as receipt_error:
+        except (OSError, ValueError) as receipt_error:
             print(
                 f"FAIL: unable to retain bounded runtime failure receipt: {receipt_error}",
                 file=os.sys.stderr,
@@ -307,7 +334,7 @@ def main() -> int:
         return 2
     try:
         load_pass_evidence(verified_root, args.connector, args.run_id, args.parent_sha)
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError) as exc:
         print(f"FAIL: runtime evidence validation failed: {exc}", file=os.sys.stderr)
         return 1
     if receipt_exists(verified_root):

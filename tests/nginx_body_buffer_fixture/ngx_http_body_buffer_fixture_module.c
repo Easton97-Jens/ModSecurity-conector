@@ -47,6 +47,8 @@ static ngx_int_t ngx_http_body_buffer_fixture_open_file(ngx_http_request_t *r,
     const ngx_str_t *path, ngx_file_t **file);
 static ngx_int_t ngx_http_body_buffer_fixture_add_header(ngx_http_request_t *r,
     const ngx_str_t *mode);
+static ngx_int_t ngx_http_body_buffer_fixture_plan_lengths(
+    const ngx_str_t *mode, size_t *memory_length, off_t *file_length);
 extern ngx_module_t ngx_http_body_buffer_fixture_module;
 
 /* This symbol is linked only into the runner's separately built NGINX test
@@ -344,6 +346,49 @@ ngx_http_body_buffer_fixture_add_header(ngx_http_request_t *r,
 }
 
 static ngx_int_t
+ngx_http_body_buffer_fixture_plan_lengths(const ngx_str_t *mode,
+    size_t *memory_length, off_t *file_length)
+{
+    if (memory_length == NULL || file_length == NULL) {
+        return NGX_ERROR;
+    }
+    *memory_length = 0U;
+    *file_length = 0;
+
+    if (ngx_http_body_buffer_fixture_mode_is(mode, "memory-within") ||
+        ngx_http_body_buffer_fixture_mode_is(mode, "mixed-within")) {
+        *memory_length = FIXTURE_BODY_LENGTH;
+    } else if (ngx_http_body_buffer_fixture_mode_is(mode,
+                   "memory-over-limit") ||
+               ngx_http_body_buffer_fixture_mode_is(mode,
+                   "mixed-over-limit")) {
+        *memory_length = FIXTURE_OVER_LIMIT_LENGTH;
+    }
+
+    if (ngx_http_body_buffer_fixture_mode_is(mode, "file-within") ||
+        ngx_http_body_buffer_fixture_mode_is(mode, "mixed-within")) {
+        *file_length = (off_t) FIXTURE_BODY_LENGTH;
+    } else if (ngx_http_body_buffer_fixture_mode_is(mode,
+                   "file-over-limit") ||
+               ngx_http_body_buffer_fixture_mode_is(mode,
+                   "mixed-over-limit")) {
+        *file_length = (off_t) FIXTURE_OVER_LIMIT_LENGTH;
+    } else if (ngx_http_body_buffer_fixture_mode_is(mode,
+                   "allocation-failure") ||
+               ngx_http_body_buffer_fixture_mode_is(mode, "read-error") ||
+               ngx_http_body_buffer_fixture_mode_is(mode, "short-read") ||
+               ngx_http_body_buffer_fixture_mode_is(mode,
+                   "invalid-metadata") ||
+               ngx_http_body_buffer_fixture_mode_is(mode, "missing-source")) {
+        /* Error cases must reach their own connector checks. */
+        *file_length = (off_t) FIXTURE_BODY_LENGTH;
+    }
+
+    return *memory_length != 0U || *file_length != 0
+        ? NGX_OK : NGX_ERROR;
+}
+
+static ngx_int_t
 ngx_http_body_buffer_fixture_handler(ngx_http_request_t *r)
 {
     ngx_http_body_buffer_fixture_loc_conf_t *conf;
@@ -368,43 +413,8 @@ ngx_http_body_buffer_fixture_handler(ngx_http_request_t *r)
     ngx_http_body_buffer_fixture_fail_allocation = 0;
     ngx_http_body_buffer_fixture_allocation_wrapper_hits = 0;
 
-    if (ngx_http_body_buffer_fixture_mode_is(&conf->mode, "memory-within") ||
-        ngx_http_body_buffer_fixture_mode_is(&conf->mode, "mixed-within")) {
-        memory_length = FIXTURE_BODY_LENGTH;
-    } else if (ngx_http_body_buffer_fixture_mode_is(&conf->mode,
-                   "memory-over-limit") ||
-               ngx_http_body_buffer_fixture_mode_is(&conf->mode,
-                   "mixed-over-limit")) {
-        memory_length = FIXTURE_OVER_LIMIT_LENGTH;
-    }
-
-    if (ngx_http_body_buffer_fixture_mode_is(&conf->mode, "file-within") ||
-        ngx_http_body_buffer_fixture_mode_is(&conf->mode, "mixed-within")) {
-        file_length = (off_t) FIXTURE_BODY_LENGTH;
-    } else if (ngx_http_body_buffer_fixture_mode_is(&conf->mode,
-                   "file-over-limit") ||
-               ngx_http_body_buffer_fixture_mode_is(&conf->mode,
-                   "mixed-over-limit")) {
-        file_length = (off_t) FIXTURE_OVER_LIMIT_LENGTH;
-    } else if (ngx_http_body_buffer_fixture_mode_is(&conf->mode,
-                   "allocation-failure") ||
-               ngx_http_body_buffer_fixture_mode_is(&conf->mode,
-                   "read-error")) {
-        /* Keep this file range within the configured limit so the real
-         * connector reaches its request-pool scratch allocation. */
-        file_length = (off_t) FIXTURE_BODY_LENGTH;
-    } else if (ngx_http_body_buffer_fixture_mode_is(&conf->mode, "short-read")) {
-        /* The physical short fixture file has one fewer byte.  Keep the
-         * declared range within the existing limit so ngx_read_file runs. */
-        file_length = (off_t) FIXTURE_BODY_LENGTH;
-    } else if (ngx_http_body_buffer_fixture_mode_is(&conf->mode,
-                   "invalid-metadata") ||
-               ngx_http_body_buffer_fixture_mode_is(&conf->mode,
-                   "missing-source")) {
-        /* Metadata and missing-source cases must reach their own connector
-         * checks, rather than being rejected first by the body-limit plan. */
-        file_length = (off_t) FIXTURE_BODY_LENGTH;
-    } else if (memory_length == 0U) {
+    if (ngx_http_body_buffer_fixture_plan_lengths(&conf->mode, &memory_length,
+            &file_length) != NGX_OK) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 

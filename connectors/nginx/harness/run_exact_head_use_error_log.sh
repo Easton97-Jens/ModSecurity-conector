@@ -109,12 +109,15 @@ assert_same_artifact_identity() {
 require_functional_evidence_stage() {
     case "$FUNCTIONAL_EVIDENCE_OWNER_UID:$FUNCTIONAL_EVIDENCE_OWNER_GID" in
         *[!0-9:]*|:*) fail "invalid Functional-A evidence owner" ;;
+        *) ;;
     esac
     case "$EXPECTED_PARENT_SHA" in
         ''|*[!0123456789abcdef]*) fail "invalid expected Parent head for Functional-A evidence" ;;
+        *) ;;
     esac
     case "$NGINX_ARCHIVE_SHA256" in
         ''|*[!0123456789abcdef]*) fail "invalid NGINX archive SHA-256 for Functional-A evidence" ;;
+        *) ;;
     esac
     [ "${#EXPECTED_PARENT_SHA}" -eq 40 ] || \
         fail "expected Parent head is not an exact commit SHA for Functional-A evidence"
