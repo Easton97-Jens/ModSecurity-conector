@@ -1,7 +1,8 @@
 """Contracts for the separately built native NGINX response-buffer fixture.
 
-These checks protect fixture wiring only.  The native runner is the behavioral
-proof because it builds the modules and traverses the real NGINX filter chain.
+These checks protect fixture wiring only. The native runner is the behavioral
+proof because it builds a dedicated test binary and traverses the real NGINX
+filter chain.
 """
 
 from __future__ import annotations
@@ -71,12 +72,12 @@ class NginxBodyBufferFixtureContractTest(unittest.TestCase):
         self.assertIn("fixture requires a clean exact checkout", source)
         self.assertIn("pwd.getpwuid(os.geteuid())", source)
         self.assertIn('f"user {nginx_user} {nginx_group};"', source)
-        self.assertIn("--add-dynamic-module=", source)
         self.assertIn("--add-module=", source)
-        self.assertIn("--with-ld-opt=-Wl,--wrap=malloc", source)
+        self.assertNotIn("--add-dynamic-module=", source)
+        self.assertIn("--with-ld-opt=-Wl,--wrap=ngx_pnalloc", source)
         self.assertIn("connectors' / 'nginx", source)
         self.assertIn("nginx_body_buffer_fixture", source)
-        self.assertIn("ngx_http_modsecurity_module.so", source)
+        self.assertNotIn("ngx_http_modsecurity_module.so", source)
         self.assertIn('elif body != b""', source)
         self.assertIn("short_body_file", source)
         self.assertIn("mixed_body_file", source)
@@ -90,15 +91,20 @@ class NginxBodyBufferFixtureContractTest(unittest.TestCase):
     def test_allocation_fault_is_static_fixture_only(self) -> None:
         source = MODULE.read_text(encoding="utf-8")
         self.assertIn("ngx_http_body_buffer_fixture_fail_allocation", source)
+        self.assertIn("ngx_http_body_buffer_fixture_allocation_wrapper_hits", source)
         self.assertIn("volatile sig_atomic_t", source)
         self.assertIn("size == 32768U", source)
-        self.assertIn("__wrap_malloc", source)
-        self.assertIn("__real_malloc", source)
+        self.assertIn("__wrap_ngx_pnalloc", source)
+        self.assertIn("__real_ngx_pnalloc", source)
         self.assertNotIn("setenv(", source)
         self.assertNotIn("getenv(", source)
         runner = RUNNER.read_text(encoding="utf-8")
         self.assertNotIn("LD_PRELOAD", runner)
-        self.assertIn("test_only_static_linker_wrap_32768_byte_request_pool_scratch", runner)
+        self.assertIn(
+            "test_only_static_ngx_pnalloc_wrap_32768_byte_scratch",
+            runner,
+        )
+        self.assertIn("allocation-wrapper-hits=1", runner)
         product = (ROOT / "connectors" / "nginx" / "src" / "ngx_http_modsecurity_body_filter.c").read_text(
             encoding="utf-8"
         )

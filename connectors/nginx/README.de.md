@@ -469,13 +469,17 @@ in Event-JSONL.
 
 `tests/run_nginx_body_buffer_fixture.py` ist eine reine Test-Fixture für die
 native Grenzprüfung. Sie baut den ausgewählten sauberen Connector-Checkout und
-ein separates reines Fixture-Modul gegen die gepinnte NGINX-Quelle neu
-und gibt echte Memory-, file-only- und gemischte `ngx_buf_t`-Werte durch die
-installierte Filterkette aus. Ihre Testkonfiguration wählt das bestehende Limit
-nur für Fälle innerhalb des Limits und für Reject-before-forwarding; sie ändert
-keinen Produkt-Default. Das zurückgehaltene Ergebnis enthält nur exakten Head,
-Build-Identitäten, Buffer-Flags, Längen und begrenzte Accounting-Werte—keine
-Response-Nutzlasten.
+eine separate reine Fixture in ein dediziertes NGINX-Test-Binary gegen die
+gepinnte NGINX-Quelle neu und gibt echte Memory-, file-only- und gemischte
+`ngx_buf_t`-Werte durch die installierte Filterkette aus. Ihre Testkonfiguration
+wählt das bestehende Limit nur für Fälle innerhalb des Limits und für
+Reject-before-forwarding; sie ändert keinen Produkt-Default. Ihr
+Allokationsfehlerfall verändert nur das Test-Binary: Ein statisch gelinkter
+Fixture-Wrapper weist die bekannte 32-KiB-`ngx_pnalloc`-Scratch-Anfrage ab und
+zeichnet genau einen Wrapper-Treffer auf. Weder Connector-Code noch ein
+Produktions-Fault-Injection-Schalter werden verändert. Das zurückgehaltene
+Ergebnis enthält nur exakten Head, Build-Identitäten, Buffer-Flags, Längen und
+begrenzte Accounting-Werte—keine Response-Nutzlasten.
 
 Eine Regelübereinstimmung muss unabhängig von einem sichtbaren 403 gemeldet
 werden. Kanonische Ereignisse bewahren den ursprünglichen Host-Status, den

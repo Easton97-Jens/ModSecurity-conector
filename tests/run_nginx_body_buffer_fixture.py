@@ -174,7 +174,6 @@ def write_private(path: Path, content: bytes) -> None:
 def write_config(
     path: Path,
     *,
-    connector_module: Path,
     prefix: Path,
     port: int,
     body_file: Path,
@@ -227,7 +226,6 @@ def write_config(
     )
     config = "\n".join(
         (
-            f"load_module {connector_module};",
             f"user {nginx_user} {nginx_group};",
             "worker_processes 1;",
             f"error_log {prefix / 'logs' / 'error.log'} notice;",
@@ -485,18 +483,22 @@ def main(argv: list[str]) -> int:
         "./configure",
         f"--prefix={build_root / 'prefix'}",
         "--with-compat",
-        "--with-ld-opt=-Wl,--wrap=malloc",
-        f"--add-dynamic-module={connector_root / 'connectors' / 'nginx'}",
+        "--with-ld-opt=-Wl,--wrap=ngx_pnalloc",
+        f"--add-module={connector_root / 'connectors' / 'nginx'}",
         f"--add-module={connector_root / 'tests' / 'nginx_body_buffer_fixture'}",
     ]
     run(configure, cwd=nginx_source, environment=environment, log=logs_root / "configure.log")
     jobs = str(min(2, max(1, os.cpu_count() or 1)))
-    run(["make", f"-j{jobs}", "modules"], cwd=nginx_source, environment=environment, log=logs_root / "make-modules.log")
     run(["make", f"-j{jobs}"], cwd=nginx_source, environment=environment, log=logs_root / "make.log")
 
     nginx = nginx_source / "objs" / "nginx"
-    connector_module = nginx_source / "objs" / "ngx_http_modsecurity_module.so"
-    for path, label in ((nginx, "NGINX binary"), (connector_module, "connector module")):
+    connector_body_filter_object = (
+        nginx_source / "objs" / "addon" / "src" / "ngx_http_modsecurity_body_filter.o"
+    )
+    for path, label in (
+        (nginx, "NGINX test binary"),
+        (connector_body_filter_object, "static connector body-filter object"),
+    ):
         require_regular_file(path, label)
 
     body_file = runtime_root / "fixture-body.bin"
@@ -512,7 +514,6 @@ def main(argv: list[str]) -> int:
     normal_port = choose_port()
     write_config(
         normal_config,
-        connector_module=connector_module,
         prefix=normal_prefix,
         port=normal_port,
         body_file=body_file,
@@ -555,7 +556,6 @@ def main(argv: list[str]) -> int:
     allocation_port = choose_port()
     write_config(
         allocation_config,
-        connector_module=connector_module,
         prefix=allocation_prefix,
         port=allocation_port,
         body_file=body_file,
@@ -583,6 +583,10 @@ def main(argv: list[str]) -> int:
     allocation_error = read_bounded(allocation_prefix / "logs" / "error.log")
     if "cannot allocate file-backed response body scratch" not in allocation_error:
         fail("allocation-failure case did not reach the connector scratch allocation")
+    if re.search(
+        r"body-buffer-fixture allocation-wrapper-hits=1(?:\D|$)", allocation_error
+    ) is None:
+        fail("allocation-failure case did not record exactly one fixture wrapper hit")
     normal_error = read_bounded(normal_prefix / "logs" / "error.log")
     for expected_error, label in (
         ("invalid file-backed response body metadata", "invalid-metadata"),
@@ -600,7 +604,11 @@ def main(argv: list[str]) -> int:
             "version": "1.31.4",
             "archive_sha256": archive_digest,
             "binary_sha256": sha256_file(nginx),
-            "connector_module_sha256": sha256_file(connector_module),
+            "connector_linkage": "static_test_binary",
+            "connector_body_filter_object_sha256": sha256_file(connector_body_filter_object),
+            "connector_body_filter_source_sha256": sha256_file(
+                connector_root / "connectors" / "nginx" / "src" / "ngx_http_modsecurity_body_filter.c"
+            ),
             "fixture_source_sha256": sha256_file(
                 connector_root
                 / "tests"
@@ -618,7 +626,8 @@ def main(argv: list[str]) -> int:
             "file_payload_sha256": hashlib.sha256(FIXTURE_FILE_PAYLOAD).hexdigest(),
             "short_file_payload_sha256": hashlib.sha256(FIXTURE_SHORT_FILE_PAYLOAD).hexdigest(),
             "mixed_file_payload_sha256": hashlib.sha256(FIXTURE_MIXED_FILE_PAYLOAD).hexdigest(),
-            "allocation_failure": "test_only_static_linker_wrap_32768_byte_request_pool_scratch",
+            "allocation_failure": "test_only_static_ngx_pnalloc_wrap_32768_byte_scratch",
+            "allocation_wrapper_hits": 1,
             "overflow": "not_representable_on_this_64_bit_off_t_size_t_runtime",
         },
         "cases": observations,

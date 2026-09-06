@@ -42,23 +42,26 @@ static ngx_int_t ngx_http_body_buffer_fixture_add_header(ngx_http_request_t *r,
     const ngx_str_t *mode);
 
 /* This symbol is linked only into the runner's separately built NGINX test
- * binary with --wrap=malloc.  The production connector and its dynamic module
- * neither compile nor link it. */
-extern void *__real_malloc(size_t size);
+ * binary with --wrap=ngx_pnalloc.  The production connector source is built
+ * into that test binary solely to expose its real allocation boundary; the
+ * production connector build neither compiles nor links this wrapper. */
+extern void *__real_ngx_pnalloc(ngx_pool_t *pool, size_t size);
 
 /* The test-only content handler and this link-time wrapper run in the same
- * NGINX worker.  A process-local flag avoids relying on a mutable environment
- * from the worker while keeping allocation injection out of the connector. */
+ * NGINX worker. A process-local flag avoids relying on a mutable environment
+ * while keeping allocation injection out of the connector. */
 static volatile sig_atomic_t ngx_http_body_buffer_fixture_fail_allocation;
+static volatile sig_atomic_t ngx_http_body_buffer_fixture_allocation_wrapper_hits;
 
 void *
-__wrap_malloc(size_t size)
+__wrap_ngx_pnalloc(ngx_pool_t *pool, size_t size)
 {
     if (ngx_http_body_buffer_fixture_fail_allocation != 0 && size == 32768U) {
+        ngx_http_body_buffer_fixture_allocation_wrapper_hits++;
         errno = ENOMEM;
         return NULL;
     }
-    return __real_malloc(size);
+    return __real_ngx_pnalloc(pool, size);
 }
 
 static ngx_command_t ngx_http_body_buffer_fixture_commands[] = {
@@ -225,6 +228,7 @@ ngx_http_body_buffer_fixture_handler(ngx_http_request_t *r)
     allocation_failure = ngx_http_body_buffer_fixture_mode_is(&conf->mode,
         "allocation-failure");
     ngx_http_body_buffer_fixture_fail_allocation = 0;
+    ngx_http_body_buffer_fixture_allocation_wrapper_hits = 0;
 
     if (ngx_http_body_buffer_fixture_mode_is(&conf->mode, "memory-within") ||
         ngx_http_body_buffer_fixture_mode_is(&conf->mode, "mixed-within")) {
@@ -347,6 +351,11 @@ ngx_http_body_buffer_fixture_handler(ngx_http_request_t *r)
     }
     result = ngx_http_output_filter(r, &output);
     ngx_http_body_buffer_fixture_fail_allocation = 0;
+    if (allocation_failure != 0U) {
+        ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
+            "body-buffer-fixture allocation-wrapper-hits=%i",
+            (ngx_int_t) ngx_http_body_buffer_fixture_allocation_wrapper_hits);
+    }
     return result;
 }
 
