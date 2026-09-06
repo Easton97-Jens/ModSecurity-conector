@@ -936,8 +936,8 @@ the scrubbed `sudo` handoff. It does not accept a `TMPDIR`-redirected root.
 
 Before unprivileged provisioning, the workflow now creates the fresh
 Functional-A job root and its fixed functional-parent sibling as root-owned
-directories, validates the job root's initial `0700` state, and sets each to
-non-enumerable `0711`. It creates, chowns, and keeps only the separate
+directories, validates only the job root's initial `0700` state, and then sets
+both ancestors to non-enumerable `0711`. It creates, chowns, and keeps only the separate
 provisioning `RUN_ROOT` runner-owned at exact `0700`. The launcher therefore
 requires root ownership for both visible ancestors and runner ownership only
 for that private root. This preserves the existing runtime path-authority
@@ -945,7 +945,7 @@ validator, leaves unprivileged provisioning unprivileged, and does not add a
 generic path reopen or broaden the privileged command surface.
 
 The successor's non-root-fixture launcher, exact-gate, worker-traversal,
-path-authority, and runtime-path security suite passed 50 focused tests;
+path-authority, and runtime-path security suite passed 49 focused tests;
 `actionlint` with ShellCheck, shell syntax, Python compilation, and whitespace
 checks also passed. These local source/contract results are not a Sonar or
 GitHub-hosted runtime success claim. After its normal successor push, the new
@@ -960,3 +960,53 @@ on/off/JSONL/WAF/allow run.
 a GitHub-hosted native integration test, not Protected B or an attestation
 against malicious runner or VM-root code. PR #354 remains Draft, open, and
 unmerged.
+
+### 2026-09-06 tenth follow-up (narrow native Phase-4 and lifecycle candidate pending successor proof)
+
+The predecessor `f5c16f210cd6435a7372ca8d4f8ed10aaa2d9174` is not evidence for
+this candidate. Its dynamic transaction-ID path reached Common with an
+evaluator-added terminal NUL because `ngx_conf_set_transaction_id()` used
+`ccv.zero=1`; Common correctly rejected that non-canonical byte. The narrow
+NGINX C change sets `ccv.zero=0`, retains strict Common byte validation, copies
+only the exact evaluated bytes, and adds its own C terminator after the copy.
+No Common validation, serializer, redaction, integrity, WAF-URI, dependency,
+Framework, MRTS, or Gitlink behavior was changed.
+
+The candidate also makes two native lifecycle assertions causal. For a
+deliberately unsafe phase-4 target it preserves expected `nginx -t` rejection,
+records the active master/worker identity, then delivers direct HUP to that
+master rather than treating a separate `nginx -s reload` parse as signal
+delivery. For the secure reload it reuses the pinned, read-only Framework
+synchronized upstream through a dedicated `modsecurity off`, unbuffered
+loopback route; paused state and a client first byte precede reload, an exact
+old live non-zombie direct worker and distinct replacement are observed from
+one PID/PPID/state snapshot, and release occurs only after overlap. The
+full-lifecycle synchronized control root is now additionally authorized below
+the verified run root before the helper opens control or evidence files; an
+out-of-root negative control is rejected fail-closed.
+
+Fresh local candidate checks passed: 208 executable NGINX contract tests,
+53 native/collector contracts, shell syntax, whitespace validation, and a
+supported-source C17 compile. The bounded local exact gate passed both
+`modsecurity_use_error_log` On/Off cells with dynamic-ID HTTP 200, phase-4
+JSONL, redaction/integrity, no query canary, failed-reload rollback, secure
+FD reload, old/new worker overlap, drain, descriptor closure, and cleanup.
+An independent postpatch review found no validated bypass; its sole unvalidated
+control-root boundary was added to the candidate and its focused negative test
+passes. The repository-supported live Valgrind path is not available for this
+artifact: Valgrind is installed, but the harness requires verified NGINX
+`1.31.2` plus its retained archive while the local candidate artifact is
+`1.31.4`; `scan-build` is absent. No sanitizer success is claimed. A direct
+full-lifecycle positive attempt is likewise not claimed: `/var/tmp` rejected
+the required worker `chown` with `EINVAL`, while creation of a task root under
+`/tmp` returned `EROFS`.
+
+The candidate is unpushed. Therefore all earlier hosted runs, checks,
+CRS/no-MRTS cells, and Sonar analyses remain predecessor-only. After a normal
+push, the new exact head still requires fresh hosted NGINX On/Off/JSONL/WAF/
+allow and lifecycle evidence, all five CRS/no-MRTS jobs, required checks,
+SonarCloud Quality Gate with zero active PR issues and zero hotspots, and any
+available supported sanitizer path. `FND-PARENT-1048`, `FND-PARENT-1049`, and
+`FND-PARENT-1050` are `fixed` locally with verification pending; `FND-PARENT-
+1038` is unchanged and not closed; `FND-PARENT-1036` remains
+`blocked_external_dependency`. PR #354 remains Draft, open, and unmerged.

@@ -96,11 +96,14 @@ class NginxBoundedSoakContractTest(unittest.TestCase):
         ):
             self.assertIn(canonical_case, selection)
 
-    def test_soak_output_is_a_count_only_summary_and_cleanup_trap_remains(self) -> None:
+    def test_soak_output_is_a_count_only_summary_and_cleanup_traps_remain(self) -> None:
         source = HARNESS.read_text(encoding="utf-8")
         summary_start = source.index("write_bounded_soak_summary()")
         summary_end = source.index("run_bounded_soak()")
         summary = source[summary_start:summary_end]
+        signal_cleanup_start = source.index("cleanup_on_signal()")
+        signal_cleanup_end = source.index("cleanup_on_exit()")
+        signal_cleanup = source[signal_cleanup_start:signal_cleanup_end]
 
         self.assertIn("nginx-bounded-soak-summary.txt", source)
         for field in (
@@ -112,7 +115,10 @@ class NginxBoundedSoakContractTest(unittest.TestCase):
             self.assertIn(field, summary)
         self.assertNotIn("RESPONSE_BODY", summary)
         self.assertNotIn("curl-attack.err", summary)
-        self.assertIn("trap cleanup EXIT INT TERM", source)
+        self.assertIn('trap - "$signal_name" EXIT', signal_cleanup)
+        self.assertIn("trap cleanup_on_exit EXIT", source)
+        self.assertIn("trap 'cleanup_on_signal INT 130' INT", source)
+        self.assertIn("trap 'cleanup_on_signal TERM 143' TERM", source)
 
     def test_opt_in_make_target_uses_the_existing_framework_wrapper_only(self) -> None:
         makefile = MAKEFILE.read_text(encoding="utf-8")

@@ -100,6 +100,7 @@ NGINX_WORKER_GROUP="${NGINX_WORKER_GROUP:-}"
 PERMISSIONS_LOG="${PERMISSIONS_LOG:-}"
 MSCONNECTOR_FULL_LIFECYCLE_SYNC="${MSCONNECTOR_FULL_LIFECYCLE_SYNC:-0}"
 FULL_LIFECYCLE_EVIDENCE_OUTPUT="${FULL_LIFECYCLE_EVIDENCE_OUTPUT:-}"
+SYNCHRONIZED_UPSTREAM_CONTROL_ROOT="${SYNCHRONIZED_UPSTREAM_CONTROL_ROOT:-}"
 SYNCHRONIZED_UPSTREAM="$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py"
 NGINX_DOWNSTREAM_PROTOCOL="${NGINX_DOWNSTREAM_PROTOCOL:-http1}"
 NGINX_UPSTREAM_PROTOCOL="${NGINX_UPSTREAM_PROTOCOL:-http1}"
@@ -844,6 +845,15 @@ validate_nginx_generated_path_authority() {
     if [ -n "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" ]; then
         set -- "$@" \
             --path FULL_LIFECYCLE_EVIDENCE_OUTPUT "$FULL_LIFECYCLE_EVIDENCE_OUTPUT"
+    fi
+    if [ "$MSCONNECTOR_FULL_LIFECYCLE_SYNC" = "1" ]; then
+        [ -n "$SYNCHRONIZED_UPSTREAM_CONTROL_ROOT" ] || \
+            blocked "full-lifecycle synchronized upstream requires SYNCHRONIZED_UPSTREAM_CONTROL_ROOT"
+        # The Framework helper enforces containment below this root.  Bind the
+        # root itself to the harness-verified storage boundary before any
+        # helper control or evidence file is opened.
+        set -- "$@" \
+            --directory SYNCHRONIZED_UPSTREAM_CONTROL_ROOT "$SYNCHRONIZED_UPSTREAM_CONTROL_ROOT"
     fi
     if ! "$@"; then
         blocked "NGINX generated paths are outside verified runtime storage"
@@ -1631,16 +1641,9 @@ prepare_phase4_log_target() {
     esac
 }
 
-prepare_functional_a_slow_stream() {
-    [ "$NGINX_HOSTED_FUNCTIONAL_A" = "1" ] || return 0
-    [ "$NGINX_PHASE4_LOG_LIFECYCLE_PROBE" = "1" ] || return 0
-    nginx_slow_stream_file="$PRIVATE_DOCROOT/__modsec_slow_stream"
-    [ ! -e "$nginx_slow_stream_file" ] && [ ! -L "$nginx_slow_stream_file" ] || \
-        fail "functional-A slow-stream target is unexpectedly occupied"
-    /usr/bin/dd if=/dev/zero of="$nginx_slow_stream_file" bs=1024 count=64 status=none || \
-        fail "could not create the bounded functional-A slow stream"
-    /bin/chmod 644 "$nginx_slow_stream_file" || \
-        fail "could not set bounded functional-A slow-stream mode"
+phase4_reload_overlap_sync_enabled() {
+    [ "$NGINX_HOSTED_FUNCTIONAL_A" = "1" ] && \
+        [ "$NGINX_PHASE4_LOG_LIFECYCLE_PROBE" = "1" ]
 }
 
 render_config() {
@@ -1700,6 +1703,7 @@ render_config() {
         -e "s|@@NGINX_PHASE4_LOG@@|$(escape_sed "$NGINX_PHASE4_LOG_FILE")|g" \
         -e "s|@@NGINX_PHASE4_LOG_SERVER_DIRECTIVE@@|$(escape_sed "$NGINX_PHASE4_LOG_SERVER_DIRECTIVE")|g" \
         -e "s|@@NGINX_PHASE4_LOG_LOCATION_DIRECTIVE@@|$(escape_sed "$NGINX_PHASE4_LOG_LOCATION_DIRECTIVE")|g" \
+        -e "s|@@NGINX_PHASE4_RELOAD_OVERLAP_DIRECTIVES@@|$(escape_sed "$NGINX_PHASE4_RELOAD_OVERLAP_DIRECTIVES_FILE")|g" \
         -e "s|@@NGINX_WORKER_USER_DIRECTIVE@@|$(escape_sed "$NGINX_WORKER_USER_DIRECTIVE")|g" \
         -e "s|@@NGINX_TRANSACTION_ID_DIRECTIVE@@|$(escape_sed "$NGINX_TRANSACTION_ID_DIRECTIVE")|g" \
         -e "s|@@NGINX_PHASE4_MODE_DIRECTIVE@@|$(escape_sed "$NGINX_PHASE4_MODE_DIRECTIVE")|g" \
@@ -1894,9 +1898,22 @@ write_nginx_lifecycle_event() {
     printf '%s\n' "$*" >> "$NGINX_LIFECYCLE_FILE"
 }
 
+nginx_process_child_snapshot() {
+    nginx_snapshot_parent_pid=$1
+    # Keep lifecycle decisions restricted to live, direct children of the
+    # identity-verified NGINX master.  In particular, a bare PID list cannot
+    # distinguish a stale zombie from the worker that is still serving the
+    # paused reload-overlap request.
+    ps -o pid=,ppid=,stat= --ppid "$nginx_snapshot_parent_pid" 2>/dev/null | \
+        awk -v expected_parent="$nginx_snapshot_parent_pid" '
+            $1 ~ /^[0-9]+$/ && $2 == expected_parent && $3 !~ /^Z/ {
+                print $1, $2, $3
+            }
+        ' || true
+}
+
 nginx_process_children() {
-    nginx_parent_pid=$1
-    ps -o pid= --ppid "$nginx_parent_pid" 2>/dev/null | awk '{ print $1 }' || true
+    nginx_process_child_snapshot "$1" | awk '{ print $1 }' || true
 }
 
 nginx_process_record() {
@@ -2134,12 +2151,12 @@ start_nginx_process() {
 
 cleanup() {
     nginx_cleanup_return=0
-    if [ -n "${PHASE4_SLOW_STREAM_PID:-}" ]; then
-        if /bin/kill -0 "$PHASE4_SLOW_STREAM_PID" >/dev/null 2>&1; then
-            /bin/kill -TERM "$PHASE4_SLOW_STREAM_PID" >/dev/null 2>&1 || true
+    if [ -n "${PHASE4_RELOAD_OVERLAP_CLIENT_PID:-}" ]; then
+        if /bin/kill -0 "$PHASE4_RELOAD_OVERLAP_CLIENT_PID" >/dev/null 2>&1; then
+            /bin/kill -TERM "$PHASE4_RELOAD_OVERLAP_CLIENT_PID" >/dev/null 2>&1 || true
         fi
-        wait "$PHASE4_SLOW_STREAM_PID" >/dev/null 2>&1 || true
-        PHASE4_SLOW_STREAM_PID=""
+        wait "$PHASE4_RELOAD_OVERLAP_CLIENT_PID" >/dev/null 2>&1 || true
+        PHASE4_RELOAD_OVERLAP_CLIENT_PID=""
     fi
     if [ -n "${NGINX_SOAK_WORKER_PIDS:-}" ]; then
         for soak_worker_pid in $NGINX_SOAK_WORKER_PIDS; do
@@ -2279,16 +2296,34 @@ select_free_port() {
 }
 
 start_synchronized_upstream() {
-    [ "$MSCONNECTOR_FULL_LIFECYCLE_SYNC" = "1" ] || return 0
+    if [ "$MSCONNECTOR_FULL_LIFECYCLE_SYNC" = "1" ]; then
+        if phase4_reload_overlap_sync_enabled; then
+            blocked "full-lifecycle and phase4 reload-overlap synchronization cannot share one upstream"
+        fi
+        SYNCHRONIZED_DIR="$RUNTIME_ROOT/first-byte"
+        SYNCHRONIZED_CONTROL_ROOT="$SYNCHRONIZED_UPSTREAM_CONTROL_ROOT"
+        [ -n "$SYNCHRONIZED_CONTROL_ROOT" ] || \
+            blocked "full-lifecycle synchronized upstream requires SYNCHRONIZED_UPSTREAM_CONTROL_ROOT"
+    elif phase4_reload_overlap_sync_enabled; then
+        # This fixture has no promotion artifact.  Its control endpoints stay
+        # inside the freshly created task runtime and only establish an
+        # in-flight request while the NGINX worker reloads.
+        SYNCHRONIZED_DIR="$RUNTIME_ROOT/phase4-reload-overlap"
+        SYNCHRONIZED_CONTROL_ROOT="$RUNTIME_ROOT"
+    else
+        return 0
+    fi
     [ -f "$SYNCHRONIZED_UPSTREAM" ] || blocked "missing synchronized upstream helper: $SYNCHRONIZED_UPSTREAM"
-    SYNCHRONIZED_DIR="$RUNTIME_ROOT/first-byte"
     SYNCHRONIZED_READY_FILE="$SYNCHRONIZED_DIR/upstream-ready.json"
     SYNCHRONIZED_PAUSED_FILE="$SYNCHRONIZED_DIR/upstream-paused.json"
     SYNCHRONIZED_RELEASE_FILE="$SYNCHRONIZED_DIR/upstream-release"
     SYNCHRONIZED_SERVER_EVIDENCE_FILE="$SYNCHRONIZED_DIR/upstream-server.json"
-    rm -rf "$SYNCHRONIZED_DIR"
-    mkdir -p "$SYNCHRONIZED_DIR"
+    [ ! -e "$SYNCHRONIZED_DIR" ] && [ ! -L "$SYNCHRONIZED_DIR" ] || \
+        fail "synchronized upstream control directory is unexpectedly occupied: $SYNCHRONIZED_DIR"
+    mkdir -p "$SYNCHRONIZED_DIR" || \
+        fail "could not create synchronized upstream control directory: $SYNCHRONIZED_DIR"
     "$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --serve \
+        --control-root "$SYNCHRONIZED_CONTROL_ROOT" \
         --ready-file "$SYNCHRONIZED_READY_FILE" \
         --paused-file "$SYNCHRONIZED_PAUSED_FILE" \
         --release-file "$SYNCHRONIZED_RELEASE_FILE" \
@@ -2308,7 +2343,7 @@ start_synchronized_upstream() {
         sleep 1
     done
     [ -f "$SYNCHRONIZED_READY_FILE" ] || blocked "synchronized upstream did not publish its address"
-    RESPONSE_HEADER_BACKEND_PORT=$("$PYTHON_BIN" - "$SYNCHRONIZED_READY_FILE" <<'PY'
+    SYNCHRONIZED_UPSTREAM_PORT=$("$PYTHON_BIN" - "$SYNCHRONIZED_READY_FILE" <<'PY'
 import json
 import sys
 payload = json.load(open(sys.argv[1], encoding="utf-8"))
@@ -2357,6 +2392,7 @@ send_synchronized_first_byte_request() {
         --phase4-log "$NGINX_PHASE4_LOG_FILE" --output "$FIRST_BYTE_HOST_METADATA" || \
         fail "could not derive bounded host metadata from the Phase-4 event"
     "$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --merge-evidence \
+        --control-root "$SYNCHRONIZED_CONTROL_ROOT" \
         --paused-file "$SYNCHRONIZED_PAUSED_FILE" \
         --client-first-byte-file "$RESPONSE_BODY" \
         --host-metadata-json "$FIRST_BYTE_HOST_METADATA" \
@@ -2657,50 +2693,140 @@ assert_phase4_fd_absent() {
 }
 
 start_phase4_reload_overlap_client() {
-    phase4_slow_stream_output="$LOG_DIR/phase4-slow-stream.response"
-    phase4_slow_stream_error="$LOG_DIR/phase4-slow-stream.err"
-    "$CURL_BIN" -sS --max-time 30 -o "$phase4_slow_stream_output" \
+    phase4_reload_overlap_sync_enabled || \
+        fail "phase4 reload overlap requires the hosted synchronized upstream"
+    [ -n "${SYNCHRONIZED_PAUSED_FILE:-}" ] || \
+        fail "phase4 reload overlap has no paused-upstream control path"
+    phase4_overlap_output="$LOG_DIR/phase4-reload-overlap.response"
+    phase4_overlap_status_file="$LOG_DIR/phase4-reload-overlap.status"
+    phase4_overlap_error="$LOG_DIR/phase4-reload-overlap.err"
+    for phase4_overlap_path in \
+        "$phase4_overlap_output" "$phase4_overlap_status_file" "$phase4_overlap_error"; do
+        [ ! -e "$phase4_overlap_path" ] && [ ! -L "$phase4_overlap_path" ] || \
+            fail "phase4 reload-overlap client path is unexpectedly occupied: $phase4_overlap_path"
+    done
+    "$CURL_BIN" -sS --no-buffer --max-time 30 -X GET \
+        -o "$phase4_overlap_output" -w "%{http_code}" \
         "http://127.0.0.1:$PORT/__modsec_slow_stream" \
-        > /dev/null 2> "$phase4_slow_stream_error" &
-    PHASE4_SLOW_STREAM_PID=$!
-    /bin/sleep 1
-    /bin/kill -0 "$PHASE4_SLOW_STREAM_PID" >/dev/null 2>&1 || \
-        fail "functional-A slow stream ended before reload overlap"
+        > "$phase4_overlap_status_file" 2> "$phase4_overlap_error" &
+    PHASE4_RELOAD_OVERLAP_CLIENT_PID=$!
+    phase4_overlap_attempt=0
+    while [ "$phase4_overlap_attempt" -lt 100 ]; do
+        if [ -f "$SYNCHRONIZED_PAUSED_FILE" ] && \
+           [ ! -L "$SYNCHRONIZED_PAUSED_FILE" ] && \
+           [ -s "$phase4_overlap_output" ]; then
+            return 0
+        fi
+        /bin/kill -0 "$PHASE4_RELOAD_OVERLAP_CLIENT_PID" >/dev/null 2>&1 || \
+            fail "phase4 reload-overlap client ended before the paused first-byte barrier"
+        phase4_overlap_attempt=$((phase4_overlap_attempt + 1))
+        /bin/sleep 0.1
+    done
+    fail "phase4 reload-overlap client did not reach the paused first-byte barrier"
+}
+
+validate_phase4_reload_overlap_server_record() {
+    "$PYTHON_BIN" - "$SYNCHRONIZED_SERVER_EVIDENCE_FILE" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+if path.is_symlink() or not path.is_file():
+    raise SystemExit("synchronized overlap server record is missing or unsafe")
+payload = json.loads(path.read_text(encoding="utf-8"))
+expected = {
+    "schema_version",
+    "evidence_type",
+    "first_chunk_size",
+    "upstream_paused",
+    "upstream_eos_sent",
+    "body_payload_persisted",
+}
+if not isinstance(payload, dict) or set(payload) != expected:
+    raise SystemExit("synchronized overlap server record has an unexpected shape")
+if payload["schema_version"] != 1:
+    raise SystemExit("synchronized overlap server record has an invalid schema")
+if payload["evidence_type"] != "synchronized_upstream_server":
+    raise SystemExit("synchronized overlap server record has an invalid type")
+if type(payload["first_chunk_size"]) is not int or payload["first_chunk_size"] < 1:
+    raise SystemExit("synchronized overlap server record has an invalid first chunk size")
+if payload["upstream_paused"] is not True or payload["upstream_eos_sent"] is not True:
+    raise SystemExit("synchronized overlap server record lacks the paused-to-EOS transition")
+if payload["body_payload_persisted"] is not False:
+    raise SystemExit("synchronized overlap server record persisted a body payload")
+PY
 }
 
 stop_phase4_reload_overlap_client() {
-    [ -n "${PHASE4_SLOW_STREAM_PID:-}" ] || return 0
-    if /bin/kill -0 "$PHASE4_SLOW_STREAM_PID" >/dev/null 2>&1; then
-        /bin/kill -TERM "$PHASE4_SLOW_STREAM_PID" >/dev/null 2>&1 || true
-    fi
+    [ -n "${PHASE4_RELOAD_OVERLAP_CLIENT_PID:-}" ] || return 0
+    [ -n "${SYNCHRONIZED_RELEASE_FILE:-}" ] || \
+        fail "phase4 reload overlap has no upstream release control path"
+    [ ! -e "$SYNCHRONIZED_RELEASE_FILE" ] && [ ! -L "$SYNCHRONIZED_RELEASE_FILE" ] || \
+        fail "phase4 reload-overlap release control is unexpectedly occupied"
+    : > "$SYNCHRONIZED_RELEASE_FILE" || \
+        fail "phase4 reload-overlap upstream release could not be recorded"
     set +e
-    wait "$PHASE4_SLOW_STREAM_PID"
-    phase4_slow_stream_wait_status=$?
+    wait "$PHASE4_RELOAD_OVERLAP_CLIENT_PID"
+    phase4_overlap_client_wait_status=$?
+    wait "$SYNCHRONIZED_UPSTREAM_PID"
+    phase4_overlap_upstream_wait_status=$?
     set -e
-    PHASE4_SLOW_STREAM_PID=""
-    case "$phase4_slow_stream_wait_status" in
-        0|143) ;;
-        *) fail "functional-A slow stream exited unexpectedly: $phase4_slow_stream_wait_status" ;;
-    esac
+    PHASE4_RELOAD_OVERLAP_CLIENT_PID=""
+    SYNCHRONIZED_UPSTREAM_PID=""
+    [ "$phase4_overlap_client_wait_status" -eq 0 ] || \
+        fail "phase4 reload-overlap client failed after release: $phase4_overlap_client_wait_status"
+    [ "$phase4_overlap_upstream_wait_status" -eq 0 ] || \
+        fail "phase4 reload-overlap upstream failed after release: $phase4_overlap_upstream_wait_status"
+    validate_phase4_reload_overlap_server_record || \
+        fail "phase4 reload-overlap server evidence was invalid"
+    phase4_overlap_status=$(cat "$phase4_overlap_status_file" 2>/dev/null || true)
+    [ "$phase4_overlap_status" = "200" ] || \
+        fail "phase4 reload-overlap response status was not 200: $phase4_overlap_status"
+    [ -s "$phase4_overlap_output" ] || \
+        fail "phase4 reload-overlap response did not retain the bounded first-byte observation"
 }
 
 observe_phase4_reload_overlap() {
     phase4_old_worker=$1
     phase4_overlap_attempt=0
     while [ "$phase4_overlap_attempt" -lt 10 ]; do
-        phase4_overlap_workers=$(nginx_process_children "$NGINX_PID")
-        phase4_overlap_count=$(printf '%s\n' "$phase4_overlap_workers" | /usr/bin/awk 'NF { count += 1 } END { print count + 0 }')
-        case " $phase4_overlap_workers " in
-            *" $phase4_old_worker "*) phase4_old_worker_present=1 ;;
-            *) phase4_old_worker_present=0 ;;
-        esac
-        if [ "$phase4_overlap_count" -ge 2 ] && [ "$phase4_old_worker_present" = "1" ]; then
+        phase4_overlap_snapshot=$(nginx_process_child_snapshot "$NGINX_PID")
+        phase4_overlap_count=$(printf '%s\n' "$phase4_overlap_snapshot" | /usr/bin/awk 'NF { count += 1 } END { print count + 0 }')
+        phase4_old_worker_present=$(printf '%s\n' "$phase4_overlap_snapshot" | /usr/bin/awk \
+            -v expected_old_worker="$phase4_old_worker" -v expected_parent="$NGINX_PID" '
+                $1 == expected_old_worker && $2 == expected_parent && $3 !~ /^Z/ { present = 1 }
+                END { print present ? 1 : 0 }
+            ')
+        phase4_replacement_present=$(printf '%s\n' "$phase4_overlap_snapshot" | /usr/bin/awk \
+            -v expected_old_worker="$phase4_old_worker" -v expected_parent="$NGINX_PID" '
+                $1 != expected_old_worker && $2 == expected_parent && $3 !~ /^Z/ { present = 1 }
+                END { print present ? 1 : 0 }
+            ')
+        phase4_overlap_last_snapshot=$(printf '%s\n' "$phase4_overlap_snapshot" | /usr/bin/awk '
+            NF == 3 {
+                if (count < 8) {
+                    printf "%s%s:%s:%s", separator, $1, $2, $3
+                    separator = ","
+                }
+                count += 1
+            }
+            END {
+                if (count == 0) {
+                    printf "none"
+                } else if (count > 8) {
+                    printf ",more=%d", count - 8
+                }
+            }
+        ')
+        if [ "$phase4_old_worker_present" = "1" ] && [ "$phase4_replacement_present" = "1" ]; then
             write_nginx_lifecycle_event "phase=phase4_reload_overlap old_worker=$phase4_old_worker worker_count=$phase4_overlap_count result=observed"
             return 0
         fi
         phase4_overlap_attempt=$((phase4_overlap_attempt + 1))
         /bin/sleep 1
     done
+    write_nginx_lifecycle_event "phase=phase4_reload_overlap old_worker=$phase4_old_worker worker_count=$phase4_overlap_count old_worker_present=$phase4_old_worker_present replacement_present=$phase4_replacement_present last_snapshot=$phase4_overlap_last_snapshot result=not_observed"
     fail "phase4 reload never showed old and replacement workers concurrently"
 }
 
@@ -2772,10 +2898,13 @@ exercise_phase4_log_lifecycle() {
         > "$LOG_DIR/nginx-reload-unsafe-phase4-configtest.log" 2>&1; then
         fail "phase4 lifecycle unsafe target unexpectedly passed config validation"
     fi
-    if ! "$NGINX_BINARY" -p "$RUNTIME_ROOT" -c "$CONFIG_FILE" -s reload \
-        > "$LOG_DIR/nginx-reload-unsafe-phase4-signal.log" 2>&1; then
+    # A separate `nginx -s reload` process parses the now intentionally
+    # rejected configuration before it can signal the active master.  Verify
+    # that master immediately before addressing it directly so this test
+    # observes NGINX's actual reload and rollback behavior.
+    record_nginx_master_worker_roles >/dev/null
+    /bin/kill -HUP "$NGINX_PID" || \
         fail "phase4 lifecycle unsafe reload signal could not reach the active master"
-    fi
     /bin/sleep 1
     /bin/kill -0 "$NGINX_PID" >/dev/null 2>&1 || \
         fail "phase4 lifecycle unsafe reload damaged the active master"
@@ -2987,11 +3116,16 @@ response_header_backend_needed() {
 }
 
 start_response_header_backend() {
-    response_header_backend_needed || return 0
     if [ "$MSCONNECTOR_FULL_LIFECYCLE_SYNC" = "1" ]; then
         start_synchronized_upstream
+        RESPONSE_HEADER_BACKEND_PORT="$SYNCHRONIZED_UPSTREAM_PORT"
         return 0
     fi
+    if phase4_reload_overlap_sync_enabled; then
+        start_synchronized_upstream
+        PHASE4_RELOAD_OVERLAP_UPSTREAM_PORT="$SYNCHRONIZED_UPSTREAM_PORT"
+    fi
+    response_header_backend_needed || return 0
     RESPONSE_HEADER_BACKEND_PORT=$(select_free_port $((PORT + 1000)) "$PORT_SEARCH_LIMIT") || \
         blocked "no free response-header backend port found"
     "$PYTHON_BIN" "$REPO_ROOT/ci/runtime/common/response-header-test-backend.py" \
@@ -3004,6 +3138,28 @@ start_response_header_backend() {
         2>"$LOG_DIR/response-header-backend.stderr.log" &
     RESPONSE_HEADER_BACKEND_PID=$!
     wait_tcp_port "$RESPONSE_HEADER_BACKEND_PORT" || blocked "response-header backend failed to start"
+}
+
+write_phase4_reload_overlap_directives() {
+    output=$1
+    [ ! -e "$output" ] && [ ! -L "$output" ] || \
+        fail "phase4 reload-overlap directives output is unexpectedly occupied: $output"
+    if phase4_reload_overlap_sync_enabled; then
+        [ -n "${PHASE4_RELOAD_OVERLAP_UPSTREAM_PORT:-}" ] || \
+            fail "phase4 reload-overlap upstream did not publish a port"
+        {
+            echo "# Dedicated paused loopback upstream for the reload-overlap assertion."
+            echo "proxy_pass http://127.0.0.1:$PHASE4_RELOAD_OVERLAP_UPSTREAM_PORT;"
+            echo "proxy_buffering off;"
+            echo "proxy_set_header Host \$host;"
+        } > "$output"
+        return 0
+    fi
+    {
+        echo "limit_rate 1024;"
+        printf 'root "%s";\n' "$DOCROOT"
+        echo "try_files /__modsec_slow_stream =404;"
+    } > "$output"
 }
 
 write_location_handler_directives() {
@@ -3195,6 +3351,7 @@ AUDIT_LOG_FILE="$NGINX_SERVER_LOG_ROOT/audit.log"
 AUDIT_LOG_DIR="$NGINX_SERVER_LOG_ROOT/audit"
 NGINX_LOCATION_DIRECTIVES_FILE="$RUNTIME_ROOT/conf/nginx-location-directives.conf"
 NGINX_LOCATION_HANDLER_DIRECTIVES_FILE="$RUNTIME_ROOT/conf/nginx-location-handler-directives.conf"
+NGINX_PHASE4_RELOAD_OVERLAP_DIRECTIVES_FILE="$RUNTIME_ROOT/conf/nginx-phase4-reload-overlap-directives.conf"
 NGINX_PHASE4_LOG_FILE="$LOG_DIR/phase4.log"
 NGINX_PHASE4_LOG_SERVER_FILE="$LOG_DIR/phase4-server.log"
 RESPONSE_HEADER_FIXTURE_FILE="$RUNTIME_ROOT/conf/response-header-fixture.json"
@@ -3256,9 +3413,9 @@ if ! "$PYTHON_BIN" "$REPO_ROOT/ci/runtime/common/harness-case-metadata.py" respo
 fi
 start_response_header_backend
 write_location_handler_directives "$NGINX_LOCATION_HANDLER_DIRECTIVES_FILE"
+write_phase4_reload_overlap_directives "$NGINX_PHASE4_RELOAD_OVERLAP_DIRECTIVES_FILE"
 lock_private_runtime_paths
 prepare_nginx_worker_paths
-prepare_functional_a_slow_stream
 preflight_nginx_worker_docroot
 
 LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR:$NGINX_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
@@ -3267,7 +3424,9 @@ export LD_LIBRARY_PATH
 cleanup_on_signal() {
     signal_name=$1
     signal_status=$2
-    trap - "$signal_name"
+    # exit below would otherwise run cleanup_on_exit as well, duplicating
+    # process and artifact cleanup for one signal.
+    trap - "$signal_name" EXIT
     cleanup || true
     exit "$signal_status"
 }

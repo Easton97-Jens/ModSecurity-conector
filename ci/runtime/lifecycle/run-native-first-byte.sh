@@ -42,6 +42,7 @@ runtime_root=$HOST_RUNTIME_ROOT/first-byte-$connector
 # emits sanitized diagnostics separately after collection.
 log_root=$HOST_RUNTIME_ROOT/$connector-first-byte-logs
 results_output=$RESULTS_DIR/$connector-first-byte-results.jsonl
+synchronized_control_root=$HOST_RUNTIME_ROOT/..
 mkdir -p "$RESULTS_DIR" "$runtime_root"
 
 set +e
@@ -50,6 +51,7 @@ CONNECTOR_ROOT="$CONNECTOR_ROOT" \
 FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
 BUILD_ROOT="$BUILD_ROOT" \
 FULL_LIFECYCLE_EVIDENCE_OUTPUT="$FULL_LIFECYCLE_EVIDENCE_OUTPUT" \
+SYNCHRONIZED_UPSTREAM_CONTROL_ROOT="$synchronized_control_root" \
 NO_CRS_RULES_FILE="$NO_CRS_RULES_FILE" \
 "$CONNECTOR_ROOT/ci/provisioning/cache/with-runtime-components.sh" env \
     RUN_ONE_CASE=1 \

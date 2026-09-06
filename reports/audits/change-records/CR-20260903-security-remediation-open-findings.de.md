@@ -1027,8 +1027,8 @@ Er akzeptiert keinen durch `TMPDIR` umgeleiteten Root.
 
 Vor der unprivilegierten Provisionierung erzeugt der Workflow jetzt den
 frischen Functional-A-Job-Root und dessen festen Functional-Parent-Sibling als
-root-eigene Verzeichnisse, validiert den anfänglichen `0700`-Zustand des
-Job-Roots und setzt dann beide auf nicht-auflistbares `0711`. Er erzeugt,
+root-eigene Verzeichnisse, validiert nur den anfänglichen `0700`-Zustand des
+Job-Roots und setzt anschließend beide Vorfahren auf nicht-auflistbares `0711`. Er erzeugt,
 chown't und hält
 nur den separaten Provisioning-`RUN_ROOT` runner-owned bei exakt `0700`. Der
 Launcher verlangt deshalb root-Eigentum für beide sichtbaren Vorfahren und
@@ -1038,7 +1038,7 @@ unprivilegiert und fügt weder ein generisches Path-Reopen hinzu noch erweitert
 es die privilegierte Command-Surface.
 
 Die Non-root-Fixture-Suite des Successors für Launcher, Exact-Gate,
-Worker-Traversal, Path-Authority und Runtime-Path-Security bestand 50
+Worker-Traversal, Path-Authority und Runtime-Path-Security bestand 49
 fokussierte Tests; `actionlint` mit ShellCheck, Shell-Syntax,
 Python-Kompilierung und Whitespace-Checks bestanden ebenfalls. Diese lokalen
 Source-/Contract-Ergebnisse sind keine Behauptung eines Sonar- oder
@@ -1054,3 +1054,57 @@ GitHub-hosted-On-/Off-/JSONL-/WAF-/Allow-Lauf.
 ein GitHub-hosted-nativer Integrationsnachweis, nicht Protected B oder eine
 Attestierung gegen bösartigen Runner- oder VM-root-Code. PR #354 bleibt Draft,
 offen und ungemergt.
+
+### 2026-09-06 Zehnter Follow-up (enger nativer Phase-4- und Lifecycle-Kandidat, Successor-Nachweis ausstehend)
+
+Der Predecessor `f5c16f210cd6435a7372ca8d4f8ed10aaa2d9174` ist kein Nachweis
+für diesen Kandidaten. Sein Dynamic-Transaction-ID-Pfad erreichte Common mit
+einem vom Evaluator hinzugefügten abschließenden NUL, weil
+`ngx_conf_set_transaction_id()` `ccv.zero=1` verwendete; Common wies dieses
+nicht kanonische Byte korrekt zurück. Die enge NGINX-C-Änderung setzt
+`ccv.zero=0`, erhält die strikte Common-Byte-Validierung, kopiert nur die exakt
+ausgewerteten Bytes und fügt erst nach dem Kopieren einen eigenen C-Terminator
+hinzu. Common-Validierung, Serializer, Redaction, Integrity, WAF-URI,
+Dependencies, Framework, MRTS und Gitlink wurden nicht geändert.
+
+Der Kandidat macht außerdem zwei native Lifecycle-Assertions kausal. Bei einem
+absichtlich unsicheren Phase-4-Ziel erhält er die erwartete `nginx -t`-
+Ablehnung, erfasst die Identität des aktiven Master/Workers und stellt diesem
+Master danach direktes HUP zu, statt einen separaten `nginx -s reload`-Parse
+als Signallieferung zu behandeln. Beim sicheren Reload verwendet er den
+gepinnten, read-only Framework-Synchronized-Upstream über eine dedizierte
+`modsecurity off`-ungepufferte Loopback-Route wieder; Paused-Zustand und ein
+Client-First-Byte gehen dem Reload voraus, ein exakter alter lebender Nicht-
+Zombie-Direktkindprozess und ein anderes Replacement werden aus einem
+PID/PPID/State-Snapshot beobachtet, und Release erfolgt erst nach Overlap. Der
+Full-Lifecycle-Synchronized-Control-Root wird zusätzlich vor dem Öffnen von
+Control- oder Evidence-Dateien durch den Helper unter dem verifizierten Run-
+Root autorisiert; ein Out-of-Root-Negativcontrol wird fail-closed abgewiesen.
+
+Frische lokale Kandidatenchecks bestanden: 208 ausführbare NGINX-Contract-
+Tests, 53 Native-/Collector-Contracts, Shell-Syntax, Whitespace-Validierung und
+ein C17-Compile gegen unterstützte Quellen. Der begrenzte lokale Exact-Gate
+bestand beide `modsecurity_use_error_log`-On-/Off-Zellen mit Dynamic-ID-HTTP
+200, Phase-4-JSONL, Redaction/Integrity, keiner Query-Canary, Failed-Reload-
+Rollback, sicherem FD-Reload, Old-/New-Worker-Overlap, Drain, Descriptor-
+Closure und Cleanup. Ein unabhängiger Postpatch-Review fand keinen validierten
+Bypass; seine einzige unvalidierte Control-Root-Grenze wurde dem Kandidaten
+hinzugefügt und ihr fokussierter Negativtest besteht. Der repositorygestützte
+Live-Valgrind-Pfad ist für dieses Artefakt nicht verfügbar: Valgrind ist
+installiert, aber der Harness verlangt verifiziertes NGINX `1.31.2` samt
+zurückgehaltenem Archiv, während das lokale Kandidatenartefakt `1.31.4` ist;
+`scan-build` fehlt. Ein Sanitizer-Erfolg wird nicht behauptet. Auch ein direkter
+Full-Lifecycle-Positivversuch wird nicht behauptet: `/var/tmp` wies das
+erforderliche Worker-`chown` mit `EINVAL` ab, während die Erzeugung eines
+task-eigenen Roots unter `/tmp` `EROFS` lieferte.
+
+Der Kandidat ist ungepusht. Deshalb bleiben alle früheren Hosted-Runs, Checks,
+CRS/no-MRTS-Zellen und Sonar-Analysen nur Predecessor-Evidence. Nach einem
+normalen Push benötigt der neue exakte Head weiterhin frische hosted NGINX-
+On-/Off-/JSONL-/WAF-/Allow- und Lifecycle-Evidence, alle fünf CRS/no-MRTS-Jobs,
+erforderliche Checks, SonarCloud-Quality-Gate mit null aktiven PR-Issues und
+null Hotspots sowie jeden verfügbaren unterstützten Sanitizer-Pfad.
+`FND-PARENT-1048`, `FND-PARENT-1049` und `FND-PARENT-1050` sind lokal `fixed`
+mit ausstehender Verifikation; `FND-PARENT-1038` ist unverändert und nicht
+geschlossen; `FND-PARENT-1036` bleibt `blocked_external_dependency`. PR #354
+bleibt Draft, offen und ungemergt.

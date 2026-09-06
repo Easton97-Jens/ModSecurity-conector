@@ -159,6 +159,26 @@ class NginxHarnessPathAuthorityTests(unittest.TestCase):
             self.assertEqual(escape_result.returncode, 2, escape_result.stderr)
             self.assertFalse(sibling.exists())
 
+    def test_synchronized_upstream_control_root_escape_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="nginx-path-authority-") as temporary:
+            base = Path(temporary)
+            verified_root = base / "ModSecurity-conector-verified"
+            outside_root = base / "outside-synchronized-control"
+            verified_root.mkdir()
+
+            result = self.run_validator(
+                "--verified-run-root",
+                str(verified_root),
+                "--directory",
+                "SYNCHRONIZED_UPSTREAM_CONTROL_ROOT",
+                str(outside_root),
+                "--quiet",
+            )
+
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("must be below the runtime root", result.stderr)
+            self.assertFalse(outside_root.exists())
+
     def test_verified_runtime_descendants_and_direct_log_child_are_accepted(self) -> None:
         with tempfile.TemporaryDirectory(prefix="nginx-path-authority-") as temporary:
             verified_root = Path(temporary) / "ModSecurity-conector-verified"

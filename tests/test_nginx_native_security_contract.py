@@ -182,7 +182,119 @@ class NginxNativeSecurityContractTest(unittest.TestCase):
             self.assertIn(target_mode, HARNESS)
         self.assertIn('"$NGINX_BINARY" -t -p "$RUNTIME_ROOT" -c "$CONFIG_FILE"', HARNESS)
         self.assertIn("nginx-reload-unsafe-phase4-configtest.log", HARNESS)
+        phase4_lifecycle = HARNESS.split("exercise_phase4_log_lifecycle() {", 1)[
+            1
+        ].split("\n}\n\nsoak_request_matches_case()", 1)[0]
+        unsafe_reload = phase4_lifecycle.split(
+            'if "$NGINX_BINARY" -t -p "$RUNTIME_ROOT" -c "$CONFIG_FILE"', 1
+        )[1].split("phase4_old_before_failed_reload_request=", 1)[0]
+        self.assertIn("record_nginx_master_worker_roles >/dev/null", unsafe_reload)
+        self.assertIn('/bin/kill -HUP "$NGINX_PID"', unsafe_reload)
+        self.assertNotIn(
+            '"$NGINX_BINARY" -p "$RUNTIME_ROOT" -c "$CONFIG_FILE" -s reload',
+            unsafe_reload,
+        )
+        self.assertLess(
+            unsafe_reload.index("record_nginx_master_worker_roles >/dev/null"),
+            unsafe_reload.index('/bin/kill -HUP "$NGINX_PID"'),
+        )
         self.assertIn('/bin/kill -USR1 "$NGINX_PID"', HARNESS)
+        overlap_client = HARNESS.split("start_phase4_reload_overlap_client() {", 1)[
+            1
+        ].split("validate_phase4_reload_overlap_server_record()", 1)[0]
+        self.assertIn(
+            "phase4_reload_overlap_sync_enabled ||",
+            overlap_client,
+        )
+        self.assertIn('while [ "$phase4_overlap_attempt" -lt 100 ]; do', overlap_client)
+        self.assertIn('[ -f "$SYNCHRONIZED_PAUSED_FILE" ]', overlap_client)
+        self.assertIn('[ ! -L "$SYNCHRONIZED_PAUSED_FILE" ]', overlap_client)
+        self.assertIn('[ -s "$phase4_overlap_output" ]', overlap_client)
+        self.assertIn('/bin/kill -0 "$PHASE4_RELOAD_OVERLAP_CLIENT_PID"', overlap_client)
+        self.assertIn("--no-buffer --max-time 30 -X GET", overlap_client)
+        self.assertIn(
+            "phase4 reload-overlap client did not reach the paused first-byte barrier",
+            overlap_client,
+        )
+        self.assertNotIn("PHASE4_SLOW_STREAM_PID", overlap_client)
+        overlap_stop = HARNESS.split("stop_phase4_reload_overlap_client() {", 1)[
+            1
+        ].split("observe_phase4_reload_overlap()", 1)[0]
+        self.assertIn(': > "$SYNCHRONIZED_RELEASE_FILE"', overlap_stop)
+        self.assertIn('wait "$SYNCHRONIZED_UPSTREAM_PID"', overlap_stop)
+        self.assertIn("validate_phase4_reload_overlap_server_record", overlap_stop)
+        overlap_server_validation = HARNESS.split(
+            "validate_phase4_reload_overlap_server_record() {", 1
+        )[1].split("stop_phase4_reload_overlap_client()", 1)[0]
+        self.assertIn("body_payload_persisted", overlap_server_validation)
+        process_snapshot = HARNESS.split("nginx_process_child_snapshot() {", 1)[
+            1
+        ].split("nginx_process_children()", 1)[0]
+        self.assertIn('ps -o pid=,ppid=,stat= --ppid "$nginx_snapshot_parent_pid"', process_snapshot)
+        self.assertIn('-v expected_parent="$nginx_snapshot_parent_pid"', process_snapshot)
+        self.assertIn('$2 == expected_parent', process_snapshot)
+        self.assertIn('$3 !~ /^Z/', process_snapshot)
+        overlap_observation = HARNESS.split("observe_phase4_reload_overlap() {", 1)[
+            1
+        ].split("send_expected_phase4_lifecycle_request()", 1)[0]
+        self.assertIn('phase4_overlap_snapshot=$(nginx_process_child_snapshot "$NGINX_PID")', overlap_observation)
+        self.assertIn('-v expected_old_worker="$phase4_old_worker"', overlap_observation)
+        self.assertIn('-v expected_parent="$NGINX_PID"', overlap_observation)
+        self.assertIn('phase4_replacement_present=', overlap_observation)
+        self.assertIn('last_snapshot=$phase4_overlap_last_snapshot result=not_observed', overlap_observation)
+        self.assertNotIn('case " $phase4_overlap_workers "', overlap_observation)
+        synchronized_start = HARNESS.split("start_synchronized_upstream() {", 1)[
+            1
+        ].split("send_synchronized_first_byte_request()", 1)[0]
+        self.assertIn('SYNCHRONIZED_UPSTREAM_CONTROL_ROOT', synchronized_start)
+        self.assertIn('--control-root "$SYNCHRONIZED_CONTROL_ROOT"', synchronized_start)
+        self.assertIn(
+            '[ ! -e "$SYNCHRONIZED_DIR" ] && [ ! -L "$SYNCHRONIZED_DIR" ]',
+            synchronized_start,
+        )
+        self.assertNotIn('rm -rf "$SYNCHRONIZED_DIR"', synchronized_start)
+        generated_path_authority = HARNESS.split(
+            "validate_nginx_generated_path_authority() {", 1
+        )[1].split("validate_nginx_external_projection_authority()", 1)[0]
+        self.assertIn(
+            'if [ "$MSCONNECTOR_FULL_LIFECYCLE_SYNC" = "1" ]; then',
+            generated_path_authority,
+        )
+        self.assertIn(
+            'blocked "full-lifecycle synchronized upstream requires SYNCHRONIZED_UPSTREAM_CONTROL_ROOT"',
+            generated_path_authority,
+        )
+        self.assertIn(
+            '--directory SYNCHRONIZED_UPSTREAM_CONTROL_ROOT "$SYNCHRONIZED_UPSTREAM_CONTROL_ROOT"',
+            generated_path_authority,
+        )
+        self.assertLess(
+            generated_path_authority.index("SYNCHRONIZED_UPSTREAM_CONTROL_ROOT"),
+            generated_path_authority.index('if ! "$@"; then'),
+        )
+        overlap_directives = HARNESS.split(
+            "write_phase4_reload_overlap_directives() {", 1
+        )[1].split("write_location_handler_directives()", 1)[0]
+        self.assertIn('proxy_pass http://127.0.0.1:$PHASE4_RELOAD_OVERLAP_UPSTREAM_PORT;', overlap_directives)
+        self.assertIn('echo "proxy_buffering off;"', overlap_directives)
+        self.assertIn('echo "proxy_set_header Host \\$host;"', overlap_directives)
+        self.assertIn('echo "limit_rate 1024;"', overlap_directives)
+        self.assertLess(
+            phase4_lifecycle.index("start_phase4_reload_overlap_client"),
+            phase4_lifecycle.index(
+                '"$NGINX_BINARY" -p "$RUNTIME_ROOT" -c "$CONFIG_FILE" -s reload'
+            ),
+        )
+        self.assertLess(
+            phase4_lifecycle.index("observe_phase4_reload_overlap"),
+            phase4_lifecycle.rindex("stop_phase4_reload_overlap_client"),
+        )
+        smoke_template = (
+            ROOT / "connectors/nginx/harness/nginx_smoke.conf"
+        ).read_text(encoding="utf-8")
+        self.assertIn("location = /__modsec_slow_stream", smoke_template)
+        self.assertIn("modsecurity off;", smoke_template)
+        self.assertIn("@@NGINX_PHASE4_RELOAD_OVERLAP_DIRECTIVES@@", smoke_template)
         self.assertIn("phase4_fd_count_for_target()", HARNESS)
         self.assertIn("assert_phase4_fd_absent", HARNESS)
         self.assertIn("start_phase4_reload_overlap_client", HARNESS)

@@ -114,6 +114,25 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         )
         self.assertIn("ctx->contract_initialized = 0;", native_failure)
 
+    def test_transaction_id_complex_value_does_not_append_a_synthetic_nul(self) -> None:
+        setter = function_definition(self.module, "ngx_conf_set_transaction_id")
+        create_ctx = function_definition(
+            self.module, "ngx_http_modsecurity_create_ctx"
+        )
+
+        self.assertIn("ngx_memzero(&ccv", setter)
+        self.assertIn("ccv.zero = 0;", setter)
+        self.assertNotIn("ccv.zero = 1;", setter)
+        self.assertIn(
+            "msconnector_transaction_contract_validate_transaction_id_bytes",
+            create_ctx,
+        )
+        self.assertIn(
+            "transaction_id = ngx_pnalloc(r->pool, s.len + 1U);", create_ctx
+        )
+        self.assertIn("ngx_memcpy(transaction_id, s.data, s.len);", create_ctx)
+        self.assertIn("transaction_id[s.len] = '\\0';", create_ctx)
+
     def test_disruptive_interventions_record_terminal_contract_decisions_before_host_sinks(self) -> None:
         record = function_definition(
             self.module, "ngx_http_modsecurity_contract_record_intervention"

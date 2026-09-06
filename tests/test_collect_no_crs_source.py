@@ -1557,6 +1557,11 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         source = (ROOT / "ci/runtime/lifecycle/run-native-first-byte.sh").read_text(encoding="utf-8")
         self.assertIn("runtime_root=$HOST_RUNTIME_ROOT/first-byte-$connector", source)
         self.assertIn("log_root=$HOST_RUNTIME_ROOT/$connector-first-byte-logs", source)
+        self.assertIn("synchronized_control_root=$HOST_RUNTIME_ROOT/..", source)
+        self.assertIn(
+            'SYNCHRONIZED_UPSTREAM_CONTROL_ROOT="$synchronized_control_root"',
+            source,
+        )
         self.assertIn(
             'TEST_CASE="$FRAMEWORK_ROOT/tests/cases/no-crs-baseline/full-lifecycle/phase4_first_byte_before_response_end.yaml"',
             source,
