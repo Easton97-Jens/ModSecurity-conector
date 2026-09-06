@@ -438,7 +438,10 @@ def run_server_cases(
             require_healthy_worker(process, error_log, mode)
             if expect_success:
                 if body != FIXTURE_PAYLOAD:
-                    fail(f"{mode} did not forward the expected legitimate body")
+                    fail(
+                        f"{mode} did not forward the expected legitimate body "
+                        f"(observed {len(body)} bytes: {body.hex()})"
+                    )
             else:
                 if body != b"":
                     fail(f"{mode} emitted {len(body)} body bytes after a required rejection")
