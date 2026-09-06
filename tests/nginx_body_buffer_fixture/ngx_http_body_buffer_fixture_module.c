@@ -47,6 +47,7 @@ static ngx_int_t ngx_http_body_buffer_fixture_open_file(ngx_http_request_t *r,
     const ngx_str_t *path, ngx_file_t **file);
 static ngx_int_t ngx_http_body_buffer_fixture_add_header(ngx_http_request_t *r,
     const ngx_str_t *mode);
+extern ngx_module_t ngx_http_body_buffer_fixture_module;
 
 /* This symbol is linked only into the runner's separately built NGINX test
  * binary with --wrap=ngx_pnalloc.  The production connector source is built
