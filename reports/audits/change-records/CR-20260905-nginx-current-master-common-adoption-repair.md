@@ -9,7 +9,7 @@
 | Change ID | CR-20260905-nginx-current-master-common-adoption-repair |
 | Date (UTC) | 2026-09-05 |
 | Base revision | b779167ff979aa73cdd9321a829f9c693d943760 |
-| Delivery status | Draft PR #357's first delivered successor is exact head `8af044dd9d801f4edf163971088fd25795dc578f`, based on `b779167ff979aa73cdd9321a829f9c693d943760`. Its hosted analysis had 36 terminal checks (30 successful and six skipped) and a Sonar Quality Gate of `OK`, but six open task-owned checker code smells remain associated with that delivered head. The uncommitted four-file H14/H15 successor contains their semantic remediation and has current local evidence below; it has no successor-head hosted-result claim. No Ready-for-Review action, merge, direct `master` push, PR #346 action, or governance change is asserted. |
+| Delivery status | Validated implementation and hosted-evidence head: `672d5aa22a94640f50aea191885f991b0d8f45c3`, with parent `8af044dd9d801f4edf163971088fd25795dc578f` and base `b779167ff979aa73cdd9321a829f9c693d943760`. At the validated head, PR #357 was open, Ready for Review, unmerged, auto-merge disabled, mergeable, and `clean`. Its exact-head evidence recorded 36 terminal checks (30 successful and six documented skips), Sonar Quality Gate `OK`, zero `OPEN`/`CONFIRMED` issues, bugs, vulnerabilities, code smells, and `TO_REVIEW` hotspots, plus A new-code ratings and 0.0% new duplication; the API supplied no `new_coverage` value, so no coverage pass is asserted. The documentation-reconciliation successor containing this record has parent `672d5aa22a94640f50aea191885f991b0d8f45c3` and changes only the four delivery-documentation files in this scope. Checker, tests, and product source are byte-identical to the validated parent. No merge, direct `master` push, PR #346 action, or governance change is asserted; Ready for Review is not merge authorization. |
 
 ## Motivation and problem statement
 
@@ -21,11 +21,13 @@ Apache Common-adoption assertion passed in the failed Apache workflow.
 The two assertions were stale checker shapes, not evidence of an NGINX runtime
 defect. The live request mapper is fail-closed, while the Server response
 header resolver now delegates to a bounded Common wrapper instead of calling
-the raw response-header sink directly. `FND-PARENT-1010` remains in progress
-pending this successor's exact-head delivery evidence.
+the raw response-header sink directly. `FND-PARENT-1010` is `fixed_in_branch`,
+but remains unverified and unclosed until a separately authorized merge and
+resulting-master reproduction.
 
-The exact-head hosted analysis of `8af044dd9d801f4edf163971088fd25795dc578f`
-reported no bugs, vulnerabilities, or security hotspots, but six task-owned
+The following exact-head hosted analysis of
+`8af044dd9d801f4edf163971088fd25795dc578f` is historical predecessor evidence.
+It reported no bugs, vulnerabilities, or security hotspots, but six task-owned
 open code smells in the checker: three `python:S6353` character-class
 observations, one `python:S8786` regex-resource observation, and two
 `python:S1192` duplicate-signature observations. They are checker quality
@@ -37,8 +39,8 @@ The proof rejects a normalized `ddebug.h` source view longer than 4,096
 characters, requires exactly two exact inert fallback definitions, masks only
 those definitions, and then rejects remaining active `dd` identifiers except
 in separately validated macro directives. It also rejects nonallowlisted
-directives and active `_Pragma`, `asm`, `__asm`, or `__asm__` operators. Fresh
-hosted evidence remains required for that successor.
+directives and active `_Pragma`, `asm`, `__asm`, or `__asm__` operators. The
+later validated successor outcome is recorded in the H15 section below.
 
 The H13 follow-up reproduced macro-alias, empty trailing-macro-suffix,
 parenthesized-declarator, function-pointer, GNU `#pragma weak`, and C
@@ -58,14 +60,15 @@ format, so five exact visible literals now have current mutation coverage. The
 active checker view masks C string literals, so its former structural forms
 alone could not bind the visible format text. This is a static-contract defect
 under PR-controlled source changes, not a demonstrated NGINX runtime or remote
-exploit; no mutated native runtime was built or run.
+exploit; no mutated native runtime was built or run. The later validated
+successor outcome is recorded below.
 
 During the successor's Sonar remediation, `FND-PARENT-1039` reproduced a
 separate static-checker control bypass: raw function extraction could stop at
 a brace in a comment, literal, or inactive branch before a forbidden lifecycle
 or unbounded response-body append. This is not evidence of a current NGINX
-runtime vulnerability; the follow-up repairs the shared checker boundary and
-remains pending fresh successor-head review and delivery evidence.
+runtime vulnerability; the follow-up repairs the shared checker boundary. The
+later validated successor outcome is recorded below.
 
 `FND-PARENT-1042` then reproduced a distinct macro-integrity bypass in the
 same checker boundary. An allowlisted object-like macro could alias a forbidden
@@ -76,8 +79,8 @@ the same scope gate. The local repair therefore rejects the complete mapper
 marker set and all five reachable pre-gate body routes in permitted macro
 replacement lists, and requires the chain-buffer helper itself to retain one
 complete direct gate-only form. This is again static-checker evidence, not a
-current NGINX runtime vulnerability; exact successor-head review and delivery
-evidence remain due.
+current NGINX runtime vulnerability; the later validated successor evidence is
+recorded below.
 
 The H11 control review next reproduced three representation and reachability
 gaps in the same static boundary. `FND-PARENT-1043` showed that `c_function`'s
@@ -379,46 +382,51 @@ immutable-helper, and diagnostic-form controls. No native runtime was
 executed; final independent post-patch review and security-scan evidence remain
 separate delivery gates.
 
-## H15 Sonar remediation and current local evidence
+## H15 Sonar remediation, validated head, and historical local evidence
 
-Immediately before the H15 validation, the read-only PR #357 preflight found
-`master` at `b779167ff979aa73cdd9321a829f9c693d943760` and the local,
-remote-branch, and PR heads all at
-`8af044dd9d801f4edf163971088fd25795dc578f`. The PR is open, Draft,
-mergeable and `clean`, has two known commits and exactly six allowlisted remote
-files; the local successor has exactly the four changed allowlisted paths,
-nothing staged, and no untracked file. The predecessor exact-head rollup is
-terminal: 36 checks, 30 `SUCCESS`, six documented `SKIPPED`, and none failed,
-cancelled, queued, or active. Review threads are zero. PR #346 was inspected
-read-only only and remains an independent Draft.
+The `8af044dd9d801f4edf163971088fd25795dc578f` preflight and its six `OPEN`
+SonarQube Cloud issues are historical predecessor evidence. Those checker-only
+issues were three `python:S6353` character-class observations, one
+`python:S8786` regex-resource observation, and two `python:S1192`
+duplicate-signature observations. They are not asserted as native NGINX
+runtime vulnerabilities.
 
-The six `OPEN` SonarQube Cloud issues all target the checker and share PR #357
-analysis `2b24d50c-731e-495d-8c61-2e931df61f5f`: `python:S6353` three times,
-`python:S8786` once, and `python:S1192` twice. The local successor uses a
-scoped ASCII `(?a:\w*)` fragment instead of three `[A-Za-z0-9_]*` suffixes so
-that raw Unicode-aware `\w` semantics do not broaden the C-identifier boundary;
-replaces the potentially super-linear fallback-definition regex with a bounded
-4,096-character exact-fallback and line-scan proof; and reuses one constant only for
-each semantically identical response-mapper and header-filter source selector.
-It adds no `NOSONAR`, suppression, exclusion, acceptance, rule, Quality Gate,
-or workflow change. These are checker-quality remediations, not an assertion of
-a native NGINX runtime vulnerability.
+The validated implementation and hosted-evidence head is
+`672d5aa22a94640f50aea191885f991b0d8f45c3`, with parent
+`8af044dd9d801f4edf163971088fd25795dc578f`. The H15 remediation uses a scoped
+ASCII `(?a:\w*)` fragment for C-identifier suffixes, a bounded 4,096-character
+fallback proof, and shared selectors only for semantically identical source
+boundaries. It adds no `NOSONAR`, suppression, exclusion, acceptance, rule,
+Quality Gate, or workflow change.
 
-On the current local source/test tree, Python compilation passed; the direct
+At the validated head, PR #357 was open, Ready for Review, unmerged,
+auto-merge disabled, mergeable, and `clean`; `master` remained
+`b779167ff979aa73cdd9321a829f9c693d943760`. Its exact-head rollup was
+terminal: 36 checks total, 30 `SUCCESS`, six documented `SKIPPED`, and none
+failed, cancelled, queued, or active. There were no submitted reviews or review
+threads. The hosted SonarQube Cloud Quality Gate was `OK`, with zero
+`OPEN`/`CONFIRMED` issues, bugs, vulnerabilities, code smells, and `TO_REVIEW`
+security hotspots; new reliability, security, and maintainability ratings were
+A and new duplication was 0.0%. The API supplied no `new_coverage` value, so
+this record does not assert a coverage pass. PR #346 was inspected read-only
+only and remains an independent Draft.
+
+On the validated local source/test tree, Python compilation passed; the direct
 checker and `make check-nginx-common-adoption` each passed all 74 assertions;
-the scoped ASCII-equivalence control passed; the bounded fallback mutation
-method passed in `21.057s`; the five-visible-literal H14 mutation method passed
-in `10.115s`; all 92 isolated mutation and legitimate-control tests passed in
-`362.428s`; and the repository virtualenv ran all 54 companion tests in
-`2.144s`. A system-Python companion attempt was environment-blocked solely by
-its missing `yaml` module and was not treated as a product failure or replaced
-by an installation. Exact successor-head hosted checks, SonarQube Cloud
-analysis, and review evidence remain required after normal delivery; this
-record intentionally makes no successor-head hosted-success claim.
+92 isolated mutation and legitimate-control tests passed; and the repository
+virtualenv ran all 54 companion tests. The two final-tree static security-diff
+reviews bound to the validated patch reported zero reportable findings. The
+four-file binary patch SHA-256 for the validated H14/H15 successor is
+`9edcc00d0250fa3ec222753a41388d884ec6b6eb42b1e72be2f871466b451843`. A
+system-Python companion attempt was environment-blocked solely by its missing
+`yaml` module and was not replaced by an installation. The local Vortex/Sonar
+query remained HTTP-403 environment-blocked; hosted SonarQube Cloud is the
+relevant exact-head evidence.
 
 ## Changed files
 
-Initial Draft PR #357 file set (six tracked paths):
+Validated PR #357 file set at implementation head
+`672d5aa22a94640f50aea191885f991b0d8f45c3` (six tracked paths):
 
 - `ci/checks/connectors/nginx/check-nginx-common-adoption.py`
 - `tests/test_nginx_common_adoption.py`
@@ -427,12 +435,17 @@ Initial Draft PR #357 file set (six tracked paths):
 - `reports/audits/change-records/README.md`
 - `reports/audits/change-records/README.de.md`
 
-Current uncommitted successor delta (four modified paths):
+The documentation-reconciliation successor containing this record has parent
+`672d5aa22a94640f50aea191885f991b0d8f45c3` and changes exactly these four
+delivery-documentation paths:
 
-- `ci/checks/connectors/nginx/check-nginx-common-adoption.py`
-- `tests/test_nginx_common_adoption.py`
 - `reports/audits/change-records/CR-20260905-nginx-current-master-common-adoption-repair.md`
 - `reports/audits/change-records/CR-20260905-nginx-current-master-common-adoption-repair.de.md`
+- `reports/audits/change-records/README.md`
+- `reports/audits/change-records/README.de.md`
+
+It changes no checker, test, or product-source path; those paths are
+byte-identical to the validated parent.
 
 ## Commands executed
 
@@ -466,7 +479,7 @@ Current uncommitted successor delta (four modified paths):
 | `make check-bilingual-docs` and `make check-doc-links` | Blocked by the uninitialized `modules/ModSecurity-test-Framework` gitlink: existing repository links to Framework files are absent. Neither command reported a task-owned Change Record link failure at that historical checkpoint. The pair had 13 required headings in each language; that historical checkpoint did not establish equality of every backtick-delimited literal. |
 | `git diff --check` | Passed. |
 | Initial security diff scan | Completed for the preceding comment-decoy revision: no reportable finding remained in that snapshot. It is retained as historical evidence only. |
-| Final function-macro security diff scan | Completed at `2026-09-05T10:22:18.683709Z`: the preceding six-path snapshot had complete coverage and zero reportable findings. Its sealed report SHA-256 is `7ff57a88702a922644dc0d3ebca96d3bbbf19e3a0ca9031b656cdf7b9e00d9ae`; it does not cover the current FND-PARENT-1040/-1042 successor scope, for which a fresh final scan is a delivery gate. |
+| Historical final function-macro security diff scan | Completed at `2026-09-05T10:22:18.683709Z`: the preceding six-path snapshot had complete coverage and zero reportable findings. Its sealed report SHA-256 is `7ff57a88702a922644dc0d3ebca96d3bbbf19e3a0ca9031b656cdf7b9e00d9ae`; it did not cover the then-current FND-PARENT-1040/-1042 successor scope and is retained as historical evidence only. The later final-tree scans for the validated head are documented in the H15 section. |
 | Earlier H12 `python3 -m py_compile ci/checks/connectors/nginx/check-nginx-common-adoption.py tests/test_nginx_common_adoption.py` | Passed. |
 | Earlier H12 targeted diagnostic/indirect-call controls | Passed: `test_diagnostic_macro_side_effect_is_rejected` and `test_indirect_calls_are_rejected` completed in `10.500s` after the earlier exact-form repair; direct, non-call, nested-cast, indexed, and member forms were rejected in isolated copies. |
 | Earlier H12 `/root/git/ModSecurity-conector/.venv/bin/python -B -m unittest -v tests.test_nginx_common_adoption` | Passed: 71 isolated checker tests in `178.460s`. |
@@ -648,17 +661,20 @@ the contract and its isolated controls rather than rely on a stale count.
 
 ## Remaining risks
 
-`FND-PARENT-1010`, `FND-PARENT-1039`, `FND-PARENT-1040`, `FND-PARENT-1042`,
-`FND-PARENT-1043`, `FND-PARENT-1044`, `FND-PARENT-1045`, `FND-PARENT-1051`,
-`FND-PARENT-1052`, `FND-PARENT-1053`, `FND-PARENT-1054`, and the local
-documentation-drift record `FND-PARENT-1055` are not closed by local evidence.
+`FND-SONAR-0079`, `FND-SONAR-0080`, and `FND-SONAR-0081` are
+`fixed_in_branch` at the validated head. `FND-PARENT-1010` is also
+`fixed_in_branch`, but remains unverified and unclosed until the separately
+authorized merge and resulting-master reproduction. Local `FND-PARENT-1054`
+and `FND-PARENT-1055` remain local tracking, not part of this PR diff. No
+finding is closed solely by this documentation-reconciliation successor.
+
 The H13 terminal scan is historical for the changed H14 tree. The H14 full
-current mutation and companion runs, independent post-fix review, and terminal
-scoped static scan passed locally, but an exact successor commit, hosted checks,
-SonarQube Cloud analysis, reviews, and later resulting-master evidence remain.
-This task does not claim complete P1–P4 acceptance or a complete native 17×10
-host matrix. PR #346 remains an independent, untouched Draft and must be
-integrated separately against the new `master`.
+mutation and companion runs, independent post-fix review, and terminal scoped
+static scans passed locally; the validated implementation head also has its
+own hosted checks, SonarQube Cloud analysis, and review evidence. This task
+does not claim native NGINX runtime validation, complete P1–P4 acceptance, or
+a complete native 17×10 host matrix. PR #346 remains an independent, untouched
+Draft and must be integrated separately against a later `master` state.
 
 ## Checks not run and rationale
 
@@ -667,29 +683,36 @@ matrix, ASan, UBSan, TSan, leak check, or native NGINX C compilation was run
 because the delivery diff contains no NGINX C runtime change. Two isolated
 minimal C syntax harnesses were compiled with `-fsyntax-only`; they do not
 exercise NGINX or a mutated runtime call. Hosted workflow and SonarQube Cloud
-evidence exists for first delivered PR head
-`8af044dd9d801f4edf163971088fd25795dc578f`, not for this local uncommitted H14
-successor. The H12 and H13 post-patch scans are historical evidence only. The
-H14 full mutation and companion suites, independent post-fix review, terminal
-scoped security-diff scan, direct paired-document suite, and diff hygiene have
-completed locally. The repository-wide bilingual and path-reference make targets
-are environment-blocked solely by absent Framework Gitlink targets; they are not
-reported as passes. The unavailable local `ruff` executable was not installed
-or replaced.
+evidence exists for the validated implementation head
+`672d5aa22a94640f50aea191885f991b0d8f45c3`; this documentation-only successor
+does not transfer that evidence to its own, intentionally unrecorded commit
+SHA. The H12 and H13 post-patch scans are historical evidence only. The H14
+full mutation and companion suites, independent post-fix review, terminal
+scoped security-diff scans, direct paired-document suite, and diff hygiene have
+completed locally. The repository-wide bilingual and path-reference make
+targets are environment-blocked solely by absent Framework Gitlink targets;
+they are not reported as passes. The unavailable local `ruff` executable was
+not installed or replaced.
 
 ## Final diff and review status
 
-At this record revision, Draft PR #357's first delivered successor remains
-`8af044dd9d801f4edf163971088fd25795dc578f`. Its local uncommitted H14
-successor changes only the checker, its focused tests, and this paired Change
-Record; it does not change NGINX runtime C, `.github/**`, PR #346, or `master`.
-H13's six `ddebug.h` representation repairs and terminal scan remain
-historical evidence, not final-tree H14 evidence. H14 requires the exact five
-visible diagnostic literals alongside their existing masked structural forms;
+The validated implementation and hosted-evidence head for PR #357 is
+`672d5aa22a94640f50aea191885f991b0d8f45c3`, with parent
+`8af044dd9d801f4edf163971088fd25795dc578f`. Its H14/H15 checker and test
+patch has the documented local, independent-review, and hosted evidence above.
+The documentation-reconciliation successor containing this record has that
+validated head as its parent and changes only the paired Change Record and
+README index paths. It changes no NGINX runtime C, checker, focused test,
+`.github/**`, PR #346, or `master` path; those non-documentation paths are
+byte-identical to the validated parent.
+
+H13's six `ddebug.h` representation repairs and terminal scan remain historical
+evidence. H14 retains the exact five visible diagnostic-literal contract and
 the targeted literal and source-symlink regressions, full current suites,
 independent post-fix review, direct bilingual document suite, diff hygiene, and
-terminal scan passed. Repository-wide documentation commands are
-environment-blocked by absent Framework targets and are not represented as
-passes. Delivery preflight remains required. Any normal successor commit remains
-contingent on that fresh preflight, normal push, refreshed Draft-PR exact-head
-checks, SonarQube Cloud, and hosted-review evidence.
+terminal scans. Repository-wide documentation commands are environment-blocked
+solely by absent Framework targets and are not represented as passes. This
+documentation reconciliation is not a merge, and Ready for Review is not merge
+authorization. The new documentation-only successor requires its own exact-head
+checks, SonarQube Cloud analysis, and review readback after a normal push; the
+validated parent evidence is retained only as parent evidence.

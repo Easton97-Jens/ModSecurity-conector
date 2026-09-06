@@ -17,8 +17,15 @@ angelegt werden.
   richtet den Resulting-Master-Checker am aktuellen fail-closed-Request-Mapper-
   und begrenzten Explicit-Length-Server-Header-Pfad aus. Sie ändert weder
   NGINX-Runtime-Source, Framework, MRTS, Gitlink, Workflow, Governance noch
-  PR-#346-Status; Exact-Head-Hosted-Evidence und jeder Merge stehen aus und
-  werden nicht behauptet.
+  PR-#346-Status; validierter Implementierungs- und Hosted-Evidence-Head
+  `672d5aa22a94640f50aea191885f991b0d8f45c3` war zur Review freigegeben mit
+  36 terminalen Checks (30 erfolgreich und sechs dokumentierte Skips),
+  Sonar-Quality-Gate `OK` und null `OPEN`/`CONFIRMED`-Issues, Bugs,
+  Vulnerabilities, Code-Smells oder `TO_REVIEW`-Hotspots. Der
+  Dokumentationsabgleich-Successor hat diesen Head als Parent und verändert
+  ausschließlich die gekoppelten Delivery-Dokumentationspfade; Checker, Tests
+  und Produktquellcode sind gegenüber dem validierten Parent byte-identisch.
+  Kein Merge wird behauptet, und Ready for Review ist keine Merge-Autorisierung.
 
 - [CR-20260904-apache-helper-aware-common-adoption-contract](CR-20260904-apache-helper-aware-common-adoption-contract.de.md)
   | English companion: `CR-20260904-apache-helper-aware-common-adoption-contract.md` —
