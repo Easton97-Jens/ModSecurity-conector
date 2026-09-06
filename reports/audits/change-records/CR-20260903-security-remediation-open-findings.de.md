@@ -1218,3 +1218,44 @@ einschließlich SonarCloud-Readback, aller erforderlichen Repository-Checks,
 beider NGINX-Artefakte und aller fünf CRS/no-MRTS-Zellen. PR #354 bleibt Draft,
 offen und ungemergt; diese kandidaten-eigene Evidence bleibt von der für
 `FND-GITHUB-0009` nötigen Protected-Host-/Collector-Entscheidung getrennt.
+
+### 2026-09-06 Vierzehnter Follow-up (Current-Base-Refresh und begrenzte Ausnahme)
+
+Der aktuelle Nutzer autorisierte ausdrücklich einen normalen Merge des
+aktuellen `origin/master` in den bestehenden PR-#354-Arbeitsbranch, ohne
+Rebase, Force-Push, direkten Default-Branch-Write,
+Framework-/MRTS-/Gitlink-/Dependency-Änderung oder Abschwächung von Tests bzw.
+Qualitätskontrollen. Der Merge des aktuellen Masters
+`9925ef647b5fb49d21aebd658a658d4fdb649c58` war konfliktfrei. Er erhält den
+Current-Master-NGINX-Common-Adoption-Checker, seine Regressionssuite und seinen
+gepaarten Change Record, während die PR-#354-Remediation-Pfade erhalten
+bleiben. Der resultierende Successor verlangt weiter einen normalen Push,
+exaktes Remote-Readback und frische Evidence; kein Predecessor-Ergebnis wird
+promotet.
+
+Um `2026-09-06T19:30:15Z` akzeptierte der aktuelle Nutzer zudem nur das
+Restrisiko aus `FND-GITHUB-0009`: Vom PR ausgewählte funktionale GitHub-CI ist
+keine unabhängige Protected-Host-Attestierung. Das kanonische Finding lautet
+nun ausschließlich für eine reguläre PR-#354-Integration `accepted_risk`, nicht
+fixed, verified oder closed; seine technische
+Base-/Environment-/Runner-/Host-Gate-Arbeit bleibt offen. Die Ausnahme bindet
+erst nach frischer Validierung und Rücklesung einer finalen vollständigen
+Successor-SHA unmittelbar vor einem regulären GitHub-Squash-Merge. Sie behauptet
+weder unabhängigen Hostnachweis, externes Seal noch allgemeine Fehlerfreiheit
+und akzeptiert kein weiteres Finding, keinen Defekt, keinen fehlgeschlagenen
+Pflichtcheck, kein Sonar-Issue/Hotspot, keinen ungelösten Review, keinen
+Ruleset-Fehler, keinen Bypass, keine Veröffentlichung und keinen späteren Head.
+
+Die geltende Integrationspolicy verlangt außerdem eine 24-zeilige
+Connector-Profil-Bewertung. Das unabhängig revalidierte `FND-CROSS-0004` bleibt
+ein separater, nicht risikakzeptierter Release-Blocker: Das Framework besitzt
+jetzt den Five-Connector-CRS-Fixture-/Katalogvertrag und der PR fünf
+With-CRS/No-MRTS-Zeilen, aber der Parent-Workflow ruft weder den
+Framework-Aggregate-Befehl auf noch bewahrt er ein exaktes Five-Parent-
+Aggregate-Artefakt für die fünf Parent-Zellen auf. Damit bleibt sein Kriterium
+für ein geschlossenes Parent-Profil unerfüllt. Diese Aufgabe ändert diese Infrastruktur nicht und
+wertet ein partielles Five-Row-Ergebnis nicht als Aggregate-PASS. Der frische
+Successor bewahrt die erforderlichen fünf Row-Level-Ergebnisse und eine
+vollständige 24-zeilige Bewertung auf; bis der unabhängige Blocker unter
+separater Autorisierung behoben ist, bleibt PR #354 Draft und darf nicht
+gemergt werden.

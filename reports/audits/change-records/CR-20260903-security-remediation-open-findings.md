@@ -1111,3 +1111,39 @@ including SonarCloud readback, all required repository checks, both NGINX
 artifacts, and all five CRS/no-MRTS cells. PR #354 remains Draft, open, and
 unmerged; this candidate-owned evidence remains distinct from the protected
 host/collector decision required for `FND-GITHUB-0009`.
+
+### 2026-09-06 fourteenth follow-up (current-base refresh and bounded exception)
+
+The current user explicitly authorized one normal merge of current
+`origin/master` into the existing PR #354 work branch, with no rebase,
+force-push, direct default-branch write, Framework/MRTS/Gitlink/dependency
+change, or test/quality-control weakening. The merge of current master
+`9925ef647b5fb49d21aebd658a658d4fdb649c58` was clean. It preserves the
+current-master NGINX Common-adoption checker, its regression suite, and its
+paired Change Record while retaining the PR #354 remediation paths. The
+resulting successor still requires a normal push, exact remote readback, and
+fresh evidence; no predecessor result is promoted.
+
+At `2026-09-06T19:30:15Z`, the current user also accepted only the residual
+risk in `FND-GITHUB-0009`: functional GitHub CI selected by the PR is not an
+independent protected-host attestation. The canonical finding is now
+`accepted_risk` for one ordinary PR #354 integration only, not fixed,
+verified, or closed; its technical Base/Environment/runner/host-gate work
+remains open. The exception binds only after one final full successor SHA is
+freshly validated and read back immediately before a regular GitHub squash
+merge. It neither claims independent host proof, an external seal, or general
+error-free behavior nor accepts another finding, defect, failed required check,
+Sonar issue/hotspot, unresolved review, ruleset failure, bypass, release, or
+later head.
+
+The current integration policy also requires a 24-row connector-profile
+assessment. The independently revalidated `FND-CROSS-0004` remains a separate,
+not-risk-accepted release blocker: the Framework now has the five-connector
+CRS fixture/catalog contract and the PR has five With-CRS/No-MRTS rows, but the
+Parent workflow does not invoke the Framework aggregate command or retain an
+exact-five Parent aggregate artifact. Therefore its criterion for a closed
+Parent profile remains unmet. This task neither changes that infrastructure nor
+treats a partial five-row result as an aggregate pass. The fresh successor will
+retain the required five row-level results and a complete 24-row assessment;
+until the independent blocker is resolved under separate authority, PR #354
+remains Draft and must not be merged.
