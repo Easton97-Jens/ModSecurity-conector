@@ -11,7 +11,7 @@
 | Base revision | 95bc04203455bc74a9cd18fafc6fb5848af2bbb2 |
 | Branch | codex/security-remediation-open-findings-20260903 |
 | Final HEAD_SHA | This record is part of the delivery head and therefore cannot truthfully self-reference its own final Git object. The exact immutable final SHA is recorded in the Draft PR metadata and task delivery evidence after this record is committed. |
-| Delivery status | Draft PR [#354](https://github.com/Easton97-Jens/ModSecurity-conector/pull/354) is open and unmerged. Exact-head `f38f239a8d0e73408a049583f5fcdb01d8b7be9b` completed the full hosted runtime workflow and SonarCloud Quality Gate; its NGINX provision/compile passed, while its on/off runtime cells remain deliberately blocked by the required worker-identity control. This documentation successor requires its own fresh exact-head rerun. |
+| Delivery status | Draft PR [#354](https://github.com/Easton97-Jens/ModSecurity-conector/pull/354) is open and unmerged, and remains Draft. This Change Record is part of its own documentation successor and does not promote any predecessor result. After the successor push, its exact SHA and fresh result readback are recorded in PR metadata and retained delivery evidence. FND-CROSS-0004 remains an independent, unaccepted `P1` release blocker because the Parent exact-five aggregate is absent and the retained 24-row assessment is incomplete; therefore no Draft transition or merge is authorized. |
 
 ## Motivation and problem statement
 
@@ -1172,3 +1172,21 @@ independent security reviews found no surviving bypass or valid-Host
 regression. The focused checker/HTX/C17 suite and 34 direct HAProxy contracts
 passed; the final successor still requires a normal push, exact readback, and
 fresh hosted evidence rather than promoting this predecessor result.
+
+### 2026-09-06 sixteenth follow-up (final documentation-head disposition)
+
+This paired documentation update is the next ordinary PR #354 successor. It
+does not change product behavior, tests, workflows, Framework, MRTS, a
+Gitlink, a dependency, a policy, or a required control. Its own exact SHA and
+fresh GitHub/Sonar/runtime result readback must be recorded after its normal
+push; no predecessor run is promoted to this documentation head.
+
+The bounded FND-GITHUB-0009 exception remains `accepted_risk` only for one
+future ordinary PR #354 integration after all non-excepted conditions pass. It
+is not fixed, verified, closed, or consumed: the independent
+FND-CROSS-0004 `P1` release blocker prevents any merge before that point. The
+retained 24-row assessment has five passed cells, six blocked cells, and
+thirteen unrun cells, and the required Parent exact-five aggregate artifact is
+absent. Accordingly PR #354 remains open and Draft, no GitHub merge is
+attempted, and there are no resulting-master checks or release actions to
+report.

@@ -11,7 +11,7 @@
 | Basis-Revision | 95bc04203455bc74a9cd18fafc6fb5848af2bbb2 |
 | Branch | codex/security-remediation-open-findings-20260903 |
 | Finaler HEAD_SHA | Dieser Record ist Teil des Delivery-HEAD und kann sein eigenes finales Git-Objekt daher nicht wahrheitsgemäß selbst referenzieren. Der exakte unveränderliche SHA wird nach dem Commit dieses Records in Draft-PR-Metadaten und Delivery-Evidence erfasst. |
-| Delivery-Status | Draft PR [#354](https://github.com/Easton97-Jens/ModSecurity-conector/pull/354) ist offen und nicht gemergt. Der Exact-Head `f38f239a8d0e73408a049583f5fcdb01d8b7be9b` bestand den vollständigen Hosted-Runtime-Workflow und das SonarCloud-Quality-Gate; sein NGINX-Provisioning/-Compile bestand, während seine On/Off-Runtime-Zellen wegen der erforderlichen Worker-Identitätskontrolle absichtlich blockiert bleiben. Dieser Dokumentations-Successor benötigt seinen eigenen frischen Exact-Head-Rerun. |
+| Delivery-Status | Draft PR [#354](https://github.com/Easton97-Jens/ModSecurity-conector/pull/354) ist offen, nicht gemergt und bleibt Draft. Dieser Change Record ist Teil seines eigenen Dokumentations-Successors und promotet kein Vorgängerergebnis. Nach dem Successor-Push werden seine exakte SHA und der frische Ergebnis-Readback in PR-Metadaten und aufbewahrter Delivery-Evidence festgehalten. FND-CROSS-0004 bleibt ein unabhängiger, nicht akzeptierter `P1`-Release-Blocker, weil das Parent-Exact-Five-Aggregat fehlt und die aufbewahrte 24-Zeilen-Bewertung unvollständig ist; deshalb sind weder Draft-Transition noch Merge autorisiert. |
 
 ## Motivation und Problemstellung
 
@@ -1287,3 +1287,23 @@ des gültigen Host-Pfads. Die fokussierte Checker-/HTX-/C17-Suite und 34 direkte
 HAProxy-Contracts bestanden; der finale Successor erfordert dennoch normalen
 Push, exaktes Readback und frische Hosted-Evidence, statt dieses
 Vorgängerergebnis zu promoten.
+
+### 2026-09-06 Sechzehnter Follow-up (finale Dokumentations-Head-Disposition)
+
+Diese gepaarte Dokumentationsaktualisierung ist der nächste reguläre
+PR-#354-Successor. Sie verändert weder Produktverhalten, Tests, Workflows,
+Framework, MRTS, einen Gitlink, eine Dependency, eine Policy noch eine
+erforderliche Kontrolle. Ihre eigene exakte SHA und der frische
+GitHub-/Sonar-/Runtime-Ergebnis-Readback müssen nach ihrem normalen Push
+festgehalten werden; kein Vorgänger-Run wird zu diesem Dokumentations-Head
+promotet.
+
+Die begrenzte FND-GITHUB-0009-Ausnahme bleibt `accepted_risk` nur für eine
+künftige reguläre PR-#354-Integration, nachdem alle nicht ausgenommenen
+Bedingungen bestehen. Sie ist weder fixed, verified oder closed noch
+verbraucht: Der unabhängige FND-CROSS-0004-`P1`-Release-Blocker verhindert
+zuvor jeden Merge. Die aufbewahrte 24-Zeilen-Bewertung hat fünf bestandene,
+sechs blockierte und dreizehn nicht ausgeführte Zellen, und das erforderliche
+Parent-Exact-Five-Aggregat-Artefakt fehlt. Daher bleibt PR #354 offen und
+Draft, es wird kein GitHub-Merge versucht und es gibt keine
+Resulting-Master-Checks oder Release-Aktionen zu berichten.
