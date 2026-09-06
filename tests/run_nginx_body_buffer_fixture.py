@@ -315,12 +315,16 @@ def require_fixture_log(
         "body-buffer-fixture connector-boundary "
         f"mode={mode} memory={int(memory)} in_file={int(in_file)}"
     )
-    if expected not in error_log:
+    pattern = re.compile(
+        re.escape(expected)
+        + r"[^\n]*representation="
+        + re.escape(representation)
+        + r" injection="
+        + re.escape(injection)
+        + r"(?:,|\n|$)"
+    )
+    if pattern.search(error_log) is None:
         fail(f"connector-boundary buffer-state log missing: {expected}")
-    if f"representation={representation}" not in error_log:
-        fail(f"connector-boundary representation log missing for {mode}: {representation}")
-    if f"injection={injection}" not in error_log:
-        fail(f"connector-boundary injection log missing for {mode}: {injection}")
 
 
 def require_healthy_worker(process: subprocess.Popen[str], error_log: str, mode: str) -> None:
