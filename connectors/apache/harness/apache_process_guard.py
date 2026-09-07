@@ -46,6 +46,7 @@ SUPERVISOR_CONTROL_BYTES = 32
 SUPERVISOR_EXIT_CONFIRM_ATTEMPTS = 40
 RUNNER_DIRECTORY_ENV = "MSCONNECTOR_APACHE_GUARD_DIRECTORY"
 RUNNER_ARTIFACT_ROOT_ENV = "MSCONNECTOR_APACHE_GUARD_ARTIFACT_ROOT"
+RUNNER_HTTPD_ENV = "MSCONNECTOR_APACHE_GUARD_HTTPD"
 
 
 class GuardError(RuntimeError):
@@ -109,29 +110,75 @@ def _supervisor_stop_child(pidfd: int, child: subprocess.Popen[bytes]) -> None:
         raise GuardError("Apache supervisor child was not reaped within bounded cleanup") from exc
 
 
-def _pin_launch_fd(path: Path, *, executable: bool) -> int:
-    """Open the exact runner-provided inode before launch; reject links."""
+def _launch_input_flags() -> int:
     flags = os.O_RDONLY | os.O_NOFOLLOW
+    if hasattr(os, "O_NONBLOCK"):
+        flags |= os.O_NONBLOCK
     if hasattr(os, "O_CLOEXEC"):
         flags |= os.O_CLOEXEC
+    return flags
+
+
+def _validate_launch_fd(fd: int, *, executable: bool) -> None:
+    info = os.fstat(fd)
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or info.st_mode & 0o022:
+        raise GuardError("Apache launch input is not an owned regular file")
+    if executable and not (info.st_mode & 0o111):
+        raise GuardError("Apache executable inode is not executable")
+
+
+def _validated_httpd_path(path: Path, trusted_path: Path) -> Path:
+    """Bind a CLI executable selection to the runner-provisioned capability."""
+    for label, candidate in (("Apache executable", path), ("trusted Apache executable", trusted_path)):
+        if not candidate.is_absolute() or "\x00" in os.fspath(candidate) or any(
+            component in (".", "..") for component in candidate.parts
+        ):
+            raise GuardError(f"{label} path must be absolute and traversal-free")
     try:
-        fd = os.open(path, flags)
-        info = os.fstat(fd)
-        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or info.st_mode & 0o022:
-            raise GuardError("Apache launch input is not an owned regular file")
-        if executable and not (info.st_mode & 0o111):
-            raise GuardError("Apache executable inode is not executable")
-        if not executable and info.st_mode & 0o022:
-            raise GuardError("Apache config inode is writable by group/world")
+        resolved = path.resolve(strict=True)
+        trusted = trusted_path.resolve(strict=True)
+    except OSError as exc:
+        raise GuardError(f"cannot resolve trusted Apache executable: {exc}") from exc
+    if resolved != path or trusted != trusted_path:
+        raise GuardError("Apache executable path must not contain symlinks")
+    if resolved != trusted:
+        raise GuardError("Apache executable does not match the runner-provisioned capability")
+    if resolved.name not in ("httpd", "apache2"):
+        raise GuardError("Apache supervisor accepts only an httpd/apache2 executable")
+    return resolved
+
+
+def _pin_launch_fd(path: Path, *, executable: bool) -> int:
+    """Open and validate an exact canonical launch inode."""
+    fd = -1
+    try:
+        fd = os.open(path, _launch_input_flags())
+        _validate_launch_fd(fd, executable=executable)
         return fd
     except (GuardError, OSError) as exc:
-        try:
+        if fd >= 0:
             os.close(fd)
-        except (OSError, UnboundLocalError):
-            pass
         if isinstance(exc, GuardError):
             raise
         raise GuardError(f"cannot pin Apache launch input {path}: {exc}") from exc
+
+
+def _pin_config_fd(path: Path, artifact_root: Path) -> int:
+    """Open the fixed generated config beneath the private runtime root."""
+    expected = artifact_root / "conf" / "httpd.conf"
+    if path != expected:
+        raise GuardError("Apache config must be the generated runtime config")
+    fd = -1
+    try:
+        fd = _open_artifact(path, artifact_root, _launch_input_flags())
+        _validate_launch_fd(fd, executable=False)
+        return fd
+    except (GuardError, OSError) as exc:
+        if fd >= 0:
+            os.close(fd)
+        if isinstance(exc, GuardError):
+            raise
+        raise GuardError(f"cannot pin Apache config {path}: {exc}") from exc
 
 
 def _write_pid_output(path: Path, pid: int, artifact_root: Path) -> os.stat_result:
@@ -237,10 +284,12 @@ def _child_preexec(expected_parent: int, parent_mask: set[signal.Signals]) -> No
 def supervise(httpd: Path, config: Path, state: Path, pid_output: Path) -> int:
     """Run only the validated Apache smoke command under a launch-bound guard."""
     _supervisor_paths(state, pid_output)
-    if not httpd.is_absolute() or not config.is_absolute():
-        raise GuardError("Apache supervisor requires absolute httpd and config paths")
-    if httpd.name not in ("httpd", "apache2"):
-        raise GuardError("Apache supervisor accepts only an httpd/apache2 executable")
+    artifact_root = _runner_configured_path(
+        RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"
+    )
+    httpd = _validated_httpd_path(
+        httpd, _runner_configured_path(RUNNER_HTTPD_ENV, "Apache executable")
+    )
     expected_parent = os.getppid()
     supervisor_pid = os.getpid()
     stop_requested = False
@@ -262,7 +311,7 @@ def supervise(httpd: Path, config: Path, state: Path, pid_output: Path) -> int:
     config_fd = -1
     try:
         httpd_fd = _pin_launch_fd(httpd, executable=True)
-        config_fd = _pin_launch_fd(config, executable=False)
+        config_fd = _pin_config_fd(config, artifact_root)
         child = subprocess.Popen(
             [f"/proc/self/fd/{httpd_fd}", "-X", "-f", f"/proc/self/fd/{config_fd}"],
             stdout=subprocess.DEVNULL,
@@ -316,11 +365,10 @@ def supervise(httpd: Path, config: Path, state: Path, pid_output: Path) -> int:
              "parent_pid_starttime": parent_starttime, "child_pid": child.pid,
              "child_pid_starttime": child_stat["starttime"], "supervisor_pid": supervisor_pid,
              "supervisor_pid_starttime": supervisor_stat["starttime"]}, state,
-            _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"),
+            artifact_root,
         )
         pid_identity = _write_pid_output(
-            pid_output, child.pid,
-            _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"),
+            pid_output, child.pid, artifact_root,
         )
         signal.pthread_sigmask(signal.SIG_SETMASK, old_mask)
         while child.poll() is None:
@@ -367,14 +415,13 @@ def supervise(httpd: Path, config: Path, state: Path, pid_output: Path) -> int:
         if state_identity is not None:
             try:
                 _remove_exact_artifact(
-                    state, _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"),
-                    state_identity,
+                    state, artifact_root, state_identity,
                 )
             except GuardError:
                 pass
         if "pid_identity" in locals():
             try:
-                _remove_exact_artifact(pid_output, _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"), pid_identity)
+                _remove_exact_artifact(pid_output, artifact_root, pid_identity)
             except GuardError:
                 pass
 
@@ -1236,8 +1283,6 @@ def main() -> int:
     rec.add_argument("--port", type=int, required=True)
     rec.add_argument("--output", type=Path, required=True)
     supervisor = sub.add_parser("supervise")
-    supervisor.add_argument("--httpd", type=Path, required=True)
-    supervisor.add_argument("--config", type=Path, required=True)
     supervisor.add_argument("--state", type=Path, required=True)
     supervisor.add_argument("--pid-output", type=Path, required=True)
     stop = sub.add_parser("stop-supervisor")
@@ -1271,7 +1316,16 @@ def main() -> int:
                 _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"),
             )
         elif args.command == "supervise":
-            return supervise(args.httpd, args.config, args.state, args.pid_output)
+            artifact_root = _runner_configured_path(
+                RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"
+            )
+            httpd = _runner_configured_path(RUNNER_HTTPD_ENV, "Apache executable")
+            return supervise(
+                httpd,
+                artifact_root / "conf" / "httpd.conf",
+                args.state,
+                args.pid_output,
+            )
         elif args.command == "stop-supervisor":
             stop_supervisor(
                 args.state,

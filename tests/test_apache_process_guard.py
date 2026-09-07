@@ -85,7 +85,9 @@ class ApacheProcessGuardTest(unittest.TestCase):
 
     def _write_fake_httpd(self, port: int) -> tuple[Path, Path, Path]:
         httpd = Path(self.tmp.name) / "httpd"
-        config = Path(self.tmp.name) / "httpd.conf"
+        config_dir = self.artifact_root / "conf"
+        config_dir.mkdir(mode=0o700, exist_ok=True)
+        config = config_dir / "httpd.conf"
         ready = Path(self.tmp.name) / "httpd.ready"
         ready.unlink(missing_ok=True)
         httpd.write_text(
@@ -102,8 +104,15 @@ class ApacheProcessGuardTest(unittest.TestCase):
         config.chmod(0o600)
         return httpd, config, ready
 
-    def _supervisor_env(self) -> dict[str, str]:
-        return {**os.environ, guard.RUNNER_ARTIFACT_ROOT_ENV: str(self.artifact_root), "PYTHONDONTWRITEBYTECODE": "1"}
+    def _supervisor_env(self, httpd: Path | None = None) -> dict[str, str]:
+        environment = {
+            **os.environ,
+            guard.RUNNER_ARTIFACT_ROOT_ENV: str(self.artifact_root),
+            "PYTHONDONTWRITEBYTECODE": "1",
+        }
+        if httpd is not None:
+            environment[guard.RUNNER_HTTPD_ENV] = str(httpd)
+        return environment
 
     def _launch_fake_supervisor(self, *, fail_pidfd: bool = False, run_name: str = "run") -> tuple[subprocess.Popen[bytes], Path, Path, int]:
         port = self._reserve_loopback_port()
@@ -124,7 +133,7 @@ class ApacheProcessGuardTest(unittest.TestCase):
                "os.pidfd_open = _wait_then_fail\n" if fail_pidfd else "")
             + f"raise SystemExit(g.supervise(Path({str(httpd)!r}), Path({str(config)!r}), Path({str(state)!r}), Path({str(pid_output)!r})))\n"
         )
-        env = {**os.environ, guard.RUNNER_ARTIFACT_ROOT_ENV: str(self.artifact_root), "PYTHONDONTWRITEBYTECODE": "1"}
+        env = self._supervisor_env(httpd)
         log = open(self.artifact_root / "supervisor.log", "wb")
         try:
             process = subprocess.Popen([sys.executable, "-c", code], cwd=Path(__file__).parents[1], env=env,
@@ -169,6 +178,39 @@ class ApacheProcessGuardTest(unittest.TestCase):
                 probe.bind(("127.0.0.1", port))
             except OSError as exc:
                 raise AssertionError(f"Apache port could not be rebound: {exc}") from exc
+
+    def test_launch_inputs_are_bound_to_runner_capabilities(self) -> None:
+        port = self._reserve_loopback_port()
+        httpd, config, _ = self._write_fake_httpd(port)
+        other_httpd = Path(self.tmp.name) / "other" / "httpd"
+        other_httpd.parent.mkdir(mode=0o700)
+        other_httpd.write_text("#!/bin/sh\nexit 0\n", encoding="ascii")
+        other_httpd.chmod(0o700)
+        with self.assertRaisesRegex(guard.GuardError, "runner-provisioned"):
+            guard._validated_httpd_path(other_httpd, httpd)
+        self.assertEqual(guard._validated_httpd_path(httpd, httpd), httpd)
+
+        outside_config = Path(self.tmp.name) / "outside-httpd.conf"
+        outside_config.write_text("outside\n", encoding="ascii")
+        outside_config.chmod(0o600)
+        with self.assertRaisesRegex(guard.GuardError, "generated runtime config"):
+            guard._pin_config_fd(outside_config, self.artifact_root)
+
+        config_fd = guard._pin_config_fd(config, self.artifact_root)
+        try:
+            self.assertTrue(stat.S_ISREG(os.fstat(config_fd).st_mode))
+        finally:
+            os.close(config_fd)
+
+    def test_launch_config_fifo_is_rejected_without_blocking(self) -> None:
+        config_dir = self.artifact_root / "conf"
+        config_dir.mkdir(mode=0o700)
+        config = config_dir / "httpd.conf"
+        os.mkfifo(config, mode=0o600)
+        started = time.monotonic()
+        with self.assertRaisesRegex(guard.GuardError, "owned regular file"):
+            guard._pin_config_fd(config, self.artifact_root)
+        self.assertLess(time.monotonic() - started, 1.0)
 
     def test_normal_ownership_records_identity_and_listener(self) -> None:
         evidence = self._record()
@@ -631,7 +673,7 @@ class ApacheProcessGuardTest(unittest.TestCase):
                 )
                 runner = subprocess.Popen(
                     [sys.executable, "-c", code], cwd=Path(__file__).parents[1],
-                    env=self._supervisor_env(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    env=self._supervisor_env(httpd), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                 )
                 try:
                     deadline = time.monotonic() + 5
@@ -690,7 +732,7 @@ class ApacheProcessGuardTest(unittest.TestCase):
         owned_processes: list[tuple[int, int]] = []
         runner = subprocess.Popen(
             [sys.executable, "-c", runner_code], cwd=Path(__file__).parents[1],
-            env=self._supervisor_env(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            env=self._supervisor_env(httpd), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
         try:
             deadline = time.monotonic() + 5
@@ -964,6 +1006,10 @@ class ApacheProcessGuardTest(unittest.TestCase):
             check=False,
         )
         self.assertEqual(legacy_artifact_root.returncode, 2)
+
+        guard_source = Path(guard.__file__).read_text(encoding="utf-8")
+        self.assertNotIn('supervisor.add_argument("--httpd"', guard_source)
+        self.assertNotIn('supervisor.add_argument("--config"', guard_source)
 
     def test_runtime_directory_rejects_foreign_owned_ancestor_metadata(self) -> None:
         metadata = mock.Mock(

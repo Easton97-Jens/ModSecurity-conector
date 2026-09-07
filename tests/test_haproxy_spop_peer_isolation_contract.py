@@ -115,6 +115,19 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
         post_cleanup = server.split("destroy_agent_runtime", 1)[1]
         self.assertNotIn("spop_owner_queue_requires_restart", post_cleanup)
 
+    def test_owner_queue_is_invalidated_before_every_lock_destruction(self) -> None:
+        queue_lifecycle = SOURCE.split("static int spop_owner_queue_init", 1)[1].split(
+            "static int spop_owner_queue_submit", 1
+        )[0]
+        lifecycle_lines = [line.strip() for line in queue_lifecycle.splitlines()]
+        for index, line in enumerate(lifecycle_lines):
+            if line == "pthread_mutex_destroy(&queue->lock);":
+                with self.subTest(destroy_line=index):
+                    self.assertIn(
+                        "queue->initialized = 0;",
+                        lifecycle_lines[max(0, index - 6) : index],
+                    )
+
     def test_response_transport_shutdown_is_outer_bounded_and_terminal(self) -> None:
         bounded_stop = SOURCE.split("static int spop_transport_stop_bounded", 1)[
             1

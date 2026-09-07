@@ -4163,17 +4163,20 @@ static int spop_owner_queue_init(agent_state *state)
         return -1;
     }
     if (spop_owner_cond_init(&queue->available) != 0) {
+        queue->initialized = 0;
         pthread_mutex_destroy(&queue->lock);
         return -1;
     }
     if (spop_owner_cond_init(&queue->space) != 0) {
         pthread_cond_destroy(&queue->available);
+        queue->initialized = 0;
         pthread_mutex_destroy(&queue->lock);
         return -1;
     }
     if (spop_owner_cond_init(&queue->submitters_done) != 0) {
         pthread_cond_destroy(&queue->space);
         pthread_cond_destroy(&queue->available);
+        queue->initialized = 0;
         pthread_mutex_destroy(&queue->lock);
         return -1;
     }
@@ -4181,6 +4184,7 @@ static int spop_owner_queue_init(agent_state *state)
         pthread_cond_destroy(&queue->submitters_done);
         pthread_cond_destroy(&queue->space);
         pthread_cond_destroy(&queue->available);
+        queue->initialized = 0;
         pthread_mutex_destroy(&queue->lock);
         return -1;
     }
@@ -4189,12 +4193,12 @@ static int spop_owner_queue_init(agent_state *state)
     queue->initialized = 1;
     if (pthread_create(&queue->owner, 0, spop_owner_thread, queue) != 0) {
         queue->stopping = 1;
+        queue->initialized = 0;
         pthread_cond_destroy(&queue->owner_stopped);
         pthread_cond_destroy(&queue->submitters_done);
         pthread_cond_destroy(&queue->space);
         pthread_cond_destroy(&queue->available);
         pthread_mutex_destroy(&queue->lock);
-        queue->initialized = 0;
         return -1;
     }
     return 0;
@@ -4281,12 +4285,12 @@ static int spop_owner_queue_destroy(agent_state *state)
         pthread_mutex_unlock(&queue->lock);
         return -1;
     }
+    queue->initialized = 0;
     pthread_cond_destroy(&queue->owner_stopped);
     pthread_cond_destroy(&queue->submitters_done);
     pthread_cond_destroy(&queue->space);
     pthread_cond_destroy(&queue->available);
     pthread_mutex_destroy(&queue->lock);
-    queue->initialized = 0;
     return 0;
 }
 

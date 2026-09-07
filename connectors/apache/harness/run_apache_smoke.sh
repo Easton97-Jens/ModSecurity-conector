@@ -1097,8 +1097,8 @@ start_server() {
 
         HTTPD_SUPERVISOR_STATE="$RUNTIME_ROOT/run/httpd-supervisor-state.json"
         HTTPD_SUPERVISOR_PID_OUTPUT="$RUNTIME_ROOT/run/httpd-supervisor.pid"
-        "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" supervise \
-            --httpd "$APACHE_HTTPD_BIN" --config "$CONFIG_FILE" \
+        MSCONNECTOR_APACHE_GUARD_HTTPD="$APACHE_HTTPD_BIN" \
+            "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" supervise \
             --state "$HTTPD_SUPERVISOR_STATE" \
             --pid-output "$HTTPD_SUPERVISOR_PID_OUTPUT" \
             > /dev/null 2> "$LOG_DIR/httpd.log" &
