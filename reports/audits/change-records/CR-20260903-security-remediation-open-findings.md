@@ -1364,3 +1364,34 @@ SonarCloud Quality Gate/issue/hotspot readback, and a new hosted exact-five
 run remain mandatory. The later user authorization to merge current
 `origin/master` into the existing PR branch is a normal branch update only;
 PR #354 remains Draft and unmerged.
+
+### 2026-09-07 twentieth follow-up (master merge and final Sonar contract cleanup)
+
+The authorized normal branch update merged current `origin/master`
+`08fab232d77e300be15cb010e2adbcd590955727` into the existing PR #354 branch
+as `775060fffb835f871e3abe3a49f302ad27a705b6`; it did not merge PR #354 into
+`master`, change its Draft state, rebase, or force-push. The two HAProxy
+conflicts retained current-master Common-header validation and SPOP byte-bound
+controls while preserving the PR's NULL-header regression. The merge exposed
+two stale test assumptions, not a product rollback: the Traefik contract now
+checks the current shared monotonic-deadline send path, and the HAProxy target
+control accepts exactly 4096 lossless bytes and rejects 4097 bytes.
+
+SonarCloud analyzed exactly `775060ff...` with Quality Gate `OK`, zero
+reviewable hotspots, but two active `python:S5778` test-code issues remained
+at the two Apache audit negative controls. They are real maintainability
+findings: each `assertRaisesRegex` body contained both an encoding expression
+and the parser call. The narrow successor candidate precomputes the immutable
+UTF-8 bytes outside each exception context, leaving exactly the parser call
+inside it. Both malformed-Native-boundary and untrusted-preamble controls
+still require the same `ValueError`; the valid Native control is unchanged.
+No parser, workflow, test outcome, `NOSONAR`, issue disposition, or quality
+control is weakened.
+
+The in-progress five-cell run `34154897241` is bound only to transitional head
+`775060ff...` and base `08fab232...`; it cannot be used as evidence for this
+new successor. After its ordinary non-forcing push, only fresh exact-head
+SonarCloud Quality-Gate/zero-issue/zero-hotspot readback, required GitHub
+checks, and a new five-cell aggregate/artifact readback may advance this PR.
+FND-CROSS-0004 remains independently blocked, and PR #354 remains Draft,
+open, and unmerged.

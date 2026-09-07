@@ -517,13 +517,13 @@ class WithCrsNoMrtsProfileContractTest(unittest.TestCase):
         PROFILE._apache_audit_block_observation(native.encode("utf-8"))
 
         non_native = native.replace("---apacheprofile---", "--apacheprofile-")
+        non_native_bytes = non_native.encode("utf-8")
         with self.assertRaisesRegex(ValueError, "outside a transaction"):
-            PROFILE._apache_audit_block_observation(non_native.encode("utf-8"))
+            PROFILE._apache_audit_block_observation(non_native_bytes)
 
+        preamble_bytes = ("untrusted preamble\n" + native).encode("utf-8")
         with self.assertRaisesRegex(ValueError, "outside a transaction"):
-            PROFILE._apache_audit_block_observation(
-                ("untrusted preamble\n" + native).encode("utf-8")
-            )
+            PROFILE._apache_audit_block_observation(preamble_bytes)
 
     def test_apache_profile_rejects_primitive_type_confusion_at_source_boundary(self):
         def mutate_summary(source: Path, name: str, value: object) -> None:

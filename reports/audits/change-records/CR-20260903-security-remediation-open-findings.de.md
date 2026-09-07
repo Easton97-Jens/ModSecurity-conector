@@ -1494,3 +1494,35 @@ Hotspot-Readback und ein neuer Hosted-Exact-Five-Lauf bleiben verpflichtend.
 Die spätere Benutzerfreigabe zum Merge des aktuellen `origin/master` in den
 bestehenden PR-Branch ist ausschließlich ein normaler Branch-Update; PR #354
 bleibt Draft und ungemergt.
+
+### 2026-09-07 Zwanzigster Follow-up (Master-Merge und finale Sonar-Vertragsbereinigung)
+
+Das autorisierte normale Branch-Update führte den aktuellen `origin/master`
+`08fab232d77e300be15cb010e2adbcd590955727` als
+`775060fffb835f871e3abe3a49f302ad27a705b6` in den bestehenden PR-#354-Branch
+zusammen; es mergte PR #354 nicht nach `master`, änderte weder Draft-Status,
+führte keinen Rebase noch einen Force-Push aus. Die beiden HAProxy-Konflikte
+erhalten die aktuellen Master-Common-Header-Validation- und SPOP-Byte-Grenz-
+Kontrollen sowie die PR-NULL-Header-Regression. Der Merge legte zwei veraltete
+Testannahmen offen, keinen Produkt-Rollback: Der Traefik-Vertrag prüft jetzt
+den aktuellen gemeinsamen monotonic-deadline-Send-Pfad, und der HAProxy-Target-
+Control akzeptiert exakt 4096 verlustfreie Bytes und weist 4097 Bytes ab.
+
+SonarCloud analysierte exakt `775060ff...` mit Quality Gate `OK` und null
+reviewbaren Hotspots, jedoch zwei aktiven `python:S5778`-Testcode-Issues an den
+zwei Apache-Audit-Negativ-Controls. Es sind echte Wartbarkeitsbefunde: Jeder
+`assertRaisesRegex`-Body enthielt sowohl einen Encoding-Ausdruck als auch den
+Parseraufruf. Der enge Successor-Kandidat berechnet die unveränderlichen UTF-8-
+Bytes vor jedem Exception-Kontext und belässt genau den Parseraufruf darin.
+Sowohl malformed-Native-Boundary als auch untrusted-Preamble-Control verlangen
+weiterhin denselben `ValueError`; der gültige Native-Control bleibt unverändert.
+Kein Parser, Workflow, Testergebnis, `NOSONAR`, Issue-Disposition oder
+Quality-Control wird abgeschwächt.
+
+Der laufende Five-Cell-Run `34154897241` ist ausschließlich an den
+Übergangshead `775060ff...` und die Base `08fab232...` gebunden; er kann nicht
+als Evidence für diesen neuen Successor verwendet werden. Nach dessen normalem
+nicht erzwingenden Push dürfen nur frisches Exact-Head-SonarCloud-Quality-Gate-
+/Zero-Issue-/Zero-Hotspot-Readback, erforderliche GitHub-Checks und ein neuer
+Five-Cell-Aggregate-/Artefakt-Readback diesen PR weiterbringen. FND-CROSS-0004
+bleibt unabhängig `blocked`, und PR #354 bleibt Draft, offen und ungemergt.
