@@ -12,8 +12,10 @@ import json
 import os
 from pathlib import Path
 import select
+import secrets
 import signal
 import stat
+import time
 from typing import Any
 
 
@@ -27,12 +29,20 @@ MAX_NET_LINE = 4096
 MAX_EVIDENCE_BYTES = 1024 * 1024
 TERM_TIMEOUT = 2.0
 KILL_TIMEOUT = 2.0
+RECORD_FAILURE_CLEANED_EXIT = 74
+TEMPORARY_ARTIFACT_ATTEMPTS = 16
+RECORD_INSPECTION_ATTEMPTS = 8
+RECORD_INSPECTION_RETRY_SECONDS = 0.01
 RUNNER_DIRECTORY_ENV = "MSCONNECTOR_APACHE_GUARD_DIRECTORY"
 RUNNER_ARTIFACT_ROOT_ENV = "MSCONNECTOR_APACHE_GUARD_ARTIFACT_ROOT"
 
 
 class GuardError(RuntimeError):
     pass
+
+
+class RecordFailureCleaned(GuardError):
+    """Evidence publication failed after verified runtime cleanup."""
 
 
 def _runner_configured_path(variable: str, capability: str) -> Path:
@@ -358,20 +368,10 @@ def _validated_artifact_path(path: Path, artifact_root: Path) -> Path:
     return path
 
 
-def _open_artifact(path: Path, artifact_root: Path, flags: int, mode: int = 0) -> int:
-    """Open an already validated artifact relative to its private parent.
-
-    Keeping the untrusted CLI value out of the final ``open`` call prevents
-    path injection after the parent boundary has been checked.  ``O_NOFOLLOW``
-    protects the artifact itself; the parent validation protects the directory
-    namespace used by the guard.
-    """
+def _open_artifact_parent(path: Path, artifact_root: Path) -> tuple[int, str]:
+    """Open an artifact's validated private parent and return its leaf name."""
     path = _validated_artifact_path(path, artifact_root)
-    parent_flags = os.O_RDONLY
-    if hasattr(os, "O_DIRECTORY"):
-        parent_flags |= os.O_DIRECTORY
-    if hasattr(os, "O_NOFOLLOW"):
-        parent_flags |= os.O_NOFOLLOW
+    parent_flags = _directory_open_flags()
     try:
         parent_fd = os.open(artifact_root, parent_flags)
     except OSError as exc:
@@ -382,7 +382,23 @@ def _open_artifact(path: Path, artifact_root: Path, flags: int, mode: int = 0) -
             next_fd = os.open(component, parent_flags, dir_fd=parent_fd)
             os.close(parent_fd)
             parent_fd = next_fd
-        return os.open(relative.name, flags, mode, dir_fd=parent_fd)
+        return parent_fd, relative.name
+    except OSError as exc:
+        os.close(parent_fd)
+        raise GuardError(f"cannot open Apache artifact directory {path.parent}: {exc}") from exc
+
+
+def _open_artifact(path: Path, artifact_root: Path, flags: int, mode: int = 0) -> int:
+    """Open an already validated artifact relative to its private parent.
+
+    Keeping the untrusted CLI value out of the final ``open`` call prevents
+    path injection after the parent boundary has been checked.  ``O_NOFOLLOW``
+    protects the artifact itself; the parent validation protects the directory
+    namespace used by the guard.
+    """
+    parent_fd, name = _open_artifact_parent(path, artifact_root)
+    try:
+        return os.open(name, flags, mode, dir_fd=parent_fd)
     except OSError as exc:
         raise GuardError(f"cannot open Apache artifact {path}: {exc}") from exc
     finally:
@@ -450,8 +466,15 @@ def _open_verified_pidfd(evidence: dict[str, Any]) -> tuple[int, int, str, dict[
     try:
         if _pidfd_bound_pid(fd) != pid:
             raise GuardError("pidfd is not bound to the recorded PID")
-    except (OSError, ValueError) as exc:
-        os.close(fd)
+    except (GuardError, OSError, ValueError) as exc:
+        try:
+            os.close(fd)
+        except OSError as close_exc:
+            raise GuardError(
+                f"cannot verify Apache pidfd binding and cannot close pidfd: {close_exc}"
+            ) from exc
+        if isinstance(exc, GuardError):
+            raise
         raise GuardError(f"cannot verify Apache pidfd binding: {exc}") from exc
     return fd, pid, expected_exe, expected
 
@@ -501,42 +524,238 @@ def verify_stopped(evidence: dict[str, Any], pidfile: str | None = None) -> None
         raise GuardError(f"Apache pidfile remains after cleanup: {pidfile}")
 
 
-def record(pid: int, executable: str, port: int, output: Path, artifact_root: Path) -> None:
-    expected_exe = os.path.realpath(executable)
+def _write_all(fd: int, payload: bytes) -> None:
+    """Write a bounded evidence payload completely or fail closed."""
+    view = memoryview(payload)
+    offset = 0
+    while offset < len(view):
+        try:
+            written = os.write(fd, view[offset:])
+        except OSError as exc:
+            raise GuardError(f"cannot write Apache guard evidence: {exc}") from exc
+        if written <= 0:
+            raise GuardError("cannot write Apache guard evidence: write made no progress")
+        offset += written
+
+
+def _record_failure_runtime_quiesced(
+    evidence: dict[str, Any], leader_exit_confirmed: bool
+) -> None:
+    """Prove that a failed evidence publication retained no live runtime."""
+    pid, _, expected = _identity(evidence)
     try:
-        stat = _stat(pid)
-        actual_exe = _exe(pid)
-        fds = _fd_inodes(pid)
-        listeners = _listener_inodes(port)
-    except OSError as exc:
-        raise GuardError(f"cannot inspect Apache process: {exc}") from exc
-    if actual_exe != expected_exe:
-        raise GuardError("started process executable does not match Apache binary")
-    owned = sorted(fds & listeners)
-    if not owned:
-        raise GuardError("started Apache process does not own the selected listener")
-    payload = {
-        "pid": pid,
-        "executable": actual_exe,
-        "starttime": stat["starttime"],
-        "session": stat["session"],
-        "pgrp": stat["pgrp"],
-        "port": port,
-        "listener_inodes": owned,
-        "task_socket_inodes": sorted(fds),
-        "pidfd_supported": _pidfd_available(),
-    }
+        port = int(evidence["port"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise GuardError("record cleanup lacks a valid listener port") from exc
+    if _listener_inodes(port):
+        raise GuardError("Apache listener remains after failed evidence publication")
+    members = _session_members(expected["session"], expected["pgrp"])
+    if leader_exit_confirmed:
+        members = [member for member in members if member != pid]
+    elif _pid_path(pid, "stat").exists():
+        raise GuardError("Apache process remains after failed evidence publication")
+    if members:
+        raise GuardError(
+            f"Apache session/process-group members remain after failed evidence publication: {members}"
+        )
+
+
+def _terminate_after_record_failure(evidence: dict[str, Any]) -> None:
+    """Use the in-memory verified identity when persistence itself fails."""
+    leader_exit_confirmed = False
+    termination_error: GuardError | None = None
+    try:
+        terminate_verified(evidence)
+        leader_exit_confirmed = True
+    except GuardError as exc:
+        termination_error = exc
+    try:
+        _record_failure_runtime_quiesced(evidence, leader_exit_confirmed)
+    except GuardError as exc:
+        if termination_error is None:
+            raise
+        raise GuardError(
+            f"cannot terminate Apache after failed evidence publication: "
+            f"{termination_error}; {exc}"
+        ) from exc
+
+
+def _capture_record_payload(
+    pid: int, expected_exe: str, port: int
+) -> tuple[dict[str, Any], GuardError | OSError | None]:
+    """Capture one stable ownership snapshot with bounded transient retries."""
+    inspection_error: GuardError | OSError | None = None
+    for attempt in range(RECORD_INSPECTION_ATTEMPTS):
+        try:
+            process_stat = _stat(pid)
+            actual_exe = _exe(pid)
+            fds = _fd_inodes(pid)
+            listeners = _listener_inodes(port)
+        except (GuardError, OSError) as exc:
+            inspection_error = exc
+        else:
+            if actual_exe != expected_exe:
+                raise GuardError("started process executable does not match Apache binary")
+            owned = sorted(fds & listeners)
+            if owned:
+                return {
+                    "pid": pid,
+                    "executable": actual_exe,
+                    "starttime": process_stat["starttime"],
+                    "session": process_stat["session"],
+                    "pgrp": process_stat["pgrp"],
+                    "port": port,
+                    "listener_inodes": owned,
+                    "task_socket_inodes": sorted(fds),
+                    "pidfd_supported": _pidfd_available(),
+                }, inspection_error
+            inspection_error = GuardError(
+                "started Apache process does not own the selected listener"
+            )
+        if attempt + 1 < RECORD_INSPECTION_ATTEMPTS:
+            time.sleep(RECORD_INSPECTION_RETRY_SECONDS)
+    raise GuardError(
+        f"cannot obtain stable Apache ownership evidence: {inspection_error}"
+    ) from inspection_error
+
+
+def _temporary_evidence_flags() -> int:
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
+    if hasattr(os, "O_CLOEXEC"):
+        flags |= os.O_CLOEXEC
+    return flags
+
+
+def _open_temporary_evidence(parent_fd: int, flags: int) -> tuple[int, str]:
+    for _ in range(TEMPORARY_ARTIFACT_ATTEMPTS):
+        candidate = f".apache-process-guard-{secrets.token_hex(16)}.tmp"
+        try:
+            return os.open(candidate, flags, 0o600, dir_fd=parent_fd), candidate
+        except FileExistsError:
+            continue
+    raise GuardError("cannot create a unique temporary Apache evidence file")
+
+
+def _rollback_record_artifacts(
+    parent_fd: int,
+    output_name: str,
+    temporary_fd: int,
+    temporary_name: str | None,
+    published: bool,
+) -> list[str]:
+    cleanup_errors: list[str] = []
+    if temporary_fd >= 0:
+        try:
+            os.close(temporary_fd)
+        except OSError as exc:
+            cleanup_errors.append(f"temporary evidence close failed: {exc}")
+    if parent_fd < 0:
+        cleanup_errors.append("Apache evidence parent could not be opened")
+        return cleanup_errors
+    if temporary_name is not None:
+        try:
+            os.unlink(temporary_name, dir_fd=parent_fd)
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            cleanup_errors.append(f"temporary evidence removal failed: {exc}")
+    if published:
+        try:
+            os.unlink(output_name, dir_fd=parent_fd)
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            cleanup_errors.append(f"published evidence rollback failed: {exc}")
     try:
-        fd = _open_artifact(output, artifact_root, flags, 0o600)
+        os.stat(output_name, dir_fd=parent_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        cleanup_errors.append(f"cannot verify evidence rollback: {exc}")
+    else:
+        cleanup_errors.append("Apache evidence path remains after rollback")
+    return cleanup_errors
+
+
+def _publish_record_payload(
+    payload: dict[str, Any], output: Path, artifact_root: Path
+) -> None:
+    encoded = (json.dumps(payload, sort_keys=True) + "\n").encode("utf-8")
+    flags = _temporary_evidence_flags()
+    parent_fd = -1
+    output_name = ""
+    temporary_fd = -1
+    temporary_name: str | None = None
+    published = False
+    try:
+        parent_fd, output_name = _open_artifact_parent(output, artifact_root)
+        temporary_fd, temporary_name = _open_temporary_evidence(parent_fd, flags)
+        _write_all(temporary_fd, encoded)
+        # This guard is Linux-only because its termination authority is pidfd.
+        # Linux releases a descriptor before reporting any delayed close error;
+        # relinquish the number first because retrying close could target a
+        # descriptor that another thread or signal handler has already reused.
+        closing_fd = temporary_fd
+        temporary_fd = -1
+        os.close(closing_fd)
+        os.link(
+            temporary_name,
+            output_name,
+            src_dir_fd=parent_fd,
+            dst_dir_fd=parent_fd,
+            follow_symlinks=False,
+        )
+        published = True
+        os.unlink(temporary_name, dir_fd=parent_fd)
+        temporary_name = None
     except (GuardError, OSError) as exc:
-        raise GuardError(f"cannot create non-overwriting Apache evidence: {exc}") from exc
-    try:
-        os.write(fd, (json.dumps(payload, sort_keys=True) + "\n").encode("utf-8"))
+        cleanup_errors = _rollback_record_artifacts(
+            parent_fd,
+            output_name,
+            temporary_fd,
+            temporary_name,
+            published,
+        )
+        try:
+            _terminate_after_record_failure(payload)
+        except GuardError as cleanup_exc:
+            cleanup_errors.append(str(cleanup_exc))
+        if cleanup_errors:
+            raise GuardError(
+                f"cannot publish non-overwriting Apache evidence: {exc}; "
+                f"cleanup incomplete: {'; '.join(cleanup_errors)}"
+            ) from exc
+        raise RecordFailureCleaned(
+            f"cannot publish non-overwriting Apache evidence: {exc}; "
+            "verified Apache cleanup completed"
+        ) from exc
     finally:
-        os.close(fd)
+        if parent_fd >= 0:
+            try:
+                os.close(parent_fd)
+            except OSError:
+                pass
+
+
+def record(pid: int, executable: str, port: int, output: Path, artifact_root: Path) -> None:
+    payload, inspection_error = _capture_record_payload(
+        pid, os.path.realpath(executable), port
+    )
+    if inspection_error is not None:
+        try:
+            _terminate_after_record_failure(payload)
+        except GuardError as cleanup_exc:
+            raise GuardError(
+                f"Apache ownership inspection was unstable: {inspection_error}; "
+                f"cleanup incomplete: {cleanup_exc}"
+            ) from cleanup_exc
+        raise RecordFailureCleaned(
+            f"Apache ownership inspection was unstable: {inspection_error}; "
+            "verified Apache cleanup completed"
+        ) from inspection_error
+    _publish_record_payload(payload, output, artifact_root)
 
 
 def signal_verified(evidence: dict[str, Any], sig: int) -> str:
@@ -679,6 +898,9 @@ def main() -> int:
                 ),
                 args.pidfile,
             )
+    except RecordFailureCleaned as exc:
+        print(f"apache_process_guard: blocked {exc}")
+        return RECORD_FAILURE_CLEANED_EXIT
     except GuardError as exc:
         print(f"apache_process_guard: blocked {exc}")
         return 77

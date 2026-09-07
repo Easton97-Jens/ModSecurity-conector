@@ -26,11 +26,30 @@ class HttpAuthorizationServiceWorkerContractTests(unittest.TestCase):
     def test_response_companion_failure_quarantines_service_and_returns_failure(self) -> None:
         failure = self.source.split(
             "if (!authorization_shutdown_response_companion(profile)) {", 1
-        )[1].split("authorization_service_release(service);", 1)[0]
+        )[1].split(
+            "if (authorization_mark_response_companion_quiesced(service) > 0)", 1
+        )[0]
         self.assertIn("refusing runtime destruction", failure)
         self.assertIn("return service_status != 0 ? service_status : 1;", failure)
         self.assertNotIn("authorization_service_destroy(service);", failure)
         self.assertNotIn("authorization_service_release(service);", failure)
+
+    def test_response_companion_shutdown_has_one_owner(self) -> None:
+        release = self.source.split(
+            "static int authorization_service_release(", 1
+        )[1].split("static void authorization_worker_release(", 1)[0]
+        serve = self.source.split("static int serve_authorization(", 1)[1]
+        self.assertNotIn("authorization_shutdown_response_companion(", release)
+        self.assertEqual(
+            serve.count("authorization_shutdown_response_companion(profile)"), 1
+        )
+
+    def test_listener_setup_failure_does_not_shutdown_unstarted_companion(self) -> None:
+        listener_failure = self.source.split(
+            "if (!create_listener(", 1
+        )[1].split("memset(&action", 1)[0]
+        self.assertIn("authorization_service_release(service);", listener_failure)
+        self.assertNotIn("authorization_shutdown_response_companion(", listener_failure)
 
     def test_deferred_cleanup_waits_for_companion_quiescence(self) -> None:
         self.assertIn("int response_companion_quiesced;", self.source)

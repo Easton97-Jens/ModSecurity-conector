@@ -410,3 +410,50 @@ Stale-Metadata-Einschränkung bleibt ausdrückliche Folgearbeit. Exact-Head-
 GitHub-Actions- und SonarQube-Cloud-Evidence stehen bis zum normalen Push des
 Integrationscommits aus; dieser Abschnitt behauptet weder dieses Hosted-
 Ergebnis noch einen Merge nach `master`.
+
+## Follow-up des terminalen Cleanup-Reviews — 2026-09-07
+
+Das Security-Review vor der Auslieferung identifizierte drei durch den PR
+eingeführte Lücken; sie wurden vor dem Commit des finalen Kandidaten
+korrigiert. Common Runtime ruft den Shutdown-Callback des Response-Companions
+nicht mehr aus dem generischen Service-Release auf: Der Serving-Pfad ist der
+alleinige Owner und ruft ihn genau einmal auf, während ein Fehler beim
+Listener-Setup ihn nullmal aufruft, weil kein Companion gestartet wurde. Damit
+bleibt der öffentliche Callback-Vertrag auch für nicht idempotente
+Implementierungen erhalten und Double-Shutdown, Double-Destroy oder ein durch
+einen abgelehnten zweiten Callback verursachtes Cleanup-Leak werden vermieden.
+
+Der Apache-Process-Guard schließt einen neu geöffneten PID-Descriptor jetzt
+auch dann, wenn eine anschließende Binding-Prüfung fehlschlägt. Cleanup-
+Evidence wird vollständig in eine private temporäre Datei geschrieben und
+geschlossen und danach per nicht überschreibendem Hardlink veröffentlicht;
+Short Writes werden vervollständigt und jede fehlgeschlagene Veröffentlichung
+setzt temporäre und finale Namen zurück. Bei einem Storage-Fehler beendet der
+Guard den gerade gestarteten Server über die bereits verifizierte In-Memory-
+Identität und pidfd, weist einen ruhenden Listener und eine ruhende Session
+nach und liefert einen eigenen Status für erfolgreiches Fehler-Cleanup. Die
+Shell reapet danach dieses Kind, entfernt seine PID-Datei, prüft den freien
+Port und führt nach ungültiger Evidence keinen unbegrenzten `wait` aus.
+Die Ownership-Inspektion wird für ein begrenztes Intervall wiederholt. Trat
+vor einem vollständigen Snapshot ein transienter `/proc`- oder Listener-
+Snapshot-Fehler auf, behandelt der Guard die Beobachtung als instabil, führt
+dasselbe verifizierte Cleanup aus und veröffentlicht keine möglicherweise
+inkonsistente Evidence.
+
+Traefiks neue Kontrolle `maxRequestBodyBytes` ist in den englischen und
+deutschen Beispielen und Konfigurationsreferenzen, der ausgewählten sicheren
+dynamischen Konfiguration und dem generierten Konfigurationsinventar
+abgebildet. Ein quellenbasierter Test vergleicht alle acht JSON-Felder der
+nativen Middleware mit jeder dieser Operator-Oberflächen. Default und harte
+Obergrenze bleiben 1048576 Bytes.
+
+Die fokussierten lokalen Kontrollen bestanden 40 Apache-Guard-Tests plus 4
+Subtests mit echten Prozessen, 15 Common-Worker-/Security-Contract-Tests und
+60 Traefik-/Dokumentationstests plus 15 Subtests. Das finale Aggregat und die
+unveränderliche Exact-Head-Security-
+Diff-Evidence werden erst nach dem Kandidaten-Commit festgehalten. Die
+bestehenden Findings `FND-PARENT-0015` (Pathname-UDS-Impersonation durch
+dieselbe Identität) und `FND-PARENT-0966` (Drain-Reihenfolge bei erzwungenem
+Envoy-Shutdown) bleiben vorbestehende Follow-up-Punkte und werden durch diese
+Änderung nicht geschlossen. Es wurde kein `.github/**`-, Quality-Gate-,
+Ruleset-, Branch-Protection- oder Required-Check-Pfad geändert.

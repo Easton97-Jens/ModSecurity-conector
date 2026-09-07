@@ -5,10 +5,12 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import socket
 import stat
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -47,6 +49,38 @@ class ApacheProcessGuardTest(unittest.TestCase):
         output = self.artifact_root / "run" / "evidence.json"
         guard.record(123, str(self.executable), 8080, output, self.artifact_root)
         return json.loads(output.read_text(encoding="utf-8"))
+
+    @staticmethod
+    def _reserve_loopback_port() -> int:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+            listener.bind(("127.0.0.1", 0))
+            return int(listener.getsockname()[1])
+
+    def _start_loopback_server(self, port: int) -> subprocess.Popen[bytes]:
+        process = subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "http.server",
+                str(port),
+                "--bind",
+                "127.0.0.1",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            if process.poll() is not None:
+                self.fail(f"test HTTP server exited with {process.returncode}")
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+                if probe.connect_ex(("127.0.0.1", port)) == 0:
+                    return process
+            time.sleep(0.02)
+        process.kill()
+        process.wait(timeout=2)
+        self.fail("test HTTP server did not become ready")
 
     def test_normal_ownership_records_identity_and_listener(self) -> None:
         evidence = self._record()
@@ -110,6 +144,23 @@ class ApacheProcessGuardTest(unittest.TestCase):
         ):
             with self.assertRaises(guard.GuardError):
                 guard.signal_verified({"pid": 123}, 15)
+
+    def test_pidfd_fdinfo_guard_error_closes_pidfd_once(self) -> None:
+        evidence = {
+            "pid": 123,
+            "executable": str(self.executable),
+            "starttime": 999,
+            "session": 123,
+            "pgrp": 123,
+        }
+        with mock.patch.object(guard.os, "pidfd_open", return_value=9), \
+             mock.patch.object(
+                 guard, "_pidfd_bound_pid", side_effect=guard.GuardError("missing Pid")
+             ), \
+             mock.patch.object(guard.os, "close") as close:
+            with self.assertRaisesRegex(guard.GuardError, "missing Pid"):
+                guard._open_verified_pidfd(evidence)
+        close.assert_called_once_with(9)
 
     def test_proc_scan_is_bounded(self) -> None:
         evidence = self._record()
@@ -181,6 +232,149 @@ class ApacheProcessGuardTest(unittest.TestCase):
         guard.record(123, str(self.executable), 8080, output, self.artifact_root)
         with self.assertRaises(guard.GuardError):
             guard.record(123, str(self.executable), 8080, output, self.artifact_root)
+
+    def test_evidence_record_completes_short_writes(self) -> None:
+        output = self.artifact_root / "short-writes.json"
+        real_write = os.write
+        writes: list[bytes] = []
+        opened: list[int] = []
+
+        def short_write(fd: int, payload: bytes | memoryview) -> int:
+            if not opened:
+                opened.append(fd)
+            chunk = bytes(payload[:7])
+            writes.append(chunk)
+            return real_write(fd, chunk)
+
+        with mock.patch.object(guard.os, "write", side_effect=short_write), \
+             mock.patch.object(guard.os, "close", wraps=os.close) as close:
+            guard.record(123, str(self.executable), 8080, output, self.artifact_root)
+        self.assertGreater(len(writes), 1)
+        self.assertEqual(json.loads(output.read_text(encoding="utf-8"))["pid"], 123)
+        self.assertEqual([call.args[0] for call in close.call_args_list].count(opened[-1]), 1)
+
+    def test_evidence_record_rejects_zero_progress_and_closes_fd(self) -> None:
+        output = self.artifact_root / "zero-write.json"
+        opened: list[int] = []
+
+        def zero_write(fd: int, _payload: bytes | memoryview) -> int:
+            if not opened:
+                opened.append(fd)
+            return 0
+
+        with mock.patch.object(guard.os, "write", side_effect=zero_write), \
+             mock.patch.object(guard.os, "close", wraps=os.close) as close:
+            with self.assertRaisesRegex(guard.GuardError, "no progress"):
+                guard.record(123, str(self.executable), 8080, output, self.artifact_root)
+        self.assertEqual([call.args[0] for call in close.call_args_list].count(opened[-1]), 1)
+        self.assertFalse(output.exists())
+        self.assertFalse(list(self.artifact_root.glob(".apache-process-guard-*.tmp")))
+
+    def test_partial_evidence_write_rolls_back_before_reporting_failure(self) -> None:
+        output = self.artifact_root / "partial-write.json"
+        real_write = os.write
+        calls = 0
+
+        def partial_then_error(fd: int, payload: bytes | memoryview) -> int:
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return real_write(fd, bytes(payload[:7]))
+            raise OSError("simulated evidence I/O failure")
+
+        with mock.patch.object(guard.os, "write", side_effect=partial_then_error), \
+             mock.patch.object(guard, "_terminate_after_record_failure") as terminate:
+            with self.assertRaisesRegex(guard.RecordFailureCleaned, "cleanup completed"):
+                guard.record(123, str(self.executable), 8080, output, self.artifact_root)
+        terminate.assert_called_once()
+        self.assertFalse(output.exists())
+        self.assertFalse(list(self.artifact_root.glob(".apache-process-guard-*.tmp")))
+
+    def test_failed_evidence_write_terminates_real_server_and_allows_follow_up(self) -> None:
+        if not guard._pidfd_available():
+            self.skipTest("Linux pidfd support is unavailable")
+
+        port = self._reserve_loopback_port()
+        output = self.artifact_root / "real-record.json"
+        original_proc = guard.PROC
+        first: subprocess.Popen[bytes] | None = None
+        follow_up: subprocess.Popen[bytes] | None = None
+        guard.PROC = Path("/proc")
+        try:
+            first = self._start_loopback_server(port)
+            with mock.patch.object(guard.os, "write", return_value=0):
+                with self.assertRaises(guard.RecordFailureCleaned):
+                    guard.record(
+                        first.pid,
+                        sys.executable,
+                        port,
+                        output,
+                        self.artifact_root,
+                    )
+            first.wait(timeout=5)
+            self.assertFalse(output.exists())
+
+            follow_up = self._start_loopback_server(port)
+            guard.record(
+                follow_up.pid,
+                sys.executable,
+                port,
+                output,
+                self.artifact_root,
+            )
+            evidence = guard._load(output, self.artifact_root)
+            guard.terminate_verified(evidence)
+            follow_up.wait(timeout=5)
+            guard.verify_stopped(evidence)
+        finally:
+            guard.PROC = original_proc
+            for process in (first, follow_up):
+                if process is not None and process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=5)
+
+    def test_transient_process_inspection_failures_terminate_verified_server(self) -> None:
+        if not guard._pidfd_available():
+            self.skipTest("Linux pidfd support is unavailable")
+
+        original_proc = guard.PROC
+        guard.PROC = Path("/proc")
+        try:
+            for helper_name in ("_stat", "_exe", "_fd_inodes", "_listener_inodes"):
+                with self.subTest(helper=helper_name):
+                    port = self._reserve_loopback_port()
+                    output = self.artifact_root / f"unstable-{helper_name}.json"
+                    process = self._start_loopback_server(port)
+                    original = getattr(guard, helper_name)
+                    failed = False
+
+                    def fail_once(*args: object) -> object:
+                        nonlocal failed
+                        if not failed:
+                            failed = True
+                            raise OSError("simulated transient process inspection failure")
+                        return original(*args)
+
+                    try:
+                        with mock.patch.object(guard, helper_name, side_effect=fail_once):
+                            with self.assertRaises(guard.RecordFailureCleaned):
+                                guard.record(
+                                    process.pid,
+                                    sys.executable,
+                                    port,
+                                    output,
+                                    self.artifact_root,
+                                )
+                        process.wait(timeout=5)
+                        self.assertFalse(output.exists())
+                        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+                            probe.bind(("127.0.0.1", port))
+                    finally:
+                        if process.poll() is None:
+                            process.kill()
+                            process.wait(timeout=5)
+        finally:
+            guard.PROC = original_proc
 
     def test_artifact_paths_must_be_absolute_and_private(self) -> None:
         with self.assertRaises(guard.GuardError):
@@ -413,6 +607,10 @@ class ApacheProcessGuardTest(unittest.TestCase):
         self.assertIn('"$PYTHON_BIN" "$APACHE_PROCESS_GUARD" terminate', source)
         self.assertIn('"$PYTHON_BIN" "$APACHE_PROCESS_GUARD" verify-pid', source)
         self.assertIn('APACHE_GUARD_ARTIFACT_ROOT="$RUNTIME_ROOT"', source)
+        self.assertIn("record_server_ownership() {", source)
+        self.assertIn('HTTPD_RECORD_FAILURE_CLEANED=1', source)
+        self.assertIn('[ "$httpd_wait_safe" -eq 1 ]', source)
+        self.assertIn('[ ! -f "${HTTPD_GUARD_EVIDENCE:-}" ]', source)
         self.assertNotIn('APACHE_GUARD_ARTIFACT_ROOT="${APACHE_GUARD_ARTIFACT_ROOT:-', source)
         self.assertNotIn('while kill -0 "$stale_pid"', source)
 

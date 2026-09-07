@@ -73,7 +73,6 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
         reference_de = (
             ROOT / "examples/traefik/configuration-reference.de.md"
         ).read_text(encoding="utf-8")
-
         self.assertIn('EngineMode:            "uds",', source)
         self.assertIn('if value.EngineMode != "uds" {', source)
         self.assertIn("unsupported engineMode", source)
@@ -116,6 +115,58 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
                 option["allowed_values"] == "uds" and option["default"] == "uds"
                 for option in engine_modes
             )
+        )
+
+    def test_native_config_fields_have_bilingual_inventory_parity(self) -> None:
+        source = (PLUGIN / "middleware.go").read_text(encoding="utf-8")
+        reference = (ROOT / "examples/traefik/configuration-reference.md").read_text(
+            encoding="utf-8"
+        )
+        reference_de = (
+            ROOT / "examples/traefik/configuration-reference.de.md"
+        ).read_text(encoding="utf-8")
+        selected_example = (
+            ROOT / "examples/traefik/safe/traefik-dynamic.yaml"
+        ).read_text(encoding="utf-8")
+        inventory = json.loads(
+            (ROOT / "reports/connector-configuration-inventory.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        config_block = re.search(
+            r"(?ms)^type Config struct \{(?P<body>.*?)^\}", source
+        )
+        self.assertIsNotNone(config_block)
+        fields = [
+            tag.split(",", 1)[0]
+            for tag in re.findall(r'`json:"([^"]+)', config_block.group("body"))
+        ]
+        self.assertEqual(len(fields), 8)
+        native_options = {
+            option["name"]
+            for option in inventory["options"]
+            if option.get("connector") == "traefik"
+            and option["name"].startswith(
+                "http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative."
+            )
+        }
+        for field in fields:
+            path = (
+                "http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative."
+                + field
+            )
+            with self.subTest(field=field):
+                self.assertIn(path, reference)
+                self.assertIn(path, reference_de)
+                self.assertIn(path, native_options)
+                self.assertIn(f"{field}:", selected_example)
+        self.assertIn("maximum 1048576 bytes", reference)
+        self.assertIn("maximal 1048576 Bytes", reference_de)
+        self.assertIn(
+            '"default": "1048576"',
+            (ROOT / "reports/connector-configuration-inventory.json").read_text(
+                encoding="utf-8"
+            ),
         )
 
     def test_local_plugin_package_matches_module_suffix(self) -> None:

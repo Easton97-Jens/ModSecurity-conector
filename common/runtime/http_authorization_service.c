@@ -1448,12 +1448,6 @@ static int authorization_service_release(authorization_service *service) {
     if (service == NULL) {
         return 1;
     }
-    if (!authorization_shutdown_response_companion(service->profile)) {
-        (void)fprintf(stderr,
-            "%s response companion did not quiesce; refusing runtime destruction\n",
-            service->profile->connector_name);
-        return 0;
-    }
     msconnector_runtime_destroy(&service->runtime);
     authorization_service_destroy(service);
     free(service);

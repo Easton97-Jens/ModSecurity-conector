@@ -26,6 +26,8 @@ CURL_BIN="${CURL:-}"
 PYTHON_BIN="${PYTHON:-python3}"
 APACHE_PROCESS_GUARD="$SCRIPT_DIR/apache_process_guard.py"
 SETSID_BIN="${SETSID:-setsid}"
+RECORD_FAILURE_CLEANED_EXIT=74
+HTTPD_RECORD_FAILURE_CLEANED=0
 PYTHONDONTWRITEBYTECODE="${PYTHONDONTWRITEBYTECODE:-1}"
 export PYTHONDONTWRITEBYTECODE
 BASE_PORT="${PORT:-18080}"
@@ -522,16 +524,37 @@ cleanup() {
         kill "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1 || true
         wait "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1 || true
     fi
-    if [ -n "${HTTPD_GUARD_EVIDENCE:-}" ] && [ -f "$HTTPD_GUARD_EVIDENCE" ]; then
-        if [ -n "${HTTPD_PID:-}" ] && kill -0 "$HTTPD_PID" >/dev/null 2>&1; then
-            "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" verify-running \
-                --evidence "$HTTPD_GUARD_EVIDENCE" >/dev/null 2>&1 || cleanup_rc=77
-            if [ "$cleanup_rc" -eq 0 ]; then
-                "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" terminate \
-                    --evidence "$HTTPD_GUARD_EVIDENCE" >/dev/null 2>&1 || cleanup_rc=77
-            fi
-        fi
+    if [ "$HTTPD_RECORD_FAILURE_CLEANED" -eq 1 ]; then
         if [ -n "${HTTPD_PID:-}" ]; then
+            wait "$HTTPD_PID" >/dev/null 2>&1 || true
+        fi
+        if ! port_is_free "$PORT"; then
+            echo "apache_smoke: blocked Apache record-failure cleanup left port $PORT in use" >&2
+            cleanup_rc=77
+        fi
+        if [ -e "${HTTPD_GUARD_EVIDENCE_CANDIDATE:-}" ] || \
+            [ -L "${HTTPD_GUARD_EVIDENCE_CANDIDATE:-}" ]; then
+            echo "apache_smoke: blocked Apache record-failure evidence rollback is incomplete" >&2
+            cleanup_rc=77
+        fi
+    elif [ -n "${HTTPD_GUARD_EVIDENCE:-}" ] && [ -f "$HTTPD_GUARD_EVIDENCE" ]; then
+        httpd_wait_safe=0
+        if [ -n "${HTTPD_PID:-}" ] && kill -0 "$HTTPD_PID" >/dev/null 2>&1; then
+            if "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" verify-running \
+                --evidence "$HTTPD_GUARD_EVIDENCE" >/dev/null 2>&1; then
+                if "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" terminate \
+                    --evidence "$HTTPD_GUARD_EVIDENCE" >/dev/null 2>&1; then
+                    httpd_wait_safe=1
+                else
+                    cleanup_rc=77
+                fi
+            else
+                cleanup_rc=77
+            fi
+        else
+            httpd_wait_safe=1
+        fi
+        if [ -n "${HTTPD_PID:-}" ] && [ "$httpd_wait_safe" -eq 1 ]; then
             wait "$HTTPD_PID" >/dev/null 2>&1 || true
         fi
         "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" verify-stopped \
@@ -558,6 +581,23 @@ cleanup() {
         rm -f "$PHASE4_ROGUE_TLS_KEY"
     fi
     return "$cleanup_rc"
+}
+
+record_server_ownership() {
+    HTTPD_GUARD_EVIDENCE_CANDIDATE="$RUNTIME_ROOT/run/httpd-ownership.json"
+    if "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" record \
+        --pid "$HTTPD_PID" --executable "$APACHE_HTTPD_BIN" \
+        --port "$PORT" --output "$HTTPD_GUARD_EVIDENCE_CANDIDATE" >/dev/null; then
+        HTTPD_GUARD_EVIDENCE="$HTTPD_GUARD_EVIDENCE_CANDIDATE"
+        return 0
+    else
+        record_rc=$?
+    fi
+    HTTPD_GUARD_EVIDENCE=""
+    if [ "$record_rc" -eq "$RECORD_FAILURE_CLEANED_EXIT" ]; then
+        HTTPD_RECORD_FAILURE_CLEANED=1
+    fi
+    return "$record_rc"
 }
 
 port_is_free() {
@@ -1001,10 +1041,7 @@ start_server() {
         if [ "$MSCONNECTOR_SMOKE_STAGE" = "start_smoke" ]; then
             sleep 1
             if kill -0 "$HTTPD_PID" >/dev/null 2>&1; then
-                HTTPD_GUARD_EVIDENCE="$RUNTIME_ROOT/run/httpd-ownership.json"
-                "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" record \
-                    --pid "$HTTPD_PID" --executable "$APACHE_HTTPD_BIN" \
-                    --port "$PORT" --output "$HTTPD_GUARD_EVIDENCE" >/dev/null || \
+                record_server_ownership || \
                     blocked "Apache listener ownership could not be proven"
                 return 0
             fi
@@ -1041,10 +1078,7 @@ start_server() {
         done
 
         if [ "$ready" -eq 1 ]; then
-            HTTPD_GUARD_EVIDENCE="$RUNTIME_ROOT/run/httpd-ownership.json"
-            "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" record \
-                --pid "$HTTPD_PID" --executable "$APACHE_HTTPD_BIN" \
-                --port "$PORT" --output "$HTTPD_GUARD_EVIDENCE" >/dev/null || \
+            record_server_ownership || \
                 blocked "Apache listener ownership could not be proven"
             return 0
         fi

@@ -55,7 +55,7 @@ adapted.
 | entryPoints.web.address | Listener address string | Required; explicit static value; Traefik static scope | :8080. A public bind changes exposure. |
 | providers.file.filename | Dynamic configuration file path relative to Traefik working directory | Required; explicit static value; File Provider scope | ./traefik-dynamic.yaml. Copy the Safe dynamic file to this resolved location. |
 | router rule and service URL | Request matcher and upstream URL | Required; dynamic configuration; router/service scope | PathPrefix for all paths and http://127.0.0.1:8081. Restrict routes and replace endpoint for deployment. |
-| maxHeaderCount, maxHeaderBytes, maxRequestChunkBytes, maxResponseChunkBytes | Positive plugin limits | Required; dynamic configuration; middleware scope | 128, 65536, 32768, 32768. Lower values reject more input; do not remove bounds. |
+| maxHeaderCount, maxHeaderBytes, maxRequestChunkBytes, maxRequestBodyBytes, maxResponseChunkBytes | Positive plugin limits | Required; dynamic configuration; middleware scope | 128, 65536, 32768, 1048576, 32768. `maxRequestBodyBytes` caps the aggregate request body; lower values reject more input; do not remove bounds. |
 | transactionIDHeader | HTTP correlation header name | Required; dynamic configuration; middleware scope | X-Request-Id. It is metadata, not a secret. |
 | engineMode | Native engine mode: uds only | Required; dynamic configuration; middleware scope | uds. Any legacy passthrough value is rejected. |
 | engineSocketPath | Absolute private Unix socket path | Required; dynamic configuration; middleware scope | /run/traefik-msconnector/engine.sock. The parent directory must be access-controlled and owned by the trusted service. |

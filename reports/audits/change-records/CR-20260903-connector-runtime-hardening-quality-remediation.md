@@ -383,3 +383,44 @@ supervisor/stale-metadata limitation remains explicit follow-up work. Exact-
 head GitHub Actions and SonarQube Cloud evidence remain pending until the normal
 integration commit is pushed; this section asserts neither that hosted result
 nor a merge to `master`.
+
+## Terminal cleanup-review follow-up — 2026-09-07
+
+The pre-delivery security review identified three PR-introduced gaps and they
+were corrected before the final candidate was committed. Common Runtime no
+longer invokes the response-companion shutdown callback from generic service
+release: the serving path is the sole owner and invokes it exactly once, while
+a listener-setup failure invokes it zero times because no companion was
+started. This preserves the public callback contract for non-idempotent
+implementations and prevents double shutdown, double destroy, or a cleanup
+leak caused by a rejected second callback.
+
+The Apache process guard now closes a newly opened PID descriptor when any
+subsequent binding check fails. Cleanup evidence is fully written and closed
+in a private temporary file, then published by a non-overwriting hard link;
+short writes are completed and every failed publication rolls back its
+temporary and final names. On a storage error the guard uses the already
+verified in-memory identity and pidfd to terminate the just-started server,
+proves the listener and session are quiescent, and returns a distinct cleaned
+failure status. The shell then reaps that child, removes its PID file, verifies
+the port is free, and never performs an unbounded wait after invalid evidence.
+Ownership inspection is retried for a bounded interval. If a transient
+`/proc` or listener snapshot error occurred before a complete snapshot became
+available, the guard treats the observation as unstable, performs the same
+verified cleanup, and does not publish potentially inconsistent evidence.
+
+Traefik's new `maxRequestBodyBytes` control is represented in the English and
+German examples and configuration references, the selected safe dynamic
+configuration, and the generated configuration inventory. A source-backed
+test compares all eight native-middleware JSON fields with every one of those
+operator surfaces. The default and hard maximum remain 1048576 bytes.
+
+The focused local controls passed 40 Apache guard tests plus 4 real-process
+subtests, 15 Common worker and
+security contract tests, and 60 Traefik/documentation tests plus 15 subtests.
+The final aggregate and immutable exact-head security-diff evidence are
+recorded only after the candidate commit exists. Existing findings
+`FND-PARENT-0015` (same-identity pathname-UDS impersonation) and
+`FND-PARENT-0966` (forced Envoy shutdown drain ordering) remain pre-existing
+follow-up items and are not closed by this change. No `.github/**`, Quality
+Gate, ruleset, branch-protection, or required-check path was changed.

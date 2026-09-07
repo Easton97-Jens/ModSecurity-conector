@@ -2304,8 +2304,8 @@ def _traefik_middleware_yaml_detail(
     if tail == "modsecurityNative":
         return _yaml_detail(
             "Traefik local-plugin configuration mapping",
-            "the seven native middleware Config fields documented from CreateConfig/normalizedConfig",
-            "Plugin CreateConfig supplies bounded defaults; this template explicitly sets all seven selected fields.",
+            "the eight native middleware Config fields documented from CreateConfig/normalizedConfig",
+            "Plugin CreateConfig supplies bounded defaults; this template explicitly sets all eight selected fields.",
             "Groups limits, transaction ID, and engine connection fields passed to the repository native middleware.",
             "The UDS fields and bounds are enforcement-relevant; legacy passthrough is rejected.",
             native_lifecycle,
@@ -2894,6 +2894,15 @@ def _traefik_plugin_option(path: str, source_file: str, example_file: str) -> di
             "phase": "P2 request-body callback bound; it is a per-chunk limit, not a total request-body limit.",
             "security": "The UDS wire contract rejects values above 32768 and prevents one callback from accepting an unbounded chunk.",
         },
+        "maxRequestBodyBytes": {
+            "type": "integer aggregate request-body bound",
+            "values": "positive; maximum 1048576 bytes",
+            "default": "1048576",
+            "effect": "Caps the aggregate request-body bytes accepted across all streamed request chunks; overflow is rejected and the transaction is cleaned up.",
+            "phase": "P2 request-body aggregate bound; it is distinct from the per-chunk maxRequestChunkBytes limit.",
+            "security": "A finite aggregate budget bounds total request-body work before it reaches the UDS engine.",
+            "validation": "normalizedConfig rejects non-positive values, values above 1048576, and chunks larger than the aggregate body bound.",
+        },
         "maxResponseChunkBytes": {
             "type": "integer response-body chunk-byte bound",
             "values": ALLOWED_VALUES_TRAEFIK_UDS_CHUNK,
@@ -2932,7 +2941,7 @@ def _traefik_plugin_option(path: str, source_file: str, example_file: str) -> di
         syntax=f"{path}: <{leaf}>", value_type=data["type"], allowed_values=data["values"], default=data["default"],
         default_source=DEFAULT_SOURCE_TRAEFIK_CREATE_CONFIG, required=False,
         contexts=TRAEFIK_PLUGIN_CONFIGURATION_PATH, inheritance="Traefik dynamic configuration object; no Common Runtime merge.",
-        merge_behavior="Traefik/plugin configuration is normalized once by the plugin.", validation="normalizedConfig rejects invalid values; Traefik parses the containing dynamic configuration.",
+        merge_behavior="Traefik/plugin configuration is normalized once by the plugin.", validation=data.get("validation", "normalizedConfig rejects invalid values; Traefik parses the containing dynamic configuration."),
         phase_relevance=data["phase"], security_relevance=data["security"],
         runtime_effect=data["effect"], example_file=example_file, description=data["effect"],
     )
@@ -2946,7 +2955,7 @@ def traefik_yaml_options(root: Path, static_source: str, dynamic_source: str) ->
     options: list[dict[str, Any]] = []
     paths = [(static_source, path) for path in extract_yaml_paths(root / static_source)] + [(dynamic_source, path) for path in extract_yaml_paths(root / dynamic_source)]
     seen: set[str] = set()
-    plugin_leaves = {"maxHeaderCount", "maxHeaderBytes", "maxRequestChunkBytes", "maxResponseChunkBytes", "transactionIDHeader", "engineMode", "engineSocketPath"}
+    plugin_leaves = {"maxHeaderCount", "maxHeaderBytes", "maxRequestChunkBytes", "maxRequestBodyBytes", "maxResponseChunkBytes", "transactionIDHeader", "engineMode", "engineSocketPath"}
     values_by_source = {static_source: extract_yaml_example_values(root / static_source), dynamic_source: extract_yaml_example_values(root / dynamic_source)}
     for source, path in paths:
         if path in seen:
@@ -3046,11 +3055,11 @@ def _assert_documented_defaults(by_key: dict[tuple[str, str], str]) -> None:
 def _assert_traefik_defaults(root: Path, by_key: dict[tuple[str, str], str]) -> None:
     """Reject drift in native Traefik defaults and their rendered inventory rows."""
     traefik_source = _read(root, "connectors/traefik/native_middleware/middleware.go")
-    for token in ("defaultMaxHeaderCount        = 128", "defaultMaxHeaderBytes        = 64 << 10", "defaultMaxRequestChunkBytes  = 32 << 10", "defaultMaxResponseChunkBytes = 32 << 10"):
+    for token in ("defaultMaxHeaderCount        = 128", "defaultMaxHeaderBytes        = 64 << 10", "defaultMaxRequestChunkBytes  = 32 << 10", "defaultMaxRequestBodyBytes int64 = 1 << 20", "defaultMaxResponseChunkBytes = 32 << 10"):
         if token not in traefik_source:
             raise ValueError(f"Traefik plugin default source changed: expected {token!r}")
     for suffix, expected in {
-        "maxHeaderCount": "128", "maxHeaderBytes": "65536", "maxRequestChunkBytes": "32768",
+        "maxHeaderCount": "128", "maxHeaderBytes": "65536", "maxRequestChunkBytes": "32768", "maxRequestBodyBytes": "1048576",
         "maxResponseChunkBytes": "32768", "transactionIDHeader": "X-Request-Id", "engineMode": "uds",
     }.items():
         matches = [value for (connector, name), value in by_key.items() if connector == "traefik" and name.endswith(suffix)]
@@ -3162,6 +3171,7 @@ GERMAN_TEXT: dict[str, str] = {
     "int64": "64-Bit-Ganzzahl",
     "integer": "Ganzzahl",
     "integer bytes": "Ganzzahl in Byte",
+    "integer aggregate request-body bound": "Ganzzahliges aggregiertes Request-Body-Limit",
     "absolute path": "absoluter Pfad",
     "absolute Unix socket path": "absoluter Unix-Socket-Pfad",
     "CLI flag": "Kommandozeilenoption",
@@ -3227,6 +3237,7 @@ GERMAN_TEXT: dict[str, str] = {
     "positive; uds maximum 128": "positiv; UDS-Maximum 128",
     ALLOWED_VALUES_TRAEFIK_UDS_CHUNK: "positiv; UDS-Maximum 32768",
     "positive; uds maximum 65536": "positiv; UDS-Maximum 65536",
+    "positive; maximum 1048576 bytes": "positiv; maximal 1048576 Bytes",
     "positive decimal milliseconds, 1..60000": "positive dezimale Millisekunden, 1..60000",
     "decimal integer, 2..64; worker-count * max-transactions <= 65536": "dezimale Ganzzahl, 2..64; worker-count * max-transactions <= 65536",
     "decimal integer, 1..4096; worker-count * max-transactions <= 65536": "dezimale Ganzzahl, 1..4096; worker-count * max-transactions <= 65536",
@@ -3461,9 +3472,13 @@ GERMAN_TEXT: dict[str, str] = {
     VALIDATE_LIGHTTPD: VALIDATE_LIGHTTPD,
     "main validates JSON and, where selected, Common Runtime before serving.": "main validiert JSON und, sofern ausgewählt, die Common Runtime vor dem Bereitstellen.",
     "normalizedConfig rejects invalid values; Traefik parses the containing dynamic configuration.": "normalizedConfig weist ungültige Werte ab; Traefik parst die enthaltende dynamische Konfiguration.",
+    "normalizedConfig rejects non-positive values, values above 1048576, and chunks larger than the aggregate body bound.": "normalizedConfig weist nichtpositive Werte, Werte über 1048576 und Chunks oberhalb des aggregierten Body-Limits ab.",
     "traefik check --configFile=<static-config>; load the selected File Provider configuration.": "traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfiguration laden.",
 
     # P1–P4 explanations.
+    "P2 request-body aggregate bound; it is distinct from the per-chunk maxRequestChunkBytes limit.": "P2-Gesamtlimit für den Request-Body; es ist vom Limit maxRequestChunkBytes pro Chunk getrennt.",
+    "A finite aggregate budget bounds total request-body work before it reaches the UDS engine.": "Ein endliches Gesamtbudget begrenzt die gesamte Request-Body-Verarbeitung, bevor sie die UDS-Engine erreicht.",
+    "Caps the aggregate request-body bytes accepted across all streamed request chunks; overflow is rejected and the transaction is cleaned up.": "Begrenzt die gesamten Request-Body-Bytes über alle gestreamten Request-Chunks; ein Überlauf wird abgelehnt und die Transaktion bereinigt.",
     "Compatibility path only; do not infer selected native P3/P4 coverage.": "Nur Kompatibilitätspfad; keine Abdeckung von P3/P4 des ausgewählten nativen Pfads ableiten.",
     "Compatibility request path; it is not a native HTX P3/P4 configuration.": "Kompatibilitäts-Requestpfad; keine native HTX-P3/P4-Konfiguration.",
     "Compatibility request/response-header path only; no native response-body lifecycle claim.": "Nur Kompatibilitäts-Request-/Response-Headerpfad; keine Aussage zum nativen Response-Body-Lebenszyklus.",
