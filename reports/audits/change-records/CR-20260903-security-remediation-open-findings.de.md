@@ -11,7 +11,7 @@
 | Basis-Revision | 95bc04203455bc74a9cd18fafc6fb5848af2bbb2 |
 | Branch | codex/security-remediation-open-findings-20260903 |
 | Finaler HEAD_SHA | Dieser Record ist Teil des Delivery-HEAD und kann sein eigenes finales Git-Objekt daher nicht wahrheitsgemäß selbst referenzieren. Der exakte unveränderliche SHA wird nach dem Commit dieses Records in Draft-PR-Metadaten und Delivery-Evidence erfasst. |
-| Delivery-Status | Draft PR [#354](https://github.com/Easton97-Jens/ModSecurity-conector/pull/354) ist offen, nicht gemergt und bleibt Draft. Dieser Change Record ist Teil seines eigenen Dokumentations-Successors und promotet kein Vorgängerergebnis. Nach dem Successor-Push werden seine exakte SHA und der frische Ergebnis-Readback in PR-Metadaten und aufbewahrter Delivery-Evidence festgehalten. FND-CROSS-0004 bleibt ein unabhängiger, nicht akzeptierter `P1`-Release-Blocker, weil das Parent-Exact-Five-Aggregat fehlt und die aufbewahrte 24-Zeilen-Bewertung unvollständig ist; deshalb sind weder Draft-Transition noch Merge autorisiert. |
+| Delivery-Status | Draft PR [#354](https://github.com/Easton97-Jens/ModSecurity-conector/pull/354) ist offen, nicht gemergt und bleibt Draft. Dieser Change Record ist Teil seines eigenen Dokumentations-Successors und promotet kein Vorgängerergebnis. Nach dem Successor-Push werden seine exakte SHA und der frische Ergebnis-Readback in PR-Metadaten und aufbewahrter Delivery-Evidence festgehalten. Die Parent-Exact-Five-Workflowimplementierung existiert nun, aber es wurde noch kein frisches Exact-Successor-Five-Cell-Aggregate-Artefakt oder -Ergebnis beobachtet und zurückgelesen. FND-CROSS-0004 bleibt daher ein unabhängiger, nicht akzeptierter `P1`-Release-Blocker bis zu seinen bestehenden Framework-Abnahme- und Hosted-Evidence-Kriterien; weder Draft-Transition noch Merge sind autorisiert. |
 
 ## Motivation und Problemstellung
 
@@ -51,6 +51,9 @@ Die Implementierung portiert ausschließlich die auf der aktuellen Basis benöti
 - Lighttpd-Runtime-Redaction-Regression: connectors/lighttpd/harness/run_patched_full_lifecycle.sh, ci/runtime/lifecycle/normalize-with-crs-no-mrts.py, connectors/lighttpd/tests/test_patched_host_contract.py und tests/test_with_crs_no_mrts_runtime.py.
 - Quellenbasierte Dokumentation/Inventar: ci/checks/documentation/connector_config_reference.py, examples/nginx/configuration-reference.md, examples/nginx/configuration-reference.de.md und reports/connector-configuration-inventory.json.
 - Parent-NGINX-Provenance-Angleichung: ci/provisioning/components/prepare-runtime-components.py, ci/checks/evidence/check-runtime-producer-readiness.py, ci/runtime/broker/nginx_root_broker.py, ci/runtime/broker/protected_nginx_broker_caller.py, die NGINX-Hosted-/Full-Smoke-/Broker-Workflows sowie die gepaarte Compiler-Anleitung.
+- Parent-With-CRS/no-MRTS-Exact-Five-Evidence-Vertrag: ci/runtime/lifecycle/with-crs-no-mrts-profile.py, ci/runtime/lifecycle/aggregate-five-connector-with-crs-no-mrts.py, ci/runtime/lifecycle/normalize-with-crs-no-mrts.py, ci/runtime/lifecycle/prepare-with-crs-no-mrts-upload.py, ci/runtime/lifecycle/project-haproxy-runtime-evidence.py und .github/workflows/test-connectors-with-crs-no-mrts.yml.
+- Apache-Profil-Evidence und fokussierte Regressionen: connectors/apache/harness/run_apache_smoke.sh, tests/test_with_crs_no_mrts_profile.py, tests/test_apache_with_crs_profile_evidence_contract.py, tests/test_haproxy_evidence_projection.py, tests/test_haproxy_evidence_workflow_contract.py, tests/test_with_crs_no_mrts_runtime.py und tests/test_ci_security_workflows.py.
+- Profildokumentation: docs/reference/with-crs-no-mrts-profile-contract.md und docs/reference/with-crs-no-mrts-profile-contract.de.md.
 - Betreiber-Dokumentation: common/docs/transaction-phase-contract.md und .de.md; die README-Paare von connectors/haproxy, nginx und traefik; sowie die README-Paare von examples/traefik.
 - Traceability: dieser gepaarte Change Record und die gepaarten Archivindizes.
 
@@ -1307,3 +1310,99 @@ sechs blockierte und dreizehn nicht ausgeführte Zellen, und das erforderliche
 Parent-Exact-Five-Aggregat-Artefakt fehlt. Daher bleibt PR #354 offen und
 Draft, es wird kein GitHub-Merge versucht und es gibt keine
 Resulting-Master-Checks oder Release-Aktionen zu berichten.
+
+### 2026-09-07 Siebzehnter Follow-up (Parent-Exact-Five-With-CRS/no-MRTS-Kandidat)
+
+Dieser Parent-only-Kandidat startet vom PR-#354-Head
+`3054e43ed9082a953e718ce2341bc7e9fc43b3a7` und der geprüften Base
+`9925ef647b5fb49d21aebd658a658d4fdb649c58`. Er ergänzt einen separaten
+versionierten `with-crs-no-mrts`-Vertrag, statt das bestehende geschlossene
+`no-crs`-Profil zu ändern oder umzubenennen. Der neue Producer bindet jede
+ausgewählte Apache-, HAProxy-, Envoy-, Lighttpd- und Traefik-Zelle an
+Schemaversion, exakten Parent/Base, workflow-eigene Profil- und Zellrun-IDs,
+GitHub-Run/Versuch, Framework-/MRTS-/CRS-Provenance, tatsächlich ausgeführten
+Fall, Originalartefaktpfade und deren Hashes. Der strikte Aggregator akzeptiert
+genau eine descriptor-sichere, kanonische Zelle je erwartetem Connector und
+weist fehlende, doppelte, fremde, umbenannte, identitätsgemischte,
+hashveränderte, unsichere oder unvollständige Evidence ab.
+
+`functional-facts.json` enthält jetzt `source_files_sha256`, den SHA-256-Digest
+der kanonischen JSON-Darstellung der geordneten Quellartefaktliste. Das
+Aggregat berechnet diesen Digest erneut und weist Receipts zurück, deren
+Quellpfade oder Hashes abweichen. Damit ist die Kette Quellliste → Fakten →
+Receipt → Manifest gebunden, ohne externe Quellenauthentizität zu behaupten.
+
+Candidate-Review stellte außerdem fest, dass kanonische Syntax allein am
+Aggregat-Sink keine exakten JSON-Primitivtypen verlangte: Python-Gleichheit
+ließ wertgleiche `true`/`1`-, `403.0`/`403`- und `0`/`false`-Ersetzungen in
+einer neu gepackten Zelle zu. Das Aggregat vergleicht Schema-, Manifest-,
+Receipt-/Fakten-, Block-/Allow- und No-MRTS-Strukturen jetzt rekursiv mit
+exakten Typen. Diese enge Reparatur wird als FND-PARENT-1061 verfolgt und weist
+die reproduzierten Mutationen ab, ohne legitime JSON-Boolean oder -Float global
+zu verbieten.
+
+Der gleiche Abschlussreview fand eine eigene Apache-Producergrenzen-Lücke:
+Summary-/JSONL- und Cleanup-Receipt-Skalare konnten `true`/`1` oder
+`403`/`403.0` akzeptieren, bevor der Producer typisierte Fakten neu erzeugte.
+Der Apache-lokale Vergleich exakter Skalare weist die sechs reproduzierten
+Ersetzungen jetzt ab, bevor Fakten oder eine Receipt publiziert werden,
+während der vollständige typisierte Quellcontrol gültig bleibt. Dies ist
+FND-PARENT-1062, ein nur im Kandidaten beobachteter Quellvertrags-/Evidence-
+Integrity-Befund; sein Raw-Audit bindet weiterhin getrennt Anfrage, HTTP `403`
+und Regel `942270`, sodass kein Connector-Runtime-Bypass behauptet wird. Er
+bleibt bis zum Exact-Successor-Hosted-Apache-/Aggregate-Readback `in_progress`.
+
+Der Kandidat rendert eine vollständige, ehrliche aktuelle 24-Zeilen-
+Disposition: Fünf ausgewählte With-CRS/no-MRTS-Zellen können nur aus den fünf
+validierten Receipts `passed` sein; die sechs nicht verfügbaren
+Envoy-/Lighttpd-/Traefik-MRTS-Routen bleiben `blocked`; die verbleibenden
+dreizehn Zellen bleiben `not_run`. Das Aggregat trennt technische Gültigkeit,
+das funktionale Five-Cell-Ergebnis, Dispositionsvollständigkeit und
+verbleibende Integrationsbedingungen. Dieser Renderer und seine synthetischen
+Fixtures sind kein Hosted-Ergebnis und schreiben die historischen
+`3054e43...`-Zellartefakte nicht dem Successor mit diesem Record zu.
+
+Für Apache prüft der neue Profilpfad eine rohe Serial-Transaktion, gebunden an
+die ausgewählte Anfrage, HTTP `403` und CRS-Regel `942270`. Er schreibt eine
+No-Follow-One-Shot-Cleanup-Receipt erst nach begrenzten Host-/Helperprozess-,
+ausgewählten Listener- und PID-Datei-Prüfungen, und der Workflow liefert
+`RUN_ONE_CASE=1` mit aktueller Zell-/Run-/GitHub-Identität ausdrücklich. Der
+Producer prüft zudem jeden erforderlichen Apache-Summary-/JSONL-Skalar und jede
+Cleanup-Receipt-Identität mit exakten JSON-Primitivtypen, bevor er Fakten
+normalisieren kann. Für HAProxy liest das Profil die bestehende versiegelte
+Stage über ihren strikten Verifier unter Verwendung der getrennten
+Workflow-Evidence-UID/GID; es kopiert oder labelt diese Stage weder um. Sein
+projizierter Quell-Receipt und das
+versiegelte Paket enthalten jetzt zudem die vom Parent vergebene `cell_run_id`
+mit `cell_run_id_kind: workflow_cell`. Der Workflow reicht dieselbe ID aus
+`CRS_RUNTIME_RUN_ID` durch Projektion und Verifikation weiter; fehlende oder
+abweichende IDs werden abgewiesen. Dies ist eine Workflow-Bindung und keine
+Behauptung einer nativen HAProxy-Run-ID. Candidate-Review identifizierte die
+Apache-False-Complete-Cleanup-Grenze, den fehlenden Selected-Case-Handoff und
+die Quelllisten-/HAProxy-Zellbindungs-Lücke vor der Delivery. Sie werden lokal
+als FND-PARENT-1058, FND-PARENT-1059 und FND-PARENT-1060 verfolgt, alle
+`fixed` mit ausstehender Exact-Successor-Hosted-Verifikation; die frühere
+Raw-Observation-Lücke bleibt FND-PARENT-0218 und wird nicht still geschlossen.
+
+Frische lokale Kontrollen bestanden: 104 Profil-, Apache-, HAProxy- und
+Workflow-Tests (11 Environment-Skips); 17 geschützte No-CRS-Contract-Tests;
+67 aktuelle Runtime-Observation-Contract-Tests; Apache-/HAProxy-Shell-Syntax;
+ausgewählte Python-Kompilierung; 22 zweisprachige Dokumentationstests; und
+`git diff --check`. Der frühere breitere 141-Test-Runtime-/Observation-Lauf
+liegt vor der engen Apache-Skalaränderung und wird nicht als deren direkte
+Kontrolle dargestellt. Erwartete negative Fixtures drucken ihre internen
+`FAIL:`-Diagnosen, während ihre Testprozesse erfolgreich enden. Vollständige
+Bilingual-/Link-Make-Targets bleiben ausschließlich durch die vorhandenen
+nicht verfügbaren Framework-Submodul-Targets environment-blocked und werden
+nicht als bestanden berichtet. Kein Framework-, MRTS-, Gitlink-, Dependency-,
+Policy-, Ruleset-, Test-, Sonar- oder Quality-Gate-Change ist Teil dieses
+Kandidaten.
+
+Bei dieser Record-Revision wurde kein neuer Head gepusht. Ein normaler
+Commit/Push auf den bestehenden PR-#354-Branch, exaktes Remote-/PR-Head-
+Readback, ein frischer GitHub-hosted-Five-Cell-Profillauf, Child-Receipt- und
+Aggregate-Artefakt-Readback, aktuelle erforderliche Checks,
+SonarCloud-Quality-Gate-/Issue-/Hotspot-Readback und Review-Disposition bleiben
+erforderlich. FND-CROSS-0004 bleibt `blocked`, bis seine bestehenden
+Akzeptanzkriterien tatsächlich erfüllt sind; PR #354 bleibt Draft und
+ungemergt.

@@ -48,6 +48,12 @@ CONNECTOR_ORIGIN_LICENSE="${CONNECTOR_ORIGIN_LICENSE:-}"
 CONNECTOR_ORIGIN_IMPORTED_PATH="${CONNECTOR_ORIGIN_IMPORTED_PATH:-}"
 MODSECURITY_TEST_VARIANT="${MODSECURITY_TEST_VARIANT:-}"
 MODSECURITY_RULE_PREAMBLE_FILE="${MODSECURITY_RULE_PREAMBLE_FILE:-}"
+APACHE_PROFILE_CLEANUP_RECEIPT="${APACHE_PROFILE_CLEANUP_RECEIPT:-}"
+APACHE_PROFILE_CELL_RUN_ID="${APACHE_PROFILE_CELL_RUN_ID:-}"
+APACHE_PROFILE_GITHUB_RUN_ID="${APACHE_PROFILE_GITHUB_RUN_ID:-}"
+APACHE_PROFILE_GITHUB_RUN_ATTEMPT="${APACHE_PROFILE_GITHUB_RUN_ATTEMPT:-}"
+APACHE_PROFILE_FINAL_CLEANUP=0
+APACHE_PROFILE_EVIDENCE_SCRIPT="$REPO_ROOT/ci/runtime/lifecycle/with-crs-no-mrts-profile.py"
 MSCONNECTOR_FULL_LIFECYCLE_SYNC="${MSCONNECTOR_FULL_LIFECYCLE_SYNC:-0}"
 FULL_LIFECYCLE_EVIDENCE_OUTPUT="${FULL_LIFECYCLE_EVIDENCE_OUTPUT:-}"
 MSCONNECTOR_PHASE4_SYNC_EXPECTATION="${MSCONNECTOR_PHASE4_SYNC_EXPECTATION:-first_byte}"
@@ -496,26 +502,105 @@ render_config() {
         "$TEMPLATE" > "$CONFIG_FILE"
 }
 
+apache_profile_enabled() {
+    if [ -z "$APACHE_PROFILE_CLEANUP_RECEIPT" ] && [ -z "$APACHE_PROFILE_CELL_RUN_ID" ] && \
+        [ -z "$APACHE_PROFILE_GITHUB_RUN_ID" ] && [ -z "$APACHE_PROFILE_GITHUB_RUN_ATTEMPT" ]; then
+        return 1
+    fi
+    [ -n "$APACHE_PROFILE_CLEANUP_RECEIPT" ] || return 2
+    [ -n "$APACHE_PROFILE_CELL_RUN_ID" ] || return 2
+    [ -n "$APACHE_PROFILE_GITHUB_RUN_ID" ] || return 2
+    [ -n "$APACHE_PROFILE_GITHUB_RUN_ATTEMPT" ] || return 2
+    return 0
+}
+
+apache_profile_stop_tracked_process() {
+    process_label=$1
+    process_pid=$2
+    [ -n "$process_pid" ] || return 0
+    case "$process_pid" in
+        *[!0-9]*) echo "apache_smoke: profile cleanup has invalid $process_label PID" >&2; return 1 ;;
+    esac
+    if kill -0 "$process_pid" >/dev/null 2>&1; then
+        kill "$process_pid" >/dev/null 2>&1 || true
+        wait "$process_pid" >/dev/null 2>&1 || true
+    fi
+    if kill -0 "$process_pid" >/dev/null 2>&1; then
+        echo "apache_smoke: profile cleanup left $process_label PID=$process_pid running" >&2
+        return 1
+    fi
+    return 0
+}
+
+apache_profile_publish_cleanup_receipt() {
+    [ "$APACHE_PROFILE_FINAL_CLEANUP" = "1" ] || return 0
+    [ "$RUN_ONE_CASE" = "1" ] || return 1
+    [ -n "${HTTPD_PID:-}" ] || {
+        echo "apache_smoke: profile cleanup has no tracked Apache PID" >&2
+        return 1
+    }
+    port_is_free "$PORT" || {
+        echo "apache_smoke: profile cleanup left a listener on port=$PORT" >&2
+        return 1
+    }
+    [ ! -e "$RUNTIME_PID_FILE" ] || {
+        echo "apache_smoke: profile cleanup left Apache PID file=$RUNTIME_PID_FILE" >&2
+        return 1
+    }
+    "$PYTHON_BIN" -I "$APACHE_PROFILE_EVIDENCE_SCRIPT" write-apache-cleanup-receipt \
+        --output "$APACHE_PROFILE_CLEANUP_RECEIPT" \
+        --cell-run-id "$APACHE_PROFILE_CELL_RUN_ID" \
+        --github-run-id "$APACHE_PROFILE_GITHUB_RUN_ID" \
+        --github-run-attempt "$APACHE_PROFILE_GITHUB_RUN_ATTEMPT" \
+        --listener-port "$PORT"
+}
+
 cleanup() {
-    if [ -n "${SYNCHRONIZED_UPSTREAM_PID:-}" ] && kill -0 "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1; then
-        [ -n "${SYNCHRONIZED_RELEASE_FILE:-}" ] && : > "$SYNCHRONIZED_RELEASE_FILE"
-        kill "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1 || true
-        wait "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1 || true
-    fi
-    if [ -n "${HTTPD_PID:-}" ] && kill -0 "$HTTPD_PID" >/dev/null 2>&1; then
-        kill "$HTTPD_PID" >/dev/null 2>&1 || true
-        wait "$HTTPD_PID" >/dev/null 2>&1 || true
-    fi
-    if [ -n "${RESPONSE_HEADER_BACKEND_PID:-}" ] && kill -0 "$RESPONSE_HEADER_BACKEND_PID" >/dev/null 2>&1; then
-        kill "$RESPONSE_HEADER_BACKEND_PID" >/dev/null 2>&1 || true
-        wait "$RESPONSE_HEADER_BACKEND_PID" >/dev/null 2>&1 || true
+    cleanup_rc=0
+    if apache_profile_enabled; then
+        if [ -n "${SYNCHRONIZED_UPSTREAM_PID:-}" ] && \
+            kill -0 "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1; then
+            if [ -n "${SYNCHRONIZED_RELEASE_FILE:-}" ]; then
+                : > "$SYNCHRONIZED_RELEASE_FILE" || cleanup_rc=1
+            fi
+        fi
+        apache_profile_stop_tracked_process synchronized-upstream "${SYNCHRONIZED_UPSTREAM_PID:-}" || cleanup_rc=1
+        apache_profile_stop_tracked_process apache "${HTTPD_PID:-}" || cleanup_rc=1
+        apache_profile_stop_tracked_process response-header-backend "${RESPONSE_HEADER_BACKEND_PID:-}" || cleanup_rc=1
+    else
+        if [ -n "${SYNCHRONIZED_UPSTREAM_PID:-}" ] && kill -0 "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1; then
+            [ -n "${SYNCHRONIZED_RELEASE_FILE:-}" ] && : > "$SYNCHRONIZED_RELEASE_FILE"
+            kill "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1 || true
+            wait "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1 || true
+        fi
+        if [ -n "${HTTPD_PID:-}" ] && kill -0 "$HTTPD_PID" >/dev/null 2>&1; then
+            kill "$HTTPD_PID" >/dev/null 2>&1 || true
+            wait "$HTTPD_PID" >/dev/null 2>&1 || true
+        fi
+        if [ -n "${RESPONSE_HEADER_BACKEND_PID:-}" ] && kill -0 "$RESPONSE_HEADER_BACKEND_PID" >/dev/null 2>&1; then
+            kill "$RESPONSE_HEADER_BACKEND_PID" >/dev/null 2>&1 || true
+            wait "$RESPONSE_HEADER_BACKEND_PID" >/dev/null 2>&1 || true
+        fi
     fi
     if [ -n "${RUNTIME_PID_FILE:-}" ]; then
-        rm -f "$RUNTIME_PID_FILE"
+        if ! rm -f "$RUNTIME_PID_FILE"; then
+            if apache_profile_enabled; then
+                cleanup_rc=1
+            fi
+        fi
     fi
     if [ -n "${PHASE4_ROGUE_TLS_KEY:-}" ]; then
-        rm -f "$PHASE4_ROGUE_TLS_KEY"
+        if ! rm -f "$PHASE4_ROGUE_TLS_KEY"; then
+            if apache_profile_enabled; then
+                cleanup_rc=1
+            fi
+        fi
     fi
+    if apache_profile_enabled && [ "$APACHE_PROFILE_FINAL_CLEANUP" = "1" ]; then
+        [ "$cleanup_rc" -eq 0 ] || return 1
+        apache_profile_publish_cleanup_receipt || return 1
+    fi
+    return "$cleanup_rc"
 }
 
 port_is_free() {
@@ -2301,6 +2386,13 @@ RUNTIME_PID_FILE="$RUNTIME_ROOT/logs/httpd.pid"
 
 mkdir -p "$LOG_DIR" "$LOG_DIR/audit" "$RUNTIME_ROOT/conf" "$RUNTIME_ROOT/logs" "$RUNTIME_ROOT/htdocs" "$RUNTIME_ROOT/run"
 : > "$STATUS_FILE"
+if [ -n "$APACHE_PROFILE_CLEANUP_RECEIPT" ] || [ -n "$APACHE_PROFILE_CELL_RUN_ID" ] || \
+    [ -n "$APACHE_PROFILE_GITHUB_RUN_ID" ] || [ -n "$APACHE_PROFILE_GITHUB_RUN_ATTEMPT" ]; then
+    apache_profile_enabled || blocked "Apache profile cleanup configuration is incomplete"
+    [ "$RUN_ONE_CASE" = "1" ] || blocked "Apache profile cleanup requires one selected case"
+    [ -f "$APACHE_PROFILE_EVIDENCE_SCRIPT" ] || \
+        blocked "Apache profile evidence helper is missing: $APACHE_PROFILE_EVIDENCE_SCRIPT"
+fi
 stop_stale_runtime_pid "$RUNTIME_PID_FILE"
 rm -f "$RUNTIME_ROOT/logs/"* \
     "$LOG_DIR/configtest.log" \
@@ -2516,6 +2608,20 @@ if "$PYTHON_BIN" "$CASE_CLI" assert-status \
     --audit-log-file "$AUDIT_LOG_FILE" \
     --phase4-log-file "$APACHE_PHASE4_LOG_FILE" \
     --status-file "$STATUS_FILE" > "$LOG_DIR/case-assert.log" 2>&1; then
+    if apache_profile_enabled; then
+        "$PYTHON_BIN" -I "$APACHE_PROFILE_EVIDENCE_SCRIPT" verify-apache-audit \
+            --audit-log "$AUDIT_LOG_FILE" || \
+            fail "selected Apache CRS case lacks a transaction-bound rule-942270 audit record"
+        APACHE_PROFILE_FINAL_CLEANUP=1
+        if ! cleanup; then
+            # A failed final proof must never publish a receipt.  Keep the
+            # exit trap installed for one last best-effort teardown pass, but
+            # disable final publication before this error path exits.
+            APACHE_PROFILE_FINAL_CLEANUP=0
+            fail "selected Apache CRS case cleanup could not be proven"
+        fi
+        trap - EXIT INT TERM
+    fi
     write_case_result "$TEST_CASE" pass "$http_status" "$LOG_DIR/result.json" "$observed_transport_result" || true
     echo "apache_smoke: pass case=$CASE_NAME status=$http_status"
     exit 0

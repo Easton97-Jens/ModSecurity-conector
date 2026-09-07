@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import re
 import stat
+import sys
 from pathlib import Path
 
 
@@ -23,6 +25,27 @@ MAX_RECORD_BYTES = 65536
 RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,47}$")
 VERIFIED_ROOT_LABEL = "verified root"
 FAILURE_RECEIPT_NAME = "failure-receipt.json"
+_THIS = Path(__file__).resolve()
+_CONTRACT_PATH = _THIS.parents[1] / "contracts" / "runtime_observation.py"
+_CONTRACT_SPEC = importlib.util.spec_from_file_location(
+    "prepare_with_crs_runtime_observation", _CONTRACT_PATH
+)
+if _CONTRACT_SPEC is None or _CONTRACT_SPEC.loader is None:
+    raise RuntimeError("cannot load the common runtime-observation contract")
+RUNTIME_OBSERVATION = importlib.util.module_from_spec(_CONTRACT_SPEC)
+sys.modules[_CONTRACT_SPEC.name] = RUNTIME_OBSERVATION
+_CONTRACT_SPEC.loader.exec_module(RUNTIME_OBSERVATION)
+
+ADAPTER_IDS = {
+    "envoy": "envoy-ext-proc-service",
+    "lighttpd": "lighttpd-patched-native-module",
+    "traefik": "traefik-native-middleware",
+}
+INTEGRATION_MODES = {
+    "envoy": "ext_proc",
+    "lighttpd": "patched-native-lighttpd",
+    "traefik": "native-traefik-middleware",
+}
 
 
 def sha(value: str) -> bool:
@@ -175,20 +198,54 @@ def read_evidence(root: Path, components: tuple[str, ...], label: str) -> bytes:
     return data
 
 
+def reject_duplicate_json_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    value: dict[str, object] = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError("runtime evidence JSON contains a duplicate key")
+        value[key] = item
+    return value
+
+
+def reject_nonfinite_json(_: str) -> None:
+    raise ValueError("runtime evidence JSON contains a non-finite value")
+
+
+def load_canonical_json(data: bytes, label: str) -> dict[str, object]:
+    if not data or b"\0" in data or not data.endswith(b"\n"):
+        raise ValueError(f"{label} is not canonical JSON bytes")
+    try:
+        value = json.loads(
+            data.decode("utf-8"),
+            object_pairs_hook=reject_duplicate_json_pairs,
+            parse_constant=reject_nonfinite_json,
+        )
+    except (UnicodeDecodeError, RecursionError, ValueError) as exc:
+        raise ValueError(f"{label} is not valid JSON") from exc
+    if type(value) is not dict:
+        raise ValueError(f"{label} is not an object")
+    try:
+        canonical = (
+            json.dumps(value, allow_nan=False, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
+            + "\n"
+        ).encode("utf-8")
+    except (RecursionError, TypeError, ValueError) as exc:
+        raise ValueError(f"{label} cannot be canonicalized") from exc
+    if canonical != data:
+        raise ValueError(f"{label} is not canonical JSON")
+    return value
+
+
 def load_pass_evidence(root: Path, connector: str, run_id: str, parent_sha: str) -> None:
-    record = json.loads(
-        read_evidence(
-            root,
-            ("evidence", "runtime", connector, run_id, "runtime.json"),
-            "runtime evidence",
-        ).decode("utf-8")
+    record_data = read_evidence(
+        root,
+        ("evidence", "runtime", connector, run_id, "runtime.json"),
+        "runtime evidence",
     )
-    event = json.loads(
-        read_evidence(
-            root,
-            ("evidence", "normalized", connector, run_id, "event.json"),
-            "normalized event evidence",
-        ).decode("utf-8")
+    event_data = read_evidence(
+        root,
+        ("evidence", "normalized", connector, run_id, "event.json"),
+        "normalized event evidence",
     )
     observation_data = read_evidence(
         root,
@@ -201,8 +258,9 @@ def load_pass_evidence(root: Path, connector: str, run_id: str, parent_sha: str)
         ),
         "normalized observation evidence",
     )
-    if not isinstance(record, dict) or not isinstance(event, dict):
-        raise ValueError("runtime evidence is not an object")
+    record = load_canonical_json(record_data, "runtime evidence")
+    event = load_canonical_json(event_data, "normalized event evidence")
+    observation = load_canonical_json(observation_data, "normalized observation evidence")
     if (
         record.get("record_type") != "parent_runtime_attestation"
         or record.get("connector") != connector
@@ -210,10 +268,38 @@ def load_pass_evidence(root: Path, connector: str, run_id: str, parent_sha: str)
         or record.get("runtime_status") != "PASS"
     ):
         raise ValueError("runtime evidence binding or status is invalid")
+    identity = observation.get("identity")
+    if type(identity) is not dict:
+        raise ValueError("runtime observation identity is invalid")
+    expected_identity = {
+        "connector": connector,
+        "adapter_id": ADAPTER_IDS[connector],
+        "integration_mode": INTEGRATION_MODES[connector],
+        "profile": "with-crs-no-mrts",
+        "crs": True,
+        "mrts": False,
+        "run_id": run_id,
+        "parent_commit": parent_sha,
+        "framework_commit": identity.get("framework_commit"),
+        "mrts_commit": identity.get("mrts_commit"),
+        "producer": f"parent-runtime-observation-adapter-{connector}",
+        "producer_version": "1.0.0",
+    }
+    validation = RUNTIME_OBSERVATION.validate_runtime_observation(
+        observation,
+        expected_identity,
+        {"name": "strict", "evidence_root": root / "evidence"},
+    )
+    if validation.status != "PASS" or validation["validation_status"] != "CONTRACT_VALIDATED":
+        raise ValueError("runtime observation binding or common contract does not pass")
     if (
-        event.get("connector") != connector
+        event.get("profile") != "five-connectors-with-crs-no-mrts"
+        or event.get("connector") != connector
+        or event.get("adapter_id") != ADAPTER_IDS[connector]
+        or event.get("integration_mode") != INTEGRATION_MODES[connector]
         or event.get("run_id") != run_id
         or event.get("connector_commit") != parent_sha
+        or event.get("framework_commit") != identity.get("framework_commit")
         or event.get("status") != "PASS"
     ):
         raise ValueError("normalized evidence binding or status is invalid")

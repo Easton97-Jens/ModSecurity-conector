@@ -111,34 +111,30 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
     def make_generic_pass_evidence(
         self, root: Path, connector: str, run_id: str, parent_sha: str
     ) -> None:
-        evidence = root / "evidence"
-        normalized = evidence / "normalized" / connector / run_id
-        observation_path = normalized / "runtime-observation.json"
-        private_json(observation_path, {"schema_version": 1, "status": "PASS"})
-        observation_sha256 = hashlib.sha256(observation_path.read_bytes()).hexdigest()
-        private_json(
-            evidence / "runtime" / connector / run_id / "runtime.json",
-            {
-                "record_type": "parent_runtime_attestation",
-                "connector": connector,
-                "run_id": run_id,
-                "runtime_status": "PASS",
-                "canonical_observation": {
-                    "validation_status": "CONTRACT_VALIDATED",
-                    "evidence_path": f"normalized/{connector}/{run_id}/runtime-observation.json",
-                    "evidence_sha256": observation_sha256,
-                },
-            },
-        )
-        private_json(
-            normalized / "event.json",
-            {
-                "connector": connector,
-                "run_id": run_id,
-                "connector_commit": parent_sha,
-                "status": "PASS",
-            },
-        )
+        # Produce the same complete canonical observation that the helper
+        # receives from the Parent normalizer.  A minimal JSON PASS marker is
+        # intentionally no longer a valid success fixture.
+        if parent_sha != "b" * 40:
+            raise AssertionError("normalizer fixture Parent SHA is fixed")
+        runtime = root / "runtime"
+        self.make_observation(runtime, connector=connector)
+        if connector == "envoy":
+            self.make_envoy_host_evidence(runtime)
+            summary = runtime / "runtime-summary.txt"
+            private_file(
+                summary,
+                summary.read_text(encoding="utf-8").replace("run_id=envoy-run", f"run_id={run_id}"),
+            )
+        elif connector == "traefik":
+            self.make_traefik_host_evidence(runtime)
+            result = read_json(runtime / "result.json")
+            result["run_id"] = run_id
+            private_json(runtime / "result.json", result)
+        elif connector == "lighttpd":
+            self.make_lighttpd_host_evidence(runtime, run_id=run_id)
+        else:
+            raise AssertionError(connector)
+        self.normalize(connector, root, runtime, run_id=run_id)
 
     def test_failed_generic_runtime_retains_bounded_payload_free_receipt(self) -> None:
         with tempfile.TemporaryDirectory(prefix="crs-upload-failure-") as temporary:
@@ -193,16 +189,16 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
     def test_generic_upload_accepts_current_bound_pass_evidence(self) -> None:
         with tempfile.TemporaryDirectory(prefix="crs-upload-pass-") as temporary:
             root = Path(temporary)
-            self.make_generic_pass_evidence(root, "lighttpd", "run-1", "a" * 40)
-            result = self.run_upload_preparer(root, "lighttpd", "run-1", "a" * 40, "success")
+            self.make_generic_pass_evidence(root, "lighttpd", "run-1", "b" * 40)
+            result = self.run_upload_preparer(root, "lighttpd", "run-1", "b" * 40, "success")
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertFalse((root / "failure-receipt.json").exists())
 
     def test_non_successful_generic_runtime_retains_only_a_failure_receipt(self) -> None:
         with tempfile.TemporaryDirectory(prefix="crs-upload-late-failure-") as temporary:
             root = Path(temporary)
-            self.make_generic_pass_evidence(root, "traefik", "run-1", "a" * 40)
-            result = self.run_upload_preparer(root, "traefik", "run-1", "a" * 40, "failure")
+            self.make_generic_pass_evidence(root, "traefik", "run-1", "b" * 40)
+            result = self.run_upload_preparer(root, "traefik", "run-1", "b" * 40, "failure")
             self.assertEqual(result.returncode, 0, result.stderr)
             receipt = read_json(root / "failure-receipt.json")
             self.assertEqual(receipt["connector"], "traefik")
@@ -636,7 +632,7 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
             "cleanup_status=PASS\n"
             f"allow_request_id={request_ids['allow']}\nallow_transaction_id={transaction_ids['allow']}\n"
             f"allow_response_transaction_id={transaction_ids['allow']}\n"
-            "allow_request_uri=/?id=42\nallow_request_status=200\n"
+            "allow_request_uri=/?id=42\n"
             f"block_request_id={block_request_id}\nblock_transaction_id={block_transaction_id}\n"
             f"block_response_transaction_id={transaction_ids['block']}\n"
             "block_request_uri=/?id=1%20UNION%20SELECT\n"
@@ -1022,6 +1018,65 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
                     private_file(path, "\n".join(lines) + "\n")
                 with self.assertRaisesRegex(RuntimeError, message):
                     self.normalize(connector, root, runtime)
+
+    def test_normalizer_rejects_duplicate_summary_fields(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crs-duplicate-summary-field-") as temporary:
+            root = Path(temporary)
+            runtime = root / "runtime"
+            self.make_observation(runtime, connector="envoy")
+            self.make_envoy_host_evidence(runtime)
+            summary = runtime / "runtime-summary.txt"
+            private_file(summary, summary.read_text(encoding="utf-8") + "status=PASS\n")
+            with self.assertRaisesRegex(RuntimeError, "duplicate field: status"):
+                self.normalize("envoy", root, runtime)
+
+    def test_normalizer_requires_pairwise_distinct_envoy_request_ids(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crs-envoy-duplicate-request-ids-") as temporary:
+            root = Path(temporary)
+            runtime = root / "runtime"
+            self.make_observation(runtime, connector="envoy")
+            self.make_envoy_host_evidence(runtime)
+            summary = runtime / "runtime-summary.txt"
+            lines = summary.read_text(encoding="utf-8").splitlines()
+            lines = [
+                "allow_request_id=shared-request" if line.startswith("allow_request_id=") else line
+                for line in lines
+            ]
+            lines = [
+                "block_request_id=shared-request" if line.startswith("block_request_id=") else line
+                for line in lines
+            ]
+            private_file(summary, "\n".join(lines) + "\n")
+            with self.assertRaisesRegex(RuntimeError, "allow, block, and bypass"):
+                self.normalize("envoy", root, runtime)
+
+    def test_normalizer_requires_pairwise_distinct_traefik_request_ids(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crs-traefik-duplicate-request-ids-") as temporary:
+            root = Path(temporary)
+            runtime = root / "runtime"
+            self.make_observation(runtime, connector="traefik")
+            self.make_traefik_host_evidence(runtime)
+            result = read_json(runtime / "result.json")
+            result["allow"]["request_id"] = "shared-request"
+            result["block"]["request_id"] = "shared-request"
+            private_json(runtime / "result.json", result)
+            with self.assertRaisesRegex(RuntimeError, "distinct allow/block/bypass"):
+                self.normalize("traefik", root, runtime)
+
+    def test_framework_pins_reject_duplicate_assignments(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crs-duplicate-framework-pins-") as temporary:
+            framework = Path(temporary)
+            common = framework / "ci/lib/common.sh"
+            private_file(
+                common,
+                "CRS_APPROVED_REPO_URL='https://github.com/coreruleset/coreruleset'\n"
+                "CRS_RELEASE_TAG='v4.20.0'\n"
+                "CRS_APPROVED_COMMIT='0123456789abcdef0123456789abcdef01234567'\n"
+                "CRS_RULE_FILE_SHA256='0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'\n"
+                "CRS_RELEASE_TAG='v4.20.0'\n",
+            )
+            with self.assertRaisesRegex(RuntimeError, "incomplete or duplicated"):
+                NORMALIZER.framework_pins(framework)
 
     def test_normalizer_derives_real_host_fields_for_every_connector(self) -> None:
         for connector in ("envoy", "traefik", "lighttpd"):
