@@ -14,6 +14,9 @@ EXAMPLE = (
 HARNESS = (ROOT / "connectors" / "haproxy" / "harness" / "run_haproxy_smoke.sh").read_text(
     encoding="utf-8"
 )
+COMMON_TRANSPORT = (
+    ROOT / "common" / "runtime" / "response_companion_transport.c"
+).read_text(encoding="utf-8")
 
 
 class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
@@ -72,6 +75,55 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
         self.assertIn("client healthcheck handshake PASS", SOURCE)
         self.assertIn("client notify set-var ack disconnect PASS", SOURCE)
         self.assertIn("read_full_until", SOURCE)
+
+    def test_running_owner_timeout_uses_bounded_controlled_restart(self) -> None:
+        self.assertIn("SPOP_OWNER_SHUTDOWN_WAIT_MS 1000U", SOURCE)
+        self.assertIn("SPOP_OWNER_RESTART_EXIT_CODE 75", SOURCE)
+        self.assertIn("spop_owner_queue_request_restart(queue)", SOURCE)
+        self.assertIn("spop_owner_queue_cancel_pending_locked(queue)", SOURCE)
+        self.assertIn("event=spop-owner-timeout action=controlled-restart", SOURCE)
+        self.assertIn("shutdown(queue->listener_fd, SHUT_RDWR)", SOURCE)
+        self.assertIn("pthread_cond_timedwait(&queue->owner_stopped", SOURCE)
+        self.assertIn("clock_gettime(CLOCK_MONOTONIC, deadline)", SOURCE)
+        self.assertNotIn("pthread_cancel", SOURCE)
+
+    def test_unquiesced_owner_exits_without_releasing_stack_backed_state(self) -> None:
+        cleanup = SOURCE.split("static void destroy_agent_runtime", 1)[1].split(
+            "static int initialize_native_response_companion", 1
+        )[0]
+        self.assertGreaterEqual(
+            cleanup.count("_Exit(SPOP_OWNER_RESTART_EXIT_CODE)"), 2
+        )
+        self.assertIn("use-after-return/use-after-close", cleanup)
+
+    def test_response_transport_shutdown_is_outer_bounded_and_terminal(self) -> None:
+        bounded_stop = SOURCE.split("static int spop_transport_stop_bounded", 1)[
+            1
+        ].split("static void destroy_agent_runtime", 1)[0]
+        self.assertIn("pthread_cond_timedwait", bounded_stop)
+        self.assertIn("event=spop-response-transport-shutdown-timeout", bounded_stop)
+        self.assertGreaterEqual(
+            bounded_stop.count("_Exit(SPOP_OWNER_RESTART_EXIT_CODE)"), 3
+        )
+
+    def test_owned_companion_socket_is_removed_before_blocking_waits(self) -> None:
+        stop = COMMON_TRANSPORT.split(
+            "int msconnector_response_companion_transport_stop", 1
+        )[1]
+        remove_socket = stop.index("response_companion_remove_owned_socket(transport)")
+        join_listener = stop.index("pthread_join(transport->listener.listener_thread")
+        wait_workers = stop.index("pthread_cond_wait(")
+        self.assertLess(remove_socket, join_listener)
+        self.assertLess(remove_socket, wait_workers)
+
+    def test_owner_self_test_proves_terminal_rejection_and_fresh_instance(self) -> None:
+        owner_test = SOURCE.split("static int run_spop_owner_queue_self_test", 1)[1].split(
+            "static int run_spop_body_limit_self_test", 1
+        )[0]
+        self.assertIn("!spop_owner_queue_requires_restart(&state)", owner_test)
+        self.assertIn("spop_owner_queue_destroy(&state) == 0", owner_test)
+        self.assertIn("shutdown_elapsed - shutdown_started", owner_test)
+        self.assertGreaterEqual(owner_test.count("spop_owner_queue_init(&state)"), 2)
 
     def test_safe_example_does_not_reintroduce_a_single_peer_bottleneck(self) -> None:
         self.assertIn("worker-count=8", EXAMPLE)

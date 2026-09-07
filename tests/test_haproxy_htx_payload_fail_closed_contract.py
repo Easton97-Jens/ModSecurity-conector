@@ -49,7 +49,7 @@ class HAProxyHTXPayloadFailClosedContractTest(unittest.TestCase):
             response_branch,
         )
         self.assertIn("return -1;", response_branch)
-        self.assertIn("ctx->response_headers_committed = 1;", response_branch)
+        self.assertIn("ctx->response.headers_committed = 1;", response_branch)
         self.assertIn("haproxy_modsecurity_htx_abort_context(ctx);", postcommit)
         self.assertIn("stream_shutdown(s, SF_ERR_KILLED);", postcommit)
 

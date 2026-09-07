@@ -308,3 +308,62 @@ between membership scan and `/proc` state read is benign only for `ENOENT` or
 live-child and late-fork controls also passed. The two lighttpd harness contract
 suites passed with `65` tests; Python compilation and `git diff --check`
 passed. No CI workflow, ruleset, branch rule, or required check was changed.
+
+## Current-master integration follow-up — 2026-09-07
+
+PR #346 was semantically combined with current `origin/master`
+`08fab232d77e300be15cb010e2adbcd590955727` by a normal, non-rewriting merge.
+The five actual conflicts were resolved as unions of the current controls:
+the helper-aware Apache Common-adoption contract, bounded HAProxy SPOP parsing
+and peer isolation, the complete English/German Change Record indexes, and the
+combined Sonar reliability harness. The current-master NGINX and HAProxy
+checker repairs remain intact. The original #346 lighttpd response-abort and
+deferred-finish behavior was ported onto the current source layout rather than
+dropped during integration. No `.github/**`, ruleset, branch-protection,
+required-check, Quality-Gate, Gitlink, Framework, or MRTS path was changed.
+
+An independent integration review found that one running native SPOP owner
+could outlive its caller deadline, block all following owner work, and hold an
+unbounded shutdown join. The repair makes that queue terminal, closes
+admission and the listener, cancels pending work, and allows at most a fixed
+one-second shutdown grace. If native state remains reachable, the agent exits
+with documented restart status `75` without freeing or unwinding that state.
+A second review found the same lifetime class through a failed or hanging
+response-companion transport stop. That stop is now independently outer-
+bounded; every incomplete synchronization/stop path exits `75`. Common removes
+only its captured owned UDS inode before potentially blocking joins or worker
+waits. A replacement inode is deliberately retained. The final independent
+re-review found no remaining UAF, double-free, listener-FD reuse, or lock-order
+bypass in these paths.
+
+Current local evidence includes:
+
+- Common/Apache/NGINX: 146 tests passed plus 80 passed subtests; all four
+  Common-adoption targets and the Common security contract passed.
+- HAProxy: the complete Python/contract selection ran 161 tests, with 149
+  passed and 12 skipped; the focused ASan/UBSan harness passed the terminal
+  owner, failed transport-stop, hanging transport-stop, and legitimate fresh-
+  instance controls. The real Common response-companion transport test passed
+  C17 `-Wall -Wextra -Werror` with ASan, UBSan, and leak detection, covering
+  parallel clients, UDS ownership, stop/restart, cancel, cleanup, and follow-up.
+- Envoy: all selected ext_authz/ext_proc tests, race tests, vet, and builds
+  passed. Traefik Native UDS, composite middleware, and response observer tests,
+  race tests, build, vet, fuzz, contracts, and runtime harnesses passed.
+- lighttpd: 154 tests passed with 28 skipped and 80 passed subtests; the tight
+  Stock/Patched/ABI selection passed 156 tests with 18 skipped and 108 passed
+  subtests. The Common-adoption target passed.
+- Bilingual documentation passed 22 tests; `git diff --check` passed.
+
+Three non-gating current-master baselines are not reclassified as successes:
+the standalone HAProxy SPOA self-test link fails identically on unchanged
+master with undefined `msconnector_block_status_is_allowed`; the Common SDK
+contract fails identically because its text checker matches a comment; and one
+Envoy example test fails identically because it asserts a gofmt-unstable column
+alignment. The lighttpd configuration target did not finish within the bounded
+local observation and has no claimed build result. Production SPOP PID/ready/
+port metadata is removed by the repository harness's runtime-root cleanup but
+is not inode-bound or removed by the standalone agent itself; this pre-existing
+supervisor/stale-metadata limitation remains explicit follow-up work. Exact-
+head GitHub Actions and SonarQube Cloud evidence remain pending until the normal
+integration commit is pushed; this section asserts neither that hosted result
+nor a merge to `master`.

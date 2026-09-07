@@ -580,6 +580,37 @@ static unsigned int cached_transaction_finish_calls;
 static unsigned int transaction_begin_calls;
 static int transaction_begin_result = 1;
 static int transaction_begin_disruptive;
+static int transport_stop_result = 1;
+static int transport_stop_hangs;
+
+int msconnector_response_companion_transport_stop(
+        msconnector_response_companion_transport *transport,
+        msconnector_error *error) {
+    (void)transport;
+    (void)error;
+    while (transport_stop_hangs) {
+        pause();
+    }
+    return transport_stop_result;
+}
+
+void haproxy_spop_response_companion_backend_expire(
+        haproxy_spop_response_companion_backend *backend, uint64_t now_ms) {
+    (void)backend;
+    (void)now_ms;
+}
+
+int haproxy_spop_response_companion_backend_destroy(
+        haproxy_spop_response_companion_backend *backend,
+        msconnector_error *error) {
+    (void)backend;
+    (void)error;
+    return 1;
+}
+
+void haproxy_modsecurity_engine_destroy(haproxy_modsecurity_engine *engine) {
+    (void)engine;
+}
 
 int haproxy_modsecurity_transaction_finish(
         haproxy_modsecurity_transaction *transaction) {
@@ -1062,13 +1093,18 @@ static void test_spop_rejects_overflow_and_truncated_protocol_values(void) {
     pos = 0U;
     assert(read_varint(too_wide, sizeof(too_wide), &pos, &decoded) == -1);
 
-    /* A declared message-name length cannot consume the absent count byte. */
+    memset(&request, 0, sizeof(request));
+    assert(parse_notify_payload(0, 0U, &request) == -1);
+    assert(request.has_notify == 0);
+    free_notify_request(&request);
+
     memset(&request, 0, sizeof(request));
     assert(parse_notify_payload(truncated_notify, sizeof(truncated_notify),
         &request) == -1);
     assert(request.has_notify == 0);
     free_notify_request(&request);
 
+    /* A declared message-name length cannot consume the absent count byte. */
     /* A complete zero-argument control still parses through the same header. */
     memset(&notify, 0, sizeof(notify));
     assert(append_string(&notify, "check-request") == 0);
@@ -1080,6 +1116,7 @@ static void test_spop_rejects_overflow_and_truncated_protocol_values(void) {
     memset(&request, 0, sizeof(request));
     assert(parse_notify_payload(notify.data, notify.len, &request) == 0);
     assert(request.has_notify == 1);
+    assert(request.is_response == 0);
     assert(strcmp(request.message_name, "check-request") == 0);
     free_notify_request(&request);
 
@@ -1135,15 +1172,25 @@ static void test_spop_read_byte_requires_a_remaining_byte(void) {
     assert(value == 0x5aU);
     assert(pos == sizeof(input));
 
-    pos = 0U;
-    assert(read_byte(input, 0U, &pos, &value) == -1);
-    assert(pos == 0U);
+    pos = sizeof(input) + 1U;
+    assert(read_byte(input, sizeof(input), &pos, &value) == -1);
     assert(value == 0x5aU);
+    assert(pos == sizeof(input) + 1U);
 
     pos = SIZE_MAX;
     assert(read_byte(input, sizeof(input), &pos, &value) == -1);
-    assert(pos == SIZE_MAX);
     assert(value == 0x5aU);
+    assert(pos == SIZE_MAX);
+
+    pos = 0U;
+    assert(read_byte(input, 0U, &pos, &value) == -1);
+    assert(value == 0x5aU);
+    assert(pos == 0U);
+    assert(read_byte(0, sizeof(input), &pos, &value) == -1);
+    assert(value == 0x5aU);
+    assert(pos == 0U);
+    assert(read_byte(input, sizeof(input), 0, &value) == -1);
+    assert(read_byte(input, sizeof(input), &pos, 0) == -1);
 }
 
 static void test_spop_typed_ip_arguments_are_canonical_and_bounded(void) {
@@ -1705,6 +1752,95 @@ static void test_spop_listener_enforces_loopback_at_every_boundary(void) {
     close(fd);
 }
 
+static void test_spop_unquiesced_owner_uses_direct_restart_exit(void) {
+    pid_t child = fork();
+    int status = 0;
+
+    assert(child >= 0);
+    if (child == 0) {
+        agent_state state;
+        spop_owner_queue_gate_context gate;
+        spop_owner_queue_submit_thread submitter;
+        pthread_t submitter_thread;
+        FILE *log = 0;
+        FILE *decision_log = 0;
+
+        memset(&state, 0, sizeof(state));
+        memset(&gate, 0, sizeof(gate));
+        if (spop_owner_queue_init(&state) != 0 ||
+                pthread_mutex_init(&gate.lock, 0) != 0 ||
+                pthread_cond_init(&gate.changed, 0) != 0) {
+            _Exit(90);
+        }
+        submitter.state = &state;
+        submitter.context = &gate;
+        submitter.rc = 0;
+        submitter.timeout_ms = 25U;
+        if (pthread_create(&submitter_thread, 0,
+                spop_owner_queue_submit_gate_thread, &submitter) != 0) {
+            _Exit(91);
+        }
+        pthread_mutex_lock(&gate.lock);
+        while (!gate.started) {
+            pthread_cond_wait(&gate.changed, &gate.lock);
+        }
+        pthread_mutex_unlock(&gate.lock);
+        if (pthread_join(submitter_thread, 0) != 0 || submitter.rc == 0 ||
+                !spop_owner_queue_requires_restart(&state)) {
+            _Exit(92);
+        }
+        destroy_agent_runtime(&state, -1, &log, 0, &decision_log, 0);
+        _Exit(93);
+    }
+    assert(waitpid(child, &status, 0) == child);
+    assert(WIFEXITED(status));
+    assert(WEXITSTATUS(status) == SPOP_OWNER_RESTART_EXIT_CODE);
+}
+
+static void test_spop_transport_stop_failure_uses_direct_restart_exit(void) {
+    pid_t child = fork();
+    int status = 0;
+
+    assert(child >= 0);
+    if (child == 0) {
+        agent_state state;
+        FILE *log = 0;
+        FILE *decision_log = 0;
+
+        alarm(3U);
+        memset(&state, 0, sizeof(state));
+        state.response_transport_started = 1;
+        transport_stop_result = 0;
+        destroy_agent_runtime(&state, -1, &log, 0, &decision_log, 0);
+        _Exit(94);
+    }
+    assert(waitpid(child, &status, 0) == child);
+    assert(WIFEXITED(status));
+    assert(WEXITSTATUS(status) == SPOP_OWNER_RESTART_EXIT_CODE);
+}
+
+static void test_spop_hanging_transport_stop_is_outer_bounded(void) {
+    pid_t child = fork();
+    int status = 0;
+
+    assert(child >= 0);
+    if (child == 0) {
+        agent_state state;
+        FILE *log = 0;
+        FILE *decision_log = 0;
+
+        alarm(3U);
+        memset(&state, 0, sizeof(state));
+        state.response_transport_started = 1;
+        transport_stop_hangs = 1;
+        destroy_agent_runtime(&state, -1, &log, 0, &decision_log, 0);
+        _Exit(95);
+    }
+    assert(waitpid(child, &status, 0) == child);
+    assert(WIFEXITED(status));
+    assert(WEXITSTATUS(status) == SPOP_OWNER_RESTART_EXIT_CODE);
+}
+
 int main(void) {
     test_varint_length_contract();
     test_varint_boundaries();
@@ -1732,6 +1868,10 @@ int main(void) {
     test_spop_frame_read_has_a_bounded_liveness_deadline();
     test_spop_rejects_unenforced_timeout_and_worker_settings();
     test_spop_listener_enforces_loopback_at_every_boundary();
+    assert(run_spop_owner_queue_self_test() == 0);
+    test_spop_unquiesced_owner_uses_direct_restart_exit();
+    test_spop_transport_stop_failure_uses_direct_restart_exit();
+    test_spop_hanging_transport_stop_is_outer_bounded();
     return 0;
 }
 '''.replace("__RUNTIME_SOURCE__", runtime_source.as_posix()).replace(
@@ -1753,6 +1893,8 @@ int main(void) {
                     "-Wall",
                     "-Wextra",
                     "-Werror",
+                    "-fsanitize=address,undefined",
+                    "-fno-omit-frame-pointer",
                     "-ffunction-sections",
                     "-fdata-sections",
                     "-I",

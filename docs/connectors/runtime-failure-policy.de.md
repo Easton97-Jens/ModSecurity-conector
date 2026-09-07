@@ -219,7 +219,7 @@ hebt keine H2/H3-, Reload-, Full-FD-, Engine-Timeout- oder vollständige
 |---|---|---|
 | V1 | E | SOURCE_VALIDATED: Engine-Startupfehler ist für den Agenten terminal |
 | V2 | E | SOURCE_VALIDATED: Enginefehler bleibt auf den Peer-Worker begrenzt |
-| V3 | E | SELF_TEST_PASS: Handshake-/Operations-Deadlines sind begrenzt; nicht unterstützter positiver Response-Body-Timeout wird bei der Konfigurationsverarbeitung abgewiesen |
+| V3 | E | SELF_TEST_PASS: Handshake-/Operations-Deadlines sind begrenzt; überschreitet ein laufender nativer Owner `spoe-timeout`, wird die Queue terminal und fordert einen kontrollierten Neustart an, statt Folgearbeit dauerhaft zu blockieren |
 | V4 | I | SOURCE_VALIDATED: fehlerhaftes Protokoll-/Ergebnis wird geschlossen; Default closed |
 | V5 | I | SOURCE_VALIDATED: unvollständiges Ergebnis/Handshake wird geschlossen |
 | V6 | P | SELF_TEST_PASS: Peer-Close beendet Agent nicht |
@@ -228,17 +228,30 @@ hebt keine H2/H3-, Reload-, Full-FD-, Engine-Timeout- oder vollständige
 | V9 | P | SELF_TEST_PASS: `MSG_NOSIGNAL`-/Peer-Reset-Pfad erholt sich |
 | V10 | P | NOT_APPLICABLE: SPOP hat keine HTTP-Request-Body-Hooks |
 | V11 | P | NOT_APPLICABLE: SPOP hat keine HTTP-Response-Body-Hooks |
-| V12 | C | SOURCE_VALIDATED: begrenztes Worker-Reaping und Listener-Shutdown |
-| V13 | C | SOURCE_VALIDATED: Worker-Isolation verhindert Prozessfehler durch Peer |
+| V12 | C | SELF_TEST_PASS: terminaler Owner-Shutdown wartet höchstens die feste Ein-Sekunden-Grace-Period; ein weiter laufender nativer Task bleibt für den Prozessabbau erhalten, statt in einen unbegrenzten Join zu laufen |
+| V13 | C | SELF_TEST_PASS: ein Running-Owner-Timeout schließt den Listener, weist eingereihte/neue Owner-Arbeit sofort ab und liefert den kontrollierten Neustart-Exit `75`, ohne erreichbaren nativen Zustand freizugeben |
 | V14 | L | SELF_TEST_PASS: parallele Peers; Healthcheck-/Folge-HELLO gelingt, ein gesättigter Peer wird lokal geschlossen und der Parent-Accept-Loop bleibt frei |
 | V15 | L | SELF_TEST_PASS: Worker `1..64`, `max-transactions` `1..4096` mit höchstens `65536` Slots über alle Worker, Headeranzahl-/Name-/Wert-/Aggregatgrenzen, begrenzte Handshake-/Socket-Deadlines und sofortiger Peer-lokaler Close bei Sättigung |
-| V16 | A | SELF_TEST_PASS: deaktiviertes Response-Phasen-NOTIFY liefert `503`, danach folgen Block-ACK `403` und frische Allow-Kontrolle `200` |
-| V17 | U | SELF_TEST_PASS: request-only Response-Guard-Agent und Selbsttest-Listener sind geschlossen; Selftest-Metadaten sind atomar im Besitz und entfernt, während das Log erhalten bleibt |
+| V16 | A | SELF_TEST_PASS: deaktiviertes Response-Phasen-NOTIFY liefert `503`, danach folgen Block-ACK `403` und frische Allow-Kontrolle `200`; eine frische Owner-Instanz akzeptiert nach Abbau der terminalen Instanz wieder legitime Arbeit |
+| V17 | U | SELF_TEST_PASS: Timeout-Quarantäne erhält die Task-Lebensdauer, begrenzter Shutdown gibt keinen laufenden Task frei, eine spätere endliche Rückkehr leert genau einmal und request-only Response-Guard-/Selbsttest-Listener werden geschlossen |
 
 SPOP-Schreibvorgänge verwenden pro Send `MSG_NOSIGNAL` (und, wenn verfügbar,
 `SO_NOSIGPIPE`); `SIGPIPE` wird nicht global ignoriert. Jeder Peer ist in einem
 begrenzten Worker isoliert; fehlerhafte Eingaben verwenden standardmäßig
 closed. `fail-mode=open` ist nur ein sichtbarer Betreiber-Override.
+Läuft ein nativer Owner-Call nach seiner Operationsdeadline weiter, schließt
+der Agent Admission und Listener, emittiert `event=spop-owner-timeout` und
+liefert Exit `75` für den Supervisor-Neustart. Seine einsekündige
+Shutdown-Grace-Period verwendet weder `pthread_cancel` noch zerstört sie Task-,
+Backend-, Transaktionscache- oder Engine-Zustand, den der Owner noch erreichen
+kann; der Prozessabbau gibt diesen quarantänisierten Zustand frei.
+Der Shutdown des Response-Companions ist unabhängig durch dieselbe feste
+Ein-Sekunden-Grace-Period außen begrenzt. Vor jedem Listener-Join oder
+Worker-Wait entfernt Common ausschließlich die erfasste eigene UDS-Inode. Ein
+fehlgeschlagener oder unvollständiger Stop emittiert ein terminales
+Shutdown-Event und beendet sich mit Exit `75`, ohne Worker-erreichbaren
+Stackzustand abzubauen; ein identitätsabweichender Ersatzpfad bleibt bewusst
+erhalten.
 
 Der ausgewählte SPOP-Pfad hat keinen Response-Body-Stream. Bei
 `response-companion=none` wird ein positiver `response-body-timeout` durch die

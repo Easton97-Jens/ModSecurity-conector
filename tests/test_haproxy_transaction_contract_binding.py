@@ -640,8 +640,8 @@ def test_spop_delayed_owner_lifetime_harness_is_asan_ubsan_clean() -> None:
         assert executed.returncode == 0, executed.stderr
 
 
-def test_spop_stop_failure_retains_worker_owned_runtime_state() -> None:
-    """Cleanup must stop at the transport boundary when workers remain live."""
+def test_spop_stop_failure_exits_without_releasing_worker_owned_state() -> None:
+    """Incomplete transport cleanup must terminate before stack state unwinds."""
     spop_source = (
         Path(__file__).resolve().parents[1]
         / "connectors"
@@ -652,12 +652,13 @@ def test_spop_stop_failure_retains_worker_owned_runtime_state() -> None:
     start = spop_source.index("static void destroy_agent_runtime(")
     end = spop_source.index("static int run_agent_server(", start)
     cleanup = spop_source[start:end]
-    stop = cleanup.index("msconnector_response_companion_transport_stop")
-    failure = cleanup.index("response companion transport stop incomplete")
-    retained = cleanup[cleanup.rfind("} else {", 0, failure):failure]
-    assert "return;" in cleanup[failure:]
-    assert "haproxy_spop_response_companion_backend_expire" not in retained
-    assert "spop_owner_queue_destroy(state)" not in retained
+    stop = cleanup.index("spop_transport_stop_bounded")
+    failure = cleanup.index("event=spop-response-transport-shutdown-failed")
+    terminal = cleanup[failure:cleanup.index("    }\n", failure)]
+    assert "_Exit(SPOP_OWNER_RESTART_EXIT_CODE);" in terminal
+    assert "close_owned_stream" not in terminal
+    assert "haproxy_spop_response_companion_backend_expire" not in terminal
+    assert "spop_owner_queue_destroy(state)" not in terminal
     assert stop < failure
 
 

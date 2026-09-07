@@ -327,3 +327,67 @@ bestehenden Live-Child- und Late-Fork-Kontrollen bestanden ebenfalls. Die zwei
 lighttpd-Harness-Contract-Suites bestanden mit `65` Tests; Python-Kompilierung
 und `git diff --check` bestanden. Es wurden keine CI-Workflows, Rulesets,
 Branch-Regeln oder Required Checks geändert.
+
+## Follow-up zur Integration des aktuellen Masters — 2026-09-07
+
+PR #346 wurde durch einen normalen, nicht umschreibenden Merge semantisch mit
+dem aktuellen `origin/master` `08fab232d77e300be15cb010e2adbcd590955727`
+kombiniert. Die fünf tatsächlichen Konflikte wurden als Union der aktuellen
+Kontrollen aufgelöst: helper-aware Apache-Common-Adoption-Vertrag, begrenztes
+HAProxy-SPOP-Parsing und Peer-Isolation, vollständige englische/deutsche
+Change-Record-Indizes sowie der kombinierte Sonar-Reliability-Harness. Die
+aktuellen Master-Reparaturen der NGINX- und HAProxy-Checker bleiben erhalten.
+Das ursprüngliche #346-Verhalten für lighttpd-Response-Abort und Deferred-
+Finish wurde auf das aktuelle Source-Layout portiert, statt bei der Integration
+verloren zu gehen. Kein `.github/**`-, Ruleset-, Branch-Protection-, Required-
+Check-, Quality-Gate-, Gitlink-, Framework- oder MRTS-Pfad wurde geändert.
+
+Ein unabhängiges Integrationsreview fand, dass ein laufender nativer SPOP-Owner
+seine Caller-Deadline überleben, alle folgenden Owner-Arbeiten blockieren und
+einen unbegrenzten Shutdown-Join festhalten konnte. Die Reparatur setzt diese
+Queue terminal, schließt Admission und Listener, storniert ausstehende Arbeit
+und erlaubt höchstens eine feste Ein-Sekunden-Shutdown-Grace-Period. Bleibt
+nativer Zustand erreichbar, beendet sich der Agent mit dem dokumentierten
+Restart-Status `75`, ohne diesen Zustand freizugeben oder abzubauen. Ein zweites
+Review fand dieselbe Lifetime-Klasse über einen fehlgeschlagenen oder hängenden
+Response-Companion-Transport-Stop. Dieser Stop ist nun unabhängig außen
+begrenzt; jeder unvollständige Synchronisations-/Stop-Pfad beendet sich mit
+`75`. Common entfernt ausschließlich die erfasste eigene UDS-Inode vor
+potenziell blockierenden Joins oder Worker-Waits. Eine Ersatz-Inode bleibt
+bewusst erhalten. Das finale unabhängige Re-Review fand in diesen Pfaden keinen
+verbleibenden UAF-, Double-Free-, Listener-FD-Reuse- oder Lock-Order-Bypass.
+
+Die aktuelle lokale Evidence umfasst:
+
+- Common/Apache/NGINX: 146 Tests plus 80 Subtests bestanden; alle vier Common-
+  Adoption-Targets und der Common-Sicherheitsvertrag bestanden.
+- HAProxy: Die vollständige Python-/Contract-Auswahl führte 161 Tests aus, 149
+  bestanden und 12 wurden übersprungen; der fokussierte ASan/UBSan-Harness
+  bestand die Kontrollen für terminalen Owner, fehlgeschlagenen Transport-
+  Stop, hängenden Transport-Stop und legitime frische Instanz. Der echte
+  Common-Response-Companion-Transporttest bestand C17
+  `-Wall -Wextra -Werror` mit ASan, UBSan und Leak-Erkennung einschließlich
+  paralleler Clients, UDS-Ownership, Stop/Restart, Cancel, Cleanup und Follow-up.
+- Envoy: Alle ausgewählten ext_authz-/ext_proc-Tests, Race-Tests, Vet und Builds
+  bestanden. Traefik-Native-UDS-, Composite-Middleware- und Response-Observer-
+  Tests, Race-Tests, Build, Vet, Fuzz, Contracts und Runtime-Harnesses bestanden.
+- lighttpd: 154 Tests bestanden, 28 wurden übersprungen und 80 Subtests
+  bestanden; die enge Stock-/Patched-/ABI-Auswahl bestand 156 Tests, 18 wurden
+  übersprungen und 108 Subtests bestanden. Das Common-Adoption-Target bestand.
+- Die bilinguale Dokumentation bestand 22 Tests; `git diff --check` bestand.
+
+Drei nicht verbindliche aktuelle Master-Baselines werden nicht zu Erfolgen
+umgedeutet: Der eigenständige HAProxy-SPOA-Selbsttest-Link schlägt auf
+unverändertem Master identisch mit undefiniertem
+`msconnector_block_status_is_allowed` fehl; der Common-SDK-Vertrag schlägt
+identisch fehl, weil sein Textchecker einen Kommentar matched; und ein Envoy-
+Beispieltest schlägt identisch fehl, weil er eine gofmt-instabile
+Spaltenausrichtung behauptet. Das lighttpd-Konfigurations-Target wurde innerhalb
+der begrenzten lokalen Beobachtung nicht fertig; es wird kein Build-Ergebnis
+behauptet. Produktions-SPOP-PID-/Ready-/Port-Metadaten werden durch das
+Runtime-Root-Cleanup des Repository-Harnesses entfernt, aber vom eigenständigen
+Agenten weder inodegebunden noch selbst entfernt; diese bestehende Supervisor-/
+Stale-Metadata-Einschränkung bleibt ausdrückliche Folgearbeit. Exact-Head-
+GitHub-Actions- und SonarQube-Cloud-Evidence stehen bis zum normalen Push des
+Integrationscommits aus; dieser Abschnitt behauptet weder dieses Hosted-
+Ergebnis noch einen Merge nach `master`.

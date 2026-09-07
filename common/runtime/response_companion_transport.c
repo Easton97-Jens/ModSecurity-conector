@@ -2379,6 +2379,13 @@ int msconnector_response_companion_transport_stop(
     if (transport->listener.listener_fd >= 0) {
         (void)shutdown(transport->listener.listener_fd, SHUT_RDWR);
     }
+    /* Remove only the captured socket inode before any potentially blocking
+     * join/wait. Existing accepted streams remain valid, while a controlled
+     * process restart cannot leave its owned listener pathname behind. */
+    if (!response_companion_remove_owned_socket(transport)) {
+        cleanup_result = 0;
+    }
+    transport->listener.identity_valid = 0;
     if (transport->listener.listener_started) {
         join_result = pthread_join(transport->listener.listener_thread, NULL);
         if (join_result != 0) {
@@ -2409,10 +2416,6 @@ int msconnector_response_companion_transport_stop(
         }
     }
     (void)pthread_mutex_unlock(&transport->synchronization.worker_lock);
-    if (!response_companion_remove_owned_socket(transport)) {
-        cleanup_result = 0;
-    }
-    transport->listener.identity_valid = 0;
     atomic_store_explicit(&transport->listener.running, 0, memory_order_release);
     if (!cleanup_result) {
         return response_companion_error(error, MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE,

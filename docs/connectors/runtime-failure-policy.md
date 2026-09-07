@@ -210,7 +210,7 @@ It does not promote H2/H3, reload, full FD, engine-timeout, or complete
 |---|---|---|
 | V1 | E | SOURCE_VALIDATED: engine startup failure is terminal for the agent |
 | V2 | E | SOURCE_VALIDATED: per-peer worker keeps failure local |
-| V3 | E | SELF_TEST_PASS: handshake/operation deadlines are bounded; unsupported positive response-body timeout is rejected at configuration parsing |
+| V3 | E | SELF_TEST_PASS: handshake/operation deadlines are bounded; a running native owner that exceeds `spoe-timeout` makes the queue terminal and requests controlled restart instead of blocking later work indefinitely |
 | V4 | I | SOURCE_VALIDATED: malformed protocol/result is closed; default is closed |
 | V5 | I | SOURCE_VALIDATED: incomplete result/handshake is closed |
 | V6 | P | SELF_TEST_PASS: peer close does not terminate the agent |
@@ -219,17 +219,28 @@ It does not promote H2/H3, reload, full FD, engine-timeout, or complete
 | V9 | P | SELF_TEST_PASS: `MSG_NOSIGNAL`/peer reset path recovers |
 | V10 | P | NOT_APPLICABLE: SPOP has framed protocol data, not HTTP body hooks |
 | V11 | P | NOT_APPLICABLE: SPOP has framed protocol data, not HTTP body hooks |
-| V12 | C | SOURCE_VALIDATED: bounded worker reap and listener shutdown |
-| V13 | C | SOURCE_VALIDATED: worker isolation prevents process-wide peer failure |
+| V12 | C | SELF_TEST_PASS: terminal owner shutdown waits at most the fixed one-second grace; a still-running native task is retained for process teardown instead of entering an unbounded join |
+| V13 | C | SELF_TEST_PASS: a running-owner timeout closes the listener, immediately rejects queued/new owner work, and returns controlled restart exit `75` without freeing reachable native state |
 | V14 | L | SELF_TEST_PASS: parallel healthcheck/follow-up HELLO succeeds; a saturated peer is closed locally while the parent accept loop remains free |
 | V15 | L | SELF_TEST_PASS: worker count `1..64`, `max-transactions` `1..4096` with at most `65536` slots across workers, header count/name/value/aggregate caps, bounded handshake/socket deadlines, and immediate peer-local close on worker saturation |
-| V16 | A | SELF_TEST_PASS: disabled response-phase NOTIFY returns `503` and is followed by a typed Block ACK (`403`) and fresh Allow (`200`) control |
-| V17 | U | SELF_TEST_PASS: request-only response-guard agent and self-test listeners were closed; self-test metadata is atomically owned and removed while its log is retained |
+| V16 | A | SELF_TEST_PASS: disabled response-phase NOTIFY returns `503` and is followed by a typed Block ACK (`403`) and fresh Allow (`200`) control; a fresh owner instance also accepts legitimate work after the terminal instance is torn down |
+| V17 | U | SELF_TEST_PASS: timeout quarantine preserves task lifetime, bounded shutdown does not free a running task, a later finite return drains exactly once, and request-only response-guard/self-test listeners are closed |
 
 SPOP writes use per-send `MSG_NOSIGNAL` (and `SO_NOSIGPIPE` where available);
 there is no global `SIGPIPE` ignore. Each peer is isolated in a bounded worker,
 and the default malformed/failure mode is closed. The explicit open mode is an
 operator choice and must be visible in configuration and evidence.
+If a native owner call is still running after its operation deadline, the
+agent closes admission and the listener, emits `event=spop-owner-timeout`, and
+returns exit `75` for supervisor restart. Its one-second shutdown grace never
+uses `pthread_cancel` and never destroys task, backend, transaction-cache, or
+engine state that the owner can still reach; process teardown reclaims that
+quarantined state.
+Response-companion shutdown is independently outer-bounded by the same fixed
+one-second grace. Before any listener join or worker wait, Common removes only
+the captured owned UDS inode. A failed or incomplete stop emits a terminal
+shutdown event and exits `75` without unwinding worker-reachable stack state;
+an identity-mismatched replacement path is deliberately retained.
 
 The selected SPOP path has no response-body stream. With
 `response-companion=none`, a positive `response-body-timeout` is rejected by

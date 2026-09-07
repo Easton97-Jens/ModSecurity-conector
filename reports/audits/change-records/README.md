@@ -16,6 +16,38 @@ reports without an explicit repository-policy decision or user decision.
   Quality-Gate errors, and red connector workflow evidence for Draft PR #346.
   It records local evidence and pending exact-head hosted results; no CI,
   Framework/MRTS, Gitlink, `master`, or merge change is asserted.
+- [CR-20260906-haproxy-master-recovery](CR-20260906-haproxy-master-recovery.md)
+  | [Deutsch](CR-20260906-haproxy-master-recovery.de.md) — the
+  user-authorized Parent-only HAProxy master-recovery aligns the stale global
+  Common-adoption checker with the existing fail-closed Host mapper and
+  transfers the smallest complete SPOP byte-boundary proof from PR #346 as a
+  read-only reference. It changes no Framework, MRTS, Gitlink, workflow,
+  governance, Quality-Gate control, other connector source, or PR #346 state;
+  the record distinguishes local evidence from pending exact-head hosted
+  evidence and asserts no merge.
+
+- [CR-20260905-nginx-current-master-common-adoption-repair](CR-20260905-nginx-current-master-common-adoption-repair.md)
+  | [Deutsch](CR-20260905-nginx-current-master-common-adoption-repair.de.md) —
+  the user-authorized Parent-only NGINX static-contract repair aligns the
+  resulting-master checker with the current fail-closed request-mapper and
+  bounded explicit-length Server-header paths. It changes no NGINX runtime
+  source, Framework, MRTS, Gitlink, workflow, governance, or PR #346 state;
+  validated implementation and hosted-evidence head
+  `672d5aa22a94640f50aea191885f991b0d8f45c3` was Ready for Review with 36
+  terminal checks (30 successful and six documented skips), Sonar Quality Gate
+  `OK`, and zero `OPEN`/`CONFIRMED` issues, bugs, vulnerabilities, code smells,
+  or `TO_REVIEW` hotspots. The documentation-reconciliation successor has that
+  head as parent and changes only the paired delivery-documentation paths;
+  checker, tests, and product source are byte-identical to the validated
+  parent. No merge is asserted, and Ready for Review is not merge authorization.
+
+- [CR-20260904-apache-helper-aware-common-adoption-contract](CR-20260904-apache-helper-aware-common-adoption-contract.md)
+  | [Deutsch](CR-20260904-apache-helper-aware-common-adoption-contract.de.md) —
+  the user-authorized Parent-only Apache static-contract repair aligns the
+  checker with the bounded P2 helper architecture and rejects a reproduced
+  dead-code checker bypass. It changes no Apache runtime source, Framework,
+  MRTS, Gitlink, workflow, governance, or PR #346 state; native P2 and
+  exact-head hosted evidence remain pending, and no merge is asserted.
 
 - [CR-20260824-connector-security-invariants](CR-20260824-connector-security-invariants.md)
   | [Deutsch](CR-20260824-connector-security-invariants.de.md) — the

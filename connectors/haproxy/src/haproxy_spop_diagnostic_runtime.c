@@ -193,6 +193,8 @@ typedef struct transaction_slot {
 #define SPOP_OWNER_QUEUE_CAPACITY 128U
 #define SPOP_OWNER_QUEUE_WAIT_MS 100U
 #define SPOP_OWNER_CALLER_WAIT_MS 1000U
+#define SPOP_OWNER_SHUTDOWN_WAIT_MS 1000U
+#define SPOP_OWNER_RESTART_EXIT_CODE 75
 
 typedef enum spop_owner_task_state {
     SPOP_OWNER_TASK_QUEUED = 0,
@@ -218,12 +220,16 @@ typedef struct spop_owner_queue {
     pthread_cond_t available;
     pthread_cond_t space;
     pthread_cond_t submitters_done;
+    pthread_cond_t owner_stopped;
     spop_owner_task *tasks[SPOP_OWNER_QUEUE_CAPACITY];
     size_t head;
     size_t tail;
     size_t count;
     size_t submitters;
     int stopping;
+    int owner_exited;
+    int restart_required;
+    int listener_fd;
     int initialized;
     pthread_t owner;
     struct agent_state *state;
@@ -3290,6 +3296,23 @@ static unsigned int spop_owner_timeout_ms(unsigned int timeout_ms,
 static void spop_owner_task_request_cancel(spop_owner_task *task);
 static int spop_owner_deadline(struct timespec *deadline, unsigned int timeout_ms);
 static void spop_owner_task_release(spop_owner_task *task);
+static void spop_owner_queue_request_restart(spop_owner_queue *queue);
+static int spop_owner_cond_init(pthread_cond_t *condition)
+{
+    pthread_condattr_t attributes;
+    int rc;
+
+    if (pthread_condattr_init(&attributes) != 0) {
+        return -1;
+    }
+    rc = pthread_condattr_setclock(&attributes, CLOCK_MONOTONIC);
+    if (rc == 0) {
+        rc = pthread_cond_init(condition, &attributes);
+    }
+    pthread_condattr_destroy(&attributes);
+    return rc == 0 ? 0 : -1;
+}
+
 static int spop_owner_task_initialize(
         spop_owner_task *task,
         void (*run)(void *context),
@@ -3308,7 +3331,7 @@ static int spop_owner_task_initialize(
     if (pthread_mutex_init(&task->lock, 0) != 0) {
         return -1;
     }
-    if (pthread_cond_init(&task->completed, 0) != 0) {
+    if (spop_owner_cond_init(&task->completed) != 0) {
         pthread_mutex_destroy(&task->lock);
         return -1;
     }
@@ -3349,33 +3372,44 @@ static int spop_owner_queue_admit(
     return 0;
 }
 
-static int spop_owner_task_wait(spop_owner_task *task, unsigned int timeout_ms)
+static int spop_owner_task_wait(spop_owner_queue *queue,
+        spop_owner_task *task, unsigned int timeout_ms)
 {
     struct timespec deadline;
     int wait_rc;
     int completed;
+    int running_timeout = 0;
 
     if (spop_owner_deadline(&deadline,
             spop_owner_timeout_ms(timeout_ms, SPOP_OWNER_CALLER_WAIT_MS)) != 0) {
         pthread_mutex_lock(&task->lock);
+        running_timeout = task->state == SPOP_OWNER_TASK_RUNNING;
         spop_owner_task_request_cancel(task);
         pthread_mutex_unlock(&task->lock);
+        if (running_timeout) {
+            spop_owner_queue_request_restart(queue);
+        }
         return -1;
     }
     pthread_mutex_lock(&task->lock);
-    while (task->state != SPOP_OWNER_TASK_DONE) {
+    while (task->state != SPOP_OWNER_TASK_DONE &&
+            task->state != SPOP_OWNER_TASK_CANCEL_REQUESTED) {
         wait_rc = pthread_cond_timedwait(&task->completed, &task->lock, &deadline);
-        if (wait_rc == ETIMEDOUT) {
+        if (wait_rc != 0) {
             break;
         }
     }
     completed = task->state == SPOP_OWNER_TASK_DONE;
     if (!completed) {
+        running_timeout = task->state == SPOP_OWNER_TASK_RUNNING;
         spop_owner_task_request_cancel(task);
     } else if (task->copy_result != 0) {
         task->copy_result(task->context, task->result);
     }
     pthread_mutex_unlock(&task->lock);
+    if (running_timeout) {
+        spop_owner_queue_request_restart(queue);
+    }
     return completed ? 0 : -1;
 }
 
@@ -3784,6 +3818,56 @@ static void spop_owner_task_request_cancel(spop_owner_task *task)
     }
 }
 
+static void spop_owner_queue_cancel_pending_locked(spop_owner_queue *queue)
+{
+    size_t offset;
+
+    for (offset = 0U; offset < queue->count; ++offset) {
+        size_t index = (queue->head + offset) % SPOP_OWNER_QUEUE_CAPACITY;
+        spop_owner_task *task = queue->tasks[index];
+
+        if (task == 0) {
+            continue;
+        }
+        pthread_mutex_lock(&task->lock);
+        spop_owner_task_request_cancel(task);
+        pthread_cond_broadcast(&task->completed);
+        pthread_mutex_unlock(&task->lock);
+    }
+}
+
+static void spop_owner_queue_request_restart(spop_owner_queue *queue)
+{
+    agent_state *state;
+    int emit_event = 0;
+
+    if (queue == 0 || !queue->initialized) {
+        return;
+    }
+    pthread_mutex_lock(&queue->lock);
+    if (!queue->restart_required) {
+        queue->restart_required = 1;
+        emit_event = 1;
+    }
+    queue->stopping = 1;
+    state = queue->state;
+    spop_owner_queue_cancel_pending_locked(queue);
+    pthread_cond_broadcast(&queue->available);
+    pthread_cond_broadcast(&queue->space);
+    /* Serialize the shutdown with listener replacement/close.  Calling it
+     * after releasing the queue lock could target a recycled descriptor. */
+    if (queue->listener_fd >= 0) {
+        (void)shutdown(queue->listener_fd, SHUT_RDWR);
+    }
+    pthread_mutex_unlock(&queue->lock);
+
+    if (emit_event && state != 0) {
+        log_line(state->log,
+            "event=spop-owner-timeout action=controlled-restart reason=native-owner-stuck exit_code=%d",
+            SPOP_OWNER_RESTART_EXIT_CODE);
+    }
+}
+
 static void *spop_owner_thread(void *opaque)
 {
     spop_owner_queue *queue = (spop_owner_queue *)opaque;
@@ -3796,6 +3880,8 @@ static void *spop_owner_thread(void *opaque)
             pthread_cond_wait(&queue->available, &queue->lock);
         }
         if (queue->count == 0U && queue->stopping) {
+            queue->owner_exited = 1;
+            pthread_cond_broadcast(&queue->owner_stopped);
             pthread_mutex_unlock(&queue->lock);
             return 0;
         }
@@ -3804,14 +3890,13 @@ static void *spop_owner_thread(void *opaque)
         queue->head = (queue->head + 1U) % SPOP_OWNER_QUEUE_CAPACITY;
         --queue->count;
         pthread_cond_signal(&queue->space);
-        pthread_mutex_unlock(&queue->lock);
-
         pthread_mutex_lock(&task->lock);
-        if (task->state == SPOP_OWNER_TASK_QUEUED) {
+        if (!queue->stopping && task->state == SPOP_OWNER_TASK_QUEUED) {
             task->state = SPOP_OWNER_TASK_RUNNING;
             run_task = 1;
         }
         pthread_mutex_unlock(&task->lock);
+        pthread_mutex_unlock(&queue->lock);
 
         if (run_task) {
             task->run(task->context);
@@ -3881,7 +3966,7 @@ static int spop_owner_deadline(struct timespec *deadline, unsigned int timeout_m
     if (deadline == 0) {
         return -1;
     }
-    if (clock_gettime(CLOCK_REALTIME, deadline) != 0) {
+    if (clock_gettime(CLOCK_MONOTONIC, deadline) != 0) {
         return -1;
     }
     seconds = (time_t)(timeout_ms / 1000U);
@@ -3907,25 +3992,34 @@ static int spop_owner_queue_init(agent_state *state)
     if (pthread_mutex_init(&queue->lock, 0) != 0) {
         return -1;
     }
-    if (pthread_cond_init(&queue->available, 0) != 0) {
+    if (spop_owner_cond_init(&queue->available) != 0) {
         pthread_mutex_destroy(&queue->lock);
         return -1;
     }
-    if (pthread_cond_init(&queue->space, 0) != 0) {
+    if (spop_owner_cond_init(&queue->space) != 0) {
         pthread_cond_destroy(&queue->available);
         pthread_mutex_destroy(&queue->lock);
         return -1;
     }
-    if (pthread_cond_init(&queue->submitters_done, 0) != 0) {
+    if (spop_owner_cond_init(&queue->submitters_done) != 0) {
+        pthread_cond_destroy(&queue->space);
+        pthread_cond_destroy(&queue->available);
+        pthread_mutex_destroy(&queue->lock);
+        return -1;
+    }
+    if (spop_owner_cond_init(&queue->owner_stopped) != 0) {
+        pthread_cond_destroy(&queue->submitters_done);
         pthread_cond_destroy(&queue->space);
         pthread_cond_destroy(&queue->available);
         pthread_mutex_destroy(&queue->lock);
         return -1;
     }
     queue->state = state;
+    queue->listener_fd = -1;
     queue->initialized = 1;
     if (pthread_create(&queue->owner, 0, spop_owner_thread, queue) != 0) {
         queue->stopping = 1;
+        pthread_cond_destroy(&queue->owner_stopped);
         pthread_cond_destroy(&queue->submitters_done);
         pthread_cond_destroy(&queue->space);
         pthread_cond_destroy(&queue->available);
@@ -3936,7 +4030,7 @@ static int spop_owner_queue_init(agent_state *state)
     return 0;
 }
 
-static void spop_owner_queue_destroy(agent_state *state)
+static void spop_owner_queue_set_listener(agent_state *state, int listener_fd)
 {
     spop_owner_queue *queue;
 
@@ -3945,23 +4039,85 @@ static void spop_owner_queue_destroy(agent_state *state)
     }
     queue = &state->owner_queue;
     pthread_mutex_lock(&queue->lock);
+    queue->listener_fd = listener_fd;
+    pthread_mutex_unlock(&queue->lock);
+}
+
+static int spop_owner_queue_requires_restart(agent_state *state)
+{
+    spop_owner_queue *queue;
+    int restart_required;
+
+    if (state == 0) {
+        return 0;
+    }
+    queue = &state->owner_queue;
+    if (!queue->initialized) {
+        return queue->restart_required;
+    }
+    pthread_mutex_lock(&queue->lock);
+    restart_required = queue->restart_required;
+    pthread_mutex_unlock(&queue->lock);
+    return restart_required;
+}
+
+static int spop_owner_queue_destroy(agent_state *state)
+{
+    spop_owner_queue *queue;
+    struct timespec deadline;
+    int wait_rc = 0;
+
+    if (state == 0 || !state->owner_queue.initialized) {
+        return 0;
+    }
+    queue = &state->owner_queue;
+    if (spop_owner_deadline(&deadline, SPOP_OWNER_SHUTDOWN_WAIT_MS) != 0) {
+        spop_owner_queue_request_restart(queue);
+        return -1;
+    }
+    pthread_mutex_lock(&queue->lock);
     queue->stopping = 1;
+    spop_owner_queue_cancel_pending_locked(queue);
     pthread_cond_broadcast(&queue->available);
     /* Submitters may be asleep while the bounded queue is full.  Wake them
      * as part of the same stop transition so they observe `stopping`, abort
      * their task registration, and never retain a stack-backed task after
      * the owner thread has been joined. */
     pthread_cond_broadcast(&queue->space);
-    while (queue->submitters != 0U) {
-        pthread_cond_wait(&queue->submitters_done, &queue->lock);
+    while (queue->submitters != 0U && wait_rc == 0) {
+        wait_rc = pthread_cond_timedwait(&queue->submitters_done,
+            &queue->lock, &deadline);
+    }
+    while (queue->submitters == 0U && !queue->owner_exited && wait_rc == 0) {
+        wait_rc = pthread_cond_timedwait(&queue->owner_stopped,
+            &queue->lock, &deadline);
+    }
+    if (queue->submitters != 0U || !queue->owner_exited) {
+        int emit_event = !queue->restart_required;
+
+        queue->restart_required = 1;
+        pthread_mutex_unlock(&queue->lock);
+        if (emit_event) {
+            log_line(state->log,
+                "event=spop-owner-shutdown-timeout action=controlled-restart reason=owner-not-quiescent exit_code=%d",
+                SPOP_OWNER_RESTART_EXIT_CODE);
+        }
+        return -1;
     }
     pthread_mutex_unlock(&queue->lock);
-    pthread_join(queue->owner, 0);
+    if (pthread_join(queue->owner, 0) != 0) {
+        pthread_mutex_lock(&queue->lock);
+        queue->restart_required = 1;
+        pthread_mutex_unlock(&queue->lock);
+        return -1;
+    }
+    pthread_cond_destroy(&queue->owner_stopped);
     pthread_cond_destroy(&queue->submitters_done);
     pthread_cond_destroy(&queue->space);
     pthread_cond_destroy(&queue->available);
     pthread_mutex_destroy(&queue->lock);
     queue->initialized = 0;
+    return 0;
 }
 
 static int spop_owner_queue_submit(
@@ -4008,7 +4164,7 @@ static int spop_owner_queue_submit(
         spop_owner_task_release(task);
         return -1;
     }
-    if (spop_owner_task_wait(task, timeout_ms) != 0) {
+    if (spop_owner_task_wait(queue, task, timeout_ms) != 0) {
         spop_owner_task_release(task);
         return -1;
     }
@@ -4539,6 +4695,8 @@ static int run_spop_owner_queue_self_test(void)
     spop_owner_queue_submit_thread second;
     pthread_t first_thread;
     pthread_t second_thread;
+    uint64_t shutdown_started;
+    uint64_t shutdown_elapsed;
     int rc;
 
     memset(&state, 0, sizeof(state));
@@ -4553,10 +4711,10 @@ static int run_spop_owner_queue_self_test(void)
         rc = -1;
     }
 
-    /* A timed-out running task is quarantined until the owner returns.  The
-     * test deliberately makes the native-call stand-in wait, then checks that
-     * a queued task can be cancelled without either context being freed on
-     * the caller's stack. */
+    /* A running native-call stand-in that exceeds its caller deadline makes
+     * the queue terminal.  The task remains quarantined, queued work is
+     * cancelled, and shutdown returns after a bounded grace period without
+     * freeing state that the owner still reaches. */
     memset(&gate, 0, sizeof(gate));
     if (pthread_mutex_init(&gate.lock, 0) != 0) {
         spop_owner_queue_destroy(&state);
@@ -4598,16 +4756,32 @@ static int run_spop_owner_queue_self_test(void)
     }
     pthread_join(first_thread, 0);
     pthread_join(second_thread, 0);
-    if (first.rc == 0 || second.rc == 0) {
+    if (first.rc == 0 || second.rc == 0 ||
+            !spop_owner_queue_requires_restart(&state)) {
+        rc = -1;
+    }
+    memset(&context, 0, sizeof(context));
+    if (spop_owner_queue_submit(&state, run_spop_owner_queue_self_test_task,
+            &context, 0, 0, 0, SPOP_OWNER_CALLER_WAIT_MS) == 0 || context.ran) {
+        rc = -1;
+    }
+    shutdown_started = monotonic_milliseconds();
+    if (shutdown_started == 0U || spop_owner_queue_destroy(&state) == 0) {
+        rc = -1;
+    }
+    shutdown_elapsed = monotonic_milliseconds();
+    if (shutdown_elapsed == 0U || shutdown_elapsed < shutdown_started ||
+            shutdown_elapsed - shutdown_started >
+                (uint64_t)SPOP_OWNER_SHUTDOWN_WAIT_MS + UINT64_C(500)) {
         rc = -1;
     }
     pthread_mutex_lock(&gate.lock);
     gate.release = 1;
     pthread_cond_broadcast(&gate.changed);
     pthread_mutex_unlock(&gate.lock);
-    /* Queue shutdown drains the cancelled queued task and waits for the
-     * running owner task before destroying synchronization primitives. */
-    spop_owner_queue_destroy(&state);
+    if (spop_owner_queue_destroy(&state) != 0) {
+        rc = -1;
+    }
     pthread_mutex_lock(&gate.lock);
     if (gate.destroyed != 2) {
         rc = -1;
@@ -4615,6 +4789,24 @@ static int run_spop_owner_queue_self_test(void)
     pthread_mutex_unlock(&gate.lock);
     pthread_cond_destroy(&gate.changed);
     pthread_mutex_destroy(&gate.lock);
+
+    /* A fresh process state represents the supervisor restart.  Its owner
+     * must accept a legitimate task after the terminal instance is gone. */
+    memset(&state, 0, sizeof(state));
+    memset(&context, 0, sizeof(context));
+    if (spop_owner_queue_init(&state) != 0) {
+        rc = -1;
+    } else {
+        if (spop_owner_queue_submit(&state,
+                run_spop_owner_queue_self_test_task, &context,
+                0, 0, 0, SPOP_OWNER_CALLER_WAIT_MS) != 0 ||
+                !context.ran) {
+            rc = -1;
+        }
+        if (spop_owner_queue_destroy(&state) != 0) {
+            rc = -1;
+        }
+    }
     return rc;
 }
 
@@ -5078,9 +5270,14 @@ static int accept_loop(int listen_fd, agent_state *state, FILE *log,
         pthread_mutex_destroy(&gate.lock);
         return 1;
     }
-    while (!stop_requested && (max_connections <= 0 || handled < max_connections)) {
+    while (!stop_requested && !spop_owner_queue_requires_restart(state) &&
+            (max_connections <= 0 || handled < max_connections)) {
         int fd = accept(listen_fd, 0, 0);
         if (fd < 0) {
+            if (spop_owner_queue_requires_restart(state)) {
+                loop_rc = SPOP_OWNER_RESTART_EXIT_CODE;
+                break;
+            }
             if (errno != EINTR) {
                 log_line(log, "accept failed errno=%d", errno);
                 loop_rc = 1;
@@ -5158,6 +5355,9 @@ static int accept_loop(int listen_fd, agent_state *state, FILE *log,
         pthread_cond_wait(&gate.changed, &gate.lock);
     }
     pthread_mutex_unlock(&gate.lock);
+    if (spop_owner_queue_requires_restart(state)) {
+        loop_rc = SPOP_OWNER_RESTART_EXIT_CODE;
+    }
     pthread_attr_destroy(&detached_attributes);
     pthread_cond_destroy(&gate.changed);
     pthread_mutex_destroy(&gate.lock);
@@ -5630,6 +5830,88 @@ static int initialize_agent_engine(
         decision);
 }
 
+typedef struct spop_transport_stop_context {
+    msconnector_response_companion_transport *transport;
+    msconnector_error error;
+    pthread_mutex_t lock;
+    pthread_cond_t completed;
+    int done;
+    int result;
+} spop_transport_stop_context;
+
+static void *spop_transport_stop_thread(void *opaque)
+{
+    spop_transport_stop_context *context = opaque;
+    int result;
+
+    result = msconnector_response_companion_transport_stop(
+        context->transport, &context->error);
+    if (pthread_mutex_lock(&context->lock) != 0) {
+        _Exit(SPOP_OWNER_RESTART_EXIT_CODE);
+    }
+    context->result = result;
+    context->done = 1;
+    pthread_cond_broadcast(&context->completed);
+    pthread_mutex_unlock(&context->lock);
+    return 0;
+}
+
+static int spop_transport_stop_bounded(agent_state *state,
+        msconnector_error *error)
+{
+    spop_transport_stop_context context;
+    struct timespec deadline;
+    pthread_t thread;
+    int wait_rc = 0;
+    int result;
+
+    memset(&context, 0, sizeof(context));
+    context.transport = &state->response_transport;
+    msconnector_error_init(&context.error);
+    if (pthread_mutex_init(&context.lock, 0) != 0) {
+        return 0;
+    }
+    if (spop_owner_cond_init(&context.completed) != 0) {
+        pthread_mutex_destroy(&context.lock);
+        return 0;
+    }
+    if (spop_owner_deadline(&deadline, SPOP_OWNER_SHUTDOWN_WAIT_MS) != 0 ||
+            pthread_create(&thread, 0, spop_transport_stop_thread, &context) != 0) {
+        pthread_cond_destroy(&context.completed);
+        pthread_mutex_destroy(&context.lock);
+        return 0;
+    }
+    if (pthread_mutex_lock(&context.lock) != 0) {
+        /* The helper may still reference this stack-backed context.  A
+         * process exit is the only safe result if synchronization itself is
+         * no longer usable. */
+        _Exit(SPOP_OWNER_RESTART_EXIT_CODE);
+    }
+    while (!context.done && wait_rc == 0) {
+        wait_rc = pthread_cond_timedwait(&context.completed, &context.lock,
+            &deadline);
+    }
+    if (!context.done) {
+        log_line(state->log,
+            "event=spop-response-transport-shutdown-timeout action=controlled-restart reason=transport-not-quiescent exit_code=%d",
+            SPOP_OWNER_RESTART_EXIT_CODE);
+        _Exit(SPOP_OWNER_RESTART_EXIT_CODE);
+    }
+    result = context.result;
+    if (error != 0) {
+        *error = context.error;
+    }
+    if (pthread_mutex_unlock(&context.lock) != 0) {
+        _Exit(SPOP_OWNER_RESTART_EXIT_CODE);
+    }
+    if (pthread_join(thread, 0) != 0) {
+        _Exit(SPOP_OWNER_RESTART_EXIT_CODE);
+    }
+    pthread_cond_destroy(&context.completed);
+    pthread_mutex_destroy(&context.lock);
+    return result;
+}
+
 static void destroy_agent_runtime(
         agent_state *state,
         int listen_fd,
@@ -5645,26 +5927,34 @@ static void destroy_agent_runtime(
         return;
     }
     if (listen_fd >= 0) {
+        spop_owner_queue_set_listener(state, -1);
         close(listen_fd);
     }
     if (state->response_transport_started) {
         msconnector_error transport_error;
         msconnector_error_init(&transport_error);
-        if (msconnector_response_companion_transport_stop(
-            &state->response_transport, &transport_error)) {
+        if (spop_transport_stop_bounded(state, &transport_error)) {
             state->response_transport_started = 0;
         } else {
             /* A failed stop means worker/native state may still be live.
              * Do not expire slots, destroy the owner queue, free the backend,
-             * tear down the transaction cache, or destroy the engine.  The
-             * process is terminating and retains these objects for teardown. */
-            if (log != NULL && *log != NULL) {
-                fprintf(*log, "response companion transport stop incomplete; retaining native runtime state\n");
-                fflush(*log);
-            }
-            close_owned_stream(decision_log, decision_log_owned);
-            close_owned_stream(log, log_owned);
-            return;
+             * tear down the transaction cache, or destroy the engine.  Exit
+             * directly so the kernel reclaims all process-owned state. */
+            log_line(state->log,
+                "event=spop-response-transport-shutdown-failed action=controlled-restart reason=transport-cleanup-incomplete exit_code=%d",
+                SPOP_OWNER_RESTART_EXIT_CODE);
+            _Exit(SPOP_OWNER_RESTART_EXIT_CODE);
+        }
+    }
+    if (spop_owner_queue_requires_restart(state)) {
+        if (spop_owner_queue_destroy(state) != 0) {
+            /* The owner still reaches this stack-backed agent_state and may
+             * later write through its logs/backend/task context.  Returning,
+             * closing those streams, or running destructors would create a
+             * use-after-return/use-after-close.  _Exit terminates every
+             * thread and lets the kernel reclaim descriptors while the
+             * supervisor observes the documented restart status. */
+            _Exit(SPOP_OWNER_RESTART_EXIT_CODE);
         }
     }
     if (state->response_backend_initialized) {
@@ -5673,7 +5963,11 @@ static void destroy_agent_runtime(
         haproxy_spop_response_companion_backend_expire(
             &state->response_backend, UINT64_MAX);
     }
-    spop_owner_queue_destroy(state);
+    if (state->owner_queue.initialized && spop_owner_queue_destroy(state) != 0) {
+        /* See the terminal branch above: no caller-owned or native object is
+         * safe to tear down while the owner remains live. */
+        _Exit(SPOP_OWNER_RESTART_EXIT_CODE);
+    }
     if (state->response_backend_initialized) {
         msconnector_error backend_error;
         msconnector_error_init(&backend_error);
@@ -5786,6 +6080,7 @@ static int run_agent_server(const agent_config *config) {
         fprintf(stderr, "failed to bind %s:%u\n", config->host, config->port);
         goto cleanup;
     }
+    spop_owner_queue_set_listener(&state, listen_fd);
     if (write_server_runtime_files(config->pid_file, config->port_file,
             config->ready_file, bound_port) != 0) {
         goto cleanup;
@@ -5801,6 +6096,9 @@ static int run_agent_server(const agent_config *config) {
 cleanup:
     destroy_agent_runtime(&state, listen_fd, &log, log_owned, &decision_log,
         decision_log_owned);
+    if (spop_owner_queue_requires_restart(&state)) {
+        rc = SPOP_OWNER_RESTART_EXIT_CODE;
+    }
     return rc;
 }
 

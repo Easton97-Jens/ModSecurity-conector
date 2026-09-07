@@ -17,6 +17,41 @@ angelegt werden.
   Sie weist lokale Evidence und ausstehende Exact-Head-Hosted-Ergebnisse aus;
   keine CI-, Framework-/MRTS-, Gitlink-, `master`- oder Merge-Änderung wird
   behauptet.
+- [CR-20260906-haproxy-master-recovery](CR-20260906-haproxy-master-recovery.de.md)
+  | English companion: `CR-20260906-haproxy-master-recovery.md` — die vom
+  Benutzer autorisierte Parent-only-HAProxy-Master-Recovery richtet den
+  veralteten globalen Common-Adoption-Checker am bestehenden fail-closed-
+  Host-Mapper aus und überträgt den kleinsten vollständigen SPOP-
+  Bytegrenzen-Proof aus PR #346 als Read-only-Referenz. Sie ändert weder
+  Framework, MRTS, Gitlink, Workflow, Governance, Quality-Gate-Control,
+  fremde Connector-Source noch PR-#346-Status; der Record unterscheidet lokale
+  Evidence von ausstehender Exact-Head-Hosted-Evidence und behauptet keinen
+  Merge.
+
+- [CR-20260905-nginx-current-master-common-adoption-repair](CR-20260905-nginx-current-master-common-adoption-repair.de.md)
+  | English companion: `CR-20260905-nginx-current-master-common-adoption-repair.md` —
+  die vom Benutzer autorisierte Parent-only-NGINX-Static-Contract-Reparatur
+  richtet den Resulting-Master-Checker am aktuellen fail-closed-Request-Mapper-
+  und begrenzten Explicit-Length-Server-Header-Pfad aus. Sie ändert weder
+  NGINX-Runtime-Source, Framework, MRTS, Gitlink, Workflow, Governance noch
+  PR-#346-Status; validierter Implementierungs- und Hosted-Evidence-Head
+  `672d5aa22a94640f50aea191885f991b0d8f45c3` war zur Review freigegeben mit
+  36 terminalen Checks (30 erfolgreich und sechs dokumentierte Skips),
+  Sonar-Quality-Gate `OK` und null `OPEN`/`CONFIRMED`-Issues, Bugs,
+  Vulnerabilities, Code-Smells oder `TO_REVIEW`-Hotspots. Der
+  Dokumentationsabgleich-Successor hat diesen Head als Parent und verändert
+  ausschließlich die gekoppelten Delivery-Dokumentationspfade; Checker, Tests
+  und Produktquellcode sind gegenüber dem validierten Parent byte-identisch.
+  Kein Merge wird behauptet, und Ready for Review ist keine Merge-Autorisierung.
+
+- [CR-20260904-apache-helper-aware-common-adoption-contract](CR-20260904-apache-helper-aware-common-adoption-contract.de.md)
+  | English companion: `CR-20260904-apache-helper-aware-common-adoption-contract.md` —
+  die vom Benutzer autorisierte Parent-only-Apache-Static-Contract-Reparatur
+  richtet den Checker an der begrenzten P2-Helper-Architektur aus und verwirft
+  einen reproduzierten Dead-Code-Checker-Bypass. Sie ändert weder Apache-
+  Runtime-Source, Framework, MRTS, Gitlink, Workflow, Governance noch den
+  Status von PR #346; native P2- und Exact-Head-Hosted-Evidenz stehen aus und
+  es wird kein Merge behauptet.
 
 - [CR-20260824-connector-security-invariants](CR-20260824-connector-security-invariants.de.md)
   | English companion: `CR-20260824-connector-security-invariants.md` — das
