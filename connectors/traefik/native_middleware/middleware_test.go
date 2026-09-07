@@ -11,7 +11,9 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 type headerCall struct {
@@ -537,6 +539,30 @@ func TestMiddlewareConfigRejectsOutOfRangeRequestBodyLimit(t *testing.T) {
 	}
 }
 
+func TestMiddlewareConfigRequestBodyIdleTimeoutMatrix(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		value int
+		valid bool
+	}{
+		{name: "zero uses default", value: 0, valid: true},
+		{name: "negative", value: -1},
+		{name: "maximum", value: 60000, valid: true},
+		{name: "above maximum", value: 60001},
+		{name: "max int", value: int(^uint(0) >> 1)},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			config := CreateConfig()
+			config.EngineSocketPath = "/run/msconnector-test.sock"
+			config.RequestBodyIdleTimeoutMillis = test.value
+			_, err := normalizedConfig(config)
+			if (err == nil) != test.valid {
+				t.Fatalf("normalizedConfig(%d) error = %v, valid = %v", test.value, err, test.valid)
+			}
+		})
+	}
+}
+
 type failingRequestBody struct{}
 
 func (failingRequestBody) Read([]byte) (int, error) {
@@ -568,6 +594,112 @@ func TestMiddlewareFailsClosedWhenPreCommitRequestDrainFails(t *testing.T) {
 		if event == "response-headers" {
 			t.Fatalf("response headers evaluated after request drain failure: events=%v", transaction.events)
 		}
+	}
+}
+
+type blockingRequestBody struct {
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func newBlockingRequestBody() *blockingRequestBody {
+	return &blockingRequestBody{started: make(chan struct{}), release: make(chan struct{})}
+}
+
+func (body *blockingRequestBody) Read([]byte) (int, error) {
+	body.once.Do(func() { close(body.started) })
+	<-body.release
+	return 0, io.ErrClosedPipe
+}
+
+func (body *blockingRequestBody) Close() error {
+	body.once.Do(func() { close(body.started) })
+	select {
+	case <-body.release:
+	default:
+		close(body.release)
+	}
+	return nil
+}
+
+func TestMiddlewareFailsClosedAndClosesIdleRequestBody(t *testing.T) {
+	transaction := &recordingTransaction{}
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	}), transaction)
+	middleware.config.RequestBodyIdleTimeoutMillis = 10
+	body := newBlockingRequestBody()
+	request := httptest.NewRequest(http.MethodPost, "http://example.test/idle", nil)
+	request.ContentLength = -1
+	request.Body = body
+	response := httptest.NewRecorder()
+	started := time.Now()
+	middleware.ServeHTTP(response, request)
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("idle body drain took %s", elapsed)
+	}
+	if got, want := response.Code, http.StatusInternalServerError; got != want {
+		t.Fatalf("status = %d, want fail-closed status %d", got, want)
+	}
+	if len(transaction.closed) != 1 || transaction.closed[0].RequestEOS {
+		t.Fatalf("idle body incorrectly reached EOS: %#v", transaction.closed)
+	}
+	select {
+	case <-body.release:
+	default:
+		t.Fatal("idle timeout did not close the request body")
+	}
+}
+
+func TestMiddlewareRequestBodyIdleTimeoutAllowsActiveFollowUp(t *testing.T) {
+	transaction := &recordingTransaction{}
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if _, err := io.ReadAll(request.Body); err != nil {
+			t.Errorf("active body read = %v", err)
+		}
+		writer.WriteHeader(http.StatusNoContent)
+	}), transaction)
+	middleware.config.RequestBodyIdleTimeoutMillis = 100
+	request := httptest.NewRequest(http.MethodPost, "http://example.test/active", strings.NewReader("active"))
+	response := httptest.NewRecorder()
+	middleware.ServeHTTP(response, request)
+	if got, want := response.Code, http.StatusNoContent; got != want {
+		t.Fatalf("active follow-up status = %d, want %d", got, want)
+	}
+	if len(transaction.closed) != 1 || !transaction.closed[0].RequestEOS {
+		t.Fatalf("active follow-up did not reach EOS: %#v", transaction.closed)
+	}
+}
+
+func TestMiddlewareReusesAfterIdleTimeoutForLegitimateFollowUp(t *testing.T) {
+	transaction := &recordingTransaction{}
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path == "/follow-up" {
+			if _, err := io.ReadAll(request.Body); err != nil {
+				t.Errorf("follow-up body read = %v", err)
+			}
+		}
+		writer.WriteHeader(http.StatusNoContent)
+	}), transaction)
+	middleware.config.RequestBodyIdleTimeoutMillis = 10
+	firstBody := newBlockingRequestBody()
+	first := httptest.NewRequest(http.MethodPost, "http://example.test/idle", nil)
+	first.ContentLength = -1
+	first.Body = firstBody
+	firstResponse := httptest.NewRecorder()
+	middleware.ServeHTTP(firstResponse, first)
+	if got, want := firstResponse.Code, http.StatusInternalServerError; got != want {
+		t.Fatalf("first status = %d, want fail-closed status %d", got, want)
+	}
+	second := httptest.NewRequest(http.MethodPost, "http://example.test/follow-up", strings.NewReader("ok"))
+	secondResponse := httptest.NewRecorder()
+	middleware.ServeHTTP(secondResponse, second)
+	if got, want := secondResponse.Code, http.StatusNoContent; got != want {
+		t.Fatalf("follow-up status = %d, want %d", got, want)
+	}
+	if transaction.opens != 2 || len(transaction.closed) != 2 || transaction.closed[0].RequestEOS || !transaction.closed[1].RequestEOS {
+		t.Fatalf("same middleware did not isolate timeout and follow-up cleanup: opens=%d closed=%#v", transaction.opens, transaction.closed)
 	}
 }
 

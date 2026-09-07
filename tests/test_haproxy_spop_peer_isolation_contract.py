@@ -105,7 +105,9 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
         )
         destroy = cleanup.index("spop_owner_queue_destroy(state)", snapshot)
         self.assertLess(snapshot, destroy)
-        self.assertIn("return restart_required", cleanup)
+        self.assertIn("if (restart_required)", cleanup)
+        self.assertIn("return SPOP_OWNER_RESTART_EXIT_CODE", cleanup)
+        self.assertNotIn("return restart_required", cleanup)
 
         server = SOURCE.split("static int run_agent_server", 1)[1].split(
             "static void print_usage", 1

@@ -111,6 +111,7 @@ V10_RECEIPT=$RUNTIME_ROOT/v10-host-termination.json
 V10_PROBE_SESSION_RECORD=$RUNTIME_ROOT/v10-probe-session.json
 V10_PROBE_CLEANUP_RECEIPT=$RUNTIME_ROOT/v10-probe-cleanup.json
 V10_PROBE_SESSION=
+V10_PROBE_START_TIME=
 PYTHON_BINARY=$(readlink -f -- "$(command -v python3)")
 
 {
@@ -152,24 +153,47 @@ cleanup_process() {
     return "$cleanup_status"
 }
 
+cleanup_unregistered_process() {
+    unregistered_pid=$1
+    unregistered_start_time=$2
+    unregistered_exe=$3
+    [ -n "$unregistered_pid" ] && [ -n "$unregistered_start_time" ] || return 1
+    unregistered_status=0
+    python3 "$LINUX_GUARD" terminate-unregistered \
+        --pid "$unregistered_pid" --start-time "$unregistered_start_time" --exe "$unregistered_exe" \
+        --timeout-seconds "$CLEANUP_TIMEOUT" >/dev/null || unregistered_status=$?
+    # EXITED means the identity-verified leader was already gone; the caller
+    # still verifies session, port, and artifact absence below.
+    [ "$unregistered_status" -eq 0 ] || [ "$unregistered_status" -eq 75 ]
+}
+
 cleanup() {
     [ "$CLEANUP_ACTIVE" -eq 0 ] || return "$CLEANUP_STATUS"
     CLEANUP_ACTIVE=1
     cleanup_status=0
-    if [ -n "$V10_PROBE_SESSION" ] && [ -f "$V10_PROBE_SESSION_RECORD" ]; then
-        cleanup_process "$V10_PROBE_SESSION_RECORD" "$V10_PROBE_CLEANUP_RECEIPT" || cleanup_status=1
+    if [ -n "$V10_PROBE_SESSION" ]; then
+        if [ -f "$V10_PROBE_SESSION_RECORD" ]; then
+            cleanup_process "$V10_PROBE_SESSION_RECORD" "$V10_PROBE_CLEANUP_RECEIPT" || cleanup_status=1
+        else
+            cleanup_unregistered_process "$V10_PROBE_PID" "$V10_PROBE_START_TIME" "$PYTHON_BINARY" || cleanup_status=1
+        fi
     fi
-    if [ -f "$CONFIG_SESSION_RECORD" ]; then
-        cleanup_process "$CONFIG_SESSION_RECORD" "$CONFIG_CLEANUP_RECEIPT" || cleanup_status=1
+    if [ -n "$CONFIG_SESSION" ]; then
+        if [ -f "$CONFIG_SESSION_RECORD" ]; then
+            cleanup_process "$CONFIG_SESSION_RECORD" "$CONFIG_CLEANUP_RECEIPT" || cleanup_status=1
+        else
+            cleanup_unregistered_process "$CONFIG_PID" "$CONFIG_START_TIME" "$PYTHON_BINARY" || cleanup_status=1
+        fi
     fi
     if [ "$SERVER_START_ATTEMPTED" -eq 1 ]; then
         if [ -f "$SERVER_SESSION_RECORD" ]; then
             cleanup_process "$SERVER_SESSION_RECORD" "$SERVER_CLEANUP_RECEIPT" || cleanup_status=1
         else
-            # Once startup was attempted, an absent registration is a
-            # containment failure.  Before that point it is an expected
-            # state during an early config/provenance failure.
-            cleanup_status=1
+            # A signal can arrive after exec-session has created the unique
+            # leader but before registration is published.  Contain that
+            # bounded race through its recorded start-time/executable and
+            # pidfd; never fall back to a numeric PID signal.
+            cleanup_unregistered_process "$SERVER_PID" "$SERVER_START_TIME" "$PYTHON_BINARY" || cleanup_status=1
         fi
     fi
     if [ -n "$SERVER_SESSION" ]; then
@@ -201,22 +225,25 @@ MSCONNECTOR_LIGHTTPD_SESSION_PROFILE=lighttpd-config-check \
 MSCONNECTOR_LIGHTTPD_SESSION_EXECUTABLE="$HOST_BINARY" \
 MSCONNECTOR_LIGHTTPD_SESSION_MODULE_DIR="$MODULE_DIR" \
 MSCONNECTOR_LIGHTTPD_SESSION_CONFIG="$RUNTIME_ROOT/lighttpd.conf" \
+MSCONNECTOR_LIGHTTPD_SESSION_PARENT_PID="$$" \
 python3 "$LINUX_GUARD" exec-session --file-limit-blocks 128 \
     --session-record "$CONFIG_SESSION_RECORD" \
     >"$RUNTIME_ROOT/config-check.stdout" 2>"$RUNTIME_ROOT/config-check.stderr" &
 CONFIG_PID=$!
 CONFIG_SESSION=$CONFIG_PID
+CONFIG_START_TIME=$(proc_start_time "$CONFIG_PID" 2>/dev/null || true)
 wait "$CONFIG_PID" || CONFIG_STATUS=$?
-CONFIG_PID=
 [ "${CONFIG_STATUS:-0}" -eq 0 ] || fail "Stock config check failed"
 python3 "$LINUX_GUARD" assert-session-absent --session "$CONFIG_SESSION" \
     --wait-seconds "$CLEANUP_TIMEOUT" >/dev/null || fail "config-check session remained"
+CONFIG_PID=
 
 SERVER_START_ATTEMPTED=1
 MSCONNECTOR_LIGHTTPD_SESSION_PROFILE=lighttpd-server \
 MSCONNECTOR_LIGHTTPD_SESSION_EXECUTABLE="$HOST_BINARY" \
 MSCONNECTOR_LIGHTTPD_SESSION_MODULE_DIR="$MODULE_DIR" \
 MSCONNECTOR_LIGHTTPD_SESSION_CONFIG="$RUNTIME_ROOT/lighttpd.conf" \
+MSCONNECTOR_LIGHTTPD_SESSION_PARENT_PID="$$" \
 python3 "$LINUX_GUARD" exec-session --file-limit-blocks 128 \
     --session-record "$SERVER_SESSION_RECORD" \
     >"$RUNTIME_ROOT/host.stdout" 2>"$RUNTIME_ROOT/host.stderr" &
@@ -319,10 +346,12 @@ MSCONNECTOR_LIGHTTPD_SESSION_RELEASE="$V10_RELEASE" \
 MSCONNECTOR_LIGHTTPD_SESSION_RUNTIME_ROOT="$RUNTIME_ROOT" \
 MSCONNECTOR_LIGHTTPD_SESSION_RECEIPT="$V10_RECEIPT" \
 MSCONNECTOR_LIGHTTPD_SESSION_TIMEOUT="$TIMEOUT" \
+MSCONNECTOR_LIGHTTPD_SESSION_PARENT_PID="$$" \
 python3 "$LINUX_GUARD" exec-session --file-limit-blocks 128 \
     --session-record "$V10_PROBE_SESSION_RECORD" >"$RUNTIME_ROOT/v10-probe.stdout" 2>"$RUNTIME_ROOT/v10-probe.stderr" &
 V10_PROBE_PID=$!
 V10_PROBE_SESSION=$V10_PROBE_PID
+V10_PROBE_START_TIME=$(proc_start_time "$V10_PROBE_PID" 2>/dev/null || true)
 end=$(( $(date +%s) + CLEANUP_TIMEOUT ))
 while [ ! -f "$V10_READY" ] && [ "$(date +%s)" -lt "$end" ]; do
     pid_alive "$V10_PROBE_PID" || fail "Stock V10 probe exited before readiness"
@@ -368,6 +397,7 @@ MSCONNECTOR_LIGHTTPD_SESSION_PROFILE=lighttpd-server \
 MSCONNECTOR_LIGHTTPD_SESSION_EXECUTABLE="$HOST_BINARY" \
 MSCONNECTOR_LIGHTTPD_SESSION_MODULE_DIR="$MODULE_DIR" \
 MSCONNECTOR_LIGHTTPD_SESSION_CONFIG="$RUNTIME_ROOT/lighttpd.conf" \
+MSCONNECTOR_LIGHTTPD_SESSION_PARENT_PID="$$" \
 python3 "$LINUX_GUARD" exec-session --file-limit-blocks 128 \
     --session-record "$SERVER_SESSION_RECORD" \
     >"$RUNTIME_ROOT/host-restart.stdout" 2>"$RUNTIME_ROOT/host-restart.stderr" &

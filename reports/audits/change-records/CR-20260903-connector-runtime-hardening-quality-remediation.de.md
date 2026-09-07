@@ -8,8 +8,13 @@
 | --- | --- |
 | Change-ID | CR-20260903-connector-runtime-hardening-quality-remediation |
 | Datum (UTC) | 2026-09-03 |
-| Basis-Revision | 95bc04203455bc74a9cd18fafc6fb5848af2bbb2 (`origin/master`) |
-| Auslieferungsstatus | Der Remediation-Commit `d4f5674e8438d398696b1e92965d6e246618306f` ist auf `codex/connector-runtime-hardening-20260824` gepusht; Draft PR [#346](https://github.com/Easton97-Jens/ModSecurity-conector/pull/346) bleibt offen. Die GitHub-Actions-Prüfungen des Exact-Heads bestanden mit Ausnahme von SonarQube Cloud; die aktuelle Authority-Boundary-Folgekorrektur ist lokal validiert, aber noch nicht committet oder gepusht. Ein Merge wird nicht behauptet. |
+| Basis-Revision | 08fab232d77e300be15cb010e2adbcd590955727 (`origin/master`; current-master integration) |
+| Auslieferungsstatus | Draft PR [#346](https://github.com/Easton97-Jens/ModSecurity-conector/pull/346) ist die alleinige Delivery-Authority. Die Integration des aktuellen `master` und lokale Kandidatenevidence sind unten dokumentiert; Exact-Head-Hosted-Evidence und Merge-Status müssen aus dem PR gelesen werden. Dieser Record behauptet selbst keinen Merge. |
+
+Die anfänglichen Befehls-, Runtime-, Einschränkungs- und Reviewabschnitte unten
+bleiben historische Momentaufnahmen früherer Kandidaten. Für den Kandidaten auf
+aktuellem `master` werden sie durch die datierten Follow-up-Abschnitte ersetzt;
+keine dieser Momentaufnahmen ersetzt Hosted-Evidence des Exact-Heads.
 
 ## Motivation und Problemstellung
 
@@ -86,25 +91,35 @@ Bypass in der korrigierten Grenze.
 ## Geänderte Dateien
 
 - `connectors/apache/harness/apache_process_guard.py`,
-  `connectors/apache/harness/run_apache_smoke.sh` und ihre fokussierten Tests
+  `connectors/apache/harness/run_apache_smoke.sh` und ihre fokussierten sowie
+  echten Prozesstests für launchgebundene Supervision, Parent-Death,
+  pidfd-Fehler, typisierten Zustand, Exact-Inode-Publikation, Retirement und
+  Cleanup
 - Common-Event-Header, Runtime, JSON-/JSONL-/Integritätsimplementierung sowie
   `tests/event_json_utf8_smoke.c` und
   `tests/transaction_phase_runtime_companion_test.c`
-- `connectors/traefik/src/traefik_engine_service.c` und
-  `tests/test_traefik_engine_service_shutdown_contract.py`
-- Lighttpd-Backend-Close- und Stock-Lifecycle-Harness-Source, Tests und
-  englische Dokumentation
+- `connectors/traefik/src/traefik_engine_service.c`, Request-Body-Watchdog,
+  Konfiguration und Tests der Native-UDS-Middleware sowie alle synchronisierten
+  Native-UDS-Beispiele und generierten englischen/deutschen Referenzen
+- Lighttpd-Backend-Close- und Stock-Lifecycle-Harness-Source und Tests
+  einschließlich Parent-Death vor Registrierung, Prozessidentität und Cleanup
 - `ci/checks/common/check-common-helpers.sh`
-- Envoy-ext_proc-Processor-/Config-Source, Tests, englische/deutsche READMEs
-  sowie aktive und Beispiel-Service-Konfigurationen
-- `connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c`, HAProxy-
-  Beispielkonfigurationen und englische/deutsche Konfigurationsreferenzen sowie
+- Envoy-ext_proc-Processor-/Config- und Composite-Integrations-Source und
+  -Tests einschließlich getrennter Stream-Idle-/Lifetime-Ursachen,
+  Cancellation, begrenztem nativen Cleanup/Destruction, Duration-Grenzen,
+  englischen/deutschen READMEs sowie aktiven und Beispiel-Service-
+  Konfigurationen
+- `connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c`, sein Cache-Miss-
+  Harness und Cleanup-/Ownership-Tests, HAProxy-Beispielkonfigurationen und
+  englische/deutsche Konfigurationsreferenzen sowie
   `reports/connector-configuration-inventory.json`
 - HAProxy-Response-Timeout-, Transaction-Cache-, Peer-Isolation-,
   Resource-Limit-, SIGPIPE/Peer-Isolation- und Sonar-Reliability-Verträge
 - `ci/checks/documentation/connector_config_reference.py` und
   `tests/test_connector_config_reference.py`
-- `connectors/traefik/native_middleware/README.de.md`
+- Traefik-Native-UDS-`.traefik.yml`, Middleware-Source/-Tests, EN/DE-READMEs,
+  dynamische Profilbeispiele und Operatorflächen für
+  `requestBodyIdleTimeoutMillis`
 - dieses englische/deutsche Change-Record-Paar und beide Archivindizes
 
 ## Ausgeführte Befehle
@@ -395,13 +410,16 @@ Die aktuelle lokale Evidence umfasst:
   übersprungen und 108 Subtests bestanden. Das Common-Adoption-Target bestand.
 - Die bilinguale Dokumentation bestand 22 Tests; `git diff --check` bestand.
 
-Drei nicht verbindliche aktuelle Master-Baselines werden nicht zu Erfolgen
+Vier nicht verbindliche aktuelle Master-Baselines werden nicht zu Erfolgen
 umgedeutet: Der eigenständige HAProxy-SPOA-Selbsttest-Link schlägt auf
 unverändertem Master identisch mit undefiniertem
 `msconnector_block_status_is_allowed` fehl; der Common-SDK-Vertrag schlägt
 identisch fehl, weil sein Textchecker einen Kommentar matched; und ein Envoy-
 Beispieltest schlägt identisch fehl, weil er eine gofmt-instabile
-Spaltenausrichtung behauptet. Das lighttpd-Konfigurations-Target wurde innerhalb
+Spaltenausrichtung behauptet. Der NGINX-Bounded-Soak-Vertrag schlägt auf
+unverändertem Master ebenfalls identisch fehl, weil er noch die entfernte
+einzelne Cleanup-Trap erwartet, während der Harness getrennte EXIT-, INT- und
+TERM-Handler verwendet. Das lighttpd-Konfigurations-Target wurde innerhalb
 der begrenzten lokalen Beobachtung nicht fertig; es wird kein Build-Ergebnis
 behauptet. Produktions-SPOP-PID-/Ready-/Port-Metadaten werden durch das
 Runtime-Root-Cleanup des Repository-Harnesses entfernt, aber vom eigenständigen
@@ -414,7 +432,7 @@ Ergebnis noch einen Merge nach `master`.
 ## Follow-up des terminalen Cleanup-Reviews — 2026-09-07
 
 Das Security-Review vor der Auslieferung identifizierte drei durch den PR
-eingeführte Lücken; sie wurden vor dem Commit des finalen Kandidaten
+eingeführte Lücken; sie wurden vor Finalisierung des aktuellen Kandidaten
 korrigiert. Common Runtime ruft den Shutdown-Callback des Response-Companions
 nicht mehr aus dem generischen Service-Release auf: Der Serving-Pfad ist der
 alleinige Owner und ruft ihn genau einmal auf, während ein Fehler beim
@@ -447,8 +465,9 @@ abgebildet. Ein quellenbasierter Test vergleicht alle acht JSON-Felder der
 nativen Middleware mit jeder dieser Operator-Oberflächen. Default und harte
 Obergrenze bleiben 1048576 Bytes.
 
-Die fokussierten lokalen Kontrollen bestanden 40 Apache-Guard-Tests plus 4
-Subtests mit echten Prozessen, 15 Common-Worker-/Security-Contract-Tests und
+Die fokussierten lokalen Kontrollen bestanden 56 Apache-Guard-Tests
+einschließlich 21 parametrisierter/Subtest-Fälle, 15 Common-Worker-/Security-
+Contract-Tests und
 60 Traefik-/Dokumentationstests plus 15 Subtests. Das finale Aggregat und die
 unveränderliche Exact-Head-Security-
 Diff-Evidence werden erst nach dem Kandidaten-Commit festgehalten. Die
@@ -457,3 +476,44 @@ dieselbe Identität) und `FND-PARENT-0966` (Drain-Reihenfolge bei erzwungenem
 Envoy-Shutdown) bleiben vorbestehende Follow-up-Punkte und werden durch diese
 Änderung nicht geschlossen. Es wurde kein `.github/**`-, Quality-Gate-,
 Ruleset-, Branch-Protection- oder Required-Check-Pfad geändert.
+
+## Finale Validierung mit aktuellem master — 2026-09-07
+
+Der Kandidat basiert auf dem aktuellen `origin/master`
+`08fab232d77e300be15cb010e2adbcd590955727`, das über den bestehenden
+nicht-umschreibenden Merge integriert wurde. Kein Pfad unter `.github/**`,
+keine Ruleset-, Branch-Protection-, Required-Check-, Quality-Gate-, Gitlink-,
+Framework- oder MRTS-Struktur wurde geändert.
+
+Die lokale Validierung deckte Apache, HAProxy, Envoy, Traefik und lighttpd ab.
+Apache-Prozess-/Smoke-Supervision und Cleanup-Kontrollen bestanden,
+einschließlich Parent-Death, pidfd-Fehler, Evidence-Publikation, Identität,
+Retirement und Folgeanfrage. HAProxy bestand die begrenzten nativen
+Owner-/Transport-Cleanup-Kontrollen sowie den Common-
+Response-Companion-Transporttest mit strengem C17, ASan, UBSan,
+Leak-Erkennung, parallelen Clients, Cancel, Restart, Cleanup und Follow-up.
+Envoy-ext_proc bestand Pakettests, Race-Tests, Vet und Build-Validierung,
+einschließlich begrenzter Evidence-/Close-Watchdogs, Fatal-/Reaper-Übergabe,
+Cancel und Folgezulassung. Traefik-Native-UDS-, Composite- und
+Response-Observer-Tests, Race-/Build-/Vet-/Fuzz-/Contract-Checks und
+Runtime-Harnesses bestanden, einschließlich der begrenzten
+Request-Body-Größen- und Idle-Kontrollen. lighttpd-Stock-/Patched-/ABI-
+Lifecycle-, Parent-Death-, Identitäts-, Zombie- und Cleanup-Kontrollen
+bestanden.
+
+Die unveränderten Master-Baselines bleiben ausdrücklich nicht verbindlich und
+werden nicht als Erfolge umklassifiziert: Das eigenständige HAProxy-SPOA-
+Linking scheitert am bestehenden undefinierten
+`msconnector_block_status_is_allowed`; der Common-SDK-Vertrag matched einen
+bestehenden Kommentar; der Envoy-Beispieltest behauptet eine instabile
+gofmt-Spaltenausrichtung; und der NGINX-Bounded-Soak-Vertrag erwartet noch die
+entfernte einzelne Cleanup-Trap. Die begrenzte lighttpd-Konfigurations-
+Beobachtung lieferte kein Build-Ergebnis. Produktions-SPOP-PID-/Ready-/Port-
+Metadaten bleiben als dokumentierte Supervisor-/Inode-Bindungs-Folgearbeit
+offen.
+
+`FND-PARENT-0015` (Pathname-UDS-Impersonation durch dieselbe Identität) und
+`FND-PARENT-0966` (Drain-Reihenfolge bei erzwungenem Envoy-Shutdown) bleiben
+als vorbestehende Folge-Findings offen. Exact-Head-GitHub-Actions- und
+SonarQube-Cloud-Ergebnisse stehen bis zum normalen Push des Kandidaten aus;
+ein Merge nach `master` wird hier nicht behauptet.

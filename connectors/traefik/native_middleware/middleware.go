@@ -28,15 +28,19 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 	"unicode"
 	"unicode/utf8"
 )
 
 const (
-	defaultMaxHeaderCount        = 128
-	defaultMaxHeaderBytes        = 64 << 10
-	defaultMaxRequestChunkBytes  = 32 << 10
-	defaultMaxResponseChunkBytes = 32 << 10
+	defaultMaxHeaderCount         = 128
+	defaultMaxHeaderBytes         = 64 << 10
+	defaultMaxRequestChunkBytes   = 32 << 10
+	defaultMaxResponseChunkBytes  = 32 << 10
+	defaultRequestBodyIdleTimeout = 1 * time.Second
+	maximumRequestBodyIdleTimeout = 60 * time.Second
 	// Keep the native middleware's aggregate request-body ceiling aligned with
 	// the Common Runtime default hard body-buffer bound. A lower deployment
 	// value is supported; a higher one would make the pre-engine guard weaker
@@ -66,27 +70,29 @@ var (
 // accepted value is "uds" so an operator-provided configuration cannot turn a
 // loaded security middleware into an always-allow side path.
 type Config struct {
-	MaxHeaderCount        int    `json:"maxHeaderCount,omitempty"`
-	MaxHeaderBytes        int    `json:"maxHeaderBytes,omitempty"`
-	MaxRequestChunkBytes  int    `json:"maxRequestChunkBytes,omitempty"`
-	MaxRequestBodyBytes   int64  `json:"maxRequestBodyBytes,omitempty"`
-	MaxResponseChunkBytes int    `json:"maxResponseChunkBytes,omitempty"`
-	TransactionIDHeader   string `json:"transactionIDHeader,omitempty"`
-	EngineMode            string `json:"engineMode,omitempty"`
-	EngineSocketPath      string `json:"engineSocketPath,omitempty"`
+	MaxHeaderCount               int    `json:"maxHeaderCount,omitempty"`
+	MaxHeaderBytes               int    `json:"maxHeaderBytes,omitempty"`
+	MaxRequestChunkBytes         int    `json:"maxRequestChunkBytes,omitempty"`
+	MaxRequestBodyBytes          int64  `json:"maxRequestBodyBytes,omitempty"`
+	RequestBodyIdleTimeoutMillis int    `json:"requestBodyIdleTimeoutMillis,omitempty"`
+	MaxResponseChunkBytes        int    `json:"maxResponseChunkBytes,omitempty"`
+	TransactionIDHeader          string `json:"transactionIDHeader,omitempty"`
+	EngineMode                   string `json:"engineMode,omitempty"`
+	EngineSocketPath             string `json:"engineSocketPath,omitempty"`
 }
 
 // CreateConfig returns safe bounded defaults. It is the standard Traefik Go
 // plugin configuration entry point.
 func CreateConfig() *Config {
 	return &Config{
-		MaxHeaderCount:        defaultMaxHeaderCount,
-		MaxHeaderBytes:        defaultMaxHeaderBytes,
-		MaxRequestChunkBytes:  defaultMaxRequestChunkBytes,
-		MaxRequestBodyBytes:   defaultMaxRequestBodyBytes,
-		MaxResponseChunkBytes: defaultMaxResponseChunkBytes,
-		TransactionIDHeader:   "X-Request-Id",
-		EngineMode:            "uds",
+		MaxHeaderCount:               defaultMaxHeaderCount,
+		MaxHeaderBytes:               defaultMaxHeaderBytes,
+		MaxRequestChunkBytes:         defaultMaxRequestChunkBytes,
+		MaxRequestBodyBytes:          defaultMaxRequestBodyBytes,
+		RequestBodyIdleTimeoutMillis: int(defaultRequestBodyIdleTimeout / time.Millisecond),
+		MaxResponseChunkBytes:        defaultMaxResponseChunkBytes,
+		TransactionIDHeader:          "X-Request-Id",
+		EngineMode:                   "uds",
 	}
 }
 
@@ -121,6 +127,9 @@ func applyConfigDefaults(value *Config) {
 	if value.MaxRequestBodyBytes == 0 {
 		value.MaxRequestBodyBytes = defaultMaxRequestBodyBytes
 	}
+	if value.RequestBodyIdleTimeoutMillis == 0 {
+		value.RequestBodyIdleTimeoutMillis = int(defaultRequestBodyIdleTimeout / time.Millisecond)
+	}
 	if value.MaxResponseChunkBytes == 0 {
 		value.MaxResponseChunkBytes = defaultMaxResponseChunkBytes
 	}
@@ -141,6 +150,9 @@ func validateConfigLimits(value Config) error {
 	}
 	if value.MaxRequestBodyBytes > maximumMaxRequestBodyBytes {
 		return fmt.Errorf("modsecurity native middleware: maxRequestBodyBytes must not exceed %d", maximumMaxRequestBodyBytes)
+	}
+	if value.RequestBodyIdleTimeoutMillis <= 0 || value.RequestBodyIdleTimeoutMillis > int(maximumRequestBodyIdleTimeout/time.Millisecond) {
+		return fmt.Errorf("modsecurity native middleware: requestBodyIdleTimeoutMillis must be between 1 and %d", int(maximumRequestBodyIdleTimeout/time.Millisecond))
 	}
 	if int64(value.MaxRequestChunkBytes) > value.MaxRequestBodyBytes {
 		return errors.New("modsecurity native middleware: maxRequestChunkBytes must not exceed maxRequestBodyBytes")
@@ -538,7 +550,11 @@ func (state *streamState) pendingRequestResult() (Decision, error) {
 // It is called immediately before response-header evaluation, so P3 and host
 // response commitment cannot run ahead of the request-body phase. The drain
 // uses the same bounded inspecting reader as normal handler reads and fails
-// closed on source errors or a source that makes no progress.
+// closed on source errors, cancellation, or an idle source. The timeout
+// callback closes the owned source; no drain goroutine is created. Sources
+// must honor io.ReadCloser's contract that Close unblocks Read. A source that
+// violates that contract remains a host integration risk and cannot produce
+// EOS evidence.
 func (state *streamState) ensureRequestEOS() error {
 	state.mu.Lock()
 	if state.requestEOS {
@@ -557,6 +573,8 @@ func (state *streamState) ensureRequestEOS() error {
 
 	buffer := make([]byte, state.config.MaxRequestChunkBytes)
 	for {
+		// Read is the single inspection path: it applies the per-read idle
+		// deadline and also records body chunks, limits, decisions, and EOS.
 		count, readErr := body.Read(buffer)
 		if readErr != nil && !errors.Is(readErr, io.EOF) {
 			state.recordRequestError(readErr)
@@ -661,19 +679,23 @@ func (state *streamState) close(contextValue context.Context) {
 }
 
 type inspectingRequestBody struct {
-	request *http.Request
-	source  io.ReadCloser
-	state   *streamState
+	request   *http.Request
+	source    io.ReadCloser
+	state     *streamState
+	closeOnce sync.Once
+	closeErr  error
 }
 
 func (body *inspectingRequestBody) Read(buffer []byte) (int, error) {
+	// Read itself owns the bounded idle/cancel watchdog; callers such as the
+	// pre-commit drain must use this method to retain inspection and limits.
 	if err := body.state.pendingRequestBlocker(); err != nil {
 		return 0, err
 	}
 	if len(buffer) > body.state.config.MaxRequestChunkBytes {
 		buffer = buffer[:body.state.config.MaxRequestChunkBytes]
 	}
-	count, readErr := body.source.Read(buffer)
+	count, readErr := body.readWithIdleTimeout(buffer)
 	if count > 0 {
 		end := errors.Is(readErr, io.EOF)
 		if err := body.state.processRequestBody(body.request.Context(), buffer[:count], end); err != nil {
@@ -692,7 +714,26 @@ func (body *inspectingRequestBody) Read(buffer []byte) (int, error) {
 }
 
 func (body *inspectingRequestBody) Close() error {
-	return body.source.Close()
+	body.closeOnce.Do(func() { body.closeErr = body.source.Close() })
+	return body.closeErr
+}
+
+func (body *inspectingRequestBody) readWithIdleTimeout(buffer []byte) (int, error) {
+	readContext, cancel := context.WithTimeout(body.request.Context(), time.Duration(body.state.config.RequestBodyIdleTimeoutMillis)*time.Millisecond)
+	defer cancel()
+	var interrupted atomic.Bool
+	stop := context.AfterFunc(readContext, func() {
+		interrupted.Store(true)
+		_ = body.Close()
+	})
+	count, err := body.source.Read(buffer)
+	if !stop() || interrupted.Load() {
+		if body.request.Context().Err() != nil {
+			return 0, body.request.Context().Err()
+		}
+		return 0, errors.New("modsecurity native middleware: request body idle timeout")
+	}
+	return count, err
 }
 
 type responseWriter struct {

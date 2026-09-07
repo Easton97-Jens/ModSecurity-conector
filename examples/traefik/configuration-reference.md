@@ -33,6 +33,7 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestBodyBytes`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxrequestbodybytes) | Host / Connector | integer aggregate request-body bound | no | 1048576 | http.middlewares.<name>.plugin.modsecurityNative | Caps the aggregate request-body bytes accepted across all streamed request chunks; overflow is rejected and the transaction is cleaned up. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestChunkBytes`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxrequestchunkbytes) | Host / Connector | integer request-body chunk-byte bound | no | 32768 | http.middlewares.<name>.plugin.modsecurityNative | Caps each streamed request-body chunk offered to the native middleware engine. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxResponseChunkBytes`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxresponsechunkbytes) | Host / Connector | integer response-body chunk-byte bound | no | 32768 | http.middlewares.<name>.plugin.modsecurityNative | Caps each streamed response-body chunk offered to the native middleware engine. |
+| [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.requestBodyIdleTimeoutMillis`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-requestbodyidletimeoutmillis) | Host / Connector | integer request-body idle-timeout bound | no | 1000 | http.middlewares.<name>.plugin.modsecurityNative | Bounds inactivity between request-body reads; it is independent of the engine timeout and closes the owned source on expiry. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.transactionIDHeader`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-transactionidheader) | Host / Connector | HTTP header-name string | no | X-Request-Id | http.middlewares.<name>.plugin.modsecurityNative | Selects the incoming request header used to correlate middleware and engine transaction metadata. |
 | [`http.routers`](#http-routers) | Host / Connector | Traefik dynamic router registry mapping | no | No connector-owned router registry default is declared; the selected template sets one app router. | The YAML object path shown in the selected example. | Groups dynamic request-routing definitions. |
 | [`http.routers.app`](#http-routers-app) | Host / Connector | Traefik dynamic Router mapping | no | No connector-owned app router default is declared; the selected template sets the explicit catch-all app route. | The YAML object path shown in the selected example. | Binds a request rule and entry point to the listed middleware and app service. |
@@ -1362,6 +1363,61 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 ### Safety and operations
 
 The UDS wire contract rejects values above 32768; retain the bound for response-stream resource control.
+
+<a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-requestbodyidletimeoutmillis"></a>
+## `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.requestBodyIdleTimeoutMillis`
+
+### Short description
+
+Bounds inactivity between request-body reads; it is independent of the engine timeout and closes the owned source on expiry.
+
+### Syntax
+
+```text
+http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.requestBodyIdleTimeoutMillis: <requestBodyIdleTimeoutMillis>
+```
+
+### Valid contexts
+
+- http.middlewares.<name>.plugin.modsecurityNative
+
+### Values
+
+| Type | Allowed values | Required |
+| --- | --- | --- |
+| integer request-body idle-timeout bound | positive; maximum 60000 milliseconds | no |
+
+### Default
+
+1000
+
+Source: `connectors/traefik/native_middleware/middleware.go:CreateConfig`.
+
+### Inheritance and merge
+
+Traefik dynamic configuration object; no Common Runtime merge.
+
+Merge: Traefik/plugin configuration is normalized once by the plugin.
+
+### Phases and runtime effect
+
+P2 request-body activity bound before response commitment; regular reads reset the per-read idle window.
+
+Bounds inactivity between request-body reads; it is independent of the engine timeout and closes the owned source on expiry.
+
+### Validation and errors
+
+normalizedConfig rejects non-positive values and values above 60000 milliseconds, including integer-overflow inputs.
+
+### Example
+
+Selected example value: `1000`.
+
+Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../examples/traefik/safe/traefik-dynamic.yaml).
+
+### Safety and operations
+
+A finite per-read idle budget prevents a slow or stalled client from retaining a transaction indefinitely.
 
 <a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-transactionidheader"></a>
 ## `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.transactionIDHeader`

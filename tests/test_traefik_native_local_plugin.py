@@ -73,7 +73,7 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
         reference_de = (
             ROOT / "examples/traefik/configuration-reference.de.md"
         ).read_text(encoding="utf-8")
-        self.assertIn('EngineMode:            "uds",', source)
+        self.assertIn('EngineMode:                   "uds",', source)
         self.assertIn('if value.EngineMode != "uds" {', source)
         self.assertIn("unsupported engineMode", source)
         self.assertNotIn("| passthrough \\| uds |", reference)
@@ -141,7 +141,7 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
             tag.split(",", 1)[0]
             for tag in re.findall(r'`json:"([^"]+)', config_block.group("body"))
         ]
-        self.assertEqual(len(fields), 8)
+        self.assertEqual(len(fields), 9)
         native_options = {
             option["name"]
             for option in inventory["options"]
@@ -161,6 +161,7 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
                 self.assertIn(path, native_options)
                 self.assertIn(f"{field}:", selected_example)
         self.assertIn("maximum 1048576 bytes", reference)
+        self.assertIn("maximum 60000 milliseconds", reference)
         self.assertIn("maximal 1048576 Bytes", reference_de)
         self.assertIn(
             '"default": "1048576"',

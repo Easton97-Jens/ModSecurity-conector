@@ -102,6 +102,8 @@ func TestConfigRejectsTimeoutMillisecondOverflow(t *testing.T) {
 		{"shutdown just below maximum", func(c *Config, v int) { c.ShutdownTimeoutMS = v }, int(limit - 1), true},
 		{"shutdown at maximum", func(c *Config, v int) { c.ShutdownTimeoutMS = v }, int(limit), true},
 		{"shutdown above maximum", func(c *Config, v int) { c.ShutdownTimeoutMS = v }, int(limit + 1), false},
+		{"stream lifetime at maximum", func(c *Config, v int) { c.StreamMaxLifetimeMS = v }, int(limit), true},
+		{"stream lifetime above maximum", func(c *Config, v int) { c.StreamMaxLifetimeMS = v }, int(limit + 1), false},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -249,6 +250,66 @@ func TestCommonRuntimeEngineCloseRejectsCanceledContextBeforeDestroy(t *testing.
 	}
 	if !engine.closing.Load() {
 		t.Fatal("Close() did not retain the controlled shutting-down state")
+	}
+}
+
+func TestCommonRuntimeEngineCloseBoundsBlockingDestructorAndPreventsReuse(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	engine := &CommonRuntimeEngine{
+		transactions: make(map[*commonRuntimeTransaction]struct{}),
+		destructor: func() {
+			close(started)
+			<-release
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	startedAt := time.Now()
+	err := engine.Close(ctx)
+	if !errors.Is(err, ErrCommonRuntimeShutdownTimeout) {
+		t.Fatalf("Close() error = %v, want ErrCommonRuntimeShutdownTimeout", err)
+	}
+	if elapsed := time.Since(startedAt); elapsed > 500*time.Millisecond {
+		t.Fatalf("Close() blocked for %s", elapsed)
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("destructor worker did not start")
+	}
+	if _, err := engine.Open(context.Background(), commonTestStreamMetadata("after-destructor-timeout")); err == nil {
+		t.Fatal("Open() succeeded after destructor ownership was handed off")
+	}
+
+	close(release)
+	select {
+	case <-engine.destroyDone:
+	case <-time.After(time.Second):
+		t.Fatal("destructor worker did not return")
+	}
+	if err := engine.Close(context.Background()); err != nil {
+		t.Fatalf("Close() after late destructor return = %v", err)
+	}
+	if err := engine.Close(context.Background()); err != nil {
+		t.Fatalf("repeated Close() = %v, want idempotent success", err)
+	}
+}
+
+func TestCommonRuntimeEngineCloseDestructorRunsExactlyOnce(t *testing.T) {
+	var calls atomic.Int32
+	engine := &CommonRuntimeEngine{
+		transactions: make(map[*commonRuntimeTransaction]struct{}),
+		destructor:   func() { calls.Add(1) },
+	}
+	for index := 0; index < 3; index++ {
+		if err := engine.Close(context.Background()); err != nil {
+			t.Fatalf("Close(%d) = %v", index, err)
+		}
+	}
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("destructor calls = %d, want exactly one", got)
 	}
 }
 

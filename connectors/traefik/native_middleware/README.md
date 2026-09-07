@@ -16,6 +16,9 @@ declaration.
 - wraps the request body so reads are capped to `maxRequestChunkBytes` and sent
   synchronously to a per-request `Transaction` seam; before response-header
   evaluation it drains any unread body through that same path to request EOS;
+- enforces `requestBodyIdleTimeoutMillis` independently of the engine timeout
+  and `maxRequestBodyBytes`; an idle or cancelled body fails closed before
+  response headers are committed and its owned source is closed;
 - applies the finite `maxRequestBodyBytes` aggregate limit (default and hard
   cap: 1 MiB) before an over-limit chunk reaches the engine. The deterministic
   pre-commit action is HTTP 413; after that decision it does not drain the

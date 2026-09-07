@@ -139,7 +139,10 @@ func (config Config) Validate() error {
 		if value <= 0 {
 			return fmt.Errorf("config: %s must be positive", name)
 		}
-		if int64(value) > maxTimeoutMS && strings.HasSuffix(name, "_timeout_ms") {
+		// Every millisecond duration is multiplied into time.Duration below.
+		// Include the absolute stream lifetime as well as fields named timeout;
+		// otherwise a large, locally supplied lifetime can wrap before use.
+		if int64(value) > maxTimeoutMS && strings.HasSuffix(name, "_ms") {
 			return fmt.Errorf("config: %s exceeds maximum of %d milliseconds", name, maxTimeoutMS)
 		}
 	}

@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import shutil
+import select
 import subprocess
 import tempfile
+import time
 import unittest
 from importlib.util import module_from_spec, spec_from_file_location
 
@@ -215,6 +218,182 @@ class StockLifecycleHarnessContractTest(unittest.TestCase):
             '[ -f "$SERVER_SESSION_RECORD" ] && cleanup_process',
             cleanup_body,
         )
+
+    def test_unregistered_cleanup_handlers_cover_config_server_and_v10(self) -> None:
+        text = HARNESS.read_text(encoding="utf-8")
+        guard = (REPO_ROOT / "connectors/lighttpd/harness/lighttpd_backend_close_linux_guard.py").read_text(encoding="utf-8")
+        self.assertIn("cleanup_unregistered_process", text)
+        self.assertIn("terminate-unregistered", text)
+        self.assertIn('SERVER_START_TIME', text)
+        self.assertIn("_pidfd_for_identity", guard)
+        self.assertIn("unique session leader", guard)
+        self.assertNotIn('kill "$SERVER_PID"', text)
+
+        sleep = shutil.which("sleep")
+        if sleep is None or not hasattr(os, "pidfd_open"):
+            self.skipTest("Linux sleep/pidfd prerequisites unavailable")
+        children = [subprocess.Popen(["setsid", sleep, "30"]) for _ in range(3)]
+        try:
+            starts = []
+            for child in children:
+                deadline = time.monotonic() + 2
+                start_time = None
+                while time.monotonic() < deadline:
+                    try:
+                        fields = Path(f"/proc/{child.pid}/stat").read_text(encoding="ascii").rsplit(")", 1)[1].split()
+                        start_time = fields[19]
+                        break
+                    except (FileNotFoundError, IndexError):
+                        time.sleep(0.01)
+                self.assertIsNotNone(start_time)
+                starts.append(start_time)
+            shell = """
+cleanup_unregistered_process() {
+    status=0
+    python3 "$GUARD" terminate-unregistered --pid "$1" --start-time "$2" --exe "$3" \
+        --timeout-seconds 2 >/dev/null || status=$?
+    [ "$status" -eq 0 ] || [ "$status" -eq 75 ]
+}
+cleanup_unregistered_process "$CONFIG_PID" "$CONFIG_START" "$SLEEP"
+cleanup_unregistered_process "$SERVER_PID" "$SERVER_START" "$SLEEP"
+cleanup_unregistered_process "$V10_PID" "$V10_START" "$SLEEP"
+"""
+            result = subprocess.run(
+                ["sh", "-c", shell],
+                env={
+                    **os.environ,
+                    "GUARD": str(REPO_ROOT / "connectors/lighttpd/harness/lighttpd_backend_close_linux_guard.py"),
+                    "SLEEP": str(Path(sleep).resolve()),
+                    "CONFIG_PID": str(children[0].pid), "CONFIG_START": starts[0],
+                    "SERVER_PID": str(children[1].pid), "SERVER_START": starts[1],
+                    "V10_PID": str(children[2].pid), "V10_START": starts[2],
+                },
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            for child in children:
+                self.assertIsNotNone(child.poll())
+        finally:
+            for child in children:
+                child.kill() if child.poll() is None else None
+                child.wait()
+
+    def test_parent_death_during_python_registration_phase_terminates_guard(self) -> None:
+        if not hasattr(os, "pidfd_open"):
+            self.skipTest("Linux pidfd prerequisite unavailable")
+        sleep = shutil.which("sleep")
+        if sleep is None:
+            self.skipTest("sleep prerequisite unavailable")
+        script = """
+import importlib.util, os, sys, time
+spec = importlib.util.spec_from_file_location('guard', sys.argv[1])
+guard = importlib.util.module_from_spec(spec); sys.modules['guard'] = guard; spec.loader.exec_module(guard)
+ready = int(sys.argv[2])
+record = sys.argv[3]
+ready_read = int(sys.argv[5])
+child_pid = os.fork()
+if child_pid == 0:
+    os.close(ready_read)
+    def delayed_registration(path):
+        os.write(ready, b'R')
+        while True: time.sleep(1)
+    guard._register_session = delayed_registration
+    guard.os.environ['MSCONNECTOR_LIGHTTPD_SESSION_PROFILE'] = 'sleep-duration'
+    guard.os.environ['MSCONNECTOR_LIGHTTPD_SESSION_EXECUTABLE'] = sys.argv[4]
+    guard.os.environ['MSCONNECTOR_LIGHTTPD_SESSION_DURATION'] = '30'
+    guard.exec_session(16, record)
+else:
+    print(child_pid, flush=True)
+    os.read(ready_read, 1)
+    os._exit(0)
+"""
+        with tempfile.TemporaryDirectory(prefix="lighttpd-registration-race-") as temporary:
+            record = Path(temporary) / "session-record.json"
+            read_fd, write_fd = os.pipe()
+            process = subprocess.Popen(
+                ["python3", "-c", script, str(REPO_ROOT / "connectors/lighttpd/harness/lighttpd_backend_close_linux_guard.py"), str(write_fd), str(record), str(Path(sleep).resolve()), str(read_fd)],
+                pass_fds=(read_fd, write_fd), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            )
+            os.close(write_fd)
+            try:
+                ready_stream, _, _ = select.select([process.stdout], [], [], 2) if process.stdout is not None else ([], [], [])
+                output = process.stdout.readline().strip() if ready_stream else b""
+                self.assertTrue(output)
+                guard_pid = int(output)
+                self.assertNotEqual(os.path.realpath(f"/proc/{guard_pid}/exe"), str(Path(sleep).resolve()))
+                deadline = time.monotonic() + 2
+                while Path(f"/proc/{guard_pid}").exists() and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertFalse(Path(f"/proc/{guard_pid}").exists())
+                self.assertEqual(process.wait(timeout=2), 0)
+                self.assertEqual(process.stderr.read(), b"")
+                self.assertFalse(record.exists())
+            finally:
+                os.close(read_fd)
+                for stream in (process.stdout, process.stderr):
+                    if stream is not None:
+                        stream.close()
+                process.kill() if process.poll() is None else None
+                process.wait()
+
+    def test_parent_death_after_registration_ends_exec_target_and_session(self) -> None:
+        if not hasattr(os, "pidfd_open"):
+            self.skipTest("Linux pidfd prerequisite unavailable")
+        sleep = shutil.which("sleep")
+        if sleep is None:
+            self.skipTest("sleep prerequisite unavailable")
+        script = """
+import importlib.util, json, os, sys, time
+from pathlib import Path
+spec = importlib.util.spec_from_file_location('guard', sys.argv[1])
+guard = importlib.util.module_from_spec(spec); sys.modules['guard'] = guard; spec.loader.exec_module(guard)
+record = Path(sys.argv[2])
+guard.os.environ['MSCONNECTOR_LIGHTTPD_SESSION_PROFILE'] = 'sleep-duration'
+guard.os.environ['MSCONNECTOR_LIGHTTPD_SESSION_EXECUTABLE'] = sys.argv[3]
+guard.os.environ['MSCONNECTOR_LIGHTTPD_SESSION_DURATION'] = '30'
+if os.fork() == 0:
+    guard.exec_session(16, record)
+else:
+    deadline = time.monotonic() + 2
+    while not record.exists() and time.monotonic() < deadline: time.sleep(0.01)
+    if not record.exists(): os._exit(2)
+    value = json.loads(record.read_text())
+    pid = value['leader_pid']
+    print(pid, os.path.realpath('/proc/%d/exe' % pid), flush=True)
+    os._exit(0)
+"""
+        with tempfile.TemporaryDirectory(prefix="lighttpd-registration-success-") as temporary:
+            runtime_root = Path(temporary) / "runtime"
+            runtime_root.mkdir(mode=0o700)
+            record = runtime_root / "session-record.json"
+            process = subprocess.Popen(
+                ["python3", "-c", script, str(REPO_ROOT / "connectors/lighttpd/harness/lighttpd_backend_close_linux_guard.py"), str(record), str(Path(sleep).resolve())],
+                env={**os.environ, "MSCONNECTOR_TRUSTED_RUNTIME_ROOT": str(runtime_root)},
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            )
+            try:
+                ready_stream, _, _ = select.select([process.stdout], [], [], 2) if process.stdout is not None else ([], [], [])
+                line = process.stdout.readline() if ready_stream else ""
+                self.assertTrue(line.strip(), process.stderr.read() if process.stderr is not None else "")
+                pid_text, executable = line.strip().split(" ", 1)
+                target_pid = int(pid_text)
+                self.assertEqual(executable, str(Path(sleep).resolve()))
+                self.assertEqual(process.wait(timeout=2), 0)
+                deadline = time.monotonic() + 2
+                while Path(f"/proc/{target_pid}").exists() and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertFalse(Path(f"/proc/{target_pid}").exists())
+                self.assertEqual(process.stderr.read(), "")
+                self.assertTrue(record.is_file())
+            finally:
+                for stream in (process.stdout, process.stderr):
+                    if stream is not None:
+                        stream.close()
+                process.kill() if process.poll() is None else None
+                process.wait()
 
 
 if __name__ == "__main__":

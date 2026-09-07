@@ -28,6 +28,9 @@ APACHE_PROCESS_GUARD="$SCRIPT_DIR/apache_process_guard.py"
 SETSID_BIN="${SETSID:-setsid}"
 RECORD_FAILURE_CLEANED_EXIT=74
 HTTPD_RECORD_FAILURE_CLEANED=0
+HTTPD_SUPERVISOR_STATE=""
+HTTPD_SUPERVISOR_PID_OUTPUT=""
+HTTPD_SUPERVISOR_PID=""
 PYTHONDONTWRITEBYTECODE="${PYTHONDONTWRITEBYTECODE:-1}"
 export PYTHONDONTWRITEBYTECODE
 BASE_PORT="${PORT:-18080}"
@@ -525,8 +528,12 @@ cleanup() {
         wait "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1 || true
     fi
     if [ "$HTTPD_RECORD_FAILURE_CLEANED" -eq 1 ]; then
-        if [ -n "${HTTPD_PID:-}" ]; then
-            wait "$HTTPD_PID" >/dev/null 2>&1 || true
+        if [ -n "${HTTPD_SUPERVISOR_STATE:-}" ] && [ -f "$HTTPD_SUPERVISOR_STATE" ]; then
+            "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" stop-supervisor \
+                --state "$HTTPD_SUPERVISOR_STATE" >/dev/null 2>&1 || cleanup_rc=77
+        fi
+        if [ -n "${HTTPD_SUPERVISOR_PID:-}" ]; then
+            wait_supervisor_bounded "$HTTPD_SUPERVISOR_PID" || cleanup_rc=77
         fi
         if ! port_is_free "$PORT"; then
             echo "apache_smoke: blocked Apache record-failure cleanup left port $PORT in use" >&2
@@ -557,6 +564,9 @@ cleanup() {
         if [ -n "${HTTPD_PID:-}" ] && [ "$httpd_wait_safe" -eq 1 ]; then
             wait "$HTTPD_PID" >/dev/null 2>&1 || true
         fi
+        if [ -n "${HTTPD_SUPERVISOR_PID:-}" ]; then
+            wait_supervisor_bounded "$HTTPD_SUPERVISOR_PID" || cleanup_rc=77
+        fi
         "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" verify-stopped \
             --evidence "$HTTPD_GUARD_EVIDENCE" >/dev/null 2>&1 || cleanup_rc=77
         if [ "$cleanup_rc" -eq 0 ] && [ -n "${RUNTIME_PID_FILE:-}" ]; then
@@ -567,6 +577,13 @@ cleanup() {
         fi
     elif [ -n "${HTTPD_PID:-}" ]; then
         echo "apache_smoke: blocked Apache ownership evidence is missing" >&2
+        if [ -n "${HTTPD_SUPERVISOR_STATE:-}" ] && [ -f "$HTTPD_SUPERVISOR_STATE" ]; then
+            "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" stop-supervisor \
+                --state "$HTTPD_SUPERVISOR_STATE" >/dev/null 2>&1 || true
+        fi
+        if [ -n "${HTTPD_SUPERVISOR_PID:-}" ]; then
+            wait_supervisor_bounded "$HTTPD_SUPERVISOR_PID" || cleanup_rc=77
+        fi
         cleanup_rc=77
     fi
     if [ -n "${RESPONSE_HEADER_BACKEND_PID:-}" ] && kill -0 "$RESPONSE_HEADER_BACKEND_PID" >/dev/null 2>&1; then
@@ -577,10 +594,53 @@ cleanup() {
         [ ! -f "${HTTPD_GUARD_EVIDENCE:-}" ]; then
         rm -f "$RUNTIME_PID_FILE"
     fi
+    if [ -n "${HTTPD_SUPERVISOR_STATE:-}" ] && [ -e "$HTTPD_SUPERVISOR_STATE" ]; then
+        echo "apache_smoke: blocked supervisor state remains after cleanup" >&2
+        cleanup_rc=77
+    fi
+    if [ -n "${HTTPD_SUPERVISOR_PID_OUTPUT:-}" ] && [ -e "$HTTPD_SUPERVISOR_PID_OUTPUT" ]; then
+        echo "apache_smoke: blocked supervisor PID output remains after cleanup" >&2
+        cleanup_rc=77
+    fi
     if [ -n "${PHASE4_ROGUE_TLS_KEY:-}" ]; then
         rm -f "$PHASE4_ROGUE_TLS_KEY"
     fi
     return "$cleanup_rc"
+}
+
+wait_supervisor_bounded() {
+    supervisor_wait_pid=$1
+    supervisor_wait_i=0
+    while kill -0 "$supervisor_wait_pid" >/dev/null 2>&1 && [ "$supervisor_wait_i" -lt 40 ]; do
+        supervisor_wait_i=$((supervisor_wait_i + 1))
+        sleep 0.05
+    done
+    if kill -0 "$supervisor_wait_pid" >/dev/null 2>&1; then
+        echo "apache_smoke: blocked Apache supervisor did not exit within bounded cleanup" >&2
+        return 77
+    fi
+    wait "$supervisor_wait_pid" >/dev/null 2>&1 || true
+}
+
+on_exit() {
+    exit_rc=$?
+    trap - EXIT HUP INT TERM
+    if cleanup; then
+        cleanup_rc=0
+    else
+        cleanup_rc=$?
+    fi
+    if [ "$exit_rc" -eq 0 ] && [ "$cleanup_rc" -ne 0 ]; then
+        exit_rc=$cleanup_rc
+    fi
+    exit "$exit_rc"
+}
+
+on_signal() {
+    signal_rc=$1
+    trap - EXIT HUP INT TERM
+    cleanup || :
+    exit "$signal_rc"
 }
 
 record_server_ownership() {
@@ -1035,8 +1095,27 @@ start_server() {
             return 0
         fi
 
-        "$SETSID_BIN" "$APACHE_HTTPD_BIN" -X -f "$CONFIG_FILE" > "$LOG_DIR/httpd.log" 2>&1 &
-        HTTPD_PID=$!
+        HTTPD_SUPERVISOR_STATE="$RUNTIME_ROOT/run/httpd-supervisor-state.json"
+        HTTPD_SUPERVISOR_PID_OUTPUT="$RUNTIME_ROOT/run/httpd-supervisor.pid"
+        "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" supervise \
+            --httpd "$APACHE_HTTPD_BIN" --config "$CONFIG_FILE" \
+            --state "$HTTPD_SUPERVISOR_STATE" \
+            --pid-output "$HTTPD_SUPERVISOR_PID_OUTPUT" \
+            > /dev/null 2> "$LOG_DIR/httpd.log" &
+        HTTPD_SUPERVISOR_PID=$!
+        i=0
+        while [ "$i" -lt 20 ] && [ ! -s "$HTTPD_SUPERVISOR_PID_OUTPUT" ]; do
+            if ! kill -0 "$HTTPD_SUPERVISOR_PID" >/dev/null 2>&1; then
+                fail "Apache supervisor exited during launch; see $LOG_DIR/httpd.log"
+            fi
+            i=$((i + 1))
+            sleep 0.05
+        done
+        [ -s "$HTTPD_SUPERVISOR_PID_OUTPUT" ] || fail "Apache supervisor did not publish child PID"
+        HTTPD_PID=$(sed -n '1p' "$HTTPD_SUPERVISOR_PID_OUTPUT")
+        case "$HTTPD_PID" in
+            ''|*[!0-9]*) fail "Apache supervisor published an invalid child PID" ;;
+        esac
 
         if [ "$MSCONNECTOR_SMOKE_STAGE" = "start_smoke" ]; then
             sleep 1
@@ -2390,6 +2469,8 @@ require_absolute_generated_path "$LOG_DIR" "LOG_DIR"
 require_absolute_generated_path "$APACHE_CASE_OUTPUT_ROOT" "APACHE_CASE_OUTPUT_ROOT"
 
 RUNTIME_PID_FILE="$RUNTIME_ROOT/logs/httpd.pid"
+HTTPD_SUPERVISOR_STATE="$RUNTIME_ROOT/run/httpd-supervisor-state.json"
+HTTPD_SUPERVISOR_PID_OUTPUT="$RUNTIME_ROOT/run/httpd-supervisor.pid"
 
 prepare_runtime_directory "$RUNTIME_ROOT" "RUNTIME_ROOT" 1
 prepare_runtime_directory "$RUNTIME_ROOT/conf" "Apache runtime conf" 1
@@ -2400,6 +2481,13 @@ prepare_runtime_directory "$RUNTIME_ROOT/modules" "Apache runtime modules" 1
 prepare_runtime_directory "$LOG_DIR/audit" "Apache audit logs" 1
 [ ! -L "$RUNTIME_ROOT/run" ] || blocked "Apache runtime run directory must not be a symlink"
 chmod 700 "$RUNTIME_ROOT/run"
+if [ -e "$HTTPD_SUPERVISOR_STATE" ] || [ -L "$HTTPD_SUPERVISOR_STATE" ] || \
+    [ -e "$HTTPD_SUPERVISOR_PID_OUTPUT" ] || [ -L "$HTTPD_SUPERVISOR_PID_OUTPUT" ]; then
+    MSCONNECTOR_APACHE_GUARD_ARTIFACT_ROOT="$RUNTIME_ROOT" \
+        "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" retire-supervisor-artifact \
+        --state "$HTTPD_SUPERVISOR_STATE" --pid-output "$HTTPD_SUPERVISOR_PID_OUTPUT" >/dev/null || \
+        blocked "stale Apache supervisor session is unsafe"
+fi
 : > "$STATUS_FILE"
 stop_stale_runtime_pid "$RUNTIME_PID_FILE"
 retire_stale_guard_evidence
@@ -2536,7 +2624,10 @@ write_phase4_terminal_test_support
 LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR:$HTTPD_PREFIX/lib:$PCRE2_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export LD_LIBRARY_PATH
 
-trap cleanup EXIT INT TERM
+trap on_exit EXIT
+trap 'on_signal 129' HUP
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
 start_server
 
 if [ "$MSCONNECTOR_SMOKE_STAGE" = "config_load" ]; then

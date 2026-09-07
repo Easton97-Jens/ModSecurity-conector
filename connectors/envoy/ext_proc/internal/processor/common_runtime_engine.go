@@ -55,6 +55,10 @@ type CommonRuntimeEngine struct {
 	transactions map[*commonRuntimeTransaction]struct{}
 	failureMu    sync.Mutex
 	terminalErr  error
+	destructorMu sync.Mutex
+	destructor   func()
+	destroyDone  chan struct{}
+	destroyed    bool
 }
 
 // NewCommonRuntimeEngine creates a real Common/libmodsecurity runtime from a
@@ -79,10 +83,14 @@ func NewCommonRuntimeEngine(configPath string) (*CommonRuntimeEngine, error) {
 		C.msc_envoy_ext_proc_runtime_destroy(&runtime)
 		return nil, fmt.Errorf("create Common runtime returned an unset phase4 policy")
 	}
+	nativeRuntime := runtime
 	return &CommonRuntimeEngine{
 		runtime:      runtime,
 		phase4Mode:   phase4Mode,
 		transactions: make(map[*commonRuntimeTransaction]struct{}),
+		destructor: func() {
+			C.msc_envoy_ext_proc_runtime_destroy(&nativeRuntime)
+		},
 	}, nil
 }
 
@@ -128,9 +136,10 @@ func commonRuntimePhase4ModeName(mode int) string {
 }
 
 // Close releases the libmodsecurity engine after every stream transaction has
-// completed, bounded by ctx. If a native CGo operation still owns the mutex
-// when ctx expires, it returns ErrCommonRuntimeShutdownTimeout and does not
-// free native memory; the caller must exit for a supervisor restart.
+// completed, bounded by ctx. The native destructor is handed to a dedicated
+// worker because a CGo call cannot be safely interrupted. Once handed off,
+// the engine remains permanently unavailable until the destructor returns;
+// this prevents reuse or a second free after a shutdown timeout.
 func (engine *CommonRuntimeEngine) Close(ctx context.Context) error {
 	if engine == nil {
 		return nil
@@ -140,17 +149,52 @@ func (engine *CommonRuntimeEngine) Close(ctx context.Context) error {
 	if err := lockCommonRuntimeMutex(ctx, &engine.mu); err != nil {
 		return fmt.Errorf("%w: %v", ErrCommonRuntimeShutdownTimeout, err)
 	}
-	defer engine.mu.Unlock()
 	if engine.closed {
+		engine.mu.Unlock()
 		return nil
 	}
 	if err := engine.terminalFailure(); err != nil {
+		engine.mu.Unlock()
 		return fmt.Errorf("cannot close Common runtime after unsafe transaction cleanup: %w", err)
 	}
 	if len(engine.transactions) != 0 {
+		engine.mu.Unlock()
 		return fmt.Errorf("cannot close Common runtime with %d active transactions", len(engine.transactions))
 	}
-	C.msc_envoy_ext_proc_runtime_destroy(&engine.runtime)
+	engine.destructorMu.Lock()
+	if engine.destroyDone == nil {
+		engine.destroyDone = make(chan struct{})
+		destroy := engine.destructor
+		if destroy == nil {
+			destroy = func() {}
+		}
+		done := engine.destroyDone
+		go func() {
+			destroy()
+			engine.destructorMu.Lock()
+			engine.destroyed = true
+			close(done)
+			engine.destructorMu.Unlock()
+		}()
+	}
+	done := engine.destroyDone
+	destroyed := engine.destroyed
+	engine.destructorMu.Unlock()
+	engine.mu.Unlock()
+
+	if !destroyed {
+		select {
+		case <-done:
+		case <-ctx.Done():
+			return fmt.Errorf("%w: %v", ErrCommonRuntimeShutdownTimeout, ctx.Err())
+		}
+	}
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
+	if !engine.destroyed {
+		return fmt.Errorf("%w: destructor completion state unavailable", ErrCommonRuntimeShutdownTimeout)
+	}
+	engine.runtime = nil
 	engine.closed = true
 	return nil
 }

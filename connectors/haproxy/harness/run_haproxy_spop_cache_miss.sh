@@ -65,6 +65,9 @@ def string(value):
 def typed_string(value):
     return b"\x08" + string(value)
 
+def typed_ipv4(value):
+    return b"\x06" + socket.inet_aton(value)
+
 def typed_uint(value):
     return b"\x03" + varint(value)
 
@@ -79,9 +82,18 @@ def notify(message, request_id, test_header=""):
             ("method", typed_string("GET")),
             ("path", typed_string("/cache-miss")),
             ("uri", typed_string("/cache-miss")),
-            ("host", typed_string("localhost"))]
+            ("host", typed_string("localhost")),
+            # Production admission requires both endpoint identities.  Keep
+            # these in every control request so cache-hit/miss assertions
+            # exercise the engine path instead of the missing-metadata guard.
+            ("client_ip", typed_ipv4("127.0.0.1")),
+            ("server_ip", typed_ipv4("127.0.0.1")),
+            ("client_port", typed_uint(41000)),
+            ("server_port", typed_uint(8080))]
+    headers = "Host: localhost\r\n"
     if test_header:
-        args.append(("headers", typed_string("X-Modsec-Smoke: block\r\n")))
+        headers += "X-Modsec-Smoke: block\r\n"
+    args.append(("headers", typed_string(headers)))
     payload = string(message) + bytes((len(args),))
     return payload + b"".join(string(k) + v for k, v in args)
 

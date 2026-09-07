@@ -146,6 +146,16 @@ const (
 	CloseProcessorError    CloseReason = "processor_error"
 )
 
+// errStreamMaxLifetime distinguishes the connector-owned absolute lifetime
+// from a deadline inherited from Envoy's parent/RPC context. context.Err()
+// alone cannot make that distinction.
+var errStreamMaxLifetime = errors.New("ext_proc stream maximum lifetime exceeded")
+var errEngineOperationTimeout = errors.New("ext_proc engine operation timed out")
+
+func streamMaxLifetimeExceeded(ctx context.Context) bool {
+	return errors.Is(context.Cause(ctx), errStreamMaxLifetime)
+}
+
 // TransactionOpener receives only incremental data. The production
 // libmodsecurity build installs CommonRuntimeEngine; PassthroughEngine remains
 // for protobuf/unit development without CGo linkage.
@@ -390,7 +400,7 @@ func (service *Service) Process(stream extprocv3.ExternalProcessor_ProcessServer
 	defer service.active.Done()
 
 	state := newStreamState(service.config, service.engine, service.observer)
-	streamContext, cancel := context.WithTimeout(stream.Context(), service.config.streamMaxLifetime())
+	streamContext, cancel := context.WithTimeoutCause(stream.Context(), service.config.streamMaxLifetime(), errStreamMaxLifetime)
 	defer cancel()
 	closeReason := ClosePeerEOF
 	defer func() {
@@ -473,7 +483,7 @@ func receiveProcessingRequest(
 	select {
 	case result := <-resultChannel:
 		if err := ctx.Err(); err != nil {
-			if errors.Is(err, context.DeadlineExceeded) {
+			if streamMaxLifetimeExceeded(ctx) {
 				return nil, CloseStreamMaxLifetime, false,
 					status.Error(codes.DeadlineExceeded, "ext_proc stream maximum lifetime exceeded")
 			}
@@ -481,7 +491,7 @@ func receiveProcessingRequest(
 		}
 		return classifyProcessingReceiveResult(stream, result.request, result.err)
 	case <-ctx.Done():
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		if streamMaxLifetimeExceeded(ctx) {
 			return nil, CloseStreamMaxLifetime, false,
 				status.Errorf(codes.DeadlineExceeded,
 					"ext_proc stream maximum lifetime exceeded")
@@ -513,18 +523,18 @@ func classifyProcessingReceiveResult(
 
 func (service *Service) processRequest(ctx context.Context, stream extprocv3.ExternalProcessor_ProcessServer, state *streamState, request *extprocv3.ProcessingRequest) (bool, CloseReason, error) {
 	if err := ctx.Err(); err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
+		if streamMaxLifetimeExceeded(ctx) {
 			return false, CloseStreamMaxLifetime, status.Error(codes.DeadlineExceeded, "ext_proc stream maximum lifetime exceeded")
 		}
 		return true, CloseContextCanceled, nil
 	}
 	response, terminal, err := service.handleWithWatchdog(ctx, state, request)
 	if err != nil {
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		if streamMaxLifetimeExceeded(ctx) {
 			return false, CloseStreamMaxLifetime, status.Error(codes.DeadlineExceeded, "ext_proc stream maximum lifetime exceeded")
 		}
 		if errors.Is(err, context.Canceled) {
-			if stream.Context().Err() != nil {
+			if ctx.Err() != nil {
 				return true, CloseContextCanceled, nil
 			}
 			return false, CloseProcessorError,
@@ -540,7 +550,7 @@ func (service *Service) processRequest(ctx context.Context, stream extprocv3.Ext
 		return false, ClosePeerEOF, nil
 	}
 	if err := ctx.Err(); err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
+		if streamMaxLifetimeExceeded(ctx) {
 			return false, CloseStreamMaxLifetime, status.Error(codes.DeadlineExceeded, "ext_proc stream maximum lifetime exceeded")
 		}
 		return true, CloseContextCanceled, nil
@@ -588,7 +598,7 @@ func (service *Service) recordSuccessfulResponseEvidenceWithWatchdog(ctx context
 	case <-timer.C:
 		stuckErr := fmt.Errorf("ext_proc response evidence remained blocked after bounded cleanup grace; controlled restart required")
 		reason := CloseProcessorError
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		if streamMaxLifetimeExceeded(ctx) {
 			reason = CloseStreamMaxLifetime
 		}
 		state.deferCleanupUntilOperationReturns(service, evidenceDone, reason)
@@ -611,34 +621,59 @@ type streamHandleResult struct {
 // to return, so no goroutine concurrently accesses the native transaction or
 // mutable stream state.
 func (service *Service) handleWithWatchdog(ctx context.Context, state *streamState, request *extprocv3.ProcessingRequest) (*extprocv3.ProcessingResponse, bool, error) {
+	operationContext, cancel := context.WithTimeoutCause(ctx, state.config.engineTimeout(), errEngineOperationTimeout)
+	defer cancel()
 	resultChannel := make(chan streamHandleResult, 1)
 	handlerDone := make(chan struct{})
 	go func() {
 		defer close(handlerDone)
-		response, terminal, err := state.handle(ctx, request)
+		response, terminal, err := state.handle(operationContext, request)
 		resultChannel <- streamHandleResult{response: response, terminal: terminal, err: err}
 	}()
 	select {
 	case result := <-resultChannel:
+		// A result racing with cancellation is not a successful operation. The
+		// handler may have mutated native state after its deadline, so never
+		// let a late allow/deny result reach Envoy or response-evidence paths.
+		if context.Cause(operationContext) != nil {
+			if streamMaxLifetimeExceeded(ctx) {
+				return nil, false, status.Error(codes.DeadlineExceeded, "ext_proc stream maximum lifetime exceeded")
+			}
+			if ctx.Err() != nil {
+				return nil, true, nil
+			}
+			return nil, false, status.Error(codes.DeadlineExceeded, "ext_proc engine operation timed out")
+		}
 		return result.response, result.terminal, result.err
-	case <-ctx.Done():
+	case <-operationContext.Done():
 		graceTimer := time.NewTimer(service.config.cleanupTimeout())
 		defer graceTimer.Stop()
 		select {
-		case result := <-resultChannel:
-			return result.response, result.terminal, result.err
+		case <-resultChannel:
+			if streamMaxLifetimeExceeded(ctx) {
+				return nil, false, status.Error(codes.DeadlineExceeded, "ext_proc stream maximum lifetime exceeded")
+			}
+			if ctx.Err() != nil {
+				return nil, true, nil
+			}
+			return nil, false, status.Error(codes.DeadlineExceeded, "ext_proc engine operation timed out")
 		case <-graceTimer.C:
 			stuckErr := fmt.Errorf("ext_proc native handler remained blocked after stream cancellation; controlled restart required")
-			closeReason := CloseContextCanceled
-			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			closeReason := CloseProcessorError
+			if streamMaxLifetimeExceeded(ctx) {
 				closeReason = CloseStreamMaxLifetime
 			}
 			state.deferCleanupUntilOperationReturns(service, handlerDone, closeReason)
-			service.reportFatal(stuckErr)
-			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			if streamMaxLifetimeExceeded(ctx) {
+				service.reportFatal(stuckErr)
 				return nil, false, status.Error(codes.DeadlineExceeded, "ext_proc stream maximum lifetime exceeded")
 			}
-			return nil, true, nil
+			if ctx.Err() != nil {
+				service.reportFatal(stuckErr)
+				return nil, true, nil
+			}
+			service.reportFatal(stuckErr)
+			return nil, false, status.Error(codes.DeadlineExceeded, "ext_proc engine operation timed out")
 		}
 	}
 }
@@ -705,7 +740,7 @@ func (service *Service) classifyProcessingResponseSend(ctx context.Context, stre
 }
 
 func (service *Service) responseSendContextFailure(ctx context.Context, sent bool) (CloseReason, bool, error) {
-	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+	if streamMaxLifetimeExceeded(ctx) {
 		service.reportFatal(fmt.Errorf("ext_proc response send exceeded stream maximum lifetime; controlled restart required"))
 		return CloseStreamMaxLifetime, sent, status.Error(codes.DeadlineExceeded, "ext_proc stream maximum lifetime exceeded")
 	}
@@ -970,7 +1005,7 @@ func (state *streamState) ensureTransaction(ctx context.Context) error {
 	if state.transaction != nil {
 		return nil
 	}
-	engineContext, cancel := context.WithTimeout(ctx, state.config.engineTimeout())
+	engineContext, cancel := context.WithTimeoutCause(ctx, state.config.engineTimeout(), errEngineOperationTimeout)
 	defer cancel()
 	transaction, err := state.engine.Open(engineContext, StreamMetadata{
 		TransactionID: state.transactionID,
@@ -987,7 +1022,7 @@ func (state *streamState) ensureTransaction(ctx context.Context) error {
 }
 
 func (state *streamState) processHeaders(ctx context.Context, direction Direction, headers []Header, eos bool) (Decision, error) {
-	engineContext, cancel := context.WithTimeout(ctx, state.config.engineTimeout())
+	engineContext, cancel := context.WithTimeoutCause(ctx, state.config.engineTimeout(), errEngineOperationTimeout)
 	defer cancel()
 	decision, err := state.transaction.ProcessHeaders(engineContext, direction, headers, eos)
 	if err != nil {
@@ -1002,7 +1037,7 @@ func (state *streamState) processHeaders(ctx context.Context, direction Directio
 }
 
 func (state *streamState) processBody(ctx context.Context, direction Direction, body []byte, eos bool) (Decision, error) {
-	engineContext, cancel := context.WithTimeout(ctx, state.config.engineTimeout())
+	engineContext, cancel := context.WithTimeoutCause(ctx, state.config.engineTimeout(), errEngineOperationTimeout)
 	defer cancel()
 	decision, err := state.transaction.ProcessBody(engineContext, direction, body, eos)
 	if err != nil {
@@ -1464,7 +1499,7 @@ func (state *streamState) markResponseCommittedAfterSuccessfulContinue(ctx conte
 		return nil
 	}
 	if committer, ok := state.transaction.(ResponseCommitter); ok {
-		engineContext, cancel := context.WithTimeout(ctx, state.config.engineTimeout())
+		engineContext, cancel := context.WithTimeoutCause(ctx, state.config.engineTimeout(), errEngineOperationTimeout)
 		defer cancel()
 		if err := committer.MarkResponseCommitted(engineContext); err != nil {
 			return fmt.Errorf("mark Common response commit: %w", err)
@@ -1504,7 +1539,7 @@ func (state *streamState) recordHostActionAfterSuccessfulResponse(ctx context.Co
 		state.pendingHostAction = nil
 		return nil
 	}
-	engineContext, cancel := context.WithTimeout(ctx, state.config.engineTimeout())
+	engineContext, cancel := context.WithTimeoutCause(ctx, state.config.engineTimeout(), errEngineOperationTimeout)
 	defer cancel()
 	if err := recorder.RecordHostAction(engineContext, *state.pendingHostAction); err != nil {
 		return fmt.Errorf("record Common host action: %w", err)

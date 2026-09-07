@@ -8,13 +8,17 @@ numeric PID or a port is never sufficient to authorize a signal.
 from __future__ import annotations
 
 import argparse
+import ctypes
 import json
 import os
 from pathlib import Path
 import select
 import secrets
 import signal
+import socket
 import stat
+import struct
+import subprocess
 import time
 from typing import Any
 
@@ -33,6 +37,13 @@ RECORD_FAILURE_CLEANED_EXIT = 74
 TEMPORARY_ARTIFACT_ATTEMPTS = 16
 RECORD_INSPECTION_ATTEMPTS = 8
 RECORD_INSPECTION_RETRY_SECONDS = 0.01
+SUPERVISOR_CONTROL_TIMEOUT = 0.25
+SUPERVISOR_TERM_TIMEOUT = 2.0
+SUPERVISOR_KILL_TIMEOUT = 2.0
+SUPERVISOR_REAP_GRACE = 1.0
+SUPERVISOR_ACK_TIMEOUT = SUPERVISOR_TERM_TIMEOUT + SUPERVISOR_KILL_TIMEOUT + SUPERVISOR_REAP_GRACE + 1.0
+SUPERVISOR_CONTROL_BYTES = 32
+SUPERVISOR_EXIT_CONFIRM_ATTEMPTS = 40
 RUNNER_DIRECTORY_ENV = "MSCONNECTOR_APACHE_GUARD_DIRECTORY"
 RUNNER_ARTIFACT_ROOT_ENV = "MSCONNECTOR_APACHE_GUARD_ARTIFACT_ROOT"
 
@@ -43,6 +54,349 @@ class GuardError(RuntimeError):
 
 class RecordFailureCleaned(GuardError):
     """Evidence publication failed after verified runtime cleanup."""
+
+
+def _set_parent_death_signal(sig: int = int(signal.SIGTERM)) -> None:
+    """Ask Linux to terminate the supervisor when its runner disappears."""
+    if os.name != "posix":
+        return
+    try:
+        libc = ctypes.CDLL(None, use_errno=True)
+        prctl = libc.prctl
+        prctl.argtypes = [ctypes.c_int, ctypes.c_ulong, ctypes.c_ulong,
+                          ctypes.c_ulong, ctypes.c_ulong]
+        prctl.restype = ctypes.c_int
+        if prctl(1, sig, 0, 0, 0) != 0:
+            raise OSError(ctypes.get_errno(), "prctl(PR_SET_PDEATHSIG) failed")
+    except (AttributeError, OSError) as exc:
+        raise GuardError(f"cannot arm Apache supervisor parent-death cleanup: {exc}") from exc
+
+
+def _supervisor_paths(state: Path, pid_output: Path) -> None:
+    for label, path in (("supervisor state", state), ("supervisor PID output", pid_output)):
+        if not path.is_absolute() or "\x00" in os.fspath(path) or ".." in path.parts:
+            raise GuardError(f"{label} path must be absolute and traversal-free")
+    if state == pid_output:
+        raise GuardError("supervisor state and PID output must differ")
+
+
+def _supervisor_stop_child(pidfd: int, child: subprocess.Popen[bytes]) -> None:
+    """Stop exactly the launch-bound child, then wait for its reap."""
+    def exited_within(timeout: float) -> bool:
+        if pidfd >= 0:
+            return _poll_pidfd(pidfd, timeout)
+        try:
+            child.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            return False
+        return True
+
+    if child.poll() is None:
+        if pidfd >= 0:
+            _pidfd_send_signal(pidfd, int(signal.SIGTERM))
+        else:
+            child.send_signal(signal.SIGTERM)
+        if not exited_within(SUPERVISOR_TERM_TIMEOUT):
+            if pidfd >= 0:
+                _pidfd_send_signal(pidfd, int(signal.SIGKILL))
+            else:
+                child.kill()
+            if not exited_within(SUPERVISOR_KILL_TIMEOUT):
+                raise GuardError("Apache supervisor child did not exit within bounded cleanup")
+    try:
+        child.wait(timeout=SUPERVISOR_REAP_GRACE)
+    except subprocess.TimeoutExpired as exc:
+        raise GuardError("Apache supervisor child was not reaped within bounded cleanup") from exc
+
+
+def _pin_launch_fd(path: Path, *, executable: bool) -> int:
+    """Open the exact runner-provided inode before launch; reject links."""
+    flags = os.O_RDONLY | os.O_NOFOLLOW
+    if hasattr(os, "O_CLOEXEC"):
+        flags |= os.O_CLOEXEC
+    try:
+        fd = os.open(path, flags)
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or info.st_mode & 0o022:
+            raise GuardError("Apache launch input is not an owned regular file")
+        if executable and not (info.st_mode & 0o111):
+            raise GuardError("Apache executable inode is not executable")
+        if not executable and info.st_mode & 0o022:
+            raise GuardError("Apache config inode is writable by group/world")
+        return fd
+    except (GuardError, OSError) as exc:
+        try:
+            os.close(fd)
+        except (OSError, UnboundLocalError):
+            pass
+        if isinstance(exc, GuardError):
+            raise
+        raise GuardError(f"cannot pin Apache launch input {path}: {exc}") from exc
+
+
+def _write_pid_output(path: Path, pid: int, artifact_root: Path) -> os.stat_result:
+    parent_fd, name = _open_artifact_parent(path, artifact_root)
+    fd = -1
+    created_identity: os.stat_result | None = None
+    try:
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+        if hasattr(os, "O_CLOEXEC"):
+            flags |= os.O_CLOEXEC
+        fd = os.open(name, flags, 0o600, dir_fd=parent_fd)
+        created_identity = os.fstat(fd)
+        _write_all(fd, f"{pid}\n".encode("ascii"))
+        os.fsync(fd)
+        identity = os.fstat(fd)
+        closing_fd = fd
+        fd = -1
+        os.close(closing_fd)
+        current = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+        if (current.st_dev, current.st_ino) != (identity.st_dev, identity.st_ino):
+            raise GuardError("Apache supervisor PID output inode changed during publication")
+        return identity
+    except (GuardError, OSError) as exc:
+        if fd >= 0:
+            os.close(fd)
+        if created_identity is not None:
+            try:
+                current = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+                if (current.st_dev, current.st_ino) == (created_identity.st_dev, created_identity.st_ino):
+                    os.unlink(name, dir_fd=parent_fd)
+            except FileNotFoundError:
+                pass
+        raise GuardError(f"cannot publish Apache supervisor PID: {exc}") from exc
+    finally:
+        os.close(parent_fd)
+
+
+def retire_supervisor_session(state: Path, pid_output: Path, artifact_root: Path) -> None:
+    """Retire one proven-stale supervisor session, never an arbitrary path."""
+    try:
+        state_info = os.lstat(state)
+    except OSError as exc:
+        raise GuardError(f"cannot inspect Apache supervisor state: {exc}") from exc
+    evidence = _load(state, artifact_root)
+    if evidence.get("kind") != "apache-supervisor-session" or evidence.get("version") != 1:
+        raise GuardError("invalid Apache supervisor stale-session state kind/version")
+    parent_pid = int(evidence["parent_pid"])
+    parent_start = int(evidence["parent_pid_starttime"])
+    caller_parent = os.getppid()
+    try:
+        caller_parent_identity = _stat(caller_parent)
+    except (FileNotFoundError, GuardError) as exc:
+        raise GuardError("current Apache runner lineage is unavailable") from exc
+    direct_identity = _stat(os.getpid())
+    if not (
+        (caller_parent == parent_pid and caller_parent_identity["starttime"] == parent_start)
+        or (direct_identity["starttime"] == parent_start and os.getpid() == parent_pid)
+    ):
+        raise GuardError("current Apache runner lineage does not match recorded parent")
+    for field in ("supervisor_pid", "child_pid"):
+        try:
+            pid = int(evidence[field])
+            start = int(evidence[f"{field}_starttime"])
+            actual = _stat(pid)
+        except FileNotFoundError:
+            continue
+        except (KeyError, TypeError, ValueError, GuardError) as exc:
+            raise GuardError("invalid Apache supervisor stale-session identity") from exc
+        if actual["starttime"] == start:
+            raise GuardError("Apache supervisor session is active or ambiguous")
+    pid_info = None
+    try:
+        pid_info = os.stat(pid_output, follow_symlinks=False)
+    except FileNotFoundError:
+        pass
+    _remove_exact_artifact(state, artifact_root, state_info)
+    if pid_info is not None:
+        _remove_exact_artifact(pid_output, artifact_root, pid_info)
+
+
+def _remove_exact_artifact(path: Path, artifact_root: Path, expected: os.stat_result) -> None:
+    parent_fd, name = _open_artifact_parent(path, artifact_root)
+    try:
+        info = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+        if (info.st_dev, info.st_ino) == (expected.st_dev, expected.st_ino):
+            os.unlink(name, dir_fd=parent_fd)
+    except FileNotFoundError:
+        pass
+    finally:
+        os.close(parent_fd)
+
+
+def _child_preexec(expected_parent: int, parent_mask: set[signal.Signals]) -> None:
+    """Install child PDEATHSIG before exec and reject a dead supervisor."""
+    signal.pthread_sigmask(signal.SIG_SETMASK, parent_mask)
+    # SIGKILL is kernel-enforced and cannot be ignored: if pidfd acquisition
+    # fails or the supervisor is killed, this exact child cannot orphan.
+    _set_parent_death_signal(int(signal.SIGKILL))
+    if os.getppid() != expected_parent:
+        os._exit(77)
+
+
+def supervise(httpd: Path, config: Path, state: Path, pid_output: Path) -> int:
+    """Run only the validated Apache smoke command under a launch-bound guard."""
+    _supervisor_paths(state, pid_output)
+    if not httpd.is_absolute() or not config.is_absolute():
+        raise GuardError("Apache supervisor requires absolute httpd and config paths")
+    if httpd.name not in ("httpd", "apache2"):
+        raise GuardError("Apache supervisor accepts only an httpd/apache2 executable")
+    expected_parent = os.getppid()
+    supervisor_pid = os.getpid()
+    stop_requested = False
+
+    def request_stop(signum: int, _frame: Any) -> None:
+        nonlocal stop_requested
+        stop_requested = True
+
+    for signum in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
+        signal.signal(signum, request_stop)
+    old_mask = signal.pthread_sigmask(signal.SIG_BLOCK, (signal.SIGTERM, signal.SIGHUP, signal.SIGINT))
+    # During fork/exec the signal mask is intentionally blocked.  Use an
+    # unignorable supervisor death action for that short window so a pending
+    # runner death cannot leave a half-launched child behind.
+    _set_parent_death_signal(int(signal.SIGKILL))
+    if os.getppid() != expected_parent:
+        raise GuardError("Apache supervisor runner disappeared before launch")
+    httpd_fd = -1
+    config_fd = -1
+    try:
+        httpd_fd = _pin_launch_fd(httpd, executable=True)
+        config_fd = _pin_launch_fd(config, executable=False)
+        child = subprocess.Popen(
+            [f"/proc/self/fd/{httpd_fd}", "-X", "-f", f"/proc/self/fd/{config_fd}"],
+            stdout=subprocess.DEVNULL,
+            stderr=None,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+            close_fds=True,
+            pass_fds=(httpd_fd, config_fd),
+            preexec_fn=lambda: _child_preexec(supervisor_pid, old_mask),
+        )
+    except OSError as exc:
+        if httpd_fd >= 0:
+            os.close(httpd_fd)
+        if config_fd >= 0:
+            os.close(config_fd)
+        raise GuardError(f"cannot launch Apache under supervisor: {exc}") from exc
+    except GuardError:
+        if httpd_fd >= 0:
+            os.close(httpd_fd)
+        if config_fd >= 0:
+            os.close(config_fd)
+        raise
+    try:
+        _set_parent_death_signal()
+        if os.getppid() != expected_parent:
+            raise GuardError("Apache supervisor runner disappeared during launch")
+        pidfd = os.pidfd_open(child.pid)
+    except (GuardError, OSError) as exc:
+        try:
+            _supervisor_stop_child(pidfd if "pidfd" in locals() else -1, child)
+        except (GuardError, OSError, subprocess.TimeoutExpired):
+            pass
+        raise GuardError(str(exc)) from exc
+    finally:
+        os.close(httpd_fd)
+        os.close(config_fd)
+    listener: socket.socket | None = None
+    address = "\0msconnector-apache-" + secrets.token_hex(16)
+    state_identity: os.stat_result | None = None
+    try:
+        listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        listener.settimeout(SUPERVISOR_CONTROL_TIMEOUT)
+        listener.bind(address)
+        listener.listen(1)
+        parent_starttime = _stat(expected_parent)["starttime"]
+        child_stat = _stat(child.pid)
+        supervisor_stat = _stat(supervisor_pid)
+        state_identity = _publish_supervisor_state(
+            {"kind": "apache-supervisor-session", "version": 1,
+             "address": address[1:], "parent_pid": expected_parent,
+             "parent_pid_starttime": parent_starttime, "child_pid": child.pid,
+             "child_pid_starttime": child_stat["starttime"], "supervisor_pid": supervisor_pid,
+             "supervisor_pid_starttime": supervisor_stat["starttime"]}, state,
+            _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"),
+        )
+        pid_identity = _write_pid_output(
+            pid_output, child.pid,
+            _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"),
+        )
+        signal.pthread_sigmask(signal.SIG_SETMASK, old_mask)
+        while child.poll() is None:
+            if stop_requested:
+                _supervisor_stop_child(pidfd, child)
+                break
+            try:
+                peer, _ = listener.accept()
+            except socket.timeout:
+                continue
+            with peer:
+                credentials = peer.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12)
+                peer_pid, peer_uid, _ = struct.unpack("3i", credentials)
+                if peer_uid != os.geteuid() or peer_pid <= 1:
+                    continue
+                peer_identity = _stat(peer_pid)
+                if (peer_identity["ppid"] != expected_parent or
+                        _stat(expected_parent)["starttime"] != parent_starttime):
+                    continue
+                peer.settimeout(SUPERVISOR_CONTROL_TIMEOUT)
+                command = peer.recv(SUPERVISOR_CONTROL_BYTES)
+                if command.rstrip(b"\n") in (b"stop", b"shutdown", b"cancel"):
+                    _supervisor_stop_child(pidfd, child)
+                    peer.sendall(b"ACK\n")
+                    break
+                continue
+        if child.poll() is None:
+            _supervisor_stop_child(pidfd, child)
+        # The runner observes Apache's actual PID for readiness and records;
+        # supervisor status is reserved for supervisor/cleanup failures.  A
+        # signal-terminated Apache is therefore a successfully reaped child,
+        # not a cleanup error.
+        return 0
+    except (OSError, GuardError, subprocess.TimeoutExpired) as exc:
+        try:
+            _supervisor_stop_child(pidfd, child)
+        except (GuardError, OSError, subprocess.TimeoutExpired):
+            pass
+        raise GuardError(f"Apache supervisor failed: {exc}") from exc
+    finally:
+        os.close(pidfd)
+        if listener is not None:
+            listener.close()
+        if state_identity is not None:
+            try:
+                _remove_exact_artifact(
+                    state, _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"),
+                    state_identity,
+                )
+            except GuardError:
+                pass
+        if "pid_identity" in locals():
+            try:
+                _remove_exact_artifact(pid_output, _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"), pid_identity)
+            except GuardError:
+                pass
+
+
+def stop_supervisor(state: Path, artifact_root: Path) -> None:
+    evidence = _load(state, artifact_root)
+    if evidence.get("kind") != "apache-supervisor-session" or evidence.get("version") != 1:
+        raise GuardError("invalid Apache supervisor state kind/version")
+    address = evidence.get("address")
+    if not isinstance(address, str) or not address.startswith("msconnector-apache-"):
+        raise GuardError("invalid Apache supervisor state address")
+    client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    client.settimeout(SUPERVISOR_ACK_TIMEOUT)
+    try:
+        client.connect("\0" + address)
+        client.sendall(b"stop\n")
+        if client.recv(8) != b"ACK\n":
+            raise GuardError("Apache supervisor did not acknowledge reaped child")
+    except OSError as exc:
+        raise GuardError(f"cannot stop Apache supervisor: {exc}") from exc
+    finally:
+        client.close()
 
 
 def _runner_configured_path(variable: str, capability: str) -> Path:
@@ -206,10 +560,11 @@ def _stat(pid: int) -> dict[str, int]:
     if close < 0:
         raise GuardError(f"malformed /proc/{pid}/stat")
     fields = raw[close + 2 :].split()
-    # fields[0] is field 3 (state); pgrp/session/starttime are fields
-    # 5/6/22, hence indexes 2/3/19 in this suffix.
+    # fields[0] is field 3 (state); parent/pgrp/session/starttime are fields
+    # 4/5/6/22, hence indexes 1/2/3/19 in this suffix.
     try:
         return {
+            "ppid": int(fields[1]),
             "pgrp": int(fields[2]),
             "session": int(fields[3]),
             "starttime": int(fields[19]),
@@ -495,7 +850,7 @@ def verify_running(evidence: dict[str, Any]) -> None:
         fds = _fd_inodes(pid)
     except OSError as exc:
         raise GuardError(f"process identity is unavailable: {exc}") from exc
-    if actual != expected or actual_exe != expected_exe:
+    if any(actual.get(key) != value for key, value in expected.items()) or actual_exe != expected_exe:
         raise GuardError("Apache PID identity changed (possible PID reuse)")
     try:
         port = int(evidence["port"])
@@ -739,6 +1094,57 @@ def _publish_record_payload(
                 pass
 
 
+def _publish_supervisor_state(
+    payload: dict[str, Any], output: Path, artifact_root: Path
+) -> os.stat_result:
+    """Publish launch state atomically without a pathname control socket."""
+    encoded = (json.dumps(payload, sort_keys=True) + "\n").encode("utf-8")
+    parent_fd = -1
+    temporary_fd = -1
+    temporary_name: str | None = None
+    temporary_identity: os.stat_result | None = None
+    owned_identity: os.stat_result | None = None
+    try:
+        parent_fd, output_name = _open_artifact_parent(output, artifact_root)
+        temporary_fd, temporary_name = _open_temporary_evidence(parent_fd, _temporary_evidence_flags())
+        _write_all(temporary_fd, encoded)
+        temporary_identity = os.fstat(temporary_fd)
+        owned_identity = temporary_identity
+        closing_fd = temporary_fd
+        temporary_fd = -1
+        os.close(closing_fd)
+        os.link(temporary_name, output_name, src_dir_fd=parent_fd,
+                dst_dir_fd=parent_fd, follow_symlinks=False)
+        current = os.stat(output_name, dir_fd=parent_fd, follow_symlinks=False)
+        if (current.st_dev, current.st_ino) != (
+                temporary_identity.st_dev, temporary_identity.st_ino):
+            raise GuardError("Apache supervisor state inode changed during publication")
+        os.unlink(temporary_name, dir_fd=parent_fd)
+        temporary_name = None
+        return owned_identity
+    except (GuardError, OSError) as exc:
+        if temporary_fd >= 0:
+            os.close(temporary_fd)
+        if parent_fd >= 0 and temporary_name is not None and temporary_identity is not None:
+            try:
+                current = os.stat(temporary_name, dir_fd=parent_fd, follow_symlinks=False)
+                if (current.st_dev, current.st_ino) == (temporary_identity.st_dev, temporary_identity.st_ino):
+                    os.unlink(temporary_name, dir_fd=parent_fd)
+            except (FileNotFoundError, OSError):
+                pass
+        if parent_fd >= 0 and owned_identity is not None:
+            try:
+                current = os.stat(output_name, dir_fd=parent_fd, follow_symlinks=False)
+                if (current.st_dev, current.st_ino) == (owned_identity.st_dev, owned_identity.st_ino):
+                    os.unlink(output_name, dir_fd=parent_fd)
+            except (FileNotFoundError, OSError):
+                pass
+        raise GuardError(f"cannot publish Apache supervisor state: {exc}") from exc
+    finally:
+        if parent_fd >= 0:
+            os.close(parent_fd)
+
+
 def record(pid: int, executable: str, port: int, output: Path, artifact_root: Path) -> None:
     payload, inspection_error = _capture_record_payload(
         pid, os.path.realpath(executable), port
@@ -829,6 +1235,16 @@ def main() -> int:
     rec.add_argument("--executable", required=True)
     rec.add_argument("--port", type=int, required=True)
     rec.add_argument("--output", type=Path, required=True)
+    supervisor = sub.add_parser("supervise")
+    supervisor.add_argument("--httpd", type=Path, required=True)
+    supervisor.add_argument("--config", type=Path, required=True)
+    supervisor.add_argument("--state", type=Path, required=True)
+    supervisor.add_argument("--pid-output", type=Path, required=True)
+    stop = sub.add_parser("stop-supervisor")
+    stop.add_argument("--state", type=Path, required=True)
+    retire = sub.add_parser("retire-supervisor-artifact")
+    retire.add_argument("--state", type=Path, required=True)
+    retire.add_argument("--pid-output", type=Path, required=True)
     for name in ("verify-running", "signal", "terminate", "verify-stopped", "verify-pid", "preflight"):
         command = sub.add_parser(name)
         if name not in ("preflight",):
@@ -852,6 +1268,18 @@ def main() -> int:
                 args.executable,
                 args.port,
                 args.output,
+                _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"),
+            )
+        elif args.command == "supervise":
+            return supervise(args.httpd, args.config, args.state, args.pid_output)
+        elif args.command == "stop-supervisor":
+            stop_supervisor(
+                args.state,
+                _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"),
+            )
+        elif args.command == "retire-supervisor-artifact":
+            retire_supervisor_session(
+                args.state, args.pid_output,
                 _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"),
             )
         elif args.command == "verify-running":

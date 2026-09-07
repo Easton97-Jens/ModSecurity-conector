@@ -1194,6 +1194,37 @@ func TestCancellationCleansUpWithoutAttributingTheHTTPReset(t *testing.T) {
 	}
 }
 
+func TestInheritedParentDeadlineIsCancellationNotStreamLifetime(t *testing.T) {
+	transaction := &recordingTransaction{}
+	service := newTestService(t, transaction, LateActionSafe)
+	service.config.StreamMaxLifetimeMS = 1000
+	parent, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	recvRelease := make(chan struct{})
+	stream := &fakeProcessStream{
+		contextFactory: testStreamContext(parent),
+		receive:        []receiveResult{{request: requestHeaders(false)}},
+		recvBlock:      recvRelease,
+	}
+	err := service.Process(stream)
+	close(recvRelease)
+	if err != nil {
+		t.Fatalf("Process() error = %v, want graceful cancellation", err)
+	}
+	if len(transaction.closed) != 1 || transaction.closed[0].CloseReason != CloseContextCanceled {
+		t.Fatalf("cleanup = %#v, want one parent-cancellation cleanup", transaction.closed)
+	}
+	if fatal := service.terminalFailure(); fatal != nil {
+		t.Fatalf("inherited parent deadline reported fatal = %v", fatal)
+	}
+	if err := service.Process(&fakeProcessStream{
+		contextFactory: testStreamContext(context.Background()),
+		receive:        []receiveResult{{request: requestHeaders(true)}},
+	}); err != nil {
+		t.Fatalf("follow-up Process() error = %v", err)
+	}
+}
+
 func TestPeerEOFCleansUpWithoutAttributingTheHTTPReset(t *testing.T) {
 	transaction := &recordingTransaction{}
 	service := newTestService(t, transaction, LateActionSafe)

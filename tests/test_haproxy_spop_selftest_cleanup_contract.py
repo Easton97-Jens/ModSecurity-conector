@@ -13,6 +13,35 @@ SOURCE = ROOT / "connectors" / "haproxy" / "src" / "haproxy_spop_diagnostic_runt
 
 
 class HAProxySPOPSelfTestCleanupContractTests(unittest.TestCase):
+    def test_runtime_owns_decision_log_lock_for_complete_records(self) -> None:
+        source = SOURCE.read_text(encoding="utf-8")
+        self.assertIn("pthread_mutex_t decision_log_lock;", source)
+        self.assertIn("pthread_mutex_init(&state.decision_log_lock, 0)", source)
+        self.assertIn("pthread_mutex_lock(&state->decision_log_lock)", source)
+        self.assertIn("pthread_mutex_unlock(&state->decision_log_lock)", source)
+        self.assertIn("pthread_mutex_destroy(&state->decision_log_lock)", source)
+        decision_start = source.index("static void decision_log_write(")
+        decision_end = source.index("static int production_config_has_safe_peer_limits", decision_start)
+        decision_body = source[decision_start:decision_end]
+        self.assertLess(
+            decision_body.index("pthread_mutex_lock(&state->decision_log_lock)"),
+            decision_body.index("phase4_common_event_write("),
+        )
+        self.assertLess(
+            decision_body.index("phase4_common_event_write("),
+            decision_body.index("pthread_mutex_unlock(&state->decision_log_lock)"),
+        )
+
+    def test_cache_miss_control_includes_both_endpoints(self) -> None:
+        harness = (ROOT / "connectors" / "haproxy" / "harness" /
+                   "run_haproxy_spop_cache_miss.sh").read_text(encoding="utf-8")
+        self.assertIn('("client_ip", typed_ipv4("127.0.0.1"))', harness)
+        self.assertIn('("server_ip", typed_ipv4("127.0.0.1"))', harness)
+        self.assertIn('("client_port", typed_uint(41000))', harness)
+        self.assertIn('("server_port", typed_uint(8080))', harness)
+        self.assertIn('headers = "Host: localhost\\r\\n"', harness)
+        self.assertIn('args.append(("headers", typed_string(headers)))', harness)
+
     def test_compiled_cleanup_removes_pass_and_idempotent_error_metadata(self) -> None:
         compiler = shutil.which("cc")
         if compiler is None:
@@ -217,17 +246,105 @@ int main(void) {
             )
             self.assertEqual(run_result.returncode, 0, run_result.stderr)
 
+    def test_cleanup_continues_after_eisdir_and_cannot_report_success(self) -> None:
+        compiler = shutil.which("cc")
+        if compiler is None:
+            self.skipTest("requires a C compiler")
+
+        harness_source = r'''
+#define main haproxy_spop_diagnostic_runtime_program_main
+#include "__SOURCE__"
+#undef main
+
+#include <assert.h>
+#include <sys/stat.h>
+
+int main(void) {
+    const char *root = "__ROOT__";
+    char ready[4096];
+    char pid_path[4096];
+    char port[4096];
+    FILE *log;
+
+    assert(mkdir_p(root) == 0);
+    snprintf(ready, sizeof(ready), "%s/ready", root);
+    snprintf(pid_path, sizeof(pid_path), "%s/pid", root);
+    snprintf(port, sizeof(port), "%s/port", root);
+    assert(close(creat(ready, 0600)) == 0);
+    assert(close(creat(pid_path, 0600)) == 0);
+    assert(mkdir(port, 0700) == 0);
+    log = fopen("__LOG__", "w");
+    assert(log != NULL);
+    assert(cleanup_self_test_metadata(ready, pid_path, port,
+        SELF_TEST_METADATA_ALL, log) != 0);
+    assert(access(ready, F_OK) != 0);
+    assert(access(pid_path, F_OK) != 0);
+    assert(access(port, F_OK) == 0);
+    assert(fclose(log) == 0);
+    log = fopen("__LOG__", "r");
+    assert(log != NULL);
+    {
+        char contents[256] = {0};
+        assert(fread(contents, 1, sizeof(contents) - 1, log) > 0);
+        assert(strstr(contents, "self-test metadata cleanup FAILED") != NULL);
+        assert(strstr(contents, "self-test metadata cleanup PASS") == NULL);
+    }
+    assert(fclose(log) == 0);
+    assert(rmdir(port) == 0);
+    return 0;
+}
+'''
+
+        with tempfile.TemporaryDirectory(
+            prefix="haproxy-spop-selftest-eisdir-",
+            dir=os.environ.get("TMPDIR"),
+        ) as temporary_directory:
+            root = Path(temporary_directory)
+            log_path = root / "cleanup.log"
+            paths = {
+                "__SOURCE__": SOURCE.as_posix(),
+                "__ROOT__": (root / "metadata").as_posix(),
+                "__LOG__": log_path.as_posix(),
+                "__LOG_TEXT__": "self-test metadata cleanup FAILED",
+            }
+            for marker, value in paths.items():
+                harness_source = harness_source.replace(marker, value)
+            harness = root / "eisdir_contract.c"
+            binary = root / "eisdir_contract"
+            harness.write_text(harness_source, encoding="utf-8")
+            compile_result = subprocess.run(
+                [compiler, "-std=c17", "-Wall", "-Wextra", "-Werror",
+                 "-ffunction-sections", "-fdata-sections", "-I",
+                 str(ROOT / "common" / "include"), "-I",
+                 str(ROOT / "connectors" / "haproxy" / "src"), str(harness),
+                 "-Wl,--gc-sections", "-o", str(binary)],
+                cwd=ROOT, check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(compile_result.returncode, 0, compile_result.stderr)
+            run_result = subprocess.run(
+                [str(binary)], cwd=ROOT, check=False, capture_output=True, text=True
+            )
+            self.assertEqual(run_result.returncode, 0, run_result.stderr)
+
     def test_run_self_test_has_cleanup_after_child_waits_on_success_and_errors(self) -> None:
         source = SOURCE.read_text(encoding="utf-8")
         run_self_test = source.split("static int run_self_test", 1)[1].split(
             "typedef struct legacy_server_config", 1
         )[0]
-        self.assertGreaterEqual(
-            run_self_test.count("cleanup_self_test_metadata(ready_path, pid_path, port_path,"),
-            6,
-        )
-        self.assertIn("waitpid(child, &status, 0);\n        (void)cleanup_self_test_metadata", run_self_test)
-        self.assertIn("waitpid(child, &status, 0);\n    if (!WIFEXITED", run_self_test)
+        self.assertIn("finish_self_test_resources(&listen_fd, child_to_reap, &status", run_self_test)
+        self.assertIn("finish_self_test_resources", source)
+        self.assertNotIn("(void)finish_self_test_resources", source)
+        self.assertEqual(run_self_test.count("cleanup:\n"), 1)
+        self.assertIn("pid_t child_to_reap = -1;", run_self_test)
+        self.assertIn("int terminate_child = 0;", run_self_test)
+        self.assertIn("int child_close_rc = 0;", run_self_test)
+        self.assertIn("child_close_rc |= close_self_test_fd(&ready_fd);", run_self_test)
+        self.assertIn("_exit(SPOP_RUNTIME_CLEANUP_FAILURE);", run_self_test)
+        self.assertIn("errno == ECHILD", source)
+        self.assertIn("child_to_reap = -1;", run_self_test)
+        self.assertIn("wait_self_test_child_bounded(child, status, terminate)", source)
+        self.assertIn("wait_self_test_child_bounded(child, &status, 0)", run_self_test)
+        self.assertIn("if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)", run_self_test)
         self.assertIn("ready_fd = claim_self_test_metadata_file(ready_path);", run_self_test)
         self.assertIn("pid_fd = claim_self_test_metadata_file(pid_path);", run_self_test)
         self.assertIn("port_fd = claim_self_test_metadata_file(port_path);", run_self_test)

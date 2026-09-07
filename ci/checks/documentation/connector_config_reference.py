@@ -2903,6 +2903,15 @@ def _traefik_plugin_option(path: str, source_file: str, example_file: str) -> di
             "security": "A finite aggregate budget bounds total request-body work before it reaches the UDS engine.",
             "validation": "normalizedConfig rejects non-positive values, values above 1048576, and chunks larger than the aggregate body bound.",
         },
+        "requestBodyIdleTimeoutMillis": {
+            "type": "integer request-body idle-timeout bound",
+            "values": "positive; maximum 60000 milliseconds",
+            "default": "1000",
+            "effect": "Bounds inactivity between request-body reads; it is independent of the engine timeout and closes the owned source on expiry.",
+            "phase": "P2 request-body activity bound before response commitment; regular reads reset the per-read idle window.",
+            "security": "A finite per-read idle budget prevents a slow or stalled client from retaining a transaction indefinitely.",
+            "validation": "normalizedConfig rejects non-positive values and values above 60000 milliseconds, including integer-overflow inputs.",
+        },
         "maxResponseChunkBytes": {
             "type": "integer response-body chunk-byte bound",
             "values": ALLOWED_VALUES_TRAEFIK_UDS_CHUNK,
@@ -2955,7 +2964,7 @@ def traefik_yaml_options(root: Path, static_source: str, dynamic_source: str) ->
     options: list[dict[str, Any]] = []
     paths = [(static_source, path) for path in extract_yaml_paths(root / static_source)] + [(dynamic_source, path) for path in extract_yaml_paths(root / dynamic_source)]
     seen: set[str] = set()
-    plugin_leaves = {"maxHeaderCount", "maxHeaderBytes", "maxRequestChunkBytes", "maxRequestBodyBytes", "maxResponseChunkBytes", "transactionIDHeader", "engineMode", "engineSocketPath"}
+    plugin_leaves = {"maxHeaderCount", "maxHeaderBytes", "maxRequestChunkBytes", "maxRequestBodyBytes", "requestBodyIdleTimeoutMillis", "maxResponseChunkBytes", "transactionIDHeader", "engineMode", "engineSocketPath"}
     values_by_source = {static_source: extract_yaml_example_values(root / static_source), dynamic_source: extract_yaml_example_values(root / dynamic_source)}
     for source, path in paths:
         if path in seen:
@@ -3055,12 +3064,12 @@ def _assert_documented_defaults(by_key: dict[tuple[str, str], str]) -> None:
 def _assert_traefik_defaults(root: Path, by_key: dict[tuple[str, str], str]) -> None:
     """Reject drift in native Traefik defaults and their rendered inventory rows."""
     traefik_source = _read(root, "connectors/traefik/native_middleware/middleware.go")
-    for token in ("defaultMaxHeaderCount        = 128", "defaultMaxHeaderBytes        = 64 << 10", "defaultMaxRequestChunkBytes  = 32 << 10", "defaultMaxRequestBodyBytes int64 = 1 << 20", "defaultMaxResponseChunkBytes = 32 << 10"):
+    for token in ("defaultMaxHeaderCount         = 128", "defaultMaxHeaderBytes         = 64 << 10", "defaultMaxRequestChunkBytes   = 32 << 10", "defaultMaxRequestBodyBytes int64 = 1 << 20", "defaultMaxResponseChunkBytes  = 32 << 10", "defaultRequestBodyIdleTimeout = 1 * time.Second"):
         if token not in traefik_source:
             raise ValueError(f"Traefik plugin default source changed: expected {token!r}")
     for suffix, expected in {
         "maxHeaderCount": "128", "maxHeaderBytes": "65536", "maxRequestChunkBytes": "32768", "maxRequestBodyBytes": "1048576",
-        "maxResponseChunkBytes": "32768", "transactionIDHeader": "X-Request-Id", "engineMode": "uds",
+        "requestBodyIdleTimeoutMillis": "1000", "maxResponseChunkBytes": "32768", "transactionIDHeader": "X-Request-Id", "engineMode": "uds",
     }.items():
         matches = [value for (connector, name), value in by_key.items() if connector == "traefik" and name.endswith(suffix)]
         if not matches or any(value != expected for value in matches):
@@ -3518,6 +3527,12 @@ GERMAN_TEXT: dict[str, str] = {
     "Bounds request bytes offered to the engine.": "Begrenzt die der Engine angebotenen Request-Bytes.",
     "Bounds response bytes offered to P4 processing by the native connector.": "Begrenzt die vom nativen Connector der P4-Verarbeitung angebotenen Response-Bytes.",
     "Bounds response bytes offered to the engine.": "Begrenzt die der Engine angebotenen Response-Bytes.",
+    "Bounds inactivity between request-body reads; it is independent of the engine timeout and closes the owned source on expiry.": "Begrenzt die Inaktivität zwischen Request-Body-Lesevorgängen unabhängig vom Engine-Timeout und schließt die eigene Quelle bei Ablauf.",
+    "P2 request-body activity bound before response commitment; regular reads reset the per-read idle window.": "P2-Aktivitätsgrenze für den Request-Body vor dem Response-Commit; reguläre Lesevorgänge setzen das Idle-Fenster pro Lesevorgang zurück.",
+    "A finite per-read idle budget prevents a slow or stalled client from retaining a transaction indefinitely.": "Ein endliches Idle-Budget pro Lesevorgang verhindert, dass ein langsamer oder blockierter Client eine Transaktion unbegrenzt hält.",
+    "integer request-body idle-timeout bound": "Ganzzahliges Request-Body-Idle-Timeout-Limit",
+    "positive; maximum 60000 milliseconds": "positiv; maximal 60000 Millisekunden",
+    "normalizedConfig rejects non-positive values and values above 60000 milliseconds, including integer-overflow inputs.": "normalizedConfig lehnt nichtpositive Werte und Werte über 60000 Millisekunden einschließlich Integer-Überläufen ab.",
     "Bounds serialized metadata event size.": "Begrenzt die Größe serialisierter Metadatenereignisse.",
     "Bounds the native middleware's streaming callbacks.": "Begrenzt die Streaming-Callbacks der nativen Middleware.",
     "Bounds total header bytes.": "Begrenzt die gesamte Header-Byteanzahl.",
@@ -3918,6 +3933,8 @@ def _yaml_german_fallback(option: dict[str, Any], field: str) -> str:
     if field == "allowed_values":
         return f"Die zulässige Ausprägung von `{path}` ergibt sich aus dem ausgewählten {connector}-Template und der Hostvalidierung."
     if field == "default":
+        if option.get("connector") == "traefik" and path.endswith("requestBodyIdleTimeoutMillis"):
+            return option["default"]
         return f"Der Connector definiert für `{path}` keinen unabhängigen Standardwert; das ausgewählte Template legt den gezeigten Wert ausdrücklich fest."
     if field == "default_source":
         return f"Ausgewähltes {connector}-Template und der im Quellanker referenzierte Validierungscode."

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 from dataclasses import dataclass
 import errno
 import json
@@ -86,6 +87,7 @@ SESSION_RELEASE_ENV = f"{SESSION_ENV_PREFIX}RELEASE"
 SESSION_RUNTIME_ROOT_ENV = f"{SESSION_ENV_PREFIX}RUNTIME_ROOT"
 SESSION_RECEIPT_ENV = f"{SESSION_ENV_PREFIX}RECEIPT"
 SESSION_TIMEOUT_ENV = f"{SESSION_ENV_PREFIX}TIMEOUT"
+SESSION_PARENT_PID_ENV = f"{SESSION_ENV_PREFIX}PARENT_PID"
 MAX_SESSION_VALUE_BYTES = 8192
 
 
@@ -989,19 +991,19 @@ def _runner_session_command() -> list[str]:
     """
     profile = _runner_session_value(SESSION_PROFILE_ENV)
     if profile == "lighttpd-config-check":
-        _session_profile_environment(profile, (SESSION_EXECUTABLE_ENV, SESSION_MODULE_DIR_ENV, SESSION_CONFIG_ENV))
+        _session_profile_environment(profile, (SESSION_EXECUTABLE_ENV, SESSION_MODULE_DIR_ENV, SESSION_CONFIG_ENV, SESSION_PARENT_PID_ENV))
         executable = _profile_executable(profile, "lighttpd")
         module_directory = _validated_module_directory(_runner_session_value(SESSION_MODULE_DIR_ENV))
         config = _profile_private_artifact(SESSION_CONFIG_ENV)
         return [executable, "-m", module_directory, "-tt", "-f", config]
     if profile == "lighttpd-server":
-        _session_profile_environment(profile, (SESSION_EXECUTABLE_ENV, SESSION_MODULE_DIR_ENV, SESSION_CONFIG_ENV))
+        _session_profile_environment(profile, (SESSION_EXECUTABLE_ENV, SESSION_MODULE_DIR_ENV, SESSION_CONFIG_ENV, SESSION_PARENT_PID_ENV))
         executable = _profile_executable(profile, "lighttpd")
         module_directory = _validated_module_directory(_runner_session_value(SESSION_MODULE_DIR_ENV))
         config = _profile_private_artifact(SESSION_CONFIG_ENV)
         return [executable, "-D", "-m", module_directory, "-f", config]
     if profile == "sleep-duration":
-        _session_profile_environment(profile, (SESSION_EXECUTABLE_ENV, SESSION_DURATION_ENV))
+        _session_profile_environment(profile, (SESSION_EXECUTABLE_ENV, SESSION_DURATION_ENV, SESSION_PARENT_PID_ENV))
         executable = _profile_executable(profile, "sleep")
         duration = _runner_session_value(SESSION_DURATION_ENV)
         if not duration.isdigit() or int(duration) > 86400:
@@ -1017,6 +1019,7 @@ def _runner_session_command() -> list[str]:
             SESSION_RUNTIME_ROOT_ENV,
             SESSION_RECEIPT_ENV,
             SESSION_TIMEOUT_ENV,
+            SESSION_PARENT_PID_ENV,
         )
         _session_profile_environment(profile, required)
         executable = _profile_executable(profile, "python")
@@ -1047,12 +1050,44 @@ def _runner_session_command() -> list[str]:
     raise GuardFailure("session profile is not approved")
 
 
+def _session_parent_pid() -> int:
+    # Older direct guard callers do not provide the optional binding; bind to
+    # the observed parent immediately and still perform the post-prctl
+    # recheck.  The lifecycle harness always supplies the explicit PID.
+    value = os.environ.get(SESSION_PARENT_PID_ENV, str(os.getppid()))
+    if not value.isdigit():
+        raise GuardFailure("session parent PID is invalid")
+    parent_pid = int(value)
+    if not 1 <= parent_pid <= 4_194_304:
+        raise GuardFailure("session parent PID is outside the bounded range")
+    return parent_pid
+
+
+def _bind_parent_death_signal(expected_parent_pid: int) -> None:
+    if os.getppid() != expected_parent_pid:
+        raise GuardFailure("session parent changed before parent-death binding")
+    try:
+        libc = ctypes.CDLL(None, use_errno=True)
+        prctl = libc.prctl
+        prctl.argtypes = [ctypes.c_int, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong]
+        prctl.restype = ctypes.c_int
+        if prctl(1, signal.SIGTERM, 0, 0, 0) != 0:
+            error = ctypes.get_errno()
+            raise OSError(error, os.strerror(error))
+    except (AttributeError, OSError) as exc:
+        raise GuardFailure("cannot bind parent-death signal") from exc
+    if os.getppid() != expected_parent_pid:
+        raise GuardFailure("session parent changed after parent-death binding")
+
+
 def exec_session(file_limit_blocks: int, session_record: Path | None = None) -> None:
     if not 1 <= file_limit_blocks <= 2048:
         raise GuardFailure("session file limit is invalid")
+    expected_parent_pid = _session_parent_pid()
     command = _runner_session_command()
     try:
         resource.setrlimit(resource.RLIMIT_FSIZE, (file_limit_blocks * 512, file_limit_blocks * 512))
+        _bind_parent_death_signal(expected_parent_pid)
         os.setsid()
         if session_record is not None:
             _register_session(session_record)
@@ -1133,6 +1168,47 @@ def signal_owned(pid: int, expected_start: str, expected_exe: str, signal_number
         signal.pidfd_send_signal(pidfd, signal_number)
     except OSError as exc:
         raise GuardFailure("pidfd signal failed") from exc
+    finally:
+        os.close(pidfd)
+
+
+def terminate_unregistered_session(pid: int, expected_start: str, expected_exe: str,
+                                   timeout_seconds: float) -> None:
+    """Terminate only the exec-session leader before registration is published.
+
+    This is intentionally limited to a still-unique session leader.  The
+    caller may use it only during the bounded window between fork and
+    ``_register_session``; no numeric PID fallback or process-group signal is
+    permitted when that identity cannot be proven.
+    """
+    if not 0.0 < timeout_seconds <= 30.0:
+        raise GuardFailure("unregistered session timeout is outside the bounded range")
+    pidfd = _pidfd_for_identity(pid, expected_start, expected_exe)
+    try:
+        process_group, session_id = _session_fields(pid)
+        if process_group != pid or session_id != pid:
+            raise GuardFailure("unregistered task is not a unique session leader")
+        try:
+            signal.pidfd_send_signal(pidfd, signal.SIGTERM)
+        except OSError as exc:
+            if exc.errno != errno.ESRCH:
+                raise GuardFailure("pidfd signal failed for unregistered task") from exc
+        deadline = time.monotonic() + timeout_seconds
+        while time.monotonic() < deadline:
+            if _process_state(pid) in (None, "Z"):
+                return
+            time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
+        try:
+            signal.pidfd_send_signal(pidfd, signal.SIGKILL)
+        except OSError as exc:
+            if exc.errno != errno.ESRCH:
+                raise GuardFailure("pidfd kill failed for unregistered task") from exc
+        deadline = time.monotonic() + timeout_seconds
+        while time.monotonic() < deadline:
+            if _process_state(pid) in (None, "Z"):
+                return
+            time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
+        raise GuardFailure("unregistered task remained after bounded pidfd termination")
     finally:
         os.close(pidfd)
 
@@ -1737,6 +1813,11 @@ def main() -> int:
     session_signal.add_argument("--start-time", required=True)
     session_signal.add_argument("--exe", required=True)
     session_signal.add_argument("--signal", choices=("TERM", "KILL"), required=True)
+    unregistered = command.add_parser("terminate-unregistered")
+    unregistered.add_argument("--pid", type=int, required=True)
+    unregistered.add_argument("--start-time", required=True)
+    unregistered.add_argument("--exe", required=True)
+    unregistered.add_argument("--timeout-seconds", type=float, required=True)
     absent = command.add_parser("assert-session-absent")
     absent.add_argument("--session", type=int, required=True)
     absent.add_argument("--wait-seconds", type=float, default=0.0)
@@ -1810,6 +1891,8 @@ def main() -> int:
             assert_private_artifact_contains(args.path, args.marker, args.max_bytes)
         elif args.command == "signal-session":
             signal_singleton_session(args.pid, args.start_time, args.exe, getattr(signal, f"SIG{args.signal}"))
+        elif args.command == "terminate-unregistered":
+            terminate_unregistered_session(args.pid, args.start_time, args.exe, args.timeout_seconds)
         elif args.command == "signal":
             signal_owned(args.pid, args.start_time, args.exe, getattr(signal, f"SIG{args.signal}"))
         elif args.command == "assert-listener-absent":

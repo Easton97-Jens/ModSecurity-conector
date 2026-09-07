@@ -195,6 +195,7 @@ typedef struct transaction_slot {
 #define SPOP_OWNER_CALLER_WAIT_MS 1000U
 #define SPOP_OWNER_SHUTDOWN_WAIT_MS 1000U
 #define SPOP_OWNER_RESTART_EXIT_CODE 75
+#define SPOP_RUNTIME_CLEANUP_FAILURE 77
 
 typedef enum spop_owner_task_state {
     SPOP_OWNER_TASK_QUEUED = 0,
@@ -242,6 +243,8 @@ typedef struct agent_state {
     size_t transaction_capacity;
     FILE *log;
     FILE *decision_log;
+    pthread_mutex_t decision_log_lock;
+    int decision_log_lock_initialized;
     spop_owner_queue owner_queue;
     haproxy_spop_response_companion_backend response_backend;
     haproxy_spop_response_companion_slot *response_slots;
@@ -444,6 +447,27 @@ static int write_text_contents(const char *path, const char *contents) {
     return 0;
 }
 
+static int write_fd_contents(int fd, const char *contents) {
+    size_t length;
+    size_t offset = 0U;
+
+    if (fd < 0 || contents == 0 ||
+            bounded_cstring_length(contents, 4096U, &length) != 0) {
+        return -1;
+    }
+    while (offset < length) {
+        ssize_t written = write(fd, contents + offset, length - offset);
+        if (written < 0 && errno == EINTR) {
+            continue;
+        }
+        if (written <= 0) {
+            return -1;
+        }
+        offset += (size_t)written;
+    }
+    return 0;
+}
+
 static int write_unsigned_text_file(const char *path, unsigned int value) {
     char contents[32];
 
@@ -460,6 +484,24 @@ static int write_process_id_file(const char *path, pid_t process_id) {
         return -1;
     }
     return write_text_contents(path, contents);
+}
+
+static int write_unsigned_fd(int fd, unsigned int value) {
+    char contents[32];
+
+    if (snprintf(contents, sizeof(contents), "%u\n", value) < 0) {
+        return -1;
+    }
+    return write_fd_contents(fd, contents);
+}
+
+static int write_process_id_fd(int fd, pid_t process_id) {
+    char contents[32];
+
+    if (snprintf(contents, sizeof(contents), "%ld\n", (long)process_id) < 0) {
+        return -1;
+    }
+    return write_fd_contents(fd, contents);
 }
 
 enum self_test_metadata_mask {
@@ -482,12 +524,25 @@ static int SPOP_MAYBE_UNUSED claim_self_test_metadata_file(const char *path) {
     return open(path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
 }
 
+static int close_self_test_fd(int *fd) {
+    int rc;
+
+    if (fd == 0 || *fd < 0) {
+        return 0;
+    }
+    rc = close(*fd);
+    *fd = -1;
+    return rc;
+}
+
 static int SPOP_MAYBE_UNUSED cleanup_self_test_metadata(const char *ready_path,
         const char *pid_path, const char *port_path, unsigned int mask,
         FILE *log) {
     const char *paths[3] = {ready_path, pid_path, port_path};
     const unsigned int bits[3] = {SELF_TEST_METADATA_READY,
         SELF_TEST_METADATA_PID, SELF_TEST_METADATA_PORT};
+
+    int cleanup_failed = 0;
 
     for (size_t i = 0U; i < 3U; ++i) {
         if ((mask & bits[i]) != 0U && paths[i] != 0 &&
@@ -496,13 +551,15 @@ static int SPOP_MAYBE_UNUSED cleanup_self_test_metadata(const char *ready_path,
                 log_line(log, "self-test metadata cleanup failed path=%s errno=%d",
                     paths[i], errno);
             }
-            return -1;
+            cleanup_failed = 1;
         }
     }
-    if (log != 0) {
+    if (log != 0 && !cleanup_failed) {
         log_line(log, "self-test metadata cleanup PASS");
+    } else if (log != 0) {
+        log_line(log, "self-test metadata cleanup FAILED partial=1");
     }
-    return 0;
+    return cleanup_failed ? -1 : 0;
 }
 
 static uint64_t monotonic_milliseconds(void) {
@@ -513,6 +570,97 @@ static uint64_t monotonic_milliseconds(void) {
     }
     return (uint64_t)value.tv_sec * 1000U +
         (uint64_t)value.tv_nsec / 1000000U;
+}
+
+static int wait_self_test_child_bounded(pid_t child, int *status, int terminate) {
+    uint64_t deadline = monotonic_milliseconds() + 2000U;
+
+    if (child <= 0 || status == 0) {
+        return -1;
+    }
+    if (terminate) {
+        (void)kill(child, SIGTERM);
+    }
+    for (;;) {
+        pid_t result = waitpid(child, status, WNOHANG);
+        if (result == child) {
+            return 0;
+        }
+        if (result < 0) {
+            if (errno == ECHILD) {
+                return -2;
+            }
+            if (errno != EINTR) {
+                return -1;
+            }
+        }
+        if (monotonic_milliseconds() >= deadline) {
+            (void)kill(child, SIGKILL);
+            for (;;) {
+                result = waitpid(child, status, 0);
+                if (result == child) {
+                    /* The forced termination is still a confirmed reap. */
+                    return 0;
+                }
+                if (result < 0 && errno == EINTR) {
+                    continue;
+                }
+                if (result < 0 && errno == ECHILD) {
+                    return -2;
+                }
+                break;
+            }
+            return -1;
+        }
+        {
+            struct timespec pause = {0, 10000000L};
+            (void)nanosleep(&pause, 0);
+        }
+    }
+}
+
+static int finish_self_test_resources(int *listen_fd, pid_t child, int *status,
+        int terminate, int *ready_fd, int *pid_fd, int *port_fd,
+        const char *ready_path, const char *pid_path, const char *port_path,
+        unsigned int owned_metadata, FILE **log) {
+    int failed = 0;
+
+    if (listen_fd != 0 && *listen_fd >= 0) {
+        int descriptor = *listen_fd;
+        /* Mark consumed before close: on Linux a failed close may already
+         * release the descriptor, so retrying could close a reused FD. */
+        *listen_fd = -1;
+        if (close(descriptor) != 0) {
+            failed = 1;
+        }
+        *listen_fd = -1;
+    }
+    if (close_self_test_fd(ready_fd) != 0) {
+        failed = 1;
+    }
+    if (close_self_test_fd(pid_fd) != 0) {
+        failed = 1;
+    }
+    if (close_self_test_fd(port_fd) != 0) {
+        failed = 1;
+    }
+    if (child > 0) {
+        int wait_result = wait_self_test_child_bounded(child, status, terminate);
+        if (wait_result != 0 || !WIFEXITED(*status) || WEXITSTATUS(*status) != 0) {
+            failed = 1;
+        }
+    }
+    if (cleanup_self_test_metadata(ready_path, pid_path, port_path,
+            owned_metadata, log != 0 ? *log : 0) != 0) {
+        failed = 1;
+    }
+    if (log != 0 && *log != 0) {
+        if (fclose(*log) != 0) {
+            failed = 1;
+        }
+        *log = 0;
+    }
+    return failed ? -1 : 0;
 }
 
 /* A peer-local protocol or write failure must be observable, but a hostile
@@ -773,6 +921,17 @@ static int append_typed_string(spop_buffer *buf, const char *value) {
         return -1;
     }
     return append_string(buf, value);
+}
+
+static int append_typed_ipv4(spop_buffer *buf, const char *value) {
+    struct in_addr address;
+
+    if (buf == 0 || value == 0 || inet_pton(AF_INET, value, &address) != 1 ||
+            append_byte(buf, SPOP_DATA_IPV4) != 0) {
+        return -1;
+    }
+    return append_bytes(buf, (const unsigned char *)&address, sizeof(address),
+        sizeof(address));
 }
 
 static int append_typed_empty_string(spop_buffer *buf) {
@@ -1840,7 +1999,7 @@ static int build_notify_request_payload(
         const char *test_header) {
     payload->len = 0;
     if (append_string(payload, "check-request") != 0 ||
-            append_byte(payload, 5U) != 0 ||
+            append_byte(payload, 9U) != 0 ||
             append_string(payload, "method") != 0 ||
             append_typed_string(payload, method) != 0 ||
             append_string(payload, "path") != 0 ||
@@ -1849,6 +2008,14 @@ static int build_notify_request_payload(
             append_typed_string(payload, uri) != 0 ||
             append_string(payload, "host") != 0 ||
             append_typed_string(payload, host) != 0 ||
+            append_string(payload, "client_ip") != 0 ||
+            append_typed_ipv4(payload, "127.0.0.1") != 0 ||
+            append_string(payload, "server_ip") != 0 ||
+            append_typed_ipv4(payload, "127.0.0.1") != 0 ||
+            append_string(payload, "client_port") != 0 ||
+            append_typed_uint32(payload, 41000U) != 0 ||
+            append_string(payload, "server_port") != 0 ||
+            append_typed_uint32(payload, 8080U) != 0 ||
             append_string(payload, "test_header") != 0 ||
             append_typed_string(payload, test_header) != 0) {
         return -1;
@@ -2822,7 +2989,9 @@ static void decision_log_write(
     int original_status;
     time_t now;
 
-    if (state == 0 || state->decision_log == 0 || request == 0 || decision == 0) {
+    if (state == 0 || state->decision_log == 0 || request == 0 || decision == 0 ||
+            !state->decision_log_lock_initialized ||
+            pthread_mutex_lock(&state->decision_log_lock) != 0) {
         return;
     }
     file = state->decision_log;
@@ -2903,6 +3072,7 @@ static void decision_log_write(
 #undef JSON_FIELD_INT
 #undef JSON_FIELD_BOOL
     fflush(file);
+    (void)pthread_mutex_unlock(&state->decision_log_lock);
 }
 
 static int production_config_has_safe_peer_limits(const agent_config *config) {
@@ -5575,7 +5745,11 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
     int ready_fd = -1;
     int pid_fd = -1;
     int port_fd = -1;
+    int close_rc = 0;
     unsigned int owned_metadata = 0U;
+    int result = 0;
+    pid_t child_to_reap = -1;
+    int terminate_child = 0;
 
     if (self_test_rejects_oversized_endpoint_port() != 0) {
         fprintf(stderr, "SPOP oversized endpoint-port rejection self-test failed\n");
@@ -5629,75 +5803,107 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
     listen_fd = bind_localhost("127.0.0.1", 0, &port);
     if (listen_fd < 0) {
         fprintf(stderr, "failed to bind SPOP protocol self-test listener\n");
-        (void)cleanup_self_test_metadata(ready_path, pid_path, port_path,
-            SELF_TEST_METADATA_ALL, log);
-        fclose(log);
-        return 77;
+        result = 77;
+        goto cleanup;
+    }
+    ready_fd = claim_self_test_metadata_file(ready_path);
+    if (ready_fd >= 0) {
+        owned_metadata |= SELF_TEST_METADATA_READY;
+    }
+    pid_fd = claim_self_test_metadata_file(pid_path);
+    if (pid_fd >= 0) {
+        owned_metadata |= SELF_TEST_METADATA_PID;
     }
     port_fd = claim_self_test_metadata_file(port_path);
-    if (port_fd < 0) {
-        close(listen_fd);
-        (void)cleanup_self_test_metadata(ready_path, pid_path, port_path,
-            SELF_TEST_METADATA_ALL, log);
-        fclose(log);
-        return 77;
+    if (port_fd >= 0) {
+        owned_metadata |= SELF_TEST_METADATA_PORT;
     }
-    owned_metadata |= SELF_TEST_METADATA_PORT;
-    close(port_fd);
-    port_fd = -1;
-    if (write_unsigned_text_file(port_path, port) != 0) {
-        close(listen_fd);
-        (void)cleanup_self_test_metadata(ready_path, pid_path, port_path,
-            SELF_TEST_METADATA_ALL, log);
-        fclose(log);
-        return 77;
+    if (ready_fd < 0 || pid_fd < 0 || port_fd < 0) {
+        result = 77;
+        goto cleanup;
+    }
+    if (write_unsigned_fd(port_fd, port) != 0) {
+        result = 77;
+        goto cleanup;
     }
     child = fork();
     if (child < 0) {
-        close(listen_fd);
-        (void)cleanup_self_test_metadata(ready_path, pid_path, port_path,
-            SELF_TEST_METADATA_ALL, log);
-        fclose(log);
-        return 77;
+        result = 77;
+        goto cleanup;
     }
+    child_to_reap = child;
     if (child == 0) {
-        ready_fd = claim_self_test_metadata_file(ready_path);
-        pid_fd = claim_self_test_metadata_file(pid_path);
-        if (ready_fd >= 0) {
-            owned_metadata |= SELF_TEST_METADATA_READY;
-            close(ready_fd);
+        int child_close_rc = 0;
+
+        child_close_rc |= close_self_test_fd(&ready_fd);
+        child_close_rc |= close_self_test_fd(&pid_fd);
+        child_close_rc |= close_self_test_fd(&port_fd);
+        if (child_close_rc != 0) {
+            fprintf(stderr, "SPOP protocol self-test child metadata close failed\n");
+            _exit(SPOP_RUNTIME_CLEANUP_FAILURE);
         }
-        if (pid_fd >= 0) {
-            owned_metadata |= SELF_TEST_METADATA_PID;
-            close(pid_fd);
-        }
-        if (ready_fd < 0 || pid_fd < 0 ||
-                write_process_id_file(pid_path, getpid()) != 0 ||
-                write_text_contents(ready_path, "ready\n") != 0) {
-            exit(77);
-        }
-        exit(accept_loop(listen_fd, 0, log, 3, 0, 0, 2000U, 8U));
+        status = accept_loop(listen_fd, 0, log, 3, 0, 0, 2000U, 8U);
+        exit(status);
     }
-    close(listen_fd);
-    if (run_client_self_test(port, log) != 0) {
-        kill(child, SIGTERM);
-        waitpid(child, &status, 0);
-        (void)cleanup_self_test_metadata(ready_path, pid_path, port_path,
-            SELF_TEST_METADATA_ALL, log);
-        fclose(log);
+    {
+        int listener = listen_fd;
+        listen_fd = -1;
+        if (close(listener) != 0) {
+            terminate_child = 1;
+            fprintf(stderr, "SPOP protocol self-test listener close failed\n");
+            result = 1;
+            goto cleanup;
+        }
+    }
+    if (write_process_id_fd(pid_fd, child) != 0 ||
+            write_fd_contents(ready_fd, "ready\n") != 0) {
+        terminate_child = 1;
         fprintf(stderr, "SPOP protocol self-test failed\n");
-        return 1;
+        result = 1;
+        goto cleanup;
     }
-    waitpid(child, &status, 0);
+    close_rc |= close_self_test_fd(&ready_fd);
+    close_rc |= close_self_test_fd(&pid_fd);
+    close_rc |= close_self_test_fd(&port_fd);
+    if (close_rc != 0) {
+        terminate_child = 1;
+        fprintf(stderr, "SPOP protocol self-test metadata close failed\n");
+        result = 1;
+        goto cleanup;
+    }
+    if (run_client_self_test(port, log) != 0) {
+        terminate_child = 1;
+        fprintf(stderr, "SPOP protocol self-test failed\n");
+        result = 1;
+        goto cleanup;
+    }
+    {
+        int wait_result = wait_self_test_child_bounded(child, &status, 0);
+        if (wait_result == 0 || wait_result == -2) {
+            child_to_reap = -1;
+        }
+        if (wait_result != 0) {
+            fprintf(stderr, "SPOP protocol self-test child wait failed\n");
+            result = 1;
+            goto cleanup;
+        }
+    }
+    child_to_reap = -1;
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-        (void)cleanup_self_test_metadata(ready_path, pid_path, port_path,
-            SELF_TEST_METADATA_ALL, log);
-        fclose(log);
-        fprintf(stderr, "SPOP protocol self-test child failed\n");
-        return 1;
+        result = 1;
+        goto cleanup;
     }
-    (void)cleanup_self_test_metadata(ready_path, pid_path, port_path,
-        SELF_TEST_METADATA_ALL, log);
+cleanup:
+    if (finish_self_test_resources(&listen_fd, child_to_reap, &status,
+            terminate_child, &ready_fd,
+            &pid_fd, &port_fd, ready_path, pid_path, port_path,
+            owned_metadata, &log) != 0) {
+        fprintf(stderr, "SPOP protocol self-test cleanup failed\n");
+        return SPOP_RUNTIME_CLEANUP_FAILURE;
+    }
+    if (result != 0) {
+        return result;
+    }
     printf("haproxy_modsecurity_spoa_protocol_self_test: PASS\n");
     printf("scope: SPOP handshake and typed set-var ACK compatibility; production ModSecurity coverage is verified by live HAProxy smoke tests\n");
     printf("log: %s\n", log_path);
@@ -5784,6 +5990,19 @@ static FILE *open_append_file_or_standard(const char *path, FILE *standard_file)
     return open_private_file(path, 1);
 }
 
+static int log_streams_share_inode(FILE *left, FILE *right) {
+    struct stat left_stat;
+    struct stat right_stat;
+
+    if (left == 0 || right == 0 || fileno(left) < 0 || fileno(right) < 0 ||
+            fstat(fileno(left), &left_stat) != 0 ||
+            fstat(fileno(right), &right_stat) != 0) {
+        return -1;
+    }
+    return left_stat.st_dev == right_stat.st_dev &&
+        left_stat.st_ino == right_stat.st_ino;
+}
+
 static int open_agent_logs(
         const agent_config *config,
         FILE **log,
@@ -5812,6 +6031,14 @@ static int open_agent_logs(
         return -1;
     }
     *decision_log_owned = *decision_log != stdout;
+    if (log_streams_share_inode(*log, *decision_log) != 0) {
+        if (stderr != NULL) {
+            fprintf(stderr, "log and decision log must be distinct regular targets\n");
+        }
+        (void)close_owned_stream(decision_log, *decision_log_owned);
+        *decision_log_owned = 0;
+        return -1;
+    }
     return 0;
 }
 
@@ -5920,17 +6147,23 @@ static int destroy_agent_runtime(
         int log_owned,
         FILE **decision_log,
         int decision_log_owned) {
-    int native_runtime_safe = 1;
+    int cleanup_failed = 0;
     int restart_required;
 
     if (state == NULL) {
-        close_owned_stream(decision_log, decision_log_owned);
-        close_owned_stream(log, log_owned);
-        return 0;
+        if (close_owned_stream(decision_log, decision_log_owned) != 0) {
+            cleanup_failed = 1;
+        }
+        if (close_owned_stream(log, log_owned) != 0) {
+            cleanup_failed = 1;
+        }
+        return cleanup_failed ? SPOP_RUNTIME_CLEANUP_FAILURE : 0;
     }
     if (listen_fd >= 0) {
         spop_owner_queue_set_listener(state, -1);
-        close(listen_fd);
+        if (close(listen_fd) != 0) {
+            cleanup_failed = 1;
+        }
     }
     if (state->response_transport_started) {
         msconnector_error transport_error;
@@ -5982,16 +6215,32 @@ static int destroy_agent_runtime(
             free(state->response_slots);
             state->response_slots = NULL;
         } else {
-            native_runtime_safe = 0;
+            log_line(state->log,
+                "event=spop-response-backend-shutdown-failed action=controlled-restart reason=backend-destroy-failed exit_code=%d",
+                SPOP_OWNER_RESTART_EXIT_CODE);
+            _Exit(SPOP_OWNER_RESTART_EXIT_CODE);
         }
     }
     transaction_cache_destroy(state);
-    if (native_runtime_safe && state->engine != NULL) {
+    if (state->engine != NULL) {
         haproxy_modsecurity_engine_destroy(state->engine);
     }
-    close_owned_stream(decision_log, decision_log_owned);
-    close_owned_stream(log, log_owned);
-    return restart_required;
+    if (close_owned_stream(decision_log, decision_log_owned) != 0) {
+        cleanup_failed = 1;
+    }
+    if (close_owned_stream(log, log_owned) != 0) {
+        cleanup_failed = 1;
+    }
+    if (state->decision_log_lock_initialized) {
+        if (pthread_mutex_destroy(&state->decision_log_lock) != 0) {
+            cleanup_failed = 1;
+        }
+        state->decision_log_lock_initialized = 0;
+    }
+    if (restart_required) {
+        return SPOP_OWNER_RESTART_EXIT_CODE;
+    }
+    return cleanup_failed ? SPOP_RUNTIME_CLEANUP_FAILURE : 0;
 }
 
 static int initialize_native_response_companion(
@@ -6058,6 +6307,11 @@ static int run_agent_server(const agent_config *config) {
 
     memset(&state, 0, sizeof(state));
     state.config = *config;
+    if (pthread_mutex_init(&state.decision_log_lock, 0) != 0) {
+        fprintf(stderr, "failed to initialize decision log lock\n");
+        return 77;
+    }
+    state.decision_log_lock_initialized = 1;
     if (open_agent_logs(config, &log, &log_owned, &decision_log,
             &decision_log_owned) != 0) {
         goto cleanup;
@@ -6100,9 +6354,12 @@ static int run_agent_server(const agent_config *config) {
     rc = accept_loop(listen_fd, &state, log, 0, 0, 0,
         state.config.spoe_timeout_ms, state.config.worker_count);
 cleanup:
-    if (destroy_agent_runtime(&state, listen_fd, &log, log_owned,
-            &decision_log, decision_log_owned)) {
-        rc = SPOP_OWNER_RESTART_EXIT_CODE;
+    {
+        int cleanup_rc = destroy_agent_runtime(&state, listen_fd, &log, log_owned,
+            &decision_log, decision_log_owned);
+        if (cleanup_rc != 0) {
+            rc = cleanup_rc;
+        }
     }
     return rc;
 }
