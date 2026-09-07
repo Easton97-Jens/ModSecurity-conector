@@ -1526,3 +1526,40 @@ nicht erzwingenden Push dürfen nur frisches Exact-Head-SonarCloud-Quality-Gate-
 /Zero-Issue-/Zero-Hotspot-Readback, erforderliche GitHub-Checks und ein neuer
 Five-Cell-Aggregate-/Artefakt-Readback diesen PR weiterbringen. FND-CROSS-0004
 bleibt unabhängig `blocked`, und PR #354 bleibt Draft, offen und ungemergt.
+
+### 2026-09-07 Einundzwanzigster Follow-up (Korrektur des Apache-Audit-Evidence-Pfads)
+
+Die exakte SonarCloud-Analyse von
+`9c51850aa580775e7fee16f392d911aa347071f2` war grün (Quality Gate `OK`, null
+aktive PR-Issues und null reviewbare Hotspots). Dieses Ergebnis ist auf
+`9c51850...` begrenzt und ist keine Evidence für seinen Successor.
+
+Der frische CRS/no-MRTS-Lauf `34155973807` ist ausschließlich negative
+Evidence. Envoy, Lighttpd, Traefik und HAProxy schlossen erfolgreich ab;
+Apache erreichte selbst die reale Laufzeit und protokollierte HTTP 403,
+Audit `PASS` und Cleanup `PASS`, aber der Post-Runtime-Validator des Workflows
+suchte `audit.log` unter dem falschen Pfad
+`.../apache-runtime/crs_sqli_anomaly_block/`. Das Aggregat schlug daher
+fail-closed fehl, weil nur vier Zell-Artefakte verfügbar waren. Dies belegt
+keinen Produktfehler und kein bestandenes Five-Cell-Ergebnis.
+
+Der Exact-Head-NGINX-Lauf `34155897371` schloss erfolgreich ab und enthielt
+auch die unterstützte `modsecurity_use_error_log`-Abdeckung für on/off. Sein
+Ergebnis ist auf `9c51850...` begrenzt; ein unabhängiger Artefakt-Readback für
+den Successor wird nicht behauptet.
+
+FND-PARENT-1067 erfasst den eigenständigen Parent-Workflow-Evidence-Pfadfehler.
+Der enge Successor ändert ausschließlich den Workflow-Audit-Pfad in
+`.../logs/apache-runtime/audit.log` (den Pfad, den der Framework-Wrapper/
+Harness erzeugt) und erweitert die Apache-Evidence-Contract-Regression um die
+Ablehnung des früheren case-suffixierten Pfads. Die lokalen fokussierten
+Apache-/CI-Contract-Tests und `actionlint` bestanden. Ein normaler Successor-
+Push muss weiterhin von frischem Exact-Head-SonarCloud, erforderlichen Checks
+und Hosted-Five-Cell-Readback der Child-Receipts und des Aggregat-Artefakts
+gefolgt werden; frühere Ergebnisse dürfen nicht wiederverwendet werden.
+
+PR #354 bleibt Draft, offen und ungemergt. FND-CROSS-0004 bleibt nach seinen
+bestehenden Matrix-Kriterien `blocked`; die bisherige partielle Evidence ist
+keine Releaseentscheidung. Es wird kein Merge, kein externes Seal, keine
+Protected-Host-Attestierung, keine Framework-/MRTS-/Gitlink-/Dependency-
+Änderung und keine Abschwächung von Tests oder Quality Gate behauptet.

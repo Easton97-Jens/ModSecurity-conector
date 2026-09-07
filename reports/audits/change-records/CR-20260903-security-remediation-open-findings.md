@@ -1395,3 +1395,38 @@ SonarCloud Quality-Gate/zero-issue/zero-hotspot readback, required GitHub
 checks, and a new five-cell aggregate/artifact readback may advance this PR.
 FND-CROSS-0004 remains independently blocked, and PR #354 remains Draft,
 open, and unmerged.
+
+### 2026-09-07 twenty-first follow-up (Apache audit evidence-path correction)
+
+The exact `9c51850aa580775e7fee16f392d911aa347071f2` SonarCloud analysis was
+green (Quality Gate `OK`, zero active PR issues, and zero reviewable
+hotspots). That result is bounded to `9c51850...` and is not evidence for its
+successor.
+
+The fresh CRS/no-MRTS run `34155973807` was negative evidence only. Envoy,
+Lighttpd, Traefik, and HAProxy completed successfully; Apache itself reached
+the real runtime and recorded HTTP 403, audit `PASS`, and cleanup `PASS`, but
+the workflow's post-runtime validator looked for `audit.log` below the
+incorrect `.../apache-runtime/crs_sqli_anomaly_block/` path. The aggregate
+therefore failed closed because only four cell artifacts were available. This
+does not establish a product failure or a passing five-cell result.
+
+The exact-head NGINX run `34155897371` completed successfully, including the
+supported `modsecurity_use_error_log` on/off coverage. Its result is bounded
+to `9c51850...`; no independent artifact readback for the successor is
+claimed.
+
+FND-PARENT-1067 records the distinct Parent workflow evidence-path defect. The
+narrow successor changes only the workflow audit path to
+`.../logs/apache-runtime/audit.log` (the path emitted by the Framework
+wrapper/harness) and extends the Apache evidence contract regression to reject
+the former case-suffixed path. Local focused Apache/CI contract tests and
+`actionlint` passed. A normal successor push must still be followed by fresh
+exact-head SonarCloud, required checks, and hosted five-cell child-receipt and
+aggregate-artifact readback; no earlier result may be reused.
+
+PR #354 remains Draft, open, and unmerged. FND-CROSS-0004 remains `blocked`
+under its existing matrix criteria; its partial prior evidence is not a
+release decision. No merge, external seal, protected-host attestation,
+Framework/MRTS/Gitlink/dependency change, or test/quality-gate weakening is
+claimed.

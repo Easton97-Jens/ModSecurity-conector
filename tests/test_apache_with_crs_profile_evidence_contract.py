@@ -151,6 +151,19 @@ class ApacheWithCrsProfileEvidenceContractTest(unittest.TestCase):
         self.assertIn("AUDIT_LOG:", validation)
         self.assertIn("CLEANUP_RECEIPT:", validation)
         self.assertIn("verify-apache-audit", validation)
+        # The Framework wrapper passes APACHE_RUNTIME_LOG_DIR as the harness's
+        # LOG_DIR, and the harness writes its native serial audit directly at
+        # "$LOG_DIR/audit.log".  A case-name suffix here would validate a
+        # nonexistent path after an otherwise successful real Apache run.
+        self.assertIn(
+            "AUDIT_LOG: ${{ env.BUILD_ROOT }}/verified-apache-case/"
+            "with-crs-no-mrts-apache/logs/apache-runtime/audit.log",
+            validation,
+        )
+        self.assertNotIn(
+            "logs/apache-runtime/crs_sqli_anomaly_block/audit.log",
+            validation,
+        )
         producer = self.block(
             source,
             "      - name: Produce canonical with-CRS no-MRTS profile cell\n",

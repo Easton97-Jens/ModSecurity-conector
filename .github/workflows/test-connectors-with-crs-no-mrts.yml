@@ -1052,7 +1052,7 @@ jobs:
         if: always() && matrix.connector == 'apache'
         env:
           RESULTS_ROOT: ${{ env.BUILD_ROOT }}/verified-apache-case/with-crs/no-mrts/results
-          AUDIT_LOG: ${{ env.BUILD_ROOT }}/verified-apache-case/with-crs-no-mrts-apache/logs/apache-runtime/crs_sqli_anomaly_block/audit.log
+          AUDIT_LOG: ${{ env.BUILD_ROOT }}/verified-apache-case/with-crs-no-mrts-apache/logs/apache-runtime/audit.log
           CLEANUP_RECEIPT: ${{ env.VERIFIED_RUN_ROOT }}/apache-profile-cleanup-receipt.json
           RUN_ID: ${{ env.CRS_RUNTIME_RUN_ID }}
           PARENT_SHA: ${{ github.event.pull_request.head.sha || inputs.parent_sha }}
