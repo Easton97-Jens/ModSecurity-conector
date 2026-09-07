@@ -1334,3 +1334,33 @@ commit/push, exact remote/PR-head readback, hosted five-cell/aggregate artifact
 validation, current required checks, and exact-successor SonarCloud readback
 remain mandatory. PR #354 remains Draft and unmerged; FND-CROSS-0004 remains
 `blocked` pending its existing acceptance criteria.
+
+### 2026-09-07 nineteenth follow-up (native Apache audit parser and Sonar successor)
+
+The fresh exact-five run `34149333852`, bound only to delivered head
+`0ffb03bb72a6c0a2ecf8aa12581175bffe0b6b41` and base
+`9925ef647b5fb49d21aebd658a658d4fdb649c58`, reached the Apache raw-audit
+validator but failed closed before receipt publication. Its Apache job reported
+`Apache audit has data outside a transaction`. The retained failure receipt is
+negative evidence only; it is not a profile cell or a proof of a failed CRS
+HTTP block.
+
+The failure was a distinct Parent parser/fixture defect: real ModSecurity
+Native serial boundaries are `---<transaction>---<part>--`, whereas the newly
+introduced parser and synthetic fixture expected `--<transaction>-<part>--`.
+The parser now accepts only the actual Native shape, and the regression covers
+the valid Native control plus rejection of the former non-Native shape and an
+arbitrary preamble. FND-PARENT-1066 records this evidence-integrity defect as
+in progress pending a new exact-successor hosted Apache receipt and aggregate
+readback; no production connector vulnerability, protected-host attestation,
+external seal, or merge authority is claimed.
+
+The same successor retains the narrow behavior-preserving refactors for the
+eight active SonarCloud items on `0ffb03...`: shared manifest/diagnostic
+literals and analyzer-visible container narrowing preserve the strict
+exact-builtin-type comparison. No `NOSONAR`, issue exclusion, Quality-Gate,
+workflow, or test weakening is used. A normal successor push, fresh exact
+SonarCloud Quality Gate/issue/hotspot readback, and a new hosted exact-five
+run remain mandatory. The later user authorization to merge current
+`origin/master` into the existing PR branch is a normal branch update only;
+PR #354 remains Draft and unmerged.

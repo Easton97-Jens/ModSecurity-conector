@@ -1461,3 +1461,36 @@ Remote-/PR-Head-Readback, Hosted-Five-Cell-/Aggregate-Artefaktvalidierung,
 aktuelle erforderliche Checks und Exact-Successor-SonarCloud-Readback bleiben
 verpflichtend. PR #354 bleibt Draft und ungemergt; FND-CROSS-0004 bleibt bis zu
 seinen bestehenden Akzeptanzkriterien `blocked`.
+
+### 2026-09-07 Neunzehnter Follow-up (nativer Apache-Auditparser und Sonar-Successor)
+
+Der frische Exact-Five-Lauf `34149333852`, ausschließlich gebunden an den
+ausgelieferten Head `0ffb03bb72a6c0a2ecf8aa12581175bffe0b6b41` und die Base
+`9925ef647b5fb49d21aebd658a658d4fdb649c58`, erreichte den Apache-Raw-Audit-
+Validator, schlug aber vor Receipt-Veröffentlichung fail-closed fehl. Sein
+Apache-Job meldete `Apache audit has data outside a transaction`. Das
+aufbewahrte Failure-Receipt ist ausschließlich negative Evidence; es ist weder
+eine Profilzelle noch ein Nachweis eines fehlgeschlagenen CRS-HTTP-Blocks.
+
+Der Fehler war ein eigener Parent-Parser-/Fixture-Defekt: reale
+ModSecurity-Native-Serial-Grenzen sind `---<transaction>---<part>--`, während
+der neu eingeführte Parser und die synthetische Fixture
+`--<transaction>-<part>--` erwarteten. Der Parser akzeptiert jetzt nur die
+tatsächliche Native-Form, und die Regression deckt den gültigen Native-Control
+sowie die Ablehnung der früheren Nicht-Native-Form und einer beliebigen
+Präambel ab. FND-PARENT-1066 verfolgt diesen Evidence-Integrity-Defekt als
+`in_progress` bis zu einem neuen Exact-Successor-Hosted-Apache-Receipt- und
+Aggregate-Readback; keine Produktions-Connectorschwachstelle,
+Protected-Host-Attestierung, externes Seal oder Merge-Autorisierung wird
+behauptet.
+
+Der gleiche Successor enthält die engen verhaltenserhaltenden Refactorings für
+die acht aktiven SonarCloud-Items auf `0ffb03...`: gemeinsame Manifest-/Diagnose-
+Literale und für den Analyzer sichtbares Container-Narrowing erhalten den
+strikten Exact-Builtin-Type-Vergleich. Es werden weder `NOSONAR`,
+Issue-Exclusion, Quality-Gate-, Workflow- noch Testabschwächung verwendet. Ein
+normaler Successor-Push, frisches exaktes SonarCloud-Quality-Gate-/Issue-/
+Hotspot-Readback und ein neuer Hosted-Exact-Five-Lauf bleiben verpflichtend.
+Die spätere Benutzerfreigabe zum Merge des aktuellen `origin/master` in den
+bestehenden PR-Branch ist ausschließlich ein normaler Branch-Update; PR #354
+bleibt Draft und ungemergt.

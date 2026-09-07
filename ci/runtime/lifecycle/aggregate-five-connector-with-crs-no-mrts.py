@@ -34,6 +34,9 @@ _PROFILE_SPEC.loader.exec_module(profile)
 AGGREGATE_RECORD = "five_connector_with_crs_no_mrts_aggregate"
 AGGREGATE_MANIFEST_RECORD = "five_connector_with_crs_no_mrts_aggregate_manifest"
 MATRIX_RECORD = "with_crs_no_mrts_current_24_row_disposition"
+FACTS_FILE = "functional-facts.json"
+RECEIPT_FILE = "profile-cell-receipt.json"
+MANIFEST_FILE = "manifest.json"
 OUTPUT_NAMES = (
     "aggregate.json",
     "aggregate.md",
@@ -41,7 +44,7 @@ OUTPUT_NAMES = (
     "matrix-24.json",
     "matrix-24.md",
     "matrix-24.de.md",
-    "manifest.json",
+    MANIFEST_FILE,
 )
 MATRIX_CONNECTORS = ("apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd")
 MATRIX_VARIANTS = (
@@ -50,9 +53,6 @@ MATRIX_VARIANTS = (
     ("no_crs_with_mrts", "no-crs", "with-mrts"),
     ("with_crs_with_mrts", "with-crs", "with-mrts"),
 )
-FACTS_FILE = "functional-facts.json"
-RECEIPT_FILE = "profile-cell-receipt.json"
-MANIFEST_FILE = "manifest.json"
 CELL_LABEL = "profile cell artifact"
 FACTS_LABEL = "functional facts"
 RECEIPT_LABEL = "profile cell receipt"
@@ -128,11 +128,15 @@ def _strict_json_equal(value: object, expected: object) -> bool:
     """Compare parsed canonical JSON without Python bool/int coercion."""
     if type(value) is not type(expected):
         return False
-    if type(expected) is dict:
+    if isinstance(expected, dict):
+        if not isinstance(value, dict):
+            return False
         return set(value) == set(expected) and all(
             _strict_json_equal(value[name], expected[name]) for name in expected
         )
-    if type(expected) is list:
+    if isinstance(expected, list):
+        if not isinstance(value, list):
+            return False
         return len(value) == len(expected) and all(
             _strict_json_equal(actual, wanted)
             for actual, wanted in zip(value, expected, strict=True)
@@ -219,11 +223,11 @@ def _validate_facts(connector: str, facts: Mapping[str, Any]) -> None:
 
 
 def _validate_source_files(connector: str, source_files: object, facts: Mapping[str, Any]) -> None:
-    if type(source_files) is not list or not source_files:
+    if not isinstance(source_files, list) or type(source_files) is not list or not source_files:
         raise fail(f"{connector}: receipt has no source artifact bindings")
     previous = ""
     for item in source_files:
-        if type(item) is not dict or set(item) != {"path", "sha256"}:
+        if not isinstance(item, dict) or type(item) is not dict or set(item) != {"path", "sha256"}:
             raise fail(f"{connector}: source artifact binding is malformed")
         path = item.get("path")
         digest = item.get("sha256")
@@ -612,7 +616,7 @@ def write_outputs(args: argparse.Namespace, result: Mapping[str, Any]) -> None:
                 for name, value in sorted(data.items())
             ],
         }
-        data["manifest.json"] = profile.canonical_json(manifest)
+        data[MANIFEST_FILE] = profile.canonical_json(manifest)
         for name in OUTPUT_NAMES:
             _write_new(descriptor, name, data[name])
         os.fsync(descriptor)

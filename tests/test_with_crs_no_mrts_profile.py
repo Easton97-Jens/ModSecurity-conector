@@ -219,20 +219,20 @@ def apache_audit(
 ) -> str:
     return "\n".join(
         (
-            f"--{transaction}-A--",
+            f"---{transaction}---A--",
             f'[unique_id "{transaction}"] [id "{transaction}"]',
-            f"--{transaction}-B--",
+            f"---{transaction}---B--",
             request,
             "Host: profile.invalid",
             "",
-            f"--{transaction}-F--",
+            f"---{transaction}---F--",
             "HTTP/1.1 403 Forbidden",
             "Content-Type: text/plain",
             "",
-            f"--{transaction}-H--",
+            f"---{transaction}---H--",
             "Message: Warning. [file \"/rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf\"] "
             f'[id "{rule_id}"] [msg "profile fixture"]',
-            f"--{transaction}-Z--",
+            f"---{transaction}---Z--",
             "",
         )
     )
@@ -511,6 +511,19 @@ class WithCrsNoMrtsProfileContractTest(unittest.TestCase):
                 mutate(source)
                 with self.assertRaises((ValueError, OSError)):
                     PROFILE.produce(args)
+
+    def test_apache_native_audit_boundary_is_required_without_a_preamble(self):
+        native = apache_audit()
+        PROFILE._apache_audit_block_observation(native.encode("utf-8"))
+
+        non_native = native.replace("---apacheprofile---", "--apacheprofile-")
+        with self.assertRaisesRegex(ValueError, "outside a transaction"):
+            PROFILE._apache_audit_block_observation(non_native.encode("utf-8"))
+
+        with self.assertRaisesRegex(ValueError, "outside a transaction"):
+            PROFILE._apache_audit_block_observation(
+                ("untrusted preamble\n" + native).encode("utf-8")
+            )
 
     def test_apache_profile_rejects_primitive_type_confusion_at_source_boundary(self):
         def mutate_summary(source: Path, name: str, value: object) -> None:

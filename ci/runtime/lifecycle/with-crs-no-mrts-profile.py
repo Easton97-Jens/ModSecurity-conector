@@ -54,6 +54,7 @@ SOURCE_KINDS = {
 FUNCTIONAL_FACTS_NAME = "functional-facts.json"
 PROFILE_RECEIPT_NAME = "profile-cell-receipt.json"
 MANIFEST_NAME = "manifest.json"
+APACHE_CLEANUP_RECEIPT_LABEL = "Apache cleanup receipt"
 CRS_RULE_FILE = "rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf"
 OUTPUT_NAMES = (FUNCTIONAL_FACTS_NAME, PROFILE_RECEIPT_NAME, MANIFEST_NAME)
 APACHE_SUMMARY_RELATIVE_PATH = "build/verified-apache-case/with-crs/no-mrts/results/apache-summary.json"
@@ -67,7 +68,10 @@ APACHE_CLEANUP_RECORD = "apache_with_crs_no_mrts_cleanup_receipt"
 APACHE_AUDIT_REQUEST_LINE = (
     "GET /?id=1%20UNION%20SELECT%20password%20FROM%20users HTTP/1.1"
 )
-APACHE_AUDIT_BOUNDARY = re.compile(r"^--([A-Za-z\d]+)-([A-Z])--$", re.ASCII)
+# ModSecurity Native serial audit sections use ``---<transaction>---<part>--``.
+# This is deliberately narrower than arbitrary text so a preamble cannot be
+# mistaken for a transaction boundary.
+APACHE_AUDIT_BOUNDARY = re.compile(r"^---([A-Za-z\d]+)---([A-Z])--$", re.ASCII)
 APACHE_AUDIT_STATUS = re.compile(r"^HTTP/\d+(?:\.\d+)? 403(?:[ \t\r]|$)", re.ASCII)
 APACHE_CRS_RULE_ID = re.compile(
     rb"(?:^|[,\s])['\"]?id['\"]?\s*:\s*942270(?:[,\s]|$)"
@@ -533,8 +537,10 @@ def _generic_facts(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[
 
 
 def _apache_case(value: object) -> Mapping[str, Any]:
-    apache = value.get("apache") if type(value) is dict else None
-    if type(apache) is not dict:
+    if not isinstance(value, dict) or type(value) is not dict:
+        raise fail("Apache summary has no Apache section")
+    apache = value.get("apache")
+    if not isinstance(apache, dict) or type(apache) is not dict:
         raise fail("Apache summary has no Apache section")
     cases = apache.get("cases")
     if type(cases) is not dict or type(cases.get(CASE_ID)) is not dict:
@@ -612,7 +618,7 @@ def _apache_cleanup_receipt(
     github_run_attempt: str,
 ) -> None:
     if type(value) is not dict:
-        raise fail("Apache cleanup receipt must be an object")
+        raise fail(f"{APACHE_CLEANUP_RECEIPT_LABEL} must be an object")
     required = {
         "schema_version",
         "record_type",
@@ -629,7 +635,7 @@ def _apache_cleanup_receipt(
         "pid_files_remaining",
         "cleanup_status",
     }
-    _require_exact(value, required, "Apache cleanup receipt")
+    _require_exact(value, required, APACHE_CLEANUP_RECEIPT_LABEL)
     expected = {
         "schema_version": SCHEMA_VERSION,
         "record_type": APACHE_CLEANUP_RECORD,
@@ -643,10 +649,10 @@ def _apache_cleanup_receipt(
     }
     for name, wanted in expected.items():
         if not _exact_json_scalar(value.get(name), wanted):
-            raise fail(f"Apache cleanup receipt {name} is invalid")
+            raise fail(f"{APACHE_CLEANUP_RECEIPT_LABEL} {name} is invalid")
     port = value.get("listener_port")
     if type(port) is not int or not 1 <= port <= 65535:
-        raise fail("Apache cleanup receipt listener port is invalid")
+        raise fail(f"{APACHE_CLEANUP_RECEIPT_LABEL} listener port is invalid")
     for name in (
         "tracked_host_processes_remaining",
         "tracked_helper_processes_remaining",
@@ -655,7 +661,7 @@ def _apache_cleanup_receipt(
     ):
         remaining = value.get(name)
         if type(remaining) is not int or remaining != 0:
-            raise fail(f"Apache cleanup receipt {name} is not clean")
+            raise fail(f"{APACHE_CLEANUP_RECEIPT_LABEL} {name} is not clean")
 
 
 def _write_apache_cleanup_receipt(args: argparse.Namespace) -> None:
@@ -702,18 +708,18 @@ def _write_apache_cleanup_receipt(args: argparse.Namespace) -> None:
         )
         os.fchmod(descriptor, 0o600)
         before = os.fstat(descriptor)
-        _regular_is_safe(before, "Apache cleanup receipt", MAX_JSON_BYTES)
+        _regular_is_safe(before, APACHE_CLEANUP_RECEIPT_LABEL, MAX_JSON_BYTES)
         offset = 0
         while offset < len(payload):
             written = os.write(descriptor, payload[offset:])
             if written <= 0:
-                raise fail("Apache cleanup receipt write was short")
+                raise fail(f"{APACHE_CLEANUP_RECEIPT_LABEL} write was short")
             offset += written
         os.fsync(descriptor)
         after = os.fstat(descriptor)
         if _identity(before)[:3] != _identity(after)[:3]:
-            raise fail("Apache cleanup receipt changed while writing")
-        _regular_is_safe(after, "Apache cleanup receipt", MAX_JSON_BYTES)
+            raise fail(f"{APACHE_CLEANUP_RECEIPT_LABEL} changed while writing")
+        _regular_is_safe(after, APACHE_CLEANUP_RECEIPT_LABEL, MAX_JSON_BYTES)
         os.fsync(parent_fd)
     except FileExistsError as exc:
         raise fail("Apache cleanup receipt already exists") from exc
@@ -735,9 +741,9 @@ def _apache_facts(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[s
     summary_raw = read_safe(args.source_root, summary_rel, "Apache summary")
     results_raw = read_safe(args.source_root, results_rel, "Apache results")
     audit_raw = read_safe(args.source_root, audit_rel, "Apache audit")
-    cleanup_raw = read_safe(args.source_root, cleanup_rel, "Apache cleanup receipt")
+    cleanup_raw = read_safe(args.source_root, cleanup_rel, APACHE_CLEANUP_RECEIPT_LABEL)
     summary = parse_json_object(summary_raw, "Apache summary")
-    cleanup = parse_json_object(cleanup_raw, "Apache cleanup receipt", canonical=True)
+    cleanup = parse_json_object(cleanup_raw, APACHE_CLEANUP_RECEIPT_LABEL, canonical=True)
     _apache_audit_block_observation(audit_raw)
     _apache_cleanup_receipt(
         cleanup,
@@ -851,7 +857,7 @@ def _haproxy_facts(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[
         raise fail("HAProxy sealed package did not pass its strict verifier") from exc
     if verified != {
         "haproxy-runtime-evidence.json": evidence_sha256,
-        "manifest.json": manifest_sha256,
+        MANIFEST_NAME: manifest_sha256,
     }:
         raise fail("HAProxy verified source digests do not match the workflow handoff")
     facts = {
@@ -874,7 +880,7 @@ def _haproxy_facts(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[
     }
     return facts, [
         {"path": "haproxy-runtime-evidence.json", "sha256": evidence_sha256},
-        {"path": "manifest.json", "sha256": manifest_sha256},
+        {"path": MANIFEST_NAME, "sha256": manifest_sha256},
     ]
 
 
