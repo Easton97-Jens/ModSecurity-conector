@@ -10,6 +10,16 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260906-haproxy-master-recovery](CR-20260906-haproxy-master-recovery.md)
+  | [Deutsch](CR-20260906-haproxy-master-recovery.de.md) — the
+  user-authorized Parent-only HAProxy master-recovery aligns the stale global
+  Common-adoption checker with the existing fail-closed Host mapper and
+  transfers the smallest complete SPOP byte-boundary proof from PR #346 as a
+  read-only reference. It changes no Framework, MRTS, Gitlink, workflow,
+  governance, Quality-Gate control, other connector source, or PR #346 state;
+  the record distinguishes local evidence from pending exact-head hosted
+  evidence and asserts no merge.
+
 - [CR-20260905-nginx-current-master-common-adoption-repair](CR-20260905-nginx-current-master-common-adoption-repair.md)
   | [Deutsch](CR-20260905-nginx-current-master-common-adoption-repair.de.md) —
   the user-authorized Parent-only NGINX static-contract repair aligns the

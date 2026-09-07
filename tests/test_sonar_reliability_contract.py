@@ -1038,6 +1038,13 @@ static void test_spop_rejects_overflow_and_truncated_protocol_values(void) {
         0x80U, 0x80U, 0x80U, 0x80U, 0x80U};
     unsigned char too_wide[] = {240U, 0x80U, 0x80U, 0x80U, 0x80U,
         0x80U, 0x80U, 0x80U, 0x80U, 0x10U};
+    static const unsigned char truncated_notify[] = {5U, 'c', 'h', 'e', 'c'};
+    static const unsigned char missing_count[] = {
+        13U, 'c', 'h', 'e', 'c', 'k', '-', 'r', 'e', 'q', 'u', 'e', 's', 't'
+    };
+    static const unsigned char zero_count[] = {
+        13U, 'c', 'h', 'e', 'c', 'k', '-', 'r', 'e', 'q', 'u', 'e', 's', 't', 0U
+    };
     char oversized_uri[1025];
     spop_buffer argument;
     notify_request request;
@@ -1051,6 +1058,30 @@ static void test_spop_rejects_overflow_and_truncated_protocol_values(void) {
     assert(read_varint(unterminated, sizeof(unterminated), &pos, &decoded) == -1);
     pos = 0U;
     assert(read_varint(too_wide, sizeof(too_wide), &pos, &decoded) == -1);
+
+    memset(&request, 0, sizeof(request));
+    assert(parse_notify_payload(0, 0U, &request) == -1);
+    assert(request.has_notify == 0);
+    free_notify_request(&request);
+
+    memset(&request, 0, sizeof(request));
+    assert(parse_notify_payload(truncated_notify, sizeof(truncated_notify),
+        &request) == -1);
+    assert(request.has_notify == 0);
+    free_notify_request(&request);
+
+    memset(&request, 0, sizeof(request));
+    assert(parse_notify_payload(missing_count, sizeof(missing_count),
+        &request) == -1);
+    assert(request.has_notify == 0);
+    free_notify_request(&request);
+
+    memset(&request, 0, sizeof(request));
+    assert(parse_notify_payload(zero_count, sizeof(zero_count), &request) == 0);
+    assert(request.has_notify == 1);
+    assert(request.is_response == 0);
+    assert(strcmp(request.message_name, "check-request") == 0);
+    free_notify_request(&request);
 
     memset(&argument, 0, sizeof(argument));
     assert(append_byte(&argument, SPOP_DATA_UINT32) == 0);
@@ -1088,6 +1119,41 @@ static void test_spop_rejects_overflow_and_truncated_protocol_values(void) {
         argument.data, argument.len, &pos) == -1);
     assert(request.has_uri == 0);
     free_notify_request(&request);
+}
+
+static void test_spop_read_byte_requires_a_remaining_byte(void) {
+    static const unsigned char input[] = {0xa5U};
+    unsigned char value = 0x5aU;
+    size_t pos = 0U;
+
+    assert(read_byte(input, sizeof(input), &pos, &value) == 0);
+    assert(value == 0xa5U);
+    assert(pos == sizeof(input));
+
+    value = 0x5aU;
+    assert(read_byte(input, sizeof(input), &pos, &value) == -1);
+    assert(value == 0x5aU);
+    assert(pos == sizeof(input));
+
+    pos = sizeof(input) + 1U;
+    assert(read_byte(input, sizeof(input), &pos, &value) == -1);
+    assert(value == 0x5aU);
+    assert(pos == sizeof(input) + 1U);
+
+    pos = SIZE_MAX;
+    assert(read_byte(input, sizeof(input), &pos, &value) == -1);
+    assert(value == 0x5aU);
+    assert(pos == SIZE_MAX);
+
+    pos = 0U;
+    assert(read_byte(input, 0U, &pos, &value) == -1);
+    assert(value == 0x5aU);
+    assert(pos == 0U);
+    assert(read_byte(0, sizeof(input), &pos, &value) == -1);
+    assert(value == 0x5aU);
+    assert(pos == 0U);
+    assert(read_byte(input, sizeof(input), 0, &value) == -1);
+    assert(read_byte(input, sizeof(input), &pos, 0) == -1);
 }
 
 static void test_spop_typed_ip_arguments_are_canonical_and_bounded(void) {
@@ -1572,6 +1638,7 @@ int main(void) {
     test_notify_body_arguments_preserve_type_and_response_role();
     test_unknown_body_key_does_not_consume_or_mutate();
     test_spop_rejects_overflow_and_truncated_protocol_values();
+    test_spop_read_byte_requires_a_remaining_byte();
     test_spop_typed_ip_arguments_are_canonical_and_bounded();
     test_spop_typed_ip_payload_requires_exact_frame_consumption();
     test_spop_missing_endpoints_fail_closed_when_engine_is_open();
@@ -1605,6 +1672,8 @@ int main(void) {
                     "-Wall",
                     "-Wextra",
                     "-Werror",
+                    "-fsanitize=address,undefined",
+                    "-fno-omit-frame-pointer",
                     "-ffunction-sections",
                     "-fdata-sections",
                     "-I",

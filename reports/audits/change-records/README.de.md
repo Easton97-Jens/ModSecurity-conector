@@ -11,6 +11,17 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260906-haproxy-master-recovery](CR-20260906-haproxy-master-recovery.de.md)
+  | English companion: `CR-20260906-haproxy-master-recovery.md` — die vom
+  Benutzer autorisierte Parent-only-HAProxy-Master-Recovery richtet den
+  veralteten globalen Common-Adoption-Checker am bestehenden fail-closed-
+  Host-Mapper aus und überträgt den kleinsten vollständigen SPOP-
+  Bytegrenzen-Proof aus PR #346 als Read-only-Referenz. Sie ändert weder
+  Framework, MRTS, Gitlink, Workflow, Governance, Quality-Gate-Control,
+  fremde Connector-Source noch PR-#346-Status; der Record unterscheidet lokale
+  Evidence von ausstehender Exact-Head-Hosted-Evidence und behauptet keinen
+  Merge.
+
 - [CR-20260905-nginx-current-master-common-adoption-repair](CR-20260905-nginx-current-master-common-adoption-repair.de.md)
   | English companion: `CR-20260905-nginx-current-master-common-adoption-repair.md` —
   die vom Benutzer autorisierte Parent-only-NGINX-Static-Contract-Reparatur
