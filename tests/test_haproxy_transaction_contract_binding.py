@@ -649,7 +649,7 @@ def test_spop_stop_failure_exits_without_releasing_worker_owned_state() -> None:
         / "src"
         / "haproxy_spop_diagnostic_runtime.c"
     ).read_text(encoding="utf-8")
-    start = spop_source.index("static void destroy_agent_runtime(")
+    start = spop_source.index("static int destroy_agent_runtime(")
     end = spop_source.index("static int run_agent_server(", start)
     cleanup = spop_source[start:end]
     stop = cleanup.index("spop_transport_stop_bounded")

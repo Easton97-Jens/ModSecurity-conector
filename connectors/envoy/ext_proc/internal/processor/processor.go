@@ -547,7 +547,7 @@ func (service *Service) processRequest(ctx context.Context, stream extprocv3.Ext
 	}
 	closeReason, sent, sendErr := service.sendProcessingResponse(ctx, stream, response)
 	if sent {
-		if err := state.recordSuccessfulResponseEvidence(ctx, request, response); err != nil {
+		if err := service.recordSuccessfulResponseEvidenceWithWatchdog(ctx, state, request, response); err != nil {
 			service.reportFatal(fmt.Errorf("ext_proc successful response evidence failed; controlled restart required: %w", err))
 			evidenceCloseReason := CloseProcessorError
 			if closeReason == CloseStreamMaxLifetime {
@@ -567,6 +567,34 @@ func (service *Service) processRequest(ctx context.Context, stream extprocv3.Ext
 		return true, state.completionReason(), nil
 	}
 	return false, ClosePeerEOF, nil
+}
+
+// recordSuccessfulResponseEvidenceWithWatchdog keeps the stream handler
+// bounded even when a native evidence call has already entered CGo and ignores
+// its context. The stream state is handed to the same single reaper used for
+// a stuck engine handler; Process must not close or inspect it concurrently.
+func (service *Service) recordSuccessfulResponseEvidenceWithWatchdog(ctx context.Context, state *streamState, request *extprocv3.ProcessingRequest, response *extprocv3.ProcessingResponse) error {
+	resultChannel := make(chan error, 1)
+	evidenceDone := make(chan struct{})
+	go func() {
+		defer close(evidenceDone)
+		resultChannel <- state.recordSuccessfulResponseEvidence(ctx, request, response)
+	}()
+	timer := time.NewTimer(service.config.cleanupTimeout())
+	defer timer.Stop()
+	select {
+	case err := <-resultChannel:
+		return err
+	case <-timer.C:
+		stuckErr := fmt.Errorf("ext_proc response evidence remained blocked after bounded cleanup grace; controlled restart required")
+		reason := CloseProcessorError
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			reason = CloseStreamMaxLifetime
+		}
+		state.deferCleanupUntilOperationReturns(service, evidenceDone, reason)
+		service.reportFatal(stuckErr)
+		return stuckErr
+	}
 }
 
 type streamHandleResult struct {
@@ -605,7 +633,7 @@ func (service *Service) handleWithWatchdog(ctx context.Context, state *streamSta
 			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				closeReason = CloseStreamMaxLifetime
 			}
-			state.deferCleanupUntilHandlerReturns(service, handlerDone, closeReason)
+			state.deferCleanupUntilOperationReturns(service, handlerDone, closeReason)
 			service.reportFatal(stuckErr)
 			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				return nil, false, status.Error(codes.DeadlineExceeded, "ext_proc stream maximum lifetime exceeded")
@@ -615,19 +643,19 @@ func (service *Service) handleWithWatchdog(ctx context.Context, state *streamSta
 	}
 }
 
-// deferCleanupUntilHandlerReturns transfers state ownership from Process to a
-// single reaper. A native call may ignore cancellation, so calling Close while
-// handle is still mutating state would race and can free a live transaction.
-// The controlled restart is already terminal; if the call later returns before
-// process exit, the reaper still releases the transaction exactly once.
-func (state *streamState) deferCleanupUntilHandlerReturns(service *Service, handlerDone <-chan struct{}, reason CloseReason) {
+// deferCleanupUntilOperationReturns transfers state ownership from Process to
+// a single reaper. A native call may ignore cancellation, so calling Close
+// while that operation still mutates state would race and can free a live
+// transaction. The controlled restart is already terminal; if the call later
+// returns before process exit, the reaper still releases the transaction once.
+func (state *streamState) deferCleanupUntilOperationReturns(service *Service, operationDone <-chan struct{}, reason CloseReason) {
 	if !state.deferredCleanup.CompareAndSwap(false, true) {
 		return
 	}
 	go func() {
-		<-handlerDone
+		<-operationDone
 		if err := state.closeOwned(reason); err != nil {
-			service.reportFatal(fmt.Errorf("ext_proc deferred native handler cleanup failed: %w", err))
+			service.reportFatal(fmt.Errorf("ext_proc deferred native operation cleanup failed: %w", err))
 		}
 	}()
 }
@@ -1595,26 +1623,41 @@ func (state *streamState) closeOwned(reason CloseReason) error {
 		return nil
 	}
 	state.closed = true
-	var cleanupErr error
 	state.summary.TransactionID = state.transactionID
 	state.summary.CloseReason = reason
-	if state.transaction != nil {
-		cleanupContext, cancel := context.WithTimeout(context.Background(), state.config.cleanupTimeout())
-		defer cancel()
-		state.transaction.Close(cleanupContext, state.summary)
-		if reporter, ok := state.transaction.(CleanupFailureReporter); ok {
-			if err := reporter.CleanupFailure(); err != nil {
-				cleanupErr = err
-				state.cleanupFailure = err
+	summary := state.summary
+	resultChannel := make(chan error, 1)
+	go func() {
+		var cleanupErr error
+		if state.transaction != nil {
+			cleanupContext, cancel := context.WithTimeout(context.Background(), state.config.cleanupTimeout())
+			state.transaction.Close(cleanupContext, summary)
+			cancel()
+			if reporter, ok := state.transaction.(CleanupFailureReporter); ok {
+				cleanupErr = reporter.CleanupFailure()
 			}
 		}
-	}
-	observerErr := state.observer.Record(state.summary)
-	if cleanupErr != nil {
-		if observerErr != nil {
-			return fmt.Errorf("transaction cleanup: %w; metadata evidence: %v", cleanupErr, observerErr)
+		observerErr := state.observer.Record(summary)
+		if cleanupErr != nil {
+			if observerErr != nil {
+				resultChannel <- fmt.Errorf("transaction cleanup: %w; metadata evidence: %v", cleanupErr, observerErr)
+				return
+			}
+			resultChannel <- cleanupErr
+			return
 		}
-		return cleanupErr
+		resultChannel <- observerErr
+	}()
+	timer := time.NewTimer(state.config.cleanupTimeout())
+	defer timer.Stop()
+	select {
+	case err := <-resultChannel:
+		if err != nil {
+			state.cleanupFailure = err
+		}
+		return err
+	case <-timer.C:
+		state.cleanupFailure = fmt.Errorf("ext_proc transaction cleanup remained blocked after bounded cleanup grace; controlled restart required")
+		return state.cleanupFailure
 	}
-	return observerErr
 }

@@ -336,18 +336,34 @@ waits. A replacement inode is deliberately retained. The final independent
 re-review found no remaining UAF, double-free, listener-FD reuse, or lock-order
 bypass in these paths.
 
+The exact-head Sonar analysis of `f572fa1a` reported only two `c:S5487`
+Reliability blockers in the SPOP owner-lock lifecycle. The follow-up uses a
+distinct process state for the legitimate post-restart self-test and snapshots
+the terminal restart disposition before destroying the queue lock. It neither
+suppresses an issue nor changes the Quality Gate. Two independent Envoy reviews
+also confirmed residual watchdog gaps after a successful response `Send` and
+inside `transaction.Close`: a native/CGo call that had already entered an
+uninterruptible section could retain the stream and admission slot without a
+fatal signal. Both operations are now outer-bounded. A stuck evidence call
+atomically transfers state ownership to one reaper; a stuck close returns a
+terminal cleanup failure. In both cases the process owner receives `FatalErrors`,
+follow-up admission is rejected, and the native transaction is never closed a
+second time or freed while still reachable. Engine-operation, stream-idle,
+stream-lifetime, and cleanup timeouts remain distinct controls.
+
 Current local evidence includes:
 
 - Common/Apache/NGINX: 146 tests passed plus 80 passed subtests; all four
   Common-adoption targets and the Common security contract passed.
-- HAProxy: the complete Python/contract selection ran 161 tests, with 149
-  passed and 12 skipped; the focused ASan/UBSan harness passed the terminal
+- HAProxy: the complete Python/contract selection ran 239 tests, with 227
+  passed and 12 skipped, plus 93 passed subtests; the focused ASan/UBSan harness passed the terminal
   owner, failed transport-stop, hanging transport-stop, and legitimate fresh-
   instance controls. The real Common response-companion transport test passed
   C17 `-Wall -Wextra -Werror` with ASan, UBSan, and leak detection, covering
   parallel clients, UDS ownership, stop/restart, cancel, cleanup, and follow-up.
-- Envoy: all selected ext_authz/ext_proc tests, race tests, vet, and builds
-  passed. Traefik Native UDS, composite middleware, and response observer tests,
+- Envoy: all ext_proc package tests, the complete race suite, vet, and the
+  `-buildvcs=false` build passed, including deterministic blocked-evidence and
+  blocked-close fatal/reaper/follow-up controls. Traefik Native UDS, composite middleware, and response observer tests,
   race tests, build, vet, fuzz, contracts, and runtime harnesses passed.
 - lighttpd: 154 tests passed with 28 skipped and 80 passed subtests; the tight
   Stock/Patched/ABI selection passed 156 tests with 18 skipped and 108 passed

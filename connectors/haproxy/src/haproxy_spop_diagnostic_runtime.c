@@ -4689,6 +4689,7 @@ static void *spop_owner_queue_submit_gate_thread(void *opaque)
 static int run_spop_owner_queue_self_test(void)
 {
     agent_state state;
+    agent_state restarted_state;
     spop_owner_queue_self_test_context context;
     spop_owner_queue_gate_context gate;
     spop_owner_queue_submit_thread first;
@@ -4792,18 +4793,18 @@ static int run_spop_owner_queue_self_test(void)
 
     /* A fresh process state represents the supervisor restart.  Its owner
      * must accept a legitimate task after the terminal instance is gone. */
-    memset(&state, 0, sizeof(state));
+    memset(&restarted_state, 0, sizeof(restarted_state));
     memset(&context, 0, sizeof(context));
-    if (spop_owner_queue_init(&state) != 0) {
+    if (spop_owner_queue_init(&restarted_state) != 0) {
         rc = -1;
     } else {
-        if (spop_owner_queue_submit(&state,
+        if (spop_owner_queue_submit(&restarted_state,
                 run_spop_owner_queue_self_test_task, &context,
                 0, 0, 0, SPOP_OWNER_CALLER_WAIT_MS) != 0 ||
                 !context.ran) {
             rc = -1;
         }
-        if (spop_owner_queue_destroy(&state) != 0) {
+        if (spop_owner_queue_destroy(&restarted_state) != 0) {
             rc = -1;
         }
     }
@@ -5912,7 +5913,7 @@ static int spop_transport_stop_bounded(agent_state *state,
     return result;
 }
 
-static void destroy_agent_runtime(
+static int destroy_agent_runtime(
         agent_state *state,
         int listen_fd,
         FILE **log,
@@ -5920,11 +5921,12 @@ static void destroy_agent_runtime(
         FILE **decision_log,
         int decision_log_owned) {
     int native_runtime_safe = 1;
+    int restart_required;
 
     if (state == NULL) {
         close_owned_stream(decision_log, decision_log_owned);
         close_owned_stream(log, log_owned);
-        return;
+        return 0;
     }
     if (listen_fd >= 0) {
         spop_owner_queue_set_listener(state, -1);
@@ -5946,7 +5948,10 @@ static void destroy_agent_runtime(
             _Exit(SPOP_OWNER_RESTART_EXIT_CODE);
         }
     }
-    if (spop_owner_queue_requires_restart(state)) {
+    /* Snapshot the terminal disposition while the queue lock is still live.
+     * No lifecycle accessor may run after the queue mutex is destroyed. */
+    restart_required = spop_owner_queue_requires_restart(state);
+    if (restart_required) {
         if (spop_owner_queue_destroy(state) != 0) {
             /* The owner still reaches this stack-backed agent_state and may
              * later write through its logs/backend/task context.  Returning,
@@ -5986,6 +5991,7 @@ static void destroy_agent_runtime(
     }
     close_owned_stream(decision_log, decision_log_owned);
     close_owned_stream(log, log_owned);
+    return restart_required;
 }
 
 static int initialize_native_response_companion(
@@ -6094,9 +6100,8 @@ static int run_agent_server(const agent_config *config) {
     rc = accept_loop(listen_fd, &state, log, 0, 0, 0,
         state.config.spoe_timeout_ms, state.config.worker_count);
 cleanup:
-    destroy_agent_runtime(&state, listen_fd, &log, log_owned, &decision_log,
-        decision_log_owned);
-    if (spop_owner_queue_requires_restart(&state)) {
+    if (destroy_agent_runtime(&state, listen_fd, &log, log_owned,
+            &decision_log, decision_log_owned)) {
         rc = SPOP_OWNER_RESTART_EXIT_CODE;
     }
     return rc;

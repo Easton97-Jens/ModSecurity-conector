@@ -562,6 +562,111 @@ func TestProcessStuckNativeEquivalentReportsFatalAfterCleanupGrace(t *testing.T)
 	}
 }
 
+func TestProcessStuckSuccessfulEvidenceTransfersCleanupOwnership(t *testing.T) {
+	transaction := &recordingTransaction{
+		responseCommitBlock:   make(chan struct{}),
+		responseCommitStarted: make(chan struct{}),
+		closeDone:             make(chan struct{}),
+	}
+	service := newTestService(t, transaction, LateActionSafe)
+	service.config.CleanupTimeoutMS = 10
+	stream := &fakeProcessStream{
+		contextFactory: testStreamContext(context.Background()),
+		receive: []receiveResult{
+			{request: requestHeaders(false)},
+			{request: responseHeaders(false)},
+		},
+	}
+	processDone := make(chan error, 1)
+	go func() { processDone <- service.Process(stream) }()
+	select {
+	case <-transaction.responseCommitStarted:
+	case <-time.After(time.Second):
+		t.Fatal("successful response evidence did not enter the blocking hook")
+	}
+	select {
+	case err := <-processDone:
+		if status.Code(err) != codes.Internal {
+			t.Fatalf("Process() code = %s, want Internal (err=%v)", status.Code(err), err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Process() remained blocked in native response evidence")
+	}
+	select {
+	case fatal := <-service.FatalErrors():
+		if fatal == nil || !strings.Contains(fatal.Error(), "response evidence remained blocked") {
+			t.Fatalf("FatalErrors() = %v, want stuck-evidence terminal failure", fatal)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("stuck response evidence did not report fatal")
+	}
+	if followUpErr := service.Process(&fakeProcessStream{contextFactory: testStreamContext(context.Background())}); status.Code(followUpErr) != codes.Unavailable {
+		t.Fatalf("follow-up Process() code = %s, want Unavailable (err=%v)", status.Code(followUpErr), followUpErr)
+	}
+	if got := atomic.LoadInt32(&transaction.closeCalls); got != 0 {
+		t.Fatalf("cleanup called while response evidence was blocked: %d calls", got)
+	}
+	close(transaction.responseCommitBlock)
+	select {
+	case <-transaction.closeDone:
+	case <-time.After(time.Second):
+		t.Fatal("deferred response-evidence cleanup did not run after release")
+	}
+	if got := len(transaction.closed); got != 1 {
+		t.Fatalf("deferred cleanup calls = %d, want exactly one", got)
+	}
+}
+
+func TestProcessStuckTransactionCloseReportsFatalAndDoesNotRetry(t *testing.T) {
+	transaction := &recordingTransaction{
+		closeBlock:   make(chan struct{}),
+		closeStarted: make(chan struct{}),
+		closeDone:    make(chan struct{}),
+	}
+	service := newTestService(t, transaction, LateActionSafe)
+	service.config.CleanupTimeoutMS = 10
+	processDone := make(chan error, 1)
+	go func() {
+		processDone <- service.Process(&fakeProcessStream{
+			contextFactory: testStreamContext(context.Background()),
+			receive:        []receiveResult{{request: requestHeaders(true)}},
+		})
+	}()
+	select {
+	case <-transaction.closeStarted:
+	case <-time.After(time.Second):
+		t.Fatal("transaction cleanup did not enter the blocking hook")
+	}
+	select {
+	case err := <-processDone:
+		if status.Code(err) != codes.Internal {
+			t.Fatalf("Process() code = %s, want Internal (err=%v)", status.Code(err), err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Process() remained blocked in transaction cleanup")
+	}
+	select {
+	case fatal := <-service.FatalErrors():
+		if fatal == nil || !strings.Contains(fatal.Error(), "cleanup remained blocked") {
+			t.Fatalf("FatalErrors() = %v, want stuck-cleanup terminal failure", fatal)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("stuck transaction cleanup did not report fatal")
+	}
+	if followUpErr := service.Process(&fakeProcessStream{contextFactory: testStreamContext(context.Background())}); status.Code(followUpErr) != codes.Unavailable {
+		t.Fatalf("follow-up Process() code = %s, want Unavailable (err=%v)", status.Code(followUpErr), followUpErr)
+	}
+	close(transaction.closeBlock)
+	select {
+	case <-transaction.closeDone:
+	case <-time.After(time.Second):
+		t.Fatal("transaction cleanup did not finish after release")
+	}
+	if got := atomic.LoadInt32(&transaction.closeCalls); got != 1 {
+		t.Fatalf("transaction Close calls = %d, want exactly one", got)
+	}
+}
+
 func TestProcessPromptNativeCancellationPreservesFollowUpAdmission(t *testing.T) {
 	transaction := &recordingTransaction{headerBlock: make(chan struct{}), headerCancel: true}
 	service := newTestService(t, transaction, LateActionSafe)
@@ -1306,20 +1411,25 @@ func (engine *policyValidationEngine) ValidateLateActionPolicy(policy LateAction
 }
 
 type recordingTransaction struct {
-	headerDecision      func(Direction) Decision
-	bodyDecision        func(Direction) Decision
-	headerCalls         []Direction
-	requestBodyLengths  []int
-	responseBodyLengths []int
-	closed              []Summary
-	hostActions         []HostAction
-	responseCommits     int
-	responseCommitError error
-	hostActionError     error
-	headerBlock         chan struct{}
-	headerStarted       chan<- struct{}
-	headerCancel        bool
-	closeDone           chan struct{}
+	headerDecision        func(Direction) Decision
+	bodyDecision          func(Direction) Decision
+	headerCalls           []Direction
+	requestBodyLengths    []int
+	responseBodyLengths   []int
+	closed                []Summary
+	hostActions           []HostAction
+	responseCommits       int
+	responseCommitError   error
+	hostActionError       error
+	headerBlock           chan struct{}
+	headerStarted         chan<- struct{}
+	headerCancel          bool
+	closeDone             chan struct{}
+	responseCommitBlock   chan struct{}
+	responseCommitStarted chan struct{}
+	closeBlock            chan struct{}
+	closeStarted          chan struct{}
+	closeCalls            int32
 }
 
 func (transaction *recordingTransaction) ProcessHeaders(ctx context.Context, direction Direction, _ []Header, _ bool) (Decision, error) {
@@ -1368,6 +1478,13 @@ func (transaction *recordingTransaction) ProcessBody(_ context.Context, directio
 }
 
 func (transaction *recordingTransaction) Close(_ context.Context, summary Summary) {
+	atomic.AddInt32(&transaction.closeCalls, 1)
+	if transaction.closeStarted != nil {
+		close(transaction.closeStarted)
+	}
+	if transaction.closeBlock != nil {
+		<-transaction.closeBlock
+	}
 	transaction.closed = append(transaction.closed, summary)
 	if transaction.closeDone != nil {
 		close(transaction.closeDone)
@@ -1375,6 +1492,12 @@ func (transaction *recordingTransaction) Close(_ context.Context, summary Summar
 }
 
 func (transaction *recordingTransaction) MarkResponseCommitted(ctx context.Context) error {
+	if transaction.responseCommitStarted != nil {
+		close(transaction.responseCommitStarted)
+	}
+	if transaction.responseCommitBlock != nil {
+		<-transaction.responseCommitBlock
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}

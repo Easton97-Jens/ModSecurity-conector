@@ -88,7 +88,7 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
         self.assertNotIn("pthread_cancel", SOURCE)
 
     def test_unquiesced_owner_exits_without_releasing_stack_backed_state(self) -> None:
-        cleanup = SOURCE.split("static void destroy_agent_runtime", 1)[1].split(
+        cleanup = SOURCE.split("static int destroy_agent_runtime", 1)[1].split(
             "static int initialize_native_response_companion", 1
         )[0]
         self.assertGreaterEqual(
@@ -96,10 +96,27 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
         )
         self.assertIn("use-after-return/use-after-close", cleanup)
 
+    def test_restart_disposition_is_read_before_queue_lock_destruction(self) -> None:
+        cleanup = SOURCE.split("static int destroy_agent_runtime", 1)[1].split(
+            "static int initialize_native_response_companion", 1
+        )[0]
+        snapshot = cleanup.index(
+            "restart_required = spop_owner_queue_requires_restart(state)"
+        )
+        destroy = cleanup.index("spop_owner_queue_destroy(state)", snapshot)
+        self.assertLess(snapshot, destroy)
+        self.assertIn("return restart_required", cleanup)
+
+        server = SOURCE.split("static int run_agent_server", 1)[1].split(
+            "static void print_usage", 1
+        )[0]
+        post_cleanup = server.split("destroy_agent_runtime", 1)[1]
+        self.assertNotIn("spop_owner_queue_requires_restart", post_cleanup)
+
     def test_response_transport_shutdown_is_outer_bounded_and_terminal(self) -> None:
         bounded_stop = SOURCE.split("static int spop_transport_stop_bounded", 1)[
             1
-        ].split("static void destroy_agent_runtime", 1)[0]
+        ].split("static int destroy_agent_runtime", 1)[0]
         self.assertIn("pthread_cond_timedwait", bounded_stop)
         self.assertIn("event=spop-response-transport-shutdown-timeout", bounded_stop)
         self.assertGreaterEqual(
@@ -123,7 +140,10 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
         self.assertIn("!spop_owner_queue_requires_restart(&state)", owner_test)
         self.assertIn("spop_owner_queue_destroy(&state) == 0", owner_test)
         self.assertIn("shutdown_elapsed - shutdown_started", owner_test)
-        self.assertGreaterEqual(owner_test.count("spop_owner_queue_init(&state)"), 2)
+        self.assertIn("agent_state restarted_state", owner_test)
+        self.assertIn("spop_owner_queue_init(&restarted_state)", owner_test)
+        self.assertIn("spop_owner_queue_submit(&restarted_state", owner_test)
+        self.assertIn("spop_owner_queue_destroy(&restarted_state)", owner_test)
 
     def test_safe_example_does_not_reintroduce_a_single_peer_bottleneck(self) -> None:
         self.assertIn("worker-count=8", EXAMPLE)

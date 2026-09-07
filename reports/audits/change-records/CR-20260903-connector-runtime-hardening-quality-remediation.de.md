@@ -357,19 +357,38 @@ potenziell blockierenden Joins oder Worker-Waits. Eine Ersatz-Inode bleibt
 bewusst erhalten. Das finale unabhängige Re-Review fand in diesen Pfaden keinen
 verbleibenden UAF-, Double-Free-, Listener-FD-Reuse- oder Lock-Order-Bypass.
 
+Die Exact-Head-Sonar-Analyse von `f572fa1a` meldete ausschließlich zwei
+`c:S5487`-Reliability-Blocker im SPOP-Owner-Lock-Lebenszyklus. Die
+Folgereparatur verwendet für den legitimen Post-Restart-Selbsttest einen
+getrennten Prozesszustand und erfasst die terminale Restart-Disposition vor
+dem Abbau des Queue-Locks. Sie unterdrückt weder ein Issue noch verändert sie
+das Quality Gate. Zwei unabhängige Envoy-Reviews bestätigten außerdem
+verbleibende Watchdog-Lücken nach einem erfolgreichen Response-`Send` und in
+`transaction.Close`: Ein bereits in einen nicht unterbrechbaren Abschnitt
+eingetretener nativer/CGo-Aufruf konnte Stream und Admission-Slot ohne
+Fatal-Signal halten. Beide Operationen sind nun außen begrenzt. Ein hängender
+Evidence-Aufruf übergibt das State-Ownership atomar an genau einen Reaper; ein
+hängendes Close liefert einen terminalen Cleanup-Fehler zurück. In beiden
+Fällen erhält der Prozessbesitzer `FatalErrors`, Folgezulassung wird abgewiesen
+und die native Transaktion wird weder ein zweites Mal geschlossen noch
+freigegeben, solange sie erreichbar ist. Engine-Operation-, Stream-Idle-,
+Stream-Lifetime- und Cleanup-Timeout bleiben getrennte Kontrollen.
+
 Die aktuelle lokale Evidence umfasst:
 
 - Common/Apache/NGINX: 146 Tests plus 80 Subtests bestanden; alle vier Common-
   Adoption-Targets und der Common-Sicherheitsvertrag bestanden.
-- HAProxy: Die vollständige Python-/Contract-Auswahl führte 161 Tests aus, 149
-  bestanden und 12 wurden übersprungen; der fokussierte ASan/UBSan-Harness
+- HAProxy: Die vollständige Python-/Contract-Auswahl führte 239 Tests aus; 227
+  bestanden, 12 wurden übersprungen, zusätzlich bestanden 93 Subtests; der fokussierte ASan/UBSan-Harness
   bestand die Kontrollen für terminalen Owner, fehlgeschlagenen Transport-
   Stop, hängenden Transport-Stop und legitime frische Instanz. Der echte
   Common-Response-Companion-Transporttest bestand C17
   `-Wall -Wextra -Werror` mit ASan, UBSan und Leak-Erkennung einschließlich
   paralleler Clients, UDS-Ownership, Stop/Restart, Cancel, Cleanup und Follow-up.
-- Envoy: Alle ausgewählten ext_authz-/ext_proc-Tests, Race-Tests, Vet und Builds
-  bestanden. Traefik-Native-UDS-, Composite-Middleware- und Response-Observer-
+- Envoy: Alle ext_proc-Pakettests, die vollständige Race-Suite, Vet und der
+  Build mit `-buildvcs=false` bestanden, einschließlich deterministischer
+  Fatal-/Reaper-/Folgekontrollen für blockierte Evidence und blockiertes Close.
+  Traefik-Native-UDS-, Composite-Middleware- und Response-Observer-
   Tests, Race-Tests, Build, Vet, Fuzz, Contracts und Runtime-Harnesses bestanden.
 - lighttpd: 154 Tests bestanden, 28 wurden übersprungen und 80 Subtests
   bestanden; die enge Stock-/Patched-/ABI-Auswahl bestand 156 Tests, 18 wurden
