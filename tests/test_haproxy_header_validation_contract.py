@@ -48,7 +48,16 @@ static int request_case(const haproxy_modsecurity_header *headers,
         return 1;
     }
     if (expected) {
+        if (mapped.request.hostname == NULL ||
+                strcmp(mapped.request.hostname, "example.test") != 0 ||
+                mapped.request.server.address != source.server_ip) {
+            haproxy_modsecurity_mapped_request_cleanup(&mapped);
+            return 1;
+        }
         haproxy_modsecurity_mapped_request_cleanup(&mapped);
+    } else if (mapped.owned_headers != NULL || mapped.request.headers != NULL ||
+            mapped.request.header_count != 0U) {
+        return 1;
     }
     return 0;
 }
@@ -110,6 +119,7 @@ int main(void) {
     char oversize_value[8194];
     char aggregate_value[8193];
     haproxy_modsecurity_header positive[] = {{"Host", "example.test"}};
+    haproxy_modsecurity_header no_host[] = {{"X-Test", "value"}};
     haproxy_modsecurity_header empty_host[] = {{"Host", ""}};
     haproxy_modsecurity_header duplicate_host[] = {
         {"Host", "example.test"}, {"host", "other.test"}};
@@ -146,6 +156,7 @@ int main(void) {
     }
     if (request_case(NULL, 0U, 0) != 0 ||
             request_case(positive, 1U, 1) != 0 ||
+            request_case(no_host, 1U, 0) != 0 ||
             request_case(empty_host, 1U, 0) != 0 ||
             request_case(duplicate_host, 2U, 0) != 0 ||
             request_case(duplicate_cl, 3U, 0) != 0 ||
