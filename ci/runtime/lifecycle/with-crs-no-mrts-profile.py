@@ -51,11 +51,11 @@ SOURCE_KINDS = {
     "lighttpd": "generic_runtime_observation",
     "traefik": "generic_runtime_observation",
 }
-OUTPUT_NAMES = (
-    "functional-facts.json",
-    "profile-cell-receipt.json",
-    "manifest.json",
-)
+FUNCTIONAL_FACTS_NAME = "functional-facts.json"
+PROFILE_RECEIPT_NAME = "profile-cell-receipt.json"
+MANIFEST_NAME = "manifest.json"
+CRS_RULE_FILE = "rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf"
+OUTPUT_NAMES = (FUNCTIONAL_FACTS_NAME, PROFILE_RECEIPT_NAME, MANIFEST_NAME)
 APACHE_SUMMARY_RELATIVE_PATH = "build/verified-apache-case/with-crs/no-mrts/results/apache-summary.json"
 APACHE_RESULTS_RELATIVE_PATH = "build/verified-apache-case/with-crs/no-mrts/results/apache-results.jsonl"
 APACHE_AUDIT_RELATIVE_PATH = (
@@ -67,12 +67,15 @@ APACHE_CLEANUP_RECORD = "apache_with_crs_no_mrts_cleanup_receipt"
 APACHE_AUDIT_REQUEST_LINE = (
     "GET /?id=1%20UNION%20SELECT%20password%20FROM%20users HTTP/1.1"
 )
-APACHE_AUDIT_BOUNDARY = re.compile(r"^--([A-Za-z0-9]+)-([A-Z])--$", re.ASCII)
-APACHE_AUDIT_STATUS = re.compile(r"^HTTP/[0-9]+(?:\.[0-9]+)? 403(?:[ \t\r]|$)")
-SHA40 = re.compile(r"^[0-9a-f]{40}$", re.ASCII)
-SHA256 = re.compile(r"^[0-9a-f]{64}$", re.ASCII)
-TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$", re.ASCII)
-DECIMAL = re.compile(r"^[1-9][0-9]{0,19}$", re.ASCII)
+APACHE_AUDIT_BOUNDARY = re.compile(r"^--([A-Za-z\d]+)-([A-Z])--$", re.ASCII)
+APACHE_AUDIT_STATUS = re.compile(r"^HTTP/\d+(?:\.\d+)? 403(?:[ \t\r]|$)", re.ASCII)
+APACHE_CRS_RULE_ID = re.compile(
+    rb"(?:^|[,\s])['\"]?id['\"]?\s*:\s*942270(?:[,\s]|$)"
+)
+SHA40 = re.compile(r"^[\da-f]{40}$", re.ASCII)
+SHA256 = re.compile(r"^[\da-f]{64}$", re.ASCII)
+TOKEN = re.compile(r"^[A-Za-z\d][A-Za-z\d._-]{0,127}$", re.ASCII)
+DECIMAL = re.compile(r"^[1-9]\d{0,19}$", re.ASCII)
 MAX_JSON_BYTES = 1024 * 1024
 MAX_SOURCE_BYTES = 2 * 1024 * 1024
 
@@ -123,7 +126,7 @@ def parse_json_object(raw: bytes, label: str, *, canonical: bool = False) -> dic
         )
     except ProfileError:
         raise
-    except (UnicodeDecodeError, RecursionError, ValueError) as exc:
+    except (RecursionError, ValueError) as exc:
         raise fail(f"{label} is not valid JSON") from exc
     if type(value) is not dict:
         raise fail(f"{label} must be a JSON object")
@@ -223,8 +226,9 @@ def _safe_relative_parts(value: str | PurePosixPath, label: str) -> tuple[str, .
     return tuple(path.parts)
 
 
-def read_safe(root: Path, relative: str | PurePosixPath, label: str, *, maximum: int = MAX_SOURCE_BYTES) -> bytes:
-    parts = _safe_relative_parts(relative, label)
+def _open_safe_file(
+    root: Path, parts: tuple[str, ...], label: str, maximum: int
+) -> tuple[int, os.stat_result]:
     nofollow = getattr(os, "O_NOFOLLOW", None)
     nonblock = getattr(os, "O_NONBLOCK", None)
     directory = getattr(os, "O_DIRECTORY", None)
@@ -252,6 +256,12 @@ def read_safe(root: Path, relative: str | PurePosixPath, label: str, *, maximum:
         file_descriptor = os.open(parts[-1], os.O_RDONLY | nofollow | nonblock, dir_fd=descriptor)
     finally:
         os.close(descriptor)
+    return file_descriptor, before
+
+
+def _read_safe_descriptor(
+    file_descriptor: int, before: os.stat_result, label: str, maximum: int
+) -> bytes:
     try:
         opened = os.fstat(file_descriptor)
         if _identity(before) != _identity(opened):
@@ -275,6 +285,12 @@ def read_safe(root: Path, relative: str | PurePosixPath, label: str, *, maximum:
     if len(data) > maximum:
         raise fail(f"{label} exceeds its size bound")
     return data
+
+
+def read_safe(root: Path, relative: str | PurePosixPath, label: str, *, maximum: int = MAX_SOURCE_BYTES) -> bytes:
+    parts = _safe_relative_parts(relative, label)
+    file_descriptor, before = _open_safe_file(root, parts, label, maximum)
+    return _read_safe_descriptor(file_descriptor, before, label, maximum)
 
 
 def _list_safe(root: Path, label: str) -> set[str]:
@@ -351,11 +367,11 @@ def _verify_crs_source(args: argparse.Namespace) -> dict[str, str]:
     source = _safe_absolute(args.crs_source_root, "CRS source root")
     # Descriptor-safe rule bytes are the evidence binding.  Git is used only
     # to read the commit of that exact, freshly prepared source checkout.
-    rule = read_safe(source, "rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf", "CRS rule")
+    rule = read_safe(source, CRS_RULE_FILE, "CRS rule")
     rule_sha = hashlib.sha256(rule).hexdigest()
     if rule_sha != args.crs_rule_sha256:
         raise fail("CRS rule digest does not match the trusted pin")
-    if re.search(rb"(?:^|[,\s])id\s*:\s*942270(?:[,\s]|$)", rule) is None:
+    if APACHE_CRS_RULE_ID.search(rule) is None:
         raise fail("CRS rule source does not contain the expected rule identity")
     environment = {
         "PATH": os.defpath,
@@ -381,7 +397,7 @@ def _verify_crs_source(args: argparse.Namespace) -> dict[str, str]:
         raise fail("fresh CRS source commit does not match the trusted pin")
     return {
         "commit": commit,
-        "rule_file": "rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf",
+        "rule_file": CRS_RULE_FILE,
         "rule_sha256": rule_sha,
     }
 
@@ -397,9 +413,9 @@ def _no_mrts_exact(value: object, label: str) -> dict[str, bool]:
     if type(value) is not dict:
         raise fail(f"{label} must be an object")
     _require_exact(value, required, label)
-    if any(value[name] is not False for name in required):
+    if any(item is not False for item in value.values()):
         raise fail(f"{label} contradicts no-MRTS execution")
-    return {name: False for name in sorted(required)}
+    return dict.fromkeys(sorted(required), False)
 
 
 def _generic_facts(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[str, str]]]:
@@ -449,7 +465,7 @@ def _generic_facts(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[
         "framework_commit": args.framework_sha,
         "connector_commit": args.parent_sha,
         "crs_commit": args.crs_commit,
-        "crs_rule_file": "rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf",
+        "crs_rule_file": CRS_RULE_FILE,
         "crs_rule_file_sha256": args.crs_rule_sha256,
         "expected_rule_id": RULE_ID,
         "observed_rule_id": RULE_ID,
@@ -517,9 +533,10 @@ def _generic_facts(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[
 
 
 def _apache_case(value: object) -> Mapping[str, Any]:
-    if type(value) is not dict or type(value.get("apache")) is not dict:
+    apache = value.get("apache") if type(value) is dict else None
+    if type(apache) is not dict:
         raise fail("Apache summary has no Apache section")
-    cases = value["apache"].get("cases")
+    cases = apache.get("cases")
     if type(cases) is not dict or type(cases.get(CASE_ID)) is not dict:
         raise fail("Apache summary lacks the selected case")
     return cases[CASE_ID]
@@ -636,7 +653,8 @@ def _apache_cleanup_receipt(
         "selected_listeners_remaining",
         "pid_files_remaining",
     ):
-        if type(value.get(name)) is not int or value[name] != 0:
+        remaining = value.get(name)
+        if type(remaining) is not int or remaining != 0:
             raise fail(f"Apache cleanup receipt {name} is not clean")
 
 
@@ -750,7 +768,7 @@ def _apache_facts(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[s
             for line in results_raw.decode("utf-8").splitlines()
             if line.strip()
         ]
-    except (UnicodeDecodeError, ValueError) as exc:
+    except ValueError as exc:
         raise fail("Apache results JSONL is invalid") from exc
     if len(lines) != 1 or type(lines[0]) is not dict:
         raise fail("Apache results must contain exactly one selected case")
@@ -815,7 +833,12 @@ def _haproxy_facts(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[
     # checks or relabeling this workflow-owned handoff as native evidence.
     try:
         verified = HAPROXY_PROJECTOR.verify_staged_package(
-            runner_temp=Path("/tmp"),
+            # The projector's runner root is the parent of the per-run stage
+            # parent.  Derive it from the already validated stage path rather
+            # than naming a shared public temporary directory.  The projector
+            # still reopens every component with O_NOFOLLOW and checks its
+            # ownership/mode through descriptors.
+            runner_temp=stage_root.parent.parent,
             stage_parent=stage_root.parent,
             stage_root=stage_root,
             trusted=trusted,
@@ -977,16 +1000,16 @@ def produce(args: argparse.Namespace) -> dict[str, Any]:
         "schema_version": SCHEMA_VERSION,
         "record_type": MANIFEST_RECORD,
         "files": [
-            {"name": "functional-facts.json", "sha256": hashlib.sha256(facts_data).hexdigest(), "size_bytes": len(facts_data)},
-            {"name": "profile-cell-receipt.json", "sha256": hashlib.sha256(receipt_data).hexdigest(), "size_bytes": len(receipt_data)},
+            {"name": FUNCTIONAL_FACTS_NAME, "sha256": hashlib.sha256(facts_data).hexdigest(), "size_bytes": len(facts_data)},
+            {"name": PROFILE_RECEIPT_NAME, "sha256": hashlib.sha256(receipt_data).hexdigest(), "size_bytes": len(receipt_data)},
         ],
     }
     manifest_data = canonical_json(manifest)
     _output, output_fd = _create_output_directory(args.verified_root, args.output_dir)
     try:
-        _write_new_file(output_fd, "functional-facts.json", facts_data, "functional facts")
-        _write_new_file(output_fd, "profile-cell-receipt.json", receipt_data, "profile cell receipt")
-        _write_new_file(output_fd, "manifest.json", manifest_data, "profile cell manifest")
+        _write_new_file(output_fd, FUNCTIONAL_FACTS_NAME, facts_data, "functional facts")
+        _write_new_file(output_fd, PROFILE_RECEIPT_NAME, receipt_data, "profile cell receipt")
+        _write_new_file(output_fd, MANIFEST_NAME, manifest_data, "profile cell manifest")
         os.fsync(output_fd)
     finally:
         os.close(output_fd)

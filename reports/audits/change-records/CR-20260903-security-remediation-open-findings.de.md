@@ -1406,3 +1406,58 @@ SonarCloud-Quality-Gate-/Issue-/Hotspot-Readback und Review-Disposition bleiben
 erforderlich. FND-CROSS-0004 bleibt `blocked`, bis seine bestehenden
 Akzeptanzkriterien tatsächlich erfüllt sind; PR #354 bleibt Draft und
 ungemergt.
+
+### 2026-09-07 Achtzehnter Follow-up (Reparatur des ersten Exact-Five-Fehlschlags)
+
+Der erste ausgelieferte Exact-Five-Head
+`8f91f70ce8f1bdf6167aa5e1aa386fe18df0fa50` wurde ausschließlich durch den
+frischen GitHub-hosted-Workflow `34140286420`, gebunden an die geprüfte Base
+`9925ef647b5fb49d21aebd658a658d4fdb649c58`, ausgeführt. Er schlug
+fail-closed fehl und ist nur negative Evidence: Die vier Nicht-Apache-
+Producer wiesen den gepinnten CRS-Source zurück, weil seine gültige
+JSON-ähnliche Regelform den quoted Key `"id":942270` verwendet; Apache
+fehlte die vom Evidence-Validator verlangte rohe serielle Audit-Datei; und das
+Aggregat wies nicht verfügbare Upstream-Zellen korrekt zurück. Dies belegt
+weder einen CRS-HTTP-Blockfehler noch wird ein Failure-Receipt zu einer
+bestandenen Zelle promoviert.
+
+FND-PARENT-1063 engt den CRS-Identity-Matcher auf die tatsächlich gepinnte
+quoted Form und die etablierte unquoted Form ein, erhält aber exakte
+Descriptor-, Digest- und Commit-Prüfung und weist getestete Near-Misses ab.
+FND-PARENT-1064 hängt nur für das Profil Apache-Serial-/Native-
+Auditdirektiven mit den Teilen `ABFHZ` nach Fallmaterialisierung und vor dem
+Start an, ausschließlich für ein vollständiges ausgewähltes With-CRS-Profil.
+No-CRS sowie unvollständige oder Nichtprofilpfade bleiben außerhalb dieses
+Append. Framework, MRTS, Gitlink, Dependency, Workflow-Policy oder bestehende
+Kontrollen wurden nicht verändert.
+
+Ein verpflichtendes unabhängiges Review stellte anschließend fest, dass die
+neue generierte `SecAuditLog`-Senke ihren abgeleiteten Pfad als Apache-
+Konfigurationsdaten behandeln muss. FND-PARENT-1065 hält die payload-sichere
+Quote-/Newline-Direktivensplit-Reproduktion und den getrennten Fall der
+Apache-Konfigurationsvariablenexpansion fest. Der nur profilgebundene Guard
+weist jetzt Quote, Backslash, Dollarzeichen und POSIX-Steuerzeichen vor Append
+oder Serverstart ab. Seine echte extrahierte Shell-Regression akzeptiert einen
+normalen absoluten Pfad mit Leerzeichen/normaler Interpunktion und weist
+Quote-/Newline-, Backslash- und Expansionsinputs fail-closed ab. Das ist eine
+enge Reparatur der neuen Senke; ein lokaler Apache-configtest oder
+Runtime-Akzeptanz wird nicht behauptet.
+
+Der Kandidat enthält zudem enge Source-Refactorings für FND-SONAR-0079 ohne
+Suppression, Quality-Gate-Änderung oder semantische Abschwächung. Das frühere
+SonarCloud-Ergebnis auf `8f91f70...` bleibt fehlgeschlagen (Quality Gate
+`ERROR`, 44 aktive offene Issues, keine reviewbaren Hotspots), daher ist ein
+frisches SonarCloud-Ergebnis für den Successor erforderlich und hier wird kein
+grünes Ergebnis behauptet.
+
+Nach der finalen Path-Guard-Änderung bestand die kombinierte betroffene
+Parent-Suite `265` Tests mit `11` bestehenden Environment-Skips. Sie deckt
+CI-Security, den Apache-Profilguard, HAProxy-Projection-/Workflow-/Harness-
+Contracts, With-CRS-Producer-/Aggregate-/Runtime-Contracts,
+Runtime-Observations und die geschützten No-CRS-Profil-/Workflow-Contracts ab.
+Erwartete Negative-Fixture-Diagnosen werden innerhalb erfolgreich endender
+Tests ausgegeben. Ein frischer normaler Commit/Push, exaktes
+Remote-/PR-Head-Readback, Hosted-Five-Cell-/Aggregate-Artefaktvalidierung,
+aktuelle erforderliche Checks und Exact-Successor-SonarCloud-Readback bleiben
+verpflichtend. PR #354 bleibt Draft und ungemergt; FND-CROSS-0004 bleibt bis zu
+seinen bestehenden Akzeptanzkriterien `blocked`.

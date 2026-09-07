@@ -21,7 +21,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def load(name: str, path: Path):
     spec = importlib.util.spec_from_file_location(name, path)
-    assert spec and spec.loader
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Unable to load module specification for {path}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -170,6 +171,11 @@ def aggregate_args(root: Path, output: Path, **changes: str) -> SimpleNamespace:
                   framework_sha=FRAMEWORK, mrts_sha=MRTS, crs_commit=CRS, crs_rule_sha256=RULE_SHA)
     values.update(changes)
     return SimpleNamespace(**values)
+
+
+def aggregate_with_args(root: Path, output: Path, **changes: str) -> dict[str, object]:
+    """Run the strict aggregate using a separately prepared argument object."""
+    return AGGREGATE.aggregate(aggregate_args(root, output, **changes))
 
 
 def producer_args(root: Path, connector: str, source: Path) -> SimpleNamespace:
@@ -343,6 +349,13 @@ def make_generic_source(root: Path, connector: str, run: str, *, crs_commit: str
 
 
 class WithCrsNoMrtsProfileContractTest(unittest.TestCase):
+    def test_crs_rule_identity_accepts_pinned_json_syntax_only(self):
+        self.assertIsNotNone(PROFILE.APACHE_CRS_RULE_ID.search(b'"id":942270,'))
+        self.assertIsNotNone(PROFILE.APACHE_CRS_RULE_ID.search(b"id: 942270,deny"))
+        for near_miss in (b'"id":942271,', b'"id":9422700,', b'"rule_id":942270,'):
+            with self.subTest(near_miss=near_miss):
+                self.assertIsNone(PROFILE.APACHE_CRS_RULE_ID.search(near_miss))
+
     def test_produce_accepts_apache_and_haproxy_source_contracts(self):
         with tempfile.TemporaryDirectory(prefix="profile-producer-") as temporary:
             root = Path(temporary)
@@ -598,7 +611,7 @@ class WithCrsNoMrtsProfileContractTest(unittest.TestCase):
             for connector in PROFILE.CONNECTORS:
                 cell(root, connector)
             result = AGGREGATE.aggregate(aggregate_args(root, root / "aggregate"))
-            self.assertEqual(result["summary"]["technical_validity"]["exact_five"], True)
+            self.assertTrue(result["summary"]["technical_validity"]["exact_five"])
             self.assertEqual(result["matrix"]["counts"], {"passed": 5, "failed": 0, "blocked": 6, "not_run": 13, "not_applicable": 0})
             rows = result["matrix"]["rows"]
             self.assertEqual(len(rows), 24)
@@ -673,10 +686,10 @@ class WithCrsNoMrtsProfileContractTest(unittest.TestCase):
             for connector in PROFILE.CONNECTORS[:-1]:
                 cell(root, connector)
             with self.assertRaises(ValueError):
-                AGGREGATE.aggregate(aggregate_args(root, root / "aggregate"))
+                aggregate_with_args(root, root / "aggregate")
             shutil.copytree(cell_directory(root, "apache"), root / "extra")
             with self.assertRaises(ValueError):
-                AGGREGATE.aggregate(aggregate_args(root, root / "aggregate"))
+                aggregate_with_args(root, root / "aggregate")
 
     def test_aggregate_rejects_renamed_foreign_evidence_directory(self):
         with tempfile.TemporaryDirectory(prefix="profile-foreign-directory-") as temporary:
@@ -685,7 +698,7 @@ class WithCrsNoMrtsProfileContractTest(unittest.TestCase):
                 cell(root, connector)
             cell_directory(root, "apache").rename(root / "foreign-evidence")
             with self.assertRaises(ValueError):
-                AGGREGATE.aggregate(aggregate_args(root, root / "aggregate"))
+                aggregate_with_args(root, root / "aggregate")
 
     def test_aggregate_rejects_identity_and_binding_tampering(self):
         for field, value in (("parent_sha", "9" * 40), ("base_sha", "8" * 40),
@@ -696,7 +709,7 @@ class WithCrsNoMrtsProfileContractTest(unittest.TestCase):
                 for connector in PROFILE.CONNECTORS:
                     cell(root, connector)
                 with self.assertRaises(ValueError):
-                    AGGREGATE.aggregate(aggregate_args(root, root / "aggregate", **{field: value}))
+                    aggregate_with_args(root, root / "aggregate", **{field: value})
 
     def test_aggregate_rejects_one_repacked_cell_with_conflicting_identity_or_provenance(self):
         mutations = (
@@ -722,7 +735,7 @@ class WithCrsNoMrtsProfileContractTest(unittest.TestCase):
                     receipt_mutator=lambda receipt, field=field, value=value: receipt.__setitem__(field, value),
                 )
                 with self.assertRaises(ValueError):
-                    AGGREGATE.aggregate(aggregate_args(root, root / "aggregate"))
+                    aggregate_with_args(root, root / "aggregate")
 
     def test_aggregate_rejects_manifest_hash_source_path_and_link_attacks(self):
         with tempfile.TemporaryDirectory(prefix="profile-integrity-") as temporary:
@@ -734,7 +747,7 @@ class WithCrsNoMrtsProfileContractTest(unittest.TestCase):
             value["files"][0]["size_bytes"] += 1
             private_json(manifest, value)
             with self.assertRaises(ValueError):
-                AGGREGATE.aggregate(aggregate_args(root, root / "aggregate"))
+                aggregate_with_args(root, root / "aggregate")
         with tempfile.TemporaryDirectory(prefix="profile-link-") as temporary:
             root = Path(temporary)
             for connector in PROFILE.CONNECTORS:
@@ -743,7 +756,7 @@ class WithCrsNoMrtsProfileContractTest(unittest.TestCase):
             target.mkdir(mode=0o700)
             (root / "alias").symlink_to(target, target_is_directory=True)
             with self.assertRaises(ValueError):
-                AGGREGATE.aggregate(aggregate_args(root, root / "aggregate"))
+                aggregate_with_args(root, root / "aggregate")
 
     def test_aggregate_rejects_repacked_source_bindings_and_noncanonical_receipts(self):
         receipt_mutations = (
@@ -759,7 +772,7 @@ class WithCrsNoMrtsProfileContractTest(unittest.TestCase):
                     cell(root, connector)
                 repack_cell(cell_directory(root, "apache"), receipt_mutator=mutate)
                 with self.assertRaises(ValueError):
-                    AGGREGATE.aggregate(aggregate_args(root, root / "aggregate"))
+                    aggregate_with_args(root, root / "aggregate")
         for name, mutate in (
             (
                 "duplicate_key",
@@ -778,7 +791,7 @@ class WithCrsNoMrtsProfileContractTest(unittest.TestCase):
                 receipt_path.write_bytes(mutate(receipt_path.read_bytes()))
                 refresh_cell_manifest(cell_directory(root, "apache"))
                 with self.assertRaises(ValueError):
-                    AGGREGATE.aggregate(aggregate_args(root, root / "aggregate"))
+                    aggregate_with_args(root, root / "aggregate")
 
     def test_aggregate_rejects_repacked_primitive_type_confusion(self):
         mutations = (
@@ -884,7 +897,7 @@ class WithCrsNoMrtsProfileContractTest(unittest.TestCase):
                     manifest_mutator(manifest)
                     private_json(manifest_path, manifest)
                 with self.assertRaises(ValueError):
-                    AGGREGATE.aggregate(aggregate_args(root, root / "aggregate"))
+                    aggregate_with_args(root, root / "aggregate")
 
     def test_profile_rejects_minimal_generic_observation_and_preexisting_output(self):
         with tempfile.TemporaryDirectory(prefix="profile-produce-") as temporary:
@@ -930,7 +943,7 @@ class WithCrsNoMrtsProfileContractTest(unittest.TestCase):
             private_json(artifact / "result.json", {"profile": no_crs_profile.PROFILE, "status": "PASS"})
             private_json(artifact / "manifest.json", {"profile": no_crs_profile.PROFILE, "artifacts": {}})
             with self.assertRaises(ValueError):
-                AGGREGATE.aggregate(aggregate_args(root, root / "aggregate"))
+                aggregate_with_args(root, root / "aggregate")
 
 
 if __name__ == "__main__":

@@ -514,12 +514,50 @@ apache_profile_enabled() {
     return 0
 }
 
+require_safe_apache_config_path() {
+    config_path=$1
+    config_label=$2
+    case "$config_path" in
+        *[[:cntrl:]]*|*\"*|*[\\]*|*\$*)
+            blocked "$config_label contains an unsafe Apache configuration character"
+            ;;
+        *) ;;
+    esac
+}
+
+configure_apache_profile_audit() {
+    if apache_profile_enabled; then
+        :
+    else
+        profile_rc=$?
+        case "$profile_rc" in
+            1) return 0 ;;
+            *) blocked "Apache profile audit configuration is incomplete" ;;
+        esac
+    fi
+    [ "$MODSECURITY_TEST_VARIANT" = "with-crs" ] || \
+        blocked "Apache profile audit evidence requires MODSECURITY_TEST_VARIANT=with-crs"
+    [ "$RUN_ONE_CASE" = "1" ] || \
+        blocked "Apache profile audit evidence requires one selected case"
+    require_safe_apache_config_path "$AUDIT_LOG_FILE" "Apache profile audit path"
+    [ ! -e "$AUDIT_LOG_FILE" ] || \
+        fail "Apache profile audit log already exists before the selected case"
+    {
+        printf '%s\n' 'SecAuditEngine On'
+        printf '%s\n' 'SecAuditLogType Serial'
+        printf '%s\n' 'SecAuditLogFormat Native'
+        printf '%s\n' 'SecAuditLogParts ABFHZ'
+        printf 'SecAuditLog "%s"\n' "$AUDIT_LOG_FILE"
+    } >> "$RULES_FILE" || fail "failed to append Apache profile audit configuration"
+}
+
 apache_profile_stop_tracked_process() {
     process_label=$1
     process_pid=$2
     [ -n "$process_pid" ] || return 0
     case "$process_pid" in
-        *[!0-9]*) echo "apache_smoke: profile cleanup has invalid $process_label PID" >&2; return 1 ;;
+        *[!0-9]*|"") echo "apache_smoke: profile cleanup has invalid $process_label PID" >&2; return 1 ;;
+        *) ;;
     esac
     if kill -0 "$process_pid" >/dev/null 2>&1; then
         kill "$process_pid" >/dev/null 2>&1 || true
@@ -559,10 +597,9 @@ cleanup() {
     cleanup_rc=0
     if apache_profile_enabled; then
         if [ -n "${SYNCHRONIZED_UPSTREAM_PID:-}" ] && \
-            kill -0 "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1; then
-            if [ -n "${SYNCHRONIZED_RELEASE_FILE:-}" ]; then
-                : > "$SYNCHRONIZED_RELEASE_FILE" || cleanup_rc=1
-            fi
+            kill -0 "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1 && \
+            [ -n "${SYNCHRONIZED_RELEASE_FILE:-}" ]; then
+            : > "$SYNCHRONIZED_RELEASE_FILE" || cleanup_rc=1
         fi
         apache_profile_stop_tracked_process synchronized-upstream "${SYNCHRONIZED_UPSTREAM_PID:-}" || cleanup_rc=1
         apache_profile_stop_tracked_process apache "${HTTPD_PID:-}" || cleanup_rc=1
@@ -582,19 +619,11 @@ cleanup() {
             wait "$RESPONSE_HEADER_BACKEND_PID" >/dev/null 2>&1 || true
         fi
     fi
-    if [ -n "${RUNTIME_PID_FILE:-}" ]; then
-        if ! rm -f "$RUNTIME_PID_FILE"; then
-            if apache_profile_enabled; then
-                cleanup_rc=1
-            fi
-        fi
+    if [ -n "${RUNTIME_PID_FILE:-}" ] && ! rm -f "$RUNTIME_PID_FILE"; then
+        apache_profile_enabled && cleanup_rc=1 || :
     fi
-    if [ -n "${PHASE4_ROGUE_TLS_KEY:-}" ]; then
-        if ! rm -f "$PHASE4_ROGUE_TLS_KEY"; then
-            if apache_profile_enabled; then
-                cleanup_rc=1
-            fi
-        fi
+    if [ -n "${PHASE4_ROGUE_TLS_KEY:-}" ] && ! rm -f "$PHASE4_ROGUE_TLS_KEY"; then
+        apache_profile_enabled && cleanup_rc=1 || :
     fi
     if apache_profile_enabled && [ "$APACHE_PROFILE_FINAL_CLEANUP" = "1" ]; then
         [ "$cleanup_rc" -eq 0 ] || return 1
@@ -2483,6 +2512,7 @@ if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     --rules-preamble-file "$MODSECURITY_RULE_PREAMBLE_FILE" > "$LOG_DIR/case-materialize.log" 2>&1; then
     not_executable "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
 fi
+configure_apache_profile_audit
 . "$CASE_ENV_FILE"
 if ! "$PYTHON_BIN" "$REPO_ROOT/ci/runtime/common/harness-case-metadata.py" response-header-fixture \
     --case "$TEST_CASE" \

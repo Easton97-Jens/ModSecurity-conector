@@ -50,6 +50,14 @@ MATRIX_VARIANTS = (
     ("no_crs_with_mrts", "no-crs", "with-mrts"),
     ("with_crs_with_mrts", "with-crs", "with-mrts"),
 )
+FACTS_FILE = "functional-facts.json"
+RECEIPT_FILE = "profile-cell-receipt.json"
+MANIFEST_FILE = "manifest.json"
+CELL_LABEL = "profile cell artifact"
+FACTS_LABEL = "functional facts"
+RECEIPT_LABEL = "profile cell receipt"
+MANIFEST_LABEL = "profile cell manifest"
+MANIFEST_BINDING_ERROR = "profile cell manifest does not bind its exact files"
 
 
 def fail(message: str) -> ValueError:
@@ -148,43 +156,20 @@ def _safe_directories(root: Path) -> list[str]:
     return values
 
 
-def _parse_cell(cell_root: Path, expected: Mapping[str, str]) -> tuple[str, dict[str, Any]]:
-    names = profile._list_safe(cell_root, "profile cell artifact")
-    if names != set(profile.OUTPUT_NAMES):
-        raise fail("profile cell artifact must contain exactly the canonical three files")
-    facts_raw = profile.read_safe(cell_root, "functional-facts.json", "functional facts")
-    receipt_raw = profile.read_safe(cell_root, "profile-cell-receipt.json", "profile cell receipt")
-    manifest_raw = profile.read_safe(cell_root, "manifest.json", "profile cell manifest")
-    facts = profile.parse_json_object(facts_raw, "functional facts", canonical=True)
-    receipt = profile.parse_json_object(receipt_raw, "profile cell receipt", canonical=True)
-    manifest = profile.parse_json_object(manifest_raw, "profile cell manifest", canonical=True)
-    _require_exact(facts, _facts_fields(), "functional facts")
-    _require_exact(receipt, _receipt_fields(), "profile cell receipt")
-    _require_exact(manifest, {"schema_version", "record_type", "files"}, "profile cell manifest")
-    if (
-        not _strict_json_equal(manifest["schema_version"], profile.SCHEMA_VERSION)
-        or not _strict_json_equal(manifest["record_type"], profile.MANIFEST_RECORD)
-        or not _strict_json_equal(
-            manifest["files"],
-            [
-                {
-                    "name": "functional-facts.json",
-                    "sha256": hashlib.sha256(facts_raw).hexdigest(),
-                    "size_bytes": len(facts_raw),
-                },
-                {
-                    "name": "profile-cell-receipt.json",
-                    "sha256": hashlib.sha256(receipt_raw).hexdigest(),
-                    "size_bytes": len(receipt_raw),
-                },
-            ],
-        )
-    ):
-        raise fail("profile cell manifest does not bind its exact files")
-    connector = receipt.get("connector")
-    if connector not in profile.CONNECTORS:
-        raise fail("profile receipt contains an unsupported connector")
-    connector = str(connector)
+def _validate_manifest(manifest: Mapping[str, Any], facts_raw: bytes, receipt_raw: bytes) -> None:
+    expected_files = [
+        {"name": FACTS_FILE, "sha256": hashlib.sha256(facts_raw).hexdigest(), "size_bytes": len(facts_raw)},
+        {"name": RECEIPT_FILE, "sha256": hashlib.sha256(receipt_raw).hexdigest(), "size_bytes": len(receipt_raw)},
+    ]
+    if not _strict_json_equal(manifest["schema_version"], profile.SCHEMA_VERSION):
+        raise fail(MANIFEST_BINDING_ERROR)
+    if not _strict_json_equal(manifest["record_type"], profile.MANIFEST_RECORD):
+        raise fail(MANIFEST_BINDING_ERROR)
+    if not _strict_json_equal(manifest["files"], expected_files):
+        raise fail(MANIFEST_BINDING_ERROR)
+
+
+def _validate_receipt(connector: str, receipt: Mapping[str, Any], expected: Mapping[str, str], facts_raw: bytes) -> None:
     for name, wanted in expected.items():
         if not _strict_json_equal(receipt.get(name), wanted):
             raise fail(f"{connector}: receipt {name} does not match the aggregate identity")
@@ -210,7 +195,10 @@ def _parse_cell(cell_root: Path, expected: Mapping[str, str]) -> tuple[str, dict
     for name, wanted in expected_receipt.items():
         if not _strict_json_equal(receipt.get(name), wanted):
             raise fail(f"{connector}: receipt {name} is invalid")
-    for name, wanted in {
+
+
+def _validate_facts(connector: str, facts: Mapping[str, Any]) -> None:
+    expected = {
         "schema_version": profile.SCHEMA_VERSION,
         "record_type": profile.FACTS_RECORD,
         "profile": profile.PROFILE,
@@ -220,19 +208,17 @@ def _parse_cell(cell_root: Path, expected: Mapping[str, str]) -> tuple[str, dict
         "integration_mode": profile.INTEGRATION_MODES[connector],
         "functional_result": "PASS",
         "cleanup_status": "complete",
-    }.items():
+    }
+    for name, wanted in expected.items():
         if not _strict_json_equal(facts.get(name), wanted):
             raise fail(f"{connector}: functional facts {name} are invalid")
-    if not _strict_json_equal(
-        facts.get("block"),
-        {"http_status": 403, "action": "deny", "rule_id": profile.RULE_ID},
-    ):
+    if not _strict_json_equal(facts.get("block"), {"http_status": 403, "action": "deny", "rule_id": profile.RULE_ID}):
         raise fail(f"{connector}: functional facts do not contain the selected CRS block")
     _validate_no_mrts(connector, facts.get("no_mrts"))
-    if not _strict_json_equal(receipt.get("no_mrts"), facts.get("no_mrts")):
-        raise fail(f"{connector}: receipt and functional no-MRTS facts disagree")
     _validate_allow(connector, facts.get("allow_control"))
-    source_files = receipt.get("source_files")
+
+
+def _validate_source_files(connector: str, source_files: object, facts: Mapping[str, Any]) -> None:
     if type(source_files) is not list or not source_files:
         raise fail(f"{connector}: receipt has no source artifact bindings")
     previous = ""
@@ -248,12 +234,38 @@ def _parse_cell(cell_root: Path, expected: Mapping[str, str]) -> tuple[str, dict
         if path <= previous:
             raise fail(f"{connector}: source artifact bindings are not unique and sorted")
         previous = path
-    source_files_sha256 = facts.get("source_files_sha256")
-    if type(source_files_sha256) is not str:
+    source_digest = facts.get("source_files_sha256")
+    if type(source_digest) is not str:
         raise fail(f"{connector}: functional facts source artifact binding digest is invalid")
-    profile._require_sha(source_files_sha256, "functional facts source artifact binding digest", length=64)
-    if source_files_sha256 != hashlib.sha256(profile.canonical_json(source_files)).hexdigest():
+    profile._require_sha(source_digest, "functional facts source artifact binding digest", length=64)
+    if source_digest != hashlib.sha256(profile.canonical_json(source_files)).hexdigest():
         raise fail(f"{connector}: functional facts do not bind the receipt source artifacts")
+
+
+def _parse_cell(cell_root: Path, expected: Mapping[str, str]) -> tuple[str, dict[str, Any]]:
+    names = profile._list_safe(cell_root, CELL_LABEL)
+    if names != set(profile.OUTPUT_NAMES):
+        raise fail(f"{CELL_LABEL} must contain exactly the canonical three files")
+    facts_raw = profile.read_safe(cell_root, FACTS_FILE, FACTS_LABEL)
+    receipt_raw = profile.read_safe(cell_root, RECEIPT_FILE, RECEIPT_LABEL)
+    manifest_raw = profile.read_safe(cell_root, MANIFEST_FILE, MANIFEST_LABEL)
+    facts = profile.parse_json_object(facts_raw, FACTS_LABEL, canonical=True)
+    receipt = profile.parse_json_object(receipt_raw, RECEIPT_LABEL, canonical=True)
+    manifest = profile.parse_json_object(manifest_raw, MANIFEST_LABEL, canonical=True)
+    _require_exact(facts, _facts_fields(), FACTS_LABEL)
+    _require_exact(receipt, _receipt_fields(), RECEIPT_LABEL)
+    _require_exact(manifest, {"schema_version", "record_type", "files"}, MANIFEST_LABEL)
+    _validate_manifest(manifest, facts_raw, receipt_raw)
+    connector = receipt.get("connector")
+    if connector not in profile.CONNECTORS:
+        raise fail("profile receipt contains an unsupported connector")
+    connector = str(connector)
+    _validate_receipt(connector, receipt, expected, facts_raw)
+    _validate_facts(connector, facts)
+    if not _strict_json_equal(receipt.get("no_mrts"), facts.get("no_mrts")):
+        raise fail(f"{connector}: receipt and functional no-MRTS facts disagree")
+    source_files = receipt.get("source_files")
+    _validate_source_files(connector, source_files, facts)
     return connector, {
         "receipt": receipt,
         "receipt_sha256": hashlib.sha256(receipt_raw).hexdigest(),

@@ -220,7 +220,7 @@ def load_canonical_json(data: bytes, label: str) -> dict[str, object]:
             object_pairs_hook=reject_duplicate_json_pairs,
             parse_constant=reject_nonfinite_json,
         )
-    except (UnicodeDecodeError, RecursionError, ValueError) as exc:
+    except (RecursionError, ValueError) as exc:
         raise ValueError(f"{label} is not valid JSON") from exc
     if type(value) is not dict:
         raise ValueError(f"{label} is not an object")

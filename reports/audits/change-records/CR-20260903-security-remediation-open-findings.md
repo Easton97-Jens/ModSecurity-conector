@@ -1283,3 +1283,54 @@ current required checks, SonarCloud Quality Gate/issue/hotspot readback, and
 review disposition remain required. FND-CROSS-0004 remains `blocked` until its
 existing acceptance criteria are actually met; PR #354 remains Draft and
 unmerged.
+
+### 2026-09-07 eighteenth follow-up (first exact-five failure repair)
+
+The first delivered exact-five head
+`8f91f70ce8f1bdf6167aa5e1aa386fe18df0fa50` was exercised only by the fresh
+GitHub-hosted workflow `34140286420`, bound to the checked base
+`9925ef647b5fb49d21aebd658a658d4fdb649c58`. It failed closed and is negative
+evidence only: the four non-Apache producers rejected the pinned CRS source
+because its valid JSON-like rule form uses the quoted key `"id":942270`;
+Apache lacked the raw serial audit file demanded by its evidence validator; and
+the aggregate correctly rejected unavailable upstream cells. This does not
+establish a CRS HTTP-block failure or promote any failure receipt to a passing
+cell.
+
+FND-PARENT-1063 narrows the CRS identity matcher to the actual pinned quoted
+form and its established unquoted form, while retaining exact descriptor,
+digest, and commit verification and rejecting tested near misses. FND-PARENT-
+1064 appends profile-only Apache serial/native audit directives with parts
+`ABFHZ` after case materialization and before startup, only for a complete
+selected With-CRS profile. It leaves No-CRS and incomplete/non-profile paths
+outside that append. No Framework, MRTS, Gitlink, dependency, workflow policy,
+or existing control was changed.
+
+A mandatory independent review then found that the new generated
+`SecAuditLog` sink must treat its derived path as Apache configuration data.
+FND-PARENT-1065 records the payload-safe quote/newline directive-split
+reproduction and the distinct Apache configuration-variable expansion case.
+The profile-only guard now rejects quote, backslash, dollar characters, and
+POSIX control characters before append or server startup. Its real extracted-
+shell regression accepts a normal absolute path with spaces/ordinary
+punctuation and rejects quote/newline, backslash, and expansion inputs
+fail-closed. This is a narrow new-sink repair; no local Apache configtest or
+runtime acceptance is claimed.
+
+The candidate also contains narrow source refactors addressing
+FND-SONAR-0079 without a suppression, quality-gate change, or semantic
+relaxation. The prior SonarCloud result on `8f91f70...` remains failed
+(Quality Gate `ERROR`, 44 active open issues, no reviewable hotspots), so a
+fresh SonarCloud result for the successor is required and no green result is
+claimed here.
+
+After the final path-guard change, the combined affected Parent suite passed
+`265` tests with `11` existing environment skips. It covers CI security,
+the Apache profile guard, HAProxy projection/workflow/harness contracts,
+With-CRS producer/aggregate/runtime contracts, runtime observations, and the
+protected No-CRS profile/workflow contracts. Expected negative-fixture
+diagnostics are emitted inside tests that exit successfully. A fresh normal
+commit/push, exact remote/PR-head readback, hosted five-cell/aggregate artifact
+validation, current required checks, and exact-successor SonarCloud readback
+remain mandatory. PR #354 remains Draft and unmerged; FND-CROSS-0004 remains
+`blocked` pending its existing acceptance criteria.

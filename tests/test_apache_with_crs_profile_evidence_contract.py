@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 import unittest
 
 
@@ -16,6 +17,29 @@ class ApacheWithCrsProfileEvidenceContractTest(unittest.TestCase):
     @staticmethod
     def block(source: str, start: str, end: str) -> str:
         return source.split(start, 1)[1].split(end, 1)[0]
+
+    def run_profile_audit_path_guard(self, path: str) -> subprocess.CompletedProcess[str]:
+        source = HARNESS.read_text(encoding="utf-8")
+        guard = "require_safe_apache_config_path() {\n" + self.block(
+            source,
+            "require_safe_apache_config_path() {\n",
+            "configure_apache_profile_audit() {\n",
+        )
+        script = "\n".join(
+            (
+                "blocked() { exit 77; }",
+                guard,
+                'require_safe_apache_config_path "$1" "Apache profile audit path"',
+            )
+        )
+        return subprocess.run(
+            ["sh", "-c", script, "sh", path],
+            cwd=ROOT,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
 
     def test_harness_requires_a_transaction_bound_audit_and_proven_cleanup_before_pass(self) -> None:
         source = HARNESS.read_text(encoding="utf-8")
@@ -35,6 +59,47 @@ class ApacheWithCrsProfileEvidenceContractTest(unittest.TestCase):
         self.assertLess(success.index("verify-apache-audit"), success.index("APACHE_PROFILE_FINAL_CLEANUP=1"))
         self.assertLess(success.index("APACHE_PROFILE_FINAL_CLEANUP=1"), success.index("if ! cleanup; then"))
         self.assertLess(success.index("if ! cleanup; then"), success.index('write_case_result "$TEST_CASE" pass'))
+
+    def test_profile_scoped_audit_configuration_follows_materialization_and_excludes_no_crs(self) -> None:
+        source = HARNESS.read_text(encoding="utf-8")
+        audit = self.block(
+            source,
+            "configure_apache_profile_audit() {\n",
+            "apache_profile_stop_tracked_process() {\n",
+        )
+        self.assertIn("1) return 0 ;;", audit)
+        self.assertIn('[ "$MODSECURITY_TEST_VARIANT" = "with-crs" ] ||', audit)
+        self.assertIn("SecAuditEngine On", audit)
+        self.assertIn("SecAuditLogType Serial", audit)
+        self.assertIn("SecAuditLogFormat Native", audit)
+        self.assertIn("SecAuditLogParts ABFHZ", audit)
+        self.assertIn(
+            'require_safe_apache_config_path "$AUDIT_LOG_FILE" "Apache profile audit path"',
+            audit,
+        )
+        self.assertIn('printf \'SecAuditLog "%s"\\n\' "$AUDIT_LOG_FILE"', audit)
+        self.assertLess(
+            audit.index('require_safe_apache_config_path "$AUDIT_LOG_FILE"'),
+            audit.index('printf \'SecAuditLog "%s"\\n\' "$AUDIT_LOG_FILE"'),
+        )
+        materialization = self.block(
+            source,
+            'if ! "$PYTHON_BIN" "$CASE_CLI" materialize',
+            '. "$CASE_ENV_FILE"',
+        )
+        self.assertIn("configure_apache_profile_audit", materialization)
+
+    def test_profile_audit_config_path_rejects_unsafe_apache_quoted_value(self) -> None:
+        cases = (
+            ("/tmp/profile audit-()[]!;,.log", 0),
+            ('/tmp/profile-"\nSecAuditLog "/tmp/attacker"\n#', 77),
+            ("/tmp/profile\\audit.log", 77),
+            ("/tmp/" + "$" + "{AUDIT_TARGET}/audit.log", 77),
+        )
+        for path, expected_returncode in cases:
+            with self.subTest(path=repr(path)):
+                result = self.run_profile_audit_path_guard(path)
+                self.assertEqual(result.returncode, expected_returncode, result.stderr)
 
     def test_profile_consumes_raw_audit_and_exact_cleanup_receipt_fields(self) -> None:
         source = PROFILE.read_text(encoding="utf-8")
