@@ -2410,6 +2410,10 @@ require_absolute_generated_path "$HTTPD_PREFIX" "HTTPD_PREFIX"
 require_absolute_generated_path "$RUNTIME_ROOT" "RUNTIME_ROOT"
 require_absolute_generated_path "$LOG_DIR" "LOG_DIR"
 require_absolute_generated_path "$APACHE_CASE_OUTPUT_ROOT" "APACHE_CASE_OUTPUT_ROOT"
+if [ "$RUN_ONE_CASE" = "1" ]; then
+    require_absolute_generated_path "$RESULTS_DIR" "RESULTS_DIR"
+    mkdir -p "$RESULTS_DIR"
+fi
 
 RUNTIME_PID_FILE="$RUNTIME_ROOT/logs/httpd.pid"
 

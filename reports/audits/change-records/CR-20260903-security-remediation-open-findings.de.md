@@ -1563,3 +1563,36 @@ bestehenden Matrix-Kriterien `blocked`; die bisherige partielle Evidence ist
 keine Releaseentscheidung. Es wird kein Merge, kein externes Seal, keine
 Protected-Host-Attestierung, keine Framework-/MRTS-/Gitlink-/Dependency-
 Änderung und keine Abschwächung von Tests oder Quality Gate behauptet.
+
+### 2026-09-07 Zweiundzwanzigster Follow-up (frische Successor-Validierung und Results-Root-Vertrag für Apache)
+
+Der frische Successor-Head `bcf77ef8` erhielt ein grünes SonarCloud-Ergebnis:
+Quality Gate `OK`, null aktive PR-Issues und null reviewbare Hotspots. Auch die
+erforderlichen Repository-Regelprüfungen bestanden für diesen Head. Diese
+Ergebnisse sind an genau diesen Head gebunden und stellen keine Protected-
+Host-Attestierung dar.
+
+Der Exact-Head-NGINX-Lauf `34160362589` war erfolgreich und enthielt die
+unterstützte On/Off- sowie Body-Buffer-Evidence. Er ist ausschließlich
+PR-gesteuerte GitHub-CI-Evidence und kein unabhängiger Protected-Host-Nachweis.
+Dieser Eintrag leitet kein zukünftiges Runtime-Ergebnis ab.
+
+Der frische CRS/no-MRTS-Lauf `34160362409` blieb fail-closed. Apache erreichte
+die reale Laufzeit und protokollierte HTTP 403, Audit `PASS` und Cleanup `PASS`,
+aber der Lauf mit `RUN_ONE_CASE=1` erzeugte den erwarteten `RESULTS_ROOT` nicht.
+Darum schlug die Post-Runtime-Validierung wegen des fehlenden Producer-
+Ergebnisses fehl; dies war kein Fehlschlag der vorherigen Apache-
+Auditpfad-Korrektur. Envoy, Lighttpd, Traefik und HAProxy erzeugten vier
+erfolgreiche Zellen, und das Aggregat wies vier Zellen korrekt zurück, statt
+eine Five-Cell-Matrix zu akzeptieren. Ein erfolgreiches Aggregat wird nicht
+behauptet.
+
+FND-PARENT-1077 erfasst diesen eigenständigen Producer-/Results-Root-
+Vertragsfehler. Der minimale Producer-Fix ist lokal implementiert und seine
+fokussierten Tests bestanden; frische Hosted-Successor-Runtime-Evidence steht
+noch aus. Der aktuelle Produktfix darf nicht als durch diesen zukünftigen Lauf
+bestanden beschrieben werden. FND-CROSS-0004 bleibt daher nach seinen
+bestehenden Matrix-Kriterien `blocked`. PR #354 bleibt
+Draft, offen und ungemergt. Es wird kein Merge, kein Seal, keine Protected-
+Host-Attestierung, keine Framework-/MRTS-/Gitlink-/Dependency-Änderung und
+keine Abschwächung von Tests oder Quality Gate behauptet.

@@ -101,6 +101,26 @@ class ApacheWithCrsProfileEvidenceContractTest(unittest.TestCase):
                 result = self.run_profile_audit_path_guard(path)
                 self.assertEqual(result.returncode, expected_returncode, result.stderr)
 
+    def test_single_case_creates_results_directory_before_runtime_output(self) -> None:
+        source = HARNESS.read_text(encoding="utf-8")
+        single_case = source.split(
+            'if [ "$RUN_ONE_CASE" != "1" ]; then\n', 1
+        )[1]
+        single_case_setup = single_case.split("RUNTIME_PID_FILE=", 1)[0]
+        self.assertIn(
+            'if [ "$RUN_ONE_CASE" = "1" ]; then\n'
+            '    require_absolute_generated_path "$RESULTS_DIR" "RESULTS_DIR"\n'
+            '    mkdir -p "$RESULTS_DIR"\n'
+            "fi",
+            single_case_setup,
+        )
+        self.assertLess(
+            single_case_setup.index('require_absolute_generated_path "$RESULTS_DIR" "RESULTS_DIR"'),
+            single_case_setup.index('mkdir -p "$RESULTS_DIR"'),
+        )
+        all_cases = self.block(source, "run_all_cases() {\n", "write_case_result() {")
+        self.assertIn('mkdir -p "$LOG_DIR" "$RESULTS_DIR"', all_cases)
+
     def test_profile_consumes_raw_audit_and_exact_cleanup_receipt_fields(self) -> None:
         source = PROFILE.read_text(encoding="utf-8")
         self.assertIn("APACHE_AUDIT_RELATIVE_PATH", source)

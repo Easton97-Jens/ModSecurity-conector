@@ -1430,3 +1430,33 @@ under its existing matrix criteria; its partial prior evidence is not a
 release decision. No merge, external seal, protected-host attestation,
 Framework/MRTS/Gitlink/dependency change, or test/quality-gate weakening is
 claimed.
+
+### 2026-09-07 twenty-second follow-up (fresh successor validation and Apache results-root contract)
+
+The fresh successor head `bcf77ef8` received a green SonarCloud result: Quality
+Gate `OK`, zero active PR issues, and zero reviewable hotspots. The required
+repository ruleset checks also passed for this head. These results are bound
+to this exact head and do not constitute protected-host attestation.
+
+The exact-head NGINX run `34160362589` succeeded with the supported on/off and
+body-buffer evidence. It is PR-controlled GitHub CI evidence only, not an
+independent protected-host result. No future runtime result is implied by this
+entry.
+
+The fresh CRS/no-MRTS run `34160362409` remained fail-closed. Apache reached
+the real runtime and recorded HTTP 403, audit `PASS`, and cleanup `PASS`, but
+the run with `RUN_ONE_CASE=1` did not create the expected `RESULTS_ROOT`.
+Consequently, post-runtime validation failed for the missing producer result;
+this was not a failure of the preceding Apache audit-path correction. Envoy,
+Lighttpd, Traefik, and HAProxy produced four successful cells, and the
+aggregate correctly rejected four cells instead of accepting a five-cell
+matrix. No successful aggregate result is claimed.
+
+FND-PARENT-1077 records this distinct producer/results-root contract defect.
+The minimal producer-side fix is implemented locally, and its focused tests
+passed; fresh hosted successor runtime evidence remains pending. The current
+product fix must not be described as having passed that future run.
+FND-CROSS-0004 therefore remains `blocked` under its existing matrix criteria.
+PR #354 remains Draft, open, and unmerged. No merge,
+seal, protected-host attestation, Framework/MRTS/Gitlink/dependency change,
+or test/quality-gate weakening is claimed.
