@@ -222,6 +222,13 @@ class StockLifecycleHarnessContractTest(unittest.TestCase):
     def test_unregistered_cleanup_handlers_cover_config_server_and_v10(self) -> None:
         text = HARNESS.read_text(encoding="utf-8")
         guard = (REPO_ROOT / "connectors/lighttpd/harness/lighttpd_backend_close_linux_guard.py").read_text(encoding="utf-8")
+        trap_offset = text.index("trap cleanup EXIT")
+        for variable in ("CONFIG_PID", "CONFIG_START_TIME", "CONFIG_SESSION"):
+            self.assertLess(
+                text.index(f"{variable}=\n"),
+                trap_offset,
+                f"{variable} must be initialized before set -u cleanup traps",
+            )
         self.assertIn("cleanup_unregistered_process", text)
         self.assertIn("terminate-unregistered", text)
         self.assertIn('SERVER_START_TIME', text)
