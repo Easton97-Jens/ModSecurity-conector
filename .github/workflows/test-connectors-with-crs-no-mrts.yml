@@ -1102,8 +1102,10 @@ jobs:
           test -n "$PARENT_SHA"; test -n "$BASE_SHA"
           test "${#PARENT_SHA}" -eq 40; test "${#BASE_SHA}" -eq 40
           test "${#FRAMEWORK_SHA}" -eq 40; test "${#MRTS_SHA}" -eq 40
-          crs_commit=$(sed -n 's/^CRS_APPROVED_COMMIT="\([0-9a-f]*\)"$/\1/p' "$FRAMEWORK_ROOT/ci/lib/common.sh")
-          crs_rule_sha256=$(sed -n 's/^CRS_RULE_FILE_SHA256="\([0-9a-f]*\)"$/\1/p' "$FRAMEWORK_ROOT/ci/lib/common.sh")
+          export CONNECTOR_ROOT="$GITHUB_WORKSPACE" REPO_ROOT="$GITHUB_WORKSPACE"
+          . "$FRAMEWORK_ROOT/ci/lib/common.sh"
+          crs_commit="$CRS_APPROVED_COMMIT"
+          crs_rule_sha256="$CRS_RULE_FILE_SHA256"
           test "${#crs_commit}" -eq 40; test "${#crs_rule_sha256}" -eq 64
           haproxy_source_args=()
           case "$CONNECTOR" in
@@ -1401,8 +1403,14 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$EXPECTED_PARENT_SHA"; test -n "$EXPECTED_BASE_SHA"
-          crs_commit=$(sed -n 's/^CRS_APPROVED_COMMIT="\([0-9a-f]*\)"$/\1/p' modules/ModSecurity-test-Framework/ci/lib/common.sh)
-          crs_rule_sha256=$(sed -n 's/^CRS_RULE_FILE_SHA256="\([0-9a-f]*\)"$/\1/p' modules/ModSecurity-test-Framework/ci/lib/common.sh)
+          export CONNECTOR_ROOT="$PWD" REPO_ROOT="$PWD"
+          FRAMEWORK_ROOT="$PWD/modules/ModSecurity-test-Framework"
+          test "${#FRAMEWORK_SHA}" -eq 40
+          framework_commit=$(git -C "$FRAMEWORK_ROOT" rev-parse HEAD)
+          test "$framework_commit" = "$FRAMEWORK_SHA"
+          . "$FRAMEWORK_ROOT/ci/lib/common.sh"
+          crs_commit="$CRS_APPROVED_COMMIT"
+          crs_rule_sha256="$CRS_RULE_FILE_SHA256"
           test "${#crs_commit}" -eq 40; test "${#crs_rule_sha256}" -eq 64
           python3 -I ci/runtime/lifecycle/aggregate-five-connector-with-crs-no-mrts.py \
             --artifact-root "$CELL_ROOT" --parent-sha "$EXPECTED_PARENT_SHA" \

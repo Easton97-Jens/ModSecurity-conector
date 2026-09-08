@@ -1764,7 +1764,7 @@ jobs:
         self.assertNotIn('fetch-crs.sh', runtime)
         self.assertEqual(
             job.count('. "$FRAMEWORK_ROOT/ci/lib/common.sh"'),
-            1,
+            2,
         )
         self.assertLess(
             job.index("prepare-fresh-crs-source.sh"),
@@ -1835,6 +1835,11 @@ jobs:
         producer = job.split("      - name: Produce canonical with-CRS no-MRTS profile cell\n", 1)[1].split(
             "      - name: Upload Apache runtime evidence\n", 1
         )[0]
+        self.assertIn('export CONNECTOR_ROOT="$GITHUB_WORKSPACE" REPO_ROOT="$GITHUB_WORKSPACE"', producer)
+        self.assertIn('. "$FRAMEWORK_ROOT/ci/lib/common.sh"', producer)
+        self.assertIn('crs_commit="$CRS_APPROVED_COMMIT"', producer)
+        self.assertIn('crs_rule_sha256="$CRS_RULE_FILE_SHA256"', producer)
+        self.assertNotIn("sed -n 's/^CRS_", producer)
         self.assertIn("--crs-source-root \"$crs_source_root\"", producer)
         self.assertIn("apache)\n              source_root=", producer)
         self.assertIn("haproxy_source_args=(", producer)
@@ -2152,6 +2157,22 @@ jobs:
         self.assertIn("pattern: with-crs-no-mrts-*-${{ github.run_id }}-${{ github.run_attempt }}", aggregate)
         self.assertIn("merge-multiple: false", aggregate)
         self.assertNotIn('find "$CELL_ROOT"', aggregate)
+        aggregate_step = aggregate.split("      - name: Aggregate exact five canonical profile cells\n", 1)[1].split(
+            "      - name: Upload canonical five-connector aggregate\n", 1
+        )[0]
+        self.assertIn('export CONNECTOR_ROOT="$PWD" REPO_ROOT="$PWD"', aggregate_step)
+        self.assertIn('FRAMEWORK_ROOT="$PWD/modules/ModSecurity-test-Framework"', aggregate_step)
+        self.assertIn('test "${#FRAMEWORK_SHA}" -eq 40', aggregate_step)
+        self.assertIn('framework_commit=$(git -C "$FRAMEWORK_ROOT" rev-parse HEAD)', aggregate_step)
+        self.assertIn('test "$framework_commit" = "$FRAMEWORK_SHA"', aggregate_step)
+        self.assertIn('. "$FRAMEWORK_ROOT/ci/lib/common.sh"', aggregate_step)
+        self.assertLess(
+            aggregate_step.index('test "$framework_commit" = "$FRAMEWORK_SHA"'),
+            aggregate_step.index('. "$FRAMEWORK_ROOT/ci/lib/common.sh"'),
+        )
+        self.assertIn('crs_commit="$CRS_APPROVED_COMMIT"', aggregate_step)
+        self.assertIn('crs_rule_sha256="$CRS_RULE_FILE_SHA256"', aggregate_step)
+        self.assertNotIn("sed -n 's/^CRS_", aggregate_step)
         self.assertIn("aggregate-five-connector-with-crs-no-mrts.py", aggregate)
         self.assertIn("--artifact-root \"$CELL_ROOT\"", aggregate)
         self.assertIn("--output-dir \"$CELL_ROOT/aggregate\"", aggregate)
