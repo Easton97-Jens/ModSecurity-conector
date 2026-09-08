@@ -11,7 +11,7 @@
 | Base revision | 95bc04203455bc74a9cd18fafc6fb5848af2bbb2 |
 | Branch | codex/security-remediation-open-findings-20260903 |
 | Final HEAD_SHA | This record is part of the delivery head and therefore cannot truthfully self-reference its own final Git object. The exact immutable final SHA is recorded in the Draft PR metadata and task delivery evidence after this record is committed. |
-| Delivery status | Draft PR [#354](https://github.com/Easton97-Jens/ModSecurity-conector/pull/354) is open and unmerged, and remains Draft. This Change Record is part of its own documentation successor and does not promote any predecessor result. After the successor push, its exact SHA and fresh result readback are recorded in PR metadata and retained delivery evidence. The Parent exact-five workflow implementation now exists, but no fresh exact-successor five-cell aggregate artifact or result has been observed and read back. FND-CROSS-0004 therefore remains an independent, unaccepted `P1` release blocker pending its existing Framework acceptance and hosted-evidence criteria; no Draft transition or merge is authorized. |
+| Delivery status | Draft PR [#354](https://github.com/Easton97-Jens/ModSecurity-conector/pull/354) is open and unmerged. This Change Record is part of its own documentation successor and does not promote a predecessor result. Its immutable final SHA and merge readback are recorded in PR metadata and retained delivery evidence after this record is committed. The current evidence and the bounded 2026-09-08 integration decision are stated in the final follow-up below; FND-CROSS-0004 remains technically `blocked` and `release_blocker=true` until its existing acceptance criteria are independently satisfied. |
 
 ## Motivation and problem statement
 
@@ -599,8 +599,7 @@ run is not valid in this container: it is already root, cannot establish the
 required sudo/non-root-worker chain, has no initialized task-worktree
 Framework, and has no fresh current-head artifacts.  Exact-head GitHub-hosted
 build/runtime evidence, SonarCloud analysis, and the required PR checks remain
-`not_run` until the normal successor commit is pushed and read back.  Draft PR
-#354 remains open and unmerged; FND-PARENT-1036 remains
+`not_run` until the normal successor commit is pushed and read back. Draft PR #354 remains open and unmerged; FND-PARENT-1036 remains
 `blocked_external_dependency`.
 
 ### 2026-09-05 hosted Functional-A and Sonar follow-up (successor pending)
@@ -1505,3 +1504,76 @@ task-owned maintainability defects and are refactored without a suppression,
 exception, test weakening, or quality-gate change. This creates a new
 successor head; a fresh SonarCloud analysis and all exact-head hosted evidence
 remain required.
+
+### 2026-09-08 twenty-fourth follow-up (current-user one-time FND-CROSS-0004 integration exception)
+
+The current authoritative task requester explicitly supplied this current-task
+authorization (technical literal preserved):
+
+> Ich autorisiere dich ausdrücklich, PR #354 fertigzustellen und anschließend
+> über den regulären GitHub-PR-Weg nach master zu integrieren.
+
+The authorization is limited to
+`Easton97-Jens/ModSecurity-conector`, task-owned PR #354
+`codex/security-remediation-open-findings-20260903`, and one regular GitHub
+integration into `master`. PRs #279, #335, and #355 are excluded. The pre-
+documentation readback observed PR head
+`357f42a38b504a0cfd4dbf4e29958773aa1eac71` and `origin/master`
+`08fab232d77e300be15cb010e2adbcd590955727`; the latter is already an
+ancestor, so no redundant base merge is authorized. This documentation-only
+successor is within the explicitly permitted #354 scope. Because this record
+cannot self-reference its own resulting Git object, the final full successor
+head and current base must be read from the local branch, remote branch, and
+GitHub PR immediately before any merge and retained in the PR metadata and
+delivery evidence.
+
+The same current user explicitly accepts only the incomplete FND-CROSS-0004
+Matrix-24 coverage for this one Connector-fix integration:
+
+| `passed` | `blocked` | `not_run` | `failed` | `not_applicable` | `coverage_complete` |
+| ---: | ---: | ---: | ---: | ---: | --- |
+| 5 | 6 | 13 | 0 | 0 | `false` |
+
+The deferred rows are exact and remain non-passing: the six `blocked` rows are
+Envoy `no_crs_with_mrts` and `with_crs_with_mrts`, Traefik
+`no_crs_with_mrts` and `with_crs_with_mrts`, and lighttpd
+`no_crs_with_mrts` and `with_crs_with_mrts`. The thirteen `not_run` rows are
+Apache `no_crs_no_mrts`, `no_crs_with_mrts`, and `with_crs_with_mrts`; NGINX
+`no_crs_no_mrts`, `with_crs_no_mrts`, `no_crs_with_mrts`, and
+`with_crs_with_mrts`; HAProxy `no_crs_no_mrts`, `no_crs_with_mrts`, and
+`with_crs_with_mrts`; Envoy `no_crs_no_mrts`; Traefik `no_crs_no_mrts`; and
+lighttpd `no_crs_no_mrts`.
+
+Compensating evidence is deliberately bounded: for the unchanged Connector
+test state at `357f42a38b504a0cfd4dbf4e29958773aa1eac71`, NGINX workflow
+`34174160577` passed NGINX `1.31.4` On/Off/JSONL/WAF, lifecycle, and native
+body-buffer controls; CRS/no-MRTS workflow `34174160626` passed Apache,
+HAProxy, Envoy, Lighttpd, and Traefik and its exact-five aggregate artifact
+`10036962205` validated with SHA-256
+`e217d5ad24051a8d43a568fa1c3b7a564b2c1e21e04c328672f8ca2572e1a3a2`.
+Those observations do not establish complete Matrix-24 coverage, independent
+protected-host attestation, an external seal, release approval, or general
+error-free behavior. They are not relabelled as newly generated evidence for
+this documentation-only successor.
+
+The reviewed security workflow permits a current user's explicit risk
+acceptance only when the exact residual risk is recorded. No additional
+approver requirement was identified in the applicable reviewed policy; the
+approving identity is therefore recorded truthfully as the current
+authoritative task requester, without inventing a personal name. This is an
+integration exception only: FND-CROSS-0004 remains technically `blocked` and
+`release_blocker=true`, its acceptance criteria remain intact, and the six
+Framework-side MRTS routes remain separate work.
+
+The decision accepts no failed required check, active Sonar issue or hotspot,
+unresolved review/conversation/ruleset failure, product defect, other finding,
+later unvalidated head, bypass, test/workflow/Sonar/quality-gate weakening,
+Framework/MRTS/Gitlink/dependency change, release, or production deployment.
+It is non-transferable and is consumed only by the one authorized regular PR
+#354 integration; it cannot be reused for a later head or another PR.
+
+FND-GITHUB-0009 remains a separate `accepted_risk` technical condition. Its
+candidate-owned NGINX and CRS observations remain `UNATTESTED`; they are not
+independent protected-host evidence or an external seal. Its final-head
+binding must be updated with the same immediate pre-merge local/remote/PR
+readback, without changing its technical-open status.
