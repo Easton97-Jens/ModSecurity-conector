@@ -115,6 +115,28 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
         post_cleanup = server.split("destroy_agent_runtime", 1)[1]
         self.assertNotIn("spop_owner_queue_requires_restart", post_cleanup)
 
+    def test_restart_disposition_is_independent_of_queue_mutex_lifetime(self) -> None:
+        queue_type = SOURCE.split("typedef struct spop_owner_queue", 1)[1].split(
+            "} spop_owner_queue;", 1
+        )[0]
+        self.assertIn("atomic_int restart_required;", queue_type)
+
+        queue_init = SOURCE.split("static int spop_owner_queue_init", 1)[1].split(
+            "static void spop_owner_queue_set_listener", 1
+        )[0]
+        self.assertIn("atomic_init(&queue->restart_required, 0);", queue_init)
+
+        accessor = SOURCE.split(
+            "static int spop_owner_queue_requires_restart", 1
+        )[1].split("static int spop_owner_queue_destroy", 1)[0]
+        initialized_guard = accessor.index("if (!queue->initialized)")
+        atomic_load = accessor.index("atomic_load_explicit")
+        self.assertLess(initialized_guard, atomic_load)
+        self.assertIn("return 0;", accessor[initialized_guard:atomic_load])
+        self.assertIn("atomic_load_explicit(&queue->restart_required", accessor)
+        self.assertIn("memory_order_acquire", accessor)
+        self.assertNotIn("pthread_mutex", accessor)
+
     def test_owner_queue_is_invalidated_before_every_lock_destruction(self) -> None:
         queue_lifecycle = SOURCE.split("static int spop_owner_queue_init", 1)[1].split(
             "static int spop_owner_queue_submit", 1

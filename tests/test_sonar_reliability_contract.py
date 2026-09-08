@@ -1797,6 +1797,17 @@ static void test_spop_unquiesced_owner_uses_direct_restart_exit(void) {
     assert(WEXITSTATUS(status) == SPOP_OWNER_RESTART_EXIT_CODE);
 }
 
+static void test_spop_pre_queue_cleanup_does_not_read_uninitialized_atomic(void) {
+    agent_state state;
+    FILE *log = 0;
+    FILE *decision_log = 0;
+
+    memset(&state, 0, sizeof(state));
+    assert(!spop_owner_queue_requires_restart(&state));
+    assert(destroy_agent_runtime(
+        &state, -1, &log, 0, &decision_log, 0) == 0);
+}
+
 static void test_spop_transport_stop_failure_uses_direct_restart_exit(void) {
     pid_t child = fork();
     int status = 0;
@@ -1868,6 +1879,7 @@ int main(void) {
     test_spop_frame_read_has_a_bounded_liveness_deadline();
     test_spop_rejects_unenforced_timeout_and_worker_settings();
     test_spop_listener_enforces_loopback_at_every_boundary();
+    test_spop_pre_queue_cleanup_does_not_read_uninitialized_atomic();
     assert(run_spop_owner_queue_self_test() == 0);
     test_spop_unquiesced_owner_uses_direct_restart_exit();
     test_spop_transport_stop_failure_uses_direct_restart_exit();

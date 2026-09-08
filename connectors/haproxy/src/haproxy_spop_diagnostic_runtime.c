@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include <poll.h>
 #include <signal.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -229,7 +230,7 @@ typedef struct spop_owner_queue {
     size_t submitters;
     int stopping;
     int owner_exited;
-    int restart_required;
+    atomic_int restart_required;
     int listener_fd;
     int initialized;
     pthread_t owner;
@@ -4015,10 +4016,8 @@ static void spop_owner_queue_request_restart(spop_owner_queue *queue)
         return;
     }
     pthread_mutex_lock(&queue->lock);
-    if (!queue->restart_required) {
-        queue->restart_required = 1;
-        emit_event = 1;
-    }
+    emit_event = atomic_exchange_explicit(&queue->restart_required, 1,
+        memory_order_acq_rel) == 0;
     queue->stopping = 1;
     state = queue->state;
     spop_owner_queue_cancel_pending_locked(queue);
@@ -4159,6 +4158,7 @@ static int spop_owner_queue_init(agent_state *state)
     }
     queue = &state->owner_queue;
     memset(queue, 0, sizeof(*queue));
+    atomic_init(&queue->restart_required, 0);
     if (pthread_mutex_init(&queue->lock, 0) != 0) {
         return -1;
     }
@@ -4227,11 +4227,10 @@ static int spop_owner_queue_requires_restart(agent_state *state)
     }
     queue = &state->owner_queue;
     if (!queue->initialized) {
-        return queue->restart_required;
+        return 0;
     }
-    pthread_mutex_lock(&queue->lock);
-    restart_required = queue->restart_required;
-    pthread_mutex_unlock(&queue->lock);
+    restart_required = atomic_load_explicit(&queue->restart_required,
+        memory_order_acquire);
     return restart_required;
 }
 
@@ -4267,9 +4266,9 @@ static int spop_owner_queue_destroy(agent_state *state)
             &queue->lock, &deadline);
     }
     if (queue->submitters != 0U || !queue->owner_exited) {
-        int emit_event = !queue->restart_required;
+        int emit_event = atomic_exchange_explicit(&queue->restart_required, 1,
+            memory_order_acq_rel) == 0;
 
-        queue->restart_required = 1;
         pthread_mutex_unlock(&queue->lock);
         if (emit_event) {
             log_line(state->log,
@@ -4280,9 +4279,8 @@ static int spop_owner_queue_destroy(agent_state *state)
     }
     pthread_mutex_unlock(&queue->lock);
     if (pthread_join(queue->owner, 0) != 0) {
-        pthread_mutex_lock(&queue->lock);
-        queue->restart_required = 1;
-        pthread_mutex_unlock(&queue->lock);
+        atomic_store_explicit(&queue->restart_required, 1,
+            memory_order_release);
         return -1;
     }
     queue->initialized = 0;
@@ -6185,8 +6183,8 @@ static int destroy_agent_runtime(
             _Exit(SPOP_OWNER_RESTART_EXIT_CODE);
         }
     }
-    /* Snapshot the terminal disposition while the queue lock is still live.
-     * No lifecycle accessor may run after the queue mutex is destroyed. */
+    /* Snapshot the terminal disposition before teardown so the caller's
+     * result is stable.  The atomic flag is independent of mutex lifetime. */
     restart_required = spop_owner_queue_requires_restart(state);
     if (restart_required) {
         if (spop_owner_queue_destroy(state) != 0) {
