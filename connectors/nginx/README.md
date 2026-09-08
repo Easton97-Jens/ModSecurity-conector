@@ -18,6 +18,9 @@ Implemented now:
 - Shared directive-name metadata from `common/include/msconnector/directives.h`.
 - Shared option/default metadata for enablement, error-log forwarding, and
   phase-4 mode from `common/include/msconnector/options.h`.
+- `modsecurity_use_error_log off` also suppresses native libModSecurity
+  callback messages in the NGINX error log; WAF evaluation and event JSONL
+  output remain separate behaviors.
 - Selected source changes from ModSecurity-nginx PR #377
   (https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/377) applied to
   adapter-owned source for phase-4 / late intervention handling.
@@ -266,9 +269,9 @@ The adapter-owned NGINX connector currently registers:
 - `modsecurity_use_error_log on|off`
 - `modsecurity_phase4_mode minimal|safe|strict`
 - `modsecurity_phase4_content_types_file <path>`
-- `modsecurity_phase4_log <path>` (rejected: native NGINX event-file logging is
-  disabled because `ngx_conf_open_file()` cannot provide the required
-  no-follow, regular-file, and private `0600` descriptor contract)
+- `modsecurity_phase4_log <path>` (native P4 JSONL sink; the connector-owned
+  descriptor is opened through the Common no-follow helper and requires a safe
+  parent, regular leaf, suitable ownership, and private `0600` mode)
 - `modsecurity_phase4_body_limit <bytes>` (a positive effective limit; an
   over-limit current buffer is rejected before downstream forwarding)
 
@@ -284,9 +287,15 @@ oversized files therefore cannot turn `nginx -t` into an unbounded or blocking
 configuration read on POSIX. The directive fails closed on Win32 because its
 file API cannot establish the same regular-file/nonblocking contract.
 
-Native NGINX Phase-4 event-file logging is deliberately unavailable. The
-Common runtime event path remains separately governed by its secure descriptor
-policy; this NGINX directive does not silently fall back to that path.
+Native NGINX Phase-4 event-file logging is available only through the
+connector-owned descriptor established during configuration. It does not use
+NGINX's generic `cycle->open_files` registry: unsafe symlink/non-regular-file
+targets, unsafe parents/ownership, and insecure modes fail closed. A normal
+configuration reload opens a safe descriptor for the new cycle and is the
+supported rotation mechanism. Generic NGINX `USR1` reopening is deliberately
+not supported for rotation, because it cannot preserve this no-follow contract.
+Runtime proof for the Functional-A path is tracked separately; protected-B
+attestation and the external FND-PARENT-1036 dependency are not claimed here.
 
 `modsecurity_transaction_id` uses an NGINX complex value and may evaluate
 per-request variables. Apache-style `modsecurity_transaction_id_expr` is not
@@ -340,14 +349,17 @@ directory; binary path, SHA-256, and version readback; configure arguments;
 build, Framework, and Parent identifiers; and generated time. This is the
 required evidence schema, not a claim that a current runtime record exists.
 
-The current NGINX common-header build contract passes:
+The current NGINX Common and profile-registry build contract passes:
 
 ```sh
 MSCONNECTOR_COMMON_INC=$CONNECTOR_ROOT/common/include
+MSCONNECTOR_PROFILE_REGISTRY_ROOT=$CONNECTOR_ROOT
 ```
 
-`connectors/nginx/config` consumes this value when constructing NGINX include
-paths.
+`connectors/nginx/config` consumes these values when constructing NGINX include
+paths. The managed exact-head build replaces `MSCONNECTOR_PROFILE_REGISTRY_ROOT`
+with its cache-identity-bound staged root; direct source builds use the
+canonical checkout root shown above.
 
 Observed historically on 2026-05-15: `NGINX_RELEASE_TAG=latest` resolved to
 `release-1.31.0`, built `nginx/1.31.0`, built
@@ -397,7 +409,7 @@ when NGINX or libmodsecurity headers are unavailable; optional C23/future-C
 checks depend on compiler support. No production, CRS, full-matrix, or runtime
 verification is claimed here.
 
-NGINX Common SDK module builds that use a copied connector source tree must set `MSCONNECTOR_COMMON_SRC` (or `CONNECTOR_COMMON_SRC` / `COMMON_SRC_ROOT`) to the repository Common source root; `MSCONNECTOR_COMMON_INC` remains the Common include root. If unset, the config only falls back to `$ngx_addon_dir/../../common/src` when that path exists.
+NGINX Common SDK module builds that use a copied connector source tree must set `MSCONNECTOR_COMMON_SRC` (or `CONNECTOR_COMMON_SRC` / `COMMON_SRC_ROOT`) to the repository Common source root; `MSCONNECTOR_COMMON_INC` remains the Common include root. They must also set `MSCONNECTOR_PROFILE_REGISTRY_ROOT` to a root containing `connectors/profile_registry.c` and `connectors/profile_registry.h`. The managed exact-head coordinator supplies a cache-identity-bound staged root. If unset, the config only falls back to `$ngx_addon_dir/../..` when both registry files exist there; that fallback is for direct checkout builds, not copied trees.
 
 ## Canonical Phase-4 boundary
 
@@ -417,6 +429,36 @@ once to P4. NGINX's memory-first buffer semantics prevent a mixed memory/file
 buffer from being counted twice. Invalid metadata, allocation failure, and a
 short or failed file read return a connector error before that current chain is
 forwarded; neither the scratch bytes nor response payloads enter event JSONL.
+
+`tests/run_nginx_body_buffer_fixture.py` is a test-only native boundary
+fixture. It rebuilds the selected clean connector checkout and a separate
+test-only fixture into a dedicated NGINX test binary against the pinned NGINX
+source, then emits real memory, file-only, and mixed `ngx_buf_t` values through
+the installed filter chain. Its test-only filter is ordered immediately before
+the statically linked connector and records the actual flags at that boundary.
+For file-only and injected file-error controls, it selects the file-only
+representation of that real buffer only for the direct connector call, then
+restores the upstream representation before returning; this is an explicit
+fixture boundary, not a claim about every upstream output filter. The mixed
+control retains both representations and uses distinct file backing: the P4
+rule confirms memory-first inspection while the separately recorded forwarded
+body remains NGINX's file backing. Its test configuration selects the existing
+limit solely to exercise within-limit and reject-before-forwarding cases; it
+does not change a product default. Its allocation-error case changes only the
+test binary: the same test-only boundary enables a fixture wrapper for the
+known 32 KiB `ngx_pnalloc` scratch request and records one wrapper hit. It
+neither changes connector code nor enables a production fault-injection switch.
+The retained result records only the exact head, build identities, verified
+filter ordering, buffer flags, lengths, bounded forwarding hashes, and
+accounting—not response payloads.
+
+The GitHub-hosted Functional-A gate separately publishes one bounded,
+payload-safe `result.json` only after both real `modsecurity_use_error_log`
+On/Off cells pass. It carries the exact head, NGINX archive/build identities,
+redaction/truncation/integrity/transaction facts, raw-WAF-canary observation,
+callback state, and lifecycle facts, but no raw log, target, Canary, payload,
+transaction identifier, timestamp, or absolute path. This is candidate-owned
+integration evidence; it is not the independent protected-host attestation.
 
 A rule match must be reported independently from a visible 403.  Canonical
 events preserve the original host status, requested WAF status, visible client

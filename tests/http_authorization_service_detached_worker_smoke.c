@@ -30,8 +30,11 @@
 
 #define TEST_TIMEOUT_MS 25UL
 #define TEST_WAIT_SECONDS 3L
+#define TEST_INTEGRATION_MODE "detached-worker-smoke"
 
 struct msconnector_runtime {
+    char integration_mode[sizeof(TEST_INTEGRATION_MODE)];
+    const msconnector_transaction_profile *transaction_profile;
     int placeholder;
 };
 
@@ -50,10 +53,10 @@ static const msconnector_transaction_profile test_transaction_profile = {
     1U,
     "detached-worker-smoke",
     "detached-worker-smoke",
-    "test-adapter",
-    0U,
-    0U,
-    0,
+    "detached-worker-smoke",
+    1U,
+    1U,
+    1,
     1,
 };
 
@@ -78,13 +81,22 @@ static int wait_for_flag(const int *flag) {
     (void)pthread_mutex_unlock(&test_lock);
     return result;
 }
-
 static void unblock_runtime(void) {
     if (pthread_mutex_lock(&test_lock) == 0) {
         runtime_release = 1;
         (void)pthread_cond_broadcast(&test_changed);
         (void)pthread_mutex_unlock(&test_lock);
     }
+}
+
+static int runtime_setup_was_configured(void) {
+    int result = 0;
+    if (pthread_mutex_lock(&test_lock) == 0) {
+        result = strcmp(fake_runtime.integration_mode, TEST_INTEGRATION_MODE) == 0 &&
+            fake_runtime.transaction_profile == &test_transaction_profile;
+        (void)pthread_mutex_unlock(&test_lock);
+    }
+    return result;
 }
 
 static int runtime_has_not_entered(void) {
@@ -112,8 +124,55 @@ int msconnector_runtime_config_check(
     size_t error_len) {
     (void)connector_name;
     (void)config_path;
-    clear_error(error, error_len);
+    if (error != NULL && error_len > 0U) {
+        error[0] = '\0';
+    }
     return 1;
+}
+
+/* The fixture has no production engine, but it must still reject a service
+ * startup that fails to supply the exact adapter-owned #344 configuration. */
+int msconnector_runtime_set_event_integration_mode(
+    msconnector_runtime *runtime,
+    const char *integration_mode) {
+    if (runtime != &fake_runtime || integration_mode == NULL ||
+        strcmp(integration_mode, TEST_INTEGRATION_MODE) != 0 ||
+        pthread_mutex_lock(&test_lock) != 0) {
+        return 0;
+    }
+    memcpy(runtime->integration_mode, integration_mode,
+        sizeof(runtime->integration_mode));
+    (void)pthread_mutex_unlock(&test_lock);
+    return 1;
+}
+
+int msconnector_runtime_set_transaction_profile(
+    msconnector_runtime *runtime,
+    const msconnector_transaction_profile *transaction_profile) {
+    if (runtime != &fake_runtime || transaction_profile == NULL ||
+        transaction_profile->profile_id != 1U ||
+        transaction_profile->profile_name == NULL ||
+        transaction_profile->connector_id == NULL ||
+        transaction_profile->host_adapter_id == NULL ||
+        strcmp(transaction_profile->profile_name, "detached-worker-smoke") != 0 ||
+        strcmp(transaction_profile->connector_id, "detached-worker-smoke") != 0 ||
+        strcmp(transaction_profile->host_adapter_id, "detached-worker-smoke") != 0 ||
+        transaction_profile->direct_phase_mask != 1U ||
+        transaction_profile->strict_post_commit_action == 0 ||
+        transaction_profile->private_default_binding == 0 ||
+        pthread_mutex_lock(&test_lock) != 0) {
+        return 0;
+    }
+    runtime->transaction_profile = transaction_profile;
+    (void)pthread_mutex_unlock(&test_lock);
+    return 1;
+}
+
+int msconnector_runtime_error_log_enabled(const msconnector_runtime *runtime) {
+    /* The fake runtime explicitly has diagnostics disabled; requests and
+     * response payloads must not be emitted by this fixture. */
+    (void)runtime;
+    return 0;
 }
 
 int msconnector_runtime_create(
@@ -127,7 +186,15 @@ int msconnector_runtime_create(
     if (out == NULL) {
         return 0;
     }
+    if (error != NULL && error_len > 0U) {
+        error[0] = '\0';
+    }
     clear_error(error, error_len);
+    if (pthread_mutex_lock(&test_lock) != 0) {
+        return 0;
+    }
+    memset(&fake_runtime, 0, sizeof(fake_runtime));
+    (void)pthread_mutex_unlock(&test_lock);
     *out = &fake_runtime;
     return 1;
 }
@@ -141,29 +208,6 @@ void msconnector_runtime_destroy(msconnector_runtime **runtime) {
     if (runtime != NULL) {
         *runtime = NULL;
     }
-}
-
-int msconnector_runtime_set_event_integration_mode(
-    msconnector_runtime *runtime,
-    const char *integration_mode) {
-    if (runtime != NULL) {
-        runtime->placeholder = integration_mode == NULL ? 0 : 1;
-    }
-    return runtime != NULL && integration_mode != NULL;
-}
-
-int msconnector_runtime_set_transaction_profile(
-    msconnector_runtime *runtime,
-    const msconnector_transaction_profile *profile) {
-    if (runtime != NULL) {
-        runtime->placeholder = profile == NULL ? 0 : 1;
-    }
-    return runtime != NULL && profile != NULL;
-}
-
-int msconnector_runtime_error_log_enabled(const msconnector_runtime *runtime) {
-    (void)runtime;
-    return 0;
 }
 
 void msconnector_runtime_request_contract(
@@ -398,7 +442,7 @@ int main(void) {
         sizeof(oversized_host_suffix) - 1U];
     const size_t oversized_host_request_size = sizeof(oversized_host_request);
     char *connector_name = strdup("detached-worker-smoke");
-    char *integration_mode = strdup("detached-worker-smoke");
+    char *integration_mode = strdup(TEST_INTEGRATION_MODE);
     char *original_uri_header = strdup("X-Original-Uri");
     const char **original_uri_headers = calloc(1U, sizeof(*original_uri_headers));
     msconnector_http_authorization_profile profile = {0};
@@ -428,6 +472,10 @@ int main(void) {
         'a', 1024U);
     memcpy(oversized_host_request + sizeof(oversized_host_prefix) - 1U + 1024U,
         oversized_host_suffix, sizeof(oversized_host_suffix) - 1U);
+    if (runtime_setup_was_configured()) {
+        (void)fprintf(stderr, "runtime fixture was configured before service startup\n");
+        goto done;
+    }
     if (!reserve_loopback_port(&port) ||
         snprintf(args.listen_spec, sizeof(args.listen_spec), "127.0.0.1:%u",
             (unsigned int)port) < 0 ||
@@ -456,6 +504,10 @@ int main(void) {
     }
     (void)close(client_fd);
     client_fd = connect_loopback(port);
+    if (!runtime_setup_was_configured()) {
+        (void)fprintf(stderr, "runtime profile setup was not enforced\n");
+        goto done;
+    }
     if (client_fd < 0 ||
         send(client_fd, request, sizeof(request) - 1U, 0) !=
             (ssize_t)(sizeof(request) - 1U) ||
@@ -464,6 +516,8 @@ int main(void) {
         (void)fprintf(stderr, "service did not reach bounded deferred shutdown\n");
         goto done;
     }
+    (void)close(client_fd);
+    client_fd = -1;
     /* The entry point has returned. A detached worker must not retain caller-
      * owned profile strings or the original-header pointer array. */
     free(connector_name);
@@ -477,6 +531,17 @@ int main(void) {
     unblock_runtime();
     if (!wait_for_flag(&runtime_destroyed)) {
         (void)fprintf(stderr, "deferred worker cleanup did not finish\n");
+        goto done;
+    }
+    /* The last worker owns the deferred release claim.  Give any accidental
+     * duplicate release a chance to surface before declaring the regression
+     * fixed; a single Common runtime destroy is the observable contract. */
+    {
+        const struct timespec delay = {.tv_sec = 0, .tv_nsec = 50000000L};
+        (void)nanosleep(&delay, NULL);
+    }
+    if (runtime_destroyed != 1) {
+        (void)fprintf(stderr, "deferred cleanup released the runtime more than once\n");
         goto done;
     }
     result = 0;

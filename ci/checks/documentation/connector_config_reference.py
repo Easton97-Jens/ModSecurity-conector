@@ -552,6 +552,12 @@ def extract_nginx(root: Path) -> list[dict[str, Any]]:
                     "working directory cannot select unintended policy."
                 ),
             )
+        elif name == "modsecurity_use_error_log":
+            effect = (
+                "`off` suppresses regular and native libModSecurity callback messages in the "
+                "NGINX error log. It does not disable WAF evaluation or alter Event JSONL emission."
+            )
+            option.update(runtime_effect=effect, description=effect)
         elif name == "modsecurity_phase4_mode":
             # Both non-strict enum values deliberately resolve through the
             # common log-only branch.  Strict is a transport action, never a
@@ -619,32 +625,33 @@ def extract_nginx(root: Path) -> list[dict[str, Any]]:
             )
         elif name == "modsecurity_phase4_log":
             effect = (
-                "Rejects native NGINX event-file logging before descriptor creation because the host file "
-                "registry cannot provide the Common Runtime security contract."
+                "Opens a connector-owned native NGINX event sink through the Common Runtime's secure "
+                "no-follow descriptor helper."
             )
             option.update(
-                value_type="registered but always rejected path",
-                allowed_values="no path is accepted",
-                default=REMOTE_RULE_DEFAULT,
-                default_source="security policy: native NGINX event-file logging disabled",
-                inheritance="No event-file value can be inherited or merged because every use is rejected.",
-                merge_behavior="No event-file value can be merged because every use is rejected before descriptor creation.",
+                value_type="path",
+                allowed_values="one absolute or relative path to a safe regular file",
+                default="not configured",
+                default_source="connector configuration",
+                inheritance="http → server → location; a child inherits the parent sink when unset.",
+                merge_behavior="The effective context owns one connector descriptor; inherited configuration is not reopened by the generic NGINX file registry.",
                 phase_relevance=(
-                    "No event-file sink is reachable through this directive. The Common Runtime event lifecycle "
-                    "remains the supported secure event path."
+                    "P4 event records are appended to the configured connector-owned descriptor."
                 ),
                 runtime_effect=effect,
                 description=effect,
                 validation=(
-                    "ngx_conf_set_phase4_log rejects every path during nginx -t with the native event-file "
-                    "security-policy error."
+                    "ngx_conf_set_phase4_log opens the path with the Common no-follow helper and fails closed "
+                    "unless the resolved leaf is a regular file below a safe parent. The descriptor is "
+                    "connector-owned and opened private (0600); configuration reload creates a new safe "
+                    "descriptor for the new cycle."
                 ),
                 security_relevance=(
-                    "Do not re-enable this native host writer without a no-follow, regular-file, owner, and "
-                    "private-mode descriptor contract. Use the Common Runtime event lifecycle instead."
+                    "The helper rejects symlink traversal, non-regular leaves, unsafe ownership or writable "
+                    "parents, and insecure modes. Generic NGINX USR1 file reopening is not a supported "
+                    "rotation mechanism; use a validated configuration reload."
                 ),
                 example_file=source,
-                example_unavailable=True,
             )
         elif name == "modsecurity_rules_remote":
             option.update(
@@ -3050,6 +3057,9 @@ GERMAN_TEXT: dict[str, str] = {
     REMOTE_RULE_VALUE_TYPE: "registrierte, aber stets abgewiesene Runtime-Einstellung",
     "Apache string expression": "Apache-Zeichenausdruck",
     "path": "Pfad",
+    "one absolute or relative path to a safe regular file": "ein absoluter oder relativer Pfad zu einer sicheren regulären Datei",
+    "not configured": "nicht konfiguriert",
+    "connector configuration": "Connector-Konfiguration",
     "path alias": "Pfad-Alias",
     "URL": "URL",
     "enum": "Aufzählung",
@@ -3208,7 +3218,8 @@ GERMAN_TEXT: dict[str, str] = {
     LIGHTTPD_DEFAULTS_ONLY_INHERITANCE: "Es werden nur Standardwerte geladen; das Modul besitzt keinen bedingten Patch-Pfad zur Request-Zeit.",
     "Parent value is available to the child unless a child value is set; see the Apache directory-config merge function.": "Der Elternwert steht dem Kind zur Verfügung, sofern kein Kindwert gesetzt ist; siehe die Apache-Merge-Funktion für Verzeichniskonfigurationen.",
     REMOTE_RULE_INHERITANCE: "Kein Remote-Wert kann geerbt oder zusammengeführt werden, weil jede Verwendung abgewiesen wird.",
-    "No event-file value can be inherited or merged because every use is rejected.": "Kein Ereignisdatei-Wert kann geerbt oder zusammengeführt werden, weil jede Verwendung abgewiesen wird.",
+    "http → server → location; a child inherits the parent sink when unset.": "http → server → location; ein Kind erbt den Eltern-Sink, wenn es nicht gesetzt ist.",
+    "The effective context owns one connector descriptor; inherited configuration is not reopened by the generic NGINX file registry.": "Der wirksame Kontext besitzt einen Connector-Deskriptor; geerbte Konfiguration wird nicht durch die generische NGINX-Dateiregistrierung erneut geöffnet.",
     "Traefik dynamic configuration object; no Common Runtime merge.": "Dynamisches Traefik-Konfigurationsobjekt; kein Common-Runtime-Merge.",
     "http → server → location; a child inherits if it does not set a value.": "http → server → location; ein Kind erbt, wenn es keinen Wert setzt.",
     NOT_APPLICABLE: "nicht anwendbar",
@@ -3334,7 +3345,10 @@ GERMAN_TEXT: dict[str, str] = {
     # Validation descriptions.  The command itself stays unchanged.
     "msc_config_load_rules_remote rejects every key/URL pair during apachectl -t before a rule loader or network operation.": "msc_config_load_rules_remote weist jedes Schlüssel/URL-Paar während apachectl -t vor einem Regellader- oder Netzwerkvorgang ab.",
     "ngx_conf_set_phase4_content_types_file rejects invalid values during nginx -t. On POSIX it opens the path nonblocking, checks that the opened descriptor is regular, caps it at 64 KiB, requires an exact read, and rejects invalid MIME tokens. On Win32 it fails closed.": "ngx_conf_set_phase4_content_types_file weist ungültige Werte während nginx -t ab. Unter POSIX öffnet es den Pfad nichtblockierend, prüft den geöffneten Deskriptor auf regulären Dateityp, begrenzt ihn auf 64 KiB, verlangt einen exakten Lesevorgang und weist ungültige MIME-Token ab. Unter Win32 schlägt es fail-closed fehl.",
-    "ngx_conf_set_phase4_log rejects every path during nginx -t with the native event-file security-policy error.": "ngx_conf_set_phase4_log weist jeden Pfad während nginx -t mit dem nativen Ereignisdatei-Sicherheitspolicy-Fehler ab.",
+    "ngx_conf_set_phase4_log opens the path with the Common no-follow helper and fails closed unless the resolved leaf is a regular file below a safe parent. The descriptor is connector-owned and opened private (0600); configuration reload creates a new safe descriptor for the new cycle.": "ngx_conf_set_phase4_log öffnet den Pfad mit dem Common-No-Follow-Helper und schlägt fail-closed fehl, sofern das aufgelöste Blatt keine reguläre Datei unter einem sicheren Elternverzeichnis ist. Der Deskriptor gehört dem Connector und wird privat (0600) geöffnet; ein Konfigurations-Reload erzeugt für den neuen Zyklus einen neuen sicheren Deskriptor.",
+    "Opens a connector-owned native NGINX event sink through the Common Runtime's secure no-follow descriptor helper.": "Öffnet über den sicheren No-Follow-Deskriptor-Helper der Common Runtime einen nativen NGINX-Ereignis-Sink im Besitz des Connectors.",
+    "P4 event records are appended to the configured connector-owned descriptor.": "P4-Ereignisdatensätze werden an den konfigurierten, dem Connector gehörenden Deskriptor angehängt.",
+    "The helper rejects symlink traversal, non-regular leaves, unsafe ownership or writable parents, and insecure modes. Generic NGINX USR1 file reopening is not a supported rotation mechanism; use a validated configuration reload.": "Der Helper weist Symlink-Durchquerung, nicht reguläre Blätter, unsichere Eigentümer oder beschreibbare Elternverzeichnisse sowie unsichere Modi ab. Das generische NGINX-USR1-Erneutöffnen ist kein unterstützter Rotationsmechanismus; ein validiertes Konfigurations-Reload verwenden.",
     "ngx_conf_set_rules_remote rejects every key/URL pair during nginx -t before a rule loader or network operation.": "ngx_conf_set_rules_remote weist jedes Schlüssel/URL-Paar während nginx -t vor einem Regellader- oder Netzwerkvorgang ab.",
     "Common Runtime rejects any remote key or URL during configuration validation before a rule loader or network operation.": "Die Common Runtime weist jeden Remote-Schlüssel oder jede Remote-URL während der Konfigurationsvalidierung vor einem Regellader- oder Netzwerkvorgang ab.",
     "Runtime configuration rejects zero, non-decimal values, and values above the 10485760-byte (10 MiB) hard security cap.": "Die Runtime-Konfiguration weist null, nichtdezimalen Werte und Werte oberhalb der harten Sicherheitsobergrenze von 10485760 Byte (10 MiB) ab.",
@@ -3401,6 +3415,7 @@ GERMAN_TEXT: dict[str, str] = {
     "Adds inline rule configuration.": "Fügt eine Inline-Regelkonfiguration hinzu.",
     "Alias for event_path.": "Alias für event_path.",
     "Appends metadata-only JSONL events when configured.": "Hängt bei Konfiguration JSONL-Ereignisse an, die nur Metadaten enthalten.",
+    "`off` suppresses regular and native libModSecurity callback messages in the NGINX error log. It does not disable WAF evaluation or alter Event JSONL emission.": "`off` unterdrückt reguläre und native libModSecurity-Callback-Meldungen im NGINX-Fehlerlog. WAF-Auswertung und Event-JSONL-Ausgabe werden dadurch nicht deaktiviert oder verändert.",
     "Before response headers/body are committed, minimal, safe, and strict all resolve a P4 intervention as deny_if_possible, so NGINX can still return the requested engine status (or 403 fallback). Once headers are committed or the body started, minimal and safe both use the common log_only action; they record the late decision without a later status rewrite. Strict instead resolves to abort_connection: the native body filter marks the connection as errored, records connection_aborted, and returns NGX_ERROR. The known host boundary is that NGINX invokes the P4 engine finish only at last_buf/last_in_chain after bounded in-scope body accumulation, so a response may already be visible. Strict can therefore terminate a connection, but cannot guarantee a later 403 or replace an already-sent status line.": "Bevor Response-Header/-Body committet sind, lösen minimal, safe und strict eine P4-Intervention jeweils als deny_if_possible auf; NGINX kann daher noch den angeforderten Engine-Status (oder den Fallback 403) zurückgeben. Sobald Header committet sind oder der Body begonnen hat, verwenden minimal und safe beide die gemeinsame Aktion log_only; sie protokollieren die späte Entscheidung ohne nachträgliche Statusumschreibung. Strict löst dagegen zu abort_connection auf: Der native Body-Filter markiert die Verbindung als fehlerhaft, protokolliert connection_aborted und gibt NGX_ERROR zurück. Die bekannte Hostgrenze ist, dass NGINX das P4-Engine-Finish erst bei last_buf/last_in_chain nach der begrenzten Sammlung von Body-Bytes im Geltungsbereich aufruft; eine Antwort kann deshalb bereits sichtbar sein. Strict kann somit eine Verbindung beenden, aber keine spätere 403 garantieren oder eine bereits gesendete Statuszeile ersetzen.",
     "Binds or targets one local TCP endpoint in the checked-in host template.": "Bindet oder adressiert einen lokalen TCP-Endpunkt im eingecheckten Host-Template.",
     "Bounds accepted header count.": "Begrenzt die akzeptierte Headeranzahl.",

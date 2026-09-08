@@ -23,6 +23,15 @@ on:
       - modules/ModSecurity-test-Framework
       - modules/ModSecurity-test-Framework/**
   workflow_dispatch:
+    inputs:
+      parent_sha:
+        description: Exact full candidate head SHA for this manual profile run
+        required: true
+        type: string
+      base_sha:
+        description: Exact full checked base SHA for this manual profile run
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -67,7 +76,9 @@ jobs:
       MRTS: ${{ matrix.mrts }}
       RUNTIME_COMPONENT_TARGET: ${{ matrix.runtime_component_target }}
       CRS_RUNTIME_RUN_ID: crs-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.connector }}
-      EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      PROFILE_RUN_ID: with-crs-no-mrts-${{ github.run_id }}-${{ github.run_attempt }}
+      EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || inputs.parent_sha }}
+      EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base_sha }}
       EXPECTED_FRAMEWORK_SHA: 86451b45ae7bb7953baf9f81f2c2dad07395a808
       EXPECTED_MRTS_SHA: 615b13bacbd008562c17408246c41ab27dca3104
       EVIDENCE_ROOT: ""
@@ -78,9 +89,10 @@ jobs:
         id: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || inputs.parent_sha }}
           submodules: recursive
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Set up locked Python toolchain
         id: setup-python
@@ -99,10 +111,17 @@ jobs:
         id: verify-revisions
         run: |
           set -euo pipefail
+          for expected_sha in "$EXPECTED_PARENT_SHA" "$EXPECTED_BASE_SHA" "$EXPECTED_FRAMEWORK_SHA" "$EXPECTED_MRTS_SHA"; do
+            case "$expected_sha" in ''|*[!0-9a-f]*) echo "FAIL: invalid exact revision" >&2; exit 2 ;; esac
+            test "${#expected_sha}" -eq 40
+          done
+          test "$EXPECTED_PARENT_SHA" != "$EXPECTED_BASE_SHA"
           parent_commit=$(git rev-parse HEAD)
+          base_commit=$(git rev-parse "${EXPECTED_BASE_SHA}^{commit}")
           framework_commit=$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)
           mrts_commit=$(git -C modules/ModSecurity-test-Framework/tools/MRTS rev-parse HEAD)
           test "$parent_commit" = "$EXPECTED_PARENT_SHA"
+          test "$base_commit" = "$EXPECTED_BASE_SHA"
           test "$framework_commit" = "$EXPECTED_FRAMEWORK_SHA"
           test "$mrts_commit" = "$EXPECTED_MRTS_SHA"
 
@@ -197,7 +216,7 @@ jobs:
         id: prepare-haproxy-runtime-evidence
         if: matrix.connector == 'haproxy'
         env:
-          PARENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          PARENT_SHA: ${{ github.event.pull_request.head.sha || inputs.parent_sha }}
           FRAMEWORK_SHA: 86451b45ae7bb7953baf9f81f2c2dad07395a808
           MRTS_SHA: 615b13bacbd008562c17408246c41ab27dca3104
           SETUP_PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}
@@ -431,6 +450,13 @@ jobs:
           }
           case "$CONNECTOR" in
             apache)
+              test ! -e "$VERIFIED_RUN_ROOT/apache-profile-cleanup-receipt.json"
+              test ! -L "$VERIFIED_RUN_ROOT/apache-profile-cleanup-receipt.json"
+              RUN_ONE_CASE=1 \
+              APACHE_PROFILE_CLEANUP_RECEIPT="$VERIFIED_RUN_ROOT/apache-profile-cleanup-receipt.json" \
+              APACHE_PROFILE_CELL_RUN_ID="$CRS_RUNTIME_RUN_ID" \
+              APACHE_PROFILE_GITHUB_RUN_ID="$GITHUB_RUN_ID" \
+              APACHE_PROFILE_GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
               EVIDENCE_ROOT='' make verified-apache-case CASE=crs_sqli_anomaly_block CRS="$CRS" MRTS="$MRTS"
               ;;
             haproxy)
@@ -560,6 +586,7 @@ jobs:
           PARENT_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.parent_sha }}
           FRAMEWORK_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.framework_sha }}
           MRTS_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.mrts_sha }}
+          TRUSTED_CRS_RUNTIME_RUN_ID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_run_id }}
         run: |
           set -euo pipefail
           require_sha() {
@@ -754,6 +781,7 @@ jobs:
             --expected-parent-sha "$PARENT_SHA" \
             --expected-framework-sha "$FRAMEWORK_SHA" \
             --expected-mrts-sha "$MRTS_SHA" \
+            --expected-cell-run-id "$TRUSTED_CRS_RUNTIME_RUN_ID" \
             | /usr/bin/head --bytes=16385 \
             | run_evidence_projector project-document --source-document-stdin \
               --runner-temp "$TRUSTED_EVIDENCE_STAGE_ROOT" \
@@ -763,7 +791,8 @@ jobs:
               --upload-gid "$RUNTIME_GID" \
               --expected-parent-sha "$PARENT_SHA" \
               --expected-framework-sha "$FRAMEWORK_SHA" \
-              --expected-mrts-sha "$MRTS_SHA"
+              --expected-mrts-sha "$MRTS_SHA" \
+              --expected-cell-run-id "$TRUSTED_CRS_RUNTIME_RUN_ID"
           printf '%s\n' "stage_root=$stage_root" >> "$GITHUB_OUTPUT"
 
       - name: Verify HAProxy runtime evidence
@@ -784,6 +813,7 @@ jobs:
           PARENT_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.parent_sha }}
           FRAMEWORK_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.framework_sha }}
           MRTS_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.mrts_sha }}
+          TRUSTED_CRS_RUNTIME_RUN_ID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_run_id }}
         run: |
           set -euo pipefail
           require_sha() {
@@ -913,7 +943,7 @@ jobs:
           test ! -L "$digest_report"
           /usr/bin/sudo -n /usr/bin/install -m 0640 -o 0 -g "$RUNTIME_GID" /dev/null "$digest_report"
           test "$(/usr/bin/stat -Lc '%u:%g:%a:%s' -- "$digest_report")" = "0:$RUNTIME_GID:640:0"
-          run_evidence_projector verify --runner-temp "$TRUSTED_EVIDENCE_STAGE_ROOT" --stage-parent "$STAGE_PARENT" --stage-root "$STAGE_ROOT" --runtime-uid "$RUNTIME_UID" --upload-gid "$RUNTIME_GID" --expected-parent-sha "$PARENT_SHA" --expected-framework-sha "$FRAMEWORK_SHA" --expected-mrts-sha "$MRTS_SHA" \
+          run_evidence_projector verify --runner-temp "$TRUSTED_EVIDENCE_STAGE_ROOT" --stage-parent "$STAGE_PARENT" --stage-root "$STAGE_ROOT" --runtime-uid "$RUNTIME_UID" --upload-gid "$RUNTIME_GID" --expected-parent-sha "$PARENT_SHA" --expected-framework-sha "$FRAMEWORK_SHA" --expected-mrts-sha "$MRTS_SHA" --expected-cell-run-id "$TRUSTED_CRS_RUNTIME_RUN_ID" \
             | /usr/bin/head --bytes=1025 \
             | /usr/bin/sudo -n /usr/bin/tee -- "$digest_report" >/dev/null
           /usr/bin/env -i \
@@ -1017,28 +1047,172 @@ jobs:
           test ! -e "$digest_report"
           test ! -L "$digest_report"
 
-      - name: Upload non-HAProxy runtime evidence
-        id: upload-non-haproxy-runtime-evidence
-        if: always() && matrix.connector != 'haproxy'
+      - name: Validate Apache runtime evidence
+        id: validate-apache-runtime-evidence
+        if: always() && matrix.connector == 'apache'
+        env:
+          RESULTS_ROOT: ${{ env.BUILD_ROOT }}/verified-apache-case/with-crs/no-mrts/results
+          AUDIT_LOG: ${{ env.BUILD_ROOT }}/verified-apache-case/with-crs-no-mrts-apache/logs/apache-runtime/audit.log
+          CLEANUP_RECEIPT: ${{ env.VERIFIED_RUN_ROOT }}/apache-profile-cleanup-receipt.json
+          RUN_ID: ${{ env.CRS_RUNTIME_RUN_ID }}
+          PARENT_SHA: ${{ github.event.pull_request.head.sha || inputs.parent_sha }}
+          RUNTIME_OUTCOME: ${{ steps.runtime.outcome }}
+          VERIFIED_ROOT: ${{ env.VERIFIED_RUN_ROOT }}
+        run: |
+          set -euo pipefail
+          if test "$RUNTIME_OUTCOME" = success; then
+            test -d "$RESULTS_ROOT"
+            test ! -L "$RESULTS_ROOT"
+            test -f "$AUDIT_LOG"
+            test ! -L "$AUDIT_LOG"
+            test -f "$CLEANUP_RECEIPT"
+            test ! -L "$CLEANUP_RECEIPT"
+            python3 -I ci/runtime/lifecycle/with-crs-no-mrts-profile.py verify-apache-audit \
+              --audit-log "$AUDIT_LOG"
+          else
+            case "$VERIFIED_ROOT" in /*) ;; *) echo "FAIL: unsafe Apache runtime evidence root" >&2; exit 2 ;; esac
+            case "$PARENT_SHA" in ''|*[!0-9a-f]*) echo "FAIL: unsafe Parent head" >&2; exit 2 ;; esac
+            test "${#PARENT_SHA}" -eq 40
+            test "$RUN_ID" = "crs-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-apache"
+            python3 -I ci/runtime/lifecycle/prepare-with-crs-no-mrts-upload.py \
+              --connector apache --run-id "$RUN_ID" --parent-sha "$PARENT_SHA" \
+              --verified-root "$VERIFIED_ROOT" --receipt "$VERIFIED_ROOT/failure-receipt.json" \
+              --runtime-outcome "$RUNTIME_OUTCOME"
+          fi
+
+      - name: Produce canonical with-CRS no-MRTS profile cell
+        id: produce-profile-cell
+        if: steps.runtime.outcome == 'success' && (matrix.connector != 'haproxy' || steps.verify-haproxy-runtime-evidence.outcome == 'success') && (matrix.connector != 'apache' || steps.validate-apache-runtime-evidence.outcome == 'success')
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+          PARENT_SHA: ${{ github.event.pull_request.head.sha || inputs.parent_sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base_sha }}
+          FRAMEWORK_SHA: 86451b45ae7bb7953baf9f81f2c2dad07395a808
+          MRTS_SHA: 615b13bacbd008562c17408246c41ab27dca3104
+          PROFILE_RUN_ID_VALUE: with-crs-no-mrts-${{ github.run_id }}-${{ github.run_attempt }}
+          CELL_RUN_ID_VALUE: crs-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.connector }}
+          VERIFIED_ROOT: ${{ env.VERIFIED_RUN_ROOT }}
+          HAPROXY_STAGE_ROOT: ${{ steps.project-haproxy-runtime-evidence.outputs.stage_root }}
+          HAPROXY_EVIDENCE_SHA256: ${{ steps.verify-haproxy-runtime-evidence.outputs.evidence_sha256 }}
+          HAPROXY_MANIFEST_SHA256: ${{ steps.verify-haproxy-runtime-evidence.outputs.manifest_sha256 }}
+          HAPROXY_EVIDENCE_UID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.evidence_uid }}
+          HAPROXY_EVIDENCE_GID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.evidence_gid }}
+        run: |
+          set -euo pipefail
+          test -n "$PARENT_SHA"; test -n "$BASE_SHA"
+          test "${#PARENT_SHA}" -eq 40; test "${#BASE_SHA}" -eq 40
+          test "${#FRAMEWORK_SHA}" -eq 40; test "${#MRTS_SHA}" -eq 40
+          crs_commit=$(sed -n 's/^CRS_APPROVED_COMMIT="\([0-9a-f]*\)"$/\1/p' "$FRAMEWORK_ROOT/ci/lib/common.sh")
+          crs_rule_sha256=$(sed -n 's/^CRS_RULE_FILE_SHA256="\([0-9a-f]*\)"$/\1/p' "$FRAMEWORK_ROOT/ci/lib/common.sh")
+          test "${#crs_commit}" -eq 40; test "${#crs_rule_sha256}" -eq 64
+          haproxy_source_args=()
+          case "$CONNECTOR" in
+            apache)
+              source_root="$VERIFIED_ROOT"
+              crs_source_root="$CRS_SOURCE_DIR"
+              ;;
+            haproxy)
+              source_root="$HAPROXY_STAGE_ROOT"
+              crs_source_root="$CRS_SOURCE_DIR"
+              test -n "$HAPROXY_EVIDENCE_SHA256"; test -n "$HAPROXY_MANIFEST_SHA256"
+              test -n "$HAPROXY_EVIDENCE_UID"; test -n "$HAPROXY_EVIDENCE_GID"
+              haproxy_source_args=(
+                --haproxy-evidence-sha256 "$HAPROXY_EVIDENCE_SHA256"
+                --haproxy-manifest-sha256 "$HAPROXY_MANIFEST_SHA256"
+                --haproxy-evidence-uid "$HAPROXY_EVIDENCE_UID"
+                --haproxy-evidence-gid "$HAPROXY_EVIDENCE_GID"
+              )
+              ;;
+            envoy|lighttpd|traefik)
+              source_root="$VERIFIED_ROOT"
+              crs_source_root="$VERIFIED_ROOT/runs/$CONNECTOR/$CELL_RUN_ID_VALUE/crs-fresh-source/coreruleset"
+              ;;
+            *) echo "FAIL: unsupported profile connector" >&2; exit 2 ;;
+          esac
+          test -d "$source_root"; test ! -L "$source_root"
+          test -d "$crs_source_root"; test ! -L "$crs_source_root"
+          python3 -I ci/runtime/lifecycle/with-crs-no-mrts-profile.py produce \
+            --connector "$CONNECTOR" --cell-run-id "$CELL_RUN_ID_VALUE" \
+            --profile-run-id "$PROFILE_RUN_ID_VALUE" --parent-sha "$PARENT_SHA" \
+            --base-sha "$BASE_SHA" --github-run-id "${{ github.run_id }}" \
+            --github-run-attempt "${{ github.run_attempt }}" \
+            --framework-sha "$FRAMEWORK_SHA" --mrts-sha "$MRTS_SHA" \
+            --crs-commit "$crs_commit" --crs-rule-sha256 "$crs_rule_sha256" \
+            --crs-source-root "$crs_source_root" "${haproxy_source_args[@]}" \
+            --verified-root "$VERIFIED_ROOT" --source-root "$source_root" \
+            --output-dir "$VERIFIED_ROOT/profile-cell"
+
+      - name: Upload Apache runtime evidence
+        id: upload-apache-runtime-evidence
+        if: always() && matrix.connector == 'apache' && steps.runtime.outcome == 'success' && steps.validate-apache-runtime-evidence.outcome == 'success' && steps.produce-profile-cell.outcome == 'success'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: with-crs-no-mrts-${{ matrix.connector }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            ${{ env.VERIFIED_RUN_ROOT }}/evidence
-            ${{ env.BUILD_ROOT }}/verified-apache-case/with-crs/no-mrts/results
+          path: ${{ env.VERIFIED_RUN_ROOT }}/profile-cell
+          if-no-files-found: error
+          retention-days: 10
+          overwrite: false
+
+      - name: Upload Apache runtime failure receipt
+        id: upload-apache-runtime-failure-receipt
+        if: always() && matrix.connector == 'apache' && steps.runtime.outcome != 'success' && steps.validate-apache-runtime-evidence.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: with-crs-no-mrts-${{ matrix.connector }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.VERIFIED_RUN_ROOT }}/failure-receipt.json
+          if-no-files-found: error
+          retention-days: 10
+          overwrite: false
+
+      - name: Validate generic runtime evidence or retain failure receipt
+        id: prepare-non-haproxy-runtime-evidence
+        if: always() && matrix.connector != 'haproxy' && matrix.connector != 'apache'
+        env:
+          CONNECTOR: ${{ matrix.connector }}
+          RUN_ID: ${{ env.CRS_RUNTIME_RUN_ID }}
+          PARENT_SHA: ${{ github.event.pull_request.head.sha || inputs.parent_sha }}
+          RUNTIME_OUTCOME: ${{ steps.runtime.outcome }}
+          VERIFIED_ROOT: ${{ env.VERIFIED_RUN_ROOT }}
+        run: |
+          set -euo pipefail
+          case "$VERIFIED_ROOT" in /*) ;; *) echo "FAIL: unsafe generic runtime evidence root" >&2; exit 2 ;; esac
+          case "$PARENT_SHA" in ''|*[!0-9a-f]*) echo "FAIL: unsafe Parent head" >&2; exit 2 ;; esac
+          test "${#PARENT_SHA}" -eq 40
+          test "$RUN_ID" = "crs-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${CONNECTOR}"
+          python3 -I ci/runtime/lifecycle/prepare-with-crs-no-mrts-upload.py \
+            --connector "$CONNECTOR" --run-id "$RUN_ID" --parent-sha "$PARENT_SHA" \
+            --verified-root "$VERIFIED_ROOT" --receipt "$VERIFIED_ROOT/failure-receipt.json" \
+            --runtime-outcome "$RUNTIME_OUTCOME"
+
+      - name: Upload non-HAProxy runtime evidence
+        id: upload-non-haproxy-runtime-evidence
+        if: always() && matrix.connector != 'haproxy' && matrix.connector != 'apache' && steps.runtime.outcome == 'success' && steps.prepare-non-haproxy-runtime-evidence.outcome == 'success' && steps.produce-profile-cell.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: with-crs-no-mrts-${{ matrix.connector }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.VERIFIED_RUN_ROOT }}/profile-cell
+          if-no-files-found: error
+          retention-days: 10
+          overwrite: false
+
+      - name: Upload non-HAProxy runtime failure receipt
+        id: upload-non-haproxy-runtime-failure-receipt
+        if: always() && matrix.connector != 'haproxy' && matrix.connector != 'apache' && steps.runtime.outcome != 'success' && steps.prepare-non-haproxy-runtime-evidence.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: with-crs-no-mrts-${{ matrix.connector }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.VERIFIED_RUN_ROOT }}/failure-receipt.json
           if-no-files-found: error
           retention-days: 10
           overwrite: false
 
       - name: Upload real runtime evidence
         id: upload-runtime-evidence
-        if: matrix.connector == 'haproxy' && steps.verify-haproxy-runtime-evidence.outcome == 'success'
+        if: matrix.connector == 'haproxy' && steps.verify-haproxy-runtime-evidence.outcome == 'success' && steps.produce-profile-cell.outcome == 'success'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: with-crs-no-mrts-${{ matrix.connector }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            ${{ steps.project-haproxy-runtime-evidence.outputs.stage_root }}/haproxy-runtime-evidence.json
-            ${{ steps.project-haproxy-runtime-evidence.outputs.stage_root }}/manifest.json
+          path: ${{ env.VERIFIED_RUN_ROOT }}/profile-cell
           if-no-files-found: error
           retention-days: 10
           overwrite: false
@@ -1072,7 +1246,7 @@ jobs:
         if: always()
         env:
           CONNECTOR: ${{ matrix.connector }}
-          PARENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          PARENT_SHA: ${{ github.event.pull_request.head.sha || inputs.parent_sha }}
           CHECKOUT_OUTCOME: ${{ steps.checkout.outcome }}
           SETUP_PYTHON_OUTCOME: ${{ steps.setup-python.outcome }}
           VERIFY_PYTHON_OUTCOME: ${{ steps.verify-python.outcome }}
@@ -1082,7 +1256,7 @@ jobs:
           INITIALIZE_ROOTS_OUTCOME: ${{ steps.initialize-runtime-roots.outcome }}
           PREPARE_CRS_OUTCOME: ${{ steps.prepare-crs-source.outcome }}
           RUNTIME_OUTCOME: ${{ steps.runtime.outcome }}
-          UPLOAD_EVIDENCE_OUTCOME: ${{ matrix.connector == 'haproxy' && steps.upload-runtime-evidence.outcome || steps.upload-non-haproxy-runtime-evidence.outcome }}
+          UPLOAD_EVIDENCE_OUTCOME: ${{ matrix.connector == 'haproxy' && steps.upload-runtime-evidence.outcome || matrix.connector == 'apache' && steps.runtime.outcome == 'success' && steps.upload-apache-runtime-evidence.outcome || matrix.connector == 'apache' && steps.upload-apache-runtime-failure-receipt.outcome || steps.runtime.outcome == 'success' && steps.upload-non-haproxy-runtime-evidence.outcome || steps.upload-non-haproxy-runtime-failure-receipt.outcome }}
         run: |
           set -euo pipefail
           require_sha() {
@@ -1182,3 +1356,67 @@ jobs:
           namespace = {"__name__": "__main__", "__file__": "<verified-git-blob>"}
           exec(compile(source, namespace["__file__"], "exec"), namespace)
           ' "$summary_blob" "$GITHUB_WORKSPACE" --connector "$CONNECTOR"
+
+  aggregate-with-crs-no-mrts:
+    name: Aggregate exact five with-CRS / no MRTS cells
+    needs: connector-mode
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact Parent head with pinned submodules
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || inputs.parent_sha }}
+          submodules: recursive
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Verify exact PR head and base
+        env:
+          EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || inputs.parent_sha }}
+          EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base_sha }}
+        run: |
+          set -euo pipefail
+          test -n "$EXPECTED_PARENT_SHA"; test -n "$EXPECTED_BASE_SHA"
+          test "${#EXPECTED_PARENT_SHA}" -eq 40; test "${#EXPECTED_BASE_SHA}" -eq 40
+          test "$(git rev-parse HEAD)" = "$EXPECTED_PARENT_SHA"
+          test "$(git rev-parse "${EXPECTED_BASE_SHA}^{commit}")" = "$EXPECTED_BASE_SHA"
+
+      - name: Download exactly five canonical profile cells
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: with-crs-no-mrts-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/with-crs-no-mrts-cells
+          merge-multiple: false
+
+      - name: Aggregate exact five canonical profile cells
+        env:
+          EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || inputs.parent_sha }}
+          EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base_sha }}
+          FRAMEWORK_SHA: 86451b45ae7bb7953baf9f81f2c2dad07395a808
+          MRTS_SHA: 615b13bacbd008562c17408246c41ab27dca3104
+          PROFILE_RUN_ID_VALUE: with-crs-no-mrts-${{ github.run_id }}-${{ github.run_attempt }}
+          CELL_ROOT: ${{ runner.temp }}/with-crs-no-mrts-cells
+        run: |
+          set -euo pipefail
+          test -n "$EXPECTED_PARENT_SHA"; test -n "$EXPECTED_BASE_SHA"
+          crs_commit=$(sed -n 's/^CRS_APPROVED_COMMIT="\([0-9a-f]*\)"$/\1/p' modules/ModSecurity-test-Framework/ci/lib/common.sh)
+          crs_rule_sha256=$(sed -n 's/^CRS_RULE_FILE_SHA256="\([0-9a-f]*\)"$/\1/p' modules/ModSecurity-test-Framework/ci/lib/common.sh)
+          test "${#crs_commit}" -eq 40; test "${#crs_rule_sha256}" -eq 64
+          python3 -I ci/runtime/lifecycle/aggregate-five-connector-with-crs-no-mrts.py \
+            --artifact-root "$CELL_ROOT" --parent-sha "$EXPECTED_PARENT_SHA" \
+            --base-sha "$EXPECTED_BASE_SHA" --profile-run-id "$PROFILE_RUN_ID_VALUE" \
+            --github-run-id "${{ github.run_id }}" --github-run-attempt "${{ github.run_attempt }}" \
+            --framework-sha "$FRAMEWORK_SHA" --mrts-sha "$MRTS_SHA" \
+            --crs-commit "$crs_commit" --crs-rule-sha256 "$crs_rule_sha256" \
+            --output-dir "$CELL_ROOT/aggregate"
+
+      - name: Upload canonical five-connector aggregate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: with-crs-no-mrts-aggregate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/with-crs-no-mrts-cells/aggregate
+          if-no-files-found: error
+          retention-days: 10
+          overwrite: false

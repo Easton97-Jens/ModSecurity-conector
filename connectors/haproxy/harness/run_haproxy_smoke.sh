@@ -967,6 +967,18 @@ require_haproxy_evidence_sha() {
     [ "${#value}" -eq 40 ]
 }
 
+require_haproxy_evidence_cell_run_id() {
+    value=$1
+    case "$value" in
+        [A-Za-z0-9]*) ;;
+        *) return 1 ;;
+    esac
+    case "$value" in
+        *[!A-Za-z0-9._-]*) return 1 ;;
+    esac
+    [ "${#value}" -le 48 ]
+}
+
 write_haproxy_evidence_receipt() {
     observed_status=$1
     source_root="$LOG_DIR/haproxy-runtime-evidence-source"
@@ -983,6 +995,7 @@ write_haproxy_evidence_receipt() {
     require_haproxy_evidence_sha "${EXPECTED_PARENT_SHA:-}" || fail "HAProxy evidence receipt has an invalid Parent revision"
     require_haproxy_evidence_sha "${EXPECTED_FRAMEWORK_SHA:-}" || fail "HAProxy evidence receipt has an invalid Framework revision"
     require_haproxy_evidence_sha "${EXPECTED_MRTS_SHA:-}" || fail "HAProxy evidence receipt has an invalid MRTS revision"
+    require_haproxy_evidence_cell_run_id "${CRS_RUNTIME_RUN_ID:-}" || fail "HAProxy evidence receipt has an invalid workflow cell run ID"
     case "$HAPROXY_EVIDENCE_RECEIPT_PROJECTOR" in
         "$REPO_ROOT"/ci/runtime/lifecycle/project-haproxy-runtime-evidence.py) ;;
         *) fail "HAProxy evidence receipt projector is outside the fixed runtime path" ;;
@@ -1001,7 +1014,8 @@ write_haproxy_evidence_receipt() {
         --observed-status "$observed_status" \
         --expected-parent-sha "$EXPECTED_PARENT_SHA" \
         --expected-framework-sha "$EXPECTED_FRAMEWORK_SHA" \
-        --expected-mrts-sha "$EXPECTED_MRTS_SHA"
+        --expected-mrts-sha "$EXPECTED_MRTS_SHA" \
+        --expected-cell-run-id "$CRS_RUNTIME_RUN_ID"
 }
 
 write_haproxy_config() {

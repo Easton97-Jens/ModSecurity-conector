@@ -23,7 +23,7 @@ mkdir -p "$OUT"
 require_command_or_blocked "$CC_BIN" "nginx_c_standards missing C compiler: $CC_BIN"
 NGINX_INCLUDE_FLAGS=$(nginx_include_flags_or_blocked)
 MODSECURITY_INCLUDE_FLAGS=$(modsecurity_include_flags_or_blocked)
-incs="-I$ROOT/common/include -I$ROOT/connectors/nginx/src $NGINX_INCLUDE_FLAGS $MODSECURITY_INCLUDE_FLAGS"
+incs="-I$ROOT -I$ROOT/common/include -I$ROOT/connectors/nginx/src $NGINX_INCLUDE_FLAGS $MODSECURITY_INCLUDE_FLAGS"
 compile_profile() {
   prof=$1
   case "$prof" in
@@ -32,7 +32,7 @@ compile_profile() {
     c2y) std=$(python3 "$ROOT/ci/provisioning/toolchains/detect-c-standard.py" --profile c2y --compiler "$CC_BIN") || { rc=$?; [ "$rc" = 77 ] && { echo "SKIPPED: optional future-C check unsupported"; return 0; }; return "$rc"; } ;;
     *) echo "unknown profile $prof"; return 2 ;;
   esac
-  files="connectors/nginx/src/ngx_http_modsecurity_module.c connectors/nginx/src/ngx_http_modsecurity_access.c connectors/nginx/src/ngx_http_modsecurity_header_filter.c connectors/nginx/src/ngx_http_modsecurity_body_filter.c connectors/nginx/src/ngx_http_modsecurity_log.c connectors/nginx/src/ngx_http_modsecurity_mapper.c common/src/config.c common/src/config_parser.c common/src/directive_spec.c common/src/directive_adapter.c common/src/request_helpers.c common/src/response_helpers.c common/src/request_mapper_contract.c common/src/response_mapper_contract.c common/src/headers.c common/src/event.c common/src/transaction_state.c common/src/late_intervention.c common/src/event_jsonl.c common/src/json_escape.c common/src/rule_id.c common/src/log_sanitize.c common/src/redaction.c common/src/resource_limits.c common/src/dos_guard.c common/src/error.c common/src/status.c common/src/body_policy.c common/src/intervention.c common/src/crs.c common/src/block_statuses.c common/src/http_status.c"
+  files="connectors/nginx/src/ngx_http_modsecurity_module.c connectors/nginx/src/ngx_http_modsecurity_access.c connectors/nginx/src/ngx_http_modsecurity_header_filter.c connectors/nginx/src/ngx_http_modsecurity_body_filter.c connectors/nginx/src/ngx_http_modsecurity_log.c connectors/nginx/src/ngx_http_modsecurity_mapper.c connectors/profile_registry.c common/src/config.c common/src/config_parser.c common/src/directive_spec.c common/src/directive_adapter.c common/src/request_helpers.c common/src/response_helpers.c common/src/request_mapper_contract.c common/src/response_mapper_contract.c common/src/headers.c common/src/event.c common/src/transaction_state.c common/src/late_intervention.c common/src/event_jsonl.c common/src/json_escape.c common/src/rule_id.c common/src/log_sanitize.c common/src/redaction.c common/src/resource_limits.c common/src/dos_guard.c common/src/error.c common/src/status.c common/src/body_policy.c common/src/intervention.c common/src/crs.c common/src/block_statuses.c common/src/http_status.c"
   for f in $files; do
     [ -f "$ROOT/$f" ] || { echo "FAIL: nginx_c_standards missing listed source: $f" >&2; return 1; }
     obj="$OUT/$(echo "$prof-$f" | tr '/.' '__').o"

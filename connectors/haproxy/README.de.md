@@ -86,6 +86,13 @@ druckbare ASCII-ID einschließlich der normalen UUID-Form zulässig bleibt. Eine
 fehlerhafte `request_id` lässt die Notification-Extraktion fehlschlagen und
 kann keine Transaktion erzeugen, ersetzen oder claimen.
 
+### SPOP-Grenze für Request-Targets
+
+Die SPOP-Felder `path` und `uri` verwenden eine kanonische Grenze von 4096
+Bytes. Ein Wert mit mehr als 4096 Bytes oder einem eingebetteten NUL wird vor
+der Erstellung der WAF-Transaktion abgewiesen; er wird niemals still
+abgeschnitten.
+
 ## Build-Starter
 
 Für die vollständige Repository-gestützte HAProxy-Kompilierung und lokale Verifizierung

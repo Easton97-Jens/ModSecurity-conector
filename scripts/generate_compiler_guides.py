@@ -1953,6 +1953,7 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             ("NGINX_PREFIX", "Private NGINX installation prefix.", "Privater NGINX-Installationsprefix."),
             ("MSCONNECTOR_COMMON_INC", "Repository Common header directory passed to the NGINX module configuration.", "An die NGINX-Modulkonfiguration übergebenes Repository-Common-Headerverzeichnis."),
             ("MSCONNECTOR_COMMON_SRC", "Repository Common source directory compiled into the NGINX module.", "In das NGINX-Modul kompilierte Repository-Common-Quelldateien."),
+            ("MSCONNECTOR_PROFILE_REGISTRY_ROOT", "Root containing the canonical connectors/profile_registry.c and connectors/profile_registry.h build inputs.", "Root mit den kanonischen Build-Eingaben connectors/profile_registry.c und connectors/profile_registry.h."),
             ("MODSECURITY_INC", "libmodsecurity header directory selected from the shared build.", "Aus dem gemeinsamen Build ausgewähltes libmodsecurity-Headerverzeichnis."),
             ("MODSECURITY_LIB", "libmodsecurity library directory selected from the shared build.", "Aus dem gemeinsamen Build ausgewähltes libmodsecurity-Bibliotheksverzeichnis."),
             ("NGINX_CONFIG", "Local NGINX configuration for the loopback test.", "Lokale NGINX-Konfiguration für den Loopback-Test."),
@@ -3169,6 +3170,7 @@ ACTIVE_MANUAL_VARIABLES: dict[str, frozenset[str]] = {
         {
             "MSCONNECTOR_COMMON_INC",
             "MSCONNECTOR_COMMON_SRC",
+            "MSCONNECTOR_PROFILE_REGISTRY_ROOT",
             "MODSECURITY_INC",
             "MODSECURITY_LIB",
             "NGINX_CONFIG",
@@ -3619,6 +3621,7 @@ def nginx_connector_build(german: bool) -> str:
             (
                 'MSCONNECTOR_COMMON_INC="$CONNECTOR_ROOT/common/include" \\',
                 'MSCONNECTOR_COMMON_SRC="$CONNECTOR_ROOT/common/src" \\',
+                'MSCONNECTOR_PROFILE_REGISTRY_ROOT="$CONNECTOR_ROOT" \\',
                 'MODSECURITY_INC="$MODSECURITY_INC" \\',
                 'MODSECURITY_LIB="$MODSECURITY_LIB" \\',
                 './configure \\',

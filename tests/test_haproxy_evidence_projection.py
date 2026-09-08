@@ -67,6 +67,7 @@ class HaproxyEvidenceRootGuardTests(unittest.TestCase):
             parent_sha="a" * 40,
             framework_sha="b" * 40,
             mrts_sha="c" * 40,
+            cell_run_id="crs-123-1-haproxy",
         )
         calls = (
             lambda: projector.write_source_receipt(
@@ -106,7 +107,34 @@ class HaproxyEvidenceDocumentValidationTests(unittest.TestCase):
             parent_sha="a" * 40,
             framework_sha="b" * 40,
             mrts_sha="c" * 40,
+            cell_run_id="crs-123-1-haproxy",
         )
+
+    def test_explicit_separate_stage_identity_is_required_and_preserved(self) -> None:
+        with mock.patch.object(projector, "_require_unprivileged_identity", return_value=(1001, 1002)):
+            self.assertEqual(
+                projector._require_evidence_identity(
+                    runtime_uid=1001,
+                    upload_gid=1002,
+                    evidence_uid=65534,
+                    evidence_gid=65534,
+                ),
+                (65534, 65534),
+            )
+            with self.assertRaisesRegex(projector.EvidenceProjectionError, "INCOMPLETE_EVIDENCE_IDENTITY"):
+                projector._require_evidence_identity(
+                    runtime_uid=1001,
+                    upload_gid=1002,
+                    evidence_uid=65534,
+                    evidence_gid=None,
+                )
+            with self.assertRaisesRegex(projector.EvidenceProjectionError, "NONSEPARATE_EVIDENCE_IDENTITY"):
+                projector._require_evidence_identity(
+                    runtime_uid=1001,
+                    upload_gid=1002,
+                    evidence_uid=1001,
+                    evidence_gid=65534,
+                )
 
     def test_valid_source_receipt_has_one_canonical_allowlist_encoding(self) -> None:
         source = projector._source_receipt(self.trusted, 403)
@@ -132,6 +160,8 @@ class HaproxyEvidenceDocumentValidationTests(unittest.TestCase):
             ("opaque_handle", "forbidden"),
             ("socket_path", "/tmp/opaque.sock"),
             ("parent_sha", "d" * 40),
+            ("cell_run_id", "crs-123-1-other"),
+            ("cell_run_id_kind", "native_connector"),
             ("connector", "envoy"),
             ("case_id", "phase2_args_block"),
             ("crs_mode", "no-crs"),
@@ -216,6 +246,8 @@ class HaproxyEvidenceDocumentValidationTests(unittest.TestCase):
             "b" * 40,
             "--expected-mrts-sha",
             "c" * 40,
+            "--expected-cell-run-id",
+            "crs-123-1-haproxy",
         )
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):
@@ -434,6 +466,8 @@ class HaproxyEvidenceDocumentValidationTests(unittest.TestCase):
             self.trusted.framework_sha,
             "--expected-mrts-sha",
             self.trusted.mrts_sha,
+            "--expected-cell-run-id",
+            self.trusted.cell_run_id,
         )
         digests = {
             projector.EVIDENCE_FILENAME: "a" * 64,
@@ -523,6 +557,7 @@ class HaproxyEvidenceProjectionTests(unittest.TestCase):
             parent_sha="a" * 40,
             framework_sha="b" * 40,
             mrts_sha="c" * 40,
+            cell_run_id="crs-123-1-haproxy",
         )
         self._fresh_source()
 
@@ -621,6 +656,8 @@ class HaproxyEvidenceProjectionTests(unittest.TestCase):
             self.trusted.framework_sha,
             "--expected-mrts-sha",
             self.trusted.mrts_sha,
+            "--expected-cell-run-id",
+            self.trusted.cell_run_id,
         ]
 
     def _export(self, source_root: Path | None = None) -> subprocess.CompletedProcess[bytes]:

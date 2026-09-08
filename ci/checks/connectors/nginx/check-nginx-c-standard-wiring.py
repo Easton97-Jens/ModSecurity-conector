@@ -27,13 +27,19 @@ if sh.exists():
  cfg=(ROOT/'connectors/nginx/config').read_text()
  check('MSCONNECTOR_COMMON_SRC' in cfg and '$MSCONNECTOR_COMMON_SRC/event.c' in cfg and '$MSCONNECTOR_COMMON_SRC/transaction_state.c' in cfg, 'nginx config uses stable Common source root and keeps event/transaction_state together')
  config_sources=set()
- for connector_source, common_source in re.findall(r'\$ngx_addon_dir/(src/[A-Za-z0-9_./-]+\.c)|\$MSCONNECTOR_COMMON_SRC/([A-Za-z0-9_./-]+\.c)', cfg):
-  config_sources.add('connectors/nginx/'+connector_source if connector_source else 'common/src/'+common_source)
+ for connector_source, common_source, registry_source in re.findall(r'\$ngx_addon_dir/(src/[A-Za-z0-9_./-]+\.c)|\$MSCONNECTOR_COMMON_SRC/([A-Za-z0-9_./-]+\.c)|\$MSCONNECTOR_PROFILE_REGISTRY_ROOT/([A-Za-z0-9_./-]+\.c)', cfg):
+  if connector_source:
+   config_sources.add('connectors/nginx/'+connector_source)
+  elif common_source:
+   config_sources.add('common/src/'+common_source)
+  else:
+   config_sources.add(registry_source)
  check(bool(config_sources), 'nginx config declares C translation units')
  for source in sorted(config_sources):
   check((ROOT/source).is_file(), f'nginx config source exists: {source}')
- script_sources=set(re.findall(r'(?:connectors/nginx|common)/[A-Za-z0-9_./-]+\.c', txt))
+ script_sources=set(re.findall(r'(?:connectors/nginx|connectors|common)/[A-Za-z0-9_./-]+\.c', txt))
  check(config_sources == script_sources, 'NGINX C17 list exactly matches real NGINX config C sources')
  check('common/src/late_intervention.c' in script_sources, 'NGINX C17 list includes late_intervention.c')
  check('common/src/intervention.c' in script_sources, 'NGINX C17 list includes intervention.c')
+ check('connectors/profile_registry.c' in script_sources, 'NGINX C17 list includes profile_registry.c')
 sys.exit(0 if ok else 1)

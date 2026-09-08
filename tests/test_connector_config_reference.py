@@ -82,7 +82,7 @@ class ConnectorConfigReferenceTests(unittest.TestCase):
             all(example_by_directive[directive] == safe_example for directive in safe_directives)
         )
 
-    def test_generator_preserves_disabled_remote_and_nginx_file_security_contracts(self) -> None:
+    def test_generator_preserves_disabled_remote_and_secure_nginx_file_contracts(self) -> None:
         # The generated 10 MiB body-cap wording is source-backed rather than
         # a standalone documentation promise.
         self.assertIsNone(REFERENCE._assert_common_source_defaults(ROOT))
@@ -96,13 +96,21 @@ class ConnectorConfigReferenceTests(unittest.TestCase):
         for option in (
             apache["modsecurity_rules_remote"],
             nginx["modsecurity_rules_remote"],
-            nginx["modsecurity_phase4_log"],
             common["rules_remote_key"],
             common["rules_remote_url"],
         ):
             self.assertTrue(option["example_unavailable"])
             self.assertIn("no", option["allowed_values"])
             self.assertIn("reject", option["validation"])
+
+        phase4_log = nginx["modsecurity_phase4_log"]
+        self.assertNotIn("example_unavailable", phase4_log)
+        self.assertTrue(phase4_log["implemented"])
+        self.assertIn("no-follow", phase4_log["validation"])
+        self.assertIn("regular file", phase4_log["validation"])
+        self.assertIn("0600", phase4_log["validation"])
+        self.assertIn("configuration reload", phase4_log["validation"])
+        self.assertIn("USR1", phase4_log["security_relevance"])
 
         mime_file = nginx["modsecurity_phase4_content_types_file"]
         self.assertIn("64 KiB", mime_file["allowed_values"])

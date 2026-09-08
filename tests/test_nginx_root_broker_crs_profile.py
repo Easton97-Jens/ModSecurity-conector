@@ -84,7 +84,7 @@ class TrustedNginxRootBrokerCrsProfileTest(unittest.TestCase):
             module_sha256=digest(module),
             modsecurity_library=str(library),
             library_sha256=digest(library),
-            nginx_version="1.31.3",
+            nginx_version="1.31.4",
             worker_user="www-data",
             loopback="127.0.0.1",
             port=18443,

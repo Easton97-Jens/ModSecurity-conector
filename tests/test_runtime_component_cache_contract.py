@@ -16,10 +16,10 @@ ROOT = Path(__file__).resolve().parents[1]
 PINNED_NGINX_ENV = {
     "NGINX_SOURCE_MODE": "github-release",
     "NGINX_SOURCE_REPO_URL": "https://github.com/nginx/nginx",
-    "NGINX_RELEASE_TAG": "release-1.31.3",
-    "NGINX_SOURCE_GIT_REF": "release-1.31.3",
-    "NGINX_RELEASE_ASSET_NAME": "nginx-1.31.3.tar.gz",
-    "NGINX_SHA256": "a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525",
+    "NGINX_RELEASE_TAG": "release-1.31.4",
+    "NGINX_SOURCE_GIT_REF": "release-1.31.4",
+    "NGINX_RELEASE_ASSET_NAME": "nginx-1.31.4.tar.gz",
+    "NGINX_SHA256": "e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3",
 }
 MODSECURITY_PUBLIC_HEADERS = (
     "modsecurity.h",
@@ -738,7 +738,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             archive_root = cache_root / "archives"
             provenance = components.nginx_pinned_provenance(dict(PINNED_NGINX_ENV))
             identity = components.nginx_pinned_archive_cache_identity(provenance)
-            archive_path = archive_root / "nginx/nginx-1.31.3.tar.gz"
+            archive_path = archive_root / "nginx/nginx-1.31.4.tar.gz"
 
             def write_mismatched_archive(_url: str, destination: Path) -> None:
                 destination.write_bytes(b"not-the-reviewed-nginx-release-asset")
@@ -1750,7 +1750,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             entry = cache_root / "builds/connectors/nginx" / cache_key
             build_path = entry / "build"
             nginx_prefix = entry / "nginx"
-            archive_path = cache_root / "archives/nginx/nginx-1.31.3.tar.gz"
+            archive_path = cache_root / "archives/nginx/nginx-1.31.4.tar.gz"
             archive_path.parent.mkdir(parents=True)
             archive_path.write_bytes(b"reviewed-nginx-release-fixture")
             modsecurity_lib = root / "shared-modsecurity/lib/libmodsecurity.so"
@@ -1800,7 +1800,28 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             (common_source_root / "header_validation_internal.h").write_text(
                 "#pragma once\n", encoding="utf-8"
             )
+            profile_registry_source_root = connector_root / "connectors"
+            profile_registry_source_root.mkdir(parents=True)
+            (profile_registry_source_root / "profile_registry.c").write_text(
+                "const char *profile_registry(void) { return \"nginx\"; }\n",
+                encoding="utf-8",
+            )
+            (profile_registry_source_root / "profile_registry.h").write_text(
+                "#pragma once\n",
+                encoding="utf-8",
+            )
             framework_root.mkdir()
+            canonical_quic_tls = {
+                "NGINX_QUIC_TLS_LIBRARY": "openssl",
+                "NGINX_QUIC_TLS_VERSION": "4.0.1",
+                "NGINX_QUIC_TLS_SOURCE_URL": (
+                    "https://github.com/openssl/openssl/releases/download/"
+                    "openssl-4.0.1/openssl-4.0.1.tar.gz"
+                ),
+                "NGINX_QUIC_TLS_SOURCE_SHA256": (
+                    "2db3f3a0d6ea4b59e1f094ace2c8cd536dffb87cdc39084c5afa1e6f7f37dd09"
+                ),
+            }
 
             def build_nginx(*args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
                 self.assertFalse(partial.exists())
@@ -1808,17 +1829,31 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 assert isinstance(build_env, dict)
                 active_build_path = Path(build_env["NGINX_BUILD_DIR"])
                 active_nginx_prefix = Path(build_env["NGINX_PREFIX"])
+                profile_registry_root = Path(build_env["MSCONNECTOR_PROFILE_REGISTRY_ROOT"])
                 self.assertEqual(
                     str(cache_root / "builds" / "connectors"),
                     build_env["NGINX_BUILD_OWNER_ROOT"],
                 )
                 self.assertEqual(build_env["NGINX_PROTOCOL_PROFILE"], "h1")
+                self.assertEqual(
+                    {key: build_env[key] for key in canonical_quic_tls},
+                    canonical_quic_tls,
+                )
+                self.assertEqual(profile_registry_root, active_build_path.parent / "profile-registry")
+                self.assertEqual(
+                    (profile_registry_root / "connectors/profile_registry.c").read_text(encoding="utf-8"),
+                    "const char *profile_registry(void) { return \"nginx\"; }\n",
+                )
+                self.assertEqual(
+                    (profile_registry_root / "connectors/profile_registry.h").read_text(encoding="utf-8"),
+                    "#pragma once\n",
+                )
                 binary = active_nginx_prefix / "sbin/nginx"
                 binary.parent.mkdir(parents=True, exist_ok=True)
                 binary.write_text(
                     "#!/bin/sh\n"
                     "if [ \"$1\" = \"-V\" ]; then\n"
-                    "  printf '%s\\n' 'nginx version: nginx/1.31.3' >&2\n"
+                    "  printf '%s\\n' 'nginx version: nginx/1.31.4' >&2\n"
                     "  printf '%s\\n' 'configure arguments: --prefix=/managed/nginx --add-dynamic-module=/managed/module' >&2\n"
                     "fi\n",
                     encoding="utf-8",
@@ -1830,10 +1865,10 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 config = active_nginx_prefix / "conf/nginx.conf"
                 config.parent.mkdir(parents=True, exist_ok=True)
                 config.write_text("events {}\n", encoding="utf-8")
-                source_header = active_build_path / "nginx-1.31.3/src/core/nginx.h"
+                source_header = active_build_path / "nginx-1.31.4/src/core/nginx.h"
                 source_header.parent.mkdir(parents=True, exist_ok=True)
                 source_header.write_text(
-                    '#define NGINX_VERSION "1.31.3"\n',
+                    '#define NGINX_VERSION "1.31.4"\n',
                     encoding="utf-8",
                 )
                 builder_artifacts = active_build_path / "logs/nginx/artifacts.txt"
@@ -1854,6 +1889,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
 
             full_smoke_env = {
                 **PINNED_NGINX_ENV,
+                **canonical_quic_tls,
                 "NGINX_REQUIRE_PINNED_PROVENANCE": "1",
             }
             with (
@@ -1891,10 +1927,10 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             self.assertEqual(contract["parent_archive_sha256"], nginx_provenance["sha256"])
             self.assertEqual(contract["builder_archive_sha256"], nginx_provenance["sha256"])
             self.assertTrue(contract["builder_archive_verified"])
-            self.assertEqual(contract["source_version_readback"], "nginx/1.31.3")
+            self.assertEqual(contract["source_version_readback"], "nginx/1.31.4")
             self.assertEqual(contract["binary_path"], str(entry / "nginx/sbin/nginx"))
             self.assertEqual(contract["binary_sha256"], real_sha256_file(entry / "nginx/sbin/nginx"))
-            self.assertEqual(contract["binary_version_readback"], "nginx/1.31.3")
+            self.assertEqual(contract["binary_version_readback"], "nginx/1.31.4")
             self.assertTrue(contract["configure_arguments"])
             self.assertEqual(contract["framework_commit"], "f" * 40)
             self.assertEqual(contract["parent_commit"], "a" * 40)
@@ -1999,7 +2035,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 )
                 self.assertIn(expected_blocker, invalid_record["runtime_contract_blockers"])
 
-            source_header = entry / "build/nginx-1.31.3/src/core/nginx.h"
+            source_header = entry / "build/nginx-1.31.4/src/core/nginx.h"
             original_source_header = source_header.read_text(encoding="utf-8")
             source_header.unlink()
             assert_contract_blocked("source_version_readback")

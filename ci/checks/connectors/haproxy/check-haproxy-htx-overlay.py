@@ -47,6 +47,7 @@ def overlay_function_bodies(source: str) -> dict[str, str]:
         "response_end": function_body(source, "static int haproxy_modsecurity_htx_finish_response("),
         "precommit_deny": function_body(source, "static int haproxy_modsecurity_htx_apply_precommit_deny("),
         "request_begin": function_body(source, "static int haproxy_modsecurity_htx_begin_request("),
+        "request_headers": function_body(source, "static int haproxy_modsecurity_htx_handle_request_headers("),
         "response_headers": function_body(source, "static int haproxy_modsecurity_htx_process_response_headers("),
         "request_end": function_body(source, "static int haproxy_modsecurity_htx_finish_request("),
     }
@@ -95,17 +96,18 @@ def lifecycle_checks(source: str, binding: str, binding_header: str, bodies: dic
     headers = bodies["headers"]
     request_callback = bodies["request_callback"]
     request_append = bodies["request_append"]
+    request_headers = bodies["request_headers"]
     request_end = bodies["request_end"]
     response_end = bodies["response_end"]
     return [
         ("haproxy_modsecurity_transaction_begin_request" in binding_header and "haproxy_modsecurity_transaction_append_request_body_chunk" in binding_header and "haproxy_modsecurity_transaction_finish_request_body" in binding_header and "int haproxy_modsecurity_transaction_begin_request(" in binding and "int haproxy_modsecurity_transaction_append_request_body_chunk(" in binding and "int haproxy_modsecurity_transaction_finish_request_body(" in binding, "binding exposes an explicit Phase-1/request-chunk/request-EOS lifecycle"),
-        ("haproxy_modsecurity_htx_begin_request(s, filter)" in headers and headers.index("haproxy_modsecurity_htx_begin_request(s, filter)") < headers.rindex("register_data_filter(s, msg->chn, filter)"), "request headers start the per-stream transaction before payload forwarding"),
+        ("return haproxy_modsecurity_htx_handle_request_headers(s, filter, msg);" in headers and "haproxy_modsecurity_htx_begin_request(s, filter)" in request_headers and request_headers.index("haproxy_modsecurity_htx_begin_request(s, filter)") < request_headers.rindex("register_data_filter(s, msg->chn, filter)"), "request headers start the per-stream transaction before payload forwarding"),
         ("haproxy_modsecurity_transaction_append_request_body_chunk" in request_append and "return (int)len;" in request_callback, "request payload forwards borrowed chunks without a connector-owned body buffer"),
-        ("ctx->request_finished = 1;" in request_end and "haproxy_modsecurity_transaction_finish_request_body" in request_end and request_end.index("ctx->request_finished = 1;") < request_end.index("haproxy_modsecurity_transaction_finish_request_body"), "request Phase 2 finalization is guarded before the sole request EOS call"),
+        ("ctx->request.finished = 1;" in request_end and "haproxy_modsecurity_transaction_finish_request_body" in request_end and request_end.index("ctx->request.finished = 1;") < request_end.index("haproxy_modsecurity_transaction_finish_request_body"), "request Phase 2 finalization is guarded before the sole request EOS call"),
         (source.count("haproxy_modsecurity_transaction_finish_request_body(") == 1, "source has one binding finish_request_body callsite"),
-        ("haproxy_modsecurity_htx_report_decision(\"request-body\"" in request_end and "!ctx->response_headers_seen" in request_end and "haproxy_modsecurity_htx_apply_precommit_deny(" in request_end and "return 1;" in request_end, "request EOS can use the native reply path only before this filter sees response headers"),
+        ("haproxy_modsecurity_htx_report_decision(\"request-body\"" in request_end and "!ctx->response.headers_seen" in request_end and "haproxy_modsecurity_htx_apply_precommit_deny(" in request_end and "return 1;" in request_end, "request EOS can use the native reply path only before this filter sees response headers"),
         ("zero-or-one" in source and "incremental-request-forwarding evidence" in source, "P2 source contract records scheduler-dependent dispatch without an incremental-forwarding claim"),
-        ("ctx->response_finished = 1;" in response_end and "haproxy_modsecurity_transaction_finish_response_body" in response_end and response_end.index("ctx->response_finished = 1;") < response_end.index("haproxy_modsecurity_transaction_finish_response_body"), "response Phase 4 finalization is guarded before the sole EOS call"),
+        ("ctx->response.finished = 1;" in response_end and "haproxy_modsecurity_transaction_finish_response_body" in response_end and response_end.index("ctx->response.finished = 1;") < response_end.index("haproxy_modsecurity_transaction_finish_response_body"), "response Phase 4 finalization is guarded before the sole EOS call"),
         (source.count("haproxy_modsecurity_transaction_finish_response_body(") == 1, "source has one binding finish_response_body callsite"),
         ("msconnector_late_intervention_policy_init" in source and "msconnector_late_intervention_resolve" in source and "msconnector_late_intervention_action_name" in source and "resolved_policy_action" in source, "post-commit Phase 4 outcomes use the shared late-intervention policy"),
         (all(token not in source for token in ("bodyless", "request_advertises_body", "request_body_bytes", "wait-for-body", "res.body", "chunk_memcat")), "overlay has no bodyless-request bypass or connector-owned response buffer"),

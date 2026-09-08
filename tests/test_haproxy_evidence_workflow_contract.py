@@ -373,6 +373,7 @@ class HaproxyEvidenceWorkflowContractTests(unittest.TestCase):
         self.assertIn("/usr/bin/sudo -n /usr/bin/chmod 0755", project)
         self.assertIn('= "$EVIDENCE_UID:$RUNTIME_GID:700"', project)
         self.assertIn("run_runner_projector export-source-receipt", project)
+        self.assertIn('--expected-cell-run-id "$TRUSTED_CRS_RUNTIME_RUN_ID"', project)
         self.assertIn("| /usr/bin/head --bytes=16385", project)
         self.assertIn("| run_evidence_projector project-document --source-document-stdin", project)
         self.assertNotIn("source_document=", project)
@@ -397,6 +398,7 @@ class HaproxyEvidenceWorkflowContractTests(unittest.TestCase):
         self.assertIn("exec(compile(source", verify)
         self.assertIn("run_evidence_projector verify", verify)
         self.assertIn('--upload-gid "$RUNTIME_GID"', verify)
+        self.assertIn('--expected-cell-run-id "$TRUSTED_CRS_RUNTIME_RUN_ID"', verify)
         for block in (project, verify):
             self.assertIn("sudo -n /usr/bin/env -i", block)
             self.assertIn("/usr/bin/unshare", block)
@@ -492,7 +494,7 @@ class HaproxyEvidenceWorkflowContractTests(unittest.TestCase):
         ).hexdigest()
         self.assertEqual(git_digest, blob)
 
-    def test_upload_is_exactly_the_verified_two_file_package(self) -> None:
+    def test_upload_is_exactly_the_verified_profile_cell_after_source_verification(self) -> None:
         source = self.source()
         upload = self.block(
             source,
@@ -500,29 +502,24 @@ class HaproxyEvidenceWorkflowContractTests(unittest.TestCase):
             "      - name: Write connector runtime overview\n",
         )
         self.assertIn(
-            "if: matrix.connector == 'haproxy' && steps.verify-haproxy-runtime-evidence.outcome == 'success'",
+            "if: matrix.connector == 'haproxy' && steps.verify-haproxy-runtime-evidence.outcome == 'success' && steps.produce-profile-cell.outcome == 'success'",
             upload,
         )
         self.assertIn(UPLOAD_PIN, upload)
-        self.assertIn(
-            "steps.project-haproxy-runtime-evidence.outputs.stage_root }}/haproxy-runtime-evidence.json",
-            upload,
-        )
-        self.assertIn(
-            "steps.project-haproxy-runtime-evidence.outputs.stage_root }}/manifest.json",
-            upload,
-        )
+        self.assertIn("path: ${{ env.VERIFIED_RUN_ROOT }}/profile-cell", upload)
         self.assertIn("if-no-files-found: error", upload)
         for forbidden in (
             "continue-on-error:",
             "|| true",
             "BUILD_ROOT",
-            "VERIFIED_RUN_ROOT",
             "EVIDENCE_ROOT",
             "logs",
             "result.json",
             "source_root",
             "haproxy-runtime-evidence-digests.json",
+            "HAPROXY_STAGE_ROOT",
+            "steps.project-haproxy-runtime-evidence.outputs.stage_root",
+            "haproxy-runtime-evidence.json",
         ):
             self.assertNotIn(forbidden, upload)
 
