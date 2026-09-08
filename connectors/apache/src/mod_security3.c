@@ -705,6 +705,38 @@ static msc_t *retrieve_tx_context(request_rec *r) {
     return NULL;
 }
 
+static int apache_fail_closed(request_rec *r, const char *operation)
+{
+    msc_t *msr = r == NULL ? NULL : retrieve_tx_context(r);
+    enum msconnector_phase phase = MSCONNECTOR_PHASE_REQUEST_HEADERS;
+
+    if (msr != NULL) {
+        if (msr->native_event_phase >= MSCONNECTOR_PHASE_REQUEST_HEADERS &&
+            msr->native_event_phase <= MSCONNECTOR_PHASE_RESPONSE_BODY) {
+            phase = msr->native_event_phase;
+        } else if (msr->contract.last_completed_phase >=
+                MSCONNECTOR_PHASE_REQUEST_HEADERS &&
+            msr->contract.last_completed_phase <=
+                MSCONNECTOR_PHASE_RESPONSE_BODY) {
+            phase = (enum msconnector_phase)msr->contract.last_completed_phase;
+        }
+        (void)msc_apache_contract_fail(msr,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
+        apache_emit_contract_failure_event(msr, r, phase,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR,
+            HTTP_INTERNAL_SERVER_ERROR);
+    }
+    if (r != NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+            "ModSecurity: libmodsecurity operation failed: %s",
+            operation == NULL ? "unknown" : operation);
+        if (r->connection != NULL) {
+            r->connection->keepalive = AP_CONN_CLOSE;
+        }
+    }
+    return HTTP_INTERNAL_SERVER_ERROR;
+}
+
 
 /* ap_internal_redirect() runs quick handlers before request processing and
  * before ap_invoke_handler(). Refuse unsafe redirected requests here so a
@@ -910,23 +942,12 @@ static int hook_request_early(request_rec *r) {
 
 #ifndef LATE_CONNECTION_PROCESS
 #error "Currently in v3 connection can only be processed late."
+    if (msc_process_connection(msr->t, client_ip,
+            client_port,
+            r->server->server_hostname,
+            (int) r->server->port) != 1)
     {
-    int connection_result = msc_process_connection(msr->t, client_ip,
-        client_port,
-        r->server->server_hostname,
-        (int) r->server->port);
-
-    /* libModSecurity reports exact success as 1.  Do not enter the
-     * intervention or request-header paths after a failed connection phase:
-     * doing so would let a partially initialized transaction continue as if
-     * the connection policy had passed.  The request pool cleanup still owns
-     * the transaction, and Apache emits the deterministic terminal error. */
-    if (connection_result != 1)
-    {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-            "ModSecurity: connection phase failed; refusing request");
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
+        return apache_fail_closed(r, "msc_process_connection");
     }
 
     it = process_intervention(msr->t, r);
@@ -983,23 +1004,12 @@ static int hook_request_late(request_rec *r)
     }
 
 #ifdef LATE_CONNECTION_PROCESS
+    if (msc_process_connection(msr->t, client_ip,
+            client_port,
+            r->server->server_hostname,
+            (int) r->server->port) != 1)
     {
-    int connection_result = msc_process_connection(msr->t, client_ip,
-        client_port,
-        r->server->server_hostname,
-        (int) r->server->port);
-
-    /* libModSecurity reports exact success as 1.  Do not enter the
-     * intervention or request-header paths after a failed connection phase:
-     * doing so would let a partially initialized transaction continue as if
-     * the connection policy had passed.  The request pool cleanup still owns
-     * the transaction, and Apache emits the deterministic terminal error. */
-    if (connection_result != 1)
-    {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-            "ModSecurity: connection phase failed; refusing request");
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
+        return apache_fail_closed(r, "msc_process_connection");
     }
 
     it = process_intervention(msr->t, r);
@@ -1052,8 +1062,14 @@ static int hook_log_transaction(request_rec *r)
         ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
             "ModSecurity: canonical transaction did not reach P1-P4 completion");
     }
-    msc_update_status_code(msr->t, r->status);
-    msc_process_logging(msr->t);
+    if (msc_update_status_code(msr->t, r->status) != 1)
+    {
+        return apache_fail_closed(r, "msc_update_status_code");
+    }
+    if (msc_process_logging(msr->t) != 1)
+    {
+        return apache_fail_closed(r, "msc_process_logging");
+    }
     it = process_intervention(msr->t, r);
     if (it != N_INTERVENTION_STATUS)
     {
@@ -1205,9 +1221,7 @@ static int process_request_headers(request_rec *r, msc_t *msr) {
                 r->protocol + offset) != 1)
         {
             msr->native_event_phase_active = 0;
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                "ModSecurity: URI processing failed; rejecting request");
-            return HTTP_BAD_REQUEST;
+            return apache_fail_closed(r, "msc_process_uri");
         }
         msr->native_event_phase_active = 0;
         it = process_intervention(msr->t, r);
@@ -1249,10 +1263,7 @@ static int process_request_headers(request_rec *r, msc_t *msr) {
             const unsigned char *val_bytes = (const unsigned char *)val;
             if (msc_add_request_header(msr->t, key_bytes, val_bytes) != 1)
             {
-                msr->native_event_phase_active = 0;
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                    "ModSecurity: request header mapping failed; rejecting request");
-                return HTTP_BAD_REQUEST;
+                return apache_fail_closed(r, "msc_add_request_header");
             }
         }
         msr->native_event_phase = MSCONNECTOR_PHASE_REQUEST_HEADERS;
@@ -1260,9 +1271,7 @@ static int process_request_headers(request_rec *r, msc_t *msr) {
         if (msc_process_request_headers(msr->t) != 1)
         {
             msr->native_event_phase_active = 0;
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                "ModSecurity: request header processing failed; rejecting request");
-            return HTTP_BAD_REQUEST;
+            return apache_fail_closed(r, "msc_process_request_headers");
         }
         msr->native_event_phase_active = 0;
 

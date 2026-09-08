@@ -227,13 +227,21 @@ class ApacheWithCrsProfileEvidenceContractTest(unittest.TestCase):
         self.assertIn('"$APACHE_PROFILE_EVIDENCE_SCRIPT" prepare-apache-selected-results', single_case_setup)
         self.assertIn('--runtime-root "$BUILD_ROOT"', single_case_setup)
         self.assertIn('--results-dir "$RESULTS_DIR"', single_case_setup)
-        self.assertIn("else\n        mkdir -p \"$RESULTS_DIR\"", single_case_setup)
+        self.assertIn(
+            'else\n        prepare_runtime_directory "$RESULTS_DIR" "RESULTS_DIR" 0',
+            single_case_setup,
+        )
         self.assertLess(
             single_case_setup.index('require_absolute_generated_path "$RESULTS_DIR" "RESULTS_DIR"'),
             single_case_setup.index('"$APACHE_PROFILE_EVIDENCE_SCRIPT" prepare-apache-selected-results'),
         )
         all_cases = self.block(source, "run_all_cases() {\n", "write_case_result() {")
-        self.assertIn('mkdir -p "$LOG_DIR" "$RESULTS_DIR"', all_cases)
+        self.assertIn(
+            'prepare_runtime_directory "$LOG_DIR" "LOG_DIR" 1', all_cases
+        )
+        self.assertIn(
+            'prepare_runtime_directory "$RESULTS_DIR" "RESULTS_DIR" 0', all_cases
+        )
 
     def test_profile_single_case_publishes_fresh_canonical_results_after_cleanup(self) -> None:
         source = HARNESS.read_text(encoding="utf-8")

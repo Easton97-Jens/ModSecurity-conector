@@ -409,7 +409,7 @@ Bounds serialized metadata event size.
 
 ### Validation and errors
 
-Runtime configuration rejects zero, non-decimal values, and values above the 16384-byte hard cap.
+Unknown keys, empty values, malformed assignments, zero, non-decimal values, and values above the hard cap of 16384 bytes fail the runtime configuration check.
 
 ### Example
 
@@ -464,7 +464,7 @@ Bounds accepted header count.
 
 ### Validation and errors
 
-Runtime configuration rejects zero, non-decimal values, and values above the hard cap of 256.
+Unknown keys, empty values, malformed assignments, zero, non-decimal values, and values above the hard cap of 256 fail the runtime configuration check.
 
 ### Example
 
@@ -519,7 +519,7 @@ Bounds each header-name size.
 
 ### Validation and errors
 
-Runtime configuration rejects zero, non-decimal values, and values above the 256-byte hard cap.
+Unknown keys, empty values, malformed assignments, zero, non-decimal values, and values above the hard cap of 256 bytes fail the runtime configuration check.
 
 ### Example
 
@@ -574,7 +574,7 @@ Bounds each header-value size.
 
 ### Validation and errors
 
-Runtime configuration rejects zero, non-decimal values, and values above the 8192-byte hard cap.
+Unknown keys, empty values, malformed assignments, zero, non-decimal values, and values above the hard cap of 8192 bytes fail the runtime configuration check.
 
 ### Example
 
@@ -629,7 +629,7 @@ Bounds total header bytes.
 
 ### Validation and errors
 
-Runtime configuration rejects zero, non-decimal values, and values above the 65536-byte hard cap.
+Unknown keys, empty values, malformed assignments, zero, non-decimal values, and values above the hard cap of 65536 bytes fail the runtime configuration check.
 
 ### Example
 
@@ -849,7 +849,7 @@ Bounds request bytes offered to the engine.
 
 ### Validation and errors
 
-Runtime configuration rejects zero, non-decimal values, and values above the 10485760-byte (10 MiB) hard security cap.
+Unknown keys, empty values, malformed assignments, zero, non-decimal values, and values above the hard cap of 10485760 bytes (10 MiB hard security cap) fail the runtime configuration check.
 
 ### Example
 
@@ -959,7 +959,7 @@ Bounds response bytes offered to the engine.
 
 ### Validation and errors
 
-Runtime configuration rejects zero, non-decimal values, and values above the 10485760-byte (10 MiB) hard security cap.
+Unknown keys, empty values, malformed assignments, zero, non-decimal values, and values above the hard cap of 10485760 bytes (10 MiB hard security cap) fail the runtime configuration check.
 
 ### Example
 

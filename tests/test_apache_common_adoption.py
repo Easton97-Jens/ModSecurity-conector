@@ -271,6 +271,32 @@ class ApacheCommonAdoptionCheckerTests(unittest.TestCase):
             "Apache Phase2 bounded bucket helper reads, plans, records, appends",
         )
 
+    def test_phase3_response_header_failures_are_not_ignored(self) -> None:
+        mutations = (
+            (
+                "    error_headers_added = apache_add_response_headers(msr, r->err_headers_out);\n",
+                "    error_headers_added = 1;\n",
+            ),
+            (
+                "    response_headers_added = apache_add_response_headers(msr, r->headers_out);\n",
+                "    response_headers_added = 1;\n",
+            ),
+            (
+                "                (const unsigned char *)content_type) != 1))\n",
+                "                (const unsigned char *)content_type) == 1))\n",
+            ),
+        )
+
+        for original, replacement in mutations:
+            with self.subTest(original=original.strip()):
+                def mutate(filters: Path) -> None:
+                    replace_once(filters, original, replacement)
+
+                self._assert_rejected(
+                    mutate,
+                    "Apache Phase3 checks both response-header tables",
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

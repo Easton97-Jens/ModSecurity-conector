@@ -693,6 +693,18 @@ def _haproxy_spop_option_details(
     if key in companion_keys:
         phase_relevance = "native-htx is the required P3/P4 companion for the logical HAProxy SPOE/SPOP profile; none rejects response-phase activation because raw SPOE/SPOP has no response EOS."
         security_relevance = "The companion must use an explicit private UDS socket, matching service UID/GID, bounded response-body limit, and fail-closed opaque-handle correlation."
+    if key == "spoe-timeout":
+        allowed = "positive decimal milliseconds, 1..60000"
+        effect = "Bounds each SPOE/SPOP engine transaction; zero, negative, malformed, and over-limit values fail configuration parsing."
+    elif key == "worker-count":
+        allowed = "decimal integer, 2..64; worker-count * max-transactions <= 65536"
+        effect = "Bounds isolated concurrent SPOE/SPOP peer handlers; at least two workers keep a slow handshake from monopolising the accept loop."
+    elif key == "max-transactions":
+        allowed = "decimal integer, 1..4096; worker-count * max-transactions <= 65536"
+        effect = "Bounds transaction slots admitted by the SPOE/SPOP compatibility agent, including the combined worker/transaction cap."
+    elif key == "response-body-timeout":
+        allowed = "unsigned decimal milliseconds, 0..60000; must be 0 with response-companion=none"
+        effect = "Compatibility response control timeout; raw SPOE/SPOP does not carry a response body, so it is not a native P4 stream-idle limit."
     return value_type, allowed, effect, phase_relevance, security_relevance
 
 
@@ -759,7 +771,7 @@ def extract_haproxy(root: Path) -> list[dict[str, Any]]:
         raise ValueError(f"HAProxy SPOP parser/schema drift: missing={sorted(expected_compatibility_keys - set(compatibility_keys))}, unexpected={sorted(unexpected)}")
     defaults = {
         "host": "127.0.0.1", "mode": "block", "fail-mode": "closed", "runtime-mode": "production", "variant": "-", "log-file": "-",
-        "request-body-limit": "65532", "response-companion": "none", "response-body-limit": "0", "response-body-timeout": "0", "spoe-timeout": "2000", "worker-count": "1", "max-transactions": "4096", "response-phases": "false",
+        "request-body-limit": "65532", "response-companion": "none", "response-body-limit": "0", "response-body-timeout": "0", "spoe-timeout": "2000", "worker-count": "8", "max-transactions": "4096", "response-phases": "false",
     }
     for key in compatibility_keys:
         companion_keys = {
@@ -774,7 +786,14 @@ def extract_haproxy(root: Path) -> list[dict[str, Any]]:
             syntax=f"{key}=<value>", value_type=value_type, allowed_values=allowed,
             default=defaults.get(key, "unset unless configured"), default_source="config_init() where stated; otherwise zero/empty initialization",
             required=False, contexts="SPOE/SPOP compatibility agent key=value file", inheritance="No native HTX inheritance; one compatibility-agent config file.",
-            merge_behavior="No merge; config_set applies one parsed value.", validation="Unknown keys fail compatibility-agent configuration parsing.",
+            merge_behavior="No merge; config_set applies one parsed value.", validation=(
+                "spoe-timeout accepts only decimal milliseconds in 1..60000; worker-count accepts 2..64; "
+                "max-transactions accepts 1..4096; worker-count * max-transactions must not exceed 65536; "
+                "response-body-timeout accepts unsigned decimal milliseconds in 0..60000 and must be 0 with response-companion=none; "
+                "unknown keys and malformed values fail compatibility-agent configuration parsing."
+                if key in {"spoe-timeout", "worker-count", "max-transactions", "response-body-timeout"}
+                else "Unknown keys fail compatibility-agent configuration parsing."
+            ),
             phase_relevance=phase_relevance,
             security_relevance=security_relevance,
             runtime_effect=effect, example_file="examples/haproxy/compatibility-spoe/modsecurity-agent.conf", description=effect,
@@ -919,6 +938,31 @@ COMMON_DETAILS: dict[str, dict[str, str]] = {
 }
 
 
+COMMON_LIMIT_MACROS = {
+    # These are configuration caps, not the smaller default in-memory body
+    # buffers. The Common Runtime validates both fields against this shared
+    # hard security limit in msconnector_config_validate().
+    "request_body_limit": "MSCONNECTOR_MAX_CONFIG_BODY_BYTES",
+    "response_body_limit": "MSCONNECTOR_MAX_CONFIG_BODY_BYTES",
+    "max_header_count": "MSCONNECTOR_MAX_HEADER_COUNT",
+    "max_header_name_size": "MSCONNECTOR_MAX_HEADER_NAME_LENGTH",
+    "max_header_value_size": "MSCONNECTOR_MAX_HEADER_VALUE_LENGTH",
+    "max_total_header_bytes": "MSCONNECTOR_MAX_TOTAL_HEADER_BYTES",
+    "max_event_json_bytes": "MSCONNECTOR_MAX_EVENT_JSON_BYTES",
+}
+
+
+def common_runtime_limits(root: Path) -> dict[str, int]:
+    """Extract the enforced Common Runtime caps from the owning C header."""
+    text = _read(root, "common/include/msconnector/limits.h")
+    values: dict[str, int] = {}
+    for key, macro in COMMON_LIMIT_MACROS.items():
+        match = re.search(rf"#define\s+{macro}\s+(\d+)U?\b", text)
+        if not match:
+            raise ValueError(f"Common Runtime limit extractor missing {macro}")
+        values[key] = int(match.group(1))
+    return values
+
 COMMON_REMOTE_OPTION_OVERRIDE: dict[str, Any] = {
     "inheritance": REMOTE_RULE_INHERITANCE,
     "merge_behavior": REMOTE_RULE_MERGE_BEHAVIOR,
@@ -1044,7 +1088,26 @@ def extract_common_runtime(root: Path) -> list[dict[str, Any]]:
     undocumented_profile_keys = profile_keys - set(COMMON_DETAILS)
     if undocumented_profile_keys:
         raise ValueError(f"Common Runtime profile uses undocumented parser keys: {sorted(undocumented_profile_keys)}")
-    return [common_runtime_option(name, source) for name in keys]
+    limits = common_runtime_limits(root)
+    options = []
+    for name in keys:
+        option = common_runtime_option(name, source)
+        if name in limits:
+            cap = limits[name]
+            # Keep the explicit unit/security wording from the shared
+            # metadata while deriving the numeric cap from limits.h.
+            option["allowed_values"] = option.get("allowed_values") or f"1 through {cap}"
+            unit = " bytes" if "bytes" in option["value_type"] else ""
+            cap_description = f"{cap}{unit}"
+            if cap == 10485760:
+                cap_description += " (10 MiB hard security cap)"
+            option["validation"] = (
+                f"Unknown keys, empty values, malformed assignments, zero, non-decimal values, "
+                f"and values above the hard cap of {cap_description} "
+                "fail the runtime configuration check."
+            )
+        options.append(option)
+    return options
 
 
 ENGINE_DETAILS: dict[str, tuple[str, str, str, str]] = {
@@ -2248,8 +2311,8 @@ def _traefik_middleware_yaml_detail(
     if tail == "modsecurityNative":
         return _yaml_detail(
             "Traefik local-plugin configuration mapping",
-            "the seven native middleware Config fields documented from CreateConfig/normalizedConfig",
-            "Plugin CreateConfig supplies bounded defaults; this template explicitly sets all seven selected fields.",
+            "the eight native middleware Config fields documented from CreateConfig/normalizedConfig",
+            "Plugin CreateConfig supplies bounded defaults; this template explicitly sets all eight selected fields.",
             "Groups limits, transaction ID, and engine connection fields passed to the repository native middleware.",
             "The UDS fields and bounds are enforcement-relevant; legacy passthrough is rejected.",
             native_lifecycle,
@@ -2701,8 +2764,33 @@ def envoy_processor_options(root: Path) -> list[dict[str, Any]]:
     config_source = "connectors/envoy/ext_proc/internal/processor/config.go"
     struct = _read(root, config_source)
     fields = re.findall(r'^\s*([A-Za-z][A-Za-z0-9]+)\s+((?>[^`\s]+(?:[ \t]+[^`\s]+)*))\s+`json:"([a-z0-9_]+)"`', struct, flags=re.M)
-    if len(fields) != 14:
-        raise ValueError(f"Envoy Config struct extractor found {len(fields)}, expected 14")
+    expected_json_fields = frozenset({
+        "listen_address",
+        "transaction_id_header",
+        "max_header_count",
+        "max_header_name_bytes",
+        "max_header_value_bytes",
+        "max_total_header_bytes",
+        "max_body_chunk_bytes",
+        "max_request_body_bytes",
+        "max_response_body_bytes",
+        "max_grpc_message_bytes",
+        "engine_timeout_ms",
+        "stream_idle_timeout_ms",
+        "stream_max_lifetime_ms",
+        "max_concurrent_streams",
+        "cleanup_timeout_ms",
+        "shutdown_timeout_ms",
+        "late_action_policy",
+    })
+    actual_json_fields = frozenset(json_name for _, _, json_name in fields)
+    if actual_json_fields != expected_json_fields:
+        missing = sorted(expected_json_fields - actual_json_fields)
+        unexpected = sorted(actual_json_fields - expected_json_fields)
+        raise ValueError(
+            "Envoy Config struct extractor found unexpected JSON fields; "
+            f"missing={missing}, unexpected={unexpected}"
+        )
     service_values = json.loads(_read(root, "examples/envoy/safe/envoy-ext-proc-service.json"))
     minimal_service_values = json.loads(_read(root, "examples/envoy/minimal/envoy-ext-proc-service.json"))
     if set(minimal_service_values) != set(service_values):
@@ -2813,6 +2901,24 @@ def _traefik_plugin_option(path: str, source_file: str, example_file: str) -> di
             "phase": "P2 request-body callback bound; it is a per-chunk limit, not a total request-body limit.",
             "security": "The UDS wire contract rejects values above 32768 and prevents one callback from accepting an unbounded chunk.",
         },
+        "maxRequestBodyBytes": {
+            "type": "integer aggregate request-body bound",
+            "values": "positive; maximum 1048576 bytes",
+            "default": "1048576",
+            "effect": "Caps the aggregate request-body bytes accepted across all streamed request chunks; overflow is rejected and the transaction is cleaned up.",
+            "phase": "P2 request-body aggregate bound; it is distinct from the per-chunk maxRequestChunkBytes limit.",
+            "security": "A finite aggregate budget bounds total request-body work before it reaches the UDS engine.",
+            "validation": "normalizedConfig rejects non-positive values, values above 1048576, and chunks larger than the aggregate body bound.",
+        },
+        "requestBodyIdleTimeoutMillis": {
+            "type": "integer request-body idle-timeout bound",
+            "values": "positive; maximum 60000 milliseconds",
+            "default": "1000",
+            "effect": "Bounds inactivity between request-body reads; it is independent of the engine timeout and closes the owned source on expiry.",
+            "phase": "P2 request-body activity bound before response commitment; regular reads reset the per-read idle window.",
+            "security": "A finite per-read idle budget prevents a slow or stalled client from retaining a transaction indefinitely.",
+            "validation": "normalizedConfig rejects non-positive values and values above 60000 milliseconds, including integer-overflow inputs.",
+        },
         "maxResponseChunkBytes": {
             "type": "integer response-body chunk-byte bound",
             "values": ALLOWED_VALUES_TRAEFIK_UDS_CHUNK,
@@ -2851,7 +2957,7 @@ def _traefik_plugin_option(path: str, source_file: str, example_file: str) -> di
         syntax=f"{path}: <{leaf}>", value_type=data["type"], allowed_values=data["values"], default=data["default"],
         default_source=DEFAULT_SOURCE_TRAEFIK_CREATE_CONFIG, required=False,
         contexts=TRAEFIK_PLUGIN_CONFIGURATION_PATH, inheritance="Traefik dynamic configuration object; no Common Runtime merge.",
-        merge_behavior="Traefik/plugin configuration is normalized once by the plugin.", validation="normalizedConfig rejects invalid values; Traefik parses the containing dynamic configuration.",
+        merge_behavior="Traefik/plugin configuration is normalized once by the plugin.", validation=data.get("validation", "normalizedConfig rejects invalid values; Traefik parses the containing dynamic configuration."),
         phase_relevance=data["phase"], security_relevance=data["security"],
         runtime_effect=data["effect"], example_file=example_file, description=data["effect"],
     )
@@ -2865,7 +2971,7 @@ def traefik_yaml_options(root: Path, static_source: str, dynamic_source: str) ->
     options: list[dict[str, Any]] = []
     paths = [(static_source, path) for path in extract_yaml_paths(root / static_source)] + [(dynamic_source, path) for path in extract_yaml_paths(root / dynamic_source)]
     seen: set[str] = set()
-    plugin_leaves = {"maxHeaderCount", "maxHeaderBytes", "maxRequestChunkBytes", "maxResponseChunkBytes", "transactionIDHeader", "engineMode", "engineSocketPath"}
+    plugin_leaves = {"maxHeaderCount", "maxHeaderBytes", "maxRequestChunkBytes", "maxRequestBodyBytes", "requestBodyIdleTimeoutMillis", "maxResponseChunkBytes", "transactionIDHeader", "engineMode", "engineSocketPath"}
     values_by_source = {static_source: extract_yaml_example_values(root / static_source), dynamic_source: extract_yaml_example_values(root / dynamic_source)}
     for source, path in paths:
         if path in seen:
@@ -2965,12 +3071,12 @@ def _assert_documented_defaults(by_key: dict[tuple[str, str], str]) -> None:
 def _assert_traefik_defaults(root: Path, by_key: dict[tuple[str, str], str]) -> None:
     """Reject drift in native Traefik defaults and their rendered inventory rows."""
     traefik_source = _read(root, "connectors/traefik/native_middleware/middleware.go")
-    for token in ("defaultMaxHeaderCount        = 128", "defaultMaxHeaderBytes        = 64 << 10", "defaultMaxRequestChunkBytes  = 32 << 10", "defaultMaxResponseChunkBytes = 32 << 10"):
+    for token in ("defaultMaxHeaderCount         = 128", "defaultMaxHeaderBytes         = 64 << 10", "defaultMaxRequestChunkBytes   = 32 << 10", "defaultMaxRequestBodyBytes int64 = 1 << 20", "defaultMaxResponseChunkBytes  = 32 << 10", "defaultRequestBodyIdleTimeout = 1 * time.Second"):
         if token not in traefik_source:
             raise ValueError(f"Traefik plugin default source changed: expected {token!r}")
     for suffix, expected in {
-        "maxHeaderCount": "128", "maxHeaderBytes": "65536", "maxRequestChunkBytes": "32768",
-        "maxResponseChunkBytes": "32768", "transactionIDHeader": "X-Request-Id", "engineMode": "uds",
+        "maxHeaderCount": "128", "maxHeaderBytes": "65536", "maxRequestChunkBytes": "32768", "maxRequestBodyBytes": "1048576",
+        "requestBodyIdleTimeoutMillis": "1000", "maxResponseChunkBytes": "32768", "transactionIDHeader": "X-Request-Id", "engineMode": "uds",
     }.items():
         matches = [value for (connector, name), value in by_key.items() if connector == "traefik" and name.endswith(suffix)]
         if not matches or any(value != expected for value in matches):
@@ -3084,6 +3190,7 @@ GERMAN_TEXT: dict[str, str] = {
     "int64": "64-Bit-Ganzzahl",
     "integer": "Ganzzahl",
     "integer bytes": "Ganzzahl in Byte",
+    "integer aggregate request-body bound": "Ganzzahliges aggregiertes Request-Body-Limit",
     "absolute path": "absoluter Pfad",
     "absolute Unix socket path": "absoluter Unix-Socket-Pfad",
     "CLI flag": "Kommandozeilenoption",
@@ -3149,6 +3256,11 @@ GERMAN_TEXT: dict[str, str] = {
     "positive; uds maximum 128": "positiv; UDS-Maximum 128",
     ALLOWED_VALUES_TRAEFIK_UDS_CHUNK: "positiv; UDS-Maximum 32768",
     "positive; uds maximum 65536": "positiv; UDS-Maximum 65536",
+    "positive; maximum 1048576 bytes": "positiv; maximal 1048576 Bytes",
+    "positive decimal milliseconds, 1..60000": "positive dezimale Millisekunden, 1..60000",
+    "decimal integer, 2..64; worker-count * max-transactions <= 65536": "dezimale Ganzzahl, 2..64; worker-count * max-transactions <= 65536",
+    "decimal integer, 1..4096; worker-count * max-transactions <= 65536": "dezimale Ganzzahl, 1..4096; worker-count * max-transactions <= 65536",
+    "unsigned decimal milliseconds, 0..60000; must be 0 with response-companion=none": "vorzeichenlose dezimale Millisekunden, 0..60000; müssen bei response-companion=none 0 sein",
     "readable ModSecurity configuration/rules file path": "lesbarer ModSecurity-Konfigurations-/Regeldateipfad",
     "reject | process_partial (accepted spelling variants are parser-specific)": "reject | process_partial (akzeptierte Schreibvarianten sind parserspezifisch)",
     "remote URL paired with rules_remote_key": "Remote-URL, die mit rules_remote_key gepaart wird",
@@ -3288,6 +3400,7 @@ GERMAN_TEXT: dict[str, str] = {
     "65532": "65532",
     "65536": "65536",
     "8192": "8192",
+    "8": "8",
     "X-Request-Id": "X-Request-Id",
     "block": "block",
     "buffered": "buffered",
@@ -3369,6 +3482,7 @@ GERMAN_TEXT: dict[str, str] = {
     "The materializer rejects unresolved placeholders and invalid ports; output must be outside the checkout.": "Der Materializer weist unaufgelöste Platzhalter und ungültige Ports ab; die Ausgabe muss außerhalb des Checkouts liegen.",
     "The patched HAProxy parser rejects missing/unknown arguments; validate with haproxy -c -f <config>.": "Der gepatchte HAProxy-Parser weist fehlende/unbekannte Argumente ab; mit haproxy -c -f <config> validieren.",
     "Unknown keys fail compatibility-agent configuration parsing.": "Unbekannte Schlüssel lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.",
+    "spoe-timeout accepts only decimal milliseconds in 1..60000; worker-count accepts 2..64; max-transactions accepts 1..4096; worker-count * max-transactions must not exceed 65536; response-body-timeout accepts unsigned decimal milliseconds in 0..60000 and must be 0 with response-companion=none; unknown keys and malformed values fail compatibility-agent configuration parsing.": "spoe-timeout akzeptiert nur dezimale Millisekunden in 1..60000; worker-count akzeptiert 2..64; max-transactions akzeptiert 1..4096; worker-count * max-transactions darf 65536 nicht überschreiten; response-body-timeout akzeptiert vorzeichenlose dezimale Millisekunden in 0..60000 und muss bei response-companion=none 0 sein; unbekannte Schlüssel und fehlerhafte Werte lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.",
     "Unknown keys, empty values, malformed assignments, and key-specific invalid values fail the runtime configuration check.": "Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und schlüsselspezifisch ungültige Werte lassen die Runtime-Konfigurationsprüfung fehlschlagen.",
     "Unknown mode fails parsing. The selected host uses haproxy -c -f <config>.": "Ein unbekannter Modus lässt das Parsen fehlschlagen. Der ausgewählte Host verwendet haproxy -c -f <config>.",
     TRAEFIK_FORWARDAUTH_VALIDATION: "Als Traefik-forwardAuth-Kompatibilitätskonfiguration validieren.",
@@ -3381,9 +3495,13 @@ GERMAN_TEXT: dict[str, str] = {
     VALIDATE_LIGHTTPD: VALIDATE_LIGHTTPD,
     "main validates JSON and, where selected, Common Runtime before serving.": "main validiert JSON und, sofern ausgewählt, die Common Runtime vor dem Bereitstellen.",
     "normalizedConfig rejects invalid values; Traefik parses the containing dynamic configuration.": "normalizedConfig weist ungültige Werte ab; Traefik parst die enthaltende dynamische Konfiguration.",
+    "normalizedConfig rejects non-positive values, values above 1048576, and chunks larger than the aggregate body bound.": "normalizedConfig weist nichtpositive Werte, Werte über 1048576 und Chunks oberhalb des aggregierten Body-Limits ab.",
     "traefik check --configFile=<static-config>; load the selected File Provider configuration.": "traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfiguration laden.",
 
     # P1–P4 explanations.
+    "P2 request-body aggregate bound; it is distinct from the per-chunk maxRequestChunkBytes limit.": "P2-Gesamtlimit für den Request-Body; es ist vom Limit maxRequestChunkBytes pro Chunk getrennt.",
+    "A finite aggregate budget bounds total request-body work before it reaches the UDS engine.": "Ein endliches Gesamtbudget begrenzt die gesamte Request-Body-Verarbeitung, bevor sie die UDS-Engine erreicht.",
+    "Caps the aggregate request-body bytes accepted across all streamed request chunks; overflow is rejected and the transaction is cleaned up.": "Begrenzt die gesamten Request-Body-Bytes über alle gestreamten Request-Chunks; ein Überlauf wird abgelehnt und die Transaktion bereinigt.",
     "Compatibility path only; do not infer selected native P3/P4 coverage.": "Nur Kompatibilitätspfad; keine Abdeckung von P3/P4 des ausgewählten nativen Pfads ableiten.",
     "Compatibility request path; it is not a native HTX P3/P4 configuration.": "Kompatibilitäts-Requestpfad; keine native HTX-P3/P4-Konfiguration.",
     "Compatibility request/response-header path only; no native response-body lifecycle claim.": "Nur Kompatibilitäts-Request-/Response-Headerpfad; keine Aussage zum nativen Response-Body-Lebenszyklus.",
@@ -3424,6 +3542,12 @@ GERMAN_TEXT: dict[str, str] = {
     "Bounds request bytes offered to the engine.": "Begrenzt die der Engine angebotenen Request-Bytes.",
     "Bounds response bytes offered to P4 processing by the native connector.": "Begrenzt die vom nativen Connector der P4-Verarbeitung angebotenen Response-Bytes.",
     "Bounds response bytes offered to the engine.": "Begrenzt die der Engine angebotenen Response-Bytes.",
+    "Bounds inactivity between request-body reads; it is independent of the engine timeout and closes the owned source on expiry.": "Begrenzt die Inaktivität zwischen Request-Body-Lesevorgängen unabhängig vom Engine-Timeout und schließt die eigene Quelle bei Ablauf.",
+    "P2 request-body activity bound before response commitment; regular reads reset the per-read idle window.": "P2-Aktivitätsgrenze für den Request-Body vor dem Response-Commit; reguläre Lesevorgänge setzen das Idle-Fenster pro Lesevorgang zurück.",
+    "A finite per-read idle budget prevents a slow or stalled client from retaining a transaction indefinitely.": "Ein endliches Idle-Budget pro Lesevorgang verhindert, dass ein langsamer oder blockierter Client eine Transaktion unbegrenzt hält.",
+    "integer request-body idle-timeout bound": "Ganzzahliges Request-Body-Idle-Timeout-Limit",
+    "positive; maximum 60000 milliseconds": "positiv; maximal 60000 Millisekunden",
+    "normalizedConfig rejects non-positive values and values above 60000 milliseconds, including integer-overflow inputs.": "normalizedConfig lehnt nichtpositive Werte und Werte über 60000 Millisekunden einschließlich Integer-Überläufen ab.",
     "Bounds serialized metadata event size.": "Begrenzt die Größe serialisierter Metadatenereignisse.",
     "Bounds the native middleware's streaming callbacks.": "Begrenzt die Streaming-Callbacks der nativen Middleware.",
     "Bounds total header bytes.": "Begrenzt die gesamte Header-Byteanzahl.",
@@ -3465,6 +3589,10 @@ GERMAN_TEXT: dict[str, str] = {
     "Routes to separate authorization service.": "Leitet an den separaten Autorisierungsservice weiter.",
     "Routes to the separate SPOE/SPOP compatibility service.": "Leitet an den separaten SPOE/SPOP-Kompatibilitätsservice weiter.",
     "SPOP compatibility-agent configuration; it is not a native HTX filter option.": "SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption.",
+    "Bounds each SPOE/SPOP engine transaction; zero, negative, malformed, and over-limit values fail configuration parsing.": "Begrenzt jede SPOE/SPOP-Engine-Transaktion; null, negative, fehlerhafte und über dem Limit liegende Werte lassen das Konfigurationsparsen fehlschlagen.",
+    "Bounds isolated concurrent SPOE/SPOP peer handlers; at least two workers keep a slow handshake from monopolising the accept loop.": "Begrenzt isolierte parallele SPOE/SPOP-Peer-Handler; mindestens zwei Worker verhindern, dass ein langsamer Handshake die Accept-Schleife monopolisiert.",
+    "Bounds transaction slots admitted by the SPOE/SPOP compatibility agent, including the combined worker/transaction cap.": "Begrenzt die vom SPOE/SPOP-Kompatibilitätsagenten zugelassenen Transaktionsslots einschließlich der kombinierten Worker-/Transaktionsobergrenze.",
+    "Compatibility response control timeout; raw SPOE/SPOP does not carry a response body, so it is not a native P4 stream-idle limit.": "Kompatibilitäts-Timeout für die Response-Steuerung; reines SPOE/SPOP überträgt keinen Response-Body und ist daher kein natives P4-Stream-Idle-Limit.",
     "Scopes P4 response-body inspection to configured MIME types.": "Beschränkt die P4-Response-Body-Inspektion auf konfigurierte MIME-Typen.",
     "Scopes engine response-body inspection by MIME type.": "Beschränkt die Engine-Response-Body-Inspektion nach MIME-Typ.",
     "Selects audit-log parts.": "Wählt Audit-Log-Teile aus.",
@@ -3820,6 +3948,8 @@ def _yaml_german_fallback(option: dict[str, Any], field: str) -> str:
     if field == "allowed_values":
         return f"Die zulässige Ausprägung von `{path}` ergibt sich aus dem ausgewählten {connector}-Template und der Hostvalidierung."
     if field == "default":
+        if option.get("connector") == "traefik" and path.endswith("requestBodyIdleTimeoutMillis"):
+            return option["default"]
         return f"Der Connector definiert für `{path}` keinen unabhängigen Standardwert; das ausgewählte Template legt den gezeigten Wert ausdrücklich fest."
     if field == "default_source":
         return f"Ausgewähltes {connector}-Template und der im Quellanker referenzierte Validierungscode."
@@ -3847,6 +3977,22 @@ def _yaml_german_fallback(option: dict[str, Any], field: str) -> str:
 def _german_option_text(option: dict[str, Any], field: str) -> str:
     """Localize one field, using the structured YAML fallback when needed."""
     value = option[field]
+    if option.get("connector") == "common" and option.get("configuration_layer") == "common_runtime":
+        if field == "allowed_values":
+            match = re.fullmatch(r"1 through (\d+)", value)
+            if match:
+                return f"1 bis {match.group(1)}"
+        if field == "validation":
+            match = re.fullmatch(
+                r"Unknown keys, empty values, malformed assignments, zero, non-decimal values, and values above the hard cap of (\d+)( bytes)?( \(10 MiB hard security cap\))? fail the runtime configuration check\.",
+                value,
+            )
+            if match:
+                unit = " Byte" if match.group(2) else ""
+                cap = f"{match.group(1)}{unit}"
+                if match.group(3):
+                    cap += " (harte Sicherheitsobergrenze 10 MiB)"
+                return f"Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen, null, nichtdezimalen Werte und Werte oberhalb der harten Obergrenze von {cap} weist die Runtime-Konfigurationsprüfung zurück."
     if _has_german_rendering(value):
         return _german_text(value)
     if _is_yaml_backed_option(option):
@@ -3856,6 +4002,15 @@ def _german_option_text(option: dict[str, Any], field: str) -> str:
 
 def _has_german_option_rendering(option: dict[str, Any], field: str) -> bool:
     """Check explicit translations and the fully German YAML fallback path."""
+    if option.get("connector") == "common" and option.get("configuration_layer") == "common_runtime":
+        value = option[field]
+        if field == "allowed_values" and re.fullmatch(r"1 through \d+", value):
+            return True
+        if field == "validation" and re.fullmatch(
+            r"Unknown keys, empty values, malformed assignments, zero, non-decimal values, and values above the hard cap of \d+( bytes)?( \(10 MiB hard security cap\))? fail the runtime configuration check\.",
+            value,
+        ):
+            return True
     return _has_german_rendering(option[field]) or _is_yaml_backed_option(option)
 
 

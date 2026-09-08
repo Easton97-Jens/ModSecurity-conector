@@ -70,6 +70,35 @@ The streaming profile's retained-body bound comes from its positive Common
 `request_body_limit` and rejecting read cycle. This runner does not configure
 or prove an independent `server.max-request-size` host limit.
 
+## Response-body backend-close profile
+
+`run_lighttpd_backend_close.sh` is only for patched lighttpd. It deliberately
+sets `response_body_mode=streaming` so the current upstream-EOF/response-body
+abort path can be evidenced. A stock host has no version-contractual streaming
+hook and therefore fails closed before it creates a runtime root, host, or
+listener; its body mode is never silently changed. Use
+`run_lighttpd_stock_lifecycle.sh` for the stock transport/lifecycle profile
+instead. Its V7/V11 result is host/transport evidence, not a typed stock
+response-body connector event.
+
+## Stock lifecycle profile
+
+`run_lighttpd_stock_lifecycle.sh` runs the bounded stock-host profile and
+stores evidence outside the checkout. The current run root is
+`lighttpd-stock-lifecycle-v6-v10-20260825T100000Z`.
+
+The profile records V6 as a bounded two-second gateway/proxy backend-read
+timeout fallback: it does not claim direct client-cancel propagation or a
+typed stock connector event; it requires the `read timeout on socket` host
+marker and a same-host 200 follow-up. Raw truncated upstream-response fixtures
+for V7/V11, eight bounded parallel HTTP/1.1 200 responses, and client EOF
+after host termination are retained as host/transport evidence. Restart
+controls must produce `200 -> 403 -> 200`. PIDFD/session/port/UDS cleanup
+receipts are required for both the first and replacement host.
+
+V12--V15 and the complete 17-vector acceptance remain `NOT_EXECUTED`; these
+bounded receipts neither elevate them nor prove a complete leak audit.
+
 ## No-CRS fixture isolation and cleanup
 
 The No-CRS baseline uses the trusted namespace runner

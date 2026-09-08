@@ -116,7 +116,8 @@ class PatchedCoreBootstrapTest(unittest.TestCase):
             "    esac\n"
             "done\n"
             "[ -n \"$target\" ]\n"
-            "printf '%s\\n' '#define LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION 1' > \"$target/src/plugin.h\"\n",
+            "printf '%s\\n' '#define LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION 2' > \"$target/src/plugin.h\"\n"
+            "printf '%s\\n' '#define LIGHTTPD_MSCONNECTOR_PLUGIN_ABI_VERSION 2' >> \"$target/src/plugin.h\"\n",
         )
         self._write_script(
             tools / "make",
@@ -141,7 +142,8 @@ class PatchedCoreBootstrapTest(unittest.TestCase):
             tools / "nm",
             "#!/bin/sh\n"
             "printf '%s\\n' '00000000 T plugins_call_handle_request_body'\n"
-            "printf '%s\\n' '00000000 T plugins_call_handle_response_body'\n",
+            "printf '%s\\n' '00000000 T plugins_call_handle_response_body'\n"
+            "printf '%s\\n' '00000000 T plugins_call_handle_response_abort'\n",
         )
 
         if configure:
@@ -364,6 +366,38 @@ class PatchedHostContractTest(unittest.TestCase):
         self.assertNotIn("ck_static_assert", patch)
         self.assertIn("plugin_fn_request_body_data_must_match_plugin_fn_data", patch)
         self.assertIn("plugin_fn_response_body_data_must_match_plugin_fn_data", patch)
+        self.assertIn("plugin_fn_response_abort_data_must_match_plugin_fn_data", patch)
+
+    def test_abort_slot_diff_is_valid_c_and_fail_closed_before_authorizer_success(self) -> None:
+        patch = PATCH.read_text(encoding="utf-8")
+        self.assertIn("+\t\tif (p->handle_response_abort)", patch)
+        self.assertNotIn("++\t\tif (p->handle_response_abort)", patch)
+        self.assertIn("+            http_response_backend_error(r);", patch)
+        self.assertIn("+            gw_connection_close(hctx, r);", patch)
+        self.assertIn("+            return HANDLER_FINISHED;", patch)
+        guard = patch.split("@@ -2433,4 +2433,18 @@", 1)[1].split(
+            "--- a/src/plugin.h", 1
+        )[0]
+        self.assertLess(
+            guard.index("http_response_backend_error(r);"),
+            guard.index("gw_connection_close(hctx, r);")
+        )
+        self.assertLess(
+            guard.index("gw_connection_close(hctx, r);"),
+            guard.index("if (hctx->gw_mode == GW_AUTHORIZER")
+        )
+
+    def test_patch_advances_response_hook_step_by_record_size(self) -> None:
+        patch = PATCH.read_text(encoding="utf-8")
+        self.assertIn("--- a/src/response.c\n+++ b/src/response.c\n", patch)
+        self.assertIn("@@ -490,5 +490,5 @@", patch)
+        self.assertIn(
+            "for (; (rc = plfd->fn(r, plfd->data)) == HANDLER_GO_ON; ++plfd)\n"
+            "-        ++r->resp_fn_step;\n"
+            "+        r->resp_fn_step += sizeof(*plfd);",
+            patch,
+        )
+        self.assertNotIn("+        ++r->resp_fn_step;", patch)
 
     def test_patched_core_and_host_targets_are_separate_from_no_crs(self) -> None:
         makefile = (CONNECTOR / "Makefile").read_text(encoding="utf-8")
@@ -391,6 +425,8 @@ class PatchedHostContractTest(unittest.TestCase):
             '"$MAKE_BIN" -C "$CORE_BUILD_DIR" install',
             "plugins_call_handle_request_body",
             "plugins_call_handle_response_body",
+            "plugins_call_handle_response_abort",
+            "LIGHTTPD_MSCONNECTOR_PLUGIN_ABI_VERSION",
             "patched-core-build-info.txt",
         ):
             self.assertIn(required, core)
@@ -403,6 +439,21 @@ class PatchedHostContractTest(unittest.TestCase):
         self.assertIn("mod_proxy_plugin_init", host)
         self.assertIn("proxy_module_sha256", host)
         self.assertIn("proxy_module_sha256", check)
+        self.assertIn("hook_abi_from_header", core)
+        self.assertIn("hook_abi_from_header", host)
+        self.assertIn("plugin_hook_abi=%s", host)
+        self.assertNotIn("plugin_hook_abi=1", core)
+        self.assertNotIn("plugin_hook_abi=1", host)
+
+    def test_patched_build_contract_requires_exact_v2_and_abort_export(self) -> None:
+        core = (CONNECTOR / "build" / "build_patched_core.sh").read_text(encoding="utf-8")
+        host = (CONNECTOR / "build" / "build_patched_host.sh").read_text(encoding="utf-8")
+        patcher = (CONNECTOR / "build" / "apply_core_patch.sh").read_text(encoding="utf-8")
+        for script in (core, host, patcher):
+            self.assertIn("response-abort hook ABI v2", script) if script is not patcher else self.assertIn("exactly ABI v2", script)
+        self.assertIn("plugins_call_handle_response_abort", core)
+        self.assertIn("plugins_call_handle_response_abort", host)
+        self.assertIn("plugin_hook_abi=2", core)
 
     def test_patched_config_allows_only_identity_entity_body_input(self) -> None:
         preparer = CONNECTOR / "harness" / "prepare_patched_lifecycle_smoke.sh"
@@ -565,7 +616,7 @@ class PatchedHostContractTest(unittest.TestCase):
         response_start = module.split(
             "REQUEST_FUNC(mod_msconnector_handle_response_start)", 1
         )[1].split("REQUEST_FUNC(mod_msconnector_handle_request_reset)", 1)[0]
-        request_reset = module.split(
+        request_reset = module.rsplit(
             "REQUEST_FUNC(mod_msconnector_handle_request_reset)", 1
         )[1]
         self.assertNotIn("mod_msconnector_finish_uninspected_response_body", response_start)
@@ -577,6 +628,28 @@ class PatchedHostContractTest(unittest.TestCase):
         )
         self.assertNotIn(
             "msconnector_runtime_transaction_finish_response_body(r, ctx)", request_reset
+        )
+
+    def test_missing_eos_reset_defers_exactly_one_finish_attempt_to_destroy(self) -> None:
+        module = (CONNECTOR / "module" / "mod_msconnector.c").read_text(
+            encoding="utf-8"
+        )
+        request_reset = module.rsplit(
+            "REQUEST_FUNC(mod_msconnector_handle_request_reset)", 1
+        )[1]
+        missing_eos = request_reset.split("#else", 1)[0]
+        self.assertIn("int defer_transaction_finish = 0;", request_reset)
+        self.assertIn("ctx->response_body_aborted", missing_eos)
+        self.assertIn("defer_transaction_finish = 1;", missing_eos)
+        self.assertIn("no synthetic Phase-4 finalization", missing_eos)
+        self.assertIn("if (!defer_transaction_finish)", request_reset)
+        self.assertIn("handler_ctx_destroy(ctx_slot);", request_reset)
+        self.assertLess(
+            request_reset.index("if (!defer_transaction_finish)"),
+            request_reset.index("handler_ctx_destroy(ctx_slot);")
+        )
+        self.assertNotIn(
+            "msconnector_runtime_transaction_finish_response_body", missing_eos
         )
 
     def test_request_body_mapper_uses_an_unsigned_size_bound(self) -> None:
@@ -602,12 +675,25 @@ class PatchedHostContractTest(unittest.TestCase):
         self.assertIn("MSCONNECTOR_DECISION_ACTION_DENY", action)
         self.assertIn('"http_status"', action)
 
-    def test_patched_runtime_labels_raw_events_with_its_selected_host_path(self) -> None:
+    def test_runtime_labels_raw_events_with_the_selected_host_abi(self) -> None:
         module = (CONNECTOR / "module" / "mod_msconnector.c").read_text(
             encoding="utf-8"
         )
+        self.assertIn(
+            "#ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION\n"
+            "#define MSCONNECTOR_LIGHTTPD_EVENT_INTEGRATION_MODE \"patched-native-lighttpd\"\n"
+            "#else\n"
+            "#define MSCONNECTOR_LIGHTTPD_EVENT_INTEGRATION_MODE \"native-lighttpd-plugin\"\n"
+            "#endif",
+            module,
+        )
         self.assertIn("msconnector_runtime_set_event_integration_mode", module)
-        self.assertIn('"patched-native-lighttpd"', module)
+        self.assertIn(
+            "p->runtime, MSCONNECTOR_LIGHTTPD_EVENT_INTEGRATION_MODE", module
+        )
+        self.assertIn(
+            '"msconnector runtime could not set %s event integration mode"', module
+        )
 
     def test_host_transaction_identifier_uses_a_process_local_serial(self) -> None:
         module = (CONNECTOR / "module" / "mod_msconnector.c").read_text(
@@ -711,27 +797,34 @@ class PatchedHostContractTest(unittest.TestCase):
             self.assertEqual(rejected.returncode, 77)
             self.assertIn("must be 0 or 1", rejected.stderr)
 
-    def test_stock_response_helpers_are_outside_the_patched_stream_abi_guard(self) -> None:
+    def test_stock_and_patched_paths_share_only_generic_response_helpers(self) -> None:
         module = (CONNECTOR / "module" / "mod_msconnector.c").read_text(
             encoding="utf-8"
         )
-        stream_guard = module.index(
-            "#ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION",
-            module.index("static handler_t mod_msconnector_apply_decision"),
+        apply_decision = module.index("static handler_t mod_msconnector_apply_decision")
+        guard = module.index(
+            "#ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION", apply_decision
         )
-        response_headers = module.index(
+        headers_committed = module.index(
             "static int mod_msconnector_response_headers_committed"
         )
-        host_transaction = module.index(
-            "static int mod_msconnector_emit_host_transaction_id"
-        )
-        response_body = module.index(
+        emitter = module.index("static int mod_msconnector_emit_host_transaction_id")
+        response_body_committed = module.index(
             "static int mod_msconnector_response_body_committed"
         )
+        response_start = module.rindex("REQUEST_FUNC(mod_msconnector_handle_response_start)")
+        request_reset = module.rindex("REQUEST_FUNC(mod_msconnector_handle_request_reset)")
 
-        self.assertLess(response_headers, stream_guard)
-        self.assertLess(host_transaction, stream_guard)
-        self.assertGreater(response_body, stream_guard)
+        self.assertLess(headers_committed, guard)
+        self.assertLess(emitter, guard)
+        self.assertGreater(response_body_committed, guard)
+        self.assertGreater(response_start, guard)
+        self.assertIn("http_header_response_set", module[:guard])
+        self.assertNotIn("mod_msconnector_response_body_committed", module[:guard])
+
+        response_hook = module[response_start:request_reset]
+        self.assertNotIn("#ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION", response_hook)
+        self.assertEqual(response_hook.count("mod_msconnector_emit_host_transaction_id"), 2)
 
     def test_crs_harness_records_private_wire_correlation_without_a_client_transaction_id(self) -> None:
         runner = (CONNECTOR / "harness" / "run_patched_full_lifecycle.sh").read_text(

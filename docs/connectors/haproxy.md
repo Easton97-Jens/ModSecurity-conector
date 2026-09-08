@@ -60,6 +60,29 @@ are in the [HAProxy configuration reference](../../examples/haproxy/configuratio
 Host filter configuration, Common Runtime key/value settings, and ModSecurity
 Engine rules remain separate layers.
 
+## HTX payload-append failure policy
+
+The HTX binding treats a native body-append result as successful only when its
+adapter returns `0` (which requires the underlying C API to report exact
+success). Any other result means that the current borrowed HTX slice is no
+longer certified as inspected. The filter aborts only the affected transaction
+and returns `-1` to HAProxy; it must not return the positive slice length and
+thereby authorize an uninspected pass-through.
+
+| Failure class | Fail mode and host action | Event evidence | Cleanup and subsequent request |
+| --- | --- | --- | --- |
+| Request body append failure (V10, pre-commit) | Fail closed. HAProxy receives `-1`; the retained HTTP/1.1 HAProxy `3.2.22` control observed `400` and zero backend dispatches. | No dedicated structured connector-error event is emitted for this native callback failure. The payload-free evidence is the client status, zero upstream count, and retained host receipt. | The transaction is aborted once. The same HAProxy process accepted a one-byte POST Allow control with `200`; both task-owned listeners were absent after cleanup. |
+| Response body append failure (V11, response path) | Fail closed at the transport boundary. HAProxy receives `-1` and terminates only the affected response stream. Where response handling has begun, no synthetic replacement HTTP status is promised. The retained control observed no HTTP response (`000`) and `curl_exit=52`. | No dedicated structured connector-error event is emitted for this native callback failure. The payload-free evidence is the client transport result, one upstream fault request, and retained host receipt. | The transaction is aborted once. The same HAProxy process accepted a HEAD Allow control with `200`; both task-owned listeners were absent after cleanup. |
+
+This is a documented HTX-specific safety decision: a `ProcessPartial`-derived
+native append failure is terminal for the borrowed slice because this binding
+cannot certify inspection of it. It does not silently select the different
+semantics of another connector. The retained bounded run is
+`haproxy-htx-append-failure-20260825T131500Z`, SHA-256
+`12e4d30c68ff46f45f2f8481d810eb53099f6512f384520e3942fadb0434da9c`; it proves
+these V10/V11 HTTP/1.1 cases only, not HTTP/2, HTTP/3, reload, a full FD audit,
+or the complete failure matrix.
+
 ## P1--P4 lifecycle and Safe boundary
 
 The selected native host smoke can observe P1, P2, P3, and P4 through the HTX

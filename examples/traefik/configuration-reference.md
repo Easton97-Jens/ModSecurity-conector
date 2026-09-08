@@ -25,13 +25,15 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`http.middlewares`](#http-middlewares) | Host / Connector | Traefik dynamic middleware registry mapping | no | No connector-owned middleware registry default is declared; the selected template sets the selected native or compatibility middleware. | The YAML object path shown in the selected example. | Groups middleware definitions referenced by routers. |
 | [`http.middlewares.modsecurity-native-streaming`](#http-middlewares-modsecurity-native-streaming) | Host / Connector | Traefik named middleware mapping | no | No connector-owned named middleware default is declared; the selected template sets the selected native modsecurity mapping. | The YAML object path shown in the selected example. | Binds the router-visible middleware name to its plugin or forwardAuth configuration. |
 | [`http.middlewares.modsecurity-native-streaming.plugin`](#http-middlewares-modsecurity-native-streaming-plugin) | Host / Connector | Traefik plugin middleware mapping | no | No connector-owned plugin middleware mapping default is declared; the selected template sets the modsecurityNative local plugin. | The YAML object path shown in the selected example. | Selects the local-plugin configuration for the named native middleware. |
-| [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative) | Host / Connector | Traefik local-plugin configuration mapping | no | Plugin CreateConfig supplies bounded defaults; this template explicitly sets all seven selected fields. | The YAML object path shown in the selected example. | Groups limits, transaction ID, and engine connection fields passed to the repository native middleware. |
+| [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative) | Host / Connector | Traefik local-plugin configuration mapping | no | Plugin CreateConfig supplies bounded defaults; this template explicitly sets all eight selected fields. | The YAML object path shown in the selected example. | Groups limits, transaction ID, and engine connection fields passed to the repository native middleware. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineMode`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-enginemode) | Host / Connector | native middleware engine-mode enum | no | uds | http.middlewares.<name>.plugin.modsecurityNative | Selects the persistent UDS engine. Legacy source-only passthrough is rejected so a rule-evaluating deployment cannot silently select a non-enforcing path. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineSocketPath`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-enginesocketpath) | Host / Connector | absolute Unix-domain socket path | no | none (required and validated in uds mode) | http.middlewares.<name>.plugin.modsecurityNative | Names the private UDS path used by native middleware when engineMode is uds. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxHeaderBytes`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxheaderbytes) | Host / Connector | integer aggregate header-byte bound | no | 65536 | http.middlewares.<name>.plugin.modsecurityNative | Caps aggregate request and response header bytes passed to native middleware engine callbacks. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxHeaderCount`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxheadercount) | Host / Connector | integer header-count bound | no | 128 | http.middlewares.<name>.plugin.modsecurityNative | Caps the number of request and response headers passed to native middleware engine callbacks. |
+| [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestBodyBytes`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxrequestbodybytes) | Host / Connector | integer aggregate request-body bound | no | 1048576 | http.middlewares.<name>.plugin.modsecurityNative | Caps the aggregate request-body bytes accepted across all streamed request chunks; overflow is rejected and the transaction is cleaned up. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestChunkBytes`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxrequestchunkbytes) | Host / Connector | integer request-body chunk-byte bound | no | 32768 | http.middlewares.<name>.plugin.modsecurityNative | Caps each streamed request-body chunk offered to the native middleware engine. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxResponseChunkBytes`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxresponsechunkbytes) | Host / Connector | integer response-body chunk-byte bound | no | 32768 | http.middlewares.<name>.plugin.modsecurityNative | Caps each streamed response-body chunk offered to the native middleware engine. |
+| [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.requestBodyIdleTimeoutMillis`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-requestbodyidletimeoutmillis) | Host / Connector | integer request-body idle-timeout bound | no | 1000 | http.middlewares.<name>.plugin.modsecurityNative | Bounds inactivity between request-body reads; it is independent of the engine timeout and closes the owned source on expiry. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.transactionIDHeader`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-transactionidheader) | Host / Connector | HTTP header-name string | no | X-Request-Id | http.middlewares.<name>.plugin.modsecurityNative | Selects the incoming request header used to correlate middleware and engine transaction metadata. |
 | [`http.routers`](#http-routers) | Host / Connector | Traefik dynamic router registry mapping | no | No connector-owned router registry default is declared; the selected template sets one app router. | The YAML object path shown in the selected example. | Groups dynamic request-routing definitions. |
 | [`http.routers.app`](#http-routers-app) | Host / Connector | Traefik dynamic Router mapping | no | No connector-owned app router default is declared; the selected template sets the explicit catch-all app route. | The YAML object path shown in the selected example. | Binds a request rule and entry point to the listed middleware and app service. |
@@ -943,11 +945,11 @@ http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative: <value>
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| Traefik local-plugin configuration mapping | the seven native middleware Config fields documented from CreateConfig/normalizedConfig | no |
+| Traefik local-plugin configuration mapping | the eight native middleware Config fields documented from CreateConfig/normalizedConfig | no |
 
 ### Default
 
-Plugin CreateConfig supplies bounded defaults; this template explicitly sets all seven selected fields.
+Plugin CreateConfig supplies bounded defaults; this template explicitly sets all eight selected fields.
 
 Source: `connectors/traefik/native_middleware/middleware.go:CreateConfig/normalizedConfig`.
 
@@ -1197,6 +1199,61 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 
 A finite count limits header-flood work before data reaches the UDS engine.
 
+<a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxrequestbodybytes"></a>
+## `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestBodyBytes`
+
+### Short description
+
+Caps the aggregate request-body bytes accepted across all streamed request chunks; overflow is rejected and the transaction is cleaned up.
+
+### Syntax
+
+```text
+http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestBodyBytes: <maxRequestBodyBytes>
+```
+
+### Valid contexts
+
+- http.middlewares.<name>.plugin.modsecurityNative
+
+### Values
+
+| Type | Allowed values | Required |
+| --- | --- | --- |
+| integer aggregate request-body bound | positive; maximum 1048576 bytes | no |
+
+### Default
+
+1048576
+
+Source: `connectors/traefik/native_middleware/middleware.go:CreateConfig`.
+
+### Inheritance and merge
+
+Traefik dynamic configuration object; no Common Runtime merge.
+
+Merge: Traefik/plugin configuration is normalized once by the plugin.
+
+### Phases and runtime effect
+
+P2 request-body aggregate bound; it is distinct from the per-chunk maxRequestChunkBytes limit.
+
+Caps the aggregate request-body bytes accepted across all streamed request chunks; overflow is rejected and the transaction is cleaned up.
+
+### Validation and errors
+
+normalizedConfig rejects non-positive values, values above 1048576, and chunks larger than the aggregate body bound.
+
+### Example
+
+Selected example value: `1048576`.
+
+Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../examples/traefik/safe/traefik-dynamic.yaml).
+
+### Safety and operations
+
+A finite aggregate budget bounds total request-body work before it reaches the UDS engine.
+
 <a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxrequestchunkbytes"></a>
 ## `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestChunkBytes`
 
@@ -1306,6 +1363,61 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 ### Safety and operations
 
 The UDS wire contract rejects values above 32768; retain the bound for response-stream resource control.
+
+<a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-requestbodyidletimeoutmillis"></a>
+## `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.requestBodyIdleTimeoutMillis`
+
+### Short description
+
+Bounds inactivity between request-body reads; it is independent of the engine timeout and closes the owned source on expiry.
+
+### Syntax
+
+```text
+http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.requestBodyIdleTimeoutMillis: <requestBodyIdleTimeoutMillis>
+```
+
+### Valid contexts
+
+- http.middlewares.<name>.plugin.modsecurityNative
+
+### Values
+
+| Type | Allowed values | Required |
+| --- | --- | --- |
+| integer request-body idle-timeout bound | positive; maximum 60000 milliseconds | no |
+
+### Default
+
+1000
+
+Source: `connectors/traefik/native_middleware/middleware.go:CreateConfig`.
+
+### Inheritance and merge
+
+Traefik dynamic configuration object; no Common Runtime merge.
+
+Merge: Traefik/plugin configuration is normalized once by the plugin.
+
+### Phases and runtime effect
+
+P2 request-body activity bound before response commitment; regular reads reset the per-read idle window.
+
+Bounds inactivity between request-body reads; it is independent of the engine timeout and closes the owned source on expiry.
+
+### Validation and errors
+
+normalizedConfig rejects non-positive values and values above 60000 milliseconds, including integer-overflow inputs.
+
+### Example
+
+Selected example value: `1000`.
+
+Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../examples/traefik/safe/traefik-dynamic.yaml).
+
+### Safety and operations
+
+A finite per-read idle budget prevents a slow or stalled client from retaining a transaction indefinitely.
 
 <a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-transactionidheader"></a>
 ## `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.transactionIDHeader`

@@ -412,8 +412,11 @@ def test_htx_companion_registers_request_data_filter_for_p2_and_eos() -> None:
         / "htx-overlay"
         / "haproxy_modsecurity_htx_filter.c"
     ).read_text(encoding="utf-8")
+    # Request P2/EOS registration is authoritative in the request-header
+    # handler.  The generic HTTP-header dispatcher only selects request versus
+    # response and must not be treated as the companion implementation.
     companion_start = source.index(
-        "static int haproxy_modsecurity_htx_filter_http_headers("
+        "static int haproxy_modsecurity_htx_handle_request_headers("
     )
     companion_start = source.index("if (ctx->companion.mode) {", companion_start)
     companion_end = source.index(
@@ -637,8 +640,8 @@ def test_spop_delayed_owner_lifetime_harness_is_asan_ubsan_clean() -> None:
         assert executed.returncode == 0, executed.stderr
 
 
-def test_spop_stop_failure_retains_worker_owned_runtime_state() -> None:
-    """Cleanup must stop at the transport boundary when workers remain live."""
+def test_spop_stop_failure_exits_without_releasing_worker_owned_state() -> None:
+    """Incomplete transport cleanup must terminate before stack state unwinds."""
     spop_source = (
         Path(__file__).resolve().parents[1]
         / "connectors"
@@ -646,15 +649,16 @@ def test_spop_stop_failure_retains_worker_owned_runtime_state() -> None:
         / "src"
         / "haproxy_spop_diagnostic_runtime.c"
     ).read_text(encoding="utf-8")
-    start = spop_source.index("static void destroy_agent_runtime(")
+    start = spop_source.index("static int destroy_agent_runtime(")
     end = spop_source.index("static int run_agent_server(", start)
     cleanup = spop_source[start:end]
-    stop = cleanup.index("msconnector_response_companion_transport_stop")
-    failure = cleanup.index("response companion transport stop incomplete")
-    retained = cleanup[cleanup.rfind("} else {", 0, failure):failure]
-    assert "return;" in cleanup[failure:]
-    assert "haproxy_spop_response_companion_backend_expire" not in retained
-    assert "spop_owner_queue_destroy(state)" not in retained
+    stop = cleanup.index("spop_transport_stop_bounded")
+    failure = cleanup.index("event=spop-response-transport-shutdown-failed")
+    terminal = cleanup[failure:cleanup.index("    }\n", failure)]
+    assert "_Exit(SPOP_OWNER_RESTART_EXIT_CODE);" in terminal
+    assert "close_owned_stream" not in terminal
+    assert "haproxy_spop_response_companion_backend_expire" not in terminal
+    assert "spop_owner_queue_destroy(state)" not in terminal
     assert stop < failure
 
 
@@ -667,9 +671,11 @@ def test_htx_early_response_uses_common_phase_error_path() -> None:
         / "haproxy_modsecurity_htx_filter.c"
     ).read_text(encoding="utf-8")
     assert "response_started_before_request_eos" not in htx_source
+    # Response processing is owned by the response-header handler; the generic
+    # dispatcher only routes the callback and is not the phase implementation.
     response_headers = htx_source[htx_source.index(
-        "static int haproxy_modsecurity_htx_filter_http_headers") :
-        htx_source.index("static int haproxy_modsecurity_htx_filter_http_payload")]
+        "static int haproxy_modsecurity_htx_handle_response_headers") :
+        htx_source.index("static int haproxy_modsecurity_htx_handle_request_headers")]
     assert "haproxy_modsecurity_htx_process_response_headers(s, filter, msg)" in response_headers
     assert "leave this response uninspected" not in response_headers
 

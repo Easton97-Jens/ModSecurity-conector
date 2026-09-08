@@ -18,6 +18,9 @@ func TestConfigRejectsNonLoopbackListenAddresses(t *testing.T) {
 		MaxResponseBodyBytes: 10485760,
 		MaxGRPCMessageBytes:  1114112,
 		EngineTimeoutMS:      150,
+		StreamIdleTimeoutMS:  1000,
+		StreamMaxLifetimeMS:  5000,
+		MaxConcurrentStreams: 4,
 		CleanupTimeoutMS:     1000,
 		ShutdownTimeoutMS:    5000,
 		LateActionPolicy:     LateActionSafe,
@@ -43,6 +46,9 @@ func TestConfigAcceptsIPv4AndIPv6LoopbackListenAddresses(t *testing.T) {
 		MaxResponseBodyBytes: 10485760,
 		MaxGRPCMessageBytes:  1114112,
 		EngineTimeoutMS:      150,
+		StreamIdleTimeoutMS:  1000,
+		StreamMaxLifetimeMS:  5000,
+		MaxConcurrentStreams: 4,
 		CleanupTimeoutMS:     1000,
 		ShutdownTimeoutMS:    5000,
 		LateActionPolicy:     LateActionSafe,
@@ -74,6 +80,9 @@ func TestConfigRejectsTimeoutMillisecondOverflow(t *testing.T) {
 		MaxResponseBodyBytes: 10485760,
 		MaxGRPCMessageBytes:  1114112,
 		EngineTimeoutMS:      150,
+		StreamIdleTimeoutMS:  1000,
+		StreamMaxLifetimeMS:  5000,
+		MaxConcurrentStreams: 4,
 		CleanupTimeoutMS:     1000,
 		ShutdownTimeoutMS:    5000,
 		LateActionPolicy:     LateActionSafe,
@@ -93,6 +102,8 @@ func TestConfigRejectsTimeoutMillisecondOverflow(t *testing.T) {
 		{"shutdown just below maximum", func(c *Config, v int) { c.ShutdownTimeoutMS = v }, int(limit - 1), true},
 		{"shutdown at maximum", func(c *Config, v int) { c.ShutdownTimeoutMS = v }, int(limit), true},
 		{"shutdown above maximum", func(c *Config, v int) { c.ShutdownTimeoutMS = v }, int(limit + 1), false},
+		{"stream lifetime at maximum", func(c *Config, v int) { c.StreamMaxLifetimeMS = v }, int(limit), true},
+		{"stream lifetime above maximum", func(c *Config, v int) { c.StreamMaxLifetimeMS = v }, int(limit + 1), false},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

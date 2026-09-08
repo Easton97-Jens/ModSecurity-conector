@@ -25,24 +25,25 @@ class ApacheConnectionPhaseContractTests(unittest.TestCase):
         )
 
     def test_both_connection_branches_require_exact_success(self) -> None:
-        self.assertEqual(self.source.count("int connection_result = msc_process_connection("), 2)
-        self.assertEqual(self.source.count("if (connection_result != 1)"), 2)
+        self.assertEqual(self.source.count("msc_process_connection(msr->t,"), 2)
         for branch in (self.early, self.late):
-            call = branch.index("int connection_result = msc_process_connection(")
-            gate = branch.index("if (connection_result != 1)")
+            call = branch.index("msc_process_connection(msr->t,")
+            gate = branch.index(") != 1)", call)
             intervention = branch.index("it = process_intervention(msr->t, r);")
             self.assertLess(call, gate)
             self.assertLess(gate, intervention)
-            self.assertIn("return HTTP_INTERNAL_SERVER_ERROR;", branch[gate:intervention])
+            self.assertIn("return apache_fail_closed", branch[gate:intervention])
 
     def test_failure_gate_logs_and_precedes_normal_request_processing(self) -> None:
+        fail_closed = function_region(self.source, "static int apache_fail_closed(")
+        self.assertIn("libmodsecurity operation failed", fail_closed)
+        self.assertIn("HTTP_INTERNAL_SERVER_ERROR", fail_closed)
         for branch in (self.early, self.late):
-            gate = branch.index("if (connection_result != 1)")
+            gate = branch.index(") != 1)")
             intervention = branch.index("it = process_intervention(msr->t, r);")
             failure_path = branch[gate:intervention]
-            self.assertIn("ap_log_rerror", failure_path)
-            self.assertIn("connection phase failed", failure_path)
-            self.assertIn("return HTTP_INTERNAL_SERVER_ERROR;", failure_path)
+            self.assertIn("apache_fail_closed", failure_path)
+            self.assertIn("return apache_fail_closed", failure_path)
 
 
 if __name__ == "__main__":

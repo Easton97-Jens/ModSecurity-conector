@@ -451,7 +451,11 @@ review_guards: list[tuple[bool, str]] = [
     (
         patterns_in_order(
             phase3_headers_handler,
-            r"\bif\s*\(\s*!\s*apache_add_response_headers\s*\(\s*msr\s*,\s*r->err_headers_out\s*\)\s*\|\|\s*!\s*apache_add_response_headers\s*\(\s*msr\s*,\s*r->headers_out\s*\)\s*\)",
+            r"\berror_headers_added\s*=\s*apache_add_response_headers\s*\(\s*msr\s*,\s*r->err_headers_out\s*\)\s*;",
+            r"\bresponse_headers_added\s*=\s*apache_add_response_headers\s*\(\s*msr\s*,\s*r->headers_out\s*\)\s*;",
+            r"\bif\s*\(\s*!\s*error_headers_added\s*\|\|\s*!\s*response_headers_added\s*\|\|",
+            r"\bcontent_type\s*!=\s*NULL\s*&&\s*content_type\s*\[\s*0\s*\]\s*!=\s*'\\0'\s*&&",
+            r"\bmsc_add_response_header\s*\(\s*msr->t\s*,\s*\(\s*const\s+unsigned\s+char\s*\*\s*\)\s*\"Content-Type\"\s*,\s*\(\s*const\s+unsigned\s+char\s*\*\s*\)\s*content_type\s*\)\s*!=\s*1",
             r"\bap_remove_output_filter\s*\(\s*filter\s*\)",
             r"\breturn\s+apache_send_precommit_terminal_error\s*\(\s*msr\s*,\s*filter\s*,\s*brigade\s*,\s*HTTP_INTERNAL_SERVER_ERROR\s*\)",
             re.escape(P3_PROCESS),
@@ -469,7 +473,11 @@ review_guards: list[tuple[bool, str]] = [
         )
         and base.function_call_count(
             phase3_headers_handler, "apache_add_response_headers"
-        ) == 2,
+        ) == 2
+        and base.function_call_count(
+            phase3_headers_handler, "msc_add_response_header"
+        ) == 1
+        and not base.has_forbidden_contract_control_flow(phase3_headers_handler),
         "Apache Phase3 checks both response-header tables, fails closed on helper or engine error, completes, and then collects and enforces intervention",
     ),
     (

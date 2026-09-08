@@ -64,6 +64,31 @@ stehen in der [HAProxy-Konfigurationsreferenz](../../examples/haproxy/configurat
 Hostfilter-Konfiguration, Common-Runtime-Key/Value-Einstellungen und
 ModSecurity-Engine-Regeln bleiben getrennte Ebenen.
 
+## Richtlinie für HTX-Payload-Append-Fehler
+
+Das HTX-Binding behandelt einen nativen Body-Append nur dann als erfolgreich,
+wenn sein Adapter `0` liefert (wofür die zugrunde liegende C-API exakten Erfolg
+melden muss). Jedes andere Ergebnis bedeutet, dass die aktuell geliehene
+HTX-Slice nicht mehr als inspiziert bestätigt ist. Der Filter bricht nur die
+betroffene Transaktion ab und liefert `-1` an HAProxy; er darf nicht die
+positive Slice-Länge liefern und damit einen nicht inspizierten Pass-through
+autorisieren.
+
+| Fehlerklasse | Fail-Modus und Hostaktion | Event-Evidence | Cleanup und Folgeanfrage |
+| --- | --- | --- | --- |
+| Request-Body-Append-Fehler (V10, pre-commit) | Fail closed. HAProxy erhält `-1`; der aufbewahrte HTTP/1.1-HAProxy-`3.2.22`-Control beobachtete `400` und null Backend-Dispatches. | Für diesen nativen Callback-Fehler wird kein dediziertes strukturiertes Connector-Error-Event ausgegeben. Payload-freie Evidence sind Client-Status, Upstream-Count null und aufbewahrter Host-Receipt. | Die Transaktion wird einmal abgebrochen. Derselbe HAProxy-Prozess akzeptierte einen One-Byte-POST-Allow-Control mit `200`; beide task-eigenen Listener fehlten nach Cleanup. |
+| Response-Body-Append-Fehler (V11, Response-Pfad) | Fail closed an der Transportgrenze. HAProxy erhält `-1` und beendet nur den betroffenen Response-Stream. Sobald die Response-Behandlung begonnen hat, wird kein synthetischer Ersatz-HTTP-Status versprochen. Der aufbewahrte Control beobachtete keine HTTP-Response (`000`) und `curl_exit=52`. | Für diesen nativen Callback-Fehler wird kein dediziertes strukturiertes Connector-Error-Event ausgegeben. Payload-freie Evidence sind Client-Transportergebnis, ein Upstream-Fehlerrequest und aufbewahrter Host-Receipt. | Die Transaktion wird einmal abgebrochen. Derselbe HAProxy-Prozess akzeptierte einen HEAD-Allow-Control mit `200`; beide task-eigenen Listener fehlten nach Cleanup. |
+
+Dies ist eine dokumentierte HTX-spezifische Sicherheitsentscheidung: Ein aus
+`ProcessPartial` abgeleiteter nativer Append-Fehler ist für die geliehene Slice
+terminal, weil dieses Binding ihre Inspektion nicht bestätigen kann. Es wählt
+nicht stillschweigend die abweichende Semantik eines anderen Connectors. Der
+aufbewahrte begrenzte Run ist
+`haproxy-htx-append-failure-20260825T131500Z`, SHA-256
+`12e4d30c68ff46f45f2f8481d810eb53099f6512f384520e3942fadb0434da9c`; er belegt
+nur diese V10/V11-HTTP/1.1-Fälle, nicht HTTP/2, HTTP/3, Reload, einen
+vollständigen FD-Audit oder die vollständige Fehlermatrix.
+
 ## P1--P4-Lifecycle und Safe-Grenze
 
 Der ausgewählte native Hostsmoke kann P1, P2, P3 und P4 über den HTX-Pfad

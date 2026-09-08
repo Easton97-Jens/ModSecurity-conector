@@ -24,6 +24,13 @@ APACHE_HTTPD_BIN="${APACHE_HTTPD:-${APACHE:-$HTTPD_PREFIX/bin/httpd}}"
 APXS_BIN="${APXS:-$HTTPD_PREFIX/bin/apxs}"
 CURL_BIN="${CURL:-}"
 PYTHON_BIN="${PYTHON:-python3}"
+APACHE_PROCESS_GUARD="$SCRIPT_DIR/apache_process_guard.py"
+SETSID_BIN="${SETSID:-setsid}"
+RECORD_FAILURE_CLEANED_EXIT=74
+HTTPD_RECORD_FAILURE_CLEANED=0
+HTTPD_SUPERVISOR_STATE=""
+HTTPD_SUPERVISOR_PID_OUTPUT=""
+HTTPD_SUPERVISOR_PID=""
 PYTHONDONTWRITEBYTECODE="${PYTHONDONTWRITEBYTECODE:-1}"
 export PYTHONDONTWRITEBYTECODE
 BASE_PORT="${PORT:-18080}"
@@ -78,6 +85,25 @@ APACHE_PHASE4_NESTED_ERROR_REDIRECT_TEST="${APACHE_PHASE4_NESTED_ERROR_REDIRECT_
 APACHE_PHASE4_PREOUTPUT_ERROR_DOCUMENT_TEST="${APACHE_PHASE4_PREOUTPUT_ERROR_DOCUMENT_TEST:-0}"
 APACHE_PHASE4_FRAGMENTED_BUCKETS_TEST="${APACHE_PHASE4_FRAGMENTED_BUCKETS_TEST:-0}"
 APACHE_PHASE4_FRAGMENTED_BUCKET_BOUNDARY_TEST="${APACHE_PHASE4_FRAGMENTED_BUCKET_BOUNDARY_TEST:-0}"
+prepare_runtime_directory() {
+    directory=$1
+    label=$2
+    private_mode=${3:-0}
+    case "$private_mode" in
+        0) set -- ;;
+        1) set -- --private ;;
+        *)
+            echo "apache_smoke: blocked $label private-mode value is invalid" >&2
+            return 77
+            ;;
+    esac
+    MSCONNECTOR_APACHE_GUARD_DIRECTORY="$directory" \
+        "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" prepare-directory \
+        --label "$label" "$@"
+}
+
+prepare_runtime_directory "$LOG_DIR" "LOG_DIR" 1
+prepare_runtime_directory "$APACHE_CASE_OUTPUT_ROOT" "APACHE_CASE_OUTPUT_ROOT" 0
 readonly PHASE4_FIRST_BYTE_PREFIX='first-byte-prefix'
 readonly PHASE4_TRANSACTION_REBIND_REFUSAL='request transaction cannot be safely rebound to the target URI'
 readonly PHASE4_RESPONSE_BODY_MARKER='no-crs-response-body-marker'
@@ -107,14 +133,12 @@ load_connector_adapter_metadata
 
 blocked() {
     echo "apache_smoke: blocked $*"
-    mkdir -p "$LOG_DIR"
     echo "blocked: $*" >> "$STATUS_FILE"
     exit 77
 }
 
 fail() {
     echo "apache_smoke: fail $*"
-    mkdir -p "$LOG_DIR"
     echo "fail: $*" >> "$STATUS_FILE"
     exit 1
 }
@@ -130,7 +154,6 @@ require_audit_rule() {
 
 not_executable() {
     echo "apache_smoke: not_executable $*"
-    mkdir -p "$LOG_DIR"
     echo "not_executable: $*" >> "$STATUS_FILE"
     exit 78
 }
@@ -282,7 +305,8 @@ run_all_cases() {
     require_absolute_generated_path "$RUNTIME_BASE" "RUNTIME_BASE"
     require_absolute_generated_path "$APACHE_CASE_OUTPUT_ROOT" "APACHE_CASE_OUTPUT_ROOT"
 
-    mkdir -p "$LOG_DIR" "$RESULTS_DIR"
+    prepare_runtime_directory "$LOG_DIR" "LOG_DIR" 1
+    prepare_runtime_directory "$RESULTS_DIR" "RESULTS_DIR" 0
     summary_file="$RESULTS_DIR/apache-summary.txt"
     json_file="$RESULTS_DIR/apache-summary.json"
     results_jsonl="$RESULTS_DIR/apache-results.jsonl"
@@ -578,7 +602,17 @@ configure_apache_profile_audit() {
 
 apache_profile_stop_tracked_process() {
     process_label=$1
-    process_pid=$2
+    case "$process_label" in
+        synchronized-upstream)
+            process_pid=$2 SYNCHRONIZED_UPSTREAM_PID=
+            ;;
+        response-header-backend)
+            process_pid=$2 RESPONSE_HEADER_BACKEND_PID=
+            ;;
+        *)
+            process_pid=$2
+            ;;
+    esac
     [ -n "$process_pid" ] || return 0
     case "$process_pid" in
         *[!0-9]*|"") echo "apache_smoke: profile cleanup has invalid $process_label PID" >&2; return 1 ;;
@@ -620,41 +654,146 @@ apache_profile_publish_cleanup_receipt() {
 
 cleanup() {
     cleanup_rc=0
-    if apache_profile_enabled; then
-        if [ -n "${SYNCHRONIZED_UPSTREAM_PID:-}" ] && \
-            kill -0 "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1 && \
-            [ -n "${SYNCHRONIZED_RELEASE_FILE:-}" ]; then
-            : > "$SYNCHRONIZED_RELEASE_FILE" || cleanup_rc=1
+    if [ -n "${SYNCHRONIZED_UPSTREAM_PID:-}" ] && \
+        kill -0 "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1 && \
+        [ -n "${SYNCHRONIZED_RELEASE_FILE:-}" ]; then
+        : > "$SYNCHRONIZED_RELEASE_FILE" || cleanup_rc=77
+    fi
+    apache_profile_stop_tracked_process synchronized-upstream \
+        "${SYNCHRONIZED_UPSTREAM_PID:-}" || cleanup_rc=77
+    if [ "$HTTPD_RECORD_FAILURE_CLEANED" -eq 1 ]; then
+        if [ -n "${HTTPD_SUPERVISOR_STATE:-}" ] && [ -f "$HTTPD_SUPERVISOR_STATE" ]; then
+            "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" stop-supervisor \
+                --state "$HTTPD_SUPERVISOR_STATE" >/dev/null 2>&1 || cleanup_rc=77
         fi
-        apache_profile_stop_tracked_process synchronized-upstream "${SYNCHRONIZED_UPSTREAM_PID:-}" || cleanup_rc=1
-        apache_profile_stop_tracked_process apache "${HTTPD_PID:-}" || cleanup_rc=1
-        apache_profile_stop_tracked_process response-header-backend "${RESPONSE_HEADER_BACKEND_PID:-}" || cleanup_rc=1
-    else
-        if [ -n "${SYNCHRONIZED_UPSTREAM_PID:-}" ] && kill -0 "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1; then
-            [ -n "${SYNCHRONIZED_RELEASE_FILE:-}" ] && : > "$SYNCHRONIZED_RELEASE_FILE"
-            kill "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1 || true
-            wait "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1 || true
+        if [ -n "${HTTPD_SUPERVISOR_PID:-}" ]; then
+            wait_supervisor_bounded "$HTTPD_SUPERVISOR_PID" || cleanup_rc=77
         fi
+        if ! port_is_free "$PORT"; then
+            echo "apache_smoke: blocked Apache record-failure cleanup left port $PORT in use" >&2
+            cleanup_rc=77
+        fi
+        if [ -e "${HTTPD_GUARD_EVIDENCE_CANDIDATE:-}" ] || \
+            [ -L "${HTTPD_GUARD_EVIDENCE_CANDIDATE:-}" ]; then
+            echo "apache_smoke: blocked Apache record-failure evidence rollback is incomplete" >&2
+            cleanup_rc=77
+        fi
+    elif [ -n "${HTTPD_GUARD_EVIDENCE:-}" ] && [ -f "$HTTPD_GUARD_EVIDENCE" ]; then
+        httpd_wait_safe=0
         if [ -n "${HTTPD_PID:-}" ] && kill -0 "$HTTPD_PID" >/dev/null 2>&1; then
-            kill "$HTTPD_PID" >/dev/null 2>&1 || true
+            if "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" verify-running \
+                --evidence "$HTTPD_GUARD_EVIDENCE" >/dev/null 2>&1; then
+                if "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" terminate \
+                    --evidence "$HTTPD_GUARD_EVIDENCE" >/dev/null 2>&1; then
+                    httpd_wait_safe=1
+                else
+                    cleanup_rc=77
+                fi
+            else
+                cleanup_rc=77
+            fi
+        else
+            httpd_wait_safe=1
+        fi
+        if [ -n "${HTTPD_PID:-}" ] && [ "$httpd_wait_safe" -eq 1 ]; then
             wait "$HTTPD_PID" >/dev/null 2>&1 || true
         fi
-        if [ -n "${RESPONSE_HEADER_BACKEND_PID:-}" ] && kill -0 "$RESPONSE_HEADER_BACKEND_PID" >/dev/null 2>&1; then
-            kill "$RESPONSE_HEADER_BACKEND_PID" >/dev/null 2>&1 || true
-            wait "$RESPONSE_HEADER_BACKEND_PID" >/dev/null 2>&1 || true
+        if [ -n "${HTTPD_SUPERVISOR_PID:-}" ]; then
+            wait_supervisor_bounded "$HTTPD_SUPERVISOR_PID" || cleanup_rc=77
         fi
+        "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" verify-stopped \
+            --evidence "$HTTPD_GUARD_EVIDENCE" >/dev/null 2>&1 || cleanup_rc=77
+        if [ "$cleanup_rc" -eq 0 ] && [ -n "${RUNTIME_PID_FILE:-}" ]; then
+            rm -f "$RUNTIME_PID_FILE"
+            "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" verify-stopped \
+                --evidence "$HTTPD_GUARD_EVIDENCE" --pidfile "$RUNTIME_PID_FILE" \
+                >/dev/null 2>&1 || cleanup_rc=77
+        fi
+    elif [ -n "${HTTPD_PID:-}" ]; then
+        echo "apache_smoke: blocked Apache ownership evidence is missing" >&2
+        if [ -n "${HTTPD_SUPERVISOR_STATE:-}" ] && [ -f "$HTTPD_SUPERVISOR_STATE" ]; then
+            "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" stop-supervisor \
+                --state "$HTTPD_SUPERVISOR_STATE" >/dev/null 2>&1 || true
+        fi
+        if [ -n "${HTTPD_SUPERVISOR_PID:-}" ]; then
+            wait_supervisor_bounded "$HTTPD_SUPERVISOR_PID" || cleanup_rc=77
+        fi
+        cleanup_rc=77
     fi
-    if [ -n "${RUNTIME_PID_FILE:-}" ] && ! rm -f "$RUNTIME_PID_FILE"; then
-        apache_profile_enabled && cleanup_rc=1 || :
-    fi
+    apache_profile_stop_tracked_process response-header-backend \
+        "${RESPONSE_HEADER_BACKEND_PID:-}" || cleanup_rc=77
     if [ -n "${PHASE4_ROGUE_TLS_KEY:-}" ] && ! rm -f "$PHASE4_ROGUE_TLS_KEY"; then
-        apache_profile_enabled && cleanup_rc=1 || :
+        cleanup_rc=77
+    fi
+    if [ "$cleanup_rc" -eq 0 ] && [ -n "${RUNTIME_PID_FILE:-}" ] && \
+        [ ! -f "${HTTPD_GUARD_EVIDENCE:-}" ]; then
+        rm -f "$RUNTIME_PID_FILE" || cleanup_rc=77
+    fi
+    if [ -n "${HTTPD_SUPERVISOR_STATE:-}" ] && [ -e "$HTTPD_SUPERVISOR_STATE" ]; then
+        echo "apache_smoke: blocked supervisor state remains after cleanup" >&2
+        cleanup_rc=77
+    fi
+    if [ -n "${HTTPD_SUPERVISOR_PID_OUTPUT:-}" ] && [ -e "$HTTPD_SUPERVISOR_PID_OUTPUT" ]; then
+        echo "apache_smoke: blocked supervisor PID output remains after cleanup" >&2
+        cleanup_rc=77
     fi
     if apache_profile_enabled && [ "$APACHE_PROFILE_FINAL_CLEANUP" = "1" ]; then
-        [ "$cleanup_rc" -eq 0 ] || return 1
+        [ "$cleanup_rc" -eq 0 ] || return "$cleanup_rc"
         apache_profile_publish_cleanup_receipt || return 1
     fi
     return "$cleanup_rc"
+}
+
+wait_supervisor_bounded() {
+    supervisor_wait_pid=$1
+    supervisor_wait_i=0
+    while kill -0 "$supervisor_wait_pid" >/dev/null 2>&1 && [ "$supervisor_wait_i" -lt 40 ]; do
+        supervisor_wait_i=$((supervisor_wait_i + 1))
+        sleep 0.05
+    done
+    if kill -0 "$supervisor_wait_pid" >/dev/null 2>&1; then
+        echo "apache_smoke: blocked Apache supervisor did not exit within bounded cleanup" >&2
+        return 77
+    fi
+    wait "$supervisor_wait_pid" >/dev/null 2>&1 || true
+}
+
+on_exit() {
+    exit_rc=$?
+    trap - EXIT HUP INT TERM
+    if cleanup; then
+        cleanup_rc=0
+    else
+        cleanup_rc=$?
+    fi
+    if [ "$exit_rc" -eq 0 ] && [ "$cleanup_rc" -ne 0 ]; then
+        exit_rc=$cleanup_rc
+    fi
+    exit "$exit_rc"
+}
+
+on_signal() {
+    signal_rc=$1
+    trap - EXIT HUP INT TERM
+    cleanup || :
+    exit "$signal_rc"
+}
+
+record_server_ownership() {
+    HTTPD_GUARD_EVIDENCE_CANDIDATE="$RUNTIME_ROOT/run/httpd-ownership.json"
+    if "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" record \
+        --pid "$HTTPD_PID" --executable "$APACHE_HTTPD_BIN" \
+        --port "$PORT" --output "$HTTPD_GUARD_EVIDENCE_CANDIDATE" >/dev/null; then
+        HTTPD_GUARD_EVIDENCE="$HTTPD_GUARD_EVIDENCE_CANDIDATE"
+        return 0
+    else
+        record_rc=$?
+    fi
+    HTTPD_GUARD_EVIDENCE=""
+    if [ "$record_rc" -eq "$RECORD_FAILURE_CLEANED_EXIT" ]; then
+        HTTPD_RECORD_FAILURE_CLEANED=1
+    fi
+    return "$record_rc"
 }
 
 port_is_free() {
@@ -729,7 +868,7 @@ start_synchronized_upstream() {
     SYNCHRONIZED_RELEASE_FILE="$SYNCHRONIZED_DIR/upstream-release"
     SYNCHRONIZED_SERVER_EVIDENCE_FILE="$SYNCHRONIZED_DIR/upstream-server.json"
     rm -rf "$SYNCHRONIZED_DIR"
-    mkdir -p "$SYNCHRONIZED_DIR"
+    prepare_runtime_directory "$SYNCHRONIZED_DIR" "Apache synchronized upstream" 1
     case "$APACHE_PHASE4_SYNCHRONIZED_UPSTREAM_CONTROL_ROOT" in
         0|1) ;;
         *) fail "APACHE_PHASE4_SYNCHRONIZED_UPSTREAM_CONTROL_ROOT must be 0 or 1" ;;
@@ -834,6 +973,7 @@ send_synchronized_first_byte_request() {
         set +e
         wait "$SYNCHRONIZED_UPSTREAM_PID"
         upstream_rc=$?
+        SYNCHRONIZED_UPSTREAM_PID=
         set -e
     else
         : > "$SYNCHRONIZED_RELEASE_FILE"
@@ -1028,33 +1168,38 @@ stop_stale_runtime_pid() {
     stale_pid=$(cat "$pid_file" 2>/dev/null || true)
     case "$stale_pid" in
         ""|*[!0-9]*)
+            [ ! -f "$RUNTIME_ROOT/run/httpd-ownership.json" ] || \
+                blocked "runtime pid file is invalid while Apache ownership evidence exists"
             rm -f "$pid_file"
             return 0
             ;;
         *) ;;
     esac
-    if ! kill -0 "$stale_pid" >/dev/null 2>&1; then
-        rm -f "$pid_file"
-        return 0
-    fi
-    stale_cmd=$(tr '\0' ' ' < "/proc/$stale_pid/cmdline" 2>/dev/null || true)
-    case "$stale_cmd" in
-        *"$RUNTIME_ROOT"*) ;;
-        *)
-            blocked "runtime pid file points to non-smoke process pid=$stale_pid command=$stale_cmd"
-            ;;
-    esac
-    echo "apache_smoke: stopping stale runtime process pid=$stale_pid"
-    kill "$stale_pid" >/dev/null 2>&1 || true
-    wait_count=0
-    while kill -0 "$stale_pid" >/dev/null 2>&1 && [ "$wait_count" -lt 10 ]; do
-        wait_count=$((wait_count + 1))
-        sleep 1
-    done
-    if kill -0 "$stale_pid" >/dev/null 2>&1; then
-        blocked "stale runtime process did not stop pid=$stale_pid"
+    stale_guard="$RUNTIME_ROOT/run/httpd-ownership.json"
+    [ -f "$stale_guard" ] || blocked "runtime pid file has no verified Apache ownership evidence"
+    "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" verify-pid \
+        --evidence "$stale_guard" --pid "$stale_pid" >/dev/null || \
+        blocked "runtime pid file PID does not match verified Apache evidence"
+    echo "apache_smoke: stopping stale verified runtime process pid=$stale_pid"
+    if ! "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" terminate \
+        --evidence "$stale_guard" >/dev/null; then
+        "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" verify-stopped \
+            --evidence "$stale_guard" >/dev/null || \
+            blocked "stale runtime process identity or listener ownership changed"
     fi
     rm -f "$pid_file"
+    "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" verify-stopped \
+        --evidence "$stale_guard" --pidfile "$pid_file" >/dev/null || \
+        blocked "stale Apache listener cleanup could not be proven"
+}
+
+retire_stale_guard_evidence() {
+    stale_guard="$RUNTIME_ROOT/run/httpd-ownership.json"
+    [ -f "$stale_guard" ] || return 0
+    "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" verify-stopped \
+        --evidence "$stale_guard" >/dev/null || \
+        blocked "stale Apache ownership evidence cannot be retired safely"
+    rm -f "$stale_guard"
 }
 
 bind_conflict_seen() {
@@ -1087,12 +1232,33 @@ start_server() {
             return 0
         fi
 
-        "$APACHE_HTTPD_BIN" -X -f "$CONFIG_FILE" > "$LOG_DIR/httpd.log" 2>&1 &
-        HTTPD_PID=$!
+        HTTPD_SUPERVISOR_STATE="$RUNTIME_ROOT/run/httpd-supervisor-state.json"
+        HTTPD_SUPERVISOR_PID_OUTPUT="$RUNTIME_ROOT/run/httpd-supervisor.pid"
+        MSCONNECTOR_APACHE_GUARD_HTTPD="$APACHE_HTTPD_BIN" \
+            "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" supervise \
+            --state "$HTTPD_SUPERVISOR_STATE" \
+            --pid-output "$HTTPD_SUPERVISOR_PID_OUTPUT" \
+            > /dev/null 2> "$LOG_DIR/httpd.log" &
+        HTTPD_SUPERVISOR_PID=$!
+        i=0
+        while [ "$i" -lt 20 ] && [ ! -s "$HTTPD_SUPERVISOR_PID_OUTPUT" ]; do
+            if ! kill -0 "$HTTPD_SUPERVISOR_PID" >/dev/null 2>&1; then
+                fail "Apache supervisor exited during launch; see $LOG_DIR/httpd.log"
+            fi
+            i=$((i + 1))
+            sleep 0.05
+        done
+        [ -s "$HTTPD_SUPERVISOR_PID_OUTPUT" ] || fail "Apache supervisor did not publish child PID"
+        HTTPD_PID=$(sed -n '1p' "$HTTPD_SUPERVISOR_PID_OUTPUT")
+        case "$HTTPD_PID" in
+            ''|*[!0-9]*) fail "Apache supervisor published an invalid child PID" ;;
+        esac
 
         if [ "$MSCONNECTOR_SMOKE_STAGE" = "start_smoke" ]; then
             sleep 1
             if kill -0 "$HTTPD_PID" >/dev/null 2>&1; then
+                record_server_ownership || \
+                    blocked "Apache listener ownership could not be proven"
                 return 0
             fi
             fail "Apache exited during request-free start smoke; see $LOG_DIR/httpd.log"
@@ -1128,6 +1294,8 @@ start_server() {
         done
 
         if [ "$ready" -eq 1 ]; then
+            record_server_ownership || \
+                blocked "Apache listener ownership could not be proven"
             return 0
         fi
         fail "Apache did not become ready on 127.0.0.1:$PORT"
@@ -2284,7 +2452,7 @@ write_phase4_terminal_test_support() {
     [ -x "$APXS_BIN" ] || blocked "missing APXS for Phase-4 rogue test: $APXS_BIN"
     [ -f "$SCRIPT_DIR/mod_phase4_terminal_rogue.c" ] || \
         blocked "missing Phase-4 rogue test source"
-    mkdir -p "$RUNTIME_ROOT/modules"
+    prepare_runtime_directory "$RUNTIME_ROOT/modules" "Apache runtime modules" 1
     cp "$SCRIPT_DIR/mod_phase4_terminal_rogue.c" "$PHASE4_ROGUE_SOURCE" || \
         not_executable "could not stage Phase-4 rogue test source"
     if ! "$APXS_BIN" -c -o "$PHASE4_ROGUE_OUTPUT" \
@@ -2413,6 +2581,7 @@ case_name=$(basename "$TEST_CASE" .yaml)
 if [ -z "$RUNTIME_ROOT" ]; then
     RUNTIME_ROOT="$RUNTIME_BASE/$case_name"
 fi
+export MSCONNECTOR_APACHE_GUARD_ARTIFACT_ROOT="$RUNTIME_ROOT"
 STATUS_FILE="$LOG_DIR/status.txt"
 
 echo "apache_smoke: BUILD_ROOT=$BUILD_ROOT"
@@ -2445,13 +2614,30 @@ if [ "$RUN_ONE_CASE" = "1" ]; then
             --results-dir "$RESULTS_DIR" || \
             blocked "Apache profile results directory is unsafe"
     else
-        mkdir -p "$RESULTS_DIR"
+        prepare_runtime_directory "$RESULTS_DIR" "RESULTS_DIR" 0
     fi
 fi
 
 RUNTIME_PID_FILE="$RUNTIME_ROOT/logs/httpd.pid"
+HTTPD_SUPERVISOR_STATE="$RUNTIME_ROOT/run/httpd-supervisor-state.json"
+HTTPD_SUPERVISOR_PID_OUTPUT="$RUNTIME_ROOT/run/httpd-supervisor.pid"
 
-mkdir -p "$LOG_DIR" "$LOG_DIR/audit" "$RUNTIME_ROOT/conf" "$RUNTIME_ROOT/logs" "$RUNTIME_ROOT/htdocs" "$RUNTIME_ROOT/run"
+prepare_runtime_directory "$RUNTIME_ROOT" "RUNTIME_ROOT" 1
+prepare_runtime_directory "$RUNTIME_ROOT/conf" "Apache runtime conf" 1
+prepare_runtime_directory "$RUNTIME_ROOT/logs" "Apache runtime logs" 1
+prepare_runtime_directory "$RUNTIME_ROOT/htdocs" "Apache runtime document root" 1
+prepare_runtime_directory "$RUNTIME_ROOT/run" "Apache runtime state" 1
+prepare_runtime_directory "$RUNTIME_ROOT/modules" "Apache runtime modules" 1
+prepare_runtime_directory "$LOG_DIR/audit" "Apache audit logs" 1
+[ ! -L "$RUNTIME_ROOT/run" ] || blocked "Apache runtime run directory must not be a symlink"
+chmod 700 "$RUNTIME_ROOT/run"
+if [ -e "$HTTPD_SUPERVISOR_STATE" ] || [ -L "$HTTPD_SUPERVISOR_STATE" ] || \
+    [ -e "$HTTPD_SUPERVISOR_PID_OUTPUT" ] || [ -L "$HTTPD_SUPERVISOR_PID_OUTPUT" ]; then
+    MSCONNECTOR_APACHE_GUARD_ARTIFACT_ROOT="$RUNTIME_ROOT" \
+        "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" retire-supervisor-artifact \
+        --state "$HTTPD_SUPERVISOR_STATE" --pid-output "$HTTPD_SUPERVISOR_PID_OUTPUT" >/dev/null || \
+        blocked "stale Apache supervisor session is unsafe"
+fi
 : > "$STATUS_FILE"
 if [ -n "$APACHE_PROFILE_CLEANUP_RECEIPT" ] || [ -n "$APACHE_PROFILE_CELL_RUN_ID" ] || \
     [ -n "$APACHE_PROFILE_GITHUB_RUN_ID" ] || [ -n "$APACHE_PROFILE_GITHUB_RUN_ATTEMPT" ]; then
@@ -2461,6 +2647,7 @@ if [ -n "$APACHE_PROFILE_CLEANUP_RECEIPT" ] || [ -n "$APACHE_PROFILE_CELL_RUN_ID
         blocked "Apache profile evidence helper is missing: $APACHE_PROFILE_EVIDENCE_SCRIPT"
 fi
 stop_stale_runtime_pid "$RUNTIME_PID_FILE"
+retire_stale_guard_evidence
 rm -f "$RUNTIME_ROOT/logs/"* \
     "$LOG_DIR/configtest.log" \
     "$LOG_DIR/curl-attack.err" \
@@ -2489,6 +2676,10 @@ fi
 
 [ -n "$APACHE_HTTPD_BIN" ] || blocked "missing Apache httpd executable; set APACHE_HTTPD=/path/to/apache2-or-httpd"
 [ -x "$APACHE_HTTPD_BIN" ] || blocked "Apache executable is not executable: $APACHE_HTTPD_BIN"
+[ -x "$(command -v "$SETSID_BIN" 2>/dev/null || true)" ] || \
+    blocked "missing setsid required for isolated Apache cleanup session"
+"$PYTHON_BIN" "$APACHE_PROCESS_GUARD" preflight >/dev/null || \
+    blocked "Apache ownership guard/pidfd/proc preflight failed"
 if [ "$MSCONNECTOR_SMOKE_STAGE" = "minimal_runtime_smoke" ]; then
     [ -n "$CURL_BIN" ] || blocked "missing curl; set CURL=/path/to/curl"
     [ -x "$CURL_BIN" ] || blocked "curl is not executable: $CURL_BIN"
@@ -2591,7 +2782,10 @@ write_phase4_terminal_test_support
 LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR:$HTTPD_PREFIX/lib:$PCRE2_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export LD_LIBRARY_PATH
 
-trap cleanup EXIT INT TERM
+trap on_exit EXIT
+trap 'on_signal 129' HUP
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
 start_server
 
 if [ "$MSCONNECTOR_SMOKE_STAGE" = "config_load" ]; then

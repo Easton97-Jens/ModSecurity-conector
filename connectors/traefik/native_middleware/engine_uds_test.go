@@ -26,6 +26,19 @@ type udsTestCall struct {
 	payload []byte
 }
 
+type udsWriteNotificationConn struct {
+	net.Conn
+	writes chan<- struct{}
+}
+
+func (connection *udsWriteNotificationConn) Write(payload []byte) (int, error) {
+	select {
+	case connection.writes <- struct{}{}:
+	default:
+	}
+	return connection.Conn.Write(payload)
+}
+
 type udsTestServer struct {
 	listener net.Listener
 	results  map[byte]udsTestResult
@@ -415,6 +428,352 @@ func TestUDSEngineUsesOneSessionForFullLifecycle(t *testing.T) {
 	})
 	if countUDSCalls(calls, udsOpcodeBegin) != 1 || countUDSCalls(calls, udsOpcodeDestroy) != 1 {
 		t.Fatalf("expected exactly one UDS session, calls=%#v", calls)
+	}
+}
+
+func TestUDSEngineCancellationClosesBlockedConnection(t *testing.T) {
+	client, server := net.Pipe()
+	transaction := &unixSocketTransaction{
+		connection: client,
+		timeout:    time.Second,
+		metadata: Metadata{
+			Method:     http.MethodGet,
+			RequestURI: "/cancel",
+		},
+	}
+	t.Cleanup(func() {
+		_ = client.Close()
+		_ = server.Close()
+	})
+
+	requestRead := make(chan struct{})
+	serverDone := make(chan struct{})
+	go func() {
+		defer close(serverDone)
+		if _, _, err := readUDSFrame(server); err != nil {
+			return
+		}
+		close(requestRead)
+		_, _, _ = readUDSFrame(server)
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+	go func() {
+		_, err := transaction.ProcessHeaders(ctx, DirectionRequest, nil, true)
+		result <- err
+	}()
+	select {
+	case <-requestRead:
+	case <-time.After(time.Second):
+		t.Fatal("UDS cancellation test did not receive request frame")
+	}
+	cancel()
+
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("ProcessHeaders() error = %v, want context.Canceled", err)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("canceled UDS read remained blocked")
+	}
+	if transaction.connection != nil {
+		t.Fatal("canceled UDS transaction retained its connection")
+	}
+	if !transaction.closed {
+		t.Fatal("canceled UDS transaction was not made terminal")
+	}
+
+	select {
+	case <-serverDone:
+	case <-time.After(time.Second):
+		t.Fatal("canceled UDS peer did not observe connection cleanup")
+	}
+
+	// Close is intentionally idempotent after cancellation cleanup.
+	transaction.Close(context.Background(), Summary{})
+}
+
+func TestUDSEngineTimeoutClosesBlockedConnection(t *testing.T) {
+	client, server := net.Pipe()
+	transaction := &unixSocketTransaction{
+		connection: client,
+		timeout:    20 * time.Millisecond,
+		metadata: Metadata{
+			Method:     http.MethodGet,
+			RequestURI: "/timeout",
+		},
+	}
+	t.Cleanup(func() {
+		_ = client.Close()
+		_ = server.Close()
+	})
+
+	requestRead := make(chan struct{})
+	serverDone := make(chan struct{})
+	go func() {
+		defer close(serverDone)
+		if _, _, err := readUDSFrame(server); err != nil {
+			return
+		}
+		close(requestRead)
+		_, _, _ = readUDSFrame(server)
+	}()
+
+	result := make(chan error, 1)
+	started := time.Now()
+	go func() {
+		_, err := transaction.ProcessHeaders(context.Background(), DirectionRequest, nil, true)
+		result <- err
+	}()
+	select {
+	case <-requestRead:
+	case <-time.After(time.Second):
+		t.Fatal("UDS timeout test did not receive request frame")
+	}
+
+	select {
+	case err := <-result:
+		var networkErr net.Error
+		if !errors.As(err, &networkErr) || !networkErr.Timeout() {
+			t.Fatalf("ProcessHeaders() error = %v, want timeout", err)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("timed-out UDS read remained blocked")
+	}
+	if elapsed := time.Since(started); elapsed > 500*time.Millisecond {
+		t.Fatalf("UDS timeout took %s", elapsed)
+	}
+	if transaction.connection != nil || !transaction.closed {
+		t.Fatalf("timed-out UDS transaction state = connection:%v closed:%t", transaction.connection != nil, transaction.closed)
+	}
+	select {
+	case <-serverDone:
+	case <-time.After(time.Second):
+		t.Fatal("timed-out UDS peer did not observe connection cleanup")
+	}
+
+	socketPath, followUpServer := startUDSTestServer(t, nil)
+	engine := &unixSocketEngine{socketPath: socketPath, timeout: time.Second}
+	followUp, err := engine.Open(context.Background(), Metadata{Method: http.MethodGet, RequestURI: "/timeout-follow-up"})
+	if err != nil {
+		t.Fatalf("follow-up Open() error = %v", err)
+	}
+	decision, err := followUp.ProcessHeaders(context.Background(), DirectionRequest, nil, true)
+	if err != nil {
+		t.Fatalf("follow-up ProcessHeaders() error = %v", err)
+	}
+	if decision.Action != ActionAllow {
+		t.Fatalf("follow-up decision = %#v, want allow", decision)
+	}
+	followUp.Close(context.Background(), Summary{})
+	calls := followUpServer.wait(t)
+	if countUDSCalls(calls, udsOpcodeBegin) != 1 || countUDSCalls(calls, udsOpcodeDestroy) != 1 {
+		t.Fatalf("follow-up UDS lifecycle was not completed: %#v", calls)
+	}
+}
+
+func TestUDSEngineCancellationClosesBlockedWriteConnection(t *testing.T) {
+	client, server := net.Pipe()
+	writeStarted := make(chan struct{}, 1)
+	transaction := &unixSocketTransaction{
+		connection: &udsWriteNotificationConn{Conn: client, writes: writeStarted},
+		timeout:    time.Second,
+		metadata: Metadata{
+			Method:     http.MethodGet,
+			RequestURI: "/cancel-write",
+		},
+	}
+	t.Cleanup(func() {
+		_ = client.Close()
+		_ = server.Close()
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+	go func() {
+		_, err := transaction.ProcessHeaders(ctx, DirectionRequest, nil, true)
+		result <- err
+	}()
+	select {
+	case <-writeStarted:
+	case <-time.After(time.Second):
+		t.Fatal("UDS cancellation test did not begin a blocked write")
+	}
+	cancel()
+
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("ProcessHeaders() error = %v, want context.Canceled", err)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("canceled UDS write remained blocked")
+	}
+	if transaction.connection != nil || !transaction.closed {
+		t.Fatalf("canceled UDS transaction state = connection:%v closed:%t", transaction.connection != nil, transaction.closed)
+	}
+}
+
+func TestUDSEngineInvalidOrIncompleteResultDiscardsConnection(t *testing.T) {
+	testCases := []struct {
+		name          string
+		writeResponse func(net.Conn)
+		wantError     error
+	}{
+		{
+			name: "invalid opcode",
+			writeResponse: func(connection net.Conn) {
+				_ = writeUDSConnectionFrame(connection, udsOpcodeOutcome, nil)
+			},
+			wantError: errUDSEngineProtocol,
+		},
+		{
+			name: "truncated frame",
+			writeResponse: func(connection net.Conn) {
+				frame, err := makeUDSFrame(udsOpcodeResult, []byte{0, 0, 0, 0})
+				if err != nil {
+					return
+				}
+				_, _ = connection.Write(frame[:udsFrameHeaderSize+1])
+			},
+			wantError: io.ErrUnexpectedEOF,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			client, server := net.Pipe()
+			transaction := &unixSocketTransaction{
+				connection: client,
+				timeout:    time.Second,
+				metadata:   Metadata{Method: http.MethodGet, RequestURI: "/invalid-result"},
+			}
+			t.Cleanup(func() {
+				_ = client.Close()
+				_ = server.Close()
+			})
+			serverDone := make(chan struct{})
+			go func() {
+				defer close(serverDone)
+				defer server.Close()
+				if _, _, err := readUDSFrame(server); err == nil {
+					testCase.writeResponse(server)
+				}
+			}()
+
+			_, err := transaction.ProcessHeaders(context.Background(), DirectionRequest, nil, true)
+			if !errors.Is(err, testCase.wantError) {
+				t.Fatalf("ProcessHeaders() error = %v, want %v", err, testCase.wantError)
+			}
+			if transaction.connection != nil || !transaction.closed {
+				t.Fatalf("invalid-result UDS transaction state = connection:%v closed:%t", transaction.connection != nil, transaction.closed)
+			}
+			select {
+			case <-serverDone:
+			case <-time.After(time.Second):
+				t.Fatal("invalid-result UDS peer did not complete")
+			}
+
+			socketPath, followUpServer := startUDSTestServer(t, nil)
+			engine := &unixSocketEngine{socketPath: socketPath, timeout: time.Second}
+			followUp, err := engine.Open(context.Background(), Metadata{Method: http.MethodGet, RequestURI: "/invalid-result-follow-up"})
+			if err != nil {
+				t.Fatalf("follow-up Open() error = %v", err)
+			}
+			decision, err := followUp.ProcessHeaders(context.Background(), DirectionRequest, nil, true)
+			if err != nil {
+				t.Fatalf("follow-up ProcessHeaders() error = %v", err)
+			}
+			if decision.Action != ActionAllow {
+				t.Fatalf("follow-up decision = %#v, want allow", decision)
+			}
+			followUp.Close(context.Background(), Summary{})
+			calls := followUpServer.wait(t)
+			if countUDSCalls(calls, udsOpcodeBegin) != 1 || countUDSCalls(calls, udsOpcodeDestroy) != 1 {
+				t.Fatalf("follow-up UDS lifecycle was not completed: %#v", calls)
+			}
+		})
+	}
+}
+
+func TestUDSEngineCancellationAllowsFollowUpTransaction(t *testing.T) {
+	firstClient, firstServer := net.Pipe()
+	firstTransaction := &unixSocketTransaction{
+		connection: firstClient,
+		timeout:    time.Second,
+		metadata:   Metadata{Method: http.MethodGet, RequestURI: "/first"},
+	}
+	firstRequestRead := make(chan struct{})
+	go func() {
+		defer firstServer.Close()
+		_, _, _ = readUDSFrame(firstServer)
+		close(firstRequestRead)
+		_, _, _ = readUDSFrame(firstServer)
+	}()
+	ctx, cancel := context.WithCancel(context.Background())
+	firstResult := make(chan error, 1)
+	go func() {
+		_, err := firstTransaction.ProcessHeaders(ctx, DirectionRequest, nil, true)
+		firstResult <- err
+	}()
+	select {
+	case <-firstRequestRead:
+	case <-time.After(time.Second):
+		t.Fatal("first UDS transaction did not send request")
+	}
+	cancel()
+	select {
+	case err := <-firstResult:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("first ProcessHeaders() error = %v, want context.Canceled", err)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("first canceled UDS transaction remained blocked")
+	}
+
+	socketPath, server := startUDSTestServer(t, nil)
+	engine := &unixSocketEngine{socketPath: socketPath, timeout: time.Second}
+	followUp, err := engine.Open(context.Background(), Metadata{Method: http.MethodGet, RequestURI: "/follow-up"})
+	if err != nil {
+		t.Fatalf("follow-up Open() error = %v", err)
+	}
+	decision, err := followUp.ProcessHeaders(context.Background(), DirectionRequest, nil, true)
+	if err != nil {
+		t.Fatalf("follow-up ProcessHeaders() error = %v", err)
+	}
+	if decision.Action != ActionAllow {
+		t.Fatalf("follow-up decision = %#v, want allow", decision)
+	}
+	followUp.Close(context.Background(), Summary{})
+	calls := server.wait(t)
+	if countUDSCalls(calls, udsOpcodeBegin) != 1 || countUDSCalls(calls, udsOpcodeDestroy) != 1 {
+		t.Fatalf("follow-up UDS lifecycle was not completed: %#v", calls)
+	}
+}
+
+func TestUDSEngineCloseWithCanceledContextDiscardsConnectionWithoutPanic(t *testing.T) {
+	client, server := net.Pipe()
+	t.Cleanup(func() {
+		_ = client.Close()
+		_ = server.Close()
+	})
+	transaction := &unixSocketTransaction{
+		connection: client,
+		timeout:    time.Second,
+		begun:      true,
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	transaction.Close(ctx, Summary{})
+
+	if !transaction.closed {
+		t.Fatal("Close() did not retain the terminal transaction state")
+	}
+	if transaction.connection != nil {
+		t.Fatal("Close() retained a connection after canceled cleanup")
 	}
 }
 

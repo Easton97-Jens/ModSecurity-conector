@@ -6,6 +6,8 @@ testData:
   maxHeaderCount: 128
   maxHeaderBytes: 65536
   maxRequestChunkBytes: 32768
+  maxRequestBodyBytes: 1048576
+  requestBodyIdleTimeoutMillis: 1000
   maxResponseChunkBytes: 32768
   transactionIDHeader: X-Request-Id
   engineMode: uds

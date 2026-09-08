@@ -441,7 +441,7 @@ int main(void)
         )
         accept_loop = source[accept_loop_start:accept_loop_end]
         failed_accept_start = accept_loop.index("if (fd < 0) {")
-        success_start = accept_loop.index("handle_connection(", failed_accept_start)
+        success_start = accept_loop.index("pthread_mutex_lock(&gate.lock)", failed_accept_start)
         failed_accept = accept_loop[failed_accept_start:success_start]
         terminal_error_start = failed_accept.index("if (errno != EINTR) {")
         interrupted_stop_start = failed_accept.index("if (stop_requested) {")
@@ -454,10 +454,11 @@ int main(void)
         self.assertIn(
             'log_line(log, "accept failed errno=%d", errno);', terminal_error
         )
-        self.assertIn("return 1;", terminal_error)
+        self.assertIn("loop_rc = 1;", terminal_error)
+        self.assertIn("break;", terminal_error)
         self.assertLess(
             terminal_error.index('log_line(log, "accept failed errno=%d", errno);'),
-            terminal_error.index("return 1;"),
+            terminal_error.index("loop_rc = 1;"),
         )
         self.assertNotIn("if (stop_requested)", terminal_error)
         self.assertIn("break;", interrupted_accept)
@@ -471,12 +472,15 @@ int main(void)
         self.assertNotIn("handled++;", failed_accept)
 
         success_path = accept_loop[success_start:]
-        self.assertLess(
-            success_path.index("handle_connection("), success_path.index("close(fd);")
+        self.assertIn("if (gate.active >= gate.limit)", success_path)
+        self.assertIn(
+            '"event=spop-peer-capacity-rejected action=close reason=worker-capacity"',
+            success_path,
         )
-        self.assertLess(
-            success_path.index("close(fd);"), success_path.index("handled++;"),
-        )
+        self.assertIn("gate.active++", success_path)
+        self.assertIn("pthread_create(&thread", success_path)
+        self.assertIn("close(fd);", success_path)
+        self.assertIn("handled++;", success_path)
 
     def test_haproxy_legacy_spop_path_has_bounded_timeout(self) -> None:
         source = (
@@ -493,20 +497,20 @@ int main(void)
         )
         handle = source[handle_start:handle_end]
         self.assertIn(
-            "state != 0 ? state->config.spoe_timeout_ms :\n        SPOP_LEGACY_TIMEOUT_MS",
+            "peer_timeout_ms != 0U ? peer_timeout_ms :\n        (state != 0 ? state->config.spoe_timeout_ms : SPOP_LEGACY_TIMEOUT_MS)",
             handle,
         )
         self.assertNotIn(
             "state != 0 ? state->config.spoe_timeout_ms : 0U", handle
         )
         self.assertIn(
-            "config->spoe_timeout_ms = SPOP_LEGACY_TIMEOUT_MS;", source
+            "config->spoe_timeout_ms = 2000U;", source
         )
         scalar_start = source.index("static int config_set_scalar_identity(")
         scalar_end = source.index("static int config_set_endpoint(", scalar_start)
         scalar = source[scalar_start:scalar_end]
         self.assertIn(
-            "return parse_bounded_uint(value, 600000UL, &config->spoe_timeout_ms) == 0 ? 1 : -1;",
+            "return parse_bounded_uint(value, 60000UL, &config->spoe_timeout_ms) == 0 ? 1 : -1;",
             scalar,
         )
 
@@ -519,7 +523,8 @@ int main(void)
             / "haproxy_spop_diagnostic_runtime.c"
         ).read_text(encoding="utf-8")
         self.assertIn("#define SPOP_DEFAULT_MAX_TRANSACTIONS 4096U", source)
-        self.assertIn("#define SPOP_MAX_TRANSACTIONS 65536U", source)
+        self.assertIn("#define SPOP_MAX_TRANSACTIONS 4096U", source)
+        self.assertIn("#define SPOP_MAX_TRANSACTION_SLOTS_TOTAL 65536U", source)
 
         config_start = source.index('if (strcmp(key, "max-transactions") == 0)')
         config_end = source.index(
@@ -537,7 +542,10 @@ int main(void)
             "static transaction_slot *transaction_slot_find", cache_start
         )
         cache = source[cache_start:cache_end]
-        self.assertIn("if (state == 0)", cache)
+        self.assertIn(
+            "if (state == 0 || !production_config_has_safe_peer_limits(&state->config))",
+            cache,
+        )
         self.assertIn("capacity > SIZE_MAX / sizeof(*state->transactions)", cache)
         self.assertLess(cache.index("capacity > SIZE_MAX"), cache.index("calloc("))
         self.assertIn("SPOP_DEFAULT_MAX_TRANSACTIONS", cache)
@@ -607,6 +615,37 @@ static unsigned int cached_transaction_finish_calls;
 static unsigned int transaction_begin_calls;
 static int transaction_begin_result = 1;
 static int transaction_begin_disruptive;
+static int transport_stop_result = 1;
+static int transport_stop_hangs;
+
+int msconnector_response_companion_transport_stop(
+        msconnector_response_companion_transport *transport,
+        msconnector_error *error) {
+    (void)transport;
+    (void)error;
+    while (transport_stop_hangs) {
+        pause();
+    }
+    return transport_stop_result;
+}
+
+void haproxy_spop_response_companion_backend_expire(
+        haproxy_spop_response_companion_backend *backend, uint64_t now_ms) {
+    (void)backend;
+    (void)now_ms;
+}
+
+int haproxy_spop_response_companion_backend_destroy(
+        haproxy_spop_response_companion_backend *backend,
+        msconnector_error *error) {
+    (void)backend;
+    (void)error;
+    return 1;
+}
+
+void haproxy_modsecurity_engine_destroy(haproxy_modsecurity_engine *engine) {
+    (void)engine;
+}
 
 int haproxy_modsecurity_transaction_finish(
         haproxy_modsecurity_transaction *transaction) {
@@ -1074,15 +1113,10 @@ static void test_spop_rejects_overflow_and_truncated_protocol_values(void) {
     unsigned char too_wide[] = {240U, 0x80U, 0x80U, 0x80U, 0x80U,
         0x80U, 0x80U, 0x80U, 0x80U, 0x10U};
     static const unsigned char truncated_notify[] = {5U, 'c', 'h', 'e', 'c'};
-    static const unsigned char missing_count[] = {
-        13U, 'c', 'h', 'e', 'c', 'k', '-', 'r', 'e', 'q', 'u', 'e', 's', 't'
-    };
-    static const unsigned char zero_count[] = {
-        13U, 'c', 'h', 'e', 'c', 'k', '-', 'r', 'e', 'q', 'u', 'e', 's', 't', 0U
-    };
     char boundary_uri[MSCONNECTOR_MAX_PATH_LENGTH + 1U];
     char oversized_uri[MSCONNECTOR_MAX_PATH_LENGTH + 2U];
     spop_buffer argument;
+    spop_buffer notify;
     notify_request request;
     size_t pos;
     uint64_t decoded;
@@ -1106,14 +1140,17 @@ static void test_spop_rejects_overflow_and_truncated_protocol_values(void) {
     assert(request.has_notify == 0);
     free_notify_request(&request);
 
+    /* A declared message-name length cannot consume the absent count byte. */
+    /* A complete zero-argument control still parses through the same header. */
+    memset(&notify, 0, sizeof(notify));
+    assert(append_string(&notify, "check-request") == 0);
     memset(&request, 0, sizeof(request));
-    assert(parse_notify_payload(missing_count, sizeof(missing_count),
-        &request) == -1);
+    assert(parse_notify_payload(notify.data, notify.len, &request) == -1);
     assert(request.has_notify == 0);
     free_notify_request(&request);
-
+    assert(append_byte(&notify, 0U) == 0);
     memset(&request, 0, sizeof(request));
-    assert(parse_notify_payload(zero_count, sizeof(zero_count), &request) == 0);
+    assert(parse_notify_payload(notify.data, notify.len, &request) == 0);
     assert(request.has_notify == 1);
     assert(request.is_response == 0);
     assert(strcmp(request.message_name, "check-request") == 0);
@@ -1466,6 +1503,65 @@ static void test_spop_valid_engine_decision_stays_detect_only(void) {
     transaction_begin_disruptive = 0;
 }
 
+static void test_spop_valid_engine_block_is_enforced_after_owner_queue(void) {
+    int sockets[2] = {-1, -1};
+    agent_state state;
+    notify_request request;
+    spop_frame frame;
+    spop_frame ack;
+    spop_buffer ack_payload;
+
+    memset(&state, 0, sizeof(state));
+    config_init(&state.config);
+    /* The explicit availability override must not bypass a successful
+     * blocking engine decision. */
+    copy_spop_string(state.config.fail_mode, sizeof(state.config.fail_mode),
+        (const unsigned char *)"open", sizeof("open") - 1U);
+    state.engine = (haproxy_modsecurity_engine *)(uintptr_t)1U;
+    assert(production_ack_enforces(&state.config, SPOP_ACK_ENGINE_DECISION));
+    assert(spop_owner_queue_init(&state) == 0);
+    memset(&request, 0, sizeof(request));
+    request.has_method = 1;
+    request.has_path = 1;
+    request.has_uri = 1;
+    request.has_host = 1;
+    request.has_client_ip = 1;
+    request.has_server_ip = 1;
+    copy_spop_string(request.method, sizeof(request.method),
+        (const unsigned char *)"GET", sizeof("GET") - 1U);
+    copy_spop_string(request.path, sizeof(request.path),
+        (const unsigned char *)"/", sizeof("/") - 1U);
+    copy_spop_string(request.uri, sizeof(request.uri),
+        (const unsigned char *)"/", sizeof("/") - 1U);
+    copy_spop_string(request.host, sizeof(request.host),
+        (const unsigned char *)"example.test", sizeof("example.test") - 1U);
+    copy_spop_string(request.client_ip, sizeof(request.client_ip),
+        (const unsigned char *)"192.0.2.10", sizeof("192.0.2.10") - 1U);
+    copy_spop_string(request.server_ip, sizeof(request.server_ip),
+        (const unsigned char *)"198.51.100.10", sizeof("198.51.100.10") - 1U);
+    memset(&frame, 0, sizeof(frame));
+    frame.type = SPOP_FRM_NOTIFY;
+    frame.stream_id = 19U;
+    frame.frame_id = 23U;
+    transaction_begin_calls = 0U;
+    transaction_begin_result = 0;
+    transaction_begin_disruptive = 1;
+    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
+    assert(process_production_notify(sockets[0], &frame, &state, 0,
+        &request) == 0);
+    assert(recv_frame(sockets[1], &ack, SPOP_LEGACY_TIMEOUT_MS) == 0);
+    memset(&ack_payload, 0, sizeof(ack_payload));
+    ack_payload.len = ack.payload_len;
+    memcpy(ack_payload.data, ack.payload, ack.payload_len);
+    assert(payload_has_set_var_blocked_true(&ack_payload));
+    assert(transaction_begin_calls == 1U);
+    assert(close(sockets[0]) == 0);
+    assert(close(sockets[1]) == 0);
+    spop_owner_queue_destroy(&state);
+    transaction_begin_result = 1;
+    transaction_begin_disruptive = 0;
+}
+
 static void test_spop_malformed_notify_ack_stays_blocking_in_detect_only(void) {
     int sockets[2] = {-1, -1};
     agent_state state;
@@ -1655,11 +1751,15 @@ static void test_spop_rejects_unenforced_timeout_and_worker_settings(void) {
     assert(config_set(&config, "spoe-timeout", "25") == 0);
     assert(config.spoe_timeout_ms == 25U);
     assert(config_set(&config, "spoe-timeout", "0") == -1);
-    assert(config_set(&config, "worker-count", "2") == -1);
-    assert(config_set(&config, "response-body-timeout", "5") == -1);
-    assert(config_set(&config, "max-transactions", "65536") == 0);
+    assert(config_set(&config, "worker-count", "2") == 0);
+    /* Parsing keeps the bounded value so native-htx can use it, but the
+     * response-companion=none production profile rejects it before startup. */
+    assert(config_set(&config, "response-body-timeout", "5") == 0);
+    assert(config.response_body_timeout_ms == 5U);
+    assert(validate_production_config(&config) != 0);
+    assert(config_set(&config, "max-transactions", "4096") == 0);
     assert(config.max_transactions == SPOP_MAX_TRANSACTIONS);
-    assert(config_set(&config, "max-transactions", "65537") == -1);
+    assert(config_set(&config, "max-transactions", "4097") == -1);
     assert(config_set(&config, "max-transactions", "0") == -1);
     assert(config_set(&config, "max-transactions", "999999999999999999999") == -1);
     assert(config_set(&config, "request-body-limit", "10485760") == 0);
@@ -1675,6 +1775,132 @@ static void test_spop_rejects_unenforced_timeout_and_worker_settings(void) {
     assert(config_set(&config, "port", "65536") == -1);
     assert(config_set(&config, "port", "0") == -1);
     assert(config_set(&config, "port", "4294967296") == -1);
+}
+
+static void test_spop_listener_enforces_loopback_at_every_boundary(void) {
+    agent_config config;
+    unsigned int bound_port = 0U;
+    int fd;
+
+    config_init(&config);
+    assert(config_set(&config, "host", "0.0.0.0") == -1);
+    assert(strcmp(config.host, "127.0.0.1") == 0);
+    assert(config_set(&config, "host", "192.0.2.1") == -1);
+    assert(config_set(&config, "host", "127.0.0.1") == 0);
+    assert(parse_listen(&config, "0.0.0.0:12345") == -1);
+    assert(strcmp(config.host, "127.0.0.1") == 0);
+    assert(parse_listen(&config, "192.0.2.1:12345") == -1);
+    assert(parse_listen(&config, "127.0.0.1:12345") == 0);
+    assert(config.port == 12345U);
+    assert(validate_production_config(&config) == 0);
+    copy_spop_string(config.host, sizeof(config.host),
+        (const unsigned char *)"0.0.0.0", sizeof("0.0.0.0") - 1U);
+    assert(validate_production_config(&config) == -1);
+    assert(bind_localhost("0.0.0.0", 0U, &bound_port) == -1);
+    fd = bind_localhost("127.0.0.1", 0U, &bound_port);
+    assert(fd >= 0);
+    assert(bound_port != 0U);
+    close(fd);
+}
+
+static void test_spop_unquiesced_owner_uses_direct_restart_exit(void) {
+    pid_t child = fork();
+    int status = 0;
+
+    assert(child >= 0);
+    if (child == 0) {
+        agent_state state;
+        spop_owner_queue_gate_context gate;
+        spop_owner_queue_submit_thread submitter;
+        pthread_t submitter_thread;
+        FILE *log = 0;
+        FILE *decision_log = 0;
+
+        memset(&state, 0, sizeof(state));
+        memset(&gate, 0, sizeof(gate));
+        if (spop_owner_queue_init(&state) != 0 ||
+                pthread_mutex_init(&gate.lock, 0) != 0 ||
+                pthread_cond_init(&gate.changed, 0) != 0) {
+            _Exit(90);
+        }
+        submitter.state = &state;
+        submitter.context = &gate;
+        submitter.rc = 0;
+        submitter.timeout_ms = 25U;
+        if (pthread_create(&submitter_thread, 0,
+                spop_owner_queue_submit_gate_thread, &submitter) != 0) {
+            _Exit(91);
+        }
+        pthread_mutex_lock(&gate.lock);
+        while (!gate.started) {
+            pthread_cond_wait(&gate.changed, &gate.lock);
+        }
+        pthread_mutex_unlock(&gate.lock);
+        if (pthread_join(submitter_thread, 0) != 0 || submitter.rc == 0 ||
+                !spop_owner_queue_requires_restart(&state)) {
+            _Exit(92);
+        }
+        destroy_agent_runtime(&state, -1, &log, 0, &decision_log, 0);
+        _Exit(93);
+    }
+    assert(waitpid(child, &status, 0) == child);
+    assert(WIFEXITED(status));
+    assert(WEXITSTATUS(status) == SPOP_OWNER_RESTART_EXIT_CODE);
+}
+
+static void test_spop_pre_queue_cleanup_does_not_read_uninitialized_atomic(void) {
+    agent_state state;
+    FILE *log = 0;
+    FILE *decision_log = 0;
+
+    memset(&state, 0, sizeof(state));
+    assert(!spop_owner_queue_requires_restart(&state));
+    assert(destroy_agent_runtime(
+        &state, -1, &log, 0, &decision_log, 0) == 0);
+}
+
+static void test_spop_transport_stop_failure_uses_direct_restart_exit(void) {
+    pid_t child = fork();
+    int status = 0;
+
+    assert(child >= 0);
+    if (child == 0) {
+        agent_state state;
+        FILE *log = 0;
+        FILE *decision_log = 0;
+
+        alarm(3U);
+        memset(&state, 0, sizeof(state));
+        state.response_transport_started = 1;
+        transport_stop_result = 0;
+        destroy_agent_runtime(&state, -1, &log, 0, &decision_log, 0);
+        _Exit(94);
+    }
+    assert(waitpid(child, &status, 0) == child);
+    assert(WIFEXITED(status));
+    assert(WEXITSTATUS(status) == SPOP_OWNER_RESTART_EXIT_CODE);
+}
+
+static void test_spop_hanging_transport_stop_is_outer_bounded(void) {
+    pid_t child = fork();
+    int status = 0;
+
+    assert(child >= 0);
+    if (child == 0) {
+        agent_state state;
+        FILE *log = 0;
+        FILE *decision_log = 0;
+
+        alarm(3U);
+        memset(&state, 0, sizeof(state));
+        state.response_transport_started = 1;
+        transport_stop_hangs = 1;
+        destroy_agent_runtime(&state, -1, &log, 0, &decision_log, 0);
+        _Exit(95);
+    }
+    assert(waitpid(child, &status, 0) == child);
+    assert(WIFEXITED(status));
+    assert(WEXITSTATUS(status) == SPOP_OWNER_RESTART_EXIT_CODE);
 }
 
 int main(void) {
@@ -1695,6 +1921,7 @@ int main(void) {
     test_spop_missing_endpoints_fail_closed_when_engine_is_open();
     test_spop_missing_endpoints_bypass_queue_and_ack_deny();
     test_spop_valid_engine_decision_stays_detect_only();
+    test_spop_valid_engine_block_is_enforced_after_owner_queue();
     test_spop_malformed_notify_ack_stays_blocking_in_detect_only();
     test_spop_rejects_header_injection_and_invalid_names();
     test_spop_notify_message_and_argument_contract();
@@ -1702,6 +1929,12 @@ int main(void) {
     test_spop_rejects_malformed_text_headers_and_bounds_count();
     test_spop_frame_read_has_a_bounded_liveness_deadline();
     test_spop_rejects_unenforced_timeout_and_worker_settings();
+    test_spop_listener_enforces_loopback_at_every_boundary();
+    test_spop_pre_queue_cleanup_does_not_read_uninitialized_atomic();
+    assert(run_spop_owner_queue_self_test() == 0);
+    test_spop_unquiesced_owner_uses_direct_restart_exit();
+    test_spop_transport_stop_failure_uses_direct_restart_exit();
+    test_spop_hanging_transport_stop_is_outer_bounded();
     return 0;
 }
 '''.replace("__RUNTIME_SOURCE__", runtime_source.as_posix()).replace(

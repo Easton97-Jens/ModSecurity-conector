@@ -17,6 +17,10 @@ Capability-Erklärung.
 - Sie umschließt den Request-Body, begrenzt Lesevorgänge auf
   `maxRequestChunkBytes` und sendet sie synchron an eine
   `Transaction`-Nahtstelle pro Request.
+- Vor dem Response-Commit wird ein ungelesener Body bis zum Request-EOS
+  verarbeitet; `requestBodyIdleTimeoutMillis` ist dabei unabhängig von
+  Engine-Timeout und `maxRequestBodyBytes`. Bei Inaktivität oder Cancel wird
+  fail-closed beendet und die eigene Quelle geschlossen.
 - Sie umschließt den ResponseWriter, wertet Response-Header vor dem Commit aus
   und teilt jedes `Write` vor der Weiterleitung in
   `maxResponseChunkBytes`-Callbacks auf.
@@ -55,6 +59,26 @@ HTTP-Ablehnung umzudeuten. Es meldet ein disruptives Ergebnis erst nach einem
 erfolgreichen tatsächlichen `ResponseWriter`-Schreibvorgang. Nach dem
 Response-Commit ist ein disruptives Phase-4-Ergebnis bewusst `log_only`; es
 erzeugt keinen geänderten Status, Reset oder Client-Abbruch-Anspruch.
+
+## UDS-Cancellation-, Timeout- und Cleanup-Grenze
+
+Jede `ServeHTTP`-Transaktion besitzt genau eine private UDS-Verbindung; sie
+wird nie von einer Folgeanfrage wiederverwendet. Jeder Austausch verwendet das
+kleinere von konfiguriertem Engine-Timeout und Request-Context-Deadline. Eine
+Context-Cancellation verkürzt die Verbindungs-Deadline sofort, löst einen
+wartenden Read oder Write und verbindet ihren Watcher vor Rückkehr des Aufrufs.
+Ein Timeout, Cancel, Peer-Reset, ungültiges oder unvollständiges Resultat
+verwirft die Verbindung, schließt ihren FD und beendet nur diese Transaktion;
+kein Teilframe darf wiederverwendet werden. `Close` bleibt idempotent, auch
+wenn ein früherer Austausch die Verbindung bereits verworfen hat.
+
+Vor dem Response-Commit führt ein Engine-Austauschfehler zum dokumentierten
+geschlossenen HTTP-500-Pfad. Ein abgebrochener Host-Request kann seinen
+Response-Kanal bereits verloren haben; der Connector erfindet daher weder
+einen client-sichtbaren Status noch ein Upstream-Reset-Event. Nach dem Commit
+bleibt die dokumentierte `log_only`-/unveränderte-Response-Grenze bestehen,
+statt eine rückwirkende Umschreibung zu behaupten. Eine frische Anfrage öffnet
+eine neue UDS-Sitzung und behält die normalen Allow/Block-Semantiken bei.
 
 ## Lokale Quellenprüfungen
 

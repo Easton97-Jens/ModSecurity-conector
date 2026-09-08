@@ -49,6 +49,7 @@ static int mapper_entered = 0;
 static int runtime_entered = 0;
 static int runtime_release = 0;
 static int runtime_destroyed = 0;
+static int server_done = 0;
 static const msconnector_transaction_profile test_transaction_profile = {
     1U,
     "detached-worker-smoke",
@@ -365,6 +366,11 @@ static void *run_service(void *argument) {
     };
     args->result = msconnector_http_authorization_service_main(10, argv,
         args->profile);
+    if (pthread_mutex_lock(&test_lock) == 0) {
+        server_done = 1;
+        (void)pthread_cond_broadcast(&test_changed);
+        (void)pthread_mutex_unlock(&test_lock);
+    }
     return NULL;
 }
 
@@ -450,6 +456,8 @@ int main(void) {
     unsigned short port = 0U;
     pthread_t server;
     int client_fd = -1;
+    int server_started = 0;
+    int server_joined = 0;
     int result = 1;
 
     if (connector_name == NULL || integration_mode == NULL ||
@@ -483,6 +491,7 @@ int main(void) {
         (void)fprintf(stderr, "could not start detached-worker service\n");
         goto done;
     }
+    server_started = 1;
     client_fd = connect_loopback(port);
     if (client_fd < 0 ||
         send(client_fd, missing_host_request, sizeof(missing_host_request) - 1U, 0) !=
@@ -511,9 +520,13 @@ int main(void) {
     if (client_fd < 0 ||
         send(client_fd, request, sizeof(request) - 1U, 0) !=
             (ssize_t)(sizeof(request) - 1U) ||
-        !wait_for_flag(&runtime_entered) || pthread_join(server, NULL) != 0 ||
-        args.result != 1) {
+        !wait_for_flag(&runtime_entered) || pthread_join(server, NULL) != 0) {
         (void)fprintf(stderr, "service did not reach bounded deferred shutdown\n");
+        goto done;
+    }
+    server_joined = 1;
+    if (args.result != 1) {
+        (void)fprintf(stderr, "service did not report deferred shutdown\n");
         goto done;
     }
     (void)close(client_fd);
@@ -548,12 +561,18 @@ int main(void) {
 
 done:
     unblock_runtime();
-    free(connector_name);
-    free(integration_mode);
-    free(original_uri_header);
-    free(original_uri_headers);
     if (client_fd >= 0) {
         (void)close(client_fd);
+    }
+    if (server_started && !server_joined && wait_for_flag(&server_done) &&
+        pthread_join(server, NULL) == 0) {
+        server_joined = 1;
+    }
+    if (!server_started || server_joined) {
+        free(connector_name);
+        free(integration_mode);
+        free(original_uri_header);
+        free(original_uri_headers);
     }
     if (result == 0) {
         (void)puts("http authorization detached-worker smoke: passed");

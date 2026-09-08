@@ -331,7 +331,10 @@ class LogicalConnectorAllExamplesTests(unittest.TestCase):
         self.assertIn("allowed_upstream_headers", configuration)
         self.assertIn("cluster_name: msconnector_response_observer", configuration)
         self.assertIn("request_header_mode: SEND", configuration)
-        self.assertIn('DefaultHandleHeader       = "x-msconnector-response-handle"', service)
+        self.assertRegex(
+            service,
+            r'(?m)^\s*DefaultHandleHeader\s*=\s*"x-msconnector-response-handle"\s*$',
+        )
         self.assertIn("mutation.RemoveHeaders = []string{handleHeader}", service)
         self.assertIn("func TestRequestHandleMutationStripsOpaqueHeader", protocol_test)
 

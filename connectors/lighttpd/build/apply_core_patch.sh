@@ -55,6 +55,21 @@ case "$PATCH_SHA256" in
 esac
 PATCH_STAMP=.msconnector-lighttpd-patch.sha256
 
+verify_patched_abi() {
+    header=$1
+    awk '
+        $1 == "#define" && $2 == "LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION" {
+            if ($3 != "2") exit 1
+            count++
+        }
+        END {
+            if (count != 1) exit 1
+        }
+    ' "$header" || blocked "patched plugin header does not declare exactly ABI v2"
+    grep -Fq 'LIGHTTPD_MSCONNECTOR_PLUGIN_ABI_VERSION' "$header" || \
+        blocked "patched plugin ABI formula is missing from $header"
+}
+
 case "$1" in
 --check)
     patch --dry-run --forward -p1 -d "$SOURCE_DIR" < "$PATCH_FILE"
@@ -69,6 +84,7 @@ case "$1" in
                "$PATCHED_SOURCE_DIR/src/plugin.h" && \
            patch --dry-run --reverse --batch -p1 -d "$PATCHED_SOURCE_DIR" \
                < "$PATCH_FILE" >/dev/null 2>&1; then
+            verify_patched_abi "$PATCHED_SOURCE_DIR/src/plugin.h"
             printf '%s\n' "$PATCH_SHA256" > "$PATCHED_SOURCE_DIR/$PATCH_STAMP"
             printf 'lighttpd_core_patch: PASS mode=already-applied version=%s patch_sha256=%s patched_source=%s\n' \
                 "$LIGHTTPD_VERSION" \
@@ -83,8 +99,7 @@ case "$1" in
     trap 'rm -rf "$temp_dir"' EXIT HUP INT TERM
     cp -a "$SOURCE_DIR/." "$temp_dir"
     patch --forward -p1 -d "$temp_dir" < "$PATCH_FILE"
-    grep -Fq LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION \
-        "$temp_dir/src/plugin.h" || blocked "patched plugin ABI marker was not found"
+    verify_patched_abi "$temp_dir/src/plugin.h"
     printf '%s\n' "$PATCH_SHA256" > "$temp_dir/$PATCH_STAMP"
     mv "$temp_dir" "$PATCHED_SOURCE_DIR"
     trap - EXIT HUP INT TERM

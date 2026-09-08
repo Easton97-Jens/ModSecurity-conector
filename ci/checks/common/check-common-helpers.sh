@@ -1430,7 +1430,7 @@ int main(void) {
         event.protocol.reset_code = "valid-code";
         assert(!msconnector_event_write_json_ex(&event, json, sizeof(json), &truncated));
         assert(truncated);
-        assert(strstr(json, "\"truncated\":true") != 0);
+        assert(json[0] == '\0');
         assert(strstr(json, "\"reset_by\":") == 0);
         assert(strstr(json, "\"reset_code\":") == 0);
         assert(strstr(json, "invalid reset actor") == 0);
@@ -1510,7 +1510,7 @@ int main(void) {
         event.decision.reason = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
         assert(!msconnector_event_write_json_ex(&event, json, sizeof(json), &truncated));
         assert(truncated);
-        assert(strstr(json, "\"truncated\":true") != 0);
+        assert(json[0] == '\0');
         assert(!msconnector_event_write_json(&event, json, sizeof(json)));
         assert(!msconnector_event_write_json_ex(&event, small_json, sizeof(small_json), &truncated));
         assert(truncated);

@@ -34,6 +34,21 @@ sha256_file() {
     sha256sum "$input_path" | awk '{print $1}'
 }
 
+hook_abi_from_header() {
+    header=$1
+    awk '
+        $1 == "#define" && $2 == "LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION" {
+            if ($3 !~ /^[0-9]+$/) exit 1
+            value=$3
+            count++
+        }
+        END {
+            if (count != 1) exit 1
+            print value
+        }
+    ' "$header"
+}
+
 require_absolute_outside_checkout() {
     path=$1
     label=$2
@@ -107,11 +122,15 @@ ensure_configure() {
 verify_core() {
     [ -x "$CORE_BIN" ] || blocked "staged patched lighttpd binary is missing: $CORE_BIN"
     [ -f "$CORE_BUILD_DIR/config.h" ] || blocked "patched generated config.h is missing: $CORE_BUILD_DIR/config.h"
-    grep -Fq LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION "$PATCHED_SOURCE_DIR/src/plugin.h" || \
-        blocked "patched plugin ABI marker is missing from $PATCHED_SOURCE_DIR"
+    hook_abi=$(hook_abi_from_header "$PATCHED_SOURCE_DIR/src/plugin.h") || \
+        blocked "patched plugin ABI marker is missing or ambiguous in $PATCHED_SOURCE_DIR/src/plugin.h"
+    [ "$hook_abi" = 2 ] || \
+        blocked "patched core requires response-abort hook ABI v2, found v$hook_abi"
+    grep -Fq 'LIGHTTPD_MSCONNECTOR_PLUGIN_ABI_VERSION' "$PATCHED_SOURCE_DIR/src/plugin.h" || \
+        blocked "patched plugin ABI formula is missing from $PATCHED_SOURCE_DIR/src/plugin.h"
     "$CORE_BIN" -v 2>&1 | grep -Fq "lighttpd/$LIGHTTPD_VERSION" || \
         blocked "staged binary does not report lighttpd/$LIGHTTPD_VERSION"
-    for symbol in plugins_call_handle_request_body plugins_call_handle_response_body; do
+    for symbol in plugins_call_handle_request_body plugins_call_handle_response_body plugins_call_handle_response_abort; do
         "$NM_BIN" -D "$CORE_BIN" | grep -Eq "[[:space:]][Tt][[:space:]]$symbol$" || \
             blocked "patched binary does not export required hook symbol: $symbol"
     done
@@ -160,7 +179,7 @@ sh "$SCRIPT_DIR/apply_core_patch.sh" --apply
 
 [ -f "$PATCHED_SOURCE_DIR/.msconnector-lighttpd-patch.sha256" ] || \
     blocked "patched source is missing its patch identity stamp"
-PATCH_SHA256=$(cat "$PATCHED_SOURCE_DIR/.msconnector-lighttpd-patch.sha256")
+PATCH_SHA256=$(sed -n '1p' "$PATCHED_SOURCE_DIR/.msconnector-lighttpd-patch.sha256")
 case "$PATCH_SHA256" in
     ????????*) ;;
     *) blocked "patched source has an invalid patch identity stamp" ;;
@@ -171,6 +190,8 @@ if [ -f "$CORE_MANIFEST" ]; then
         blocked "existing patched core manifest has an unexpected lighttpd version"
     [ "$(manifest_value patch_sha256)" = "$PATCH_SHA256" ] || \
         blocked "existing patched core was built with a different patch; clean $PATCHED_ROOT first"
+    [ "$(manifest_value plugin_hook_abi)" = 2 ] || \
+        blocked "existing patched core manifest does not prove response-abort hook ABI v2"
     verify_core
     [ "$(manifest_value binary_sha256)" = "$(sha256_file "$CORE_BIN")" ] || \
         blocked "staged patched binary does not match its build manifest"
@@ -213,7 +234,7 @@ MANIFEST_TMP=$CORE_MANIFEST.tmp.$$
     printf 'stage_root=%s\n' "$STAGE_ROOT"
     printf 'binary=%s\n' "$CORE_BIN"
     printf 'binary_sha256=%s\n' "$(sha256_file "$CORE_BIN")"
-    printf 'plugin_hook_abi=1\n'
+    printf 'plugin_hook_abi=2\n'
     printf 'response_hook_contract=http1_entity_body_before_transfer_encoding\n'
     printf 'response_content_encoding_scope=identity_only_until_evidenced\n'
 } > "$MANIFEST_TMP"

@@ -159,6 +159,79 @@ static void test_regular_block_emits_one_terminal_event(void) {
     assert(unlink(rules_path) == 0);
 }
 
+static void test_lossy_event_is_not_written_or_chained(void) {
+    static const char blocking_rules[] =
+        "SecRuleEngine On\n"
+        "SecRule REQUEST_URI \"@streq /blocked\" \"id:1002,phase:1,deny,status:403,log\"\n";
+    static const char invalid_client_address[] = {
+        '1', '2', '7', '.', '0', '.', '0', '.', (char)0x80, '\0'
+    };
+    msconnector_runtime *runtime = NULL;
+    msconnector_runtime_transaction *transaction = NULL;
+    msconnector_request request;
+    msconnector_decision decision;
+    msconnector_error error;
+    char config_path[TEST_PATH_SIZE];
+    char event_path[TEST_PATH_SIZE];
+    char rules_path[TEST_PATH_SIZE];
+    char contents[16384];
+    FILE *event_file;
+    size_t size;
+
+    create_runtime_fixture(config_path, event_path, rules_path, blocking_rules,
+        "none", "safe");
+    assert(msconnector_runtime_create("envoy", config_path, &runtime, NULL, 0U));
+    assert(msconnector_runtime_set_event_integration_mode(runtime, "ext_authz"));
+    assert(msconnector_runtime_set_transaction_profile(runtime,
+        msconnector_profile_registry_find("envoy-ext-authz")));
+
+    memset(&request, 0, sizeof(request));
+    request.method = "GET";
+    request.uri = "/blocked";
+    request.http_version = "HTTP/1.1";
+    request.client.address = invalid_client_address;
+    request.client.port = 12345;
+    request.server.address = "127.0.0.1";
+    request.server.port = 9191;
+    msconnector_error_init(&error);
+    msconnector_decision_init(&decision);
+    assert(!msconnector_runtime_transaction_begin(runtime, &request, "lossy-event",
+        &transaction, &decision, &error));
+    assert(transaction == NULL);
+    assert(error.code == MSCONNECTOR_ERROR_EVENT_TOO_LARGE);
+
+    event_file = fopen(event_path, "r");
+    assert(event_file != NULL);
+    size = fread(contents, 1U, sizeof(contents), event_file);
+    assert(ferror(event_file) == 0);
+    assert(fclose(event_file) == 0);
+    assert(size == 0U);
+
+    assert(msconnector_test_begin_transaction(runtime, "/blocked", "post-lossy",
+        &transaction, &decision, &error));
+    assert(transaction != NULL);
+    assert(msconnector_decision_action_from_decision(&decision) ==
+        MSCONNECTOR_DECISION_ACTION_DENY);
+    assert(msconnector_runtime_transaction_finish(transaction, &error));
+    msconnector_runtime_transaction_destroy(&transaction);
+
+    event_file = fopen(event_path, "r");
+    assert(event_file != NULL);
+    size = fread(contents, 1U, sizeof(contents) - 1U, event_file);
+    assert(ferror(event_file) == 0);
+    assert(fclose(event_file) == 0);
+    contents[size] = '\0';
+    assert(strstr(contents, "MSCONN_EVENT_REQUEST_BLOCKED") != NULL);
+    assert(strstr(contents, "\"transaction_id\":\"post-lossy\"") != NULL);
+    assert(strstr(contents, "\"previous_event_hash\":0") != NULL);
+    assert(strchr(contents, '\n') == strrchr(contents, '\n'));
+
+    msconnector_runtime_destroy(&runtime);
+    assert(unlink(config_path) == 0);
+    assert(unlink(event_path) == 0);
+    assert(unlink(rules_path) == 0);
+}
+
 static void begin_handed_off(
     msconnector_runtime *runtime,
     msconnector_runtime_response_companion_registry *registry,
@@ -402,6 +475,7 @@ int main(void) {
     assert(unlink(rules_path) == 0);
     test_strict_profile_admission_is_fail_closed();
     test_regular_block_emits_one_terminal_event();
+    test_lossy_event_is_not_written_or_chained();
     test_buffered_request_body_handoff();
     assert(rmdir(test_private_root) == 0);
     return 0;

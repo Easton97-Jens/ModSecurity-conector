@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include <poll.h>
 #include <signal.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,7 +35,6 @@
 #define SPOP_FIN_FLAG 0x00000001U
 #define SPOP_LEGACY_TIMEOUT_MS 2000U
 #define SPOP_DEFAULT_MAX_TRANSACTIONS 4096U
-#define SPOP_MAX_TRANSACTIONS 65536U
 
 #define SPOP_FRM_HAPROXY_HELLO 1U
 #define SPOP_FRM_HAPROXY_DISCONNECT 2U
@@ -56,6 +56,10 @@
 #define SPOP_SCOPE_TXN 2U
 #define RUNTIME_PATH_LIMIT 4096U
 #define RUNTIME_TEXT_LIMIT 65536U
+#define SPOP_MIN_WORKER_COUNT 2U
+#define SPOP_MAX_WORKER_COUNT 64U
+#define SPOP_MAX_TRANSACTIONS 4096U
+#define SPOP_MAX_TRANSACTION_SLOTS_TOTAL 65536U
 
 typedef struct spop_buffer {
     unsigned char data[SPOP_FRAME_MAX];
@@ -190,6 +194,9 @@ typedef struct transaction_slot {
 #define SPOP_OWNER_QUEUE_CAPACITY 128U
 #define SPOP_OWNER_QUEUE_WAIT_MS 100U
 #define SPOP_OWNER_CALLER_WAIT_MS 1000U
+#define SPOP_OWNER_SHUTDOWN_WAIT_MS 1000U
+#define SPOP_OWNER_RESTART_EXIT_CODE 75
+#define SPOP_RUNTIME_CLEANUP_FAILURE 77
 
 typedef enum spop_owner_task_state {
     SPOP_OWNER_TASK_QUEUED = 0,
@@ -215,12 +222,16 @@ typedef struct spop_owner_queue {
     pthread_cond_t available;
     pthread_cond_t space;
     pthread_cond_t submitters_done;
+    pthread_cond_t owner_stopped;
     spop_owner_task *tasks[SPOP_OWNER_QUEUE_CAPACITY];
     size_t head;
     size_t tail;
     size_t count;
     size_t submitters;
     int stopping;
+    int owner_exited;
+    atomic_int restart_required;
+    int listener_fd;
     int initialized;
     pthread_t owner;
     struct agent_state *state;
@@ -233,6 +244,8 @@ typedef struct agent_state {
     size_t transaction_capacity;
     FILE *log;
     FILE *decision_log;
+    pthread_mutex_t decision_log_lock;
+    int decision_log_lock_initialized;
     spop_owner_queue owner_queue;
     haproxy_spop_response_companion_backend response_backend;
     haproxy_spop_response_companion_slot *response_slots;
@@ -243,6 +256,13 @@ typedef struct agent_state {
 
 static volatile sig_atomic_t stop_requested = 0;
 static const unsigned char empty_value[1] = {0};
+/* Multiple peer workers can produce runtime evidence concurrently. Keep every
+ * timestamp/message/newline/flush sequence one complete operator-visible line.
+ * The legacy evaluator uses its own lock because its compatibility binding has
+ * no documented concurrent-engine ownership contract. */
+static pthread_mutex_t runtime_log_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t legacy_evaluation_lock = PTHREAD_MUTEX_INITIALIZER;
+static uint64_t last_peer_failure_log_ms = 0U;
 
 static void on_signal(int signum) {
     (void)signum;
@@ -282,9 +302,13 @@ static void end_log_line(FILE *log) {
 
 #define log_line(log, ...) \
     do { \
-        if (begin_log_line(log)) { \
-            (void)fprintf((log), __VA_ARGS__); \
-            end_log_line(log); \
+        if ((log) != 0) { \
+            (void)pthread_mutex_lock(&runtime_log_lock); \
+            if (begin_log_line(log)) { \
+                (void)fprintf((log), __VA_ARGS__); \
+                end_log_line(log); \
+            } \
+            (void)pthread_mutex_unlock(&runtime_log_lock); \
         } \
     } while (0)
 
@@ -424,6 +448,27 @@ static int write_text_contents(const char *path, const char *contents) {
     return 0;
 }
 
+static int write_fd_contents(int fd, const char *contents) {
+    size_t length;
+    size_t offset = 0U;
+
+    if (fd < 0 || contents == 0 ||
+            bounded_cstring_length(contents, 4096U, &length) != 0) {
+        return -1;
+    }
+    while (offset < length) {
+        ssize_t written = write(fd, contents + offset, length - offset);
+        if (written < 0 && errno == EINTR) {
+            continue;
+        }
+        if (written <= 0) {
+            return -1;
+        }
+        offset += (size_t)written;
+    }
+    return 0;
+}
+
 static int write_unsigned_text_file(const char *path, unsigned int value) {
     char contents[32];
 
@@ -442,6 +487,82 @@ static int write_process_id_file(const char *path, pid_t process_id) {
     return write_text_contents(path, contents);
 }
 
+static int write_unsigned_fd(int fd, unsigned int value) {
+    char contents[32];
+
+    if (snprintf(contents, sizeof(contents), "%u\n", value) < 0) {
+        return -1;
+    }
+    return write_fd_contents(fd, contents);
+}
+
+static int write_process_id_fd(int fd, pid_t process_id) {
+    char contents[32];
+
+    if (snprintf(contents, sizeof(contents), "%ld\n", (long)process_id) < 0) {
+        return -1;
+    }
+    return write_fd_contents(fd, contents);
+}
+
+enum self_test_metadata_mask {
+    SELF_TEST_METADATA_READY = 1U,
+    SELF_TEST_METADATA_PID = 2U,
+    SELF_TEST_METADATA_PORT = 4U,
+    SELF_TEST_METADATA_ALL = 7U
+};
+
+#if defined(__GNUC__)
+#define SPOP_MAYBE_UNUSED __attribute__((unused))
+#else
+#define SPOP_MAYBE_UNUSED
+#endif
+
+static int SPOP_MAYBE_UNUSED claim_self_test_metadata_file(const char *path) {
+    if (path == 0 || path[0] == '\0' || strlen(path) >= 4096U) {
+        return -1;
+    }
+    return open(path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+}
+
+static int close_self_test_fd(int *fd) {
+    int rc;
+
+    if (fd == 0 || *fd < 0) {
+        return 0;
+    }
+    rc = close(*fd);
+    *fd = -1;
+    return rc;
+}
+
+static int SPOP_MAYBE_UNUSED cleanup_self_test_metadata(const char *ready_path,
+        const char *pid_path, const char *port_path, unsigned int mask,
+        FILE *log) {
+    const char *paths[3] = {ready_path, pid_path, port_path};
+    const unsigned int bits[3] = {SELF_TEST_METADATA_READY,
+        SELF_TEST_METADATA_PID, SELF_TEST_METADATA_PORT};
+
+    int cleanup_failed = 0;
+
+    for (size_t i = 0U; i < 3U; ++i) {
+        if ((mask & bits[i]) != 0U && paths[i] != 0 &&
+                unlink(paths[i]) != 0 && errno != ENOENT) {
+            if (log != 0) {
+                log_line(log, "self-test metadata cleanup failed path=%s errno=%d",
+                    paths[i], errno);
+            }
+            cleanup_failed = 1;
+        }
+    }
+    if (log != 0 && !cleanup_failed) {
+        log_line(log, "self-test metadata cleanup PASS");
+    } else if (log != 0) {
+        log_line(log, "self-test metadata cleanup FAILED partial=1");
+    }
+    return cleanup_failed ? -1 : 0;
+}
+
 static uint64_t monotonic_milliseconds(void) {
     struct timespec value;
 
@@ -450,6 +571,120 @@ static uint64_t monotonic_milliseconds(void) {
     }
     return (uint64_t)value.tv_sec * 1000U +
         (uint64_t)value.tv_nsec / 1000000U;
+}
+
+static int wait_self_test_child_bounded(pid_t child, int *status, int terminate) {
+    uint64_t deadline = monotonic_milliseconds() + 2000U;
+
+    if (child <= 0 || status == 0) {
+        return -1;
+    }
+    if (terminate) {
+        (void)kill(child, SIGTERM);
+    }
+    for (;;) {
+        pid_t result = waitpid(child, status, WNOHANG);
+        if (result == child) {
+            return 0;
+        }
+        if (result < 0) {
+            if (errno == ECHILD) {
+                return -2;
+            }
+            if (errno != EINTR) {
+                return -1;
+            }
+        }
+        if (monotonic_milliseconds() >= deadline) {
+            (void)kill(child, SIGKILL);
+            for (;;) {
+                result = waitpid(child, status, 0);
+                if (result == child) {
+                    /* The forced termination is still a confirmed reap. */
+                    return 0;
+                }
+                if (result < 0 && errno == EINTR) {
+                    continue;
+                }
+                if (result < 0 && errno == ECHILD) {
+                    return -2;
+                }
+                break;
+            }
+            return -1;
+        }
+        {
+            struct timespec pause = {0, 10000000L};
+            (void)nanosleep(&pause, 0);
+        }
+    }
+}
+
+static int finish_self_test_resources(int *listen_fd, pid_t child, int *status,
+        int terminate, int *ready_fd, int *pid_fd, int *port_fd,
+        const char *ready_path, const char *pid_path, const char *port_path,
+        unsigned int owned_metadata, FILE **log) {
+    int failed = 0;
+
+    if (listen_fd != 0 && *listen_fd >= 0) {
+        int descriptor = *listen_fd;
+        /* Mark consumed before close: on Linux a failed close may already
+         * release the descriptor, so retrying could close a reused FD. */
+        *listen_fd = -1;
+        if (close(descriptor) != 0) {
+            failed = 1;
+        }
+        *listen_fd = -1;
+    }
+    if (close_self_test_fd(ready_fd) != 0) {
+        failed = 1;
+    }
+    if (close_self_test_fd(pid_fd) != 0) {
+        failed = 1;
+    }
+    if (close_self_test_fd(port_fd) != 0) {
+        failed = 1;
+    }
+    if (child > 0) {
+        int wait_result = wait_self_test_child_bounded(child, status, terminate);
+        if (wait_result != 0 || !WIFEXITED(*status) || WEXITSTATUS(*status) != 0) {
+            failed = 1;
+        }
+    }
+    if (cleanup_self_test_metadata(ready_path, pid_path, port_path,
+            owned_metadata, log != 0 ? *log : 0) != 0) {
+        failed = 1;
+    }
+    if (log != 0 && *log != 0) {
+        if (fclose(*log) != 0) {
+            failed = 1;
+        }
+        *log = 0;
+    }
+    return failed ? -1 : 0;
+}
+
+/* A peer-local protocol or write failure must be observable, but a hostile
+ * peer must not turn the runtime log into an unbounded resource consumer. */
+static void log_peer_failure_rate_limited(FILE *log) {
+    uint64_t now;
+
+    if (log == 0) {
+        return;
+    }
+    now = monotonic_milliseconds();
+    (void)pthread_mutex_lock(&runtime_log_lock);
+    if (last_peer_failure_log_ms == 0U ||
+        now - last_peer_failure_log_ms >= 1000U) {
+        if (begin_log_line(log)) {
+            (void)fprintf(log,
+                "event=spop-peer-session-failed action=close "
+                "reason=protocol-or-write-error");
+            end_log_line(log);
+        }
+        last_peer_failure_log_ms = now;
+    }
+    (void)pthread_mutex_unlock(&runtime_log_lock);
 }
 
 static int read_full_until(int fd, void *buf, size_t len, uint64_t deadline) {
@@ -516,9 +751,15 @@ static int write_full_until(int fd, const void *buf, size_t len, uint64_t deadli
             return -1;
         }
 
-        do {
-            rc = write(fd, p, len);
-        } while (rc < 0 && errno == EINTR);
+        /* Keep the absolute deadline authoritative even when a blocking
+         * accepted socket becomes non-writable between poll() and send().
+         * MSG_NOSIGNAL turns peer close into a connection-local error while
+         * MSG_DONTWAIT prevents this worker from becoming stuck in send(). */
+        rc = send(fd, p, len, MSG_NOSIGNAL | MSG_DONTWAIT);
+        if (rc < 0 && (errno == EINTR || errno == EAGAIN ||
+                errno == EWOULDBLOCK)) {
+            continue;
+        }
         if (rc <= 0) {
             return -1;
         }
@@ -684,6 +925,17 @@ static int append_typed_string(spop_buffer *buf, const char *value) {
         return -1;
     }
     return append_string(buf, value);
+}
+
+static int append_typed_ipv4(spop_buffer *buf, const char *value) {
+    struct in_addr address;
+
+    if (buf == 0 || value == 0 || inet_pton(AF_INET, value, &address) != 1 ||
+            append_byte(buf, SPOP_DATA_IPV4) != 0) {
+        return -1;
+    }
+    return append_bytes(buf, (const unsigned char *)&address, sizeof(address),
+        sizeof(address));
 }
 
 static int append_typed_empty_string(spop_buffer *buf) {
@@ -1720,7 +1972,8 @@ static int parse_notify_message_header(const unsigned char *data, size_t len,
     size_t message_name_len;
     unsigned char argument_count;
 
-    if (data == 0 || pos == 0 || request == 0 || nb_args == 0 || *pos > len) {
+    if (data == 0 || pos == 0 || request == 0 || nb_args == 0 ||
+            *pos > len) {
         return -1;
     }
     if (read_string_ref(data, len, pos, &message_name, &message_name_len) != 0) {
@@ -1787,7 +2040,7 @@ static int parse_notify_payload(const unsigned char *data, size_t len, notify_re
         free_notify_request(request);
         return -1;
     }
-    return 0;
+    return request->has_notify ? 0 : -1;
 }
 
 static int build_notify_request_payload(
@@ -1799,7 +2052,7 @@ static int build_notify_request_payload(
         const char *test_header) {
     payload->len = 0;
     if (append_string(payload, "check-request") != 0 ||
-            append_byte(payload, 5U) != 0 ||
+            append_byte(payload, 9U) != 0 ||
             append_string(payload, "method") != 0 ||
             append_typed_string(payload, method) != 0 ||
             append_string(payload, "path") != 0 ||
@@ -1808,6 +2061,14 @@ static int build_notify_request_payload(
             append_typed_string(payload, uri) != 0 ||
             append_string(payload, "host") != 0 ||
             append_typed_string(payload, host) != 0 ||
+            append_string(payload, "client_ip") != 0 ||
+            append_typed_ipv4(payload, "127.0.0.1") != 0 ||
+            append_string(payload, "server_ip") != 0 ||
+            append_typed_ipv4(payload, "127.0.0.1") != 0 ||
+            append_string(payload, "client_port") != 0 ||
+            append_typed_uint32(payload, 41000U) != 0 ||
+            append_string(payload, "server_port") != 0 ||
+            append_typed_uint32(payload, 8080U) != 0 ||
             append_string(payload, "test_header") != 0 ||
             append_typed_string(payload, test_header) != 0) {
         return -1;
@@ -2240,9 +2501,10 @@ static void config_init(agent_config *config) {
     config->request_body_limit = 65532U;
     config->response_body_limit = 0U;
     config->response_body_timeout_ms = 0U;
-    config->spoe_timeout_ms = SPOP_LEGACY_TIMEOUT_MS;
-    config->worker_count = 1U;
-    config->max_transactions = SPOP_DEFAULT_MAX_TRANSACTIONS;
+    config->spoe_timeout_ms = 2000U;
+    /* A slow or incomplete HELLO consumes one bounded peer worker only. */
+    config->worker_count = 8U;
+    config->max_transactions = 4096U;
 }
 
 static int parse_bounded_uint_range(const char *value, unsigned long minimum,
@@ -2275,6 +2537,10 @@ static int valid_fail_mode(const char *value) {
         strcmp(value, "open") == 0);
 }
 
+static int valid_loopback_host(const char *value) {
+    return value != 0 && strcmp(value, "127.0.0.1") == 0;
+}
+
 static int parse_listen(agent_config *config, const char *listen_value) {
     const char *colon;
     size_t host_len;
@@ -2289,6 +2555,10 @@ static int parse_listen(agent_config *config, const char *listen_value) {
     }
     host_len = (size_t)(colon - listen_value);
     if (host_len >= sizeof(config->host)) {
+        return -1;
+    }
+    if (host_len != sizeof("127.0.0.1") - 1U ||
+            memcmp(listen_value, "127.0.0.1", host_len) != 0) {
         return -1;
     }
     memcpy(config->host, listen_value, host_len);
@@ -2369,17 +2639,19 @@ static int config_set_scalar_limits(agent_config *config, const char *key,
         return 1;
     }
     if (strcmp(key, "response-body-timeout") == 0) {
-        if (strcmp(value, "0") == 0) {
-            config->response_body_timeout_ms = 0U;
-            return 1;
-        }
-        return -1;
+        return parse_bounded_uint_range(value, 0UL, 60000UL,
+            &config->response_body_timeout_ms) == 0 ? 1 : -1;
     }
     if (strcmp(key, "spoe-timeout") == 0) {
-        return parse_bounded_uint(value, 600000UL, &config->spoe_timeout_ms) == 0 ? 1 : -1;
+        return parse_bounded_uint(value, 60000UL, &config->spoe_timeout_ms) == 0 ? 1 : -1;
     }
     if (strcmp(key, "worker-count") == 0) {
-        return parse_bounded_uint(value, 1UL, &config->worker_count) == 0 ? 1 : -1;
+        if (parse_bounded_uint(value, SPOP_MAX_WORKER_COUNT,
+                &config->worker_count) != 0 ||
+                config->worker_count < SPOP_MIN_WORKER_COUNT) {
+            return -1;
+        }
+        return 1;
     }
     if (strcmp(key, "max-transactions") == 0) {
         return parse_bounded_uint(value, SPOP_MAX_TRANSACTIONS,
@@ -2422,6 +2694,9 @@ static int config_set_endpoint(agent_config *config, const char *key, const char
         return parse_listen(config, value);
     }
     if (strcmp(key, "host") == 0) {
+        if (!valid_loopback_host(value)) {
+            return -1;
+        }
         copy_spop_string(config->host, sizeof(config->host),
             (const unsigned char *)value, safe_cstring_length(value, RUNTIME_TEXT_LIMIT));
         return 0;
@@ -2714,6 +2989,17 @@ static const char *safe_decision_reason_code(
         const haproxy_modsecurity_decision *decision,
         int modsecurity_processed,
         const char *decision_text) {
+    if (decision_text != 0 &&
+            strcmp(decision_text, "response-phase-disabled") == 0) {
+        return "response_phase_disabled_closed";
+    }
+    if (decision_text != 0 &&
+            strcmp(decision_text, "correlation-failure") == 0) {
+        return "response_transaction_correlation_missing_closed";
+    }
+    if (decision_text != 0 && strcmp(decision_text, "malformed-notify") == 0) {
+        return "malformed_notify_closed";
+    }
     const char *safe_decision = safe_decision_name(decision_text, decision);
 
     if (strcmp(safe_decision, "fail-closed") == 0) {
@@ -2756,13 +3042,15 @@ static void decision_log_write(
     int original_status;
     time_t now;
 
-    if (state == 0 || state->decision_log == 0 || request == 0 || decision == 0) {
+    if (state == 0 || state->decision_log == 0 || request == 0 || decision == 0 ||
+            !state->decision_log_lock_initialized ||
+            pthread_mutex_lock(&state->decision_log_lock) != 0) {
         return;
     }
     file = state->decision_log;
     decision_name = safe_decision_name(decision_text, decision);
     reason_code = safe_decision_reason_code(
-        decision, modsecurity_processed, decision_name);
+        decision, modsecurity_processed, decision_text);
     phase4_disruptive = request->is_response_body && decision->phase == 4 &&
         decision->disruptive != 0;
     original_status = request->has_response_status ?
@@ -2837,12 +3125,25 @@ static void decision_log_write(
 #undef JSON_FIELD_INT
 #undef JSON_FIELD_BOOL
     fflush(file);
+    (void)pthread_mutex_unlock(&state->decision_log_lock);
+}
+
+static int production_config_has_safe_peer_limits(const agent_config *config) {
+    if (config == 0 || config->worker_count < SPOP_MIN_WORKER_COUNT ||
+            config->worker_count > SPOP_MAX_WORKER_COUNT ||
+            config->max_transactions == 0U ||
+            config->max_transactions > SPOP_MAX_TRANSACTIONS ||
+            config->max_transactions >
+                SPOP_MAX_TRANSACTION_SLOTS_TOTAL / config->worker_count) {
+        return 0;
+    }
+    return 1;
 }
 
 static int transaction_cache_init(agent_state *state) {
     size_t capacity;
 
-    if (state == 0) {
+    if (state == 0 || !production_config_has_safe_peer_limits(&state->config)) {
         return -1;
     }
     capacity = state->config.max_transactions > 0U ?
@@ -3004,31 +3305,6 @@ static int send_empty_ack(int fd, const spop_frame *frame, unsigned int timeout_
         frame->frame_id, &ack_payload, timeout_ms);
 }
 
-static int send_malformed_notify_outcome(
-        int fd, const spop_frame *frame, const agent_state *state, FILE *log) {
-    haproxy_modsecurity_decision decision;
-    spop_buffer ack_payload;
-
-    if (state == 0 || state->engine == 0) {
-        log_line(log, "malformed NOTIFY rejected without ACK because no production fail policy is active");
-        return -1;
-    }
-    /* Protocol-invalid input is terminal and fail-closed, independent of the
-     * configured engine-error fail-open policy. */
-    runtime_init_decision(&decision, 2, "deny", 400,
-        "invalid SPOP NOTIFY payload");
-    decision.disruptive = 1;
-    /* This is protocol admission, not a valid engine decision: detect-only
-     * must not turn malformed client-controlled framing into a pass. */
-    if (build_decision_ack_payload(&ack_payload, &decision,
-            "malformed-notify", 1, 0) != 0) {
-        log_line(log, "malformed NOTIFY outcome encoding failed");
-        return -1;
-    }
-    return send_frame(fd, SPOP_FRM_ACK, frame->stream_id, frame->frame_id,
-        &ack_payload);
-}
-
 static void ensure_notify_request_id(notify_request *request, const spop_frame *frame) {
     if (request->has_request_id && request->request_id[0] != '\0') {
         return;
@@ -3074,6 +3350,57 @@ static const char *set_response_correlation_failure(
         "canonical response transaction correlation is missing or expired");
     decision->disruptive = 1;
     return "correlation-failure";
+}
+
+static const char *set_response_phase_disabled_failure(
+        haproxy_modsecurity_decision *decision,
+        int phase) {
+    runtime_init_decision(decision, phase, "deny", 503,
+        "response phase is disabled for this SPOP agent");
+    decision->disruptive = 1;
+    return "response-phase-disabled";
+}
+
+/* Engine decisions intentionally follow the selected detect-only policy.
+ * These named outcomes instead describe malformed or impossible connector
+ * protocol state, so their ACK must remain fail-closed in every engine mode. */
+static int protocol_failure_requires_enforcement(const char *decision_text) {
+    return decision_text != 0 &&
+        (strcmp(decision_text, "response-phase-disabled") == 0 ||
+         strcmp(decision_text, "correlation-failure") == 0);
+}
+
+static int send_malformed_notify_outcome(
+        int fd,
+        const spop_frame *frame,
+        const agent_state *state,
+        FILE *log) {
+    haproxy_modsecurity_decision decision;
+    spop_buffer ack_payload;
+    const char *decision_text = "malformed-notify";
+
+    if (state == 0 || state->engine == 0) {
+        log_line(log,
+            "malformed NOTIFY rejected without ACK because no production fail policy is active");
+        return -1;
+    }
+    /* A malformed peer frame is a protocol failure, not an engine failure.
+     * Never let an engine fail-open policy turn it into a permissive ACK. */
+    runtime_init_decision(&decision, 2, "deny", 400,
+        "invalid SPOP NOTIFY payload");
+    decision.disruptive = 1;
+    if (build_decision_ack_payload(&ack_payload, &decision,
+            safe_decision_reason_code(&decision, 0, decision_text),
+            1, 0) != 0) {
+        log_line(log, "malformed NOTIFY outcome encoding failed");
+        return -1;
+    }
+    log_line(log,
+        "malformed NOTIFY outcome=%s disruptive=%d status=%d enforce=%d",
+        decision_text, decision.disruptive, decision.status,
+        1);
+    return send_frame(fd, SPOP_FRM_ACK, frame->stream_id, frame->frame_id,
+        &ack_payload);
 }
 
 static unsigned int bounded_body_length(
@@ -3192,6 +3519,23 @@ static unsigned int spop_owner_timeout_ms(unsigned int timeout_ms,
 static void spop_owner_task_request_cancel(spop_owner_task *task);
 static int spop_owner_deadline(struct timespec *deadline, unsigned int timeout_ms);
 static void spop_owner_task_release(spop_owner_task *task);
+static void spop_owner_queue_request_restart(spop_owner_queue *queue);
+static int spop_owner_cond_init(pthread_cond_t *condition)
+{
+    pthread_condattr_t attributes;
+    int rc;
+
+    if (pthread_condattr_init(&attributes) != 0) {
+        return -1;
+    }
+    rc = pthread_condattr_setclock(&attributes, CLOCK_MONOTONIC);
+    if (rc == 0) {
+        rc = pthread_cond_init(condition, &attributes);
+    }
+    pthread_condattr_destroy(&attributes);
+    return rc == 0 ? 0 : -1;
+}
+
 static int spop_owner_task_initialize(
         spop_owner_task *task,
         void (*run)(void *context),
@@ -3210,7 +3554,7 @@ static int spop_owner_task_initialize(
     if (pthread_mutex_init(&task->lock, 0) != 0) {
         return -1;
     }
-    if (pthread_cond_init(&task->completed, 0) != 0) {
+    if (spop_owner_cond_init(&task->completed) != 0) {
         pthread_mutex_destroy(&task->lock);
         return -1;
     }
@@ -3251,33 +3595,44 @@ static int spop_owner_queue_admit(
     return 0;
 }
 
-static int spop_owner_task_wait(spop_owner_task *task, unsigned int timeout_ms)
+static int spop_owner_task_wait(spop_owner_queue *queue,
+        spop_owner_task *task, unsigned int timeout_ms)
 {
     struct timespec deadline;
     int wait_rc;
     int completed;
+    int running_timeout = 0;
 
     if (spop_owner_deadline(&deadline,
             spop_owner_timeout_ms(timeout_ms, SPOP_OWNER_CALLER_WAIT_MS)) != 0) {
         pthread_mutex_lock(&task->lock);
+        running_timeout = task->state == SPOP_OWNER_TASK_RUNNING;
         spop_owner_task_request_cancel(task);
         pthread_mutex_unlock(&task->lock);
+        if (running_timeout) {
+            spop_owner_queue_request_restart(queue);
+        }
         return -1;
     }
     pthread_mutex_lock(&task->lock);
-    while (task->state != SPOP_OWNER_TASK_DONE) {
+    while (task->state != SPOP_OWNER_TASK_DONE &&
+            task->state != SPOP_OWNER_TASK_CANCEL_REQUESTED) {
         wait_rc = pthread_cond_timedwait(&task->completed, &task->lock, &deadline);
-        if (wait_rc == ETIMEDOUT) {
+        if (wait_rc != 0) {
             break;
         }
     }
     completed = task->state == SPOP_OWNER_TASK_DONE;
     if (!completed) {
+        running_timeout = task->state == SPOP_OWNER_TASK_RUNNING;
         spop_owner_task_request_cancel(task);
     } else if (task->copy_result != 0) {
         task->copy_result(task->context, task->result);
     }
     pthread_mutex_unlock(&task->lock);
+    if (running_timeout) {
+        spop_owner_queue_request_restart(queue);
+    }
     return completed ? 0 : -1;
 }
 
@@ -3302,6 +3657,11 @@ static void process_production_response_notify(
     int modsec_rc;
     int phase = request->is_response_body ? 4 : 3;
 
+    if (!state->config.response_phases_enabled) {
+        *decision_text = set_response_phase_disabled_failure(decision, phase);
+        decision_log_write(state, request, decision, 0, *decision_text);
+        return;
+    }
     if (strcmp(state->config.response_companion, "native-htx") == 0) {
         *decision_text = set_processing_failure(state, decision, phase,
             "legacy SPOP response notification rejected in native-htx companion mode");
@@ -3517,7 +3877,46 @@ static int process_production_notify(
 
     ensure_notify_request_id(request, frame);
     response_handle[0] = '\0';
-    if (!request->is_response && !notify_request_has_required_endpoints(request)) {
+    if (request->is_response && !state->config.response_phases_enabled) {
+        /* Reject before owner-queue admission: this agent cannot legitimately
+         * own a response transaction, even if the queue is unavailable. */
+        decision_text = set_response_phase_disabled_failure(&decision, phase);
+        decision_log_write(state, request, &decision, 0, decision_text);
+    } else if (request->is_response) {
+        task_context = (spop_production_task_context *)calloc(1U, sizeof(*task_context));
+        if (task_context != 0) {
+            task_context->state = state;
+            /* Transfer ownership of parser allocations to the heap task.  The
+             * caller still owns the scalar request fields used for the ACK, but
+             * cannot free the payload while a timed-out owner task is running. */
+            task_context->request = *request;
+            request->headers = 0;
+            request->header_count = 0U;
+            request->body = 0;
+            request->body_len = 0U;
+            result.decision = &decision;
+            result.modsec_processed = &modsec_processed;
+            result.decision_origin = &decision_origin;
+            result.decision_text = &decision_text;
+            result.response_handle = response_handle;
+            if (spop_owner_queue_submit(state, run_spop_production_task,
+                    task_context, destroy_spop_production_task_context,
+                    copy_spop_production_task_result, &result,
+                    state->config.spoe_timeout_ms) != 0) {
+                task_context = 0;
+                set_processing_failure(state, &decision, phase,
+                    "SPOP owner queue is unavailable");
+                decision_text = "owner-queue-unavailable";
+            } else {
+                task_context = 0;
+            }
+        } else {
+            set_processing_failure(state, &decision, phase,
+                "SPOP owner queue allocation failed");
+            decision_text = "owner-queue-unavailable";
+        }
+    }
+    else if (!request->is_response && !notify_request_has_required_endpoints(request)) {
         decision_text = set_admission_failure(&decision, phase,
             "missing client or server endpoint");
         decision_log_write(state, request, &decision, 0, decision_text);
@@ -3556,7 +3955,8 @@ static int process_production_notify(
             decision_text = "owner-queue-unavailable";
         }
     }
-    enforce = production_ack_enforces(&state->config, decision_origin);
+    enforce = protocol_failure_requires_enforcement(decision_text) ||
+        production_ack_enforces(&state->config, decision_origin);
     if (build_decision_ack_payload(&ack_payload, &decision,
                         safe_decision_reason_code(
                             &decision, modsec_processed, decision_text),
@@ -3641,6 +4041,54 @@ static void spop_owner_task_request_cancel(spop_owner_task *task)
     }
 }
 
+static void spop_owner_queue_cancel_pending_locked(spop_owner_queue *queue)
+{
+    size_t offset;
+
+    for (offset = 0U; offset < queue->count; ++offset) {
+        size_t index = (queue->head + offset) % SPOP_OWNER_QUEUE_CAPACITY;
+        spop_owner_task *task = queue->tasks[index];
+
+        if (task == 0) {
+            continue;
+        }
+        pthread_mutex_lock(&task->lock);
+        spop_owner_task_request_cancel(task);
+        pthread_cond_broadcast(&task->completed);
+        pthread_mutex_unlock(&task->lock);
+    }
+}
+
+static void spop_owner_queue_request_restart(spop_owner_queue *queue)
+{
+    agent_state *state;
+    int emit_event = 0;
+
+    if (queue == 0 || !queue->initialized) {
+        return;
+    }
+    pthread_mutex_lock(&queue->lock);
+    emit_event = atomic_exchange_explicit(&queue->restart_required, 1,
+        memory_order_acq_rel) == 0;
+    queue->stopping = 1;
+    state = queue->state;
+    spop_owner_queue_cancel_pending_locked(queue);
+    pthread_cond_broadcast(&queue->available);
+    pthread_cond_broadcast(&queue->space);
+    /* Serialize the shutdown with listener replacement/close.  Calling it
+     * after releasing the queue lock could target a recycled descriptor. */
+    if (queue->listener_fd >= 0) {
+        (void)shutdown(queue->listener_fd, SHUT_RDWR);
+    }
+    pthread_mutex_unlock(&queue->lock);
+
+    if (emit_event && state != 0) {
+        log_line(state->log,
+            "event=spop-owner-timeout action=controlled-restart reason=native-owner-stuck exit_code=%d",
+            SPOP_OWNER_RESTART_EXIT_CODE);
+    }
+}
+
 static void *spop_owner_thread(void *opaque)
 {
     spop_owner_queue *queue = (spop_owner_queue *)opaque;
@@ -3653,6 +4101,8 @@ static void *spop_owner_thread(void *opaque)
             pthread_cond_wait(&queue->available, &queue->lock);
         }
         if (queue->count == 0U && queue->stopping) {
+            queue->owner_exited = 1;
+            pthread_cond_broadcast(&queue->owner_stopped);
             pthread_mutex_unlock(&queue->lock);
             return 0;
         }
@@ -3661,14 +4111,13 @@ static void *spop_owner_thread(void *opaque)
         queue->head = (queue->head + 1U) % SPOP_OWNER_QUEUE_CAPACITY;
         --queue->count;
         pthread_cond_signal(&queue->space);
-        pthread_mutex_unlock(&queue->lock);
-
         pthread_mutex_lock(&task->lock);
-        if (task->state == SPOP_OWNER_TASK_QUEUED) {
+        if (!queue->stopping && task->state == SPOP_OWNER_TASK_QUEUED) {
             task->state = SPOP_OWNER_TASK_RUNNING;
             run_task = 1;
         }
         pthread_mutex_unlock(&task->lock);
+        pthread_mutex_unlock(&queue->lock);
 
         if (run_task) {
             task->run(task->context);
@@ -3738,7 +4187,7 @@ static int spop_owner_deadline(struct timespec *deadline, unsigned int timeout_m
     if (deadline == 0) {
         return -1;
     }
-    if (clock_gettime(CLOCK_REALTIME, deadline) != 0) {
+    if (clock_gettime(CLOCK_MONOTONIC, deadline) != 0) {
         return -1;
     }
     seconds = (time_t)(timeout_ms / 1000U);
@@ -3761,39 +4210,53 @@ static int spop_owner_queue_init(agent_state *state)
     }
     queue = &state->owner_queue;
     memset(queue, 0, sizeof(*queue));
+    atomic_init(&queue->restart_required, 0);
     if (pthread_mutex_init(&queue->lock, 0) != 0) {
         return -1;
     }
-    if (pthread_cond_init(&queue->available, 0) != 0) {
+    if (spop_owner_cond_init(&queue->available) != 0) {
+        queue->initialized = 0;
         pthread_mutex_destroy(&queue->lock);
         return -1;
     }
-    if (pthread_cond_init(&queue->space, 0) != 0) {
+    if (spop_owner_cond_init(&queue->space) != 0) {
         pthread_cond_destroy(&queue->available);
+        queue->initialized = 0;
         pthread_mutex_destroy(&queue->lock);
         return -1;
     }
-    if (pthread_cond_init(&queue->submitters_done, 0) != 0) {
+    if (spop_owner_cond_init(&queue->submitters_done) != 0) {
         pthread_cond_destroy(&queue->space);
         pthread_cond_destroy(&queue->available);
+        queue->initialized = 0;
+        pthread_mutex_destroy(&queue->lock);
+        return -1;
+    }
+    if (spop_owner_cond_init(&queue->owner_stopped) != 0) {
+        pthread_cond_destroy(&queue->submitters_done);
+        pthread_cond_destroy(&queue->space);
+        pthread_cond_destroy(&queue->available);
+        queue->initialized = 0;
         pthread_mutex_destroy(&queue->lock);
         return -1;
     }
     queue->state = state;
+    queue->listener_fd = -1;
     queue->initialized = 1;
     if (pthread_create(&queue->owner, 0, spop_owner_thread, queue) != 0) {
         queue->stopping = 1;
+        queue->initialized = 0;
+        pthread_cond_destroy(&queue->owner_stopped);
         pthread_cond_destroy(&queue->submitters_done);
         pthread_cond_destroy(&queue->space);
         pthread_cond_destroy(&queue->available);
         pthread_mutex_destroy(&queue->lock);
-        queue->initialized = 0;
         return -1;
     }
     return 0;
 }
 
-static void spop_owner_queue_destroy(agent_state *state)
+static void spop_owner_queue_set_listener(agent_state *state, int listener_fd)
 {
     spop_owner_queue *queue;
 
@@ -3802,23 +4265,83 @@ static void spop_owner_queue_destroy(agent_state *state)
     }
     queue = &state->owner_queue;
     pthread_mutex_lock(&queue->lock);
+    queue->listener_fd = listener_fd;
+    pthread_mutex_unlock(&queue->lock);
+}
+
+static int spop_owner_queue_requires_restart(agent_state *state)
+{
+    spop_owner_queue *queue;
+    int restart_required;
+
+    if (state == 0) {
+        return 0;
+    }
+    queue = &state->owner_queue;
+    if (!queue->initialized) {
+        return 0;
+    }
+    restart_required = atomic_load_explicit(&queue->restart_required,
+        memory_order_acquire);
+    return restart_required;
+}
+
+static int spop_owner_queue_destroy(agent_state *state)
+{
+    spop_owner_queue *queue;
+    struct timespec deadline;
+    int wait_rc = 0;
+
+    if (state == 0 || !state->owner_queue.initialized) {
+        return 0;
+    }
+    queue = &state->owner_queue;
+    if (spop_owner_deadline(&deadline, SPOP_OWNER_SHUTDOWN_WAIT_MS) != 0) {
+        spop_owner_queue_request_restart(queue);
+        return -1;
+    }
+    pthread_mutex_lock(&queue->lock);
     queue->stopping = 1;
+    spop_owner_queue_cancel_pending_locked(queue);
     pthread_cond_broadcast(&queue->available);
     /* Submitters may be asleep while the bounded queue is full.  Wake them
      * as part of the same stop transition so they observe `stopping`, abort
      * their task registration, and never retain a stack-backed task after
      * the owner thread has been joined. */
     pthread_cond_broadcast(&queue->space);
-    while (queue->submitters != 0U) {
-        pthread_cond_wait(&queue->submitters_done, &queue->lock);
+    while (queue->submitters != 0U && wait_rc == 0) {
+        wait_rc = pthread_cond_timedwait(&queue->submitters_done,
+            &queue->lock, &deadline);
+    }
+    while (queue->submitters == 0U && !queue->owner_exited && wait_rc == 0) {
+        wait_rc = pthread_cond_timedwait(&queue->owner_stopped,
+            &queue->lock, &deadline);
+    }
+    if (queue->submitters != 0U || !queue->owner_exited) {
+        int emit_event = atomic_exchange_explicit(&queue->restart_required, 1,
+            memory_order_acq_rel) == 0;
+
+        pthread_mutex_unlock(&queue->lock);
+        if (emit_event) {
+            log_line(state->log,
+                "event=spop-owner-shutdown-timeout action=controlled-restart reason=owner-not-quiescent exit_code=%d",
+                SPOP_OWNER_RESTART_EXIT_CODE);
+        }
+        return -1;
     }
     pthread_mutex_unlock(&queue->lock);
-    pthread_join(queue->owner, 0);
+    if (pthread_join(queue->owner, 0) != 0) {
+        atomic_store_explicit(&queue->restart_required, 1,
+            memory_order_release);
+        return -1;
+    }
+    queue->initialized = 0;
+    pthread_cond_destroy(&queue->owner_stopped);
     pthread_cond_destroy(&queue->submitters_done);
     pthread_cond_destroy(&queue->space);
     pthread_cond_destroy(&queue->available);
     pthread_mutex_destroy(&queue->lock);
-    queue->initialized = 0;
+    return 0;
 }
 
 static int spop_owner_queue_submit(
@@ -3865,7 +4388,7 @@ static int spop_owner_queue_submit(
         spop_owner_task_release(task);
         return -1;
     }
-    if (spop_owner_task_wait(task, timeout_ms) != 0) {
+    if (spop_owner_task_wait(queue, task, timeout_ms) != 0) {
         spop_owner_task_release(task);
         return -1;
     }
@@ -4390,12 +4913,15 @@ static void *spop_owner_queue_submit_gate_thread(void *opaque)
 static int run_spop_owner_queue_self_test(void)
 {
     agent_state state;
+    agent_state restarted_state;
     spop_owner_queue_self_test_context context;
     spop_owner_queue_gate_context gate;
     spop_owner_queue_submit_thread first;
     spop_owner_queue_submit_thread second;
     pthread_t first_thread;
     pthread_t second_thread;
+    uint64_t shutdown_started;
+    uint64_t shutdown_elapsed;
     int rc;
 
     memset(&state, 0, sizeof(state));
@@ -4410,10 +4936,10 @@ static int run_spop_owner_queue_self_test(void)
         rc = -1;
     }
 
-    /* A timed-out running task is quarantined until the owner returns.  The
-     * test deliberately makes the native-call stand-in wait, then checks that
-     * a queued task can be cancelled without either context being freed on
-     * the caller's stack. */
+    /* A running native-call stand-in that exceeds its caller deadline makes
+     * the queue terminal.  The task remains quarantined, queued work is
+     * cancelled, and shutdown returns after a bounded grace period without
+     * freeing state that the owner still reaches. */
     memset(&gate, 0, sizeof(gate));
     if (pthread_mutex_init(&gate.lock, 0) != 0) {
         spop_owner_queue_destroy(&state);
@@ -4455,16 +4981,32 @@ static int run_spop_owner_queue_self_test(void)
     }
     pthread_join(first_thread, 0);
     pthread_join(second_thread, 0);
-    if (first.rc == 0 || second.rc == 0) {
+    if (first.rc == 0 || second.rc == 0 ||
+            !spop_owner_queue_requires_restart(&state)) {
+        rc = -1;
+    }
+    memset(&context, 0, sizeof(context));
+    if (spop_owner_queue_submit(&state, run_spop_owner_queue_self_test_task,
+            &context, 0, 0, 0, SPOP_OWNER_CALLER_WAIT_MS) == 0 || context.ran) {
+        rc = -1;
+    }
+    shutdown_started = monotonic_milliseconds();
+    if (shutdown_started == 0U || spop_owner_queue_destroy(&state) == 0) {
+        rc = -1;
+    }
+    shutdown_elapsed = monotonic_milliseconds();
+    if (shutdown_elapsed == 0U || shutdown_elapsed < shutdown_started ||
+            shutdown_elapsed - shutdown_started >
+                (uint64_t)SPOP_OWNER_SHUTDOWN_WAIT_MS + UINT64_C(500)) {
         rc = -1;
     }
     pthread_mutex_lock(&gate.lock);
     gate.release = 1;
     pthread_cond_broadcast(&gate.changed);
     pthread_mutex_unlock(&gate.lock);
-    /* Queue shutdown drains the cancelled queued task and waits for the
-     * running owner task before destroying synchronization primitives. */
-    spop_owner_queue_destroy(&state);
+    if (spop_owner_queue_destroy(&state) != 0) {
+        rc = -1;
+    }
     pthread_mutex_lock(&gate.lock);
     if (gate.destroyed != 2) {
         rc = -1;
@@ -4472,6 +5014,24 @@ static int run_spop_owner_queue_self_test(void)
     pthread_mutex_unlock(&gate.lock);
     pthread_cond_destroy(&gate.changed);
     pthread_mutex_destroy(&gate.lock);
+
+    /* A fresh process state represents the supervisor restart.  Its owner
+     * must accept a legitimate task after the terminal instance is gone. */
+    memset(&restarted_state, 0, sizeof(restarted_state));
+    memset(&context, 0, sizeof(context));
+    if (spop_owner_queue_init(&restarted_state) != 0) {
+        rc = -1;
+    } else {
+        if (spop_owner_queue_submit(&restarted_state,
+                run_spop_owner_queue_self_test_task, &context,
+                0, 0, 0, SPOP_OWNER_CALLER_WAIT_MS) != 0 ||
+                !context.ran) {
+            rc = -1;
+        }
+        if (spop_owner_queue_destroy(&restarted_state) != 0) {
+            rc = -1;
+        }
+    }
     return rc;
 }
 
@@ -4533,36 +5093,216 @@ static int run_spop_request_id_validation_self_test(void)
     return 0;
 }
 
-static int run_spop_write_deadline_self_test(void)
+static int run_spop_notify_failure_self_test(void)
 {
-    int sockets[2];
+    static const unsigned char truncated[] = {5U, 'c', 'h', 'e', 'c'};
+    static const unsigned char missing_count[] = {
+        13U, 'c', 'h', 'e', 'c', 'k', '-', 'r', 'e', 'q', 'u', 'e', 's', 't'
+    };
+    static const unsigned char zero_count[] = {
+        13U, 'c', 'h', 'e', 'c', 'k', '-', 'r', 'e', 'q', 'u', 'e', 's', 't', 0U
+    };
+    notify_request request;
+
+    memset(&request, 0, sizeof(request));
+    if (parse_notify_payload(0, 0U, &request) == 0 ||
+            parse_notify_payload(truncated, sizeof(truncated), &request) == 0 ||
+            parse_notify_payload(missing_count, sizeof(missing_count), &request) == 0) {
+        free_notify_request(&request);
+        return -1;
+    }
+    free_notify_request(&request);
+    memset(&request, 0, sizeof(request));
+    if (parse_notify_payload(zero_count, sizeof(zero_count), &request) != 0 ||
+            !request.has_notify || strcmp(request.message_name, "check-request") != 0) {
+        free_notify_request(&request);
+        return -1;
+    }
+    free_notify_request(&request);
+    return 0;
+}
+
+static int run_spop_write_deadline_child(void)
+{
+    int listener_fd = -1;
+    int server_fd = -1;
+    int client_fd = -1;
+    int followup[2] = {-1, -1};
     int flags;
+    int send_buffer = 4096;
+    int writable = 0;
     unsigned char filler[4096];
+    unsigned char drain[8192];
     ssize_t written;
+    ssize_t received;
     spop_buffer payload;
+    spop_frame frame;
+    struct sockaddr_in address;
+    socklen_t address_size = sizeof(address);
+    struct pollfd descriptor;
+    uint64_t started;
+    uint64_t finished;
     int rc = -1;
 
-    memset(filler, 'x', sizeof(filler));
-    payload.len = 0U;
-    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) != 0) {
+    if (signal(SIGALRM, SIG_DFL) == SIG_ERR) {
         return -1;
     }
-    flags = fcntl(sockets[0], F_GETFL, 0);
-    if (flags < 0 || fcntl(sockets[0], F_SETFL, flags | O_NONBLOCK) != 0) {
+    (void)alarm(2U);
+    memset(filler, 'x', sizeof(filler));
+    memset(&address, 0, sizeof(address));
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    listener_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (listener_fd < 0 || bind(listener_fd, (struct sockaddr *)&address,
+            sizeof(address)) != 0 || listen(listener_fd, 1) != 0 ||
+            getsockname(listener_fd, (struct sockaddr *)&address,
+                &address_size) != 0) {
+        goto cleanup;
+    }
+    client_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (client_fd < 0 || connect(client_fd, (struct sockaddr *)&address,
+            sizeof(address)) != 0) {
+        goto cleanup;
+    }
+    server_fd = accept(listener_fd, 0, 0);
+    if (server_fd < 0 || close(listener_fd) != 0) {
+        goto cleanup;
+    }
+    listener_fd = -1;
+    flags = fcntl(server_fd, F_GETFL, 0);
+    if (flags < 0 || (flags & O_NONBLOCK) != 0 ||
+            setsockopt(server_fd, SOL_SOCKET, SO_SNDBUF, &send_buffer,
+                sizeof(send_buffer)) != 0) {
+        goto cleanup;
+    }
+    for (;;) {
+        written = send(server_fd, filler, sizeof(filler),
+            MSG_NOSIGNAL | MSG_DONTWAIT);
+        if (written > 0) {
+            continue;
+        }
+        if (written < 0 && errno == EINTR) {
+            continue;
+        }
+        break;
+    }
+    if (written >= 0 || (errno != EAGAIN && errno != EWOULDBLOCK)) {
+        goto cleanup;
+    }
+    for (unsigned int attempt = 0U; attempt < 64U && !writable; ++attempt) {
+        do {
+            received = recv(client_fd, drain, sizeof(drain), MSG_DONTWAIT);
+        } while (received < 0 && errno == EINTR);
+        if (received <= 0) {
+            goto cleanup;
+        }
+        memset(&descriptor, 0, sizeof(descriptor));
+        descriptor.fd = server_fd;
+        descriptor.events = POLLOUT;
+        if (poll(&descriptor, 1U, 0) > 0 &&
+                (descriptor.revents & POLLOUT) != 0) {
+            writable = 1;
+        }
+    }
+    if (!writable) {
+        goto cleanup;
+    }
+    memset(payload.data, 0x5a, sizeof(payload.data));
+    payload.len = SPOP_FRAME_MAX - 16U;
+    started = monotonic_milliseconds();
+    if (started == 0U || send_frame_timeout(server_fd, SPOP_FRM_ACK, 1U, 1U,
+            &payload, 50U) == 0) {
+        goto cleanup;
+    }
+    finished = monotonic_milliseconds();
+    if (finished == 0U || finished < started || finished - started > 1000U) {
+        goto cleanup;
+    }
+    if (close(server_fd) != 0 || close(client_fd) != 0) {
+        goto cleanup;
+    }
+    server_fd = -1;
+    client_fd = -1;
+    payload.len = 0U;
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, followup) != 0 ||
+            send_frame_timeout(followup[0], SPOP_FRM_ACK, 7U, 9U,
+                &payload, 100U) != 0 ||
+            recv_frame(followup[1], &frame, 100U) != 0 ||
+            frame.type != SPOP_FRM_ACK || frame.stream_id != 7U ||
+            frame.frame_id != 9U) {
+        goto cleanup;
+    }
+    rc = 0;
+
+cleanup:
+    if (listener_fd >= 0) {
+        (void)close(listener_fd);
+    }
+    if (server_fd >= 0) {
+        (void)close(server_fd);
+    }
+    if (client_fd >= 0) {
+        (void)close(client_fd);
+    }
+    if (followup[0] >= 0) {
+        (void)close(followup[0]);
+    }
+    if (followup[1] >= 0) {
+        (void)close(followup[1]);
+    }
+    (void)alarm(0U);
+    return rc;
+}
+
+static int run_spop_write_deadline_self_test(void)
+{
+    pid_t child = fork();
+    int status;
+
+    if (child < 0) {
+        return -1;
+    }
+    if (child == 0) {
+        _exit(run_spop_write_deadline_child() == 0 ? 0 : 1);
+    }
+    if (waitpid(child, &status, 0) != child || !WIFEXITED(status) ||
+            WEXITSTATUS(status) != 0) {
+        return -1;
+    }
+    return 0;
+}
+
+static int run_spop_peer_close_write_self_test(void)
+{
+    int sockets[2] = {-1, -1};
+    pid_t child;
+    int status;
+    spop_buffer payload = {0};
+
+    child = fork();
+    if (child < 0) {
+        return -1;
+    }
+    if (child == 0) {
+        if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) != 0 ||
+                shutdown(sockets[1], SHUT_RD) != 0) {
+            _exit(1);
+        }
+        /* A raw socket write can terminate this child with SIGPIPE. The
+         * protocol helper must instead return a per-peer error. */
+        if (send_frame_timeout(sockets[0], SPOP_FRM_AGENT_HELLO, 0U, 0U,
+                &payload, 100U) == 0) {
+            _exit(1);
+        }
         close(sockets[0]);
         close(sockets[1]);
+        _exit(0);
+    }
+    if (waitpid(child, &status, 0) < 0 || !WIFEXITED(status) ||
+            WEXITSTATUS(status) != 0) {
         return -1;
     }
-    do {
-        written = write(sockets[0], filler, sizeof(filler));
-    } while (written > 0);
-    if (errno == EAGAIN || errno == EWOULDBLOCK) {
-        rc = send_frame_timeout(sockets[0], SPOP_FRM_ACK, 1U, 1U,
-            &payload, 5U) != 0 ? 0 : -1;
-    }
-    close(sockets[0]);
-    close(sockets[1]);
-    return rc;
+    return 0;
 }
 
 static int evaluate_legacy_notify(
@@ -4625,8 +5365,12 @@ static int process_legacy_notify(
     haproxy_modsecurity_decision decision;
     int modsec_rc;
 
+    if (pthread_mutex_lock(&legacy_evaluation_lock) != 0) {
+        return -1;
+    }
     modsec_rc = evaluate_legacy_notify(request, rules_file, crs_preamble_file,
         log, &decision);
+    (void)pthread_mutex_unlock(&legacy_evaluation_lock);
     if (modsec_rc != 0) {
         log_line(log, "MODSECURITY live binding failed status=%d rule_id=%d",
             decision.status, decision.rule_id);
@@ -4652,11 +5396,15 @@ static int handle_notify_frame(
     if (parse_notify_payload(frame->payload, frame->payload_len, &request) != 0) {
         log_line(log, "NOTIFY request argument extraction failed");
         if (state != 0 && state->engine != 0) {
-            (void)send_malformed_notify_outcome(fd, frame, state, log);
+            if (send_malformed_notify_outcome(fd, frame, state, log) != 0) {
+                log_line(log, "malformed NOTIFY deny outcome write failed; closing peer");
+            }
         } else {
             log_line(log, "malformed NOTIFY rejected without ACK in legacy mode");
         }
         free_notify_request(&request);
+        /* The peer must not continue after malformed input, even if production
+         * emitted a bounded deny/400 outcome before closing the connection. */
         return -1;
     }
     log_line(log,
@@ -4682,11 +5430,13 @@ static int handle_notify_frame(
     return rc;
 }
 
-static int handle_connection(int fd, agent_state *state, FILE *log, const char *rules_file, const char *crs_preamble_file) {
+static int handle_connection(int fd, agent_state *state, FILE *log,
+        const char *rules_file, const char *crs_preamble_file,
+        unsigned int peer_timeout_ms) {
     spop_frame frame;
     hello_info hello;
-    unsigned int timeout_ms = state != 0 ? state->config.spoe_timeout_ms :
-        SPOP_LEGACY_TIMEOUT_MS;
+    unsigned int timeout_ms = peer_timeout_ms != 0U ? peer_timeout_ms :
+        (state != 0 ? state->config.spoe_timeout_ms : SPOP_LEGACY_TIMEOUT_MS);
 
     if (recv_frame(fd, &frame, timeout_ms) != 0 || frame.type != SPOP_FRM_HAPROXY_HELLO ||
         parse_hello_payload(frame.payload, frame.payload_len, &hello) != 0) {
@@ -4737,7 +5487,10 @@ static int bind_localhost(const char *host, unsigned int port, unsigned int *bou
     struct sockaddr_in addr;
     socklen_t addr_len = sizeof(addr);
 
-    if (host == 0 || host[0] == '\0') {
+    /* SPOP has no TLS, peer identity, or authentication mechanism.  This
+     * repository-owned agent is intentionally local-only; reject a wildcard
+     * or routable address even if a caller bypassed config validation. */
+    if (!valid_loopback_host(host)) {
         return -1;
     }
     fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -4783,31 +5536,175 @@ static int connect_localhost(unsigned int port) {
     return fd;
 }
 
-static int accept_loop(int listen_fd, agent_state *state, FILE *log, int max_connections, const char *rules_file, const char *crs_preamble_file) {
+typedef struct spop_connection_gate {
+    pthread_mutex_t lock;
+    pthread_cond_t changed;
+    unsigned int active;
+    unsigned int limit;
+} spop_connection_gate;
+
+typedef struct spop_connection_task {
+    int fd;
+    agent_state *state;
+    FILE *log;
+    const char *rules_file;
+    const char *crs_preamble_file;
+    unsigned int timeout_ms;
+    spop_connection_gate *gate;
+} spop_connection_task;
+
+static void *spop_connection_thread(void *opaque) {
+    spop_connection_task *task = (spop_connection_task *)opaque;
+    int connection_rc;
+
+    connection_rc = handle_connection(task->fd, task->state, task->log,
+        task->rules_file, task->crs_preamble_file, task->timeout_ms);
+    if (connection_rc != 0) {
+        log_peer_failure_rate_limited(task->log);
+    }
+    close(task->fd);
+    pthread_mutex_lock(&task->gate->lock);
+    if (task->gate->active > 0U) {
+        task->gate->active--;
+    }
+    pthread_cond_broadcast(&task->gate->changed);
+    pthread_mutex_unlock(&task->gate->lock);
+    free(task);
+    return 0;
+}
+
+static int accept_loop(int listen_fd, agent_state *state, FILE *log,
+        int max_connections, const char *rules_file,
+        const char *crs_preamble_file, unsigned int timeout_ms,
+        unsigned int worker_limit) {
     int handled = 0;
+    int loop_rc = 0;
+    uint64_t last_capacity_rejection_log_ms = 0U;
+    spop_connection_gate gate;
+    pthread_attr_t detached_attributes;
+
+    memset(&gate, 0, sizeof(gate));
+    gate.limit = worker_limit >= SPOP_MIN_WORKER_COUNT ? worker_limit : 8U;
+    if (pthread_mutex_init(&gate.lock, 0) != 0) {
+        return 1;
+    }
+    if (pthread_cond_init(&gate.changed, 0) != 0) {
+        pthread_mutex_destroy(&gate.lock);
+        return 1;
+    }
+    if (pthread_attr_init(&detached_attributes) != 0) {
+        pthread_cond_destroy(&gate.changed);
+        pthread_mutex_destroy(&gate.lock);
+        return 1;
+    }
+    if (pthread_attr_setdetachstate(&detached_attributes,
+            PTHREAD_CREATE_DETACHED) != 0) {
+        pthread_attr_destroy(&detached_attributes);
+        pthread_cond_destroy(&gate.changed);
+        pthread_mutex_destroy(&gate.lock);
+        return 1;
+    }
 
     stop_requested = 0;
     if (install_signal_handlers() != 0) {
         log_line(log, "failed to install signal handlers errno=%d", errno);
+        pthread_attr_destroy(&detached_attributes);
+        pthread_cond_destroy(&gate.changed);
+        pthread_mutex_destroy(&gate.lock);
         return 1;
     }
-    while (!stop_requested && (max_connections <= 0 || handled < max_connections)) {
+    while (!stop_requested && !spop_owner_queue_requires_restart(state) &&
+            (max_connections <= 0 || handled < max_connections)) {
         int fd = accept(listen_fd, 0, 0);
         if (fd < 0) {
+            if (spop_owner_queue_requires_restart(state)) {
+                loop_rc = SPOP_OWNER_RESTART_EXIT_CODE;
+                break;
+            }
             if (errno != EINTR) {
                 log_line(log, "accept failed errno=%d", errno);
-                return 1;
+                loop_rc = 1;
+                break;
             }
             if (stop_requested) {
                 break;
             }
             continue;
         }
-        handle_connection(fd, state, log, rules_file, crs_preamble_file);
-        close(fd);
+    pthread_mutex_lock(&gate.lock);
+        if (stop_requested) {
+            pthread_mutex_unlock(&gate.lock);
+            close(fd);
+            break;
+        }
+        if (gate.active >= gate.limit) {
+            uint64_t now = monotonic_milliseconds();
+
+            pthread_mutex_unlock(&gate.lock);
+            close(fd);
+            /* A peer flood must not turn its own rejection evidence into an
+             * unbounded log-file allocation. The accept loop is the only
+             * writer of this counter, so one bounded event per second is
+             * sufficient for operators without a shared lock. */
+            if (now == 0U || last_capacity_rejection_log_ms == 0U ||
+                    now < last_capacity_rejection_log_ms ||
+                    now - last_capacity_rejection_log_ms >= 1000U) {
+                log_line(log,
+                    "event=spop-peer-capacity-rejected action=close reason=worker-capacity");
+                last_capacity_rejection_log_ms = now;
+            }
+            continue;
+        }
+        gate.active++;
+        pthread_mutex_unlock(&gate.lock);
+        {
+            spop_connection_task *task = calloc(1U, sizeof(*task));
+            pthread_t thread;
+
+            if (task == 0) {
+                pthread_mutex_lock(&gate.lock);
+                gate.active--;
+                pthread_cond_broadcast(&gate.changed);
+                pthread_mutex_unlock(&gate.lock);
+                close(fd);
+                log_line(log, "peer task allocation failed; closing peer");
+                loop_rc = 1;
+                break;
+            }
+            task->fd = fd;
+            task->state = state;
+            task->log = log;
+            task->rules_file = rules_file;
+            task->crs_preamble_file = crs_preamble_file;
+            task->timeout_ms = timeout_ms;
+            task->gate = &gate;
+            if (pthread_create(&thread, &detached_attributes,
+                    spop_connection_thread, task) != 0) {
+                free(task);
+                pthread_mutex_lock(&gate.lock);
+                gate.active--;
+                pthread_cond_broadcast(&gate.changed);
+                pthread_mutex_unlock(&gate.lock);
+                close(fd);
+                log_line(log, "peer worker creation failed; closing peer");
+                loop_rc = 1;
+                break;
+            }
+        }
         handled++;
     }
-    return 0;
+    pthread_mutex_lock(&gate.lock);
+    while (gate.active != 0U) {
+        pthread_cond_wait(&gate.changed, &gate.lock);
+    }
+    pthread_mutex_unlock(&gate.lock);
+    if (spop_owner_queue_requires_restart(state)) {
+        loop_rc = SPOP_OWNER_RESTART_EXIT_CODE;
+    }
+    pthread_attr_destroy(&detached_attributes);
+    pthread_cond_destroy(&gate.changed);
+    pthread_mutex_destroy(&gate.lock);
+    return loop_rc;
 }
 
 static int client_expect_frame(int fd, unsigned int type, uint64_t stream_id, uint64_t frame_id) {
@@ -4833,31 +5730,146 @@ static int client_expect_ack_set_var(int fd, uint64_t stream_id, uint64_t frame_
     return payload_has_set_var_blocked_true(&payload) ? 0 : -1;
 }
 
+static int client_expect_malformed_ack(int fd, uint64_t stream_id, uint64_t frame_id)
+{
+    haproxy_modsecurity_decision decision;
+    spop_buffer expected;
+    spop_frame frame;
+
+    runtime_init_decision(&decision, 2, "deny", 400,
+        "invalid SPOP NOTIFY payload");
+    decision.disruptive = 1;
+    if (build_decision_ack_payload(&expected, &decision,
+            safe_decision_reason_code(&decision, 0, "malformed-notify"), 1, 0) != 0 ||
+            recv_frame(fd, &frame, 3000U) != 0 || frame.type != SPOP_FRM_ACK ||
+            frame.stream_id != stream_id || frame.frame_id != frame_id ||
+            frame.payload_len != expected.len ||
+            memcmp(frame.payload, expected.data, expected.len) != 0) {
+        return -1;
+    }
+    return 0;
+}
+
+static int run_spop_malformed_notify_socket_self_test(void)
+{
+    int sockets[2] = {-1, -1};
+    int rc;
+    unsigned char byte;
+    spop_buffer empty;
+    spop_buffer notify_payload;
+    agent_state production_state;
+
+    empty.len = 0U;
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) != 0 ||
+            send_haproxy_hello(sockets[1], 0) != 0 ||
+            send_frame(sockets[1], SPOP_FRM_NOTIFY, 1U, 1U, &empty) != 0) {
+        close(sockets[0]);
+        close(sockets[1]);
+        return -1;
+    }
+    rc = handle_connection(sockets[0], 0, stderr, 0, 0, 2000U);
+    if (rc == 0 || client_expect_frame(sockets[1], SPOP_FRM_AGENT_HELLO, 0, 0) != 0) {
+        close(sockets[0]);
+        close(sockets[1]);
+        return -1;
+    }
+    close(sockets[0]);
+    if (recv(sockets[1], &byte, sizeof(byte), 0) != 0) {
+        close(sockets[1]);
+        return -1;
+    }
+    close(sockets[1]);
+    sockets[0] = -1;
+    sockets[1] = -1;
+
+    memset(&production_state, 0, sizeof(production_state));
+    config_init(&production_state.config);
+    if (config_set(&production_state.config, "mode", "detect-only") != 0) {
+        return -1;
+    }
+    production_state.engine = (haproxy_modsecurity_engine *)(uintptr_t)1U;
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) != 0 ||
+            send_haproxy_hello(sockets[1], 0) != 0 ||
+            send_frame(sockets[1], SPOP_FRM_NOTIFY, 1U, 1U, &empty) != 0) {
+        close(sockets[0]);
+        close(sockets[1]);
+        return -1;
+    }
+    rc = handle_connection(sockets[0], &production_state, stderr, 0, 0, 2000U);
+    if (rc == 0 || client_expect_frame(sockets[1], SPOP_FRM_AGENT_HELLO, 0, 0) != 0 ||
+            client_expect_malformed_ack(sockets[1], 1U, 1U) != 0) {
+        close(sockets[0]);
+        close(sockets[1]);
+        return -1;
+    }
+    close(sockets[0]);
+    if (recv(sockets[1], &byte, sizeof(byte), 0) != 0) {
+        close(sockets[1]);
+        return -1;
+    }
+    close(sockets[1]);
+    sockets[0] = -1;
+    sockets[1] = -1;
+
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) != 0 ||
+            build_notify_request_payload(&notify_payload, "GET", "/", "/",
+                "localhost", "block") != 0 ||
+            send_haproxy_hello(sockets[1], 0) != 0 ||
+            send_frame(sockets[1], SPOP_FRM_NOTIFY, 1U, 1U, &notify_payload) != 0 ||
+            send_frame(sockets[1], SPOP_FRM_HAPROXY_DISCONNECT, 0U, 0U, &empty) != 0) {
+        close(sockets[0]);
+        close(sockets[1]);
+        return -1;
+    }
+    rc = handle_connection(sockets[0], 0, stderr, 0, 0, 2000U);
+    if (rc != 0 || client_expect_frame(sockets[1], SPOP_FRM_AGENT_HELLO, 0, 0) != 0 ||
+            client_expect_ack_set_var(sockets[1], 1U, 1U) != 0 ||
+            client_expect_frame(sockets[1], SPOP_FRM_AGENT_DISCONNECT, 0, 0) != 0) {
+        close(sockets[0]);
+        close(sockets[1]);
+        return -1;
+    }
+    close(sockets[0]);
+    close(sockets[1]);
+    return 0;
+}
+
 static int run_client_self_test(unsigned int port, FILE *log) {
     int fd;
+    int slow_fd;
+    uint64_t start_ms;
+    uint64_t finish_ms;
     spop_buffer empty;
     spop_buffer notify_payload;
 
-    /* A peer that sends only part of a frame must not monopolize the
-     * sequential accept loop.  The following connection intentionally
-     * expires its two-second frame deadline before the valid connections. */
-    fd = connect_localhost(port);
-    if (fd < 0 || write(fd, "\0", 1U) != 1) {
-        if (fd >= 0) {
-            close(fd);
+    /* Keep one incomplete HELLO open while a following peer completes a
+     * valid health-check. The latter must not wait for the former's two-second
+     * frame deadline; this proves per-peer admission instead of one global
+     * accept/HELLO loop. */
+    slow_fd = connect_localhost(port);
+    if (slow_fd < 0 || send(slow_fd, "\0", 1U, MSG_NOSIGNAL) != 1) {
+        if (slow_fd >= 0) {
+            close(slow_fd);
         }
         return -1;
     }
-    sleep(3U);
-    close(fd);
-
+    start_ms = monotonic_milliseconds();
     fd = connect_localhost(port);
     if (fd < 0) {
+        close(slow_fd);
         return -1;
     }
     if (send_haproxy_hello(fd, 1) != 0 ||
         client_expect_frame(fd, SPOP_FRM_AGENT_HELLO, 0, 0) != 0) {
         close(fd);
+        close(slow_fd);
+        return -1;
+    }
+    finish_ms = monotonic_milliseconds();
+    if (start_ms == 0U || finish_ms == 0U || finish_ms < start_ms ||
+            finish_ms - start_ms > 1000U) {
+        close(fd);
+        close(slow_fd);
         return -1;
     }
     log_line(log, "client healthcheck handshake PASS");
@@ -4865,6 +5877,7 @@ static int run_client_self_test(unsigned int port, FILE *log) {
 
     fd = connect_localhost(port);
     if (fd < 0) {
+        close(slow_fd);
         return -1;
     }
     empty.len = 0;
@@ -4872,6 +5885,7 @@ static int run_client_self_test(unsigned int port, FILE *log) {
             "/haproxy-binding-self-test", "/haproxy-binding-self-test",
             "localhost", "block") != 0) {
         close(fd);
+        close(slow_fd);
         return -1;
     }
     if (send_haproxy_hello(fd, 0) != 0 ||
@@ -4881,10 +5895,12 @@ static int run_client_self_test(unsigned int port, FILE *log) {
         send_frame(fd, SPOP_FRM_HAPROXY_DISCONNECT, 0, 0, &empty) != 0 ||
         client_expect_frame(fd, SPOP_FRM_AGENT_DISCONNECT, 0, 0) != 0) {
         close(fd);
+        close(slow_fd);
         return -1;
     }
     log_line(log, "client notify set-var ack disconnect PASS");
     close(fd);
+    close(slow_fd);
     return 0;
 }
 
@@ -4898,6 +5914,14 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
     pid_t child;
     int status;
     FILE *log;
+    int ready_fd = -1;
+    int pid_fd = -1;
+    int port_fd = -1;
+    int close_rc = 0;
+    unsigned int owned_metadata = 0U;
+    int result = 0;
+    pid_t child_to_reap = -1;
+    int terminate_child = 0;
 
     if (self_test_rejects_oversized_endpoint_port() != 0) {
         fprintf(stderr, "SPOP oversized endpoint-port rejection self-test failed\n");
@@ -4919,8 +5943,20 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
         fprintf(stderr, "SPOP request-id validation self-test failed\n");
         return 1;
     }
+    if (run_spop_notify_failure_self_test() != 0) {
+        fprintf(stderr, "SPOP NOTIFY failure self-test failed\n");
+        return 1;
+    }
+    if (run_spop_malformed_notify_socket_self_test() != 0) {
+        fprintf(stderr, "SPOP malformed NOTIFY socket self-test failed\n");
+        return 1;
+    }
     if (run_spop_write_deadline_self_test() != 0) {
         fprintf(stderr, "SPOP write-deadline self-test failed\n");
+        return 1;
+    }
+    if (run_spop_peer_close_write_self_test() != 0) {
+        fprintf(stderr, "SPOP peer-close write self-test failed\n");
         return 1;
     }
     if (mkdir_p(tmp_root) != 0 || mkdir_p(log_root) != 0) {
@@ -4939,40 +5975,106 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
     listen_fd = bind_localhost("127.0.0.1", 0, &port);
     if (listen_fd < 0) {
         fprintf(stderr, "failed to bind SPOP protocol self-test listener\n");
-        fclose(log);
-        return 77;
+        result = 77;
+        goto cleanup;
     }
-    if (write_unsigned_text_file(port_path, port) != 0) {
-        close(listen_fd);
-        fclose(log);
-        return 77;
+    ready_fd = claim_self_test_metadata_file(ready_path);
+    if (ready_fd >= 0) {
+        owned_metadata |= SELF_TEST_METADATA_READY;
+    }
+    pid_fd = claim_self_test_metadata_file(pid_path);
+    if (pid_fd >= 0) {
+        owned_metadata |= SELF_TEST_METADATA_PID;
+    }
+    port_fd = claim_self_test_metadata_file(port_path);
+    if (port_fd >= 0) {
+        owned_metadata |= SELF_TEST_METADATA_PORT;
+    }
+    if (ready_fd < 0 || pid_fd < 0 || port_fd < 0) {
+        result = 77;
+        goto cleanup;
+    }
+    if (write_unsigned_fd(port_fd, port) != 0) {
+        result = 77;
+        goto cleanup;
     }
     child = fork();
     if (child < 0) {
-        close(listen_fd);
-        fclose(log);
-        return 77;
+        result = 77;
+        goto cleanup;
     }
+    child_to_reap = child;
     if (child == 0) {
-        if (write_process_id_file(pid_path, getpid()) != 0 ||
-                write_text_contents(ready_path, "ready\n") != 0) {
-            exit(77);
+        int child_close_rc = 0;
+
+        child_close_rc |= close_self_test_fd(&ready_fd);
+        child_close_rc |= close_self_test_fd(&pid_fd);
+        child_close_rc |= close_self_test_fd(&port_fd);
+        if (child_close_rc != 0) {
+            fprintf(stderr, "SPOP protocol self-test child metadata close failed\n");
+            _exit(SPOP_RUNTIME_CLEANUP_FAILURE);
         }
-        exit(accept_loop(listen_fd, 0, log, 3, 0, 0));
+        status = accept_loop(listen_fd, 0, log, 3, 0, 0, 2000U, 8U);
+        exit(status);
     }
-    close(listen_fd);
-    if (run_client_self_test(port, log) != 0) {
-        kill(child, SIGTERM);
-        waitpid(child, &status, 0);
-        fclose(log);
+    {
+        int listener = listen_fd;
+        listen_fd = -1;
+        if (close(listener) != 0) {
+            terminate_child = 1;
+            fprintf(stderr, "SPOP protocol self-test listener close failed\n");
+            result = 1;
+            goto cleanup;
+        }
+    }
+    if (write_process_id_fd(pid_fd, child) != 0 ||
+            write_fd_contents(ready_fd, "ready\n") != 0) {
+        terminate_child = 1;
         fprintf(stderr, "SPOP protocol self-test failed\n");
-        return 1;
+        result = 1;
+        goto cleanup;
     }
-    waitpid(child, &status, 0);
-    fclose(log);
+    close_rc |= close_self_test_fd(&ready_fd);
+    close_rc |= close_self_test_fd(&pid_fd);
+    close_rc |= close_self_test_fd(&port_fd);
+    if (close_rc != 0) {
+        terminate_child = 1;
+        fprintf(stderr, "SPOP protocol self-test metadata close failed\n");
+        result = 1;
+        goto cleanup;
+    }
+    if (run_client_self_test(port, log) != 0) {
+        terminate_child = 1;
+        fprintf(stderr, "SPOP protocol self-test failed\n");
+        result = 1;
+        goto cleanup;
+    }
+    {
+        int wait_result = wait_self_test_child_bounded(child, &status, 0);
+        if (wait_result == 0 || wait_result == -2) {
+            child_to_reap = -1;
+        }
+        if (wait_result != 0) {
+            fprintf(stderr, "SPOP protocol self-test child wait failed\n");
+            result = 1;
+            goto cleanup;
+        }
+    }
+    child_to_reap = -1;
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-        fprintf(stderr, "SPOP protocol self-test child failed\n");
-        return 1;
+        result = 1;
+        goto cleanup;
+    }
+cleanup:
+    if (finish_self_test_resources(&listen_fd, child_to_reap, &status,
+            terminate_child, &ready_fd,
+            &pid_fd, &port_fd, ready_path, pid_path, port_path,
+            owned_metadata, &log) != 0) {
+        fprintf(stderr, "SPOP protocol self-test cleanup failed\n");
+        return SPOP_RUNTIME_CLEANUP_FAILURE;
+    }
+    if (result != 0) {
+        return result;
     }
     printf("haproxy_modsecurity_spoa_protocol_self_test: PASS\n");
     printf("scope: SPOP handshake and typed set-var ACK compatibility; production ModSecurity coverage is verified by live HAProxy smoke tests\n");
@@ -5016,6 +6118,7 @@ static int run_server(const legacy_server_config *config) {
     int listen_fd;
     unsigned int bound_port;
     FILE *log;
+    int accept_rc;
 
     log = open_private_file(config->log_file, 1);
     if (log == 0) {
@@ -5037,11 +6140,11 @@ static int run_server(const legacy_server_config *config) {
     log_line(log, "legacy SPOP compatibility server listening on %s:%u rules_file=%s",
         config->host, bound_port,
         config->rules_file != 0 ? config->rules_file : "");
-    (void)accept_loop(listen_fd, 0, log, 0, config->rules_file,
-        config->crs_preamble_file);
+    accept_rc = accept_loop(listen_fd, 0, log, 0, config->rules_file,
+        config->crs_preamble_file, 2000U, 8U);
     close(listen_fd);
     fclose(log);
-    return 0;
+    return accept_rc == 0 ? 0 : 1;
 }
 
 static FILE *open_append_file_or_standard(const char *path, FILE *standard_file) {
@@ -5057,6 +6160,19 @@ static FILE *open_append_file_or_standard(const char *path, FILE *standard_file)
         return 0;
     }
     return open_private_file(path, 1);
+}
+
+static int log_streams_share_inode(FILE *left, FILE *right) {
+    struct stat left_stat;
+    struct stat right_stat;
+
+    if (left == 0 || right == 0 || fileno(left) < 0 || fileno(right) < 0 ||
+            fstat(fileno(left), &left_stat) != 0 ||
+            fstat(fileno(right), &right_stat) != 0) {
+        return -1;
+    }
+    return left_stat.st_dev == right_stat.st_dev &&
+        left_stat.st_ino == right_stat.st_ino;
 }
 
 static int open_agent_logs(
@@ -5087,6 +6203,14 @@ static int open_agent_logs(
         return -1;
     }
     *decision_log_owned = *decision_log != stdout;
+    if (log_streams_share_inode(*log, *decision_log) != 0) {
+        if (stderr != NULL) {
+            fprintf(stderr, "log and decision log must be distinct regular targets\n");
+        }
+        (void)close_owned_stream(decision_log, *decision_log_owned);
+        *decision_log_owned = 0;
+        return -1;
+    }
     return 0;
 }
 
@@ -5106,41 +6230,141 @@ static int initialize_agent_engine(
         decision);
 }
 
-static void destroy_agent_runtime(
+typedef struct spop_transport_stop_context {
+    msconnector_response_companion_transport *transport;
+    msconnector_error error;
+    pthread_mutex_t lock;
+    pthread_cond_t completed;
+    int done;
+    int result;
+} spop_transport_stop_context;
+
+static void *spop_transport_stop_thread(void *opaque)
+{
+    spop_transport_stop_context *context = opaque;
+    int result;
+
+    result = msconnector_response_companion_transport_stop(
+        context->transport, &context->error);
+    if (pthread_mutex_lock(&context->lock) != 0) {
+        _Exit(SPOP_OWNER_RESTART_EXIT_CODE);
+    }
+    context->result = result;
+    context->done = 1;
+    pthread_cond_broadcast(&context->completed);
+    pthread_mutex_unlock(&context->lock);
+    return 0;
+}
+
+static int spop_transport_stop_bounded(agent_state *state,
+        msconnector_error *error)
+{
+    spop_transport_stop_context context;
+    struct timespec deadline;
+    pthread_t thread;
+    int wait_rc = 0;
+    int result;
+
+    memset(&context, 0, sizeof(context));
+    context.transport = &state->response_transport;
+    msconnector_error_init(&context.error);
+    if (pthread_mutex_init(&context.lock, 0) != 0) {
+        return 0;
+    }
+    if (spop_owner_cond_init(&context.completed) != 0) {
+        pthread_mutex_destroy(&context.lock);
+        return 0;
+    }
+    if (spop_owner_deadline(&deadline, SPOP_OWNER_SHUTDOWN_WAIT_MS) != 0 ||
+            pthread_create(&thread, 0, spop_transport_stop_thread, &context) != 0) {
+        pthread_cond_destroy(&context.completed);
+        pthread_mutex_destroy(&context.lock);
+        return 0;
+    }
+    if (pthread_mutex_lock(&context.lock) != 0) {
+        /* The helper may still reference this stack-backed context.  A
+         * process exit is the only safe result if synchronization itself is
+         * no longer usable. */
+        _Exit(SPOP_OWNER_RESTART_EXIT_CODE);
+    }
+    while (!context.done && wait_rc == 0) {
+        wait_rc = pthread_cond_timedwait(&context.completed, &context.lock,
+            &deadline);
+    }
+    if (!context.done) {
+        log_line(state->log,
+            "event=spop-response-transport-shutdown-timeout action=controlled-restart reason=transport-not-quiescent exit_code=%d",
+            SPOP_OWNER_RESTART_EXIT_CODE);
+        _Exit(SPOP_OWNER_RESTART_EXIT_CODE);
+    }
+    result = context.result;
+    if (error != 0) {
+        *error = context.error;
+    }
+    if (pthread_mutex_unlock(&context.lock) != 0) {
+        _Exit(SPOP_OWNER_RESTART_EXIT_CODE);
+    }
+    if (pthread_join(thread, 0) != 0) {
+        _Exit(SPOP_OWNER_RESTART_EXIT_CODE);
+    }
+    pthread_cond_destroy(&context.completed);
+    pthread_mutex_destroy(&context.lock);
+    return result;
+}
+
+static int destroy_agent_runtime(
         agent_state *state,
         int listen_fd,
         FILE **log,
         int log_owned,
         FILE **decision_log,
         int decision_log_owned) {
-    int native_runtime_safe = 1;
+    int cleanup_failed = 0;
+    int restart_required;
 
     if (state == NULL) {
-        close_owned_stream(decision_log, decision_log_owned);
-        close_owned_stream(log, log_owned);
-        return;
+        if (close_owned_stream(decision_log, decision_log_owned) != 0) {
+            cleanup_failed = 1;
+        }
+        if (close_owned_stream(log, log_owned) != 0) {
+            cleanup_failed = 1;
+        }
+        return cleanup_failed ? SPOP_RUNTIME_CLEANUP_FAILURE : 0;
     }
     if (listen_fd >= 0) {
-        close(listen_fd);
+        spop_owner_queue_set_listener(state, -1);
+        if (close(listen_fd) != 0) {
+            cleanup_failed = 1;
+        }
     }
     if (state->response_transport_started) {
         msconnector_error transport_error;
         msconnector_error_init(&transport_error);
-        if (msconnector_response_companion_transport_stop(
-            &state->response_transport, &transport_error)) {
+        if (spop_transport_stop_bounded(state, &transport_error)) {
             state->response_transport_started = 0;
         } else {
             /* A failed stop means worker/native state may still be live.
              * Do not expire slots, destroy the owner queue, free the backend,
-             * tear down the transaction cache, or destroy the engine.  The
-             * process is terminating and retains these objects for teardown. */
-            if (log != NULL && *log != NULL) {
-                fprintf(*log, "response companion transport stop incomplete; retaining native runtime state\n");
-                fflush(*log);
-            }
-            close_owned_stream(decision_log, decision_log_owned);
-            close_owned_stream(log, log_owned);
-            return;
+             * tear down the transaction cache, or destroy the engine.  Exit
+             * directly so the kernel reclaims all process-owned state. */
+            log_line(state->log,
+                "event=spop-response-transport-shutdown-failed action=controlled-restart reason=transport-cleanup-incomplete exit_code=%d",
+                SPOP_OWNER_RESTART_EXIT_CODE);
+            _Exit(SPOP_OWNER_RESTART_EXIT_CODE);
+        }
+    }
+    /* Snapshot the terminal disposition before teardown so the caller's
+     * result is stable.  The atomic flag is independent of mutex lifetime. */
+    restart_required = spop_owner_queue_requires_restart(state);
+    if (restart_required) {
+        if (spop_owner_queue_destroy(state) != 0) {
+            /* The owner still reaches this stack-backed agent_state and may
+             * later write through its logs/backend/task context.  Returning,
+             * closing those streams, or running destructors would create a
+             * use-after-return/use-after-close.  _Exit terminates every
+             * thread and lets the kernel reclaim descriptors while the
+             * supervisor observes the documented restart status. */
+            _Exit(SPOP_OWNER_RESTART_EXIT_CODE);
         }
     }
     if (state->response_backend_initialized) {
@@ -5149,7 +6373,11 @@ static void destroy_agent_runtime(
         haproxy_spop_response_companion_backend_expire(
             &state->response_backend, UINT64_MAX);
     }
-    spop_owner_queue_destroy(state);
+    if (state->owner_queue.initialized && spop_owner_queue_destroy(state) != 0) {
+        /* See the terminal branch above: no caller-owned or native object is
+         * safe to tear down while the owner remains live. */
+        _Exit(SPOP_OWNER_RESTART_EXIT_CODE);
+    }
     if (state->response_backend_initialized) {
         msconnector_error backend_error;
         msconnector_error_init(&backend_error);
@@ -5159,15 +6387,32 @@ static void destroy_agent_runtime(
             free(state->response_slots);
             state->response_slots = NULL;
         } else {
-            native_runtime_safe = 0;
+            log_line(state->log,
+                "event=spop-response-backend-shutdown-failed action=controlled-restart reason=backend-destroy-failed exit_code=%d",
+                SPOP_OWNER_RESTART_EXIT_CODE);
+            _Exit(SPOP_OWNER_RESTART_EXIT_CODE);
         }
     }
     transaction_cache_destroy(state);
-    if (native_runtime_safe && state->engine != NULL) {
+    if (state->engine != NULL) {
         haproxy_modsecurity_engine_destroy(state->engine);
     }
-    close_owned_stream(decision_log, decision_log_owned);
-    close_owned_stream(log, log_owned);
+    if (close_owned_stream(decision_log, decision_log_owned) != 0) {
+        cleanup_failed = 1;
+    }
+    if (close_owned_stream(log, log_owned) != 0) {
+        cleanup_failed = 1;
+    }
+    if (state->decision_log_lock_initialized) {
+        if (pthread_mutex_destroy(&state->decision_log_lock) != 0) {
+            cleanup_failed = 1;
+        }
+        state->decision_log_lock_initialized = 0;
+    }
+    if (restart_required) {
+        return SPOP_OWNER_RESTART_EXIT_CODE;
+    }
+    return cleanup_failed ? SPOP_RUNTIME_CLEANUP_FAILURE : 0;
 }
 
 static int initialize_native_response_companion(
@@ -5234,6 +6479,11 @@ static int run_agent_server(const agent_config *config) {
 
     memset(&state, 0, sizeof(state));
     state.config = *config;
+    if (pthread_mutex_init(&state.decision_log_lock, 0) != 0) {
+        fprintf(stderr, "failed to initialize decision log lock\n");
+        return 77;
+    }
+    state.decision_log_lock_initialized = 1;
     if (open_agent_logs(config, &log, &log_owned, &decision_log,
             &decision_log_owned) != 0) {
         goto cleanup;
@@ -5262,6 +6512,7 @@ static int run_agent_server(const agent_config *config) {
         fprintf(stderr, "failed to bind %s:%u\n", config->host, config->port);
         goto cleanup;
     }
+    spop_owner_queue_set_listener(&state, listen_fd);
     if (write_server_runtime_files(config->pid_file, config->port_file,
             config->ready_file, bound_port) != 0) {
         goto cleanup;
@@ -5272,10 +6523,16 @@ static int run_agent_server(const agent_config *config) {
         config->modsecurity_conf, config->crs_root, config->mode,
         config->fail_mode, config->response_phases_enabled,
         config->response_body_limit);
-    rc = accept_loop(listen_fd, &state, log, 0, 0, 0);
+    rc = accept_loop(listen_fd, &state, log, 0, 0, 0,
+        state.config.spoe_timeout_ms, state.config.worker_count);
 cleanup:
-    destroy_agent_runtime(&state, listen_fd, &log, log_owned, &decision_log,
-        decision_log_owned);
+    {
+        int cleanup_rc = destroy_agent_runtime(&state, listen_fd, &log, log_owned,
+            &decision_log, decision_log_owned);
+        if (cleanup_rc != 0) {
+            rc = cleanup_rc;
+        }
+    }
     return rc;
 }
 
@@ -5386,6 +6643,15 @@ static int has_production_rules(const agent_config *config) {
 static int validate_production_config(const agent_config *config) {
     if (config == 0) {
         return -1;
+    }
+    if (!valid_loopback_host(config->host)) {
+        fprintf(stderr,
+            "SPOP listener must use 127.0.0.1 because the transport is unauthenticated\n");
+        return -1;
+    }
+    if (!production_config_has_safe_peer_limits(config)) {
+        fprintf(stderr,
+            "worker-count/max-transactions must stay within the bounded peer-cache limits\n");
     }
     if (!valid_fail_mode(config->fail_mode)) {
         fprintf(stderr, "fail-mode must be exactly open or closed; invalid value rejected\n");
