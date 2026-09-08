@@ -57,11 +57,23 @@ MANIFEST_NAME = "manifest.json"
 APACHE_CLEANUP_RECEIPT_LABEL = "Apache cleanup receipt"
 CRS_RULE_FILE = "rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf"
 OUTPUT_NAMES = (FUNCTIONAL_FACTS_NAME, PROFILE_RECEIPT_NAME, MANIFEST_NAME)
+APACHE_SELECTED_RESULTS_NAME = "apache-results.jsonl"
+APACHE_SELECTED_SUMMARY_NAME = "apache-summary.json"
+APACHE_SELECTED_SUMMARY_TEXT_NAME = "apache-summary.txt"
+APACHE_SELECTED_CONNECTOR_SUMMARY_NAME = "connector-summary.txt"
+APACHE_SELECTED_DIRECTORY_MARKER_RECORD = "apache_selected_results_directory_identity"
+APACHE_SELECTED_DIRECTORY_MARKER_PREFIX = ".apache-selected-results-"
+APACHE_SELECTED_OUTPUT_NAMES = (
+    APACHE_SELECTED_RESULTS_NAME,
+    APACHE_SELECTED_SUMMARY_NAME,
+    APACHE_SELECTED_SUMMARY_TEXT_NAME,
+    APACHE_SELECTED_CONNECTOR_SUMMARY_NAME,
+)
 APACHE_SUMMARY_RELATIVE_PATH = "build/verified-apache-case/with-crs/no-mrts/results/apache-summary.json"
 APACHE_RESULTS_RELATIVE_PATH = "build/verified-apache-case/with-crs/no-mrts/results/apache-results.jsonl"
 APACHE_AUDIT_RELATIVE_PATH = (
     "build/verified-apache-case/with-crs-no-mrts-apache/logs/apache-runtime/"
-    "crs_sqli_anomaly_block/audit.log"
+    "audit.log"
 )
 APACHE_CLEANUP_RECEIPT_NAME = "apache-profile-cleanup-receipt.json"
 APACHE_CLEANUP_RECORD = "apache_with_crs_no_mrts_cleanup_receipt"
@@ -75,6 +87,19 @@ APACHE_AUDIT_BOUNDARY = re.compile(r"^---([A-Za-z\d]+)---([A-Z])--$", re.ASCII)
 APACHE_AUDIT_STATUS = re.compile(r"^HTTP/\d+(?:\.\d+)? 403(?:[ \t\r]|$)", re.ASCII)
 APACHE_CRS_RULE_ID = re.compile(
     rb"(?:^|[,\s])['\"]?id['\"]?\s*:\s*942270(?:[,\s]|$)"
+)
+APACHE_SELECTED_CASE_EXPECTATIONS = (
+    ("name", CASE_ID),
+    ("executed_connector", "apache"),
+    ("live_executed", True),
+    ("status", "pass"),
+    ("expected_status", 403),
+    ("actual_status", 403),
+    ("observed_status", 403),
+    ("observed_transport_result", "http_status"),
+    ("expected_intervention", "deny"),
+    ("requires_crs", True),
+    ("variant", "with-crs"),
 )
 SHA40 = re.compile(r"^[\da-f]{40}$", re.ASCII)
 SHA256 = re.compile(r"^[\da-f]{64}$", re.ASCII)
@@ -221,6 +246,88 @@ def _open_absolute_directory(path: Path, label: str) -> int:
     return descriptor
 
 
+def _runtime_relative_path(runtime_root: Path, path: Path, label: str) -> tuple[Path, Path, tuple[str, ...]]:
+    runtime = _safe_absolute(runtime_root, "Apache runtime root")
+    target = _safe_absolute(path, label)
+    try:
+        relative = target.relative_to(runtime)
+    except ValueError as exc:
+        raise fail(f"{label} is outside the Apache runtime root") from exc
+    if not relative.parts:
+        raise fail(f"{label} must be a child of the Apache runtime root")
+    return runtime, target, tuple(relative.parts)
+
+
+def _open_runtime_child(directory_fd: int, components: Sequence[str], label: str) -> int:
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    directory = getattr(os, "O_DIRECTORY", None)
+    if nofollow is None or directory is None:
+        raise fail("safe profile evidence publication requires O_NOFOLLOW and O_DIRECTORY")
+    descriptor = os.dup(directory_fd)
+    try:
+        for component in components:
+            before = os.stat(component, dir_fd=descriptor, follow_symlinks=False)
+            if stat.S_ISLNK(before.st_mode):
+                raise fail(f"{label} contains a symbolic link")
+            child = os.open(component, os.O_RDONLY | directory | nofollow, dir_fd=descriptor)
+            try:
+                opened = os.fstat(child)
+                if _identity(before) != _identity(opened):
+                    raise fail(f"{label} changed while opening")
+                _directory_is_safe(opened, label)
+            except BaseException:
+                os.close(child)
+                raise
+            os.close(descriptor)
+            descriptor = child
+    except BaseException:
+        os.close(descriptor)
+        raise
+    return descriptor
+
+
+def _create_runtime_child(directory_fd: int, components: Sequence[str], label: str) -> int:
+    """Create/open one private child below a held runtime-root descriptor."""
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    directory = getattr(os, "O_DIRECTORY", None)
+    if nofollow is None or directory is None:
+        raise fail("safe profile evidence publication requires O_NOFOLLOW and O_DIRECTORY")
+    descriptor = os.dup(directory_fd)
+    try:
+        for component in components:
+            created = False
+            try:
+                before = os.stat(component, dir_fd=descriptor, follow_symlinks=False)
+            except FileNotFoundError:
+                try:
+                    os.mkdir(component, 0o700, dir_fd=descriptor)
+                    created = True
+                    os.fsync(descriptor)
+                except FileExistsError:
+                    pass
+                before = os.stat(component, dir_fd=descriptor, follow_symlinks=False)
+            if stat.S_ISLNK(before.st_mode):
+                raise fail(f"{label} contains a symbolic link")
+            child = os.open(component, os.O_RDONLY | directory | nofollow, dir_fd=descriptor)
+            try:
+                opened = os.fstat(child)
+                if _identity(before) != _identity(opened):
+                    raise fail(f"{label} changed while opening")
+                if created:
+                    os.fchmod(child, 0o700)
+                    opened = os.fstat(child)
+                _directory_is_safe(opened, label)
+            except BaseException:
+                os.close(child)
+                raise
+            os.close(descriptor)
+            descriptor = child
+    except BaseException:
+        os.close(descriptor)
+        raise
+    return descriptor
+
+
 def _safe_relative_parts(value: str | PurePosixPath, label: str) -> tuple[str, ...]:
     path = PurePosixPath(value)
     if path.is_absolute() or not path.parts or any(part in {"", ".", ".."} for part in path.parts):
@@ -297,6 +404,17 @@ def read_safe(root: Path, relative: str | PurePosixPath, label: str, *, maximum:
     return _read_safe_descriptor(file_descriptor, before, label, maximum)
 
 
+def _read_safe_named_file(directory_fd: int, name: str, label: str, maximum: int) -> bytes:
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    nonblock = getattr(os, "O_NONBLOCK", None)
+    if nofollow is None or nonblock is None:
+        raise fail("safe profile evidence access requires no-follow non-blocking support")
+    before = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+    _regular_is_safe(before, label, maximum)
+    descriptor = os.open(name, os.O_RDONLY | nofollow | nonblock, dir_fd=directory_fd)
+    return _read_safe_descriptor(descriptor, before, label, maximum)
+
+
 def _list_safe(root: Path, label: str) -> set[str]:
     descriptor = _open_absolute_directory(root, label)
     try:
@@ -310,6 +428,62 @@ def _list_safe(root: Path, label: str) -> set[str]:
         return names
     finally:
         os.close(descriptor)
+
+
+def _load_case_cli(path: Path) -> Any:
+    path = _safe_absolute(path, "Apache case-summary helper")
+    if path.name != "case_cli.py":
+        raise fail("Apache case-summary helper name is invalid")
+    source = read_safe(path.parent, path.name, "Apache case-summary helper", maximum=MAX_SOURCE_BYTES)
+    module_name = f"with_crs_no_mrts_case_cli_{hashlib.sha256(source).hexdigest()}"
+    existing = sys.modules.get(module_name)
+    if existing is not None:
+        return existing
+    parent = os.fspath(path.parent)
+    inserted = parent not in sys.path
+    if inserted:
+        sys.path.insert(0, parent)
+    try:
+        spec = importlib.util.spec_from_file_location(module_name, path)
+        if spec is None or spec.loader is None:
+            raise fail("Apache case-summary helper cannot be loaded")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+    except ProfileError:
+        raise
+    except (ImportError, OSError, RuntimeError, SyntaxError, ValueError) as exc:
+        sys.modules.pop(module_name, None)
+        raise fail("Apache case-summary helper could not be imported") from exc
+    finally:
+        if inserted:
+            sys.path.remove(parent)
+    if not callable(getattr(module, "connector_summary", None)):
+        raise fail("Apache case-summary helper lacks connector_summary")
+    return module
+
+
+def _parse_selected_apache_case(raw: bytes) -> tuple[bytes, dict[str, Any]]:
+    if not raw.endswith(b"\n") or raw.count(b"\n") != 1:
+        raise fail("selected Apache case result must be one JSONL record")
+    value = parse_json_object(raw, "selected Apache case result")
+    expected = (json.dumps(value, sort_keys=True) + "\n").encode("utf-8")
+    if raw != expected:
+        raise fail("selected Apache case result is not canonical case JSONL")
+    for name, wanted in APACHE_SELECTED_CASE_EXPECTATIONS:
+        if not _exact_json_scalar(value.get(name), wanted):
+            raise fail(f"selected Apache case {name} is not the selected CRS result")
+    return raw, value
+
+
+def _case_summary_text(entry: Mapping[str, Any]) -> bytes:
+    status = str(entry.get("status", "fail")).upper()
+    scope = str(entry.get("scope", "unknown"))
+    name = str(entry.get("name", "unknown"))
+    expected = entry.get("expected_status")
+    actual = entry.get("actual_status")
+    suffix = f"expected={expected}" if actual is None else f"expected={expected} actual={actual}"
+    return f"{status} {scope} {name} {suffix}\n".encode("utf-8")
 
 
 def _require_token(value: str, label: str, *, decimal: bool = False) -> str:
@@ -337,6 +511,67 @@ def _require_exact(mapping: Mapping[str, Any], required: set[str], label: str) -
         missing = ", ".join(sorted(required - actual))
         extra = ", ".join(sorted(actual - required))
         raise fail(f"{label} has unexpected fields (missing={missing or '-'} extra={extra or '-'})")
+
+
+def _apache_selected_marker(runtime_root: Path, results_dir: Path) -> tuple[Path, tuple[str, ...], str, str]:
+    runtime, _target, components = _runtime_relative_path(
+        runtime_root, results_dir, "selected Apache results directory"
+    )
+    relative = "/".join(components)
+    marker = (
+        APACHE_SELECTED_DIRECTORY_MARKER_PREFIX
+        + hashlib.sha256(relative.encode("utf-8")).hexdigest()
+        + ".json"
+    )
+    return runtime, components, relative, marker
+
+
+def _apache_selected_directory_identity(details: os.stat_result) -> dict[str, int]:
+    return {
+        "device": details.st_dev,
+        "inode": details.st_ino,
+        "file_type": stat.S_IFMT(details.st_mode),
+        "uid": details.st_uid,
+        "mode": stat.S_IMODE(details.st_mode),
+    }
+
+
+def _apache_selected_marker_payload(relative: str, details: os.stat_result) -> bytes:
+    return canonical_json(
+        {
+            "schema_version": SCHEMA_VERSION,
+            "record_type": APACHE_SELECTED_DIRECTORY_MARKER_RECORD,
+            "relative_path": relative,
+            "identity": _apache_selected_directory_identity(details),
+        }
+    )
+
+
+def _verify_apache_selected_marker(
+    directory_fd: int, marker_name: str, relative: str, details: os.stat_result
+) -> None:
+    raw = _read_safe_named_file(
+        directory_fd, marker_name, "selected Apache results directory marker", MAX_JSON_BYTES
+    )
+    marker = parse_json_object(raw, "selected Apache results directory marker", canonical=True)
+    _require_exact(
+        marker,
+        {"schema_version", "record_type", "relative_path", "identity"},
+        "selected Apache results directory marker",
+    )
+    if (
+        not _exact_json_scalar(marker.get("schema_version"), SCHEMA_VERSION)
+        or not _exact_json_scalar(marker.get("record_type"), APACHE_SELECTED_DIRECTORY_MARKER_RECORD)
+        or not _exact_json_scalar(marker.get("relative_path"), relative)
+        or type(marker.get("identity")) is not dict
+    ):
+        raise fail("selected Apache results directory marker is invalid")
+    expected = _apache_selected_directory_identity(details)
+    identity = marker["identity"]
+    _require_exact(identity, set(expected), "selected Apache results directory marker identity")
+    for name, value in expected.items():
+        if not _exact_json_scalar(identity.get(name), value):
+            raise fail("selected Apache results directory changed after preparation")
 
 
 def _load_runtime_observation_module() -> Any:
@@ -752,20 +987,7 @@ def _apache_facts(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[s
         args.github_run_attempt,
     )
     case = _apache_case(summary)
-    expected = {
-        "name": CASE_ID,
-        "executed_connector": "apache",
-        "live_executed": True,
-        "status": "pass",
-        "expected_status": 403,
-        "actual_status": 403,
-        "observed_status": 403,
-        "observed_transport_result": "http_status",
-        "expected_intervention": "deny",
-        "requires_crs": True,
-        "variant": "with-crs",
-    }
-    for name, wanted in expected.items():
+    for name, wanted in APACHE_SELECTED_CASE_EXPECTATIONS:
         if not _exact_json_scalar(case.get(name), wanted):
             raise fail(f"Apache case {name} is not the selected CRS result")
     try:
@@ -778,7 +1000,7 @@ def _apache_facts(args: argparse.Namespace) -> tuple[dict[str, Any], list[dict[s
         raise fail("Apache results JSONL is invalid") from exc
     if len(lines) != 1 or type(lines[0]) is not dict:
         raise fail("Apache results must contain exactly one selected case")
-    for name, wanted in expected.items():
+    for name, wanted in APACHE_SELECTED_CASE_EXPECTATIONS:
         if not _exact_json_scalar(lines[0].get(name), wanted):
             raise fail(f"Apache JSONL {name} disagrees with the selected case")
     facts = {
@@ -909,8 +1131,10 @@ def _create_output_directory(verified_root: Path, output_dir: Path) -> tuple[Pat
         os.close(root_fd)
 
 
-def _write_new_file(directory_fd: int, name: str, data: bytes, label: str) -> None:
-    if name not in OUTPUT_NAMES or not data or len(data) > MAX_JSON_BYTES:
+def _write_new_named_file(
+    directory_fd: int, name: str, data: bytes, label: str, allowed_names: Sequence[str]
+) -> None:
+    if name not in allowed_names or not data or len(data) > MAX_JSON_BYTES:
         raise fail(f"{label} is invalid")
     nofollow = getattr(os, "O_NOFOLLOW", None)
     if nofollow is None:
@@ -931,6 +1155,122 @@ def _write_new_file(directory_fd: int, name: str, data: bytes, label: str) -> No
             raise fail(f"{label} identity changed while writing")
     finally:
         os.close(descriptor)
+
+
+def _write_new_file(directory_fd: int, name: str, data: bytes, label: str) -> None:
+    _write_new_named_file(directory_fd, name, data, label, OUTPUT_NAMES)
+
+
+def prepare_apache_selected_results(args: argparse.Namespace) -> None:
+    runtime, components, relative, marker_name = _apache_selected_marker(
+        args.runtime_root, args.results_dir
+    )
+    root_fd = _open_absolute_directory(runtime, "Apache runtime root")
+    try:
+        descriptor = _create_runtime_child(root_fd, components, "selected Apache results directory")
+        try:
+            marker = _apache_selected_marker_payload(relative, os.fstat(descriptor))
+            _write_new_named_file(
+                root_fd,
+                marker_name,
+                marker,
+                "selected Apache results directory marker",
+                (marker_name,),
+            )
+            os.fsync(descriptor)
+            os.fsync(root_fd)
+        finally:
+            os.close(descriptor)
+    finally:
+        os.close(root_fd)
+
+
+def _apache_selected_summary(args: argparse.Namespace, entry: dict[str, Any]) -> bytes:
+    case_cli = _load_case_cli(args.case_cli)
+    results_dir = _safe_absolute(args.results_dir, "selected Apache results directory")
+    summary_args = argparse.Namespace(
+        connector="apache",
+        input_jsonl=os.fspath(results_dir / APACHE_SELECTED_RESULTS_NAME),
+        summary_json=os.fspath(results_dir / APACHE_SELECTED_SUMMARY_NAME),
+        summary_text=os.fspath(results_dir / APACHE_SELECTED_SUMMARY_TEXT_NAME),
+        import_status_file=os.fspath(args.import_status_file),
+        connector_path="real-world",
+        validation_mode="real-world-connector-path",
+        environment=None,
+        server="apache",
+        server_binary=args.server_binary,
+        module=args.module,
+        libmodsecurity=args.libmodsecurity,
+        origin_source=args.origin_source,
+        origin_source_repo=args.origin_source_repo,
+        origin_source_url=args.origin_source_url,
+        origin_source_commit=args.origin_source_commit,
+        origin_source_version=args.origin_source_version,
+        origin_license=args.origin_license,
+        origin_imported_path=args.origin_imported_path,
+        runtime_mode="selected-case",
+        command="RUN_ONE_CASE=1 make verified-apache-case",
+        exit_status="0",
+        run_id="",
+        run_started_at="",
+        per_case_result_root=os.fspath(args.log_dir),
+    )
+    try:
+        summary = case_cli.connector_summary(summary_args, [entry])
+        payload = {"apache": summary}
+        return (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise fail("Apache case-summary construction failed") from exc
+
+
+def publish_apache_selected_results(args: argparse.Namespace) -> None:
+    runtime, result_components, relative, marker_name = _apache_selected_marker(
+        args.runtime_root, args.results_dir
+    )
+    _log_runtime, _log_target, log_components = _runtime_relative_path(
+        args.runtime_root, args.log_dir, "selected Apache log directory"
+    )
+    log_dir = _safe_absolute(args.log_dir, "selected Apache log directory")
+    result_json = _safe_absolute(args.result_json, "selected Apache case result")
+    if result_json.name != "result.json" or result_json.parent != log_dir:
+        raise fail("selected Apache case result must be inside the selected Apache log directory")
+    root_fd = _open_absolute_directory(runtime, "Apache runtime root")
+    try:
+        log_fd = _open_runtime_child(root_fd, log_components, "selected Apache log directory")
+        try:
+            result_raw, entry = _parse_selected_apache_case(
+                _read_safe_named_file(log_fd, "result.json", "selected Apache case result", MAX_JSON_BYTES)
+            )
+        finally:
+            os.close(log_fd)
+        summary_raw = _apache_selected_summary(args, entry)
+        summary_text = _case_summary_text(entry)
+        outputs = (
+            (APACHE_SELECTED_RESULTS_NAME, result_raw, "selected Apache case JSONL"),
+            (APACHE_SELECTED_SUMMARY_NAME, summary_raw, "selected Apache summary"),
+            (APACHE_SELECTED_SUMMARY_TEXT_NAME, summary_text, "selected Apache text summary"),
+            (APACHE_SELECTED_CONNECTOR_SUMMARY_NAME, summary_text, "selected Apache connector summary"),
+        )
+        descriptor = _open_runtime_child(root_fd, result_components, "selected Apache results directory")
+        try:
+            _verify_apache_selected_marker(
+                root_fd, marker_name, relative, os.fstat(descriptor)
+            )
+            for name, _data, label in outputs:
+                try:
+                    existing = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+                except FileNotFoundError:
+                    continue
+                if stat.S_ISLNK(existing.st_mode):
+                    raise fail(f"{label} path is a symbolic link")
+                raise fail(f"{label} already exists")
+            for name, data, label in outputs:
+                _write_new_named_file(descriptor, name, data, label, APACHE_SELECTED_OUTPUT_NAMES)
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+    finally:
+        os.close(root_fd)
 
 
 def _source_files_value(source_files: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -1055,6 +1395,28 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     write_cleanup.add_argument("--github-run-id", required=True)
     write_cleanup.add_argument("--github-run-attempt", required=True)
     write_cleanup.add_argument("--listener-port", type=int, required=True)
+
+    prepare_selected = actions.add_parser("prepare-apache-selected-results")
+    prepare_selected.add_argument("--runtime-root", type=Path, required=True)
+    prepare_selected.add_argument("--results-dir", type=Path, required=True)
+
+    publish_selected = actions.add_parser("publish-apache-selected-results")
+    publish_selected.add_argument("--runtime-root", type=Path, required=True)
+    publish_selected.add_argument("--results-dir", type=Path, required=True)
+    publish_selected.add_argument("--result-json", type=Path, required=True)
+    publish_selected.add_argument("--case-cli", type=Path, required=True)
+    publish_selected.add_argument("--import-status-file", type=Path, required=True)
+    publish_selected.add_argument("--log-dir", type=Path, required=True)
+    publish_selected.add_argument("--server-binary", required=True)
+    publish_selected.add_argument("--module", required=True)
+    publish_selected.add_argument("--libmodsecurity", required=True)
+    publish_selected.add_argument("--origin-source", required=True)
+    publish_selected.add_argument("--origin-source-repo", required=True)
+    publish_selected.add_argument("--origin-source-url", required=True)
+    publish_selected.add_argument("--origin-source-commit", required=True)
+    publish_selected.add_argument("--origin-source-version", required=True)
+    publish_selected.add_argument("--origin-license", required=True)
+    publish_selected.add_argument("--origin-imported-path", required=True)
     return parser.parse_args(argv)
 
 
@@ -1071,9 +1433,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.action == "verify-apache-audit":
             _verify_apache_audit_path(args.audit_log)
             output = {"status": "PASS", "connector": "apache", "check": "audit"}
-        else:
+        elif args.action == "write-apache-cleanup-receipt":
             _write_apache_cleanup_receipt(args)
             output = {"status": "PASS", "connector": "apache", "check": "cleanup"}
+        elif args.action == "prepare-apache-selected-results":
+            prepare_apache_selected_results(args)
+            output = {"status": "PASS", "connector": "apache", "check": "selected-results-directory"}
+        else:
+            publish_apache_selected_results(args)
+            output = {"status": "PASS", "connector": "apache", "check": "selected-results"}
     except (OSError, ProfileError, subprocess.SubprocessError) as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
         return 1

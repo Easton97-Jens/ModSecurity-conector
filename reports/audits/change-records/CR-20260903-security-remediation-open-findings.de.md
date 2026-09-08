@@ -1596,3 +1596,42 @@ bestehenden Matrix-Kriterien `blocked`. PR #354 bleibt
 Draft, offen und ungemergt. Es wird kein Merge, kein Seal, keine Protected-
 Host-Attestierung, keine Framework-/MRTS-/Gitlink-/Dependency-Änderung und
 keine Abschwächung von Tests oder Quality Gate behauptet.
+
+### 2026-09-07 Dreiundzwanzigster Follow-up (Veröffentlichung des ausgewählten Apache-Profils)
+
+Der vorherige Exact-Head `24ae05c46196603a9f088574eb966dbe1c653be0`
+hatte ein frisches SonarCloud-Quality-Gate `OK`, null aktive PR-Issues und
+null reviewbare Hotspots. Sein Exact-Head-NGINX-Lauf `34164526698` bestand
+die unterstützte `modsecurity_use_error_log`-On/Off-Abdeckung und die nativen
+Evidence-Prüfungen. Diese Ergebnisse sind auf `24ae05c...` begrenzt und keine
+Evidence für seinen Nachfolger.
+
+Der frische CRS/no-MRTS-Lauf `34164526645` ist ausschließlich negative
+Evidence. Der ausgewählte Apache-Lauf erreichte HTTP 403, Audit `PASS` und
+Cleanup `PASS`, aber das ausgewählte Profil veröffentlichte
+`apache-summary.json` nicht. Das Aggregat schlug daher korrekt fail-closed
+fehl, nachdem nur vier Zell-Artefakte vorlagen, statt eine unvollständige
+Five-Cell-Matrix zu akzeptieren. FND-PARENT-1078 verfolgt diesen eigenständigen
+Parent-Producer-/Evidence-Veröffentlichungsfehler.
+
+Der aktuelle enge Parent-Kandidat veröffentlicht kanonisches JSONL und eine
+Zusammenfassung für ausgewählte Fälle erst nach erfolgreichem Cleanup. Er
+verankert den konfigurierten Ergebnis-Pfad unterhalb der Runtime-Root mit
+komponentenweisen `O_NOFOLLOW`-Öffnungen und Identitätsprüfungen und erzeugt
+die festen Ausgaben dann mit gehaltenem Directory-FD über
+`O_EXCL|O_NOFOLLOW`. Ein One-shot-Marker in der Runtime-Root bindet den
+Inode des vorbereiteten Ergebnisverzeichnisses bis zur Veröffentlichung;
+veraltete, verlinkte, wiederverwendete und zwischen Vorbereitung und
+Veröffentlichung ersetzte Ausgaben schlagen fail-closed fehl. Seine
+Helper-Aufrufe verwenden den isolierten Python-Modus, und er weist einen
+Datensatz ohne die exakten Fakten des ausgewählten Apache-/with-CRS-403-Falls
+vor jeder Ausgabe ab. Außerdem korrigiert er den verbleibenden Apache-Auditpfad
+des Profils auf den tatsächlich vom
+Wrapper/Harness erzeugten Pfad. Die fokussierten lokalen Apache-Profil- und
+CI-Contract-Tests bestanden, einschließlich eines Zwischen-Symlink-Canarys
+und einer simulierten Ersetzung zwischen Prüfung und Öffnung.
+Hosted-Successor-Workflow/Evidence, exaktes SonarCloud und die erforderliche
+Check-Rücklesung stehen noch aus; keine Evidence des Vorgängers wird
+wiederverwendet. FND-CROSS-0004 bleibt `blocked`, und PR #354 bleibt Draft,
+offen und ungemergt. Es wird keine Protected-Host-Attestierung, kein externes
+Seal, kein Merge und keine Abschwächung von Tests oder Quality Gate behauptet.

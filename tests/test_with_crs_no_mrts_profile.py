@@ -597,6 +597,68 @@ class WithCrsNoMrtsProfileContractTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 PROFILE._write_apache_cleanup_receipt(writer_args)
 
+    def test_apache_selected_results_write_stays_anchored_after_path_replacement(self):
+        with tempfile.TemporaryDirectory(prefix="apache-selected-results-fd-") as temporary:
+            root = Path(temporary)
+            results = root / "results"
+            outside = root / "outside"
+            results.mkdir(mode=0o700)
+            outside.mkdir(mode=0o700)
+            canary = outside / "canary"
+            canary.write_text("unchanged\n", encoding="utf-8")
+
+            descriptor = PROFILE._open_absolute_directory(results, "selected Apache results directory")
+            try:
+                moved = root / "moved-results"
+                results.rename(moved)
+                results.symlink_to(outside, target_is_directory=True)
+                PROFILE._write_new_named_file(
+                    descriptor,
+                    PROFILE.APACHE_SELECTED_RESULTS_NAME,
+                    b'{"case":"anchored"}\n',
+                    "selected Apache case JSONL",
+                    PROFILE.APACHE_SELECTED_OUTPUT_NAMES,
+                )
+            finally:
+                os.close(descriptor)
+
+            self.assertEqual(
+                (moved / PROFILE.APACHE_SELECTED_RESULTS_NAME).read_bytes(),
+                b'{"case":"anchored"}\n',
+            )
+            self.assertFalse((outside / PROFILE.APACHE_SELECTED_RESULTS_NAME).exists())
+            self.assertEqual(canary.read_text(encoding="utf-8"), "unchanged\n")
+
+    def test_apache_selected_results_rejects_replacement_between_stat_and_open(self):
+        with tempfile.TemporaryDirectory(prefix="apache-selected-results-race-") as temporary:
+            root = Path(temporary)
+            results = root / "results"
+            results.mkdir(mode=0o700)
+            moved = root / "moved-results"
+            original_open = PROFILE.os.open
+            replaced = False
+
+            def replace_before_open(path, flags, mode=0o777, *, dir_fd=None):
+                nonlocal replaced
+                if path == "results" and dir_fd is not None and not replaced:
+                    replaced = True
+                    results.rename(moved)
+                    results.mkdir(mode=0o700)
+                return original_open(path, flags, mode, dir_fd=dir_fd)
+
+            root_fd = PROFILE._open_absolute_directory(root, "Apache runtime root")
+            try:
+                with mock.patch.object(PROFILE.os, "open", side_effect=replace_before_open):
+                    with self.assertRaises(ValueError):
+                        PROFILE._open_runtime_child(
+                            root_fd, ("results",), "selected Apache results directory"
+                        )
+            finally:
+                os.close(root_fd)
+            self.assertTrue(replaced)
+            self.assertTrue(moved.is_dir())
+            self.assertTrue(results.is_dir())
+
     def test_produce_accepts_full_generic_shape_but_rejects_minimal_observation(self):
         with tempfile.TemporaryDirectory(prefix="profile-generic-") as temporary:
             root = Path(temporary)

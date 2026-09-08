@@ -385,6 +385,31 @@ run_all_cases() {
     exit 0
 }
 
+publish_profile_single_case_results() {
+    [ "$RUN_ONE_CASE" = "1" ] || return 0
+    apache_profile_enabled || return 0
+
+    single_case_result="$LOG_DIR/result.json"
+    "$PYTHON_BIN" -I "$APACHE_PROFILE_EVIDENCE_SCRIPT" publish-apache-selected-results \
+        --runtime-root "$BUILD_ROOT" \
+        --results-dir "$RESULTS_DIR" \
+        --result-json "$single_case_result" \
+        --case-cli "$CASE_CLI" \
+        --import-status-file "$REPO_ROOT/config/testing/import-status.json" \
+        --server-binary "$APACHE_HTTPD_BIN" \
+        --module "$APACHE_MODULE" \
+        --libmodsecurity "$MODSECURITY_LIB_DIR/libmodsecurity.so" \
+        --origin-source "$CONNECTOR_ORIGIN_SOURCE" \
+        --origin-source-repo "$CONNECTOR_ORIGIN_SOURCE_REPO" \
+        --origin-source-url "$CONNECTOR_ORIGIN_SOURCE_URL" \
+        --origin-source-commit "$CONNECTOR_ORIGIN_SOURCE_COMMIT" \
+        --origin-source-version "$CONNECTOR_ORIGIN_SOURCE_VERSION" \
+        --origin-license "$CONNECTOR_ORIGIN_LICENSE" \
+        --origin-imported-path "$CONNECTOR_ORIGIN_IMPORTED_PATH" \
+        --log-dir "$LOG_DIR" || \
+        fail "selected Apache CRS summary publication failed"
+}
+
 find_apache() {
     if [ -n "$APACHE_HTTPD_BIN" ]; then
         printf '%s\n' "$APACHE_HTTPD_BIN"
@@ -2412,7 +2437,16 @@ require_absolute_generated_path "$LOG_DIR" "LOG_DIR"
 require_absolute_generated_path "$APACHE_CASE_OUTPUT_ROOT" "APACHE_CASE_OUTPUT_ROOT"
 if [ "$RUN_ONE_CASE" = "1" ]; then
     require_absolute_generated_path "$RESULTS_DIR" "RESULTS_DIR"
-    mkdir -p "$RESULTS_DIR"
+    if apache_profile_enabled; then
+        [ -f "$APACHE_PROFILE_EVIDENCE_SCRIPT" ] || \
+            blocked "Apache profile evidence helper is missing: $APACHE_PROFILE_EVIDENCE_SCRIPT"
+        "$PYTHON_BIN" -I "$APACHE_PROFILE_EVIDENCE_SCRIPT" prepare-apache-selected-results \
+            --runtime-root "$BUILD_ROOT" \
+            --results-dir "$RESULTS_DIR" || \
+            blocked "Apache profile results directory is unsafe"
+    else
+        mkdir -p "$RESULTS_DIR"
+    fi
 fi
 
 RUNTIME_PID_FILE="$RUNTIME_ROOT/logs/httpd.pid"
@@ -2656,7 +2690,13 @@ if "$PYTHON_BIN" "$CASE_CLI" assert-status \
         fi
         trap - EXIT INT TERM
     fi
-    write_case_result "$TEST_CASE" pass "$http_status" "$LOG_DIR/result.json" "$observed_transport_result" || true
+    if apache_profile_enabled; then
+        write_case_result "$TEST_CASE" pass "$http_status" "$LOG_DIR/result.json" "$observed_transport_result" || \
+            fail "selected Apache CRS case result publication failed"
+        publish_profile_single_case_results
+    else
+        write_case_result "$TEST_CASE" pass "$http_status" "$LOG_DIR/result.json" "$observed_transport_result" || true
+    fi
     echo "apache_smoke: pass case=$CASE_NAME status=$http_status"
     exit 0
 fi

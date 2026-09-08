@@ -1460,3 +1460,38 @@ FND-CROSS-0004 therefore remains `blocked` under its existing matrix criteria.
 PR #354 remains Draft, open, and unmerged. No merge,
 seal, protected-host attestation, Framework/MRTS/Gitlink/dependency change,
 or test/quality-gate weakening is claimed.
+
+### 2026-09-07 twenty-third follow-up (selected Apache profile publication)
+
+The predecessor exact head `24ae05c46196603a9f088574eb966dbe1c653be0`
+had a fresh SonarCloud Quality Gate `OK`, zero active PR issues, and zero
+reviewable hotspots. Its exact-head NGINX run `34164526698` passed the
+supported `modsecurity_use_error_log` on/off and native evidence checks.
+Those results remain bounded to `24ae05c...` and are not evidence for its
+successor.
+
+The fresh CRS/no-MRTS run `34164526645` was negative evidence only. Its
+selected Apache runtime reached HTTP 403, audit `PASS`, and cleanup `PASS`,
+but the selected profile did not publish `apache-summary.json`. The
+aggregate correctly failed closed after receiving four cell artifacts rather
+than accepting an incomplete five-cell matrix. FND-PARENT-1078 tracks this
+distinct Parent producer/evidence-publication defect.
+
+The current narrow Parent candidate publishes canonical selected-case JSONL
+and summary outputs only after successful cleanup. It anchors the configured
+result path below the runtime root with component-wise `O_NOFOLLOW` opens and
+identity checks, then creates the fixed output names with held-directory-FD
+`O_EXCL|O_NOFOLLOW` writes. A one-shot runtime-root marker binds the
+prepared result-directory inode through publication; stale, symlinked,
+reused, and prepare-to-publish path-replacement outputs fail closed. It also
+uses Python isolated mode for the profile helper and rejects a record missing
+the exact selected Apache/with-CRS 403 facts before any output. It corrects
+the profile's remaining Apache audit
+path to the path actually emitted by the wrapper/harness. Focused local
+Apache profile and CI contract tests passed, including an intermediate-symlink
+canary and a simulated replacement between validation and open. Fresh
+successor hosted workflow/evidence, exact-head SonarCloud, and required-check
+readback remain pending; no predecessor result is reused. FND-CROSS-0004
+remains `blocked`, and PR #354 remains Draft, open, and unmerged. No
+protected-host attestation, external seal, merge, or test/quality-gate
+weakening is claimed.
