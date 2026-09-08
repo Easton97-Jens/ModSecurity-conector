@@ -1635,3 +1635,13 @@ Check-Rücklesung stehen noch aus; keine Evidence des Vorgängers wird
 wiederverwendet. FND-CROSS-0004 bleibt `blocked`, und PR #354 bleibt Draft,
 offen und ungemergt. Es wird keine Protected-Host-Attestierung, kein externes
 Seal, kein Merge und keine Abschwächung von Tests oder Quality Gate behauptet.
+
+Die erste Successor-SonarCloud-Analyse für
+`e002255b7f019a8fd25095457e7ffa70ee35ac2f` hatte ein Quality Gate `OK` und
+keine reviewbaren Hotspots, meldete aber korrekt sechs aktive aktuelle Issues
+im neuen Parent-Helper: fünf Duplicate-Label-Reports `python:S1192` und einen
+Cognitive-Complexity-Report `python:S3776`. Sie wurden als echte,
+task-eigene Wartbarkeitsdefekte bestätigt und ohne Suppression, Ausnahme,
+Testabschwächung oder Quality-Gate-Änderung refaktoriert. Dadurch entsteht ein
+neuer Successor-Head; eine frische SonarCloud-Analyse und sämtliche
+Exact-Head-Hosted-Evidence bleiben erforderlich.

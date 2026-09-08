@@ -57,10 +57,15 @@ MANIFEST_NAME = "manifest.json"
 APACHE_CLEANUP_RECEIPT_LABEL = "Apache cleanup receipt"
 CRS_RULE_FILE = "rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf"
 OUTPUT_NAMES = (FUNCTIONAL_FACTS_NAME, PROFILE_RECEIPT_NAME, MANIFEST_NAME)
+APACHE_RUNTIME_ROOT_LABEL = "Apache runtime root"
 APACHE_SELECTED_RESULTS_NAME = "apache-results.jsonl"
 APACHE_SELECTED_SUMMARY_NAME = "apache-summary.json"
 APACHE_SELECTED_SUMMARY_TEXT_NAME = "apache-summary.txt"
 APACHE_SELECTED_CONNECTOR_SUMMARY_NAME = "connector-summary.txt"
+APACHE_SELECTED_CASE_RESULT_LABEL = "selected Apache case result"
+APACHE_SELECTED_RESULTS_DIRECTORY_LABEL = "selected Apache results directory"
+APACHE_SELECTED_RESULTS_DIRECTORY_MARKER_LABEL = "selected Apache results directory marker"
+APACHE_SELECTED_LOG_DIRECTORY_LABEL = "selected Apache log directory"
 APACHE_SELECTED_DIRECTORY_MARKER_RECORD = "apache_selected_results_directory_identity"
 APACHE_SELECTED_DIRECTORY_MARKER_PREFIX = ".apache-selected-results-"
 APACHE_SELECTED_OUTPUT_NAMES = (
@@ -247,7 +252,7 @@ def _open_absolute_directory(path: Path, label: str) -> int:
 
 
 def _runtime_relative_path(runtime_root: Path, path: Path, label: str) -> tuple[Path, Path, tuple[str, ...]]:
-    runtime = _safe_absolute(runtime_root, "Apache runtime root")
+    runtime = _safe_absolute(runtime_root, APACHE_RUNTIME_ROOT_LABEL)
     target = _safe_absolute(path, label)
     try:
         relative = target.relative_to(runtime)
@@ -286,6 +291,38 @@ def _open_runtime_child(directory_fd: int, components: Sequence[str], label: str
     return descriptor
 
 
+def _create_runtime_component(
+    directory_fd: int, component: str, label: str, nofollow: int, directory: int
+) -> int:
+    """Create/open one private component below a held directory descriptor."""
+    created = False
+    try:
+        before = os.stat(component, dir_fd=directory_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        try:
+            os.mkdir(component, 0o700, dir_fd=directory_fd)
+            created = True
+            os.fsync(directory_fd)
+        except FileExistsError:
+            pass
+        before = os.stat(component, dir_fd=directory_fd, follow_symlinks=False)
+    if stat.S_ISLNK(before.st_mode):
+        raise fail(f"{label} contains a symbolic link")
+    child = os.open(component, os.O_RDONLY | directory | nofollow, dir_fd=directory_fd)
+    try:
+        opened = os.fstat(child)
+        if _identity(before) != _identity(opened):
+            raise fail(f"{label} changed while opening")
+        if created:
+            os.fchmod(child, 0o700)
+            opened = os.fstat(child)
+        _directory_is_safe(opened, label)
+    except BaseException:
+        os.close(child)
+        raise
+    return child
+
+
 def _create_runtime_child(directory_fd: int, components: Sequence[str], label: str) -> int:
     """Create/open one private child below a held runtime-root descriptor."""
     nofollow = getattr(os, "O_NOFOLLOW", None)
@@ -295,31 +332,7 @@ def _create_runtime_child(directory_fd: int, components: Sequence[str], label: s
     descriptor = os.dup(directory_fd)
     try:
         for component in components:
-            created = False
-            try:
-                before = os.stat(component, dir_fd=descriptor, follow_symlinks=False)
-            except FileNotFoundError:
-                try:
-                    os.mkdir(component, 0o700, dir_fd=descriptor)
-                    created = True
-                    os.fsync(descriptor)
-                except FileExistsError:
-                    pass
-                before = os.stat(component, dir_fd=descriptor, follow_symlinks=False)
-            if stat.S_ISLNK(before.st_mode):
-                raise fail(f"{label} contains a symbolic link")
-            child = os.open(component, os.O_RDONLY | directory | nofollow, dir_fd=descriptor)
-            try:
-                opened = os.fstat(child)
-                if _identity(before) != _identity(opened):
-                    raise fail(f"{label} changed while opening")
-                if created:
-                    os.fchmod(child, 0o700)
-                    opened = os.fstat(child)
-                _directory_is_safe(opened, label)
-            except BaseException:
-                os.close(child)
-                raise
+            child = _create_runtime_component(descriptor, component, label, nofollow, directory)
             os.close(descriptor)
             descriptor = child
     except BaseException:
@@ -465,14 +478,14 @@ def _load_case_cli(path: Path) -> Any:
 
 def _parse_selected_apache_case(raw: bytes) -> tuple[bytes, dict[str, Any]]:
     if not raw.endswith(b"\n") or raw.count(b"\n") != 1:
-        raise fail("selected Apache case result must be one JSONL record")
-    value = parse_json_object(raw, "selected Apache case result")
+        raise fail(f"{APACHE_SELECTED_CASE_RESULT_LABEL} must be one JSONL record")
+    value = parse_json_object(raw, APACHE_SELECTED_CASE_RESULT_LABEL)
     expected = (json.dumps(value, sort_keys=True) + "\n").encode("utf-8")
     if raw != expected:
-        raise fail("selected Apache case result is not canonical case JSONL")
+        raise fail(f"{APACHE_SELECTED_CASE_RESULT_LABEL} is not canonical case JSONL")
     for name, wanted in APACHE_SELECTED_CASE_EXPECTATIONS:
         if not _exact_json_scalar(value.get(name), wanted):
-            raise fail(f"selected Apache case {name} is not the selected CRS result")
+            raise fail(f"{APACHE_SELECTED_CASE_RESULT_LABEL} {name} is not the selected CRS result")
     return raw, value
 
 
@@ -515,7 +528,7 @@ def _require_exact(mapping: Mapping[str, Any], required: set[str], label: str) -
 
 def _apache_selected_marker(runtime_root: Path, results_dir: Path) -> tuple[Path, tuple[str, ...], str, str]:
     runtime, _target, components = _runtime_relative_path(
-        runtime_root, results_dir, "selected Apache results directory"
+        runtime_root, results_dir, APACHE_SELECTED_RESULTS_DIRECTORY_LABEL
     )
     relative = "/".join(components)
     marker = (
@@ -551,13 +564,13 @@ def _verify_apache_selected_marker(
     directory_fd: int, marker_name: str, relative: str, details: os.stat_result
 ) -> None:
     raw = _read_safe_named_file(
-        directory_fd, marker_name, "selected Apache results directory marker", MAX_JSON_BYTES
+        directory_fd, marker_name, APACHE_SELECTED_RESULTS_DIRECTORY_MARKER_LABEL, MAX_JSON_BYTES
     )
-    marker = parse_json_object(raw, "selected Apache results directory marker", canonical=True)
+    marker = parse_json_object(raw, APACHE_SELECTED_RESULTS_DIRECTORY_MARKER_LABEL, canonical=True)
     _require_exact(
         marker,
         {"schema_version", "record_type", "relative_path", "identity"},
-        "selected Apache results directory marker",
+        APACHE_SELECTED_RESULTS_DIRECTORY_MARKER_LABEL,
     )
     if (
         not _exact_json_scalar(marker.get("schema_version"), SCHEMA_VERSION)
@@ -565,13 +578,17 @@ def _verify_apache_selected_marker(
         or not _exact_json_scalar(marker.get("relative_path"), relative)
         or type(marker.get("identity")) is not dict
     ):
-        raise fail("selected Apache results directory marker is invalid")
+        raise fail(f"{APACHE_SELECTED_RESULTS_DIRECTORY_MARKER_LABEL} is invalid")
     expected = _apache_selected_directory_identity(details)
     identity = marker["identity"]
-    _require_exact(identity, set(expected), "selected Apache results directory marker identity")
+    _require_exact(
+        identity,
+        set(expected),
+        f"{APACHE_SELECTED_RESULTS_DIRECTORY_MARKER_LABEL} identity",
+    )
     for name, value in expected.items():
         if not _exact_json_scalar(identity.get(name), value):
-            raise fail("selected Apache results directory changed after preparation")
+            raise fail(f"{APACHE_SELECTED_RESULTS_DIRECTORY_LABEL} changed after preparation")
 
 
 def _load_runtime_observation_module() -> Any:
@@ -1165,16 +1182,16 @@ def prepare_apache_selected_results(args: argparse.Namespace) -> None:
     runtime, components, relative, marker_name = _apache_selected_marker(
         args.runtime_root, args.results_dir
     )
-    root_fd = _open_absolute_directory(runtime, "Apache runtime root")
+    root_fd = _open_absolute_directory(runtime, APACHE_RUNTIME_ROOT_LABEL)
     try:
-        descriptor = _create_runtime_child(root_fd, components, "selected Apache results directory")
+        descriptor = _create_runtime_child(root_fd, components, APACHE_SELECTED_RESULTS_DIRECTORY_LABEL)
         try:
             marker = _apache_selected_marker_payload(relative, os.fstat(descriptor))
             _write_new_named_file(
                 root_fd,
                 marker_name,
                 marker,
-                "selected Apache results directory marker",
+                APACHE_SELECTED_RESULTS_DIRECTORY_MARKER_LABEL,
                 (marker_name,),
             )
             os.fsync(descriptor)
@@ -1187,7 +1204,7 @@ def prepare_apache_selected_results(args: argparse.Namespace) -> None:
 
 def _apache_selected_summary(args: argparse.Namespace, entry: dict[str, Any]) -> bytes:
     case_cli = _load_case_cli(args.case_cli)
-    results_dir = _safe_absolute(args.results_dir, "selected Apache results directory")
+    results_dir = _safe_absolute(args.results_dir, APACHE_SELECTED_RESULTS_DIRECTORY_LABEL)
     summary_args = argparse.Namespace(
         connector="apache",
         input_jsonl=os.fspath(results_dir / APACHE_SELECTED_RESULTS_NAME),
@@ -1228,18 +1245,26 @@ def publish_apache_selected_results(args: argparse.Namespace) -> None:
         args.runtime_root, args.results_dir
     )
     _log_runtime, _log_target, log_components = _runtime_relative_path(
-        args.runtime_root, args.log_dir, "selected Apache log directory"
+        args.runtime_root, args.log_dir, APACHE_SELECTED_LOG_DIRECTORY_LABEL
     )
-    log_dir = _safe_absolute(args.log_dir, "selected Apache log directory")
-    result_json = _safe_absolute(args.result_json, "selected Apache case result")
+    log_dir = _safe_absolute(args.log_dir, APACHE_SELECTED_LOG_DIRECTORY_LABEL)
+    result_json = _safe_absolute(args.result_json, APACHE_SELECTED_CASE_RESULT_LABEL)
     if result_json.name != "result.json" or result_json.parent != log_dir:
-        raise fail("selected Apache case result must be inside the selected Apache log directory")
-    root_fd = _open_absolute_directory(runtime, "Apache runtime root")
+        raise fail(
+            f"{APACHE_SELECTED_CASE_RESULT_LABEL} must be inside the "
+            f"{APACHE_SELECTED_LOG_DIRECTORY_LABEL}"
+        )
+    root_fd = _open_absolute_directory(runtime, APACHE_RUNTIME_ROOT_LABEL)
     try:
-        log_fd = _open_runtime_child(root_fd, log_components, "selected Apache log directory")
+        log_fd = _open_runtime_child(root_fd, log_components, APACHE_SELECTED_LOG_DIRECTORY_LABEL)
         try:
             result_raw, entry = _parse_selected_apache_case(
-                _read_safe_named_file(log_fd, "result.json", "selected Apache case result", MAX_JSON_BYTES)
+                _read_safe_named_file(
+                    log_fd,
+                    "result.json",
+                    APACHE_SELECTED_CASE_RESULT_LABEL,
+                    MAX_JSON_BYTES,
+                )
             )
         finally:
             os.close(log_fd)
@@ -1251,7 +1276,9 @@ def publish_apache_selected_results(args: argparse.Namespace) -> None:
             (APACHE_SELECTED_SUMMARY_TEXT_NAME, summary_text, "selected Apache text summary"),
             (APACHE_SELECTED_CONNECTOR_SUMMARY_NAME, summary_text, "selected Apache connector summary"),
         )
-        descriptor = _open_runtime_child(root_fd, result_components, "selected Apache results directory")
+        descriptor = _open_runtime_child(
+            root_fd, result_components, APACHE_SELECTED_RESULTS_DIRECTORY_LABEL
+        )
         try:
             _verify_apache_selected_marker(
                 root_fd, marker_name, relative, os.fstat(descriptor)

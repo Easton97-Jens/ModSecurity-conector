@@ -1495,3 +1495,13 @@ readback remain pending; no predecessor result is reused. FND-CROSS-0004
 remains `blocked`, and PR #354 remains Draft, open, and unmerged. No
 protected-host attestation, external seal, merge, or test/quality-gate
 weakening is claimed.
+
+The first successor SonarCloud analysis for
+`e002255b7f019a8fd25095457e7ffa70ee35ac2f` had a Quality Gate `OK` and no
+reviewable hotspots, but it correctly reported six active current issues in
+the new Parent helper: five duplicate-label `python:S1192` reports and one
+`python:S3776` cognitive-complexity report. They were confirmed as real
+task-owned maintainability defects and are refactored without a suppression,
+exception, test weakening, or quality-gate change. This creates a new
+successor head; a fresh SonarCloud analysis and all exact-head hosted evidence
+remain required.

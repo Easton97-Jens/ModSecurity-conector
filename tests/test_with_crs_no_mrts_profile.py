@@ -7,6 +7,7 @@ import importlib.util
 import json
 import os
 import shutil
+import stat
 import subprocess
 import tempfile
 import unittest
@@ -658,6 +659,24 @@ class WithCrsNoMrtsProfileContractTest(unittest.TestCase):
             self.assertTrue(replaced)
             self.assertTrue(moved.is_dir())
             self.assertTrue(results.is_dir())
+
+    def test_create_runtime_child_preserves_existing_private_mode(self):
+        with tempfile.TemporaryDirectory(prefix="apache-selected-results-mode-") as temporary:
+            root = Path(temporary)
+            existing = root / "existing"
+            existing.mkdir(mode=0o750)
+            os.chmod(existing, 0o750)
+            root_fd = PROFILE._open_absolute_directory(root, "Apache runtime root")
+            try:
+                descriptor = PROFILE._create_runtime_child(
+                    root_fd, ("existing",), "selected Apache results directory"
+                )
+                try:
+                    self.assertEqual(stat.S_IMODE(os.fstat(descriptor).st_mode), 0o750)
+                finally:
+                    os.close(descriptor)
+            finally:
+                os.close(root_fd)
 
     def test_produce_accepts_full_generic_shape_but_rejects_minimal_observation(self):
         with tempfile.TemporaryDirectory(prefix="profile-generic-") as temporary:

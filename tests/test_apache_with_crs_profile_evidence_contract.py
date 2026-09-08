@@ -479,7 +479,11 @@ class ApacheWithCrsProfileEvidenceContractTest(unittest.TestCase):
         self.assertIn("_open_runtime_child", source)
         self.assertIn("APACHE_SELECTED_DIRECTORY_MARKER_RECORD", source)
         self.assertIn("_verify_apache_selected_marker", source)
-        self.assertIn("_open_runtime_child(root_fd, result_components", source)
+        self.assertRegex(
+            source,
+            r"descriptor\s*=\s*_open_runtime_child\(\s*root_fd,\s*result_components,\s*"
+            r"APACHE_SELECTED_RESULTS_DIRECTORY_LABEL\s*\)",
+        )
         self.assertIn("APACHE_SELECTED_OUTPUT_NAMES", source)
 
     def test_workflow_hands_runtime_identity_into_harness_then_requires_source_receipts(self) -> None:
