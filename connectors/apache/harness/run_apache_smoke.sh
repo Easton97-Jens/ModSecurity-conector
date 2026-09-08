@@ -602,7 +602,17 @@ configure_apache_profile_audit() {
 
 apache_profile_stop_tracked_process() {
     process_label=$1
-    process_pid=$2
+    case "$process_label" in
+        synchronized-upstream)
+            process_pid=$2 SYNCHRONIZED_UPSTREAM_PID=
+            ;;
+        response-header-backend)
+            process_pid=$2 RESPONSE_HEADER_BACKEND_PID=
+            ;;
+        *)
+            process_pid=$2
+            ;;
+    esac
     [ -n "$process_pid" ] || return 0
     case "$process_pid" in
         *[!0-9]*|"") echo "apache_smoke: profile cleanup has invalid $process_label PID" >&2; return 1 ;;
@@ -963,6 +973,7 @@ send_synchronized_first_byte_request() {
         set +e
         wait "$SYNCHRONIZED_UPSTREAM_PID"
         upstream_rc=$?
+        SYNCHRONIZED_UPSTREAM_PID=
         set -e
     else
         : > "$SYNCHRONIZED_RELEASE_FILE"

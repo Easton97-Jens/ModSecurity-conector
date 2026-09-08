@@ -2,6 +2,7 @@
 """Guard the Parent-owned Apache Phase-4 response regression seam."""
 
 from pathlib import Path
+import subprocess
 import unittest
 
 
@@ -118,6 +119,66 @@ class ApachePhase4ResponseRegressionWiringTest(unittest.TestCase):
             "--server-evidence-file",
         ):
             self.assertIn(argument, source)
+
+    def test_client_abort_forgets_the_reaped_synchronized_upstream_pid(self) -> None:
+        source = HARNESS.read_text(encoding="utf-8")
+        self.assertIn(
+            'wait "$SYNCHRONIZED_UPSTREAM_PID"\n'
+            "        upstream_rc=$?\n"
+            "        SYNCHRONIZED_UPSTREAM_PID=\n",
+            source,
+        )
+        cleanup = source.split("apache_profile_stop_tracked_process() {\n", 1)[1].split(
+            "apache_profile_publish_cleanup_receipt() {\n", 1
+        )[0]
+        self.assertIn("process_pid=$2 SYNCHRONIZED_UPSTREAM_PID=", cleanup)
+        self.assertIn("process_pid=$2 RESPONSE_HEADER_BACKEND_PID=", cleanup)
+
+    def test_auxiliary_process_cleanup_consumes_each_pid_before_reentry(self) -> None:
+        source = HARNESS.read_text(encoding="utf-8")
+        cleanup = "apache_profile_stop_tracked_process() {\n" + source.split(
+            "apache_profile_stop_tracked_process() {\n", 1
+        )[1].split("apache_profile_publish_cleanup_receipt() {\n", 1)[0]
+        script = "\n".join(
+            (
+                "set -eu",
+                "alive_sync=1 kill_sync=0 wait_sync=0",
+                "alive_backend=1 kill_backend=0 wait_backend=0",
+                "kill() {",
+                '  if [ "$1" = "-0" ]; then',
+                '    case "$2" in 4242) [ "$alive_sync" -eq 1 ] ;; 5252) [ "$alive_backend" -eq 1 ] ;; esac',
+                "    return",
+                "  fi",
+                '  case "$1" in',
+                "    4242) alive_sync=0; kill_sync=$((kill_sync + 1)) ;;",
+                "    5252) alive_backend=0; kill_backend=$((kill_backend + 1)) ;;",
+                "  esac",
+                "}",
+                "wait() {",
+                '  case "$1" in',
+                "    4242) wait_sync=$((wait_sync + 1)) ;;",
+                "    5252) wait_backend=$((wait_backend + 1)) ;;",
+                "  esac",
+                "}",
+                cleanup,
+                "SYNCHRONIZED_UPSTREAM_PID=4242",
+                'apache_profile_stop_tracked_process synchronized-upstream "$SYNCHRONIZED_UPSTREAM_PID"',
+                'apache_profile_stop_tracked_process synchronized-upstream "$SYNCHRONIZED_UPSTREAM_PID"',
+                "RESPONSE_HEADER_BACKEND_PID=5252",
+                'apache_profile_stop_tracked_process response-header-backend "$RESPONSE_HEADER_BACKEND_PID"',
+                'apache_profile_stop_tracked_process response-header-backend "$RESPONSE_HEADER_BACKEND_PID"',
+                'printf "%s %s %s %s %s %s\\n" "$SYNCHRONIZED_UPSTREAM_PID" "$RESPONSE_HEADER_BACKEND_PID" "$kill_sync" "$wait_sync" "$kill_backend" "$wait_backend"',
+            )
+        )
+        completed = subprocess.run(
+            ["sh", "-c", script],
+            cwd=ROOT,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        self.assertEqual(completed.stdout, "  1 1 1 1\n")
 
     def test_parent_runner_keeps_framework_catalog_unchanged(self) -> None:
         source = RUNNER.read_text(encoding="utf-8")

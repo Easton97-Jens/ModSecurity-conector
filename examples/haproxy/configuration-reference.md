@@ -1803,7 +1803,7 @@ Bounds transaction slots admitted by the SPOE/SPOP compatibility agent, includin
 
 ### Validation and errors
 
-spoe-timeout accepts only decimal milliseconds in 1..60000; worker-count accepts 2..64; max-transactions accepts 1..4096; worker-count * max-transactions must not exceed 65536; response-body-timeout accepts unsigned decimal milliseconds and must be 0 with response-companion=none; unknown keys and malformed values fail compatibility-agent configuration parsing.
+spoe-timeout accepts only decimal milliseconds in 1..60000; worker-count accepts 2..64; max-transactions accepts 1..4096; worker-count * max-transactions must not exceed 65536; response-body-timeout accepts unsigned decimal milliseconds in 0..60000 and must be 0 with response-companion=none; unknown keys and malformed values fail compatibility-agent configuration parsing.
 
 ### Example
 
@@ -2276,7 +2276,7 @@ response-body-timeout=<value>
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| integer | unsigned decimal milliseconds, 0..4294967295; must be 0 with response-companion=none | no |
+| integer | unsigned decimal milliseconds, 0..60000; must be 0 with response-companion=none | no |
 
 ### Default
 
@@ -2298,7 +2298,7 @@ Compatibility response control timeout; raw SPOE/SPOP does not carry a response 
 
 ### Validation and errors
 
-spoe-timeout accepts only decimal milliseconds in 1..60000; worker-count accepts 2..64; max-transactions accepts 1..4096; worker-count * max-transactions must not exceed 65536; response-body-timeout accepts unsigned decimal milliseconds and must be 0 with response-companion=none; unknown keys and malformed values fail compatibility-agent configuration parsing.
+spoe-timeout accepts only decimal milliseconds in 1..60000; worker-count accepts 2..64; max-transactions accepts 1..4096; worker-count * max-transactions must not exceed 65536; response-body-timeout accepts unsigned decimal milliseconds in 0..60000 and must be 0 with response-companion=none; unknown keys and malformed values fail compatibility-agent configuration parsing.
 
 ### Example
 
@@ -2573,7 +2573,7 @@ Bounds each SPOE/SPOP engine transaction; zero, negative, malformed, and over-li
 
 ### Validation and errors
 
-spoe-timeout accepts only decimal milliseconds in 1..60000; worker-count accepts 2..64; max-transactions accepts 1..4096; worker-count * max-transactions must not exceed 65536; response-body-timeout accepts unsigned decimal milliseconds and must be 0 with response-companion=none; unknown keys and malformed values fail compatibility-agent configuration parsing.
+spoe-timeout accepts only decimal milliseconds in 1..60000; worker-count accepts 2..64; max-transactions accepts 1..4096; worker-count * max-transactions must not exceed 65536; response-body-timeout accepts unsigned decimal milliseconds in 0..60000 and must be 0 with response-companion=none; unknown keys and malformed values fail compatibility-agent configuration parsing.
 
 ### Example
 
@@ -2683,7 +2683,7 @@ Bounds isolated concurrent SPOE/SPOP peer handlers; at least two workers keep a 
 
 ### Validation and errors
 
-spoe-timeout accepts only decimal milliseconds in 1..60000; worker-count accepts 2..64; max-transactions accepts 1..4096; worker-count * max-transactions must not exceed 65536; response-body-timeout accepts unsigned decimal milliseconds and must be 0 with response-companion=none; unknown keys and malformed values fail compatibility-agent configuration parsing.
+spoe-timeout accepts only decimal milliseconds in 1..60000; worker-count accepts 2..64; max-transactions accepts 1..4096; worker-count * max-transactions must not exceed 65536; response-body-timeout accepts unsigned decimal milliseconds in 0..60000 and must be 0 with response-companion=none; unknown keys and malformed values fail compatibility-agent configuration parsing.
 
 ### Example
 

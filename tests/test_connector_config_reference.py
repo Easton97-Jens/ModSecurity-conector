@@ -122,8 +122,12 @@ class ConnectorConfigReferenceTests(unittest.TestCase):
             "decimal integer, 1..4096; worker-count * max-transactions <= 65536",
         )
         self.assertEqual(options["spoe-timeout"]["allowed_values"], "positive decimal milliseconds, 1..60000")
+        self.assertEqual(
+            options["response-body-timeout"]["allowed_values"],
+            "unsigned decimal milliseconds, 0..60000; must be 0 with response-companion=none",
+        )
         self.assertIn(
-            "must be 0 with response-companion=none",
+            "in 0..60000 and must be 0 with response-companion=none",
             options["response-body-timeout"]["validation"],
         )
         self.assertIn("unknown keys and malformed values", options["max-transactions"]["validation"])

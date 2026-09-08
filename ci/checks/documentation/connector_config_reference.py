@@ -703,7 +703,7 @@ def _haproxy_spop_option_details(
         allowed = "decimal integer, 1..4096; worker-count * max-transactions <= 65536"
         effect = "Bounds transaction slots admitted by the SPOE/SPOP compatibility agent, including the combined worker/transaction cap."
     elif key == "response-body-timeout":
-        allowed = "unsigned decimal milliseconds, 0..4294967295; must be 0 with response-companion=none"
+        allowed = "unsigned decimal milliseconds, 0..60000; must be 0 with response-companion=none"
         effect = "Compatibility response control timeout; raw SPOE/SPOP does not carry a response body, so it is not a native P4 stream-idle limit."
     return value_type, allowed, effect, phase_relevance, security_relevance
 
@@ -789,7 +789,7 @@ def extract_haproxy(root: Path) -> list[dict[str, Any]]:
             merge_behavior="No merge; config_set applies one parsed value.", validation=(
                 "spoe-timeout accepts only decimal milliseconds in 1..60000; worker-count accepts 2..64; "
                 "max-transactions accepts 1..4096; worker-count * max-transactions must not exceed 65536; "
-                "response-body-timeout accepts unsigned decimal milliseconds and must be 0 with response-companion=none; "
+                "response-body-timeout accepts unsigned decimal milliseconds in 0..60000 and must be 0 with response-companion=none; "
                 "unknown keys and malformed values fail compatibility-agent configuration parsing."
                 if key in {"spoe-timeout", "worker-count", "max-transactions", "response-body-timeout"}
                 else "Unknown keys fail compatibility-agent configuration parsing."
@@ -3260,7 +3260,7 @@ GERMAN_TEXT: dict[str, str] = {
     "positive decimal milliseconds, 1..60000": "positive dezimale Millisekunden, 1..60000",
     "decimal integer, 2..64; worker-count * max-transactions <= 65536": "dezimale Ganzzahl, 2..64; worker-count * max-transactions <= 65536",
     "decimal integer, 1..4096; worker-count * max-transactions <= 65536": "dezimale Ganzzahl, 1..4096; worker-count * max-transactions <= 65536",
-    "unsigned decimal milliseconds, 0..4294967295; must be 0 with response-companion=none": "vorzeichenlose dezimale Millisekunden, 0..4294967295; müssen bei response-companion=none 0 sein",
+    "unsigned decimal milliseconds, 0..60000; must be 0 with response-companion=none": "vorzeichenlose dezimale Millisekunden, 0..60000; müssen bei response-companion=none 0 sein",
     "readable ModSecurity configuration/rules file path": "lesbarer ModSecurity-Konfigurations-/Regeldateipfad",
     "reject | process_partial (accepted spelling variants are parser-specific)": "reject | process_partial (akzeptierte Schreibvarianten sind parserspezifisch)",
     "remote URL paired with rules_remote_key": "Remote-URL, die mit rules_remote_key gepaart wird",
@@ -3482,7 +3482,7 @@ GERMAN_TEXT: dict[str, str] = {
     "The materializer rejects unresolved placeholders and invalid ports; output must be outside the checkout.": "Der Materializer weist unaufgelöste Platzhalter und ungültige Ports ab; die Ausgabe muss außerhalb des Checkouts liegen.",
     "The patched HAProxy parser rejects missing/unknown arguments; validate with haproxy -c -f <config>.": "Der gepatchte HAProxy-Parser weist fehlende/unbekannte Argumente ab; mit haproxy -c -f <config> validieren.",
     "Unknown keys fail compatibility-agent configuration parsing.": "Unbekannte Schlüssel lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.",
-    "spoe-timeout accepts only decimal milliseconds in 1..60000; worker-count accepts 2..64; max-transactions accepts 1..4096; worker-count * max-transactions must not exceed 65536; response-body-timeout accepts unsigned decimal milliseconds and must be 0 with response-companion=none; unknown keys and malformed values fail compatibility-agent configuration parsing.": "spoe-timeout akzeptiert nur dezimale Millisekunden in 1..60000; worker-count akzeptiert 2..64; max-transactions akzeptiert 1..4096; worker-count * max-transactions darf 65536 nicht überschreiten; response-body-timeout akzeptiert vorzeichenlose dezimale Millisekunden und muss bei response-companion=none 0 sein; unbekannte Schlüssel und fehlerhafte Werte lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.",
+    "spoe-timeout accepts only decimal milliseconds in 1..60000; worker-count accepts 2..64; max-transactions accepts 1..4096; worker-count * max-transactions must not exceed 65536; response-body-timeout accepts unsigned decimal milliseconds in 0..60000 and must be 0 with response-companion=none; unknown keys and malformed values fail compatibility-agent configuration parsing.": "spoe-timeout akzeptiert nur dezimale Millisekunden in 1..60000; worker-count akzeptiert 2..64; max-transactions akzeptiert 1..4096; worker-count * max-transactions darf 65536 nicht überschreiten; response-body-timeout akzeptiert vorzeichenlose dezimale Millisekunden in 0..60000 und muss bei response-companion=none 0 sein; unbekannte Schlüssel und fehlerhafte Werte lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.",
     "Unknown keys, empty values, malformed assignments, and key-specific invalid values fail the runtime configuration check.": "Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und schlüsselspezifisch ungültige Werte lassen die Runtime-Konfigurationsprüfung fehlschlagen.",
     "Unknown mode fails parsing. The selected host uses haproxy -c -f <config>.": "Ein unbekannter Modus lässt das Parsen fehlschlagen. Der ausgewählte Host verwendet haproxy -c -f <config>.",
     TRAEFIK_FORWARDAUTH_VALIDATION: "Als Traefik-forwardAuth-Kompatibilitätskonfiguration validieren.",

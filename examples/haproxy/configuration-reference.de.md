@@ -1803,7 +1803,7 @@ Begrenzt die vom SPOE/SPOP-Kompatibilitätsagenten zugelassenen Transaktionsslot
 
 ### Validierung und Fehler
 
-spoe-timeout akzeptiert nur dezimale Millisekunden in 1..60000; worker-count akzeptiert 2..64; max-transactions akzeptiert 1..4096; worker-count * max-transactions darf 65536 nicht überschreiten; response-body-timeout akzeptiert vorzeichenlose dezimale Millisekunden und muss bei response-companion=none 0 sein; unbekannte Schlüssel und fehlerhafte Werte lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
+spoe-timeout akzeptiert nur dezimale Millisekunden in 1..60000; worker-count akzeptiert 2..64; max-transactions akzeptiert 1..4096; worker-count * max-transactions darf 65536 nicht überschreiten; response-body-timeout akzeptiert vorzeichenlose dezimale Millisekunden in 0..60000 und muss bei response-companion=none 0 sein; unbekannte Schlüssel und fehlerhafte Werte lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
 
 ### Beispiel
 
@@ -2276,7 +2276,7 @@ response-body-timeout=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| Ganzzahl | vorzeichenlose dezimale Millisekunden, 0..4294967295; müssen bei response-companion=none 0 sein | nein |
+| Ganzzahl | vorzeichenlose dezimale Millisekunden, 0..60000; müssen bei response-companion=none 0 sein | nein |
 
 ### Standardwert
 
@@ -2298,7 +2298,7 @@ Kompatibilitäts-Timeout für die Response-Steuerung; reines SPOE/SPOP überträ
 
 ### Validierung und Fehler
 
-spoe-timeout akzeptiert nur dezimale Millisekunden in 1..60000; worker-count akzeptiert 2..64; max-transactions akzeptiert 1..4096; worker-count * max-transactions darf 65536 nicht überschreiten; response-body-timeout akzeptiert vorzeichenlose dezimale Millisekunden und muss bei response-companion=none 0 sein; unbekannte Schlüssel und fehlerhafte Werte lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
+spoe-timeout akzeptiert nur dezimale Millisekunden in 1..60000; worker-count akzeptiert 2..64; max-transactions akzeptiert 1..4096; worker-count * max-transactions darf 65536 nicht überschreiten; response-body-timeout akzeptiert vorzeichenlose dezimale Millisekunden in 0..60000 und muss bei response-companion=none 0 sein; unbekannte Schlüssel und fehlerhafte Werte lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
 
 ### Beispiel
 
@@ -2573,7 +2573,7 @@ Begrenzt jede SPOE/SPOP-Engine-Transaktion; null, negative, fehlerhafte und übe
 
 ### Validierung und Fehler
 
-spoe-timeout akzeptiert nur dezimale Millisekunden in 1..60000; worker-count akzeptiert 2..64; max-transactions akzeptiert 1..4096; worker-count * max-transactions darf 65536 nicht überschreiten; response-body-timeout akzeptiert vorzeichenlose dezimale Millisekunden und muss bei response-companion=none 0 sein; unbekannte Schlüssel und fehlerhafte Werte lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
+spoe-timeout akzeptiert nur dezimale Millisekunden in 1..60000; worker-count akzeptiert 2..64; max-transactions akzeptiert 1..4096; worker-count * max-transactions darf 65536 nicht überschreiten; response-body-timeout akzeptiert vorzeichenlose dezimale Millisekunden in 0..60000 und muss bei response-companion=none 0 sein; unbekannte Schlüssel und fehlerhafte Werte lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
 
 ### Beispiel
 
@@ -2683,7 +2683,7 @@ Begrenzt isolierte parallele SPOE/SPOP-Peer-Handler; mindestens zwei Worker verh
 
 ### Validierung und Fehler
 
-spoe-timeout akzeptiert nur dezimale Millisekunden in 1..60000; worker-count akzeptiert 2..64; max-transactions akzeptiert 1..4096; worker-count * max-transactions darf 65536 nicht überschreiten; response-body-timeout akzeptiert vorzeichenlose dezimale Millisekunden und muss bei response-companion=none 0 sein; unbekannte Schlüssel und fehlerhafte Werte lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
+spoe-timeout akzeptiert nur dezimale Millisekunden in 1..60000; worker-count akzeptiert 2..64; max-transactions akzeptiert 1..4096; worker-count * max-transactions darf 65536 nicht überschreiten; response-body-timeout akzeptiert vorzeichenlose dezimale Millisekunden in 0..60000 und muss bei response-companion=none 0 sein; unbekannte Schlüssel und fehlerhafte Werte lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
 
 ### Beispiel
 
