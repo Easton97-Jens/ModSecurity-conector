@@ -818,7 +818,7 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
         self.assertNotIn("umask(", source)
         listener_source = source[
             source.index("static int traefik_engine_create_listener") : source.index(
-                "static int traefik_engine_wait_for_workers"
+                "static void traefik_engine_shutdown_active_workers_locked"
             )
         ]
         serve_source = source[
@@ -833,10 +833,13 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
         source = (
             ROOT / "connectors" / "traefik" / "src" / "traefik_engine_service.c"
         ).read_text(encoding="utf-8")
-        self.assertIn("TRAEFIK_ENGINE_MAX_ACTIVE_WORKERS 64U", source)
-        self.assertIn("service->worker_count >= TRAEFIK_ENGINE_MAX_ACTIVE_WORKERS", source)
-        self.assertIn("Admission rejection is distinct from a worker creation failure", source)
-        self.assertIn("if (worker_status == 2)", source)
+        self.assertIn("TRAEFIK_ENGINE_DEFAULT_MAX_WORKERS 64U", source)
+        self.assertIn("TRAEFIK_ENGINE_HARD_MAX_WORKERS 256U", source)
+        self.assertIn("service->worker_count >= service->max_workers", source)
+        self.assertIn("TRAEFIK_ENGINE_WORKER_CAPACITY", source)
+        self.assertIn(
+            "worker_result == TRAEFIK_ENGINE_WORKER_CAPACITY", source
+        )
         self.assertIn("if (max_connections != 0U &&", source)
         self.assertIn("if (max_connections != 0U) {\n            ++*accepted_connections;", source)
         self.assertNotIn("TRAEFIK_ENGINE_DEFAULT_MAX_CONNECTIONS", source)

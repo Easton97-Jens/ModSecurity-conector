@@ -309,6 +309,10 @@ transaction or silently falling back.
 
 - Header, body, registry, and event limits fail rather than retain unbounded state.
 - Event JSONL contains counters and bounded metadata only, never body payloads.
+- Event JSONL and its corresponding integrity hash redact a non-empty literal
+  query as `?<redacted>` while preserving the raw URI for WAF processing.
+  Historical event or audit logs may still contain query secrets; restrict
+  access and rotate them according to the retention policy.
 - P3 completes before response commitment; commit is monotonic and rejected after finish.
 - Named integration modes resolve to an exact profile; unknown modes do not fall back.
 - All error, cancel, timeout, expiry, and normal paths use canonical cleanup.

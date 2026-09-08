@@ -1621,11 +1621,23 @@ jobs:
 
         workflow = self.workflow("test-connectors-with-crs-no-mrts.yml")
         jobs = self.jobs("test-connectors-with-crs-no-mrts.yml")
-        self.assertEqual(set(jobs), {"connector-mode"})
+        self.assertEqual(set(jobs), {"connector-mode", "aggregate-with-crs-no-mrts"})
         job = jobs["connector-mode"]
 
         self.assertIn("  pull_request:\n    branches: [master]\n", workflow)
         self.assertIn("  workflow_dispatch:\n", workflow)
+        self.assertIn(
+            "    inputs:\n"
+            "      parent_sha:\n"
+            "        description: Exact full candidate head SHA for this manual profile run\n"
+            "        required: true\n"
+            "        type: string\n"
+            "      base_sha:\n"
+            "        description: Exact full checked base SHA for this manual profile run\n"
+            "        required: true\n"
+            "        type: string\n",
+            workflow,
+        )
         for forbidden in (
             "pull_request_target:",
             "workflow_run:",
@@ -1641,6 +1653,7 @@ jobs:
         self.assertEqual(top_level_permissions(workflow), {"contents": "read"})
         self.assertEqual(job_permissions(job), {})
         self.assertIsNone(job_if_expression(job))
+        self.assertNotIn("|| github.sha", workflow)
 
         expected_rows = [
             ("apache", "with-crs", "no-mrts", "apache"),
@@ -1673,7 +1686,10 @@ jobs:
             "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7",
             checkout,
         )
-        self.assertIn("ref: ${{ github.event.pull_request.head.sha || github.sha }}", checkout)
+        self.assertIn(
+            "ref: ${{ github.event.pull_request.head.sha || inputs.parent_sha }}",
+            checkout,
+        )
         self.assertIn("submodules: recursive", checkout)
         self.assertIn("persist-credentials: false", checkout)
         self.assertIn(
@@ -1686,12 +1702,17 @@ jobs:
         )
 
         self.assertIn(
-            "EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}",
+            "EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || inputs.parent_sha }}",
+            job,
+        )
+        self.assertIn(
+            "EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base_sha }}",
             job,
         )
         self.assertIn(f"EXPECTED_FRAMEWORK_SHA: {WITH_CRS_NO_MRTS_FRAMEWORK_SHA}", job)
         self.assertIn(f"EXPECTED_MRTS_SHA: {WITH_CRS_NO_MRTS_MRTS_SHA}", job)
         self.assertIn('test "$parent_commit" = "$EXPECTED_PARENT_SHA"', job)
+        self.assertIn('test "$EXPECTED_PARENT_SHA" != "$EXPECTED_BASE_SHA"', job)
         self.assertIn('test "$framework_commit" = "$EXPECTED_FRAMEWORK_SHA"', job)
         self.assertIn('test "$mrts_commit" = "$EXPECTED_MRTS_SHA"', job)
         self.assertIn("--require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock", job)
@@ -1797,14 +1818,34 @@ jobs:
             "runtime",
             "project-haproxy-runtime-evidence",
             "verify-haproxy-runtime-evidence",
+            "produce-profile-cell",
+            "validate-apache-runtime-evidence",
+            "prepare-non-haproxy-runtime-evidence",
+            "upload-apache-runtime-evidence",
+            "upload-apache-runtime-failure-receipt",
             "upload-non-haproxy-runtime-evidence",
+            "upload-non-haproxy-runtime-failure-receipt",
             "upload-runtime-evidence",
         ):
             self.assertIn(f"id: {step_id}", job)
         self.assertEqual(
             job.count("actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1"),
-            2,
+            5,
         )
+        producer = job.split("      - name: Produce canonical with-CRS no-MRTS profile cell\n", 1)[1].split(
+            "      - name: Upload Apache runtime evidence\n", 1
+        )[0]
+        self.assertIn("--crs-source-root \"$crs_source_root\"", producer)
+        self.assertIn("apache)\n              source_root=", producer)
+        self.assertIn("haproxy_source_args=(", producer)
+        self.assertIn("--haproxy-evidence-sha256 \"$HAPROXY_EVIDENCE_SHA256\"", producer)
+        self.assertIn("--haproxy-manifest-sha256 \"$HAPROXY_MANIFEST_SHA256\"", producer)
+        self.assertIn(
+            'crs_source_root="$VERIFIED_ROOT/runs/$CONNECTOR/$CELL_RUN_ID_VALUE/crs-fresh-source/coreruleset"',
+            producer,
+        )
+        self.assertIn("HAPROXY_EVIDENCE_SHA256: ${{ steps.verify-haproxy-runtime-evidence.outputs.evidence_sha256 }}", producer)
+        self.assertIn("HAPROXY_MANIFEST_SHA256: ${{ steps.verify-haproxy-runtime-evidence.outputs.manifest_sha256 }}", producer)
         boundary = job.split("      - name: Prepare HAProxy runtime evidence boundary\n", 1)[1].split(
             "      - name: Run selected real with-CRS no-MRTS runtime\n", 1
         )[0]
@@ -1952,21 +1993,45 @@ jobs:
             constrained_projector.index("exec(compile(source"),
         )
         non_haproxy_upload = job.split("      - name: Upload non-HAProxy runtime evidence\n", 1)[1].split(
-            "      - name: Upload real runtime evidence\n", 1
+            "      - name: Upload non-HAProxy runtime failure receipt\n", 1
         )[0]
-        self.assertIn("if: always() && matrix.connector != 'haproxy'", non_haproxy_upload)
+        self.assertIn(
+            "if: always() && matrix.connector != 'haproxy' && matrix.connector != 'apache' && steps.runtime.outcome == 'success' && steps.prepare-non-haproxy-runtime-evidence.outcome == 'success' && steps.produce-profile-cell.outcome == 'success'",
+            non_haproxy_upload,
+        )
         self.assertNotIn("verified-haproxy-case", non_haproxy_upload)
+        self.assertNotIn("verified-apache-case", non_haproxy_upload)
+        self.assertIn("${{ env.VERIFIED_RUN_ROOT }}/profile-cell", non_haproxy_upload)
+        self.assertNotIn("${{ env.VERIFIED_RUN_ROOT }}/failure-receipt.json", non_haproxy_upload)
+        non_haproxy_failure_upload = job.split(
+            "      - name: Upload non-HAProxy runtime failure receipt\n", 1
+        )[1].split("      - name: Upload real runtime evidence\n", 1)[0]
+        self.assertIn("steps.runtime.outcome != 'success'", non_haproxy_failure_upload)
+        self.assertIn("${{ env.VERIFIED_RUN_ROOT }}/failure-receipt.json", non_haproxy_failure_upload)
+        self.assertNotIn("${{ env.VERIFIED_RUN_ROOT }}/evidence", non_haproxy_failure_upload)
+        apache_upload = job.split("      - name: Upload Apache runtime evidence\n", 1)[1].split(
+            "      - name: Upload Apache runtime failure receipt\n", 1
+        )[0]
+        self.assertIn("matrix.connector == 'apache'", apache_upload)
+        self.assertIn("steps.runtime.outcome == 'success'", apache_upload)
+        self.assertIn("steps.produce-profile-cell.outcome == 'success'", apache_upload)
+        self.assertIn("${{ env.VERIFIED_RUN_ROOT }}/profile-cell", apache_upload)
+        self.assertIn("if-no-files-found: error", apache_upload)
+        apache_failure_upload = job.split(
+            "      - name: Upload Apache runtime failure receipt\n", 1
+        )[1].split("      - name: Validate generic runtime evidence or retain failure receipt\n", 1)[0]
+        self.assertIn("steps.runtime.outcome != 'success'", apache_failure_upload)
+        self.assertIn("${{ env.VERIFIED_RUN_ROOT }}/failure-receipt.json", apache_failure_upload)
+        self.assertNotIn("verified-apache-case", apache_failure_upload)
         upload = job.split("      - name: Upload real runtime evidence\n", 1)[1].split(
             "      - name: Write connector runtime overview\n", 1
         )[0]
         self.assertIn(
-            "if: matrix.connector == 'haproxy' && steps.verify-haproxy-runtime-evidence.outcome == 'success'",
+            "if: matrix.connector == 'haproxy' && steps.verify-haproxy-runtime-evidence.outcome == 'success' && steps.produce-profile-cell.outcome == 'success'",
             upload,
         )
-        self.assertIn("haproxy-runtime-evidence.json", upload)
-        self.assertIn("manifest.json", upload)
+        self.assertIn("${{ env.VERIFIED_RUN_ROOT }}/profile-cell", upload)
         self.assertNotIn("BUILD_ROOT", upload)
-        self.assertNotIn("VERIFIED_RUN_ROOT", upload)
         self.assertNotIn("EVIDENCE_ROOT", upload)
         self.assertIn("Cleanup HAProxy runtime evidence stage", upload)
         self.assertIn("if: always() && matrix.connector == 'haproxy'", upload)
@@ -1978,7 +2043,7 @@ jobs:
         summary = job.split("      - name: Write connector runtime overview\n", 1)[1]
         self.assertIn("if: always()", summary)
         self.assertIn(
-            "PARENT_SHA: $" + "{{ github.event.pull_request.head.sha || github.sha }}",
+            "PARENT_SHA: $" + "{{ github.event.pull_request.head.sha || inputs.parent_sha }}",
             summary,
         )
         self.assertIn(
@@ -2014,10 +2079,9 @@ jobs:
             ("RUNTIME_OUTCOME", "runtime"),
         ):
             self.assertIn(f"{environment_name}: ${{{{ steps.{step_id}.outcome }}}}", summary)
-        self.assertIn(
-            "UPLOAD_EVIDENCE_OUTCOME: ${{ matrix.connector == 'haproxy' && steps.upload-runtime-evidence.outcome || steps.upload-non-haproxy-runtime-evidence.outcome }}",
-            summary,
-        )
+        self.assertIn("UPLOAD_EVIDENCE_OUTCOME: ${{ matrix.connector == 'haproxy'", summary)
+        self.assertIn("steps.upload-apache-runtime-failure-receipt.outcome", summary)
+        self.assertIn("steps.upload-non-haproxy-runtime-failure-receipt.outcome", summary)
         self.assertLess(
             job.index("      - name: Prepare HAProxy runtime evidence boundary\n"),
             job.index("      - name: Run selected real with-CRS no-MRTS runtime\n"),
@@ -2042,13 +2106,56 @@ jobs:
         # ``:-`` expansion above, so the runner-owned evidence is rooted
         # directly below it rather than below the fallback suffix.
         self.assertIn(
-            "${{ env.VERIFIED_RUN_ROOT }}/evidence",
+            "${{ env.VERIFIED_RUN_ROOT }}/profile-cell",
             job,
         )
         self.assertIn(
-            "${{ env.BUILD_ROOT }}/verified-apache-case/with-crs/no-mrts/results",
+            "${{ env.VERIFIED_RUN_ROOT }}/failure-receipt.json",
             job,
         )
+        self.assertNotIn(
+            "${{ env.BUILD_ROOT }}/verified-apache-case/with-crs/no-mrts/results",
+            non_haproxy_upload,
+        )
+        helper = (ROOT / "ci/runtime/lifecycle/prepare-with-crs-no-mrts-upload.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("parent_runtime_attestation", helper)
+        self.assertIn("connector_commit", helper)
+        self.assertIn("failure receipt", helper)
+        validation = job.split(
+            "      - name: Validate generic runtime evidence or retain failure receipt\n", 1
+        )[1].split("      - name: Write connector runtime overview\n", 1)[0]
+        self.assertIn(
+            "if: always() && matrix.connector != 'haproxy' && matrix.connector != 'apache'",
+            validation,
+        )
+        self.assertIn("steps.runtime.outcome", validation)
+        self.assertIn("prepare-with-crs-no-mrts-upload.py", validation)
+
+        aggregate = jobs["aggregate-with-crs-no-mrts"]
+        self.assertIn("needs: connector-mode", aggregate)
+        self.assertIn("if: always()", aggregate)
+        self.assertIn("fetch-depth: 0", aggregate)
+        self.assertIn(
+            "ref: ${{ github.event.pull_request.head.sha || inputs.parent_sha }}",
+            aggregate,
+        )
+        self.assertIn(
+            "EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base_sha }}",
+            aggregate,
+        )
+        self.assertIn(
+            "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1",
+            aggregate,
+        )
+        self.assertIn("pattern: with-crs-no-mrts-*-${{ github.run_id }}-${{ github.run_attempt }}", aggregate)
+        self.assertIn("merge-multiple: false", aggregate)
+        self.assertNotIn('find "$CELL_ROOT"', aggregate)
+        self.assertIn("aggregate-five-connector-with-crs-no-mrts.py", aggregate)
+        self.assertIn("--artifact-root \"$CELL_ROOT\"", aggregate)
+        self.assertIn("--output-dir \"$CELL_ROOT/aggregate\"", aggregate)
+        self.assertIn("with-crs-no-mrts-aggregate-${{ github.run_id }}-${{ github.run_attempt }}", aggregate)
 
     def test_pr_apr_util_provenance_job_is_unconditional_and_read_only(self) -> None:
         workflow = self.workflow("ci-security-workflow-lint.yml")

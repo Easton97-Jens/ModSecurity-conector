@@ -12,7 +12,7 @@ SOURCE = (
 
 class HAProxySPOPSigpipePeerIsolationContractTests(unittest.TestCase):
     def test_protocol_writes_use_local_sigpipe_suppression(self) -> None:
-        self.assertIn("send(fd, p, len, MSG_NOSIGNAL)", SOURCE)
+        self.assertIn("send(fd, p, len, MSG_NOSIGNAL | MSG_DONTWAIT)", SOURCE)
         self.assertNotIn("signal(SIGPIPE, SIG_IGN)", SOURCE)
         self.assertNotIn("sigaction(SIGPIPE", SOURCE)
         self.assertIn("if (rc < 0)", SOURCE)

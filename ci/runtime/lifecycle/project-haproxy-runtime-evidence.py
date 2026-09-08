@@ -46,17 +46,27 @@ class EvidenceProjectionError(ValueError):
 class TrustedRuntimeValues:
     """Workflow-owned immutable revisions used to bind the receipt."""
 
-    __slots__ = ("parent_sha", "framework_sha", "mrts_sha")
+    __slots__ = ("parent_sha", "framework_sha", "mrts_sha", "cell_run_id")
 
-    def __init__(self, *, parent_sha: str, framework_sha: str, mrts_sha: str) -> None:
+    def __init__(
+        self,
+        *,
+        parent_sha: str,
+        framework_sha: str,
+        mrts_sha: str,
+        cell_run_id: str,
+    ) -> None:
         self.parent_sha = _require_sha(parent_sha)
         self.framework_sha = _require_sha(framework_sha)
         self.mrts_sha = _require_sha(mrts_sha)
+        self.cell_run_id = _require_cell_run_id(cell_run_id)
 
 
 SOURCE_RECEIPT_FIELDS = frozenset(
     {
         "case_id",
+        "cell_run_id",
+        "cell_run_id_kind",
         "cleanup_result",
         "connector",
         "connector_profile",
@@ -93,10 +103,47 @@ def _require_sha(value: str) -> str:
     return value
 
 
+def _require_cell_run_id(value: str) -> str:
+    if (
+        not isinstance(value, str)
+        or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,47}", value, re.ASCII)
+        is None
+    ):
+        raise EvidenceProjectionError("INVALID_CELL_RUN_ID")
+    return value
+
+
 def _require_runtime_uid(runtime_uid: int) -> int:
     if isinstance(runtime_uid, bool) or not isinstance(runtime_uid, int) or runtime_uid <= 0:
         raise EvidenceProjectionError("INVALID_RUNTIME_UID")
     return runtime_uid
+
+
+def _require_evidence_identity(
+    *,
+    runtime_uid: int,
+    upload_gid: int,
+    evidence_uid: int | None,
+    evidence_gid: int | None,
+) -> tuple[int, int]:
+    """Resolve the sealed-stage owner without conflating it with its reader."""
+    caller_uid, caller_gid = _require_unprivileged_identity()
+    if evidence_uid is None and evidence_gid is None:
+        return caller_uid, caller_gid
+    if evidence_uid is None or evidence_gid is None:
+        raise EvidenceProjectionError("INCOMPLETE_EVIDENCE_IDENTITY")
+    if (
+        isinstance(evidence_uid, bool)
+        or not isinstance(evidence_uid, int)
+        or evidence_uid <= 0
+        or isinstance(evidence_gid, bool)
+        or not isinstance(evidence_gid, int)
+        or evidence_gid <= 0
+    ):
+        raise EvidenceProjectionError("INVALID_EVIDENCE_IDENTITY")
+    if evidence_uid == runtime_uid or evidence_gid == upload_gid:
+        raise EvidenceProjectionError("NONSEPARATE_EVIDENCE_IDENTITY")
+    return evidence_uid, evidence_gid
 
 
 def _require_unprivileged_identity() -> tuple[int, int]:
@@ -393,6 +440,8 @@ def _source_receipt(trusted: TrustedRuntimeValues, observed_status: int) -> dict
         raise EvidenceProjectionError("UNEXPECTED_HOST_STATUS")
     return {
         "case_id": "crs_sqli_anomaly_block",
+        "cell_run_id": trusted.cell_run_id,
+        "cell_run_id_kind": "workflow_cell",
         "cleanup_result": "complete",
         "connector": "haproxy",
         "connector_profile": "haproxy_spoe_spop_htx",
@@ -848,10 +897,17 @@ def verify_staged_package(
     trusted: TrustedRuntimeValues,
     runtime_uid: int,
     upload_gid: int,
+    evidence_uid: int | None = None,
+    evidence_gid: int | None = None,
 ) -> dict[str, str]:
     """Reopen and validate exactly the two files passed to upload-artifact."""
     runtime_uid = _require_runtime_uid(runtime_uid)
-    stage_uid, evidence_gid = _require_unprivileged_identity()
+    stage_uid, evidence_gid = _require_evidence_identity(
+        runtime_uid=runtime_uid,
+        upload_gid=upload_gid,
+        evidence_uid=evidence_uid,
+        evidence_gid=evidence_gid,
+    )
     if isinstance(upload_gid, bool) or not isinstance(upload_gid, int) or upload_gid <= 0:
         raise EvidenceProjectionError("INVALID_UPLOAD_GID")
     runner_descriptor = -1
@@ -911,6 +967,7 @@ def _trusted_from_arguments(arguments: argparse.Namespace) -> TrustedRuntimeValu
         parent_sha=arguments.expected_parent_sha,
         framework_sha=arguments.expected_framework_sha,
         mrts_sha=arguments.expected_mrts_sha,
+        cell_run_id=arguments.expected_cell_run_id,
     )
 
 
@@ -918,6 +975,7 @@ def _add_trusted_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--expected-parent-sha", required=True)
     parser.add_argument("--expected-framework-sha", required=True)
     parser.add_argument("--expected-mrts-sha", required=True)
+    parser.add_argument("--expected-cell-run-id", required=True)
 
 
 def _parser() -> argparse.ArgumentParser:

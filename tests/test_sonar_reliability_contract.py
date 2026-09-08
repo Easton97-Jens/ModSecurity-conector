@@ -276,31 +276,66 @@ int main(void)
         source = (
             ROOT / "connectors" / "traefik" / "src" / "traefik_engine_service.c"
         ).read_text(encoding="utf-8")
-        helper_start = source.index(
-            "static int traefik_engine_send_deadline_remaining_ms"
+        remaining_start = source.index(
+            "static int traefik_engine_deadline_remaining_milliseconds"
         )
-        helper_end = source.index(
-            "\n}\n\nstatic int traefik_engine_send_all", helper_start
+        remaining_end = source.index(
+            "\n}\n\nstatic int traefik_engine_wait_for_socket_event",
+            remaining_start,
         )
-        helper = source[helper_start:helper_end]
-        send_start = helper_end
-        send_end = source.index("\n}\n\n/* Returns 1 for a complete read", send_start)
-        send_all = source[send_start:send_end]
+        remaining = source[remaining_start:remaining_end]
+        wait_start = source.index(
+            "static int traefik_engine_wait_for_socket_event", remaining_end
+        )
+        wait_end = source.index(
+            "\n}\n\nstatic int traefik_engine_send_deadline", wait_start
+        )
+        wait = source[wait_start:wait_end]
+        send_start = source.index(
+            "static int traefik_engine_send_deadline", wait_end
+        )
+        send_end = source.index(
+            "\n}\n\n/* Returns 1 for a complete read", send_start
+        )
+        send = source[send_start:send_end]
+        frame_start = source.index("static int traefik_engine_send_frame")
+        frame_end = source.index(
+            "\n}\n\nstatic int traefik_engine_reader_u16", frame_start
+        )
+        frame = source[frame_start:frame_end]
 
         self.assertIn("#include <time.h>", source)
-        self.assertIn("TRAEFIK_ENGINE_SEND_TIMEOUT_MILLISECONDS", source)
-        self.assertIn("clock_gettime(CLOCK_MONOTONIC, &now)", helper)
-        self.assertIn("milliseconds > INT_MAX", helper)
-        self.assertIn("clock_gettime(CLOCK_MONOTONIC, &deadline)", send_all)
+        self.assertIn("TRAEFIK_ENGINE_SOCKET_TIMEOUT_SECONDS", source)
+        self.assertIn("clock_gettime(CLOCK_MONOTONIC, &now)", remaining)
+        self.assertIn("milliseconds > INT_MAX", remaining)
         self.assertIn(
-            "deadline.tv_sec += TRAEFIK_ENGINE_SEND_TIMEOUT_MILLISECONDS / 1000;",
-            send_all,
+            "traefik_engine_deadline_remaining_milliseconds(deadline, &timeout)",
+            wait,
         )
-        self.assertIn("poll(&descriptor, 1U, remaining_ms)", send_all)
-        self.assertIn("descriptor.events = POLLOUT;", send_all)
-        self.assertIn("MSG_NOSIGNAL | MSG_DONTWAIT", send_all)
-        self.assertIn("errno == EAGAIN", send_all)
-        self.assertIn("errno == EWOULDBLOCK", send_all)
+        self.assertIn("poll(&descriptor, 1U, timeout)", wait)
+        self.assertIn("descriptor.events = events", wait)
+        self.assertIn("clock_gettime(CLOCK_MONOTONIC, &deadline)", frame)
+        self.assertIn(
+            "deadline.tv_sec += TRAEFIK_ENGINE_SOCKET_TIMEOUT_SECONDS;", frame
+        )
+        self.assertIn("MSG_NOSIGNAL | MSG_DONTWAIT", send)
+        self.assertIn(
+            "traefik_engine_wait_for_socket_event(socket_fd, POLLOUT, deadline)",
+            send,
+        )
+        self.assertIn(
+            "if (written >= 0 || (errno != EINTR && errno != EAGAIN &&\n"
+            "                errno != EWOULDBLOCK)) {",
+            send,
+        )
+        self.assertIn(
+            "traefik_engine_send_deadline(socket_fd, header, sizeof(header)",
+            frame,
+        )
+        self.assertIn(
+            "traefik_engine_send_deadline(socket_fd, payload, payload_size,",
+            frame,
+        )
 
     def test_oracle_handles_a_missing_optional_json_string_without_dereference(self) -> None:
         source = (ROOT / "ci" / "tools" / "native_modsecurity_oracle.c").read_text(
@@ -1078,7 +1113,8 @@ static void test_spop_rejects_overflow_and_truncated_protocol_values(void) {
     unsigned char too_wide[] = {240U, 0x80U, 0x80U, 0x80U, 0x80U,
         0x80U, 0x80U, 0x80U, 0x80U, 0x10U};
     static const unsigned char truncated_notify[] = {5U, 'c', 'h', 'e', 'c'};
-    char oversized_uri[1025];
+    char boundary_uri[MSCONNECTOR_MAX_PATH_LENGTH + 1U];
+    char oversized_uri[MSCONNECTOR_MAX_PATH_LENGTH + 2U];
     spop_buffer argument;
     spop_buffer notify;
     notify_request request;
@@ -1144,6 +1180,21 @@ static void test_spop_rejects_overflow_and_truncated_protocol_values(void) {
             &decoded_uint32, &present) == -1);
         assert(present == 0);
     }
+
+    memset(boundary_uri, 'b', sizeof(boundary_uri) - 1U);
+    boundary_uri[sizeof(boundary_uri) - 1U] = '\0';
+    memset(&argument, 0, sizeof(argument));
+    assert(append_typed_string(&argument, boundary_uri) == 0);
+    memset(&request, 0, sizeof(request));
+    pos = 0U;
+    assert(parse_notify_string_argument(&request,
+        (const unsigned char *)"uri", sizeof("uri") - 1U,
+        argument.data, argument.len, &pos) == 0);
+    assert(request.has_uri == 1);
+    assert(strlen(request.uri) == MSCONNECTOR_MAX_PATH_LENGTH);
+    assert(memcmp(request.uri, boundary_uri,
+        MSCONNECTOR_MAX_PATH_LENGTH) == 0);
+    free_notify_request(&request);
 
     memset(oversized_uri, 'u', sizeof(oversized_uri) - 1U);
     oversized_uri[sizeof(oversized_uri) - 1U] = '\0';

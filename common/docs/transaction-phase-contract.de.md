@@ -336,6 +336,11 @@ Transaktion zu rekonstruieren oder still zurückzufallen.
 
 - Header-, Body-, Registry- und Eventlimits schlagen fehl, statt unbeschränkten Zustand zu behalten.
 - Event-JSONL enthält ausschließlich Zähler und begrenzte Metadaten, niemals Body-Payloads.
+- Event-JSONL und der zugehörige Integrity-Hash ersetzen eine nichtleere
+  wörtliche Query durch `?<redacted>`, während die rohe URI für die WAF-
+  Verarbeitung erhalten bleibt. Historische Event- oder Audit-Logs können
+  weiterhin Query-Geheimnisse enthalten; ihren Zugriff beschränken und sie
+  gemäß der Aufbewahrungsrichtlinie rotieren.
 - P3 endet vor dem Response-Commit; Commit ist monoton und nach finish unzulässig.
 - Benannte Integrationsmodi werden auf ein exaktes Profil aufgelöst; unbekannte Modi fallen nicht zurück.
 - Alle Fehler-, Cancel-, Timeout-, Ablauf- und Normalpfade verwenden kanonisches Cleanup.

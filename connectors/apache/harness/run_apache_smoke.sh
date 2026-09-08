@@ -55,6 +55,12 @@ CONNECTOR_ORIGIN_LICENSE="${CONNECTOR_ORIGIN_LICENSE:-}"
 CONNECTOR_ORIGIN_IMPORTED_PATH="${CONNECTOR_ORIGIN_IMPORTED_PATH:-}"
 MODSECURITY_TEST_VARIANT="${MODSECURITY_TEST_VARIANT:-}"
 MODSECURITY_RULE_PREAMBLE_FILE="${MODSECURITY_RULE_PREAMBLE_FILE:-}"
+APACHE_PROFILE_CLEANUP_RECEIPT="${APACHE_PROFILE_CLEANUP_RECEIPT:-}"
+APACHE_PROFILE_CELL_RUN_ID="${APACHE_PROFILE_CELL_RUN_ID:-}"
+APACHE_PROFILE_GITHUB_RUN_ID="${APACHE_PROFILE_GITHUB_RUN_ID:-}"
+APACHE_PROFILE_GITHUB_RUN_ATTEMPT="${APACHE_PROFILE_GITHUB_RUN_ATTEMPT:-}"
+APACHE_PROFILE_FINAL_CLEANUP=0
+APACHE_PROFILE_EVIDENCE_SCRIPT="$REPO_ROOT/ci/runtime/lifecycle/with-crs-no-mrts-profile.py"
 MSCONNECTOR_FULL_LIFECYCLE_SYNC="${MSCONNECTOR_FULL_LIFECYCLE_SYNC:-0}"
 FULL_LIFECYCLE_EVIDENCE_OUTPUT="${FULL_LIFECYCLE_EVIDENCE_OUTPUT:-}"
 MSCONNECTOR_PHASE4_SYNC_EXPECTATION="${MSCONNECTOR_PHASE4_SYNC_EXPECTATION:-first_byte}"
@@ -403,6 +409,31 @@ run_all_cases() {
     exit 0
 }
 
+publish_profile_single_case_results() {
+    [ "$RUN_ONE_CASE" = "1" ] || return 0
+    apache_profile_enabled || return 0
+
+    single_case_result="$LOG_DIR/result.json"
+    "$PYTHON_BIN" -I "$APACHE_PROFILE_EVIDENCE_SCRIPT" publish-apache-selected-results \
+        --runtime-root "$BUILD_ROOT" \
+        --results-dir "$RESULTS_DIR" \
+        --result-json "$single_case_result" \
+        --case-cli "$CASE_CLI" \
+        --import-status-file "$REPO_ROOT/config/testing/import-status.json" \
+        --server-binary "$APACHE_HTTPD_BIN" \
+        --module "$APACHE_MODULE" \
+        --libmodsecurity "$MODSECURITY_LIB_DIR/libmodsecurity.so" \
+        --origin-source "$CONNECTOR_ORIGIN_SOURCE" \
+        --origin-source-repo "$CONNECTOR_ORIGIN_SOURCE_REPO" \
+        --origin-source-url "$CONNECTOR_ORIGIN_SOURCE_URL" \
+        --origin-source-commit "$CONNECTOR_ORIGIN_SOURCE_COMMIT" \
+        --origin-source-version "$CONNECTOR_ORIGIN_SOURCE_VERSION" \
+        --origin-license "$CONNECTOR_ORIGIN_LICENSE" \
+        --origin-imported-path "$CONNECTOR_ORIGIN_IMPORTED_PATH" \
+        --log-dir "$LOG_DIR" || \
+        fail "selected Apache CRS summary publication failed"
+}
+
 find_apache() {
     if [ -n "$APACHE_HTTPD_BIN" ]; then
         printf '%s\n' "$APACHE_HTTPD_BIN"
@@ -520,13 +551,106 @@ render_config() {
         "$TEMPLATE" > "$CONFIG_FILE"
 }
 
+apache_profile_enabled() {
+    if [ -z "$APACHE_PROFILE_CLEANUP_RECEIPT" ] && [ -z "$APACHE_PROFILE_CELL_RUN_ID" ] && \
+        [ -z "$APACHE_PROFILE_GITHUB_RUN_ID" ] && [ -z "$APACHE_PROFILE_GITHUB_RUN_ATTEMPT" ]; then
+        return 1
+    fi
+    [ -n "$APACHE_PROFILE_CLEANUP_RECEIPT" ] || return 2
+    [ -n "$APACHE_PROFILE_CELL_RUN_ID" ] || return 2
+    [ -n "$APACHE_PROFILE_GITHUB_RUN_ID" ] || return 2
+    [ -n "$APACHE_PROFILE_GITHUB_RUN_ATTEMPT" ] || return 2
+    return 0
+}
+
+require_safe_apache_config_path() {
+    config_path=$1
+    config_label=$2
+    case "$config_path" in
+        *[[:cntrl:]]*|*\"*|*[\\]*|*\$*)
+            blocked "$config_label contains an unsafe Apache configuration character"
+            ;;
+        *) ;;
+    esac
+}
+
+configure_apache_profile_audit() {
+    if apache_profile_enabled; then
+        :
+    else
+        profile_rc=$?
+        case "$profile_rc" in
+            1) return 0 ;;
+            *) blocked "Apache profile audit configuration is incomplete" ;;
+        esac
+    fi
+    [ "$MODSECURITY_TEST_VARIANT" = "with-crs" ] || \
+        blocked "Apache profile audit evidence requires MODSECURITY_TEST_VARIANT=with-crs"
+    [ "$RUN_ONE_CASE" = "1" ] || \
+        blocked "Apache profile audit evidence requires one selected case"
+    require_safe_apache_config_path "$AUDIT_LOG_FILE" "Apache profile audit path"
+    [ ! -e "$AUDIT_LOG_FILE" ] || \
+        fail "Apache profile audit log already exists before the selected case"
+    {
+        printf '%s\n' 'SecAuditEngine On'
+        printf '%s\n' 'SecAuditLogType Serial'
+        printf '%s\n' 'SecAuditLogFormat Native'
+        printf '%s\n' 'SecAuditLogParts ABFHZ'
+        printf 'SecAuditLog "%s"\n' "$AUDIT_LOG_FILE"
+    } >> "$RULES_FILE" || fail "failed to append Apache profile audit configuration"
+}
+
+apache_profile_stop_tracked_process() {
+    process_label=$1
+    process_pid=$2
+    [ -n "$process_pid" ] || return 0
+    case "$process_pid" in
+        *[!0-9]*|"") echo "apache_smoke: profile cleanup has invalid $process_label PID" >&2; return 1 ;;
+        *) ;;
+    esac
+    if kill -0 "$process_pid" >/dev/null 2>&1; then
+        kill "$process_pid" >/dev/null 2>&1 || true
+        wait "$process_pid" >/dev/null 2>&1 || true
+    fi
+    if kill -0 "$process_pid" >/dev/null 2>&1; then
+        echo "apache_smoke: profile cleanup left $process_label PID=$process_pid running" >&2
+        return 1
+    fi
+    return 0
+}
+
+apache_profile_publish_cleanup_receipt() {
+    [ "$APACHE_PROFILE_FINAL_CLEANUP" = "1" ] || return 0
+    [ "$RUN_ONE_CASE" = "1" ] || return 1
+    [ -n "${HTTPD_PID:-}" ] || {
+        echo "apache_smoke: profile cleanup has no tracked Apache PID" >&2
+        return 1
+    }
+    port_is_free "$PORT" || {
+        echo "apache_smoke: profile cleanup left a listener on port=$PORT" >&2
+        return 1
+    }
+    [ ! -e "$RUNTIME_PID_FILE" ] || {
+        echo "apache_smoke: profile cleanup left Apache PID file=$RUNTIME_PID_FILE" >&2
+        return 1
+    }
+    "$PYTHON_BIN" -I "$APACHE_PROFILE_EVIDENCE_SCRIPT" write-apache-cleanup-receipt \
+        --output "$APACHE_PROFILE_CLEANUP_RECEIPT" \
+        --cell-run-id "$APACHE_PROFILE_CELL_RUN_ID" \
+        --github-run-id "$APACHE_PROFILE_GITHUB_RUN_ID" \
+        --github-run-attempt "$APACHE_PROFILE_GITHUB_RUN_ATTEMPT" \
+        --listener-port "$PORT"
+}
+
 cleanup() {
     cleanup_rc=0
-    if [ -n "${SYNCHRONIZED_UPSTREAM_PID:-}" ] && kill -0 "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1; then
-        [ -n "${SYNCHRONIZED_RELEASE_FILE:-}" ] && : > "$SYNCHRONIZED_RELEASE_FILE"
-        kill "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1 || true
-        wait "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1 || true
+    if [ -n "${SYNCHRONIZED_UPSTREAM_PID:-}" ] && \
+        kill -0 "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1 && \
+        [ -n "${SYNCHRONIZED_RELEASE_FILE:-}" ]; then
+        : > "$SYNCHRONIZED_RELEASE_FILE" || cleanup_rc=77
     fi
+    apache_profile_stop_tracked_process synchronized-upstream \
+        "${SYNCHRONIZED_UPSTREAM_PID:-}" || cleanup_rc=77
     if [ "$HTTPD_RECORD_FAILURE_CLEANED" -eq 1 ]; then
         if [ -n "${HTTPD_SUPERVISOR_STATE:-}" ] && [ -f "$HTTPD_SUPERVISOR_STATE" ]; then
             "$PYTHON_BIN" "$APACHE_PROCESS_GUARD" stop-supervisor \
@@ -586,13 +710,14 @@ cleanup() {
         fi
         cleanup_rc=77
     fi
-    if [ -n "${RESPONSE_HEADER_BACKEND_PID:-}" ] && kill -0 "$RESPONSE_HEADER_BACKEND_PID" >/dev/null 2>&1; then
-        kill "$RESPONSE_HEADER_BACKEND_PID" >/dev/null 2>&1 || true
-        wait "$RESPONSE_HEADER_BACKEND_PID" >/dev/null 2>&1 || true
+    apache_profile_stop_tracked_process response-header-backend \
+        "${RESPONSE_HEADER_BACKEND_PID:-}" || cleanup_rc=77
+    if [ -n "${PHASE4_ROGUE_TLS_KEY:-}" ] && ! rm -f "$PHASE4_ROGUE_TLS_KEY"; then
+        cleanup_rc=77
     fi
     if [ "$cleanup_rc" -eq 0 ] && [ -n "${RUNTIME_PID_FILE:-}" ] && \
         [ ! -f "${HTTPD_GUARD_EVIDENCE:-}" ]; then
-        rm -f "$RUNTIME_PID_FILE"
+        rm -f "$RUNTIME_PID_FILE" || cleanup_rc=77
     fi
     if [ -n "${HTTPD_SUPERVISOR_STATE:-}" ] && [ -e "$HTTPD_SUPERVISOR_STATE" ]; then
         echo "apache_smoke: blocked supervisor state remains after cleanup" >&2
@@ -602,8 +727,9 @@ cleanup() {
         echo "apache_smoke: blocked supervisor PID output remains after cleanup" >&2
         cleanup_rc=77
     fi
-    if [ -n "${PHASE4_ROGUE_TLS_KEY:-}" ]; then
-        rm -f "$PHASE4_ROGUE_TLS_KEY"
+    if apache_profile_enabled && [ "$APACHE_PROFILE_FINAL_CLEANUP" = "1" ]; then
+        [ "$cleanup_rc" -eq 0 ] || return "$cleanup_rc"
+        apache_profile_publish_cleanup_receipt || return 1
     fi
     return "$cleanup_rc"
 }
@@ -2467,6 +2593,19 @@ require_absolute_generated_path "$HTTPD_PREFIX" "HTTPD_PREFIX"
 require_absolute_generated_path "$RUNTIME_ROOT" "RUNTIME_ROOT"
 require_absolute_generated_path "$LOG_DIR" "LOG_DIR"
 require_absolute_generated_path "$APACHE_CASE_OUTPUT_ROOT" "APACHE_CASE_OUTPUT_ROOT"
+if [ "$RUN_ONE_CASE" = "1" ]; then
+    require_absolute_generated_path "$RESULTS_DIR" "RESULTS_DIR"
+    if apache_profile_enabled; then
+        [ -f "$APACHE_PROFILE_EVIDENCE_SCRIPT" ] || \
+            blocked "Apache profile evidence helper is missing: $APACHE_PROFILE_EVIDENCE_SCRIPT"
+        "$PYTHON_BIN" -I "$APACHE_PROFILE_EVIDENCE_SCRIPT" prepare-apache-selected-results \
+            --runtime-root "$BUILD_ROOT" \
+            --results-dir "$RESULTS_DIR" || \
+            blocked "Apache profile results directory is unsafe"
+    else
+        prepare_runtime_directory "$RESULTS_DIR" "RESULTS_DIR" 0
+    fi
+fi
 
 RUNTIME_PID_FILE="$RUNTIME_ROOT/logs/httpd.pid"
 HTTPD_SUPERVISOR_STATE="$RUNTIME_ROOT/run/httpd-supervisor-state.json"
@@ -2489,6 +2628,13 @@ if [ -e "$HTTPD_SUPERVISOR_STATE" ] || [ -L "$HTTPD_SUPERVISOR_STATE" ] || \
         blocked "stale Apache supervisor session is unsafe"
 fi
 : > "$STATUS_FILE"
+if [ -n "$APACHE_PROFILE_CLEANUP_RECEIPT" ] || [ -n "$APACHE_PROFILE_CELL_RUN_ID" ] || \
+    [ -n "$APACHE_PROFILE_GITHUB_RUN_ID" ] || [ -n "$APACHE_PROFILE_GITHUB_RUN_ATTEMPT" ]; then
+    apache_profile_enabled || blocked "Apache profile cleanup configuration is incomplete"
+    [ "$RUN_ONE_CASE" = "1" ] || blocked "Apache profile cleanup requires one selected case"
+    [ -f "$APACHE_PROFILE_EVIDENCE_SCRIPT" ] || \
+        blocked "Apache profile evidence helper is missing: $APACHE_PROFILE_EVIDENCE_SCRIPT"
+fi
 stop_stale_runtime_pid "$RUNTIME_PID_FILE"
 retire_stale_guard_evidence
 rm -f "$RUNTIME_ROOT/logs/"* \
@@ -2584,6 +2730,7 @@ if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     --rules-preamble-file "$MODSECURITY_RULE_PREAMBLE_FILE" > "$LOG_DIR/case-materialize.log" 2>&1; then
     not_executable "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
 fi
+configure_apache_profile_audit
 . "$CASE_ENV_FILE"
 if ! "$PYTHON_BIN" "$REPO_ROOT/ci/runtime/common/harness-case-metadata.py" response-header-fixture \
     --case "$TEST_CASE" \
@@ -2712,7 +2859,27 @@ if "$PYTHON_BIN" "$CASE_CLI" assert-status \
     --audit-log-file "$AUDIT_LOG_FILE" \
     --phase4-log-file "$APACHE_PHASE4_LOG_FILE" \
     --status-file "$STATUS_FILE" > "$LOG_DIR/case-assert.log" 2>&1; then
-    write_case_result "$TEST_CASE" pass "$http_status" "$LOG_DIR/result.json" "$observed_transport_result" || true
+    if apache_profile_enabled; then
+        "$PYTHON_BIN" -I "$APACHE_PROFILE_EVIDENCE_SCRIPT" verify-apache-audit \
+            --audit-log "$AUDIT_LOG_FILE" || \
+            fail "selected Apache CRS case lacks a transaction-bound rule-942270 audit record"
+        APACHE_PROFILE_FINAL_CLEANUP=1
+        if ! cleanup; then
+            # A failed final proof must never publish a receipt.  Keep the
+            # exit trap installed for one last best-effort teardown pass, but
+            # disable final publication before this error path exits.
+            APACHE_PROFILE_FINAL_CLEANUP=0
+            fail "selected Apache CRS case cleanup could not be proven"
+        fi
+        trap - EXIT INT TERM
+    fi
+    if apache_profile_enabled; then
+        write_case_result "$TEST_CASE" pass "$http_status" "$LOG_DIR/result.json" "$observed_transport_result" || \
+            fail "selected Apache CRS case result publication failed"
+        publish_profile_single_case_results
+    else
+        write_case_result "$TEST_CASE" pass "$http_status" "$LOG_DIR/result.json" "$observed_transport_result" || true
+    fi
     echo "apache_smoke: pass case=$CASE_NAME status=$http_status"
     exit 0
 fi

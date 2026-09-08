@@ -97,8 +97,8 @@ typedef struct notify_request {
     char client_ip[64];
     char server_ip[64];
     char method[32];
-    char path[1024];
-    char uri[1024];
+    char path[MSCONNECTOR_MAX_PATH_LENGTH + 1U];
+    char uri[MSCONNECTOR_MAX_PATH_LENGTH + 1U];
     char host[256];
     char test_header[1024];
     unsigned int client_port;
@@ -751,12 +751,15 @@ static int write_full_until(int fd, const void *buf, size_t len, uint64_t deadli
             return -1;
         }
 
-        /* This is a protocol socket. MSG_NOSIGNAL turns a peer-close race
-         * into the normal observable EPIPE/ECONNRESET failure path without
-         * changing SIGPIPE handling for unrelated process users. */
-        do {
-            rc = send(fd, p, len, MSG_NOSIGNAL);
-        } while (rc < 0 && errno == EINTR);
+        /* Keep the absolute deadline authoritative even when a blocking
+         * accepted socket becomes non-writable between poll() and send().
+         * MSG_NOSIGNAL turns peer close into a connection-local error while
+         * MSG_DONTWAIT prevents this worker from becoming stuck in send(). */
+        rc = send(fd, p, len, MSG_NOSIGNAL | MSG_DONTWAIT);
+        if (rc < 0 && (errno == EINTR || errno == EAGAIN ||
+                errno == EWOULDBLOCK)) {
+            continue;
+        }
         if (rc <= 0) {
             return -1;
         }
@@ -1469,6 +1472,49 @@ static int read_typed_string_to_buffer(
     return 0;
 }
 
+/* Request targets are security-relevant length-delimited protocol data.  Do
+ * not pass them through the generic truncating string helper: ModSecurity
+ * must see the complete target, or the request must be rejected before a
+ * transaction is started. */
+static int read_typed_target_to_buffer(
+        const unsigned char *data,
+        size_t len,
+        size_t *pos,
+        char *out,
+        size_t out_len,
+        int *present) {
+    size_t value_pos = *pos;
+    unsigned int type;
+    const unsigned char *value;
+    size_t value_len;
+
+    if (*pos >= len) {
+        return -1;
+    }
+    type = data[(*pos)++] & SPOP_DATA_TYPE_MASK;
+    if (type == 0U) {
+        copy_spop_string(out, out_len, (const unsigned char *)"", 0U);
+        *present = 1;
+        return 0;
+    }
+    if (type != SPOP_DATA_STR ||
+            read_string_ref(data, len, pos, &value, &value_len) != 0 ||
+            value_len > MSCONNECTOR_MAX_PATH_LENGTH ||
+            memchr(value, '\0', value_len) != 0) {
+        *pos = value_pos;
+        return -1;
+    }
+    /* out_len is the canonical limit plus its terminator at both call sites. */
+    if (out_len < value_len + 1U) {
+        *pos = value_pos;
+        return -1;
+    }
+    memcpy(out, value, value_len);
+    out[value_len] = '\0';
+    *present = 1;
+    return 0;
+}
+
 static int read_typed_ip_to_buffer(
         const unsigned char *data,
         size_t len,
@@ -1746,8 +1792,14 @@ static int parse_notify_string_argument(
                     arguments[index].value, arguments[index].value_len,
                     arguments[index].present);
             }
-            return read_typed_string_to_buffer(data, len, pos, arguments[index].value,
-                arguments[index].value_len, arguments[index].present);
+            if (index == 4U || index == 5U) {
+                return read_typed_target_to_buffer(data, len, pos,
+                    arguments[index].value, arguments[index].value_len,
+                    arguments[index].present);
+            }
+            return read_typed_string_to_buffer(data, len, pos,
+                arguments[index].value, arguments[index].value_len,
+                arguments[index].present);
         }
     }
     return 1;
@@ -5070,36 +5122,154 @@ static int run_spop_notify_failure_self_test(void)
     return 0;
 }
 
-static int run_spop_write_deadline_self_test(void)
+static int run_spop_write_deadline_child(void)
 {
-    int sockets[2];
+    int listener_fd = -1;
+    int server_fd = -1;
+    int client_fd = -1;
+    int followup[2] = {-1, -1};
     int flags;
+    int send_buffer = 4096;
+    int writable = 0;
     unsigned char filler[4096];
+    unsigned char drain[8192];
     ssize_t written;
+    ssize_t received;
     spop_buffer payload;
+    spop_frame frame;
+    struct sockaddr_in address;
+    socklen_t address_size = sizeof(address);
+    struct pollfd descriptor;
+    uint64_t started;
+    uint64_t finished;
     int rc = -1;
 
+    if (signal(SIGALRM, SIG_DFL) == SIG_ERR) {
+        return -1;
+    }
+    (void)alarm(2U);
     memset(filler, 'x', sizeof(filler));
+    memset(&address, 0, sizeof(address));
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    listener_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (listener_fd < 0 || bind(listener_fd, (struct sockaddr *)&address,
+            sizeof(address)) != 0 || listen(listener_fd, 1) != 0 ||
+            getsockname(listener_fd, (struct sockaddr *)&address,
+                &address_size) != 0) {
+        goto cleanup;
+    }
+    client_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (client_fd < 0 || connect(client_fd, (struct sockaddr *)&address,
+            sizeof(address)) != 0) {
+        goto cleanup;
+    }
+    server_fd = accept(listener_fd, 0, 0);
+    if (server_fd < 0 || close(listener_fd) != 0) {
+        goto cleanup;
+    }
+    listener_fd = -1;
+    flags = fcntl(server_fd, F_GETFL, 0);
+    if (flags < 0 || (flags & O_NONBLOCK) != 0 ||
+            setsockopt(server_fd, SOL_SOCKET, SO_SNDBUF, &send_buffer,
+                sizeof(send_buffer)) != 0) {
+        goto cleanup;
+    }
+    for (;;) {
+        written = send(server_fd, filler, sizeof(filler),
+            MSG_NOSIGNAL | MSG_DONTWAIT);
+        if (written > 0) {
+            continue;
+        }
+        if (written < 0 && errno == EINTR) {
+            continue;
+        }
+        break;
+    }
+    if (written >= 0 || (errno != EAGAIN && errno != EWOULDBLOCK)) {
+        goto cleanup;
+    }
+    for (unsigned int attempt = 0U; attempt < 64U && !writable; ++attempt) {
+        do {
+            received = recv(client_fd, drain, sizeof(drain), MSG_DONTWAIT);
+        } while (received < 0 && errno == EINTR);
+        if (received <= 0) {
+            goto cleanup;
+        }
+        memset(&descriptor, 0, sizeof(descriptor));
+        descriptor.fd = server_fd;
+        descriptor.events = POLLOUT;
+        if (poll(&descriptor, 1U, 0) > 0 &&
+                (descriptor.revents & POLLOUT) != 0) {
+            writable = 1;
+        }
+    }
+    if (!writable) {
+        goto cleanup;
+    }
+    memset(payload.data, 0x5a, sizeof(payload.data));
+    payload.len = SPOP_FRAME_MAX - 16U;
+    started = monotonic_milliseconds();
+    if (started == 0U || send_frame_timeout(server_fd, SPOP_FRM_ACK, 1U, 1U,
+            &payload, 50U) == 0) {
+        goto cleanup;
+    }
+    finished = monotonic_milliseconds();
+    if (finished == 0U || finished < started || finished - started > 1000U) {
+        goto cleanup;
+    }
+    if (close(server_fd) != 0 || close(client_fd) != 0) {
+        goto cleanup;
+    }
+    server_fd = -1;
+    client_fd = -1;
     payload.len = 0U;
-    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) != 0) {
-        return -1;
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, followup) != 0 ||
+            send_frame_timeout(followup[0], SPOP_FRM_ACK, 7U, 9U,
+                &payload, 100U) != 0 ||
+            recv_frame(followup[1], &frame, 100U) != 0 ||
+            frame.type != SPOP_FRM_ACK || frame.stream_id != 7U ||
+            frame.frame_id != 9U) {
+        goto cleanup;
     }
-    flags = fcntl(sockets[0], F_GETFL, 0);
-    if (flags < 0 || fcntl(sockets[0], F_SETFL, flags | O_NONBLOCK) != 0) {
-        close(sockets[0]);
-        close(sockets[1]);
-        return -1;
+    rc = 0;
+
+cleanup:
+    if (listener_fd >= 0) {
+        (void)close(listener_fd);
     }
-    do {
-        written = send(sockets[0], filler, sizeof(filler), MSG_NOSIGNAL);
-    } while (written > 0);
-    if (errno == EAGAIN || errno == EWOULDBLOCK) {
-        rc = send_frame_timeout(sockets[0], SPOP_FRM_ACK, 1U, 1U,
-            &payload, 5U) != 0 ? 0 : -1;
+    if (server_fd >= 0) {
+        (void)close(server_fd);
     }
-    close(sockets[0]);
-    close(sockets[1]);
+    if (client_fd >= 0) {
+        (void)close(client_fd);
+    }
+    if (followup[0] >= 0) {
+        (void)close(followup[0]);
+    }
+    if (followup[1] >= 0) {
+        (void)close(followup[1]);
+    }
+    (void)alarm(0U);
     return rc;
+}
+
+static int run_spop_write_deadline_self_test(void)
+{
+    pid_t child = fork();
+    int status;
+
+    if (child < 0) {
+        return -1;
+    }
+    if (child == 0) {
+        _exit(run_spop_write_deadline_child() == 0 ? 0 : 1);
+    }
+    if (waitpid(child, &status, 0) != child || !WIFEXITED(status) ||
+            WEXITSTATUS(status) != 0) {
+        return -1;
+    }
+    return 0;
 }
 
 static int run_spop_peer_close_write_self_test(void)

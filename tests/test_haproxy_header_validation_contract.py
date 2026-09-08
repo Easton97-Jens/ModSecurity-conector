@@ -154,7 +154,8 @@ int main(void) {
             (index == 6U ? "X-6" : (index == 7U ? "X-7" : "X-8"))))));
         aggregate[index].value = aggregate_value;
     }
-    if (request_case(positive, 1U, 1) != 0 ||
+    if (request_case(NULL, 0U, 0) != 0 ||
+            request_case(positive, 1U, 1) != 0 ||
             request_case(no_host, 1U, 0) != 0 ||
             request_case(empty_host, 1U, 0) != 0 ||
             request_case(duplicate_host, 2U, 0) != 0 ||

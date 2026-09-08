@@ -13,6 +13,12 @@ files select the same UDS shape with `phase4_mode=minimal`; the
 The matching [engine-service configuration](safe/traefik-engine-service.conf)
 selects streaming bodies and phase4_mode safe.
 
+The native UDS service applies one monotonic deadline to each complete frame,
+closes clients that exceed it, and bounds concurrent workers to 64 by default
+and 256 maximum. Configure the bound with the service CLI option
+`--max-workers N`; it is not a Traefik YAML setting. Shutdown signals active
+sockets and defers internal finalization until workers have exited.
+
 This is the native HTTP/1.1 P1--P4 Safe reference. P1, P2, P3, and P4 mean
 request headers, request body, response headers, and response body. Safe does
 not claim a late status rewrite or Strict connection abort. The configuration

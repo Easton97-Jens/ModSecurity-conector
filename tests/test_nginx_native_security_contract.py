@@ -3,6 +3,8 @@
 from pathlib import Path
 import unittest
 
+from tests.c_source_contract import function_definition
+
 
 ROOT = Path(__file__).resolve().parents[1]
 ACCESS = (ROOT / "connectors/nginx/src/ngx_http_modsecurity_access.c").read_text(
@@ -14,7 +16,16 @@ MAPPER = (ROOT / "connectors/nginx/src/ngx_http_modsecurity_mapper.c").read_text
 MODULE = (ROOT / "connectors/nginx/src/ngx_http_modsecurity_module.c").read_text(
     encoding="utf-8"
 )
+BODY_FILTER = (
+    ROOT / "connectors/nginx/src/ngx_http_modsecurity_body_filter.c"
+).read_text(encoding="utf-8")
 COMMON = (ROOT / "connectors/nginx/src/ngx_http_modsecurity_common.h").read_text(
+    encoding="utf-8"
+)
+HARNESS = (ROOT / "connectors/nginx/harness/run_nginx_smoke.sh").read_text(
+    encoding="utf-8"
+)
+EXACT_GATE = (ROOT / "connectors/nginx/harness/run_exact_head_use_error_log.sh").read_text(
     encoding="utf-8"
 )
 
@@ -81,13 +92,226 @@ class NginxNativeSecurityContractTest(unittest.TestCase):
             request_header_sink.index("msc_add_n_request_header"),
         )
 
-    def test_native_event_file_configuration_is_disabled_before_open(self) -> None:
+    def test_native_event_file_configuration_uses_common_private_descriptor(self) -> None:
         setter = MODULE.split("static char *\nngx_conf_set_phase4_log", 1)[1].split(
             "static ngx_int_t", 1
         )[0]
-        self.assertIn("native NGINX phase4 event-file logging is disabled", setter)
+
+        self.assertIn('return "is duplicate";', setter)
+        self.assertIn("ngx_strlchr", setter)
+        self.assertIn("msconnector_open_private_event_file(path, &fd)", setter)
         self.assertNotIn("ngx_conf_open_file(", setter)
-        self.assertNotIn("ngx_write_fd", setter)
+        self.assertNotIn("ngx_list_push(", setter)
+        self.assertIn("generic reopen routine", setter)
+        self.assertIn("event_file->fd = NGX_INVALID_FILE", setter)
+        self.assertIn("ngx_pool_cleanup_add(cf->pool, 0)", setter)
+        self.assertIn(
+            "cleanup->handler = ngx_http_modsecurity_cleanup_phase4_log", setter
+        )
+        self.assertIn("cleanup->handler = NULL", setter)
+        self.assertIn("cleanup->data = NULL", setter)
+        self.assertIn("ngx_conf_log_error(NGX_LOG_EMERG", setter)
+        self.assertIn("event_file->fd = (ngx_fd_t)fd", setter)
+        self.assertIn("event_file->name = value[1]", setter)
+        self.assertIn("mcf->phase4_log_path = value[1]", setter)
+        self.assertIn("mcf->common_config.phase4_log_path = path", setter)
+        self.assertLess(
+            setter.index("ngx_pool_cleanup_add(cf->pool, 0)"),
+            setter.index("msconnector_open_private_event_file(path, &fd)"),
+        )
+        self.assertLess(
+            setter.index("msconnector_open_private_event_file(path, &fd)"),
+            setter.index("event_file->fd = (ngx_fd_t)fd"),
+        )
+
+    def test_native_event_file_cleanup_invalidates_before_close(self) -> None:
+        cleanup = MODULE.split(
+            "static void\nngx_http_modsecurity_cleanup_phase4_log", 1
+        )[1].split("\n\n\n/* vi:set", 1)[0]
+
+        self.assertIn("event_file->fd == NGX_INVALID_FILE", cleanup)
+        self.assertIn("fd = event_file->fd", cleanup)
+        self.assertIn("event_file->fd = NGX_INVALID_FILE", cleanup)
+        self.assertIn("(void)ngx_close_file(fd)", cleanup)
+        self.assertLess(
+            cleanup.index("event_file->fd = NGX_INVALID_FILE"),
+            cleanup.index("(void)ngx_close_file(fd)"),
+        )
+
+    def test_native_event_file_inheritance_borrows_without_new_cleanup(self) -> None:
+        merge = MODULE.split("static char *\nngx_http_modsecurity_merge_conf", 1)[1].split(
+            "\n\nstatic void\nngx_http_modsecurity_cleanup_instance", 1
+        )[0]
+
+        self.assertIn("if (c->phase4_log_file == NGX_CONF_UNSET_PTR)", merge)
+        self.assertIn("c->phase4_log_file = p->phase4_log_file", merge)
+        self.assertIn("c->phase4_log_path = p->phase4_log_path", merge)
+        self.assertIn("c->phase4_log_file = NULL", merge)
+        self.assertNotIn("ngx_conf_merge_ptr_value(c->phase4_log_file", merge)
+
+    def test_phase4_event_uses_the_safe_request_metadata_helper(self) -> None:
+        phase4_event = function_definition(
+            BODY_FILTER, "ngx_http_modsecurity_phase4_log_event"
+        )
+
+        self.assertIn(
+            "ngx_http_modsecurity_event_request_metadata_t request_metadata;",
+            phase4_event,
+        )
+        self.assertIn(
+            "request_metadata = ngx_http_modsecurity_event_request_metadata(r);",
+            phase4_event,
+        )
+        self.assertIn("event.request.method = request_metadata.method;", phase4_event)
+        self.assertIn("event.request.uri = request_metadata.uri;", phase4_event)
+        self.assertLess(
+            phase4_event.index(
+                "request_metadata = ngx_http_modsecurity_event_request_metadata(r);"
+            ),
+            phase4_event.index("event.request.uri = request_metadata.uri;"),
+        )
+
+    def test_hosted_phase4_lifecycle_keeps_generic_reopen_outside_the_sink(self) -> None:
+        for target_mode in (
+            "unsafe_symlink",
+            "unsafe_fifo",
+            "unsafe_directory",
+            "unsafe_writable_parent",
+            "unsafe_wrong_owner",
+        ):
+            self.assertIn(target_mode, HARNESS)
+        self.assertIn('"$NGINX_BINARY" -t -p "$RUNTIME_ROOT" -c "$CONFIG_FILE"', HARNESS)
+        self.assertIn("nginx-reload-unsafe-phase4-configtest.log", HARNESS)
+        phase4_lifecycle = HARNESS.split("exercise_phase4_log_lifecycle() {", 1)[
+            1
+        ].split("\n}\n\nsoak_request_matches_case()", 1)[0]
+        unsafe_reload = phase4_lifecycle.split(
+            'if "$NGINX_BINARY" -t -p "$RUNTIME_ROOT" -c "$CONFIG_FILE"', 1
+        )[1].split("phase4_old_before_failed_reload_request=", 1)[0]
+        self.assertIn("record_nginx_master_worker_roles >/dev/null", unsafe_reload)
+        self.assertIn('/bin/kill -HUP "$NGINX_PID"', unsafe_reload)
+        self.assertNotIn(
+            '"$NGINX_BINARY" -p "$RUNTIME_ROOT" -c "$CONFIG_FILE" -s reload',
+            unsafe_reload,
+        )
+        self.assertLess(
+            unsafe_reload.index("record_nginx_master_worker_roles >/dev/null"),
+            unsafe_reload.index('/bin/kill -HUP "$NGINX_PID"'),
+        )
+        self.assertIn('/bin/kill -USR1 "$NGINX_PID"', HARNESS)
+        overlap_client = HARNESS.split("start_phase4_reload_overlap_client() {", 1)[
+            1
+        ].split("validate_phase4_reload_overlap_server_record()", 1)[0]
+        self.assertIn(
+            "phase4_reload_overlap_sync_enabled ||",
+            overlap_client,
+        )
+        self.assertIn('while [ "$phase4_overlap_attempt" -lt 100 ]; do', overlap_client)
+        self.assertIn('[ -f "$SYNCHRONIZED_PAUSED_FILE" ]', overlap_client)
+        self.assertIn('[ ! -L "$SYNCHRONIZED_PAUSED_FILE" ]', overlap_client)
+        self.assertIn('[ -s "$phase4_overlap_output" ]', overlap_client)
+        self.assertIn('/bin/kill -0 "$PHASE4_RELOAD_OVERLAP_CLIENT_PID"', overlap_client)
+        self.assertIn("--no-buffer --max-time 30 -X GET", overlap_client)
+        self.assertIn(
+            "phase4 reload-overlap client did not reach the paused first-byte barrier",
+            overlap_client,
+        )
+        self.assertNotIn("PHASE4_SLOW_STREAM_PID", overlap_client)
+        overlap_stop = HARNESS.split("stop_phase4_reload_overlap_client() {", 1)[
+            1
+        ].split("observe_phase4_reload_overlap()", 1)[0]
+        self.assertIn(': > "$SYNCHRONIZED_RELEASE_FILE"', overlap_stop)
+        self.assertIn('wait "$SYNCHRONIZED_UPSTREAM_PID"', overlap_stop)
+        self.assertIn("validate_phase4_reload_overlap_server_record", overlap_stop)
+        overlap_server_validation = HARNESS.split(
+            "validate_phase4_reload_overlap_server_record() {", 1
+        )[1].split("stop_phase4_reload_overlap_client()", 1)[0]
+        self.assertIn("body_payload_persisted", overlap_server_validation)
+        process_snapshot = HARNESS.split("nginx_process_child_snapshot() {", 1)[
+            1
+        ].split("nginx_process_children()", 1)[0]
+        self.assertIn('ps -o pid=,ppid=,stat= --ppid "$nginx_snapshot_parent_pid"', process_snapshot)
+        self.assertIn('-v expected_parent="$nginx_snapshot_parent_pid"', process_snapshot)
+        self.assertIn('$2 == expected_parent', process_snapshot)
+        self.assertIn('$3 !~ /^Z/', process_snapshot)
+        process_children = HARNESS.split("nginx_process_children() {", 1)[1].split(
+            "nginx_process_record()", 1
+        )[0]
+        self.assertIn("nginx_children_parent_pid=$1", process_children)
+        self.assertIn(
+            'nginx_process_child_snapshot "$nginx_children_parent_pid"',
+            process_children,
+        )
+        overlap_observation = HARNESS.split("observe_phase4_reload_overlap() {", 1)[
+            1
+        ].split("send_expected_phase4_lifecycle_request()", 1)[0]
+        self.assertIn('phase4_overlap_snapshot=$(nginx_process_child_snapshot "$NGINX_PID")', overlap_observation)
+        self.assertIn('-v expected_old_worker="$phase4_old_worker"', overlap_observation)
+        self.assertIn('-v expected_parent="$NGINX_PID"', overlap_observation)
+        self.assertIn('phase4_replacement_present=', overlap_observation)
+        self.assertIn('last_snapshot=$phase4_overlap_last_snapshot result=not_observed', overlap_observation)
+        self.assertNotIn('case " $phase4_overlap_workers "', overlap_observation)
+        synchronized_start = HARNESS.split("start_synchronized_upstream() {", 1)[
+            1
+        ].split("send_synchronized_first_byte_request()", 1)[0]
+        self.assertIn('SYNCHRONIZED_UPSTREAM_CONTROL_ROOT', synchronized_start)
+        self.assertIn('--control-root "$SYNCHRONIZED_CONTROL_ROOT"', synchronized_start)
+        self.assertIn(
+            '[ ! -e "$SYNCHRONIZED_DIR" ] && [ ! -L "$SYNCHRONIZED_DIR" ]',
+            synchronized_start,
+        )
+        self.assertNotIn('rm -rf "$SYNCHRONIZED_DIR"', synchronized_start)
+        generated_path_authority = HARNESS.split(
+            "validate_nginx_generated_path_authority() {", 1
+        )[1].split("validate_nginx_external_projection_authority()", 1)[0]
+        self.assertIn(
+            'if [ "$MSCONNECTOR_FULL_LIFECYCLE_SYNC" = "1" ]; then',
+            generated_path_authority,
+        )
+        self.assertIn(
+            'blocked "full-lifecycle synchronized upstream requires SYNCHRONIZED_UPSTREAM_CONTROL_ROOT"',
+            generated_path_authority,
+        )
+        self.assertIn(
+            '--directory SYNCHRONIZED_UPSTREAM_CONTROL_ROOT "$SYNCHRONIZED_UPSTREAM_CONTROL_ROOT"',
+            generated_path_authority,
+        )
+        self.assertLess(
+            generated_path_authority.index("SYNCHRONIZED_UPSTREAM_CONTROL_ROOT"),
+            generated_path_authority.index('if ! "$@"; then'),
+        )
+        overlap_directives = HARNESS.split(
+            "write_phase4_reload_overlap_directives() {", 1
+        )[1].split("write_location_handler_directives()", 1)[0]
+        self.assertIn('proxy_pass http://127.0.0.1:$PHASE4_RELOAD_OVERLAP_UPSTREAM_PORT;', overlap_directives)
+        self.assertIn('echo "proxy_buffering off;"', overlap_directives)
+        self.assertIn('echo "proxy_set_header Host \\$host;"', overlap_directives)
+        self.assertIn('echo "limit_rate 1024;"', overlap_directives)
+        self.assertLess(
+            phase4_lifecycle.index("start_phase4_reload_overlap_client"),
+            phase4_lifecycle.index(
+                '"$NGINX_BINARY" -p "$RUNTIME_ROOT" -c "$CONFIG_FILE" -s reload'
+            ),
+        )
+        self.assertLess(
+            phase4_lifecycle.index("observe_phase4_reload_overlap"),
+            phase4_lifecycle.rindex("stop_phase4_reload_overlap_client"),
+        )
+        smoke_template = (
+            ROOT / "connectors/nginx/harness/nginx_smoke.conf"
+        ).read_text(encoding="utf-8")
+        self.assertIn("location = /__modsec_slow_stream", smoke_template)
+        self.assertIn("modsecurity off;", smoke_template)
+        self.assertIn("@@NGINX_PHASE4_RELOAD_OVERLAP_DIRECTIVES@@", smoke_template)
+        self.assertIn("phase4_fd_count_for_target()", HARNESS)
+        self.assertIn("assert_phase4_fd_absent", HARNESS)
+        self.assertIn("start_phase4_reload_overlap_client", HARNESS)
+        self.assertIn("phase=phase4_reload_overlap", HARNESS)
+        self.assertIn("phase=phase4_fd_shutdown result=closed_after_master_exit", HARNESS)
+        self.assertIn("phase4_reload_unsafe result=failed_old_cycle_preserved", EXACT_GATE)
+        self.assertIn("phase4_reload_secure result=new_validated_fd", EXACT_GATE)
+        self.assertIn("phase=phase4_reload_overlap", EXACT_GATE)
+        self.assertIn("phase=phase4_fd_shutdown result=closed_after_master_exit", EXACT_GATE)
 
     def test_content_type_file_is_descriptor_pinned_regular_and_bounded(self) -> None:
         loader = MODULE.split(
@@ -110,7 +334,7 @@ class NginxNativeSecurityContractTest(unittest.TestCase):
         self.assertLess(loader.index("ngx_open_file("), loader.index("ngx_fd_info("))
         self.assertLess(loader.index("ngx_fd_info("), loader.index("ngx_pnalloc("))
 
-    def test_rejected_native_event_and_remote_paths_have_no_active_examples(self) -> None:
+    def test_native_event_file_examples_remain_bounded_and_remote_rules_stay_disabled(self) -> None:
         safe = (ROOT / "examples/nginx/safe/nginx.conf").read_text(
             encoding="utf-8"
         )
@@ -127,10 +351,15 @@ class NginxNativeSecurityContractTest(unittest.TestCase):
             ROOT / "examples/nginx/configuration-reference.de.md"
         ).read_text(encoding="utf-8")
 
-        for configuration in (safe, strict, smoke):
+        for configuration in (safe, strict):
             self.assertNotIn("modsecurity_phase4_log ", configuration)
-        self.assertIn("registered but always rejected path", reference)
-        self.assertIn("registrierter, aber immer abgelehnter Pfad", reference_de)
+        # The pinned Framework fixture supplies the directive through the one
+        # location include.  The Parent template must not add a second copy:
+        # duplicate directives would open a second owned descriptor.
+        self.assertIn('include "@@NGINX_LOCATION_DIRECTIVES@@";', smoke)
+        self.assertNotIn("modsecurity_phase4_log", smoke)
+        self.assertNotIn("registered but always rejected path", reference)
+        self.assertNotIn("registrierter, aber immer abgelehnter Pfad", reference_de)
         self.assertIn("Policy A rejects remote-rule configuration", reference)
         self.assertIn("Policy A weist Remote-Rule-Konfiguration ab", reference_de)
         self.assertNotIn("Passes the key/URL pair to libmodsecurity", reference)

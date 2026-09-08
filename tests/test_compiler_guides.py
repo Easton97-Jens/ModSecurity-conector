@@ -665,6 +665,7 @@ class CompilerGuideGenerationTest(unittest.TestCase):
             "./configure",
             'MSCONNECTOR_COMMON_INC="$CONNECTOR_ROOT/common/include"',
             'MSCONNECTOR_COMMON_SRC="$CONNECTOR_ROOT/common/src"',
+            'MSCONNECTOR_PROFILE_REGISTRY_ROOT="$CONNECTOR_ROOT"',
             'MODSECURITY_INC="$MODSECURITY_INCLUDE_DIR"',
             'MODSECURITY_LIB="$MODSECURITY_LIB_DIR"',
             "--with-compat",

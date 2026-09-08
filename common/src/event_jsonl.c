@@ -76,8 +76,7 @@ int msconnector_event_write_jsonl_line(const msconnector_event *event, char *dst
     if (dst != 0 && dst_size > 0) { dst[0] = '\0'; }
     if (dst == 0 || dst_size == 0) { if (truncated != 0) { *truncated = 1; } return 0; }
     ok = msconnector_event_write_json_ex(event, dst, dst_size, &local_truncated);
-    if (!ok) {
-        dst[0] = '\0';
+    if (!ok && dst[0] == '\0') {
         if (truncated != 0) { *truncated = local_truncated != 0; }
         return 0;
     }
@@ -89,7 +88,7 @@ int msconnector_event_write_jsonl_line(const msconnector_event *event, char *dst
     }
     dst[len] = '\n'; dst[len + 1U] = '\0';
     if (truncated != 0) { *truncated = local_truncated; }
-    return 1;
+    return ok;
 }
 
 int msconnector_open_private_event_file(const char *path, int *out_fd) {

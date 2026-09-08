@@ -13,7 +13,8 @@ extern "C" {
 /*
  * Runtime files and host configuration may select a larger body limit than
  * the conservative 1 MiB defaults above, but never an unbounded one.  The
- * 10 MiB ceiling preserves the checked-in Envoy profiles while bounding every
+ * This does not integrate Common with a server connector.  The 10 MiB ceiling
+ * separately preserves the checked-in Envoy profiles while bounding every
  * Common allocation and phase-4 body policy that consumes this setting.
  */
 #define MSCONNECTOR_MAX_CONFIG_BODY_BYTES 10485760U

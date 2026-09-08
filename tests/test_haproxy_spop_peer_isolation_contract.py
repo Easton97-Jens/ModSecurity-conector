@@ -21,11 +21,31 @@ COMMON_TRANSPORT = (
 
 class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
     def test_peer_writes_are_bounded_and_not_globally_sigpipe_ignored(self) -> None:
-        self.assertIn("send(fd, p, len, MSG_NOSIGNAL)", SOURCE)
+        self.assertIn("send(fd, p, len, MSG_NOSIGNAL | MSG_DONTWAIT)", SOURCE)
         self.assertIn("write_full_until(fd, &net_len, sizeof(net_len), deadline)", SOURCE)
         self.assertIn("write_full_until(fd, frame.data, frame.len, deadline)", SOURCE)
+        self.assertIn("errno == EAGAIN", SOURCE)
+        self.assertIn("errno == EWOULDBLOCK", SOURCE)
         self.assertNotIn("SIG_IGN", SOURCE)
         self.assertNotIn("sigaction(SIGPIPE", SOURCE)
+
+    def test_blocking_accepted_socket_hits_deadline_and_followup_succeeds(self) -> None:
+        deadline_test = SOURCE.split(
+            "static int run_spop_write_deadline_child", 1
+        )[1].split("static int run_spop_write_deadline_self_test", 1)[0]
+        deadline_wrapper = SOURCE.split(
+            "static int run_spop_write_deadline_self_test", 1
+        )[1].split("static int run_spop_peer_close_write_self_test", 1)[0]
+        self.assertIn("server_fd = accept(listener_fd, 0, 0)", deadline_test)
+        self.assertIn("(flags & O_NONBLOCK) != 0", deadline_test)
+        self.assertNotIn("F_SETFL", deadline_test)
+        self.assertIn("MSG_NOSIGNAL | MSG_DONTWAIT", deadline_test)
+        self.assertIn("send_frame_timeout(server_fd, SPOP_FRM_ACK", deadline_test)
+        self.assertIn("send_frame_timeout(followup[0], SPOP_FRM_ACK", deadline_test)
+        self.assertIn("recv_frame(followup[1], &frame, 100U)", deadline_test)
+        self.assertIn("alarm(2U)", deadline_test)
+        self.assertIn("child = fork()", deadline_wrapper)
+        self.assertIn("WIFEXITED(status)", deadline_wrapper)
 
     def test_peer_isolation_has_bounded_deadlines_and_admission(self) -> None:
         self.assertIn("SPOP_OWNER_CALLER_WAIT_MS 1000U", SOURCE)

@@ -48,6 +48,7 @@ def overlay_function_bodies(source: str) -> dict[str, str]:
         "response_end": function_body(source, "static int haproxy_modsecurity_htx_finish_response("),
         "precommit_deny": function_body(source, "static int haproxy_modsecurity_htx_apply_precommit_deny("),
         "request_begin": function_body(source, "static int haproxy_modsecurity_htx_begin_request("),
+        "request_headers": function_body(source, "static int haproxy_modsecurity_htx_handle_request_headers("),
         "response_headers": function_body(source, "static int haproxy_modsecurity_htx_process_response_headers("),
         "request_end": function_body(source, "static int haproxy_modsecurity_htx_finish_request("),
     }

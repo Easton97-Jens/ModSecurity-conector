@@ -484,8 +484,7 @@ static int append_body_chunk(
         return 1;
     }
     *phase->body_bytes_seen += (size_t)body_len;
-    if (body_len > 0U && phase->append_body(transaction->transaction, body,
-            (size_t)body_len) != 1) {
+    if (body_len > 0U && phase->append_body(transaction->transaction, body, (size_t)body_len) != 1) {
         copy_message(decision->log_message, sizeof(decision->log_message), phase->append_failed_message);
         (void)msconnector_transaction_contract_fail(&transaction->contract,
             MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);

@@ -25,10 +25,11 @@ from pathlib import Path
 _CI_ROOT = next(parent for parent in Path(__file__).resolve().parents if parent.name == "ci")
 if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
-from typing import Any
+from typing import Any, NamedTuple
 from urllib.parse import urlsplit
 
 from generated_report_utils import GENERATED_ROOT, build_metadata, generated_json_text, generated_markdown_text, report_path_from_root
+from nginx_exact_head_diagnostics import DiagnosticInputError, bounded_fixed_log_tail
 from runtime_path_utils import is_system_write_path
 
 
@@ -97,6 +98,9 @@ NGINX_RUNTIME_COMPONENT_TARGETS = frozenset({"all", "nginx"})
 
 
 NGINX_PROTOCOL_PROFILES = ("h1", "h1-h2", "h1-h2-h3-quic")
+NGINX_STAGED_MAKE_LOG_RELATIVE_PATH = Path("build/logs/nginx/nginx-make.log")
+NGINX_STAGED_MAKE_LOG_PREFIX = "nginx staged make diagnostics:"
+NGINX_STAGED_MAKE_LOG_LINE_PREFIX = f"{NGINX_STAGED_MAKE_LOG_PREFIX} log: "
 DEFAULT_NGINX_QUIC_TLS_LIBRARY = "openssl"
 DEFAULT_NGINX_QUIC_TLS_VERSION = "4.0.1"
 DEFAULT_NGINX_QUIC_TLS_SOURCE_URL = "https://github.com/openssl/openssl/releases/download/openssl-4.0.1/openssl-4.0.1.tar.gz"
@@ -266,11 +270,11 @@ NGINX_REQUIRE_PINNED_PROVENANCE_ENV = "NGINX_REQUIRE_PINNED_PROVENANCE"
 # review, not a runtime override.
 NGINX_PINNED_SOURCE_MODE = "github-release"
 NGINX_PINNED_SOURCE_REPOSITORY = "https://github.com/nginx/nginx"
-NGINX_PINNED_RELEASE_TAG = "release-1.31.3"
-NGINX_PINNED_SOURCE_REF = "release-1.31.3"
-NGINX_PINNED_RELEASE_ASSET_NAME = "nginx-1.31.3.tar.gz"
-NGINX_PINNED_RELEASE_ASSET_SHA256 = "a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525"
-NGINX_PINNED_VERSION_READBACK = "nginx/1.31.3"
+NGINX_PINNED_RELEASE_TAG = "release-1.31.4"
+NGINX_PINNED_SOURCE_REF = "release-1.31.4"
+NGINX_PINNED_RELEASE_ASSET_NAME = "nginx-1.31.4.tar.gz"
+NGINX_PINNED_RELEASE_ASSET_SHA256 = "e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3"
+NGINX_PINNED_VERSION_READBACK = "nginx/1.31.4"
 DEFAULT_HAPROXY_VERSION = "3.2.22"
 NGINX_PINNED_PROVENANCE_SCHEMA_VERSION = 1
 APACHE_APXS_RELATIVE_PATH = "bin/apxs"
@@ -5724,6 +5728,16 @@ def connector_input_paths(connector_root: Path, framework_root: Path, connector:
     if framework_script:
         paths.append(framework_script)
     if connector == "nginx":
+        # The NGINX module uses the canonical profile registry in addition to
+        # its materialized adapter/Common sources.  Bind both files directly
+        # into the source hash so a registry-only revision cannot reuse an old
+        # connector artifact when connector_commit is intentionally ignored.
+        paths.extend(
+            [
+                connector_root / "connectors/profile_registry.c",
+                connector_root / "connectors/profile_registry.h",
+            ]
+        )
         # common.sh owns the protocol profile defaults and pinned TLS source
         # inputs, so changing it must invalidate an NGINX host build.
         paths.append(framework_root / "ci/lib/common.sh")
@@ -8447,49 +8461,428 @@ def copy_nginx_common_sources(connector_root: Path, plan: dict[str, Any]) -> Pat
     return common_build_source_root
 
 
+def _nginx_profile_registry_file_identity(details: os.stat_result) -> tuple[int, ...]:
+    """Return the immutable attributes checked while a registry file is copied."""
+
+    return (
+        details.st_dev,
+        details.st_ino,
+        details.st_mode,
+        details.st_nlink,
+        details.st_size,
+        details.st_mtime_ns,
+        details.st_ctime_ns,
+    )
+
+
+def _open_nginx_profile_registry_directory(directory: Path, failure: str) -> int:
+    """Open a directory without resolving a final symlink component."""
+
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
+    try:
+        descriptor = os.open(directory, flags)
+    except OSError as exc:
+        raise RuntimeError(failure) from exc
+    try:
+        if not stat.S_ISDIR(os.fstat(descriptor).st_mode):
+            raise RuntimeError(failure)
+    except Exception:
+        os.close(descriptor)
+        raise
+    return descriptor
+
+
+def _open_nginx_profile_registry_child_directory(
+    parent_descriptor: int,
+    name: str,
+    *,
+    create: bool,
+    failure: str,
+) -> int:
+    """Open one stable, direct child directory through a held parent descriptor."""
+
+    if create:
+        try:
+            os.mkdir(name, mode=0o700, dir_fd=parent_descriptor)
+        except FileExistsError:
+            pass
+        except OSError as exc:
+            raise RuntimeError(failure) from exc
+    try:
+        before = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+        if not stat.S_ISDIR(before.st_mode):
+            raise RuntimeError(failure)
+        descriptor = os.open(
+            name,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0),
+            dir_fd=parent_descriptor,
+        )
+    except OSError as exc:
+        raise RuntimeError(failure) from exc
+    try:
+        after = os.fstat(descriptor)
+        if (
+            not stat.S_ISDIR(after.st_mode)
+            or (before.st_dev, before.st_ino) != (after.st_dev, after.st_ino)
+        ):
+            raise RuntimeError(failure)
+    except Exception:
+        os.close(descriptor)
+        raise
+    return descriptor
+
+
+def _open_nginx_profile_registry_source(
+    connector_root: Path, filename: str
+) -> tuple[int, os.stat_result]:
+    """Open one canonical registry input after binding its inode to a descriptor."""
+
+    connector_descriptor = _open_nginx_profile_registry_directory(
+        connector_root, "nginx_profile_registry_source_directory_unsafe"
+    )
+    try:
+        source_directory_descriptor = _open_nginx_profile_registry_child_directory(
+            connector_descriptor,
+            "connectors",
+            create=False,
+            failure="nginx_profile_registry_source_directory_unsafe",
+        )
+    finally:
+        os.close(connector_descriptor)
+    try:
+        before = os.stat(
+            filename,
+            dir_fd=source_directory_descriptor,
+            follow_symlinks=False,
+        )
+        if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:
+            raise RuntimeError("nginx_profile_registry_source_unsafe")
+        descriptor = os.open(
+            filename,
+            os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0),
+            dir_fd=source_directory_descriptor,
+        )
+    except OSError as exc:
+        raise RuntimeError("nginx_profile_registry_source_unsafe") from exc
+    finally:
+        os.close(source_directory_descriptor)
+    try:
+        details = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(details.st_mode)
+            or details.st_nlink != 1
+            or _nginx_profile_registry_file_identity(before)
+            != _nginx_profile_registry_file_identity(details)
+        ):
+            raise RuntimeError("nginx_profile_registry_source_changed")
+    except Exception:
+        os.close(descriptor)
+        raise
+    return descriptor, details
+
+
+def _open_nginx_profile_registry_destination_directory(plan_root: Path) -> int:
+    """Create and hold the private cache destination without path re-resolution."""
+
+    plan_descriptor = _open_nginx_profile_registry_directory(
+        plan_root, "nginx_profile_registry_destination_directory_unsafe"
+    )
+    try:
+        registry_descriptor = _open_nginx_profile_registry_child_directory(
+            plan_descriptor,
+            "profile-registry",
+            create=True,
+            failure="nginx_profile_registry_destination_directory_unsafe",
+        )
+    finally:
+        os.close(plan_descriptor)
+    try:
+        return _open_nginx_profile_registry_child_directory(
+            registry_descriptor,
+            "connectors",
+            create=True,
+            failure="nginx_profile_registry_destination_directory_unsafe",
+        )
+    finally:
+        os.close(registry_descriptor)
+
+
+def _create_nginx_profile_registry_temporary_destination(
+    destination_directory_descriptor: int,
+    filename: str,
+) -> tuple[str, int]:
+    """Create one no-follow temporary output within a held destination directory."""
+
+    creation_flags = (
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | os.O_NOFOLLOW
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    for _ in range(32):
+        candidate = f".{filename}.{uuid.uuid4().hex}.tmp"
+        try:
+            descriptor = os.open(
+                candidate,
+                creation_flags,
+                0o600,
+                dir_fd=destination_directory_descriptor,
+            )
+        except FileExistsError:
+            continue
+        except OSError as exc:
+            raise RuntimeError("nginx_profile_registry_destination_write_failed") from exc
+        return candidate, descriptor
+    raise RuntimeError("nginx_profile_registry_destination_temporary_name_exhausted")
+
+
+def _read_nginx_profile_registry_source_chunk(source_descriptor: int, remaining: int) -> bytes:
+    """Read a bounded source chunk while preserving the staging failure contract."""
+
+    try:
+        return os.read(source_descriptor, min(64 * 1024, remaining))
+    except OSError as exc:
+        raise RuntimeError("nginx_profile_registry_source_changed_during_copy") from exc
+
+
+def _write_nginx_profile_registry_chunk(temporary_descriptor: int, chunk: bytes) -> None:
+    """Write one source chunk completely or fail without publishing it."""
+
+    offset = 0
+    while offset < len(chunk):
+        try:
+            written = os.write(temporary_descriptor, chunk[offset:])
+        except OSError as exc:
+            raise RuntimeError("nginx_profile_registry_destination_write_failed") from exc
+        if written <= 0:
+            raise RuntimeError("nginx_profile_registry_destination_write_failed")
+        offset += written
+
+
+def _copy_nginx_profile_registry_contents(
+    source_descriptor: int,
+    source_size: int,
+    temporary_descriptor: int,
+) -> None:
+    """Copy exactly the verified source length through held file descriptors."""
+
+    remaining = source_size
+    while remaining:
+        chunk = _read_nginx_profile_registry_source_chunk(source_descriptor, remaining)
+        if not chunk:
+            raise RuntimeError("nginx_profile_registry_source_changed_during_copy")
+        remaining -= len(chunk)
+        _write_nginx_profile_registry_chunk(temporary_descriptor, chunk)
+
+
+def _sync_nginx_profile_registry_temporary_file(
+    source_descriptor: int,
+    source_details: os.stat_result,
+    temporary_descriptor: int,
+) -> os.stat_result:
+    """Sync and bind the temporary output to the previously verified source inode."""
+
+    try:
+        os.fsync(temporary_descriptor)
+        os.fchmod(temporary_descriptor, stat.S_IMODE(source_details.st_mode))
+    except OSError as exc:
+        raise RuntimeError("nginx_profile_registry_destination_write_failed") from exc
+    if _nginx_profile_registry_file_identity(os.fstat(source_descriptor)) != _nginx_profile_registry_file_identity(
+        source_details
+    ):
+        raise RuntimeError("nginx_profile_registry_source_changed_during_copy")
+    return os.fstat(temporary_descriptor)
+
+
+def _close_nginx_profile_registry_temporary_descriptor(temporary_descriptor: int) -> None:
+    """Close a temporary file before atomically publishing its stable inode."""
+
+    try:
+        os.close(temporary_descriptor)
+    except OSError as exc:
+        raise RuntimeError("nginx_profile_registry_destination_write_failed") from exc
+
+
+def _publish_nginx_profile_registry_temporary_file(
+    destination_directory_descriptor: int,
+    temporary_name: str,
+    filename: str,
+    temporary_details: os.stat_result,
+) -> None:
+    """Atomically replace one destination child and verify the published inode."""
+
+    try:
+        os.replace(
+            temporary_name,
+            filename,
+            src_dir_fd=destination_directory_descriptor,
+            dst_dir_fd=destination_directory_descriptor,
+        )
+        destination_details = os.stat(
+            filename,
+            dir_fd=destination_directory_descriptor,
+            follow_symlinks=False,
+        )
+        os.fsync(destination_directory_descriptor)
+    except OSError as exc:
+        raise RuntimeError("nginx_profile_registry_destination_write_failed") from exc
+    if (
+        not stat.S_ISREG(destination_details.st_mode)
+        or (temporary_details.st_dev, temporary_details.st_ino)
+        != (destination_details.st_dev, destination_details.st_ino)
+    ):
+        raise RuntimeError("nginx_profile_registry_destination_changed_after_copy")
+
+
+def _cleanup_nginx_profile_registry_temporary_file(
+    destination_directory_descriptor: int,
+    temporary_name: str,
+) -> None:
+    """Best-effort descriptor-relative cleanup that cannot mask the primary error."""
+
+    if not temporary_name:
+        return
+    try:
+        os.unlink(temporary_name, dir_fd=destination_directory_descriptor)
+    except OSError:
+        pass
+
+
+def _copy_nginx_profile_registry_source(
+    source_descriptor: int,
+    source_details: os.stat_result,
+    destination_directory_descriptor: int,
+    filename: str,
+) -> None:
+    """Copy one held source descriptor through an atomically replaced child path."""
+
+    temporary_name = ""
+    temporary_descriptor = -1
+    try:
+        temporary_name, temporary_descriptor = _create_nginx_profile_registry_temporary_destination(
+            destination_directory_descriptor,
+            filename,
+        )
+        _copy_nginx_profile_registry_contents(
+            source_descriptor,
+            source_details.st_size,
+            temporary_descriptor,
+        )
+        temporary_details = _sync_nginx_profile_registry_temporary_file(
+            source_descriptor,
+            source_details,
+            temporary_descriptor,
+        )
+        _close_nginx_profile_registry_temporary_descriptor(temporary_descriptor)
+        temporary_descriptor = -1
+        _publish_nginx_profile_registry_temporary_file(
+            destination_directory_descriptor,
+            temporary_name,
+            filename,
+            temporary_details,
+        )
+        temporary_name = ""
+    except Exception:
+        if temporary_descriptor >= 0:
+            try:
+                os.close(temporary_descriptor)
+            except OSError:
+                pass
+        _cleanup_nginx_profile_registry_temporary_file(
+            destination_directory_descriptor,
+            temporary_name,
+        )
+        raise
+
+
+def copy_nginx_profile_registry_sources(connector_root: Path, plan: dict[str, Any]) -> Path:
+    """Stage canonical registry inputs without reopening untrusted path components."""
+
+    plan_root = Path(str(plan["root"]))
+    profile_registry_build_root = plan_root / "profile-registry"
+    destination_directory_descriptor = _open_nginx_profile_registry_destination_directory(plan_root)
+    try:
+        for filename in ("profile_registry.c", "profile_registry.h"):
+            source_descriptor, source_details = _open_nginx_profile_registry_source(
+                connector_root, filename
+            )
+            try:
+                _copy_nginx_profile_registry_source(
+                    source_descriptor,
+                    source_details,
+                    destination_directory_descriptor,
+                    filename,
+                )
+            finally:
+                os.close(source_descriptor)
+    finally:
+        os.close(destination_directory_descriptor)
+    return profile_registry_build_root
+
+
+class NginxBuildEnvironmentInputs(NamedTuple):
+    """Immutable call boundary for one NGINX connector build environment."""
+
+    connector_root: Path
+    framework_root: Path
+    cache_root: Path
+    build_root: Path
+    sources_root: Path
+    archives_root: Path
+    modsecurity: dict[str, Any]
+    protocol_inputs: dict[str, Any]
+    protocol_profile: str
+    quic_tls_archive: str
+    common_build_source_root: Path
+    profile_registry_build_root: Path
+    context: dict[str, Any]
+
+
 def nginx_build_environment(
     env: dict[str, str],
-    connector_root: Path,
-    framework_root: Path,
-    cache_root: Path,
-    build_root: Path,
-    sources_root: Path,
-    archives_root: Path,
-    modsecurity: dict[str, Any],
-    protocol_inputs: dict[str, Any],
-    protocol_profile: str,
-    quic_tls_archive: str,
-    common_build_source_root: Path,
-    context: dict[str, Any],
+    inputs: NginxBuildEnvironmentInputs,
 ) -> dict[str, str]:
+    # Framework common.sh owns the reviewed QUIC TLS pin tuple and validates
+    # inherited values before any source preparation.  H1/H2 metadata uses
+    # empty/not-used TLS fields, but those are output facts, not child-process
+    # pin overrides.  Passing them through would correctly fail Framework's
+    # guard as an attempted empty override.  H3 alone consumes the resolved
+    # tuple as build input, so only it receives an explicit replacement.
+    quic_tls_overrides: dict[str, str] = {}
+    if inputs.protocol_profile == "h1-h2-h3-quic":
+        quic_tls_overrides = {
+            "NGINX_QUIC_TLS_LIBRARY": str(inputs.protocol_inputs.get("tls_library", "")),
+            "NGINX_QUIC_TLS_VERSION": str(inputs.protocol_inputs.get("tls_version", "")),
+            "NGINX_QUIC_TLS_SOURCE_URL": str(inputs.protocol_inputs.get("tls_source_url", "")),
+            "NGINX_QUIC_TLS_SOURCE_SHA256": str(inputs.protocol_inputs.get("tls_source_sha256", "")),
+        }
     return build_env(
         env,
-        FRAMEWORK_ROOT=str(framework_root),
-        CONNECTOR_ROOT=str(connector_root),
-        CONNECTOR_COMPONENT_CACHE=str(cache_root),
-        SOURCE_ROOT=str(sources_root),
-        MODSECURITY_SOURCE_DIR=str(sources_root / "ModSecurity_V3"),
-        MODSECURITY_V3_SOURCE_DIR=str(sources_root / "ModSecurity_V3"),
-        MODSECURITY_V3_ROOT=str(sources_root / "ModSecurity_V3"),
-        BUILD_ROOT=str(cache_root),
-        TMP_ROOT=str(build_root / "tmp"),
-        LOG_ROOT=str(build_root / "logs"),
-        LOG_DIR=str(context["nginx_build_root"] / "logs/nginx"),
-        NGINX_BUILD_DIR=str(context["nginx_build_root"]),
-        NGINX_BUILD_OWNER_ROOT=str(cache_root / "builds" / "connectors"),
-        NGINX_PREFIX=str(context["nginx_prefix"]),
-        NGINX_BINARY=str(context["local_nginx_bin"]),
-        NGINX_MODULE=str(context["local_module"]),
-        NGINX_PROTOCOL_PROFILE=protocol_profile,
-        NGINX_QUIC_TLS_LIBRARY=str(protocol_inputs.get("tls_library", "")),
-        NGINX_QUIC_TLS_VERSION=str(protocol_inputs.get("tls_version", "")),
-        NGINX_QUIC_TLS_SOURCE_URL=str(protocol_inputs.get("tls_source_url", "")),
-        NGINX_QUIC_TLS_SOURCE_SHA256=str(protocol_inputs.get("tls_source_sha256", "")),
-        NGINX_QUIC_TLS_ARCHIVE=quic_tls_archive,
-        NGINX_DOWNLOAD_DIR=str(archives_root / "nginx"),
-        MSCONNECTOR_COMMON_SRC=str(common_build_source_root),
-        MODSECURITY_SHARED_PREFIX=str(modsecurity.get("prefix", "")),
-        MODSECURITY_BUILD_ID=str(modsecurity.get("build_id", "")),
+        FRAMEWORK_ROOT=str(inputs.framework_root),
+        CONNECTOR_ROOT=str(inputs.connector_root),
+        CONNECTOR_COMPONENT_CACHE=str(inputs.cache_root),
+        SOURCE_ROOT=str(inputs.sources_root),
+        MODSECURITY_SOURCE_DIR=str(inputs.sources_root / "ModSecurity_V3"),
+        MODSECURITY_V3_SOURCE_DIR=str(inputs.sources_root / "ModSecurity_V3"),
+        MODSECURITY_V3_ROOT=str(inputs.sources_root / "ModSecurity_V3"),
+        BUILD_ROOT=str(inputs.cache_root),
+        TMP_ROOT=str(inputs.build_root / "tmp"),
+        LOG_ROOT=str(inputs.build_root / "logs"),
+        LOG_DIR=str(inputs.context["nginx_build_root"] / "logs/nginx"),
+        NGINX_BUILD_DIR=str(inputs.context["nginx_build_root"]),
+        NGINX_BUILD_OWNER_ROOT=str(inputs.cache_root / "builds" / "connectors"),
+        NGINX_PREFIX=str(inputs.context["nginx_prefix"]),
+        NGINX_BINARY=str(inputs.context["local_nginx_bin"]),
+        NGINX_MODULE=str(inputs.context["local_module"]),
+        NGINX_PROTOCOL_PROFILE=inputs.protocol_profile,
+        **quic_tls_overrides,
+        NGINX_QUIC_TLS_ARCHIVE=inputs.quic_tls_archive,
+        NGINX_DOWNLOAD_DIR=str(inputs.archives_root / "nginx"),
+        MSCONNECTOR_COMMON_SRC=str(inputs.common_build_source_root),
+        MSCONNECTOR_PROFILE_REGISTRY_ROOT=str(inputs.profile_registry_build_root),
+        MODSECURITY_SHARED_PREFIX=str(inputs.modsecurity.get("prefix", "")),
+        MODSECURITY_BUILD_ID=str(inputs.modsecurity.get("build_id", "")),
         BUILD_NGINX_FROM_SOURCE="1",
         AUTO_FETCH_SMOKE_SOURCES="0",
         REFRESH="1",
@@ -8519,6 +8912,83 @@ def nginx_refresh_build_artifacts(record: dict[str, Any], context: dict[str, Any
         record["artifacts_readback_error"] = str(exc)
 
 
+def nginx_staged_build_log_root(
+    plan: dict[str, Any],
+    cache_root: Path,
+    context: dict[str, Any],
+) -> Path | None:
+    """Return only the current marked staging root that owns the make log."""
+
+    root_value = plan.get("root")
+    build_root_value = plan.get("build_root")
+    cache_key = plan.get("cache_key", plan.get("connector_build_id", ""))
+    context_build_root = context.get("nginx_build_root")
+    if not all(isinstance(value, str) and value for value in (root_value, build_root_value, cache_key)):
+        return None
+    if not isinstance(context_build_root, Path):
+        return None
+    try:
+        staging_root, managed_root = validate_managed_cache_child(Path(root_value), cache_root)
+    except RuntimeError:
+        return None
+    marker = read_json(cache_entry_marker_path(staging_root, managed_root))
+    if (
+        marker.get("component") != "connector:nginx"
+        or marker.get("cache_key") != cache_key
+        or not cache_entry_marker_valid(staging_root, managed_root)
+    ):
+        return None
+    expected_build_root = staging_root / "build"
+    if (
+        Path(build_root_value).resolve(strict=False) != expected_build_root
+        or context_build_root.resolve(strict=False) != expected_build_root
+    ):
+        return None
+    return staging_root
+
+
+def append_nginx_staged_make_log_diagnostics(
+    log_path: Path,
+    plan: dict[str, Any],
+    cache_root: Path,
+    context: dict[str, Any],
+) -> None:
+    """Persist only a bounded sanitized inner make-log tail before cleanup."""
+
+    try:
+        staging_root = nginx_staged_build_log_root(plan, cache_root, context)
+    except (OSError, RuntimeError, ValueError):
+        # This is diagnostic-only after the primary build already failed.
+        staging_root = None
+    if staging_root is None:
+        lines = [f"{NGINX_STAGED_MAKE_LOG_PREFIX} inner_make_log_unavailable=staging_identity"]
+    else:
+        try:
+            rendered, truncated = bounded_fixed_log_tail(
+                staging_root,
+                NGINX_STAGED_MAKE_LOG_RELATIVE_PATH,
+                "inner_make_log",
+                output_prefix=NGINX_STAGED_MAKE_LOG_LINE_PREFIX,
+            )
+        except DiagnosticInputError as exc:
+            lines = [f"{NGINX_STAGED_MAKE_LOG_PREFIX} inner_make_log_unavailable={exc.reason}"]
+        except OSError:
+            lines = [f"{NGINX_STAGED_MAKE_LOG_PREFIX} inner_make_log_unavailable=unavailable"]
+        else:
+            lines = [
+                f"{NGINX_STAGED_MAKE_LOG_PREFIX} inner_make_log_tail_truncated={'true' if truncated else 'false'}",
+                f"{NGINX_STAGED_MAKE_LOG_PREFIX} begin bounded nginx-make.log tail",
+                *(NGINX_STAGED_MAKE_LOG_LINE_PREFIX + line for line in rendered),
+                f"{NGINX_STAGED_MAKE_LOG_PREFIX} end bounded nginx-make.log tail",
+            ]
+    try:
+        with log_path.open("a", encoding="utf-8", errors="replace") as log_file:
+            log_file.write("\n" + "\n".join(lines) + "\n")
+    except OSError:
+        # This is diagnostic-only after the primary build already failed.
+        return
+
+
 def build_nginx_source(
     env: dict[str, str],
     connector_root: Path,
@@ -8535,27 +9005,33 @@ def build_nginx_source(
     record: dict[str, Any],
 ) -> tuple[bool, list[str], bool]:
     common_build_source_root = copy_nginx_common_sources(connector_root, plan)
+    profile_registry_build_root = copy_nginx_profile_registry_sources(connector_root, plan)
     log_path = build_root / "logs/runtime-components/nginx-build.log"
     proc = run_build(
         framework_root / "ci/provisioning/prepare-nginx-build.sh",
         nginx_build_environment(
             env,
-            connector_root,
-            framework_root,
-            cache_root,
-            build_root,
-            sources_root,
-            archives_root,
-            modsecurity,
-            protocol_inputs,
-            str(protocol_inputs.get("profile", "h1")),
-            quic_tls_archive,
-            common_build_source_root,
-            context,
+            NginxBuildEnvironmentInputs(
+                connector_root=connector_root,
+                framework_root=framework_root,
+                cache_root=cache_root,
+                build_root=build_root,
+                sources_root=sources_root,
+                archives_root=archives_root,
+                modsecurity=modsecurity,
+                protocol_inputs=protocol_inputs,
+                protocol_profile=str(protocol_inputs.get("profile", "h1")),
+                quic_tls_archive=quic_tls_archive,
+                common_build_source_root=common_build_source_root,
+                profile_registry_build_root=profile_registry_build_root,
+                context=context,
+            ),
         ),
         connector_root,
         log_path,
     )
+    if proc.returncode != 0:
+        append_nginx_staged_make_log_diagnostics(log_path, plan, cache_root, context)
     record["build_log"] = str(log_path)
     record["build_exit_code"] = proc.returncode
     nginx_refresh_build_artifacts(record, context)
