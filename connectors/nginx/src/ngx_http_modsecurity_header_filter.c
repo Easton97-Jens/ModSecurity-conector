@@ -624,6 +624,10 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
         return ngx_http_next_header_filter(r);
     }
 
+    if (ctx->response_headers_processing_failed) {
+        return NGX_ERROR;
+    }
+
     if (ctx->intervention_triggered) {
         return ngx_http_next_header_filter(r);
     }
@@ -659,8 +663,9 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
      * and later we look into the ngx_list_part_t. The ngx_list_part_t must be
      * checked. Other module(s) in the chain may added some content to it.
      *
-     */
+    */
     if (ngx_http_modsecurity_add_response_headers(r, ctx) != NGX_OK) {
+        ctx->response_headers_processing_failed = 1;
         ctx->intervention_triggered = 1;
         return NGX_ERROR;
     }
@@ -685,6 +690,7 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
             mcf->common_config.phase4_body_limit > 0U
                 ? mcf->common_config.phase4_body_limit : MSCONNECTOR_MAX_BODY_BUFFER_SIZE) !=
             MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
+        ctx->response_headers_processing_failed = 1;
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
             "ModSecurity: failed to record canonical response metadata");
         return NGX_ERROR;
@@ -708,14 +714,30 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
     if (ngx_http_modsecurity_contract_begin(ctx,
             MSCONNECTOR_PHASE_RESPONSE_HEADERS) != NGX_OK) {
         ngx_http_modsecurity_pcre_malloc_done(old_pool);
+        ctx->response_headers_processing_failed = 1;
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
             "ModSecurity: invalid canonical P3 transition");
         return NGX_ERROR;
     }
-    msc_process_response_headers(ctx->modsec_transaction, status, http_response_ver);
+    ret = msc_process_response_headers(ctx->modsec_transaction, status, http_response_ver);
+    if (ret != 1) {
+        ngx_http_modsecurity_pcre_malloc_done(old_pool);
+        ctx->response_headers_processing_failed = 1;
+        ctx->intervention_triggered = 1;
+        if (msconnector_transaction_contract_fail(&ctx->contract,
+                MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, 0U) !=
+            MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                "ModSecurity: invalid canonical P3 native-error transition");
+        }
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: native response header processing failed");
+        return NGX_ERROR;
+    }
     if (ngx_http_modsecurity_contract_complete(ctx,
             MSCONNECTOR_PHASE_RESPONSE_HEADERS) != NGX_OK) {
         ngx_http_modsecurity_pcre_malloc_done(old_pool);
+        ctx->response_headers_processing_failed = 1;
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
             "ModSecurity: invalid canonical P3 completion");
         return NGX_ERROR;
