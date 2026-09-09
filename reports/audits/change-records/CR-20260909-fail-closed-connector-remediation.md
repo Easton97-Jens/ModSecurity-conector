@@ -10,8 +10,8 @@
 | Date (UTC) | 2026-09-09 |
 | Base revision | 26a560e64cbaf906c0d35bba199f65436830d1dd |
 | Branch | security/audit-2026-09-09-fixes |
-| Issue or pull request | No reference existed when this pre-delivery record was created. The current user authorized a separate Parent Draft PR; its observed reference is recorded after creation. |
-| Delivery status | Local remediation is ready for a Draft-PR handoff. Commit, push, hosted checks, review, and merge were not facts at record creation; merge, release, deployment, a default-branch write, and a Parent Gitlink change are not authorized. |
+| Issue or pull request | Draft PR [#360](https://github.com/Easton97-Jens/ModSecurity-conector/pull/360) is open and unmerged. |
+| Delivery status | Draft PR #360 was opened from `security/audit-2026-09-09-fixes` at first delivery commit `df582b6aeaf2900e63228ff0b82507266db5b5f8`; local, remote, and PR head matched at creation. This record update is a follow-up commit and cannot self-reference its own final Git object; task delivery evidence records the exact final local/remote/PR-head SHA after push. Hosted checks and review remain pending. Merge, release, deployment, a default-branch write, and a Parent Gitlink change are not authorized. |
 
 ## Motivation and problem statement
 
@@ -131,7 +131,6 @@ nor requests a merge.
 ## Final diff and review status
 
 An independent scoped security-diff review found no concrete bypass in the
-Apache/NGINX changes and no weakened test control. The final task-owned diff,
-paired documentation, staged-file list, commit, remote/PR-head relationship,
-and hosted results remain to be observed during the authorized Draft-PR
-lifecycle.
+Apache/NGINX changes and no weakened test control. Draft PR #360 is open; this
+follow-up requires a fresh exact-head readback after its normal push. Hosted
+results, review, and any merge remain outside the current evidence.

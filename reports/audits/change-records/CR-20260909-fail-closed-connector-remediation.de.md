@@ -10,8 +10,8 @@
 | Datum (UTC) | 2026-09-09 |
 | Basis-Revision | 26a560e64cbaf906c0d35bba199f65436830d1dd |
 | Branch | security/audit-2026-09-09-fixes |
-| Issue oder Pull Request | Beim Erstellen dieses Pre-Delivery-Records existierte keine Referenz. Der aktuelle Benutzer autorisierte einen separaten Parent-Draft-PR; seine beobachtete Referenz wird nach der Erstellung dokumentiert. |
-| Delivery-Status | Die lokale Remediation ist für eine Draft-PR-Übergabe bereit. Commit, Push, Hosted-Checks, Review und Merge waren beim Erstellen des Records noch keine Fakten; Merge, Release, Deployment, ein Default-Branch-Write und eine Parent-Gitlink-Änderung sind nicht autorisiert. |
+| Issue oder Pull Request | Draft PR [#360](https://github.com/Easton97-Jens/ModSecurity-conector/pull/360) ist offen und ungemergt. |
+| Delivery-Status | Draft PR #360 wurde vom `security/audit-2026-09-09-fixes`-Branch beim ersten Delivery-Commit `df582b6aeaf2900e63228ff0b82507266db5b5f8` geöffnet; lokaler, Remote- und PR-Head stimmten bei der Erstellung überein. Dieses Record-Update ist ein Follow-up-Commit und kann sein eigenes finales Git-Objekt nicht selbst referenzieren; Task-Delivery-Evidence dokumentiert den exakten finalen lokalen/Remote-/PR-Head-SHA nach dem Push. Hosted-Checks und Review stehen weiter aus. Merge, Release, Deployment, ein Default-Branch-Write und eine Parent-Gitlink-Änderung sind nicht autorisiert. |
 
 ## Motivation und Problemstellung
 
@@ -143,7 +143,7 @@ akzeptiert weder das Restrisiko noch beantragt er einen Merge.
 ## Finaler Diff- und Review-Status
 
 Ein unabhängiger Scoped-Security-Diff-Review fand keinen konkreten Bypass in
-den Apache-/NGINX-Änderungen und kein abgeschwächtes Test-Control. Der finale
-Task-eigene Diff, die gepaarte Dokumentation, die staged-Dateiliste, Commit,
-die Remote-/PR-Head-Beziehung und Hosted-Ergebnisse müssen während des
-autorisierten Draft-PR-Lifecycle noch beobachtet werden.
+den Apache-/NGINX-Änderungen und kein abgeschwächtes Test-Control. Draft PR
+#360 ist offen; dieses Follow-up verlangt nach seinem normalen Push einen
+frischen Exact-Head-Readback. Hosted-Ergebnisse, Review und jeder Merge liegen
+weiter außerhalb der aktuellen Evidence.
