@@ -104,7 +104,7 @@ prepare_runtime_directory() {
         --label "$label" "$@"
 }
 
-prepare_runtime_directory "$LOG_DIR" "LOG_DIR" 1
+prepare_runtime_directory "$LOG_DIR" "$APACHE_LOG_DIR_LABEL" 1
 prepare_runtime_directory "$APACHE_CASE_OUTPUT_ROOT" "APACHE_CASE_OUTPUT_ROOT" 0
 readonly PHASE4_FIRST_BYTE_PREFIX='first-byte-prefix'
 readonly PHASE4_TRANSACTION_REBIND_REFUSAL='request transaction cannot be safely rebound to the target URI'
@@ -302,12 +302,12 @@ write_case_result() {
 
 run_all_cases() {
     require_absolute_generated_path "$BUILD_ROOT" "BUILD_ROOT"
-    require_absolute_generated_path "$LOG_DIR" "LOG_DIR"
+    require_absolute_generated_path "$LOG_DIR" "$APACHE_LOG_DIR_LABEL"
     require_absolute_generated_path "$RESULTS_DIR" "RESULTS_DIR"
     require_absolute_generated_path "$RUNTIME_BASE" "RUNTIME_BASE"
     require_absolute_generated_path "$APACHE_CASE_OUTPUT_ROOT" "APACHE_CASE_OUTPUT_ROOT"
 
-    prepare_runtime_directory "$LOG_DIR" "LOG_DIR" 1
+    prepare_runtime_directory "$LOG_DIR" "$APACHE_LOG_DIR_LABEL" 1
     prepare_runtime_directory "$RESULTS_DIR" "RESULTS_DIR" 0
     summary_file="$RESULTS_DIR/apache-summary.txt"
     json_file="$RESULTS_DIR/apache-summary.json"

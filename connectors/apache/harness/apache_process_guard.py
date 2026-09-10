@@ -793,6 +793,23 @@ def _listener_inodes_from_file(name: str, wanted: str) -> set[int]:
             raise GuardError(f"cannot parse {name}") from exc
 
 
+def _listener_inode_from_row(line: str, name: str, wanted: str) -> int | None:
+    if not line.strip():
+        return None
+    fields = line.split()
+    if len(fields) < 10:
+        raise GuardError(f"malformed listener row in {name}")
+    address = fields[1]
+    if fields[3].upper() != LISTEN or ":" not in address:
+        return None
+    if address.rsplit(":", 1)[1].upper() != wanted:
+        return None
+    try:
+        return int(fields[9])
+    except ValueError as exc:
+        raise GuardError(f"invalid listener inode in {name}") from exc
+
+
 def _listener_inodes_from_rows(stream: Any, name: str, wanted: str) -> set[int]:
     result: set[int] = set()
     rows = 0
@@ -804,20 +821,9 @@ def _listener_inodes_from_rows(stream: Any, name: str, wanted: str) -> set[int]:
             raise GuardError(f"{name} exceeds bounded listener scan")
         if len(line) > MAX_NET_LINE:
             raise GuardError(f"oversized listener row in {name}")
-        if not line.strip():
-            continue
-        fields = line.split()
-        if len(fields) < 10:
-            raise GuardError(f"malformed listener row in {name}")
-        address = fields[1]
-        if fields[3].upper() != LISTEN or ":" not in address:
-            continue
-        if address.rsplit(":", 1)[1].upper() != wanted:
-            continue
-        try:
-            result.add(int(fields[9]))
-        except ValueError as exc:
-            raise GuardError(f"invalid listener inode in {name}") from exc
+        inode = _listener_inode_from_row(line, name, wanted)
+        if inode is not None:
+            result.add(inode)
     return result
 
 

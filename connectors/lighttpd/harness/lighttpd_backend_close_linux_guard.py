@@ -674,19 +674,7 @@ def _scan_runtime_directory(
             inspected += 1
             if inspected > MAX_RUNTIME_TREE_ENTRIES:
                 raise GuardFailure("task runtime tree exceeds its bounded entry limit")
-            try:
-                metadata = entry.stat(follow_symlinks=False)
-            except OSError as exc:
-                raise GuardFailure("cannot inspect task runtime tree entry") from exc
-            if stat.S_ISSOCK(metadata.st_mode):
-                raise GuardFailure("task runtime root retains a unix-domain socket")
-            if not stat.S_ISDIR(metadata.st_mode) or stat.S_ISLNK(metadata.st_mode):
-                continue
-            if depth >= MAX_RUNTIME_TREE_DEPTH:
-                raise GuardFailure("task runtime tree exceeds its bounded depth limit")
-            child_fd = _open_directory_chain_from_fd(parent_fd, entry.name)
-            child_fds.append(child_fd)
-            pending.append((child_fd, depth + 1))
+            _scan_runtime_entry(parent_fd, depth, entry, pending, child_fds)
         entries.close()
         entries = None
     except Exception:
@@ -705,6 +693,30 @@ def _scan_runtime_directory(
         raise
     os.close(parent_fd)
     return inspected
+
+
+def _scan_runtime_entry(
+    parent_fd: int,
+    depth: int,
+    entry: os.DirEntry[str],
+    pending: list[tuple[int, int]],
+    child_fds: list[int],
+) -> None:
+    """Inspect one runtime entry and enqueue private directories for scanning."""
+
+    try:
+        metadata = entry.stat(follow_symlinks=False)
+    except OSError as exc:
+        raise GuardFailure("cannot inspect task runtime tree entry") from exc
+    if stat.S_ISSOCK(metadata.st_mode):
+        raise GuardFailure("task runtime root retains a unix-domain socket")
+    if not stat.S_ISDIR(metadata.st_mode) or stat.S_ISLNK(metadata.st_mode):
+        return
+    if depth >= MAX_RUNTIME_TREE_DEPTH:
+        raise GuardFailure("task runtime tree exceeds its bounded depth limit")
+    child_fd = _open_directory_chain_from_fd(parent_fd, entry.name)
+    child_fds.append(child_fd)
+    pending.append((child_fd, depth + 1))
 
 
 def assert_no_unix_sockets(root: Path) -> None:

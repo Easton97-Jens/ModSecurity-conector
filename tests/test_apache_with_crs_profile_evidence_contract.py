@@ -243,7 +243,7 @@ class ApacheWithCrsProfileEvidenceContractTest(unittest.TestCase):
         )
         all_cases = self.block(source, "run_all_cases() {\n", "write_case_result() {")
         self.assertIn(
-            'prepare_runtime_directory "$LOG_DIR" "LOG_DIR" 1', all_cases
+            'prepare_runtime_directory "$LOG_DIR" "$APACHE_LOG_DIR_LABEL" 1', all_cases
         )
         self.assertIn(
             'prepare_runtime_directory "$RESULTS_DIR" "RESULTS_DIR" 0', all_cases

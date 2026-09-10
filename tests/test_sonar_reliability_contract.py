@@ -441,7 +441,9 @@ int main(void)
         )
         accept_loop = source[accept_loop_start:accept_loop_end]
         failed_accept_start = accept_loop.index("if (fd < 0) {")
-        success_start = accept_loop.index("pthread_mutex_lock(&gate.lock)", failed_accept_start)
+        success_start = accept_loop.index(
+            "spawn_spop_connection_worker(config, &gate", failed_accept_start
+        )
         failed_accept = accept_loop[failed_accept_start:success_start]
         terminal_error_start = failed_accept.index("if (errno != EINTR) {")
         interrupted_stop_start = failed_accept.index("if (stop_requested) {")
@@ -471,16 +473,20 @@ int main(void)
         self.assertNotIn("close(fd);", failed_accept)
         self.assertNotIn("handled++;", failed_accept)
 
-        success_path = accept_loop[success_start:]
-        self.assertIn("if (gate.active >= gate.limit)", success_path)
+        worker_start = source.index("static int spawn_spop_connection_worker(")
+        worker_end = source.index("\n}\n\nstatic int accept_loop", worker_start)
+        worker_spawn = source[worker_start:worker_end]
+        self.assertIn("if (gate->active >= gate->limit)", worker_spawn)
         self.assertIn(
             '"event=spop-peer-capacity-rejected action=close reason=worker-capacity"',
-            success_path,
+            worker_spawn,
         )
-        self.assertIn("gate.active++", success_path)
-        self.assertIn("pthread_create(&thread", success_path)
-        self.assertIn("close(fd);", success_path)
-        self.assertIn("handled++;", success_path)
+        self.assertIn("gate->active++", worker_spawn)
+        self.assertIn("pthread_create(&thread", worker_spawn)
+        self.assertIn("close(fd);", worker_spawn)
+        self.assertIn("handled++;", accept_loop)
+        self.assertIn("worker_result == SPOP_CONNECTION_WORKER_CAPACITY_REJECTED", accept_loop)
+        self.assertIn("worker_result == SPOP_CONNECTION_WORKER_STOPPED", accept_loop)
 
     def test_haproxy_legacy_spop_path_has_bounded_timeout(self) -> None:
         source = (

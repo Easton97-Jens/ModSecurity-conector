@@ -5634,6 +5634,13 @@ typedef struct spop_accept_loop_config {
     unsigned int worker_limit;
 } spop_accept_loop_config;
 
+typedef enum spop_connection_worker_result {
+    SPOP_CONNECTION_WORKER_FATAL = -1,
+    SPOP_CONNECTION_WORKER_STARTED = 0,
+    SPOP_CONNECTION_WORKER_CAPACITY_REJECTED = 1,
+    SPOP_CONNECTION_WORKER_STOPPED = 2
+} spop_connection_worker_result;
+
 static void *spop_connection_thread(void *opaque) {
     spop_connection_task *task = (spop_connection_task *)opaque;
     int connection_rc;
@@ -5654,14 +5661,78 @@ static void *spop_connection_thread(void *opaque) {
     return 0;
 }
 
+static int spawn_spop_connection_worker(
+        const spop_accept_loop_config *config,
+        spop_connection_gate *gate,
+        pthread_attr_t *detached_attributes,
+        int fd,
+        uint64_t *last_capacity_rejection_log_ms) {
+    spop_connection_task *task;
+    pthread_t thread;
+
+    pthread_mutex_lock(&gate->lock);
+    if (stop_requested) {
+        pthread_mutex_unlock(&gate->lock);
+        close(fd);
+        return SPOP_CONNECTION_WORKER_STOPPED;
+    }
+    if (gate->active >= gate->limit) {
+        uint64_t now = monotonic_milliseconds();
+
+        pthread_mutex_unlock(&gate->lock);
+        close(fd);
+        /* A peer flood must not turn its own rejection evidence into an
+         * unbounded log-file allocation. The accept loop is the only
+         * writer of this counter, so one bounded event per second is
+         * sufficient for operators without a shared lock. */
+        if (now == 0U || *last_capacity_rejection_log_ms == 0U ||
+                now < *last_capacity_rejection_log_ms ||
+                now - *last_capacity_rejection_log_ms >= 1000U) {
+            log_line(config->log,
+                "event=spop-peer-capacity-rejected action=close reason=worker-capacity");
+            *last_capacity_rejection_log_ms = now;
+        }
+        return SPOP_CONNECTION_WORKER_CAPACITY_REJECTED;
+    }
+    gate->active++;
+    pthread_mutex_unlock(&gate->lock);
+
+    task = calloc(1U, sizeof(*task));
+    if (task == 0) {
+        pthread_mutex_lock(&gate->lock);
+        gate->active--;
+        pthread_cond_broadcast(&gate->changed);
+        pthread_mutex_unlock(&gate->lock);
+        close(fd);
+        log_line(config->log, "peer task allocation failed; closing peer");
+        return SPOP_CONNECTION_WORKER_FATAL;
+    }
+    task->fd = fd;
+    task->state = config->state;
+    task->log = config->log;
+    task->rules_file = config->rules_file;
+    task->crs_preamble_file = config->crs_preamble_file;
+    task->timeout_ms = config->timeout_ms;
+    task->gate = gate;
+    if (pthread_create(&thread, detached_attributes,
+            spop_connection_thread, task) != 0) {
+        free(task);
+        pthread_mutex_lock(&gate->lock);
+        gate->active--;
+        pthread_cond_broadcast(&gate->changed);
+        pthread_mutex_unlock(&gate->lock);
+        close(fd);
+        log_line(config->log, "peer worker creation failed; closing peer");
+        return SPOP_CONNECTION_WORKER_FATAL;
+    }
+    return SPOP_CONNECTION_WORKER_STARTED;
+}
+
 static int accept_loop(const spop_accept_loop_config *config) {
     const int listen_fd = config->listen_fd;
     agent_state *state = config->state;
     FILE *log = config->log;
     const int max_connections = config->max_connections;
-    const char *rules_file = config->rules_file;
-    const char *crs_preamble_file = config->crs_preamble_file;
-    const unsigned int timeout_ms = config->timeout_ms;
     const unsigned int worker_limit = config->worker_limit;
     int handled = 0;
     int loop_rc = 0;
@@ -5717,63 +5788,20 @@ static int accept_loop(const spop_accept_loop_config *config) {
             }
             continue;
         }
-    pthread_mutex_lock(&gate.lock);
-        if (stop_requested) {
-            pthread_mutex_unlock(&gate.lock);
-            close(fd);
-            break;
-        }
-        if (gate.active >= gate.limit) {
-            uint64_t now = monotonic_milliseconds();
-
-            pthread_mutex_unlock(&gate.lock);
-            close(fd);
-            /* A peer flood must not turn its own rejection evidence into an
-             * unbounded log-file allocation. The accept loop is the only
-             * writer of this counter, so one bounded event per second is
-             * sufficient for operators without a shared lock. */
-            if (now == 0U || last_capacity_rejection_log_ms == 0U ||
-                    now < last_capacity_rejection_log_ms ||
-                    now - last_capacity_rejection_log_ms >= 1000U) {
-                log_line(log,
-                    "event=spop-peer-capacity-rejected action=close reason=worker-capacity");
-                last_capacity_rejection_log_ms = now;
-            }
-            continue;
-        }
-        gate.active++;
-        pthread_mutex_unlock(&gate.lock);
         {
-            spop_connection_task *task = calloc(1U, sizeof(*task));
-            pthread_t thread;
+            const spop_connection_worker_result worker_result =
+                spawn_spop_connection_worker(config, &gate,
+                    &detached_attributes, fd,
+                    &last_capacity_rejection_log_ms);
 
-            if (task == 0) {
-                pthread_mutex_lock(&gate.lock);
-                gate.active--;
-                pthread_cond_broadcast(&gate.changed);
-                pthread_mutex_unlock(&gate.lock);
-                close(fd);
-                log_line(log, "peer task allocation failed; closing peer");
+            if (worker_result == SPOP_CONNECTION_WORKER_FATAL) {
                 loop_rc = 1;
                 break;
             }
-            task->fd = fd;
-            task->state = state;
-            task->log = log;
-            task->rules_file = rules_file;
-            task->crs_preamble_file = crs_preamble_file;
-            task->timeout_ms = timeout_ms;
-            task->gate = &gate;
-            if (pthread_create(&thread, &detached_attributes,
-                    spop_connection_thread, task) != 0) {
-                free(task);
-                pthread_mutex_lock(&gate.lock);
-                gate.active--;
-                pthread_cond_broadcast(&gate.changed);
-                pthread_mutex_unlock(&gate.lock);
-                close(fd);
-                log_line(log, "peer worker creation failed; closing peer");
-                loop_rc = 1;
+            if (worker_result == SPOP_CONNECTION_WORKER_CAPACITY_REJECTED) {
+                continue;
+            }
+            if (worker_result == SPOP_CONNECTION_WORKER_STOPPED) {
                 break;
             }
         }
