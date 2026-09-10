@@ -1,4 +1,4 @@
-name: Update Go 1.26 patch
+name: Update Go 1.26 patch and bounded components
 
 on:
   schedule:
@@ -18,6 +18,11 @@ jobs:
     outputs:
       current_version: ${{ steps.resolve.outputs.current_version }}
       version: ${{ steps.resolve.outputs.version }}
+      toolchain_update_available: ${{ steps.resolve.outputs.toolchain_update_available }}
+      component_update_available: ${{ steps.resolve.outputs.component_update_available }}
+      component_directory: ${{ steps.resolve.outputs.component_directory }}
+      component_module: ${{ steps.resolve.outputs.component_module }}
+      component_version: ${{ steps.resolve.outputs.component_version }}
       update_available: ${{ steps.resolve.outputs.update_available }}
     steps:
       - name: Check out trusted default branch
@@ -50,39 +55,86 @@ jobs:
       - name: Verify Go version contract
         run: make check-go-version-contract
 
-      - name: Resolve latest stable Go 1.26 patch
+      - name: Resolve bounded Go maintenance candidates
         id: resolve
         env:
           PYTHONDONTWRITEBYTECODE: "1"
         run: |
           set -euo pipefail
-          report="$(python3 scripts/update-go-version.py --check --json)"
-          printf '%s\n' "$report"
-          REPORT="$report" python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          go_report="$(python3 scripts/update-go-version.py --check --json)"
+          component_report="$(python3 scripts/update-go-components.py --check --json)"
+          printf '%s\n' "$go_report"
+          printf '%s\n' "$component_report"
+          GO_REPORT="$go_report" COMPONENT_REPORT="$component_report" python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import json
           import os
           import re
 
-          data = json.loads(os.environ["REPORT"])
-          current = data.get("current_version")
-          latest = data.get("latest_version")
-          available = data.get("update_available")
-          status = data.get("status")
-          pattern = re.compile(r"^1\.26\.(?:0|[1-9][0-9]*)$")
-          if not isinstance(current, str) or not pattern.fullmatch(current):
+          go_data = json.loads(os.environ["GO_REPORT"])
+          component_data = json.loads(os.environ["COMPONENT_REPORT"])
+          current = go_data.get("current_version")
+          latest = go_data.get("latest_version")
+          toolchain_available = go_data.get("update_available")
+          status = go_data.get("status")
+          version_pattern = re.compile(r"^1\.26\.(?:0|[1-9][0-9]*)$")
+          component_version_pattern = re.compile(
+              r"^v(?P<major>0|[1-9][0-9]*)\.(?P<minor>0|[1-9][0-9]*)\.(?P<patch>0|[1-9][0-9]*)$"
+          )
+
+          def component_version_tuple(value):
+              match = component_version_pattern.fullmatch(value)
+              if match is None:
+                  raise SystemExit("component resolver returned an invalid component version")
+              return tuple(int(match.group(part)) for part in ("major", "minor", "patch"))
+          if not isinstance(current, str) or not version_pattern.fullmatch(current):
               raise SystemExit("resolver returned an invalid current_version")
-          if not isinstance(latest, str) or not pattern.fullmatch(latest):
+          if not isinstance(latest, str) or not version_pattern.fullmatch(latest):
               raise SystemExit("resolver returned an invalid latest_version")
-          if not isinstance(available, bool):
-              raise SystemExit("resolver returned a non-boolean update_available")
+          if not isinstance(toolchain_available, bool):
+              raise SystemExit("resolver returned a non-boolean toolchain update flag")
           if status not in {"current", "update_available"}:
               raise SystemExit("resolver returned an invalid status")
-          if available != (latest != current):
-              raise SystemExit("resolver returned inconsistent update availability")
-          if status != ("update_available" if available else "current"):
+          if toolchain_available != (latest != current):
+              raise SystemExit("resolver returned inconsistent toolchain update availability")
+          if status != ("update_available" if toolchain_available else "current"):
               raise SystemExit("resolver returned an inconsistent status")
+
+          components = component_data.get("components")
+          component_available = component_data.get("update_available")
+          component_status = component_data.get("status")
+          if not isinstance(components, list) or len(components) != 1:
+              raise SystemExit("component resolver returned an invalid component list")
+          if not isinstance(component_available, bool) or component_status not in {"current", "update_available"}:
+              raise SystemExit("component resolver returned an invalid status")
+          component = components[0]
+          if not isinstance(component, dict):
+              raise SystemExit("component resolver returned an invalid component")
+          directory = component.get("directory")
+          dependency = component.get("dependency")
+          component_current = component.get("current_version")
+          target = component.get("target_version")
+          item_available = component.get("update_available")
+          if directory != "connectors/envoy/ext_proc" or dependency != "google.golang.org/grpc":
+              raise SystemExit("component resolver returned an unapproved component")
+          if target != "v1.83.2" or not isinstance(component_current, str):
+              raise SystemExit("component resolver returned an invalid component version")
+          component_current_tuple = component_version_tuple(component_current)
+          target_tuple = component_version_tuple(target)
+          if not isinstance(item_available, bool) or component_available != item_available:
+              raise SystemExit("component resolver returned inconsistent update availability")
+          if component_status != ("update_available" if component_available else "current"):
+              raise SystemExit("component resolver returned an inconsistent component status")
+          if component_available != (component_current_tuple < target_tuple):
+            raise SystemExit("component resolver returned an inconsistent component floor")
+
+          available = toolchain_available or component_available
           print(f"current_version={current}")
           print(f"version={latest}")
+          print(f"toolchain_update_available={str(toolchain_available).lower()}")
+          print(f"component_update_available={str(component_available).lower()}")
+          print(f"component_directory={directory}")
+          print(f"component_module={dependency}")
+          print(f"component_version={target}")
           print(f"update_available={str(available).lower()}")
           PY
 
@@ -93,8 +145,16 @@ jobs:
       contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      component_changed: ${{ steps.components.outputs.changed }}
+      component_go_mod_sha256: ${{ steps.components.outputs.go_mod_sha256 }}
+      component_go_sum_sha256: ${{ steps.components.outputs.go_sum_sha256 }}
     env:
       CANDIDATE_VERSION: ${{ needs.resolve-go-patch.outputs.version }}
+      COMPONENT_UPDATE_AVAILABLE: ${{ needs.resolve-go-patch.outputs.component_update_available }}
+      COMPONENT_DIRECTORY: ${{ needs.resolve-go-patch.outputs.component_directory }}
+      COMPONENT_MODULE: ${{ needs.resolve-go-patch.outputs.component_module }}
+      COMPONENT_VERSION: ${{ needs.resolve-go-patch.outputs.component_version }}
       PYTHONDONTWRITEBYTECODE: "1"
     steps:
       - name: Check out trusted default branch
@@ -138,6 +198,122 @@ jobs:
       - name: Re-resolve and validate candidate metadata
         run: python3 scripts/update-go-version.py --check --expected-version "$CANDIDATE_VERSION" --json
 
+      - name: Create and validate the bounded Go component candidate
+        id: components
+        env:
+          GOTOOLCHAIN: local
+          GOWORK: off
+        run: |
+          set -euo pipefail
+          case "$COMPONENT_UPDATE_AVAILABLE" in
+            true|false) ;;
+            *) echo "Component update availability is invalid." >&2; exit 1 ;;
+          esac
+          if [ "$COMPONENT_DIRECTORY" != "connectors/envoy/ext_proc" ] || \
+             [ "$COMPONENT_MODULE" != "google.golang.org/grpc" ] || \
+             [ "$COMPONENT_VERSION" != "v1.83.2" ]; then
+            echo "Component candidate is outside the approved policy." >&2
+            exit 1
+          fi
+
+          component_report="$(python3 scripts/update-go-components.py --check --json)"
+          printf '%s\n' "$component_report"
+          COMPONENT_REPORT="$component_report" EXPECTED_AVAILABLE="$COMPONENT_UPDATE_AVAILABLE" python3 - <<'PY'
+          import json
+          import os
+          import re
+
+          data = json.loads(os.environ["COMPONENT_REPORT"])
+          components = data.get("components")
+          expected_available = os.environ["EXPECTED_AVAILABLE"] == "true"
+          if (
+              data.get("status") not in {"current", "update_available"}
+              or data.get("update_available") is not expected_available
+              or not isinstance(components, list)
+              or len(components) != 1
+          ):
+              raise SystemExit("component candidate was not independently re-resolved")
+          component = components[0]
+          version = component.get("current_version") if isinstance(component, dict) else None
+          if (
+              not isinstance(component, dict)
+              or component.get("directory") != "connectors/envoy/ext_proc"
+              or component.get("dependency") != "google.golang.org/grpc"
+              or component.get("target_version") != "v1.83.2"
+              or component.get("update_available") is not expected_available
+              or not isinstance(version, str)
+              or not re.fullmatch(r"v1\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", version)
+          ):
+              raise SystemExit("component candidate escaped the approved policy")
+          PY
+
+          if [ "$COMPONENT_UPDATE_AVAILABLE" = false ]; then
+            if ! git diff --quiet; then
+              echo "A current component decision unexpectedly changed the checkout." >&2
+              exit 1
+            fi
+            {
+              echo "changed=false"
+              echo "go_mod_sha256="
+              echo "go_sum_sha256="
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          baseline_go_mod="$(mktemp "$RUNNER_TEMP/go-component-baseline-go-mod.XXXXXX")"
+          baseline_go_sum="$(mktemp "$RUNNER_TEMP/go-component-baseline-go-sum.XXXXXX")"
+          git show "HEAD:$COMPONENT_DIRECTORY/go.mod" > "$baseline_go_mod"
+          git show "HEAD:$COMPONENT_DIRECTORY/go.sum" > "$baseline_go_sum"
+          python3 scripts/update-go-components.py \
+            --validate-component-files \
+            --repository-root "$GITHUB_WORKSPACE" \
+            --json
+          (
+            cd "$COMPONENT_DIRECTORY"
+            go get "$COMPONENT_MODULE@$COMPONENT_VERSION"
+            go mod tidy
+          )
+
+          expected_paths="$(printf '%s\n%s' \
+            "$COMPONENT_DIRECTORY/go.mod" \
+            "$COMPONENT_DIRECTORY/go.sum")"
+          changed_paths="$(git diff --name-only)"
+          if [ "$changed_paths" != "$expected_paths" ]; then
+            echo "Component candidate changed paths outside the approved module files: $changed_paths" >&2
+            exit 1
+          fi
+          candidate_report="$(python3 scripts/update-go-components.py \
+            --validate-candidate \
+            --baseline-go-mod "$baseline_go_mod" \
+            --candidate-go-mod "$COMPONENT_DIRECTORY/go.mod" \
+            --baseline-go-sum "$baseline_go_sum" \
+            --candidate-go-sum "$COMPONENT_DIRECTORY/go.sum" \
+            --json)"
+          printf '%s\n' "$candidate_report"
+          COMPONENT_CANDIDATE_REPORT="$candidate_report" python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+          import re
+
+          data = json.loads(os.environ["COMPONENT_CANDIDATE_REPORT"])
+          digest = re.compile(r"^[0-9a-f]{64}$")
+          if (
+              data.get("status") != "valid"
+              or data.get("directory") != "connectors/envoy/ext_proc"
+              or data.get("dependency") != "google.golang.org/grpc"
+              or data.get("target_version") != "v1.83.2"
+              or not isinstance(data.get("go_mod_sha256"), str)
+              or not isinstance(data.get("go_sum_sha256"), str)
+              or not digest.fullmatch(data["go_mod_sha256"])
+              or not digest.fullmatch(data["go_sum_sha256"])
+          ):
+              raise SystemExit("component candidate hash report is invalid")
+          print("changed=true")
+          print(f"go_mod_sha256={data['go_mod_sha256']}")
+          print(f"go_sum_sha256={data['go_sum_sha256']}")
+          PY
+          git diff --check
+
       - name: Run Go version and workflow contracts
         env:
           PYTHONPYCACHEPREFIX: ${{ runner.temp }}/python-pycache
@@ -147,6 +323,7 @@ jobs:
           python3 -m compileall -q ci scripts tests
           python3 -m unittest -v \
             tests.test_update_go_version \
+            tests.test_update_go_components \
             tests.test_go_version_contract \
             tests.test_ci_security_workflows
           git diff --check
@@ -155,22 +332,52 @@ jobs:
         working-directory: connectors/envoy/ext_proc
         env:
           GOTOOLCHAIN: local
+          GOWORK: off
         run: |
           set -euo pipefail
+          go mod tidy -diff
           go mod verify
           go test -mod=readonly ./...
-          go vet ./...
+          go vet -mod=readonly ./...
           go build -mod=readonly ./...
 
-      - name: Validate Traefik Go module without toolchain fallback
+      - name: Validate Traefik native Go module without toolchain fallback
         working-directory: connectors/traefik/native_middleware
         env:
           GOTOOLCHAIN: local
+          GOWORK: off
         run: |
           set -euo pipefail
+          go mod tidy -diff
           go mod verify
           go test -mod=readonly ./...
-          go vet ./...
+          go vet -mod=readonly ./...
+          go build -mod=readonly ./...
+
+      - name: Validate Traefik composite Go module without toolchain fallback
+        working-directory: connectors/traefik/composite_middleware
+        env:
+          GOTOOLCHAIN: local
+          GOWORK: off
+        run: |
+          set -euo pipefail
+          go mod tidy -diff
+          go mod verify
+          go test -mod=readonly ./...
+          go vet -mod=readonly ./...
+          go build -mod=readonly ./...
+
+      - name: Validate Traefik response observer Go module without toolchain fallback
+        working-directory: connectors/traefik/response_observer
+        env:
+          GOTOOLCHAIN: local
+          GOWORK: off
+        run: |
+          set -euo pipefail
+          go mod tidy -diff
+          go mod verify
+          go test -mod=readonly ./...
+          go vet -mod=readonly ./...
           go build -mod=readonly ./...
 
   create-go-update-pr:
@@ -186,9 +393,17 @@ jobs:
     env:
       CANDIDATE_VERSION: ${{ needs.resolve-go-patch.outputs.version }}
       CURRENT_VERSION: ${{ needs.resolve-go-patch.outputs.current_version }}
+      TOOLCHAIN_UPDATE_AVAILABLE: ${{ needs.resolve-go-patch.outputs.toolchain_update_available }}
+      COMPONENT_UPDATE_AVAILABLE: ${{ needs.resolve-go-patch.outputs.component_update_available }}
+      COMPONENT_DIRECTORY: ${{ needs.resolve-go-patch.outputs.component_directory }}
+      COMPONENT_MODULE: ${{ needs.resolve-go-patch.outputs.component_module }}
+      COMPONENT_VERSION: ${{ needs.resolve-go-patch.outputs.component_version }}
+      VALIDATED_COMPONENT_CHANGED: ${{ needs.validate-go-patch.outputs.component_changed }}
+      VALIDATED_COMPONENT_GO_MOD_SHA256: ${{ needs.validate-go-patch.outputs.component_go_mod_sha256 }}
+      VALIDATED_COMPONENT_GO_SUM_SHA256: ${{ needs.validate-go-patch.outputs.component_go_sum_sha256 }}
       DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
       UPDATE_BRANCH: automation/update-go-126
-      PR_TITLE: "chore(ci): propose Go 1.26 patch update"
+      PR_TITLE: "chore(ci): propose bounded Go update"
       WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       PYTHONDONTWRITEBYTECODE: "1"
     steps:
@@ -212,10 +427,66 @@ jobs:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
-      - name: Re-resolve and update only the canonical version file
+      - name: Set up independently validated Go candidate
+        id: setup-go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ needs.resolve-go-patch.outputs.version }}
+          check-latest: false
+          cache: false
+
+      - name: Regenerate only the verified bounded Go update candidate
         id: update
+        env:
+          GOTOOLCHAIN: local
+          GOWORK: off
         run: |
           set -euo pipefail
+          require_only_allowed_update_paths() {
+            changed_paths="$1"
+            if [ -z "$changed_paths" ]; then
+              echo "The Go updater produced no candidate change." >&2
+              exit 1
+            fi
+            printf '%s\n' "$changed_paths" | while IFS= read -r changed_path; do
+              [ -n "$changed_path" ] || continue
+              if ! printf '%s\n' "$changed_path" | grep -Fqx \
+                -e .go-version \
+                -e connectors/envoy/ext_proc/go.mod \
+                -e connectors/envoy/ext_proc/go.sum
+              then
+                echo "Updater changed an unregistered path: $changed_path" >&2
+                exit 1
+              fi
+            done
+          }
+
+          require_regular_file_updates() {
+            if ! git diff --raw --no-abbrev --no-renames | awk '
+              $1 == ":100644" && $2 == "100644" && $5 == "M" &&
+              ($6 == ".go-version" ||
+               $6 == "connectors/envoy/ext_proc/go.mod" ||
+               $6 == "connectors/envoy/ext_proc/go.sum") {
+                records += 1
+                next
+              }
+              NF { invalid = 1 }
+              END { exit !(records >= 1 && !invalid) }
+            '
+            then
+              echo "Updater candidate is not a regular-file modification of the approved paths." >&2
+              exit 1
+            fi
+          }
+
+          case "$TOOLCHAIN_UPDATE_AVAILABLE" in
+            true|false) ;;
+            *) echo "Toolchain update availability is invalid." >&2; exit 1 ;;
+          esac
+          case "$COMPONENT_UPDATE_AVAILABLE" in
+            true|false) ;;
+            *) echo "Component update availability is invalid." >&2; exit 1 ;;
+          esac
           if ! printf '%s\n' "$CANDIDATE_VERSION" | grep -Eq '^1\.26\.(0|[1-9][0-9]*)$'; then
             echo "Candidate version is not an exact stable Go 1.26 patch." >&2
             exit 1
@@ -224,20 +495,63 @@ jobs:
             echo "Current version is not an exact stable Go 1.26 patch." >&2
             exit 1
           fi
-          if [ "$CANDIDATE_VERSION" = "$CURRENT_VERSION" ]; then
-            echo "Resolver reported an update without a version change." >&2
+          if [ "$TOOLCHAIN_UPDATE_AVAILABLE" = true ] && [ "$CANDIDATE_VERSION" = "$CURRENT_VERSION" ]; then
+            echo "Resolver reported a toolchain update without a version change." >&2
             exit 1
           fi
+          if [ "$TOOLCHAIN_UPDATE_AVAILABLE" = false ] && [ "$CANDIDATE_VERSION" != "$CURRENT_VERSION" ]; then
+            echo "Resolver reported an unexpected toolchain version change." >&2
+            exit 1
+          fi
+          if [ "$COMPONENT_DIRECTORY" != "connectors/envoy/ext_proc" ] || \
+             [ "$COMPONENT_MODULE" != "google.golang.org/grpc" ] || \
+             [ "$COMPONENT_VERSION" != "v1.83.2" ]; then
+            echo "Component candidate is outside the approved policy." >&2
+            exit 1
+          fi
+
           python3 scripts/update-go-version.py --update --expected-version "$CANDIDATE_VERSION" --json
-          if git diff --quiet -- .go-version; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          changed_paths="$(git diff --name-only)"
-          if [ "$changed_paths" != ".go-version" ]; then
-            echo "Updater changed a path outside .go-version: $changed_paths" >&2
+
+          if [ "$COMPONENT_UPDATE_AVAILABLE" = true ]; then
+            if [ "$VALIDATED_COMPONENT_CHANGED" != true ] || \
+               ! printf '%s\n' "$VALIDATED_COMPONENT_GO_MOD_SHA256" | grep -Eq '^[0-9a-f]{64}$' || \
+               ! printf '%s\n' "$VALIDATED_COMPONENT_GO_SUM_SHA256" | grep -Eq '^[0-9a-f]{64}$'; then
+              echo "Validation did not provide a usable component candidate hash." >&2
+              exit 1
+            fi
+            baseline_go_mod="$(mktemp "$RUNNER_TEMP/go-component-baseline-go-mod.XXXXXX")"
+            baseline_go_sum="$(mktemp "$RUNNER_TEMP/go-component-baseline-go-sum.XXXXXX")"
+            git show "HEAD:$COMPONENT_DIRECTORY/go.mod" > "$baseline_go_mod"
+            git show "HEAD:$COMPONENT_DIRECTORY/go.sum" > "$baseline_go_sum"
+            python3 scripts/update-go-components.py \
+              --validate-component-files \
+              --repository-root "$GITHUB_WORKSPACE" \
+              --json
+            (
+              cd "$COMPONENT_DIRECTORY"
+              go get "$COMPONENT_MODULE@$COMPONENT_VERSION"
+              go mod tidy
+            )
+            candidate_report="$(python3 scripts/update-go-components.py \
+              --validate-candidate \
+              --baseline-go-mod "$baseline_go_mod" \
+              --candidate-go-mod "$COMPONENT_DIRECTORY/go.mod" \
+              --baseline-go-sum "$baseline_go_sum" \
+              --candidate-go-sum "$COMPONENT_DIRECTORY/go.sum" \
+              --expected-go-mod-sha256 "$VALIDATED_COMPONENT_GO_MOD_SHA256" \
+              --expected-go-sum-sha256 "$VALIDATED_COMPONENT_GO_SUM_SHA256" \
+              --json)"
+            printf '%s\n' "$candidate_report"
+          elif [ "$VALIDATED_COMPONENT_CHANGED" != false ] || \
+               [ -n "$VALIDATED_COMPONENT_GO_MOD_SHA256" ] || \
+               [ -n "$VALIDATED_COMPONENT_GO_SUM_SHA256" ]; then
+            echo "Validation reported a component candidate that the resolver did not approve." >&2
             exit 1
           fi
+
+          changed_paths="$(git diff --name-only)"
+          require_only_allowed_update_paths "$changed_paths"
+          require_regular_file_updates
           git diff --check
           echo "changed=true" >> "$GITHUB_OUTPUT"
 
@@ -248,6 +562,49 @@ jobs:
         run: |
           set -euo pipefail
           set -o pipefail
+
+          require_only_allowed_update_paths() {
+            changed_paths="$1"
+            if [ -z "$changed_paths" ]; then
+              echo "The Go updater produced no candidate change." >&2
+              exit 1
+            fi
+            printf '%s\n' "$changed_paths" | while IFS= read -r changed_path; do
+              [ -n "$changed_path" ] || continue
+              if ! printf '%s\n' "$changed_path" | grep -Fqx \
+                -e .go-version \
+                -e connectors/envoy/ext_proc/go.mod \
+                -e connectors/envoy/ext_proc/go.sum
+              then
+                echo "Update branch changes an unregistered path: $changed_path" >&2
+                exit 1
+              fi
+            done
+          }
+
+          require_regular_file_updates() {
+            raw_diff="$1"
+            if ! printf '%s\n' "$raw_diff" | awk '
+              $1 == ":100644" && $2 == "100644" && $5 == "M" &&
+              ($6 == ".go-version" ||
+               $6 == "connectors/envoy/ext_proc/go.mod" ||
+               $6 == "connectors/envoy/ext_proc/go.sum") {
+                records += 1
+                next
+              }
+              NF { invalid = 1 }
+              END { exit !(records >= 1 && !invalid) }
+            '
+            then
+              echo "Update branch has an unexpected file mode or path." >&2
+              exit 1
+            fi
+          }
+
+          candidate_paths="$(git diff --name-only)"
+          require_only_allowed_update_paths "$candidate_paths"
+          require_regular_file_updates "$(git diff --raw --no-abbrev --no-renames)"
+
           existing_pr="$(
             gh api --method GET "repos/$GITHUB_REPOSITORY/pulls" \
               -f state=open \
@@ -267,31 +624,38 @@ jobs:
           fi
           gh auth setup-git
           pr_body="$RUNNER_TEMP/go-update-pr-body.md"
-          cat > "$pr_body" <<EOF
-          ## English
-
-          - Previous version: $CURRENT_VERSION
-          - Proposed version: $CANDIDATE_VERSION
-          - Official release identity: go$CANDIDATE_VERSION
-          - Metadata source: https://go.dev/dl/?mode=json
-          - Validation workflow and run: validate-go-patch ($WORKFLOW_RUN_URL)
-          - Changed files: .go-version only
-          - Minor version: remains Go 1.26
-          - Module directives: unchanged
-          - Merge: no automatic merge
-
-          ## Deutsch
-
-          - Vorherige Version: $CURRENT_VERSION
-          - Vorgeschlagene Version: $CANDIDATE_VERSION
-          - Offizielle Release-Identität: go$CANDIDATE_VERSION
-          - Metadatenquelle: https://go.dev/dl/?mode=json
-          - Validierungsworkflow und Run: validate-go-patch ($WORKFLOW_RUN_URL)
-          - Geänderte Dateien: nur .go-version
-          - Minor-Version: bleibt Go 1.26
-          - Modul-Direktiven: unverändert
-          - Merge: kein automatischer Merge
-          EOF
+          {
+            printf '%s\n' \
+              "## English" \
+              "" \
+              "- Previous version: $CURRENT_VERSION" \
+              "- Proposed version: $CANDIDATE_VERSION" \
+              "- Official release identity: go$CANDIDATE_VERSION" \
+              "- Metadata source: https://go.dev/dl/?mode=json" \
+              "- Validation workflow and run: validate-go-patch ($WORKFLOW_RUN_URL)" \
+              "- Toolchain update available: $TOOLCHAIN_UPDATE_AVAILABLE" \
+              "- Bounded component: $COMPONENT_MODULE $COMPONENT_VERSION in $COMPONENT_DIRECTORY" \
+              "- Component update available: $COMPONENT_UPDATE_AVAILABLE" \
+              "- Changed files: only .go-version and/or connectors/envoy/ext_proc/go.mod plus connectors/envoy/ext_proc/go.sum" \
+              "- Minor version: remains Go 1.26" \
+              "- Module directives: only the fixed google.golang.org/grpc security bundle may change (grpc v1.83.1→v1.83.2; golang.org/x/sys v0.46.0→v0.47.0; golang.org/x/net v0.56.0→v0.58.0; golang.org/x/text v0.39.0→v0.41.0); validated go.mod/go.sum hashes must match" \
+              "- Merge: no automatic merge" \
+              "" \
+              "## Deutsch" \
+              "" \
+              "- Vorherige Version: $CURRENT_VERSION" \
+              "- Vorgeschlagene Version: $CANDIDATE_VERSION" \
+              "- Offizielle Release-Identität: go$CANDIDATE_VERSION" \
+              "- Metadatenquelle: https://go.dev/dl/?mode=json" \
+              "- Validierungsworkflow und Run: validate-go-patch ($WORKFLOW_RUN_URL)" \
+              "- Verfügbares Toolchain-Update: $TOOLCHAIN_UPDATE_AVAILABLE" \
+              "- Begrenzte Komponente: $COMPONENT_MODULE $COMPONENT_VERSION in $COMPONENT_DIRECTORY" \
+              "- Verfügbares Komponentenupdate: $COMPONENT_UPDATE_AVAILABLE" \
+              "- Geänderte Dateien: nur .go-version und/oder connectors/envoy/ext_proc/go.mod plus connectors/envoy/ext_proc/go.sum" \
+              "- Minor-Version: bleibt Go 1.26" \
+              "- Modul-Direktiven: Nur das feste Sicherheits-Bundle für google.golang.org/grpc darf sich ändern (grpc v1.83.1→v1.83.2; golang.org/x/sys v0.46.0→v0.47.0; golang.org/x/net v0.56.0→v0.58.0; golang.org/x/text v0.39.0→v0.41.0); validierte go.mod/go.sum-Hashes müssen übereinstimmen" \
+              "- Merge: kein automatischer Merge"
+          } > "$pr_body"
 
           if [ -n "$existing_pr" ]; then
             if [ "$remote_branch" != true ]; then
@@ -310,26 +674,29 @@ jobs:
               exit 1
             fi
             branch_paths="$(git diff --name-only "$merge_base" "origin/$UPDATE_BRANCH")"
-            if [ "$branch_paths" != ".go-version" ]; then
-              echo "Existing update branch changes paths outside .go-version: $branch_paths" >&2
-              exit 1
-            fi
-            candidate_blob="$(git hash-object -w .go-version)"
-            if ! printf '%s\n' "$candidate_blob" | grep -Eq '^[0-9a-f]{40}$'; then
-              echo "Candidate version-file blob is malformed." >&2
+            require_only_allowed_update_paths "$branch_paths"
+            require_regular_file_updates "$(git diff --raw --no-abbrev --no-renames "$merge_base" "origin/$UPDATE_BRANCH")"
+            if [ "$branch_paths" != "$candidate_paths" ]; then
+              echo "Existing update branch path set differs from the verified candidate." >&2
               exit 1
             fi
             git read-tree "origin/$UPDATE_BRANCH"
-            git update-index --add --cacheinfo 100644 "$candidate_blob" .go-version
+            printf '%s\n' "$candidate_paths" | while IFS= read -r candidate_path; do
+              [ -n "$candidate_path" ] || continue
+              candidate_blob="$(git hash-object -w -- "$candidate_path")"
+              if ! printf '%s\n' "$candidate_blob" | grep -Eq '^[0-9a-f]{40}$'; then
+                echo "Candidate file blob is malformed: $candidate_path" >&2
+                exit 1
+              fi
+              git update-index --add --cacheinfo 100644 "$candidate_blob" "$candidate_path"
+            done
             if git diff-index --quiet "origin/$UPDATE_BRANCH" --; then
-              echo "The existing update pull request already contains $CANDIDATE_VERSION."
+              echo "The existing update pull request already contains the verified Go candidate."
               exit 0
             fi
             changed_paths="$(git diff-index --name-only "origin/$UPDATE_BRANCH" --)"
-            if [ "$changed_paths" != ".go-version" ]; then
-              echo "Existing update branch would change paths outside .go-version: $changed_paths" >&2
-              exit 1
-            fi
+            require_only_allowed_update_paths "$changed_paths"
+            require_regular_file_updates "$(git diff-index --raw --no-abbrev --no-renames "origin/$UPDATE_BRANCH" --)"
             git diff-index --check "origin/$UPDATE_BRANCH" --
             tree="$(git write-tree)"
             git config user.name "github-actions[bot]"
@@ -350,8 +717,19 @@ jobs:
           git switch -c "$UPDATE_BRANCH"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .go-version
-          git commit -m "chore(ci): update Go to $CANDIDATE_VERSION"
+          git add -- \
+            .go-version \
+            connectors/envoy/ext_proc/go.mod \
+            connectors/envoy/ext_proc/go.sum
+          staged_paths="$(git diff --cached --name-only)"
+          if [ "$staged_paths" != "$candidate_paths" ]; then
+            echo "Staged Go update paths differ from the verified candidate." >&2
+            exit 1
+          fi
+          require_only_allowed_update_paths "$staged_paths"
+          require_regular_file_updates "$(git diff --cached --raw --no-abbrev --no-renames)"
+          git diff --cached --check
+          git commit -m "chore(ci): update bounded Go maintenance candidate"
           git push origin "$UPDATE_BRANCH"
           gh pr create \
             --draft \
