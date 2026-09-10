@@ -3,6 +3,8 @@
 from pathlib import Path
 import unittest
 
+from tests._haproxy_spop_contract_helpers import assert_worker_result_order
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = (
@@ -47,38 +49,9 @@ class HAProxySPOPSigpipePeerIsolationContractTests(unittest.TestCase):
         self.assertNotIn("handle_connection(fd, state, log", accept_loop)
         self.assertIn("close(fd);", spawn)
         self.assertIn("while (gate.active != 0U)", accept_loop)
-        result_handler = SOURCE.split(
-            "static spop_accept_iteration_result process_spop_worker_result", 1
-        )[1].split("static int accept_loop", 1)[0]
-        self.assertIn("SPOP_CONNECTION_WORKER_CAPACITY_REJECTED", result_handler)
-        self.assertIn("SPOP_CONNECTION_WORKER_STOPPED", result_handler)
-        self.assertIn("worker_result == SPOP_CONNECTION_WORKER_FATAL", result_handler)
-        capacity = result_handler.index("SPOP_CONNECTION_WORKER_CAPACITY_REJECTED")
-        stopped = result_handler.index("SPOP_CONNECTION_WORKER_STOPPED")
-        fatal = result_handler.index("worker_result == SPOP_CONNECTION_WORKER_FATAL")
-        capacity_return = result_handler.index(
-            "return SPOP_ACCEPT_ITERATION_CONTINUE;", capacity
+        assert_worker_result_order(
+            self, SOURCE, "worker_result == SPOP_CONNECTION_WORKER_FATAL"
         )
-        iteration_continue = accept_loop.index(
-            "iteration_result == SPOP_ACCEPT_ITERATION_CONTINUE"
-        )
-        iteration_stop = accept_loop.index(
-            "iteration_result == SPOP_ACCEPT_ITERATION_STOP"
-        )
-        handled = accept_loop.index("handled++;")
-        self.assertLess(capacity, capacity_return)
-        self.assertLess(
-            iteration_continue,
-            accept_loop.index("continue;", iteration_continue),
-        )
-        self.assertLess(iteration_continue, handled)
-        self.assertLess(iteration_stop, accept_loop.index("break;", iteration_stop))
-        self.assertLess(iteration_stop, handled)
-        self.assertLess(
-            capacity_return,
-            result_handler.index("SPOP_ACCEPT_ITERATION_STOP", stopped),
-        )
-        self.assertLess(fatal, result_handler.index("loop_rc = 1;"))
 
     def test_peer_failure_event_is_rate_limited_and_preserves_peer_cleanup(self) -> None:
         self.assertIn("static uint64_t last_peer_failure_log_ms = 0U", SOURCE)

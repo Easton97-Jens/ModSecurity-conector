@@ -3,6 +3,8 @@
 from pathlib import Path
 import unittest
 
+from tests._haproxy_spop_contract_helpers import assert_worker_result_order
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = (
@@ -82,42 +84,7 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
         self.assertIn("close(fd)", spawn)
         self.assertIn("gate->active--", spawn)
         self.assertIn("pthread_cond_broadcast(&gate->changed)", spawn)
-        result_handler = SOURCE.split(
-            "static spop_accept_iteration_result process_spop_worker_result", 1
-        )[1].split("static int accept_loop", 1)[0]
-        self.assertIn("SPOP_CONNECTION_WORKER_CAPACITY_REJECTED", result_handler)
-        self.assertIn("SPOP_CONNECTION_WORKER_STOPPED", result_handler)
-        self.assertIn("SPOP_CONNECTION_WORKER_FATAL", result_handler)
-        self.assertIn("SPOP_ACCEPT_ITERATION_CONTINUE", result_handler)
-        self.assertIn("SPOP_ACCEPT_ITERATION_STOP", result_handler)
-        self.assertIn("continue;", accept_loop)
-        self.assertIn("handled++;", accept_loop)
-        capacity = result_handler.index("SPOP_CONNECTION_WORKER_CAPACITY_REJECTED")
-        stopped = result_handler.index("SPOP_CONNECTION_WORKER_STOPPED")
-        fatal = result_handler.index("SPOP_CONNECTION_WORKER_FATAL")
-        capacity_return = result_handler.index(
-            "return SPOP_ACCEPT_ITERATION_CONTINUE;", capacity
-        )
-        iteration_continue = accept_loop.index(
-            "iteration_result == SPOP_ACCEPT_ITERATION_CONTINUE"
-        )
-        iteration_stop = accept_loop.index(
-            "iteration_result == SPOP_ACCEPT_ITERATION_STOP"
-        )
-        handled = accept_loop.index("handled++;")
-        self.assertLess(capacity, capacity_return)
-        self.assertLess(
-            iteration_continue,
-            accept_loop.index("continue;", iteration_continue),
-        )
-        self.assertLess(iteration_continue, handled)
-        self.assertLess(iteration_stop, accept_loop.index("break;", iteration_stop))
-        self.assertLess(iteration_stop, handled)
-        self.assertLess(
-            capacity_return,
-            result_handler.index("SPOP_ACCEPT_ITERATION_STOP", stopped),
-        )
-        self.assertLess(fatal, result_handler.index("loop_rc = 1;"))
+        assert_worker_result_order(self, SOURCE, "SPOP_CONNECTION_WORKER_FATAL")
 
     def test_peer_admission_has_a_safe_minimum_and_bounded_pool(self) -> None:
         self.assertIn("#define SPOP_MIN_WORKER_COUNT 2U", SOURCE)
