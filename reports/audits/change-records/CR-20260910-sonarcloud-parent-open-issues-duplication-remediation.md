@@ -10,7 +10,7 @@
 | Date (UTC) | 2026-09-10 |
 | Base revision | 26a560e64cbaf906c0d35bba199f65436830d1dd |
 | Scope | Parent ModSecurity Connector only; no Framework, MRTS, Gitlink, scanner, rule, Quality Gate, suppression, exclusion, or merge change |
-| Delivery status | Local candidate on agent/sonarcloud-open-issues-duplication-20260910; commit, push, PR, exact-head hosted checks, and merge are not yet claimed |
+| Delivery status | PR #361 is OPEN and not a draft at initial source head ed78748e15cafda884ae819482f91e7d3f7c7d9e; a normal follow-up documentation commit reconciles this record. Merge is not authorized. |
 | Policy resolution | The Parent traceability policy requires this paired Change Record for a non-trivial versioned product change. It uses the established archive location; no parallel format or index is introduced. |
 
 ## Motivation and problem statement
@@ -141,9 +141,13 @@ and focused regression/control suites are the available local evidence.
 
 ## Checks not run and rationale
 
-- Exact PR-head SonarCloud Quality Gate, OPEN/CONFIRMED issue, and duplication
-  readback: PR does not yet exist.
-- Exact-head GitHub Actions checks: PR does not yet exist.
+- Exact final-PR-head SonarCloud Quality Gate, OPEN/CONFIRMED issue, and
+  duplication readback: the initial PR query reported zero OPEN/CONFIRMED
+  issues, but its Quality Gate endpoint returned `NONE` with no PR measures,
+  so the analysis was not yet indexed and cannot serve as closure evidence.
+- Exact final-head GitHub Actions checks: initial checks had started without a
+  reported failure, but the follow-up documentation head needs its own final
+  readback.
 - Default-branch post-merge SonarCloud metric: no merge is authorized.
 - Local Sonar Vortex analysis: unavailable for the organization.
 - One Apache with-CRS profile-publication test: blocked because the isolated
@@ -176,10 +180,28 @@ issue, duplication block, or integration regression may be uncovered. The
 scope limitation is not risk-accepted: Framework ownership and cross-repository
 duplication remain explicit blockers for a literal project-wide zero result.
 
+## Delivery update — 2026-09-10
+
+- Branch: `agent/sonarcloud-open-issues-duplication-20260910`.
+- Initial source-and-record commit:
+  `ed78748e15cafda884ae819482f91e7d3f7c7d9e`
+  (`fix: remediate Parent SonarCloud quality issues`).
+- Remote ref and PR initial head matched that commit at readback time.
+- Pull request: [#361](https://github.com/Easton97-Jens/ModSecurity-conector/pull/361)
+  against `master`; it was OPEN and not a draft.
+- Initial GitHub state was mergeable with `mergeStateStatus` `BLOCKED` while
+  checks were running; no review decision or merge was recorded.
+- Initial SonarCloud issue readback returned zero OPEN/CONFIRMED issues, but
+  the matching Quality Gate returned `NONE` and no PR duplication measures.
+  That transient state is explicitly not treated as successful analysis.
+- This update is delivered as a normal follow-up documentation commit, without
+  amend, force-push, or merge. Its exact head and hosted results remain to be
+  reconciled after push.
+
 ## Final diff and review status
 
 Local source, test, formatter, diff, and security reviews are complete for the
-candidate described here. Delivery is pending: no commit SHA, remote branch,
-PR number, hosted check, SonarCloud PR result, review round, merge, or cleanup
-outcome is asserted. A later delivery update must reconcile this record with
-the exact final PR head without claiming a merge authorization.
+candidate described here. Initial normal delivery has occurred. This
+documentation reconciliation becomes a normal follow-up commit; its exact
+final PR head, hosted-check results, SonarCloud PR result, review round, merge,
+and cleanup outcome remain pending. No merge authorization is claimed.

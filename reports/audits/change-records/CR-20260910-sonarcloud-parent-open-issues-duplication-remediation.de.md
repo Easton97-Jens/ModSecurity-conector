@@ -10,7 +10,7 @@
 | Datum (UTC) | 2026-09-10 |
 | Basis-Revision | 26a560e64cbaf906c0d35bba199f65436830d1dd |
 | Scope | Nur Parent-ModSecurity-Connector; keine Framework-, MRTS-, Gitlink-, Scanner-, Regel-, Quality-Gate-, Suppression-, Exclusion- oder Merge-Änderung |
-| Delivery-Status | Lokaler Kandidat auf agent/sonarcloud-open-issues-duplication-20260910; Commit, Push, PR, Exact-Head-Hosted-Checks und Merge werden noch nicht behauptet |
+| Delivery-Status | PR #361 ist OPEN und kein Draft am initialen Source-Head ed78748e15cafda884ae819482f91e7d3f7c7d9e; ein normaler Follow-up-Dokumentations-Commit gleicht diesen Record ab. Ein Merge ist nicht autorisiert. |
 | Policy-Auflösung | Die Parent-Traceability-Policy verlangt diesen gepaarten Change Record für eine nicht triviale versionierte Produktänderung. Er verwendet den etablierten Archivpfad; kein paralleles Format oder Index wird eingeführt. |
 
 ## Motivation und Problemstellung
@@ -150,9 +150,14 @@ Regressions-/Control-Suiten sind die verfügbare lokale Evidenz.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-- Exact-PR-Head-SonarCloud-Quality-Gate-, OPEN/CONFIRMED-Issue- und
-  Duplikat-Readback: Der PR existiert noch nicht.
-- Exact-Head-GitHub-Actions-Checks: Der PR existiert noch nicht.
+- Exact-final-PR-Head-SonarCloud-Quality-Gate-, OPEN/CONFIRMED-Issue- und
+  Duplikat-Readback: Die initiale PR-Abfrage meldete null OPEN/CONFIRMED
+  Issues, aber ihr Quality-Gate-Endpunkt gab `NONE` ohne PR-Metriken zurück.
+  Die Analyse war daher noch nicht indiziert und kann nicht als Closure-Evidenz
+  dienen.
+- Exact-final-Head-GitHub-Actions-Checks: Initiale Checks waren ohne gemeldeten
+  Fehler gestartet, aber der Follow-up-Dokumentations-Head benötigt seinen
+  eigenen finalen Readback.
 - Default-Branch-Post-Merge-SonarCloud-Metrik: Kein Merge ist autorisiert.
 - Lokale Sonar-Vortex-Analyse: Für die Organisation nicht verfügbar.
 - Ein Apache-With-CRS-Profile-Publication-Test: Blockiert, weil dem isolierten
@@ -187,11 +192,32 @@ entdeckt werden. Die Scope-Einschränkung ist nicht risikoakzeptiert:
 Framework-Ownership und repositoryübergreifende Duplizierung bleiben explizite
 Blocker für ein wörtliches projektweites Nullergebnis.
 
+## Delivery-Update — 2026-09-10
+
+- Branch: `agent/sonarcloud-open-issues-duplication-20260910`.
+- Initialer Source-und-Record-Commit:
+  `ed78748e15cafda884ae819482f91e7d3f7c7d9e`
+  (`fix: remediate Parent SonarCloud quality issues`).
+- Remote-Ref und initialer PR-Head stimmten beim Readback mit diesem Commit
+  überein.
+- Pull Request: [#361](https://github.com/Easton97-Jens/ModSecurity-conector/pull/361)
+  gegen `master`; er war OPEN und kein Draft.
+- Der initiale GitHub-Status war mergeable mit `mergeStateStatus` `BLOCKED`,
+  während Checks liefen; keine Review-Entscheidung und kein Merge wurden
+  verzeichnet.
+- Der initiale SonarCloud-Issue-Readback gab null OPEN/CONFIRMED-Issues zurück,
+  aber das passende Quality Gate gab `NONE` und keine PR-Duplikatmetriken
+  zurück. Dieser Übergangszustand gilt ausdrücklich nicht als erfolgreiche
+  Analyse.
+- Dieses Update wird als normaler Follow-up-Dokumentations-Commit ohne Amend,
+  Force-Push oder Merge ausgeliefert. Sein exakter Head und die Hosted-Ergebnisse
+  müssen nach dem Push noch abgeglichen werden.
+
 ## Finaler Diff- und Review-Status
 
 Lokale Source-, Test-, Formatter-, Diff- und Security-Reviews sind für den hier
-beschriebenen Kandidaten abgeschlossen. Delivery steht aus: Kein Commit-SHA,
-Remote-Branch, PR-Nummer, Hosted-Check, SonarCloud-PR-Ergebnis, Review-Runde,
-Merge oder Cleanup-Ergebnis wird behauptet. Ein späteres Delivery-Update muss
-diesen Record mit dem exakten finalen PR-Head abgleichen, ohne eine
-Merge-Autorisierung zu behaupten.
+beschriebenen Kandidaten abgeschlossen. Die initiale normale Delivery ist
+erfolgt. Dieser Dokumentationsabgleich wird ein normaler Follow-up-Commit;
+sein exakter finaler PR-Head, Hosted-Check-Ergebnisse, SonarCloud-PR-Ergebnis,
+Review-Runde, Merge und Cleanup-Ergebnis stehen noch aus. Eine
+Merge-Autorisierung wird nicht behauptet.
