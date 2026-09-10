@@ -222,17 +222,23 @@ class ApacheWithCrsProfileEvidenceContractTest(unittest.TestCase):
         )[1]
         single_case_setup = single_case.split("RUNTIME_PID_FILE=", 1)[0]
         self.assertIn('if [ "$RUN_ONE_CASE" = "1" ]; then', single_case_setup)
-        self.assertIn('require_absolute_generated_path "$RESULTS_DIR" "RESULTS_DIR"', single_case_setup)
+        self.assertIn("readonly APACHE_RESULTS_DIR_LABEL='RESULTS_DIR'", source)
+        self.assertIn(
+            'require_absolute_generated_path "$RESULTS_DIR" "$APACHE_RESULTS_DIR_LABEL"',
+            single_case_setup,
+        )
         self.assertIn("if apache_profile_enabled; then", single_case_setup)
         self.assertIn('"$APACHE_PROFILE_EVIDENCE_SCRIPT" prepare-apache-selected-results', single_case_setup)
         self.assertIn('--runtime-root "$BUILD_ROOT"', single_case_setup)
         self.assertIn('--results-dir "$RESULTS_DIR"', single_case_setup)
         self.assertIn(
-            'else\n        prepare_runtime_directory "$RESULTS_DIR" "RESULTS_DIR" 0',
+            'else\n        prepare_runtime_directory "$RESULTS_DIR" "$APACHE_RESULTS_DIR_LABEL" 0',
             single_case_setup,
         )
         self.assertLess(
-            single_case_setup.index('require_absolute_generated_path "$RESULTS_DIR" "RESULTS_DIR"'),
+            single_case_setup.index(
+                'require_absolute_generated_path "$RESULTS_DIR" "$APACHE_RESULTS_DIR_LABEL"'
+            ),
             single_case_setup.index('"$APACHE_PROFILE_EVIDENCE_SCRIPT" prepare-apache-selected-results'),
         )
         all_cases = self.block(source, "run_all_cases() {\n", "write_case_result() {")

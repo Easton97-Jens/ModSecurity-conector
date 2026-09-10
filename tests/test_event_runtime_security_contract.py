@@ -40,11 +40,14 @@ class EventRuntimeSecurityContractTests(unittest.TestCase):
         metadata_probe = self.event_source.split(
             "static int protocol_metadata_present(", 1
         )[1].split("static int append_protocol_metadata(", 1)[0]
+        event_writer = self.event_source.split(
+            "int msconnector_event_write_json_ex(", 1
+        )[1]
 
         self.assertIn("msconnector_json_escape_n(", escaping_writer)
         self.assertLess(
-            self.event_source.index("escape_field(event->protocol.requested_protocol"),
-            self.event_source.rindex("append_event_provenance(")
+            event_writer.index("escape_field(event->protocol.requested_protocol"),
+            event_writer.index("append_safe_event_provenance(")
         )
         self.assertIn("value == NULL", protocol_writer)
         self.assertIn("values[index] != NULL", metadata_probe)

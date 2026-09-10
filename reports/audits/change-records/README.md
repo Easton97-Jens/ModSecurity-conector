@@ -10,6 +10,15 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260910-sonarcloud-parent-open-issues-duplication-remediation](CR-20260910-sonarcloud-parent-open-issues-duplication-remediation.md)
+  | [Deutsch](CR-20260910-sonarcloud-parent-open-issues-duplication-remediation.de.md) —
+  the Parent traceability policy requires this paired record for the current
+  non-trivial Parent-only SonarCloud remediation. It records local source,
+  test, and security-diff evidence for 112 Parent baseline code smells and
+  real duplicate-block reduction work, while one Framework issue and
+  cross-owner duplicate content remain out of scope. Commit, push, PR,
+  exact-head hosted evidence, merge, and default-branch metric improvement are
+  pending and are not asserted.
 - [CR-20260903-connector-runtime-hardening-quality-remediation](CR-20260903-connector-runtime-hardening-quality-remediation.md)
   | [Deutsch](CR-20260903-connector-runtime-hardening-quality-remediation.de.md) —
   current Parent-only remediation of Codex review findings, SonarQube Cloud

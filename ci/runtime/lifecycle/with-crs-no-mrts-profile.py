@@ -221,55 +221,18 @@ def _identity(details: os.stat_result) -> tuple[int, int, int, int, int, int, in
     )
 
 
-def _open_absolute_directory(path: Path, label: str) -> int:
-    path = _safe_absolute(path, label)
-    nofollow = getattr(os, "O_NOFOLLOW", None)
-    directory = getattr(os, "O_DIRECTORY", None)
-    if nofollow is None or directory is None:
-        raise fail("safe profile evidence access requires O_NOFOLLOW and O_DIRECTORY")
-    descriptor = os.open("/", os.O_RDONLY | directory | nofollow)
+def _open_verified_directory_components(
+    descriptor: int,
+    components: Sequence[str],
+    label: str,
+    missing_flags_message: str = "safe profile evidence access requires O_NOFOLLOW and O_DIRECTORY",
+) -> int:
+    """Open trusted directory components while preserving descriptor identity."""
     try:
-        _directory_is_safe(os.fstat(descriptor), "filesystem root")
-        for component in path.parts[1:]:
-            before = os.stat(component, dir_fd=descriptor, follow_symlinks=False)
-            if stat.S_ISLNK(before.st_mode):
-                raise fail(f"{label} contains a symbolic link")
-            child = os.open(component, os.O_RDONLY | directory | nofollow, dir_fd=descriptor)
-            try:
-                opened = os.fstat(child)
-                if _identity(before) != _identity(opened):
-                    raise fail(f"{label} changed while opening")
-                _directory_is_safe(opened, label)
-            except BaseException:
-                os.close(child)
-                raise
-            os.close(descriptor)
-            descriptor = child
-    except BaseException:
-        os.close(descriptor)
-        raise
-    return descriptor
-
-
-def _runtime_relative_path(runtime_root: Path, path: Path, label: str) -> tuple[Path, Path, tuple[str, ...]]:
-    runtime = _safe_absolute(runtime_root, APACHE_RUNTIME_ROOT_LABEL)
-    target = _safe_absolute(path, label)
-    try:
-        relative = target.relative_to(runtime)
-    except ValueError as exc:
-        raise fail(f"{label} is outside the Apache runtime root") from exc
-    if not relative.parts:
-        raise fail(f"{label} must be a child of the Apache runtime root")
-    return runtime, target, tuple(relative.parts)
-
-
-def _open_runtime_child(directory_fd: int, components: Sequence[str], label: str) -> int:
-    nofollow = getattr(os, "O_NOFOLLOW", None)
-    directory = getattr(os, "O_DIRECTORY", None)
-    if nofollow is None or directory is None:
-        raise fail("safe profile evidence publication requires O_NOFOLLOW and O_DIRECTORY")
-    descriptor = os.dup(directory_fd)
-    try:
+        nofollow = getattr(os, "O_NOFOLLOW", None)
+        directory = getattr(os, "O_DIRECTORY", None)
+        if nofollow is None or directory is None:
+            raise fail(missing_flags_message)
         for component in components:
             before = os.stat(component, dir_fd=descriptor, follow_symlinks=False)
             if stat.S_ISLNK(before.st_mode):
@@ -289,6 +252,43 @@ def _open_runtime_child(directory_fd: int, components: Sequence[str], label: str
         os.close(descriptor)
         raise
     return descriptor
+
+
+def _open_absolute_directory(path: Path, label: str) -> int:
+    path = _safe_absolute(path, label)
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    directory = getattr(os, "O_DIRECTORY", None)
+    if nofollow is None or directory is None:
+        raise fail("safe profile evidence access requires O_NOFOLLOW and O_DIRECTORY")
+    descriptor = os.open("/", os.O_RDONLY | directory | nofollow)
+    try:
+        _directory_is_safe(os.fstat(descriptor), "filesystem root")
+    except BaseException:
+        os.close(descriptor)
+        raise
+    return _open_verified_directory_components(descriptor, path.parts[1:], label)
+
+
+def _runtime_relative_path(runtime_root: Path, path: Path, label: str) -> tuple[Path, Path, tuple[str, ...]]:
+    runtime = _safe_absolute(runtime_root, APACHE_RUNTIME_ROOT_LABEL)
+    target = _safe_absolute(path, label)
+    try:
+        relative = target.relative_to(runtime)
+    except ValueError as exc:
+        raise fail(f"{label} is outside the Apache runtime root") from exc
+    if not relative.parts:
+        raise fail(f"{label} must be a child of the Apache runtime root")
+    return runtime, target, tuple(relative.parts)
+
+
+def _open_runtime_child(directory_fd: int, components: Sequence[str], label: str) -> int:
+    descriptor = os.dup(directory_fd)
+    return _open_verified_directory_components(
+        descriptor,
+        components,
+        label,
+        "safe profile evidence publication requires O_NOFOLLOW and O_DIRECTORY",
+    )
 
 
 def _create_runtime_component(

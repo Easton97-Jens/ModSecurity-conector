@@ -3974,25 +3974,36 @@ def _yaml_german_fallback(option: dict[str, Any], field: str) -> str:
     raise ValueError(f"unexpected YAML localization field: {field}")
 
 
+def _common_runtime_german_text(option: dict[str, Any], field: str) -> str | None:
+    """Translate the two structured Common Runtime metadata exceptions."""
+    if option.get("connector") != "common" or option.get("configuration_layer") != "common_runtime":
+        return None
+    value = option[field]
+    if field == "allowed_values":
+        match = re.fullmatch(r"1 through (\d+)", value)
+        if match:
+            return f"1 bis {match.group(1)}"
+    if field != "validation":
+        return None
+    match = re.fullmatch(
+        r"Unknown keys, empty values, malformed assignments, zero, non-decimal values, and values above the hard cap of (\d+)( bytes)?( \(10 MiB hard security cap\))? fail the runtime configuration check\.",
+        value,
+    )
+    if not match:
+        return None
+    unit = " Byte" if match.group(2) else ""
+    cap = f"{match.group(1)}{unit}"
+    if match.group(3):
+        cap += " (harte Sicherheitsobergrenze 10 MiB)"
+    return f"Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen, null, nichtdezimalen Werte und Werte oberhalb der harten Obergrenze von {cap} weist die Runtime-Konfigurationsprüfung zurück."
+
+
 def _german_option_text(option: dict[str, Any], field: str) -> str:
     """Localize one field, using the structured YAML fallback when needed."""
     value = option[field]
-    if option.get("connector") == "common" and option.get("configuration_layer") == "common_runtime":
-        if field == "allowed_values":
-            match = re.fullmatch(r"1 through (\d+)", value)
-            if match:
-                return f"1 bis {match.group(1)}"
-        if field == "validation":
-            match = re.fullmatch(
-                r"Unknown keys, empty values, malformed assignments, zero, non-decimal values, and values above the hard cap of (\d+)( bytes)?( \(10 MiB hard security cap\))? fail the runtime configuration check\.",
-                value,
-            )
-            if match:
-                unit = " Byte" if match.group(2) else ""
-                cap = f"{match.group(1)}{unit}"
-                if match.group(3):
-                    cap += " (harte Sicherheitsobergrenze 10 MiB)"
-                return f"Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen, null, nichtdezimalen Werte und Werte oberhalb der harten Obergrenze von {cap} weist die Runtime-Konfigurationsprüfung zurück."
+    common_runtime_text = _common_runtime_german_text(option, field)
+    if common_runtime_text is not None:
+        return common_runtime_text
     if _has_german_rendering(value):
         return _german_text(value)
     if _is_yaml_backed_option(option):

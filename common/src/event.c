@@ -302,6 +302,15 @@ static int event_fields_are_lossless(const msconnector_event *event) {
 
 static int is_nonreversible_quic_connection_id(const char *value);
 static int is_bounded_transport_value(const char *value);
+static int is_bounded_transport_case_id(const char *value);
+static void append_event_provenance(
+    char *dst,
+    size_t dst_size,
+    const char *run_id,
+    const char *transport_case_id,
+    const char *const values[EVENT_PROTOCOL_TEXT_COUNT],
+    const int flags[EVENT_PROTOCOL_FLAG_COUNT],
+    int *was_truncated);
 
 typedef struct msconnector_event_protocol_buffers {
     char *connection_id;
@@ -336,6 +345,95 @@ static void sanitize_event_protocol_fields(
         buffers->write_result[0] = '\0';
         buffers->cleanup_reason[0] = '\0';
         *buffers->was_truncated = 1;
+    }
+}
+
+static int event_serialization_is_valid(const msconnector_event *event) {
+    return event_fields_are_lossless(event) &&
+        msconnector_event_transport_provenance_is_valid(event) &&
+        (event->meta.transport_case_id == NULL ||
+            event->meta.transport_case_id[0] == '\0' ||
+            is_bounded_transport_case_id(event->meta.transport_case_id));
+}
+
+static void append_safe_event_provenance(
+    char *provenance_json,
+    size_t provenance_size,
+    const msconnector_event *event,
+    const char *run_id,
+    const char *transport_case_id,
+    const char *requested_protocol,
+    const char *downstream_protocol,
+    const char *upstream_protocol,
+    const char *negotiated_protocol,
+    const char *transport,
+    const char *alpn,
+    const char *stream_id,
+    const char *connection_id,
+    const char *quic_version,
+    const char *stream_reset_code,
+    const char *reset_by,
+    const char *reset_code,
+    const char *timeout_stage,
+    const char *write_result,
+    const char *cleanup_reason,
+    int *was_truncated) {
+    const char *safe_connection_id = connection_id;
+    const char *safe_reset_by = reset_by;
+    const char *safe_reset_code = reset_code;
+    const char *safe_timeout_stage = timeout_stage;
+    const char *safe_write_result = write_result;
+    const char *safe_cleanup_reason = cleanup_reason;
+
+    if ((strcmp(negotiated_protocol, "h3") == 0 ||
+            strcmp(downstream_protocol, "h3") == 0 ||
+            strcmp(transport, "quic_udp") == 0) &&
+        !is_nonreversible_quic_connection_id(safe_connection_id)) {
+        safe_connection_id = NULL;
+    }
+    if (!is_bounded_transport_value(safe_reset_by)) {
+        safe_reset_by = NULL;
+    }
+    if (!is_bounded_transport_value(safe_reset_code)) {
+        safe_reset_code = NULL;
+    }
+    if (!is_bounded_transport_value(safe_timeout_stage)) {
+        safe_timeout_stage = NULL;
+    }
+    if (!is_bounded_transport_value(safe_write_result)) {
+        safe_write_result = NULL;
+    }
+    if (!is_bounded_transport_value(safe_cleanup_reason)) {
+        safe_cleanup_reason = NULL;
+    }
+    {
+        const char *const protocol_values[EVENT_PROTOCOL_TEXT_COUNT] = {
+            requested_protocol,
+            downstream_protocol,
+            upstream_protocol,
+            negotiated_protocol,
+            transport,
+            alpn,
+            stream_id,
+            safe_connection_id,
+            quic_version,
+            stream_reset_code,
+            safe_reset_by,
+            safe_reset_code,
+            safe_timeout_stage,
+            safe_write_result,
+            safe_cleanup_reason
+        };
+        const int protocol_flags[EVENT_PROTOCOL_FLAG_COUNT] = {
+            event->protocol.connection_reused,
+            event->protocol.quic_connection_id_present,
+            event->protocol.fallback_used,
+            event->protocol.stream_reset
+        };
+
+        append_event_provenance(provenance_json, provenance_size,
+            run_id, transport_case_id, protocol_values, protocol_flags,
+            was_truncated);
     }
 }
 
@@ -863,11 +961,7 @@ int msconnector_event_write_json_ex(
     if (event == 0 || dst == 0 || dst_size == 0) {
         return 0;
     }
-    if (!event_fields_are_lossless(event) ||
-        !msconnector_event_transport_provenance_is_valid(event) ||
-        (event->meta.transport_case_id != NULL &&
-            event->meta.transport_case_id[0] != '\0' &&
-            !is_bounded_transport_case_id(event->meta.transport_case_id))) {
+    if (!event_serialization_is_valid(event)) {
         if (truncated != 0) {
             *truncated = 1;
         }
@@ -961,62 +1055,12 @@ int msconnector_event_write_json_ex(
         reset_by, reset_code, timeout_stage, write_result, cleanup_reason,
         &was_truncated});
 
-    {
-        const char *safe_connection_id = connection_id;
-        const char *safe_reset_by = reset_by;
-        const char *safe_reset_code = reset_code;
-        const char *safe_timeout_stage = timeout_stage;
-        const char *safe_write_result = write_result;
-        const char *safe_cleanup_reason = cleanup_reason;
-        if ((strcmp(negotiated_protocol, "h3") == 0 ||
-            strcmp(downstream_protocol, "h3") == 0 ||
-            strcmp(transport, "quic_udp") == 0) &&
-            !is_nonreversible_quic_connection_id(safe_connection_id)) {
-            safe_connection_id = NULL;
-        }
-        if (!is_bounded_transport_value(safe_reset_by)) {
-            safe_reset_by = NULL;
-        }
-        if (!is_bounded_transport_value(safe_reset_code)) {
-            safe_reset_code = NULL;
-        }
-        if (!is_bounded_transport_value(safe_timeout_stage)) {
-            safe_timeout_stage = NULL;
-        }
-        if (!is_bounded_transport_value(safe_write_result)) {
-            safe_write_result = NULL;
-        }
-        if (!is_bounded_transport_value(safe_cleanup_reason)) {
-            safe_cleanup_reason = NULL;
-        }
-        const char *const protocol_values[EVENT_PROTOCOL_TEXT_COUNT] = {
-            requested_protocol,
-            downstream_protocol,
-            upstream_protocol,
-            negotiated_protocol,
-            transport,
-            alpn,
-            stream_id,
-            safe_connection_id,
-            quic_version,
-            stream_reset_code,
-            safe_reset_by,
-            safe_reset_code,
-            safe_timeout_stage,
-            safe_write_result,
-            safe_cleanup_reason
-        };
-        const int protocol_flags[EVENT_PROTOCOL_FLAG_COUNT] = {
-            event->protocol.connection_reused,
-            event->protocol.quic_connection_id_present,
-            event->protocol.fallback_used,
-            event->protocol.stream_reset
-        };
-
-        append_event_provenance(provenance_json, sizeof(provenance_json),
-            run_id, transport_case_id, protocol_values, protocol_flags,
-            &was_truncated);
-    }
+    append_safe_event_provenance(provenance_json, sizeof(provenance_json),
+        event, run_id, transport_case_id, requested_protocol,
+        downstream_protocol, upstream_protocol, negotiated_protocol, transport,
+        alpn, stream_id, connection_id, quic_version, stream_reset_code,
+        reset_by, reset_code, timeout_stage, write_result, cleanup_reason,
+        &was_truncated);
 
     parts.text[EVENT_JSON_TIMESTAMP] = timestamp;
     parts.text[EVENT_JSON_LEVEL] = level;

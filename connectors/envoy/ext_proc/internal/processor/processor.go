@@ -149,8 +149,13 @@ const (
 // errStreamMaxLifetime distinguishes the connector-owned absolute lifetime
 // from a deadline inherited from Envoy's parent/RPC context. context.Err()
 // alone cannot make that distinction.
-var errStreamMaxLifetime = errors.New("ext_proc stream maximum lifetime exceeded")
-var errEngineOperationTimeout = errors.New("ext_proc engine operation timed out")
+const (
+	streamMaxLifetimeMessage      = "ext_proc stream maximum lifetime exceeded"
+	engineOperationTimeoutMessage = "ext_proc engine operation timed out"
+)
+
+var errStreamMaxLifetime = errors.New(streamMaxLifetimeMessage)
+var errEngineOperationTimeout = errors.New(engineOperationTimeoutMessage)
 
 func streamMaxLifetimeExceeded(ctx context.Context) bool {
 	return errors.Is(context.Cause(ctx), errStreamMaxLifetime)
@@ -485,7 +490,7 @@ func receiveProcessingRequest(
 		if err := ctx.Err(); err != nil {
 			if streamMaxLifetimeExceeded(ctx) {
 				return nil, CloseStreamMaxLifetime, false,
-					status.Error(codes.DeadlineExceeded, "ext_proc stream maximum lifetime exceeded")
+					status.Error(codes.DeadlineExceeded, streamMaxLifetimeMessage)
 			}
 			return nil, CloseContextCanceled, true, nil
 		}
@@ -494,7 +499,7 @@ func receiveProcessingRequest(
 		if streamMaxLifetimeExceeded(ctx) {
 			return nil, CloseStreamMaxLifetime, false,
 				status.Errorf(codes.DeadlineExceeded,
-					"ext_proc stream maximum lifetime exceeded")
+					streamMaxLifetimeMessage)
 		}
 		return nil, CloseContextCanceled, true, nil
 	case <-timer.C:
@@ -523,48 +528,22 @@ func classifyProcessingReceiveResult(
 
 func (service *Service) processRequest(ctx context.Context, stream extprocv3.ExternalProcessor_ProcessServer, state *streamState, request *extprocv3.ProcessingRequest) (bool, CloseReason, error) {
 	if err := ctx.Err(); err != nil {
-		if streamMaxLifetimeExceeded(ctx) {
-			return false, CloseStreamMaxLifetime, status.Error(codes.DeadlineExceeded, "ext_proc stream maximum lifetime exceeded")
-		}
-		return true, CloseContextCanceled, nil
+		return streamCancellationResult(ctx)
 	}
 	response, terminal, err := service.handleWithWatchdog(ctx, state, request)
 	if err != nil {
-		if streamMaxLifetimeExceeded(ctx) {
-			return false, CloseStreamMaxLifetime, status.Error(codes.DeadlineExceeded, "ext_proc stream maximum lifetime exceeded")
-		}
-		if errors.Is(err, context.Canceled) {
-			if ctx.Err() != nil {
-				return true, CloseContextCanceled, nil
-			}
-			return false, CloseProcessorError,
-				status.Errorf(codes.Canceled, "ext_proc engine operation canceled: %v", err)
-		}
-		if errors.Is(err, context.DeadlineExceeded) {
-			return false, CloseProcessorError,
-				status.Errorf(codes.DeadlineExceeded, "ext_proc engine operation timed out: %v", err)
-		}
-		return false, CloseProcessorError, status.Errorf(codes.InvalidArgument, "ext_proc request rejected: %v", err)
+		return service.processRequestError(ctx, err)
 	}
 	if request.GetObservabilityMode() {
 		return false, ClosePeerEOF, nil
 	}
 	if err := ctx.Err(); err != nil {
-		if streamMaxLifetimeExceeded(ctx) {
-			return false, CloseStreamMaxLifetime, status.Error(codes.DeadlineExceeded, "ext_proc stream maximum lifetime exceeded")
-		}
-		return true, CloseContextCanceled, nil
+		return streamCancellationResult(ctx)
 	}
 	closeReason, sent, sendErr := service.sendProcessingResponse(ctx, stream, response)
 	if sent {
 		if err := service.recordSuccessfulResponseEvidenceWithWatchdog(ctx, state, request, response); err != nil {
-			service.reportFatal(fmt.Errorf("ext_proc successful response evidence failed; controlled restart required: %w", err))
-			evidenceCloseReason := CloseProcessorError
-			if closeReason == CloseStreamMaxLifetime {
-				evidenceCloseReason = closeReason
-			}
-			return false, evidenceCloseReason,
-				status.Errorf(codes.Internal, "ext_proc successful response evidence failed: %v", err)
+			return service.responseEvidenceFailure(closeReason, err)
 		}
 	}
 	if sendErr != nil {
@@ -577,6 +556,39 @@ func (service *Service) processRequest(ctx context.Context, stream extprocv3.Ext
 		return true, state.completionReason(), nil
 	}
 	return false, ClosePeerEOF, nil
+}
+
+func streamCancellationResult(ctx context.Context) (bool, CloseReason, error) {
+	if streamMaxLifetimeExceeded(ctx) {
+		return false, CloseStreamMaxLifetime, status.Error(codes.DeadlineExceeded, streamMaxLifetimeMessage)
+	}
+	return true, CloseContextCanceled, nil
+}
+
+func (service *Service) processRequestError(ctx context.Context, err error) (bool, CloseReason, error) {
+	if streamMaxLifetimeExceeded(ctx) {
+		return false, CloseStreamMaxLifetime, status.Error(codes.DeadlineExceeded, streamMaxLifetimeMessage)
+	}
+	if errors.Is(err, context.Canceled) {
+		if ctx.Err() != nil {
+			return true, CloseContextCanceled, nil
+		}
+		return false, CloseProcessorError,
+			status.Errorf(codes.Canceled, "ext_proc engine operation canceled: %v", err)
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return false, CloseProcessorError,
+			status.Errorf(codes.DeadlineExceeded, "ext_proc engine operation timed out: %v", err)
+	}
+	return false, CloseProcessorError, status.Errorf(codes.InvalidArgument, "ext_proc request rejected: %v", err)
+}
+
+func (service *Service) responseEvidenceFailure(closeReason CloseReason, err error) (bool, CloseReason, error) {
+	service.reportFatal(fmt.Errorf("ext_proc successful response evidence failed; controlled restart required: %w", err))
+	if closeReason != CloseStreamMaxLifetime {
+		closeReason = CloseProcessorError
+	}
+	return false, closeReason, status.Errorf(codes.Internal, "ext_proc successful response evidence failed: %v", err)
 }
 
 // recordSuccessfulResponseEvidenceWithWatchdog keeps the stream handler
@@ -637,12 +649,12 @@ func (service *Service) handleWithWatchdog(ctx context.Context, state *streamSta
 		// let a late allow/deny result reach Envoy or response-evidence paths.
 		if context.Cause(operationContext) != nil {
 			if streamMaxLifetimeExceeded(ctx) {
-				return nil, false, status.Error(codes.DeadlineExceeded, "ext_proc stream maximum lifetime exceeded")
+				return nil, false, status.Error(codes.DeadlineExceeded, streamMaxLifetimeMessage)
 			}
 			if ctx.Err() != nil {
 				return nil, true, nil
 			}
-			return nil, false, status.Error(codes.DeadlineExceeded, "ext_proc engine operation timed out")
+			return nil, false, status.Error(codes.DeadlineExceeded, engineOperationTimeoutMessage)
 		}
 		return result.response, result.terminal, result.err
 	case <-operationContext.Done():
@@ -651,12 +663,12 @@ func (service *Service) handleWithWatchdog(ctx context.Context, state *streamSta
 		select {
 		case <-resultChannel:
 			if streamMaxLifetimeExceeded(ctx) {
-				return nil, false, status.Error(codes.DeadlineExceeded, "ext_proc stream maximum lifetime exceeded")
+				return nil, false, status.Error(codes.DeadlineExceeded, streamMaxLifetimeMessage)
 			}
 			if ctx.Err() != nil {
 				return nil, true, nil
 			}
-			return nil, false, status.Error(codes.DeadlineExceeded, "ext_proc engine operation timed out")
+			return nil, false, status.Error(codes.DeadlineExceeded, engineOperationTimeoutMessage)
 		case <-graceTimer.C:
 			stuckErr := fmt.Errorf("ext_proc native handler remained blocked after stream cancellation; controlled restart required")
 			closeReason := CloseProcessorError
@@ -666,14 +678,14 @@ func (service *Service) handleWithWatchdog(ctx context.Context, state *streamSta
 			state.deferCleanupUntilOperationReturns(service, handlerDone, closeReason)
 			if streamMaxLifetimeExceeded(ctx) {
 				service.reportFatal(stuckErr)
-				return nil, false, status.Error(codes.DeadlineExceeded, "ext_proc stream maximum lifetime exceeded")
+				return nil, false, status.Error(codes.DeadlineExceeded, streamMaxLifetimeMessage)
 			}
 			if ctx.Err() != nil {
 				service.reportFatal(stuckErr)
 				return nil, true, nil
 			}
 			service.reportFatal(stuckErr)
-			return nil, false, status.Error(codes.DeadlineExceeded, "ext_proc engine operation timed out")
+			return nil, false, status.Error(codes.DeadlineExceeded, engineOperationTimeoutMessage)
 		}
 	}
 }
@@ -742,7 +754,7 @@ func (service *Service) classifyProcessingResponseSend(ctx context.Context, stre
 func (service *Service) responseSendContextFailure(ctx context.Context, sent bool) (CloseReason, bool, error) {
 	if streamMaxLifetimeExceeded(ctx) {
 		service.reportFatal(fmt.Errorf("ext_proc response send exceeded stream maximum lifetime; controlled restart required"))
-		return CloseStreamMaxLifetime, sent, status.Error(codes.DeadlineExceeded, "ext_proc stream maximum lifetime exceeded")
+		return CloseStreamMaxLifetime, sent, status.Error(codes.DeadlineExceeded, streamMaxLifetimeMessage)
 	}
 	return CloseContextCanceled, sent, nil
 }
