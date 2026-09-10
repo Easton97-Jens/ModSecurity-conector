@@ -3,6 +3,8 @@
 from pathlib import Path
 import unittest
 
+from tests._haproxy_spop_contract_helpers import assert_worker_result_order
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = (
@@ -31,12 +33,12 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
 
     def test_blocking_accepted_socket_hits_deadline_and_followup_succeeds(self) -> None:
         deadline_test = SOURCE.split(
-            "static int run_spop_write_deadline_child", 1
+            "static int open_write_deadline_sockets", 1
         )[1].split("static int run_spop_write_deadline_self_test", 1)[0]
         deadline_wrapper = SOURCE.split(
             "static int run_spop_write_deadline_self_test", 1
         )[1].split("static int run_spop_peer_close_write_self_test", 1)[0]
-        self.assertIn("server_fd = accept(listener_fd, 0, 0)", deadline_test)
+        self.assertIn("*server_fd = accept(*listener_fd, 0, 0)", deadline_test)
         self.assertIn("(flags & O_NONBLOCK) != 0", deadline_test)
         self.assertNotIn("F_SETFL", deadline_test)
         self.assertIn("MSG_NOSIGNAL | MSG_DONTWAIT", deadline_test)
@@ -58,8 +60,11 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
         accept_loop = SOURCE.split("static int accept_loop", 1)[1].split(
             "static int client_expect_frame", 1
         )[0]
-        worker = SOURCE.split("static void *spop_connection_thread", 1)[1].split(
+        spawn = SOURCE.split("static int spawn_spop_connection_worker", 1)[1].split(
             "static int accept_loop", 1
+        )[0]
+        worker = SOURCE.split("static void *spop_connection_thread", 1)[1].split(
+            "static int spawn_spop_connection_worker", 1
         )[0]
         self.assertIn("handle_connection(task->fd, task->state, task->log", worker)
         self.assertIn("if (connection_rc != 0)", worker)
@@ -69,14 +74,17 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
         self.assertIn("pthread_cond_broadcast(&task->gate->changed)", worker)
         self.assertIn("pthread_attr_setdetachstate", accept_loop)
         self.assertIn("PTHREAD_CREATE_DETACHED", accept_loop)
-        self.assertIn("if (gate.active >= gate.limit)", accept_loop)
+        self.assertIn("if (gate->active >= gate->limit)", spawn)
         self.assertIn(
             '"event=spop-peer-capacity-rejected action=close reason=worker-capacity"',
-            accept_loop,
+            spawn,
         )
-        self.assertIn("last_capacity_rejection_log_ms", accept_loop)
-        self.assertIn("pthread_create(&thread", accept_loop)
-        self.assertIn("close(fd)", accept_loop)
+        self.assertIn("last_capacity_rejection_log_ms", SOURCE)
+        self.assertIn("pthread_create(&thread", spawn)
+        self.assertIn("close(fd)", spawn)
+        self.assertIn("gate->active--", spawn)
+        self.assertIn("pthread_cond_broadcast(&gate->changed)", spawn)
+        assert_worker_result_order(self, SOURCE, "SPOP_CONNECTION_WORKER_FATAL")
 
     def test_peer_admission_has_a_safe_minimum_and_bounded_pool(self) -> None:
         self.assertIn("#define SPOP_MIN_WORKER_COUNT 2U", SOURCE)
@@ -194,13 +202,16 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
         owner_test = SOURCE.split("static int run_spop_owner_queue_self_test", 1)[1].split(
             "static int run_spop_body_limit_self_test", 1
         )[0]
+        fresh_state_test = SOURCE.split(
+            "static int run_spop_owner_queue_fresh_state_self_test", 1
+        )[1].split("static int run_spop_owner_queue_self_test", 1)[0]
         self.assertIn("!spop_owner_queue_requires_restart(&state)", owner_test)
         self.assertIn("spop_owner_queue_destroy(&state) == 0", owner_test)
         self.assertIn("shutdown_elapsed - shutdown_started", owner_test)
-        self.assertIn("agent_state restarted_state", owner_test)
-        self.assertIn("spop_owner_queue_init(&restarted_state)", owner_test)
-        self.assertIn("spop_owner_queue_submit(&restarted_state", owner_test)
-        self.assertIn("spop_owner_queue_destroy(&restarted_state)", owner_test)
+        self.assertIn("agent_state state", fresh_state_test)
+        self.assertIn("spop_owner_queue_init(&state)", fresh_state_test)
+        self.assertIn("spop_owner_queue_submit(&state", fresh_state_test)
+        self.assertIn("spop_owner_queue_destroy(&state)", fresh_state_test)
 
     def test_safe_example_does_not_reintroduce_a_single_peer_bottleneck(self) -> None:
         self.assertIn("worker-count=8", EXAMPLE)

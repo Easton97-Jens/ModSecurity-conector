@@ -13,6 +13,40 @@ SOURCE = ROOT / "connectors" / "haproxy" / "src" / "haproxy_spop_diagnostic_runt
 
 
 class HAProxySPOPSelfTestCleanupContractTests(unittest.TestCase):
+    def compile_and_run_harness(self, root: Path, harness: Path, binary: Path) -> None:
+        compiler = shutil.which("cc")
+        if compiler is None:
+            self.skipTest("requires a C compiler")
+
+        compile_result = subprocess.run(
+            [
+                compiler,
+                "-std=c17",
+                "-Wall",
+                "-Wextra",
+                "-Werror",
+                "-ffunction-sections",
+                "-fdata-sections",
+                "-I",
+                str(ROOT / "common" / "include"),
+                "-I",
+                str(ROOT / "connectors" / "haproxy" / "src"),
+                str(harness),
+                "-Wl,--gc-sections",
+                "-o",
+                str(binary),
+            ],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(compile_result.returncode, 0, compile_result.stderr)
+        run_result = subprocess.run(
+            [str(binary)], cwd=ROOT, check=False, capture_output=True, text=True
+        )
+        self.assertEqual(run_result.returncode, 0, run_result.stderr)
+
     def test_runtime_owns_decision_log_lock_for_complete_records(self) -> None:
         source = SOURCE.read_text(encoding="utf-8")
         self.assertIn("pthread_mutex_t decision_log_lock;", source)
@@ -43,10 +77,6 @@ class HAProxySPOPSelfTestCleanupContractTests(unittest.TestCase):
         self.assertIn('args.append(("headers", typed_string(headers)))', harness)
 
     def test_compiled_cleanup_removes_pass_and_idempotent_error_metadata(self) -> None:
-        compiler = shutil.which("cc")
-        if compiler is None:
-            self.skipTest("requires a C compiler")
-
         harness_source = r'''
 #define main haproxy_spop_diagnostic_runtime_program_main
 #include "__SOURCE__"
@@ -96,34 +126,7 @@ int main(void) {
             harness = root / "cleanup_contract.c"
             binary = root / "cleanup_contract"
             harness.write_text(harness_source, encoding="utf-8")
-            compile_result = subprocess.run(
-                [
-                    compiler,
-                    "-std=c17",
-                    "-Wall",
-                    "-Wextra",
-                    "-Werror",
-                    "-ffunction-sections",
-                    "-fdata-sections",
-                    "-I",
-                    str(ROOT / "common" / "include"),
-                    "-I",
-                    str(ROOT / "connectors" / "haproxy" / "src"),
-                    str(harness),
-                    "-Wl,--gc-sections",
-                    "-o",
-                    str(binary),
-                ],
-                cwd=ROOT,
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(compile_result.returncode, 0, compile_result.stderr)
-            run_result = subprocess.run(
-                [str(binary)], cwd=ROOT, check=False, capture_output=True, text=True
-            )
-            self.assertEqual(run_result.returncode, 0, run_result.stderr)
+            self.compile_and_run_harness(root, harness, binary)
             self.assertEqual(
                 (root / "self-test.log").read_text(encoding="utf-8").count(
                     "self-test metadata cleanup PASS"
@@ -132,10 +135,6 @@ int main(void) {
             )
 
     def test_metadata_claim_preserves_existing_paths_and_rejects_collision(self) -> None:
-        compiler = shutil.which("cc")
-        if compiler is None:
-            self.skipTest("requires a C compiler")
-
         harness_source = r'''
 #define main haproxy_spop_diagnostic_runtime_program_main
 #include "__SOURCE__"
@@ -217,40 +216,9 @@ int main(void) {
             harness = root / "selftest_ownership_contract.c"
             binary = root / "selftest_ownership_contract"
             harness.write_text(harness_source, encoding="utf-8")
-            compile_result = subprocess.run(
-                [
-                    compiler,
-                    "-std=c17",
-                    "-Wall",
-                    "-Wextra",
-                    "-Werror",
-                    "-ffunction-sections",
-                    "-fdata-sections",
-                    "-I",
-                    str(ROOT / "common" / "include"),
-                    "-I",
-                    str(ROOT / "connectors" / "haproxy" / "src"),
-                    str(harness),
-                    "-Wl,--gc-sections",
-                    "-o",
-                    str(binary),
-                ],
-                cwd=ROOT,
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(compile_result.returncode, 0, compile_result.stderr)
-            run_result = subprocess.run(
-                [str(binary)], cwd=ROOT, check=False, capture_output=True, text=True
-            )
-            self.assertEqual(run_result.returncode, 0, run_result.stderr)
+            self.compile_and_run_harness(root, harness, binary)
 
     def test_cleanup_continues_after_eisdir_and_cannot_report_success(self) -> None:
-        compiler = shutil.which("cc")
-        if compiler is None:
-            self.skipTest("requires a C compiler")
-
         harness_source = r'''
 #define main haproxy_spop_diagnostic_runtime_program_main
 #include "__SOURCE__"
@@ -284,7 +252,7 @@ int main(void) {
     log = fopen("__LOG__", "r");
     assert(log != NULL);
     {
-        char contents[256] = {0};
+        char contents[1024] = {0};
         assert(fread(contents, 1, sizeof(contents) - 1, log) > 0);
         assert(strstr(contents, "self-test metadata cleanup FAILED") != NULL);
         assert(strstr(contents, "self-test metadata cleanup PASS") == NULL);
@@ -312,26 +280,17 @@ int main(void) {
             harness = root / "eisdir_contract.c"
             binary = root / "eisdir_contract"
             harness.write_text(harness_source, encoding="utf-8")
-            compile_result = subprocess.run(
-                [compiler, "-std=c17", "-Wall", "-Wextra", "-Werror",
-                 "-ffunction-sections", "-fdata-sections", "-I",
-                 str(ROOT / "common" / "include"), "-I",
-                 str(ROOT / "connectors" / "haproxy" / "src"), str(harness),
-                 "-Wl,--gc-sections", "-o", str(binary)],
-                cwd=ROOT, check=False, capture_output=True, text=True,
-            )
-            self.assertEqual(compile_result.returncode, 0, compile_result.stderr)
-            run_result = subprocess.run(
-                [str(binary)], cwd=ROOT, check=False, capture_output=True, text=True
-            )
-            self.assertEqual(run_result.returncode, 0, run_result.stderr)
+            self.compile_and_run_harness(root, harness, binary)
 
     def test_run_self_test_has_cleanup_after_child_waits_on_success_and_errors(self) -> None:
         source = SOURCE.read_text(encoding="utf-8")
         run_self_test = source.split("static int run_self_test", 1)[1].split(
             "typedef struct legacy_server_config", 1
         )[0]
-        self.assertIn("finish_self_test_resources(&listen_fd, child_to_reap, &status", run_self_test)
+        self.assertIn("self_test_cleanup_context cleanup_context", run_self_test)
+        self.assertIn("&listen_fd, child_to_reap, &status, terminate_child", run_self_test)
+        self.assertIn("&ready_fd, &pid_fd, &port_fd, ready_path, pid_path, port_path", run_self_test)
+        self.assertIn("finish_self_test_resources(&cleanup_context)", run_self_test)
         self.assertIn("finish_self_test_resources", source)
         self.assertNotIn("(void)finish_self_test_resources", source)
         self.assertEqual(run_self_test.count("cleanup:\n"), 1)
@@ -342,7 +301,11 @@ int main(void) {
         self.assertIn("_exit(SPOP_RUNTIME_CLEANUP_FAILURE);", run_self_test)
         self.assertIn("errno == ECHILD", source)
         self.assertIn("child_to_reap = -1;", run_self_test)
-        self.assertIn("wait_self_test_child_bounded(child, status, terminate)", source)
+        self.assertIn(
+            "wait_self_test_child_bounded(context->child,\n"
+            "            context->status, context->terminate)",
+            source,
+        )
         self.assertIn("wait_self_test_child_bounded(child, &status, 0)", run_self_test)
         self.assertIn("if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)", run_self_test)
         self.assertIn("ready_fd = claim_self_test_metadata_file(ready_path);", run_self_test)

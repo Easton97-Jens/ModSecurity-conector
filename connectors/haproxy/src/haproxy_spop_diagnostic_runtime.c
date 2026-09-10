@@ -573,6 +573,27 @@ static uint64_t monotonic_milliseconds(void) {
         (uint64_t)value.tv_nsec / 1000000U;
 }
 
+static int reap_self_test_child_after_kill(pid_t child, int *status)
+{
+    pid_t result;
+
+    (void)kill(child, SIGKILL);
+    for (;;) {
+        result = waitpid(child, status, 0);
+        if (result == child) {
+            /* The forced termination is still a confirmed reap. */
+            return 0;
+        }
+        if (result < 0 && errno == EINTR) {
+            continue;
+        }
+        if (result < 0 && errno == ECHILD) {
+            return -2;
+        }
+        return -1;
+    }
+}
+
 static int wait_self_test_child_bounded(pid_t child, int *status, int terminate) {
     uint64_t deadline = monotonic_milliseconds() + 2000U;
 
@@ -596,22 +617,7 @@ static int wait_self_test_child_bounded(pid_t child, int *status, int terminate)
             }
         }
         if (monotonic_milliseconds() >= deadline) {
-            (void)kill(child, SIGKILL);
-            for (;;) {
-                result = waitpid(child, status, 0);
-                if (result == child) {
-                    /* The forced termination is still a confirmed reap. */
-                    return 0;
-                }
-                if (result < 0 && errno == EINTR) {
-                    continue;
-                }
-                if (result < 0 && errno == ECHILD) {
-                    return -2;
-                }
-                break;
-            }
-            return -1;
+            return reap_self_test_child_after_kill(child, status);
         }
         {
             struct timespec pause = {0, 10000000L};
@@ -620,46 +626,64 @@ static int wait_self_test_child_bounded(pid_t child, int *status, int terminate)
     }
 }
 
-static int finish_self_test_resources(int *listen_fd, pid_t child, int *status,
-        int terminate, int *ready_fd, int *pid_fd, int *port_fd,
-        const char *ready_path, const char *pid_path, const char *port_path,
-        unsigned int owned_metadata, FILE **log) {
+typedef struct self_test_cleanup_context {
+    int *listen_fd;
+    pid_t child;
+    int *status;
+    int terminate;
+    int *ready_fd;
+    int *pid_fd;
+    int *port_fd;
+    const char *ready_path;
+    const char *pid_path;
+    const char *port_path;
+    unsigned int owned_metadata;
+    FILE **log;
+} self_test_cleanup_context;
+
+static int finish_self_test_resources(self_test_cleanup_context *context) {
     int failed = 0;
 
-    if (listen_fd != 0 && *listen_fd >= 0) {
-        int descriptor = *listen_fd;
+    if (context == 0) {
+        return -1;
+    }
+    if (context->listen_fd != 0 && *context->listen_fd >= 0) {
+        int descriptor = *context->listen_fd;
         /* Mark consumed before close: on Linux a failed close may already
          * release the descriptor, so retrying could close a reused FD. */
-        *listen_fd = -1;
+        *context->listen_fd = -1;
         if (close(descriptor) != 0) {
             failed = 1;
         }
-        *listen_fd = -1;
+        *context->listen_fd = -1;
     }
-    if (close_self_test_fd(ready_fd) != 0) {
+    if (close_self_test_fd(context->ready_fd) != 0) {
         failed = 1;
     }
-    if (close_self_test_fd(pid_fd) != 0) {
+    if (close_self_test_fd(context->pid_fd) != 0) {
         failed = 1;
     }
-    if (close_self_test_fd(port_fd) != 0) {
+    if (close_self_test_fd(context->port_fd) != 0) {
         failed = 1;
     }
-    if (child > 0) {
-        int wait_result = wait_self_test_child_bounded(child, status, terminate);
-        if (wait_result != 0 || !WIFEXITED(*status) || WEXITSTATUS(*status) != 0) {
+    if (context->child > 0) {
+        int wait_result = wait_self_test_child_bounded(context->child,
+            context->status, context->terminate);
+        if (wait_result != 0 || !WIFEXITED(*context->status) ||
+                WEXITSTATUS(*context->status) != 0) {
             failed = 1;
         }
     }
-    if (cleanup_self_test_metadata(ready_path, pid_path, port_path,
-            owned_metadata, log != 0 ? *log : 0) != 0) {
+    if (cleanup_self_test_metadata(context->ready_path, context->pid_path,
+            context->port_path, context->owned_metadata,
+            context->log != 0 ? *context->log : 0) != 0) {
         failed = 1;
     }
-    if (log != 0 && *log != 0) {
-        if (fclose(*log) != 0) {
+    if (context->log != 0 && *context->log != 0) {
+        if (fclose(*context->log) != 0) {
             failed = 1;
         }
-        *log = 0;
+        *context->log = 0;
     }
     return failed ? -1 : 0;
 }
@@ -4041,11 +4065,9 @@ static void spop_owner_task_request_cancel(spop_owner_task *task)
     }
 }
 
-static void spop_owner_queue_cancel_pending_locked(spop_owner_queue *queue)
+static void spop_owner_queue_cancel_pending_locked(const spop_owner_queue *queue)
 {
-    size_t offset;
-
-    for (offset = 0U; offset < queue->count; ++offset) {
+    for (size_t offset = 0U; offset < queue->count; ++offset) {
         size_t index = (queue->head + offset) % SPOP_OWNER_QUEUE_CAPACITY;
         spop_owner_task *task = queue->tasks[index];
 
@@ -4269,9 +4291,9 @@ static void spop_owner_queue_set_listener(agent_state *state, int listener_fd)
     pthread_mutex_unlock(&queue->lock);
 }
 
-static int spop_owner_queue_requires_restart(agent_state *state)
+static int spop_owner_queue_requires_restart(const agent_state *state)
 {
-    spop_owner_queue *queue;
+    const spop_owner_queue *queue;
     int restart_required;
 
     if (state == 0) {
@@ -4910,10 +4932,31 @@ static void *spop_owner_queue_submit_gate_thread(void *opaque)
     return 0;
 }
 
+static int run_spop_owner_queue_fresh_state_self_test(void)
+{
+    agent_state state;
+    spop_owner_queue_self_test_context context;
+
+    memset(&state, 0, sizeof(state));
+    memset(&context, 0, sizeof(context));
+    if (spop_owner_queue_init(&state) != 0) {
+        return -1;
+    }
+    if (spop_owner_queue_submit(&state, run_spop_owner_queue_self_test_task,
+            &context, 0, 0, 0, SPOP_OWNER_CALLER_WAIT_MS) != 0 ||
+            !context.ran) {
+        spop_owner_queue_destroy(&state);
+        return -1;
+    }
+    if (spop_owner_queue_destroy(&state) != 0) {
+        return -1;
+    }
+    return 0;
+}
+
 static int run_spop_owner_queue_self_test(void)
 {
     agent_state state;
-    agent_state restarted_state;
     spop_owner_queue_self_test_context context;
     spop_owner_queue_gate_context gate;
     spop_owner_queue_submit_thread first;
@@ -5017,20 +5060,8 @@ static int run_spop_owner_queue_self_test(void)
 
     /* A fresh process state represents the supervisor restart.  Its owner
      * must accept a legitimate task after the terminal instance is gone. */
-    memset(&restarted_state, 0, sizeof(restarted_state));
-    memset(&context, 0, sizeof(context));
-    if (spop_owner_queue_init(&restarted_state) != 0) {
+    if (run_spop_owner_queue_fresh_state_self_test() != 0) {
         rc = -1;
-    } else {
-        if (spop_owner_queue_submit(&restarted_state,
-                run_spop_owner_queue_self_test_task, &context,
-                0, 0, 0, SPOP_OWNER_CALLER_WAIT_MS) != 0 ||
-                !context.ran) {
-            rc = -1;
-        }
-        if (spop_owner_queue_destroy(&restarted_state) != 0) {
-            rc = -1;
-        }
     }
     return rc;
 }
@@ -5122,6 +5153,82 @@ static int run_spop_notify_failure_self_test(void)
     return 0;
 }
 
+static ssize_t recv_without_interrupt(int fd, void *buffer, size_t length,
+        int flags)
+{
+    ssize_t received;
+
+    do {
+        received = recv(fd, buffer, length, flags);
+    } while (received < 0 && errno == EINTR);
+    return received;
+}
+
+static int open_write_deadline_sockets(int *listener_fd, int *server_fd,
+        int *client_fd, struct sockaddr_in *address,
+        socklen_t *address_size)
+{
+    *listener_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (*listener_fd < 0 ||
+            bind(*listener_fd, (struct sockaddr *)address,
+                sizeof(*address)) != 0 ||
+            listen(*listener_fd, 1) != 0 ||
+            getsockname(*listener_fd, (struct sockaddr *)address,
+                address_size) != 0) {
+        return -1;
+    }
+    *client_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (*client_fd < 0 ||
+            connect(*client_fd, (struct sockaddr *)address,
+                sizeof(*address)) != 0) {
+        return -1;
+    }
+    *server_fd = accept(*listener_fd, 0, 0);
+    if (*server_fd < 0 || close(*listener_fd) != 0) {
+        return -1;
+    }
+    *listener_fd = -1;
+    return 0;
+}
+
+static int fill_write_deadline_socket(int server_fd,
+        const unsigned char *filler, size_t filler_len)
+{
+    ssize_t written;
+
+    for (;;) {
+        written = send(server_fd, filler, filler_len,
+            MSG_NOSIGNAL | MSG_DONTWAIT);
+        if (written > 0) {
+            continue;
+        }
+        if (written < 0 && errno == EINTR) {
+            continue;
+        }
+        break;
+    }
+    return written < 0 && (errno == EAGAIN || errno == EWOULDBLOCK) ? 0 : -1;
+}
+
+static int wait_write_deadline_socket_writable(int server_fd, int client_fd,
+        unsigned char *drain, size_t drain_len, struct pollfd *descriptor)
+{
+    for (unsigned int attempt = 0U; attempt < 64U; ++attempt) {
+        if (recv_without_interrupt(client_fd, drain, drain_len,
+                MSG_DONTWAIT) <= 0) {
+            return -1;
+        }
+        memset(descriptor, 0, sizeof(*descriptor));
+        descriptor->fd = server_fd;
+        descriptor->events = POLLOUT;
+        if (poll(descriptor, 1U, 0) > 0 &&
+                (descriptor->revents & POLLOUT) != 0) {
+            return 0;
+        }
+    }
+    return -1;
+}
+
 static int run_spop_write_deadline_child(void)
 {
     int listener_fd = -1;
@@ -5130,11 +5237,8 @@ static int run_spop_write_deadline_child(void)
     int followup[2] = {-1, -1};
     int flags;
     int send_buffer = 4096;
-    int writable = 0;
     unsigned char filler[4096];
     unsigned char drain[8192];
-    ssize_t written;
-    ssize_t received;
     spop_buffer payload;
     spop_frame frame;
     struct sockaddr_in address;
@@ -5152,59 +5256,21 @@ static int run_spop_write_deadline_child(void)
     memset(&address, 0, sizeof(address));
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    listener_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (listener_fd < 0 || bind(listener_fd, (struct sockaddr *)&address,
-            sizeof(address)) != 0 || listen(listener_fd, 1) != 0 ||
-            getsockname(listener_fd, (struct sockaddr *)&address,
-                &address_size) != 0) {
+    if (open_write_deadline_sockets(&listener_fd, &server_fd, &client_fd,
+            &address, &address_size) != 0) {
         goto cleanup;
     }
-    client_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (client_fd < 0 || connect(client_fd, (struct sockaddr *)&address,
-            sizeof(address)) != 0) {
-        goto cleanup;
-    }
-    server_fd = accept(listener_fd, 0, 0);
-    if (server_fd < 0 || close(listener_fd) != 0) {
-        goto cleanup;
-    }
-    listener_fd = -1;
     flags = fcntl(server_fd, F_GETFL, 0);
     if (flags < 0 || (flags & O_NONBLOCK) != 0 ||
             setsockopt(server_fd, SOL_SOCKET, SO_SNDBUF, &send_buffer,
                 sizeof(send_buffer)) != 0) {
         goto cleanup;
     }
-    for (;;) {
-        written = send(server_fd, filler, sizeof(filler),
-            MSG_NOSIGNAL | MSG_DONTWAIT);
-        if (written > 0) {
-            continue;
-        }
-        if (written < 0 && errno == EINTR) {
-            continue;
-        }
-        break;
-    }
-    if (written >= 0 || (errno != EAGAIN && errno != EWOULDBLOCK)) {
+    if (fill_write_deadline_socket(server_fd, filler, sizeof(filler)) != 0) {
         goto cleanup;
     }
-    for (unsigned int attempt = 0U; attempt < 64U && !writable; ++attempt) {
-        do {
-            received = recv(client_fd, drain, sizeof(drain), MSG_DONTWAIT);
-        } while (received < 0 && errno == EINTR);
-        if (received <= 0) {
-            goto cleanup;
-        }
-        memset(&descriptor, 0, sizeof(descriptor));
-        descriptor.fd = server_fd;
-        descriptor.events = POLLOUT;
-        if (poll(&descriptor, 1U, 0) > 0 &&
-                (descriptor.revents & POLLOUT) != 0) {
-            writable = 1;
-        }
-    }
-    if (!writable) {
+    if (wait_write_deadline_socket_writable(server_fd, client_fd, drain,
+            sizeof(drain), &descriptor) != 0) {
         goto cleanup;
     }
     memset(payload.data, 0x5a, sizeof(payload.data));
@@ -5435,8 +5501,12 @@ static int handle_connection(int fd, agent_state *state, FILE *log,
         unsigned int peer_timeout_ms) {
     spop_frame frame;
     hello_info hello;
-    unsigned int timeout_ms = peer_timeout_ms != 0U ? peer_timeout_ms :
-        (state != 0 ? state->config.spoe_timeout_ms : SPOP_LEGACY_TIMEOUT_MS);
+    unsigned int timeout_ms = peer_timeout_ms;
+
+    if (timeout_ms == 0U) {
+        timeout_ms = state != 0 ? state->config.spoe_timeout_ms :
+            SPOP_LEGACY_TIMEOUT_MS;
+    }
 
     if (recv_frame(fd, &frame, timeout_ms) != 0 || frame.type != SPOP_FRM_HAPROXY_HELLO ||
         parse_hello_payload(frame.payload, frame.payload_len, &hello) != 0) {
@@ -5553,6 +5623,24 @@ typedef struct spop_connection_task {
     spop_connection_gate *gate;
 } spop_connection_task;
 
+typedef struct spop_accept_loop_config {
+    int listen_fd;
+    agent_state *state;
+    FILE *log;
+    int max_connections;
+    const char *rules_file;
+    const char *crs_preamble_file;
+    unsigned int timeout_ms;
+    unsigned int worker_limit;
+} spop_accept_loop_config;
+
+typedef enum spop_connection_worker_result {
+    SPOP_CONNECTION_WORKER_FATAL = -1,
+    SPOP_CONNECTION_WORKER_STARTED = 0,
+    SPOP_CONNECTION_WORKER_CAPACITY_REJECTED = 1,
+    SPOP_CONNECTION_WORKER_STOPPED = 2
+} spop_connection_worker_result;
+
 static void *spop_connection_thread(void *opaque) {
     spop_connection_task *task = (spop_connection_task *)opaque;
     int connection_rc;
@@ -5573,10 +5661,114 @@ static void *spop_connection_thread(void *opaque) {
     return 0;
 }
 
-static int accept_loop(int listen_fd, agent_state *state, FILE *log,
-        int max_connections, const char *rules_file,
-        const char *crs_preamble_file, unsigned int timeout_ms,
-        unsigned int worker_limit) {
+static int spawn_spop_connection_worker(
+        const spop_accept_loop_config *config,
+        spop_connection_gate *gate,
+        const pthread_attr_t *detached_attributes,
+        int fd,
+        uint64_t *last_capacity_rejection_log_ms) {
+    spop_connection_task *task;
+    pthread_t thread;
+
+    pthread_mutex_lock(&gate->lock);
+    if (stop_requested) {
+        pthread_mutex_unlock(&gate->lock);
+        close(fd);
+        return SPOP_CONNECTION_WORKER_STOPPED;
+    }
+    if (gate->active >= gate->limit) {
+        uint64_t now = monotonic_milliseconds();
+
+        pthread_mutex_unlock(&gate->lock);
+        close(fd);
+        /* A peer flood must not turn its own rejection evidence into an
+         * unbounded log-file allocation. The accept loop is the only
+         * writer of this counter, so one bounded event per second is
+         * sufficient for operators without a shared lock. */
+        if (now == 0U || *last_capacity_rejection_log_ms == 0U ||
+                now < *last_capacity_rejection_log_ms ||
+                now - *last_capacity_rejection_log_ms >= 1000U) {
+            log_line(config->log,
+                "event=spop-peer-capacity-rejected action=close reason=worker-capacity");
+            *last_capacity_rejection_log_ms = now;
+        }
+        return SPOP_CONNECTION_WORKER_CAPACITY_REJECTED;
+    }
+    gate->active++;
+    pthread_mutex_unlock(&gate->lock);
+
+    task = calloc(1U, sizeof(*task));
+    if (task == 0) {
+        pthread_mutex_lock(&gate->lock);
+        gate->active--;
+        pthread_cond_broadcast(&gate->changed);
+        pthread_mutex_unlock(&gate->lock);
+        close(fd);
+        log_line(config->log, "peer task allocation failed; closing peer");
+        return SPOP_CONNECTION_WORKER_FATAL;
+    }
+    task->fd = fd;
+    task->state = config->state;
+    task->log = config->log;
+    task->rules_file = config->rules_file;
+    task->crs_preamble_file = config->crs_preamble_file;
+    task->timeout_ms = config->timeout_ms;
+    task->gate = gate;
+    if (pthread_create(&thread, detached_attributes,
+            spop_connection_thread, task) != 0) {
+        free(task);
+        pthread_mutex_lock(&gate->lock);
+        gate->active--;
+        pthread_cond_broadcast(&gate->changed);
+        pthread_mutex_unlock(&gate->lock);
+        close(fd);
+        log_line(config->log, "peer worker creation failed; closing peer");
+        return SPOP_CONNECTION_WORKER_FATAL;
+    }
+    return SPOP_CONNECTION_WORKER_STARTED;
+}
+
+typedef enum spop_accept_iteration_result {
+    SPOP_ACCEPT_ITERATION_COUNT = 0,
+    SPOP_ACCEPT_ITERATION_CONTINUE = 1,
+    SPOP_ACCEPT_ITERATION_STOP = 2
+} spop_accept_iteration_result;
+
+static int handle_spop_accept_error(const agent_state *state, FILE *log,
+        int *loop_rc) {
+    if (spop_owner_queue_requires_restart(state)) {
+        *loop_rc = SPOP_OWNER_RESTART_EXIT_CODE;
+        return 1;
+    }
+    if (errno != EINTR) {
+        log_line(log, "accept failed errno=%d", errno);
+        *loop_rc = 1;
+        return 1;
+    }
+    return stop_requested != 0;
+}
+
+static spop_accept_iteration_result process_spop_worker_result(
+        spop_connection_worker_result worker_result, int *loop_rc) {
+    if (worker_result == SPOP_CONNECTION_WORKER_FATAL) {
+        *loop_rc = 1;
+        return SPOP_ACCEPT_ITERATION_STOP;
+    }
+    if (worker_result == SPOP_CONNECTION_WORKER_CAPACITY_REJECTED) {
+        return SPOP_ACCEPT_ITERATION_CONTINUE;
+    }
+    if (worker_result == SPOP_CONNECTION_WORKER_STOPPED) {
+        return SPOP_ACCEPT_ITERATION_STOP;
+    }
+    return SPOP_ACCEPT_ITERATION_COUNT;
+}
+
+static int accept_loop(const spop_accept_loop_config *config) {
+    const int listen_fd = config->listen_fd;
+    const agent_state *state = config->state;
+    FILE *log = config->log;
+    const int max_connections = config->max_connections;
+    const unsigned int worker_limit = config->worker_limit;
     int handled = 0;
     int loop_rc = 0;
     uint64_t last_capacity_rejection_log_ms = 0U;
@@ -5617,78 +5809,24 @@ static int accept_loop(int listen_fd, agent_state *state, FILE *log,
             (max_connections <= 0 || handled < max_connections)) {
         int fd = accept(listen_fd, 0, 0);
         if (fd < 0) {
-            if (spop_owner_queue_requires_restart(state)) {
-                loop_rc = SPOP_OWNER_RESTART_EXIT_CODE;
-                break;
-            }
-            if (errno != EINTR) {
-                log_line(log, "accept failed errno=%d", errno);
-                loop_rc = 1;
-                break;
-            }
-            if (stop_requested) {
+            if (handle_spop_accept_error(state, log, &loop_rc)) {
                 break;
             }
             continue;
         }
-    pthread_mutex_lock(&gate.lock);
-        if (stop_requested) {
-            pthread_mutex_unlock(&gate.lock);
-            close(fd);
-            break;
-        }
-        if (gate.active >= gate.limit) {
-            uint64_t now = monotonic_milliseconds();
-
-            pthread_mutex_unlock(&gate.lock);
-            close(fd);
-            /* A peer flood must not turn its own rejection evidence into an
-             * unbounded log-file allocation. The accept loop is the only
-             * writer of this counter, so one bounded event per second is
-             * sufficient for operators without a shared lock. */
-            if (now == 0U || last_capacity_rejection_log_ms == 0U ||
-                    now < last_capacity_rejection_log_ms ||
-                    now - last_capacity_rejection_log_ms >= 1000U) {
-                log_line(log,
-                    "event=spop-peer-capacity-rejected action=close reason=worker-capacity");
-                last_capacity_rejection_log_ms = now;
-            }
-            continue;
-        }
-        gate.active++;
-        pthread_mutex_unlock(&gate.lock);
         {
-            spop_connection_task *task = calloc(1U, sizeof(*task));
-            pthread_t thread;
+            const spop_connection_worker_result worker_result =
+                spawn_spop_connection_worker(config, &gate,
+                    &detached_attributes, fd,
+                    &last_capacity_rejection_log_ms);
 
-            if (task == 0) {
-                pthread_mutex_lock(&gate.lock);
-                gate.active--;
-                pthread_cond_broadcast(&gate.changed);
-                pthread_mutex_unlock(&gate.lock);
-                close(fd);
-                log_line(log, "peer task allocation failed; closing peer");
-                loop_rc = 1;
+            const spop_accept_iteration_result iteration_result =
+                process_spop_worker_result(worker_result, &loop_rc);
+            if (iteration_result == SPOP_ACCEPT_ITERATION_STOP) {
                 break;
             }
-            task->fd = fd;
-            task->state = state;
-            task->log = log;
-            task->rules_file = rules_file;
-            task->crs_preamble_file = crs_preamble_file;
-            task->timeout_ms = timeout_ms;
-            task->gate = &gate;
-            if (pthread_create(&thread, &detached_attributes,
-                    spop_connection_thread, task) != 0) {
-                free(task);
-                pthread_mutex_lock(&gate.lock);
-                gate.active--;
-                pthread_cond_broadcast(&gate.changed);
-                pthread_mutex_unlock(&gate.lock);
-                close(fd);
-                log_line(log, "peer worker creation failed; closing peer");
-                loop_rc = 1;
-                break;
+            if (iteration_result == SPOP_ACCEPT_ITERATION_CONTINUE) {
+                continue;
             }
         }
         handled++;
@@ -5904,6 +6042,22 @@ static int run_client_self_test(unsigned int port, FILE *log) {
     return 0;
 }
 
+static int run_spop_protocol_self_tests(void)
+{
+    if (self_test_rejects_oversized_endpoint_port() != 0 ||
+            self_test_rejects_fin_unset_frame() != 0 ||
+            run_spop_owner_queue_self_test() != 0 ||
+            run_spop_body_limit_self_test() != 0 ||
+            run_spop_request_id_validation_self_test() != 0 ||
+            run_spop_notify_failure_self_test() != 0 ||
+            run_spop_malformed_notify_socket_self_test() != 0 ||
+            run_spop_write_deadline_self_test() != 0 ||
+            run_spop_peer_close_write_self_test() != 0) {
+        return -1;
+    }
+    return 0;
+}
+
 static int run_self_test(const char *tmp_root, const char *log_root) {
     char log_path[4096];
     char ready_path[4096];
@@ -5923,40 +6077,8 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
     pid_t child_to_reap = -1;
     int terminate_child = 0;
 
-    if (self_test_rejects_oversized_endpoint_port() != 0) {
-        fprintf(stderr, "SPOP oversized endpoint-port rejection self-test failed\n");
-        return 1;
-    }
-    if (self_test_rejects_fin_unset_frame() != 0) {
-        fprintf(stderr, "SPOP FIN-unset frame rejection self-test failed\n");
-        return 1;
-    }
-    if (run_spop_owner_queue_self_test() != 0) {
-        fprintf(stderr, "SPOP owner queue self-test failed\n");
-        return 1;
-    }
-    if (run_spop_body_limit_self_test() != 0) {
-        fprintf(stderr, "SPOP body-limit self-test failed\n");
-        return 1;
-    }
-    if (run_spop_request_id_validation_self_test() != 0) {
-        fprintf(stderr, "SPOP request-id validation self-test failed\n");
-        return 1;
-    }
-    if (run_spop_notify_failure_self_test() != 0) {
-        fprintf(stderr, "SPOP NOTIFY failure self-test failed\n");
-        return 1;
-    }
-    if (run_spop_malformed_notify_socket_self_test() != 0) {
-        fprintf(stderr, "SPOP malformed NOTIFY socket self-test failed\n");
-        return 1;
-    }
-    if (run_spop_write_deadline_self_test() != 0) {
-        fprintf(stderr, "SPOP write-deadline self-test failed\n");
-        return 1;
-    }
-    if (run_spop_peer_close_write_self_test() != 0) {
-        fprintf(stderr, "SPOP peer-close write self-test failed\n");
+    if (run_spop_protocol_self_tests() != 0) {
+        fprintf(stderr, "SPOP protocol self-test failed\n");
         return 1;
     }
     if (mkdir_p(tmp_root) != 0 || mkdir_p(log_root) != 0) {
@@ -6014,7 +6136,10 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
             fprintf(stderr, "SPOP protocol self-test child metadata close failed\n");
             _exit(SPOP_RUNTIME_CLEANUP_FAILURE);
         }
-        status = accept_loop(listen_fd, 0, log, 3, 0, 0, 2000U, 8U);
+        const spop_accept_loop_config accept_config = {
+            listen_fd, 0, log, 3, 0, 0, 2000U, 8U
+        };
+        status = accept_loop(&accept_config);
         exit(status);
     }
     {
@@ -6066,12 +6191,16 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
         goto cleanup;
     }
 cleanup:
-    if (finish_self_test_resources(&listen_fd, child_to_reap, &status,
-            terminate_child, &ready_fd,
-            &pid_fd, &port_fd, ready_path, pid_path, port_path,
-            owned_metadata, &log) != 0) {
-        fprintf(stderr, "SPOP protocol self-test cleanup failed\n");
-        return SPOP_RUNTIME_CLEANUP_FAILURE;
+    {
+        self_test_cleanup_context cleanup_context = {
+            &listen_fd, child_to_reap, &status, terminate_child,
+            &ready_fd, &pid_fd, &port_fd, ready_path, pid_path, port_path,
+            owned_metadata, &log
+        };
+        if (finish_self_test_resources(&cleanup_context) != 0) {
+            fprintf(stderr, "SPOP protocol self-test cleanup failed\n");
+            return SPOP_RUNTIME_CLEANUP_FAILURE;
+        }
     }
     if (result != 0) {
         return result;
@@ -6140,8 +6269,13 @@ static int run_server(const legacy_server_config *config) {
     log_line(log, "legacy SPOP compatibility server listening on %s:%u rules_file=%s",
         config->host, bound_port,
         config->rules_file != 0 ? config->rules_file : "");
-    accept_rc = accept_loop(listen_fd, 0, log, 0, config->rules_file,
-        config->crs_preamble_file, 2000U, 8U);
+    {
+        const spop_accept_loop_config accept_config = {
+            listen_fd, 0, log, 0, config->rules_file,
+            config->crs_preamble_file, 2000U, 8U
+        };
+        accept_rc = accept_loop(&accept_config);
+    }
     close(listen_fd);
     fclose(log);
     return accept_rc == 0 ? 0 : 1;
@@ -6356,16 +6490,14 @@ static int destroy_agent_runtime(
     /* Snapshot the terminal disposition before teardown so the caller's
      * result is stable.  The atomic flag is independent of mutex lifetime. */
     restart_required = spop_owner_queue_requires_restart(state);
-    if (restart_required) {
-        if (spop_owner_queue_destroy(state) != 0) {
-            /* The owner still reaches this stack-backed agent_state and may
-             * later write through its logs/backend/task context.  Returning,
-             * closing those streams, or running destructors would create a
-             * use-after-return/use-after-close.  _Exit terminates every
-             * thread and lets the kernel reclaim descriptors while the
-             * supervisor observes the documented restart status. */
-            _Exit(SPOP_OWNER_RESTART_EXIT_CODE);
-        }
+    if (restart_required && spop_owner_queue_destroy(state) != 0) {
+        /* The owner still reaches this stack-backed agent_state and may
+         * later write through its logs/backend/task context.  Returning,
+         * closing those streams, or running destructors would create a
+         * use-after-return/use-after-close.  _Exit terminates every
+         * thread and lets the kernel reclaim descriptors while the
+         * supervisor observes the documented restart status. */
+        _Exit(SPOP_OWNER_RESTART_EXIT_CODE);
     }
     if (state->response_backend_initialized) {
         /* Mark every remaining claimed slot terminal before draining the
@@ -6523,8 +6655,13 @@ static int run_agent_server(const agent_config *config) {
         config->modsecurity_conf, config->crs_root, config->mode,
         config->fail_mode, config->response_phases_enabled,
         config->response_body_limit);
-    rc = accept_loop(listen_fd, &state, log, 0, 0, 0,
-        state.config.spoe_timeout_ms, state.config.worker_count);
+    {
+        const spop_accept_loop_config accept_config = {
+            listen_fd, &state, log, 0, 0, 0,
+            state.config.spoe_timeout_ms, state.config.worker_count
+        };
+        rc = accept_loop(&accept_config);
+    }
 cleanup:
     {
         int cleanup_rc = destroy_agent_runtime(&state, listen_fd, &log, log_owned,

@@ -85,6 +85,8 @@ APACHE_PHASE4_NESTED_ERROR_REDIRECT_TEST="${APACHE_PHASE4_NESTED_ERROR_REDIRECT_
 APACHE_PHASE4_PREOUTPUT_ERROR_DOCUMENT_TEST="${APACHE_PHASE4_PREOUTPUT_ERROR_DOCUMENT_TEST:-0}"
 APACHE_PHASE4_FRAGMENTED_BUCKETS_TEST="${APACHE_PHASE4_FRAGMENTED_BUCKETS_TEST:-0}"
 APACHE_PHASE4_FRAGMENTED_BUCKET_BOUNDARY_TEST="${APACHE_PHASE4_FRAGMENTED_BUCKET_BOUNDARY_TEST:-0}"
+readonly APACHE_LOG_DIR_LABEL='LOG_DIR'
+readonly APACHE_RESULTS_DIR_LABEL='RESULTS_DIR'
 prepare_runtime_directory() {
     directory=$1
     label=$2
@@ -102,7 +104,7 @@ prepare_runtime_directory() {
         --label "$label" "$@"
 }
 
-prepare_runtime_directory "$LOG_DIR" "LOG_DIR" 1
+prepare_runtime_directory "$LOG_DIR" "$APACHE_LOG_DIR_LABEL" 1
 prepare_runtime_directory "$APACHE_CASE_OUTPUT_ROOT" "APACHE_CASE_OUTPUT_ROOT" 0
 readonly PHASE4_FIRST_BYTE_PREFIX='first-byte-prefix'
 readonly PHASE4_TRANSACTION_REBIND_REFUSAL='request transaction cannot be safely rebound to the target URI'
@@ -300,12 +302,12 @@ write_case_result() {
 
 run_all_cases() {
     require_absolute_generated_path "$BUILD_ROOT" "BUILD_ROOT"
-    require_absolute_generated_path "$LOG_DIR" "LOG_DIR"
+    require_absolute_generated_path "$LOG_DIR" "$APACHE_LOG_DIR_LABEL"
     require_absolute_generated_path "$RESULTS_DIR" "RESULTS_DIR"
     require_absolute_generated_path "$RUNTIME_BASE" "RUNTIME_BASE"
     require_absolute_generated_path "$APACHE_CASE_OUTPUT_ROOT" "APACHE_CASE_OUTPUT_ROOT"
 
-    prepare_runtime_directory "$LOG_DIR" "LOG_DIR" 1
+    prepare_runtime_directory "$LOG_DIR" "$APACHE_LOG_DIR_LABEL" 1
     prepare_runtime_directory "$RESULTS_DIR" "RESULTS_DIR" 0
     summary_file="$RESULTS_DIR/apache-summary.txt"
     json_file="$RESULTS_DIR/apache-summary.json"
@@ -1252,6 +1254,7 @@ start_server() {
         HTTPD_PID=$(sed -n '1p' "$HTTPD_SUPERVISOR_PID_OUTPUT")
         case "$HTTPD_PID" in
             ''|*[!0-9]*) fail "Apache supervisor published an invalid child PID" ;;
+            *) : ;;
         esac
 
         if [ "$MSCONNECTOR_SMOKE_STAGE" = "start_smoke" ]; then
@@ -2602,10 +2605,10 @@ require_absolute_generated_path "$BUILD_ROOT" "BUILD_ROOT"
 require_absolute_generated_path "$APACHE_BUILD_ROOT" "APACHE_BUILD_ROOT"
 require_absolute_generated_path "$HTTPD_PREFIX" "HTTPD_PREFIX"
 require_absolute_generated_path "$RUNTIME_ROOT" "RUNTIME_ROOT"
-require_absolute_generated_path "$LOG_DIR" "LOG_DIR"
+require_absolute_generated_path "$LOG_DIR" "$APACHE_LOG_DIR_LABEL"
 require_absolute_generated_path "$APACHE_CASE_OUTPUT_ROOT" "APACHE_CASE_OUTPUT_ROOT"
 if [ "$RUN_ONE_CASE" = "1" ]; then
-    require_absolute_generated_path "$RESULTS_DIR" "RESULTS_DIR"
+    require_absolute_generated_path "$RESULTS_DIR" "$APACHE_RESULTS_DIR_LABEL"
     if apache_profile_enabled; then
         [ -f "$APACHE_PROFILE_EVIDENCE_SCRIPT" ] || \
             blocked "Apache profile evidence helper is missing: $APACHE_PROFILE_EVIDENCE_SCRIPT"
@@ -2614,7 +2617,7 @@ if [ "$RUN_ONE_CASE" = "1" ]; then
             --results-dir "$RESULTS_DIR" || \
             blocked "Apache profile results directory is unsafe"
     else
-        prepare_runtime_directory "$RESULTS_DIR" "RESULTS_DIR" 0
+        prepare_runtime_directory "$RESULTS_DIR" "$APACHE_RESULTS_DIR_LABEL" 0
     fi
 fi
 

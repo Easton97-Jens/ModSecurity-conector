@@ -38,20 +38,22 @@ def function_body(text: str, signature: str) -> str:
 
 
 def overlay_function_bodies(source: str) -> dict[str, str]:
-    return {
-        "headers": function_body(source, "static int haproxy_modsecurity_htx_filter_http_headers("),
-        "request_headers": function_body(source, "static int haproxy_modsecurity_htx_handle_request_headers("),
-        "request_callback": function_body(source, "static int haproxy_modsecurity_htx_filter_request_payload("),
-        "request_append": function_body(source, "static int haproxy_modsecurity_htx_append_request_payload("),
-        "response_callback": function_body(source, "static int haproxy_modsecurity_htx_filter_response_payload("),
-        "response_append": function_body(source, "static int haproxy_modsecurity_htx_append_response_payload("),
-        "response_end": function_body(source, "static int haproxy_modsecurity_htx_finish_response("),
-        "precommit_deny": function_body(source, "static int haproxy_modsecurity_htx_apply_precommit_deny("),
-        "request_begin": function_body(source, "static int haproxy_modsecurity_htx_begin_request("),
-        "request_headers": function_body(source, "static int haproxy_modsecurity_htx_handle_request_headers("),
-        "response_headers": function_body(source, "static int haproxy_modsecurity_htx_process_response_headers("),
-        "request_end": function_body(source, "static int haproxy_modsecurity_htx_finish_request("),
-    }
+    # Keep the body names explicit: lifecycle_checks() consumes this exact
+    # set, and a duplicate dictionary key would silently discard one entry.
+    body_specs = (
+        ("headers", "static int haproxy_modsecurity_htx_filter_http_headers("),
+        ("request_headers", "static int haproxy_modsecurity_htx_handle_request_headers("),
+        ("request_callback", "static int haproxy_modsecurity_htx_filter_request_payload("),
+        ("request_append", "static int haproxy_modsecurity_htx_append_request_payload("),
+        ("response_callback", "static int haproxy_modsecurity_htx_filter_response_payload("),
+        ("response_append", "static int haproxy_modsecurity_htx_append_response_payload("),
+        ("response_end", "static int haproxy_modsecurity_htx_finish_response("),
+        ("precommit_deny", "static int haproxy_modsecurity_htx_apply_precommit_deny("),
+        ("request_begin", "static int haproxy_modsecurity_htx_begin_request("),
+        ("response_headers", "static int haproxy_modsecurity_htx_process_response_headers("),
+        ("request_end", "static int haproxy_modsecurity_htx_finish_request("),
+    )
+    return {name: function_body(source, signature) for name, signature in body_specs}
 
 
 def load_contract() -> tuple[str, Path]:

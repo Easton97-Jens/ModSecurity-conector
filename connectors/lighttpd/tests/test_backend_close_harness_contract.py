@@ -259,7 +259,8 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
         self.assertIn("trap - EXIT HUP INT TERM", text)
         self.assertIn("task host remains active after bounded session containment", text)
         self.assertIn("refusing to cleanup a process without registered task SID/PGID", text)
-        self.assertIn('proc_state "$1")" != Z', text)
+        self.assertIn('proc_state "$pid")" != Z', text)
+        self.assertNotIn('proc_state "$1")" != Z', text)
         self.assertIn('wait "$cleanup_pid" 2>/dev/null || true', text)
         self.assertIn('if [ -n "$cleanup_pid" ]; then', text)
         self.assertIn('cleanup_process "$CONFIG_PID" "$CONFIG_SESSION" "$CONFIG_SESSION_RECORD"', text)
@@ -502,8 +503,9 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
         thread = threading.Thread(target=serve)
         thread.start()
         try:
+            deadline = time.monotonic() + 0.05
             with self.assertRaises(PROBE_MODULE.ProbeFailure):
-                PROBE_MODULE._read_frontend("127.0.0.1", port, "/p4/close/", NONCE, time.monotonic() + 0.05, {})
+                PROBE_MODULE._read_frontend("127.0.0.1", port, "/p4/close/", NONCE, deadline, {})
         finally:
             thread.join(2)
         self.assertFalse(thread.is_alive())
@@ -512,8 +514,9 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
         payload = b"HTTP/1.1 204 No Content\r\nContent-Length: 5\r\nX-Msconnector-Backend-Close-Nonce: " + NONCE.encode("ascii") + b"\r\nX-Msconnector-Host-Transaction-Id: " + HOST_TRANSACTION_ID.encode("ascii") + b"\r\n\r\nshort"
         port, thread = self._frontend_server(payload)
         try:
+            deadline = time.monotonic() + 2
             with self.assertRaises(PROBE_MODULE.ProbeFailure):
-                PROBE_MODULE._read_frontend("127.0.0.1", port, "/p4/close/", NONCE, time.monotonic() + 2, {})
+                PROBE_MODULE._read_frontend("127.0.0.1", port, "/p4/close/", NONCE, deadline, {})
         finally:
             thread.join(2)
         self.assertFalse(thread.is_alive())
@@ -526,8 +529,9 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
         )
         port, thread = self._frontend_server(payload)
         try:
+            deadline = time.monotonic() + 2
             with self.assertRaises(PROBE_MODULE.ProbeFailure):
-                PROBE_MODULE._read_frontend("127.0.0.1", port, "/p4/close/", NONCE, time.monotonic() + 2, {})
+                PROBE_MODULE._read_frontend("127.0.0.1", port, "/p4/close/", NONCE, deadline, {})
         finally:
             thread.join(2)
         self.assertFalse(thread.is_alive())
@@ -540,8 +544,9 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
         )
         port, thread = self._frontend_server(payload)
         try:
+            deadline = time.monotonic() + 2
             with self.assertRaises(PROBE_MODULE.ProbeFailure):
-                PROBE_MODULE._read_frontend("127.0.0.1", port, "/p4/close/", NONCE, time.monotonic() + 2, {})
+                PROBE_MODULE._read_frontend("127.0.0.1", port, "/p4/close/", NONCE, deadline, {})
         finally:
             thread.join(2)
         self.assertFalse(thread.is_alive())
@@ -577,8 +582,9 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
                 raise OSError(errno.EIO, "synthetic unexpected read failure")
 
         with patch.object(PROBE_MODULE.socket, "create_connection", return_value=UnexpectedErrorConnection()):
+            deadline = time.monotonic() + 2
             with self.assertRaises(PROBE_MODULE.ProbeFailure):
-                PROBE_MODULE._read_frontend("127.0.0.1", 1, "/p4/close/", NONCE, time.monotonic() + 2, {})
+                PROBE_MODULE._read_frontend("127.0.0.1", 1, "/p4/close/", NONCE, deadline, {})
 
     def test_linux_guard_attributes_listener_to_exact_process(self):
         listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -587,10 +593,11 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
         pid = os.getpid()
         start_time = GUARD_MODULE._start_time(pid)
         executable = os.path.realpath(f"/proc/{pid}/exe")
+        port = listener.getsockname()[1]
         try:
-            GUARD_MODULE.assert_listener_owned(pid, start_time, executable, "127.0.0.1", listener.getsockname()[1])
+            GUARD_MODULE.assert_listener_owned(pid, start_time, executable, "127.0.0.1", port)
             with self.assertRaises(GUARD_MODULE.GuardFailure):
-                GUARD_MODULE.assert_listener_owned(pid, "different-start-time", executable, "127.0.0.1", listener.getsockname()[1])
+                GUARD_MODULE.assert_listener_owned(pid, "different-start-time", executable, "127.0.0.1", port)
         finally:
             listener.close()
 
@@ -604,7 +611,8 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
         start_time = GUARD_MODULE._start_time(pid)
         executable = os.path.realpath(f"/proc/{pid}/exe")
         try:
-            before = GUARD_MODULE._listen_inodes("127.0.0.1", listener.getsockname()[1])
+            listener_port = listener.getsockname()[1]
+            before = GUARD_MODULE._listen_inodes("127.0.0.1", listener_port)
             injected = set(before)
             injected.add("999999")
             with patch.object(
@@ -621,7 +629,7 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
                         start_time,
                         executable,
                         "127.0.0.1",
-                        listener.getsockname()[1],
+                        listener_port,
                     )
             self.assertEqual(snapshots.call_count, 2)
         finally:
@@ -728,11 +736,13 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
             if ready != "ready":
                 self.skipTest("SO_REUSEPORT contender could not start")
             pid = os.getpid()
+            start_time = GUARD_MODULE._start_time(pid)
+            executable = os.path.realpath(f"/proc/{pid}/exe")
             with self.assertRaises(GUARD_MODULE.GuardFailure):
                 GUARD_MODULE.assert_listener_owned(
                     pid,
-                    GUARD_MODULE._start_time(pid),
-                    os.path.realpath(f"/proc/{pid}/exe"),
+                    start_time,
+                    executable,
                     "127.0.0.1",
                     port,
                 )
@@ -1078,13 +1088,14 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
         self.assertEqual(generic_guard_failure_after_exit.returncode, 91, generic_guard_failure_after_exit.stderr)
 
     def test_linux_guard_does_not_swallow_live_proc_membership_errors(self):
+        session_id = os.getsid(0)
         with patch.object(
             GUARD_MODULE,
             "_session_fields",
             side_effect=GUARD_MODULE.GuardFailure("synthetic live /proc parse failure"),
         ):
             with self.assertRaises(GUARD_MODULE.GuardFailure):
-                GUARD_MODULE._session_members(os.getsid(0), strict=True)
+                GUARD_MODULE._session_members(session_id, strict=True)
 
     def test_linux_guard_treats_uninspectable_member_as_active(self):
         member_pid = os.getpid()
@@ -1913,13 +1924,14 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
                     "_registered_session",
                     return_value=reused_registration,
                 ):
+                    python_executable = os.path.realpath(sys.executable)
                     with self.assertRaisesRegex(
                         GUARD_MODULE.GuardFailure,
                         "containing other verified task-session members only",
                     ):
                         GUARD_MODULE.terminate_registered_session(
                             record,
-                            os.path.realpath(sys.executable),
+                            python_executable,
                             0.5,
                         )
                 self.assertIsNone(foreign.poll(), "a reused foreign leader PID must never be signaled")
@@ -1973,8 +1985,9 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
                         pass
                 if leader.stdout is not None:
                     leader.stdout.close()
-                if leader.stderr is not None:
-                    leader.stderr.close()
+                leader_stderr = leader.stderr
+                if leader_stderr is not None:
+                    leader_stderr.close()
 
     def test_linux_guard_contains_forked_member_after_leader_exits(self):
         """A dead leader cannot prevent pidfd cleanup of its live task child."""

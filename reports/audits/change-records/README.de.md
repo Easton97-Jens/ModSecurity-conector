@@ -11,6 +11,15 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260910-sonarcloud-parent-open-issues-duplication-remediation](CR-20260910-sonarcloud-parent-open-issues-duplication-remediation.de.md)
+  | English companion: `CR-20260910-sonarcloud-parent-open-issues-duplication-remediation.md` —
+  die Parent-Traceability-Policy verlangt diesen gepaarten Record für die
+  aktuelle nicht triviale Parent-only-SonarCloud-Remediation. Er hält lokale
+  Source-, Test- und Security-Diff-Evidenz für 112 Parent-Baseline-Code-Smells
+  und echte Duplikatblock-Reduktionsarbeit fest, während ein Framework-Issue
+  und repositoryübergreifender Duplikatcontent außerhalb des Scopes bleiben.
+  Commit, Push, PR, Exact-Head-Hosted-Evidenz, Merge und eine
+  Default-Branch-Metrikverbesserung sind ausstehend und werden nicht behauptet.
 - [CR-20260903-connector-runtime-hardening-quality-remediation](CR-20260903-connector-runtime-hardening-quality-remediation.de.md) —
   aktuelle Parent-only-Remediation der Codex-Review-Findings, SonarQube-Cloud-
   Quality-Gate-Fehler und roten Connector-Workflow-Evidence für Draft PR #346.
