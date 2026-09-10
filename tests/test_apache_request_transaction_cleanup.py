@@ -226,6 +226,9 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
     def test_native_bootstrap_exercises_transaction_identifier_boundaries(self) -> None:
         bootstrap = AUTOTOOLS_BOOTSTRAP.read_text(encoding="utf-8")
 
+        self.assertIn("HTTP_STATUS_FORMAT='%{http_code}'", bootstrap)
+        self.assertEqual(bootstrap.count('-w "$HTTP_STATUS_FORMAT"'), 6)
+        self.assertNotIn("-w '%{http_code}'", bootstrap)
         self.assertIn("TXID_127_PATH=$(txid_path_for_length 127)", bootstrap)
         self.assertIn("TXID_128_PATH=$(txid_path_for_length 128)", bootstrap)
         self.assertIn("TXID_LONG_PATH=$(txid_path_for_length 192)", bootstrap)

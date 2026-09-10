@@ -22,6 +22,10 @@ diese Fehlerpfade terminal und bewahrt dabei das explizit deaktivierte
 Verhalten sowie die bestehende Streaming-Grenze. Der private Audit,
 Rohreproduktionen, Credentials und Runtime-Payloads sind ausgeschlossen.
 
+Das Follow-up beseitigt außerdem den task-eigenen SonarQube-Cloud-
+Duplikationsbefund `shelldre:S1192` aus dem Apache-Autotools-Bootstrap, ohne
+Scanner, Workflow, Quality Gate oder Runtime-Assertion zu verändern.
+
 ## Akzeptanzkriterien
 
 - Fehler beim Aufbau des aktivierten Apache-Request-Kontexts führen in den
@@ -35,6 +39,9 @@ Rohreproduktionen, Credentials und Runtime-Payloads sind ausgeschlossen.
 - Englische/deutsche Connector-Dokumentation und dieser englische/deutsche
   Change Record beschreiben denselben Scope, dieselbe Evidence und dieselben
   Einschränkungen.
+- Alle sechs Apache-Bootstrap-Status-Probes verwenden eine gemeinsame
+  `HTTP_STATUS_FORMAT`-Definition; der fokussierte Source-Contract bewahrt
+  deren Verwendung ohne Suppression oder Workflow-/Control-Änderung.
 - Delivery bleibt auf einen gewöhnlichen Parent-Draft-PR beschränkt; es gibt
   keine Framework-/MRTS-Source-, Gitlink-, CI-Berechtigungs-, Merge-, Release-
   oder Deployment-Änderung.
@@ -46,6 +53,15 @@ aktivierten Setup. Ein Request-Kontext wird erst veröffentlicht, nachdem
 Ownership und Cleanup gültig eingerichtet sind; ein aktivierter Construction-,
 Expression- oder Identifier-Fehler folgt dem bestehenden terminalen
 Failure-Handling.
+
+Das Apache-Bootstrap-Follow-up zentralisiert das unveränderte curl-
+`%{http_code}`-Write-Format in `HTTP_STATUS_FORMAT`; sein bestehender
+Source-Contract prüft nun die eine Definition und sechs Probe-Verwendungen.
+Der Workflow und seine Controls bleiben unverändert. Die vorherige fehlende
+Hosted-Apache-Preparation trat nur bei einem frischen SHA-scoped Cache auf und
+behielt kein detailliertes Build-Log, daher wurde keine unbelegte Workflow-
+oder Produktkorrektur vorgenommen; der normale Successor-Commit muss das
+frische Hosted-Ergebnis liefern.
 
 NGINX hält einen terminalen Response-Header-Processing-Fehler vor dem
 Upstream-Header-Filter fest. Der Fehlerpfad stellt den PCRE-Allokationszustand
@@ -78,7 +94,8 @@ Test-Payload und keine Produktionsdaten.
   `ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh`.
 - Apache-Dokumentation und Regression-Coverage:
   `connectors/apache/README.md`, `connectors/apache/README.de.md` und
-  `tests/test_apache_request_transaction_cleanup.py`.
+  `tests/test_apache_request_transaction_cleanup.py`, einschließlich des
+  Bootstrap-Statusformat-Source-Contracts.
 - NGINX-Implementierung:
   `connectors/nginx/src/ngx_http_modsecurity_common.h` und
   `connectors/nginx/src/ngx_http_modsecurity_header_filter.c`.
@@ -104,6 +121,8 @@ Report verändert.
 | `rtk proxy env FRAMEWORK_ROOT=<task-framework-root> APACHE_C_STANDARDS_OUT=<task-owned-build-root> BUILD_ROOT=<task-owned-build-root> make check-apache-c17` | Exit `0`; Apache-C17-Standards-Kompilierung bestand. |
 | `rtk proxy env FRAMEWORK_ROOT=<task-framework-root> BUILD_ROOT=<task-owned-build-root> NGINX_SOURCE_DIR=<task-owned-configured-source> make check-nginx-c17` | Exit `0`; NGINX-C17-Standards-Kompilierung bestand gegen die task-eigene konfigurierte Source. |
 | `rtk proxy git diff --check` | Exit `0`; es wurde kein Whitespace-Fehler gemeldet. |
+| `rtk proxy sh -n ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh` | Exit `0`; die Shell-Syntax des Apache-Bootstrap-Follow-ups bestand. |
+| `rtk proxy env PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 <parent-venv-python> -B -m unittest tests.test_apache_request_transaction_cleanup` | Exit `0`; 16 fokussierte Apache-Request-/Cleanup- und Bootstrap-Source-Contract-Tests bestanden. |
 | `rtk proxy make check-bilingual-docs` | Exit `1`; die Struktur des gepaarten Change Records bestand nach der Korrektur, während dem Task-Worktree seine Framework-Submodul-Link-Targets fehlen. Dies etabliert keinen Dokumentations-Pass. |
 
 ## Runtime-Evidence
@@ -122,8 +141,9 @@ Native-Fault-Fixture-Grenze aus. Es wurde kein Produktionsdienst kontaktiert.
   konnte wegen derselben Dateisystemursache die unprivilegierte Ownership-/ACL-
   Vorbereitung nicht abschließen. Es wird kein Native-Loopback-Ergebnis
   behauptet.
-- Frische Exact-Head-Hosted-Checks, Review und SonarQube-Disposition existieren
-  beim Erstellen des Pre-Delivery-Records noch nicht.
+- Frische Exact-Successor-Hosted-Checks, Review und SonarQube-Disposition
+  stehen nach dem normalen Follow-up-Push aus; kein Workflow-Rerun und keine
+  Scanner-Control-Änderung wird als Ersatz verwendet.
 
 ## Bekannte Einschränkungen
 
@@ -143,7 +163,8 @@ akzeptiert weder das Restrisiko noch beantragt er einen Merge.
 ## Finaler Diff- und Review-Status
 
 Ein unabhängiger Scoped-Security-Diff-Review fand keinen konkreten Bypass in
-den Apache-/NGINX-Änderungen und kein abgeschwächtes Test-Control. Draft PR
-#360 ist offen; dieses Follow-up verlangt nach seinem normalen Push einen
-frischen Exact-Head-Readback. Hosted-Ergebnisse, Review und jeder Merge liegen
-weiter außerhalb der aktuellen Evidence.
+den Apache-/NGINX-Änderungen und kein abgeschwächtes Test-Control. Die
+ergänzte Sonar-Remediation ist eine source-only Konstantenextraktion mit einem
+fokussierten Contract. Draft PR #360 ist offen; dieses Follow-up verlangt nach
+seinem normalen Push einen frischen Exact-Head-Readback. Hosted-Ergebnisse,
+Review und jeder Merge liegen weiter außerhalb der aktuellen Evidence.

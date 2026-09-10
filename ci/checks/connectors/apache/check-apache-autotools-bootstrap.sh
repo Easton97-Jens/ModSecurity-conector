@@ -16,6 +16,7 @@ blocked() {
     exit 77
 }
 
+HTTP_STATUS_FORMAT='%{http_code}'
 TXID_LENGTH_PREFIX="/__modsec_txid_length/"
 
 txid_path_for_length() {
@@ -432,7 +433,7 @@ while [ "$attempt" -lt 50 ]; do
     if ! kill -0 "$HTTPD_PID" >/dev/null 2>&1; then
         fail "Apache exited before accepting the loopback request"
     fi
-    if status=$(curl -s --max-time 2 -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/index.html") && [ "$status" = 200 ]; then
+    if status=$(curl -s --max-time 2 -o /dev/null -w "$HTTP_STATUS_FORMAT" "http://127.0.0.1:$PORT/index.html") && [ "$status" = 200 ]; then
         ready=1
         break
     fi
@@ -441,14 +442,14 @@ while [ "$attempt" -lt 50 ]; do
 done
 [ "$ready" = 1 ] || fail "Apache did not accept an allowed loopback request"
 
-allowed_status=$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/index.html")
+allowed_status=$(curl -sS --max-time 5 -o /dev/null -w "$HTTP_STATUS_FORMAT" "http://127.0.0.1:$PORT/index.html")
 [ "$allowed_status" = 200 ] || \
     fail "allowed loopback request returned HTTP $allowed_status instead of 200"
-blocked_status=$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/blocked")
+blocked_status=$(curl -sS --max-time 5 -o /dev/null -w "$HTTP_STATUS_FORMAT" "http://127.0.0.1:$PORT/blocked")
 [ "$blocked_status" = 403 ] || \
     fail "ModSecurity loopback rule returned HTTP $blocked_status instead of 403"
 
-txid_127_status=$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' \
+txid_127_status=$(curl -sS --max-time 5 -o /dev/null -w "$HTTP_STATUS_FORMAT" \
     "http://127.0.0.1:$PORT$TXID_127_PATH")
 [ "$txid_127_status" = 200 ] || \
     fail "127-byte transaction identifier control returned HTTP $txid_127_status instead of 200"
@@ -456,7 +457,7 @@ txid_127_status=$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' \
 TXID_128_HEADERS="$ROOT_LOG_DIR/txid-128.headers"
 TXID_128_BODY="$ROOT_LOG_DIR/txid-128.body"
 txid_128_status=$(curl -sS --max-time 5 -D "$TXID_128_HEADERS" -o "$TXID_128_BODY" \
-    -w '%{http_code}' "http://127.0.0.1:$PORT$TXID_128_PATH")
+    -w "$HTTP_STATUS_FORMAT" "http://127.0.0.1:$PORT$TXID_128_PATH")
 [ "$txid_128_status" = 500 ] || \
     fail "128-byte transaction identifier returned HTTP $txid_128_status instead of fail-closed 500"
 grep -qi '^Connection: close' "$TXID_128_HEADERS" || \
@@ -465,7 +466,7 @@ if grep -Fq '128-byte transaction id must not reach handler' "$TXID_128_BODY"; t
     fail "128-byte transaction identifier reached the Apache document handler"
 fi
 
-txid_long_status=$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' \
+txid_long_status=$(curl -sS --max-time 5 -o /dev/null -w "$HTTP_STATUS_FORMAT" \
     "http://127.0.0.1:$PORT$TXID_LONG_PATH")
 [ "$txid_long_status" = 500 ] || \
     fail "oversized transaction identifier returned HTTP $txid_long_status instead of fail-closed 500"

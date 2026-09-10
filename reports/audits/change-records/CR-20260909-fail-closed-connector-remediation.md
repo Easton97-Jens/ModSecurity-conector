@@ -22,6 +22,10 @@ preserving the explicitly disabled behavior and the existing streaming
 boundary. It excludes the private audit, raw reproductions, credentials, and
 runtime payloads.
 
+The follow-up also removes the task-owned SonarQube Cloud
+`shelldre:S1192` duplication finding from the Apache Autotools bootstrap
+without changing a scanner, workflow, quality gate, or runtime assertion.
+
 ## Acceptance criteria
 
 - Enabled Apache request-context setup failures enter the existing fail-closed
@@ -32,6 +36,9 @@ runtime payloads.
   host-runtime proof remains reported as blocked rather than passed.
 - English/German connector documentation and this English/German Change Record
   describe the same scope, evidence, and limitations.
+- All six Apache bootstrap status probes share one `HTTP_STATUS_FORMAT`
+  definition; the focused source contract preserves their use without a
+  suppression or a workflow/control change.
 - Delivery is limited to an ordinary Parent Draft PR; no Framework/MRTS source,
   Gitlink, CI-permission, merge, release, or deployment change is made.
 
@@ -41,6 +48,14 @@ Apache now distinguishes disabled processing from an enabled setup error. It
 publishes a request context only after ownership and cleanup setup are valid;
 an enabled construction, expression, or identifier error follows the existing
 terminal failure handling.
+
+The Apache bootstrap follow-up centralizes curl's unchanged
+`%{http_code}` write format in `HTTP_STATUS_FORMAT`; its existing source
+contract now verifies the one definition and six probe uses. The workflow and
+its controls remain unchanged. The preceding failed hosted Apache preparation
+occurred only on a fresh SHA-scoped cache and retained no detailed build log,
+so no unproven workflow or product correction was made; the normal successor
+commit must provide the fresh hosted result.
 
 NGINX records a terminal response-header-processing failure before the upstream
 header filter. The failure path restores the PCRE allocation state exactly once,
@@ -70,7 +85,8 @@ data is included in this record.
   `ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh`.
 - Apache documentation and regression coverage:
   `connectors/apache/README.md`, `connectors/apache/README.de.md`, and
-  `tests/test_apache_request_transaction_cleanup.py`.
+  `tests/test_apache_request_transaction_cleanup.py`, including the bootstrap
+  status-format source contract.
 - NGINX implementation:
   `connectors/nginx/src/ngx_http_modsecurity_common.h` and
   `connectors/nginx/src/ngx_http_modsecurity_header_filter.c`.
@@ -95,6 +111,8 @@ historical report is changed by this Parent record.
 | `rtk proxy env FRAMEWORK_ROOT=<task-framework-root> APACHE_C_STANDARDS_OUT=<task-owned-build-root> BUILD_ROOT=<task-owned-build-root> make check-apache-c17` | Exit `0`; Apache C17 standards compile passed. |
 | `rtk proxy env FRAMEWORK_ROOT=<task-framework-root> BUILD_ROOT=<task-owned-build-root> NGINX_SOURCE_DIR=<task-owned-configured-source> make check-nginx-c17` | Exit `0`; NGINX C17 standards compile passed against the task-owned configured source. |
 | `rtk proxy git diff --check` | Exit `0`; no whitespace error was reported. |
+| `rtk proxy sh -n ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh` | Exit `0`; the follow-up Apache bootstrap shell syntax passed. |
+| `rtk proxy env PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 <parent-venv-python> -B -m unittest tests.test_apache_request_transaction_cleanup` | Exit `0`; 16 focused Apache request/cleanup and bootstrap source-contract tests passed. |
 | `rtk proxy make check-bilingual-docs` | Exit `1`; the paired Change Record structure passed after correction, while the task worktree lacks its Framework submodule link targets. This does not establish a documentation pass. |
 
 ## Runtime evidence
@@ -111,8 +129,9 @@ production service was contacted.
 - The NGINX native loopback fixture intentionally rejects root execution and
   could not complete unprivileged ownership/ACL preparation for the same
   filesystem reason. No native loopback result is claimed.
-- Fresh exact-head hosted checks, review, and SonarQube disposition do not yet
-  exist at pre-delivery record creation.
+- Fresh exact-successor hosted checks, review, and SonarQube disposition are
+  pending the normal follow-up push; no workflow rerun or scanner-control
+  change is used as a substitute.
 
 ## Known limitations
 
@@ -131,6 +150,8 @@ nor requests a merge.
 ## Final diff and review status
 
 An independent scoped security-diff review found no concrete bypass in the
-Apache/NGINX changes and no weakened test control. Draft PR #360 is open; this
-follow-up requires a fresh exact-head readback after its normal push. Hosted
-results, review, and any merge remain outside the current evidence.
+Apache/NGINX changes and no weakened test control. The added Sonar remediation
+is a source-only constant extraction with a focused contract. Draft PR #360 is
+open; this follow-up requires a fresh exact-head readback after its normal
+push. Hosted results, review, and any merge remain outside the current
+evidence.
