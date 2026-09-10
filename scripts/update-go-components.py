@@ -12,7 +12,7 @@ import stat
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import BinaryIO, TextIO
+from typing import BinaryIO, Iterator, TextIO
 
 
 MAX_COMPONENT_FILE_BYTES = 1024 * 1024
@@ -291,12 +291,10 @@ def _parse_component_requirement_line(
     )
 
 
-def component_requirements(go_mod: str, component: GoComponent) -> dict[str, RequirementLine]:
-    """Read the exact canonical lines for every explicit bundle requirement."""
+def _component_require_block_lines(go_mod: str) -> Iterator[tuple[int, str]]:
+    """Yield the content of non-nested parenthesized go.mod require blocks."""
 
-    updates = {update.dependency: update for update in component.updates}
     in_require_block = False
-    result: dict[str, RequirementLine] = {}
     for index, raw_line in enumerate(go_mod.splitlines(keepends=True)):
         line = raw_line.rstrip("\r\n")
         if line == "require (":
@@ -307,16 +305,24 @@ def component_requirements(go_mod: str, component: GoComponent) -> dict[str, Req
         if line == ")":
             in_require_block = False
             continue
-        if not in_require_block:
-            continue
+        if in_require_block:
+            yield index, raw_line
+    if in_require_block:
+        raise ComponentError("go.mod has an unterminated require block")
+
+
+def component_requirements(go_mod: str, component: GoComponent) -> dict[str, RequirementLine]:
+    """Read the exact canonical lines for every explicit bundle requirement."""
+
+    updates = {update.dependency: update for update in component.updates}
+    result: dict[str, RequirementLine] = {}
+    for index, raw_line in _component_require_block_lines(go_mod):
         requirement = _parse_component_requirement_line(raw_line, index, updates)
         if requirement is None:
             continue
         if requirement.dependency in result:
             raise ComponentError(f"go.mod contains duplicate {requirement.dependency} requirements")
         result[requirement.dependency] = requirement
-    if in_require_block:
-        raise ComponentError("go.mod has an unterminated require block")
     missing = sorted(set(updates) - set(result))
     if missing:
         raise ComponentError(f"go.mod lacks required component entries: {', '.join(missing)}")

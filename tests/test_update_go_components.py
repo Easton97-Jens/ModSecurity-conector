@@ -199,6 +199,28 @@ class UpdateGoComponentsTests(unittest.TestCase):
                 status, result = self.run_cli(root, ["--check", "--json"])
             self.assertEqual((status, result["status"]), (1, "error"))
 
+    def test_component_requirements_rejects_nested_require_blocks(self) -> None:
+        source = go_mod("v1.83.1").replace(
+            "\tgoogle.golang.org/grpc v1.83.1\n",
+            "require (\n\tgoogle.golang.org/grpc v1.83.1\n",
+        )
+        with self.assertRaisesRegex(updater.ComponentError, r"go\.mod contains nested require blocks"):
+            updater.component_requirements(source, updater.GRPC_COMPONENT)
+
+    def test_component_requirements_rejects_unterminated_require_blocks(self) -> None:
+        source = go_mod("v1.83.1").removesuffix(")\n")
+        with self.assertRaisesRegex(updater.ComponentError, r"go\.mod has an unterminated require block"):
+            updater.component_requirements(source, updater.GRPC_COMPONENT)
+
+    def test_component_requirements_rejects_duplicate_component_requirements(self) -> None:
+        requirement = "\tgoogle.golang.org/grpc v1.83.1\n"
+        source = go_mod("v1.83.1").replace(requirement, requirement * 2)
+        with self.assertRaisesRegex(
+            updater.ComponentError,
+            r"go\.mod contains duplicate google\.golang\.org/grpc requirements",
+        ):
+            updater.component_requirements(source, updater.GRPC_COMPONENT)
+
     def test_rejects_a_symlinked_component_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
