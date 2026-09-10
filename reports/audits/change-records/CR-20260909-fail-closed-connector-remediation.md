@@ -11,7 +11,7 @@
 | Base revision | 26a560e64cbaf906c0d35bba199f65436830d1dd |
 | Branch | security/audit-2026-09-09-fixes |
 | Issue or pull request | Draft PR [#360](https://github.com/Easton97-Jens/ModSecurity-conector/pull/360) is open and unmerged. |
-| Delivery status | Draft PR #360 was opened from `security/audit-2026-09-09-fixes` at first delivery commit `df582b6aeaf2900e63228ff0b82507266db5b5f8`; local, remote, and PR head matched at creation. This record update is a follow-up commit and cannot self-reference its own final Git object; task delivery evidence records the exact final local/remote/PR-head SHA after push. Hosted checks and review remain pending. Merge, release, deployment, a default-branch write, and a Parent Gitlink change are not authorized. |
+| Delivery status | Draft PR #360 was opened from `security/audit-2026-09-09-fixes` at first delivery commit `df582b6aeaf2900e63228ff0b82507266db5b5f8`. Before this delivery-evidence update, its exact head `bfde27d1ca1ae7627f127f12c92c5e92d5bf6b10` had matching local/remote/PR state, all displayed required checks passed, and SonarQube Cloud reported Quality Gate `OK` with `0` `OPEN,CONFIRMED` PR findings. The current user instruction, “kannst beide in den master bringen”, explicitly authorizes protected integration of Parent PR #360 and Framework PR #115 only. This evidence-only follow-up requires a fresh exact-head cycle before a normal squash merge; no merge is claimed here. Release, deployment, a direct default-branch write, a Parent Gitlink update, MRTS work, and any bypass remain out of scope. |
 
 ## Motivation and problem statement
 
@@ -39,8 +39,11 @@ without changing a scanner, workflow, quality gate, or runtime assertion.
 - All six Apache bootstrap status probes share one `HTTP_STATUS_FORMAT`
   definition; the focused source contract preserves their use without a
   suppression or a workflow/control change.
-- Delivery is limited to an ordinary Parent Draft PR; no Framework/MRTS source,
-  Gitlink, CI-permission, merge, release, or deployment change is made.
+- The implementation remains Parent-only. The current user authorized only a
+  protected squash merge of Parent PR #360 and Framework PR #115 after their
+  refreshed exact-head evidence; no Parent Gitlink, MRTS source,
+  CI-permission, release, deployment, direct default-branch write, or bypass
+  change is made.
 
 ## Implementation decision and rationale
 
@@ -129,9 +132,10 @@ production service was contacted.
 - The NGINX native loopback fixture intentionally rejects root execution and
   could not complete unprivileged ownership/ACL preparation for the same
   filesystem reason. No native loopback result is claimed.
-- Fresh exact-successor hosted checks, review, and SonarQube disposition are
-  pending the normal follow-up push; no workflow rerun or scanner-control
-  change is used as a substitute.
+- The delivery-evidence follow-up itself must receive a fresh current-head
+  GitHub, review, and SonarQube readback after its normal push. The successful
+  `bfde27d1ca1ae7627f127f12c92c5e92d5bf6b10` results are retained as prior-head
+  evidence and are not carried forward as proof for the new commit.
 
 ## Known limitations
 
@@ -142,16 +146,18 @@ HTTP/3 effect. The P4 review remains a bounded no-change decision.
 
 ## Remaining risks
 
-The code-level failure paths and focused regressions are available for review,
-but the findings remain locally fixed with host verification pending. They are
-not promoted to `verified`, and this record neither accepts the residual risk
-nor requests a merge.
+The original host-runtime prerequisites remain `blocked_environment`; static
+and fixture results do not establish a client-visible transport effect. The
+prior exact-head Sonar remediation is verified, while this evidence-only
+follow-up awaits its own fresh controls. This record neither accepts residual
+risk nor claims a merge.
 
 ## Final diff and review status
 
 An independent scoped security-diff review found no concrete bypass in the
 Apache/NGINX changes and no weakened test control. The added Sonar remediation
-is a source-only constant extraction with a focused contract. Draft PR #360 is
-open; this follow-up requires a fresh exact-head readback after its normal
-push. Hosted results, review, and any merge remain outside the current
-evidence.
+is a source-only constant extraction with a focused contract. At prior exact
+head `bfde27d1ca1ae7627f127f12c92c5e92d5bf6b10`, all displayed PR checks and
+SonarQube Cloud Quality Gate were green. This documentation-only follow-up is
+intended to preserve those observed facts and must complete a new exact-head
+review before the user-authorized protected squash merge.
