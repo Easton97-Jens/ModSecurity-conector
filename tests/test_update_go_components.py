@@ -423,33 +423,41 @@ class UpdateGoComponentsTests(unittest.TestCase):
                     )
 
     def test_candidate_validation_rejects_non_update_unapproved_or_missing_target_checksums(self) -> None:
+        baseline_mod = go_mod("v1.83.1").encode("utf-8")
+        baseline_sum = baseline_go_sum().encode("utf-8")
         target_mod = target_go_mod().encode("utf-8")
         target_sum = candidate_go_sum().encode("utf-8")
+        missing_text_target_sum = (
+            candidate_go_sum()
+            .replace(
+                f"golang.org/x/text {TARGET_TEXT} "
+                f"{checksum_for('golang.org/x/text', TARGET_TEXT, '', 'text')}\n"
+                f"golang.org/x/text {TARGET_TEXT}/go.mod "
+                f"{checksum_for('golang.org/x/text', TARGET_TEXT, '/go.mod', 'text')}\n",
+                "",
+            )
+            .encode("utf-8")
+        )
+        missing_protobuf_target_sum = (
+            candidate_go_sum()
+            .replace("google.golang.org/protobuf v1.36.11 h1:protobuf=\n", "")
+            .encode("utf-8")
+        )
         with self.assertRaises(updater.ComponentError):
             updater.validate_component_candidate(target_mod, target_mod, target_sum, target_sum)
         with self.assertRaises(updater.ComponentError):
             updater.validate_component_candidate(
-                go_mod("v1.83.1").encode("utf-8"),
+                baseline_mod,
                 target_mod,
-                baseline_go_sum().encode("utf-8"),
-                candidate_go_sum()
-                .replace(
-                    f"golang.org/x/text {TARGET_TEXT} "
-                    f"{checksum_for('golang.org/x/text', TARGET_TEXT, '', 'text')}\n"
-                    f"golang.org/x/text {TARGET_TEXT}/go.mod "
-                    f"{checksum_for('golang.org/x/text', TARGET_TEXT, '/go.mod', 'text')}\n",
-                    "",
-                )
-                .encode("utf-8"),
+                baseline_sum,
+                missing_text_target_sum,
             )
         with self.assertRaises(updater.ComponentError):
             updater.validate_component_candidate(
-                go_mod("v1.83.1").encode("utf-8"),
+                baseline_mod,
                 target_mod,
-                baseline_go_sum().encode("utf-8"),
-                candidate_go_sum()
-                .replace("google.golang.org/protobuf v1.36.11 h1:protobuf=\n", "")
-                .encode("utf-8"),
+                baseline_sum,
+                missing_protobuf_target_sum,
             )
 
 

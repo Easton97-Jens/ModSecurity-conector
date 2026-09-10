@@ -18,6 +18,14 @@ from typing import BinaryIO, TextIO
 MAX_COMPONENT_FILE_BYTES = 1024 * 1024
 BASELINE_FRAME_SEPARATOR = b"\0"
 MAX_BASELINE_FRAME_BYTES = (MAX_COMPONENT_FILE_BYTES * 2) + len(BASELINE_FRAME_SEPARATOR)
+GO_MOD_FILENAME = "go.mod"
+GO_SUM_FILENAME = "go.sum"
+GO_SUM_ROOT_SUFFIX = ""
+GO_SUM_GO_MOD_SUFFIX = "/go.mod"
+GRPC_MODULE = "google.golang.org/grpc"
+SYS_MODULE = "golang.org/x/sys"
+NET_MODULE = "golang.org/x/net"
+TEXT_MODULE = "golang.org/x/text"
 MODULE_VERSION_RE = re.compile(
     r"^v(?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)$",
     re.ASCII,
@@ -29,16 +37,6 @@ GO_SUM_ENTRY_RE = re.compile(
     re.ASCII,
 )
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$", re.ASCII)
-TRUSTED_TARGET_GO_SUM_ENTRIES = {
-    ("golang.org/x/net", "v0.58.0", ""): "h1:ynWG7rqYi4ccpTEuPZ2QGWHktVEM9DMCj9yzDE0Q7To=",
-    ("golang.org/x/net", "v0.58.0", "/go.mod"): "h1:YwCddHnFlT7eLQqVprV19OnhLGtc5xOKgE0RyqgfWAU=",
-    ("golang.org/x/sys", "v0.47.0", ""): "h1:o7XGOvZQCADBQQ4Y7VNq2dRWQR7JmOUW8Kxx4ZsNgWs=",
-    ("golang.org/x/sys", "v0.47.0", "/go.mod"): "h1:4GL1E5IUh+htKOUEOaiffhrAeqysfVGipDYzABqnCmw=",
-    ("golang.org/x/text", "v0.41.0", ""): "h1:vz/seA0lnX87Othu2f/0L24RcgrXD9/YFTSuGjj3rH8=",
-    ("golang.org/x/text", "v0.41.0", "/go.mod"): "h1:jvf1O8ajNzZqhSrQBPbutR/EB83Cc0CFrezNQIwbb5M=",
-    ("google.golang.org/grpc", "v1.83.2", ""): "h1:EManeRomTObA0BU7I8vXgg/78uE5MJ9M8B39EX2WscU=",
-    ("google.golang.org/grpc", "v1.83.2", "/go.mod"): "h1:YPI1hK3kDked6iHvgX3tR0y+nX/qpMFKhPgFsokw1S8=",
-}
 
 
 class ComponentError(RuntimeError):
@@ -55,6 +53,12 @@ class ModuleVersion:
 
     def __str__(self) -> str:
         return f"v{self.major}.{self.minor}.{self.patch}"
+
+
+GRPC_TARGET_VERSION = ModuleVersion(1, 83, 2)
+SYS_TARGET_VERSION = ModuleVersion(0, 47, 0)
+NET_TARGET_VERSION = ModuleVersion(0, 58, 0)
+TEXT_TARGET_VERSION = ModuleVersion(0, 41, 0)
 
 
 @dataclass(frozen=True)
@@ -106,32 +110,42 @@ GRPC_COMPONENT = GoComponent(
     directory=Path("connectors/envoy/ext_proc"),
     updates=(
         RequirementUpdate(
-            dependency="google.golang.org/grpc",
+            dependency=GRPC_MODULE,
             baseline_version=ModuleVersion(1, 83, 1),
-            target_version=ModuleVersion(1, 83, 2),
+            target_version=GRPC_TARGET_VERSION,
             indirect=False,
         ),
         RequirementUpdate(
-            dependency="golang.org/x/sys",
+            dependency=SYS_MODULE,
             baseline_version=ModuleVersion(0, 46, 0),
-            target_version=ModuleVersion(0, 47, 0),
+            target_version=SYS_TARGET_VERSION,
             indirect=False,
         ),
         RequirementUpdate(
-            dependency="golang.org/x/net",
+            dependency=NET_MODULE,
             baseline_version=ModuleVersion(0, 56, 0),
-            target_version=ModuleVersion(0, 58, 0),
+            target_version=NET_TARGET_VERSION,
             indirect=True,
         ),
         RequirementUpdate(
-            dependency="golang.org/x/text",
+            dependency=TEXT_MODULE,
             baseline_version=ModuleVersion(0, 39, 0),
-            target_version=ModuleVersion(0, 41, 0),
+            target_version=TEXT_TARGET_VERSION,
             indirect=True,
         ),
     ),
 )
 COMPONENTS = (GRPC_COMPONENT,)
+TRUSTED_TARGET_GO_SUM_ENTRIES = {
+    (NET_MODULE, str(NET_TARGET_VERSION), GO_SUM_ROOT_SUFFIX): "h1:ynWG7rqYi4ccpTEuPZ2QGWHktVEM9DMCj9yzDE0Q7To=",
+    (NET_MODULE, str(NET_TARGET_VERSION), GO_SUM_GO_MOD_SUFFIX): "h1:YwCddHnFlT7eLQqVprV19OnhLGtc5xOKgE0RyqgfWAU=",
+    (SYS_MODULE, str(SYS_TARGET_VERSION), GO_SUM_ROOT_SUFFIX): "h1:o7XGOvZQCADBQQ4Y7VNq2dRWQR7JmOUW8Kxx4ZsNgWs=",
+    (SYS_MODULE, str(SYS_TARGET_VERSION), GO_SUM_GO_MOD_SUFFIX): "h1:4GL1E5IUh+htKOUEOaiffhrAeqysfVGipDYzABqnCmw=",
+    (TEXT_MODULE, str(TEXT_TARGET_VERSION), GO_SUM_ROOT_SUFFIX): "h1:vz/seA0lnX87Othu2f/0L24RcgrXD9/YFTSuGjj3rH8=",
+    (TEXT_MODULE, str(TEXT_TARGET_VERSION), GO_SUM_GO_MOD_SUFFIX): "h1:jvf1O8ajNzZqhSrQBPbutR/EB83Cc0CFrezNQIwbb5M=",
+    (GRPC_MODULE, str(GRPC_TARGET_VERSION), GO_SUM_ROOT_SUFFIX): "h1:EManeRomTObA0BU7I8vXgg/78uE5MJ9M8B39EX2WscU=",
+    (GRPC_MODULE, str(GRPC_TARGET_VERSION), GO_SUM_GO_MOD_SUFFIX): "h1:YPI1hK3kDked6iHvgX3tR0y+nX/qpMFKhPgFsokw1S8=",
+}
 
 
 def parse_module_version(value: object) -> ModuleVersion:
@@ -235,15 +249,46 @@ def component_path(root: Path, component: GoComponent, filename: str) -> Path:
 def validate_component_files(root: Path, component: GoComponent = GRPC_COMPONENT) -> dict[str, object]:
     """Prove that the writable component inputs are regular in-repository files."""
 
-    go_mod_path = component_path(root, component, "go.mod")
-    go_sum_path = component_path(root, component, "go.sum")
+    go_mod_path = component_path(root, component, GO_MOD_FILENAME)
+    go_sum_path = component_path(root, component, GO_SUM_FILENAME)
     read_regular_file(go_mod_path, str(go_mod_path))
     read_regular_file(go_sum_path, str(go_sum_path))
     return {
         "status": "valid",
         "directory": str(component.directory),
-        "files": ["go.mod", "go.sum"],
+        "files": [GO_MOD_FILENAME, GO_SUM_FILENAME],
     }
+
+
+def _parse_component_requirement_line(
+    raw_line: str,
+    index: int,
+    updates: dict[str, RequirementUpdate],
+) -> RequirementLine | None:
+    """Parse one approved requirement line without interpreting other dependencies."""
+
+    line = raw_line.rstrip("\r\n")
+    dependency = line.lstrip().split(" ", 1)[0]
+    update = updates.get(dependency)
+    if update is None:
+        return None
+    match = re.fullmatch(
+        rf"\t{re.escape(dependency)} (?P<version>\S+)(?P<suffix> // indirect)?",
+        line,
+        re.ASCII,
+    )
+    if match is None:
+        raise ComponentError(f"{dependency} must use one canonical go.mod requirement line")
+    indirect = match.group("suffix") is not None
+    if indirect != update.indirect:
+        raise ComponentError(f"{dependency} has an unexpected indirect marker")
+    return RequirementLine(
+        dependency=dependency,
+        line_index=index,
+        line_ending=raw_line[len(line) :],
+        version=parse_module_version(match.group("version")),
+        indirect=indirect,
+    )
 
 
 def component_requirements(go_mod: str, component: GoComponent) -> dict[str, RequirementLine]:
@@ -254,7 +299,6 @@ def component_requirements(go_mod: str, component: GoComponent) -> dict[str, Req
     result: dict[str, RequirementLine] = {}
     for index, raw_line in enumerate(go_mod.splitlines(keepends=True)):
         line = raw_line.rstrip("\r\n")
-        line_ending = raw_line[len(line) :]
         if line == "require (":
             if in_require_block:
                 raise ComponentError("go.mod contains nested require blocks")
@@ -265,30 +309,12 @@ def component_requirements(go_mod: str, component: GoComponent) -> dict[str, Req
             continue
         if not in_require_block:
             continue
-        stripped = line.lstrip()
-        dependency = stripped.split(" ", 1)[0]
-        update = updates.get(dependency)
-        if update is None:
+        requirement = _parse_component_requirement_line(raw_line, index, updates)
+        if requirement is None:
             continue
-        match = re.fullmatch(
-            rf"\t{re.escape(dependency)} (?P<version>\S+)(?P<suffix> // indirect)?",
-            line,
-            re.ASCII,
-        )
-        if match is None:
-            raise ComponentError(f"{dependency} must use one canonical go.mod requirement line")
-        indirect = match.group("suffix") is not None
-        if indirect != update.indirect:
-            raise ComponentError(f"{dependency} has an unexpected indirect marker")
-        if dependency in result:
-            raise ComponentError(f"go.mod contains duplicate {dependency} requirements")
-        result[dependency] = RequirementLine(
-            dependency=dependency,
-            line_index=index,
-            line_ending=line_ending,
-            version=parse_module_version(match.group("version")),
-            indirect=indirect,
-        )
+        if requirement.dependency in result:
+            raise ComponentError(f"go.mod contains duplicate {requirement.dependency} requirements")
+        result[requirement.dependency] = requirement
     if in_require_block:
         raise ComponentError("go.mod has an unterminated require block")
     missing = sorted(set(updates) - set(result))
@@ -300,7 +326,7 @@ def component_requirements(go_mod: str, component: GoComponent) -> dict[str, Req
 def resolve_component(root: Path, component: GoComponent = GRPC_COMPONENT) -> ComponentResolution:
     """Resolve one explicit component bundle from a trusted repository checkout."""
 
-    go_mod_path = component_path(root, component, "go.mod")
+    go_mod_path = component_path(root, component, GO_MOD_FILENAME)
     go_mod = decode_utf8(read_regular_file(go_mod_path, str(go_mod_path)), str(go_mod_path))
     requirements = component_requirements(go_mod, component)
     primary = requirements[component.primary_update.dependency]
@@ -356,6 +382,81 @@ def expected_go_mod_after_update(baseline_go_mod: str, component: GoComponent) -
     return "".join(lines)
 
 
+def _read_unique_go_sum_entries(go_sum: str, label: str) -> list[str]:
+    """Split one go.sum file while refusing duplicate checksum entries."""
+
+    entries = go_sum.splitlines()
+    if len(entries) != len(set(entries)):
+        raise ComponentError(f"{label} go.sum contains duplicate entries")
+    return entries
+
+
+def _calculate_go_sum_changes(
+    baseline_entries: list[str],
+    candidate_entries: list[str],
+) -> tuple[set[str], set[str]]:
+    """Calculate the only checksum rows a component candidate may change."""
+
+    removed = set(baseline_entries) - set(candidate_entries)
+    added = set(candidate_entries) - set(baseline_entries)
+    if not added:
+        raise ComponentError("component candidate did not add checksum entries")
+    return removed, added
+
+
+def _allowed_go_sum_versions(component: GoComponent) -> set[tuple[str, str]]:
+    """List the baseline and target versions trusted for the bounded bundle."""
+
+    return {
+        (update.dependency, str(version))
+        for update in component.updates
+        for version in (update.baseline_version, update.target_version)
+    }
+
+
+def _validate_changed_go_sum_entries(
+    changed_entries: set[str],
+    allowed_versions: set[tuple[str, str]],
+) -> None:
+    """Reject malformed or unapproved checksum changes before publication."""
+
+    for entry in sorted(changed_entries):
+        match = GO_SUM_ENTRY_RE.fullmatch(entry)
+        if match is None:
+            raise ComponentError("component candidate changed a malformed go.sum entry")
+        if (match.group("module"), match.group("version")) not in allowed_versions:
+            raise ComponentError("component candidate changed an unapproved go.sum entry")
+
+
+def _require_trusted_target_checksum(
+    candidate_entries: list[str],
+    update: RequirementUpdate,
+    suffix: str,
+) -> None:
+    """Require the exact trusted checksum for one target module/version row."""
+
+    key = (update.dependency, str(update.target_version), suffix)
+    expected_checksum = TRUSTED_TARGET_GO_SUM_ENTRIES.get(key)
+    if expected_checksum is None:
+        raise ComponentError(f"component policy lacks a trusted checksum for {update.dependency}")
+    expected_entry = f"{update.dependency} {update.target_version}{suffix} {expected_checksum}"
+    matching_entries = [
+        entry
+        for entry in candidate_entries
+        if entry.startswith(f"{update.dependency} {update.target_version}{suffix} ")
+    ]
+    if matching_entries != [expected_entry]:
+        raise ComponentError(f"component candidate lacks a trusted target checksum for {update.dependency}")
+
+
+def _validate_trusted_target_checksums(candidate_entries: list[str], component: GoComponent) -> None:
+    """Bind every target dependency to both trusted Go checksum rows."""
+
+    for update in component.updates:
+        for suffix in (GO_SUM_ROOT_SUFFIX, GO_SUM_GO_MOD_SUFFIX):
+            _require_trusted_target_checksum(candidate_entries, update, suffix)
+
+
 def validate_go_sum_update(
     baseline_go_sum: str,
     candidate_go_sum: str,
@@ -364,43 +465,11 @@ def validate_go_sum_update(
 ) -> None:
     """Allow checksum changes only for the exact declared component bundle."""
 
-    baseline_entries = baseline_go_sum.splitlines()
-    candidate_entries = candidate_go_sum.splitlines()
-    if len(baseline_entries) != len(set(baseline_entries)):
-        raise ComponentError("baseline go.sum contains duplicate entries")
-    if len(candidate_entries) != len(set(candidate_entries)):
-        raise ComponentError("candidate go.sum contains duplicate entries")
-    removed = set(baseline_entries) - set(candidate_entries)
-    added = set(candidate_entries) - set(baseline_entries)
-    if not added:
-        raise ComponentError("component candidate did not add checksum entries")
-
-    allowed_versions = {
-        (update.dependency, str(version))
-        for update in component.updates
-        for version in (update.baseline_version, update.target_version)
-    }
-    for entry in [*sorted(removed), *sorted(added)]:
-        match = GO_SUM_ENTRY_RE.fullmatch(entry)
-        if match is None:
-            raise ComponentError("component candidate changed a malformed go.sum entry")
-        if (match.group("module"), match.group("version")) not in allowed_versions:
-            raise ComponentError("component candidate changed an unapproved go.sum entry")
-
-    for update in component.updates:
-        for suffix in ("", "/go.mod"):
-            key = (update.dependency, str(update.target_version), suffix)
-            expected_checksum = TRUSTED_TARGET_GO_SUM_ENTRIES.get(key)
-            if expected_checksum is None:
-                raise ComponentError(f"component policy lacks a trusted checksum for {update.dependency}")
-            expected_entry = f"{update.dependency} {update.target_version}{suffix} {expected_checksum}"
-            matching_entries = [
-                entry
-                for entry in candidate_entries
-                if entry.startswith(f"{update.dependency} {update.target_version}{suffix} ")
-            ]
-            if matching_entries != [expected_entry]:
-                raise ComponentError(f"component candidate lacks a trusted target checksum for {update.dependency}")
+    baseline_entries = _read_unique_go_sum_entries(baseline_go_sum, "baseline")
+    candidate_entries = _read_unique_go_sum_entries(candidate_go_sum, "candidate")
+    removed, added = _calculate_go_sum_changes(baseline_entries, candidate_entries)
+    _validate_changed_go_sum_entries(removed | added, _allowed_go_sum_versions(component))
+    _validate_trusted_target_checksums(candidate_entries, component)
 
 
 def validate_component_candidate(
@@ -513,11 +582,52 @@ def candidate_inputs(root: Path, source: BinaryIO) -> tuple[bytes, bytes, bytes,
     """Read the baseline frame and static, repository-contained candidate files."""
 
     baseline_go_mod, baseline_go_sum = read_baseline_frame(source)
-    candidate_go_mod_path = component_path(root, GRPC_COMPONENT, "go.mod")
-    candidate_go_sum_path = component_path(root, GRPC_COMPONENT, "go.sum")
+    candidate_go_mod_path = component_path(root, GRPC_COMPONENT, GO_MOD_FILENAME)
+    candidate_go_sum_path = component_path(root, GRPC_COMPONENT, GO_SUM_FILENAME)
     candidate_go_mod = read_regular_file(candidate_go_mod_path, str(candidate_go_mod_path))
     candidate_go_sum = read_regular_file(candidate_go_sum_path, str(candidate_go_sum_path))
     return baseline_go_mod, candidate_go_mod, baseline_go_sum, candidate_go_sum
+
+
+def _select_repository_root(args: argparse.Namespace, root: Path | None) -> Path:
+    """Select an injected root before the CLI value and script-derived default."""
+
+    selected_root = root if root is not None else args.repository_root
+    if selected_root is None:
+        selected_root = repository_root()
+    return Path(selected_root)
+
+
+def _validate_candidate_mode(
+    args: argparse.Namespace,
+    selected_root: Path,
+    input_stream: BinaryIO | None,
+) -> dict[str, object]:
+    """Validate one fixed component candidate and bind any expected hashes."""
+
+    selected_input = sys.stdin.buffer if input_stream is None else input_stream
+    payload = validate_component_candidate(*candidate_inputs(selected_root, selected_input))
+    require_expected_candidate_hashes(
+        payload,
+        expected_go_mod_sha256=args.expected_go_mod_sha256,
+        expected_go_sum_sha256=args.expected_go_sum_sha256,
+    )
+    return payload
+
+
+def _run_mode(
+    args: argparse.Namespace,
+    root: Path | None,
+    input_stream: BinaryIO | None,
+) -> dict[str, object]:
+    """Run the one selected fail-closed CLI mode."""
+
+    selected_root = _select_repository_root(args, root)
+    if args.check:
+        return resolution_payload(resolve_component(selected_root))
+    if args.validate_candidate:
+        return _validate_candidate_mode(args, selected_root, input_stream)
+    return validate_component_files(selected_root)
 
 
 def main(
@@ -532,23 +642,7 @@ def main(
     args = build_arg_parser().parse_args(argv)
     stream = sys.stdout if output is None else output
     try:
-        if args.check or args.validate_candidate or args.validate_component_files:
-            selected_root = root if root is not None else args.repository_root
-            if selected_root is None:
-                selected_root = repository_root()
-            selected_root = Path(selected_root)
-            if args.check:
-                payload = resolution_payload(resolve_component(selected_root))
-            elif args.validate_candidate:
-                selected_input = sys.stdin.buffer if input_stream is None else input_stream
-                payload = validate_component_candidate(*candidate_inputs(selected_root, selected_input))
-                require_expected_candidate_hashes(
-                    payload,
-                    expected_go_mod_sha256=args.expected_go_mod_sha256,
-                    expected_go_sum_sha256=args.expected_go_sum_sha256,
-                )
-            else:
-                payload = validate_component_files(selected_root)
+        payload = _run_mode(args, root, input_stream)
     except ComponentError as error:
         payload = {"error": str(error), "status": "error"}
         status = 1
