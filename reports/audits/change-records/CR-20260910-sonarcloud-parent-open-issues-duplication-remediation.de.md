@@ -10,7 +10,7 @@
 | Datum (UTC) | 2026-09-10 |
 | Basis-Revision | 26a560e64cbaf906c0d35bba199f65436830d1dd |
 | Scope | Nur Parent-ModSecurity-Connector; keine Framework-, MRTS-, Gitlink-, Scanner-, Regel-, Quality-Gate-, Suppression-, Exclusion- oder Merge-Änderung |
-| Delivery-Status | PR #361 ist OPEN und kein Draft am initialen Source-Head ed78748e15cafda884ae819482f91e7d3f7c7d9e; ein normaler Follow-up-Dokumentations-Commit gleicht diesen Record ab. Ein Merge ist nicht autorisiert. |
+| Delivery-Status | PR #361 ist OPEN, kein Draft und hat Exact-Source-Head-Evidenz bei `963468c0c1ca43e4c8708e57e6c2ad87465a6faf`; dieser reine Dokumentationsabgleich benötigt einen finalen Successor-Head-Readback. Ein Merge ist nicht autorisiert. |
 | Policy-Auflösung | Die Parent-Traceability-Policy verlangt diesen gepaarten Change Record für eine nicht triviale versionierte Produktänderung. Er verwendet den etablierten Archivpfad; kein paralleles Format oder Index wird eingeführt. |
 
 ## Motivation und Problemstellung
@@ -102,9 +102,14 @@ Es wurde keine Deployment-Runtime ausgeführt.
 - tests/http_authorization_service_detached_worker_smoke.c
 - tests/http_authorization_service_peer_close_smoke.c
 - tests/test_apache_with_crs_profile_evidence_contract.py
+- tests/test_apache_smoke_case_output_root.py
 - tests/test_event_runtime_security_contract.py
+- tests/test_haproxy_spop_peer_isolation_contract.py
 - tests/test_haproxy_spop_selftest_cleanup_contract.py
+- tests/test_haproxy_spop_sigpipe_peer_isolation_contract.py
 - tests/test_protected_nginx_broker_caller.py
+- tests/test_sonar_reliability_contract.py
+- tests/_haproxy_spop_contract_helpers.py
 - reports/audits/change-records/CR-20260910-sonarcloud-parent-open-issues-duplication-remediation.md
 - reports/audits/change-records/CR-20260910-sonarcloud-parent-open-issues-duplication-remediation.de.md
 - reports/audits/change-records/README.md
@@ -133,6 +138,10 @@ Es wurde keine Deployment-Runtime ausgeführt.
 | gofmt -d für geänderte Go-Pfade | Bestanden; keine Ausgabe |
 | git diff --check gegen Basis | Bestanden |
 | Formeller Security-Diff-Scan | Bestanden; vollständige Abdeckung, null berichtspflichtige Findings |
+| Finaler Security-Diff-Scan des zweiten Zyklus | Bestanden; vollständige Abdeckung, null berichtspflichtige Findings |
+| Finaler Security-Diff-Scan der Testdeduplikation im dritten Zyklus | Bestanden; vollständige Abdeckung, null berichtspflichtige Findings |
+| Finaler HAProxy-Helper-/Peer-/SIGPIPE-/Self-Test-/Sonar-Reliability-Vertragslauf | Bestanden: 48 Tests |
+| Finale Python-Kompilierung des Helpers und seiner zwei Verbraucher | Bestanden |
 | Isolierter Apache-Parent-SIGKILL-Kandidat-/Baseline-Recheck | Bestanden: 1,395s Kandidat, 1,327s Baseline |
 
 Das intermittierende frühere Apache-Parent-SIGKILL-Timeout wird als
@@ -150,14 +159,16 @@ Regressions-/Control-Suiten sind die verfügbare lokale Evidenz.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-- Exact-final-PR-Head-SonarCloud-Quality-Gate-, OPEN/CONFIRMED-Issue- und
-  Duplikat-Readback: Die initiale PR-Abfrage meldete null OPEN/CONFIRMED
-  Issues, aber ihr Quality-Gate-Endpunkt gab `NONE` ohne PR-Metriken zurück.
-  Die Analyse war daher noch nicht indiziert und kann nicht als Closure-Evidenz
-  dienen.
-- Exact-final-Head-GitHub-Actions-Checks: Initiale Checks waren ohne gemeldeten
-  Fehler gestartet, aber der Follow-up-Dokumentations-Head benötigt seinen
-  eigenen finalen Readback.
+- Exact-Source-Head-SonarCloud-Quality-Gate-, OPEN/CONFIRMED-Issue- und
+  Duplikat-Readback: Bestanden am Source-Head
+  `963468c0c1ca43e4c8708e57e6c2ad87465a6faf` (Analysezeitpunkt
+  `2026-09-10T11:04:34+0000`): Quality Gate `OK`, null Parent-
+  OPEN/CONFIRMED-Issues, null neue Duplikatzeilen/-blöcke sowie eine
+  Aggregatreduktion von 2.146/92 auf 1.919/81. Der normale reine
+  Dokumentations-Successor benötigt weiterhin denselben Exact-Head-Readback.
+- Exact-finaler-Dokumentations-Head-GitHub-Actions-Checks: Der normale
+  Dokumentations-Follow-up benötigt nach dem Push seinen eigenen finalen
+  Readback.
 - Default-Branch-Post-Merge-SonarCloud-Metrik: Kein Merge ist autorisiert.
 - Lokale Sonar-Vortex-Analyse: Für die Organisation nicht verfügbar.
 - Ein Apache-With-CRS-Profile-Publication-Test: Blockiert, weil dem isolierten
@@ -192,32 +203,40 @@ entdeckt werden. Die Scope-Einschränkung ist nicht risikoakzeptiert:
 Framework-Ownership und repositoryübergreifende Duplizierung bleiben explizite
 Blocker für ein wörtliches projektweites Nullergebnis.
 
-## Delivery-Update — 2026-09-10
+## Delivery-Abgleich vor dem finalen Dokumentations-Follow-up — 2026-09-10
 
 - Branch: `agent/sonarcloud-open-issues-duplication-20260910`.
 - Initialer Source-und-Record-Commit:
   `ed78748e15cafda884ae819482f91e7d3f7c7d9e`
   (`fix: remediate Parent SonarCloud quality issues`).
-- Remote-Ref und initialer PR-Head stimmten beim Readback mit diesem Commit
-  überein.
+- Follow-up-Source-Commits:
+  `920f478f5c894bc9b51a12686aef10b43b829afc`
+  (`fix: resolve remaining SonarCloud issues`),
+  `982b7d908f82f99680341cfab152ed8cc9062903`
+  (`fix: clear final SonarCloud residuals`) und
+  `963468c0c1ca43e4c8708e57e6c2ad87465a6faf`
+  (`test: deduplicate HAProxy SPOP contract assertions`).
+- Lokaler, Remote- und PR-Source-Head stimmten beim finalen Source-Readback
+  mit `963468c0c1ca43e4c8708e57e6c2ad87465a6faf` überein.
 - Pull Request: [#361](https://github.com/Easton97-Jens/ModSecurity-conector/pull/361)
   gegen `master`; er war OPEN und kein Draft.
-- Der initiale GitHub-Status war mergeable mit `mergeStateStatus` `BLOCKED`,
-  während Checks liefen; keine Review-Entscheidung und kein Merge wurden
+- Der Source-Head ist mergeable mit `mergeStateStatus` `BLOCKED`, während
+  Hosted-Checks laufen; keine Review-Entscheidung und kein Merge werden
   verzeichnet.
-- Der initiale SonarCloud-Issue-Readback gab null OPEN/CONFIRMED-Issues zurück,
-  aber das passende Quality Gate gab `NONE` und keine PR-Duplikatmetriken
-  zurück. Dieser Übergangszustand gilt ausdrücklich nicht als erfolgreiche
-  Analyse.
-- Dieses Update wird als normaler Follow-up-Dokumentations-Commit ohne Amend,
-  Force-Push oder Merge ausgeliefert. Sein exakter Head und die Hosted-Ergebnisse
-  müssen nach dem Push noch abgeglichen werden.
+- Die SonarCloud-Analyse des exakten Source-Heads ist `OK` mit null Parent-
+  OPEN/CONFIRMED-Issues, null neuen Duplikatzeilen/-blöcken und einer
+  Aggregatduplikatreduktion von 227 Zeilen / 11 Blöcken. Die angezeigte
+  Aggregatdichte bleibt wegen Rundung bei 0,3 %.
+- Dieser Abgleich wird als normaler reiner Dokumentations-Follow-up ohne Amend,
+  Force-Push oder Merge ausgeliefert. Sein exakter Successor-Head und seine
+  Hosted-Ergebnisse müssen nach dem Push noch abgeglichen werden.
 
 ## Finaler Diff- und Review-Status
 
 Lokale Source-, Test-, Formatter-, Diff- und Security-Reviews sind für den hier
-beschriebenen Kandidaten abgeschlossen. Die initiale normale Delivery ist
-erfolgt. Dieser Dokumentationsabgleich wird ein normaler Follow-up-Commit;
-sein exakter finaler PR-Head, Hosted-Check-Ergebnisse, SonarCloud-PR-Ergebnis,
-Review-Runde, Merge und Cleanup-Ergebnis stehen noch aus. Eine
-Merge-Autorisierung wird nicht behauptet.
+beschriebenen Kandidaten abgeschlossen. Der exakte Source-Head erfüllt die
+task-eigenen SonarCloud-Issue- und New-Duplication-Kriterien. Dieser
+Dokumentationsabgleich wird ein normaler Follow-up-Commit; sein exakter finaler
+PR-Head, Hosted-Check-Ergebnisse, SonarCloud-PR-Ergebnis, Review-Runde, Merge
+und Cleanup-Ergebnis stehen noch aus. Eine Merge-Autorisierung wird nicht
+behauptet.
