@@ -1380,10 +1380,10 @@ jobs:
             (ROOT / "connectors" / "envoy" / "ext_proc" / "go.mod").read_text(encoding="utf-8")
         )
         security_floors = {
-            "google.golang.org/grpc": (1, 83, 1),
-            "golang.org/x/net": (0, 56, 0),
-            "golang.org/x/sys": (0, 46, 0),
-            "golang.org/x/text": (0, 39, 0),
+            "google.golang.org/grpc": (1, 83, 2),
+            "golang.org/x/net": (0, 58, 0),
+            "golang.org/x/sys": (0, 47, 0),
+            "golang.org/x/text": (0, 41, 0),
         }
         for module, floor in security_floors.items():
             with self.subTest(module=module):
@@ -3541,6 +3541,14 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn("cache: false", resolver)
         self.assertIn("make check-go-version-contract", resolver)
         self.assertIn('scripts/update-go-version.py --check --json', resolver)
+        self.assertIn('scripts/update-go-components.py --check --json', resolver)
+        self.assertIn("component_version_tuple", resolver)
+        self.assertIn("component_current_tuple < target_tuple", resolver)
+        self.assertIn("toolchain_update_available", resolver)
+        self.assertIn("component_update_available", resolver)
+        self.assertIn('"connectors/envoy/ext_proc"', resolver)
+        self.assertIn('"google.golang.org/grpc"', resolver)
+        self.assertIn('"v1.83.2"', resolver)
 
         candidate = jobs["validate-go-patch"]
         assert_hash_locked_ci_test_dependency_installation(
@@ -3551,11 +3559,38 @@ sudo -n chmod 0750 "$namespace_parent"
         )
         self.assertIn("go-version: ${{ needs.resolve-go-patch.outputs.version }}", candidate)
         self.assertIn("GOTOOLCHAIN: local", candidate)
-        self.assertEqual(candidate.count("go test -mod=readonly ./..."), 2)
-        self.assertEqual(candidate.count("go build -mod=readonly ./..."), 2)
-        self.assertEqual(candidate.count("go mod verify"), 2)
+        self.assertIn("GOWORK: off", candidate)
+        self.assertEqual(candidate.count("go mod tidy -diff"), 4)
+        self.assertEqual(candidate.count("go mod verify"), 4)
+        self.assertEqual(candidate.count("go test -mod=readonly ./..."), 4)
+        self.assertEqual(candidate.count("go vet -mod=readonly ./..."), 4)
+        self.assertEqual(candidate.count("go build -mod=readonly ./..."), 4)
+        self.assertIn("connectors/traefik/native_middleware", candidate)
+        self.assertIn("connectors/traefik/composite_middleware", candidate)
+        self.assertIn("connectors/traefik/response_observer", candidate)
+        self.assertIn("Create and validate the bounded Go component candidate", candidate)
+        self.assertIn("--validate-component-files", candidate)
+        self.assertIn('--repository-root "$GITHUB_WORKSPACE"', candidate)
+        self.assertIn("go mod edit -require=google.golang.org/grpc@v1.83.2", candidate)
+        self.assertNotIn("go get", candidate)
+        self.assertLess(
+            candidate.index("--validate-component-files"),
+            candidate.index("go mod edit -require=google.golang.org/grpc@v1.83.2"),
+        )
+        self.assertNotIn("--baseline-go-mod", candidate)
+        self.assertNotIn("--candidate-go-mod", candidate)
+        self.assertNotIn("--baseline-go-sum", candidate)
+        self.assertNotIn("--candidate-go-sum", candidate)
+        self.assertIn("git show HEAD:connectors/envoy/ext_proc/go.mod", candidate)
+        self.assertIn("git show HEAD:connectors/envoy/ext_proc/go.sum", candidate)
+        self.assertIn("printf '\\0'", candidate)
+        self.assertIn("go mod tidy", candidate)
+        self.assertIn("scripts/update-go-components.py", candidate)
+        self.assertIn("component_go_mod_sha256", candidate)
+        self.assertIn("component_go_sum_sha256", candidate)
         self.assertIn('scripts/update-go-version.py --check --expected-version "$CANDIDATE_VERSION" --json', candidate)
         self.assertIn("tests.test_update_go_version", candidate)
+        self.assertIn("tests.test_update_go_components", candidate)
         self.assertIn("tests.test_go_version_contract", candidate)
 
         publisher = jobs["create-go-update-pr"]
@@ -3564,17 +3599,45 @@ sudo -n chmod 0750 "$namespace_parent"
             {"contents": "write", "pull-requests": "write"},
         )
         self.assertNotIn("actions: write", publisher)
-        self.assertNotIn("actions/setup-go@", publisher)
+        self.assertIn("actions/setup-go@", publisher)
+        self.assertIn("Set up independently validated Go candidate", publisher)
+        self.assertIn("go-version: ${{ needs.resolve-go-patch.outputs.version }}", publisher)
+        self.assertIn("GOTOOLCHAIN: local", publisher)
+        self.assertIn("GOWORK: off", publisher)
         self.assertNotIn("submodules: recursive", publisher)
         self.assertNotIn("git submodule", publisher)
         self.assertNotIn("make ", publisher)
         self.assertNotIn("--force", publisher)
         self.assertNotIn("--force-with-lease", publisher)
         self.assertIn('python3 scripts/update-go-version.py --update --expected-version "$CANDIDATE_VERSION" --json', publisher)
+        self.assertIn("--validate-component-files", publisher)
+        self.assertIn("go mod edit -require=google.golang.org/grpc@v1.83.2", publisher)
+        self.assertNotIn("go get", publisher)
+        self.assertLess(
+            publisher.index("--validate-component-files"),
+            publisher.index("go mod edit -require=google.golang.org/grpc@v1.83.2"),
+        )
+        self.assertNotIn("--baseline-go-mod", publisher)
+        self.assertNotIn("--candidate-go-mod", publisher)
+        self.assertNotIn("--baseline-go-sum", publisher)
+        self.assertNotIn("--candidate-go-sum", publisher)
+        self.assertIn("git show HEAD:connectors/envoy/ext_proc/go.mod", publisher)
+        self.assertIn("git show HEAD:connectors/envoy/ext_proc/go.sum", publisher)
+        self.assertIn("printf '\\0'", publisher)
+        self.assertNotIn("@latest", publisher)
+        self.assertIn("VALIDATED_COMPONENT_GO_MOD_SHA256", publisher)
+        self.assertIn("VALIDATED_COMPONENT_GO_SUM_SHA256", publisher)
+        self.assertIn("--expected-go-mod-sha256", publisher)
+        self.assertIn("--expected-go-sum-sha256", publisher)
         self.assertIn("UPDATE_BRANCH: automation/update-go-126", publisher)
-        self.assertIn('PR_TITLE: "chore(ci): propose Go 1.26 patch update"', publisher)
-        self.assertIn("if [ \"$changed_paths\" != \".go-version\" ]; then", publisher)
-        self.assertIn('git update-index --add --cacheinfo 100644 "$candidate_blob" .go-version', publisher)
+        self.assertIn('PR_TITLE: "chore(ci): propose bounded Go update"', publisher)
+        self.assertIn("connectors/envoy/ext_proc/go.mod", publisher)
+        self.assertIn("connectors/envoy/ext_proc/go.sum", publisher)
+        self.assertIn("require_only_allowed_update_paths", publisher)
+        self.assertIn("require_regular_file_updates", publisher)
+        self.assertIn('git update-index --add --cacheinfo 100644 "$candidate_blob" "$candidate_path"', publisher)
+        self.assertIn("git add --", publisher)
+        self.assertNotIn("git add .", publisher)
         self.assertIn("git push origin \"$UPDATE_BRANCH\"", publisher)
         self.assertIn("--draft", publisher)
         self.assertIn("gh pr edit \"$existing_pr\"", publisher)
@@ -3583,7 +3646,10 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn('if [ "$auto_merge" != "null" ]; then', publisher)
         self.assertIn("## English", publisher)
         self.assertIn("## Deutsch", publisher)
-        self.assertIn("Module directives: unchanged", publisher)
+        self.assertIn(
+            "Module directives: only the fixed google.golang.org/grpc security bundle may change",
+            publisher,
+        )
 
     def test_sarif_upload_permissions_are_scoped(self) -> None:
         codeql = self.workflow("ci-security-codeql.yml")
