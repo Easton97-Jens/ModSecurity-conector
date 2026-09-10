@@ -266,7 +266,7 @@ jobs:
             --json
           (
             cd connectors/envoy/ext_proc
-            go get google.golang.org/grpc@v1.83.2
+            go mod edit -require=google.golang.org/grpc@v1.83.2
             go mod tidy
           )
 
@@ -524,7 +524,7 @@ jobs:
               --json
             (
               cd connectors/envoy/ext_proc
-              go get google.golang.org/grpc@v1.83.2
+              go mod edit -require=google.golang.org/grpc@v1.83.2
               go mod tidy
             )
             candidate_report="$(

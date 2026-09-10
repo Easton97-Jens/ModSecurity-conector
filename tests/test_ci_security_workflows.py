@@ -3571,11 +3571,11 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn("Create and validate the bounded Go component candidate", candidate)
         self.assertIn("--validate-component-files", candidate)
         self.assertIn('--repository-root "$GITHUB_WORKSPACE"', candidate)
-        self.assertIn("go get google.golang.org/grpc@v1.83.2", candidate)
-        self.assertNotIn('go get "$COMPONENT_MODULE@$COMPONENT_VERSION"', candidate)
+        self.assertIn("go mod edit -require=google.golang.org/grpc@v1.83.2", candidate)
+        self.assertNotIn("go get", candidate)
         self.assertLess(
             candidate.index("--validate-component-files"),
-            candidate.index("go get google.golang.org/grpc@v1.83.2"),
+            candidate.index("go mod edit -require=google.golang.org/grpc@v1.83.2"),
         )
         self.assertNotIn("--baseline-go-mod", candidate)
         self.assertNotIn("--candidate-go-mod", candidate)
@@ -3611,11 +3611,11 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertNotIn("--force-with-lease", publisher)
         self.assertIn('python3 scripts/update-go-version.py --update --expected-version "$CANDIDATE_VERSION" --json', publisher)
         self.assertIn("--validate-component-files", publisher)
-        self.assertIn("go get google.golang.org/grpc@v1.83.2", publisher)
-        self.assertNotIn('go get "$COMPONENT_MODULE@$COMPONENT_VERSION"', publisher)
+        self.assertIn("go mod edit -require=google.golang.org/grpc@v1.83.2", publisher)
+        self.assertNotIn("go get", publisher)
         self.assertLess(
             publisher.index("--validate-component-files"),
-            publisher.index("go get google.golang.org/grpc@v1.83.2"),
+            publisher.index("go mod edit -require=google.golang.org/grpc@v1.83.2"),
         )
         self.assertNotIn("--baseline-go-mod", publisher)
         self.assertNotIn("--candidate-go-mod", publisher)
