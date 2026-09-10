@@ -12,10 +12,12 @@ import stat
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TextIO
+from typing import BinaryIO, TextIO
 
 
 MAX_COMPONENT_FILE_BYTES = 1024 * 1024
+BASELINE_FRAME_SEPARATOR = b"\0"
+MAX_BASELINE_FRAME_BYTES = (MAX_COMPONENT_FILE_BYTES * 2) + len(BASELINE_FRAME_SEPARATOR)
 MODULE_VERSION_RE = re.compile(
     r"^v(?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)$",
     re.ASCII,
@@ -480,33 +482,41 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--repository-root",
         type=Path,
-        help="repository root for --check or --validate-component-files",
+        help="repository root for --check, --validate-candidate, or --validate-component-files",
     )
-    parser.add_argument("--baseline-go-mod", type=Path)
-    parser.add_argument("--candidate-go-mod", type=Path)
-    parser.add_argument("--baseline-go-sum", type=Path)
-    parser.add_argument("--candidate-go-sum", type=Path)
     parser.add_argument("--expected-go-mod-sha256")
     parser.add_argument("--expected-go-sum-sha256")
     parser.add_argument("--json", action="store_true", help="emit the stable JSON result")
     return parser
 
 
-def candidate_inputs(args: argparse.Namespace) -> tuple[bytes, bytes, bytes, bytes]:
-    """Read exactly the four regular files required for candidate validation."""
+def read_baseline_frame(source: BinaryIO) -> tuple[bytes, bytes]:
+    """Read the two baseline files from one bounded, NUL-delimited byte frame."""
 
-    values = (
-        (args.baseline_go_mod, "baseline go.mod"),
-        (args.candidate_go_mod, "candidate go.mod"),
-        (args.baseline_go_sum, "baseline go.sum"),
-        (args.candidate_go_sum, "candidate go.sum"),
-    )
-    if any(path is None for path, _label in values):
-        raise ComponentError("candidate validation requires all baseline and candidate module files")
-    baseline_go_mod = read_regular_file(args.baseline_go_mod, "baseline go.mod")
-    candidate_go_mod = read_regular_file(args.candidate_go_mod, "candidate go.mod")
-    baseline_go_sum = read_regular_file(args.baseline_go_sum, "baseline go.sum")
-    candidate_go_sum = read_regular_file(args.candidate_go_sum, "candidate go.sum")
+    try:
+        frame = source.read(MAX_BASELINE_FRAME_BYTES + 1)
+    except (OSError, ValueError) as error:
+        raise ComponentError("baseline candidate frame cannot be read") from error
+    if type(frame) is not bytes:
+        raise ComponentError("baseline candidate frame must be binary")
+    if len(frame) > MAX_BASELINE_FRAME_BYTES:
+        raise ComponentError("baseline candidate frame exceeds the size limit")
+    if frame.count(BASELINE_FRAME_SEPARATOR) != 1:
+        raise ComponentError("baseline candidate frame must contain exactly one separator")
+    baseline_go_mod, baseline_go_sum = frame.split(BASELINE_FRAME_SEPARATOR)
+    if len(baseline_go_mod) > MAX_COMPONENT_FILE_BYTES or len(baseline_go_sum) > MAX_COMPONENT_FILE_BYTES:
+        raise ComponentError("baseline component file exceeds the size limit")
+    return baseline_go_mod, baseline_go_sum
+
+
+def candidate_inputs(root: Path, source: BinaryIO) -> tuple[bytes, bytes, bytes, bytes]:
+    """Read the baseline frame and static, repository-contained candidate files."""
+
+    baseline_go_mod, baseline_go_sum = read_baseline_frame(source)
+    candidate_go_mod_path = component_path(root, GRPC_COMPONENT, "go.mod")
+    candidate_go_sum_path = component_path(root, GRPC_COMPONENT, "go.sum")
+    candidate_go_mod = read_regular_file(candidate_go_mod_path, str(candidate_go_mod_path))
+    candidate_go_sum = read_regular_file(candidate_go_sum_path, str(candidate_go_sum_path))
     return baseline_go_mod, candidate_go_mod, baseline_go_sum, candidate_go_sum
 
 
@@ -515,28 +525,30 @@ def main(
     *,
     root: Path | None = None,
     output: TextIO | None = None,
+    input_stream: BinaryIO | None = None,
 ) -> int:
     """Run the resolver or candidate validator and fail closed on malformed input."""
 
     args = build_arg_parser().parse_args(argv)
     stream = sys.stdout if output is None else output
     try:
-        if args.check or args.validate_component_files:
+        if args.check or args.validate_candidate or args.validate_component_files:
             selected_root = root if root is not None else args.repository_root
             if selected_root is None:
                 selected_root = repository_root()
             selected_root = Path(selected_root)
             if args.check:
                 payload = resolution_payload(resolve_component(selected_root))
+            elif args.validate_candidate:
+                selected_input = sys.stdin.buffer if input_stream is None else input_stream
+                payload = validate_component_candidate(*candidate_inputs(selected_root, selected_input))
+                require_expected_candidate_hashes(
+                    payload,
+                    expected_go_mod_sha256=args.expected_go_mod_sha256,
+                    expected_go_sum_sha256=args.expected_go_sum_sha256,
+                )
             else:
                 payload = validate_component_files(selected_root)
-        else:
-            payload = validate_component_candidate(*candidate_inputs(args))
-            require_expected_candidate_hashes(
-                payload,
-                expected_go_mod_sha256=args.expected_go_mod_sha256,
-                expected_go_sum_sha256=args.expected_go_sum_sha256,
-            )
     except ComponentError as error:
         payload = {"error": str(error), "status": "error"}
         status = 1

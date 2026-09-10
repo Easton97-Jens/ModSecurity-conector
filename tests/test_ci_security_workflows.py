@@ -3571,11 +3571,19 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn("Create and validate the bounded Go component candidate", candidate)
         self.assertIn("--validate-component-files", candidate)
         self.assertIn('--repository-root "$GITHUB_WORKSPACE"', candidate)
-        self.assertIn('go get "$COMPONENT_MODULE@$COMPONENT_VERSION"', candidate)
+        self.assertIn("go get google.golang.org/grpc@v1.83.2", candidate)
+        self.assertNotIn('go get "$COMPONENT_MODULE@$COMPONENT_VERSION"', candidate)
         self.assertLess(
             candidate.index("--validate-component-files"),
-            candidate.index('go get "$COMPONENT_MODULE@$COMPONENT_VERSION"'),
+            candidate.index("go get google.golang.org/grpc@v1.83.2"),
         )
+        self.assertNotIn("--baseline-go-mod", candidate)
+        self.assertNotIn("--candidate-go-mod", candidate)
+        self.assertNotIn("--baseline-go-sum", candidate)
+        self.assertNotIn("--candidate-go-sum", candidate)
+        self.assertIn("git show HEAD:connectors/envoy/ext_proc/go.mod", candidate)
+        self.assertIn("git show HEAD:connectors/envoy/ext_proc/go.sum", candidate)
+        self.assertIn("printf '\\0'", candidate)
         self.assertIn("go mod tidy", candidate)
         self.assertIn("scripts/update-go-components.py", candidate)
         self.assertIn("component_go_mod_sha256", candidate)
@@ -3603,11 +3611,19 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertNotIn("--force-with-lease", publisher)
         self.assertIn('python3 scripts/update-go-version.py --update --expected-version "$CANDIDATE_VERSION" --json', publisher)
         self.assertIn("--validate-component-files", publisher)
-        self.assertIn('go get "$COMPONENT_MODULE@$COMPONENT_VERSION"', publisher)
+        self.assertIn("go get google.golang.org/grpc@v1.83.2", publisher)
+        self.assertNotIn('go get "$COMPONENT_MODULE@$COMPONENT_VERSION"', publisher)
         self.assertLess(
             publisher.index("--validate-component-files"),
-            publisher.index('go get "$COMPONENT_MODULE@$COMPONENT_VERSION"'),
+            publisher.index("go get google.golang.org/grpc@v1.83.2"),
         )
+        self.assertNotIn("--baseline-go-mod", publisher)
+        self.assertNotIn("--candidate-go-mod", publisher)
+        self.assertNotIn("--baseline-go-sum", publisher)
+        self.assertNotIn("--candidate-go-sum", publisher)
+        self.assertIn("git show HEAD:connectors/envoy/ext_proc/go.mod", publisher)
+        self.assertIn("git show HEAD:connectors/envoy/ext_proc/go.sum", publisher)
+        self.assertIn("printf '\\0'", publisher)
         self.assertNotIn("@latest", publisher)
         self.assertIn("VALIDATED_COMPONENT_GO_MOD_SHA256", publisher)
         self.assertIn("VALIDATED_COMPONENT_GO_SUM_SHA256", publisher)

@@ -260,17 +260,13 @@ jobs:
             exit 0
           fi
 
-          baseline_go_mod="$(mktemp "$RUNNER_TEMP/go-component-baseline-go-mod.XXXXXX")"
-          baseline_go_sum="$(mktemp "$RUNNER_TEMP/go-component-baseline-go-sum.XXXXXX")"
-          git show "HEAD:$COMPONENT_DIRECTORY/go.mod" > "$baseline_go_mod"
-          git show "HEAD:$COMPONENT_DIRECTORY/go.sum" > "$baseline_go_sum"
           python3 scripts/update-go-components.py \
             --validate-component-files \
             --repository-root "$GITHUB_WORKSPACE" \
             --json
           (
-            cd "$COMPONENT_DIRECTORY"
-            go get "$COMPONENT_MODULE@$COMPONENT_VERSION"
+            cd connectors/envoy/ext_proc
+            go get google.golang.org/grpc@v1.83.2
             go mod tidy
           )
 
@@ -282,13 +278,16 @@ jobs:
             echo "Component candidate changed paths outside the approved module files: $changed_paths" >&2
             exit 1
           fi
-          candidate_report="$(python3 scripts/update-go-components.py \
-            --validate-candidate \
-            --baseline-go-mod "$baseline_go_mod" \
-            --candidate-go-mod "$COMPONENT_DIRECTORY/go.mod" \
-            --baseline-go-sum "$baseline_go_sum" \
-            --candidate-go-sum "$COMPONENT_DIRECTORY/go.sum" \
-            --json)"
+          candidate_report="$(
+            {
+              git show HEAD:connectors/envoy/ext_proc/go.mod
+              printf '\0'
+              git show HEAD:connectors/envoy/ext_proc/go.sum
+            } | python3 scripts/update-go-components.py \
+              --validate-candidate \
+              --repository-root "$GITHUB_WORKSPACE" \
+              --json
+          )"
           printf '%s\n' "$candidate_report"
           COMPONENT_CANDIDATE_REPORT="$candidate_report" python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import json
@@ -519,28 +518,27 @@ jobs:
               echo "Validation did not provide a usable component candidate hash." >&2
               exit 1
             fi
-            baseline_go_mod="$(mktemp "$RUNNER_TEMP/go-component-baseline-go-mod.XXXXXX")"
-            baseline_go_sum="$(mktemp "$RUNNER_TEMP/go-component-baseline-go-sum.XXXXXX")"
-            git show "HEAD:$COMPONENT_DIRECTORY/go.mod" > "$baseline_go_mod"
-            git show "HEAD:$COMPONENT_DIRECTORY/go.sum" > "$baseline_go_sum"
             python3 scripts/update-go-components.py \
               --validate-component-files \
               --repository-root "$GITHUB_WORKSPACE" \
               --json
             (
-              cd "$COMPONENT_DIRECTORY"
-              go get "$COMPONENT_MODULE@$COMPONENT_VERSION"
+              cd connectors/envoy/ext_proc
+              go get google.golang.org/grpc@v1.83.2
               go mod tidy
             )
-            candidate_report="$(python3 scripts/update-go-components.py \
-              --validate-candidate \
-              --baseline-go-mod "$baseline_go_mod" \
-              --candidate-go-mod "$COMPONENT_DIRECTORY/go.mod" \
-              --baseline-go-sum "$baseline_go_sum" \
-              --candidate-go-sum "$COMPONENT_DIRECTORY/go.sum" \
-              --expected-go-mod-sha256 "$VALIDATED_COMPONENT_GO_MOD_SHA256" \
-              --expected-go-sum-sha256 "$VALIDATED_COMPONENT_GO_SUM_SHA256" \
-              --json)"
+            candidate_report="$(
+              {
+                git show HEAD:connectors/envoy/ext_proc/go.mod
+                printf '\0'
+                git show HEAD:connectors/envoy/ext_proc/go.sum
+              } | python3 scripts/update-go-components.py \
+                --validate-candidate \
+                --repository-root "$GITHUB_WORKSPACE" \
+                --expected-go-mod-sha256 "$VALIDATED_COMPONENT_GO_MOD_SHA256" \
+                --expected-go-sum-sha256 "$VALIDATED_COMPONENT_GO_SUM_SHA256" \
+                --json
+            )"
             printf '%s\n' "$candidate_report"
           elif [ "$VALIDATED_COMPONENT_CHANGED" != false ] || \
                [ -n "$VALIDATED_COMPONENT_GO_MOD_SHA256" ] || \

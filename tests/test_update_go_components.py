@@ -129,10 +129,29 @@ class UpdateGoComponentsTests(unittest.TestCase):
         (module / "go.sum").write_text(go_sum_source or baseline_go_sum(), encoding="utf-8")
         return root
 
-    def run_cli(self, root: Path, argv: list[str]) -> tuple[int, dict[str, object]]:
+    def run_cli(
+        self,
+        root: Path,
+        argv: list[str],
+        *,
+        baseline_frame: bytes = b"",
+    ) -> tuple[int, dict[str, object]]:
         output = io.StringIO()
-        status = updater.main(argv, root=root, output=output)
+        status = updater.main(
+            argv,
+            root=root,
+            output=output,
+            input_stream=io.BytesIO(baseline_frame),
+        )
         return status, json.loads(output.getvalue())
+
+    @staticmethod
+    def baseline_frame() -> bytes:
+        return (
+            go_mod("v1.83.1").encode("utf-8")
+            + updater.BASELINE_FRAME_SEPARATOR
+            + baseline_go_sum().encode("utf-8")
+        )
 
     def test_resolves_the_only_approved_component_floor(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -247,6 +266,56 @@ class UpdateGoComponentsTests(unittest.TestCase):
                 "files": ["go.mod", "go.sum"],
             },
         )
+
+    def test_candidate_cli_reads_only_static_component_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.root_with_module(
+                Path(temporary),
+                go_mod_source=target_go_mod(),
+                go_sum_source=candidate_go_sum(),
+            )
+            status, result = self.run_cli(
+                root,
+                ["--validate-candidate", "--json"],
+                baseline_frame=self.baseline_frame(),
+            )
+        self.assertEqual(status, 0)
+        self.assertEqual(result["status"], "valid")
+
+    def test_candidate_cli_rejects_malformed_baseline_frames_and_symlinked_candidates(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.root_with_module(
+                Path(temporary),
+                go_mod_source=target_go_mod(),
+                go_sum_source=candidate_go_sum(),
+            )
+            malformed_frames = {
+                "no_separator": self.baseline_frame().replace(updater.BASELINE_FRAME_SEPARATOR, b"", 1),
+                "extra_separator": self.baseline_frame() + updater.BASELINE_FRAME_SEPARATOR,
+                "oversized": b"x" * (updater.MAX_BASELINE_FRAME_BYTES + 1),
+            }
+            for name, baseline_frame in malformed_frames.items():
+                with self.subTest(name=name):
+                    status, result = self.run_cli(
+                        root,
+                        ["--validate-candidate", "--json"],
+                        baseline_frame=baseline_frame,
+                    )
+                    self.assertEqual((status, result["status"]), (1, "error"))
+
+            module = root / "connectors" / "envoy" / "ext_proc"
+            outside = root / "outside-go-mod"
+            outside.write_text(target_go_mod(), encoding="utf-8")
+            (module / "go.mod").unlink()
+            (module / "go.mod").symlink_to(outside)
+            before = outside.read_bytes()
+            status, result = self.run_cli(
+                root,
+                ["--validate-candidate", "--json"],
+                baseline_frame=self.baseline_frame(),
+            )
+            self.assertEqual((status, result["status"]), (1, "error"))
+            self.assertEqual(outside.read_bytes(), before)
 
     def test_candidate_validation_accepts_only_the_fixed_bundle_and_checksums(self) -> None:
         baseline_mod = go_mod("v1.83.1").encode("utf-8")
