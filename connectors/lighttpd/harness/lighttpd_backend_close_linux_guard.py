@@ -678,21 +678,33 @@ def _scan_runtime_directory(
         entries.close()
         entries = None
     except Exception:
-        if entries is not None:
-            try:
-                entries.close()
-            except OSError:
-                pass
-        for child_fd in child_fds:
-            if child_fd not in {item[0] for item in pending}:
-                os.close(child_fd)
-        try:
-            os.close(parent_fd)
-        except OSError:
-            pass
+        _close_runtime_directory_resources(parent_fd, entries, child_fds, pending)
         raise
     os.close(parent_fd)
     return inspected
+
+
+def _close_runtime_directory_resources(
+    parent_fd: int,
+    entries: os.ScandirIterator[str] | None,
+    child_fds: list[int],
+    pending: list[tuple[int, int]],
+) -> None:
+    """Close a failed directory scan without closing queued child descriptors."""
+
+    if entries is not None:
+        try:
+            entries.close()
+        except OSError:
+            pass
+    pending_fds = {item[0] for item in pending}
+    for child_fd in child_fds:
+        if child_fd not in pending_fds:
+            os.close(child_fd)
+    try:
+        os.close(parent_fd)
+    except OSError:
+        pass
 
 
 def _scan_runtime_entry(

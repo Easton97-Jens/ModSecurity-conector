@@ -5664,7 +5664,7 @@ static void *spop_connection_thread(void *opaque) {
 static int spawn_spop_connection_worker(
         const spop_accept_loop_config *config,
         spop_connection_gate *gate,
-        pthread_attr_t *detached_attributes,
+        const pthread_attr_t *detached_attributes,
         int fd,
         uint64_t *last_capacity_rejection_log_ms) {
     spop_connection_task *task;
@@ -5728,9 +5728,44 @@ static int spawn_spop_connection_worker(
     return SPOP_CONNECTION_WORKER_STARTED;
 }
 
+typedef enum spop_accept_iteration_result {
+    SPOP_ACCEPT_ITERATION_COUNT = 0,
+    SPOP_ACCEPT_ITERATION_CONTINUE = 1,
+    SPOP_ACCEPT_ITERATION_STOP = 2
+} spop_accept_iteration_result;
+
+static int handle_spop_accept_error(const agent_state *state, FILE *log,
+        int *loop_rc) {
+    if (spop_owner_queue_requires_restart(state)) {
+        *loop_rc = SPOP_OWNER_RESTART_EXIT_CODE;
+        return 1;
+    }
+    if (errno != EINTR) {
+        log_line(log, "accept failed errno=%d", errno);
+        *loop_rc = 1;
+        return 1;
+    }
+    return stop_requested != 0;
+}
+
+static spop_accept_iteration_result process_spop_worker_result(
+        spop_connection_worker_result worker_result, int *loop_rc) {
+    if (worker_result == SPOP_CONNECTION_WORKER_FATAL) {
+        *loop_rc = 1;
+        return SPOP_ACCEPT_ITERATION_STOP;
+    }
+    if (worker_result == SPOP_CONNECTION_WORKER_CAPACITY_REJECTED) {
+        return SPOP_ACCEPT_ITERATION_CONTINUE;
+    }
+    if (worker_result == SPOP_CONNECTION_WORKER_STOPPED) {
+        return SPOP_ACCEPT_ITERATION_STOP;
+    }
+    return SPOP_ACCEPT_ITERATION_COUNT;
+}
+
 static int accept_loop(const spop_accept_loop_config *config) {
     const int listen_fd = config->listen_fd;
-    agent_state *state = config->state;
+    const agent_state *state = config->state;
     FILE *log = config->log;
     const int max_connections = config->max_connections;
     const unsigned int worker_limit = config->worker_limit;
@@ -5774,16 +5809,7 @@ static int accept_loop(const spop_accept_loop_config *config) {
             (max_connections <= 0 || handled < max_connections)) {
         int fd = accept(listen_fd, 0, 0);
         if (fd < 0) {
-            if (spop_owner_queue_requires_restart(state)) {
-                loop_rc = SPOP_OWNER_RESTART_EXIT_CODE;
-                break;
-            }
-            if (errno != EINTR) {
-                log_line(log, "accept failed errno=%d", errno);
-                loop_rc = 1;
-                break;
-            }
-            if (stop_requested) {
+            if (handle_spop_accept_error(state, log, &loop_rc)) {
                 break;
             }
             continue;
@@ -5794,15 +5820,13 @@ static int accept_loop(const spop_accept_loop_config *config) {
                     &detached_attributes, fd,
                     &last_capacity_rejection_log_ms);
 
-            if (worker_result == SPOP_CONNECTION_WORKER_FATAL) {
-                loop_rc = 1;
+            const spop_accept_iteration_result iteration_result =
+                process_spop_worker_result(worker_result, &loop_rc);
+            if (iteration_result == SPOP_ACCEPT_ITERATION_STOP) {
                 break;
             }
-            if (worker_result == SPOP_CONNECTION_WORKER_CAPACITY_REJECTED) {
+            if (iteration_result == SPOP_ACCEPT_ITERATION_CONTINUE) {
                 continue;
-            }
-            if (worker_result == SPOP_CONNECTION_WORKER_STOPPED) {
-                break;
             }
         }
         handled++;
