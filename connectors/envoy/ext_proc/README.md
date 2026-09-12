@@ -114,16 +114,21 @@ only `STREAMED` body modes, never `BUFFERED`.
 The module keeps the following minimum stable selections for the currently
 triaged dependency advisories:
 
-- `google.golang.org/grpc` `v1.83.1` or later;
-- `golang.org/x/net` `v0.56.0` or later;
-- `golang.org/x/sys` `v0.46.0` or later; and
-- `golang.org/x/text` `v0.39.0` or later.
+- `google.golang.org/grpc` `v1.83.2` or later;
+- `golang.org/x/net` `v0.58.0` or later;
+- `golang.org/x/sys` `v0.47.0` or later; and
+- `golang.org/x/text` `v0.41.0` or later.
 
 `tests/test_ci_security_workflows.py` checks these as semantic-version floors,
 so a later stable security update remains valid while a downgrade fails the
 focused CI-security contract. The floor proves the selected module versions;
 it does not itself establish advisory reachability, replace Go module tests,
 or claim that a hosted Dependabot, OSV, or Scorecard alert has refreshed.
+
+The bounded Go updater may advance this component only as the fixed security
+bundle from `grpc` `v1.83.1` to `v1.83.2`, `x/sys` `v0.46.0` to `v0.47.0`,
+`x/net` `v0.56.0` to `v0.58.0`, and `x/text` `v0.39.0` to `v0.41.0`. It rejects
+unlisted dependency, path, mode, and checksum changes.
 
 ## Explicit non-claims and late-action behavior
 

@@ -11,6 +11,28 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260912-pr363-candidate-contract-repair](CR-20260912-pr363-candidate-contract-repair.de.md)
+  | English companion: `CR-20260912-pr363-candidate-contract-repair.md` — der
+  aktuelle Benutzer autorisierte diese Parent-only-Korrektur in einem eigenen
+  Worktree und einen Draft PR. Sie löst die von PR #363 aufgedeckten veralteten
+  Parent-Verträge mit einem read-only-Kandidatengatter, erhält generische und
+  geschützte NGINX-Ownership-Grenzen und lässt trusted CodeQL das neueste
+  stabile Go-Release über den bestehenden begrenzten Updater auflösen. Kein
+  Framework-/MRTS-Source, keine PR-#363-Änderung, kein direkter `master`-
+  Schreibvorgang und kein Merge werden behauptet; Delivery-Fakten bleiben an
+  den aktuellen Task-PR-Lifecycle gebunden.
+
+- [CR-20260912-go-latest-release-contract](CR-20260912-go-latest-release-contract.de.md)
+  | English companion: `CR-20260912-go-latest-release-contract.md` — der
+  aktuelle Benutzer autorisierte diese Parent-only-Korrektur in einem eigenen
+  Worktree und einen PR. Sie generalisiert den begrenzten Go-Release-Updater
+  und seinen Trusted-CodeQL-Selector von einer festen Minor-Serie auf die
+  höchste stabile numerische Release; sie hält lokale Source-Evidence und
+  Exact-Head-Delivery-Anforderungen fest. Keine Framework-/MRTS-Source-,
+  Gitlink-, Berechtigungs-, Pin-, Dependency- oder direkte
+  `master`-Schreibänderung wird behauptet; beobachtete Delivery-Fakten
+  bleiben an den aktuellen PR-Lifecycle gebunden.
+
 - [CR-20260909-fail-closed-connector-remediation](CR-20260909-fail-closed-connector-remediation.de.md)
   | English companion: `CR-20260909-fail-closed-connector-remediation.md` —
   Parent-only-Fail-Closed-Handling für aktiviertes Apache-Transaktions-Setup

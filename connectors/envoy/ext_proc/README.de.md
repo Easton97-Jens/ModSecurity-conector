@@ -120,10 +120,10 @@ nur `STREAMED` Körpermodi, niemals `BUFFERED`.
 Das Modul hält für die aktuell triagierten Dependency-Advisories mindestens
 folgende stabile Auswahlen ein:
 
-- `google.golang.org/grpc` `v1.83.1` oder höher;
-- `golang.org/x/net` `v0.56.0` oder höher;
-- `golang.org/x/sys` `v0.46.0` oder höher; und
-- `golang.org/x/text` `v0.39.0` oder höher.
+- `google.golang.org/grpc` `v1.83.2` oder höher;
+- `golang.org/x/net` `v0.58.0` oder höher;
+- `golang.org/x/sys` `v0.47.0` oder höher; und
+- `golang.org/x/text` `v0.41.0` oder höher.
 
 `tests/test_ci_security_workflows.py` prüft diese Grenzen als semantische
 Versionsuntergrenzen. Damit bleibt ein späteres stabiles Sicherheitsupdate
@@ -132,6 +132,12 @@ Die Grenze belegt die ausgewählten Modulversionen; sie belegt weder die
 Erreichbarkeit eines Advisories noch ersetzt sie Go-Modultests oder behauptet,
 dass ein gehosteter Dependabot-, OSV- oder Scorecard-Alert bereits aktualisiert
 wurde.
+
+Der begrenzte Go-Updater darf diese Komponente nur als festes Sicherheits-
+Bundle von `grpc` `v1.83.1` auf `v1.83.2`, `x/sys` `v0.46.0` auf `v0.47.0`,
+`x/net` `v0.56.0` auf `v0.58.0` und `x/text` `v0.39.0` auf `v0.41.0`
+aktualisieren. Er weist nicht aufgeführte Abhängigkeits-, Pfad-, Modus- und
+Checksum-Änderungen zurück.
 
 ## Explizite Nichteinforderungen und verspätetes Handeln
 

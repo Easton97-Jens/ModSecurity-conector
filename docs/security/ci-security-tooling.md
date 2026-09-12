@@ -131,17 +131,23 @@ triaged before it becomes a blocking policy.
 
 ## CodeQL and Scorecard boundaries
 
-CodeQL analyzes Actions, each Go module through the exact root
-<code>.go-version</code> selector (currently Go <code>1.26.5</code>), and a
-bounded C/C++ scope. That scope runs <code>make check-common-helpers-c17</code>
-plus a bounded 15-second libFuzzer run for the Common HTTP header parser
-with C17, AddressSanitizer, and UndefinedBehaviorSanitizer. The central
-selector is a CI toolchain contract; each module's <code>go.mod</code> still
-owns its Go language baseline. The updater proposes only a same-minor stable
-patch in a Draft PR after read-only candidate validation and cannot alter
-module or dependency files. The C/C++ result does not claim full connector
-coverage; expanding it requires reproducible builds for the selected connector
-scope.
+CodeQL analyzes Actions, each Go module through the newest stable Go release
+resolved by the trusted-base copy of the bounded Go updater, and a bounded
+C/C++ scope. The root <code>.go-version</code> remains the checked current
+selector and monotonic lower bound; it is not a PR-controlled CodeQL toolchain
+input. Before either Go job starts, the trusted base resolves and validates the
+official release metadata, then passes only the exact numeric result to pinned
+<code>actions/setup-go</code>. That scope runs
+<code>make check-common-helpers-c17</code> plus a bounded 15-second libFuzzer
+run for the Common HTTP header parser with C17, AddressSanitizer, and
+UndefinedBehaviorSanitizer. Each module's <code>go.mod</code> still owns its Go
+language baseline. At its bounded scheduled resolution, the updater selects
+the greatest stable numeric Go release and proposes it in a Draft PR after
+read-only candidate validation. It may change only <code>.go-version</code>
+and the fixed, independently validated Envoy component bundle; it cannot alter
+arbitrary module or dependency files. The C/C++ result does not claim full
+connector coverage; expanding it requires reproducible builds for the selected
+connector scope.
 
 Scorecard uses read-only permissions for same-repository pull requests and
 checks out the exact pull-request head. Fork pull requests are intentionally

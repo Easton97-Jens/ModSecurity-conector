@@ -36,9 +36,9 @@ Section 7 builds the repository-owned ext_proc service; the official Envoy docum
   The official ext_proc filter and bidirectional gRPC configuration contract. Version scope: Filter fields and semantics are release-dependent.
 - **Source and scope:** [Envoy admin interface](https://www.envoyproxy.io/docs/envoy/latest/operations/admin.html)
   Loopback-only admin endpoints and their local diagnostic purpose. Version scope: Do not expose the local example as a general management interface.
-- **Source and scope:** [Envoy v1.39.0 release](https://github.com/envoyproxy/envoy/releases/tag/v1.39.0)
-  Official selected release page, binary asset, and checksum material. Version scope: This guide pins the binary route to v1.39.0.
-- **Source and scope:** [Envoy source/Bazel guidance](https://github.com/envoyproxy/envoy/blob/v1.39.0/bazel/README.md)
+- **Source and scope:** [Envoy v1.39.1 release](https://github.com/envoyproxy/envoy/releases/tag/v1.39.1)
+  Official selected release page, binary asset, and checksum material. Version scope: This guide pins the binary route to v1.39.1.
+- **Source and scope:** [Envoy source/Bazel guidance](https://github.com/envoyproxy/envoy/blob/v1.39.1/bazel/README.md)
   Official optional source-build guidance; it is resource-intensive and not the default route. Version scope: Use only with the selected tag and sufficient CPU, memory, and storage.
 
 
@@ -96,7 +96,7 @@ The official x86_64 asset is written to a local workspace and made executable. B
 ```sh
 mkdir -p "$WORKDIR"
 cd "$WORKDIR"
-curl -fL "https://github.com/envoyproxy/envoy/releases/download/v1.39.0/envoy-1.39.0-linux-x86_64" -o envoy
+curl -fL "https://github.com/envoyproxy/envoy/releases/download/v1.39.1/envoy-1.39.1-linux-x86_64" -o envoy
 : "${ENVOY_SHA256:?set ENVOY_SHA256 from the Framework-managed Cache-v2 inventory}"
 printf "%s  %s\n" "$ENVOY_SHA256" "envoy" | sha256sum -c -
 chmod 755 envoy

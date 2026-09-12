@@ -35,7 +35,7 @@ PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE = (
     "Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@"
     + PROTECTED_NGINX_BROKER_SHA
 )
-WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "86451b45ae7bb7953baf9f81f2c2dad07395a808"
+WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "d4f7b69dc264852eac74e1439c0887fcb9fbe372"
 WITH_CRS_NO_MRTS_MRTS_SHA = "615b13bacbd008562c17408246c41ab27dca3104"
 PROTECTED_NGINX_BROKER_CALLER_MASTER_GATE_TERMS = frozenset(
     {
@@ -51,7 +51,7 @@ LOCKED_ACTION_USE = re.compile(
     r"(?P<prefix>uses:\s+[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?@)"
     r"(?P<sha>[a-f0-9]{40})(?:\s+#\s*v[^\n]+)?"
 )
-SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "486be1c4676f48e035b8f17ca7ec44f9651de539edc9620d83191f1052418bc6"
+SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "f84bf78832de4e30775c443517a92912ae2b989ef34392f0c837d035e96a18f7"
 AUTO_MERGE_DISABLED_QUERY = (
     "--jq 'if (has(\"auto_merge\") and (.auto_merge == null)) then \"null\" "
     "else \"auto-merge-present\" end'"
@@ -188,6 +188,7 @@ SUBMODULE_LOCAL_GIT_CONTRACT_TESTS = (
     "tests.test_validate_submodule_candidate_state",
     "tests.test_update_submodules_local_git",
     "tests.test_update_framework_versions",
+    "tests.test_verify_framework_candidate_contract",
 )
 
 WRITE_PERMISSION_KEYS = {
@@ -1380,28 +1381,33 @@ jobs:
             (ROOT / "connectors" / "envoy" / "ext_proc" / "go.mod").read_text(encoding="utf-8")
         )
         security_floors = {
-            "google.golang.org/grpc": (1, 83, 1),
-            "golang.org/x/net": (0, 56, 0),
-            "golang.org/x/sys": (0, 46, 0),
-            "golang.org/x/text": (0, 39, 0),
+            "google.golang.org/grpc": (1, 83, 2),
+            "golang.org/x/net": (0, 58, 0),
+            "golang.org/x/sys": (0, 47, 0),
+            "golang.org/x/text": (0, 41, 0),
         }
         for module, floor in security_floors.items():
             with self.subTest(module=module):
                 self.assertIn(module, requirements)
                 self.assertGreaterEqual(requirements[module], floor)
 
-    def test_codeql_uses_trusted_base_go_version_and_bounded_cpp_scope(self) -> None:
+    def test_codeql_uses_latest_trusted_base_go_version_and_bounded_cpp_scope(self) -> None:
         text = self.workflow("ci-security-codeql.yml")
         self.assertIn("ref: ${{ github.event.pull_request.base.sha || github.sha }}", text)
         self.assertEqual(
             text.count("go-version: ${{ needs.trusted-go-version.outputs.version }}"),
             2,
         )
-        self.assertEqual(text.count("check-latest: false"), 2)
+        self.assertEqual(text.count("check-latest: false"), 3)
         self.assertNotIn("go-version-file: .go-version", text)
-        self.assertIn("printf '%s\\n' \"$version\" | awk", text)
-        self.assertIn("NR == 1", text)
-        self.assertNotIn('[[ ! "$version" =~', text)
+        self.assertIn("Set up canonical Python for the Go resolver", text)
+        self.assertIn('scripts/update-go-version.py --check --json', text)
+        self.assertIn('GO_REPORT="$go_report" python3 - <<\'PY\' >> "$GITHUB_OUTPUT"', text)
+        self.assertIn('latest = data.get("latest_version")', text)
+        self.assertIn('if version_tuple(latest) < version_tuple(current):', text)
+        self.assertIn('print(f"version={latest}")', text)
+        self.assertNotIn('version="$(cat -- .go-version)"', text)
+        self.assertNotIn("go-version: stable", text)
         self.assertIn("connectors/envoy/ext_proc", text)
         self.assertIn("connectors/traefik/native_middleware", text)
         self.assertIn("Fuzz Traefik UDS frame parser", text)
@@ -1711,6 +1717,10 @@ jobs:
         )
         self.assertIn(f"EXPECTED_FRAMEWORK_SHA: {WITH_CRS_NO_MRTS_FRAMEWORK_SHA}", job)
         self.assertIn(f"EXPECTED_MRTS_SHA: {WITH_CRS_NO_MRTS_MRTS_SHA}", job)
+        literal_framework_shas = re.findall(
+            r"^ {10}FRAMEWORK_SHA: ([0-9a-f]{40})$", workflow, re.MULTILINE
+        )
+        self.assertEqual(literal_framework_shas, [WITH_CRS_NO_MRTS_FRAMEWORK_SHA] * 3)
         self.assertIn('test "$parent_commit" = "$EXPECTED_PARENT_SHA"', job)
         self.assertIn('test "$EXPECTED_PARENT_SHA" != "$EXPECTED_BASE_SHA"', job)
         self.assertIn('test "$framework_commit" = "$EXPECTED_FRAMEWORK_SHA"', job)
@@ -2513,6 +2523,8 @@ jobs:
         self.assertEqual(validator.count("Validate Framework component-pin data contract"), 1)
         self.assertIn("sync-framework-component-versions.py", validator)
         self.assertIn("--validate", validator)
+        self.assertIn("verify-framework-candidate-contract.py", validator)
+        self.assertIn('--candidate-sha "$CANDIDATE_SHA"', validator)
         self.assertIn('"$CANDIDATE_SHA:ci/lib/common.sh"', validator)
         self.assertIn('git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" show', validator)
         for forbidden in (
@@ -3140,6 +3152,8 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn("sync-framework-component-versions.py", publisher)
         self.assertIn("--sync", publisher)
         self.assertIn("--check", publisher)
+        self.assertIn("verify-framework-candidate-contract.py", publisher)
+        self.assertIn('--candidate-sha "$CANDIDATE_SHA"', publisher)
         self.assertIn("python3 scripts/generate_compiler_guides.py", publisher)
         self.assertIn("docs/build/compilers/lighttpd.de.md", publisher)
         self.assertIn('git -c core.hooksPath=/dev/null add --', publisher)
@@ -3157,6 +3171,7 @@ sudo -n chmod 0750 "$namespace_parent"
         )
         self.assertNotIn("submodule update --init --recursive", publisher)
         self.assertNotIn("make quick-check", publisher)
+        self.assertTrue((ROOT / "ci/tools/verify-framework-candidate-contract.py").is_file())
 
         self.assertIn("RESOLVER_RESULT", outcome)
         self.assertIn("VALIDATOR_RESULT", outcome)
@@ -3512,19 +3527,19 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn("No Python 3.14 patch update is available.", outcome)
         self.assertIn("Kein Python-3.14-Patch-Update ist verfügbar.", outcome)
 
-    def test_go_patch_updater_separates_trusted_stages_and_writer_scope(self) -> None:
+    def test_go_release_updater_separates_trusted_stages_and_writer_scope(self) -> None:
         workflow_name = "update-go-version.yml"
         jobs = self.jobs(workflow_name)
         self.assertEqual(
             set(jobs),
             {
-                "resolve-go-patch",
-                "validate-go-patch",
+                "resolve-go-release",
+                "validate-go-release",
                 "create-go-update-pr",
             },
         )
         trusted_default_ref = "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)"
-        for job_name in ("resolve-go-patch", "validate-go-patch", "create-go-update-pr"):
+        for job_name in ("resolve-go-release", "validate-go-release", "create-go-update-pr"):
             self.assertIn(trusted_default_ref, jobs[job_name], job_name)
             checkouts = checkout_step_blocks(jobs[job_name])
             self.assertEqual(len(checkouts), 1, job_name)
@@ -3533,29 +3548,67 @@ sudo -n chmod 0750 "$namespace_parent"
             self.assertIn("persist-credentials: false", checkouts[0], job_name)
             self.assertNotIn("secrets.", jobs[job_name], job_name)
 
-        self.assertEqual(job_permissions(jobs["resolve-go-patch"]), {"contents": "read"})
-        self.assertEqual(job_permissions(jobs["validate-go-patch"]), {"contents": "read"})
-        resolver = jobs["resolve-go-patch"]
+        self.assertEqual(job_permissions(jobs["resolve-go-release"]), {"contents": "read"})
+        self.assertEqual(job_permissions(jobs["validate-go-release"]), {"contents": "read"})
+        resolver = jobs["resolve-go-release"]
         self.assertIn("go-version-file: .go-version", resolver)
         self.assertIn("check-latest: false", resolver)
         self.assertIn("cache: false", resolver)
         self.assertIn("make check-go-version-contract", resolver)
         self.assertIn('scripts/update-go-version.py --check --json', resolver)
+        self.assertIn('scripts/update-go-components.py --check --json', resolver)
+        self.assertIn("go_version_tuple", resolver)
+        self.assertIn("latest_version", resolver)
+        self.assertNotIn("1.26", resolver)
+        self.assertIn("component_version_tuple", resolver)
+        self.assertIn("component_current_tuple < target_tuple", resolver)
+        self.assertIn("toolchain_update_available", resolver)
+        self.assertIn("component_update_available", resolver)
+        self.assertIn('"connectors/envoy/ext_proc"', resolver)
+        self.assertIn('"google.golang.org/grpc"', resolver)
+        self.assertIn('"v1.83.2"', resolver)
 
-        candidate = jobs["validate-go-patch"]
+        candidate = jobs["validate-go-release"]
         assert_hash_locked_ci_test_dependency_installation(
             self,
             candidate,
             interpreter_contract_step="Verify Python interpreter contract",
             first_test_step="Run Go version and workflow contracts",
         )
-        self.assertIn("go-version: ${{ needs.resolve-go-patch.outputs.version }}", candidate)
+        self.assertIn("go-version: ${{ needs.resolve-go-release.outputs.latest_version }}", candidate)
         self.assertIn("GOTOOLCHAIN: local", candidate)
-        self.assertEqual(candidate.count("go test -mod=readonly ./..."), 2)
-        self.assertEqual(candidate.count("go build -mod=readonly ./..."), 2)
-        self.assertEqual(candidate.count("go mod verify"), 2)
+        self.assertIn("GOWORK: off", candidate)
+        self.assertEqual(candidate.count("go mod tidy -diff"), 4)
+        self.assertEqual(candidate.count("go mod verify"), 4)
+        self.assertEqual(candidate.count("go test -mod=readonly ./..."), 4)
+        self.assertEqual(candidate.count("go vet -mod=readonly ./..."), 4)
+        self.assertEqual(candidate.count("go build -mod=readonly ./..."), 4)
+        self.assertIn("connectors/traefik/native_middleware", candidate)
+        self.assertIn("connectors/traefik/composite_middleware", candidate)
+        self.assertIn("connectors/traefik/response_observer", candidate)
+        self.assertIn("Create and validate the bounded Go component candidate", candidate)
+        self.assertIn("--validate-component-files", candidate)
+        self.assertIn('--repository-root "$GITHUB_WORKSPACE"', candidate)
+        self.assertIn("go mod edit -require=google.golang.org/grpc@v1.83.2", candidate)
+        self.assertNotIn("go get", candidate)
+        self.assertLess(
+            candidate.index("--validate-component-files"),
+            candidate.index("go mod edit -require=google.golang.org/grpc@v1.83.2"),
+        )
+        self.assertNotIn("--baseline-go-mod", candidate)
+        self.assertNotIn("--candidate-go-mod", candidate)
+        self.assertNotIn("--baseline-go-sum", candidate)
+        self.assertNotIn("--candidate-go-sum", candidate)
+        self.assertIn("git show HEAD:connectors/envoy/ext_proc/go.mod", candidate)
+        self.assertIn("git show HEAD:connectors/envoy/ext_proc/go.sum", candidate)
+        self.assertIn("printf '\\0'", candidate)
+        self.assertIn("go mod tidy", candidate)
+        self.assertIn("scripts/update-go-components.py", candidate)
+        self.assertIn("component_go_mod_sha256", candidate)
+        self.assertIn("component_go_sum_sha256", candidate)
         self.assertIn('scripts/update-go-version.py --check --expected-version "$CANDIDATE_VERSION" --json', candidate)
         self.assertIn("tests.test_update_go_version", candidate)
+        self.assertIn("tests.test_update_go_components", candidate)
         self.assertIn("tests.test_go_version_contract", candidate)
 
         publisher = jobs["create-go-update-pr"]
@@ -3564,17 +3617,47 @@ sudo -n chmod 0750 "$namespace_parent"
             {"contents": "write", "pull-requests": "write"},
         )
         self.assertNotIn("actions: write", publisher)
-        self.assertNotIn("actions/setup-go@", publisher)
+        self.assertIn("actions/setup-go@", publisher)
+        self.assertIn("Set up independently validated Go candidate", publisher)
+        self.assertIn("go-version: ${{ needs.resolve-go-release.outputs.latest_version }}", publisher)
+        self.assertIn("GOTOOLCHAIN: local", publisher)
+        self.assertIn("GOWORK: off", publisher)
         self.assertNotIn("submodules: recursive", publisher)
         self.assertNotIn("git submodule", publisher)
         self.assertNotIn("make ", publisher)
         self.assertNotIn("--force", publisher)
         self.assertNotIn("--force-with-lease", publisher)
         self.assertIn('python3 scripts/update-go-version.py --update --expected-version "$CANDIDATE_VERSION" --json', publisher)
-        self.assertIn("UPDATE_BRANCH: automation/update-go-126", publisher)
-        self.assertIn('PR_TITLE: "chore(ci): propose Go 1.26 patch update"', publisher)
-        self.assertIn("if [ \"$changed_paths\" != \".go-version\" ]; then", publisher)
-        self.assertIn('git update-index --add --cacheinfo 100644 "$candidate_blob" .go-version', publisher)
+        self.assertIn("--validate-component-files", publisher)
+        self.assertIn("go mod edit -require=google.golang.org/grpc@v1.83.2", publisher)
+        self.assertNotIn("go get", publisher)
+        self.assertLess(
+            publisher.index("--validate-component-files"),
+            publisher.index("go mod edit -require=google.golang.org/grpc@v1.83.2"),
+        )
+        self.assertNotIn("--baseline-go-mod", publisher)
+        self.assertNotIn("--candidate-go-mod", publisher)
+        self.assertNotIn("--baseline-go-sum", publisher)
+        self.assertNotIn("--candidate-go-sum", publisher)
+        self.assertIn("git show HEAD:connectors/envoy/ext_proc/go.mod", publisher)
+        self.assertIn("git show HEAD:connectors/envoy/ext_proc/go.sum", publisher)
+        self.assertIn("printf '\\0'", publisher)
+        self.assertNotIn("@latest", publisher)
+        self.assertIn("VALIDATED_COMPONENT_GO_MOD_SHA256", publisher)
+        self.assertIn("VALIDATED_COMPONENT_GO_SUM_SHA256", publisher)
+        self.assertIn("--expected-go-mod-sha256", publisher)
+        self.assertIn("--expected-go-sum-sha256", publisher)
+        self.assertIn("UPDATE_BRANCH: automation/update-go-release", publisher)
+        self.assertIn('PR_TITLE: "chore(ci): propose latest stable Go update"', publisher)
+        self.assertIn("validate-go-release", publisher)
+        self.assertNotIn("1.26", publisher)
+        self.assertIn("connectors/envoy/ext_proc/go.mod", publisher)
+        self.assertIn("connectors/envoy/ext_proc/go.sum", publisher)
+        self.assertIn("require_only_allowed_update_paths", publisher)
+        self.assertIn("require_regular_file_updates", publisher)
+        self.assertIn('git update-index --add --cacheinfo 100644 "$candidate_blob" "$candidate_path"', publisher)
+        self.assertIn("git add --", publisher)
+        self.assertNotIn("git add .", publisher)
         self.assertIn("git push origin \"$UPDATE_BRANCH\"", publisher)
         self.assertIn("--draft", publisher)
         self.assertIn("gh pr edit \"$existing_pr\"", publisher)
@@ -3583,7 +3666,10 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn('if [ "$auto_merge" != "null" ]; then', publisher)
         self.assertIn("## English", publisher)
         self.assertIn("## Deutsch", publisher)
-        self.assertIn("Module directives: unchanged", publisher)
+        self.assertIn(
+            "Module directives: only the fixed google.golang.org/grpc security bundle may change",
+            publisher,
+        )
 
     def test_sarif_upload_permissions_are_scoped(self) -> None:
         codeql = self.workflow("ci-security-codeql.yml")

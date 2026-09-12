@@ -388,7 +388,7 @@ def execute_update(
     atomic_update_version: Callable[[Path, VersionT, VersionT], None],
     version_label: str,
 ) -> dict[str, object]:
-    """Resolve, check, or safely update an adapter-owned patch version."""
+    """Resolve, check, or safely update an adapter-owned version."""
 
     if mode not in {"check", "update"}:
         raise UpdaterError("mode must be check or update")
@@ -432,7 +432,7 @@ def build_arg_parser(description: str | None, version_metavar: str) -> argparse.
     parser.add_argument(
         "--expected-version",
         metavar=version_metavar,
-        help="require independently resolved metadata to equal this stable patch version",
+        help="require independently resolved metadata to equal this stable version",
     )
     parser.add_argument("--json", action="store_true", help="emit the stable JSON decision record")
     return parser
