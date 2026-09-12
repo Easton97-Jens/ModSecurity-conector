@@ -3512,19 +3512,19 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn("No Python 3.14 patch update is available.", outcome)
         self.assertIn("Kein Python-3.14-Patch-Update ist verfügbar.", outcome)
 
-    def test_go_patch_updater_separates_trusted_stages_and_writer_scope(self) -> None:
+    def test_go_release_updater_separates_trusted_stages_and_writer_scope(self) -> None:
         workflow_name = "update-go-version.yml"
         jobs = self.jobs(workflow_name)
         self.assertEqual(
             set(jobs),
             {
-                "resolve-go-patch",
-                "validate-go-patch",
+                "resolve-go-release",
+                "validate-go-release",
                 "create-go-update-pr",
             },
         )
         trusted_default_ref = "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)"
-        for job_name in ("resolve-go-patch", "validate-go-patch", "create-go-update-pr"):
+        for job_name in ("resolve-go-release", "validate-go-release", "create-go-update-pr"):
             self.assertIn(trusted_default_ref, jobs[job_name], job_name)
             checkouts = checkout_step_blocks(jobs[job_name])
             self.assertEqual(len(checkouts), 1, job_name)
@@ -3533,15 +3533,18 @@ sudo -n chmod 0750 "$namespace_parent"
             self.assertIn("persist-credentials: false", checkouts[0], job_name)
             self.assertNotIn("secrets.", jobs[job_name], job_name)
 
-        self.assertEqual(job_permissions(jobs["resolve-go-patch"]), {"contents": "read"})
-        self.assertEqual(job_permissions(jobs["validate-go-patch"]), {"contents": "read"})
-        resolver = jobs["resolve-go-patch"]
+        self.assertEqual(job_permissions(jobs["resolve-go-release"]), {"contents": "read"})
+        self.assertEqual(job_permissions(jobs["validate-go-release"]), {"contents": "read"})
+        resolver = jobs["resolve-go-release"]
         self.assertIn("go-version-file: .go-version", resolver)
         self.assertIn("check-latest: false", resolver)
         self.assertIn("cache: false", resolver)
         self.assertIn("make check-go-version-contract", resolver)
         self.assertIn('scripts/update-go-version.py --check --json', resolver)
         self.assertIn('scripts/update-go-components.py --check --json', resolver)
+        self.assertIn("go_version_tuple", resolver)
+        self.assertIn("latest_version", resolver)
+        self.assertNotIn("1.26", resolver)
         self.assertIn("component_version_tuple", resolver)
         self.assertIn("component_current_tuple < target_tuple", resolver)
         self.assertIn("toolchain_update_available", resolver)
@@ -3550,14 +3553,14 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn('"google.golang.org/grpc"', resolver)
         self.assertIn('"v1.83.2"', resolver)
 
-        candidate = jobs["validate-go-patch"]
+        candidate = jobs["validate-go-release"]
         assert_hash_locked_ci_test_dependency_installation(
             self,
             candidate,
             interpreter_contract_step="Verify Python interpreter contract",
             first_test_step="Run Go version and workflow contracts",
         )
-        self.assertIn("go-version: ${{ needs.resolve-go-patch.outputs.version }}", candidate)
+        self.assertIn("go-version: ${{ needs.resolve-go-release.outputs.latest_version }}", candidate)
         self.assertIn("GOTOOLCHAIN: local", candidate)
         self.assertIn("GOWORK: off", candidate)
         self.assertEqual(candidate.count("go mod tidy -diff"), 4)
@@ -3601,7 +3604,7 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertNotIn("actions: write", publisher)
         self.assertIn("actions/setup-go@", publisher)
         self.assertIn("Set up independently validated Go candidate", publisher)
-        self.assertIn("go-version: ${{ needs.resolve-go-patch.outputs.version }}", publisher)
+        self.assertIn("go-version: ${{ needs.resolve-go-release.outputs.latest_version }}", publisher)
         self.assertIn("GOTOOLCHAIN: local", publisher)
         self.assertIn("GOWORK: off", publisher)
         self.assertNotIn("submodules: recursive", publisher)
@@ -3629,8 +3632,10 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn("VALIDATED_COMPONENT_GO_SUM_SHA256", publisher)
         self.assertIn("--expected-go-mod-sha256", publisher)
         self.assertIn("--expected-go-sum-sha256", publisher)
-        self.assertIn("UPDATE_BRANCH: automation/update-go-126", publisher)
-        self.assertIn('PR_TITLE: "chore(ci): propose bounded Go update"', publisher)
+        self.assertIn("UPDATE_BRANCH: automation/update-go-release", publisher)
+        self.assertIn('PR_TITLE: "chore(ci): propose latest stable Go update"', publisher)
+        self.assertIn("validate-go-release", publisher)
+        self.assertNotIn("1.26", publisher)
         self.assertIn("connectors/envoy/ext_proc/go.mod", publisher)
         self.assertIn("connectors/envoy/ext_proc/go.sum", publisher)
         self.assertIn("require_only_allowed_update_paths", publisher)
