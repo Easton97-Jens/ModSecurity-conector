@@ -22,10 +22,10 @@ jobs:
       BUILD_NGINX_FROM_SOURCE: "1"
       NGINX_SOURCE_MODE: github-release
       NGINX_SOURCE_REPO_URL: https://github.com/nginx/nginx
-      NGINX_RELEASE_TAG: release-1.31.4
-      NGINX_SOURCE_GIT_REF: release-1.31.4
-      NGINX_RELEASE_ASSET_NAME: nginx-1.31.4.tar.gz
-      NGINX_SHA256: e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3
+      NGINX_RELEASE_TAG: release-1.31.5
+      NGINX_SOURCE_GIT_REF: release-1.31.5
+      NGINX_RELEASE_ASSET_NAME: nginx-1.31.5.tar.gz
+      NGINX_SHA256: e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279
       NGINX_REQUIRE_PINNED_PROVENANCE: "1"
       SMOKE_PREPARE_TIMEOUT_SECONDS: "3600"
     steps:
@@ -231,7 +231,7 @@ jobs:
           /usr/bin/python3 -I tests/run_nginx_body_buffer_fixture.py \
             --connector-root "$CONNECTOR_ROOT" \
             --expected-head "$EXPECTED_PARENT_SHA" \
-            --nginx-archive "$NGINX_DOWNLOAD_DIR/nginx-1.31.4.tar.gz" \
+            --nginx-archive "$NGINX_DOWNLOAD_DIR/nginx-1.31.5.tar.gz" \
             --nginx-sha256 "$NGINX_SHA256" \
             --modsecurity-include "$MODSECURITY_INCLUDE_DIR" \
             --modsecurity-lib "$MODSECURITY_LIB_DIR" \

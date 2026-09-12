@@ -10,6 +10,16 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260912-pr363-candidate-contract-repair](CR-20260912-pr363-candidate-contract-repair.md)
+  | [Deutsch](CR-20260912-pr363-candidate-contract-repair.de.md) — the current
+  user authorized this Parent-only correction in a dedicated worktree and one
+  Draft PR. It supersedes the stale Parent contracts exposed by PR #363 with a
+  read-only candidate gate, keeps generic and protected NGINX ownership
+  boundaries intact, and makes trusted CodeQL resolve the newest stable Go
+  release through the existing bounded updater. No Framework/MRTS source,
+  PR #363 mutation, direct `master` write, or merge is asserted; delivery facts
+  remain bound to the current task PR lifecycle.
+
 - [CR-20260912-go-latest-release-contract](CR-20260912-go-latest-release-contract.md)
   | [Deutsch](CR-20260912-go-latest-release-contract.de.md) — the current user
   authorized this Parent-only correction in a dedicated worktree and one PR.

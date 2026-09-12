@@ -35,7 +35,7 @@ PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE = (
     "Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@"
     + PROTECTED_NGINX_BROKER_SHA
 )
-WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "86451b45ae7bb7953baf9f81f2c2dad07395a808"
+WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "d4f7b69dc264852eac74e1439c0887fcb9fbe372"
 WITH_CRS_NO_MRTS_MRTS_SHA = "615b13bacbd008562c17408246c41ab27dca3104"
 PROTECTED_NGINX_BROKER_CALLER_MASTER_GATE_TERMS = frozenset(
     {
@@ -51,7 +51,7 @@ LOCKED_ACTION_USE = re.compile(
     r"(?P<prefix>uses:\s+[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?@)"
     r"(?P<sha>[a-f0-9]{40})(?:\s+#\s*v[^\n]+)?"
 )
-SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "486be1c4676f48e035b8f17ca7ec44f9651de539edc9620d83191f1052418bc6"
+SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "f84bf78832de4e30775c443517a92912ae2b989ef34392f0c837d035e96a18f7"
 AUTO_MERGE_DISABLED_QUERY = (
     "--jq 'if (has(\"auto_merge\") and (.auto_merge == null)) then \"null\" "
     "else \"auto-merge-present\" end'"
@@ -188,6 +188,7 @@ SUBMODULE_LOCAL_GIT_CONTRACT_TESTS = (
     "tests.test_validate_submodule_candidate_state",
     "tests.test_update_submodules_local_git",
     "tests.test_update_framework_versions",
+    "tests.test_verify_framework_candidate_contract",
 )
 
 WRITE_PERMISSION_KEYS = {
@@ -1390,18 +1391,23 @@ jobs:
                 self.assertIn(module, requirements)
                 self.assertGreaterEqual(requirements[module], floor)
 
-    def test_codeql_uses_trusted_base_go_version_and_bounded_cpp_scope(self) -> None:
+    def test_codeql_uses_latest_trusted_base_go_version_and_bounded_cpp_scope(self) -> None:
         text = self.workflow("ci-security-codeql.yml")
         self.assertIn("ref: ${{ github.event.pull_request.base.sha || github.sha }}", text)
         self.assertEqual(
             text.count("go-version: ${{ needs.trusted-go-version.outputs.version }}"),
             2,
         )
-        self.assertEqual(text.count("check-latest: false"), 2)
+        self.assertEqual(text.count("check-latest: false"), 3)
         self.assertNotIn("go-version-file: .go-version", text)
-        self.assertIn("printf '%s\\n' \"$version\" | awk", text)
-        self.assertIn("NR == 1", text)
-        self.assertNotIn('[[ ! "$version" =~', text)
+        self.assertIn("Set up canonical Python for the Go resolver", text)
+        self.assertIn('scripts/update-go-version.py --check --json', text)
+        self.assertIn('GO_REPORT="$go_report" python3 - <<\'PY\' >> "$GITHUB_OUTPUT"', text)
+        self.assertIn('latest = data.get("latest_version")', text)
+        self.assertIn('if version_tuple(latest) < version_tuple(current):', text)
+        self.assertIn('print(f"version={latest}")', text)
+        self.assertNotIn('version="$(cat -- .go-version)"', text)
+        self.assertNotIn("go-version: stable", text)
         self.assertIn("connectors/envoy/ext_proc", text)
         self.assertIn("connectors/traefik/native_middleware", text)
         self.assertIn("Fuzz Traefik UDS frame parser", text)
@@ -1711,6 +1717,10 @@ jobs:
         )
         self.assertIn(f"EXPECTED_FRAMEWORK_SHA: {WITH_CRS_NO_MRTS_FRAMEWORK_SHA}", job)
         self.assertIn(f"EXPECTED_MRTS_SHA: {WITH_CRS_NO_MRTS_MRTS_SHA}", job)
+        literal_framework_shas = re.findall(
+            r"^ {10}FRAMEWORK_SHA: ([0-9a-f]{40})$", workflow, re.MULTILINE
+        )
+        self.assertEqual(literal_framework_shas, [WITH_CRS_NO_MRTS_FRAMEWORK_SHA] * 3)
         self.assertIn('test "$parent_commit" = "$EXPECTED_PARENT_SHA"', job)
         self.assertIn('test "$EXPECTED_PARENT_SHA" != "$EXPECTED_BASE_SHA"', job)
         self.assertIn('test "$framework_commit" = "$EXPECTED_FRAMEWORK_SHA"', job)
@@ -2513,6 +2523,8 @@ jobs:
         self.assertEqual(validator.count("Validate Framework component-pin data contract"), 1)
         self.assertIn("sync-framework-component-versions.py", validator)
         self.assertIn("--validate", validator)
+        self.assertIn("verify-framework-candidate-contract.py", validator)
+        self.assertIn('--candidate-sha "$CANDIDATE_SHA"', validator)
         self.assertIn('"$CANDIDATE_SHA:ci/lib/common.sh"', validator)
         self.assertIn('git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" show', validator)
         for forbidden in (
@@ -3140,6 +3152,8 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn("sync-framework-component-versions.py", publisher)
         self.assertIn("--sync", publisher)
         self.assertIn("--check", publisher)
+        self.assertIn("verify-framework-candidate-contract.py", publisher)
+        self.assertIn('--candidate-sha "$CANDIDATE_SHA"', publisher)
         self.assertIn("python3 scripts/generate_compiler_guides.py", publisher)
         self.assertIn("docs/build/compilers/lighttpd.de.md", publisher)
         self.assertIn('git -c core.hooksPath=/dev/null add --', publisher)
@@ -3157,6 +3171,7 @@ sudo -n chmod 0750 "$namespace_parent"
         )
         self.assertNotIn("submodule update --init --recursive", publisher)
         self.assertNotIn("make quick-check", publisher)
+        self.assertTrue((ROOT / "ci/tools/verify-framework-candidate-contract.py").is_file())
 
         self.assertIn("RESOLVER_RESULT", outcome)
         self.assertIn("VALIDATOR_RESULT", outcome)
