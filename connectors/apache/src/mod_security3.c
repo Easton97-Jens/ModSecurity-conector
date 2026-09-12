@@ -524,53 +524,72 @@ static void store_tx_context(msc_t *msr, request_rec *r)
     apr_table_setn(r->notes, NOTE_MSR, (void *)msr);
 }
 
-static const char *apache_transaction_id_from_expression(request_rec *r,
-    msc_conf_t *config)
+typedef enum apache_tx_context_result {
+    APACHE_TX_CONTEXT_RESULT_DISABLED = 0,
+    APACHE_TX_CONTEXT_RESULT_READY,
+    APACHE_TX_CONTEXT_RESULT_ERROR
+} apache_tx_context_result;
+
+static int apache_transaction_id_from_expression(request_rec *r,
+    msc_conf_t *config, const char **transaction_id)
 {
-    const char *transaction_id = NULL;
     const char *expr_error = NULL;
 
-    transaction_id = ap_expr_str_exec(r, config->transaction_id_expr,
+    if (transaction_id == NULL) {
+        return 0;
+    }
+    *transaction_id = ap_expr_str_exec(r, config->transaction_id_expr,
         &expr_error);
     if (expr_error != NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-            "ModSecurity: Failed to evaluate "
-            "modsecurity_transaction_id_expr: %s", expr_error);
-        return NULL;
+        return 0;
     }
-    return transaction_id;
+    return 1;
 }
 
-static const char *apache_resolve_transaction_id(request_rec *r,
-    msc_conf_t *config)
+static int apache_resolve_transaction_id(request_rec *r, msc_conf_t *config,
+    const char **transaction_id, const char **failure_reason)
 {
-    const char *transaction_id = NULL;
+    const char *resolved = NULL;
+
+    if (transaction_id == NULL || failure_reason == NULL || config == NULL) {
+        return 0;
+    }
+    *transaction_id = NULL;
+    *failure_reason = "failed to resolve transaction identifier";
 
     if (config->transaction_id_expr != NULL) {
-        transaction_id = apache_transaction_id_from_expression(r, config);
+        if (!apache_transaction_id_from_expression(r, config, &resolved)) {
+            *failure_reason =
+                "failed to evaluate transaction identifier expression";
+            return 0;
+        }
     } else if (config->common_config.transaction_id != NULL &&
         config->common_config.transaction_id[0] != '\0') {
-        transaction_id = config->common_config.transaction_id;
+        resolved = config->common_config.transaction_id;
     }
-    if (transaction_id == NULL || transaction_id[0] == '\0') {
-        transaction_id = getenv("UNIQUE_ID");
+    if (resolved == NULL || resolved[0] == '\0') {
+        resolved = getenv("UNIQUE_ID");
     }
-    return transaction_id;
+    *transaction_id = resolved;
+    return 1;
 }
 
 static int apache_store_transaction_id(msc_t *msr, request_rec *r,
-    const char *transaction_id)
+    const char *transaction_id, const char **failure_reason)
 {
     size_t length = 0U;
 
+    if (msr == NULL || r == NULL || failure_reason == NULL) {
+        return 0;
+    }
+    *failure_reason = "failed to store transaction identifier";
     if (transaction_id != NULL && transaction_id[0] != '\0') {
         while (length + 1U < MSCONNECTOR_MAX_TRANSACTION_ID_LENGTH &&
             transaction_id[length] != '\0') {
             ++length;
         }
         if (transaction_id[length] != '\0') {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-                "ModSecurity: transaction identifier exceeds canonical limit");
+            *failure_reason = "transaction identifier exceeds canonical limit";
             return 0;
         }
         msr->event_transaction_id = apr_pstrdup(r->pool, transaction_id);
@@ -578,32 +597,50 @@ static int apache_store_transaction_id(msc_t *msr, request_rec *r,
         msr->event_transaction_id = apr_psprintf(r->pool, "%ld-%ld",
             (long)r->request_time, (long)r->connection->id);
     }
-    return msr->event_transaction_id != NULL;
+    if (msr->event_transaction_id == NULL) {
+        *failure_reason = "failed to allocate canonical transaction identifier";
+        return 0;
+    }
+    return 1;
 }
 
 
-static msc_t *create_tx_context(request_rec *r) {
+static apache_tx_context_result create_tx_context(request_rec *r, msc_t **out,
+    const char **failure_reason) {
     msc_t *msr = NULL;
     msc_conf_t *z = NULL;
     char *modsecurity_transaction_id = NULL;
     const char *transaction_id = NULL;
 
+    if (out != NULL) {
+        *out = NULL;
+    }
+    if (failure_reason != NULL) {
+        *failure_reason = "request transaction context construction failed";
+    }
+    if (out == NULL || failure_reason == NULL || r == NULL) {
+        return APACHE_TX_CONTEXT_RESULT_ERROR;
+    }
     z = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
             &security3_module);
 
     if (z == NULL || z->common_config.enable != MSCONNECTOR_BOOL_ON) {
-        return NULL;
+        return APACHE_TX_CONTEXT_RESULT_DISABLED;
     }
 
     msr = (msc_t *)apr_pcalloc(r->pool, sizeof(msc_t));
     if (msr == NULL) {
-        return NULL;
+        *failure_reason = "failed to allocate request transaction context";
+        return APACHE_TX_CONTEXT_RESULT_ERROR;
     }
 
     msr->r = r;
-    transaction_id = apache_resolve_transaction_id(r, z);
-    if (!apache_store_transaction_id(msr, r, transaction_id)) {
-        return NULL;
+    if (!apache_resolve_transaction_id(r, z, &transaction_id,
+            failure_reason)) {
+        return APACHE_TX_CONTEXT_RESULT_ERROR;
+    }
+    if (!apache_store_transaction_id(msr, r, transaction_id, failure_reason)) {
+        return APACHE_TX_CONTEXT_RESULT_ERROR;
     }
 
     {
@@ -619,9 +656,8 @@ static msc_t *create_tx_context(request_rec *r) {
                     ? MSCONNECTOR_TRANSACTION_MODE_STRICT
                     : MSCONNECTOR_TRANSACTION_MODE_SAFE,
                 apache_contract_now_ms()) != MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-                "ModSecurity: failed to initialize canonical transaction contract");
-            return NULL;
+            *failure_reason = "failed to initialize canonical transaction contract";
+            return APACHE_TX_CONTEXT_RESULT_ERROR;
         }
         msr->contract_initialized = 1;
     }
@@ -637,7 +673,8 @@ static msc_t *create_tx_context(request_rec *r) {
             (void)msconnector_transaction_contract_cleanup(&msr->contract,
                 apache_contract_now_ms());
             msr->contract_initialized = 0;
-            return NULL;
+            *failure_reason = "failed to allocate native transaction identifier";
+            return APACHE_TX_CONTEXT_RESULT_ERROR;
         }
         msr->t = msc_new_transaction_with_id(msc_apache->modsec,
             z->rules_set, modsecurity_transaction_id, (void *)r);
@@ -650,7 +687,8 @@ static msc_t *create_tx_context(request_rec *r) {
         (void)msconnector_transaction_contract_cleanup(&msr->contract,
             apache_contract_now_ms());
         msr->contract_initialized = 0;
-        return NULL;
+        *failure_reason = "failed to create native ModSecurity transaction";
+        return APACHE_TX_CONTEXT_RESULT_ERROR;
     }
 
     msr->owner_request = r;
@@ -658,7 +696,8 @@ static msc_t *create_tx_context(request_rec *r) {
     apr_pool_cleanup_register(r->pool, msr,
         msc_cleanup_request_transaction, apr_pool_cleanup_null);
 
-    return msr;
+    *out = msr;
+    return APACHE_TX_CONTEXT_RESULT_READY;
 }
 
 
@@ -933,10 +972,18 @@ static int hook_request_early(request_rec *r) {
      */
 #ifdef REQUEST_EARLY
 #error "Request Early is not ready for v3 yet."
-    msr = create_tx_context(r);
-    if (msr == NULL)
     {
-        return DECLINED;
+        apache_tx_context_result context_result;
+        const char *context_failure =
+            "request transaction context construction failed";
+
+        context_result = create_tx_context(r, &msr, &context_failure);
+        if (context_result == APACHE_TX_CONTEXT_RESULT_DISABLED) {
+            return DECLINED;
+        }
+        if (context_result != APACHE_TX_CONTEXT_RESULT_READY || msr == NULL) {
+            return apache_fail_closed(r, context_failure);
+        }
     }
 #endif
 
@@ -975,6 +1022,10 @@ static int hook_request_early(request_rec *r) {
 static int hook_request_late(request_rec *r)
 {
     msc_t *msr = NULL;
+#ifndef REQUEST_EARLY
+    apache_tx_context_result context_result;
+    const char *context_failure = "request transaction context construction failed";
+#endif
     int it;
     const char *client_ip = msc_apache_client_ip(r);
     int client_port = msc_apache_client_port(r);
@@ -993,14 +1044,21 @@ static int hook_request_late(request_rec *r)
 #ifdef REQUEST_EARLY
     msr = retrieve_tx_context(r);
 #else
-    msr = create_tx_context(r);
+    context_result = create_tx_context(r, &msr, &context_failure);
 #endif
     if (msr == NULL)
     {
+#ifndef REQUEST_EARLY
+        if (context_result == APACHE_TX_CONTEXT_RESULT_DISABLED) {
+            return DECLINED;
+        }
+        return apache_fail_closed(r, context_failure);
+#else
         /* If we can't find the context that probably means it's
          * a subrequest that was not initiated from the outside.
          */
         return DECLINED;
+#endif
     }
 
 #ifdef LATE_CONNECTION_PROCESS

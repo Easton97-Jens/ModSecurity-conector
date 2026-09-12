@@ -30,6 +30,13 @@ reports without an explicit repository-policy decision or user decision.
   `master` write is asserted; observed delivery facts remain bound to the
   current PR lifecycle.
 
+- [CR-20260909-fail-closed-connector-remediation](CR-20260909-fail-closed-connector-remediation.md)
+  | [Deutsch](CR-20260909-fail-closed-connector-remediation.de.md) —
+  Parent-only fail-closed handling for enabled Apache transaction setup and
+  NGINX native response-header errors. It records focused local evidence and
+  blocked host-runtime proof for the user-authorized Draft PR; no Framework,
+  MRTS, Gitlink, merge, release, or deployment action is asserted.
+
 - [CR-20260903-connector-runtime-hardening-quality-remediation](CR-20260903-connector-runtime-hardening-quality-remediation.md)
   | [Deutsch](CR-20260903-connector-runtime-hardening-quality-remediation.de.md) —
   current Parent-only remediation of Codex review findings, SonarQube Cloud

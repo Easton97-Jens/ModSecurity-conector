@@ -33,6 +33,14 @@ angelegt werden.
   `master`-Schreibänderung wird behauptet; beobachtete Delivery-Fakten
   bleiben an den aktuellen PR-Lifecycle gebunden.
 
+- [CR-20260909-fail-closed-connector-remediation](CR-20260909-fail-closed-connector-remediation.de.md)
+  | English companion: `CR-20260909-fail-closed-connector-remediation.md` —
+  Parent-only-Fail-Closed-Handling für aktiviertes Apache-Transaktions-Setup
+  und native NGINX-Response-Header-Fehler. Der Record hält fokussierte lokale
+  Evidence und blockierte Host-Runtime-Proofs für den vom Benutzer
+  autorisierten Draft-PR fest; keine Framework-/MRTS-, Gitlink-, Merge-,
+  Release- oder Deployment-Aktion wird behauptet.
+
 - [CR-20260903-connector-runtime-hardening-quality-remediation](CR-20260903-connector-runtime-hardening-quality-remediation.de.md) —
   aktuelle Parent-only-Remediation der Codex-Review-Findings, SonarQube-Cloud-
   Quality-Gate-Fehler und roten Connector-Workflow-Evidence für Draft PR #346.
