@@ -10,6 +10,16 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260912-go-latest-release-contract](CR-20260912-go-latest-release-contract.md)
+  | [Deutsch](CR-20260912-go-latest-release-contract.de.md) — the current user
+  authorized this Parent-only correction in a dedicated worktree and one PR.
+  It generalizes the bounded Go release updater and its trusted CodeQL
+  selector from a fixed minor series to the greatest stable numeric release;
+  it records local source evidence and exact-head delivery requirements. No
+  Framework/MRTS source, Gitlink, permission, pin, dependency, or direct
+  `master` write is asserted; observed delivery facts remain bound to the
+  current PR lifecycle.
+
 - [CR-20260903-connector-runtime-hardening-quality-remediation](CR-20260903-connector-runtime-hardening-quality-remediation.md)
   | [Deutsch](CR-20260903-connector-runtime-hardening-quality-remediation.de.md) —
   current Parent-only remediation of Codex review findings, SonarQube Cloud

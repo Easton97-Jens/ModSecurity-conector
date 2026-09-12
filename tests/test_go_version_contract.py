@@ -41,7 +41,7 @@ def go_job(
     version_line = (
         "          go-version: ${{ needs.trusted-go-version.outputs.version }}"
         if selector == "file"
-        else "          go-version: '1.26.5'"
+        else "          go-version: '1.27.0'"
     )
     extra_lines = "".join(f"          {line}\n" for line in extra_with_lines)
     return f'''  {name}:
@@ -56,7 +56,7 @@ def go_job(
 
 
 class GoVersionContractTests(unittest.TestCase):
-    def root_with_workflow(self, root: Path, workflow: str, version: str = "1.26.5") -> Path:
+    def root_with_workflow(self, root: Path, workflow: str, version: str = "1.27.0") -> Path:
         (root / ".github" / "workflows").mkdir(parents=True)
         (root / ".go-version").write_text(f"{version}\n", encoding="utf-8")
         (root / ".github" / "workflows" / "ci-security-codeql.yml").write_text(workflow, encoding="utf-8")
@@ -88,13 +88,16 @@ class GoVersionContractTests(unittest.TestCase):
 '''
         return "name: CodeQL\n\non:\n  workflow_dispatch:\n\njobs:\n" + trusted + go_job("envoy-go") + go_job("traefik-go")
 
-    def test_valid_contract_accepts_two_central_selectors(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            status, result = self.check_json(self.root_with_workflow(Path(temporary), self.valid_workflow()))
-        self.assertEqual(status, 0)
-        self.assertEqual(result["status"], "passed")
-        self.assertEqual(result["version"], "1.26.5")
-        self.assertEqual(result["violations"], [])
+    def test_valid_contract_accepts_strict_cross_series_selectors(self) -> None:
+        for version in ("1.27.0", "2.0.0"):
+            with self.subTest(version=version), tempfile.TemporaryDirectory() as temporary:
+                status, result = self.check_json(
+                    self.root_with_workflow(Path(temporary), self.valid_workflow(), version)
+                )
+            self.assertEqual(status, 0)
+            self.assertEqual(result["status"], "passed")
+            self.assertEqual(result["version"], version)
+            self.assertEqual(result["violations"], [])
 
     def test_checked_in_codeql_workflow_satisfies_contract(self) -> None:
         status, result = self.check_json(ROOT)
@@ -118,10 +121,10 @@ class GoVersionContractTests(unittest.TestCase):
 
     def test_yaml_equivalent_literal_selector_variants_are_rejected(self) -> None:
         variants = {
-            "space_before_colon": ("go-version : '1.26.5'",),
-            "single_quoted_key": ("'go-version': '1.26.5'",),
-            "double_quoted_key": ('"go-version": "1.26.5"',),
-            "explicit_mapping_key": ("? go-version", ": '1.26.5'"),
+            "space_before_colon": ("go-version : '1.27.0'",),
+            "single_quoted_key": ("'go-version': '1.27.0'",),
+            "double_quoted_key": ('"go-version": "1.27.0"',),
+            "explicit_mapping_key": ("? go-version", ": '1.27.0'"),
         }
         for name, extra_with_lines in variants.items():
             with self.subTest(name=name), tempfile.TemporaryDirectory() as temporary:
@@ -147,7 +150,7 @@ class GoVersionContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = self.root_with_workflow(Path(temporary), workflow)
             status, result = self.check_json(root)
-            (root / ".go-version").write_text("1.26.05\n", encoding="utf-8")
+            (root / ".go-version").write_text("1.027.0\n", encoding="utf-8")
             bad_status, bad_result = self.check_json(root)
         self.assertEqual(status, 2)
         self.assertTrue(any("actions/setup-go" in entry for entry in result["violations"]))
@@ -164,7 +167,7 @@ class GoVersionContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             outside = root / "outside"
-            outside.write_text("1.26.5\n", encoding="utf-8")
+            outside.write_text("1.27.0\n", encoding="utf-8")
             self.root_with_workflow(root, self.valid_workflow())
             (root / ".go-version").unlink()
             (root / ".go-version").symlink_to(outside)

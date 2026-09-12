@@ -1,4 +1,4 @@
-name: Update Go 1.26 patch and bounded components
+name: Update latest stable Go release and bounded components
 
 on:
   schedule:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  resolve-go-patch:
+  resolve-go-release:
     if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     permissions:
       contents: read
@@ -17,7 +17,7 @@ jobs:
     timeout-minutes: 10
     outputs:
       current_version: ${{ steps.resolve.outputs.current_version }}
-      version: ${{ steps.resolve.outputs.version }}
+      latest_version: ${{ steps.resolve.outputs.latest_version }}
       toolchain_update_available: ${{ steps.resolve.outputs.toolchain_update_available }}
       component_update_available: ${{ steps.resolve.outputs.component_update_available }}
       component_directory: ${{ steps.resolve.outputs.component_directory }}
@@ -55,7 +55,7 @@ jobs:
       - name: Verify Go version contract
         run: make check-go-version-contract
 
-      - name: Resolve bounded Go maintenance candidates
+      - name: Resolve latest stable Go and bounded component candidates
         id: resolve
         env:
           PYTHONDONTWRITEBYTECODE: "1"
@@ -76,10 +76,19 @@ jobs:
           latest = go_data.get("latest_version")
           toolchain_available = go_data.get("update_available")
           status = go_data.get("status")
-          version_pattern = re.compile(r"^1\.26\.(?:0|[1-9][0-9]*)$")
+          version_pattern = re.compile(
+              r"^(?P<major>[1-9][0-9]*)\.(?P<minor>0|[1-9][0-9]*)\."
+              r"(?P<patch>0|[1-9][0-9]*)$"
+          )
           component_version_pattern = re.compile(
               r"^v(?P<major>0|[1-9][0-9]*)\.(?P<minor>0|[1-9][0-9]*)\.(?P<patch>0|[1-9][0-9]*)$"
           )
+
+          def go_version_tuple(value):
+              match = version_pattern.fullmatch(value)
+              if match is None:
+                  raise SystemExit("resolver returned an invalid Go version")
+              return tuple(int(match.group(part)) for part in ("major", "minor", "patch"))
 
           def component_version_tuple(value):
               match = component_version_pattern.fullmatch(value)
@@ -90,6 +99,8 @@ jobs:
               raise SystemExit("resolver returned an invalid current_version")
           if not isinstance(latest, str) or not version_pattern.fullmatch(latest):
               raise SystemExit("resolver returned an invalid latest_version")
+          if go_version_tuple(latest) < go_version_tuple(current):
+              raise SystemExit("resolver returned a Go version older than current_version")
           if not isinstance(toolchain_available, bool):
               raise SystemExit("resolver returned a non-boolean toolchain update flag")
           if status not in {"current", "update_available"}:
@@ -129,7 +140,7 @@ jobs:
 
           available = toolchain_available or component_available
           print(f"current_version={current}")
-          print(f"version={latest}")
+          print(f"latest_version={latest}")
           print(f"toolchain_update_available={str(toolchain_available).lower()}")
           print(f"component_update_available={str(component_available).lower()}")
           print(f"component_directory={directory}")
@@ -138,9 +149,9 @@ jobs:
           print(f"update_available={str(available).lower()}")
           PY
 
-  validate-go-patch:
-    if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && needs.resolve-go-patch.outputs.update_available == 'true' }}
-    needs: resolve-go-patch
+  validate-go-release:
+    if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && needs.resolve-go-release.outputs.update_available == 'true' }}
+    needs: resolve-go-release
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -150,11 +161,11 @@ jobs:
       component_go_mod_sha256: ${{ steps.components.outputs.go_mod_sha256 }}
       component_go_sum_sha256: ${{ steps.components.outputs.go_sum_sha256 }}
     env:
-      CANDIDATE_VERSION: ${{ needs.resolve-go-patch.outputs.version }}
-      COMPONENT_UPDATE_AVAILABLE: ${{ needs.resolve-go-patch.outputs.component_update_available }}
-      COMPONENT_DIRECTORY: ${{ needs.resolve-go-patch.outputs.component_directory }}
-      COMPONENT_MODULE: ${{ needs.resolve-go-patch.outputs.component_module }}
-      COMPONENT_VERSION: ${{ needs.resolve-go-patch.outputs.component_version }}
+      CANDIDATE_VERSION: ${{ needs.resolve-go-release.outputs.latest_version }}
+      COMPONENT_UPDATE_AVAILABLE: ${{ needs.resolve-go-release.outputs.component_update_available }}
+      COMPONENT_DIRECTORY: ${{ needs.resolve-go-release.outputs.component_directory }}
+      COMPONENT_MODULE: ${{ needs.resolve-go-release.outputs.component_module }}
+      COMPONENT_VERSION: ${{ needs.resolve-go-release.outputs.component_version }}
       PYTHONDONTWRITEBYTECODE: "1"
     steps:
       - name: Check out trusted default branch
@@ -191,7 +202,7 @@ jobs:
         id: setup-go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: ${{ needs.resolve-go-patch.outputs.version }}
+          go-version: ${{ needs.resolve-go-release.outputs.latest_version }}
           check-latest: false
           cache: false
 
@@ -380,29 +391,29 @@ jobs:
           go build -mod=readonly ./...
 
   create-go-update-pr:
-    if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && needs.resolve-go-patch.outputs.update_available == 'true' && needs.validate-go-patch.result == 'success' }}
+    if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && needs.resolve-go-release.outputs.update_available == 'true' && needs.validate-go-release.result == 'success' }}
     needs:
-      - resolve-go-patch
-      - validate-go-patch
+      - resolve-go-release
+      - validate-go-release
     permissions:
       contents: write
       pull-requests: write
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      CANDIDATE_VERSION: ${{ needs.resolve-go-patch.outputs.version }}
-      CURRENT_VERSION: ${{ needs.resolve-go-patch.outputs.current_version }}
-      TOOLCHAIN_UPDATE_AVAILABLE: ${{ needs.resolve-go-patch.outputs.toolchain_update_available }}
-      COMPONENT_UPDATE_AVAILABLE: ${{ needs.resolve-go-patch.outputs.component_update_available }}
-      COMPONENT_DIRECTORY: ${{ needs.resolve-go-patch.outputs.component_directory }}
-      COMPONENT_MODULE: ${{ needs.resolve-go-patch.outputs.component_module }}
-      COMPONENT_VERSION: ${{ needs.resolve-go-patch.outputs.component_version }}
-      VALIDATED_COMPONENT_CHANGED: ${{ needs.validate-go-patch.outputs.component_changed }}
-      VALIDATED_COMPONENT_GO_MOD_SHA256: ${{ needs.validate-go-patch.outputs.component_go_mod_sha256 }}
-      VALIDATED_COMPONENT_GO_SUM_SHA256: ${{ needs.validate-go-patch.outputs.component_go_sum_sha256 }}
+      CANDIDATE_VERSION: ${{ needs.resolve-go-release.outputs.latest_version }}
+      CURRENT_VERSION: ${{ needs.resolve-go-release.outputs.current_version }}
+      TOOLCHAIN_UPDATE_AVAILABLE: ${{ needs.resolve-go-release.outputs.toolchain_update_available }}
+      COMPONENT_UPDATE_AVAILABLE: ${{ needs.resolve-go-release.outputs.component_update_available }}
+      COMPONENT_DIRECTORY: ${{ needs.resolve-go-release.outputs.component_directory }}
+      COMPONENT_MODULE: ${{ needs.resolve-go-release.outputs.component_module }}
+      COMPONENT_VERSION: ${{ needs.resolve-go-release.outputs.component_version }}
+      VALIDATED_COMPONENT_CHANGED: ${{ needs.validate-go-release.outputs.component_changed }}
+      VALIDATED_COMPONENT_GO_MOD_SHA256: ${{ needs.validate-go-release.outputs.component_go_mod_sha256 }}
+      VALIDATED_COMPONENT_GO_SUM_SHA256: ${{ needs.validate-go-release.outputs.component_go_sum_sha256 }}
       DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-      UPDATE_BRANCH: automation/update-go-126
-      PR_TITLE: "chore(ci): propose bounded Go update"
+      UPDATE_BRANCH: automation/update-go-release
+      PR_TITLE: "chore(ci): propose latest stable Go update"
       WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       PYTHONDONTWRITEBYTECODE: "1"
     steps:
@@ -430,7 +441,7 @@ jobs:
         id: setup-go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: ${{ needs.resolve-go-patch.outputs.version }}
+          go-version: ${{ needs.resolve-go-release.outputs.latest_version }}
           check-latest: false
           cache: false
 
@@ -486,12 +497,12 @@ jobs:
             true|false) ;;
             *) echo "Component update availability is invalid." >&2; exit 1 ;;
           esac
-          if ! printf '%s\n' "$CANDIDATE_VERSION" | grep -Eq '^1\.26\.(0|[1-9][0-9]*)$'; then
-            echo "Candidate version is not an exact stable Go 1.26 patch." >&2
+          if ! printf '%s\n' "$CANDIDATE_VERSION" | grep -Eq '^[1-9][0-9]*\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; then
+            echo "Candidate version is not an exact stable Go release." >&2
             exit 1
           fi
-          if ! printf '%s\n' "$CURRENT_VERSION" | grep -Eq '^1\.26\.(0|[1-9][0-9]*)$'; then
-            echo "Current version is not an exact stable Go 1.26 patch." >&2
+          if ! printf '%s\n' "$CURRENT_VERSION" | grep -Eq '^[1-9][0-9]*\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; then
+            echo "Current version is not an exact stable Go release." >&2
             exit 1
           fi
           if [ "$TOOLCHAIN_UPDATE_AVAILABLE" = true ] && [ "$CANDIDATE_VERSION" = "$CURRENT_VERSION" ]; then
@@ -630,12 +641,12 @@ jobs:
               "- Proposed version: $CANDIDATE_VERSION" \
               "- Official release identity: go$CANDIDATE_VERSION" \
               "- Metadata source: https://go.dev/dl/?mode=json" \
-              "- Validation workflow and run: validate-go-patch ($WORKFLOW_RUN_URL)" \
+              "- Validation workflow and run: validate-go-release ($WORKFLOW_RUN_URL)" \
               "- Toolchain update available: $TOOLCHAIN_UPDATE_AVAILABLE" \
               "- Bounded component: $COMPONENT_MODULE $COMPONENT_VERSION in $COMPONENT_DIRECTORY" \
               "- Component update available: $COMPONENT_UPDATE_AVAILABLE" \
               "- Changed files: only .go-version and/or connectors/envoy/ext_proc/go.mod plus connectors/envoy/ext_proc/go.sum" \
-              "- Minor version: remains Go 1.26" \
+              "- Release policy: highest stable numeric Go release from the canonical metadata endpoint" \
               "- Module directives: only the fixed google.golang.org/grpc security bundle may change (grpc v1.83.1→v1.83.2; golang.org/x/sys v0.46.0→v0.47.0; golang.org/x/net v0.56.0→v0.58.0; golang.org/x/text v0.39.0→v0.41.0); validated go.mod/go.sum hashes must match" \
               "- Merge: no automatic merge" \
               "" \
@@ -645,12 +656,12 @@ jobs:
               "- Vorgeschlagene Version: $CANDIDATE_VERSION" \
               "- Offizielle Release-Identität: go$CANDIDATE_VERSION" \
               "- Metadatenquelle: https://go.dev/dl/?mode=json" \
-              "- Validierungsworkflow und Run: validate-go-patch ($WORKFLOW_RUN_URL)" \
+              "- Validierungsworkflow und Run: validate-go-release ($WORKFLOW_RUN_URL)" \
               "- Verfügbares Toolchain-Update: $TOOLCHAIN_UPDATE_AVAILABLE" \
               "- Begrenzte Komponente: $COMPONENT_MODULE $COMPONENT_VERSION in $COMPONENT_DIRECTORY" \
               "- Verfügbares Komponentenupdate: $COMPONENT_UPDATE_AVAILABLE" \
               "- Geänderte Dateien: nur .go-version und/oder connectors/envoy/ext_proc/go.mod plus connectors/envoy/ext_proc/go.sum" \
-              "- Minor-Version: bleibt Go 1.26" \
+              "- Release-Policy: höchste stabile numerische Go-Release vom kanonischen Metadatenendpoint" \
               "- Modul-Direktiven: Nur das feste Sicherheits-Bundle für google.golang.org/grpc darf sich ändern (grpc v1.83.1→v1.83.2; golang.org/x/sys v0.46.0→v0.47.0; golang.org/x/net v0.56.0→v0.58.0; golang.org/x/text v0.39.0→v0.41.0); validierte go.mod/go.sum-Hashes müssen übereinstimmen" \
               "- Merge: kein automatischer Merge"
           } > "$pr_body"
@@ -727,7 +738,7 @@ jobs:
           require_only_allowed_update_paths "$staged_paths"
           require_regular_file_updates "$(git diff --cached --raw --no-abbrev --no-renames)"
           git diff --cached --check
-          git commit -m "chore(ci): update bounded Go maintenance candidate"
+          git commit -m "chore(ci): update latest stable Go release"
           git push origin "$UPDATE_BRANCH"
           gh pr create \
             --draft \
