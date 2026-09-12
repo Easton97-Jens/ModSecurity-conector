@@ -23,7 +23,7 @@ MAX_INPUT_BYTES = 512 * 1024
 HEX40 = re.compile(r"^[0-9a-f]{40}$", re.ASCII)
 HEX64 = re.compile(r"^[0-9a-f]{64}$", re.ASCII)
 NGINX_TAG = re.compile(
-    r"^release-(?P<version>[1-9][0-9]*\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))$",
+    r"^release-(?P<version>[1-9]\d*\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))$",
     re.ASCII,
 )
 
@@ -42,6 +42,16 @@ class ParentProjection:
     value_name: str
 
 
+@dataclass(frozen=True)
+class ParentPolicyProjection:
+    """One fixed Parent policy value that a candidate must not override."""
+
+    relative_path: str
+    syntax: str
+    name: str
+    expected_value: str
+
+
 NGINX_FIELDS = (
     "NGINX_SOURCE_MODE",
     "NGINX_SOURCE_REPO_URL",
@@ -51,162 +61,184 @@ NGINX_FIELDS = (
     "NGINX_SHA256",
 )
 
+PARENT_OWNED_NGINX_FIELDS = ("NGINX_REQUIRE_PINNED_PROVENANCE",)
+
+NGINX_EXACT_HEAD_WORKFLOW_PATH = ".github/workflows/test-nginx-exact-head.yml"
+NGINX_FULL_SMOKE_WORKFLOW_PATH = ".github/workflows/test-full-smoke-sequential.yml"
+RUNTIME_COMPONENTS_PATH = "ci/provisioning/components/prepare-runtime-components.py"
+RUNTIME_PRODUCER_READINESS_PATH = "ci/checks/evidence/check-runtime-producer-readiness.py"
+
 PARENT_NGINX_PROJECTIONS = (
     ParentProjection(
-        ".github/workflows/test-nginx-exact-head.yml",
+        NGINX_EXACT_HEAD_WORKFLOW_PATH,
         "yaml",
         "NGINX_SOURCE_MODE",
         "source_mode",
     ),
     ParentProjection(
-        ".github/workflows/test-nginx-exact-head.yml",
+        NGINX_EXACT_HEAD_WORKFLOW_PATH,
         "yaml",
         "NGINX_SOURCE_REPO_URL",
         "source_repository",
     ),
     ParentProjection(
-        ".github/workflows/test-nginx-exact-head.yml",
+        NGINX_EXACT_HEAD_WORKFLOW_PATH,
         "yaml",
         "NGINX_RELEASE_TAG",
         "release_tag",
     ),
     ParentProjection(
-        ".github/workflows/test-nginx-exact-head.yml",
+        NGINX_EXACT_HEAD_WORKFLOW_PATH,
         "yaml",
         "NGINX_SOURCE_GIT_REF",
         "source_ref",
     ),
     ParentProjection(
-        ".github/workflows/test-nginx-exact-head.yml",
+        NGINX_EXACT_HEAD_WORKFLOW_PATH,
         "yaml",
         "NGINX_RELEASE_ASSET_NAME",
         "release_asset_name",
     ),
     ParentProjection(
-        ".github/workflows/test-nginx-exact-head.yml",
+        NGINX_EXACT_HEAD_WORKFLOW_PATH,
         "yaml",
         "NGINX_SHA256",
         "archive_sha256",
     ),
     ParentProjection(
-        ".github/workflows/test-full-smoke-sequential.yml",
+        NGINX_FULL_SMOKE_WORKFLOW_PATH,
         "yaml",
         "NGINX_SOURCE_MODE",
         "source_mode",
     ),
     ParentProjection(
-        ".github/workflows/test-full-smoke-sequential.yml",
+        NGINX_FULL_SMOKE_WORKFLOW_PATH,
         "yaml",
         "NGINX_SOURCE_REPO_URL",
         "source_repository",
     ),
     ParentProjection(
-        ".github/workflows/test-full-smoke-sequential.yml",
+        NGINX_FULL_SMOKE_WORKFLOW_PATH,
         "yaml",
         "NGINX_RELEASE_TAG",
         "release_tag",
     ),
     ParentProjection(
-        ".github/workflows/test-full-smoke-sequential.yml",
+        NGINX_FULL_SMOKE_WORKFLOW_PATH,
         "yaml",
         "NGINX_SOURCE_GIT_REF",
         "source_ref",
     ),
     ParentProjection(
-        ".github/workflows/test-full-smoke-sequential.yml",
+        NGINX_FULL_SMOKE_WORKFLOW_PATH,
         "yaml",
         "NGINX_RELEASE_ASSET_NAME",
         "release_asset_name",
     ),
     ParentProjection(
-        ".github/workflows/test-full-smoke-sequential.yml",
+        NGINX_FULL_SMOKE_WORKFLOW_PATH,
         "yaml",
         "NGINX_SHA256",
         "archive_sha256",
     ),
     ParentProjection(
-        "ci/provisioning/components/prepare-runtime-components.py",
+        RUNTIME_COMPONENTS_PATH,
         "python",
         "NGINX_PINNED_SOURCE_MODE",
         "source_mode",
     ),
     ParentProjection(
-        "ci/provisioning/components/prepare-runtime-components.py",
+        RUNTIME_COMPONENTS_PATH,
         "python",
         "NGINX_PINNED_SOURCE_REPOSITORY",
         "source_repository",
     ),
     ParentProjection(
-        "ci/provisioning/components/prepare-runtime-components.py",
+        RUNTIME_COMPONENTS_PATH,
         "python",
         "NGINX_PINNED_RELEASE_TAG",
         "release_tag",
     ),
     ParentProjection(
-        "ci/provisioning/components/prepare-runtime-components.py",
+        RUNTIME_COMPONENTS_PATH,
         "python",
         "NGINX_PINNED_SOURCE_REF",
         "source_ref",
     ),
     ParentProjection(
-        "ci/provisioning/components/prepare-runtime-components.py",
+        RUNTIME_COMPONENTS_PATH,
         "python",
         "NGINX_PINNED_RELEASE_ASSET_NAME",
         "release_asset_name",
     ),
     ParentProjection(
-        "ci/provisioning/components/prepare-runtime-components.py",
+        RUNTIME_COMPONENTS_PATH,
         "python",
         "NGINX_PINNED_RELEASE_ASSET_SHA256",
         "archive_sha256",
     ),
     ParentProjection(
-        "ci/provisioning/components/prepare-runtime-components.py",
+        RUNTIME_COMPONENTS_PATH,
         "python",
         "NGINX_PINNED_VERSION_READBACK",
         "version_readback",
     ),
     ParentProjection(
-        "ci/checks/evidence/check-runtime-producer-readiness.py",
+        RUNTIME_PRODUCER_READINESS_PATH,
         "python",
         "CANONICAL_NGINX_SOURCE_MODE",
         "source_mode",
     ),
     ParentProjection(
-        "ci/checks/evidence/check-runtime-producer-readiness.py",
+        RUNTIME_PRODUCER_READINESS_PATH,
         "python",
         "CANONICAL_NGINX_SOURCE_REPOSITORY",
         "source_repository",
     ),
     ParentProjection(
-        "ci/checks/evidence/check-runtime-producer-readiness.py",
+        RUNTIME_PRODUCER_READINESS_PATH,
         "python",
         "CANONICAL_NGINX_RELEASE_TAG",
         "release_tag",
     ),
     ParentProjection(
-        "ci/checks/evidence/check-runtime-producer-readiness.py",
+        RUNTIME_PRODUCER_READINESS_PATH,
         "python",
         "CANONICAL_NGINX_SOURCE_REF",
         "source_ref",
     ),
     ParentProjection(
-        "ci/checks/evidence/check-runtime-producer-readiness.py",
+        RUNTIME_PRODUCER_READINESS_PATH,
         "python",
         "CANONICAL_NGINX_RELEASE_ASSET_NAME",
         "release_asset_name",
     ),
     ParentProjection(
-        "ci/checks/evidence/check-runtime-producer-readiness.py",
+        RUNTIME_PRODUCER_READINESS_PATH,
         "python",
         "CANONICAL_NGINX_ARCHIVE_SHA256",
         "archive_sha256",
     ),
     ParentProjection(
-        "ci/checks/evidence/check-runtime-producer-readiness.py",
+        RUNTIME_PRODUCER_READINESS_PATH,
         "python",
         "CANONICAL_NGINX_VERSION_READBACK",
         "version_readback",
+    ),
+)
+
+PARENT_NGINX_POLICY_PROJECTIONS = (
+    ParentPolicyProjection(
+        NGINX_EXACT_HEAD_WORKFLOW_PATH,
+        "yaml",
+        "NGINX_REQUIRE_PINNED_PROVENANCE",
+        "1",
+    ),
+    ParentPolicyProjection(
+        NGINX_FULL_SMOKE_WORKFLOW_PATH,
+        "yaml",
+        "NGINX_REQUIRE_PINNED_PROVENANCE",
+        "1",
     ),
 )
 
@@ -305,14 +337,23 @@ def _safe_plain_value(value: str, label: str) -> str:
     return value
 
 
-def _parent_assignment(root: Path, projection: ParentProjection) -> str:
+def _safe_yaml_value(value: str, label: str) -> str:
+    value = value.strip()
+    if len(value) >= 2 and value[0] in "\"'" and value[-1] == value[0]:
+        value = value[1:-1]
+    return _safe_plain_value(value, label)
+
+
+def _parent_assignment(
+    root: Path, projection: ParentProjection | ParentPolicyProjection
+) -> str:
     path = _root_relative_path(root, projection.relative_path)
     text = _read_text(path, f"registered Parent projection {projection.relative_path}")
     if projection.syntax == "yaml":
         pattern = re.compile(
             rf"(?m)^[ \t]*{re.escape(projection.name)}[ \t]*:[ \t]*(?P<value>[^\r\n#]+?)[ \t]*(?:#.*)?$"
         )
-        return _safe_plain_value(
+        return _safe_yaml_value(
             _unique_match(pattern, text, f"{projection.relative_path}:{projection.name}"),
             f"{projection.relative_path}:{projection.name}",
         )
@@ -327,9 +368,62 @@ def _parent_assignment(root: Path, projection: ParentProjection) -> str:
     raise ContractError(f"unsupported registered Parent syntax: {projection.syntax}")
 
 
+def _candidate_field_writes(text: str, name: str) -> list[re.Match[str]]:
+    """Find shell forms that can mutate one named candidate field.
+
+    The verifier is deliberately data-only.  It accepts one plain assignment
+    below and treats every other write spelling as unsupported rather than
+    trying to emulate a sourced shell program.
+    """
+
+    pattern = re.compile(
+        rf"(?<![A-Za-z0-9_]){re.escape(name)}(?:\[[^\]\r\n]*\])?[ \t]*(?:\+?=|\+\+|--)",
+        re.ASCII,
+    )
+    return list(pattern.finditer(text))
+
+
+def _reject_unsupported_candidate_field_mutation(text: str, name: str) -> None:
+    parameter_assignment = re.compile(rf"\$\{{{re.escape(name)}:?=", re.ASCII)
+    mutating_builtin = re.compile(
+        rf"(?m)^[ \t]*(?:declare|getopts|local|mapfile|printf|read|readonly|typeset|unset)\b"
+        rf"[^\r\n]*\b{re.escape(name)}\b",
+        re.ASCII,
+    )
+    loop_assignment = re.compile(
+        rf"(?m)^[ \t]*(?:for|select)[ \t]+{re.escape(name)}\b", re.ASCII
+    )
+    if (
+        parameter_assignment.search(text)
+        or mutating_builtin.search(text)
+        or loop_assignment.search(text)
+    ):
+        raise ContractError(f"Framework common.sh:{name} uses unsupported shell mutation syntax")
+
+
 def _candidate_rhs(text: str, name: str) -> str:
-    pattern = re.compile(rf"(?m)^{re.escape(name)}=(?P<value>[^\r\n]*)$")
-    return _unique_match(pattern, text, f"Framework common.sh:{name}")
+    _reject_unsupported_candidate_field_mutation(text, name)
+    plain_assignment = re.compile(
+        rf"(?m)^{re.escape(name)}=(?P<value>[^\r\n]*)$", re.ASCII
+    )
+    plain_matches = list(plain_assignment.finditer(text))
+    writes = _candidate_field_writes(text, name)
+    if (
+        len(plain_matches) != 1
+        or len(writes) != 1
+        or writes[0].start() != plain_matches[0].start()
+    ):
+        raise ContractError(
+            f"Framework common.sh:{name} must contain exactly one plain top-level assignment"
+        )
+    return plain_matches[0].group("value")
+
+
+def _reject_parent_owned_candidate_assignments(text: str) -> None:
+    for name in PARENT_OWNED_NGINX_FIELDS:
+        _reject_unsupported_candidate_field_mutation(text, name)
+        if _candidate_field_writes(text, name):
+            raise ContractError(f"Framework common.sh must not assign Parent-owned {name}")
 
 
 def _quoted_rhs(rhs: str, label: str) -> str:
@@ -346,6 +440,7 @@ def parse_candidate_nginx_handoff(common_path: Path) -> dict[str, str]:
     """Read the candidate NGINX tuple without sourcing its shell file."""
 
     text = _read_text(common_path, "Framework common.sh")
+    _reject_parent_owned_candidate_assignments(text)
     raw = {name: _quoted_rhs(_candidate_rhs(text, name), name) for name in NGINX_FIELDS}
     tag = raw["NGINX_RELEASE_TAG"]
     match = NGINX_TAG.fullmatch(tag)
@@ -358,15 +453,6 @@ def parse_candidate_nginx_handoff(common_path: Path) -> dict[str, str]:
     asset_name = raw["NGINX_RELEASE_ASSET_NAME"]
     if asset_name == "nginx-${NGINX_RELEASE_TAG#release-}.tar.gz":
         asset_name = f"nginx-{version}.tar.gz"
-    expected = {
-        "source_mode": "github-release",
-        "source_repository": "https://github.com/nginx/nginx",
-        "release_tag": tag,
-        "source_ref": tag,
-        "release_asset_name": f"nginx-{version}.tar.gz",
-        "archive_sha256": raw["NGINX_SHA256"],
-        "version_readback": f"nginx/{version}",
-    }
     actual = {
         "source_mode": raw["NGINX_SOURCE_MODE"],
         "source_repository": raw["NGINX_SOURCE_REPO_URL"],
@@ -376,7 +462,17 @@ def parse_candidate_nginx_handoff(common_path: Path) -> dict[str, str]:
         "archive_sha256": raw["NGINX_SHA256"],
         "version_readback": f"nginx/{version}",
     }
-    if actual != expected or not HEX64.fullmatch(actual["archive_sha256"]):
+    if HEX64.fullmatch(actual["archive_sha256"]) is None:
+        raise ContractError("candidate NGINX handoff is not one canonical release tuple")
+    expected = {
+        "source_mode": "github-release",
+        "source_repository": "https://github.com/nginx/nginx",
+        "release_tag": tag,
+        "source_ref": tag,
+        "release_asset_name": f"nginx-{version}.tar.gz",
+        "version_readback": f"nginx/{version}",
+    }
+    if any(actual[name] != expected_value for name, expected_value in expected.items()):
         raise ContractError("candidate NGINX handoff is not one canonical release tuple")
     return actual
 
@@ -419,7 +515,7 @@ def _verify_unprotected_nginx_handoff(root: Path, values: dict[str, str]) -> Non
                 f"{projection.relative_path}:{projection.name}"
             )
     exact_head = _read_text(
-        _root_relative_path(root, ".github/workflows/test-nginx-exact-head.yml"),
+        _root_relative_path(root, NGINX_EXACT_HEAD_WORKFLOW_PATH),
         "NGINX exact-head workflow",
     )
     archive = _unique_match(
@@ -431,12 +527,22 @@ def _verify_unprotected_nginx_handoff(root: Path, values: dict[str, str]) -> Non
         raise ContractError("NGINX exact-head archive argument does not match handoff")
 
 
+def _verify_parent_nginx_policy(root: Path) -> None:
+    for projection in PARENT_NGINX_POLICY_PROJECTIONS:
+        observed = _parent_assignment(root, projection)
+        if observed != projection.expected_value:
+            raise ContractError(
+                f"Parent NGINX policy mismatch at {projection.relative_path}:{projection.name}"
+            )
+
+
 def verify_contract(root: Path, candidate_sha: str, framework_common: Path) -> dict[str, str]:
     repository_root = _require_directory(root, "repository root")
     if not HEX40.fullmatch(candidate_sha):
         raise ContractError("candidate SHA must be exactly 40 lowercase hexadecimal characters")
     _verify_framework_sha_contract(repository_root, candidate_sha)
     nginx = parse_candidate_nginx_handoff(framework_common)
+    _verify_parent_nginx_policy(repository_root)
     _verify_unprotected_nginx_handoff(repository_root, nginx)
     return nginx
 
