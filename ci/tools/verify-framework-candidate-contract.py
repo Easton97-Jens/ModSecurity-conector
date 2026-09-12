@@ -105,7 +105,7 @@ NGINX_FULL_SMOKE_WORKFLOW_PATH = ".github/workflows/test-full-smoke-sequential.y
 RUNTIME_COMPONENTS_PATH = "ci/provisioning/components/prepare-runtime-components.py"
 RUNTIME_PRODUCER_READINESS_PATH = "ci/checks/evidence/check-runtime-producer-readiness.py"
 LITERAL_FRAMEWORK_SHA = re.compile(
-    r"(?m)^[ \t]*FRAMEWORK_SHA:[ \t]*(?P<value>(?:[0-9a-f]{40}|\"[0-9a-f]{40}\"|'[0-9a-f]{40}'))[ \t]*(?:#.*)?$"
+    r"(?m)^[ \t]*FRAMEWORK_SHA:[ \t]*(?P<value>(?P<quote>[\"']?)[0-9a-f]{40}(?P=quote))[ \t]*(?:#.*)?$"
 )
 DYNAMIC_SHELL_EVALUATION = re.compile(r"\beval\b", re.ASCII)
 
@@ -364,51 +364,53 @@ def _read_text(path: Path, label: str) -> str:
         raise ContractError(f"{label} is not UTF-8 text") from error
 
 
-def _validate_mutable_source_rhs(name: str, rhs: str) -> None:
-    """Accept only a passive, double-quoted generic source-data expression."""
-
+def _mutable_source_rhs_value(name: str, rhs: str) -> str:
     if rhs != rhs.strip(" \t") or len(rhs) < 2 or rhs[0] != '"' or rhs[-1] != '"':
         raise ContractError(f"Framework common.sh has unsafe source-data syntax in {name}")
     value = rhs[1:-1]
     if not value:
         raise ContractError(f"Framework common.sh has empty source-data value in {name}")
+    return value
+
+
+def _mutable_source_reference(value: str, index: int, name: str) -> tuple[str, int]:
+    if value.startswith("${", index):
+        closing = value.find("}", index + 2)
+        if closing == -1:
+            raise ContractError(
+                f"Framework common.sh has invalid source-data reference in {name}"
+            )
+        return value[index + 2 : closing], closing + 1
+    match = re.match(r"\$([A-Z][A-Z0-9_]*)", value[index:])
+    if match is None:
+        raise ContractError(f"Framework common.sh has invalid source-data reference in {name}")
+    next_index = index + len(match.group(0))
+    if next_index < len(value) and re.match(r"\w", value[next_index], re.ASCII):
+        raise ContractError(
+            f"Framework common.sh has ambiguous source-data reference in {name}"
+        )
+    return match.group(1), next_index
+
+
+def _validate_mutable_source_character(name: str, character: str) -> None:
+    if not ("!" <= character <= "~") or character in "`;&|<>\\\"'#(){}":
+        raise ContractError(f"Framework common.sh has unsafe source-data syntax in {name}")
+
+
+def _validate_mutable_source_rhs(name: str, rhs: str) -> None:
+    """Accept only a passive, double-quoted generic source-data expression."""
+
+    value = _mutable_source_rhs_value(name, rhs)
     index = 0
     while index < len(value):
-        character = value[index]
-        if character == "$":
-            if value.startswith("${", index):
-                closing = value.find("}", index + 2)
-                if closing == -1:
-                    raise ContractError(
-                        f"Framework common.sh has invalid source-data reference in {name}"
-                    )
-                reference = value[index + 2 : closing]
-                index = closing + 1
-            else:
-                match = re.match(r"\$([A-Z][A-Z0-9_]*)", value[index:])
-                if match is None:
-                    raise ContractError(
-                        f"Framework common.sh has invalid source-data reference in {name}"
-                    )
-                reference = match.group(1)
-                next_index = index + len(match.group(0))
-                if next_index < len(value) and re.match(
-                    r"[A-Za-z0-9_]", value[next_index:]
-                ):
-                    raise ContractError(
-                        f"Framework common.sh has ambiguous source-data reference in {name}"
-                    )
-                index = next_index
+        if value[index] == "$":
+            reference, index = _mutable_source_reference(value, index, name)
             if reference not in MUTABLE_SOURCE_FIELD_SET:
                 raise ContractError(
                     f"Framework common.sh has unknown source-data reference in {name}"
                 )
             continue
-        if (
-            not ("!" <= character <= "~")
-            or character in "`;&|<>\\\"'#(){}"
-        ):
-            raise ContractError(f"Framework common.sh has unsafe source-data syntax in {name}")
+        _validate_mutable_source_character(name, value[index])
         index += 1
 
 

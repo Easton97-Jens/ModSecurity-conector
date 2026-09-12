@@ -322,6 +322,23 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
         with self.assertRaisesRegex(VERIFIER.ContractError, "literal Framework SHA consumer"):
             VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
 
+    def test_literal_framework_sha_pattern_requires_balanced_optional_quotes(self) -> None:
+        accepted = (
+            f"FRAMEWORK_SHA: {CANDIDATE_SHA}",
+            f'FRAMEWORK_SHA: "{CANDIDATE_SHA}" # double quoted',
+            f"FRAMEWORK_SHA: '{CANDIDATE_SHA}' # single quoted",
+        )
+        rejected = (
+            f"FRAMEWORK_SHA: '{CANDIDATE_SHA}\"",
+            f'FRAMEWORK_SHA: "{CANDIDATE_SHA}\'',
+        )
+        for line in accepted:
+            with self.subTest(line=line):
+                self.assertIsNotNone(VERIFIER.LITERAL_FRAMEWORK_SHA.fullmatch(line))
+        for line in rejected:
+            with self.subTest(line=line):
+                self.assertIsNone(VERIFIER.LITERAL_FRAMEWORK_SHA.fullmatch(line))
+
     def test_parent_nginx_provenance_policy_requires_both_workflows(self) -> None:
         for projection in VERIFIER.PARENT_NGINX_POLICY_PROJECTIONS:
             with self.subTest(relative_path=projection.relative_path):

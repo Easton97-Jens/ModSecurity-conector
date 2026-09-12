@@ -35,6 +35,8 @@ For CodeQL, the trusted-base job runs scripts/update-go-version.py --check --jso
 
 The initial exact PR #366 SonarCloud analysis found verifier quality findings. The verifier now validates the checksum separately, compares every canonical tuple field without a whole-dictionary condition, and names the four repeated Parent paths. The release-tag grammar remains ASCII-only while using the concise digit class. Focused reviews found that an indented duplicate, declaration, append, unset, parameter-expansion assignment, or indirect `eval` mutation could evade the former line matcher; the data-only parser now requires exactly one unindented plain assignment for each candidate tuple field, rejects dynamic evaluation, and rejects any candidate mutation of the Parent-owned provenance flag. New negative controls cover those forms, malformed checksums, noncanonical tuples, drift of either Parent policy projection, quoted/commented literal SHA spelling, and any stale literal Framework-SHA consumer before publication.
 
+An exact PR #366 readback at `204c9e32f4948ffad811ea1897b9a492a98fa404` then showed four new open maintainability issues despite an `OK` Quality Gate. This follow-up uses `\w` with `re.ASCII` in both unbraced-reference guards so the concise class cannot broaden the former ASCII-only grammar. It replaces the three literal-SHA alternatives with a balanced optional quote capture, and divides the RHS validator into value, reference, and character helpers without widening the accepted data language. The paired regression accepts bare, double-quoted, single-quoted, and commented SHA values while rejecting mismatched quote delimiters. No `NOSONAR`, issue acceptance, exclusion, scanner/Quality-Gate configuration, or ownership change is used; a new exact-head SonarCloud query is required to prove zero open issues.
+
 ## Security impact
 
 The change strengthens CI provenance and release freshness without weakening validation, permissions, immutable action pins, bounded updater transport, or protected NGINX broker provenance. It adds no generic NGINX writer. The verified candidate-contract gap could otherwise let a sourced candidate turn off the Parent full-smoke native-artifact provenance guard; it does not demonstrate unpinned archive acquisition or a protected-broker bypass.
@@ -77,6 +79,9 @@ The full final file list is verified from the scoped task diff before delivery.
 | Generic source-parser plus candidate-verifier ambiguous-reference controls | Passed: 41 tests; rejection occurred before synchronizer target writes and Parent projection inspection. |
 | Native-override provenance guard control | Passed: 1 test; a native NGINX override is blocked while the Parent policy is `1`. |
 | make check-ci-security-contract | Passed: 148 tests with 5 expected unavailable namespace/identity skips after the verifier and provenance-policy remediation; validated actionlint, zizmor, and gitleaks tool locks. |
+| Sonar follow-up focused parser/verifier tests | Passed: 42 tests in 32.311s, including valid adjacent references, no-write ambiguous-reference rejection, and balanced optional quote controls. |
+| Sonar follow-up make check-ci-security-contract | Passed: 149 tests in 51.014s with 5 expected unavailable namespace/identity skips; actionlint, zizmor, and gitleaks lock validation passed. |
+| Local Sonar CLI file analysis | Blocked by the local analyzer image requiring unavailable CPU features; the authoritative exact-head SonarCloud PR query remains required. |
 | actionlint for every changed workflow | Passed with no output. |
 | zizmor --offline .github/workflows | Passed: no findings; 95 existing repository suppressions reported. |
 | Focused independent post-patch security review | Passed after remediation: it reproduced the alternate-assignment and Parent-owned provenance-policy gaps, and the verifier now rejects both without sourcing candidate data. |
@@ -120,7 +125,7 @@ therefore not represented as final passing controls.
 
 ## Findings and residual risk
 
-FND-PARENT-1086 tracks the candidate-contract release blocker, including the Parent-owned full-smoke provenance-policy guard and the stale literal Framework-SHA consumer discovery. FND-PARENT-1087 tracks dynamic latest-Go CodeQL freshness and FND-SONAR-0085 the verifier Quality-Gate findings; both were fixed at the prior exact unmerged head, but the successor still requires its own PR-level evidence. FND-PARENT-1085 remains a separate fixed earlier cross-series grammar defect.
+FND-PARENT-1086 tracks the candidate-contract release blocker, including the Parent-owned full-smoke provenance-policy guard and the stale literal Framework-SHA consumer discovery. FND-PARENT-1087 tracks dynamic latest-Go CodeQL freshness. FND-SONAR-0085 is reopened for the four exact-`204c9e32…` maintainability issues and remains in progress until this normal follow-up head has a zero-issue SonarCloud readback. FND-PARENT-1085 remains a separate fixed earlier cross-series grammar defect.
 
 ## Final diff and review status
 

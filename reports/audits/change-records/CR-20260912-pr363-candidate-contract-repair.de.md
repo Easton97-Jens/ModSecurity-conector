@@ -35,6 +35,8 @@ Für CodeQL führt der trusted-base-Job scripts/update-go-version.py --check --j
 
 Die initiale exakte SonarCloud-Analyse von PR #366 fand Verifier-Qualitätsbefunde. Der Verifier validiert nun den Checksum getrennt, vergleicht jedes kanonische Tupelfeld ohne eine Whole-Dictionary-Bedingung und benennt die vier wiederholten Parent-Pfade. Die Release-Tag-Grammatik bleibt ASCII-only und verwendet die kompakte Digit-Class. Fokussierte Reviews fanden, dass eine eingerückte Doppelzuweisung, Deklaration, Append-, unset-, Parameter-Expansion-Zuweisung oder indirekte `eval`-Mutation den früheren Line-Matcher umgehen konnte; der Data-only-Parser verlangt nun für jedes Kandidatentupelfeld genau eine uneingerückte Plain-Zuweisung, weist dynamische Evaluation ab und weist jede Kandidatenmutation der Parent-eigenen Provenance-Flagge ab. Neue negative Controls decken diese Formen, fehlerhafte Checksums, nichtkanonische Tupel, Drift jeder Parent-Policy-Projektion, zitierte/kommentierte Literal-SHA-Schreibweise und jeden veralteten literalen Framework-SHA-Konsumenten vor dem Publishing ab.
 
+Ein exakter PR-#366-Readback bei `204c9e32f4948ffad811ea1897b9a492a98fa404` zeigte danach trotz `OK`-Quality-Gate vier neue offene Maintainability-Issues. Dieser Follow-up verwendet in beiden nicht geklammerten Referenz-Guards `\w` mit `re.ASCII`, sodass die kompakte Class die frühere ASCII-only-Grammatik nicht erweitert. Er ersetzt die drei Literal-SHA-Alternativen durch eine ausgeglichene optionale Quote-Capture und teilt den RHS-Validator in Value-, Reference- und Character-Helper, ohne die akzeptierte Data-Language zu erweitern. Die gepaarte Regression akzeptiert Bare-, Double-quoted-, Single-quoted- und Commented-SHA-Werte und weist nicht passende Quote-Delimiter zurück. Es werden kein `NOSONAR`, keine Issue-Akzeptanz, Exclusion, Scanner-/Quality-Gate-Konfiguration oder Ownership-Änderung verwendet; ein neuer Exact-Head-SonarCloud-Query muss null offene Issues beweisen.
+
 ## Security-Auswirkung
 
 Die Änderung stärkt CI-Provenance und Release-Freshness, ohne Validierung, Berechtigungen, unveränderliche Action-Pins, begrenzten Updater-Transport oder geschützte NGINX-Broker-Provenance zu schwächen. Sie fügt keinen generischen NGINX-Writer hinzu. Die bestätigte Kandidatenvertragslücke könnte sonst den Parent-Full-Smoke-Provenance-Guard für übernommene Native-Artefakte abschalten; sie belegt keine ungepinnte Archivbeschaffung und keinen Protected-Broker-Bypass.
@@ -77,6 +79,9 @@ Die vollständige finale Dateiliste wird vor Delivery anhand des begrenzten Task
 | Generischer Source-Parser plus Kandidatenverifier-Controls für mehrdeutige Referenzen | Bestanden: 41 Tests; die Abweisung erfolgte vor Synchronisierer-Zielschreibvorgängen und Parent-Projektionsinspektion. |
 | Native-Override-Provenance-Guard-Control | Bestanden: 1 Test; ein nativer NGINX-Override wird blockiert, während die Parent-Policy `1` ist. |
 | make check-ci-security-contract | Bestanden: 148 Tests mit 5 erwarteten nicht verfügbaren Namespace-/Identity-Skips nach Verifier- und Provenance-Policy-Remediation; validierte actionlint-, zizmor- und gitleaks-Tool-Locks. |
+| Sonar-Follow-up fokussierte Parser-/Verifier-Tests | Bestanden: 42 Tests in 32.311s, einschließlich gültiger benachbarter Referenzen, No-write-Abweisung mehrdeutiger Referenzen und ausgeglichener optionaler Quote-Controls. |
+| Sonar-Follow-up make check-ci-security-contract | Bestanden: 149 Tests in 51.014s mit 5 erwarteten nicht verfügbaren Namespace-/Identity-Skips; actionlint-, zizmor- und gitleaks-Lock-Validierung bestanden. |
+| Lokale Sonar-CLI-Dateianalyse | Durch ein lokales Analyzer-Image mit nicht verfügbaren CPU-Features blockiert; der autoritative Exact-Head-SonarCloud-PR-Query bleibt erforderlich. |
 | actionlint für jeden geänderten Workflow | Bestanden ohne Output. |
 | zizmor --offline .github/workflows | Bestanden: keine Findings; 95 bestehende Repository-Suppressions wurden gemeldet. |
 | Fokussiertes unabhängiges Post-Patch-Security-Review | Nach Remediation bestanden: Es reproduzierte die alternativen Zuweisungs- und Parent-eigene-Provenance-Policy-Lücken, und der Verifier weist beides nun zurück, ohne Kandidatendaten zu sourcen. |
@@ -123,7 +128,7 @@ bestandene Controls dargestellt.
 
 ## Findings und Restrisiko
 
-FND-PARENT-1086 verfolgt den Kandidatenvertrags-Release-Blocker einschließlich des Parent-eigenen Full-Smoke-Provenance-Policy-Guards und der Entdeckung veralteter literaler Framework-SHA-Konsumenten. FND-PARENT-1087 verfolgt dynamische Latest-Go-CodeQL-Freshness und FND-SONAR-0085 die Verifier-Quality-Gate-Befunde; beide waren beim vorherigen exakten ungemergten Head fixed, aber der Nachfolger benötigt weiter eigene PR-Level-Evidenz. FND-PARENT-1085 bleibt ein separater behobener früherer Cross-Series-Grammatikdefekt.
+FND-PARENT-1086 verfolgt den Kandidatenvertrags-Release-Blocker einschließlich des Parent-eigenen Full-Smoke-Provenance-Policy-Guards und der Entdeckung veralteter literaler Framework-SHA-Konsumenten. FND-PARENT-1087 verfolgt dynamische Latest-Go-CodeQL-Freshness. FND-SONAR-0085 ist für die vier exakten Maintainability-Issues bei `204c9e32…` wieder eröffnet und bleibt in progress, bis dieser normale Follow-up-Head einen SonarCloud-Readback mit null Issues hat. FND-PARENT-1085 bleibt ein separater behobener früherer Cross-Series-Grammatikdefekt.
 
 ## Finaler Diff- und Review-Status
 

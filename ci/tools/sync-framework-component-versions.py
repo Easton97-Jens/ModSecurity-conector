@@ -525,9 +525,7 @@ def _source_variable_part(value: str, index: int, field: SourceField) -> tuple[t
         raise SyncError(f"invalid variable reference in {field.name}")
     reference = match.group(1)
     next_index = index + len(match.group(0))
-    if next_index < len(value) and re.match(
-        r"[A-Za-z0-9_]", value[next_index:]
-    ):
+    if next_index < len(value) and re.match(r"\w", value[next_index], re.ASCII):
         raise SyncError(f"ambiguous source variable reference in {field.name}")
     _require_expression_type(field, "references")
     if reference not in SOURCE_FIELDS:
