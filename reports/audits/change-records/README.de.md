@@ -16,9 +16,11 @@ angelegt werden.
   aktuelle Benutzer autorisierte diese Parent-only-Korrektur in einem eigenen
   Worktree und einen PR. Sie generalisiert den begrenzten Go-Release-Updater
   und seinen Trusted-CodeQL-Selector von einer festen Minor-Serie auf die
-  höchste stabile numerische Release; sie hält lokale Evidence und ausstehende
-  Exact-Head-Hosted-Controls fest. Keine Framework-/MRTS-Source-, Gitlink-,
-  Berechtigungs-, Pin-, Dependency- oder Merge-Änderung wird behauptet.
+  höchste stabile numerische Release; sie hält lokale Source-Evidence und
+  Exact-Head-Delivery-Anforderungen fest. Keine Framework-/MRTS-Source-,
+  Gitlink-, Berechtigungs-, Pin-, Dependency- oder direkte
+  `master`-Schreibänderung wird behauptet; beobachtete Delivery-Fakten
+  bleiben an den aktuellen PR-Lifecycle gebunden.
 
 - [CR-20260903-connector-runtime-hardening-quality-remediation](CR-20260903-connector-runtime-hardening-quality-remediation.de.md) —
   aktuelle Parent-only-Remediation der Codex-Review-Findings, SonarQube-Cloud-

@@ -9,7 +9,7 @@
 | Change ID | CR-20260912-go-latest-release-contract |
 | Date (UTC) | 2026-09-12 |
 | Base revision | `3c3908dbb3a87a18d823ab8f1a286ba5b9c00e94` |
-| Delivery status | The current user authorized one Parent-only task-worktree PR. A branch, commit, push, PR number, hosted checks, Ready state, and merge are not asserted until separately observed. |
+| Delivery status | Parent PR #365 contains this paired record. Branch, exact head, hosted checks, reviews, Ready state, and any merge result are delivery-lifecycle facts asserted only after observation; this record itself neither grants nor asserts a merge. |
 
 ## Motivation and problem statement
 
@@ -23,7 +23,8 @@ the committed selector before analysis. This is tracked as
 PR #363 is reviewed as context only: it updates submodule pointers and does
 not contain this Parent-owned Go updater correction. This change does not
 modify Framework or MRTS source, Gitlinks, module language baselines,
-workflow permissions, action pins, dependency locks, or any merge state.
+workflow permissions, action pins, dependency locks, or repository merge
+settings; it never directly writes `master`.
 
 ## Acceptance criteria
 
@@ -98,12 +99,13 @@ control or claim a hosted result.
 
 ## Runtime evidence
 
-No hosted workflow, CodeQL analysis, SonarCloud analysis, runtime connector
-matrix, push, or PR result is asserted by this record at creation time. The
-local Go executable is `1.27.1`, matching the selected CI selector; the four
-workflow-equivalent Go module validations passed with `GOTOOLCHAIN=local` and
-`GOWORK=off` in task-owned external caches. That local result does not replace
-hosted exact-head evidence.
+This static source record does not assert a specific hosted workflow, CodeQL
+analysis, SonarQube Cloud analysis, runtime connector matrix, exact PR head,
+review, or merge result. The local Go executable is `1.27.1`, matching the
+selected CI selector; the four workflow-equivalent Go module validations passed
+with `GOTOOLCHAIN=local` and `GOWORK=off` in task-owned external caches.
+That local result does not replace delivery evidence bound to the current exact
+PR head.
 
 ## Known limitations
 
@@ -117,18 +119,22 @@ is authorized.
 ## Remaining risks
 
 `FND-PARENT-1085` is not closed by source editing alone. Its original source
-failure must no longer reproduce and the exact PR head needs its applicable
-hosted controls before a verified integration claim. Any failed hosted control
-must be triaged as new evidence; no merge is authorized by this task.
+failure must no longer reproduce and the current exact PR head needs its
+applicable hosted controls before a verified integration claim. Any failed
+hosted control must be triaged as new evidence. A merge requires a separate
+current-user authorization and exact-head evidence; this static source record
+neither supplies that authorization nor asserts a later merge result.
 
 ## Checks not run and rationale
 
-The CodeQL Go analysis and applicable hosted PR controls are deferred to the
-exact delivered head. Their absence is recorded as an evidence boundary, not
-treated as a passing result.
+The source-validation suite does not substitute for CodeQL Go analysis or
+applicable hosted PR controls. Those controls are evaluated against the
+current exact PR head during the delivery lifecycle; this static record does
+not classify a planned or later delivery result as passed.
 
 ## Final diff and review status
 
 The focused local checks and fresh post-patch security review are complete.
-The final task-branch diff readback, commit, push, PR creation, and exact-head
-hosted evidence are recorded only after they are observed.
+The final source-diff readback is complete. Delivery branch, PR, exact-head,
+hosted-check, review, and merge facts are retained only after observation in
+the delivery lifecycle; this source record does not pre-assert them.

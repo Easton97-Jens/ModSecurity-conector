@@ -9,7 +9,7 @@
 | Change-ID | CR-20260912-go-latest-release-contract |
 | Datum (UTC) | 2026-09-12 |
 | Basis-Revision | `3c3908dbb3a87a18d823ab8f1a286ba5b9c00e94` |
-| Delivery-Status | Der aktuelle Benutzer autorisierte einen Parent-only-PR aus einem Task-Worktree. Branch, Commit, Push, PR-Nummer, Hosted-Checks, Ready-Status und Merge werden erst nach gesonderter Beobachtung behauptet. |
+| Delivery-Status | Parent-PR #365 enthält diesen gekoppelten Record. Branch, exakter Head, Hosted-Checks, Reviews, Ready-Status und jedes Merge-Ergebnis sind Delivery-Lifecycle-Fakten, die erst nach Beobachtung behauptet werden; dieser Record selbst autorisiert oder behauptet keinen Merge. |
 
 ## Motivation und Problemstellung
 
@@ -24,7 +24,8 @@ PR #363 wird nur als Kontext geprüft: Er aktualisiert Submodule-Pointer und
 enthält diese Parent-eigene Go-Updater-Korrektur nicht. Diese Änderung
 modifiziert weder Framework- oder MRTS-Source, Gitlinks,
 Modul-Sprachbaselines, Workflow-Berechtigungen, Action-Pins,
-Dependency-Locks noch einen Merge-Status.
+Dependency-Locks noch Repository-Merge-Einstellungen; sie schreibt nie direkt
+nach `master`.
 
 ## Akzeptanzkriterien
 
@@ -105,13 +106,14 @@ diese Änderung lockert die Kontrolle nicht und behauptet kein Hosted-Ergebnis.
 
 ## Runtime-Evidence
 
-Bei Erstellung dieses Records werden kein Hosted-Workflow, keine CodeQL-
-Analyse, keine SonarCloud-Analyse, keine Runtime-Connector-Matrix, kein Push
-und kein PR-Ergebnis behauptet. Die lokale Go-Executable ist `1.27.1` und
-entspricht dem gewählten CI-Selector; die vier workflow-äquivalenten
-Go-Modulvalidierungen bestanden mit `GOTOOLCHAIN=local` und `GOWORK=off` in
-Task-eigenen externen Caches. Dieses lokale Ergebnis ersetzt keine
-Hosted-Exact-Head-Evidence.
+Dieser statische Source-Record behauptet keinen bestimmten Hosted-Workflow,
+keine CodeQL-Analyse, keine SonarQube-Cloud-Analyse, keine Runtime-Connector-
+Matrix, keinen exakten PR-Head, kein Review und kein Merge-Ergebnis. Die lokale
+Go-Executable ist `1.27.1` und entspricht dem gewählten CI-Selector; die vier
+workflow-äquivalenten Go-Modulvalidierungen bestanden mit
+`GOTOOLCHAIN=local` und `GOWORK=off` in Task-eigenen externen Caches.
+Dieses lokale Ergebnis ersetzt keine Delivery-Evidence, die an den aktuellen
+exakten PR-Head gebunden ist.
 
 ## Bekannte Einschränkungen
 
@@ -126,20 +128,25 @@ nicht autorisiert.
 
 `FND-PARENT-1085` wird nicht allein durch Source-Edits geschlossen. Sein
 ursprünglicher Source-Fehler darf nicht mehr reproduzierbar sein, und der
-exakte PR-Head benötigt seine anwendbaren Hosted-Controls vor einer
+aktuelle exakte PR-Head benötigt seine anwendbaren Hosted-Controls vor einer
 verifizierten Integrationsbehauptung. Jeder fehlgeschlagene Hosted-Control muss
-als neue Evidence triagiert werden; ein Merge ist durch diese Aufgabe nicht
-autorisiert.
+als neue Evidence triagiert werden. Ein Merge verlangt eine gesonderte
+aktuelle Benutzerautorisierung und Exact-Head-Evidence; dieser statische
+Source-Record liefert weder diese Autorisierung noch behauptet er ein späteres
+Merge-Ergebnis.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-Die CodeQL-Go-Analyse und die anwendbaren Hosted-PR-Controls sind auf den
-exakten ausgelieferten Head verschoben. Ihr Fehlen wird als Evidence-Grenze
-festgehalten und nicht als bestandenes Ergebnis behandelt.
+Die Source-Validierungssuite ersetzt weder die CodeQL-Go-Analyse noch
+anwendbare Hosted-PR-Controls. Diese Controls werden während des
+Delivery-Lifecycles gegen den aktuellen exakten PR-Head geprüft; dieser
+statische Record klassifiziert kein geplantes oder späteres Delivery-Ergebnis
+als bestanden.
 
 ## Finaler Diff- und Review-Status
 
 Die fokussierten lokalen Prüfungen und das frische Post-Patch-Sicherheitsreview
-sind vollständig. Finaler Diff-Readback des Task-Branches, Commit, Push,
-PR-Erstellung und Exact-Head-Hosted-Evidence werden erst nach Beobachtung
-erfasst.
+sind vollständig. Der finale Source-Diff-Readback ist vollständig.
+Delivery-Branch-, PR-, Exact-Head-, Hosted-Check-, Review- und Merge-Fakten
+werden erst nach Beobachtung im Delivery-Lifecycle festgehalten; dieser
+Source-Record behauptet sie nicht vorweg.

@@ -15,9 +15,10 @@ reports without an explicit repository-policy decision or user decision.
   authorized this Parent-only correction in a dedicated worktree and one PR.
   It generalizes the bounded Go release updater and its trusted CodeQL
   selector from a fixed minor series to the greatest stable numeric release;
-  it records local evidence and pending exact-head hosted controls. No
-  Framework/MRTS source, Gitlink, permission, pin, dependency, or merge change
-  is asserted.
+  it records local source evidence and exact-head delivery requirements. No
+  Framework/MRTS source, Gitlink, permission, pin, dependency, or direct
+  `master` write is asserted; observed delivery facts remain bound to the
+  current PR lifecycle.
 
 - [CR-20260903-connector-runtime-hardening-quality-remediation](CR-20260903-connector-runtime-hardening-quality-remediation.md)
   | [Deutsch](CR-20260903-connector-runtime-hardening-quality-remediation.de.md) —
