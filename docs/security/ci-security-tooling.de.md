@@ -142,17 +142,21 @@ kann, bevor es zur blockierenden Regel wird.
 
 ## CodeQL- und Scorecard-Grenzen
 
-CodeQL analysiert Actions, beide Go-Module über den exakten Root-
-<code>.go-version</code>-Selector (aktuell Go <code>1.27.1</code>) und einen
-begrenzten C/C++-Scope. Dieser Scope führt
+CodeQL analysiert Actions, beide Go-Module über die jeweils neueste stabile
+Go-Release, die die trusted-base-Kopie des begrenzten Go-Updaters auflöst,
+und einen begrenzten C/C++-Scope. Die Root-<code>.go-version</code> bleibt der
+geprüfte aktuelle Selector und die monotone Untergrenze; sie ist kein
+PR-kontrollierter CodeQL-Toolchain-Input. Bevor einer der Go-Jobs startet,
+löst und validiert die trusted base die offiziellen Release-Metadaten und gibt
+nur das exakte numerische Ergebnis an das gepinnte
+<code>actions/setup-go</code> weiter. Dieser Scope führt
 <code>make check-common-helpers-c17</code> sowie einen begrenzten
 15-Sekunden-libFuzzer-Lauf für den Common-HTTP-Header-Parser mit C17,
-AddressSanitizer und UndefinedBehaviorSanitizer aus. Der zentrale Selector ist
-ein CI-Toolchain-Vertrag; die <code>go.mod</code> jedes Moduls behält seine
-Go-Sprachbaseline. Bei seiner begrenzten planmäßigen Auflösung wählt der
-Updater die höchste stabile numerische Go-Release und schlägt sie nach
-read-only-Candidate-Validierung in einem Draft PR vor. Er darf nur
-<code>.go-version</code> und das feste, unabhängig validierte Envoy-
+AddressSanitizer und UndefinedBehaviorSanitizer aus. Die <code>go.mod</code>
+jedes Moduls behält seine Go-Sprachbaseline. Bei seiner begrenzten planmäßigen
+Auflösung wählt der Updater die höchste stabile numerische Go-Release und
+schlägt sie nach read-only-Candidate-Validierung in einem Draft PR vor. Er darf
+nur <code>.go-version</code> und das feste, unabhängig validierte Envoy-
 Komponenten-Bundle ändern; beliebige Modul- oder Dependency-Dateien kann er
 nicht ändern. Das C/C++-Ergebnis beansprucht keine vollständige
 Connector-Abdeckung; eine Erweiterung erfordert reproduzierbare Builds für den

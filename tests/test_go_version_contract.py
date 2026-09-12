@@ -6,8 +6,11 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
+import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -77,16 +80,52 @@ class GoVersionContractTests(unittest.TestCase):
       - uses: actions/checkout@example
         with:
           ref: ${{ github.event.pull_request.base.sha || github.sha }}
+      - id: setup-python
+        uses: ''' + checker.SETUP_PYTHON_REFERENCE + '''
+        with:
+          python-version-file: .python-version
+          check-latest: false
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
       - id: version
         run: |
-          version="$(cat -- .go-version)"
-''' + f'''          {checker.TRUSTED_VERSION_VALIDATOR}
-            echo "invalid trusted-base Go version" >&2
-            exit 1
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          go_report="$(python3 scripts/update-go-version.py --check --json)"
+          GO_REPORT="$go_report" python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+          import re
+          data = json.loads(os.environ["GO_REPORT"])
+          latest = data.get("latest_version")
+          current = data.get("current_version")
+          def version_tuple(value):
+              return (0, 0, 0)
+          if version_tuple(latest) < version_tuple(current):
+              raise SystemExit("trusted Go resolver returned a downgrade")
+          print(f"version={latest}")
+          PY
 '''
         return "name: CodeQL\n\non:\n  workflow_dispatch:\n\njobs:\n" + trusted + go_job("envoy-go") + go_job("traefik-go")
+
+    def checked_in_resolver_program(self) -> str:
+        workflow = (ROOT / ".github/workflows/ci-security-codeql.yml").read_text(encoding="utf-8")
+        prefix = 'GO_REPORT="$go_report" python3 - <<\'PY\' >> "$GITHUB_OUTPUT"\n'
+        _, found, remainder = workflow.partition(prefix)
+        self.assertTrue(found, "checked-in CodeQL workflow lacks the trusted resolver program")
+        source, found, _ = remainder.partition("          PY\n")
+        self.assertTrue(found, "checked-in CodeQL workflow lacks the trusted resolver terminator")
+        return textwrap.dedent(source)
+
+    def run_checked_in_resolver(self, report: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, "-c", self.checked_in_resolver_program()],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            env={**os.environ, "GO_REPORT": report, "PYTHONDONTWRITEBYTECODE": "1"},
+        )
 
     def test_valid_contract_accepts_strict_cross_series_selectors(self) -> None:
         for version in ("1.27.0", "2.0.0"):
@@ -105,6 +144,60 @@ class GoVersionContractTests(unittest.TestCase):
         self.assertEqual(result["status"], "passed")
         self.assertEqual(result["violations"], [])
 
+    def test_checked_in_resolver_accepts_only_coherent_freshness_reports(self) -> None:
+        valid = json.dumps(
+            {
+                "current_version": "1.27.0",
+                "latest_version": "1.27.1",
+                "status": "update_available",
+                "update_available": True,
+            }
+        )
+        result = self.run_checked_in_resolver(valid)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "version=1.27.1\n")
+
+        invalid_reports = {
+            "invalid_json": "not-json",
+            "non_string_version": json.dumps(
+                {
+                    "current_version": "1.27.0",
+                    "latest_version": 12701,
+                    "status": "update_available",
+                    "update_available": True,
+                }
+            ),
+            "downgrade": json.dumps(
+                {
+                    "current_version": "1.27.1",
+                    "latest_version": "1.27.0",
+                    "status": "update_available",
+                    "update_available": True,
+                }
+            ),
+            "inconsistent_update_flag": json.dumps(
+                {
+                    "current_version": "1.27.0",
+                    "latest_version": "1.27.1",
+                    "status": "current",
+                    "update_available": False,
+                }
+            ),
+            "inconsistent_status": json.dumps(
+                {
+                    "current_version": "1.27.0",
+                    "latest_version": "1.27.1",
+                    "status": "current",
+                    "update_available": True,
+                }
+            ),
+        }
+        for label, report in invalid_reports.items():
+            with self.subTest(label=label):
+                result = self.run_checked_in_resolver(report)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, "")
+
     def test_literal_selector_and_unlisted_go_job_are_rejected(self) -> None:
         workflow = (
             "name: CodeQL\n\non:\n  workflow_dispatch:\n\njobs:\n"
@@ -116,7 +209,7 @@ class GoVersionContractTests(unittest.TestCase):
             status, result = self.check_json(self.root_with_workflow(Path(temporary), workflow))
         self.assertEqual(status, 2)
         self.assertEqual(result["status"], "failed")
-        self.assertTrue(any("trusted-base" in entry for entry in result["violations"]))
+        self.assertTrue(any("trusted Go version job" in entry for entry in result["violations"]))
         self.assertTrue(any("unlisted" in entry for entry in result["violations"]))
 
     def test_yaml_equivalent_literal_selector_variants_are_rejected(self) -> None:
@@ -138,7 +231,19 @@ class GoVersionContractTests(unittest.TestCase):
                 )
             self.assertEqual(status, 2)
             self.assertEqual(result["status"], "failed")
-            self.assertTrue(any("trusted-base" in entry for entry in result["violations"]))
+            self.assertTrue(any("trusted Go version job" in entry for entry in result["violations"]))
+
+    def test_committed_selector_only_is_rejected(self) -> None:
+        workflow = self.valid_workflow().replace(
+            'go_report="$(python3 scripts/update-go-version.py --check --json)"',
+            'version="$(cat -- .go-version)"',
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            status, result = self.check_json(self.root_with_workflow(Path(temporary), workflow))
+        self.assertEqual(status, 2)
+        self.assertTrue(
+            any("must not use only the committed selector" in entry for entry in result["violations"])
+        )
 
     def test_wrong_action_pin_and_invalid_version_file_fail_closed(self) -> None:
         wrong_reference = "actions/setup-go@main"

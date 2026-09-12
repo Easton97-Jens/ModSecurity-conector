@@ -24,17 +24,56 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.base.sha || github.sha }}
           persist-credentials: false
+      - id: setup-python
+        name: Set up canonical Python for the Go resolver
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
       - id: version
-        name: Read trusted-base Go version
+        name: Resolve latest stable Go version from the trusted base
         shell: bash
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
         run: |
           set -euo pipefail
-          version="$(cat -- .go-version)"
-          if ! printf '%s\n' "$version" | awk 'NR == 1 && $0 ~ /^[1-9][0-9]*\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/ { valid = 1 } END { exit !(NR == 1 && valid) }'; then
-            echo "invalid trusted-base Go version" >&2
-            exit 1
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          go_report="$(python3 scripts/update-go-version.py --check --json)"
+          printf '%s\n' "$go_report"
+          GO_REPORT="$go_report" python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+          import re
+
+          data = json.loads(os.environ["GO_REPORT"])
+          pattern = re.compile(
+              r"^(?P<major>[1-9][0-9]*)\.(?P<minor>0|[1-9][0-9]*)\."
+              r"(?P<patch>0|[1-9][0-9]*)$"
+          )
+
+          def version_tuple(value):
+              if not isinstance(value, str):
+                  raise SystemExit("trusted Go resolver returned a non-string version")
+              match = pattern.fullmatch(value)
+              if match is None:
+                  raise SystemExit("trusted Go resolver returned an invalid version")
+              return tuple(int(match.group(part)) for part in ("major", "minor", "patch"))
+
+          current = data.get("current_version")
+          latest = data.get("latest_version")
+          update_available = data.get("update_available")
+          status = data.get("status")
+          if version_tuple(latest) < version_tuple(current):
+              raise SystemExit("trusted Go resolver returned a downgrade")
+          if not isinstance(update_available, bool) or update_available != (latest != current):
+              raise SystemExit("trusted Go resolver returned inconsistent update availability")
+          if status != ("update_available" if update_available else "current"):
+              raise SystemExit("trusted Go resolver returned inconsistent status")
+          print(f"version={latest}")
+          PY
 
   actions:
     runs-on: ubuntu-latest

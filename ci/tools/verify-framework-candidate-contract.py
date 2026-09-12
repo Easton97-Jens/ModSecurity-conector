@@ -1,0 +1,469 @@
+#!/usr/bin/env python3
+"""Fail closed when a Framework candidate disagrees with Parent contracts.
+
+This tool reads an extracted Framework ``common.sh`` strictly as data.  It is
+intentionally separate from the generic component synchronizer: it never
+updates a Parent file and NGINX remains outside that synchronizer's registry.
+The protected NGINX root-broker chain is an immutable, separately reviewed
+provenance boundary and is deliberately not inspected here.
+"""
+
+from __future__ import annotations
+
+import argparse
+from dataclasses import dataclass
+import json
+import os
+from pathlib import Path
+import re
+import stat
+
+
+MAX_INPUT_BYTES = 512 * 1024
+HEX40 = re.compile(r"^[0-9a-f]{40}$", re.ASCII)
+HEX64 = re.compile(r"^[0-9a-f]{64}$", re.ASCII)
+NGINX_TAG = re.compile(
+    r"^release-(?P<version>[1-9][0-9]*\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))$",
+    re.ASCII,
+)
+
+
+class ContractError(ValueError):
+    """Raised when candidate data or a fixed Parent projection is unsafe."""
+
+
+@dataclass(frozen=True)
+class ParentProjection:
+    """One read-only unprotected Parent NGINX handoff field."""
+
+    relative_path: str
+    syntax: str
+    name: str
+    value_name: str
+
+
+NGINX_FIELDS = (
+    "NGINX_SOURCE_MODE",
+    "NGINX_SOURCE_REPO_URL",
+    "NGINX_RELEASE_TAG",
+    "NGINX_SOURCE_GIT_REF",
+    "NGINX_RELEASE_ASSET_NAME",
+    "NGINX_SHA256",
+)
+
+PARENT_NGINX_PROJECTIONS = (
+    ParentProjection(
+        ".github/workflows/test-nginx-exact-head.yml",
+        "yaml",
+        "NGINX_SOURCE_MODE",
+        "source_mode",
+    ),
+    ParentProjection(
+        ".github/workflows/test-nginx-exact-head.yml",
+        "yaml",
+        "NGINX_SOURCE_REPO_URL",
+        "source_repository",
+    ),
+    ParentProjection(
+        ".github/workflows/test-nginx-exact-head.yml",
+        "yaml",
+        "NGINX_RELEASE_TAG",
+        "release_tag",
+    ),
+    ParentProjection(
+        ".github/workflows/test-nginx-exact-head.yml",
+        "yaml",
+        "NGINX_SOURCE_GIT_REF",
+        "source_ref",
+    ),
+    ParentProjection(
+        ".github/workflows/test-nginx-exact-head.yml",
+        "yaml",
+        "NGINX_RELEASE_ASSET_NAME",
+        "release_asset_name",
+    ),
+    ParentProjection(
+        ".github/workflows/test-nginx-exact-head.yml",
+        "yaml",
+        "NGINX_SHA256",
+        "archive_sha256",
+    ),
+    ParentProjection(
+        ".github/workflows/test-full-smoke-sequential.yml",
+        "yaml",
+        "NGINX_SOURCE_MODE",
+        "source_mode",
+    ),
+    ParentProjection(
+        ".github/workflows/test-full-smoke-sequential.yml",
+        "yaml",
+        "NGINX_SOURCE_REPO_URL",
+        "source_repository",
+    ),
+    ParentProjection(
+        ".github/workflows/test-full-smoke-sequential.yml",
+        "yaml",
+        "NGINX_RELEASE_TAG",
+        "release_tag",
+    ),
+    ParentProjection(
+        ".github/workflows/test-full-smoke-sequential.yml",
+        "yaml",
+        "NGINX_SOURCE_GIT_REF",
+        "source_ref",
+    ),
+    ParentProjection(
+        ".github/workflows/test-full-smoke-sequential.yml",
+        "yaml",
+        "NGINX_RELEASE_ASSET_NAME",
+        "release_asset_name",
+    ),
+    ParentProjection(
+        ".github/workflows/test-full-smoke-sequential.yml",
+        "yaml",
+        "NGINX_SHA256",
+        "archive_sha256",
+    ),
+    ParentProjection(
+        "ci/provisioning/components/prepare-runtime-components.py",
+        "python",
+        "NGINX_PINNED_SOURCE_MODE",
+        "source_mode",
+    ),
+    ParentProjection(
+        "ci/provisioning/components/prepare-runtime-components.py",
+        "python",
+        "NGINX_PINNED_SOURCE_REPOSITORY",
+        "source_repository",
+    ),
+    ParentProjection(
+        "ci/provisioning/components/prepare-runtime-components.py",
+        "python",
+        "NGINX_PINNED_RELEASE_TAG",
+        "release_tag",
+    ),
+    ParentProjection(
+        "ci/provisioning/components/prepare-runtime-components.py",
+        "python",
+        "NGINX_PINNED_SOURCE_REF",
+        "source_ref",
+    ),
+    ParentProjection(
+        "ci/provisioning/components/prepare-runtime-components.py",
+        "python",
+        "NGINX_PINNED_RELEASE_ASSET_NAME",
+        "release_asset_name",
+    ),
+    ParentProjection(
+        "ci/provisioning/components/prepare-runtime-components.py",
+        "python",
+        "NGINX_PINNED_RELEASE_ASSET_SHA256",
+        "archive_sha256",
+    ),
+    ParentProjection(
+        "ci/provisioning/components/prepare-runtime-components.py",
+        "python",
+        "NGINX_PINNED_VERSION_READBACK",
+        "version_readback",
+    ),
+    ParentProjection(
+        "ci/checks/evidence/check-runtime-producer-readiness.py",
+        "python",
+        "CANONICAL_NGINX_SOURCE_MODE",
+        "source_mode",
+    ),
+    ParentProjection(
+        "ci/checks/evidence/check-runtime-producer-readiness.py",
+        "python",
+        "CANONICAL_NGINX_SOURCE_REPOSITORY",
+        "source_repository",
+    ),
+    ParentProjection(
+        "ci/checks/evidence/check-runtime-producer-readiness.py",
+        "python",
+        "CANONICAL_NGINX_RELEASE_TAG",
+        "release_tag",
+    ),
+    ParentProjection(
+        "ci/checks/evidence/check-runtime-producer-readiness.py",
+        "python",
+        "CANONICAL_NGINX_SOURCE_REF",
+        "source_ref",
+    ),
+    ParentProjection(
+        "ci/checks/evidence/check-runtime-producer-readiness.py",
+        "python",
+        "CANONICAL_NGINX_RELEASE_ASSET_NAME",
+        "release_asset_name",
+    ),
+    ParentProjection(
+        "ci/checks/evidence/check-runtime-producer-readiness.py",
+        "python",
+        "CANONICAL_NGINX_ARCHIVE_SHA256",
+        "archive_sha256",
+    ),
+    ParentProjection(
+        "ci/checks/evidence/check-runtime-producer-readiness.py",
+        "python",
+        "CANONICAL_NGINX_VERSION_READBACK",
+        "version_readback",
+    ),
+)
+
+
+def _absolute(path: Path) -> Path:
+    return path if path.is_absolute() else Path.cwd() / path
+
+
+def _require_directory(path: Path, label: str) -> Path:
+    absolute = _absolute(path)
+    try:
+        metadata = os.lstat(absolute)
+        resolved = absolute.resolve(strict=True)
+    except OSError as error:
+        raise ContractError(f"{label} cannot be inspected safely") from error
+    if resolved != absolute or stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        raise ContractError(f"{label} must be a real directory")
+    return absolute
+
+
+def _root_relative_path(root: Path, relative: str) -> Path:
+    parts = Path(relative).parts
+    if not parts or Path(relative).is_absolute() or any(part in ("", ".", "..") for part in parts):
+        raise ContractError(f"unsafe registered Parent path: {relative}")
+    current = root
+    for part in parts[:-1]:
+        current = current / part
+        try:
+            metadata = os.lstat(current)
+        except OSError as error:
+            raise ContractError(f"registered Parent directory is unavailable: {relative}") from error
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+            raise ContractError(f"registered Parent directory is unsafe: {relative}")
+    return current / parts[-1]
+
+
+def _read_regular(path: Path, label: str) -> bytes:
+    absolute = _absolute(path)
+    try:
+        metadata = os.lstat(absolute)
+        resolved = absolute.resolve(strict=True)
+    except OSError as error:
+        raise ContractError(f"{label} cannot be inspected safely") from error
+    if resolved != absolute or stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+        raise ContractError(f"{label} must be a regular non-symlink file")
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    if nofollow is None:
+        raise ContractError(f"platform cannot safely open {label} without following symlinks")
+    descriptor: int | None = None
+    try:
+        descriptor = os.open(absolute, os.O_RDONLY | nofollow)
+        opened = os.fstat(descriptor)
+        if not stat.S_ISREG(opened.st_mode) or not os.path.samestat(metadata, opened):
+            raise ContractError(f"{label} changed while being opened")
+        if opened.st_size < 0 or opened.st_size > MAX_INPUT_BYTES:
+            raise ContractError(f"{label} exceeds the bounded input size")
+        chunks: list[bytes] = []
+        remaining = MAX_INPUT_BYTES + 1
+        while remaining:
+            chunk = os.read(descriptor, min(65536, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        payload = b"".join(chunks)
+        if len(payload) > MAX_INPUT_BYTES:
+            raise ContractError(f"{label} exceeds the bounded input size")
+        return payload
+    except ContractError:
+        raise
+    except OSError as error:
+        raise ContractError(f"{label} cannot be read safely") from error
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+
+
+def _read_text(path: Path, label: str) -> str:
+    try:
+        return _read_regular(path, label).decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise ContractError(f"{label} is not UTF-8 text") from error
+
+
+def _unique_match(pattern: re.Pattern[str], text: str, label: str) -> str:
+    matches = list(pattern.finditer(text))
+    if len(matches) != 1:
+        raise ContractError(f"{label} must contain exactly one supported assignment")
+    return matches[0].group("value")
+
+
+def _safe_plain_value(value: str, label: str) -> str:
+    value = value.strip()
+    if not value or not value.isascii() or any(character in value for character in "\r\n\x00'\"`$;&|<>\\"):
+        raise ContractError(f"{label} has an unsafe value")
+    return value
+
+
+def _parent_assignment(root: Path, projection: ParentProjection) -> str:
+    path = _root_relative_path(root, projection.relative_path)
+    text = _read_text(path, f"registered Parent projection {projection.relative_path}")
+    if projection.syntax == "yaml":
+        pattern = re.compile(
+            rf"(?m)^[ \t]*{re.escape(projection.name)}[ \t]*:[ \t]*(?P<value>[^\r\n#]+?)[ \t]*(?:#.*)?$"
+        )
+        return _safe_plain_value(
+            _unique_match(pattern, text, f"{projection.relative_path}:{projection.name}"),
+            f"{projection.relative_path}:{projection.name}",
+        )
+    if projection.syntax == "python":
+        pattern = re.compile(
+            rf"(?m)^{re.escape(projection.name)}[ \t]*=[ \t]*\"(?P<value>[^\"\\\r\n]*)\"[ \t]*(?:#.*)?$"
+        )
+        return _safe_plain_value(
+            _unique_match(pattern, text, f"{projection.relative_path}:{projection.name}"),
+            f"{projection.relative_path}:{projection.name}",
+        )
+    raise ContractError(f"unsupported registered Parent syntax: {projection.syntax}")
+
+
+def _candidate_rhs(text: str, name: str) -> str:
+    pattern = re.compile(rf"(?m)^{re.escape(name)}=(?P<value>[^\r\n]*)$")
+    return _unique_match(pattern, text, f"Framework common.sh:{name}")
+
+
+def _quoted_rhs(rhs: str, label: str) -> str:
+    value = rhs.strip(" \t")
+    if len(value) < 2 or value[0] not in "\"'" or value[-1] != value[0]:
+        raise ContractError(f"{label} must be one balanced quoted value")
+    content = value[1:-1]
+    if not content or not content.isascii() or any(character in content for character in "\r\n\x00'\"`;&|<>\\"):
+        raise ContractError(f"{label} has unsafe shell syntax")
+    return content
+
+
+def parse_candidate_nginx_handoff(common_path: Path) -> dict[str, str]:
+    """Read the candidate NGINX tuple without sourcing its shell file."""
+
+    text = _read_text(common_path, "Framework common.sh")
+    raw = {name: _quoted_rhs(_candidate_rhs(text, name), name) for name in NGINX_FIELDS}
+    tag = raw["NGINX_RELEASE_TAG"]
+    match = NGINX_TAG.fullmatch(tag)
+    if match is None:
+        raise ContractError("NGINX_RELEASE_TAG is not a stable release tag")
+    version = match.group("version")
+    source_ref = raw["NGINX_SOURCE_GIT_REF"]
+    if source_ref == "$NGINX_RELEASE_TAG":
+        source_ref = tag
+    asset_name = raw["NGINX_RELEASE_ASSET_NAME"]
+    if asset_name == "nginx-${NGINX_RELEASE_TAG#release-}.tar.gz":
+        asset_name = f"nginx-{version}.tar.gz"
+    expected = {
+        "source_mode": "github-release",
+        "source_repository": "https://github.com/nginx/nginx",
+        "release_tag": tag,
+        "source_ref": tag,
+        "release_asset_name": f"nginx-{version}.tar.gz",
+        "archive_sha256": raw["NGINX_SHA256"],
+        "version_readback": f"nginx/{version}",
+    }
+    actual = {
+        "source_mode": raw["NGINX_SOURCE_MODE"],
+        "source_repository": raw["NGINX_SOURCE_REPO_URL"],
+        "release_tag": tag,
+        "source_ref": source_ref,
+        "release_asset_name": asset_name,
+        "archive_sha256": raw["NGINX_SHA256"],
+        "version_readback": f"nginx/{version}",
+    }
+    if actual != expected or not HEX64.fullmatch(actual["archive_sha256"]):
+        raise ContractError("candidate NGINX handoff is not one canonical release tuple")
+    return actual
+
+
+def _verify_framework_sha_contract(root: Path, candidate_sha: str) -> None:
+    workflow = _read_text(
+        _root_relative_path(root, ".github/workflows/test-connectors-with-crs-no-mrts.yml"),
+        "CRS/no-MRTS workflow",
+    )
+    workflow_sha = _unique_match(
+        re.compile(r"(?m)^ {6}EXPECTED_FRAMEWORK_SHA:[ \t]*(?P<value>[0-9a-f]{40})[ \t]*$"),
+        workflow,
+        "CRS/no-MRTS workflow expected Framework SHA",
+    )
+    fixture = _read_text(
+        _root_relative_path(root, "tests/test_ci_security_workflows.py"),
+        "CRS/no-MRTS workflow fixture",
+    )
+    fixture_sha = _unique_match(
+        re.compile(
+            r'(?m)^WITH_CRS_NO_MRTS_FRAMEWORK_SHA[ \t]*=[ \t]*"(?P<value>[0-9a-f]{40})"[ \t]*$'
+        ),
+        fixture,
+        "CRS/no-MRTS workflow fixture Framework SHA",
+    )
+    for label, observed in (("workflow", workflow_sha), ("fixture", fixture_sha)):
+        if observed != candidate_sha:
+            raise ContractError(
+                f"CRS/no-MRTS {label} Framework SHA does not match candidate SHA"
+            )
+
+
+def _verify_unprotected_nginx_handoff(root: Path, values: dict[str, str]) -> None:
+    for projection in PARENT_NGINX_PROJECTIONS:
+        observed = _parent_assignment(root, projection)
+        expected = values[projection.value_name]
+        if observed != expected:
+            raise ContractError(
+                f"unprotected NGINX handoff mismatch at "
+                f"{projection.relative_path}:{projection.name}"
+            )
+    exact_head = _read_text(
+        _root_relative_path(root, ".github/workflows/test-nginx-exact-head.yml"),
+        "NGINX exact-head workflow",
+    )
+    archive = _unique_match(
+        re.compile(r'(?m)^\s*--nginx-archive "\$NGINX_DOWNLOAD_DIR/(?P<value>nginx-[0-9.]+\.tar\.gz)" \\$'),
+        exact_head,
+        "NGINX exact-head archive argument",
+    )
+    if archive != values["release_asset_name"]:
+        raise ContractError("NGINX exact-head archive argument does not match handoff")
+
+
+def verify_contract(root: Path, candidate_sha: str, framework_common: Path) -> dict[str, str]:
+    repository_root = _require_directory(root, "repository root")
+    if not HEX40.fullmatch(candidate_sha):
+        raise ContractError("candidate SHA must be exactly 40 lowercase hexadecimal characters")
+    _verify_framework_sha_contract(repository_root, candidate_sha)
+    nginx = parse_candidate_nginx_handoff(framework_common)
+    _verify_unprotected_nginx_handoff(repository_root, nginx)
+    return nginx
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--repo-root", type=Path, default=Path(__file__).parents[2])
+    parser.add_argument("--candidate-sha", required=True)
+    parser.add_argument("--framework-common", type=Path, required=True)
+    args = parser.parse_args(argv)
+    try:
+        nginx = verify_contract(args.repo_root, args.candidate_sha, args.framework_common)
+    except (ContractError, OSError) as error:
+        print(f"verify-framework-candidate-contract: error: {error}")
+        return 2
+    print(
+        json.dumps(
+            {
+                "candidate_sha": args.candidate_sha,
+                "nginx_release_tag": nginx["release_tag"],
+                "status": "verified",
+            },
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

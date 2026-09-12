@@ -21,17 +21,17 @@ PINNED_EXPAT_COMMIT = "c61098da494eea1cbd091118118dcee417faacea"
 PINNED_NGINX_RELEASE_TUPLE = {
     "NGINX_SOURCE_MODE": "github-release",
     "NGINX_SOURCE_REPO_URL": "https://github.com/nginx/nginx",
-    "NGINX_RELEASE_TAG": "release-1.31.4",
-    "NGINX_SOURCE_GIT_REF": "release-1.31.4",
-    "NGINX_RELEASE_ASSET_NAME": "nginx-1.31.4.tar.gz",
-    "NGINX_SHA256": "e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3",
+    "NGINX_RELEASE_TAG": "release-1.31.5",
+    "NGINX_SOURCE_GIT_REF": "release-1.31.5",
+    "NGINX_RELEASE_ASSET_NAME": "nginx-1.31.5.tar.gz",
+    "NGINX_SHA256": "e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279",
 }
 PINNED_NGINX_RELEASE_ASSET_URL = (
-    "https://github.com/nginx/nginx/releases/download/release-1.31.4/nginx-1.31.4.tar.gz"
+    "https://github.com/nginx/nginx/releases/download/release-1.31.5/nginx-1.31.5.tar.gz"
 )
-TEST_HAPROXY_LOCKED_VERSION = "3.2.22"
-TEST_HAPROXY_LOCKED_SOURCE_URL = "https://www.haproxy.org/download/3.2/src/haproxy-3.2.22.tar.gz"
-TEST_HAPROXY_LOCKED_SHA256 = "afca3a26d573df53d0e1fc475dcd743ec5875e038e1476c80e871d70228ca2da"
+TEST_HAPROXY_LOCKED_VERSION = "3.2.23"
+TEST_HAPROXY_LOCKED_SOURCE_URL = "https://www.haproxy.org/download/3.2/src/haproxy-3.2.23.tar.gz"
+TEST_HAPROXY_LOCKED_SHA256 = "82d14ef33571e4edeb9197516c0d058a3775fb80541e46afe4377428e461fef0"
 TEST_HAPROXY_UNAPPROVED_FUTURE_VERSION = "3.2.9001"
 TEST_HAPROXY_UNAPPROVED_FUTURE_SOURCE_URL = (
     "https://www.haproxy.org/download/3.2/src/haproxy-3.2.9001.tar.gz"
@@ -844,9 +844,9 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         self.assertEqual(len(records), 1)
         self.assertEqual(records[0]["status"], "present")
         self.assertEqual(records[0]["url"], PINNED_NGINX_RELEASE_ASSET_URL)
-        self.assertEqual(records[0]["release_tag"], "release-1.31.4")
-        self.assertEqual(records[0]["source_ref"], "release-1.31.4")
-        self.assertEqual(records[0]["release_asset_name"], "nginx-1.31.4.tar.gz")
+        self.assertEqual(records[0]["release_tag"], "release-1.31.5")
+        self.assertEqual(records[0]["source_ref"], "release-1.31.5")
+        self.assertEqual(records[0]["release_asset_name"], "nginx-1.31.5.tar.gz")
         self.assertEqual(
             records[0]["expected_sha256"],
             PINNED_NGINX_RELEASE_TUPLE["NGINX_SHA256"],

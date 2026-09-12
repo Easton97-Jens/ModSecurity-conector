@@ -113,10 +113,10 @@ class RuntimeComponentCacheIdentityTest(unittest.TestCase):
             {
                 "NGINX_SOURCE_MODE": "github-release",
                 "NGINX_SOURCE_REPO_URL": "https://github.com/nginx/nginx",
-                "NGINX_RELEASE_TAG": "release-1.31.4",
-                "NGINX_SOURCE_GIT_REF": "release-1.31.4",
-                "NGINX_RELEASE_ASSET_NAME": "nginx-1.31.4.tar.gz",
-                "NGINX_SHA256": "e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3",
+                "NGINX_RELEASE_TAG": "release-1.31.5",
+                "NGINX_SOURCE_GIT_REF": "release-1.31.5",
+                "NGINX_RELEASE_ASSET_NAME": "nginx-1.31.5.tar.gz",
+                "NGINX_SHA256": "e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279",
             }
         )
         baseline = components.nginx_pinned_archive_cache_identity(provenance)
@@ -126,10 +126,10 @@ class RuntimeComponentCacheIdentityTest(unittest.TestCase):
             {
                 "mode": "github-release",
                 "repo": "https://github.com/nginx/nginx",
-                "tag": "release-1.31.4",
-                "ref": "release-1.31.4",
-                "asset": "nginx-1.31.4.tar.gz",
-                "sha256": "e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3",
+                "tag": "release-1.31.5",
+                "ref": "release-1.31.5",
+                "asset": "nginx-1.31.5.tar.gz",
+                "sha256": "e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279",
             },
         )
 
