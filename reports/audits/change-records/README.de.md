@@ -11,6 +11,15 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260912-go-latest-release-contract](CR-20260912-go-latest-release-contract.de.md)
+  | English companion: `CR-20260912-go-latest-release-contract.md` — der
+  aktuelle Benutzer autorisierte diese Parent-only-Korrektur in einem eigenen
+  Worktree und einen PR. Sie generalisiert den begrenzten Go-Release-Updater
+  und seinen Trusted-CodeQL-Selector von einer festen Minor-Serie auf die
+  höchste stabile numerische Release; sie hält lokale Evidence und ausstehende
+  Exact-Head-Hosted-Controls fest. Keine Framework-/MRTS-Source-, Gitlink-,
+  Berechtigungs-, Pin-, Dependency- oder Merge-Änderung wird behauptet.
+
 - [CR-20260903-connector-runtime-hardening-quality-remediation](CR-20260903-connector-runtime-hardening-quality-remediation.de.md) —
   aktuelle Parent-only-Remediation der Codex-Review-Findings, SonarQube-Cloud-
   Quality-Gate-Fehler und roten Connector-Workflow-Evidence für Draft PR #346.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Safely check or update the repository's Go 1.26 patch version."""
+"""Safely check or update the repository's latest stable Go release."""
 
 from __future__ import annotations
 
@@ -21,8 +21,14 @@ from version_updater_common import (
 CANONICAL_RELEASE_API_URL = "https://go.dev/dl/?mode=json"
 RELEASE_API_URL = CANONICAL_RELEASE_API_URL
 VERSION_FILENAME = ".go-version"
-VERSION_RE = re.compile(r"^1\.26\.(?P<patch>0|[1-9]\d*)$", re.ASCII)
-RELEASE_VERSION_RE = re.compile(r"^go1\.26\.(?P<patch>0|[1-9]\d*)$", re.ASCII)
+VERSION_RE = re.compile(
+    r"^(?P<major>[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)$",
+    re.ASCII,
+)
+RELEASE_VERSION_RE = re.compile(
+    r"^go(?P<major>[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)$",
+    re.ASCII,
+)
 RELEASE_ENDPOINT = ReleaseEndpoint(
     canonical_url=CANONICAL_RELEASE_API_URL,
     hostname="go.dev",
@@ -36,23 +42,29 @@ _RELEASE_METADATA = ReleaseMetadataSource(RELEASE_ENDPOINT, lambda: RELEASE_API_
 
 @dataclass(frozen=True, order=True)
 class GoVersion:
-    """A validated stable Go 1.26 patch version."""
+    """A validated stable Go release version."""
 
+    major: int
+    minor: int
     patch: int
 
     def __str__(self) -> str:
-        return f"1.26.{self.patch}"
+        return f"{self.major}.{self.minor}.{self.patch}"
 
 
 def parse_stable_version(value: object) -> GoVersion:
     """Return a stable supported version or reject every other representation."""
 
     if type(value) is not str:
-        raise VersionError("version must be a string in the exact form 1.26.N")
+        raise VersionError("version must be a string in the exact form MAJOR.MINOR.PATCH")
     match = VERSION_RE.fullmatch(value)
     if match is None:
-        raise VersionError("version must be an exact stable 1.26.N value with nonnegative N")
-    return GoVersion(patch=int(match.group("patch")))
+        raise VersionError("version must be an exact stable Go MAJOR.MINOR.PATCH value")
+    return GoVersion(
+        major=int(match.group("major")),
+        minor=int(match.group("minor")),
+        patch=int(match.group("patch")),
+    )
 
 
 _validate_release_endpoint = _RELEASE_METADATA.validate
@@ -60,7 +72,7 @@ fetch_release_metadata = _RELEASE_METADATA.fetch
 
 
 def select_latest_stable_version(metadata: object) -> GoVersion:
-    """Select the highest stable Go 1.26 patch from official release metadata."""
+    """Select the highest stable Go release from official release metadata."""
 
     if type(metadata) is not list:
         raise MetadataError("release metadata must be a JSON array")
@@ -75,15 +87,21 @@ def select_latest_stable_version(metadata: object) -> GoVersion:
             raise MetadataError(f"release metadata record {index} has an invalid version")
         if type(stable) is not bool:
             raise MetadataError(f"release metadata record {index} has an invalid stable flag")
-        if not stable or not raw_version.startswith("go1.26."):
+        if not stable:
             continue
         match = RELEASE_VERSION_RE.fullmatch(raw_version)
         if match is None:
-            raise MetadataError(f"release metadata record {index} has an invalid stable Go 1.26 version")
-        candidates.append(GoVersion(patch=int(match.group("patch"))))
+            raise MetadataError(f"release metadata record {index} has an invalid stable Go version")
+        candidates.append(
+            GoVersion(
+                major=int(match.group("major")),
+                minor=int(match.group("minor")),
+                patch=int(match.group("patch")),
+            )
+        )
 
     if not candidates:
-        raise MetadataError("release metadata contains no stable Go 1.26 patch")
+        raise MetadataError("release metadata contains no stable Go release")
     return max(candidates)
 
 
@@ -103,7 +121,7 @@ _RUNTIME = UpdaterRuntime(
     script_path=__file__,
     version_filename=VERSION_FILENAME,
     version_label="Go",
-    version_metavar="1.26.N",
+    version_metavar="MAJOR.MINOR.PATCH",
     description=__doc__,
     parse_stable_version=parse_stable_version,
     resolve_latest_stable_version=resolve_latest_stable_version,

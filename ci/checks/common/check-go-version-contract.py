@@ -19,12 +19,15 @@ CODEQL_WORKFLOW = Path(".github/workflows/ci-security-codeql.yml")
 SETUP_GO_REFERENCE = "actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0"
 EXPECTED_JOBS = frozenset({"envoy-go", "traefik-go"})
 TRUSTED_VERSION_JOB = "trusted-go-version"
-VERSION_RE = re.compile(r"^1\.26\.(?:0|[1-9]\d*)$", re.ASCII)
+VERSION_RE = re.compile(
+    r"^[1-9]\d*\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$",
+    re.ASCII,
+)
 JOB_HEADER = re.compile(r"^ {2}(?P<name>[A-Za-z0-9_-]+):\s*$")
 SETUP_GO_PREFIX = "      - uses: actions/setup-go@"
 TRUSTED_VERSION_VALIDATOR = (
     "if ! printf '%s\\n' \"$version\" | awk "
-    "'NR == 1 && $0 ~ /^1\\.26\\.(0|[1-9][0-9]*)$/ { valid = 1 } "
+    "'NR == 1 && $0 ~ /^[1-9][0-9]*\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$/ { valid = 1 } "
     "END { exit !(NR == 1 && valid) }'; then"
 )
 EXPECTED_SETUP_GO_BODY = "\n".join(
@@ -98,7 +101,7 @@ def read_canonical_version(root: Path) -> str:
     if value.endswith("\n"):
         value = value[:-1]
     if not VERSION_RE.fullmatch(value):
-        raise ContractError("root .go-version must be an exact stable Go 1.26 patch")
+        raise ContractError("root .go-version must be an exact stable Go MAJOR.MINOR.PATCH release")
     return value
 
 
