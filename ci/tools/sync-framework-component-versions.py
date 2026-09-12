@@ -524,10 +524,15 @@ def _source_variable_part(value: str, index: int, field: SourceField) -> tuple[t
     if match is None:
         raise SyncError(f"invalid variable reference in {field.name}")
     reference = match.group(1)
+    next_index = index + len(match.group(0))
+    if next_index < len(value) and re.match(
+        r"[A-Za-z0-9_]", value[next_index:]
+    ):
+        raise SyncError(f"ambiguous source variable reference in {field.name}")
     _require_expression_type(field, "references")
     if reference not in SOURCE_FIELDS:
         raise SyncError(f"unknown source variable reference in {field.name}: {reference}")
-    return ("reference", reference, ""), index + len(match.group(0))
+    return ("reference", reference, ""), next_index
 
 
 def _source_expression_parts(rhs: str, field: SourceField) -> list[tuple[str, str, str]]:

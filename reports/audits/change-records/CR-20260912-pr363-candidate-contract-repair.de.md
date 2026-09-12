@@ -25,13 +25,15 @@ Er verändert keinen Framework- oder MRTS-Source, gibt sync-framework-component-
 
 ## Implementierungsentscheidung und Begründung
 
-Ein neuer begrenzter read-only-Verifier parst candidate Framework common.sh strikt als Daten. Kandidatenvalidierung und Publisher verlangen beide, dass jeder Parent-CRS/no-MRTS-SHA-Konsument und das Test-Fixture dem Kandidaten-SHA entsprechen und jede ungeschützte NGINX-Übergabeprojektion dem kanonischen Kandidatentupel entspricht. Zusätzlich verlangt er `NGINX_REQUIRE_PINNED_PROVENANCE: "1"` in beiden ungeschützten NGINX-Workflows und weist jeden Kandidatenversuch zurück, diese Parent-eigene Richtlinie zuzuweisen. Der geschützte NGINX-Broker bleibt absichtlich außerhalb dieses Checks.
+Ein neuer begrenzter read-only-Verifier parst candidate Framework common.sh strikt als Daten. Kandidatenvalidierung und Publisher verlangen beide, dass das initiale Parent-CRS/no-MRTS-SHA-Gate, jeder literale `FRAMEWORK_SHA`-Konsument (einschließlich HAProxy-Evidence-Grenze, Profile-Producer und Aggregat) und das Test-Fixture dem Kandidaten-SHA entsprechen; jede ungeschützte NGINX-Übergabeprojektion muss dem kanonischen Kandidatentupel entsprechen. Zusätzlich verlangt er `NGINX_REQUIRE_PINNED_PROVENANCE: "1"` in beiden ungeschützten NGINX-Workflows und weist jeden Kandidatenversuch zurück, diese Parent-eigene Richtlinie zuzuweisen. Der geschützte NGINX-Broker bleibt absichtlich außerhalb dieses Checks.
+
+Weil Framework-`common.sh` anschließend gesourct wird, kann eine endliche Shell-Token-Denylist nicht beweisen, dass eine beliebige künftige Struktur keinen Schreibvorgang für ein geschütztes Feld synthetisiert. Der Verifier verlangt daher, dass sein geprüfter Struktur-Skeleton SHA-256 `609315092e5f5cdd793a33636f7d620445f2e4e802a383c23bc26a70d1bc7c75` entspricht: Er normalisiert nur die sicheren, exakten RHSs der geschlossenen generischen 25-Feld-Source-Registry nach Grammatikvalidierung. Synchronisierer und Verifier weisen beide eine mehrdeutige nicht geklammerte Variablenreferenz ab, deren Shell-Expansion vom Datenparser abweichen könnte. NGINX und jeder nicht registrierte Byte bleiben im Digest, sodass ihre Änderung weiterhin ein explizites Parent-Review erfordert; ein normales generisches Source-Datenupdate bleibt veröffentlichbar. Direktes dynamisches `eval` wird defense in depth abgewiesen.
 
 Der generische Synchronisierer aktualisiert weiterhin nur seine registrierten Envoy- und HAProxy-Projektionen. Das separat gepflegte Parent-NGINX-Tupel wird manuell auf Framework-d4f-release-1.31.5 angeglichen. Die NGINX-Body-Buffer-Fixture folgt demselben ungeschützten Exact-Head-Release-Tupel.
 
 Für CodeQL führt der trusted-base-Job scripts/update-go-version.py --check --json aus, validiert strikte numerische Versionen, Monotonie, update_available und status und veröffentlicht nur latest_version. Envoy- und Traefik-setup-go-Schritte konsumieren dieses trusted Output. Der eingecheckte Selector bleibt ein trusted lower-bound Input; Prereleases, fehlerhafte Reports, Downgrades und inkonsistente Reports scheitern fail-closed.
 
-Die initiale exakte SonarCloud-Analyse von PR #366 fand Verifier-Qualitätsbefunde. Der Verifier validiert nun den Checksum getrennt, vergleicht jedes kanonische Tupelfeld ohne eine Whole-Dictionary-Bedingung und benennt die vier wiederholten Parent-Pfade. Die Release-Tag-Grammatik bleibt ASCII-only und verwendet die kompakte Digit-Class. Ein nachfolgendes fokussiertes Review fand, dass eine eingerückte Doppelzuweisung, Deklaration, Append-, unset- oder Parameter-Expansion-Zuweisung den früheren Line-Matcher umgehen konnte; der Data-only-Parser verlangt nun für jedes Kandidatentupelfeld genau eine uneingerückte Plain-Zuweisung und weist jede Kandidatenmutation der Parent-eigenen Provenance-Flagge ab. Neue negative Controls decken diese Formen, fehlerhafte Checksums, nichtkanonische Tupel und Drift jeder Parent-Policy-Projektion vor dem Publishing ab.
+Die initiale exakte SonarCloud-Analyse von PR #366 fand Verifier-Qualitätsbefunde. Der Verifier validiert nun den Checksum getrennt, vergleicht jedes kanonische Tupelfeld ohne eine Whole-Dictionary-Bedingung und benennt die vier wiederholten Parent-Pfade. Die Release-Tag-Grammatik bleibt ASCII-only und verwendet die kompakte Digit-Class. Fokussierte Reviews fanden, dass eine eingerückte Doppelzuweisung, Deklaration, Append-, unset-, Parameter-Expansion-Zuweisung oder indirekte `eval`-Mutation den früheren Line-Matcher umgehen konnte; der Data-only-Parser verlangt nun für jedes Kandidatentupelfeld genau eine uneingerückte Plain-Zuweisung, weist dynamische Evaluation ab und weist jede Kandidatenmutation der Parent-eigenen Provenance-Flagge ab. Neue negative Controls decken diese Formen, fehlerhafte Checksums, nichtkanonische Tupel, Drift jeder Parent-Policy-Projektion, zitierte/kommentierte Literal-SHA-Schreibweise und jeden veralteten literalen Framework-SHA-Konsumenten vor dem Publishing ab.
 
 ## Security-Auswirkung
 
@@ -39,7 +41,7 @@ Die Änderung stärkt CI-Provenance und Release-Freshness, ohne Validierung, Ber
 
 ## Kompatibilitätsauswirkung
 
-Der gewählte Framework-Handoff verwendet NGINX release-1.31.5 mit SHA-256 e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279, Envoy 1.39.1 und HAProxy 3.2.23. Der Live-bounded-Go-Updater meldete current_version=latest_version=1.27.1.
+Der gewählte Framework-Handoff verwendet NGINX release-1.31.5 mit SHA-256 e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279, Envoy 1.39.1 und HAProxy 3.2.23. Der Live-bounded-Go-Updater meldete current_version=latest_version=1.27.1. Eine frühere Exact-Head-Runtime-Matrix deckte veraltete `86451b45…`-Literale in drei CRS/no-MRTS-Evidence-Konsumenten auf; alle verwenden nun den geprüften Framework-`d4f7b69d…`-Pin.
 
 ## Geänderte Dateien und Dokumentation
 
@@ -56,8 +58,8 @@ Die vollständige finale Dateiliste wird vor Delivery anhand des begrenzten Task
 
 ## Akzeptanzkriterien
 
-- Passender Framework-Kandidaten-SHA, ungeschütztes NGINX-Tupel und Parent-eigene Provenance-Policy bestehen ohne Parent-Schreibvorgänge.
-- Veralteter Workflow-SHA, Fixture-SHA, fehlerhafte oder alternative Kandidatenzuweisungssyntax, Parent-eigene Policy-Mutation sowie repräsentative ungeschützte NGINX- oder Policy-Drift scheitern fail-closed vor Veröffentlichung.
+- Passender genehmigter Framework-`common.sh`-Struktur-Skeleton, Kandidaten-SHA, ungeschütztes NGINX-Tupel und Parent-eigene Provenance-Policy bestehen ohne Parent-Schreibvorgänge; ein gültiges reines RHS-Update generischer Registry-Daten wird akzeptiert.
+- Nicht genehmigte Framework-`common.sh`-Struktur, NGINX- oder nicht registrierte Datenänderung, veraltete initiale oder literale Workflow-SHA-Konsumenten, Fixture-SHA, fehlerhafte, alternative oder mehrdeutige nicht geklammerte Kandidatenzuweisungssyntax, Parent-eigene Policy-Mutation sowie repräsentative ungeschützte NGINX- oder Policy-Drift scheitern fail-closed vor Veröffentlichung.
 - Generische Synchronisierung bleibt NGINX-unowned und geschützte Broker-Pins bleiben unverändert.
 - Trusted CodeQL verwendet nur das bounded latest-stable-Go-Resolveroutput, weist inkohärente Reports ab und behält gepinnte trusted-base- und setup-go-Controls.
 - Englische/deutsche Dokumentation und generierte Guides entsprechen der Implementierung.
@@ -71,8 +73,10 @@ Die vollständige finale Dateiliste wird vor Delivery anhand des begrenzten Task
 | Exact-Gitlink-Framework-APR-/Protected-NGINX-Snapshot-Suite | Bestanden: 38 Tests mit dem sauberen, am Commit-Gitlink referenzierten Framework-Checkout. |
 | Zusätzliche Kandidatenverifier- und ausführbare Go-Resolver-Controls | Bestanden: 16 Tests. |
 | Fokussierte Post-Review-Kandidaten-/Workflow-Controls | Bestanden: 66 Tests. |
+| Fokussierte Runtime-Profile-, Kandidatenverifier- und Workflow-Controls nach Entdeckung des veralteten Literal-SHA, indirektem eval, Struktur-Skeleton und mehrdeutiger Referenz | Bestanden: 75 Tests. |
+| Generischer Source-Parser plus Kandidatenverifier-Controls für mehrdeutige Referenzen | Bestanden: 41 Tests; die Abweisung erfolgte vor Synchronisierer-Zielschreibvorgängen und Parent-Projektionsinspektion. |
 | Native-Override-Provenance-Guard-Control | Bestanden: 1 Test; ein nativer NGINX-Override wird blockiert, während die Parent-Policy `1` ist. |
-| make check-ci-security-contract | Bestanden: 138 Tests mit 5 erwarteten nicht verfügbaren Namespace-/Identity-Skips nach Verifier- und Provenance-Policy-Remediation; validierte actionlint-, zizmor- und gitleaks-Tool-Locks. |
+| make check-ci-security-contract | Bestanden: 148 Tests mit 5 erwarteten nicht verfügbaren Namespace-/Identity-Skips nach Verifier- und Provenance-Policy-Remediation; validierte actionlint-, zizmor- und gitleaks-Tool-Locks. |
 | actionlint für jeden geänderten Workflow | Bestanden ohne Output. |
 | zizmor --offline .github/workflows | Bestanden: keine Findings; 95 bestehende Repository-Suppressions wurden gemeldet. |
 | Fokussiertes unabhängiges Post-Patch-Security-Review | Nach Remediation bestanden: Es reproduzierte die alternativen Zuweisungs- und Parent-eigene-Provenance-Policy-Lücken, und der Verifier weist beides nun zurück, ohne Kandidatendaten zu sourcen. |
@@ -85,10 +89,14 @@ Die vollständige finale Dateiliste wird vor Delivery anhand des begrenzten Task
 ## Runtime-Evidence
 
 Dieser statische Source-Record enthält kein Connector-Runtime- oder
-Matrix-Resultat. Der SonarCloud-Quality-Gate-Status des initialen exakten
-PR-Heads ist als fehlgeschlagen beobachtet und wird nicht als bestandener
-Control behandelt; der Follow-up-Exact-Head-Readback steht aus. Lokale
-Contract-Evidence ersetzt keine Hosted-Runtime-Evidenz.
+Matrix-Resultat des Nachfolger-Heads. Der vorherige exakte PR-Head bestand den
+realen Runtime-Schritt für alle fünf Connectors, aber Envoy, Lighttpd und
+Traefik scheiterten anschließend bei der Profile-Erzeugung, weil drei spätere
+Workflow-Konsumenten Framework-SHA `86451b45…` behielten, während das
+ausgecheckte Framework `d4f7b69d…` war; Apache und HAProxy deckten diesen
+Identity-Check nicht auf. Der Nachfolger gleicht jeden literalen Konsumenten an
+und lässt den Verifier bei künftiger Drift fail-closed scheitern. Lokale
+Contract-Evidence ersetzt keine Hosted-Runtime-Evidenz des Nachfolgers.
 
 ## Bekannte Einschränkungen
 
@@ -107,19 +115,19 @@ resultierende Draft PR offen ist.
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 Kein final vollständig bestandener hosted GitHub-Actions-, SonarQube-,
-Connector-Build-, Runtime-Matrix-, Scheduler-Updater-, PR-#363-Änderungs- oder
-Merge-Resultat wird behauptet. Der initiale exakte PR-Head hatte einen
-SonarCloud-Reliability-Gate-Fehler; der Follow-up-Head benötigt External-Runner-
-Readback. Diese Checks werden daher nicht als final bestandene Controls
-dargestellt.
+Connector-Build-, Nachfolger-Runtime-Matrix-, Scheduler-Updater-, PR-#363-
+Änderungs- oder Merge-Resultat wird behauptet. SonarCloud- und Go/CodeQL-
+Evidenz des vorherigen Heads bestanden, aber dieser Nachfolger benötigt seinen
+eigenen External-Runner-Readback. Diese Checks werden daher nicht als final
+bestandene Controls dargestellt.
 
 ## Findings und Restrisiko
 
-FND-PARENT-1086 verfolgt den Kandidatenvertrags-Release-Blocker einschließlich des Parent-eigenen Full-Smoke-Provenance-Policy-Guards; FND-PARENT-1087 verfolgt dynamische Latest-Go-CodeQL-Freshness; und FND-SONAR-0085 verfolgt die neuen Verifier-Quality-Gate-Befunde des exakten PR-Heads. Sie bleiben in_progress, bis exakter Task-PR-Head und anwendbare Hosted-Controls beobachtet sind. FND-PARENT-1085 bleibt ein separater behobener früherer Cross-Series-Grammatikdefekt.
+FND-PARENT-1086 verfolgt den Kandidatenvertrags-Release-Blocker einschließlich des Parent-eigenen Full-Smoke-Provenance-Policy-Guards und der Entdeckung veralteter literaler Framework-SHA-Konsumenten. FND-PARENT-1087 verfolgt dynamische Latest-Go-CodeQL-Freshness und FND-SONAR-0085 die Verifier-Quality-Gate-Befunde; beide waren beim vorherigen exakten ungemergten Head fixed, aber der Nachfolger benötigt weiter eigene PR-Level-Evidenz. FND-PARENT-1085 bleibt ein separater behobener früherer Cross-Series-Grammatikdefekt.
 
 ## Finaler Diff- und Review-Status
 
 Begrenzter Diff, explizite Stagingliste, Worktree-Grenze, Gitlink-SHA,
 statische Tests, actionlint und ein unabhängiges Post-Patch-Security-Review
-sind vollständig. Das SonarCloud-Follow-up-Exact-Head-Resultat bleibt nötig,
-bevor der PR als vollständig verifiziert gilt.
+sind vollständig. SonarCloud- und Runtime-Resultate des exakten Nachfolger-
+Heads bleiben nötig, bevor der PR als vollständig verifiziert gilt.

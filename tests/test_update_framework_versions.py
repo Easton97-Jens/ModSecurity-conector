@@ -363,6 +363,11 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
             "unknown reference": replace_rhs(
                 CURRENT_CANDIDATE_COMMON, "LIGHTTPD_SOURCE_URL", '"$UNKNOWN_SOURCE"'
             ),
+            "ambiguous unbraced reference": replace_rhs(
+                CURRENT_CANDIDATE_COMMON,
+                "LIGHTTPD_DOWNLOAD_URL",
+                '"$LIGHTTPD_SOURCE_URLlighttpd-$LIGHTTPD_VERSION.tar.xz"',
+            ),
             "missing required": re.sub(
                 r"(?m)^HAPROXY_HTX_SHA256=.*\n", "", CURRENT_CANDIDATE_COMMON
             ),
@@ -413,6 +418,19 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
                 self.write_common(malformed)
                 with self.assertRaises(SYNC.SyncError):
                     SYNC.parse_common(self.common)
+
+    def test_ambiguous_unbraced_reference_fails_before_sync_writes(self) -> None:
+        before = self.target_bytes()
+        self.write_common(
+            replace_rhs(
+                CURRENT_CANDIDATE_COMMON,
+                "LIGHTTPD_DOWNLOAD_URL",
+                '"$LIGHTTPD_SOURCE_URLlighttpd-$LIGHTTPD_VERSION.tar.xz"',
+            )
+        )
+        with self.assertRaisesRegex(SYNC.SyncError, "ambiguous source variable reference"):
+            SYNC.synchronize(self.root, self.common, True)
+        self.assertEqual(before, self.target_bytes())
 
     def test_semantic_tuple_controls_fail_closed(self) -> None:
         cases = {

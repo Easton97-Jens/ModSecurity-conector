@@ -21,9 +21,46 @@ VERIFIER = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = VERIFIER
 SPEC.loader.exec_module(VERIFIER)
 
+SYNC_SPEC = importlib.util.spec_from_file_location(
+    "sync_framework_component_versions",
+    ROOT / "ci" / "tools" / "sync-framework-component-versions.py",
+)
+assert SYNC_SPEC is not None
+assert SYNC_SPEC.loader is not None
+SYNC = importlib.util.module_from_spec(SYNC_SPEC)
+sys.modules[SYNC_SPEC.name] = SYNC
+SYNC_SPEC.loader.exec_module(SYNC)
+
 
 CANDIDATE_SHA = "d4f7b69dc264852eac74e1439c0887fcb9fbe372"
-CANDIDATE_COMMON = """\
+GENERIC_SOURCE_COMMON = """\
+ENVOY_VERSION="1.39.1"
+LIGHTTPD_SERIES="1.4"
+LIGHTTPD_RELEASE_ROOT_URL="https://download.lighttpd.net/lighttpd"
+LIGHTTPD_SERIES_BASE_URL="$LIGHTTPD_RELEASE_ROOT_URL/releases-$LIGHTTPD_SERIES.x"
+LIGHTTPD_VERSION="1.4.85"
+LIGHTTPD_SOURCE_URL="$LIGHTTPD_SERIES_BASE_URL/"
+LIGHTTPD_ARCHIVE_NAME="lighttpd-$LIGHTTPD_VERSION.tar.xz"
+LIGHTTPD_DOWNLOAD_URL="$LIGHTTPD_SOURCE_URL$LIGHTTPD_ARCHIVE_NAME"
+LIGHTTPD_SHA256="18de51b393bac4a6827879e1a7ff377c169e414bae92cd245091d80fc2601d13"
+HAPROXY_SERIES="3.2"
+HAPROXY_RELEASE_ROOT_URL="https://www.haproxy.org/download"
+HAPROXY_SERIES_BASE_URL="$HAPROXY_RELEASE_ROOT_URL/$HAPROXY_SERIES/src"
+HAPROXY_VERSION="3.2.23"
+HAPROXY_ARCHIVE_NAME="haproxy-$HAPROXY_VERSION.tar.gz"
+HAPROXY_SOURCE_URL="$HAPROXY_SERIES_BASE_URL/$HAPROXY_ARCHIVE_NAME"
+HAPROXY_SHA256="82d14ef33571e4edeb9197516c0d058a3775fb80541e46afe4377428e461fef0"
+HAPROXY_HTX_SERIES="3.2"
+HAPROXY_HTX_SERIES_BASE_URL="$HAPROXY_RELEASE_ROOT_URL/$HAPROXY_HTX_SERIES/src"
+HAPROXY_HTX_VERSION="3.2.23"
+HAPROXY_HTX_ARCHIVE_NAME="haproxy-$HAPROXY_HTX_VERSION.tar.gz"
+HAPROXY_HTX_SOURCE_URL="$HAPROXY_HTX_SERIES_BASE_URL/$HAPROXY_HTX_ARCHIVE_NAME"
+HAPROXY_HTX_SHA256="82d14ef33571e4edeb9197516c0d058a3775fb80541e46afe4377428e461fef0"
+CRS_APPROVED_REPO_URL="https://github.com/coreruleset/coreruleset.git"
+CRS_APPROVED_COMMIT="ab3ccd5fcd691424ba3f320d4040c61417270193"
+CRS_RELEASE_TAG="v4.29.0"
+"""
+CANDIDATE_COMMON = GENERIC_SOURCE_COMMON + """\
 NGINX_SOURCE_MODE="github-release"
 NGINX_SOURCE_REPO_URL="https://github.com/nginx/nginx"
 NGINX_RELEASE_TAG="release-1.31.5"
@@ -46,9 +83,24 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
         )
         self.common = Path(self.temporary.name) / "framework-common.sh"
         self.common.write_text(CANDIDATE_COMMON, encoding="utf-8")
+        self.approved_common_structure_sha256 = (
+            VERIFIER.APPROVED_FRAMEWORK_COMMON_STRUCTURE_SHA256
+        )
+        VERIFIER.APPROVED_FRAMEWORK_COMMON_STRUCTURE_SHA256 = (
+            VERIFIER._framework_common_structure_sha256(CANDIDATE_COMMON.encode("utf-8"))
+        )
 
     def tearDown(self) -> None:
+        VERIFIER.APPROVED_FRAMEWORK_COMMON_STRUCTURE_SHA256 = (
+            self.approved_common_structure_sha256
+        )
         self.temporary.cleanup()
+
+    def write_approved_common(self, text: str) -> None:
+        self.common.write_text(text, encoding="utf-8")
+        VERIFIER.APPROVED_FRAMEWORK_COMMON_STRUCTURE_SHA256 = (
+            VERIFIER._framework_common_structure_sha256(text.encode("utf-8"))
+        )
 
     def parent_bytes(self) -> dict[Path, bytes]:
         paths = {
@@ -79,6 +131,50 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
         self.assertIn("NGINX_RELEASE_TAG: release-1.31.4", protected_workflow)
         self.assertIn('NGINX_PINNED_RELEASE_TAG = "release-1.31.4"', protected_broker)
 
+    def test_mutable_source_field_allowlist_matches_the_generic_registry(self) -> None:
+        self.assertEqual(tuple(SYNC.SOURCE_FIELDS), VERIFIER.MUTABLE_SOURCE_FIELDS)
+
+    def test_registered_source_data_rhs_can_change_without_structure_review(self) -> None:
+        self.common.write_text(
+            CANDIDATE_COMMON.replace('ENVOY_VERSION="1.39.1"', 'ENVOY_VERSION="1.39.2"'),
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)["release_tag"],
+            "release-1.31.5",
+        )
+
+    def test_unsafe_registered_source_rhs_fails_before_parent_projection(self) -> None:
+        self.common.write_text(
+            CANDIDATE_COMMON.replace('ENVOY_VERSION="1.39.1"', 'ENVOY_VERSION="$(id)"'),
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(VERIFIER.ContractError, "source-data"):
+            VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
+
+    def test_ambiguous_unbraced_source_reference_fails_before_parent_projection(self) -> None:
+        self.common.write_text(
+            CANDIDATE_COMMON.replace(
+                'LIGHTTPD_DOWNLOAD_URL="$LIGHTTPD_SOURCE_URL$LIGHTTPD_ARCHIVE_NAME"',
+                'LIGHTTPD_DOWNLOAD_URL="$LIGHTTPD_SOURCE_URLlighttpd-$LIGHTTPD_VERSION.tar.xz"',
+            ),
+            encoding="utf-8",
+        )
+        before = self.parent_bytes()
+        with self.assertRaisesRegex(
+            VERIFIER.ContractError, "ambiguous source-data reference"
+        ):
+            VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
+        self.assertEqual(before, self.parent_bytes())
+
+    def test_unreviewed_nginx_data_change_fails_the_structure_boundary(self) -> None:
+        self.common.write_text(
+            CANDIDATE_COMMON.replace("release-1.31.5", "release-1.31.6"),
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(VERIFIER.ContractError, "approved reviewed structure"):
+            VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
+
     def test_stale_framework_sha_fails_closed_without_parent_writes(self) -> None:
         workflow = self.root / ".github/workflows/test-connectors-with-crs-no-mrts.yml"
         workflow.write_text(
@@ -101,35 +197,47 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
             VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
         self.assertEqual(before, self.parent_bytes())
 
+    def test_stale_literal_framework_sha_consumer_fails_closed_without_parent_writes(self) -> None:
+        workflow = self.root / ".github/workflows/test-connectors-with-crs-no-mrts.yml"
+        literal = f"\n          FRAMEWORK_SHA: {CANDIDATE_SHA}"
+        workflow.write_text(
+            workflow.read_text(encoding="utf-8").replace(
+                literal, "\n          FRAMEWORK_SHA: " + "0" * 40, 1
+            ),
+            encoding="utf-8",
+        )
+        before = self.parent_bytes()
+        with self.assertRaisesRegex(VERIFIER.ContractError, "literal Framework SHA consumer"):
+            VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
+        self.assertEqual(before, self.parent_bytes())
+
     def test_valid_but_stale_nginx_candidate_fails_closed_without_parent_writes(self) -> None:
         stale = CANDIDATE_COMMON.replace("release-1.31.5", "release-1.31.4").replace(
             "e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279",
             "e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3",
         )
-        self.common.write_text(stale, encoding="utf-8")
+        self.write_approved_common(stale)
         before = self.parent_bytes()
         with self.assertRaisesRegex(VERIFIER.ContractError, "unprotected NGINX handoff mismatch"):
             VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
         self.assertEqual(before, self.parent_bytes())
 
     def test_malformed_candidate_checksum_fails_before_parent_projection(self) -> None:
-        self.common.write_text(
+        self.write_approved_common(
             CANDIDATE_COMMON.replace(
                 "e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279",
                 "0" * 63,
-            ),
-            encoding="utf-8",
+            )
         )
         with self.assertRaisesRegex(VERIFIER.ContractError, "canonical release tuple"):
             VERIFIER.parse_candidate_nginx_handoff(self.common)
 
     def test_noncanonical_candidate_tuple_fails_before_parent_projection(self) -> None:
-        self.common.write_text(
+        self.write_approved_common(
             CANDIDATE_COMMON.replace(
                 'NGINX_SOURCE_MODE="github-release"',
                 'NGINX_SOURCE_MODE="git"',
-            ),
-            encoding="utf-8",
+            )
         )
         with self.assertRaisesRegex(VERIFIER.ContractError, "canonical release tuple"):
             VERIFIER.parse_candidate_nginx_handoff(self.common)
@@ -148,7 +256,7 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
         )
         for suffix in cases:
             with self.subTest(suffix=suffix):
-                self.common.write_text(CANDIDATE_COMMON + suffix, encoding="utf-8")
+                self.write_approved_common(CANDIDATE_COMMON + suffix)
                 with self.assertRaises(VERIFIER.ContractError):
                     VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
 
@@ -161,11 +269,58 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
         )
         for suffix in cases:
             with self.subTest(suffix=suffix):
-                self.common.write_text(CANDIDATE_COMMON + suffix, encoding="utf-8")
+                self.write_approved_common(CANDIDATE_COMMON + suffix)
                 with self.assertRaisesRegex(
                     VERIFIER.ContractError, "NGINX_REQUIRE_PINNED_PROVENANCE"
                 ):
                     VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
+
+    def test_indirect_eval_target_writes_fail_before_parent_projection(self) -> None:
+        cases = (
+            '\nfield=NGINX_SHA256; eval "$field=' + "0" * 64 + '"\n',
+            '\nfield=NGINX_REQUIRE_PINNED_PROVENANCE; eval "$field=0"\n',
+        )
+        for suffix in cases:
+            with self.subTest(suffix=suffix):
+                self.write_approved_common(CANDIDATE_COMMON + suffix)
+                with self.assertRaisesRegex(VERIFIER.ContractError, "dynamic shell evaluation"):
+                    VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
+
+    def test_unapproved_candidate_structure_fails_closed_before_parent_projection(self) -> None:
+        cases = (
+            '\nfield=NGINX_SHA256; printf -v "$field" "%s" "' + "0" * 64 + '"\n',
+            '\nfield=NGINX_REQUIRE_PINNED_PROVENANCE; unset "$field"\n',
+            '\nfield=NGINX_REQUIRE_PINNED_PROVENANCE; export -n "$field"\n',
+            '\nfield=NGINX_SHA256; declare -n reference="$field"; reference="' + "0" * 64 + '"\n',
+        )
+        for suffix in cases:
+            with self.subTest(suffix=suffix):
+                self.common.write_text(CANDIDATE_COMMON + suffix, encoding="utf-8")
+                with self.assertRaisesRegex(
+                    VERIFIER.ContractError, "approved reviewed structure"
+                ):
+                    VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
+
+    def test_quoted_or_commented_literal_framework_sha_is_checked(self) -> None:
+        workflow = self.root / ".github/workflows/test-connectors-with-crs-no-mrts.yml"
+        literal = f"\n          FRAMEWORK_SHA: {CANDIDATE_SHA}"
+        quoted_current = '\n          FRAMEWORK_SHA: "' + CANDIDATE_SHA + '" # candidate pin'
+        workflow.write_text(
+            workflow.read_text(encoding="utf-8").replace(literal, quoted_current, 1),
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)["release_tag"],
+            "release-1.31.5",
+        )
+        workflow.write_text(
+            workflow.read_text(encoding="utf-8").replace(
+                quoted_current, '\n          FRAMEWORK_SHA: "' + "0" * 40 + '" # stale', 1
+            ),
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(VERIFIER.ContractError, "literal Framework SHA consumer"):
+            VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
 
     def test_parent_nginx_provenance_policy_requires_both_workflows(self) -> None:
         for projection in VERIFIER.PARENT_NGINX_POLICY_PROJECTIONS:
@@ -193,7 +348,7 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
             'NGINX_SHA256_REQUESTED="${NGINX_SHA256-}"\n'
             'NGINX_SHA256="e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279"\n',
         ) + "export NGINX_SOURCE_MODE NGINX_SHA256\n"
-        self.common.write_text(safe_common, encoding="utf-8")
+        self.write_approved_common(safe_common)
         self.assertEqual(
             VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)["archive_sha256"],
             "e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279",
@@ -236,12 +391,11 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
                 target.write_text(original, encoding="utf-8")
 
     def test_unsafe_candidate_expression_fails_before_parent_projection(self) -> None:
-        self.common.write_text(
+        self.write_approved_common(
             CANDIDATE_COMMON.replace(
                 'NGINX_SOURCE_GIT_REF="$NGINX_RELEASE_TAG"',
                 'NGINX_SOURCE_GIT_REF="$(id)"',
-            ),
-            encoding="utf-8",
+            )
         )
         with self.assertRaisesRegex(VERIFIER.ContractError, "candidate NGINX handoff"):
             VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)

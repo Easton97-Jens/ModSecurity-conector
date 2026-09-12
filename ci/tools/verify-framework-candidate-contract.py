@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -20,6 +21,42 @@ import stat
 
 
 MAX_INPUT_BYTES = 512 * 1024
+# Any Framework common.sh structure change needs a separate Parent review before
+# the candidate updater can publish it, because this file is later sourced. The
+# digest is over the structural skeleton below, not the raw source: only the
+# bounded generic source-data RHSs may vary without a structural review.
+APPROVED_FRAMEWORK_COMMON_STRUCTURE_SHA256 = "609315092e5f5cdd793a33636f7d620445f2e4e802a383c23bc26a70d1bc7c75"
+# Keep this closed list identical to sync-framework-component-versions.py's
+# SOURCE_REGISTRY. It is deliberately separate from NGINX, whose handoff stays
+# manually reviewed and byte-covered by the structure digest.
+MUTABLE_SOURCE_FIELDS = (
+    "ENVOY_VERSION",
+    "LIGHTTPD_SERIES",
+    "LIGHTTPD_RELEASE_ROOT_URL",
+    "LIGHTTPD_SERIES_BASE_URL",
+    "LIGHTTPD_VERSION",
+    "LIGHTTPD_SOURCE_URL",
+    "LIGHTTPD_ARCHIVE_NAME",
+    "LIGHTTPD_DOWNLOAD_URL",
+    "LIGHTTPD_SHA256",
+    "HAPROXY_SERIES",
+    "HAPROXY_RELEASE_ROOT_URL",
+    "HAPROXY_SERIES_BASE_URL",
+    "HAPROXY_VERSION",
+    "HAPROXY_ARCHIVE_NAME",
+    "HAPROXY_SOURCE_URL",
+    "HAPROXY_SHA256",
+    "HAPROXY_HTX_SERIES",
+    "HAPROXY_HTX_SERIES_BASE_URL",
+    "HAPROXY_HTX_VERSION",
+    "HAPROXY_HTX_ARCHIVE_NAME",
+    "HAPROXY_HTX_SOURCE_URL",
+    "HAPROXY_HTX_SHA256",
+    "CRS_APPROVED_REPO_URL",
+    "CRS_APPROVED_COMMIT",
+    "CRS_RELEASE_TAG",
+)
+MUTABLE_SOURCE_FIELD_SET = frozenset(MUTABLE_SOURCE_FIELDS)
 HEX40 = re.compile(r"^[0-9a-f]{40}$", re.ASCII)
 HEX64 = re.compile(r"^[0-9a-f]{64}$", re.ASCII)
 NGINX_TAG = re.compile(
@@ -67,6 +104,10 @@ NGINX_EXACT_HEAD_WORKFLOW_PATH = ".github/workflows/test-nginx-exact-head.yml"
 NGINX_FULL_SMOKE_WORKFLOW_PATH = ".github/workflows/test-full-smoke-sequential.yml"
 RUNTIME_COMPONENTS_PATH = "ci/provisioning/components/prepare-runtime-components.py"
 RUNTIME_PRODUCER_READINESS_PATH = "ci/checks/evidence/check-runtime-producer-readiness.py"
+LITERAL_FRAMEWORK_SHA = re.compile(
+    r"(?m)^[ \t]*FRAMEWORK_SHA:[ \t]*(?P<value>(?:[0-9a-f]{40}|\"[0-9a-f]{40}\"|'[0-9a-f]{40}'))[ \t]*(?:#.*)?$"
+)
+DYNAMIC_SHELL_EVALUATION = re.compile(r"\beval\b", re.ASCII)
 
 PARENT_NGINX_PROJECTIONS = (
     ParentProjection(
@@ -323,6 +364,107 @@ def _read_text(path: Path, label: str) -> str:
         raise ContractError(f"{label} is not UTF-8 text") from error
 
 
+def _validate_mutable_source_rhs(name: str, rhs: str) -> None:
+    """Accept only a passive, double-quoted generic source-data expression."""
+
+    if rhs != rhs.strip(" \t") or len(rhs) < 2 or rhs[0] != '"' or rhs[-1] != '"':
+        raise ContractError(f"Framework common.sh has unsafe source-data syntax in {name}")
+    value = rhs[1:-1]
+    if not value:
+        raise ContractError(f"Framework common.sh has empty source-data value in {name}")
+    index = 0
+    while index < len(value):
+        character = value[index]
+        if character == "$":
+            if value.startswith("${", index):
+                closing = value.find("}", index + 2)
+                if closing == -1:
+                    raise ContractError(
+                        f"Framework common.sh has invalid source-data reference in {name}"
+                    )
+                reference = value[index + 2 : closing]
+                index = closing + 1
+            else:
+                match = re.match(r"\$([A-Z][A-Z0-9_]*)", value[index:])
+                if match is None:
+                    raise ContractError(
+                        f"Framework common.sh has invalid source-data reference in {name}"
+                    )
+                reference = match.group(1)
+                next_index = index + len(match.group(0))
+                if next_index < len(value) and re.match(
+                    r"[A-Za-z0-9_]", value[next_index:]
+                ):
+                    raise ContractError(
+                        f"Framework common.sh has ambiguous source-data reference in {name}"
+                    )
+                index = next_index
+            if reference not in MUTABLE_SOURCE_FIELD_SET:
+                raise ContractError(
+                    f"Framework common.sh has unknown source-data reference in {name}"
+                )
+            continue
+        if (
+            not ("!" <= character <= "~")
+            or character in "`;&|<>\\\"'#(){}"
+        ):
+            raise ContractError(f"Framework common.sh has unsafe source-data syntax in {name}")
+        index += 1
+
+
+def _normalized_framework_common_structure(text: str) -> bytes:
+    """Return the reviewed shell structure with generic data RHSs redacted."""
+
+    seen: set[str] = set()
+    normalized: list[str] = []
+    for line in text.splitlines(keepends=True):
+        content = line.rstrip("\r\n")
+        line_ending = line[len(content) :]
+        for name in MUTABLE_SOURCE_FIELDS:
+            prefix = f"{name}="
+            if not content.startswith(prefix):
+                continue
+            if name in seen:
+                raise ContractError(f"Framework common.sh duplicates source-data field {name}")
+            _validate_mutable_source_rhs(name, content[len(prefix) :])
+            seen.add(name)
+            normalized.append(f"{prefix}<PARENT_REVIEWED_SOURCE_DATA>{line_ending}")
+            break
+        else:
+            normalized.append(line)
+    missing = [name for name in MUTABLE_SOURCE_FIELDS if name not in seen]
+    if missing:
+        raise ContractError(
+            "Framework common.sh misses source-data fields: " + ", ".join(missing)
+        )
+    return "".join(normalized).encode("utf-8")
+
+
+def _framework_common_structure_sha256(payload: bytes) -> str:
+    """Hash a UTF-8 candidate's reviewed executable/data structure."""
+
+    try:
+        text = payload.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise ContractError("Framework common.sh is not UTF-8 text") from error
+    return hashlib.sha256(_normalized_framework_common_structure(text)).hexdigest()
+
+
+def _read_approved_framework_common(path: Path) -> str:
+    """Read only the reviewed Framework common.sh structure as candidate data."""
+
+    payload = _read_regular(path, "Framework common.sh")
+    if (
+        _framework_common_structure_sha256(payload)
+        != APPROVED_FRAMEWORK_COMMON_STRUCTURE_SHA256
+    ):
+        raise ContractError("Framework common.sh differs from approved reviewed structure")
+    try:
+        return payload.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise ContractError("Framework common.sh is not UTF-8 text") from error
+
+
 def _unique_match(pattern: re.Pattern[str], text: str, label: str) -> str:
     matches = list(pattern.finditer(text))
     if len(matches) != 1:
@@ -426,6 +568,13 @@ def _reject_parent_owned_candidate_assignments(text: str) -> None:
             raise ContractError(f"Framework common.sh must not assign Parent-owned {name}")
 
 
+def _reject_dynamic_candidate_evaluation(text: str) -> None:
+    """Reject evaluation that can conceal an effective target-field write."""
+
+    if DYNAMIC_SHELL_EVALUATION.search(text):
+        raise ContractError("Framework common.sh uses unsupported dynamic shell evaluation")
+
+
 def _quoted_rhs(rhs: str, label: str) -> str:
     value = rhs.strip(" \t")
     if len(value) < 2 or value[0] not in "\"'" or value[-1] != value[0]:
@@ -439,7 +588,8 @@ def _quoted_rhs(rhs: str, label: str) -> str:
 def parse_candidate_nginx_handoff(common_path: Path) -> dict[str, str]:
     """Read the candidate NGINX tuple without sourcing its shell file."""
 
-    text = _read_text(common_path, "Framework common.sh")
+    text = _read_approved_framework_common(common_path)
+    _reject_dynamic_candidate_evaluation(text)
     _reject_parent_owned_candidate_assignments(text)
     raw = {name: _quoted_rhs(_candidate_rhs(text, name), name) for name in NGINX_FIELDS}
     tag = raw["NGINX_RELEASE_TAG"]
@@ -487,6 +637,14 @@ def _verify_framework_sha_contract(root: Path, candidate_sha: str) -> None:
         workflow,
         "CRS/no-MRTS workflow expected Framework SHA",
     )
+    literal_framework_shas = [
+        _safe_yaml_value(
+            match.group("value"), "CRS/no-MRTS workflow literal Framework SHA"
+        )
+        for match in LITERAL_FRAMEWORK_SHA.finditer(workflow)
+    ]
+    if not literal_framework_shas:
+        raise ContractError("CRS/no-MRTS workflow has no literal Framework SHA consumers")
     fixture = _read_text(
         _root_relative_path(root, "tests/test_ci_security_workflows.py"),
         "CRS/no-MRTS workflow fixture",
@@ -502,6 +660,12 @@ def _verify_framework_sha_contract(root: Path, candidate_sha: str) -> None:
         if observed != candidate_sha:
             raise ContractError(
                 f"CRS/no-MRTS {label} Framework SHA does not match candidate SHA"
+            )
+    for index, observed in enumerate(literal_framework_shas, start=1):
+        if observed != candidate_sha:
+            raise ContractError(
+                f"CRS/no-MRTS workflow literal Framework SHA consumer {index} "
+                "does not match candidate SHA"
             )
 
 

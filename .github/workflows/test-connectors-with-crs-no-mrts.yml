@@ -217,7 +217,7 @@ jobs:
         if: matrix.connector == 'haproxy'
         env:
           PARENT_SHA: ${{ github.event.pull_request.head.sha || inputs.parent_sha }}
-          FRAMEWORK_SHA: 86451b45ae7bb7953baf9f81f2c2dad07395a808
+          FRAMEWORK_SHA: d4f7b69dc264852eac74e1439c0887fcb9fbe372
           MRTS_SHA: 615b13bacbd008562c17408246c41ab27dca3104
           SETUP_PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}
           TRUSTED_RUNNER_TEMP: ${{ runner.temp }}
@@ -1087,7 +1087,7 @@ jobs:
           CONNECTOR: ${{ matrix.connector }}
           PARENT_SHA: ${{ github.event.pull_request.head.sha || inputs.parent_sha }}
           BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base_sha }}
-          FRAMEWORK_SHA: 86451b45ae7bb7953baf9f81f2c2dad07395a808
+          FRAMEWORK_SHA: d4f7b69dc264852eac74e1439c0887fcb9fbe372
           MRTS_SHA: 615b13bacbd008562c17408246c41ab27dca3104
           PROFILE_RUN_ID_VALUE: with-crs-no-mrts-${{ github.run_id }}-${{ github.run_attempt }}
           CELL_RUN_ID_VALUE: crs-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.connector }}
@@ -1396,7 +1396,7 @@ jobs:
         env:
           EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || inputs.parent_sha }}
           EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base_sha }}
-          FRAMEWORK_SHA: 86451b45ae7bb7953baf9f81f2c2dad07395a808
+          FRAMEWORK_SHA: d4f7b69dc264852eac74e1439c0887fcb9fbe372
           MRTS_SHA: 615b13bacbd008562c17408246c41ab27dca3104
           PROFILE_RUN_ID_VALUE: with-crs-no-mrts-${{ github.run_id }}-${{ github.run_attempt }}
           CELL_ROOT: ${{ runner.temp }}/with-crs-no-mrts-cells
