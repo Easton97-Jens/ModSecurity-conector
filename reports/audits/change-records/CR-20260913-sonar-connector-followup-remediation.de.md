@@ -10,7 +10,7 @@
 | Datum (UTC) | 2026-09-13 |
 | Basis-Revision | `7b61b262332be8c89275542c1fa22d6ecb1f57e2` |
 | Scope | Ausschließlich Parent-ModSecurity-Connector-Source, direkt betroffene Tests und dieser gekoppelte Traceability-Record. Keine Framework-, MRTS-, Gitlink-, Scanner-, Regel-, Quality-Gate-, Suppression-, Exclusion-, Dependency- oder Workflow-Änderung. |
-| Delivery-Status | Lokaler Kandidat auf `agent/sonar-connector-followup-20260913`; bei Erstellung dieses Records gab es keinen Commit, Push, Pull Request, Merge oder Default-Branch-Aktion. Exakte Delivery-Fakten erfordern einen neuen PR-Verifikationszyklus. |
+| Delivery-Status | Offener PR [#368](https://github.com/Easton97-Jens/ModSecurity-conector/pull/368) auf `agent/sonar-connector-followup-20260913`; sein erster veröffentlichter Head war `2e27799d15e6789aaa89887c6a8ca18a67a01f42`. Dieser Head bestand das Quality Gate mit null neuen Duplikatzeilen/-blöcken, zeigte aber drei neue C-Issues. Die korrigierende lokale Source-/Dokumentationsaktualisierung ist uncommittet und benötigt einen zweiten Commit, normalen Push und einen vollständigen Exact-Head-Verifikationszyklus. |
 | Policy-Auflösung | Die Parent-Traceability-Policy verlangt dieses englisch/deutsche Change-Record-Paar für die nicht triviale versionierte Remediation. Die Archiv-README wird als etablierter Index aktualisiert. |
 
 ## Motivation und Problemstellung
@@ -50,6 +50,10 @@ Analyse-Umgehungen entfernen.
 - Den HAProxy-Production-Notify-Task-Allocation-Pfad konsolidieren, wodurch
   ein aktueller Parent-Duplikatblock ohne breite metrikgetriebene Refaktorierung
   entfernt wird.
+- Die neu gemeldete lange Parameterliste des Helpers durch den bereits
+  initialisierten Production-Result-Context ersetzen und zwei nur-lesende
+  Pointer `const` machen; dies behebt die drei C-Findings des ersten Readbacks,
+  ohne Task-Ownership, Join-Reihenfolge oder Response-Behandlung zu ändern.
 - Direkte Contract-Tests behalten und enge Parser-Grenztests ergänzen, statt
   Assertions zu löschen oder abzuschwächen.
 - Weder das Framework-eigene Issue noch Scanner-Konfiguration, Sonar-Settings,
@@ -63,7 +67,8 @@ Deadlines, Socket-/Descriptor-Cleanup und native Ownership-Übergänge. Der
 Source-Review erhält JSON-Escaping und Redaction, Byte-/Line-/Frame-Grenzen,
 Malformed-Input-Rejection, Loopback-/Deadline-Verhalten, `MSG_NOSIGNAL`-
 Behandlung, Owner-Queue-Destroy-Reihenfolge und Fail-Closed-Exits. Für diesen
-exakten Kandidaten ist ein frischer terminaler Security-Diff-Scan erforderlich;
+exakten Kandidaten ist der Post-Readback-terminale Security-Diff mit
+vollständiger Abdeckung und null reportbaren Findings abgeschlossen;
 historische PR-#361-Evidenz wird weder verwendet noch als Evidenz für diesen
 Follow-up akzeptiert.
 
@@ -94,13 +99,18 @@ Follow-up akzeptiert.
 | Envoy-Response-Observer- und Composite-Traefik-Go-Packages | Bestanden |
 | Traefik-Composite-Middleware-Go-Modul | Bestanden |
 | Apache-Process-Guard-Suite | Bestanden: 58 Tests |
-| Kombinierte fokussierte Python-Contract-Auswahl | Auf dem finalen lokalen Source-Kandidaten bestanden: 191 Tests |
+| Kombinierte fokussierte Python-Contract-Auswahl | Vor den drei Post-Readback-C-Korrekturen bestanden: 191 Tests |
 | Common-C17-Helpers | Bestanden |
 | Common-Security-, Memory-Safety-, Flow-Integrity- und Authorization-Timeout-Controls | Bestanden |
 | HAProxy-Common-Adoption | Bestanden |
 | Modifizierte HAProxy-Source, strikte C17-`-Wall -Wextra -Werror -fsyntax-only` | Bestanden |
 | Event-/Detached-Worker-fokussierte Contracts mit ASan/UBSan und Event-JSON-Smokes | Bestanden |
 | Common-SDK-Serialisierungs-Contract | Nach der finalen Event-Serialisierungs-Contract-Abstimmung bestanden |
+| Erster PR-#368-SonarQube-Cloud-Readback | Quality Gate `OK` und null neue Duplikatzeilen/-blöcke, aber drei OPEN helper-eingeführte C-Findings (`c:S107` und zwei `c:S995`); lokal korrigiert und ein frischer Exact-Head-Readback steht aus |
+| Ausgewählte fokussierte Post-Readback-Contract-Auswahl | Bestanden: 161 Tests |
+| HAProxy-Source nach Readback, striktes C17 `-Wall -Wextra -Werror -fsyntax-only` | Bestanden |
+| HAProxy-/Sonar-fokussierte Contracts nach Readback | Bestanden: 38 Tests |
+| Detached-Worker-Timeout-/Lifecycle-Smoke nach Readback | Bestanden |
 | Lighttpd-fokussierte Contract-Suite | Bestanden: 58 Tests |
 | HAProxy-fokussierte Contracts | Bestanden: 52 Tests |
 | Task-scoped `make check-haproxy-c17` | Blockiert: Sein Helper endet mit 77, weil der isolierte Parent-Worktree absichtlich kein Framework-`ci/lib/common.sh` hat; Make meldet Exit 2 |
@@ -113,10 +123,13 @@ abgeschlossenen lokalen Befehlen gehören fokussierte Envoy- und Traefik-`go
 test`-Läufe, Apache- und kombinierte Python-`unittest`-Auswahlen, die Common-
 und HAProxy-Make-Checks, direkte C17-Syntaxkompilierung, `gofmt -d` und `git
 diff --check`. Der SonarQube-Cloud-Zugriff verwendet ausschließlich
-`/usr/local/bin/sonar-with-env`; die frische Exact-Head-Abfrage steht bis zur
-normalen PR-Delivery aus. Ein versiegeltes terminales Security-Diff-Artefakt
-ist die erforderliche Pre-Delivery-Evidenz für diesen finalen lokalen
-Source-/Dokumentationskandidaten.
+`/usr/local/bin/sonar-with-env`. Der erste Exact-PR-#368-Readback ergab Quality
+Gate `OK`, null neue Duplikatzeilen/-blöcke und drei OPEN task-eigene
+C-Findings; die fokussierten C17-, Contract- und Detached-Worker-Smoke-Checks
+bestanden nach deren lokaler Korrektur, einschließlich der ausgewählten
+161-Test-Contract-Auswahl. Der Post-Readback-terminale Security-Diff ist mit
+vollständiger Abdeckung und null reportbaren Findings abgeschlossen; nach dem
+nächsten normalen Push ist ein neuer Exact-Head-Hosted-Readback erforderlich.
 
 ## Runtime-Evidence
 
@@ -127,12 +140,13 @@ dargestellt.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-- Der formelle terminale Security-Diff und der finale vollständige Scoped-Diff-
-  Review laufen nach dieser finalen versionierten Dokumentationsaktualisierung
-  und vor dem Staging.
-- Exact-PR-Head-GitHub-Checks, Sonar-Quality-Gate, Issue-/Duplikat-Readback,
-  Review-Status und Current-Base-Mergeability können vor normalem Push und
-  PR-Erstellung nicht existieren.
+- Der Post-Readback-formelle terminale Security-Diff ist vor dem Staging mit
+  vollständiger Abdeckung und null reportbaren Findings abgeschlossen; der
+  finale gestagte Scoped-Diff-Review bleibt Teil des Delivery-Preflights.
+- Frische Exact-PR-Head-GitHub-Checks, Sonar-Quality-Gate, Issue-/Duplikat-
+  Readback, Review-Status und Current-Base-Mergeability benötigen den nächsten
+  normalen Push; die Ergebnisse des ersten PR-Heads sind für die korrigierende
+  Aktualisierung veraltet.
 - Der vollständige HAProxy-Runtime-Self-Test ist nicht ausgeführt, weil dem
   isolierten Parent-Worktree separat provisionierte HAProxy-/libmodsecurity-
   Artefakte fehlen. Er wird nicht durch die bestandenen lokalen Static-/
@@ -156,15 +170,22 @@ dargestellt.
 
 FND-PARENT-1088s Akzeptanz ist auf nicht verfügbare historische PR-#361-
 Payloads begrenzt. Sie verzichtet nicht auf, ersetzt nicht und liefert keine
-Evidenz für diesen PR. GitHub-Checks, Current-Base-Mergeability, Review-Status,
-der Exact-PR-Head-Sonar-Quality-Gate, OPEN/CONFIRMED-Inventar und Duplikat-
-Readback stehen bis zur normalen Delivery-Erstellung des PR aus.
+Evidenz für diesen PR. Das erste PR-#368-Quality-Gate war `OK`, aber sein
+Exact-Head-OPEN-Inventar identifizierte drei neue helper-eingeführte
+C-Findings. Ihre lokale Korrektur ist noch nicht committet oder gepusht; daher
+stehen die neuen Exact-Head-GitHub-Checks, Mergeability, Review-Status,
+Quality-Gate, OPEN/CONFIRMED-Inventar und Duplikat-Readback aus.
 
 ## Finaler Diff- und Review-Status
 
 Bei dieser Record-Aktualisierung haben alle 16 Parent-Findings eine scoped
-Source-/Test-Remediation; die finale lokale Auswahl von 191 Tests sowie der
-Common-SDK-Serialisierungs-Contract sind bestanden. Der Kandidat bleibt
-uncommittet, bis terminaler Security-Diff, vollständiger Diff und
-Delivery-Preflights fertig sind. Der finale Status wird noch nicht als
-verifiziert behauptet. Kein Merge ist autorisiert oder behauptet.
+Source-/Test-Remediation. Der erste Hosted-Scan identifizierte zusätzlich drei
+neue Helper-Findings; die Korrekturen der langen Parameterliste und der
+nur-lesenden Pointer bestanden ihre direkten C17-, ausgewählten 161-Test-
+Contract-, 38-Test-fokussierten Subset- und Detached-Worker-Smoke-Checks. Der
+frühere terminale Security-Diff ist durch diese Änderungen überholt; der
+Post-Readback-terminale Security-Diff hat vollständige Abdeckung und null
+reportbare Findings. Der korrigierende Kandidat bleibt uncommittet, bis der
+finale gestagte Diff-Review und der Delivery-Zyklus fertig sind. Der finale
+Status wird noch nicht als verifiziert behauptet. Kein Merge ist autorisiert
+oder behauptet.

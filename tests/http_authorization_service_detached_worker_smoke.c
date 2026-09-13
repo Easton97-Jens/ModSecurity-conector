@@ -493,7 +493,7 @@ static int rejected_host_requests_are_preserved(unsigned short port,
 }
 
 static int submit_valid_request_and_join(unsigned short port,
-    const char *request, size_t request_size, server_thread_args *args,
+    const char *request, size_t request_size, const server_thread_args *args,
     pthread_t server, int *client_fd, int *server_joined) {
     *client_fd = connect_loopback(port);
     if (!runtime_setup_was_configured()) {

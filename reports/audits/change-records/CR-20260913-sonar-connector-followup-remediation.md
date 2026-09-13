@@ -10,7 +10,7 @@
 | Date (UTC) | 2026-09-13 |
 | Base revision | `7b61b262332be8c89275542c1fa22d6ecb1f57e2` |
 | Scope | Parent ModSecurity Connector source, directly affected tests, and this paired traceability record only. No Framework, MRTS, Gitlink, scanner, rule, Quality Gate, suppression, exclusion, dependency, or workflow change. |
-| Delivery status | Local candidate on `agent/sonar-connector-followup-20260913`; at this record's creation no commit, push, pull request, merge, or default-branch action has occurred. Exact-head delivery facts require a new PR verification cycle. |
+| Delivery status | Open PR [#368](https://github.com/Easton97-Jens/ModSecurity-conector/pull/368) on `agent/sonar-connector-followup-20260913`; its first published head was `2e27799d15e6789aaa89887c6a8ca18a67a01f42`. That head passed the Quality Gate with zero new duplicated lines/blocks but exposed three new C issues. The corrective local source/documentation update is uncommitted and requires a second commit, normal push, and a complete exact-head verification cycle. |
 | Policy resolution | The Parent traceability policy requires this English/German Change Record pair for the non-trivial versioned remediation. The archive README is updated as the established index. |
 
 ## Motivation and problem statement
@@ -44,6 +44,10 @@ analysis workarounds.
   Go parameter names; no public interfaces, limits, or behavior are changed.
 - Consolidate the HAProxy production-notify task allocation path, which removes
   one current Parent duplicate block without a broad metric-only refactor.
+- Replace the helper's newly reported long parameter list with the already
+  initialized production-result context, and make two read-only pointers
+  `const`; this resolves the three first-readback C findings without changing
+  task ownership, join ordering, or response handling.
 - Keep direct contract tests and add narrow parser-boundary coverage instead
   of deleting or weakening assertions.
 - Do not modify the one Framework-owned issue, scanner configuration, Sonar
@@ -56,9 +60,10 @@ table parsing, HTTP request handling, subprocess supervision, SPOP deadlines,
 socket/descriptor cleanup, and native ownership transitions. The source review
 preserves JSON escaping and redaction, byte/line/frame bounds, malformed-input
 rejection, loopback/deadline behavior, `MSG_NOSIGNAL` handling, owner-queue
-destruction order, and fail-closed exits. A fresh terminal security-diff scan
-is required for this exact candidate; historical PR #361 evidence is neither
-used nor accepted as evidence for this follow-up.
+destruction order, and fail-closed exits. The post-readback terminal
+security-diff completed with complete coverage and zero reportable findings for
+this exact candidate; historical PR #361 evidence is neither used nor accepted
+as evidence for this follow-up.
 
 ## Changed files
 
@@ -87,13 +92,18 @@ used nor accepted as evidence for this follow-up.
 | Envoy response-observer and composite-Traefik Go packages | Passed |
 | Traefik composite-middleware Go module | Passed |
 | Apache process-guard suite | Passed: 58 tests |
-| Combined focused Python contract selection | Passed on the final local source candidate: 191 tests |
+| Combined focused Python contract selection | Passed before the three post-readback C corrections: 191 tests |
 | Common C17 helpers | Passed |
 | Common security, memory-safety, flow-integrity, and authorization-timeout controls | Passed |
 | HAProxy Common adoption | Passed |
 | Modified HAProxy source, strict C17 `-Wall -Wextra -Werror -fsyntax-only` | Passed |
 | Event/detached-worker focused contracts with ASan/UBSan and event-JSON smokes | Passed |
 | Common SDK serialization contract | Passed after the final event-serialization contract reconciliation |
+| First PR #368 SonarQube Cloud readback | Quality Gate `OK` and zero new duplicated lines/blocks, but three OPEN helper-introduced C findings (`c:S107` and two `c:S995`); corrected locally and awaiting a fresh exact-head readback |
+| Post-readback selected focused contract selection | Passed: 161 tests |
+| Post-readback HAProxy source, strict C17 `-Wall -Wextra -Werror -fsyntax-only` | Passed |
+| Post-readback HAProxy/Sonar focused contracts | Passed: 38 tests |
+| Post-readback detached-worker timeout/lifecycle smoke | Passed |
 | Lighttpd focused contract suite | Passed: 58 tests |
 | HAProxy focused contracts | Passed: 52 tests |
 | Task-scoped `make check-haproxy-c17` | Blocked: its helper exits 77 because the isolated Parent worktree intentionally has no Framework `ci/lib/common.sh`; Make reports exit 2 |
@@ -105,10 +115,13 @@ All recorded commands used the repository's RTK proxy. The completed local
 commands include focused Envoy and Traefik `go test` runs, Apache and combined
 Python `unittest` selections, the Common and HAProxy Make checks, direct C17
 syntax compilation, `gofmt -d`, and `git diff --check`. SonarQube Cloud access
-uses only `/usr/local/bin/sonar-with-env`; the fresh exact-head query is still
-pending normal PR delivery. A sealed terminal security-diff artifact is the
-required pre-delivery evidence for this final local source/documentation
-candidate.
+uses only `/usr/local/bin/sonar-with-env`. The first exact PR #368 readback
+returned Quality Gate `OK`, zero new duplicated lines/blocks, and three OPEN
+task-owned C findings; the focused C17, contract, and detached-worker smoke
+checks passed after their local correction, including the selected 161-test
+contract selection. The post-readback terminal security-diff completed with
+complete coverage and zero reportable findings; a new exact-head hosted
+readback is required after the next normal push.
 
 ## Runtime evidence
 
@@ -118,11 +131,12 @@ not represented as production-runtime evidence.
 
 ## Checks not run and rationale
 
-- The formal terminal security-diff and final complete scoped-diff review run
-  after this final versioned-documentation update, before staging.
-- Exact PR-head GitHub checks, Sonar Quality Gate, issue/duplication readback,
-  review state, and current-base mergeability cannot exist before the normal
-  push and PR creation.
+- The post-readback formal terminal security-diff completed before staging with
+  complete coverage and zero reportable findings; the final staged scoped-diff
+  review remains part of the delivery preflight.
+- Fresh exact-PR-head GitHub checks, Sonar Quality Gate, issue/duplication
+  readback, review state, and current-base mergeability require the next normal
+  push; the first PR-head results are stale for the corrective update.
 - Full HAProxy runtime self-test is not run because the isolated Parent
   worktree lacks separately provisioned HAProxy/libmodsecurity artifacts.
   It is not substituted by the passed local static/contract checks.
@@ -144,14 +158,20 @@ not represented as production-runtime evidence.
 
 FND-PARENT-1088's acceptance is limited to unavailable historical PR #361
 payloads. It does not waive, replace, or supply any evidence for this PR.
-GitHub checks, current-base mergeability, review state, the exact PR-head Sonar
-Quality Gate, OPEN/CONFIRMED inventory, and duplication readback remain pending
-until normal delivery creates the PR.
+The first PR #368 Quality Gate was `OK`, but its exact-head OPEN inventory
+identified three new helper-introduced C findings. Their local correction has
+not yet been committed or pushed, so the new exact-head GitHub checks,
+mergeability, review state, Quality Gate, OPEN/CONFIRMED inventory, and
+duplication readback remain pending.
 
 ## Final diff and review status
 
 At this record update, all 16 Parent findings have a scoped source/test
-remediation and the final local 191-test selection plus the Common SDK
-serialization contract pass. The candidate remains uncommitted until the
-terminal security-diff, complete diff, and delivery preflights finish. The
-final state is not yet claimed as verified. No merge is authorized or asserted.
+remediation. The first hosted scan also identified three new helper findings;
+the long-parameter and read-only-pointer corrections have passed their direct
+C17, selected 161-test contract, 38-test focused subset, and detached-worker
+smoke checks. The earlier terminal security-diff is superseded by these
+changes, and the post-readback terminal security-diff has complete coverage
+with zero reportable findings. The corrective candidate remains uncommitted
+until final staged diff review and the delivery cycle finish. The final state is
+not yet claimed as verified. No merge is authorized or asserted.

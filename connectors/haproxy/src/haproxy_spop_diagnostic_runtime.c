@@ -3883,19 +3883,14 @@ static void submit_production_notify_task(
         agent_state *state,
         notify_request *request,
         int phase,
-        haproxy_modsecurity_decision *decision,
-        int *modsec_processed,
-        spop_ack_decision_origin *decision_origin,
-        const char **decision_text,
-        char *response_handle,
         spop_production_result *result) {
     spop_production_task_context *task_context =
         (spop_production_task_context *)calloc(1U, sizeof(*task_context));
 
     if (task_context == 0) {
-        set_processing_failure(state, decision, phase,
+        set_processing_failure(state, result->decision, phase,
             "SPOP owner queue allocation failed");
-        *decision_text = "owner-queue-unavailable";
+        *result->decision_text = "owner-queue-unavailable";
         return;
     }
     task_context->state = state;
@@ -3906,19 +3901,14 @@ static void submit_production_notify_task(
     request->header_count = 0U;
     request->body = 0;
     request->body_len = 0U;
-    result->decision = decision;
-    result->modsec_processed = modsec_processed;
-    result->decision_origin = decision_origin;
-    result->decision_text = decision_text;
-    result->response_handle = response_handle;
     if (spop_owner_queue_submit(state, run_spop_production_task,
             task_context, destroy_spop_production_task_context,
             copy_spop_production_task_result, result,
             state->config.spoe_timeout_ms) != 0) {
         /* Submission owns task cleanup on every failure path. */
-        set_processing_failure(state, decision, phase,
+        set_processing_failure(state, result->decision, phase,
             "SPOP owner queue is unavailable");
-        *decision_text = "owner-queue-unavailable";
+        *result->decision_text = "owner-queue-unavailable";
     }
 }
 
@@ -3943,6 +3933,11 @@ static int process_production_notify(
 
     ensure_notify_request_id(request, frame);
     response_handle[0] = '\0';
+    result.decision = &decision;
+    result.modsec_processed = &modsec_processed;
+    result.decision_origin = &decision_origin;
+    result.decision_text = &decision_text;
+    result.response_handle = response_handle;
     if (request->is_response && !state->config.response_phases_enabled) {
         /* Reject before owner-queue admission: this agent cannot legitimately
          * own a response transaction, even if the queue is unavailable. */
@@ -3954,9 +3949,7 @@ static int process_production_notify(
             "missing client or server endpoint");
         decision_log_write(state, request, &decision, 0, decision_text);
     } else {
-        submit_production_notify_task(state, request, phase,
-            &decision, &modsec_processed, &decision_origin, &decision_text,
-            response_handle, &result);
+        submit_production_notify_task(state, request, phase, &result);
     }
     enforce = protocol_failure_requires_enforcement(decision_text) ||
         production_ack_enforces(&state->config, decision_origin);
@@ -5298,7 +5291,7 @@ static int verify_spop_write_deadline(spop_write_deadline_context *context)
 }
 
 static void cleanup_spop_write_deadline_context(
-        spop_write_deadline_context *context)
+        const spop_write_deadline_context *context)
 {
     if (context->listener_fd >= 0) {
         (void)close(context->listener_fd);
