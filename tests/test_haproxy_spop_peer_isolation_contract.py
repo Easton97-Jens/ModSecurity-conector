@@ -42,9 +42,12 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
         self.assertIn("(flags & O_NONBLOCK) != 0", deadline_test)
         self.assertNotIn("F_SETFL", deadline_test)
         self.assertIn("MSG_NOSIGNAL | MSG_DONTWAIT", deadline_test)
-        self.assertIn("send_frame_timeout(server_fd, SPOP_FRM_ACK", deadline_test)
-        self.assertIn("send_frame_timeout(followup[0], SPOP_FRM_ACK", deadline_test)
-        self.assertIn("recv_frame(followup[1], &frame, 100U)", deadline_test)
+        self.assertIn("send_frame_timeout(context->server_fd,", deadline_test)
+        self.assertIn("send_frame_timeout(context->followup[0],", deadline_test)
+        self.assertIn(
+            "recv_frame(context->followup[1], &context->frame, 100U)",
+            deadline_test,
+        )
         self.assertIn("alarm(2U)", deadline_test)
         self.assertIn("child = fork()", deadline_wrapper)
         self.assertIn("WIFEXITED(status)", deadline_wrapper)
@@ -116,7 +119,7 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
         self.assertNotIn("pthread_cancel", SOURCE)
 
     def test_unquiesced_owner_exits_without_releasing_stack_backed_state(self) -> None:
-        cleanup = SOURCE.split("static int destroy_agent_runtime", 1)[1].split(
+        cleanup = SOURCE.split("static void stop_response_transport_or_exit", 1)[1].split(
             "static int initialize_native_response_companion", 1
         )[0]
         self.assertGreaterEqual(
@@ -125,7 +128,7 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
         self.assertIn("use-after-return/use-after-close", cleanup)
 
     def test_restart_disposition_is_read_before_queue_lock_destruction(self) -> None:
-        cleanup = SOURCE.split("static int destroy_agent_runtime", 1)[1].split(
+        cleanup = SOURCE.split("static void stop_response_transport_or_exit", 1)[1].split(
             "static int initialize_native_response_companion", 1
         )[0]
         snapshot = cleanup.index(

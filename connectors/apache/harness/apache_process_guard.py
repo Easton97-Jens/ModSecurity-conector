@@ -48,6 +48,7 @@ RUNNER_DIRECTORY_ENV = "MSCONNECTOR_APACHE_GUARD_DIRECTORY"
 RUNNER_ARTIFACT_ROOT_ENV = "MSCONNECTOR_APACHE_GUARD_ARTIFACT_ROOT"
 RUNNER_HTTPD_ENV = "MSCONNECTOR_APACHE_GUARD_HTTPD"
 APACHE_EXECUTABLE_LABEL = "Apache executable"
+APACHE_ARTIFACT_ROOT_LABEL = "Apache artifact root"
 
 
 class GuardError(RuntimeError):
@@ -308,7 +309,7 @@ def supervise(httpd: Path, config: Path, state: Path, pid_output: Path) -> int:
     """Run only the validated Apache smoke command under a launch-bound guard."""
     _supervisor_paths(state, pid_output)
     artifact_root = _runner_configured_path(
-        RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"
+        RUNNER_ARTIFACT_ROOT_ENV, APACHE_ARTIFACT_ROOT_LABEL
     )
     httpd = _validated_httpd_path(
         httpd, _runner_configured_path(RUNNER_HTTPD_ENV, APACHE_EXECUTABLE_LABEL)
@@ -1330,7 +1331,7 @@ def _remove_owned_name(
         current = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
         if (current.st_dev, current.st_ino) == (expected.st_dev, expected.st_ino):
             os.unlink(name, dir_fd=parent_fd)
-    except (FileNotFoundError, OSError):
+    except OSError:
         pass
 
 
@@ -1426,11 +1427,11 @@ def _execute_command(args: argparse.Namespace) -> int:
             args.executable,
             args.port,
             args.output,
-            _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"),
+            _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, APACHE_ARTIFACT_ROOT_LABEL),
         )
     elif args.command == "supervise":
         artifact_root = _runner_configured_path(
-            RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"
+            RUNNER_ARTIFACT_ROOT_ENV, APACHE_ARTIFACT_ROOT_LABEL
         )
         httpd = _runner_configured_path(RUNNER_HTTPD_ENV, APACHE_EXECUTABLE_LABEL)
         return supervise(
@@ -1442,18 +1443,18 @@ def _execute_command(args: argparse.Namespace) -> int:
     elif args.command == "stop-supervisor":
         stop_supervisor(
             args.state,
-            _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"),
+            _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, APACHE_ARTIFACT_ROOT_LABEL),
         )
     elif args.command == "retire-supervisor-artifact":
         retire_supervisor_session(
             args.state, args.pid_output,
-            _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"),
+            _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, APACHE_ARTIFACT_ROOT_LABEL),
         )
     elif args.command == "verify-running":
         verify_running(
             _load(
                 args.evidence,
-                _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"),
+                _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, APACHE_ARTIFACT_ROOT_LABEL),
             )
         )
     elif args.command == "signal":
@@ -1461,7 +1462,7 @@ def _execute_command(args: argparse.Namespace) -> int:
             signal_verified(
                 _load(
                     args.evidence,
-                    _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"),
+                    _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, APACHE_ARTIFACT_ROOT_LABEL),
                 ),
                 args.signal,
             )
@@ -1471,7 +1472,7 @@ def _execute_command(args: argparse.Namespace) -> int:
             terminate_verified(
                 _load(
                     args.evidence,
-                    _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"),
+                    _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, APACHE_ARTIFACT_ROOT_LABEL),
                 )
             )
         )
@@ -1479,7 +1480,7 @@ def _execute_command(args: argparse.Namespace) -> int:
         verify_pidfile(
             _load(
                 args.evidence,
-                _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"),
+                _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, APACHE_ARTIFACT_ROOT_LABEL),
             ),
             args.pid,
         )
@@ -1489,7 +1490,7 @@ def _execute_command(args: argparse.Namespace) -> int:
         verify_stopped(
             _load(
                 args.evidence,
-                _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, "Apache artifact root"),
+                _runner_configured_path(RUNNER_ARTIFACT_ROOT_ENV, APACHE_ARTIFACT_ROOT_LABEL),
             ),
             args.pidfile,
         )

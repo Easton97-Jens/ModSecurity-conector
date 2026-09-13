@@ -456,15 +456,88 @@ static int rejected_request_is_preserved(unsigned short port,
     return valid;
 }
 
-int main(void) {
-    static const char request[] = "GET /ok HTTP/1.1\r\nHost: smoke.test\r\n"
-        "Connection: close\r\n\r\n";
+static int start_test_service(unsigned short *port, server_thread_args *args,
+    pthread_t *server) {
+    if (!reserve_loopback_port(port) ||
+        snprintf(args->listen_spec, sizeof(args->listen_spec), "127.0.0.1:%u",
+            (unsigned int)*port) < 0 ||
+        pthread_create(server, NULL, run_service, args) != 0) {
+        (void)fprintf(stderr, "could not start detached-worker service\n");
+        return 0;
+    }
+    return 1;
+}
+
+static int rejected_host_requests_are_preserved(unsigned short port,
+    char *oversized_host_request, size_t oversized_host_request_size) {
     static const char missing_host_request[] = "GET /ok HTTP/1.1\r\n"
         "Connection: close\r\n\r\n";
     static const char oversized_host_prefix[] = "GET /ok HTTP/1.1\r\nHost: ";
     static const char oversized_host_suffix[] = "\r\nConnection: close\r\n\r\n";
-    char oversized_host_request[sizeof(oversized_host_prefix) - 1U + 1024U +
-        sizeof(oversized_host_suffix) - 1U];
+
+    memcpy(oversized_host_request, oversized_host_prefix,
+        sizeof(oversized_host_prefix) - 1U);
+    memset(oversized_host_request + sizeof(oversized_host_prefix) - 1U,
+        'a', 1024U);
+    memcpy(oversized_host_request + sizeof(oversized_host_prefix) - 1U + 1024U,
+        oversized_host_suffix, sizeof(oversized_host_suffix) - 1U);
+
+    if (!rejected_request_is_preserved(port, missing_host_request,
+            sizeof(missing_host_request) - 1U,
+            "missing Host was not rejected before mapping")) {
+        return 0;
+    }
+    return rejected_request_is_preserved(port, oversized_host_request,
+        oversized_host_request_size,
+        "oversized Host was not rejected before mapping");
+}
+
+static int submit_valid_request_and_join(unsigned short port,
+    const char *request, size_t request_size, const server_thread_args *args,
+    pthread_t server, int *client_fd, int *server_joined) {
+    *client_fd = connect_loopback(port);
+    if (!runtime_setup_was_configured()) {
+        (void)fprintf(stderr, "runtime profile setup was not enforced\n");
+        return 0;
+    }
+    if (*client_fd < 0 ||
+        send(*client_fd, request, request_size, 0) != (ssize_t)request_size ||
+        !wait_for_flag(&runtime_entered) || pthread_join(server, NULL) != 0) {
+        (void)fprintf(stderr, "service did not reach bounded deferred shutdown\n");
+        return 0;
+    }
+    *server_joined = 1;
+    if (args->result != 1) {
+        (void)fprintf(stderr, "service did not report deferred shutdown\n");
+        return 0;
+    }
+    return 1;
+}
+
+static int deferred_cleanup_finished(void) {
+    if (!wait_for_flag(&runtime_destroyed)) {
+        (void)fprintf(stderr, "deferred worker cleanup did not finish\n");
+        return 0;
+    }
+    /* The last worker owns the deferred release claim.  Give any accidental
+     * duplicate release a chance to surface before declaring the regression
+     * fixed; a single Common runtime destroy is the observable contract. */
+    {
+        const struct timespec delay = {.tv_sec = 0, .tv_nsec = 50000000L};
+        (void)nanosleep(&delay, NULL);
+    }
+    if (runtime_destroyed != 1) {
+        (void)fprintf(stderr, "deferred cleanup released the runtime more than once\n");
+        return 0;
+    }
+    return 1;
+}
+
+int main(void) {
+    static const char request[] = "GET /ok HTTP/1.1\r\nHost: smoke.test\r\n"
+        "Connection: close\r\n\r\n";
+    char oversized_host_request[sizeof("GET /ok HTTP/1.1\r\nHost: ") - 1U + 1024U +
+        sizeof("\r\nConnection: close\r\n\r\n") - 1U];
     const size_t oversized_host_request_size = sizeof(oversized_host_request);
     char *connector_name = strdup("detached-worker-smoke");
     char *integration_mode = strdup(TEST_INTEGRATION_MODE);
@@ -493,49 +566,20 @@ int main(void) {
     profile.map_request = map_request;
     profile.map_response = NULL;
     args.profile = &profile;
-    memcpy(oversized_host_request, oversized_host_prefix,
-        sizeof(oversized_host_prefix) - 1U);
-    memset(oversized_host_request + sizeof(oversized_host_prefix) - 1U,
-        'a', 1024U);
-    memcpy(oversized_host_request + sizeof(oversized_host_prefix) - 1U + 1024U,
-        oversized_host_suffix, sizeof(oversized_host_suffix) - 1U);
     if (runtime_setup_was_configured()) {
         (void)fprintf(stderr, "runtime fixture was configured before service startup\n");
         goto done;
     }
-    if (!reserve_loopback_port(&port) ||
-        snprintf(args.listen_spec, sizeof(args.listen_spec), "127.0.0.1:%u",
-            (unsigned int)port) < 0 ||
-        pthread_create(&server, NULL, run_service, &args) != 0) {
-        (void)fprintf(stderr, "could not start detached-worker service\n");
+    if (!start_test_service(&port, &args, &server)) {
         goto done;
     }
     server_started = 1;
-    if (!rejected_request_is_preserved(port, missing_host_request,
-            sizeof(missing_host_request) - 1U,
-            "missing Host was not rejected before mapping")) {
+    if (!rejected_host_requests_are_preserved(port, oversized_host_request,
+            oversized_host_request_size)) {
         goto done;
     }
-    if (!rejected_request_is_preserved(port, oversized_host_request,
-            oversized_host_request_size,
-            "oversized Host was not rejected before mapping")) {
-        goto done;
-    }
-    client_fd = connect_loopback(port);
-    if (!runtime_setup_was_configured()) {
-        (void)fprintf(stderr, "runtime profile setup was not enforced\n");
-        goto done;
-    }
-    if (client_fd < 0 ||
-        send(client_fd, request, sizeof(request) - 1U, 0) !=
-            (ssize_t)(sizeof(request) - 1U) ||
-        !wait_for_flag(&runtime_entered) || pthread_join(server, NULL) != 0) {
-        (void)fprintf(stderr, "service did not reach bounded deferred shutdown\n");
-        goto done;
-    }
-    server_joined = 1;
-    if (args.result != 1) {
-        (void)fprintf(stderr, "service did not report deferred shutdown\n");
+    if (!submit_valid_request_and_join(port, request, sizeof(request) - 1U,
+            &args, server, &client_fd, &server_joined)) {
         goto done;
     }
     (void)close(client_fd);
@@ -551,19 +595,7 @@ int main(void) {
     free(original_uri_headers);
     original_uri_headers = NULL;
     unblock_runtime();
-    if (!wait_for_flag(&runtime_destroyed)) {
-        (void)fprintf(stderr, "deferred worker cleanup did not finish\n");
-        goto done;
-    }
-    /* The last worker owns the deferred release claim.  Give any accidental
-     * duplicate release a chance to surface before declaring the regression
-     * fixed; a single Common runtime destroy is the observable contract. */
-    {
-        const struct timespec delay = {.tv_sec = 0, .tv_nsec = 50000000L};
-        (void)nanosleep(&delay, NULL);
-    }
-    if (runtime_destroyed != 1) {
-        (void)fprintf(stderr, "deferred cleanup released the runtime more than once\n");
+    if (!deferred_cleanup_finished()) {
         goto done;
     }
     result = 0;

@@ -288,32 +288,32 @@ int main(void) {
             "typedef struct legacy_server_config", 1
         )[0]
         self.assertIn("self_test_cleanup_context cleanup_context", run_self_test)
-        self.assertIn("&listen_fd, child_to_reap, &status, terminate_child", run_self_test)
-        self.assertIn("&ready_fd, &pid_fd, &port_fd, ready_path, pid_path, port_path", run_self_test)
+        self.assertIn("&context.listen_fd, context.child_to_reap, &context.status", run_self_test)
+        self.assertIn("context.terminate_child, &context.ready_fd, &context.pid_fd", run_self_test)
         self.assertIn("finish_self_test_resources(&cleanup_context)", run_self_test)
         self.assertIn("finish_self_test_resources", source)
         self.assertNotIn("(void)finish_self_test_resources", source)
         self.assertEqual(run_self_test.count("cleanup:\n"), 1)
-        self.assertIn("pid_t child_to_reap = -1;", run_self_test)
-        self.assertIn("int terminate_child = 0;", run_self_test)
-        self.assertIn("int child_close_rc = 0;", run_self_test)
-        self.assertIn("child_close_rc |= close_self_test_fd(&ready_fd);", run_self_test)
-        self.assertIn("_exit(SPOP_RUNTIME_CLEANUP_FAILURE);", run_self_test)
+        self.assertIn("pid_t child_to_reap;", source)
+        self.assertIn("int terminate_child;", source)
+        self.assertIn("int close_rc = 0;", source)
+        self.assertIn("close_rc |= close_self_test_fd(&context->ready_fd);", source)
+        self.assertIn("_exit(SPOP_RUNTIME_CLEANUP_FAILURE);", source)
         self.assertIn("errno == ECHILD", source)
-        self.assertIn("child_to_reap = -1;", run_self_test)
+        self.assertIn("context->child_to_reap = -1;", source)
         self.assertIn(
             "wait_self_test_child_bounded(context->child,\n"
             "            context->status, context->terminate)",
             source,
         )
-        self.assertIn("wait_self_test_child_bounded(child, &status, 0)", run_self_test)
-        self.assertIn("if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)", run_self_test)
-        self.assertIn("ready_fd = claim_self_test_metadata_file(ready_path);", run_self_test)
-        self.assertIn("pid_fd = claim_self_test_metadata_file(pid_path);", run_self_test)
-        self.assertIn("port_fd = claim_self_test_metadata_file(port_path);", run_self_test)
-        self.assertIn("owned_metadata |= SELF_TEST_METADATA_READY;", run_self_test)
-        self.assertIn("owned_metadata |= SELF_TEST_METADATA_PID;", run_self_test)
-        self.assertIn("owned_metadata |= SELF_TEST_METADATA_PORT;", run_self_test)
+        self.assertIn("wait_self_test_child_bounded(context->child,", source)
+        self.assertIn("if (!WIFEXITED(context->status)", source)
+        self.assertIn("context->ready_fd = claim_self_test_metadata_file(context->ready_path);", source)
+        self.assertIn("context->pid_fd = claim_self_test_metadata_file(context->pid_path);", source)
+        self.assertIn("context->port_fd = claim_self_test_metadata_file(context->port_path);", source)
+        self.assertIn("context->owned_metadata |= SELF_TEST_METADATA_READY;", source)
+        self.assertIn("context->owned_metadata |= SELF_TEST_METADATA_PID;", source)
+        self.assertIn("context->owned_metadata |= SELF_TEST_METADATA_PORT;", source)
 
 
 if __name__ == "__main__":

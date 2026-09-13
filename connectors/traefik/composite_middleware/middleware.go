@@ -422,8 +422,8 @@ func accountHeaderValues(name string, values []string, seen, total int) (int, in
 	return seen, total, nil
 }
 
-func appendReservationText(payload []byte, value string, max int) ([]byte, error) {
-	if len(value) == 0 || len(value) > max || len(value) > int(^uint16(0)) || strings.ContainsAny(value, forbiddenHeaderChars) {
+func appendReservationText(payload []byte, value string, limit int) ([]byte, error) {
+	if len(value) == 0 || len(value) > limit || len(value) > int(^uint16(0)) || strings.ContainsAny(value, forbiddenHeaderChars) {
 		return nil, errProtocol
 	}
 	return appendReservationField(payload, value)

@@ -871,6 +871,64 @@ const char *msconnector_event_status_name(const msconnector_event *event) {
     return msconnector_status_name(event->decision.status);
 }
 
+static int initialize_event_json_output(
+    const msconnector_event *event,
+    char *dst,
+    size_t dst_size,
+    int *truncated) {
+    if (truncated != 0) {
+        *truncated = 0;
+    }
+    if (dst != 0 && dst_size > 0) {
+        dst[0] = '\0';
+    }
+    if (event == 0 || dst == 0 || dst_size == 0) {
+        return 0;
+    }
+    if (!event_serialization_is_valid(event)) {
+        if (truncated != 0) {
+            *truncated = 1;
+        }
+        return 0;
+    }
+    return 1;
+}
+
+static int write_event_json_parts(
+    char *dst,
+    size_t dst_size,
+    msconnector_event_json_parts *parts,
+    int was_truncated,
+    int serialization_truncated,
+    int *truncated) {
+    const int required = format_event_json(0, 0, parts);
+
+    if (required < 0 || (size_t)required >= dst_size) {
+        dst[0] = '\0';
+        if (truncated != 0) {
+            *truncated = 1;
+        }
+        return 0;
+    }
+
+    parts->flags[EVENT_JSON_TRUNCATED] = json_bool(was_truncated);
+    const int written = format_event_json(dst, dst_size, parts);
+    if (written < 0 || (size_t)written >= dst_size) {
+        dst[0] = '\0';
+        if (truncated != 0) {
+            *truncated = 1;
+        }
+        return 0;
+    }
+    if (truncated != 0) {
+        *truncated = was_truncated;
+    }
+    /* Authenticated source truncation remains valid evidence; only loss
+     * introduced while serializing makes the writer report failure. */
+    was_truncated = serialization_truncated;
+    return was_truncated ? 0 : 1;
+}
+
 int msconnector_event_write_json_ex(
     const msconnector_event *event,
     char *dst,
@@ -932,19 +990,7 @@ int msconnector_event_write_json_ex(
     int was_truncated;
     int written;
 
-    if (truncated != 0) {
-        *truncated = 0;
-    }
-    if (dst != 0 && dst_size > 0) {
-        dst[0] = '\0';
-    }
-    if (event == 0 || dst == 0 || dst_size == 0) {
-        return 0;
-    }
-    if (!event_serialization_is_valid(event)) {
-        if (truncated != 0) {
-            *truncated = 1;
-        }
+    if (!initialize_event_json_output(event, dst, dst_size, truncated)) {
         return 0;
     }
 
@@ -1146,33 +1192,9 @@ int msconnector_event_write_json_ex(
     parts.previous_hash = event->integrity.previous_hash;
     parts.event_hash = event->integrity.event_hash;
 
-    written = format_event_json(0, 0, &parts);
-
-    if (written < 0 || (size_t)written >= dst_size) {
-        dst[0] = '\0';
-        if (truncated != 0) {
-            *truncated = 1;
-        }
-        return 0;
-    }
-
-    parts.flags[EVENT_JSON_TRUNCATED] = json_bool(was_truncated);
-    written = format_event_json(dst, dst_size, &parts);
-
-    if (written < 0 || (size_t)written >= dst_size) {
-        dst[0] = '\0';
-        if (truncated != 0) {
-            *truncated = 1;
-        }
-        return 0;
-    }
-    if (truncated != 0) {
-        *truncated = was_truncated;
-    }
-    /* Authenticated source truncation remains valid evidence; only loss
-     * introduced while serializing makes the writer report failure. */
-    was_truncated = serialization_truncated;
-    return was_truncated ? 0 : 1;
+    written = write_event_json_parts(dst, dst_size, &parts, was_truncated,
+        serialization_truncated, truncated);
+    return written;
 }
 
 int msconnector_event_write_json(const msconnector_event *event, char *dst, size_t dst_size) {

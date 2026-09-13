@@ -11,6 +11,15 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260913-sonar-connector-followup-remediation](CR-20260913-sonar-connector-followup-remediation.de.md)
+  | English companion: `CR-20260913-sonar-connector-followup-remediation.md` —
+  der aktuelle Benutzer autorisierte diesen normalen Parent-only-Follow-up-PR
+  zur Remediation von 16 aktuellen Parent-SonarQube-Cloud-Findings. Er hält
+  scoped lokale Source- und Contract-Evidenz, die erforderliche neue Exact-
+  Head-Security-/Hosted-Verifikation sowie die verbleibende Framework-Issue- /
+  Aggregatduplikationsgrenze fest. Keine Framework-/MRTS-/Gitlink-Änderung,
+  direkte `master`-Aktion oder Merge wird behauptet.
+
 - [CR-20260910-sonarcloud-parent-open-issues-duplication-remediation](CR-20260910-sonarcloud-parent-open-issues-duplication-remediation.de.md)
   | English companion: `CR-20260910-sonarcloud-parent-open-issues-duplication-remediation.md` —
   die Parent-Traceability-Policy verlangt diesen gepaarten Record für die
