@@ -10,7 +10,7 @@
 | Datum (UTC) | 2026-09-13 |
 | Basis-Revision | `7b61b262332be8c89275542c1fa22d6ecb1f57e2` |
 | Scope | Ausschließlich Parent-ModSecurity-Connector-Source, direkt betroffene Tests und dieser gekoppelte Traceability-Record. Keine Framework-, MRTS-, Gitlink-, Scanner-, Regel-, Quality-Gate-, Suppression-, Exclusion-, Dependency- oder Workflow-Änderung. |
-| Delivery-Status | Offener PR [#368](https://github.com/Easton97-Jens/ModSecurity-conector/pull/368) auf `agent/sonar-connector-followup-20260913`; sein erster veröffentlichter Head war `2e27799d15e6789aaa89887c6a8ca18a67a01f42`. Dieser Head bestand das Quality Gate mit null neuen Duplikatzeilen/-blöcken, zeigte aber drei neue C-Issues. Die korrigierende lokale Source-/Dokumentationsaktualisierung ist uncommittet und benötigt einen zweiten Commit, normalen Push und einen vollständigen Exact-Head-Verifikationszyklus. |
+| Delivery-Status | Offener PR ohne Entwurfsstatus [#368](https://github.com/Easton97-Jens/ModSecurity-conector/pull/368) auf `agent/sonar-connector-followup-20260913`, Basis `master`, beim verifizierten Remediation-Source-Head `40a55c9b481e595087d2bbbe272f824d10857195`. Sein Exact-Head-Hosted-Zyklus meldete 37 erfolgreiche und sechs absichtlich übersprungene GitHub-Checks, keine fehlgeschlagenen/abgebrochenen/ausstehenden Checks, einen mergebaren PR ohne Reviews oder Inline-Review-Kommentare, Sonar-Quality-Gate `OK`, null PR-spezifische `OPEN`/`CONFIRMED`-Records und null neue Duplikatzeilen/-blöcke (`0,0 %`). Das gemeinsame PR-Aggregat betrug 1.875 Duplikatzeilen / 81 Blöcke / 0,2 %. Dies ist ausschließlich Evidenz vor dem Merge: Die Master-Integration ist vom Nutzer autorisiert, aber noch nicht erfolgt. |
 | Policy-Auflösung | Die Parent-Traceability-Policy verlangt dieses englisch/deutsche Change-Record-Paar für die nicht triviale versionierte Remediation. Die Archiv-README wird als etablierter Index aktualisiert. |
 
 ## Motivation und Problemstellung
@@ -106,7 +106,8 @@ Follow-up akzeptiert.
 | Modifizierte HAProxy-Source, strikte C17-`-Wall -Wextra -Werror -fsyntax-only` | Bestanden |
 | Event-/Detached-Worker-fokussierte Contracts mit ASan/UBSan und Event-JSON-Smokes | Bestanden |
 | Common-SDK-Serialisierungs-Contract | Nach der finalen Event-Serialisierungs-Contract-Abstimmung bestanden |
-| Erster PR-#368-SonarQube-Cloud-Readback | Quality Gate `OK` und null neue Duplikatzeilen/-blöcke, aber drei OPEN helper-eingeführte C-Findings (`c:S107` und zwei `c:S995`); lokal korrigiert und ein frischer Exact-Head-Readback steht aus |
+| Erster PR-#368-SonarQube-Cloud-Readback (historisch) | Quality Gate `OK` und null neue Duplikatzeilen/-blöcke, aber drei OPEN helper-eingeführte C-Findings (`c:S107` und zwei `c:S995`); im nachfolgenden Remediation-Source-Head korrigiert |
+| Finaler Hosted-Readback des Remediation-Source-Heads `40a55c9b481e595087d2bbbe272f824d10857195` | Bestanden: Quality Gate `OK`; PR-spezifisches `OPEN`/`CONFIRMED`-Inventar null; neue Duplikatzeilen/-blöcke und -dichte null; gemeinsames Aggregat 1.875 Duplikatzeilen / 81 Blöcke / 0,2 %; 37 GitHub-Checks bestanden und sechs wurden absichtlich übersprungen, keiner fehlgeschlagen, abgebrochen oder ausstehend |
 | Ausgewählte fokussierte Post-Readback-Contract-Auswahl | Bestanden: 161 Tests |
 | HAProxy-Source nach Readback, striktes C17 `-Wall -Wextra -Werror -fsyntax-only` | Bestanden |
 | HAProxy-/Sonar-fokussierte Contracts nach Readback | Bestanden: 38 Tests |
@@ -127,9 +128,14 @@ diff --check`. Der SonarQube-Cloud-Zugriff verwendet ausschließlich
 Gate `OK`, null neue Duplikatzeilen/-blöcke und drei OPEN task-eigene
 C-Findings; die fokussierten C17-, Contract- und Detached-Worker-Smoke-Checks
 bestanden nach deren lokaler Korrektur, einschließlich der ausgewählten
-161-Test-Contract-Auswahl. Der Post-Readback-terminale Security-Diff ist mit
-vollständiger Abdeckung und null reportbaren Findings abgeschlossen; nach dem
-nächsten normalen Push ist ein neuer Exact-Head-Hosted-Readback erforderlich.
+161-Test-Contract-Auswahl. Der finale Exact-Remediation-Source-Head-Readback
+für `40a55c9b481e595087d2bbbe272f824d10857195`, aufgezeichnet um
+`2026-09-13T12:47:29Z`, ergab anschließend Quality Gate `OK`, null
+PR-spezifische `OPEN`/`CONFIRMED`-Records, null neue Duplikatzeilen/-blöcke
+und einen sauberen GitHub-Check-Rollup mit 37 Erfolgen und sechs absichtlichen
+Skips. Der Post-Readback-terminale Security-Diff ist mit vollständiger
+Abdeckung und null reportbaren Findings abgeschlossen. Dies sind Ergebnisse
+vor dem Merge und sie behaupten keine Resulting-Master-Analyse.
 
 ## Runtime-Evidence
 
@@ -140,13 +146,15 @@ dargestellt.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-- Der Post-Readback-formelle terminale Security-Diff ist vor dem Staging mit
-  vollständiger Abdeckung und null reportbaren Findings abgeschlossen; der
-  finale gestagte Scoped-Diff-Review bleibt Teil des Delivery-Preflights.
-- Frische Exact-PR-Head-GitHub-Checks, Sonar-Quality-Gate, Issue-/Duplikat-
-  Readback, Review-Status und Current-Base-Mergeability benötigen den nächsten
-  normalen Push; die Ergebnisse des ersten PR-Heads sind für die korrigierende
-  Aktualisierung veraltet.
+- Der Post-Readback-formelle terminale Security-Diff ist mit vollständiger
+  Abdeckung und null reportbaren Findings abgeschlossen. Ein finaler gestagter
+  Scoped-Diff-Review und ein frischer Delivery-Preflight bleiben unmittelbar
+  vor der geschützten Integration erforderlich.
+- Die Exact-Remediation-Source-Head-`40a55c9b481e595087d2bbbe272f824d10857195`-
+  GitHub-Checks, Sonar-Quality-Gate, Issue-/Duplikat-Readback, Review-Status
+  und Current-Base-Mergeability sind erfolgreich abgeschlossen. Sie
+  zertifizieren weder einen späteren rein dokumentarischen Head noch eine
+  Resulting-Master-Analyse.
 - Der vollständige HAProxy-Runtime-Self-Test ist nicht ausgeführt, weil dem
   isolierten Parent-Worktree separat provisionierte HAProxy-/libmodsecurity-
   Artefakte fehlen. Er wird nicht durch die bestandenen lokalen Static-/
@@ -161,31 +169,37 @@ dargestellt.
   `AaA34UWlbqrRc02noCI3` (`python:S1192`) bei
   `modules/ModSecurity-test-Framework/ci/checks/catalog/five_connectors_with_crs_no_mrts.py:112`.
   Es bleibt außerhalb dieses Parent-only-PRs.
-- Das Default-Branch-Aggregat von 1.939 Duplikatzeilen / 83 Blöcken / 0,3 %
-  enthält Framework-Content. Nur ein Exact-PR-Head-Scan kann New-Code- und
-  task-eigenes Duplikatergebnis beweisen; ein Resulting-Master-Aggregat erfordert
-  einen separat autorisierten Merge und eine spätere Analyse.
+- Das historische Default-Branch-Aggregat von 1.939 Duplikatzeilen / 83
+  Blöcken / 0,3 % enthält Framework-Content. Das gemeinsame Aggregat des
+  finalen Remediation-Source-Heads betrug 1.875 Duplikatzeilen / 81 Blöcke /
+  0,2 %. Der Exact-PR-Head-Scan beweist das Nullergebnis für New-Code-
+  Duplikate dieser Aufgabe, nicht ein projektweites Nullergebnis; ein
+  Resulting-Master-Aggregat erfordert geschützte Integration und spätere
+  Analyse.
 
 ## Verbleibende Risiken
 
 FND-PARENT-1088s Akzeptanz ist auf nicht verfügbare historische PR-#361-
 Payloads begrenzt. Sie verzichtet nicht auf, ersetzt nicht und liefert keine
-Evidenz für diesen PR. Das erste PR-#368-Quality-Gate war `OK`, aber sein
-Exact-Head-OPEN-Inventar identifizierte drei neue helper-eingeführte
-C-Findings. Ihre lokale Korrektur ist noch nicht committet oder gepusht; daher
-stehen die neuen Exact-Head-GitHub-Checks, Mergeability, Review-Status,
-Quality-Gate, OPEN/CONFIRMED-Inventar und Duplikat-Readback aus.
+Evidenz für diesen PR. Der erste PR-#368-Readback identifizierte drei
+helper-eingeführte C-Findings; ihre Korrektur deckt der finale Exact-
+Remediation-Source-Head-Readback für
+`40a55c9b481e595087d2bbbe272f824d10857195` ab. Der PR bleibt offen und die
+Master-Integration ist vom Nutzer autorisiert, aber noch nicht erfolgt. Frische
+Evidenz für Current Head, Review, Mergeability, Sonar und Resulting Master
+bleibt unmittelbar vor und nach dieser geschützten Integration erforderlich.
 
 ## Finaler Diff- und Review-Status
 
 Bei dieser Record-Aktualisierung haben alle 16 Parent-Findings eine scoped
 Source-/Test-Remediation. Der erste Hosted-Scan identifizierte zusätzlich drei
-neue Helper-Findings; die Korrekturen der langen Parameterliste und der
-nur-lesenden Pointer bestanden ihre direkten C17-, ausgewählten 161-Test-
-Contract-, 38-Test-fokussierten Subset- und Detached-Worker-Smoke-Checks. Der
-frühere terminale Security-Diff ist durch diese Änderungen überholt; der
-Post-Readback-terminale Security-Diff hat vollständige Abdeckung und null
-reportbare Findings. Der korrigierende Kandidat bleibt uncommittet, bis der
-finale gestagte Diff-Review und der Delivery-Zyklus fertig sind. Der finale
-Status wird noch nicht als verifiziert behauptet. Kein Merge ist autorisiert
-oder behauptet.
+Helper-Findings; die Korrekturen der langen Parameterliste und der nur-lesenden
+Pointer bestanden ihre direkten C17-, ausgewählten 161-Test-Contract-,
+38-Test-fokussierten Subset- und Detached-Worker-Smoke-Checks. Der terminale
+Security-Diff hat vollständige Abdeckung und null reportbare Findings, und der
+finale Hosted-Zyklus des Remediation-Source-Heads meldete ein sauberes
+PR-spezifisches Sonar-Inventar und einen GitHub-Check-Rollup. Der PR bleibt
+offen und ungemergt. Dieser Record behauptet keinen Master-Merge: Die
+geschützte Integration ist vom Nutzer autorisiert, ihr muss aber ein frischer
+Exact-Head-Delivery-Preflight vorausgehen, und jeder Resulting-Master-Status
+ist separat zu beobachten.
