@@ -780,6 +780,19 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
             table.write_text("sl local_address rem_address st\n", encoding="ascii")
             with self.assertRaisesRegex(GUARD_MODULE.GuardFailure, "invalid or incomplete header"):
                 GUARD_MODULE._listen_table_inodes(table, "753B", None, "synthetic /proc/net/tcp")
+            table.write_text("x" * (GUARD_MODULE.MAX_TCP_LISTENER_LINE_BYTES + 1) + "\n", encoding="ascii")
+            with self.assertRaisesRegex(GUARD_MODULE.GuardFailure, "header exceeds the bounded inspection limit"):
+                GUARD_MODULE._listen_table_inodes(table, "753B", None, "synthetic /proc/net/tcp")
+
+    def test_linux_guard_proc_listener_parser_rejects_oversized_row(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            table = pathlib.Path(temporary_directory) / "tcp"
+            table.write_text(
+                PROC_TCP_HEADER + "x" * (GUARD_MODULE.MAX_TCP_LISTENER_LINE_BYTES + 1) + "\n",
+                encoding="ascii",
+            )
+            with self.assertRaisesRegex(GUARD_MODULE.GuardFailure, "entry exceeds the bounded inspection limit"):
+                GUARD_MODULE._listen_table_inodes(table, "753B", None, "synthetic /proc/net/tcp")
 
     def test_linux_guard_active_attribution_rejects_foreign_ipv6_listener(self):
         pid = os.getpid()
@@ -2350,8 +2363,9 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
         left, right = socket.socketpair()
         try:
             left.sendall(b"POST /other HTTP/1.1\r\nHost: test\r\n\r\n")
+            deadline = time.monotonic() + 1
             with self.assertRaises(PROBE_MODULE.ProbeFailure):
-                PROBE_MODULE._read_request(right, "/p4/close/", time.monotonic() + 1)
+                PROBE_MODULE._read_request(right, "/p4/close/", deadline)
         finally:
             left.close()
             right.close()

@@ -10,6 +10,14 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260913-sonar-connector-followup-remediation](CR-20260913-sonar-connector-followup-remediation.md)
+  | [Deutsch](CR-20260913-sonar-connector-followup-remediation.de.md) — the
+  current user authorized this normal Parent-only follow-up PR to remediate 16
+  current Parent SonarQube Cloud findings. It records scoped local source and
+  contract evidence, the required new exact-head security/hosted verification,
+  and the remaining Framework issue/aggregate duplication boundary. No
+  Framework/MRTS/Gitlink change, direct `master` action, or merge is asserted.
+
 - [CR-20260910-sonarcloud-parent-open-issues-duplication-remediation](CR-20260910-sonarcloud-parent-open-issues-duplication-remediation.md)
   | [Deutsch](CR-20260910-sonarcloud-parent-open-issues-duplication-remediation.de.md) —
   the Parent traceability policy requires this paired record for the

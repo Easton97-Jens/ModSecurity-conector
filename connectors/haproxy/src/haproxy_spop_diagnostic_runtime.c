@@ -3879,6 +3879,49 @@ static void process_production_request_notify(
     decision_log_write(state, request, decision, *modsec_processed, *decision_text);
 }
 
+static void submit_production_notify_task(
+        agent_state *state,
+        notify_request *request,
+        int phase,
+        haproxy_modsecurity_decision *decision,
+        int *modsec_processed,
+        spop_ack_decision_origin *decision_origin,
+        const char **decision_text,
+        char *response_handle,
+        spop_production_result *result) {
+    spop_production_task_context *task_context =
+        (spop_production_task_context *)calloc(1U, sizeof(*task_context));
+
+    if (task_context == 0) {
+        set_processing_failure(state, decision, phase,
+            "SPOP owner queue allocation failed");
+        *decision_text = "owner-queue-unavailable";
+        return;
+    }
+    task_context->state = state;
+    /* Transfer parser allocations to the heap task. The caller keeps scalar
+     * request fields for the ACK, while a timed-out task retains the payload. */
+    task_context->request = *request;
+    request->headers = 0;
+    request->header_count = 0U;
+    request->body = 0;
+    request->body_len = 0U;
+    result->decision = decision;
+    result->modsec_processed = modsec_processed;
+    result->decision_origin = decision_origin;
+    result->decision_text = decision_text;
+    result->response_handle = response_handle;
+    if (spop_owner_queue_submit(state, run_spop_production_task,
+            task_context, destroy_spop_production_task_context,
+            copy_spop_production_task_result, result,
+            state->config.spoe_timeout_ms) != 0) {
+        /* Submission owns task cleanup on every failure path. */
+        set_processing_failure(state, decision, phase,
+            "SPOP owner queue is unavailable");
+        *decision_text = "owner-queue-unavailable";
+    }
+}
+
 static int process_production_notify(
         int fd,
         const spop_frame *frame,
@@ -3896,7 +3939,6 @@ static int process_production_notify(
     if (request->is_response) {
         phase = request->is_response_body ? 4 : 3;
     }
-    spop_production_task_context *task_context = 0;
     char response_handle[HAPROXY_SPOP_RESPONSE_COMPANION_HANDLE_STORAGE];
 
     ensure_notify_request_id(request, frame);
@@ -3906,78 +3948,15 @@ static int process_production_notify(
          * own a response transaction, even if the queue is unavailable. */
         decision_text = set_response_phase_disabled_failure(&decision, phase);
         decision_log_write(state, request, &decision, 0, decision_text);
-    } else if (request->is_response) {
-        task_context = (spop_production_task_context *)calloc(1U, sizeof(*task_context));
-        if (task_context != 0) {
-            task_context->state = state;
-            /* Transfer ownership of parser allocations to the heap task.  The
-             * caller still owns the scalar request fields used for the ACK, but
-             * cannot free the payload while a timed-out owner task is running. */
-            task_context->request = *request;
-            request->headers = 0;
-            request->header_count = 0U;
-            request->body = 0;
-            request->body_len = 0U;
-            result.decision = &decision;
-            result.modsec_processed = &modsec_processed;
-            result.decision_origin = &decision_origin;
-            result.decision_text = &decision_text;
-            result.response_handle = response_handle;
-            if (spop_owner_queue_submit(state, run_spop_production_task,
-                    task_context, destroy_spop_production_task_context,
-                    copy_spop_production_task_result, &result,
-                    state->config.spoe_timeout_ms) != 0) {
-                task_context = 0;
-                set_processing_failure(state, &decision, phase,
-                    "SPOP owner queue is unavailable");
-                decision_text = "owner-queue-unavailable";
-            } else {
-                task_context = 0;
-            }
-        } else {
-            set_processing_failure(state, &decision, phase,
-                "SPOP owner queue allocation failed");
-            decision_text = "owner-queue-unavailable";
-        }
-    }
-    else if (!request->is_response && !notify_request_has_required_endpoints(request)) {
+    } else if (!request->is_response &&
+            !notify_request_has_required_endpoints(request)) {
         decision_text = set_admission_failure(&decision, phase,
             "missing client or server endpoint");
         decision_log_write(state, request, &decision, 0, decision_text);
     } else {
-        task_context = (spop_production_task_context *)calloc(1U,
-            sizeof(*task_context));
-        if (task_context != 0) {
-            task_context->state = state;
-            /* Transfer ownership of parser allocations to the heap task. The
-             * caller still owns the scalar request fields used for the ACK,
-             * but cannot free the payload while a timed-out owner task runs. */
-            task_context->request = *request;
-            request->headers = 0;
-            request->header_count = 0U;
-            request->body = 0;
-            request->body_len = 0U;
-            result.decision = &decision;
-            result.modsec_processed = &modsec_processed;
-            result.decision_origin = &decision_origin;
-            result.decision_text = &decision_text;
-            result.response_handle = response_handle;
-            if (spop_owner_queue_submit(state, run_spop_production_task,
-                    task_context, destroy_spop_production_task_context,
-                    copy_spop_production_task_result, &result,
-                    state->config.spoe_timeout_ms) != 0) {
-                task_context = 0; /* submit owns cleanup on every failure path */
-                set_processing_failure(state, &decision, phase,
-                    "SPOP owner queue is unavailable");
-                decision_text = "owner-queue-unavailable";
-            } else {
-                task_context = 0; /* owner queue released the task reference */
-            }
-        } else {
-            set_processing_failure(state, &decision, phase,
-                "SPOP owner queue allocation failed");
-            decision_text = "owner-queue-unavailable";
-        }
+        submit_production_notify_task(state, request, phase,
+            &decision, &modsec_processed, &decision_origin, &decision_text,
+            response_handle, &result);
     }
     enforce = protocol_failure_requires_enforcement(decision_text) ||
         production_ack_enforces(&state->config, decision_origin);
@@ -5229,24 +5208,25 @@ static int wait_write_deadline_socket_writable(int server_fd, int client_fd,
     return -1;
 }
 
-static int run_spop_write_deadline_child(void)
+typedef struct spop_write_deadline_context {
+    int listener_fd;
+    int server_fd;
+    int client_fd;
+    int followup[2];
+    spop_buffer payload;
+    spop_frame frame;
+} spop_write_deadline_context;
+
+static int prepare_spop_write_deadline_child(
+        spop_write_deadline_context *context)
 {
-    int listener_fd = -1;
-    int server_fd = -1;
-    int client_fd = -1;
-    int followup[2] = {-1, -1};
     int flags;
     int send_buffer = 4096;
     unsigned char filler[4096];
     unsigned char drain[8192];
-    spop_buffer payload;
-    spop_frame frame;
     struct sockaddr_in address;
     socklen_t address_size = sizeof(address);
     struct pollfd descriptor;
-    uint64_t started;
-    uint64_t finished;
-    int rc = -1;
 
     if (signal(SIGALRM, SIG_DFL) == SIG_ERR) {
         return -1;
@@ -5256,67 +5236,103 @@ static int run_spop_write_deadline_child(void)
     memset(&address, 0, sizeof(address));
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    if (open_write_deadline_sockets(&listener_fd, &server_fd, &client_fd,
+    if (open_write_deadline_sockets(&context->listener_fd,
+            &context->server_fd, &context->client_fd,
             &address, &address_size) != 0) {
-        goto cleanup;
+        return -1;
     }
-    flags = fcntl(server_fd, F_GETFL, 0);
+    flags = fcntl(context->server_fd, F_GETFL, 0);
     if (flags < 0 || (flags & O_NONBLOCK) != 0 ||
-            setsockopt(server_fd, SOL_SOCKET, SO_SNDBUF, &send_buffer,
+            setsockopt(context->server_fd, SOL_SOCKET, SO_SNDBUF, &send_buffer,
                 sizeof(send_buffer)) != 0) {
-        goto cleanup;
+        return -1;
     }
-    if (fill_write_deadline_socket(server_fd, filler, sizeof(filler)) != 0) {
-        goto cleanup;
+    if (fill_write_deadline_socket(context->server_fd, filler,
+            sizeof(filler)) != 0) {
+        return -1;
     }
-    if (wait_write_deadline_socket_writable(server_fd, client_fd, drain,
+    if (wait_write_deadline_socket_writable(context->server_fd,
+            context->client_fd, drain,
             sizeof(drain), &descriptor) != 0) {
-        goto cleanup;
+        return -1;
     }
-    memset(payload.data, 0x5a, sizeof(payload.data));
-    payload.len = SPOP_FRAME_MAX - 16U;
+    return 0;
+}
+
+static int verify_spop_write_deadline(spop_write_deadline_context *context)
+{
+    uint64_t started;
+    uint64_t finished;
+
+    memset(context->payload.data, 0x5a, sizeof(context->payload.data));
+    context->payload.len = SPOP_FRAME_MAX - 16U;
     started = monotonic_milliseconds();
-    if (started == 0U || send_frame_timeout(server_fd, SPOP_FRM_ACK, 1U, 1U,
-            &payload, 50U) == 0) {
-        goto cleanup;
+    if (started == 0U || send_frame_timeout(context->server_fd,
+            SPOP_FRM_ACK, 1U, 1U, &context->payload, 50U) == 0) {
+        return -1;
     }
     finished = monotonic_milliseconds();
     if (finished == 0U || finished < started || finished - started > 1000U) {
-        goto cleanup;
+        return -1;
     }
-    if (close(server_fd) != 0 || close(client_fd) != 0) {
-        goto cleanup;
+    if (close(context->server_fd) != 0) {
+        context->server_fd = -1;
+        return -1;
     }
-    server_fd = -1;
-    client_fd = -1;
-    payload.len = 0U;
-    if (socketpair(AF_UNIX, SOCK_STREAM, 0, followup) != 0 ||
-            send_frame_timeout(followup[0], SPOP_FRM_ACK, 7U, 9U,
-                &payload, 100U) != 0 ||
-            recv_frame(followup[1], &frame, 100U) != 0 ||
-            frame.type != SPOP_FRM_ACK || frame.stream_id != 7U ||
-            frame.frame_id != 9U) {
-        goto cleanup;
+    context->server_fd = -1;
+    if (close(context->client_fd) != 0) {
+        context->client_fd = -1;
+        return -1;
     }
-    rc = 0;
+    context->client_fd = -1;
+    context->payload.len = 0U;
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, context->followup) != 0 ||
+            send_frame_timeout(context->followup[0], SPOP_FRM_ACK, 7U, 9U,
+                &context->payload, 100U) != 0 ||
+            recv_frame(context->followup[1], &context->frame, 100U) != 0 ||
+            context->frame.type != SPOP_FRM_ACK ||
+            context->frame.stream_id != 7U || context->frame.frame_id != 9U) {
+        return -1;
+    }
+    return 0;
+}
 
-cleanup:
-    if (listener_fd >= 0) {
-        (void)close(listener_fd);
+static void cleanup_spop_write_deadline_context(
+        spop_write_deadline_context *context)
+{
+    if (context->listener_fd >= 0) {
+        (void)close(context->listener_fd);
     }
-    if (server_fd >= 0) {
-        (void)close(server_fd);
+    if (context->server_fd >= 0) {
+        (void)close(context->server_fd);
     }
-    if (client_fd >= 0) {
-        (void)close(client_fd);
+    if (context->client_fd >= 0) {
+        (void)close(context->client_fd);
     }
-    if (followup[0] >= 0) {
-        (void)close(followup[0]);
+    if (context->followup[0] >= 0) {
+        (void)close(context->followup[0]);
     }
-    if (followup[1] >= 0) {
-        (void)close(followup[1]);
+    if (context->followup[1] >= 0) {
+        (void)close(context->followup[1]);
     }
     (void)alarm(0U);
+}
+
+static int run_spop_write_deadline_child(void)
+{
+    spop_write_deadline_context context = {
+        .listener_fd = -1,
+        .server_fd = -1,
+        .client_fd = -1,
+        .followup = {-1, -1}
+    };
+    int rc = -1;
+
+    if (prepare_spop_write_deadline_child(&context) == 0 &&
+            verify_spop_write_deadline(&context) == 0) {
+        rc = 0;
+    }
+    cleanup_spop_write_deadline_context(&context);
     return rc;
 }
 
@@ -5810,7 +5826,7 @@ static int accept_loop(const spop_accept_loop_config *config) {
         int fd = accept(listen_fd, 0, 0);
         if (fd < 0) {
             if (handle_spop_accept_error(state, log, &loop_rc)) {
-                break;
+                goto accept_loop_complete;
             }
             continue;
         }
@@ -5831,6 +5847,7 @@ static int accept_loop(const spop_accept_loop_config *config) {
         }
         handled++;
     }
+accept_loop_complete:
     pthread_mutex_lock(&gate.lock);
     while (gate.active != 0U) {
         pthread_cond_wait(&gate.changed, &gate.lock);
@@ -6058,157 +6075,204 @@ static int run_spop_protocol_self_tests(void)
     return 0;
 }
 
-static int run_self_test(const char *tmp_root, const char *log_root) {
+typedef struct spop_self_test_context {
     char log_path[4096];
     char ready_path[4096];
     char pid_path[4096];
     char port_path[4096];
-    unsigned int port = 0;
+    unsigned int port;
     int listen_fd;
     pid_t child;
     int status;
     FILE *log;
-    int ready_fd = -1;
-    int pid_fd = -1;
-    int port_fd = -1;
+    int ready_fd;
+    int pid_fd;
+    int port_fd;
+    int owned_metadata;
+    int result;
+    pid_t child_to_reap;
+    int terminate_child;
+} spop_self_test_context;
+
+static void close_spop_self_test_child_metadata(spop_self_test_context *context)
+{
     int close_rc = 0;
-    unsigned int owned_metadata = 0U;
-    int result = 0;
-    pid_t child_to_reap = -1;
-    int terminate_child = 0;
+
+    close_rc |= close_self_test_fd(&context->ready_fd);
+    close_rc |= close_self_test_fd(&context->pid_fd);
+    close_rc |= close_self_test_fd(&context->port_fd);
+    if (close_rc != 0) {
+        fprintf(stderr, "SPOP protocol self-test child metadata close failed\n");
+        _exit(SPOP_RUNTIME_CLEANUP_FAILURE);
+    }
+}
+
+static void run_spop_self_test_child(spop_self_test_context *context)
+{
+    const spop_accept_loop_config accept_config = {
+        context->listen_fd, 0, context->log, 3, 0, 0, 2000U, 8U
+    };
+    int status;
+
+    close_spop_self_test_child_metadata(context);
+    status = accept_loop(&accept_config);
+    exit(status);
+}
+
+static int prepare_spop_self_test(spop_self_test_context *context,
+        const char *tmp_root, const char *log_root)
+{
+    if (mkdir_p(tmp_root) != 0 || mkdir_p(log_root) != 0) {
+        fprintf(stderr, "failed to create tmp/log roots\n");
+        return -1;
+    }
+    snprintf(context->log_path, sizeof(context->log_path),
+        "%s/spop-diagnostic-runtime.log", log_root);
+    snprintf(context->ready_path, sizeof(context->ready_path),
+        "%s/spop-diagnostic-runtime.ready", tmp_root);
+    snprintf(context->pid_path, sizeof(context->pid_path),
+        "%s/spop-diagnostic-runtime.pid", tmp_root);
+    snprintf(context->port_path, sizeof(context->port_path),
+        "%s/spop-diagnostic-runtime.port", tmp_root);
+    context->log = open_private_file(context->log_path, 0);
+    if (context->log == 0) {
+        fprintf(stderr, "failed to open log: %s\n", context->log_path);
+        return -1;
+    }
+    context->listen_fd = bind_localhost("127.0.0.1", 0, &context->port);
+    if (context->listen_fd < 0) {
+        fprintf(stderr, "failed to bind SPOP protocol self-test listener\n");
+        return -1;
+    }
+    context->ready_fd = claim_self_test_metadata_file(context->ready_path);
+    if (context->ready_fd >= 0) {
+        context->owned_metadata |= SELF_TEST_METADATA_READY;
+    }
+    context->pid_fd = claim_self_test_metadata_file(context->pid_path);
+    if (context->pid_fd >= 0) {
+        context->owned_metadata |= SELF_TEST_METADATA_PID;
+    }
+    context->port_fd = claim_self_test_metadata_file(context->port_path);
+    if (context->port_fd >= 0) {
+        context->owned_metadata |= SELF_TEST_METADATA_PORT;
+    }
+    if (context->ready_fd < 0 || context->pid_fd < 0 ||
+            context->port_fd < 0 ||
+            write_unsigned_fd(context->port_fd, context->port) != 0) {
+        return -1;
+    }
+    return 0;
+}
+
+static int start_spop_self_test_server(spop_self_test_context *context)
+{
+    int close_rc = 0;
+
+    context->child = fork();
+    if (context->child < 0) {
+        context->result = 77;
+        return -1;
+    }
+    context->child_to_reap = context->child;
+    if (context->child == 0) {
+        run_spop_self_test_child(context);
+    }
+    if (close(context->listen_fd) != 0) {
+        context->listen_fd = -1;
+        context->terminate_child = 1;
+        fprintf(stderr, "SPOP protocol self-test listener close failed\n");
+        context->result = 1;
+        return -1;
+    }
+    context->listen_fd = -1;
+    if (write_process_id_fd(context->pid_fd, context->child) != 0 ||
+            write_fd_contents(context->ready_fd, "ready\n") != 0) {
+        context->terminate_child = 1;
+        fprintf(stderr, "SPOP protocol self-test failed\n");
+        context->result = 1;
+        return -1;
+    }
+    close_rc |= close_self_test_fd(&context->ready_fd);
+    close_rc |= close_self_test_fd(&context->pid_fd);
+    close_rc |= close_self_test_fd(&context->port_fd);
+    if (close_rc != 0) {
+        context->terminate_child = 1;
+        fprintf(stderr, "SPOP protocol self-test metadata close failed\n");
+        context->result = 1;
+        return -1;
+    }
+    return 0;
+}
+
+static int verify_spop_self_test_server(spop_self_test_context *context)
+{
+    int wait_result;
+
+    if (run_client_self_test(context->port, context->log) != 0) {
+        context->terminate_child = 1;
+        fprintf(stderr, "SPOP protocol self-test failed\n");
+        context->result = 1;
+        return -1;
+    }
+    wait_result = wait_self_test_child_bounded(context->child,
+        &context->status, 0);
+    if (wait_result == 0 || wait_result == -2) {
+        context->child_to_reap = -1;
+    }
+    if (wait_result != 0) {
+        fprintf(stderr, "SPOP protocol self-test child wait failed\n");
+        context->result = 1;
+        return -1;
+    }
+    context->child_to_reap = -1;
+    if (!WIFEXITED(context->status) || WEXITSTATUS(context->status) != 0) {
+        context->result = 1;
+        return -1;
+    }
+    return 0;
+}
+
+static int run_self_test(const char *tmp_root, const char *log_root) {
+    spop_self_test_context context = {
+        .listen_fd = -1,
+        .child = -1,
+        .ready_fd = -1,
+        .pid_fd = -1,
+        .port_fd = -1,
+        .child_to_reap = -1
+    };
+    self_test_cleanup_context cleanup_context;
 
     if (run_spop_protocol_self_tests() != 0) {
         fprintf(stderr, "SPOP protocol self-test failed\n");
         return 1;
     }
-    if (mkdir_p(tmp_root) != 0 || mkdir_p(log_root) != 0) {
-        fprintf(stderr, "failed to create tmp/log roots\n");
-        return 77;
-    }
-    snprintf(log_path, sizeof(log_path), "%s/spop-diagnostic-runtime.log", log_root);
-    snprintf(ready_path, sizeof(ready_path), "%s/spop-diagnostic-runtime.ready", tmp_root);
-    snprintf(pid_path, sizeof(pid_path), "%s/spop-diagnostic-runtime.pid", tmp_root);
-    snprintf(port_path, sizeof(port_path), "%s/spop-diagnostic-runtime.port", tmp_root);
-    log = open_private_file(log_path, 0);
-    if (log == 0) {
-        fprintf(stderr, "failed to open log: %s\n", log_path);
-        return 77;
-    }
-    listen_fd = bind_localhost("127.0.0.1", 0, &port);
-    if (listen_fd < 0) {
-        fprintf(stderr, "failed to bind SPOP protocol self-test listener\n");
-        result = 77;
+    if (prepare_spop_self_test(&context, tmp_root, log_root) != 0) {
+        context.result = 77;
         goto cleanup;
     }
-    ready_fd = claim_self_test_metadata_file(ready_path);
-    if (ready_fd >= 0) {
-        owned_metadata |= SELF_TEST_METADATA_READY;
-    }
-    pid_fd = claim_self_test_metadata_file(pid_path);
-    if (pid_fd >= 0) {
-        owned_metadata |= SELF_TEST_METADATA_PID;
-    }
-    port_fd = claim_self_test_metadata_file(port_path);
-    if (port_fd >= 0) {
-        owned_metadata |= SELF_TEST_METADATA_PORT;
-    }
-    if (ready_fd < 0 || pid_fd < 0 || port_fd < 0) {
-        result = 77;
-        goto cleanup;
-    }
-    if (write_unsigned_fd(port_fd, port) != 0) {
-        result = 77;
-        goto cleanup;
-    }
-    child = fork();
-    if (child < 0) {
-        result = 77;
-        goto cleanup;
-    }
-    child_to_reap = child;
-    if (child == 0) {
-        int child_close_rc = 0;
-
-        child_close_rc |= close_self_test_fd(&ready_fd);
-        child_close_rc |= close_self_test_fd(&pid_fd);
-        child_close_rc |= close_self_test_fd(&port_fd);
-        if (child_close_rc != 0) {
-            fprintf(stderr, "SPOP protocol self-test child metadata close failed\n");
-            _exit(SPOP_RUNTIME_CLEANUP_FAILURE);
-        }
-        const spop_accept_loop_config accept_config = {
-            listen_fd, 0, log, 3, 0, 0, 2000U, 8U
-        };
-        status = accept_loop(&accept_config);
-        exit(status);
-    }
-    {
-        int listener = listen_fd;
-        listen_fd = -1;
-        if (close(listener) != 0) {
-            terminate_child = 1;
-            fprintf(stderr, "SPOP protocol self-test listener close failed\n");
-            result = 1;
-            goto cleanup;
-        }
-    }
-    if (write_process_id_fd(pid_fd, child) != 0 ||
-            write_fd_contents(ready_fd, "ready\n") != 0) {
-        terminate_child = 1;
-        fprintf(stderr, "SPOP protocol self-test failed\n");
-        result = 1;
-        goto cleanup;
-    }
-    close_rc |= close_self_test_fd(&ready_fd);
-    close_rc |= close_self_test_fd(&pid_fd);
-    close_rc |= close_self_test_fd(&port_fd);
-    if (close_rc != 0) {
-        terminate_child = 1;
-        fprintf(stderr, "SPOP protocol self-test metadata close failed\n");
-        result = 1;
-        goto cleanup;
-    }
-    if (run_client_self_test(port, log) != 0) {
-        terminate_child = 1;
-        fprintf(stderr, "SPOP protocol self-test failed\n");
-        result = 1;
-        goto cleanup;
-    }
-    {
-        int wait_result = wait_self_test_child_bounded(child, &status, 0);
-        if (wait_result == 0 || wait_result == -2) {
-            child_to_reap = -1;
-        }
-        if (wait_result != 0) {
-            fprintf(stderr, "SPOP protocol self-test child wait failed\n");
-            result = 1;
-            goto cleanup;
-        }
-    }
-    child_to_reap = -1;
-    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-        result = 1;
+    if (start_spop_self_test_server(&context) != 0 ||
+            verify_spop_self_test_server(&context) != 0) {
         goto cleanup;
     }
 cleanup:
-    {
-        self_test_cleanup_context cleanup_context = {
-            &listen_fd, child_to_reap, &status, terminate_child,
-            &ready_fd, &pid_fd, &port_fd, ready_path, pid_path, port_path,
-            owned_metadata, &log
-        };
-        if (finish_self_test_resources(&cleanup_context) != 0) {
-            fprintf(stderr, "SPOP protocol self-test cleanup failed\n");
-            return SPOP_RUNTIME_CLEANUP_FAILURE;
-        }
+    cleanup_context = (self_test_cleanup_context){
+        &context.listen_fd, context.child_to_reap, &context.status,
+        context.terminate_child, &context.ready_fd, &context.pid_fd,
+        &context.port_fd, context.ready_path, context.pid_path,
+        context.port_path, (unsigned int)context.owned_metadata, &context.log
+    };
+    if (finish_self_test_resources(&cleanup_context) != 0) {
+        fprintf(stderr, "SPOP protocol self-test cleanup failed\n");
+        return SPOP_RUNTIME_CLEANUP_FAILURE;
     }
-    if (result != 0) {
-        return result;
+    if (context.result != 0) {
+        return context.result;
     }
     printf("haproxy_modsecurity_spoa_protocol_self_test: PASS\n");
     printf("scope: SPOP handshake and typed set-var ACK compatibility; production ModSecurity coverage is verified by live HAProxy smoke tests\n");
-    printf("log: %s\n", log_path);
-    printf("port_file: %s\n", port_path);
+    printf("log: %s\n", context.log_path);
+    printf("port_file: %s\n", context.port_path);
     return 0;
 }
 
@@ -6446,31 +6510,8 @@ static int spop_transport_stop_bounded(agent_state *state,
     return result;
 }
 
-static int destroy_agent_runtime(
-        agent_state *state,
-        int listen_fd,
-        FILE **log,
-        int log_owned,
-        FILE **decision_log,
-        int decision_log_owned) {
-    int cleanup_failed = 0;
-    int restart_required;
-
-    if (state == NULL) {
-        if (close_owned_stream(decision_log, decision_log_owned) != 0) {
-            cleanup_failed = 1;
-        }
-        if (close_owned_stream(log, log_owned) != 0) {
-            cleanup_failed = 1;
-        }
-        return cleanup_failed ? SPOP_RUNTIME_CLEANUP_FAILURE : 0;
-    }
-    if (listen_fd >= 0) {
-        spop_owner_queue_set_listener(state, -1);
-        if (close(listen_fd) != 0) {
-            cleanup_failed = 1;
-        }
-    }
+static void stop_response_transport_or_exit(agent_state *state)
+{
     if (state->response_transport_started) {
         msconnector_error transport_error;
         msconnector_error_init(&transport_error);
@@ -6487,6 +6528,82 @@ static int destroy_agent_runtime(
             _Exit(SPOP_OWNER_RESTART_EXIT_CODE);
         }
     }
+}
+
+static void destroy_agent_owner_queue_or_exit(agent_state *state)
+{
+    if (state->owner_queue.initialized &&
+            spop_owner_queue_destroy(state) != 0) {
+        /* No caller-owned or native object is safe to tear down while the
+         * owner can still access this stack-backed state. */
+        _Exit(SPOP_OWNER_RESTART_EXIT_CODE);
+    }
+}
+
+static void expire_agent_response_backend(agent_state *state)
+{
+    if (state->response_backend_initialized) {
+        /* Finalizers may still need backend bookkeeping while the owner drains. */
+        haproxy_spop_response_companion_backend_expire(
+            &state->response_backend, UINT64_MAX);
+    }
+}
+
+static void destroy_agent_response_backend_or_exit(agent_state *state)
+{
+    if (state->response_backend_initialized) {
+        msconnector_error backend_error;
+        msconnector_error_init(&backend_error);
+        if (haproxy_spop_response_companion_backend_destroy(
+                &state->response_backend, &backend_error)) {
+            state->response_backend_initialized = 0;
+            free(state->response_slots);
+            state->response_slots = NULL;
+            return;
+        }
+        log_line(state->log,
+            "event=spop-response-backend-shutdown-failed action=controlled-restart reason=backend-destroy-failed exit_code=%d",
+            SPOP_OWNER_RESTART_EXIT_CODE);
+        _Exit(SPOP_OWNER_RESTART_EXIT_CODE);
+    }
+}
+
+static int close_agent_owned_streams(FILE **log, int log_owned,
+        FILE **decision_log, int decision_log_owned)
+{
+    int cleanup_failed = 0;
+
+    if (close_owned_stream(decision_log, decision_log_owned) != 0) {
+        cleanup_failed = 1;
+    }
+    if (close_owned_stream(log, log_owned) != 0) {
+        cleanup_failed = 1;
+    }
+    return cleanup_failed;
+}
+
+static int destroy_agent_runtime(
+        agent_state *state,
+        int listen_fd,
+        FILE **log,
+        int log_owned,
+        FILE **decision_log,
+        int decision_log_owned) {
+    int cleanup_failed = 0;
+    int restart_required;
+
+    if (state == NULL) {
+        cleanup_failed = close_agent_owned_streams(log, log_owned,
+            decision_log, decision_log_owned);
+        return cleanup_failed ? SPOP_RUNTIME_CLEANUP_FAILURE : 0;
+    }
+    if (listen_fd >= 0) {
+        spop_owner_queue_set_listener(state, -1);
+        if (close(listen_fd) != 0) {
+            cleanup_failed = 1;
+        }
+    }
+    stop_response_transport_or_exit(state);
     /* Snapshot the terminal disposition before teardown so the caller's
      * result is stable.  The atomic flag is independent of mutex lifetime. */
     restart_required = spop_owner_queue_requires_restart(state);
@@ -6499,42 +6616,15 @@ static int destroy_agent_runtime(
          * supervisor observes the documented restart status. */
         _Exit(SPOP_OWNER_RESTART_EXIT_CODE);
     }
-    if (state->response_backend_initialized) {
-        /* Mark every remaining claimed slot terminal before draining the
-         * owner queue. Finalizers may still need the backend bookkeeping. */
-        haproxy_spop_response_companion_backend_expire(
-            &state->response_backend, UINT64_MAX);
-    }
-    if (state->owner_queue.initialized && spop_owner_queue_destroy(state) != 0) {
-        /* See the terminal branch above: no caller-owned or native object is
-         * safe to tear down while the owner remains live. */
-        _Exit(SPOP_OWNER_RESTART_EXIT_CODE);
-    }
-    if (state->response_backend_initialized) {
-        msconnector_error backend_error;
-        msconnector_error_init(&backend_error);
-        if (haproxy_spop_response_companion_backend_destroy(
-                &state->response_backend, &backend_error)) {
-            state->response_backend_initialized = 0;
-            free(state->response_slots);
-            state->response_slots = NULL;
-        } else {
-            log_line(state->log,
-                "event=spop-response-backend-shutdown-failed action=controlled-restart reason=backend-destroy-failed exit_code=%d",
-                SPOP_OWNER_RESTART_EXIT_CODE);
-            _Exit(SPOP_OWNER_RESTART_EXIT_CODE);
-        }
-    }
+    expire_agent_response_backend(state);
+    destroy_agent_owner_queue_or_exit(state);
+    destroy_agent_response_backend_or_exit(state);
     transaction_cache_destroy(state);
     if (state->engine != NULL) {
         haproxy_modsecurity_engine_destroy(state->engine);
     }
-    if (close_owned_stream(decision_log, decision_log_owned) != 0) {
-        cleanup_failed = 1;
-    }
-    if (close_owned_stream(log, log_owned) != 0) {
-        cleanup_failed = 1;
-    }
+    cleanup_failed |= close_agent_owned_streams(log, log_owned,
+        decision_log, decision_log_owned);
     if (state->decision_log_lock_initialized) {
         if (pthread_mutex_destroy(&state->decision_log_lock) != 0) {
             cleanup_failed = 1;

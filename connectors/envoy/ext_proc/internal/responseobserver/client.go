@@ -97,22 +97,22 @@ func (c *client) outcome(action byte, status int) (result, error) {
 	return c.call(opOutcome, b)
 }
 
-func responseHeaders(response *http.Response, max int) ([]header, error) {
-	if response == nil || max <= 0 {
+func responseHeaders(response *http.Response, limit int) ([]header, error) {
+	if response == nil || limit <= 0 {
 		return nil, fmt.Errorf("response observer: response is missing")
 	}
 	result := make([]header, 0, len(response.Header))
 	total := 0
 	for name, values := range response.Header {
 		for _, value := range values {
-			if len(result) >= max {
+			if len(result) >= limit {
 				return nil, fmt.Errorf("response observer: header count exceeds limit")
 			}
-			if len(name)+len(value) > max {
+			if len(name)+len(value) > limit {
 				return nil, fmt.Errorf("response observer: header exceeds limit")
 			}
 			total += len(name) + len(value)
-			if total > max {
+			if total > limit {
 				return nil, fmt.Errorf("response observer: total headers exceed limit")
 			}
 			result = append(result, header{name: strings.ToLower(name), value: value})

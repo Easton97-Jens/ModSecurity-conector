@@ -731,33 +731,33 @@ func parseReservationGroup(p []byte, offset int, lastName string, total int, hea
 	return name, next, values, total, headers, nil
 }
 
-func reservationText(p []byte, offset, max int) (string, int, error) {
-	value, next, err := reservationBytes(p, offset, max)
+func reservationText(p []byte, offset, limit int) (string, int, error) {
+	value, next, err := reservationBytes(p, offset, limit)
 	if err != nil || !utf8.Valid(value) || bytes.IndexByte(value, '\r') >= 0 || bytes.IndexByte(value, '\n') >= 0 || bytes.IndexByte(value, 0) >= 0 {
 		return "", 0, errMSC2
 	}
 	return string(value), next, nil
 }
 
-func reservationBytes(p []byte, offset, max int) ([]byte, int, error) {
+func reservationBytes(p []byte, offset, limit int) ([]byte, int, error) {
 	if offset+2 > len(p) {
 		return nil, 0, errMSC2
 	}
 	n := int(binary.BigEndian.Uint16(p[offset : offset+2]))
 	next := offset + 2 + n
-	if n == 0 || n > max || next > len(p) {
+	if n == 0 || n > limit || next > len(p) {
 		return nil, 0, errMSC2
 	}
 	return p[offset+2 : next], next, nil
 }
 
-func reservationValue(p []byte, offset, max int) ([]byte, int, error) {
+func reservationValue(p []byte, offset, limit int) ([]byte, int, error) {
 	if offset+2 > len(p) {
 		return nil, 0, errMSC2
 	}
 	n := int(binary.BigEndian.Uint16(p[offset : offset+2]))
 	next := offset + 2 + n
-	if n > max || next > len(p) {
+	if n > limit || next > len(p) {
 		return nil, 0, errMSC2
 	}
 	return p[offset+2 : next], next, nil

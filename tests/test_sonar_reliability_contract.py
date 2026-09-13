@@ -453,7 +453,8 @@ int main(void)
 
         self.assertNotIn("if (errno == EINTR)", failed_accept)
         self.assertIn("handle_spop_accept_error(state, log, &loop_rc)", failed_accept)
-        self.assertIn("break;", failed_accept)
+        self.assertIn("goto accept_loop_complete;", failed_accept)
+        self.assertIn("accept_loop_complete:", accept_loop)
         self.assertIn("continue;", failed_accept)
         self.assertIn(
             'log_line(log, "accept failed errno=%d", errno);', error_handler

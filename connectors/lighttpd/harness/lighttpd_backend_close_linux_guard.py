@@ -16,6 +16,7 @@ import signal
 import stat
 import sys
 import time
+from typing import TextIO
 
 
 class GuardFailure(RuntimeError):
@@ -1720,65 +1721,23 @@ def _listen_table_inodes(
     table_name: str,
 ) -> set[str]:
     """Read one bounded kernel TCP table and return matching LISTEN inodes."""
-    if table_path.name == "tcp":
-        address_width = 8
-    elif table_path.name == "tcp6":
-        address_width = 32
-    else:
-        raise GuardFailure(f"{table_name} has an unknown TCP table family")
+    address_width = _tcp_table_address_width(table_path, table_name)
     inodes: set[str] = set()
     try:
         with table_path.open("r", encoding="ascii", errors="strict") as table:
-            header = table.readline(MAX_TCP_LISTENER_LINE_BYTES + 1)
-            header_fields = header.split()
-            if (
-                not header.endswith("\n")
-                or len(header_fields) < 4
-                or header_fields[:2] != ["sl", "local_address"]
-                or header_fields[2] not in {"rem_address", "remote_address"}
-                or header_fields[3] != "st"
-                or "inode" not in header_fields
-            ):
-                raise GuardFailure(f"{table_name} contains an invalid or incomplete header")
-            if len(header) > MAX_TCP_LISTENER_LINE_BYTES and not header.endswith("\n"):
-                raise GuardFailure(f"{table_name} header exceeds the bounded inspection limit")
-            for _line_number in range(MAX_TCP_LISTENER_LINES):
-                line = table.readline(MAX_TCP_LISTENER_LINE_BYTES + 1)
+            _validate_tcp_table_header(table, table_name)
+            for _ in range(MAX_TCP_LISTENER_LINES):
+                line = _read_bounded_tcp_line(table, table_name, "entry")
                 if not line:
                     break
-                if len(line) > MAX_TCP_LISTENER_LINE_BYTES and not line.endswith("\n"):
-                    raise GuardFailure(f"{table_name} entry exceeds the bounded inspection limit")
-                fields = line.split()
-                if len(fields) <= 9:
-                    raise GuardFailure(f"{table_name} contains a malformed nonblank row")
-                local_address, separator, local_port = fields[1].partition(":")
-                if (
-                    not separator
-                    or len(local_address) != address_width
-                    or len(local_port) != 4
-                    or any(character not in "0123456789ABCDEFabcdef" for character in local_address + local_port)
-                ):
-                    raise GuardFailure(f"{table_name} contains an invalid local endpoint")
-                remote_address, remote_separator, remote_port = fields[2].partition(":")
-                if (
-                    not remote_separator
-                    or len(remote_address) != address_width
-                    or len(remote_port) != 4
-                    or any(character not in "0123456789ABCDEFabcdef" for character in remote_address + remote_port)
-                ):
-                    raise GuardFailure(f"{table_name} contains an invalid remote endpoint")
-                state = fields[3]
-                if len(state) != 2 or any(character not in "0123456789ABCDEFabcdef" for character in state):
-                    raise GuardFailure(f"{table_name} contains an invalid state field")
-                inode = fields[9]
-                if not inode or not inode.isdecimal():
-                    raise GuardFailure(f"{table_name} contains an invalid inode field")
-                if (
-                    separator
-                    and (accepted_local_addresses is None or local_address in accepted_local_addresses)
-                    and local_port == expected_port
-                    and state == "0A"
-                ):
+                inode = _tcp_listener_inode(
+                    line,
+                    address_width,
+                    expected_port,
+                    accepted_local_addresses,
+                    table_name,
+                )
+                if inode is not None:
                     inodes.add(inode)
             else:
                 if table.read(1):
@@ -1786,6 +1745,75 @@ def _listen_table_inodes(
     except (OSError, UnicodeError) as exc:
         raise GuardFailure(f"cannot inspect {table_name}") from exc
     return inodes
+
+
+def _tcp_table_address_width(table_path: Path, table_name: str) -> int:
+    if table_path.name == "tcp":
+        return 8
+    if table_path.name == "tcp6":
+        return 32
+    raise GuardFailure(f"{table_name} has an unknown TCP table family")
+
+
+def _read_bounded_tcp_line(table: TextIO, table_name: str, line_kind: str) -> str:
+    line = table.readline(MAX_TCP_LISTENER_LINE_BYTES + 1)
+    if len(line) > MAX_TCP_LISTENER_LINE_BYTES and not line.endswith("\n"):
+        raise GuardFailure(f"{table_name} {line_kind} exceeds the bounded inspection limit")
+    return line
+
+
+def _validate_tcp_table_header(table: TextIO, table_name: str) -> None:
+    header = _read_bounded_tcp_line(table, table_name, "header")
+    fields = header.split()
+    if (
+        not header.endswith("\n")
+        or len(fields) < 4
+        or fields[:2] != ["sl", "local_address"]
+        or fields[2] not in {"rem_address", "remote_address"}
+        or fields[3] != "st"
+        or "inode" not in fields
+    ):
+        raise GuardFailure(f"{table_name} contains an invalid or incomplete header")
+
+
+def _is_tcp_endpoint(value: str, address_width: int) -> bool:
+    address, separator, port = value.partition(":")
+    return (
+        bool(separator)
+        and len(address) == address_width
+        and len(port) == 4
+        and all(character in "0123456789ABCDEFabcdef" for character in address + port)
+    )
+
+
+def _tcp_listener_inode(
+    line: str,
+    address_width: int,
+    expected_port: str,
+    accepted_local_addresses: set[str] | None,
+    table_name: str,
+) -> str | None:
+    fields = line.split()
+    if len(fields) <= 9:
+        raise GuardFailure(f"{table_name} contains a malformed nonblank row")
+    local_address, _, local_port = fields[1].partition(":")
+    if not _is_tcp_endpoint(fields[1], address_width):
+        raise GuardFailure(f"{table_name} contains an invalid local endpoint")
+    if not _is_tcp_endpoint(fields[2], address_width):
+        raise GuardFailure(f"{table_name} contains an invalid remote endpoint")
+    state = fields[3]
+    if len(state) != 2 or any(character not in "0123456789ABCDEFabcdef" for character in state):
+        raise GuardFailure(f"{table_name} contains an invalid state field")
+    inode = fields[9]
+    if not inode or not inode.isdecimal():
+        raise GuardFailure(f"{table_name} contains an invalid inode field")
+    if (
+        state == "0A"
+        and local_port == expected_port
+        and (accepted_local_addresses is None or local_address in accepted_local_addresses)
+    ):
+        return inode
+    return None
 
 
 def _listen_inodes_snapshot(host: str, port: int, include_ipv6: bool = False) -> set[str]:
