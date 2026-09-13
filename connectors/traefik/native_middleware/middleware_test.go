@@ -384,6 +384,11 @@ func TestMiddlewareStreamsRequestAndResponseInBoundedChunks(t *testing.T) {
 	if !summary.RequestEOS || !summary.ResponseEOS || !summary.ResponseCommitted {
 		t.Fatalf("expected complete committed summary, got %#v", summary)
 	}
+	assertRequestBodyCallbacks(t, transaction, len("request"))
+}
+
+func assertRequestBodyCallbacks(t *testing.T, transaction *recordingTransaction, wantBytes int) {
+	t.Helper()
 	requestBodyEvents := 0
 	requestBodyEndEvents := 0
 	requestBodyBytes := 0
@@ -393,15 +398,16 @@ func TestMiddlewareStreamsRequestAndResponseInBoundedChunks(t *testing.T) {
 		}
 	}
 	for _, call := range transaction.bodyCalls {
-		if call.direction == DirectionRequest {
-			requestBodyBytes += call.length
-			if call.end {
-				requestBodyEndEvents++
-			}
+		if call.direction != DirectionRequest {
+			continue
+		}
+		requestBodyBytes += call.length
+		if call.end {
+			requestBodyEndEvents++
 		}
 	}
-	if requestBodyEvents == 0 || requestBodyBytes != len("request") || requestBodyEndEvents != 1 {
-		t.Fatalf("request body callbacks did not reach one EOS without duplication: events=%d bytes=%d eos=%d", requestBodyEvents, requestBodyBytes, requestBodyEndEvents)
+	if requestBodyEvents == 0 || requestBodyBytes != wantBytes || requestBodyEndEvents != 1 {
+		t.Fatalf("request body callbacks = events:%d bytes:%d eos:%d, want events > 0 bytes:%d eos:1", requestBodyEvents, requestBodyBytes, requestBodyEndEvents, wantBytes)
 	}
 }
 

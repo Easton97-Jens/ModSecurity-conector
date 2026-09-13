@@ -120,7 +120,7 @@ def client_abort(port: int, upstream_port: int, receipt: Path, timeout: float, b
                 except socket.timeout as exc:
                     _safe_write(receipt, {"evidence_type": "stock_client_abort", "active_request_started": True, "client_closed": True, "upstream_observed_client_close": False, "status": "blocked", "blocked_reason": "Stock backend remained open after active client close within bounded timeout", "host_timeout_fallback": True, "timeout_seconds": timeout, "backend_read_timeout_seconds": backend_read_timeout, "elapsed_seconds": round(time.monotonic() - started, 3), "event_promotion": "not_claimed"})
                     raise ProbeBlocked("V6 backend close observation timed out after active upstream accept") from exc
-                except (ConnectionResetError, BrokenPipeError, OSError) as exc:
+                except OSError as exc:
                     if getattr(exc, "errno", None) in (104, 108, 32):
                         observed = "reset-or-close"
                     else:
@@ -169,7 +169,7 @@ def hold(port: int, upstream_port: int, ready: Path, release: Path, receipt: Pat
                     if not client.recv(4096):
                         observed = "eof"
                         break
-            except (ConnectionResetError, BrokenPipeError, OSError) as exc:
+            except OSError as exc:
                 if getattr(exc, "errno", None) in (104, 108, 32):
                     observed = "reset-or-close"
                 else:

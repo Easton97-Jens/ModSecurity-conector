@@ -155,6 +155,72 @@ def _serve_truncated_upstream(
     receipt["upstream_listener_closed"] = True
 
 
+def _read_frontend_bytes(connection: socket.socket, deadline: float) -> tuple[bytes, str, bool]:
+    received = bytearray()
+    read_error = ""
+    frontend_eof = False
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ProbeFailure("frontend read timed out; truncation is not promoted")
+        connection.settimeout(remaining)
+        try:
+            chunk = connection.recv(4096)
+        except (socket.timeout, TimeoutError) as exc:
+            raise ProbeFailure("frontend read timed out; truncation is not promoted") from exc
+        except OSError as exc:
+            if exc.errno not in (errno.ECONNRESET, errno.ECONNABORTED, errno.EPIPE):
+                raise ProbeFailure("frontend read failed with an unapproved socket error") from exc
+            read_error = f"{type(exc).__name__}:{exc.errno}"
+            break
+        if not chunk:
+            frontend_eof = True
+            break
+        received.extend(chunk)
+        if len(received) > 131072:
+            raise ProbeFailure("frontend response exceeded bounded receipt limit")
+    return bytes(received), read_error, frontend_eof
+
+
+def _header_value(lines: list[bytes], name: bytes, description: str) -> bytes:
+    values = [line.split(b":", 1)[1].strip() for line in lines[1:] if line.lower().startswith(name)]
+    if len(values) != 1:
+        raise ProbeFailure(f"frontend response must contain exactly one {description}")
+    return values[0]
+
+
+def _parse_frontend_response(received: bytes, expected_nonce: str) -> tuple[int, int, bytes, str, str]:
+    header_end = received.find(b"\r\n\r\n")
+    if header_end < 0:
+        raise ProbeFailure("frontend response headers were incomplete")
+    lines = received[:header_end].split(b"\r\n")
+    status_parts = lines[0].split()
+    if len(status_parts) != 3 or status_parts[0] != b"HTTP/1.1":
+        raise ProbeFailure("frontend response status line was invalid")
+    try:
+        status = int(status_parts[1])
+    except ValueError as exc:
+        raise ProbeFailure("frontend response status was invalid") from exc
+    try:
+        content_length = int(_header_value(lines, b"content-length:", "Content-Length"))
+    except ValueError as exc:
+        raise ProbeFailure("frontend Content-Length was invalid") from exc
+    try:
+        frontend_nonce = _header_value(lines, b"x-msconnector-backend-close-nonce:", "backend-close nonce").decode("ascii", "strict")
+    except UnicodeDecodeError as exc:
+        raise ProbeFailure("frontend backend-close nonce was not ASCII") from exc
+    try:
+        host_transaction_id = _header_value(lines, b"x-msconnector-host-transaction-id:", "host transaction ID").decode("ascii", "strict")
+    except UnicodeDecodeError as exc:
+        raise ProbeFailure("frontend host transaction ID was not ASCII") from exc
+    if not host_transaction_id or len(host_transaction_id) > 128 or any(character not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:-" for character in host_transaction_id):
+        raise ProbeFailure("frontend host transaction ID was outside the bounded format")
+    body = received[header_end + 4 :]
+    if status != 200 or content_length != DECLARED_LENGTH or body != SENT_BODY or frontend_nonce != expected_nonce:
+        raise ProbeFailure("frontend response did not match the correlated 200/64/5 fixture")
+    return status, content_length, body, frontend_nonce, host_transaction_id
+
+
 def _read_frontend(host: str, port: int, path: str, expected_nonce: str, deadline: float, receipt: dict[str, object]) -> None:
     host = _loopback_host(host)
     port = _loopback_port(port)
@@ -163,70 +229,13 @@ def _read_frontend(host: str, port: int, path: str, expected_nonce: str, deadlin
         connection.sendall(
             ("GET %s HTTP/1.1\r\nHost: backend-close-probe\r\nConnection: close\r\n\r\n" % path).encode("ascii")
         )
-        received = bytearray()
-        read_error = ""
-        while True:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise ProbeFailure("frontend read timed out; truncation is not promoted")
-            connection.settimeout(remaining)
-            try:
-                chunk = connection.recv(4096)
-            except (socket.timeout, TimeoutError) as exc:
-                raise ProbeFailure("frontend read timed out; truncation is not promoted") from exc
-            except OSError as exc:
-                if exc.errno not in (errno.ECONNRESET, errno.ECONNABORTED, errno.EPIPE):
-                    raise ProbeFailure("frontend read failed with an unapproved socket error") from exc
-                read_error = f"{type(exc).__name__}:{exc.errno}"
-                break
-            if not chunk:
-                receipt["frontend_eof"] = True
-                break
-            received.extend(chunk)
-            if len(received) > 131072:
-                raise ProbeFailure("frontend response exceeded bounded receipt limit")
-        header_end = received.find(b"\r\n\r\n")
-        if header_end < 0:
-            raise ProbeFailure("frontend response headers were incomplete")
-        header_bytes = bytes(received[:header_end])
-        body = bytes(received[header_end + 4 :])
-        lines = header_bytes.split(b"\r\n")
-        status_parts = lines[0].split()
-        if len(status_parts) != 3 or status_parts[0] != b"HTTP/1.1":
-            raise ProbeFailure("frontend response status line was invalid")
-        try:
-            status = int(status_parts[1])
-        except ValueError as exc:
-            raise ProbeFailure("frontend response status was invalid") from exc
-        lengths = [line.split(b":", 1)[1].strip() for line in lines[1:] if line.lower().startswith(b"content-length:")]
-        if len(lengths) != 1:
-            raise ProbeFailure("frontend response must contain exactly one Content-Length")
-        try:
-            content_length = int(lengths[0])
-        except ValueError as exc:
-            raise ProbeFailure("frontend Content-Length was invalid") from exc
-        nonces = [line.split(b":", 1)[1].strip() for line in lines[1:] if line.lower().startswith(b"x-msconnector-backend-close-nonce:")]
-        if len(nonces) != 1:
-            raise ProbeFailure("frontend response must contain exactly one backend-close nonce")
-        try:
-            frontend_nonce = nonces[0].decode("ascii", "strict")
-        except UnicodeDecodeError as exc:
-            raise ProbeFailure("frontend backend-close nonce was not ASCII") from exc
-        transaction_ids = [line.split(b":", 1)[1].strip() for line in lines[1:] if line.lower().startswith(b"x-msconnector-host-transaction-id:")]
-        if len(transaction_ids) != 1:
-            raise ProbeFailure("frontend response must contain exactly one host transaction ID")
-        try:
-            host_transaction_id = transaction_ids[0].decode("ascii", "strict")
-        except UnicodeDecodeError as exc:
-            raise ProbeFailure("frontend host transaction ID was not ASCII") from exc
-        if not host_transaction_id or len(host_transaction_id) > 128 or any(character not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:-" for character in host_transaction_id):
-            raise ProbeFailure("frontend host transaction ID was outside the bounded format")
-        if status != 200 or content_length != DECLARED_LENGTH or body != SENT_BODY or frontend_nonce != expected_nonce:
-            raise ProbeFailure("frontend response did not match the correlated 200/64/5 fixture")
-        if not receipt.get("frontend_eof") and not read_error:
+        received, read_error, frontend_eof = _read_frontend_bytes(connection, deadline)
+        status, content_length, body, frontend_nonce, host_transaction_id = _parse_frontend_response(received, expected_nonce)
+        if not frontend_eof and not read_error:
             raise ProbeFailure("frontend completed without EOF or read error")
         receipt.update(
             {
+                "frontend_eof": frontend_eof,
                 "frontend_read_error": read_error or None,
                 "frontend_response_bytes": len(received),
                 "frontend_status": status,
@@ -243,7 +252,7 @@ def _read_frontend(host: str, port: int, path: str, expected_nonce: str, deadlin
         )
 
 
-def run(args: argparse.Namespace) -> dict[str, object]:
+def _validate_run_arguments(args: argparse.Namespace) -> None:
     if args.timeout <= 0 or args.timeout > 30:
         raise ProbeFailure("timeout must be between 0 and 30 seconds")
     if not args.path.startswith("/") or any(ch in args.path for ch in "\r\n"):
@@ -253,19 +262,15 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     args.frontend_port = _loopback_port(args.frontend_port)
     args.upstream_port = _loopback_port(args.upstream_port)
     args.receipt = _safe_receipt_path(args.runtime_root, args.receipt)
-    deadline = time.monotonic() + args.timeout
-    nonce = secrets.token_hex(24)
-    receipt: dict[str, object] = {
-        "schema_version": SCHEMA_VERSION,
-        "evidence_type": "lighttpd_backend_close_raw_socket",
-        "frontend_host": args.frontend_host,
-        "frontend_port": args.frontend_port,
-        "upstream_host": args.upstream_host,
-        "upstream_port": args.upstream_port,
-        "path": args.path,
-        "nonce_sha256": hashlib.sha256(nonce.encode("ascii")).hexdigest(),
-    }
-    failure: list[BaseException] = []
+
+
+def _await_upstream_ready(
+    args: argparse.Namespace,
+    nonce: str,
+    deadline: float,
+    receipt: dict[str, object],
+) -> tuple[threading.Thread, list[Exception]]:
+    failure: list[Exception] = []
     ready = threading.Event()
 
     def serve() -> None:
@@ -279,22 +284,24 @@ def run(args: argparse.Namespace) -> dict[str, object]:
                 receipt,
                 ready,
             )
-        except BaseException as exc:
+        except Exception as exc:
             failure.append(exc)
 
     thread = threading.Thread(target=serve, name="backend-close-upstream", daemon=True)
     thread.start()
-    try:
-        while not ready.is_set():
-            if failure:
-                raise ProbeFailure(str(failure[0])) from failure[0]
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise ProbeFailure("upstream listener did not become ready by deadline")
-            ready.wait(min(0.01, remaining))
-        _read_frontend(args.frontend_host, args.frontend_port, args.path, nonce, deadline, receipt)
-    finally:
-        thread.join(max(0.0, deadline - time.monotonic()))
+    while not ready.is_set():
+        if failure:
+            thread.join(max(0.0, deadline - time.monotonic()))
+            raise ProbeFailure(str(failure[0])) from failure[0]
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            thread.join(0.0)
+            raise ProbeFailure("upstream listener did not become ready by deadline")
+        ready.wait(min(0.01, remaining))
+    return thread, failure
+
+
+def _validate_run_receipt(receipt: dict[str, object], thread: threading.Thread, failure: list[Exception]) -> None:
     if thread.is_alive():
         raise ProbeFailure("upstream server thread did not terminate by deadline")
     if failure:
@@ -307,6 +314,28 @@ def run(args: argparse.Namespace) -> dict[str, object]:
         raise ProbeFailure("frontend observation was not retained before host stop")
     if not receipt.get("frontend_nonce_matches_upstream"):
         raise ProbeFailure("frontend nonce did not match the raw upstream nonce")
+
+
+def run(args: argparse.Namespace) -> dict[str, object]:
+    _validate_run_arguments(args)
+    deadline = time.monotonic() + args.timeout
+    nonce = secrets.token_hex(24)
+    receipt: dict[str, object] = {
+        "schema_version": SCHEMA_VERSION,
+        "evidence_type": "lighttpd_backend_close_raw_socket",
+        "frontend_host": args.frontend_host,
+        "frontend_port": args.frontend_port,
+        "upstream_host": args.upstream_host,
+        "upstream_port": args.upstream_port,
+        "path": args.path,
+        "nonce_sha256": hashlib.sha256(nonce.encode("ascii")).hexdigest(),
+    }
+    thread, failure = _await_upstream_ready(args, nonce, deadline, receipt)
+    try:
+        _read_frontend(args.frontend_host, args.frontend_port, args.path, nonce, deadline, receipt)
+    finally:
+        thread.join(max(0.0, deadline - time.monotonic()))
+    _validate_run_receipt(receipt, thread, failure)
     return receipt
 
 

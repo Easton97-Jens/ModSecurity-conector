@@ -10,6 +10,16 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260910-sonarcloud-parent-open-issues-duplication-remediation](CR-20260910-sonarcloud-parent-open-issues-duplication-remediation.md)
+  | [Deutsch](CR-20260910-sonarcloud-parent-open-issues-duplication-remediation.de.md) —
+  the Parent traceability policy requires this paired record for the
+  non-trivial Parent-only SonarCloud remediation delivered as PR #361. It
+  records local source, test, and security-diff evidence for 112 Parent
+  baseline code smells and real duplicate-block reduction work, while one
+  Framework issue and cross-owner duplicate content remain out of scope.
+  Exact-head hosted evidence is required before a merge; no merged
+  default-branch metric improvement is asserted.
+
 - [CR-20260912-nginx-terminal-checker-alignment](CR-20260912-nginx-terminal-checker-alignment.md)
   | [Deutsch](CR-20260912-nginx-terminal-checker-alignment.de.md) — after PR
   #360 was authorized and merged, the requested resulting-master workflow
@@ -46,7 +56,6 @@ reports without an explicit repository-policy decision or user decision.
   NGINX native response-header errors. It records focused local evidence and
   blocked host-runtime proof for the user-authorized Draft PR; no Framework,
   MRTS, Gitlink, merge, release, or deployment action is asserted.
-
 - [CR-20260903-connector-runtime-hardening-quality-remediation](CR-20260903-connector-runtime-hardening-quality-remediation.md)
   | [Deutsch](CR-20260903-connector-runtime-hardening-quality-remediation.de.md) —
   current Parent-only remediation of Codex review findings, SonarQube Cloud

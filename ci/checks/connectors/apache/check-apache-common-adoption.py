@@ -31,6 +31,7 @@ RESPONSE_BODY_PHASE = "MSCONNECTOR_PHASE_RESPONSE_BODY"
 P2_PROCESS = "if (msc_process_request_body(msr->t) != 1)"
 P3_PROCESS = 'if (msc_process_response_headers(msr->t, original_status, "HTTP 1.1") != 1)'
 P4_PROCESS = "if (msc_process_response_body(msr->t) != 1)"
+REMOVE_OUTPUT_FILTER = "ap_remove_output_filter(f);"
 BUCKET_NEXT_LOOP = "bucket = APR_BUCKET_NEXT(bucket))"
 RETURN_APR_SUCCESS_PATTERN = r"\breturn\s+APR_SUCCESS\s*;"
 RETURN_INPUT_TERMINAL_ERROR_PATTERN = (
@@ -505,7 +506,7 @@ review_guards: list[tuple[bool, str]] = [
             "if (apache_phase4_response_committed(msr, r))",
             "return apache_phase4_abort_response_connection(f);",
             '"ModSecurity: Phase 4 response gate failed before response commit: %s"',
-            "ap_remove_output_filter(f);",
+            REMOVE_OUTPUT_FILTER,
             "return apache_send_precommit_terminal_error(msr, f, NULL,",
             "HTTP_INTERNAL_SERVER_ERROR);",
         ),
@@ -519,12 +520,12 @@ review_guards: list[tuple[bool, str]] = [
             "if (ap_request_has_body(r))",
             "discard_status = ap_discard_request_body(r);",
             "if (discard_status != OK)",
-            "ap_remove_output_filter(f);",
+            REMOVE_OUTPUT_FILTER,
             "if (msr->request_body_intervention_sent)",
             "return AP_FILTER_ERROR;",
             "return apache_send_precommit_terminal_error(msr, f, NULL,",
             "if (!msr->request_body_processed)",
-            "ap_remove_output_filter(f);",
+            REMOVE_OUTPUT_FILTER,
             "return APR_ECONNABORTED;",
             RETURN_APR_SUCCESS,
             "it = msc_finalize_request_body(msr, r);",

@@ -147,6 +147,32 @@ int msconnector_json_utf8_is_valid_n(const char *src, size_t src_size) {
     return 1;
 }
 
+static size_t append_json_default_value(
+    const unsigned char *bytes,
+    size_t remaining,
+    unsigned char value,
+    char *dst,
+    size_t dst_size,
+    size_t *position) {
+    const size_t sequence_size = valid_utf8_sequence_size(bytes, remaining);
+
+    if (value < 0x20U) {
+        append_json_byte_escape(value, dst, dst_size, position);
+        return 1U;
+    }
+    if (value < 0x80U) {
+        append_json_char((char)value, dst, dst_size, position);
+        return 1U;
+    }
+    if (sequence_size == 0U) {
+        append_json_byte_escape(value, dst, dst_size, position);
+        return 1U;
+    }
+
+    append_json_bytes((const char *)bytes, sequence_size, dst, dst_size, position);
+    return sequence_size;
+}
+
 size_t msconnector_json_escape_n(
     const char *src,
     size_t src_size,
@@ -163,8 +189,6 @@ size_t msconnector_json_escape_n(
 
     while (index < src_size) {
         const unsigned char value = bytes[index];
-        size_t sequence_size;
-
         switch (value) {
         case '"':
             append_json_escape_sequence('"', dst, dst_size, &position);
@@ -182,26 +206,8 @@ size_t msconnector_json_escape_n(
             append_json_escape_sequence('t', dst, dst_size, &position);
             break;
         default:
-            if (value < 0x20U) {
-                append_json_byte_escape(value, dst, dst_size, &position);
-            } else if (value < 0x80U) {
-                append_json_char((char)value, dst, dst_size, &position);
-            } else {
-                sequence_size = valid_utf8_sequence_size(
-                    bytes + index,
-                    src_size - index);
-                if (sequence_size == 0U) {
-                    append_json_byte_escape(value, dst, dst_size, &position);
-                } else {
-                    append_json_bytes(
-                        (const char *)(bytes + index),
-                        sequence_size,
-                        dst,
-                        dst_size,
-                        &position);
-                    index += sequence_size - 1U;
-                }
-            }
+            index += append_json_default_value(bytes + index, src_size - index,
+                value, dst, dst_size, &position) - 1U;
             break;
         }
 

@@ -204,6 +204,57 @@ func newUDSTestMiddleware(t *testing.T, socketPath string, next http.Handler) *M
 	return middleware
 }
 
+func startBlockedUDSTransaction(t *testing.T, timeout time.Duration, requestURI string) (*unixSocketTransaction, <-chan struct{}, <-chan struct{}) {
+	t.Helper()
+	client, server := net.Pipe()
+	transaction := &unixSocketTransaction{
+		connection: client,
+		timeout:    timeout,
+		metadata: Metadata{
+			Method:     http.MethodGet,
+			RequestURI: requestURI,
+		},
+	}
+	t.Cleanup(func() {
+		_ = client.Close()
+		_ = server.Close()
+	})
+
+	requestRead := make(chan struct{})
+	serverDone := make(chan struct{})
+	go func() {
+		defer close(serverDone)
+		if _, _, err := readUDSFrame(server); err != nil {
+			return
+		}
+		close(requestRead)
+		_, _, _ = readUDSFrame(server)
+	}()
+	return transaction, requestRead, serverDone
+}
+
+func assertUDSFollowUpTransaction(t *testing.T, requestURI string) {
+	t.Helper()
+	socketPath, server := startUDSTestServer(t, nil)
+	engine := &unixSocketEngine{socketPath: socketPath, timeout: time.Second}
+	followUp, err := engine.Open(context.Background(), Metadata{Method: http.MethodGet, RequestURI: requestURI})
+	if err != nil {
+		t.Fatalf("follow-up Open() error = %v", err)
+	}
+	decision, err := followUp.ProcessHeaders(context.Background(), DirectionRequest, nil, true)
+	if err != nil {
+		t.Fatalf("follow-up ProcessHeaders() error = %v", err)
+	}
+	if decision.Action != ActionAllow {
+		t.Fatalf("follow-up decision = %#v, want allow", decision)
+	}
+	followUp.Close(context.Background(), Summary{})
+	calls := server.wait(t)
+	if countUDSCalls(calls, udsOpcodeBegin) != 1 || countUDSCalls(calls, udsOpcodeDestroy) != 1 {
+		t.Fatalf("follow-up UDS lifecycle was not completed: %#v", calls)
+	}
+}
+
 func TestUDSConfigRejectsValuesOutsideTheWireContract(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -432,30 +483,7 @@ func TestUDSEngineUsesOneSessionForFullLifecycle(t *testing.T) {
 }
 
 func TestUDSEngineCancellationClosesBlockedConnection(t *testing.T) {
-	client, server := net.Pipe()
-	transaction := &unixSocketTransaction{
-		connection: client,
-		timeout:    time.Second,
-		metadata: Metadata{
-			Method:     http.MethodGet,
-			RequestURI: "/cancel",
-		},
-	}
-	t.Cleanup(func() {
-		_ = client.Close()
-		_ = server.Close()
-	})
-
-	requestRead := make(chan struct{})
-	serverDone := make(chan struct{})
-	go func() {
-		defer close(serverDone)
-		if _, _, err := readUDSFrame(server); err != nil {
-			return
-		}
-		close(requestRead)
-		_, _, _ = readUDSFrame(server)
-	}()
+	transaction, requestRead, serverDone := startBlockedUDSTransaction(t, time.Second, "/cancel")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	result := make(chan error, 1)
@@ -496,30 +524,7 @@ func TestUDSEngineCancellationClosesBlockedConnection(t *testing.T) {
 }
 
 func TestUDSEngineTimeoutClosesBlockedConnection(t *testing.T) {
-	client, server := net.Pipe()
-	transaction := &unixSocketTransaction{
-		connection: client,
-		timeout:    20 * time.Millisecond,
-		metadata: Metadata{
-			Method:     http.MethodGet,
-			RequestURI: "/timeout",
-		},
-	}
-	t.Cleanup(func() {
-		_ = client.Close()
-		_ = server.Close()
-	})
-
-	requestRead := make(chan struct{})
-	serverDone := make(chan struct{})
-	go func() {
-		defer close(serverDone)
-		if _, _, err := readUDSFrame(server); err != nil {
-			return
-		}
-		close(requestRead)
-		_, _, _ = readUDSFrame(server)
-	}()
+	transaction, requestRead, serverDone := startBlockedUDSTransaction(t, 20*time.Millisecond, "/timeout")
 
 	result := make(chan error, 1)
 	started := time.Now()
@@ -554,24 +559,7 @@ func TestUDSEngineTimeoutClosesBlockedConnection(t *testing.T) {
 		t.Fatal("timed-out UDS peer did not observe connection cleanup")
 	}
 
-	socketPath, followUpServer := startUDSTestServer(t, nil)
-	engine := &unixSocketEngine{socketPath: socketPath, timeout: time.Second}
-	followUp, err := engine.Open(context.Background(), Metadata{Method: http.MethodGet, RequestURI: "/timeout-follow-up"})
-	if err != nil {
-		t.Fatalf("follow-up Open() error = %v", err)
-	}
-	decision, err := followUp.ProcessHeaders(context.Background(), DirectionRequest, nil, true)
-	if err != nil {
-		t.Fatalf("follow-up ProcessHeaders() error = %v", err)
-	}
-	if decision.Action != ActionAllow {
-		t.Fatalf("follow-up decision = %#v, want allow", decision)
-	}
-	followUp.Close(context.Background(), Summary{})
-	calls := followUpServer.wait(t)
-	if countUDSCalls(calls, udsOpcodeBegin) != 1 || countUDSCalls(calls, udsOpcodeDestroy) != 1 {
-		t.Fatalf("follow-up UDS lifecycle was not completed: %#v", calls)
-	}
+	assertUDSFollowUpTransaction(t, "/timeout-follow-up")
 }
 
 func TestUDSEngineCancellationClosesBlockedWriteConnection(t *testing.T) {
@@ -676,24 +664,7 @@ func TestUDSEngineInvalidOrIncompleteResultDiscardsConnection(t *testing.T) {
 				t.Fatal("invalid-result UDS peer did not complete")
 			}
 
-			socketPath, followUpServer := startUDSTestServer(t, nil)
-			engine := &unixSocketEngine{socketPath: socketPath, timeout: time.Second}
-			followUp, err := engine.Open(context.Background(), Metadata{Method: http.MethodGet, RequestURI: "/invalid-result-follow-up"})
-			if err != nil {
-				t.Fatalf("follow-up Open() error = %v", err)
-			}
-			decision, err := followUp.ProcessHeaders(context.Background(), DirectionRequest, nil, true)
-			if err != nil {
-				t.Fatalf("follow-up ProcessHeaders() error = %v", err)
-			}
-			if decision.Action != ActionAllow {
-				t.Fatalf("follow-up decision = %#v, want allow", decision)
-			}
-			followUp.Close(context.Background(), Summary{})
-			calls := followUpServer.wait(t)
-			if countUDSCalls(calls, udsOpcodeBegin) != 1 || countUDSCalls(calls, udsOpcodeDestroy) != 1 {
-				t.Fatalf("follow-up UDS lifecycle was not completed: %#v", calls)
-			}
+			assertUDSFollowUpTransaction(t, "/invalid-result-follow-up")
 		})
 	}
 }
@@ -733,24 +704,7 @@ func TestUDSEngineCancellationAllowsFollowUpTransaction(t *testing.T) {
 		t.Fatal("first canceled UDS transaction remained blocked")
 	}
 
-	socketPath, server := startUDSTestServer(t, nil)
-	engine := &unixSocketEngine{socketPath: socketPath, timeout: time.Second}
-	followUp, err := engine.Open(context.Background(), Metadata{Method: http.MethodGet, RequestURI: "/follow-up"})
-	if err != nil {
-		t.Fatalf("follow-up Open() error = %v", err)
-	}
-	decision, err := followUp.ProcessHeaders(context.Background(), DirectionRequest, nil, true)
-	if err != nil {
-		t.Fatalf("follow-up ProcessHeaders() error = %v", err)
-	}
-	if decision.Action != ActionAllow {
-		t.Fatalf("follow-up decision = %#v, want allow", decision)
-	}
-	followUp.Close(context.Background(), Summary{})
-	calls := server.wait(t)
-	if countUDSCalls(calls, udsOpcodeBegin) != 1 || countUDSCalls(calls, udsOpcodeDestroy) != 1 {
-		t.Fatalf("follow-up UDS lifecycle was not completed: %#v", calls)
-	}
+	assertUDSFollowUpTransaction(t, "/follow-up")
 }
 
 func TestUDSEngineCloseWithCanceledContextDiscardsConnectionWithoutPanic(t *testing.T) {

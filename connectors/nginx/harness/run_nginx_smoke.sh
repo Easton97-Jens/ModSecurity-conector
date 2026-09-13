@@ -1928,6 +1928,7 @@ nginx_process_record() {
         ''|*[!0-9:]*)
             fail "NGINX $nginx_role process metadata is unavailable for pid=$nginx_pid"
             ;;
+        *) : ;;
     esac
     printf 'role=%s pid=%s ppid=%s uid=%s gid=%s command=%s\n' \
         "$nginx_role" "$nginx_pid" "$nginx_parent_pid" "$nginx_uid" "$nginx_gid" "$nginx_command" \
@@ -1939,6 +1940,7 @@ record_nginx_master_worker_roles() {
     master_pid=$(tr -d "$NGINX_TR_DELETE_WHITESPACE" < "$RUNTIME_PID_FILE" 2>/dev/null || true)
     case "$master_pid" in
         ''|*[!0-9]*) fail "NGINX master pid file does not contain a numeric pid" ;;
+        *) : ;;
     esac
     kill -0 "$master_pid" >/dev/null 2>&1 || fail "NGINX master pid=$master_pid is not alive"
     [ "$master_pid" = "$NGINX_PID" ] || \
@@ -1951,6 +1953,7 @@ record_nginx_master_worker_roles() {
     worker_pid=$(printf '%s\n' "$worker_pids" | awk 'NR == 1 { print $1 }')
     case "$worker_pid" in
         ''|*[!0-9]*) fail "NGINX master pid=$master_pid has no observable worker child" ;;
+        *) : ;;
     esac
     worker_uid=$(ps -o uid= -p "$worker_pid" 2>/dev/null | tr -d "$NGINX_TR_DELETE_WHITESPACE" || true)
     worker_gid=$(ps -o gid= -p "$worker_pid" 2>/dev/null | tr -d "$NGINX_TR_DELETE_WHITESPACE" || true)

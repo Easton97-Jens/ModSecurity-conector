@@ -11,6 +11,16 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260910-sonarcloud-parent-open-issues-duplication-remediation](CR-20260910-sonarcloud-parent-open-issues-duplication-remediation.de.md)
+  | English companion: `CR-20260910-sonarcloud-parent-open-issues-duplication-remediation.md` —
+  die Parent-Traceability-Policy verlangt diesen gepaarten Record für die
+  nicht triviale Parent-only-SonarCloud-Remediation in PR #361. Er hält lokale
+  Source-, Test- und Security-Diff-Evidenz für 112 Parent-Baseline-Code-Smells
+  und echte Duplikatblock-Reduktionsarbeit fest, während ein Framework-Issue
+  und repositoryübergreifender Duplikatcontent außerhalb des Scopes bleiben.
+  Exact-Head-Hosted-Evidenz ist vor einem Merge erforderlich; eine gemergte
+  Default-Branch-Metrikverbesserung wird nicht behauptet.
+
 - [CR-20260912-nginx-terminal-checker-alignment](CR-20260912-nginx-terminal-checker-alignment.de.md)
   | English companion: `CR-20260912-nginx-terminal-checker-alignment.md` —
   nach dem autorisierten und gemergten PR #360 verlangt die angeforderte
@@ -51,7 +61,6 @@ angelegt werden.
   Evidence und blockierte Host-Runtime-Proofs für den vom Benutzer
   autorisierten Draft-PR fest; keine Framework-/MRTS-, Gitlink-, Merge-,
   Release- oder Deployment-Aktion wird behauptet.
-
 - [CR-20260903-connector-runtime-hardening-quality-remediation](CR-20260903-connector-runtime-hardening-quality-remediation.de.md) —
   aktuelle Parent-only-Remediation der Codex-Review-Findings, SonarQube-Cloud-
   Quality-Gate-Fehler und roten Connector-Workflow-Evidence für Draft PR #346.

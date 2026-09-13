@@ -42,7 +42,7 @@ class ApacheSmokeCaseOutputRootTest(unittest.TestCase):
             'prepare_runtime_directory "$RUNTIME_ROOT/logs" "Apache runtime logs" 1',
             'prepare_runtime_directory "$RUNTIME_ROOT/run" "Apache runtime state" 1',
             'prepare_runtime_directory "$RUNTIME_ROOT/modules" "Apache runtime modules" 1',
-            'prepare_runtime_directory "$LOG_DIR" "LOG_DIR" 1',
+            'prepare_runtime_directory "$LOG_DIR" "$APACHE_LOG_DIR_LABEL" 1',
         ):
             self.assertIn(invocation, source)
 

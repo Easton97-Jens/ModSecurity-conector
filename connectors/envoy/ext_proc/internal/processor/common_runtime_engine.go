@@ -165,17 +165,19 @@ func (engine *CommonRuntimeEngine) Close(ctx context.Context) error {
 	if engine.destroyDone == nil {
 		engine.destroyDone = make(chan struct{})
 		destroy := engine.destructor
-		if destroy == nil {
-			destroy = func() {}
-		}
 		done := engine.destroyDone
-		go func() {
-			destroy()
-			engine.destructorMu.Lock()
+		if destroy == nil {
 			engine.destroyed = true
 			close(done)
-			engine.destructorMu.Unlock()
-		}()
+		} else {
+			go func() {
+				destroy()
+				engine.destructorMu.Lock()
+				engine.destroyed = true
+				close(done)
+				engine.destructorMu.Unlock()
+			}()
+		}
 	}
 	done := engine.destroyDone
 	destroyed := engine.destroyed

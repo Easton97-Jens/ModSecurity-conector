@@ -3,6 +3,7 @@ package processor
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"net"
@@ -320,61 +321,73 @@ func TestProcessRecordsConfirmedResponseEvidenceAtStreamDeadline(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			service := newTestService(t, test.transaction, LateActionSafe)
-			service.config.StreamMaxLifetimeMS = 5
-			service.config.CleanupTimeoutMS = 100
-			sendRelease := make(chan struct{})
-			sendStarted := make(chan struct{})
-			stream := &fakeProcessStream{
-				contextFactory:  testStreamContext(context.Background()),
-				receive:         test.receive,
-				sendBlock:       sendRelease,
-				sendStarted:     sendStarted,
-				blockOnSendCall: test.blockOnSendCall,
-			}
-
-			processDone := make(chan error, 1)
-			go func() { processDone <- service.Process(stream) }()
-			select {
-			case <-sendStarted:
-			case <-time.After(time.Second):
-				t.Fatal("response Send did not begin")
-			}
-			// This is intentionally longer than the stream maximum but shorter
-			// than cleanup grace: Send returns successfully after the real
-			// derived deadline, not merely after a synthetic context cancel.
-			time.Sleep(25 * time.Millisecond)
-			close(sendRelease)
-			var err error
-			select {
-			case err = <-processDone:
-			case <-time.After(time.Second):
-				t.Fatal("Process did not finish after late Send completed")
-			}
-			if status.Code(err) != codes.DeadlineExceeded {
-				t.Fatalf("Process() code = %s, want DeadlineExceeded (err=%v)", status.Code(err), err)
-			}
-			if got := test.transaction.responseCommits; got != test.wantCommits {
-				t.Fatalf("response commits = %d, want %d", got, test.wantCommits)
-			}
-			if got := test.transaction.hostActions; !sameHostActions(got, test.wantHostActions) {
-				t.Fatalf("host actions = %#v, want %#v", got, test.wantHostActions)
-			}
-			if len(test.transaction.closed) != 1 || test.transaction.closed[0].CloseReason != CloseStreamMaxLifetime {
-				t.Fatalf("cleanup = %#v, want one max-lifetime cleanup", test.transaction.closed)
-			}
-			select {
-			case fatal := <-service.FatalErrors():
-				if fatal == nil || !strings.Contains(fatal.Error(), "response send exceeded") {
-					t.Fatalf("FatalErrors() = %v, want late-send terminal failure", fatal)
-				}
-			case <-time.After(time.Second):
-				t.Fatal("late successful Send did not report terminal failure")
-			}
-			if followUpErr := service.Process(&fakeProcessStream{contextFactory: testStreamContext(context.Background())}); status.Code(followUpErr) != codes.Unavailable {
-				t.Fatalf("follow-up Process() code = %s, want Unavailable (err=%v)", status.Code(followUpErr), followUpErr)
-			}
+			runConfirmedResponseEvidenceCase(t, test)
 		})
+	}
+}
+
+func runConfirmedResponseEvidenceCase(t *testing.T, test struct {
+	name            string
+	transaction     *recordingTransaction
+	receive         []receiveResult
+	blockOnSendCall int
+	wantCommits     int
+	wantHostActions []HostAction
+}) {
+	t.Helper()
+	service := newTestService(t, test.transaction, LateActionSafe)
+	service.config.StreamMaxLifetimeMS = 5
+	service.config.CleanupTimeoutMS = 100
+	sendRelease := make(chan struct{})
+	sendStarted := make(chan struct{})
+	stream := &fakeProcessStream{
+		contextFactory:  testStreamContext(context.Background()),
+		receive:         test.receive,
+		sendBlock:       sendRelease,
+		sendStarted:     sendStarted,
+		blockOnSendCall: test.blockOnSendCall,
+	}
+
+	processDone := make(chan error, 1)
+	go func() { processDone <- service.Process(stream) }()
+	select {
+	case <-sendStarted:
+	case <-time.After(time.Second):
+		t.Fatal("response Send did not begin")
+	}
+	// This is intentionally longer than the stream maximum but shorter
+	// than cleanup grace: Send returns successfully after the real
+	// derived deadline, not merely after a synthetic context cancel.
+	time.Sleep(25 * time.Millisecond)
+	close(sendRelease)
+	var err error
+	select {
+	case err = <-processDone:
+	case <-time.After(time.Second):
+		t.Fatal("Process did not finish after late Send completed")
+	}
+	if status.Code(err) != codes.DeadlineExceeded {
+		t.Fatalf("Process() code = %s, want DeadlineExceeded (err=%v)", status.Code(err), err)
+	}
+	if got := test.transaction.responseCommits; got != test.wantCommits {
+		t.Fatalf("response commits = %d, want %d", got, test.wantCommits)
+	}
+	if got := test.transaction.hostActions; !sameHostActions(got, test.wantHostActions) {
+		t.Fatalf("host actions = %#v, want %#v", got, test.wantHostActions)
+	}
+	if len(test.transaction.closed) != 1 || test.transaction.closed[0].CloseReason != CloseStreamMaxLifetime {
+		t.Fatalf("cleanup = %#v, want one max-lifetime cleanup", test.transaction.closed)
+	}
+	select {
+	case fatal := <-service.FatalErrors():
+		if fatal == nil || !strings.Contains(fatal.Error(), "response send exceeded") {
+			t.Fatalf("FatalErrors() = %v, want late-send terminal failure", fatal)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("late successful Send did not report terminal failure")
+	}
+	if followUpErr := service.Process(&fakeProcessStream{contextFactory: testStreamContext(context.Background())}); status.Code(followUpErr) != codes.Unavailable {
+		t.Fatalf("follow-up Process() code = %s, want Unavailable (err=%v)", status.Code(followUpErr), followUpErr)
 	}
 }
 func TestProcessRejectsExcessActiveStreamBeforeTransactionOpenAndReleasesSlot(t *testing.T) {
@@ -1595,54 +1608,40 @@ func startBufconnProcessorServer(t *testing.T, service *Service) (extprocv3.Exte
 }
 
 func waitForPendingReceives(t *testing.T, service *Service, want int64) {
-	t.Helper()
-	timeout := time.NewTimer(time.Second)
-	defer timeout.Stop()
-	tick := time.NewTicker(time.Millisecond)
-	defer tick.Stop()
-	for {
-		if got := service.pendingReceives.Load(); got == want {
-			return
-		}
-		select {
-		case <-timeout.C:
-			t.Fatalf("pending receives = %d, want %d", service.pendingReceives.Load(), want)
-		case <-tick.C:
-		}
-	}
+	waitForCondition(t, func() (bool, string) {
+		got := service.pendingReceives.Load()
+		return got == want, fmt.Sprintf("pending receives = %d, want %d", got, want)
+	})
 }
 
 func waitForAdmission(t *testing.T, service *Service, want int) {
-	t.Helper()
-	timeout := time.NewTimer(time.Second)
-	defer timeout.Stop()
-	tick := time.NewTicker(time.Millisecond)
-	defer tick.Stop()
-	for {
-		if got := len(service.admission); got == want {
-			return
-		}
-		select {
-		case <-timeout.C:
-			t.Fatalf("admission reservations = %d, want %d", len(service.admission), want)
-		case <-tick.C:
-		}
-	}
+	waitForCondition(t, func() (bool, string) {
+		got := len(service.admission)
+		return got == want, fmt.Sprintf("admission reservations = %d, want %d", got, want)
+	})
 }
 
 func waitForAtomicInt32(t *testing.T, counter *atomic.Int32, want int32) {
+	waitForCondition(t, func() (bool, string) {
+		got := counter.Load()
+		return got == want, fmt.Sprintf("atomic counter = %d, want %d", got, want)
+	})
+}
+
+func waitForCondition(t *testing.T, condition func() (bool, string)) {
 	t.Helper()
 	timeout := time.NewTimer(time.Second)
 	defer timeout.Stop()
 	tick := time.NewTicker(time.Millisecond)
 	defer tick.Stop()
 	for {
-		if got := counter.Load(); got == want {
+		ready, failure := condition()
+		if ready {
 			return
 		}
 		select {
 		case <-timeout.C:
-			t.Fatalf("atomic counter = %d, want %d", counter.Load(), want)
+			t.Fatal(failure)
 		case <-tick.C:
 		}
 	}

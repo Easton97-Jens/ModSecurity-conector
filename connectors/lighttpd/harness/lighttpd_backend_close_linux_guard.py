@@ -71,6 +71,9 @@ MAX_JSON_OUTPUT_BYTES = 65536
 MAX_TCP_LISTENER_LINES = 4096
 MAX_TCP_LISTENER_LINE_BYTES = 4096
 _ERROR_OVERFLOW = "additional task-guard errors suppressed"
+_PIDFD_UNAVAILABLE = "Linux pidfd capability is unavailable or unusable"
+_SIGNAL_MEMBER_LIMIT = "bounded recorded task-member signal limit exceeded"
+_INVENTORY_MEMBER_LIMIT = "bounded recorded task-member inventory limit exceeded"
 MIN_BACKEND_READ_TIMEOUT_SECONDS = 1
 MAX_BACKEND_READ_TIMEOUT_SECONDS = 30
 TRUSTED_RUNTIME_ROOT_ENV = "MSCONNECTOR_TRUSTED_RUNTIME_ROOT"
@@ -341,7 +344,7 @@ def _require_pidfd() -> None:
     try:
         pidfd = os.pidfd_open(self_pid, 0)
     except OSError as exc:
-        raise GuardFailure("Linux pidfd capability is unavailable or unusable") from exc
+        raise GuardFailure(_PIDFD_UNAVAILABLE) from exc
     try:
         _pidfd_matches_pid(pidfd, self_pid)
         # Signal 0 verifies the pidfd-backed signal path without changing state.
@@ -351,11 +354,11 @@ def _require_pidfd() -> None:
             os.close(pidfd)
         except OSError:
             pass
-        raise GuardFailure("Linux pidfd capability is unavailable or unusable") from exc
+        raise GuardFailure(_PIDFD_UNAVAILABLE) from exc
     try:
         os.close(pidfd)
     except OSError as exc:
-        raise GuardFailure("Linux pidfd capability is unavailable or unusable") from exc
+        raise GuardFailure(_PIDFD_UNAVAILABLE) from exc
 
 
 def _write_new(path: Path, payload: bytes) -> None:
@@ -488,6 +491,36 @@ def _session_fields(pid: int) -> tuple[int, int]:
         raise GuardFailure(f"cannot parse /proc/{pid}/stat session fields") from exc
 
 
+def _scan_session_entry(
+    entry: Path,
+    session_id: int,
+    members: list[int],
+    errors: list[str],
+) -> None:
+    if not entry.name.isdigit():
+        return
+    try:
+        _pgrp, member_session = _session_fields(int(entry.name))
+    except GuardFailure as exc:
+        try:
+            os.lstat(entry)
+        except FileNotFoundError:
+            # The process exited while the scan was in flight; it cannot be
+            # signalled and does not make membership ambiguous.
+            return
+        except OSError as inspect_exc:
+            _append_error(errors, f"cannot revalidate /proc/{entry.name}: {inspect_exc}")
+            return
+        _append_error(errors, exc)
+        return
+    if member_session != session_id:
+        return
+    if len(members) >= MAX_SESSION_MEMBERS:
+        _append_error(errors, "bounded task-session member limit exceeded")
+        return
+    members.append(int(entry.name))
+
+
 def _scan_session_members(session_id: int) -> tuple[list[int], list[str]]:
     """Return observable session members and every non-disappearance read failure.
 
@@ -511,27 +544,7 @@ def _scan_session_members(session_id: int) -> tuple[list[int], list[str]]:
             if scanned_entries > MAX_PROC_SCAN_ENTRIES:
                 _append_error(errors, "bounded /proc task-session scan limit exceeded")
                 break
-            if not entry.name.isdigit():
-                continue
-            try:
-                _pgrp, member_session = _session_fields(int(entry.name))
-            except GuardFailure as exc:
-                try:
-                    os.lstat(entry)
-                except FileNotFoundError:
-                    # The process exited while the scan was in flight; it cannot be
-                    # signalled and does not make membership ambiguous.
-                    continue
-                except OSError as inspect_exc:
-                    _append_error(errors, f"cannot revalidate /proc/{entry.name}: {inspect_exc}")
-                    continue
-                _append_error(errors, exc)
-                continue
-            if member_session == session_id:
-                if len(members) >= MAX_SESSION_MEMBERS:
-                    _append_error(errors, "bounded task-session member limit exceeded")
-                    continue
-                members.append(int(entry.name))
+            _scan_session_entry(entry, session_id, members, errors)
     except OSError:
         _append_error(errors, "cannot continue /proc task-session enumeration")
     return sorted(members), errors
@@ -599,7 +612,7 @@ def _append_unexpected_members(
         destination,
         [member_pid for member_pid in additions if member_pid != leader_pid],
         errors,
-        "bounded unexpected task-session member inventory limit exceeded",
+        _INVENTORY_MEMBER_LIMIT,
     )
 
 
@@ -647,54 +660,88 @@ def assert_session_absent(session_id: int, wait_seconds: float = 0.0) -> None:
     raise GuardFailure("bounded task-session absence rescan limit exceeded")
 
 
+def _scan_runtime_directory(
+    parent_fd: int,
+    depth: int,
+    pending: list[tuple[int, int]],
+    inspected: int,
+) -> int:
+    child_fds: list[int] = []
+    entries = None
+    try:
+        entries = os.scandir(parent_fd)
+        for entry in entries:
+            inspected += 1
+            if inspected > MAX_RUNTIME_TREE_ENTRIES:
+                raise GuardFailure("task runtime tree exceeds its bounded entry limit")
+            _scan_runtime_entry(parent_fd, depth, entry, pending, child_fds)
+        entries.close()
+        entries = None
+    except Exception:
+        _close_runtime_directory_resources(parent_fd, entries, child_fds, pending)
+        raise
+    os.close(parent_fd)
+    return inspected
+
+
+def _close_runtime_directory_resources(
+    parent_fd: int,
+    entries: os.ScandirIterator[str] | None,
+    child_fds: list[int],
+    pending: list[tuple[int, int]],
+) -> None:
+    """Close a failed directory scan without closing queued child descriptors."""
+
+    if entries is not None:
+        try:
+            entries.close()
+        except OSError:
+            pass
+    pending_fds = {item[0] for item in pending}
+    for child_fd in child_fds:
+        if child_fd not in pending_fds:
+            os.close(child_fd)
+    try:
+        os.close(parent_fd)
+    except OSError:
+        pass
+
+
+def _scan_runtime_entry(
+    parent_fd: int,
+    depth: int,
+    entry: os.DirEntry[str],
+    pending: list[tuple[int, int]],
+    child_fds: list[int],
+) -> None:
+    """Inspect one runtime entry and enqueue private directories for scanning."""
+
+    try:
+        metadata = entry.stat(follow_symlinks=False)
+    except OSError as exc:
+        raise GuardFailure("cannot inspect task runtime tree entry") from exc
+    if stat.S_ISSOCK(metadata.st_mode):
+        raise GuardFailure("task runtime root retains a unix-domain socket")
+    if not stat.S_ISDIR(metadata.st_mode) or stat.S_ISLNK(metadata.st_mode):
+        return
+    if depth >= MAX_RUNTIME_TREE_DEPTH:
+        raise GuardFailure("task runtime tree exceeds its bounded depth limit")
+    child_fd = _open_directory_chain_from_fd(parent_fd, entry.name)
+    child_fds.append(child_fd)
+    pending.append((child_fd, depth + 1))
+
+
 def assert_no_unix_sockets(root: Path) -> None:
     trusted_root = _trusted_runtime_root()
     if root != trusted_root:
         raise GuardFailure("unix-socket root must be the trusted runtime root")
-    root = trusted_root
     root_fd = _open_trusted_root()
     pending: list[tuple[int, int]] = [(root_fd, 0)]
     inspected = 0
     try:
         while pending:
             parent_fd, depth = pending.pop()
-            child_fds: list[int] = []
-            entries = None
-            try:
-                entries = os.scandir(parent_fd)
-                for entry in entries:
-                    inspected += 1
-                    if inspected > MAX_RUNTIME_TREE_ENTRIES:
-                        raise GuardFailure("task runtime tree exceeds its bounded entry limit")
-                    try:
-                        metadata = entry.stat(follow_symlinks=False)
-                    except OSError as exc:
-                        raise GuardFailure("cannot inspect task runtime tree entry") from exc
-                    if stat.S_ISSOCK(metadata.st_mode):
-                        raise GuardFailure("task runtime root retains a unix-domain socket")
-                    if stat.S_ISDIR(metadata.st_mode) and not stat.S_ISLNK(metadata.st_mode):
-                        if depth >= MAX_RUNTIME_TREE_DEPTH:
-                            raise GuardFailure("task runtime tree exceeds its bounded depth limit")
-                        child_fd = _open_directory_chain_from_fd(parent_fd, entry.name)
-                        child_fds.append(child_fd)
-                        pending.append((child_fd, depth + 1))
-                entries.close()
-                entries = None
-            except Exception:
-                if entries is not None:
-                    try:
-                        entries.close()
-                    except OSError:
-                        pass
-                for child_fd in child_fds:
-                    if child_fd not in {item[0] for item in pending}:
-                        os.close(child_fd)
-                try:
-                    os.close(parent_fd)
-                except OSError:
-                    pass
-                raise
-            os.close(parent_fd)
+            inspected = _scan_runtime_directory(parent_fd, depth, pending, inspected)
     finally:
         for descriptor, _depth in pending:
             try:
@@ -765,6 +812,21 @@ def _receipt_abort_evidence(receipt_path: Path) -> tuple[str, int]:
     return transaction_id, body_bytes
 
 
+def _abort_event_status(log_text: str, event_pattern: re.Pattern[str], expected_pattern: re.Pattern[str]) -> str | None:
+    event_lines = [
+        line
+        for line in log_text.splitlines()
+        if re.search(r"(?:^|\s)" + event_pattern.pattern + r"\s*$", line)
+    ]
+    if len(event_lines) == 1 and re.search(
+        r"(?:^|\s)" + expected_pattern.pattern + r"\s*$", event_lines[0]
+    ):
+        return None
+    if len(event_lines) > 1:
+        return "multiple upstream_eof response-body-abort events were recorded for the host transaction"
+    return "matching upstream_eof response-body-abort event is missing"
+
+
 def assert_abort_event(receipt_path: Path, error_log: Path, max_bytes: int, wait_seconds: float = 0.0) -> None:
     if not 1 <= max_bytes <= 1024 * 1024:
         raise GuardFailure("error-log inspection bound is invalid")
@@ -786,20 +848,10 @@ def assert_abort_event(receipt_path: Path, error_log: Path, max_bytes: int, wait
     for _rescan_number in range(MAX_ABORT_EVENT_RESCANS):
         try:
             log_text = _read_private_artifact(error_log, max_bytes, "host error log").decode("utf-8")
-            event_lines = [
-                line
-                for line in log_text.splitlines()
-                if re.search(r"(?:^|\s)" + event_pattern.pattern + r"\s*$", line)
-            ]
-            if len(event_lines) == 1 and re.search(
-                r"(?:^|\s)" + expected_pattern.pattern + r"\s*$", event_lines[0]
-            ):
+            event_error = _abort_event_status(log_text, event_pattern, expected_pattern)
+            if event_error is None:
                 return
-            last_error = (
-                "multiple upstream_eof response-body-abort events were recorded for the host transaction"
-                if len(event_lines) > 1
-                else "matching upstream_eof response-body-abort event is missing"
-            )
+            last_error = event_error
         except FileNotFoundError:
             last_error = "task-owned host error log is missing"
         except OSError as exc:
@@ -880,7 +932,7 @@ def write_json(path: Path, fields: list[str]) -> None:
         key, separator, item = field.partition("=")
         if (
             not separator
-            or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,63}", key)
+            or not re.fullmatch(r"[A-Za-z]\w{0,63}", key, flags=re.ASCII)
             or key in value
         ):
             raise GuardFailure("JSON fields must be unique key=value pairs")
@@ -1332,6 +1384,46 @@ def _add_errors(errors: list[str], additions: list[str]) -> None:
         _append_error(errors, addition)
 
 
+def _signal_one_session_member(
+    member_pid: int,
+    session: RegisteredSession,
+    signal_number: int,
+) -> tuple[bool, list[str]]:
+    errors: list[str] = []
+    try:
+        member_state = _process_state(member_pid)
+    except GuardFailure as exc:
+        _append_error(errors, exc)
+        return False, errors
+    if member_state in (None, "Z"):
+        return False, errors
+    try:
+        member = _open_verified_session_member(member_pid, session)
+    except GuardFailure as exc:
+        try:
+            member_state = _process_state(member_pid)
+        except GuardFailure as state_exc:
+            _append_error(errors, state_exc)
+        else:
+            if member_state not in (None, "Z"):
+                _append_error(errors, exc)
+        return False, errors
+    try:
+        if not _member_is_current(member, session):
+            return False, errors
+        signal.pidfd_send_signal(member.pidfd, signal_number)
+        return True, errors
+    except OSError as exc:
+        if exc.errno != errno.ESRCH:
+            _append_error(errors, "pidfd signal failed for a verified task-session member")
+        return False, errors
+    except GuardFailure as exc:
+        _append_error(errors, exc)
+        return False, errors
+    finally:
+        os.close(member.pidfd)
+
+
 def _signal_current_session_members(
     session: RegisteredSession,
     signal_number: int,
@@ -1354,38 +1446,13 @@ def _signal_current_session_members(
         if time.monotonic() >= deadline:
             _append_error(errors, "bounded task-session pidfd signal deadline expired")
             break
-        try:
-            member_state = _process_state(member_pid)
-        except GuardFailure as exc:
-            _append_error(errors, exc)
-            continue
-        if member_state in (None, "Z"):
-            continue
-        try:
-            member = _open_verified_session_member(member_pid, session)
-        except GuardFailure as exc:
-            try:
-                member_state = _process_state(member_pid)
-            except GuardFailure as state_exc:
-                _append_error(errors, state_exc)
-            else:
-                if member_state not in (None, "Z"):
-                    _append_error(errors, exc)
-            continue
-        try:
-            if _member_is_current(member, session):
-                signal.pidfd_send_signal(member.pidfd, signal_number)
-                if len(signaled) >= MAX_RECORDED_MEMBER_IDS:
-                    _append_error(errors, "bounded recorded task-member signal limit exceeded")
-                    break
-                signaled.append(member.pid)
-        except OSError as exc:
-            if exc.errno != errno.ESRCH:
-                _append_error(errors, "pidfd signal failed for a verified task-session member")
-        except GuardFailure as exc:
-            _append_error(errors, exc)
-        finally:
-            os.close(member.pidfd)
+        member_signaled, member_errors = _signal_one_session_member(member_pid, session, signal_number)
+        _add_errors(errors, member_errors)
+        if member_signaled:
+            if len(signaled) >= MAX_RECORDED_MEMBER_IDS:
+                _append_error(errors, _SIGNAL_MEMBER_LIMIT)
+                break
+            signaled.append(member_pid)
     return signaled, errors
 
 
@@ -1444,7 +1511,7 @@ def _kill_until_no_active_session_members(
             signaled,
             round_signaled,
             errors,
-            "bounded recorded task-member signal limit exceeded",
+            _SIGNAL_MEMBER_LIMIT,
         )
         _add_errors(errors, round_errors)
         stopped, wait_errors = _wait_for_no_active_session_members(
@@ -1462,42 +1529,19 @@ def _kill_until_no_active_session_members(
     return signaled, False, errors
 
 
-def terminate_registered_session(
-    session_record: Path,
+def _prepare_leader_cleanup(
+    session: RegisteredSession,
     expected_leader_exe: str,
-    timeout_seconds: float,
-) -> dict[str, object]:
-    if not 0.1 <= timeout_seconds <= 30.0:
-        raise GuardFailure("session cleanup timeout is outside the bounded range")
-    session = _registered_session(session_record)
-    initial_members, initial_errors = _scan_session_members(session.session_id)
-    initial_active_members, initial_state_errors = _active_member_ids(initial_members)
-    observed_members: list[int] = []
-    unexpected_members: list[int] = []
-    cleanup_errors: list[str] = []
-    _append_member_ids(
-        observed_members,
-        initial_members,
-        cleanup_errors,
-        "bounded recorded task-member inventory limit exceeded",
-    )
-    _add_errors(cleanup_errors, initial_errors)
-    _add_errors(cleanup_errors, initial_state_errors)
-    _append_unexpected_members(
-        unexpected_members,
-        initial_active_members,
-        session.leader_pid,
-        cleanup_errors,
-    )
+    cleanup_errors: list[str],
+) -> tuple[bool, frozenset[int], LeaderAnchor]:
     excluded_pids: frozenset[int] = frozenset()
     leader_signal_allowed = True
     try:
         leader_anchor = _validate_registered_leader(session, expected_leader_exe)
     except GuardFailure as exc:
         # A live leader whose start time or executable no longer matches might
-        # be a reused numeric PID.  Never signal that numeric PID.  Continue
-        # with independently pidfd-verified members of the recorded SID/PGID so
-        # a dead original leader cannot strand its real task children.
+        # be a reused numeric PID. Never signal that numeric PID. Continue with
+        # independently pidfd-verified members of the recorded task session.
         leader_signal_allowed = False
         excluded_pids = frozenset((session.leader_pid,))
         try:
@@ -1517,6 +1561,41 @@ def terminate_registered_session(
         leader_anchor = LeaderAnchor(is_live=False, is_registered_member=False)
     if leader_anchor.is_live and not leader_anchor.is_registered_member:
         _append_error(cleanup_errors, "registered task leader SID/PGID changed")
+    return leader_signal_allowed, excluded_pids, leader_anchor
+
+
+def terminate_registered_session(
+    session_record: Path,
+    expected_leader_exe: str,
+    timeout_seconds: float,
+) -> dict[str, object]:
+    if not 0.1 <= timeout_seconds <= 30.0:
+        raise GuardFailure("session cleanup timeout is outside the bounded range")
+    session = _registered_session(session_record)
+    initial_members, initial_errors = _scan_session_members(session.session_id)
+    initial_active_members, initial_state_errors = _active_member_ids(initial_members)
+    observed_members: list[int] = []
+    unexpected_members: list[int] = []
+    cleanup_errors: list[str] = []
+    _append_member_ids(
+        observed_members,
+        initial_members,
+        cleanup_errors,
+        _INVENTORY_MEMBER_LIMIT,
+    )
+    _add_errors(cleanup_errors, initial_errors)
+    _add_errors(cleanup_errors, initial_state_errors)
+    _append_unexpected_members(
+        unexpected_members,
+        initial_active_members,
+        session.leader_pid,
+        cleanup_errors,
+    )
+    leader_signal_allowed, excluded_pids, _leader_anchor = _prepare_leader_cleanup(
+        session,
+        expected_leader_exe,
+        cleanup_errors,
+    )
     term_deadline = time.monotonic() + timeout_seconds
     term_signaled, term_errors = _signal_current_session_members(
         session,
@@ -1529,7 +1608,7 @@ def terminate_registered_session(
         observed_members,
         term_signaled,
         cleanup_errors,
-        "bounded recorded task-member inventory limit exceeded",
+        _INVENTORY_MEMBER_LIMIT,
     )
     _append_unexpected_members(
         unexpected_members,
@@ -1547,13 +1626,13 @@ def terminate_registered_session(
             term_signaled,
             leader_signaled,
             cleanup_errors,
-            "bounded recorded task-member signal limit exceeded",
+            _SIGNAL_MEMBER_LIMIT,
         )
         _append_member_ids(
             observed_members,
             leader_signaled,
             cleanup_errors,
-            "bounded recorded task-member inventory limit exceeded",
+            _INVENTORY_MEMBER_LIMIT,
         )
         _append_unexpected_members(
             unexpected_members,
@@ -1582,7 +1661,7 @@ def terminate_registered_session(
             observed_members,
             kill_signaled,
             cleanup_errors,
-            "bounded recorded task-member inventory limit exceeded",
+            _INVENTORY_MEMBER_LIMIT,
         )
         _append_unexpected_members(
             unexpected_members,
@@ -1600,13 +1679,13 @@ def terminate_registered_session(
                 kill_signaled,
                 leader_signaled,
                 cleanup_errors,
-                "bounded recorded task-member signal limit exceeded",
+            _SIGNAL_MEMBER_LIMIT,
             )
             _append_member_ids(
                 observed_members,
                 leader_signaled,
                 cleanup_errors,
-                "bounded recorded task-member inventory limit exceeded",
+            _INVENTORY_MEMBER_LIMIT,
             )
             _append_unexpected_members(
                 unexpected_members,
@@ -1787,6 +1866,63 @@ def assert_listener_owned(pid: int, expected_start: str, expected_exe: str, host
         os.close(pidfd)
 
 
+def _run_basic_command(args: argparse.Namespace) -> bool:
+    if args.command == "check-pidfd":
+        _require_pidfd()
+    elif args.command == "write-config":
+        write_config(args.root, args.rules_file, args.frontend_port, args.upstream_port, args.backend_read_timeout)
+    elif args.command == "write-json":
+        write_json(args.output, args.field)
+    elif args.command == "exec-session":
+        exec_session(args.file_limit_blocks, args.session_record)
+    else:
+        return False
+    return True
+
+
+def _run_session_command(args: argparse.Namespace) -> bool:
+    if args.command == "assert-session":
+        inventory = assert_singleton_session(args.pid, args.start_time, args.exe)
+        if args.output is not None:
+            _write_new(args.output, (json.dumps(inventory, sort_keys=True) + "\n").encode("utf-8"))
+    elif args.command == "assert-session-absent":
+        assert_session_absent(args.session, args.wait_seconds)
+    elif args.command == "cleanup-session":
+        inventory = terminate_registered_session(args.session_record, args.leader_exe, args.timeout_seconds)
+        if args.output is not None:
+            _write_new(args.output, (json.dumps(inventory, sort_keys=True) + "\n").encode("utf-8"))
+        if args.reject_unexpected_members and inventory["unexpected_members"]:
+            raise GuardFailure("task session contained unexpected members during cleanup")
+    elif args.command == "signal-session":
+        signal_singleton_session(args.pid, args.start_time, args.exe, getattr(signal, f"SIG{args.signal}"))
+    elif args.command == "terminate-unregistered":
+        terminate_unregistered_session(args.pid, args.start_time, args.exe, args.timeout_seconds)
+    else:
+        return False
+    return True
+
+
+def _run_guard_command(args: argparse.Namespace) -> None:
+    if args.command == "assert-no-uds":
+        assert_no_unix_sockets(args.root)
+    elif args.command == "assert-abort-event":
+        assert_abort_event(args.receipt, args.error_log, args.max_bytes, args.wait_seconds)
+    elif args.command == "assert-file-marker":
+        assert_private_artifact_contains(args.path, args.marker, args.max_bytes)
+    elif args.command == "signal":
+        signal_owned(args.pid, args.start_time, args.exe, getattr(signal, f"SIG{args.signal}"))
+    elif args.command == "assert-listener-absent":
+        assert_listener_absent(args.host, args.port)
+    else:
+        assert_listener_owned(args.pid, args.start_time, args.exe, args.host, args.port)
+
+
+def _run_command(args: argparse.Namespace) -> None:
+    if _run_basic_command(args) or _run_session_command(args):
+        return
+    _run_guard_command(args)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     command = parser.add_subparsers(dest="command", required=True)
@@ -1853,52 +1989,7 @@ def main() -> int:
     listener_absent.add_argument("--port", type=int, required=True)
     args = parser.parse_args()
     try:
-        if args.command == "check-pidfd":
-            _require_pidfd()
-        elif args.command == "write-config":
-            write_config(
-                args.root,
-                args.rules_file,
-                args.frontend_port,
-                args.upstream_port,
-                args.backend_read_timeout,
-            )
-        elif args.command == "write-json":
-            write_json(args.output, args.field)
-        elif args.command == "exec-session":
-            exec_session(args.file_limit_blocks, args.session_record)
-        elif args.command == "assert-session":
-            inventory = assert_singleton_session(args.pid, args.start_time, args.exe)
-            if args.output is not None:
-                _write_new(args.output, (json.dumps(inventory, sort_keys=True) + "\n").encode("utf-8"))
-        elif args.command == "assert-session-absent":
-            assert_session_absent(args.session, args.wait_seconds)
-        elif args.command == "cleanup-session":
-            inventory = terminate_registered_session(
-                args.session_record,
-                args.leader_exe,
-                args.timeout_seconds,
-            )
-            if args.output is not None:
-                _write_new(args.output, (json.dumps(inventory, sort_keys=True) + "\n").encode("utf-8"))
-            if args.reject_unexpected_members and inventory["unexpected_members"]:
-                raise GuardFailure("task session contained unexpected members during cleanup")
-        elif args.command == "assert-no-uds":
-            assert_no_unix_sockets(args.root)
-        elif args.command == "assert-abort-event":
-            assert_abort_event(args.receipt, args.error_log, args.max_bytes, args.wait_seconds)
-        elif args.command == "assert-file-marker":
-            assert_private_artifact_contains(args.path, args.marker, args.max_bytes)
-        elif args.command == "signal-session":
-            signal_singleton_session(args.pid, args.start_time, args.exe, getattr(signal, f"SIG{args.signal}"))
-        elif args.command == "terminate-unregistered":
-            terminate_unregistered_session(args.pid, args.start_time, args.exe, args.timeout_seconds)
-        elif args.command == "signal":
-            signal_owned(args.pid, args.start_time, args.exe, getattr(signal, f"SIG{args.signal}"))
-        elif args.command == "assert-listener-absent":
-            assert_listener_absent(args.host, args.port)
-        else:
-            assert_listener_owned(args.pid, args.start_time, args.exe, args.host, args.port)
+        _run_command(args)
     except PidfdTargetExited as exc:
         print(f"lighttpd_backend_close_linux_guard: EXITED {exc}", file=sys.stderr)
         return PIDFD_TARGET_EXIT_STATUS

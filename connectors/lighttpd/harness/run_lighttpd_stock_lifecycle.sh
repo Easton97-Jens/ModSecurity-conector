@@ -30,8 +30,16 @@ SERVER_START_ATTEMPTED=0
 CLEANUP_ACTIVE=0
 CLEANUP_STATUS=1
 
-blocked() { printf 'lighttpd_stock_lifecycle: BLOCKED: %s\n' "$1" >&2; exit 77; }
-fail() { printf 'lighttpd_stock_lifecycle: FAIL: %s\n' "$1" >&2; exit 1; }
+blocked() {
+    blocked_message=$1
+    printf 'lighttpd_stock_lifecycle: BLOCKED: %s\n' "$blocked_message" >&2
+    exit 77
+}
+fail() {
+    failure_message=$1
+    printf 'lighttpd_stock_lifecycle: FAIL: %s\n' "$failure_message" >&2
+    exit 1
+}
 
 [ -f "$LINUX_GUARD" ] || blocked "Linux cleanup guard is missing"
 [ -f "$BACKEND_PROBE" ] || blocked "backend-close probe is missing"
@@ -44,13 +52,13 @@ fail() { printf 'lighttpd_stock_lifecycle: FAIL: %s\n' "$1" >&2; exit 1; }
 [ -f "$RULES_FILE" ] || blocked "rules file must be a regular file"
 python3 "$LINUX_GUARD" check-pidfd >/dev/null || blocked "usable Linux pidfd capability is required"
 
-case "$RUNTIME_ROOT" in /*) ;; *) blocked "RUNTIME_ROOT must be absolute" ;; esac
-case "$FRONTEND_PORT" in ''|*[!0-9]*) blocked "fresh frontend port is required and must be numeric" ;; esac
-case "$UPSTREAM_PORT" in ''|*[!0-9]*) blocked "fresh upstream port is required and must be numeric" ;; esac
-case "$TIMEOUT:$CLEANUP_TIMEOUT" in *[!0-9:]*) blocked "timeouts must be numeric" ;; esac
+case "$RUNTIME_ROOT" in /*) : ;; *) blocked "RUNTIME_ROOT must be absolute" ;; esac
+case "$FRONTEND_PORT" in ''|*[!0-9]*) blocked "fresh frontend port is required and must be numeric" ;; *) : ;; esac
+case "$UPSTREAM_PORT" in ''|*[!0-9]*) blocked "fresh upstream port is required and must be numeric" ;; *) : ;; esac
+case "$TIMEOUT:$CLEANUP_TIMEOUT" in *[!0-9:]*) blocked "timeouts must be numeric" ;; *) : ;; esac
 [ "$TIMEOUT" -ge 1 ] && [ "$TIMEOUT" -le 30 ] || blocked "timeout must be between 1 and 30 seconds"
 [ "$CLEANUP_TIMEOUT" -ge 1 ] && [ "$CLEANUP_TIMEOUT" -le 30 ] || blocked "cleanup timeout must be between 1 and 30 seconds"
-case "$BACKEND_READ_TIMEOUT" in ''|*[!0-9]*) blocked "backend read timeout must be numeric" ;; esac
+case "$BACKEND_READ_TIMEOUT" in ''|*[!0-9]*) blocked "backend read timeout must be numeric" ;; *) : ;; esac
 [ "$BACKEND_READ_TIMEOUT" -ge 1 ] && [ "$BACKEND_READ_TIMEOUT" -le 30 ] || blocked "backend read timeout must be between 1 and 30 seconds"
 [ "$BACKEND_READ_TIMEOUT" -lt "$TIMEOUT" ] || blocked "backend read timeout must be below the overall probe timeout"
 
@@ -135,13 +143,15 @@ PYTHON_BINARY=$(readlink -f -- "$(command -v python3)")
 } > "$PROVENANCE"
 
 proc_start_time() {
-    proc_stat=$(cat "/proc/$1/stat" 2>/dev/null) || return 1
+    proc_pid=$1
+    proc_stat=$(cat "/proc/$proc_pid/stat" 2>/dev/null) || return 1
     proc_stat=${proc_stat#*)}
     printf '%s\n' "$proc_stat" | awk '{print $20}'
 }
 
 pid_alive() {
-    [ -n "${1:-}" ] && [ -e "/proc/$1/stat" ] && [ "$(awk '{print $3}' "/proc/$1/stat" 2>/dev/null)" != Z ]
+    pid=${1:-}
+    [ -n "$pid" ] && [ -e "/proc/$pid/stat" ] && [ "$(awk '{print $3}' "/proc/$pid/stat" 2>/dev/null)" != Z ]
 }
 
 cleanup_process() {

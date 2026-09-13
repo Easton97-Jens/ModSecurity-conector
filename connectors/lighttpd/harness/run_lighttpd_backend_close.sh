@@ -18,18 +18,27 @@ CLEANUP_TIMEOUT=${LIGHTTPD_BACKEND_CLOSE_CLEANUP_TIMEOUT:-5}
 LOG_FILE_BLOCKS=${LIGHTTPD_BACKEND_CLOSE_LOG_FILE_BLOCKS:-128}
 LOG_FILE_BYTES=$(( LOG_FILE_BLOCKS * 512 ))
 PIDFD_TARGET_EXIT_STATUS=75
+AWK_FIRST_FIELD='{print $1}'
 
-blocked() { printf 'lighttpd_backend_close: BLOCKED: %s\n' "$1"; exit 77; }
-fail() { printf 'lighttpd_backend_close: FAIL: %s\n' "$1" >&2; exit 1; }
+blocked() {
+    blocked_message=$1
+    printf 'lighttpd_backend_close: BLOCKED: %s\n' "$blocked_message"
+    exit 77
+}
+fail() {
+    failure_message=$1
+    printf 'lighttpd_backend_close: FAIL: %s\n' "$failure_message" >&2
+    exit 1
+}
 
 [ -n "$HOST_BINARY" ] || blocked "LIGHTTPD_BIN is required"
 [ -n "$MODULE_PATH" ] || blocked "LIGHTTPD_CONNECTOR_MODULE is required"
 [ -n "$RULES_FILE" ] || blocked "LIGHTTPD_BACKEND_CLOSE_RULES_FILE is required"
 case "$MODE" in stock|patched) ;; *) blocked "LIGHTTPD_BACKEND_CLOSE_MODE must be stock or patched" ;; esac
 case "$EXPECTED_MODE" in native-lighttpd-plugin|patched-native-lighttpd) ;; *) blocked "LIGHTTPD_EXPECTED_INTEGRATION_MODE is required" ;; esac
-case "$CLEANUP_TIMEOUT" in ''|*[!0-9]*) blocked "LIGHTTPD_BACKEND_CLOSE_CLEANUP_TIMEOUT must be numeric" ;; esac
+case "$CLEANUP_TIMEOUT" in ''|*[!0-9]*) blocked "LIGHTTPD_BACKEND_CLOSE_CLEANUP_TIMEOUT must be numeric" ;; *) : ;; esac
 [ "$CLEANUP_TIMEOUT" -ge 1 ] && [ "$CLEANUP_TIMEOUT" -le 30 ] || blocked "cleanup timeout must be between 1 and 30 seconds"
-case "$LOG_FILE_BLOCKS" in ''|*[!0-9]*) blocked "LIGHTTPD_BACKEND_CLOSE_LOG_FILE_BLOCKS must be numeric" ;; esac
+case "$LOG_FILE_BLOCKS" in ''|*[!0-9]*) blocked "LIGHTTPD_BACKEND_CLOSE_LOG_FILE_BLOCKS must be numeric" ;; *) : ;; esac
 [ "$LOG_FILE_BLOCKS" -ge 1 ] && [ "$LOG_FILE_BLOCKS" -le 2048 ] || blocked "log file limit must be between 1 and 2048 blocks"
 [ -f "$LINUX_GUARD" ] || blocked "Linux pidfd guard is missing: $LINUX_GUARD"
 python3 "$LINUX_GUARD" check-pidfd >/dev/null || blocked "usable Linux pidfd capability is required for safe process cleanup"
@@ -44,7 +53,7 @@ case "$MODE:$EXPECTED_MODE" in
     *) blocked "mode and expected integration provenance disagree" ;;
 esac
 
-case "$RUNTIME_ROOT" in /*) ;; *) blocked "RUNTIME_ROOT must be absolute" ;; esac
+case "$RUNTIME_ROOT" in /*) : ;; *) blocked "RUNTIME_ROOT must be absolute" ;; esac
 RUNTIME_PARENT=$(CDPATH='' cd "$(dirname "$RUNTIME_ROOT")" && pwd -P)
 RUNTIME_ROOT=$RUNTIME_PARENT/$(basename "$RUNTIME_ROOT")
 [ ! -e "$RUNTIME_ROOT" ] && [ ! -L "$RUNTIME_ROOT" ] || blocked "runtime root must be fresh and non-symlink"
@@ -63,11 +72,11 @@ MODULE_DIR=$(CDPATH='' cd "$(dirname "$MODULE_PATH")" && pwd -P) || \
 [ -f "$HOST_BINARY" ] && [ -x "$HOST_BINARY" ] || blocked "resolved host binary must be an executable regular file: $HOST_BINARY"
 [ "$(basename "$MODULE_PATH")" = mod_msconnector.so ] || blocked "module basename must be mod_msconnector.so"
 [ -f "$MODULE_PATH" ] && [ -f "$RULES_FILE" ] || blocked "resolved module/rules is not a regular file"
-MODULE_SHA256=$(sha256sum "$MODULE_PATH" | awk '{print $1}')
-HOST_SHA256=$(sha256sum "$HOST_BINARY" | awk '{print $1}')
-RULES_SHA256=$(sha256sum "$RULES_FILE" | awk '{print $1}')
+MODULE_SHA256=$(sha256sum "$MODULE_PATH" | awk "$AWK_FIRST_FIELD")
+HOST_SHA256=$(sha256sum "$HOST_BINARY" | awk "$AWK_FIRST_FIELD")
+RULES_SHA256=$(sha256sum "$RULES_FILE" | awk "$AWK_FIRST_FIELD")
 
-case "$FRONTEND_PORT:$UPSTREAM_PORT" in *[!0-9:]*|:|*:) blocked "frontend and upstream ports are required numeric values" ;; esac
+case "$FRONTEND_PORT:$UPSTREAM_PORT" in *[!0-9:]*|:|*:) blocked "frontend and upstream ports are required numeric values" ;; *) : ;; esac
 python3 - "$FRONTEND_PORT" "$UPSTREAM_PORT" <<'PY'
 import socket, sys
 for raw in sys.argv[1:]:
@@ -97,8 +106,8 @@ CONFIG_SESSION_RECORD=$RUNTIME_ROOT/session-configcheck-registration.json
 SERVER_SESSION_RECORD=$RUNTIME_ROOT/session-host-registration.json
 CONFIG_CLEANUP_RECEIPT=$RUNTIME_ROOT/session-configcheck-cleanup.json
 SERVER_CLEANUP_RECEIPT=$RUNTIME_ROOT/session-host-cleanup.json
-CONFIG_SHA256=$(sha256sum "$LIGHTTPD_CONFIG" | awk '{print $1}')
-RUNTIME_CONFIG_SHA256=$(sha256sum "$RUNTIME_CONFIG" | awk '{print $1}')
+CONFIG_SHA256=$(sha256sum "$LIGHTTPD_CONFIG" | awk "$AWK_FIRST_FIELD")
+RUNTIME_CONFIG_SHA256=$(sha256sum "$RUNTIME_CONFIG" | awk "$AWK_FIRST_FIELD")
 
 write_provenance() {
     output=$1
@@ -118,11 +127,11 @@ write_provenance() {
 }
 assert_static_provenance() {
     provenance_phase=$1
-    [ "$(sha256sum "$HOST_BINARY" | awk '{print $1}')" = "$HOST_SHA256" ] || fail "host binary changed $provenance_phase"
-    [ "$(sha256sum "$MODULE_PATH" | awk '{print $1}')" = "$MODULE_SHA256" ] || fail "module changed $provenance_phase"
-    [ "$(sha256sum "$RULES_FILE" | awk '{print $1}')" = "$RULES_SHA256" ] || fail "rules changed $provenance_phase"
-    [ "$(sha256sum "$LIGHTTPD_CONFIG" | awk '{print $1}')" = "$CONFIG_SHA256" ] || fail "task-owned config changed $provenance_phase"
-    [ "$(sha256sum "$RUNTIME_CONFIG" | awk '{print $1}')" = "$RUNTIME_CONFIG_SHA256" ] || fail "task-owned runtime config changed $provenance_phase"
+    [ "$(sha256sum "$HOST_BINARY" | awk "$AWK_FIRST_FIELD")" = "$HOST_SHA256" ] || fail "host binary changed $provenance_phase"
+    [ "$(sha256sum "$MODULE_PATH" | awk "$AWK_FIRST_FIELD")" = "$MODULE_SHA256" ] || fail "module changed $provenance_phase"
+    [ "$(sha256sum "$RULES_FILE" | awk "$AWK_FIRST_FIELD")" = "$RULES_SHA256" ] || fail "rules changed $provenance_phase"
+    [ "$(sha256sum "$LIGHTTPD_CONFIG" | awk "$AWK_FIRST_FIELD")" = "$CONFIG_SHA256" ] || fail "task-owned config changed $provenance_phase"
+    [ "$(sha256sum "$RUNTIME_CONFIG" | awk "$AWK_FIRST_FIELD")" = "$RUNTIME_CONFIG_SHA256" ] || fail "task-owned runtime config changed $provenance_phase"
 }
 write_provenance "$PROVENANCE" initial
 write_provenance "$PROVENANCE_CONFIGCHECK_BEFORE" before-configcheck
@@ -136,17 +145,20 @@ CONFIG_SESSION=
 CLEANUP_ACTIVE=0
 CLEANUP_STATUS=1
 proc_start_time() {
-    proc_stat=$(cat "/proc/$1/stat" 2>/dev/null) || return 1
+    proc_pid=$1
+    proc_stat=$(cat "/proc/$proc_pid/stat" 2>/dev/null) || return 1
     proc_stat=${proc_stat#*) }
     printf '%s\n' "$proc_stat" | awk '{print $20}'
 }
 proc_state() {
-    proc_stat=$(cat "/proc/$1/stat" 2>/dev/null) || return 1
+    proc_pid=$1
+    proc_stat=$(cat "/proc/$proc_pid/stat" 2>/dev/null) || return 1
     proc_stat=${proc_stat#*) }
-    printf '%s\n' "$proc_stat" | awk '{print $1}'
+    printf '%s\n' "$proc_stat" | awk "$AWK_FIRST_FIELD"
 }
 pid_alive() {
-    [ -n "${1:-}" ] && [ -e "/proc/$1/stat" ] && [ "$(proc_state "$1")" != Z ]
+    pid=${1:-}
+    [ -n "$pid" ] && [ -e "/proc/$pid/stat" ] && [ "$(proc_state "$pid")" != Z ]
 }
 process_owned() {
     process_pid=$1
@@ -157,13 +169,14 @@ process_owned() {
     [ "$current_exe" = "$HOST_BINARY" ] && [ "$current_start" = "$process_start" ]
 }
 assert_host_identity() {
+    session_output=${1:-}
     process_owned "$SERVER_PID" "$SERVER_START_TIME" || fail "host identity changed"
     python3 "$LINUX_GUARD" assert-listener --pid "$SERVER_PID" --start-time "$SERVER_START_TIME" \
         --exe "$HOST_BINARY" --host 127.0.0.1 --port "$FRONTEND_PORT" >/dev/null || \
         fail "frontend listener is not provably owned by the task host"
-    if [ -n "${1:-}" ]; then
+    if [ -n "$session_output" ]; then
         python3 "$LINUX_GUARD" assert-session --pid "$SERVER_PID" --start-time "$SERVER_START_TIME" \
-            --exe "$HOST_BINARY" --output "$1" >/dev/null || fail "task host session inventory changed"
+            --exe "$HOST_BINARY" --output "$session_output" >/dev/null || fail "task host session inventory changed"
     else
         python3 "$LINUX_GUARD" assert-session --pid "$SERVER_PID" --start-time "$SERVER_START_TIME" \
             --exe "$HOST_BINARY" >/dev/null || fail "task host session inventory changed"
@@ -259,12 +272,10 @@ cleanup_process() {
             wait "$cleanup_pid" 2>/dev/null || true
         fi
     fi
-    if [ -n "$cleanup_session" ]; then
-        if ! python3 "$LINUX_GUARD" assert-session-absent --session "$cleanup_session" \
-            --wait-seconds "$CLEANUP_TIMEOUT" >/dev/null; then
-            printf 'lighttpd_backend_close: FAIL: task session still contains processes after cleanup\n' >&2
-            cleanup_status=1
-        fi
+    if [ -n "$cleanup_session" ] && ! python3 "$LINUX_GUARD" assert-session-absent \
+        --session "$cleanup_session" --wait-seconds "$CLEANUP_TIMEOUT" >/dev/null; then
+        printf 'lighttpd_backend_close: FAIL: task session still contains processes after cleanup\n' >&2
+        cleanup_status=1
     fi
     return "$cleanup_status"
 }

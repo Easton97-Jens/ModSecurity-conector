@@ -3,6 +3,8 @@
 from pathlib import Path
 import unittest
 
+from tests._haproxy_spop_contract_helpers import assert_worker_result_order
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = (
@@ -34,16 +36,22 @@ class HAProxySPOPSigpipePeerIsolationContractTests(unittest.TestCase):
         accept_loop = SOURCE.split("static int accept_loop", 1)[1].split(
             "static int client_expect_frame", 1
         )[0]
+        spawn = SOURCE.split("static int spawn_spop_connection_worker", 1)[1].split(
+            "static int accept_loop", 1
+        )[0]
         self.assertIn("SPOP_MIN_WORKER_COUNT", SOURCE)
-        self.assertIn("if (gate.active >= gate.limit)", accept_loop)
+        self.assertIn("if (gate->active >= gate->limit)", spawn)
         self.assertIn(
             '"event=spop-peer-capacity-rejected action=close reason=worker-capacity"',
-            accept_loop,
+            spawn,
         )
-        self.assertIn("pthread_create(&thread, &detached_attributes", accept_loop)
+        self.assertIn("pthread_create(&thread, detached_attributes", spawn)
         self.assertNotIn("handle_connection(fd, state, log", accept_loop)
-        self.assertIn("close(fd);", accept_loop)
+        self.assertIn("close(fd);", spawn)
         self.assertIn("while (gate.active != 0U)", accept_loop)
+        assert_worker_result_order(
+            self, SOURCE, "worker_result == SPOP_CONNECTION_WORKER_FATAL"
+        )
 
     def test_peer_failure_event_is_rate_limited_and_preserves_peer_cleanup(self) -> None:
         self.assertIn("static uint64_t last_peer_failure_log_ms = 0U", SOURCE)

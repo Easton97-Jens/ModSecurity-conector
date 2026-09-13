@@ -437,6 +437,25 @@ static int response_starts_with(int socket_fd, const char *expected) {
     return memcmp(response, expected, expected_size) == 0;
 }
 
+static int rejected_request_is_preserved(unsigned short port,
+    const char *request, size_t request_size, const char *failure_message) {
+    int client_fd = connect_loopback(port);
+    int valid = client_fd >= 0;
+
+    if (valid) {
+        valid = send(client_fd, request, request_size, 0) == (ssize_t)request_size &&
+            response_starts_with(client_fd, "HTTP/1.1 400") &&
+            mapper_has_not_entered() && runtime_has_not_entered();
+    }
+    if (client_fd >= 0) {
+        (void)close(client_fd);
+    }
+    if (!valid) {
+        (void)fprintf(stderr, "%s\n", failure_message);
+    }
+    return valid;
+}
+
 int main(void) {
     static const char request[] = "GET /ok HTTP/1.1\r\nHost: smoke.test\r\n"
         "Connection: close\r\n\r\n";
@@ -492,26 +511,16 @@ int main(void) {
         goto done;
     }
     server_started = 1;
-    client_fd = connect_loopback(port);
-    if (client_fd < 0 ||
-        send(client_fd, missing_host_request, sizeof(missing_host_request) - 1U, 0) !=
-            (ssize_t)(sizeof(missing_host_request) - 1U) ||
-        !response_starts_with(client_fd, "HTTP/1.1 400") ||
-        !mapper_has_not_entered() || !runtime_has_not_entered()) {
-        (void)fprintf(stderr, "missing Host was not rejected before mapping\n");
+    if (!rejected_request_is_preserved(port, missing_host_request,
+            sizeof(missing_host_request) - 1U,
+            "missing Host was not rejected before mapping")) {
         goto done;
     }
-    (void)close(client_fd);
-    client_fd = connect_loopback(port);
-    if (client_fd < 0 ||
-        send(client_fd, oversized_host_request, oversized_host_request_size, 0) !=
-            (ssize_t)oversized_host_request_size ||
-        !response_starts_with(client_fd, "HTTP/1.1 400") ||
-        !mapper_has_not_entered() || !runtime_has_not_entered()) {
-        (void)fprintf(stderr, "oversized Host was not rejected before mapping\n");
+    if (!rejected_request_is_preserved(port, oversized_host_request,
+            oversized_host_request_size,
+            "oversized Host was not rejected before mapping")) {
         goto done;
     }
-    (void)close(client_fd);
     client_fd = connect_loopback(port);
     if (!runtime_setup_was_configured()) {
         (void)fprintf(stderr, "runtime profile setup was not enforced\n");

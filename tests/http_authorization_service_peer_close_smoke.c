@@ -171,7 +171,12 @@ static void reap_child(pid_t child) {
         return;
     }
     (void)kill(child, SIGKILL);
-    while (waitpid(child, &status, 0) < 0 && errno == EINTR) {
+    for (;;) {
+        const pid_t waited = waitpid(child, &status, 0);
+
+        if (waited >= 0 || errno != EINTR) {
+            break;
+        }
     }
 }
 
@@ -179,8 +184,9 @@ static int map_request(const msconnector_generic_request_source *source,
     const msconnector_request_mapper_contract *contract,
     msconnector_request *request, char *error, size_t error_len) {
     (void)contract;
-    (void)error;
-    (void)error_len;
+    if (error != NULL && error_len != 0U) {
+        error[0] = '\0';
+    }
     if (source == NULL || request == NULL || source->method == NULL ||
         source->uri == NULL) return 0;
     memset(request, 0, sizeof(*request));
@@ -211,10 +217,20 @@ int msconnector_runtime_create(const char *name, const char *path,
     return 1;
 }
 int msconnector_runtime_set_event_integration_mode(msconnector_runtime *runtime,
-    const char *mode) { return runtime != NULL && mode != NULL; }
+    const char *mode) {
+    if (runtime == NULL || mode == NULL) {
+        return 0;
+    }
+    runtime->unused = 0;
+    return 1;
+}
 int msconnector_runtime_set_transaction_profile(msconnector_runtime *runtime,
     const msconnector_transaction_profile *profile) {
-    return runtime != NULL && profile != NULL;
+    if (runtime == NULL || profile == NULL) {
+        return 0;
+    }
+    runtime->unused = 0;
+    return 1;
 }
 void msconnector_runtime_destroy(msconnector_runtime **runtime) {
     if (runtime != NULL) *runtime = NULL;
@@ -240,7 +256,10 @@ int msconnector_runtime_transaction_begin(msconnector_runtime *runtime,
     msconnector_runtime_transaction **out, msconnector_decision *decision,
     msconnector_error *error) {
     msconnector_runtime_transaction *transaction;
-    (void)runtime; (void)request_id;
+    (void)request_id;
+    if (runtime != NULL) {
+        runtime->unused = 0;
+    }
     if (request == NULL || out == NULL || decision == NULL ||
         request->method == NULL || request->uri == NULL ||
         strcmp(request->method, "GET") != 0 || strcmp(request->uri, "/ok") != 0)
@@ -257,6 +276,7 @@ int msconnector_runtime_transaction_finish(msconnector_runtime_transaction *t,
     char release;
 
     if (t == NULL) return 0;
+    t->unused = 0;
     /* This is the last fake-runtime callback before response serialization.
      * It lets the parent send the RST before the service reaches send_all(). */
     if (transaction_count == 1U &&
@@ -296,7 +316,95 @@ static int connect_port(unsigned short port) {
     return -1;
 }
 
-int main(void) {
+static int reserve_port(unsigned short *port) {
+    int reserve;
+    struct sockaddr_in address = {0};
+    socklen_t address_size = sizeof(address);
+
+    if (port == NULL) {
+        return 0;
+    }
+    reserve = socket(AF_INET, SOCK_STREAM, 0);
+    if (reserve < 0) {
+        return 0;
+    }
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    if (bind(reserve, (struct sockaddr *)&address, sizeof(address)) != 0 ||
+        getsockname(reserve, (struct sockaddr *)&address, &address_size) != 0) {
+        (void)close(reserve);
+        return 0;
+    }
+    *port = ntohs(address.sin_port);
+    (void)close(reserve);
+    return 1;
+}
+
+static pid_t start_peer_service(int started[2], int released[2],
+    unsigned short port) {
+    pid_t child = fork();
+
+    if (child != 0) {
+        return child;
+    }
+    {
+        char spec[64];
+        char *argv[] = {"peer-close", "--serve", "--config", "ignored",
+            "--listen", spec, "--max-requests", "2",
+            "--connection-timeout-ms", "1000", NULL};
+
+        ready_fd = started[1];
+        release_fd = released[0];
+        if (signal(SIGPIPE, SIG_DFL) == SIG_ERR) {
+            _exit(1);
+        }
+        close_fd(&started[0]);
+        close_fd(&released[1]);
+        (void)snprintf(spec, sizeof(spec), "127.0.0.1:%u", port);
+        _exit(msconnector_http_authorization_service_main(10, argv, &profile));
+    }
+}
+
+static int reset_peer(int *client, int started_fd) {
+    const struct linger reset = {1, 0};
+    const struct timespec settle = {0, 50000000L};
+
+    if (*client < 0 || !write_all(*client,
+            "GET /ok HTTP/1.1\r\nHost: smoke.test\r\nConnection: close\r\n\r\n",
+            sizeof("GET /ok HTTP/1.1\r\nHost: smoke.test\r\nConnection: close\r\n\r\n") - 1U) ||
+        !read_pipe_byte(started_fd, &(char){0}) ||
+        setsockopt(*client, SOL_SOCKET, SO_LINGER, &reset, sizeof(reset)) != 0) {
+        return 0;
+    }
+    close_fd(client);
+    (void)nanosleep(&settle, NULL);
+    return 1;
+}
+
+static int complete_followup(unsigned short port, int release_fd_value,
+    int *second, pid_t child, int *status, int *child_reaped, int *probe) {
+    const char request[] = "GET /ok HTTP/1.1\r\nHost: smoke.test\r\n"
+        "Connection: close\r\n\r\n";
+
+    if (!write_pipe_byte(release_fd_value, 'R')) {
+        return 0;
+    }
+    *second = connect_port(port);
+    if (*second < 0 || !write_all(*second, request, sizeof(request) - 1U) ||
+        !read_complete_response(*second)) {
+        return 0;
+    }
+    close_fd(second);
+    if (!wait_for_child(child, status) || !WIFEXITED(*status) ||
+        WEXITSTATUS(*status) != EXIT_SUCCESS) {
+        return 0;
+    }
+    *child_reaped = 1;
+    *probe = connect_port(port);
+    return *probe < 0;
+}
+
+static int run_peer_test(void) {
     int started[2] = {-1, -1};
     int released[2] = {-1, -1};
     int status = 0;
@@ -305,49 +413,18 @@ int main(void) {
     int probe = -1;
     int child_reaped = 0;
     int result = EXIT_FAILURE;
-    unsigned short port = 0U; struct sockaddr_in address = {0};
-    socklen_t address_size = sizeof(address); pid_t child = -1;
-    const char request[] = "GET /ok HTTP/1.1\r\nHost: smoke.test\r\nConnection: close\r\n\r\n";
-    if (pipe(started) != 0 || pipe(released) != 0) goto cleanup;
-    { int reserve = socket(AF_INET, SOCK_STREAM, 0); if (reserve < 0) goto cleanup;
-      address.sin_family = AF_INET; address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-      if (bind(reserve, (struct sockaddr *)&address, sizeof(address)) != 0 ||
-          getsockname(reserve, (struct sockaddr *)&address, &address_size) != 0) {
-          close_fd(&reserve); goto cleanup;
-      }
-      port = ntohs(address.sin_port); close(reserve); }
-    child = fork();
+    unsigned short port = 0U;
+    pid_t child = -1;
+    if (pipe(started) != 0 || pipe(released) != 0 ||
+        !reserve_port(&port)) goto cleanup;
+    child = start_peer_service(started, released, port);
     if (child < 0) goto cleanup;
-    if (child == 0) {
-        char spec[64], *argv[] = {"peer-close", "--serve", "--config", "ignored",
-            "--listen", spec, "--max-requests", "2", "--connection-timeout-ms", "1000", NULL};
-        ready_fd = started[1]; release_fd = released[0];
-        if (signal(SIGPIPE, SIG_DFL) == SIG_ERR) _exit(1);
-        close(started[0]); close(released[1]); snprintf(spec, sizeof(spec), "127.0.0.1:%u", port);
-        _exit(msconnector_http_authorization_service_main(10, argv, &profile));
-    }
     close_fd(&started[1]);
     close_fd(&released[0]);
     client = connect_port(port);
-    if (client < 0 || !write_all(client, request, sizeof(request) - 1U) ||
-        !read_pipe_byte(started[0], &(char){0})) goto cleanup;
-    { const struct linger reset = {1, 0};
-      const struct timespec settle = {0, 50000000L};
-      if (setsockopt(client, SOL_SOCKET, SO_LINGER, &reset, sizeof(reset)) != 0) {
-          goto cleanup;
-      }
-      close_fd(&client);
-      (void)nanosleep(&settle, NULL); }
-    if (!write_pipe_byte(released[1], 'R')) goto cleanup;
-    second = connect_port(port);
-    if (second < 0 || !write_all(second, request, sizeof(request) - 1U) ||
-        !read_complete_response(second)) goto cleanup;
-    close_fd(&second);
-    if (!wait_for_child(child, &status) || !WIFEXITED(status) ||
-        WEXITSTATUS(status) != EXIT_SUCCESS) goto cleanup;
-    child_reaped = 1;
-    probe = connect_port(port);
-    if (probe >= 0) goto cleanup;
+    if (client < 0 || !reset_peer(&client, started[0]) ||
+        !complete_followup(port, released[1], &second, child, &status,
+            &child_reaped, &probe)) goto cleanup;
     result = EXIT_SUCCESS;
 
 cleanup:
@@ -361,6 +438,12 @@ cleanup:
     if (child > 0 && !child_reaped) {
         reap_child(child);
     }
+    return result;
+}
+
+int main(void) {
+    const int result = run_peer_test();
+
     if (result == EXIT_SUCCESS) {
         puts("http authorization peer-close smoke: passed");
     } else {
