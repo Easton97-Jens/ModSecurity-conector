@@ -10,6 +10,16 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260912-nginx-terminal-checker-alignment](CR-20260912-nginx-terminal-checker-alignment.md)
+  | [Deutsch](CR-20260912-nginx-terminal-checker-alignment.de.md) — after PR
+  #360 was authorized and merged, the requested resulting-master workflow
+  recovery requires this smallest Parent-only static-checker successor. It
+  requires the existing terminal response-header retry guard and
+  collection-failure sticky assignment; NGINX runtime source, Framework/MRTS,
+  Gitlink, workflow, governance, SonarQube controls, and direct `master` write
+  remain unchanged. The local successor has no commit, PR, hosted result, or
+  merge; a distinct successor merge needs separate exact authorization.
+
 - [CR-20260912-pr363-candidate-contract-repair](CR-20260912-pr363-candidate-contract-repair.md)
   | [Deutsch](CR-20260912-pr363-candidate-contract-repair.de.md) — the current
   user authorized this Parent-only correction in a dedicated worktree and one

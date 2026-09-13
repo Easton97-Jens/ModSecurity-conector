@@ -1626,6 +1626,33 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
                     "NGINX header mapper validation retains its existing eligibility and ordering without a once gate",
                 )
 
+    def test_header_filter_requires_terminal_response_header_failure_guard(self) -> None:
+        guard = (
+            "    if (ctx->response_headers_processing_failed) {\n"
+            "        return NGX_ERROR;\n"
+            "    }\n"
+        )
+
+        def mutate(repository: Path) -> None:
+            replace_in_function(
+                repository
+                / "connectors"
+                / "nginx"
+                / "src"
+                / "ngx_http_modsecurity_header_filter.c",
+                "ngx_int_t\n"
+                "ngx_http_modsecurity_header_filter(ngx_http_request_t *r)\n{",
+                guard,
+                "    if (ctx->response_headers_processing_failed) {\n"
+                "        return ngx_http_next_header_filter(r);\n"
+                "    }\n",
+            )
+
+        self._assert_rejected(
+            mutate,
+            "NGINX header mapper validation retains its existing eligibility and ordering without a once gate",
+        )
+
     def test_pre_guard_header_mapper_bypasses_are_rejected(self) -> None:
         context_acquisition = (
             "    ctx = ngx_http_modsecurity_get_module_ctx(r);\n"
@@ -2330,6 +2357,32 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
                 "ngx_http_modsecurity_header_filter(ngx_http_request_t *r)\n{",
                 collection_call,
                 "    if (NGX_OK != NGX_OK) {\n",
+            )
+
+        self._assert_rejected(
+            mutate,
+            "NGINX header filter directly collects validated response headers before metadata processing",
+        )
+
+    def test_header_collection_failure_sets_terminal_retry_guard(self) -> None:
+        failure = (
+            "        ctx->response_headers_processing_failed = 1;\n"
+            "        ctx->intervention_triggered = 1;\n"
+            "        return NGX_ERROR;\n"
+        )
+
+        def mutate(repository: Path) -> None:
+            replace_in_function(
+                repository
+                / "connectors"
+                / "nginx"
+                / "src"
+                / "ngx_http_modsecurity_header_filter.c",
+                "ngx_int_t\n"
+                "ngx_http_modsecurity_header_filter(ngx_http_request_t *r)\n{",
+                failure,
+                "        ctx->intervention_triggered = 1;\n"
+                "        return NGX_ERROR;\n",
             )
 
         self._assert_rejected(
