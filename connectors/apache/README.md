@@ -51,9 +51,12 @@ static semantics. `modsecurity_transaction_id_expr` accepts an Apache string
 expression, for example `%{REQUEST_URI}`, and evaluates it per request. The two
 directives are mutually exclusive in the same Apache context; normal
 child-context overrides apply during config merge. If neither directive is set,
-or if the expression evaluates to an empty value or fails, the connector keeps
-the existing `UNIQUE_ID` fallback and then creates a transaction without an
-explicit ID if `UNIQUE_ID` is absent or empty.
+or if the expression evaluates to an empty value, the connector keeps the
+existing `UNIQUE_ID` fallback and then creates a transaction without an
+explicit ID if `UNIQUE_ID` is absent or empty. A runtime expression-evaluation
+failure or an invalid resolved identifier is an enabled primary-request
+construction error: the connector returns HTTP 500, closes keepalive, and does
+not fall back to an uninspected request.
 
 `modsecurity_use_error_log off` suppresses Apache error-log forwarding from the
 libmodsecurity log callback only. It does not change audit logging,

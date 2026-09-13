@@ -78,8 +78,12 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
         self.assertIn('ALLOW_RUNTIME_BUILDS: "1"', workflow)
         self.assertIn('ALLOW_RUNTIME_DOWNLOADS: "1"', workflow)
         self.assertIn("RUNTIME_COMPONENT_TARGET: nginx", workflow)
-        self.assertIn("NGINX_SOURCE_GIT_REF: release-1.31.4", workflow)
-        self.assertIn("NGINX_SHA256: e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3", workflow)
+        self.assertIn("NGINX_SOURCE_MODE: github-release", workflow)
+        self.assertIn("NGINX_SOURCE_REPO_URL: https://github.com/nginx/nginx", workflow)
+        self.assertIn("NGINX_RELEASE_TAG: release-1.31.5", workflow)
+        self.assertIn("NGINX_SOURCE_GIT_REF: release-1.31.5", workflow)
+        self.assertIn("NGINX_RELEASE_ASSET_NAME: nginx-1.31.5.tar.gz", workflow)
+        self.assertIn("NGINX_SHA256: e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279", workflow)
         for override in (
             "MRTS_NATIVE_NGINX_BIN",
             "MRTS_NATIVE_NGINX_MODULE_DIR",
@@ -113,7 +117,7 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
             "tests/run_nginx_body_buffer_fixture.py",
             '--connector-root "$CONNECTOR_ROOT"',
             '--expected-head "$EXPECTED_PARENT_SHA"',
-            '--nginx-archive "$NGINX_DOWNLOAD_DIR/nginx-1.31.4.tar.gz"',
+            '--nginx-archive "$NGINX_DOWNLOAD_DIR/nginx-1.31.5.tar.gz"',
             '--nginx-sha256 "$NGINX_SHA256"',
             '--modsecurity-include "$MODSECURITY_INCLUDE_DIR"',
             '--modsecurity-lib "$MODSECURITY_LIB_DIR"',

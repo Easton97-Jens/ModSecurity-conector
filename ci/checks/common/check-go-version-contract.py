@@ -17,15 +17,30 @@ from typing import TextIO
 CANONICAL_VERSION_FILE = ".go-version"
 CODEQL_WORKFLOW = Path(".github/workflows/ci-security-codeql.yml")
 SETUP_GO_REFERENCE = "actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0"
+SETUP_PYTHON_REFERENCE = "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0"
 EXPECTED_JOBS = frozenset({"envoy-go", "traefik-go"})
 TRUSTED_VERSION_JOB = "trusted-go-version"
-VERSION_RE = re.compile(r"^1\.26\.(?:0|[1-9]\d*)$", re.ASCII)
+VERSION_RE = re.compile(
+    r"^[1-9]\d*\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$",
+    re.ASCII,
+)
 JOB_HEADER = re.compile(r"^ {2}(?P<name>[A-Za-z0-9_-]+):\s*$")
 SETUP_GO_PREFIX = "      - uses: actions/setup-go@"
-TRUSTED_VERSION_VALIDATOR = (
-    "if ! printf '%s\\n' \"$version\" | awk "
-    "'NR == 1 && $0 ~ /^1\\.26\\.(0|[1-9][0-9]*)$/ { valid = 1 } "
-    "END { exit !(NR == 1 && valid) }'; then"
+TRUSTED_GO_RESOLVER_MARKERS = (
+    "ref: ${{ github.event.pull_request.base.sha || github.sha }}",
+    "version: ${{ steps.version.outputs.version }}",
+    "id: setup-python",
+    f"uses: {SETUP_PYTHON_REFERENCE}",
+    "python-version-file: .python-version",
+    "check-latest: false",
+    "EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}",
+    'check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"',
+    'go_report="$(python3 scripts/update-go-version.py --check --json)"',
+    'GO_REPORT="$go_report" python3 - <<\'PY\' >> "$GITHUB_OUTPUT"',
+    'data = json.loads(os.environ["GO_REPORT"])',
+    'latest = data.get("latest_version")',
+    'if version_tuple(latest) < version_tuple(current):',
+    'print(f"version={latest}")',
 )
 EXPECTED_SETUP_GO_BODY = "\n".join(
     (
@@ -98,7 +113,7 @@ def read_canonical_version(root: Path) -> str:
     if value.endswith("\n"):
         value = value[:-1]
     if not VERSION_RE.fullmatch(value):
-        raise ContractError("root .go-version must be an exact stable Go 1.26 patch")
+        raise ContractError("root .go-version must be an exact stable Go MAJOR.MINOR.PATCH release")
     return value
 
 
@@ -166,6 +181,18 @@ def job_violations(job_name: str, job: str) -> list[str]:
     return violations
 
 
+def trusted_version_violations(job: str) -> list[str]:
+    """Require trusted-base resolution through the bounded Go updater."""
+
+    violations: list[str] = []
+    for marker in TRUSTED_GO_RESOLVER_MARKERS:
+        if marker not in job:
+            violations.append(f"trusted Go version job lacks required contract: {marker}")
+    if 'version="$(cat -- .go-version)"' in job:
+        violations.append("trusted Go version job must not use only the committed selector")
+    return violations
+
+
 def evaluate(root: Path) -> Result:
     version = read_canonical_version(root)
     workflow_path = root / CODEQL_WORKFLOW
@@ -182,15 +209,7 @@ def evaluate(root: Path) -> Result:
     blocks = job_blocks(text)
     violations: list[str] = []
     trusted_job = blocks.get(TRUSTED_VERSION_JOB, "")
-    for marker in (
-        "ref: ${{ github.event.pull_request.base.sha || github.sha }}",
-        "version: ${{ steps.version.outputs.version }}",
-        'version="$(cat -- .go-version)"',
-        TRUSTED_VERSION_VALIDATOR,
-        'echo "version=$version" >> "$GITHUB_OUTPUT"',
-    ):
-        if marker not in trusted_job:
-            violations.append(f"trusted Go version job lacks required contract: {marker}")
+    violations.extend(trusted_version_violations(trusted_job))
     for job_name in sorted(EXPECTED_JOBS):
         job = blocks.get(job_name)
         if job is None:

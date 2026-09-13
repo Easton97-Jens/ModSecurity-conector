@@ -249,14 +249,14 @@ class FrameworkAprUtilProvenanceTest(unittest.TestCase):
         nested = self.clean_environment()
         nested.update(
             {
-                "ENVOY_VERSION": "1.39.0",
-                "CI_INHERITED_UPSTREAM_ENV": "ENVOY_VERSION=1.39.0",
+                "ENVOY_VERSION": "1.39.1",
+                "CI_INHERITED_UPSTREAM_ENV": "ENVOY_VERSION=1.39.1",
                 "CI_INHERITED_UPSTREAM_ENV_STATUS": "0",
             }
         )
         loaded, status = components.load_framework_environment(ROOT, self.framework_root, nested)
         self.assertEqual(status, "loaded")
-        self.assertEqual(loaded["ENVOY_VERSION"], "1.39.0")
+        self.assertEqual(loaded["ENVOY_VERSION"], "1.39.1")
         for key in components.FRAMEWORK_TRANSIENT_ENV_KEYS:
             self.assertNotIn(key, loaded)
 

@@ -88,6 +88,48 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         )
         self.assertIn("return NGX_ERROR;", header_filter)
 
+    def test_native_response_header_failure_is_terminal_and_never_reaches_next_filter(self) -> None:
+        header_filter = function_definition(
+            self.header, "ngx_http_modsecurity_header_filter"
+        )
+
+        self.assertIn("unsigned response_headers_processing_failed:1;", self.common)
+        retry_guard = header_filter.index("if (ctx->response_headers_processing_failed)")
+        intervention_guard = header_filter.index("if (ctx->intervention_triggered)")
+        processed_guard = header_filter.index("if (ctx && ctx->processed)")
+        native_call = header_filter.index(
+            "ret = msc_process_response_headers(ctx->modsec_transaction, status, http_response_ver);"
+        )
+        native_failure = conditional_block(header_filter, "if (ret != 1)", native_call)
+        completion = header_filter.index(
+            "if (ngx_http_modsecurity_contract_complete(ctx,", native_call
+        )
+        response_headers_seen = header_filter.index("ctx->response_headers_seen = 1;", completion)
+        intervention = header_filter.index(
+            "ret = ngx_http_modsecurity_process_intervention", response_headers_seen
+        )
+
+        self.assertLess(retry_guard, intervention_guard)
+        self.assertLess(retry_guard, processed_guard)
+        self.assertIn("ngx_http_modsecurity_pcre_malloc_done(old_pool);", native_failure)
+        self.assertEqual(
+            native_failure.count("ngx_http_modsecurity_pcre_malloc_done(old_pool);"), 1
+        )
+        self.assertIn("ctx->response_headers_processing_failed = 1;", native_failure)
+        self.assertIn("ctx->intervention_triggered = 1;", native_failure)
+        self.assertIn(
+            "MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE", native_failure
+        )
+        self.assertIn("msconnector_transaction_contract_fail(&ctx->contract,", native_failure)
+        self.assertIn("return NGX_ERROR;", native_failure)
+        self.assertNotIn("ngx_http_modsecurity_contract_complete", native_failure)
+        self.assertNotIn("ctx->response_headers_seen = 1;", native_failure)
+        self.assertNotIn("ngx_http_modsecurity_process_intervention", native_failure)
+        self.assertNotIn("ngx_http_next_header_filter", native_failure)
+        self.assertLess(native_call, completion)
+        self.assertLess(completion, response_headers_seen)
+        self.assertLess(response_headers_seen, intervention)
+
     def test_request_derived_transaction_id_is_validated_before_retention_or_native_use(self) -> None:
         create_ctx = function_definition(
             self.module, "ngx_http_modsecurity_create_ctx"

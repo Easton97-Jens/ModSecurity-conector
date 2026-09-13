@@ -51,10 +51,14 @@ Der adaptereigene Apache-Connector registriert derzeit Folgendes:
 statische Semantik. `modsecurity_transaction_id_expr` akzeptiert eine Apache-Zeichenfolge
 Ausdruck, zum Beispiel `%{REQUEST_URI}`, und wertet ihn pro Anfrage aus. Die beiden
 Direktiven schließen sich im selben Apache-Kontext gegenseitig aus; normal
-Untergeordnete Kontextüberschreibungen gelten während der Konfigurationszusammenführung. Wenn keine der Anweisungen festgelegt ist,
-Wenn der Ausdruck einen leeren Wert ergibt oder fehlschlägt, bleibt der Connector bestehen
-den vorhandenen `UNIQUE_ID`-Fallback und erstellt dann eine Transaktion ohne
-explizite ID, wenn `UNIQUE_ID` nicht vorhanden oder leer ist.
+Untergeordnete Kontextüberschreibungen gelten während der Konfigurationszusammenführung. Wenn keine der Anweisungen festgelegt ist
+oder der Ausdruck einen leeren Wert ergibt, verwendet der Connector weiter den
+vorhandenen `UNIQUE_ID`-Fallback und erstellt dann eine Transaktion ohne
+explizite ID, wenn `UNIQUE_ID` nicht vorhanden oder leer ist. Ein Laufzeitfehler
+bei der Auswertung des Ausdrucks oder eine ungültige aufgelöste ID ist dagegen
+ein Aufbaufehler für eine aktivierte primäre Anfrage: Der Connector liefert HTTP
+500, schließt Keepalive und fällt nicht auf eine nicht untersuchte Anfrage
+zurück.
 
 `modsecurity_use_error_log off` unterdrückt die Weiterleitung von Apache-Fehlerprotokollen vom
 Nur libmodsecurity-Protokollrückruf. Es ändert nichts an der Überwachungsprotokollierung.

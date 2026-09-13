@@ -236,6 +236,10 @@ jobs:
             --validate \
             --repo-root "$GITHUB_WORKSPACE" \
             --framework-common "$framework_common"
+          python3 ci/tools/verify-framework-candidate-contract.py \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --candidate-sha "$CANDIDATE_SHA" \
+            --framework-common "$framework_common"
 
       - name: Create private read-only candidate guard
         id: create-readonly-candidate-sandbox-guard
@@ -841,6 +845,10 @@ jobs:
           python3 ci/tools/sync-framework-component-versions.py \
             --check \
             --repo-root "$GITHUB_WORKSPACE" \
+            --framework-common "$framework_common"
+          python3 ci/tools/verify-framework-candidate-contract.py \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --candidate-sha "$CANDIDATE_SHA" \
             --framework-common "$framework_common"
           python3 scripts/generate_compiler_guides.py
           git -c core.hooksPath=/dev/null add -- \

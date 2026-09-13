@@ -14,12 +14,53 @@ angelegt werden.
 - [CR-20260910-sonarcloud-parent-open-issues-duplication-remediation](CR-20260910-sonarcloud-parent-open-issues-duplication-remediation.de.md)
   | English companion: `CR-20260910-sonarcloud-parent-open-issues-duplication-remediation.md` —
   die Parent-Traceability-Policy verlangt diesen gepaarten Record für die
-  aktuelle nicht triviale Parent-only-SonarCloud-Remediation. Er hält lokale
+  nicht triviale Parent-only-SonarCloud-Remediation in PR #361. Er hält lokale
   Source-, Test- und Security-Diff-Evidenz für 112 Parent-Baseline-Code-Smells
   und echte Duplikatblock-Reduktionsarbeit fest, während ein Framework-Issue
   und repositoryübergreifender Duplikatcontent außerhalb des Scopes bleiben.
-  Commit, Push, PR, Exact-Head-Hosted-Evidenz, Merge und eine
-  Default-Branch-Metrikverbesserung sind ausstehend und werden nicht behauptet.
+  Exact-Head-Hosted-Evidenz ist vor einem Merge erforderlich; eine gemergte
+  Default-Branch-Metrikverbesserung wird nicht behauptet.
+
+- [CR-20260912-nginx-terminal-checker-alignment](CR-20260912-nginx-terminal-checker-alignment.de.md)
+  | English companion: `CR-20260912-nginx-terminal-checker-alignment.md` —
+  nach dem autorisierten und gemergten PR #360 verlangt die angeforderte
+  Resulting-Master-Workflow-Recovery diesen kleinsten Parent-only-
+  Static-Checker-Successor. Er verlangt den vorhandenen terminalen
+  Response-Header-Retry-Guard und die Collection-Fehler-Sticky-Zuweisung;
+  NGINX-Runtime-Source, Framework/MRTS, Gitlink, Workflow, Governance,
+  SonarQube-Controls und direkter `master`-Schreibvorgang bleiben unverändert.
+  Der lokale Successor hat keinen Commit, PR, Hosted-Result oder Merge; ein
+  eigener Successor-Merge benötigt separate exakte Autorisierung.
+
+- [CR-20260912-pr363-candidate-contract-repair](CR-20260912-pr363-candidate-contract-repair.de.md)
+  | English companion: `CR-20260912-pr363-candidate-contract-repair.md` — der
+  aktuelle Benutzer autorisierte diese Parent-only-Korrektur in einem eigenen
+  Worktree und einen Draft PR. Sie löst die von PR #363 aufgedeckten veralteten
+  Parent-Verträge mit einem read-only-Kandidatengatter, erhält generische und
+  geschützte NGINX-Ownership-Grenzen und lässt trusted CodeQL das neueste
+  stabile Go-Release über den bestehenden begrenzten Updater auflösen. Kein
+  Framework-/MRTS-Source, keine PR-#363-Änderung, kein direkter `master`-
+  Schreibvorgang und kein Merge werden behauptet; Delivery-Fakten bleiben an
+  den aktuellen Task-PR-Lifecycle gebunden.
+
+- [CR-20260912-go-latest-release-contract](CR-20260912-go-latest-release-contract.de.md)
+  | English companion: `CR-20260912-go-latest-release-contract.md` — der
+  aktuelle Benutzer autorisierte diese Parent-only-Korrektur in einem eigenen
+  Worktree und einen PR. Sie generalisiert den begrenzten Go-Release-Updater
+  und seinen Trusted-CodeQL-Selector von einer festen Minor-Serie auf die
+  höchste stabile numerische Release; sie hält lokale Source-Evidence und
+  Exact-Head-Delivery-Anforderungen fest. Keine Framework-/MRTS-Source-,
+  Gitlink-, Berechtigungs-, Pin-, Dependency- oder direkte
+  `master`-Schreibänderung wird behauptet; beobachtete Delivery-Fakten
+  bleiben an den aktuellen PR-Lifecycle gebunden.
+
+- [CR-20260909-fail-closed-connector-remediation](CR-20260909-fail-closed-connector-remediation.de.md)
+  | English companion: `CR-20260909-fail-closed-connector-remediation.md` —
+  Parent-only-Fail-Closed-Handling für aktiviertes Apache-Transaktions-Setup
+  und native NGINX-Response-Header-Fehler. Der Record hält fokussierte lokale
+  Evidence und blockierte Host-Runtime-Proofs für den vom Benutzer
+  autorisierten Draft-PR fest; keine Framework-/MRTS-, Gitlink-, Merge-,
+  Release- oder Deployment-Aktion wird behauptet.
 - [CR-20260903-connector-runtime-hardening-quality-remediation](CR-20260903-connector-runtime-hardening-quality-remediation.de.md) —
   aktuelle Parent-only-Remediation der Codex-Review-Findings, SonarQube-Cloud-
   Quality-Gate-Fehler und roten Connector-Workflow-Evidence für Draft PR #346.

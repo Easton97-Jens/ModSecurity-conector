@@ -14,6 +14,9 @@ FILTERS = ROOT / "connectors" / "apache" / "src" / "msc_filters.c"
 C17_CHECK = (
     ROOT / "ci" / "checks" / "connectors" / "apache" / "check-apache-c-standards.sh"
 )
+AUTOTOOLS_BOOTSTRAP = (
+    ROOT / "ci" / "checks" / "connectors" / "apache" / "check-apache-autotools-bootstrap.sh"
+)
 
 
 def c_function(source: str, signature: str) -> str:
@@ -45,12 +48,24 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
         self.utils = UTILS.read_text(encoding="utf-8")
         self.filters = FILTERS.read_text(encoding="utf-8")
         self.create_context = c_function(
-            self.module, "static msc_t *create_tx_context(request_rec *r)"
+            self.module,
+            "static apache_tx_context_result create_tx_context(request_rec *r, msc_t **out,\n"
+            "    const char **failure_reason)",
         )
         self.store_transaction_id = c_function(
             self.module,
             "static int apache_store_transaction_id(msc_t *msr, request_rec *r,\n"
-            "    const char *transaction_id)",
+            "    const char *transaction_id, const char **failure_reason)",
+        )
+        self.transaction_id_expression = c_function(
+            self.module,
+            "static int apache_transaction_id_from_expression(request_rec *r,\n"
+            "    msc_conf_t *config, const char **transaction_id)",
+        )
+        self.transaction_id_resolution = c_function(
+            self.module,
+            "static int apache_resolve_transaction_id(request_rec *r, msc_conf_t *config,\n"
+            "    const char **transaction_id, const char **failure_reason)",
         )
         self.request_headers = c_function(
             self.module,
@@ -76,7 +91,10 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
         publish = self.create_context.index("store_tx_context(msr, r);")
 
         self.assertLess(failure_check, publish)
-        self.assertIn("return NULL;", self.create_context[failure_check:publish])
+        self.assertIn(
+            "return APACHE_TX_CONTEXT_RESULT_ERROR;",
+            self.create_context[failure_check:publish],
+        )
 
     def test_contract_initialization_precedes_native_transaction_allocation(self) -> None:
         contract_init = self.create_context.index(
@@ -107,7 +125,7 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
             "msconnector_transaction_contract_init("
         )
         store_helper = self.create_context.index(
-            "if (!apache_store_transaction_id(msr, r, transaction_id))"
+            "if (!apache_store_transaction_id(msr, r, transaction_id, failure_reason))"
         )
 
         self.assertIn(
@@ -127,7 +145,9 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
         initialized_clear = self.create_context.index(
             "msr->contract_initialized = 0;", contract_cleanup
         )
-        failure_return = self.create_context.index("return NULL;", initialized_clear)
+        failure_return = self.create_context.index(
+            "return APACHE_TX_CONTEXT_RESULT_ERROR;", initialized_clear
+        )
         registration = self.create_context.index("apr_pool_cleanup_register(r->pool, msr,")
 
         self.assertLess(native_failure, contract_cleanup)
@@ -145,6 +165,78 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
             "msc_cleanup_request_transaction, apr_pool_cleanup_null);",
             self.create_context[registration:],
         )
+        self.assertIn("*out = msr;", self.create_context[registration:])
+        self.assertIn(
+            "return APACHE_TX_CONTEXT_RESULT_READY;", self.create_context[registration:]
+        )
+
+    def test_context_creation_distinguishes_disabled_from_enabled_failures(self) -> None:
+        late_hook = c_function(self.module, "static int hook_request_late(request_rec *r)")
+
+        self.assertIn("APACHE_TX_CONTEXT_RESULT_DISABLED", self.module)
+        self.assertIn("APACHE_TX_CONTEXT_RESULT_READY", self.module)
+        self.assertIn("APACHE_TX_CONTEXT_RESULT_ERROR", self.module)
+        self.assertIn(
+            "context_result = create_tx_context(r, &msr, &context_failure);",
+            late_hook,
+        )
+        disabled = late_hook.index("APACHE_TX_CONTEXT_RESULT_DISABLED")
+        fail_closed = late_hook.index("return apache_fail_closed(r, context_failure);")
+        self.assertLess(disabled, fail_closed)
+
+    def test_context_creation_clears_an_output_pointer_before_input_rejection(self) -> None:
+        output_clear = self.create_context.index("if (out != NULL) {\n        *out = NULL;")
+        input_rejection = self.create_context.index(
+            "if (out == NULL || failure_reason == NULL || r == NULL)"
+        )
+
+        self.assertLess(output_clear, input_rejection)
+
+    def test_expression_errors_are_terminal_but_empty_results_keep_fallback(self) -> None:
+        expression_failure = self.transaction_id_expression.index("if (expr_error != NULL)")
+        expression_return = self.transaction_id_expression.index(
+            "return 0;", expression_failure
+        )
+        fallback = self.transaction_id_resolution.index(
+            "if (resolved == NULL || resolved[0] == '\\0')"
+        )
+
+        self.assertNotIn("ap_log_rerror", self.transaction_id_expression)
+        self.assertIn(
+            "failed to evaluate transaction identifier expression",
+            self.transaction_id_resolution,
+        )
+        self.assertLess(expression_failure, expression_return)
+        self.assertIn("resolved = getenv(\"UNIQUE_ID\");", self.transaction_id_resolution[fallback:])
+
+    def test_context_failures_log_once_through_the_fail_closed_gate(self) -> None:
+        late_hook = c_function(self.module, "static int hook_request_late(request_rec *r)")
+
+        for source in (
+            self.transaction_id_expression,
+            self.transaction_id_resolution,
+            self.store_transaction_id,
+            self.create_context,
+        ):
+            self.assertNotIn("ap_log_rerror", source)
+        self.assertEqual(
+            late_hook.count("return apache_fail_closed(r, context_failure);"), 1
+        )
+
+    def test_native_bootstrap_exercises_transaction_identifier_boundaries(self) -> None:
+        bootstrap = AUTOTOOLS_BOOTSTRAP.read_text(encoding="utf-8")
+
+        self.assertIn("HTTP_STATUS_FORMAT='%{http_code}'", bootstrap)
+        self.assertEqual(bootstrap.count('-w "$HTTP_STATUS_FORMAT"'), 6)
+        self.assertNotIn("-w '%{http_code}'", bootstrap)
+        self.assertIn("TXID_127_PATH=$(txid_path_for_length 127)", bootstrap)
+        self.assertIn("TXID_128_PATH=$(txid_path_for_length 128)", bootstrap)
+        self.assertIn("TXID_LONG_PATH=$(txid_path_for_length 192)", bootstrap)
+        self.assertIn('modsecurity_transaction_id_expr "%{REQUEST_URI}"', bootstrap)
+        self.assertIn("txid_128_status", bootstrap)
+        self.assertIn("Connection: close", bootstrap)
+        self.assertIn("reached the Apache document handler", bootstrap)
+        self.assertIn("txid_failure_count", bootstrap)
 
     def test_cleanup_invalidates_native_and_owner_context_before_destroy(self) -> None:
         self.assertIn("request_rec *owner_request;", self.header)

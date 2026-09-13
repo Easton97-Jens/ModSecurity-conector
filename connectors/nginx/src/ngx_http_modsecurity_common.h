@@ -186,6 +186,10 @@ typedef struct {
     unsigned response_replaced:1;
     unsigned request_body_processed:1;
     unsigned phase4_headers_checked:1;
+    /* A terminal P3 processing error must remain terminal if NGINX invokes
+     * the header filter again; intervention_triggered alone intentionally
+     * passes through on reinvocation. */
+    unsigned response_headers_processing_failed:1;
     unsigned response_headers_seen:1;
     unsigned response_body_seen:1;
     unsigned response_body_truncated:1;

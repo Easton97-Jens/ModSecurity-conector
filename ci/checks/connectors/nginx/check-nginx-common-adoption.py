@@ -196,6 +196,10 @@ HEADER_CTX_DIAGNOSTIC_VISIBLE_CALL_PATTERN = re.compile(
     + re.escape(HEADER_CTX_DIAGNOSTIC_FORMAT_LITERAL)
     + r'\s*,\s*ctx\s*\)\s*;'
 )
+HEADER_RESPONSE_HEADER_FAILURE_GUARD_PATTERN = re.compile(
+    r'if\s*\(\s*ctx\s*->\s*response_headers_processing_failed\s*\)\s*\{'
+    r'\s*return\s+NGX_ERROR\s*;\s*\}'
+)
 HEADER_INTERVENTION_GUARD_PATTERN = re.compile(
     r'if\s*\(\s*ctx\s*->\s*intervention_triggered\s*\)\s*\{'
     r'\s*return\s+ngx_http_next_header_filter\s*\(\s*r\s*\)\s*;\s*\}'
@@ -214,6 +218,7 @@ HEADER_RESPONSE_HEADER_COLLECTION_CONTRACT_PATTERN = re.compile(
     r'ctx\s*->\s*processed\s*=\s*1\s*;\s*'
     r'if\s*\(\s*ngx_http_modsecurity_add_response_headers\s*\(\s*'
     r'r\s*,\s*ctx\s*\)\s*!=\s*NGX_OK\s*\)\s*\{\s*'
+    r'ctx\s*->\s*response_headers_processing_failed\s*=\s*1\s*;\s*'
     r'ctx\s*->\s*intervention_triggered\s*=\s*1\s*;\s*'
     r'return\s+NGX_ERROR\s*;\s*\}\s*'
     r'if\s*\(\s*r\s*->\s*err_status\s*\)\s*\{'
@@ -1417,6 +1422,8 @@ header_ctx_declaration_prefix = (
     if header_ctx_acquisitions else ''
 )
 header_ctx_null_guards = c_direct_matches(header_filter, HEADER_CTX_NULL_GUARD_PATTERN)
+header_response_header_failure_guards = c_direct_matches(
+    header_filter, HEADER_RESPONSE_HEADER_FAILURE_GUARD_PATTERN)
 header_intervention_guards = c_direct_matches(
     header_filter, HEADER_INTERVENTION_GUARD_PATTERN)
 header_processed_guards = c_direct_matches(
@@ -1581,25 +1588,30 @@ header_response_mapper_contract_is_direct = (
     and HEADER_CTX_DECLARATION_PREFIX_PATTERN.fullmatch(
         header_ctx_declaration_prefix) is not None
     and len(header_ctx_null_guards) == 1
+    and len(header_response_header_failure_guards) == 1
     and len(header_intervention_guards) == 1
     and len(header_processed_guards) == 1
     and len(header_processed_assignments) == 1
     and C_PREPROCESSOR_DIRECTIVE.search(header_pre_mapper_unmasked) is None
-    and len(header_pre_mapper_control_flows) == 2
-    and len(header_pre_mapper_returns) == 2
+    and len(header_pre_mapper_control_flows) == 3
+    and len(header_pre_mapper_returns) == 3
     and [match.start() for match in header_pre_mapper_control_flows] == [
         header_ctx_null_guards[0].start(),
+        header_response_header_failure_guards[0].start(),
         header_intervention_guards[0].start(),
     ]
     and all(
         header_ctx_null_guards[0].start() <= match.start()
         < header_ctx_null_guards[0].end()
+        or header_response_header_failure_guards[0].start() <= match.start()
+        < header_response_header_failure_guards[0].end()
         or header_intervention_guards[0].start() <= match.start()
         < header_intervention_guards[0].end()
         for match in header_pre_mapper_returns
     )
     and header_ctx_acquisitions[0].start() < header_ctx_null_guards[0].start()
     and header_ctx_null_guards[0].start()
+    < header_response_header_failure_guards[0].start()
     < header_intervention_guards[0].start()
     < header_response_mapper_direct_calls[0].start()
     < header_response_validated_direct_assignments[0].start()
@@ -1614,6 +1626,11 @@ header_response_mapper_contract_is_direct = (
     and c_only_whitespace_between(
         header_filter,
         header_ctx_null_guards[0].end(),
+        header_response_header_failure_guards[0].start(),
+    )
+    and c_only_whitespace_between(
+        header_filter,
+        header_response_header_failure_guards[0].end(),
         header_intervention_guards[0].start(),
     )
     and c_only_whitespace_between(

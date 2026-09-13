@@ -27,13 +27,13 @@ sys.modules[SPEC.name] = SYNC
 SPEC.loader.exec_module(SYNC)
 
 
-CANDIDATE_GRAMMAR_PROVENANCE = "bd69ee96e0e7082317d4afe1232bee625665eb9a"
+CANDIDATE_GRAMMAR_PROVENANCE = "d4f7b69dc264852eac74e1439c0887fcb9fbe372"
 
 # This is an offline grammar fixture. The SHA identifies the reproduced
 # Framework candidate's assignment structure only; it is never an input or
 # allowlisted version value.
 CURRENT_CANDIDATE_COMMON = """\
-ENVOY_VERSION="1.39.0"
+ENVOY_VERSION="1.39.1"
 LIGHTTPD_SERIES="1.4"
 LIGHTTPD_RELEASE_ROOT_URL="https://download.lighttpd.net/lighttpd"
 LIGHTTPD_SERIES_BASE_URL="$LIGHTTPD_RELEASE_ROOT_URL/releases-$LIGHTTPD_SERIES.x"
@@ -45,22 +45,22 @@ LIGHTTPD_SHA256="18de51b393bac4a6827879e1a7ff377c169e414bae92cd245091d80fc2601d1
 HAPROXY_SERIES="3.2"
 HAPROXY_RELEASE_ROOT_URL="https://www.haproxy.org/download"
 HAPROXY_SERIES_BASE_URL="$HAPROXY_RELEASE_ROOT_URL/$HAPROXY_SERIES/src"
-HAPROXY_VERSION="3.2.22"
+HAPROXY_VERSION="3.2.23"
 HAPROXY_ARCHIVE_NAME="haproxy-$HAPROXY_VERSION.tar.gz"
 HAPROXY_SOURCE_URL="$HAPROXY_SERIES_BASE_URL/$HAPROXY_ARCHIVE_NAME"
-HAPROXY_SHA256="afca3a26d573df53d0e1fc475dcd743ec5875e038e1476c80e871d70228ca2da"
+HAPROXY_SHA256="82d14ef33571e4edeb9197516c0d058a3775fb80541e46afe4377428e461fef0"
 HAPROXY_HTX_SERIES="3.2"
 HAPROXY_HTX_SERIES_BASE_URL="$HAPROXY_RELEASE_ROOT_URL/$HAPROXY_HTX_SERIES/src"
-HAPROXY_HTX_VERSION="3.2.22"
+HAPROXY_HTX_VERSION="3.2.23"
 HAPROXY_HTX_ARCHIVE_NAME="haproxy-$HAPROXY_HTX_VERSION.tar.gz"
 HAPROXY_HTX_SOURCE_URL="$HAPROXY_HTX_SERIES_BASE_URL/$HAPROXY_HTX_ARCHIVE_NAME"
-HAPROXY_HTX_SHA256="afca3a26d573df53d0e1fc475dcd743ec5875e038e1476c80e871d70228ca2da"
+HAPROXY_HTX_SHA256="82d14ef33571e4edeb9197516c0d058a3775fb80541e46afe4377428e461fef0"
 NGINX_SOURCE_MODE="github-release"
 NGINX_SOURCE_REPO_URL="https://github.com/nginx/nginx"
-NGINX_RELEASE_TAG="release-1.31.3"
+NGINX_RELEASE_TAG="release-1.31.5"
 NGINX_SOURCE_GIT_REF="$NGINX_RELEASE_TAG"
 NGINX_RELEASE_ASSET_NAME="nginx-${NGINX_RELEASE_TAG#release-}.tar.gz"
-NGINX_SHA256="a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525"
+NGINX_SHA256="e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279"
 NGINX_QUIC_TLS_LIBRARY="${NGINX_QUIC_TLS_LIBRARY:-openssl}"
 NGINX_QUIC_TLS_VERSION="4.0.1"
 NGINX_QUIC_TLS_ARCHIVE_NAME="openssl-$NGINX_QUIC_TLS_VERSION.tar.gz"
@@ -156,7 +156,7 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         values = SYNC.parse_common(self.common)
         self.assertEqual(
             CANDIDATE_GRAMMAR_PROVENANCE,
-            "bd69ee96e0e7082317d4afe1232bee625665eb9a",
+            "d4f7b69dc264852eac74e1439c0887fcb9fbe372",
         )
         self.assertEqual(values["LIGHTTPD_SERIES"], "1.4")
         self.assertEqual(
@@ -172,7 +172,7 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
             "https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-1.4.85.tar.xz",
         )
         self.assertEqual(values["HAPROXY_SOURCE_URL"].split("/")[-2], "src")
-        self.assertEqual(values["HAPROXY_HTX_VERSION"], "3.2.22")
+        self.assertEqual(values["HAPROXY_HTX_VERSION"], "3.2.23")
         self.assertFalse(any(name.startswith("NGINX_") for name in values))
 
     def test_unconsumed_framework_pins_are_ignored_as_data(self) -> None:
@@ -363,6 +363,11 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
             "unknown reference": replace_rhs(
                 CURRENT_CANDIDATE_COMMON, "LIGHTTPD_SOURCE_URL", '"$UNKNOWN_SOURCE"'
             ),
+            "ambiguous unbraced reference": replace_rhs(
+                CURRENT_CANDIDATE_COMMON,
+                "LIGHTTPD_DOWNLOAD_URL",
+                '"$LIGHTTPD_SOURCE_URLlighttpd-$LIGHTTPD_VERSION.tar.xz"',
+            ),
             "missing required": re.sub(
                 r"(?m)^HAPROXY_HTX_SHA256=.*\n", "", CURRENT_CANDIDATE_COMMON
             ),
@@ -405,7 +410,7 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
                 CURRENT_CANDIDATE_COMMON, "LIGHTTPD_SOURCE_URL", '"eval value"'
             ),
             "indented known assignment": CURRENT_CANDIDATE_COMMON.replace(
-                'ENVOY_VERSION="1.39.0"', '  ENVOY_VERSION="1.39.0"'
+                'ENVOY_VERSION="1.39.1"', '  ENVOY_VERSION="1.39.1"'
             ),
         }
         for label, malformed in cases.items():
@@ -413,6 +418,19 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
                 self.write_common(malformed)
                 with self.assertRaises(SYNC.SyncError):
                     SYNC.parse_common(self.common)
+
+    def test_ambiguous_unbraced_reference_fails_before_sync_writes(self) -> None:
+        before = self.target_bytes()
+        self.write_common(
+            replace_rhs(
+                CURRENT_CANDIDATE_COMMON,
+                "LIGHTTPD_DOWNLOAD_URL",
+                '"$LIGHTTPD_SOURCE_URLlighttpd-$LIGHTTPD_VERSION.tar.xz"',
+            )
+        )
+        with self.assertRaisesRegex(SYNC.SyncError, "ambiguous source variable reference"):
+            SYNC.synchronize(self.root, self.common, True)
+        self.assertEqual(before, self.target_bytes())
 
     def test_semantic_tuple_controls_fail_closed(self) -> None:
         cases = {

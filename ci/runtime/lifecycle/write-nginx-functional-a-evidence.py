@@ -25,7 +25,7 @@ from typing import Any
 
 MAX_SOURCE_BYTES = 1024 * 1024
 MAX_OUTPUT_BYTES = 16 * 1024
-EXPECTED_NGINX_VERSION = "1.31.4"
+EXPECTED_NGINX_VERSION = "1.31.5"
 EXPECTED_URI = "/no-crs/response-body?<redacted>"
 QUERY_CANARY = b"nginx-functional-a-canary=must-redact"
 PHASE4_RULE_ID = "1100301"

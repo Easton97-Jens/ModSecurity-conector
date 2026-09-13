@@ -216,20 +216,25 @@ table form a group. They have the following common properties:
 
 #### Full-smoke NGINX direct release-asset tuple
 
-The strict Parent full-smoke path receives all NGINX provenance inputs as one
-Framework-synchronized tuple. `ci/tools/sync-framework-component-versions.py`
-updates the source mode, repository URL, release tag, source ref, asset name,
-and SHA-256 together from `ci/lib/common.sh`; consumers must not update an
-individual member manually.
+The strict Parent full-smoke path keeps all NGINX provenance inputs as one
+independently reviewed Parent tuple. `ci/tools/sync-framework-component-versions.py`
+deliberately neither consumes nor writes NGINX fields. Instead,
+`ci/tools/verify-framework-candidate-contract.py` reads the candidate
+`ci/lib/common.sh` as data and requires the unprotected Parent handoff to
+match before the submodule updater can publish. The verifier never changes an
+NGINX field; updating this tuple requires one atomic, manually reviewed Parent
+change.
 
-The synchronized tuple selects a direct, immutable release asset rather than a
+The tuple selects a direct, immutable release asset rather than a
 mutable release selector.
 The full-smoke release resolver rejects `latest` and `/releases/latest` before
 cache access, network access, download, or extraction. Cache reuse is bound to
 the entire tuple: source mode, repository URL, tag, ref, asset name, and
 SHA-256. `NGINX_REQUIRE_PINNED_PROVENANCE=1` also rejects inherited native
 binary/module overrides. Update every value atomically and review the whole
-tuple; a system or MRTS NGINX binary is not full-smoke evidence.
+tuple; a system or MRTS NGINX binary is not full-smoke evidence. The protected
+NGINX root-broker has its own immutable broker and Framework pins and is not
+retargeted by this handoff.
 
 #### Static Framework component-pin projection
 
@@ -242,11 +247,13 @@ unconsumed Framework-only pins such as Go-FTW, Albedo, Python, Action, and CI
 tool pins are ignored and do not create a second Parent authority.
 
 For a registered source field, the accepted assignment grammar is deliberately
-small: a direct literal, `$NAME`, `${NAME}`, concatenated safe literal and
-allowlisted-reference pieces, and the one canonical prefix removal
-`${NGINX_RELEASE_TAG#release-}` for the NGINX release asset. The only retained
-self-default is the static `NGINX_QUIC_TLS_LIBRARY` fallback to `openssl`; it
-does not read the caller environment. Command/process substitution, backticks,
+small: a direct literal, `$NAME`, `${NAME}`, and concatenated safe literal and
+allowlisted-reference pieces. No NGINX field is registered by this generic
+projection, so it cannot become a write target. The dedicated read-only NGINX
+handoff verifier accepts only its canonical release-tag, source-ref, asset,
+and checksum relationship. The only retained self-default is the static
+`NGINX_QUIC_TLS_LIBRARY` fallback to `openssl`; it does not read the caller
+environment. Command/process substitution, backticks,
 `eval`, separators, pipes, redirections, CR/LF, arithmetic expansion,
 unsupported parameter operators, unknown or non-allowlisted references,
 duplicates, cycles, missing/empty fields, and malformed tuples fail closed

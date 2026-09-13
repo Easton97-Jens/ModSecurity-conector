@@ -12,13 +12,50 @@ reports without an explicit repository-policy decision or user decision.
 
 - [CR-20260910-sonarcloud-parent-open-issues-duplication-remediation](CR-20260910-sonarcloud-parent-open-issues-duplication-remediation.md)
   | [Deutsch](CR-20260910-sonarcloud-parent-open-issues-duplication-remediation.de.md) —
-  the Parent traceability policy requires this paired record for the current
-  non-trivial Parent-only SonarCloud remediation. It records local source,
-  test, and security-diff evidence for 112 Parent baseline code smells and
-  real duplicate-block reduction work, while one Framework issue and
-  cross-owner duplicate content remain out of scope. Commit, push, PR,
-  exact-head hosted evidence, merge, and default-branch metric improvement are
-  pending and are not asserted.
+  the Parent traceability policy requires this paired record for the
+  non-trivial Parent-only SonarCloud remediation delivered as PR #361. It
+  records local source, test, and security-diff evidence for 112 Parent
+  baseline code smells and real duplicate-block reduction work, while one
+  Framework issue and cross-owner duplicate content remain out of scope.
+  Exact-head hosted evidence is required before a merge; no merged
+  default-branch metric improvement is asserted.
+
+- [CR-20260912-nginx-terminal-checker-alignment](CR-20260912-nginx-terminal-checker-alignment.md)
+  | [Deutsch](CR-20260912-nginx-terminal-checker-alignment.de.md) — after PR
+  #360 was authorized and merged, the requested resulting-master workflow
+  recovery requires this smallest Parent-only static-checker successor. It
+  requires the existing terminal response-header retry guard and
+  collection-failure sticky assignment; NGINX runtime source, Framework/MRTS,
+  Gitlink, workflow, governance, SonarQube controls, and direct `master` write
+  remain unchanged. The local successor has no commit, PR, hosted result, or
+  merge; a distinct successor merge needs separate exact authorization.
+
+- [CR-20260912-pr363-candidate-contract-repair](CR-20260912-pr363-candidate-contract-repair.md)
+  | [Deutsch](CR-20260912-pr363-candidate-contract-repair.de.md) — the current
+  user authorized this Parent-only correction in a dedicated worktree and one
+  Draft PR. It supersedes the stale Parent contracts exposed by PR #363 with a
+  read-only candidate gate, keeps generic and protected NGINX ownership
+  boundaries intact, and makes trusted CodeQL resolve the newest stable Go
+  release through the existing bounded updater. No Framework/MRTS source,
+  PR #363 mutation, direct `master` write, or merge is asserted; delivery facts
+  remain bound to the current task PR lifecycle.
+
+- [CR-20260912-go-latest-release-contract](CR-20260912-go-latest-release-contract.md)
+  | [Deutsch](CR-20260912-go-latest-release-contract.de.md) — the current user
+  authorized this Parent-only correction in a dedicated worktree and one PR.
+  It generalizes the bounded Go release updater and its trusted CodeQL
+  selector from a fixed minor series to the greatest stable numeric release;
+  it records local source evidence and exact-head delivery requirements. No
+  Framework/MRTS source, Gitlink, permission, pin, dependency, or direct
+  `master` write is asserted; observed delivery facts remain bound to the
+  current PR lifecycle.
+
+- [CR-20260909-fail-closed-connector-remediation](CR-20260909-fail-closed-connector-remediation.md)
+  | [Deutsch](CR-20260909-fail-closed-connector-remediation.de.md) —
+  Parent-only fail-closed handling for enabled Apache transaction setup and
+  NGINX native response-header errors. It records focused local evidence and
+  blocked host-runtime proof for the user-authorized Draft PR; no Framework,
+  MRTS, Gitlink, merge, release, or deployment action is asserted.
 - [CR-20260903-connector-runtime-hardening-quality-remediation](CR-20260903-connector-runtime-hardening-quality-remediation.md)
   | [Deutsch](CR-20260903-connector-runtime-hardening-quality-remediation.de.md) —
   current Parent-only remediation of Codex review findings, SonarQube Cloud

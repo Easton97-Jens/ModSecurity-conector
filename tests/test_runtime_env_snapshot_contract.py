@@ -310,6 +310,8 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
                 (prefix / "lib" / components.MODSECURITY_LIBRARY_FILENAME, "library\n", 0o644),
                 (prefix / "lib" / components.MODSECURITY_RUNTIME_LIBRARY_FILENAME, "runtime library\n", 0o644),
                 (prefix / "include" / "modsecurity" / "modsecurity.h", "header\n", 0o644),
+                (prefix / "include" / "modsecurity" / "rules_set.h", "header\n", 0o644),
+                (prefix / "include" / "modsecurity" / "transaction.h", "header\n", 0o644),
             ):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(contents, encoding="utf-8")
@@ -325,9 +327,9 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
                 "connector_build_id": "cache-key",
                 "build_flags": json.dumps(
                     {
-                        "NGINX_RELEASE_TAG": "release-1.31.3",
-                        "NGINX_SOURCE_REPO_URL": "https://github.com/nginx/nginx",
-                        "NGINX_SHA256": "a" * 64,
+                        "NGINX_RELEASE_TAG": components.NGINX_PINNED_RELEASE_TAG,
+                        "NGINX_SOURCE_REPO_URL": components.NGINX_PINNED_SOURCE_REPOSITORY,
+                        "NGINX_SHA256": components.NGINX_PINNED_RELEASE_ASSET_SHA256,
                     }
                 ),
             }
@@ -342,9 +344,9 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
                 "runtime_env_snapshot_contract": components.PROTECTED_NGINX_BROKER_SNAPSHOT_CONTRACT,
                 "env": {
                     "NGINX_SOURCE_MODE": "github-release",
-                    "NGINX_RELEASE_TAG": "release-1.31.3",
-                    "NGINX_SOURCE_REPO_URL": "https://github.com/nginx/nginx",
-                    "NGINX_SHA256": "a" * 64,
+                    "NGINX_RELEASE_TAG": components.NGINX_PINNED_RELEASE_TAG,
+                    "NGINX_SOURCE_REPO_URL": components.NGINX_PINNED_SOURCE_REPOSITORY,
+                    "NGINX_SHA256": components.NGINX_PINNED_RELEASE_ASSET_SHA256,
                     # These must not influence the fixed snapshot values.
                     "NGINX_BINARY": "/ambient/nginx",
                     "NGINX_MODULE": "/ambient/module.so",
@@ -617,11 +619,11 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
                 self.assertIn('BUILD_NGINX_FROM_SOURCE: "1"', nginx_env)
                 self.assertIn("NGINX_SOURCE_MODE: github-release", nginx_env)
                 self.assertIn("NGINX_SOURCE_REPO_URL: https://github.com/nginx/nginx", nginx_env)
-                self.assertIn("NGINX_RELEASE_TAG: release-1.31.4", nginx_env)
-                self.assertIn("NGINX_SOURCE_GIT_REF: release-1.31.4", nginx_env)
-                self.assertIn("NGINX_RELEASE_ASSET_NAME: nginx-1.31.4.tar.gz", nginx_env)
+                self.assertIn("NGINX_RELEASE_TAG: release-1.31.5", nginx_env)
+                self.assertIn("NGINX_SOURCE_GIT_REF: release-1.31.5", nginx_env)
+                self.assertIn("NGINX_RELEASE_ASSET_NAME: nginx-1.31.5.tar.gz", nginx_env)
                 self.assertIn(
-                    "NGINX_SHA256: e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3",
+                    "NGINX_SHA256: e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279",
                     nginx_env,
                 )
                 self.assertIn('NGINX_REQUIRE_PINNED_PROVENANCE: "1"', nginx_env)

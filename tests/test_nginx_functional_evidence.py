@@ -86,7 +86,7 @@ class NginxFunctionalEvidenceTest(unittest.TestCase):
         self._write_private(phase4 / "logs" / "phase4-before-usr1.log", jsonl)
         lifecycle = b"\n".join(WRITER_MODULE.LIFECYCLE_MARKERS.values()) + b"\n"
         self._write_private(phase4 / "logs" / "nginx-lifecycle.txt", lifecycle)
-        self._write_private(phase4 / "logs" / "nginx-version.log", b"nginx version: nginx/1.31.4\n")
+        self._write_private(phase4 / "logs" / "nginx-version.log", b"nginx version: nginx/1.31.5\n")
         self._write_private(
             self.functional_root / mode / "allow" / "logs" / "observed-status.txt",
             b"200\n",
@@ -136,7 +136,7 @@ class NginxFunctionalEvidenceTest(unittest.TestCase):
         self.assertNotIn(b"/private/input-", raw)
         observed = json.loads(raw)
         self.assertEqual(observed["parent_sha"], PARENT_SHA)
-        self.assertEqual(observed["nginx_version"], "1.31.4")
+        self.assertEqual(observed["nginx_version"], "1.31.5")
         self.assertEqual(observed["nginx_archive_sha256"], NGINX_ARCHIVE_SHA256)
         self.assertEqual(observed["status"], "PASS")
         self.assertEqual(set(observed["modes"]), {"on", "off"})
