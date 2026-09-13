@@ -11,6 +11,17 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260912-nginx-terminal-checker-alignment](CR-20260912-nginx-terminal-checker-alignment.de.md)
+  | English companion: `CR-20260912-nginx-terminal-checker-alignment.md` —
+  nach dem autorisierten und gemergten PR #360 verlangt die angeforderte
+  Resulting-Master-Workflow-Recovery diesen kleinsten Parent-only-
+  Static-Checker-Successor. Er verlangt den vorhandenen terminalen
+  Response-Header-Retry-Guard und die Collection-Fehler-Sticky-Zuweisung;
+  NGINX-Runtime-Source, Framework/MRTS, Gitlink, Workflow, Governance,
+  SonarQube-Controls und direkter `master`-Schreibvorgang bleiben unverändert.
+  Der lokale Successor hat keinen Commit, PR, Hosted-Result oder Merge; ein
+  eigener Successor-Merge benötigt separate exakte Autorisierung.
+
 - [CR-20260912-pr363-candidate-contract-repair](CR-20260912-pr363-candidate-contract-repair.de.md)
   | English companion: `CR-20260912-pr363-candidate-contract-repair.md` — der
   aktuelle Benutzer autorisierte diese Parent-only-Korrektur in einem eigenen
