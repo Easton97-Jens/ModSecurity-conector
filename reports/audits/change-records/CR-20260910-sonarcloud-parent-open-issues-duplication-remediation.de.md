@@ -9,8 +9,8 @@
 | Change-ID | CR-20260910-sonarcloud-parent-open-issues-duplication-remediation |
 | Datum (UTC) | 2026-09-10 |
 | Basis-Revision | 26a560e64cbaf906c0d35bba199f65436830d1dd |
-| Scope | Nur Parent-ModSecurity-Connector; keine Framework-, MRTS-, Gitlink-, Scanner-, Regel-, Quality-Gate-, Suppression-, Exclusion- oder Merge-Änderung |
-| Delivery-Status | PR #361 ist OPEN, kein Draft und hat Exact-Source-Head-Evidenz bei `963468c0c1ca43e4c8708e57e6c2ad87465a6faf`; dieser reine Dokumentationsabgleich benötigt einen finalen Successor-Head-Readback. Ein Merge ist nicht autorisiert. |
+| Scope | Nur Parent-ModSecurity-Connector; keine Framework-, MRTS-, Gitlink-, Scanner-, Regel-, Quality-Gate-, Suppression- oder Exclusion-Änderung. Die Delivery-Integration wird separat gesteuert. |
+| Delivery-Status | PR #361 ist OPEN, kein Draft und hat erfolgreiche Exact-Head-Evidenz bei `f3748bf7a91b82dc892bb89fc08b17435cc70230`. Der aktuelle Benutzer autorisierte ausschließlich seine geschützte Squash-Integration nach `master` und akzeptierte das separat verfolgte FND-PARENT-1088-Historic-Evidence-Risiko. Diese faktische Record-Korrektur erzeugt einen Successor-Head, der vor dem Merge einen vollständigen neuen Exact-Head-Check benötigt. |
 | Policy-Auflösung | Die Parent-Traceability-Policy verlangt diesen gepaarten Change Record für eine nicht triviale versionierte Produktänderung. Er verwendet den etablierten Archivpfad; kein paralleles Format oder Index wird eingeführt. |
 
 ## Motivation und Problemstellung
@@ -67,12 +67,15 @@ Provenance-Grenzen, URI-Query-Redaction, Frame-Grenzen, Deadlines,
 Loopback-Binding, PID-Reuse- und Peer-Prüfungen, O_NOFOLLOW-
 Descriptor-Walks, Cleanup-Ownership und Fail-Closed-Verhalten.
 
-Der formelle Security-Diff-Scan deckt den lokalen 28-Dateien-Parent-Diff
-vollständig ab, meldet null berichtspflichtige Findings und liegt unter:
+Der historische 28-Dateien-Security-Diff-Receipt ist nicht verfügbar und wird
+durch FND-PARENT-1088 verfolgt; er wird nicht als erneut lesbare Evidenz
+dargestellt. Der aktuelle Exact-Head-Refresh-Security-Diff-Scan deckt die 17
+geänderten Parent-Source-Dateien vollständig ab, meldet null berichtspflichtige
+Findings und liegt unter:
 
-/var/tmp/codex/ModSecurity-conector/runs/sonarcloud-open-issues-duplication-20260910/security-diff-scan/report.md
+/var/tmp/codex/ModSecurity-conector/runs/sonar-pr361-refresh-20260913/security-diff/report.md
 
-Seine SHA-256 ist bdb80964abee0fc33154133762fb289f3611d0e9d2b6652db8083c0660a707e7.
+Seine SHA-256 ist 59a2e82783a7e141ac5078162a47775faedde7dae48677b1f10e71d19804babe.
 Es wurde keine Deployment-Runtime ausgeführt.
 
 ## Geänderte Dateien
@@ -143,6 +146,8 @@ Es wurde keine Deployment-Runtime ausgeführt.
 | Finaler HAProxy-Helper-/Peer-/SIGPIPE-/Self-Test-/Sonar-Reliability-Vertragslauf | Bestanden: 48 Tests |
 | Finale Python-Kompilierung des Helpers und seiner zwei Verbraucher | Bestanden |
 | Isolierter Apache-Parent-SIGKILL-Kandidat-/Baseline-Recheck | Bestanden: 1,395s Kandidat, 1,327s Baseline |
+| Exact-`f3748bf7a91b82dc892bb89fc08b17435cc70230`-GitHub-Check-Run-Readback | Bestanden: 43 terminale Runs; 37 erfolgreich, 6 beabsichtigte Skips, 0 Fehler oder Pending-Runs |
+| Exact-`f3748bf7a91b82dc892bb89fc08b17435cc70230`-SonarQube-Cloud-Readback | Bestanden: Quality Gate `OK`, 0 OPEN/CONFIRMED-Issues, 0 neue Duplikatzeilen/-blöcke und 0,0 % New-Code-Duplizierung |
 
 Das intermittierende frühere Apache-Parent-SIGKILL-Timeout wird als
 FND-PARENT-1084 verfolgt. Es wurde gegen Kandidat und Baseline beobachtet und
@@ -159,17 +164,15 @@ Regressions-/Control-Suiten sind die verfügbare lokale Evidenz.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-- Exact-Source-Head-SonarCloud-Quality-Gate-, OPEN/CONFIRMED-Issue- und
-  Duplikat-Readback: Bestanden am Source-Head
-  `963468c0c1ca43e4c8708e57e6c2ad87465a6faf` (Analysezeitpunkt
-  `2026-09-10T11:04:34+0000`): Quality Gate `OK`, null Parent-
-  OPEN/CONFIRMED-Issues, null neue Duplikatzeilen/-blöcke sowie eine
-  Aggregatreduktion von 2.146/92 auf 1.919/81. Der normale reine
-  Dokumentations-Successor benötigt weiterhin denselben Exact-Head-Readback.
-- Exact-finaler-Dokumentations-Head-GitHub-Actions-Checks: Der normale
-  Dokumentations-Follow-up benötigt nach dem Push seinen eigenen finalen
-  Readback.
-- Default-Branch-Post-Merge-SonarCloud-Metrik: Kein Merge ist autorisiert.
+- Der durch diese faktische Delivery-Evidence-Record-Korrektur eingeführte
+  Successor hat noch kein Hosted-Ergebnis. Seine exakten GitHub-Checks,
+  Review-/Conversation-Status, SonarQube-Cloud-Quality-Gate,
+  OPEN/CONFIRMED-Issue-Inventar, Duplizierungsmetriken und aktuelle
+  Base-Mergeability müssen nach seinem normalen Push erneut gelesen werden;
+  erfolgreiche Ergebnisse für `f3748bf7a91b82dc892bb89fc08b17435cc70230`
+  werden nicht als Evidenz für einen anderen Head wiederverwendet.
+- Resulting-master-Workflows und die Default-Branch-SonarQube-Cloud-Analyse
+  existieren erst nach einem exact-head-geschützten autorisierten Squash-Merge.
 - Lokale Sonar-Vortex-Analyse: Für die Organisation nicht verfügbar.
 - Ein Apache-With-CRS-Profile-Publication-Test: Blockiert, weil dem isolierten
   Parent-Worktree die separat besessene Framework-Case-CLI fehlt. Framework-
@@ -197,11 +200,16 @@ einen späteren autorisierten Merge und eine Resulting-Master-Analyse.
 
 ## Verbleibende Risiken
 
-Bis Exact-PR-Head-SonarCloud-Analyse und CI abgeschlossen sind, kann ein
-verbleibendes lokales Issue, ein Duplikatblock oder eine Integrationsregression
-entdeckt werden. Die Scope-Einschränkung ist nicht risikoakzeptiert:
-Framework-Ownership und repositoryübergreifende Duplizierung bleiben explizite
-Blocker für ein wörtliches projektweites Nullergebnis.
+Der Benutzer akzeptierte ausschließlich das präzise FND-PARENT-1088-Risiko
+historischer Evidenz: Zehn frühere PR-#361-Payloads können nicht
+wiederhergestellt oder erneut gehasht werden. Diese Entscheidung erlaubt nur
+den notwendigen faktischen Delivery-Evidence-Refresh und den geschützten
+Squash-Merge dieses PR; sie verifiziert oder schließt das Finding nicht,
+verzichtet nicht auf Controls und erstreckt sich nicht auf Cleanup, einen
+anderen PR, Release, ein anderes Repository, einen späteren unverbundenen Head,
+direkten `master`-Push, Force-Operation, Rebase, Bypass oder eine Änderung der
+Merge-Methode. Framework-Ownership und repositoryübergreifende Duplizierung
+bleiben explizite Scope-Grenzen für ein wörtliches projektweites Nullergebnis.
 
 ## Delivery-Abgleich vor dem finalen Dokumentations-Follow-up — 2026-09-10
 
@@ -227,16 +235,45 @@ Blocker für ein wörtliches projektweites Nullergebnis.
   OPEN/CONFIRMED-Issues, null neuen Duplikatzeilen/-blöcken und einer
   Aggregatduplikatreduktion von 227 Zeilen / 11 Blöcken. Die angezeigte
   Aggregatdichte bleibt wegen Rundung bei 0,3 %.
-- Dieser Abgleich wird als normaler reiner Dokumentations-Follow-up ohne Amend,
-  Force-Push oder Merge ausgeliefert. Sein exakter Successor-Head und seine
-  Hosted-Ergebnisse müssen nach dem Push noch abgeglichen werden.
+- Dieser historische Abgleich wurde als normaler reiner Dokumentations-Follow-up
+  ohne Amend, Force-Push oder Merge ausgeliefert. Seine späteren exakten
+  Successor-Heads werden erst nach ihrer Existenz nachstehend festgehalten.
+
+## Delivery-Refresh und aktuelle Autorisierung — 2026-09-13
+
+- Aktueller Parent-PR-#361-Head, Remote-Task-Branch und Refresh-Worktree-Head:
+  `f3748bf7a91b82dc892bb89fc08b17435cc70230`; aktuelle Basis:
+  `9c467ca1ad1c086e9d379ae3cdb7da6d130daf5f`.
+- GitHub meldet den PR OPEN, keinen Draft, `MERGEABLE`/`CLEAN`, ohne Reviews,
+  Review-Threads oder Inline-Review-Kommentare. Das aktive Ruleset verlangt
+  null Approvals, aufgelöste Threads und sechs erfolgreiche Checks.
+- Am `2026-09-13T06:55:25Z` analysierte SonarQube Cloud diesen exakten Head
+  mit Quality Gate `OK`, null OPEN/CONFIRMED-Issues, null neuen
+  Duplikatzeilen/-blöcken und 0,0 % New-Code-Duplizierung. Sein Aggregat beträgt
+  1.939 Duplikatzeilen / 83 Blöcke / gerundet 0,3 %, 227 Zeilen / 11 Blöcke
+  unter dem aktuellen Default-Branch-Aggregat; dies ist keine
+  Projekt-Dashboard-Nullbehauptung.
+- GitHubs Exact-Head-Readback hat 43 terminale Runs: 37 erfolgreich, sechs
+  beabsichtigte Skips und null Fehler oder Pending-Runs. Er enthält die sechs
+  strikten Ruleset-Kontexte und `SonarCloud Code Analysis`.
+- Am `2026-09-13T08:23:26Z` autorisierte der aktuelle Benutzer ausdrücklich
+  die geschützte Squash-Integration von Parent-PR #361 nach `master` und
+  akzeptierte ausschließlich das dokumentierte FND-PARENT-1088-Restrisiko. Die
+  Akzeptanz bleibt auf den notwendigen faktischen Evidence-Refresh und diesen
+  geschützten Squash-Merge begrenzt.
+- Dieser gepaarte Record ist die notwendige faktische Korrektur veralteter
+  früherer Delivery-Formulierung. Sein Successor-Head muss vor dem Squash-Merge
+  einen neuen Exact-Head-Review-, GitHub-Check-, SonarQube-Cloud-,
+  Mergeability- und Base-Freshness-Zyklus abschließen; kein Resulting-master-
+  Status wird hier behauptet.
 
 ## Finaler Diff- und Review-Status
 
 Lokale Source-, Test-, Formatter-, Diff- und Security-Reviews sind für den hier
-beschriebenen Kandidaten abgeschlossen. Der exakte Source-Head erfüllt die
-task-eigenen SonarCloud-Issue- und New-Duplication-Kriterien. Dieser
-Dokumentationsabgleich wird ein normaler Follow-up-Commit; sein exakter finaler
-PR-Head, Hosted-Check-Ergebnisse, SonarCloud-PR-Ergebnis, Review-Runde, Merge
-und Cleanup-Ergebnis stehen noch aus. Eine Merge-Autorisierung wird nicht
-behauptet.
+beschriebenen Kandidaten abgeschlossen. Der exakte Refresh-Head erfüllt die
+task-eigenen SonarQube-Cloud-Issue- und New-Duplication-Kriterien. Diese
+gepaarte faktische Delivery-Record-Korrektur ist ein normaler Follow-up-Commit;
+ihr Successor-Head, Hosted-Checks, SonarQube-Cloud-Ergebnis, Review-Runde und
+geschützter Squash-Merge warten auf ihre eigene Exact-Head-Evidenz. Der Benutzer
+autorisierte diese einzelne geschützte Integration, aber keinen direkten Push,
+Bypass oder unverbundene Delivery-Aktion.

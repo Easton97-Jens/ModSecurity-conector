@@ -9,8 +9,8 @@
 | Change ID | CR-20260910-sonarcloud-parent-open-issues-duplication-remediation |
 | Date (UTC) | 2026-09-10 |
 | Base revision | 26a560e64cbaf906c0d35bba199f65436830d1dd |
-| Scope | Parent ModSecurity Connector only; no Framework, MRTS, Gitlink, scanner, rule, Quality Gate, suppression, exclusion, or merge change |
-| Delivery status | PR #361 is OPEN, not a draft, and has exact source-head evidence at `963468c0c1ca43e4c8708e57e6c2ad87465a6faf`; this documentation-only reconciliation requires one final successor-head readback. Merge is not authorized. |
+| Scope | Parent ModSecurity Connector only; no Framework, MRTS, Gitlink, scanner, rule, Quality Gate, suppression, or exclusion change. Delivery integration is controlled separately. |
+| Delivery status | PR #361 is OPEN, non-draft, and has successful exact-head evidence at `f3748bf7a91b82dc892bb89fc08b17435cc70230`. The current user explicitly authorized only its protected squash integration into `master` and accepted the separately tracked FND-PARENT-1088 historical-evidence risk. This factual record correction creates a successor head that requires a complete new exact-head verification before merge. |
 | Policy resolution | The Parent traceability policy requires this paired Change Record for a non-trivial versioned product change. It uses the established archive location; no parallel format or index is introduced. |
 
 ## Motivation and problem statement
@@ -60,12 +60,14 @@ implementation retains JSON escaping, provenance bounds, URI-query redaction,
 frame bounds, deadlines, loopback binding, PID reuse and peer checks,
 O_NOFOLLOW descriptor walks, cleanup ownership, and fail-closed behavior.
 
-The formal security-diff scan covers the 28-file local Parent diff completely,
-reports zero reportable findings, and is retained at:
+The historical 28-file security-diff receipt is unavailable and tracked by
+FND-PARENT-1088; it is not represented as newly readable evidence. The current
+exact-head refresh security-diff scan covers the 17 changed Parent source files
+completely, reports zero reportable findings, and is retained at:
 
-/var/tmp/codex/ModSecurity-conector/runs/sonarcloud-open-issues-duplication-20260910/security-diff-scan/report.md
+/var/tmp/codex/ModSecurity-conector/runs/sonar-pr361-refresh-20260913/security-diff/report.md
 
-Its SHA-256 is bdb80964abee0fc33154133762fb289f3611d0e9d2b6652db8083c0660a707e7.
+Its SHA-256 is 59a2e82783a7e141ac5078162a47775faedde7dae48677b1f10e71d19804babe.
 No deployment runtime was exercised.
 
 ## Changed files
@@ -136,6 +138,8 @@ No deployment runtime was exercised.
 | Final HAProxy helper/peer/SIGPIPE/self-test/Sonar-reliability contract run | Passed: 48 tests |
 | Final helper and two consumer Python compilation | Passed |
 | Isolated Apache parent-SIGKILL candidate/baseline recheck | Passed: 1.395s candidate, 1.327s baseline |
+| Exact `f3748bf7a91b82dc892bb89fc08b17435cc70230` GitHub check-run readback | Passed: 43 terminal runs; 37 successful, 6 intentional skips, 0 failures or pending runs |
+| Exact `f3748bf7a91b82dc892bb89fc08b17435cc70230` SonarQube Cloud readback | Passed: Quality Gate `OK`, 0 OPEN/CONFIRMED issues, 0 new duplicated lines/blocks, and 0.0% new-code duplication |
 
 The intermittent earlier Apache parent-SIGKILL timeout is tracked as
 FND-PARENT-1084. It was observed against candidate and baseline, then did not
@@ -150,16 +154,14 @@ and focused regression/control suites are the available local evidence.
 
 ## Checks not run and rationale
 
-- Exact source-head SonarCloud Quality Gate, OPEN/CONFIRMED issue, and
-  duplication readback: passed at source head
-  `963468c0c1ca43e4c8708e57e6c2ad87465a6faf` (analysis date
-  `2026-09-10T11:04:34+0000`): Quality Gate `OK`, zero Parent
-  OPEN/CONFIRMED issues, zero new duplicate lines/blocks, and an aggregate
-  reduction from 2,146/92 to 1,919/81. The normal documentation-only
-  successor still requires the same exact-head readback.
-- Exact final documentation-head GitHub Actions checks: the normal
-  documentation follow-up requires its own final readback after push.
-- Default-branch post-merge SonarCloud metric: no merge is authorized.
+- The factual delivery-evidence successor introduced by this record correction
+  has no hosted result yet. Its exact GitHub checks, review/conversation state,
+  SonarQube Cloud Quality Gate, OPEN/CONFIRMED issue inventory, duplication
+  measures, and current-base mergeability must be re-read after its normal
+  push; successful results for `f3748bf7a91b82dc892bb89fc08b17435cc70230` are
+  not reused as evidence for a different head.
+- Resulting-master workflows and default-branch SonarQube Cloud analysis do
+  not exist until an exact-head-protected authorized squash merge occurs.
 - Local Sonar Vortex analysis: unavailable for the organization.
 - One Apache with-CRS profile-publication test: blocked because the isolated
   Parent worktree lacks the separately owned Framework case CLI. Framework
@@ -186,10 +188,14 @@ resulting-master analysis.
 
 ## Remaining risks
 
-Until exact PR-head SonarCloud analysis and CI complete, a remaining local
-issue, duplication block, or integration regression may be uncovered. The
-scope limitation is not risk-accepted: Framework ownership and cross-repository
-duplication remain explicit blockers for a literal project-wide zero result.
+The user accepted only FND-PARENT-1088's precise historical-evidence risk:
+ten prior PR #361 payloads cannot be restored or rehashed. That decision allows
+only the necessary factual delivery-evidence refresh and protected squash merge
+of this PR; it neither verifies nor closes the finding, waives controls, or
+extends to cleanup, another PR, release, repository, later unrelated head,
+direct `master` push, force operation, rebase, bypass, or merge-method change.
+Framework ownership and cross-repository duplication remain explicit scope
+limits for a literal project-wide zero result.
 
 ## Delivery reconciliation before final documentation follow-up — 2026-09-10
 
@@ -214,15 +220,42 @@ duplication remain explicit blockers for a literal project-wide zero result.
   OPEN/CONFIRMED issues, zero new duplicate lines/blocks, and aggregate
   duplicate reduction of 227 lines / 11 blocks. The displayed aggregate
   density remains 0.3% because it is rounded.
-- This reconciliation will be delivered as a normal documentation-only
-  follow-up without amend, force-push, or merge. Its exact successor head and
-  hosted results remain to be reconciled after push.
+- This historical reconciliation was delivered as a normal documentation-only
+  follow-up without amend, force-push, or merge. Its later exact successor
+  heads are recorded below only after they exist.
+
+## Delivery refresh and current authorization — 2026-09-13
+
+- Current Parent PR #361 head, remote task branch, and refresh worktree head:
+  `f3748bf7a91b82dc892bb89fc08b17435cc70230`; current base:
+  `9c467ca1ad1c086e9d379ae3cdb7da6d130daf5f`.
+- GitHub reports the PR OPEN, non-draft, `MERGEABLE`/`CLEAN`, with no reviews,
+  review threads, or inline review comments. The active ruleset requires zero
+  approvals, resolved threads, and six successful checks.
+- At `2026-09-13T06:55:25Z`, SonarQube Cloud analyzed that exact head with
+  Quality Gate `OK`, zero OPEN/CONFIRMED issues, zero new duplicated lines and
+  blocks, and 0.0% new-code duplication. Its aggregate is 1,939 duplicate
+  lines / 83 blocks / 0.3% rounded, 227 lines / 11 blocks below the current
+  default-branch aggregate; this is not a project-dashboard-zero claim.
+- GitHub's exact-head readback has 43 terminal runs: 37 successful, six
+  intentional skips, and zero failures or pending runs. It includes the six
+  strict ruleset contexts and `SonarCloud Code Analysis`.
+- At `2026-09-13T08:23:26Z`, the current user explicitly authorized Parent PR
+  #361's protected squash integration into `master` and accepted only the
+  documented FND-PARENT-1088 residual risk. The acceptance remains limited to
+  this PR's necessary factual evidence refresh and protected squash merge.
+- This paired record is the necessary factual correction of stale earlier
+  delivery wording. Its successor head must complete a new exact-head review,
+  GitHub-check, SonarQube Cloud, mergeability, and base-freshness cycle before
+  it can be squash-merged; no resulting-master status is claimed here.
 
 ## Final diff and review status
 
 Local source, test, formatter, diff, and security reviews are complete for the
-candidate described here. The exact source head has satisfied the task-owned
-SonarCloud issue and new-duplication criteria. This documentation reconciliation
-becomes a normal follow-up commit; its exact final PR head, hosted-check
-results, SonarCloud PR result, review round, merge, and cleanup outcome remain
-pending. No merge authorization is claimed.
+candidate described here. The exact refreshed head has satisfied the task-owned
+SonarQube Cloud issue and new-duplication criteria. This paired factual
+delivery-record correction is a normal follow-up commit; its successor head,
+hosted checks, SonarQube Cloud result, review round, and protected squash merge
+remain pending their own exact-head evidence. The user has authorized that
+single protected integration but not a direct push, bypass, or unrelated
+delivery action.
