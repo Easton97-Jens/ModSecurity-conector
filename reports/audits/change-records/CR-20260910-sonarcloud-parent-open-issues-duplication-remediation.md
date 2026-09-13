@@ -10,7 +10,7 @@
 | Date (UTC) | 2026-09-10 |
 | Base revision | 26a560e64cbaf906c0d35bba199f65436830d1dd |
 | Scope | Parent ModSecurity Connector only; no Framework, MRTS, Gitlink, scanner, rule, Quality Gate, suppression, or exclusion change. Delivery integration is controlled separately. |
-| Delivery status | PR #361 is OPEN, non-draft, and has successful exact-head evidence at `f3748bf7a91b82dc892bb89fc08b17435cc70230`. The current user explicitly authorized only its protected squash integration into `master` and accepted the separately tracked FND-PARENT-1088 historical-evidence risk. This factual record correction creates a successor head that requires a complete new exact-head verification before merge. |
+| Delivery status | `f3748bf7a91b82dc892bb89fc08b17435cc70230` is the historical refreshed-source snapshot, not the current PR head. Its documentation successor `38cb79d0b738b7ddb39603dea0c6e7337a08583c` completed its exact hosted/Sonar readback before this correction. The current user authorized only PR #361's protected squash integration into `master` and accepted only the separately tracked FND-PARENT-1088 historical-evidence risk. This factual correction creates one normal successor head, which requires complete new exact-head verification before merge. |
 | Policy resolution | The Parent traceability policy requires this paired Change Record for a non-trivial versioned product change. It uses the established archive location; no parallel format or index is introduced. |
 
 ## Motivation and problem statement
@@ -61,14 +61,21 @@ frame bounds, deadlines, loopback binding, PID reuse and peer checks,
 O_NOFOLLOW descriptor walks, cleanup ownership, and fail-closed behavior.
 
 The historical 28-file security-diff receipt is unavailable and tracked by
-FND-PARENT-1088; it is not represented as newly readable evidence. The current
-exact-head refresh security-diff scan covers the 17 changed Parent source files
-completely, reports zero reportable findings, and is retained at:
+FND-PARENT-1088; it is not represented as newly readable evidence. The
+historical refreshed-source scan for `f3748bf7` covers its generated 17-path
+Parent source inventory, reports zero reportable findings, and is retained at:
 
 /var/tmp/codex/ModSecurity-conector/runs/sonar-pr361-refresh-20260913/security-diff/report.md
 
 Its SHA-256 is 59a2e82783a7e141ac5078162a47775faedde7dae48677b1f10e71d19804babe.
-No deployment runtime was exercised.
+The observed successor `38cb79d0` has a retained full 37-path Parent review
+receipt at
+`/var/tmp/codex/ModSecurity-conector/runs/sonar-pr361-refresh-20260913/evidence/pr361-full-diff-review-38cb-20260913.md`
+(SHA-256 `7c68d66d9c26d2261aeb85e8574e2a3795e609382d0ad1052d0b44e33257fb9f`).
+It records a no-reportable-finding disposition for the additional CI/control,
+test, and documentation paths; FND-PARENT-1089 tracks the required final
+canonical full-diff coverage and this factual correction. No deployment runtime
+was exercised.
 
 ## Changed files
 
@@ -112,6 +119,13 @@ No deployment runtime was exercised.
 
 ## Commands executed
 
+All recorded commands were RTK-proxied. The current reconciliation used the
+terminal generated source inventory, exact `git diff --no-ext-diff` full-path
+comparison, full-file static security review, GitHub exact-head check readback,
+and `/usr/local/bin/sonar-with-env` PR #361 readbacks. Their actual outcomes are
+listed below; this correction's successor receives its own fresh hosted
+verification and does not inherit these results.
+
 ## Tests and actual results
 
 | Check | Actual result |
@@ -132,14 +146,17 @@ No deployment runtime was exercised.
 | Shell syntax checks for five changed shells | Passed |
 | gofmt -d for changed Go paths | Passed; no output |
 | git diff --check against base | Passed |
-| Formal security-diff scan | Passed; complete coverage, zero reportable findings |
-| Second-cycle final security-diff scan | Passed; complete coverage, zero reportable findings |
-| Third-cycle final test-deduplication security-diff scan | Passed; complete coverage, zero reportable findings |
+| Formal security-diff scan | Passed; complete coverage of its generated 17-path source inventory, zero reportable findings |
+| Second-cycle final security-diff scan | Passed; complete coverage of its generated 17-path source inventory, zero reportable findings |
+| Third-cycle final test-deduplication security-diff scan | Passed; complete coverage of its generated 17-path source inventory, zero reportable findings |
 | Final HAProxy helper/peer/SIGPIPE/self-test/Sonar-reliability contract run | Passed: 48 tests |
 | Final helper and two consumer Python compilation | Passed |
 | Isolated Apache parent-SIGKILL candidate/baseline recheck | Passed: 1.395s candidate, 1.327s baseline |
 | Exact `f3748bf7a91b82dc892bb89fc08b17435cc70230` GitHub check-run readback | Passed: 43 terminal runs; 37 successful, 6 intentional skips, 0 failures or pending runs |
 | Exact `f3748bf7a91b82dc892bb89fc08b17435cc70230` SonarQube Cloud readback | Passed: Quality Gate `OK`, 0 OPEN/CONFIRMED issues, 0 new duplicated lines/blocks, and 0.0% new-code duplication |
+| Observed `38cb79d0b738b7ddb39603dea0c6e7337a08583c` GitHub check-run readback | Passed: 43 terminal runs; 37 successful, 6 intentional skips, 0 failures or pending runs, including required contexts and SonarCloud Code Analysis |
+| Observed `38cb79d0b738b7ddb39603dea0c6e7337a08583c` SonarQube Cloud readback | Passed: Quality Gate `OK`, 0 OPEN/CONFIRMED issues, 0 new duplicated lines/blocks, and 0.0% new-code duplication |
+| Observed `38cb79d0b738b7ddb39603dea0c6e7337a08583c` full 37-path Parent review | Passed: every changed path accounted for; 0 reportable security findings; the factual successor still needs its own canonical exact-head artifact and hosted verification |
 
 The intermittent earlier Apache parent-SIGKILL timeout is tracked as
 FND-PARENT-1084. It was observed against candidate and baseline, then did not
@@ -154,12 +171,13 @@ and focused regression/control suites are the available local evidence.
 
 ## Checks not run and rationale
 
-- The factual delivery-evidence successor introduced by this record correction
-  has no hosted result yet. Its exact GitHub checks, review/conversation state,
-  SonarQube Cloud Quality Gate, OPEN/CONFIRMED issue inventory, duplication
-  measures, and current-base mergeability must be re-read after its normal
-  push; successful results for `f3748bf7a91b82dc892bb89fc08b17435cc70230` are
-  not reused as evidence for a different head.
+- The observed pre-correction head `38cb79d0b738b7ddb39603dea0c6e7337a08583c`
+  has completed successful hosted checks, but this correction creates a new
+  successor with no hosted result yet. Its exact GitHub checks,
+  review/conversation state, SonarQube Cloud Quality Gate, OPEN/CONFIRMED issue
+  inventory, duplication measures, current-base mergeability, and canonical
+  full-diff artifact must be re-read after normal push; no predecessor result
+  is reused as evidence for that different head.
 - Resulting-master workflows and default-branch SonarQube Cloud analysis do
   not exist until an exact-head-protected authorized squash merge occurs.
 - Local Sonar Vortex analysis: unavailable for the organization.
@@ -197,6 +215,10 @@ direct `master` push, force operation, rebase, bypass, or merge-method change.
 Framework ownership and cross-repository duplication remain explicit scope
 limits for a literal project-wide zero result.
 
+FND-PARENT-1089 is not risk-accepted. It records the prior 17-path/37-path
+coverage and stale-head-fact gap and blocks integration until this normal
+successor has its complete canonical review and fresh exact-head evidence.
+
 ## Delivery reconciliation before final documentation follow-up — 2026-09-10
 
 - Branch: `agent/sonarcloud-open-issues-duplication-20260910`.
@@ -224,38 +246,43 @@ limits for a literal project-wide zero result.
   follow-up without amend, force-push, or merge. Its later exact successor
   heads are recorded below only after they exist.
 
-## Delivery refresh and current authorization — 2026-09-13
+## Delivery refresh pre-successor snapshot and current authorization — 2026-09-13
 
-- Current Parent PR #361 head, remote task branch, and refresh worktree head:
-  `f3748bf7a91b82dc892bb89fc08b17435cc70230`; current base:
+- Historical refreshed-source snapshot:
+  `f3748bf7a91b82dc892bb89fc08b17435cc70230`. Observed pre-correction Parent
+  PR #361 head, remote task branch, and refresh worktree head:
+  `38cb79d0b738b7ddb39603dea0c6e7337a08583c`; base:
   `9c467ca1ad1c086e9d379ae3cdb7da6d130daf5f`.
-- GitHub reports the PR OPEN, non-draft, `MERGEABLE`/`CLEAN`, with no reviews,
-  review threads, or inline review comments. The active ruleset requires zero
-  approvals, resolved threads, and six successful checks.
-- At `2026-09-13T06:55:25Z`, SonarQube Cloud analyzed that exact head with
-  Quality Gate `OK`, zero OPEN/CONFIRMED issues, zero new duplicated lines and
-  blocks, and 0.0% new-code duplication. Its aggregate is 1,939 duplicate
-  lines / 83 blocks / 0.3% rounded, 227 lines / 11 blocks below the current
-  default-branch aggregate; this is not a project-dashboard-zero claim.
-- GitHub's exact-head readback has 43 terminal runs: 37 successful, six
-  intentional skips, and zero failures or pending runs. It includes the six
-  strict ruleset contexts and `SonarCloud Code Analysis`.
+- The observed pre-correction readback reported the PR OPEN, non-draft, with no
+  reviews, review threads, or inline review comments. Its 43 exact-head runs
+  are terminal: 37 successful, six intentional skips, and zero failures or
+  pending runs, including the six strict ruleset contexts and `SonarCloud Code
+  Analysis`.
+- SonarQube Cloud reported Quality Gate `OK`, zero OPEN/CONFIRMED issues, zero
+  new duplicated lines/blocks, and 0.0% new-code duplication for that observed
+  head. Its aggregate is 1,939 duplicate lines / 83 blocks / 0.3% rounded, 227
+  lines / 11 blocks below the current default-branch aggregate; this is not a
+  project-dashboard-zero claim.
 - At `2026-09-13T08:23:26Z`, the current user explicitly authorized Parent PR
   #361's protected squash integration into `master` and accepted only the
   documented FND-PARENT-1088 residual risk. The acceptance remains limited to
   this PR's necessary factual evidence refresh and protected squash merge.
-- This paired record is the necessary factual correction of stale earlier
-  delivery wording. Its successor head must complete a new exact-head review,
-  GitHub-check, SonarQube Cloud, mergeability, and base-freshness cycle before
-  it can be squash-merged; no resulting-master status is claimed here.
+- The full 37-path static review of `38cb79d0` found no reportable security
+  finding. It also exposed FND-PARENT-1089: the prior canonical source
+  inventory alone did not represent every changed path, and the record needed
+  current-head wording. This paired record is the necessary normal correction.
+  Its successor must complete a new exact-head review, GitHub-check, SonarQube
+  Cloud, mergeability, and base-freshness cycle before it can be squash-merged;
+  no resulting-master status is claimed here.
 
 ## Final diff and review status
 
 Local source, test, formatter, diff, and security reviews are complete for the
-candidate described here. The exact refreshed head has satisfied the task-owned
-SonarQube Cloud issue and new-duplication criteria. This paired factual
-delivery-record correction is a normal follow-up commit; its successor head,
-hosted checks, SonarQube Cloud result, review round, and protected squash merge
-remain pending their own exact-head evidence. The user has authorized that
-single protected integration but not a direct push, bypass, or unrelated
-delivery action.
+observed `38cb79d0` candidate, including its full 37-path review receipt. That
+pre-successor head has satisfied the task-owned SonarQube Cloud issue and
+new-duplication criteria. This paired factual delivery-record correction is a
+normal follow-up commit; its resulting successor head, canonical full-diff
+artifact, hosted checks, SonarQube Cloud result, review round, and protected
+squash merge remain pending their own exact-head evidence. The user has
+authorized that single protected integration but not a direct push, bypass, or
+unrelated delivery action.
