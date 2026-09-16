@@ -24,7 +24,8 @@ Parent-eigenen Grenzen mit einem gezielten Regressionspfad:
 - `FND-PARENT-1096`: Der opt-in Envoy-Response-Phase-Smoke wählt passende
   P1/P3/P4-Regeln und weist doppelte Evidenz-Records ab.
 - `FND-PARENT-1097`: Apache APXS erhält eine gestagte Profile-Registry
-  außerhalb des kanonischen Parent-Checkouts.
+  außerhalb des kanonischen Parent-Checkouts, auch im Frischquell-
+  Autotools-Bootstrap.
 
 Die separat dokumentierte lighttpd-Endpunktmetadaten-Reparatur des bestehenden
 PR bleibt unverändert. Dieser Record macht aus keiner blockierten
@@ -45,8 +46,10 @@ Runtime-Beobachtung eine Produktdiagnose und ändert weder Framework noch MRTS.
   Staging-Ort im kanonischen Checkout schlägt fehl, bevor
   Profile-Registry-Artefakte entstehen.
 - Gezielte Regressionstests und gleichgrenzige Negativkontrollen bestehen,
-  ohne einen nativen Envoy-Service oder einen echten Apache-Host-Build zu
-  starten.
+  ohne einen nativen Envoy-Service zu starten. Der lokale Frischquell-Apache-
+  Build erreicht seine Modul-Output-Prüfung; seine spätere Runtime-Phase wird
+  jedoch durch ein Host-Dateisystem blockiert, das `chown(...)=EINVAL`
+  zurückgibt.
 
 ## Implementierungsentscheidung und Begründung
 
@@ -103,6 +106,14 @@ Normale Out-of-Tree-Builds bleiben unterstützt. Ein Profile-Registry-
 Staging-Root im Checkout schlägt jetzt fail-closed fehl, statt `.o`, `.lo`,
 `.slo` oder `.libs/*.o`-Artefakte im Source-Checkout zu erlauben.
 
+Der Autotools-Bootstrap extrahiert seinen synthetischen Checkout unter
+`$WORK_ROOT/source` und übergibt den Geschwisterpfad
+`$WORK_ROOT/profile-registry` nur an seinen `make`-Aufruf. `WORK_ROOT` ist ein
+privates `mktemp`-Verzeichnis, das nach `umask 077` unter dem konfigurierten
+Test-Parent angelegt und durch das bestehende begrenzte Cleanup entfernt wird.
+Damit erhält der Wrapper für diesen synthetischen Checkout einen externen
+Stage-Root, ohne seine Canonical-Path- oder Symlink-Abweisung zu lockern.
+
 ## Geänderte Dateien
 
 - `ci/provisioning/components/prepare-runtime-components.py`
@@ -111,6 +122,7 @@ Staging-Root im Checkout schlägt jetzt fail-closed fehl, statt `.o`, `.lo`,
 - `connectors/envoy/harness/envoy_smoke_helper.py`
 - `tests/test_envoy_transport_hardening_contract.py`
 - `connectors/apache/build/apxs-wrapper.in`
+- `ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh`
 - `tests/test_apache_apxs_profile_registry_staging.py`
 - `reports/audits/change-records/CR-20260916-lighttpd-stock-sidecar-endpoint-metadata.md`
 - `reports/audits/change-records/CR-20260916-lighttpd-stock-sidecar-endpoint-metadata.de.md`
@@ -123,37 +135,47 @@ Staging-Root im Checkout schlägt jetzt fail-closed fehl, statt `.o`, `.lo`,
 
 | Befehl oder Check | Ergebnis | Beobachtetes Ergebnis |
 | --- | --- | --- |
-| Verifiziertes Projekt-vEnv: `python -m unittest -v tests.test_prepare_runtime_components tests.test_envoy_transport_hardening_contract tests.test_apache_apxs_profile_registry_staging tests.test_apache_common_adoption` mit Bytecode- und temporären Ausgaben außerhalb des Checkouts | bestanden | 133 Tests bestanden; 5 bestehende Framework-abhängige Tests wurden übersprungen, weil der Framework-Test-Root nicht zum Parent-Gitlink passte. |
-| `sh -n connectors/apache/build/apxs-wrapper.in` | bestanden | Shell-Syntax akzeptiert. |
+| Verifiziertes Projekt-vEnv: `python -m unittest -v tests.test_prepare_runtime_components tests.test_envoy_transport_hardening_contract tests.test_apache_apxs_profile_registry_staging tests.test_apache_common_adoption` mit Bytecode- und temporären Ausgaben außerhalb des Checkouts | bestanden | 134 Tests bestanden; 5 bestehende Framework-abhängige Tests wurden übersprungen, weil der Framework-Test-Root nicht zum Parent-Gitlink passte. |
+| `sh -n ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh` und `sh -n connectors/apache/build/apxs-wrapper.in` | bestanden | Shell-Syntax akzeptiert. |
 | `sh -n connectors/envoy/harness/run_envoy_connector_runtime.sh` | bestanden | Shell-Syntax akzeptiert. |
 | `make -n -C connectors/envoy response-phase-smoke-envoy` | bestanden | Dry-Run zeigt die Companion-Regeldatei und `MSCONNECTOR_RESPONSE_PHASE_SMOKE=1`; kein Build oder Service lief. |
+| `APACHE_AUTOTOOLS_TEST_PARENT=... APACHE_AUTOTOOLS_RUNTIME_PARENT=... make check-apache-autotools-bootstrap` | blocked_environment (make exit 2) | Der Frischquell-Snapshot absolvierte Autotools-Konfiguration, `make` und die Modul-Output-Prüfung; ein späteres Runtime-`chown` im kontrollierten `/var/tmp`-Root schlug mit `EINVAL` fehl. |
 | `make check-bilingual-docs` | blocked_environment | Der Checker meldete keinen Fehler für einen der aktuellen Change Records, scheiterte aber an 20 bestehenden Links, deren Framework-Gitlink-Ziele in diesem Worktree fehlen. |
 | `git diff --check` | bestanden | Keine Whitespace-Fehler vor der Delivery-Vorbereitung. |
 
 Die Apache-Fake-APXS-Kontrolle beweist, dass erzeugte Profile-Registry-
 Artefakte nur unter dem externen Stage-Root existieren. Ihre Negativkontrollen
 weisen einen direkten In-Checkout-Root und einen in den Checkout aufgelösten
-Symlink ab. Die Expat-Kontrollen weisen veränderliche, abgekürzte,
-41-stellige und 63-stellige Referenzen vor Git-/Release-Lookup ab; 40- und
-64-stellige Referenzen bleiben akzeptiert. Die Envoy-Kontrollen bewahren das
+Symlink ab. Der Bootstrap-Contract bewahrt seine eine private
+Geschwister-Stage-Zuweisung, während der partielle native Bootstrap-Lauf
+beweist, dass der Build über den ursprünglichen CI-Fehlerpunkt hinauslief: Er
+erreichte die Modul-Output-Prüfung vor der unabhängigen Host-Ownership-
+Operation. Die Expat-Kontrollen weisen veränderliche, abgekürzte, 41-stellige
+und 63-stellige Referenzen vor Git-/Release-Lookup ab; 40- und 64-stellige
+Referenzen bleiben akzeptiert. Die Envoy-Kontrollen bewahren das
 P1-Standard-Target und weisen doppelte P3/P4-Evidenz ab.
 
 ## Runtime-Evidence
 
 Das Envoy-Helper-Fixture wurde vom gezielten Python-Contract-Test ausgeführt,
 nicht von einem nativen Envoy-Prozess. Der Apache-Fake-APXS-Test übte die
-Wrapper-Argument- und Artefaktgrenze aus, nicht einen echten Host-Build. Dies
-sind ausschließlich begrenzte lokale Evidenzpfade.
+Wrapper-Argument- und Artefaktgrenze aus. Der lokale Apache-Bootstrap übte
+zusätzlich seinen echten Autotools-/APXS-Modul-Build aus, aber keine
+abgeschlossene Server-Runtime, weil das kontrollierte Host-Dateisystem eine
+spätere Ownership-Änderung abwies. Dies sind ausschließlich begrenzte lokale
+Evidenzpfade.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-Kein nativer Envoy-Build oder -Service, kein echter Apache/APXS-Build, keine
-vollständige Connector-Matrix, keine SonarQube-Cloud-Analyse und kein Hosted-
-PR-Check liefen am exakten Head dieser Änderung. Ein nativer Envoy-Runtime-Lauf
-benötigt den separaten Runtime-Preflight und einen kurzen privaten absoluten
-Runtime-Root für seinen UDS; beides wird nicht durch die statischen
-Contract-Tests impliziert. Keine Framework-Source oder extern vorbereitete
-CRS-Inhalte wurden geändert oder getestet.
+Kein nativer Envoy-Build oder -Service, keine abgeschlossene Apache-Server-
+Runtime-Prüfung, keine vollständige Connector-Matrix, keine SonarQube-Cloud-
+Analyse und kein Hosted-PR-Check liefen am exakten Head dieses Follow-ups. Ein
+nativer Envoy-Runtime-Lauf benötigt den separaten Runtime-Preflight und einen
+kurzen privaten absoluten Runtime-Root für seinen UDS; beides wird nicht durch
+die statischen Contract-Tests impliziert. Das Post-Build-Ownership-Problem des
+lokalen Apache-Bootstraps ist eine Host-Dateisystemgrenze und keine Evidenz,
+die eine Lockerung der Ownership-Logik erlauben würde. Keine Framework-Source
+oder extern vorbereitete CRS-Inhalte wurden geändert oder getestet.
 
 ## Bekannte Einschränkungen
 
@@ -170,6 +192,10 @@ CRS-Inhalte wurden geändert oder getestet.
   bleiben unverifiziert.
 - Die fünf übersprungenen Tests in der kombinierten Suite benötigen einen
   Framework-Test-Root, dessen Commit dem Parent-Gitlink entspricht.
+- Der lokale Apache-Bootstrap benötigt ein ownership-fähiges Dateisystem, um
+  seine Runtime-Phase abzuschließen. Sein isolierter `/var/tmp`-Root erreichte
+  den Modul-Build, scheiterte aber später an `chown(...)=EINVAL`; für volle
+  Runtime-Evidenz ist weiterhin der korrigierte Hosted-Rerun erforderlich.
 
 ## Verbleibende Risiken
 
@@ -187,8 +213,8 @@ CRS-Inhalte wurden geändert oder getestet.
 
 ## Finaler Diff- und Review-Status
 
-Dieser Record dokumentiert lokale Evidenz, bevor der bestehende Draft-PR
-aktualisiert wird. Nach Delivery müssen lokale, Remote-Branch- und PR-Head-
+Dieser Record dokumentiert lokale Evidenz für das aktuelle Update des
+bestehenden Draft-PR. Nach Delivery müssen lokale, Remote-Branch- und PR-Head-
 SHAs exakt verglichen werden; Hosted-Checks, SonarQube, Review-Status und ein
 späterer Merge bleiben getrennte beobachtete Fakten. Es wird kein Merge
 behauptet.

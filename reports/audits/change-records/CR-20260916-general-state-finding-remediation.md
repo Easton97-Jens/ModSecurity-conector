@@ -23,7 +23,8 @@ a focused regression route:
 - `FND-PARENT-1096`: the opt-in Envoy response-phase smoke selects matching
   P1/P3/P4 rules and rejects duplicate evidence records.
 - `FND-PARENT-1097`: Apache APXS receives a staged profile registry outside
-  the canonical Parent checkout.
+  the canonical Parent checkout, including through the fresh-source Autotools
+  bootstrap.
 
 The existing PR's separately recorded lighttpd endpoint-metadata repair remains
 unchanged. This record does not turn a blocked runtime observation into a
@@ -42,7 +43,9 @@ product diagnosis and does not change the Framework or MRTS.
   include root. A direct or symlink-resolved staging location inside the
   canonical checkout fails before profile-registry artifacts are created.
 - Focused regression tests and same-boundary negative controls pass without
-  starting a native Envoy service or a real Apache host build.
+  starting a native Envoy service. The local fresh-source Apache build reaches
+  its module-output check, while its later runtime phase is blocked by a host
+  filesystem that rejects `chown(...)=EINVAL`.
 
 ## Implementation decision and rationale
 
@@ -97,6 +100,14 @@ Normal out-of-tree builds remain supported. An in-checkout profile-registry
 staging root now fails closed instead of allowing `.o`, `.lo`, `.slo`, or
 `.libs/*.o` artifacts to dirty the source checkout.
 
+The Autotools bootstrap extracts its synthetic checkout at
+`$WORK_ROOT/source`, then supplies the sibling
+`$WORK_ROOT/profile-registry` only to its `make` invocation. `WORK_ROOT` is a
+private `mktemp` directory created after `umask 077` under the configured test
+parent and removed by the existing bounded cleanup. This supplies the wrapper
+an external stage for that synthetic checkout without weakening its
+canonical-path or symlink rejection.
+
 ## Changed files
 
 - `ci/provisioning/components/prepare-runtime-components.py`
@@ -105,6 +116,7 @@ staging root now fails closed instead of allowing `.o`, `.lo`, `.slo`, or
 - `connectors/envoy/harness/envoy_smoke_helper.py`
 - `tests/test_envoy_transport_hardening_contract.py`
 - `connectors/apache/build/apxs-wrapper.in`
+- `ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh`
 - `tests/test_apache_apxs_profile_registry_staging.py`
 - `reports/audits/change-records/CR-20260916-lighttpd-stock-sidecar-endpoint-metadata.md`
 - `reports/audits/change-records/CR-20260916-lighttpd-stock-sidecar-endpoint-metadata.de.md`
@@ -117,34 +129,43 @@ staging root now fails closed instead of allowing `.o`, `.lo`, `.slo`, or
 
 | Command or check | Result | Observed result |
 | --- | --- | --- |
-| Verified project venv: `python -m unittest -v tests.test_prepare_runtime_components tests.test_envoy_transport_hardening_contract tests.test_apache_apxs_profile_registry_staging tests.test_apache_common_adoption` with bytecode and temporary output outside the checkout | passed | 133 tests passed; 5 existing Framework-dependent tests were skipped because the Framework test root did not match the Parent gitlink. |
-| `sh -n connectors/apache/build/apxs-wrapper.in` | passed | Shell syntax accepted. |
+| Verified project venv: `python -m unittest -v tests.test_prepare_runtime_components tests.test_envoy_transport_hardening_contract tests.test_apache_apxs_profile_registry_staging tests.test_apache_common_adoption` with bytecode and temporary output outside the checkout | passed | 134 tests passed; 5 existing Framework-dependent tests were skipped because the Framework test root did not match the Parent gitlink. |
+| `sh -n ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh` and `sh -n connectors/apache/build/apxs-wrapper.in` | passed | Shell syntax accepted. |
 | `sh -n connectors/envoy/harness/run_envoy_connector_runtime.sh` | passed | Shell syntax accepted. |
 | `make -n -C connectors/envoy response-phase-smoke-envoy` | passed | Dry-run shows the companion rule file and `MSCONNECTOR_RESPONSE_PHASE_SMOKE=1`; no build or service ran. |
+| `APACHE_AUTOTOOLS_TEST_PARENT=... APACHE_AUTOTOOLS_RUNTIME_PARENT=... make check-apache-autotools-bootstrap` | blocked_environment (make exit 2) | The fresh source snapshot completed Autotools configuration, `make`, and the module-output check; a later runtime `chown` on the controlled `/var/tmp` root failed with `EINVAL`. |
 | `make check-bilingual-docs` | blocked_environment | The checker reported no error for either current Change Record, but failed on 20 pre-existing links whose Framework-Gitlink targets are absent from this worktree. |
 | `git diff --check` | passed | No whitespace errors before delivery preparation. |
 
 The Apache fake-APXS control proves that generated profile-registry artifacts
 exist only under the external stage root. Its negative controls reject a direct
-in-checkout root and a symlink resolving into the checkout. The Expat controls
-reject mutable, abbreviated, 41-character, and 63-character references before
-Git/release lookup; 40- and 64-character references remain accepted. The Envoy
-controls preserve the default P1 target and reject duplicate P3/P4 evidence.
+in-checkout root and a symlink resolving into the checkout. The Bootstrap
+contract preserves its one private sibling stage assignment, while the partial
+native bootstrap run proves that the build progressed beyond the original CI
+failure point: it reached the module-output check before the unrelated host
+ownership operation. The Expat controls reject mutable, abbreviated,
+41-character, and 63-character references before Git/release lookup; 40- and
+64-character references remain accepted. The Envoy controls preserve the
+default P1 target and reject duplicate P3/P4 evidence.
 
 ## Runtime evidence
 
 The Envoy helper fixture was exercised by the focused Python contract test,
 not by a native Envoy process. The Apache fake-APXS test exercised the wrapper
-argument and artifact boundary, not a real host build. These are bounded local
-evidence routes only.
+argument and artifact boundary. The local Apache bootstrap additionally
+exercised its real Autotools/APXS module build, but not its completed server
+runtime because the controlled host filesystem rejected a later ownership
+change. These are bounded local evidence routes only.
 
 ## Checks not run and rationale
 
-No native Envoy build or service, real Apache/APXS build, full connector
-matrix, SonarQube Cloud analysis, or hosted PR check has been run at this
-change's exact head. A native Envoy runtime run requires the separate runtime
-preflight and a short, private absolute runtime root suitable for its UDS;
-neither is implied by the static contract tests. No Framework source or
+No native Envoy build or service, completed Apache server-runtime check, full
+connector matrix, SonarQube Cloud analysis, or hosted PR check has been run at
+this follow-up's exact head. A native Envoy runtime run requires the separate
+runtime preflight and a short, private absolute runtime root suitable for its
+UDS; neither is implied by the static contract tests. The local Apache
+bootstrap's post-build ownership failure is a host filesystem constraint, not
+evidence that permits weakening the ownership logic. No Framework source or
 externally prepared CRS content was changed or tested.
 
 ## Known limitations
@@ -161,6 +182,10 @@ externally prepared CRS content was changed or tested.
   remain unverified.
 - The five skipped tests in the combined suite require a Framework test root
   whose commit matches the Parent gitlink.
+- The local Apache bootstrap requires an ownership-capable filesystem to
+  complete its runtime phase. Its isolated `/var/tmp` root reached the module
+  build but failed later at `chown(...)=EINVAL`; the corrected hosted rerun is
+  still required for full runtime evidence.
 
 ## Remaining risks
 
@@ -176,7 +201,7 @@ externally prepared CRS content was changed or tested.
 
 ## Final diff and review status
 
-This record documents local evidence before the existing Draft PR is updated.
+This record documents local evidence for the current existing-Draft-PR update.
 After delivery, local, remote-branch, and PR-head SHAs must be compared
 exactly, and hosted checks, SonarQube, review state, and any later merge remain
 separate observed facts. No merge is asserted.

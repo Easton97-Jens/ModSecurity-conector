@@ -12,6 +12,9 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 WRAPPER_TEMPLATE = ROOT / "connectors" / "apache" / "build" / "apxs-wrapper.in"
+AUTOTOOLS_BOOTSTRAP = (
+    ROOT / "ci" / "checks" / "connectors" / "apache" / "check-apache-autotools-bootstrap.sh"
+)
 
 
 class ApacheApxsProfileRegistryStagingTest(unittest.TestCase):
@@ -123,6 +126,31 @@ class ApacheApxsProfileRegistryStagingTest(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("must be outside the canonical connector checkout", result.stderr)
             self.assertFalse((connector_root / "profile-registry").exists())
+
+    def test_autotools_bootstrap_uses_a_private_stage_outside_its_source_snapshot(self) -> None:
+        bootstrap = AUTOTOOLS_BOOTSTRAP.read_text(encoding="utf-8")
+        stage_assignment = (
+            'MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT="$WORK_ROOT/profile-registry" \\'
+        )
+
+        self.assertIn("umask 077", bootstrap)
+        self.assertIn(
+            'WORK_ROOT=$(mktemp -d "$TEST_PARENT/f-gs-001-apache-autotools.XXXXXX")',
+            bootstrap,
+        )
+        self.assertIn('SOURCE_ROOT="$WORK_ROOT/source"', bootstrap)
+        self.assertIn(stage_assignment, bootstrap)
+        self.assertEqual(bootstrap.count(stage_assignment), 1)
+        self.assertNotIn(
+            'MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT="$APACHE_ROOT/', bootstrap
+        )
+        self.assertNotIn(
+            'MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT="$SOURCE_ROOT/', bootstrap
+        )
+        self.assertLess(
+            bootstrap.index(stage_assignment),
+            bootstrap.index("    make\n", bootstrap.index(stage_assignment)),
+        )
 
 
 if __name__ == "__main__":
