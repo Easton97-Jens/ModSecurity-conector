@@ -64,6 +64,13 @@ This removes a mutable upstream `releases/latest` selection from the Expat
 build-input boundary. A mutable Expat reference now fails closed before Git or
 release lookup.
 
+The focused follow-up removes the formerly unused `expected_prompt_latest`
+argument from this internal Expat helper and its callers, plus the unused
+`strict` argument from source validation. `EXPAT_PROMPT_EXPECTED_LATEST`
+remains an exported and documented compatibility input; it did not influence
+immutable preparation. The derived strict value remains in runtime context and
+continues to control downstream preparation, cache, and fsck behavior.
+
 ## Security impact
 
 The repair narrows source provenance, preserves the default Envoy test mode,
@@ -130,6 +137,7 @@ canonical-path or symlink rejection.
 | Command or check | Result | Observed result |
 | --- | --- | --- |
 | Verified project venv: `python -m unittest -v tests.test_prepare_runtime_components tests.test_envoy_transport_hardening_contract tests.test_apache_apxs_profile_registry_staging tests.test_apache_common_adoption` with bytecode and temporary output outside the checkout | passed | 134 tests passed; 5 existing Framework-dependent tests were skipped because the Framework test root did not match the Parent gitlink. |
+| Focused post-Sonar follow-up: `python -m unittest -v tests.test_prepare_runtime_components` with bytecode and temporary output outside the checkout | passed | 90 tests passed; 5 existing Framework-dependent tests were skipped because the Framework test root did not match the Parent gitlink. |
 | `sh -n ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh` and `sh -n connectors/apache/build/apxs-wrapper.in` | passed | Shell syntax accepted. |
 | `sh -n connectors/envoy/harness/run_envoy_connector_runtime.sh` | passed | Shell syntax accepted. |
 | `make -n -C connectors/envoy response-phase-smoke-envoy` | passed | Dry-run shows the companion rule file and `MSCONNECTOR_RESPONSE_PHASE_SMOKE=1`; no build or service ran. |

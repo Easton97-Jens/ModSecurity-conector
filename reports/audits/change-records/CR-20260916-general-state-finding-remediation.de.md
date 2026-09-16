@@ -69,6 +69,14 @@ Dies entfernt eine veränderliche Upstream-Auswahl über `releases/latest` aus
 der Expat-Build-Input-Grenze. Eine veränderliche Expat-Referenz schlägt nun vor
 Git- oder Release-Lookup fail-closed fehl.
 
+Das gezielte Follow-up entfernt das zuvor ungenutzte Argument
+`expected_prompt_latest` aus diesem internen Expat-Helper und seinen Aufrufern
+sowie das ungenutzte Argument `strict` aus der Source-Validierung.
+`EXPAT_PROMPT_EXPECTED_LATEST` bleibt ein exportierter und dokumentierter
+Kompatibilitätsinput; er beeinflusste die unveränderliche Vorbereitung nicht.
+Der abgeleitete Strict-Wert bleibt im Runtime-Kontext und steuert weiterhin die
+nachgelagerte Vorbereitung sowie Cache- und fsck-Verhalten.
+
 ## Security-Auswirkung
 
 Die Reparatur verengt die Source-Provenance, bewahrt den Envoy-Testmodus als
@@ -136,6 +144,7 @@ Stage-Root, ohne seine Canonical-Path- oder Symlink-Abweisung zu lockern.
 | Befehl oder Check | Ergebnis | Beobachtetes Ergebnis |
 | --- | --- | --- |
 | Verifiziertes Projekt-vEnv: `python -m unittest -v tests.test_prepare_runtime_components tests.test_envoy_transport_hardening_contract tests.test_apache_apxs_profile_registry_staging tests.test_apache_common_adoption` mit Bytecode- und temporären Ausgaben außerhalb des Checkouts | bestanden | 134 Tests bestanden; 5 bestehende Framework-abhängige Tests wurden übersprungen, weil der Framework-Test-Root nicht zum Parent-Gitlink passte. |
+| Gezieltes Post-Sonar-Follow-up: `python -m unittest -v tests.test_prepare_runtime_components` mit Bytecode- und temporären Ausgaben außerhalb des Checkouts | bestanden | 90 Tests bestanden; 5 bestehende Framework-abhängige Tests wurden übersprungen, weil der Framework-Test-Root nicht zum Parent-Gitlink passte. |
 | `sh -n ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh` und `sh -n connectors/apache/build/apxs-wrapper.in` | bestanden | Shell-Syntax akzeptiert. |
 | `sh -n connectors/envoy/harness/run_envoy_connector_runtime.sh` | bestanden | Shell-Syntax akzeptiert. |
 | `make -n -C connectors/envoy response-phase-smoke-envoy` | bestanden | Dry-Run zeigt die Companion-Regeldatei und `MSCONNECTOR_RESPONSE_PHASE_SMOKE=1`; kein Build oder Service lief. |
