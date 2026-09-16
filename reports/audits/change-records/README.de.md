@@ -11,6 +11,16 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260916-lighttpd-stock-sidecar-endpoint-metadata](CR-20260916-lighttpd-stock-sidecar-endpoint-metadata.de.md)
+  | English companion: `CR-20260916-lighttpd-stock-sidecar-endpoint-metadata.md` —
+  der aktuelle Benutzer autorisierte ausdrücklich einen task-owned
+  Parent-Worktree und einen PR für die eingegrenzte lighttpd-Stock-Sidecar-
+  Endpunktmetadaten-Reparatur. Der Record hält den reproduzierten `502`-
+  Allow-Fehler, kernelbezogenes fail-closed Mapping, gezielte lokale Ergebnisse,
+  den verbleibenden Immediate-Reset-Testfehler und ausstehende Exact-Head-
+  Hosted-Evidenz fest. Keine Framework-/MRTS-/Gitlink-Änderung, direkte
+  `master`-Aktion, Auto-Merge oder Merge wird behauptet.
+
 - [CR-20260913-sonar-connector-followup-remediation](CR-20260913-sonar-connector-followup-remediation.de.md)
   | English companion: `CR-20260913-sonar-connector-followup-remediation.md` —
   der aktuelle Benutzer autorisierte diesen normalen Parent-only-Follow-up-PR

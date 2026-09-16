@@ -862,6 +862,11 @@ typedef struct sidecar_exchange_payload {
 
 typedef struct sidecar_exchange_state {
     int client;
+    /* Transaction request endpoints borrow these values until cleanup. */
+    char client_address[INET_ADDRSTRLEN];
+    char server_address[INET_ADDRSTRLEN];
+    int client_port;
+    int server_port;
     const sidecar_options *options;
     msconnector_runtime *runtime;
     sidecar_deadline deadline;
@@ -882,6 +887,28 @@ typedef struct sidecar_exchange_state {
     int handled;
     sidecar_failure_origin failure_origin;
 } sidecar_exchange_state;
+
+static int sidecar_capture_request_endpoints(sidecar_exchange_state *state) {
+    struct sockaddr_in client_endpoint = {0};
+    struct sockaddr_in server_endpoint = {0};
+    socklen_t client_size = sizeof(client_endpoint);
+    socklen_t server_size = sizeof(server_endpoint);
+
+    if (state == NULL ||
+        getpeername(state->client, (struct sockaddr *)&client_endpoint, &client_size) != 0 ||
+        getsockname(state->client, (struct sockaddr *)&server_endpoint, &server_size) != 0 ||
+        client_size != sizeof(client_endpoint) || server_size != sizeof(server_endpoint) ||
+        client_endpoint.sin_family != AF_INET || server_endpoint.sin_family != AF_INET ||
+        inet_ntop(AF_INET, &client_endpoint.sin_addr, state->client_address,
+                  sizeof(state->client_address)) == NULL ||
+        inet_ntop(AF_INET, &server_endpoint.sin_addr, state->server_address,
+                  sizeof(state->server_address)) == NULL) {
+        return 0;
+    }
+    state->client_port = (int)ntohs(client_endpoint.sin_port);
+    state->server_port = (int)ntohs(server_endpoint.sin_port);
+    return state->client_port > 0 && state->server_port > 0;
+}
 
 static void sidecar_exchange_state_init(sidecar_exchange_state *state, int client,
                                         const sidecar_options *options,
@@ -1321,11 +1348,16 @@ static int sidecar_exchange_request(sidecar_exchange_state *state) {
             break;
         }
     }
+    if (!sidecar_capture_request_endpoints(state)) return 0;
     memset(&request, 0, sizeof(request));
     request.method = state->payload.request_headers.method;
     request.uri = state->payload.request_headers.uri;
     request.http_version = state->payload.request_headers.version;
     request.hostname = host;
+    request.client.address = state->client_address;
+    request.client.port = state->client_port;
+    request.server.address = state->server_address;
+    request.server.port = state->server_port;
     request.headers = state->payload.request_headers.items;
     request.header_count = state->payload.request_headers.count;
     if (!msconnector_runtime_transaction_begin(state->runtime, &request, NULL,

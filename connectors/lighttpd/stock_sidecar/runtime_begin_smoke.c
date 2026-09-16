@@ -33,6 +33,12 @@ int main(int argc, char **argv) {
     request.uri = "/";
     request.http_version = "HTTP/1.1";
     request.hostname = "localhost";
+    /* This is a synthetic Common-runtime smoke request, not a socket-backed
+     * production exchange. Keep its endpoint metadata valid and explicit. */
+    request.client.address = "127.0.0.1";
+    request.client.port = 49152;
+    request.server.address = "127.0.0.1";
+    request.server.port = 8080;
     if (!msconnector_runtime_transaction_begin(runtime, &request, NULL, &transaction,
                                                 &decision, &error)) {
         msconnector_runtime_destroy(&runtime);

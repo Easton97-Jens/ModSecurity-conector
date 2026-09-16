@@ -1506,6 +1506,25 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
             self.assertTrue(response.endswith(response_body))
             self.assertEqual(upstream.record_count(), 1)
 
+    def test_loopback_endpoint_metadata_reaches_common_runtime(self) -> None:
+        normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+        with self._fixture(
+            'SecRule REQUEST_URI "@streq /endpoint-metadata" '
+            '"id:9801006,phase:1,deny,status:451,log"',
+            lambda _request: normal,
+        ) as (sidecar, upstream, events, _config):
+            self.assertEqual(_status(sidecar.exchange(self._request("/endpoint-metadata"))), 451)
+            self.assertEqual(upstream.record_count(), 0)
+            event_text = self._wait_for_event(events, "MSCONN_EVENT_REQUEST_BLOCKED")
+
+        records = [json.loads(line) for line in event_text.splitlines() if line]
+        blocked = next(record for record in records
+                       if record["message_id"] == "MSCONN_EVENT_REQUEST_BLOCKED")
+        # Common accepts the transaction only when both endpoint tuples are
+        # valid; the event additionally proves that the client value came from
+        # the accepted loopback TCP connection rather than the Host header.
+        self.assertEqual(blocked["client_ip"], "127.0.0.1")
+
     def test_p1_p2_p3_blocks_are_precommit_and_p4_uses_late_policy(self) -> None:
         normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
 
