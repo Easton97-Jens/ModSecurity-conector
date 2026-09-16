@@ -32,7 +32,7 @@ Common `validate_request_input` requires bounded nonempty endpoint addresses.
 - The socket-free `runtime_begin_smoke` has valid explicit test metadata.
 - C17/Werror builds succeed with `cc` and `clang`.
 
-## Implementation decision and security impact
+## Implementation decision and rationale
 
 `sidecar_capture_request_endpoints` obtains both endpoints exclusively with
 `getpeername()` and `getsockname()` from the accepted client socket. It rejects
@@ -45,6 +45,12 @@ The listener remains literal IPv4 loopback-only. A failed capture cannot start
 a Common transaction or contact the upstream; the existing connector error
 path fails closed. `runtime_begin_smoke` is not socket-backed, so its explicit
 loopback values are confined to synthetic test input.
+
+## Security impact
+
+Endpoint values come only from the accepted socket and invalid metadata keeps
+the existing fail-closed behavior. No request-controlled `Host` fallback or
+privilege boundary is introduced.
 
 ## Changed files
 
@@ -77,12 +83,13 @@ no upstream release. The original focused allow changed from the reproduced
 
 No real stock-lighttpd backend, full connector matrix, hosted PR check,
 SonarQube Cloud analysis, review readback, or resulting-master workflow can be
-claimed yet. The repository-wide `make check-bilingual-docs` invocation was
-interrupted after 80 seconds without a result, so it is not recorded as passed.
-The immediate-reset test is left intact because changing it without a proven
+claimed yet. The latest repository-wide `make check-bilingual-docs` invocation
+reports no error for either current Change Record but fails on 20 pre-existing
+links whose Framework-Gitlink targets are absent from this worktree. The
+immediate-reset test is left intact because changing it without a proven
 synchronization contract could mask a delivery-lifecycle defect.
 
-## Known limitations and follow-up
+## Known limitations
 
 The complete module has one failing immediate-reset test with no event record
 after the client reset. The real stock-lighttpd backend and full matrix were
@@ -91,7 +98,13 @@ and candidate-integration blocker status remains until the complete contract,
 real backend, and original reproduction/control evidence pass at the exact PR
 head.
 
-## Final diff and delivery status
+## Remaining risks
+
+The retained immediate-client-reset race leaves the full module short of a
+verified result. It must not be hidden by timing changes; a later deterministic
+broken-peer test is required before treating that delivery path as complete.
+
+## Final diff and review status
 
 This record is part of the task-owned branch. It records only local evidence
 available before the Draft PR. After the push, local HEAD, remote branch SHA,

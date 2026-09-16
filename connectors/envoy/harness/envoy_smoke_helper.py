@@ -285,7 +285,9 @@ class UpstreamHandler(http.server.BaseHTTPRequestHandler):
 
     def _answer_standard(self) -> None:
         response_headers: list[tuple[str, str]] = []
-        if self.path == "/vector/p3":
+        if self.path == "/phase3-block":
+            response_headers.append(("X-Modsec-Upstream", "block"))
+        elif self.path == "/vector/p3":
             response_headers.append(("X-Msconnector-Vector", "msconnector-p3-only"))
         elif self.path == P3_REDIRECT_PATH:
             response_headers.append(("X-Msconnector-Vector", "msconnector-p3-redirect"))
@@ -300,6 +302,8 @@ class UpstreamHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(body)
 
     def _standard_body(self) -> bytes:
+        if self.path == "/phase4-marker":
+            return b"no-crs-response-body-marker\n"
         if self.path == "/vector/p4":
             return b"p4-response-msconnector-p4-only"
         if self.path == "/vector/p4-safe":
@@ -981,8 +985,8 @@ def verify_response_phase_events(
         and record.get("actual_action") == "log_only"
         and record.get("response_committed") is True
     ]
-    if not p3 or not p4:
-        raise ValueError("Common event log lacks P3 deny or P4 Safe evidence")
+    if len(p3) != 1 or len(p4) != 1:
+        raise ValueError("Common event log must contain exactly one P3 deny and P4 Safe record")
     if any(forbidden_body_fields.intersection(record) for record in [*p3, *p4]):
         raise ValueError("Common event log contains a forbidden body payload field")
 

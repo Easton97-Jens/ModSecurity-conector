@@ -11,6 +11,16 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260916-general-state-finding-remediation](CR-20260916-general-state-finding-remediation.de.md)
+  | English companion: `CR-20260916-general-state-finding-remediation.md` —
+  der aktuelle Benutzer autorisierte ausdrücklich sichere Remediation im
+  bestehenden Parent-Draft-PR #369. Der gepaarte Record hält den unveränderlichen
+  Expat-Pin, die opt-in-Envoy-Response-Phase-Regel-/Fixture-Evidenz und
+  externes Apache-APXS-Profile-Registry-Staging fest, während blockierte
+  Traefik-, Apache-, NGINX- und Framework-Evidenz als solche erhalten bleibt.
+  Keine Framework-/MRTS-/Gitlink-Änderung, direkte `master`-Aktion,
+  Auto-Merge oder Merge wird behauptet.
+
 - [CR-20260916-lighttpd-stock-sidecar-endpoint-metadata](CR-20260916-lighttpd-stock-sidecar-endpoint-metadata.de.md)
   | English companion: `CR-20260916-lighttpd-stock-sidecar-endpoint-metadata.md` —
   der aktuelle Benutzer autorisierte ausdrücklich einen task-owned

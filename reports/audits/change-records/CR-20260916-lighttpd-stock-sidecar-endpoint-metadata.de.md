@@ -6,13 +6,13 @@
 
 | Feld | Wert |
 | --- | --- |
-| Change ID | CR-20260916-lighttpd-stock-sidecar-endpoint-metadata |
+| Change-ID | CR-20260916-lighttpd-stock-sidecar-endpoint-metadata |
 | Datum (UTC) | 2026-09-16 |
-| Basisrevision | `e475baabf0787cbc804f176ae998b62156892825` |
+| Basis-Revision | `e475baabf0787cbc804f176ae998b62156892825` |
 | Benutzerautorisierung | „erstelle ein eigenen worktree und ein pr dann“ |
 | Delivery-Status | Ein task-owned Parent-Worktree und ein Draft PR sind autorisiert. Kein Merge, Auto-Merge, direkter `master`-Schreibvorgang, Framework-/MRTS-/Gitlink-Change oder Branch-Löschung ist autorisiert. |
 
-## Motivation und Problembeschreibung
+## Motivation und Problemstellung
 
 Der zurückbehaltene General-State-Lauf `20260913T142629Z-e475baa` meldete 14/33
 lighttpd-Stock-Sidecar-Loopback-Fehler und einen fehlgeschlagenen ersten
@@ -34,7 +34,7 @@ gezielte Allow-Control `502`, obwohl `200` erwartet wurde.
   Testmetadaten.
 - C17/Werror-Builds mit `cc` und `clang` gelingen.
 
-## Implementierungsentscheidung und Security-Auswirkung
+## Implementierungsentscheidung und Begründung
 
 `sidecar_capture_request_endpoints` bezieht beide Endpunkte ausschließlich mit
 `getpeername()` und `getsockname()` vom akzeptierten Client-Socket. Es lehnt
@@ -48,6 +48,12 @@ Erfassung kann weder eine Common-Transaktion starten noch den Upstream
 kontaktieren; der bestehende Connector-Fehlerpfad schlägt fail-closed fehl.
 `runtime_begin_smoke` ist nicht socket-basiert, daher bleiben seine expliziten
 Loopback-Werte auf synthetischen Testinput begrenzt.
+
+## Security-Auswirkung
+
+Endpunktwerte stammen ausschließlich vom akzeptierten Socket; ungültige
+Metadaten bewahren das vorhandene fail-closed-Verhalten. Es entsteht weder ein
+anfragekontrollierter `Host`-Fallback noch eine neue Privileggrenze.
 
 ## Geänderte Dateien
 
@@ -69,24 +75,25 @@ Loopback-Werte auf synthetischen Testinput begrenzt.
 | Vollständiges Modul `connectors/lighttpd/tests/test_stock_sidecar_contract.py` | fehlgeschlagen | 33 von 34 Tests bestanden; der Immediate-Client-Reset-Event-Fall blieb leer. |
 | `git diff --check` vor dem Delivery-Setup | bestanden | Keine Whitespace-Fehler im Produkt-Diff. |
 
-## Runtime-Evidenz
+## Runtime-Evidence
 
 Die gezielten TCP-Sidecar-Tests übten eine echte akzeptierte Loopback-Verbindung
 aus. Der neue Phase-1-Block-Test beobachtet `client_ip` `127.0.0.1`, Status
 `451` und keine Upstream-Freigabe. Der ursprüngliche gezielte Allow wechselte
 nach der Reparatur vom reproduzierten Fehler `502` zu `200`.
 
-## Nicht ausgeführte Checks und Begründung
+## Nicht ausgeführte Prüfungen mit Begründung
 
 Kein reales Stock-lighttpd-Backend, keine vollständige Connector-Matrix, kein
 hosted PR-Check, keine SonarQube-Cloud-Analyse, kein Review-Readback und kein
-Resulting-Master-Workflow können derzeit behauptet werden. Der repositoryweite
-Aufruf `make check-bilingual-docs` wurde nach 80 Sekunden ohne Ergebnis
-unterbrochen und ist deshalb nicht als bestanden dokumentiert. Der Immediate-
-Reset-Test bleibt unverändert, weil eine Änderung ohne nachgewiesenen
+Resulting-Master-Workflow können derzeit behauptet werden. Der aktuelle
+repositoryweite Aufruf `make check-bilingual-docs` meldet keinen Fehler für
+einen der aktuellen Change Records, scheitert aber an 20 bestehenden Links,
+deren Framework-Gitlink-Ziele in diesem Worktree fehlen. Der Immediate-Reset-
+Test bleibt unverändert, weil eine Änderung ohne nachgewiesenen
 Synchronisationsvertrag einen Delivery-Lifecycle-Defekt maskieren könnte.
 
-## Bekannte Einschränkungen und Follow-up
+## Bekannte Einschränkungen
 
 Das vollständige Modul hat einen fehlschlagenden Immediate-Reset-Test ohne
 Event-Record nach dem Client-Reset. Das reale Stock-lighttpd-Backend und die
@@ -95,7 +102,14 @@ vollständige Matrix wurden nicht erneut ausgeführt. `FND-PARENT-1091` ist loka
 Status bleibt, bis vollständiger Contract, Real-Backend und ursprüngliche
 Reproduktions-/Control-Evidenz am exakten PR-Head bestehen.
 
-## Finaler Diff und Delivery-Status
+## Verbleibende Risiken
+
+Der erhaltene Immediate-Client-Reset-Race verhindert weiterhin ein verifiziertes
+Gesamtmodulergebnis. Er darf nicht durch Timing-Änderungen verdeckt werden;
+ein späterer deterministischer Broken-Peer-Test ist nötig, bevor dieser
+Delivery-Pfad als vollständig gilt.
+
+## Finaler Diff- und Review-Status
 
 Dieser Record ist Teil des task-owned Branches. Er enthält nur lokale Evidenz,
 die vor dem Draft PR verfügbar ist. Nach dem Push müssen lokaler HEAD,

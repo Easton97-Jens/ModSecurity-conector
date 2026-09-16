@@ -10,6 +10,15 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260916-general-state-finding-remediation](CR-20260916-general-state-finding-remediation.md)
+  | [Deutsch](CR-20260916-general-state-finding-remediation.de.md) — the
+  current user explicitly authorized safe remediation in existing Parent Draft
+  PR #369. The paired record captures the immutable Expat pin, opt-in Envoy
+  response-phase rule/fixture evidence, and external Apache APXS
+  profile-registry staging, while retaining blocked Traefik, Apache, NGINX,
+  and Framework evidence as such. No Framework/MRTS/Gitlink change, direct
+  `master` action, auto-merge, or merge is asserted.
+
 - [CR-20260916-lighttpd-stock-sidecar-endpoint-metadata](CR-20260916-lighttpd-stock-sidecar-endpoint-metadata.md)
   | [Deutsch](CR-20260916-lighttpd-stock-sidecar-endpoint-metadata.de.md) —
   the current user explicitly authorized one task-owned Parent worktree and
