@@ -483,12 +483,12 @@ P2_OVERSIZE_HEADERS="$ROOT_LOG_DIR/p2-oversize.headers"
 P2_OVERSIZE_RESPONSE="$ROOT_LOG_DIR/p2-oversize.response"
 dd if=/dev/zero of="$P2_OVERSIZE_BODY" bs=1024 count=1025 >/dev/null 2>&1 || \
     fail "could not generate a bounded over-limit P2 request body"
-curl -sS --max-time 5 -X POST \
+p2_oversize_status=$(curl -sS --max-time 5 -X POST \
     -H 'Content-Type: application/octet-stream' \
     --data-binary "@$P2_OVERSIZE_BODY" \
     -D "$P2_OVERSIZE_HEADERS" -o "$P2_OVERSIZE_RESPONSE" \
-    "http://127.0.0.1:$PORT/p2-oversize-handler.html"
-p2_oversize_status=$(awk 'NR == 1 { print $2; exit }' "$P2_OVERSIZE_HEADERS")
+    -w "$HTTP_STATUS_FORMAT" \
+    "http://127.0.0.1:$PORT/p2-oversize-handler.html")
 [ "$p2_oversize_status" = 413 ] || \
     fail "over-limit P2 request body returned HTTP $p2_oversize_status instead of 413"
 if grep -Fq 'over-limit request body must not reach handler' "$P2_OVERSIZE_RESPONSE"; then

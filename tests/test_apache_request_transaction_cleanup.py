@@ -233,7 +233,7 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
         bootstrap = AUTOTOOLS_BOOTSTRAP.read_text(encoding="utf-8")
 
         self.assertIn("HTTP_STATUS_FORMAT='%{http_code}'", bootstrap)
-        self.assertEqual(bootstrap.count('-w "$HTTP_STATUS_FORMAT"'), 6)
+        self.assertEqual(bootstrap.count('-w "$HTTP_STATUS_FORMAT"'), 7)
         self.assertNotIn("-w '%{http_code}'", bootstrap)
         self.assertIn("TXID_127_PATH=$(txid_path_for_length 127)", bootstrap)
         self.assertIn("TXID_128_PATH=$(txid_path_for_length 128)", bootstrap)
@@ -297,7 +297,17 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
         self.assertIn('P2_OVERSIZE_HEADERS="$ROOT_LOG_DIR/p2-oversize.headers"', bootstrap)
         self.assertIn('P2_OVERSIZE_RESPONSE="$ROOT_LOG_DIR/p2-oversize.response"', bootstrap)
         self.assertIn('"http://127.0.0.1:$PORT/p2-oversize-handler.html"', bootstrap)
-        self.assertIn("p2_oversize_status=", bootstrap)
+        oversize_start = bootstrap.index(
+            'P2_OVERSIZE_BODY="$ROOT_LOG_DIR/p2-oversize.bin"'
+        )
+        oversize_end = bootstrap.index(
+            'FOLLOWUP_HEADERS="$ROOT_LOG_DIR/p2-followup.headers"'
+        )
+        oversize_request = bootstrap[oversize_start:oversize_end]
+
+        self.assertIn("p2_oversize_status=$(curl", oversize_request)
+        self.assertIn('-w "$HTTP_STATUS_FORMAT"', oversize_request)
+        self.assertNotIn("p2_oversize_status=$(awk", oversize_request)
         self.assertIn('"$p2_oversize_status" = 413', bootstrap)
         self.assertIn(
             "over-limit request body must not reach handler", bootstrap

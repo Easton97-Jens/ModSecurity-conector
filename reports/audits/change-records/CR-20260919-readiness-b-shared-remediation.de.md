@@ -10,7 +10,7 @@
 | Datum (UTC) | 2026-09-19 |
 | Basis-Revision | `e475baabf0787cbc804f176ae998b62156892825` |
 | Scope | Ausschließlich gemeinsame Parent-Connector-Remediation, direkt betroffene Tests und gekoppelte Dokumentation. Keine Framework-, MRTS-, Gitlink-, Dependency-, Regelprofil-, Scanner-, Quality-Gate-, Workflow- oder Merge-Änderung ist enthalten. |
-| Delivery-Status | Draft-PR [#370](https://github.com/Easton97-Jens/ModSecurity-conector/pull/370) von `agent/readiness-b-ten-integrations-20260919`; die Commits `43d9003fc986a36441c9d83bb26e746cfbe10a8c`, `aac89c4f2982d6faf91351fc6809cedfce5c9256` und `466a776347e35405e9875190ae9912a827e56f6a` wurden gepusht. Remote- und PR-Head wurden auf `466a776347e35405e9875190ae9912a827e56f6a` verifiziert; dessen gehosteter Apache-Bootstrap baute und lud das Modul, schlug aber fehl, weil der kleine P2-Marker `413` statt `403` lieferte. Der korrigierende Fallback hat lokale Validierung; sein Post-Fix-Exact-Head-Hosted-Rerun steht aus. Kein Review-Ergebnis oder Merge wird hier behauptet. |
+| Delivery-Status | Draft-PR [#370](https://github.com/Easton97-Jens/ModSecurity-conector/pull/370) von `agent/readiness-b-ten-integrations-20260919`; die Commits `43d9003fc986a36441c9d83bb26e746cfbe10a8c`, `aac89c4f2982d6faf91351fc6809cedfce5c9256`, `466a776347e35405e9875190ae9912a827e56f6a` und `56b838ce1fe681e47c8fd3df326dccab8a1c4405` wurden gepusht. Remote- und PR-Head wurden auf `56b838ce1fe681e47c8fd3df326dccab8a1c4405` verifiziert; dessen gehosteter Apache-Bootstrap baute und lud das Modul, doch sein Over-Limit-Harness las das Zwischen-`100 Continue` der ersten Header-Zeile statt des finalen Response-Status. Diese Beobachtung beweist weder ein finales `413` noch eine Source-Policy-Regression. Der korrigierende Fallback hat lokale Validierung; die Final-Status-Assertion und ihr Post-Fix-Exact-Head-Hosted-Rerun stehen aus. Kein Review-Ergebnis oder Merge wird hier behauptet. |
 | Policy-Auflösung | Die Parent-Traceability-Policy verlangt dieses gekoppelte Record-Paar für die nicht triviale versionierte Arbeit; der etablierte Archivindex wird aktualisiert. |
 
 ## Motivation und Problemstellung
@@ -204,6 +204,15 @@ check-common-helpers-c17` sowie `make check-apache-c17` mit `CC=cc` und
 task-eigenen externen Run-Root geleitet. Alle aufgeführten lokalen Checks
 bestanden; keiner ersetzt den ausstehenden korrigierten Exact-Head-Host-Lauf.
 
+Der gehostete Apache-Bootstrap auf exaktem Head
+`56b838ce1fe681e47c8fd3df326dccab8a1c4405` erreichte die Over-Limit-P2-
+Assertion, las mit seinem Parser der ersten Header-Zeile jedoch `100 Continue`.
+Ein großer HTTP/1.1-Upload kann diese Zwischenantwort vor seinem finalen Status
+erhalten; daher weist die Harness-Beobachtung weder ein finales `413` noch
+einen neuen Source-Policy-Fehler nach. Die Korrektur behält Header- und
+Response-Artefakte, erfasst aber curls finales `%{http_code}`; ihr Exact-Head-
+Hosted-Rerun bleibt erforderlich.
+
 ## Runtime-Evidence
 
 Der finale Apache-Bootstrap- und der HAProxy-SPOP-zu-HTX-Combined-Lauf sind
@@ -226,6 +235,14 @@ dem Start durch `chown(...)=EINVAL` blockiert, und der korrigierte Exact-Head-
 Hosted-Rerun bleibt erforderlich. Der Lighttpd-Harness führt ebenso nicht
 dynamisch `finish_request_body` aus und weist nicht den vollständigen P2-Pfad
 nach.
+
+Der folgende gehostete Bootstrap auf
+`56b838ce1fe681e47c8fd3df326dccab8a1c4405` führte den Over-Limit-Request aus,
+beendete seine Assertion aber beim Zwischen-`100 Continue` statt beim finalen
+Response. Dies ist ein Harness-Parsing-Fehler, keine Evidenz für ein finales
+`413` und keine Widerlegung der finiten/reject-Source-Korrektur. Der nächste
+Exact-Head-Hosted-Lauf muss weiterhin finales `413`, fehlenden Handler-Inhalt
+und den Same-Process-Follow-up nachweisen.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
