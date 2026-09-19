@@ -396,8 +396,7 @@ jobs:
         needs.validate-submodule-update.result == 'success'
       }}
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
     runs-on: ubuntu-latest
     env:
       CANDIDATE_SHA: ${{ needs.resolve-submodule-update.outputs.candidate_sha }}
@@ -423,10 +422,37 @@ jobs:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
+      - name: Verify submodule publisher GitHub App configuration
+        env:
+          WORKFLOW_UPDATER_APP_CLIENT_ID: ${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}
+          WORKFLOW_UPDATER_APP_PRIVATE_KEY: ${{ secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$WORKFLOW_UPDATER_APP_CLIENT_ID" ]; then
+            echo "::error::WORKFLOW_UPDATER_APP_CLIENT_ID repository variable is missing or empty" >&2
+            exit 1
+          fi
+          if [ -z "$WORKFLOW_UPDATER_APP_PRIVATE_KEY" ]; then
+            echo "::error::WORKFLOW_UPDATER_APP_PRIVATE_KEY repository secret is missing" >&2
+            exit 1
+          fi
+
+      - name: Mint repository-limited submodule publisher App token
+        id: publisher_app_token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.repository }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-workflows: write
+
       - name: Publish only a verified Framework gitlink through a safe maintenance state
         id: publish
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.publisher_app_token.outputs.token }}
         run: |
           set -euo pipefail
 
