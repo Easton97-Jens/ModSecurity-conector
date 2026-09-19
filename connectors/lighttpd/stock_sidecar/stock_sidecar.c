@@ -860,15 +860,19 @@ typedef struct sidecar_exchange_payload {
     size_t body_read;
 } sidecar_exchange_payload;
 
-typedef struct sidecar_exchange_state {
+/* Keep the accepted downstream socket and the endpoint metadata derived from
+ * it together.  The addresses and ports remain live through P1 because
+ * Common passes them to msc_process_connection(). */
+typedef struct sidecar_downstream_connection {
     int client;
-    /* These values originate exclusively from the accepted TCP socket.  They
-     * must remain live through P1 because Common passes them to
-     * msc_process_connection(). */
     char client_address[INET6_ADDRSTRLEN];
     char server_address[INET6_ADDRSTRLEN];
     int client_port;
     int server_port;
+} sidecar_downstream_connection;
+
+typedef struct sidecar_exchange_state {
+    sidecar_downstream_connection downstream;
     const sidecar_options *options;
     msconnector_runtime *runtime;
     sidecar_deadline deadline;
@@ -894,7 +898,7 @@ static void sidecar_exchange_state_init(sidecar_exchange_state *state, int clien
                                         const sidecar_options *options,
                                         msconnector_runtime *runtime) {
     memset(state, 0, sizeof(*state));
-    state->client = client;
+    state->downstream.client = client;
     state->options = options;
     state->runtime = runtime;
     state->deadline.at_ms = sidecar_now_ms() + options->timeout_ms;
@@ -952,10 +956,12 @@ static int sidecar_socket_endpoint(int fd, int peer,
 
 static int sidecar_capture_connection_endpoints(sidecar_exchange_state *state) {
     return state != NULL &&
-        sidecar_socket_endpoint(state->client, 1, state->client_address,
-                                &state->client_port) &&
-        sidecar_socket_endpoint(state->client, 0, state->server_address,
-                                &state->server_port);
+        sidecar_socket_endpoint(state->downstream.client, 1,
+                                state->downstream.client_address,
+                                &state->downstream.client_port) &&
+        sidecar_socket_endpoint(state->downstream.client, 0,
+                                state->downstream.server_address,
+                                &state->downstream.server_port);
 }
 
 static int sidecar_read_final_response_headers(sidecar_exchange_state *state) {
@@ -985,7 +991,7 @@ static int sidecar_read_final_response_headers(sidecar_exchange_state *state) {
             state->payload.response_headers = headers;
             return 1;
         }
-        if (!sidecar_write_interim_response_headers_observed(state->client, &headers,
+        if (!sidecar_write_interim_response_headers_observed(state->downstream.client, &headers,
                 &state->deadline, &bytes_sent)) {
             if (bytes_sent > 0U) {
                 state->client_response_started = 1;
@@ -1016,7 +1022,7 @@ static int sidecar_read_request_body(sidecar_exchange_state *state) {
         if (wanted > SIDECAR_IO_CHUNK) {
             wanted = SIDECAR_IO_CHUNK;
         }
-        if (!sidecar_recv_some(state->client, state->payload.request_body + state->payload.body_read,
+        if (!sidecar_recv_some(state->downstream.client, state->payload.request_body + state->payload.body_read,
                                wanted, &state->deadline, &received)) {
             state->failure_origin = SIDECAR_FAILURE_CLIENT;
             return 0;
@@ -1053,7 +1059,7 @@ static int sidecar_read_response_body(sidecar_exchange_state *state) {
         }
         {
             size_t bytes_sent = 0U;
-            if (!sidecar_send_all_observed(state->client, chunk, received,
+            if (!sidecar_send_all_observed(state->downstream.client, chunk, received,
                                            &state->deadline, &bytes_sent)) {
                 if (bytes_sent > 0U) {
                     (void)msconnector_runtime_transaction_set_response_commit_state_checked(
@@ -1075,7 +1081,7 @@ static int sidecar_read_response_body(sidecar_exchange_state *state) {
 }
 
 static void sidecar_finish_decision(sidecar_exchange_state *state) {
-    if (!sidecar_write_decision(state->client, &state->decision, &state->deadline)) {
+    if (!sidecar_write_decision(state->downstream.client, &state->decision, &state->deadline)) {
         sidecar_record_decision_delivery_failure(state->transaction, &state->decision,
                                                   &state->error);
     } else {
@@ -1091,7 +1097,7 @@ static int sidecar_forward_response(sidecar_exchange_state *state) {
 
     (void)snprintf(status_line, sizeof(status_line), "HTTP/1.1 %d Proxied\r\n",
                    state->payload.response_headers.status_code);
-    if (!sidecar_write_upstream_response_headers_observed(state->client, status_line,
+    if (!sidecar_write_upstream_response_headers_observed(state->downstream.client, status_line,
             &state->payload.response_headers, &state->deadline, &header_bytes_sent)) {
         /* A partial downstream header is already an owned response stream.
          * Do not let the generic exchange error append a second 5xx response;
@@ -1358,17 +1364,17 @@ static int sidecar_write_non_allow_receipt(
 static int sidecar_exchange_request(sidecar_exchange_state *state) {
     msconnector_request request;
     const char *host = "";
-    if (!sidecar_read_header_block(state->client, &state->deadline, state->header_limit,
+    if (!sidecar_read_header_block(state->downstream.client, &state->deadline, state->header_limit,
                                    &state->payload.request_block, &state->payload.request_size) ||
         !sidecar_parse_headers(state->payload.request_block, state->payload.request_size, state->header_limit,
                                 state->count_limit, 1, 0, &state->payload.request_headers) ||
         state->payload.request_headers.chunked || state->payload.request_headers.upgrade) {
-        (void)sidecar_write_error(state->client, 400, &state->deadline);
+        (void)sidecar_write_error(state->downstream.client, 400, &state->deadline);
         state->handled = 1;
         return 0;
     }
     if (sidecar_headers_has_name(&state->payload.request_headers, "Expect")) {
-        (void)sidecar_write_error(state->client, 417, &state->deadline);
+        (void)sidecar_write_error(state->downstream.client, 417, &state->deadline);
         state->handled = 1;
         return 0;
     }
@@ -1384,10 +1390,10 @@ static int sidecar_exchange_request(sidecar_exchange_state *state) {
     request.uri = state->payload.request_headers.uri;
     request.http_version = state->payload.request_headers.version;
     request.hostname = host;
-    request.client.address = state->client_address;
-    request.client.port = state->client_port;
-    request.server.address = state->server_address;
-    request.server.port = state->server_port;
+    request.client.address = state->downstream.client_address;
+    request.client.port = state->downstream.client_port;
+    request.server.address = state->downstream.server_address;
+    request.server.port = state->downstream.server_port;
     request.headers = state->payload.request_headers.items;
     request.header_count = state->payload.request_headers.count;
     if (!msconnector_runtime_transaction_begin(state->runtime, &request, NULL,
@@ -1405,7 +1411,7 @@ static int sidecar_exchange_request(sidecar_exchange_state *state) {
         int written;
         (void)msconnector_runtime_transaction_fail(state->transaction,
             MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, &state->error);
-        written = sidecar_write_error(state->client, status, &state->deadline);
+        written = sidecar_write_error(state->downstream.client, status, &state->deadline);
         sidecar_record_failure_action(state->transaction, status, written, &state->error);
         (void)msconnector_runtime_transaction_finish(state->transaction, &state->error);
         state->handled = 1;
@@ -1458,7 +1464,7 @@ static int sidecar_exchange_response(sidecar_exchange_state *state) {
         int written;
         (void)msconnector_runtime_transaction_fail(state->transaction,
             MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, &state->error);
-        written = sidecar_write_error(state->client, status, &state->deadline);
+        written = sidecar_write_error(state->downstream.client, status, &state->deadline);
         sidecar_record_failure_action(state->transaction, status, written, &state->error);
         (void)msconnector_runtime_transaction_finish(state->transaction, &state->error);
         state->handled = 1;
@@ -1488,7 +1494,7 @@ static int sidecar_exchange_response(sidecar_exchange_state *state) {
 
         state->decision.late_intervention = state->client_response_started != 0;
         if (action == MSCONNECTOR_LATE_INTERVENTION_ABORT_CONNECTION) {
-            (void)shutdown(state->client, SHUT_RDWR);
+            (void)shutdown(state->downstream.client, SHUT_RDWR);
             sidecar_record_decision_delivery_failure(state->transaction, &state->decision,
                                                       &state->error);
             (void)msconnector_runtime_transaction_finish(state->transaction, &state->error);
@@ -1512,7 +1518,7 @@ static void sidecar_exchange_error(sidecar_exchange_state *state) {
     int status;
     int response_written = 0;
     if (state->transaction == NULL) {
-        (void)sidecar_write_error(state->client,
+        (void)sidecar_write_error(state->downstream.client,
             sidecar_remaining(&state->deadline) == 0 ? 504 : 502, &state->deadline);
         return;
     }
@@ -1524,7 +1530,7 @@ static void sidecar_exchange_error(sidecar_exchange_state *state) {
             sidecar_failure_error_class(state->failure_origin), &state->error);
     }
     if (!state->client_response_started) {
-        response_written = sidecar_write_error(state->client, status, &state->deadline);
+        response_written = sidecar_write_error(state->downstream.client, status, &state->deadline);
     }
     sidecar_record_failure_action(state->transaction, status, response_written, &state->error);
     (void)msconnector_runtime_transaction_finish(state->transaction, &state->error);

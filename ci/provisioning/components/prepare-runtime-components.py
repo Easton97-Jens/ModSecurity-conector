@@ -2486,7 +2486,6 @@ def prepare_immutable_git_component(
 def prepare_expat_git_component(
     source_url: str,
     expected_ref: str,
-    expected_prompt_latest: str,
     path: Path,
     previous_records: dict[str, dict[str, Any]],
     strict: bool,
@@ -2496,8 +2495,7 @@ def prepare_expat_git_component(
 
     ``strict`` controls cache/fsck verification in the shared Git preparer. It
     must not turn mandatory Expat runtime provenance into a latest-release
-    lookup. ``expected_prompt_latest`` remains a legacy caller input only and
-    is deliberately not consulted for runtime resolution.
+    lookup.
     """
     return prepare_immutable_git_component(
         "expat",
@@ -10461,7 +10459,7 @@ def parse_runtime_component_args() -> argparse.Namespace:
 
 
 def required_runtime_component_sources(
-    env: dict[str, str], strict: bool, target_connector: str
+    env: dict[str, str], target_connector: str
 ) -> dict[str, Any]:
     target_connector = require_runtime_component_target(target_connector)
     validate_https_url_config(env, target_connector)
@@ -10554,7 +10552,7 @@ def runtime_component_context(args: argparse.Namespace) -> tuple[dict[str, Any] 
     PATH_POLICY_ENV = dict(env)
     strict = env.get("RUNTIME_COMPONENT_STRICT_VERIFY") == "1"
     try:
-        sources = required_runtime_component_sources(env, strict, args.target_connector)
+        sources = required_runtime_component_sources(env, args.target_connector)
     except RuntimeError as exc:
         print(f"prepare-runtime-components: BLOCKED: {exc}")
         return None, 77
@@ -10662,7 +10660,6 @@ def prepare_runtime_git_components(
         prepare_expat_git_component(
             env.get("EXPAT_GIT_URL") or context["expat_source_url"],
             context["expat_git_ref"],
-            env.get("EXPAT_PROMPT_EXPECTED_LATEST") or context["expat_git_ref"],
             paths["git_root"] / "libexpat",
             previous_git,
             context["strict"],

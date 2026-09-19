@@ -883,7 +883,7 @@ class StockSidecarSourceContractTest(unittest.TestCase):
         self.assertIn("MSCONNECTOR_ERROR_BODY_TOO_LARGE", source)
         self.assertIn("sidecar_connection_value_allowed", source)
         self.assertIn("sidecar_headers_has_name", source)
-        self.assertIn('sidecar_write_error(state->client, 417, &state->deadline)', source)
+        self.assertIn('sidecar_write_error(state->downstream.client, 417, &state->deadline)', source)
         self.assertIn('strcmp(state->payload.request_headers.method, "HEAD") == 0', source)
         self.assertIn("sidecar_parse_header_field", source)
         self.assertIn("sidecar_read_request_body", source)
@@ -908,6 +908,31 @@ class StockSidecarSourceContractTest(unittest.TestCase):
         self.assertIn("static int sidecar_read_final_response_headers", source)
         self.assertIn("headers.status_code == 101", source)
         self.assertIn("sidecar_write_interim_response_headers_observed", source)
+
+    def test_exchange_state_groups_downstream_socket_metadata(self) -> None:
+        """Keep the Sonar field-count limit without changing endpoint provenance."""
+        source = SIDECAR_SOURCE.read_text(encoding="utf-8")
+        connection_start = source.index("typedef struct sidecar_downstream_connection")
+        connection_end = source.index("} sidecar_downstream_connection;", connection_start)
+        connection = source[connection_start:connection_end]
+        state_start = source.index("typedef struct sidecar_exchange_state")
+        state_end = source.index("} sidecar_exchange_state;", state_start)
+        state = source[state_start:state_end]
+        direct_members = [
+            line for line in state.split("{", 1)[1].split("}", 1)[0].splitlines()
+            if line.strip().endswith(";")
+        ]
+
+        self.assertIn("int client;", connection)
+        self.assertIn("char client_address[INET6_ADDRSTRLEN];", connection)
+        self.assertIn("char server_address[INET6_ADDRSTRLEN];", connection)
+        self.assertIn("int client_port;", connection)
+        self.assertIn("int server_port;", connection)
+        self.assertIn("sidecar_downstream_connection downstream;", state)
+        self.assertLessEqual(len(direct_members), 20)
+        self.assertIn("state->downstream.client", source)
+        self.assertIn("request.client.address = state->downstream.client_address;", source)
+        self.assertIn("request.server.address = state->downstream.server_address;", source)
 
     def test_response_metadata_and_request_target_use_common_contract_bounds(self) -> None:
         source = SIDECAR_SOURCE.read_text(encoding="utf-8")
@@ -963,8 +988,8 @@ class StockSidecarSourceContractTest(unittest.TestCase):
         self.assertIn("INET6_ADDRSTRLEN", endpoint)
         self.assertIn("*port == 0", endpoint)
         self.assertIn("strlen(address) >= INET6_ADDRSTRLEN", endpoint)
-        self.assertIn("request.client.address = state->client_address;", request_exchange)
-        self.assertIn("request.server.address = state->server_address;", request_exchange)
+        self.assertIn("request.client.address = state->downstream.client_address;", request_exchange)
+        self.assertIn("request.server.address = state->downstream.server_address;", request_exchange)
         self.assertNotIn("request.client.address = host", request_exchange)
         self.assertNotIn("request.server.address = host", request_exchange)
         self.assertLess(
@@ -1205,7 +1230,7 @@ int msconnector_runtime_transaction_finish(
 
 static void initialize_exchange(sidecar_exchange_state *state, int client, int upstream) {
     memset(state, 0, sizeof(*state));
-    state->client = client;
+    state->downstream.client = client;
     state->upstream = upstream;
     state->header_limit = 4096U;
     state->count_limit = 16U;
@@ -1386,7 +1411,7 @@ int main(void) {
      * deterministically; unlike a TCP RST it has no scheduling race. */
     assert(close(pair[1]) == 0);
     memset(&state, 0, sizeof(state));
-    state.client = pair[0];
+    state.downstream.client = pair[0];
     state.transaction = (msconnector_runtime_transaction *)&state;
     state.deadline.at_ms = sidecar_now_ms() + 1000U;
     state.decision.kind = MSCONNECTOR_DECISION_KIND_DENY;

@@ -289,6 +289,8 @@ class UpstreamHandler(http.server.BaseHTTPRequestHandler):
             response_headers.append(("X-Msconnector-Vector", "msconnector-p3-only"))
         elif self.path == P3_REDIRECT_PATH:
             response_headers.append(("X-Msconnector-Vector", "msconnector-p3-redirect"))
+        elif self.path == "/phase3-block":
+            response_headers.append(("X-Modsec-Upstream", "block"))
         body = self._standard_body()
         self.send_response(200)
         self.send_header("content-type", TEXT_PLAIN_CONTENT_TYPE)
@@ -304,6 +306,8 @@ class UpstreamHandler(http.server.BaseHTTPRequestHandler):
             return b"p4-response-msconnector-p4-only"
         if self.path == "/vector/p4-safe":
             return b"p4-safe-response-msconnector-p4-safe"
+        if self.path == "/phase4-marker":
+            return b"no-crs-response-body-marker"
         return b"envoy connector upstream ok\n"
 
     def _answer_phase4_barrier(self) -> None:

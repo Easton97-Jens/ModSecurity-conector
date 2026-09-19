@@ -786,7 +786,6 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                 with self.subTest(target_connector=target_connector):
                     values = components.required_runtime_component_sources(
                         non_nginx_env,
-                        strict=False,
                         target_connector=target_connector,
                     )
                     self.assertEqual(values["expat_git_ref"], PINNED_EXPAT_COMMIT)
@@ -800,20 +799,17 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                                 **non_nginx_env,
                                 "EXPAT_GIT_REF": "master",
                             },
-                            strict=False,
                             target_connector=target_connector,
                         )
 
             with self.assertRaisesRegex(RuntimeError, "nginx_pinned_provenance_ref_mismatch"):
                 components.required_runtime_component_sources(
                     non_nginx_env,
-                    strict=False,
                     target_connector="nginx",
                 )
             with self.assertRaisesRegex(RuntimeError, "nginx_pinned_provenance_ref_mismatch"):
                 components.required_runtime_component_sources(
                     all_env,
-                    strict=False,
                     target_connector="all",
                 )
 
@@ -830,7 +826,6 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                         "EXPAT_SOURCE_URL": "https://github.com/libexpat/libexpat",
                         "EXPAT_GIT_REF": PINNED_EXPAT_COMMIT,
                     },
-                    strict=False,
                     target_connector="all",
                 )
 
@@ -847,7 +842,6 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                     with self.assertRaisesRegex(RuntimeError, "invalid_runtime_source_url"):
                         components.required_runtime_component_sources(
                             {},
-                            strict=False,
                             target_connector=target_connector,
                         )
 
@@ -958,7 +952,6 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "unsupported_runtime_component_target:unknown"):
             components.required_runtime_component_sources(
                 {},
-                strict=False,
                 target_connector="unknown",
             )
         for target in ("shared", "apache", "haproxy"):
@@ -983,7 +976,6 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                 ):
                     values = components.required_runtime_component_sources(
                         mismatched_nginx,
-                        strict=False,
                         target_connector=target,
                     )
 
@@ -1008,7 +1000,6 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                     with self.assertRaisesRegex(RuntimeError, "nginx_pinned_provenance_ref_mismatch"):
                         components.required_runtime_component_sources(
                             mismatched_nginx,
-                            strict=False,
                             target_connector=target,
                         )
 
@@ -1035,7 +1026,6 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                     with self.assertRaisesRegex(RuntimeError, "nginx_protocol_validation"):
                         components.required_runtime_component_sources(
                             dict(PINNED_NGINX_RELEASE_TUPLE),
-                            strict=False,
                             target_connector=target,
                         )
 
@@ -1211,7 +1201,6 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             record = components.prepare_expat_git_component(
                 "https://github.com/libexpat/libexpat",
                 PINNED_EXPAT_COMMIT,
-                "master",
                 Path("cache/git/libexpat"),
                 {},
                 strict=True,
@@ -1241,7 +1230,6 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             record = components.prepare_expat_git_component(
                 "https://github.com/libexpat/libexpat",
                 PINNED_EXPAT_COMMIT,
-                "master",
                 Path("cache/git/libexpat"),
                 {},
                 strict=False,
@@ -1266,7 +1254,6 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         ):
             record = components.prepare_expat_git_component(
                 "https://github.com/libexpat/libexpat",
-                "master",
                 "master",
                 Path("cache/git/libexpat"),
                 {},

@@ -10,7 +10,7 @@
 | Datum (UTC) | 2026-09-19 |
 | Basis-Revision | `e475baabf0787cbc804f176ae998b62156892825` |
 | Scope | Ausschließlich gemeinsame Parent-Connector-Remediation, direkt betroffene Tests und gekoppelte Dokumentation. Keine Framework-, MRTS-, Gitlink-, Dependency-, Regelprofil-, Scanner-, Quality-Gate-, Workflow- oder Merge-Änderung ist enthalten. |
-| Delivery-Status | Draft-PR [#370](https://github.com/Easton97-Jens/ModSecurity-conector/pull/370) von `agent/readiness-b-ten-integrations-20260919`; die Commits `43d9003fc986a36441c9d83bb26e746cfbe10a8c`, `aac89c4f2982d6faf91351fc6809cedfce5c9256`, `466a776347e35405e9875190ae9912a827e56f6a` und `56b838ce1fe681e47c8fd3df326dccab8a1c4405` wurden gepusht. Remote- und PR-Head wurden auf `56b838ce1fe681e47c8fd3df326dccab8a1c4405` verifiziert; dessen gehosteter Apache-Bootstrap baute und lud das Modul, doch sein Over-Limit-Harness las das Zwischen-`100 Continue` der ersten Header-Zeile statt des finalen Response-Status. Diese Beobachtung beweist weder ein finales `413` noch eine Source-Policy-Regression. Der korrigierende Fallback hat lokale Validierung; die Final-Status-Assertion und ihr Post-Fix-Exact-Head-Hosted-Rerun stehen aus. Kein Review-Ergebnis oder Merge wird hier behauptet. |
+| Delivery-Status | Draft-PR [#370](https://github.com/Easton97-Jens/ModSecurity-conector/pull/370) von `agent/readiness-b-ten-integrations-20260919`; kein Merge ist autorisiert. Das vorherige Korrekturinkrement erreichte `18303495bc9bdb64cef74aae0f39e40d29ca5492`; dessen gehosteter Apache-Lauf `35445064987` auf exakt diesem Head bestand den Final-Status-P2-Control. Die Envoy-Korrektur dieses Records besitzt nur Source-, Fixture-, C17-, Build- und Konfigurations-Evidenz; exakter aktueller Head und Hosted-Check-Status müssen bei der Auslieferung verifiziert werden und werden hier nicht abgeleitet. |
 | Policy-Auflösung | Die Parent-Traceability-Policy verlangt dieses gekoppelte Record-Paar für die nicht triviale versionierte Arbeit; der etablierte Archivindex wird aktualisiert. |
 
 ## Motivation und Problemstellung
@@ -31,6 +31,16 @@ reject-by-default-Grenze bewahren, statt das daraus resultierende `413`
 umzucodieren, ein Null-Limit als unbegrenzt zu behandeln oder eine nicht
 unterstützte Aktion zu akzeptieren.
 
+Die Envoy-HTTP-`ext_authz`-Quelle hatte außerdem zwei begrenzte,
+Parent-eigene Vertragslücken: Der Response-Phase-Smoke wählte eine P1-only-
+Regeldatei und seine Fixture emittierte nicht die von den Companion-Regeln
+erwarteten P3/P4-Signale; seine HTTP-Autorisierungsanfrage nutzte ein
+Callback-`path_prefix`, während das C-Profil client-kontrollierte URI-Hint-
+Header bevorzugen konnte. Die Korrektur stellt die passende Fixture wieder her
+und bindet P3 an den geschützten Pfad, ohne einem URI-Override zu vertrauen.
+Sie ist kein Nachweis eines beobachteten Remote-Bypass und kein Ersatz für
+einen echten Envoy-Host-Lauf.
+
 ## Akzeptanzkriterien
 
 1. Die scoped Parent-eigenen Korrektheits- und Provenance-Lücken beheben, ohne
@@ -45,6 +55,10 @@ unterstützte Aktion zu akzeptieren.
 5. Für das begrenzte Apache-Bootstrap-Profil getrennte Controls für einen
    kleinen P2-Regelblock (`403`), eine echte Over-Limit-Ablehnung (`413` ohne
    Handler-Inhalt) und einen Allow-Follow-up im selben Prozess (`200`) halten.
+6. Für das Envoy-`ext_authz`-Smoke-Profil die passende P1/P3/P4-Fixture nur
+   bei opt-in Response-Smoke und ungesetzter `RULES_FILE` wählen, P3 an
+   `/phase3-block` plus den Upstream-Header binden und sicherstellen, dass kein
+   vom Client gelieferter Original-URI-Hint das Policy-Ziel wählen kann.
 
 ## Implementierungsentscheidung und Begründung
 
@@ -85,6 +99,19 @@ unterstützte Aktion zu akzeptieren.
   danach mit einer konstruierten P2-Decision auf und prüft echte
   Abort-Host-Action, Regelkorrelation und Transaction-Finalisierung. Er führt
   nicht dynamisch die vollständige P2-Pipeline aus.
+- Der Envoy-Response-Phase-Default wählt die vorhandene
+  `modsecurity_response_companion_smoke.conf` nur, wenn der Bediener keine
+  `RULES_FILE` gesetzt hat; andernfalls bleibt die gezielte Request-only-
+  Fixture erhalten. Die P3-Regel verkettet das exakte geschützte Request-Ziel
+  `/phase3-block` mit dem servererzeugten Response-Header
+  `X-Modsec-Upstream: block`; die Fixture liefert diesen Header und den
+  begrenzten P4-Marker.
+- Das HTTP-`ext_authz`-Callback-`path_prefix` und die Original-URI-Header-
+  Präferenzen des Profils werden entfernt. Die Envoy-Vorlage schließt
+  `x-envoy-original-path`, `x-forwarded-uri` und `x-original-uri` als
+  Defense-in-depth aus der Autorisierungsanfrage aus; das C-Profil konsumiert
+  unabhängig davon keinen dieser Header. Diese Korrektur dekodiert oder
+  normalisiert das Request-Ziel nicht.
 
 ## Security-Auswirkung
 
@@ -103,6 +130,12 @@ endlichen Grenze und nutzt `reject` bei einem initialen Null-Limit oder einer
 nicht unterstützten Aktion; sie erzeugt weder einen unbegrenzten Pfad noch
 legt sie Teilinspektion offen, die einen uninspektierten Tail weiterreichen
 könnte. Die konstruierte Lighttpd-Decision bleibt eine explizite Evidenzgrenze.
+Die Envoy-Korrektur entfernt client-kontrollierte URI-Header aus dem
+Policy-Input des Autorisierungsdienstes, statt sie lediglich neu zu priorisieren.
+Die Vorlage blockiert dieselben Namen auch bei einer zukünftigen Änderung der
+Header-Allow-List, und die Null-Anzahl des Profils bleibt unabhängig von der
+Vorlagendurchsetzung sicher. Ihre Response-Fixture trägt nur statische Marker;
+das Event-Modell bleibt payload-frei.
 Die Korrekturen schließen weder
 das separat verfolgte Same-UID-UDS-Pathname-Replacement-Risiko
 (`FND-PARENT-0015`) noch weisen sie eine wirksame Regelprofilabdeckung für die
@@ -116,6 +149,12 @@ das separat verfolgte Same-UID-UDS-Pathname-Replacement-Risiko
 - `connectors/apache/src/msc_filters.c`
 - `connectors/apache/README.md`
 - `connectors/apache/README.de.md`
+- `connectors/envoy/src/envoy_ext_authz_service_main.c`
+- `connectors/envoy/config/envoy-ext-authz-smoke.yaml.in`
+- `connectors/envoy/harness/run_envoy_connector_runtime.sh`
+- `connectors/envoy/harness/envoy_smoke_helper.py`
+- `connectors/envoy/README.md`
+- `connectors/envoy/README.de.md`
 - `connectors/lighttpd/stock_sidecar/stock_sidecar.c`
 - `connectors/lighttpd/tests/test_stock_sidecar_contract.py`
 - `connectors/lighttpd/README.md`
@@ -127,9 +166,11 @@ das separat verfolgte Same-UID-UDS-Pathname-Replacement-Risiko
 - `connectors/traefik/native_middleware/README.de.md`
 - `docs/reference/variables.md`
 - `docs/reference/variables.de.md`
+- `common/rules/modsecurity_response_companion_smoke.conf`
 - `tests/test_prepare_runtime_components.py`
 - `tests/test_apache_request_transaction_cleanup.py`
 - `tests/test_apache_apxs_profile_registry_staging.py`
+- `tests/test_envoy_transport_hardening_contract.py`
 - `reports/audits/change-records/CR-20260919-readiness-b-shared-remediation.md`
 - `reports/audits/change-records/CR-20260919-readiness-b-shared-remediation.de.md`
 - `reports/audits/change-records/README.md`
@@ -154,9 +195,15 @@ das separat verfolgte Same-UID-UDS-Pathname-Replacement-Risiko
 | `connectors/lighttpd/tests/test_stock_sidecar_contract.py` mit `CC=clang` | Bestanden: 18 Tests. |
 | `connectors/lighttpd/tests/test_stock_sidecar_contract.py` mit `CC=cc` | Bestanden: 18 Tests. |
 | `connectors.lighttpd.tests.test_stock_sidecar_contract.StockSidecarSourceContractTest` nach dem deterministischen P2-Delivery-Failure-Ersatz | Bestanden: 19 Tests. Er verankert statisch den P2-Zweig nach `finish_request_body` und führt den Terminal-Handoff mit einer konstruierten Decision aus; dies ist kein dynamischer P2- oder Stock-Host-Runtime-Nachweis. |
+| Aktueller Stock-Sidecar-`c:S1820`-Refaktor | Der C17-Build und 20 `StockSidecarSourceContractTest`-Fälle bestanden mit `cc`; der C17-Build bestand mit `clang`. Die vollständige lokale 35-Fälle-Suite hatte 34 bestandene Fälle und einen `runtime_identity`-Fehler (`runtime-begin-smoke` beendete sich ohne stderr mit 1). Dieses Binary wird ohne `stock_sidecar.c` gebaut, daher ist dies ein separater Fehler und kein als bestanden gewerteter Nachweis für diesen Refaktor. |
+| `python3 -m py_compile ci/provisioning/components/prepare-runtime-components.py` | Nach den zwei minimalen `python:S1172`-Signaturentfernungen bestanden. |
+| Aktuelle SonarQubeCloud-PR-#370-Issue-Prüfung | Vor diesem Inkrement meldete der Dienst drei task-eigene offene Issues: ein `c:S1820` und zwei `python:S1172`. Die lokalen Korrekturen sind oben abgedeckt; null offene Issues bleibt ein unverifiziertes Delivery-Gate, bis die Analyse des aktuellen PR-Heads abgeschlossen ist. |
 | Natives Traefik-Go-Modul `go test -mod=readonly ./...` | Bestanden. |
 | Natives Traefik `go vet ./...` und `gofmt -d`-Review | Bestanden; `gofmt -d` erzeugte keinen Diff. |
 | Natives Traefik `FuzzUDSFrameAndResult` für 15 Sekunden | Bestanden. |
+| `tests.test_envoy_transport_hardening_contract` | Bestanden: 28 Tests, einschließlich der Regression-Contracts für Response-Default, P3/P4-Fixture, URI-Header und unsicheren Runtime-Root. |
+| `make check-remaining-connectors-c17` mit `CC=cc` und `CC=clang` | Zweimal bestanden; der geänderte Envoy-C-Profilcode wurde unter C17 mit Warnings als Fehlern kompiliert. |
+| Envoy-Connector-Build und Response-Companion-Regel-Konfigurationscheck | Gegen den gecachten libModSecurity-Prefix in einem task-eigenen externen Build-Root bestanden; libModSecurity akzeptierte die verkettete P3-Regel. |
 | `git diff --check` während der scoped Implementierung | Bestanden. |
 | `make check-variable-documentation` | Bestanden: 100 dokumentierte Variablenreferenzen gescannt. |
 | `make check-bilingual-docs` und `make check-doc-links` | Ausschließlich durch den nicht materialisierten Framework-Gitlink blockiert; jedes ausgegebene Ziel liegt unter `modules/ModSecurity-test-Framework`. |
@@ -211,7 +258,20 @@ Ein großer HTTP/1.1-Upload kann diese Zwischenantwort vor seinem finalen Status
 erhalten; daher weist die Harness-Beobachtung weder ein finales `413` noch
 einen neuen Source-Policy-Fehler nach. Die Korrektur behält Header- und
 Response-Artefakte, erfasst aber curls finales `%{http_code}`; ihr Exact-Head-
-Hosted-Rerun bleibt erforderlich.
+Hosted-Nachfolger auf `18303495bc9bdb64cef74aae0f39e40d29ca5492` bestand Lauf
+`35445064987`, einschließlich finalem `413`, fehlendem Handler-Inhalt und
+Same-Process-Allow-Follow-up.
+
+Der Envoy-Follow-up führte das vollständige Modul
+`tests.test_envoy_transport_hardening_contract`, Shell-Syntaxchecks,
+C17-Sourcechecks mit `cc` und `clang`, einen vollständigen Connector-Build
+gegen den gecachten libModSecurity-Prefix und einen `ext_authz`-
+Konfigurationsload mit
+`common/rules/modsecurity_response_companion_smoke.conf` aus. Der erste
+Regelload zeigte eine fehlende explizite Aktionsliste der zweiten verketteten
+Regel; nach Ergänzung von `t:none` bestand derselbe echte libModSecurity-Load.
+Es war keine Envoy-Binärdatei vorhanden, deshalb wurden weder Listener noch
+generiertes YAML, Downstream-URI, Spoofing oder P3/P4-Host-Assertion gestartet.
 
 ## Runtime-Evidence
 
@@ -231,18 +291,26 @@ absolvierte Konfigurations-/Modul-Ladechecks und reproduzierte dann den kleinen
 P2-Marker als `413` statt `403`. Das ist echte negative Host-Evidenz für den
 Pre-Correction-Source und identifiziert die erste Terminalbedingung; es ist
 kein bestandener Apache-Runtime-Claim. Der lokale P2-Host-Versuch bleibt vor
-dem Start durch `chown(...)=EINVAL` blockiert, und der korrigierte Exact-Head-
-Hosted-Rerun bleibt erforderlich. Der Lighttpd-Harness führt ebenso nicht
-dynamisch `finish_request_body` aus und weist nicht den vollständigen P2-Pfad
-nach.
+dem Start durch `chown(...)=EINVAL` blockiert; der nachfolgende Hosted-Lauf auf
+exaktem Head bestand den begrenzten Control. Der Lighttpd-Harness führt ebenso
+nicht dynamisch `finish_request_body` aus und weist nicht den vollständigen
+P2-Pfad nach.
 
 Der folgende gehostete Bootstrap auf
 `56b838ce1fe681e47c8fd3df326dccab8a1c4405` führte den Over-Limit-Request aus,
 beendete seine Assertion aber beim Zwischen-`100 Continue` statt beim finalen
 Response. Dies ist ein Harness-Parsing-Fehler, keine Evidenz für ein finales
 `413` und keine Widerlegung der finiten/reject-Source-Korrektur. Der nächste
-Exact-Head-Hosted-Lauf muss weiterhin finales `413`, fehlenden Handler-Inhalt
-und den Same-Process-Follow-up nachweisen.
+Nachfolger auf exaktem Head `18303495bc9bdb64cef74aae0f39e40d29ca5492`
+bestand Hosted-Lauf `35445064987`, einschließlich finalem `413`, fehlendem
+Handler-Inhalt und Same-Process-Follow-up. Dies bleibt begrenzte Apache-P2-
+Evidenz, keine Zehn-Pfad- oder vollständige Apache-B-Hochstufung.
+
+Die Envoy-Korrektur besitzt keine echte Envoy-Host-Evidenz. Sie validiert die
+Response-Companion-Regeldatei und den Source-/Harness-Vertrag, beweist aber
+weder generiertes YAML noch die geschützte URI einschließlich Query/
+Percent-Encoding, URI-Hint-Spoofing-Resistenz durch Envoy,
+Response-Companion-Korrelation oder P3/P4-Host-Aktionen.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
@@ -256,12 +324,21 @@ und den Same-Process-Follow-up nachweisen.
   HTX, Traefik-forwardAuth, Stock-Lighttpd und gepatchtes Lighttpd wird hier
   nicht behauptet. Der Combined-HAProxy-SPOP-zu-HTX-Lauf bleibt unterhalb
   vollständiger B-Klassen-G2–G6- und 54-Fälle-Evidenz.
-- Der Pre-Correction-Exact-Head-Hosted-Apache-Check ist beobachtet
-  fehlgeschlagen; korrigierte Exact-Head-Hosted-CI, SonarQube Cloud, Review,
-  Mergeability und finale PR-Ergebnisse stehen noch aus und dürfen nicht aus
-  lokalen Checks abgeleitet werden. Die Voraussetzungen der repositoryweiten
-  Bilingual-/Link-Targets sind ebenso durch den separat besessenen nicht
-  materialisierten Framework-Gitlink blockiert.
+- Der korrigierte Exact-Head-Hosted-Apache-Control bestand, doch der aktuelle
+  Envoy-Source-Head hat keinen Hosted- oder Real-Host-Lauf: Die angeheftete
+  Envoy-Binärdatei und attestierte Host-Inputs sind nicht verfügbar. URI-
+  Query-/Encoding- und Spoofing-Fälle bleiben daher erforderliche
+  Host-Controls. Aktuelle CI, SonarQube Cloud, Review, Mergeability und finale
+  PR-Ergebnisse dürfen nicht aus lokalen Checks abgeleitet werden. Die
+  Voraussetzungen der repositoryweiten Bilingual-/Link-Targets sind ebenso
+  durch den separat besessenen nicht materialisierten Framework-Gitlink
+  blockiert.
+- Die aktuelle lokale Stock-Sidecar-Suite ist nicht vollständig grün: 34 von
+  35 Fällen bestanden, während
+  `test_runtime_identity_smoke_accepts_the_canonical_profile` bei
+  `runtime-begin-smoke` Exit 1 ohne stderr beobachtete. Dieses unabhängig
+  gebaute Binary kompiliert nicht `stock_sidecar.c`; der Fehler gilt nicht als
+  Validierung des `c:S1820`-Refaktors und bleibt ein separater Diagnosepunkt.
 - Der aktuelle Apache-P2-Bootstrap-Host-Control lief nicht vollständig, weil
   der notwendige `www-data`-Ownership-Handoff des Task-Roots auf dem aktuellen
   idgemappten Dateisystem mit `EINVAL` fehlschlägt. Ein Root-Worker-Ersatz ist
@@ -292,8 +369,9 @@ Dies ist ein partieller Parent-only-Remediation-Record. Er beschreibt
 beobachtete lokale Evidenz, einen gehosteten Pre-Correction-Fehler und bekannte
 Grenzen, zertifiziert aber weder das Zehn-Pfad-B-Ziel noch ein Release, ein
 Hosted-Qualitätsergebnis oder einen Merge. Finaler Scoped-Diff und source-
-lokale Dokumentationschecks benötigen noch Abgleich nach dem ausstehenden
-korrigierten Host-Rerun; repositoryweite Dokumentations-Targets bleiben
-wahrheitsgemäß durch den fehlenden Framework-Gitlink blockiert. Der offene
-Draft-PR ist [#370](https://github.com/Easton97-Jens/ModSecurity-conector/pull/370).
-Die verbleibende Runtime-Evidenz bleibt Follow-up-Pflicht.
+lokale Dokumentationschecks wurden abgeglichen; der Envoy-Source-/Harness-
+Repair benötigt weiterhin Real-Host-Evidenz. Repositoryweite
+Dokumentations-Targets bleiben wahrheitsgemäß durch den fehlenden Framework-
+Gitlink blockiert. Der offene Draft-PR ist
+[#370](https://github.com/Easton97-Jens/ModSecurity-conector/pull/370). Die
+verbleibende Runtime-Evidenz bleibt Follow-up-Pflicht.
