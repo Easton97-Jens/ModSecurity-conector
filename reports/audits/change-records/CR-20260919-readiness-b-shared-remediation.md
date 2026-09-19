@@ -158,6 +158,7 @@ effective rule-profile coverage for the 2026 `t:hexDecode` advisory condition.
 - `tests/test_apache_request_transaction_cleanup.py`
 - `tests/test_apache_apxs_profile_registry_staging.py`
 - `tests/test_envoy_transport_hardening_contract.py`
+- `tests/transaction_phase_runtime_companion_test.c`
 - `reports/audits/change-records/CR-20260919-readiness-b-shared-remediation.md`
 - `reports/audits/change-records/CR-20260919-readiness-b-shared-remediation.de.md`
 - `reports/audits/change-records/README.md`
@@ -400,3 +401,32 @@ Framework Gitlink HEAD mismatch; `git diff --check` passed.
 The correction has no fresh hosted receipt yet and does not close NGINX G2--G9
 or promote NGINX to B. The existing non-root worker, no-follow path,
 body-boundary, fail-closed error, and cleanup controls remain unchanged.
+
+## SonarQube Cloud new-code duplication follow-up — 2026-09-19
+
+PR [#370](https://github.com/Easton97-Jens/ModSecurity-conector/pull/370)
+reported `new_duplicated_lines_density=2.5337837837837838` (30 lines and four
+blocks) solely in `tests/transaction_phase_runtime_companion_test.c`. This
+Parent-only change removes that real test-code duplication without a
+suppression, exclusion, Quality-Gate change, or product-behavior change.
+
+- `read_event_jsonl()` now owns the bounded, checked event-file read and
+  NUL-termination used by every event assertion in this companion test.
+  `assert_completed_denied_block()` owns only the identical ordinary
+  `/blocked` follow-up transaction lifecycle.
+- The controlled malformed-address starts remain explicit. The test still
+  proves lossless `0x80` escaping with a nonzero event hash and chained valid
+  follow-up; it also still proves an escape-expanding address fails
+  `MSCONNECTOR_ERROR_EVENT_TOO_LARGE` without an event or chain advance, then
+  accepts an independent valid follow-up with zero previous hash.
+- The direct Common-runtime companion binary passed before and after the
+  refactor with both `cc` and `clang`, each under strict C17
+  `-Wall -Wextra -Werror` and a 120-second bound in a private external build
+  child. `git diff --check` passed before this record update. An independent
+  focused security review classified this as a security-relevant regression
+  boundary and found no candidate or validated finding.
+
+This is test-maintenance evidence only. It neither changes an integration
+runtime nor promotes any of the ten paths to readiness B. The required final
+exact-head SonarQube Cloud measure and PR checks are recorded from the live PR
+after the normal push; no merge is authorized.

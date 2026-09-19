@@ -100,17 +100,13 @@ static void create_runtime_fixture(char config_path[TEST_PATH_SIZE],
     assert(fclose(config) == 0);
 }
 
+static size_t read_event_jsonl(const char *event_path, char *contents,
+    size_t contents_capacity);
+
 static void assert_terminal_events(const char *event_path) {
     char contents[32768];
-    FILE *event_file;
-    size_t size;
 
-    event_file = fopen(event_path, "r");
-    assert(event_file != NULL);
-    size = fread(contents, 1U, sizeof(contents) - 1U, event_file);
-    assert(ferror(event_file) == 0);
-    assert(fclose(event_file) == 0);
-    contents[size] = '\0';
+    (void)read_event_jsonl(event_path, contents, sizeof(contents));
     assert(strstr(contents, "\"event\":\"engine_timeout\"") != NULL);
     assert(strstr(contents, "\"event\":\"client_cancel\"") != NULL);
     assert(strstr(contents, "\"event\":\"protocol_error\"") != NULL);
@@ -130,8 +126,6 @@ static void test_regular_block_emits_one_terminal_event(void) {
     char event_path[TEST_PATH_SIZE];
     char rules_path[TEST_PATH_SIZE];
     char contents[16384];
-    FILE *event_file;
-    size_t size;
 
     create_runtime_fixture(config_path, event_path, rules_path, blocking_rules,
         "none", "safe");
@@ -151,12 +145,7 @@ static void test_regular_block_emits_one_terminal_event(void) {
     msconnector_runtime_transaction_destroy(&transaction);
     msconnector_runtime_destroy(&runtime);
 
-    event_file = fopen(event_path, "r");
-    assert(event_file != NULL);
-    size = fread(contents, 1U, sizeof(contents) - 1U, event_file);
-    assert(ferror(event_file) == 0);
-    assert(fclose(event_file) == 0);
-    contents[size] = '\0';
+    (void)read_event_jsonl(event_path, contents, sizeof(contents));
     assert(strstr(contents, "MSCONN_EVENT_REQUEST_BLOCKED") != NULL);
     assert(strstr(contents, "MSCONN_EVENT_CONNECTOR_ERROR") == NULL);
     assert(strstr(contents, "\"transaction_id\":\"rule-block\"") != NULL);
@@ -194,6 +183,40 @@ static uint64_t event_json_unsigned_field(const char *json, const char *field) {
     return (uint64_t)parsed;
 }
 
+static size_t read_event_jsonl(const char *event_path, char *contents,
+    size_t contents_capacity) {
+    FILE *event_file;
+    size_t size;
+
+    assert(event_path != NULL);
+    assert(contents != NULL);
+    assert(contents_capacity > 0U);
+    event_file = fopen(event_path, "r");
+    assert(event_file != NULL);
+    size = fread(contents, 1U, contents_capacity - 1U, event_file);
+    assert(ferror(event_file) == 0);
+    assert(fclose(event_file) == 0);
+    contents[size] = '\0';
+    return size;
+}
+
+static void assert_completed_denied_block(msconnector_runtime *runtime,
+    const char *transaction_id) {
+    msconnector_runtime_transaction *transaction = NULL;
+    msconnector_decision decision;
+    msconnector_error error;
+
+    assert(runtime != NULL);
+    assert(transaction_id != NULL);
+    assert(msconnector_test_begin_transaction(runtime, "/blocked", transaction_id,
+        &transaction, &decision, &error));
+    assert(transaction != NULL);
+    assert(msconnector_decision_action_from_decision(&decision) ==
+        MSCONNECTOR_DECISION_ACTION_DENY);
+    assert(msconnector_runtime_transaction_finish(transaction, &error));
+    msconnector_runtime_transaction_destroy(&transaction);
+}
+
 static void initialize_blocked_request(msconnector_request *request,
     const char *client_address) {
     assert(request != NULL);
@@ -224,7 +247,6 @@ static void test_escaped_invalid_client_address_is_written_and_chained(void) {
     char event_path[TEST_PATH_SIZE];
     char rules_path[TEST_PATH_SIZE];
     char contents[16384];
-    FILE *event_file;
     size_t size;
     uint64_t event_hash;
     const char *second_event;
@@ -247,12 +269,7 @@ static void test_escaped_invalid_client_address_is_written_and_chained(void) {
     assert(msconnector_runtime_transaction_finish(transaction, &error));
     msconnector_runtime_transaction_destroy(&transaction);
 
-    event_file = fopen(event_path, "r");
-    assert(event_file != NULL);
-    size = fread(contents, 1U, sizeof(contents) - 1U, event_file);
-    assert(ferror(event_file) == 0);
-    assert(fclose(event_file) == 0);
-    contents[size] = '\0';
+    size = read_event_jsonl(event_path, contents, sizeof(contents));
     assert(strstr(contents, "MSCONN_EVENT_REQUEST_BLOCKED") != NULL);
     assert(strstr(contents, "MSCONN_EVENT_CONNECTOR_ERROR") == NULL);
     assert(strstr(contents, "\"transaction_id\":\"escaped-event\"") != NULL);
@@ -263,20 +280,9 @@ static void test_escaped_invalid_client_address_is_written_and_chained(void) {
     event_hash = event_json_unsigned_field(contents, "\"event_hash\":");
     assert(event_hash != 0U);
 
-    assert(msconnector_test_begin_transaction(runtime, "/blocked", "post-escaped",
-        &transaction, &decision, &error));
-    assert(transaction != NULL);
-    assert(msconnector_decision_action_from_decision(&decision) ==
-        MSCONNECTOR_DECISION_ACTION_DENY);
-    assert(msconnector_runtime_transaction_finish(transaction, &error));
-    msconnector_runtime_transaction_destroy(&transaction);
+    assert_completed_denied_block(runtime, "post-escaped");
 
-    event_file = fopen(event_path, "r");
-    assert(event_file != NULL);
-    size = fread(contents, 1U, sizeof(contents) - 1U, event_file);
-    assert(ferror(event_file) == 0);
-    assert(fclose(event_file) == 0);
-    contents[size] = '\0';
+    size = read_event_jsonl(event_path, contents, sizeof(contents));
     assert(strstr(contents, "MSCONN_EVENT_REQUEST_BLOCKED") != NULL);
     assert(strstr(contents, "\"transaction_id\":\"post-escaped\"") != NULL);
     assert(newline_count(contents) == 2U);
@@ -306,7 +312,6 @@ static void test_oversized_escaped_client_address_is_not_written_or_chained(void
     char event_path[TEST_PATH_SIZE];
     char rules_path[TEST_PATH_SIZE];
     char contents[16384];
-    FILE *event_file;
     size_t size;
 
     memset(invalid_client_address, (char)0x80, sizeof(invalid_client_address) - 1U);
@@ -326,27 +331,12 @@ static void test_oversized_escaped_client_address_is_not_written_or_chained(void
     assert(transaction == NULL);
     assert(error.code == MSCONNECTOR_ERROR_EVENT_TOO_LARGE);
 
-    event_file = fopen(event_path, "r");
-    assert(event_file != NULL);
-    size = fread(contents, 1U, sizeof(contents), event_file);
-    assert(ferror(event_file) == 0);
-    assert(fclose(event_file) == 0);
+    size = read_event_jsonl(event_path, contents, sizeof(contents));
     assert(size == 0U);
 
-    assert(msconnector_test_begin_transaction(runtime, "/blocked", "post-oversized",
-        &transaction, &decision, &error));
-    assert(transaction != NULL);
-    assert(msconnector_decision_action_from_decision(&decision) ==
-        MSCONNECTOR_DECISION_ACTION_DENY);
-    assert(msconnector_runtime_transaction_finish(transaction, &error));
-    msconnector_runtime_transaction_destroy(&transaction);
+    assert_completed_denied_block(runtime, "post-oversized");
 
-    event_file = fopen(event_path, "r");
-    assert(event_file != NULL);
-    size = fread(contents, 1U, sizeof(contents) - 1U, event_file);
-    assert(ferror(event_file) == 0);
-    assert(fclose(event_file) == 0);
-    contents[size] = '\0';
+    size = read_event_jsonl(event_path, contents, sizeof(contents));
     assert(strstr(contents, "\"transaction_id\":\"post-oversized\"") != NULL);
     assert(event_json_unsigned_field(contents, "\"previous_event_hash\":") == 0U);
     assert(newline_count(contents) == 1U);

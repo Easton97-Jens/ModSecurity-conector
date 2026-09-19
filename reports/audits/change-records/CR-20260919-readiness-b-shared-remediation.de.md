@@ -171,6 +171,7 @@ das separat verfolgte Same-UID-UDS-Pathname-Replacement-Risiko
 - `tests/test_apache_request_transaction_cleanup.py`
 - `tests/test_apache_apxs_profile_registry_staging.py`
 - `tests/test_envoy_transport_hardening_contract.py`
+- `tests/transaction_phase_runtime_companion_test.c`
 - `reports/audits/change-records/CR-20260919-readiness-b-shared-remediation.md`
 - `reports/audits/change-records/CR-20260919-readiness-b-shared-remediation.de.md`
 - `reports/audits/change-records/README.md`
@@ -435,3 +436,35 @@ Die Korrektur besitzt noch keinen frischen Hosted-Receipt, schließt NGINX
 G2--G9 nicht und stuft NGINX nicht auf B hoch. Bestehende Non-root-Worker-,
 No-follow-Pfad-, Body-Boundary-, Fail-closed-Error- und Cleanup-Controls
 bleiben unverändert.
+
+## SonarQube-Cloud-Follow-up für New-Code-Duplikation — 2026-09-19
+
+PR [#370](https://github.com/Easton97-Jens/ModSecurity-conector/pull/370)
+meldete `new_duplicated_lines_density=2.5337837837837838` (30 Zeilen und vier
+Blöcke) ausschließlich in `tests/transaction_phase_runtime_companion_test.c`.
+Diese Parent-only-Änderung entfernt die tatsächliche Testcode-Duplikation ohne
+Suppression, Exclusion, Quality-Gate-Änderung oder Produktverhaltensänderung.
+
+- `read_event_jsonl()` übernimmt nun das begrenzte, geprüfte Lesen der
+  Event-Datei und die NUL-Terminierung für jede Event-Assertion dieses
+  Companion-Tests. `assert_completed_denied_block()` übernimmt ausschließlich
+  den identischen Lifecycle der gewöhnlichen `/blocked`-Folgetransaktion.
+- Die kontrollierten Starts mit fehlerhafter Adresse bleiben explizit. Der
+  Test beweist weiterhin verlustfreies `0x80`-Escaping mit nicht nulligem
+  Event-Hash und verketteter gültiger Folgeanfrage; er beweist weiterhin, dass
+  eine Escape-expandierende Adresse mit `MSCONNECTOR_ERROR_EVENT_TOO_LARGE`
+  ohne Event oder Chain-Advance scheitert und anschließend eine unabhängige
+  gültige Folgeanfrage mit vorherigem Hash null akzeptiert wird.
+- Die direkte Common-Runtime-Companion-Binärdatei bestand vor und nach dem
+  Refaktor mit `cc` und `clang`, jeweils unter strengem C17
+  `-Wall -Wextra -Werror` sowie einem 120-Sekunden-Limit in einem privaten
+  externen Build-Child. `git diff --check` bestand vor diesem Record-Update.
+  Ein unabhängiger fokussierter Security-Review klassifizierte dies als
+  sicherheitsrelevante Regressionsgrenze und fand keinen Kandidaten oder
+  validierten Befund.
+
+Dies ist ausschließlich Test-Maintenance-Evidenz. Sie ändert weder eine
+Integrationsruntime noch stuft sie einen der zehn Pfade auf Reife B hoch. Die
+erforderliche finale SonarQube-Cloud-Messung für den exakten Head und die
+PR-Checks werden nach dem normalen Push aus dem Live-PR festgehalten; ein
+Merge ist nicht autorisiert.
