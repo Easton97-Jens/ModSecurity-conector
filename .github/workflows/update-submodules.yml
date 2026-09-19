@@ -235,11 +235,13 @@ jobs:
           python3 ci/tools/sync-framework-component-versions.py \
             --validate \
             --repo-root "$GITHUB_WORKSPACE" \
-            --framework-common "$framework_common"
+            --framework-common "$framework_common" \
+            --framework-sha "$CANDIDATE_SHA"
           python3 ci/tools/verify-framework-candidate-contract.py \
             --repo-root "$GITHUB_WORKSPACE" \
             --candidate-sha "$CANDIDATE_SHA" \
-            --framework-common "$framework_common"
+            --framework-common "$framework_common" \
+            --expected-parent-framework-sha "$CURRENT_GITLINK_SHA"
 
       - name: Create private read-only candidate guard
         id: create-readonly-candidate-sandbox-guard
@@ -441,6 +443,8 @@ jobs:
                 -e connectors/lighttpd/lighttpd-version.contract \
                 -e connectors/lighttpd/SOURCE_MAP.json \
                 -e connectors/haproxy/htx-overlay/version-contract.json \
+                -e .github/workflows/test-connectors-with-crs-no-mrts.yml \
+                -e tests/test_ci_security_workflows.py \
                 -e ci/checks/evidence/check-runtime-producer-readiness.py \
                 -e .github/workflows/test-full-smoke-sequential.yml \
                 -e .github/workflows/nginx-root-broker.yml \
@@ -493,6 +497,8 @@ jobs:
                 $6 == "connectors/lighttpd/lighttpd-version.contract" ||
                 $6 == "connectors/lighttpd/SOURCE_MAP.json" ||
                 $6 == "connectors/haproxy/htx-overlay/version-contract.json" ||
+                $6 == ".github/workflows/test-connectors-with-crs-no-mrts.yml" ||
+                $6 == "tests/test_ci_security_workflows.py" ||
                 $6 == "ci/checks/evidence/check-runtime-producer-readiness.py" ||
                 $6 == ".github/workflows/test-full-smoke-sequential.yml" ||
                 $6 == ".github/workflows/nginx-root-broker.yml" ||
@@ -838,18 +844,28 @@ jobs:
           git update-index \
             --add \
             --cacheinfo "160000,$CANDIDATE_SHA,$SUBMODULE_PATH"
-          python3 ci/tools/sync-framework-component-versions.py \
-            --sync \
-            --repo-root "$GITHUB_WORKSPACE" \
-            --framework-common "$framework_common"
-          python3 ci/tools/sync-framework-component-versions.py \
-            --check \
-            --repo-root "$GITHUB_WORKSPACE" \
-            --framework-common "$framework_common"
+          # Confirm the checked Parent projection still matches the reviewed
+          # gitlink before the privileged job transforms it to the candidate.
           python3 ci/tools/verify-framework-candidate-contract.py \
             --repo-root "$GITHUB_WORKSPACE" \
             --candidate-sha "$CANDIDATE_SHA" \
-            --framework-common "$framework_common"
+            --framework-common "$framework_common" \
+            --expected-parent-framework-sha "$MASTER_OLD_SHA"
+          python3 ci/tools/sync-framework-component-versions.py \
+            --sync \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --framework-common "$framework_common" \
+            --framework-sha "$CANDIDATE_SHA"
+          python3 ci/tools/sync-framework-component-versions.py \
+            --check \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --framework-common "$framework_common" \
+            --framework-sha "$CANDIDATE_SHA"
+          python3 ci/tools/verify-framework-candidate-contract.py \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --candidate-sha "$CANDIDATE_SHA" \
+            --framework-common "$framework_common" \
+            --expected-parent-framework-sha "$CANDIDATE_SHA"
           python3 scripts/generate_compiler_guides.py
           git -c core.hooksPath=/dev/null add -- \
             connectors/envoy/config/envoy-ext-proc-versions.env \
@@ -859,6 +875,8 @@ jobs:
             connectors/lighttpd/lighttpd-version.contract \
             connectors/lighttpd/SOURCE_MAP.json \
             connectors/haproxy/htx-overlay/version-contract.json \
+            .github/workflows/test-connectors-with-crs-no-mrts.yml \
+            tests/test_ci_security_workflows.py \
             ci/checks/evidence/check-runtime-producer-readiness.py \
             .github/workflows/test-full-smoke-sequential.yml \
             .github/workflows/nginx-root-broker.yml \

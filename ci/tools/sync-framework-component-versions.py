@@ -4,7 +4,9 @@
 ``common.sh`` is never sourced or executed. The protected update workflow
 proves the Framework Git object, extracts its ``ci/lib/common.sh`` as a data
 file, and this tool accepts only a bounded registry-defined data grammar. It
-can write only the explicit Parent target registry.
+can write only the explicit Parent target registry. A separately validated
+resolver SHA may additionally project to the closed CRS/no-MRTS static
+Framework-identity targets; it is never read from ``common.sh``.
 
 NGINX is intentionally outside this generic synchronizer. Its privileged
 release tuple remains owned by the dedicated root-broker workflow and must be
@@ -30,6 +32,7 @@ MAX_RESOLVED_VALUE_BYTES = 64 * 1024
 MAX_RESOLVED_TOTAL_BYTES = 256 * 1024
 HEX64 = re.compile(r"^[0-9a-fA-F]{64}$")
 HEX40 = re.compile(r"^[0-9a-fA-F]{40}$")
+LOWER_HEX40 = re.compile(r"^[0-9a-f]{40}$", re.ASCII)
 SAFE_PATCH = re.compile(r"^[A-Za-z0-9._-]+\.patch$")
 SERIES = re.compile(r"^(?a:\d+)\.(?a:\d+)$")
 OFFICIAL_LIGHTTPD_RELEASE_ROOT_URL = "https://download.lighttpd.net/lighttpd"
@@ -275,6 +278,14 @@ class TargetSpec:
 
 
 @dataclass(frozen=True)
+class FrameworkShaProjectionSpec:
+    """One fixed Parent identity target owned by the resolver-SHA projector."""
+
+    relative_path: str
+    syntax: str
+
+
+@dataclass(frozen=True)
 class RenderedTarget:
     path: Path
     original: bytes
@@ -345,6 +356,41 @@ TARGET_REGISTRY = (
     ),
 )
 
+# This target class is deliberately separate from TARGET_REGISTRY. The value
+# comes only from the workflow's already-validated official Framework commit,
+# never from candidate common.sh data. Its closed scope prevents the generic
+# synchronizer from gaining ownership of unrelated runtime or NGINX pins.
+FRAMEWORK_SHA_PROJECTION_TARGETS = (
+    FrameworkShaProjectionSpec(
+        ".github/workflows/test-connectors-with-crs-no-mrts.yml",
+        "crs-no-mrts-workflow",
+    ),
+    FrameworkShaProjectionSpec(
+        "tests/test_ci_security_workflows.py",
+        "crs-no-mrts-fixture",
+    ),
+)
+
+EXPECTED_FRAMEWORK_SHA_ASSIGNMENT = re.compile(
+    r"(?m)^[ \t]*EXPECTED_FRAMEWORK_SHA:[^\r\n]*$"
+)
+EXPECTED_FRAMEWORK_SHA_TARGET = re.compile(
+    r"(?m)^(?P<prefix> {6}EXPECTED_FRAMEWORK_SHA:[ \t]*)(?P<value>[0-9a-f]{40})(?P<suffix>[ \t]*)$"
+)
+FRAMEWORK_SHA_ASSIGNMENT = re.compile(
+    r"(?m)^[ \t]*FRAMEWORK_SHA:(?P<value>[^\r\n]*)(?=\n|\Z)"
+)
+FRAMEWORK_SHA_STATIC_TARGET = re.compile(
+    r"(?m)^(?P<prefix> {10}FRAMEWORK_SHA:[ \t]*)(?P<value>[0-9a-f]{40})(?P<suffix>[ \t]*)$"
+)
+FRAMEWORK_SHA_DYNAMIC_VALUE = "${{ steps.prepare-haproxy-runtime-evidence.outputs.framework_sha }}"
+FRAMEWORK_SHA_FIXTURE_ASSIGNMENT = re.compile(
+    r"(?m)^WITH_CRS_NO_MRTS_FRAMEWORK_SHA[ \t]*=.*$"
+)
+FRAMEWORK_SHA_FIXTURE_TARGET = re.compile(
+    r'(?m)^(?P<prefix>WITH_CRS_NO_MRTS_FRAMEWORK_SHA[ \t]*=[ \t]*")(?P<value>[0-9a-f]{40})(?P<suffix>"[ \t]*)$'
+)
+
 # Security boundary: the general Framework updater must never regain ownership
 # of NGINX. NGINX source data and Parent projections belong to its dedicated
 # root-broker workflow and independently reviewed release process.
@@ -356,6 +402,8 @@ if any(
     for _target_name, source_name in spec.fields
 ):
     raise RuntimeError("NGINX must not be registered as a Framework Parent target")
+if any("nginx" in spec.relative_path.lower() for spec in FRAMEWORK_SHA_PROJECTION_TARGETS):
+    raise RuntimeError("NGINX must not be registered as a Framework SHA projection target")
 
 
 def _absolute(path: Path) -> Path:
@@ -798,6 +846,103 @@ def _require_one(matches: list[re.Match[str]], name: str, path: Path) -> re.Matc
     return matches[0]
 
 
+def _require_count(
+    matches: list[re.Match[str]], count: int, name: str, path: Path
+) -> list[re.Match[str]]:
+    if len(matches) != count:
+        raise SyncError(
+            f"registered target {path} must contain exactly {count} {name} assignments"
+        )
+    return matches
+
+
+def _replace_sha_values(
+    text: str, matches: list[re.Match[str]], framework_sha: str
+) -> str:
+    """Replace only the SHA capture of prevalidated fixed assignments."""
+
+    replacement: list[str] = []
+    previous = 0
+    for match in matches:
+        replacement.append(text[previous : match.start("value")])
+        replacement.append(framework_sha)
+        previous = match.end("value")
+    replacement.append(text[previous:])
+    return "".join(replacement)
+
+
+def _render_crs_no_mrts_workflow_framework_sha(
+    text: str, framework_sha: str, path: Path
+) -> str:
+    """Project a resolver SHA to exactly the reviewed static workflow slots."""
+
+    _require_count(
+        list(EXPECTED_FRAMEWORK_SHA_ASSIGNMENT.finditer(text)),
+        1,
+        "EXPECTED_FRAMEWORK_SHA",
+        path,
+    )
+    expected_target = _require_count(
+        list(EXPECTED_FRAMEWORK_SHA_TARGET.finditer(text)),
+        1,
+        "static EXPECTED_FRAMEWORK_SHA",
+        path,
+    )
+    framework_assignments = list(FRAMEWORK_SHA_ASSIGNMENT.finditer(text))
+    _require_count(framework_assignments, 5, "FRAMEWORK_SHA", path)
+    static_targets = _require_count(
+        list(FRAMEWORK_SHA_STATIC_TARGET.finditer(text)),
+        3,
+        "static FRAMEWORK_SHA",
+        path,
+    )
+    dynamic_targets = [
+        match
+        for match in framework_assignments
+        if match.group("value").strip() == FRAMEWORK_SHA_DYNAMIC_VALUE
+    ]
+    if len(dynamic_targets) != 2 or len(static_targets) + len(dynamic_targets) != len(
+        framework_assignments
+    ):
+        raise SyncError(
+            f"registered target {path} has unregistered FRAMEWORK_SHA assignments"
+        )
+    rendered = _replace_sha_values(text, expected_target, framework_sha)
+    return _replace_sha_values(
+        rendered,
+        _require_count(
+            list(FRAMEWORK_SHA_STATIC_TARGET.finditer(rendered)),
+            3,
+            "static FRAMEWORK_SHA",
+            path,
+        ),
+        framework_sha,
+    )
+
+
+def _render_crs_no_mrts_fixture_framework_sha(
+    text: str, framework_sha: str, path: Path
+) -> str:
+    """Project a resolver SHA to the one static security-workflow fixture."""
+
+    _require_count(
+        list(FRAMEWORK_SHA_FIXTURE_ASSIGNMENT.finditer(text)),
+        1,
+        "WITH_CRS_NO_MRTS_FRAMEWORK_SHA",
+        path,
+    )
+    return _replace_sha_values(
+        text,
+        _require_count(
+            list(FRAMEWORK_SHA_FIXTURE_TARGET.finditer(text)),
+            1,
+            "static WITH_CRS_NO_MRTS_FRAMEWORK_SHA",
+            path,
+        ),
+        framework_sha,
+    )
+
+
 def _python_assignment(text: str, name: str, value: str, path: Path) -> str:
     pattern = re.compile(
         rf"(?ms)^(?P<prefix>\s*{re.escape(name)}\s*=\s*)(?P<value>\(\s*\"(?:[^\"\\]|\\.)*\"\s*\)|\"(?:[^\"\\]|\\.)*\"|'(?:[^'\\]|\\.)*'|[A-Za-z_][A-Za-z0-9_]*)\s*(?:#.*)?$"
@@ -920,7 +1065,38 @@ def _lighttpd_source_map(text: str, fields: tuple[tuple[str, str], ...], values:
     return json.dumps(payload, indent=2) + "\n"
 
 
-def _render_targets(root: Path, values: dict[str, str]) -> list[RenderedTarget]:
+def _render_framework_sha_projection_targets(
+    root: Path, framework_sha: str
+) -> list[RenderedTarget]:
+    rendered: list[RenderedTarget] = []
+    renderers = {
+        "crs-no-mrts-workflow": _render_crs_no_mrts_workflow_framework_sha,
+        "crs-no-mrts-fixture": _render_crs_no_mrts_fixture_framework_sha,
+    }
+    for spec in FRAMEWORK_SHA_PROJECTION_TARGETS:
+        path = _target_path(root, spec.relative_path)
+        original, mode = _read_regular(
+            path,
+            f"registered Framework SHA projection target {spec.relative_path}",
+            allowed_root=root,
+        )
+        try:
+            text = original.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise SyncError(
+                f"registered Framework SHA projection target is not UTF-8 text: {path}"
+            ) from exc
+        renderer = renderers.get(spec.syntax)
+        if renderer is None:
+            raise SyncError(f"unsupported Framework SHA projection syntax: {spec.syntax}")
+        replacement = renderer(text, framework_sha, path)
+        rendered.append(RenderedTarget(path, original, replacement.encode("utf-8"), mode))
+    return rendered
+
+
+def _render_targets(
+    root: Path, values: dict[str, str], framework_sha: str | None
+) -> list[RenderedTarget]:
     derived = {
         "ENVOY_IMAGE": f"envoyproxy/envoy:v{values['ENVOY_VERSION']}",
     }
@@ -944,6 +1120,8 @@ def _render_targets(root: Path, values: dict[str, str]) -> list[RenderedTarget]:
             raise SyncError(f"registered target is not UTF-8 text: {path}") from exc
         replacement = _render_target(spec, text, values, path, source_value)
         rendered.append(RenderedTarget(path, original, replacement.encode("utf-8"), mode))
+    if framework_sha is not None:
+        rendered.extend(_render_framework_sha_projection_targets(root, framework_sha))
     return rendered
 
 
@@ -1007,10 +1185,17 @@ def _replace_file(path: Path, contents: bytes, mode: int) -> None:
             os.unlink(temporary)
 
 
-def synchronize(root: Path, framework_common: Path, sync: bool) -> list[str]:
+def synchronize(
+    root: Path,
+    framework_common: Path,
+    sync: bool,
+    framework_sha: str | None = None,
+) -> list[str]:
     repository_root = _require_directory(root, "repository root")
+    if framework_sha is not None and not LOWER_HEX40.fullmatch(framework_sha):
+        raise SyncError("Framework SHA must be exactly 40 lowercase hexadecimal characters")
     values = parse_common(framework_common)
-    rendered = _render_targets(repository_root, values)
+    rendered = _render_targets(repository_root, values, framework_sha)
     changed = [str(item.path.relative_to(repository_root)) for item in rendered if item.replacement != item.original]
     if sync and changed:
         _commit_rendered(rendered)
@@ -1044,9 +1229,18 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument("--sync", action="store_true", help="write the fixed target registry atomically")
     parser.add_argument("--repo-root", type=Path, default=Path(__file__).parents[2])
     parser.add_argument("--framework-common", type=Path, required=True)
+    parser.add_argument(
+        "--framework-sha",
+        help="validated official Framework SHA to project to the closed static identity targets",
+    )
     args = parser.parse_args(argv)
     try:
-        changed = synchronize(_absolute(args.repo_root), _absolute(args.framework_common), args.sync)
+        changed = synchronize(
+            _absolute(args.repo_root),
+            _absolute(args.framework_common),
+            args.sync,
+            args.framework_sha,
+        )
     except (OSError, SyncError) as exc:
         print(f"sync-framework-component-versions: error: {exc}")
         return 2

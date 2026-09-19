@@ -28,6 +28,7 @@ SPEC.loader.exec_module(SYNC)
 
 
 CANDIDATE_GRAMMAR_PROVENANCE = "d4f7b69dc264852eac74e1439c0887fcb9fbe372"
+NEW_FRAMEWORK_SHA = "a" * 40
 
 # This is an offline grammar fixture. The SHA identifies the reproduced
 # Framework candidate's assignment structure only; it is never an input or
@@ -129,6 +130,15 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
             for spec in SYNC.TARGET_REGISTRY
         }
 
+    def framework_sha_projection_bytes(self) -> dict[Path, bytes]:
+        return {
+            self.root / spec.relative_path: (self.root / spec.relative_path).read_bytes()
+            for spec in SYNC.FRAMEWORK_SHA_PROJECTION_TARGETS
+        }
+
+    def all_target_bytes(self) -> dict[Path, bytes]:
+        return self.target_bytes() | self.framework_sha_projection_bytes()
+
     def nginx_owned_bytes(self) -> dict[Path, bytes]:
         relative_paths = (
             ".github/workflows/nginx-root-broker.yml",
@@ -207,6 +217,10 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
                 for spec in SYNC.TARGET_REGISTRY
                 for _target_name, source_name in spec.fields
             )
+        )
+        self.assertFalse(
+            any("nginx" in spec.relative_path.lower()
+                for spec in SYNC.FRAMEWORK_SHA_PROJECTION_TARGETS)
         )
 
     def test_resolution_budget_rejects_fanout_before_semantic_validation(self) -> None:
@@ -310,7 +324,167 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         self.assertEqual(SYNC.synchronize(self.root, self.common, True), [])
         self.assertEqual(before, self.nginx_owned_bytes())
 
+    def test_framework_sha_projection_updates_only_reviewed_static_consumers(self) -> None:
+        generic_before = self.target_bytes()
+        nginx_before = self.nginx_owned_bytes()
+        projection_before = self.framework_sha_projection_bytes()
+        workflow = self.root / ".github/workflows/test-connectors-with-crs-no-mrts.yml"
+        dynamic_before = tuple(
+            line
+            for line in workflow.read_text(encoding="utf-8").splitlines()
+            if "FRAMEWORK_SHA:" in line and "${{" in line
+        )
+
+        self.assertEqual(
+            SYNC.synchronize(self.root, self.common, False, NEW_FRAMEWORK_SHA),
+            [
+                ".github/workflows/test-connectors-with-crs-no-mrts.yml",
+                "tests/test_ci_security_workflows.py",
+            ],
+        )
+        self.assertEqual(projection_before, self.framework_sha_projection_bytes())
+
+        self.assertEqual(
+            SYNC.synchronize(self.root, self.common, True, NEW_FRAMEWORK_SHA),
+            [
+                ".github/workflows/test-connectors-with-crs-no-mrts.yml",
+                "tests/test_ci_security_workflows.py",
+            ],
+        )
+        rendered_workflow = workflow.read_text(encoding="utf-8")
+        self.assertEqual(
+            rendered_workflow.count(f"EXPECTED_FRAMEWORK_SHA: {NEW_FRAMEWORK_SHA}"), 1
+        )
+        self.assertEqual(
+            len(
+                re.findall(
+                    rf"(?m)^ {{10}}FRAMEWORK_SHA: {NEW_FRAMEWORK_SHA}$",
+                    rendered_workflow,
+                )
+            ),
+            3,
+        )
+        self.assertEqual(
+            tuple(
+                line
+                for line in rendered_workflow.splitlines()
+                if "FRAMEWORK_SHA:" in line and "${{" in line
+            ),
+            dynamic_before,
+        )
+        self.assertIn(
+            f'WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "{NEW_FRAMEWORK_SHA}"',
+            (self.root / "tests/test_ci_security_workflows.py").read_text(encoding="utf-8"),
+        )
+        self.assertEqual(generic_before, self.target_bytes())
+        self.assertEqual(nginx_before, self.nginx_owned_bytes())
+        self.assertEqual(
+            SYNC.synchronize(self.root, self.common, False, NEW_FRAMEWORK_SHA), []
+        )
+
+    def test_framework_sha_projection_rejects_invalid_or_unregistered_slots_without_writes(
+        self,
+    ) -> None:
+        workflow = self.root / ".github/workflows/test-connectors-with-crs-no-mrts.yml"
+        fixture = self.root / "tests/test_ci_security_workflows.py"
+        original_workflow = workflow.read_text(encoding="utf-8")
+        original_fixture = fixture.read_text(encoding="utf-8")
+
+        cases = (
+            ("invalid SHA", "A" * 40, lambda: None),
+            (
+                "missing expected slot",
+                NEW_FRAMEWORK_SHA,
+                lambda: workflow.write_text(
+                    original_workflow.replace(
+                        "EXPECTED_FRAMEWORK_SHA:", "EXPECTED_FRAMEWORK_SHA_REMOVED:", 1
+                    ),
+                    encoding="utf-8",
+                ),
+            ),
+            (
+                "duplicate static slot",
+                NEW_FRAMEWORK_SHA,
+                lambda: workflow.write_text(
+                    original_workflow
+                    + f"\n          FRAMEWORK_SHA: {CANDIDATE_GRAMMAR_PROVENANCE}\n",
+                    encoding="utf-8",
+                ),
+            ),
+            (
+                "aliased static slot",
+                NEW_FRAMEWORK_SHA,
+                lambda: workflow.write_text(
+                    original_workflow.replace(
+                        f"FRAMEWORK_SHA: {CANDIDATE_GRAMMAR_PROVENANCE}",
+                        f"FRAMEWORK_SHA: {SYNC.FRAMEWORK_SHA_DYNAMIC_VALUE}",
+                        1,
+                    ),
+                    encoding="utf-8",
+                ),
+            ),
+            (
+                "quoted static slot",
+                NEW_FRAMEWORK_SHA,
+                lambda: workflow.write_text(
+                    original_workflow.replace(
+                        f"FRAMEWORK_SHA: {CANDIDATE_GRAMMAR_PROVENANCE}",
+                        f'FRAMEWORK_SHA: "{CANDIDATE_GRAMMAR_PROVENANCE}"',
+                        1,
+                    ),
+                    encoding="utf-8",
+                ),
+            ),
+            (
+                "misplaced static slot",
+                NEW_FRAMEWORK_SHA,
+                lambda: workflow.write_text(
+                    original_workflow.replace(
+                        f"          FRAMEWORK_SHA: {CANDIDATE_GRAMMAR_PROVENANCE}",
+                        f"         FRAMEWORK_SHA: {CANDIDATE_GRAMMAR_PROVENANCE}",
+                        1,
+                    ),
+                    encoding="utf-8",
+                ),
+            ),
+            (
+                "whitespace-only CRLF static slot",
+                NEW_FRAMEWORK_SHA,
+                lambda: workflow.write_text(
+                    original_workflow.replace(
+                        f"FRAMEWORK_SHA: {CANDIDATE_GRAMMAR_PROVENANCE}",
+                        f"FRAMEWORK_SHA:{' ' * 4096}\r\n",
+                        1,
+                    ),
+                    encoding="utf-8",
+                ),
+            ),
+            (
+                "malformed fixture slot",
+                NEW_FRAMEWORK_SHA,
+                lambda: fixture.write_text(
+                    original_fixture.replace(
+                        f'WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "{CANDIDATE_GRAMMAR_PROVENANCE}"',
+                        'WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "not-a-framework-sha"',
+                        1,
+                    ),
+                    encoding="utf-8",
+                ),
+            ),
+        )
+        for label, framework_sha, mutate in cases:
+            with self.subTest(label=label):
+                workflow.write_text(original_workflow, encoding="utf-8")
+                fixture.write_text(original_fixture, encoding="utf-8")
+                mutate()
+                before = self.all_target_bytes()
+                with self.assertRaises(SYNC.SyncError):
+                    SYNC.synchronize(self.root, self.common, True, framework_sha)
+                self.assertEqual(before, self.all_target_bytes())
+
     def test_cli_validate_sync_check_and_second_sync_are_byte_idempotent(self) -> None:
+        framework_sha_arguments = ("--framework-sha", NEW_FRAMEWORK_SHA)
+        projection_before = self.framework_sha_projection_bytes()
         self.assertEqual(
             SYNC.main(
                 (
@@ -319,10 +493,12 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
                     str(self.root),
                     "--framework-common",
                     str(self.common),
+                    *framework_sha_arguments,
                 )
             ),
             0,
         )
+        self.assertEqual(projection_before, self.framework_sha_projection_bytes())
         self.write_common(future_series_common())
         sync_arguments = (
             "--sync",
@@ -330,9 +506,10 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
             str(self.root),
             "--framework-common",
             str(self.common),
+            *framework_sha_arguments,
         )
         self.assertEqual(SYNC.main(sync_arguments), 0)
-        after_first_sync = self.target_bytes()
+        after_first_sync = self.all_target_bytes()
         self.assertEqual(
             SYNC.main(
                 (
@@ -341,12 +518,13 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
                     str(self.root),
                     "--framework-common",
                     str(self.common),
+                    *framework_sha_arguments,
                 )
             ),
             0,
         )
         self.assertEqual(SYNC.main(sync_arguments), 0)
-        self.assertEqual(after_first_sync, self.target_bytes())
+        self.assertEqual(after_first_sync, self.all_target_bytes())
 
     def test_noop_after_sync(self) -> None:
         self.write_common(future_series_common())
