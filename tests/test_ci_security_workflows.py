@@ -51,7 +51,18 @@ LOCKED_ACTION_USE = re.compile(
     r"(?P<prefix>uses:\s+[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?@)"
     r"(?P<sha>[a-f0-9]{40})(?:\s+#\s*v[^\n]+)?"
 )
-SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "0fc3f57a9b0df8d885cec278b3fd36efc7ba9a0bacfff3f0214b78786f763cc2"
+SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "9edeaeecd28fa2d75dc5d07abc047d145b3a7fff783b4f895489f73f044f66de"
+SUBMODULE_PUBLISHER_APP_TOKEN_ACTION = "actions/create-github-app-token"
+SUBMODULE_PUBLISHER_APP_TOKEN_INPUTS = {
+    "client-id": "${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}",
+    "private-key": "${{ secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY }}",
+    "owner": "${{ github.repository_owner }}",
+    "repositories": "${{ github.repository }}",
+    "permission-contents": "write",
+    "permission-pull-requests": "write",
+    "permission-workflows": "write",
+}
+SUBMODULE_PUBLISHER_APP_TOKEN_OUTPUT = "${{ steps.publisher_app_token.outputs.token }}"
 AUTO_MERGE_DISABLED_QUERY = (
     "--jq 'if (has(\"auto_merge\") and (.auto_merge == null)) then \"null\" "
     "else \"auto-merge-present\" end'"
@@ -695,10 +706,6 @@ EXPECTED_WRITE_PERMISSIONS = {
     },
     ("cleanup-artifacts.yml", "cleanup-artifacts"): {"actions": "write"},
     ("test-full-smoke-sequential.yml", "cleanup-artifacts"): {"actions": "write"},
-    ("update-submodules.yml", "create-submodule-update-pr"): {
-        "contents": "write",
-        "pull-requests": "write",
-    },
     ("update-go-version.yml", "create-go-update-pr"): {
         "contents": "write",
         "pull-requests": "write",
@@ -785,6 +792,82 @@ def job_permissions(job: str) -> dict[str, str]:
         if line == "    permissions:":
             return mapping_after(lines, index, 4)
     return {}
+
+
+def submodule_publisher_app_token_inputs(text: str) -> dict[str, str]:
+    """Return the complete App-token input mapping for the submodule publisher."""
+
+    publisher = job_blocks(text).get("create-submodule-update-pr", "")
+    match = re.search(
+        r"^      - name: Mint repository-limited submodule publisher App token\n"
+        r"        id: publisher_app_token\n"
+        rf"        uses: {re.escape(SUBMODULE_PUBLISHER_APP_TOKEN_ACTION)}@[^\n]+\n"
+        r"        with:\n(?P<inputs>(?:          [A-Za-z0-9-]+: [^\n]+\n)+)",
+        publisher,
+        re.MULTILINE,
+    )
+    if match is None:
+        return {}
+    return dict(
+        re.findall(
+            r"^          ([A-Za-z0-9-]+): ([^\n]+)$",
+            match.group("inputs"),
+            re.MULTILINE,
+        )
+    )
+
+
+def submodule_publisher_token_errors(text: str) -> list[str]:
+    """Return violations of the least-privilege submodule publisher token boundary."""
+
+    errors: list[str] = []
+    jobs = job_blocks(text)
+    required_jobs = {
+        "resolve-submodule-update",
+        "validate-submodule-update",
+        "create-submodule-update-pr",
+        "report-submodule-update-outcome",
+    }
+    if not required_jobs.issubset(jobs):
+        return ["submodule publisher token contract jobs are missing"]
+
+    publisher = jobs["create-submodule-update-pr"]
+    if job_permissions(publisher) != {"contents": "read"}:
+        errors.append("publisher ambient permissions must remain contents-read only")
+    if submodule_publisher_app_token_inputs(text) != SUBMODULE_PUBLISHER_APP_TOKEN_INPUTS:
+        errors.append("publisher App-token inputs must be complete, exact, and repository-limited")
+    if publisher.count(f"{SUBMODULE_PUBLISHER_APP_TOKEN_ACTION}@") != 1:
+        errors.append("publisher must mint exactly one App token")
+    if publisher.count("id: publisher_app_token") != 1:
+        errors.append("publisher App-token step identity must be unique")
+    if publisher.count("${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}") != 2:
+        errors.append("publisher must preflight and mint with the one expected App client ID")
+    if publisher.count("${{ secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY }}") != 2:
+        errors.append("publisher must preflight and mint with the one expected App private key")
+    if publisher.count("secrets.") != 2:
+        errors.append("publisher must not receive any secret beyond the expected App private key")
+    if re.search(r"\bsecrets\s*\[", publisher):
+        errors.append("publisher must not use bracket-indexed secret access")
+    if publisher.count(SUBMODULE_PUBLISHER_APP_TOKEN_OUTPUT) != 1:
+        errors.append("publisher must use the minted token exactly once")
+    if f"GH_TOKEN: {SUBMODULE_PUBLISHER_APP_TOKEN_OUTPUT}" not in publisher:
+        errors.append("publisher must authenticate GitHub CLI and Git with the minted App token")
+    if "${{ github.token }}" in publisher:
+        errors.append("publisher must not fall back to the ambient GitHub token")
+
+    for job_name in required_jobs - {"create-submodule-update-pr"}:
+        job = jobs[job_name]
+        if any(
+            marker in job
+            for marker in (
+                "secrets.",
+                "WORKFLOW_UPDATER_APP_",
+                "publisher_app_token",
+                SUBMODULE_PUBLISHER_APP_TOKEN_ACTION,
+            )
+        ):
+            errors.append(f"{job_name} must not receive the publisher App credential")
+    return errors
 
 
 def job_if_expression(job: str) -> str | None:
@@ -907,8 +990,8 @@ def update_submodule_validate_only_errors(text: str) -> list[str]:
         errors.append("resolver permissions must remain contents-read only")
     if job_permissions(validator) != {"contents": "read"}:
         errors.append("validator permissions must remain contents-read only")
-    if job_permissions(publisher) != {"contents": "write", "pull-requests": "write"}:
-        errors.append("publisher permissions changed outside the established boundary")
+    if job_permissions(publisher) != {"contents": "read"}:
+        errors.append("publisher ambient permissions must remain contents-read only")
     if job_permissions(outcome) != {"contents": "read"}:
         errors.append("outcome reporter permissions must remain contents-read only")
     if any(term in resolver or term in validator for term in ("GH_TOKEN", "secrets.", "github.token")):
@@ -2478,13 +2561,11 @@ jobs:
 
         self.assertEqual(job_permissions(resolver), {"contents": "read"})
         self.assertEqual(job_permissions(validator), {"contents": "read"})
-        self.assertEqual(
-            job_permissions(publisher),
-            {"contents": "write", "pull-requests": "write"},
-        )
+        self.assertEqual(job_permissions(publisher), {"contents": "read"})
         self.assertEqual(job_permissions(outcome), {"contents": "read"})
         self.assertEqual(job_if_expression(outcome), "always()")
         self.assertEqual(update_submodule_validate_only_errors(workflow), [])
+        self.assertEqual(submodule_publisher_token_errors(workflow), [])
         self.assertEqual(job_if_expression(resolver), SUBMODULE_RESOLVER_GATE)
         self.assertEqual(resolver.count(SUBMODULE_VALIDATE_ONLY_CHECKOUT_REF), 1)
         self.assertEqual(validator.count(SUBMODULE_VALIDATE_ONLY_CHECKOUT_REF), 1)
@@ -3053,6 +3134,44 @@ sudo -n chmod 0750 "$namespace_parent"
                 mutated = workflow.replace(original, replacement, 1)
                 self.assertNotEqual(update_submodule_validate_only_errors(mutated), [])
 
+        publisher_token_mutations = {
+            "publisher falls back to ambient token": (
+                SUBMODULE_PUBLISHER_APP_TOKEN_OUTPUT,
+                "${{ github.token }}",
+            ),
+            "publisher App token gains unrelated issue scope": (
+                "          permission-workflows: write\n",
+                "          permission-workflows: write\n          permission-issues: write\n",
+            ),
+            "publisher receives an unrelated secret": (
+                "          permission-workflows: write\n",
+                "          permission-workflows: write\n        env:\n"
+                "          UNRELATED_SECRET: ${{ secrets.UNRELATED }}\n",
+            ),
+            "publisher receives a bracket-indexed secret": (
+                "          permission-workflows: write\n",
+                "          permission-workflows: write\n        env:\n"
+                "          UNRELATED_SECRET: ${{ secrets['UNRELATED'] }}\n",
+            ),
+            "publisher App token targets another repository": (
+                "          repositories: ${{ github.repository }}\n",
+                "          repositories: another-owner/another-repository\n",
+            ),
+        }
+        for name, (original, replacement) in publisher_token_mutations.items():
+            with self.subTest(publisher_token_mutation=name):
+                self.assertIn(original, workflow)
+                mutated = workflow.replace(original, replacement, 1)
+                self.assertNotEqual(submodule_publisher_token_errors(mutated), [])
+
+        publisher_with_ambient_write = publisher.replace(
+            "    permissions:\n      contents: read",
+            "    permissions:\n      contents: write\n      pull-requests: write",
+            1,
+        )
+        mutated = workflow.replace(publisher, publisher_with_ambient_write, 1)
+        self.assertNotEqual(submodule_publisher_token_errors(mutated), [])
+
         self.assertIn("submodules: false", publisher)
         self.assertEqual(
             sha256(normalize_locked_action_pins(publisher).encode("utf-8")).hexdigest(),
@@ -3082,7 +3201,8 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertNotIn("enablePullRequestAutoMerge", publisher)
         self.assertIn("git ls-remote --exit-code", publisher)
         self.assertTrue(has_exact_framework_gitlink_staging(publisher))
-        self.assertIn("GH_TOKEN: ${{ github.token }}", publisher)
+        self.assertIn(f"GH_TOKEN: {SUBMODULE_PUBLISHER_APP_TOKEN_OUTPUT}", publisher)
+        self.assertNotIn("${{ github.token }}", publisher)
         self.assertIn("git read-tree \"$MASTER_HEAD\"", publisher)
         self.assertIn('git diff --cached --name-only "$MASTER_HEAD"', normalized_publisher)
         self.assertIn("require_only_allowed_update_paths", publisher)
