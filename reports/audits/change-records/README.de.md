@@ -30,8 +30,16 @@ angelegt werden.
   Pin-Boundary-Regression-Coverage und lässt Framework-/MRTS-Source, Gitlinks,
   Permissions, Hosted-Reruns und Merge-State unverändert.
 
+- [CR-20260919-readiness-b-shared-remediation](CR-20260919-readiness-b-shared-remediation.de.md)
+  | English companion: `CR-20260919-readiness-b-shared-remediation.md` — hält
+  die scoped Parent-only-Shared-Remediation für die Readiness-B-Arbeit über
+  zehn Integrationen fest. Er trennt beobachtete lokale Evidenz von der noch
+  unvollständigen Runtime- und Regelprofil-Evidenz über zehn Pfade; keine
+  Framework-/MRTS-/Gitlink-Änderung, kein Zehn-Pfad-B-Nachweis, kein
+  Envoy-Host-Ergebnis und kein Merge wird behauptet.
+
 - [CR-20260919-update-submodule-sha-projection](CR-20260919-update-submodule-sha-projection.de.md)
-  | English companion: CR-20260919-update-submodule-sha-projection.md — der
+  | English companion: `CR-20260919-update-submodule-sha-projection.md` — der
   aktuelle Benutzer hat diese Parent-only-Korrektur für den verlinkten
   GitHub-Actions-Run 35441775719 angefordert. Der Record hält die geschlossene
   Static-SHA-Projektionskorrektur und die fokussierte `python:S8786`-

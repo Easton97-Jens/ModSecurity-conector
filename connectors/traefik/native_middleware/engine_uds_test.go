@@ -461,7 +461,7 @@ func TestUDSEngineUsesOneSessionForFullLifecycle(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPost, "http://example.test/uds", strings.NewReader("request"))
 	request.Header.Set("X-Request-Id", "uds-full-lifecycle")
 	response := httptest.NewRecorder()
-	middleware.ServeHTTP(response, request)
+	middleware.ServeHTTP(response, withTestLocalEndpoint(request))
 	if got, want := response.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d", got, want)
 	}
@@ -750,7 +750,7 @@ func runUDSDenyCase(t *testing.T, test udsDenyCase) {
 		}
 	}))
 	response := httptest.NewRecorder()
-	middleware.ServeHTTP(response, test.request)
+	middleware.ServeHTTP(response, withTestLocalEndpoint(test.request))
 	if got, want := response.Code, http.StatusForbidden; got != want {
 		t.Fatalf("status = %d, want %d", got, want)
 	}
@@ -796,7 +796,7 @@ func TestUDSEngineDoesNotAcknowledgeAnUnconfirmedHostWrite(t *testing.T) {
 	})
 	middleware := newUDSTestMiddleware(t, socketPath, http.NotFoundHandler())
 	response := &failingDecisionResponseWriter{header: make(http.Header)}
-	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/p1", nil))
+	middleware.ServeHTTP(response, withTestLocalEndpoint(httptest.NewRequest(http.MethodGet, "http://example.test/p1", nil)))
 	if got, want := response.status, http.StatusForbidden; got != want {
 		t.Fatalf("status = %d, want %d", got, want)
 	}
@@ -826,7 +826,7 @@ func runUDSResponseCase(t *testing.T, test udsResponseCase) {
 		_, _ = writer.Write([]byte("second"))
 	}))
 	response := httptest.NewRecorder()
-	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/response", nil))
+	middleware.ServeHTTP(response, withTestLocalEndpoint(httptest.NewRequest(http.MethodGet, "http://example.test/response", nil)))
 	if got := response.Code; got != test.wantStatus {
 		t.Fatalf("status = %d, want %d", got, test.wantStatus)
 	}

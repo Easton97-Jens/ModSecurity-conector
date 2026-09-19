@@ -17,7 +17,6 @@ from pathlib import Path
 import shutil
 import socket
 import socketserver
-import struct
 import subprocess
 import sys
 import tempfile
@@ -884,7 +883,7 @@ class StockSidecarSourceContractTest(unittest.TestCase):
         self.assertIn("MSCONNECTOR_ERROR_BODY_TOO_LARGE", source)
         self.assertIn("sidecar_connection_value_allowed", source)
         self.assertIn("sidecar_headers_has_name", source)
-        self.assertIn('sidecar_write_error(state->client, 417, &state->deadline)', source)
+        self.assertIn('sidecar_write_error(state->downstream.client, 417, &state->deadline)', source)
         self.assertIn('strcmp(state->payload.request_headers.method, "HEAD") == 0', source)
         self.assertIn("sidecar_parse_header_field", source)
         self.assertIn("sidecar_read_request_body", source)
@@ -909,6 +908,31 @@ class StockSidecarSourceContractTest(unittest.TestCase):
         self.assertIn("static int sidecar_read_final_response_headers", source)
         self.assertIn("headers.status_code == 101", source)
         self.assertIn("sidecar_write_interim_response_headers_observed", source)
+
+    def test_exchange_state_groups_downstream_socket_metadata(self) -> None:
+        """Keep the Sonar field-count limit without changing endpoint provenance."""
+        source = SIDECAR_SOURCE.read_text(encoding="utf-8")
+        connection_start = source.index("typedef struct sidecar_downstream_connection")
+        connection_end = source.index("} sidecar_downstream_connection;", connection_start)
+        connection = source[connection_start:connection_end]
+        state_start = source.index("typedef struct sidecar_exchange_state")
+        state_end = source.index("} sidecar_exchange_state;", state_start)
+        state = source[state_start:state_end]
+        direct_members = [
+            line for line in state.split("{", 1)[1].split("}", 1)[0].splitlines()
+            if line.strip().endswith(";")
+        ]
+
+        self.assertIn("int client;", connection)
+        self.assertIn("char client_address[INET6_ADDRSTRLEN];", connection)
+        self.assertIn("char server_address[INET6_ADDRSTRLEN];", connection)
+        self.assertIn("int client_port;", connection)
+        self.assertIn("int server_port;", connection)
+        self.assertIn("sidecar_downstream_connection downstream;", state)
+        self.assertLessEqual(len(direct_members), 20)
+        self.assertIn("state->downstream.client", source)
+        self.assertIn("request.client.address = state->downstream.client_address;", source)
+        self.assertIn("request.server.address = state->downstream.server_address;", source)
 
     def test_response_metadata_and_request_target_use_common_contract_bounds(self) -> None:
         source = SIDECAR_SOURCE.read_text(encoding="utf-8")
@@ -944,6 +968,130 @@ class StockSidecarSourceContractTest(unittest.TestCase):
         )
         self.assertNotIn("char request_line[600];", response_exchange)
 
+    def test_request_endpoints_come_from_the_accepted_socket_before_common_begin(self) -> None:
+        """FND-PARENT-1091: never use absent or header-derived endpoints."""
+        source = SIDECAR_SOURCE.read_text(encoding="utf-8")
+        endpoint_start = source.index("static int sidecar_socket_endpoint")
+        endpoint_end = source.index("static int sidecar_capture_connection_endpoints", endpoint_start)
+        endpoint = source[endpoint_start:endpoint_end]
+        request_start = source.index("static int sidecar_exchange_request")
+        request_end = source.index("static int sidecar_exchange_response", request_start)
+        request_exchange = source[request_start:request_end]
+        exchange_start = source.index("static int sidecar_exchange(")
+        exchange_end = source.index("/* The exchange above", exchange_start)
+        exchange = source[exchange_start:exchange_end]
+
+        self.assertIn("getpeername", endpoint)
+        self.assertIn("getsockname", endpoint)
+        self.assertIn("AF_INET", endpoint)
+        self.assertIn("AF_INET6", endpoint)
+        self.assertIn("INET6_ADDRSTRLEN", endpoint)
+        self.assertIn("*port == 0", endpoint)
+        self.assertIn("strlen(address) >= INET6_ADDRSTRLEN", endpoint)
+        self.assertIn("request.client.address = state->downstream.client_address;", request_exchange)
+        self.assertIn("request.server.address = state->downstream.server_address;", request_exchange)
+        self.assertNotIn("request.client.address = host", request_exchange)
+        self.assertNotIn("request.server.address = host", request_exchange)
+        self.assertLess(
+            exchange.index("sidecar_capture_connection_endpoints"),
+            exchange.index("sidecar_exchange_request"),
+        )
+
+        compiler = shutil.which(os.environ.get("CC", "cc"))
+        include_directory = Path(os.environ.get("MODSECURITY_INCLUDE_DIR", "/usr/include"))
+        if compiler is None or not (include_directory / "modsecurity/modsecurity.h").is_file():
+            # The source-contract regression remains valid without a local
+            # libmodsecurity development package.  The same test executes the
+            # TCP harness when that documented optional prerequisite exists.
+            return
+
+        harness_source = r'''
+#define MSCONNECTOR_STOCK_SIDECAR_MAIN
+#define main stock_sidecar_program_main
+#include "__SIDECAR_SOURCE__"
+#undef main
+
+#include <assert.h>
+
+static int tcp_pair(int family, const char *address, int *client, int *server) {
+    struct sockaddr_storage listener_address;
+    socklen_t listener_size;
+    int listener;
+
+    *client = -1;
+    *server = -1;
+    listener = socket(family, SOCK_STREAM, 0);
+    if (listener < 0) return 0;
+    memset(&listener_address, 0, sizeof(listener_address));
+    if (family == AF_INET) {
+        struct sockaddr_in *ipv4 = (struct sockaddr_in *)&listener_address;
+        ipv4->sin_family = AF_INET;
+        assert(inet_pton(AF_INET, address, &ipv4->sin_addr) == 1);
+        listener_size = sizeof(*ipv4);
+    } else {
+        struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)&listener_address;
+        ipv6->sin6_family = AF_INET6;
+        assert(inet_pton(AF_INET6, address, &ipv6->sin6_addr) == 1);
+        listener_size = sizeof(*ipv6);
+    }
+    if (bind(listener, (struct sockaddr *)&listener_address, listener_size) != 0 ||
+        listen(listener, 1) != 0 ||
+        getsockname(listener, (struct sockaddr *)&listener_address, &listener_size) != 0) {
+        close(listener);
+        return 0;
+    }
+    *client = socket(family, SOCK_STREAM, 0);
+    assert(*client >= 0);
+    assert(connect(*client, (struct sockaddr *)&listener_address, listener_size) == 0);
+    *server = accept(listener, NULL, NULL);
+    assert(*server >= 0);
+    assert(close(listener) == 0);
+    return 1;
+}
+
+static void assert_tcp_endpoints(int family, const char *address) {
+    char client_address[INET6_ADDRSTRLEN];
+    char server_address[INET6_ADDRSTRLEN];
+    int client;
+    int server;
+    int client_port;
+    int server_port;
+
+    if (!tcp_pair(family, address, &client, &server)) return;
+    assert(sidecar_socket_endpoint(server, 1, client_address, &client_port) == 1);
+    assert(sidecar_socket_endpoint(server, 0, server_address, &server_port) == 1);
+    assert(strcmp(client_address, address) == 0);
+    assert(strcmp(server_address, address) == 0);
+    assert(client_port > 0);
+    assert(server_port > 0);
+    assert(close(client) == 0);
+    assert(close(server) == 0);
+}
+
+int main(void) {
+    int local[2];
+    char address[INET6_ADDRSTRLEN];
+    int port;
+
+    assert_tcp_endpoints(AF_INET, "127.0.0.1");
+    /* IPv6 is a legitimate endpoint when the host supports it; lack of an
+     * IPv6 loopback listener is an environment limit, not a conversion pass. */
+    assert_tcp_endpoints(AF_INET6, "::1");
+    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, local) == 0);
+    assert(sidecar_socket_endpoint(local[0], 1, address, &port) == 0);
+    assert(address[0] == '\0');
+    assert(port == 0);
+    assert(close(local[0]) == 0);
+    assert(close(local[1]) == 0);
+    return 0;
+}
+'''
+        self._compile_and_run_c_harness(
+            harness_source, prefix="stock-sidecar-endpoints-",
+            filename="connection_endpoints", compiler=compiler,
+            include_directory=include_directory,
+        )
+
     def test_build_requires_an_explicit_external_output_root(self) -> None:
         script = BUILD_SCRIPT.read_text(encoding="utf-8")
         self.assertIn('BUILD_ROOT is required', script)
@@ -970,7 +1118,7 @@ class StockSidecarSourceContractTest(unittest.TestCase):
 
     def test_partial_response_header_write_claims_client_response_ownership(self) -> None:
         """A partial proxied header must suppress a second fallback response."""
-        compiler = shutil.which("cc")
+        compiler = shutil.which(os.environ.get("CC", "cc"))
         include_directory = Path(os.environ.get("MODSECURITY_INCLUDE_DIR", "/usr/include"))
         if compiler is None:
             self.skipTest("requires a C compiler")
@@ -1042,7 +1190,7 @@ int main(void) {
 
     def test_informational_response_is_forwarded_before_exactly_one_final_response(self) -> None:
         """A non-upgrade 1xx is client-visible but never becomes Common P3."""
-        compiler = shutil.which("cc")
+        compiler = shutil.which(os.environ.get("CC", "cc"))
         include_directory = Path(os.environ.get("MODSECURITY_INCLUDE_DIR", "/usr/include"))
         if compiler is None:
             self.skipTest("requires a C compiler")
@@ -1082,7 +1230,7 @@ int msconnector_runtime_transaction_finish(
 
 static void initialize_exchange(sidecar_exchange_state *state, int client, int upstream) {
     memset(state, 0, sizeof(*state));
-    state->client = client;
+    state->downstream.client = client;
     state->upstream = upstream;
     state->header_limit = 4096U;
     state->count_limit = 16U;
@@ -1166,6 +1314,123 @@ int main(void) {
         self._compile_and_run_c_harness(
             harness_source, prefix="stock-sidecar-informational-",
             filename="informational_response", compiler=compiler,
+            include_directory=include_directory,
+        )
+
+    def test_p2_decision_delivery_failure_records_an_abort_host_action(self) -> None:
+        """A constructed P2 decision reaches the abort-recording terminal path.
+
+        A loopback TCP RST cannot establish whether the worker has reached the
+        P2 decision boundary: depending on scheduling it can be consumed before
+        request-body processing or after a successful decision response.  This
+        source contract anchors the production post-`finish_request_body` P2
+        branch to `sidecar_finish_decision`. The focused harness then constructs
+        a disruptive P2 decision, invokes that production terminal handoff, and
+        closes the peer so the real response write observes a deterministic
+        delivery failure. It does not dynamically execute the full P2 pipeline.
+        """
+        compiler = shutil.which(os.environ.get("CC", "cc"))
+        include_directory = Path(os.environ.get("MODSECURITY_INCLUDE_DIR", "/usr/include"))
+        if compiler is None:
+            self.skipTest("requires a C compiler")
+        if not (include_directory / "modsecurity" / "modsecurity.h").is_file():
+            self.skipTest("requires libmodsecurity headers")
+
+        source = SIDECAR_SOURCE.read_text(encoding="utf-8")
+        p2_finish = source.index(
+            "if (!msconnector_runtime_transaction_finish_request_body("
+        )
+        p2_terminal_end = source.index("    return 1;", p2_finish)
+        p2_terminal = source[p2_finish:p2_terminal_end]
+        self.assertIn(
+            "if (msconnector_decision_is_disruptive(&state->decision)) {\n"
+            "        sidecar_finish_decision(state);",
+            p2_terminal,
+        )
+
+        harness_source = r'''
+#define MSCONNECTOR_STOCK_SIDECAR_MAIN
+#define main stock_sidecar_program_main
+#include "__SIDECAR_SOURCE__"
+#undef main
+
+#include <assert.h>
+
+static int host_action_recorded = 0;
+static int transaction_finished = 0;
+
+msconnector_decision_action msconnector_decision_action_from_decision(
+    const msconnector_decision *decision) {
+    assert(decision != NULL);
+    assert(decision->phase == MSCONNECTOR_PHASE_REQUEST_BODY);
+    assert(decision->rule_id != NULL);
+    return MSCONNECTOR_DECISION_ACTION_DENY;
+}
+
+int msconnector_decision_http_status(const msconnector_decision *decision) {
+    assert(decision != NULL);
+    return decision->http_status;
+}
+
+int msconnector_runtime_transaction_record_host_action(
+    msconnector_runtime_transaction *transaction,
+    const msconnector_decision *decision,
+    msconnector_decision_action actual_action,
+    int visible_http_status,
+    const char *transport_result,
+    int connection_aborted,
+    msconnector_error *error) {
+    (void)transaction;
+    (void)error;
+    assert(decision != NULL);
+    assert(decision->phase == MSCONNECTOR_PHASE_REQUEST_BODY);
+    assert(strcmp(decision->rule_id, "9801102") == 0);
+    assert(actual_action == MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION);
+    assert(visible_http_status == 0);
+    assert(strcmp(transport_result, "connection_aborted") == 0);
+    assert(connection_aborted == 1);
+    host_action_recorded = 1;
+    return 1;
+}
+
+int msconnector_runtime_transaction_finish(
+    msconnector_runtime_transaction *transaction, msconnector_error *error) {
+    (void)transaction;
+    (void)error;
+    transaction_finished = 1;
+    return 1;
+}
+
+int main(void) {
+    int pair[2];
+    sidecar_exchange_state state;
+
+    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, pair) == 0);
+    /* The constructed P2 decision is ready before its production terminal
+     * handoff. Closing the peer makes that response write fail
+     * deterministically; unlike a TCP RST it has no scheduling race. */
+    assert(close(pair[1]) == 0);
+    memset(&state, 0, sizeof(state));
+    state.downstream.client = pair[0];
+    state.transaction = (msconnector_runtime_transaction *)&state;
+    state.deadline.at_ms = sidecar_now_ms() + 1000U;
+    state.decision.kind = MSCONNECTOR_DECISION_KIND_DENY;
+    state.decision.phase = MSCONNECTOR_PHASE_REQUEST_BODY;
+    state.decision.http_status = 418;
+    state.decision.rule_id = "9801102";
+
+    sidecar_finish_decision(&state);
+
+    assert(host_action_recorded == 1);
+    assert(transaction_finished == 1);
+    assert(state.handled == 1);
+    assert(close(pair[0]) == 0);
+    return 0;
+}
+'''
+        self._compile_and_run_c_harness(
+            harness_source, prefix="stock-sidecar-p2-delivery-failure-",
+            filename="p2_decision_delivery_failure", compiler=compiler,
             include_directory=include_directory,
         )
 
@@ -1728,26 +1993,6 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
             finally:
                 client.close()
             self._wait_for_event(events, "client_cancel")
-
-    def test_client_reset_during_a_rule_block_records_an_abort_host_action(self) -> None:
-        normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
-        rule = 'SecRule REQUEST_BODY "@contains block-reset" "id:9801102,phase:2,deny,status:418,log"'
-
-        with self._fixture(rule, lambda _request: normal) as (sidecar, upstream, events, _config):
-            client = sidecar.connect()
-            try:
-                client.sendall(self._request(body=b"block-reset"))
-                # The complete P2 input has been queued before the RST.  A
-                # reset forces the pending small decision response through
-                # the adapter's failed-delivery path instead of allowing a
-                # normal visible status to be inferred.
-                client.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
-            finally:
-                client.close()
-            event_text = self._wait_for_event(events, '"actual_action":"abort_connection"')
-            self.assertIn('"connection_aborted":true', event_text)
-            self.assertIn('"rule_id":"9801102"', event_text)
-            self.assertEqual(upstream.record_count(), 0)
 
     def test_parallel_capacity_and_connection_reuse_are_bounded(self) -> None:
         normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"

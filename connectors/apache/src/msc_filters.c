@@ -265,6 +265,8 @@ static apr_status_t apache_input_filter_process_bucket(msc_t *msr,
 {
     const char *data;
     apr_size_t len;
+    size_t request_body_limit;
+    msconnector_body_limit_action body_limit_action;
     msconnector_body_limit_plan plan;
     int ret;
 
@@ -283,10 +285,21 @@ static apr_status_t apache_input_filter_process_bucket(msc_t *msr,
         return apache_input_filter_terminal_error(msr, r,
             HTTP_INTERNAL_SERVER_ERROR);
     }
+
+    /* Apache can invoke this filter against the initial directory config,
+     * whose Common body limit/action has not passed through directory merging
+     * yet. Resolve only the values consumed here: applying defaults at config
+     * creation would turn them into child overrides during a later merge. */
+    request_body_limit = conf->common_config.request_body_limit > 0U
+        ? conf->common_config.request_body_limit
+        : MSCONNECTOR_DEFAULT_PHASE4_BODY_LIMIT;
+    body_limit_action = msconnector_body_limit_action_is_supported(
+        conf->common_config.body_limit_action)
+        ? conf->common_config.body_limit_action
+        : MSCONNECTOR_BODY_LIMIT_ACTION_REJECT;
     if (!msconnector_body_limit_plan_chunk(msr->request_body_bytes_seen,
             msr->request_body_bytes_inspected,
-            conf->common_config.request_body_limit,
-            conf->common_config.body_limit_action, len, &plan)) {
+            request_body_limit, body_limit_action, len, &plan)) {
         msr->request_body_bytes_seen = plan.bytes_seen;
         msr->request_body_truncated = 1;
         (void)msc_apache_contract_fail(msr,
