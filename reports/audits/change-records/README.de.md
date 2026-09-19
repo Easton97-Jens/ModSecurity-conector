@@ -11,6 +11,15 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260919-framework-candidate-review-digest](CR-20260919-framework-candidate-review-digest.de.md)
+  | English companion: `CR-20260919-framework-candidate-review-digest.md` —
+  der aktuelle Benutzer hat diese Parent-only-Remediation für den verlinkten
+  GitHub-Actions-Run `35449797036` angefordert. Sie ersetzt den explizit
+  geprüften Framework-`common.sh`-Structure-Digest für Kandidat
+  `cc36b37d0f6a0fbc3512f3878a691751e91c5fbb`, ergänzt fail-closed
+  Pin-Boundary-Regression-Coverage und lässt Framework-/MRTS-Source, Gitlinks,
+  Permissions, Hosted-Reruns und Merge-State unverändert.
+
 - [CR-20260919-readiness-b-shared-remediation](CR-20260919-readiness-b-shared-remediation.de.md)
   | English companion: `CR-20260919-readiness-b-shared-remediation.md` — hält
   die scoped Parent-only-Shared-Remediation für die Readiness-B-Arbeit über
