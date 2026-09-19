@@ -860,15 +860,23 @@ typedef struct sidecar_exchange_payload {
     size_t body_read;
 } sidecar_exchange_payload;
 
-typedef struct sidecar_exchange_state {
-    int client;
-    /* Transaction request endpoints borrow these values until cleanup. */
+typedef struct sidecar_request_endpoints {
     char client_address[INET_ADDRSTRLEN];
     char server_address[INET_ADDRSTRLEN];
     int client_port;
     int server_port;
+} sidecar_request_endpoints;
+
+typedef struct sidecar_exchange_dependencies {
     const sidecar_options *options;
     msconnector_runtime *runtime;
+} sidecar_exchange_dependencies;
+
+typedef struct sidecar_exchange_state {
+    int client;
+    /* Transaction request endpoints borrow these values until cleanup. */
+    sidecar_request_endpoints endpoints;
+    sidecar_exchange_dependencies dependencies;
     sidecar_deadline deadline;
     size_t header_limit;
     size_t count_limit;
@@ -899,15 +907,17 @@ static int sidecar_capture_request_endpoints(sidecar_exchange_state *state) {
         getsockname(state->client, (struct sockaddr *)&server_endpoint, &server_size) != 0 ||
         client_size != sizeof(client_endpoint) || server_size != sizeof(server_endpoint) ||
         client_endpoint.sin_family != AF_INET || server_endpoint.sin_family != AF_INET ||
-        inet_ntop(AF_INET, &client_endpoint.sin_addr, state->client_address,
-                  sizeof(state->client_address)) == NULL ||
-        inet_ntop(AF_INET, &server_endpoint.sin_addr, state->server_address,
-                  sizeof(state->server_address)) == NULL) {
+        inet_ntop(AF_INET, &client_endpoint.sin_addr,
+                  state->endpoints.client_address,
+                  sizeof(state->endpoints.client_address)) == NULL ||
+        inet_ntop(AF_INET, &server_endpoint.sin_addr,
+                  state->endpoints.server_address,
+                  sizeof(state->endpoints.server_address)) == NULL) {
         return 0;
     }
-    state->client_port = (int)ntohs(client_endpoint.sin_port);
-    state->server_port = (int)ntohs(server_endpoint.sin_port);
-    return state->client_port > 0 && state->server_port > 0;
+    state->endpoints.client_port = (int)ntohs(client_endpoint.sin_port);
+    state->endpoints.server_port = (int)ntohs(server_endpoint.sin_port);
+    return state->endpoints.client_port > 0 && state->endpoints.server_port > 0;
 }
 
 static void sidecar_exchange_state_init(sidecar_exchange_state *state, int client,
@@ -915,8 +925,8 @@ static void sidecar_exchange_state_init(sidecar_exchange_state *state, int clien
                                         msconnector_runtime *runtime) {
     memset(state, 0, sizeof(*state));
     state->client = client;
-    state->options = options;
-    state->runtime = runtime;
+    state->dependencies.options = options;
+    state->dependencies.runtime = runtime;
     state->deadline.at_ms = sidecar_now_ms() + options->timeout_ms;
     state->header_limit = msconnector_runtime_total_header_limit(runtime);
     state->count_limit = msconnector_runtime_header_count_limit(runtime);
@@ -994,7 +1004,7 @@ static int sidecar_read_request_body(sidecar_exchange_state *state) {
                 state->transaction, state->payload.request_body + state->payload.body_read, received,
                 &state->error)) {
             state->failure_status = msconnector_runtime_error_http_status(
-                state->runtime, state->error.code);
+                state->dependencies.runtime, state->error.code);
             return 0;
         }
         state->payload.body_read += received;
@@ -1035,7 +1045,7 @@ static int sidecar_read_response_body(sidecar_exchange_state *state) {
         if (!msconnector_runtime_transaction_set_response_commit_state_checked(
                 state->transaction, 1, 1, &state->error)) {
             state->failure_status = msconnector_runtime_error_http_status(
-                state->runtime, state->error.code);
+                state->dependencies.runtime, state->error.code);
             return 0;
         }
         state->payload.body_read += received;
@@ -1077,7 +1087,7 @@ static int sidecar_forward_response(sidecar_exchange_state *state) {
     if (!msconnector_runtime_transaction_set_response_commit_state_checked(
             state->transaction, 1, 0, &state->error)) {
         state->failure_status = msconnector_runtime_error_http_status(
-            state->runtime, state->error.code);
+            state->dependencies.runtime, state->error.code);
         return 0;
     }
     return 1;
@@ -1354,13 +1364,13 @@ static int sidecar_exchange_request(sidecar_exchange_state *state) {
     request.uri = state->payload.request_headers.uri;
     request.http_version = state->payload.request_headers.version;
     request.hostname = host;
-    request.client.address = state->client_address;
-    request.client.port = state->client_port;
-    request.server.address = state->server_address;
-    request.server.port = state->server_port;
+    request.client.address = state->endpoints.client_address;
+    request.client.port = state->endpoints.client_port;
+    request.server.address = state->endpoints.server_address;
+    request.server.port = state->endpoints.server_port;
     request.headers = state->payload.request_headers.items;
     request.header_count = state->payload.request_headers.count;
-    if (!msconnector_runtime_transaction_begin(state->runtime, &request, NULL,
+    if (!msconnector_runtime_transaction_begin(state->dependencies.runtime, &request, NULL,
                                                &state->transaction, &state->decision,
                                                &state->error)) {
         return 0;
@@ -1370,7 +1380,7 @@ static int sidecar_exchange_request(sidecar_exchange_state *state) {
         return 0;
     }
     if (state->payload.request_headers.content_length > state->request_limit) {
-        int status = msconnector_runtime_error_http_status(state->runtime,
+        int status = msconnector_runtime_error_http_status(state->dependencies.runtime,
             MSCONNECTOR_ERROR_BODY_TOO_LARGE);
         int written;
         (void)msconnector_runtime_transaction_fail(state->transaction,
@@ -1398,7 +1408,8 @@ static int sidecar_exchange_request(sidecar_exchange_state *state) {
 
 static int sidecar_exchange_response(sidecar_exchange_state *state) {
     msconnector_response response;
-    state->upstream = sidecar_connect(state->options->upstream, &state->deadline);
+    state->upstream = sidecar_connect(state->dependencies.options->upstream,
+                                      &state->deadline);
     if (state->upstream < 0) {
         state->failure_origin = SIDECAR_FAILURE_UPSTREAM;
         return 0;
@@ -1423,7 +1434,7 @@ static int sidecar_exchange_response(sidecar_exchange_state *state) {
     if (!sidecar_read_final_response_headers(state)) return 0;
     if (!state->payload.response_headers.no_body &&
         state->payload.response_headers.content_length > state->response_limit) {
-        int status = msconnector_runtime_error_http_status(state->runtime,
+        int status = msconnector_runtime_error_http_status(state->dependencies.runtime,
             MSCONNECTOR_ERROR_BODY_TOO_LARGE);
         int written;
         (void)msconnector_runtime_transaction_fail(state->transaction,
@@ -1454,7 +1465,7 @@ static int sidecar_exchange_response(sidecar_exchange_state *state) {
     if (msconnector_decision_is_disruptive(&state->decision)) {
         msconnector_late_intervention_action action = sidecar_phase4_action(
             state->client_response_started,
-            msconnector_runtime_phase4_mode(state->runtime));
+            msconnector_runtime_phase4_mode(state->dependencies.runtime));
 
         state->decision.late_intervention = state->client_response_started != 0;
         if (action == MSCONNECTOR_LATE_INTERVENTION_ABORT_CONNECTION) {
