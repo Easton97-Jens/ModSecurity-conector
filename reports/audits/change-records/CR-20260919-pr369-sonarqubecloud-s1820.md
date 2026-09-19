@@ -12,7 +12,7 @@
 | Predecessor PR #369 head | `c8b5faf2491ed2e4489ad8298a1083557bfba349` |
 | Finding | `FND-SONAR-0089`; Sonar issue `AaCrebhgrY5Yi_GLZMw7` / `c:S1820` |
 | User authorization | “das muss null sein und gib mir eine übersicht welche findings damit behoben sind” |
-| Delivery status | This record accompanies a scoped normal follow-up on the existing Parent Draft PR #369. No merge, auto-merge, direct `master` write, Framework/MRTS/Gitlink change, control weakening, or branch deletion is authorized; exact-successor-head verification follows a normal push. |
+| Delivery status | The scoped normal implementation follow-up was pushed to the existing Parent Draft PR #369. Its exact SHA `623546bb3bfb8231d92f566aa9704c1928d7ed29` passed SonarQube Cloud with zero open PR issues. No merge, auto-merge, direct `master` write, Framework/MRTS/Gitlink change, control weakening, or branch deletion is authorized. |
 
 ## Motivation and problem statement
 
@@ -63,6 +63,7 @@ and was deliberately not edited or staged by this follow-up.
 | Command or check | Result | Observed result |
 | --- | --- | --- |
 | RTK-proxied `/usr/local/bin/sonar-with-env` PR #369 issue and Quality Gate readback | passed | One `OPEN`/`CONFIRMED` issue, `AaCrebhgrY5Yi_GLZMw7` / `c:S1820`, was identified; Quality Gate `OK` did not make the issue zero. |
+| Exact implementation-head SonarQube Cloud readback | passed | GitHub-App check `SonarCloud Code Analysis` completed successfully for `623546bb3bfb8231d92f566aa9704c1928d7ed29` at `2026-09-19T10:28:59Z`; the approved wrapper returned zero `OPEN`/`CONFIRMED` PR #369 issues and Quality Gate `OK`. |
 | Direct `sidecar_exchange_state` field-count check | passed | Exactly `20` direct fields after the refactor. |
 | `StockSidecarSourceContractTest` | passed | 17 tests, including C17/Werror source harnesses. |
 | C17/Werror Sidecar build with `CC=cc` | passed | External-root build completed. |
@@ -81,9 +82,10 @@ hosted PR evidence.
 
 ## Checks not run and rationale
 
-The real stock-lighttpd backend, full connector matrix, hosted checks, fresh
-reviews, and exact-successor SonarQube Cloud analysis have not run yet because
-the normal successor has not been delivered. No result for them is claimed.
+The real stock-lighttpd backend, full connector matrix, and broader hosted
+reviews were not run as part of this focused remediation. The exact
+implementation-head SonarQube Cloud analysis did run and passed; no result is
+claimed for unrelated PR checks.
 
 ## Known limitations
 
@@ -94,14 +96,16 @@ as solved by `FND-SONAR-0089`.
 
 ## Remaining risks
 
-The local candidate has not yet received an exact successor-head SonarQube
-Cloud readback, so `FND-SONAR-0089` is `fixed`, not `verified` or `closed`.
-The required zero result must be established without altering Sonar controls.
+`FND-SONAR-0089` is verified for implementation SHA
+`623546bb3bfb8231d92f566aa9704c1928d7ed29`: SonarQube Cloud reported zero
+open PR issues without altered Sonar controls. The documentation-only
+follow-up does not change source behavior; broader PR verification remains a
+separate exact-head decision.
 
 ## Final diff and review status
 
 The reviewed product delta is data-only and scoped to the private Sidecar
-state. This follow-up stages only the three files listed above. The local
-`.codex` finding and its payload-safe evidence record are intentionally
-unversioned and do not replace this Change Record. Exact-successor-head
-verification remains pending.
+state. The implementation commit passed its exact-head SonarQube Cloud check
+with zero `OPEN`/`CONFIRMED` issues. The local `.codex` finding and its
+payload-safe evidence record are intentionally unversioned and do not replace
+this Change Record.

@@ -12,7 +12,7 @@
 | Vorgänger-PR-#369-Head | `c8b5faf2491ed2e4489ad8298a1083557bfba349` |
 | Finding | `FND-SONAR-0089`; Sonar-Issue `AaCrebhgrY5Yi_GLZMw7` / `c:S1820` |
 | Benutzerautorisierung | “das muss null sein und gib mir eine übersicht welche findings damit behoben sind” |
-| Delivery-Status | Dieser Record begleitet einen scoped normalen Follow-up im bestehenden Parent-Draft-PR #369. Kein Merge, Auto-Merge, direkter `master`-Schreibvorgang, Framework-/MRTS-/Gitlink-Change, Control-Weakening oder Branch-Löschung ist autorisiert; die Exact-Successor-Head-Verifikation folgt nach einem normalen Push. |
+| Delivery-Status | Der scoped normale Implementierungs-Follow-up wurde in den bestehenden Parent-Draft-PR #369 gepusht. Sein exakter SHA `623546bb3bfb8231d92f566aa9704c1928d7ed29` bestand SonarQube Cloud mit null offenen PR-Issues. Kein Merge, Auto-Merge, direkter `master`-Schreibvorgang, Framework-/MRTS-/Gitlink-Change, Control-Weakening oder Branch-Löschung ist autorisiert. |
 
 ## Motivation und Problemstellung
 
@@ -66,6 +66,7 @@ gestaged.
 | Befehl oder Check | Ergebnis | Beobachtetes Ergebnis |
 | --- | --- | --- |
 | RTK-proxied `/usr/local/bin/sonar-with-env`-PR-#369-Issue- und Quality-Gate-Readback | bestanden | Ein `OPEN`/`CONFIRMED`-Issue, `AaCrebhgrY5Yi_GLZMw7` / `c:S1820`, wurde identifiziert; Quality Gate `OK` machte das Issue nicht null. |
+| SonarQube-Cloud-Readback für exakten Implementierungs-Head | bestanden | Der GitHub-App-Check `SonarCloud Code Analysis` endete erfolgreich für `623546bb3bfb8231d92f566aa9704c1928d7ed29` um `2026-09-19T10:28:59Z`; der zugelassene Wrapper lieferte null `OPEN`/`CONFIRMED`-PR-#369-Issues und Quality Gate `OK`. |
 | Direkte `sidecar_exchange_state`-Feldzählung | bestanden | Exakt `20` direkte Felder nach dem Refactor. |
 | `StockSidecarSourceContractTest` | bestanden | 17 Tests einschließlich C17/Werror-Source-Harnesses. |
 | C17/Werror-Sidecar-Build mit `CC=cc` | bestanden | External-Root-Build abgeschlossen. |
@@ -84,10 +85,10 @@ Backend- oder Hosted-PR-Evidenz.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-Das reale Stock-lighttpd-Backend, die vollständige Connector-Matrix, Hosted-
-Checks, frische Reviews und die SonarQube-Cloud-Analyse des exakten Nachfolgers
-sind noch nicht ausgeführt, weil der normale Nachfolger noch nicht ausgeliefert
-ist. Für sie wird kein Ergebnis behauptet.
+Das reale Stock-lighttpd-Backend, die vollständige Connector-Matrix und
+breitere Hosted-Reviews wurden nicht als Teil dieser fokussierten Reparatur
+ausgeführt. Die SonarQube-Cloud-Analyse für den exakten Implementierungs-Head
+lief und bestand; für unabhängige PR-Checks wird kein Ergebnis behauptet.
 
 ## Bekannte Einschränkungen
 
@@ -98,15 +99,16 @@ getrennte Runtime-Einschränkung bleibt `FND-PARENT-1091`; sie wird durch
 
 ## Verbleibende Risiken
 
-Der lokale Kandidat hat noch keinen SonarQube-Cloud-Readback für den exakten
-Nachfolger-Head erhalten; daher ist `FND-SONAR-0089` `fixed`, nicht `verified`
-oder `closed`. Das erforderliche Null-Ergebnis muss ohne Änderung der Sonar-
-Controls belegt werden.
+`FND-SONAR-0089` ist für den Implementierungs-SHA
+`623546bb3bfb8231d92f566aa9704c1928d7ed29` verifiziert: SonarQube Cloud
+meldete null offene PR-Issues ohne geänderte Sonar-Controls. Der reine
+Dokumentations-Follow-up ändert kein Source-Verhalten; die breitere
+PR-Verifikation bleibt eine separate Exact-Head-Entscheidung.
 
 ## Finaler Diff- und Review-Status
 
 Der geprüfte Produktdelta ist datenrein und auf den privaten Sidecar-State
-begrenzt. Dieses Follow-up staged nur die drei oben aufgeführten Dateien. Das
-lokale `.codex`-Finding und sein payload-sicherer Evidence-Record sind
-absichtlich nicht versioniert und ersetzen diesen Change Record nicht. Die
-Exact-Successor-Head-Verifikation bleibt ausstehend.
+begrenzt. Der Implementierungs-Commit bestand seinen Exact-Head-SonarQube-
+Cloud-Check mit null `OPEN`/`CONFIRMED`-Issues. Das lokale `.codex`-Finding
+und sein payload-sicherer Evidence-Record sind absichtlich nicht versioniert
+und ersetzen diesen Change Record nicht.
