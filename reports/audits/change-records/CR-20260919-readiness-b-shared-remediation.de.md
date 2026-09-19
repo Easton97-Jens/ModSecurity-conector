@@ -10,7 +10,7 @@
 | Datum (UTC) | 2026-09-19 |
 | Basis-Revision | `e475baabf0787cbc804f176ae998b62156892825` |
 | Scope | Ausschließlich gemeinsame Parent-Connector-Remediation, direkt betroffene Tests und gekoppelte Dokumentation. Keine Framework-, MRTS-, Gitlink-, Dependency-, Regelprofil-, Scanner-, Quality-Gate-, Workflow- oder Merge-Änderung ist enthalten. |
-| Delivery-Status | Finaler lokaler Kandidat im dedizierten Worktree, bereit für einen aufgabeneigenen ersten Commit und die Einreichung eines Draft-PR. Exakte Commit- und PR-Identität werden erst nach Beobachtung eingetragen; kein Hosted-Check, Review-Ergebnis oder Merge wird hier behauptet. |
+| Delivery-Status | Draft-PR [#370](https://github.com/Easton97-Jens/ModSecurity-conector/pull/370) von `agent/readiness-b-ten-integrations-20260919`; erster Implementierungscommit `43d9003fc986a36441c9d83bb26e746cfbe10a8c` wurde vor PR-Erstellung gepusht. Kein Hosted-Check, Review-Ergebnis oder Merge wird hier behauptet. |
 | Policy-Auflösung | Die Parent-Traceability-Policy verlangt dieses gekoppelte Record-Paar für die nicht triviale versionierte Arbeit; der etablierte Archivindex wird aktualisiert. |
 
 ## Motivation und Problemstellung
@@ -186,6 +186,8 @@ beobachtete lokale Evidenz und bekannte Grenzen, zertifiziert aber weder das
 Zehn-Pfad-B-Ziel noch ein Release, ein Hosted-Qualitätsergebnis, einen Pull
 Request oder einen Merge. Finaler Scoped-Diff und source-lokale
 Dokumentationschecks sind abgeglichen; repositoryweite Dokumentations-Targets
-sind wahrheitsgemäß durch den fehlenden Framework-Gitlink blockiert. Exakte
-Commit-/PR-Fakten werden nach ihrer Beobachtung ergänzt; die verbleibende
-Runtime-Evidenz bleibt Follow-up-Pflicht.
+sind wahrheitsgemäß durch den fehlenden Framework-Gitlink blockiert. Der
+beobachtete Implementierungscommit ist
+`43d9003fc986a36441c9d83bb26e746cfbe10a8c` und der offene Draft-PR ist
+[#370](https://github.com/Easton97-Jens/ModSecurity-conector/pull/370).
+Die verbleibende Runtime-Evidenz bleibt Follow-up-Pflicht.

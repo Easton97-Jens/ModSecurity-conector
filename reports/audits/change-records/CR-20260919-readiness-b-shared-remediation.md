@@ -10,7 +10,7 @@
 | Date (UTC) | 2026-09-19 |
 | Base revision | `e475baabf0787cbc804f176ae998b62156892825` |
 | Scope | Parent-only shared connector remediation, directly affected tests and paired documentation. No Framework, MRTS, Gitlink, dependency, rule-profile, scanner, Quality Gate, workflow, or merge change is included. |
-| Delivery status | Final local candidate in the dedicated worktree, ready for a task-owned initial commit and Draft-PR submission. The exact commit and PR identity are recorded only after they are observed; no hosted check, review result, or merge is asserted here. |
+| Delivery status | Draft PR [#370](https://github.com/Easton97-Jens/ModSecurity-conector/pull/370) from `agent/readiness-b-ten-integrations-20260919`; initial implementation commit `43d9003fc986a36441c9d83bb26e746cfbe10a8c` was pushed before PR creation. No hosted check, review result, or merge is asserted here. |
 | Policy resolution | The Parent traceability policy requires this paired record for the non-trivial versioned work; the established archive index is updated. |
 
 ## Motivation and problem statement
@@ -173,5 +173,7 @@ evidence and known limits but does not certify the ten-path B objective, a
 release, a hosted quality result, a pull request, or a merge. The final scoped
 diff and source-local documentation checks are reconciled; repository-wide
 documentation targets are truthfully blocked by the missing Framework
-Gitlink. The exact commit/PR facts will be added after they are observed, and
-the remaining runtime evidence remains a follow-up requirement.
+Gitlink. The observed implementation commit is
+`43d9003fc986a36441c9d83bb26e746cfbe10a8c` and the open Draft PR is
+[#370](https://github.com/Easton97-Jens/ModSecurity-conector/pull/370).
+The remaining runtime evidence remains a follow-up requirement.
