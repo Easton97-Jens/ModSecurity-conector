@@ -85,6 +85,12 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
             self.filters,
             "apr_status_t output_filter(ap_filter_t *f, apr_bucket_brigade *bb_in)",
         )
+        self.input_filter_bucket = c_function(
+            self.filters,
+            "static apr_status_t apache_input_filter_process_bucket(msc_t *msr,\n"
+            "    request_rec *r, ap_filter_t *f, msc_conf_t *conf,\n"
+            "    apr_bucket_brigade *output, apr_bucket *bucket, apr_read_type_e block)",
+        )
 
     def test_failed_native_transaction_is_never_published(self) -> None:
         failure_check = self.create_context.index("if (msr->t == NULL)")
@@ -279,6 +285,62 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
             bootstrap.index("followup_status="),
             bootstrap.index("blocked_status="),
         )
+
+    def test_native_bootstrap_checks_the_default_p2_body_limit_before_followup(
+        self,
+    ) -> None:
+        bootstrap = AUTOTOOLS_BOOTSTRAP.read_text(encoding="utf-8")
+
+        self.assertIn("git tar autoreconf make python3 curl dd id cmp", bootstrap)
+        self.assertIn('P2_OVERSIZE_BODY="$ROOT_LOG_DIR/p2-oversize.bin"', bootstrap)
+        self.assertIn("bs=1024 count=1025", bootstrap)
+        self.assertIn('P2_OVERSIZE_HEADERS="$ROOT_LOG_DIR/p2-oversize.headers"', bootstrap)
+        self.assertIn('P2_OVERSIZE_RESPONSE="$ROOT_LOG_DIR/p2-oversize.response"', bootstrap)
+        self.assertIn('"http://127.0.0.1:$PORT/p2-oversize-handler.html"', bootstrap)
+        self.assertIn("p2_oversize_status=", bootstrap)
+        self.assertIn('"$p2_oversize_status" = 413', bootstrap)
+        self.assertIn(
+            "over-limit request body must not reach handler", bootstrap
+        )
+        self.assertLess(
+            bootstrap.index("p2_status="), bootstrap.index("p2_oversize_status=")
+        )
+        self.assertLess(
+            bootstrap.index("p2_oversize_status="),
+            bootstrap.index("followup_status="),
+        )
+
+    def test_request_body_filter_uses_a_finite_reject_fallback_before_p2(
+        self,
+    ) -> None:
+        fallback_limit = self.input_filter_bucket.index("request_body_limit =")
+        fallback_action = self.input_filter_bucket.index("body_limit_action =")
+        planner = self.input_filter_bucket.index(
+            "if (!msconnector_body_limit_plan_chunk("
+        )
+        planner_end = self.input_filter_bucket.index(", &plan)) {", planner)
+        planner_call = self.input_filter_bucket[planner:planner_end]
+
+        self.assertIn(
+            "conf->common_config.request_body_limit > 0U", self.input_filter_bucket
+        )
+        self.assertIn(
+            "MSCONNECTOR_DEFAULT_PHASE4_BODY_LIMIT", self.input_filter_bucket
+        )
+        self.assertIn(
+            "msconnector_body_limit_action_is_supported(\n"
+            "        conf->common_config.body_limit_action)",
+            self.input_filter_bucket,
+        )
+        self.assertIn(
+            "MSCONNECTOR_BODY_LIMIT_ACTION_REJECT", self.input_filter_bucket
+        )
+        self.assertIn("request_body_limit", planner_call)
+        self.assertIn("body_limit_action", planner_call)
+        self.assertNotIn("conf->common_config.request_body_limit", planner_call)
+        self.assertNotIn("conf->common_config.body_limit_action", planner_call)
+        self.assertLess(fallback_limit, fallback_action)
+        self.assertLess(fallback_action, planner)
 
     def test_native_bootstrap_prints_the_nonroot_httpd_error_log_on_failure(self) -> None:
         bootstrap = AUTOTOOLS_BOOTSTRAP.read_text(encoding="utf-8")

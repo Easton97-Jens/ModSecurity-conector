@@ -94,8 +94,8 @@ The Framework materializer is a separate regression integration path. A fresh
 Parent source checkout can bootstrap and build the Apache module without
 materializing Framework templates. Install Autoconf, Automake, a C compiler,
 `make`, Apache development files including APXS, libmodsecurity development
-files, and `curl`; set `MODSECURITY_PREFIX` to the libmodsecurity installation
-prefix when it is not the system default.
+files, `curl`, and `dd`; set `MODSECURITY_PREFIX` to the libmodsecurity
+installation prefix when it is not the system default.
 
 From `connectors/apache/` in a clean checkout, derive the Apache binary from
 the selected APXS and use the tracked Autotools sources:
@@ -140,9 +140,11 @@ above, validates an isolated loopback Apache configuration, loads the
 Autotools-built module, and checks an allowed `200` request plus a ModSecurity
 `403` rule. It also posts a fixed synthetic P2 request-body marker and requires
 `403`, a nonempty serial `RelevantOnly` audit record with `ABFZ` parts that
-excludes the raw marker, and a same-process `200` follow-up. Those are bounded
-harness controls, not a full rule-profile, matrix, or B-readiness claim. In a
-clean checkout, including CI, that archive is exactly `HEAD`.
+excludes the raw marker, then posts a bounded 1049600-byte over-limit P2 body
+and requires `413` without static handler content before a same-process `200`
+follow-up. Those are bounded harness controls, not a full rule-profile, matrix,
+or B-readiness claim. In a clean checkout, including CI, that archive is
+exactly `HEAD`.
 For a pre-commit local run, the check applies only `git diff HEAD` so it can
 exercise tracked edits; it never imports untracked files. Its temporary server
 root and non-privileged loopback port are removed at the end. A direct
@@ -195,6 +197,15 @@ APLOG logging, return-code mapping, and APXS/autotools build inputs.
 
 This Common SDK adoption does not claim production readiness, CRS coverage,
 full-matrix coverage, or new runtime verification behavior.
+
+When Apache invokes the input filter against its initial unmerged directory
+configuration, the filter resolves a zero request-body limit and an unset or
+unsupported body-limit action at the consumption point to the same finite
+`1048576`-byte Common default and `reject` action used by Common configuration
+merging. This prevents a small nonempty body from being treated as an invalid
+limit while preserving the finite, fail-closed bound. It does not expose a
+connector-local partial-inspection mode or turn a rule-driven P2 block into a
+body-limit response.
 
 ## Canonical Phase-4 boundary
 

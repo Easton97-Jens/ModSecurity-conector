@@ -97,8 +97,8 @@ Der Framework-Materializer ist ein separater Regressionsintegrationspfad. Ein
 frischer Parent-Source-Checkout kann das Apache-Modul bootstrappen und bauen,
 ohne Framework-Vorlagen zu materialisieren. Autoconf, Automake, einen
 C-Compiler, `make`, Apache-Entwicklungsdateien einschließlich APXS,
-libmodsecurity-Entwicklungsdateien und `curl` installieren; bei einem nicht
-systemweiten libmodsecurity-Prefix `MODSECURITY_PREFIX` darauf setzen.
+libmodsecurity-Entwicklungsdateien, `curl` und `dd` installieren; bei einem
+nicht systemweiten libmodsecurity-Prefix `MODSECURITY_PREFIX` darauf setzen.
 
 In einem sauberen Checkout unter `connectors/apache/` das Apache-Binary aus dem
 gewählten APXS ableiten und die getrackten Autotools-Quellen verwenden:
@@ -146,10 +146,12 @@ lädt das mit Autotools gebaute Modul und prüft eine erlaubte Anfrage mit `200`
 sowie eine ModSecurity-Regel mit `403`. Sie sendet außerdem einen festen
 synthetischen P2-Request-Body-Marker und fordert `403`, einen nichtleeren
 seriellen `RelevantOnly`-Audit-Record mit `ABFZ`-Teilen, der den rohen Marker
-ausschließt, sowie einen `200`-Follow-up in demselben Prozess. Dies sind
-begrenzte Harness-Controls, keine Aussage über ein vollständiges Regelprofil,
-eine Matrix oder B-Reife. In einem sauberen Checkout, einschließlich CI,
-entspricht dieses Archiv exakt `HEAD`. Bei einem lokalen
+ausschließt, sendet danach einen begrenzten P2-Body von 1049600 Byte oberhalb
+des Limits und fordert `413` ohne statischen Handler-Inhalt vor einem
+`200`-Follow-up in demselben Prozess. Dies sind begrenzte Harness-Controls,
+keine Aussage über ein vollständiges Regelprofil, eine Matrix oder B-Reife. In
+einem sauberen Checkout, einschließlich CI, entspricht dieses Archiv exakt
+`HEAD`. Bei einem lokalen
 Pre-Commit-Lauf wendet die Prüfung nur `git diff HEAD` an, um getrackte
 Änderungen zu prüfen; ungetrackte Dateien werden nie importiert. Der temporäre
 ServerRoot und der nicht privilegierte Loopback-Port werden am Ende entfernt.
@@ -202,6 +204,16 @@ APLOG-Protokollierung, Rückkehrcode-Zuordnung und APXS/Autotools-Build-Eingaben
 
 Diese Common SDK-Einführung erhebt keinen Anspruch auf Produktionsbereitschaft, CRS-Abdeckung,
 vollständige Matrixabdeckung oder neues Laufzeitüberprüfungsverhalten.
+
+Wenn Apache den Input-Filter gegen seine initiale, noch nicht gemergte
+Directory-Konfiguration aufruft, löst der Filter ein Request-Body-Limit von
+null und eine ungesetzte oder nicht unterstützte Body-Limit-Aktion am
+Verbrauchspunkt zum gleichen endlichen Common-Default von `1048576` Byte und
+zur Aktion `reject` auf, die auch das Common-Konfigurations-Merging verwendet.
+Das verhindert, dass ein kleiner nichtleerer Body als ungültiges Limit
+behandelt wird, während die endliche Fail-Closed-Grenze erhalten bleibt. Es
+legt keinen connector-lokalen Partial-Inspection-Modus offen und macht aus
+einem regelgesteuerten P2-Block keine Body-Limit-Response.
 
 ## Kanonische Phase-4-Grenze
 

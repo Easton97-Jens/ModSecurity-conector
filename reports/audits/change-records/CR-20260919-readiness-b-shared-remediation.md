@@ -10,7 +10,7 @@
 | Date (UTC) | 2026-09-19 |
 | Base revision | `e475baabf0787cbc804f176ae998b62156892825` |
 | Scope | Parent-only shared connector remediation, directly affected tests and paired documentation. No Framework, MRTS, Gitlink, dependency, rule-profile, scanner, Quality Gate, workflow, or merge change is included. |
-| Delivery status | Draft PR [#370](https://github.com/Easton97-Jens/ModSecurity-conector/pull/370) from `agent/readiness-b-ten-integrations-20260919`; initial implementation commit `43d9003fc986a36441c9d83bb26e746cfbe10a8c` was pushed before PR creation. No hosted check, review result, or merge is asserted here. |
+| Delivery status | Draft PR [#370](https://github.com/Easton97-Jens/ModSecurity-conector/pull/370) from `agent/readiness-b-ten-integrations-20260919`; commits `43d9003fc986a36441c9d83bb26e746cfbe10a8c`, `aac89c4f2982d6faf91351fc6809cedfce5c9256`, and `466a776347e35405e9875190ae9912a827e56f6a` were pushed. The remote and PR head were verified at `466a776347e35405e9875190ae9912a827e56f6a`; its hosted Apache bootstrap built and loaded the module but failed when the small P2 marker returned `413` instead of `403`. The corrective fallback has local validation; its post-fix exact-head hosted rerun is pending. No review result or merge is asserted here. |
 | Policy resolution | The Parent traceability policy requires this paired record for the non-trivial versioned work; the established archive index is updated. |
 
 ## Motivation and problem statement
@@ -20,6 +20,14 @@ without providing sufficient complete runtime evidence to promote every path to
 practice maturity B. This change applies narrow Parent-owned corrections while
 retaining the distinction between source/contract evidence and full host,
 protocol, rule-profile, restart, lifecycle, and observability evidence.
+
+The exact hosted Apache bootstrap failure now identifies a further
+Parent-owned P2 availability defect: its initial Apache directory configuration
+reaches the input filter with an unset Common request-body limit/action, so the
+Common planner rejects a small body before libModSecurity can evaluate the P2
+rule. The correction must preserve a finite, reject-by-default bound rather
+than remapping the resulting `413`, treating a zero limit as unlimited, or
+accepting an unsupported action.
 
 ## Acceptance criteria
 
@@ -32,6 +40,9 @@ protocol, rule-profile, restart, lifecycle, and observability evidence.
    Record.
 4. Report the actual maturity state truthfully: this scoped remediation alone
    does not demonstrate practice maturity B for all ten paths.
+5. For the bounded Apache bootstrap profile, retain distinct small P2 rule
+   block (`403`), real over-limit rejection (`413` without handler content),
+   and same-process allow follow-up (`200`) controls.
 
 ## Implementation decision and rationale
 
@@ -49,11 +60,17 @@ protocol, rule-profile, restart, lifecycle, and observability evidence.
 - Derive the native Traefik server endpoint from `http.LocalAddrContextKey`;
   request `Host` remains request metadata and is not trusted as the local
   engine endpoint.
+- Resolve only Apache input-filter consumption of a zero request-body limit or
+  unset/unsupported body-limit action to Common's finite `1048576`-byte default
+  and `reject` action. This preserves a merged explicit policy, does not apply
+  defaults at per-directory creation, does not expose a new Apache directive
+  surface, and does not permit partial inspection.
 - Extend the isolated Apache bootstrap fixture with a fixed synthetic P2 body
   marker, `RelevantOnly` serial audit logging limited to `ABFZ`, a raw-marker
-  exclusion assertion, and a same-process allow follow-up. This is a bounded
-  regression/harness control; it is not proof of the historical FND-1098
-  terminal sequence or Apache B readiness.
+  exclusion assertion, a bounded 1049600-byte over-limit body that must return
+  `413` before static handler content, and a same-process allow follow-up.
+  This is a bounded regression/harness control; it is not proof of the full
+  historical FND-1098 terminal sequence or Apache B readiness.
 - Replace the timing-dependent stock Lighttpd loopback TCP-reset test with a
   compiled source-contract harness. A static assertion anchors the
   post-`finish_request_body` P2 branch to `sidecar_finish_decision`; the
@@ -71,9 +88,12 @@ request-controlled host metadata from becoming a local UDS/engine endpoint.
 The new Apache P2 fixture intentionally limits serial audit parts to `ABFZ`
 and rejects retention of its fixed synthetic request-body marker. It does not
 change the production audit configuration or authorize logging request bodies.
-Focused review found no validated security finding in these bounded harness
-changes; the Lighttpd test's constructed decision remains an explicit evidence
-limitation.
+The Apache correction keeps every nonempty body within a finite cap and uses
+`reject` for a zero initial limit or unsupported action; it neither creates an
+unlimited path nor exposes partial inspection that could forward an uninspected
+tail. Focused review found no validated security finding in these bounded
+harness and availability changes; the Lighttpd test's constructed decision
+remains an explicit evidence limitation.
 These corrections do not close the separately tracked same-UID UDS
 pathname-replacement risk (`FND-PARENT-0015`), and they do not establish
 effective rule-profile coverage for the 2026 `t:hexDecode` advisory condition.
@@ -83,6 +103,7 @@ effective rule-profile coverage for the 2026 `t:hexDecode` advisory condition.
 - `ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh`
 - `ci/provisioning/components/prepare-runtime-components.py`
 - `connectors/apache/build/apxs-wrapper.in`
+- `connectors/apache/src/msc_filters.c`
 - `connectors/apache/README.md`
 - `connectors/apache/README.de.md`
 - `connectors/lighttpd/stock_sidecar/stock_sidecar.c`
@@ -112,7 +133,11 @@ effective rule-profile coverage for the 2026 `t:hexDecode` advisory condition.
 | `tests.test_apache_request_transaction_cleanup` | Passed. |
 | `tests.test_apache_apxs_profile_registry_staging` | Passed: 5 cases. |
 | `tests.test_apache_request_transaction_cleanup` and `tests.test_apache_apxs_profile_registry_staging` after the P2 bootstrap-harness update | Passed: 24 cases, including a static P2/audit/no-raw-marker/follow-up harness contract. |
+| `tests.test_apache_request_transaction_cleanup` after the P2 policy fallback and over-limit control | Passed: 21 cases, including finite-default/reject source wiring and marker/over-limit/follow-up harness ordering. |
 | `sh -n ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh` | Passed. |
+| `ci/checks/connectors/apache/check-apache-common-adoption.py` and `tests.test_apache_common_adoption` | Passed: Apache P2 structure/adoption checks and 12 focused Python cases. |
+| `make check-common-helpers-c17` | Passed with the Common body-policy helper smoke in a task-owned external build root. |
+| `make check-apache-c17` with `CC=cc` and `CC=clang` | Passed twice with explicit `-std=c17 -Wall -Wextra -Werror` compilation in separate task-owned external output roots. |
 | Final Apache Autotools host run after hardening with the cached non-root Apache/libModSecurity inputs | Passed locally: module load, allow/block behavior, and the documented transaction-ID controls completed. This is bounded local host evidence, not evidence for every connector or protocol path. |
 | Current Apache P2 bootstrap host control | Blocked before `httpd` start: `chown` of the task-owned non-root runtime directories/files returned `EINVAL` on the current idmapped filesystem. No root-worker substitute was used. |
 | HAProxy SPOP-to-HTX combined bounded host run | Passed locally as a non-root, isolated path using the source-built current SPOP adapter and HAProxy HTX. It is bounded evidence for that combined path, not standalone HTX evidence or full B-class G2–G6/54-case evidence. |
@@ -154,6 +179,17 @@ The attempted bounded non-root Apache P2 bootstrap reached configuration syntax
 but stopped before server start when the task-owned runtime ownership handoff
 returned `EINVAL`; it is recorded as blocked rather than passed.
 
+After the hosted `466a776347e35405e9875190ae9912a827e56f6a` Apache failure,
+the follow-up local validation ran `python3 -m unittest -v
+tests.test_apache_request_transaction_cleanup`, `sh -n
+ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh`,
+`ci/checks/connectors/apache/check-apache-common-adoption.py`, `python3 -m
+unittest -v tests.test_apache_common_adoption`, `make
+check-common-helpers-c17`, and `make check-apache-c17` with `CC=cc` and
+`CC=clang`. The C outputs and Common helper outputs were directed to the
+registered task-owned external run root. All listed local checks passed; none
+substitutes for the pending corrected exact-head host run.
+
 ## Runtime evidence
 
 The final Apache bootstrap and HAProxy SPOP-to-HTX combined runs are actual
@@ -165,11 +201,15 @@ production host with the required rules, lifecycle controls, logs, metrics,
 restart, HTTP/1.1, HTTP/2, and HTTP/3 evidence. No assertion is made that all
 ten integration paths now have B-class runtime evidence.
 
-The new Apache P2 assertions and Lighttpd P2 delivery-failure test add only
-bounded harness/source-contract evidence. The current P2 Apache host attempt
-did not start `httpd`, so it adds no runtime-evidence promotion and does not
-establish FND-1098's first terminal cause. The Lighttpd harness likewise does
-not dynamically execute `finish_request_body` or establish the full P2 path.
+The hosted Apache bootstrap at exact head
+`466a776347e35405e9875190ae9912a827e56f6a` built the current module, completed
+configuration/module-load checks, and then reproduced the small P2 marker as
+`413` rather than `403`. That is real-host negative evidence for the
+pre-correction source and identifies the first terminal condition; it is not a
+passing Apache runtime claim. The local P2 host attempt remains blocked before
+start by `chown(...)=EINVAL`, and the corrected exact-head hosted rerun remains
+required. The Lighttpd harness likewise does not dynamically execute
+`finish_request_body` or establish the full P2 path.
 
 ## Checks not run and rationale
 
@@ -182,10 +222,11 @@ not dynamically execute `finish_request_body` or establish the full P2 path.
   Traefik forwardAuth, stock Lighttpd, and patched Lighttpd is not asserted
   here. The combined HAProxy SPOP-to-HTX run remains short of full B-class
   G2–G6 and 54-case evidence.
-- Exact-head hosted CI, SonarQube Cloud, review, mergeability, and PR results
-  are not yet available and must not be inferred from local checks. The
-  repository-wide bilingual/link target preconditions are likewise blocked by
-  the separately owned unmaterialized Framework Gitlink.
+- The pre-correction exact-head hosted Apache check is observed failed; the
+  corrected exact-head hosted CI, SonarQube Cloud, review, mergeability, and
+  final PR results remain pending and must not be inferred from local checks.
+  The repository-wide bilingual/link target preconditions are likewise blocked
+  by the separately owned unmaterialized Framework Gitlink.
 - The current Apache P2 bootstrap host control is not run to completion because
   the necessary task-root `www-data` ownership handoff fails with `EINVAL` on
   the current idmapped filesystem. A root-worker substitute is prohibited.
@@ -209,11 +250,11 @@ is claimed for the advisory condition without the actual enabled rule profile.
 ## Final diff and review status
 
 This is a partial, Parent-only remediation record. It describes observed local
-evidence and known limits but does not certify the ten-path B objective, a
-release, a hosted quality result, a pull request, or a merge. The final scoped
-diff and source-local documentation checks are reconciled; repository-wide
-documentation targets are truthfully blocked by the missing Framework
-Gitlink. The observed implementation commit is
-`43d9003fc986a36441c9d83bb26e746cfbe10a8c` and the open Draft PR is
-[#370](https://github.com/Easton97-Jens/ModSecurity-conector/pull/370).
-The remaining runtime evidence remains a follow-up requirement.
+evidence, a hosted pre-correction failure, and known limits but does not
+certify the ten-path B objective, a release, a hosted quality result, or a
+merge. The final scoped diff and source-local documentation checks still need
+reconciliation after the pending corrected-host rerun; repository-wide
+documentation targets remain truthfully blocked by the missing Framework
+Gitlink. The open Draft PR is
+[#370](https://github.com/Easton97-Jens/ModSecurity-conector/pull/370). The
+remaining runtime evidence remains a follow-up requirement.

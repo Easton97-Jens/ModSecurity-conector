@@ -137,7 +137,7 @@ WORK_ROOT=$(mktemp -d "$TEST_PARENT/f-gs-001-apache-autotools.XXXXXX") || \
 RUNTIME_ROOT=$(mktemp -d "$RUNTIME_PARENT/f-gs-001-apache-runtime.XXXXXX") || \
     blocked "could not create an isolated runtime directory under $RUNTIME_PARENT"
 
-for required_command in git tar autoreconf make python3 curl id cmp; do
+for required_command in git tar autoreconf make python3 curl dd id cmp; do
     require_command "$required_command"
 done
 
@@ -353,7 +353,10 @@ chmod 0700 "$ROOT_LOG_DIR" "$HTTPD_LOG_DIR" "$RUNTIME_ROOT/run"
 : > "$RUNTIME_ROOT/conf/mime.types"
 chmod 0644 "$RUNTIME_ROOT/conf/mime.types"
 printf 'Apache Autotools smoke control\n' > "$RUNTIME_ROOT/htdocs/index.html"
-chmod 0644 "$RUNTIME_ROOT/htdocs/index.html"
+printf 'over-limit request body must not reach handler\n' > \
+    "$RUNTIME_ROOT/htdocs/p2-oversize-handler.html"
+chmod 0644 "$RUNTIME_ROOT/htdocs/index.html" \
+    "$RUNTIME_ROOT/htdocs/p2-oversize-handler.html"
 mkdir -p "$RUNTIME_ROOT/htdocs${TXID_LENGTH_PREFIX%/}"
 chmod 0755 "$RUNTIME_ROOT/htdocs${TXID_LENGTH_PREFIX%/}"
 printf '127-byte transaction id control\n' > "$RUNTIME_ROOT/htdocs$TXID_127_PATH"
@@ -473,6 +476,23 @@ p2_status=$(awk 'NR == 1 { print $2; exit }' "$P2_HEADERS")
     fail "P2 request-body marker did not write a relevant audit record"
 if grep -Fq 'no-crs-request-body-marker' "$AUDIT_LOG"; then
     fail "P2 audit retained raw request-body marker despite ABFZ audit parts"
+fi
+
+P2_OVERSIZE_BODY="$ROOT_LOG_DIR/p2-oversize.bin"
+P2_OVERSIZE_HEADERS="$ROOT_LOG_DIR/p2-oversize.headers"
+P2_OVERSIZE_RESPONSE="$ROOT_LOG_DIR/p2-oversize.response"
+dd if=/dev/zero of="$P2_OVERSIZE_BODY" bs=1024 count=1025 >/dev/null 2>&1 || \
+    fail "could not generate a bounded over-limit P2 request body"
+curl -sS --max-time 5 -X POST \
+    -H 'Content-Type: application/octet-stream' \
+    --data-binary "@$P2_OVERSIZE_BODY" \
+    -D "$P2_OVERSIZE_HEADERS" -o "$P2_OVERSIZE_RESPONSE" \
+    "http://127.0.0.1:$PORT/p2-oversize-handler.html"
+p2_oversize_status=$(awk 'NR == 1 { print $2; exit }' "$P2_OVERSIZE_HEADERS")
+[ "$p2_oversize_status" = 413 ] || \
+    fail "over-limit P2 request body returned HTTP $p2_oversize_status instead of 413"
+if grep -Fq 'over-limit request body must not reach handler' "$P2_OVERSIZE_RESPONSE"; then
+    fail "over-limit P2 request body reached the Apache document handler"
 fi
 
 FOLLOWUP_HEADERS="$ROOT_LOG_DIR/p2-followup.headers"
