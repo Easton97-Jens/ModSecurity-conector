@@ -11,6 +11,14 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260919-readiness-b-shared-remediation](CR-20260919-readiness-b-shared-remediation.de.md)
+  | English companion: `CR-20260919-readiness-b-shared-remediation.md` — hält
+  die scoped Parent-only-Shared-Remediation für die Readiness-B-Arbeit über
+  zehn Integrationen fest. Er trennt beobachtete lokale Evidenz von der noch
+  unvollständigen Runtime- und Regelprofil-Evidenz über zehn Pfade; keine
+  Framework-/MRTS-/Gitlink-Änderung, kein Hosted-Ergebnis, Pull Request oder
+  Merge wird behauptet.
+
 - [CR-20260913-sonar-connector-followup-remediation](CR-20260913-sonar-connector-followup-remediation.de.md)
   | English companion: `CR-20260913-sonar-connector-followup-remediation.md` —
   der aktuelle Benutzer autorisierte diesen normalen Parent-only-Follow-up-PR

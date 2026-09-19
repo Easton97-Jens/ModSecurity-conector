@@ -944,6 +944,130 @@ class StockSidecarSourceContractTest(unittest.TestCase):
         )
         self.assertNotIn("char request_line[600];", response_exchange)
 
+    def test_request_endpoints_come_from_the_accepted_socket_before_common_begin(self) -> None:
+        """FND-PARENT-1091: never use absent or header-derived endpoints."""
+        source = SIDECAR_SOURCE.read_text(encoding="utf-8")
+        endpoint_start = source.index("static int sidecar_socket_endpoint")
+        endpoint_end = source.index("static int sidecar_capture_connection_endpoints", endpoint_start)
+        endpoint = source[endpoint_start:endpoint_end]
+        request_start = source.index("static int sidecar_exchange_request")
+        request_end = source.index("static int sidecar_exchange_response", request_start)
+        request_exchange = source[request_start:request_end]
+        exchange_start = source.index("static int sidecar_exchange(")
+        exchange_end = source.index("/* The exchange above", exchange_start)
+        exchange = source[exchange_start:exchange_end]
+
+        self.assertIn("getpeername", endpoint)
+        self.assertIn("getsockname", endpoint)
+        self.assertIn("AF_INET", endpoint)
+        self.assertIn("AF_INET6", endpoint)
+        self.assertIn("INET6_ADDRSTRLEN", endpoint)
+        self.assertIn("*port == 0", endpoint)
+        self.assertIn("strlen(address) >= INET6_ADDRSTRLEN", endpoint)
+        self.assertIn("request.client.address = state->client_address;", request_exchange)
+        self.assertIn("request.server.address = state->server_address;", request_exchange)
+        self.assertNotIn("request.client.address = host", request_exchange)
+        self.assertNotIn("request.server.address = host", request_exchange)
+        self.assertLess(
+            exchange.index("sidecar_capture_connection_endpoints"),
+            exchange.index("sidecar_exchange_request"),
+        )
+
+        compiler = shutil.which(os.environ.get("CC", "cc"))
+        include_directory = Path(os.environ.get("MODSECURITY_INCLUDE_DIR", "/usr/include"))
+        if compiler is None or not (include_directory / "modsecurity/modsecurity.h").is_file():
+            # The source-contract regression remains valid without a local
+            # libmodsecurity development package.  The same test executes the
+            # TCP harness when that documented optional prerequisite exists.
+            return
+
+        harness_source = r'''
+#define MSCONNECTOR_STOCK_SIDECAR_MAIN
+#define main stock_sidecar_program_main
+#include "__SIDECAR_SOURCE__"
+#undef main
+
+#include <assert.h>
+
+static int tcp_pair(int family, const char *address, int *client, int *server) {
+    struct sockaddr_storage listener_address;
+    socklen_t listener_size;
+    int listener;
+
+    *client = -1;
+    *server = -1;
+    listener = socket(family, SOCK_STREAM, 0);
+    if (listener < 0) return 0;
+    memset(&listener_address, 0, sizeof(listener_address));
+    if (family == AF_INET) {
+        struct sockaddr_in *ipv4 = (struct sockaddr_in *)&listener_address;
+        ipv4->sin_family = AF_INET;
+        assert(inet_pton(AF_INET, address, &ipv4->sin_addr) == 1);
+        listener_size = sizeof(*ipv4);
+    } else {
+        struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)&listener_address;
+        ipv6->sin6_family = AF_INET6;
+        assert(inet_pton(AF_INET6, address, &ipv6->sin6_addr) == 1);
+        listener_size = sizeof(*ipv6);
+    }
+    if (bind(listener, (struct sockaddr *)&listener_address, listener_size) != 0 ||
+        listen(listener, 1) != 0 ||
+        getsockname(listener, (struct sockaddr *)&listener_address, &listener_size) != 0) {
+        close(listener);
+        return 0;
+    }
+    *client = socket(family, SOCK_STREAM, 0);
+    assert(*client >= 0);
+    assert(connect(*client, (struct sockaddr *)&listener_address, listener_size) == 0);
+    *server = accept(listener, NULL, NULL);
+    assert(*server >= 0);
+    assert(close(listener) == 0);
+    return 1;
+}
+
+static void assert_tcp_endpoints(int family, const char *address) {
+    char client_address[INET6_ADDRSTRLEN];
+    char server_address[INET6_ADDRSTRLEN];
+    int client;
+    int server;
+    int client_port;
+    int server_port;
+
+    if (!tcp_pair(family, address, &client, &server)) return;
+    assert(sidecar_socket_endpoint(server, 1, client_address, &client_port) == 1);
+    assert(sidecar_socket_endpoint(server, 0, server_address, &server_port) == 1);
+    assert(strcmp(client_address, address) == 0);
+    assert(strcmp(server_address, address) == 0);
+    assert(client_port > 0);
+    assert(server_port > 0);
+    assert(close(client) == 0);
+    assert(close(server) == 0);
+}
+
+int main(void) {
+    int local[2];
+    char address[INET6_ADDRSTRLEN];
+    int port;
+
+    assert_tcp_endpoints(AF_INET, "127.0.0.1");
+    /* IPv6 is a legitimate endpoint when the host supports it; lack of an
+     * IPv6 loopback listener is an environment limit, not a conversion pass. */
+    assert_tcp_endpoints(AF_INET6, "::1");
+    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, local) == 0);
+    assert(sidecar_socket_endpoint(local[0], 1, address, &port) == 0);
+    assert(address[0] == '\0');
+    assert(port == 0);
+    assert(close(local[0]) == 0);
+    assert(close(local[1]) == 0);
+    return 0;
+}
+'''
+        self._compile_and_run_c_harness(
+            harness_source, prefix="stock-sidecar-endpoints-",
+            filename="connection_endpoints", compiler=compiler,
+            include_directory=include_directory,
+        )
+
     def test_build_requires_an_explicit_external_output_root(self) -> None:
         script = BUILD_SCRIPT.read_text(encoding="utf-8")
         self.assertIn('BUILD_ROOT is required', script)
@@ -970,7 +1094,7 @@ class StockSidecarSourceContractTest(unittest.TestCase):
 
     def test_partial_response_header_write_claims_client_response_ownership(self) -> None:
         """A partial proxied header must suppress a second fallback response."""
-        compiler = shutil.which("cc")
+        compiler = shutil.which(os.environ.get("CC", "cc"))
         include_directory = Path(os.environ.get("MODSECURITY_INCLUDE_DIR", "/usr/include"))
         if compiler is None:
             self.skipTest("requires a C compiler")
@@ -1042,7 +1166,7 @@ int main(void) {
 
     def test_informational_response_is_forwarded_before_exactly_one_final_response(self) -> None:
         """A non-upgrade 1xx is client-visible but never becomes Common P3."""
-        compiler = shutil.which("cc")
+        compiler = shutil.which(os.environ.get("CC", "cc"))
         include_directory = Path(os.environ.get("MODSECURITY_INCLUDE_DIR", "/usr/include"))
         if compiler is None:
             self.skipTest("requires a C compiler")

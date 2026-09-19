@@ -862,6 +862,13 @@ typedef struct sidecar_exchange_payload {
 
 typedef struct sidecar_exchange_state {
     int client;
+    /* These values originate exclusively from the accepted TCP socket.  They
+     * must remain live through P1 because Common passes them to
+     * msc_process_connection(). */
+    char client_address[INET6_ADDRSTRLEN];
+    char server_address[INET6_ADDRSTRLEN];
+    int client_port;
+    int server_port;
     const sidecar_options *options;
     msconnector_runtime *runtime;
     sidecar_deadline deadline;
@@ -898,6 +905,57 @@ static void sidecar_exchange_state_init(sidecar_exchange_state *state, int clien
     state->upstream = -1;
     state->failure_status = 502;
     state->failure_origin = SIDECAR_FAILURE_CONNECTOR;
+}
+
+/* The sidecar owns the downstream TCP connection, so request endpoint
+ * metadata must come from that socket rather than a Host/X-Forwarded-* header
+ * or a nominal listener value.  Restrict the accepted representation to
+ * concrete Internet endpoints: Common requires bounded non-empty addresses
+ * and a valid port for msc_process_connection(). */
+static int sidecar_socket_endpoint(int fd, int peer,
+                                   char address[INET6_ADDRSTRLEN], int *port) {
+    struct sockaddr_storage endpoint;
+    socklen_t endpoint_size = sizeof(endpoint);
+    const void *raw_address;
+    in_port_t raw_port;
+
+    if (address == NULL || port == NULL) return 0;
+    address[0] = '\0';
+    *port = 0;
+    memset(&endpoint, 0, sizeof(endpoint));
+    if ((peer ? getpeername(fd, (struct sockaddr *)&endpoint, &endpoint_size) :
+                getsockname(fd, (struct sockaddr *)&endpoint, &endpoint_size)) != 0) {
+        return 0;
+    }
+    if (endpoint.ss_family == AF_INET && endpoint_size >= sizeof(struct sockaddr_in)) {
+        const struct sockaddr_in *ipv4 = (const struct sockaddr_in *)&endpoint;
+        raw_address = &ipv4->sin_addr;
+        raw_port = ipv4->sin_port;
+    } else if (endpoint.ss_family == AF_INET6 &&
+               endpoint_size >= sizeof(struct sockaddr_in6)) {
+        const struct sockaddr_in6 *ipv6 = (const struct sockaddr_in6 *)&endpoint;
+        raw_address = &ipv6->sin6_addr;
+        raw_port = ipv6->sin6_port;
+    } else {
+        return 0;
+    }
+    *port = (int)ntohs(raw_port);
+    if (*port == 0 || inet_ntop(endpoint.ss_family, raw_address, address,
+                                INET6_ADDRSTRLEN) == NULL || address[0] == '\0' ||
+        strlen(address) >= INET6_ADDRSTRLEN) {
+        address[0] = '\0';
+        *port = 0;
+        return 0;
+    }
+    return 1;
+}
+
+static int sidecar_capture_connection_endpoints(sidecar_exchange_state *state) {
+    return state != NULL &&
+        sidecar_socket_endpoint(state->client, 1, state->client_address,
+                                &state->client_port) &&
+        sidecar_socket_endpoint(state->client, 0, state->server_address,
+                                &state->server_port);
 }
 
 static int sidecar_read_final_response_headers(sidecar_exchange_state *state) {
@@ -1326,6 +1384,10 @@ static int sidecar_exchange_request(sidecar_exchange_state *state) {
     request.uri = state->payload.request_headers.uri;
     request.http_version = state->payload.request_headers.version;
     request.hostname = host;
+    request.client.address = state->client_address;
+    request.client.port = state->client_port;
+    request.server.address = state->server_address;
+    request.server.port = state->server_port;
     request.headers = state->payload.request_headers.items;
     request.header_count = state->payload.request_headers.count;
     if (!msconnector_runtime_transaction_begin(state->runtime, &request, NULL,
@@ -1474,7 +1536,13 @@ static int sidecar_exchange(int client, const sidecar_options *options,
     msconnector_runtime_transaction_snapshot receipt_snapshot;
     int receipt_ready = 0;
     sidecar_exchange_state_init(&state, client, options, runtime);
-    if (!(sidecar_exchange_request(&state) && sidecar_exchange_response(&state)) &&
+    if (!sidecar_capture_connection_endpoints(&state)) {
+        /* Do not let Common begin a transaction with missing, synthesized, or
+         * unsupported endpoint metadata.  No transaction exists yet, so the
+         * normal fail-closed connector response is the only safe outcome. */
+        state.failure_origin = SIDECAR_FAILURE_PROTOCOL;
+        sidecar_exchange_error(&state);
+    } else if (!(sidecar_exchange_request(&state) && sidecar_exchange_response(&state)) &&
         !state.handled) {
         sidecar_exchange_error(&state);
     }

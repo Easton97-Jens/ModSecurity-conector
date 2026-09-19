@@ -10,6 +10,13 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260919-readiness-b-shared-remediation](CR-20260919-readiness-b-shared-remediation.md)
+  | [Deutsch](CR-20260919-readiness-b-shared-remediation.de.md) — records the
+  scoped Parent-only shared remediation for the ten-integration readiness-B
+  work. It distinguishes observed local evidence from the still incomplete
+  ten-path runtime and rule-profile evidence; no Framework/MRTS/Gitlink
+  change, hosted result, pull request, or merge is asserted.
+
 - [CR-20260913-sonar-connector-followup-remediation](CR-20260913-sonar-connector-followup-remediation.md)
   | [Deutsch](CR-20260913-sonar-connector-followup-remediation.de.md) — the
   current user authorized this normal Parent-only follow-up PR to remediate 16

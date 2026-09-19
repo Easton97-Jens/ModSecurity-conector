@@ -29,12 +29,18 @@ if test -z "$MSCONNECTOR_COMMON_SRC" && test -d "../../common/src"; then
     MSCONNECTOR_COMMON_SRC="../../common/src"
 fi
 
+MSCONNECTOR_PROFILE_REGISTRY_SOURCE_DIRECTORY=
+MSCONNECTOR_PROFILE_REGISTRY_CHECKOUT_ROOT=
 MSCONNECTOR_PROFILE_REGISTRY_SRC=
 if test -n "$CONNECTOR_ROOT" && test -f "$CONNECTOR_ROOT/connectors/profile_registry.c"; then
+    MSCONNECTOR_PROFILE_REGISTRY_CHECKOUT_ROOT=$(CDPATH= cd "$CONNECTOR_ROOT" && pwd -P)
+    MSCONNECTOR_PROFILE_REGISTRY_SOURCE_DIRECTORY="$MSCONNECTOR_PROFILE_REGISTRY_CHECKOUT_ROOT/connectors"
     MSCONNECTOR_PROFILE_REGISTRY_SRC="$CONNECTOR_ROOT/connectors/profile_registry.c"
 fi
 
 if test -z "$MSCONNECTOR_PROFILE_REGISTRY_SRC" && test -f "../../profile_registry.c"; then
+    MSCONNECTOR_PROFILE_REGISTRY_SOURCE_DIRECTORY=$(CDPATH= cd ../.. && pwd -P)
+    MSCONNECTOR_PROFILE_REGISTRY_CHECKOUT_ROOT=$(CDPATH= cd "$MSCONNECTOR_PROFILE_REGISTRY_SOURCE_DIRECTORY/.." && pwd -P)
     MSCONNECTOR_PROFILE_REGISTRY_SRC="../../profile_registry.c"
 fi
 
@@ -43,23 +49,69 @@ if test -z "$MSCONNECTOR_PROFILE_REGISTRY_SRC"; then
     exit 1
 fi
 
-# The generated Apache source tree is deliberately materialized outside the
-# checkout, while the canonical profile registry remains Parent-owned.  Give
-# the module its repository-root include path explicitly instead of relying on
-# a relative traversal from the generated tree.
-MSCONNECTOR_PROFILE_REGISTRY_INC=
-if test -n "$CONNECTOR_ROOT" && test -f "$CONNECTOR_ROOT/connectors/profile_registry.h"; then
-    MSCONNECTOR_PROFILE_REGISTRY_INC="$CONNECTOR_ROOT"
-fi
-
-if test -z "$MSCONNECTOR_PROFILE_REGISTRY_INC" && test -f "../../profile_registry.h"; then
-    MSCONNECTOR_PROFILE_REGISTRY_INC="../.."
-fi
-
-if test -z "$MSCONNECTOR_PROFILE_REGISTRY_INC"; then
+if test ! -f "$MSCONNECTOR_PROFILE_REGISTRY_SOURCE_DIRECTORY/profile_registry.h"; then
     echo "missing connector-owned profile registry header" >&2
     exit 1
 fi
+
+# APXS/libtool writes object files alongside each C input. Materialize the
+# connector-owned registry outside the canonical checkout before passing it to
+# APXS, just as the Common SDK sources below are materialized there.
+MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT=${MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT:-$(pwd -P)/build/profile-registry}
+case "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT" in
+    /*) ;;
+    *) MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT="$(pwd -P)/$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT" ;;
+esac
+MSCONNECTOR_PROFILE_REGISTRY_EXISTING_PARENT="$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT"
+while test ! -e "$MSCONNECTOR_PROFILE_REGISTRY_EXISTING_PARENT"; do
+    MSCONNECTOR_PROFILE_REGISTRY_NEXT_PARENT=$(dirname "$MSCONNECTOR_PROFILE_REGISTRY_EXISTING_PARENT")
+    if test "$MSCONNECTOR_PROFILE_REGISTRY_NEXT_PARENT" = "$MSCONNECTOR_PROFILE_REGISTRY_EXISTING_PARENT"; then
+        echo "unable to resolve profile registry build root" >&2
+        exit 1
+    fi
+    MSCONNECTOR_PROFILE_REGISTRY_EXISTING_PARENT="$MSCONNECTOR_PROFILE_REGISTRY_NEXT_PARENT"
+done
+MSCONNECTOR_PROFILE_REGISTRY_EXISTING_PARENT=$(CDPATH= cd "$MSCONNECTOR_PROFILE_REGISTRY_EXISTING_PARENT" && pwd -P)
+case "$MSCONNECTOR_PROFILE_REGISTRY_EXISTING_PARENT/" in
+    "$MSCONNECTOR_PROFILE_REGISTRY_CHECKOUT_ROOT/"*)
+        echo "profile registry build root must be outside the canonical connector checkout" >&2
+        exit 1
+        ;;
+esac
+if test -L "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT"; then
+    echo "profile registry build root must not be a symlink" >&2
+    exit 1
+fi
+mkdir -p "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT"
+if test -L "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT" || \
+        test ! -d "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT"; then
+    echo "profile registry build root is unsafe" >&2
+    exit 1
+fi
+if test -e "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT/connectors" || \
+        test -L "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT/connectors"; then
+    echo "profile registry staging connectors directory must be a fresh non-symlink path" >&2
+    exit 1
+fi
+mkdir "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT/connectors"
+if test -L "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT/connectors" || \
+        test ! -d "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT/connectors"; then
+    echo "profile registry staging connectors directory is unsafe" >&2
+    exit 1
+fi
+MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT=$(CDPATH= cd "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT" && pwd -P)
+case "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT/" in
+    "$MSCONNECTOR_PROFILE_REGISTRY_CHECKOUT_ROOT/"*)
+        echo "profile registry build root must be outside the canonical connector checkout" >&2
+        exit 1
+        ;;
+esac
+cp "$MSCONNECTOR_PROFILE_REGISTRY_SOURCE_DIRECTORY/profile_registry.c" \
+    "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT/connectors/profile_registry.c"
+cp "$MSCONNECTOR_PROFILE_REGISTRY_SOURCE_DIRECTORY/profile_registry.h" \
+    "$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT/connectors/profile_registry.h"
+MSCONNECTOR_PROFILE_REGISTRY_SRC="$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT/connectors/profile_registry.c"
+MSCONNECTOR_PROFILE_REGISTRY_INC="$MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT"
 
 MSCONNECTOR_COMMON_SOURCES=
 if test -n "$MSCONNECTOR_COMMON_SRC"; then

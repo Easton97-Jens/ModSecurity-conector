@@ -134,6 +134,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                         {
                             **canonical_quic_tls,
                             "MSCONNECTOR_PROFILE_REGISTRY_ROOT": "/untrusted/profile-registry",
+                            "TAR_OPTIONS": "--same-owner --warning=no-unknown-keyword",
                         },
                         protocol_inputs,
                     )
@@ -146,6 +147,18 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                         child_env["MSCONNECTOR_PROFILE_REGISTRY_ROOT"],
                         str(root / "profile-registry"),
                     )
+                    self.assertEqual(child_env["TAR_OPTIONS"], "--no-same-owner")
+
+                    no_inherited_tar_options = child_environment(
+                        {
+                            **canonical_quic_tls,
+                            "MSCONNECTOR_PROFILE_REGISTRY_ROOT": "/untrusted/profile-registry",
+                        },
+                        protocol_inputs,
+                    )
+                    self.assertEqual(
+                        no_inherited_tar_options["TAR_OPTIONS"], "--no-same-owner"
+                    )
 
             h3_inputs = components.nginx_protocol_build_inputs(
                 {"NGINX_PROTOCOL_PROFILE": "h1-h2-h3-quic", **canonical_quic_tls}
@@ -157,6 +170,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                     "NGINX_QUIC_TLS_SOURCE_URL": "https://example.invalid/hostile.tar.gz",
                     "NGINX_QUIC_TLS_SOURCE_SHA256": "f" * 64,
                     "MSCONNECTOR_PROFILE_REGISTRY_ROOT": "/untrusted/profile-registry",
+                    "TAR_OPTIONS": "--same-owner --warning=no-unknown-keyword",
                 },
                 h3_inputs,
             )
@@ -169,6 +183,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                 h3_child_env["MSCONNECTOR_PROFILE_REGISTRY_ROOT"],
                 str(root / "profile-registry"),
             )
+            self.assertEqual(h3_child_env["TAR_OPTIONS"], "--no-same-owner")
 
     def test_nginx_staged_make_log_diagnostics_requires_current_managed_identity(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -688,7 +703,19 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             components.require_full_immutable_git_commit(PINNED_EXPAT_COMMIT, "EXPAT_GIT_REF"),
             PINNED_EXPAT_COMMIT,
         )
-        for mutable_or_abbreviated_ref in ("master", "R_2_8_2", "refs/tags/R_2_8_2", "c61098d"):
+        sha256_commit = "A" * 64
+        self.assertEqual(
+            components.require_full_immutable_git_commit(sha256_commit, "EXPAT_GIT_REF"),
+            sha256_commit,
+        )
+        for mutable_or_abbreviated_ref in (
+            "master",
+            "R_2_8_2",
+            "refs/tags/R_2_8_2",
+            "c61098d",
+            "a" * 41,
+            "b" * 63,
+        ):
             with self.subTest(ref=mutable_or_abbreviated_ref):
                 with self.assertRaisesRegex(RuntimeError, "full immutable Git commit ID"):
                     components.require_full_immutable_git_commit(
@@ -766,6 +793,16 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                     self.assertNotIn("nginx_pinned_provenance", values)
                     self.assertNotIn("go_ftw_source_url", values)
                     self.assertNotIn("albedo_source_url", values)
+
+                    with self.assertRaisesRegex(RuntimeError, "full immutable Git commit ID"):
+                        components.required_runtime_component_sources(
+                            {
+                                **non_nginx_env,
+                                "EXPAT_GIT_REF": "master",
+                            },
+                            strict=False,
+                            target_connector=target_connector,
+                        )
 
             with self.assertRaisesRegex(RuntimeError, "nginx_pinned_provenance_ref_mismatch"):
                 components.required_runtime_component_sources(
@@ -908,6 +945,9 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
     def test_required_runtime_component_sources_scopes_nginx_preflight_to_nginx_targets(
         self,
     ) -> None:
+        def required_source_value(_: dict[str, str], key: str) -> str:
+            return PINNED_EXPAT_COMMIT if key == "EXPAT_GIT_REF" else "required-source"
+
         mismatched_nginx = dict(PINNED_NGINX_RELEASE_TUPLE)
         mismatched_nginx.update(
             {
@@ -930,7 +970,9 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                         "require_apr_util_pinned_provenance",
                         return_value={"component": "apr-util"},
                     ),
-                    mock.patch.object(components, "require_env_value", return_value="required-source"),
+                    mock.patch.object(
+                        components, "require_env_value", side_effect=required_source_value
+                    ),
                     mock.patch.object(
                         components,
                         "nginx_protocol_build_inputs",
@@ -958,7 +1000,9 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                         "require_apr_util_pinned_provenance",
                         return_value={"component": "apr-util"},
                     ),
-                    mock.patch.object(components, "require_env_value", return_value="required-source"),
+                    mock.patch.object(
+                        components, "require_env_value", side_effect=required_source_value
+                    ),
                     mock.patch.object(components, "nginx_protocol_build_inputs") as nginx_protocol,
                 ):
                     with self.assertRaisesRegex(RuntimeError, "nginx_pinned_provenance_ref_mismatch"):
@@ -979,7 +1023,9 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                         "require_apr_util_pinned_provenance",
                         return_value={"component": "apr-util"},
                     ),
-                    mock.patch.object(components, "require_env_value", return_value="required-source"),
+                    mock.patch.object(
+                        components, "require_env_value", side_effect=required_source_value
+                    ),
                     mock.patch.object(
                         components,
                         "nginx_protocol_build_inputs",
@@ -1048,7 +1094,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             else:
                 self.assertEqual(records["nginx_plan"], {})
 
-    def test_runtime_component_report_describes_strict_expat_and_cache_fsck_accurately(self) -> None:
+    def test_runtime_component_report_describes_immutable_expat_and_cache_fsck_accurately(self) -> None:
         report = components.markdown_report(
             {
                 "generated_at": "2026-07-26T00:00:00Z",
@@ -1060,7 +1106,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         )
 
         self.assertIn(
-            "go-ftw and albedo use release-tag resolution; Expat uses release resolution only outside strict evidence runs.",
+            "go-ftw and albedo use release-tag resolution; Expat always uses its configured immutable commit.",
             report,
         )
         self.assertIn(
@@ -1183,14 +1229,40 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         prepare_release.assert_not_called()
         self.assertTrue(record["immutable_commit_verified"])
 
-    def test_non_strict_expat_path_preserves_release_resolution_compatibility(self) -> None:
+    def test_non_strict_expat_path_uses_only_the_immutable_component_preparer(self) -> None:
         with (
-            mock.patch.object(components, "prepare_immutable_git_component") as prepare_immutable,
             mock.patch.object(
                 components,
-                "prepare_release_git_component",
-                return_value={"status": "present", "release_tag": "R_2_8_2"},
-            ) as prepare_release,
+                "prepare_immutable_git_component",
+                return_value={"status": "present", "immutable_commit_verified": True},
+            ) as prepare_immutable,
+            mock.patch.object(components, "prepare_release_git_component") as prepare_release,
+        ):
+            record = components.prepare_expat_git_component(
+                "https://github.com/libexpat/libexpat",
+                PINNED_EXPAT_COMMIT,
+                "master",
+                Path("cache/git/libexpat"),
+                {},
+                strict=False,
+            )
+
+        prepare_immutable.assert_called_once_with(
+            "expat",
+            "https://github.com/libexpat/libexpat",
+            PINNED_EXPAT_COMMIT,
+            Path("cache/git/libexpat"),
+            {},
+            False,
+            cache_root=None,
+        )
+        prepare_release.assert_not_called()
+        self.assertTrue(record["immutable_commit_verified"])
+
+    def test_non_strict_expat_path_rejects_mutable_ref_before_git_or_release_lookup(self) -> None:
+        with (
+            mock.patch.object(components, "prepare_git_component") as prepare_git,
+            mock.patch.object(components, "resolve_latest_github_release_tag") as resolve_latest,
         ):
             record = components.prepare_expat_git_component(
                 "https://github.com/libexpat/libexpat",
@@ -1201,17 +1273,10 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                 strict=False,
             )
 
-        prepare_immutable.assert_not_called()
-        prepare_release.assert_called_once_with(
-            "expat",
-            "https://github.com/libexpat/libexpat",
-            "master",
-            Path("cache/git/libexpat"),
-            {},
-            False,
-            cache_root=None,
-        )
-        self.assertEqual(record["release_tag"], "R_2_8_2")
+        self.assertEqual(record["status"], "blocked")
+        self.assertIn("full immutable Git commit ID", record["blocker_reason"])
+        prepare_git.assert_not_called()
+        resolve_latest.assert_not_called()
 
     def test_optional_release_components_still_resolve_the_latest_release(self) -> None:
         for name in ("go-ftw", "albedo"):

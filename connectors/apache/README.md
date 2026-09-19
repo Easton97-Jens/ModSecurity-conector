@@ -105,13 +105,28 @@ APXS="${APXS:-$(command -v apxs || command -v apxs2)}"
 test -x "$APXS"
 HTTPD_BIN="${HTTPD_BIN:-$("$APXS" -q SBINDIR)/$("$APXS" -q PROGNAME)}"
 MODSECURITY_PREFIX="${MODSECURITY_PREFIX:-/usr}"
+APACHE_BUILD_ROOT="${APACHE_BUILD_ROOT:?set an absolute private build directory outside the checkout}"
+case "$APACHE_BUILD_ROOT" in
+    /*) ;;
+    *) echo "APACHE_BUILD_ROOT must be absolute" >&2; exit 2 ;;
+esac
+mkdir -p "$APACHE_BUILD_ROOT/common-src" "$APACHE_BUILD_ROOT/profile-registry"
 autoreconf --install
 test -f configure
 test -x configure
 ./configure --with-libmodsecurity="$MODSECURITY_PREFIX" --with-apxs="$APXS" --with-apache="$HTTPD_BIN"
+MSCONNECTOR_COMMON_BUILD_SRC="$APACHE_BUILD_ROOT/common-src" \
+MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT="$APACHE_BUILD_ROOT/profile-registry" \
 make
 test -f src/.libs/mod_security3.so
 ```
+
+`APACHE_BUILD_ROOT` must resolve to a private task-owned directory outside the
+canonical checkout; it must not be the checkout itself or a symlink into it.
+The wrapper stages Common sources and the profile registry there before APXS
+can emit compiler objects, so a direct APXS invocation and an in-checkout stage
+root are rejected controls rather than supported build modes. Its registry
+`connectors` child must also be a fresh non-symlink directory.
 
 The expected module output is `src/.libs/mod_security3.so`. To validate the
 entire fresh-source route, run the focused check from the Parent root:

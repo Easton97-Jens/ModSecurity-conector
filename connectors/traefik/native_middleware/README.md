@@ -31,6 +31,10 @@ declaration.
   bounded first chunk;
 - keeps only metadata and byte/chunk counters in `Summary`, never a complete
   request or response body;
+- derives `Metadata.ServerAddress` and `Metadata.ServerPort` only from the
+  host-provided `http.LocalAddrContextKey`; a missing, non-IP, or invalid-port
+  local endpoint returns HTTP 500 before the engine is opened, while the
+  client-controlled request authority remains only `Metadata.Hostname`;
 - treats a disruptive result after response commitment as `log_only`; it does
   not synthesize a changed status, reset, or client-abort claim.
 
@@ -52,6 +56,10 @@ the host requires a distinct service identity, the runtime must enforce that
 identity through the private socket parent and deployment permissions; adding
 an OS-specific `SO_PEERCRED` check requires an explicit supported-platform
 contract and is not implied by this package.
+
+The trusted-local-endpoint mapping protects only server-endpoint provenance.
+It does not authenticate a later UDS peer and therefore does not resolve
+FND-PARENT-0015's socket-replacement risk.
 
 The UDS protocol rejects unknown engine actions instead of relabelling them as
 an HTTP denial. It reports a disruptive outcome only after the actual

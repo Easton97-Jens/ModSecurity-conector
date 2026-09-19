@@ -237,6 +237,22 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
         self.assertIn("Connection: close", bootstrap)
         self.assertIn("reached the Apache document handler", bootstrap)
         self.assertIn("txid_failure_count", bootstrap)
+        self.assertIn(
+            'chmod 0755 "$RUNTIME_ROOT/htdocs${TXID_LENGTH_PREFIX%/}"', bootstrap
+        )
+
+    def test_native_bootstrap_prints_the_nonroot_httpd_error_log_on_failure(self) -> None:
+        bootstrap = AUTOTOOLS_BOOTSTRAP.read_text(encoding="utf-8")
+
+        self.assertIn('"${HTTPD_LOG:-}" \\', bootstrap)
+        self.assertIn('"${HTTPD_ERROR_LOG:-}"', bootstrap)
+
+    def test_native_bootstrap_loads_unixd_for_its_nonroot_worker(self) -> None:
+        bootstrap = AUTOTOOLS_BOOTSTRAP.read_text(encoding="utf-8")
+
+        mpm = bootstrap.index("append_mpm_if_needed")
+        unixd = bootstrap.index("append_module_if_present unixd_module mod_unixd.so")
+        self.assertLess(mpm, unixd)
 
     def test_cleanup_invalidates_native_and_owner_context_before_destroy(self) -> None:
         self.assertIn("request_rec *owner_request;", self.header)

@@ -40,7 +40,8 @@ fail() {
         for log_file in \
             "${CONFIGTEST_LOG:-}" \
             "${MODULES_LOG:-}" \
-            "${HTTPD_LOG:-}"
+            "${HTTPD_LOG:-}" \
+            "${HTTPD_ERROR_LOG:-}"
         do
             if [ -f "$log_file" ]; then
                 echo "apache-autotools-bootstrap: Apache log follows: $log_file" >&2
@@ -239,6 +240,7 @@ if ! (
     MSCONNECTOR_COMMON_INC="$SOURCE_ROOT/common/include" \
     MSCONNECTOR_COMMON_SRC="$SOURCE_ROOT/common/src" \
     MSCONNECTOR_COMMON_BUILD_SRC="$APACHE_ROOT/build/common-src" \
+    MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT="$WORK_ROOT/profile-registry" \
     make
 ) > "$MAKE_LOG" 2>&1; then
     sed -n '1,220p' "$MAKE_LOG" >&2
@@ -349,6 +351,7 @@ chmod 0644 "$RUNTIME_ROOT/conf/mime.types"
 printf 'Apache Autotools smoke control\n' > "$RUNTIME_ROOT/htdocs/index.html"
 chmod 0644 "$RUNTIME_ROOT/htdocs/index.html"
 mkdir -p "$RUNTIME_ROOT/htdocs${TXID_LENGTH_PREFIX%/}"
+chmod 0755 "$RUNTIME_ROOT/htdocs${TXID_LENGTH_PREFIX%/}"
 printf '127-byte transaction id control\n' > "$RUNTIME_ROOT/htdocs$TXID_127_PATH"
 printf '128-byte transaction id must not reach handler\n' > "$RUNTIME_ROOT/htdocs$TXID_128_PATH"
 printf 'oversized transaction id must not reach handler\n' > "$RUNTIME_ROOT/htdocs$TXID_LONG_PATH"
@@ -364,6 +367,7 @@ chmod 0600 "$HTTPD_ERROR_LOG"
 
 : > "$MODULES_FILE"
 append_mpm_if_needed || blocked "Apache has no loadable or static supported MPM"
+append_module_if_present unixd_module mod_unixd.so
 append_module_if_present authz_core_module mod_authz_core.so
 append_module_if_present authz_host_module mod_authz_host.so
 append_module_if_present dir_module mod_dir.so

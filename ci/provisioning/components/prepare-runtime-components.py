@@ -106,7 +106,7 @@ DEFAULT_NGINX_QUIC_TLS_VERSION = "4.0.1"
 DEFAULT_NGINX_QUIC_TLS_SOURCE_URL = "https://github.com/openssl/openssl/releases/download/openssl-4.0.1/openssl-4.0.1.tar.gz"
 DEFAULT_NGINX_QUIC_TLS_SOURCE_SHA256 = "2db3f3a0d6ea4b59e1f094ace2c8cd536dffb87cdc39084c5afa1e6f7f37dd09"
 PATH_POLICY_ENV = dict(os.environ)
-FULL_GIT_COMMIT_ID = re.compile(r"[0-9a-fA-F]{40,64}")
+FULL_GIT_COMMIT_ID = re.compile(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})")
 SAFE_RUNTIME_BUILD_KEY = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 HAPROXY_BINDING_BUILD_TARGETS = ("build-modsecurity-binding", "build-spoa-runtime")
 HAPROXY_BINDING_FAILURE_OUTPUT_NAMES = {
@@ -2492,21 +2492,17 @@ def prepare_expat_git_component(
     strict: bool,
     cache_root: Path | None = None,
 ) -> dict[str, Any]:
-    """Use immutable Expat provenance only for the strict evidence path."""
-    if strict:
-        return prepare_immutable_git_component(
-            "expat",
-            source_url,
-            expected_ref,
-            path,
-            previous_records,
-            strict,
-            cache_root=cache_root,
-        )
-    return prepare_release_git_component(
+    """Prepare Expat from its configured immutable commit in every mode.
+
+    ``strict`` controls cache/fsck verification in the shared Git preparer. It
+    must not turn mandatory Expat runtime provenance into a latest-release
+    lookup. ``expected_prompt_latest`` remains a legacy caller input only and
+    is deliberately not consulted for runtime resolution.
+    """
+    return prepare_immutable_git_component(
         "expat",
         source_url,
-        expected_prompt_latest,
+        expected_ref,
         path,
         previous_records,
         strict,
@@ -8876,6 +8872,7 @@ def nginx_build_environment(
         NGINX_BINARY=str(inputs.context["local_nginx_bin"]),
         NGINX_MODULE=str(inputs.context["local_module"]),
         NGINX_PROTOCOL_PROFILE=inputs.protocol_profile,
+        TAR_OPTIONS="--no-same-owner",
         **quic_tls_overrides,
         NGINX_QUIC_TLS_ARCHIVE=inputs.quic_tls_archive,
         NGINX_DOWNLOAD_DIR=str(inputs.archives_root / "nginx"),
@@ -10418,8 +10415,8 @@ def markdown_report(payload: dict[str, Any]) -> str:
             "- System paths are not used for runtime component writes.",
             "- Runtime writes are constrained to cache/build/runtime roots.",
             "- Native Apache and NGINX use local prepared components when env overrides are absent.",
-            "- go-ftw and albedo use release-tag resolution; Expat uses release resolution only outside strict evidence runs.",
-            "- `RUNTIME_COMPONENT_STRICT_VERIFY=1` requires a fresh-clone or prior-cache full git fsck PASS and an immutable Expat commit pin.",
+            "- go-ftw and albedo use release-tag resolution; Expat always uses its configured immutable commit.",
+            "- `RUNTIME_COMPONENT_STRICT_VERIFY=1` requires a fresh-clone or prior-cache full git fsck PASS; Expat requires an immutable commit pin in every mode.",
         ]
     )
     return "\n".join(lines) + "\n"
@@ -10473,10 +10470,10 @@ def required_runtime_component_sources(
     values = {"apr_util_provenance": require_apr_util_pinned_provenance(env)}
     values.update({
         "expat_source_url": require_env_value(env, "EXPAT_SOURCE_URL"),
-        "expat_git_ref": require_env_value(env, "EXPAT_GIT_REF"),
+        "expat_git_ref": require_full_immutable_git_commit(
+            require_env_value(env, "EXPAT_GIT_REF"), "EXPAT_GIT_REF"
+        ),
     })
-    if strict:
-        values["expat_git_ref"] = require_full_immutable_git_commit(values["expat_git_ref"], "EXPAT_GIT_REF")
     if target_connector == "all":
         # These optional tools are prepared only by the aggregate target; a
         # connector-scoped run must not be blocked by their unrelated source
