@@ -411,3 +411,27 @@ Security- und Test-Reviews fanden keinen plausiblen Befund in diesem Testdiff.
 Dies ist ausschließlich Common-Runtime-Regressions-Evidenz: Der Test umgeht
 absichtlich Traefik-HTTP-Parsing und beweist daher weder `Content-Length`-
 Verhalten noch ein tatsächliches Traefik-Host-Ergebnis oder B-Klassen-Reife.
+
+## Korrektur der NGINX-Native-Receipt-Identität — 2026-09-19
+
+Der Exact-Head-NGINX-Workflow, der Archiv-Digest und die gemeinsame
+Fixture-Quellwurzel binden NGINX `1.31.5`, doch sowohl der separat erzeugte
+native Response-Body-Buffer- als auch der P3-Header-Receipt deklarierten
+fälschlich `1.31.4`. Dies war ein Evidenz-Identitätsfehler: Er änderte weder
+die gebaute Binärdatei noch Connector-Verhalten, Request-Verarbeitung oder die
+vorhandenen begrenzten Fixture-Ergebnisse, verhinderte aber die Verwendung
+dieser Receipts als präzise G1-Identitätsnachweise.
+
+Das gemeinsame Fixture besitzt nun genau ein `EXPECTED_NGINX_VERSION =
+"1.31.5"`, leitet seine erwartete Quellwurzel daraus ab und beide
+Receipt-Writer schreiben dieselbe Konstante. Neue fokussierte Assertions
+schlugen zunächst fehl, weil die Versionsidentität fehlte oder veraltet war;
+nach der Korrektur bestand der Body-Buffer-Fixture-Vertrag 8/8 und der
+P3-Header-Fixture-Vertrag 4/4. Die betroffene NGINX-Contract-Suite bestand 48
+Tests, mit drei erwarteten Skips ausschließlich durch den separaten
+Framework-Gitlink-HEAD-Mismatch; `git diff --check` bestand.
+
+Die Korrektur besitzt noch keinen frischen Hosted-Receipt, schließt NGINX
+G2--G9 nicht und stuft NGINX nicht auf B hoch. Bestehende Non-root-Worker-,
+No-follow-Pfad-, Body-Boundary-, Fail-closed-Error- und Cleanup-Controls
+bleiben unverändert.

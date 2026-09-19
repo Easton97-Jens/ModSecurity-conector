@@ -34,7 +34,8 @@ FIXTURE_FILE_PAYLOAD = FIXTURE_PAYLOAD + b"X"
 FIXTURE_SHORT_FILE_PAYLOAD = FIXTURE_PAYLOAD[:-1]
 FIXTURE_MIXED_FILE_PAYLOAD = b"FILE-BACKING-XXXX"
 FIXTURE_MIXED_FORWARDED_PAYLOAD = FIXTURE_MIXED_FILE_PAYLOAD[: len(FIXTURE_PAYLOAD)]
-EXPECTED_NGINX_ROOT = "nginx-1.31.5"
+EXPECTED_NGINX_VERSION = "1.31.5"
+EXPECTED_NGINX_ROOT = f"nginx-{EXPECTED_NGINX_VERSION}"
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
 MAX_RESPONSE_BYTES = 256 * 1024
@@ -742,7 +743,7 @@ def main(argv: list[str]) -> int:
         "record_type": "nginx_native_body_buffer_fixture",
         "head": head,
         "nginx": {
-            "version": "1.31.4",
+            "version": EXPECTED_NGINX_VERSION,
             "archive_sha256": archive_digest,
             "binary_sha256": sha256_file(nginx),
             "connector_linkage": "static_test_binary",

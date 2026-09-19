@@ -379,3 +379,24 @@ security and test reviews found no plausible finding in this test diff.
 This is Common-runtime regression evidence only: it deliberately bypasses
 Traefik HTTP parsing and therefore proves neither `Content-Length` handling,
 an actual Traefik host result, nor B-class readiness.
+
+## NGINX native receipt-identity correction — 2026-09-19
+
+The exact-head NGINX workflow, archive digest, and shared fixture source root
+bind NGINX `1.31.5`, but both separately generated native response-body-buffer
+and P3-header receipts incorrectly declared `1.31.4`. That was an
+evidence-identity defect: it did not alter the built binary, connector
+behavior, request processing, or the existing bounded fixture results, but it
+prevented those receipts from being used as precise G1 identity evidence.
+
+The shared fixture now has one `EXPECTED_NGINX_VERSION = "1.31.5"`, derives
+its expected source root from it, and both receipt writers emit that same
+constant. New focused assertions first failed because the version identity was
+absent or stale; after the correction the body-buffer fixture contract passed
+8/8 and the P3-header fixture contract passed 4/4. The affected NGINX contract
+set passed 48 tests, with three expected skips caused only by the separate
+Framework Gitlink HEAD mismatch; `git diff --check` passed.
+
+The correction has no fresh hosted receipt yet and does not close NGINX G2--G9
+or promote NGINX to B. The existing non-root worker, no-follow path,
+body-boundary, fail-closed error, and cleanup controls remain unchanged.
