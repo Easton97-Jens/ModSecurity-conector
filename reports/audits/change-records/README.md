@@ -10,6 +10,15 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260919-submodule-updater-workflows-capability](CR-20260919-submodule-updater-workflows-capability.md)
+  | [Deutsch](CR-20260919-submodule-updater-workflows-capability.de.md) — the
+  current user requested this Parent-only correction for GitHub Actions run
+  `35454150502`. It replaces the updater publisher's insufficient ambient
+  token with the existing repository-limited workflow-updater App token,
+  preserves the closed CRS/no-MRTS SHA projection, adds fail-closed credential
+  regression coverage, and asserts no Framework/MRTS source, Gitlink, App
+  configuration, hosted rerun, direct `master` action, or merge.
+
 - [CR-20260919-framework-candidate-review-digest](CR-20260919-framework-candidate-review-digest.md)
   | [Deutsch](CR-20260919-framework-candidate-review-digest.de.md) — the
   current user requested this Parent-only repair for linked GitHub Actions run

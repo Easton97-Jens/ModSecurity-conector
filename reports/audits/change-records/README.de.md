@@ -11,6 +11,16 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260919-submodule-updater-workflows-capability](CR-20260919-submodule-updater-workflows-capability.de.md)
+  | English companion: `CR-20260919-submodule-updater-workflows-capability.md` —
+  der aktuelle Benutzer hat diese Parent-only-Korrektur für GitHub-Actions-Lauf
+  `35454150502` angefordert. Sie ersetzt den unzureichenden ambient Token des
+  Updater-Publishers durch den bestehenden repositorybegrenzten
+  Workflow-Updater-App-Token, erhält die geschlossene CRS/no-MRTS-SHA-Projektion,
+  ergänzt fail-closed Credential-Regression-Coverage und behauptet keine
+  Framework-/MRTS-Source, Gitlink-, App-Konfigurations-, Hosted-Rerun-, direkte
+  `master`- oder Merge-Aktion.
+
 - [CR-20260919-framework-candidate-review-digest](CR-20260919-framework-candidate-review-digest.de.md)
   | English companion: `CR-20260919-framework-candidate-review-digest.md` —
   der aktuelle Benutzer hat diese Parent-only-Remediation für den verlinkten
