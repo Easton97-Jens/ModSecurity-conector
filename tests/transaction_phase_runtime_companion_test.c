@@ -28,9 +28,16 @@ static const char *test_private_directory(void)
     struct stat directory_stat;
 
     if (test_private_root[0] == '\0') {
-        const char *tmpdir = ".";
-        assert(snprintf(test_private_root, sizeof(test_private_root),
-            "%s/msconnector-transaction-companion-XXXXXX", tmpdir) > 0);
+        char working_directory[TEST_PATH_SIZE];
+        const char *separator;
+        int path_length;
+
+        assert(getcwd(working_directory, sizeof(working_directory)) != NULL);
+        separator = strcmp(working_directory, "/") == 0 ? "" : "/";
+        path_length = snprintf(test_private_root, sizeof(test_private_root),
+            "%s%smsconnector-transaction-companion-XXXXXX", working_directory,
+            separator);
+        assert(path_length > 0 && (size_t)path_length < sizeof(test_private_root));
         assert(mkdtemp(test_private_root) != NULL);
         assert(stat(test_private_root, &directory_stat) == 0);
         assert(directory_stat.st_uid == geteuid());
@@ -159,7 +166,49 @@ static void test_regular_block_emits_one_terminal_event(void) {
     assert(unlink(rules_path) == 0);
 }
 
-static void test_lossy_event_is_not_written_or_chained(void) {
+static size_t newline_count(const char *contents) {
+    size_t count = 0U;
+
+    assert(contents != NULL);
+    for (const char *cursor = contents; *cursor != '\0'; ++cursor) {
+        if (*cursor == '\n') {
+            ++count;
+        }
+    }
+    return count;
+}
+
+static uint64_t event_json_unsigned_field(const char *json, const char *field) {
+    const char *value;
+    char *end;
+    unsigned long long parsed;
+
+    assert(json != NULL);
+    assert(field != NULL);
+    value = strstr(json, field);
+    assert(value != NULL);
+    value += strlen(field);
+    parsed = strtoull(value, &end, 10);
+    assert(end != value);
+    assert(*end == ',' || *end == '}');
+    return (uint64_t)parsed;
+}
+
+static void initialize_blocked_request(msconnector_request *request,
+    const char *client_address) {
+    assert(request != NULL);
+    assert(client_address != NULL);
+    memset(request, 0, sizeof(*request));
+    request->method = "GET";
+    request->uri = "/blocked";
+    request->http_version = "HTTP/1.1";
+    request->client.address = client_address;
+    request->client.port = 12345;
+    request->server.address = "127.0.0.1";
+    request->server.port = 9191;
+}
+
+static void test_escaped_invalid_client_address_is_written_and_chained(void) {
     static const char blocking_rules[] =
         "SecRuleEngine On\n"
         "SecRule REQUEST_URI \"@streq /blocked\" \"id:1002,phase:1,deny,status:403,log\"\n";
@@ -177,6 +226,8 @@ static void test_lossy_event_is_not_written_or_chained(void) {
     char contents[16384];
     FILE *event_file;
     size_t size;
+    uint64_t event_hash;
+    const char *second_event;
 
     create_runtime_fixture(config_path, event_path, rules_path, blocking_rules,
         "none", "safe");
@@ -185,29 +236,10 @@ static void test_lossy_event_is_not_written_or_chained(void) {
     assert(msconnector_runtime_set_transaction_profile(runtime,
         msconnector_profile_registry_find("envoy-ext-authz")));
 
-    memset(&request, 0, sizeof(request));
-    request.method = "GET";
-    request.uri = "/blocked";
-    request.http_version = "HTTP/1.1";
-    request.client.address = invalid_client_address;
-    request.client.port = 12345;
-    request.server.address = "127.0.0.1";
-    request.server.port = 9191;
+    initialize_blocked_request(&request, invalid_client_address);
     msconnector_error_init(&error);
     msconnector_decision_init(&decision);
-    assert(!msconnector_runtime_transaction_begin(runtime, &request, "lossy-event",
-        &transaction, &decision, &error));
-    assert(transaction == NULL);
-    assert(error.code == MSCONNECTOR_ERROR_EVENT_TOO_LARGE);
-
-    event_file = fopen(event_path, "r");
-    assert(event_file != NULL);
-    size = fread(contents, 1U, sizeof(contents), event_file);
-    assert(ferror(event_file) == 0);
-    assert(fclose(event_file) == 0);
-    assert(size == 0U);
-
-    assert(msconnector_test_begin_transaction(runtime, "/blocked", "post-lossy",
+    assert(msconnector_runtime_transaction_begin(runtime, &request, "escaped-event",
         &transaction, &decision, &error));
     assert(transaction != NULL);
     assert(msconnector_decision_action_from_decision(&decision) ==
@@ -222,9 +254,102 @@ static void test_lossy_event_is_not_written_or_chained(void) {
     assert(fclose(event_file) == 0);
     contents[size] = '\0';
     assert(strstr(contents, "MSCONN_EVENT_REQUEST_BLOCKED") != NULL);
-    assert(strstr(contents, "\"transaction_id\":\"post-lossy\"") != NULL);
-    assert(strstr(contents, "\"previous_event_hash\":0") != NULL);
-    assert(strchr(contents, '\n') == strrchr(contents, '\n'));
+    assert(strstr(contents, "MSCONN_EVENT_CONNECTOR_ERROR") == NULL);
+    assert(strstr(contents, "\"transaction_id\":\"escaped-event\"") != NULL);
+    assert(strstr(contents, "\"client_ip\":\"127.0.0.\\u0080\"") != NULL);
+    assert(memchr(contents, 0x80, size) == NULL);
+    assert(strstr(contents, "\"truncated\":false") != NULL);
+    assert(newline_count(contents) == 1U);
+    event_hash = event_json_unsigned_field(contents, "\"event_hash\":");
+    assert(event_hash != 0U);
+
+    assert(msconnector_test_begin_transaction(runtime, "/blocked", "post-escaped",
+        &transaction, &decision, &error));
+    assert(transaction != NULL);
+    assert(msconnector_decision_action_from_decision(&decision) ==
+        MSCONNECTOR_DECISION_ACTION_DENY);
+    assert(msconnector_runtime_transaction_finish(transaction, &error));
+    msconnector_runtime_transaction_destroy(&transaction);
+
+    event_file = fopen(event_path, "r");
+    assert(event_file != NULL);
+    size = fread(contents, 1U, sizeof(contents) - 1U, event_file);
+    assert(ferror(event_file) == 0);
+    assert(fclose(event_file) == 0);
+    contents[size] = '\0';
+    assert(strstr(contents, "MSCONN_EVENT_REQUEST_BLOCKED") != NULL);
+    assert(strstr(contents, "\"transaction_id\":\"post-escaped\"") != NULL);
+    assert(newline_count(contents) == 2U);
+    second_event = strchr(contents, '\n');
+    assert(second_event != NULL);
+    ++second_event;
+    assert(event_json_unsigned_field(second_event, "\"previous_event_hash\":") ==
+        event_hash);
+
+    msconnector_runtime_destroy(&runtime);
+    assert(unlink(config_path) == 0);
+    assert(unlink(event_path) == 0);
+    assert(unlink(rules_path) == 0);
+}
+
+static void test_oversized_escaped_client_address_is_not_written_or_chained(void) {
+    static const char blocking_rules[] =
+        "SecRuleEngine On\n"
+        "SecRule REQUEST_URI \"@streq /blocked\" \"id:1003,phase:1,deny,status:403,log\"\n";
+    char invalid_client_address[64];
+    msconnector_runtime *runtime = NULL;
+    msconnector_runtime_transaction *transaction = NULL;
+    msconnector_request request;
+    msconnector_decision decision;
+    msconnector_error error;
+    char config_path[TEST_PATH_SIZE];
+    char event_path[TEST_PATH_SIZE];
+    char rules_path[TEST_PATH_SIZE];
+    char contents[16384];
+    FILE *event_file;
+    size_t size;
+
+    memset(invalid_client_address, (char)0x80, sizeof(invalid_client_address) - 1U);
+    invalid_client_address[sizeof(invalid_client_address) - 1U] = '\0';
+    create_runtime_fixture(config_path, event_path, rules_path, blocking_rules,
+        "none", "safe");
+    assert(msconnector_runtime_create("envoy", config_path, &runtime, NULL, 0U));
+    assert(msconnector_runtime_set_event_integration_mode(runtime, "ext_authz"));
+    assert(msconnector_runtime_set_transaction_profile(runtime,
+        msconnector_profile_registry_find("envoy-ext-authz")));
+
+    initialize_blocked_request(&request, invalid_client_address);
+    msconnector_error_init(&error);
+    msconnector_decision_init(&decision);
+    assert(!msconnector_runtime_transaction_begin(runtime, &request, "oversized-escaped",
+        &transaction, &decision, &error));
+    assert(transaction == NULL);
+    assert(error.code == MSCONNECTOR_ERROR_EVENT_TOO_LARGE);
+
+    event_file = fopen(event_path, "r");
+    assert(event_file != NULL);
+    size = fread(contents, 1U, sizeof(contents), event_file);
+    assert(ferror(event_file) == 0);
+    assert(fclose(event_file) == 0);
+    assert(size == 0U);
+
+    assert(msconnector_test_begin_transaction(runtime, "/blocked", "post-oversized",
+        &transaction, &decision, &error));
+    assert(transaction != NULL);
+    assert(msconnector_decision_action_from_decision(&decision) ==
+        MSCONNECTOR_DECISION_ACTION_DENY);
+    assert(msconnector_runtime_transaction_finish(transaction, &error));
+    msconnector_runtime_transaction_destroy(&transaction);
+
+    event_file = fopen(event_path, "r");
+    assert(event_file != NULL);
+    size = fread(contents, 1U, sizeof(contents) - 1U, event_file);
+    assert(ferror(event_file) == 0);
+    assert(fclose(event_file) == 0);
+    contents[size] = '\0';
+    assert(strstr(contents, "\"transaction_id\":\"post-oversized\"") != NULL);
+    assert(event_json_unsigned_field(contents, "\"previous_event_hash\":") == 0U);
+    assert(newline_count(contents) == 1U);
 
     msconnector_runtime_destroy(&runtime);
     assert(unlink(config_path) == 0);
@@ -338,6 +463,120 @@ static int finish_response(
         return 0;
     }
     return 1;
+}
+
+static void initialize_forwardauth_request(msconnector_request *request,
+    const unsigned char *body, size_t body_size) {
+    assert(request != NULL);
+    assert((body_size == 0U && body == NULL) || (body_size > 0U && body != NULL));
+    memset(request, 0, sizeof(*request));
+    request->method = "POST";
+    request->uri = "/forwardauth-buffered-p2";
+    request->http_version = "HTTP/1.1";
+    request->client.address = "127.0.0.1";
+    request->client.port = 12345;
+    request->server.address = "127.0.0.1";
+    request->server.port = 9192;
+    request->body.data = body;
+    request->body.size = body_size;
+}
+
+static void assert_buffered_forwardauth_handoff(msconnector_runtime *runtime,
+    msconnector_runtime_response_companion_registry *registry,
+    const char *transaction_id, const unsigned char *body, size_t body_size,
+    int assert_second_finish_rejected) {
+    msconnector_runtime_transaction *transaction = NULL;
+    msconnector_runtime_transaction_snapshot snapshot;
+    msconnector_request request;
+    msconnector_decision decision;
+    msconnector_error error;
+    char handle[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE];
+
+    assert(runtime != NULL);
+    assert(registry != NULL);
+    assert(transaction_id != NULL);
+    initialize_forwardauth_request(&request, body, body_size);
+    msconnector_error_init(&error);
+    msconnector_decision_init(&decision);
+    assert(msconnector_runtime_transaction_begin(runtime, &request, transaction_id,
+        &transaction, &decision, &error));
+    assert(transaction != NULL);
+    assert(msconnector_decision_action_from_decision(&decision) ==
+        MSCONNECTOR_DECISION_ACTION_ALLOW);
+    assert(msconnector_runtime_transaction_snapshot_get(transaction, &snapshot));
+    assert(snapshot.request_body.finished);
+    assert(snapshot.request_body.bytes_seen == body_size);
+    assert(snapshot.request_body.bytes_inspected == body_size);
+    assert(!snapshot.request_body.truncated);
+    assert(snapshot.request_body.limit_outcome == MSCONNECTOR_BODY_LIMIT_OUTCOME_NONE);
+    assert(snapshot.contract.request_body_bytes == body_size);
+    assert(snapshot.contract.completed_phase_mask ==
+        (MSCONNECTOR_TRANSACTION_PHASE_MASK_P1 | MSCONNECTOR_TRANSACTION_PHASE_MASK_P2));
+    assert(snapshot.contract.status == MSCONNECTOR_TRANSACTION_STATUS_WAITING_FOR_NEXT_PHASE);
+
+    if (assert_second_finish_rejected) {
+        msconnector_error_init(&error);
+        msconnector_decision_init(&decision);
+        assert(!msconnector_runtime_transaction_finish_request_body(transaction,
+            &decision, &error));
+        assert(error.code == MSCONNECTOR_ERROR_INTERNAL);
+    }
+
+    msconnector_error_init(&error);
+    assert(msconnector_runtime_response_companion_handoff_with_handle(registry,
+        transaction, UINT64_C(60000), handle, &error));
+    assert(strlen(handle) == MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE - 1U);
+    transaction = NULL;
+    assert(finish_response(registry, handle));
+}
+
+/* The direct Common regression deliberately bypasses Traefik HTTP parsing.
+ * It proves only that the selected forwardAuth profile completes buffered P2
+ * for both legal empty and bounded non-empty bodies before its P3/P4 companion
+ * takes ownership of the live transaction. */
+static void test_traefik_forwardauth_buffered_p2_handoff(void) {
+    static const unsigned char request_body[] = "traefik-forwardauth-p2";
+    char config_path[TEST_PATH_SIZE];
+    char event_path[TEST_PATH_SIZE];
+    char rules_path[TEST_PATH_SIZE];
+    msconnector_runtime *runtime = NULL;
+    msconnector_runtime_response_companion_registry registry;
+    msconnector_runtime_transaction *invalid_transaction = NULL;
+    msconnector_request invalid_request;
+    msconnector_decision decision;
+    msconnector_error error;
+
+    create_runtime_fixture(config_path, event_path, rules_path,
+        "SecRuleEngine DetectionOnly\n", "buffered", "safe");
+    assert(msconnector_runtime_create("traefik", config_path, &runtime, NULL, 0U));
+    assert(msconnector_runtime_set_event_integration_mode(runtime, "forwardAuth"));
+    assert(msconnector_runtime_set_transaction_profile(runtime,
+        msconnector_profile_registry_find("traefik-forwardauth")));
+    msconnector_runtime_response_companion_registry_init(&registry);
+
+    /* A non-empty body needs a borrowed buffer. The same runtime must remain
+     * usable for both legal body forms after this fail-closed validation. */
+    initialize_forwardauth_request(&invalid_request, request_body,
+        sizeof(request_body) - 1U);
+    invalid_request.body.data = NULL;
+    msconnector_error_init(&error);
+    msconnector_decision_init(&decision);
+    assert(!msconnector_runtime_transaction_begin(runtime, &invalid_request,
+        "forwardauth-invalid-body", &invalid_transaction, &decision, &error));
+    assert(invalid_transaction == NULL);
+    assert(error.code == MSCONNECTOR_ERROR_HOST_API_FAILURE);
+
+    assert_buffered_forwardauth_handoff(runtime, &registry,
+        "forwardauth-empty-body", NULL, 0U, 0);
+    assert_buffered_forwardauth_handoff(runtime, &registry,
+        "forwardauth-nonempty-body", request_body, sizeof(request_body) - 1U, 1);
+
+    msconnector_error_init(&error);
+    assert(msconnector_runtime_response_companion_registry_shutdown(&registry, &error));
+    msconnector_runtime_destroy(&runtime);
+    assert(unlink(config_path) == 0);
+    assert(unlink(event_path) == 0);
+    assert(unlink(rules_path) == 0);
 }
 
 static void *run_parallel_response(void *opaque) {
@@ -475,8 +714,10 @@ int main(void) {
     assert(unlink(rules_path) == 0);
     test_strict_profile_admission_is_fail_closed();
     test_regular_block_emits_one_terminal_event();
-    test_lossy_event_is_not_written_or_chained();
+    test_escaped_invalid_client_address_is_written_and_chained();
+    test_oversized_escaped_client_address_is_not_written_or_chained();
     test_buffered_request_body_handoff();
+    test_traefik_forwardauth_buffered_p2_handoff();
     assert(rmdir(test_private_root) == 0);
     return 0;
 }

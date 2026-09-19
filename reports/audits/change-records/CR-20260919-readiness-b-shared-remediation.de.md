@@ -375,3 +375,39 @@ Dokumentations-Targets bleiben wahrheitsgemäß durch den fehlenden Framework-
 Gitlink blockiert. Der offene Draft-PR ist
 [#370](https://github.com/Easton97-Jens/ModSecurity-conector/pull/370). Die
 verbleibende Runtime-Evidenz bleibt Follow-up-Pflicht.
+
+## Nachweis der C-Follow-up-Regression — 2026-09-19
+
+Dieses Parent-only- und test-only-Follow-up macht den fokussierten C-
+Companion-Test wahrheitsgemäß und schützt unmittelbar den gepufferten
+`traefik-forwardauth`-Lebenszyklus. Es ändert weder Common-Runtime-Verhalten,
+eine Traefik-Konfiguration, eine Host-Binärdatei noch eine Reifeeinstufung.
+
+- Das Test-Fixture erstellt sein privates Event-Verzeichnis nun aus einem
+  absoluten Arbeitsverzeichnis-Pfad. Die Test-Binärdatei läuft aus ihrem
+  registrierten externen Build-Child; damit bleibt die beabsichtigte Ablehnung
+  relativer/no-follow-Parent-Komponenten durch den Produkt-Event-Sink erhalten.
+- Ein begrenztes rohes ungültiges Client-Adressbyte (`0x80`) wird korrekt als
+  `\u0080` JSON-escaped, als ein Event ohne rohes ungültiges Byte geschrieben
+  und von einer Transaktion gefolgt, deren `previous_event_hash` dem ersten
+  Event-Hash entspricht. Eine 63-Byte-Adresse mit Escape-Expansion schlägt
+  stattdessen mit `MSCONNECTOR_ERROR_EVENT_TOO_LARGE` vor einem Write oder
+  Hash-Chain-Advance fehl; ein nachfolgendes gewöhnliches Event beginnt mit
+  `previous_event_hash` null.
+- Das exakte `traefik-forwardauth`-Profil im `forwardAuth`-`buffered`-Modus
+  besitzt nun direkte C-Abdeckung für explizit leere und begrenzt nicht
+  leere Bodies. Der Test prüft abgeschlossene P2-Metadaten/-Zähler, `P1|P2`,
+  keine Kürzung, die Ablehnung einer zweiten P2-Finalisierung, opake
+  Response-Companion-Übergabe und P3/P4-Abschluss. Ein nicht leerer
+  Null-Body-Pointer wird fail-closed abgelehnt.
+
+Strikte C17-Full-Test-Builds und -Ausführungen bestanden mit `cc` und `clang`,
+mit `-Wall -Wextra -Werror`, task-owned externem Output und 120-Sekunden-
+Limits. `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v
+tests.test_traefik_forwardauth_p2_contract` bestand 7/7; `make
+check-common-security-contract` und `git diff --check` bestanden. Unabhängige
+Security- und Test-Reviews fanden keinen plausiblen Befund in diesem Testdiff.
+
+Dies ist ausschließlich Common-Runtime-Regressions-Evidenz: Der Test umgeht
+absichtlich Traefik-HTTP-Parsing und beweist daher weder `Content-Length`-
+Verhalten noch ein tatsächliches Traefik-Host-Ergebnis oder B-Klassen-Reife.

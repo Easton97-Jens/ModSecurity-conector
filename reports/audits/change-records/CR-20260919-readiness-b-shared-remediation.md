@@ -345,3 +345,37 @@ still needs real-host evidence. Repository-wide documentation targets remain
 truthfully blocked by the missing Framework Gitlink. The open Draft PR is
 [#370](https://github.com/Easton97-Jens/ModSecurity-conector/pull/370). The
 remaining runtime evidence remains a follow-up requirement.
+
+## Follow-up C regression evidence — 2026-09-19
+
+This Parent-only, test-only follow-up makes the focused C companion test
+truthful and directly protects the buffered `traefik-forwardauth` lifecycle.
+It does not change Common runtime behavior, a Traefik configuration, a host
+binary, or any readiness classification.
+
+- The test fixture now creates its private event directory from an absolute
+  current-working-directory path. The test binary runs from its registered
+  external build child; this preserves the product event sink's deliberate
+  rejection of relative/no-follow parent components.
+- A bounded raw invalid client-address byte (`0x80`) is correctly JSON escaped
+  as `\u0080`, written as one event without a raw invalid byte, and followed
+  by a transaction whose `previous_event_hash` equals the first event hash.
+  A 63-byte escaping-expanding address instead fails with
+  `MSCONNECTOR_ERROR_EVENT_TOO_LARGE` before a write or hash-chain advance; a
+  subsequent ordinary event starts with `previous_event_hash` zero.
+- The exact `traefik-forwardauth` profile in `forwardAuth` plus `buffered`
+  mode now has direct C coverage for explicit empty and bounded non-empty
+  bodies. It checks finished P2 metadata/counters, `P1|P2`, no truncation,
+  rejection of a second P2 finalization, opaque response-companion transfer,
+  and P3/P4 completion. A non-empty null body pointer is rejected fail closed.
+
+Strict C17 full-test builds and executions passed with both `cc` and `clang`,
+using `-Wall -Wextra -Werror`, task-owned external output, and 120-second
+limits. `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v
+tests.test_traefik_forwardauth_p2_contract` passed 7/7; `make
+check-common-security-contract` and `git diff --check` passed. Independent
+security and test reviews found no plausible finding in this test diff.
+
+This is Common-runtime regression evidence only: it deliberately bypasses
+Traefik HTTP parsing and therefore proves neither `Content-Length` handling,
+an actual Traefik host result, nor B-class readiness.
