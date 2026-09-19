@@ -629,7 +629,9 @@ def parse_candidate_nginx_handoff(common_path: Path) -> dict[str, str]:
     return actual
 
 
-def _verify_framework_sha_contract(root: Path, candidate_sha: str) -> None:
+def _verify_framework_sha_contract(
+    root: Path, expected_parent_framework_sha: str
+) -> None:
     workflow = _read_text(
         _root_relative_path(root, ".github/workflows/test-connectors-with-crs-no-mrts.yml"),
         "CRS/no-MRTS workflow",
@@ -659,15 +661,15 @@ def _verify_framework_sha_contract(root: Path, candidate_sha: str) -> None:
         "CRS/no-MRTS workflow fixture Framework SHA",
     )
     for label, observed in (("workflow", workflow_sha), ("fixture", fixture_sha)):
-        if observed != candidate_sha:
+        if observed != expected_parent_framework_sha:
             raise ContractError(
-                f"CRS/no-MRTS {label} Framework SHA does not match candidate SHA"
+                f"CRS/no-MRTS {label} Framework SHA does not match expected Parent Framework SHA"
             )
     for index, observed in enumerate(literal_framework_shas, start=1):
-        if observed != candidate_sha:
+        if observed != expected_parent_framework_sha:
             raise ContractError(
                 f"CRS/no-MRTS workflow literal Framework SHA consumer {index} "
-                "does not match candidate SHA"
+                "does not match expected Parent Framework SHA"
             )
 
 
@@ -702,11 +704,25 @@ def _verify_parent_nginx_policy(root: Path) -> None:
             )
 
 
-def verify_contract(root: Path, candidate_sha: str, framework_common: Path) -> dict[str, str]:
+def verify_contract(
+    root: Path,
+    candidate_sha: str,
+    framework_common: Path,
+    expected_parent_framework_sha: str | None = None,
+) -> dict[str, str]:
     repository_root = _require_directory(root, "repository root")
     if not HEX40.fullmatch(candidate_sha):
         raise ContractError("candidate SHA must be exactly 40 lowercase hexadecimal characters")
-    _verify_framework_sha_contract(repository_root, candidate_sha)
+    expected_parent_sha = (
+        candidate_sha
+        if expected_parent_framework_sha is None
+        else expected_parent_framework_sha
+    )
+    if not HEX40.fullmatch(expected_parent_sha):
+        raise ContractError(
+            "expected Parent Framework SHA must be exactly 40 lowercase hexadecimal characters"
+        )
+    _verify_framework_sha_contract(repository_root, expected_parent_sha)
     nginx = parse_candidate_nginx_handoff(framework_common)
     _verify_parent_nginx_policy(repository_root)
     _verify_unprotected_nginx_handoff(repository_root, nginx)
@@ -718,9 +734,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--repo-root", type=Path, default=Path(__file__).parents[2])
     parser.add_argument("--candidate-sha", required=True)
     parser.add_argument("--framework-common", type=Path, required=True)
+    parser.add_argument("--expected-parent-framework-sha")
     args = parser.parse_args(argv)
     try:
-        nginx = verify_contract(args.repo_root, args.candidate_sha, args.framework_common)
+        nginx = verify_contract(
+            args.repo_root,
+            args.candidate_sha,
+            args.framework_common,
+            args.expected_parent_framework_sha,
+        )
     except (ContractError, OSError) as error:
         print(f"verify-framework-candidate-contract: error: {error}")
         return 2
@@ -728,6 +750,11 @@ def main(argv: list[str] | None = None) -> int:
         json.dumps(
             {
                 "candidate_sha": args.candidate_sha,
+                "expected_parent_framework_sha": (
+                    args.candidate_sha
+                    if args.expected_parent_framework_sha is None
+                    else args.expected_parent_framework_sha
+                ),
                 "nginx_release_tag": nginx["release_tag"],
                 "status": "verified",
             },

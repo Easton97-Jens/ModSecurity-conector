@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+import re
 import shutil
 import sys
 import tempfile
@@ -33,6 +34,7 @@ SYNC_SPEC.loader.exec_module(SYNC)
 
 
 CANDIDATE_SHA = "d4f7b69dc264852eac74e1439c0887fcb9fbe372"
+CURRENT_PARENT_FRAMEWORK_SHA = "0" * 40
 GENERIC_SOURCE_COMMON = """\
 ENVOY_VERSION="1.39.1"
 LIGHTTPD_SERIES="1.4"
@@ -117,6 +119,34 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
         )
         return {self.root / path: (self.root / path).read_bytes() for path in paths}
 
+    def set_static_parent_framework_sha(self, framework_sha: str) -> None:
+        workflow = self.root / ".github/workflows/test-connectors-with-crs-no-mrts.yml"
+        workflow_text = workflow.read_text(encoding="utf-8")
+        expected_pattern = re.compile(
+            rf"(?m)^( {{6}}EXPECTED_FRAMEWORK_SHA:[ \t]*){CANDIDATE_SHA}$"
+        )
+        workflow_text, expected_count = expected_pattern.subn(
+            rf"\g<1>{framework_sha}", workflow_text
+        )
+        literal_pattern = re.compile(
+            rf"(?m)^( {{10}}FRAMEWORK_SHA:[ \t]*){CANDIDATE_SHA}$"
+        )
+        workflow_text, literal_count = literal_pattern.subn(
+            rf"\g<1>{framework_sha}", workflow_text
+        )
+        self.assertEqual(expected_count, 1)
+        self.assertEqual(literal_count, 3)
+        workflow.write_text(workflow_text, encoding="utf-8")
+
+        fixture = self.root / "tests/test_ci_security_workflows.py"
+        fixture_text, fixture_count = re.subn(
+            rf'(?m)^(WITH_CRS_NO_MRTS_FRAMEWORK_SHA[ \t]*=[ \t]*"){CANDIDATE_SHA}("[ \t]*)$',
+            rf"\g<1>{framework_sha}\g<2>",
+            fixture.read_text(encoding="utf-8"),
+        )
+        self.assertEqual(fixture_count, 1)
+        fixture.write_text(fixture_text, encoding="utf-8")
+
     def test_current_parent_contract_matches_the_candidate_without_writing(self) -> None:
         before = self.parent_bytes()
         values = VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
@@ -130,6 +160,22 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("NGINX_RELEASE_TAG: release-1.31.4", protected_workflow)
         self.assertIn('NGINX_PINNED_RELEASE_TAG = "release-1.31.4"', protected_broker)
+
+    def test_current_parent_projection_can_be_checked_before_candidate_projection(
+        self,
+    ) -> None:
+        self.set_static_parent_framework_sha(CURRENT_PARENT_FRAMEWORK_SHA)
+        before = self.parent_bytes()
+        values = VERIFIER.verify_contract(
+            self.root,
+            CANDIDATE_SHA,
+            self.common,
+            expected_parent_framework_sha=CURRENT_PARENT_FRAMEWORK_SHA,
+        )
+        self.assertEqual(values["release_tag"], "release-1.31.5")
+        self.assertEqual(before, self.parent_bytes())
+        with self.assertRaisesRegex(VERIFIER.ContractError, "expected Parent Framework SHA"):
+            VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
 
     def test_mutable_source_field_allowlist_matches_the_generic_registry(self) -> None:
         self.assertEqual(tuple(SYNC.SOURCE_FIELDS), VERIFIER.MUTABLE_SOURCE_FIELDS)
@@ -427,9 +473,28 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
                     CANDIDATE_SHA,
                     "--framework-common",
                     str(self.common),
+                    "--expected-parent-framework-sha",
+                    CANDIDATE_SHA,
                 )
             ),
             0,
+        )
+
+    def test_cli_rejects_an_invalid_expected_parent_framework_sha(self) -> None:
+        self.assertEqual(
+            VERIFIER.main(
+                (
+                    "--repo-root",
+                    str(self.root),
+                    "--candidate-sha",
+                    CANDIDATE_SHA,
+                    "--framework-common",
+                    str(self.common),
+                    "--expected-parent-framework-sha",
+                    "A" * 40,
+                )
+            ),
+            2,
         )
 
 

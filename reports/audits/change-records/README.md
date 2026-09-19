@@ -10,6 +10,14 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260919-update-submodule-sha-projection](CR-20260919-update-submodule-sha-projection.md)
+  | [Deutsch](CR-20260919-update-submodule-sha-projection.de.md) — the current
+  user requested this Parent-only repair for linked GitHub Actions run
+  35441775719. It records the closed static-SHA projection correction, focused
+  local tests, independent static security review, and pending delivery
+  evidence. No Framework/MRTS source, Gitlink update, hosted rerun, or merge is
+  asserted.
+
 - [CR-20260916-general-state-finding-remediation](CR-20260916-general-state-finding-remediation.md)
   | [Deutsch](CR-20260916-general-state-finding-remediation.de.md) — the
   current user explicitly authorized safe remediation in existing Parent Draft
