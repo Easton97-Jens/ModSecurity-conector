@@ -35,6 +35,9 @@ SYNC_SPEC.loader.exec_module(SYNC)
 
 CANDIDATE_SHA = "d4f7b69dc264852eac74e1439c0887fcb9fbe372"
 CURRENT_PARENT_FRAMEWORK_SHA = "0" * 40
+REVIEWED_FRAMEWORK_COMMON_STRUCTURE_SHA256 = (
+    "7ad268af3baa17d2c2e9b5857ced2138684fab70e5066ddddd6f3656e8baa6af"
+)
 GENERIC_SOURCE_COMMON = """\
 ENVOY_VERSION="1.39.1"
 LIGHTTPD_SERIES="1.4"
@@ -69,6 +72,9 @@ NGINX_RELEASE_TAG="release-1.31.5"
 NGINX_SOURCE_GIT_REF="$NGINX_RELEASE_TAG"
 NGINX_RELEASE_ASSET_NAME="nginx-${NGINX_RELEASE_TAG#release-}.tar.gz"
 NGINX_SHA256="e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279"
+OPENSSL_SHA256="736b467530f916737b7031310ccb21d8218c6229e61e8e160cd1d3458cd543a8"
+CI_SECURITY_TOOL_OSV_SCANNER_COMMIT="e840a6e8adb14b7777c78e26cfbf6e2abc1d1fc6"
+CI_SECURITY_TOOL_RUFF_COMMIT="b5dba861cc38e3f7fb4524c9ceba3e01a474ea13"
 """
 
 
@@ -161,6 +167,12 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
         self.assertIn("NGINX_RELEASE_TAG: release-1.31.4", protected_workflow)
         self.assertIn('NGINX_PINNED_RELEASE_TAG = "release-1.31.4"', protected_broker)
 
+    def test_production_review_digest_matches_the_reviewed_candidate(self) -> None:
+        self.assertEqual(
+            self.approved_common_structure_sha256,
+            REVIEWED_FRAMEWORK_COMMON_STRUCTURE_SHA256,
+        )
+
     def test_current_parent_projection_can_be_checked_before_candidate_projection(
         self,
     ) -> None:
@@ -220,6 +232,31 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(VERIFIER.ContractError, "approved reviewed structure"):
             VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
+
+    def test_unreviewed_maintenance_pin_changes_fail_the_structure_boundary(self) -> None:
+        replacements = (
+            (
+                "OPENSSL_SHA256=\"736b467530f916737b7031310ccb21d8218c6229e61e8e160cd1d3458cd543a8\"",
+                "OPENSSL_SHA256=\"0\"",
+            ),
+            (
+                "CI_SECURITY_TOOL_OSV_SCANNER_COMMIT=\"e840a6e8adb14b7777c78e26cfbf6e2abc1d1fc6\"",
+                "CI_SECURITY_TOOL_OSV_SCANNER_COMMIT=\"0\"",
+            ),
+            (
+                "CI_SECURITY_TOOL_RUFF_COMMIT=\"b5dba861cc38e3f7fb4524c9ceba3e01a474ea13\"",
+                "CI_SECURITY_TOOL_RUFF_COMMIT=\"0\"",
+            ),
+        )
+        for expected, replacement in replacements:
+            with self.subTest(expected=expected):
+                self.common.write_text(
+                    CANDIDATE_COMMON.replace(expected, replacement), encoding="utf-8"
+                )
+                with self.assertRaisesRegex(
+                    VERIFIER.ContractError, "approved reviewed structure"
+                ):
+                    VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
 
     def test_stale_framework_sha_fails_closed_without_parent_writes(self) -> None:
         workflow = self.root / ".github/workflows/test-connectors-with-crs-no-mrts.yml"

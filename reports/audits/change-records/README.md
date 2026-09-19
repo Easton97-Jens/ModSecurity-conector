@@ -10,6 +10,14 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260919-framework-candidate-review-digest](CR-20260919-framework-candidate-review-digest.md)
+  | [Deutsch](CR-20260919-framework-candidate-review-digest.de.md) — the
+  current user requested this Parent-only repair for linked GitHub Actions run
+  `35449797036`. It replaces the explicitly reviewed Framework `common.sh`
+  structure digest for candidate `cc36b37d0f6a0fbc3512f3878a691751e91c5fbb`,
+  adds fail-closed pin-boundary regression coverage, and leaves Framework/MRTS
+  source, Gitlinks, permissions, hosted reruns, and merge state unchanged.
+
 - [CR-20260919-update-submodule-sha-projection](CR-20260919-update-submodule-sha-projection.md)
   | [Deutsch](CR-20260919-update-submodule-sha-projection.de.md) — the current
   user requested this Parent-only repair for linked GitHub Actions run
