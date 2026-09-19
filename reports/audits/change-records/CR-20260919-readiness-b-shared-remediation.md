@@ -49,6 +49,18 @@ protocol, rule-profile, restart, lifecycle, and observability evidence.
 - Derive the native Traefik server endpoint from `http.LocalAddrContextKey`;
   request `Host` remains request metadata and is not trusted as the local
   engine endpoint.
+- Extend the isolated Apache bootstrap fixture with a fixed synthetic P2 body
+  marker, `RelevantOnly` serial audit logging limited to `ABFZ`, a raw-marker
+  exclusion assertion, and a same-process allow follow-up. This is a bounded
+  regression/harness control; it is not proof of the historical FND-1098
+  terminal sequence or Apache B readiness.
+- Replace the timing-dependent stock Lighttpd loopback TCP-reset test with a
+  compiled source-contract harness. A static assertion anchors the
+  post-`finish_request_body` P2 branch to `sidecar_finish_decision`; the
+  harness then invokes that production terminal function with a constructed P2
+  decision and asserts the real abort host action, rule correlation, and
+  transaction finalization. It does not dynamically execute the full P2
+  pipeline.
 
 ## Security impact
 
@@ -56,9 +68,15 @@ This work affects supply-chain pinning, archive ownership, external build
 output boundaries, and untrusted HTTP endpoint provenance. The corrections
 retain fail-closed behavior on unavailable or malformed endpoints and prevent
 request-controlled host metadata from becoming a local UDS/engine endpoint.
-They do not close the separately tracked same-UID UDS pathname-replacement
-risk (`FND-PARENT-0015`), and they do not establish effective rule-profile
-coverage for the 2026 `t:hexDecode` advisory condition.
+The new Apache P2 fixture intentionally limits serial audit parts to `ABFZ`
+and rejects retention of its fixed synthetic request-body marker. It does not
+change the production audit configuration or authorize logging request bodies.
+Focused review found no validated security finding in these bounded harness
+changes; the Lighttpd test's constructed decision remains an explicit evidence
+limitation.
+These corrections do not close the separately tracked same-UID UDS
+pathname-replacement risk (`FND-PARENT-0015`), and they do not establish
+effective rule-profile coverage for the 2026 `t:hexDecode` advisory condition.
 
 ## Changed files
 
@@ -93,10 +111,14 @@ coverage for the 2026 `t:hexDecode` advisory condition.
 | `tests.test_prepare_runtime_components` | Passed: 90 tests; five Framework-HEAD mismatch cases were skipped. |
 | `tests.test_apache_request_transaction_cleanup` | Passed. |
 | `tests.test_apache_apxs_profile_registry_staging` | Passed: 5 cases. |
+| `tests.test_apache_request_transaction_cleanup` and `tests.test_apache_apxs_profile_registry_staging` after the P2 bootstrap-harness update | Passed: 24 cases, including a static P2/audit/no-raw-marker/follow-up harness contract. |
+| `sh -n ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh` | Passed. |
 | Final Apache Autotools host run after hardening with the cached non-root Apache/libModSecurity inputs | Passed locally: module load, allow/block behavior, and the documented transaction-ID controls completed. This is bounded local host evidence, not evidence for every connector or protocol path. |
+| Current Apache P2 bootstrap host control | Blocked before `httpd` start: `chown` of the task-owned non-root runtime directories/files returned `EINVAL` on the current idmapped filesystem. No root-worker substitute was used. |
 | HAProxy SPOP-to-HTX combined bounded host run | Passed locally as a non-root, isolated path using the source-built current SPOP adapter and HAProxy HTX. It is bounded evidence for that combined path, not standalone HTX evidence or full B-class G2–G6/54-case evidence. |
 | `connectors/lighttpd/tests/test_stock_sidecar_contract.py` with `CC=clang` | Passed: 18 tests. |
 | `connectors/lighttpd/tests/test_stock_sidecar_contract.py` with `CC=cc` | Passed: 18 tests. |
+| `connectors.lighttpd.tests.test_stock_sidecar_contract.StockSidecarSourceContractTest` after the deterministic P2 delivery-failure replacement | Passed: 19 tests. It statically anchors the post-`finish_request_body` P2 branch and executes the terminal handoff with a constructed decision; it is not a dynamic P2 or Stock-host runtime proof. |
 | Native Traefik Go module `go test -mod=readonly ./...` | Passed. |
 | Native Traefik `go vet ./...` and `gofmt -d` review | Passed; `gofmt -d` produced no diff. |
 | Native Traefik `FuzzUDSFrameAndResult` for 15 seconds | Passed. |
@@ -123,6 +145,15 @@ blocked only by the separately owned, unmaterialized Framework Gitlink. The
 table above records the actual observed outcomes; no unobserved hosted or
 production command is represented as executed.
 
+The follow-up validation ran `sh -n
+ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh`, `python3 -m
+unittest -v tests.test_apache_request_transaction_cleanup
+tests.test_apache_apxs_profile_registry_staging`, and `python3 -m unittest -v
+connectors.lighttpd.tests.test_stock_sidecar_contract.StockSidecarSourceContractTest`.
+The attempted bounded non-root Apache P2 bootstrap reached configuration syntax
+but stopped before server start when the task-owned runtime ownership handoff
+returned `EINVAL`; it is recorded as blocked rather than passed.
+
 ## Runtime evidence
 
 The final Apache bootstrap and HAProxy SPOP-to-HTX combined runs are actual
@@ -133,6 +164,12 @@ module evidence; they are not substitutes for an independently started
 production host with the required rules, lifecycle controls, logs, metrics,
 restart, HTTP/1.1, HTTP/2, and HTTP/3 evidence. No assertion is made that all
 ten integration paths now have B-class runtime evidence.
+
+The new Apache P2 assertions and Lighttpd P2 delivery-failure test add only
+bounded harness/source-contract evidence. The current P2 Apache host attempt
+did not start `httpd`, so it adds no runtime-evidence promotion and does not
+establish FND-1098's first terminal cause. The Lighttpd harness likewise does
+not dynamically execute `finish_request_body` or establish the full P2 path.
 
 ## Checks not run and rationale
 
@@ -149,6 +186,9 @@ ten integration paths now have B-class runtime evidence.
   are not yet available and must not be inferred from local checks. The
   repository-wide bilingual/link target preconditions are likewise blocked by
   the separately owned unmaterialized Framework Gitlink.
+- The current Apache P2 bootstrap host control is not run to completion because
+  the necessary task-root `www-data` ownership handoff fails with `EINVAL` on
+  the current idmapped filesystem. A root-worker substitute is prohibited.
 
 ## Known limitations
 

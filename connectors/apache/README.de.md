@@ -143,8 +143,13 @@ make check-apache-autotools-bootstrap
 Sie erzeugt ein Source-Archiv, das nur getrackte Dateien enthält, führt die
 obigen Befehle aus, validiert eine isolierte Loopback-Apache-Konfiguration,
 lädt das mit Autotools gebaute Modul und prüft eine erlaubte Anfrage mit `200`
-sowie eine ModSecurity-Regel mit `403`. In einem sauberen Checkout,
-einschließlich CI, entspricht dieses Archiv exakt `HEAD`. Bei einem lokalen
+sowie eine ModSecurity-Regel mit `403`. Sie sendet außerdem einen festen
+synthetischen P2-Request-Body-Marker und fordert `403`, einen nichtleeren
+seriellen `RelevantOnly`-Audit-Record mit `ABFZ`-Teilen, der den rohen Marker
+ausschließt, sowie einen `200`-Follow-up in demselben Prozess. Dies sind
+begrenzte Harness-Controls, keine Aussage über ein vollständiges Regelprofil,
+eine Matrix oder B-Reife. In einem sauberen Checkout, einschließlich CI,
+entspricht dieses Archiv exakt `HEAD`. Bei einem lokalen
 Pre-Commit-Lauf wendet die Prüfung nur `git diff HEAD` an, um getrackte
 Änderungen zu prüfen; ungetrackte Dateien werden nie importiert. Der temporäre
 ServerRoot und der nicht privilegierte Loopback-Port werden am Ende entfernt.

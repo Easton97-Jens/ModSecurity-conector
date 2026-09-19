@@ -53,6 +53,18 @@ Restart, Lifecycle und Observability.
 - Das native Traefik leitet den Server-Endpoint aus `http.LocalAddrContextKey`
   ab; Request-`Host` bleibt Request-Metadatum und wird nicht als lokaler
   Engine-Endpoint vertraut.
+- Die isolierte Apache-Bootstrap-Fixture erhält einen festen synthetischen
+  P2-Body-Marker, serielles `RelevantOnly`-Audit-Logging mit `ABFZ`, eine
+  Assertion zum Ausschluss des rohen Markers und einen Allow-Follow-up im
+  selben Prozess. Dies ist ein begrenzter Regressions-/Harness-Control, kein
+  Nachweis der historischen FND-1098-Terminalsequenz oder der Apache-B-Reife.
+- Der timing-abhängige Stock-Lighttpd-Loopback-TCP-Reset-Test wird durch einen
+  kompilierten Source-Contract-Harness ersetzt. Eine statische Assertion
+  verankert den P2-Zweig nach `finish_request_body` an
+  `sidecar_finish_decision`; der Harness ruft diese produktive Terminalfunktion
+  danach mit einer konstruierten P2-Decision auf und prüft echte
+  Abort-Host-Action, Regelkorrelation und Transaction-Finalisierung. Er führt
+  nicht dynamisch die vollständige P2-Pipeline aus.
 
 ## Security-Auswirkung
 
@@ -60,7 +72,14 @@ Diese Arbeit betrifft Supply-Chain-Pinning, Archive-Ownership, externe
 Build-Output-Grenzen und Provenance von nicht vertrauenswürdigen HTTP-
 Endpoints. Die Korrekturen bewahren Fail-Closed-Verhalten bei fehlenden oder
 fehlerhaften Endpoints und verhindern, dass request-kontrollierte Host-
-Metadaten zu einem lokalen UDS-/Engine-Endpoint werden. Sie schließen weder
+Metadaten zu einem lokalen UDS-/Engine-Endpoint werden. Die neue Apache-P2-
+Fixture beschränkt serielle Audit-Parts bewusst auf `ABFZ`
+und weist die Speicherung ihres festen synthetischen Request-Body-Markers
+zurück. Sie ändert weder die produktive Audit-Konfiguration noch autorisiert
+sie das Logging von Request-Bodys. Das fokussierte Review ergab keinen
+validierten Sicherheitsbefund in diesen
+begrenzten Harness-Änderungen; die konstruierte Lighttpd-Decision bleibt eine
+explizite Evidenzgrenze. Die Korrekturen schließen weder
 das separat verfolgte Same-UID-UDS-Pathname-Replacement-Risiko
 (`FND-PARENT-0015`) noch weisen sie eine wirksame Regelprofilabdeckung für die
 2026-`t:hexDecode`-Advisory-Bedingung nach.
@@ -98,10 +117,14 @@ das separat verfolgte Same-UID-UDS-Pathname-Replacement-Risiko
 | `tests.test_prepare_runtime_components` | Bestanden: 90 Tests; fünf Framework-HEAD-Mismatch-Fälle wurden übersprungen. |
 | `tests.test_apache_request_transaction_cleanup` | Bestanden. |
 | `tests.test_apache_apxs_profile_registry_staging` | Bestanden: 5 Fälle. |
+| `tests.test_apache_request_transaction_cleanup` und `tests.test_apache_apxs_profile_registry_staging` nach dem P2-Bootstrap-Harness-Update | Bestanden: 24 Fälle, einschließlich eines statischen P2-/Audit-/No-Raw-Marker-/Follow-up-Harness-Contracts. |
+| `sh -n ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh` | Bestanden. |
 | Finaler Apache-Autotools-Host-Lauf nach Hardening mit den gecachten nicht privilegierten Apache-/libModSecurity-Inputs | Lokal bestanden: Modul-Laden, Allow-/Block-Verhalten und die dokumentierten Transaction-ID-Controls wurden abgeschlossen. Dies ist begrenzte lokale Host-Evidenz, keine Evidenz für jeden Connector- oder Protokollpfad. |
+| Aktueller Apache-P2-Bootstrap-Host-Control | Vor `httpd`-Start blockiert: `chown` der task-eigenen nicht privilegierten Runtime-Verzeichnisse/-Dateien lieferte auf dem aktuellen idgemappten Dateisystem `EINVAL`. Es wurde kein Root-Worker-Ersatz verwendet. |
 | HAProxy-SPOP-zu-HTX-Combined-bounded-Host-Lauf | Lokal als nicht privilegierter isolierter Pfad mit dem source-gebauten aktuellen SPOP-Adapter und HAProxy HTX bestanden. Dies ist begrenzte Evidenz für diesen Combined-Pfad, keine Standalone-HTX-Evidenz und keine vollständige B-Klassen-G2–G6-/54-Fälle-Evidenz. |
 | `connectors/lighttpd/tests/test_stock_sidecar_contract.py` mit `CC=clang` | Bestanden: 18 Tests. |
 | `connectors/lighttpd/tests/test_stock_sidecar_contract.py` mit `CC=cc` | Bestanden: 18 Tests. |
+| `connectors.lighttpd.tests.test_stock_sidecar_contract.StockSidecarSourceContractTest` nach dem deterministischen P2-Delivery-Failure-Ersatz | Bestanden: 19 Tests. Er verankert statisch den P2-Zweig nach `finish_request_body` und führt den Terminal-Handoff mit einer konstruierten Decision aus; dies ist kein dynamischer P2- oder Stock-Host-Runtime-Nachweis. |
 | Natives Traefik-Go-Modul `go test -mod=readonly ./...` | Bestanden. |
 | Natives Traefik `go vet ./...` und `gofmt -d`-Review | Bestanden; `gofmt -d` erzeugte keinen Diff. |
 | Natives Traefik `FuzzUDSFrameAndResult` für 15 Sekunden | Bestanden. |
@@ -130,6 +153,16 @@ Gitlink blockiert. Die obige Tabelle hält die tatsächlich beobachteten
 Ergebnisse fest; kein unbeobachteter Hosted- oder Produktionsbefehl wird als
 ausgeführt dargestellt.
 
+Die Follow-up-Validierung führte `sh -n
+ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh`, `python3 -m
+unittest -v tests.test_apache_request_transaction_cleanup
+tests.test_apache_apxs_profile_registry_staging` und `python3 -m unittest -v
+connectors.lighttpd.tests.test_stock_sidecar_contract.StockSidecarSourceContractTest`
+aus. Der versuchte begrenzte nicht privilegierte Apache-P2-Bootstrap erreichte
+die Konfigurationssyntax, stoppte jedoch vor dem Serverstart, als der Ownership-
+Handoff des task-eigenen Runtime-Roots `EINVAL` lieferte; er wird als blockiert
+und nicht als bestanden dokumentiert.
+
 ## Runtime-Evidence
 
 Der finale Apache-Bootstrap- und der HAProxy-SPOP-zu-HTX-Combined-Lauf sind
@@ -141,6 +174,13 @@ ersetzen keinen unabhängig gestarteten Produktivhost mit den erforderlichen
 Regeln, Lifecycle-Controls, Logs, Metriken, Restart-, HTTP/1.1-, HTTP/2- und
 HTTP/3-Evidenz. Es wird nicht behauptet, dass nun alle zehn Integrationspfade
 B-Klassen-Runtime-Evidenz besitzen.
+
+Die neuen Apache-P2-Assertions und der Lighttpd-P2-Delivery-Failure-Test
+ergänzen nur begrenzte Harness-/Source-Contract-Evidenz. Der aktuelle
+Apache-P2-Host-Versuch startete `httpd` nicht; er liefert daher keine
+Runtime-Evidence-Promotion und weist nicht die erste FND-1098-Terminalursache
+nach. Der Lighttpd-Harness führt ebenso nicht dynamisch
+`finish_request_body` aus und weist nicht den vollständigen P2-Pfad nach.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
@@ -159,6 +199,10 @@ B-Klassen-Runtime-Evidenz besitzen.
   abgeleitet werden. Die Voraussetzungen der repositoryweiten Bilingual-/Link-
   Targets sind ebenso durch den separat besessenen nicht materialisierten
   Framework-Gitlink blockiert.
+- Der aktuelle Apache-P2-Bootstrap-Host-Control lief nicht vollständig, weil
+  der notwendige `www-data`-Ownership-Handoff des Task-Roots auf dem aktuellen
+  idgemappten Dateisystem mit `EINVAL` fehlschlägt. Ein Root-Worker-Ersatz ist
+  verboten.
 
 ## Bekannte Einschränkungen
 

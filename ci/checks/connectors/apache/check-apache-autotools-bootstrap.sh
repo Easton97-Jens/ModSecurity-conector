@@ -181,6 +181,10 @@ CONFIGTEST_LOG="$ROOT_LOG_DIR/configtest.log"
 MODULES_LOG="$ROOT_LOG_DIR/modules.log"
 HTTPD_LOG="$ROOT_LOG_DIR/httpd.log"
 HTTPD_ERROR_LOG="$HTTPD_LOG_DIR/error.log"
+# The native P2 diagnostic deliberately excludes audit-log part C (request
+# body).  It confirms that the denied transaction is audited without retaining
+# the marker payload in the task-owned runtime tree or failure output.
+AUDIT_LOG="$HTTPD_LOG_DIR/audit.log"
 PORT_START=${APACHE_AUTOTOOLS_PORT_START:-18880}
 PORT_SEARCH_LIMIT=${APACHE_AUTOTOOLS_PORT_SEARCH_LIMIT:-50}
 
@@ -364,6 +368,8 @@ cmp -s "$MODULE_PATH" "$RUNTIME_MODULE_PATH" || \
     fail "isolated runtime module differs from the Autotools build output"
 : > "$HTTPD_ERROR_LOG"
 chmod 0600 "$HTTPD_ERROR_LOG"
+: > "$AUDIT_LOG"
+chmod 0600 "$AUDIT_LOG"
 
 : > "$MODULES_FILE"
 append_mpm_if_needed || blocked "Apache has no loadable or static supported MPM"
@@ -394,7 +400,12 @@ DocumentRoot "$RUNTIME_ROOT/htdocs"
 
 modsecurity on
 modsecurity_rules "SecRuleEngine On"
+modsecurity_rules "SecAuditEngine RelevantOnly"
+modsecurity_rules "SecAuditLog \"$AUDIT_LOG\""
+modsecurity_rules "SecAuditLogType Serial"
+modsecurity_rules "SecAuditLogParts ABFZ"
 modsecurity_rules "SecRule REQUEST_URI \"@streq /blocked\" \"id:100001,phase:1,deny,status:403,log\""
+modsecurity_rules "SecRule REQUEST_BODY \"@streq no-crs-request-body-marker\" \"id:1100101,phase:2,deny,status:403,nolog,auditlog\""
 modsecurity_phase4_mode minimal
 modsecurity_phase4_body_limit 1048576
 
@@ -416,7 +427,7 @@ grep -Eq 'security3_module \(shared\)' "$MODULES_LOG" || \
     fail "Autotools module was not loaded as security3_module"
 
 if [ -n "$HTTPD_USER" ]; then
-    chown "$HTTPD_USER" "$RUNTIME_ROOT/run" "$HTTPD_LOG_DIR" "$HTTPD_ERROR_LOG"
+    chown "$HTTPD_USER" "$RUNTIME_ROOT/run" "$HTTPD_LOG_DIR" "$HTTPD_ERROR_LOG" "$AUDIT_LOG"
 fi
 chmod 0700 "$RUNTIME_ROOT/run" "$HTTPD_LOG_DIR"
 : > "$HTTPD_LOG"
@@ -449,6 +460,27 @@ done
 allowed_status=$(curl -sS --max-time 5 -o /dev/null -w "$HTTP_STATUS_FORMAT" "http://127.0.0.1:$PORT/index.html")
 [ "$allowed_status" = 200 ] || \
     fail "allowed loopback request returned HTTP $allowed_status instead of 200"
+
+P2_HEADERS="$ROOT_LOG_DIR/p2-marker.headers"
+curl -sS --max-time 5 -X POST \
+    -H 'Content-Type: text/plain' \
+    --data-binary 'no-crs-request-body-marker' \
+    -D "$P2_HEADERS" -o /dev/null "http://127.0.0.1:$PORT/index.html"
+p2_status=$(awk 'NR == 1 { print $2; exit }' "$P2_HEADERS")
+[ "$p2_status" = 403 ] || \
+    fail "P2 request-body marker returned HTTP $p2_status instead of 403"
+[ -s "$AUDIT_LOG" ] || \
+    fail "P2 request-body marker did not write a relevant audit record"
+if grep -Fq 'no-crs-request-body-marker' "$AUDIT_LOG"; then
+    fail "P2 audit retained raw request-body marker despite ABFZ audit parts"
+fi
+
+FOLLOWUP_HEADERS="$ROOT_LOG_DIR/p2-followup.headers"
+curl -sS --max-time 5 -D "$FOLLOWUP_HEADERS" -o /dev/null "http://127.0.0.1:$PORT/index.html"
+followup_status=$(awk 'NR == 1 { print $2; exit }' "$FOLLOWUP_HEADERS")
+[ "$followup_status" = 200 ] || \
+    fail "same-process follow-up after P2 marker returned HTTP $followup_status instead of 200"
+
 blocked_status=$(curl -sS --max-time 5 -o /dev/null -w "$HTTP_STATUS_FORMAT" "http://127.0.0.1:$PORT/blocked")
 [ "$blocked_status" = 403 ] || \
     fail "ModSecurity loopback rule returned HTTP $blocked_status instead of 403"

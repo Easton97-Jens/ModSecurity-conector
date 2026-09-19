@@ -241,6 +241,45 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
             'chmod 0755 "$RUNTIME_ROOT/htdocs${TXID_LENGTH_PREFIX%/}"', bootstrap
         )
 
+    def test_native_bootstrap_checks_p2_without_retaining_the_body_marker(
+        self,
+    ) -> None:
+        bootstrap = AUTOTOOLS_BOOTSTRAP.read_text(encoding="utf-8")
+
+        self.assertIn('modsecurity_rules "SecAuditEngine RelevantOnly"', bootstrap)
+        self.assertIn('modsecurity_rules "SecAuditLogType Serial"', bootstrap)
+        self.assertIn('modsecurity_rules "SecAuditLogParts ABFZ"', bootstrap)
+        self.assertIn(
+            'modsecurity_rules "SecRule REQUEST_BODY \\"@streq '
+            'no-crs-request-body-marker\\" \\"id:1100101,phase:2,deny,'
+            'status:403,nolog,auditlog\\""',
+            bootstrap,
+        )
+        self.assertIn('P2_HEADERS="$ROOT_LOG_DIR/p2-marker.headers"', bootstrap)
+        self.assertIn(
+            "p2_status=$(awk 'NR == 1 { print $2; exit }' \"$P2_HEADERS\")",
+            bootstrap,
+        )
+        self.assertIn(
+            'if grep -Fq \'no-crs-request-body-marker\' "$AUDIT_LOG"; then',
+            bootstrap,
+        )
+        self.assertIn(
+            'FOLLOWUP_HEADERS="$ROOT_LOG_DIR/p2-followup.headers"', bootstrap
+        )
+        self.assertIn(
+            "followup_status=$(awk 'NR == 1 { print $2; exit }' "
+            '\"$FOLLOWUP_HEADERS\")',
+            bootstrap,
+        )
+        self.assertLess(
+            bootstrap.index("p2_status="), bootstrap.index("followup_status=")
+        )
+        self.assertLess(
+            bootstrap.index("followup_status="),
+            bootstrap.index("blocked_status="),
+        )
+
     def test_native_bootstrap_prints_the_nonroot_httpd_error_log_on_failure(self) -> None:
         bootstrap = AUTOTOOLS_BOOTSTRAP.read_text(encoding="utf-8")
 

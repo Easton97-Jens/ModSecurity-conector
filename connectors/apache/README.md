@@ -138,7 +138,11 @@ make check-apache-autotools-bootstrap
 It creates a source archive containing tracked files only, runs the commands
 above, validates an isolated loopback Apache configuration, loads the
 Autotools-built module, and checks an allowed `200` request plus a ModSecurity
-`403` rule. In a clean checkout, including CI, that archive is exactly `HEAD`.
+`403` rule. It also posts a fixed synthetic P2 request-body marker and requires
+`403`, a nonempty serial `RelevantOnly` audit record with `ABFZ` parts that
+excludes the raw marker, and a same-process `200` follow-up. Those are bounded
+harness controls, not a full rule-profile, matrix, or B-readiness claim. In a
+clean checkout, including CI, that archive is exactly `HEAD`.
 For a pre-commit local run, the check applies only `git diff HEAD` so it can
 exercise tracked edits; it never imports untracked files. Its temporary server
 root and non-privileged loopback port are removed at the end. A direct

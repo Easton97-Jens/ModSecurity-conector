@@ -17,7 +17,6 @@ from pathlib import Path
 import shutil
 import socket
 import socketserver
-import struct
 import subprocess
 import sys
 import tempfile
@@ -1293,6 +1292,123 @@ int main(void) {
             include_directory=include_directory,
         )
 
+    def test_p2_decision_delivery_failure_records_an_abort_host_action(self) -> None:
+        """A constructed P2 decision reaches the abort-recording terminal path.
+
+        A loopback TCP RST cannot establish whether the worker has reached the
+        P2 decision boundary: depending on scheduling it can be consumed before
+        request-body processing or after a successful decision response.  This
+        source contract anchors the production post-`finish_request_body` P2
+        branch to `sidecar_finish_decision`. The focused harness then constructs
+        a disruptive P2 decision, invokes that production terminal handoff, and
+        closes the peer so the real response write observes a deterministic
+        delivery failure. It does not dynamically execute the full P2 pipeline.
+        """
+        compiler = shutil.which(os.environ.get("CC", "cc"))
+        include_directory = Path(os.environ.get("MODSECURITY_INCLUDE_DIR", "/usr/include"))
+        if compiler is None:
+            self.skipTest("requires a C compiler")
+        if not (include_directory / "modsecurity" / "modsecurity.h").is_file():
+            self.skipTest("requires libmodsecurity headers")
+
+        source = SIDECAR_SOURCE.read_text(encoding="utf-8")
+        p2_finish = source.index(
+            "if (!msconnector_runtime_transaction_finish_request_body("
+        )
+        p2_terminal_end = source.index("    return 1;", p2_finish)
+        p2_terminal = source[p2_finish:p2_terminal_end]
+        self.assertIn(
+            "if (msconnector_decision_is_disruptive(&state->decision)) {\n"
+            "        sidecar_finish_decision(state);",
+            p2_terminal,
+        )
+
+        harness_source = r'''
+#define MSCONNECTOR_STOCK_SIDECAR_MAIN
+#define main stock_sidecar_program_main
+#include "__SIDECAR_SOURCE__"
+#undef main
+
+#include <assert.h>
+
+static int host_action_recorded = 0;
+static int transaction_finished = 0;
+
+msconnector_decision_action msconnector_decision_action_from_decision(
+    const msconnector_decision *decision) {
+    assert(decision != NULL);
+    assert(decision->phase == MSCONNECTOR_PHASE_REQUEST_BODY);
+    assert(decision->rule_id != NULL);
+    return MSCONNECTOR_DECISION_ACTION_DENY;
+}
+
+int msconnector_decision_http_status(const msconnector_decision *decision) {
+    assert(decision != NULL);
+    return decision->http_status;
+}
+
+int msconnector_runtime_transaction_record_host_action(
+    msconnector_runtime_transaction *transaction,
+    const msconnector_decision *decision,
+    msconnector_decision_action actual_action,
+    int visible_http_status,
+    const char *transport_result,
+    int connection_aborted,
+    msconnector_error *error) {
+    (void)transaction;
+    (void)error;
+    assert(decision != NULL);
+    assert(decision->phase == MSCONNECTOR_PHASE_REQUEST_BODY);
+    assert(strcmp(decision->rule_id, "9801102") == 0);
+    assert(actual_action == MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION);
+    assert(visible_http_status == 0);
+    assert(strcmp(transport_result, "connection_aborted") == 0);
+    assert(connection_aborted == 1);
+    host_action_recorded = 1;
+    return 1;
+}
+
+int msconnector_runtime_transaction_finish(
+    msconnector_runtime_transaction *transaction, msconnector_error *error) {
+    (void)transaction;
+    (void)error;
+    transaction_finished = 1;
+    return 1;
+}
+
+int main(void) {
+    int pair[2];
+    sidecar_exchange_state state;
+
+    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, pair) == 0);
+    /* The constructed P2 decision is ready before its production terminal
+     * handoff. Closing the peer makes that response write fail
+     * deterministically; unlike a TCP RST it has no scheduling race. */
+    assert(close(pair[1]) == 0);
+    memset(&state, 0, sizeof(state));
+    state.client = pair[0];
+    state.transaction = (msconnector_runtime_transaction *)&state;
+    state.deadline.at_ms = sidecar_now_ms() + 1000U;
+    state.decision.kind = MSCONNECTOR_DECISION_KIND_DENY;
+    state.decision.phase = MSCONNECTOR_PHASE_REQUEST_BODY;
+    state.decision.http_status = 418;
+    state.decision.rule_id = "9801102";
+
+    sidecar_finish_decision(&state);
+
+    assert(host_action_recorded == 1);
+    assert(transaction_finished == 1);
+    assert(state.handled == 1);
+    assert(close(pair[0]) == 0);
+    return 0;
+}
+'''
+        self._compile_and_run_c_harness(
+            harness_source, prefix="stock-sidecar-p2-delivery-failure-",
+            filename="p2_decision_delivery_failure", compiler=compiler,
+            include_directory=include_directory,
+        )
+
 
 class StockSidecarLoopbackContractTest(unittest.TestCase):
     binary: Path
@@ -1833,26 +1949,6 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
             finally:
                 client.close()
             self._wait_for_event(events, "client_cancel")
-
-    def test_client_reset_during_a_rule_block_records_an_abort_host_action(self) -> None:
-        normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
-        rule = 'SecRule REQUEST_BODY "@contains block-reset" "id:9801102,phase:2,deny,status:418,log"'
-
-        with self._fixture(rule, lambda _request: normal) as (sidecar, upstream, events, _config):
-            client = sidecar.connect()
-            try:
-                client.sendall(self._request(body=b"block-reset"))
-                # The complete P2 input has been queued before the RST.  A
-                # reset forces the pending small decision response through
-                # the adapter's failed-delivery path instead of allowing a
-                # normal visible status to be inferred.
-                client.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
-            finally:
-                client.close()
-            event_text = self._wait_for_event(events, '"actual_action":"abort_connection"')
-            self.assertIn('"connection_aborted":true', event_text)
-            self.assertIn('"rule_id":"9801102"', event_text)
-            self.assertEqual(upstream.record_count(), 0)
 
     def test_parallel_capacity_and_connection_reuse_are_bounded(self) -> None:
         normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
