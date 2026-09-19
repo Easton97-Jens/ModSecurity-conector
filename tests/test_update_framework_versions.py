@@ -448,6 +448,18 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
                 ),
             ),
             (
+                "whitespace-only CRLF static slot",
+                NEW_FRAMEWORK_SHA,
+                lambda: workflow.write_text(
+                    original_workflow.replace(
+                        f"FRAMEWORK_SHA: {CANDIDATE_GRAMMAR_PROVENANCE}",
+                        f"FRAMEWORK_SHA:{' ' * 4096}\r\n",
+                        1,
+                    ),
+                    encoding="utf-8",
+                ),
+            ),
+            (
                 "malformed fixture slot",
                 NEW_FRAMEWORK_SHA,
                 lambda: fixture.write_text(

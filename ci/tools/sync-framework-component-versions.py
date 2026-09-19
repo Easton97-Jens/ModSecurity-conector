@@ -378,7 +378,7 @@ EXPECTED_FRAMEWORK_SHA_TARGET = re.compile(
     r"(?m)^(?P<prefix> {6}EXPECTED_FRAMEWORK_SHA:[ \t]*)(?P<value>[0-9a-f]{40})(?P<suffix>[ \t]*)$"
 )
 FRAMEWORK_SHA_ASSIGNMENT = re.compile(
-    r"(?m)^[ \t]*FRAMEWORK_SHA:[ \t]*(?P<value>[^\r\n]*)$"
+    r"(?m)^[ \t]*FRAMEWORK_SHA:(?P<value>[^\r\n]*)(?=\n|\Z)"
 )
 FRAMEWORK_SHA_STATIC_TARGET = re.compile(
     r"(?m)^(?P<prefix> {10}FRAMEWORK_SHA:[ \t]*)(?P<value>[0-9a-f]{40})(?P<suffix>[ \t]*)$"

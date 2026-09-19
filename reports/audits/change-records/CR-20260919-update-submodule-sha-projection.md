@@ -24,6 +24,12 @@ The requested Parent-only repair removes that deterministic ordering deadlock.
 It changes neither Framework nor MRTS source, the Parent gitlink, NGINX
 ownership, protected-broker pins, permissions, or delivery state.
 
+After PR #371 was delivered, SonarQube Cloud reported one task-owned `MAJOR`
+reliability `CODE_SMELL`, `AaC54ukhy0vepUx4k5_k` / `python:S8786`, at
+ci/tools/sync-framework-component-versions.py:381. The Quality Gate was `OK`,
+but `new_violations=1` and `new_code_smells=1`. The user requested a zero-issue
+result, so this record also covers the narrow no-suppression remediation.
+
 ## Acceptance criteria
 
 - A candidate distinct from the current gitlink passes read-only validation
@@ -33,6 +39,12 @@ ownership, protected-broker pins, permissions, or delivery state.
 - Invalid, missing, duplicate, quoted, misplaced, malformed, or dynamically
   aliased static slots fail before a target write; dynamic workflow consumers
   remain unchanged.
+- The generic FRAMEWORK_SHA counter accepts the same normal LF assignments,
+  rejects CRLF/bare-CR assignments as before, and rejects a long
+  whitespace-plus-CRLF malformed slot without a target write.
+- A successor exact-head SonarQube Cloud `OPEN,CONFIRMED` query returns zero
+  issues and zero new violations without a suppression, exclusion, issue
+  acceptance, scanner, workflow, rule, or Quality-Gate change.
 - The explicit publisher allowlist and staging cover only the two newly owned
   projection files, and generic NGINX non-consumption remains enforced.
 - Focused regression tests and the CI-security contract pass locally. Hosted
@@ -52,6 +64,13 @@ the resolver candidate SHA, and then verifies the candidate state. The
 candidate verifier accepts a distinct expected Parent SHA for the pre-write
 comparison. This preserves the existing candidate-origin, structure, NGINX,
 and protected-broker controls without widening the generic source registry.
+
+The generic FRAMEWORK_SHA counting expression no longer divides whitespace
+between two variable-length classes. It captures the whole non-CR/non-LF value
+after the colon and requires a following LF or end-of-file. Its sole consumer
+already trims the capture, so normal LF value semantics remain unchanged while
+the previous CRLF backtracking case fails closed without a super-linear retry.
+No SonarQube Cloud configuration or legitimate control changed.
 
 ## Changed files
 
@@ -77,6 +96,10 @@ workflow permission, generated report, or production runtime source changed.
 - make check-ci-security-contract — passed 153 tests with five expected
   unavailable namespace/identity integration skips.
 - python -m py_compile for changed Python paths and tests — passed.
+- python -m unittest -v tests.test_update_framework_versions — passed 21
+  tests after the SonarQube Cloud remediation.
+- python -m py_compile ci/tools/sync-framework-component-versions.py
+  tests/test_update_framework_versions.py — passed after the remediation.
 
 The commands ran in the isolated task worktree with dedicated temporary and
 bytecode-cache paths. Expected negative-test diagnostics in the test output
@@ -95,12 +118,25 @@ An independent static post-patch review found no reportable security finding.
 It did not execute a hosted workflow and does not replace exact-head delivery
 evidence.
 
+The `python:S8786` observation is a validated reliability/maintainability
+finding, not a confirmed externally exploitable vulnerability: the expression
+matches a fixed Parent workflow target, and malformed target structure still
+fails before a registered write. A fresh post-patch bypass review is required
+before delivery.
+
 ## Runtime evidence
 
 The authoritative failure is [GitHub Actions run 35441775719](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35441775719).
 Secret-free retained local evidence is recorded at
 .codex/runs/20260919-fix-actions-run-35441775719/evidence.md; the current
 artifact hash is retained in that run's hash inventory.
+
+At predecessor head `4affad9cc97383df54a05ec5d35e2c66e7e804b7`, authenticated
+SonarQube Cloud evidence recorded exactly `AaC54ukhy0vepUx4k5_k` /
+`python:S8786`; its Quality Gate was `OK` but it had one new violation and one
+new code smell. Payload-safe task evidence retains the observation, local
+regression result, and the required exact-successor query. No successor-head
+SonarQube Cloud result is claimed here before it is observed.
 
 At Change Record preparation time, there was no hosted workflow result for the
 prospective task head. The authorized delivery lifecycle retains its actual

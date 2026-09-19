@@ -15,10 +15,11 @@ angelegt werden.
   | English companion: CR-20260919-update-submodule-sha-projection.md — der
   aktuelle Benutzer hat diese Parent-only-Korrektur für den verlinkten
   GitHub-Actions-Run 35441775719 angefordert. Der Record hält die geschlossene
-  Static-SHA-Projektionskorrektur, fokussierte lokale Tests, das unabhängige
-  statische Security-Review und ausstehende Delivery-Evidenz fest. Keine
-  Framework-/MRTS-Source, Gitlink-Aktualisierung, Hosted-Rerun oder Merge-
-  Aktion wird behauptet.
+  Static-SHA-Projektionskorrektur und die fokussierte `python:S8786`-
+  Remediation ohne Suppression, lokale Tests, das unabhängige statische
+  Security-Review und ausstehende Exact-Nachfolger-Delivery-Evidenz fest.
+  Keine Framework-/MRTS-Source, Gitlink-Aktualisierung, Hosted-Rerun oder
+  Merge-Aktion wird behauptet.
 
 - [CR-20260916-general-state-finding-remediation](CR-20260916-general-state-finding-remediation.de.md)
   | English companion: `CR-20260916-general-state-finding-remediation.md` —
