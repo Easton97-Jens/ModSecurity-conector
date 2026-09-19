@@ -2493,8 +2493,8 @@ def prepare_expat_git_component(
 ) -> dict[str, Any]:
     """Prepare Expat from its configured immutable commit in every mode.
 
-    ``strict`` controls cache/fsck verification in the shared Git preparer. It
-    must not turn mandatory Expat runtime provenance into a latest-release
+    ``strict`` still controls the cache/fsck policy of the shared Git
+    preparer.  It must not change Expat provenance into a latest-release
     lookup.
     """
     return prepare_immutable_git_component(
@@ -8870,7 +8870,6 @@ def nginx_build_environment(
         NGINX_BINARY=str(inputs.context["local_nginx_bin"]),
         NGINX_MODULE=str(inputs.context["local_module"]),
         NGINX_PROTOCOL_PROFILE=inputs.protocol_profile,
-        TAR_OPTIONS="--no-same-owner",
         **quic_tls_overrides,
         NGINX_QUIC_TLS_ARCHIVE=inputs.quic_tls_archive,
         NGINX_DOWNLOAD_DIR=str(inputs.archives_root / "nginx"),
@@ -8878,6 +8877,12 @@ def nginx_build_environment(
         MSCONNECTOR_PROFILE_REGISTRY_ROOT=str(inputs.profile_registry_build_root),
         MODSECURITY_SHARED_PREFIX=str(inputs.modsecurity.get("prefix", "")),
         MODSECURITY_BUILD_ID=str(inputs.modsecurity.get("build_id", "")),
+        # The Framework-owned NGINX provisioner extracts the pinned source
+        # archive. Archive ownership is not build input, and restoring
+        # archive-recorded numeric owners can fail in user namespaces or on
+        # id-mapped mounts. Replace, rather than inherit, TAR_OPTIONS so a
+        # caller cannot re-enable owner restoration for this private route.
+        TAR_OPTIONS="--no-same-owner",
         BUILD_NGINX_FROM_SOURCE="1",
         AUTO_FETCH_SMOKE_SOURCES="0",
         REFRESH="1",

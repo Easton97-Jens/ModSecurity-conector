@@ -171,7 +171,6 @@ class ApacheApxsProfileRegistryStagingTest(unittest.TestCase):
             )
             self.assertFalse((connector_root / "connectors" / "profile_registry.o").exists())
             self.assertFalse((workdir / "apxs-argument.log").exists())
-
     def test_autotools_bootstrap_uses_a_private_stage_outside_its_source_snapshot(self) -> None:
         bootstrap = AUTOTOOLS_BOOTSTRAP.read_text(encoding="utf-8")
         stage_assignment = 'MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT="$WORK_ROOT/profile-registry" \\'

@@ -185,6 +185,79 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             )
             self.assertEqual(h3_child_env["TAR_OPTIONS"], "--no-same-owner")
 
+            protocol_cases = (
+                ("h1", components.nginx_protocol_build_inputs({"NGINX_PROTOCOL_PROFILE": "h1"})),
+                (
+                    "h1-h2",
+                    components.nginx_protocol_build_inputs(
+                        {"NGINX_PROTOCOL_PROFILE": "h1-h2"}
+                    ),
+                ),
+                ("h1-h2-h3-quic", h3_inputs),
+            )
+            for inherited_tar_options in (
+                "--same-owner --warning=no-unknown-keyword",
+                None,
+            ):
+                for profile, protocol_inputs in protocol_cases:
+                    with self.subTest(
+                        child_sink_profile=profile,
+                        inherited_tar_options=inherited_tar_options,
+                    ):
+                        base_env = {}
+                        if inherited_tar_options is not None:
+                            base_env["TAR_OPTIONS"] = inherited_tar_options
+                        completed = subprocess.CompletedProcess(
+                            args=["prepare-nginx-build.sh"],
+                            returncode=0,
+                            stdout="",
+                            stderr="",
+                        )
+                        record: dict[str, object] = {}
+                        sink_context = {**context, "local_artifacts": {}}
+                        with (
+                            mock.patch.object(
+                                components,
+                                "copy_nginx_common_sources",
+                                return_value=root / "common-src",
+                            ),
+                            mock.patch.object(
+                                components,
+                                "copy_nginx_profile_registry_sources",
+                                return_value=root / "profile-registry",
+                            ),
+                            mock.patch.object(components, "run_build", return_value=completed) as run_build,
+                            mock.patch.object(components, "nginx_refresh_build_artifacts"),
+                            mock.patch.object(
+                                components, "artifact_status", return_value=(True, [])
+                            ),
+                        ):
+                            ready, missing, built = components.build_nginx_source(
+                                base_env,
+                                root / "connector",
+                                root / "framework",
+                                root / "cache",
+                                root / "work",
+                                root / "sources",
+                                root / "archives",
+                                {
+                                    "prefix": str(root / "modsecurity"),
+                                    "build_id": "modsecurity",
+                                },
+                                {},
+                                protocol_inputs,
+                                str(root / "archives/nginx/openssl-4.0.1.tar.gz"),
+                                sink_context,
+                                record,
+                            )
+
+                        self.assertTrue(ready)
+                        self.assertEqual(missing, [])
+                        self.assertTrue(built)
+                        run_build.assert_called_once()
+                        child_env = run_build.call_args.args[1]
+                        self.assertEqual(child_env["TAR_OPTIONS"], "--no-same-owner")
+
     def test_nginx_staged_make_log_diagnostics_requires_current_managed_identity(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

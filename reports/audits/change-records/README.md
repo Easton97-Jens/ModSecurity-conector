@@ -15,7 +15,26 @@ reports without an explicit repository-policy decision or user decision.
   scoped Parent-only shared remediation for the ten-integration readiness-B
   work. It distinguishes observed local evidence from the still incomplete
   ten-path runtime and rule-profile evidence; no Framework/MRTS/Gitlink
-  change, hosted result, pull request, or merge is asserted.
+  change, ten-path B promotion, Envoy-host result, or merge is asserted.
+
+- [CR-20260916-general-state-finding-remediation](CR-20260916-general-state-finding-remediation.md)
+  | [Deutsch](CR-20260916-general-state-finding-remediation.de.md) — the
+  current user explicitly authorized safe remediation in existing Parent Draft
+  PR #369. The paired record captures the immutable Expat pin, opt-in Envoy
+  response-phase rule/fixture evidence, external Apache APXS profile-registry
+  staging, NGINX archive-owner/authority hardening, and the local HAProxy SPOP
+  `c:S924` refactor, while retaining blocked Traefik, Apache, native NGINX,
+  Framework, and exact-head Sonar evidence as such. No Framework/MRTS/Gitlink
+  change, direct `master` action, auto-merge, or merge is asserted.
+
+- [CR-20260916-lighttpd-stock-sidecar-endpoint-metadata](CR-20260916-lighttpd-stock-sidecar-endpoint-metadata.md)
+  | [Deutsch](CR-20260916-lighttpd-stock-sidecar-endpoint-metadata.de.md) —
+  the current user explicitly authorized one task-owned Parent worktree and
+  one PR for the scoped lighttpd stock-sidecar endpoint-metadata repair. The
+  record retains the reproduced `502` allow failure, kernel-sourced fail-closed
+  mapping, focused local results, the remaining immediate-reset test failure,
+  and pending exact-head hosted evidence. No Framework/MRTS/Gitlink change,
+  direct `master` action, auto-merge, or merge is asserted.
 
 - [CR-20260913-sonar-connector-followup-remediation](CR-20260913-sonar-connector-followup-remediation.md)
   | [Deutsch](CR-20260913-sonar-connector-followup-remediation.de.md) — the
