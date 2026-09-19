@@ -8877,6 +8877,12 @@ def nginx_build_environment(
         MSCONNECTOR_PROFILE_REGISTRY_ROOT=str(inputs.profile_registry_build_root),
         MODSECURITY_SHARED_PREFIX=str(inputs.modsecurity.get("prefix", "")),
         MODSECURITY_BUILD_ID=str(inputs.modsecurity.get("build_id", "")),
+        # The Framework-owned NGINX provisioner extracts the pinned source
+        # archive. Archive ownership is not build input, and restoring
+        # archive-recorded numeric owners can fail in user namespaces or on
+        # id-mapped mounts. Replace, rather than inherit, TAR_OPTIONS so a
+        # caller cannot re-enable owner restoration for this private route.
+        TAR_OPTIONS="--no-same-owner",
         BUILD_NGINX_FROM_SOURCE="1",
         AUTO_FETCH_SMOKE_SOURCES="0",
         REFRESH="1",

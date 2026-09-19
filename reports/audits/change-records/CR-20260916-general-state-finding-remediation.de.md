@@ -9,15 +9,15 @@
 | Change-ID | CR-20260916-general-state-finding-remediation |
 | Datum (UTC) | 2026-09-16 |
 | Basis-Revision | `e475baabf0787cbc804f176ae998b62156892825` |
-| Benutzerautorisierung | „kümmere dich in dem bestehenden pr um die sichere behebung der sachen“ |
-| Delivery-Status | Erweitert ausschließlich Parent-Draft-PR #369. Ein normaler Commit und Push auf seinen bestehenden Branch liegen im Scope; kein Merge, Auto-Merge, direkter `master`-Schreibvorgang, Framework-/MRTS-/Gitlink-Change oder Branch-Löschung ist autorisiert. |
+| Benutzerautorisierung | Ursprünglicher Scope: „kümmere dich in dem bestehenden pr um die sichere behebung der sachen“. Delivery-Fortsetzung: „erstelle ein pr mit den änderung“. |
+| Delivery-Status | Erweitert ausschließlich Parent-Draft-PR #369. Ein normaler inkrementeller Commit und Push auf seinen bestehenden Branch liegen im Scope; kein Merge, Auto-Merge, direkter `master`-Schreibvorgang, Framework-/MRTS-/Gitlink-Change oder Branch-Löschung ist autorisiert. Der aktualisierte exakte PR-Head und Hosted-Checks müssen nach dem Push noch beobachtet werden. |
 
 ## Motivation und Problemstellung
 
 Der zurückbehaltene General-State-Lauf `20260913T142629Z-e475baa` vermischte
 bestätigte Parent-Defekte mit Runtime-Evidenzlücken und Framework-eigenen
-Beobachtungen. Diese Änderung repariert nur die drei bestätigten,
-Parent-eigenen Grenzen mit einem gezielten Regressionspfad:
+Beobachtungen. Diese Änderung repariert nur bestätigte Parent-eigene Grenzen
+mit einem gezielten Regressionspfad:
 
 - `FND-PARENT-1093`: Expat-Provenance ist in jedem Vorbereitungsmodus
   unveränderlich.
@@ -26,6 +26,15 @@ Parent-eigenen Grenzen mit einem gezielten Regressionspfad:
 - `FND-PARENT-1097`: Apache APXS erhält eine gestagte Profile-Registry
   außerhalb des kanonischen Parent-Checkouts, auch im Frischquell-
   Autotools-Bootstrap.
+- `FND-PARENT-1095`: Das private NGINX-Build-Child ersetzt geerbtes
+  `TAR_OPTIONS` durch `--no-same-owner`, bevor der Framework-Provisioner das
+  gepinnte Source-Archiv extrahieren kann.
+- `FND-PARENT-1099`: Eine statische NGINX-Harness-Regression bindet die
+  Path-Authority-Validierung vor dem Root-zu-Worker-Ownership-Handoff; ihr
+  nativer Runtime-Nachweis bleibt durch Host-`chown(...)=EINVAL` blockiert.
+- `FND-SONAR-0084`: Die Parent-HAProxy-SPOP-Accept-Loop entfernt das gemeldete
+  terminale `goto`, während Worker-Drain- sowie Error-/Restart-Pfade erhalten
+  bleiben.
 
 Die separat dokumentierte lighttpd-Endpunktmetadaten-Reparatur des bestehenden
 PR bleibt unverändert. Dieser Record macht aus keiner blockierten
@@ -50,6 +59,15 @@ Runtime-Beobachtung eine Produktdiagnose und ändert weder Framework noch MRTS.
   Build erreicht seine Modul-Output-Prüfung; seine spätere Runtime-Phase wird
   jedoch durch ein Host-Dateisystem blockiert, das `chown(...)=EINVAL`
   zurückgibt.
+- Das NGINX-Build-Child übergibt immer `TAR_OPTIONS=--no-same-owner`; feindliche
+  und fehlende geerbte Werte erreichen den tatsächlichen Build-Process-Sink
+  weder für H1-, H2- noch H3-Profile.
+- Der NGINX-Harness validiert beide Worker-eigenen Pfade vor der Root-Mutation
+  und vor seinem Non-Root-Handoff, ohne statische Evidenz als native
+  Runtime-Coverage auszugeben.
+- HAProxy-terminale Accept-Fehler und STOP-Ergebnisse verlassen die Intake-Loop
+  über ein explizites Loop-Prädikat, bewahren Counting-/Error-Semantik und
+  erreichen weiterhin den einzelnen Worker-Drain-Pfad.
 
 ## Implementierungsentscheidung und Begründung
 
@@ -80,10 +98,12 @@ nachgelagerte Vorbereitung sowie Cache- und fsck-Verhalten.
 ## Security-Auswirkung
 
 Die Reparatur verengt die Source-Provenance, bewahrt den Envoy-Testmodus als
-Standard und verhindert, dass APXS Profile-Registry-Build-Artefakte in einem
-kanonischen Source-Checkout ablegt. Sie lockert keinen Host-,
-Dateiberechtigungs-, UDS-, URI- oder Response-Payload-Control. Unbewiesene
-Runtime-Beobachtungen bleiben ungepatcht.
+Standard, verhindert, dass APXS Profile-Registry-Build-Artefakte in einem
+kanonischen Source-Checkout ablegt, verhindert geerbten Archive-Owner-Restore
+im NGINX-Child und erhält NGINX-Path-/Ownership- sowie HAProxy-Worker-Drain-
+Controls. Sie lockert keinen Host-, Dateiberechtigungs-, UDS-, URI-,
+Response-Payload-, Ownership-, ACL-, Symlink-, Mode- oder Capacity-Control.
+Unbewiesene Runtime-Beobachtungen bleiben ungepatcht.
 
 ### Envoy-Response-Phase-Smoke-Evidenz
 
@@ -122,6 +142,31 @@ Test-Parent angelegt und durch das bestehende begrenzte Cleanup entfernt wird.
 Damit erhält der Wrapper für diesen synthetischen Checkout einen externen
 Stage-Root, ohne seine Canonical-Path- oder Symlink-Abweisung zu lockern.
 
+### NGINX-Archiv-Owner-Grenze und Harness-Authority
+
+Die NGINX-Build-Umgebung ersetzt `TAR_OPTIONS` jetzt, statt es zu erben, durch
+`--no-same-owner`. Archivierte UID-/GID-Metadaten sind kein Build-Input, und ein
+Aufrufer kann Owner-Restore nicht über seine Umgebung wieder aktivieren, bevor
+der Framework-eigene Provisioner das gepinnte Archiv extrahiert. Die Regression
+prüft feindliche und fehlende geerbte Werte am tatsächlichen `run_build`-Child-
+Environment für H1, H2 und H3.
+
+Die NGINX-Harness-Source bleibt absichtlich unverändert. Ihr neuer statischer
+Contract bestätigt, dass beide abgeleiteten Worker-Pfade vor Root-eigener
+Mutation und dem aufgelösten Non-Root-Mode-`0700`-Handoff an die generische
+Path-Authority-Validierung übergeben werden. Das schützt die etablierte
+Reihenfolge, macht aber ein Dateisystem, das das erforderliche `chown`
+zurückweist, nicht fähig.
+
+### HAProxy-SPOP-Accept-Loop-Wartung
+
+`accept_loop` verwendet statt eines terminalen `goto` oder STOP-`break` ein
+initialisiertes `loop_running`-Prädikat. Ein terminaler Accept-Fehler oder STOP
+löscht dieses Prädikat und fährt mit der Bedingung fort; dadurch treten beide
+Pfade in den bestehenden Post-Loop-Worker-Drain ein. Das Refactoring erhält
+`loop_rc`, Capacity-Rejection, Handled-Count, Owner-Restart-Priorität,
+Descriptor-Close und die Zerstörungsreihenfolge der Synchronisation.
+
 ## Geänderte Dateien
 
 - `ci/provisioning/components/prepare-runtime-components.py`
@@ -132,6 +177,10 @@ Stage-Root, ohne seine Canonical-Path- oder Symlink-Abweisung zu lockern.
 - `connectors/apache/build/apxs-wrapper.in`
 - `ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh`
 - `tests/test_apache_apxs_profile_registry_staging.py`
+- `connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c`
+- `tests/_haproxy_spop_contract_helpers.py`
+- `tests/test_nginx_harness_path_authority.py`
+- `tests/test_sonar_reliability_contract.py`
 - `reports/audits/change-records/CR-20260916-lighttpd-stock-sidecar-endpoint-metadata.md`
 - `reports/audits/change-records/CR-20260916-lighttpd-stock-sidecar-endpoint-metadata.de.md`
 - `reports/audits/change-records/CR-20260916-general-state-finding-remediation.md`
@@ -150,7 +199,11 @@ Stage-Root, ohne seine Canonical-Path- oder Symlink-Abweisung zu lockern.
 | `make -n -C connectors/envoy response-phase-smoke-envoy` | bestanden | Dry-Run zeigt die Companion-Regeldatei und `MSCONNECTOR_RESPONSE_PHASE_SMOKE=1`; kein Build oder Service lief. |
 | `APACHE_AUTOTOOLS_TEST_PARENT=... APACHE_AUTOTOOLS_RUNTIME_PARENT=... make check-apache-autotools-bootstrap` | blocked_environment (make exit 2) | Der Frischquell-Snapshot absolvierte Autotools-Konfiguration, `make` und die Modul-Output-Prüfung; ein späteres Runtime-`chown` im kontrollierten `/var/tmp`-Root schlug mit `EINVAL` fehl. |
 | `make check-bilingual-docs` | blocked_environment | Der Checker meldete keinen Fehler für einen der aktuellen Change Records, scheiterte aber an 20 bestehenden Links, deren Framework-Gitlink-Ziele in diesem Worktree fehlen. |
+| `make check-doc-links` | blocked_environment | Die Repository-Link-Validierung scheiterte an denselben bestehenden fehlenden Framework-Gitlink-Zielen; kein geänderter Change-Record-Link wurde gemeldet. |
 | `git diff --check` | bestanden | Keine Whitespace-Fehler vor der Delivery-Vorbereitung. |
+| Aktuelle PR-Worktree-Focused-Suite: `python -m unittest tests.test_prepare_runtime_components tests.test_nginx_harness_path_authority tests.test_sonar_reliability_contract tests.test_haproxy_spop_peer_isolation_contract tests.test_haproxy_spop_sigpipe_peer_isolation_contract` | bestanden | 140 Tests bestanden; 5 bestehende Framework-Root-Tests wurden übersprungen. Dies umfasst NGINX-Child-Environment-/Process-Sink-, NGINX-Authority-Ordering- und HAProxy-Loop-Contracts. |
+| `BUILD_ROOT=<private task root> make check-haproxy-c17` | bestanden | Die geänderte HAProxy-Source kompilierte mit dem Repository-C17-Profil. |
+| `TMPDIR=<private task root> BUILD_ROOT=<private task root> make -C connectors/haproxy build-spoa-runtime self-test-spoa-runtime` | bestanden | Der isolierte SPOP-Selbsttest übte gültige/malformed Frames und eine disruptive ModSecurity-Entscheidung aus; er ist keine native HAProxy-Enforcement-Behauptung. |
 
 Die Apache-Fake-APXS-Kontrolle beweist, dass erzeugte Profile-Registry-
 Artefakte nur unter dem externen Stage-Root existieren. Ihre Negativkontrollen
@@ -164,6 +217,14 @@ und 63-stellige Referenzen vor Git-/Release-Lookup ab; 40- und 64-stellige
 Referenzen bleiben akzeptiert. Die Envoy-Kontrollen bewahren das
 P1-Standard-Target und weisen doppelte P3/P4-Evidenz ab.
 
+Die aktuellen NGINX-Controls beweisen außerdem, dass das erzeugte Child-
+Environment feindliche/fehlende `TAR_OPTIONS`-Werte am Build-Process-Sink
+ersetzt und dass beide Worker-Roots vor dem Non-Root-Handoff validiert werden.
+Die HAProxy-Contracts decken die terminale Accept-Error- und STOP-
+Exit-Reihenfolge ab, während der gemeinsame Drain erhalten bleibt. Die C17-
+und isolierten SPOP-Checks liefern ausschließlich Kompilierungs- und
+Protokoll-/Selbsttest-Evidenz.
+
 ## Runtime-Evidence
 
 Das Envoy-Helper-Fixture wurde vom gezielten Python-Contract-Test ausgeführt,
@@ -173,6 +234,12 @@ zusätzlich seinen echten Autotools-/APXS-Modul-Build aus, aber keine
 abgeschlossene Server-Runtime, weil das kontrollierte Host-Dateisystem eine
 spätere Ownership-Änderung abwies. Dies sind ausschließlich begrenzte lokale
 Evidenzpfade.
+
+Der HAProxy-Runtime-Selbsttest ist ein isolierter Loopback-SPOP-Protokolltest.
+Er übt Handshake, Malformed-Frame-Rejection und Typed-Disruptive-Decision-ACK-
+Verhalten aus, jedoch keinen nativen HAProxy-Host-Enforcement-Pfad. Keine
+native NGINX-Runtime lief, weil der erforderliche Worker-Ownership-Handoff
+durch das Host-Dateisystem blockiert bleibt.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
@@ -216,14 +283,19 @@ oder extern vorbereitete CRS-Inhalte wurden geändert oder getestet.
   `t:hexDecode`-Reachability. Exakte externe CRS-Inhalte müssen in einer
   separat autorisierten Framework-Analyse geprüft werden, bevor ein
   Framework-Patch erfolgt.
-- `FND-PARENT-1095` und `FND-PARENT-1099` sind Umgebungsblocker. Archive-
-  Owner-Restore und NGINX-`chown(...)=EINVAL` benötigen einen geeigneten Host;
-  keine Owner-, ACL-, Symlink- oder Mode-Prüfung wurde gelockert.
+- `FND-PARENT-1095` und `FND-PARENT-1099` bleiben Umgebungsblocker. Archive-
+  Owner-Restore hat nun eine enge Child-Environment-Härtung und NGINX-
+  Ordering eine statische Regression. Vollständige Archive-Extraktion und
+  nativer NGINX-`chown(...)=EINVAL`-Nachweis benötigen weiterhin einen
+  geeigneten Host; keine Owner-, ACL-, Symlink- oder Mode-Prüfung wurde
+  gelockert.
 
 ## Finaler Diff- und Review-Status
 
 Dieser Record dokumentiert lokale Evidenz für das aktuelle Update des
-bestehenden Draft-PR. Nach Delivery müssen lokale, Remote-Branch- und PR-Head-
-SHAs exakt verglichen werden; Hosted-Checks, SonarQube, Review-Status und ein
-späterer Merge bleiben getrennte beobachtete Fakten. Es wird kein Merge
-behauptet.
+bestehenden Draft-PR. Vor/nach dem inkrementellen Push müssen lokale,
+Remote-Branch- und PR-Head-SHAs exakt verglichen werden; Hosted-Checks,
+SonarQube, Review-Status und ein späterer Merge bleiben getrennte beobachtete
+Fakten. Insbesondere ist `FND-SONAR-0084` nur lokal fixed, bis SonarQube den
+neuen exakten PR-Head liest, und native NGINX-Runtime bleibt
+`blocked_environment`. Es wird kein Merge behauptet.

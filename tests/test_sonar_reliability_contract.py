@@ -453,9 +453,16 @@ int main(void)
 
         self.assertNotIn("if (errno == EINTR)", failed_accept)
         self.assertIn("handle_spop_accept_error(state, log, &loop_rc)", failed_accept)
-        self.assertIn("goto accept_loop_complete;", failed_accept)
-        self.assertIn("accept_loop_complete:", accept_loop)
+        self.assertIn("int loop_running = 1;", accept_loop)
+        self.assertIn("while (loop_running && !stop_requested &&", accept_loop)
+        self.assertIn("loop_running = 0;", failed_accept)
+        self.assertNotIn("goto accept_loop_complete;", failed_accept)
+        self.assertNotIn("accept_loop_complete:", accept_loop)
         self.assertIn("continue;", failed_accept)
+        self.assertLess(
+            failed_accept.index("loop_running = 0;"),
+            failed_accept.index("continue;"),
+        )
         self.assertIn(
             'log_line(log, "accept failed errno=%d", errno);', error_handler
         )
@@ -493,6 +500,17 @@ int main(void)
         self.assertIn("return SPOP_ACCEPT_ITERATION_STOP;", result_handler)
         self.assertIn("iteration_result == SPOP_ACCEPT_ITERATION_CONTINUE", accept_loop)
         self.assertIn("iteration_result == SPOP_ACCEPT_ITERATION_STOP", accept_loop)
+        iteration_stop = accept_loop.index(
+            "iteration_result == SPOP_ACCEPT_ITERATION_STOP"
+        )
+        self.assertLess(
+            iteration_stop,
+            accept_loop.index("loop_running = 0;", iteration_stop),
+        )
+        self.assertLess(
+            accept_loop.index("loop_running = 0;", iteration_stop),
+            accept_loop.index("handled++;"),
+        )
 
     def test_haproxy_legacy_spop_path_has_bounded_timeout(self) -> None:
         source = (

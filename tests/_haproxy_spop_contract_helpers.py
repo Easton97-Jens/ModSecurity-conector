@@ -12,6 +12,8 @@ def assert_worker_result_order(testcase, source: str, fatal_marker: str) -> None
     testcase.assertIn(fatal_marker, result_handler)
     testcase.assertIn("SPOP_ACCEPT_ITERATION_CONTINUE", result_handler)
     testcase.assertIn("SPOP_ACCEPT_ITERATION_STOP", result_handler)
+    testcase.assertIn("int loop_running = 1;", accept_loop)
+    testcase.assertIn("while (loop_running && !stop_requested &&", accept_loop)
     testcase.assertIn("continue;", accept_loop)
     testcase.assertIn("handled++;", accept_loop)
 
@@ -33,7 +35,14 @@ def assert_worker_result_order(testcase, source: str, fatal_marker: str) -> None
         accept_loop.index("continue;", iteration_continue),
     )
     testcase.assertLess(iteration_continue, handled)
-    testcase.assertLess(iteration_stop, accept_loop.index("break;", iteration_stop))
+    testcase.assertLess(
+        iteration_stop,
+        accept_loop.index("loop_running = 0;", iteration_stop),
+    )
+    testcase.assertLess(
+        accept_loop.index("loop_running = 0;", iteration_stop),
+        accept_loop.index("continue;", iteration_stop),
+    )
     testcase.assertLess(iteration_stop, handled)
     testcase.assertLess(
         capacity_return,

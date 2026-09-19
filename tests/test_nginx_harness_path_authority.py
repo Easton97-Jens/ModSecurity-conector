@@ -452,6 +452,64 @@ class NginxHarnessPathAuthorityTests(unittest.TestCase):
         ]
         self.assertNotIn("mkdir", blocked_definition)
 
+    def test_worker_path_authority_precedes_the_non_root_handoff(self) -> None:
+        """Keep generic current-owner validation before worker-owned leaves exist."""
+
+        harness = HARNESS.read_text(encoding="utf-8")
+        worker_state_path_assigned = harness.index(
+            'NGINX_WORKER_STATE_ROOT="$NGINX_HARNESS_WORK_ROOT/worker-state/$case_name"'
+        )
+        server_log_path_assigned = harness.index(
+            'NGINX_SERVER_LOG_ROOT="$NGINX_HARNESS_WORK_ROOT/server-logs/$case_name"'
+        )
+        authority_call = harness.rindex("validate_nginx_generated_path_authority")
+        first_root_mutation = harness.index('ensure_dir_755 "$NGINX_HARNESS_WORK_ROOT"')
+        first_worker_handoff = harness.index(
+            "prepare_nginx_worker_paths", first_root_mutation
+        )
+
+        self.assertLess(worker_state_path_assigned, authority_call)
+        self.assertLess(server_log_path_assigned, authority_call)
+        self.assertLess(authority_call, first_root_mutation)
+        self.assertLess(authority_call, first_worker_handoff)
+        self.assertEqual(
+            harness.find("validate_nginx_generated_path_authority", first_worker_handoff),
+            -1,
+        )
+
+        authority_function_start = harness.index(
+            "validate_nginx_generated_path_authority() {"
+        )
+        authority_function = harness[
+            authority_function_start : harness.index(
+                "\n}\n\nvalidate_nginx_external_projection_authority()",
+                authority_function_start,
+            )
+        ]
+        self.assertIn(
+            '--directory NGINX_WORKER_STATE_ROOT "$NGINX_WORKER_STATE_ROOT"',
+            authority_function,
+        )
+        self.assertIn(
+            '--directory NGINX_SERVER_LOG_ROOT "$NGINX_SERVER_LOG_ROOT"',
+            authority_function,
+        )
+        self.assertLess(
+            authority_function.index('if ! "$@"; then'),
+            authority_function.index('chown root:root "$NGINX_HARNESS_PARENT"'),
+        )
+
+        worker_handoff = harness[
+            harness.index("prepare_nginx_worker_paths() {") : harness.index(
+                "\n}\n\nresolve_nginx_worker_identity()"
+            )
+        ]
+        self.assertIn(
+            'chown "$NGINX_WORKER_RESOLVED_USER:$worker_group" "$path"',
+            worker_handoff,
+        )
+        self.assertIn('chmod 700 "$path"', worker_handoff)
+
     def test_worker_preflight_uses_the_rendered_nginx_group(self) -> None:
         harness = HARNESS.read_text(encoding="utf-8")
         worker_access = harness[

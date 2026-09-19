@@ -9,15 +9,15 @@
 | Change ID | CR-20260916-general-state-finding-remediation |
 | Date (UTC) | 2026-09-16 |
 | Base revision | `e475baabf0787cbc804f176ae998b62156892825` |
-| User authorization | “kümmere dich in dem bestehenden pr um die sichere behebung der sachen” |
-| Delivery status | Extends Parent Draft PR #369 only. A normal commit and push to its existing branch are in scope; no merge, auto-merge, direct `master` write, Framework/MRTS/Gitlink change, or branch deletion is authorized. |
+| User authorization | Original scope: “kümmere dich in dem bestehenden pr um die sichere behebung der sachen”. Delivery continuation: “erstelle ein pr mit den änderung”. |
+| Delivery status | Extends Parent Draft PR #369 only. A normal incremental commit and push to its existing branch are in scope; no merge, auto-merge, direct `master` write, Framework/MRTS/Gitlink change, or branch deletion is authorized. The updated exact PR head and hosted checks remain to be observed after push. |
 
 ## Motivation and problem statement
 
 The retained general-state run `20260913T142629Z-e475baa` mixed confirmed
 Parent defects with runtime evidence gaps and Framework-owned observations.
-This change repairs only the three confirmed, Parent-owned boundaries that have
-a focused regression route:
+This change repairs only confirmed, Parent-owned boundaries that have a focused
+regression route:
 
 - `FND-PARENT-1093`: Expat provenance is immutable in every preparation mode.
 - `FND-PARENT-1096`: the opt-in Envoy response-phase smoke selects matching
@@ -25,6 +25,14 @@ a focused regression route:
 - `FND-PARENT-1097`: Apache APXS receives a staged profile registry outside
   the canonical Parent checkout, including through the fresh-source Autotools
   bootstrap.
+- `FND-PARENT-1095`: the private NGINX build child replaces inherited
+  `TAR_OPTIONS` with `--no-same-owner` before the Framework provisioner can
+  extract the pinned source archive.
+- `FND-PARENT-1099`: a static NGINX harness regression locks path authority
+  validation before the root-to-worker ownership handoff; its native runtime
+  proof remains blocked by host `chown(...)=EINVAL`.
+- `FND-SONAR-0084`: the Parent HAProxy SPOP accept loop removes the reported
+  terminal `goto` while preserving its worker-drain and error/restart paths.
 
 The existing PR's separately recorded lighttpd endpoint-metadata repair remains
 unchanged. This record does not turn a blocked runtime observation into a
@@ -46,6 +54,15 @@ product diagnosis and does not change the Framework or MRTS.
   starting a native Envoy service. The local fresh-source Apache build reaches
   its module-output check, while its later runtime phase is blocked by a host
   filesystem that rejects `chown(...)=EINVAL`.
+- The NGINX build child always supplies `TAR_OPTIONS=--no-same-owner`; hostile
+  and absent inherited values cannot reach the actual build-process sink for
+  H1, H2, or H3 profiles.
+- The NGINX harness validates both worker-owned paths before root mutation and
+  before its non-root handoff, without treating static evidence as native
+  runtime coverage.
+- HAProxy terminal accept errors and STOP results exit intake through an
+  explicit loop predicate, preserve counting/error semantics, and still reach
+  the single worker-drain path.
 
 ## Implementation decision and rationale
 
@@ -74,9 +91,12 @@ continues to control downstream preparation, cache, and fsck behavior.
 ## Security impact
 
 The repair narrows source provenance, preserves the default Envoy test mode,
-and prevents APXS from placing profile-registry build artifacts in a canonical
-source checkout. It does not weaken a host, file-permission, UDS, URI, or
-response-payload control. Unproven runtime observations remain unpatched.
+prevents APXS from placing profile-registry build artifacts in a canonical
+source checkout, prevents inherited archive-owner restoration in the NGINX
+child, and retains NGINX path/ownership and HAProxy worker-drain controls. It
+does not weaken a host, file-permission, UDS, URI, response-payload, ownership,
+ACL, symlink, mode, or capacity control. Unproven runtime observations remain
+unpatched.
 
 ### Envoy response-phase smoke evidence
 
@@ -115,6 +135,30 @@ parent and removed by the existing bounded cleanup. This supplies the wrapper
 an external stage for that synthetic checkout without weakening its
 canonical-path or symlink rejection.
 
+### NGINX archive-owner boundary and harness authority
+
+The NGINX build environment now replaces, rather than inherits, `TAR_OPTIONS`
+with `--no-same-owner`. Archive-recorded UID/GID metadata is not build input,
+and a caller cannot re-enable owner restoration through its environment before
+the Framework-owned provisioner extracts the pinned archive. The regression
+checks hostile and absent inherited values at the actual `run_build` child
+environment for H1, H2, and H3.
+
+The NGINX harness source remains intentionally unchanged. Its new static
+contract confirms that both derived worker paths are passed to generic path
+authority validation before root-owned mutation and the resolved non-root,
+mode-`0700` handoff. This protects the established ordering but does not make a
+filesystem that rejects the required `chown` appear capable.
+
+### HAProxy SPOP accept-loop maintenance
+
+`accept_loop` uses an initialized `loop_running` predicate instead of a
+terminal `goto` or STOP `break`. A terminal accept error or STOP clears that
+predicate and continues to the condition, so both paths enter the existing
+post-loop worker drain. The refactor retains `loop_rc`, capacity rejection,
+handled-count, owner-restart precedence, descriptor closure, and synchronization
+destruction order.
+
 ## Changed files
 
 - `ci/provisioning/components/prepare-runtime-components.py`
@@ -125,6 +169,10 @@ canonical-path or symlink rejection.
 - `connectors/apache/build/apxs-wrapper.in`
 - `ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh`
 - `tests/test_apache_apxs_profile_registry_staging.py`
+- `connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c`
+- `tests/_haproxy_spop_contract_helpers.py`
+- `tests/test_nginx_harness_path_authority.py`
+- `tests/test_sonar_reliability_contract.py`
 - `reports/audits/change-records/CR-20260916-lighttpd-stock-sidecar-endpoint-metadata.md`
 - `reports/audits/change-records/CR-20260916-lighttpd-stock-sidecar-endpoint-metadata.de.md`
 - `reports/audits/change-records/CR-20260916-general-state-finding-remediation.md`
@@ -143,7 +191,11 @@ canonical-path or symlink rejection.
 | `make -n -C connectors/envoy response-phase-smoke-envoy` | passed | Dry-run shows the companion rule file and `MSCONNECTOR_RESPONSE_PHASE_SMOKE=1`; no build or service ran. |
 | `APACHE_AUTOTOOLS_TEST_PARENT=... APACHE_AUTOTOOLS_RUNTIME_PARENT=... make check-apache-autotools-bootstrap` | blocked_environment (make exit 2) | The fresh source snapshot completed Autotools configuration, `make`, and the module-output check; a later runtime `chown` on the controlled `/var/tmp` root failed with `EINVAL`. |
 | `make check-bilingual-docs` | blocked_environment | The checker reported no error for either current Change Record, but failed on 20 pre-existing links whose Framework-Gitlink targets are absent from this worktree. |
+| `make check-doc-links` | blocked_environment | Repository link validation failed on the same pre-existing absent Framework-Gitlink targets; no changed Change Record link was reported. |
 | `git diff --check` | passed | No whitespace errors before delivery preparation. |
+| Current PR-worktree focused suite: `python -m unittest tests.test_prepare_runtime_components tests.test_nginx_harness_path_authority tests.test_sonar_reliability_contract tests.test_haproxy_spop_peer_isolation_contract tests.test_haproxy_spop_sigpipe_peer_isolation_contract` | passed | 140 tests passed; 5 existing Framework-root tests were skipped. This includes the NGINX child-environment/process-sink, NGINX authority-ordering, and HAProxy loop contracts. |
+| `BUILD_ROOT=<private task root> make check-haproxy-c17` | passed | The changed HAProxy source compiled with the repository C17 profile. |
+| `TMPDIR=<private task root> BUILD_ROOT=<private task root> make -C connectors/haproxy build-spoa-runtime self-test-spoa-runtime` | passed | The isolated SPOP self-test exercised valid/malformed frames and a disruptive ModSecurity decision; it is not a native HAProxy enforcement claim. |
 
 The Apache fake-APXS control proves that generated profile-registry artifacts
 exist only under the external stage root. Its negative controls reject a direct
@@ -156,6 +208,13 @@ ownership operation. The Expat controls reject mutable, abbreviated,
 64-character references remain accepted. The Envoy controls preserve the
 default P1 target and reject duplicate P3/P4 evidence.
 
+The current NGINX controls also prove that the generated child environment
+replaces hostile/absent `TAR_OPTIONS` values at the build-process sink, and
+that both worker roots are validated before the non-root handoff. The HAProxy
+contracts cover terminal accept-error and STOP exit ordering while preserving
+the common drain. The C17 and isolated SPOP checks establish compilation and
+protocol/self-test evidence only.
+
 ## Runtime evidence
 
 The Envoy helper fixture was exercised by the focused Python contract test,
@@ -164,6 +223,12 @@ argument and artifact boundary. The local Apache bootstrap additionally
 exercised its real Autotools/APXS module build, but not its completed server
 runtime because the controlled host filesystem rejected a later ownership
 change. These are bounded local evidence routes only.
+
+The HAProxy runtime self-test is an isolated loopback SPOP protocol test. It
+exercises handshake, malformed-frame rejection, and typed disruptive-decision
+ACK behavior, but not a native HAProxy host enforcement path. No native NGINX
+runtime was run because the required worker ownership handoff remains blocked
+by the host filesystem.
 
 ## Checks not run and rationale
 
@@ -203,13 +268,17 @@ externally prepared CRS content was changed or tested.
 - `FND-PARENT-1094` is Framework-owned and has no checked-in default
   `t:hexDecode` reachability. Exact external CRS content must be inspected in
   a separately authorized Framework assessment before any Framework patch.
-- `FND-PARENT-1095` and `FND-PARENT-1099` are environment blockers. Archive
-  owner restoration and NGINX `chown(...)=EINVAL` need a suitable host; no
-  owner, ACL, symlink, or mode check was relaxed.
+- `FND-PARENT-1095` and `FND-PARENT-1099` remain environment blockers. Archive
+  owner restoration now has a narrow child-environment hardening, and NGINX
+  ordering has a static regression. Full archive extraction and native NGINX
+  `chown(...)=EINVAL` proof still need a suitable host; no owner, ACL,
+  symlink, or mode check was relaxed.
 
 ## Final diff and review status
 
 This record documents local evidence for the current existing-Draft-PR update.
-After delivery, local, remote-branch, and PR-head SHAs must be compared
-exactly, and hosted checks, SonarQube, review state, and any later merge remain
-separate observed facts. No merge is asserted.
+Before/after the incremental push, local, remote-branch, and PR-head SHAs must
+be compared exactly. Hosted checks, SonarQube, review state, and any later
+merge remain separate observed facts. In particular, `FND-SONAR-0084` is only
+locally fixed until SonarQube reads the new exact PR head, and native NGINX
+runtime remains `blocked_environment`. No merge is asserted.

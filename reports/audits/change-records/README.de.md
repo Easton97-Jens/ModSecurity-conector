@@ -15,11 +15,12 @@ angelegt werden.
   | English companion: `CR-20260916-general-state-finding-remediation.md` —
   der aktuelle Benutzer autorisierte ausdrücklich sichere Remediation im
   bestehenden Parent-Draft-PR #369. Der gepaarte Record hält den unveränderlichen
-  Expat-Pin, die opt-in-Envoy-Response-Phase-Regel-/Fixture-Evidenz und
-  externes Apache-APXS-Profile-Registry-Staging fest, während blockierte
-  Traefik-, Apache-, NGINX- und Framework-Evidenz als solche erhalten bleibt.
-  Keine Framework-/MRTS-/Gitlink-Änderung, direkte `master`-Aktion,
-  Auto-Merge oder Merge wird behauptet.
+  Expat-Pin, die opt-in-Envoy-Response-Phase-Regel-/Fixture-Evidenz, externes
+  Apache-APXS-Profile-Registry-Staging, NGINX-Archive-Owner-/Authority-
+  Härtung und das lokale HAProxy-SPOP-`c:S924`-Refactoring fest, während
+  blockierte Traefik-, Apache-, native NGINX-, Framework- und Exact-Head-
+  Sonar-Evidenz als solche erhalten bleibt. Keine Framework-/MRTS-/Gitlink-
+  Änderung, direkte `master`-Aktion, Auto-Merge oder Merge wird behauptet.
 
 - [CR-20260916-lighttpd-stock-sidecar-endpoint-metadata](CR-20260916-lighttpd-stock-sidecar-endpoint-metadata.de.md)
   | English companion: `CR-20260916-lighttpd-stock-sidecar-endpoint-metadata.md` —
