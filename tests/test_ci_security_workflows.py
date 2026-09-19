@@ -51,7 +51,7 @@ LOCKED_ACTION_USE = re.compile(
     r"(?P<prefix>uses:\s+[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?@)"
     r"(?P<sha>[a-f0-9]{40})(?:\s+#\s*v[^\n]+)?"
 )
-SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "f84bf78832de4e30775c443517a92912ae2b989ef34392f0c837d035e96a18f7"
+SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "0fc3f57a9b0df8d885cec278b3fd36efc7ba9a0bacfff3f0214b78786f763cc2"
 AUTO_MERGE_DISABLED_QUERY = (
     "--jq 'if (has(\"auto_merge\") and (.auto_merge == null)) then \"null\" "
     "else \"auto-merge-present\" end'"
@@ -2523,8 +2523,12 @@ jobs:
         self.assertEqual(validator.count("Validate Framework component-pin data contract"), 1)
         self.assertIn("sync-framework-component-versions.py", validator)
         self.assertIn("--validate", validator)
+        self.assertIn('--framework-sha "$CANDIDATE_SHA"', validator)
         self.assertIn("verify-framework-candidate-contract.py", validator)
         self.assertIn('--candidate-sha "$CANDIDATE_SHA"', validator)
+        self.assertIn(
+            '--expected-parent-framework-sha "$CURRENT_GITLINK_SHA"', validator
+        )
         self.assertIn('"$CANDIDATE_SHA:ci/lib/common.sh"', validator)
         self.assertIn('git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" show', validator)
         for forbidden in (
@@ -3152,8 +3156,29 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn("sync-framework-component-versions.py", publisher)
         self.assertIn("--sync", publisher)
         self.assertIn("--check", publisher)
+        self.assertEqual(publisher.count('--framework-sha "$CANDIDATE_SHA"'), 2)
         self.assertIn("verify-framework-candidate-contract.py", publisher)
         self.assertIn('--candidate-sha "$CANDIDATE_SHA"', publisher)
+        self.assertEqual(
+            publisher.count('--expected-parent-framework-sha "$MASTER_OLD_SHA"'), 1
+        )
+        self.assertEqual(
+            publisher.count('--expected-parent-framework-sha "$CANDIDATE_SHA"'), 1
+        )
+        self.assertLess(
+            publisher.index('--expected-parent-framework-sha "$MASTER_OLD_SHA"'),
+            publisher.index("python3 ci/tools/sync-framework-component-versions.py"),
+        )
+        self.assertLess(
+            publisher.index("--sync"),
+            publisher.index('--expected-parent-framework-sha "$CANDIDATE_SHA"'),
+        )
+        for registered_path in (
+            ".github/workflows/test-connectors-with-crs-no-mrts.yml",
+            "tests/test_ci_security_workflows.py",
+        ):
+            with self.subTest(registered_path=registered_path):
+                self.assertEqual(publisher.count(registered_path), 3)
         self.assertIn("python3 scripts/generate_compiler_guides.py", publisher)
         self.assertIn("docs/build/compilers/lighttpd.de.md", publisher)
         self.assertIn('git -c core.hooksPath=/dev/null add --', publisher)
