@@ -5779,6 +5779,7 @@ static int accept_loop(const spop_accept_loop_config *config) {
     const int max_connections = config->max_connections;
     const unsigned int worker_limit = config->worker_limit;
     int handled = 0;
+    int loop_running = 1;
     int loop_rc = 0;
     uint64_t last_capacity_rejection_log_ms = 0U;
     spop_connection_gate gate;
@@ -5814,12 +5815,13 @@ static int accept_loop(const spop_accept_loop_config *config) {
         pthread_mutex_destroy(&gate.lock);
         return 1;
     }
-    while (!stop_requested && !spop_owner_queue_requires_restart(state) &&
+    while (loop_running && !stop_requested &&
+            !spop_owner_queue_requires_restart(state) &&
             (max_connections <= 0 || handled < max_connections)) {
         int fd = accept(listen_fd, 0, 0);
         if (fd < 0) {
             if (handle_spop_accept_error(state, log, &loop_rc)) {
-                goto accept_loop_complete;
+                loop_running = 0;
             }
             continue;
         }
@@ -5832,7 +5834,8 @@ static int accept_loop(const spop_accept_loop_config *config) {
             const spop_accept_iteration_result iteration_result =
                 process_spop_worker_result(worker_result, &loop_rc);
             if (iteration_result == SPOP_ACCEPT_ITERATION_STOP) {
-                break;
+                loop_running = 0;
+                continue;
             }
             if (iteration_result == SPOP_ACCEPT_ITERATION_CONTINUE) {
                 continue;
@@ -5840,7 +5843,6 @@ static int accept_loop(const spop_accept_loop_config *config) {
         }
         handled++;
     }
-accept_loop_complete:
     pthread_mutex_lock(&gate.lock);
     while (gate.active != 0U) {
         pthread_cond_wait(&gate.changed, &gate.lock);

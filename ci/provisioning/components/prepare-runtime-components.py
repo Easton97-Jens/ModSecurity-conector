@@ -106,7 +106,7 @@ DEFAULT_NGINX_QUIC_TLS_VERSION = "4.0.1"
 DEFAULT_NGINX_QUIC_TLS_SOURCE_URL = "https://github.com/openssl/openssl/releases/download/openssl-4.0.1/openssl-4.0.1.tar.gz"
 DEFAULT_NGINX_QUIC_TLS_SOURCE_SHA256 = "2db3f3a0d6ea4b59e1f094ace2c8cd536dffb87cdc39084c5afa1e6f7f37dd09"
 PATH_POLICY_ENV = dict(os.environ)
-FULL_GIT_COMMIT_ID = re.compile(r"[0-9a-fA-F]{40,64}")
+FULL_GIT_COMMIT_ID = re.compile(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})")
 SAFE_RUNTIME_BUILD_KEY = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 HAPROXY_BINDING_BUILD_TARGETS = ("build-modsecurity-binding", "build-spoa-runtime")
 HAPROXY_BINDING_FAILURE_OUTPUT_NAMES = {
@@ -2486,27 +2486,21 @@ def prepare_immutable_git_component(
 def prepare_expat_git_component(
     source_url: str,
     expected_ref: str,
-    expected_prompt_latest: str,
     path: Path,
     previous_records: dict[str, dict[str, Any]],
     strict: bool,
     cache_root: Path | None = None,
 ) -> dict[str, Any]:
-    """Use immutable Expat provenance only for the strict evidence path."""
-    if strict:
-        return prepare_immutable_git_component(
-            "expat",
-            source_url,
-            expected_ref,
-            path,
-            previous_records,
-            strict,
-            cache_root=cache_root,
-        )
-    return prepare_release_git_component(
+    """Prepare Expat from its configured immutable commit in every mode.
+
+    ``strict`` still controls the cache/fsck policy of the shared Git
+    preparer.  It must not change Expat provenance into a latest-release
+    lookup.
+    """
+    return prepare_immutable_git_component(
         "expat",
         source_url,
-        expected_prompt_latest,
+        expected_ref,
         path,
         previous_records,
         strict,
@@ -8883,6 +8877,12 @@ def nginx_build_environment(
         MSCONNECTOR_PROFILE_REGISTRY_ROOT=str(inputs.profile_registry_build_root),
         MODSECURITY_SHARED_PREFIX=str(inputs.modsecurity.get("prefix", "")),
         MODSECURITY_BUILD_ID=str(inputs.modsecurity.get("build_id", "")),
+        # The Framework-owned NGINX provisioner extracts the pinned source
+        # archive. Archive ownership is not build input, and restoring
+        # archive-recorded numeric owners can fail in user namespaces or on
+        # id-mapped mounts. Replace, rather than inherit, TAR_OPTIONS so a
+        # caller cannot re-enable owner restoration for this private route.
+        TAR_OPTIONS="--no-same-owner",
         BUILD_NGINX_FROM_SOURCE="1",
         AUTO_FETCH_SMOKE_SOURCES="0",
         REFRESH="1",
@@ -10418,8 +10418,8 @@ def markdown_report(payload: dict[str, Any]) -> str:
             "- System paths are not used for runtime component writes.",
             "- Runtime writes are constrained to cache/build/runtime roots.",
             "- Native Apache and NGINX use local prepared components when env overrides are absent.",
-            "- go-ftw and albedo use release-tag resolution; Expat uses release resolution only outside strict evidence runs.",
-            "- `RUNTIME_COMPONENT_STRICT_VERIFY=1` requires a fresh-clone or prior-cache full git fsck PASS and an immutable Expat commit pin.",
+            "- go-ftw and albedo use release-tag resolution; Expat always uses its configured immutable commit.",
+            "- `RUNTIME_COMPONENT_STRICT_VERIFY=1` requires a fresh-clone or prior-cache full git fsck PASS; Expat requires an immutable commit pin in every mode.",
         ]
     )
     return "\n".join(lines) + "\n"
@@ -10464,7 +10464,7 @@ def parse_runtime_component_args() -> argparse.Namespace:
 
 
 def required_runtime_component_sources(
-    env: dict[str, str], strict: bool, target_connector: str
+    env: dict[str, str], target_connector: str
 ) -> dict[str, Any]:
     target_connector = require_runtime_component_target(target_connector)
     validate_https_url_config(env, target_connector)
@@ -10473,10 +10473,10 @@ def required_runtime_component_sources(
     values = {"apr_util_provenance": require_apr_util_pinned_provenance(env)}
     values.update({
         "expat_source_url": require_env_value(env, "EXPAT_SOURCE_URL"),
-        "expat_git_ref": require_env_value(env, "EXPAT_GIT_REF"),
+        "expat_git_ref": require_full_immutable_git_commit(
+            require_env_value(env, "EXPAT_GIT_REF"), "EXPAT_GIT_REF"
+        ),
     })
-    if strict:
-        values["expat_git_ref"] = require_full_immutable_git_commit(values["expat_git_ref"], "EXPAT_GIT_REF")
     if target_connector == "all":
         # These optional tools are prepared only by the aggregate target; a
         # connector-scoped run must not be blocked by their unrelated source
@@ -10557,7 +10557,7 @@ def runtime_component_context(args: argparse.Namespace) -> tuple[dict[str, Any] 
     PATH_POLICY_ENV = dict(env)
     strict = env.get("RUNTIME_COMPONENT_STRICT_VERIFY") == "1"
     try:
-        sources = required_runtime_component_sources(env, strict, args.target_connector)
+        sources = required_runtime_component_sources(env, args.target_connector)
     except RuntimeError as exc:
         print(f"prepare-runtime-components: BLOCKED: {exc}")
         return None, 77
@@ -10665,7 +10665,6 @@ def prepare_runtime_git_components(
         prepare_expat_git_component(
             env.get("EXPAT_GIT_URL") or context["expat_source_url"],
             context["expat_git_ref"],
-            env.get("EXPAT_PROMPT_EXPECTED_LATEST") or context["expat_git_ref"],
             paths["git_root"] / "libexpat",
             previous_git,
             context["strict"],

@@ -497,6 +497,101 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
             source.count('self.send_header("content-type", TEXT_PLAIN_CONTENT_TYPE)'), 3,
         )
 
+    def test_response_phase_smoke_target_selects_companion_rules_without_changing_default(self) -> None:
+        makefile = (ROOT / "connectors" / "envoy" / "Makefile").read_text(encoding="utf-8")
+
+        self.assertIn(
+            "RULES_FILE ?= $(abspath $(CURDIR)/../../common/rules/modsecurity_targeted_smoke.conf)",
+            makefile,
+        )
+        self.assertIn("response-phase-smoke-envoy", makefile)
+        self.assertIn(
+            "response-phase-smoke-envoy: override RULES_FILE := $(abspath $(CURDIR)/../../common/rules/modsecurity_response_companion_smoke.conf)",
+            makefile,
+        )
+        self.assertIn(
+            "response-phase-smoke-envoy: override export MSCONNECTOR_RESPONSE_PHASE_SMOKE := 1",
+            makefile,
+        )
+        self.assertIn("response-phase-smoke-envoy: runtime-smoke-envoy", makefile)
+
+        companion_rules = (ROOT / "common" / "rules" / "modsecurity_response_companion_smoke.conf").resolve()
+        dry_run = subprocess.run(
+            [
+                "make",
+                "-n",
+                "-s",
+                "-C",
+                str(ROOT / "connectors" / "envoy"),
+                "RULES_FILE=/tmp/nonmatching.conf",
+                "MSCONNECTOR_RESPONSE_PHASE_SMOKE=0",
+                "--eval",
+                "response-phase-smoke-envoy: ; @printf 'RULES_FILE=%s MSCONNECTOR_RESPONSE_PHASE_SMOKE=%s\\n' '$(RULES_FILE)' '$(MSCONNECTOR_RESPONSE_PHASE_SMOKE)'",
+                "response-phase-smoke-envoy",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(dry_run.returncode, 0, dry_run.stdout + dry_run.stderr)
+        self.assertIn(f'RULES_FILE="{companion_rules}"', dry_run.stdout)
+        self.assertIn(
+            f"'{companion_rules}' '1'",
+            dry_run.stdout,
+        )
+
+        default_dry_run = subprocess.run(
+            [
+                "make",
+                "-n",
+                "-s",
+                "-C",
+                str(ROOT / "connectors" / "envoy"),
+                "RULES_FILE=/tmp/caller-selected.conf",
+                "MSCONNECTOR_RESPONSE_PHASE_SMOKE=1",
+                "--eval",
+                "print-default-response-phase-values: runtime-smoke-envoy ; @printf 'RULES_FILE=%s MSCONNECTOR_RESPONSE_PHASE_SMOKE=%s\\n' '$(RULES_FILE)' '$(MSCONNECTOR_RESPONSE_PHASE_SMOKE)'",
+                "print-default-response-phase-values",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(
+            default_dry_run.returncode,
+            0,
+            default_dry_run.stdout + default_dry_run.stderr,
+        )
+        self.assertIn('RULES_FILE="/tmp/caller-selected.conf"', default_dry_run.stdout)
+        self.assertIn(
+            "'/tmp/caller-selected.conf' '1'",
+            default_dry_run.stdout,
+        )
+
+    def test_response_phase_fixture_matches_companion_p3_and_p4_rules_only(self) -> None:
+        helper = load_helper()
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), helper.UpstreamHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        connection = http.client.HTTPConnection("127.0.0.1", server.server_port, timeout=2)
+        try:
+            connection.request("GET", "/phase3-block")
+            p3_response = connection.getresponse()
+            self.assertEqual(p3_response.status, 200)
+            self.assertEqual(p3_response.getheader("X-Modsec-Upstream"), "block")
+            self.assertNotIn(b"no-crs-response-body-marker", p3_response.read())
+
+            connection.request("GET", "/phase4-marker")
+            p4_response = connection.getresponse()
+            self.assertEqual(p4_response.status, 200)
+            self.assertIsNone(p4_response.getheader("X-Modsec-Upstream"))
+            self.assertIn(b"no-crs-response-body-marker", p4_response.read())
+        finally:
+            connection.close()
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
     def test_phase4_barrier_confirms_first_byte_before_upstream_eos(self) -> None:
         helper = load_helper()
         with tempfile.TemporaryDirectory() as temporary:
@@ -729,6 +824,22 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(ValueError, "forbidden body payload"):
+                helper.verify_response_phase_events(
+                    runtime_root=str(root),
+                    event_log=str(event_path),
+                    p3_rule_id="1000003",
+                    p3_transaction_id="envoy-p3-block-1",
+                    p4_rule_id="1000004",
+                    p4_transaction_id="envoy-p4-safe-1",
+                )
+
+            records[1].pop("response_body")
+            records.append(dict(records[0]))
+            event_path.write_text(
+                "\n".join(json.dumps(record) for record in records) + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "exactly one P3 deny and P4 Safe record"):
                 helper.verify_response_phase_events(
                     runtime_root=str(root),
                     event_log=str(event_path),

@@ -239,6 +239,7 @@ if ! (
     MSCONNECTOR_COMMON_INC="$SOURCE_ROOT/common/include" \
     MSCONNECTOR_COMMON_SRC="$SOURCE_ROOT/common/src" \
     MSCONNECTOR_COMMON_BUILD_SRC="$APACHE_ROOT/build/common-src" \
+    MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT="$WORK_ROOT/profile-registry" \
     make
 ) > "$MAKE_LOG" 2>&1; then
     sed -n '1,220p' "$MAKE_LOG" >&2
