@@ -47,7 +47,8 @@ P3 redirect, and P4 safe post-commit log-only behavior. It validates the raw
 Common events and the host-confirmed actions after successful gRPC sends. This
 is real local host evidence, but it remains non-promoted and does not change
 the canonical `ext_authz` capabilities or runtime status. A late P4 decision
-in `minimal`/`safe` is recorded as host-confirmed `log_only`. The service
+in `safe` is recorded as host-confirmed `log_only`; `off` preserves native
+intervention handling without applying the additional late policy. The service
 decoder can represent `late_action_policy: strict`, but a rule-evaluating CGo
 service with `phase4_mode=strict` rejects the `envoy-ext-proc` profile at
 startup until a deterministic post-commit host action is proven. It never

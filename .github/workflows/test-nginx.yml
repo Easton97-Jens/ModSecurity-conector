@@ -80,7 +80,6 @@ jobs:
           path: ${{ runner.temp }}/hostruntime-evidence/nginx
           if-no-files-found: error
       - name: Syntax and dry-run checks
-        if: github.event_name != 'pull_request'
         run: |
           make setup-dev
           sh -n connectors/nginx/harness/run_nginx_smoke.sh

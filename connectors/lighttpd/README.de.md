@@ -246,8 +246,8 @@ Der ausgewählte Umfang beansprucht weder gzip/br noch HTTP/2 oder jeden
 Datei-/Zero-Copy-Ausgabepfad. Der aktuelle Harness führt keinen Streaming-P4-
 Traffic aus; es gibt keinen Real-Client-Nachweis für ein sichtbares Safe-Ergebnis,
 ein Pre-Commit-Deny, First-Byte-Auslieferung oder einen strikten
-Verbindungsabbruch. Der Quellpfad zeichnet ein sicheres/minimal disruptives
-Ergebnis als `log_only` auf. Der gepatchte Callback gibt bei einer
+Verbindungsabbruch. Der Quellpfad zeichnet ein disruptives Ergebnis im Safe-Modus
+als `log_only` auf. Off bewahrt die native Behandlung ohne zusätzliche Late-Policy. Der gepatchte Callback gibt bei einer
 verbindungsbehafteten Strict-Intervention jetzt
 `PLUGIN_BODY_HOOK_ABORT` an den Response-Fehlerpfad des gepatchten Cores
 zurück; die gemeinsame Runtime weist Strict für dieses Profil bei der

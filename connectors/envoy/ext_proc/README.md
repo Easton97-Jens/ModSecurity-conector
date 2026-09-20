@@ -141,7 +141,8 @@ The service uses the conservative response-commit boundary: only a successful
 response-header `CONTINUE` send marks a response as committed. For a disruptive
 decision found later:
 
-- `minimal` and `safe` record a real Common host outcome `log_only` and
+- `off` preserves native intervention handling without the additional late policy;
+- `safe` records a real Common host outcome `log_only` and
   continue with the original visible response status;
 - `strict` is rejected at Common Runtime startup for the `envoy-ext-proc`
   profile. Its immutable `strict_post_commit_action` capability is zero until

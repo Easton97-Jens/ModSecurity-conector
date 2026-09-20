@@ -110,7 +110,6 @@ PROFILE_MATRIX = {
             "modsecurity on",
             "modsecurity_rules_file",
             "modsecurity_phase4_mode strict",
-            "modsecurity_phase4_content_types_file",
             "modsecurity_phase4_log",
             "modsecurity_phase4_body_limit",
             "modsecurity_use_error_log on",
@@ -161,7 +160,6 @@ PROFILE_MATRIX = {
             "rules_inline=SecRuleEngine On",
             "rules_remote_url=https://rules.invalid/reviewed/no-crs.conf",
             "transaction_id=operator-supplied-id",
-            "phase4_content_types_file=/etc/modsecurity/phase4-content-types.conf",
             "late_intervention_timeout=5000",
             "event_path=/var/log/modsecurity/envoy-ext-authz-all-events.jsonl",
             "max_event_json_bytes=16384",
@@ -181,7 +179,6 @@ PROFILE_MATRIX = {
             "rules_inline=SecRuleEngine On",
             "rules_remote_url=https://rules.invalid/reviewed/no-crs.conf",
             "transaction_id=operator-supplied-id",
-            "phase4_content_types_file=/etc/modsecurity/phase4-content-types.conf",
             "late_intervention_timeout=5000",
             "event_path=/var/log/modsecurity/envoy-ext-proc-all-events.jsonl",
         ),
@@ -338,7 +335,7 @@ class LogicalConnectorAllExamplesTests(unittest.TestCase):
         self.assertIn("mutation.RemoveHeaders = []string{handleHeader}", service)
         self.assertIn("func TestRequestHandleMutationStripsOpaqueHeader", protocol_test)
 
-    def test_existing_minimal_safe_and_strict_layouts_remain_materialized(self) -> None:
+    def test_existing_off_safe_and_strict_layouts_remain_materialized(self) -> None:
         for name, profile in PROFILE_MATRIX.items():
             for variant in THREE_VARIANTS:
                 for filename in profile["files"]:

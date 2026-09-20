@@ -17,7 +17,7 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`log`](#log) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`mode`](#mode) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`option`](#option) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
-| [`phase4-mode`](#phase4-mode) | Host / Connector | Aufzählung | nein | safe | Die ausgewählte und eingecheckte native Nutzung ist ein HAProxy-Frontend. Der lokale Parser legt keine weiteren Host-Geltungsbereiche fest. | Native HTX-Argument für die späte P4-Policy. |
+| [`phase4-mode`](#phase4-mode) | Host / Connector | Aufzählung | nein | off | Die ausgewählte und eingecheckte native Nutzung ist ein HAProxy-Frontend. Der lokale Parser legt keine weiteren Host-Geltungsbereiche fest. | Native HTX-Argument für die späte P4-Policy. |
 | [`rules-file`](#rules-file) | Host / Connector | Pfad | ja | kein Wert; erforderlich | Die ausgewählte und eingecheckte native Nutzung ist ein HAProxy-Frontend. Der lokale Parser legt keine weiteren Host-Geltungsbereiche fest. | Erforderliches rules-file-Argument des nativen HTX. |
 | [`server`](#server) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`spoe-agent:response-companion`](#spoe-agent-response-companion) | Kompatibilität | Aufzählung | nein | none | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Owner-Konfiguration für den erforderlichen nativen-HTX-MRC1-Response-Begleiter. native-htx veröffentlicht einen begrenzten opaken Handle für die HTX-P3/P4-Verarbeitung. |
@@ -81,7 +81,7 @@ Siehe [Engine-Referenz](../common/modsecurity-directives.de.md).
 
 | Profil | Datei | Status |
 | --- | --- | --- |
-| Minimal | [minimal/haproxy-htx.cfg](off/haproxy-htx.cfg) | Aktive Startkonfiguration |
+| Off / Kompatibilität | [off/haproxy-htx.cfg](off/haproxy-htx.cfg) | Aktive Startkonfiguration |
 | Sicherer vollständiger Lebenszyklus | [safe/haproxy-htx.cfg](safe/haproxy-htx.cfg) | Ausgewählte begrenzte Referenz |
 | Strikt | [strict/haproxy-htx.cfg](strict/haproxy-htx.cfg) | Parserunterstützte oder ausdrücklich optionale Grenze |
 | DetectionOnly | [detection-only/haproxy-htx.cfg](detection-only/haproxy-htx.cfg) | Engine wertet aus/protokolliert ohne disruptive Aktion |
@@ -465,7 +465,7 @@ phase4-mode off | safe | strict
 
 ### Standardwert
 
-safe
+off
 
 Quelle: `common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_MODE`.
 
@@ -477,7 +477,7 @@ Zusammenführung: Kein Connector-lokaler Merge; Filterargumente initialisieren e
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Nur P4. Die aktuelle HTX-Hostaktion unterscheidet strict von nicht-strict; minimal und safe teilen den späten nicht-strict-log_only-Pfad.
+P1–P4-Relevanz: Nur P4. off bewahrt die native HTX-Interventionsbehandlung; safe verwendet den nicht disruptiven späten Pfad; strict fordert den unterstützten Host-Abbruchpfad an.
 
 Initialisiert common_config.phase4_mode für den Filter.
 

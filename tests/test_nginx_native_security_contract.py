@@ -313,26 +313,17 @@ class NginxNativeSecurityContractTest(unittest.TestCase):
         self.assertIn("phase=phase4_reload_overlap", EXACT_GATE)
         self.assertIn("phase=phase4_fd_shutdown result=closed_after_master_exit", EXACT_GATE)
 
-    def test_content_type_file_is_descriptor_pinned_regular_and_bounded(self) -> None:
-        loader = MODULE.split(
-            "static char *\nngx_http_modsecurity_phase4_load_content_types_file", 1
-        )[1].split("\n\nstatic char *\nngx_conf_set_common_flag_slot", 1)[0]
-
-        self.assertIn(
-            "#define MSCONNECTOR_NGINX_PHASE4_CONTENT_TYPES_FILE_MAX_BYTES (64U * 1024U)",
-            MODULE,
+    def test_connector_owned_phase4_mime_file_is_not_registered(self) -> None:
+        for source in (MODULE, COMMON, BODY_FILTER):
+            self.assertNotIn("phase4_content_types", source)
+        self.assertNotIn("ngx_http_modsecurity_phase4_load_content_types_file", MODULE)
+        self.assertNotIn("ngx_conf_set_phase4_content_types_file", MODULE)
+        append = function_definition(
+            BODY_FILTER, "ngx_http_modsecurity_append_response_chain_buffer"
         )
-        self.assertIn("ngx_fd_info(file.fd, &fi)", loader)
-        self.assertIn("!ngx_is_file(&fi)", loader)
-        self.assertIn("NGX_FILE_RDONLY|NGX_FILE_NONBLOCK", loader)
-        self.assertIn("#if (NGX_WIN32)", loader)
-        self.assertIn("unavailable on Win32 by security policy", loader)
-        self.assertIn(
-            "MSCONNECTOR_NGINX_PHASE4_CONTENT_TYPES_FILE_MAX_BYTES", loader
-        )
-        self.assertIn("n != (ssize_t) file_size", loader)
-        self.assertLess(loader.index("ngx_open_file("), loader.index("ngx_fd_info("))
-        self.assertLess(loader.index("ngx_fd_info("), loader.index("ngx_pnalloc("))
+        self.assertNotIn("content_type", append)
+        self.assertNotIn("phase4_in_scope", append)
+        self.assertIn("ngx_http_modsecurity_append_response_body_buffer", append)
 
     def test_native_event_file_examples_remain_bounded_and_remote_rules_stay_disabled(self) -> None:
         safe = (ROOT / "examples/nginx/safe/nginx.conf").read_text(

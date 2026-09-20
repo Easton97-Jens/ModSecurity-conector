@@ -252,7 +252,8 @@ nach progressivem Forwarding versiegelt das Phase-4-Gate, weil ein Body-Präfix
 bereits sichtbar sein kann. P4 wird genau einmal bei EOS abgeschlossen;
 doppelte terminale Ausgabe wird abgewiesen.
 
-`log_only` im Safe-/Minimal-Modus erhält ein bereits weitergereichtes Präfix.
+Off bewahrt die native Interventionsbehandlung. `log_only` im Safe-Modus
+erhält ein bereits weitergereichtes Präfix.
 Strict verwendet `abort_connection` nach einem disruptiven EOS-Ergebnis,
 statt emittierte Bytes zu ersetzen. Weil die P4-Regelauswertung bei EOS
 erfolgt, behauptet dieser progressive Pfad keinen verlässlichen P4-HTTP-Deny

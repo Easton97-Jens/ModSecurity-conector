@@ -15,7 +15,7 @@
   ],
   "host_model_constraints": [
     "NGINX receives the request body after host preparation, but its response body filter incrementally feeds each current chain buffer to the active P4 phase and forwards the chain without retaining a cross-callback response body.",
-    "The connector JSONL writer is currently specific to Phase-4 interventions and does not by itself prove canonical event coverage for request-phase decisions.",
+    "The connector JSONL writer is used for request-rule and Phase-3/4 intervention metadata; source wiring alone does not prove canonical event coverage for every phase.",
     "A Phase-4 decision can be observed after NGINX has sent response headers and is then governed by the late-intervention policy."
   ],
   "capabilities": {
@@ -145,7 +145,7 @@
     },
     "content_type_scope": {
       "state": "implemented_not_asserted",
-      "reason": "The Phase-4 filter checks its configured response Content-Type scope before appending body bytes; out-of-scope response bodies are not appended to libmodsecurity. Real-host coverage is pending."
+      "reason": "ModSecurity selects response MIME inspection through SecResponseBodyMimeType and SecResponseBodyAccess; there is no connector-owned MIME allowlist. NGINX offers response bytes through the bounded P4 path in off, safe, and strict modes. Real-host coverage of engine MIME selection is pending."
     },
     "header_limits": {
       "state": "not_implemented",
@@ -157,7 +157,7 @@
     },
     "response_body_limits": {
       "state": "implemented_not_asserted",
-      "reason": "The response filter applies the Common reject body-limit plan before forwarding each in-scope memory or file buffer, but native-host limit-mode evidence is pending."
+      "reason": "The response filter applies the Common reject body-limit plan before forwarding each memory or file buffer, independently of MIME type and Phase-4 policy mode; native-host limit-mode evidence is pending."
     },
     "no_full_response_buffering": {
       "state": "implemented_not_asserted",

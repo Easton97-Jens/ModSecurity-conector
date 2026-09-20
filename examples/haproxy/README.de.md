@@ -8,7 +8,7 @@ Integrationsmodus: nativer HTX-Filter. Die nativen Referenzen
 [off](off/haproxy-htx.cfg), [Safe](safe/haproxy-htx.cfg) und
 [Strict](strict/haproxy-htx.cfg) sowie [all](all/haproxy-htx.cfg) bilden die
 native HTX-Lösung. Die [SPOE/SPOP-Lösung](#spoespop-response-companion-lösung)
-hat passende minimal-, safe-, strict- und all-Bundles und verbindet den
+hat passende off-, safe-, strict- und all-Bundles und verbindet den
 Request-seitigen SPOE/SPOP-Agent mit dem nativen HTX-Response-Companion. Die
 all-Layouts verwenden den bestehenden Strict-Policy-Wert; sie führen keinen
 P4-Policy-Wert `all` ein.
@@ -27,11 +27,11 @@ ohne einen nativen Host-Abbruch zu behaupten.
 
 | Pfad | Typ | Zweck |
 | --- | --- | --- |
-| [minimal/haproxy-htx.cfg](off/haproxy-htx.cfg) | Host-Konfiguration | Parser-unterstützter minimaler P4-Modus des nativen HTX. |
+| [off/haproxy-htx.cfg](off/haproxy-htx.cfg) | Host-Konfiguration | Nativer HTX-Off-Kompatibilitätsmodus; die Engine-Inspektion bleibt aktiv. |
 | [safe/haproxy-htx.cfg](safe/haproxy-htx.cfg) | Host-Konfiguration | Native HTTP/1.1-P1--P4-Safe-Referenz. |
 | [strict/haproxy-htx.cfg](strict/haproxy-htx.cfg) | Host-Konfiguration | Parser-unterstützte Strict-Policy-Grenze des nativen HTX. |
 | [all/haproxy-htx.cfg](all/haproxy-htx.cfg) | Host-Konfiguration | Umfassendes natives HTX-Layout mit allen sichtbaren quellenbasierten Filtereinstellungen. |
-| [spoe-spop/off/](spoe-spop/off/) | Logisches Bundle | SPOE/SPOP P1/P2 plus nativer HTX-Companion P3/P4, minimal. |
+| [spoe-spop/off/](spoe-spop/off/) | Logisches Bundle | SPOE/SPOP P1/P2 plus nativer HTX-Companion P3/P4, Off-Kompatibilitätsmodus. |
 | [spoe-spop/safe/](spoe-spop/safe/) | Logisches Bundle | SPOE/SPOP P1/P2 plus nativer HTX-Companion P3/P4, Safe. |
 | [spoe-spop/strict/](spoe-spop/strict/) | Logisches Bundle | SPOE/SPOP P1/P2 plus nativer HTX-Companion P3/P4, Strict-Grenze. |
 | [spoe-spop/all/](spoe-spop/all/) | Logisches Bundle | Vollständiges SPOE/SPOP-P1/P2- und privates natives-HTX-P3/P4-Companion-Layout. |
@@ -112,7 +112,7 @@ Kompatibilitätsservice. Eine P4-Entscheidung nach dem Beginn einer Response
 wird als Safe-Log-only aufgezeichnet; die Konfiguration verspricht keinen
 Statuswechsel und keinen Strict-Abbruch.
 
-Die Minimal-Referenz zeigt den parser-unterstützten minimal-Modus; die
+Die Off-Referenz bewahrt die native Interventionsbehandlung; die
 Strict-Referenz wählt `phase4-mode strict`. Strict ist eine Policy-Anforderung
 an der Hostgrenze. Der aktuelle Quellcode zeichnet sie als `not_attempted` auf,
 wenn ein Abbruch nach dem Commit nicht sicher möglich ist. Kein Bundle

@@ -640,58 +640,6 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 The 65536-byte hard cap bounds aggregate header storage and overflow-safe accounting.
 
-
-### Short description
-
-Stores a content-type file path; consumption is connector-specific.
-
-### Syntax
-
-```text
-```
-
-### Valid contexts
-
-- Common Runtime key=value file
-
-### Values
-
-| Type | Allowed values | Required |
-| --- | --- | --- |
-| path | one configuration path | no |
-
-### Default
-
-none
-
-Source: `runtime parser has no default`.
-
-### Inheritance and merge
-
-No file-level inheritance; host integrations may merge their own configuration before starting Common Runtime.
-
-Merge: When a host uses msconnector_config, scalar child values override parent values; runtime files are parsed as one concrete configuration.
-
-### Phases and runtime effect
-
-See runtime effect; body modes/limits affect P2 and P4, header limits affect P1 and P3.
-
-Stores a content-type file path; consumption is connector-specific.
-
-### Validation and errors
-
-Unknown keys, empty values, malformed assignments, and key-specific invalid values fail the runtime configuration check.
-
-### Example
-
-Selected value: use the syntax above and the source-backed file below.
-
-Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../examples/lighttpd/safe/msconnector-runtime.conf).
-
-### Safety and operations
-
-Limits bound resource use. Stores a content-type file path; consumption is connector-specific.
-
 <a id="phase4-event-log"></a>
 ## `phase4_event_log`
 
@@ -752,7 +700,7 @@ Limits bound resource use. Alias for event_path.
 
 ### Short description
 
-Stores the late P4 intervention policy. `off` is the default and preserves the native connector path; ModSecurity response inspection remains independent. Response MIME selection belongs to the ModSecurity engine, not to a connector allowlist.
+Stores the late P4 policy. Common alone owns no host abort primitive.
 
 ### Syntax
 

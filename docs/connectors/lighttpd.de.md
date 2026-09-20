@@ -91,7 +91,7 @@ dies ist ein Source-/Static-Vertrag, kein Fault-Injection-Runtime-Claim.
 | P4-Frage | Aktuelle Grenze |
 | --- | --- |
 | Response-Body-Hook | Gepatchter Identity-Entity-Body-Source-Pfad existiert |
-| Safe-/Minimal-Ergebnis | Sichtbare Response erhalten und konservatives <code>log_only</code>-Verhalten aufzeichnen |
+| Safe-Policy-Ergebnis | Sichtbare Response erhalten und konservatives <code>log_only</code>-Verhalten aufzeichnen |
 | Strict-Ergebnis | Ausdrücklich nicht ausgeführt ohne client-validierte Host-Abort-Primitive |
 | Streaming/Limits | Braucht ein reales ausgewähltes Host-/Client-Artefakt zur Promotion |
 

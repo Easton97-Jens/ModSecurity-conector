@@ -237,7 +237,8 @@ forwarding seals the Phase-4 gate because a body prefix might already be
 visible. P4 finishes exactly once on EOS; duplicate terminal output is
 rejected.
 
-`log_only` in safe/minimal mode preserves an already-forwarded prefix. Strict
+Off preserves native intervention handling. `log_only` in safe mode preserves
+an already-forwarded prefix. Strict
 uses `abort_connection` after a disruptive EOS result, rather than attempting
 to replace emitted bytes. Because P4 rule evaluation occurs at EOS, this
 progressive path does not claim a reliable pre-commit P4 HTTP deny or redirect;

@@ -31,16 +31,13 @@ BODY_RESPONSE_CHAIN_APPEND_CONTRACT_PATTERN = re.compile(
     r'ngx_http_request_t\s*\*\s*r\s*,\s*'
     r'ngx_http_modsecurity_ctx_t\s*\*\s*ctx\s*,\s*'
     r'ngx_http_modsecurity_conf_t\s*\*\s*mcf\s*,\s*'
-    r'ngx_int_t\s+phase4_in_scope\s*,\s*'
     r'ngx_chain_t\s*\*\s*chain\s*\)\s*\{\s*'
-    r'if\s*\(\s*phase4_in_scope\s*==\s*0\s*\)\s*\{\s*'
-    r'return\s+NGX_OK\s*;\s*\}\s*'
     r'return\s+ngx_http_modsecurity_append_response_body_buffer\s*\(\s*'
     r'r\s*,\s*ctx\s*,\s*mcf\s*,\s*chain\s*->\s*buf\s*\)\s*;\s*\}'
 )
 BODY_RESPONSE_CHAIN_CALL_PATTERN = re.compile(
     r'\bngx_http_modsecurity_append_response_chain_buffer\s*\(\s*'
-    r'r\s*,\s*ctx\s*,\s*mcf\s*,\s*phase4_in_scope\s*,\s*chain\s*\)'
+    r'r\s*,\s*ctx\s*,\s*mcf\s*,\s*chain\s*\)'
 )
 BODY_FILTER_DIRECT_CHAIN_CONTRACT_PATTERN = re.compile(
     r'ngx_int_t\s+ngx_http_modsecurity_body_filter\s*\(\s*'
@@ -88,28 +85,6 @@ BODY_RESPONSE_LIMITED_CONTRACT_PATTERN = re.compile(
     r'return\s+ngx_http_modsecurity_append_response_body_chunk\s*\(\s*'
     r'ctx\s*,\s*data\s*,\s*allowed\s*\)\s*;\s*\}'
 )
-PHASE4_IN_SCOPE_CONTRACT_PATTERN = re.compile(
-    r'static\s+ngx_int_t\s+ngx_http_modsecurity_phase4_in_scope\s*\(\s*'
-    r'ngx_http_request_t\s*\*\s*r\s*\)\s*\{\s*'
-    r'ngx_http_modsecurity_conf_t\s*\*\s*mcf\s*=\s*'
-    r'ngx_http_get_module_loc_conf\s*\(\s*r\s*,\s*'
-    r'ngx_http_modsecurity_module\s*\)\s*;\s*'
-    r'ngx_uint_t\s+i\s*;\s*ngx_str_t\s+ct\s*;\s*u_char\s*\*\s*semi\s*;\s*'
-    r'if\s*\(\s*r\s*->\s*headers_out\s*\.\s*content_type\s*\.\s*len\s*'
-    r'==\s*0\s*\|\|\s*mcf\s*->\s*phase4_content_types\s*==\s*NULL\s*\)\s*'
-    r'return\s+0\s*;\s*'
-    r'ct\s*=\s*r\s*->\s*headers_out\s*\.\s*content_type\s*;\s*'
-    r'semi\s*=\s*\(\s*u_char\s*\*\s*\)\s*ngx_strlchr\s*\(\s*'
-    r'ct\s*\.\s*data\s*,\s*ct\s*\.\s*data\s*\+\s*ct\s*\.\s*len\s*,\s*\';\'\s*\)\s*;\s*'
-    r'if\s*\(\s*semi\s*!=\s*NULL\s*\)\s*ct\s*\.\s*len\s*=\s*semi\s*-\s*ct\s*\.\s*data\s*;\s*'
-    r'while\s*\(\s*ct\s*\.\s*len\s*>\s*0\s*&&\s*isspace\s*\(\s*'
-    r'\(\s*unsigned\s+char\s*\)\s*ct\s*\.\s*data\s*\[\s*ct\s*\.\s*len\s*-\s*1\s*\]\s*\)\s*\)\s*ct\s*\.\s*len\s*--\s*;\s*'
-    r'for\s*\(\s*i\s*=\s*0\s*;\s*i\s*<\s*mcf\s*->\s*phase4_content_types\s*->\s*nelts\s*;\s*i\s*\+\+\s*\)\s*\{\s*'
-    r'ngx_str_t\s*\*\s*arr\s*=\s*mcf\s*->\s*phase4_content_types\s*->\s*elts\s*;\s*'
-    r'if\s*\(\s*arr\s*\[\s*i\s*\]\s*\.\s*len\s*==\s*ct\s*\.\s*len\s*&&\s*'
-    r'ngx_strncasecmp\s*\(\s*arr\s*\[\s*i\s*\]\s*\.\s*data\s*,\s*ct\s*\.\s*data\s*,\s*ct\s*\.\s*len\s*\)\s*==\s*0\s*\)\s*'
-    r'return\s+1\s*;\s*\}\s*return\s+0\s*;\s*\}'
-)
 BODY_RESPONSE_CHAIN_CALL_CONTRACT_PATTERN = re.compile(
     r'static\s+ngx_int_t\s+'
     r'ngx_http_modsecurity_process_response_body_chain\s*\(\s*'
@@ -120,19 +95,16 @@ BODY_RESPONSE_CHAIN_CALL_CONTRACT_PATTERN = re.compile(
     r'ngx_chain_t\s*\*\s*segment_start\s*=\s*in\s*;\s*'
     r'ngx_chain_t\s*\*\s*segment_previous\s*=\s*NULL\s*;\s*'
     r'ngx_http_modsecurity_conf_t\s*\*\s*mcf\s*;\s*'
-    r'ngx_int_t\s+phase4_in_scope\s*;\s*'
     r'int\s+is_request_processed\s*=\s*0\s*;\s*'
     r'mcf\s*=\s*ngx_http_get_module_loc_conf\s*\(\s*r\s*,\s*'
     r'ngx_http_modsecurity_module\s*\)\s*;\s*'
-    r'phase4_in_scope\s*=\s*ngx_http_modsecurity_phase4_in_scope\s*\(\s*'
-    r'r\s*\)\s*;\s*'
     r'for\s*\(\s*chain\s*=\s*in\s*;\s*chain\s*!=\s*NULL\s*;\s*'
     r'chain\s*=\s*chain\s*->\s*next\s*\)\s*\{\s*'
     r'ngx_int_t\s+ret\s*;\s*'
     r'ngx_uint_t\s+final_body_forwarded\s*;\s*'
     r'ngx_uint_t\s+terminal_processed\s*;\s*'
     r'ret\s*=\s*ngx_http_modsecurity_append_response_chain_buffer\s*\(\s*'
-    r'r\s*,\s*ctx\s*,\s*mcf\s*,\s*phase4_in_scope\s*,\s*chain\s*\)\s*;\s*'
+    r'r\s*,\s*ctx\s*,\s*mcf\s*,\s*chain\s*\)\s*;\s*'
     r'if\s*\(\s*ret\s*!=\s*NGX_OK\s*\)\s*\{\s*'
     r'return\s+ret\s*;\s*\}'
 )
@@ -354,9 +326,6 @@ EXPECTED_HEADER_VALIDATED_RESPONSE_HEADER_WRAPPER_CALLS = 10
 EXPECTED_RESPONSE_HEADER_COLLECTION_DIRECTIVES = (
     '#if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)',
     '#endif',
-)
-BODY_PHASE4_SCOPE_ASSIGNMENT_PATTERN = re.compile(
-    r'phase4_in_scope\s*=\s*ngx_http_modsecurity_phase4_in_scope\s*\(\s*r\s*\)\s*;'
 )
 BODY_LIMIT_PLAN_CHUNK_CALL_PATTERN = re.compile(
     r'if\s*\(\s*!msconnector_body_limit_plan_chunk\s*\(\s*'
@@ -1220,18 +1189,12 @@ body_response_chain_append, _ = c_checked_function(body_c,
     'static ngx_int_t\nngx_http_modsecurity_append_response_chain_buffer')
 body_response_chain_append_all_branches = c_all_branch_function(body_c,
     'static ngx_int_t\nngx_http_modsecurity_append_response_chain_buffer')
-body_response_chain_append_is_direct_gate_wrapper = (
-    BODY_RESPONSE_CHAIN_APPEND_CONTRACT_PATTERN.fullmatch(
-        body_response_chain_append) is not None
-)
 body_response_chain, _ = c_checked_function(body_c,
     'static ngx_int_t\nngx_http_modsecurity_process_response_body_chain')
 body_response_chain_all_branches = c_all_branch_function(body_c,
     'static ngx_int_t\nngx_http_modsecurity_process_response_body_chain')
 body_filter, _ = c_checked_function(body_c,
     'ngx_int_t\nngx_http_modsecurity_body_filter(ngx_http_request_t *r, ngx_chain_t *in)')
-phase4_in_scope, phase4_in_scope_visible = c_checked_function(body_c,
-    'static ngx_int_t\nngx_http_modsecurity_phase4_in_scope')
 header_filter, header_filter_visible = c_checked_function(
     header_c, HEADER_FILTER_SIGNATURE
 )
@@ -1470,8 +1433,6 @@ header_pre_mapper_returns = [
     if header_response_mapper_direct_calls
     and match.start() < header_response_mapper_direct_calls[0].start()
 ]
-body_phase4_scope_assignments = c_direct_matches(
-    body_response_chain, BODY_PHASE4_SCOPE_ASSIGNMENT_PATTERN)
 body_limit_plan_chunk_calls = c_direct_matches(
     body_limited_response_plan, BODY_LIMIT_PLAN_CHUNK_CALL_PATTERN)
 body_limit_bytes_seen_assignments = c_direct_matches(
@@ -1677,17 +1638,8 @@ phase4_mime_is_engine_owned = (
     and 'modsecurity_phase4_content_types_file' not in module_c
 )
 body_response_chain_append_is_direct_wrapper = (
-    re.fullmatch(
-        r'static\s+ngx_int_t\s+'
-        r'ngx_http_modsecurity_append_response_chain_buffer\s*\(\s*'
-        r'ngx_http_request_t\s*\*\s*r\s*,\s*'
-        r'ngx_http_modsecurity_ctx_t\s*\*\s*ctx\s*,\s*'
-        r'ngx_http_modsecurity_conf_t\s*\*\s*mcf\s*,\s*'
-        r'ngx_chain_t\s*\*\s*chain\s*\)\s*\{\s*'
-        r'return\s+ngx_http_modsecurity_append_response_body_buffer\s*\(\s*'
-        r'r\s*,\s*ctx\s*,\s*mcf\s*,\s*chain\s*->\s*buf\s*\)\s*;\s*\}',
-        body_response_chain_append,
-    ) is not None
+    BODY_RESPONSE_CHAIN_APPEND_CONTRACT_PATTERN.fullmatch(
+        body_response_chain_append) is not None
 )
 body_response_limit_contract_is_direct = (
     body_response_chain_append_is_direct_wrapper
@@ -1699,12 +1651,8 @@ body_response_limit_contract_is_direct = (
         body_limited_response_plan) is None
 )
 body_response_chain_call_is_direct = (
-    len(re.findall(
-        r'\bngx_http_modsecurity_append_response_chain_buffer\s*\(\s*'
-        r'r\s*,\s*ctx\s*,\s*mcf\s*,\s*chain\s*\)',
-        body_response_chain_all_branches,
-    )) == 1
-    and 'phase4_in_scope' not in body_response_chain_all_branches
+    len(body_response_chain_append_calls) == 1
+    and len(body_response_chain_call_contracts) == 1
     and C_PREPROCESSOR_DIRECTIVE.search(body_response_chain_all_branches) is None
 )
 body_response_raw_sink_is_owned = (

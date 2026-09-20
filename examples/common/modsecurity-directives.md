@@ -407,7 +407,7 @@ On makes P4 possible only when the host supplies response bytes that are in scop
 
 ### Validation and errors
 
-The host/libmodsecurity rejects invalid engine syntax when loading the rule file. At runtime, an out-of-scope MIME type, disabled host body path, or exceeded limit can leave P4 without the expected complete body input.
+The host/libmodsecurity rejects invalid engine syntax when loading the rule file. At runtime, an engine-excluded response MIME type, disabled host body path, or exceeded limit can leave P4 without the expected complete body input.
 
 ### Example
 

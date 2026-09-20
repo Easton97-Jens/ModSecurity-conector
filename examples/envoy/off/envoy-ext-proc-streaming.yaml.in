@@ -1,5 +1,5 @@
-# Envoy @ENVOY_RELEASE@ minimal ext_proc reference. The transport retains the
-# source-required STREAMED lifecycle; the paired Common Runtime selects minimal.
+# Envoy @ENVOY_RELEASE@ off ext_proc reference. The transport retains the
+# source-required STREAMED lifecycle; the paired Common Runtime selects off.
 #
 # Materialize this template outside the checkout before using it. The values
 # named @...@ are replaced by the connector preparation script, not by Envoy.

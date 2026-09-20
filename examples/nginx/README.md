@@ -4,7 +4,7 @@
 
 ## Integration and boundary
 
-Integration mode: native NGINX HTTP module. [minimal/nginx.conf](off/nginx.conf),
+Integration mode: native NGINX HTTP module. [off/nginx.conf](off/nginx.conf),
 [safe/nginx.conf](safe/nginx.conf), [strict/nginx.conf](strict/nginx.conf), and
 [all/nginx.conf](all/nginx.conf) cover the bounded HTTP/1.1 P1--P4 contract.
 `all` is a comprehensive configuration layout with a real strict P4 policy,
@@ -29,7 +29,7 @@ rule evaluation.
 
 | Path | Type | Purpose |
 | --- | --- | --- |
-| [minimal/nginx.conf](off/nginx.conf) | Host configuration | Minimal bounded native P1--P4 reference. |
+| [off/nginx.conf](off/nginx.conf) | Host configuration | Bounded native P1--P4 reference preserving native intervention handling. |
 | [safe/nginx.conf](safe/nginx.conf) | Host configuration | Bounded P1--P4 Safe reference. |
 | [strict/nginx.conf](strict/nginx.conf) | Host configuration | Explicitly limited Strict configuration shape. |
 | [all/nginx.conf](all/nginx.conf) | Host configuration | Comprehensive native configuration with all source-backed directives visible and `modsecurity_phase4_mode strict`. |

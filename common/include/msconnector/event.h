@@ -145,7 +145,7 @@ typedef struct msconnector_event_integrity {
 
 typedef struct msconnector_event_flags {
     int late_intervention;
-    /* Optional selected late-action policy (`minimal`, `safe`, or `strict`).
+    /* Optional selected late-action policy (`off`, `safe`, or `strict`).
      * It is metadata, never a request or response body fragment. */
     const char *late_intervention_mode;
     int response_started;

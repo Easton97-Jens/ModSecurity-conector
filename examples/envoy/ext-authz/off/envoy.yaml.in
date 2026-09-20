@@ -1,4 +1,4 @@
-# Envoy @ENVOY_RELEASE@ ext_authz minimal logical connector.
+# Envoy @ENVOY_RELEASE@ ext_authz off logical connector.
 # ext_authz supplies P1/P2; the following private-UDS ext_proc observer
 # receives the opaque handle and supplies P3/P4. Never use ext_authz alone.
 static_resources:

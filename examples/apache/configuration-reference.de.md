@@ -17,7 +17,7 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`modsecurity`](#modsecurity) | Host / Connector | Boolescher Wert | nein | off | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Schaltet die Erstellung von Connector-Transaktionen frei; dies ist nicht SecRuleEngine. |
 | [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive dezimale Byteanzahl | nein | 1048576 | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Begrenzt Apache-Response-Bytes, die P4 über aktuelle normalisierte Brigades angeboten werden. Der konfigurierbare Standardwert ist 1048576 Byte; unabhängig davon gilt über Filter-Aufrufe hinweg eine feste, nicht konfigurierbare Obergrenze von 4096 normalisierten Buckets. Eine Limitverletzung schlägt fail-closed fehl, bevor der aktuelle fehlerhafte Bucket weitergeleitet wird; bereits committed Ausgabe wird nicht umgeschrieben. |
 | [`modsecurity_phase4_log`](#modsecurity-phase4-log) | Host / Connector | Pfad | nein | none | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Setzt einen Connector-Ereignispfad; aktuelle Apache- und NGINX-Pfade verwenden ihn auch für frühere Regel-/Interventionsmetadaten, nicht nur für P4. |
-| [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | Aufzählung | nein | safe | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Apache hängt jeden normalisierten Response-Bucket genau einmal an und leitet nichtterminale Ausgabe ohne Warten auf EOS an den nächsten Filter weiter. Es beendet P4 genau einmal am tatsächlichen EOS. Nach der Commit-Grenze des nächsten Filters zeichnen minimal/safe log_only auf und strict fordert abort_connection statt einer späten Statusumschreibung an. |
+| [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | Aufzählung | nein | off | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Apache hängt jeden normalisierten Response-Bucket genau einmal an und leitet nichtterminale Ausgabe ohne Warten auf EOS an den nächsten Filter weiter. Es beendet P4 genau einmal am tatsächlichen EOS. Mit Policy off bewahrt der Connector seinen nativen Interventionspfad. Nach der Commit-Grenze des nächsten Filters zeichnet safe log_only auf und strict fordert abort_connection statt einer späten Statusumschreibung an. |
 | [`modsecurity_rules`](#modsecurity-rules) | Host / Connector | Zeichenkette | nein | kein Wert; optional | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Lädt während des Konfigurationsladens Inline-Inhalt über libmodsecurity. |
 | [`modsecurity_rules_file`](#modsecurity-rules-file) | Host / Connector | Pfad | nein | kein Wert; optional | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Lädt während des Konfigurationsladens eine lokale Regeldatei über libmodsecurity. |
 | [`modsecurity_rules_remote`](#modsecurity-rules-remote) | Host / Connector | registrierte, aber stets abgewiesene Direktive | nein | kein verwendbarer Wert | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Policy A weist Remote-Rule-Konfiguration ab, bevor ein Regellader- oder Netzwerkvorgang stattfindet. |
@@ -47,7 +47,7 @@ Siehe [Engine-Referenz](../common/modsecurity-directives.de.md).
 
 | Profil | Datei | Status |
 | --- | --- | --- |
-| Minimal | [minimal/httpd.conf](off/httpd.conf) | Aktive Startkonfiguration |
+| Off / Kompatibilität | [off/httpd.conf](off/httpd.conf) | Aktive Startkonfiguration |
 | Sicherer vollständiger Lebenszyklus | [safe/httpd.conf](safe/httpd.conf) | Ausgewählte begrenzte Referenz |
 | Strikt | [strict/httpd.conf](strict/httpd.conf) | Parserunterstützte oder ausdrücklich optionale Grenze |
 | DetectionOnly | [detection-only/httpd.conf](detection-only/httpd.conf) | Engine wertet aus/protokolliert ohne disruptive Aktion |
@@ -351,57 +351,6 @@ Quellenbasiertes Beispiel: [examples/apache/safe/httpd.conf](../../examples/apac
 
 Die Byte- und feste Bucket-Obergrenze begrenzen Payload- sowie APR-Objekt-/Setaside-Speicher-/CPU-Exposition pro Transaktion. Jeder akzeptierte aktuelle Bucket wird vor der direkten Weiterleitung genau einmal angehängt; keine vollständige Response zurückhalten oder einen uninspektierten Tail weiterleiten.
 
-
-### Kurzbeschreibung
-
-Veralteter Apache-Kompatibilitätsparser für eine Legacy-MIME-Liste. Er schränkt den universellen P4-Inspektionspfad nicht ein; SecResponseBodyMimeType wählt die libModSecurity-Inspektion.
-
-### Syntax
-
-```text
-```
-
-### Gültige Kontexte
-
-- Apache RSRC_CONF | ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln)
-
-### Werte
-
-| Typ | Zulässige Werte | Erforderlich |
-| --- | --- | --- |
-| veralteter Pfad | eine lesbare Legacy-Datei mit MIME-Token | nein |
-
-### Standardwert
-
-kein Wert; veraltete Apache-Kompatibilitätseingabe
-
-Quelle: `Apache-Kompatibilitätsparser; veraltet`.
-
-### Vererbung und Zusammenführung
-
-Der Elternwert steht dem Kind zur Verfügung, sofern kein Kindwert gesetzt ist; siehe die Apache-Merge-Funktion für Verzeichniskonfigurationen.
-
-Zusammenführung: Common-Skalarwerte verwenden einen Kind-vor-Eltern-Merge; Regelsätze werden über msc_rules_merge zusammengeführt. Transaktions-ID-Ausdruck und statische ID schließen sich gegenseitig aus.
-
-### Phasen und Laufzeitwirkung
-
-P1–P4-Relevanz: Nur P4. Der Parser bleibt aus Kompatibilitätsgründen erhalten, kann aber nicht auswählen, welche Apache-Responses den begrenzten Inspektionspfad umgehen.
-
-Veralteter Apache-Kompatibilitätsparser für eine Legacy-MIME-Liste. Er schränkt den universellen P4-Inspektionspfad nicht ein; SecResponseBodyMimeType wählt die libModSecurity-Inspektion.
-
-### Validierung und Fehler
-
-
-### Beispiel
-
-Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
-
-Quellenbasiertes Beispiel: `connectors/apache/src/msc_config.c`.
-
-### Sicherheit und Betrieb
-
-Diese Legacy-Liste darf keinen uninspektierten Pass-through-Pfad erlauben. Der Connector kann die wirksame MIME-Auswahl von libModSecurity nicht sicher abfragen, daher durchläuft jede Response den begrenzten P4-Pfad.
-
 <a id="modsecurity-phase4-log"></a>
 ## `modsecurity_phase4_log`
 
@@ -462,7 +411,7 @@ JSONL-Metadaten als sensible Betriebsdaten behandeln und sichere Eigentümerscha
 
 ### Kurzbeschreibung
 
-Apache hängt jeden normalisierten Response-Bucket genau einmal an und leitet nichtterminale Ausgabe ohne Warten auf EOS an den nächsten Filter weiter. Es beendet P4 genau einmal am tatsächlichen EOS. Nach der Commit-Grenze des nächsten Filters zeichnen minimal/safe log_only auf und strict fordert abort_connection statt einer späten Statusumschreibung an.
+Apache hängt jeden normalisierten Response-Bucket genau einmal an und leitet nichtterminale Ausgabe ohne Warten auf EOS an den nächsten Filter weiter. Es beendet P4 genau einmal am tatsächlichen EOS. Mit Policy off bewahrt der Connector seinen nativen Interventionspfad. Nach der Commit-Grenze des nächsten Filters zeichnet safe log_only auf und strict fordert abort_connection statt einer späten Statusumschreibung an.
 
 ### Syntax
 
@@ -482,7 +431,7 @@ modsecurity_phase4_mode off | safe | strict
 
 ### Standardwert
 
-safe
+off
 
 Quelle: `common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_MODE`.
 
@@ -496,7 +445,7 @@ Zusammenführung: Common-Skalarwerte verwenden einen Kind-vor-Eltern-Merge; Rege
 
 P1–P4-Relevanz: Nur P4. Apache committet an der Grenze zum nächsten Filter, bevor es eine aktuelle nichtterminale Brigade weiterleitet; diese Einstellung steuert die kanonische Decision-Zuordnung vor und nach Commit.
 
-Apache hängt jeden normalisierten Response-Bucket genau einmal an und leitet nichtterminale Ausgabe ohne Warten auf EOS an den nächsten Filter weiter. Es beendet P4 genau einmal am tatsächlichen EOS. Nach der Commit-Grenze des nächsten Filters zeichnen minimal/safe log_only auf und strict fordert abort_connection statt einer späten Statusumschreibung an.
+Apache hängt jeden normalisierten Response-Bucket genau einmal an und leitet nichtterminale Ausgabe ohne Warten auf EOS an den nächsten Filter weiter. Es beendet P4 genau einmal am tatsächlichen EOS. Mit Policy off bewahrt der Connector seinen nativen Interventionspfad. Nach der Commit-Grenze des nächsten Filters zeichnet safe log_only auf und strict fordert abort_connection statt einer späten Statusumschreibung an.
 
 ### Validierung und Fehler
 
