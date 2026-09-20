@@ -28,9 +28,9 @@ privaten UDS-Response-Observer für P3/P4.
 
 | Pfad | Typ | Zweck |
 | --- | --- | --- |
-| [minimal/envoy-ext-proc-streaming.yaml.in](minimal/envoy-ext-proc-streaming.yaml.in) | Template | Minimale gestreamte ext_proc-Transportform. |
-| [minimal/envoy-ext-proc-service.json](minimal/envoy-ext-proc-service.json) | Service-Konfiguration | Validierte Prozessorlimits für das Minimalprofil. |
-| [minimal/msconnector-runtime.conf](minimal/msconnector-runtime.conf) | Runtime-Konfiguration | Common-Runtime-Profil mit `phase4_mode=minimal`. |
+| [minimal/envoy-ext-proc-streaming.yaml.in](off/envoy-ext-proc-streaming.yaml.in) | Template | Minimale gestreamte ext_proc-Transportform. |
+| [minimal/envoy-ext-proc-service.json](off/envoy-ext-proc-service.json) | Service-Konfiguration | Validierte Prozessorlimits für das Minimalprofil. |
+| [minimal/msconnector-runtime.conf](off/msconnector-runtime.conf) | Runtime-Konfiguration | Common-Runtime-Profil mit `phase4_mode=off`. |
 | [safe/envoy-ext-proc-streaming.yaml.in](safe/envoy-ext-proc-streaming.yaml.in) | Template | Envoy-Listener, ext_proc-Filter und gRPC-/Upstream-Cluster. |
 | [safe/envoy-ext-proc-service.json](safe/envoy-ext-proc-service.json) | Service-Konfiguration | Grenzen und Safe-Late-Action-Policy des Prozessors. |
 | [ext-proc/all/](ext-proc/all/) | Logisches Bundle | Umfassende ext_proc-Template-, Service- und Runtime-Konfiguration mit Strict-P4-Policy. |
@@ -50,10 +50,10 @@ Jede logische Envoy-Lösung besitzt ein materialisierbares Bundle für
 `minimal`, `safe`, `strict` und `all`. Jedes Bundle enthält ein Host-Template und eine
 Common-Runtime-Konfiguration mit sichtbaren Limits und Modi.
 
-| Logische Lösung | Minimal | Safe | Strict | All | P1/P2 | P3/P4 |
+| Logische Lösung | Off | Safe | Strict | All | P1/P2 | P3/P4 |
 | --- | --- | --- | --- | --- | --- | --- |
-| ext_proc | [Bundle](ext-proc/minimal/) | [Bundle](ext-proc/safe/) | [Bundle](ext-proc/strict/) | [Bundle](ext-proc/all/) | ext_proc | ext_proc |
-| ext_authz | [Bundle](ext-authz/minimal/) | [Bundle](ext-authz/safe/) | [Bundle](ext-authz/strict/) | [Bundle](ext-authz/all/) | ext_authz | privater UDS-ext_proc-Observer |
+| ext_proc | [Bundle](ext-proc/off/) | [Bundle](ext-proc/safe/) | [Bundle](ext-proc/strict/) | [Bundle](ext-proc/all/) | ext_proc | ext_proc |
+| ext_authz | [Bundle](ext-authz/off/) | [Bundle](ext-authz/safe/) | [Bundle](ext-authz/strict/) | [Bundle](ext-authz/all/) | ext_authz | privater UDS-ext_proc-Observer |
 
 Der ext_authz-Observer erhält nur das einmalige opaque Handle des
 Authorization-Service und anschließend Response-Header/-Body. Fehlende,
@@ -160,9 +160,9 @@ Runtime-Konfiguration. Die Repositoryquelle für das No-CRS-Profil ist
 
 Der ausgewählte Envoy-Kern benötigt gestreamte ext_proc-Eingaben in beiden
 Richtungen. Die Minimaldateien liefern eine vollständige Transportform in
-[envoy-ext-proc-streaming.yaml.in](minimal/envoy-ext-proc-streaming.yaml.in),
+[envoy-ext-proc-streaming.yaml.in](off/envoy-ext-proc-streaming.yaml.in),
 ihren validierten Service-Vertrag und eine passende Common-Runtime-Datei mit
-`phase4_mode=minimal`. Es ist kein nativer Request-only-Pfad: Die Bridge
+`phase4_mode=off`. Es ist kein nativer Request-only-Pfad: Die Bridge
 benötigt weiterhin STREAMED-Request- und Response-Body-Modi. Das getrennte
 [ext_authz-Request-only-Material](#ext_authz-kompatibilität) bleibt
 Kompatibilitätsmaterial.
