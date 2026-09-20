@@ -851,7 +851,7 @@ COMMON_DETAILS: dict[str, dict[str, str]] = {
     "rules_remote_url": (REMOTE_RULE_VALUE_TYPE, REMOTE_RULE_ALLOWED_VALUES, REMOTE_RULE_DEFAULT, REMOTE_RULE_DEFAULT_SOURCE, REMOTE_RULE_EFFECT),
     "transaction_id": ("string", "non-empty text", "none", DEFAULT_SOURCE_RUNTIME_PARSER, "Sets a static runtime transaction identifier."),
     "transaction_id_header": ("header name", ALLOWED_VALUES_HEADER_NAME, "x-request-id", DEFAULT_SOURCE_RUNTIME_DEFAULTS, "Selects the fallback correlation-header name."),
-    "phase4_mode": ("enum", ALLOWED_VALUES_PHASE4_MODE, "safe", DEFAULT_SOURCE_PHASE4_MODE, "Stores the late P4 policy. Common alone owns no host abort primitive."),
+    "phase4_mode": ("enum", ALLOWED_VALUES_PHASE4_MODE, VALUE_OFF, DEFAULT_SOURCE_PHASE4_MODE, "Stores the late P4 policy. Common alone owns no host abort primitive."),
     "event_path": ("path", "path without a parent-directory segment", "none", DEFAULT_SOURCE_RUNTIME_PARSER, "Appends metadata-only JSONL events when configured."),
     "phase4_event_log": ("path alias", "same grammar as event_path", "none", DEFAULT_SOURCE_RUNTIME_PARSER, "Alias for event_path."),
     "request_body_mode": ("enum", ALLOWED_VALUES_BODY_MODE, "buffered", DEFAULT_SOURCE_RUNTIME_DEFAULTS, "Selects the Common request-body handling mode; a particular host may support only a subset."),
@@ -2737,7 +2737,7 @@ def envoy_processor_options(root: Path) -> list[dict[str, Any]]:
             allowed = ALLOWED_VALUES_PHASE4_MODE
         effect = "Sets one bounded ext_proc service control."
         if json_name == "late_action_policy":
-            effect = "Selects late decision reporting; safe record late disruptive decisions as log_only, while strict records strict_abort_not_attempted rather than a fabricated status/reset."
+            effect = "Selects late decision reporting; off preserves native handling, safe records late disruptive decisions as log_only, while strict records strict_abort_not_attempted rather than a fabricated status/reset."
         options.append(_option(
             "envoy", json_name, "service_json_field", config_source, f"processor.Config.{field} / Config.Validate",
             syntax=f'"{json_name}": <{go_type.strip()}>', value_type=go_type.strip(), allowed_values=allowed,
@@ -2989,10 +2989,10 @@ def _assert_documented_defaults(by_key: dict[tuple[str, str], str]) -> None:
         ("common", "max_header_value_size"): "8192", ("common", "max_total_header_bytes"): "65536",
         ("common", "max_event_json_bytes"): "16384",
         ("apache", "modsecurity"): VALUE_OFF, ("apache", "modsecurity_use_error_log"): "on",
-        ("apache", "modsecurity_phase4_mode"): "safe", ("apache", "modsecurity_phase4_body_limit"): "1048576",
+        ("apache", "modsecurity_phase4_mode"): VALUE_OFF, ("apache", "modsecurity_phase4_body_limit"): "1048576",
         ("nginx", "modsecurity"): VALUE_OFF, ("nginx", "modsecurity_use_error_log"): "on",
-        ("nginx", "modsecurity_phase4_mode"): "safe", ("nginx", "modsecurity_phase4_body_limit"): "1048576",
-        ("haproxy", "phase4-mode"): "safe",
+        ("nginx", "modsecurity_phase4_mode"): VALUE_OFF, ("nginx", "modsecurity_phase4_body_limit"): "1048576",
+        ("haproxy", "phase4-mode"): VALUE_OFF,
     }
     for key, expected in expected_defaults.items():
         actual = by_key.get(key)
