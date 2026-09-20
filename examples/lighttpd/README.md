@@ -52,7 +52,7 @@ the configurations are host-installation or host-runtime examples.
 | transaction_id_header | HTTP correlation-header name | Required; runtime configuration; transaction scope | x-modsec-transaction-id. Metadata only; do not use it for secrets. |
 | request_body_mode and response_body_mode | none, buffered, or streaming according to host capability | Required; runtime configuration; engine scope | streaming for the Stock sidecar and matching patched host; never enable streaming on an unpatched native Stock module. |
 | request_body_limit, response_body_limit, body_limit_action | Positive byte limits and reject or process_partial policy | Required where bodies are enabled; runtime configuration; engine scope | 1048576 and reject. Bounds do not imply full connector buffering. |
-| phase4_mode | P4 policy: minimal, safe, or strict | Required in these runtime files; runtime configuration; engine scope | safe for patched Safe; all selects strict. It does not prove a status rewrite or abort. |
+| phase4_mode | P4 policy: off, safe, or strict | Required in these runtime files; runtime configuration; engine scope | safe for patched Safe; all selects strict. It does not prove a status rewrite or abort. |
 | server.stream-response-body and proxy.server | Patched delivery setting and local upstream route | Required for Patched bundles; host configuration; server scope | 1 and 127.0.0.1:8081. Identity HTTP/1.1 only; do not infer gzip/br or HTTP/2 behavior. |
 | event_path | Writable JSONL metadata destination | Required in these references; runtime configuration; engine scope | /var/log/lighttpd/msconnector-events.jsonl. Protect and rotate it; do not write bodies or secrets. |
 
