@@ -2981,7 +2981,7 @@ def _assert_common_source_defaults(root: Path) -> None:
 def _assert_documented_defaults(by_key: dict[tuple[str, str], str]) -> None:
     """Reject source-backed inventory defaults that no longer render exactly."""
     expected_defaults = {
-        ("common", "enabled"): VALUE_OFF, ("common", "use_error_log"): "on", ("common", "phase4_mode"): "safe",
+        ("common", "enabled"): VALUE_OFF, ("common", "use_error_log"): "on", ("common", "phase4_mode"): VALUE_OFF,
         ("common", "request_body_limit"): "1048576", ("common", "response_body_limit"): "1048576",
         ("common", "body_limit_action"): "reject", ("common", "late_intervention_timeout"): "0",
         ("common", "default_block_status"): "403", ("common", "default_error_status"): "500",
