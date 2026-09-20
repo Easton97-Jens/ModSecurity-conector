@@ -1463,11 +1463,16 @@ static int sidecar_exchange_response(sidecar_exchange_state *state) {
     if (!msconnector_runtime_transaction_finish_response_body(state->transaction,
             &state->decision, &state->error)) return 0;
     if (msconnector_decision_is_disruptive(&state->decision)) {
-        msconnector_late_intervention_action action = sidecar_phase4_action(
-            state->client_response_started,
-            msconnector_runtime_phase4_mode(state->dependencies.runtime));
+        enum msconnector_phase4_mode phase4_mode =
+            msconnector_runtime_phase4_mode(state->dependencies.runtime);
+        msconnector_late_intervention_action action;
 
         state->decision.late_intervention = state->client_response_started != 0;
+        if (phase4_mode == MSCONNECTOR_PHASE4_MODE_OFF) {
+            sidecar_record_action(state->transaction, &state->decision, &state->error);
+            return 1;
+        }
+        action = sidecar_phase4_action(state->client_response_started, phase4_mode);
         if (action == MSCONNECTOR_LATE_INTERVENTION_ABORT_CONNECTION) {
             (void)shutdown(state->client, SHUT_RDWR);
             sidecar_record_decision_delivery_failure(state->transaction, &state->decision,
