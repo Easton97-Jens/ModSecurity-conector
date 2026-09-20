@@ -16,7 +16,7 @@ from pathlib import Path
 
 
 ROOT = next(parent for parent in Path(__file__).resolve().parents if (parent / "Makefile").is_file())
-VARIANTS = ("minimal", "safe", "strict")
+VARIANTS = ("off", "safe", "strict")
 PHASE4_MODE_TEMPLATE = "phase4_mode={variant}"
 REQUEST_BODY_MODE_STREAMING = "request_body_mode=streaming"
 RESPONSE_BODY_MODE_STREAMING = "response_body_mode=streaming"

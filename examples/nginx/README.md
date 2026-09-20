@@ -4,7 +4,7 @@
 
 ## Integration and boundary
 
-Integration mode: native NGINX HTTP module. [minimal/nginx.conf](minimal/nginx.conf),
+Integration mode: native NGINX HTTP module. [minimal/nginx.conf](off/nginx.conf),
 [safe/nginx.conf](safe/nginx.conf), [strict/nginx.conf](strict/nginx.conf), and
 [all/nginx.conf](all/nginx.conf) cover the bounded HTTP/1.1 P1--P4 contract.
 `all` is a comprehensive configuration layout with a real strict P4 policy,
@@ -29,7 +29,7 @@ rule evaluation.
 
 | Path | Type | Purpose |
 | --- | --- | --- |
-| [minimal/nginx.conf](minimal/nginx.conf) | Host configuration | Minimal bounded native P1--P4 reference. |
+| [minimal/nginx.conf](off/nginx.conf) | Host configuration | Minimal bounded native P1--P4 reference. |
 | [safe/nginx.conf](safe/nginx.conf) | Host configuration | Bounded P1--P4 Safe reference. |
 | [strict/nginx.conf](strict/nginx.conf) | Host configuration | Explicitly limited Strict configuration shape. |
 | [all/nginx.conf](all/nginx.conf) | Host configuration | Comprehensive native configuration with all source-backed directives visible and `modsecurity_phase4_mode strict`. |
@@ -51,8 +51,7 @@ logs, listener, and upstream values inside them are host examples.
 | --- | --- | --- | --- |
 | load_module path | Installed NGINX dynamic module | Required; no repository default; operator; main scope | modules/ngx_http_modsecurity_module.so. Use a module built for the exact NGINX ABI. |
 | modsecurity_rules_file | Readable libmodsecurity rules file | Required; no repository default; host config; http scope | /etc/modsecurity/modsecurity-phase4.conf. A reviewed ruleset can block traffic. |
-| modsecurity_phase4_mode | P4 policy: minimal, safe, or strict | Required in Safe, Strict, or all file; host config; http scope | safe in safe/nginx.conf; all selects strict. Strict is configuration-only here. |
-| modsecurity_phase4_content_types_file | Explicit response MIME-type list | Optional; host config; http scope | /etc/modsecurity/phase4-content-types.conf. A missing file fails validation. |
+| modsecurity_phase4_mode | P4 policy: off, safe, or strict | Required in Safe, Strict, or all file; host config; http scope | safe in safe/nginx.conf; all selects strict. Strict is configuration-only here. |
 | modsecurity_phase4_log | Native connector-owned P4 JSONL event sink | Optional; http/server/location; inherited when unset | Common no-follow helper requires a safe parent, regular leaf, suitable ownership, and private-`0600` descriptor. Use a validated configuration reload for rotation; generic NGINX `USR1` reopening is not supported. |
 | modsecurity_phase4_body_limit | Positive connector P4 byte bound | Optional; host config; http scope | 1048576 in all lifecycle profiles; over-limit handling is fail-closed. |
 | modsecurity_use_error_log | Forward engine messages to NGINX error log | Optional; host config; http/server/location scope | on in all lifecycle profiles. |

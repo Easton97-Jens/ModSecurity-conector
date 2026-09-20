@@ -81,7 +81,7 @@ See [Engine reference](../common/modsecurity-directives.md).
 
 | Profile | File | Status |
 | --- | --- | --- |
-| Minimal | [minimal/haproxy-htx.cfg](minimal/haproxy-htx.cfg) | Active starter configuration |
+| Minimal | [minimal/haproxy-htx.cfg](off/haproxy-htx.cfg) | Active starter configuration |
 | Safe full lifecycle | [safe/haproxy-htx.cfg](safe/haproxy-htx.cfg) | Selected bounded reference |
 | Strict | [strict/haproxy-htx.cfg](strict/haproxy-htx.cfg) | Parser-supported or explicitly optional boundary |
 | DetectionOnly | [detection-only/haproxy-htx.cfg](detection-only/haproxy-htx.cfg) | Engine evaluates/logs without disruptive action |
@@ -230,7 +230,7 @@ Native HTX full-lifecycle filter declaration.
 ### Syntax
 
 ```text
-filter modsecurity-htx rules-file <path> [phase4-mode minimal|safe|strict]
+filter modsecurity-htx rules-file <path> [phase4-mode off|safe|strict]
 ```
 
 ### Valid contexts
@@ -450,7 +450,7 @@ Native HTX late-P4 policy argument.
 ### Syntax
 
 ```text
-phase4-mode minimal | safe | strict
+phase4-mode off | safe | strict
 ```
 
 ### Valid contexts
@@ -461,7 +461,7 @@ phase4-mode minimal | safe | strict
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| enum | minimal \| safe \| strict | no |
+| enum | off \| safe \| strict | no |
 
 ### Default
 

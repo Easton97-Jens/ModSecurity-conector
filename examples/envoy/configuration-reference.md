@@ -196,7 +196,7 @@ See [Engine reference](../common/modsecurity-directives.md).
 
 | Profile | File | Status |
 | --- | --- | --- |
-| Minimal | [ext-proc/minimal/envoy.yaml.in](ext-proc/minimal/envoy.yaml.in) | Active starter configuration |
+| Minimal | [ext-proc/off/envoy.yaml.in](ext-proc/off/envoy.yaml.in) | Active starter configuration |
 | Safe full lifecycle | [ext-proc/safe/envoy.yaml.in](ext-proc/safe/envoy.yaml.in) | Selected bounded reference |
 | Strict | [ext-proc/strict/envoy.yaml.in](ext-proc/strict/envoy.yaml.in) | Parser-supported or explicitly optional boundary |
 | DetectionOnly | [detection-only/msconnector-runtime.conf](detection-only/msconnector-runtime.conf) | Engine evaluates/logs without disruptive action |
@@ -1236,7 +1236,7 @@ Selects late decision reporting; minimal and safe record late disruptive decisio
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| LateActionPolicy | minimal \| safe \| strict | yes |
+| LateActionPolicy | off \| safe \| strict | yes |
 
 ### Default
 

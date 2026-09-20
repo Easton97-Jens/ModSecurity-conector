@@ -528,7 +528,7 @@ escape_sed() {
 
 render_config() {
     case "${APACHE_PHASE4_MODE:-}" in
-        minimal|safe|strict) ;;
+        off|safe|strict) ;;
         *) fail "unsupported resolved APACHE_PHASE4_MODE=${APACHE_PHASE4_MODE:-}" ;;
     esac
     case "$APACHE_PHASE4_BODY_LIMIT" in
@@ -2560,7 +2560,7 @@ resolve_apache_phase4_mode() {
         not_executable "failed to resolve Apache Phase-4 mode from case metadata; see $LOG_DIR/apache-phase4-mode.log"
     printf '%s\n' "$resolved_mode" >> "$LOG_DIR/apache-phase4-mode.log"
     case "$resolved_mode" in
-        minimal|safe|strict) ;;
+        off|safe|strict) ;;
         *) not_executable "case metadata returned unsupported Apache Phase-4 mode: $resolved_mode" ;;
     esac
     if [ -n "$inherited_mode" ] && [ "$inherited_mode" != "$resolved_mode" ]; then

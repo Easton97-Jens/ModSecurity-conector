@@ -4,7 +4,7 @@
 
 ## Integration and boundary
 
-Integration mode: native httpd module. The [minimal reference](minimal/httpd.conf),
+Integration mode: native httpd module. The [minimal reference](off/httpd.conf),
 [Safe reference](safe/httpd.conf), [Strict reference](strict/httpd.conf), and
 [comprehensive reference](all/httpd.conf) select the native HTTP/1.1 P1--P4
 configuration shape. P1 is request headers, P2 request body, P3 response
@@ -30,7 +30,7 @@ client-visible abort until a host runtime test observes one.
 
 | Path | Type | Purpose |
 | --- | --- | --- |
-| [minimal/httpd.conf](minimal/httpd.conf) | Host configuration | Minimal bounded native P1--P4 starting point. |
+| [minimal/httpd.conf](off/httpd.conf) | Host configuration | Minimal bounded native P1--P4 starting point. |
 | [safe/httpd.conf](safe/httpd.conf) | Host configuration | Bounded native P1--P4 Safe reference. |
 | [strict/httpd.conf](strict/httpd.conf) | Host configuration | Parser-supported Strict fallback; no client-visible late-abort claim. |
 | [all/httpd.conf](all/httpd.conf) | Host configuration | Comprehensive, source-backed parameter reference; it selects valid `strict`, not `all`, Phase-4 mode. |
@@ -53,8 +53,7 @@ the configuration, including /usr/lib/apache2/modules/mod_security3.so,
 | --- | --- | --- | --- |
 | security3_module | Module loaded by LoadModule | Required; no repository default; Apache package or local build; server scope | mod_security3.so at an installed module path. A wrong ABI or path prevents startup. |
 | modsecurity_rules_file | Readable libmodsecurity rules file | Required; no repository default; host config; module scope | /etc/modsecurity/modsecurity-phase4.conf. A reviewed ruleset can block traffic. |
-| modsecurity_phase4_mode | Late-P4 policy: minimal, safe, or strict | Minimal, Safe, Strict, and comprehensive files; host config; module scope | The comprehensive file deliberately uses `strict`; `all` is not a parser value. It selects the post-commit action without rewriting bytes already forwarded. |
-| modsecurity_phase4_content_types_file | Deprecated legacy response-MIME file | Optional compatibility parser; host config; module scope | Do not use it to change pass-through ordering. Use `SecResponseBodyMimeType` to select engine inspection. |
+| modsecurity_phase4_mode | Late-P4 policy: off, safe, or strict | Off, Safe, Strict, and comprehensive files; host config; module scope | The comprehensive file deliberately uses `strict`; `all` is not a parser value. It selects the post-commit action without rewriting bytes already forwarded. |
 | modsecurity_phase4_log | Decision JSONL destination | Optional; host config; module scope | /var/log/modsecurity/apache-phase4.jsonl. Protect and rotate request metadata. A root-owned parent is supported only when it is not group/other writable and the existing final regular file is owned by the Apache worker; the opener normalizes its mode to 0600. Pre-create it and preserve that ownership during rotation. |
 | modsecurity_phase4_body_limit and SecResponseBodyLimit | Positive P4 byte limits | Required for bounded Safe use; host and rules files; no automatic alignment | The connector default is 1048576 bytes. It bounds incremental inspection and fails closed on excess; it does not authorize full-response buffering. |
 | modsecurity_transaction_id_expr and modsecurity_transaction_id | Optional host correlation overrides | Optional; host configuration; module scope | Both are deliberately commented in `all/httpd.conf`. Enable only a validated, unique host-generated value; URI-derived or static values cannot correlate transactions safely. |
@@ -119,7 +118,6 @@ before an over-limit chunk can be appended. It is not a reason to retain an
 unbounded response. The C API leaves the effective libModSecurity MIME decision
 opaque to this adapter; `SecResponseBodyMimeType` selects engine inspection but
 does not alter the pass-through ordering. The deprecated
-`modsecurity_phase4_content_types_file` remains absent from the Safe
 configuration.
 
 This section records configuration intent plus the source-backed ordering, not

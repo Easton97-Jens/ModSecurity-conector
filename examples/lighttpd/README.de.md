@@ -52,7 +52,7 @@ den Konfigurationen sind Beispiele für Hostinstallation oder Hostruntime.
 | transaction_id_header | HTTP-Korrelationsheadername | Pflicht; Runtime-Konfiguration; Transaction-Scope | x-modsec-transaction-id. Nur Metadaten, keine Secrets verwenden. |
 | request_body_mode und response_body_mode | none, buffered oder streaming gemäß Hostfähigkeit | Pflicht; Runtime-Konfiguration; Engine-Scope | streaming für den Stock-Sidecar und den passenden Patched-Host; nie auf einem ungepatchten nativen Stock-Modul aktivieren. |
 | request_body_limit, response_body_limit, body_limit_action | Positive Byte-Limits und reject- oder process_partial-Policy | Bei aktivierten Bodies Pflicht; Runtime-Konfiguration; Engine-Scope | 1048576 und reject. Grenzen bedeuten kein vollständiges Connector-Buffering. |
-| phase4_mode | P4-Policy: minimal, safe oder strict | In diesen Runtime-Dateien Pflicht; Runtime-Konfiguration; Engine-Scope | safe für gepatchtes Safe; all wählt strict. Beweist weder Statuswechsel noch Abbruch. |
+| phase4_mode | P4-Policy: off, safe oder strict | In diesen Runtime-Dateien Pflicht; Runtime-Konfiguration; Engine-Scope | safe für gepatchtes Safe; all wählt strict. Beweist weder Statuswechsel noch Abbruch. |
 | server.stream-response-body und proxy.server | Gepatchte Delivery-Einstellung und lokale Upstream-Route | In Patched-Bündeln Pflicht; Host-Konfiguration; Server-Scope | 1 und 127.0.0.1:8081. Nur Identity-HTTP/1.1; kein gzip/br- oder HTTP/2-Verhalten ableiten. |
 | event_path | Beschreibbares JSONL-Metadatenziel | In diesen Referenzen Pflicht; Runtime-Konfiguration; Engine-Scope | /var/log/lighttpd/msconnector-events.jsonl. Schützen und rotieren; keine Bodies oder Secrets schreiben. |
 

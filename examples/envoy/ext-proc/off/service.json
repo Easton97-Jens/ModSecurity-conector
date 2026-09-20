@@ -15,5 +15,5 @@
   "max_concurrent_streams": 128,
   "cleanup_timeout_ms": 1000,
   "shutdown_timeout_ms": 5000,
-  "late_action_policy": "minimal"
+  "late_action_policy": "off"
 }

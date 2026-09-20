@@ -81,7 +81,7 @@ Siehe [Engine-Referenz](../common/modsecurity-directives.de.md).
 
 | Profil | Datei | Status |
 | --- | --- | --- |
-| Minimal | [minimal/haproxy-htx.cfg](minimal/haproxy-htx.cfg) | Aktive Startkonfiguration |
+| Minimal | [minimal/haproxy-htx.cfg](off/haproxy-htx.cfg) | Aktive Startkonfiguration |
 | Sicherer vollständiger Lebenszyklus | [safe/haproxy-htx.cfg](safe/haproxy-htx.cfg) | Ausgewählte begrenzte Referenz |
 | Strikt | [strict/haproxy-htx.cfg](strict/haproxy-htx.cfg) | Parserunterstützte oder ausdrücklich optionale Grenze |
 | DetectionOnly | [detection-only/haproxy-htx.cfg](detection-only/haproxy-htx.cfg) | Engine wertet aus/protokolliert ohne disruptive Aktion |
@@ -230,7 +230,7 @@ Native HTX-Filterdeklaration für den vollständigen Lebenszyklus.
 ### Syntax
 
 ```text
-filter modsecurity-htx rules-file <path> [phase4-mode minimal|safe|strict]
+filter modsecurity-htx rules-file <path> [phase4-mode off|safe|strict]
 ```
 
 ### Gültige Kontexte
@@ -450,7 +450,7 @@ Native HTX-Argument für die späte P4-Policy.
 ### Syntax
 
 ```text
-phase4-mode minimal | safe | strict
+phase4-mode off | safe | strict
 ```
 
 ### Gültige Kontexte
@@ -461,7 +461,7 @@ phase4-mode minimal | safe | strict
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| Aufzählung | minimal \| safe \| strict | nein |
+| Aufzählung | off \| safe \| strict | nein |
 
 ### Standardwert
 

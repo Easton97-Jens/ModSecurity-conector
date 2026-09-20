@@ -57,7 +57,7 @@ ModSecurity Engine directives. The complete source-backed syntax, defaults,
 contexts, merge rules, examples, and validation notes are in the
 [Apache configuration reference](../../examples/apache/configuration-reference.md).
 
-Use Minimal, Safe, Strict, DetectionOnly, and Disabled profiles only for their
+Use Off, Safe, Strict, DetectionOnly, and Disabled profiles only for their
 documented purpose. <code>SecRuleEngine</code> is an engine setting, not the
 same as the Apache connector enable/disable directive.
 
@@ -72,11 +72,7 @@ passed immediately to the next filter. The filter retains no full response
 brigade; only the terminal EOS fragment waits for the single
 <code>msc_process_response_body</code> call and late-action resolution.
 
-The C API does not expose a safe answer to libModSecurity's effective
-<code>SecResponseBodyMimeType</code> selection. Apache therefore gates every
-response MIME type; the engine directive still selects inspection, but the
-deprecated <code>modsecurity_phase4_content_types_file</code> cannot open a
-pass-through route. The connector default is a 1048576-byte (1 MiB) hard limit;
+Response MIME selection belongs to libModSecurity through <code>SecResponseBodyMimeType</code> and related engine directives. Apache no longer maintains a second connector-owned MIME allowlist; the bounded response path remains available to the engine regardless of MIME type. The connector default is a 1048576-byte (1 MiB) hard limit;
 the bound is checked before a later data bucket is appended. A failure after a
 prefix was passed cannot rewrite that prefix, so the terminal action is mapped
 through the shared post-commit policy. <code>r-&gt;sent_bodyct</code> and

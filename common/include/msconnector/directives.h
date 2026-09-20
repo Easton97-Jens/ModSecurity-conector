@@ -12,7 +12,6 @@ extern "C" {
 #define MSCONNECTOR_DIRECTIVE_TRANSACTION_ID "modsecurity_transaction_id"
 #define MSCONNECTOR_DIRECTIVE_TRANSACTION_ID_EXPR "modsecurity_transaction_id_expr"
 #define MSCONNECTOR_DIRECTIVE_PHASE4_MODE "modsecurity_phase4_mode"
-#define MSCONNECTOR_DIRECTIVE_PHASE4_CONTENT_TYPES_FILE "modsecurity_phase4_content_types_file"
 #define MSCONNECTOR_DIRECTIVE_PHASE4_LOG "modsecurity_phase4_log"
 #define MSCONNECTOR_DIRECTIVE_PHASE4_BODY_LIMIT "modsecurity_phase4_body_limit"
 #define MSCONNECTOR_DIRECTIVE_REQUEST_BODY_LIMIT "modsecurity_request_body_limit"

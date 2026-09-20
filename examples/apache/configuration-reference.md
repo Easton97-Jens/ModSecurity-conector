@@ -16,7 +16,6 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`LoadModule`](#loadmodule) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`modsecurity`](#modsecurity) | Host / Connector | boolean | no | off | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Gates connector transaction creation; it is not SecRuleEngine. |
 | [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive decimal byte count | no | 1048576 | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Bounds Apache response bytes offered to P4 across current normalized brigades. The configurable default is 1048576 bytes; independently, a fixed non-configurable 4096-normalized-bucket ceiling spans filter calls. A limit breach fails closed before the current offending bucket is forwarded; already committed output is not rewritten. |
-| [`modsecurity_phase4_content_types_file`](#modsecurity-phase4-content-types-file) | Host / Connector | deprecated path | no | none; deprecated Apache compatibility input | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Deprecated Apache compatibility parser for a legacy MIME list. It does not narrow the universal P4 inspection path; use SecResponseBodyMimeType to select libModSecurity inspection. |
 | [`modsecurity_phase4_log`](#modsecurity-phase4-log) | Host / Connector | path | no | none | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Sets a connector event path; current Apache and NGINX paths also use it for earlier rule/intervention metadata, not only P4. |
 | [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | enum | no | safe | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Apache appends each normalized response bucket exactly once and forwards non-terminal output to the next filter without waiting for EOS. It finishes P4 exactly once at actual EOS. After the next-filter commitment boundary, minimal/safe record log_only and strict requests abort_connection instead of a late status rewrite. |
 | [`modsecurity_rules`](#modsecurity-rules) | Host / Connector | string | no | none; optional | Apache RSRC_CONF \| ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules) | Loads inline content through libmodsecurity during configuration loading. |
@@ -48,7 +47,7 @@ See [Engine reference](../common/modsecurity-directives.md).
 
 | Profile | File | Status |
 | --- | --- | --- |
-| Minimal | [minimal/httpd.conf](minimal/httpd.conf) | Active starter configuration |
+| Minimal | [minimal/httpd.conf](off/httpd.conf) | Active starter configuration |
 | Safe full lifecycle | [safe/httpd.conf](safe/httpd.conf) | Selected bounded reference |
 | Strict | [strict/httpd.conf](strict/httpd.conf) | Parser-supported or explicitly optional boundary |
 | DetectionOnly | [detection-only/httpd.conf](detection-only/httpd.conf) | Engine evaluates/logs without disruptive action |
@@ -291,7 +290,7 @@ msc_config_modsec_state returns an Apache configuration error for its documented
 
 Selected value: use the syntax above and the source-backed file below.
 
-Source-backed example: [examples/apache/minimal/httpd.conf](../../examples/apache/minimal/httpd.conf).
+Source-backed example: [examples/apache/off/httpd.conf](../../examples/apache/off/httpd.conf).
 
 ### Safety and operations
 
@@ -352,8 +351,6 @@ Source-backed example: [examples/apache/safe/httpd.conf](../../examples/apache/s
 
 The byte and fixed bucket ceilings bound payload and per-transaction APR-object/setaside memory/CPU exposure. Each accepted current bucket is appended once before direct forwarding; do not retain a full response or forward an uninspected tail.
 
-<a id="modsecurity-phase4-content-types-file"></a>
-## `modsecurity_phase4_content_types_file`
 
 ### Short description
 
@@ -362,7 +359,6 @@ Deprecated Apache compatibility parser for a legacy MIME list. It does not narro
 ### Syntax
 
 ```text
-modsecurity_phase4_content_types_file <value>
 ```
 
 ### Valid contexts
@@ -395,7 +391,6 @@ Deprecated Apache compatibility parser for a legacy MIME list. It does not narro
 
 ### Validation and errors
 
-msc_config_phase4_content_types_file returns an Apache configuration error for its documented invalid input; validate the installed configuration with apachectl -t.
 
 ### Example
 
@@ -472,7 +467,7 @@ Apache appends each normalized response bucket exactly once and forwards non-ter
 ### Syntax
 
 ```text
-modsecurity_phase4_mode minimal | safe | strict
+modsecurity_phase4_mode off | safe | strict
 ```
 
 ### Valid contexts
@@ -483,7 +478,7 @@ modsecurity_phase4_mode minimal | safe | strict
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| enum | minimal \| safe \| strict | no |
+| enum | off \| safe \| strict | no |
 
 ### Default
 
@@ -621,7 +616,7 @@ msc_config_load_rules_file returns an Apache configuration error for its documen
 
 Selected value: use the syntax above and the source-backed file below.
 
-Source-backed example: [examples/apache/minimal/httpd.conf](../../examples/apache/minimal/httpd.conf).
+Source-backed example: [examples/apache/off/httpd.conf](../../examples/apache/off/httpd.conf).
 
 ### Safety and operations
 
@@ -841,7 +836,7 @@ msc_config_use_error_log returns an Apache configuration error for its documente
 
 Selected value: use the syntax above and the source-backed file below.
 
-Source-backed example: [examples/apache/minimal/httpd.conf](../../examples/apache/minimal/httpd.conf).
+Source-backed example: [examples/apache/off/httpd.conf](../../examples/apache/off/httpd.conf).
 
 ### Safety and operations
 

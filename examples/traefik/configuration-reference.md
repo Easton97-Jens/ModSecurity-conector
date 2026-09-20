@@ -125,7 +125,7 @@ See [Engine reference](../common/modsecurity-directives.md).
 
 | Profile | File | Status |
 | --- | --- | --- |
-| Minimal | [native-uds/minimal/traefik-static.yaml](native-uds/minimal/traefik-static.yaml) | Active starter configuration |
+| Minimal | [native-uds/off/traefik-static.yaml](native-uds/off/traefik-static.yaml) | Active starter configuration |
 | Safe full lifecycle | [native-uds/safe/traefik-static.yaml](native-uds/safe/traefik-static.yaml) | Selected bounded reference |
 | Strict | [native-uds/strict/traefik-static.yaml](native-uds/strict/traefik-static.yaml) | Parser-supported or explicitly optional boundary |
 | DetectionOnly | [detection-only/traefik-engine-service.conf](detection-only/traefik-engine-service.conf) | Engine evaluates/logs without disruptive action |
@@ -203,7 +203,7 @@ traefik check --configFile=<static-config>; load the selected File Provider conf
 
 Selected example value: `{}`.
 
-Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Source-backed example: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Safety and operations
 
@@ -258,7 +258,7 @@ traefik check --configFile=<static-config>; load the selected File Provider conf
 
 Selected value: use the syntax above and the source-backed file below.
 
-Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Source-backed example: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Safety and operations
 
@@ -313,7 +313,7 @@ traefik check --configFile=<static-config>; load the selected File Provider conf
 
 Selected value: use the syntax above and the source-backed file below.
 
-Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Source-backed example: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Safety and operations
 
@@ -368,7 +368,7 @@ traefik check --configFile=<static-config>; load the selected File Provider conf
 
 Selected example value: `":8080"`.
 
-Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Source-backed example: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Safety and operations
 
@@ -423,7 +423,7 @@ traefik check --configFile=<static-config>; load the selected File Provider conf
 
 Selected value: use the syntax above and the source-backed file below.
 
-Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Source-backed example: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Safety and operations
 
@@ -478,7 +478,7 @@ traefik check --configFile=<static-config>; load the selected File Provider conf
 
 Selected value: use the syntax above and the source-backed file below.
 
-Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Source-backed example: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Safety and operations
 
@@ -533,7 +533,7 @@ traefik check --configFile=<static-config>; load the selected File Provider conf
 
 Selected value: use the syntax above and the source-backed file below.
 
-Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Source-backed example: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Safety and operations
 
@@ -588,7 +588,7 @@ traefik check --configFile=<static-config>; load the selected File Provider conf
 
 Selected example value: `github.com/Easton97-Jens/ModSecurity-conector/connectors/traefik/native_middleware`.
 
-Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Source-backed example: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Safety and operations
 
@@ -643,7 +643,7 @@ traefik check --configFile=<static-config>; load the selected File Provider conf
 
 Selected value: use the syntax above and the source-backed file below.
 
-Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Source-backed example: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Safety and operations
 
@@ -698,7 +698,7 @@ traefik check --configFile=<static-config>; load the selected File Provider conf
 
 Selected example value: `[]`.
 
-Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Source-backed example: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Safety and operations
 
@@ -2238,7 +2238,7 @@ traefik check --configFile=<static-config>; load the selected File Provider conf
 
 Selected value: use the syntax above and the source-backed file below.
 
-Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Source-backed example: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Safety and operations
 
@@ -2293,7 +2293,7 @@ traefik check --configFile=<static-config>; load the selected File Provider conf
 
 Selected example value: `INFO`.
 
-Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Source-backed example: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Safety and operations
 
@@ -2348,7 +2348,7 @@ traefik check --configFile=<static-config>; load the selected File Provider conf
 
 Selected value: use the syntax above and the source-backed file below.
 
-Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Source-backed example: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Safety and operations
 
@@ -2403,7 +2403,7 @@ traefik check --configFile=<static-config>; load the selected File Provider conf
 
 Selected value: use the syntax above and the source-backed file below.
 
-Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Source-backed example: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Safety and operations
 
@@ -2458,7 +2458,7 @@ traefik check --configFile=<static-config>; load the selected File Provider conf
 
 Selected example value: `"./traefik-dynamic.yaml"`.
 
-Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Source-backed example: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Safety and operations
 
@@ -2513,7 +2513,7 @@ traefik check --configFile=<static-config>; load the selected File Provider conf
 
 Selected example value: `false`.
 
-Source-backed example: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Source-backed example: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Safety and operations
 

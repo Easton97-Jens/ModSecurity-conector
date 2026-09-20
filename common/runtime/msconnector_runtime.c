@@ -74,7 +74,6 @@ typedef struct msconnector_runtime_owned_config {
     char rules_remote_url[RUNTIME_PATH_SIZE];
     char transaction_id[RUNTIME_HEADER_NAME_SIZE];
     char transaction_id_header[RUNTIME_HEADER_NAME_SIZE];
-    char phase4_content_types_file[RUNTIME_PATH_SIZE];
     char event_path[RUNTIME_PATH_SIZE];
 } msconnector_runtime_owned_config;
 
@@ -286,8 +285,8 @@ static int valid_host_transport_result(const char *value) {
 
 static const char *phase4_mode_name(enum msconnector_phase4_mode mode) {
     switch (mode) {
-      case MSCONNECTOR_PHASE4_MODE_MINIMAL:
-        return "minimal";
+      case MSCONNECTOR_PHASE4_MODE_OFF:
+        return "off";
       case MSCONNECTOR_PHASE4_MODE_SAFE:
         return "safe";
       case MSCONNECTOR_PHASE4_MODE_STRICT:
@@ -545,10 +544,6 @@ static int assign_owned_config_value(
     } else if (strcmp(key, "transaction_id_header") == 0) {
         destination = runtime->owned.transaction_id_header;
         destination_size = sizeof(runtime->owned.transaction_id_header);
-    } else if (strcmp(key, "phase4_content_types_file") == 0) {
-        destination = runtime->owned.phase4_content_types_file;
-        destination_size = sizeof(runtime->owned.phase4_content_types_file);
-        config_value = &runtime->config.phase4_content_types_file;
     } else if (strcmp(key, "event_path") == 0 ||
         strcmp(key, "phase4_event_log") == 0) {
         destination = runtime->owned.event_path;

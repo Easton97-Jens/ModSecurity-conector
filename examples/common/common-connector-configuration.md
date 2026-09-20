@@ -19,9 +19,8 @@ This is the complete current `key=value` parser surface of `common/runtime/mscon
 | [`max_header_name_size`](#max-header-name-size) | Common Runtime | positive decimal bytes | no | 256 | Common Runtime key=value file | Bounds each header-name size. |
 | [`max_header_value_size`](#max-header-value-size) | Common Runtime | positive decimal bytes | no | 8192 | Common Runtime key=value file | Bounds each header-value size. |
 | [`max_total_header_bytes`](#max-total-header-bytes) | Common Runtime | positive decimal bytes | no | 65536 | Common Runtime key=value file | Bounds total header bytes. |
-| [`phase4_content_types_file`](#phase4-content-types-file) | Common Runtime | path | no | none | Common Runtime key=value file | Stores a content-type file path; consumption is connector-specific. |
 | [`phase4_event_log`](#phase4-event-log) | Common Runtime | path alias | no | none | Common Runtime key=value file | Alias for event_path. |
-| [`phase4_mode`](#phase4-mode) | Common Runtime | enum | no | safe | Common Runtime key=value file | Stores the late P4 policy. Common alone owns no host abort primitive. |
+| [`phase4_mode`](#phase4-mode) | Common Runtime | enum | no | off | Common Runtime key=value file | Stores the late P4 policy. Common alone owns no host abort primitive. |
 | [`request_body_limit`](#request-body-limit) | Common Runtime | positive decimal bytes | no | 1048576 | Common Runtime key=value file | Bounds request bytes offered to the engine. |
 | [`request_body_mode`](#request-body-mode) | Common Runtime | enum | no | buffered | Common Runtime key=value file | Selects the Common request-body handling mode; a particular host may support only a subset. |
 | [`response_body_limit`](#response-body-limit) | Common Runtime | positive decimal bytes | no | 1048576 | Common Runtime key=value file | Bounds response bytes offered to the engine. |
@@ -641,8 +640,6 @@ Source-backed example: [examples/lighttpd/safe/msconnector-runtime.conf](../../e
 
 The 65536-byte hard cap bounds aggregate header storage and overflow-safe accounting.
 
-<a id="phase4-content-types-file"></a>
-## `phase4_content_types_file`
 
 ### Short description
 
@@ -651,7 +648,6 @@ Stores a content-type file path; consumption is connector-specific.
 ### Syntax
 
 ```text
-phase4_content_types_file=<value>
 ```
 
 ### Valid contexts
@@ -756,7 +752,7 @@ Limits bound resource use. Alias for event_path.
 
 ### Short description
 
-Stores the late P4 policy. Common alone owns no host abort primitive.
+Stores the late P4 intervention policy. `off` is the default and preserves the native connector path; ModSecurity response inspection remains independent. Response MIME selection belongs to the ModSecurity engine, not to a connector allowlist.
 
 ### Syntax
 
@@ -772,11 +768,11 @@ phase4_mode=<value>
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| enum | minimal \| safe \| strict | no |
+| enum | off \| safe \| strict | no |
 
 ### Default
 
-safe
+off
 
 Source: `common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_MODE`.
 

@@ -6,9 +6,9 @@
 
 Integrationsmodus: repository-eigenes Traefik-Local-Plugin plus persistenter
 lokaler Unix-Domain-Socket-Engine-Service. Die
-[statische Minimalreferenz](minimal/traefik-static.yaml) registriert Local
+[statische Minimalreferenz](off/traefik-static.yaml) registriert Local
 Plugin und File Provider. Die benachbarten minimalen dynamischen und
-Engine-Service-Dateien wählen dieselbe UDS-Form mit `phase4_mode=minimal`; die
+Engine-Service-Dateien wählen dieselbe UDS-Form mit `phase4_mode=off`; die
 [dynamische Safe-Referenz](safe/traefik-dynamic.yaml)
 wählt engineMode uds. Die passende
 [Engine-Service-Konfiguration](safe/traefik-engine-service.conf) wählt
@@ -38,9 +38,9 @@ bleiben Request-only-Beispiele und dürfen nicht als P3/P4-Kernpfad gelten.
 
 | Pfad | Typ | Zweck |
 | --- | --- | --- |
-| [minimal/traefik-static.yaml](minimal/traefik-static.yaml) | Statische Host-Konfiguration | Local-Plugin-Registrierung, Web-EntryPoint und File Provider. |
-| [minimal/traefik-dynamic.yaml](minimal/traefik-dynamic.yaml) | Dynamische Host-Konfiguration | Minimale UDS-Middleware-/Router-/Service-Form. |
-| [minimal/traefik-engine-service.conf](minimal/traefik-engine-service.conf) | Engine-Konfiguration | Gestreamte Body-Modi mit minimaler Late-P4-Policy. |
+| [minimal/traefik-static.yaml](off/traefik-static.yaml) | Statische Host-Konfiguration | Local-Plugin-Registrierung, Web-EntryPoint und File Provider. |
+| [minimal/traefik-dynamic.yaml](off/traefik-dynamic.yaml) | Dynamische Host-Konfiguration | Minimale UDS-Middleware-/Router-/Service-Form. |
+| [minimal/traefik-engine-service.conf](off/traefik-engine-service.conf) | Engine-Konfiguration | Gestreamte Body-Modi mit minimaler Late-P4-Policy. |
 | [safe/traefik-dynamic.yaml](safe/traefik-dynamic.yaml) | Dynamische Host-Konfiguration | Router, Middleware, UDS-Engine-Auswahl und lokaler Upstream. |
 | [safe/traefik-engine-service.conf](safe/traefik-engine-service.conf) | Engine-Konfiguration | Regeln, Limits, gestreamte Body-Modi und Safe-Policy. |
 | [detection-only/traefik-engine-service.conf](detection-only/traefik-engine-service.conf) | Engine-Konfiguration | DetectionOnly-Regeln mit ausgewählter UDS-Middleware; siehe [DetectionOnly-Profil](#detectiononly-profil). |
@@ -206,8 +206,8 @@ Transaktion.
 
 | Lösung | Varianten | P1/P2 | P3/P4 | Hostgrenze |
 | --- | --- | --- | --- | --- |
-| Native UDS | [minimal](native-uds/minimal/), [safe](native-uds/safe/), [strict](native-uds/strict/), [all](native-uds/all/) | Natives Plugin, gestreamt und begrenzt | Natives Plugin, gestreamt und begrenzt | Strict-Start wird abgewiesen, bis ein Host-Abbruch nachgewiesen ist. |
-| forwardAuth + Observer | [minimal](forwardauth/minimal/), [safe](forwardauth/safe/), [strict](forwardauth/strict/), [all](forwardauth/all/) | forwardAuth plus begrenzter gepufferter Body | Privater Response-Observer über ein undurchsichtiges Handle | Strict-Start wird abgewiesen; kein später clientseitiger Abbruch wird behauptet. |
+| Native UDS | [off](native-uds/off/), [safe](native-uds/safe/), [strict](native-uds/strict/), [all](native-uds/all/) | Natives Plugin, gestreamt und begrenzt | Natives Plugin, gestreamt und begrenzt | Strict-Start wird abgewiesen, bis ein Host-Abbruch nachgewiesen ist. |
+| forwardAuth + Observer | [off](forwardauth/off/), [safe](forwardauth/safe/), [strict](forwardauth/strict/), [all](forwardauth/all/) | forwardAuth plus begrenzter gepufferter Body | Privater Response-Observer über ein undurchsichtiges Handle | Strict-Start wird abgewiesen; kein später clientseitiger Abbruch wird behauptet. |
 
 Jede Runtime-Datei zeigt alle aktuell geparsten Common-Runtime-Schlüssel. Die
 aktive Rules-Quelle ist die geprüfte private `rules_file`; `rules_inline`,

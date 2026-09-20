@@ -1,5 +1,5 @@
 # Minimal dynamic File Provider reference. UDS keeps the native rule path; the
-# paired Common Runtime file uses phase4_mode=minimal rather than safe.
+# paired Common Runtime file uses phase4_mode=off rather than safe.
 http:
   routers:
     app:

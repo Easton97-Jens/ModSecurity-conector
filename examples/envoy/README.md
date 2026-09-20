@@ -26,9 +26,9 @@ observer for P3/P4.
 
 | Path | Type | Purpose |
 | --- | --- | --- |
-| [minimal/envoy-ext-proc-streaming.yaml.in](minimal/envoy-ext-proc-streaming.yaml.in) | Template | Minimal streamed ext_proc transport shape. |
-| [minimal/envoy-ext-proc-service.json](minimal/envoy-ext-proc-service.json) | Service configuration | Validated processor limits for the minimal profile. |
-| [minimal/msconnector-runtime.conf](minimal/msconnector-runtime.conf) | Runtime configuration | Common Runtime profile with `phase4_mode=minimal`. |
+| [minimal/envoy-ext-proc-streaming.yaml.in](off/envoy-ext-proc-streaming.yaml.in) | Template | Minimal streamed ext_proc transport shape. |
+| [minimal/envoy-ext-proc-service.json](off/envoy-ext-proc-service.json) | Service configuration | Validated processor limits for the minimal profile. |
+| [minimal/msconnector-runtime.conf](off/msconnector-runtime.conf) | Runtime configuration | Common Runtime profile with `phase4_mode=off`. |
 | [safe/envoy-ext-proc-streaming.yaml.in](safe/envoy-ext-proc-streaming.yaml.in) | Template | Envoy listener, ext_proc filter, and gRPC/upstream clusters. |
 | [safe/envoy-ext-proc-service.json](safe/envoy-ext-proc-service.json) | Service configuration | Bounds and Safe late-action policy for the processor. |
 | [ext-proc/all/](ext-proc/all/) | Logical bundle | Comprehensive ext_proc template, service, and runtime configuration with strict P4 policy. |
@@ -48,10 +48,10 @@ Each logical Envoy solution has a materializable `minimal`, `safe`, `strict`,
 and `all` bundle. Every bundle contains a host template and Common Runtime
 configuration with all applicable limits and modes visible.
 
-| Logical solution | Minimal | Safe | Strict | All | P1/P2 | P3/P4 |
+| Logical solution | Off | Safe | Strict | All | P1/P2 | P3/P4 |
 | --- | --- | --- | --- | --- | --- | --- |
-| ext_proc | [bundle](ext-proc/minimal/) | [bundle](ext-proc/safe/) | [bundle](ext-proc/strict/) | [bundle](ext-proc/all/) | ext_proc | ext_proc |
-| ext_authz | [bundle](ext-authz/minimal/) | [bundle](ext-authz/safe/) | [bundle](ext-authz/strict/) | [bundle](ext-authz/all/) | ext_authz | private-UDS ext_proc observer |
+| ext_proc | [bundle](ext-proc/off/) | [bundle](ext-proc/safe/) | [bundle](ext-proc/strict/) | [bundle](ext-proc/all/) | ext_proc | ext_proc |
+| ext_authz | [bundle](ext-authz/off/) | [bundle](ext-authz/safe/) | [bundle](ext-authz/strict/) | [bundle](ext-authz/all/) | ext_authz | private-UDS ext_proc observer |
 
 The ext_authz observer receives only the one-time opaque handle from the
 authorization service and then receives response headers/body. Missing,
@@ -96,7 +96,7 @@ placeholders, and the separate ext_authz compatibility entry.
 | `SecRuleEngine` | ModSecurity Engine | Selects engine enforcement, DetectionOnly, or Off in the runtime rule file. |
 | `request_body_mode` | Common Runtime | Selects required streamed request-body input for the native bridge. |
 | `response_body_mode` | Common Runtime | Selects required streamed response-body input for the native bridge. |
-| `late_action_policy` | Connector service | Records minimal, safe, or strict post-commit policy without fabricating a status. |
+| `late_action_policy` | Connector service | Records off, safe, or strict post-commit policy without fabricating a status. |
 
 Removing `ext_proc` disables the connector path. `SecRuleEngine Off` leaves
 the processor route present but disables engine rule evaluation. ext_authz is
@@ -153,9 +153,9 @@ runtime configuration. The repository source for the No-CRS profile is
 
 The selected Envoy core needs streamed ext_proc input in both directions. The
 minimal files supply a complete transport shape in
-[envoy-ext-proc-streaming.yaml.in](minimal/envoy-ext-proc-streaming.yaml.in),
+[envoy-ext-proc-streaming.yaml.in](off/envoy-ext-proc-streaming.yaml.in),
 its validated service contract, and a paired Common Runtime file with
-`phase4_mode=minimal`. It is not a request-only native path: the bridge still
+`phase4_mode=off`. It is not a request-only native path: the bridge still
 requires STREAMED request and response body modes. The separate
 [ext_authz request-only material](#ext_authz-compatibility) remains
 compatibility-only.

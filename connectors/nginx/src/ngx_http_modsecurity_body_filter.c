@@ -14,7 +14,6 @@
  */
 
 #include <ngx_config.h>
-#include <ctype.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -47,7 +46,6 @@ ngx_http_modsecurity_contract_record_response_commit(
     return msconnector_transaction_contract_set_response_committed(&ctx->contract, 1) ==
         MSCONNECTOR_TRANSACTION_TRANSITION_OK ? NGX_OK : NGX_ERROR;
 }
-static ngx_int_t ngx_http_modsecurity_phase4_in_scope(ngx_http_request_t *r);
 static ngx_int_t ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf, const char *wanted, const char *actual, const char *reason);
 static ngx_int_t ngx_http_modsecurity_phase4_handle_intervention(ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf);
 static ngx_int_t ngx_http_modsecurity_validate_response_mapper_once(ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx);
@@ -68,8 +66,7 @@ static ngx_int_t ngx_http_modsecurity_prepare_response_body_filter(
     ngx_http_modsecurity_ctx_t **context);
 static ngx_int_t ngx_http_modsecurity_append_response_chain_buffer(
     ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
-    ngx_http_modsecurity_conf_t *mcf, ngx_int_t phase4_in_scope,
-    ngx_chain_t *chain);
+    ngx_http_modsecurity_conf_t *mcf, ngx_chain_t *chain);
 static ngx_int_t ngx_http_modsecurity_forward_response_body_prefix(
     ngx_http_request_t *r, ngx_chain_t *segment_start,
     ngx_chain_t *segment_previous, ngx_chain_t *chain,
@@ -372,6 +369,9 @@ ngx_http_modsecurity_process_final_response_body(ngx_http_request_t *r,
     if (ret == 0) {
         return NGX_OK;
     }
+    if (mcf != NULL && mcf->phase4_mode == MSCONNECTOR_PHASE4_MODE_OFF) {
+        return ret;
+    }
 
     /* A late intervention cannot safely rewrite committed headers.  Both a
      * negative control failure and a positive intervention use the existing
@@ -518,11 +518,8 @@ ngx_http_modsecurity_prepare_response_body_filter(ngx_http_request_t *r,
 static ngx_int_t
 ngx_http_modsecurity_append_response_chain_buffer(ngx_http_request_t *r,
     ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf,
-    ngx_int_t phase4_in_scope, ngx_chain_t *chain)
+    ngx_chain_t *chain)
 {
-    if (phase4_in_scope == 0) {
-        return NGX_OK;
-    }
     return ngx_http_modsecurity_append_response_body_buffer(r, ctx, mcf,
         chain->buf);
 }
@@ -582,11 +579,9 @@ ngx_http_modsecurity_process_response_body_chain(ngx_http_request_t *r,
     ngx_chain_t *segment_start = in;
     ngx_chain_t *segment_previous = NULL;
     ngx_http_modsecurity_conf_t *mcf;
-    ngx_int_t phase4_in_scope;
     int is_request_processed = 0;
 
     mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
-    phase4_in_scope = ngx_http_modsecurity_phase4_in_scope(r);
     for (chain = in; chain != NULL; chain = chain->next)
     {
         ngx_int_t ret;
@@ -594,7 +589,7 @@ ngx_http_modsecurity_process_response_body_chain(ngx_http_request_t *r,
         ngx_uint_t terminal_processed;
 
         ret = ngx_http_modsecurity_append_response_chain_buffer(r, ctx, mcf,
-            phase4_in_scope, chain);
+            chain);
         if (ret != NGX_OK) {
             return ret;
         }
@@ -649,7 +644,6 @@ static ngx_int_t
 ngx_http_modsecurity_phase4_handle_intervention(ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf)
 {
     ngx_http_modsecurity_ctx_t *ctx = ngx_http_modsecurity_get_module_ctx(r);
-    ngx_int_t in_scope = ngx_http_modsecurity_phase4_in_scope(r);
     msconnector_late_intervention_policy policy;
     msconnector_late_intervention_action action;
     ngx_int_t log_result;
@@ -665,11 +659,6 @@ ngx_http_modsecurity_phase4_handle_intervention(ngx_http_request_t *r, ngx_http_
         ctx->response_committed = r->header_sent ? 1 : 0;
     }
 
-    if (in_scope == 0) {
-        return ngx_http_modsecurity_phase4_log_event(r, mcf, wanted,
-            "log_only", r->headers_out.content_type.len
-                ? "content_type_not_in_scope" : "content_type_missing");
-    }
 
     msconnector_late_intervention_policy_init(&policy);
     action = msconnector_late_intervention_resolve(&policy,
@@ -723,8 +712,8 @@ static const char *
 ngx_http_modsecurity_phase4_mode_name(ngx_uint_t mode)
 {
     switch (mode) {
-    case MSCONNECTOR_PHASE4_MODE_MINIMAL:
-        return "minimal";
+    case MSCONNECTOR_PHASE4_MODE_OFF:
+        return "off";
     case MSCONNECTOR_PHASE4_MODE_SAFE:
         return "safe";
     case MSCONNECTOR_PHASE4_MODE_STRICT:
@@ -732,25 +721,6 @@ ngx_http_modsecurity_phase4_mode_name(ngx_uint_t mode)
     default:
         return NULL;
     }
-}
-
-static ngx_int_t
-ngx_http_modsecurity_phase4_in_scope(ngx_http_request_t *r)
-{
-    ngx_http_modsecurity_conf_t *mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
-    ngx_uint_t i;
-    ngx_str_t ct;
-    u_char *semi;
-    if (r->headers_out.content_type.len == 0 || mcf->phase4_content_types == NULL) return 0;
-    ct = r->headers_out.content_type;
-    semi = (u_char *)ngx_strlchr(ct.data, ct.data + ct.len, ';');
-    if (semi != NULL) ct.len = semi - ct.data;
-    while (ct.len > 0 && isspace((unsigned char)ct.data[ct.len - 1])) ct.len--;
-    for (i = 0; i < mcf->phase4_content_types->nelts; i++) {
-        ngx_str_t *arr = mcf->phase4_content_types->elts;
-        if (arr[i].len == ct.len && ngx_strncasecmp(arr[i].data, ct.data, ct.len) == 0) return 1;
-    }
-    return 0;
 }
 
 static int

@@ -769,6 +769,10 @@ static plugin_body_hook_result mod_msconnector_finish_response_body(
     if (!msconnector_decision_is_disruptive(&decision)) {
         return PLUGIN_BODY_HOOK_CONTINUE;
     }
+    if (phase4_mode == MSCONNECTOR_PHASE4_MODE_OFF) {
+        return mod_msconnector_apply_decision(r, p, ctx, &decision) == HANDLER_ERROR
+            ? PLUGIN_BODY_HOOK_ERROR : PLUGIN_BODY_HOOK_ABORT;
+    }
 
     msconnector_late_intervention_policy_init(&policy);
     action = msconnector_late_intervention_resolve(
