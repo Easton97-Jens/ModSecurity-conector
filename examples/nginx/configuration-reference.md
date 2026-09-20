@@ -18,7 +18,6 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`load_module`](#load-module) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`modsecurity`](#modsecurity) | Host / Connector | boolean | no | off | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Gates connector transaction creation; it is not SecRuleEngine. |
 | [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive decimal byte count | no | 1048576 | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Bounds response bytes offered to P4 processing by the native connector. |
-| [`modsecurity_phase4_content_types_file`](#modsecurity-phase4-content-types-file) | Host / Connector | path | no | host defaults when omitted | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Loads the MIME-token allowlist from a bounded POSIX regular file to scope P4 response-body inspection. |
 | [`modsecurity_phase4_log`](#modsecurity-phase4-log) | Host / Connector | path | no | not configured | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Opens a connector-owned native NGINX event sink through the Common Runtime's secure no-follow descriptor helper. |
 | [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | enum | no | safe | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Before response headers/body are committed, minimal, safe, and strict all resolve a P4 intervention as deny_if_possible, so NGINX can still return the requested engine status (or 403 fallback). Once headers are committed or the body started, minimal and safe both use the common log_only action; they record the late decision without a later status rewrite. Strict instead resolves to abort_connection: the native body filter marks the connection as errored, records connection_aborted, and returns NGX_ERROR. The known host boundary is that NGINX invokes the P4 engine finish only at last_buf/last_in_chain after bounded in-scope body accumulation, so a response may already be visible. Strict can therefore terminate a connection, but cannot guarantee a later 403 or replace an already-sent status line. |
 | [`modsecurity_rules`](#modsecurity-rules) | Host / Connector | string | no | none; optional | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Loads inline content through libmodsecurity during configuration loading. |
@@ -52,7 +51,7 @@ See [Engine reference](../common/modsecurity-directives.md).
 
 | Profile | File | Status |
 | --- | --- | --- |
-| Minimal | [minimal/nginx.conf](minimal/nginx.conf) | Active starter configuration |
+| Minimal | [minimal/nginx.conf](off/nginx.conf) | Active starter configuration |
 | Safe full lifecycle | [safe/nginx.conf](safe/nginx.conf) | Selected bounded reference |
 | Strict | [strict/nginx.conf](strict/nginx.conf) | Parser-supported or explicitly optional boundary |
 | DetectionOnly | [detection-only/nginx.conf](detection-only/nginx.conf) | Engine evaluates/logs without disruptive action |
@@ -405,7 +404,7 @@ ngx_conf_set_common_flag_slot rejects invalid values during nginx -t; NGX_HTTP_L
 
 Selected value: use the syntax above and the source-backed file below.
 
-Source-backed example: [examples/nginx/minimal/nginx.conf](../../examples/nginx/minimal/nginx.conf).
+Source-backed example: [examples/nginx/off/nginx.conf](../../examples/nginx/off/nginx.conf).
 
 ### Safety and operations
 
@@ -466,8 +465,6 @@ Source-backed example: [examples/nginx/safe/nginx.conf](../../examples/nginx/saf
 
 A larger limit raises memory/CPU exposure; zero is invalid in the native setters.
 
-<a id="modsecurity-phase4-content-types-file"></a>
-## `modsecurity_phase4_content_types_file`
 
 ### Short description
 
@@ -476,7 +473,6 @@ Loads the MIME-token allowlist from a bounded POSIX regular file to scope P4 res
 ### Syntax
 
 ```text
-modsecurity_phase4_content_types_file <value>;
 ```
 
 ### Valid contexts
@@ -509,7 +505,6 @@ Loads the MIME-token allowlist from a bounded POSIX regular file to scope P4 res
 
 ### Validation and errors
 
-ngx_conf_set_phase4_content_types_file rejects invalid values during nginx -t. On POSIX it opens the path nonblocking, checks that the opened descriptor is regular, caps it at 64 KiB, requires an exact read, and rejects invalid MIME tokens. On Win32 it fails closed.
 
 ### Example
 
@@ -586,7 +581,7 @@ Before response headers/body are committed, minimal, safe, and strict all resolv
 ### Syntax
 
 ```text
-modsecurity_phase4_mode minimal | safe | strict;
+modsecurity_phase4_mode off | safe | strict;
 ```
 
 ### Valid contexts
@@ -597,7 +592,7 @@ modsecurity_phase4_mode minimal | safe | strict;
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| enum | minimal \| safe \| strict; before commit all use deny_if_possible, after commit minimal/safe are log_only and strict is abort_connection | no |
+| enum | off \| safe \| strict; before commit all use deny_if_possible, after commit minimal/safe are log_only and strict is abort_connection | no |
 
 ### Default
 
@@ -619,7 +614,7 @@ Before response headers/body are committed, minimal, safe, and strict all resolv
 
 ### Validation and errors
 
-ngx_conf_set_phase4_mode accepts only minimal|safe|strict during nginx -t. Runtime late behavior is source-defined: non-strict post-commit paths emit log_only; strict marks the connection errored and returns NGX_ERROR, without manufacturing a later 403.
+ngx_conf_set_phase4_mode accepts only off|safe|strict during nginx -t. Runtime late behavior is source-defined: non-strict post-commit paths emit log_only; strict marks the connection errored and returns NGX_ERROR, without manufacturing a later 403.
 
 ### Example
 
@@ -735,7 +730,7 @@ ngx_conf_set_rules_file calls msc_rules_add_file while nginx -t/configuration lo
 
 Selected value: use the syntax above and the source-backed file below.
 
-Source-backed example: [examples/nginx/minimal/nginx.conf](../../examples/nginx/minimal/nginx.conf).
+Source-backed example: [examples/nginx/off/nginx.conf](../../examples/nginx/off/nginx.conf).
 
 ### Safety and operations
 
