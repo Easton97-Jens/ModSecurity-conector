@@ -333,7 +333,7 @@ APACHE_DIRECTIVE_DETAILS: dict[str, dict[str, str]] = {
         "effect": (
             "Apache appends each normalized response bucket exactly once and forwards non-terminal "
             "output to the next filter without waiting for EOS. It finishes P4 exactly once at actual "
-            "EOS. With policy off the connector keeps its native intervention path. After the next-filter " 
+            "EOS. With policy off the connector keeps its native intervention path. After the next-filter "
             "commitment boundary, safe records log_only and strict "
             "requests abort_connection instead of a late status rewrite."
         ),
