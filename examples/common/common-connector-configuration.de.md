@@ -19,9 +19,8 @@ Dies ist die vollständige aktuelle `key=value`-Parseroberfläche von `common/ru
 | [`max_header_name_size`](#max-header-name-size) | Common Runtime | positive dezimale Byteanzahl | nein | 256 | Common-Runtime-key=value-Datei | Begrenzt die Größe jedes Headernamens. |
 | [`max_header_value_size`](#max-header-value-size) | Common Runtime | positive dezimale Byteanzahl | nein | 8192 | Common-Runtime-key=value-Datei | Begrenzt die Größe jedes Headerwerts. |
 | [`max_total_header_bytes`](#max-total-header-bytes) | Common Runtime | positive dezimale Byteanzahl | nein | 65536 | Common-Runtime-key=value-Datei | Begrenzt die gesamte Header-Byteanzahl. |
-| [`phase4_content_types_file`](#phase4-content-types-file) | Common Runtime | Pfad | nein | none | Common-Runtime-key=value-Datei | Speichert einen Content-Type-Dateipfad; die Verwendung ist connectorspezifisch. |
 | [`phase4_event_log`](#phase4-event-log) | Common Runtime | Pfad-Alias | nein | none | Common-Runtime-key=value-Datei | Alias für event_path. |
-| [`phase4_mode`](#phase4-mode) | Common Runtime | Aufzählung | nein | safe | Common-Runtime-key=value-Datei | Speichert die späte P4-Policy. Common allein besitzt keine Host-Abbruchprimitive. |
+| [`phase4_mode`](#phase4-mode) | Common Runtime | Aufzählung | nein | off | Common-Runtime-key=value-Datei | Speichert die späte P4-Policy. Common allein besitzt keine Host-Abbruchprimitive. |
 | [`request_body_limit`](#request-body-limit) | Common Runtime | positive dezimale Byteanzahl | nein | 1048576 | Common-Runtime-key=value-Datei | Begrenzt die der Engine angebotenen Request-Bytes. |
 | [`request_body_mode`](#request-body-mode) | Common Runtime | Aufzählung | nein | buffered | Common-Runtime-key=value-Datei | Wählt den Common-Modus zur Request-Body-Verarbeitung; ein bestimmter Host unterstützt möglicherweise nur eine Teilmenge. |
 | [`response_body_limit`](#response-body-limit) | Common Runtime | positive dezimale Byteanzahl | nein | 1048576 | Common-Runtime-key=value-Datei | Begrenzt die der Engine angebotenen Response-Bytes. |
@@ -641,8 +640,6 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 Die harte Obergrenze von 65536 Byte begrenzt aggregierten Header-Speicher und überlaufsichere Bilanzierung.
 
-<a id="phase4-content-types-file"></a>
-## `phase4_content_types_file`
 
 ### Kurzbeschreibung
 
@@ -651,7 +648,6 @@ Speichert einen Content-Type-Dateipfad; die Verwendung ist connectorspezifisch.
 ### Syntax
 
 ```text
-phase4_content_types_file=<value>
 ```
 
 ### Gültige Kontexte
@@ -756,7 +752,7 @@ Limits begrenzen den Ressourcenverbrauch. Alias für event_path.
 
 ### Kurzbeschreibung
 
-Speichert die späte P4-Policy. Common allein besitzt keine Host-Abbruchprimitive.
+Speichert die Policy für späte P4-Interventionen. `off` ist der Standard und erhält den nativen Connector-Pfad; die ModSecurity-Response-Prüfung bleibt davon unabhängig aktiv. Die Auswahl der Response-MIME-Typen erfolgt durch die ModSecurity-Engine, nicht durch eine Connector-Allowlist.
 
 ### Syntax
 
@@ -772,7 +768,7 @@ phase4_mode=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| Aufzählung | minimal \| safe \| strict | nein |
+| Aufzählung | off \| safe \| strict | nein |
 
 ### Standardwert
 
