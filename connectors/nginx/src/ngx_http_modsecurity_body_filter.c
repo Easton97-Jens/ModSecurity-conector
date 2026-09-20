@@ -150,27 +150,18 @@ ngx_http_modsecurity_plan_limited_response_body(
 
     ctx->response_body_seen = 1;
     if (mcf->phase4_mode == MSCONNECTOR_PHASE4_MODE_OFF) {
-        /* Off bypasses only the connector budget, not engine inspection.
-         * Keep accounting checked and file reads bounded in every mode. */
-        if (ctx->response_body_bytes_inspected > ctx->response_body_bytes_seen ||
-            len > SIZE_MAX - ctx->response_body_bytes_seen) {
-            ctx->response_body_truncated = 1;
-            (void)msconnector_transaction_contract_fail(&ctx->contract,
-                MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, 0U);
-            return NGX_ERROR;
-        }
-        ctx->response_body_bytes_seen += len;
-        *allowed = len;
-        return NGX_OK;
-    }
-    if (mcf->phase4_mode != MSCONNECTOR_PHASE4_MODE_SAFE &&
-        mcf->phase4_mode != MSCONNECTOR_PHASE4_MODE_STRICT) {
+        /* Disable only the optional budget. The Common planner still owns
+         * accounting and rejects overflow without forwarding the chunk. */
+        limit = SIZE_MAX;
+    } else if (mcf->phase4_mode == MSCONNECTOR_PHASE4_MODE_SAFE ||
+               mcf->phase4_mode == MSCONNECTOR_PHASE4_MODE_STRICT) {
+        limit = mcf->common_config.phase4_body_limit;
+    } else {
         (void)msconnector_transaction_contract_fail(&ctx->contract,
             MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
         return NGX_ERROR;
     }
 
-    limit = mcf->common_config.phase4_body_limit;
     /* In safe/strict a P4 limit applies before the current buffer reaches the next
      * filter. Passing an inspected prefix and forwarding an uninspected tail
      * would violate the shared body-limit contract, so NGINX uses the Common

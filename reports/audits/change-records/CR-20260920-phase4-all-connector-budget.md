@@ -2,11 +2,15 @@
 
 **Language:** English | [Deutsch](CR-20260920-phase4-all-connector-budget.de.md)
 
-Change ID: `CR-20260920-phase4-all-connector-budget`
-Date: 2026-09-20
-Base revision: `785a620de7b1c6b566a73eed642457eeb8419bb4`
+## Identity
 
-## Motivation
+| Field | Value |
+| --- | --- |
+| Change ID | `CR-20260920-phase4-all-connector-budget` |
+| Date (UTC) | 2026-09-20 |
+| Base revision | `785a620de7b1c6b566a73eed642457eeb8419bb4` |
+
+## Motivation and problem statement
 
 Apply the user's requested budget rule across all connector families:
 the extra cumulative Phase-4 inspection budget applies only to `safe` and
@@ -24,12 +28,12 @@ existing over-limit behavior. NGINX negative native results in `off` call
 Missing configuration must not be dereferenced. Independent engine, memory,
 message/frame and transport safeguards remain active.
 
-## Technical decisions
+## Implementation decision and rationale
 
 A header-only Common helper supplies the effective cumulative budget. `off`
 uses `SIZE_MAX` only as an arithmetic ceiling, never an allocation size.
 Apache, HAProxy native/HTX and Common Runtime use it at their relevant budget
-checks. NGINX has an explicit off planner and matching metadata ceiling.
+checks. NGINX uses the Common planner in every mode and a matching metadata ceiling.
 Common Runtime covers direct and response-companion ingestion; Envoy's Go
 precheck reads an optional capability from the loaded Common engine, not its
 independent late-action setting. lighttpd's streaming Content-Length precheck
@@ -83,13 +87,14 @@ No unsupported response route or strict-abort capability is promoted.
 - `tests/test_phase4_all_connector_budget.py`
 - `tests/test_phase4_envoy_budget.py`
 
-## Tests and actual results
+## Commands executed
 
-Executed through the Python unittest API in an isolated source workspace:
+During initial preparation, executed through the Python unittest API in an isolated source workspace:
 `tests.test_nginx_phase4_mode_budget` and
 `tests.test_phase4_all_connector_budget`: 30 tests passed with GCC and the
-same 30 passed with Clang. Their C fixtures use `-std=c17 -Wall -Wextra -Werror`,
-actual helper/planner/branch source, and small host doubles.
+same 30 passed with Clang. The Common fixture uses `-std=c17 -Wall -Wextra -Werror`; the original NGINX
+fixture selected C11 and is aligned to C17 in the follow-up. Fixtures use actual
+helper/planner/branch source and small host doubles.
 `tests.test_phase4_envoy_budget`: two checks passed, including stdlib-only
 `go test -count=1 -v .` on actual extracted Go functions and the added Go
 table tests. This does not build the full Envoy/CGo package.
@@ -104,19 +109,49 @@ New patch lines have no trailing whitespace. Diff contexts and reconstructed
 file hashes are verified by a standalone Python validator in the delivery
 package; this is not a claim that native `git apply --check` ran.
 
+### PR #381 CI remediation (2026-09-21)
+
+The unchanged NGINX Common-adoption checker reproduced the failure on
+`59fd49017a81f5c0ac846109c17ea7ce627db877` (exit 1): the off branch used a manual
+byte increment outside the Common planner. After the source fix the same
+checker passed (exit 0). All modes now use one Common planning call; off
+selects `SIZE_MAX`. On overflow, Common saturates bytes seen without advancing
+bytes inspected, accepts no bytes, and returns failure.
+
+The metadata budget is resolved by a small NULL-safe helper rather than the
+nested conditional expression reported as Sonar `c:S3358`. No rule suppression,
+checker relaxation, workflow change or dependency change is used.
+
+Fresh isolated Python API validation on the revised source:
+- `tests.test_nginx_phase4_mode_budget`, `tests.test_phase4_all_connector_budget`
+  and `tests.test_phase4_envoy_budget`: 34 tests passed with GCC and the same
+  34 passed with Clang; the C fixtures now both select C17.
+- `tests.test_phase4_migration_contract`, `tests.test_nginx_native_security_contract`
+  and `tests.test_nginx_upstream_security_contract`: 33 tests passed.
+- The unchanged documentation checker's record-heading, identity, structural
+  parity, code-fence and local-link checks passed for this record pair.
+
+These checks used Python 3.13 in the isolated snapshot, not the canonical
+Python 3.14.7/RTK environment. Complete CI and native-host results for the
+follow-up commit must be evaluated separately.
+
 ## Runtime evidence
 
 None from live NGINX, httpd, HAProxy, Envoy, Traefik or lighttpd servers.
 No HTTP/1, HTTP/2, HTTP/3, production, sanitizer or real-engine integration
 success is asserted.
 
-## Checks not run
+## Checks not run and rationale
 
-Repository-native RTK-wrapped make checks, full host builds, full Go/CGo
-package tests, the complete regression suites, canonical bilingual/link
-checks, current-head CI and SonarCloud. RTK and the native host environment
-were unavailable. No package/toolchain installation or dependency mutation
-was performed.
+No local repository-native RTK-wrapped make checks, full host builds, full
+Go/CGo package tests, complete regression suites or canonical whole-repository
+bilingual/link check were run: RTK, the configured interpreter and the native
+host environment were unavailable. No package/toolchain installation or
+dependency mutation was performed. Remote CI for the initial PR head was
+inspected: lint reported invalid record headings/identity, and quick checks
+failed the shared NGINX accounting contract. Sonar's gate passed with one
+new maintainability issue. Fresh follow-up CI/Sonar results are pending at
+the time of this remediation record.
 
 ## Known limitations
 
@@ -129,7 +164,7 @@ The preparation session initially produced a local change package. This
 branch publishes those source files for Draft review; current-head CI and
 full host validation remain separate. This is not a merged change.
 
-## Residual risks
+## Remaining risks
 
 Host-specific integration and error-page behavior need native regression
 tests. A buffered compatibility route may still reject an oversized response
@@ -137,8 +172,10 @@ because of its independent storage limit in `off`. Unsupported strict-abort
 profiles remain unsupported. The patch does not change Framework/MRTS or
 disable CI/security gates.
 
-## Final review status
+## Final diff and review status
 
-Scoped source diff reviewed; isolated checks passed during preparation.
-The source files are submitted for Draft review. The PR records the current
-head and CI state; no merge or production approval is asserted here.
+The initial source files are published in Draft PR #381. This follow-up
+changes only the NGINX body/header filters, their budget regression test and
+this record pair. Source diff and isolated checks were reviewed; the existing
+quality gates remain unchanged. The PR records the current head and CI state;
+no merge or production approval is asserted here.
