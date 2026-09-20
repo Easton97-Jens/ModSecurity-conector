@@ -158,7 +158,7 @@ func (config Config) Validate() error {
 	switch config.LateActionPolicy {
 	case LateActionOff, LateActionSafe, LateActionStrict:
 	default:
-		return fmt.Errorf("config: late_action_policy must be minimal, safe, or strict")
+		return fmt.Errorf("config: late_action_policy must be off, safe, or strict")
 	}
 	return nil
 }
