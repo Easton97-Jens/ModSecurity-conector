@@ -358,8 +358,6 @@ typedef struct {
      * synchronized into common_config for connector-neutral semantics. */
     ngx_http_complex_value_t  *transaction_id;
     ngx_uint_t                 phase4_mode;
-    ngx_array_t               *phase4_content_types;
-    ngx_str_t                  phase4_content_types_file;
     ngx_open_file_t           *phase4_log_file;
     ngx_str_t                  phase4_log_path;
 } ngx_http_modsecurity_conf_t;
