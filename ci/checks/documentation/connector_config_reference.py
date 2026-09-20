@@ -2958,7 +2958,7 @@ def _assert_common_source_defaults(root: Path) -> None:
     expected_tokens = {
         "MSCONNECTOR_DEFAULT_ENABLE MSCONNECTOR_BOOL_OFF": "common enabled default",
         "MSCONNECTOR_DEFAULT_USE_ERROR_LOG MSCONNECTOR_BOOL_ON": "common error-log default",
-        "MSCONNECTOR_DEFAULT_PHASE4_MODE MSCONNECTOR_PHASE4_MODE_SAFE": "common phase4 default",
+        "MSCONNECTOR_DEFAULT_PHASE4_MODE MSCONNECTOR_PHASE4_MODE_OFF": "common phase4 default",
         "MSCONNECTOR_DEFAULT_PHASE4_BODY_LIMIT 1048576": "common phase4 byte default",
     }
     for token, label in expected_tokens.items():
