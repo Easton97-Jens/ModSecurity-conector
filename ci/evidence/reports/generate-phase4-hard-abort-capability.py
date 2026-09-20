@@ -213,8 +213,6 @@ def content_type_scope(parsed: dict[str, Any], raw: str) -> str:
         return str(headers["content-type"])
     if expect.get("content_type"):
         return str(expect["content_type"])
-    if "modsecurity_phase4_content_types_file" in raw:
-        return "configured"
     return "-"
 
 
@@ -334,7 +332,7 @@ def classify_case(
     )
     logs = log_evidence(phase4_events, decisions, evidence)
     expected_action = str(meta.get("expected_action") or "")
-    log_only = action == "log_only" or mode in {"minimal", "safe"} or reason in {"mode_minimal", "mode_safe", "content_type_not_in_scope"}
+    log_only = action == "log_only" or mode == "safe" or reason == "mode_safe"
     known_gap = (
         "connector-gap" in str(entry.get("classification") or "")
         or any("connector-gap" in item for item in normalize_list(evidence.get("known_limitations")))
