@@ -42,8 +42,7 @@ Der adaptereigene Apache-Connector registriert derzeit Folgendes:
 - `modsecurity_use_error_log on|off`
 - `modsecurity_transaction_id <string>`
 - `modsecurity_transaction_id_expr <apache-expression>`
-- `modsecurity_phase4_mode minimal|safe|strict`
-- `modsecurity_phase4_content_types_file <path>`
+- `modsecurity_phase4_mode off|safe|strict`
 - `modsecurity_phase4_log <path>`
 - `modsecurity_phase4_body_limit <bytes>`
 
@@ -66,7 +65,6 @@ Interventionsverhalten, Anfrage- oder Antwortbehandlung, Hooks, Filter, Buckets,
 oder Transaktionseigentum.
 
 Die Phase-4-Direktiven sind begrenzte Laufzeitsteuerungen. Insbesondere ist
-`modsecurity_phase4_content_types_file` ein veralteter Kompatibilitätsparser:
 Er kann das Response-Inspektions-Gate nicht einschränken und keine
 P4-Entscheidung vor Commit erzeugen.
 `SecResponseBodyMimeType` wählt stattdessen die libModSecurity-Inspektion.
@@ -197,7 +195,6 @@ Der Connector kann die wirksame `SecResponseBodyMimeType`-Auswahl von
 libModSecurity über die C-API nicht sicher abfragen. Deshalb gate't er jeden
 Response-MIME-Typ. `SecResponseBodyMimeType` wählt weiterhin die Engine-
 Inspektion, während das veraltete
-`modsecurity_phase4_content_types_file` keinen uninspektierten Pass-through-
 Pfad erzeugen kann. Das Standardlimit von
 `modsecurity_phase4_body_limit` beträgt 1048576 Byte (1 MiB), und der
 Common-Konfigurationsvalidator lehnt Werte über 10485760 Byte (10 MiB) ab.
