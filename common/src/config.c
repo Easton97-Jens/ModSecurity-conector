@@ -170,7 +170,6 @@ void msconnector_config_init(msconnector_config *config) {
     config->transaction_id = 0;
     config->transaction_id_expr = 0;
     config->phase4_mode = MSCONNECTOR_PHASE4_MODE_UNSET;
-    config->phase4_content_types_file = 0;
     config->phase4_log_path = 0;
     config->phase4_body_limit = 0;
     config->request_body_limit = 0;
@@ -262,9 +261,6 @@ int msconnector_config_merge(
     merge_remote_rules_pair(out, parent, child);
     merge_transaction_id_pair(out, parent, child);
     out->phase4_mode = merge_phase4_mode(parent->phase4_mode, child->phase4_mode);
-    out->phase4_content_types_file = merge_string(
-        parent->phase4_content_types_file,
-        child->phase4_content_types_file);
     out->phase4_log_path = merge_string(parent->phase4_log_path, child->phase4_log_path);
     out->phase4_body_limit = merge_size_value(parent->phase4_body_limit, child->phase4_body_limit);
     out->request_body_limit = merge_size_value(
