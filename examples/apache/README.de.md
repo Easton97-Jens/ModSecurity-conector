@@ -4,7 +4,7 @@
 
 ## Integration und Grenze
 
-Integrationsmodus: natives httpd-Modul. [Minimalreferenz](minimal/httpd.conf),
+Integrationsmodus: natives httpd-Modul. [Minimalreferenz](off/httpd.conf),
 [Safe-Referenz](safe/httpd.conf), [Strict-Referenz](strict/httpd.conf) und
 [vollständige Referenz](all/httpd.conf) wählen die native HTTP/1.1-P1--P4-
 Konfigurationsform. P1 sind Request-Header, P2 Request-Body, P3 Response-
@@ -32,7 +32,7 @@ Abbruchergebnis, bevor ein Host-Runtime-Test eines beobachtet.
 
 | Pfad | Typ | Zweck |
 | --- | --- | --- |
-| [minimal/httpd.conf](minimal/httpd.conf) | Host-Konfiguration | Begrenzter nativer P1--P4-Minimalstart. |
+| [minimal/httpd.conf](off/httpd.conf) | Host-Konfiguration | Begrenzter nativer P1--P4-Minimalstart. |
 | [safe/httpd.conf](safe/httpd.conf) | Host-Konfiguration | Begrenzte native P1--P4-Safe-Referenz. |
 | [strict/httpd.conf](strict/httpd.conf) | Host-Konfiguration | Parserunterstützter Strict-Fallback ohne Behauptung eines client-sichtbaren späten Abbruchs. |
 | [all/httpd.conf](all/httpd.conf) | Host-Konfiguration | Vollständige quellenbasierte Parameterreferenz; sie wählt gültiges `strict`, nicht den Phase-4-Modus `all`. |
@@ -55,8 +55,7 @@ in der Konfiguration, einschließlich /usr/lib/apache2/modules/mod_security3.so,
 | --- | --- | --- | --- |
 | security3_module | Von LoadModule geladenes Modul | Pflicht; kein Repository-Default; Apache-Paket oder lokaler Build; Server-Scope | mod_security3.so an installiertem Modulpfad. Falsche ABI oder falscher Pfad verhindert den Start. |
 | modsecurity_rules_file | Lesbare libmodsecurity-Regeldatei | Pflicht; kein Repository-Default; Host-Konfiguration; Modul-Scope | /etc/modsecurity/modsecurity-phase4.conf. Ein geprüftes Ruleset kann Traffic blockieren. |
-| modsecurity_phase4_mode | Late-P4-Policy: minimal, safe oder strict | Minimal-, Safe-, Strict- und vollständige Datei; Host-Konfiguration; Modul-Scope | Die vollständige Datei verwendet bewusst `strict`; `all` ist kein Parserwert. Die Einstellung wählt die Post-Commit-Aktion, ohne bereits weitergeleitete Bytes umzuschreiben. |
-| modsecurity_phase4_content_types_file | Veraltete Legacy-Datei für Response-MIME-Typen | Optionaler Kompatibilitätsparser; Host-Konfiguration; Modul-Scope | Nicht verwenden, um die Pass-through-Reihenfolge zu ändern. `SecResponseBodyMimeType` wählt die Engine-Inspektion. |
+| modsecurity_phase4_mode | Late-P4-Policy: off, safe oder strict | Off-, Safe-, Strict- und vollständige Datei; Host-Konfiguration; Modul-Scope | Die vollständige Datei verwendet bewusst `strict`; `all` ist kein Parserwert. Die Einstellung wählt die Post-Commit-Aktion, ohne bereits weitergeleitete Bytes umzuschreiben. |
 | modsecurity_phase4_log | Ziel für Decision-JSONL | Optional; Host-Konfiguration; Modul-Scope | /var/log/modsecurity/apache-phase4.jsonl. Request-Metadaten schützen und rotieren. Ein root-eigenes Parent-Verzeichnis wird nur unterstützt, wenn es nicht für Gruppe/Andere schreibbar ist und die bestehende finale reguläre Datei dem Apache-Worker gehört; der Öffner normalisiert ihren Modus auf 0600. Sie vorab anlegen und diese Eigentümerschaft beim Rotieren erhalten. |
 | modsecurity_phase4_body_limit und SecResponseBodyLimit | Positive P4-Byte-Limits | Für begrenztes Safe Pflicht; Host- und Regeldatei; keine automatische Angleichung | Connector-Standard sind 1048576 Byte. Er begrenzt die inkrementelle Inspektion und schlägt bei Überschreitung fail-closed fehl; er erlaubt kein vollständiges Response-Buffering. |
 | modsecurity_transaction_id_expr und modsecurity_transaction_id | Optionale Host-Korrelationsüberschreibungen | Optional; Host-Konfiguration; Modul-Scope | Beide stehen in `all/httpd.conf` bewusst als Kommentar. Nur einen validierten, eindeutigen Hostwert aktivieren; URI-abgeleitete oder statische Werte korrelieren Transaktionen nicht sicher. |
@@ -124,7 +123,6 @@ ist kein Grund, eine unbegrenzte Response zurückzuhalten. Die C-API lässt die
 wirksame libModSecurity-MIME-Entscheidung für diesen Adapter opak;
 `SecResponseBodyMimeType` wählt die Engine-Inspektion, ändert aber nicht die
 Pass-through-Reihenfolge. Das veraltete
-`modsecurity_phase4_content_types_file` fehlt weiterhin absichtlich in der
 Safe-Konfiguration.
 
 Dieser Abschnitt dokumentiert Konfigurationsabsicht plus die quellenbasierte
