@@ -1669,13 +1669,28 @@ body_response_limited_is_direct = (
     BODY_RESPONSE_LIMITED_CONTRACT_PATTERN.fullmatch(
         body_response_append_limited) is not None
 )
-phase4_in_scope_is_direct = (
-    PHASE4_IN_SCOPE_CONTRACT_PATTERN.fullmatch(
-        phase4_in_scope_visible) is not None
+phase4_mime_is_engine_owned = (
+    'phase4_in_scope' not in body_c
+    and 'phase4_content_types' not in body_c
+    and 'phase4_content_types' not in common_h
+    and 'phase4_content_types' not in module_c
+    and 'modsecurity_phase4_content_types_file' not in module_c
+)
+body_response_chain_append_is_direct_wrapper = (
+    re.fullmatch(
+        r'static\s+ngx_int_t\s+'
+        r'ngx_http_modsecurity_append_response_chain_buffer\s*\(\s*'
+        r'ngx_http_request_t\s*\*\s*r\s*,\s*'
+        r'ngx_http_modsecurity_ctx_t\s*\*\s*ctx\s*,\s*'
+        r'ngx_http_modsecurity_conf_t\s*\*\s*mcf\s*,\s*'
+        r'ngx_chain_t\s*\*\s*chain\s*\)\s*\{\s*'
+        r'return\s+ngx_http_modsecurity_append_response_body_buffer\s*\(\s*'
+        r'r\s*,\s*ctx\s*,\s*mcf\s*,\s*chain\s*->\s*buf\s*\)\s*;\s*\}',
+        body_response_chain_append,
+    ) is not None
 )
 body_response_limit_contract_is_direct = (
-    len(body_phase4_scope_assignments) == 1
-    and body_response_chain_append_is_direct_gate_wrapper
+    body_response_chain_append_is_direct_wrapper
     and C_PREPROCESSOR_DIRECTIVE.search(
         body_response_chain_append_all_branches) is None
     and len(body_limit_plan_chunk_calls) == 1
@@ -1684,8 +1699,12 @@ body_response_limit_contract_is_direct = (
         body_limited_response_plan) is None
 )
 body_response_chain_call_is_direct = (
-    len(body_response_chain_append_calls) == 1
-    and len(body_response_chain_call_contracts) == 1
+    len(re.findall(
+        r'\bngx_http_modsecurity_append_response_chain_buffer\s*\(\s*'
+        r'r\s*,\s*ctx\s*,\s*mcf\s*,\s*chain\s*\)',
+        body_response_chain_all_branches,
+    )) == 1
+    and 'phase4_in_scope' not in body_response_chain_all_branches
     and C_PREPROCESSOR_DIRECTIVE.search(body_response_chain_all_branches) is None
 )
 body_response_raw_sink_is_owned = (
@@ -1735,14 +1754,12 @@ checks = [
 ('msconnector_config_init' in module_c and 'msconnector_config_merge' in module_c and 'msconnector_config_validate' in module_c, 'NGINX config init/merge/validate uses Common'),
 (
     'conf->phase4_log_file = NGX_CONF_UNSET_PTR;' in module_c
-    and 'conf->phase4_content_types = NGX_CONF_UNSET_PTR;' in module_c
     and 'if (c->phase4_log_file == NGX_CONF_UNSET_PTR)' in module_c
     and 'if (p->phase4_log_file == NGX_CONF_UNSET_PTR)' in module_c
     and 'c->phase4_log_file = p->phase4_log_file;' in module_c
     and 'c->phase4_log_path = p->phase4_log_path;' in module_c
-    and 'ngx_conf_merge_ptr_value(c->phase4_log_file, p->phase4_log_file, NULL);' not in module_c
-    and 'ngx_conf_merge_ptr_value(c->phase4_content_types, p->phase4_content_types, NULL);' in module_c,
-    'NGINX inherits server-level Phase4 log settings by borrowing the parent-owned descriptor and preserves content-type inheritance',
+    and 'ngx_conf_merge_ptr_value(c->phase4_log_file, p->phase4_log_file, NULL);' not in module_c,
+    'NGINX inherits server-level Phase4 log settings by borrowing the parent-owned descriptor',
 ),
 ('msconnector_parse_bool' in module_c, 'NGINX bool parsing uses Common parser'),
 ('msconnector_parse_phase4_mode' in module_c, 'NGINX phase4 parsing uses Common parser'),
@@ -1774,7 +1791,7 @@ checks = [
 ('if (diagnostic == NGX_HTTP_MODSECURITY_RESPONSE_MAPPER_DIAGNOSTIC_BODY)' in response_mapper_helper and '"modsecurity common response-body mapper validation skipped: %s"' in response_mapper_helper_visible and '"modsecurity common response mapper validation skipped: %s"' in response_mapper_helper_visible and 'const char *' not in response_mapper_helper and body_response_mapper_contract_is_direct and header_response_mapper_contract_is_direct, 'NGINX response mapper helper retains fixed caller-specific warning diagnostics'),
 ('ngx_http_modsecurity_add_synthetic_response_headers(r, headers, &header_count)' in response_mapper_from_ctx and response_mapper_from_ctx.find(ERR_STATUS_PRESENT) < response_mapper_from_ctx.find('r->headers_out.status != 0') and 'out->status = (int) r->err_status' in response_mapper_from_ctx, 'NGINX response mapper retains synthetic-header and err_status contracts'),
 ('msconnector_headers_find_first' in mapper_c, 'NGINX mapper uses Common header helpers'),
-('msconnector_validate_content_type_token' in module_c and 'ngx_http_modsecurity_validate_strict_mime_token' in module_c and "c == '*'" in module_c and "c == '@'" not in module_c, 'NGINX content-type validation uses Common parser/helper and strict local MIME validation'),
+(phase4_mime_is_engine_owned, 'NGINX leaves Phase4 MIME selection to the ModSecurity engine'),
 (not re.search(r'ngx_http_modsecurity_[a-z0-9_]*json_escape\s*\(', all_nginx), 'Duplicate NGINX JSON escape helper is absent'),
 (not re.search(r'ngx_http_modsecurity_[a-z0-9_]*rule_id\s*\(', all_nginx), 'Duplicate NGINX rule-id helper is absent'),
 ('ngx_http_modsecurity_pool_strndup' in mapper_c and 'out->method = ngx_http_modsecurity_pool_strndup' in mapper_c and 'out->uri = ngx_http_modsecurity_pool_strndup' in mapper_c, 'NGINX request mapper NUL-terminates request string fields'),
@@ -1802,9 +1819,9 @@ checks = [
 ('response_body_bytes_inspected' in common_h and 'ngx_http_modsecurity_append_limited_response_body' in body_c and 'common_config.phase4_body_limit' in body_c and 'ctx->response_body_truncated = 1' in body_c and not re.search(r'msc_append_response_body\s*\([^;]*,\s*len\s*\)', body_c), 'NGINX enforces phase4 body limit before appending response bytes to ModSecurity'),
 (body_response_buffer_is_limited, 'NGINX response-body buffer route retains the bounded memory/file planner paths'),
 (body_response_limited_is_direct, 'NGINX limited response-body helper passes the Common-planned allowance to the raw chunk route'),
-(phase4_in_scope_is_direct, 'NGINX Phase4 scope predicate retains the reviewed content-type allowlist'),
+(phase4_mime_is_engine_owned, 'NGINX has no connector-owned Phase4 content-type allowlist'),
 ('chain->buf->last_buf ||' in body_c and 'chain->buf->last_in_chain' in body_c and 'ctx->phase4_processed' in body_c, 'NGINX finalizes Phase4 once at the actual main or subrequest end-of-stream'),
-(body_response_limit_contract_is_direct, 'NGINX records seen bytes through the Common plan only after the in-scope gate'),
+(body_response_limit_contract_is_direct, 'NGINX records response-body bytes through the Common bounded plan before append'),
 ('ngx_http_modsecurity_phase4_actual_action(action, wanted)' in body_c and '"redirect" : "deny"' in body_c, 'NGINX preserves redirect as the requested pre-commit action'),
 ('event.body.content_type' in body_c and EVENT_BODY_BYTES_SEEN in body_c and EVENT_BODY_BYTES_INSPECTED in body_c, 'NGINX Phase4 events include payload-free content-type and body-byte metadata'),
 ('ngx_str_t event_transaction_id' in common_h and 'ctx->event_transaction_id' in module_c and 'ctx->event_transaction_id' in body_c and 'event.meta.transaction_id = ctx != NULL' in body_c, 'NGINX Phase4 events retain a request-level transaction ID instead of a connection-only identifier'),
