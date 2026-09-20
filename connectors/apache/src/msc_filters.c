@@ -13,6 +13,7 @@
 #include "msconnector/options.h"
 #include "msconnector/rule_id.h"
 #include "msconnector/body_policy.h"
+#include "msconnector/phase4_budget.h"
 
 #include <apr_file_io.h>
 #include <apr_portable.h>
@@ -910,6 +911,10 @@ static void apache_phase4_log_event(msc_t *msr, request_rec *r,
 {
     apache_intervention_event_input input;
 
+    if (msr == NULL || r == NULL)
+    {
+        return;
+    }
     input.event_name = "phase4_intervention";
     input.phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
     input.wanted = wanted;
@@ -945,6 +950,10 @@ static apr_status_t apache_phase4_append_bucket(msc_t *msr,
     apr_status_t rc;
     msconnector_body_limit_plan plan;
 
+    if (msr == NULL || conf == NULL || bucket == NULL || msr->t == NULL)
+    {
+        return APR_EGENERAL;
+    }
     if (APR_BUCKET_IS_EOS(bucket) || APR_BUCKET_IS_METADATA(bucket))
     {
         return APR_SUCCESS;
@@ -970,12 +979,16 @@ static apr_status_t apache_phase4_append_bucket(msc_t *msr,
          * Therefore every response bucket is appended exactly once before the
          * current non-terminal brigade is forwarded. Processing a bounded
          * prefix and then forwarding an uninspected tail would recreate the
-         * bypass, so an oversize current bucket is rejected before forwarding;
-         * output committed by an earlier brigade is never rewritten.
+         * bypass in safe/strict, so those modes reject an oversize bucket
+         * before forwarding. Off bypasses only this connector budget; checked
+         * accounting and the engine's own limits remain active.
+         * Output committed by an earlier brigade is never rewritten.
          */
         if (!msconnector_body_limit_plan_chunk(msr->response_body_bytes_seen,
                 msr->response_body_bytes_inspected,
-                conf->common_config.phase4_body_limit,
+                msconnector_phase4_effective_body_limit(
+                    conf->common_config.phase4_mode,
+                    conf->common_config.phase4_body_limit),
                 MSCONNECTOR_BODY_LIMIT_ACTION_REJECT, len, &plan))
         {
             msr->response_body_bytes_seen = plan.bytes_seen;
@@ -1792,7 +1805,9 @@ static apr_status_t apache_output_filter_process_headers(msc_t *msr,
     }
     content_type = apache_response_content_type(r);
     if (!apache_contract_record_response_metadata(msr, r, content_type,
-            conf->common_config.phase4_body_limit))
+            msconnector_phase4_effective_body_limit(
+                conf->common_config.phase4_mode,
+                conf->common_config.phase4_body_limit)))
     {
         (void)msc_apache_contract_fail(msr,
             MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
@@ -1993,12 +2008,18 @@ static apr_status_t apache_phase4_handle_intervention(msc_t *msr,
     msc_conf_t *conf, ap_filter_t *f, apr_bucket_brigade *bb_in,
     int intervention)
 {
-    request_rec *r = f->r;
+    request_rec *r;
     msconnector_late_intervention_policy policy;
     msconnector_late_intervention_action action;
     const char *wanted;
     const char *actual;
 
+    if (msr == NULL || conf == NULL || f == NULL || f->r == NULL ||
+        bb_in == NULL)
+    {
+        return APR_EGENERAL;
+    }
+    r = f->r;
     msr->phase4_intervention = 1;
     msr->response.committed = apache_phase4_response_committed(msr, r);
     wanted = msc_apache_contract_intervention_action(msr);

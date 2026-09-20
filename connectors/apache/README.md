@@ -62,12 +62,12 @@ libmodsecurity log callback only. It does not change audit logging,
 intervention behavior, request or response handling, hooks, filters, buckets,
 or transaction ownership.
 
-The Phase 4 directives are bounded runtime controls. In particular,
-it cannot narrow the response-inspection gate or create a pre-commit P4
-decision. Use
-`SecResponseBodyMimeType` to select libModSecurity inspection instead. Phase 4
-/ RESPONSE_BODY remains non-promoted; source-level strict-mode wiring does not
-establish a late-abort result.
+The Phase-4 mode controls additional intervention handling and, in `safe`
+and `strict`, the connector's cumulative body budget. `off` leaves configured
+engine inspection active. There is no connector-owned MIME allowlist;
+`SecResponseBodyMimeType` and `SecResponseBodyMimeTypesClear` select inspection
+in libModSecurity. Phase 4 / RESPONSE_BODY remains non-promoted; source-level
+strict-mode wiring does not establish a late-abort result.
 
 Primary local reference: `<external-source-root>/ModSecurity-apache`.
 Upstream source: https://github.com/owasp-modsecurity/ModSecurity-apache.
@@ -185,18 +185,19 @@ does not save a complete normalized brigade across callbacks. Only the
 terminal EOS fragment waits for `msc_process_response_body` and the late-action
 resolution; this is not per-chunk rule evaluation.
 
-The connector cannot safely query libModSecurity's effective
-`SecResponseBodyMimeType` selection through the C API. It consequently gates
-every response MIME type. `SecResponseBodyMimeType` still selects engine
-inspection, while the deprecated
-pass-through route. The default `modsecurity_phase4_body_limit` is 1048576
-bytes (1 MiB). The bound is enforced before a later data bucket is appended;
-the Common configuration validator rejects values above 10485760 bytes (10 MiB).
-after a prefix has reached the next filter, a later failure cannot rewrite it
-and uses the shared post-commit action instead. There is no active
-cross-callback normalized-brigade or bucket-count buffer.
-The selected limit is enforced before any original response byte is released;
-the response is not processed partially and then streamed.
+The connector passes response buckets to libModSecurity independently of MIME
+type; the engine's own `SecResponseBodyMimeType` configuration selects
+inspection. There is no second connector MIME list or MIME-based intervention
+downgrade.
+
+`modsecurity_phase4_body_limit` defaults to 1048576 bytes (1 MiB), with a
+positive configured maximum of 10485760 bytes (10 MiB). In `safe` and `strict`,
+the cumulative limit is checked before the next data bucket is appended or
+forwarded; an over-limit bucket is rejected rather than partially inspected
+and released. Earlier progressive bytes may already have crossed the next
+filter and cannot be rewritten. In `off`, this extra cumulative budget is
+not enforced, while engine limits, checked counters and lifecycle/error
+handling remain active. There is no additional whole-response buffer.
 
 At the normal decision boundary, Apache's `r->sent_bodyct` and `eos_sent` are
 not commit proof: upstream modules can set them before this filter passes its
@@ -230,3 +231,24 @@ evidence exists. The focused H1/H2 evidence placeholder is
 `ci/runtime/lifecycle/run-apache-phase4-response-regression.sh`; record only
 its run-scoped artifacts after execution. This source contract does not label
 either H1 or H2 as passed.
+
+## Phase-4 mode and inspection budget
+
+The default mode is `off`; supported values are `off`, `safe`, and `strict`.
+The additional cumulative Phase-4 inspection budget is enforced only in
+`safe` and `strict`. `off` continues to feed configured response inspection to
+libModSecurity and does not turn rule interventions or real engine errors into
+success. The engine's own MIME selection and limits remain authoritative.
+
+This rule applies to the native integrations and the Common Runtime-backed
+response paths. A request-only route still requires its supported response
+observer/companion to inspect Phase 4. It does not gain response inspection
+merely by selecting a mode.
+
+Independent allocation, buffered-response, message/frame, timeout and transport
+limits remain active in every mode. In particular, a buffered sidecar may still
+reject a response that cannot fit its bounded storage even in `off`. Removing
+the extra inspection budget does not authorize unbounded allocation.
+
+See [the cross-connector budget contract](../../docs/phase4-mode-budget.md) for
+the exact scope, error handling and validation limitations.

@@ -237,3 +237,24 @@ evidence to report yet.
 
 The existing Phase-1 header deny is separate evidence.  Events and reports
 remain metadata-only and never include a response-body payload.
+
+## Phase-4 mode and inspection budget
+
+The default mode is `off`; supported values are `off`, `safe`, and `strict`.
+The additional cumulative Phase-4 inspection budget is enforced only in
+`safe` and `strict`. `off` continues to feed configured response inspection to
+libModSecurity and does not turn rule interventions or real engine errors into
+success. The engine's own MIME selection and limits remain authoritative.
+
+This rule applies to the native integrations and the Common Runtime-backed
+response paths. A request-only route still requires its supported response
+observer/companion to inspect Phase 4. It does not gain response inspection
+merely by selecting a mode.
+
+Independent allocation, buffered-response, message/frame, timeout and transport
+limits remain active in every mode. In particular, a buffered sidecar may still
+reject a response that cannot fit its bounded storage even in `off`. Removing
+the extra inspection budget does not authorize unbounded allocation.
+
+See [the cross-connector budget contract](../../docs/phase4-mode-budget.md) for
+the exact scope, error handling and validation limitations.

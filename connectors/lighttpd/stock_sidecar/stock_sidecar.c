@@ -3,6 +3,7 @@
 #include "stock_sidecar.h"
 
 #include "msconnector_runtime.h"
+#include "msconnector/phase4_budget.h"
 #include "msconnector/decision_action.h"
 #include "msconnector/generic_mapper.h"
 #include "msconnector/late_intervention.h"
@@ -1433,7 +1434,10 @@ static int sidecar_exchange_response(sidecar_exchange_state *state) {
     }
     if (!sidecar_read_final_response_headers(state)) return 0;
     if (!state->payload.response_headers.no_body &&
-        state->payload.response_headers.content_length > state->response_limit) {
+        state->payload.response_headers.content_length >
+            msconnector_phase4_effective_body_limit(
+                msconnector_runtime_phase4_mode(state->dependencies.runtime),
+                state->response_limit)) {
         int status = msconnector_runtime_error_http_status(state->dependencies.runtime,
             MSCONNECTOR_ERROR_BODY_TOO_LARGE);
         int written;

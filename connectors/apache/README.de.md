@@ -64,12 +64,13 @@ Nur libmodsecurity-Protokollrückruf. Es ändert nichts an der Überwachungsprot
 Interventionsverhalten, Anfrage- oder Antwortbehandlung, Hooks, Filter, Buckets,
 oder Transaktionseigentum.
 
-Die Phase-4-Direktiven sind begrenzte Laufzeitsteuerungen. Insbesondere ist
-Er kann das Response-Inspektions-Gate nicht einschränken und keine
-P4-Entscheidung vor Commit erzeugen.
-`SecResponseBodyMimeType` wählt stattdessen die libModSecurity-Inspektion.
-Phase 4 / RESPONSE_BODY bleibt nicht hochgestuft; Strict-Mode-Verkabelung auf
-Quellebene beweist keinen späten Abbruch.
+Der Phase-4-Modus steuert die zusätzliche Interventionsbehandlung und in
+`safe` und `strict` das kumulierte Body-Budget des Connectors. `off` lässt die
+konfigurierte Engine-Inspection aktiv. Es gibt keine Connector-eigene
+MIME-Allowlist; `SecResponseBodyMimeType` und `SecResponseBodyMimeTypesClear`
+wählen die Inspection in libModSecurity. Phase 4 / RESPONSE_BODY bleibt
+nicht hochgestuft; Strict-Mode-Verkabelung auf Quellebene beweist keinen
+späten Abbruch.
 
 Primäre lokale Referenz: `<external-source-root>/ModSecurity-apache`.
 Upstream-Quelle: https://github.com/owasp-modsecurity/ModSecurity-apache.
@@ -191,24 +192,21 @@ hinweg. Nur das terminale EOS-Fragment wartet auf `msc_process_response_body`
 und die Late-Action-Auflösung; es handelt sich nicht um Regelauswertung pro
 Chunk.
 
-Der Connector kann die wirksame `SecResponseBodyMimeType`-Auswahl von
-libModSecurity über die C-API nicht sicher abfragen. Deshalb gate't er jeden
-Response-MIME-Typ. `SecResponseBodyMimeType` wählt weiterhin die Engine-
-Inspektion, während das veraltete
-Pfad erzeugen kann. Das Standardlimit von
-`modsecurity_phase4_body_limit` beträgt 1048576 Byte (1 MiB), und der
-Common-Konfigurationsvalidator lehnt Werte über 10485760 Byte (10 MiB) ab.
-Eine Response, die ihr gewähltes Limit überschreitet, schlägt fail-closed fehl,
-bevor ein ursprüngliches Response-Byte freigegeben wird; sie wird nicht
-teilweise verarbeitet und dann gestreamt.
-`modsecurity_phase4_body_limit` beträgt 1048576 Byte (1 MiB). Die Grenze wird
-geprüft, bevor ein weiterer Daten-Bucket angehängt wird; nachdem ein Präfix den
-nächsten Filter erreicht hat, kann ein späterer Fehler es nicht umschreiben und
-verwendet die gemeinsame Post-Commit-Action. Es gibt keinen aktiven
-callbackübergreifenden Puffer für normalisierte Brigades oder Bucket-Zähler.
-Das gewählte Limit wird geprüft, bevor ein ursprüngliches Response-Byte
-freigegeben wird; die Response wird nicht teilweise verarbeitet und dann
-gestreamt.
+Der Connector übergibt Response-Buckets unabhängig vom MIME-Typ an
+libModSecurity; die eigene `SecResponseBodyMimeType`-Konfiguration der Engine
+wählt die Inspection. Es gibt weder eine zweite Connector-MIME-Liste noch
+eine MIME-basierte Herabstufung von Interventionen.
+
+`modsecurity_phase4_body_limit` hat standardmäßig 1048576 Byte (1 MiB); der
+konfigurierte Wert muss positiv sein und darf höchstens 10485760 Byte (10 MiB)
+betragen. In `safe` und `strict` wird das kumulierte Limit geprüft, bevor der
+nächste Daten-Bucket angehängt oder weitergegeben wird. Ein übergroßer Bucket
+wird abgewiesen, nicht nur teilweise inspiziert und freigegeben. Frühere
+progressive Bytes können den nächsten Filter bereits passiert haben und
+lassen sich nicht umschreiben. In `off` wird dieses zusätzliche kumulierte
+Budget nicht durchgesetzt; Engine-Limits, geprüfte Zähler und Lifecycle-/
+Fehlerbehandlung bleiben aktiv. Es gibt keinen zusätzlichen Puffer für die
+gesamte Response.
 
 An der normalen Entscheidungsgrenze sind Apaches `r->sent_bodyct` und
 `eos_sent` kein Commit-Nachweis: Upstream-Module können sie setzen, bevor
@@ -244,3 +242,26 @@ Late-Intervention-Facetten bis zu aktueller Real-Host-Evidence als
 `ci/runtime/lifecycle/run-apache-phase4-response-regression.sh`; erst nach der
 Ausführung werden dessen laufbezogene Artefakte erfasst. Dieser Source-Contract
 bezeichnet weder H1 noch H2 als bestanden.
+
+## Phase-4-Modus und Inspection-Budget
+
+Der Standardmodus ist `off`; erlaubt sind `off`, `safe` und `strict`.
+Das zusätzliche kumulierte Phase-4-Inspection-Budget wird nur in `safe` und
+`strict` durchgesetzt. `off` gibt Response-Daten weiterhin gemäß der
+konfigurierten Inspection an libModSecurity weiter und macht weder
+Regelinterventionen noch echte Engine-Fehler zu einem Erfolg. Die MIME-Auswahl
+und eigenen Limits der Engine bleiben maßgeblich.
+
+Dies gilt für native Integrationen und Response-Pfade über die Common Runtime.
+Eine reine Request-Route benötigt für Phase 4 weiterhin den unterstützten
+Response-Observer beziehungsweise Companion. Die Wahl eines Modus fügt keine
+fehlende Response-Inspection hinzu.
+
+Unabhängige Limits für Allokationen, gepufferte Responses, Nachrichten/Frames,
+Timeouts und Transport gelten in jedem Modus weiter. Insbesondere kann ein
+puffernder Sidecar auch in `off` eine Response ablehnen, die nicht in seinen
+begrenzten Speicher passt. Das Weglassen des zusätzlichen Inspection-Budgets
+erlaubt keine unbegrenzten Allokationen.
+
+Der [connectorübergreifende Budget-Vertrag](../../docs/phase4-mode-budget.de.md)
+beschreibt Geltungsbereich, Fehlerbehandlung und Grenzen der Validierung.

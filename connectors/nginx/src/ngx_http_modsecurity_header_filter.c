@@ -14,6 +14,7 @@
  */
 
 #include <ngx_config.h>
+#include <stdint.h>
 
 #ifndef MODSECURITY_DDEBUG
 #define MODSECURITY_DDEBUG 0
@@ -681,14 +682,18 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
         response_content_type = ngx_str_to_char(r->headers_out.content_type,
             r->pool);
     }
+    /* The contract also checks body bytes. Off must bypass the configured
+     * budget there too, while retaining the contract's overflow checks. */
     if (mcf == NULL || response_content_type == (char *)-1 ||
         ngx_http_modsecurity_response_header_metrics(r, &response_header_count,
             &response_header_bytes) != NGX_OK ||
         msconnector_transaction_contract_record_response_metadata(
             &ctx->contract, (int)status, response_content_type,
             response_header_count, response_header_bytes,
-            mcf->common_config.phase4_body_limit > 0U
-                ? mcf->common_config.phase4_body_limit : MSCONNECTOR_MAX_BODY_BUFFER_SIZE) !=
+            mcf->phase4_mode == MSCONNECTOR_PHASE4_MODE_OFF ? SIZE_MAX :
+                (mcf->common_config.phase4_body_limit > 0U
+                    ? mcf->common_config.phase4_body_limit
+                    : MSCONNECTOR_MAX_BODY_BUFFER_SIZE)) !=
             MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
         ctx->response_headers_processing_failed = 1;
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
