@@ -1188,7 +1188,7 @@ def _haproxy_example_names(root: Path) -> list[str]:
 
 def _lighttpd_example_names(root: Path) -> list[str]:
     names: set[str] = set()
-    profile_dirs = {"minimal", "safe", "strict", "detection-only", "disabled"}
+    profile_dirs = {"off", "safe", "strict", "detection-only", "disabled"}
     for path in sorted((root / "examples" / "lighttpd").glob("*/*.conf")):
         if path.parent.name not in profile_dirs or not path.name.startswith("lighttpd"):
             continue
@@ -2684,9 +2684,9 @@ def envoy_yaml_options(root: Path, yaml_source: str) -> list[dict[str, Any]]:
     yaml_values = extract_yaml_example_values(root / yaml_source)
     for path in yaml_paths:
         options.append(_yaml_option("envoy", path, yaml_source, yaml_source, "Materialize outside the checkout, then run envoy --mode validate -c <generated-config>.", yaml_values.get(path, "")))
-    minimal_yaml_source = "examples/envoy/off/envoy-ext-proc-streaming.yaml.in"
-    if set(extract_yaml_paths(root / minimal_yaml_source)) != set(yaml_paths):
-        raise ValueError("Envoy minimal ext_proc YAML fields drift from the documented selected template surface")
+    off_yaml_source = "examples/envoy/off/envoy-ext-proc-streaming.yaml.in"
+    if set(extract_yaml_paths(root / off_yaml_source)) != set(yaml_paths):
+        raise ValueError("Envoy off ext_proc YAML fields drift from the documented selected template surface")
     return options
 
 
@@ -2724,9 +2724,9 @@ def envoy_processor_options(root: Path) -> list[dict[str, Any]]:
             f"missing={missing}, unexpected={unexpected}"
         )
     service_values = json.loads(_read(root, "examples/envoy/safe/envoy-ext-proc-service.json"))
-    minimal_service_values = json.loads(_read(root, "examples/envoy/off/envoy-ext-proc-service.json"))
-    if set(minimal_service_values) != set(service_values):
-        raise ValueError("Envoy minimal service JSON fields drift from the documented service contract")
+    off_service_values = json.loads(_read(root, "examples/envoy/off/envoy-ext-proc-service.json"))
+    if set(off_service_values) != set(service_values):
+        raise ValueError("Envoy off service JSON fields drift from the documented service contract")
     for field, go_type, json_name in fields:
         allowed = "positive value"
         if json_name == "listen_address":
@@ -2917,10 +2917,10 @@ def traefik_yaml_options(root: Path, static_source: str, dynamic_source: str) ->
             options.append(_yaml_option("traefik", path, source, source, "traefik check --configFile=<static-config>; load the selected File Provider configuration.", values_by_source[source].get(path, "")))
     if not any(option["name"].endswith("engineMode") for option in options):
         raise ValueError("Traefik YAML extractor did not find native plugin config")
-    minimal_dynamic_paths = {traefik_profile_path(path) for path in extract_yaml_paths(root / "examples/traefik/off/traefik-dynamic.yaml")}
+    off_dynamic_paths = {traefik_profile_path(path) for path in extract_yaml_paths(root / "examples/traefik/off/traefik-dynamic.yaml")}
     safe_dynamic_paths = {traefik_profile_path(path) for path in extract_yaml_paths(root / dynamic_source)}
-    if minimal_dynamic_paths != safe_dynamic_paths:
-        raise ValueError("Traefik minimal dynamic YAML fields drift from the documented selected middleware surface")
+    if off_dynamic_paths != safe_dynamic_paths:
+        raise ValueError("Traefik off dynamic YAML fields drift from the documented selected middleware surface")
     return options
 
 
@@ -3445,7 +3445,7 @@ GERMAN_TEXT: dict[str, str] = {
     "P1/P2/P3/P4 middleware callback bounds and engine connection behavior.": "Grenzen der P1/P2/P3/P4-Middleware-Callbacks und Verhalten der Engine-Verbindung.",
     "P3 response headers only; it does not select or alter Common Runtime transaction-ID input.": "Nur P3-Response-Header; dies wählt oder verändert keine Common-Runtime-Transaktions-ID-Eingabe.",
     "P1–P4 native HTX callbacks are attached only when this filter is declared.": "Native HTX-Callbacks für P1–P4 werden nur angehängt, wenn dieser Filter deklariert ist.",
-    "P4 only. The current HTX host action distinguishes strict from non-strict; safe share the non-strict late log-only path.": "Nur P4. Die aktuelle HTX-Hostaktion unterscheidet strict von nicht-strict; minimal und safe teilen den späten nicht-strict-log_only-Pfad.",
+    "P4 only. The current HTX host action distinguishes strict from non-strict when the additional policy is enabled; off preserves the native intervention path, safe uses the non-strict late log-only path, and strict requests the supported abort path.": "Nur P4. Die aktuelle HTX-Hostaktion unterscheidet strict von nicht-strict, wenn die zusätzliche Policy aktiviert ist; off bewahrt den nativen Interventionspfad, safe verwendet den späten nicht-strict-log_only-Pfad und strict fordert den unterstützten Abbruchpfad an.",
     "P4 only. The response-body filter accumulates bounded in-scope bytes and finishes the engine at EOS (last_buf/last_in_chain); header/body commitment determines whether a status or only a late transport action remains possible.": "Nur P4. Der Response-Body-Filter sammelt begrenzte Bytes im Geltungsbereich und beendet die Engine bei EOS (last_buf/last_in_chain); das Committen von Headern/Body bestimmt, ob ein Status oder nur noch eine späte Transportaktion möglich ist.",
     "Request authorization compatibility path; no selected P3/P4 coverage.": "Kompatibilitätspfad für Request-Autorisierung; keine Abdeckung von ausgewähltem P3/P4.",
     "Request-authorization compatibility path; no selected P3/P4 configuration.": "Kompatibilitätspfad für Request-Autorisierung; keine ausgewählte P3/P4-Konfiguration.",
@@ -3464,7 +3464,7 @@ GERMAN_TEXT: dict[str, str] = {
     "Alias for event_path.": "Alias für event_path.",
     "Appends metadata-only JSONL events when configured.": "Hängt bei Konfiguration JSONL-Ereignisse an, die nur Metadaten enthalten.",
     "`off` suppresses regular and native libModSecurity callback messages in the NGINX error log. It does not disable WAF evaluation or alter Event JSONL emission.": "`off` unterdrückt reguläre und native libModSecurity-Callback-Meldungen im NGINX-Fehlerlog. WAF-Auswertung und Event-JSONL-Ausgabe werden dadurch nicht deaktiviert oder verändert.",
-    "Before response headers/body are committed, off, safe, and strict all resolve a P4 intervention as deny_if_possible, so NGINX can still return the requested engine status (or 403 fallback). Once headers are committed or the body started, safe both use the common log_only action; they record the late decision without a later status rewrite. Strict instead resolves to abort_connection: the native body filter marks the connection as errored, records connection_aborted, and returns NGX_ERROR. The known host boundary is that NGINX invokes the P4 engine finish only at last_buf/last_in_chain after bounded in-scope body accumulation, so a response may already be visible. Strict can therefore terminate a connection, but cannot guarantee a later 403 or replace an already-sent status line.": "Bevor Response-Header/-Body committet sind, lösen minimal, safe und strict eine P4-Intervention jeweils als deny_if_possible auf; NGINX kann daher noch den angeforderten Engine-Status (oder den Fallback 403) zurückgeben. Sobald Header committet sind oder der Body begonnen hat, verwenden minimal und safe beide die gemeinsame Aktion log_only; sie protokollieren die späte Entscheidung ohne nachträgliche Statusumschreibung. Strict löst dagegen zu abort_connection auf: Der native Body-Filter markiert die Verbindung als fehlerhaft, protokolliert connection_aborted und gibt NGX_ERROR zurück. Die bekannte Hostgrenze ist, dass NGINX das P4-Engine-Finish erst bei last_buf/last_in_chain nach der begrenzten Sammlung von Body-Bytes im Geltungsbereich aufruft; eine Antwort kann deshalb bereits sichtbar sein. Strict kann somit eine Verbindung beenden, aber keine spätere 403 garantieren oder eine bereits gesendete Statuszeile ersetzen.",
+    "With Phase-4 mode off, NGINX preserves its native intervention path while response inspection continues. In safe mode, a requested intervention is enforced while the response is still changeable; after commitment it is recorded as log_only without rewriting an already-started response. Strict behaves like safe before commitment and requests abort_connection after commitment. The known host boundary is that NGINX invokes the P4 engine finish only at last_buf/last_in_chain after bounded body accumulation, so a response may already be visible. Strict can therefore terminate a connection, but cannot guarantee a later 403 or replace an already-sent status line.": "Mit Phase-4-Modus off bewahrt NGINX seinen nativen Interventionspfad, während die Response-Inspektion weiterläuft. Im safe-Modus wird eine angeforderte Intervention durchgesetzt, solange die Antwort noch korrekt geändert werden kann; nach dem Commit wird sie als log_only protokolliert, ohne eine bereits gestartete Antwort umzuschreiben. Strict verhält sich vor dem Commit wie safe und fordert danach abort_connection an. Die bekannte Hostgrenze ist, dass NGINX das P4-Engine-Finish erst bei last_buf/last_in_chain nach begrenzter Body-Sammlung aufruft; eine Antwort kann deshalb bereits sichtbar sein. Strict kann somit eine Verbindung beenden, aber keine spätere 403 garantieren oder eine bereits gesendete Statuszeile ersetzen.",
     "Binds or targets one local TCP endpoint in the checked-in host template.": "Bindet oder adressiert einen lokalen TCP-Endpunkt im eingecheckten Host-Template.",
     "Bounds accepted header count.": "Begrenzt die akzeptierte Headeranzahl.",
     "Bounds each header-name size.": "Begrenzt die Größe jedes Headernamens.",
@@ -3528,7 +3528,7 @@ GERMAN_TEXT: dict[str, str] = {
     "Selects audit-log parts.": "Wählt Audit-Log-Teile aus.",
     "Selects body visibility for ext_proc. The repository Common bridge requires STREAMED for both directions in the selected full-lifecycle path.": "Wählt die Body-Sichtbarkeit für ext_proc. Die Common-Bridge des Repositorys verlangt im ausgewählten Full-Lifecycle-Pfad STREAMED für beide Richtungen.",
     "Selects host listener, routing, filter, service, or logging setup from the checked-in example.": "Wählt Listener-, Routing-, Filter-, Service- oder Logging-Einrichtung des eingecheckten Beispiels.",
-    "Selects late decision reporting; safe record late disruptive decisions as log_only, while strict records strict_abort_not_attempted rather than a fabricated status/reset.": "Wählt die Protokollierung später Entscheidungen; minimal und safe erfassen späte disruptive Entscheidungen als log_only, während strict strict_abort_not_attempted statt eines erfundenen Status/Resets erfasst.",
+    "Selects late decision reporting; off preserves native handling, safe records late disruptive decisions as log_only, while strict records strict_abort_not_attempted rather than a fabricated status/reset.": "Wählt die Protokollierung später Entscheidungen; off bewahrt die native Behandlung, safe erfasst späte disruptive Entscheidungen als log_only, während strict strict_abort_not_attempted statt eines erfundenen Status/Resets erfasst.",
     "Selects the persistent UDS engine. Legacy source-only passthrough is rejected so a rule-evaluating deployment cannot silently select a non-enforcing path.": "Wählt die persistente UDS-Engine. Legacy-source-only-passthrough wird abgelehnt, damit ein regelauswertendes Deployment nicht stillschweigend einen nicht durchsetzenden Pfad wählen kann.",
     "uds is the engine transport for native P1/P2/P3/P4 callbacks. Legacy passthrough is rejected rather than creating an always-allow path.": "uds ist der Engine-Transport für native P1/P2/P3/P4-Callbacks. Legacy-passthrough wird abgelehnt, statt einen Always-Allow-Pfad zu erzeugen.",
     "Use the private uds path for the selected rule-evaluating deployment. Do not rely on a passthrough fallback; it is rejected.": "Den privaten uds-Pfad für das ausgewählte regelauswertende Deployment verwenden. Nicht auf einen passthrough-Fallback vertrauen; er wird abgelehnt.",
@@ -3537,7 +3537,7 @@ GERMAN_TEXT: dict[str, str] = {
     "Selects the Common request-body handling mode; a particular host may support only a subset.": "Wählt den Common-Modus zur Request-Body-Verarbeitung; ein bestimmter Host unterstützt möglicherweise nur eine Teilmenge.",
     "Selects the Common response-body handling mode; a particular host may support only a subset.": "Wählt den Common-Modus zur Response-Body-Verarbeitung; ein bestimmter Host unterstützt möglicherweise nur eine Teilmenge.",
     "Selects the fallback correlation-header name.": "Wählt den Fallback-Namen des Korrelations-Headers.",
-    "Selects the requested late P4 policy. Before response commit a deny can be applied; after commit the current Apache/NGINX/HTX paths distinguish strict from non-strict only. Minimal and safe therefore share the current non-strict log-only path.": "Wählt die angeforderte späte P4-Policy. Vor dem Response-Commit kann ein deny angewendet werden; nach dem Commit unterscheiden die aktuellen Apache-/NGINX-/HTX-Pfade nur strict von nicht-strict. Minimal und safe teilen daher den aktuellen nicht-strict-log_only-Pfad.",
+    "Selects the requested late P4 policy. Off disables the additional connector late-intervention policy and preserves the native path. Safe enforces while possible and records a late intervention as log_only after commit. Strict enforces while possible and requests only a supported host/stream abort after commit.": "Wählt die angeforderte späte P4-Policy. Off deaktiviert die zusätzliche Connector-Policy für späte Interventionen und bewahrt den nativen Pfad. Safe setzt durch, solange dies möglich ist, und protokolliert eine späte Intervention nach dem Commit als log_only. Strict setzt durch, solange dies möglich ist, und fordert nach dem Commit nur einen unterstützten Host-/Stream-Abbruch an.",
     "Selects whether ext_proc receives request or response headers.": "Wählt, ob ext_proc Request- oder Response-Header empfängt.",
     "Selects whether mod_msconnector initialises Common Runtime.": "Wählt, ob mod_msconnector die Common Runtime initialisiert.",
     "Opt-in response-header evidence for the server-generated host transaction ID.": "Opt-in-Response-Header-Nachweis für die servergenerierte Host-Transaktions-ID.",
@@ -4236,19 +4236,19 @@ def common_runtime_section(connector: str, german: bool) -> list[str]:
 
 def profile_rows(connector: str, german: bool) -> list[str]:
     files = {
-        "apache": ("minimal/httpd.conf", "safe/httpd.conf", "strict/httpd.conf", "detection-only/httpd.conf", "disabled/httpd.conf"),
-        "nginx": ("minimal/nginx.conf", "safe/nginx.conf", "strict/nginx.conf", "detection-only/nginx.conf", "disabled/nginx.conf"),
-        "haproxy": ("minimal/haproxy-htx.cfg", "safe/haproxy-htx.cfg", "strict/haproxy-htx.cfg", "detection-only/haproxy-htx.cfg", "disabled/haproxy-htx.cfg"),
-        "envoy": ("ext-proc/minimal/envoy.yaml.in", "ext-proc/safe/envoy.yaml.in", "ext-proc/strict/envoy.yaml.in", "detection-only/msconnector-runtime.conf", "disabled/msconnector-runtime.conf"),
-        "traefik": ("native-uds/minimal/traefik-static.yaml", "native-uds/safe/traefik-static.yaml", "native-uds/strict/traefik-static.yaml", "detection-only/traefik-engine-service.conf", "disabled/traefik-engine-service.conf"),
-        "lighttpd": ("patched/minimal/lighttpd.conf", "patched/safe/lighttpd.conf", "patched/strict/lighttpd.conf", "detection-only/msconnector-runtime.conf", "disabled/lighttpd.conf"),
+        "apache": ("off/httpd.conf", "safe/httpd.conf", "strict/httpd.conf", "detection-only/httpd.conf", "disabled/httpd.conf"),
+        "nginx": ("off/nginx.conf", "safe/nginx.conf", "strict/nginx.conf", "detection-only/nginx.conf", "disabled/nginx.conf"),
+        "haproxy": ("off/haproxy-htx.cfg", "safe/haproxy-htx.cfg", "strict/haproxy-htx.cfg", "detection-only/haproxy-htx.cfg", "disabled/haproxy-htx.cfg"),
+        "envoy": ("ext-proc/off/envoy.yaml.in", "ext-proc/safe/envoy.yaml.in", "ext-proc/strict/envoy.yaml.in", "detection-only/msconnector-runtime.conf", "disabled/msconnector-runtime.conf"),
+        "traefik": ("native-uds/off/traefik-static.yaml", "native-uds/safe/traefik-static.yaml", "native-uds/strict/traefik-static.yaml", "detection-only/traefik-engine-service.conf", "disabled/traefik-engine-service.conf"),
+        "lighttpd": ("patched/off/lighttpd.conf", "patched/safe/lighttpd.conf", "patched/strict/lighttpd.conf", "detection-only/msconnector-runtime.conf", "disabled/lighttpd.conf"),
     }[connector]
-    labels = ("Minimal", "Safe full lifecycle", "Strict", "DetectionOnly", "Disabled")
+    labels = ("Off / compatibility", "Safe full lifecycle", "Strict", "DetectionOnly", "Disabled")
     statuses = (
         "Active starter configuration", "Selected bounded reference", "Parser-supported or explicitly optional boundary", "Engine evaluates/logs without disruptive action", "Connector or engine path disabled",
     )
     if german:
-        labels = ("Minimal", "Sicherer vollständiger Lebenszyklus", "Strikt", "DetectionOnly", "Deaktiviert")
+        labels = ("Off / Kompatibilität", "Sicherer vollständiger Lebenszyklus", "Strikt", "DetectionOnly", "Deaktiviert")
         statuses = (
             "Aktive Startkonfiguration", "Ausgewählte begrenzte Referenz", "Parserunterstützte oder ausdrücklich optionale Grenze", "Engine wertet aus/protokolliert ohne disruptive Aktion", "Connector- oder Engine-Pfad deaktiviert",
         )
