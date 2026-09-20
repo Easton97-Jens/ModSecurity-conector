@@ -161,7 +161,7 @@ def phase4_metadata_updates(
         "expected_action": phase4_metadata_expected_action(entry, expect, metadata["expected_action"]),
         "expected_response_body": str(expected_response),
         "phase4_mode": phase4_mode(parsed, raw),
-        "content_type_scope": content_type_scope(parsed, raw),
+        "content_type_scope": content_type_scope(parsed),
         "rule_excerpt": rule["rule_excerpt"],
     }
 
@@ -206,7 +206,7 @@ def phase4_mode(parsed: dict[str, Any], raw: str) -> str:
     return "-"
 
 
-def content_type_scope(parsed: dict[str, Any], raw: str) -> str:
+def content_type_scope(parsed: dict[str, Any]) -> str:
     expect = parsed.get("expect") if isinstance(parsed.get("expect"), dict) else {}
     headers = (parsed.get("response") or {}).get("headers") if isinstance(parsed.get("response"), dict) else {}
     if isinstance(headers, dict) and headers.get("content-type"):
