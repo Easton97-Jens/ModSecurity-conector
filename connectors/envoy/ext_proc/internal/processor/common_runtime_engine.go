@@ -97,7 +97,7 @@ func NewCommonRuntimeEngine(configPath string) (*CommonRuntimeEngine, error) {
 // ValidateLateActionPolicy rejects a service policy that would otherwise
 // silently disagree with the already parsed Common runtime. Strict requires a
 // strict Common mode; conversely, a strict Common mode must not be relabelled
-// as safe or minimal by the service adapter.
+// as safe or off by the service adapter.
 func (engine *CommonRuntimeEngine) ValidateLateActionPolicy(policy LateActionPolicy) error {
 	if engine == nil {
 		return fmt.Errorf("Common runtime engine is nil")
