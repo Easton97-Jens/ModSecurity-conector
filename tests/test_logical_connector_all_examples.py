@@ -179,7 +179,6 @@ PROFILE_MATRIX = {
             "rules_inline=SecRuleEngine On",
             "rules_remote_url=https://rules.invalid/reviewed/no-crs.conf",
             "transaction_id=operator-supplied-id",
-            "phase4_content_types_file=/etc/modsecurity/phase4-content-types.conf",
             "late_intervention_timeout=5000",
             "event_path=/var/log/modsecurity/envoy-ext-proc-all-events.jsonl",
         ),
