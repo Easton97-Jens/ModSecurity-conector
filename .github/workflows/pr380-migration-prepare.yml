@@ -37,47 +37,53 @@ jobs:
             echo "SOURCE_ROOT=$root/src"
             echo "BUILD_ROOT=$root/build"
             echo "TMP_ROOT=$root/tmp"
+            echo "TMPDIR=$root/tmp"
             echo "LOG_ROOT=$root/logs"
             echo "XDG_STATE_HOME=$root/state"
             echo "PYTHONPYCACHEPREFIX=$root/pycache"
             echo "CONNECTOR_COMPONENT_CACHE=$root/component-cache"
             echo "NGINX_HARNESS_PARENT=$root/nginx-harness"
           } >> "$GITHUB_ENV"
-      - name: Validate immutable patch transport and original source
+      - name: Apply immutable source changes and remove temporary transport files
         id: apply
         run: |
           python - <<'PY'
           import base64, gzip, hashlib, json, os, pathlib, re, subprocess
-          root = pathlib.Path.cwd()
-          out = pathlib.Path(os.environ['VERIFIED_RUN_ROOT']) / 'evidence'
-          parts = [('1',10000),('2',5000),('3',5000),('4',2800),('45',200),('5',1000),('6',1000),('7',896)]
-          prefix_hashes = ['69796167865eb6bae2a33b3fbeb4d85d1a868d78a42c047b8d6b632ad30b5516','1775a02c25c64231ded5fed769d81ed2424c0d6ca69a8e004150951a5944f58e','0947c8dd41c033c8d9951b79aed884f387fb76ad6278c44fecaae248a3e1204b','b1cdcf565a9357401860c6a2f62ba6c0539ab33653c31937c4ad5ecb8026a7e8']
-          fragments = []
-          for i,(suffix,length) in enumerate(parts):
-              text = (root / ('.codex/pr380-migration.patch.b64.' + suffix)).read_text().strip()[:length]
-              if len(text) != length:
-                  raise ValueError('transport length mismatch: ' + suffix)
-              if i < len(prefix_hashes) and hashlib.sha256(text.encode()).hexdigest() != prefix_hashes[i]:
-                  raise ValueError('transport checksum mismatch: ' + suffix)
+          root=pathlib.Path.cwd(); out=pathlib.Path(os.environ['VERIFIED_RUN_ROOT'])/'evidence'
+          parts=[('1',10000),('2',5000),('3',5000),('4',2800),('45',200),('5',1000),('6',1000),('7',896)]
+          fragments=[]
+          for suffix,length in parts:
+              text=(root/('.codex/pr380-migration.patch.b64.'+suffix)).read_text().strip()[:length]
+              if len(text)!=length: raise ValueError('transport length mismatch')
               fragments.append(text)
-          patch = gzip.decompress(base64.b64decode(''.join(fragments),validate=True))
-          digest = hashlib.sha256(patch).hexdigest()
-          if digest != 'b8aa6a813f2618522ee62c8463444149747910b887b0dd7fbc1f830e183373f7':
-              raise ValueError('complete source patch checksum mismatch')
-          patch_file = out / 'source.patch'
-          patch_file.write_bytes(patch)
-          paths = re.findall(r'^diff --git a/(\S+) b/\1$',patch.decode(),re.M)
-          if len(paths) != 68 or len(set(paths)) != 68:
+          patch=gzip.decompress(base64.b64decode(''.join(fragments),validate=True))
+          if hashlib.sha256(patch).hexdigest()!='b8aa6a813f2618522ee62c8463444149747910b887b0dd7fbc1f830e183373f7':
+              raise ValueError('unreviewed source patch')
+          followup=(root/'.codex/pr380-followup.patch').read_bytes()
+          if hashlib.sha256(followup).hexdigest()!='0b617b6d145078765c46131113ec214801a6426dc5019f4c0ffa0a07efab2240':
+              raise ValueError('unreviewed documentation follow-up')
+          paths=re.findall(r'^diff --git a/(\S+) b/\1$',patch.decode(),re.M)
+          followup_paths=re.findall(r'^diff --git a/(\S+) b/\1$',followup.decode(),re.M)
+          if len(paths)!=68 or len(set(paths))!=68 or not set(followup_paths)<=set(paths):
               raise ValueError('source path inventory mismatch')
           for value in paths:
               p=pathlib.PurePosixPath(value)
               if p.is_absolute() or '..' in p.parts or '.git' in p.parts or value.startswith('modules/'):
                   raise ValueError('unsafe source path')
           subprocess.run(['git','diff','--exit-code','da9b0bf7e06df77cc93ba45371454042740c5dd3','--',*paths],check=True)
-          subprocess.run(['git','apply','--check','--unidiff-zero',str(patch_file)],check=True)
-          subprocess.run(['git','apply','--unidiff-zero',str(patch_file)],check=True)
+          for name,data in [('source.patch',patch),('followup.patch',followup)]:
+              target=out/name; target.write_bytes(data)
+              subprocess.run(['git','apply','--check','--unidiff-zero',str(target)],check=True)
+              subprocess.run(['git','apply','--unidiff-zero',str(target)],check=True)
+          temporary=['.github/workflows/pr380-source-snapshot.yml','.github/workflows/pr380-migration-prepare.yml','.codex/pr380-followup.patch']
+          temporary+=['.codex/pr380-migration.patch.b64.'+suffix for suffix,length in parts]
+          for name in temporary:
+              path=root/name
+              if path.is_symlink() or not path.is_file(): raise ValueError('unexpected temporary file')
+              path.unlink()
           (out/'source-paths.json').write_text(json.dumps(paths))
-          print('Applied checked source patch:',digest,'paths=',len(paths))
+          (out/'temporary-paths.json').write_text(json.dumps(temporary))
+          print('Applied checked source changes; testing the final tree without temporary delivery files.')
           PY
       - name: Install repository test dependencies
         if: steps.apply.outcome == 'success'
@@ -85,38 +91,37 @@ jobs:
       - name: Regenerate maintained references and source-only capability catalog
         if: ${{ !cancelled() && steps.apply.outcome == 'success' }}
         run: |
-          python ci/tools/generate-connector-config-reference.py
-          python ci/evidence/collectors/connector_capabilities.py generate
-          python ci/tools/generate-connector-config-reference.py --check
-          python ci/checks/documentation/check-connector-config-reference.py
+          .venv/bin/python ci/tools/generate-connector-config-reference.py
+          .venv/bin/python ci/evidence/collectors/connector_capabilities.py generate
+          .venv/bin/python ci/tools/generate-connector-config-reference.py --check
+          .venv/bin/python ci/checks/documentation/check-connector-config-reference.py
       - name: Run migration and native security contracts
         if: ${{ !cancelled() && steps.apply.outcome == 'success' }}
-        run: python -m unittest -v tests.test_phase4_migration_contract tests.test_nginx_native_security_contract tests.test_nginx_upstream_security_contract 2>&1 | tee "$VERIFIED_RUN_ROOT/evidence/security-tests.log"
+        run: .venv/bin/python -m unittest -v tests.test_phase4_migration_contract tests.test_nginx_native_security_contract tests.test_nginx_upstream_security_contract 2>&1 | tee "$VERIFIED_RUN_ROOT/evidence/security-tests.log"
       - name: Run complete NGINX checker mutation suite
         if: ${{ !cancelled() && steps.apply.outcome == 'success' }}
-        run: python -m unittest -v tests.test_nginx_common_adoption 2>&1 | tee "$VERIFIED_RUN_ROOT/evidence/mutation-tests.log"
+        run: .venv/bin/python -m unittest -v tests.test_nginx_common_adoption 2>&1 | tee "$VERIFIED_RUN_ROOT/evidence/mutation-tests.log"
       - name: Run generator, capability, and workflow regressions
         if: ${{ !cancelled() && steps.apply.outcome == 'success' }}
-        run: python -m unittest -v tests.test_connector_config_reference tests.test_logical_connector_all_examples tests.test_connector_guides tests.test_connector_capabilities tests.test_nginx_phase4_runner_wiring tests.test_apache_phase4_response_regression_wiring tests.test_ci_security_workflows tests.test_hostruntime_workflow_evidence_contract tests.test_full_smoke_workflow_contract 2>&1 | tee "$VERIFIED_RUN_ROOT/evidence/generator-workflow-tests.log"
+        run: .venv/bin/python -m unittest -v tests.test_connector_config_reference tests.test_logical_connector_all_examples tests.test_connector_guides tests.test_connector_capabilities tests.test_nginx_phase4_runner_wiring tests.test_apache_phase4_response_regression_wiring tests.test_ci_security_workflows tests.test_hostruntime_workflow_evidence_contract tests.test_full_smoke_workflow_contract 2>&1 | tee "$VERIFIED_RUN_ROOT/evidence/generator-workflow-tests.log"
       - name: Run runtime-evidence normalizer regressions with pinned Framework
         if: ${{ !cancelled() && steps.apply.outcome == 'success' }}
-        run: python -m unittest -v tests.test_collect_no_crs_source tests.test_collect_no_crs_source_helpers 2>&1 | tee "$VERIFIED_RUN_ROOT/evidence/evidence-tests.log"
+        run: .venv/bin/python -m unittest -v tests.test_collect_no_crs_source tests.test_collect_no_crs_source_helpers 2>&1 | tee "$VERIFIED_RUN_ROOT/evidence/evidence-tests.log"
       - name: Run the actual post-merge quick-check
         if: ${{ !cancelled() && steps.apply.outcome == 'success' }}
         run: make quick-check 2>&1 | tee "$VERIFIED_RUN_ROOT/evidence/quick-check.log"
       - name: Export only intended source and generated changes
         if: ${{ !cancelled() && steps.apply.outcome == 'success' }}
         run: |
-          python - <<'PY'
-          import hashlib, json, os, pathlib, subprocess, sys
+          .venv/bin/python - <<'PY'
+          import json, os, pathlib, subprocess, sys
           root=pathlib.Path.cwd(); out=pathlib.Path(os.environ['VERIFIED_RUN_ROOT'])/'evidence'
           sys.path.insert(0,str(root/'ci/checks/documentation'))
           from connector_config_reference import generated_file_paths
           source=json.loads((out/'source-paths.json').read_text())
+          temporary=json.loads((out/'temporary-paths.json').read_text())
           generated=[p.relative_to(root).as_posix() for p in generated_file_paths(root)]
-          generated += ['reports/testing/generated/canonical/connector-capabilities.generated'+suffix for suffix in ('.json','.md','.de.md')]
-          temporary=['.github/workflows/pr380-source-snapshot.yml','.github/workflows/pr380-migration-prepare.yml']
-          temporary += ['.codex/pr380-migration.patch.b64.'+p for p in ('1','2','3','4','45','5','6','7')]
+          generated+=['reports/testing/generated/canonical/connector-capabilities.generated'+suffix for suffix in ('.json','.md','.de.md')]
           entries=[]
           for relative in sorted(set(source+generated+temporary)):
               path=root/relative
@@ -125,13 +130,12 @@ jobs:
               if relative in temporary or not path.exists():
                   if tracked: entries.append({'path':relative,'mode':mode,'type':'blob','sha':None})
                   continue
-              if path.is_symlink() or mode not in ('100644','100755'):
-                  raise ValueError('unsupported file kind')
+              if path.is_symlink() or mode not in ('100644','100755'): raise ValueError('unsupported file kind')
               data=path.read_bytes()
               previous=subprocess.run(['git','show','HEAD:'+relative],capture_output=True)
-              if previous.returncode == 0 and previous.stdout == data: continue
+              if previous.returncode==0 and previous.stdout==data: continue
               entries.append({'path':relative,'mode':mode,'type':'blob','content':data.decode('utf-8')})
-          bundle={'base_sha':os.environ['GITHUB_SHA'],'source_patch_sha256':'b8aa6a813f2618522ee62c8463444149747910b887b0dd7fbc1f830e183373f7','source_paths':source,'generated_paths':generated,'temporary_paths':temporary,'tree':entries}
+          bundle={'base_sha':os.environ['GITHUB_SHA'],'source_patch_sha256':'b8aa6a813f2618522ee62c8463444149747910b887b0dd7fbc1f830e183373f7','followup_patch_sha256':'0b617b6d145078765c46131113ec214801a6426dc5019f4c0ffa0a07efab2240','source_paths':source,'generated_paths':generated,'temporary_paths':temporary,'tree':entries}
           (out/'changes.json').write_text(json.dumps(bundle,ensure_ascii=False))
           print('Exported',len(entries),'reviewable entries; no refs updated.')
           PY
@@ -165,17 +169,17 @@ jobs:
           root=pathlib.Path(os.environ['RUNNER_TEMP'])/'pr380-review'
           data=json.loads((root/'changes.json').read_text())
           expected=os.environ['EXPECTED_SHA']
-          if data['base_sha'] != expected: raise ValueError('stale prepared base')
-          patch_hash=hashlib.sha256((root/'source.patch').read_bytes()).hexdigest()
-          if patch_hash != 'b8aa6a813f2618522ee62c8463444149747910b887b0dd7fbc1f830e183373f7' or patch_hash != data['source_patch_sha256']:
-              raise ValueError('unreviewed source patch')
+          if data['base_sha']!=expected: raise ValueError('stale prepared base')
+          for filename,key,digest in [('source.patch','source_patch_sha256','b8aa6a813f2618522ee62c8463444149747910b887b0dd7fbc1f830e183373f7'),('followup.patch','followup_patch_sha256','0b617b6d145078765c46131113ec214801a6426dc5019f4c0ffa0a07efab2240')]:
+              if hashlib.sha256((root/filename).read_bytes()).hexdigest()!=digest or data[key]!=digest:
+                  raise ValueError('unreviewed source patch')
           allowed=set(data['source_paths']+data['generated_paths']+data['temporary_paths'])
           entries=data['tree']; seen=set()
           for entry in entries:
               path=pathlib.PurePosixPath(entry['path'])
               if entry['path'] not in allowed or entry['path'] in seen or path.is_absolute() or '..' in path.parts or '.git' in path.parts or entry['path'].startswith('modules/'):
                   raise ValueError('unexpected tree path')
-              if entry['mode'] not in ('100644','100755') or entry['type'] != 'blob': raise ValueError('invalid tree entry')
+              if entry['mode'] not in ('100644','100755') or entry['type']!='blob': raise ValueError('invalid tree entry')
               if 'content' in entry and not isinstance(entry['content'],str): raise ValueError('invalid file content')
               seen.add(entry['path'])
           if len(entries)>120: raise ValueError('unexpected change count')
@@ -186,7 +190,7 @@ jobs:
               with urllib.request.urlopen(req,timeout=60) as response:return json.load(response)
           parent=request('git/commits/'+expected)
           tree=request('git/trees',{'base_tree':parent['tree']['sha'],'tree':entries})
-          result={'base_sha':expected,'tree_sha':tree['sha'],'source_patch_sha256':patch_hash,'files':len(entries)}
+          result={'base_sha':expected,'tree_sha':tree['sha'],'source_patch_sha256':data['source_patch_sha256'],'followup_patch_sha256':data['followup_patch_sha256'],'files':len(entries)}
           (root/'staged-tree.json').write_text(json.dumps(result))
           print(json.dumps(result))
           PY
