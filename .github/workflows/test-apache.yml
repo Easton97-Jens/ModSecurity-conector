@@ -95,7 +95,6 @@ jobs:
           test -f docs/testing-and-evidence.md
           grep -q 'Status:' connectors/apache/TODO.md
       - name: Syntax and dry-run checks
-        if: github.event_name != 'pull_request'
         run: |
           make setup-dev
           sh -n connectors/apache/harness/run_apache_smoke.sh

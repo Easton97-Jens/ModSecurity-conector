@@ -109,7 +109,7 @@
     },
     "late_intervention_log_only": {
       "state": "not_implemented",
-      "reason": "The patched source records disruptive safe/minimal Phase-4 decisions as actual log_only while preserving the response, but no client-visible canonical evidence has been produced."
+      "reason": "The patched source records disruptive safe Phase-4 decisions as actual log_only while preserving the response, but no client-visible canonical evidence has been produced."
     },
     "late_intervention_abort": {
       "state": "not_implemented",

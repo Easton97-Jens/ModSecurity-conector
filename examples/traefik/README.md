@@ -6,8 +6,8 @@
 
 Integration mode: repository-owned native Traefik local plugin plus a persistent
 local Unix-domain-socket engine service. The
-[minimal static reference](off/traefik-static.yaml) registers the local
-plugin and a File Provider. Its adjacent minimal dynamic and engine-service
+[off static reference](off/traefik-static.yaml) registers the local
+plugin and a File Provider. Its adjacent off-profile dynamic and engine-service
 files select the same UDS shape with `phase4_mode=off`; the
 [Safe dynamic reference](safe/traefik-dynamic.yaml) selects engineMode uds.
 The matching [engine-service configuration](safe/traefik-engine-service.conf)
@@ -27,7 +27,7 @@ Strict profile boundary documents the optional boundary rather than claiming a
 runnable host abort.
 
 The complete matrix is under [native-uds/](native-uds/) and
-[forwardauth/](forwardauth/), including `minimal`, `safe`, `strict`, and
+[forwardauth/](forwardauth/), including `off`, `safe`, `strict`, and
 `all` bundles. `all` uses the existing strict P4 policy value and is not a
 fourth phase mode. The older [forwardAuth compatibility files](#forwardauth-compatibility)
 remain request-only examples; they must not be treated as a P3/P4 core path.
@@ -36,9 +36,9 @@ remain request-only examples; they must not be treated as a P3/P4 core path.
 
 | Path | Type | Purpose |
 | --- | --- | --- |
-| [minimal/traefik-static.yaml](off/traefik-static.yaml) | Static host configuration | Local-plugin registration, web entry point, and File Provider. |
-| [minimal/traefik-dynamic.yaml](off/traefik-dynamic.yaml) | Dynamic host configuration | Minimal UDS middleware/router/service shape. |
-| [minimal/traefik-engine-service.conf](off/traefik-engine-service.conf) | Engine configuration | Streaming body modes with minimal late-P4 policy. |
+| [off/traefik-static.yaml](off/traefik-static.yaml) | Static host configuration | Local-plugin registration, web entry point, and File Provider. |
+| [off/traefik-dynamic.yaml](off/traefik-dynamic.yaml) | Dynamic host configuration | UDS middleware/router/service shape for the off compatibility profile. |
+| [off/traefik-engine-service.conf](off/traefik-engine-service.conf) | Engine configuration | Streaming body modes with the additional late-P4 policy off. |
 | [safe/traefik-dynamic.yaml](safe/traefik-dynamic.yaml) | Dynamic host configuration | Router, middleware, UDS engine selection, and local upstream. |
 | [safe/traefik-engine-service.conf](safe/traefik-engine-service.conf) | Engine configuration | Rules, limits, streaming body modes, and Safe policy. |
 | [detection-only/traefik-engine-service.conf](detection-only/traefik-engine-service.conf) | Engine configuration | DetectionOnly rules with the selected UDS middleware; see [DetectionOnly profile](#detectiononly-profile). |
@@ -183,8 +183,8 @@ enabling Strict.
 
 ## Complete logical-solution matrix
 
-Each logical solution has visible `minimal`, `safe`, `strict`, and `all`
-bundles. Minimal and Safe are runtime-admissible; the Strict bundles are
+Each logical solution has visible `off`, `safe`, `strict`, and `all`
+bundles. Off and Safe are runtime-admissible; the Strict bundles are
 parser-backed but deliberately rejected by the Common Runtime admission gate.
 The
 native UDS bundles use the repository-owned `modsecurityNative` plugin and

@@ -1,17 +1,17 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-09-03T03:00:24Z`
-> Verified run id: `2026-06-16T19-12-00Z-614c8049`
+> Generated at: `2026-09-20T20:06:05Z`
+> Verified run id: `2026-09-20T20-06-05Z-b4ec7b5b`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/evidence/collectors/connector_capabilities.py`
 > Make target: `capabilities-all-connectors`
 > Owner: `connector`
 > Severity: `informational`
-> Connector SHA: `d50fad793a8af1fa4cf0dc83a951c041dcd940e9`
-> Framework SHA: `unknown`
-> Framework gitlink SHA: `86451b45ae7bb7953baf9f81f2c2dad07395a808`
-> Framework checkout: `not_checked_out`
-> Framework gitlink status: `not_checked_out`
+> Connector SHA: `b4ec7b5bb4a12864ce9593af174ee16d062958c1`
+> Framework SHA: `cc36b37d0f6a0fbc3512f3878a691751e91c5fbb`
+> Framework gitlink SHA: `cc36b37d0f6a0fbc3512f3878a691751e91c5fbb`
+> Framework checkout: `checked_out`
+> Framework gitlink status: `matches_checkout`
 > Input status: `complete`
 
 > Generierte Datei – nicht manuell bearbeiten.
@@ -87,7 +87,7 @@ Diese Datei wird deterministisch aus den sechs connector-lokalen Manifesten erze
 | `event_jsonl` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` |
 | `config_inline_rules` | `implemented_not_asserted` | `implemented_not_asserted` | `not_implemented` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` |
 | `config_rules_file` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` |
-| `config_remote_rules` | `implemented_not_asserted` | `implemented_not_asserted` | `not_implemented` | `implemented_not_asserted` | `implemented_not_asserted` | `implemented_not_asserted` |
+| `config_remote_rules` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` | `not_implemented` |
 
 ## Evidence-Stufen
 
@@ -115,9 +115,9 @@ Diese Datei wird deterministisch aus den sechs connector-lokalen Manifesten erze
 Host-Modell-Grenzen:
 
 - Apache incrementally appends each response-data bucket, preserves pre-EOS FLUSH and metadata, and immediately passes the normalized pre-EOS prefix to the next filter. Only the terminal EOS fragment remains until msc_process_response_body and late-action resolution complete; no full response brigade is retained across filter calls.
-- libModSecurity's C API does not expose its effective SecResponseBodyMimeType selection, so Apache gates every response MIME type. The legacy modsecurity_phase4_content_types_file parser is deprecated and cannot narrow that gate; the configurable default 1048576-byte bound is checked before each later append without creating a full-response buffer.
+- ModSecurity owns response MIME inspection through SecResponseBodyMimeType and SecResponseBodyAccess. The connector-owned modsecurity_phase4_content_types_file option has been removed; Apache offers every response through the bounded P4 input path. The configurable default 1048576-byte bound is checked before each later append without creating a full-response buffer.
 - Normal r->prev and pre-output ErrorDocument redirects fail closed because the connector cannot safely rebind a source transaction to a target URI/ruleset. During terminal output EMITTING, exactly one Apache-core-marked local ErrorDocument hop is allowed with no_local_copy plus matching immediate predecessor status and REDIRECT_STATUS.
-- The connector JSONL writer is currently specific to Phase-4 interventions and does not by itself prove canonical event coverage for request-phase decisions.
+- The connector JSONL writer also emits request-phase decision metadata; source wiring alone does not prove canonical event coverage for every phase.
 - Phase-4 rule evaluation remains EOS-only. After a pre-EOS prefix reaches the next filter, Safe records log_only and Strict uses abort_connection rather than attempting to rewrite bytes that may already be visible.
 
 | Capability | Zustand | Kanonischer Grund (aus dem Manifest) |
@@ -181,7 +181,7 @@ Host-Modell-Grenzen:
 | `event_jsonl` | `implemented_not_asserted` | A bounded common JSONL event serializer is used for Phase-4 interventions, but request-phase event coverage must still be exercised. |
 | `config_inline_rules` | `implemented_not_asserted` | The modsecurity_rules directive loads inline rules through libmodsecurity; canonical config-load evidence is pending. |
 | `config_rules_file` | `implemented_not_asserted` | The modsecurity_rules_file directive loads local rules files; canonical positive and negative config evidence is pending. |
-| `config_remote_rules` | `implemented_not_asserted` | The modsecurity_rules_remote directive is wired to libmodsecurity; no remote-network capability is asserted by the no-CRS baseline. |
+| `config_remote_rules` | `not_implemented` | Remote rule loading is disabled by the common security policy; only inline and local file rules are supported. |
 
 ### NGINX
 
@@ -193,7 +193,7 @@ Host-Modell-Grenzen:
 Host-Modell-Grenzen:
 
 - NGINX receives the request body after host preparation, but its response body filter incrementally feeds each current chain buffer to the active P4 phase and forwards the chain without retaining a cross-callback response body.
-- The connector JSONL writer is currently specific to Phase-4 interventions and does not by itself prove canonical event coverage for request-phase decisions.
+- The connector JSONL writer is used for request-rule and Phase-3/4 intervention metadata; source wiring alone does not prove canonical event coverage for every phase.
 - A Phase-4 decision can be observed after NGINX has sent response headers and is then governed by the late-intervention policy.
 
 | Capability | Zustand | Kanonischer Grund (aus dem Manifest) |
@@ -219,10 +219,10 @@ Host-Modell-Grenzen:
 | `late_intervention_log_only` | `implemented_not_asserted` | The safe post-commit policy is wired to record a log-only outcome, but no canonical event proves requested deny, actual log_only, late_intervention=true, and an unchanged visible status. |
 | `late_intervention_abort` | `implemented_not_asserted` | The strict post-commit policy has an abort path, but no canonical real-host event proves actual abort_connection and connection_aborted=true. |
 | `late_intervention_status_metadata` | `implemented_not_asserted` | The Phase-4 path can emit intervention metadata, but no canonical event yet proves separate requested WAF status, original host status, visible client status, requested action, and actual action. |
-| `content_type_scope` | `implemented_not_asserted` | The Phase-4 filter checks its configured response Content-Type scope before appending body bytes; out-of-scope response bodies are not appended to libmodsecurity. Real-host coverage is pending. |
+| `content_type_scope` | `implemented_not_asserted` | ModSecurity selects response MIME inspection through SecResponseBodyMimeType and SecResponseBodyAccess; there is no connector-owned MIME allowlist. NGINX offers response bytes through the bounded P4 path in off, safe, and strict modes. Real-host coverage of engine MIME selection is pending. |
 | `header_limits` | `not_implemented` | No canonical NGINX connector path asserts the shared header-limit behavior in the full-lifecycle catalog. |
 | `request_body_limits` | `not_implemented` | The current request-body path is host-buffered and has no connector-level incremental limit outcome contract. |
-| `response_body_limits` | `implemented_not_asserted` | The response filter applies the Common reject body-limit plan before forwarding each in-scope memory or file buffer, but native-host limit-mode evidence is pending. |
+| `response_body_limits` | `implemented_not_asserted` | The response filter applies the Common reject body-limit plan before forwarding each memory or file buffer, independently of MIME type and Phase-4 policy mode; native-host limit-mode evidence is pending. |
 | `no_full_response_buffering` | `implemented_not_asserted` | The response filter processes and forwards current chain buffers rather than accumulating a connector-owned full response; file-only ranges use one reusable bounded scratch buffer and synchronized proof is pending. |
 | `first_byte_before_response_end` | `implemented_not_asserted` | The pass-through filter wiring permits downstream delivery before end of stream, but the synchronized first-byte test has not run. |
 | `http1_content_length` | `configured_not_exercised` | The native NGINX module can run behind HTTP/1.1 Content-Length responses, but the canonical transport case has not run. |
@@ -254,10 +254,10 @@ Host-Modell-Grenzen:
 | `abort_connection` | `implemented_not_asserted` | The strict Phase-4 branch has an explicit connection-abort outcome after headers are sent; transport evidence is pending. |
 | `log_only` | `implemented_not_asserted` | Non-disruptive rules pass and late Phase-4 policy records log-only outcomes; canonical evidence is pending. |
 | `transaction_id` | `implemented_not_asserted` | NGINX complex-value transaction IDs are used when creating transactions; canonical event correlation evidence is pending. |
-| `event_jsonl` | `implemented_not_asserted` | The Phase-4 filter serializes bounded common JSONL events, but request-phase canonical event coverage is not yet asserted. |
+| `event_jsonl` | `implemented_not_asserted` | The native modsecurity_phase4_log directive opens a connector-owned descriptor through the Common no-follow helper, requiring a safe parent, regular leaf, suitable ownership, and private 0600 mode. Configuration reload creates the next-cycle descriptor; generic NGINX USR1 reopening is not a supported rotation mechanism. Functional-A runtime evidence is pending. |
 | `config_inline_rules` | `implemented_not_asserted` | The modsecurity_rules directive loads inline rules through libmodsecurity; canonical config evidence is pending. |
 | `config_rules_file` | `implemented_not_asserted` | The modsecurity_rules_file directive loads local rules files; canonical positive and negative evidence is pending. |
-| `config_remote_rules` | `implemented_not_asserted` | The modsecurity_rules_remote directive is wired to libmodsecurity; the no-CRS baseline does not exercise external networking. |
+| `config_remote_rules` | `not_implemented` | Remote rule loading is disabled by the common security policy; only inline and local file rules are supported. |
 
 ### HAProxy
 
@@ -335,7 +335,7 @@ Host-Modell-Grenzen:
 | `event_jsonl` | `implemented_not_asserted` | The production SPOP agent writes bounded metadata-only decision JSONL; canonical event-field and payload-absence evidence is pending. |
 | `config_inline_rules` | `not_implemented` | Inline rules are used only by binding self-tests and are not exposed by the production HAProxy/SPOP configuration path. |
 | `config_rules_file` | `implemented_not_asserted` | The production agent accepts a startup rules file and loads it into libmodsecurity; canonical config evidence is pending. |
-| `config_remote_rules` | `not_implemented` | The production HAProxy/SPOP configuration has no remote-rules option. |
+| `config_remote_rules` | `not_implemented` | Remote rule loading is disabled by the common security policy; only inline and local file rules are supported. |
 
 ### Envoy
 
@@ -413,7 +413,7 @@ Host-Modell-Grenzen:
 | `event_jsonl` | `implemented_not_asserted` | Common Runtime writes bounded metadata-only disruptive-decision JSONL; canonical field and payload-absence evidence is pending. |
 | `config_inline_rules` | `implemented_not_asserted` | The repository HTTP authorization service configuration parser and Common Runtime support inline rules; canonical config evidence is pending. |
 | `config_rules_file` | `implemented_not_asserted` | The checked-in service path loads a local rules file through Common Runtime; canonical config evidence is pending. |
-| `config_remote_rules` | `implemented_not_asserted` | Common Runtime exposes remote rule key and URL configuration, but the no-CRS baseline does not exercise external networking. |
+| `config_remote_rules` | `not_implemented` | Remote rule loading is disabled by the common security policy; only inline and local file rules are supported. |
 
 ### Traefik
 
@@ -492,7 +492,7 @@ Host-Modell-Grenzen:
 | `event_jsonl` | `implemented_not_asserted` | Common Runtime writes bounded metadata-only disruptive-decision JSONL; canonical field and payload-absence evidence is pending. |
 | `config_inline_rules` | `implemented_not_asserted` | The repository authorization-service config parser and Common Runtime support inline rules; canonical config evidence is pending. |
 | `config_rules_file` | `implemented_not_asserted` | The checked-in service path loads a local rules file through Common Runtime; canonical positive and negative evidence is pending. |
-| `config_remote_rules` | `implemented_not_asserted` | Common Runtime exposes remote rule key and URL configuration, but the no-CRS baseline does not exercise external networking. |
+| `config_remote_rules` | `not_implemented` | Remote rule loading is disabled by the common security policy; only inline and local file rules are supported. |
 
 ### lighttpd
 
@@ -528,7 +528,7 @@ Host-Modell-Grenzen:
 | `phase4_end_of_stream_evaluation` | `not_implemented` | The patched entity callback invokes the Common finish API once at EOS, but no real host run verifies that Phase-4 result; per-chunk rule evaluation is not claimed. |
 | `phase4_pre_commit_deny` | `not_implemented` | The patched callback has no client-validated precommit disposition. It deliberately does not fabricate a late HTTP status from an EOS decision. |
 | `late_intervention` | `not_implemented` | The patched callback resolves the shared late-intervention policy in source, but no real host run proves a post-commit outcome; the response-start hook is not late-intervention evidence. |
-| `late_intervention_log_only` | `not_implemented` | The patched source records disruptive safe/minimal Phase-4 decisions as actual log_only while preserving the response, but no client-visible canonical evidence has been produced. |
+| `late_intervention_log_only` | `not_implemented` | The patched source records disruptive safe Phase-4 decisions as actual log_only while preserving the response, but no client-visible canonical evidence has been produced. |
 | `late_intervention_abort` | `not_implemented` | Strict deliberately remains NOT EXECUTED: the patched entity hook has no client-validated lighttpd connection-abort primitive or follow-up-health proof. |
 | `late_intervention_status_metadata` | `not_implemented` | The patched source can record a safe log_only host action, but no canonical client artifact proves original, requested, visible, and actual values at a post-commit point. |
 | `content_type_scope` | `not_implemented` | No canonical response-stream run proves Content-Type behavior for the patched identity-only entity path. |
@@ -569,18 +569,18 @@ Host-Modell-Grenzen:
 | `event_jsonl` | `implemented_not_asserted` | Common Runtime writes bounded metadata-only disruptive-decision JSONL from the native path; canonical event evidence is pending. |
 | `config_inline_rules` | `implemented_not_asserted` | The native plugin uses the Common Runtime config parser, which supports inline rules; canonical config evidence is pending. |
 | `config_rules_file` | `implemented_not_asserted` | The native plugin uses the Common Runtime local rules-file path; canonical positive and negative evidence is pending. |
-| `config_remote_rules` | `implemented_not_asserted` | The native plugin uses Common Runtime remote rule configuration, but the no-CRS baseline does not exercise external networking. |
+| `config_remote_rules` | `not_implemented` | Remote rule loading is disabled by the common security policy; only inline and local file rules are supported. |
 
 ## Data Sources
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `connectors/apache/capabilities.json` | `44d36c9ac944e89e472368decf1f23b61296b55c4ac0a4e599fcfa6a8e17b1ff` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `connectors/nginx/capabilities.json` | `2c0474e075187b692aa4ba12467b0839a895c33a9ceca4771638eab219c3a3b3` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `connectors/haproxy/capabilities.json` | `83528048ed6d012042bf5f0ca245a07d0a4457b72d7e89925d2745d70b4bc82a` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `connectors/envoy/capabilities.json` | `5e3848e27db6133eed8a7a7c4c579f722745a17e61490c2b2bad67654bf92ab4` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `connectors/traefik/capabilities.json` | `f96775fa85d85bb66f739743ae154feb66d61c710ad6f9dde0be2977fef86b88` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `connectors/lighttpd/capabilities.json` | `95c68aeba2340c6ed996c976188d6fae0c5ff1c91f1995a2cc245a33bbd47665` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `connectors/apache/capabilities.json` | `5045e3ffbd6bc87b1c30c8238299d31321f8d8210d04c2e8b37bc5c41265c51c` | `2026-09-20T20-06-05Z-b4ec7b5b` | present |
+| Declared input | `connectors/nginx/capabilities.json` | `2b43a33ff40587c92fb2f1451a074b97b626fd59f9e669de12a843a200b80e24` | `2026-09-20T20-06-05Z-b4ec7b5b` | present |
+| Declared input | `connectors/haproxy/capabilities.json` | `5da8bd745e9137d1a2065be010d19a9184b14868cc76a5e7241f58d398e023f2` | `2026-09-20T20-06-05Z-b4ec7b5b` | present |
+| Declared input | `connectors/envoy/capabilities.json` | `5649e9a3106ba4188339620318775fbb9d271b2e8abdfd51516e3976bda15b86` | `2026-09-20T20-06-05Z-b4ec7b5b` | present |
+| Declared input | `connectors/traefik/capabilities.json` | `58779f7e3308879aea3f88a8a508a6a1cb1cabbd962273463abb73267f6bbe03` | `2026-09-20T20-06-05Z-b4ec7b5b` | present |
+| Declared input | `connectors/lighttpd/capabilities.json` | `e192a971e12a849b7f99736f8cbc86fe09bf9ccb89f8bd6348f578406fc5b80d` | `2026-09-20T20-06-05Z-b4ec7b5b` | present |
 
 ## Data Availability / Missing Information
 

@@ -8,7 +8,7 @@ Integration mode: native HTX filter. The native [off](off/haproxy-htx.cfg)
 and [Safe](safe/haproxy-htx.cfg), plus [Strict](strict/haproxy-htx.cfg) and
 [all](all/haproxy-htx.cfg), are the native HTX solution. The
 [SPOE/SPOP solution](#spoespop-response-companion-solution) has matching
-minimal, safe, strict, and all bundles and combines request-side SPOE/SPOP
+off, safe, strict, and all bundles and combines request-side SPOE/SPOP
 with the native HTX response companion. The all layouts use the existing
 strict policy value; they do not create an `all` P4 policy.
 
@@ -25,11 +25,11 @@ parser boundary without claiming a native host abort.
 
 | Path | Type | Purpose |
 | --- | --- | --- |
-| [minimal/haproxy-htx.cfg](off/haproxy-htx.cfg) | Host configuration | Native HTX parser-supported minimal P4 mode. |
+| [off/haproxy-htx.cfg](off/haproxy-htx.cfg) | Host configuration | Native HTX off compatibility mode; engine inspection remains enabled. |
 | [safe/haproxy-htx.cfg](safe/haproxy-htx.cfg) | Host configuration | Native HTTP/1.1 P1--P4 Safe reference. |
 | [strict/haproxy-htx.cfg](strict/haproxy-htx.cfg) | Host configuration | Native HTX parser-supported strict policy boundary. |
 | [all/haproxy-htx.cfg](all/haproxy-htx.cfg) | Host configuration | Comprehensive native HTX layout with every source-backed filter setting visible. |
-| [spoe-spop/off/](spoe-spop/off/) | Logical bundle | SPOE/SPOP P1/P2 plus native HTX companion P3/P4, minimal. |
+| [spoe-spop/off/](spoe-spop/off/) | Logical bundle | SPOE/SPOP P1/P2 plus native HTX companion P3/P4, off compatibility mode. |
 | [spoe-spop/safe/](spoe-spop/safe/) | Logical bundle | SPOE/SPOP P1/P2 plus native HTX companion P3/P4, Safe. |
 | [spoe-spop/strict/](spoe-spop/strict/) | Logical bundle | SPOE/SPOP P1/P2 plus native HTX companion P3/P4, strict boundary. |
 | [spoe-spop/all/](spoe-spop/all/) | Logical bundle | Complete SPOE/SPOP P1/P2 and private native-HTX P3/P4 companion layout. |
@@ -105,7 +105,7 @@ patched native filter path, not the SPOE/SPOP compatibility service. A P4
 decision after a response has started is recorded as Safe log-only behavior;
 the configuration does not promise a status replacement or a Strict abort.
 
-The minimal reference exposes the parser-supported minimal mode and the
+The off reference preserves native intervention handling; the
 Strict reference selects `phase4-mode strict`. Strict is a policy request at
 the host boundary; the current source records a post-commit strict request as
 `not_attempted` when an abort cannot safely be performed. No bundle claims a

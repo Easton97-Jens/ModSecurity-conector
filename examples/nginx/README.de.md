@@ -5,7 +5,7 @@
 ## Integration und Grenze
 
 Integrationsmodus: natives NGINX-HTTP-Modul.
-[minimal/nginx.conf](off/nginx.conf), [safe/nginx.conf](safe/nginx.conf)
+[off/nginx.conf](off/nginx.conf), [safe/nginx.conf](safe/nginx.conf)
 und [strict/nginx.conf](strict/nginx.conf) sowie [all/nginx.conf](all/nginx.conf)
 decken den begrenzten HTTP/1.1-P1--P4-Vertrag ab. `all` ist ein umfassendes
 Konfigurationslayout mit einer echten Strict-P4-Policy, kein vierter
@@ -31,7 +31,7 @@ Regelauswertung.
 
 | Pfad | Typ | Zweck |
 | --- | --- | --- |
-| [minimal/nginx.conf](off/nginx.conf) | Host-Konfiguration | Begrenzte native P1--P4-Minimalreferenz. |
+| [off/nginx.conf](off/nginx.conf) | Host-Konfiguration | Begrenzte native P1--P4-Referenz mit nativer Interventionsbehandlung. |
 | [safe/nginx.conf](safe/nginx.conf) | Host-Konfiguration | Begrenzte P1--P4-Safe-Referenz. |
 | [strict/nginx.conf](strict/nginx.conf) | Host-Konfiguration | Explizit begrenzte Strict-Konfigurationsform. |
 | [all/nginx.conf](all/nginx.conf) | Host-Konfiguration | Umfassende native Konfiguration mit allen quellenbasierten Direktiven und `modsecurity_phase4_mode strict`. |

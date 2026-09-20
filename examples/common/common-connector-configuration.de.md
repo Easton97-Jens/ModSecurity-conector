@@ -640,58 +640,6 @@ Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../
 
 Die harte Obergrenze von 65536 Byte begrenzt aggregierten Header-Speicher und überlaufsichere Bilanzierung.
 
-
-### Kurzbeschreibung
-
-Speichert einen Content-Type-Dateipfad; die Verwendung ist connectorspezifisch.
-
-### Syntax
-
-```text
-```
-
-### Gültige Kontexte
-
-- Common-Runtime-key=value-Datei
-
-### Werte
-
-| Typ | Zulässige Werte | Erforderlich |
-| --- | --- | --- |
-| Pfad | ein Konfigurationspfad | nein |
-
-### Standardwert
-
-none
-
-Quelle: `Runtime-Parser hat keinen Standardwert`.
-
-### Vererbung und Zusammenführung
-
-Keine Vererbung auf Dateiebene; Hostintegrationen können ihre eigene Konfiguration vor dem Start der Common Runtime zusammenführen.
-
-Zusammenführung: Wenn ein Host msconnector_config verwendet, überschreiben Skalarkindwerte Elternwerte; Runtime-Dateien werden als eine konkrete Konfiguration geparst.
-
-### Phasen und Laufzeitwirkung
-
-P1–P4-Relevanz: Siehe Laufzeitwirkung; Body-Modi/-Limits betreffen P2 und P4, Header-Limits betreffen P1 und P3.
-
-Speichert einen Content-Type-Dateipfad; die Verwendung ist connectorspezifisch.
-
-### Validierung und Fehler
-
-Unbekannte Schlüssel, leere Werte, fehlerhafte Zuweisungen und schlüsselspezifisch ungültige Werte lassen die Runtime-Konfigurationsprüfung fehlschlagen.
-
-### Beispiel
-
-Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
-
-Quellenbasiertes Beispiel: [examples/lighttpd/safe/msconnector-runtime.conf](../../examples/lighttpd/safe/msconnector-runtime.conf).
-
-### Sicherheit und Betrieb
-
-Limits begrenzen den Ressourcenverbrauch. Speichert einen Content-Type-Dateipfad; die Verwendung ist connectorspezifisch.
-
 <a id="phase4-event-log"></a>
 ## `phase4_event_log`
 
@@ -752,7 +700,7 @@ Limits begrenzen den Ressourcenverbrauch. Alias für event_path.
 
 ### Kurzbeschreibung
 
-Speichert die Policy für späte P4-Interventionen. `off` ist der Standard und erhält den nativen Connector-Pfad; die ModSecurity-Response-Prüfung bleibt davon unabhängig aktiv. Die Auswahl der Response-MIME-Typen erfolgt durch die ModSecurity-Engine, nicht durch eine Connector-Allowlist.
+Speichert die späte P4-Policy. Common allein besitzt keine Host-Abbruchprimitive.
 
 ### Syntax
 
@@ -772,7 +720,7 @@ phase4_mode=<value>
 
 ### Standardwert
 
-safe
+off
 
 Quelle: `common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_MODE`.
 

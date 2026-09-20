@@ -27,8 +27,8 @@ keine prozessübergreifende Transaktionsregistry.
 
 | Pfad | Typ | Zweck |
 | --- | --- | --- |
-| [stock/](stock/) | Stock-Lösung | `minimal`, `safe`, `strict` und `all`; Sidecar-ARGV, privates Backend und vollständige Runtime-Dateien. |
-| [patched/](patched/) | Patched-Lösung | `minimal`, `safe`, `strict` und `all`; nativer Host und vollständige Runtime-Dateien. |
+| [stock/](stock/) | Stock-Lösung | `off`, `safe`, `strict` und `all`; Sidecar-ARGV, privates Backend und vollständige Runtime-Dateien. |
+| [patched/](patched/) | Patched-Lösung | `off`, `safe`, `strict` und `all`; nativer Host und vollständige Runtime-Dateien. |
 | [detection-only/msconnector-runtime.conf](detection-only/msconnector-runtime.conf) | Runtime-Konfiguration | Stock-Body-Modi mit DetectionOnly-Regeln; siehe [DetectionOnly-Profil](#detectiononly-profil). |
 | [disabled/lighttpd.conf](disabled/lighttpd.conf) | Host-Konfiguration | Natives Plugin deaktiviert; siehe [Deaktiviertes Profil](#deaktiviertes-profil). |
 | [rules/detection-only.conf](rules/detection-only.conf) | Regeln | DetectionOnly-Engine-Einstellungen. |
@@ -44,7 +44,7 @@ den Konfigurationen sind Beispiele für Hostinstallation oder Hostruntime.
 
 | Name | Zweck und Format | Pflicht/Default, Setzer, Geltungsbereich | Beispiel, Auswirkung und Sicherheit |
 | --- | --- | --- | --- |
-| server.modules | Geordnete Namen installierter lighttpd-Module | Pflicht; Host-Konfiguration; Server-Scope | mod_msconnector für Minimal und mod_proxy plus mod_msconnector für Safe. Passende Modul-ABI verwenden. |
+| server.modules | Geordnete Namen installierter lighttpd-Module | Pflicht; Host-Konfiguration; Server-Scope | mod_msconnector für Off und mod_proxy plus mod_msconnector für Safe. Passende Modul-ABI verwenden. |
 | server.document-root, errorlog, pid-file, upload-dirs | Absolute Hostpfade | In diesen Referenzen Pflicht; Host-Konfiguration; Server-Scope | /srv/lighttpd/htdocs, /srv/lighttpd/log/error.log, /srv/lighttpd/run/lighttpd.pid, /srv/lighttpd/runtime/uploads. Mit passenden Service-Rechten anlegen. |
 | server.bind und server.port | Listener-Host und dezimaler Port | Pflicht; Host-Konfiguration; Server-Scope | 127.0.0.1 und 8080. Öffentlicher Bind verändert die Exponierung. |
 | msconnector.config-file | Absoluter Pfad zur Runtime-Key=value-Datei | Pflicht; Host-Konfiguration; Modul-Scope | /etc/lighttpd/msconnector-runtime.conf. Die Datei muss für den Hostprozess lesbar sein. |
@@ -88,8 +88,8 @@ produktiv verwenden.
 
 | Lösung | Varianten | P1/P2/P3/P4-Besitzer |
 | --- | --- | --- |
-| Stock | `stock/{minimal,safe,strict,all}/` | `stock-lighttpd-sidecar`; begrenzt gestreamte Request- und Response-Bodies. |
-| Patched | `patched/{minimal,safe,strict,all}/` | `mod_msconnector`-Hooks; Pre-upstream-Request-Gate und Identity-HTTP/1.1-Response-Scope. |
+| Stock | `stock/{off,safe,strict,all}/` | `stock-lighttpd-sidecar`; begrenzt gestreamte Request- und Response-Bodies. |
+| Patched | `patched/{off,safe,strict,all}/` | `mod_msconnector`-Hooks; Pre-upstream-Request-Gate und Identity-HTTP/1.1-Response-Scope. |
 
 Stock-Backends binden nur an `127.0.0.1:8081`; der Sidecar lauscht an
 `127.0.0.1:8080` und leitet nur an dieses private Backend weiter. Patched-

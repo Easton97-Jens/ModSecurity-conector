@@ -84,7 +84,8 @@ own EOS-release guard and Apache <code>r-&gt;bytes_sent</code> metadata.
 P4 rule evaluation is not per chunk: it runs only at EOS. A progressive P4
 path therefore does not claim a reliable pre-commit P4 deny or redirect after
 a response prefix was released; P3 remains the response-header pre-commit
-decision point. Safe/minimal resolves a disruptive EOS result as
+decision point. Off preserves native intervention handling without the additional
+late policy. Safe resolves a disruptive EOS result as
 <code>log_only</code> and preserves the already-forwarded response. Strict
 uses <code>abort_connection</code>. Source wiring for that abort remains no
 proof of a client-visible abort.

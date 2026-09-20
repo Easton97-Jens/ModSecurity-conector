@@ -335,7 +335,7 @@ class LogicalConnectorAllExamplesTests(unittest.TestCase):
         self.assertIn("mutation.RemoveHeaders = []string{handleHeader}", service)
         self.assertIn("func TestRequestHandleMutationStripsOpaqueHeader", protocol_test)
 
-    def test_existing_minimal_safe_and_strict_layouts_remain_materialized(self) -> None:
+    def test_existing_off_safe_and_strict_layouts_remain_materialized(self) -> None:
         for name, profile in PROFILE_MATRIX.items():
             for variant in THREE_VARIANTS:
                 for filename in profile["files"]:

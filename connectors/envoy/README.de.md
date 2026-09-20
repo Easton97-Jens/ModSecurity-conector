@@ -51,8 +51,8 @@ Es validiert die rohen Common-Ereignisse und die vom Host bestätigten Aktionen
 nach erfolgreichen gRPC-Sends. Dies ist echter lokaler Hostnachweis, bleibt
 aber nicht hochgestuft und verändert weder die kanonischen `ext_authz`-
 Fähigkeiten noch den Laufzeitstatus. Eine späte P4-Entscheidung in
-`minimal`/`safe` wird als hostbestätigtes `log_only` aufgezeichnet; `strict`
-Der Service-Decoder kann `late_action_policy: strict` darstellen, aber ein
+`safe` wird als hostbestätigtes `log_only` aufgezeichnet; `off` bewahrt die
+native Interventionsbehandlung ohne zusätzliche Late-Policy. Der Service-Decoder kann `late_action_policy: strict` darstellen, aber ein
 regelauswertender CGo-Service mit `phase4_mode=strict` weist das Profil
 `envoy-ext-proc` beim Start ab, bis eine deterministische Post-Commit-
 Hostaktion nachgewiesen ist. Es werden weder eine späte Statusänderung noch

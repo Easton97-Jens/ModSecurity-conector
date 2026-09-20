@@ -77,8 +77,8 @@
           "state": "implemented_not_asserted"
         },
         "config_remote_rules": {
-          "reason": "The modsecurity_rules_remote directive is wired to libmodsecurity; no remote-network capability is asserted by the no-CRS baseline.",
-          "state": "implemented_not_asserted"
+          "reason": "Remote rule loading is disabled by the common security policy; only inline and local file rules are supported.",
+          "state": "not_implemented"
         },
         "config_rules_file": {
           "reason": "The modsecurity_rules_file directive loads local rules files; canonical positive and negative config evidence is pending.",
@@ -346,9 +346,9 @@
       },
       "host_model_constraints": [
         "Apache incrementally appends each response-data bucket, preserves pre-EOS FLUSH and metadata, and immediately passes the normalized pre-EOS prefix to the next filter. Only the terminal EOS fragment remains until msc_process_response_body and late-action resolution complete; no full response brigade is retained across filter calls.",
-        "libModSecurity's C API does not expose its effective SecResponseBodyMimeType selection, so Apache gates every response MIME type. The legacy modsecurity_phase4_content_types_file parser is deprecated and cannot narrow that gate; the configurable default 1048576-byte bound is checked before each later append without creating a full-response buffer.",
+        "ModSecurity owns response MIME inspection through SecResponseBodyMimeType and SecResponseBodyAccess. The connector-owned modsecurity_phase4_content_types_file option has been removed; Apache offers every response through the bounded P4 input path. The configurable default 1048576-byte bound is checked before each later append without creating a full-response buffer.",
         "Normal r->prev and pre-output ErrorDocument redirects fail closed because the connector cannot safely rebind a source transaction to a target URI/ruleset. During terminal output EMITTING, exactly one Apache-core-marked local ErrorDocument hop is allowed with no_local_copy plus matching immediate predecessor status and REDIRECT_STATUS.",
-        "The connector JSONL writer is currently specific to Phase-4 interventions and does not by itself prove canonical event coverage for request-phase decisions.",
+        "The connector JSONL writer also emits request-phase decision metadata; source wiring alone does not prove canonical event coverage for every phase.",
         "Phase-4 rule evaluation remains EOS-only. After a pre-EOS prefix reaches the next filter, Safe records log_only and Strict uses abort_connection rather than attempting to rewrite bytes that may already be visible."
       ],
       "host_name": "apache",
@@ -378,8 +378,8 @@
           "state": "implemented_not_asserted"
         },
         "config_remote_rules": {
-          "reason": "Common Runtime exposes remote rule key and URL configuration, but the no-CRS baseline does not exercise external networking.",
-          "state": "implemented_not_asserted"
+          "reason": "Remote rule loading is disabled by the common security policy; only inline and local file rules are supported.",
+          "state": "not_implemented"
         },
         "config_rules_file": {
           "reason": "The checked-in service path loads a local rules file through Common Runtime; canonical config evidence is pending.",
@@ -682,7 +682,7 @@
           "state": "not_implemented"
         },
         "config_remote_rules": {
-          "reason": "The production HAProxy/SPOP configuration has no remote-rules option.",
+          "reason": "Remote rule loading is disabled by the common security policy; only inline and local file rules are supported.",
           "state": "not_implemented"
         },
         "config_rules_file": {
@@ -985,8 +985,8 @@
           "state": "implemented_not_asserted"
         },
         "config_remote_rules": {
-          "reason": "The native plugin uses Common Runtime remote rule configuration, but the no-CRS baseline does not exercise external networking.",
-          "state": "implemented_not_asserted"
+          "reason": "Remote rule loading is disabled by the common security policy; only inline and local file rules are supported.",
+          "state": "not_implemented"
         },
         "config_rules_file": {
           "reason": "The native plugin uses the Common Runtime local rules-file path; canonical positive and negative evidence is pending.",
@@ -1093,7 +1093,7 @@
           "state": "not_implemented"
         },
         "late_intervention_log_only": {
-          "reason": "The patched source records disruptive safe/minimal Phase-4 decisions as actual log_only while preserving the response, but no client-visible canonical evidence has been produced.",
+          "reason": "The patched source records disruptive safe Phase-4 decisions as actual log_only while preserving the response, but no client-visible canonical evidence has been produced.",
           "state": "not_implemented"
         },
         "late_intervention_status_metadata": {
@@ -1291,8 +1291,8 @@
           "state": "implemented_not_asserted"
         },
         "config_remote_rules": {
-          "reason": "The modsecurity_rules_remote directive is wired to libmodsecurity; the no-CRS baseline does not exercise external networking.",
-          "state": "implemented_not_asserted"
+          "reason": "Remote rule loading is disabled by the common security policy; only inline and local file rules are supported.",
+          "state": "not_implemented"
         },
         "config_rules_file": {
           "reason": "The modsecurity_rules_file directive loads local rules files; canonical positive and negative evidence is pending.",
@@ -1303,7 +1303,7 @@
           "state": "implemented_not_asserted"
         },
         "content_type_scope": {
-          "reason": "The Phase-4 filter checks its configured response Content-Type scope before appending body bytes; out-of-scope response bodies are not appended to libmodsecurity. Real-host coverage is pending.",
+          "reason": "ModSecurity selects response MIME inspection through SecResponseBodyMimeType and SecResponseBodyAccess; there is no connector-owned MIME allowlist. NGINX offers response bytes through the bounded P4 path in off, safe, and strict modes. Real-host coverage of engine MIME selection is pending.",
           "state": "implemented_not_asserted"
         },
         "deny": {
@@ -1315,7 +1315,7 @@
           "state": "not_implemented"
         },
         "event_jsonl": {
-          "reason": "The Phase-4 filter serializes bounded common JSONL events, but request-phase canonical event coverage is not yet asserted.",
+          "reason": "The native modsecurity_phase4_log directive opens a connector-owned descriptor through the Common no-follow helper, requiring a safe parent, regular leaf, suitable ownership, and private 0600 mode. Configuration reload creates the next-cycle descriptor; generic NGINX USR1 reopening is not a supported rotation mechanism. Functional-A runtime evidence is pending.",
           "state": "implemented_not_asserted"
         },
         "first_byte_before_response_end": {
@@ -1495,7 +1495,7 @@
           "state": "implemented_not_asserted"
         },
         "response_body_limits": {
-          "reason": "The response filter applies the Common reject body-limit plan before forwarding each in-scope memory or file buffer, but native-host limit-mode evidence is pending.",
+          "reason": "The response filter applies the Common reject body-limit plan before forwarding each memory or file buffer, independently of MIME type and Phase-4 policy mode; native-host limit-mode evidence is pending.",
           "state": "implemented_not_asserted"
         },
         "response_body_streaming": {
@@ -1560,7 +1560,7 @@
       },
       "host_model_constraints": [
         "NGINX receives the request body after host preparation, but its response body filter incrementally feeds each current chain buffer to the active P4 phase and forwards the chain without retaining a cross-callback response body.",
-        "The connector JSONL writer is currently specific to Phase-4 interventions and does not by itself prove canonical event coverage for request-phase decisions.",
+        "The connector JSONL writer is used for request-rule and Phase-3/4 intervention metadata; source wiring alone does not prove canonical event coverage for every phase.",
         "A Phase-4 decision can be observed after NGINX has sent response headers and is then governed by the late-intervention policy."
       ],
       "host_name": "nginx",
@@ -1590,8 +1590,8 @@
           "state": "implemented_not_asserted"
         },
         "config_remote_rules": {
-          "reason": "Common Runtime exposes remote rule key and URL configuration, but the no-CRS baseline does not exercise external networking.",
-          "state": "implemented_not_asserted"
+          "reason": "Remote rule loading is disabled by the common security policy; only inline and local file rules are supported.",
+          "state": "not_implemented"
         },
         "config_rules_file": {
           "reason": "The checked-in service path loads a local rules file through Common Runtime; canonical positive and negative evidence is pending.",
@@ -1906,7 +1906,7 @@
     "crs_smoke",
     "extended_matrix"
   ],
-  "generated_at": "2026-09-03T03:00:24Z",
+  "generated_at": "2026-09-20T20:06:05Z",
   "generated_from": [
     "connectors/apache/capabilities.json",
     "connectors/nginx/capabilities.json",
@@ -1919,17 +1919,17 @@
   "metadata": {
     "category": "canonical",
     "commit_policy": "versioned-generated",
-    "connector_sha": "d50fad793a8af1fa4cf0dc83a951c041dcd940e9",
+    "connector_sha": "b4ec7b5bb4a12864ce9593af174ee16d062958c1",
     "data_kind": "capability-catalog",
     "data_origin": "repository",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_checkout_status": "not_checked_out",
-    "framework_gitlink_sha": "86451b45ae7bb7953baf9f81f2c2dad07395a808",
-    "framework_gitlink_status": "not_checked_out",
-    "framework_sha": "unknown",
-    "framework_working_tree_dirty": "unknown",
-    "generated_at": "2026-09-03T03:00:24Z",
+    "framework_checkout_status": "checked_out",
+    "framework_gitlink_sha": "cc36b37d0f6a0fbc3512f3878a691751e91c5fbb",
+    "framework_gitlink_status": "matches_checkout",
+    "framework_sha": "cc36b37d0f6a0fbc3512f3878a691751e91c5fbb",
+    "framework_working_tree_dirty": "clean",
+    "generated_at": "2026-09-20T20:06:05Z",
     "generated_by": "ci/evidence/collectors/connector_capabilities.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
@@ -1937,43 +1937,43 @@
       {
         "notes": "input file available",
         "path": "connectors/apache/capabilities.json",
-        "sha256": "44d36c9ac944e89e472368decf1f23b61296b55c4ac0a4e599fcfa6a8e17b1ff",
-        "source_hash": "44d36c9ac944e89e472368decf1f23b61296b55c4ac0a4e599fcfa6a8e17b1ff",
+        "sha256": "5045e3ffbd6bc87b1c30c8238299d31321f8d8210d04c2e8b37bc5c41265c51c",
+        "source_hash": "5045e3ffbd6bc87b1c30c8238299d31321f8d8210d04c2e8b37bc5c41265c51c",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "connectors/nginx/capabilities.json",
-        "sha256": "2c0474e075187b692aa4ba12467b0839a895c33a9ceca4771638eab219c3a3b3",
-        "source_hash": "2c0474e075187b692aa4ba12467b0839a895c33a9ceca4771638eab219c3a3b3",
+        "sha256": "2b43a33ff40587c92fb2f1451a074b97b626fd59f9e669de12a843a200b80e24",
+        "source_hash": "2b43a33ff40587c92fb2f1451a074b97b626fd59f9e669de12a843a200b80e24",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "connectors/haproxy/capabilities.json",
-        "sha256": "83528048ed6d012042bf5f0ca245a07d0a4457b72d7e89925d2745d70b4bc82a",
-        "source_hash": "83528048ed6d012042bf5f0ca245a07d0a4457b72d7e89925d2745d70b4bc82a",
+        "sha256": "5da8bd745e9137d1a2065be010d19a9184b14868cc76a5e7241f58d398e023f2",
+        "source_hash": "5da8bd745e9137d1a2065be010d19a9184b14868cc76a5e7241f58d398e023f2",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "connectors/envoy/capabilities.json",
-        "sha256": "5e3848e27db6133eed8a7a7c4c579f722745a17e61490c2b2bad67654bf92ab4",
-        "source_hash": "5e3848e27db6133eed8a7a7c4c579f722745a17e61490c2b2bad67654bf92ab4",
+        "sha256": "5649e9a3106ba4188339620318775fbb9d271b2e8abdfd51516e3976bda15b86",
+        "source_hash": "5649e9a3106ba4188339620318775fbb9d271b2e8abdfd51516e3976bda15b86",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "connectors/traefik/capabilities.json",
-        "sha256": "f96775fa85d85bb66f739743ae154feb66d61c710ad6f9dde0be2977fef86b88",
-        "source_hash": "f96775fa85d85bb66f739743ae154feb66d61c710ad6f9dde0be2977fef86b88",
+        "sha256": "58779f7e3308879aea3f88a8a508a6a1cb1cabbd962273463abb73267f6bbe03",
+        "source_hash": "58779f7e3308879aea3f88a8a508a6a1cb1cabbd962273463abb73267f6bbe03",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "connectors/lighttpd/capabilities.json",
-        "sha256": "95c68aeba2340c6ed996c976188d6fae0c5ff1c91f1995a2cc245a33bbd47665",
-        "source_hash": "95c68aeba2340c6ed996c976188d6fae0c5ff1c91f1995a2cc245a33bbd47665",
+        "sha256": "e192a971e12a849b7f99736f8cbc86fe09bf9ccb89f8bd6348f578406fc5b80d",
+        "source_hash": "e192a971e12a849b7f99736f8cbc86fe09bf9ccb89f8bd6348f578406fc5b80d",
         "status": "present"
       }
     ],
@@ -1985,7 +1985,7 @@
     "schema_version": 1,
     "severity": "informational",
     "unknown_inputs": [],
-    "verified_run_id": "2026-06-16T19-12-00Z-614c8049",
+    "verified_run_id": "2026-09-20T20-06-05Z-b4ec7b5b",
     "working_tree_dirty": "dirty"
   },
   "runtime_promotion": false,

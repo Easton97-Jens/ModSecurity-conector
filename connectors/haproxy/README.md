@@ -290,7 +290,7 @@ upstream saw zero or one requests; neither value establishes their ordering
 against the client-visible 403. The filter uses HAProxy's normal reply-and-close
 path without a connector-owned body buffer. This is not evidence of incremental
 request forwarding or a general host-buffering guarantee. P4 (`1100301`) uses borrowed
-response DATA and one response EOS. Safe/minimal preserves the upstream
+response DATA and one response EOS. Off preserves native handling without the additional late policy. Safe preserves the upstream
 200/body and records `host_action=log_only`; Strict keeps
 `host_action=not_attempted` because no client-visible HAProxy abort primitive
 has been proven. The smoke does not claim a redirect, post-commit abort,

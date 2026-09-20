@@ -27,8 +27,8 @@ cross-process transaction registry is needed.
 
 | Path | Type | Purpose |
 | --- | --- | --- |
-| [stock/](stock/) | Stock solution | `minimal`, `safe`, `strict`, and `all`; sidecar argv, private backend, and full runtime files. |
-| [patched/](patched/) | Patched solution | `minimal`, `safe`, `strict`, and `all`; native host and full runtime files. |
+| [stock/](stock/) | Stock solution | `off`, `safe`, `strict`, and `all`; sidecar argv, private backend, and full runtime files. |
+| [patched/](patched/) | Patched solution | `off`, `safe`, `strict`, and `all`; native host and full runtime files. |
 | [detection-only/msconnector-runtime.conf](detection-only/msconnector-runtime.conf) | Runtime configuration | Stock body modes with DetectionOnly rules; see [DetectionOnly profile](#detectiononly-profile). |
 | [disabled/lighttpd.conf](disabled/lighttpd.conf) | Host configuration | Native plugin disabled; see [Disabled profile](#disabled-profile). |
 | [rules/detection-only.conf](rules/detection-only.conf) | Rules | DetectionOnly engine settings. |
@@ -44,7 +44,7 @@ the configurations are host-installation or host-runtime examples.
 
 | Name | Purpose and format | Required/default, setter, scope | Example, effect, and security |
 | --- | --- | --- | --- |
-| server.modules | Ordered installed lighttpd module names | Required; host configuration; server scope | mod_msconnector for minimal and mod_proxy plus mod_msconnector for Safe. Use the matching module ABI. |
+| server.modules | Ordered installed lighttpd module names | Required; host configuration; server scope | mod_msconnector for Off and mod_proxy plus mod_msconnector for Safe. Use the matching module ABI. |
 | server.document-root, errorlog, pid-file, upload-dirs | Absolute host paths | Required in these references; host configuration; server scope | /srv/lighttpd/htdocs, /srv/lighttpd/log/error.log, /srv/lighttpd/run/lighttpd.pid, /srv/lighttpd/runtime/uploads. Create them with suitable service permissions. |
 | server.bind and server.port | Listener host and decimal port | Required; host configuration; server scope | 127.0.0.1 and 8080. A public bind changes exposure. |
 | msconnector.config-file | Absolute runtime key=value file path | Required; host configuration; module scope | /etc/lighttpd/msconnector-runtime.conf. The file must be readable by the host process. |
@@ -87,8 +87,8 @@ production.
 
 | Solution | Variants | P1/P2/P3/P4 owner |
 | --- | --- | --- |
-| Stock | `stock/{minimal,safe,strict,all}/` | `stock-lighttpd-sidecar`; bounded streaming request and response bodies. |
-| Patched | `patched/{minimal,safe,strict,all}/` | `mod_msconnector` patched hooks; pre-upstream request gate and identity HTTP/1.1 response scope. |
+| Stock | `stock/{off,safe,strict,all}/` | `stock-lighttpd-sidecar`; bounded streaming request and response bodies. |
+| Patched | `patched/{off,safe,strict,all}/` | `mod_msconnector` patched hooks; pre-upstream request gate and identity HTTP/1.1 response scope. |
 
 Stock backends bind only to `127.0.0.1:8081`; the sidecar listens on
 `127.0.0.1:8080` and forwards only to that private backend. Patched configs
