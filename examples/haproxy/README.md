@@ -4,7 +4,7 @@
 
 ## Integration and boundary
 
-Integration mode: native HTX filter. The native [minimal](minimal/haproxy-htx.cfg)
+Integration mode: native HTX filter. The native [off](off/haproxy-htx.cfg)
 and [Safe](safe/haproxy-htx.cfg), plus [Strict](strict/haproxy-htx.cfg) and
 [all](all/haproxy-htx.cfg), are the native HTX solution. The
 [SPOE/SPOP solution](#spoespop-response-companion-solution) has matching
@@ -25,11 +25,11 @@ parser boundary without claiming a native host abort.
 
 | Path | Type | Purpose |
 | --- | --- | --- |
-| [minimal/haproxy-htx.cfg](minimal/haproxy-htx.cfg) | Host configuration | Native HTX parser-supported minimal P4 mode. |
+| [minimal/haproxy-htx.cfg](off/haproxy-htx.cfg) | Host configuration | Native HTX parser-supported minimal P4 mode. |
 | [safe/haproxy-htx.cfg](safe/haproxy-htx.cfg) | Host configuration | Native HTTP/1.1 P1--P4 Safe reference. |
 | [strict/haproxy-htx.cfg](strict/haproxy-htx.cfg) | Host configuration | Native HTX parser-supported strict policy boundary. |
 | [all/haproxy-htx.cfg](all/haproxy-htx.cfg) | Host configuration | Comprehensive native HTX layout with every source-backed filter setting visible. |
-| [spoe-spop/minimal/](spoe-spop/minimal/) | Logical bundle | SPOE/SPOP P1/P2 plus native HTX companion P3/P4, minimal. |
+| [spoe-spop/off/](spoe-spop/off/) | Logical bundle | SPOE/SPOP P1/P2 plus native HTX companion P3/P4, minimal. |
 | [spoe-spop/safe/](spoe-spop/safe/) | Logical bundle | SPOE/SPOP P1/P2 plus native HTX companion P3/P4, Safe. |
 | [spoe-spop/strict/](spoe-spop/strict/) | Logical bundle | SPOE/SPOP P1/P2 plus native HTX companion P3/P4, strict boundary. |
 | [spoe-spop/all/](spoe-spop/all/) | Logical bundle | Complete SPOE/SPOP P1/P2 and private native-HTX P3/P4 companion layout. |
@@ -52,7 +52,7 @@ upstream 127.0.0.1:8081, and rules file
 | --- | --- | --- | --- |
 | filter modsecurity-htx | Patched HAProxy filter directive | Required; no stock-host default; configured in frontend scope | The patched host must provide this parser. A stock binary rejecting it is a configuration incompatibility, not a reason to fall back silently. |
 | rules-file | Readable installed rules file | Required; no repository default; filter argument; frontend scope | /etc/modsecurity/no-crs-baseline.conf. A reviewed ruleset can block traffic. |
-| phase4-mode | P4 policy: minimal, safe, or strict | Optional filter argument; set in frontend scope; the Safe file sets safe | safe. It records a late P4 result without treating it as a status rewrite. |
+| phase4-mode | P4 policy: off, safe, or strict | Optional filter argument; set in frontend scope; the Safe file sets safe | safe. It records a late P4 result without treating it as a status rewrite. |
 | bind address | Listener TCP address | Required; host config; frontend scope | 127.0.0.1:8080. Choose a private address for local testing; a public bind changes exposure. |
 | upstream server | Backend host and TCP port | Required; host config; backend scope | 127.0.0.1:8081. Replace with the intended application endpoint. |
 | timeout connect/client/server | Positive HAProxy duration | Required in these references; host config; defaults scope | 2s and 5s. Tune for the application; timeouts are not WAF decisions. |
@@ -72,7 +72,7 @@ the native HTX parser from the SPOE/SPOP compatibility files.
 | `SecRuleEngine` | ModSecurity Engine | Evaluates rules loaded through `rules-file`. |
 | `SecRequestBodyAccess` | ModSecurity Engine | Allows P2 input when native HTX supplies it. |
 | `SecResponseBodyAccess` | ModSecurity Engine | Allows P4 input when native HTX supplies it. |
-| `phase4-mode` | Connector / Common policy | Requests minimal, safe, or strict late-P4 policy. |
+| `phase4-mode` | Connector / Common policy | Requests off, safe, or strict late-P4 policy. |
 
 Removing the native filter disables the connector path. `SecRuleEngine Off`
 does not remove the filter, but it disables engine rule processing. `filter
