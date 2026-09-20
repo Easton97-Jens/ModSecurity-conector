@@ -473,8 +473,8 @@ def extract_nginx(root: Path) -> list[dict[str, Any]]:
         table,
         flags=re.ASCII,
     )
-    if len(expected) != 10:
-        raise ValueError(f"NGINX ngx_command_t extractor found {len(expected)}, expected 10")
+    if len(expected) != 9:
+        raise ValueError(f"NGINX ngx_command_t extractor found {len(expected)}, expected 9")
     result: list[dict[str, Any]] = []
     for macro, context_flags, handler in expected:
         name = macros[macro]
