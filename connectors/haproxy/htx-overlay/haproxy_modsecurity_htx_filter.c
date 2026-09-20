@@ -474,6 +474,10 @@ static void haproxy_modsecurity_htx_report_late_decision(
     if (!decision || !decision->disruptive) {
         return;
     }
+    if (config != NULL && config->common_config.phase4_mode == MSCONNECTOR_PHASE4_MODE_OFF) {
+        haproxy_modsecurity_htx_report_decision("response-body", ctx, decision);
+        return;
+    }
     strict_mode = config != NULL &&
         config->common_config.phase4_mode == MSCONNECTOR_PHASE4_MODE_STRICT;
     msconnector_late_intervention_policy_init(&policy);
@@ -482,7 +486,7 @@ static void haproxy_modsecurity_htx_report_late_decision(
         ctx != NULL && ctx->response.body_started, strict_mode);
     requested_action = decision->action[0] ? decision->action : "deny";
     resolved_action = msconnector_late_intervention_action_name(action);
-    /* Safe/minimal deliberately forwards the original response after recording
+    /* Safe deliberately forwards the original response after recording
      * a real log-only downgrade.  Strict requests HAProxy's stream-kill path
      * immediately after this record; wire-level behavior remains separately
      * subject to native host-runtime verification. */
@@ -1247,6 +1251,10 @@ static int haproxy_modsecurity_htx_finish_companion_response(
         actual_action = MSCONNECTOR_DECISION_ACTION_ERROR;
         connection_aborted = 1;
         record_host_action = 1;
+    } else if (config != NULL && config->common_config.phase4_mode == MSCONNECTOR_PHASE4_MODE_OFF) {
+        actual_action = MSCONNECTOR_DECISION_ACTION_ALLOW;
+        connection_aborted = 0;
+        record_host_action = 0;
     } else {
         strict_mode = config != NULL && config->common_config.phase4_mode ==
             MSCONNECTOR_PHASE4_MODE_STRICT;
@@ -1651,7 +1659,8 @@ static int haproxy_modsecurity_htx_finish_response(
         return 1;
     }
     haproxy_modsecurity_htx_report_late_decision(config, ctx, &decision);
-    if (decision.disruptive) {
+    if (decision.disruptive && (config == NULL ||
+            config->common_config.phase4_mode != MSCONNECTOR_PHASE4_MODE_OFF)) {
         msconnector_late_intervention_policy_init(&policy);
         late_action = msconnector_late_intervention_resolve(&policy, 1, 1,
             config != NULL && config->common_config.phase4_mode ==
@@ -1667,7 +1676,7 @@ static int haproxy_modsecurity_htx_finish_response(
             return 1;
         }
     }
-    /* Safe P4 resolves only to log-only; after that normal terminal cleanup
+    /* Off uses the native terminal path. Safe resolves to log-only; normal terminal cleanup
      * is allowed to complete without a disruptive host action. */
     haproxy_modsecurity_htx_finish_context(ctx);
     unregister_data_filter(s, msg->chn, filter);
