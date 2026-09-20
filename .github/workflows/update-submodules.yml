@@ -77,7 +77,7 @@ jobs:
           remote_refs="$(git ls-remote --exit-code "$SUBMODULE_URL" "$SUBMODULE_REF")"
           remote_ref_count="$(printf '%s\n' "$remote_refs" | awk 'NF { count += 1 } END { print count + 0 }')"
           if [ "$remote_ref_count" != "1" ]; then
-            echo "Official submodule ref resolution is ambiguous: expected one $SUBMODULE_REF record, got $remote_ref_count." >&2
+            echo "Official submodule ref resolution is ambiguous: expected one $SUBMODULE_REF record, got $remote_ref_count records." >&2
             exit 1
           fi
           candidate_ref="$(printf '%s\n' "$remote_refs" | awk 'NF { print $2 }')"
@@ -453,8 +453,15 @@ jobs:
         id: publish
         env:
           GH_TOKEN: ${{ steps.publisher_app_token.outputs.token }}
+          EXPECTED_PR_AUTHOR: ${{ steps.publisher_app_token.outputs.app-slug }}[bot]
         run: |
           set -euo pipefail
+
+          # The App token authors PRs; UPDATER_NAME remains the Git commit identity.
+          if ! printf '%s\n' "$EXPECTED_PR_AUTHOR" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9-]*\[bot\]$'; then
+            echo "Publisher App PR author is missing or malformed." >&2
+            exit 1
+          fi
 
           require_only_allowed_update_paths() {
             changed_paths="$1"
@@ -647,7 +654,7 @@ jobs:
             [ "$pr_title" = "$PR_TITLE" ] && title_match=true
             [ "$pr_head_sha" = "$expected_head" ] && head_sha_match=true
             [ "$pr_auto_merge" = "null" ] && auto_merge_present=false
-            if [ "$pr_state" != "open" ] || [ "$pr_base" != "$DEFAULT_BRANCH" ] || [ "$pr_head" != "$UPDATE_BRANCH" ] || [ "$head_sha_match" != "true" ] || [ "$title_match" != "true" ] || [ "$pr_author" != "$UPDATER_NAME" ] || [ "$auto_merge_present" != "false" ] || [ "$marker_count" != "1" ] || [ "$pr_base_repo" != "$GITHUB_REPOSITORY" ] || [ "$pr_head_repo" != "$GITHUB_REPOSITORY" ]; then
+            if [ "$pr_state" != "open" ] || [ "$pr_base" != "$DEFAULT_BRANCH" ] || [ "$pr_head" != "$UPDATE_BRANCH" ] || [ "$head_sha_match" != "true" ] || [ "$title_match" != "true" ] || [ "$pr_author" != "$EXPECTED_PR_AUTHOR" ] || [ "$auto_merge_present" != "false" ] || [ "$marker_count" != "1" ] || [ "$pr_base_repo" != "$GITHUB_REPOSITORY" ] || [ "$pr_head_repo" != "$GITHUB_REPOSITORY" ]; then
               echo "Open maintenance PR identity verification failed:" >&2
               printf 'state=%s\nbase=%s\nhead=%s\nhead_sha_match=%s\ndraft=%s\ntitle_match=%s\nauthor=%s\nauto_merge_present=%s\nmarker_count=%s\n' \
                 "$pr_state" "$pr_base" "$pr_head" "$head_sha_match" "$pr_draft" "$title_match" "$pr_author" "$auto_merge_present" "$marker_count" >&2
@@ -761,7 +768,7 @@ jobs:
             pr_title="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.title')"
             pr_author="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.user.login')"
             pr_merged_at="$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls/$pr_number" --jq '.merged_at')"
-            if [ "$pr_state" != "closed" ] || [ "$pr_base" != "$DEFAULT_BRANCH" ] || [ "$pr_head" != "$UPDATE_BRANCH" ] || [ "$pr_head_sha" != "$expected_head" ] || [ "$pr_title" != "$PR_TITLE" ] || [ "$pr_author" != "$UPDATER_NAME" ] || [ "$pr_merged_at" = "null" ] || [ -z "$pr_merged_at" ]; then
+            if [ "$pr_state" != "closed" ] || [ "$pr_base" != "$DEFAULT_BRANCH" ] || [ "$pr_head" != "$UPDATE_BRANCH" ] || [ "$pr_head_sha" != "$expected_head" ] || [ "$pr_title" != "$PR_TITLE" ] || [ "$pr_author" != "$EXPECTED_PR_AUTHOR" ] || [ "$pr_merged_at" = "null" ] || [ -z "$pr_merged_at" ]; then
               echo "Merged maintenance pull request is not updater-conformant." >&2
               exit 1
             fi
