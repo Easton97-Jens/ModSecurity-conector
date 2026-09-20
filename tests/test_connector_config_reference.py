@@ -77,7 +77,6 @@ class ConnectorConfigReferenceTests(unittest.TestCase):
             for item in REFERENCE.extract_apache(ROOT)
         }
         source_directives = {
-            "modsecurity_phase4_content_types_file",
             "modsecurity_rules_remote",
         }
         source_example = "connectors/apache/src/msc_config.c"
@@ -166,10 +165,7 @@ class ConnectorConfigReferenceTests(unittest.TestCase):
         self.assertIn("configuration reload", phase4_log["validation"])
         self.assertIn("USR1", phase4_log["security_relevance"])
 
-        mime_file = nginx["modsecurity_phase4_content_types_file"]
-        self.assertIn("64 KiB", mime_file["allowed_values"])
-        self.assertIn("opened descriptor is regular", mime_file["validation"])
-        self.assertIn("Win32", mime_file["validation"])
+        self.assertNotIn("modsecurity_phase4_content_types_file", nginx)
 
         self.assertEqual(common["max_event_json_bytes"]["allowed_values"], "1 through 16384 bytes")
         self.assertIn("10 MiB", common["request_body_limit"]["allowed_values"])
