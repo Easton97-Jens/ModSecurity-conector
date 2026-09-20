@@ -1,0 +1,198 @@
+name: PR380 migration preparation
+
+on:
+  push:
+    branches: [fix/nginx-phase4-default-ci]
+    paths: [.github/workflows/pr380-migration-prepare.yml]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  prepare:
+    if: github.repository == 'Easton97-Jens/ModSecurity-conector' && github.ref == 'refs/heads/fix/nginx-phase4-default-ci'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+      - name: Initialize isolated verification paths
+        run: |
+          set -eu
+          root="$RUNNER_TEMP/pr380-verified"
+          mkdir -p "$root/evidence" "$root/build" "$root/tmp"
+          {
+            echo "VERIFIED_RUN_ROOT=$root"
+            echo "SOURCE_ROOT=$root/src"
+            echo "BUILD_ROOT=$root/build"
+            echo "TMP_ROOT=$root/tmp"
+            echo "LOG_ROOT=$root/logs"
+            echo "XDG_STATE_HOME=$root/state"
+            echo "PYTHONPYCACHEPREFIX=$root/pycache"
+            echo "CONNECTOR_COMPONENT_CACHE=$root/component-cache"
+            echo "NGINX_HARNESS_PARENT=$root/nginx-harness"
+          } >> "$GITHUB_ENV"
+      - name: Validate immutable patch transport and original source
+        id: apply
+        run: |
+          python - <<'PY'
+          import base64, gzip, hashlib, json, os, pathlib, re, subprocess
+          root = pathlib.Path.cwd()
+          out = pathlib.Path(os.environ['VERIFIED_RUN_ROOT']) / 'evidence'
+          parts = [('1',10000),('2',5000),('3',5000),('4',2800),('45',200),('5',1000),('6',1000),('7',896)]
+          prefix_hashes = ['69796167865eb6bae2a33b3fbeb4d85d1a868d78a42c047b8d6b632ad30b5516','1775a02c25c64231ded5fed769d81ed2424c0d6ca69a8e004150951a5944f58e','0947c8dd41c033c8d9951b79aed884f387fb76ad6278c44fecaae248a3e1204b','b1cdcf565a9357401860c6a2f62ba6c0539ab33653c31937c4ad5ecb8026a7e8']
+          fragments = []
+          for i,(suffix,length) in enumerate(parts):
+              text = (root / ('.codex/pr380-migration.patch.b64.' + suffix)).read_text().strip()[:length]
+              if len(text) != length:
+                  raise ValueError('transport length mismatch: ' + suffix)
+              if i < len(prefix_hashes) and hashlib.sha256(text.encode()).hexdigest() != prefix_hashes[i]:
+                  raise ValueError('transport checksum mismatch: ' + suffix)
+              fragments.append(text)
+          patch = gzip.decompress(base64.b64decode(''.join(fragments),validate=True))
+          digest = hashlib.sha256(patch).hexdigest()
+          if digest != 'b8aa6a813f2618522ee62c8463444149747910b887b0dd7fbc1f830e183373f7':
+              raise ValueError('complete source patch checksum mismatch')
+          patch_file = out / 'source.patch'
+          patch_file.write_bytes(patch)
+          paths = re.findall(r'^diff --git a/(\S+) b/\1$',patch.decode(),re.M)
+          if len(paths) != 68 or len(set(paths)) != 68:
+              raise ValueError('source path inventory mismatch')
+          for value in paths:
+              p=pathlib.PurePosixPath(value)
+              if p.is_absolute() or '..' in p.parts or '.git' in p.parts or value.startswith('modules/'):
+                  raise ValueError('unsafe source path')
+          subprocess.run(['git','diff','--exit-code','da9b0bf7e06df77cc93ba45371454042740c5dd3','--',*paths],check=True)
+          subprocess.run(['git','apply','--check','--unidiff-zero',str(patch_file)],check=True)
+          subprocess.run(['git','apply','--unidiff-zero',str(patch_file)],check=True)
+          (out/'source-paths.json').write_text(json.dumps(paths))
+          print('Applied checked source patch:',digest,'paths=',len(paths))
+          PY
+      - name: Install repository test dependencies
+        if: steps.apply.outcome == 'success'
+        run: make setup-dev 2>&1 | tee "$VERIFIED_RUN_ROOT/evidence/setup.log"
+      - name: Regenerate maintained references and source-only capability catalog
+        if: ${{ !cancelled() && steps.apply.outcome == 'success' }}
+        run: |
+          python ci/tools/generate-connector-config-reference.py
+          python ci/evidence/collectors/connector_capabilities.py generate
+          python ci/tools/generate-connector-config-reference.py --check
+          python ci/checks/documentation/check-connector-config-reference.py
+      - name: Run migration and native security contracts
+        if: ${{ !cancelled() && steps.apply.outcome == 'success' }}
+        run: python -m unittest -v tests.test_phase4_migration_contract tests.test_nginx_native_security_contract tests.test_nginx_upstream_security_contract 2>&1 | tee "$VERIFIED_RUN_ROOT/evidence/security-tests.log"
+      - name: Run complete NGINX checker mutation suite
+        if: ${{ !cancelled() && steps.apply.outcome == 'success' }}
+        run: python -m unittest -v tests.test_nginx_common_adoption 2>&1 | tee "$VERIFIED_RUN_ROOT/evidence/mutation-tests.log"
+      - name: Run generator, capability, and workflow regressions
+        if: ${{ !cancelled() && steps.apply.outcome == 'success' }}
+        run: python -m unittest -v tests.test_connector_config_reference tests.test_logical_connector_all_examples tests.test_connector_guides tests.test_connector_capabilities tests.test_nginx_phase4_runner_wiring tests.test_apache_phase4_response_regression_wiring tests.test_ci_security_workflows tests.test_hostruntime_workflow_evidence_contract tests.test_full_smoke_workflow_contract 2>&1 | tee "$VERIFIED_RUN_ROOT/evidence/generator-workflow-tests.log"
+      - name: Run runtime-evidence normalizer regressions with pinned Framework
+        if: ${{ !cancelled() && steps.apply.outcome == 'success' }}
+        run: python -m unittest -v tests.test_collect_no_crs_source tests.test_collect_no_crs_source_helpers 2>&1 | tee "$VERIFIED_RUN_ROOT/evidence/evidence-tests.log"
+      - name: Run the actual post-merge quick-check
+        if: ${{ !cancelled() && steps.apply.outcome == 'success' }}
+        run: make quick-check 2>&1 | tee "$VERIFIED_RUN_ROOT/evidence/quick-check.log"
+      - name: Export only intended source and generated changes
+        if: ${{ !cancelled() && steps.apply.outcome == 'success' }}
+        run: |
+          python - <<'PY'
+          import hashlib, json, os, pathlib, subprocess, sys
+          root=pathlib.Path.cwd(); out=pathlib.Path(os.environ['VERIFIED_RUN_ROOT'])/'evidence'
+          sys.path.insert(0,str(root/'ci/checks/documentation'))
+          from connector_config_reference import generated_file_paths
+          source=json.loads((out/'source-paths.json').read_text())
+          generated=[p.relative_to(root).as_posix() for p in generated_file_paths(root)]
+          generated += ['reports/testing/generated/canonical/connector-capabilities.generated'+suffix for suffix in ('.json','.md','.de.md')]
+          temporary=['.github/workflows/pr380-source-snapshot.yml','.github/workflows/pr380-migration-prepare.yml']
+          temporary += ['.codex/pr380-migration.patch.b64.'+p for p in ('1','2','3','4','45','5','6','7')]
+          entries=[]
+          for relative in sorted(set(source+generated+temporary)):
+              path=root/relative
+              tracked=subprocess.run(['git','ls-files','-s','--',relative],capture_output=True,text=True,check=True).stdout.strip()
+              mode=tracked.split()[0] if tracked else '100644'
+              if relative in temporary or not path.exists():
+                  if tracked: entries.append({'path':relative,'mode':mode,'type':'blob','sha':None})
+                  continue
+              if path.is_symlink() or mode not in ('100644','100755'):
+                  raise ValueError('unsupported file kind')
+              data=path.read_bytes()
+              previous=subprocess.run(['git','show','HEAD:'+relative],capture_output=True)
+              if previous.returncode == 0 and previous.stdout == data: continue
+              entries.append({'path':relative,'mode':mode,'type':'blob','content':data.decode('utf-8')})
+          bundle={'base_sha':os.environ['GITHUB_SHA'],'source_patch_sha256':'b8aa6a813f2618522ee62c8463444149747910b887b0dd7fbc1f830e183373f7','source_paths':source,'generated_paths':generated,'temporary_paths':temporary,'tree':entries}
+          (out/'changes.json').write_text(json.dumps(bundle,ensure_ascii=False))
+          print('Exported',len(entries),'reviewable entries; no refs updated.')
+          PY
+          git diff --check
+      - name: Upload review bundle and complete validation logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pr380-prepared-review
+          path: ${{ runner.temp }}/pr380-verified/evidence
+          retention-days: 3
+          if-no-files-found: error
+  stage-tree:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: pr380-prepared-review
+          path: ${{ runner.temp }}/pr380-review
+      - name: Store validated Git objects without moving any branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          python - <<'PY'
+          import hashlib,json,os,pathlib,urllib.request
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'pr380-review'
+          data=json.loads((root/'changes.json').read_text())
+          expected=os.environ['EXPECTED_SHA']
+          if data['base_sha'] != expected: raise ValueError('stale prepared base')
+          patch_hash=hashlib.sha256((root/'source.patch').read_bytes()).hexdigest()
+          if patch_hash != 'b8aa6a813f2618522ee62c8463444149747910b887b0dd7fbc1f830e183373f7' or patch_hash != data['source_patch_sha256']:
+              raise ValueError('unreviewed source patch')
+          allowed=set(data['source_paths']+data['generated_paths']+data['temporary_paths'])
+          entries=data['tree']; seen=set()
+          for entry in entries:
+              path=pathlib.PurePosixPath(entry['path'])
+              if entry['path'] not in allowed or entry['path'] in seen or path.is_absolute() or '..' in path.parts or '.git' in path.parts or entry['path'].startswith('modules/'):
+                  raise ValueError('unexpected tree path')
+              if entry['mode'] not in ('100644','100755') or entry['type'] != 'blob': raise ValueError('invalid tree entry')
+              if 'content' in entry and not isinstance(entry['content'],str): raise ValueError('invalid file content')
+              seen.add(entry['path'])
+          if len(entries)>120: raise ValueError('unexpected change count')
+          api='https://api.github.com/repos/Easton97-Jens/ModSecurity-conector/'
+          def request(path,payload=None):
+              raw=None if payload is None else json.dumps(payload).encode()
+              req=urllib.request.Request(api+path,data=raw,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'})
+              with urllib.request.urlopen(req,timeout=60) as response:return json.load(response)
+          parent=request('git/commits/'+expected)
+          tree=request('git/trees',{'base_tree':parent['tree']['sha'],'tree':entries})
+          result={'base_sha':expected,'tree_sha':tree['sha'],'source_patch_sha256':patch_hash,'files':len(entries)}
+          (root/'staged-tree.json').write_text(json.dumps(result))
+          print(json.dumps(result))
+          PY
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pr380-staged-tree
+          path: ${{ runner.temp }}/pr380-review/staged-tree.json
+          retention-days: 3
+          if-no-files-found: error
