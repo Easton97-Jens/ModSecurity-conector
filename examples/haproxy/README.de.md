@@ -5,7 +5,7 @@
 ## Integration und Grenze
 
 Integrationsmodus: nativer HTX-Filter. Die nativen Referenzen
-[minimal](minimal/haproxy-htx.cfg), [Safe](safe/haproxy-htx.cfg) und
+[off](off/haproxy-htx.cfg), [Safe](safe/haproxy-htx.cfg) und
 [Strict](strict/haproxy-htx.cfg) sowie [all](all/haproxy-htx.cfg) bilden die
 native HTX-Lösung. Die [SPOE/SPOP-Lösung](#spoespop-response-companion-lösung)
 hat passende minimal-, safe-, strict- und all-Bundles und verbindet den
@@ -27,11 +27,11 @@ ohne einen nativen Host-Abbruch zu behaupten.
 
 | Pfad | Typ | Zweck |
 | --- | --- | --- |
-| [minimal/haproxy-htx.cfg](minimal/haproxy-htx.cfg) | Host-Konfiguration | Parser-unterstützter minimaler P4-Modus des nativen HTX. |
+| [minimal/haproxy-htx.cfg](off/haproxy-htx.cfg) | Host-Konfiguration | Parser-unterstützter minimaler P4-Modus des nativen HTX. |
 | [safe/haproxy-htx.cfg](safe/haproxy-htx.cfg) | Host-Konfiguration | Native HTTP/1.1-P1--P4-Safe-Referenz. |
 | [strict/haproxy-htx.cfg](strict/haproxy-htx.cfg) | Host-Konfiguration | Parser-unterstützte Strict-Policy-Grenze des nativen HTX. |
 | [all/haproxy-htx.cfg](all/haproxy-htx.cfg) | Host-Konfiguration | Umfassendes natives HTX-Layout mit allen sichtbaren quellenbasierten Filtereinstellungen. |
-| [spoe-spop/minimal/](spoe-spop/minimal/) | Logisches Bundle | SPOE/SPOP P1/P2 plus nativer HTX-Companion P3/P4, minimal. |
+| [spoe-spop/off/](spoe-spop/off/) | Logisches Bundle | SPOE/SPOP P1/P2 plus nativer HTX-Companion P3/P4, minimal. |
 | [spoe-spop/safe/](spoe-spop/safe/) | Logisches Bundle | SPOE/SPOP P1/P2 plus nativer HTX-Companion P3/P4, Safe. |
 | [spoe-spop/strict/](spoe-spop/strict/) | Logisches Bundle | SPOE/SPOP P1/P2 plus nativer HTX-Companion P3/P4, Strict-Grenze. |
 | [spoe-spop/all/](spoe-spop/all/) | Logisches Bundle | Vollständiges SPOE/SPOP-P1/P2- und privates natives-HTX-P3/P4-Companion-Layout. |
@@ -55,7 +55,7 @@ repository-relativer Pfad.
 | --- | --- | --- | --- |
 | filter modsecurity-htx | Direktive des gepatchten HAProxy-Filters | Pflicht; kein Stock-Host-Default; im Frontend-Scope konfiguriert | Der gepatchte Host muss diesen Parser bereitstellen. Lehnt ein Stock-Binary ihn ab, ist das eine Konfigurationsinkompatibilität, kein Grund für stilles Fallback. |
 | rules-file | Lesbare installierte Regeldatei | Pflicht; kein Repository-Default; Filterargument; Frontend-Scope | /etc/modsecurity/no-crs-baseline.conf. Ein geprüftes Ruleset kann Traffic blockieren. |
-| phase4-mode | P4-Policy: minimal, safe oder strict | Optionales Filterargument; Frontend-Scope; Safe-Datei setzt safe | safe. Zeichnet ein spätes P4-Ergebnis auf, ohne es als Statuswechsel auszugeben. |
+| phase4-mode | P4-Policy: off, safe oder strict | Optionales Filterargument; Frontend-Scope; Safe-Datei setzt safe | safe. Zeichnet ein spätes P4-Ergebnis auf, ohne es als Statuswechsel auszugeben. |
 | bind-Adresse | Listener-TCP-Adresse | Pflicht; Host-Konfiguration; Frontend-Scope | 127.0.0.1:8080. Für lokale Tests private Adresse wählen; ein öffentlicher Bind verändert die Exponierung. |
 | Upstream-Server | Backend-Host und TCP-Port | Pflicht; Host-Konfiguration; Backend-Scope | 127.0.0.1:8081. Durch gewünschten Application-Endpunkt ersetzen. |
 | timeout connect/client/server | Positive HAProxy-Dauer | In diesen Referenzen Pflicht; Host-Konfiguration; defaults-Scope | 2s und 5s. Für die Anwendung anpassen; Timeouts sind keine WAF-Entscheidungen. |
@@ -75,7 +75,7 @@ den nativen HTX-Parser von den SPOE/SPOP-Kompatibilitätsdateien.
 | `SecRuleEngine` | ModSecurity Engine | Wertet Regeln aus, die über `rules-file` geladen werden. |
 | `SecRequestBodyAccess` | ModSecurity Engine | Erlaubt P2-Eingaben, wenn natives HTX sie liefert. |
 | `SecResponseBodyAccess` | ModSecurity Engine | Erlaubt P4-Eingaben, wenn natives HTX sie liefert. |
-| `phase4-mode` | Connector / Common Policy | Fordert die Late-P4-Policy minimal, safe oder strict an. |
+| `phase4-mode` | Connector / Common Policy | Fordert die Late-P4-Policy off, safe oder strict an. |
 
 Das Entfernen des nativen Filters deaktiviert den Connector-Pfad.
 `SecRuleEngine Off` entfernt den Filter nicht, deaktiviert aber die
