@@ -26,7 +26,7 @@ kann.
 
 ## Vier Konfigurationsvarianten
 
-Jede logische Connectorlösung besitzt Artefakte für `minimal`, `safe`,
+Jede logische Connectorlösung besitzt Artefakte für `off`, `safe`,
 `strict` und `all`. `all` ist ein umfassendes, quellenbasiertes
 Konfigurationslayout: Es verwendet eine echte `strict`-P4-Policy und führt
 keinen nicht unterstützten P4-Modus `all` ein. Werte, die nicht gleichzeitig
@@ -35,18 +35,18 @@ auskommentiert. Ein Strict-Artefakt behauptet keinen client-sichtbaren
 Post-Commit-Abbruch, wenn sein Hosttransport keinen nachweislich sicheren
 Abort-Hook hat.
 
-| Logische Connectorlösung | Minimal | Safe | Strict | All |
+| Logische Connectorlösung | Off | Safe | Strict | All |
 | --- | --- | --- | --- | --- |
-| Apache | [minimal](apache/minimal/httpd.conf) | [safe](apache/safe/httpd.conf) | [strict](apache/strict/httpd.conf) | [all](apache/all/httpd.conf) |
-| NGINX | [minimal](nginx/minimal/nginx.conf) | [safe](nginx/safe/nginx.conf) | [strict](nginx/strict/nginx.conf) | [all](nginx/all/nginx.conf) |
-| HAProxy HTX | [minimal](haproxy/minimal/haproxy-htx.cfg) | [safe](haproxy/safe/haproxy-htx.cfg) | [strict](haproxy/strict/haproxy-htx.cfg) | [all](haproxy/all/haproxy-htx.cfg) |
-| HAProxy SPOE/SPOP | [minimal](haproxy/spoe-spop/minimal/) | [safe](haproxy/spoe-spop/safe/) | [strict](haproxy/spoe-spop/strict/) | [all](haproxy/spoe-spop/all/) |
-| Envoy ext_authz | [minimal](envoy/ext-authz/minimal/) | [safe](envoy/ext-authz/safe/) | [strict](envoy/ext-authz/strict/) | [all](envoy/ext-authz/all/) |
-| Envoy ext_proc | [minimal](envoy/ext-proc/minimal/) | [safe](envoy/ext-proc/safe/) | [strict](envoy/ext-proc/strict/) | [all](envoy/ext-proc/all/) |
-| Traefik forwardAuth | [minimal](traefik/forwardauth/minimal/) | [safe](traefik/forwardauth/safe/) | [strict](traefik/forwardauth/strict/) | [all](traefik/forwardauth/all/) |
-| Traefik Native UDS | [minimal](traefik/native-uds/minimal/) | [safe](traefik/native-uds/safe/) | [strict](traefik/native-uds/strict/) | [all](traefik/native-uds/all/) |
-| lighttpd Stock | [minimal](lighttpd/stock/minimal/) | [safe](lighttpd/stock/safe/) | [strict](lighttpd/stock/strict/) | [all](lighttpd/stock/all/) |
-| lighttpd Patched | [minimal](lighttpd/patched/minimal/) | [safe](lighttpd/patched/safe/) | [strict](lighttpd/patched/strict/) | [all](lighttpd/patched/all/) |
+| Apache | [off](apache/off/httpd.conf) | [safe](apache/safe/httpd.conf) | [strict](apache/strict/httpd.conf) | [all](apache/all/httpd.conf) |
+| NGINX | [off](nginx/off/nginx.conf) | [safe](nginx/safe/nginx.conf) | [strict](nginx/strict/nginx.conf) | [all](nginx/all/nginx.conf) |
+| HAProxy HTX | [off](haproxy/off/haproxy-htx.cfg) | [safe](haproxy/safe/haproxy-htx.cfg) | [strict](haproxy/strict/haproxy-htx.cfg) | [all](haproxy/all/haproxy-htx.cfg) |
+| HAProxy SPOE/SPOP | [off](haproxy/spoe-spop/off/) | [safe](haproxy/spoe-spop/safe/) | [strict](haproxy/spoe-spop/strict/) | [all](haproxy/spoe-spop/all/) |
+| Envoy ext_authz | [off](envoy/ext-authz/off/) | [safe](envoy/ext-authz/safe/) | [strict](envoy/ext-authz/strict/) | [all](envoy/ext-authz/all/) |
+| Envoy ext_proc | [off](envoy/ext-proc/off/) | [safe](envoy/ext-proc/safe/) | [strict](envoy/ext-proc/strict/) | [all](envoy/ext-proc/all/) |
+| Traefik forwardAuth | [off](traefik/forwardauth/off/) | [safe](traefik/forwardauth/safe/) | [strict](traefik/forwardauth/strict/) | [all](traefik/forwardauth/all/) |
+| Traefik Native UDS | [off](traefik/native-uds/off/) | [safe](traefik/native-uds/safe/) | [strict](traefik/native-uds/strict/) | [all](traefik/native-uds/all/) |
+| lighttpd Stock | [off](lighttpd/stock/off/) | [safe](lighttpd/stock/safe/) | [strict](lighttpd/stock/strict/) | [all](lighttpd/stock/all/) |
+| lighttpd Patched | [off](lighttpd/patched/off/) | [safe](lighttpd/patched/safe/) | [strict](lighttpd/patched/strict/) | [all](lighttpd/patched/all/) |
 
 ## P1--P4-Safe-Kern
 
