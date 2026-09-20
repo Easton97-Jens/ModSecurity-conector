@@ -18,7 +18,6 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`load_module`](#load-module) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`modsecurity`](#modsecurity) | Host / Connector | Boolescher Wert | nein | off | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Schaltet die Erstellung von Connector-Transaktionen frei; dies ist nicht SecRuleEngine. |
 | [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive dezimale Byteanzahl | nein | 1048576 | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Begrenzt die vom nativen Connector der P4-Verarbeitung angebotenen Response-Bytes. |
-| [`modsecurity_phase4_content_types_file`](#modsecurity-phase4-content-types-file) | Host / Connector | Pfad | nein | Host-Standardwerte bei Auslassung | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Lädt die MIME-Token-Allowlist aus einer begrenzten regulären POSIX-Datei, um die P4-Response-Body-Inspektion einzugrenzen. |
 | [`modsecurity_phase4_log`](#modsecurity-phase4-log) | Host / Connector | Pfad | nein | nicht konfiguriert | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Öffnet über den sicheren No-Follow-Deskriptor-Helper der Common Runtime einen nativen NGINX-Ereignis-Sink im Besitz des Connectors. |
 | [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | Aufzählung | nein | safe | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Bevor Response-Header/-Body committet sind, lösen minimal, safe und strict eine P4-Intervention jeweils als deny_if_possible auf; NGINX kann daher noch den angeforderten Engine-Status (oder den Fallback 403) zurückgeben. Sobald Header committet sind oder der Body begonnen hat, verwenden minimal und safe beide die gemeinsame Aktion log_only; sie protokollieren die späte Entscheidung ohne nachträgliche Statusumschreibung. Strict löst dagegen zu abort_connection auf: Der native Body-Filter markiert die Verbindung als fehlerhaft, protokolliert connection_aborted und gibt NGX_ERROR zurück. Die bekannte Hostgrenze ist, dass NGINX das P4-Engine-Finish erst bei last_buf/last_in_chain nach der begrenzten Sammlung von Body-Bytes im Geltungsbereich aufruft; eine Antwort kann deshalb bereits sichtbar sein. Strict kann somit eine Verbindung beenden, aber keine spätere 403 garantieren oder eine bereits gesendete Statuszeile ersetzen. |
 | [`modsecurity_rules`](#modsecurity-rules) | Host / Connector | Zeichenkette | nein | kein Wert; optional | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Lädt während des Konfigurationsladens Inline-Inhalt über libmodsecurity. |
@@ -52,7 +51,7 @@ Siehe [Engine-Referenz](../common/modsecurity-directives.de.md).
 
 | Profil | Datei | Status |
 | --- | --- | --- |
-| Minimal | [minimal/nginx.conf](minimal/nginx.conf) | Aktive Startkonfiguration |
+| Minimal | [minimal/nginx.conf](off/nginx.conf) | Aktive Startkonfiguration |
 | Sicherer vollständiger Lebenszyklus | [safe/nginx.conf](safe/nginx.conf) | Ausgewählte begrenzte Referenz |
 | Strikt | [strict/nginx.conf](strict/nginx.conf) | Parserunterstützte oder ausdrücklich optionale Grenze |
 | DetectionOnly | [detection-only/nginx.conf](detection-only/nginx.conf) | Engine wertet aus/protokolliert ohne disruptive Aktion |
@@ -405,7 +404,7 @@ ngx_conf_set_common_flag_slot weist ungültige Werte während nginx -t ab; NGX_H
 
 Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
 
-Quellenbasiertes Beispiel: [examples/nginx/minimal/nginx.conf](../../examples/nginx/minimal/nginx.conf).
+Quellenbasiertes Beispiel: [examples/nginx/off/nginx.conf](../../examples/nginx/off/nginx.conf).
 
 ### Sicherheit und Betrieb
 
@@ -466,8 +465,6 @@ Quellenbasiertes Beispiel: [examples/nginx/safe/nginx.conf](../../examples/nginx
 
 Ein größeres Limit erhöht die Speicher-/CPU-Exposition; null ist in den nativen Settern ungültig.
 
-<a id="modsecurity-phase4-content-types-file"></a>
-## `modsecurity_phase4_content_types_file`
 
 ### Kurzbeschreibung
 
@@ -476,7 +473,6 @@ Lädt die MIME-Token-Allowlist aus einer begrenzten regulären POSIX-Datei, um d
 ### Syntax
 
 ```text
-modsecurity_phase4_content_types_file <value>;
 ```
 
 ### Gültige Kontexte
@@ -509,7 +505,6 @@ Lädt die MIME-Token-Allowlist aus einer begrenzten regulären POSIX-Datei, um d
 
 ### Validierung und Fehler
 
-ngx_conf_set_phase4_content_types_file weist ungültige Werte während nginx -t ab. Unter POSIX öffnet es den Pfad nichtblockierend, prüft den geöffneten Deskriptor auf regulären Dateityp, begrenzt ihn auf 64 KiB, verlangt einen exakten Lesevorgang und weist ungültige MIME-Token ab. Unter Win32 schlägt es fail-closed fehl.
 
 ### Beispiel
 
@@ -586,7 +581,7 @@ Bevor Response-Header/-Body committet sind, lösen minimal, safe und strict eine
 ### Syntax
 
 ```text
-modsecurity_phase4_mode minimal | safe | strict;
+modsecurity_phase4_mode off | safe | strict;
 ```
 
 ### Gültige Kontexte
@@ -597,7 +592,7 @@ modsecurity_phase4_mode minimal | safe | strict;
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| Aufzählung | minimal \| safe \| strict; vor dem Commit verwenden alle deny_if_possible, nach dem Commit verwenden minimal/safe log_only und strict abort_connection | nein |
+| Aufzählung | off \| safe \| strict; vor dem Commit verwenden alle deny_if_possible, nach dem Commit verwenden minimal/safe log_only und strict abort_connection | nein |
 
 ### Standardwert
 
@@ -619,7 +614,7 @@ Bevor Response-Header/-Body committet sind, lösen minimal, safe und strict eine
 
 ### Validierung und Fehler
 
-ngx_conf_set_phase4_mode akzeptiert während nginx -t nur minimal|safe|strict. Das späte Runtime-Verhalten ist quellendefiniert: Nicht-strict-Pfade nach dem Commit geben log_only aus; strict markiert die Verbindung als fehlerhaft und gibt NGX_ERROR zurück, ohne eine spätere 403 zu erfinden.
+ngx_conf_set_phase4_mode akzeptiert während nginx -t nur off|safe|strict. Das späte Runtime-Verhalten ist quellendefiniert: Nicht-strict-Pfade nach dem Commit geben log_only aus; strict markiert die Verbindung als fehlerhaft und gibt NGX_ERROR zurück, ohne eine spätere 403 zu erfinden.
 
 ### Beispiel
 
@@ -735,7 +730,7 @@ ngx_conf_set_rules_file ruft msc_rules_add_file während nginx -t/des Konfigurat
 
 Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
 
-Quellenbasiertes Beispiel: [examples/nginx/minimal/nginx.conf](../../examples/nginx/minimal/nginx.conf).
+Quellenbasiertes Beispiel: [examples/nginx/off/nginx.conf](../../examples/nginx/off/nginx.conf).
 
 ### Sicherheit und Betrieb
 
