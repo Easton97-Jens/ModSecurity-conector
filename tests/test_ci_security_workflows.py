@@ -35,7 +35,7 @@ PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE = (
     "Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@"
     + PROTECTED_NGINX_BROKER_SHA
 )
-WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "d4f7b69dc264852eac74e1439c0887fcb9fbe372"
+WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "cc36b37d0f6a0fbc3512f3878a691751e91c5fbb"
 WITH_CRS_NO_MRTS_MRTS_SHA = "615b13bacbd008562c17408246c41ab27dca3104"
 PROTECTED_NGINX_BROKER_CALLER_MASTER_GATE_TERMS = frozenset(
     {
@@ -51,7 +51,7 @@ LOCKED_ACTION_USE = re.compile(
     r"(?P<prefix>uses:\s+[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?@)"
     r"(?P<sha>[a-f0-9]{40})(?:\s+#\s*v[^\n]+)?"
 )
-SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "9edeaeecd28fa2d75dc5d07abc047d145b3a7fff783b4f895489f73f044f66de"
+SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "7834d2819b8b63be017a8e609be8c04bc22c0b0dce96b990fdfb659851aad9eb"
 SUBMODULE_PUBLISHER_APP_TOKEN_ACTION = "actions/create-github-app-token"
 SUBMODULE_PUBLISHER_APP_TOKEN_INPUTS = {
     "client-id": "${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}",
