@@ -21,7 +21,7 @@ RESPONSE_OBSERVER_SERVICE = ROOT / "connectors/envoy/ext_proc/internal/responseo
 RESPONSE_OBSERVER_PROTOCOL_TEST = (
     ROOT / "connectors/envoy/ext_proc/internal/responseobserver/protocol_test.go"
 )
-THREE_VARIANTS = ("minimal", "safe", "strict")
+THREE_VARIANTS = ("off", "safe", "strict")
 INVALID_PHASE4_VALUES = (
     "phase4_mode=all",
     "phase4-mode all",
