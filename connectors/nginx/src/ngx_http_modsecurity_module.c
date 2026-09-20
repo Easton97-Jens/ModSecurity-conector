@@ -19,11 +19,6 @@
 #define MODSECURITY_DDEBUG 0
 #endif
 
-/* This is a host-configured MIME allowlist, not a rule payload.  Keep it
- * deliberately small so nginx -t cannot be driven into an unbounded pool
- * allocation by a mistaken or hostile path. */
-#define MSCONNECTOR_NGINX_PHASE4_CONTENT_TYPES_FILE_MAX_BYTES (64U * 1024U)
-
 #include "ddebug.h"
 #include "connectors/profile_registry.h"
 
@@ -54,14 +49,8 @@ static void ngx_http_modsecurity_cleanup_instance(void *data);
 static void ngx_http_modsecurity_cleanup_rules(void *data);
 static void ngx_http_modsecurity_cleanup_phase4_log(void *data);
 static char *ngx_conf_set_phase4_mode(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
-static char *ngx_conf_set_phase4_content_types_file(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static char *ngx_conf_set_phase4_log(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static char *ngx_conf_set_phase4_body_limit(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
-static char *ngx_http_modsecurity_phase4_set_default_content_types(ngx_conf_t *cf, ngx_http_modsecurity_conf_t *mcf);
-static char *ngx_http_modsecurity_phase4_load_content_types_file(ngx_conf_t *cf, ngx_http_modsecurity_conf_t *mcf, ngx_str_t *path);
-static ngx_int_t ngx_http_modsecurity_phase4_validate_content_type(u_char *s, size_t len);
-static ngx_int_t ngx_http_modsecurity_is_mime_char(unsigned char c);
-static ngx_int_t ngx_http_modsecurity_validate_strict_mime_token(const char *token);
 static char *ngx_conf_set_common_flag_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static ngx_int_t ngx_http_modsecurity_process_redirect_intervention(
     ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
@@ -739,25 +728,11 @@ ngx_conf_set_phase4_mode(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return NGX_CONF_ERROR;
     }
     if (!msconnector_parse_phase4_mode(mode, &parsed)) {
-        return "invalid value for modsecurity_phase4_mode (expected minimal|safe|strict)";
+        return "invalid value for modsecurity_phase4_mode (expected off|safe|strict)";
     }
     mcf->common_config.phase4_mode = parsed;
     mcf->phase4_mode = (ngx_uint_t) parsed;
     return NGX_CONF_OK;
-}
-
-static char *
-ngx_conf_set_phase4_content_types_file(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
-{
-    (void)cmd;
-    ngx_http_modsecurity_conf_t *mcf = conf;
-    ngx_str_t *value = cf->args->elts;
-    mcf->phase4_content_types_file = value[1];
-    mcf->common_config.phase4_content_types_file = ngx_str_to_char(value[1], cf->pool);
-    if (mcf->common_config.phase4_content_types_file == (char *)-1) {
-        return NGX_CONF_ERROR;
-    }
-    return ngx_http_modsecurity_phase4_load_content_types_file(cf, mcf, &value[1]);
 }
 
 static char *
@@ -820,233 +795,6 @@ ngx_conf_set_phase4_log(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     return NGX_CONF_OK;
 }
-
-static ngx_int_t
-ngx_http_modsecurity_is_mime_char(unsigned char c)
-{
-    return ((c >= 'a' && c <= 'z') ||
-            (c >= 'A' && c <= 'Z') ||
-            (c >= '0' && c <= '9') ||
-            c == '-' || c == '.' || c == '_' || c == '+') ? NGX_OK : NGX_ERROR;
-}
-
-static ngx_int_t
-ngx_http_modsecurity_validate_strict_mime_token(const char *token)
-{
-    size_t index;
-    size_t slash = (size_t)-1;
-
-    if (token == NULL || token[0] == '\0') {
-        return NGX_ERROR;
-    }
-
-    for (index = 0; token[index] != '\0'; index++) {
-        unsigned char c = (unsigned char) token[index];
-        if (c == '/') {
-            if (slash != (size_t)-1 || index == 0) {
-                return NGX_ERROR;
-            }
-            slash = index;
-            continue;
-        }
-        if (c == '*' || ngx_http_modsecurity_is_mime_char(c) != NGX_OK) {
-            return NGX_ERROR;
-        }
-    }
-
-    if (slash == (size_t)-1 || token[slash + 1] == '\0') {
-        return NGX_ERROR;
-    }
-
-    return NGX_OK;
-}
-
-static ngx_int_t
-ngx_http_modsecurity_phase4_validate_content_type(u_char *s, size_t len)
-{
-    char token[256];
-
-    if (len == 0 || len >= sizeof(token)) return NGX_ERROR;
-    ngx_memcpy(token, s, len);
-    token[len] = '\0';
-    if (!msconnector_validate_content_type_token(token)) {
-        return NGX_ERROR;
-    }
-    return ngx_http_modsecurity_validate_strict_mime_token(token);
-}
-
-static char *
-ngx_http_modsecurity_phase4_set_default_content_types(ngx_conf_t *cf, ngx_http_modsecurity_conf_t *mcf)
-{
-    static const char *defs[] = {"text/html","text/plain","application/json","application/xml","text/xml","application/xhtml+xml"};
-    ngx_uint_t i;
-    if (mcf->phase4_content_types != NULL) return NGX_CONF_OK;
-    mcf->phase4_content_types = ngx_array_create(cf->pool, 6, sizeof(ngx_str_t));
-    if (mcf->phase4_content_types == NULL) return NGX_CONF_ERROR;
-    for (i = 0; i < 6; i++) {
-        ngx_str_t *ct = ngx_array_push(mcf->phase4_content_types);
-        if (ct == NULL) return NGX_CONF_ERROR;
-        ct->len = ngx_strlen(defs[i]);
-        ct->data = ngx_pnalloc(cf->pool, ct->len);
-        if (ct->data == NULL) return NGX_CONF_ERROR;
-        ngx_memcpy(ct->data, defs[i], ct->len);
-    }
-    return NGX_CONF_OK;
-}
-
-static ngx_int_t
-ngx_http_modsecurity_phase4_push_content_type(ngx_conf_t *cf, ngx_http_modsecurity_conf_t *mcf,
-    u_char *line, u_char *end, ngx_str_t *path)
-{
-    ngx_str_t *ct;
-
-    ngx_strlow(line, line, end - line);
-    if (ngx_http_modsecurity_phase4_validate_content_type(line, end - line) != NGX_OK) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "invalid content-type entry in modsecurity_phase4_content_types_file \"%V\": \"%s\" (wildcard content types are not supported for modsecurity_phase4_content_types_file)", path, line);
-        return NGX_ERROR;
-    }
-
-    ct = ngx_array_push(mcf->phase4_content_types);
-    if (ct == NULL) {
-        return NGX_ERROR;
-    }
-    ct->len = end - line;
-    ct->data = ngx_pnalloc(cf->pool, ct->len);
-    if (ct->data == NULL) {
-        return NGX_ERROR;
-    }
-    ngx_memcpy(ct->data, line, ct->len);
-
-    return NGX_OK;
-}
-
-static void
-ngx_http_modsecurity_phase4_trim_line(u_char **line, u_char **end)
-{
-    while (*line < *end && isspace((unsigned char)**line)) {
-        (*line)++;
-    }
-
-    while (*end > *line && isspace((unsigned char)*((*end) - 1))) {
-        (*end)--;
-    }
-
-    **end = '\0';
-}
-
-static void
-ngx_http_modsecurity_phase4_strip_inline_comment(u_char *line)
-{
-    u_char *hash = (u_char *) ngx_strchr(line, '#');
-    u_char *semi = (u_char *) ngx_strchr(line, ';');
-
-    if (hash && (!semi || hash < semi)) {
-        *hash = '\0';
-    }
-    if (semi) {
-        *semi = '\0';
-    }
-}
-
-static char *
-ngx_http_modsecurity_phase4_load_content_types_file(ngx_conf_t *cf, ngx_http_modsecurity_conf_t *mcf, ngx_str_t *path)
-{
-#if (NGX_WIN32)
-    /* ngx_is_file() on the Win32 file API distinguishes directories but not
-     * the full POSIX regular-file set, and NGX_FILE_NONBLOCK is a no-op.
-     * Reject this optional local-file feature rather than silently providing
-     * a weaker special-file contract on that platform. */
-    (void)mcf;
-    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-        "modsecurity_phase4_content_types_file is unavailable on Win32 by security policy: \"%V\"", path);
-    return NGX_CONF_ERROR;
-#else
-    ngx_file_t file;
-    ngx_file_info_t fi;
-    u_char *buf;
-    u_char *p;
-    u_char *line;
-    u_char *end;
-    ssize_t n;
-    off_t file_size;
-
-    ngx_memzero(&file, sizeof(file));
-    file.name = *path;
-    file.log = cf->log;
-    file.fd = ngx_open_file(path->data, NGX_FILE_RDONLY|NGX_FILE_NONBLOCK,
-                            NGX_FILE_OPEN, 0);
-    if (file.fd == NGX_INVALID_FILE) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno, "modsecurity_phase4_content_types_file \"%V\" open() failed", path);
-        return NGX_CONF_ERROR;
-    }
-
-    /* Open nonblocking and inspect the opened descriptor, rather than a
-     * pathname that can change between stat() and open().  This rejects
-     * FIFOs, devices, sockets and directories before any read can block or
-     * grow an allocation. */
-    if (ngx_fd_info(file.fd, &fi) == NGX_FILE_ERROR) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno, "modsecurity_phase4_content_types_file \"%V\" fstat() failed", path);
-        ngx_close_file(file.fd);
-        return NGX_CONF_ERROR;
-    }
-    if (!ngx_is_file(&fi)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "modsecurity_phase4_content_types_file \"%V\" must resolve to a regular file", path);
-        ngx_close_file(file.fd);
-        return NGX_CONF_ERROR;
-    }
-
-    file_size = ngx_file_size(&fi);
-    if (file_size < 0 || file_size > MSCONNECTOR_NGINX_PHASE4_CONTENT_TYPES_FILE_MAX_BYTES) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "modsecurity_phase4_content_types_file \"%V\" exceeds the %uz byte limit", path,
-            (size_t) MSCONNECTOR_NGINX_PHASE4_CONTENT_TYPES_FILE_MAX_BYTES);
-        ngx_close_file(file.fd);
-        return NGX_CONF_ERROR;
-    }
-
-    buf = ngx_pnalloc(cf->pool, (size_t) file_size + 1);
-    if (buf == NULL) {
-        ngx_close_file(file.fd);
-        return NGX_CONF_ERROR;
-    }
-
-    n = ngx_read_file(&file, buf, (size_t) file_size, 0);
-    ngx_close_file(file.fd);
-    if (n < 0 || n != (ssize_t) file_size) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "modsecurity_phase4_content_types_file \"%V\" changed during read", path);
-        return NGX_CONF_ERROR;
-    }
-    buf[n] = '\0';
-    mcf->phase4_content_types = ngx_array_create(cf->pool, 8, sizeof(ngx_str_t));
-    if (mcf->phase4_content_types == NULL) return NGX_CONF_ERROR;
-    for (p = buf, line = buf; p <= buf + n; p++) {
-        if (p == buf + n || *p == '\n' || *p == '\r') {
-            *p = '\0';
-            end = p;
-
-            ngx_http_modsecurity_phase4_trim_line(&line, &end);
-            if (line[0] == '\0' || line[0] == '#') {
-                line = p + 1;
-                continue;
-            }
-
-            ngx_http_modsecurity_phase4_strip_inline_comment(line);
-            end = line + ngx_strlen(line);
-            ngx_http_modsecurity_phase4_trim_line(&line, &end);
-            if (line[0] == '\0') {
-                line = p + 1;
-                continue;
-            }
-
-            if (ngx_http_modsecurity_phase4_push_content_type(cf, mcf, line, end, path) != NGX_OK) {
-                return NGX_CONF_ERROR;
-            }
-            line = p + 1;
-        }
-    }
-    return NGX_CONF_OK;
-#endif
-}
-
 
 static char *
 ngx_conf_set_common_flag_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
@@ -1139,14 +887,6 @@ static ngx_command_t ngx_http_modsecurity_commands[] =  {
     ngx_string(MSCONNECTOR_DIRECTIVE_PHASE4_MODE),
     NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
     ngx_conf_set_phase4_mode,
-    NGX_HTTP_LOC_CONF_OFFSET,
-    0,
-    NULL
-  },
-  {
-    ngx_string(MSCONNECTOR_DIRECTIVE_PHASE4_CONTENT_TYPES_FILE),
-    NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
-    ngx_conf_set_phase4_content_types_file,
     NGX_HTTP_LOC_CONF_OFFSET,
     0,
     NULL
@@ -1358,9 +1098,6 @@ ngx_http_modsecurity_create_conf(ngx_conf_t *cf)
     /* These values are inherited with ngx_conf_merge_ptr_value().  They must
      * use NGINX's unset sentinel here: NULL is a valid merged value for the
      * log and causes a child location to suppress a server-level setting. */
-    conf->phase4_content_types = NGX_CONF_UNSET_PTR;
-    conf->phase4_content_types_file.len = 0;
-    conf->phase4_content_types_file.data = NULL;
     conf->phase4_log_file = NGX_CONF_UNSET_PTR;
     conf->phase4_log_path.len = 0;
     conf->phase4_log_path.data = NULL;
@@ -1427,7 +1164,6 @@ ngx_http_modsecurity_merge_conf(ngx_conf_t *cf, void *parent, void *child)
             c->phase4_log_path = p->phase4_log_path;
         }
     }
-    ngx_conf_merge_ptr_value(c->phase4_content_types, p->phase4_content_types, NULL);
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
     ngx_conf_merge_value(c->sanity_checks_enabled, p->sanity_checks_enabled, 0);
 #endif
@@ -1448,9 +1184,6 @@ ngx_http_modsecurity_merge_conf(ngx_conf_t *cf, void *parent, void *child)
     dd("NEW CHILD RULES");
     msc_rules_dump(c->rules_set);
 #endif
-    if (c->phase4_content_types == NULL) {
-        return ngx_http_modsecurity_phase4_set_default_content_types(cf, c);
-    }
     return NGX_CONF_OK;
 }
 
