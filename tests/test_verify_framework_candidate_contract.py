@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
-import re
 import shutil
 import sys
 import tempfile
 import unittest
+
+from tests.framework_sha_fixture import set_framework_sha_fixture
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -81,6 +82,7 @@ CI_SECURITY_TOOL_RUFF_COMMIT="b5dba861cc38e3f7fb4524c9ceba3e01a474ea13"
 class VerifyFrameworkCandidateContractTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name) / "repo"
         shutil.copytree(
             ROOT,
@@ -89,6 +91,8 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
                 ".git", "ModSecurity-test-Framework", "__pycache__", ".pytest_cache"
             ),
         )
+        # Only the temporary copy uses the offline candidate's test identity.
+        set_framework_sha_fixture(self.root, CANDIDATE_SHA)
         self.common = Path(self.temporary.name) / "framework-common.sh"
         self.common.write_text(CANDIDATE_COMMON, encoding="utf-8")
         self.approved_common_structure_sha256 = (
@@ -126,32 +130,18 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
         return {self.root / path: (self.root / path).read_bytes() for path in paths}
 
     def set_static_parent_framework_sha(self, framework_sha: str) -> None:
-        workflow = self.root / ".github/workflows/test-connectors-with-crs-no-mrts.yml"
-        workflow_text = workflow.read_text(encoding="utf-8")
-        expected_pattern = re.compile(
-            rf"(?m)^( {{6}}EXPECTED_FRAMEWORK_SHA:[ \t]*){CANDIDATE_SHA}$"
-        )
-        workflow_text, expected_count = expected_pattern.subn(
-            rf"\g<1>{framework_sha}", workflow_text
-        )
-        literal_pattern = re.compile(
-            rf"(?m)^( {{10}}FRAMEWORK_SHA:[ \t]*){CANDIDATE_SHA}$"
-        )
-        workflow_text, literal_count = literal_pattern.subn(
-            rf"\g<1>{framework_sha}", workflow_text
-        )
-        self.assertEqual(expected_count, 1)
-        self.assertEqual(literal_count, 3)
-        workflow.write_text(workflow_text, encoding="utf-8")
+        set_framework_sha_fixture(self.root, framework_sha)
 
-        fixture = self.root / "tests/test_ci_security_workflows.py"
-        fixture_text, fixture_count = re.subn(
-            rf'(?m)^(WITH_CRS_NO_MRTS_FRAMEWORK_SHA[ \t]*=[ \t]*"){CANDIDATE_SHA}("[ \t]*)$',
-            rf"\g<1>{framework_sha}\g<2>",
-            fixture.read_text(encoding="utf-8"),
+    def test_parent_fixture_can_be_reset_after_a_repository_pin_update(self) -> None:
+        before = self.parent_bytes()
+        self.set_static_parent_framework_sha("c" * 40)
+        self.assertNotEqual(before, self.parent_bytes())
+        self.set_static_parent_framework_sha(CANDIDATE_SHA)
+        self.assertEqual(before, self.parent_bytes())
+        self.assertEqual(
+            VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)["release_tag"],
+            "release-1.31.5",
         )
-        self.assertEqual(fixture_count, 1)
-        fixture.write_text(fixture_text, encoding="utf-8")
 
     def test_current_parent_contract_matches_the_candidate_without_writing(self) -> None:
         before = self.parent_bytes()
