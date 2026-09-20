@@ -5,7 +5,7 @@
 ## Integration und Grenze
 
 Integrationsmodus: natives NGINX-HTTP-Modul.
-[minimal/nginx.conf](minimal/nginx.conf), [safe/nginx.conf](safe/nginx.conf)
+[minimal/nginx.conf](off/nginx.conf), [safe/nginx.conf](safe/nginx.conf)
 und [strict/nginx.conf](strict/nginx.conf) sowie [all/nginx.conf](all/nginx.conf)
 decken den begrenzten HTTP/1.1-P1--P4-Vertrag ab. `all` ist ein umfassendes
 Konfigurationslayout mit einer echten Strict-P4-Policy, kein vierter
@@ -31,7 +31,7 @@ Regelauswertung.
 
 | Pfad | Typ | Zweck |
 | --- | --- | --- |
-| [minimal/nginx.conf](minimal/nginx.conf) | Host-Konfiguration | Begrenzte native P1--P4-Minimalreferenz. |
+| [minimal/nginx.conf](off/nginx.conf) | Host-Konfiguration | Begrenzte native P1--P4-Minimalreferenz. |
 | [safe/nginx.conf](safe/nginx.conf) | Host-Konfiguration | Begrenzte P1--P4-Safe-Referenz. |
 | [strict/nginx.conf](strict/nginx.conf) | Host-Konfiguration | Explizit begrenzte Strict-Konfigurationsform. |
 | [all/nginx.conf](all/nginx.conf) | Host-Konfiguration | Umfassende native Konfiguration mit allen quellenbasierten Direktiven und `modsecurity_phase4_mode strict`. |
@@ -53,8 +53,7 @@ Logs, Listener und Upstream-Werte darin sind Hostbeispiele.
 | --- | --- | --- | --- |
 | load_module-Pfad | Installiertes dynamisches NGINX-Modul | Pflicht; kein Repository-Default; Betreiber; Main-Scope | modules/ngx_http_modsecurity_module.so. Das Modul muss zur exakten NGINX-ABI passen. |
 | modsecurity_rules_file | Lesbare libmodsecurity-Regeldatei | Pflicht; kein Repository-Default; Host-Konfiguration; http-Scope | /etc/modsecurity/modsecurity-phase4.conf. Ein geprüftes Ruleset kann Traffic blockieren. |
-| modsecurity_phase4_mode | P4-Policy: minimal, safe oder strict | Für Safe-, Strict- oder all-Datei Pflicht; Host-Konfiguration; http-Scope | safe in safe/nginx.conf; all wählt strict. Strict ist hier nur Konfiguration. |
-| modsecurity_phase4_content_types_file | Explizite Liste der Response-MIME-Typen | Optional; Host-Konfiguration; http-Scope | /etc/modsecurity/phase4-content-types.conf. Fehlende Datei lässt Validierung fehlschlagen. |
+| modsecurity_phase4_mode | P4-Policy: off, safe oder strict | Für Safe-, Strict- oder all-Datei Pflicht; Host-Konfiguration; http-Scope | safe in safe/nginx.conf; all wählt strict. Strict ist hier nur Konfiguration. |
 | modsecurity_phase4_log | Nativer, dem Connector gehörender P4-JSONL-Ereignis-Sink | Optional; http/server/location; bei Auslassung geerbt | Der Common-No-Follow-Helper verlangt ein sicheres Elternverzeichnis, ein reguläres Blatt, geeignete Eigentümer und den privaten Deskriptor-Modus `0600`. Für Rotation ein validiertes Konfigurations-Reload verwenden; das generische NGINX-`USR1`-Erneutöffnen wird nicht unterstützt. |
 | modsecurity_phase4_body_limit | Positives P4-Byte-Limit des Connectors | Optional; Host-Konfiguration; http/server/location-Scope | 1048576 in allen Lifecycle-Profilen; Überschreitung schlägt fail-closed fehl. |
 | modsecurity_use_error_log | Engine-Meldungen an NGINX-Error-Log weiterleiten | Optional; Host-Konfiguration; http/server/location-Scope | In allen Lifecycle-Profilen on. |

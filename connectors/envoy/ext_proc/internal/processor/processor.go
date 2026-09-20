@@ -1562,7 +1562,9 @@ func (state *streamState) recordHostActionAfterSuccessfulResponse(ctx context.Co
 
 func (state *streamState) resolveLateAction() {
 	switch state.config.LateActionPolicy {
-	case LateActionMinimal, LateActionSafe:
+	case LateActionOff:
+		state.summary.LateAction = LateActionNone
+	case LateActionSafe:
 		state.summary.LateAction = LateActionLogged
 	case LateActionStrict:
 		// Do not send an ImmediateResponse or a gRPC error here. Envoy's API

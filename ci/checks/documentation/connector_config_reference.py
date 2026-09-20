@@ -31,8 +31,9 @@ DEFAULT_SOURCE_ENABLE = "common/include/msconnector/options.h:MSCONNECTOR_DEFAUL
 DEFAULT_NONE_OPTIONAL = "none; optional"
 DEFAULT_SOURCE_PARSER_REGISTRATION = "parser registration has no default"
 ALLOWED_VALUES_ON_OFF = "on | off"
+VALUE_OFF = "off"
 DEFAULT_SOURCE_USE_ERROR_LOG = "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_USE_ERROR_LOG"
-ALLOWED_VALUES_PHASE4_MODE = "minimal | safe | strict"
+ALLOWED_VALUES_PHASE4_MODE = "off | safe | strict"
 DEFAULT_SOURCE_PHASE4_MODE = "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_MODE"
 ALLOWED_VALUES_POSITIVE_INTEGER = "positive integer"
 DEFAULT_SOURCE_PHASE4_BODY_LIMIT = "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_BODY_LIMIT"
@@ -118,7 +119,7 @@ VALUE_TYPE_PATH = "path"
 NGINX_DIRECTIVE_SYNTAX = {
     "modsecurity": "modsecurity on | off;",
     "modsecurity_use_error_log": "modsecurity_use_error_log on | off;",
-    "modsecurity_phase4_mode": "modsecurity_phase4_mode minimal | safe | strict;",
+    "modsecurity_phase4_mode": "modsecurity_phase4_mode off | safe | strict;",
     "modsecurity_phase4_body_limit": "modsecurity_phase4_body_limit <positive-bytes>;",
     "modsecurity_rules_remote": "modsecurity_rules_remote <key> <url>;",
 }
@@ -243,7 +244,7 @@ DIRECTIVE_DETAILS: dict[str, dict[str, str]] = {
     "modsecurity": {
         "type": "boolean",
         "values": "on | off (the shared parser additionally accepts true/false/1/0/yes/no where the host passes it through)",
-        "default": "off",
+        "default": VALUE_OFF,
         "default_source": DEFAULT_SOURCE_ENABLE,
         "effect": "Gates connector transaction creation; it is not SecRuleEngine.",
         "security": "off bypasses connector P1–P4 processing even if a rule file is configured.",
@@ -300,18 +301,10 @@ DIRECTIVE_DETAILS: dict[str, dict[str, str]] = {
     "modsecurity_phase4_mode": {
         "type": "enum",
         "values": ALLOWED_VALUES_PHASE4_MODE,
-        "default": "safe",
+        "default": VALUE_OFF,
         "default_source": DEFAULT_SOURCE_PHASE4_MODE,
-        "effect": "Selects the requested late P4 policy. Before response commit a deny can be applied; after commit the current Apache/NGINX/HTX paths distinguish strict from non-strict only. Minimal and safe therefore share the current non-strict log-only path.",
+        "effect": "Selects the late P4 intervention policy. off preserves native connector handling without disabling ModSecurity response inspection; safe selects the non-disruptive late path; strict selects the connector-specific abort path where supported.",
         "security": "strict must not be described as a guaranteed later 403; host-specific abort evidence is required.",
-    },
-    "modsecurity_phase4_content_types_file": {
-        "type": "path",
-        "values": "one readable file with MIME tokens",
-        "default": "host defaults when omitted",
-        "default_source": "connector-specific default content-type loader",
-        "effect": "Scopes P4 response-body inspection to configured MIME types.",
-        "security": "Keep the scope narrow and validate that the host exposes the intended representation of response bytes.",
     },
     "modsecurity_phase4_log": {
         "type": "path",
@@ -341,7 +334,8 @@ APACHE_DIRECTIVE_DETAILS: dict[str, dict[str, str]] = {
         "effect": (
             "Apache appends each normalized response bucket exactly once and forwards non-terminal "
             "output to the next filter without waiting for EOS. It finishes P4 exactly once at actual "
-            "EOS. After the next-filter commitment boundary, minimal/safe record log_only and strict "
+            "EOS. With policy off the connector keeps its native intervention path. After the next-filter "
+            "commitment boundary, safe records log_only and strict "
             "requests abort_connection instead of a late status rewrite."
         ),
         "security": (
@@ -353,26 +347,6 @@ APACHE_DIRECTIVE_DETAILS: dict[str, dict[str, str]] = {
             "P4 only. Apache commits at the next-filter boundary before it forwards a current "
             "non-terminal brigade; this setting controls the canonical pre- and post-commit "
             "decision mapping."
-        ),
-    },
-    "modsecurity_phase4_content_types_file": {
-        "type": "deprecated path",
-        "values": "one readable legacy file with MIME tokens",
-        "default": "none; deprecated Apache compatibility input",
-        "default_source": "Apache compatibility parser; deprecated",
-        "effect": (
-            "Deprecated Apache compatibility parser for a legacy MIME list. It does not narrow "
-            "the universal P4 inspection path; use SecResponseBodyMimeType to select libModSecurity "
-            "inspection."
-        ),
-        "security": (
-            "Do not use this legacy list to permit an uninspected pass-through route. The connector "
-            "cannot safely query libModSecurity's effective MIME selection, so every response passes "
-            "through the bounded P4 path."
-        ),
-        "phase_relevance": (
-            "P4 only. The parser is retained for compatibility but cannot select which Apache "
-            "responses bypass the bounded inspection path."
         ),
     },
     "modsecurity_phase4_body_limit": {
@@ -434,7 +408,7 @@ def _directive_option(
         runtime_effect=detail["effect"],
         example_file=example,
         description=detail["effect"],
-        deprecated=(connector == "apache" and name == "modsecurity_phase4_content_types_file"),
+        deprecated=False,
     )
 
 
@@ -447,8 +421,8 @@ def extract_apache(root: Path) -> list[dict[str, Any]]:
         text,
         flags=re.S,
     )
-    if len(expected) != 11:
-        raise ValueError(f"Apache command_rec extractor found {len(expected)}, expected 11")
+    if len(expected) != 10:
+        raise ValueError(f"Apache command_rec extractor found {len(expected)}, expected 10")
     result: list[dict[str, Any]] = []
     for take, macro, handler in expected:
         name = macros[macro]
@@ -458,16 +432,14 @@ def extract_apache(root: Path) -> list[dict[str, Any]]:
         if name == "modsecurity":
             syntax = "modsecurity On | Off"
         elif name == "modsecurity_phase4_mode":
-            syntax = "modsecurity_phase4_mode minimal | safe | strict"
+            syntax = "modsecurity_phase4_mode off | safe | strict"
         elif name == "modsecurity_phase4_body_limit":
             syntax = "modsecurity_phase4_body_limit <positive-bytes>"
         elif name == "modsecurity_transaction_id_expr":
             syntax = "modsecurity_transaction_id_expr <apache-string-expression>"
         example = "examples/apache/safe/httpd.conf"
-        if name == "modsecurity_phase4_content_types_file":
-            example = "connectors/apache/src/msc_config.c"
-        elif name in {"modsecurity", "modsecurity_rules_file", "modsecurity_use_error_log"}:
-            example = "examples/apache/minimal/httpd.conf"
+        if name in {"modsecurity", "modsecurity_rules_file", "modsecurity_use_error_log"}:
+            example = "examples/apache/off/httpd.conf"
         option = _directive_option(
             "apache", name, source, f"module_directives[] / {handler}", syntax,
             "Apache RSRC_CONF | ACCESS_CONF (server/vhost and per-directory contexts supported by Apache's context rules)",
@@ -515,7 +487,7 @@ def extract_nginx(root: Path) -> list[dict[str, Any]]:
             "http → server → location; a child inherits if it does not set a value.",
             "ngx_conf_merge_* combines scalar/pointer configuration, while msc_rules_merge combines parent and child rules.",
             f"{handler} rejects invalid values during nginx -t; {context_flags.strip()} is the registered context mask.",
-            "examples/nginx/minimal/nginx.conf" if name in {"modsecurity", "modsecurity_rules_file"} else "examples/nginx/safe/nginx.conf",
+            "examples/nginx/off/nginx.conf" if name in {"modsecurity", "modsecurity_rules_file"} else "examples/nginx/safe/nginx.conf",
         )
         if name == "modsecurity_rules_file":
             # The registration only proves the directive shape.  Keep the
@@ -559,68 +531,29 @@ def extract_nginx(root: Path) -> list[dict[str, Any]]:
             )
             option.update(runtime_effect=effect, description=effect)
         elif name == "modsecurity_phase4_mode":
-            # Both non-strict enum values deliberately resolve through the
-            # common log-only branch.  Strict is a transport action, never a
-            # promise that a response status already sent to a client changes.
             effect = (
-                "Before response headers/body are committed, minimal, safe, and strict all resolve "
-                "a P4 intervention as deny_if_possible, so NGINX can still return the requested "
-                "engine status (or 403 fallback). Once headers are committed or the body started, "
-                "minimal and safe both use the common log_only action; they record the late decision "
-                "without a later status rewrite. Strict instead resolves to abort_connection: the "
-                "native body filter marks the connection as errored, records connection_aborted, and "
-                "returns NGX_ERROR. The known host boundary is that NGINX invokes the P4 engine finish "
-                "only at last_buf/last_in_chain after bounded in-scope body accumulation, so a response "
-                "may already be visible. Strict can therefore terminate a connection, but cannot "
-                "guarantee a later 403 or replace an already-sent status line."
+                "off preserves NGINX's native intervention handling without disabling ModSecurity "
+                "response-body inspection. safe applies an intervention while the response is still "
+                "changeable and records a late disruptive decision without inventing a new status. "
+                "strict uses the native abort_connection path after commit. Response MIME selection "
+                "belongs to ModSecurity through SecResponseBodyMimeType."
             )
             option.update(
-                allowed_values=(
-                    "minimal | safe | strict; before commit all use deny_if_possible, after commit "
-                    "minimal/safe are log_only and strict is abort_connection"
-                ),
+                allowed_values="off | safe | strict",
                 phase_relevance=(
-                    "P4 only. The response-body filter accumulates bounded in-scope bytes and finishes "
-                    "the engine at EOS (last_buf/last_in_chain); header/body commitment determines "
-                    "whether a status or only a late transport action remains possible."
+                    "P4 only. Response bytes continue to be offered to ModSecurity subject to engine "
+                    "configuration and connector body limits; the mode controls intervention handling, "
+                    "not MIME inspection scope."
                 ),
                 runtime_effect=effect,
                 description=effect,
                 validation=(
-                    "ngx_conf_set_phase4_mode accepts only minimal|safe|strict during nginx -t. Runtime "
-                    "late behavior is source-defined: non-strict post-commit paths emit log_only; strict "
-                    "marks the connection errored and returns NGX_ERROR, without manufacturing a later 403."
+                    "ngx_conf_set_phase4_mode accepts only off|safe|strict during nginx -t; minimal "
+                    "and unknown values are rejected."
                 ),
                 security_relevance=(
-                    "safe/minimal retain late-decision evidence without interrupting an already-started "
-                    "response. strict requests a connection abort after commit, which can expose clients "
-                    "to a partial response; it is not a reliable post-commit HTTP-status enforcement mode."
-                ),
-            )
-        elif name == "modsecurity_phase4_content_types_file":
-            effect = (
-                "Loads the MIME-token allowlist from a bounded POSIX regular file to scope P4 "
-                "response-body inspection."
-            )
-            option.update(
-                allowed_values=(
-                    "on POSIX, one readable regular MIME-token file no larger than 64 KiB; rejected on Win32"
-                ),
-                phase_relevance=(
-                    "P4 only. The MIME-token allowlist determines which response bodies enter the "
-                    "bounded native P4 path."
-                ),
-                runtime_effect=effect,
-                description=effect,
-                validation=(
-                    "ngx_conf_set_phase4_content_types_file rejects invalid values during nginx -t. On POSIX "
-                    "it opens the path nonblocking, checks that the opened descriptor is regular, caps it at "
-                    "64 KiB, requires an exact read, and rejects invalid MIME tokens. On Win32 it fails closed."
-                ),
-                security_relevance=(
-                    "Use an atomically replaced regular configuration file in a trusted directory. FIFOs, "
-                    "devices, sockets, directories, oversized files, partial reads, and invalid MIME tokens "
-                    "are rejected."
+                    "off is the compatibility default, safe avoids a fabricated late status rewrite, "
+                    "and strict may terminate an already-started response through the native abort path."
                 ),
             )
         elif name == "modsecurity_phase4_log":
@@ -723,7 +656,7 @@ def extract_haproxy(root: Path) -> list[dict[str, Any]]:
     result = [
         _option("haproxy", f"filter {HAPROXY_FILTER_NAME}", "host_connector_directive", source,
                 "haproxy_modsecurity_htx_filter_keywords / haproxy_modsecurity_htx_filter_parse",
-                syntax="filter modsecurity-htx rules-file <path> [phase4-mode minimal|safe|strict]",
+                syntax="filter modsecurity-htx rules-file <path> [phase4-mode off|safe|strict]",
                 value_type="HAProxy filter declaration", allowed_values="one required rules-file argument; optional phase4-mode",
                 default="not applicable; a filter is active only when declared", default_source="native HTX keyword parser",
                 required=True, contexts=common["contexts"], inheritance=common["inheritance"], merge_behavior=common["merge_behavior"],
@@ -743,11 +676,11 @@ def extract_haproxy(root: Path) -> list[dict[str, Any]]:
                 example_file=common["example"], description="Required native HTX rule-file argument."),
         _option("haproxy", "phase4-mode", "host_connector_directive", source,
                 "haproxy_modsecurity_htx_filter_parse / msconnector_parse_phase4_mode",
-                syntax="phase4-mode minimal | safe | strict", value_type="enum", allowed_values=ALLOWED_VALUES_PHASE4_MODE,
-                default="safe", default_source=DEFAULT_SOURCE_PHASE4_MODE,
+                syntax="phase4-mode off | safe | strict", value_type="enum", allowed_values=ALLOWED_VALUES_PHASE4_MODE,
+                default=VALUE_OFF, default_source=DEFAULT_SOURCE_PHASE4_MODE,
                 required=False, contexts=common["contexts"], inheritance=common["inheritance"], merge_behavior=common["merge_behavior"],
                 validation="Unknown mode fails parsing. The selected host uses haproxy -c -f <config>.",
-                phase_relevance="P4 only. The current HTX host action distinguishes strict from non-strict; minimal and safe share the non-strict late log-only path.",
+                phase_relevance="P4 only. off preserves native HTX intervention handling; safe uses the non-disruptive late path; strict requests the supported host abort path.",
                 security_relevance="strict records an abort policy request but the native HTX path currently records host action not_attempted; it is not an abort guarantee.",
                 runtime_effect="Initialises common_config.phase4_mode for the filter.", example_file=common["example"], description="Native HTX late-P4 policy argument."),
         _option("haproxy", "filter spoe", "compatibility", "examples/haproxy/compatibility-spoe/haproxy-request-only.cfg",
@@ -764,7 +697,7 @@ def extract_haproxy(root: Path) -> list[dict[str, Any]]:
     expected_compatibility_keys = {
         "listen", "host", "port", "ready-file", "pid-file", "port-file", "log-file", "decision-log", "audit-log", "modsecurity-conf", "crs-root", "rules-file", "rules-dir", "mode", "fail-mode", "runtime-mode", "variant", "case", "response-companion", "response-companion-socket", "response-companion-uid", "response-companion-gid", "expected-status", "request-body-limit", "response-body-limit", "response-body-timeout", "spoe-timeout", "worker-count", "max-transactions", "debug", "enable-response-headers", "response-phases",
     }
-    parser_literals = {"true", "yes", "on", "false", "off", "no"}
+    parser_literals = {"true", "yes", "on", "false", VALUE_OFF, "no"}
     unexpected = set(raw_compatibility_keys) - expected_compatibility_keys - parser_literals
     compatibility_keys = [key for key in raw_compatibility_keys if key in expected_compatibility_keys]
     if set(compatibility_keys) != expected_compatibility_keys or unexpected:
@@ -837,13 +770,13 @@ def extract_lighttpd(root: Path) -> list[dict[str, Any]]:
         "lighttpd", "msconnector.enabled", "host_connector_directive", source,
         "mod_msconnector_set_defaults / config_plugin_values_init",
         syntax='msconnector.enabled = "enable" | "disable"', value_type=VALUE_TYPE_LIGHTTPD_BOOLEAN, allowed_values=ALLOWED_VALUES_LIGHTTPD_BOOLEAN,
-        default="off", default_source=DEFAULT_SOURCE_LIGHTTPD_PLUGIN_DATA, required=False,
+        default=VALUE_OFF, default_source=DEFAULT_SOURCE_LIGHTTPD_PLUGIN_DATA, required=False,
         contexts=LIGHTTPD_SERVER_SCOPE, inheritance=LIGHTTPD_DEFAULTS_ONLY_INHERITANCE,
         merge_behavior=LIGHTTPD_DEFAULTS_MERGE,
         validation="When enabled, lighttpd validates the runtime file during set-defaults; validate host syntax with lighttpd -tt -f <config>.",
         phase_relevance="off disables the module P1/P3 callbacks and any patched P2/P4 callbacks.",
         security_relevance="Disabling the module bypasses connector processing even if a rule file exists.",
-        runtime_effect="Selects whether mod_msconnector initialises Common Runtime.", example_file="examples/lighttpd/minimal/lighttpd.conf",
+        runtime_effect="Selects whether mod_msconnector initialises Common Runtime.", example_file="examples/lighttpd/off/lighttpd.conf",
         description="Enables the native lighttpd plugin."))
     values.append(_option(
         "lighttpd", "msconnector.config-file", "host_connector_directive", source,
@@ -855,13 +788,13 @@ def extract_lighttpd(root: Path) -> list[dict[str, Any]]:
         validation="Required only when msconnector.enabled is true; missing, unreadable, or invalid runtime configuration returns HANDLER_ERROR during startup.",
         phase_relevance="The referenced Common Runtime file chooses body modes and P1–P4 policy.",
         security_relevance="The runtime file contains executable rule paths and limits; use trusted ownership and permissions.",
-        runtime_effect="Loads and creates the connector-neutral runtime before requests are served.", example_file="examples/lighttpd/minimal/lighttpd.conf",
+        runtime_effect="Loads and creates the connector-neutral runtime before requests are served.", example_file="examples/lighttpd/off/lighttpd.conf",
         description="Path to the Common Runtime configuration used by the native plugin."))
     values.append(_option(
         "lighttpd", "msconnector.expose-host-transaction-id", "host_connector_directive", source,
         "mod_msconnector_set_defaults / mod_msconnector_emit_host_transaction_id",
         syntax='msconnector.expose-host-transaction-id = "enable" | "disable"', value_type=VALUE_TYPE_LIGHTTPD_BOOLEAN, allowed_values=ALLOWED_VALUES_LIGHTTPD_BOOLEAN,
-        default="off", default_source=DEFAULT_SOURCE_LIGHTTPD_PLUGIN_DATA, required=False,
+        default=VALUE_OFF, default_source=DEFAULT_SOURCE_LIGHTTPD_PLUGIN_DATA, required=False,
         contexts=LIGHTTPD_SERVER_SCOPE, inheritance=LIGHTTPD_DEFAULTS_ONLY_INHERITANCE,
         merge_behavior=LIGHTTPD_DEFAULTS_MERGE,
         validation="lighttpd parses this server-scoped setting as a boolean during set-defaults; validate host syntax with lighttpd -tt -f <config>.",
@@ -910,7 +843,7 @@ def extract_lighttpd(root: Path) -> list[dict[str, Any]]:
 
 
 COMMON_DETAILS: dict[str, dict[str, str]] = {
-    "enabled": ("boolean", ALLOWED_VALUES_COMMON_BOOLEAN, "off", DEFAULT_SOURCE_COMMON_APPLY_DEFAULTS, "Enables the Common Runtime; enabled runtime requires an inline or local-file rule source."),
+    "enabled": ("boolean", ALLOWED_VALUES_COMMON_BOOLEAN, VALUE_OFF, DEFAULT_SOURCE_COMMON_APPLY_DEFAULTS, "Enables the Common Runtime; enabled runtime requires an inline or local-file rule source."),
     "use_error_log": ("boolean", ALLOWED_VALUES_COMMON_BOOLEAN, "on", DEFAULT_SOURCE_USE_ERROR_LOG, "Stores the Common logging preference. A connector must consume it before a host logging effect can be claimed."),
     "rules_inline": ("string", "one inline rule/configuration string", "none", DEFAULT_SOURCE_RUNTIME_PARSER, "Adds inline rule configuration."),
     "rules_file": ("path", "one readable rule/configuration file", "none", DEFAULT_SOURCE_RUNTIME_PARSER, "Loads rules from a local file."),
@@ -919,7 +852,6 @@ COMMON_DETAILS: dict[str, dict[str, str]] = {
     "transaction_id": ("string", "non-empty text", "none", DEFAULT_SOURCE_RUNTIME_PARSER, "Sets a static runtime transaction identifier."),
     "transaction_id_header": ("header name", ALLOWED_VALUES_HEADER_NAME, "x-request-id", DEFAULT_SOURCE_RUNTIME_DEFAULTS, "Selects the fallback correlation-header name."),
     "phase4_mode": ("enum", ALLOWED_VALUES_PHASE4_MODE, "safe", DEFAULT_SOURCE_PHASE4_MODE, "Stores the late P4 policy. Common alone owns no host abort primitive."),
-    "phase4_content_types_file": ("path", "one configuration path", "none", DEFAULT_SOURCE_RUNTIME_PARSER, "Stores a content-type file path; consumption is connector-specific."),
     "event_path": ("path", "path without a parent-directory segment", "none", DEFAULT_SOURCE_RUNTIME_PARSER, "Appends metadata-only JSONL events when configured."),
     "phase4_event_log": ("path alias", "same grammar as event_path", "none", DEFAULT_SOURCE_RUNTIME_PARSER, "Alias for event_path."),
     "request_body_mode": ("enum", ALLOWED_VALUES_BODY_MODE, "buffered", DEFAULT_SOURCE_RUNTIME_DEFAULTS, "Selects the Common request-body handling mode; a particular host may support only a subset."),
@@ -1154,7 +1086,7 @@ ENGINE_RUNTIME_OVERRIDES: dict[str, dict[str, str]] = {
         ),
         "validation": (
             "The host/libmodsecurity rejects invalid engine syntax when loading the rule file. "
-            "At runtime, an out-of-scope MIME type, disabled host body path, or exceeded limit "
+            "At runtime, an engine-excluded response MIME type, disabled host body path, or exceeded limit "
             "can leave P4 without the expected complete body input."
         ),
         "security_relevance": (
@@ -2752,7 +2684,7 @@ def envoy_yaml_options(root: Path, yaml_source: str) -> list[dict[str, Any]]:
     yaml_values = extract_yaml_example_values(root / yaml_source)
     for path in yaml_paths:
         options.append(_yaml_option("envoy", path, yaml_source, yaml_source, "Materialize outside the checkout, then run envoy --mode validate -c <generated-config>.", yaml_values.get(path, "")))
-    minimal_yaml_source = "examples/envoy/minimal/envoy-ext-proc-streaming.yaml.in"
+    minimal_yaml_source = "examples/envoy/off/envoy-ext-proc-streaming.yaml.in"
     if set(extract_yaml_paths(root / minimal_yaml_source)) != set(yaml_paths):
         raise ValueError("Envoy minimal ext_proc YAML fields drift from the documented selected template surface")
     return options
@@ -2792,7 +2724,7 @@ def envoy_processor_options(root: Path) -> list[dict[str, Any]]:
             f"missing={missing}, unexpected={unexpected}"
         )
     service_values = json.loads(_read(root, "examples/envoy/safe/envoy-ext-proc-service.json"))
-    minimal_service_values = json.loads(_read(root, "examples/envoy/minimal/envoy-ext-proc-service.json"))
+    minimal_service_values = json.loads(_read(root, "examples/envoy/off/envoy-ext-proc-service.json"))
     if set(minimal_service_values) != set(service_values):
         raise ValueError("Envoy minimal service JSON fields drift from the documented service contract")
     for field, go_type, json_name in fields:
@@ -2805,7 +2737,7 @@ def envoy_processor_options(root: Path) -> list[dict[str, Any]]:
             allowed = ALLOWED_VALUES_PHASE4_MODE
         effect = "Sets one bounded ext_proc service control."
         if json_name == "late_action_policy":
-            effect = "Selects late decision reporting; minimal and safe record late disruptive decisions as log_only, while strict records strict_abort_not_attempted rather than a fabricated status/reset."
+            effect = "Selects late decision reporting; safe record late disruptive decisions as log_only, while strict records strict_abort_not_attempted rather than a fabricated status/reset."
         options.append(_option(
             "envoy", json_name, "service_json_field", config_source, f"processor.Config.{field} / Config.Validate",
             syntax=f'"{json_name}": <{go_type.strip()}>', value_type=go_type.strip(), allowed_values=allowed,
@@ -2985,7 +2917,7 @@ def traefik_yaml_options(root: Path, static_source: str, dynamic_source: str) ->
             options.append(_yaml_option("traefik", path, source, source, "traefik check --configFile=<static-config>; load the selected File Provider configuration.", values_by_source[source].get(path, "")))
     if not any(option["name"].endswith("engineMode") for option in options):
         raise ValueError("Traefik YAML extractor did not find native plugin config")
-    minimal_dynamic_paths = {traefik_profile_path(path) for path in extract_yaml_paths(root / "examples/traefik/minimal/traefik-dynamic.yaml")}
+    minimal_dynamic_paths = {traefik_profile_path(path) for path in extract_yaml_paths(root / "examples/traefik/off/traefik-dynamic.yaml")}
     safe_dynamic_paths = {traefik_profile_path(path) for path in extract_yaml_paths(root / dynamic_source)}
     if minimal_dynamic_paths != safe_dynamic_paths:
         raise ValueError("Traefik minimal dynamic YAML fields drift from the documented selected middleware surface")
@@ -3011,7 +2943,7 @@ def traefik_compatibility_options(root: Path) -> list[dict[str, Any]]:
 
 
 def extract_traefik(root: Path) -> list[dict[str, Any]]:
-    static_source = "examples/traefik/minimal/traefik-static.yaml"
+    static_source = "examples/traefik/off/traefik-static.yaml"
     dynamic_source = "examples/traefik/safe/traefik-dynamic.yaml"
     options = traefik_yaml_options(root, static_source, dynamic_source)
     options.extend(traefik_compatibility_options(root))
@@ -3049,16 +2981,16 @@ def _assert_common_source_defaults(root: Path) -> None:
 def _assert_documented_defaults(by_key: dict[tuple[str, str], str]) -> None:
     """Reject source-backed inventory defaults that no longer render exactly."""
     expected_defaults = {
-        ("common", "enabled"): "off", ("common", "use_error_log"): "on", ("common", "phase4_mode"): "safe",
+        ("common", "enabled"): VALUE_OFF, ("common", "use_error_log"): "on", ("common", "phase4_mode"): "safe",
         ("common", "request_body_limit"): "1048576", ("common", "response_body_limit"): "1048576",
         ("common", "body_limit_action"): "reject", ("common", "late_intervention_timeout"): "0",
         ("common", "default_block_status"): "403", ("common", "default_error_status"): "500",
         ("common", "max_header_count"): "256", ("common", "max_header_name_size"): "256",
         ("common", "max_header_value_size"): "8192", ("common", "max_total_header_bytes"): "65536",
         ("common", "max_event_json_bytes"): "16384",
-        ("apache", "modsecurity"): "off", ("apache", "modsecurity_use_error_log"): "on",
+        ("apache", "modsecurity"): VALUE_OFF, ("apache", "modsecurity_use_error_log"): "on",
         ("apache", "modsecurity_phase4_mode"): "safe", ("apache", "modsecurity_phase4_body_limit"): "1048576",
-        ("nginx", "modsecurity"): "off", ("nginx", "modsecurity_use_error_log"): "on",
+        ("nginx", "modsecurity"): VALUE_OFF, ("nginx", "modsecurity_use_error_log"): "on",
         ("nginx", "modsecurity_phase4_mode"): "safe", ("nginx", "modsecurity_phase4_body_limit"): "1048576",
         ("haproxy", "phase4-mode"): "safe",
     }
@@ -3376,7 +3308,6 @@ GERMAN_TEXT: dict[str, str] = {
     ALLOWED_VALUES_RULE_ENGINE: ALLOWED_VALUES_RULE_ENGINE,
     ALLOWED_VALUES_LIMIT_ACTION: ALLOWED_VALUES_LIMIT_ACTION,
     ALLOWED_VALUES_PHASE4_MODE: ALLOWED_VALUES_PHASE4_MODE,
-    "minimal | safe | strict; before commit all use deny_if_possible, after commit minimal/safe are log_only and strict is abort_connection": "minimal | safe | strict; vor dem Commit verwenden alle deny_if_possible, nach dem Commit verwenden minimal/safe log_only und strict abort_connection",
     ALLOWED_VALUES_BODY_MODE: ALLOWED_VALUES_BODY_MODE,
     ALLOWED_VALUES_ON_OFF: ALLOWED_VALUES_ON_OFF,
     "on | off (the shared parser additionally accepts true/false/1/0/yes/no where the host passes it through)": "on | off (der gemeinsame Parser akzeptiert zusätzlich true/false/1/0/yes/no, sofern der Host diese Werte durchreicht)",
@@ -3407,7 +3338,7 @@ GERMAN_TEXT: dict[str, str] = {
     "closed": "closed",
     "false": "false",
     "none": "none",
-    "off": "off",
+    VALUE_OFF: VALUE_OFF,
     "on": "on",
     "optional": "optional",
     "passthrough": "passthrough",
@@ -3457,7 +3388,6 @@ GERMAN_TEXT: dict[str, str] = {
 
     # Validation descriptions.  The command itself stays unchanged.
     "msc_config_load_rules_remote rejects every key/URL pair during apachectl -t before a rule loader or network operation.": "msc_config_load_rules_remote weist jedes Schlüssel/URL-Paar während apachectl -t vor einem Regellader- oder Netzwerkvorgang ab.",
-    "ngx_conf_set_phase4_content_types_file rejects invalid values during nginx -t. On POSIX it opens the path nonblocking, checks that the opened descriptor is regular, caps it at 64 KiB, requires an exact read, and rejects invalid MIME tokens. On Win32 it fails closed.": "ngx_conf_set_phase4_content_types_file weist ungültige Werte während nginx -t ab. Unter POSIX öffnet es den Pfad nichtblockierend, prüft den geöffneten Deskriptor auf regulären Dateityp, begrenzt ihn auf 64 KiB, verlangt einen exakten Lesevorgang und weist ungültige MIME-Token ab. Unter Win32 schlägt es fail-closed fehl.",
     "ngx_conf_set_phase4_log opens the path with the Common no-follow helper and fails closed unless the resolved leaf is a regular file below a safe parent. The descriptor is connector-owned and opened private (0600); configuration reload creates a new safe descriptor for the new cycle.": "ngx_conf_set_phase4_log öffnet den Pfad mit dem Common-No-Follow-Helper und schlägt fail-closed fehl, sofern das aufgelöste Blatt keine reguläre Datei unter einem sicheren Elternverzeichnis ist. Der Deskriptor gehört dem Connector und wird privat (0600) geöffnet; ein Konfigurations-Reload erzeugt für den neuen Zyklus einen neuen sicheren Deskriptor.",
     "Opens a connector-owned native NGINX event sink through the Common Runtime's secure no-follow descriptor helper.": "Öffnet über den sicheren No-Follow-Deskriptor-Helper der Common Runtime einen nativen NGINX-Ereignis-Sink im Besitz des Connectors.",
     "P4 event records are appended to the configured connector-owned descriptor.": "P4-Ereignisdatensätze werden an den konfigurierten, dem Connector gehörenden Deskriptor angehängt.",
@@ -3515,7 +3445,7 @@ GERMAN_TEXT: dict[str, str] = {
     "P1/P2/P3/P4 middleware callback bounds and engine connection behavior.": "Grenzen der P1/P2/P3/P4-Middleware-Callbacks und Verhalten der Engine-Verbindung.",
     "P3 response headers only; it does not select or alter Common Runtime transaction-ID input.": "Nur P3-Response-Header; dies wählt oder verändert keine Common-Runtime-Transaktions-ID-Eingabe.",
     "P1–P4 native HTX callbacks are attached only when this filter is declared.": "Native HTX-Callbacks für P1–P4 werden nur angehängt, wenn dieser Filter deklariert ist.",
-    "P4 only. The current HTX host action distinguishes strict from non-strict; minimal and safe share the non-strict late log-only path.": "Nur P4. Die aktuelle HTX-Hostaktion unterscheidet strict von nicht-strict; minimal und safe teilen den späten nicht-strict-log_only-Pfad.",
+    "P4 only. The current HTX host action distinguishes strict from non-strict; safe share the non-strict late log-only path.": "Nur P4. Die aktuelle HTX-Hostaktion unterscheidet strict von nicht-strict; minimal und safe teilen den späten nicht-strict-log_only-Pfad.",
     "P4 only. The response-body filter accumulates bounded in-scope bytes and finishes the engine at EOS (last_buf/last_in_chain); header/body commitment determines whether a status or only a late transport action remains possible.": "Nur P4. Der Response-Body-Filter sammelt begrenzte Bytes im Geltungsbereich und beendet die Engine bei EOS (last_buf/last_in_chain); das Committen von Headern/Body bestimmt, ob ein Status oder nur noch eine späte Transportaktion möglich ist.",
     "Request authorization compatibility path; no selected P3/P4 coverage.": "Kompatibilitätspfad für Request-Autorisierung; keine Abdeckung von ausgewähltem P3/P4.",
     "Request-authorization compatibility path; no selected P3/P4 configuration.": "Kompatibilitätspfad für Request-Autorisierung; keine ausgewählte P3/P4-Konfiguration.",
@@ -3534,7 +3464,7 @@ GERMAN_TEXT: dict[str, str] = {
     "Alias for event_path.": "Alias für event_path.",
     "Appends metadata-only JSONL events when configured.": "Hängt bei Konfiguration JSONL-Ereignisse an, die nur Metadaten enthalten.",
     "`off` suppresses regular and native libModSecurity callback messages in the NGINX error log. It does not disable WAF evaluation or alter Event JSONL emission.": "`off` unterdrückt reguläre und native libModSecurity-Callback-Meldungen im NGINX-Fehlerlog. WAF-Auswertung und Event-JSONL-Ausgabe werden dadurch nicht deaktiviert oder verändert.",
-    "Before response headers/body are committed, minimal, safe, and strict all resolve a P4 intervention as deny_if_possible, so NGINX can still return the requested engine status (or 403 fallback). Once headers are committed or the body started, minimal and safe both use the common log_only action; they record the late decision without a later status rewrite. Strict instead resolves to abort_connection: the native body filter marks the connection as errored, records connection_aborted, and returns NGX_ERROR. The known host boundary is that NGINX invokes the P4 engine finish only at last_buf/last_in_chain after bounded in-scope body accumulation, so a response may already be visible. Strict can therefore terminate a connection, but cannot guarantee a later 403 or replace an already-sent status line.": "Bevor Response-Header/-Body committet sind, lösen minimal, safe und strict eine P4-Intervention jeweils als deny_if_possible auf; NGINX kann daher noch den angeforderten Engine-Status (oder den Fallback 403) zurückgeben. Sobald Header committet sind oder der Body begonnen hat, verwenden minimal und safe beide die gemeinsame Aktion log_only; sie protokollieren die späte Entscheidung ohne nachträgliche Statusumschreibung. Strict löst dagegen zu abort_connection auf: Der native Body-Filter markiert die Verbindung als fehlerhaft, protokolliert connection_aborted und gibt NGX_ERROR zurück. Die bekannte Hostgrenze ist, dass NGINX das P4-Engine-Finish erst bei last_buf/last_in_chain nach der begrenzten Sammlung von Body-Bytes im Geltungsbereich aufruft; eine Antwort kann deshalb bereits sichtbar sein. Strict kann somit eine Verbindung beenden, aber keine spätere 403 garantieren oder eine bereits gesendete Statuszeile ersetzen.",
+    "Before response headers/body are committed, off, safe, and strict all resolve a P4 intervention as deny_if_possible, so NGINX can still return the requested engine status (or 403 fallback). Once headers are committed or the body started, safe both use the common log_only action; they record the late decision without a later status rewrite. Strict instead resolves to abort_connection: the native body filter marks the connection as errored, records connection_aborted, and returns NGX_ERROR. The known host boundary is that NGINX invokes the P4 engine finish only at last_buf/last_in_chain after bounded in-scope body accumulation, so a response may already be visible. Strict can therefore terminate a connection, but cannot guarantee a later 403 or replace an already-sent status line.": "Bevor Response-Header/-Body committet sind, lösen minimal, safe und strict eine P4-Intervention jeweils als deny_if_possible auf; NGINX kann daher noch den angeforderten Engine-Status (oder den Fallback 403) zurückgeben. Sobald Header committet sind oder der Body begonnen hat, verwenden minimal und safe beide die gemeinsame Aktion log_only; sie protokollieren die späte Entscheidung ohne nachträgliche Statusumschreibung. Strict löst dagegen zu abort_connection auf: Der native Body-Filter markiert die Verbindung als fehlerhaft, protokolliert connection_aborted und gibt NGX_ERROR zurück. Die bekannte Hostgrenze ist, dass NGINX das P4-Engine-Finish erst bei last_buf/last_in_chain nach der begrenzten Sammlung von Body-Bytes im Geltungsbereich aufruft; eine Antwort kann deshalb bereits sichtbar sein. Strict kann somit eine Verbindung beenden, aber keine spätere 403 garantieren oder eine bereits gesendete Statuszeile ersetzen.",
     "Binds or targets one local TCP endpoint in the checked-in host template.": "Bindet oder adressiert einen lokalen TCP-Endpunkt im eingecheckten Host-Template.",
     "Bounds accepted header count.": "Begrenzt die akzeptierte Headeranzahl.",
     "Bounds each header-name size.": "Begrenzt die Größe jedes Headernamens.",
@@ -3598,7 +3528,7 @@ GERMAN_TEXT: dict[str, str] = {
     "Selects audit-log parts.": "Wählt Audit-Log-Teile aus.",
     "Selects body visibility for ext_proc. The repository Common bridge requires STREAMED for both directions in the selected full-lifecycle path.": "Wählt die Body-Sichtbarkeit für ext_proc. Die Common-Bridge des Repositorys verlangt im ausgewählten Full-Lifecycle-Pfad STREAMED für beide Richtungen.",
     "Selects host listener, routing, filter, service, or logging setup from the checked-in example.": "Wählt Listener-, Routing-, Filter-, Service- oder Logging-Einrichtung des eingecheckten Beispiels.",
-    "Selects late decision reporting; minimal and safe record late disruptive decisions as log_only, while strict records strict_abort_not_attempted rather than a fabricated status/reset.": "Wählt die Protokollierung später Entscheidungen; minimal und safe erfassen späte disruptive Entscheidungen als log_only, während strict strict_abort_not_attempted statt eines erfundenen Status/Resets erfasst.",
+    "Selects late decision reporting; safe record late disruptive decisions as log_only, while strict records strict_abort_not_attempted rather than a fabricated status/reset.": "Wählt die Protokollierung später Entscheidungen; minimal und safe erfassen späte disruptive Entscheidungen als log_only, während strict strict_abort_not_attempted statt eines erfundenen Status/Resets erfasst.",
     "Selects the persistent UDS engine. Legacy source-only passthrough is rejected so a rule-evaluating deployment cannot silently select a non-enforcing path.": "Wählt die persistente UDS-Engine. Legacy-source-only-passthrough wird abgelehnt, damit ein regelauswertendes Deployment nicht stillschweigend einen nicht durchsetzenden Pfad wählen kann.",
     "uds is the engine transport for native P1/P2/P3/P4 callbacks. Legacy passthrough is rejected rather than creating an always-allow path.": "uds ist der Engine-Transport für native P1/P2/P3/P4-Callbacks. Legacy-passthrough wird abgelehnt, statt einen Always-Allow-Pfad zu erzeugen.",
     "Use the private uds path for the selected rule-evaluating deployment. Do not rely on a passthrough fallback; it is rejected.": "Den privaten uds-Pfad für das ausgewählte regelauswertende Deployment verwenden. Nicht auf einen passthrough-Fallback vertrauen; er wird abgelehnt.",
@@ -3705,7 +3635,7 @@ GERMAN_TEXT: dict[str, str] = {
     "Use private, non-conflicting ports; never place generated runtime output in the checkout.": "Private, konfliktfreie Ports verwenden; erzeugte Runtime-Ausgabe nie im Checkout ablegen.",
     "false avoids silently allowing traffic when processor communication fails.": "false verhindert, dass Traffic bei fehlgeschlagener Prozessor-Kommunikation stillschweigend erlaubt wird.",
     "off bypasses connector P1–P4 processing even if a rule file is configured.": "off umgeht die Connector-Verarbeitung P1–P4, auch wenn eine Regeldatei konfiguriert ist.",
-    "safe/minimal retain late-decision evidence without interrupting an already-started response. strict requests a connection abort after commit, which can expose clients to a partial response; it is not a reliable post-commit HTTP-status enforcement mode.": "safe/minimal bewahren Nachweise später Entscheidungen, ohne eine bereits gestartete Antwort zu unterbrechen. strict fordert nach dem Commit einen Verbindungsabbruch an, der Clients einer Teilantwort aussetzen kann; dies ist kein verlässlicher Modus zur Durchsetzung eines HTTP-Status nach dem Commit.",
+    "safe retain late-decision evidence without interrupting an already-started response. strict requests a connection abort after commit, which can expose clients to a partial response; it is not a reliable post-commit HTTP-status enforcement mode.": "safe bewahren Nachweise später Entscheidungen, ohne eine bereits gestartete Antwort zu unterbrechen. strict fordert nach dem Commit einen Verbindungsabbruch an, der Clients einer Teilantwort aussetzen kann; dies ist kein verlässlicher Modus zur Durchsetzung eines HTTP-Status nach dem Commit.",
     "strict must not be described as a guaranteed later 403; host-specific abort evidence is required.": "strict darf nicht als garantierte spätere 403 beschrieben werden; hostspezifische Nachweise für den Abbruch sind erforderlich.",
     "strict records an abort policy request but the native HTX path currently records host action not_attempted; it is not an abort guarantee.": "strict protokolliert eine Policy-Anforderung zum Abbruch, aber der native HTX-Pfad protokolliert derzeit die Hostaktion not_attempted; dies ist keine Abbruchgarantie.",
 
@@ -3716,10 +3646,10 @@ GERMAN_TEXT: dict[str, str] = {
     LIGHTTPD_SERVER_SCOPE: LIGHTTPD_SERVER_SCOPE,
     TRAEFIK_PLUGIN_CONFIGURATION_PATH: TRAEFIK_PLUGIN_CONFIGURATION_PATH,
     VALIDATE_NGINX: VALIDATE_NGINX,
-    "ngx_conf_set_phase4_mode accepts only minimal|safe|strict during nginx -t. Runtime late behavior is source-defined: non-strict post-commit paths emit log_only; strict marks the connection errored and returns NGX_ERROR, without manufacturing a later 403.": "ngx_conf_set_phase4_mode akzeptiert während nginx -t nur minimal|safe|strict. Das späte Runtime-Verhalten ist quellendefiniert: Nicht-strict-Pfade nach dem Commit geben log_only aus; strict markiert die Verbindung als fehlerhaft und gibt NGX_ERROR zurück, ohne eine spätere 403 zu erfinden.",
+    "ngx_conf_set_phase4_mode accepts only off|safe|strict during nginx -t; minimal and unknown values are rejected.": "ngx_conf_set_phase4_mode akzeptiert während nginx -t nur off|safe|strict; minimal und unbekannte Werte werden abgewiesen.",
     "ngx_conf_set_rules_file calls msc_rules_add_file while nginx -t/configuration loading runs. A missing, unreadable, or syntactically invalid top-level rule file (including an engine Include failure) returns the loader error and rejects the NGINX configuration.": "ngx_conf_set_rules_file ruft msc_rules_add_file während nginx -t/des Konfigurationsladens auf. Eine fehlende, unlesbare oder syntaktisch ungültige Regeldatei der obersten Ebene (einschließlich eines fehlgeschlagenen Engine-Include) liefert den Loader-Fehler und weist die NGINX-Konfiguration ab.",
     "The host/libmodsecurity rejects invalid engine syntax when loading the rule file. A syntactically valid On still cannot create P2 input when the selected host path does not expose a request body.": "Der Host/libmodsecurity weist beim Laden der Regeldatei ungültige Engine-Syntax ab. Ein syntaktisch gültiges On kann dennoch keine P2-Eingabe erzeugen, wenn der ausgewählte Hostpfad keinen Request-Body bereitstellt.",
-    "The host/libmodsecurity rejects invalid engine syntax when loading the rule file. At runtime, an out-of-scope MIME type, disabled host body path, or exceeded limit can leave P4 without the expected complete body input.": "Der Host/libmodsecurity weist beim Laden der Regeldatei ungültige Engine-Syntax ab. Zur Laufzeit können ein MIME-Typ außerhalb des Geltungsbereichs, ein deaktivierter Host-Body-Pfad oder ein überschrittenes Limit P4 ohne die erwartete vollständige Body-Eingabe lassen.",
+    "The host/libmodsecurity rejects invalid engine syntax when loading the rule file. At runtime, an out-of-scope MIME type, disabled host body path, or exceeded limit can leave P4 without the expected complete body input.": "Der Host/libmodsecurity weist beim Laden der Regeldatei ungültige Engine-Syntax ab. Zur Laufzeit können ein von der Engine ausgeschlossener Response-MIME-Typ, ein deaktivierter Host-Body-Pfad oder ein überschrittenes Limit P4 ohne die erwartete vollständige Body-Eingabe lassen.",
     "The host/libmodsecurity rejects malformed variable/operator/action syntax, duplicate or invalid identifiers, and invalid action combinations when loading the rule file.": "Der Host/libmodsecurity weist beim Laden der Regeldatei fehlerhafte Variablen-/Operator-/Action-Syntax, doppelte oder ungültige Kennungen und ungültige Action-Kombinationen ab.",
     "P2. On permits body inspection only after the connector has supplied request bytes; the selected host/runtime body mode and limit determine how many bytes can reach the engine.": "P2. On erlaubt Body-Inspektion erst, nachdem der Connector Request-Bytes bereitgestellt hat; ausgewählter Host-/Runtime-Body-Modus und Limit bestimmen, wie viele Bytes die Engine erreichen können.",
     "P4. On is necessary but not sufficient: the connector must expose response bytes, the MIME type must be in SecResponseBodyMimeType scope, and host/engine response limits apply.": "P4. On ist notwendig, aber nicht hinreichend: Der Connector muss Response-Bytes bereitstellen, der MIME-Typ muss im Geltungsbereich von SecResponseBodyMimeType liegen, und Host-/Engine-Response-Limits gelten.",
@@ -3748,7 +3678,7 @@ GERMAN_TEXT: dict[str, str] = {
     "one readable legacy file with MIME tokens": "eine lesbare Legacy-Datei mit MIME-Token",
     "none; deprecated Apache compatibility input": "kein Wert; veraltete Apache-Kompatibilitätseingabe",
     "Apache compatibility parser; deprecated": "Apache-Kompatibilitätsparser; veraltet",
-    "Apache appends each normalized response bucket exactly once and forwards non-terminal output to the next filter without waiting for EOS. It finishes P4 exactly once at actual EOS. After the next-filter commitment boundary, minimal/safe record log_only and strict requests abort_connection instead of a late status rewrite.": "Apache hängt jeden normalisierten Response-Bucket genau einmal an und leitet nichtterminale Ausgabe ohne Warten auf EOS an den nächsten Filter weiter. Es beendet P4 genau einmal am tatsächlichen EOS. Nach der Commit-Grenze des nächsten Filters zeichnen minimal/safe log_only auf und strict fordert abort_connection statt einer späten Statusumschreibung an.",
+    "Apache appends each normalized response bucket exactly once and forwards non-terminal output to the next filter without waiting for EOS. It finishes P4 exactly once at actual EOS. After the next-filter commitment boundary, safe record log_only and strict requests abort_connection instead of a late status rewrite.": "Apache hängt jeden normalisierten Response-Bucket genau einmal an und leitet nichtterminale Ausgabe ohne Warten auf EOS an den nächsten Filter weiter. Es beendet P4 genau einmal am tatsächlichen EOS. Nach der Commit-Grenze des nächsten Filters zeichnen safe log_only auf und strict fordert abort_connection statt einer späten Statusumschreibung an.",
     "Already forwarded response bytes cannot be rewritten. Safe records a post-commit disruptive decision as log_only; strict requests the configured host abort action rather than synthesizing a later 403.": "Bereits weitergeleitete Response-Bytes können nicht umgeschrieben werden. Safe zeichnet eine disruptive Entscheidung nach Commit als log_only auf; strict fordert die konfigurierte Host-Abort-Action an, statt eine spätere 403 zu synthetisieren.",
     "P4 only. Apache commits at the next-filter boundary before it forwards a current non-terminal brigade; this setting controls the canonical pre- and post-commit decision mapping.": "Nur P4. Apache committet an der Grenze zum nächsten Filter, bevor es eine aktuelle nichtterminale Brigade weiterleitet; diese Einstellung steuert die kanonische Decision-Zuordnung vor und nach Commit.",
     "Deprecated Apache compatibility parser for a legacy MIME list. It does not narrow the universal P4 inspection path; use SecResponseBodyMimeType to select libModSecurity inspection.": "Veralteter Apache-Kompatibilitätsparser für eine Legacy-MIME-Liste. Er schränkt den universellen P4-Inspektionspfad nicht ein; SecResponseBodyMimeType wählt die libModSecurity-Inspektion.",
@@ -4345,7 +4275,7 @@ def profiles_section(connector: str, german: bool) -> list[str]:
 def combination_rows(german: bool) -> list[tuple[str, str, str, str, str]]:
     if german:
         return [
-            ("off", "On", "beliebig", "beliebig", "Keine Connector-Transaktion; die Engine-Einstellung wird nicht erreicht."),
+            (VALUE_OFF, "On", "beliebig", "beliebig", "Keine Connector-Transaktion; die Engine-Einstellung wird nicht erreicht."),
             ("on", "Off", "beliebig", "beliebig", "Der Connector erreicht die Engine, aber deren Regelauswertung ist deaktiviert."),
             ("on", "DetectionOnly", "aktiviert", "aktiviert", "Regeln können ohne disruptive Durchsetzung treffen/protokollieren."),
             ("on", "On", "Off", "On", "Der P2-Body steht der Engine nicht zur Verfügung; P4 bleibt host-/fähigkeitsabhängig."),
@@ -4355,7 +4285,7 @@ def combination_rows(german: bool) -> list[tuple[str, str, str, str, str]]:
             ("on", "On", "über Limit + process_partial", "über Limit + reject", "Die Body-Policy bestimmt die begrenzte Engine-Eingabe; die genaue Host-Response-Behandlung bleibt connectorspezifisch."),
         ]
     return [
-        ("off", "On", "any", "any", "No connector transaction; engine setting is not reached."),
+        (VALUE_OFF, "On", "any", "any", "No connector transaction; engine setting is not reached."),
         ("on", "Off", "any", "any", "Connector reaches the engine, but engine rule processing is disabled."),
         ("on", "DetectionOnly", "enabled", "enabled", "Rules can match/log without disruptive enforcement."),
         ("on", "On", "Off", "On", "P2 body is unavailable to the engine; P4 remains host/capability dependent."),

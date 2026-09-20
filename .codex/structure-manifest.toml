@@ -1,0 +1,21 @@
+schema_version = 2
+control_plane_version = "3.2"
+
+[parent]
+root = "."
+agents = "AGENTS.md"
+context = ".codex/context"
+inheritance_manifest = ".codex/inheritance-manifest.toml"
+routing_marker = "codex-control-plane-routing:parent"
+
+[framework]
+root = "modules/ModSecurity-test-Framework"
+agents = "AGENTS.md"
+inheritance_manifest = ".codex/inheritance-manifest.toml"
+routing_marker = "codex-control-plane-routing:framework"
+
+[mrts]
+root = "modules/ModSecurity-test-Framework/tools/MRTS"
+agents = "AGENTS.md"
+inheritance_manifest = ".codex/inheritance-manifest.toml"
+routing_marker = "codex-control-plane-routing:mrts"

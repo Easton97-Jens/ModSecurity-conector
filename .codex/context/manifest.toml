@@ -1,0 +1,32 @@
+version = "3.2"
+root_instruction = "AGENTS.md"
+index = ".codex/context/index.md"
+
+[primary_policies]
+command_execution = ".codex/context/command-execution-policy.md"
+sonarqube = ".codex/context/sonarqube-policy.md"
+task_workflow = ".codex/context/task-workflow.md"
+
+[profiles]
+connector_security = ".codex/context/profiles/connector-security-assessment.md"
+all_connectors_security = ".codex/context/profiles/all-connectors-security-assessment.md"
+full_repository_assessment = ".codex/context/profiles/full-repository-assessment.md"
+phase4_migration = ".codex/context/profiles/phase4-migration-assessment.md"
+evidence_integrity = ".codex/context/profiles/evidence-integrity-assessment.md"
+connector_runtime = ".codex/context/profiles/connector-runtime-assessment.md"
+all_connectors_runtime = ".codex/context/profiles/all-connectors-runtime-assessment.md"
+ci_supply_chain = ".codex/context/profiles/ci-supply-chain-assessment.md"
+strict_completeness = ".codex/context/profiles/strict-completeness-assessment.md"
+
+[connectors]
+apache = ".codex/context/security/connectors/apache.md"
+nginx = ".codex/context/security/connectors/nginx.md"
+haproxy = ".codex/context/security/connectors/haproxy.md"
+envoy = ".codex/context/security/connectors/envoy.md"
+traefik = ".codex/context/security/connectors/traefik.md"
+lighttpd = ".codex/context/security/connectors/lighttpd.md"
+
+[inheritance]
+parent_catalog = ".codex/inheritance-manifest.toml"
+structure = ".codex/structure-manifest.toml"
+validator = ".codex/bin/validate-codex-inheritance.py"

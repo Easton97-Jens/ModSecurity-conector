@@ -287,8 +287,7 @@ Der adaptereigene NGINX-Connector registriert derzeit Folgendes:
 - `modsecurity_rules_remote` (abgelehnt: Remote-Regelladen ist durch die gemeinsame Sicherheitsrichtlinie deaktiviert)
 - `modsecurity_transaction_id`
 - `modsecurity_use_error_log on|off`
-- `modsecurity_phase4_mode minimal|safe|strict`
-- `modsecurity_phase4_content_types_file <path>`
+- `modsecurity_phase4_mode off|safe|strict`
 - `modsecurity_phase4_log <path>` (nativer P4-JSONL-Sink; der dem Connector
   gehörende Deskriptor wird über den Common-No-Follow-Helper geöffnet und
   verlangt ein sicheres Elternverzeichnis, ein reguläres Blatt, geeignete
@@ -302,7 +301,6 @@ Common-Konfigurationsvalidator lehnt einen gewählten Wert über 10485760 Byte
 (10 MiB) ab, sodass ein nativer Response-Filter kein unbeschränktes
 Phase-4-Bytebudget erhalten kann.
 
-Wenn `modsecurity_phase4_content_types_file` konfiguriert ist, öffnet und
 prüft das native Modul den Deskriptor, akzeptiert nur eine reguläre Datei,
 begrenzt sie auf 64 KiB und weist verkürzte Reads ab. FIFOs, Geräte, Sockets,
 Verzeichnisse und übergroße Dateien können `nginx -t` daher nicht in einen

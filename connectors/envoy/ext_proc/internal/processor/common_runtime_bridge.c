@@ -291,8 +291,8 @@ int msc_envoy_ext_proc_runtime_phase4_mode(
         return MSC_ENVOY_EXT_PROC_PHASE4_MODE_UNSET;
     }
     switch (msconnector_runtime_phase4_mode(runtime->runtime)) {
-      case MSCONNECTOR_PHASE4_MODE_MINIMAL:
-        return MSC_ENVOY_EXT_PROC_PHASE4_MODE_MINIMAL;
+      case MSCONNECTOR_PHASE4_MODE_OFF:
+        return MSC_ENVOY_EXT_PROC_PHASE4_MODE_OFF;
       case MSCONNECTOR_PHASE4_MODE_SAFE:
         return MSC_ENVOY_EXT_PROC_PHASE4_MODE_SAFE;
       case MSCONNECTOR_PHASE4_MODE_STRICT:

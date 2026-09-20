@@ -457,8 +457,8 @@ static const char *apache_phase4_mode_name(enum msconnector_phase4_mode mode)
 {
     switch (mode)
     {
-        case MSCONNECTOR_PHASE4_MODE_MINIMAL:
-            return "minimal";
+        case MSCONNECTOR_PHASE4_MODE_OFF:
+            return "off";
         case MSCONNECTOR_PHASE4_MODE_SAFE:
             return "safe";
         case MSCONNECTOR_PHASE4_MODE_STRICT:
@@ -2015,6 +2015,15 @@ static apr_status_t apache_phase4_handle_intervention(msc_t *msr,
     msr->phase4_intervention = 1;
     msr->response.committed = apache_phase4_response_committed(msr, r);
     wanted = msc_apache_contract_intervention_action(msr);
+    if (conf->common_config.phase4_mode == MSCONNECTOR_PHASE4_MODE_OFF)
+    {
+        apache_phase4_log_event(msr, r, wanted, wanted, "native_phase4_mode_off");
+        apr_brigade_cleanup(bb_in);
+        msc_discard_response_brigade(msr);
+        msr->response_phase4_gate_failed = 1;
+        ap_remove_output_filter(f);
+        return apache_send_precommit_terminal_error(msr, f, NULL, intervention);
+    }
     msconnector_late_intervention_policy_init(&policy);
     action = msconnector_late_intervention_resolve(&policy,
         msr->response.committed, msr->response.committed,

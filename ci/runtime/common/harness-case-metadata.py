@@ -21,7 +21,7 @@ from typing import Any
 
 HEADER_NAME_RE = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
 FORBIDDEN_FRAMING_HEADERS = frozenset({"connection", "content-length", "transfer-encoding"})
-PHASE4_MODES = frozenset({"minimal", "safe", "strict"})
+PHASE4_MODES = frozenset({"off", "safe", "strict"})
 
 
 def load_case(case_path: Path, framework_root: Path) -> Mapping[str, Any]:
@@ -87,7 +87,7 @@ def response_fixture(case: Mapping[str, Any]) -> dict[str, object]:
 
 def apache_phase4_mode(case: Mapping[str, Any], default: str) -> str:
     if default not in PHASE4_MODES:
-        raise ValueError("Apache Phase-4 default must be minimal, safe, or strict")
+        raise ValueError("Apache Phase-4 default must be off, safe, or strict")
     apache = case.get("apache", {})
     if apache is None:
         apache = {}
@@ -95,7 +95,7 @@ def apache_phase4_mode(case: Mapping[str, Any], default: str) -> str:
         raise ValueError("case apache metadata must be a mapping")
     mode = apache.get("phase4_mode", default)
     if not isinstance(mode, str) or mode not in PHASE4_MODES:
-        raise ValueError("case apache.phase4_mode must be minimal, safe, or strict")
+        raise ValueError("case apache.phase4_mode must be off, safe, or strict")
     return mode
 
 
@@ -132,7 +132,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     apache_parser.add_argument("--case", required=True, type=Path)
     apache_parser.add_argument("--framework-root", required=True, type=Path)
-    apache_parser.add_argument("--default", default="safe")
+    apache_parser.add_argument("--default", default="off")
     apache_parser.set_defaults(func=print_apache_phase4_mode)
 
     args = parser.parse_args(argv)

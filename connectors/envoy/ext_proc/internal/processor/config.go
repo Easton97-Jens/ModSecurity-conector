@@ -20,7 +20,7 @@ import (
 type LateActionPolicy string
 
 const (
-	LateActionMinimal LateActionPolicy = "minimal"
+	LateActionOff LateActionPolicy = "off"
 	LateActionSafe    LateActionPolicy = "safe"
 	LateActionStrict  LateActionPolicy = "strict"
 )
@@ -156,9 +156,9 @@ func (config Config) Validate() error {
 		return fmt.Errorf("config: max_concurrent_streams must not exceed %d", MaximumConcurrentStreams)
 	}
 	switch config.LateActionPolicy {
-	case LateActionMinimal, LateActionSafe, LateActionStrict:
+	case LateActionOff, LateActionSafe, LateActionStrict:
 	default:
-		return fmt.Errorf("config: late_action_policy must be minimal, safe, or strict")
+		return fmt.Errorf("config: late_action_policy must be off, safe, or strict")
 	}
 	return nil
 }

@@ -24,7 +24,7 @@ const commonRuntimeErrorBufferSize = 512
 
 const (
 	commonRuntimePhase4ModeUnset   = int(C.MSC_ENVOY_EXT_PROC_PHASE4_MODE_UNSET)
-	commonRuntimePhase4ModeMinimal = int(C.MSC_ENVOY_EXT_PROC_PHASE4_MODE_MINIMAL)
+	commonRuntimePhase4ModeOff = int(C.MSC_ENVOY_EXT_PROC_PHASE4_MODE_OFF)
 	commonRuntimePhase4ModeSafe    = int(C.MSC_ENVOY_EXT_PROC_PHASE4_MODE_SAFE)
 	commonRuntimePhase4ModeStrict  = int(C.MSC_ENVOY_EXT_PROC_PHASE4_MODE_STRICT)
 )
@@ -112,7 +112,7 @@ func (engine *CommonRuntimeEngine) ValidateLateActionPolicy(policy LateActionPol
 		if engine.phase4Mode != commonRuntimePhase4ModeStrict {
 			return fmt.Errorf("late_action_policy=strict requires phase4_mode=strict, got phase4_mode=%s", commonRuntimePhase4ModeName(engine.phase4Mode))
 		}
-	case LateActionMinimal, LateActionSafe:
+	case LateActionOff, LateActionSafe:
 		if engine.phase4Mode == commonRuntimePhase4ModeStrict {
 			return fmt.Errorf("phase4_mode=strict requires late_action_policy=strict")
 		}
@@ -124,8 +124,8 @@ func (engine *CommonRuntimeEngine) ValidateLateActionPolicy(policy LateActionPol
 
 func commonRuntimePhase4ModeName(mode int) string {
 	switch mode {
-	case commonRuntimePhase4ModeMinimal:
-		return "minimal"
+	case commonRuntimePhase4ModeOff:
+		return "off"
 	case commonRuntimePhase4ModeSafe:
 		return "safe"
 	case commonRuntimePhase4ModeStrict:

@@ -81,7 +81,7 @@ class ConnectorConfigReferenceTests(unittest.TestCase):
             "modsecurity_rules_remote",
         }
         source_example = "connectors/apache/src/msc_config.c"
-        minimal_example = "examples/apache/minimal/httpd.conf"
+        minimal_example = "examples/apache/off/httpd.conf"
         safe_example = "examples/apache/safe/httpd.conf"
         minimal_directives = {
             "modsecurity",

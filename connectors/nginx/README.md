@@ -267,8 +267,7 @@ The adapter-owned NGINX connector currently registers:
 - `modsecurity_rules_remote` (rejected: remote rule loading is disabled by the common security policy)
 - `modsecurity_transaction_id`
 - `modsecurity_use_error_log on|off`
-- `modsecurity_phase4_mode minimal|safe|strict`
-- `modsecurity_phase4_content_types_file <path>`
+- `modsecurity_phase4_mode off|safe|strict`
 - `modsecurity_phase4_log <path>` (native P4 JSONL sink; the connector-owned
   descriptor is opened through the Common no-follow helper and requires a safe
   parent, regular leaf, suitable ownership, and private `0600` mode)
@@ -280,7 +279,6 @@ Common configuration validator rejects a selected value above 10485760 bytes
 (10 MiB), so a native response filter cannot be configured with an unbounded
 Phase-4 byte budget.
 
-When `modsecurity_phase4_content_types_file` is configured, the native module
 opens and inspects the descriptor, accepts only a regular file, limits it to
 64 KiB, and rejects short reads. FIFOs, devices, sockets, directories, and
 oversized files therefore cannot turn `nginx -t` into an unbounded or blocking

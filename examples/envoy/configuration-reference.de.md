@@ -196,7 +196,7 @@ Siehe [Engine-Referenz](../common/modsecurity-directives.de.md).
 
 | Profil | Datei | Status |
 | --- | --- | --- |
-| Minimal | [ext-proc/minimal/envoy.yaml.in](ext-proc/minimal/envoy.yaml.in) | Aktive Startkonfiguration |
+| Minimal | [ext-proc/off/envoy.yaml.in](ext-proc/off/envoy.yaml.in) | Aktive Startkonfiguration |
 | Sicherer vollst채ndiger Lebenszyklus | [ext-proc/safe/envoy.yaml.in](ext-proc/safe/envoy.yaml.in) | Ausgew채hlte begrenzte Referenz |
 | Strikt | [ext-proc/strict/envoy.yaml.in](ext-proc/strict/envoy.yaml.in) | Parserunterst체tzte oder ausdr체cklich optionale Grenze |
 | DetectionOnly | [detection-only/msconnector-runtime.conf](detection-only/msconnector-runtime.conf) | Engine wertet aus/protokolliert ohne disruptive Aktion |
@@ -1326,7 +1326,7 @@ W채hlt die Protokollierung sp채ter Entscheidungen; minimal und safe erfassen sp�
 
 | Typ | Zul채ssige Werte | Erforderlich |
 | --- | --- | --- |
-| LateActionPolicy | minimal \| safe \| strict | ja |
+| LateActionPolicy | off \| safe \| strict | ja |
 
 ### Standardwert
 

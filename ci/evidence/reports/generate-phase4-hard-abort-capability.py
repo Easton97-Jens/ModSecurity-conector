@@ -161,7 +161,7 @@ def phase4_metadata_updates(
         "expected_action": phase4_metadata_expected_action(entry, expect, metadata["expected_action"]),
         "expected_response_body": str(expected_response),
         "phase4_mode": phase4_mode(parsed, raw),
-        "content_type_scope": content_type_scope(parsed, raw),
+        "content_type_scope": content_type_scope(parsed),
         "rule_excerpt": rule["rule_excerpt"],
     }
 
@@ -206,15 +206,13 @@ def phase4_mode(parsed: dict[str, Any], raw: str) -> str:
     return "-"
 
 
-def content_type_scope(parsed: dict[str, Any], raw: str) -> str:
+def content_type_scope(parsed: dict[str, Any]) -> str:
     expect = parsed.get("expect") if isinstance(parsed.get("expect"), dict) else {}
     headers = (parsed.get("response") or {}).get("headers") if isinstance(parsed.get("response"), dict) else {}
     if isinstance(headers, dict) and headers.get("content-type"):
         return str(headers["content-type"])
     if expect.get("content_type"):
         return str(expect["content_type"])
-    if "modsecurity_phase4_content_types_file" in raw:
-        return "configured"
     return "-"
 
 
@@ -334,7 +332,7 @@ def classify_case(
     )
     logs = log_evidence(phase4_events, decisions, evidence)
     expected_action = str(meta.get("expected_action") or "")
-    log_only = action == "log_only" or mode in {"minimal", "safe"} or reason in {"mode_minimal", "mode_safe", "content_type_not_in_scope"}
+    log_only = action == "log_only" or mode == "safe" or reason == "mode_safe"
     known_gap = (
         "connector-gap" in str(entry.get("classification") or "")
         or any("connector-gap" in item for item in normalize_list(evidence.get("known_limitations")))

@@ -16,7 +16,6 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`LoadModule`](#loadmodule) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`modsecurity`](#modsecurity) | Host / Connector | Boolescher Wert | nein | off | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Schaltet die Erstellung von Connector-Transaktionen frei; dies ist nicht SecRuleEngine. |
 | [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive dezimale Byteanzahl | nein | 1048576 | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Begrenzt Apache-Response-Bytes, die P4 über aktuelle normalisierte Brigades angeboten werden. Der konfigurierbare Standardwert ist 1048576 Byte; unabhängig davon gilt über Filter-Aufrufe hinweg eine feste, nicht konfigurierbare Obergrenze von 4096 normalisierten Buckets. Eine Limitverletzung schlägt fail-closed fehl, bevor der aktuelle fehlerhafte Bucket weitergeleitet wird; bereits committed Ausgabe wird nicht umgeschrieben. |
-| [`modsecurity_phase4_content_types_file`](#modsecurity-phase4-content-types-file) | Host / Connector | veralteter Pfad | nein | kein Wert; veraltete Apache-Kompatibilitätseingabe | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Veralteter Apache-Kompatibilitätsparser für eine Legacy-MIME-Liste. Er schränkt den universellen P4-Inspektionspfad nicht ein; SecResponseBodyMimeType wählt die libModSecurity-Inspektion. |
 | [`modsecurity_phase4_log`](#modsecurity-phase4-log) | Host / Connector | Pfad | nein | none | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Setzt einen Connector-Ereignispfad; aktuelle Apache- und NGINX-Pfade verwenden ihn auch für frühere Regel-/Interventionsmetadaten, nicht nur für P4. |
 | [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | Aufzählung | nein | safe | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Apache hängt jeden normalisierten Response-Bucket genau einmal an und leitet nichtterminale Ausgabe ohne Warten auf EOS an den nächsten Filter weiter. Es beendet P4 genau einmal am tatsächlichen EOS. Nach der Commit-Grenze des nächsten Filters zeichnen minimal/safe log_only auf und strict fordert abort_connection statt einer späten Statusumschreibung an. |
 | [`modsecurity_rules`](#modsecurity-rules) | Host / Connector | Zeichenkette | nein | kein Wert; optional | Apache RSRC_CONF \| ACCESS_CONF (Server-/VHost- und Verzeichnis-Kontexte gemäß den Apache-Kontextregeln) | Lädt während des Konfigurationsladens Inline-Inhalt über libmodsecurity. |
@@ -48,7 +47,7 @@ Siehe [Engine-Referenz](../common/modsecurity-directives.de.md).
 
 | Profil | Datei | Status |
 | --- | --- | --- |
-| Minimal | [minimal/httpd.conf](minimal/httpd.conf) | Aktive Startkonfiguration |
+| Minimal | [minimal/httpd.conf](off/httpd.conf) | Aktive Startkonfiguration |
 | Sicherer vollständiger Lebenszyklus | [safe/httpd.conf](safe/httpd.conf) | Ausgewählte begrenzte Referenz |
 | Strikt | [strict/httpd.conf](strict/httpd.conf) | Parserunterstützte oder ausdrücklich optionale Grenze |
 | DetectionOnly | [detection-only/httpd.conf](detection-only/httpd.conf) | Engine wertet aus/protokolliert ohne disruptive Aktion |
@@ -291,7 +290,7 @@ msc_config_modsec_state liefert für die dokumentierte ungültige Eingabe einen 
 
 Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
 
-Quellenbasiertes Beispiel: [examples/apache/minimal/httpd.conf](../../examples/apache/minimal/httpd.conf).
+Quellenbasiertes Beispiel: [examples/apache/off/httpd.conf](../../examples/apache/off/httpd.conf).
 
 ### Sicherheit und Betrieb
 
@@ -352,8 +351,6 @@ Quellenbasiertes Beispiel: [examples/apache/safe/httpd.conf](../../examples/apac
 
 Die Byte- und feste Bucket-Obergrenze begrenzen Payload- sowie APR-Objekt-/Setaside-Speicher-/CPU-Exposition pro Transaktion. Jeder akzeptierte aktuelle Bucket wird vor der direkten Weiterleitung genau einmal angehängt; keine vollständige Response zurückhalten oder einen uninspektierten Tail weiterleiten.
 
-<a id="modsecurity-phase4-content-types-file"></a>
-## `modsecurity_phase4_content_types_file`
 
 ### Kurzbeschreibung
 
@@ -362,7 +359,6 @@ Veralteter Apache-Kompatibilitätsparser für eine Legacy-MIME-Liste. Er schrän
 ### Syntax
 
 ```text
-modsecurity_phase4_content_types_file <value>
 ```
 
 ### Gültige Kontexte
@@ -395,7 +391,6 @@ Veralteter Apache-Kompatibilitätsparser für eine Legacy-MIME-Liste. Er schrän
 
 ### Validierung und Fehler
 
-msc_config_phase4_content_types_file liefert für die dokumentierte ungültige Eingabe einen Apache-Konfigurationsfehler; die installierte Konfiguration mit apachectl -t validieren.
 
 ### Beispiel
 
@@ -472,7 +467,7 @@ Apache hängt jeden normalisierten Response-Bucket genau einmal an und leitet ni
 ### Syntax
 
 ```text
-modsecurity_phase4_mode minimal | safe | strict
+modsecurity_phase4_mode off | safe | strict
 ```
 
 ### Gültige Kontexte
@@ -483,7 +478,7 @@ modsecurity_phase4_mode minimal | safe | strict
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| Aufzählung | minimal \| safe \| strict | nein |
+| Aufzählung | off \| safe \| strict | nein |
 
 ### Standardwert
 
@@ -621,7 +616,7 @@ msc_config_load_rules_file liefert für die dokumentierte ungültige Eingabe ein
 
 Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
 
-Quellenbasiertes Beispiel: [examples/apache/minimal/httpd.conf](../../examples/apache/minimal/httpd.conf).
+Quellenbasiertes Beispiel: [examples/apache/off/httpd.conf](../../examples/apache/off/httpd.conf).
 
 ### Sicherheit und Betrieb
 
@@ -841,7 +836,7 @@ msc_config_use_error_log liefert für die dokumentierte ungültige Eingabe einen
 
 Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
 
-Quellenbasiertes Beispiel: [examples/apache/minimal/httpd.conf](../../examples/apache/minimal/httpd.conf).
+Quellenbasiertes Beispiel: [examples/apache/off/httpd.conf](../../examples/apache/off/httpd.conf).
 
 ### Sicherheit und Betrieb
 

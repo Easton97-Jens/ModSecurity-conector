@@ -33,8 +33,6 @@ static const char *msc_config_use_error_log(cmd_parms *cmd, void *_dcfg,
     const char *p1);
 static const char *msc_config_phase4_mode(cmd_parms *cmd, void *_dcfg,
     const char *p1);
-static const char *msc_config_phase4_content_types_file(cmd_parms *cmd,
-    void *_dcfg, const char *p1);
 static const char *msc_config_phase4_log(cmd_parms *cmd, void *_dcfg,
     const char *p1);
 static const char *msc_config_phase4_body_limit(cmd_parms *cmd, void *_dcfg,
@@ -103,16 +101,9 @@ const command_rec module_directives[] =
         msc_config_phase4_mode,
         NULL,
         RSRC_CONF | ACCESS_CONF,
-        "Phase 4 handling mode: minimal, safe, or strict"
+        "Phase 4 handling mode: off, safe, or strict"
     ),
 
-    AP_INIT_TAKE1(
-        MSCONNECTOR_DIRECTIVE_PHASE4_CONTENT_TYPES_FILE,
-        msc_config_phase4_content_types_file,
-        NULL,
-        RSRC_CONF | ACCESS_CONF,
-        "Deprecated: legacy MIME list; does not narrow the Phase 4 pre-commit gate"
-    ),
 
     AP_INIT_TAKE1(
         MSCONNECTOR_DIRECTIVE_PHASE4_LOG,
@@ -282,84 +273,10 @@ static const char *msc_config_phase4_mode(cmd_parms *cmd, void *_cnf,
 
     if (!msconnector_parse_phase4_mode(p1, &parsed))
     {
-        return "modsecurity_phase4_mode must be minimal, safe, or strict";
+        return "modsecurity_phase4_mode must be off, safe, or strict";
     }
 
     cnf->common_config.phase4_mode = parsed;
-    return NULL;
-}
-
-
-static const char *msc_config_phase4_content_types_file(cmd_parms *cmd,
-    void *_cnf, const char *p1)
-{
-    msc_conf_t *cnf = (msc_conf_t *) _cnf;
-    apr_file_t *file = NULL;
-    char line[512];
-    apr_status_t rc;
-
-    if (p1 == NULL || p1[0] == '\0')
-    {
-        return "modsecurity_phase4_content_types_file must not be empty";
-    }
-
-    cnf->common_config.phase4_content_types_file = apr_pstrdup(cmd->pool, p1);
-    ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_NOERRNO, 0, cmd->server,
-        "ModSecurity: modsecurity_phase4_content_types_file is deprecated and "
-        "does not narrow the Apache Phase 4 pre-commit gate; use "
-        "SecResponseBodyMimeType to select libModSecurity inspection");
-    cnf->phase4_content_types = apr_array_make(cmd->pool, 8,
-        sizeof(const char *));
-    if (cnf->phase4_content_types == NULL)
-    {
-        return "failed to allocate phase4 content-type list";
-    }
-
-    rc = apr_file_open(&file, p1, APR_READ, APR_OS_DEFAULT, cmd->pool);
-    if (rc != APR_SUCCESS)
-    {
-        return apr_psprintf(cmd->pool,
-            "failed to open modsecurity_phase4_content_types_file: %s", p1);
-    }
-
-    while (apr_file_gets(line, sizeof(line), file) == APR_SUCCESS)
-    {
-        char *start = line;
-        char *end;
-        char *comment;
-
-        while (*start != '\0' && apr_isspace(*start))
-        {
-            start++;
-        }
-        comment = strchr(start, '#');
-        if (comment != NULL)
-        {
-            *comment = '\0';
-        }
-        comment = strchr(start, ';');
-        if (comment != NULL)
-        {
-            *comment = '\0';
-        }
-        for (end = start; *end != '\0'; end++)
-        {
-            /* Advance to the end so trailing whitespace can be trimmed below. */
-        }
-        while (end > start && apr_isspace(*(end - 1)))
-        {
-            end--;
-        }
-        *end = '\0';
-        if (*start == '\0')
-        {
-            continue;
-        }
-        *(const char **)apr_array_push(cnf->phase4_content_types) =
-            apr_pstrdup(cmd->pool, start);
-    }
-
-    apr_file_close(file);
     return NULL;
 }
 
@@ -467,14 +384,6 @@ static void msc_select_directory_overrides(msc_conf_t *destination,
         destination->transaction_id_expr = parent->transaction_id_expr;
     }
 
-    if (child != NULL && child->phase4_content_types != NULL)
-    {
-        destination->phase4_content_types = child->phase4_content_types;
-    }
-    else if (parent != NULL && parent->phase4_content_types != NULL)
-    {
-        destination->phase4_content_types = parent->phase4_content_types;
-    }
 }
 
 static void msc_merge_directory_rule_load_stats(msc_conf_t *destination,
@@ -510,7 +419,6 @@ void *msc_hook_create_config_directory(apr_pool_t *mp, char *path)
     cnf->rules_set = msc_create_rules_set();
     msconnector_config_init(&cnf->common_config);
     cnf->transaction_id_expr = NULL;
-    cnf->phase4_content_types = NULL;
     msconnector_rule_load_stats_init(&cnf->rule_load_stats);
     if (cnf->rules_set == NULL)
     {

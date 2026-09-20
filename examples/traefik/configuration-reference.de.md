@@ -125,7 +125,7 @@ Siehe [Engine-Referenz](../common/modsecurity-directives.de.md).
 
 | Profil | Datei | Status |
 | --- | --- | --- |
-| Minimal | [native-uds/minimal/traefik-static.yaml](native-uds/minimal/traefik-static.yaml) | Aktive Startkonfiguration |
+| Minimal | [native-uds/off/traefik-static.yaml](native-uds/off/traefik-static.yaml) | Aktive Startkonfiguration |
 | Sicherer vollständiger Lebenszyklus | [native-uds/safe/traefik-static.yaml](native-uds/safe/traefik-static.yaml) | Ausgewählte begrenzte Referenz |
 | Strikt | [native-uds/strict/traefik-static.yaml](native-uds/strict/traefik-static.yaml) | Parserunterstützte oder ausdrücklich optionale Grenze |
 | DetectionOnly | [detection-only/traefik-engine-service.conf](detection-only/traefik-engine-service.conf) | Engine wertet aus/protokolliert ohne disruptive Aktion |
@@ -203,7 +203,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Beispielwert: `{}`.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -273,7 +273,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -343,7 +343,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -413,7 +413,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Beispielwert: `":8080"`.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -483,7 +483,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -553,7 +553,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -623,7 +623,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -693,7 +693,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Beispielwert: `github.com/Easton97-Jens/ModSecurity-conector/connectors/traefik/native_middleware`.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -763,7 +763,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -833,7 +833,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Beispielwert: `[]`.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -2743,7 +2743,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -2813,7 +2813,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Beispielwert: `INFO`.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -2883,7 +2883,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -2953,7 +2953,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -3023,7 +3023,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Beispielwert: `"./traefik-dynamic.yaml"`.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -3093,7 +3093,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Beispielwert: `false`.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 

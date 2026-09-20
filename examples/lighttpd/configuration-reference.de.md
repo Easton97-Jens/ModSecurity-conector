@@ -54,7 +54,6 @@ Host-/Connector-Schalter binden oder konfigurieren die Hostintegration. Sie sind
 | `transaction_id` | Schlüssel des ausgewählten Runtime-Profils | [transaction_id](../common/common-connector-configuration.de.md#transaction-id) |
 | `transaction_id_header` | Schlüssel des ausgewählten Runtime-Profils | [transaction_id_header](../common/common-connector-configuration.de.md#transaction-id-header) |
 | `phase4_mode` | Schlüssel des ausgewählten Runtime-Profils | [phase4_mode](../common/common-connector-configuration.de.md#phase4-mode) |
-| `phase4_content_types_file` | Schlüssel des ausgewählten Runtime-Profils | [phase4_content_types_file](../common/common-connector-configuration.de.md#phase4-content-types-file) |
 | `event_path` | Schlüssel des ausgewählten Runtime-Profils | [event_path](../common/common-connector-configuration.de.md#event-path) |
 | `phase4_event_log` | Schlüssel des ausgewählten Runtime-Profils | [phase4_event_log](../common/common-connector-configuration.de.md#phase4-event-log) |
 | `request_body_mode` | Schlüssel des ausgewählten Runtime-Profils | [request_body_mode](../common/common-connector-configuration.de.md#request-body-mode) |
@@ -81,7 +80,7 @@ Siehe [Engine-Referenz](../common/modsecurity-directives.de.md).
 
 | Profil | Datei | Status |
 | --- | --- | --- |
-| Minimal | [patched/minimal/lighttpd.conf](patched/minimal/lighttpd.conf) | Aktive Startkonfiguration |
+| Minimal | [patched/off/lighttpd.conf](patched/off/lighttpd.conf) | Aktive Startkonfiguration |
 | Sicherer vollständiger Lebenszyklus | [patched/safe/lighttpd.conf](patched/safe/lighttpd.conf) | Ausgewählte begrenzte Referenz |
 | Strikt | [patched/strict/lighttpd.conf](patched/strict/lighttpd.conf) | Parserunterstützte oder ausdrücklich optionale Grenze |
 | DetectionOnly | [detection-only/msconnector-runtime.conf](detection-only/msconnector-runtime.conf) | Engine wertet aus/protokolliert ohne disruptive Aktion |
@@ -159,7 +158,7 @@ Nur bei msconnector.enabled=true erforderlich; eine fehlende, unlesbare oder ung
 
 Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
 
-Quellenbasiertes Beispiel: [examples/lighttpd/minimal/lighttpd.conf](../../examples/lighttpd/minimal/lighttpd.conf).
+Quellenbasiertes Beispiel: [examples/lighttpd/off/lighttpd.conf](../../examples/lighttpd/off/lighttpd.conf).
 
 ### Sicherheit und Betrieb
 
@@ -214,7 +213,7 @@ Bei Aktivierung validiert lighttpd die Runtime-Datei während set-defaults; Host
 
 Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
 
-Quellenbasiertes Beispiel: [examples/lighttpd/minimal/lighttpd.conf](../../examples/lighttpd/minimal/lighttpd.conf).
+Quellenbasiertes Beispiel: [examples/lighttpd/off/lighttpd.conf](../../examples/lighttpd/off/lighttpd.conf).
 
 ### Sicherheit und Betrieb
 

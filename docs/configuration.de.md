@@ -30,6 +30,9 @@ und protokolliert ohne disruptive Regelaktionen anzuwenden.
 
 ## Profile und spätes Verhalten
 
+Die Auswahl der Response-MIME-Typen gehört zu ModSecurity und erfolgt über Engine-Direktiven wie `SecResponseBodyMimeType`; Connectoren führen keine zweite Phase-4-MIME-Allowlist. Die Phase-4-Policy steuert die Behandlung einer disruptiven Entscheidung in der Response-Phase, nicht die von der Engine untersuchten MIME-Typen.
+
+
 | Profil | Vorgesehene Verwendung | Grenze |
 | --- | --- | --- |
 | Minimal | Kleinste ausgewählte Host-/Serviceform | Es ist ein Syntax-/Konfigurationsausgangspunkt, kein Lifecycle-Nachweis |

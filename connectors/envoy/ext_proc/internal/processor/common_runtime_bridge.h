@@ -54,7 +54,7 @@ enum msc_envoy_ext_proc_action {
 
 enum msc_envoy_ext_proc_phase4_mode {
     MSC_ENVOY_EXT_PROC_PHASE4_MODE_UNSET = -1,
-    MSC_ENVOY_EXT_PROC_PHASE4_MODE_MINIMAL = 0,
+    MSC_ENVOY_EXT_PROC_PHASE4_MODE_OFF = 0,
     MSC_ENVOY_EXT_PROC_PHASE4_MODE_SAFE = 1,
     MSC_ENVOY_EXT_PROC_PHASE4_MODE_STRICT = 2
 };
