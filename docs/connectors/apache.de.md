@@ -78,11 +78,11 @@ weitergereicht. Der Filter hält keine vollständige Response-Brigade; nur das
 terminale EOS-Fragment wartet auf den einmaligen Aufruf von
 `msc_process_response_body` und die Late-Action-Auflösung.
 
-Die C-API gibt keine sichere Antwort auf die wirksame
-`SecResponseBodyMimeType`-Auswahl von libModSecurity. Apache gate't deshalb
-jeden Response-MIME-Typ; die Engine-Direktive wählt weiterhin die Inspektion,
-aber das veraltete `modsecurity_phase4_content_types_file` kann keinen
-Pass-through-Pfad öffnen. Das Connector-Standardlimit ist ein hartes Limit von
+ModSecurity bestimmt die Response-MIME-Inspektion über
+`SecResponseBodyMimeType` und `SecResponseBodyAccess`. Die Connector-eigene
+MIME-Dateioption wurde entfernt; Apache übergibt Response-Daten unabhängig
+vom MIME-Typ über seinen begrenzten P4-Eingabepfad an die Engine.
+Das konfigurierbare Connector-Standardlimit beträgt
 1048576 Byte (1 MiB); die Grenze wird geprüft, bevor ein weiterer Daten-Bucket
 angehängt wird. Ein Fehler nach einem weitergereichten Präfix kann dieses nicht
 umschreiben; die terminale Aktion wird darum über die gemeinsame
@@ -95,7 +95,8 @@ EOS-Release-Guard und Apaches `r->bytes_sent`-Metadaten.
 P4-Regelauswertung erfolgt nicht pro Chunk, sondern nur bei EOS. Ein
 progressiver P4-Pfad behauptet darum keinen verlässlichen Deny oder Redirect
 vor Commit, nachdem ein Response-Präfix weitergereicht wurde; P3 bleibt der
-Entscheidungspunkt vor dem Response-Header-Commit. Safe/Minimal ordnet ein
+Entscheidungspunkt vor dem Response-Header-Commit. Off bewahrt die native
+Interventionsbehandlung ohne zusätzliche Late-Policy. Safe ordnet ein
 disruptives EOS-Ergebnis als `log_only` zu und erhält die bereits
 weitergereichte Response. Strict verwendet `abort_connection`. Source-Wiring
 für diesen Abort beweist weiterhin keinen client-sichtbaren Abbruch.

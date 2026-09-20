@@ -19,7 +19,7 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`modsecurity`](#modsecurity) | Host / Connector | Boolescher Wert | nein | off | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Schaltet die Erstellung von Connector-Transaktionen frei; dies ist nicht SecRuleEngine. |
 | [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive dezimale Byteanzahl | nein | 1048576 | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Begrenzt die vom nativen Connector der P4-Verarbeitung angebotenen Response-Bytes. |
 | [`modsecurity_phase4_log`](#modsecurity-phase4-log) | Host / Connector | Pfad | nein | nicht konfiguriert | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Öffnet über den sicheren No-Follow-Deskriptor-Helper der Common Runtime einen nativen NGINX-Ereignis-Sink im Besitz des Connectors. |
-| [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | Aufzählung | nein | safe | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Bevor Response-Header/-Body committet sind, lösen minimal, safe und strict eine P4-Intervention jeweils als deny_if_possible auf; NGINX kann daher noch den angeforderten Engine-Status (oder den Fallback 403) zurückgeben. Sobald Header committet sind oder der Body begonnen hat, verwenden minimal und safe beide die gemeinsame Aktion log_only; sie protokollieren die späte Entscheidung ohne nachträgliche Statusumschreibung. Strict löst dagegen zu abort_connection auf: Der native Body-Filter markiert die Verbindung als fehlerhaft, protokolliert connection_aborted und gibt NGX_ERROR zurück. Die bekannte Hostgrenze ist, dass NGINX das P4-Engine-Finish erst bei last_buf/last_in_chain nach der begrenzten Sammlung von Body-Bytes im Geltungsbereich aufruft; eine Antwort kann deshalb bereits sichtbar sein. Strict kann somit eine Verbindung beenden, aber keine spätere 403 garantieren oder eine bereits gesendete Statuszeile ersetzen. |
+| [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | Aufzählung | nein | off | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | off bewahrt die native Interventionsbehandlung von NGINX, ohne die ModSecurity-Response-Body-Inspektion zu deaktivieren. safe wendet eine Intervention an, solange die Antwort noch geändert werden kann, und protokolliert eine späte disruptive Entscheidung, ohne einen neuen Status zu erfinden. strict verwendet nach dem Commit den nativen abort_connection-Pfad. Die Response-MIME-Auswahl gehört über SecResponseBodyMimeType zu ModSecurity. |
 | [`modsecurity_rules`](#modsecurity-rules) | Host / Connector | Zeichenkette | nein | kein Wert; optional | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Lädt während des Konfigurationsladens Inline-Inhalt über libmodsecurity. |
 | [`modsecurity_rules_file`](#modsecurity-rules-file) | Host / Connector | Pfad | nein | kein Wert; optional | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Beim Laden der NGINX-Konfiguration übergibt ngx_conf_set_rules_file den bereitgestellten Pfad an msc_rules_add_file von libmodsecurity. Der NGINX-Setter kanonisiert den Pfad nicht und verlangt keinen absoluten Pfad; ein absoluter Pfad vermeidet eine Abhängigkeit vom Arbeitsverzeichnis des Prozesses. Eine fehlende, unlesbare oder ungültige Regeldatei der obersten Ebene liefert den Loader-Fehler von libmodsecurity und lässt Konfigurationsprüfung/Reload fehlschlagen. Include und IncludeOptional in dieser Datei werden anschließend von libmodsecurity interpretiert, nicht durch den NGINX-Parser expandiert. Anders als modsecurity_rules, das eine Inline-Konfigurationszeichenkette an msc_rules_add sendet, übergibt diese Direktive einen Dateipfad an msc_rules_add_file; beide tragen zum konfigurierten Regelsatz und seinem normalen Eltern-/Kind-Merge bei. |
 | [`modsecurity_rules_remote`](#modsecurity-rules-remote) | Host / Connector | registrierte, aber stets abgewiesene Direktive | nein | kein verwendbarer Wert | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Policy A weist Remote-Rule-Konfiguration ab, bevor ein Regellader- oder Netzwerkvorgang stattfindet. |
@@ -51,7 +51,7 @@ Siehe [Engine-Referenz](../common/modsecurity-directives.de.md).
 
 | Profil | Datei | Status |
 | --- | --- | --- |
-| Minimal | [minimal/nginx.conf](off/nginx.conf) | Aktive Startkonfiguration |
+| Off / Kompatibilität | [off/nginx.conf](off/nginx.conf) | Aktive Startkonfiguration |
 | Sicherer vollständiger Lebenszyklus | [safe/nginx.conf](safe/nginx.conf) | Ausgewählte begrenzte Referenz |
 | Strikt | [strict/nginx.conf](strict/nginx.conf) | Parserunterstützte oder ausdrücklich optionale Grenze |
 | DetectionOnly | [detection-only/nginx.conf](detection-only/nginx.conf) | Engine wertet aus/protokolliert ohne disruptive Aktion |
@@ -465,57 +465,6 @@ Quellenbasiertes Beispiel: [examples/nginx/safe/nginx.conf](../../examples/nginx
 
 Ein größeres Limit erhöht die Speicher-/CPU-Exposition; null ist in den nativen Settern ungültig.
 
-
-### Kurzbeschreibung
-
-Lädt die MIME-Token-Allowlist aus einer begrenzten regulären POSIX-Datei, um die P4-Response-Body-Inspektion einzugrenzen.
-
-### Syntax
-
-```text
-```
-
-### Gültige Kontexte
-
-- NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location)
-
-### Werte
-
-| Typ | Zulässige Werte | Erforderlich |
-| --- | --- | --- |
-| Pfad | unter POSIX eine lesbare reguläre MIME-Token-Datei mit höchstens 64 KiB; unter Win32 abgewiesen | nein |
-
-### Standardwert
-
-Host-Standardwerte bei Auslassung
-
-Quelle: `connectorspezifischer Standard-Content-Type-Loader`.
-
-### Vererbung und Zusammenführung
-
-http → server → location; ein Kind erbt, wenn es keinen Wert setzt.
-
-Zusammenführung: ngx_conf_merge_* führt Skalar-/Zeigerkonfiguration zusammen, während msc_rules_merge Eltern- und Kindregeln zusammenführt.
-
-### Phasen und Laufzeitwirkung
-
-P1–P4-Relevanz: Nur P4. Die MIME-Token-Allowlist bestimmt, welche Response-Bodys den begrenzten nativen P4-Pfad durchlaufen.
-
-Lädt die MIME-Token-Allowlist aus einer begrenzten regulären POSIX-Datei, um die P4-Response-Body-Inspektion einzugrenzen.
-
-### Validierung und Fehler
-
-
-### Beispiel
-
-Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
-
-Quellenbasiertes Beispiel: [examples/nginx/safe/nginx.conf](../../examples/nginx/safe/nginx.conf).
-
-### Sicherheit und Betrieb
-
-Eine atomar ersetzte reguläre Konfigurationsdatei in einem vertrauenswürdigen Verzeichnis verwenden. FIFOs, Geräte, Sockets, Verzeichnisse, übergroße Dateien, partielle Lesevorgänge und ungültige MIME-Token werden abgewiesen.
-
 <a id="modsecurity-phase4-log"></a>
 ## `modsecurity_phase4_log`
 
@@ -576,7 +525,7 @@ Der Helper weist Symlink-Durchquerung, nicht reguläre Blätter, unsichere Eigen
 
 ### Kurzbeschreibung
 
-Bevor Response-Header/-Body committet sind, lösen minimal, safe und strict eine P4-Intervention jeweils als deny_if_possible auf; NGINX kann daher noch den angeforderten Engine-Status (oder den Fallback 403) zurückgeben. Sobald Header committet sind oder der Body begonnen hat, verwenden minimal und safe beide die gemeinsame Aktion log_only; sie protokollieren die späte Entscheidung ohne nachträgliche Statusumschreibung. Strict löst dagegen zu abort_connection auf: Der native Body-Filter markiert die Verbindung als fehlerhaft, protokolliert connection_aborted und gibt NGX_ERROR zurück. Die bekannte Hostgrenze ist, dass NGINX das P4-Engine-Finish erst bei last_buf/last_in_chain nach der begrenzten Sammlung von Body-Bytes im Geltungsbereich aufruft; eine Antwort kann deshalb bereits sichtbar sein. Strict kann somit eine Verbindung beenden, aber keine spätere 403 garantieren oder eine bereits gesendete Statuszeile ersetzen.
+off bewahrt die native Interventionsbehandlung von NGINX, ohne die ModSecurity-Response-Body-Inspektion zu deaktivieren. safe wendet eine Intervention an, solange die Antwort noch geändert werden kann, und protokolliert eine späte disruptive Entscheidung, ohne einen neuen Status zu erfinden. strict verwendet nach dem Commit den nativen abort_connection-Pfad. Die Response-MIME-Auswahl gehört über SecResponseBodyMimeType zu ModSecurity.
 
 ### Syntax
 
@@ -592,11 +541,11 @@ modsecurity_phase4_mode off | safe | strict;
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| Aufzählung | off \| safe \| strict; vor dem Commit verwenden alle deny_if_possible, nach dem Commit verwenden minimal/safe log_only und strict abort_connection | nein |
+| Aufzählung | off \| safe \| strict | nein |
 
 ### Standardwert
 
-safe
+off
 
 Quelle: `common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_MODE`.
 
@@ -608,13 +557,13 @@ Zusammenführung: ngx_conf_merge_* führt Skalar-/Zeigerkonfiguration zusammen, 
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Nur P4. Der Response-Body-Filter sammelt begrenzte Bytes im Geltungsbereich und beendet die Engine bei EOS (last_buf/last_in_chain); das Committen von Headern/Body bestimmt, ob ein Status oder nur noch eine späte Transportaktion möglich ist.
+P1–P4-Relevanz: Nur P4. Response-Bytes werden ModSecurity unter Beachtung der Engine-Konfiguration und der Connector-Body-Limits weiterhin angeboten; der Modus steuert die Interventionsbehandlung, nicht den MIME-Inspektionsbereich.
 
-Bevor Response-Header/-Body committet sind, lösen minimal, safe und strict eine P4-Intervention jeweils als deny_if_possible auf; NGINX kann daher noch den angeforderten Engine-Status (oder den Fallback 403) zurückgeben. Sobald Header committet sind oder der Body begonnen hat, verwenden minimal und safe beide die gemeinsame Aktion log_only; sie protokollieren die späte Entscheidung ohne nachträgliche Statusumschreibung. Strict löst dagegen zu abort_connection auf: Der native Body-Filter markiert die Verbindung als fehlerhaft, protokolliert connection_aborted und gibt NGX_ERROR zurück. Die bekannte Hostgrenze ist, dass NGINX das P4-Engine-Finish erst bei last_buf/last_in_chain nach der begrenzten Sammlung von Body-Bytes im Geltungsbereich aufruft; eine Antwort kann deshalb bereits sichtbar sein. Strict kann somit eine Verbindung beenden, aber keine spätere 403 garantieren oder eine bereits gesendete Statuszeile ersetzen.
+off bewahrt die native Interventionsbehandlung von NGINX, ohne die ModSecurity-Response-Body-Inspektion zu deaktivieren. safe wendet eine Intervention an, solange die Antwort noch geändert werden kann, und protokolliert eine späte disruptive Entscheidung, ohne einen neuen Status zu erfinden. strict verwendet nach dem Commit den nativen abort_connection-Pfad. Die Response-MIME-Auswahl gehört über SecResponseBodyMimeType zu ModSecurity.
 
 ### Validierung und Fehler
 
-ngx_conf_set_phase4_mode akzeptiert während nginx -t nur off|safe|strict. Das späte Runtime-Verhalten ist quellendefiniert: Nicht-strict-Pfade nach dem Commit geben log_only aus; strict markiert die Verbindung als fehlerhaft und gibt NGX_ERROR zurück, ohne eine spätere 403 zu erfinden.
+ngx_conf_set_phase4_mode akzeptiert während nginx -t nur off|safe|strict; minimal und unbekannte Werte werden abgewiesen.
 
 ### Beispiel
 
@@ -624,7 +573,7 @@ Quellenbasiertes Beispiel: [examples/nginx/safe/nginx.conf](../../examples/nginx
 
 ### Sicherheit und Betrieb
 
-safe/minimal bewahren Nachweise später Entscheidungen, ohne eine bereits gestartete Antwort zu unterbrechen. strict fordert nach dem Commit einen Verbindungsabbruch an, der Clients einer Teilantwort aussetzen kann; dies ist kein verlässlicher Modus zur Durchsetzung eines HTTP-Status nach dem Commit.
+off ist der Kompatibilitätsstandard, safe vermeidet eine vorgetäuschte nachträgliche Statusumschreibung und strict kann eine bereits gestartete Antwort über den nativen Abbruchpfad beenden.
 
 <a id="modsecurity-rules"></a>
 ## `modsecurity_rules`

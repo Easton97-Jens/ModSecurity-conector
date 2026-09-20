@@ -80,7 +80,7 @@ Siehe [Engine-Referenz](../common/modsecurity-directives.de.md).
 
 | Profil | Datei | Status |
 | --- | --- | --- |
-| Minimal | [patched/off/lighttpd.conf](patched/off/lighttpd.conf) | Aktive Startkonfiguration |
+| Off / Kompatibilität | [patched/off/lighttpd.conf](patched/off/lighttpd.conf) | Aktive Startkonfiguration |
 | Sicherer vollständiger Lebenszyklus | [patched/safe/lighttpd.conf](patched/safe/lighttpd.conf) | Ausgewählte begrenzte Referenz |
 | Strikt | [patched/strict/lighttpd.conf](patched/strict/lighttpd.conf) | Parserunterstützte oder ausdrücklich optionale Grenze |
 | DetectionOnly | [detection-only/msconnector-runtime.conf](detection-only/msconnector-runtime.conf) | Engine wertet aus/protokolliert ohne disruptive Aktion |

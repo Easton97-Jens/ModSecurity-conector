@@ -15,9 +15,9 @@
   ],
   "host_model_constraints": [
     "Apache incrementally appends each response-data bucket, preserves pre-EOS FLUSH and metadata, and immediately passes the normalized pre-EOS prefix to the next filter. Only the terminal EOS fragment remains until msc_process_response_body and late-action resolution complete; no full response brigade is retained across filter calls.",
-    "libModSecurity's C API does not expose its effective SecResponseBodyMimeType selection, so Apache gates every response MIME type. The legacy modsecurity_phase4_content_types_file parser is deprecated and cannot narrow that gate; the configurable default 1048576-byte bound is checked before each later append without creating a full-response buffer.",
+    "ModSecurity owns response MIME inspection through SecResponseBodyMimeType and SecResponseBodyAccess. The connector-owned modsecurity_phase4_content_types_file option has been removed; Apache offers every response through the bounded P4 input path. The configurable default 1048576-byte bound is checked before each later append without creating a full-response buffer.",
     "Normal r->prev and pre-output ErrorDocument redirects fail closed because the connector cannot safely rebind a source transaction to a target URI/ruleset. During terminal output EMITTING, exactly one Apache-core-marked local ErrorDocument hop is allowed with no_local_copy plus matching immediate predecessor status and REDIRECT_STATUS.",
-    "The connector JSONL writer is currently specific to Phase-4 interventions and does not by itself prove canonical event coverage for request-phase decisions.",
+    "The connector JSONL writer also emits request-phase decision metadata; source wiring alone does not prove canonical event coverage for every phase.",
     "Phase-4 rule evaluation remains EOS-only. After a pre-EOS prefix reaches the next filter, Safe records log_only and Strict uses abort_connection rather than attempting to rewrite bytes that may already be visible."
   ],
   "capabilities": {

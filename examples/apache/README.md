@@ -4,7 +4,7 @@
 
 ## Integration and boundary
 
-Integration mode: native httpd module. The [minimal reference](off/httpd.conf),
+Integration mode: native httpd module. The [off compatibility reference](off/httpd.conf),
 [Safe reference](safe/httpd.conf), [Strict reference](strict/httpd.conf), and
 [comprehensive reference](all/httpd.conf) select the native HTTP/1.1 P1--P4
 configuration shape. P1 is request headers, P2 request body, P3 response
@@ -30,7 +30,7 @@ client-visible abort until a host runtime test observes one.
 
 | Path | Type | Purpose |
 | --- | --- | --- |
-| [minimal/httpd.conf](off/httpd.conf) | Host configuration | Minimal bounded native P1--P4 starting point. |
+| [off/httpd.conf](off/httpd.conf) | Host configuration | Bounded native P1--P4 starting point with the additional late policy off. |
 | [safe/httpd.conf](safe/httpd.conf) | Host configuration | Bounded native P1--P4 Safe reference. |
 | [strict/httpd.conf](strict/httpd.conf) | Host configuration | Parser-supported Strict fallback; no client-visible late-abort claim. |
 | [all/httpd.conf](all/httpd.conf) | Host configuration | Comprehensive, source-backed parameter reference; it selects valid `strict`, not `all`, Phase-4 mode. |

@@ -150,7 +150,8 @@ Der Dienst verwendet die konservative Antwort-Commit-Grenze: nur eine erfolgreic
 Antwortheader `CONTINUE` send markiert eine Antwort als festgeschrieben. Für eine disruptive
 Entscheidung später gefunden:
 
-- `minimal` und `safe` zeichnen ein echtes Common-Host-Ergebnis `log_only` auf
+- `off` bewahrt die native Interventionsbehandlung ohne zusätzliche Late-Policy;
+- `safe` zeichnet ein echtes Common-Host-Ergebnis `log_only` auf
   und setzen die Antwort mit ihrem ursprünglichen sichtbaren Status fort;
 - `strict` wird beim Start der Common Runtime für das Profil
   `envoy-ext-proc` abgewiesen. Dessen unveränderliche Capability

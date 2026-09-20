@@ -4,7 +4,7 @@
 
 ## Integration und Grenze
 
-Integrationsmodus: natives httpd-Modul. [Minimalreferenz](off/httpd.conf),
+Integrationsmodus: natives httpd-Modul. [Off-Kompatibilitätsreferenz](off/httpd.conf),
 [Safe-Referenz](safe/httpd.conf), [Strict-Referenz](strict/httpd.conf) und
 [vollständige Referenz](all/httpd.conf) wählen die native HTTP/1.1-P1--P4-
 Konfigurationsform. P1 sind Request-Header, P2 Request-Body, P3 Response-
@@ -32,7 +32,7 @@ Abbruchergebnis, bevor ein Host-Runtime-Test eines beobachtet.
 
 | Pfad | Typ | Zweck |
 | --- | --- | --- |
-| [minimal/httpd.conf](off/httpd.conf) | Host-Konfiguration | Begrenzter nativer P1--P4-Minimalstart. |
+| [off/httpd.conf](off/httpd.conf) | Host-Konfiguration | Begrenzter nativer P1--P4-Start mit abgeschalteter zusätzlicher Late-Policy. |
 | [safe/httpd.conf](safe/httpd.conf) | Host-Konfiguration | Begrenzte native P1--P4-Safe-Referenz. |
 | [strict/httpd.conf](strict/httpd.conf) | Host-Konfiguration | Parserunterstützter Strict-Fallback ohne Behauptung eines client-sichtbaren späten Abbruchs. |
 | [all/httpd.conf](all/httpd.conf) | Host-Konfiguration | Vollständige quellenbasierte Parameterreferenz; sie wählt gültiges `strict`, nicht den Phase-4-Modus `all`. |

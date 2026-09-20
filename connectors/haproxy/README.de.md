@@ -306,7 +306,7 @@ Reihenfolge gegenüber dem für den Client sichtbaren 403. Der Filter verwendet
 HAProxys normalen Reply-and-Close-Pfad ohne connector-eigenen Body-Puffer.
 Dies ist kein Nachweis für inkrementelle Request-Weiterleitung oder eine
 allgemeine Host-Puffergarantie. P4 (`1100301`) verwendet geliehene
-Response-DATA und ein Response-EOS. Safe/minimal bewahrt Upstream-200/Body und
+Response-DATA und ein Response-EOS. Off bewahrt die native Behandlung ohne zusätzliche Late-Policy. Safe bewahrt Upstream-200/Body und
 zeichnet `host_action=log_only` auf; Strict behält
 `host_action=not_attempted`, weil kein client-sichtbares HAProxy-
 Abbruchprimitiv belegt ist. Der Smoke-Test behauptet weder Umleitung noch

@@ -219,7 +219,8 @@ The selected scope does not assert gzip/br, HTTP/2, or every file/zero-copy
 output route. The current harness does not execute streaming P4 traffic, and
 there is no real-client proof of a visible safe result, a precommit deny,
 first-byte delivery, or a strict connection abort. The source path records a
-safe/minimal disruptive outcome as `log_only`. The patched callback now returns
+safe disruptive outcome as `log_only`. Off preserves native handling without
+the additional late policy. The patched callback now returns
 `PLUGIN_BODY_HOOK_ABORT` into the patched core's response-error path for a
 committed Strict intervention; the shared runtime rejects Strict at adapter
 activation for this profile until client-visible abort and follow-up-health

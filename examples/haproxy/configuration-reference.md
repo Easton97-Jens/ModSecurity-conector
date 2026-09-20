@@ -17,7 +17,7 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`log`](#log) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`mode`](#mode) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`option`](#option) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
-| [`phase4-mode`](#phase4-mode) | Host / Connector | enum | no | safe | The selected and checked-in native use is a HAProxy frontend. The local parser does not assert additional host scopes. | Native HTX late-P4 policy argument. |
+| [`phase4-mode`](#phase4-mode) | Host / Connector | enum | no | off | The selected and checked-in native use is a HAProxy frontend. The local parser does not assert additional host scopes. | Native HTX late-P4 policy argument. |
 | [`rules-file`](#rules-file) | Host / Connector | path | yes | none; required | The selected and checked-in native use is a HAProxy frontend. The local parser does not assert additional host scopes. | Required native HTX rule-file argument. |
 | [`server`](#server) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`spoe-agent:response-companion`](#spoe-agent-response-companion) | Compatibility | enum | no | none | SPOE/SPOP compatibility agent key=value file | SPOP owner configuration for the required native-HTX MRC1 response companion. native-htx publishes one bounded opaque handle for HTX P3/P4 processing. |
@@ -81,7 +81,7 @@ See [Engine reference](../common/modsecurity-directives.md).
 
 | Profile | File | Status |
 | --- | --- | --- |
-| Minimal | [minimal/haproxy-htx.cfg](off/haproxy-htx.cfg) | Active starter configuration |
+| Off / compatibility | [off/haproxy-htx.cfg](off/haproxy-htx.cfg) | Active starter configuration |
 | Safe full lifecycle | [safe/haproxy-htx.cfg](safe/haproxy-htx.cfg) | Selected bounded reference |
 | Strict | [strict/haproxy-htx.cfg](strict/haproxy-htx.cfg) | Parser-supported or explicitly optional boundary |
 | DetectionOnly | [detection-only/haproxy-htx.cfg](detection-only/haproxy-htx.cfg) | Engine evaluates/logs without disruptive action |
@@ -465,7 +465,7 @@ phase4-mode off | safe | strict
 
 ### Default
 
-safe
+off
 
 Source: `common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_MODE`.
 
@@ -477,7 +477,7 @@ Merge: No connector-local merge; filter arguments initialise a per-filter common
 
 ### Phases and runtime effect
 
-P4 only. The current HTX host action distinguishes strict from non-strict; minimal and safe share the non-strict late log-only path.
+P4 only. off preserves native HTX intervention handling; safe uses the non-disruptive late path; strict requests the supported host abort path.
 
 Initialises common_config.phase4_mode for the filter.
 

@@ -574,43 +574,34 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
             resolver,
         )
 
-    def test_out_of_scope_phase4_body_is_not_exposed_and_is_mapped_log_only(self) -> None:
-        plan = function_definition(
-            self.body, "ngx_http_modsecurity_plan_limited_response_body"
-        )
-        append = function_definition(
-            self.body, "ngx_http_modsecurity_append_response_body_chunk"
-        )
-        self.assertNotIn("in_scope", plan)
+    def test_phase4_mime_is_engine_owned_and_off_keeps_native_interventions(self) -> None:
+        plan = function_definition(self.body, "ngx_http_modsecurity_plan_limited_response_body")
+        append = function_definition(self.body, "ngx_http_modsecurity_append_response_body_chunk")
+        append_chain = function_definition(self.body, "ngx_http_modsecurity_append_response_chain_buffer")
+        self.assertNotIn("phase4_in_scope", self.body)
+        self.assertNotIn("phase4_content_types", self.module + self.common)
+        self.assertNotIn("content_type", append_chain)
         self.assertIn("phase4_body_limit", plan)
+        self.assertIn("MSCONNECTOR_BODY_LIMIT_ACTION_REJECT", plan)
         self.assertIn("msc_append_response_body", append)
-
-        body_chain = function_definition(
-            self.body, "ngx_http_modsecurity_process_response_body_chain"
-        )
-        append_chain = function_definition(
-            self.body, "ngx_http_modsecurity_append_response_chain_buffer"
-        )
-        self.assertIn(
-            "phase4_in_scope = ngx_http_modsecurity_phase4_in_scope(r)",
-            body_chain,
-        )
-        scoped_append = conditional_block(append_chain, "if (phase4_in_scope == 0)")
-        self.assertIn("return NGX_OK;", scoped_append)
         self.assertIn("ngx_http_modsecurity_append_response_body_buffer", append_chain)
 
-        phase4 = function_definition(
-            self.body, "ngx_http_modsecurity_phase4_handle_intervention"
+        final = function_definition(self.body, "ngx_http_modsecurity_process_final_response_body")
+        native = final.index("ret = ngx_http_modsecurity_process_intervention")
+        off = final.index("mcf->phase4_mode == MSCONNECTOR_PHASE4_MODE_OFF")
+        policy = final.index("ngx_http_modsecurity_phase4_handle_intervention(r, mcf)")
+        self.assertLess(final.index("msc_process_response_body"), native)
+        self.assertLess(native, off)
+        self.assertLess(off, policy)
+        self.assertIn(
+            "return ret;",
+            conditional_block(final, "if (mcf != NULL && mcf->phase4_mode == MSCONNECTOR_PHASE4_MODE_OFF)"),
         )
-        out_of_scope = conditional_block(phase4, "if (in_scope == 0)")
-        self.assertIn('"log_only"', out_of_scope)
-        self.assertIn('"content_type_not_in_scope"', out_of_scope)
-
-        scope_reason = self.capabilities["capabilities"]["content_type_scope"][
-            "reason"
-        ]
-        self.assertIn("checks its configured response Content-Type scope", scope_reason)
-        self.assertIn("out-of-scope response bodies are not appended", scope_reason)
+        phase4 = function_definition(self.body, "ngx_http_modsecurity_phase4_handle_intervention")
+        self.assertNotIn("content_type_not_in_scope", phase4)
+        reason = self.capabilities["capabilities"]["content_type_scope"]["reason"]
+        self.assertIn("SecResponseBodyMimeType", reason)
+        self.assertIn("no connector-owned MIME allowlist", reason)
 
     def test_file_backed_phase4_buffers_are_boundedly_materialized(self) -> None:
         body_chain = function_definition(

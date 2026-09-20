@@ -12,7 +12,7 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 GENERATOR_PATH = ROOT / "scripts" / "generate_connector_guides.py"
-EXPECTED_RENDER_SHA256 = "b98dae8bd83ebb0ee3f6694269b29d0ee1f97a26ec7aba8aaa054eac749d4728"
+EXPECTED_RENDER_SHA256 = "657040d434be11620a9595a614fd642f8fb54a3fa2ca1e8aa4fdd79157f42f5b"
 
 
 def load_generator() -> object:
@@ -45,6 +45,15 @@ class ConnectorGuidesTests(unittest.TestCase):
 
         self.assertEqual(count, 96)
         self.assertEqual(digest, EXPECTED_RENDER_SHA256)
+
+    def test_configuration_guides_describe_off_without_the_removed_minimal_policy(self) -> None:
+        for connector, data in GENERATOR.CONNECTORS.items():
+            for german in (False, True):
+                with self.subTest(connector=connector, german=german):
+                    text = GENERATOR.content("configuration", connector, data, german)
+                    self.assertIn("Off", text)
+                    self.assertNotIn("Minimal", text)
+                    self.assertIn("Late-Policy" if german else "late policy", text)
 
     def test_main_writes_each_paired_guide_to_a_temporary_root(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

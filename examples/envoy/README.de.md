@@ -21,16 +21,16 @@ ohne ein striktes Transportergebnis zu behaupten.
 
 Das verbliebene [ext_authz-Kompatibilitätsbeispiel](#ext_authz-kompatibilität)
 ist nur für die Request-Phase. Die vollständige logische ext_authz-Lösung
-liegt unter `ext-authz/{minimal,safe,strict,all}` und ergänzt den verpflichtenden
+liegt unter `ext-authz/{off,safe,strict,all}` und ergänzt den verpflichtenden
 privaten UDS-Response-Observer für P3/P4.
 
 ## Dateien
 
 | Pfad | Typ | Zweck |
 | --- | --- | --- |
-| [minimal/envoy-ext-proc-streaming.yaml.in](off/envoy-ext-proc-streaming.yaml.in) | Template | Minimale gestreamte ext_proc-Transportform. |
-| [minimal/envoy-ext-proc-service.json](off/envoy-ext-proc-service.json) | Service-Konfiguration | Validierte Prozessorlimits für das Minimalprofil. |
-| [minimal/msconnector-runtime.conf](off/msconnector-runtime.conf) | Runtime-Konfiguration | Common-Runtime-Profil mit `phase4_mode=off`. |
+| [off/envoy-ext-proc-streaming.yaml.in](off/envoy-ext-proc-streaming.yaml.in) | Template | Gestreamte ext_proc-Transportform mit abgeschalteter zusätzlicher Late-Policy. |
+| [off/envoy-ext-proc-service.json](off/envoy-ext-proc-service.json) | Service-Konfiguration | Validierte Prozessorlimits für das Off-Kompatibilitätsprofil. |
+| [off/msconnector-runtime.conf](off/msconnector-runtime.conf) | Runtime-Konfiguration | Common-Runtime-Profil mit `phase4_mode=off`. |
 | [safe/envoy-ext-proc-streaming.yaml.in](safe/envoy-ext-proc-streaming.yaml.in) | Template | Envoy-Listener, ext_proc-Filter und gRPC-/Upstream-Cluster. |
 | [safe/envoy-ext-proc-service.json](safe/envoy-ext-proc-service.json) | Service-Konfiguration | Grenzen und Safe-Late-Action-Policy des Prozessors. |
 | [ext-proc/all/](ext-proc/all/) | Logisches Bundle | Umfassende ext_proc-Template-, Service- und Runtime-Konfiguration mit Strict-P4-Policy. |
@@ -41,13 +41,13 @@ privaten UDS-Response-Observer für P3/P4.
 | [rules/engine-off.conf](rules/engine-off.conf) | Regeln | Engine-Off-Einstellungen, getrennt vom Deaktivieren des Connectors. |
 | [No-CRS-Regeln](#no-crs-regeln) | Dokumentation | No-CRS-Regelquelle und Phasen-IDs. |
 | [P1--P4-Safe-Absicht](#p1-p4-safe-absicht) | Dokumentation | Konfigurationsabsicht, keine Run-Evidence. |
-| [Minimale ext_proc-Referenz](#minimale-ext_proc-referenz) | Dokumentation | Vollständige minimale gestreamte Transportform. |
+| [Off-ext_proc-Referenz](#off-ext_proc-referenz) | Dokumentation | Vollständige gestreamte Transportform mit nativer Interventionsbehandlung. |
 | [ext_authz-Kompatibilität](#ext_authz-kompatibilität) | Kompatibilität | Frühere Request-Authorization-Route. |
 
 ## Vollständige logische Profilmatrix
 
 Jede logische Envoy-Lösung besitzt ein materialisierbares Bundle für
-`minimal`, `safe`, `strict` und `all`. Jedes Bundle enthält ein Host-Template und eine
+`off`, `safe`, `strict` und `all`. Jedes Bundle enthält ein Host-Template und eine
 Common-Runtime-Konfiguration mit sichtbaren Limits und Modi.
 
 | Logische Lösung | Off | Safe | Strict | All | P1/P2 | P3/P4 |
@@ -99,7 +99,7 @@ Materializer-Platzhalter und den getrennten ext_authz-Kompatibilitätseintrag.
 | `SecRuleEngine` | ModSecurity Engine | Wählt Engine-Enforcement, DetectionOnly oder Off in der Runtime-Regeldatei. |
 | `request_body_mode` | Common Runtime | Wählt die erforderliche gestreamte Request-Body-Eingabe für die native Bridge. |
 | `response_body_mode` | Common Runtime | Wählt die erforderliche gestreamte Response-Body-Eingabe für die native Bridge. |
-| `late_action_policy` | Connector-Service | Zeichnet minimale, sichere oder strikte Post-Commit-Policy ohne erfundenen Status auf. |
+| `late_action_policy` | Connector-Service | Wählt off, safe oder strict; off bewahrt die native Behandlung ohne zusätzliche Late-Policy. |
 
 Das Entfernen von `ext_proc` deaktiviert den Connector-Pfad. `SecRuleEngine Off`
 lässt die Prozessorroute bestehen, deaktiviert aber die Engine-Regelauswertung.
@@ -139,7 +139,7 @@ später HTTP-Statuswechsel oder deterministischer Stream-Reset.
 Die separate Kompatibilitätskonfiguration kann weder Upstream-Response-Header
 noch -Bodies sehen und ist absichtlich keine vollständige logische
 Connectorlösung. Für den P1--P4-Vertrag die Bundles unter
-`ext-authz/{minimal,safe,strict,all}` verwenden. Strict dokumentiert die
+`ext-authz/{off,safe,strict,all}` verwenden. Strict dokumentiert die
 Entscheidungsgrenze, verspricht aber keinen künstlichen späten Status nach dem
 Response-Commit durch Envoy.
 
@@ -156,10 +156,10 @@ Runtime-Konfiguration. Die Repositoryquelle für das No-CRS-Profil ist
 | 1100201 | P3 | Response-Header-Deny |
 | 1100301 | P4 | Response-Body-Entscheidung für die Safe-Grenze |
 
-## Minimale ext_proc-Referenz
+## Off-ext_proc-Referenz
 
 Der ausgewählte Envoy-Kern benötigt gestreamte ext_proc-Eingaben in beiden
-Richtungen. Die Minimaldateien liefern eine vollständige Transportform in
+Richtungen. Die Off-Profildateien liefern eine vollständige Transportform in
 [envoy-ext-proc-streaming.yaml.in](off/envoy-ext-proc-streaming.yaml.in),
 ihren validierten Service-Vertrag und eine passende Common-Runtime-Datei mit
 `phase4_mode=off`. Es ist kein nativer Request-only-Pfad: Die Bridge

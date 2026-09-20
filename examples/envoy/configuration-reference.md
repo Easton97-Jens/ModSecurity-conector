@@ -29,7 +29,7 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`admin.address.socket_address.port_value`](#admin-address-socket-address-port-value) | Host / Connector | Envoy admin uint32 TCP port | no | No connector-owned admin port default is declared; the selected template sets the @ADMIN_PORT@ materializer input. | The YAML object path shown in the selected example. | Selects the local TCP port for Envoy administration endpoints. |
 | [`cleanup_timeout_ms`](#cleanup-timeout-ms) | Connector service | int | yes | none; JSON decoder/Config.Validate requires every selected field | ext_proc service JSON object | Sets one bounded ext_proc service control. |
 | [`engine_timeout_ms`](#engine-timeout-ms) | Connector service | int | yes | none; JSON decoder/Config.Validate requires every selected field | ext_proc service JSON object | Sets one bounded ext_proc service control. |
-| [`late_action_policy`](#late-action-policy) | Connector service | LateActionPolicy | yes | none; JSON decoder/Config.Validate requires every selected field | ext_proc service JSON object | Selects late decision reporting; minimal and safe record late disruptive decisions as log_only, while strict records strict_abort_not_attempted rather than a fabricated status/reset. |
+| [`late_action_policy`](#late-action-policy) | Connector service | LateActionPolicy | yes | none; JSON decoder/Config.Validate requires every selected field | ext_proc service JSON object | Selects late decision reporting; off preserves native handling, safe records late disruptive decisions as log_only, while strict records strict_abort_not_attempted rather than a fabricated status/reset. |
 | [`listen_address`](#listen-address) | Connector service | string | yes | none; JSON decoder/Config.Validate requires every selected field | ext_proc service JSON object | Sets one bounded ext_proc service control. |
 | [`max_body_chunk_bytes`](#max-body-chunk-bytes) | Connector service | int | yes | none; JSON decoder/Config.Validate requires every selected field | ext_proc service JSON object | Sets one bounded ext_proc service control. |
 | [`max_concurrent_streams`](#max-concurrent-streams) | Connector service | int | yes | none; JSON decoder/Config.Validate requires every selected field | ext_proc service JSON object | Sets one bounded ext_proc service control. |
@@ -196,7 +196,7 @@ See [Engine reference](../common/modsecurity-directives.md).
 
 | Profile | File | Status |
 | --- | --- | --- |
-| Minimal | [ext-proc/off/envoy.yaml.in](ext-proc/off/envoy.yaml.in) | Active starter configuration |
+| Off / compatibility | [ext-proc/off/envoy.yaml.in](ext-proc/off/envoy.yaml.in) | Active starter configuration |
 | Safe full lifecycle | [ext-proc/safe/envoy.yaml.in](ext-proc/safe/envoy.yaml.in) | Selected bounded reference |
 | Strict | [ext-proc/strict/envoy.yaml.in](ext-proc/strict/envoy.yaml.in) | Parser-supported or explicitly optional boundary |
 | DetectionOnly | [detection-only/msconnector-runtime.conf](detection-only/msconnector-runtime.conf) | Engine evaluates/logs without disruptive action |
@@ -1220,7 +1220,7 @@ Bound all header, body, gRPC, and timeout values; keep service listen address pr
 
 ### Short description
 
-Selects late decision reporting; minimal and safe record late disruptive decisions as log_only, while strict records strict_abort_not_attempted rather than a fabricated status/reset.
+Selects late decision reporting; off preserves native handling, safe records late disruptive decisions as log_only, while strict records strict_abort_not_attempted rather than a fabricated status/reset.
 
 ### Syntax
 
@@ -1254,7 +1254,7 @@ Merge: No merge; a second JSON value is rejected after the one configuration obj
 
 Limits and late policy affect P1–P4 processor behavior.
 
-Selects late decision reporting; minimal and safe record late disruptive decisions as log_only, while strict records strict_abort_not_attempted rather than a fabricated status/reset.
+Selects late decision reporting; off preserves native handling, safe records late disruptive decisions as log_only, while strict records strict_abort_not_attempted rather than a fabricated status/reset.
 
 ### Validation and errors
 

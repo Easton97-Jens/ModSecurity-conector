@@ -11,6 +11,7 @@ permissions:
 jobs:
   scaffold-lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -58,8 +59,22 @@ jobs:
           test -f reports/testing/test-coverage-overview.md
       - name: Check bilingual documentation
         run: python ci/checks/documentation/check-bilingual-docs.py
+      - name: Verify Phase-4 migration and NGINX security contracts
+        if: ${{ !cancelled() }}
+        run: python -m unittest -v tests.test_phase4_migration_contract tests.test_nginx_native_security_contract tests.test_nginx_upstream_security_contract
+      - name: Verify NGINX adoption checker mutations
+        if: ${{ !cancelled() }}
+        run: python -m unittest -v tests.test_nginx_common_adoption
+      - name: Verify configuration reference generator regressions
+        if: ${{ !cancelled() }}
+        run: python -m unittest -v tests.test_connector_config_reference tests.test_logical_connector_all_examples
+      - name: Verify generated configuration references
+        if: ${{ !cancelled() }}
+        run: python ci/tools/generate-connector-config-reference.py --check
+      - name: Verify configuration reference semantics
+        if: ${{ !cancelled() }}
+        run: python ci/checks/documentation/check-connector-config-reference.py
       - name: Run lightweight lint
-        if: github.event_name != 'pull_request'
         run: |
           make setup-dev
           make lint

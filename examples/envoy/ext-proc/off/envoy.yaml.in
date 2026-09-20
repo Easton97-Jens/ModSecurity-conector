@@ -1,4 +1,4 @@
-# Envoy @ENVOY_RELEASE@ ext_proc minimal P1-P4 template. Replace all @...@
+# Envoy @ENVOY_RELEASE@ ext_proc off P1-P4 template. Replace all @...@
 # markers outside the checkout. Loopback and failure_mode_allow=false are
 # intentional private/fail-closed defaults.
 static_resources:

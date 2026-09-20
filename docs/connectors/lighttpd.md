@@ -87,7 +87,7 @@ contract, not a fault-injection runtime claim.
 | P4 question | Current boundary |
 | --- | --- |
 | Response-body hook | Patched identity entity-body source path exists |
-| Safe/minimal result | Preserve visible response and record conservative <code>log_only</code> behavior |
+| Safe policy result | Preserve visible response and record conservative <code>log_only</code> behavior |
 | Strict result | Explicitly not executed without a client-validated host abort primitive |
 | Streaming/limits | Requires a real selected host/client artifact for promotion |
 

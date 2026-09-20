@@ -14,6 +14,13 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 CHECKER = ROOT / "ci" / "checks" / "connectors" / "nginx" / "check-nginx-common-adoption.py"
 NGINX = ROOT / "connectors" / "nginx"
+CHAIN_APPEND_ANCHOR = "    return ngx_http_modsecurity_append_response_body_buffer(r, ctx, mcf,"
+BODY_LIMIT_CONTRACT_MESSAGE = (
+    "NGINX records response-body bytes through the Common bounded plan before append"
+)
+CHAIN_CALL_CONTRACT_MESSAGE = (
+    "NGINX response-body chain loop directly calls the reviewed bounded wrapper"
+)
 SOURCES = (
     "ngx_http_modsecurity_common.h",
     "ngx_http_modsecurity_module.c",
@@ -694,7 +701,7 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
 
         self._assert_rejected(
             mutate,
-            "NGINX records seen bytes through the Common plan only after the in-scope gate",
+            BODY_LIMIT_CONTRACT_MESSAGE,
         )
 
     def test_inactive_brace_cannot_hide_unbounded_response_body_append(self) -> None:
@@ -723,7 +730,7 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
 
         self._assert_rejected(
             mutate,
-            "NGINX records seen bytes through the Common plan only after the in-scope gate",
+            BODY_LIMIT_CONTRACT_MESSAGE,
         )
 
     def test_active_conditional_cannot_hide_response_mapper_lifecycle_call(self) -> None:
@@ -747,7 +754,7 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
             "NGINX response mapper helper excludes caller lifecycle, body, enforcement, filter-chain, and allocation control",
         )
 
-    def test_each_direct_response_body_append_route_before_gate_is_rejected(
+    def test_each_direct_response_body_append_route_before_wrapper_is_rejected(
         self,
     ) -> None:
         cases = (
@@ -795,32 +802,32 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
                     replace_in_function(
                         repository / "connectors" / "nginx" / "src" / path_name,
                         signature,
-                        "    if (phase4_in_scope == 0) {",
-                        invocation + "    if (phase4_in_scope == 0) {",
+                        "    return ngx_http_modsecurity_append_response_body_buffer(r, ctx, mcf,",
+                        invocation + "    return ngx_http_modsecurity_append_response_body_buffer(r, ctx, mcf,",
                     )
 
                 self._assert_rejected(
                     mutate,
-                    "NGINX records seen bytes through the Common plan only after the in-scope gate",
+                    BODY_LIMIT_CONTRACT_MESSAGE,
                 )
 
-    def test_any_pre_gate_helper_call_is_rejected(self) -> None:
+    def test_any_pre_wrapper_helper_call_is_rejected(self) -> None:
         cases = (
             (
                 "response-body helper",
                 "    return ngx_http_modsecurity_append_response_body_buffer(r, ctx, mcf,\n"
                 "        buffer);\n",
-                "ngx_http_modsecurity_pre_gate_helper",
+                "ngx_http_modsecurity_pre_wrapper_helper",
             ),
             (
                 "harmless helper",
                 "    return NGX_OK;\n",
-                "ngx_http_modsecurity_pre_gate_helper",
+                "ngx_http_modsecurity_pre_wrapper_helper",
             ),
             (
                 "object macro helper alias",
                 "    return NGX_OK;\n",
-                "MSCONNECTOR_PRE_GATE_HELPER",
+                "MSCONNECTOR_PRE_WRAPPER_HELPER",
             ),
         )
         path_name = "ngx_http_modsecurity_body_filter.c"
@@ -830,7 +837,7 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
         )
         helper_signature = (
             "static ngx_int_t\n"
-            "ngx_http_modsecurity_pre_gate_helper(ngx_http_request_t *r,\n"
+            "ngx_http_modsecurity_pre_wrapper_helper(ngx_http_request_t *r,\n"
             "    ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf,\n"
             "    ngx_buf_t *buffer)\n"
         )
@@ -848,25 +855,25 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
                         signature,
                         helper_signature + "{\n" + helper_body + "}",
                     )
-                    if invocation_name == "MSCONNECTOR_PRE_GATE_HELPER":
+                    if invocation_name == "MSCONNECTOR_PRE_WRAPPER_HELPER":
                         insert_before_signature(
                             path,
                             signature,
-                            "#define MSCONNECTOR_PRE_GATE_HELPER "
-                            "ngx_http_modsecurity_pre_gate_helper",
+                            "#define MSCONNECTOR_PRE_WRAPPER_HELPER "
+                            "ngx_http_modsecurity_pre_wrapper_helper",
                         )
                     replace_in_function(
                         path,
                         signature,
-                        "    if (phase4_in_scope == 0) {",
+                        "    return ngx_http_modsecurity_append_response_body_buffer(r, ctx, mcf,",
                         "    return " + invocation_name
                         + "(r, ctx, mcf, chain->buf);\n\n"
-                        + "    if (phase4_in_scope == 0) {",
+                        + "    return ngx_http_modsecurity_append_response_body_buffer(r, ctx, mcf,",
                     )
 
                 self._assert_rejected(
                     mutate,
-                    "NGINX records seen bytes through the Common plan only after the in-scope gate",
+                    BODY_LIMIT_CONTRACT_MESSAGE,
                 )
 
     def test_active_conditional_direct_response_body_append_is_rejected(self) -> None:
@@ -874,18 +881,18 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
             replace_in_function(
                 repository / "connectors" / "nginx" / "src" / "ngx_http_modsecurity_body_filter.c",
                 "static ngx_int_t\nngx_http_modsecurity_append_response_chain_buffer",
-                "    if (phase4_in_scope == 0) {",
+                "    return ngx_http_modsecurity_append_response_body_buffer(r, ctx, mcf,",
                 "#if 1\n"
                 "    return ngx_http_modsecurity_append_response_body_chunk(ctx,\n"
                 "        chain->buf->pos,\n"
                 "        (size_t)(chain->buf->last - chain->buf->pos));\n"
                 "#endif\n\n"
-                "    if (phase4_in_scope == 0) {",
+                "    return ngx_http_modsecurity_append_response_body_buffer(r, ctx, mcf,",
             )
 
         self._assert_rejected(
             mutate,
-            "NGINX records seen bytes through the Common plan only after the in-scope gate",
+            BODY_LIMIT_CONTRACT_MESSAGE,
         )
 
     def test_object_macro_alias_of_each_response_mapper_marker_is_rejected(
@@ -945,7 +952,7 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
                     "NGINX critical macro inputs reject aliases of checked lifecycle and response-body controls",
                 )
 
-    def test_object_macro_alias_of_each_pre_gate_response_body_append_route_is_rejected(
+    def test_object_macro_alias_of_each_pre_wrapper_response_body_append_route_is_rejected(
         self,
     ) -> None:
         cases = (
@@ -1001,8 +1008,8 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
                     replace_in_function(
                         path,
                         signature,
-                        "    if (phase4_in_scope == 0) {",
-                        invocation + "    if (phase4_in_scope == 0) {",
+                        "    return ngx_http_modsecurity_append_response_body_buffer(r, ctx, mcf,",
+                        invocation + "    return ngx_http_modsecurity_append_response_body_buffer(r, ctx, mcf,",
                     )
 
                 self._assert_rejected(
@@ -1036,11 +1043,11 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
             replace_in_function(
                 path,
                 signature,
-                "    if (phase4_in_scope == 0) {",
+                "    return ngx_http_modsecurity_append_response_body_buffer(r, ctx, mcf,",
                 "    MSCONNECTOR_FORBIDDEN_BODY_ALIAS(ctx->modsec_transaction,\n"
                 "        chain->buf->pos,\n"
                 "        (size_t)(chain->buf->last - chain->buf->pos));\n\n"
-                "    if (phase4_in_scope == 0) {",
+                "    return ngx_http_modsecurity_append_response_body_buffer(r, ctx, mcf,",
             )
 
         self._assert_rejected(
@@ -1440,25 +1447,17 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
             "NGINX request mapper validation fails closed before request-header initialization",
         )
 
-    def test_string_literal_phase4_scope_assignment_is_rejected(self) -> None:
+    def test_string_literal_cannot_replace_bounded_chain_call(self) -> None:
         def mutate(repository: Path) -> None:
             replace_in_function(
-                repository
-                / "connectors"
-                / "nginx"
-                / "src"
-                / "ngx_http_modsecurity_body_filter.c",
+                repository / "connectors/nginx/src/ngx_http_modsecurity_body_filter.c",
                 "static ngx_int_t\nngx_http_modsecurity_process_response_body_chain",
-                "    phase4_in_scope = ngx_http_modsecurity_phase4_in_scope(r);\n",
-                "    phase4_in_scope = r->main != NULL ? 1 : 0;\n"
-                "    (void) \"phase4_in_scope = "
-                "ngx_http_modsecurity_phase4_in_scope(r)\";\n",
+                "        ret = ngx_http_modsecurity_append_response_chain_buffer(r, ctx, mcf,\n"
+                "            chain);\n",
+                "        ret = NGX_OK;\n"
+                '        (void) "ngx_http_modsecurity_append_response_chain_buffer(r, ctx, mcf, chain)";\n',
             )
-
-        self._assert_rejected(
-            mutate,
-            "NGINX records seen bytes through the Common plan only after the in-scope gate",
-        )
+        self._assert_rejected(mutate, CHAIN_CALL_CONTRACT_MESSAGE)
 
     def test_string_literal_body_limit_accounting_is_rejected(self) -> None:
         def mutate(repository: Path) -> None:
@@ -1491,7 +1490,7 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
 
         self._assert_rejected(
             mutate,
-            "NGINX records seen bytes through the Common plan only after the in-scope gate",
+            BODY_LIMIT_CONTRACT_MESSAGE,
         )
 
     def test_unreachable_body_response_mapper_calls_are_rejected(self) -> None:
@@ -2277,7 +2276,7 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
     def test_response_body_chain_requires_direct_bounded_wrapper(self) -> None:
         wrapper_call = (
             "        ret = ngx_http_modsecurity_append_response_chain_buffer(r, ctx, mcf,\n"
-            "            phase4_in_scope, chain);\n"
+            "            chain);\n"
         )
 
         def mutate(repository: Path) -> None:
@@ -2301,7 +2300,7 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
     def test_response_body_raw_sink_outside_bounded_helper_is_rejected(self) -> None:
         wrapper_call = (
             "        ret = ngx_http_modsecurity_append_response_chain_buffer(r, ctx, mcf,\n"
-            "            phase4_in_scope, chain);\n"
+            "            chain);\n"
         )
         raw_helper = (
             "static ngx_int_t\n"
@@ -2479,7 +2478,7 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
     def test_response_body_raw_sink_function_pointer_alias_is_rejected(self) -> None:
         bounded_call = (
             "        ret = ngx_http_modsecurity_append_response_chain_buffer(r, ctx, mcf,\n"
-            "            phase4_in_scope, chain);\n"
+            "            chain);\n"
         )
         error_return = (
             "        if (ret != NGX_OK) {\n"
@@ -2677,27 +2676,17 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
             "NGINX limited response-body helper passes the Common-planned allowance to the raw chunk route",
         )
 
-    def test_phase4_scope_predicate_cannot_be_neutralized(self) -> None:
-        declaration = (
-            "    ngx_http_modsecurity_conf_t *mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);\n"
-        )
-
+    def test_connector_mime_bypass_cannot_be_reintroduced(self) -> None:
         def mutate(repository: Path) -> None:
             replace_in_function(
-                repository
-                / "connectors"
-                / "nginx"
-                / "src"
-                / "ngx_http_modsecurity_body_filter.c",
-                "static ngx_int_t\nngx_http_modsecurity_phase4_in_scope",
-                declaration,
-                "    return 1;\n" + declaration,
+                repository / "connectors/nginx/src/ngx_http_modsecurity_body_filter.c",
+                "static ngx_int_t\nngx_http_modsecurity_append_response_chain_buffer",
+                CHAIN_APPEND_ANCHOR,
+                "    if (r->headers_out.content_type.len == 0) {\n"
+                "        return NGX_OK;\n"
+                "    }\n" + CHAIN_APPEND_ANCHOR,
             )
-
-        self._assert_rejected(
-            mutate,
-            "NGINX Phase4 scope predicate retains the reviewed content-type allowlist",
-        )
+        self._assert_rejected(mutate, BODY_LIMIT_CONTRACT_MESSAGE)
 
     def test_synthetic_date_resolver_cannot_return_before_wrapper(self) -> None:
         context_lookup = (
@@ -3088,6 +3077,42 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
                     mutate,
                     "NGINX critical macro inputs reject aliases of checked lifecycle and response-body controls",
                 )
+
+
+
+    def test_unreachable_or_unchecked_chain_call_is_rejected(self) -> None:
+        original = (
+            "        ret = ngx_http_modsecurity_append_response_chain_buffer(r, ctx, mcf,\n"
+            "            chain);\n"
+        )
+        cases = (
+            "        if (0) {\n" + original + "        }\n",
+            "        (void)ngx_http_modsecurity_append_response_chain_buffer(r, ctx, mcf,\n"
+            "            chain);\n        ret = NGX_OK;\n",
+            "        ret = NGX_OK;\n        if (ret != NGX_OK) {\n"
+            + original + "        }\n",
+        )
+        for replacement in cases:
+            with self.subTest(replacement=replacement):
+                def mutate(repository: Path, replacement: str = replacement) -> None:
+                    replace_in_function(
+                        repository / "connectors/nginx/src/ngx_http_modsecurity_body_filter.c",
+                        "static ngx_int_t\nngx_http_modsecurity_process_response_body_chain",
+                        original, replacement,
+                    )
+                self._assert_rejected(mutate, CHAIN_CALL_CONTRACT_MESSAGE)
+
+    def test_chain_failure_cannot_be_converted_to_success(self) -> None:
+        def mutate(repository: Path) -> None:
+            replace_in_function(
+                repository / "connectors/nginx/src/ngx_http_modsecurity_body_filter.c",
+                "static ngx_int_t\nngx_http_modsecurity_process_response_body_chain",
+                "        ret = ngx_http_modsecurity_append_response_chain_buffer(r, ctx, mcf,\n"
+                "            chain);\n        if (ret != NGX_OK) {\n            return ret;\n        }",
+                "        ret = ngx_http_modsecurity_append_response_chain_buffer(r, ctx, mcf,\n"
+                "            chain);\n        if (ret != NGX_OK) {\n            return NGX_OK;\n        }",
+            )
+        self._assert_rejected(mutate, CHAIN_CALL_CONTRACT_MESSAGE)
 
 
 if __name__ == "__main__":
