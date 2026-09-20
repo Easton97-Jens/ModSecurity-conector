@@ -30,9 +30,12 @@ actions.
 
 ## Profiles and late behavior
 
+Response MIME selection belongs to ModSecurity through engine directives such as `SecResponseBodyMimeType`; connectors do not maintain a second Phase-4 MIME allowlist. The Phase-4 policy controls how a disruptive response-phase decision is handled, not which MIME types the engine inspects.
+
+
 | Profile | Intended use | Boundary |
 | --- | --- | --- |
-| Minimal | Smallest selected host/service shape | It is a syntax/configuration starting point, not lifecycle evidence |
+| Off | Phase-4 intervention policy disabled; selected host/service shape remains enabled | Response inspection is controlled by ModSecurity, not by the Phase-4 intervention policy |
 | Safe | Selected P1--P4-safe reference | Post-commit observations remain conservative and payload-safe |
 | Strict | Explicitly separate optional profile | It is not proof of a client-visible late abort |
 | DetectionOnly | Rules evaluate and log | Disruptive rule actions are not applied |
