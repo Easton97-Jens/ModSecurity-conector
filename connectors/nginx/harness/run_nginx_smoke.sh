@@ -1667,7 +1667,7 @@ render_config() {
     NGINX_TRANSACTION_ID_DIRECTIVE="modsecurity_transaction_id nginx-${case_name}-\$connection-\$connection_requests;"
     case "${NGINX_PHASE4_MODE:-}" in
         "") ;;
-        minimal|safe|strict)
+        off|safe|strict)
             NGINX_PHASE4_MODE_DIRECTIVE="modsecurity_phase4_mode $NGINX_PHASE4_MODE;"
             ;;
         *)
