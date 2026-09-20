@@ -226,7 +226,6 @@ typedef struct
     void *rules_set;
     msconnector_config common_config;
     ap_expr_info_t *transaction_id_expr;
-    apr_array_header_t *phase4_content_types;
     msconnector_rule_load_stats rule_load_stats;
     char *name_for_debug;
 } msc_conf_t;
