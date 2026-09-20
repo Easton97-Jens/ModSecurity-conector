@@ -61,7 +61,7 @@ ModSecurity-Engine-Direktiven. Vollständige quellenbasierte Syntax, Defaults,
 Kontexte, Merge-Regeln, Beispiele und Validierungshinweise stehen in der
 [Apache-Konfigurationsreferenz](../../examples/apache/configuration-reference.de.md).
 
-Minimal-, Safe-, Strict-, DetectionOnly- und Disabled-Profile werden nur für
+Off-, Safe-, Strict-, DetectionOnly- und Disabled-Profile werden nur für
 ihren dokumentierten Zweck verwendet. <code>SecRuleEngine</code> ist eine
 Engine-Einstellung und nicht identisch mit einer Apache-Connector-
 Enable/Disable-Direktive.
