@@ -31,6 +31,7 @@ DEFAULT_SOURCE_ENABLE = "common/include/msconnector/options.h:MSCONNECTOR_DEFAUL
 DEFAULT_NONE_OPTIONAL = "none; optional"
 DEFAULT_SOURCE_PARSER_REGISTRATION = "parser registration has no default"
 ALLOWED_VALUES_ON_OFF = "on | off"
+VALUE_OFF = "off"
 DEFAULT_SOURCE_USE_ERROR_LOG = "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_USE_ERROR_LOG"
 ALLOWED_VALUES_PHASE4_MODE = "off | safe | strict"
 DEFAULT_SOURCE_PHASE4_MODE = "common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_MODE"
@@ -243,7 +244,7 @@ DIRECTIVE_DETAILS: dict[str, dict[str, str]] = {
     "modsecurity": {
         "type": "boolean",
         "values": "on | off (the shared parser additionally accepts true/false/1/0/yes/no where the host passes it through)",
-        "default": "off",
+        "default": VALUE_OFF,
         "default_source": DEFAULT_SOURCE_ENABLE,
         "effect": "Gates connector transaction creation; it is not SecRuleEngine.",
         "security": "off bypasses connector P1–P4 processing even if a rule file is configured.",
@@ -300,7 +301,7 @@ DIRECTIVE_DETAILS: dict[str, dict[str, str]] = {
     "modsecurity_phase4_mode": {
         "type": "enum",
         "values": ALLOWED_VALUES_PHASE4_MODE,
-        "default": "off",
+        "default": VALUE_OFF,
         "default_source": DEFAULT_SOURCE_PHASE4_MODE,
         "effect": "Selects the late P4 intervention policy. off preserves native connector handling without disabling ModSecurity response inspection; safe selects the non-disruptive late path; strict selects the connector-specific abort path where supported.",
         "security": "strict must not be described as a guaranteed later 403; host-specific abort evidence is required.",
@@ -676,7 +677,7 @@ def extract_haproxy(root: Path) -> list[dict[str, Any]]:
         _option("haproxy", "phase4-mode", "host_connector_directive", source,
                 "haproxy_modsecurity_htx_filter_parse / msconnector_parse_phase4_mode",
                 syntax="phase4-mode off | safe | strict", value_type="enum", allowed_values=ALLOWED_VALUES_PHASE4_MODE,
-                default="off", default_source=DEFAULT_SOURCE_PHASE4_MODE,
+                default=VALUE_OFF, default_source=DEFAULT_SOURCE_PHASE4_MODE,
                 required=False, contexts=common["contexts"], inheritance=common["inheritance"], merge_behavior=common["merge_behavior"],
                 validation="Unknown mode fails parsing. The selected host uses haproxy -c -f <config>.",
                 phase_relevance="P4 only. off preserves native HTX intervention handling; safe uses the non-disruptive late path; strict requests the supported host abort path.",
@@ -696,7 +697,7 @@ def extract_haproxy(root: Path) -> list[dict[str, Any]]:
     expected_compatibility_keys = {
         "listen", "host", "port", "ready-file", "pid-file", "port-file", "log-file", "decision-log", "audit-log", "modsecurity-conf", "crs-root", "rules-file", "rules-dir", "mode", "fail-mode", "runtime-mode", "variant", "case", "response-companion", "response-companion-socket", "response-companion-uid", "response-companion-gid", "expected-status", "request-body-limit", "response-body-limit", "response-body-timeout", "spoe-timeout", "worker-count", "max-transactions", "debug", "enable-response-headers", "response-phases",
     }
-    parser_literals = {"true", "yes", "on", "false", "off", "no"}
+    parser_literals = {"true", "yes", "on", "false", VALUE_OFF, "no"}
     unexpected = set(raw_compatibility_keys) - expected_compatibility_keys - parser_literals
     compatibility_keys = [key for key in raw_compatibility_keys if key in expected_compatibility_keys]
     if set(compatibility_keys) != expected_compatibility_keys or unexpected:
@@ -769,7 +770,7 @@ def extract_lighttpd(root: Path) -> list[dict[str, Any]]:
         "lighttpd", "msconnector.enabled", "host_connector_directive", source,
         "mod_msconnector_set_defaults / config_plugin_values_init",
         syntax='msconnector.enabled = "enable" | "disable"', value_type=VALUE_TYPE_LIGHTTPD_BOOLEAN, allowed_values=ALLOWED_VALUES_LIGHTTPD_BOOLEAN,
-        default="off", default_source=DEFAULT_SOURCE_LIGHTTPD_PLUGIN_DATA, required=False,
+        default=VALUE_OFF, default_source=DEFAULT_SOURCE_LIGHTTPD_PLUGIN_DATA, required=False,
         contexts=LIGHTTPD_SERVER_SCOPE, inheritance=LIGHTTPD_DEFAULTS_ONLY_INHERITANCE,
         merge_behavior=LIGHTTPD_DEFAULTS_MERGE,
         validation="When enabled, lighttpd validates the runtime file during set-defaults; validate host syntax with lighttpd -tt -f <config>.",
@@ -793,7 +794,7 @@ def extract_lighttpd(root: Path) -> list[dict[str, Any]]:
         "lighttpd", "msconnector.expose-host-transaction-id", "host_connector_directive", source,
         "mod_msconnector_set_defaults / mod_msconnector_emit_host_transaction_id",
         syntax='msconnector.expose-host-transaction-id = "enable" | "disable"', value_type=VALUE_TYPE_LIGHTTPD_BOOLEAN, allowed_values=ALLOWED_VALUES_LIGHTTPD_BOOLEAN,
-        default="off", default_source=DEFAULT_SOURCE_LIGHTTPD_PLUGIN_DATA, required=False,
+        default=VALUE_OFF, default_source=DEFAULT_SOURCE_LIGHTTPD_PLUGIN_DATA, required=False,
         contexts=LIGHTTPD_SERVER_SCOPE, inheritance=LIGHTTPD_DEFAULTS_ONLY_INHERITANCE,
         merge_behavior=LIGHTTPD_DEFAULTS_MERGE,
         validation="lighttpd parses this server-scoped setting as a boolean during set-defaults; validate host syntax with lighttpd -tt -f <config>.",
@@ -842,7 +843,7 @@ def extract_lighttpd(root: Path) -> list[dict[str, Any]]:
 
 
 COMMON_DETAILS: dict[str, dict[str, str]] = {
-    "enabled": ("boolean", ALLOWED_VALUES_COMMON_BOOLEAN, "off", DEFAULT_SOURCE_COMMON_APPLY_DEFAULTS, "Enables the Common Runtime; enabled runtime requires an inline or local-file rule source."),
+    "enabled": ("boolean", ALLOWED_VALUES_COMMON_BOOLEAN, VALUE_OFF, DEFAULT_SOURCE_COMMON_APPLY_DEFAULTS, "Enables the Common Runtime; enabled runtime requires an inline or local-file rule source."),
     "use_error_log": ("boolean", ALLOWED_VALUES_COMMON_BOOLEAN, "on", DEFAULT_SOURCE_USE_ERROR_LOG, "Stores the Common logging preference. A connector must consume it before a host logging effect can be claimed."),
     "rules_inline": ("string", "one inline rule/configuration string", "none", DEFAULT_SOURCE_RUNTIME_PARSER, "Adds inline rule configuration."),
     "rules_file": ("path", "one readable rule/configuration file", "none", DEFAULT_SOURCE_RUNTIME_PARSER, "Loads rules from a local file."),
@@ -2980,16 +2981,16 @@ def _assert_common_source_defaults(root: Path) -> None:
 def _assert_documented_defaults(by_key: dict[tuple[str, str], str]) -> None:
     """Reject source-backed inventory defaults that no longer render exactly."""
     expected_defaults = {
-        ("common", "enabled"): "off", ("common", "use_error_log"): "on", ("common", "phase4_mode"): "safe",
+        ("common", "enabled"): VALUE_OFF, ("common", "use_error_log"): "on", ("common", "phase4_mode"): "safe",
         ("common", "request_body_limit"): "1048576", ("common", "response_body_limit"): "1048576",
         ("common", "body_limit_action"): "reject", ("common", "late_intervention_timeout"): "0",
         ("common", "default_block_status"): "403", ("common", "default_error_status"): "500",
         ("common", "max_header_count"): "256", ("common", "max_header_name_size"): "256",
         ("common", "max_header_value_size"): "8192", ("common", "max_total_header_bytes"): "65536",
         ("common", "max_event_json_bytes"): "16384",
-        ("apache", "modsecurity"): "off", ("apache", "modsecurity_use_error_log"): "on",
+        ("apache", "modsecurity"): VALUE_OFF, ("apache", "modsecurity_use_error_log"): "on",
         ("apache", "modsecurity_phase4_mode"): "safe", ("apache", "modsecurity_phase4_body_limit"): "1048576",
-        ("nginx", "modsecurity"): "off", ("nginx", "modsecurity_use_error_log"): "on",
+        ("nginx", "modsecurity"): VALUE_OFF, ("nginx", "modsecurity_use_error_log"): "on",
         ("nginx", "modsecurity_phase4_mode"): "safe", ("nginx", "modsecurity_phase4_body_limit"): "1048576",
         ("haproxy", "phase4-mode"): "safe",
     }
@@ -3337,7 +3338,7 @@ GERMAN_TEXT: dict[str, str] = {
     "closed": "closed",
     "false": "false",
     "none": "none",
-    "off": "off",
+    VALUE_OFF: VALUE_OFF,
     "on": "on",
     "optional": "optional",
     "passthrough": "passthrough",
@@ -4274,7 +4275,7 @@ def profiles_section(connector: str, german: bool) -> list[str]:
 def combination_rows(german: bool) -> list[tuple[str, str, str, str, str]]:
     if german:
         return [
-            ("off", "On", "beliebig", "beliebig", "Keine Connector-Transaktion; die Engine-Einstellung wird nicht erreicht."),
+            (VALUE_OFF, "On", "beliebig", "beliebig", "Keine Connector-Transaktion; die Engine-Einstellung wird nicht erreicht."),
             ("on", "Off", "beliebig", "beliebig", "Der Connector erreicht die Engine, aber deren Regelauswertung ist deaktiviert."),
             ("on", "DetectionOnly", "aktiviert", "aktiviert", "Regeln können ohne disruptive Durchsetzung treffen/protokollieren."),
             ("on", "On", "Off", "On", "Der P2-Body steht der Engine nicht zur Verfügung; P4 bleibt host-/fähigkeitsabhängig."),
@@ -4284,7 +4285,7 @@ def combination_rows(german: bool) -> list[tuple[str, str, str, str, str]]:
             ("on", "On", "über Limit + process_partial", "über Limit + reject", "Die Body-Policy bestimmt die begrenzte Engine-Eingabe; die genaue Host-Response-Behandlung bleibt connectorspezifisch."),
         ]
     return [
-        ("off", "On", "any", "any", "No connector transaction; engine setting is not reached."),
+        (VALUE_OFF, "On", "any", "any", "No connector transaction; engine setting is not reached."),
         ("on", "Off", "any", "any", "Connector reaches the engine, but engine rule processing is disabled."),
         ("on", "DetectionOnly", "enabled", "enabled", "Rules can match/log without disruptive enforcement."),
         ("on", "On", "Off", "On", "P2 body is unavailable to the engine; P4 remains host/capability dependent."),
