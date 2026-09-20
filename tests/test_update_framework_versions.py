@@ -15,6 +15,8 @@ import tempfile
 import unittest
 from unittest import mock
 
+from tests.framework_sha_fixture import set_framework_sha_fixture
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location(
@@ -28,6 +30,7 @@ SPEC.loader.exec_module(SYNC)
 
 
 CANDIDATE_GRAMMAR_PROVENANCE = "d4f7b69dc264852eac74e1439c0887fcb9fbe372"
+TEST_PARENT_FRAMEWORK_SHA = "b" * 40
 NEW_FRAMEWORK_SHA = "a" * 40
 
 # This is an offline grammar fixture. The SHA identifies the reproduced
@@ -106,6 +109,7 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         runner_temp = os.environ.get("RUNNER_TEMP")
         temporary_root = runner_temp if runner_temp and Path(runner_temp).is_dir() else None
         self.temp = tempfile.TemporaryDirectory(dir=temporary_root)
+        self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name) / "repo"
         shutil.copytree(
             ROOT,
@@ -114,6 +118,8 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
                 ".git", "ModSecurity-test-Framework", "__pycache__", ".pytest_cache"
             ),
         )
+        # Test identities are independent of both live pins and grammar provenance.
+        set_framework_sha_fixture(self.root, TEST_PARENT_FRAMEWORK_SHA)
         self.common = Path(self.temp.name) / "framework/ci/lib/common.sh"
         self.common.parent.mkdir(parents=True)
         self.write_common(CURRENT_CANDIDATE_COMMON)
@@ -161,6 +167,30 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
             )
             for path, contents in self.nginx_owned_bytes().items()
         }
+
+    def test_framework_sha_fixture_is_independent_and_byte_idempotent(self) -> None:
+        self.assertNotEqual(TEST_PARENT_FRAMEWORK_SHA, CANDIDATE_GRAMMAR_PROVENANCE)
+        before = self.all_target_bytes()
+        set_framework_sha_fixture(self.root, "c" * 40)
+        self.assertNotEqual(before, self.all_target_bytes())
+        set_framework_sha_fixture(self.root, TEST_PARENT_FRAMEWORK_SHA)
+        self.assertEqual(before, self.all_target_bytes())
+        set_framework_sha_fixture(self.root, TEST_PARENT_FRAMEWORK_SHA)
+        self.assertEqual(before, self.all_target_bytes())
+
+    def test_framework_sha_fixture_rejects_inconsistent_slots_without_writes(self) -> None:
+        fixture = self.root / "tests/test_ci_security_workflows.py"
+        original = fixture.read_text(encoding="utf-8")
+        expected = f'WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "{TEST_PARENT_FRAMEWORK_SHA}"'
+        self.assertEqual(original.count(expected), 1)
+        fixture.write_text(
+            original.replace(expected, 'WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "' + "c" * 40 + '"', 1),
+            encoding="utf-8",
+        )
+        before = self.all_target_bytes()
+        with self.assertRaisesRegex(ValueError, "inconsistent"):
+            set_framework_sha_fixture(self.root, TEST_PARENT_FRAMEWORK_SHA)
+        self.assertEqual(before, self.all_target_bytes())
 
     def test_current_candidate_grammar_fixture_resolves_as_data(self) -> None:
         values = SYNC.parse_common(self.common)
@@ -389,6 +419,7 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         fixture = self.root / "tests/test_ci_security_workflows.py"
         original_workflow = workflow.read_text(encoding="utf-8")
         original_fixture = fixture.read_text(encoding="utf-8")
+        original_projection = self.framework_sha_projection_bytes()
 
         cases = (
             ("invalid SHA", "A" * 40, lambda: None),
@@ -407,7 +438,7 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
                 NEW_FRAMEWORK_SHA,
                 lambda: workflow.write_text(
                     original_workflow
-                    + f"\n          FRAMEWORK_SHA: {CANDIDATE_GRAMMAR_PROVENANCE}\n",
+                    + f"\n          FRAMEWORK_SHA: {TEST_PARENT_FRAMEWORK_SHA}\n",
                     encoding="utf-8",
                 ),
             ),
@@ -416,8 +447,8 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
                 NEW_FRAMEWORK_SHA,
                 lambda: workflow.write_text(
                     original_workflow.replace(
-                        f"FRAMEWORK_SHA: {CANDIDATE_GRAMMAR_PROVENANCE}",
-                        f"FRAMEWORK_SHA: {SYNC.FRAMEWORK_SHA_DYNAMIC_VALUE}",
+                        f"\n          FRAMEWORK_SHA: {TEST_PARENT_FRAMEWORK_SHA}",
+                        f"\n          FRAMEWORK_SHA: {SYNC.FRAMEWORK_SHA_DYNAMIC_VALUE}",
                         1,
                     ),
                     encoding="utf-8",
@@ -428,8 +459,8 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
                 NEW_FRAMEWORK_SHA,
                 lambda: workflow.write_text(
                     original_workflow.replace(
-                        f"FRAMEWORK_SHA: {CANDIDATE_GRAMMAR_PROVENANCE}",
-                        f'FRAMEWORK_SHA: "{CANDIDATE_GRAMMAR_PROVENANCE}"',
+                        f"\n          FRAMEWORK_SHA: {TEST_PARENT_FRAMEWORK_SHA}",
+                        f'\n          FRAMEWORK_SHA: "{TEST_PARENT_FRAMEWORK_SHA}"',
                         1,
                     ),
                     encoding="utf-8",
@@ -440,8 +471,8 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
                 NEW_FRAMEWORK_SHA,
                 lambda: workflow.write_text(
                     original_workflow.replace(
-                        f"          FRAMEWORK_SHA: {CANDIDATE_GRAMMAR_PROVENANCE}",
-                        f"         FRAMEWORK_SHA: {CANDIDATE_GRAMMAR_PROVENANCE}",
+                        f"\n          FRAMEWORK_SHA: {TEST_PARENT_FRAMEWORK_SHA}",
+                        f"\n         FRAMEWORK_SHA: {TEST_PARENT_FRAMEWORK_SHA}",
                         1,
                     ),
                     encoding="utf-8",
@@ -452,8 +483,8 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
                 NEW_FRAMEWORK_SHA,
                 lambda: workflow.write_text(
                     original_workflow.replace(
-                        f"FRAMEWORK_SHA: {CANDIDATE_GRAMMAR_PROVENANCE}",
-                        f"FRAMEWORK_SHA:{' ' * 4096}\r\n",
+                        f"\n          FRAMEWORK_SHA: {TEST_PARENT_FRAMEWORK_SHA}",
+                        f"\n          FRAMEWORK_SHA:{' ' * 4096}\r\n",
                         1,
                     ),
                     encoding="utf-8",
@@ -464,7 +495,7 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
                 NEW_FRAMEWORK_SHA,
                 lambda: fixture.write_text(
                     original_fixture.replace(
-                        f'WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "{CANDIDATE_GRAMMAR_PROVENANCE}"',
+                        f'WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "{TEST_PARENT_FRAMEWORK_SHA}"',
                         'WITH_CRS_NO_MRTS_FRAMEWORK_SHA = "not-a-framework-sha"',
                         1,
                     ),
@@ -477,6 +508,12 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
                 workflow.write_text(original_workflow, encoding="utf-8")
                 fixture.write_text(original_fixture, encoding="utf-8")
                 mutate()
+                if label != "invalid SHA":
+                    self.assertNotEqual(
+                        original_projection,
+                        self.framework_sha_projection_bytes(),
+                        f"{label}: fixture mutation did not change any bytes",
+                    )
                 before = self.all_target_bytes()
                 with self.assertRaises(SYNC.SyncError):
                     SYNC.synchronize(self.root, self.common, True, framework_sha)
