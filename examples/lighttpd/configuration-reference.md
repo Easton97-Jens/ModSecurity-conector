@@ -54,7 +54,6 @@ Host/connector switches bind or configure host integration. They are not the sam
 | `transaction_id` | Selected runtime profile key | [transaction_id](../common/common-connector-configuration.md#transaction-id) |
 | `transaction_id_header` | Selected runtime profile key | [transaction_id_header](../common/common-connector-configuration.md#transaction-id-header) |
 | `phase4_mode` | Selected runtime profile key | [phase4_mode](../common/common-connector-configuration.md#phase4-mode) |
-| `phase4_content_types_file` | Selected runtime profile key | [phase4_content_types_file](../common/common-connector-configuration.md#phase4-content-types-file) |
 | `event_path` | Selected runtime profile key | [event_path](../common/common-connector-configuration.md#event-path) |
 | `phase4_event_log` | Selected runtime profile key | [phase4_event_log](../common/common-connector-configuration.md#phase4-event-log) |
 | `request_body_mode` | Selected runtime profile key | [request_body_mode](../common/common-connector-configuration.md#request-body-mode) |
@@ -81,7 +80,7 @@ See [Engine reference](../common/modsecurity-directives.md).
 
 | Profile | File | Status |
 | --- | --- | --- |
-| Minimal | [patched/minimal/lighttpd.conf](patched/minimal/lighttpd.conf) | Active starter configuration |
+| Minimal | [patched/off/lighttpd.conf](patched/off/lighttpd.conf) | Active starter configuration |
 | Safe full lifecycle | [patched/safe/lighttpd.conf](patched/safe/lighttpd.conf) | Selected bounded reference |
 | Strict | [patched/strict/lighttpd.conf](patched/strict/lighttpd.conf) | Parser-supported or explicitly optional boundary |
 | DetectionOnly | [detection-only/msconnector-runtime.conf](detection-only/msconnector-runtime.conf) | Engine evaluates/logs without disruptive action |
@@ -159,7 +158,7 @@ Required only when msconnector.enabled is true; missing, unreadable, or invalid 
 
 Selected value: use the syntax above and the source-backed file below.
 
-Source-backed example: [examples/lighttpd/minimal/lighttpd.conf](../../examples/lighttpd/minimal/lighttpd.conf).
+Source-backed example: [examples/lighttpd/off/lighttpd.conf](../../examples/lighttpd/off/lighttpd.conf).
 
 ### Safety and operations
 
@@ -214,7 +213,7 @@ When enabled, lighttpd validates the runtime file during set-defaults; validate 
 
 Selected value: use the syntax above and the source-backed file below.
 
-Source-backed example: [examples/lighttpd/minimal/lighttpd.conf](../../examples/lighttpd/minimal/lighttpd.conf).
+Source-backed example: [examples/lighttpd/off/lighttpd.conf](../../examples/lighttpd/off/lighttpd.conf).
 
 ### Safety and operations
 
