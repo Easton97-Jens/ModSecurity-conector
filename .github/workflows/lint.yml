@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  checks: read
 
 jobs:
   scaffold-lint:
@@ -61,7 +62,7 @@ jobs:
         run: python ci/checks/documentation/check-bilingual-docs.py
       - name: Verify native results and common event protocol
         if: ${{ !cancelled() }}
-        run: python -m unittest -v tests.test_native_result_event_protocol tests.test_native_error_classification tests.test_event_transport_observation
+        run: python -m unittest -v tests.test_native_result_event_protocol tests.test_native_error_classification tests.test_event_transport_observation tests.test_sonar_zero_gate
       - name: Verify Phase-4 migration and NGINX security contracts
         if: ${{ !cancelled() }}
         run: python -m unittest -v tests.test_phase4_migration_contract tests.test_nginx_native_security_contract tests.test_nginx_upstream_security_contract
@@ -77,6 +78,12 @@ jobs:
       - name: Verify configuration reference semantics
         if: ${{ !cancelled() }}
         run: python ci/checks/documentation/check-connector-config-reference.py
+      - name: Require zero new Sonar findings for the PR head
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          SONAR_CHECK_GITHUB_TOKEN: ${{ github.token }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python ci/checks/common/check-sonar-zero.py
       - name: Run lightweight lint
         run: |
           make setup-dev
