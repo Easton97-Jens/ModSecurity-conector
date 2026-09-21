@@ -2,6 +2,16 @@
 
 **Sprache:** [English](change-traceability.md) | Deutsch
 
+## Schnellorientierung
+
+Diese Policy hält Dokumentation und Delivery-Fakten reviewbar. Für eine normale
+nicht triviale Änderung gilt praktisch: Englisch und Deutsch gemeinsam
+aktualisieren, technische Literale identisch halten, nur tatsächlich
+ausgeführte Prüfungen dokumentieren, Build-/Static-Ergebnisse nicht zu
+Runtime-Claims hochstufen und generiertes Material über seinen Generator
+ändern. Pull-Request-Beschreibung und ein erforderlicher Change Record müssen
+zum finalen Diff und zu den beobachteten Ergebnissen passen.
+
 Diese Richtlinie macht die zweisprachige Pflege zu einem Teil der Definition of
 Done für repository-eigene, versionierte und für Menschen bestimmte Inhalte.
 Sie gilt für jedes Feature, jeden Bugfix, jeden Security-Fix und jede sonstige

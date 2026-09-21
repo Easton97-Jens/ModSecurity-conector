@@ -4,6 +4,13 @@
 
 **Language:** English | [Deutsch](apache.de.md)
 
+## Quick orientation
+
+Use this page for Apache/httpd-specific build prerequisites after selecting the
+`apache` profile. Prefer the root Apache build targets; this guide explains
+the compiler/APXS/httpd inputs behind them. A compiled module still needs a
+matching host configuration and live-host validation before any runtime claim.
+
 ## 1. Purpose and selected integration path
 
 This guide describes the manual development and integration build for `native-httpd-module` on Apache HTTP Server. The manual source build is the primary path; the repository test path follows it as an automated verification route.

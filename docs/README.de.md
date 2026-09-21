@@ -54,6 +54,11 @@ Einige Hostfamilien besitzen mehr als eine logische Lösung. Jedes logische
 Profil ist ein eigener Evidence-Scope; ein Profil beweist kein anderes Profil
 derselben Hostfamilie.
 
+Die `capabilities.json` jedes Connectors beschreibt den deklarierten
+Implementierungsstatus und ist kein PASS-Ergebnis. Ebenso bezeichnet
+`minimal_runtime_smoke` bewusst nur eine enge Runtime-Ebene und darf nicht als
+Full-Lifecycle- oder Production-Readiness-Evidence interpretiert werden.
+
 ## Beispiele gehören zum Lernpfad
 
 Der [Beispielindex](../examples/README.de.md) ist der praktische Begleiter

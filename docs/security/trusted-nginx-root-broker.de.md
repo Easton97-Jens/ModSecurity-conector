@@ -2,6 +2,17 @@
 
 **Sprache:** [English](trusted-nginx-root-broker.md) | Deutsch
 
+## Schnellorientierung
+
+Der vertrauenswürdige NGINX-Root-Broker existiert nur für eng begrenzte
+Testoperationen, die tatsächlich Privilegien benötigen. Er ist keine
+allgemeine Root-Shell und kein Deployment-Mechanismus. Broker und erlaubte
+Aktion stammen aus der geschützten vertrauenswürdigen Grenze; unvertrauenswürdige
+PR-Daten werden nur als Input behandelt und vor privilegierten Aktionen
+validiert.
+
+Verwenden Sie normale unprivilegierte Workflows, wenn Root nicht erforderlich ist.
+
 Der vertrauenswürdige NGINX-Root-Broker ist ein bewusst enger
 wiederverwendbarer GitHub-Actions-Workflow. Er ist die einzige geplante
 privilegierte Grenze für den NGINX-Master-/Worker-Nachweis im F-GS-003-

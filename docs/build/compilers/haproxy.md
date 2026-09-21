@@ -4,6 +4,14 @@
 
 **Language:** English | [Deutsch](haproxy.de.md)
 
+## Quick orientation
+
+HAProxy build details depend on the logical profile. The direct
+`haproxy-htx` route uses the patched native HTX integration; the
+`haproxy-spoe-spop` solution also includes the request-side agent/companion
+topology. Start with the root build targets and use this page for native
+toolchain/source requirements. Build success is not full profile evidence.
+
 ## 1. Purpose and selected integration path
 
 This guide describes the manual development and integration build for `native-htx-filter` on HAProxy. The manual source build is the primary path; the repository test path follows it as an automated verification route.

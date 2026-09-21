@@ -53,6 +53,11 @@ Some host families expose more than one logical solution. Treat each logical
 profile as its own evidence scope; one profile does not prove another profile
 in the same host family.
 
+Each connector's `capabilities.json` records declared implementation state; it
+is not a PASS result. Likewise, `minimal_runtime_smoke` names a deliberately
+narrow runtime layer and must not be interpreted as full-lifecycle or
+production-readiness evidence.
+
 ## Examples are part of the learning path
 
 The [examples index](../examples/README.md) is the practical companion to this

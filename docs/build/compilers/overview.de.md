@@ -4,6 +4,14 @@
 
 **Sprache:** [English](overview.md) | Deutsch
 
+## Schnellorientierung
+
+Die Build-Matrix macht Compiler-/Hostannahmen explizit. Beginnen Sie mit den
+repository-selektierten Toolchain-Quellen und Root-Make-Targets und verwenden
+Sie diese Übersicht danach, um den beteiligten nativen Compiler bzw. das Host-
+SDK zu verstehen. Ein Matrixfeld oder erfolgreicher Compile ist keine
+Runtime-Support-Aussage.
+
 ## Target map
 
 | Connector | Vorbereitung | Build | Config-Test | Ausgewählter Full Lifecycle |
