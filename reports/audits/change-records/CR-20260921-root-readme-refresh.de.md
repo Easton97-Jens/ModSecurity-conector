@@ -182,6 +182,15 @@ identifizierte den oben beschriebenen englischen Verzeichnisnamen-Tippfehler.
 Diese Ergebnisse gelten nur für diesen früheren Head und sind keine
 Current-Head-Ergebnisse des erweiterten Dokumentations-Commits.
 
+Für den zweiten Dokumentations-Head `bb98e75da5bd472215a6194462e24fa7356da4b4`
+war die Fenced-Command-Abweichung der Root-README nicht mehr der gemeldete
+Blocker. Der gemeinsame No-CRS-Dokumentationskonsistenzcheck meldete stattdessen,
+dass im Repository-Übersichtspaar die erforderlichen Literale
+`minimal_runtime_smoke` und `capabilities.json` fehlten. Der Nachfolger
+stellt beide Konzepte mit leserorientierten Erklärungen wieder her, anstatt den
+Checker abzuschwächen. Auch diese Ergebnisse sind nur Evidence des früheren
+Heads.
+
 ## Security-Auswirkung
 
 Nur Dokumentation. Produkt-Source, Parser, Runtime-Policy, Standardwerte,

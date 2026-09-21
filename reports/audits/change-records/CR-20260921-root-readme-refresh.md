@@ -180,6 +180,14 @@ identified the English directory-name typo described above. These are results
 for that prior head only; they are not current-head results for the expanded
 documentation commit.
 
+For the second documentation head `bb98e75da5bd472215a6194462e24fa7356da4b4`,
+the root fenced-command mismatch was no longer the reported blocker. The shared
+No-CRS documentation consistency check instead reported that the repository
+overview pair was missing the required literals `minimal_runtime_smoke` and
+`capabilities.json`. The successor documentation restores both concepts with
+reader-facing explanations instead of weakening the checker. Those results are
+also prior-head evidence only.
+
 ## Security impact
 
 Documentation only. No product source, parser, runtime policy, default,
