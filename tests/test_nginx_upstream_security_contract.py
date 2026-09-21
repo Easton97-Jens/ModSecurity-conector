@@ -221,15 +221,25 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
             self.body, "ngx_http_modsecurity_process_final_response_body"
         )
         response_assignment = response.index("ret = msc_process_response_body")
-        response_failure = conditional_block(response, "if (ret != 1)", response_assignment)
+        response_failure = conditional_block(
+            response, "if (!msconnector_native_phase_succeeded(ret))", response_assignment
+        )
         self.assertIn("ctx->intervention_triggered = 1;", response_failure)
-        committed_failure = conditional_block(response_failure, "if (r->header_sent)")
-        self.assertIn("r->connection->error = 1;", committed_failure)
-        self.assertIn("return NGX_ERROR;", committed_failure)
+        self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE", response_failure)
+        committed_mark = conditional_block(response_failure, "if (r->header_sent)")
+        self.assertIn("r->connection->error = 1;", committed_mark)
+        # Failure metadata is emitted after the abort flag and before either
+        # terminal return. The committed path must never render a second HTTP
+        # response or turn an engine failure into the Safe log-only policy.
+        logged = response_failure.index("ngx_http_modsecurity_phase4_log_failure(r, mcf, ctx)")
+        committed_return = conditional_block(response_failure, "if (r->header_sent)", logged)
+        self.assertIn("return NGX_ERROR;", committed_return)
         self.assertNotRegex(
-            committed_failure,
+            committed_mark + committed_return,
             re.compile(r"ngx_http_filter_finalize_request\s*\("),
         )
+        self.assertNotIn("ngx_http_modsecurity_phase4_handle_intervention", response_failure)
+        self.assertNotIn("ngx_http_modsecurity_contract_complete", response_failure)
         self.assertIn("NGX_HTTP_INTERNAL_SERVER_ERROR", response_failure)
 
     def test_partial_body_append_and_file_paths_remain_nonfatal(self) -> None:
@@ -262,7 +272,20 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
         )
         self.assertRegex(
             response_append,
-            re.compile(r"msc_append_response_body\s*\(.*?\)\s*<\s*0", re.DOTALL),
+            re.compile(
+                r"if\s*\(!msconnector_native_body_append_can_continue\s*\(\s*"
+                r"msc_append_response_body\s*\(ctx->modsec_transaction,\s*data,\s*bytes\)\)\)",
+                re.DOTALL,
+            ),
+        )
+        failed_append = conditional_block(response_append, "if (!msconnector_native_body_append_can_continue")
+        self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE", failed_append)
+        self.assertIn("return NGX_ERROR;", failed_append)
+        self.assertNotIn("return NGX_OK;", failed_append)
+        self.assertNotIn("bytes_inspected +=", failed_append)
+        self.assertLess(
+            response_append.index("if (!msconnector_native_body_append_can_continue"),
+            response_append.index("ctx->response_body_bytes_inspected += bytes;"),
         )
         self.assertNotRegex(
             response_append,
