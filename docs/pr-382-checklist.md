@@ -3,98 +3,108 @@
 **Language:** English | [Deutsch](pr-382-checklist.de.md)
 
 [Draft PR #382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382)
-works on `fix/unified-native-results-events-20260921`, based on
+uses `fix/unified-native-results-events-20260921`, based on
 `5170d24801243cdcd7bf1bca6123bf8cb2c72386`. Updated: 2026-09-21.
 
-**State: implementation in progress; not ready to merge.** A checked item in
-Implementation means the described code is present, not that every host has
-passed an integration test. Verification has its own checklist. Never check an
-item merely because a job exists, a build starts, or another connector passed.
-Every test result below belongs only to its named revision and test layer.
+**Status: implementation in progress; not ready to merge.** An implementation
+checkbox means that the stated code exists, not that every host passed an
+integration test. Verification has separate checkboxes. Evidence applies only
+to the cited revision and layer. Do not substitute another connector's success,
+an earlier green check, or a generated report for missing runtime evidence.
+
+Contract and migration reference: [native results and events](pr-382-event-contract.md).
 
 ## 1. Implementation
 
-- [x] I01: Add `common/include/msconnector/native_result.h`: direct byte-append results `0` and `1` may continue; other results fail. Phase evaluation succeeds only on `1`. Do not apply the append rule to APR/NGINX/HTTP/Common return values or file-loading APIs.
-- [x] I02: Use the shared append/finish predicates in the affected Apache body filters, HAProxy binding, Common Runtime, and NGINX response-body path.
-- [x] I03: Reject undocumented `msc_intervention()` return values in the Common Runtime and HAProxy binding, retaining cleanup and failure propagation.
-- [x] I04: Keep a HAProxy response-header binding failure a failure even when the decision is also disruptive.
-- [x] I05: Add `event_protocol.h` and use the same canonical event view in the JSONL writer and integrity hash. Preserve original source validation, query redaction, byte counts, status observations, and transport flags.
-- [x] I06: Distinguish technical errors from rule blocks in the changed Apache/Common event paths; remove Apache's separate handcrafted JSON fallback records.
+- [x] I01: Add `common/include/msconnector/native_result.h`: direct byte-append results `0` and `1` can continue; other results fail. Phase evaluation succeeds only with `1`. Do not apply this to APR/NGINX/HTTP/Common results or file-loading APIs.
+- [x] I02: Adopt the shared append/finish predicates in affected Apache body filters, the HAProxy binding, Common Runtime and the NGINX response-body path.
+- [x] I03: Reject undocumented `msc_intervention()` results in Common Runtime and the HAProxy binding while retaining cleanup and failure propagation.
+- [x] I04: Preserve a HAProxy response-header binding failure even when its decision is also disruptive.
+- [x] I05: Use `event_protocol.h` for the same canonical JSONL and integrity-hash view. Keep original-input validation, query redaction, byte counters, status observations and transport flags.
+- [x] I06: Distinguish technical failures from rule blocks in changed Apache/Common event paths; remove Apache's separate handwritten JSON fallback records.
 - [x] I07: Add typed NGINX response-body failure events. Do not infer successful EOS from a flag set before native evaluation.
-- [x] I08: Map `MSCONNECTOR_ERROR_MODSECURITY_FAILURE` to `MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE` in `common/src/modsecurity_engine.c`; retain distinct host, timeout, unavailable-engine, protocol, and body-limit classes.
-- [ ] I09: Complete the NGINX request-body/file and remaining native API paths without mistaking an I/O failure for `ProcessPartial`.
-- [ ] I10: Finish the cross-profile `off`/`safe`/`strict` comparison. In particular, no technical failure may become a successful Safe `log_only` decision.
-- [ ] I11: Complete the producer-to-sink error/logging comparison: event IDs, causes, requested versus observed actions, duplicate terminal events, and log-open/write/short-write/serialization failures. Treat `not_observable` as missing transport evidence, not proof of an executed block.
-- [ ] I12: Review all direct, companion, middleware, and sidecar paths separately; do not infer support from a shared parser or a connector family name.
+- [x] I08: Map `MSCONNECTOR_ERROR_MODSECURITY_FAILURE` to `MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE` in `common/src/modsecurity_engine.c`; preserve other failure classes.
+- [ ] I09: Complete NGINX request-body/file paths and remaining native API paths without confusing I/O failure with `ProcessPartial`.
+- [ ] I10: Complete the cross-profile `off`/`safe`/`strict` comparison. In particular, a technical failure must not become a successful safe `log_only` decision.
+- [ ] I11: Complete producer-to-sink consistency: event IDs, causes, requested versus observed actions, duplicate terminal records, and open/write/short-write/serialization failure handling.
+- [x] I11a: For known rule/technical-error events, treat NULL, empty and `not_observable` transport results as missing observation. Clear unobserved `actual_action`; use a neutral `MSCONN_EVENT_ENGINE_DECISION` message for unobserved rule interventions. Preserve original evidence fields and custom events.
+- [ ] I12: Verify all direct, companion, middleware and sidecar paths separately; do not infer support from a shared parser or family name.
+- [x] I13: Reduce HAProxy intervention/evaluation complexity by extracting bounded Rule-ID decoding and dependency-ordered cleanup. Preserve intervention collection, phase order, logging and cleanup ownership.
 
 ## 2. Verification
 
-- [x] V01: Fix duplicate C return types in generated test fixtures. `function_definition()` already includes the return type for the extracted Common definitions.
-- [x] V02: Observe a successful `Verify native results and common event protocol` CI step at `4f94f33d852f026e703f3237ed98826ae305719a`, [run 35627469389](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35627469389). This exercises compiled helpers, real serializer/hash code, extracted Runtime callbacks, and source wiring, not six running hosts.
-- [x] V03: Add `tests/test_native_error_classification.py` and wire it into the existing focused lint step. The compiled fixture tests the real classifier with recording clock/contract collaborators.
-- [x] V04: Update NGINX upstream source assertions for the shared predicates while retaining explicit checks for terminal failure, abort-before-return, no post-commit replacement response, and no success accounting on append failure.
-- [x] V05: Observe successful focused Common and Phase-4/NGINX security steps at implementation revision `10b3379561de81a8018467b724b4edb8c8742ef2`, [run 35628608293, job 106429001084](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35628608293/job/106429001084). Commands and evidence scope appear below. Later checklist/Change Record commits are documentation only; final-head CI remains a separate requirement.
-- [ ] V06: Repair and rerun Apache adoption checks and NGINX adoption/mutation tests. Retain negative mutation coverage; do not disable the checks to obtain a pass.
-- [ ] V07: Pass all required current-head CI and resolve actionable review/Sonar findings. Earlier green checks are not current-head evidence.
-- [ ] V08: Run identical real-host cases for engine `ProcessPartial`, engine Reject/interventions, empty response, multiple chunks and one EOS, selected CSV MIME type, optional connector budget, and engine failures.
-- [ ] V09: Validate late Safe/Strict outcomes and failures before/after commitment per supported transport. Observe client bytes, abort/reset, neighboring-stream survival, cleanup, and matching JSONL events rather than HTTP status alone.
-- [ ] V10: Compare metadata-only log records from each real integration route, including malformed/oversized metadata, failed sinks, and absent transport observations.
+- [x] V01: Repair duplicate C return types in generated fixtures; retain compiler warnings and assertions.
+- [x] V02: Establish the original native-result/event-protocol step at `4f94f33d852f026e703f3237ed98826ae305719a` in [run 35627469389](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35627469389).
+- [x] V03: Add compiled `tests/test_native_error_classification.py` and wire it into the focused CI step.
+- [x] V04: Update NGINX upstream source assertions for shared predicates while retaining terminal failure, abort-before-return, no post-commit replacement response, and no success accounting after append failure.
+- [x] V05: Confirm the expanded Common/native-result/error/observation/Sonar-gate tests and Phase-4/NGINX source-security tests at `039b7f123ff5ce87c033ce805b9f7e07b7d44bb4` in [run 35634888258, job 106449766690](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35634888258/job/106449766690). These individual steps passed; the overall job failed on NGINX adoption mutations.
+- [ ] V06: Complete both Apache and NGINX adoption/mutation remediation.
+- [x] V06a: Repair Apache helper-aware adoption checks and preserve existing negative mutations. Add inverted append/phase, missing serialization-return and false technical-rule-block mutations. All 16 mutation tests and scoped guards passed at `1709e1def4706f0124d56fc687b3faf1fd8e2946` in [run 35633647191, job 106445635579](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35633647191/job/106445635579); that job subsequently failed at the NGINX checker. A later source-equivalent linear status check is part of `039b7f123ff5ce87c033ce805b9f7e07b7d44bb4` and requires its own full validation.
+- [ ] V06b: Repair the NGINX chain-error checker and its stale mutation fragments. Keep negative coverage rather than removing diagnostics or accepting unchecked error paths.
+- [ ] V07: Pass every required check and review for the final PR head. The overall CI is not green.
+- [ ] V08: Run identical real-host cases for engine `ProcessPartial`, engine Reject/interventions, empty responses, multiple chunks with one EOS, explicit CSV MIME selection, optional budgets and engine errors.
+- [ ] V09: Verify late safe/strict and pre/post-commit errors per supported transport, observing client bytes, abort/reset, neighbor-stream survival, cleanup and JSONL rather than HTTP status alone.
+- [ ] V10: Compare metadata logs from every real integration route, including invalid/oversized metadata, failed sinks and missing transport observations.
+- [x] V11: Compile and run `tests/test_event_transport_observation.py` against actual Common JSONL/hash code. It checks missing observation, preserved evidence, idempotency, redaction, and observed safe/abort controls. Six family labels are fixture identities, not six running hosts.
+- [x] V12: Run all eight extracted HAProxy evaluation/cleanup/Rule-ID tests and the existing binding compile-and-link compatibility check at `039b7f123ff5ce87c033ce805b9f7e07b7d44bb4` in [run 35634888103, job 106449767189](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35634888103/job/106449767189).
 
-## 3. Per-family status
+## 3. Sonar zero-finding requirement
 
-| Family | Implemented portion | Still required |
+- [x] S01: Add an exact-head, read-only zero-finding check instead of accepting a green Quality Gate with findings. Missing, stale, ambiguous or unfinished evidence cannot pass.
+- [x] S02: Test the guard, including invalid identity before network access, safe bounded annotation output, wrong provider, pending analysis and nonzero findings. Keep `checks: read` at job scope.
+- [x] S03: Confirm `039b7f123ff5ce87c033ce805b9f7e07b7d44bb4` has **0 new issues, 0 accepted issues, 0 Security Hotspots and 0 annotations** in [Sonar check 106450287547](https://github.com/Easton97-Jens/ModSecurity-conector/runs/106450287547). The exact-head zero-finding CI step also passed in the V05 job. No issue was accepted, hidden or excluded to obtain this result.
+- [ ] S04: Repeat the exact-head zero check after every later change, including the final documentation commit. Keep final-head evidence separate from S03.
+
+This is the PR's new-code finding inventory, not a claim that the complete
+historical project inventory or measured test-coverage gap is zero. Sonar
+reported 0.0% coverage on new code; compiled test results are separate evidence.
+
+## 4. State by family
+
+| Family | Implemented part | Still required |
 | --- | --- | --- |
-| Apache | Body append/finish predicates and changed failure/event handling | Adoption checks, full native build and host/log regression tests |
-| NGINX | Response-body predicates and typed failure event | Remaining request/file paths, adoption mutations, host/transport regressions |
-| HAProxy | Direct binding predicates and error/intervention propagation | Separate HTX and SPOE/SPOP/companion behavior and event verification |
-| Envoy | Native return fix through Common Runtime | Separate ext_proc and ext_authz/response-companion verification |
-| Traefik | Native return fix through Common Runtime | Native middleware/UDS and forwardAuth/response-companion verification |
-| lighttpd | Native return fix through Common Runtime | Separate sidecar and native/patched-profile verification |
+| Apache | Body predicates, typed events, updated adoption checks and negative mutations | Final-head full checks and native host/log regressions |
+| NGINX | Response predicates and typed failure events | Request/file and late-error paths, adoption mutations, host/transport regressions |
+| HAProxy | Direct binding predicates, failure propagation, bounded Rule-ID/cleanup refactor | Separate HTX and SPOE/SPOP/companion behavior and event evidence |
+| Envoy | Native return correction through Common Runtime | Separate ext_proc and ext_authz/response-companion verification |
+| Traefik | Native return correction through Common Runtime | Native middleware/UDS and forwardAuth/response-companion verification |
+| lighttpd | Native return correction through Common Runtime | Separate sidecar and native/patched-profile verification |
 
-Unsupported Strict profiles remain unsupported unless an actual host capability
-is implemented and tested. Identical semantics do not mean identical host API
-return integers, log destination prefixes, or fabricated abort capabilities.
+Unsupported strict profiles stay unsupported until actual host capability is
+implemented and tested. Shared semantics do not mean identical host return
+integers, log-sink prefixes, or invented abort/reset capabilities.
 
-## 4. Documentation and delivery
+## 5. Documentation and delivery
 
-- [x] D01: Keep the work in Draft PR #382; do not merge or push directly to `master`.
-- [x] D02: Add this English/German checklist with reciprocal links and separate implementation/verification status.
-- [ ] D03: Complete the shared contract/migration documentation, log examples, and affected connector EN/DE guides.
-- [x] D04: Add the bilingual [Change Record](../reports/audits/change-records/CR-20260921-pr382-native-results-events.md) with actual results. The PR description links the checklist rather than treating the initial single-header commit as the current scope.
-- [ ] D05: Complete final new-documentation/link validation, scoped whitespace check, and required final-head checks. Record branch/PR head equality at handoff.
+- [x] D01: Keep work in Draft PR #382; no merge or direct `master` push.
+- [x] D02: Maintain paired EN/DE checklists with separate implementation and verification states.
+- [ ] D03: Complete all affected connector guides, examples and compatibility/versioning review before release.
+- [x] D03a: Add the paired native-result/event contract guide with missing-observation semantics, consumer migration notes, integrity-hash compatibility warnings and the Sonar-zero requirement.
+- [x] D04: Update the bilingual [Change Record](../reports/audits/change-records/CR-20260921-pr382-native-results-events.md) and PR progress with actual revision-scoped results.
+- [ ] D05: Finish final documentation/link/diff checks and all final-head CI. Reconcile branch and PR heads at handoff.
 
 ## Observed commands and results
 
-Both commands below passed as GitHub CI steps at
-`10b3379561de81a8018467b724b4edb8c8742ef2`, in the run linked under V05.
+The following two commands passed as individual CI steps at the V05 revision:
 
 ```sh
-python -m unittest -v tests.test_native_result_event_protocol tests.test_native_error_classification
+python -m unittest -v tests.test_native_result_event_protocol tests.test_native_error_classification tests.test_event_transport_observation tests.test_sonar_zero_gate
 python -m unittest -v tests.test_phase4_migration_contract tests.test_nginx_native_security_contract tests.test_nginx_upstream_security_contract
 ```
 
-These are compiled helper/callback/classifier and source-contract tests. The
-first group uses actual serializer/hash code and the extracted Runtime/classifier
-functions; surrounding native APIs or contract sinks are controlled fixtures.
-They do not prove the full native host lifecycle or transport behavior.
+The following commands passed at the V12 revision:
 
-## Known blockers and evidence limits
+```sh
+python3 -m unittest -v tests.test_haproxy_binding_refactor
+python3 tests/test_haproxy_libmodsecurity_compat.py
+```
 
-The original fixture compilation defect and the two outdated NGINX upstream
-assertions are repaired. The NGINX adoption checker/mutations and Apache
-adoption checks still need updates for the changed paths. Related `test-common`,
-`test-apache`, `test-nginx`, and `quick-framework-check` workflows failed at
-`10b3379561de81a8018467b724b4edb8c8742ef2`. They remain open, not accepted failures.
+The following exact-head check passed at the S03 revision:
 
-No local native host build or full six-family HTTP matrix was performed during
-this continuation. The local project execution wrapper was unavailable; GitHub
-CI is the execution evidence. Do not interpret a fixture using six connector
-names as six host integrations, or a successful quality gate as runtime proof.
+```sh
+python ci/checks/common/check-sonar-zero.py
+```
 
-## Update rule
-
-Before changing a verification box to `[x]`, record the exact commit, command,
-run/job link, and successful terminal result. Keep the German companion equivalent.
-A subsequent behavioral change requires new validation; historical evidence
-must remain labeled historical. Changes to Framework/MRTS, dependencies,
-security gates, or merge state are outside this PR continuation's scope.
+The NGINX adoption/mutation step remains failed. No complete six-family live
+HTTP/transport matrix, local native build, or local `git diff --check` is claimed.
+All named test layers and unresolved items must remain explicit.
