@@ -2,6 +2,19 @@
 
 **Language:** English | [Deutsch](architecture.de.md)
 
+## Quick orientation
+
+Read this document when you want to understand **how a request moves through
+the project**. Keep three boundaries in mind:
+
+- the host owns its native hooks, filters, transport details, and object lifetime;
+- `common/` owns connector-neutral contracts and reusable runtime behavior;
+- the Framework owns reusable test cases, schemas, runners, and normalizers.
+
+P1/P2 are request headers/body and P3/P4 are response headers/body. A route can
+only claim phases that its selected host/profile actually exposes. Build output,
+configuration loading, and source wiring are separate from live-host evidence.
+
 ## Scope
 
 This is the current architecture source of truth for the connector repository.

@@ -1,61 +1,78 @@
-# Documentation index
+# Documentation
 
 **Language:** English | [Deutsch](README.de.md)
 
-This directory is the documentation entry point for the selected six-connector
-HTTP/1.1 core. It describes current repository boundaries without claiming
-production readiness, CRS verification, complete HTTP/2/HTTP/3 verification, a
-complete matrix, or strict behavior for every connector.
+This is the main navigation page for the ModSecurity Connector documentation.
+If you are new to the project, start with **Getting started** and then choose
+the connector and example that match your host. Detailed reference documents
+remain available when you need exact variables, build contracts, evidence
+semantics, or security boundaries.
 
-## Start here
+The repository currently covers six host families and ten logical connector
+profiles. The selected core documentation is HTTP/1.1-oriented. A source tree,
+successful build, configuration check, or example file is not by itself proof
+of production readiness or a verified runtime result.
 
-| Need | Canonical document | Source-of-truth boundary |
+## New here?
+
+| Step | Read | What you get |
 | --- | --- | --- |
-| Initialize a checkout | [Getting started](getting-started.md) | Framework setup and the limited first validation path |
-| Target product monorepo concept | [Repository concept](repository-concept.md) | Binding target-state ownership, product, lifecycle, and Parent/Framework boundary |
-| Repository architecture | [Architecture](architecture.md) | Checked-in source ownership and documented lifecycle boundary |
-| Host, runtime, and engine configuration | [Configuration](configuration.md) | Complete per-connector syntax remains in <code>examples/</code> |
-| Variables and terms | [Variables](reference/variables.md) / [Glossary](reference/glossary.md) | Root Makefile, wrappers, and documented contracts |
-| Build one host | [Build](build/README.md) | Root/connector build inputs and compiler guides |
-| Test or interpret artifacts | [Testing and evidence](testing-and-evidence.md) | Selected run records and Framework schemas |
-| Operate safely | [Operations and security](operations-and-security.md) | Explicit deployment, limit, privacy, and provenance boundary |
-| Review CI security automation | [CI security tooling](security/ci-security-tooling.md) | Immutable pins, scanners, permissions, and their evidence limits |
-| Review the privileged NGINX test boundary | [Trusted NGINX root broker](security/trusted-nginx-root-broker.md) | Immutable protected-master code, bounded root actions, and root-to-runner evidence |
-| Choose a connector | [Connector index](connectors/README.md) | Selected integration mode and connector guide |
-| Trace a material change | [Change traceability](change-traceability.md) / [Change Records](../reports/audits/change-records/README.md) | Binding workflow, paired records, and evidence/data boundary |
+| 1 | [Getting started](getting-started.md) | Clone, initialize the Framework, run the first checks, and choose a host/profile. |
+| 2 | [Examples](../examples/README.md) | Pick an `off`, `safe`, `strict`, or `all` configuration for the selected logical solution. |
+| 3 | [Connector index](connectors/README.md) | Understand the selected route, alternate logical profiles, and host-specific limitations. |
+| 4 | [Configuration](configuration.md) | Learn which settings belong to the host, connector/Common Runtime, or ModSecurity engine. |
+| 5 | [Build](build/README.md) | Prepare and build the selected host integration without confusing build success with runtime proof. |
+
+## Find documentation by task
+
+| I want to… | Start here | Then read |
+| --- | --- | --- |
+| understand the repository | [Architecture](architecture.md) | [Repository concept](repository-concept.md) |
+| configure a connector | [Configuration](configuration.md) | [Examples](../examples/README.md) |
+| choose a connector/profile | [Connector index](connectors/README.md) | the matching connector guide |
+| build a connector | [Build](build/README.md) | [Compiler guides](build/compilers/README.md) |
+| understand Phase 1–4 | [Architecture](architecture.md) | [Phase-4 mode and budget](phase4-mode-budget.md) |
+| run tests or interpret a result | [Testing and evidence](testing-and-evidence.md) | [Reports](../reports/README.md) |
+| understand variables | [Variables](reference/variables.md) | [Glossary](reference/glossary.md) |
+| operate or deploy safely | [Operations and security](operations-and-security.md) | [SECURITY.md](../SECURITY.md) |
+| understand CI security | [CI security tooling](security/ci-security-tooling.md) | [Trusted NGINX root broker](security/trusted-nginx-root-broker.md) |
+| change project documentation | [Change traceability](change-traceability.md) | [Change Record archive](../reports/audits/change-records/README.md) |
 
 ## Connector guides
 
-| Connector | Selected mode | Canonical guide |
+| Host family | Selected core route | Guide |
 | --- | --- | --- |
-| Apache | <code>native-httpd-module</code> | [Apache](connectors/apache.md) |
-| NGINX | <code>native-nginx-http-module</code> | [NGINX](connectors/nginx.md) |
-| HAProxy | <code>native-htx-filter</code> | [HAProxy](connectors/haproxy.md) |
-| Envoy | <code>ext_proc</code> | [Envoy](connectors/envoy.md) |
-| Traefik | <code>native-traefik-middleware</code> | [Traefik](connectors/traefik.md) |
-| lighttpd | <code>patched-native-lighttpd</code> | [lighttpd](connectors/lighttpd.md) |
+| Apache | `native-httpd-module` | [Apache](connectors/apache.md) |
+| NGINX | `native-nginx-http-module` | [NGINX](connectors/nginx.md) |
+| HAProxy | `native-htx-filter` | [HAProxy](connectors/haproxy.md) |
+| Envoy | `ext_proc` | [Envoy](connectors/envoy.md) |
+| Traefik | `native-traefik-middleware` | [Traefik](connectors/traefik.md) |
+| lighttpd | `patched-native-lighttpd` | [lighttpd](connectors/lighttpd.md) |
 
-The selected profile and the recorded integration mode are related but distinct
-identities. The canonical state for a capability begins in each connector's
-<code>capabilities.json</code>; a profile, build, source tree, or generated
-inventory is not a PASS result.
+Some host families expose more than one logical solution. Treat each logical
+profile as its own evidence scope; one profile does not prove another profile
+in the same host family.
 
-## Current scope and evidence
+## Examples are part of the learning path
 
-The repository records selected lifecycle evidence by run ID. A narrow
-<code>minimal_runtime_smoke</code>, a configuration load, or a source-level
-contract check establishes only its stated layer. Read the current reports
-through [Reports](../reports/README.md) before making a time-sensitive status
-claim.
+The [examples index](../examples/README.md) is the practical companion to this
+documentation. It maps all ten logical solutions to their checked-in
+`off`, `safe`, `strict`, and `all` layouts and explains which paths,
+ports, rules files, sockets, and log destinations must be adapted before use.
 
-## Supporting material
+Use examples as **configuration references**, not as deployment manifests.
+Always validate the materialized host configuration and read the matching
+connector limitations before sending traffic.
 
-- [Compiler guides](build/compilers/README.md)
-- [License, origin, and operational boundary](operations-and-security.md)
-- [Common source-tree guide](../common/README.md)
-- [Configuration examples](../examples/README.md)
-- [Framework module](../modules/ModSecurity-test-Framework/README.md)
+## Reference and maintenance
 
-Repository-owned English/German documentation is checked with
-<code>make check-bilingual-docs</code>. Generated outputs must be changed
-through their generator and source contract rather than by manual edits.
+- [Variables](reference/variables.md) is the complete variable/placeholder reference.
+- [Glossary](reference/glossary.md) defines repository-specific terminology.
+- [Phase-4 mode and budget](phase4-mode-budget.md) defines the current `off` / `safe` / `strict` contract.
+- [Reports](../reports/README.md) is the entry point for current and historical evidence/report material.
+- [Common source-tree guide](../common/README.md) explains connector-neutral code ownership.
+- [Framework module](../modules/ModSecurity-test-Framework/README.md) owns reusable test cases, schemas, runners, and normalizers.
+
+English and German repository documentation must remain equivalent. Generated
+documentation is maintained through its generator/source contract rather than
+by editing generated output in isolation.

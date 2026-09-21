@@ -2,6 +2,17 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
+## Quick orientation
+
+Use the root `Makefile` as the command source of truth. For a first build,
+pick **one** host family, read its connector guide, then run its root build
+target. Keep generated build/runtime data outside the source checkout.
+
+A successful build means only that the selected build stage completed. It does
+not prove that the host loaded the configuration, accepted traffic, exercised
+P1–P4, or produced canonical runtime evidence. Use the testing/evidence guide
+when you need to make a runtime claim.
+
 This section explains how root and connector Make targets prepare and build
 selected connector routes. A build, link, or config-load result is not runtime
 evidence and does not make a production, CRS, HTTP/2, HTTP/3, complete-matrix,

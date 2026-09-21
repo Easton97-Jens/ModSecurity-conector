@@ -2,6 +2,17 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
+## Start here
+
+Traefik has two logical solutions. `traefik-native-uds` is the direct native
+middleware route with a local private engine service. `traefik-forwardauth`
+uses forwardAuth for request phases and requires its private response observer
+for P3/P4.
+
+For a first configuration, start with the matching `safe` bundle. Keep UDS
+directories private, keep listeners local unless exposure is intentional, and
+do not treat forwardAuth by itself as response-phase coverage.
+
 ## Integration and boundary
 
 Integration mode: repository-owned native Traefik local plugin plus a persistent

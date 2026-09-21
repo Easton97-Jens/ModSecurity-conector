@@ -1,4 +1,4 @@
-# Aktualisierung der Root-READMEs
+# Aktualisierung der Dokumentation und Beispiele für bessere Verständlichkeit
 
 **Sprache:** [English](CR-20260921-root-readme-refresh.md) | Deutsch
 
@@ -12,105 +12,192 @@
 
 ## Motivation und Problemstellung
 
-Das Root-README-Paar enthielt weiterhin korrekte, aber stark Evidence-interne
-Sprache und bot neuen Lesern keinen kompakten Projektüberblick mehr. Es
-beschrieb außerdem nur die sechs ausgewählten Hostfamilien-Routen, obwohl die
-kanonische Connector-Dokumentation zehn logische Profile unterscheidet, und
-stellte den aktuellen Phase-4-Vertrag `off` / `safe` / `strict` nicht als
-erstklassigen Einstiegspunkt dar.
+Der Benutzer hat eine vollständige Aktualisierung der englischen/deutschen
+Root-READMEs angefordert und den Scope danach auf die Projektdokumentation und
+den eingecheckten `examples/`-Baum erweitert, damit das Repository für neue
+Benutzer leichter verständlich ist und dem aktuellen Implementierungsstand
+entspricht.
 
-Der Benutzer hat eine vollständige Aktualisierung von `README.md` und
-`README.de.md` auf den aktuellen Repository-Stand angefordert.
+Das vorhandene Material war technisch detailliert, begann aber häufig auf einer
+Evidence-, Policy- oder Implementierungs-internen Ebene. Wichtige
+Unterscheidungen wie sechs Hostfamilien gegenüber zehn logischen Profilen,
+Konfigurationsebenen, Phase-4 `off` / `safe` / `strict`,
+Beispielauswahl und der Unterschied zwischen Static-/Build-/Config-Checks und
+Runtime-Evidence wurden nicht überall vor dem Detailmaterial eingeführt.
 
 ## Akzeptanzkriterien
 
-Die englische und deutsche Root-README müssen strukturell gleichwertig bleiben,
-die sechs Hostfamilien und zehn logischen Profile erklären, die aktuelle
-Phase-4-Modusgrenze ohne Erweiterung von Runtime-Claims beschreiben, einen
-nutzbaren Schnellstart und eine Übersicht häufiger Targets bieten, auf die
-kanonische Detaildokumentation verweisen, die Parent-/Framework-Ownership-
-Grenze erhalten und explizite Evidence-/Security-Einschränkungen beibehalten.
+Die Dokumentation muss einen klaren Weg vom Root-README über Einstieg,
+Beispiele, Connector-Auswahl, Konfiguration, Build, Tests/Evidence und sicheren
+Betrieb bieten. Englische und deutsche Begleitdateien müssen strukturell und
+inhaltlich gleichwertig bleiben. Alle sechs Hostfamilien und zehn logischen
+Lösungen müssen über Beispiele und Connector-Guides auffindbar sein.
 
-Durch diese reine Dokumentationsänderung dürfen weder Connector-Verhalten,
-Build-Target, Konfigurationsstandard, Workflow, Dependency, Submodule-Pointer
-noch Runtime-/Evidence-Ergebnis geändert oder hochgestuft werden.
+Die Aktualisierung muss aktuelle Source-of-Truth-Grenzen erhalten und darf
+Connector-Runtime-Verhalten, Konfigurationsstandards, Build-Targets, Workflows,
+Dependencies, Submodule-Pointer, Verträge generierter Referenzen oder
+Runtime-/Evidence-Ergebnisse nicht verändern. Technische Referenztiefe bleibt
+erhalten und wird nicht durch vereinfachte, aber unvollständige Prosa ersetzt.
 
 ## Implementierungsentscheidung und Begründung
 
-Das Root-README-Paar wird als Onboarding- und Navigationsschicht neu geschrieben,
-statt jeden detaillierten Connector-Guide zu duplizieren. Stabile Fakten werden
-direkt genannt; volatile Details wie exakte Python-/Go-Patchversionen werden auf
-ihre eingecheckten Source-Dateien verwiesen, statt in Prosa kopiert zu werden.
+Die Dokumentation wird in zwei Ebenen organisiert. Leserorientierte
+Einstiegsseiten und Host-Guides beginnen mit einer kurzen aufgabenbezogenen
+Orientierung. Detaillierte quellenbasierte Referenzabschnitte bleiben dahinter
+vollständig erhalten.
 
-Die README unterscheidet nun Core-Routen der Hostfamilien von logischen
-Profilen, ergänzt das gemeinsame P1-P4-Phasenmodell und die aktuellen
-Phase-4-Budgetmodi, hält Run-/Evidence-Grenzen explizit und gruppiert
-Repository-Aufbau, Schnellstart, häufige Workflows, Konfiguration, Sicherheit,
-Entwicklungsregeln, Dokumentation und Provenienz in eigene Abschnitte.
+Root-README, Dokumentationsindex, Einstiegs-Guide, Beispielindex, zentrale
+Konzept-Guides, Connector-Index und sechs Connector-Guides sowie alle sechs
+Host-Beispiel-Guides erklären nun zuerst, was gelesen, welches Profil gewählt,
+was die jeweilige Validierungsstufe beweist und wo Konfigurations-/
+Security-Grenzen liegen. Source-Tree-READMEs für Common, Connectors, Config,
+Reports und SECURITY verweisen Benutzer vor code-nahen Details auf das passende
+leserorientierte Material.
+
+Der erste PR-Head deckte außerdem einen echten Bilingual-Check-Fehler auf: Im
+englischen Schnellstart stand `cd ModSecurity-connector`, während das
+Repository-Verzeichnis `ModSecurity-conector` heißt. Diese Aktualisierung
+korrigiert den englischen Befehl, sodass der EN/DE-Fenced-Command identisch ist.
 
 ## Geänderte Dateien
 
 - `README.md`
 - `README.de.md`
+- `SECURITY.md`
+- `SECURITY.de.md`
+- `common/README.md`
+- `common/README.de.md`
+- `config/README.md`
+- `config/README.de.md`
+- `connectors/README.md`
+- `connectors/README.de.md`
+- `docs/README.md`
+- `docs/README.de.md`
+- `docs/getting-started.md`
+- `docs/getting-started.de.md`
+- `docs/architecture.md`
+- `docs/architecture.de.md`
+- `docs/configuration.md`
+- `docs/configuration.de.md`
+- `docs/build/README.md`
+- `docs/build/README.de.md`
+- `docs/testing-and-evidence.md`
+- `docs/testing-and-evidence.de.md`
+- `docs/operations-and-security.md`
+- `docs/operations-and-security.de.md`
+- `docs/phase4-mode-budget.md`
+- `docs/phase4-mode-budget.de.md`
+- `docs/repository-concept.md`
+- `docs/repository-concept.de.md`
+- `docs/reference/variables.md`
+- `docs/reference/variables.de.md`
+- `docs/reference/glossary.md`
+- `docs/reference/glossary.de.md`
+- `docs/connectors/README.md`
+- `docs/connectors/README.de.md`
+- `docs/connectors/apache.md`
+- `docs/connectors/apache.de.md`
+- `docs/connectors/nginx.md`
+- `docs/connectors/nginx.de.md`
+- `docs/connectors/haproxy.md`
+- `docs/connectors/haproxy.de.md`
+- `docs/connectors/envoy.md`
+- `docs/connectors/envoy.de.md`
+- `docs/connectors/traefik.md`
+- `docs/connectors/traefik.de.md`
+- `docs/connectors/lighttpd.md`
+- `docs/connectors/lighttpd.de.md`
+- `examples/README.md`
+- `examples/README.de.md`
+- `examples/apache/README.md`
+- `examples/apache/README.de.md`
+- `examples/nginx/README.md`
+- `examples/nginx/README.de.md`
+- `examples/haproxy/README.md`
+- `examples/haproxy/README.de.md`
+- `examples/envoy/README.md`
+- `examples/envoy/README.de.md`
+- `examples/traefik/README.md`
+- `examples/traefik/README.de.md`
+- `examples/lighttpd/README.md`
+- `examples/lighttpd/README.de.md`
+- `reports/README.md`
+- `reports/README.de.md`
 - `reports/audits/change-records/CR-20260921-root-readme-refresh.md`
 - `reports/audits/change-records/CR-20260921-root-readme-refresh.de.md`
 
 ## Ausgeführte Befehle
 
-Es wurde kein repository-nativer Shell-Befehl ausgeführt, weil diese Änderung
-über den GitHub-Connector ohne lokalen Repository-Checkout vorbereitet wurde.
-Repository-Stand, aktuelle Dokumentationsverträge, Targetnamen, aktuelle
-Phase-4-Semantik, Toolchain-Source-Dateien und die aktuelle `master`-Revision
-wurden vor der Bearbeitung aus GitHub gelesen.
+Es wurde kein repository-nativer lokaler Shell-Befehl ausgeführt, weil die
+Änderung über den GitHub-Connector ohne lokalen Checkout vorbereitet wurde.
+
+Für den ersten PR-Head `8e0086b2d194828144d303d8a887cfb285e00ec6`
+meldeten GitHub Actions erfolgreiche Workflows für CodeQL, OpenSSF Scorecard,
+Secret Scanning, Security Workflow Lint, protocol-contract, Envoy, HAProxy,
+lighttpd, trusted NGINX exact-head und Report Governance. Die Workflows lint,
+quick-framework-check, test-common, test-apache und test-nginx scheiterten am
+gemeinsamen Bilingual-Dokumentationscheck mit der konkreten Meldung
+`README.md: fenced code-block content differs from README.de.md`. Die Analyse
+identifizierte den oben beschriebenen englischen Verzeichnisnamen-Tippfehler.
+Diese Ergebnisse gelten nur für diesen früheren Head und sind keine
+Current-Head-Ergebnisse des erweiterten Dokumentations-Commits.
 
 ## Security-Auswirkung
 
-Nur Dokumentation. Source, Runtime-Verhalten, Validierungsregel, Standardwert,
-Credential-Flow, Berechtigung, Workflow, Dependency, Netzwerkexposition,
-Logging-Pfad und Evidence-Aufbewahrungsverhalten werden nicht verändert. Die
-neue README verstärkt die bestehende Warnung, keine Secrets oder sensiblen
-Traffic-Daten in Run-IDs, Befehlszeilen, eingecheckte Konfiguration, Logs oder
-Review-Evidence zu schreiben.
+Nur Dokumentation. Produkt-Source, Parser, Runtime-Policy, Standardwerte,
+Berechtigungen, Workflows, Dependencies, Netzwerkexposition, Credential-Flows
+und Evidence-Aufbewahrung werden nicht geändert.
+
+Die überarbeitete Dokumentation macht bestehende Security-Grenzen deutlicher:
+private Listener/UDS, soweit passend, begrenzte Ressourcen, externe
+Build-/Runtime-/Evidence-Pfade, Least-Privilege-Dateisystem-/Service-Ownership
+sowie das Verbot, Credentials, Cookies, Authorization-Werte, Private Keys,
+sensible Bodies oder personenbezogene Daten in Run-IDs, versionierte Dateien,
+Logs oder Review-Evidence zu schreiben.
 
 ## Runtime-Evidence
 
-Es wurde keine Runtime-Evidence erhoben oder beansprucht. Aus dieser
-Dokumentationsänderung wird kein Host-, Protokoll-, CRS-, Production-Readiness-,
-Strict-Intervention- oder Deployment-Ergebnis abgeleitet.
+Es wurde keine neue Runtime-Evidence erhoben oder beansprucht. Diese
+Dokumentationsänderung begründet keine Host-, Protokoll-, CRS-,
+Production-Readiness-, Strict-Intervention- oder Deployment-Ergebnisse.
 
 ## Bekannte Einschränkungen
 
-Die Root-README fasst das Repository bewusst zusammen. Connectorspezifische
-Syntax, Compatibility-Routen, Capability-Status, Host-Voraussetzungen,
-Protokollgrenzen und aktuelle Run-Ergebnisse bleiben in den verlinkten
-Connector-, Konfigurations-, Build-, Test-/Evidence-, Operations-/Security- und
-Report-Dokumenten maßgeblich.
+Detaillierte generierte Konfigurationsreferenzen, compiler-spezifische
+Tiefenreferenzen, Decision Records und spezialisierte CI-/Security-Verträge
+bleiben bewusst technisch. Sie werden nun über klarere aufgabenbezogene
+Einstiegsseiten erreicht, statt in weniger präzise Kurzfassungen umgeschrieben
+zu werden.
+
+Die Beispiele bleiben Konfigurationsreferenzen und keine Produktions-
+Deployment-Manifeste. Hostspezifische Installationspfade, Ports, Modul-ABI,
+Service-Identität, TLS, Rules-Dateien, Sockets, Berechtigungen und
+Logging/Retention benötigen weiterhin Operator-Review.
 
 ## Verbleibende Risiken
 
-Das wesentliche Restrisiko ist zukünftiger Dokumentationsdrift, wenn die
-Root-Navigation bei Änderungen an Targetnamen, Profilidentitäten oder
-Policy-Verträgen nicht nachgezogen wird. Repository-Dokumentations-/Linkchecks
-und die Prüfung des exakten PR-Heads bleiben die geeigneten Kontrollen.
+Künftige Source-, Target-, Profil- oder Policy-Änderungen können erneut
+Dokumentationsdrift erzeugen, wenn die leserorientierte Navigation nicht
+zusammen mit dem zuständigen technischen Vertrag aktualisiert wird.
+Repository-Bilingual-/Link-Checks und Review der Exact-Head-CI bleiben die
+wesentlichen Kontrollen.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-`make check-bilingual-docs`, `make check-doc-links`, `git diff --check` und
-`git status --short` wurden nicht ausgeführt, weil der GitHub-Connector keinen
-lokalen Shell-Checkout bereitstellt. Hosted Checks, falls sie durch den
-Draft-PR ausgelöst werden, sind getrennte Exact-Head-Evidence und werden hier
-nicht vorab als erfolgreich behauptet.
+Lokale `make check-bilingual-docs`, `make check-doc-links`, `git diff
+--check` und `git status --short` wurden nicht ausgeführt, weil dieser
+Connector-Workflow keinen lokalen Checkout bereitstellt. Builds,
+Host-Runtime-Tests, CRS-Runs, Sanitizer und Protokollmatrizen wurden nicht
+ausgeführt, weil die Änderung rein dokumentarisch ist.
 
-Build, Config-Load, Unit-/Integrationstest, Host-Runtime, CRS-Run, Sanitizer,
-SonarQube-Check und Protokollmatrix wurden nicht ausgeführt, weil die Änderung
-rein dokumentarisch ist und kein solches Ergebnis benötigt wird, um eine nicht
-vorhandene Runtime-Änderung zu beschreiben.
+Current-Head-Hosted-CI wird nicht vorab als erfolgreich behauptet. Sie muss den
+erweiterten Dokumentations-Commit einschließlich des korrigierten Root-README-
+Fenced-Commands bewerten.
 
 ## Finaler Diff- und Review-Status
 
-Die eingegrenzte Änderung beschränkt sich auf das englische/deutsche
-Root-README-Paar und dieses erforderliche englische/deutsche Change-Record-Paar.
-Der Inhalt wurde vor der Branch-Veröffentlichung mit der aktuellen
-`master`-Dokumentation und dem aktuellen Phase-4-Vertrag abgeglichen. Es werden
-kein Merge, keine Produktionsfreigabe, kein erfolgreicher Hosted Check und
-keine Runtime-Verifikation behauptet.
+Diese Arbeit erweitert Draft PR #383 auf Branch
+`docs-refresh-root-readmes`. Die Änderung bleibt rein dokumentarisch und
+autorisiert bzw. führt keinen Merge aus. Der CI-Fehler des früheren Heads wurde
+geprüft; die README-Befehlsabweichung ist im vorbereiteten Nachfolger
+korrigiert. Current-Head-Checks und Review bleiben getrennte Delivery-Evidence.

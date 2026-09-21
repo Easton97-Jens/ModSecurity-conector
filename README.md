@@ -101,7 +101,7 @@ Clone with the Framework submodule and run the repository-oriented validation:
 
 ```sh
 git clone --recurse-submodules https://github.com/Easton97-Jens/ModSecurity-conector.git
-cd ModSecurity-connector
+cd ModSecurity-conector
 make check-framework
 make quick-check
 ```

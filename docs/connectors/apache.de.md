@@ -2,6 +2,18 @@
 
 **Sprache:** [English](apache.md) | Deutsch
 
+## Hier beginnen
+
+Apache verwendet ein direktes logisches Profil: `apache`, umgesetzt als
+native httpd-Modulroute. Beginnen Sie mit den
+[Apache-Beispielen](../../examples/apache/README.de.md), verwenden Sie zum
+Kennenlernen der vollständigen P1–P4-Form bevorzugt `safe` und nutzen Sie
+Root-Build-/Konfigurations-Targets statt einzelner lokaler Harness-Bausteine.
+
+Response-Body-Verarbeitung und Late Intervention hängen vom realen
+Host-Lifecycle ab. Ein Source-Level-Phase-4-Pfad oder eine Strict-Einstellung
+beweist für sich allein keinen client-sichtbaren späten Abbruch.
+
 ## Überblick
 
 Apache verwendet den ausgewählten Pfad <code>native-httpd-module</code>: ein

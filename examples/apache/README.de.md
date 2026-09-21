@@ -2,6 +2,17 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
+## Hier beginnen
+
+Verwenden Sie diese Seite, wenn Apache/httpd Ihr Zielhost ist. Beginnen Sie für
+eine erste Konfiguration mit [safe/httpd.conf](safe/httpd.conf), ersetzen Sie
+installierte Modul-, Rules- und Logpfade und validieren Sie danach die
+Hostkonfiguration, bevor Traffic gesendet wird.
+
+Apache verwendet das direkte native Modulprofil `apache`. Die Beispieldateien
+zeigen Konfigurationsabsicht; sie beweisen für sich allein weder P1–P4-Verhalten
+noch einen client-sichtbaren Strict-Late-Abbruch.
+
 ## Integration und Grenze
 
 Integrationsmodus: natives httpd-Modul. [Off-Kompatibilitätsreferenz](off/httpd.conf),

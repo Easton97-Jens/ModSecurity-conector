@@ -2,6 +2,17 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
+## Hier beginnen
+
+Envoy besitzt zwei logische Lösungen. `envoy-ext-proc` ist die direkte
+gestreamte Request-/Response-Route und der einfachste Einstieg.
+`envoy-ext-authz` verwendet ext_authz für Request-Phasen und benötigt für
+P3/P4 seinen privaten Response-Observer.
+
+Beginnen Sie mit dem passenden `safe`-Bundle, materialisieren Sie das Template
+außerhalb des Checkouts, halten Sie Prozessor-/Admin-Endpunkte privat und
+validieren Sie Envoy, bevor Traffic gesendet wird.
+
 ## Integration und Grenze
 
 Integrationsmodus: Envoy ext_proc mit einem repository-eigenen gRPC-Prozessor.

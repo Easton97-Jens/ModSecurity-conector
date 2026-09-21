@@ -2,6 +2,18 @@
 
 **Sprache:** [English](repository-concept.md) | Deutsch
 
+## Schnellorientierung
+
+Dieses Dokument erklärt das Ownership-Modell und die langfristige
+Repository-Struktur. Für eine erste Konfiguration oder einen ersten Build ist
+es normalerweise nicht erforderlich.
+
+Die praktische Regel lautet: Parent besitzt Connector-Produktintegration sowie
+deren Orchestrierung/Evidence-Consumer; das Framework besitzt
+wiederverwendbare Testinhalte und Runner; MRTS ist eine separate verschachtelte
+Grenze. Eine Änderung in einem Ownership-Bereich darf die Source of Truth eines
+anderen Bereichs nicht stillschweigend neu definieren.
+
 ## Verbindlichkeit, Geltungsbereich und Claim-Disziplin
 
 Dieses Dokument ist das verbindliche Zielkonzept für das Produkt-Monorepo. Es
