@@ -1,16 +1,22 @@
 # Change Record: PR #382 native Rückgaben und Ereignisse
 
-**Sprache:** Deutsch | [English](CR-20260921-pr382-native-results-events.md)
+**Sprache:** [English](CR-20260921-pr382-native-results-events.md) | Deutsch
 
-- Change ID: `CR-20260921-pr382-native-results-events`
-- Datum: `2026-09-21`
-- PR: [#382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382), Draft; kein Merge ausgeführt.
-- PR-Basis: `5170d24801243cdcd7bf1bca6123bf8cb2c72386`
-- Basis dieser Fortsetzung: `6ff390486e90a10c30c7fb6199870532ecde367a`
-- Getestete Implementierungsrevision: `10b3379561de81a8018467b724b4edb8c8742ef2`
-- Lieferumfang: nur Parent-Repository, Branch `fix/unified-native-results-events-20260921`.
+## Identität
 
-## Motivation
+| Feld | Wert |
+| --- | --- |
+| Change-ID | `CR-20260921-pr382-native-results-events` |
+| Datum (UTC) | `2026-09-21` |
+| Basis-Revision | `5170d24801243cdcd7bf1bca6123bf8cb2c72386` |
+| Basis dieser Fortsetzung | `6ff390486e90a10c30c7fb6199870532ecde367a` |
+| Getestete Implementierungsrevision | `10b3379561de81a8018467b724b4edb8c8742ef2` |
+| Branch | `fix/unified-native-results-events-20260921` |
+| Pull Request | [#382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382) |
+
+Lieferumfang: nur Parent-Repository. Der PR ist Draft; kein Merge ausgeführt.
+
+## Motivation und Problemstellung
 
 Direkte libModSecurity-Body-Append-Rückgaben wurden von nativen Bindings
 unterschiedlich behandelt. Ein Append-Ergebnis null kann konfiguriertes
@@ -29,7 +35,7 @@ ausgewählten nativen/Companion-Routen, konsistente Fehler-/Ausgabebehandlung,
 vollständige Regressionstests und echte Host-/Transportvalidierung. Diese
 übergeordneten Kriterien bleiben offen.
 
-## Technische Entscheidungen
+## Implementierungsentscheidung und Begründung
 
 Native Byte-Übernahme, Phasenauswertung, Host-Rückgabewerte und Engine-
 Interventionen getrennt halten. Der Byte-Append-Helfer darf nicht auf
@@ -52,7 +58,7 @@ folgen den gemeinsamen Prädikaten und verlangen weiterhin terminalen Fehler,
 Abbruch nach Antwortbeginn und keine erfolgreiche Bytezählung nach Append-
 Fehler. Sie sind Quellcodeprüfungen, kein Ersatz für native Tests.
 
-## Sicherheitsauswirkungen
+## Security-Auswirkung
 
 Ein Engine-Fehler darf nicht zu Allow/Log-only, einer falschen Regelblockierung
 oder angeblich erfolgreicher Untersuchung werden. Fehlerursache und beobachtete
@@ -79,7 +85,7 @@ Integritäts-Hashing. Diese früheren Änderungen stehen im PR-Diff und werden
 nicht als in dieser Fortsetzung neu abgeschlossen ausgegeben. Generierte
 Konfigurationsausgaben und Framework-/MRTS-Dateien bleiben unverändert.
 
-## Tests und tatsächliche Ergebnisse
+## Ausgeführte Befehle
 
 GitHub CI meldete in [Lauf 35628608293, Job 106429001084](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35628608293/job/106429001084)
 erfolgreich abgeschlossene Schritte für beide Befehle auf der getesteten
@@ -109,14 +115,14 @@ Paar sieben erwartete geänderte Dateien und nur sieben zusätzliche
 Produktivcodezeilen. Dies ist eine begrenzte Remote-Diff-Prüfung, keine lokale
 Ausführung von `git diff --check`.
 
-## Laufzeitnachweise
+## Runtime-Evidence
 
 In dieser Fortsetzung wurde keine vollständige native HTTP- oder Transportmatrix
 für sechs Familien ausgeführt. Sechs Connector-Identitäten in einer Common-
 Testdatei beweisen nicht sechs unabhängige Hostintegrationen. Host-spezifische
 Strict-Unterstützung wird nicht aufgewertet.
 
-## Nicht ausgeführte Prüfungen
+## Nicht ausgeführte Prüfungen mit Begründung
 
 Lokale repository-eigene Builds/Tests und `git diff --check` wurden nicht
 ausgeführt: Der erforderliche lokale Projektwrapper war nicht verfügbar und
@@ -143,7 +149,7 @@ erzeugen noch nicht unterstützte Reset-/Abbruchfähigkeiten bereitstellen.
 Die Normalisierung von JSONL-Namen/Aktionen kann nachgelagerte Log-Auswerter
 betreffen und verlangt vollständige Migrationshinweise vor einer Freigabe.
 
-## Abschließender Review-Status
+## Finaler Diff- und Review-Status
 
 Gesamt: `partial`. Die begrenzten Quellcode-/Testkorrekturen sind committed und
 die genannten CI-Schritte bestanden. Checkliste und Change Record unterscheiden

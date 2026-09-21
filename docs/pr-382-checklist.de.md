@@ -1,6 +1,6 @@
 # PR #382: Checkliste für gemeinsames Connector-Verhalten
 
-**Sprache:** Deutsch | [English](pr-382-checklist.md)
+**Sprache:** [English](pr-382-checklist.md) | Deutsch
 
 [Draft-PR #382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382)
 verwendet `fix/unified-native-results-events-20260921`, ausgehend von

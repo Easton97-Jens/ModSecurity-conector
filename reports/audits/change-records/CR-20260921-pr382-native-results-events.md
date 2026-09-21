@@ -2,15 +2,21 @@
 
 **Language:** English | [Deutsch](CR-20260921-pr382-native-results-events.de.md)
 
-- Change ID: `CR-20260921-pr382-native-results-events`
-- Date: `2026-09-21`
-- PR: [#382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382), Draft; no merge performed.
-- PR base: `5170d24801243cdcd7bf1bca6123bf8cb2c72386`
-- Continuation base: `6ff390486e90a10c30c7fb6199870532ecde367a`
-- Tested implementation revision: `10b3379561de81a8018467b724b4edb8c8742ef2`
-- Delivery scope: Parent repository only, branch `fix/unified-native-results-events-20260921`.
+## Identity
 
-## Motivation
+| Field | Value |
+| --- | --- |
+| Change ID | `CR-20260921-pr382-native-results-events` |
+| Date (UTC) | `2026-09-21` |
+| Base revision | `5170d24801243cdcd7bf1bca6123bf8cb2c72386` |
+| Continuation base | `6ff390486e90a10c30c7fb6199870532ecde367a` |
+| Tested implementation revision | `10b3379561de81a8018467b724b4edb8c8742ef2` |
+| Branch | `fix/unified-native-results-events-20260921` |
+| Pull request | [#382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382) |
+
+Delivery scope: Parent repository only. The PR is Draft; no merge performed.
+
+## Motivation and problem statement
 
 Direct libModSecurity body-append return values were treated differently by
 native bindings. A zero append result can represent configured `ProcessPartial`,
@@ -27,7 +33,7 @@ A complete migration additionally requires all selected native/companion routes,
 consistent error/sink behavior, full regression checks, and real host/transport
 validation. These broader criteria remain open.
 
-## Technical decisions
+## Implementation decision and rationale
 
 Keep native byte ingestion, phase evaluation, host return codes, and engine
 interventions distinct. Do not apply the byte-append helper to
@@ -74,7 +80,7 @@ integrity hashing. Those earlier changes are tracked in the PR diff, not newly
 claimed as completed by this continuation. No generated configuration output
 or Framework/MRTS files changed.
 
-## Tests and actual results
+## Commands executed
 
 GitHub CI [run 35628608293, job 106429001084](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/35628608293/job/106429001084)
 reported successful terminal steps for both commands at the tested implementation
@@ -107,7 +113,7 @@ No complete six-family native HTTP or transport matrix was executed in this
 continuation. Using six connector identities in a Common fixture does not prove
 six independent host integrations. Host-specific Strict support is not promoted.
 
-## Checks not run
+## Checks not run and rationale
 
 Local repository-native builds/tests and `git diff --check` were not executed:
 the required local project wrapper was unavailable and no local checkout was
@@ -124,7 +130,7 @@ misrepresented as an executed block. Existing structural check failures still
 block review readiness. The broad EN/DE contract/migration guides and examples
 are not yet complete.
 
-## Residual risks
+## Remaining risks
 
 Accepting a valid partial-ingestion result does not prove that all supplied
 bytes were inspected. A late abort cannot retract data already sent. A shared
@@ -132,7 +138,7 @@ JSON schema cannot create missing host observations or supply unsupported
 reset/abort capabilities. JSONL name/action normalization can affect downstream
 log consumers and requires completed migration guidance before release.
 
-## Final review status
+## Final diff and review status
 
 Overall: `partial`. The focused source/test fixes are committed and the named
 CI steps passed. The checklist and Change Record distinguish present code,
