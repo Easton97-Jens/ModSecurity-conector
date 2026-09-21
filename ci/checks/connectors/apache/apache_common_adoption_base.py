@@ -23,6 +23,7 @@ mapper_c = read(SRC / "msc_apache_mapper.c") if (SRC / "msc_apache_mapper.c").ex
 apache_text = "\n".join(p.read_text(encoding="utf-8", errors="ignore") for p in SRC.glob("*.c")) + "\n" + "\n".join(p.read_text(encoding="utf-8", errors="ignore") for p in SRC.glob("*.h"))
 docs_text = "\n".join(p.read_text(encoding="utf-8", errors="ignore") for p in [APACHE / "README.md", APACHE / "README.de.md", ROOT / "docs/connectors/apache.md", ROOT / "reports/audits/architecture-and-evidence.md"] if p.exists())
 DISCARD_RESPONSE_BRIGADE_CALL = "msc_discard_response_brigade(msr);"
+RC_NOT_SUCCESS = "if (rc != APR_SUCCESS)"
 
 
 def source_section(text: str, start: str, end: str) -> str:
@@ -217,6 +218,16 @@ def tokens_in_order(text: str, *tokens: str) -> bool:
     return True
 
 
+def typed_event_status_assignment(text: str) -> bool:
+    """Check one executable status assignment with bounded linear string scans."""
+    compact = "".join(function_section(text, "apache_log_intervention_event").split())
+    marker = "event.decision.status="
+    if compact.count(marker) != 1:
+        return False
+    assignment = compact.partition(marker)[2].partition(";")[0]
+    return assignment.endswith("?MSCONNECTOR_STATUS_ERROR:MSCONNECTOR_STATUS_BLOCKED")
+
+
 intervention_event_helper = source_section(
     filters_c,
     "static void apache_log_intervention_event",
@@ -294,8 +305,7 @@ checks.append(("copy_apr_response_headers" in mapper_c and "err_headers_out" in 
 checks.append(("msconnector_headers_find" in mapper_c, "Apache mapper uses Common header helper"))
 checks.append(("msconnector_event_write_jsonl_line" in filters_c and "msconnector_event_init" in filters_c, "Apache event JSONL uses Common event primitives"))
 checks.append((
-    re.search(r"event\.decision\.status\s*=\s*[^;]+\?\s*MSCONNECTOR_STATUS_ERROR\s*:\s*MSCONNECTOR_STATUS_BLOCKED\s*;",
-              function_section(filters_c, "apache_log_intervention_event")) is not None
+    typed_event_status_assignment(filters_c)
     and all(f'"{name}"' in intervention_event_helper for name in
             ("invalid_engine_response", "protocol_error", "connector_error")),
     "Apache P3/P4 intervention events distinguish technical errors from rule blocks",
@@ -374,13 +384,13 @@ checks.append((
     and "apache_send_precommit_terminal_error" in filters_c
     and "msc_apache_contract_mark_response_committed(msr)" in phase4_release_helper
     and "rc = ap_pass_brigade(f->next, brigade);" in phase4_release_helper
-    and "if (rc != APR_SUCCESS)" in phase4_release_helper
+    and RC_NOT_SUCCESS in phase4_release_helper
     and "apache_phase4_abort_response_connection(f)" in phase4_release_helper
     and tokens_in_order(
         phase4_release_helper,
         "msc_apache_contract_mark_response_committed(msr)",
         "rc = ap_pass_brigade(f->next, brigade);",
-        "if (rc != APR_SUCCESS)",
+        RC_NOT_SUCCESS,
         "MSC_PHASE4_TERMINAL_OUTPUT_SEALED",
     )
     and DISCARD_RESPONSE_BRIGADE_CALL in filters_c
@@ -465,7 +475,7 @@ checks.append((
     and "failed to write intervention log" in intervention_writer
     and "common intervention event serialization %s" in intervention_writer
     and "failed to close intervention log" in intervention_event_helper
-    and "if (rc != APR_SUCCESS)" in intervention_writer_code
+    and RC_NOT_SUCCESS in intervention_writer_code
     and "apr_file_close" in intervention_event_helper,
     "Apache reports open, canonical write, serialization, and close failures for shared P3/P4 event logging",
 ))
