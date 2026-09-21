@@ -61,70 +61,110 @@ korrigiert den englischen Befehl, sodass der EN/DE-Fenced-Command identisch ist.
 
 ## Geänderte Dateien
 
-- `README.md`
 - `README.de.md`
-- `SECURITY.md`
+- `README.md`
 - `SECURITY.de.md`
-- `common/README.md`
+- `SECURITY.md`
 - `common/README.de.md`
-- `config/README.md`
+- `common/README.md`
 - `config/README.de.md`
-- `connectors/README.md`
+- `config/README.md`
 - `connectors/README.de.md`
-- `docs/README.md`
+- `connectors/README.md`
 - `docs/README.de.md`
-- `docs/getting-started.md`
-- `docs/getting-started.de.md`
-- `docs/architecture.md`
+- `docs/README.md`
 - `docs/architecture.de.md`
-- `docs/configuration.md`
-- `docs/configuration.de.md`
-- `docs/build/README.md`
+- `docs/architecture.md`
 - `docs/build/README.de.md`
-- `docs/testing-and-evidence.md`
-- `docs/testing-and-evidence.de.md`
-- `docs/operations-and-security.md`
-- `docs/operations-and-security.de.md`
-- `docs/phase4-mode-budget.md`
-- `docs/phase4-mode-budget.de.md`
-- `docs/repository-concept.md`
-- `docs/repository-concept.de.md`
-- `docs/reference/variables.md`
-- `docs/reference/variables.de.md`
-- `docs/reference/glossary.md`
-- `docs/reference/glossary.de.md`
-- `docs/connectors/README.md`
+- `docs/build/README.md`
+- `docs/build/compilers/README.de.md`
+- `docs/build/compilers/README.md`
+- `docs/build/compilers/apache.de.md`
+- `docs/build/compilers/apache.md`
+- `docs/build/compilers/envoy.de.md`
+- `docs/build/compilers/envoy.md`
+- `docs/build/compilers/haproxy.de.md`
+- `docs/build/compilers/haproxy.md`
+- `docs/build/compilers/libmodsecurity.de.md`
+- `docs/build/compilers/libmodsecurity.md`
+- `docs/build/compilers/lighttpd.de.md`
+- `docs/build/compilers/lighttpd.md`
+- `docs/build/compilers/nginx.de.md`
+- `docs/build/compilers/nginx.md`
+- `docs/build/compilers/overview.de.md`
+- `docs/build/compilers/overview.md`
+- `docs/build/compilers/traefik.de.md`
+- `docs/build/compilers/traefik.md`
+- `docs/change-traceability.de.md`
+- `docs/change-traceability.md`
+- `docs/configuration.de.md`
+- `docs/configuration.md`
 - `docs/connectors/README.de.md`
-- `docs/connectors/apache.md`
+- `docs/connectors/README.md`
 - `docs/connectors/apache.de.md`
-- `docs/connectors/nginx.md`
-- `docs/connectors/nginx.de.md`
-- `docs/connectors/haproxy.md`
-- `docs/connectors/haproxy.de.md`
-- `docs/connectors/envoy.md`
+- `docs/connectors/apache.md`
 - `docs/connectors/envoy.de.md`
-- `docs/connectors/traefik.md`
-- `docs/connectors/traefik.de.md`
-- `docs/connectors/lighttpd.md`
+- `docs/connectors/envoy.md`
+- `docs/connectors/haproxy.de.md`
+- `docs/connectors/haproxy.md`
 - `docs/connectors/lighttpd.de.md`
-- `examples/README.md`
+- `docs/connectors/lighttpd.md`
+- `docs/connectors/nginx.de.md`
+- `docs/connectors/nginx.md`
+- `docs/connectors/runtime-failure-policy.de.md`
+- `docs/connectors/runtime-failure-policy.md`
+- `docs/connectors/traefik.de.md`
+- `docs/connectors/traefik.md`
+- `docs/decisions/ADR-003-shared-p1-p4-lifecycle-semantics.de.md`
+- `docs/decisions/ADR-003-shared-p1-p4-lifecycle-semantics.md`
+- `docs/decisions/README.de.md`
+- `docs/decisions/README.md`
+- `docs/getting-started.de.md`
+- `docs/getting-started.md`
+- `docs/operations-and-security.de.md`
+- `docs/operations-and-security.md`
+- `docs/phase4-mode-budget.de.md`
+- `docs/phase4-mode-budget.md`
+- `docs/reference/glossary.de.md`
+- `docs/reference/glossary.md`
+- `docs/reference/variables.de.md`
+- `docs/reference/variables.md`
+- `docs/reference/with-crs-no-mrts-profile-contract.de.md`
+- `docs/reference/with-crs-no-mrts-profile-contract.md`
+- `docs/repository-concept.de.md`
+- `docs/repository-concept.md`
+- `docs/security/ci-security-tooling.de.md`
+- `docs/security/ci-security-tooling.md`
+- `docs/security/trusted-nginx-root-broker.de.md`
+- `docs/security/trusted-nginx-root-broker.md`
+- `docs/testing-and-evidence.de.md`
+- `docs/testing-and-evidence.md`
 - `examples/README.de.md`
-- `examples/apache/README.md`
+- `examples/README.md`
 - `examples/apache/README.de.md`
-- `examples/nginx/README.md`
-- `examples/nginx/README.de.md`
-- `examples/haproxy/README.md`
-- `examples/haproxy/README.de.md`
-- `examples/envoy/README.md`
+- `examples/apache/README.md`
+- `examples/common/README.de.md`
+- `examples/common/README.md`
+- `examples/common/common-connector-configuration.de.md`
+- `examples/common/common-connector-configuration.md`
+- `examples/common/modsecurity-directives.de.md`
+- `examples/common/modsecurity-directives.md`
+- `examples/common/rule-examples.de.md`
+- `examples/common/rule-examples.md`
 - `examples/envoy/README.de.md`
-- `examples/traefik/README.md`
-- `examples/traefik/README.de.md`
-- `examples/lighttpd/README.md`
+- `examples/envoy/README.md`
+- `examples/haproxy/README.de.md`
+- `examples/haproxy/README.md`
 - `examples/lighttpd/README.de.md`
-- `reports/README.md`
+- `examples/lighttpd/README.md`
+- `examples/nginx/README.de.md`
+- `examples/nginx/README.md`
+- `examples/traefik/README.de.md`
+- `examples/traefik/README.md`
 - `reports/README.de.md`
-- `reports/audits/change-records/CR-20260921-root-readme-refresh.md`
+- `reports/README.md`
 - `reports/audits/change-records/CR-20260921-root-readme-refresh.de.md`
+- `reports/audits/change-records/CR-20260921-root-readme-refresh.md`
 
 ## Ausgeführte Befehle
 
@@ -163,11 +203,7 @@ Production-Readiness-, Strict-Intervention- oder Deployment-Ergebnisse.
 
 ## Bekannte Einschränkungen
 
-Detaillierte generierte Konfigurationsreferenzen, compiler-spezifische
-Tiefenreferenzen, Decision Records und spezialisierte CI-/Security-Verträge
-bleiben bewusst technisch. Sie werden nun über klarere aufgabenbezogene
-Einstiegsseiten erreicht, statt in weniger präzise Kurzfassungen umgeschrieben
-zu werden.
+Generierte Dokumentation unter `docs/generated/` bleibt bewusst unverändert, weil die Repository-Policy Änderungen über Generator/Source-Vertrag verlangt. Compiler-spezifische Tiefenreferenzen, Decision Records und spezialisierte CI-/Security-Verträge bleiben technisch, beginnen nun aber mit Leserorientierung oder werden über klarere aufgabenbezogene Einstiege erreicht.
 
 Die Beispiele bleiben Konfigurationsreferenzen und keine Produktions-
 Deployment-Manifeste. Hostspezifische Installationspfade, Ports, Modul-ABI,
