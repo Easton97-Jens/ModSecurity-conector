@@ -30,6 +30,7 @@
 #include "msconnector/json_escape.h"
 #include "msconnector/late_intervention.h"
 #include "msconnector/phase4_budget.h"
+#include "msconnector/native_result.h"
 #include "msconnector/log_sanitize.h"
 #include "msconnector/redaction.h"
 #include "msconnector/resource_limits.h"
@@ -96,6 +97,20 @@ static void init_decision(haproxy_modsecurity_decision *decision, int phase) {
     decision->status = 200;
     decision->phase = phase;
     copy_message(decision->action, sizeof(decision->action), "pass");
+}
+
+static void native_error_decision(haproxy_modsecurity_decision *decision,
+        const char *message) {
+    if (decision == 0) {
+        return;
+    }
+    decision->status = 500;
+    decision->disruptive = 1;
+    decision->body_limit = 0;
+    decision->rule_id = 0;
+    decision->redirect_url[0] = '\0';
+    copy_message(decision->action, sizeof(decision->action), "error");
+    copy_message(decision->log_message, sizeof(decision->log_message), message);
 }
 
 static void init_intervention(ModSecurityIntervention *intervention) {
@@ -249,7 +264,7 @@ static char *join_path(const char *dir, const char *name) {
     return path;
 }
 
-static void capture_intervention(
+static int capture_intervention(
         Transaction *transaction,
         int phase,
         haproxy_modsecurity_decision *decision) {
@@ -257,6 +272,7 @@ static void capture_intervention(
     msconnector_intervention common_intervention;
     char common_rule_id[64];
     int rule_id_result;
+    int native_result;
     int truncated = 0;
     int body_limit;
     enum msconnector_phase common_phase;
@@ -265,10 +281,19 @@ static void capture_intervention(
     size_t id_count;
 #endif
 
+    if (transaction == 0 || decision == 0) {
+        return 1;
+    }
     init_decision(decision, phase);
     common_rule_id[0] = '\0';
     init_intervention(&intervention);
-    if (msc_intervention(transaction, &intervention) != 0) {
+    native_result = msc_intervention(transaction, &intervention);
+    if (native_result != 0 && native_result != 1) {
+        native_error_decision(decision, "invalid native intervention result");
+        msc_intervention_cleanup(&intervention);
+        return 1;
+    }
+    if (native_result == 1) {
         common_intervention = msconnector_intervention_make(
             intervention.disruptive, intervention.status, intervention.url,
             intervention.log);
@@ -318,6 +343,7 @@ static void capture_intervention(
     }
 #endif
     msc_intervention_cleanup(&intervention);
+    return 0;
 }
 
 static int record_contract_decision(
@@ -333,6 +359,10 @@ static int record_contract_decision(
     if (decision->body_limit != 0) {
         return msconnector_transaction_contract_fail(&transaction->contract,
             MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, 0U);
+    }
+    if (strcmp(decision->action, "error") == 0) {
+        return msconnector_transaction_contract_fail(&transaction->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, 0U);
     }
     msconnector_decision_init(&common);
     common.http_status = decision->status;
@@ -485,10 +515,11 @@ static int append_body_chunk(
         return 1;
     }
     *phase->body_bytes_seen += (size_t)body_len;
-    if (body_len > 0U && phase->append_body(transaction->transaction, body, (size_t)body_len) != 1) {
-        copy_message(decision->log_message, sizeof(decision->log_message), phase->append_failed_message);
+    if (body_len > 0U && !msconnector_native_body_append_can_continue(
+            phase->append_body(transaction->transaction, body, (size_t)body_len))) {
+        native_error_decision(decision, phase->append_failed_message);
         (void)msconnector_transaction_contract_fail(&transaction->contract,
-            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, 0U);
         return 1;
     }
     *phase->body_started = 1;
@@ -522,10 +553,10 @@ static int finish_body(
             MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE, 0U);
         return 1;
     }
-    if (phase->finish_body(transaction->transaction) != 1) {
-        copy_message(decision->log_message, sizeof(decision->log_message), phase->finish_failed_message);
+    if (!msconnector_native_phase_succeeded(phase->finish_body(transaction->transaction))) {
+        native_error_decision(decision, phase->finish_failed_message);
         (void)msconnector_transaction_contract_fail(&transaction->contract,
-            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, 0U);
         return 1;
     }
     *phase->body_processed = 1;
@@ -536,7 +567,11 @@ static int finish_body(
             "request/response body phase completion failed");
         return 1;
     }
-    capture_intervention(transaction->transaction, phase->phase, decision);
+    if (capture_intervention(transaction->transaction, phase->phase, decision) != 0) {
+        (void)msconnector_transaction_contract_fail(&transaction->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, 0U);
+        return 1;
+    }
     if (record_contract_decision(transaction, decision) !=
             MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
         copy_message(decision->log_message, sizeof(decision->log_message),
@@ -848,9 +883,8 @@ static int process_request_headers(
             return -1;
         }
     }
-    if (msc_process_request_headers(transaction) != 1) {
-        copy_message(decision->log_message, sizeof(decision->log_message),
-            "msc_process_request_headers failed");
+    if (!msconnector_native_phase_succeeded(msc_process_request_headers(transaction))) {
+        native_error_decision(decision, "msc_process_request_headers failed");
         return -1;
     }
     return 0;
@@ -874,15 +908,14 @@ static int process_request_body(
         return -1;
     }
     if (request->body != 0 && request->body_len > 0 &&
-            msc_append_request_body(transaction, request->body,
-                (size_t)request->body_len) != 1) {
-        copy_message(decision->log_message, sizeof(decision->log_message),
-            "msc_append_request_body failed");
+            !msconnector_native_body_append_can_continue(
+                msc_append_request_body(transaction, request->body,
+                    (size_t)request->body_len))) {
+        native_error_decision(decision, "msc_append_request_body failed");
         return -1;
     }
-    if (msc_process_request_body(transaction) != 1) {
-        copy_message(decision->log_message, sizeof(decision->log_message),
-            "msc_process_request_body failed");
+    if (!msconnector_native_phase_succeeded(msc_process_request_body(transaction))) {
+        native_error_decision(decision, "msc_process_request_body failed");
         return -1;
     }
     return 0;
@@ -949,7 +982,9 @@ static int eval_request_internal(
     if (process_request_headers(transaction, request, decision) != 0) {
         goto cleanup;
     }
-    capture_intervention(transaction, 1, decision);
+    if (capture_intervention(transaction, 1, decision) != 0) {
+        goto cleanup;
+    }
     if (decision->disruptive != 0) {
         msc_process_logging(transaction);
         rc = 0;
@@ -959,7 +994,9 @@ static int eval_request_internal(
     if (process_request_body(transaction, request, decision) != 0) {
         goto cleanup;
     }
-    capture_intervention(transaction, 2, decision);
+    if (capture_intervention(transaction, 2, decision) != 0) {
+        goto cleanup;
+    }
     msc_process_logging(transaction);
     rc = 0;
 
@@ -1144,7 +1181,11 @@ static int begin_transaction_protocol(
             "failed to complete Common P1");
         return -1;
     }
-    capture_intervention(transaction->transaction, 1, decision);
+    if (capture_intervention(transaction->transaction, 1, decision) != 0) {
+        (void)msconnector_transaction_contract_fail(&transaction->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, 0U);
+        return -1;
+    }
     if (record_contract_decision(transaction, decision) !=
             MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
         copy_message(decision->log_message, sizeof(decision->log_message),
@@ -1508,9 +1549,11 @@ int haproxy_modsecurity_transaction_process_response_headers(
     status = response->status > 0 ? response->status : 200;
     protocol = response->protocol != 0 && response->protocol[0] != '\0' ?
         response->protocol : "HTTP/1.1";
-    if (msc_process_response_headers(transaction->transaction, status, protocol) != 1) {
-        copy_message(decision->log_message, sizeof(decision->log_message),
-            "msc_process_response_headers failed");
+    if (!msconnector_native_phase_succeeded(
+            msc_process_response_headers(transaction->transaction, status, protocol))) {
+        native_error_decision(decision, "msc_process_response_headers failed");
+        (void)msconnector_transaction_contract_fail(&transaction->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, 0U);
         return 1;
     }
     if (msconnector_transaction_contract_record_response_metadata(
@@ -1527,7 +1570,11 @@ int haproxy_modsecurity_transaction_process_response_headers(
         return 1;
     }
     transaction->response_headers_processed = 1;
-    capture_intervention(transaction->transaction, 3, decision);
+    if (capture_intervention(transaction->transaction, 3, decision) != 0) {
+        (void)msconnector_transaction_contract_fail(&transaction->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, 0U);
+        return 1;
+    }
     if (record_contract_decision(transaction, decision) !=
             MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
         copy_message(decision->log_message, sizeof(decision->log_message),
@@ -1577,10 +1624,14 @@ int haproxy_modsecurity_transaction_process_response_body(
         return 1;
     }
     if (!transaction->response_headers_processed) {
+        /* A binding failure can also set disruptive. Never convert its
+         * nonzero return into success merely because enforcement is needed. */
         if (haproxy_modsecurity_transaction_process_response_headers(
-                transaction, response, decision) != 0 ||
-                decision->disruptive != 0) {
-            return decision->disruptive != 0 ? 0 : 1;
+                transaction, response, decision) != 0) {
+            return 1;
+        }
+        if (decision->disruptive != 0) {
+            return 0;
         }
         init_decision(decision, 4);
     }
