@@ -175,18 +175,23 @@ class NginxRequestNativeResultsTests(unittest.TestCase):
         cls.binary = directory / "request-contract"
         source = ACCESS.read_text(encoding="utf-8")
         fixture = directory / "request-contract.c"
+        # NGINX declarations put the return type on the preceding line;
+        # function_definition starts at the line containing the function name.
         fixture.write_text(
             PREAMBLE + "\n" + "\n".join(
-                function_definition(source, name) for name in FUNCTIONS
+                "static ngx_int_t\n" + function_definition(source, name)
+                for name in FUNCTIONS
             ) + "\n" + MAIN,
             encoding="utf-8",
         )
-        subprocess.run(
+        compiled = subprocess.run(
             compiler + ["-std=c17", "-Wall", "-Wextra", "-Werror",
                         "-I", str(ROOT / "common/include"), str(fixture),
                         "-o", str(cls.binary)],
-            check=True, capture_output=True, text=True, timeout=30,
+            check=False, capture_output=True, text=True, timeout=30,
         )
+        if compiled.returncode != 0:
+            raise AssertionError("C fixture compilation failed:\n" + compiled.stderr[-4000:])
 
     def run_case(self, mode: str, append: int = 1, phase: int = 1,
                  file_result: int = 1) -> dict:
