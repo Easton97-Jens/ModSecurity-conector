@@ -206,15 +206,20 @@ class NativeResultEventProtocolTests(unittest.TestCase):
         compiler = shlex.split(os.environ.get("CC", "cc"))
         if not compiler or shutil.which(compiler[0]) is None:
             raise RuntimeError("a C compiler is required for native/event protocol tests")
-        tmp = tempfile.TemporaryDirectory(prefix="native-event-contract-")
+        temporary_root = os.environ.get("TMP_ROOT")
+        if temporary_root:
+            Path(temporary_root).mkdir(parents=True, exist_ok=True)
+        tmp = tempfile.TemporaryDirectory(prefix="native-event-contract-", dir=temporary_root)
         cls.addClassCleanup(tmp.cleanup)
         directory = Path(tmp.name)
         cls.event_binary = directory / "events"
         cls.callback_binary = directory / "callbacks"
-        phase_source = (ROOT / "common/src/transaction_state.c").read_text()
-        phase = '#include "msconnector/transaction_state.h"\nconst char *\n' + function_definition(phase_source, "msconnector_phase_name")
-        (directory / "phase.c").write_text(phase)
-        (directory / "events.c").write_text(EVENT_FIXTURE)
+        phase_source = (ROOT / "common/src/transaction_state.c").read_text(encoding="utf-8")
+        # These definitions already include their return type on the name line.
+        # Adding another return type creates invalid C before any test can run.
+        phase = '#include "msconnector/transaction_state.h"\n' + function_definition(phase_source, "msconnector_phase_name")
+        (directory / "phase.c").write_text(phase, encoding="utf-8")
+        (directory / "events.c").write_text(EVENT_FIXTURE, encoding="utf-8")
         sources = ["event.c", "event_jsonl.c", "integrity_event.c", "http_status.c", "json_escape.c", "status.c"]
         common_args = compiler + ["-std=c17", "-Wall", "-Wextra", "-Werror", "-I", str(ROOT / "common/include")]
         result = subprocess.run(common_args + [str(directory / "events.c"), str(directory / "phase.c")] +
@@ -222,10 +227,10 @@ class NativeResultEventProtocolTests(unittest.TestCase):
             capture_output=True, text=True, timeout=90)
         if result.returncode:
             raise AssertionError("event fixture compilation failed:\n" + result.stderr)
-        runtime = (ROOT / "common/runtime/msconnector_runtime.c").read_text()
-        definitions = "\n".join("static int\n" + function_definition(runtime, name) for name in
+        runtime = (ROOT / "common/runtime/msconnector_runtime.c").read_text(encoding="utf-8")
+        definitions = "\n".join(function_definition(runtime, name) for name in
             ("native_append_request_body", "native_append_response_body", "native_finish_request_body", "native_finish_response_body"))
-        (directory / "callbacks.c").write_text(CALLBACK_PREAMBLE + definitions + CALLBACK_MAIN)
+        (directory / "callbacks.c").write_text(CALLBACK_PREAMBLE + definitions + CALLBACK_MAIN, encoding="utf-8")
         result = subprocess.run(common_args + [str(directory / "callbacks.c"), "-o", str(cls.callback_binary)],
             capture_output=True, text=True, timeout=90)
         if result.returncode:
@@ -299,11 +304,11 @@ class NativeResultWiringTests(unittest.TestCase):
             "connectors/haproxy/src/haproxy_modsecurity_binding.c": ("append_body_chunk", "process_request_body"),
         }
         for relative, names in owners.items():
-            source = (ROOT / relative).read_text()
+            source = (ROOT / relative).read_text(encoding="utf-8")
             for name in names:
                 with self.subTest(path=relative, function=name):
                     self.assertIn("msconnector_native_body_append_can_continue", function_definition(source, name))
-        header = (ROOT / "common/include/msconnector/native_result.h").read_text()
+        header = (ROOT / "common/include/msconnector/native_result.h").read_text(encoding="utf-8")
         self.assertNotRegex(header, r"#define\s+msc_(?:append|process|intervention)")
 
     def test_runtime_consumer_families_share_the_native_owner(self) -> None:
@@ -313,8 +318,8 @@ class NativeResultWiringTests(unittest.TestCase):
             "connectors/lighttpd/stock_sidecar/stock_sidecar.c",
         ):
             with self.subTest(path=relative):
-                self.assertIn("msconnector_runtime_transaction_append_response_body_chunk", (ROOT / relative).read_text())
-        runtime = (ROOT / "common/runtime/msconnector_runtime.c").read_text()
+                self.assertIn("msconnector_runtime_transaction_append_response_body_chunk", (ROOT / relative).read_text(encoding="utf-8"))
+        runtime = (ROOT / "common/runtime/msconnector_runtime.c").read_text(encoding="utf-8")
         profile = function_definition(runtime, "msconnector_runtime_set_transaction_profile")
         self.assertIn("MSCONNECTOR_PHASE4_MODE_STRICT", profile)
         self.assertIn("strict_post_commit_action", profile)
